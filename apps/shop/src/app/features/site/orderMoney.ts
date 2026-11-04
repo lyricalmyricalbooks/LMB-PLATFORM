@@ -39,3 +39,17 @@ export function totalNeedsConfirming(serverMinor: number, shownMinor: number, cu
   const allowed = converted ? Math.max(5, Math.round(shownMinor * 0.01)) : 5;
   return Math.abs(serverMinor - shownMinor) > allowed;
 }
+
+/**
+ * The gift cards that paid part of an order, as summary rows: { last4, cad }. The order's total is already after them, so
+ * a summary that lists subtotal, shipping and tax needs these rows to add up. Older orders with only `giftCardAmount`
+ * get one row with no last four characters.
+ */
+export function orderGiftCardRows(order: any): { last4: string; cad: number }[] {
+  const rows = (Array.isArray(order?.giftCardRedemptions) ? order.giftCardRedemptions : [])
+    .map((r: any) => ({ last4: String(r?.last4 || ""), cad: (Number(r?.minor) || 0) / 100 }))
+    .filter((r: { cad: number }) => r.cad > 0);
+  if (rows.length) return rows;
+  const amount = Number(order?.giftCardAmount) || 0;
+  return amount > 0 ? [{ last4: "", cad: amount }] : [];
+}

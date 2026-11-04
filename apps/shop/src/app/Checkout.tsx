@@ -57,7 +57,7 @@ import { currentStorefrontData, fetchStorefrontDataFile, shippingProfilesFrom } 
 import { quoteLocalFulfillment } from "./features/site/localFulfillment";
 import { catalogFulfillmentItems, discountedPhysicalSubtotal } from "./features/site/checkoutFulfillment";
 import { bagPreorder } from "./features/site/preorder";
-import { discountAmountFor, discountableItems, pickAutomaticDiscount } from "./features/site/discountMath";
+import { discountAmountFor, discountableItems, emailDomainAllowed, pickAutomaticDiscount } from "./features/site/discountMath";
 import { expandDiscountCategories } from "./features/site/discountCategories";
 import { clearSharedDiscount, sharedDiscount } from "./features/site/sharedDiscount";
 import { discountedLineValues, taxPartsByKind } from "../shared/taxByKind";
@@ -510,21 +510,9 @@ export function Checkout() {
         }
       }
 
-      // Check email domains
-      if (discount.allowedEmailDomains && discount.allowedEmailDomains.trim()) {
-        const allowedDomains = discount.allowedEmailDomains.split(",")
-          .map((d: string) => d.trim().toLowerCase())
-          .filter(Boolean);
-        const matchesDomain = allowedDomains.some((domain: string) => {
-          if (domain.startsWith(".")) {
-            return lowerEmail.endsWith(domain);
-          } else {
-            return lowerEmail.endsWith("@" + domain) || lowerEmail.endsWith("." + domain);
-          }
-        });
-        if (allowedDomains.length > 0 && !matchesDomain) {
-          throw new CopyError(checkoutDesign, "coErrEmailDomains", { domains: discount.allowedEmailDomains });
-        }
+      // Check email domains (".edu", "school.ca" and "@school.ca" alike): the server's own rule.
+      if (!emailDomainAllowed(lowerEmail, discount.allowedEmailDomains)) {
+        throw new CopyError(checkoutDesign, "coErrEmailDomains", { domains: discount.allowedEmailDomains });
       }
     }
 

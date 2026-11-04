@@ -8,6 +8,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.discountableItems = exports.DiscountProblem = void 0;
 exports.bogoPercent = bogoPercent;
+exports.emailDomainAllowed = emailDomainAllowed;
 exports.moneyFmt = moneyFmt;
 exports.computeDiscountAmount = computeDiscountAmount;
 exports.capDiscountAmount = capDiscountAmount;
@@ -36,6 +37,18 @@ class DiscountProblem extends Error {
     }
 }
 exports.DiscountProblem = DiscountProblem;
+/**
+ * Discounts › a code › Allowed email domains (comma separated, "" = everyone). Each entry may be typed ".edu",
+ * "school.ca" or "@school.ca": all mean that domain and its sub-domains. Checkout's early check and the server's
+ * (functions/index.js validateDiscountCustomer) both use this, so a shopper is never refused a code the server accepts.
+ */
+function emailDomainAllowed(email, domainsText) {
+    const domains = String(domainsText || "").split(",").map((v) => v.trim().toLowerCase().replace(/^[@.]+/, "")).filter(Boolean);
+    if (!domains.length)
+        return true;
+    const customerDomain = String(email || "").trim().toLowerCase().split("@")[1] || "";
+    return !!customerDomain && domains.some((domain) => customerDomain === domain || customerDomain.endsWith(`.${domain}`));
+}
 function moneyFmt(n) {
     return `$${Number(n || 0).toFixed(2)}`;
 }

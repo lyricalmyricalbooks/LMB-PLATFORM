@@ -15,6 +15,7 @@
 // ones agreed. No discount applies on top; tax is worked out as for any order. A paid order can't be paid again for the
 // same reasons any order can't, and cancelling the order (Orders › order › Cancel) closes its link.
 const crypto = require("crypto");
+const { isPhysicalItem } = require("./shared/localFulfillment");
 
 const MAX_LINES = 50;
 const DEFAULT_DAYS = 30;
@@ -96,6 +97,13 @@ function cleanLinkInput(body) {
   const shipsWith = source.shipsWith == null || source.shipsWith === "" ? null : source.shipsWith;
   if (shipsWith !== null && !validId(shipsWith)) throw new LinkInputError("The order these items are added to can't be found.");
   return { customer: { name, email, phone: text(contact.phone, 80), address }, lines, shipping, note: text(source.note, 500), days, shipsWith };
+}
+
+/** Whether a catalog product (in the chosen edition) is a physical item, as priceOrder marks its line (index.js). */
+function catalogPhysical(book, variantId) {
+  const variant = variantId ? (book.variants || []).find(v => v && v.id === variantId) || null : null;
+  const isDigital = variant ? variant.digital === true || variant.isDigital === true : book.digital === true || book.isDigital === true;
+  return isPhysicalItem({ digital: isDigital, format: variant?.format || variant?.name || book.format || "" });
 }
 
 /** Why a link's agreed prices can't be used to pay now ("expired" | "closed"), or null. */
@@ -259,18 +267,24 @@ function paymentLinkActions({ db, requireAdmin, priceOrder, PricingError, public
       if (parent.shipsWith || addOnParentProblem(parent)) return res.status(409).json({ error: "closed" });
       const rows = Array.isArray(lines) ? lines.filter(Boolean) : [];
       if (!rows.length || rows.length > CUSTOMER_MAX_LINES) return res.status(400).json({ error: "lines" });
+      let addsPhysical = false;
       for (const row of rows) {
         const quantity = Number(row.quantity);
         if (!validId(row.id) || !Number.isInteger(quantity) || quantity < 1 || quantity > CUSTOMER_MAX_COPIES) return res.status(400).json({ error: "lines" });
         const book = (await db.collection("books").doc(row.id).get()).data();
         if (!book || book.productType === "giftCard" || book.giftCard === true) return res.status(400).json({ error: "lines" });
+        if (catalogPhysical(book, row.variantId)) addsPhysical = true;
       }
       const open = await db.collection("orders").where("shipsWith", "==", orderId).limit(20).get();
       if (open.docs.filter(d => d.data().paymentStatus === "unpaid" && d.data().status === "pending_payment").length >= CUSTOMER_MAX_OPEN) {
         return res.status(409).json({ error: "too_many_open" });
       }
       const method = parent.fulfillment?.method || parent.fulfillmentSelection?.method;
-      const ships = !["pickup", "local_delivery"].includes(method);
+      // "Same parcel" needs a parcel: an order of only e-books (or other digital items) ships nothing, so a printed item
+      // added to it can't ride along for free, and added e-books need no street address.
+      const parentShipsParcel = (parent.items || []).some(isPhysicalItem);
+      if (addsPhysical && !parentShipsParcel) return res.status(409).json({ error: "This order has nothing to ship, so printed items can't be added to it. Please place a new order for them." });
+      const ships = parentShipsParcel && !["pickup", "local_delivery"].includes(method);
       const c = parent.customer || {};
       let input;
       try {

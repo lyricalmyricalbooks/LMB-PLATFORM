@@ -49,6 +49,28 @@ describe("reading an old shop's order file (plan 23.7)", () => {
     expect(readyToSend(out, {}).customers).toBe(1);
   });
 
+  it("reads a discount or refund written as a negative amount, and amounts with a currency sign", () => {
+    const file = [
+      "Order ID,Date,Status,Subtotal,Discount,Total,Refunded,Currency",
+      "21,2025-05-01,partially refunded,40.00,-5.00,35.00,-10.00,CAD",
+      "22,2025-05-02,partially refunded,CA$40.00,($5.00),CA$35.00,(10.00),CAD",
+      "23,2025-05-03,paid,US$40.00,-US$5.00,US$35.00,,USD",
+      "24,2025-05-04,paid,€40,00,-€5,00,€35,00,,EUR",
+    ].join("\n").replace("€40,00,-€5,00,€35,00", '"€40,00","-€5,00","€35,00"');
+    const out = readPastOrders(file, NOW);
+    expect(out.skipped).toEqual([]);
+    expect(out.orders.map((o) => [o.number, o.subtotal, o.discount, o.total, o.refunded])).toEqual([
+      ["21", 40, 5, 35, 10], ["22", 40, 5, 35, 10], ["23", 40, 5, 35, undefined], ["24", 40, 5, 35, undefined],
+    ]);
+    // A negative total is still no sale.
+    expect(readPastOrders("Order ID,Date,Total\n30,2025-01-01,-5.00", NOW).skipped.map((s) => s.reason)).toEqual(["Order 30: its total couldn't be read"]);
+  });
+
+  it("names the first and last order day in the shop's own time, so a late-evening order stays on its day", () => {
+    const out = readPastOrders("Name,Created at,Total\n#1,2025-10-01 09:00:00 -0400,10\n#2,2025-10-31 23:30:00 -0400,10\n#3,2025-10-15,10", NOW);
+    expect(readyToSend(out, {})).toMatchObject({ from: "2025-10-01", to: "2025-10-31" });
+  });
+
   it("says plainly when a file isn't a list of orders, and skips lines with no number or a bad date", () => {
     expect(readPastOrders("", NOW).problems).toEqual(["This file is empty."]);
     expect(readPastOrders("Title,Price\nBook,10", NOW).problems[0]).toMatch(/number, its date and its total/);

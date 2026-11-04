@@ -678,6 +678,36 @@ test('payment links: the customer adds items to their own paid order from its pa
   expect((await add({})).value.error).toBe('closed');
 });
 
+test('payment links: an e-book order has no parcel, so added books are refused and added e-books ship nothing (plan 24.6)', async () => {
+  const docs = linkDocs();
+  docs.books.ebook = { status: 'published', title: 'Field Notes', format: 'eBook', digital: true, retailPrice: 10 };
+  const key = 'k'.repeat(64);
+  // A digital-only checkout asks only for the country and province (Checkout.tsx digitalOnly).
+  const customer = { name: 'Robin Reader', email: 'robin@example.com', address: { country: 'CA', state: 'ON' } };
+  docs.orders = { mine: { orderId: 'MINE-1', trackingKey: key, customer, paymentStatus: 'paid', status: 'processing', fulfillmentStatus: 'processing', items: [{ id: 'ebook', quantity: 1, digital: true, format: 'eBook' }] } };
+  const app = harness({ docs });
+  const add = lines => app.call('createStripeCheckoutSession', { action: 'addToOrder', orderId: 'mine', lines }, { orderKey: key });
+  // Another e-book: nothing to ship, so no street address is needed.
+  const ebook = await add([{ id: 'ebook', quantity: 1 }]);
+  expect(ebook.code).toBe(200);
+  expect(app.docs.orders[ebook.value.orderId]).toMatchObject({ shipping: 0, shipsWith: 'mine' });
+  // A printed tee: there is no parcel to put it in, so it is not added with free shipping.
+  const tee = await add([{ id: 'tee', quantity: 1 }]);
+  expect(tee.code).toBe(409);
+  expect(tee.value.error.length).toBeGreaterThan(20);
+  // Even with a full street address saved on the e-book order, the tee doesn't ride along for free.
+  app.docs.orders.mine.customer = { ...customer, address: { street: '1 King St', city: 'Toronto', state: 'ON', zip: 'M5H1A1', country: 'CA' } };
+  expect((await add([{ id: 'tee', quantity: 1 }])).code).toBe(409);
+});
+
+test('discount codes: a code for "@school.example" addresses works for them and only them', async () => {
+  const docs = stockistDocs({ discounts: { s: { code: 'SCHOOL', method: 'code', type: 'percentage', value: 10, allowedEmailDomains: '@school.example' } } });
+  const app = harness({ docs });
+  const order = email => stockistOrder({ customer: { ...stockistOrder().customer, email }, appliedDiscount: { code: 'SCHOOL' } });
+  await expect(app.priceOrder(order('ada@school.example'))).resolves.toMatchObject({ appliedDiscount: { code: 'SCHOOL' } });
+  await expect(app.priceOrder(order('ada@notschool.example'))).rejects.toThrow(/selected email domains/);
+});
+
 test('payment links: an ordinary order is priced exactly as before', async () => {
   const app = harness({ docs: linkDocs() });
   const priced = await app.priceOrder({ ...stockistOrder(), trackingKey: 'a'.repeat(64) }, { orderId: 'o-normal' });
