@@ -727,7 +727,7 @@ built by `pnpm run build:setup` with `vite.setup.config.ts` into `dist-setup/`; 
   works" help link from `pages.ts` `STEP_HELP`; any step opens on a click), then "Once your shop is made" (trial days
   only from `/api/plans`) and "Need a hand?" (`SETUP_QUESTIONS`, ask a person via `accountUrl`, default `/account/`).
   A "You're ready" card tops Home once only Create is left; the opened step is remembered per press for the visit
-  (sessionStorage). On a phone the welcome title is smaller (`.rp-setup-home`, riso.css). Locked pages say what they will do (`lockedPageLine`; pages.test.ts fails a locked menu page without a line) and lead
+  (sessionStorage). On a phone the welcome title is smaller (`.rp-setup-home`, `setupMode/setup.css`). Locked pages say what they will do (`lockedPageLine`; pages.test.ts fails a locked menu page without a line) and lead
   back to the guide. Help ids are checked against `help/articles.js`.
 - **Plan words:** free days are promised only when `/api/plans` gives a trial, and as "your first shop"
   (billing gives one trial per account). Prices that fail to load say so with Try again.

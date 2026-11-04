@@ -1,0 +1,7 @@
+/* Setup mode's own styles (4 Nov 2026). The admin look itself comes from shared/admin-look; this only adds what is
+   particular to setup. On a phone the welcome title on Home stays small enough that the setup guide shows on the first
+   screen. Doubled :root so it wins over each admin look's masthead size. */
+@media (max-width: 767px) {
+  :root:root .rp .rp-setup-home .rp-page-title { font-size: 34px; line-height: 1.05; }
+  :root:root .rp .rp-setup-home .rp-page-header { padding-top: 16px; }
+}
