@@ -599,8 +599,10 @@ async function openDelete() {
     ? `You leave the team of ${leaving.map((shop) => shop.pressName).join(", ")}.`
     : "You're not on any shop's team, so no shop changes.";
   $("#delete-blockers").replaceChildren(...blockers.map((shop) => el("div", { className: "card warning", role: "alert" },
-    el("strong", { textContent: `You're the only owner of ${shop.pressName}` }),
-    el("p", { style: "margin:0", textContent: "A shop always needs an owner. Make someone else an owner from Team, or close the shop, then come back." }))));
+    el("strong", { textContent: shop.making ? `${shop.pressName} is still being made` : `You're the only owner of ${shop.pressName}` }),
+    el("p", { style: "margin:0", textContent: shop.making
+      ? "You'll be its only owner. Wait until it's ready, then make someone else an owner from Team, or close the shop, and come back."
+      : "A shop always needs an owner. Make someone else an owner from Team, or close the shop, then come back." }))));
   $("#delete-submit").disabled = blockers.length > 0;
   $("#delete-form").reset();
   show("delete");
