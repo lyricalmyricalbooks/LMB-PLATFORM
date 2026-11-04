@@ -238,6 +238,8 @@ export function createShopMaker({ signups, run, registry, repairs = null, selfCh
       total: numbers.length,
       now: ready || !next || row.status !== "making" ? "" : STEP_WORDS[next],
       message: row.status === "waiting" || row.status === "needs-help" ? row.message ?? "" : "",
+      // A retryable stop whose automatic tries are used up: the press's Try again (`retry`) carries on.
+      canRetry: row.status === "waiting" && !!row.canRetry,
       openUrl: ready ? row.openUrl ?? null : null,
     };
   }

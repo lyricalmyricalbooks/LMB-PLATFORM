@@ -330,6 +330,28 @@ describe("What the press set up before its shop existed (code plan 18.9)", () =>
     expect(button("Start fresh")).toBeTruthy();
   });
 
+  it("starting fresh past the file from setup is a choice: it is not offered again", async () => {
+    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" } });
+    api.getSetupHandover.mockResolvedValue(kept);
+    await mount({ waitForWelcome: false });
+    await act(async () => { button("Start fresh")!.click(); });
+    await flush();
+    expect(api.updateFirstWeek).toHaveBeenCalledWith({ bring: expect.objectContaining({ skipped: true }), done: { setupFile: expect.any(String) } });
+    expect(text()).not.toContain("Your file from setup is here");
+  });
+
+  it("a file that reached the shop after the bring step is offered on its own card, until the press chooses", async () => {
+    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, welcome: { theme: "zine", at: "then" }, google: { at: "then", skipped: true }, shipping: { at: "then", skipped: true } });
+    api.getSetupHandover.mockResolvedValue(kept);
+    await mount({ waitForWelcome: false });
+    expect(text()).toContain("Your file from setup is here");
+    expect(text()).toContain("Step 8 of 8");
+    await act(async () => { button("I don't need it")!.click(); });
+    await flush();
+    expect(api.updateFirstWeek).toHaveBeenCalledWith({ done: { setupFile: expect.any(String) } });
+    expect(text()).not.toContain("Your file from setup is here");
+  });
+
   it("a shop whose hand-over can't be read still runs its steps as usual", async () => {
     api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" } });
     api.getSetupHandover.mockRejectedValueOnce(new Error("offline"));

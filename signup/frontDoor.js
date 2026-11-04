@@ -79,7 +79,7 @@ const UPLOAD_MINUTES = 15;
  * exactly as they do for every shop.
  *
  * `making` is the shop maker's progress (shopMaker.js `progress`): (shopId) -> { status, done, total, now, message,
- * openUrl } | null. Listing the presses (setup mode follows it while the shop is made) adds it to each opening press,
+ * canRetry, openUrl } | null. Listing the presses (setup mode follows it while the shop is made) adds it to each opening press,
  * and moves the record to `open` the first time it reads `ready` (18.9), keeping the way into the admin.
  */
 export function createFrontDoor({ presses, codes, email, auth, settings, stagedFiles, signup = null, making = null, now = () => new Date(), suffix = randomSuffix, random = null, readOldShop = readPublicShop }) {
@@ -114,13 +114,13 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
     if (record.status !== "opening" || !record.shopId || !making) return shown(record);
     const progress = await Promise.resolve().then(() => making(record.shopId)).catch(() => null);
     if (!progress) return shown(record);
-    const live = { status: progress.status, done: progress.done, total: progress.total, now: progress.now ?? "", message: progress.message ?? "" };
+    const live = { status: progress.status, done: progress.done, total: progress.total, now: progress.now ?? "", message: progress.message ?? "", canRetry: !!progress.canRetry };
     if (progress.status !== "ready") return { ...shown(record), making: live };
     const opened = await presses.update(record.pressId, (current) => {
       if (!current || current.ownerUid !== claims.uid || current.status !== "opening" || current.shopId !== record.shopId) return { row: null, result: current };
       const moved = advanceStatus(current, "open");
       if (!moved.ok) return { row: null, result: current };
-      const row = { ...current, status: moved.status, shopStatus: "ready", shopMessage: "", openUrl: progress.openUrl ?? "", openedAt: now().toISOString() };
+      const row = { ...current, status: moved.status, shopStatus: "ready", shopMessage: "", openUrl: progress.openUrl ?? "", readyAt: now().toISOString() };
       return { row, result: row };
     });
     return { ...shown(opened ?? record), making: live };

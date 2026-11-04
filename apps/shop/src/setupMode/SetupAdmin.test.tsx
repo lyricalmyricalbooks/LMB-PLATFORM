@@ -337,6 +337,20 @@ describe("the admin in setup mode (code plan 18.6)", () => {
       }
     });
 
+    it("a making that stopped offers Try again, and every page but Help shows the shop being made", async () => {
+      const d = { ...door(), retryShop: vi.fn(async () => {}) };
+      const opening = { ...PRESS, country: "CA", status: "opening" as const, shopId: "moth-press", making: { status: "waiting", done: 8, total: 20, now: "", message: "We couldn't finish putting your shop's pages online. Press Try again.", canRetry: true } };
+      const el = await mount(d, "#settings/general", opening);
+      expect(el.textContent).toContain("Your shop is being made");
+      expect(el.querySelector("input[type=text]")).toBeNull();
+      const tryAgain = [...el.querySelectorAll("button")].find((b) => b.textContent === "Try again")!;
+      await act(async () => { tryAgain.click(); });
+      await flush();
+      expect(d.retryShop).toHaveBeenCalledWith("moth-press");
+      expect(el.textContent).toContain("Carrying on.");
+      expect([...el.querySelectorAll("button")].some((b) => b.textContent === "Try again")).toBe(false);
+    });
+
     it("after a reload, a press waiting in line still reads why, not that its shop is being made", async () => {
       const el = await mount(door(), "#settings/plan", { ...PRESS, country: "CA", status: "opening", shopStatus: "in-line", shopMessage: "We're making a few shops a day. You're next in line." });
       expect(el.textContent).toContain("You're next in line.");

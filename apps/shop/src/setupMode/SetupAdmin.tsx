@@ -104,18 +104,22 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
   };
 
   const pressName = press.pressName || "Your press";
+  const planPage = () => (
+    <PlanPage press={press} plans={plans} failed={plansFailed} onRetry={loadPlans} save={save} termsUrl={termsUrl}
+      names={{ countries: lists.countries, sells: lists.sells, lookName: themeName(press.look) }} email={email}
+      createShop={(choice) => door.openShop(press.pressId, choice)} onCreated={setPress} onOpen={open}
+      follow={async () => (await door.presses()).find((p) => p.pressId === press.pressId) ?? null} retry={door.retryShop} />
+  );
   let content;
-  if (setupLocked(page)) content = <OpensWithShop page={setupPageLabel(page, menu)} line={w(lockedPageLine(page))} onOpenShop={openCreate} onBack={() => open(HOME_PAGE)} />;
+  // Once Create my shop has run, setup can't change: every page but Help shows the shop being made.
+  const made = press.status !== "setup";
+  if (made && page !== HELP_PAGE) content = planPage();
+  else if (setupLocked(page)) content = <OpensWithShop page={setupPageLabel(page, menu)} line={w(lockedPageLine(page))} onOpenShop={openCreate} onBack={() => open(HOME_PAGE)} />;
   else if (page === HOME_PAGE) content = <SetupGuide press={press} plans={plans} helpUrl={helpUrl} answers={answers} onOpen={open} onAsk={openAsk} onCreate={openCreate} save={save} />;
   else if (page === GENERAL_PAGE) content = <PressDetails press={press} lists={lists} save={save} />;
   else if (page === IMPORT_PAGE) content = <ImportPage press={press} door={door} onSaved={setPress} />;
   else if (page === DESIGN_PAGE) content = <DesignPage press={press} save={save} />;
-  else if (page === PLAN_PAGE) content = (
-    <PlanPage press={press} plans={plans} failed={plansFailed} onRetry={loadPlans} save={save} termsUrl={termsUrl}
-      names={{ countries: lists.countries, sells: lists.sells, lookName: themeName(press.look) }} email={email}
-      createShop={(choice) => door.openShop(press.pressId, choice)} onCreated={setPress} onOpen={open}
-      follow={async () => (await door.presses()).find((p) => p.pressId === press.pressId) ?? null} />
-  );
+  else if (page === PLAN_PAGE) content = planPage();
   else content = <HelpPage helpUrl={helpUrl} accountUrl={accountUrl} answers={answers} ask={door.askForHelp} pressName={press.pressName} />;
 
   return (
@@ -497,10 +501,10 @@ function DesignPage({ press, save }: { press: SetupPress; save: (c: SetupChange)
   );
 }
 
-function PlanPage({ press, plans, failed, onRetry, save, termsUrl, names, email, createShop, onCreated, onOpen, follow }: {
+function PlanPage({ press, plans, failed, onRetry, save, termsUrl, names, email, createShop, onCreated, onOpen, follow, retry }: {
   press: SetupPress; plans: PlanList | null; failed: boolean; onRetry: () => void; save: (c: SetupChange) => Promise<SetupPress>;
   termsUrl: string; names: CreateNames; email: string; createShop: CreateShop; onCreated: (press: SetupPress) => void; onOpen: (page: string) => void;
-  follow?: () => Promise<SetupPress | null>;
+  follow?: () => Promise<SetupPress | null>; retry?: (shopId: string) => Promise<void>;
 }) {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -555,7 +559,7 @@ function PlanPage({ press, plans, failed, onRetry, save, termsUrl, names, email,
           </p>
         )}
       </SectionCard>
-      <CreateShopCard press={press} plans={plans} names={names} email={email} termsUrl={termsUrl} createShop={createShop} onCreated={onCreated} onOpen={onOpen} follow={follow} />
+      <CreateShopCard press={press} plans={plans} names={names} email={email} termsUrl={termsUrl} createShop={createShop} onCreated={onCreated} onOpen={onOpen} follow={follow} retry={retry} />
     </>
   );
 }

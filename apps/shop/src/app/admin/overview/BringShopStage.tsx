@@ -4,8 +4,8 @@ import { BRING_ANSWERS, bringHelp, bringMarker, type BringAnswer, type BringMark
 import { friendlyError } from "../studio/friendlyError";
 import { LoadingState, PrimaryButton, SecondaryButton, SectionCard } from "../riso/components";
 import { useShopWords } from "../shopWords";
-import { adminApi } from "../api";
 import { keptFileLine, type KeptFile } from "../setupHandover";
+import { useKeptFile } from "./KeptFileCard";
 
 /**
  * Get started, step 2 (plan 17.3): "Where do you sell now?", the plain steps for that answer (17.4), then the Books
@@ -17,9 +17,7 @@ export function BringShopStage({ books, onDone, kept = null }: { books: any[] | 
   const w = useShopWords();
   const [answer, setAnswer] = useState<BringAnswer | "">("");
   const [importing, setImporting] = useState(false);
-  // The kept file, once read back from the shop's database, handed to the importer as if it had been chosen.
-  const [keptOpen, setKeptOpen] = useState<File | null>(null);
-  const [opening, setOpening] = useState(false);
+  const keptFile = useKeptFile(kept);
   const [imported, setImported] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -35,20 +33,8 @@ export function BringShopStage({ books, onDone, kept = null }: { books: any[] | 
     }
   };
 
-  const openKept = async () => {
-    if (!kept || opening) return;
-    setOpening(true); setError("");
-    try {
-      const text = await adminApi.getSetupHandoverFile(kept.parts);
-      setKeptOpen(new File([text], kept.name, { type: "text/csv" }));
-      setImporting(true);
-    } catch {
-      setError("Your file from setup couldn't be opened. Check your connection and try again, or choose the file from your computer.");
-    } finally {
-      setOpening(false);
-    }
-  };
-  const closeImport = () => { setImporting(false); setKeptOpen(null); };
+  const opening = keptFile.opening;
+  const closeImport = () => { setImporting(false); keptFile.close(); };
 
   if (books === null) {
     return (
@@ -67,7 +53,7 @@ export function BringShopStage({ books, onDone, kept = null }: { books: any[] | 
             <p className="rp-hint" style={{ margin: 0 }}>
               <span className="rp-mono" style={{ overflowWrap: "anywhere" }}>{keptFileLine(kept, w)}</span>. {w("Bring it in to see every book before anything is saved.")}
             </p>
-            <div><PrimaryButton busy={opening} disabled={busy || opening} onClick={() => void openKept()}>Bring in my file</PrimaryButton></div>
+            <div><PrimaryButton busy={opening} disabled={busy || opening} onClick={() => void keptFile.open()}>Bring in my file</PrimaryButton></div>
           </div>
         )}
         <fieldset style={{ border: 0, margin: 0, padding: 0, display: "grid", gap: 8 }}>
@@ -91,7 +77,7 @@ export function BringShopStage({ books, onDone, kept = null }: { books: any[] | 
             {w(imported === 0 ? "No new books were added to your shop." : imported === 1 ? "1 new book came over as a draft." : `${imported} new books came over as drafts.`)} Choose Continue when you're happy with them.
           </p>
         )}
-        {error && <p role="alert" className="rp-hint" style={{ margin: "12px 0 0", color: "var(--rp-danger)" }}>{error}</p>}
+        {(error || keptFile.error) && <p role="alert" className="rp-hint" style={{ margin: "12px 0 0", color: "var(--rp-danger)" }}>{error || keptFile.error}</p>}
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 16 }}>
           {imported === null
@@ -103,10 +89,10 @@ export function BringShopStage({ books, onDone, kept = null }: { books: any[] | 
         </div>
       </SectionCard>
 
-      {importing && (
+      {(importing || keptFile.file) && (
         <BookImportDialog
           books={books}
-          initialFile={keptOpen ?? undefined}
+          initialFile={keptFile.file ?? undefined}
           onClose={closeImport}
           onDone={(createdIds) => setImported(createdIds.length)}
         />

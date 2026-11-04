@@ -52,14 +52,26 @@ test("a press with no kept file hands over its looks only", async () => {
   assert.equal(await w.step.check({ shop: SHOP }), true);
 });
 
-test("without the kept files' store, the looks go over and the file stays kept for a later run", async () => {
+test("without the kept files' store, the step stops in plain words and the file stays kept for the retry", async () => {
   const w = world({ filesConnected: false });
-  await w.step.act({ shop: SHOP });
-  assert.equal(w.docs.get(HANDOVER_DOC).file, null);
-  assert.equal(w.docs.get(HANDOVER_DOC).look, "press-riso");
+  await assert.rejects(w.step.act({ shop: SHOP }), /store isn't connected/);
   assert.equal((await w.presses.get("press-moth")).stagedImportPath, PATH);
   assert.equal(w.stagedFiles.files.size, 1);
-  assert.equal(await w.step.check({ shop: SHOP }), true);
+  assert.equal(await w.step.check({ shop: SHOP }), false);
+  // A press with no kept file isn't held up by it.
+  const fresh = world({ file: null, filesConnected: false });
+  await fresh.step.act({ shop: SHOP });
+  assert.equal(await fresh.step.check({ shop: SHOP }), true);
+});
+
+test("a stockroom on its own gets the looks, and its file stays kept for the stockroom", async () => {
+  const w = world();
+  const shop = { ...SHOP, plan: "stockroom" };
+  await w.step.act({ shop });
+  assert.equal(w.docs.get(HANDOVER_DOC).file, null);
+  assert.equal((await w.presses.get("press-moth")).stagedImportPath, PATH);
+  assert.equal(w.stagedFiles.files.size, 1);
+  assert.equal(await w.step.check({ shop }), true);
 });
 
 test("a shop from the old sign-up page has nothing to hand over", async () => {
@@ -67,10 +79,17 @@ test("a shop from the old sign-up page has nothing to hand over", async () => {
   assert.equal(await w.step.check({ shop: { shopId: "old-shop-aaaaa" } }), true);
 });
 
-test("a big file is kept in pieces that each fit in one document", () => {
-  const text = "x".repeat(1_500_001);
-  const parts = partsOf(text);
-  assert.equal(parts.length, 3);
-  assert.equal(parts.join(""), text);
+test("a big file is kept in pieces that each fit in one document, counted in bytes and cut between whole characters", () => {
+  const text = "x".repeat(1_800_001);
+  assert.equal(partsOf(text).length, 3);
+  assert.equal(partsOf(text).join(""), text);
   assert.deepEqual(partsOf(""), [""]);
+  // Cyrillic is two bytes a letter, Chinese three, an emoji four: every piece stays under the limit, none splits a character.
+  const wide = "Книга,书,📚\n".repeat(150_000);
+  const parts = partsOf(wide);
+  assert.equal(parts.join(""), wide);
+  for (const part of parts) {
+    assert.ok(Buffer.byteLength(part, "utf8") <= 900_000);
+    assert.doesNotMatch(part, /^[\uDC00-\uDFFF]|[\uD800-\uDBFF]$/);
+  }
 });

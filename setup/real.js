@@ -12,8 +12,8 @@
 //   is the folder the release was built in (services/release-runner).
 // - `paymentService` and `emailService` are the platform's own services (services/payments, services/email): they
 //   already answer `findAccount`/`createAccount` and `wasSent`/`send`, the shapes steps 13 and 14 call.
-// - `stagedFiles` is the store of product files kept in setup (signup/frontDoor.js); until it is connected, step 20
-//   hands over the looks and leaves the file kept for a later run.
+// - `stagedFiles` is the store of product files kept in setup (signup/frontDoor.js). Without it, step 20 stops for a
+//   person on any shop whose press kept a file, so the file is never left behind by a step marked done.
 // - `serviceAccount` signs the test owner in for the test shop's link steps (12 and 16); no other shop needs it.
 import { deployClient } from "../clients/deploy.js";
 import { firestoreClient } from "../clients/firestore.js";

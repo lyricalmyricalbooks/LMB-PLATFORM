@@ -117,7 +117,8 @@ export function makingSteps(plan: SetupPress["plan"], { trialEnd, waiting, email
     return steps;
   }
   const counted = making && making.total > 0 ? { done: Math.min(making.done, making.total), total: making.total } : undefined;
-  if (waiting) steps.push({ id: "make", title: "Waiting for your turn", detail: waiting, state: "now" });
+  // The line's words hold only until the making starts (the record keeps them from the day it joined the line).
+  if (waiting && (!making || making.status === "in-line" || making.status === "later")) steps.push({ id: "make", title: "Waiting for your turn", detail: waiting, state: "now" });
   else if (making?.status === "needs-help") steps.push({ id: "make", title: "We're finishing it by hand", detail: making.message || "It needs a hand from us. We've been told, and we'll email you when it's done.", state: "now", progress: counted });
   else if (making?.status === "waiting") steps.push({ id: "make", title: `Making ${makes}`, detail: making.message || "Still working on it. We'll carry on in a minute.", state: "now", progress: counted });
   else if (making?.status === "making") {
@@ -128,6 +129,9 @@ export function makingSteps(plan: SetupPress["plan"], { trialEnd, waiting, email
   if (plan !== "stockroom") steps.push({ id: "open", title: "Then open it to shoppers", detail: "Add payments and shipping, run the last check, and press Open my shop.", state: "next" });
   return steps;
 }
+
+/** The ready card's button: the admin the press goes into next. */
+export const openAdminLabel = (plan: SetupPress["plan"]) => (plan === "stockroom" ? "Open my stockroom" : "Open my shop's admin");
 
 const capital = (words: string) => words.charAt(0).toUpperCase() + words.slice(1);
 

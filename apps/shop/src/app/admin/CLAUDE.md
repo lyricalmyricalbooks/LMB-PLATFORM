@@ -749,9 +749,11 @@ built by `pnpm run build:setup` with `vite.setup.config.ts` into `dist-setup/`; 
   admin look, kept file as `parts/<n>` pieces; rules: admin read, never written from a browser). `setupHandover.ts`
   reads it; Get started's bring step offers the kept file to `BookImportDialog` (`initialFile`), the look step passes
   `chosen` to `ChooseLookWelcome` (the setup look alone, See every look for the rest). A shop without a hand-over, or
-  one that can't be read, runs Get started as before. In setup mode an `opening` press stays on Settings › Plan, where
+  one that can't be read, runs Get started as before. A file that arrives after the bring step shows on `KeptFileCard`
+  until `done.setupFile` (the bring step sets it too when it offered the file). In setup mode an `opening` press stays on Settings › Plan, where
   `CreateShopCard` asks `door.presses()` every 5 s (`making`: done of total, now) until the record is `open`, then
-  shows Open my shop's admin (`openUrl`).
+  shows Open my shop's admin (`openUrl`); `making.canRetry` adds Try again (`door.retryShop`). Every page but Help shows
+  the timeline once the press isn't in setup.
 
 ## One admin for shop + stockroom (3 November 2026)
 

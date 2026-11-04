@@ -30,7 +30,7 @@ export interface SetupPress {
 }
 
 /** How far a shop's making has got: the shop maker's status, steps done of all, and what it is doing now in plain words. */
-export interface Making { status: string; done: number; total: number; now: string; message: string }
+export interface Making { status: string; done: number; total: number; now: string; message: string; canRetry?: boolean }
 
 /** An old shop read from its address (23.2): a product file in the one-line-per-edition layout, and plain notes. */
 export interface OldShopRead { host: string; csv: string; products: number; notes: string[] }
@@ -66,6 +66,8 @@ export interface SetupDoor {
   readOldShop(pressId: string, address: string): Promise<OldShopRead>;
   /** Open my shop (18.8): starts the plan and queues the shop. A refusal leaves the press in setup. */
   openShop(pressId: string, choice: { plan: SetupPress["plan"]; termsVersion: string }): Promise<OpenedShop>;
+  /** Try again on a shop whose making stopped in a way a retry can fix (`making.canRetry`): it carries on within a minute. */
+  retryShop?(shopId: string): Promise<void>;
   /** Asks a person for help (the platform's support inbox, as the account page's Get help form does). */
   askForHelp: SupportAsk;
 }
@@ -118,6 +120,7 @@ export function platformDoor(apiBase: string, token: () => Promise<string>, fetc
       const answer = await call("POST", "/press/open", { pressId, plan, termsAccepted: true, termsVersion });
       return { press: answer.press as SetupPress, ...(answer.shop ? { shop: answer.shop } : {}) };
     },
+    retryShop: async (shopId) => { await call("POST", "/signup/retry", { shopId }); },
     askForHelp: async ({ subject, body, requestId }) => { await call("POST", "/support/open", { subject, body, requestId }); },
   };
 }

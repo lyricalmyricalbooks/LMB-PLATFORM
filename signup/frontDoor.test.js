@@ -421,7 +421,7 @@ test("while the shop is made, the press sees how far it has got; once it is read
   await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA);
   const listed = async () => (await w.ask("GET", "/api/press", undefined, ADA)).body.presses.find((p) => p.pressId === pressId);
   const total = Object.keys(STEP_WORDS).length;
-  assert.deepEqual((await listed()).making, { status: "queued", done: 0, total, now: "", message: "" });
+  assert.deepEqual((await listed()).making, { status: "queued", done: 0, total, now: "", message: "", canRetry: false });
 
   const rows = w.signupStores.signups.rows;
   rows.set("moth-press-abcde", { ...rows.get("moth-press-abcde"), status: "making" });
@@ -429,13 +429,13 @@ test("while the shop is made, the press sees how far it has got; once it is read
   await w.registry.recordStep("moth-press-abcde", { step: 6, status: "failed" });
   const making = await listed();
   assert.equal(making.status, "opening");
-  assert.deepEqual(making.making, { status: "making", done: 5, total, now: STEP_WORDS[6], message: "" });
+  assert.deepEqual(making.making, { status: "making", done: 5, total, now: STEP_WORDS[6], message: "", canRetry: false });
 
   rows.set("moth-press-abcde", { ...rows.get("moth-press-abcde"), status: "ready", openUrl: "https://moth-press-abcde.shops.example/admin" });
   const ready = await listed();
   assert.equal(ready.status, "open");
   assert.equal(ready.openUrl, "https://moth-press-abcde.shops.example/admin");
-  assert.deepEqual(ready.making, { status: "ready", done: total, total, now: "", message: "" });
+  assert.deepEqual(ready.making, { status: "ready", done: total, total, now: "", message: "", canRetry: false });
   const record = await w.stores.presses.get(pressId);
   assert.deepEqual([record.status, record.shopStatus, record.openUrl], ["open", "ready", "https://moth-press-abcde.shops.example/admin"]);
   // Read again, it stays open and is not followed any more.
@@ -452,7 +452,10 @@ test("a shop that stopped for a person says so in plain words, and the press sta
   rows.set("moth-press-abcde", { ...rows.get("moth-press-abcde"), status: "needs-help", message: "It needs a hand from us." });
   const press = (await w.ask("GET", "/api/press", undefined, ADA)).body.presses.find((p) => p.pressId === pressId);
   assert.equal(press.status, "opening");
-  assert.deepEqual([press.making.status, press.making.message], ["needs-help", "It needs a hand from us."]);
+  assert.deepEqual([press.making.status, press.making.message, press.making.canRetry], ["needs-help", "It needs a hand from us.", false]);
+  rows.set("moth-press-abcde", { ...rows.get("moth-press-abcde"), status: "waiting", message: "Press Try again.", canRetry: true });
+  const stopped = (await w.ask("GET", "/api/press", undefined, ADA)).body.presses.find((p) => p.pressId === pressId);
+  assert.deepEqual([stopped.making.status, stopped.making.canRetry], ["waiting", true]);
   // Someone else never sees it.
   assert.deepEqual((await w.ask("GET", "/api/press", undefined, BEN)).body.presses, []);
 });

@@ -6,18 +6,20 @@ import { Check, Circle, Clock, ExternalLink, Store } from "lucide-react";
 import { GhostButton, PrimaryButton, SectionCard } from "../app/admin/riso/components";
 import { useShopWords } from "../app/admin/shopWords";
 import type { OpenedShop, PlanList, SetupPress } from "./door";
-import { canCreate, createChecklist, makingSteps, priceWords, whatHappensNext, type CreateNames, type CreateRow } from "./launchWords";
+import { canCreate, createChecklist, makingSteps, openAdminLabel, priceWords, whatHappensNext, type CreateNames, type CreateRow } from "./launchWords";
 
 export type CreateShop = (choice: { plan: SetupPress["plan"]; termsVersion: string }) => Promise<OpenedShop>;
 
 /** How often the timeline asks how far the shop has got while it is made. */
 export const FOLLOW_EVERY_MS = 5000;
 
-export function CreateShopCard({ press, plans, names, email, termsUrl, createShop, onCreated, onOpen, follow }: {
+export function CreateShopCard({ press, plans, names, email, termsUrl, createShop, onCreated, onOpen, follow, retry }: {
   press: SetupPress; plans: PlanList | null; names: CreateNames; email: string; termsUrl: string; createShop: CreateShop;
   onCreated: (press: SetupPress) => void; onOpen: (page: string) => void;
   /** Reads the press again (code plan 18.9): the timeline follows the making with it until the shop is ready. */
   follow?: () => Promise<SetupPress | null>;
+  /** Try again on a making that stopped (`making.canRetry`). */
+  retry?: (shopId: string) => Promise<void>;
 }) {
   const w = useShopWords();
   const [agreed, setAgreed] = useState(false);
@@ -40,7 +42,7 @@ export function CreateShopCard({ press, plans, names, email, termsUrl, createSho
   }, [following, press.pressId]);
 
   if (press.status !== "setup") {
-    return <BeingMade press={press} trialEnd={trialEnd} waiting={press.status === "opening" ? press.shopMessage || waiting : ""} email={email} />;
+    return <BeingMade press={press} trialEnd={trialEnd} waiting={press.status === "opening" ? press.shopMessage || waiting : ""} email={email} retry={retry} />;
   }
 
   const rows = createChecklist(press, plans, names);
@@ -122,10 +124,18 @@ function ReviewRow({ row, w, onOpen }: { row: CreateRow; w: (words: string) => s
  * While the shop is made: what's done, what's happening now and what comes next, with how far the making has got.
  * Once it is ready, the way into the shop's admin. Nothing else on it can be pressed.
  */
-function BeingMade({ press, trialEnd, waiting, email }: { press: SetupPress; trialEnd: string | null; waiting: string; email: string }) {
+function BeingMade({ press, trialEnd, waiting, email, retry }: { press: SetupPress; trialEnd: string | null; waiting: string; email: string; retry?: (shopId: string) => Promise<void> }) {
   const ready = press.status === "open";
   const steps = makingSteps(press.plan, { trialEnd, waiting, email, making: press.making ?? null, ready });
-  const title = ready ? "Your shop is ready" : waiting ? "Your shop is in line" : press.making?.status === "needs-help" ? "Your shop is nearly made" : "Your shop is being made";
+  const inLine = steps.some((s) => s.title === "Waiting for your turn");
+  const title = ready ? "Your shop is ready" : inLine ? "Your shop is in line" : press.making?.status === "needs-help" ? "Your shop is nearly made" : "Your shop is being made";
+  const [retrying, setRetrying] = useState<"" | "busy" | "sent" | string>("");
+  const canRetry = !ready && !!press.making?.canRetry && !!press.shopId && !!retry && retrying !== "sent";
+  const tryAgain = async () => {
+    if (!retry || !press.shopId) return;
+    setRetrying("busy");
+    try { await retry(press.shopId); setRetrying("sent"); } catch (err) { setRetrying(err instanceof Error ? err.message : "That didn't go through. Try again in a minute."); }
+  };
   return (
     <SectionCard title={title} collapsible={false}>
       <div role="status" style={{ display: "grid", gap: 16, maxWidth: 640 }}>
@@ -153,8 +163,15 @@ function BeingMade({ press, trialEnd, waiting, email }: { press: SetupPress; tri
             </li>
           ))}
         </ol>
+        {canRetry && (
+          <div style={{ display: "grid", gap: 8, justifyItems: "start" }}>
+            <PrimaryButton busy={retrying === "busy"} onClick={() => void tryAgain()}>Try again</PrimaryButton>
+            {retrying && retrying !== "busy" && <p role="alert" className="rp-hint" style={{ margin: 0, color: "var(--rp-danger)" }}>{retrying}</p>}
+          </div>
+        )}
+        {retrying === "sent" && !ready && <p className="rp-hint" style={{ margin: 0 }}>Carrying on. This page follows it.</p>}
         {ready && press.openUrl
-          ? <div><a className="rp-btn rp-btn-primary" href={press.openUrl} style={{ display: "inline-flex", alignItems: "center", gap: 8, minHeight: 44 }}>Open my shop's admin <ExternalLink size={16} aria-hidden /></a></div>
+          ? <div><a className="rp-btn rp-btn-primary" href={press.openUrl} style={{ display: "inline-flex", alignItems: "center", gap: 8, minHeight: 44 }}>{openAdminLabel(press.plan)} <ExternalLink size={16} aria-hidden /></a></div>
           : !ready && <p className="rp-hint" style={{ margin: 0 }}>You can close this page. We'll email you when it's ready, and nothing you set up is lost.</p>}
       </div>
     </SectionCard>
