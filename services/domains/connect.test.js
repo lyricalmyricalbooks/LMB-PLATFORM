@@ -252,3 +252,56 @@ test("the public lookup reads the seller from the registry's answer and the zone
   assert.equal(await lines.has({ type: "A", host: "a.example", value: "9.9.9.9" }), false);
   assert.equal(await lines.has({ type: "CNAME", host: "a.example", value: "b.example" }), false);
 });
+
+// ── A domain brought in setup (shopMaker.js): main once live, www sent on to it ──
+
+test("connect with main and www: both addresses connect, www sends visitors on, and the domain becomes main once live", async () => {
+  const t = await world();
+  const first = await t.service.connect(SHOP, "mothpress.example", { main: true, www: true });
+  assert.equal(first.way, "allow");
+  assert.deepEqual(t.hosting.calls.filter(([n]) => n === "addDomain"), [
+    ["addDomain", SHOP, "mothpress.example"],
+    ["addDomain", SHOP, "www.mothpress.example", { redirectTo: "mothpress.example" }],
+  ]);
+  let row = await t.registry.getShop(SHOP);
+  assert.deepEqual(row.domains.map((d) => [d.name, d.redirectTo ?? null, d.mainWhenLive ?? false]), [
+    ["mothpress.example", null, true], ["www.mothpress.example", "mothpress.example", false],
+  ]);
+  // The www address never becomes main.
+  await assert.rejects(() => t.service.makeMain(SHOP, "www.mothpress.example"), (e) => e.code === "sends_on" || e.code === "not_live");
+  // Not live yet: the free address stays main.
+  await t.service.checkAll();
+  assert.equal((await t.registry.getShop(SHOP)).mainDomain ?? null, null);
+  t.hosting.set(SHOP, "mothpress.example", "live");
+  await t.service.checkAll();
+  row = await t.registry.getShop(SHOP);
+  assert.equal(row.mainDomain, "mothpress.example");
+  assert.equal(row.domains[0].mainWhenLive, false);
+  assert.match(t.deploy.shipped.at(-1).envFile, /SHOP_SITE_URL="https:\/\/mothpress\.example"/);
+  // Running it again changes nothing.
+  await t.service.connect(SHOP, "mothpress.example", { main: true, www: true });
+  assert.equal((await t.registry.getShop(SHOP)).domains.length, 2);
+});
+
+test("a press that already chose another main address keeps it when the setup domain goes live", async () => {
+  const t = await world({ table: { "mothpress.example": { registrar: { name: "GoDaddy.com, LLC" } }, "ink.example": { registrar: { name: "Hover" } } } });
+  await t.service.connect(SHOP, "ink.example");
+  t.hosting.set(SHOP, "ink.example", "live");
+  await t.service.makeMain(SHOP, "ink.example");
+  await t.service.connect(SHOP, "mothpress.example", { main: true });
+  t.hosting.set(SHOP, "mothpress.example", "live");
+  await t.service.checkAll();
+  assert.equal((await t.registry.getShop(SHOP)).mainDomain, "ink.example");
+});
+
+test("a sub-address gets no www partner, and www failing never stops the main one", async () => {
+  const t = await world();
+  await t.service.connect(SHOP, "shop.mothpress.example", { www: true });
+  assert.deepEqual((await t.registry.getShop(SHOP)).domains.map((d) => d.name), ["shop.mothpress.example"]);
+  const u = await world();
+  await u.service.connect(SHOP, "a.example");
+  await u.service.connect(SHOP, "b.example");
+  const answer = await u.service.connect(SHOP, "mothpress.example", { www: true });
+  assert.equal(answer.name, "mothpress.example");
+  assert.deepEqual((await u.registry.getShop(SHOP)).domains.map((d) => d.name), ["a.example", "b.example", "mothpress.example"], "the third address is the most a shop has");
+});

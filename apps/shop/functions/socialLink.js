@@ -9,7 +9,7 @@
 //     disconnect { network }
 //     sendCatalog { network }                 the shop's product file (social-product-feed.csv) to the network's catalog
 //     posts                                   the latest 100 posts, newest first
-//     savePost { bookId, imageUrl, caption, placeIds, sendAt?, tagProduct? }
+//     savePost { bookId, imageUrl, caption, placeIds, sendAt?, tagProduct?, square? }
 //                                             a post of one product: now (no sendAt) or at `sendAt`
 //     cancelPost { id }                       a scheduled post that hasn't gone yet
 //     retryPost { id }                        the places that failed, again, now
@@ -53,6 +53,33 @@ function retailerIdOf(book) {
   return variants.length ? `${book.id}_${variants[0].id}`.slice(0, 50) : String(book.id).slice(0, 50);
 }
 
+const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const PLACE_NAMES = Object.freeze({
+  en: { fb: "Facebook", ig: "Instagram", pin: "Pinterest", tt: "TikTok" },
+  fr: { fb: "Facebook", ig: "Instagram", pin: "Pinterest", tt: "TikTok" },
+});
+
+/**
+ * The owner's email when a scheduled post didn't go out everywhere (Settings › Notifications › Shop alerts ›
+ * Social post didn't go out). Short: the product, each place that refused it with the reason, one link.
+ */
+function failedPostEmail({ post, ownerEmail, shopName, adminLink, language = "en" }) {
+  const fr = language === "fr";
+  const names = PLACE_NAMES[fr ? "fr" : "en"];
+  const failed = (post.places || []).filter((p) => post.results?.[p.id]?.state === "failed");
+  const title = post.title || post.bookTitle || (fr ? "votre produit" : "your product");
+  const rows = failed.map((p) => `<li><strong>${esc(names[p.id.split(":")[0]] || p.kind)}</strong> (${esc(p.name)}): ${esc(post.results[p.id].message || (fr ? "refusée" : "refused"))}</li>`).join("");
+  const html = [
+    `<p>${fr ? `Votre publication de <strong>${esc(title)}</strong> n'est pas partie ici :` : `Your post of <strong>${esc(title)}</strong> didn't go out here:`}</p>`,
+    `<ul>${rows}</ul>`,
+    adminLink ? `<p><a href="${esc(adminLink)}">${fr ? "Ouvrir Publications sociales et réessayer" : "Open Social posts to try again"}</a></p>` : "",
+  ].join("");
+  const shop = shopName || (fr ? "votre boutique" : "your shop");
+  const subject = fr ? `Une publication n'est pas partie (${shop})` : `A post didn't go out (${shop})`;
+  const to = /^[^\s@<>,]+@[^\s@<>,]+$/.test(ownerEmail || "") ? [ownerEmail] : [];
+  return { to, subject, html, failed: failed.length };
+}
+
 function productLink(siteUrl, book, placeId) {
   const url = new URL(`${siteUrl.replace(/\/+$/, "")}/books/${encodeURIComponent(book.slug)}`);
   url.searchParams.set("utm_source", SOURCE[placeId.split(":")[0]] || "social");
@@ -69,7 +96,7 @@ function overall(results, places) {
   return "failed";
 }
 
-function socialActions({ url, shopId, serviceKey, requireAdmin, db, siteUrl, fetch = globalThis.fetch, now = () => Date.now(), timeoutMs = 30000, randomId = null }) {
+function socialActions({ url, shopId, serviceKey, requireAdmin, db, siteUrl, fetch = globalThis.fetch, now = () => Date.now(), timeoutMs = 30000, randomId = null, onFailed = null, makeSquare = null }) {
   const iso = (ms = now()) => new Date(ms).toISOString();
   const posts = () => db.collection(COLLECTION);
 
@@ -159,9 +186,14 @@ function socialActions({ url, shopId, serviceKey, requireAdmin, db, siteUrl, fet
     }
     const places = await readPlaces(body.placeIds);
     const ref = randomId ? posts().doc(randomId()) : posts().doc();
+    // Square picture (on unless turned off): the photo whole on a square JPEG; the original if it can't be made.
+    let picture = imageUrl;
+    if (body.square !== false && makeSquare) {
+      try { picture = (await makeSquare(imageUrl, ref.id)) || imageUrl; } catch (err) { console.warn("Social post: square picture failed:", err?.message || err); }
+    }
     const post = {
       bookId, bookTitle: String(book.title || "").slice(0, 200), title: String(book.title || "").slice(0, 200),
-      imageUrl, caption, places, retailerId: retailerIdOf(book), tagProduct: body.tagProduct !== false,
+      imageUrl: picture, photoUrl: imageUrl, square: picture !== imageUrl, caption, places, retailerId: retailerIdOf(book), tagProduct: body.tagProduct !== false,
       sendAt: sendAt || iso(), status: sendAt ? "scheduled" : "sending", results: {},
       createdAt: iso(), createdBy: admin?.email || null, updatedAt: iso(), claimedAt: sendAt ? null : iso(),
     };
@@ -253,8 +285,12 @@ function socialActions({ url, shopId, serviceKey, requireAdmin, db, siteUrl, fet
     for (const doc of [...due.docs, ...stuck.docs]) {
       const claimed = await claim(doc.ref, ["scheduled"]);
       if (!claimed) continue;
-      await sendPost(doc.ref, claimed);
+      const out = await sendPost(doc.ref, claimed);
       sent++;
+      // A scheduled post that a place refused: the owner wasn't watching, so they're told (once: a post ends only once).
+      if (onFailed && (out.status === "failed" || out.status === "partly")) {
+        try { await onFailed(out); } catch (err) { console.warn("Social post: couldn't tell the owner it failed:", err?.message || err); }
+      }
     }
     return { sent };
   }
@@ -262,4 +298,4 @@ function socialActions({ url, shopId, serviceKey, requireAdmin, db, siteUrl, fet
   return { handleSocial, runDuePosts };
 }
 
-module.exports = { socialActions, productLink, retailerIdOf, bookPhotos, STEPS, FEED_FILE };
+module.exports = { socialActions, failedPostEmail, productLink, retailerIdOf, bookPhotos, STEPS, FEED_FILE };

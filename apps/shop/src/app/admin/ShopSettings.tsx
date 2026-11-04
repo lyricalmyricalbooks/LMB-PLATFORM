@@ -40,6 +40,7 @@ import { duplicateProfile, profileSummary } from "./shippingProfileStarters";
 const MAX_LIVE_RATE_EXTRA = 50;
 import { TeamSettings } from "./TeamSettings";
 import { SecuritySettings } from "./SecuritySettings";
+import { GoogleSettings } from "./GoogleSettings";
 import { BookkeepingSettings } from "./BookkeepingSettings";
 import { BillingSettings, PlanSettings } from "./PlanParts";
 import { TaxesSettings } from "./TaxesSettings";
@@ -133,6 +134,7 @@ export function ShopSettings({
           {activeTab === "taxes" && <TaxesSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
           {activeTab === "team" && <TeamSettings />}
           {activeTab === "security" && <SecuritySettings />}
+          {activeTab === "google" && <GoogleSettings />}
           {activeTab === "bookkeeping" && <BookkeepingSettings taxRates={settings.taxes?.rates || []} />}
           {activeTab === "plan" && <PlanSettings />}
           {activeTab === "billing" && <BillingSettings />}

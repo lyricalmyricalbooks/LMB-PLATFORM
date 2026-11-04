@@ -310,6 +310,15 @@ The private operations, label purchase safeguards, payment authority and server 
   `settings/website.analytics.ga4MeasurementId` and `adminSecrets/googleAnalytics` fields the older cards do, so the tag
   and reports below work unchanged. `useGoogleConnect().mode === "own"` (no link) keeps the older cards. On those shops
   Email sender shows `PlatformSenderCard` instead of the Gmail app-password panel (`senderStatus.backup === "platform"`).
+- **Settings › Google (4 November 2026):** `GoogleSettings.tsx` (+ `google.css`, pure card states in `googleHub.ts`) is
+  the one page for every Google service: hero (headline, account, "n of m working" meter, chips that scroll to parts
+  needing a look), **Included with your sign-in** cards (analytics, search, Shopping, email, web address: badge, two
+  "what you get" lines, Google's own line, Try again or Open in Google), **Extras** as switches saved together through
+  `connectLink(extras)`, then Disconnect. Listed only when `runsOnColophon()` or the platform answers (Dashboard
+  `googleOn`); Visitors & Google keeps a pointer card. Get started step 4 shows the same services (`GoogleTiles`).
+  Switching extras off saves at once (`googleConnectApi.turnOff`, no Google trip); switching one on opens Google's page
+  on the shop's one account, and another account comes back as `?google=other_account` with nothing changed.
+  Fixture: `admin-fixture.html?gstate=coming|ready|connected|trouble&page=settings/google`.
 - **Google Analytics 4:** Settings › General › **Google Analytics** (`GoogleAnalyticsCard.tsx`, `admin/googleAnalytics.ts`).
   Measurement ID (public) = `settings/website.analytics.ga4MeasurementId`, written only by that card (`updateSettings` drops
   `analytics` so a stale settings form can't put an old ID back); property ID = admin-only `adminSecrets/googleAnalytics`.
@@ -520,6 +529,9 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
 - **Spreadsheets (23.35):** every file picker uses `SPREADSHEET_ACCEPT` and reads through `spreadsheetText()` in
   `spreadsheetFile.ts` (CSV/TSV text in any common encoding, .xlsx, .ods → CSV text); show errors with `readProblem(err)`.
   A new bring-a-file window must do the same. Test files made by real programs live in `testdata/spreadsheets/`.
+- **Match columns (23.36):** Books import keeps the owner's matches for unknown headings in `columns` state and passes
+  them to `planImport({ columns })`; `mapHeadings` ignores a match for `id`, for a field a known heading already fills,
+  or for a field matched twice. Choosing a new file clears the matches.
 - **Whole move on screen (23.22, in CI since 23.29 as `pnpm run test:move` in the `shop-admin-phone` job):** `node scripts/move-check.mjs` (`CHROMIUM_PATH`, `MOVE_SHOTS=dir`) drives
   `admin-fixture.html?move=1` with the demo's sample files and answers the old-shop server actions in the script.
   Extend it when a bring-over window changes. The fixture's dev-only `__fixtureIdToken` lets `oldShopApi.ask` run
@@ -764,3 +776,6 @@ Design and rules: `docs/social.md` (platform root). `SalesChannels.tsx` (tab `ch
 tested). They call `adminApi.social(step, args)` → `functions/socialLink.js`. `#social-posts/book/<id>` opens the
 composer on a product (Books › row › Post to social). Keep words lean (Julian, 4 November 2026): one short line per
 card, no explanations the badge or button already gives. Screens: fixture `?page=channels` / `social-posts`.
+Round two (4 November 2026, plan 27.10-27.12): Overview widget `social` ("Social media that sells", `socialPerformance`
+in `overview/overviewTraffic.ts`, on the Marketing board), the composer's Square picture toggle (`square`, on by
+default; `functions/socialPicture.js`) and the Shop alerts switch `socialPostFailed`.

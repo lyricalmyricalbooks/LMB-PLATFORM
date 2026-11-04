@@ -50,7 +50,7 @@ describe("the setup guide", () => {
   it("starts with nothing done and counts only what can be done before opening", () => {
     const steps = guideSteps(press());
     // Not yet said whether it is moving: bringing books over comes before the look (23.0).
-    expect(steps.map((s) => s.id)).toEqual(["plan", "details", "books", "look", "cards", "open"]);
+    expect(steps.map((s) => s.id)).toEqual(["plan", "details", "books", "look", "cards", "domain", "open"]);
     expect(guideProgress(steps)).toEqual({ done: 0, total: 4 });
   });
 
@@ -86,16 +86,28 @@ describe("the setup guide", () => {
   });
 });
 
+describe("your web address step", () => {
+  const step = (over: Partial<SetupPress>) => guideSteps(press({ plan: "both", ...over })).find((s) => s.id === "domain");
+  it("is optional, done once a domain is kept or the free address is chosen, and not for a stockroom alone", () => {
+    expect(step({})).toMatchObject({ optional: true, done: false, page: GENERAL_PAGE });
+    expect(step({ domainChoice: "buy" })!.done).toBe(false);
+    expect(step({ domainChoice: "own", domain: "" })!.done).toBe(false);
+    expect(step({ domainChoice: "own", domain: "mothpress.example" })!.done).toBe(true);
+    expect(step({ domainChoice: "free" })!.done).toBe(true);
+    expect(step({ plan: "stockroom" })).toBeUndefined();
+  });
+});
+
 describe("bringing a shop over is easy to find (23.0)", () => {
   const order = (over: Partial<SetupPress>) => guideSteps(press(over)).map((s) => s.id);
 
   it("a press moving over brings its books right after its details, before the look", () => {
-    expect(order({ moving: "yes" })).toEqual(["plan", "details", "books", "look", "cards", "open"]);
-    expect(order({ moving: "" })).toEqual(["plan", "details", "books", "look", "cards", "open"]);
+    expect(order({ moving: "yes" })).toEqual(["plan", "details", "books", "look", "cards", "domain", "open"]);
+    expect(order({ moving: "" })).toEqual(["plan", "details", "books", "look", "cards", "domain", "open"]);
   });
 
   it("a press starting fresh has it last, still optional", () => {
-    expect(order({ moving: "fresh" })).toEqual(["plan", "details", "look", "cards", "books", "open"]);
+    expect(order({ moving: "fresh" })).toEqual(["plan", "details", "look", "cards", "books", "domain", "open"]);
     expect(guideProgress(guideSteps(press({ moving: "fresh" })))).toEqual({ done: 0, total: 4 });
   });
 

@@ -50,6 +50,15 @@ export async function seedRoom(world) {
   const { ticket } = await world.support.open(kit, { shopId: "kestrel", subject: "Changing the receipt wording", body: "Where do I change the thank-you line on the order email?" });
   await world.support.answer(admin(), { id: ticket.id, body: "In your admin: Settings › Email sender › Words. The preview on the right shows the change before you save." });
 
+  // The app store (26.1): one app waiting for review and one already on the store, from made-up app makers.
+  const maker = person("uid-ana", "ana@apps.example", "Ana Maker");
+  const appDetails = (name, tagline, scopes) => ({ name, tagline, description: `${name} for small shops.`, category: "other", supportEmail: "help@apps.example", website: "https://apps.example", returnAddresses: ["https://apps.example/done"], scopes });
+  const { app: labels } = await world.appMakers.create(maker, appDetails("Parcel Labels", "Print shipping labels for your orders", ["write_orders"]));
+  await world.appMakers.submit(maker, { appId: labels.appId });
+  const { app: counts } = await world.appMakers.create(maker, appDetails("Stock Counter", "Count your stock with a phone camera", ["write_inventory"]));
+  await world.appMakers.submit(maker, { appId: counts.appId });
+  await world.appMakers.approve(admin(), { appId: counts.appId });
+
   // Account recovery: one to check.
   await world.recovery.ask(person("uid-kit-new", "kit.kestrel@example.com", "Kit Kestrel"), {
     oldEmail: "kit@example.com",

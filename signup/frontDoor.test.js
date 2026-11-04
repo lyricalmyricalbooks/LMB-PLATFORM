@@ -16,7 +16,7 @@ const ADA = { uid: "uid-ada", email: "owner@example.com", email_verified: true }
 const BEN = { uid: "uid-ben", email: "ben@example.com", email_verified: true };
 const SETTINGS = { platformUrl: "https://platform.example", platformName: "Colophon", trialDays: 14, currency: "CAD" };
 
-function world({ billing = null, readOldShop } = {}) {
+function world({ billing = null, readOldShop, domainLookup } = {}) {
   const stores = fakeFrontDoorStores();
   // Open my shop (18.8) goes through sign-up's own start, with a pretend plan maker.
   const trials = [];
@@ -41,6 +41,7 @@ function world({ billing = null, readOldShop } = {}) {
     suffix: () => `s${(n += 1)}xyz`,
     random: () => 0.123456,
     ...(readOldShop ? { readOldShop } : {}),
+    ...(domainLookup ? { domainLookup } : {}),
   });
   const api = createApi({
     signup: {}, verifyIdToken: fakeVerifyIdToken, settings: SETTINGS,
@@ -381,6 +382,88 @@ test("an old shop read from its address (23.2): the owner gets a file to preview
   await w.stores.presses.set(pressId, { ...(await w.stores.presses.get(pressId)), status: "opening" });
   assert.equal((await w.ask("POST", "/api/press/old-shop", { pressId, address: "moth.example" }, ADA)).status, 409);
   assert.deepEqual(asked, ["moth.example", "nowhere.example"], "strangers and opening shops never reach the old shop");
+});
+
+// ── Your web address (setup guide) ──
+
+test("a press's own domain is kept with where it was bought, only by its owner and only in setup", async () => {
+  const asked = [];
+  const w = world({ domainLookup: { lookup: async (name) => {
+    asked.push(name);
+    if (name === "broken.example") throw new Error("lookup down");
+    return name === "mothpress.example"
+      ? { zone: name, registrar: { name: "GoDaddy.com, LLC" }, domainConnect: { providerName: "GoDaddy", hasTemplate: true } }
+      : { zone: name, registrar: { name: "Shopify Inc." }, domainConnect: null };
+  } } });
+  const pressId = await pressFor(w);
+  const saved = await w.ask("POST", "/api/press/domain", { pressId, domain: " https://WWW.MothPress.example/ " }, ADA);
+  assert.equal(saved.status, 200, JSON.stringify(saved.body));
+  const { domain, domainSeller, domainEasy, domainChoice } = saved.body.press;
+  assert.deepEqual({ domain, domainSeller, domainEasy, domainChoice }, { domain: "mothpress.example", domainSeller: "GoDaddy", domainEasy: true, domainChoice: "own" },
+    "www is taken off: the bare domain is the main one and www goes to it");
+  // A rival platform's name never reaches the press, and a seller with no Allow window is not "easy".
+  const rival = (await w.ask("POST", "/api/press/domain", { pressId, domain: "ink.example" }, ADA)).body.press;
+  assert.deepEqual([rival.domain, rival.domainSeller, rival.domainEasy], ["ink.example", "", false]);
+  // A lookup that fails still keeps the domain.
+  assert.equal((await w.ask("POST", "/api/press/domain", { pressId, domain: "broken.example" }, ADA)).body.press.domain, "broken.example");
+  const bad = await w.ask("POST", "/api/press/domain", { pressId, domain: "not a domain" }, ADA);
+  assert.equal(bad.status, 400);
+  assert.match(bad.body.problems.domain, /doesn't look like a web address/);
+  assert.equal((await w.ask("POST", "/api/press/domain", { pressId, domain: "moth-press.web.app" }, ADA)).status, 400);
+  assert.equal((await w.ask("POST", "/api/press/domain", { pressId, domain: "ink.example" }, BEN)).status, 404);
+  // Empty takes it off and clears the answer, so the guide asks again.
+  const cleared = (await w.ask("POST", "/api/press/domain", { pressId, domain: "" }, ADA)).body.press;
+  assert.deepEqual([cleared.domain, cleared.domainChoice], ["", ""]);
+  // The other answers go through setup like any other.
+  assert.equal((await w.ask("POST", "/api/press/setup", { pressId, domainChoice: "buy" }, ADA)).body.press.domainChoice, "buy");
+  assert.equal((await w.ask("POST", "/api/press/setup", { pressId, domainChoice: "sometime" }, ADA)).status, 409);
+  await w.stores.presses.set(pressId, { ...(await w.stores.presses.get(pressId)), status: "opening" });
+  assert.equal((await w.ask("POST", "/api/press/domain", { pressId, domain: "late.example" }, ADA)).status, 409);
+  assert.deepEqual(asked, ["mothpress.example", "ink.example", "broken.example"]);
+});
+
+test("setup shows the free address a press's shop will get, once the platform has a shop domain", async () => {
+  const w = world();
+  const pressId = await pressFor(w);
+  const named = (await w.ask("POST", "/api/press/setup", { pressId, pressName: "Moth Press" }, ADA)).body.press;
+  assert.equal(named.freeAddress, "", "no shop domain set: nothing promised");
+  const withDomain = createFrontDoor({ ...w.stores, stagedFiles: w.files, email: { sendPlatform: async () => {} }, auth: fakeAuth(), settings: { ...SETTINGS, shopAddressDomain: "shops.example" } });
+  const [press] = (await withDomain.myPresses(ADA)).presses;
+  assert.equal(press.freeAddress, "moth-press.shops.example");
+  // A name of the press's own: cleaned, checked, and shown in place of its press name; "" goes back to the press name.
+  assert.equal((await w.ask("POST", "/api/press/setup", { pressId, freeName: "Moth Books!" }, ADA)).body.press.freeName, "moth-books");
+  assert.equal((await withDomain.myPresses(ADA)).presses[0].freeAddress, "moth-books.shops.example");
+  const refused = await w.ask("POST", "/api/press/setup", { pressId, freeName: "admin" }, ADA);
+  assert.equal(refused.status, 409);
+  assert.match(refused.body.message, /kept for the platform/);
+  assert.equal((await w.ask("POST", "/api/press/setup", { pressId, freeName: "amazon-books" }, ADA)).status, 409, "a big brand's name");
+  assert.equal((await w.ask("POST", "/api/press/setup", { pressId, freeName: "" }, ADA)).body.press.freeName, "");
+  assert.equal((await withDomain.myPresses(ADA)).presses[0].freeAddress, "moth-press.shops.example");
+});
+
+test("a name for the free address is checked while the press types it, and a press name that can't be one asks for a name", async () => {
+  const w = world();
+  const pressId = await pressFor(w);
+  const taken = new Set(["moth-press.shops.example"]);
+  const door = createFrontDoor({ ...w.stores, stagedFiles: w.files, email: { sendPlatform: async () => {} }, auth: fakeAuth(),
+    settings: { ...SETTINGS, shopAddressDomain: "shops.example" }, freeNameTaken: async (address) => taken.has(address) });
+  assert.deepEqual(await door.checkFreeName(ADA, { pressId, name: "Moth Press" }), { name: "moth-press", address: "moth-press.shops.example", problem: "", available: false });
+  assert.deepEqual(await door.checkFreeName(ADA, { pressId, name: "Moth Books!" }), { name: "moth-books", address: "moth-books.shops.example", problem: "", available: true });
+  const refused = await door.checkFreeName(ADA, { pressId, name: "admin" });
+  assert.equal(refused.available, false);
+  assert.match(refused.problem, /kept for the platform/);
+  // A name another press in setup picked is held for it.
+  await w.stores.presses.set("press-other-one", { pressId: "press-other-one", ownerUid: "someone-else", status: "setup", freeName: "held-books" });
+  assert.equal((await door.checkFreeName(ADA, { pressId, name: "held-books" })).available, false);
+  await assert.rejects(() => door.saveSetup(ADA, { pressId, freeName: "Held Books" }), (e) => e.status === 409 && /Another shop already has that name/.test(e.message));
+  await w.stores.presses.set("press-other-one", { pressId: "press-other-one", ownerUid: "someone-else", status: "expired", freeName: "held-books" });
+  assert.equal((await door.checkFreeName(ADA, { pressId, name: "held-books" })).available, true, "a cleared setup lets the name go");
+  await w.ask("POST", "/api/press/setup", { pressId, pressName: "Amazon Books" }, ADA);
+  let [press] = (await door.myPresses(ADA)).presses;
+  assert.deepEqual([press.freeAddress, press.freeNameNeeded], ["my-shop.shops.example", true]);
+  await w.ask("POST", "/api/press/setup", { pressId, freeName: "river-books" }, ADA);
+  [press] = (await door.myPresses(ADA)).presses;
+  assert.deepEqual([press.freeAddress, press.freeNameNeeded], ["river-books.shops.example", false]);
 });
 
 // ── Open my shop (code plan 18.8) ──

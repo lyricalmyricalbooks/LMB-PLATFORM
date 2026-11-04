@@ -695,6 +695,13 @@ buttons, whose `--btn-border` rule is important) used to hide the outline contro
 writes its border into `--template-btn-border`, and the outline knobs' shared `rule` sets
 `border:var(--template-btn-border) !important` on `.custom-btn` / `.store-btn-primary` once either control is set
 (untouched, those buttons keep their old border). The coverage test reads a same-rule variable as its value.
+Shadows work the same way: `--template-btn-shadow` (base, hover and pressed), and the three shadow knobs share an
+important rule that skips Add to bag's Glow animation (`.fm-cta-glow`). Template button selectors come from
+`BUTTON_CLASSES` (`BTN`, `BTN_HOVER`, `BTN_ACTIVE`), which includes the page newsletter button `.fm-newsletter-btn`
+(MainSite). `scripts/template-buttons-check.mjs` (`pnpm run test:template-buttons`, CI job `shop-accessibility`)
+checks the bag, Add to bag and newsletter buttons on every template in Chromium. Studio shows one note above the
+template-only controls while Print style isn't a template (`templateNote.ts`). Choose your look draws each look over
+the press's own design (`lookPreview(theme, design)` = what Use this look leaves).
 
 ## Responsive public element editing (4 October 2026)
 

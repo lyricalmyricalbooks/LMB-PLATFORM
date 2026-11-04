@@ -1,8 +1,8 @@
 import { useMemo, useState, type ReactNode } from "react";
 import toast from "react-hot-toast";
-import { DataTable, EmptyState, LoadingState, MetricCard, SecondaryButton, SectionCard, StatusBadge, useConfirm, type Column } from "../riso/components";
+import { DataTable, EmptyState, GhostButton, LoadingState, MetricCard, SecondaryButton, SectionCard, StatusBadge, useConfirm, type Column } from "../riso/components";
 import type { Book, Order } from "./overviewInsights";
-import { bookInterest, rankMap, recordedSince, sourceOf, sourcePerformance, sumMap, type Daily, type SourceRow } from "./overviewTraffic";
+import { bookInterest, rankMap, recordedSince, socialPerformance, sourceOf, sourcePerformance, sumMap, type Daily, type SocialRow, type SourceRow } from "./overviewTraffic";
 import { isRealPaidOrder } from "./overviewInsights";
 import { OrdersDrill } from "./OverviewDrill.tsx";
 import { countsByDay, copiesOf, ordersWithBook } from "./overviewDrill";
@@ -42,6 +42,7 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
   const funnel = useMemo(() => funnelSteps(traffic.funnel), [traffic.funnel]);
   const visitsBySource = useMemo(() => sumMap(dailyCurrent, "sources"), [dailyCurrent]);
   const sources = useMemo(() => sourcePerformance(visitsBySource, current), [visitsBySource, current]);
+  const social = useMemo(() => socialPerformance(sources), [sources]);
   const devices = useMemo(() => rankMap(sumMap(dailyCurrent, "devices"), 3), [dailyCurrent]);
   const searches = useMemo(() => rankMap(sumMap(dailyCurrent, "searches"), 8), [dailyCurrent]);
   const missed = useMemo(() => rankMap(sumMap(dailyCurrent, "noResults"), 8), [dailyCurrent]);
@@ -192,6 +193,18 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
             </div>
           )}
           <p className="rp-hint" style={{ padding: "12px 20px 16px" }}>Share a link ending in <span className="rp-mono">?ref=name</span> and it shows up here under that name. Visits with no referrer count as direct.</p>
+        </SectionCard>}
+
+        {show("social") && <SectionCard flush title="Social media that sells"
+          actions={setActiveTab ? <GhostButton size="sm" onClick={() => setActiveTab("socialPosts")}>Social posts</GhostButton> : undefined}>
+          {social.length === 0
+            ? <EmptyState title="No visits from social media yet" description="Posts and shares show here once people tap through." />
+            : <DataTable caption="Social media that sells" rows={social} rowKey={r => r.id} columns={[
+                { key: "n", header: "Network", lead: true, render: (r: SocialRow) => r.label },
+                { key: "v", header: "Visits", numeric: true, render: (r: SocialRow) => (r.visits ? r.visits.toLocaleString() : "—") },
+                { key: "o", header: "Orders", numeric: true, render: (r: SocialRow) => r.orders },
+                { key: "r", header: "Revenue", numeric: true, render: (r: SocialRow) => money(r.revenue) },
+              ]} />}
         </SectionCard>}
 
         {show("campaigns") && <CampaignsCard current={current} paidAll={paidAll} dailyCurrent={dailyCurrent} gaCampaigns={report?.campaigns} />}

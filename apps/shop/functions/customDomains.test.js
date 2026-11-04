@@ -53,6 +53,12 @@ describe("the admin's web address card", () => {
     expect(calls.every((c) => c.headers["X-Shop-Id"] === "moth-press")).toBe(true);
   });
 
+  test("a new name for the free address goes as `name`", async () => {
+    const { run, calls } = make();
+    await run({ step: "renameFree", domain: "moth-books" });
+    expect(calls.map((c) => [c.op, c.args])).toEqual([["domains.renameFree", { name: "moth-books" }]]);
+  });
+
   test("the service refusing to remove the main address keeps its plain words", async () => {
     const refused = make({ answer: () => ({ ok: false, status: 409, json: async () => ({ error: { code: "is_main", message: "This is your shop's main address. Make another address main first, then remove this one." } }) }) });
     const res = await refused.run({ step: "remove", domain: "shop.mothpress.example" });

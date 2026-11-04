@@ -1,4 +1,5 @@
 import { PLAN_CHOICES, SQUARE_COUNTRIES, squareWords } from "./form.js";
+import { cleanHandle, handleProblem } from "../services/domains/freeAddress.js";
 
 // The setup record for one press (code plan 18.2): the only thing made for a press before it launches. One document per
 // press in the platform's own project, `presses/{pressId}`. It holds what the press typed during setup and nothing that
@@ -13,8 +14,13 @@ export const PRESS_STATUSES = Object.freeze(["setup", "opening", "open", "expire
 // over), "fresh" (starting fresh, which puts the card away) or "" (not answered yet).
 // `cardProvider` is who takes the website's card payments, Stripe or Square, chosen in setup's Settings › Payments
 // ("" until chosen: the shop maker then uses Stripe). It goes to sign-up's row when the shop opens (frontDoor.js openShop).
-export const SETUP_FIELDS = Object.freeze(["plan", "pressName", "sells", "country", "look", "adminLook", "moving", "language", "cardProvider"]);
-const TEXT_LIMITS = Object.freeze({ plan: 9, pressName: 120, sells: 300, country: 2, look: 40, adminLook: 40, moving: 5, language: 2, cardProvider: 6 });
+// `domainChoice` is the setup guide's "Your web address" answer: "own" (bringing a domain the press has; the domain
+// itself is saved through frontDoor.js saveDomain, which looks up where it was bought), "buy" (gone to buy one),
+// "free" (the free address for now) or "" (not answered). `freeName` is the name the press picked for its free address
+// (moth-press in moth-press.<shop domain>), cleaned and checked; "" means its press name.
+export const SETUP_FIELDS = Object.freeze(["plan", "pressName", "sells", "country", "look", "adminLook", "moving", "language", "cardProvider", "domainChoice", "freeName"]);
+const TEXT_LIMITS = Object.freeze({ plan: 9, pressName: 120, sells: 300, country: 2, look: 40, adminLook: 40, moving: 5, language: 2, cardProvider: 6, domainChoice: 4, freeName: 60 });
+export const DOMAIN_CHOICES = Object.freeze(["", "own", "buy", "free"]);
 export const MOVING_CHOICES = Object.freeze(["", "yes", "fresh"]);
 // The language of the platform's emails (services/email/templatesFr.js): "" is automatic (French then English for a
 // Quebec billing address), "fr" or "en" a choice. It goes to the plan when the shop opens (frontDoor.js openShop).
@@ -42,7 +48,7 @@ export function newPressRecord({ pressId, ownerUid, email, now }) {
   if (!ownerUid || !email) throw new Error("A press needs an owner.");
   const at = now.toISOString();
   return { pressId, ownerUid, ownerEmail: email.toLowerCase(), status: "setup", plan: "", pressName: "", sells: "", country: "",
-    look: "", adminLook: "", moving: "", language: "", cardProvider: "", stagedImportPath: "", stagedImport: null, pendingImportPath: "", shopId: "", shopStatus: "", shopMessage: "", openingSince: "", createdAt: at, lastSeenAt: at };
+    look: "", adminLook: "", moving: "", language: "", cardProvider: "", domainChoice: "", freeName: "", domain: "", domainSeller: "", domainEasy: false, stagedImportPath: "", stagedImport: null, pendingImportPath: "", shopId: "", shopStatus: "", shopMessage: "", openingSince: "", createdAt: at, lastSeenAt: at };
 }
 
 // Checks a change a press makes through the platform's door. Returns the fields to write, or a plain-words refusal.
@@ -67,6 +73,15 @@ export function setupChange(current, change) {
     // Square only where it works with the shop's checkout; a country changed afterwards is checked again at Open my shop.
     const country = typeof change?.country === "string" ? change.country.trim() : current.country;
     if (key === "cardProvider" && text === "square" && country && !SQUARE_COUNTRIES.includes(country)) return { ok: false, message: squareWords(country) };
+    if (key === "domainChoice" && !DOMAIN_CHOICES.includes(text)) return { ok: false, message: "Pick one of the choices." };
+    if (key === "freeName") {
+      // The press's own pick for its free address (services/domains/freeAddress.js); "" goes back to its press name.
+      const handle = cleanHandle(text);
+      const problem = text && handleProblem(handle);
+      if (problem) return { ok: false, message: problem };
+      fields[key] = handle;
+      continue;
+    }
     fields[key] = text;
   }
   return { ok: true, fields };

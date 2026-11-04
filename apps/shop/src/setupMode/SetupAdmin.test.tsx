@@ -24,6 +24,9 @@ function door(): SetupDoor & { saved: any[] } {
     save: vi.fn(async (_id: string, change: any) => { saved.push(change); return { ...PRESS, ...change }; }),
     keepImport: vi.fn(async (_id: string, _file: Blob, details: { name: string; rows: number }) => ({ ...PRESS, stagedImport: { ...details, size: 9, at: "2026-11-03T09:00:00Z" } })),
     removeImport: vi.fn(async () => ({ ...PRESS, stagedImport: null })),
+    saveDomain: vi.fn(async (_id: string, domain: string) => (domain
+      ? { ...PRESS, domain: domain.toLowerCase(), domainChoice: "own" as const, domainSeller: "GoDaddy", domainEasy: true }
+      : { ...PRESS, domain: "", domainChoice: "" as const, domainSeller: "", domainEasy: false })),
     readOldShop: vi.fn(async () => ({
       host: "moth.example", products: 1, notes: ["Stock counts aren't shown publicly, so check how many you have of each before you open."],
       csv: "Handle,Title,Variant Price,Image Src,Old page address\nmoth-songs,Moth Songs,20,https://img.example/m.jpg,/product/moth-songs\n",
@@ -341,10 +344,10 @@ describe("the admin in setup mode (code plan 18.6)", () => {
       const text = el.textContent!;
       expect(text).toContain("Shop and stockroom · $39.00 a month");
       expect(text).toContain("Moth Press · Books · Canada");
-      expect(text).toContain("Not chosen yet.");
+      expect(text).toContain("Not chosen yet");
       expect(text).toContain("42 books from old-shop.csv");
       expect(text).toContain("Nothing is charged today. Your first shop is free for 14 days, then $39.00 a month.");
-      expect(text).toContain("Your website starts private.");
+      expect(text).toContain("It stays private until you open it.");
       expect(text).toContain("Tick the terms to create your shop.");
     });
 
@@ -404,7 +407,7 @@ describe("bringing a shop over, at the top of Home (code plan 23.0)", () => {
     expect(d.saved).toEqual([{ moving: "fresh" }]);
     expect(el.textContent).not.toContain("Selling somewhere already?");
     const steps = [...el.querySelectorAll("main ol[aria-label='Setup steps'] > li")].map((li) => li.textContent ?? "");
-    expect(steps[steps.length - 2]).toContain("Bring your books over");
+    expect(steps[steps.length - 3]).toContain("Bring your books over");
   });
 
   it("the Books page shows the plain steps for where the press sells now", async () => {
@@ -458,6 +461,112 @@ describe("Stripe or Square in setup's Settings › Payments", () => {
     const square = el.querySelectorAll<HTMLButtonElement>("[role='radiogroup'][aria-label='Card payments'] [role='radio']")[1];
     expect(square.disabled).toBe(true);
     expect(square.textContent).toContain("Not available in your country yet.");
+  });
+});
+
+describe("your web address in setup", () => {
+  const radio = (el: Element, words: string) => [...el.querySelectorAll('[role="radio"]')].find((b) => b.textContent?.includes(words)) as HTMLButtonElement;
+  const typeInto = (input: HTMLInputElement, value: string) => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+
+  it("brings a domain the press already has, then says what happens once the shop is made", async () => {
+    const d = door();
+    const el = await mount(d, "#settings/general");
+    expect(el.textContent).toContain("Your web address");
+    await act(async () => { radio(el, "I already have a domain").click(); });
+    const input = [...el.querySelectorAll("input")].find((i) => i.placeholder === "yourpress.com") as HTMLInputElement;
+    await act(async () => { typeInto(input, "MothPress.example"); });
+    const use = [...el.querySelectorAll("button")].find((b) => b.textContent === "Use this domain") as HTMLButtonElement;
+    await act(async () => { use.click(); });
+    await flush();
+    expect(d.saveDomain).toHaveBeenCalledWith("press-moth", "MothPress.example");
+    expect(d.saved).toEqual([], "the domain is saved on its own, not as a plain answer");
+    expect(el.textContent).toContain("mothpress.example");
+    expect(el.textContent).toContain("Bought at GoDaddy. Once your shop is made, you press Allow there once.");
+    expect(el.textContent).toContain("www.mothpress.example opens it too");
+    expect(el.textContent).not.toMatch(/DNS|CNAME|TXT|record/);
+  });
+
+  it("a press without one is sent to GoDaddy, searching for its name, and can add it after", async () => {
+    const d = door();
+    const el = await mount(d, "#settings/general");
+    await act(async () => { radio(el, "I need a domain").click(); });
+    await flush();
+    expect(d.saved).toEqual([{ domainChoice: "buy" }]);
+    const link = [...el.querySelectorAll("a")].find((a) => a.textContent?.includes("Find a domain at GoDaddy")) as HTMLAnchorElement;
+    expect(link.href).toBe("https://www.godaddy.com/domainsearch/find?domainToCheck=mothpress");
+    expect(link.target).toBe("_blank");
+    expect(el.textContent).toContain("Bought it? Add it here");
+  });
+
+  it("the free address for now is an answer, and the guide counts it done", async () => {
+    const d = door();
+    const el = await mount(d, "#settings/general");
+    await act(async () => { radio(el, "Use the free address for now").click(); });
+    await flush();
+    expect(d.saved).toEqual([{ domainChoice: "free" }]);
+    const home = await mount(door(), "", { ...PRESS, domainChoice: "free" });
+    expect(home.textContent).toContain("Choose your web address");
+    expect(home.textContent).toContain("2 of 5 done");
+  });
+
+  it("a Canadian press is pointed at a .ca name, and every press sees the free address its shop will get", async () => {
+    const canadian = { ...PRESS, country: "CA", freeAddress: "moth-press.shops.example" };
+    const d = door();
+    d.save = vi.fn(async (_id: string, change: any) => ({ ...canadian, ...change }));
+    const el = await mount(d, "#settings/general", canadian);
+    expect(el.textContent).toContain("Free address: moth-press.shops.example");
+    await act(async () => { radio(el, "I need a domain").click(); });
+    await flush();
+    const link = [...el.querySelectorAll("a")].find((a) => a.textContent?.includes("Find a domain at GoDaddy")) as HTMLAnchorElement;
+    expect(link.href).toBe("https://www.godaddy.com/domainsearch/find?domainToCheck=mothpress.ca");
+    expect(el.textContent).toContain("A .ca name tells shoppers you're local");
+  });
+
+  it("a press can pick its own name for the free address", async () => {
+    let current: any = { ...PRESS, freeAddress: "moth-press.shops.example" };
+    const d = door();
+    d.save = vi.fn(async (_id: string, change: any) => {
+      current = { ...current, ...change, freeAddress: change.freeName ? `${change.freeName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-$/, "")}.shops.example` : "moth-press.shops.example" };
+      return current;
+    });
+    const el = await mount(d, "#settings/general", current);
+    const pick = [...el.querySelectorAll("main button")].find((b) => b.textContent === "Change name") as HTMLButtonElement;
+    await act(async () => { pick.click(); });
+    const input = [...el.querySelectorAll("main input")].find((i) => i.getAttribute("placeholder") === "moth-books") as HTMLInputElement;
+    await act(async () => { typeInto(input, "Moth Books!"); });
+    expect(el.textContent).toContain("moth-books.shops.example");
+    const use = [...el.querySelectorAll("main button")].find((b) => b.textContent === "Use this name") as HTMLButtonElement;
+    await act(async () => { use.click(); });
+    await flush();
+    expect(d.save).toHaveBeenCalledWith(PRESS.pressId, { freeName: "Moth Books!" });
+    expect(el.textContent).toContain("Free address: moth-books.shops.example");
+  });
+
+  it("a name another shop has is caught while typing, and a press whose name can't be used is asked for one", async () => {
+    const pressed: any = { ...PRESS, pressName: "Amazon Books", freeAddress: "my-shop.shops.example", freeNameNeeded: true };
+    const d = door();
+    (d as any).checkFreeName = vi.fn(async (_id: string, name: string) => ({ name, address: `${name}.shops.example`, problem: "", available: name !== "moth-press" }));
+    const el = await mount(d, "#settings/general", pressed);
+    expect(el.textContent).toContain("Your press's name can't be used here. Pick a name.");
+    const input = [...el.querySelectorAll("main input")].find((i) => i.getAttribute("placeholder") === "moth-books") as HTMLInputElement;
+    expect(input).toBeTruthy();
+    await act(async () => { typeInto(input, "Moth Press"); });
+    await act(async () => { await new Promise((r) => setTimeout(r, 450)); });
+    expect(el.textContent).toContain("Another shop already has moth-press.shops.example. Try another name.");
+    const use = [...el.querySelectorAll("main button")].find((b) => b.textContent === "Use this name") as HTMLButtonElement;
+    expect(use.disabled).toBe(true);
+    await act(async () => { typeInto(input, "Moth Books"); });
+    await act(async () => { await new Promise((r) => setTimeout(r, 450)); });
+    expect(el.textContent).toContain("moth-books.shops.example is free");
+    expect(use.disabled).toBe(false);
+  });
+
+  it("a stockroom-only press has no website, so no web address to choose", async () => {
+    const el = await mount(door(), "#settings/general", { ...PRESS, plan: "stockroom" });
+    expect(el.textContent).not.toContain("Your web address");
   });
 });
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { GOOGLE_PARTS, googleConnectApi, takeGoogleOutcome, useGoogleConnect } from "../googleConnect";
-import { googlePartLines, type GoogleMarker } from "../googleStage";
+import { googleConnectApi, takeGoogleOutcome, useGoogleConnect } from "../googleConnect";
+import { type GoogleMarker } from "../googleStage";
+import { GoogleTiles } from "../GoogleSettings";
 import { friendlyError } from "../studio/friendlyError";
 import { LoadingState, PrimaryButton, SecondaryButton, SectionCard, StatusBadge } from "../riso/components";
 
@@ -45,6 +46,7 @@ export function GoogleStage({ onDone }: { onDone: (google: GoogleMarker) => Prom
     return (
       <SectionCard title={title} description="Optional for now." collapsible={false}>
         <p style={{ margin: 0 }}>Connecting Google is coming soon. Google is still approving the sign-in for Colophon shops. Carry on with your setup, and we'll remind you once it's ready.</p>
+        <div style={{ marginTop: 14 }}><GoogleTiles status={{ enabled: false }} /></div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 16 }}>
           <PrimaryButton disabled={busy} onClick={() => finish({ coming: true })}>{busy ? "Saving…" : "Carry on"}</PrimaryButton>
         </div>
@@ -54,15 +56,11 @@ export function GoogleStage({ onDone }: { onDone: (google: GoogleMarker) => Prom
   }
 
   if (status.connected) {
-    const lines = googlePartLines(status.steps || [], GOOGLE_PARTS);
     return (
       <SectionCard title={title} description="Your Google account is linked to your shop." collapsible={false}>
         <StatusBadge tone="success">Google is connected</StatusBadge>
-        {lines.length > 0 && (
-          <ul aria-label="What Google linked" style={{ margin: "14px 0 0", padding: 0, listStyle: "none", display: "grid", gap: 8 }}>
-            {lines.map(line => <li key={line.label} className="rp-hint"><strong>{line.label}</strong>: {line.word}</li>)}
-          </ul>
-        )}
+        <div style={{ marginTop: 14 }}><GoogleTiles status={status} /></div>
+        <p className="rp-hint" style={{ margin: "10px 0 0" }}>Extras like Google Maps and backups to your Drive are in Settings › Google, any time.</p>
         {error && <p role="alert" className="rp-hint" style={{ margin: "12px 0 0", color: "var(--rp-danger)" }}>{error}</p>}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 16 }}>
           <PrimaryButton disabled={busy} onClick={() => finish({ connected: true })}>{busy ? "Saving…" : "Continue"}</PrimaryButton>
@@ -83,10 +81,12 @@ export function GoogleStage({ onDone }: { onDone: (google: GoogleMarker) => Prom
   return (
     <SectionCard title={title} description="Optional for now. One sign-in with your Google account links search, Google Shopping listings and visitor statistics." collapsible={false}>
       {outcome === "denied" && <p role="alert" className="rp-hint" style={{ margin: "0 0 12px", color: "var(--rp-danger)" }}>Google didn't connect, because the sign-in was cancelled on Google's page. You can try again now or later.</p>}
+      {outcome === "other_account" && <p role="alert" className="rp-hint" style={{ margin: "0 0 12px", color: "var(--rp-danger)" }}>That was a different Google account from your shop's, so nothing was changed. Sign in with the one your shop already uses.</p>}
       {outcome === "failed" && <p role="alert" className="rp-hint" style={{ margin: "0 0 12px", color: "var(--rp-danger)" }}>Google didn't connect this time. You can try again now or later.</p>}
       {status.needsReconnect && <p className="rp-hint" style={{ margin: "0 0 12px" }}>Google asks you to sign in again.</p>}
       {error && <p role="alert" className="rp-hint" style={{ margin: "0 0 12px", color: "var(--rp-danger)" }}>{error}</p>}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+      <GoogleTiles status={status} />
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 16 }}>
         <PrimaryButton disabled={busy} onClick={connect}>Connect Google</PrimaryButton>
         <SecondaryButton disabled={busy} onClick={() => finish({ skipped: true })}>Connect later</SecondaryButton>
       </div>
