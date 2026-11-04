@@ -753,3 +753,11 @@ own address, kept open once opened), route `#stockroom/<page>`, and no Website �
 Other pages ask the stockroom through `stockroomBridge.ts` (`ask`, `openBook`; the frame opens hidden on first need):
 the book editor's **Stock and sales** tab (`StockroomBookPanel.tsx`, combined admin only) reads one book's figures from
 the stockroom's own `bookSummary`, never from a copy here, and matches an unmatched book with `linkNewBook`.
+
+## Sales channels and Social posts (plan 27.5-27.7, 4 November 2026)
+
+Design and rules: `docs/social.md` (platform root). `SalesChannels.tsx` (tab `channels`, under Books in both menus) and
+`SocialPosts.tsx` (tab `socialPosts`, under Orders; Marketing in the combined admin) share `socialChannels.ts` (pure,
+tested). They call `adminApi.social(step, args)` → `functions/socialLink.js`. `#social-posts/book/<id>` opens the
+composer on a product (Books › row › Post to social). Keep words lean (Julian, 4 November 2026): one short line per
+card, no explanations the badge or button already gives. Screens: fixture `?page=channels` / `social-posts`.

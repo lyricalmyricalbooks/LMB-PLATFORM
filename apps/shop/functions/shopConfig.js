@@ -148,6 +148,7 @@ function readShopConfig(env = {}) {
     platformDomainsUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_DOMAINS_URL)) ? text(env.PLATFORM_DOMAINS_URL).replace(/\/+$/, "") : "",
     platformGoogleUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_GOOGLE_URL)) ? text(env.PLATFORM_GOOGLE_URL).replace(/\/+$/, "") : "",
     platformAccountingUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_ACCOUNTING_URL)) ? text(env.PLATFORM_ACCOUNTING_URL).replace(/\/+$/, "") : "",
+    platformSocialUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_SOCIAL_URL)) ? text(env.PLATFORM_SOCIAL_URL).replace(/\/+$/, "") : "",
     platformAccountsUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_ACCOUNTS_URL)) ? text(env.PLATFORM_ACCOUNTS_URL).replace(/\/+$/, "") : "",
     allowedOrigins: Object.freeze([...new Set([...LOCAL_ORIGINS, ...extraOrigins, ...(hosted ? [hosted] : []), siteUrl, ...www])]),
     project: functionsProject,

@@ -91,6 +91,15 @@ so a stage that is added to the build also needs a line here.
 - **The first-hour test** (plan 17.18, 3.6): five presses each spend an hour going through Get started. This needs the
   hosting (plan 15.6) and the real test shop (plan 15.7) first. Status: after Phase 15.
 
+- **Social media channels** (plan 27.9): about an hour of forms per network, then a wait for each review. Julian
+  makes Colophon's developer apps: a Meta app (Facebook Login for Business with Pages posting, Instagram posting and
+  catalogs; Meta's app review and business verification), a Pinterest app (pins, boards and catalogs; Pinterest
+  approves standard access) and a TikTok app (photo posting; TikTok's audit, and the shop addresses' site check so
+  TikTok can fetch photos). The keys go in the social service's own settings (`services/social/README.md`). Then, on
+  the test shop, Julian connects his own Facebook Page and Instagram account, Pinterest and TikTok from Sales channels,
+  sends the products, posts one book now and schedules one for later, and checks each arrives once. Until TikTok's
+  audit, its posts are visible only to the account itself. Status: built behind the switch that is still off.
+
 ## Legal (review of 3 November 2026)
 
 The review is in the project files, `research/2026-11-03-legal-readiness.md`. It is not legal advice. Status: the code
