@@ -576,6 +576,16 @@ test("an account is only made for a shop in the registry, for its own owner; tes
   assert.equal((await service.createAccount(SHOP, { pressName: "M", ownerEmail: "OWNER@example.com", country: "CA", currency: "CAD", testMode: true })).mode, "test");
 });
 
+test("the account says what the shop sells: a book shop stays Book Stores, a clothing shop is filed as clothing (plan 12.18)", async () => {
+  for (const [sells, mcc, description] of [[undefined, "5942", "Books and printed matter"], ["zines", "5942", "Books and printed matter"], ["clothing", "5651", "Clothing"], ["jewelry", "5944", "Jewellery"], ["other", "5999", "Handmade and specialty goods"]]) {
+    const { service, stripe } = await world({ row: shopRow({ payments: undefined }) });
+    await service.createAccount(SHOP, { pressName: "M", ownerEmail: "owner@example.com", country: "CA", currency: "CAD", sells });
+    const create = stripe.requests.find((r) => r.path === "/v1/accounts");
+    assert.equal(create.params["business_profile[mcc]"], mcc, String(sells));
+    assert.equal(create.params["business_profile[product_description]"], description);
+  }
+});
+
 test("an account Stripe no longer has is not found, so setup stops for a person", async () => {
   const { service, accounts } = await world();
   await accounts.set(SHOP, { provider: "stripe", accountId: "acct_gone", mode: "live" });

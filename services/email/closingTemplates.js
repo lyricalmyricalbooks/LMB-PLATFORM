@@ -2,15 +2,17 @@
 // spread into TEMPLATES (templates.js), which hands in its own layout helpers. `data`: { pressName, date (the day the
 // shop is deleted, in words), days (30 or 7, warnings only), link (the platform's Plan & billing page) }.
 
+const same = (text) => text;
+
 export function closingTemplates({ layout, safeLink, signOff }) {
   return {
     /** 60 days paused (or the plan ended): the shop is closed, and everything can be downloaded until `date`. */
-    "shop-closed": ({ date, link }, { settings, pressName }) => layout({
+    "shop-closed": ({ date, link }, { settings, pressName, w = same }) => layout({
       subject: `${pressName} is closed. Download everything by ${date}`,
       greeting: "Hello,",
       paragraphs: [
         `${pressName} has been paused for a while, so it is now closed. Shoppers see a closed page and no orders come in.`,
-        `Everything is kept until ${date}: your books, orders, customers and stock. Open your shop's admin to download them as files.`,
+        `Everything is kept until ${date}: ${w("your books")}, orders, customers and stock. Open your shop's admin to download them as files.`,
         `After ${date} the shop and everything in it are deleted for good. Start a plan again before then and it opens just as you left it.`,
       ],
       buttons: [["See your plan", safeLink(link)]],
@@ -18,13 +20,13 @@ export function closingTemplates({ layout, safeLink, signOff }) {
     }),
 
     /** 30 and 7 days before the shop is deleted. */
-    "shop-deletion-warning": ({ date, days, link }, { settings, pressName }) => {
+    "shop-deletion-warning": ({ date, days, link }, { settings, pressName, w = same }) => {
       if (days !== 30 && days !== 7) throw new Error("the deletion warning is sent 30 or 7 days before");
       return layout({
         subject: `${pressName} will be deleted on ${date}`,
         greeting: "Hello,",
         paragraphs: [
-          `In ${days} days, on ${date}, ${pressName} and everything in it will be deleted: books, orders, customers and stock. It can't be undone.`,
+          `In ${days} days, on ${date}, ${pressName} and everything in it will be deleted: ${w("books")}, orders, customers and stock. It can't be undone.`,
           "If you haven't yet, open your shop's admin and download everything as files.",
           `To keep the shop, start a plan again before ${date}.`,
         ],

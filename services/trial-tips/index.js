@@ -24,6 +24,7 @@
 //   settings  platformSettings(env) (services/settings.js): platformName, platformUrl, trialDays
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { START_NUDGE_WORDS, nudgeDayOf, startNudgeDue } from "./startNudges.js";
+import { sellsBooks, sellsOf, wordsFor } from "../../shared/sells/sells.js";
 
 export const TIP_DAYS = Object.freeze([2, 4, 7, 21, 60]);
 const DAY = 86_400_000;
@@ -43,6 +44,28 @@ export const TIPS = Object.freeze({
   open: { subject: "Your shop is ready to open", paragraphs: ["When you're ready, press Open your shop on the Overview. We check that everything needed to sell is in place first.", "You can close it again at any time from Settings › General › Store status."], action: "Open the Overview", hash: "overview" },
   switch: { subject: "Moving over from your old shop", paragraphs: ["Before you point your web address here, open Settings › General and press Check your old links. Every page of your old shop is tried here, and any that would show page not found gets a new home in one click.", "Then take your last orders in your old shop, move your web address, and tell your mailing list where to find you."], action: "Check your old links", hash: "settings/general" },
 });
+
+/** Words written out for a shop that sells no books, where swapping single words would read oddly. */
+const GOODS_TIPS = Object.freeze({ look: { subject: "Make your shop look like yours" } });
+
+/** A tip in the words of what the shop sells (code plan 12.18): a books shop's tips are exactly TIPS. */
+export function tipWords(step, sells) {
+  const tip = TIPS[step];
+  if (!tip || sellsBooks(sells)) return tip;
+  const w = wordsFor(sells);
+  return { ...tip, subject: w(tip.subject), paragraphs: tip.paragraphs.map(w), action: w(tip.action), ...GOODS_TIPS[step] };
+}
+
+/** A Get started nudge in the shop's words, like tipWords. */
+const GOODS_NUDGES = Object.freeze({
+  details: { paragraphs: ["Your shop's name, contact email and address go on your receipts, labels and contact page.", "Open the Overview and fill in step 1. It takes a few minutes."] },
+});
+export function nudgeWords(stage, sells) {
+  const nudge = START_NUDGE_WORDS[stage];
+  if (!nudge || sellsBooks(sells)) return nudge;
+  const w = wordsFor(sells);
+  return { ...nudge, subject: w(nudge.subject), paragraphs: nudge.paragraphs.map(w), action: w(nudge.action), ...GOODS_NUDGES[stage] };
+}
 
 /** The guide's general order (firstWeek.ts ORDER.general), for a shop whose admin hasn't saved its progress yet. */
 export const DEFAULT_STEPS = Object.freeze(["logo", "look", "add-books", "shipping", "payments", "address", "practice", "open"]);
@@ -132,7 +155,7 @@ export function createTrialTips({ registry, auditLog, guide, email, store, setti
                 skipped.push({ shopId, why: "no-shop-admin", nudge: due.nudge.stage });
               } else {
                 const { stage, day: nudgeDay } = due.nudge;
-                const words = START_NUDGE_WORDS[stage];
+                const words = nudgeWords(stage, sellsOf(start, profile));
                 const sentAt = at.toISOString();
                 await email.sendPlatform({
                   kind: "trial-tip",
@@ -174,7 +197,7 @@ export function createTrialTips({ registry, auditLog, guide, email, store, setti
             skipped.push({ shopId, why: "no-shop-admin" });
             continue;
           }
-          const words = TIPS[tip.step];
+          const words = tipWords(tip.step, sellsOf(start, profile));
           await email.sendPlatform({
             kind: "trial-tip",
             to: row.ownerEmail,

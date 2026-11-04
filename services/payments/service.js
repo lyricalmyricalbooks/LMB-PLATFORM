@@ -39,6 +39,7 @@
 //   deliveryStats  optional: add(shopId, kind, atIso), the control room's per-shop counts (plan 19.12): every Stripe
 //              event for a shop is counted as "payment-event", and one the service answers with a failure as
 //              "payment-event-failed" too. A counter that fails never stops the event.
+import { merchantProfile } from "../../shared/sells/sells.js";
 import { StripeApiError } from "./stripeApi.js";
 import { SquareApiError } from "./squareApi.js";
 import { createSquareService, SQUARE_OP_NAMES } from "./square.js";
@@ -171,6 +172,12 @@ export const STANDARD_CONTROLLER = Object.freeze({
 
 /** The merchant category for a press selling its books to readers: "Book Stores". */
 export const BOOK_STORES_MCC = "5942";
+
+/** Stripe's business_profile category and description for what the shop sells (sign-up's answer). */
+function businessKind(sells) {
+  const { mcc, description } = merchantProfile(sells);
+  return { mcc, product_description: description };
+}
 
 /** The shop's public web address for Stripe's business profile: its own site, or the Firebase address it starts on. */
 function shopAddress(row) {
@@ -648,10 +655,11 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
      * Accounts made earlier with `type: "standard"` already carry the same settings and are left as they are.
      *
      * What the platform knows is filled in, so Stripe's sign-up asks less (and on these accounts it can only be filled
-     * in now, before the press's first visit): the country from sign-up, the shop's web address and "Book Stores"
-     * (merchant category 5942).
+     * in now, before the press's first visit): the country from sign-up, the shop's web address and what it sells: "Book
+     * Stores" (merchant category 5942) for a books shop, the matching category for one that sells other things
+     * (shared/sells/sells.js merchantProfile).
      */
-    async createAccount(shopId, { pressName, ownerEmail, country, currency, testMode }) {
+    async createAccount(shopId, { pressName, ownerEmail, country, currency, testMode, sells }) {
       const row = await registry.getShop(shopId);
       if (!row) throw new Error(`${shopId} isn't in the registry`);
       if (String(row.ownerEmail).toLowerCase() !== String(ownerEmail).toLowerCase()) throw new Error(`${shopId} belongs to another owner in the registry`);
@@ -662,7 +670,7 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
           country,
           email: ownerEmail,
           default_currency: String(currency).toLowerCase(),
-          business_profile: { name: pressName, url: shopAddress(row), mcc: BOOK_STORES_MCC, product_description: "Books and printed matter" },
+          business_profile: { name: pressName, url: shopAddress(row), ...businessKind(sells) },
           metadata: { lmb_shop_id: shopId },
         },
         idempotencyKey: `lmb-account-${shopId}-${mode}`,
