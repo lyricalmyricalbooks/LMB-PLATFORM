@@ -71,6 +71,16 @@ export async function seedRoom(world) {
     });
   }
 
+  // Web addresses (#381): Lantern Zines has its free address and its own domain, which stopped opening the shop.
+  await world.registry.updateShop("lantern-zines", {
+    freeAddress: "lantern-zines.shops.example",
+    domains: [
+      { name: "lantern-zines.shops.example", state: "live", free: true, addedAt: at },
+      { name: "lanternzines.example", state: "waiting_dns", addedAt: at, brokeAt: at },
+      { name: "www.lanternzines.example", state: "live", addedAt: at, redirectTo: "lanternzines.example" },
+    ],
+  });
+
   // Social channels (27.8): Kestrel posts to Facebook and Instagram; Lantern Zines' Pinterest stopped working.
   const sealed = { iv: "walkthrough", data: "pretend" };
   await world.socialConnections.set("kestrel", "meta", { sealed, accountName: "Kestrel Books", places: [{ id: "fb:1" }, { id: "ig:2" }], connectedAt: at, catalog: { feedId: "walk-feed", sentAt: at, feedUrl: "https://kestrel.example/feed.csv" } });

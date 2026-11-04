@@ -311,6 +311,8 @@ export function createControlRoom({
           moveStuck: row.moveStuck ?? null,
           // What it sells (the sign-up answer) against the category its Stripe account was filed under (12.18).
           sells: sellsFacts(row.publishes ?? null, row.payments),
+          // Every web address the shop answers on (free and own, #381), so the list's search finds a shop by it.
+          addresses: [row.freeAddress, ...(row.domains ?? []).map((d) => d?.name)].filter((a) => typeof a === "string" && a),
         });
       }
       const order = { problem: 0, watch: 1, ok: 2 };

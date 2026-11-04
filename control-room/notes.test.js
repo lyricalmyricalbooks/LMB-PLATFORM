@@ -112,6 +112,7 @@ test("the Shops list's search finds shops by tag, as well as by name, id and own
   assert.deepEqual(find(""), [SHOP, "paper-wasp"]);
   assert.deepEqual(find("cookbooks"), []);
   assert.equal(shopMatches(shops[0], "moth"), true, "a shop with no tags still matches by name");
+  assert.equal(shopMatches({ pressName: "Moth Press", addresses: ["moth-press.shops.example", "mothpress.example"] }, "mothpress.example"), true, "a shop is found by its web address");
 });
 
 test("the page: the Jobs page is in the side menu, and the new routes are all used", () => {

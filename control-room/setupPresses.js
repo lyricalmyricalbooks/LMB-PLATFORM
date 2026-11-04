@@ -86,6 +86,9 @@ export function setupPress(record, { shop, now }) {
     import: record.stagedImport ? { name: record.stagedImport.name ?? "", rows: record.stagedImport.rows ?? null, at: record.stagedImport.at ?? null } : null,
     stillToDo: record.status === "setup" ? stillToDo(record) : [],
     guide: guideOf(record),
+    // "Your web address" in the setup guide (#381): free, or the press's own domain and where it was bought.
+    webAddress: record.domainChoice === "own" ? { choice: "own", domain: record.domain || "", seller: record.domainSeller || "" }
+      : record.domainChoice === "free" ? { choice: "free", freeName: record.freeName || "" } : null,
     createdAt: record.createdAt ?? null,
     lastSeenAt: record.lastSeenAt ?? null,
     idleDays: idle,
@@ -95,7 +98,7 @@ export function setupPress(record, { shop, now }) {
     shopStatus: shop?.status ?? null,
     shopMessage: record.shopMessage || "",
     // The removal warnings emailed for this visit (signup/setupClock.js): { "30": at, "7": at }.
-    warned: record.setupWarnings?.seen === record.lastSeenAt ? record.setupWarnings.sent ?? {} : {},
+    warned: record.setupWarnings && record.setupWarnings.seen === record.lastSeenAt ? record.setupWarnings.sent ?? {} : {},
     expiredAt: record.expiredAt ?? null,
     flag,
   };

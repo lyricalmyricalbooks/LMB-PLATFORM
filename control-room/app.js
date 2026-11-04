@@ -357,7 +357,24 @@ function googleView(record) {
   }));
   return el("div", { className: "cr-list" },
     el("p", { className: "rp-hint", textContent: `${google.stage}${google.accountEmail ? ` as ${google.accountEmail}` : ""}${google.connectedAt ? ` since ${dateOnly(google.connectedAt)}` : ""}.` }),
-    google.steps.length ? list : el("p", { className: "rp-hint", textContent: "No Google steps yet." }));
+    google.steps.length ? list : el("p", { className: "rp-hint", textContent: "No Google steps yet." }),
+    // Extras the press switched off in Settings › Google (#385): they stopped at once; what they made stays the press's.
+    stoppedExtras(google.parts));
+}
+
+const GOOGLE_PART_WORDS = { analytics: "Analytics", searchConsole: "Search Console", merchantCenter: "Google Shopping", domain: "Domains", email: "Gmail sending", drive: "Drive", youtube: "YouTube", calendar: "Calendar", businessProfile: "Business Profile", ads: "Ads" };
+function stoppedExtras(parts = {}) {
+  const stopped = Object.entries(parts ?? {}).filter(([, part]) => part?.stoppedAt).sort(([, a], [, b]) => (a.stoppedAt < b.stoppedAt ? 1 : -1));
+  if (!stopped.length) return null;
+  return el("p", { className: "rp-hint", textContent: `Switched off by the press: ${stopped.map(([name, part]) => `${GOOGLE_PART_WORDS[name] ?? name} (${dateOnly(part.stoppedAt)})`).join(", ")}.` });
+}
+
+// One web address in the record: free or own, its state, and where an old one sends visitors (#381).
+const ADDRESS_STATE = { live: "working", connecting: "connecting", waiting_dns: "waiting for its records", securing: "getting its padlock", conflict: "clashes with another site", missing: "not set up at Google", failed: "failed" };
+function addressWords(d) {
+  const parts = [d.free ? (d.former ? "old free address" : "free address") : null, d.brokeAt ? "stopped opening the shop" : ADDRESS_STATE[d.state] ?? d.state,
+    d.redirectTo ? `sends visitors to ${d.redirectTo}` : null, d.expiresAt ? `paid up until ${dateOnly(d.expiresAt)}` : null];
+  return `${d.name} (${parts.filter(Boolean).join(", ")})`;
 }
 
 /** The language of the platform's emails to a press (the record's `emailLanguage`). */
@@ -384,7 +401,7 @@ function recordView(record) {
     ["Sells", record.sells?.line ?? ""],
     ["Emails", EMAIL_LANGUAGE_WORDS[record.emailLanguage] ?? ""],
     ["Payments", connections.payments ? `${connections.payments.provider ?? "?"}${connections.payments.connected ? ", connected" : ", not connected yet"}` : "not set up yet"],
-    ["Web address", Array.isArray(connections.domains) && connections.domains.length ? connections.domains.map((d) => `${d.name} (${d.brokeAt ? "stopped opening the shop" : d.state}${d.expiresAt ? `, paid up until ${dateOnly(d.expiresAt)}` : ""})`).join(", ") : "the shop's own .web.app address"],
+    ["Web address", Array.isArray(connections.domains) && connections.domains.length ? connections.domains.map(addressWords).join(", ") : "the shop's own .web.app address"],
     ["Version", record.version ?? "none yet"],
   ].filter(([, value]) => value);
   return el("div", { className: "record" },
@@ -2266,6 +2283,8 @@ async function loadSetup() {
         { header: "Last visit", render: (p) => el("div", {}, el("span", { className: "rp-mono", textContent: p.idleDays == null ? "" : daysWords(p.idleDays) }), meta(p.createdAt ? `signed up ${dateOnly(p.createdAt)}` : null)) },
         { header: "Where", render: (p) => el("div", {}, setupStatusCell(p),
           meta(p.status === "setup" && p.guide ? `setup guide ${p.guide.done} of ${p.guide.total}${p.guide.next ? `, next: ${p.guide.next.toLowerCase()}` : ""}` : null,
+            p.webAddress?.choice === "own" ? `own address${p.webAddress.domain ? ` ${p.webAddress.domain}` : ", domain not added yet"}${p.webAddress.seller ? ` (${p.webAddress.seller})` : ""}` : null,
+            p.webAddress?.choice === "free" ? `free address${p.webAddress.freeName ? ` (picked “${p.webAddress.freeName}”)` : ""}` : null,
             p.stillToDo.length ? `still to add: ${p.stillToDo.join(", ")}` : null, p.shopId ? `shop ${p.shopId}` : null, p.shopMessage || null,
             Object.keys(p.warned).length ? `emailed ${Object.keys(p.warned).sort((a, b) => b - a).map((d) => `${d} days`).join(" and ")} before removal` : null,
             p.expiredAt ? `cleared ${dateOnly(p.expiredAt)}` : null)) },
