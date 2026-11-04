@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { NAV, SETTINGS_ITEM_PREFIX, sidebarItems } from "../app/admin/riso/nav";
 import type { SetupPress } from "./door";
-import { DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, PLAN_PAGE, guideProgress, guideSteps, nextGuideStep, pageFromHash, readyToCreate, setupLocked, showMoveIn, setupMenu, setupMenuItemFor, setupPageLabel } from "./pages";
+import { DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, PLAN_PAGE, guideProgress, guideSteps, helpFor, nextGuideStep, pageFromHash, readyToCreate, setupLocked, showMoveIn, setupMenu, setupMenuItemFor, setupPageLabel } from "./pages";
 
 const press = (over: Partial<SetupPress> = {}): SetupPress => ({
   pressId: "press-moth", status: "setup", plan: "", pressName: "", sells: "", country: "", look: "", adminLook: "", stagedImport: null, ...over,
@@ -105,5 +105,15 @@ describe("bringing a shop over is easy to find (23.0)", () => {
     expect(showMoveIn(press({ moving: "fresh" }))).toBe(false);
     expect(showMoveIn(press({ stagedImport: { name: "a.csv", size: 9, rows: 3, at: "2026-11-03T09:00:00Z" } }))).toBe(false);
     expect(showMoveIn(press({ status: "opening" }))).toBe(false);
+  });
+});
+
+describe("the help centre follows what the shop sells (code plan 12.18)", () => {
+  it("adds the answer for a shop that doesn't sell books, and leaves a books shop's link alone", () => {
+    expect(helpFor("/help/", "clothing")).toBe("/help/?sells=clothing");
+    expect(helpFor("/help/?plan=shop", "music")).toBe("/help/?plan=shop&sells=music");
+    expect(helpFor("/help/", "books")).toBe("/help/");
+    expect(helpFor("/help/", "zines")).toBe("/help/");
+    expect(helpFor("/help/", null)).toBe("/help/");
   });
 });

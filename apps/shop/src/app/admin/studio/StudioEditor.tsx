@@ -40,7 +40,8 @@ import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../../features/site/risoNoir";
 import { addSavedTheme, duplicateSavedTheme, parseThemeFile, removeSavedTheme, renameSavedTheme, savedThemeLimitProblem, serializeThemeFile, themeFileName, themeNamed, type SavedTheme } from "./savedThemes";
 import { PAYMENT_BADGE_OPTIONS, resolveFooterBadges } from "../../features/site/paymentBadges";
 import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
-import { applyPresetSections, hasPresetContent, presetContentSummary, presetPagesToAdd, presetSections } from "./presetContent";
+import { applyPresetSections, hasPresetContent, presetContentSummary, presetPagesToAdd, presetSections, wordedSettings } from "./presetContent";
+import { useShopWords } from "../shopWords";
 import { applyThemeKeysToSurfaces } from "../themeScope";
 import { THEME_LIBRARY } from "./themeLibrary";
 import { applyLook, bringBack, ownEdits, resetToLook, switchSummary, themeSwitchReport, updateLookKeepingEdits, updatedTheme, type SwitchItem, type ThemeSwitchReport } from "./themeSwitch";
@@ -401,6 +402,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   onPersisted?: (design: any, published: boolean) => void;
 }) {
   const defaults = useMemo(() => adminApi.getDefaultSettings().design, []);
+  // The shop's words (code plan 12.18): layouts and the brand kit's starter Home come in this shop's words.
+  const shopWords = useShopWords();
   const [workspace] = useState<Workspace>(() => openedWorkspace ?? { draft: settings?.draftDesign ?? settings?.design, rev: 0, savedThemes: settings?.savedThemes || [] });
   const [hist, setHist] = useState(() => initHistory(normalizeDesign(settings?.draftDesign ?? settings?.design, defaults)));
   const design = hist.present;
@@ -741,7 +744,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const tpl = HOME_LAYOUT_TEMPLATES.find((t) => t.id === RISO_NOIR_ID);
     if (!tpl) return;
     change((d) => setSections(d, { kind: "template", id: "heroPage" }, tpl.sections.map((s) =>
-      makeSection(s.type, { ...(getSectionMeta(s.type)?.defaults || {}), ...(s.settings || {}) }))), { label: "Install Riso Noir home layout" });
+      makeSection(s.type, wordedSettings({ ...(getSectionMeta(s.type)?.defaults || {}), ...(s.settings || {}) }, shopWords)))), { label: "Install Riso Noir home layout" });
     setTemplateId("heroPage");
     setShowGlobal(false);
     say("ok", "Noir homepage layout installed on the draft.", undoAction());
@@ -753,7 +756,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   };
   const applyBrandKit = (choice: BrandKitChoice) => {
     setBrandKit(false);
-    change((d) => brandKitDesign(d, choice, getSectionMeta), { label: "Apply brand kit" });
+    change((d) => brandKitDesign(d, choice, getSectionMeta, shopWords), { label: "Apply brand kit" });
     if (choice.home === "starter") { setTemplateId("heroPage"); setShowGlobal(false); }
     say("ok", "Brand kit applied to the draft — Publish to make it live.", undoAction());
   };
@@ -777,7 +780,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     });
     if (!ok) return;
     const sectionTemplates = Object.keys(presetSections(theme));
-    if (sectionTemplates.length) change((d) => applyPresetSections(d, theme, getSectionMeta), { label: `Use “${theme.name}” layout` });
+    if (sectionTemplates.length) change((d) => applyPresetSections(d, theme, getSectionMeta, shopWords), { label: `Use “${theme.name}” layout` });
     let added = 0;
     try {
       // Each page saves straight away as a draft, like Pages › New page; a page whose address is taken is skipped, so
@@ -1038,7 +1041,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const previewDesign = historyPreview?.design || themePreview?.design || ((candidate || draftCandidate) && adding !== null
       ? withCandidate(current, showGlobal ? globalGroup : template.id, getSections(current, target), adding, candidate ? makeSection(candidate, getSectionMeta(candidate)?.defaults || {}) : draftCandidate!)
       : candidateOwner ? withBlockCandidate(current, blockPicker!, getBlocksKey(candidateOwner.section.type), blockCandidate)
-      : brandChoice ? brandKitDesign(current, brandChoice, getSectionMeta)
+      : brandChoice ? brandKitDesign(current, brandChoice, getSectionMeta, shopWords)
       : current);
     let state: ReturnType<typeof buildPreviewState>;
     try { state = buildPreviewState(settings, previewDesign, withDraftPage(pages, draftPage), books); }

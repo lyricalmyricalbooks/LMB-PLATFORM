@@ -19,7 +19,7 @@ import type { PlanList, SetupChange, SetupDoor, SetupPress } from "./door";
 import { CreateShopCard, type CreateShop } from "./CreateShop";
 import type { CreateNames } from "./launchWords";
 import {
-  DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, IMPORT_PAGE, PLAN_PAGE, guideProgress, guideSteps, nextGuideStep, pageFromHash, readyToCreate, setupLocked, showMoveIn, setupMenu,
+  DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, IMPORT_PAGE, PLAN_PAGE, guideProgress, helpFor, guideSteps, nextGuideStep, pageFromHash, readyToCreate, setupLocked, showMoveIn, setupMenu,
   setupMenuItemFor, setupPageLabel,
 } from "./pages";
 
@@ -103,7 +103,7 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
       names={{ countries: lists.countries, sells: lists.sells, lookName: themeName(press.look) }} email={email}
       createShop={(choice) => door.openShop(press.pressId, choice)} onCreated={setPress} onOpen={open} />
   );
-  else content = <HelpPage helpUrl={helpUrl} />;
+  else content = <HelpPage helpUrl={helpFor(helpUrl, press.sells)} w={w} />;
 
   return (
     <ShopWordsContext.Provider value={w}>
@@ -431,12 +431,12 @@ function PlanPage({ press, plans, failed, onRetry, save, termsUrl, names, email,
   );
 }
 
-function HelpPage({ helpUrl }: { helpUrl: string }) {
+function HelpPage({ helpUrl, w }: { helpUrl: string; w: (text: string) => string }) {
   return (
     <>
       <PageHeader title="Help" description="Answers about setting up and creating your shop." />
       <SectionCard title="Help centre" collapsible={false}>
-        <p style={{ marginTop: 0 }}>Plain answers on plans, payments, moving your books in, and your website.</p>
+        <p style={{ marginTop: 0 }}>{w("Plain answers on plans, payments, moving your books in, and your website.")}</p>
         <a className="rp-btn rp-btn-secondary" href={helpUrl}>Open the help centre</a>
       </SectionCard>
     </>
