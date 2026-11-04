@@ -6,7 +6,7 @@
 // A provider client, one per provider, passed in as `providers[name]`:
 //
 //   findAccount(shopId)            -> { accountId, mode? } | null   the press's account the service already made, if any
-//   createAccount(shopId, details) -> { accountId, mode? }          details: { pressName, ownerEmail, country, currency, testMode }
+//   createAccount(shopId, details) -> { accountId, mode? }          details: { pressName, ownerEmail, country, currency, testMode, sells }
 //
 // `mode` is the mode the account was made in ("live" or "test"); the payment service takes live payments only for an
 // account made live, so a press in test mode (and the test shop) can never take real money.
@@ -126,6 +126,7 @@ export function connectPaymentsStep({ number = 13, registry, providers, profileF
         country: shop.country,
         currency: shop.currency,
         testMode: shop.testMode === true,
+        sells: shop.publishes ?? null,
       }));
       if (!account?.accountId) throw new Error(`${PAYMENT_PROVIDERS[provider].name} gave no account id`);
       const mode = account.mode === "live" || account.mode === "test" ? account.mode : shop.testMode === true ? "test" : "live";

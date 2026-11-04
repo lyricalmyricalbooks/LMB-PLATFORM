@@ -17,6 +17,7 @@ COPY security ./security
 COPY server ./server
 COPY services ./services
 COPY setup ./setup
+COPY shared ./shared
 COPY signup ./signup
 COPY status ./status
 COPY terms ./terms

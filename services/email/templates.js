@@ -270,12 +270,12 @@ export const TEMPLATES = {
   }),
 
   /** A paying press whose shop has gone quiet (control-room/driftWatch.js): a gentle check-in, at most every 60 days. */
-  "quiet-shop": ({ pressName, link, helpLink }, { settings }) => layout({
+  "quiet-shop": ({ pressName, link, helpLink }, { settings, w = (text) => text }) => layout({
     subject: `How is ${pressName} getting on?`,
     greeting: "Hello,",
     paragraphs: [
       `Things have been quiet at ${pressName} lately, so we wanted to check in. Shops often slow down between seasons, and that's fine.`,
-      "A few things that tend to bring shoppers back: add a new title or a fresh photo, send your newsletter about it, or put a small discount code on your home page for a week.",
+      w("A few things that tend to bring shoppers back: add a new title or a fresh photo, send your newsletter about it, or put a small discount code on your home page for a week."),
       `If something in ${settings.platformName} is getting in your way, reply to this email and tell us what it is. The help pages are always there too: ${helpLink}`,
     ],
     buttons: [["Open your shop admin", safeLink(link)]],
@@ -565,7 +565,7 @@ export const TEMPLATES = {
    * payments. `to`: "own" (the press's own Stripe keys), "square" or "platform" (back to normal); `ready`: whether the
    * press can take cards that way already.
    */
-  "payments-moved": ({ to, ready }, { settings, pressName }) => {
+  "payments-moved": ({ to, ready }, { settings, pressName, w = (text) => text }) => {
     const admin = "Open your shop's admin, then Settings and Payments";
     const words = {
       own: {
@@ -591,7 +591,7 @@ export const TEMPLATES = {
     return layout({
       subject: words.subject,
       greeting: "Hello,",
-      paragraphs: [...words.paragraphs, "Your books, orders and payouts already made are not affected. We'll email you again when anything changes."],
+      paragraphs: [...words.paragraphs, w("Your books, orders and payouts already made are not affected. We'll email you again when anything changes.")],
       footer: signOff(settings),
     });
   },

@@ -233,3 +233,15 @@ test("a launch or waitlist email is refused until Colophon has a mailing address
   assert.match(resend.requests[0].body.text, /Reply STOP and we'll take you off the list at once/);
   assert.match(resend.requests[0].body.text, /PO Box 12, Example City/);
 });
+
+test("a shop's own platform emails speak of what it sells; a books shop's are unchanged (plan 12.18)", async () => {
+  const { registry, resend, service } = await make();
+  const send = (key) => service.sendPlatform({ kind: "shop-closed", to: "owner@example.com", shopId: "moth-press", data: { pressName: "Moth Press", date: "1 March", link: "https://platform.example/account" }, idempotencyKey: key });
+  await send("c1");
+  assert.match(resend.requests.at(-1).body.text, /your books, orders, customers and stock/);
+  await registry.saveProfile("moth-press", { sells: "clothing" });
+  await send("c2");
+  assert.match(resend.requests.at(-1).body.text, /your products, orders, customers and stock/);
+  // The shop's own name is never changed.
+  assert.match(resend.requests.at(-1).body.subject, /^Moth Press is closed/);
+});
