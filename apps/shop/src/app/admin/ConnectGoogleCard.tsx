@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import toast from "react-hot-toast";
 import { PrimaryButton, SecondaryButton, SectionCard, StatusBadge } from "./riso/components";
 import { friendlyError } from "./settingsLayout";
-import { googleConnectApi, takeGoogleOutcome, useGoogleConnect, type GoogleExtra, type GoogleStatus } from "./googleConnect";
+import { RECONNECT_WORDS, googleConnectApi, takeGoogleOutcome, useGoogleConnect, type GoogleExtra, type GoogleStatus } from "./googleConnect";
 import { useShopWords } from "./shopWords";
 
 // Connect Google (plan 6.17): one sign-in links Analytics, search, Google Shopping and the shop's email. Every part, the
@@ -65,12 +65,13 @@ function OutcomeLine() {
 function GooglePrompt({ status }: { status: GoogleStatus | null }) {
   const w = useShopWords();
   const connect = useConnect();
-  if (!status?.enabled || status.connected) return null;
+  if (!status?.enabled || (status.connected && !status.needsReconnect)) return null;
+  const again = !!status.needsReconnect;
   return (
-    <SectionCard title="Connect Google" description={w("See where visitors come from, put your shop on Google search and your books on Google Shopping, with one sign-in.")}
-      actions={<PrimaryButton size="sm" disabled={connect.busy} onClick={() => connect.go([])}>{connect.busy ? "Opening Google…" : "Connect Google"}</PrimaryButton>}>
+    <SectionCard title={again ? RECONNECT_WORDS.title : "Connect Google"} description={again ? RECONNECT_WORDS.text : w("See where visitors come from, put your shop on Google search and your books on Google Shopping, with one sign-in.")}
+      actions={<PrimaryButton size="sm" disabled={connect.busy} onClick={() => connect.go(status.extrasChosen ?? [])}>{connect.busy ? "Opening Google…" : again ? RECONNECT_WORDS.button : "Connect Google"}</PrimaryButton>}>
       <OutcomeLine />
-      <p className="rp-hint" style={{ margin: 0 }}>Until then, visit figures come from your shop's own counter. Extras like backups to your Google Drive are in Settings › Google.</p>
+      {!again && <p className="rp-hint" style={{ margin: 0 }}>Until then, visit figures come from your shop's own counter. Extras like backups to your Google Drive are in Settings › Google.</p>}
     </SectionCard>
   );
 }

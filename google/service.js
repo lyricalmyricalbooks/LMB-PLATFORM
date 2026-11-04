@@ -114,22 +114,31 @@ export function createGoogleService({ config, google, tokens, states, registry, 
     async "google.sheetSync"(row, { rows } = {}) {
       const values = sheetRows(rows);
       const grant = await tokens.fresh(row.shopId);
-      if (!grant || !SCOPES.drive.every((scope) => grant.scopes.includes(scope))) return { available: false };
+      // Only with the Drive box ticked: Google keeps an unticked extra's permission in the grant, so the scopes alone
+      // don't say the press still wants a sheet.
+      if (!grant || !(grant.extras ?? []).includes("drive") || !SCOPES.drive.every((scope) => grant.scopes.includes(scope))) return { available: false };
+      // Written over a fresh read of the row, so a connect step that finished meanwhile isn't undone.
+      const saveSheet = async (sheet) => {
+        const fresh = await registry.getShop(row.shopId);
+        await registry.updateShop(row.shopId, { google: { ...(fresh?.google ?? row.google ?? {}), sheet } });
+      };
       const known = row.google?.sheet ?? {};
       let sheet = known.spreadsheetId ? known : null;
       if (!sheet) {
         const made = await google.createSpreadsheet(grant.token, `${row.pressName || row.shopId} stock from Colophon`);
         sheet = { spreadsheetId: made.spreadsheetId, url: made.spreadsheetUrl, madeAt: new Date(now()).toISOString() };
+        // Kept before the first write: if that write fails, the next try fills this sheet instead of making another.
+        await saveSheet(sheet);
       }
       try {
         await google.writeStockSheet(grant.token, sheet.spreadsheetId, values);
       } catch (err) {
         // The press deleted the sheet in their Drive: make a fresh one next time rather than failing for good.
-        if (err?.status === 404 && known.spreadsheetId) { await registry.updateShop(row.shopId, { google: { ...(row.google ?? {}), sheet: null } }); return { available: true, gone: true }; }
+        if (err?.status === 404 && known.spreadsheetId) { await saveSheet(null); return { available: true, gone: true }; }
         throw err;
       }
       const next = { ...sheet, writtenAt: new Date(now()).toISOString(), rows: values.length - 1 };
-      await registry.updateShop(row.shopId, { google: { ...(row.google ?? {}), sheet: next } });
+      await saveSheet(next);
       return { available: true, url: next.url, writtenAt: next.writtenAt, rows: next.rows };
     },
     async "google.productProblems"(row) {

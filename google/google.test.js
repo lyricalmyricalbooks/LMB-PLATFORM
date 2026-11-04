@@ -739,6 +739,42 @@ test("a sheet the press deleted is made again on the next send, and bad cells ar
   }
 });
 
+test("a failed first write keeps the sheet it made, so trying again fills it instead of making a second one", async () => {
+  const t = await setup({ google: { failOnce: ["writeStockSheet"] } });
+  await t.signIn({ extras: ["drive"] });
+  assert.notEqual((await t.call("google.sheetSync", { rows: STOCK })).status, 200);
+  const again = await t.call("google.sheetSync", { rows: STOCK });
+  assert.equal(again.status, 200, JSON.stringify(again.body));
+  assert.equal(t.google.world.spreadsheets.size, 1);
+  assert.deepEqual([...t.google.world.spreadsheets.values()][0].values, STOCK);
+});
+
+test("with the Drive box unticked no sheet is written, even though Google keeps the permission", async () => {
+  const t = await setup();
+  await t.signIn({ extras: ["drive"] });
+  assert.equal((await t.call("google.turnOff", { extras: ["drive"] })).status, 200);
+  assert.deepEqual((await t.call("google.sheetSync", { rows: STOCK })).body, { available: false });
+  const u = await setup();
+  await u.signIn();
+  assert.deepEqual((await u.call("google.sheetSync", { rows: STOCK })).body, { available: false });
+  assert.equal(t.google.world.spreadsheets.size + u.google.world.spreadsheets.size, 0);
+});
+
+test("writing the sheet keeps what a connect step saved while it ran", async () => {
+  const t = await setup();
+  await t.signIn({ extras: ["drive"] });
+  const write = t.google.writeStockSheet;
+  t.google.writeStockSheet = async (...args) => {
+    const row = await t.shopRow();
+    await t.registry.updateShop(SHOP, { google: { ...row.google, calendar: { calendarId: "meanwhile" } } });
+    return write(...args);
+  };
+  assert.equal((await t.call("google.sheetSync", { rows: STOCK })).status, 200);
+  const g = (await t.shopRow()).google;
+  assert.equal(g.calendar?.calendarId, "meanwhile");
+  assert.ok(g.sheet.writtenAt);
+});
+
 test("Gmail sending stops at 80% of the daily limit, the email goes the usual way, and it starts again the next day (15.24)", async () => {
   const t = await setup({ env: { ...ENV, GOOGLE_GMAIL_SENDING: "on" } });
   await t.signIn();
