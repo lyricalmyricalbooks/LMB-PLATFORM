@@ -22,7 +22,7 @@ export function fakeGoogle({ failOnce = [], refuse = [] } = {}) {
     webResources: new Map(), // id -> { id, site, owners }
     scSites: new Set(),
     sitemaps: new Set(),
-    spreadsheets: new Map(), // id -> { title, values }
+    spreadsheets: new Map(), // id -> { title, tabs: { Stock: [[…]], Sales: [[…]] } }
     productProblems: new Map(), // "accounts/n" -> [{ offerId, title, issues }]
     merchantAccounts: new Map(), // "accounts/n" -> { name, accountName }
     dataSources: new Map(), // name -> { name, displayName, fileUri }
@@ -197,18 +197,32 @@ export function fakeGoogle({ failOnce = [], refuse = [] } = {}) {
 
     findFolder: async (token, name) => (who(token, "drive"), world.folders.has(name) ? { id: world.folders.get(name), name } : null),
     async createFolder(token, name) { who(token, "drive"); change("createFolder", name); const id = `folder-${next()}`; world.folders.set(name, id); return { id, name }; },
-    async createSpreadsheet(token, title) {
+    async createSpreadsheet(token, title, tabs = ["Stock"]) {
       who(token, "drive");
       change("createSpreadsheet", title);
       const spreadsheetId = `sheet-${next()}`;
-      world.spreadsheets.set(spreadsheetId, { title, values: [] });
+      world.spreadsheets.set(spreadsheetId, { title, tabs: Object.fromEntries(tabs.map((t) => [t, []])) });
       return { spreadsheetId, spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit` };
     },
-    async writeStockSheet(token, id, values) {
+    async sheetTabs(token, id) {
       who(token, "drive");
       if (!world.spreadsheets.has(id)) throw new GoogleError(404, "not found");
-      change("writeStockSheet", id, values.length);
-      world.spreadsheets.get(id).values = structuredClone(values);
+      return Object.keys(world.spreadsheets.get(id).tabs);
+    },
+    async addSheetTabs(token, id, tabs) {
+      who(token, "drive");
+      if (!world.spreadsheets.has(id)) throw new GoogleError(404, "not found");
+      change("addSheetTabs", id, tabs.join(","));
+      for (const t of tabs) world.spreadsheets.get(id).tabs[t] ??= [];
+      return {};
+    },
+    async writeSheetTab(token, id, tab, values) {
+      who(token, "drive");
+      const sheet = world.spreadsheets.get(id);
+      if (!sheet) throw new GoogleError(404, "not found");
+      if (!(tab in sheet.tabs)) throw new GoogleError(400, `Unable to parse range: ${tab}!A1`);
+      change("writeSheetTab", id, tab, values.length);
+      sheet.tabs[tab] = structuredClone(values);
       return {};
     },
     myChannel: async (token) => (who(token, "youtube"), world.channel ? structuredClone(world.channel) : null),

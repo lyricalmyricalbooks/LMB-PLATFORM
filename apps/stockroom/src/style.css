@@ -21610,3 +21610,11 @@ a.notif-action:hover { text-decoration: underline; }
 .nb-cover-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
 .nb-cover-row input[type="file"] { flex: 1 1 160px; min-width: 0; }
 .nb-cover-preview { width: 36px; height: 48px; object-fit: cover; border: var(--stroke) solid var(--rule-ink); box-shadow: var(--riso-off-sm); }
+
+/* Settings › Google Sheet on a Colophon shop (features/google-sheet.js). */
+.gsheet-card{display:flex;flex-direction:column;gap:14px;padding:1.25rem 1.4rem;max-width:720px;}
+.gsheet-card .section-subcopy{margin:6px 0 0;}
+.gsheet-actions{display:flex;flex-wrap:wrap;gap:8px;}
+.gsheet-note{margin:8px 0 0;font-size:var(--text-sm);color:var(--text2);}
+.gsheet-foot{margin:0;font-size:var(--text-sm);color:var(--text3);}
+@media (max-width: 768px){.gsheet-actions .btn{flex:1 1 auto;text-align:center;}}

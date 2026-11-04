@@ -730,6 +730,30 @@ registerActions({
   },
 });
 
+// Settings › Google Sheet on a Colophon shop: the sheet comes from the shop's one Google sign-in (features/google-sheet.js).
+const googleSheetScreen = lazyFeature(() => import('./features/google-sheet.js'), [], {
+  onError: (e) => { console.warn('Google Sheet failed to load', e); showToast('⚠ The Google Sheet page couldn’t load. Check your connection and try again.', 'err', 7000); },
+});
+// The shop's last answer about the sheet, for the to-do list (attentionInput).
+let _googleSheetStatus;
+function googleSheetDeps() {
+  return {
+    onStatus: (status) => { _googleSheetStatus = status; try { refreshAttentionSurfaces(); } catch (_) { /* repaints next time */ } },
+    profile: shopProfile,
+    getIdToken: () => window._fbGetIdToken(),
+    books: () => BOOKS,
+    states: () => states,
+    isPractice: (book, id) => isTestBook(book) || isTestBookId(id),
+    toast: showToast,
+  };
+}
+registerActions({ 'settings.googleSheet': () => switchSettingsSubTab('google') });
+// The Google Sheet tab shows only where the shop's one sign-in can make the sheet.
+if (typeof document !== 'undefined' && googleSheetApplies(shopProfile)) {
+  const btn = document.getElementById('btn-subtab-google');
+  if (btn) btn.hidden = false;
+}
+
 export const openCallScreen = lazyFeature(() => import('./features/opencall.js'), OPEN_CALL_EXPORTS, {
   onError: (e) => {
     console.warn('Open Call failed to load', e);
@@ -1151,7 +1175,8 @@ import { resolveCountryCode } from './lib/countries.js';
 import { PUBLISHER_ONLY_TABS, AUTHOR_ONLY_TABS, helpTabOpenFor, helpQueryWords, helpMatches } from './lib/help-guide.js';
 import { readStoredList } from './lib/stored-list.js';
 import { STORE_REVERSAL_PENDING_KEY } from './lib/store-reversals.js';
-import { DEFAULT_SHOP_PROFILE, fileStem, hasWebsite, readShopProfile, shopProfile, switchOn } from './lib/shop-profile.js';
+import { DEFAULT_SHOP_PROFILE, fileStem, hasWebsite, readShopProfile, runsOnColophon, shopProfile, switchOn } from './lib/shop-profile.js';
+import { googleSheetApplies, sheetSignalInput } from './lib/google-sheet.js';
 import { guideApplies, guideHtml, guideSteps, readGuide, showGuide, writeGuide } from './lib/setup-guide.js';
 import { readReady, readyApplies, readyHtml, readyLines, showReady, writeReady } from './lib/stockroom-ready.js';
 import { catalogGroups, freeGridGroupId, freeItemId, gridOffers, groupOf, sizeItem } from './lib/product-groups.js';
@@ -7305,6 +7330,9 @@ export function attentionInput() {
       connected: !!sheetsUrl,
       deployedVersion: _sheetsDeployedVersion,
       expectedVersion: EXPECTED_SCRIPT_VERSION,
+      // A Colophon shop hides the older script's panel, so its lines never apply there; with both apps the sheet
+      // comes from the shop's one Google sign-in instead.
+      ...(runsOnColophon(shopProfile) ? { colophon: true, google: googleSheetApplies(shopProfile) && _googleSheetStatus !== undefined ? sheetSignalInput(_googleSheetStatus) : null } : {}),
     },
     sync: {
       online: typeof navigator === 'undefined' || navigator.onLine !== false,
@@ -11199,7 +11227,9 @@ startAppSwitch();
 // The combined admin's book page asks for one book's figures here, so the stockroom stays the master count. A book
 // still loading answers null; the admin asks again.
 startInsideAdmin({
-  switchTab, setAdminLook, setThemePreference,
+  // The admin menu's "Google Sheet" opens Settings on its Google Sheet tab where the shop's one sign-in makes the sheet.
+  switchTab: (tab) => { switchTab(tab); if (tab === 'sheets' && googleSheetApplies(shopProfile)) switchSettingsSubTab('google'); },
+  setAdminLook, setThemePreference,
   selectBook: (id) => {
     if (!BOOKS[id]) return;
     // The "Author view" preview locks the picker to its book: back to the publisher's view, as its own button does.
@@ -15806,7 +15836,7 @@ Object.assign(window, { previewLetterhead, saveLetterhead, loadLetterheadLogo, r
 
 function switchSettingsSubTab(subTabName) {
   activeSettingsSubTab = subTabName;
-  const subTabs = ['profit', 'catalog', 'sync', 'letterhead'];
+  const subTabs = ['profit', 'catalog', 'sync', 'google', 'letterhead'];
   subTabs.forEach(tab => {
     const btn = document.getElementById('btn-subtab-' + tab);
     const sec = document.getElementById('settings-sec-' + tab);
@@ -15824,6 +15854,7 @@ function switchSettingsSubTab(subTabName) {
     updateSheetsTabUI();
   }
   if (subTabName === 'letterhead') loadLetterhead();
+  if (subTabName === 'google' && googleSheetApplies(shopProfile)) googleSheetScreen.call('openGoogleSheet', googleSheetDeps());
 }
 window.switchSettingsSubTab = switchSettingsSubTab;
 
@@ -19680,6 +19711,8 @@ async function initStartup() {
         // Once this page shows the owner's words, the shop is told, so Settings can say the stockroom has caught up.
         try { const told = wordsToReport(); if (told && !window.PLAN_READ_ONLY && await window._fbNoteWords?.(told)) wordsReported(told); } catch (_) { /* told again next time */ }
         syncSheetsConnectionWithCloud();
+        // A Colophon shop's Google Sheet, sent again quietly when it is over six hours old.
+        if (googleSheetApplies(shopProfile) && !window.PLAN_READ_ONLY) googleSheetScreen.call('refreshGoogleSheetIfDue', googleSheetDeps());
         checkAppUpdate();
         dismissSplash();
         return;

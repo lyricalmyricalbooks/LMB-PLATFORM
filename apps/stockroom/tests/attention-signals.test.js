@@ -260,6 +260,19 @@ describe('setup signals', () => {
     expect(result.signals.find(s => s.id === 'setup-sheets-missing').status).toBe('info');
   });
 
+  it('on a Colophon shop the older sheet lines never show; a one-sign-in sheet that stopped updating does', () => {
+    const ids = (sheets) => scan({ ctx: { today: '2026-11-04', sheets } }).signals.map(s => s.id).filter(id => id.includes('sheet'));
+    // Stockroom-only, or before the shop has answered: nothing, never "connect" to a panel the shop hides.
+    expect(ids({ connected: false, colophon: true, google: null })).toEqual([]);
+    expect(ids({ connected: false, colophon: true, google: { state: 'ready', hasSheet: true, writtenAt: '2026-11-04T08:00:00Z' } })).toEqual([]);
+    const stale = scan({ ctx: { today: '2026-11-04', sheets: { colophon: true, google: { state: 'ready', hasSheet: true, writtenAt: '2026-11-01T08:00:00Z' } } } }).signals.find(s => s.id === 'setup-google-sheet-stale');
+    expect(stale).toMatchObject({ status: 'warn', label: 'Google Sheet is 3 days old', fix: { label: 'Send now', kind: 'tab', tab: 'sheets' } });
+    expect(ids({ colophon: true, google: { state: 'nodrive', hasSheet: true, writtenAt: '' } })).toEqual(['setup-google-sheet-off']);
+    // Drive off and never had a sheet, or Google not connected: no nagging.
+    expect(ids({ colophon: true, google: { state: 'nodrive', hasSheet: false, writtenAt: '' } })).toEqual([]);
+    expect(ids({ colophon: true, google: { state: 'off', hasSheet: false, writtenAt: '' } })).toEqual([]);
+  });
+
   it('flags changes that failed to save', () => {
     const result = scan({ ctx: { sync: { online: true, pending: 3, failed: true } } });
     const s = result.signals.find(s => s.id === 'setup-sync-failed');

@@ -4,7 +4,7 @@ import { describe, expect, test } from "vitest";
 import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
-const { googleConnectActions, stockSheetRows } = require("./googleConnect.js");
+const { googleConnectActions, stockSheetRows, salesSheetRows, expensesSheetRows } = require("./googleConnect.js");
 
 const URL_ = "https://google.platform.example";
 const KEY = "service-key-moth-press-0123456789abcdef0123";
@@ -67,6 +67,34 @@ describe("Connect Google in the admin", () => {
     expect(calls[0].args.rows[1]).toEqual(["Moth Book", "A. Writer", "9780000000000", 18, 12, "2026-10-29T10:00:00Z"]);
     expect(calls[0].args.rows[2]).toEqual(["=Sum", "", "", "", "", ""]);
     expect(stockSheetRows(null)).toHaveLength(1);
+  });
+
+  test("the stockroom's sales go in a Sales tab under our own headings; the stock is still read on the server", async () => {
+    const { run, calls } = make({ readStock: async () => [{ title: "Moth Book", price: 18, onHand: 12 }] });
+    await run({ step: "sheetSync", sales: [["2026-11-01", "Moth Book", "F-1", "Fair", 2, 18, 36, "CAD", "", "extra"], ["2026-11-02", { x: 1 }, null, "=Sum"]] });
+    expect(calls).toHaveLength(1);
+    const { Stock, Sales } = calls[0].args.tabs;
+    expect(Stock[1].slice(0, 5)).toEqual(["Moth Book", "", "", 18, 12]);
+    expect(Sales[0]).toEqual(["Date", "Book", "Order", "Where sold", "Copies", "Price", "Total", "Currency", "Notes"]);
+    expect(Sales[1]).toEqual(["2026-11-01", "Moth Book", "F-1", "Fair", 2, 18, 36, "CAD", ""]);
+    expect(Sales[2]).toEqual(["2026-11-02", "", "", "=Sum", "", "", "", "", ""]);
+    // An empty list is still a Sales tab (headings only); a broken one is refused before anything is sent.
+    await run({ step: "sheetSync", sales: [] });
+    expect(calls[1].args.tabs.Sales).toHaveLength(1);
+    for (const sales of ["x", [["a"], "b"], Array.from({ length: 5001 }, () => ["a"])]) expect((await run({ step: "sheetSync", sales })).statusCode).toBe(400);
+    expect(calls).toHaveLength(2);
+    expect(salesSheetRows(undefined)).toBeNull();
+  });
+
+  test("costs go in an Expenses tab under our own headings; a broken list is refused", async () => {
+    const { run, calls } = make({ readStock: async () => [] });
+    await run({ step: "sheetSync", expenses: [["2026-10-01", "Moth Book", "Expense", "Printing", "INV-4", 400, "CAD", 400, "Riso run"]] });
+    expect(Object.keys(calls[0].args.tabs)).toEqual(["Stock", "Expenses"]);
+    expect(calls[0].args.tabs.Expenses[0]).toEqual(["Date", "Book", "Kind", "Category", "Reference", "Amount", "Currency", "Amount in CAD", "Notes"]);
+    expect(calls[0].args.tabs.Expenses[1][5]).toBe(400);
+    expect((await run({ step: "sheetSync", sales: [], expenses: "x" })).statusCode).toBe(400);
+    expect(calls).toHaveLength(1);
+    expect(expensesSheetRows(undefined)).toBeNull();
   });
 
   test("a stockroom that can't be read sends nothing", async () => {
