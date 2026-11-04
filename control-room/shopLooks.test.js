@@ -94,7 +94,9 @@ test("the shop drawer and the Setting up page show the looks, and both web doors
 
 test("the template list matches the shop's own", () => {
   const ts = readFileSync(new URL("../apps/shop/src/app/features/site/templateStyles.ts", import.meta.url), "utf8");
-  const ids = JSON.parse(/TEMPLATE_STYLE_IDS = (\[[^\]]*\])/.exec(ts)[1]);
+  // The shop keeps its templates as TEMPLATE_STYLES rows ({ id, label }), with TEMPLATE_STYLE_IDS made from them.
+  const list = /TEMPLATE_STYLES = \[([\s\S]*?)\n\];/.exec(ts)?.[1] ?? "";
+  const ids = [...list.matchAll(/\bid: "([^"]+)"/g)].map((m) => m[1]);
   assert.deepEqual([...TEMPLATES], ids);
   assert.equal(lookOf({ design: { themeStyle: "default" } }, null, null).template, null, "the plain look is no template");
 });
