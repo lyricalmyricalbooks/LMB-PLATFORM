@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
-import { createAccounts, INVITE_DAYS, ROLES } from "./accounts.js";
+import { createAccounts, INVITE_DAYS, MAX_PENDING_INVITES, ROLES } from "./accounts.js";
 import { accountRoutes } from "./routes.js";
 import { fakeAccountStores, fakeShopData } from "./fakes.js";
 import { createApi } from "../signup/api.js";
@@ -210,6 +210,15 @@ test("the team list shows the shop's sign-up owner, members and open invites", a
   assert.deepEqual(answer.body.members.map((m) => [m.email, m.role]), [[OWNER.email, "owner"], [CAL.email, "staff"]]);
   assert.deepEqual(answer.body.invites.map((i) => [i.email, i.role]), [["dee@example.com", "author"]]);
   assert.equal(JSON.stringify(answer.body).includes("tokenHash"), false);
+});
+
+test("at the open-invite limit, inviting someone again is refused without cancelling the invite they already have", async () => {
+  const w = world();
+  await w.accounts.invite(OWNER, { shopId: SHOP, email: CAL.email, role: "staff" });
+  const first = w.secretOf(CAL.email);
+  for (let i = 0; i < MAX_PENDING_INVITES; i += 1) await w.stores.invites.set(`other-${i}`, { id: `other-${i}`, shopId: SHOP, email: `p${i}@example.com`, role: "staff", invitedBy: OWNER.email, expiresAt: "2099-01-01T00:00:00Z" });
+  await assert.rejects(w.accounts.invite(OWNER, { shopId: SHOP, email: CAL.email, role: "author" }), { status: 429 });
+  assert.deepEqual(await w.accounts.accept(CAL, first), { shopId: SHOP, role: "staff" }, "the first invite still works");
 });
 
 test("the sign-up owner's row says it can't be changed, and trying says why instead of 'not on the team'", async () => {

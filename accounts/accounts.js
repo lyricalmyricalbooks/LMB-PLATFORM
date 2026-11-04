@@ -160,8 +160,9 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
       if (to === normal(shopRow?.ownerEmail)) throw new SignupError(409, "That's the shop's own owner address. It always has full access.");
       if (await memberships.get(shopId, to)) throw new SignupError(409, "That person is already on the team. Change their role instead.");
       const open = (await invites.listByShop(shopId)).filter((i) => !i.acceptedAt && !i.cancelledAt && i.expiresAt > at());
-      for (const old of open.filter((i) => i.email === to)) await invites.set(old.id, { ...old, cancelledAt: at(), cancelledBy: "replaced" });
+      // The limit first: a refused invite must leave the one this person already has working.
       if (open.filter((i) => i.email !== to).length >= MAX_PENDING_INVITES) throw new SignupError(429, `A shop can have ${MAX_PENDING_INVITES} open invites at once. Cancel some first.`);
+      for (const old of open.filter((i) => i.email === to)) await invites.set(old.id, { ...old, cancelledAt: at(), cancelledBy: "replaced" });
 
       const secret = token();
       const id = hash(secret).slice(0, 40);
