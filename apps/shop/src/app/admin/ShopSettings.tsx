@@ -41,6 +41,7 @@ const MAX_LIVE_RATE_EXTRA = 50;
 import { TeamSettings } from "./TeamSettings";
 import { SecuritySettings } from "./SecuritySettings";
 import { GoogleSettings } from "./GoogleSettings";
+import { AppsSettings } from "./AppsSettings";
 import { BookkeepingSettings } from "./BookkeepingSettings";
 import { BillingSettings, PlanSettings } from "./PlanParts";
 import { TaxesSettings } from "./TaxesSettings";
@@ -135,6 +136,7 @@ export function ShopSettings({
           {activeTab === "team" && <TeamSettings />}
           {activeTab === "security" && <SecuritySettings />}
           {activeTab === "google" && <GoogleSettings />}
+          {activeTab === "apps" && <AppsSettings />}
           {activeTab === "bookkeeping" && <BookkeepingSettings taxRates={settings.taxes?.rates || []} />}
           {activeTab === "plan" && <PlanSettings />}
           {activeTab === "billing" && <BillingSettings />}

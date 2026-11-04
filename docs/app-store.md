@@ -114,6 +114,11 @@ items that don't count stock; stock never goes below 0, and checkout holds are u
 
 Product changes come next, the same way.
 
+The shop's admin lists these requests in **Settings › Apps** (`AppsSettings.tsx`, `appActivity.ts`): the app, the change
+in plain words, Done / Refused / Waiting, and the shop's reason for a refusal. Admins can read `appRequests`; nobody
+writes them from the browser (`firestore.rules`). The page shows only on shops Colophon runs. This is the first part of
+26.5.
+
 ## 26.4 (built): alerts to apps
 
 `services/apps/alerts.js`, run by the `app-alerts` job every minute. An app lists `alertTopics` when it registers, each

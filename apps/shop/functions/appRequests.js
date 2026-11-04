@@ -4,7 +4,7 @@
 // back on the same document, where the platform reads it.
 //
 // Request: { op, appId, appName, input, createdAt }. Answer fields added: { status: "done" | "refused", result, reason,
-// answeredAt }. Shoppers and staff can't read or write `appRequests` (no rule allows it).
+// answeredAt }. Admins can read `appRequests` (Settings › Apps); nobody can write them from the browser.
 //
 // Ops:
 //   order.dispatch  { orderId, trackingCarrier, trackingNumber, trackingUrl?, shipped? }   (permission write_orders)
