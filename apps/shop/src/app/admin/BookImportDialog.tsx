@@ -13,6 +13,7 @@ import { normalizeCategories } from "../features/site/navItems";
 import { sellsBooks } from "./sells";
 import { useShopSells } from "./shopWords";
 import { useShopWords } from "./shopWords";
+import { SPREADSHEET_ACCEPT, readProblem, spreadsheetText } from "./spreadsheetFile";
 
 
 type Result = { line: number; title: string; ok: boolean; message?: string };
@@ -73,7 +74,7 @@ export function BookImportDialog({ books, onClose, onDone, initialFile }: {
     setReadError(""); setPlan(null); setMoved(null); setOldPaths(new Map()); setLinks(null); setResults(null); setFileName(file.name);
     if (file.size > MAX_FILE_BYTES) { setReadError("That file is larger than 5 MB. Split it into smaller files and import them one at a time."); return; }
     try {
-      const [text, settings, profiles, links] = await Promise.all([file.text(), adminApi.getPublicSettings().catch(() => null), Promise.resolve().then(() => adminApi.getShippingProfiles()).catch(() => []), inventoryLinkApi.links().catch(() => ({}))]);
+      const [text, settings, profiles, links] = await Promise.all([spreadsheetText(file), adminApi.getPublicSettings().catch(() => null), Promise.resolve().then(() => adminApi.getShippingProfiles()).catch(() => []), inventoryLinkApi.links().catch(() => ({}))]);
       const defined = (settings as any)?.design?.categories;
       const shopCategories = Array.isArray(defined) ? normalizeCategories(defined).map((c: any) => c?.name).filter(Boolean) : [];
       // Books counted in the inventory app keep the stock it sets (adminApi.updateBook enforces it too).
@@ -81,8 +82,8 @@ export function BookImportDialog({ books, onClose, onDone, initialFile }: {
       const src = { text, shopCategories, profiles: (profiles as any[]).map(p => p.id), linkedBookIds };
       setSource(src);
       replan(src, stockMode);
-    } catch {
-      setReadError("This file couldn't be read. Save it from your spreadsheet as CSV (comma separated) and try again.");
+    } catch (err) {
+      setReadError(readProblem(err));
     }
   }
 
@@ -146,11 +147,11 @@ export function BookImportDialog({ books, onClose, onDone, initialFile }: {
 
   return (
     <Dialog open size="lg" onClose={() => { if (!busy) onClose(); }} title={w("Import books from a spreadsheet")} footer={footer}
-      description={w("Add new books or update many at once from a CSV file. You'll see every change before anything is saved.")}>
+      description={w("Add new books or update many at once from a spreadsheet: Excel, CSV and LibreOffice files all work. You'll see every change before anything is saved.")}>
       <div className="rp-stack">
         {!results && <>
           <ul className="rp-hint" style={{ margin: 0, paddingLeft: 18 }}>
-            <li>{w("Easiest: in Books, open")} <strong>⋯ More catalog actions › Export…</strong>, edit the file in Excel, Numbers or Google Sheets, save as CSV and import it here.</li>
+            <li>{w("Easiest: in Books, open")} <strong>⋯ More catalog actions › Export…</strong>, edit the file in Excel, Numbers or Google Sheets and import it back here, as Excel or CSV.</li>
             <li>{w("Books are matched by")} <strong>ID</strong>, then <strong>ISBN</strong>, then <strong>SKU</strong>. Rows that match nothing become <strong>{w("new draft books")}</strong>.</li>
             <li>{w("A blank cell keeps what the book has now. To end a sale, type 0 in Sale price. Stock numbers are only written when you choose “Set stock to the file's numbers”. Extra image URLs are separated with “|”.")}</li>
             <li>{w("Import never publishes. Publish new books from the catalog afterwards; it checks each one first.")}</li>
@@ -158,10 +159,10 @@ export function BookImportDialog({ books, onClose, onDone, initialFile }: {
           </ul>
           <p className="rp-hint" style={{ margin: 0 }}>Columns it reads: {IMPORT_COLUMNS.map(c => c.label).join(", ")}. Categories are separated with “;”.</p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-            <input ref={fileRef} type="file" accept=".csv,text/csv" hidden aria-label="CSV file"
+            <input ref={fileRef} type="file" accept={SPREADSHEET_ACCEPT} hidden aria-label="Spreadsheet file"
               onChange={e => { choose(e.target.files?.[0]); e.target.value = ""; }} />
             <PrimaryButton icon={<Upload size={16} aria-hidden />} disabled={busy} onClick={() => fileRef.current?.click()}>
-              {fileName ? "Choose another file" : "Choose CSV file"}
+              {fileName ? "Choose another file" : "Choose a file"}
             </PrimaryButton>
             <SecondaryButton size="sm" icon={<Download size={14} aria-hidden />} disabled={busy} onClick={() => download("books-import-template.csv", importTemplateCsv())}>
               Blank template

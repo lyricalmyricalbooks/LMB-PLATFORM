@@ -601,6 +601,12 @@ service cloud.firestore {
       allow read: if isAdminReader();
       allow create, update, delete: if isAdmin();
     }
+    match /socialPosts/{postId} {
+      // Social posts (plan 27.4): what the press posts to Facebook, Instagram, Pinterest and TikTok, and when.
+      // Only the server's social action and its 5-minute sweep (functions/socialLink.js) read and write them, so a
+      // browser can't queue a post or change where it goes.
+      allow read, write: if false;
+    }
     match /newsletterIssues/{issueId} {
       // Customers › Newsletter: the newsletters sent and their progress. Written only by the server's
       // newsletterAdmin action and the sweep that sends them (functions/newsletterSend.js), so a browser can't

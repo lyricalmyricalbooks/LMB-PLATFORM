@@ -1,0 +1,9 @@
+Handle,Title,Body (HTML),Vendor,Type,Tags,Option1 Name,Option1 Value,Option2 Name,Option2 Value,Variant SKU,Variant Grams,Variant Inventory Qty,Variant Price,Status
+moth-hoodie,Moth Hoodie,<p>A heavy hoodie with the <strong>moth</strong> printed on the back.</p>,Moth Press,Apparel,"merch, hoodie",Size,S,Colour,Black,HOOD-S-BLACK,600,6,55.00,active
+moth-hoodie,,,,,,,M,,Black,HOOD-M-BLACK,600,6,55.00,
+moth-hoodie,,,,,,,L,,Black,HOOD-L-BLACK,600,6,55.00,
+moth-hoodie,,,,,,,XL,,Black,HOOD-XL-BLACK,600,6,55.00,
+moth-hoodie,,,,,,,S,,Bone,HOOD-S-BONE,600,6,55.00,
+moth-hoodie,,,,,,,M,,Bone,HOOD-M-BONE,600,6,55.00,
+moth-hoodie,,,,,,,L,,Bone,HOOD-L-BONE,600,6,55.00,
+moth-hoodie,,,,,,,XL,,Bone,HOOD-XL-BONE,600,0,55.00,

@@ -812,6 +812,7 @@ preview first; nothing is published, charged or emailed by moving in. Words neve
 | 23.32 | platform | **The next file in the same window.** After Bring past orders over, the result screen's "Bring another file" goes back to the chooser; the next file is a run of its own, so taking it back leaves the first alone | PastOrdersDialog.test.tsx; move-check (CI) | quick | built (3 November 2026) |
 | 23.33 | platform | **Which file each order came from.** Bring past orders over sends each order's file name; the server keeps it as `importedFile` and a brought-over order's page says "Came from the file …" above the take-back button. The admin fixture gains one brought-over order for the move check | orderImport.test.js; PastOrdersDialog.test.tsx; move-check (CI) | quick | built (3 November 2026) |
 | 23.34 | platform | **One order's rate.** A brought-over order sold in another currency shows what it sold for and its rate on its page, with "Change the rate": the server (`ratePastOrder`) re-rates that one `source: "import"` order, the total exactly from what the old shop charged and the other Canadian-dollar amounts scaled, and notes it in the order's activity and the audit log | orderImport.test.js; PastOrdersDialog.test.tsx; move-check (CI) | quick | built (3 November 2026) |
+| 23.35 | platform | **Excel and other spreadsheets everywhere.** `spreadsheetFile.ts` turns a CSV, tab-separated text (UTF-8, UTF-16 or the older Windows encoding), Excel (.xlsx) or OpenDocument (.ods) file into CSV text in the browser with no added library (zip parts unpacked by the browser's own decompression; Excel dates kept as dates). Every bring-a-file window (Books, setup's Books page, customers, gift cards, discount codes, past orders) uses it, so column names fill the fields as before. Old .xls and Numbers files get the menu steps to save as .xlsx. The Books button reads Import spreadsheet. Fixtures made by LibreOffice and a Python spreadsheet library | spreadsheetFile.test.ts; move-check (CI) | medium | built (4 November 2026) |
 
 ## Phase 24: gaps from the Shopify review (planned 3 November 2026)
 
@@ -876,6 +877,28 @@ without asking (Julian's standing rule).
 | 26.12 | platform | **Email marketing apps** (Julian's pick). Customers who agreed to emails, and what they bought, flow to Mailchimp or Klaviyo; unsubscribes come back; abandoned-bag reminders use the alerts. Only newsletter-confirmed people are sent | apps tests with a pretend email list | |
 | 26.13 | platform | **Zapier** (Julian's pick). Triggers (new order, new customer, product changed) from the alerts, actions (add a product, add tracking) through the app connection, so a press can link thousands of other apps without code. Zapier's own listing needs a Zapier developer account (real-accounts checklist) | apps tests; Zapier's own test tool | |
 | 26.10 | platform | **Control room views.** Apps waiting for review, installs per app, apps with failing alerts, take an app off the store (with the control-room thread) | control-room tests | |
+
+## Phase 27: social media sales channels (planned 4 November 2026)
+
+Julian asked that presses connect their social media and post their products, following Shopify: its Facebook &
+Instagram, Pinterest, TikTok and Google & YouTube sales channels (connect an account, send the product catalog so posts
+can tag products), its posts from Marketing, and share buttons on product pages. Design and doors: `docs/social.md`.
+Row 24.7 already writes the product file Meta and Pinterest read. The connections run on the platform's own Meta,
+Pinterest and TikTok app registrations, like the QuickBooks link (`services/accounting`), not through the app store
+(Phase 26). Built in order without asking (Julian's standing rule); the real developer approvals are on Julian's
+real-accounts list (`docs/start-real-accounts.md`).
+
+| # | Where | What | Check | Status |
+|---|---|---|---|---|
+| 27.1 | platform | **Connect social accounts** (`services/social`): one Connect button per network (Facebook & Instagram together, Pinterest, TikTok); one-use sign-in states, tokens sealed per shop, the Pages, Instagram accounts and boards found; status, disconnect, a lost connection marked and shown. Off unless `SOCIAL_ENABLED` | `services/social/social.test.js` | built (4 November 2026) |
+| 27.2 | platform | **Send the catalog**: Facebook & Instagram get a catalog with a daily scheduled feed of the shop's product file; Pinterest a catalog feed of the same file. Re-runnable, never doubled. TikTok's catalog needs TikTok Shop: later | `social.test.js` | built (4 November 2026) |
+| 27.3 | platform | **Post a product**: a Facebook Page photo post, an Instagram photo post (tagged with the product when the catalog has it), a Pinterest pin linking to the product, a TikTok photo post. Never twice (one record per post and place) | `social.test.js` | built (4 November 2026) |
+| 27.4 | shop | **The shop's social link** (`functions/socialLink.js`): the admin's steps passed on with the shop's service key; posts kept in `socialPosts` (server only); a 5-minute sweep posts what is due under a claim; links carry where the visit came from | `functions/socialLink.test.js` | built (4 November 2026) |
+| 27.5 | shop | **Sales channels** page (under Books, in both admins; Studio opens full screen so Design can't hold it): Online store, Facebook & Instagram, Pinterest, TikTok and Google & YouTube cards with connect, send products, set up by hand and disconnect | `SalesChannels.test.tsx`, admin phone check | built (4 November 2026) |
+| 27.6 | shop | **Social posts** page (under Orders, next to Discounts; Marketing in the combined admin): scheduled, posted and needs-attention lists, a composer (product, photo, words, where, now or later) and Post from a book | `SalesChannels.test.tsx` | built (4 November 2026) |
+| 27.7 | shop | **Share links on product pages**: Facebook, Pinterest, X, WhatsApp, email and copy link, on a phone its own share sheet; the Studio Share button switch and words in Text & labels | `shareLinks.test.ts`, designer coverage tests | built (4 November 2026) |
+| 27.8 | platform | **Control room**: each shop's social connections, catalog and post failures (with the control-room thread) | control-room tests | |
+| 27.9 | Julian | Meta app review (Pages and Instagram posting, catalogs), Pinterest app approval, TikTok app audit and site check | `docs/start-real-accounts.md` | waiting on Julian |
 
 ## Rules for every pull request
 

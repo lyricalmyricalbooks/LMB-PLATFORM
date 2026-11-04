@@ -37,7 +37,11 @@ const known: Record<string, (...a: any[]) => any> = {
   getFulfillmentOrders: async () => ORDERS,
   getRecentFulfillmentOrders: async () => ORDERS,
   getBooks: async () => A11Y_BOOKS,
-  getAllBooks: async () => A11Y_BOOKS,
+  // A screenshot of the post composer sets __fixtureWebPhotos: the composer only offers web (https) photos, which the
+  // check's own page.route answers; every other check keeps the offline pictures.
+  getAllBooks: async () => ((window as any).__fixtureWebPhotos
+    ? A11Y_BOOKS.map((b: any, i: number) => ({ ...b, photos: (b.photos || []).map((p: any) => ({ ...p, url: `https://photos.example/cover-${i + 1}.jpg` })) }))
+    : A11Y_BOOKS),
   getSettings: async () => ({}),
   // A list, though its name doesn't end like one: the Overview's alerts read it on the way back from an order.
   getRecentEmailLog: async () => [],
@@ -46,6 +50,29 @@ const known: Record<string, (...a: any[]) => any> = {
     { id: "n2", subject: "Spring list and where to find us", status: "paused", audience: 42, sent: 18, lastError: "Sending stopped after 5 failed tries in a row. Check Settings › Email sender, then press Resume.", createdAt: new Date(Date.now() - 600_000).toISOString() },
     { id: "n1", subject: "Winter sale", status: "sent", audience: 40, sent: 40, createdAt: "2026-10-01T15:00:00Z", finishedAt: "2026-10-01T15:30:00Z" },
   ],
+  // Sales channels and Social posts (plan 27.5, 27.6): Facebook & Instagram and Pinterest connected, TikTok not, and a
+  // post of each kind in the list.
+  social: async (step: string) => {
+    const img = (A11Y_BOOKS[0] as any).photos[0].url;
+    if (step === "status") return { enabled: true, networks: [
+      { network: "meta", name: "Facebook & Instagram", available: true, connected: true, problem: null, accountName: "Ada Example", canSendCatalog: true,
+        places: [{ id: "fb:111", kind: "facebookPage", name: "Example Press" }, { id: "ig:222", kind: "instagram", name: "@examplepress" }],
+        catalog: { sentAt: new Date(Date.now() - 86_400_000).toISOString(), feedUrl: "https://example.web.app/social-product-feed.csv" } },
+      { network: "pinterest", name: "Pinterest", available: true, connected: true, problem: null, accountName: "examplepress", canSendCatalog: true,
+        places: [{ id: "pin:900", kind: "pinterestBoard", name: "New books" }], catalog: null },
+      { network: "tiktok", name: "TikTok", available: true, connected: false, problem: null, accountName: null, places: [], catalog: null, canSendCatalog: false },
+    ] };
+    if (step === "posts") return { posts: [
+      { id: "p1", bookId: "b1", bookTitle: "Salt Hours", imageUrl: img, caption: "Salt Hours, new this week.\n\n$20.00. Link in the post.", status: "scheduled",
+        sendAt: new Date(Date.now() + 2 * 86_400_000).toISOString(), createdAt: new Date().toISOString(), results: {},
+        places: [{ id: "fb:111", kind: "facebookPage", name: "Example Press" }, { id: "ig:222", kind: "instagram", name: "@examplepress" }] },
+      { id: "p2", bookId: "b2", bookTitle: "Night Songs", imageUrl: img, caption: "Night Songs is back in stock.", status: "partly",
+        sendAt: new Date(Date.now() - 3_600_000).toISOString(), createdAt: new Date(Date.now() - 3_600_000).toISOString(),
+        places: [{ id: "fb:111", kind: "facebookPage", name: "Example Press" }, { id: "pin:900", kind: "pinterestBoard", name: "New books" }],
+        results: { "fb:111": { state: "posted" }, "pin:900": { state: "failed", message: "Pinterest turned that down. Check the photo and the words, then try again." } } },
+    ] };
+    return {};
+  },
   newsletterAdmin: async (op: string) => (op === "audience" ? { audience: 42 } : { ok: true, to: "owner@example.com", audience: 42 }),
 };
 // Lists answer with an empty list and everything else with nothing, as an offline shop would.
