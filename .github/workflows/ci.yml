@@ -129,6 +129,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm run test:a11y
+      # Template buttons with their own border or shadow (bag, Add to bag, newsletter) follow the press's settings.
+      - run: pnpm run test:template-buttons
 
   # Plan 13.11: the shop admin's busiest pages at phone width in a real browser (apps/shop/scripts/admin-phone-check.mjs):
   # each opens with content, does not scroll sideways and does not crash. Sample orders and books only; nothing real is read.

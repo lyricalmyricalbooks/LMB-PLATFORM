@@ -117,6 +117,19 @@ describe("browsing the looks (theme store)", () => {
     expect(marquee.outline).toBe(3);
     expect(marquee.announcement).not.toBeNull();
   });
+  it("draws each look with the press's own settings, as Use this look would leave the shop", () => {
+    const shelf = (THEME_LIBRARY as any[]).find(t => t.id === "press-shelf");
+    const stock = lookPreview(shelf);
+    expect(lookPreview(shelf, null)).toEqual(stock);
+    const own = lookPreview(shelf, { templateOutlineWidth: 2, templateOutlineColor: "#123456", templateShadowOffset: 6, backgroundColor: "#000000" });
+    expect(own.outline).toBe(2);
+    expect(own.outlineColor).toBe("#123456");
+    expect(own.shadow).toBe(6);
+    expect(own.bg).toBe(stock.bg); // the look's colours still replace the press's, exactly as choosing it does
+    // A template's own outline wins over the Riso Press one; Riso Press keeps reading its own.
+    const riso = (THEME_LIBRARY as any[]).find(t => t.id === "press-riso");
+    expect(lookPreview(riso, { templateOutlineWidth: 4 }).outline).toBe(lookPreview(riso).outline);
+  });
   it("samples are worded for what the press sells", async () => {
     const { sampleProducts } = await import("./lookGallery");
     expect(sampleProducts("books")[0].title).toBe("Salt Hours");
