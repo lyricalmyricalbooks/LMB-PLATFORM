@@ -47,6 +47,8 @@ export function guideOf(record) {
     { id: "plan", title: "Pick what to set up", done: Boolean(record.plan) },
     { id: "details", title: "Press details", done: Boolean(record.pressName && record.sells && record.country) },
     ...(record.moving === "fresh" ? [...look, books] : [books, ...look]),
+    // Optional, as in the shop's guide: the free address always works.
+    ...(website ? [{ id: "domain", title: "Choose the web address", done: record.domainChoice === "free" || (record.domainChoice === "own" && Boolean(record.domain)), optional: true }] : []),
     { id: "open", title: "Create the shop", done: record.status === "opening" || record.status === "open" },
   ];
   const counted = steps.filter((step) => !step.optional || step.done);
