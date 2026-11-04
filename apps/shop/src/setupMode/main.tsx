@@ -6,6 +6,7 @@
 // (/signup/config.js, /signup/form.js), so there is one copy of each and the walkthrough's practice sign-in works here too.
 import { createRoot } from "react-dom/client";
 import "../styles/index.css";
+import "./setup.css";
 import { SetupAdmin, type SetupLists } from "./SetupAdmin";
 import { platformDoor, pressToOpen } from "./door";
 

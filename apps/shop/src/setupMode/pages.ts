@@ -115,3 +115,48 @@ export function helpFor(helpUrl: string, sells?: string | null): string {
   if (!sells || sellsBooks(sells)) return helpUrl;
   return `${helpUrl}${helpUrl.includes("?") ? "&" : "?"}sells=${encodeURIComponent(sells)}`;
 }
+
+/**
+ * The help answer behind each setup guide step (help/articles.js ids), opened from the step as "How this works". The
+ * plan step has none: its prices and trial are on Settings › Plan itself.
+ */
+export const STEP_HELP: Readonly<Record<string, string>> = Object.freeze({
+  details: "your-press",
+  books: "bring-books",
+  look: "look",
+  open: "open-shop",
+});
+
+/** The help answers a press in setup asks about most, for Home and the Help page (help/articles.js ids). */
+export const SETUP_QUESTIONS: ReadonlyArray<{ id: string; question: string }> = Object.freeze([
+  { id: "your-press", question: "What do I put in my press details?" },
+  { id: "bring-books", question: "How do I bring my books over from my old shop?" },
+  { id: "look", question: "How do I change how my shop looks?" },
+  { id: "open-shop", question: "How do I open my shop to shoppers?" },
+  { id: "trial-ends", question: "What happens when my free trial ends?" },
+]);
+
+/**
+ * What each page that waits for the shop will do, so a locked page says why it's worth having, not only that it's
+ * locked. Written in book words (the page shows the shop's own). Every locked menu page has a line (pages.test.ts).
+ */
+const LOCKED_LINES: Readonly<Record<string, string>> = Object.freeze({
+  orders: "Every order in one list: who bought what, what's paid, and what's left to pack and send.",
+  customers: "Everyone who buys from you, what they bought and who comes back.",
+  discounts: "Discount codes and sales, set to start and end when you choose.",
+  giftCards: "Gift cards shoppers buy from your website, and ones you give away.",
+  messages: "Messages people send you from your website's contact form.",
+  inventory: "How many copies you have of each book, with a warning before one runs out.",
+  reviews: "Reviews from your readers, checked by you before they show on your website.",
+  [SETTINGS_ITEM_PREFIX + "shipping"]: "What you charge to send a parcel, by country or by weight, and pickup if you offer it.",
+  [SETTINGS_ITEM_PREFIX + "payments"]: "Connect your bank so card payments from your website reach you.",
+  [SETTINGS_ITEM_PREFIX + "taxes"]: "The sales tax your shop adds at checkout, worked out from where your shoppers are.",
+  [SETTINGS_ITEM_PREFIX + "notifications"]: "The emails your shoppers get: order received, shipped, and the words in each.",
+  [SETTINGS_ITEM_PREFIX + "team"]: "Invite someone to help run your shop, with only the pages they need.",
+  [SETTINGS_ITEM_PREFIX + "security"]: "Two-step sign-in and who has signed in to your shop.",
+  [SETTINGS_ITEM_PREFIX + "bookkeeping"]: "Your sales and fees, ready for your accountant.",
+  [SETTINGS_ITEM_PREFIX + "billing"]: "Your bills for your plan, and the card they're paid with.",
+});
+
+/** The line for a locked page: what it will do, or a plain line for a page without one. */
+export const lockedPageLine = (page: string): string => LOCKED_LINES[page] ?? "";
