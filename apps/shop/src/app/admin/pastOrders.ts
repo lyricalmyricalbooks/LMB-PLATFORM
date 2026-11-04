@@ -10,6 +10,8 @@ export interface PastOrder {
   items: PastOrderLine[]; subtotal?: number; shipping?: number; tax?: number; discount?: number; total: number; refunded?: number;
   /** Sold in another currency and converted at the owner's rate (plan 23.11): what the old shop charged. */
   paidIn?: { currency: string; total: number; rate: number };
+  /** The name of the file it came from (plan 23.33), shown on the order's page. */
+  file?: string;
 }
 export interface PastOrderFile {
   orders: PastOrder[];

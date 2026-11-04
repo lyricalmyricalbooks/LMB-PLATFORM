@@ -12,7 +12,7 @@ import {
   type Consent, type CustomerRow, type CustomerSegment,
 } from "./customerInsights";
 import {
-  DataTable, Dialog, EmptyState, ErrorState, FilterBar, GhostButton, LoadingState, MetricCard, Pagination, PrimaryButton, SearchField,
+  DataTable, PageActions, Dialog, EmptyState, ErrorState, FilterBar, GhostButton, LoadingState, MetricCard, Pagination, PrimaryButton, SearchField,
   SecondaryButton, SectionCard, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, useConfirm, type BadgeTone, type Column,
 } from "./riso/components";
 
@@ -197,6 +197,11 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
 
   return (
     <div className="rp-stack">
+      {/* Bringing customers over and exporting them are page actions, so they sit by the title, not among the filters. */}
+      <PageActions>
+        <SecondaryButton icon={<Download size={16} aria-hidden />} onClick={() => setExportOpen(true)}>Export CSV</SecondaryButton>
+        <SecondaryButton icon={<Upload size={16} aria-hidden />} onClick={() => setMoveOpen(true)}>Bring customers over</SecondaryButton>
+      </PageActions>
       <div className="rp-kpi-grid">
         <MetricCard label="Customers" value={stats.total} footer="With at least one paid order" />
         <MetricCard label="Repeat rate" value={`${Math.round(stats.repeatRate * 100)}%`} footer={`${stats.repeat} bought more than once`} />
@@ -241,8 +246,6 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
           </SelectField>
         )}
         {filtered && <GhostButton onClick={clearFilters}>Clear filters</GhostButton>}
-        <SecondaryButton icon={<Upload size={16} aria-hidden />} onClick={() => setMoveOpen(true)}>Bring customers over</SecondaryButton>
-        <SecondaryButton icon={<Download size={16} aria-hidden />} onClick={() => setExportOpen(true)}>Export CSV</SecondaryButton>
       </FilterBar>
       {moveOpen && <Suspense fallback={null}><CustomerMoveDialog onClose={() => setMoveOpen(false)} onDone={() => { loadNotes(); adminApi.getMarketingConsent().then(setConsent).catch(() => {}); }} /></Suspense>}
       <SectionCard flush collapsible={false} title="Customers" description={`${rows.length} customer${rows.length === 1 ? "" : "s"} · paid orders only, refunds taken off${counts.moved ? ", plus the customers you brought over who haven't ordered here yet" : ""}.`}>

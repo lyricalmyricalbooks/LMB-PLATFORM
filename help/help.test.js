@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { ARTICLES, CHECKLIST_ANSWERS, RUN_ANSWERS, TOPICS, articlesFor, searchArticles } from "./articles.js";
 import { SUPPORT, renderSupport } from "./support.js";
-import { renderHelp } from "./page.js";
+import { renderHelp, renderTopics } from "./page.js";
 
 const words = (a) => [a.question, ...a.answer, ...(a.where || [])].join(" ");
 
@@ -116,4 +116,18 @@ test("what support includes and doesn't, on the help page and next to the plans 
   const signup = readFileSync(new URL("../signup/index.html", import.meta.url), "utf8").replace(/&#39;|&rsquo;/g, "'");
   for (const line of [SUPPORT.title, ...SUPPORT.includes, ...SUPPORT.excludes]) assert.ok(signup.includes(line), `sign-up page lacks "${line}"`);
   assert.ok(ARTICLES.some((a) => a.id === "what-help"));
+});
+
+test("each topic sheet's questions open their own answer, and its name leads to the topic", () => {
+  const html = renderTopics();
+  const first = articlesFor("both").find((a) => a.topic === TOPICS[0]);
+  assert.match(html, new RegExp(`<li><a href="#${first.id}">`));
+  assert.match(html, /class="cp-topic-name" href="#t-getting-started"/);
+  // No link inside a link: a sheet is a box, not one big link.
+  assert.doesNotMatch(html, /<a[^>]*class="card cp-topic"/);
+});
+
+test("a search says how many answers it found", () => {
+  assert.match(renderHelp({ search: "shipping" }), /<p class="cp-found" role="status">\d+ answers? for “shipping”<\/p>/);
+  assert.doesNotMatch(renderHelp({}), /cp-found/);
 });

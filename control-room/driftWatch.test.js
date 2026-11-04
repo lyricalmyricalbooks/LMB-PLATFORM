@@ -65,7 +65,7 @@ async function world({ shopAccess = fakeShopAccess() } = {}) {
 test("the sweep keeps each paying shop's score on its row and emails the drifting one once", async () => {
   const w = await world();
   const run = await w.watch.sweep();
-  assert.equal(run.summary, "1 drifting, 0 to watch, 1 fine, 1 emailed, 0 moves stuck");
+  assert.equal(run.summary, "1 drifting, 0 to watch, 1 fine, 1 emailed, 0 moves stuck, 0 newsletters stopped");
   const moth = (await w.registry.getShop("moth")).drift;
   assert.equal(moth.level, "drifting");
   assert.deepEqual(moth.orders, { recent: 0, before: 5 }, "practice, brought-over, unpaid and older orders don't count");
@@ -237,4 +237,19 @@ test("a stalled move shows when the shop's own reminder email went", async () =>
   assert.equal((await w.registry.getShop("trial")).moveStuck.remindedAt, ago(2));
   const { needs } = todaySummary({ rows: await w.registry.listShops(), settings, now: new Date(NOW) });
   assert.match(needs.find((n) => n.kind === "move").words, new RegExp(`the shop emailed them a reminder ${ago(2).slice(0, 10)}`));
+});
+
+test("a newsletter stopped part-way is kept on the shop's row for Today, and cleared once it's sorted", async () => {
+  const w = await world();
+  await w.shopData.set("wasp", "newsletterIssues/n1", { subject: "Spring list", status: "paused", lastError: "Too many emails bounced." });
+  await w.shopData.set("wasp", "newsletterIssues/n0", { subject: "Winter", status: "sent" });
+  const run = await w.watch.sweep();
+  assert.match(run.summary, /1 newsletter stopped/);
+  assert.deepEqual((await w.registry.getShop("wasp")).newsletterPaused, { count: 1, subject: "Spring list", lastError: "Too many emails bounced." });
+  assert.equal((await w.registry.getShop("moth")).newsletterPaused, undefined, "nothing written when nothing changed");
+  const { needs } = todaySummary({ rows: await w.registry.listShops(), settings, now: new Date(NOW) });
+  assert.equal(needs.find((n) => n.kind === "newsletter").words, `Wasp Press's newsletter "Spring list" stopped part-way: Too many emails bounced.`);
+  await w.shopData.set("wasp", "newsletterIssues/n1", { subject: "Spring list", status: "sent" });
+  await w.watch.sweep();
+  assert.equal((await w.registry.getShop("wasp")).newsletterPaused, null);
 });

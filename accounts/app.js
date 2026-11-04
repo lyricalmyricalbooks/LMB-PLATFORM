@@ -262,7 +262,8 @@ function shopCard(shop) {
     const plan = el("a", { className: "button", href: `/account/billing?shop=${encodeURIComponent(shop.shopId)}`, textContent: "Plan & billing" });
     const checkShop = el("button", { type: "button", textContent: "Check my shop" });
     checkShop.addEventListener("click", () => openCheck(shop));
-    actions.append(team, plan, checkShop, dataButton(shop));
+    // Open and Plan & billing stay in sight; the rest sits in one More menu, as the big shop builders do.
+    actions.append(plan, moreMenu(shop, [team, checkShop, dataButton(shop)]));
   }
   const where = standing(shop);
   // The website's address, or the stockroom's for a press with the stockroom alone.
@@ -273,7 +274,8 @@ function shopCard(shop) {
     shop.plan ? el("span", { textContent: `${PLAN_NAMES[shop.plan] ?? shop.plan} plan` }) : null);
   let trial = null;
   if (where.trialLeft !== undefined) {
-    trial = el("div", { className: "cp-bar", role: "img" }, el("i", { style: `width:${Math.round(((14 - Math.min(14, where.trialLeft)) / 14) * 100)}%` }));
+    // The bar shows the days left, so a new trial reads as a full bar that runs down.
+    trial = el("div", { className: "cp-bar", role: "img" }, el("i", { style: `width:${Math.round((Math.max(0, Math.min(14, where.trialLeft)) / 14) * 100)}%` }));
     trial.setAttribute("aria-label", `${where.trialLeft} of 14 trial days left`);
   }
   const badge = el("span", { className: "pill", textContent: where.badge });
@@ -291,6 +293,24 @@ function shopCard(shop) {
       trial),
     actions);
 }
+
+/** A shop's More menu: a press-to-open list of its less-used actions. Closes on a choice, Escape or a press outside. */
+function moreMenu(shop, items) {
+  const menu = el("details", { className: "cp-more" },
+    el("summary", { className: "button", textContent: "More" }),
+    el("div", { className: "cp-more-list", role: "group" }, ...items));
+  menu.querySelector("summary").setAttribute("aria-label", `More for ${shop.pressName}`);
+  for (const item of items) item.addEventListener("click", () => { menu.open = false; });
+  menu.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !menu.open) return;
+    menu.open = false;
+    menu.querySelector("summary").focus();
+  });
+  return menu;
+}
+document.addEventListener("click", (event) => {
+  for (const menu of document.querySelectorAll("details.cp-more[open]")) if (!menu.contains(event.target)) menu.open = false;
+});
 
 // The rail's links that open a view on this page (Get help) press its button.
 for (const link of document.querySelectorAll("[data-press]")) {

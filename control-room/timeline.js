@@ -75,6 +75,7 @@ export function eventLine(e) {
     const { kind, words } = controlAction(e.what, e);
     return line(kind, words);
   }
+  if (e.source === "accounts" && e.what === "member-deleted-account") return line("other", `${e.email ?? "A team member"}${e.role ? ` (${plain(e.role)})` : ""} deleted their own Colophon account and left the team`);
   if (e.source === "run-book") return line("release", `Rolled back to version ${e.version ?? "?"} from the run book${why(e.reason)}`);
   if (BILLING_SOURCES.has(e.source)) return line("billing", `${e.source === "closing" ? "Closing: " : e.source === "payment-service" ? "Payments: " : ""}${plain(e.what ?? e.kind) || "billing changed"}${e.status ? ` (${plain(e.status)})` : ""}`);
   if (EMAIL_SOURCES.has(e.source)) return line("email", plain(e.what ?? e.kind) || "email changed");

@@ -129,8 +129,11 @@ describe("bringing past orders over (plan 23.7)", () => {
     expect((await handlePastOrdersImport({}, { db, actor: "a", now: NOW })).status).toBe(400);
     expect((await handlePastOrdersImport({ orders: Array(501).fill(ORDERS[0]) }, { db, actor: "a", now: NOW })).status).toBe(400);
     expect(db.docs.size).toBe(0);
-    expect(await handlePastOrdersImport({ orders: ORDERS.slice(0, 1), batch: "run-cccc3333" }, { db, actor: "a", now: NOW })).toEqual({ status: 200, body: { added: 1, rerated: 0, skipped: [] } });
+    expect(await handlePastOrdersImport({ orders: [{ ...ORDERS[0], file: "  orders 2024.csv " }, { ...ORDERS[1], file: 42 }], batch: "run-cccc3333" }, { db, actor: "a", now: NOW })).toEqual({ status: 200, body: { added: 2, rerated: 0, skipped: [] } });
     expect(db.docs.get(`orders/${pastOrderId("#1001")}`).importBatch).toBe("run-cccc3333");
+    // The file each came from (plan 23.33), when the browser says.
+    expect(db.docs.get(`orders/${pastOrderId("#1001")}`).importedFile).toBe("orders 2024.csv");
+    expect(db.docs.get(`orders/${pastOrderId("#1002")}`)).not.toHaveProperty("importedFile");
   });
 });
 

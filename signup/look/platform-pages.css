@@ -183,13 +183,13 @@ html.cp-page { background: var(--rp-canvas); }
 .cp textarea { min-height: 140px; resize: vertical; }
 .cp input:focus-visible, .cp select:focus-visible, .cp textarea:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 1px; }
 .cp input[type=checkbox], .cp input[type=radio] { accent-color: var(--rp-text); }
-.cp button, .cp a.button {
+.cp button, .cp a.button, .cp summary.button {
   font: 600 14px/1 var(--rp-font-body); min-height: 44px; padding: 0 16px; border: 1px solid var(--rp-border-strong);
   border-radius: 0; background: var(--rp-surface); color: var(--rp-text); cursor: pointer; text-decoration: none;
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
 }
-.cp button:hover:not(:disabled), .cp a.button:hover { background: var(--rp-surface-2); }
-.cp button:focus-visible, .cp a:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+.cp button:hover:not(:disabled), .cp a.button:hover, .cp summary.button:hover { background: var(--rp-surface-2); }
+.cp button:focus-visible, .cp a:focus-visible, .cp summary:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
 .cp button:disabled { opacity: 0.55; cursor: default; }
 .cp .primary, .cp a.button.primary { background: var(--rp-primary); color: var(--rp-on-primary); border-color: var(--rp-primary); }
 .cp .primary:hover:not(:disabled), .cp a.button.primary:hover { background: var(--rp-primary-hover); }
@@ -252,8 +252,10 @@ html.cp-page { background: var(--rp-canvas); }
 .cp-phone-nav { display: none; }
 @media (max-width: 1023px) {
   .cp .rp-sidebar { display: none; }
-  .cp-phone-nav { display: flex; gap: 6px; flex-wrap: wrap; padding-block: 12px 0; }
-  .cp-phone-nav a, .cp-phone-nav button { min-height: 44px !important; font-size: 13px !important; }
+  .cp-phone-nav { display: flex; gap: 0 4px; flex-wrap: wrap; padding-block: 4px 0; margin-bottom: 20px; border-bottom: 1px solid var(--rp-border); }
+  .cp-phone-nav a, .cp-phone-nav button { min-height: 44px !important; font-size: 13px !important; display: inline-flex; align-items: center; padding-inline: 8px; text-decoration: none; color: var(--rp-text-muted); }
+  .cp-phone-nav a:first-child { padding-left: 0; }
+  .cp-phone-nav a:hover { color: var(--rp-text); text-decoration: underline; }
 }
 .cp .rp-workspace-inner { max-width: 1040px; }
 .cp .rp-workspace > .rp-workspace-inner > main { display: block; }
@@ -354,4 +356,49 @@ html.cp-page { background: var(--rp-canvas); }
   .cp-chip { padding-inline: 12px; }
   .cp button { min-height: 44px; }
   .cp input[type="checkbox"], .cp input[type="radio"] { min-width: 24px; min-height: 24px; }
+}
+
+/* Account page polish (3 Nov 2026): empty alert slots take no space; a shop's less-used actions sit in a More menu. */
+.cp .stack > .stack:empty { display: none; }
+.cp-more { position: relative; }
+.cp-more > summary { list-style: none; cursor: pointer; }
+.cp-more > summary::-webkit-details-marker { display: none; }
+.cp-more > summary::after { content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 10px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: translateY(-2px) rotate(45deg); }
+.cp-more[open] > summary::after { transform: translateY(1px) rotate(-135deg); }
+.cp-more-list { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; min-width: 230px; max-width: calc(100vw - 32px); display: grid; padding: 6px;
+  background: var(--rp-surface); border: 2px solid var(--rp-text); box-shadow: 4px 4px 0 var(--rp-text); }
+.cp .cp-more-list > button { all: unset; box-sizing: border-box; min-height: 44px; padding: 10px 12px; cursor: pointer; font-size: 14px; color: var(--rp-text); display: flex; align-items: center; }
+.cp .cp-more-list > button:hover { background: var(--rp-surface-inset); }
+.cp .cp-more-list > button:focus-visible { box-shadow: var(--rp-focus-ring); }
+.cp .cp-more-list > button[disabled] { color: var(--rp-text-subtle); cursor: progress; }
+
+/* Help topics: the name leads to the topic, each question to its answer; on a phone only the names show. */
+.cp .cp-topic { display: grid; gap: 6px; align-content: start; }
+.cp .cp-topic-name { display: grid; gap: 6px; text-decoration: none; }
+.cp .cp-topic-name:hover b { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.cp .cp-topic ul a { text-decoration: none; }
+.cp .cp-topic ul a:hover { text-decoration: underline; }
+.cp .cp-found { margin: 0 0 8px; font: 400 13px/1.4 var(--rp-font-mono); color: var(--rp-text-subtle); }
+@media (max-width: 640px) {
+  .cp #topics.cp-grid3 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .cp #topics .cp-topic { padding: 14px; }
+  .cp #topics .cp-topic b { font-size: 18px; }
+  .cp #topics .cp-topic ul { display: none; }
+  .cp #topics .cp-topic-name { min-height: 44px; }
+}
+/* Trust: numbered promise sheets, two to a row. */
+.cp-promises { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 24px; }
+.cp-promises > .card { padding: 22px 24px; scroll-margin-top: 24px; align-content: start; gap: 0; }
+.cp-promises > .card:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.cp-promises h2 { font: 400 24px/1.05 var(--rp-font-display); text-transform: uppercase; margin: 8px 0 10px; }
+.cp-promises p { margin: 0; color: var(--rp-text-muted); }
+.cp-trust-more { margin-top: 48px; }
+.cp-alertline + .cp-promises { margin-top: 24px; }
+@media (max-width: 900px) { .cp-promises { grid-template-columns: minmax(0, 1fr); } }
+/* Short pages (status, terms) keep the footer at the bottom of the window. */
+body.cp:has(> footer) { min-height: 100vh; display: flex; flex-direction: column; }
+body.cp:has(> footer) > main { flex: 1 0 auto; }
+@media (max-width: 640px) {
+  .cp .cp-ledger > div { padding: 12px 14px 14px; }
+  .cp .cp-ledger b { font-size: 28px; margin-top: 6px; }
 }

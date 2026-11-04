@@ -26,7 +26,7 @@ import { scrubSavedSecrets } from "./privateKeys";
 import toast from "react-hot-toast";
 import {
   AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, PrimaryButton, SecondaryButton,
-  IconButton, Dialog, ToastProvider, SyncChip, useOnline, LoadingState, PageSkeleton, useConfirm, PageAlertsSlot,
+  IconButton, Dialog, ToastProvider, SyncChip, useOnline, LoadingState, PageSkeleton, useConfirm, PageAlertsSlot, PageActionsSlot,
 } from "./riso/components";
 import { GlobalSearch, ActivityLogDialog, ShopStatusMenu, DrawerAccount } from "./riso/shellParts";
 import { blockedMessage, blockersBeforeOpening } from "./launchCheck";
@@ -339,6 +339,8 @@ export function Dashboard() {
     if (userMenuOpen) userMenuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
   }, [userMenuOpen]);
   const [helpOpen, setHelpOpen] = useState(false);
+  // The spot in the page header where a page's main buttons go (PageActions in riso/components.tsx).
+  const [pageActionsEl, setPageActionsEl] = useState<HTMLDivElement | null>(null);
   // The combined admin's first-time tour: invited once on Home, and from the account menu any time (CombinedTour.tsx).
   const [tourOpen, setTourOpen] = useState(false);
   const [tourInvite, setTourInvite] = useState(() => COMBINED && !tourSeen());
@@ -873,6 +875,7 @@ export function Dashboard() {
         {!ownMasthead && <PageHeader
           breadcrumbs={trail.length > 2 ? <Breadcrumbs trail={trail} /> : undefined}
           title={selectedOrder && activeTab !== "orders" ? "Order detail" : navActive === "settings" && childLabel ? childLabel : copy.title}
+          actions={<div ref={setPageActionsEl} className="rp-page-actions-slot" />}
         />}
         {!ownMasthead && pageAlerts}
         {/* Feature pages still use legacy utility classes; scope the compatibility layer to them only. */}
@@ -884,7 +887,7 @@ export function Dashboard() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.18, ease: "easeOut" }}
             >
-              <PageAlertsSlot.Provider value={ownMasthead ? pageAlerts : null}><Suspense fallback={<PageSkeleton label="Opening page…" />}>{content}</Suspense></PageAlertsSlot.Provider>
+              <PageAlertsSlot.Provider value={ownMasthead ? pageAlerts : null}><PageActionsSlot.Provider value={ownMasthead ? null : pageActionsEl}><Suspense fallback={<PageSkeleton label="Opening page…" />}>{content}</Suspense></PageActionsSlot.Provider></PageAlertsSlot.Provider>
             </m.div>
           </AnimatePresence>
           {COMBINED && stockroomOpened && (

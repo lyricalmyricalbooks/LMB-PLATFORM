@@ -24,7 +24,9 @@ export function renderHelp({ search = "", plan = "both", openId = "" } = {}) {
   if (!found.length) {
     return `<p class="empty" role="status">No answer has all of those words. Try fewer words, or ask us: use <b>Get help from Colophon</b> on your account page.</p>`;
   }
-  return TOPICS.map((topic) => {
+  // A search says how many answers it found, so a short list doesn't look like a broken page.
+  const count = search.trim() ? `<p class="cp-found" role="status">${found.length} ${found.length === 1 ? "answer" : "answers"} for “${esc(search.trim())}”</p>` : "";
+  return count + TOPICS.map((topic) => {
     const list = found.filter((a) => a.topic === topic);
     if (!list.length) return "";
     return `<section class="topic" aria-labelledby="t-${esc(topic.toLowerCase().replace(/[^a-z]+/g, "-"))}">
@@ -42,7 +44,8 @@ export function renderTopics({ plan = "both" } = {}) {
   return TOPICS.map((topic) => {
     const list = all.filter((a) => a.topic === topic);
     if (!list.length) return "";
-    return `<a class="card cp-topic" href="#t-${esc(slug(topic))}"><b>${esc(topic)}</b><span>${list.length} ${list.length === 1 ? "answer" : "answers"}</span>
-<ul>${list.slice(0, 3).map((a) => `<li>${esc(a.question)}</li>`).join("")}</ul></a>`;
+    // The topic's name leads to all its answers; each question opens its own answer.
+    return `<div class="card cp-topic"><a class="cp-topic-name" href="#t-${esc(slug(topic))}"><b>${esc(topic)}</b><span>${list.length} ${list.length === 1 ? "answer" : "answers"}</span></a>
+<ul>${list.slice(0, 3).map((a) => `<li><a href="#${esc(a.id)}">${esc(a.question)}</a></li>`).join("")}</ul></div>`;
   }).join("\n");
 }

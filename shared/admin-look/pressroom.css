@@ -220,6 +220,10 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-page-title { font-family: var(--rp-font-display); font-style: italic; font-weight: 600; font-size: var(--rp-text-3xl); line-height: 1.02; letter-spacing: -0.01em; margin: 0; color: var(--rp-text); overflow-wrap: anywhere; }
 .rp-page-desc { margin: 10px 0 0; max-width: 62ch; color: var(--rp-text-muted); font-size: var(--rp-text-base); line-height: 1.55; }
 .rp-page-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+/* A page's own main buttons land in this spot in the header (PageActions); an empty spot takes no room. */
+.rp-page-actions-slot { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.rp-page-actions:has(> .rp-page-actions-slot:empty) { display: none; }
+.rp-page-actions-inline { justify-content: flex-end; }
 
 /* ── Cards ─────────────────────────────────────────────────────────────── */
 .rp-card { background: var(--rp-surface); border: var(--rp-hair) solid var(--rp-border); border-radius: var(--rp-radius-lg); box-shadow: var(--rp-shadow); }

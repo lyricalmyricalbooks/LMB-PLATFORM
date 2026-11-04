@@ -181,15 +181,32 @@ export function createDriftWatch({ registry, shopData, stockroomData = null, sho
     return Boolean(stuck);
   }
 
+  // A live website's newsletter stopped part-way (too many failures, or paused for spam reports and bounces): kept on the
+  // row (`newsletterPaused`) only when it changed, for Today.
+  async function checkNewsletter(row) {
+    if (row.testShop === true || row.status !== "live" || row.closure || !shopData.find || !(PLANS[row.plan] ?? { shop: true }).shop) return false;
+    const paused = await shopData.find(row.shopId, "newsletterIssues", { where: [["status", "==", "paused"]], limit: 5 });
+    const mark = paused.length
+      ? { count: paused.length, subject: String(paused[0].data?.subject ?? "").slice(0, 120), lastError: String(paused[0].data?.lastError ?? "").slice(0, 300) }
+      : null;
+    if (JSON.stringify(mark) !== JSON.stringify(row.newsletterPaused ?? null)) await registry.updateShop(row.shopId, { newsletterPaused: mark });
+    return Boolean(mark);
+  }
+
   return {
     async sweep() {
       const nowMs = now().getTime();
-      const tally = { fine: 0, watch: 0, drifting: 0, emailed: 0, movesStuck: 0, failed: [] };
+      const tally = { fine: 0, watch: 0, drifting: 0, emailed: 0, movesStuck: 0, newslettersPaused: 0, failed: [] };
       for (const row of await registry.listShops()) {
         try {
           if (await checkMove(row, nowMs)) tally.movesStuck += 1;
         } catch (failure) {
           tally.failed.push({ shopId: row.shopId, error: `move: ${failure.message}` });
+        }
+        try {
+          if (await checkNewsletter(row)) tally.newslettersPaused += 1;
+        } catch (failure) {
+          tally.failed.push({ shopId: row.shopId, error: `newsletter: ${failure.message}` });
         }
         if (!watched(row)) {
           // A press that stopped paying or was closed keeps no level from before (Today, the Shops list and its record
@@ -222,7 +239,7 @@ export function createDriftWatch({ registry, shopData, stockroomData = null, sho
           tally.failed.push({ shopId: row.shopId, error: failure.message });
         }
       }
-      const summary = `${tally.drifting} drifting, ${tally.watch} to watch, ${tally.fine} fine, ${tally.emailed} emailed, ${tally.movesStuck} move${tally.movesStuck === 1 ? "" : "s"} stuck${tally.failed.length ? `, ${tally.failed.length} failed` : ""}`;
+      const summary = `${tally.drifting} drifting, ${tally.watch} to watch, ${tally.fine} fine, ${tally.emailed} emailed, ${tally.movesStuck} move${tally.movesStuck === 1 ? "" : "s"} stuck, ${tally.newslettersPaused} newsletter${tally.newslettersPaused === 1 ? "" : "s"} stopped${tally.failed.length ? `, ${tally.failed.length} failed` : ""}`;
       if (tally.failed.length) throw new Error(`${summary}: ${tally.failed.map((f) => `${f.shopId} (${f.error})`).join("; ")}`);
       return { ...tally, summary };
     },

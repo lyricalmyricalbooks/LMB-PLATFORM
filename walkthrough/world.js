@@ -64,6 +64,7 @@ import { createSetupDesk, setupRoutes } from "../control-room/setupPresses.js";
 import { createSignInSafety, signInSafetyRoutes } from "../control-room/signInSafety.js";
 import { broughtOverRoutes, createBroughtOver } from "../control-room/broughtOver.js";
 import { createSalesChannels, salesChannelsRoutes } from "../control-room/salesChannels.js";
+import { createShopFeatures, shopFeaturesRoutes } from "../control-room/shopFeatures.js";
 import { createDriftDesk, createDriftWatch, driftRoutes } from "../control-room/driftWatch.js";
 import { deliveryReader } from "../control-room/delivery.js";
 import { fakeDeliveryStats, fakeShopNotes } from "../control-room/visibilityFakes.js";
@@ -222,6 +223,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const signInSafety = createSignInSafety({ admins, registry, memberships: accountStores.memberships, shopAccess, now: clock.date });
   const broughtOver = createBroughtOver({ admins, registry, shopData, now: clock.date });
   const driftDesk = createDriftDesk({ admins, registry, settings, activity, now: clock.date });
+  const shopFeatures = createShopFeatures({ admins, registry, shopData, now: clock.date });
   const salesChannels = createSalesChannels({ admins, registry, shopData, stockroomData, now: clock.date });
   // Messages to presses (19.14), what each shop costs (19.15; no billing export in the practice world, so the empty
   // state) and a press's data on request (19.16).
@@ -258,6 +260,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...signInSafetyRoutes(signInSafety),
     ...broughtOverRoutes(broughtOver),
     ...salesChannelsRoutes(salesChannels),
+    ...shopFeaturesRoutes(shopFeatures),
     ...driftRoutes(driftDesk),
     ...messageRoutes(pressMessages),
     ...costRoutes(costsDesk),
