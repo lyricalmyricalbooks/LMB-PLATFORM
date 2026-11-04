@@ -169,6 +169,7 @@
           <li data-admin><a class="rp-nav-item" href="#setting-up" data-nav="setting-up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h16"/><path d="M6 20V10l6-5 6 5v10"/><path d="M10 20v-5h4v5"/></svg>Setting up<span class="rp-nav-badge" data-badge="setting-up" hidden></span></a></li>
           <li class="rp-nav-section-row" aria-hidden="true" data-admin><div class="rp-nav-section">Help presses</div></li>
           <li data-admin><a class="rp-nav-item" href="#support" data-nav="support"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Support<span class="rp-nav-badge" data-badge="support" hidden></span></a></li>
+          <li data-admin><a class="rp-nav-item" href="#apps" data-nav="apps"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M17.5 14v7M14 17.5h7"/></svg>App store<span class="rp-nav-badge" data-badge="apps" hidden></span></a></li>
           <li data-admin><a class="rp-nav-item" href="#repairs" data-nav="repairs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></svg>Repairs<span class="rp-nav-badge" data-badge="repairs" hidden></span></a></li>
           <li data-admin><a class="rp-nav-item" href="#recovery" data-nav="recovery"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3M15 8l2 2"/></svg>Account recovery<span class="rp-nav-badge" data-badge="recovery" hidden></span></a></li>
           <li class="rp-nav-section-row" aria-hidden="true" data-admin><div class="rp-nav-section">Run the platform</div></li>
@@ -299,6 +300,19 @@
                 <button type="button" class="rp-tab" data-status="closed" aria-pressed="false" aria-selected="false">Closed</button>
               </div>
               <div id="tickets" class="cr-list"></div>
+            </section>
+
+            <section data-page="apps" aria-labelledby="h-apps" hidden>
+              <div class="rp-page-header">
+                <div><h1 class="rp-page-title" id="h-apps">App store</h1><p class="rp-page-desc">Outside apps waiting for your review, and the ones presses can install.</p></div>
+              </div>
+              <div class="rp-tabs cr-toolbar" id="app-filters" role="group" aria-label="Which apps">
+                <button type="button" class="rp-tab" data-status="in-review" aria-pressed="true" aria-selected="true">Waiting for review</button>
+                <button type="button" class="rp-tab" data-status="on-store" aria-pressed="false" aria-selected="false">On the store</button>
+                <button type="button" class="rp-tab" data-status="unlisted" aria-pressed="false" aria-selected="false">Taken off</button>
+                <button type="button" class="rp-tab" data-status="draft" aria-pressed="false" aria-selected="false">Being made</button>
+              </div>
+              <div id="apps" class="cr-list"></div>
             </section>
 
             <section data-page="repairs" aria-labelledby="h-repairs" hidden>

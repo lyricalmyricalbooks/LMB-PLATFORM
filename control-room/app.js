@@ -161,6 +161,7 @@ async function load() {
     showShell("admin");
     await loadRepairs();
     await loadTickets();
+    await loadApps();
     await loadRecoveries();
     await loadBreaches();
     await loadWaitlist();
@@ -720,6 +721,90 @@ async function loadTickets() {
   }
 }
 
+// A request sent from setup mode's Help has no shop yet: the press's name is in its first message
+// (apps/shop setupMode/SetupHelp.tsx), so it is labelled as a press setting up.
+const SETUP_NOTE = /\(Sent while setting up (.+?)\.\)\s*$/;
+function setupNote(ticket) {
+  if (ticket.shopId) return null;
+  const name = SETUP_NOTE.exec(ticket.messages?.[0]?.body ?? "")?.[1];
+  return name ? `setting up ${name}, no shop yet` : null;
+}
+
+// ── The app store (code plan 26.1, services/apps/makers.js): outside apps waiting for review, approve or send back,
+// and take an app off the store. A failed read leaves the rest of the control room. ──
+let appStatus = "in-review";
+let appPermissions = {};
+filterChips("#app-filters", (picked) => { appStatus = picked; loadApps(); });
+const APP_WORDS = { "in-review": ["warning", "Waiting for review"], listed: ["success", "On the store"], unlisted: ["neutral", "Taken off"], draft: ["info", "Being made"] };
+
+async function loadApps() {
+  try {
+    if (!Object.keys(appPermissions).length) {
+      const { permissions } = await api("GET", "/apps/permissions");
+      appPermissions = Object.fromEntries((permissions ?? []).map((p) => [p.scope, p]));
+    }
+    const { apps } = await api("POST", "/control/apps", { status: appStatus });
+    if (appStatus === "in-review") setBadge("apps", apps.length);
+    else api("POST", "/control/apps", { status: "in-review" }).then((r) => setBadge("apps", r.apps.length)).catch(() => {});
+    const empty = { "in-review": ["No apps waiting.", "An app shows here as soon as its maker sends it for review."], "on-store": ["No apps on the store yet."], unlisted: ["No apps taken off the store."], draft: ["No apps being made."] }[appStatus];
+    $("#apps").replaceChildren(...(apps.length ? apps.map(appCard) : [emptyState(...empty)]));
+  } catch (failure) {
+    $("#apps").replaceChildren(emptyState("Couldn't read the app store.", failure.message));
+  }
+}
+
+/** A permission in the words the press reads before saying yes; one that reaches shoppers' details is marked. */
+function permissionLine(scope) {
+  const known = appPermissions[scope];
+  return el("li", {}, `${known?.words ?? scope} `, known?.personal ? pill("warning", "shoppers' details") : null);
+}
+
+function appCard(app) {
+  const d = app.draft ?? app.listing?.details ?? {};
+  const actions = [];
+  const run = (label, tone, path, ask) => {
+    const b = button(label, tone);
+    b.addEventListener("click", async () => {
+      const reason = ask ? (window.prompt(`${ask}\n\nWhy? The maker reads this (at least 10 characters).`) ?? "").trim() : null;
+      if (ask && !reason) return;
+      b.disabled = true;
+      try {
+        await api("POST", path, { appId: app.appId, ...(reason ? { reason } : {}) });
+        status.textContent = `${d.name ?? app.appId}: ${label.toLowerCase()} done.`;
+        await loadApps();
+      } catch (failure) {
+        status.textContent = failure.message;
+        b.disabled = false;
+      }
+    });
+    actions.push(b);
+  };
+  if (app.status === "in-review") {
+    run("Approve", "primary", "/control/apps/approve", null);
+    run("Send back", "secondary", "/control/apps/send-back", `Send ${d.name ?? "this app"} back to its maker.`);
+  }
+  if (app.onStore) run("Take off the store", "ghost", "/control/apps/unlist", `Take ${app.listing?.details?.name ?? d.name ?? "this app"} off the store.`);
+  const [tone, words] = APP_WORDS[app.status] ?? ["neutral", app.status];
+  const scopes = d.scopes ?? [];
+  return sheet({
+    title: d.name ?? app.appId,
+    tone, pillWords: words,
+    metaParts: [app.makerEmail, d.supportEmail && d.supportEmail !== app.makerEmail ? `help: ${d.supportEmail}` : null, app.updatedAt ? `updated ${dateOnly(app.updatedAt)}` : null],
+    body: [
+      d.tagline ? el("p", { className: "cr-body", textContent: d.tagline }) : null,
+      d.description ? el("p", { className: "cr-quote", textContent: d.description }) : null,
+      el("p", { className: "rp-hint", textContent: [d.website ? d.website : null, d.alertsAddress ? `alerts to ${d.alertsAddress}` : null, d.returnAddresses?.length ? `returns to ${d.returnAddresses.join(", ")}` : null].filter(Boolean).join(" · ") }),
+      el("h4", { className: "cr-section", textContent: "Asks to" }),
+      scopes.length ? el("ul", { className: "cr-steps" }, ...scopes.map(permissionLine)) : el("p", { className: "rp-hint", textContent: "No permissions." }),
+      app.draftDiffers ? el("p", { className: "rp-hint", textContent: "Being changed: the store keeps the approved copy until the maker sends it again." }) : null,
+      app.review?.sentBack ? el("p", { className: "rp-hint", textContent: `Last sent back ${dateOnly(app.review.sentBack.at)}: ${app.review.sentBack.reason}` }) : null,
+      app.unlisted ? el("p", { className: "rp-hint", textContent: `Taken off ${dateOnly(app.unlisted.at)} by ${app.unlisted.by}: ${app.unlisted.reason}` }) : null,
+      app.history?.length ? el("details", {}, el("summary", { textContent: "History", style: "min-height: 44px; padding: 11px 0; cursor: pointer" }), history(app.history.slice().reverse().map((h) => `${when(h.at)} · ${h.by ?? "the maker"} · ${h.what}`))) : null,
+    ].filter(Boolean),
+    actions: el("div", { className: "cr-actions" }, ...actions),
+  });
+}
+
 function ticketCard(ticket) {
   const answer = el("textarea", { className: "rp-textarea", maxLength: 5000, placeholder: "Your answer, emailed to the press" });
   answer.setAttribute("aria-label", `Answer to ${ticket.email}`);
@@ -751,7 +836,7 @@ function ticketCard(ticket) {
   return sheet({
     title: ticket.subject,
     tone, pillWords: words,
-    metaParts: [ticket.pressName ? `${ticket.pressName} (${ticket.shopId})` : null, ticket.email, `opened ${when(ticket.openedAt)}`, ticket.id],
+    metaParts: [ticket.pressName ? `${ticket.pressName} (${ticket.shopId})` : setupNote(ticket), ticket.email, `opened ${when(ticket.openedAt)}`, ticket.id],
     body: ticket.messages.map((m) => el("div", { className: "cr-quote", dataset: { from: m.from } },
       el("p", { className: "cr-meta", textContent: `${m.from === "press" ? ticket.email : m.by} · ${when(m.at)}` }),
       el("div", { textContent: m.body }))),
@@ -2119,7 +2204,8 @@ async function loadSetup() {
           meta(p.import ? `product file: ${p.import.rows ?? "?"} rows` : null, LANGUAGE_CHOICE_WORDS[p.language] ?? null)) },
         { header: "Last visit", render: (p) => el("div", {}, el("span", { className: "rp-mono", textContent: p.idleDays == null ? "" : daysWords(p.idleDays) }), meta(p.createdAt ? `signed up ${dateOnly(p.createdAt)}` : null)) },
         { header: "Where", render: (p) => el("div", {}, setupStatusCell(p),
-          meta(p.stillToDo.length ? `still to add: ${p.stillToDo.join(", ")}` : null, p.shopId ? `shop ${p.shopId}` : null, p.shopMessage || null,
+          meta(p.status === "setup" && p.guide ? `setup guide ${p.guide.done} of ${p.guide.total}${p.guide.next ? `, next: ${p.guide.next.toLowerCase()}` : ""}` : null,
+            p.stillToDo.length ? `still to add: ${p.stillToDo.join(", ")}` : null, p.shopId ? `shop ${p.shopId}` : null, p.shopMessage || null,
             Object.keys(p.warned).length ? `emailed ${Object.keys(p.warned).sort((a, b) => b - a).map((d) => `${d} days`).join(" and ")} before removal` : null,
             p.expiredAt ? `cleared ${dateOnly(p.expiredAt)}` : null)) },
       ],

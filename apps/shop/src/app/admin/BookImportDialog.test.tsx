@@ -56,6 +56,32 @@ describe("BookImportDialog", () => {
     expect(document.body.textContent).toContain("2 of 2 saved");
   });
 
+  it("lets the owner match columns it doesn't know (plan 23.36)", async () => {
+    const host = document.createElement("div"); document.body.append(host);
+    root = createRoot(host);
+    act(() => root!.render(h(BookImportDialog, { books, onClose: () => {}, onDone: () => {} })));
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    Object.defineProperty(input, "files", { value: [new File(["Book,Cost to buyer\nNew Poems,22.50\n"], "list.csv")], configurable: true });
+    await act(async () => { input.dispatchEvent(new Event("change", { bubbles: true })); });
+    await flush();
+    expect(document.body.textContent).toContain("0 of 2 matched");
+    expect(document.body.textContent).toContain("Nothing can be imported");
+    const pick = async (label: string, value: string) => {
+      const select = [...document.querySelectorAll("select")].find(s => s.closest("label, div")?.textContent?.startsWith(label))!;
+      await act(async () => { select.value = value; select.dispatchEvent(new Event("change", { bubbles: true })); });
+      await flush();
+    };
+    await pick("Book", "title");
+    // A field already matched isn't offered for another column.
+    const other = [...document.querySelectorAll("select")].find(s => s.closest("label, div")?.textContent?.startsWith("Cost to buyer"))!;
+    expect([...other.options].map(o => o.value)).not.toContain("title");
+    await pick("Cost to buyer", "retailPrice");
+    const text = document.body.textContent || "";
+    expect(text).toContain("2 of 2 matched");
+    expect(text).toContain("1 new");
+    expect([...document.querySelectorAll("button")].some(b => /Import 1 book/.test(b.textContent || ""))).toBe(true);
+  });
+
   it("reads an old shop's address into the same preview (plan 23.11)", async () => {
     const host = document.createElement("div"); document.body.append(host);
     root = createRoot(host);

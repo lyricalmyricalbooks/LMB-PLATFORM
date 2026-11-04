@@ -97,7 +97,7 @@ type NotificationSettings = {
   /** Older saved switch for the shop's new-order email; read only as shopAlerts.newOrder's fallback. */
   new_order_admin?: { enabled?: boolean };
   /** Emails to the shop itself; on unless switched off. */
-  shopAlerts: { newOrder: boolean; shipped: boolean; dailyOrderDigest?: boolean; lowStock?: boolean; weeklySummary?: boolean; fairDaySummary?: boolean };
+  shopAlerts: { newOrder: boolean; shipped: boolean; dailyOrderDigest?: boolean; lowStock?: boolean; weeklySummary?: boolean; fairDaySummary?: boolean; socialPostFailed?: boolean };
 };
 
 type TemplateKey = Exclude<keyof NotificationSettings, "brand" | "new_order_admin" | "shopAlerts">;
@@ -234,7 +234,7 @@ const DEFAULT_SETTINGS: NotificationSettings = {
     enabled: false,
     delayDays: 14
   },
-  shopAlerts: { newOrder: true, shipped: true, dailyOrderDigest: true, lowStock: true, weeklySummary: true, fairDaySummary: true }
+  shopAlerts: { newOrder: true, shipped: true, dailyOrderDigest: true, lowStock: true, weeklySummary: true, fairDaySummary: true, socialPostFailed: true }
 };
 
 // Every customer email the editor shows. A template added to DEFAULT_SETTINGS appears
@@ -863,6 +863,8 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
             <Toggle label="Running low — products that reach your low-stock line (in the 8am email)" checked={shopAlerts.lowStock !== false}
               onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, lowStock: on } })} />
             <p className="rp-hint" style={{ margin: 0 }}>Once per item, again if it sells out. Set the line in Inventory.</p>
+            <Toggle label="Social post didn't go out — a scheduled post that Facebook, Instagram, Pinterest or TikTok refused" checked={shopAlerts.socialPostFailed !== false}
+              onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, socialPostFailed: on } })} />
             <Toggle label="Monday summary — last week's sales and visits, with a PDF of the highlights (Mondays, 8am)" checked={shopAlerts.weeklySummary !== false}
               onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, weeklySummary: on } })} />
             <p className="rp-hint" style={{ margin: 0 }}>Sales, visits and best sellers vs last week.</p>

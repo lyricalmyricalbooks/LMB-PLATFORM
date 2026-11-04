@@ -5,9 +5,9 @@
 // searchConsole.js read them as before. The shop proves who it is with its service key, like the payment, email and
 // domain services. Admin-only. A shop without the link answers "not_available", and the admin keeps its older cards.
 //
-//   body { action: "googleConnect", step: "status" | "connectLink" | "tryAgain" | "disconnect" | "productProblems" | "sheetSync", returnUrl?, extras?, part? }
+//   body { action: "googleConnect", step: "status" | "connectLink" | "tryAgain" | "disconnect" | "turnOff" | "productProblems" | "sheetSync", returnUrl?, extras?, part? }
 
-const STEPS = Object.freeze({ status: "google.status", connectLink: "google.connectLink", tryAgain: "google.tryAgain", disconnect: "google.disconnect", productProblems: "google.productProblems", sheetSync: "google.sheetSync" });
+const STEPS = Object.freeze({ status: "google.status", connectLink: "google.connectLink", tryAgain: "google.tryAgain", disconnect: "google.disconnect", turnOff: "google.turnOff", productProblems: "google.productProblems", sheetSync: "google.sheetSync" });
 const EXTRAS = Object.freeze(["drive", "youtube", "calendar", "businessProfile", "ads"]);
 
 function argsFor(step, body) {
@@ -16,6 +16,10 @@ function argsFor(step, body) {
     if (!returnUrl) return null;
     const extras = Array.isArray(body.extras) ? EXTRAS.filter((e) => body.extras.includes(e)) : [];
     return { returnUrl, extras };
+  }
+  if (step === "turnOff") {
+    const extras = Array.isArray(body.extras) ? EXTRAS.filter((e) => body.extras.includes(e)) : [];
+    return extras.length ? { extras } : null;
   }
   if (step === "tryAgain") return typeof body.part === "string" && /^[a-zA-Z]{2,30}$/.test(body.part) ? { step: body.part } : null;
   return {};

@@ -5,6 +5,7 @@ import { adminApi } from "../app/admin/api";
 import { A11Y_BOOKS } from "../a11yFixture/books";
 import { inventoryLinkApi } from "../app/admin/inventoryLinkApi";
 import { addressKey } from "../app/admin/fulfillment";
+import { googleConnectApi, readGoogleStatus } from "../app/admin/googleConnect";
 
 const order = (n: number, status: string, name: string) => ({
   id: `o${n}`, orderId: `FIXTURE-${n}`, status, paymentStatus: "paid", createdAt: new Date(Date.now() - n * 3_600_000).toISOString(),
@@ -132,6 +133,37 @@ if (new URLSearchParams(location.search).get("move")) {
   api.getOrderById = async (id: string) => ORDERS.find((o) => o.id === id || o.orderId === id) ?? null;
   // oldShopApi asks the server with the signed-in person's token; the fixture's pretend owner has one (development only).
   (globalThis as any).__fixtureIdToken = "fixture-token";
+}
+
+// ?gstate=coming|ready|connected|trouble (Settings › Google screenshots): a pretend Google link, nothing reaches Google.
+// coming: not switched on yet · ready: switched on, not connected · connected: all working · trouble: needs a look.
+const gstate = new URLSearchParams(location.search).get("gstate");
+if (gstate) {
+  const offered = ["businessProfile", "drive", "youtube", "calendar", "ads"];
+  const done = (step: string, detail: string) => ({ step, state: "done", detail, at: "2026-11-03T15:00:00Z" });
+  const steps = [
+    done("firebase", "Your shop is ready for Google."),
+    done("analytics", "Visits are counted for visitors who agree."),
+    done("searchConsole", "Google knows about your shop and 24 books."),
+    done("merchantCenter", "24 books sent to Google Shopping today."),
+    done("email", "Emails go out from hello@yourpress.example."),
+    gstate === "trouble" ? { step: "domain", state: "waiting", detail: "Waiting for yourpress.example to open your shop." } : done("domain", "yourpress.example is counted with your shop."),
+    done("businessProfile", "Your hours and link are on Google Maps."),
+    gstate === "trouble" ? { step: "drive", state: "failed", detail: "Google didn't allow the Drive folder. Try again, or switch it off." } : done("drive", "Last copy saved last night."),
+  ];
+  const answer: any = gstate === "coming" ? { enabled: false } : {
+    enabled: true, extrasOffered: offered,
+    ...(gstate === "ready" ? { connected: false } : { connected: true, accountEmail: "owner@example.com", connectedAt: "2026-11-03T15:00:00Z", extrasChosen: ["businessProfile", "drive"], steps }),
+  };
+  const calls: any[] = ((window as any).__adminFixture.googleCalls = []);
+  const status = readGoogleStatus(answer);
+  googleConnectApi.status = async () => status;
+  googleConnectApi.connectLink = async (extras: any) => { calls.push(["connectLink", extras]); return "#settings/google"; };
+  googleConnectApi.tryAgain = async (part: string) => { calls.push(["tryAgain", part]); return status; };
+  googleConnectApi.disconnect = async () => { calls.push(["disconnect"]); return status; };
+  googleConnectApi.turnOff = async (extras: any) => { calls.push(["turnOff", extras]); return status; };
+  googleConnectApi.shoppingProblems = async () => ({ available: true, problems: gstate === "trouble" ? [{ offerId: "b3", title: "Night Songs", issues: [{ severity: "DISAPPROVED", description: "The photo has a border.", resolution: "Upload a photo without one." }] }] : [] });
+  googleConnectApi.sendStockSheet = async () => ({ available: true, url: "https://docs.google.com/spreadsheets/d/example/edit", rows: 24 });
 }
 
 const params = new URLSearchParams(location.search);

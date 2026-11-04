@@ -197,3 +197,20 @@ describe("cartRows", () => {
     expect(rows.find(r => r.id === "c3")!.orderId).toBe("ORD3");
   });
 });
+
+describe("social media that sells (plan 27.10)", () => {
+  it("groups each network's sources and the share menu's links, leaving other sources out", async () => {
+    const { socialPerformance } = await import("./overviewTraffic");
+    const rows = socialPerformance([
+      { source: "instagram", visits: 40, orders: 2, revenue: 60, conversion: null },
+      { source: "l instagram com", visits: 10, orders: 0, revenue: 0, conversion: null },
+      { source: "facebook", visits: 5, orders: 1, revenue: 20, conversion: null },
+      { source: "copy_link", visits: 3, orders: 0, revenue: 0, conversion: null },
+      { source: "google", visits: 90, orders: 4, revenue: 100, conversion: null },
+      { source: "email", visits: 9, orders: 1, revenue: 25, conversion: null },
+    ]);
+    expect(rows.map(r => [r.label, r.visits, r.orders, r.revenue])).toEqual([
+      ["Instagram", 50, 2, 60], ["Facebook", 5, 1, 20], ["Shared links", 3, 0, 0],
+    ]);
+  });
+});

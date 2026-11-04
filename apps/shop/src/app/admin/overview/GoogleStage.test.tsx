@@ -9,8 +9,8 @@ const g = vi.hoisted(() => ({
   connectLink: vi.fn(async () => "https://accounts.example/allow"),
   reload: vi.fn(),
 }));
-vi.mock("../googleConnect", () => ({
-  GOOGLE_PARTS: { analytics: { label: "Google Analytics", about: "" }, searchConsole: { label: "Google search", about: "" } },
+vi.mock("../googleConnect", async (real) => ({
+  GOOGLE_PARTS: (await real<any>()).GOOGLE_PARTS,
   googleConnectApi: { connectLink: g.connectLink },
   takeGoogleOutcome: () => g.outcome,
   useGoogleConnect: () => ({ ...g.state, reload: g.reload }),
@@ -59,8 +59,10 @@ describe("Get started, step 4: Google in one sign-in (plan 17.9)", () => {
     ] }, error: null };
     const onDone = await mount();
     expect(text()).toContain("Google is connected");
-    expect(text()).toContain("Google Analytics: Linked");
-    expect(text()).toContain("Google search: Waiting");
+    const tile = (name: string) => [...document.querySelectorAll(".gg-tile")].find((t) => t.querySelector("strong")?.textContent === name)?.textContent;
+    expect(tile("Google Analytics")).toContain("Working");
+    expect(tile("Google search")).toContain("Waiting on Google");
+    expect(text()).toContain("Settings › Google");
     expect(text()).not.toContain("searchConsole");
     await act(async () => { button("Continue")!.click(); });
     await flush();

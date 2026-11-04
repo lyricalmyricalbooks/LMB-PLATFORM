@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { allowLabel, describeDomain, domainActions, guideLineTitle, guideMailto } from "./customDomains";
+import { allowLabel, describeDomain, describeEntry, domainActions, guideLineTitle, guideMailto, moveWarning } from "./customDomains";
 
 describe("Your web address", () => {
   test("each state has a badge and a plain sentence", () => {
@@ -26,5 +26,17 @@ describe("Your web address", () => {
     const main = domainActions({ name: "a.example", state: "live" }, "a.example");
     expect(main).toMatchObject({ canMakeMain: false, canRemove: false });
     expect(main.note).toMatch(/make another address main first/);
+  });
+
+  test("a free address is never removed, and a www address sends visitors on and is never made main", () => {
+    expect(domainActions({ name: "moth-press.shops.example", state: "live", free: true }, "mothpress.example")).toMatchObject({ canMakeMain: true, canRemove: false });
+    expect(domainActions({ name: "moth-press.shops.example", state: "live", free: true }, "moth-press.shops.example")).toMatchObject({ canMakeMain: false, canRemove: false });
+    const www = domainActions({ name: "www.mothpress.example", state: "live", sendsTo: "mothpress.example" }, "mothpress.example");
+    expect(www).toMatchObject({ canMakeMain: false, canRemove: true });
+    expect(www.note).toContain("sent on to mothpress.example");
+    expect(describeEntry({ free: true }, "waiting_dns").label).toBe("Setting up");
+    expect(describeEntry({}, "waiting_dns").label).toBe("Waiting for you");
+    expect(moveWarning("mothpress.example").message).toMatch(/take your last orders and close its checkout first/);
+    expect(moveWarning("mothpress.example").message).not.toMatch(/DNS|CNAME|TXT|record/);
   });
 });

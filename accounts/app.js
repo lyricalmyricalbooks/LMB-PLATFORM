@@ -269,8 +269,11 @@ function shopCard(shop) {
   // The website's address, or the stockroom's for a press with the stockroom alone.
   const place = shop.siteUrl ?? shop.stockroomUrl;
   const address = place ? place.replace(/^https?:\/\//, "") : "";
+  // The free address once it's set up, unless it's already the address shown.
+  const free = shop.freeAddress && shop.freeAddress !== address ? `${shop.freeAddress}${shop.freeAddressLive ? "" : " · setting up"}` : "";
   const meta = el("div", { className: "cp-meta" },
     address ? el("span", { textContent: address }) : null,
+    free ? el("span", { textContent: free }) : null,
     shop.plan ? el("span", { textContent: `${PLAN_NAMES[shop.plan] ?? shop.plan} plan` }) : null);
   let trial = null;
   if (where.trialLeft !== undefined) {

@@ -9,7 +9,7 @@ import { DESIGN_PAGE, GENERAL_PAGE, IMPORT_PAGE, PLAN_PAGE } from "./pages";
 
 /** One line of "What goes into your shop". `needed` lines stop Create my shop until they're filled in. */
 export interface CreateRow {
-  id: "plan" | "details" | "look" | "books";
+  id: "plan" | "details" | "look" | "domain" | "books";
   label: string;
   value: string;
   state: "done" | "needed" | "later";
@@ -54,12 +54,18 @@ export function createChecklist(press: SetupPress, plans: PlanList | null, names
   if (press.plan !== "stockroom") {
     rows.push(press.look
       ? { id: "look", label: "Website look", value: names.lookName || "Chosen", state: "done", page: DESIGN_PAGE, change: "Change" }
-      : { id: "look", label: "Website look", value: "Not chosen yet. You can pick one now, or in Design once your shop is made.", state: "later", page: DESIGN_PAGE, change: "Choose a look" });
+      : { id: "look", label: "Website look", value: "Not chosen yet", state: "later", page: DESIGN_PAGE, change: "Choose a look" });
+  }
+  if (press.plan !== "stockroom") {
+    const free = press.freeAddress || "Free address";
+    rows.push(press.domain
+      ? { id: "domain", label: "Web address", value: press.domain, state: "done", page: GENERAL_PAGE, change: "Change" }
+      : { id: "domain", label: "Web address", value: free, state: "later", page: GENERAL_PAGE, change: "Add a domain" });
   }
   const file = press.stagedImport;
   rows.push(file
     ? { id: "books", label: "Your books", value: `${file.rows} ${file.rows === 1 ? "book" : "books"} from ${file.name}, brought in as drafts for you to check.`, state: "done", page: IMPORT_PAGE, change: "Change" }
-    : { id: "books", label: "Your books", value: "None brought over. You can add them, or bring a file, once your shop is made.", state: "later", page: IMPORT_PAGE, change: "Bring a file" });
+    : { id: "books", label: "Your books", value: "None yet", state: "later", page: IMPORT_PAGE, change: "Bring a file" });
   return rows;
 }
 
@@ -83,14 +89,12 @@ export function whatHappensNext(plan: SetupPress["plan"]): string[] {
   const makes = PLAN_MAKES[plan] ?? "your shop";
   if (plan === "stockroom") {
     return [
-      `We make ${makes}. It takes a few minutes, and we email you when it's ready.`,
-      "Everything you set up here is already in it, and you can start counting stock straight away.",
+      `We make ${makes} in a few minutes and email you.`,
     ];
   }
   return [
-    `We make ${makes}. It takes a few minutes, and we email you when it's ready.`,
-    "Your website starts private. Only you can see it while you add payments, shipping and your shop's policies.",
-    "When everything's ready, you open it to shoppers from your shop's Home page. A last check makes sure nothing is missing.",
+    `We make ${makes} in a few minutes and email you.`,
+    "It stays private until you open it.",
   ];
 }
 

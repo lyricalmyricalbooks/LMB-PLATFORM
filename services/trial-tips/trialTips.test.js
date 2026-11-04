@@ -212,5 +212,8 @@ test("a shop that sells no books gets its tips and nudges in its own words; a bo
     for (const text of [nudge.subject, ...nudge.paragraphs, nudge.action]) assert.doesNotMatch(text, bookWords, `${stage}: ${text}`);
   }
   assert.equal(tipWords("look", "clothing").subject, "Make your shop look like yours");
+  // The web address tip names the shop's free address when it has one.
+  assert.match(tipWords("address", "books", { freeAddress: "moth-press.shops.example" }).paragraphs[0], /free address is moth-press\.shops\.example\. Share it/);
+  assert.equal(tipWords("address", "books"), TIPS.address);
   assert.equal(tipWords("add-books", "clothing").subject, "Add your first product");
 });

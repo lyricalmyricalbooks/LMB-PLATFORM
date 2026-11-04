@@ -269,6 +269,18 @@ export const TEMPLATES = {
     footer: signOff(settings),
   }),
 
+  /** The shop's free address on the platform's shop domain works (services/domains freeAddress.js). Sent once. */
+  "free-address-live": ({ domain, link }, { settings, pressName }) => layout({
+    subject: `${pressName} is open at ${domain}`,
+    greeting: "Hello,",
+    paragraphs: [
+      `Your shop now opens at ${domain}, with the secure padlock. This is the address to share: put it on your social pages, your cards and your emails.`,
+      "It's free and stays yours for as long as your shop is open. You can change its name, or bring a domain of your own, in your web address settings.",
+    ],
+    buttons: [["Open your web address settings", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
   /** A paying press whose shop has gone quiet (control-room/driftWatch.js): a gentle check-in, at most every 60 days. */
   "quiet-shop": ({ pressName, link, helpLink }, { settings, w = (text) => text }) => layout({
     subject: `How is ${pressName} getting on?`,

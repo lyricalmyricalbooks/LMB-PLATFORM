@@ -3,7 +3,7 @@
 // holds the sealed text, the permissions Google gave and the Google account's address.
 //
 //   connections  get(shopId) -> { sealed, scopes, accountEmail, extras, accessExpiresAt, connectedAt, revokedAt } | null;
-//                set(shopId, value)
+//                set(shopId, value); setExtras(shopId, extras) keeps the grant and changes only the extras
 import { seal, unseal } from "../services/payments/tokenSeal.js";
 import { GoogleError } from "./googleApi.js";
 
@@ -40,6 +40,15 @@ export function createTokens({ google, connections, config, now = () => Date.now
       };
       await connections.set(shopId, value);
       return value;
+    },
+
+    /** The extras the press keeps on, without a new sign-in (switching one off needs no new permission). */
+    async setExtras(shopId, extras) {
+      const conn = await connections.get(shopId);
+      if (!live(conn)) return null;
+      const next = { ...conn, extras };
+      await connections.set(shopId, next);
+      return next;
     },
 
     /**

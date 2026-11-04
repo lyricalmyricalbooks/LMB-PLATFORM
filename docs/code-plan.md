@@ -813,6 +813,7 @@ preview first; nothing is published, charged or emailed by moving in. Words neve
 | 23.33 | platform | **Which file each order came from.** Bring past orders over sends each order's file name; the server keeps it as `importedFile` and a brought-over order's page says "Came from the file …" above the take-back button. The admin fixture gains one brought-over order for the move check | orderImport.test.js; PastOrdersDialog.test.tsx; move-check (CI) | quick | built (3 November 2026) |
 | 23.34 | platform | **One order's rate.** A brought-over order sold in another currency shows what it sold for and its rate on its page, with "Change the rate": the server (`ratePastOrder`) re-rates that one `source: "import"` order, the total exactly from what the old shop charged and the other Canadian-dollar amounts scaled, and notes it in the order's activity and the audit log | orderImport.test.js; PastOrdersDialog.test.tsx; move-check (CI) | quick | built (3 November 2026) |
 | 23.35 | platform | **Excel and other spreadsheets everywhere.** `spreadsheetFile.ts` turns a CSV, tab-separated text (UTF-8, UTF-16 or the older Windows encoding), Excel (.xlsx) or OpenDocument (.ods) file into CSV text in the browser with no added library (zip parts unpacked by the browser's own decompression; Excel dates kept as dates). Every bring-a-file window (Books, setup's Books page, customers, gift cards, discount codes, past orders) uses it, so column names fill the fields as before. Old .xls and Numbers files get the menu steps to save as .xlsx. The Books button reads Import spreadsheet. Fixtures made by LibreOffice and a Python spreadsheet library | spreadsheetFile.test.ts; move-check (CI) | medium | built (4 November 2026) |
+| 23.36 | platform | **Match leftover columns by hand.** When a books spreadsheet has headings the shop doesn't know, Import spreadsheet shows a Match columns panel: one choice per heading (Leave out, or any field not already used; ID is never offered), and the preview re-reads the file with the owner's matches (`planImport` option `columns`, `mapHeadings` second argument) | catalogImport.test.ts; BookImportDialog.test.tsx | small | built (4 November 2026) |
 
 ## Phase 24: gaps from the Shopify review (planned 3 November 2026)
 
@@ -886,7 +887,7 @@ can tag products), its posts from Marketing, and share buttons on product pages.
 Row 24.7 already writes the product file Meta and Pinterest read. The connections run on the platform's own Meta,
 Pinterest and TikTok app registrations, like the QuickBooks link (`services/accounting`), not through the app store
 (Phase 26). Built in order without asking (Julian's standing rule); the real developer approvals are on Julian's
-real-accounts list (`docs/start-real-accounts.md`).
+real-accounts list (`docs/start-real-accounts.md`), with the forms' words ready in `docs/social-approvals.md`.
 
 | # | Where | What | Check | Status |
 |---|---|---|---|---|
@@ -898,6 +899,9 @@ real-accounts list (`docs/start-real-accounts.md`).
 | 27.6 | shop | **Social posts** page (under Orders, next to Discounts; Marketing in the combined admin): scheduled, posted and needs-attention lists, a composer (product, photo, words, where, now or later) and Post from a book | `SalesChannels.test.tsx` | built (4 November 2026) |
 | 27.7 | shop | **Share links on product pages**: Facebook, Pinterest, X, WhatsApp, email and copy link, on a phone its own share sheet; the Studio Share button switch and words in Text & labels | `shareLinks.test.ts`, designer coverage tests | built (4 November 2026) |
 | 27.8 | platform | **Control room**: each shop's social connections, catalog and post failures (with the control-room thread) | control-room tests | |
+| 27.10 | shop | **Social media that sells** (Overview widget, Visitors › Where from): visits, orders and sales per network, share-menu links counted as Shared links | `overviewTraffic.test.ts` | built (4 November 2026) |
+| 27.11 | shop | **Square picture**: a post's photo, whole, on a 1080 square JPEG in the shop's bucket (on by default; fits every feed, and Instagram takes only JPEG) | `functions/socialPicture.test.js` | built (4 November 2026) |
+| 27.12 | shop | **A post didn't go out** email to the owner when a scheduled post is refused (Settings › Notifications › Shop alerts) | `functions/socialLink.test.js` | built (4 November 2026) |
 | 27.9 | Julian | Meta app review (Pages and Instagram posting, catalogs), Pinterest app approval, TikTok app audit and site check | `docs/start-real-accounts.md` | waiting on Julian |
 
 ## Rules for every pull request

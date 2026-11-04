@@ -44,7 +44,7 @@ export function CreateShopCard({ press, plans, names, email, termsUrl, createSho
 
   return (
     <div id="create-shop" style={{ scrollMarginTop: 16 }}>
-    <SectionCard title="Create my shop" collapsible={false} description="Check what goes into your shop, then create it. You can change all of it later.">
+    <SectionCard title="Create my shop" collapsible={false}>
       <div style={{ display: "grid", gap: 20, maxWidth: 640 }}>
         <section aria-labelledby="create-goes-in">
           <h3 id="create-goes-in" className="rp-card-title" style={{ fontSize: "var(--rp-text-base)", margin: "0 0 4px" }}>What goes into your shop</h3>

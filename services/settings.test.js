@@ -14,6 +14,7 @@ test("defaults: Colophon, $29 / $19 / $39 CAD a month, 14-day trial, notificatio
     prices: { shop: 2900, stockroom: 1900, both: 3900 },
     trialDays: 14,
     platformUrl: "https://platform.example",
+    shopAddressDomain: "",
     signupOpen: false,
     startNudges: "hold",
     signupDailyCap: 10,
@@ -80,4 +81,10 @@ test("the countries open for sign-up default to Canada and are read as two-lette
   assert.deepEqual(platformSettings({}).openCountries, ["CA"]);
   assert.deepEqual(platformSettings({ SIGNUP_OPEN_COUNTRIES: "ca, us" }).openCountries, ["CA", "US"]);
   assert.throws(() => platformSettings({ SIGNUP_OPEN_COUNTRIES: "Canada" }), /SIGNUP_OPEN_COUNTRIES/);
+});
+
+test("the shop domain for free addresses is optional, and never the platform's own domain or one under it", () => {
+  assert.equal(platformSettings({ PLATFORM_DOMAIN: "colophon.example", SHOP_ADDRESS_DOMAIN: "colophonshops.example" }).shopAddressDomain, "colophonshops.example");
+  assert.throws(() => platformSettings({ PLATFORM_DOMAIN: "colophon.example", SHOP_ADDRESS_DOMAIN: "shops.colophon.example" }), /SHOP_ADDRESS_DOMAIN/);
+  assert.throws(() => platformSettings({ PLATFORM_DOMAIN: "colophon.example", SHOP_ADDRESS_DOMAIN: "colophon.example" }), /SHOP_ADDRESS_DOMAIN/);
 });

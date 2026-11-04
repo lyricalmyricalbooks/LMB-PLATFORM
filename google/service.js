@@ -6,6 +6,7 @@
 //   google.status                        connected or not, the Google account, the extras offered and chosen, and
 //                                        every step in plain words
 //   google.connectLink { returnUrl, extras }
+//   google.turnOff { extras }            switches extras off at once, with no new sign-in
 //                                        Google's Allow page (one sign-in, every part ticked); Google sends the press
 //                                        back to `oauthCallback` (GET /google/oauth), which keeps the tokens sealed,
 //                                        runs the connect job and goes back to the shop
@@ -56,6 +57,25 @@ export function createGoogleService({ config, google, tokens, states, registry, 
     ];
   }
 
+  /** Extras the press switched off stop at once; what they made in the press's Google account stays theirs. */
+  async function stopDropped(shopId, before = [], after = []) {
+    const dropped = before.filter((e) => !after.includes(e));
+    if (!dropped.length) return [];
+    const shop = await registry.getShop(shopId);
+    const g = shop?.google ?? {};
+    const at = new Date(now()).toISOString();
+    // The Ads link is the one extra that changes something at Google; it comes off (already gone counts as done).
+    if (dropped.includes("ads") && g.ads?.linkName && !g.ads.stoppedAt) {
+      const grant = await tokens.fresh(shopId);
+      if (grant) await google.removeProductLink(grant.token, g.ads.customerId, g.ads.linkName).catch((err) => { if (err?.status !== 404) throw err; });
+    }
+    const stopped = Object.fromEntries(dropped.filter((e) => g[e] && !g[e].stoppedAt).map((e) => [e, { ...g[e], stoppedAt: at }]));
+    // A switched-off extra leaves the list of parts, so a later sign-in that ticks it again starts it afresh.
+    const steps = (g.steps ?? []).filter((s) => !dropped.includes(s.step));
+    await registry.updateShop(shopId, { google: { ...g, ...stopped, steps } });
+    return dropped;
+  }
+
   async function status(row) {
     if (!isOn()) return { enabled: false };
     const conn = await tokens.get(row.shopId);
@@ -83,7 +103,10 @@ export function createGoogleService({ config, google, tokens, states, registry, 
     const state = randomBytes(24).toString("hex");
     const expiresAt = now() + STATE_MS;
     await states.put(state, { shopId: row.shopId, returnUrl: url.toString(), extras: chosen, expiresAt });
-    return { url: google.authorizeUrl({ state, scopes: scopesFor(chosen), loginHint: row.ownerEmail }), expiresAt: Math.floor(expiresAt / 1000) };
+    // One Google account for the whole shop: once connected, Google's page opens on that account, not just the owner's.
+    const conn = await tokens.get(row.shopId);
+    const loginHint = (tokens.live(conn) && conn.accountEmail) || row.ownerEmail;
+    return { url: google.authorizeUrl({ state, scopes: scopesFor(chosen), loginHint }), expiresAt: Math.floor(expiresAt / 1000) };
   }
 
   const OPS = {
@@ -121,6 +144,17 @@ export function createGoogleService({ config, google, tokens, states, registry, 
       if (!CONNECT_STEPS.includes(step)) throw bad("Unknown step.");
       if (!tokens.live(await tokens.get(row.shopId))) throw new GoogleLinkError(409, "not_connected", "Connect Google first.");
       await connect.run(row.shopId, { only: [step] });
+      return status(await registry.getShop(row.shopId).then((r) => ({ ...r, shopId: row.shopId })));
+    },
+    /** Switch extras off with no trip to Google: only ones that are on, and the grant itself is kept. */
+    async "google.turnOff"(row, { extras } = {}) {
+      const conn = await tokens.get(row.shopId);
+      if (!tokens.live(conn)) throw new GoogleLinkError(409, "not_connected", "Connect Google first.");
+      const on = conn.extras ?? [];
+      if (!Array.isArray(extras) || !extras.length || extras.some((e) => !on.includes(e))) throw bad("extras must be ones that are on");
+      const keep = on.filter((e) => !extras.includes(e));
+      await tokens.setExtras(row.shopId, keep);
+      await stopDropped(row.shopId, on, keep);
       return status(await registry.getShop(row.shopId).then((r) => ({ ...r, shopId: row.shopId })));
     },
     async "google.disconnect"(row) {
@@ -185,7 +219,15 @@ export function createGoogleService({ config, google, tokens, states, registry, 
         console.error(`Google sign-in for ${saved.shopId} failed:`, err?.message || err);
         return backTo(saved.returnUrl, "failed");
       }
+      // One Google account runs every part of a shop. Signing in with another one while connected would split them, so
+      // nothing changes, Colophon gives that account's new access straight back, and the press is told which one to use.
+      const before = await tokens.get(saved.shopId);
+      if (tokens.live(before) && before.accountEmail && accountEmail && before.accountEmail.toLowerCase() !== accountEmail.toLowerCase()) {
+        await google.revoke(granted.refreshToken || granted.accessToken).catch(() => {});
+        return backTo(saved.returnUrl, "other_account");
+      }
       await tokens.save(saved.shopId, granted, { accountEmail, extras: saved.extras ?? [] });
+      if (tokens.live(before)) await stopDropped(saved.shopId, before.extras ?? [], saved.extras ?? []);
       try {
         await connect.run(saved.shopId);
       } catch (err) {
