@@ -79,6 +79,12 @@ type NotificationSettings = {
   order_refunded: TemplateFields;
   customer_welcome: TemplateFields;
   delivery_update: TemplateFields;
+  /** A shipped parcel is out for delivery or delivered (code plan 25.5); off until switched on. */
+  carrier_delivery_update: TemplateFields;
+  /** The shopper asked to cancel or return an order (code plan 25.7). */
+  request_received: TemplateFields;
+  /** A delayed bank payment failed after checkout (code plan 25.8). */
+  payment_failed: TemplateFields;
   /** Two days before an unpaid payment link closes (code plan 21.5). */
   payment_link_reminder: TemplateFields;
   contact_reply: TemplateFields;
@@ -186,6 +192,28 @@ const DEFAULT_SETTINGS: NotificationSettings = {
     signoff: "Best,\nThe {{shop_name}} team",
     enabled: true
   },
+  // Mirrors functions/index.js DEFAULT_NOTIFICATIONS.carrier_delivery_update, request_received and payment_failed.
+  carrier_delivery_update: {
+    subject: "Your order {{order_id}} is {{status}}",
+    body: "Hi {{customer_name}},\n\nYour order {{order_id}} is {{status}}.\n\nCarrier: {{tracking_carrier}}\nTracking number: {{tracking_number}}",
+    buttonText: "Track your parcel",
+    signoff: "Best,\nThe {{shop_name}} team",
+    enabled: false
+  },
+  request_received: {
+    subject: "We got your request for order {{order_id}}",
+    body: "Hi {{customer_name}},\n\nThanks for letting us know. We received your request to {{request}} order {{order_id}}, and we'll reply by email soon with the next steps.",
+    buttonText: "View your order",
+    signoff: "Best,\nThe {{shop_name}} team",
+    enabled: true
+  },
+  payment_failed: {
+    subject: "Your payment for order {{order_id}} didn't go through",
+    body: "Hi {{customer_name}},\n\nYour bank let us know that the {{total_price}} payment for order {{order_id}} didn't go through, so the order isn't paid yet.\n\nIf you'd still like it, reply to this email and we'll help you pay another way.",
+    buttonText: "View your order",
+    signoff: "Thanks,\nThe {{shop_name}} team",
+    enabled: true
+  },
   // Mirrors functions/reviewRequests.js REVIEW_REQUEST_TEMPLATE.
   review_request: {
     subject: "How are you finding your book?",
@@ -206,6 +234,9 @@ const TAB_META: Record<string, { label: string; group: string }> = {
   shipping_confirmation: { label: "Order Shipped", group: "orders" },
   part_shipped: { label: "Part Shipped", group: "orders" },
   delivery_update: { label: "Delivery", group: "orders" },
+  carrier_delivery_update: { label: "Out for delivery and delivered", group: "orders" },
+  request_received: { label: "Return or cancel request received", group: "orders" },
+  payment_failed: { label: "Payment didn't go through", group: "orders" },
   order_cancelled: { label: "Order Cancelled", group: "orders" },
   order_refunded: { label: "Order Refunded", group: "orders" },
   review_request: { label: "Review request", group: "orders" },

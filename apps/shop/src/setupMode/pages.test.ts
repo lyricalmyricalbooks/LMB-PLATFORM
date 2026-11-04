@@ -119,3 +119,20 @@ describe("bringing a shop over is easy to find (23.0)", () => {
     expect(showMoveIn(press({ status: "opening" }))).toBe(false);
   });
 });
+
+describe("what setup mode says around the guide", () => {
+  it("every locked menu page says what it will do once the shop is made", async () => {
+    const { lockedPageLine } = await import("./pages");
+    const every = setupMenu().flatMap((i) => (i.children ? i.children.map((c) => c.id) : [i.id]));
+    for (const page of every.filter(setupLocked)) expect(lockedPageLine(page), page).not.toBe("");
+  });
+
+  it("links each step and each common question to a real help answer", async () => {
+    const { STEP_HELP, SETUP_QUESTIONS } = await import("./pages");
+    // @ts-expect-error the platform's help answers are a plain ES module outside this app
+    const { ARTICLES } = await import("../../../../help/articles.js");
+    const ids = new Set((ARTICLES as Array<{ id: string }>).map((a) => a.id));
+    for (const id of [...Object.values(STEP_HELP), ...SETUP_QUESTIONS.map((q) => q.id)]) expect(ids.has(id), id).toBe(true);
+    for (const step of Object.keys(STEP_HELP)) expect(guideSteps(press()).map((s) => s.id)).toContain(step);
+  });
+});

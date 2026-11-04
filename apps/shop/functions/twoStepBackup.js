@@ -111,6 +111,52 @@ function backupUsedEmail({ email, ownerEmail, left, shopName, when, adminLink })
   return { to, subject: `A backup code was used to sign in to ${shop}`, html };
 }
 
+/** The email when two-step sign-in was turned on or off for someone (code plan 25.4): { to, subject, html }. */
+function twoStepChangedEmail({ email, ownerEmail, on, shopName, when, adminLink }) {
+  const owner = String(ownerEmail || "").toLowerCase();
+  const to = [...new Set([email, owner].filter(a => /^[^\s@<>,]+@[^\s@<>,]+$/.test(a || "")))];
+  const shop = shopName || "your shop";
+  const html = [
+    on
+      ? `<p>Two-step sign-in was turned on for <strong>${esc(email)}</strong> in ${esc(shop)}'s admin on ${esc(when)}. Signing in now needs a code from an authenticator app after Google.</p>`
+      : `<p>Two-step sign-in was turned off for <strong>${esc(email)}</strong> in ${esc(shop)}'s admin on ${esc(when)}. Signing in now needs only Google.</p>`,
+    "<p><strong>If this was you</strong>, there's nothing to do.</p>",
+    on
+      ? "<p><strong>If it wasn't</strong>, change that Google account's password now, then open Settings, Security and check the sign-in.</p>"
+      : "<p><strong>If it wasn't</strong>, change that Google account's password now, then open Settings, Security and turn two-step sign-in back on.</p>",
+    adminLink ? `<p><a href="${esc(adminLink)}">Open Settings, Security</a></p>` : "",
+  ].join("");
+  return { to, subject: `Two-step sign-in was turned ${on ? "on" : "off"} for ${shop}`, html };
+}
+
+/**
+ * After the admin turns two-step on or off, it asks the server to check. The server reads the sign-in's real state
+ * (never the browser's word) and emails only when it changed since the last check, so a repeated or made-up call sends
+ * nothing. Returns { on, changed }.
+ */
+async function noteTwoStepChange({ db, auth, uid, nowIso, notify }) {
+  const user = await auth.getUser(uid);
+  const on = (user.multiFactor?.enrolledFactors || []).some(f => f.factorId === TOTP);
+  const ref = db.collection("twoStepState").doc(uid);
+  const changed = await db.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    const before = snap.exists ? snap.data().on : undefined;
+    // Before this check existed nobody's state was kept: a first "off" can only follow an earlier "on".
+    if (before === on || (before === undefined && !on)) {
+      if (!snap.exists) tx.set(ref, { on, checkedAt: nowIso });
+      return false;
+    }
+    tx.set(ref, { on, changedAt: nowIso, email: user.email || null });
+    return true;
+  });
+  if (changed) {
+    await db.collection("audit-log").add({ type: "security", message: `Two-step sign-in turned ${on ? "on" : "off"} for ${user.email || "a team member"}`, createdAt: nowIso })
+      .catch(err => console.warn(`twoStepBackup: audit log not written: ${err.message}`));
+    if (notify) await Promise.resolve().then(() => notify({ email: user.email, on })).catch(err => console.warn(`twoStepBackup: email not sent: ${err.message}`));
+  }
+  return { on, changed };
+}
+
 const WRONG = "That backup code didn't work. Check it against your saved list: each code works once.";
 
 /**
@@ -138,6 +184,8 @@ async function spendBackup({ db, auth, google, code, nowIso, fetchImpl, notify }
   const others = (user.multiFactor?.enrolledFactors || []).filter(f => f.factorId !== TOTP && f.factorId === "phone")
     .map(f => ({ uid: f.uid, factorId: "phone", phoneNumber: f.phoneNumber, displayName: f.displayName || undefined }));
   await auth.updateUser(user.uid, { multiFactor: { enrolledFactors: others.length ? others : null } });
+  // The backup-code email already says the app came off: the two-step check mustn't send a second "turned off".
+  await db.collection("twoStepState").doc(user.uid).set({ on: false, changedAt: nowIso, email }).catch(err => console.warn(`twoStepBackup: state not kept: ${err.message}`));
   await db.collection("audit-log").add({
     type: "security",
     message: `${email} signed in with a two-step backup code, so their authenticator app was taken off (${left} code${left === 1 ? "" : "s"} left)`,
@@ -148,4 +196,4 @@ async function spendBackup({ db, auth, google, code, nowIso, fetchImpl, notify }
   return { left };
 }
 
-module.exports = { backupUsedEmail, CODE_COUNT, cleanBackupCode, hashCode, makeBackupCodes, makeProblem, backupStatus, makeBackup, googleEmailOf, spendBackup, BackupRefused, FRESH_MS };
+module.exports = { backupUsedEmail, twoStepChangedEmail, noteTwoStepChange, CODE_COUNT, cleanBackupCode, hashCode, makeBackupCodes, makeProblem, backupStatus, makeBackup, googleEmailOf, spendBackup, BackupRefused, FRESH_MS };

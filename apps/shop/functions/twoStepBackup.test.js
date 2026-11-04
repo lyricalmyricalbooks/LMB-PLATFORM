@@ -186,3 +186,45 @@ describe("the email after a backup code is used", () => {
     await expect(spendBackup({ db, auth, google: { idToken: "t" }, code: "AAAAA-AAAAA", nowIso: "x", fetchImpl: googleSays({ email: "owner@example.com" }), notify })).rejects.toThrow(/didn't work/);
   });
 });
+
+describe("two-step turned on or off (code plan 25.4)", () => {
+  const { noteTwoStepChange, twoStepChangedEmail } = backup;
+  const authWith = user => ({ getUser: async () => user });
+
+  it("emails once per real change, reading the sign-in itself, and never for a made-up call", async () => {
+    const db = fakeDb();
+    const sent = [];
+    const notify = async m => { sent.push(m); };
+    const user = { uid: "u1", email: "owner@example.com", multiFactor: { enrolledFactors: [] } };
+    // Nothing on and nothing kept yet: an early "changed" call sends nothing.
+    expect(await noteTwoStepChange({ db, auth: authWith(user), uid: "u1", nowIso: "a", notify })).toEqual({ on: false, changed: false });
+    user.multiFactor.enrolledFactors = [totp()];
+    expect((await noteTwoStepChange({ db, auth: authWith(user), uid: "u1", nowIso: "b", notify })).changed).toBe(true);
+    expect((await noteTwoStepChange({ db, auth: authWith(user), uid: "u1", nowIso: "c", notify })).changed).toBe(false);
+    user.multiFactor.enrolledFactors = [];
+    expect((await noteTwoStepChange({ db, auth: authWith(user), uid: "u1", nowIso: "d", notify })).changed).toBe(true);
+    expect(sent).toEqual([{ email: "owner@example.com", on: true }, { email: "owner@example.com", on: false }]);
+    expect(db.audit.map(e => e.message)).toEqual([expect.stringMatching(/turned on/), expect.stringMatching(/turned off/)]);
+  });
+
+  it("a backup code that took the app off doesn't send a second 'turned off' email", async () => {
+    const db = fakeDb();
+    const { codes } = await makeBackup({ db, uid: "u1", email: "owner@example.com", nowIso: "x" });
+    const user = { uid: "u1", email: "owner@example.com", multiFactor: { enrolledFactors: [totp()] } };
+    const sent = [];
+    await noteTwoStepChange({ db, auth: authWith(user), uid: "u1", nowIso: "a", notify: async m => { sent.push(m); } });
+    await spendBackup({ db, auth: fakeAuth([user]), google: { idToken: "t" }, code: codes[0], nowIso: "b", fetchImpl: googleSays({ email: "owner@example.com" }) });
+    user.multiFactor.enrolledFactors = [];
+    expect((await noteTwoStepChange({ db, auth: authWith(user), uid: "u1", nowIso: "c", notify: async m => { sent.push(m); } })).changed).toBe(false);
+    expect(sent).toHaveLength(1);
+  });
+
+  it("goes to the person and the owner once, escaped, and says what to do if it wasn't them", () => {
+    const off = twoStepChangedEmail({ email: "helper@example.com", ownerEmail: "Owner@example.com", on: false, shopName: "Moth <Press>", when: "4 November 2026", adminLink: "https://shop.example/admin#settings/security" });
+    expect(off.to).toEqual(["helper@example.com", "owner@example.com"]);
+    expect(off.subject).toBe("Two-step sign-in was turned off for Moth <Press>");
+    expect(off.html).toContain("Moth &lt;Press&gt;");
+    expect(off.html).toMatch(/turn two-step sign-in back on/);
+    expect(twoStepChangedEmail({ email: "owner@example.com", ownerEmail: "owner@example.com", on: true }).to).toEqual(["owner@example.com"]);
+  });
+});

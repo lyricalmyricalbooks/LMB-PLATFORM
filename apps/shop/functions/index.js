@@ -594,6 +594,16 @@ exports.twoStepBackup = onBrowserRequest({ secrets: withPlatformKey([RESEND_API_
       res.json(await twoStepBackup.backupStatus(db, decoded.uid));
       return;
     }
+    // Code plan 25.4: two-step was turned on or off in Settings › Security; the person and the owner are told.
+    if (action === "changed") {
+      const notify = async ({ email, on }) => {
+        const when = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", dateStyle: "long", timeStyle: "short" }).format(new Date(nowIso));
+        const message = twoStepBackup.twoStepChangedEmail({ email, ownerEmail: ADMIN_TO, on, shopName: shopConfig.senderName, when, adminLink: siteLink("/admin#settings/security") });
+        if (message.to.length) await sendEmail({ queue: "twoStepChanged", ...message, secret: resendSecretValue() });
+      };
+      res.json(await twoStepBackup.noteTwoStepChange({ db, auth: admin.auth(), uid: decoded.uid, nowIso, notify }));
+      return;
+    }
     if (action === "make") {
       const problem = twoStepBackup.makeProblem(decoded, await admin.auth().getUser(decoded.uid), Date.now());
       if (problem) {
@@ -2930,6 +2940,30 @@ const DEFAULT_NOTIFICATIONS = {
     signoff: "Best,\nThe {{shop_name}} team",
     enabled: true
   },
+  // Code plan 25.5: a shipped parcel is out for delivery or delivered. Off until the owner switches it on.
+  carrier_delivery_update: {
+    subject: "Your order {{order_id}} is {{status}}",
+    body: "Hi {{customer_name}},\n\nYour order {{order_id}} is {{status}}.\n\nCarrier: {{tracking_carrier}}\nTracking number: {{tracking_number}}",
+    buttonText: "Track your parcel",
+    signoff: "Best,\nThe {{shop_name}} team",
+    enabled: false
+  },
+  // Code plan 25.7: the shopper asked to cancel or return an order.
+  request_received: {
+    subject: "We got your request for order {{order_id}}",
+    body: "Hi {{customer_name}},\n\nThanks for letting us know. We received your request to {{request}} order {{order_id}}, and we'll reply by email soon with the next steps.",
+    buttonText: "View your order",
+    signoff: "Best,\nThe {{shop_name}} team",
+    enabled: true
+  },
+  // Code plan 25.8: a delayed bank payment failed after checkout.
+  payment_failed: {
+    subject: "Your payment for order {{order_id}} didn't go through",
+    body: "Hi {{customer_name}},\n\nYour bank let us know that the {{total_price}} payment for order {{order_id}} didn't go through, so the order isn't paid yet.\n\nIf you'd still like it, reply to this email and we'll help you pay another way.",
+    buttonText: "View your order",
+    signoff: "Thanks,\nThe {{shop_name}} team",
+    enabled: true
+  },
   delivery_update: {
     subject: "Delivery Update: Your order is {{status}}",
     body: "Hi {{customer_name}},\n\nYour package tracking status has been updated: {{status}}.\n\nCarrier: {{tracking_carrier}}\nTracking: {{tracking_number}}",
@@ -3611,8 +3645,75 @@ async function handleOrderUpdated(event) {
       }
     }
 
-    // 2b. Shipped parcels: "out for delivery" and "delivered" (admin buttons or Shippo tracking) send
-    // no customer email. The shipping email is the only one (owner's choice); the order status still moves.
+    // 2b. Shipped parcels: "out for delivery" and "delivered" (admin buttons or Shippo tracking) send one
+    // Carrier delivery email each (code plan 25.5), only when the owner has switched it on in Notifications:
+    // off by default, so the shipping email stays the only one unless they choose more.
+    const CARRIER_STEPS = { out_for_delivery: "out for delivery", delivered: "delivered" };
+    const carrierStep = CARRIER_STEPS[after.fulfillmentStatus];
+    if (carrierStep && !isLocalOrder(after) && before.fulfillmentStatus !== after.fulfillmentStatus
+        && after.customer?.email && notificationSettings.carrier_delivery_update?.enabled === true) {
+      const trackingUrl = after.trackingNumber
+        ? getTrackingUrl(after.trackingCarrier, after.trackingNumber, after.trackingUrl)
+        : await trackUrl();
+      const carrierSettings = after.trackingNumber ? notificationSettings : { ...notificationSettings, carrier_delivery_update: {
+        ...notificationSettings.carrier_delivery_update,
+        body: withoutTrackingLines(notificationSettings.carrier_delivery_update?.body || DEFAULT_NOTIFICATIONS.carrier_delivery_update.body) } };
+      const compiled = compileEmailTemplate("carrier_delivery_update", carrierSettings, {
+        customer_name: after.customer?.name || "there",
+        order_id: after.orderId || orderId,
+        status: carrierStep,
+        tracking_carrier: after.trackingCarrier || "carrier",
+        tracking_number: after.trackingNumber || "",
+        button_url: trackingUrl,
+        tracking_url: trackingUrl,
+      });
+      try {
+        await sendOrderEmailOnce(orderId, `carrier_${after.fulfillmentStatus}`, {
+          to: after.customer.email, subject: compiled.subject, html: compiled.html, secret: RESEND_API_KEY.value(),
+        });
+      } catch (err) {
+        console.error("Carrier delivery email failed", err);
+      }
+    }
+
+    // 2b2. The shopper asked to cancel or return (orderRequests.js saves customerRequest): they hear it arrived
+    // (code plan 25.7). Before, only the owner was told. One email per request.
+    const request = after.customerRequest;
+    if (request?.createdAt && request.createdAt !== before.customerRequest?.createdAt && request.status === "open"
+        && after.customer?.email && notificationSettings.request_received?.enabled !== false) {
+      const compiled = compileEmailTemplate("request_received", notificationSettings, {
+        customer_name: after.customer?.name || "there",
+        order_id: after.orderId || orderId,
+        request: request.type === "cancel" ? "cancel" : "return",
+        button_url: await trackUrl(),
+      });
+      try {
+        await sendOrderEmailOnce(orderId, `request_${request.type}_${request.createdAt}`, {
+          to: after.customer.email, subject: compiled.subject, html: compiled.html, secret: RESEND_API_KEY.value(),
+        });
+      } catch (err) {
+        console.error("Request received email failed", err);
+      }
+    }
+
+    // 2b3. A delayed bank payment failed after checkout (the webhook marks paymentStatus "failed"): the shopper
+    // hears it didn't go through, with a link back to the order (code plan 25.8). Once per order.
+    if (before.paymentStatus !== "failed" && after.paymentStatus === "failed" && after.status !== "cancelled"
+        && after.customer?.email && notificationSettings.payment_failed?.enabled !== false) {
+      const compiled = compileEmailTemplate("payment_failed", notificationSettings, {
+        customer_name: after.customer?.name || "there",
+        order_id: after.orderId || orderId,
+        total_price: chargedTotalFmt(after),
+        button_url: await trackUrl(),
+      });
+      try {
+        await sendOrderEmailOnce(orderId, "payment_failed", {
+          to: after.customer.email, subject: compiled.subject, html: compiled.html, secret: RESEND_API_KEY.value(),
+        });
+      } catch (err) {
+        console.error("Payment failed email failed", err);
+      }
+    }
 
     // 2c. Pickup and local delivery: the confirmation promises "we'll email you when your order is
     // ready to collect", so each customer-facing step the admin records sends one Delivery email.

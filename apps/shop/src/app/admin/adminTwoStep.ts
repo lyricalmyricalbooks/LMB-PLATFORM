@@ -112,6 +112,8 @@ export type BackupCodes = { codes: string[]; madeAt: string };
 export type BackupApi = {
   status(): Promise<BackupStatus>;
   make(): Promise<BackupCodes>;
+  /** Asks the server to check two-step after turning it on or off, so the person and the owner are emailed (25.4). */
+  changed?(): Promise<unknown>;
 };
 
 /** The words a refused backup-code call came back with. */
@@ -145,6 +147,7 @@ export function backupApiFor(user: User): BackupApi {
   return {
     status: async () => backupCall<BackupStatus>({ action: "status" }, await user.getIdToken()),
     make: async () => backupCall<BackupCodes>({ action: "make" }, await user.getIdToken(true)),
+    changed: async () => backupCall<{ on: boolean; changed: boolean }>({ action: "changed" }, await user.getIdToken(true)),
   };
 }
 
