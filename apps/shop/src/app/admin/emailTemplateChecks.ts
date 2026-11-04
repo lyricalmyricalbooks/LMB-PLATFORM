@@ -9,7 +9,7 @@ import { DEFAULT_SHOP_NAME } from "../features/site/shopIdentity";
 export type TemplateId =
   | "order_confirmation" | "order_pending_payment" | "shipping_confirmation" | "abandoned_cart" | "order_cancelled"
   | "order_refunded" | "customer_welcome" | "delivery_update" | "contact_reply" | "gift_card" | "review_request"
-  | "payment_link_reminder" | "part_shipped";
+  | "payment_link_reminder" | "part_shipped" | "carrier_delivery_update" | "request_received" | "payment_failed";
 
 export type TemplateFields = { subject: string; body: string; buttonText: string; signoff: string; enabled?: boolean };
 
@@ -24,6 +24,9 @@ export const PLACEHOLDERS: Record<TemplateId, string[]> = {
   order_refunded: ["customer_name", "order_id", "total_price", "shop_name"],
   customer_welcome: ["customer_name", "email", "shop_name"],
   delivery_update: ["customer_name", "order_id", "status", "tracking_carrier", "tracking_number", "tracking_url", "shop_name"],
+  carrier_delivery_update: ["customer_name", "order_id", "status", "tracking_carrier", "tracking_number", "tracking_url", "shop_name"],
+  request_received: ["customer_name", "order_id", "request", "shop_name"],
+  payment_failed: ["customer_name", "order_id", "total_price", "shop_name"],
   contact_reply: ["customer_name", "email", "shop_name"],
   review_request: ["customer_name", "order_id", "book_titles", "items_table", "shop_name"],
   gift_card: ["recipient_name", "sender_name", "amount", "code", "message", "expires", "shop_url", "shop_name"],
@@ -36,6 +39,7 @@ export const REQUIRED_PLACEHOLDERS: Partial<Record<TemplateId, Record<string, st
 
 const SAMPLE: Record<string, string> = {
   items_list: "1 × Visions of Toronto",
+  request: "return",
   book_titles: "Visions of Toronto", customer_name: "Julianne Smith", order_id: "LM-98241", tracking_carrier: "Canada Post", tracking_number: "123456789012",
   total_price: "CA$45.00", payment_method: "Interac e-Transfer", email: "julianne@reader.example", status: "out for delivery",
   tracking_url: "#", cart_url: "#", order_url: "#", shipping_method: "Canada Post Expedited Parcel",
