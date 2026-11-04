@@ -10,7 +10,7 @@ import { createPaymentService } from '../../../services/payments/service.js';
 import { createStripeApi } from '../../../services/payments/stripeApi.js';
 import { createSquareApi } from '../../../services/payments/squareApi.js';
 import { squareSignature } from '../../../services/payments/squareSignature.js';
-import { fakeAccounts, fakeDeliver, fakeStripeFetch } from '../../../services/payments/fakes.js';
+import { fakeAccounts, fakeDeliver, fakeStripeFetch, pretendPaymentsEnv } from '../../../services/payments/fakes.js';
 import { fakeSquareFetch, fakeSquareStates, fakeSquareTokens } from '../../../services/payments/squareFakes.js';
 import { fakeAuditLog, fakeRegistry } from '../../../setup/fakes.js';
 import { hashServiceKey } from '../../../services/email/http.js';
@@ -25,7 +25,7 @@ const KEY = 'shop-service-key-moth-press-0123456789abcdef';
 const SERVICE_URL = 'https://payments.platform.example';
 const HOOK_TEST = `${SERVICE_URL}/square/events/test`;
 const ENV = {
-  STRIPE_PLATFORM_TEST_KEY: 'sk_test_pretend',
+  ...pretendPaymentsEnv(),
   SQUARE_APPLICATION_ID_LIVE: 'sq0idp-fakeLiveApp', SQUARE_APPLICATION_SECRET_LIVE: 'sq0csp-fakeLiveSecret',
   SQUARE_APPLICATION_ID_TEST: 'sandbox-sq0idb-fakeTestApp', SQUARE_APPLICATION_SECRET_TEST: 'sandbox-sq0csb-fakeTestSecret',
   SQUARE_WEBHOOK_URL_LIVE: `${SERVICE_URL}/square/events/live`, SQUARE_WEBHOOK_URL_TEST: HOOK_TEST,
