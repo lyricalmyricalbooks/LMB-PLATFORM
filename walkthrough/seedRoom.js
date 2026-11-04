@@ -82,8 +82,12 @@ export async function seedRoom(world) {
     { type: "customers", message: "Brought 340 customers over from the old shop; 190 joined the newsletter" },
     { type: "giftCards", message: "Brought 6 gift cards over from the old shop (CA$145.00 in balances)", cards: 6, balanceMinor: 14500 },
     { type: "catalog", message: "Old shop links: 48 now lead to the imported books" },
+    { type: "orders", message: "Changed the rate on past order KB-1042 from the old shop to 0.74", orders: 1 },
   ];
   for (const [i, line] of lines.entries()) await world.shopData.set("kestrel", `audit-log/brought-${i}`, { ...line, createdAt: at });
+  // Two of the past orders with the file they came from, and two discount codes brought over (one switched off since).
+  for (const [i, file] of ["orders-2025.csv", "orders-2024.csv"].entries()) await world.shopData.set("kestrel", `orders/past-${i}`, { source: "import", importedFile: file, paymentStatus: "paid", total: 25, createdAt: new Date(world.clock.ms() - (400 + i * 300) * 86_400_000).toISOString() });
+  for (const [code, isActive] of [["FAIRFRIEND", true], ["SPRING24", false]]) await world.shopData.set("kestrel", `discounts/${code}`, { code, type: "percentage", value: 10, isActive, description: "Brought over from your old shop" });
   // Its move stopped part-way ten days ago (pages and old links still to do), so Today flags it.
   const tenDaysAgo = new Date(world.clock.ms() - 10 * 86_400_000).toISOString();
   await world.shopData.set("kestrel", "firstWeek/start", { bring: { from: "online" }, done: { "move-customers": tenDaysAgo, "move-giftcards": tenDaysAgo, "move-orders": tenDaysAgo } });
