@@ -44,6 +44,7 @@ import toast from "react-hot-toast";
 import { providerDashboardUrl, providerName } from "./providerWords";
 import { useShopSells, useShopWords } from "./shopWords";
 import { sellsBooks } from "../../shared/shopSells";
+import { FRENCH_ORDER_HINT, orderInFrench } from "./orderLanguage";
 import {
   ActionMenu,
   Checkbox,
@@ -897,6 +898,9 @@ export function OrderDetail({
             </StatusBadge>
             {order.isTest && (
               <StatusBadge tone="danger">Test order</StatusBadge>
+            )}
+            {orderInFrench(order) && (
+              <span title={FRENCH_ORDER_HINT}><StatusBadge tone="neutral">Shopped in French</StatusBadge></span>
             )}
             {order.source === "import" && (
               <StatusBadge tone="neutral">Brought over from your old shop{order.oldOrderNumber ? ` (${order.oldOrderNumber})` : ""}</StatusBadge>

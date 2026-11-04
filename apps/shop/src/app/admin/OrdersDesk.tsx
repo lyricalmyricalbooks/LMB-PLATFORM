@@ -11,6 +11,7 @@ import { queueOf } from "./fulfillment";
 import type { CatalogSearchIndex } from "./orderSearch";
 import { useShopSells, useShopWords } from "./shopWords";
 import { sellsBooks } from "../../shared/shopSells";
+import { FRENCH_ORDER_HINT, orderInFrench } from "./orderLanguage";
 
 const REFRESH_MS = 60 * 1000;
 const PAGE = 40;
@@ -342,7 +343,7 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
                       <span className="od-card-who"><span><strong>{o.customer?.name || "—"}</strong> · {itemCount(o)}</span><span className="rp-mono od-row-amount" title={m.paid ? `Paid ${m.paid}` : undefined}>{m.text}</span></span>
                       {/* Without a cover the titles are already written in the cover box. */}
                       {titles && cover ? <span className="od-row-title" title={titles}>{titles}</span> : null}
-                      <span className="od-card-chips"><StatusBadge tone={s.tone}>{badgeText(s.text)}</StatusBadge><StatusBadge tone={pay.tone}>{pay.text}</StatusBadge>{o.isTest ? <StatusBadge tone="danger">Test</StatusBadge> : null}</span>
+                      <span className="od-card-chips"><StatusBadge tone={s.tone}>{badgeText(s.text)}</StatusBadge><StatusBadge tone={pay.tone}>{pay.text}</StatusBadge>{o.isTest ? <StatusBadge tone="danger">Test</StatusBadge> : null}{orderInFrench(o) ? <span title={FRENCH_ORDER_HINT}><StatusBadge tone="neutral">French</StatusBadge></span> : null}</span>
                     </span>
                   </button>
                 </li>
