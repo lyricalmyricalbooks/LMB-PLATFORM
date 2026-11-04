@@ -2117,11 +2117,15 @@ async function loadSetup() {
     });
     $("#setup-looks").replaceChildren(lookSheet("Website looks", looks.website), lookSheet("Admin looks", looks.admin));
     // The looks live shops wear now (control-room/shopLooks.js), read from each shop: after the setup looks, not before.
-    api("GET", "/control/live-looks").then(({ looks: worn, shops, waiting, unread }) => {
+    api("GET", "/control/live-looks").then(({ looks: worn, templates, shops, waiting, welcome, unread }) => {
       $("#setup-looks").append(sheet({
         title: "Looks live shops wear",
-        metaParts: [plural(shops, "live shop"), waiting ? `${waiting} picked a look but haven't published it` : null, unread.length ? `${unread.length} couldn't be read` : null].filter(Boolean),
+        metaParts: [plural(shops, "live shop"), welcome.picked || welcome.skipped ? `Choose your look: ${welcome.picked} picked, ${welcome.skipped} skipped` : null, waiting ? `${waiting} picked a look but haven't published it` : null, unread.length ? `${unread.length} couldn't be read` : null].filter(Boolean),
         body: [worn.length ? el("ul", { className: "cr-history" }, ...worn.map((r) => el("li", { textContent: `${r.id ? r.name : "Their own design"}: ${r.count}` }))) : emptyState("No live shops yet.")],
+      }), sheet({
+        title: "Templates live shops show",
+        metaParts: [plural(shops, "live shop")],
+        body: [templates.length ? el("ul", { className: "cr-history" }, ...templates.map((r) => el("li", { textContent: `${r.id ? lookWords(r.id) : "No full template"}: ${r.count}` }))) : emptyState("No live shops yet.")],
       }));
     }).catch((failure) => $("#setup-looks").append(el("p", { className: "rp-hint", textContent: failure.message })));
   } catch (failure) {
@@ -2198,7 +2202,7 @@ function shopLookSection(shop) {
     fill(slot,
       look.waiting ? el("p", { className: "rp-hint", textContent: `Picked ${lookWords(look.welcome.theme)} in Choose your look but hasn't published it, so shoppers still see the plain starting design. Studio › Publish puts it live.` }) : null,
       el("p", { className: "rp-hint", textContent: look.live
-        ? `Shoppers see ${look.live.name}${look.publishedAt ? `, published ${dateOnly(look.publishedAt)}` : ""}.`
+        ? `Shoppers see ${look.live.name}${look.template ? ` (the ${lookWords(look.template)} template)` : ""}${look.publishedAt ? `, published ${dateOnly(look.publishedAt)}` : ""}.`
         : look.publishedAt ? `Shoppers see the press's own design (not from a ready-made look), published ${dateOnly(look.publishedAt)}.` : "Nothing published from Studio yet." }),
       look.draft ? el("p", { className: "rp-hint", textContent: `Trying ${look.draft.name} in Studio, not published.` }) : null,
       look.welcome ? el("p", { className: "rp-hint", textContent: `Choose your look: ${look.welcome.skipped ? "skipped, so it took" : "picked"} ${lookWords(look.welcome.theme)}${look.welcome.at ? ` on ${dateOnly(look.welcome.at)}` : ""}${look.welcome.adminLook ? `; admin look ${lookWords(look.welcome.adminLook)}` : ""}.` }) : null);

@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { createShopLooks, lookOf, lookTally, shopLooksRoutes } from "./shopLooks.js";
+import { TEMPLATES, createShopLooks, lookOf, lookTally, shopLooksRoutes } from "./shopLooks.js";
 import { controlRoomAdmins } from "./controlRoom.js";
 import { fakeShopData } from "../accounts/fakes.js";
 import { fakeRegistry } from "../setup/fakes.js";
@@ -15,7 +15,7 @@ import { platformSettings } from "../services/settings.js";
 const NOW = Date.parse("2026-11-04T12:00:00Z");
 const ADMIN = { uid: "uid-admin", email: "admin@example.com", email_verified: true, firebase: { sign_in_second_factor: "totp" }, auth_time: Math.floor(NOW / 1000) };
 const PRESS = { uid: "uid-owner", email: "owner@example.com", email_verified: true };
-const marquee = { themeBase: { id: "marquee", name: "Marquee", look: {}, sig: "x" } };
+const marquee = { themeStyle: "marquee", themeBase: { id: "marquee", name: "Marquee", look: {}, sig: "x" } };
 
 async function world() {
   const registry = fakeRegistry();
@@ -50,7 +50,7 @@ test("only platform admins see a shop's look, or the looks across presses", asyn
 test("a shop's look: what shoppers see, a different look in the draft, and the welcome's pick", async () => {
   const w = await world();
   assert.deepEqual((await w.desk.forShop(ADMIN, { shopId: "moth" })).look, {
-    live: { id: "marquee", name: "Marquee" }, publishedAt: "2026-11-01T10:00:00Z", draft: { id: "atlas", name: "Atlas" },
+    live: { id: "marquee", name: "Marquee" }, template: "marquee", publishedAt: "2026-11-01T10:00:00Z", draft: { id: "atlas", name: "Atlas" },
     welcome: { theme: "marquee", at: "2026-10-30T09:00:00Z", skipped: false, adminLook: "paper" }, waiting: false,
   });
   const newt = (await w.desk.forShop(ADMIN, { shopId: "newt" })).look;
@@ -58,12 +58,14 @@ test("a shop's look: what shoppers see, a different look in the draft, and the w
   assert.equal(newt.welcome.skipped, true);
   assert.match((await w.desk.forShop(ADMIN, { shopId: "stock" })).words, /no website/);
   assert.equal((await w.desk.forShop(ADMIN, { shopId: "new-press" })).look, null);
-  assert.deepEqual(lookOf(null, null, null), { live: null, publishedAt: null, draft: null, welcome: null, waiting: false });
+  assert.deepEqual(lookOf(null, null, null), { live: null, template: null, publishedAt: null, draft: null, welcome: null, waiting: false });
   assert.equal(lookOf({ design: marquee }, { draft: marquee }, null).draft, null, "the same look in the draft isn't news");
 });
 
 test("across presses: live websites only, counted per look, their own designs last", async () => {
-  const { looks, shops, waiting, unread } = await (await world()).desk.acrossPresses(ADMIN);
+  const { looks, templates, shops, waiting, welcome, unread } = await (await world()).desk.acrossPresses(ADMIN);
+  assert.deepEqual(welcome, { picked: 1, skipped: 1 });
+  assert.deepEqual(templates, [{ id: "marquee", count: 2 }, { id: "", count: 1 }]);
   assert.equal(shops, 3, "no test shop, no stockroom-only plan, nothing not live");
   assert.equal(waiting, 1);
   assert.deepEqual(unread, []);
@@ -86,5 +88,13 @@ test("the shop drawer and the Setting up page show the looks, and both web doors
   assert.match(app, /"\/control\/live-looks"/);
   assert.match(app, /"Website look"/);
   assert.match(app, /"Looks live shops wear"/);
+  assert.match(app, /"Templates live shops show"/);
   for (const door of ["../server/world.js", "../walkthrough/world.js"]) assert.match(readFileSync(new URL(door, import.meta.url), "utf8"), /shopLooksRoutes\(shopLooks\)/, door);
+});
+
+test("the template list matches the shop's own", () => {
+  const ts = readFileSync(new URL("../apps/shop/src/app/features/site/templateStyles.ts", import.meta.url), "utf8");
+  const ids = JSON.parse(/TEMPLATE_STYLE_IDS = (\[[^\]]*\])/.exec(ts)[1]);
+  assert.deepEqual([...TEMPLATES], ids);
+  assert.equal(lookOf({ design: { themeStyle: "default" } }, null, null).template, null, "the plain look is no template");
 });

@@ -10,6 +10,10 @@
 import { ControlError, adminOf, eachInTurn } from "./controlRoom.js";
 import { PLANS } from "../setup/steps.js";
 
+/** The full storefront templates (apps/shop features/site/templateStyles.ts TEMPLATE_STYLE_IDS; a test keeps them in step). */
+export const TEMPLATES = Object.freeze(["marquee", "shelf", "atlas", "mosaic", "arch", "market", "index"]);
+const templateOf = (design) => (TEMPLATES.includes(design?.themeStyle) ? design.themeStyle : null);
+
 const base = (design) => (design?.themeBase?.id ? { id: String(design.themeBase.id), name: String(design.themeBase.name ?? design.themeBase.id) } : null);
 
 /**
@@ -22,6 +26,8 @@ export function lookOf(settings, workspace, start) {
   const welcome = start?.welcome?.theme ? { theme: String(start.welcome.theme), at: start.welcome.at ?? null, skipped: start.welcome.skipped === true, adminLook: start.welcome.adminLook ?? null } : null;
   return {
     live,
+    // The template shoppers see (the design's `themeStyle`), null for the plain look or one switched off in Print style.
+    template: templateOf(settings?.design),
     publishedAt: settings?.designPublishedAt ?? null,
     draft: draft && draft.id !== live?.id ? draft : null,
     welcome,
@@ -39,6 +45,13 @@ export function lookTally(looks) {
     counts.set(key, row);
   }
   return [...counts.values()].sort((a, b) => (a.id === "") - (b.id === "") || b.count - a.count || a.id.localeCompare(b.id));
+}
+
+/** How many live shops show each full template ("" = none), most shown first. */
+export function templateTally(looks) {
+  const counts = new Map();
+  for (const look of looks) counts.set(look.template ?? "", (counts.get(look.template ?? "") ?? 0) + 1);
+  return [...counts].map(([id, count]) => ({ id, count })).sort((a, b) => (a.id === "") - (b.id === "") || b.count - a.count || a.id.localeCompare(b.id));
 }
 
 const hasWebsite = (row) => (PLANS[row.plan] ?? { shop: true }).shop;
@@ -75,7 +88,9 @@ export function createShopLooks({ admins, registry, shopData, now = () => new Da
           unread.push({ shopId: row.shopId, pressName: row.pressName ?? row.shopId, error: failure.message });
         }
       });
-      return { looks: lookTally(looks), shops: looks.length, waiting: looks.filter((l) => l.waiting).length, unread };
+      return { looks: lookTally(looks), templates: templateTally(looks), shops: looks.length, waiting: looks.filter((l) => l.waiting).length,
+        // Choose your look on the admin's first visit: picked one, or pressed Skip (which takes the first suggestion).
+        welcome: { picked: looks.filter((l) => l.welcome && !l.welcome.skipped).length, skipped: looks.filter((l) => l.welcome?.skipped).length }, unread };
     },
   };
 }
