@@ -67,6 +67,10 @@ export function guideSteps(press: SetupPress): GuideStep[] {
     { id: "plan", title: "Pick what you want to set up", done: !!press.plan, page: PLAN_PAGE, action: "Choose" },
     { id: "details", title: "Tell us about your press", done: !!(press.pressName && press.sells && press.country), page: GENERAL_PAGE, action: "Add details" },
     ...(fresh ? [...look, books] : [books, ...look]),
+    // Your web address: bring a domain, buy one, or keep the free address for now. Answered is done; a press gone to
+    // buy one is done once it comes back with the domain. Optional: the free address always works.
+    ...(website ? [{ id: "domain", title: "Choose your web address", done: press.domainChoice === "free" || (press.domainChoice === "own" && !!press.domain),
+      page: GENERAL_PAGE, action: "Choose", optional: true }] : []),
     // "Create", not "open": the shop is made private, and the press opens it to shoppers from its own admin later.
     { id: "open", title: "Create your shop", done: press.status === "opening" || press.status === "open", page: PLAN_PAGE, action: "Create my shop" },
   ];
@@ -124,6 +128,7 @@ export function helpFor(helpUrl: string, sells?: string | null): string {
 export const STEP_HELP: Readonly<Record<string, string>> = Object.freeze({
   books: "bring-books",
   look: "look",
+  domain: "own-address",
   open: "open-shop",
 });
 
@@ -132,6 +137,7 @@ export const SETUP_QUESTIONS: ReadonlyArray<{ id: string; question: string }> = 
   { id: "what-you-sell", question: "Can I change what my shop sells later?" },
   { id: "bring-books", question: "How do I bring my books over from my old shop?" },
   { id: "look", question: "How do I change how my shop looks?" },
+  { id: "own-address", question: "Can my shop use my own web address?" },
   { id: "open-shop", question: "How do I open my shop to shoppers?" },
   { id: "trial-ends", question: "What happens when my free trial ends?" },
 ]);

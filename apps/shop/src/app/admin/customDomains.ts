@@ -2,7 +2,9 @@
 
 export type DnsRecord = { action: "add" | "remove"; host: string; type: string; value: string };
 export type DomainState = "connecting" | "waiting_dns" | "securing" | "live" | "conflict" | "missing";
-export type DomainEntry = { name: string; state: DomainState; addedAt?: string; paymentDomainAt?: string | null; main?: boolean };
+/** `former`: a free address the shop had before a new name (it still opens the shop). `free`: the shop's free address on the platform's shop domain (set up by the platform, never removed). `sendsTo`: this
+ * address sends visitors on to that one (www to the bare domain). */
+export type DomainEntry = { name: string; state: DomainState; addedAt?: string; paymentDomainAt?: string | null; main?: boolean; free?: boolean; former?: boolean; sendsTo?: string };
 /** One thing to add (or take out) by hand, in plain words: `kind` is Address, Text, Mail or Alias (plan 6.15). */
 export type GuideLine = { action: "add" | "remove"; kind: string; name: string; value: string; priority?: number };
 export type DomainGuide = { seller: string | null; zone: string; steps: string[]; lines: GuideLine[]; message: { subject: string; body: string } };
@@ -13,11 +15,15 @@ export type DomainCheck = {
 };
 /** `own` is the address the shop came with; `main` the one emails, links and Google use (plan 5.9). */
 export type DomainList = { domains: DomainEntry[]; max: number; own?: string; main?: string; removed?: string };
-export type DomainStep = "list" | "add" | "connect" | "check" | "makeMain" | "remove";
+export type DomainStep = "list" | "add" | "connect" | "check" | "makeMain" | "remove" | "renameFree";
 
 /** What the press can do with one address (plan 5.9): only a live one becomes main; the main one is never removed. */
 export function domainActions(entry: DomainEntry, main: string | undefined): { canMakeMain: boolean; canRemove: boolean; note: string } {
   const isMain = entry.name === main;
+  // The free address before a new name: it sends visitors on to the new one once that works.
+  if (entry.free && entry.former) return { canMakeMain: false, canRemove: !isMain, note: isMain ? "Main until your new free address works." : entry.sendsTo ? `Old free address. Sends visitors to ${entry.sendsTo}.` : "Old free address. Still works." };
+  if (entry.free) return { canMakeMain: !isMain && entry.state === "live", canRemove: false, note: "Free address. Always works." };
+  if (entry.sendsTo) return { canMakeMain: false, canRemove: !isMain, note: `Visitors here are sent on to ${entry.sendsTo}.` };
   if (isMain) return { canMakeMain: false, canRemove: false, note: "This is your main address. To remove it, make another address main first." };
   return { canMakeMain: entry.state === "live", canRemove: true, note: entry.state === "live" ? "" : "Once it shows as Live, you can make it your main address." };
 }
@@ -34,6 +40,32 @@ export function describeDomain(state: DomainState | undefined): { tone: Tone; la
     case "waiting_dns": return { tone: "warning", label: "Waiting for you", text: "Finish connecting it below. Changes can take a few hours to reach everyone; we check every few minutes and email you when it opens your shop." };
     default: return { tone: "neutral", label: "Connecting", text: "Getting the address ready." };
   }
+}
+
+/** Where one address stands, for its card: a free address is set up by the platform, so there is nothing to finish. */
+export function describeEntry(entry: Pick<DomainEntry, "free" | "former">, state: DomainState | undefined): { tone: Tone; label: string; text: string } {
+  if (entry.free && state !== "live" && state !== "conflict") {
+    return { tone: "info", label: "Setting up", text: "Ready within the hour. Nothing to do." };
+  }
+  return describeDomain(state);
+}
+
+/** A name typed for the free address, as the platform cleans it: "Moth Books!" -> "moth-books". */
+export function freeNameOf(text: string): string {
+  return text.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    .replace(/&/g, " and ").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 30).replace(/-+$/, "");
+}
+
+/**
+ * Said before the press connects a domain that may still show an old shop: once they say yes, the domain opens this shop
+ * instead, so the last orders should be taken there first.
+ */
+export function moveWarning(name: string): { title: string; message: string; confirmLabel: string } {
+  return {
+    title: `Move ${name} to this shop now?`,
+    message: `Once you say yes, ${name} shows this shop instead of anything it shows today, within minutes to a few hours. If your old shop is still selling there, take your last orders and close its checkout first, so no order lands in the wrong place. Your shop's own address keeps working throughout.`,
+    confirmLabel: "Yes, connect it",
+  };
 }
 
 /** The Allow button's words: names the domain seller when it is known (plan 6.15). */

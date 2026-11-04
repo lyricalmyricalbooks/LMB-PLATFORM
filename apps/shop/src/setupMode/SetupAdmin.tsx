@@ -15,6 +15,7 @@ import { THEME_LIBRARY } from "../app/admin/studio/themeLibrary";
 import { ShopWordsContext, useShopWords } from "../app/admin/shopWords";
 import { adminWordsFor } from "../app/admin/sells";
 import { ImportPage } from "./ImportPage";
+import { WEB_ADDRESS_ANCHOR, WebAddressCard } from "./WebAddress";
 import { AskForm, HelpAnswer, HelpQuestions, type HelpAnswers } from "./SetupHelp";
 import type { PlanList, SetupChange, SetupDoor, SetupPress } from "./door";
 import { CreateShopCard, type CreateShop } from "./CreateShop";
@@ -81,11 +82,13 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
     return () => window.removeEventListener("hashchange", onHash);
   }, [menu]);
 
-  const open = (next: string) => {
+  const open = (next: string, anchor?: string) => {
     setSidebarOpen(false);
     if (location.hash !== `#${next}`) location.hash = next;
     setPage(next);
     document.getElementById("rp-main")?.focus();
+    // A guide step that lives part way down its page (Your web address on General) is scrolled to.
+    if (anchor) requestAnimationFrame(() => document.getElementById(anchor)?.scrollIntoView?.({ block: "start" }));
   };
   // Create my shop (top bar, locked pages, the guide's last step) lands on the review, not the top of Plan.
   const openCreate = () => {
@@ -107,7 +110,12 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
   let content;
   if (setupLocked(page)) content = <OpensWithShop page={setupPageLabel(page, menu)} line={w(lockedPageLine(page))} onOpenShop={openCreate} onBack={() => open(HOME_PAGE)} />;
   else if (page === HOME_PAGE) content = <SetupGuide press={press} plans={plans} helpUrl={helpFor(helpUrl, press.sells)} answers={answers} onOpen={open} onAsk={openAsk} onCreate={openCreate} save={save} />;
-  else if (page === GENERAL_PAGE) content = <PressDetails press={press} lists={lists} save={save} />;
+  else if (page === GENERAL_PAGE) content = (
+    <>
+      <PressDetails press={press} lists={lists} save={save} />
+      {press.plan !== "stockroom" && <WebAddressCard press={press} door={door} save={save} onSaved={setPress} />}
+    </>
+  );
   else if (page === IMPORT_PAGE) content = <ImportPage press={press} door={door} onSaved={setPress} />;
   else if (page === DESIGN_PAGE) content = <DesignPage press={press} save={save} />;
   else if (page === PLAN_PAGE) content = (
@@ -200,6 +208,7 @@ const STEP_WHY: Record<string, string> = {
   details: "Your press's name, what you sell and your country set your shop's words, money and taxes.",
   look: "Every look keeps your words and books, and you can change everything in Design later.",
   books: "Bring your old shop's product file and your books come in as drafts for you to check.",
+  domain: "Use a domain you have, or buy one.",
   open: "Check what goes in, then we make your shop. It starts private, so only you can see it.",
 };
 
@@ -210,7 +219,7 @@ const helpLink = (helpUrl: string, id: string) => `${helpUrl}#${id}`;
  * button, and any other step opens on a click), then what happens once the shop is made and where to get help.
  */
 function SetupGuide({ press, plans, helpUrl, answers, onOpen, onAsk, onCreate, save }: {
-  press: SetupPress; plans: PlanList | null; helpUrl: string; answers: HelpAnswers; onOpen: (page: string) => void; onAsk: () => void; onCreate: () => void;
+  press: SetupPress; plans: PlanList | null; helpUrl: string; answers: HelpAnswers; onOpen: (page: string, anchor?: string) => void; onAsk: () => void; onCreate: () => void;
   save: (c: SetupChange) => Promise<SetupPress>;
 }) {
   const w = useShopWords();
@@ -227,7 +236,7 @@ function SetupGuide({ press, plans, helpUrl, answers, onOpen, onAsk, onCreate, s
   const pickedStep = steps.find((st) => st.id === picked);
   const shown = picked === "" ? "" : pickedStep && !pickedStep.done && !pickedStep.locked ? pickedStep.id : next?.id ?? null;
   // The last step goes straight to the review on Plan; every other step opens its page.
-  const go = (step: { id: string; page: string }) => (step.id === "open" ? onCreate() : onOpen(step.page));
+  const go = (step: { id: string; page: string }) => (step.id === "open" ? onCreate() : onOpen(step.page, step.id === "domain" ? WEB_ADDRESS_ANCHOR : undefined));
   const left = total - done;
   // A step's help answer, opened in place under its button.
   const [howOpen, setHowOpen] = useState("");
@@ -435,15 +444,15 @@ function PressDetails({ press, lists, save }: { press: SetupPress; lists: SetupL
       <SectionCard title="Your press" collapsible={false}>
         <form onSubmit={submit} style={{ display: "grid", gap: 16, maxWidth: 520 }}>
           <TextField label="Press name" value={name} maxLength={120} autoComplete="organization" onChange={(e) => setName(e.target.value)} />
-          <SelectField label="What you sell" hint="It sets your shop's words and the looks we suggest." value={sells} onChange={(e) => setSells(e.target.value)}>
+          <SelectField label="What you sell" value={sells} onChange={(e) => setSells(e.target.value)}>
             <option value="">Not said yet</option>
             {lists.sells.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
           </SelectField>
-          <SelectField label="Country" hint="It sets your shop's money and taxes." value={country} onChange={(e) => setCountry(e.target.value)}>
+          <SelectField label="Country" value={country} onChange={(e) => setCountry(e.target.value)}>
             <option value="">Choose your country</option>
             {Object.entries(lists.countries).map(([code, c]) => <option key={code} value={code}>{c.name}</option>)}
           </SelectField>
-          <SelectField label="Language of our emails" hint="Automatic writes in French with the English below when your billing address is in Quebec, and in English otherwise. You can change it later in Settings › Plan."
+          <SelectField label="Language of our emails" hint="Automatic: French in Quebec, English elsewhere."
             value={language} onChange={(e) => setLanguage(e.target.value as "" | "fr" | "en")}>
             <option value="">Automatic</option>
             <option value="fr" lang="fr">Français</option>
@@ -515,8 +524,8 @@ function PlanPage({ press, plans, failed, onRetry, save, termsUrl, names, email,
   const trialWords = trial > 0 ? `Your first shop is free for ${trial} days once it's made, then monthly` : "Monthly once your shop is made";
   return (
     <>
-      <PageHeader title="Plan" description="What you're setting up, and creating your shop." />
-      <SectionCard title="Your plan" description={inSetup ? "Change it any time before your shop is made." : "You can change it in Settings › Plan once your shop is ready."} collapsible={false}>
+      <PageHeader title="Plan" />
+      <SectionCard title="Your plan" collapsible={false}>
         <div id="plan-choice" role="radiogroup" aria-label="Your plan" style={{ display: "grid", gap: 8 }}>
           {PLAN_ORDER.map((id) => {
             const offer = byId[id];

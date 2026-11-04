@@ -15,7 +15,7 @@
 //   Secret Manager v1     projects.secrets.versions.access ("latest"), projects.secrets.create (secretId, automatic
 //                         replication), projects.secrets.addVersion: the shop's service key (setup/serviceKey.js)
 //   Firebase Hosting v1beta1  projects.sites.customDomains.get, projects.sites.customDomains.create (customDomainId),
-//                         projects.sites.customDomains.delete: a press's own web address on the shop's default site
+//                         projects.sites.customDomains.delete, .patch (redirectTarget): a press's own web address on the shop's default site
 //                         (plan 2.9, 5.9, services/domains). Create starts a long-running setup on Google's side; its
 //                         state is read back with get. Delete stops Hosting serving the shop there.
 //   Cloud Scheduler v1    projects.locations.jobs.list (pageSize, pageToken), projects.locations.jobs.delete: the shop's
@@ -318,13 +318,23 @@ export function googleClients({ fetch, token, sleep, today = () => new Date().to
       async getDomain(projectId, domain) {
         return orNull(call("GET", `${HOSTING}/projects/${projectId}/sites/${projectId}/customDomains/${encodeURIComponent(domain)}`));
       },
-      /** Starts connecting `domain`; one that is already there is left as it is. */
-      async addDomain(projectId, domain) {
+      /**
+       * Starts connecting `domain`; one that is already there is left as it is. `redirectTo`: Hosting sends visitors
+       * on to that address (CustomDomain.redirectTarget), as for www.yourpress.com to yourpress.com.
+       */
+      async addDomain(projectId, domain, { redirectTo = null } = {}) {
         try {
-          await call("POST", `${HOSTING}/projects/${projectId}/sites/${projectId}/customDomains`, { query: { customDomainId: domain }, body: {} });
+          await call("POST", `${HOSTING}/projects/${projectId}/sites/${projectId}/customDomains`, { query: { customDomainId: domain }, body: redirectTo ? { redirectTarget: redirectTo } : {} });
         } catch (error) {
           if (!isAlreadyExists(error)) throw error;
         }
+      },
+      /**
+       * Turns an address the shop already has into one that sends visitors on to `redirectTo` (a free address renamed:
+       * the old name sends shoppers to the new one). customDomains.patch with updateMask=redirectTarget.
+       */
+      async redirectDomain(projectId, domain, redirectTo) {
+        await call("PATCH", `${HOSTING}/projects/${projectId}/sites/${projectId}/customDomains/${encodeURIComponent(domain)}`, { query: { updateMask: "redirectTarget" }, body: { redirectTarget: redirectTo } });
       },
       /** Stops serving the shop at `domain`; one that is already gone is fine. */
       async removeDomain(projectId, domain) {
