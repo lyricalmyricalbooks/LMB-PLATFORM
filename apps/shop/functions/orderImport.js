@@ -76,6 +76,8 @@ function pastOrder(o, { now, actor, batch }) {
       ...(refunded > 0 ? { refundedAmountMinor: Math.round(refunded * 100) } : {}),
       ...(paidIn ? { paidIn } : {}),
       ...(batch ? { importBatch: batch } : {}),
+      // The file it came from (plan 23.33), shown on the order's page.
+      ...(typeof o.file === "string" && text(o.file, 120) ? { importedFile: text(o.file, 120) } : {}),
       // No sweep may ask a past order's customer for a review.
       reviewRequestedAt: stamp,
       activity: [{ type: "imported", at: stamp, by: actor, note: "Brought over from your old shop" }],

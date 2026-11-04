@@ -39,6 +39,8 @@ const known: Record<string, (...a: any[]) => any> = {
   getBooks: async () => A11Y_BOOKS,
   getAllBooks: async () => A11Y_BOOKS,
   getSettings: async () => ({}),
+  // A list, though its name doesn't end like one: the Overview's alerts read it on the way back from an order.
+  getRecentEmailLog: async () => [],
   getAdminBadgeCounts: async () => ({ pendingReviews: 0, unreadMessages: 0, openPrivacyRequests: 0 }),
   listNewsletterIssues: async () => [
     { id: "n2", subject: "Spring list and where to find us", status: "paused", audience: 42, sent: 18, lastError: "Sending stopped after 5 failed tries in a row. Check Settings › Email sender, then press Resume.", createdAt: new Date(Date.now() - 600_000).toISOString() },
@@ -93,6 +95,14 @@ if (new URLSearchParams(location.search).get("move")) {
     giftCards: calls.filter((c) => c[0] === "giftCardAdmin").reduce((n, c) => n + (c[2]?.cards?.length || 0), 0),
     orders: null,
   });
+  // One order brought over from the old shop, sold in US dollars (plans 23.33, 23.34): its page says which file it came
+  // from and shows its rate.
+  ORDERS.push({
+    ...order(4, "delivered", "Dee Example"), id: "past-1004", orderId: "PAST-1004", source: "import", oldOrderNumber: "#1004",
+    paymentMethod: "Old shop", fulfillmentStatus: "delivered", importBatch: "run-fixture-1", importedFile: "old-shop-orders.csv",
+    paidIn: { currency: "USD", total: 14.6, rate: 1.3712 }, total: 20.02, subtotal: 20.02, shippingAddress: undefined,
+  } as any);
+  api.getOrderById = async (id: string) => ORDERS.find((o) => o.id === id || o.orderId === id) ?? null;
   // oldShopApi asks the server with the signed-in person's token; the fixture's pretend owner has one (development only).
   (globalThis as any).__fixtureIdToken = "fixture-token";
 }

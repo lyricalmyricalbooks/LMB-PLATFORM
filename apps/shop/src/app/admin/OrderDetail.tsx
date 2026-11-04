@@ -893,6 +893,9 @@ export function OrderDetail({
           </>
         }
       />
+      {order.source === "import" && typeof order.importedFile === "string" && order.importedFile && (
+        <p className="rp-hint" style={{ margin: 0 }}>Came from the file <span className="rp-mono" style={{ overflowWrap: "anywhere" }}>{order.importedFile}</span>.</p>
+      )}
       {order.source === "import" && typeof order.importBatch === "string" && (
         <PastImportUndo batch={order.importBatch} onRemoved={(n) => {
           toast.success(`${n} past order${n === 1 ? "" : "s"} removed`);
