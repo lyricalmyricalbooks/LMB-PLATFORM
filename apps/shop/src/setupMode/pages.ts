@@ -147,6 +147,8 @@ const LOCKED_LINES: Readonly<Record<string, string>> = Object.freeze({
   messages: "Messages people send you from your website's contact form.",
   inventory: "How many copies you have of each book, with a warning before one runs out.",
   reviews: "Reviews from your readers, checked by you before they show on your website.",
+  channels: "Sell on Facebook, Instagram, Pinterest and TikTok.",
+  socialPosts: "Post your books to your social accounts, now or later.",
   [SETTINGS_ITEM_PREFIX + "shipping"]: "What you charge to send a parcel, by country or by weight, and pickup if you offer it.",
   [SETTINGS_ITEM_PREFIX + "payments"]: "Connect your bank so card payments from your website reach you.",
   [SETTINGS_ITEM_PREFIX + "taxes"]: "The sales tax your shop adds at checkout, worked out from where your shoppers are.",

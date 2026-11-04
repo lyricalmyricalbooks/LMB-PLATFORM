@@ -62,6 +62,8 @@ const StudioEditor = lazy(() => import("./studio/StudioWorkspace").then(m => ({ 
 const BookEditor = lazy(() => import("./BookEditor").then(m => ({ default: m.BookEditor })));
 const Discounts = lazy(() => import("./Discounts").then(m => ({ default: m.Discounts })));
 const GiftCards = lazy(() => import("./GiftCards").then(m => ({ default: m.GiftCards })));
+const SalesChannels = lazy(() => import("./SalesChannels").then(m => ({ default: m.SalesChannels })));
+const SocialPosts = lazy(() => import("./SocialPosts").then(m => ({ default: m.SocialPosts })));
 const Customers = lazy(() => import("./Customers").then(m => ({ default: m.Customers })));
 const Inventory = lazy(() => import("./Inventory").then(m => ({ default: m.Inventory })));
 const OrdersDesk = lazy(() => import("./OrdersDesk.tsx").then(m => ({ default: m.OrdersDesk })));
@@ -128,6 +130,8 @@ export function Dashboard() {
   const [studioLocation, setStudioLocation] = useState<(StudioLocation & { key: number }) | null>(boot.studio ? { ...boot.studio, key: 1 } : null);
   const [selectedOrder, setSelectedOrder] = useState<any | null>(boot.orderId ? { id: boot.orderId } : null);
   const [openGiftCard, setOpenGiftCard] = useState<string | null>(boot.giftCardId || null);
+  // A post started from a book (`#social-posts/book/<id>`): the composer opens with that product.
+  const [postBook, setPostBook] = useState<string | null>(boot.tab === "socialPosts" ? boot.bookId || null : null);
   const [settingsTab, setSettingsTab] = useState(boot.settingsTab || "general");
   // The open sub tab of a page split into sub tabs (General, Payments, Email sender, Shipping, Inventory), with the
   // page it belongs to: any other page shows its first tab, so leaving a page and coming back starts on its first tab.
@@ -185,14 +189,15 @@ export function Dashboard() {
       setSubTabState({ page: subTabPage(route), id: route.subTab });
       setSelectedOrder(route.orderId ? { id: route.orderId } : null);
       setOpenGiftCard(route.giftCardId || null);
-      if (route.bookId) openBookById.current(route.bookId);
+      if (route.tab === "socialPosts") setPostBook(route.bookId || null);
+      else if (route.bookId) openBookById.current(route.bookId);
     };
     // The Overview names its sub tab in the address itself; remember it as seen.
     const overviewWrote = () => { lastHash.current = window.location.hash; };
     // The admin opened from one of those links (the boot route already chose the page).
     const bootSearch = searchFromHash(window.location.hash);
     if (bootSearch) setSearchRequest({ q: bootSearch, n: Date.now() });
-    if (boot.bookId) openBookById.current(boot.bookId);
+    if (boot.bookId && boot.tab !== "socialPosts") openBookById.current(boot.bookId);
     openFromHash();
     window.addEventListener("hashchange", openFromHash);
     window.addEventListener("popstate", openFromHash);
@@ -694,7 +699,7 @@ export function Dashboard() {
   ];
 
   // Pages fully built from Riso components render outside the legacy compatibility layer.
-  const migrated = activeTab === STOCKROOM_TAB || activeTab === SALES_TAB || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "bookkeeping" || settingsTab === "plan" || settingsTab === "billing" || settingsTab === "security"));
+  const migrated = activeTab === STOCKROOM_TAB || activeTab === SALES_TAB || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "channels" || activeTab === "socialPosts" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "bookkeeping" || settingsTab === "plan" || settingsTab === "billing" || settingsTab === "security"));
   const content = (() => {
     switch (activeTab) {
       case "overview":
@@ -705,6 +710,8 @@ export function Dashboard() {
       case "inventory": return <Inventory onEditBook={handleEditBook} onAddBook={handleAddBookFrom} subTab={subTab} onSubTabChange={openSubTab} />;
       case "discounts": return <Discounts />;
       case "giftCards": return <GiftCards openId={openGiftCard} onOpened={() => setOpenGiftCard(null)} />;
+      case "channels": return <SalesChannels onOpen={(page) => { if (page === "socialPosts" || page === "channels") goTo(page); else { setActiveTab("settings"); setSettingsTab(page); } }} />;
+      case "socialPosts": return <SocialPosts onOpen={(page) => goTo(page)} startWithBook={postBook} onStarted={() => setPostBook(null)} />;
       case "reviews": return <ReviewsModeration />;
       case "messages": return <Messages onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }} onOpenCustomers={() => goTo("customers")} />;
       // The stockroom's pages show in StockroomFrame below, kept open between visits.

@@ -447,6 +447,8 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
       { label: "Edit", onSelect: () => onEdit(b) },
       { label: "Duplicate", onSelect: () => duplicate(b) },
       { label: "View listing", onSelect: () => window.open(listingUrl(b), "_blank", "noopener") },
+      // Social posts' composer, started with this product (plan 27.6).
+      ...(b.slug ? [{ label: "Post to social", onSelect: () => { window.location.hash = `#social-posts/book/${encodeURIComponent(b.id)}`; } }] : []),
       { label: "Delete", tone: "danger", onSelect: () => setConfirm({ kind: "one", book: b }) },
     ]} />
   );
@@ -599,8 +601,9 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
               { label: "Import CSV…", onSelect: () => setImportOpen(true) },
               { label: "Export…", onSelect: () => { setExportScope(selected.length ? "selected" : "filtered"); setExportOpen(true); } },
               { label: "Print a line sheet", onSelect: printSheet },
-              // Facebook, Instagram and Pinterest have no one-click link, so every shop gets the file and the steps (plan 24.7).
+              // Facebook, Instagram and Pinterest: the file and the by-hand steps (plan 24.7); one-button connect is in Sales channels (27.5).
               { label: "Instagram, Facebook and Pinterest", onSelect: () => setSocialOpen(true) },
+              { label: "Sales channels", onSelect: () => { window.location.hash = "#channels"; } },
               // Google's own tools: a Colophon shop sets those up on its own (Connect Google), so no step here (code plan 6.16).
               ...(runsOnColophon() ? [] : [
                 { label: "Google Shopping feed", onSelect: () => setFeedOpen(true) },
