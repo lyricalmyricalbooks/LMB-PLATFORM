@@ -29,7 +29,7 @@ import { PaymentLinkCard } from "./PaymentLinkCard";
 import { PaymentLinkDialog } from "./PaymentLinkDialog";
 import { AddedItemsCard } from "./AddedItemsCard";
 import { addItemsProblem } from "./paymentLinks";
-import { PastImportUndo } from "./PastOrdersDialog";
+import { PastImportUndo, PastOrderRate } from "./PastOrdersDialog";
 import { refreshOrdersCache } from "./Orders";
 import { printOrders, type SlipShop } from "./orderPrint";
 import { getCopy } from "../features/site/storeCopy";
@@ -890,13 +890,20 @@ export function OrderDetail({
               <StatusBadge tone="danger">Test order</StatusBadge>
             )}
             {order.source === "import" && (
-              <StatusBadge tone="neutral">Brought over from your old shop{order.oldOrderNumber ? ` (${order.oldOrderNumber})` : ""}{order.paidIn?.currency ? ` · paid ${Number(order.paidIn.total).toFixed(2)} ${order.paidIn.currency}` : ""}</StatusBadge>
+              <StatusBadge tone="neutral">Brought over from your old shop{order.oldOrderNumber ? ` (${order.oldOrderNumber})` : ""}</StatusBadge>
             )}
           </>
         }
       />
       {order.source === "import" && typeof order.importedFile === "string" && order.importedFile && (
         <p className="rp-hint" style={{ margin: 0 }}>Came from the file <span className="rp-mono" style={{ overflowWrap: "anywhere" }}>{order.importedFile}</span>.</p>
+      )}
+      {order.source === "import" && order.paidIn?.currency && Number(order.paidIn.rate) > 0 && (
+        <PastOrderRate orderId={order.orderId} paidIn={order.paidIn} total={Number(order.total) || 0} onChanged={() => {
+          toast.success("Rate changed");
+          void loadOrder();
+          void refreshOrdersCache().catch(() => {});
+        }} />
       )}
       {order.source === "import" && typeof order.importBatch === "string" && (
         <PastImportUndo batch={order.importBatch} onRemoved={(n) => {

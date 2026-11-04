@@ -9,11 +9,12 @@ const api = vi.hoisted(() => ({
     added: orders.length - 1, skipped: [{ oldRef: orders[orders.length - 1].oldRef, reason: "already brought over" }],
   })),
   removePastOrders: vi.fn(async () => 1),
+  ratePastOrder: vi.fn(async () => ({ changed: true, total: 42 })),
   suggestedRates: vi.fn(async () => ({ USD: 1.3714 })),
 }));
 vi.mock("./oldShopApi", () => api);
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
-const { PastOrdersDialog } = await import("./PastOrdersDialog");
+const { PastOrdersDialog, PastOrderRate } = await import("./PastOrdersDialog");
 
 let root: Root | null = null;
 afterEach(() => { act(() => root?.unmount()); root = null; document.body.innerHTML = ""; vi.clearAllMocks(); });
@@ -157,3 +158,50 @@ describe("Bring past orders over", () => {
     expect(api.importPastOrders).not.toHaveBeenCalled();
   });
 });
+
+describe("the rate on one brought-over order (plan 23.34)", () => {
+  it("shows what it sold for and changes the rate for that order only", async () => {
+    const onChanged = vi.fn();
+    root = createRoot(document.body.appendChild(document.createElement("div")));
+    act(() => root!.render(h(PastOrderRate, { orderId: "PAST-0123456789ABCDEF", paidIn: { currency: "USD", total: 30, rate: 1.37 }, total: 41.1, onChanged })));
+    expect(document.body.textContent).toContain("Sold for 30.00 USD, brought over at 1 USD = 1.37 Canadian dollars (CA$41.10).");
+    act(() => button(/Change the rate/).click());
+    const field = document.querySelector('input[inputmode="decimal"]') as HTMLInputElement;
+    expect(field.value).toBe("1.37");
+    // The same rate can't be saved; a word can't either.
+    expect(button(/Use this rate/).disabled).toBe(true);
+    const type = (v: string) => act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field, v);
+      field.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    type("abc");
+    expect(document.body.textContent).toContain("Type a number above 0");
+    expect(button(/Use this rate/).disabled).toBe(true);
+    type("1,4");
+    expect(document.body.textContent).toContain("This order becomes CA$42.00.");
+    await act(async () => { button(/Use this rate/).click(); });
+    await flush();
+    expect(api.ratePastOrder).toHaveBeenCalledWith("PAST-0123456789ABCDEF", 1.4);
+    expect(onChanged).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('input[inputmode="decimal"]')).toBeNull();
+  });
+
+  it("says so when the rate can't be changed, and keeps the field open", async () => {
+    api.ratePastOrder.mockRejectedValueOnce(new Error("Couldn't reach the shop's server. Check your connection and try again."));
+    const onChanged = vi.fn();
+    root = createRoot(document.body.appendChild(document.createElement("div")));
+    act(() => root!.render(h(PastOrderRate, { orderId: "PAST-0123456789ABCDEF", paidIn: { currency: "EUR", total: 10, rate: 1.5 }, total: 15, onChanged })));
+    act(() => button(/Change the rate/).click());
+    const field = document.querySelector('input[inputmode="decimal"]') as HTMLInputElement;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field, "1.52");
+      field.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => { button(/Use this rate/).click(); });
+    await flush();
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain("Couldn't reach the shop's server");
+    expect(onChanged).not.toHaveBeenCalled();
+    expect(document.querySelector('input[inputmode="decimal"]')).not.toBeNull();
+  });
+});
+

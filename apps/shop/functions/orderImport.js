@@ -178,4 +178,51 @@ async function handlePastOrdersRemove(body, { db, actor, now }) {
   return { status: 200, body: await removePastOrders(db, body.batch, { actor, now }) };
 }
 
-module.exports = { importPastOrders, handlePastOrdersImport, removePastOrders, handlePastOrdersRemove, pastOrderId, MAX_ORDERS };
+/**
+ * A new rate for one past order sold in another currency (plan 23.34), from its own page. Only an order this server
+ * brought over (`source: "import"`, with `paidIn`) changes, and only its Canadian-dollar amounts: each is what the old
+ * shop charged at the new rate (the total exactly, from `paidIn.total`). Answers { changed, total }.
+ */
+async function ratePastOrder(db, orderId, rate, { actor = "admin", now = new Date() } = {}) {
+  const ref = db.collection("orders").doc(orderId);
+  const stamp = now.toISOString();
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const old = snap.exists ? snap.data() : null;
+    const was = old?.paidIn;
+    if (old?.source !== "import" || !was || !(Number(was.rate) > 0)) return { problem: "Only an order brought over in another currency has a rate." };
+    if (was.rate === rate) return { changed: false, total: old.total };
+    const at = (n) => money(Number(n) / was.rate * rate);
+    const total = money(was.total * rate);
+    const patch = {
+      items: (Array.isArray(old.items) ? old.items : []).map((item) => ({ ...item, price: Math.max(0, at(item?.price) || 0) })),
+      subtotal: Math.max(0, at(old.subtotal) || 0), discount: Math.max(0, at(old.discount) || 0),
+      shipping: Math.max(0, at(old.shipping) || 0), tax: Math.max(0, at(old.tax) || 0), total,
+      paidIn: { ...was, rate }, updatedAt: stamp,
+      activity: [...(Array.isArray(old.activity) ? old.activity : []), { type: "rerated", at: stamp, by: actor, note: `Rate changed from ${was.rate} to ${rate}` }],
+    };
+    if (old.refundedAmountMinor != null) patch.refundedAmountMinor = Math.min(Math.round(total * 100), Math.round(Number(old.refundedAmountMinor) / was.rate * rate));
+    tx.update(ref, patch);
+    return { changed: true, total };
+  }).then(async (answer) => {
+    if (answer.changed) {
+      await db.collection("audit-log").add({
+        type: "orders", message: `Changed the rate on past order ${orderId} from the old shop to ${rate}`, orders: 1, by: actor, createdAt: stamp,
+      }).catch(() => {});
+    }
+    return answer;
+  });
+}
+
+/** { status, body } for `{ orderId, rate }`. */
+async function handlePastOrderRate(body, { db, actor, now }) {
+  const orderId = typeof body?.orderId === "string" ? body.orderId : "";
+  const rate = Number(body?.rate);
+  if (!/^PAST-[0-9A-F]{16}$/.test(orderId)) return { status: 400, body: { error: "Open the order again and try once more." } };
+  if (!(rate > 0 && rate <= 10000)) return { status: 400, body: { error: "Type a number above 0, such as 1.37." } };
+  const answer = await ratePastOrder(db, orderId, rate, { actor, now });
+  if (answer.problem) return { status: 409, body: { error: answer.problem } };
+  return { status: 200, body: answer };
+}
+
+module.exports = { importPastOrders, handlePastOrdersImport, removePastOrders, handlePastOrdersRemove, ratePastOrder, handlePastOrderRate, pastOrderId, MAX_ORDERS };

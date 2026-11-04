@@ -26,12 +26,13 @@ let failed = false;
 const check = (ok, what, detail = "") => { console.log(`  ${ok ? "✓" : "✗"} ${what}${ok || !detail ? "" : ` — ${detail}`}`); if (!ok) failed = true; };
 
 // The shop's server, as the admin's old-shop actions reach it.
-const server_ = { imported: [], removed: 0 };
+const server_ = { imported: [], removed: 0, rated: [] };
 const answer = (body) => {
   switch (body.action) {
     case "exchangeRates": return { rates: Object.fromEntries(body.currencies.map((c) => [c, 1.3712])), from: body.from, to: body.to };
     case "importPastOrders": server_.imported.push(...body.orders.map((o) => ({ ...o, batch: body.batch }))); return { added: body.orders.length, skipped: [] };
     case "removePastOrders": { const n = server_.imported.filter((o) => o.batch === body.batch).length; server_.imported = server_.imported.filter((o) => o.batch !== body.batch); server_.removed += n; return { removed: n, more: false }; }
+    case "ratePastOrder": server_.rated.push([body.orderId, body.rate]); return { changed: true, total: Math.round(14.6 * body.rate * 100) / 100 };
     case "readOldLinks": return { host: "oldshop.example", paths: ["/", "/products/moth-hoodie", "/pages/about"], notes: [] };
     default: return { error: `not in this check: ${body.action}` };
   }
@@ -130,6 +131,15 @@ try {
   await page.getByText("Came from the file").waitFor({ timeout: 10000 });
   check(/Came from the file old-shop-orders\.csv/.test(await page.locator("body").innerText()), "the order's page names its file");
   await shot("5b-past-order");
+  // Its rate can change for that order alone (plan 23.34).
+  check(/Sold for 14\.60 USD, brought over at 1 USD = 1\.3712 Canadian dollars/.test(await page.locator("body").innerText()), "the order's page shows what it sold for and its rate");
+  await page.getByRole("button", { name: "Change the rate" }).click();
+  await page.getByLabel("1 USD in Canadian dollars").fill("1.4");
+  await page.getByText("This order becomes CA$20.44.").waitFor({ timeout: 5000 });
+  await shot("5c-past-order-rate");
+  await page.getByRole("button", { name: "Use this rate" }).click();
+  await page.getByRole("button", { name: "Change the rate" }).waitFor({ timeout: 10000 });
+  check(JSON.stringify(server_.rated) === JSON.stringify([["PAST-1004", 1.4]]), "the new rate reached the server for that one order", JSON.stringify(server_.rated));
 
   // Old links.
   // From the Overview's own button, which must land on the tab that holds the old-links check.

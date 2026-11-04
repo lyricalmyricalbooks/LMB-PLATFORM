@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { importPastOrders, handlePastOrdersImport, handlePastOrdersRemove, pastOrderId } = require("./orderImport.js");
+const { importPastOrders, handlePastOrdersImport, handlePastOrdersRemove, handlePastOrderRate, pastOrderId } = require("./orderImport.js");
 const { averageRates, handleExchangeRates } = require("./pastOrderRates.js");
 const { pushKind } = require("./inventoryLink.js");
 const { returnRequestProblem } = require("./shared/returnRequests.js");
@@ -111,6 +111,30 @@ describe("bringing past orders over (plan 23.7)", () => {
     expect(db.docs.get(id).total).toBe(42);
     const answer = await handlePastOrdersImport({ orders: [usd(1.5)], rerate: "yes" }, { db, actor: "a", now: NOW });
     expect(answer.body).toMatchObject({ added: 0, rerated: 0 });
+  });
+
+  it("one order's rate changes from its own page, and only its Canadian-dollar amounts (plan 23.34)", async () => {
+    const db = fakeDb();
+    await importPastOrders(db, [{ oldRef: "#2001", orderedAt: "2025-07-02", currency: "CAD", items: [{ title: "Hoodie", quantity: 1, price: 27.4 }, { title: "Zine", quantity: 1, price: 6.85 }],
+      subtotal: 34.25, shipping: 6.85, total: 41.1, refunded: 13.7, paidIn: { currency: "USD", total: 30, rate: 1.37 } }, ORDERS[0]], { now: NOW, batch: "run-first-one" });
+    const orderId = pastOrderId("#2001");
+    const later = new Date("2026-11-04T12:00:00Z");
+    expect(await handlePastOrderRate({ orderId, rate: 1.4 }, { db, actor: "owner@example.com", now: later })).toEqual({ status: 200, body: { changed: true, total: 42 } });
+    const order = db.docs.get(`orders/${orderId}`);
+    expect(order).toMatchObject({ total: 42, subtotal: 35, shipping: 7, refundedAmountMinor: 1400, items: [{ price: 28 }, { price: 7 }],
+      paidIn: { currency: "USD", total: 30, rate: 1.4 }, importBatch: "run-first-one", source: "import", updatedAt: later.toISOString() });
+    expect(order.activity.at(-1)).toMatchObject({ type: "rerated", by: "owner@example.com", note: "Rate changed from 1.37 to 1.4" });
+    expect([...db.docs.values()].some((d) => /Changed the rate on past order/.test(d.message || ""))).toBe(true);
+    // The same rate again changes nothing.
+    expect((await handlePastOrderRate({ orderId, rate: 1.4 }, { db, actor: "a", now: later })).body).toEqual({ changed: false, total: 42 });
+    // A Canadian-dollar order, an order made here, a bad rate or a made-up id: refused, nothing written.
+    expect((await handlePastOrderRate({ orderId: pastOrderId("#1001"), rate: 1.4 }, { db, actor: "a", now: later })).status).toBe(409);
+    db.docs.set(`orders/${orderId}`, { ...db.docs.get(`orders/${orderId}`), source: "web" });
+    expect((await handlePastOrderRate({ orderId, rate: 1.5 }, { db, actor: "a", now: later })).status).toBe(409);
+    expect(db.docs.get(`orders/${orderId}`).total).toBe(42);
+    for (const rate of [0, -1, "x", 20000]) expect((await handlePastOrderRate({ orderId, rate }, { db, actor: "a", now: later })).status).toBe(400);
+    expect((await handlePastOrderRate({ orderId: "orders/../x", rate: 1.4 }, { db, actor: "a", now: later })).status).toBe(400);
+    expect((await handlePastOrderRate({ orderId: "PAST-0000000000000000", rate: 1.4 }, { db, actor: "a", now: later })).status).toBe(409);
   });
 
   it("history only: the stockroom never counts it, returns are closed and the packing digest leaves it out", async () => {
