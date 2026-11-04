@@ -34,7 +34,7 @@ export function SocialFeedDialog({ open, onClose, books }: { open: boolean; onCl
   };
 
   return (
-    <Dialog open={open} onClose={onClose} size="lg" title="Instagram, Facebook and Pinterest"
+    <Dialog open={open} onClose={onClose} size="lg" title="Instagram, Facebook and Pinterest" logo={["instagram", "facebook", "pinterest"]}
       description={w("Let people buy your books from your posts and pins. Facebook, Instagram and Pinterest read this file from your site every day.")}
       footer={<PrimaryButton onClick={onClose}>Done</PrimaryButton>}>
       <div className="rp-stack">

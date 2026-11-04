@@ -35,7 +35,7 @@ export function SearchConsoleCard() {
   const sites = check?.sites || [];
 
   return (
-    <SectionCard title="Google Search Console"
+    <SectionCard title="Google Search Console" logo="googlesearchconsole"
       description="What people searched to find you."
       actions={check && <StatusBadge tone={check.connected ? "success" : "neutral"}>{check.connected ? "Connected" : "Not connected"}</StatusBadge>}>
       <HowTo summary="Setup steps" open={!check?.connected}>

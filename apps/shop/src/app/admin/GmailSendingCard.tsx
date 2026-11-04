@@ -90,7 +90,7 @@ export function GmailSendingCard({ lastProblem = null, sender = { gmailAddress: 
   const tooShort = !!draft && !valid;
 
   return (
-    <SectionCard title="Send from your own Gmail" actions={badge}
+    <SectionCard title="Send from your own Gmail" logo="gmail" actions={badge}
       description={`Receipts and customer emails come from ${gmailAddress}. Connect it with a Gmail app password.`}>
       {shared && stored === false && (
         <p role="status" className="rp-hint" style={{ margin: "0 0 12px" }}>

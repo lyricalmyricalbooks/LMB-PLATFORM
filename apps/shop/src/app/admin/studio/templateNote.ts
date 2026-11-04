@@ -13,3 +13,8 @@ export function templateOnlyNote(key: string, design: Record<string, any> | null
   const name = TEMPLATE_STYLES[0].label.split(" (")[0];
   return `Settings marked (templates) show only on a template, like ${name}. Print style is ${now}.`;
 }
+
+/** The template-only controls the press has set, for Reset template details (empty: nothing to reset). */
+export function templateDetailsSet(design: Record<string, any> | null | undefined): string[] {
+  return [...TEMPLATE_ONLY_KEYS].filter((key) => design?.[key] != null && design[key] !== "");
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TEMPLATE_ONLY_KEYS, templateOnlyNote } from "./templateNote";
+import { TEMPLATE_ONLY_KEYS, templateDetailsSet, templateOnlyNote } from "./templateNote";
 import { STYLE_GROUPS } from "./styleSchema";
 
 describe("template-only controls", () => {
@@ -14,5 +14,10 @@ describe("template-only controls", () => {
     expect(templateOnlyNote("templateCardTilt", {})).toContain("Print style is Standard.");
     expect(templateOnlyNote("templateCardTilt", { themeStyle: "market" })).toBeNull();
     expect(templateOnlyNote("buttonRadius", { themeStyle: "riso" })).toBeNull(); // shared controls work on every look
+  });
+
+  it("lists the template details a press set, for Reset template details", () => {
+    expect(templateDetailsSet({ templateCardTilt: 2, templateOutlineWidth: 0, templateHeadingCase: "", buttonRadius: 4 }).sort()).toEqual(["templateCardTilt", "templateOutlineWidth"]);
+    expect(templateDetailsSet(null)).toEqual([]);
   });
 });
