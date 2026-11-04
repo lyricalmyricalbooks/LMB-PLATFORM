@@ -77,3 +77,17 @@ describe("which press setup mode opens", () => {
     expect(pressToOpen([...presses, press("press-third", "setup")], null)).toBeNull();
   });
 });
+
+describe("asking a person for help from setup", () => {
+  it("sends the request to the support inbox with the person's token, and carries the inbox's field problems back", async () => {
+    const fetchImpl = vi.fn((_url: string, init: RequestInit) => (JSON.parse(String(init.body)).body === "short"
+      ? answer(400, { ok: false, message: "Check the highlighted fields.", problems: { body: "Tell us a little more, so we can help." } })
+      : answer(200, { ticket: { id: "t-1" } })));
+    const door = platformDoor("/api", async () => "token-1", fetchImpl as unknown as typeof fetch);
+    await door.askForHelp({ subject: "Look", body: "Which look suits zines?", requestId: "r-1" });
+    expect(fetchImpl.mock.calls[0][0]).toBe("/api/support/open");
+    expect(JSON.parse(String(fetchImpl.mock.calls[0][1].body))).toEqual({ subject: "Look", body: "Which look suits zines?", requestId: "r-1" });
+    expect((fetchImpl.mock.calls[0][1].headers as Record<string, string>).Authorization).toBe("Bearer token-1");
+    await expect(door.askForHelp({ subject: "Look", body: "short", requestId: "r-2" })).rejects.toMatchObject({ problems: { body: expect.stringContaining("a little more") } });
+  });
+});

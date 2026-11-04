@@ -96,9 +96,21 @@ class BackupRefused extends Error {
 const esc = v => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 /** The email after a backup code was used: { to, subject, html }. The owner gets a copy when it wasn't them. */
-function backupUsedEmail({ email, ownerEmail, left, shopName, when, adminLink }) {
+function backupUsedEmail({ email, ownerEmail, left, shopName, when, adminLink, language = "en" }) {
   const owner = String(ownerEmail || "").toLowerCase();
   const to = [...new Set([email, owner].filter(a => /^[^\s@<>,]+@[^\s@<>,]+$/.test(a || "")))];
+  if (language === "fr") {
+    const shop = shopName || "votre boutique";
+    const codes = left === 1 ? "Il reste 1 code de secours." : `Il reste ${left} codes de secours.`;
+    const html = [
+      `<p>Quelqu'un s'est connecté à l'administration de ${esc(shop)} en tant que <strong>${esc(email)}</strong> avec un code de secours de la connexion en deux étapes le ${esc(when)}.</p>`,
+      `<p>L'application d'authentification a été retirée de cette connexion : Google seul suffit pour entrer jusqu'à ce que la connexion en deux étapes soit configurée de nouveau. ${esc(codes)}</p>`,
+      "<p><strong>Si c'était vous</strong>, configurez la connexion en deux étapes sur votre nouveau téléphone dans Paramètres, Sécurité.</p>",
+      "<p><strong>Si ce n'était pas vous</strong>, changez tout de suite le mot de passe de ce compte Google, puis ouvrez Paramètres, Sécurité, configurez de nouveau la connexion en deux étapes et créez de nouveaux codes de secours. Les anciens ne fonctionneront plus.</p>",
+      adminLink ? `<p><a href="${esc(adminLink)}">Ouvrir Paramètres, Sécurité</a></p>` : "",
+    ].join("");
+    return { to, subject: `Un code de secours a servi à se connecter à ${shop}`, html };
+  }
   const shop = shopName || "your shop";
   const codes = left === 1 ? "1 backup code" : `${left} backup codes`;
   const html = [
@@ -112,9 +124,23 @@ function backupUsedEmail({ email, ownerEmail, left, shopName, when, adminLink })
 }
 
 /** The email when two-step sign-in was turned on or off for someone (code plan 25.4): { to, subject, html }. */
-function twoStepChangedEmail({ email, ownerEmail, on, shopName, when, adminLink }) {
+function twoStepChangedEmail({ email, ownerEmail, on, shopName, when, adminLink, language = "en" }) {
   const owner = String(ownerEmail || "").toLowerCase();
   const to = [...new Set([email, owner].filter(a => /^[^\s@<>,]+@[^\s@<>,]+$/.test(a || "")))];
+  if (language === "fr") {
+    const shop = shopName || "votre boutique";
+    const html = [
+      on
+        ? `<p>La connexion en deux étapes a été activée pour <strong>${esc(email)}</strong> dans l'administration de ${esc(shop)} le ${esc(when)}. Pour se connecter, il faut maintenant un code d'une application d'authentification après Google.</p>`
+        : `<p>La connexion en deux étapes a été désactivée pour <strong>${esc(email)}</strong> dans l'administration de ${esc(shop)} le ${esc(when)}. Pour se connecter, Google suffit maintenant.</p>`,
+      "<p><strong>Si c'était vous</strong>, vous n'avez rien à faire.</p>",
+      on
+        ? "<p><strong>Si ce n'était pas vous</strong>, changez tout de suite le mot de passe de ce compte Google, puis ouvrez Paramètres, Sécurité et vérifiez la connexion.</p>"
+        : "<p><strong>Si ce n'était pas vous</strong>, changez tout de suite le mot de passe de ce compte Google, puis ouvrez Paramètres, Sécurité et réactivez la connexion en deux étapes.</p>",
+      adminLink ? `<p><a href="${esc(adminLink)}">Ouvrir Paramètres, Sécurité</a></p>` : "",
+    ].join("");
+    return { to, subject: `La connexion en deux étapes a été ${on ? "activée" : "désactivée"} pour ${shop}`, html };
+  }
   const shop = shopName || "your shop";
   const html = [
     on

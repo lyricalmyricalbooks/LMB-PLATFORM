@@ -9,9 +9,14 @@ import { DEFAULT_SHOP_NAME } from "../features/site/shopIdentity";
 export type TemplateId =
   | "order_confirmation" | "order_pending_payment" | "shipping_confirmation" | "abandoned_cart" | "order_cancelled"
   | "order_refunded" | "customer_welcome" | "delivery_update" | "contact_reply" | "gift_card" | "review_request"
-  | "payment_link_reminder" | "part_shipped" | "carrier_delivery_update" | "request_received" | "payment_failed";
+  | "payment_link_reminder" | "part_shipped" | "carrier_delivery_update" | "request_received" | "payment_failed"
+  | "order_picked_up";
 
-export type TemplateFields = { subject: string; body: string; buttonText: string; signoff: string; enabled?: boolean };
+export type TemplateFields = {
+  subject: string; body: string; buttonText: string; signoff: string; enabled?: boolean;
+  /** The owner's French words (code plan 25.9), sent to shoppers who ordered in French; an empty field uses the French default. */
+  fr?: Partial<Record<"subject" | "body" | "buttonText" | "signoff", string>>;
+};
 
 export const PLACEHOLDERS: Record<TemplateId, string[]> = {
   order_confirmation: ["customer_name", "order_id", "order_url", "items_table", "total_price", "shipping_method", "delivery_estimate", "shop_name"],
@@ -27,6 +32,7 @@ export const PLACEHOLDERS: Record<TemplateId, string[]> = {
   carrier_delivery_update: ["customer_name", "order_id", "status", "tracking_carrier", "tracking_number", "tracking_url", "shop_name"],
   request_received: ["customer_name", "order_id", "request", "shop_name"],
   payment_failed: ["customer_name", "order_id", "total_price", "shop_name"],
+  order_picked_up: ["customer_name", "order_id", "shop_name"],
   contact_reply: ["customer_name", "email", "shop_name"],
   review_request: ["customer_name", "order_id", "book_titles", "items_table", "shop_name"],
   gift_card: ["recipient_name", "sender_name", "amount", "code", "message", "expires", "shop_url", "shop_name"],
@@ -36,6 +42,13 @@ export const PLACEHOLDERS: Record<TemplateId, string[]> = {
 export const REQUIRED_PLACEHOLDERS: Partial<Record<TemplateId, Record<string, string>>> = {
   gift_card: { code: "Your gift card code: {{code}}" },
 };
+/** The same lines in a French email (functions/emailOutbox.js REQUIRED_PLACEHOLDERS_FR). */
+export const REQUIRED_PLACEHOLDERS_FR: Partial<Record<TemplateId, Record<string, string>>> = {
+  gift_card: { code: "Votre code de carte-cadeau : {{code}}" },
+};
+export type EmailLanguage = "en" | "fr";
+const requiredLines = (templateId: TemplateId, language: EmailLanguage) =>
+  (language === "fr" ? REQUIRED_PLACEHOLDERS_FR : REQUIRED_PLACEHOLDERS)[templateId] || {};
 
 const SAMPLE: Record<string, string> = {
   items_list: "1 × Visions of Toronto",
@@ -50,9 +63,9 @@ const SAMPLE: Record<string, string> = {
 const TOKEN = /\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g;
 
 /** The body as the server sends it: required lines added back. */
-export function withRequiredPlaceholders(templateId: TemplateId, body: string): string {
+export function withRequiredPlaceholders(templateId: TemplateId, body: string, language: EmailLanguage = "en"): string {
   let text = String(body ?? "");
-  for (const [token, line] of Object.entries(REQUIRED_PLACEHOLDERS[templateId] || {})) {
+  for (const [token, line] of Object.entries(requiredLines(templateId, language))) {
     if (!new RegExp(`\\{\\{\\s*${token}\\s*\\}\\}`).test(text)) text = `${text.trimEnd()}\n\n${line}`;
   }
   return text;
@@ -72,7 +85,7 @@ export function fillSample(templateId: TemplateId, text: string, values: Record<
 export type TemplateProblem = { tone: "warning" | "danger"; text: string };
 
 /** What the editor warns about under a template. */
-export function templateProblems(templateId: TemplateId, fields: TemplateFields): TemplateProblem[] {
+export function templateProblems(templateId: TemplateId, fields: TemplateFields, language: EmailLanguage = "en"): TemplateProblem[] {
   const out: TemplateProblem[] = [];
   const known = new Set(PLACEHOLDERS[templateId] || []);
   const unknown = new Set<string>();
@@ -86,9 +99,9 @@ export function templateProblems(templateId: TemplateId, fields: TemplateFields)
   if (outsideBody) out.push({ tone: "warning", text: "{{items_table}} is the order table, so it only works in the body copy. Anywhere else it will be left blank." });
   if (!String(fields.subject ?? "").trim()) out.push({ tone: "danger", text: "The subject line is empty, so the default subject will be used." });
   if (!String(fields.body ?? "").trim()) out.push({ tone: "danger", text: "The body copy is empty, so the default text will be used." });
-  for (const token of Object.keys(REQUIRED_PLACEHOLDERS[templateId] || {})) {
+  for (const [token, line] of Object.entries(requiredLines(templateId, language))) {
     if (!new RegExp(`\\{\\{\\s*${token}\\s*\\}\\}`).test(fields.body || "")) {
-      out.push({ tone: "warning", text: `{{${token}}} is missing from the body. The line "${REQUIRED_PLACEHOLDERS[templateId]![token]}" will be added at the end so customers still get it.` });
+      out.push({ tone: "warning", text: `{{${token}}} is missing from the body. The line "${line}" will be added at the end so customers still get it.` });
     }
   }
   return out;

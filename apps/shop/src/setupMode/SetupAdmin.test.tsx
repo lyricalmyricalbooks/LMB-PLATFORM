@@ -29,6 +29,7 @@ function door(): SetupDoor & { saved: any[] } {
       csv: "Handle,Title,Variant Price,Image Src,Old page address\nmoth-songs,Moth Songs,20,https://img.example/m.jpg,/product/moth-songs\n",
     })),
     openShop: vi.fn(async (_id: string, choice: { plan: SetupPress["plan"] }) => ({ press: { ...PRESS, country: "CA", plan: choice.plan, status: "opening" as const, shopId: "moth-press" }, shop: { status: "queued", trialEnd: null } })),
+    askForHelp: vi.fn(async () => {}),
     plans: vi.fn(async () => ({ trialDays: 14, termsVersion: "v1", plans: [
       { plan: "both" as const, name: "Shop and stockroom", priceText: "$39.00" },
       { plan: "shop" as const, name: "Shop", priceText: "$29.00" },
@@ -37,12 +38,12 @@ function door(): SetupDoor & { saved: any[] } {
   };
 }
 
-async function mount(d: SetupDoor, hash = "", press: SetupPress = PRESS) {
+async function mount(d: SetupDoor, hash = "", press: SetupPress = PRESS, answers?: Map<string, any>) {
   location.hash = hash;
   const el = document.createElement("div");
   document.body.append(el);
   root = createRoot(el);
-  act(() => root!.render(h(SetupAdmin, { press, door: d, lists, email: "owner@example.com", helpUrl: "/help/", onSignOut: () => {} })));
+  act(() => root!.render(h(SetupAdmin, { press, door: d, lists, email: "owner@example.com", helpUrl: "/help/", onSignOut: () => {}, ...(answers ? { answers } : {}) })));
   await flush();
   return el;
 }
@@ -60,7 +61,8 @@ describe("the admin in setup mode (code plan 18.6)", () => {
     const rows = () => [...el.querySelectorAll("main ol[aria-label='Setup steps'] > li > button")] as HTMLButtonElement[];
     const open = () => rows().filter((b) => b.getAttribute("aria-expanded") === "true").map((b) => b.textContent);
     expect(open()).toEqual([expect.stringContaining("Tell us about your press")]);
-    expect(el.querySelector("a[href='/help/#your-press']")?.textContent).toContain("How this works");
+    // Tell us about your press has no help answer of its own (the help centre's is about the open shop's contact details).
+    expect(el.textContent).not.toContain("How this works");
     act(() => rows().find((b) => b.textContent?.includes("Choose your website's look"))!.click());
     expect(open()).toEqual([expect.stringContaining("Choose your website's look")]);
     const choose = [...el.querySelectorAll("main button")].find((b) => b.textContent === "Choose a look") as HTMLButtonElement;
@@ -104,7 +106,7 @@ describe("the admin in setup mode (code plan 18.6)", () => {
     expect(el.textContent).toContain("Once your shop is made");
     expect(el.textContent).toContain("Your first shop is free for 14 days from then");
     expect(el.textContent).toContain("Need a hand?");
-    expect(el.querySelector("main a[href='/account/']")).not.toBeNull();
+    expect([...el.querySelectorAll("main button")].some((b) => b.textContent === "Ask a person")).toBe(true);
   });
 
   it("promises no free days on Home when the platform gives no trial", async () => {
@@ -429,5 +431,82 @@ describe("bringing books over from the old shop's address (code plan 23.2)", () 
     expect(el.textContent).toContain("moth.example products.csv");
     expect(el.textContent).toContain("1 book ready");
     expect(el.textContent).toContain("Stock counts aren't shown publicly");
+  });
+});
+
+describe("help without leaving setup", async () => {
+  // @ts-expect-error the platform's help answers are a plain ES module outside this app
+  const { ARTICLES } = await import("../../../../help/articles.js");
+  const { helpAnswersFrom } = await import("./SetupHelp");
+  const answers = helpAnswersFrom(ARTICLES) as Map<string, any>;
+  const type = (input: HTMLInputElement | HTMLTextAreaElement, value: string) => {
+    const proto = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    Object.getOwnPropertyDescriptor(proto, "value")!.set!.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+
+  it("opens a step's help answer in place, under its button", async () => {
+    const el = await mount(door(), "", { ...PRESS, country: "CA", moving: "yes" }, answers);
+    const how = [...el.querySelectorAll("main button")].find((b) => b.textContent?.startsWith("How this works")) as HTMLButtonElement;
+    expect(how.getAttribute("aria-expanded")).toBe("false");
+    act(() => how.click());
+    expect(how.getAttribute("aria-expanded")).toBe("true");
+    expect(el.textContent).toContain(answers.get("bring-books").answer[0]);
+  });
+
+  it("opens Need a hand?'s answers in place, and links out when the answers didn't load", async () => {
+    const el = await mount(door(), "", PRESS, answers);
+    const q = [...el.querySelectorAll("main button")].find((b) => b.textContent === "How do I bring my books over from my old shop?") as HTMLButtonElement;
+    act(() => q.click());
+    expect(el.textContent).toContain(answers.get("bring-books").answer[0]);
+    act(() => root!.unmount()); root = null; document.body.innerHTML = "";
+    const bare = await mount(door());
+    expect(bare.querySelector("a[href='/help/#bring-books']")).not.toBeNull();
+  });
+
+  it("asks a person from Help: checks the words first, sends once with the press's name, and says it's sent", async () => {
+    const d = door();
+    const el = await mount(d, "#help", PRESS, answers);
+    const form = el.querySelector("#ask form") as HTMLFormElement;
+    await act(async () => { form.requestSubmit(); });
+    expect(d.askForHelp).not.toHaveBeenCalled();
+    expect(el.textContent).toContain("Say in a few words what it's about.");
+    type(form.querySelector("input")!, "Which look?");
+    type(form.querySelector("textarea")!, "Which look suits a zine press best?");
+    await act(async () => { form.requestSubmit(); });
+    await flush();
+    expect(d.askForHelp).toHaveBeenCalledTimes(1);
+    const sent = (d.askForHelp as any).mock.calls[0][0];
+    expect(sent.subject).toBe("Which look?");
+    expect(sent.body).toContain("Which look suits a zine press best?");
+    expect(sent.body).toContain("setting up Moth Press");
+    expect(el.textContent).toContain("We've emailed you a copy");
+  });
+
+  it("keeps the words and the same request on a failed send, so trying again makes one request", async () => {
+    const d = door();
+    (d.askForHelp as any).mockImplementationOnce(async () => { throw new Error("We couldn't reach Colophon. Check your connection and try again."); });
+    const el = await mount(d, "#help", PRESS, answers);
+    const form = el.querySelector("#ask form") as HTMLFormElement;
+    type(form.querySelector("input")!, "Shipping");
+    type(form.querySelector("textarea")!, "How do I charge for shipping?");
+    await act(async () => { form.requestSubmit(); });
+    await flush();
+    expect(el.textContent).toContain("couldn't reach Colophon");
+    expect((form.querySelector("textarea") as HTMLTextAreaElement).value).toBe("How do I charge for shipping?");
+    await act(async () => { form.requestSubmit(); });
+    await flush();
+    const [first, second] = (d.askForHelp as any).mock.calls.map((c: any[]) => c[0].requestId);
+    expect(second).toBe(first);
+    expect(el.textContent).toContain("We've emailed you a copy");
+  });
+
+  it("Home's Ask a person goes to the form on Help", async () => {
+    const el = await mount(door(), "", PRESS, answers);
+    const ask = [...el.querySelectorAll("main button")].find((b) => b.textContent === "Ask a person") as HTMLButtonElement;
+    act(() => ask.click());
+    await flush();
+    expect(el.querySelector("h1")?.textContent).toBe("Help");
+    expect(el.querySelector("#ask form")).not.toBeNull();
   });
 });

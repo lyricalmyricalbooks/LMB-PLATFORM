@@ -1,7 +1,7 @@
 // One timeline per shop (code plan 19.10): everything the platform already records about one shop, merged newest first,
 // each entry in one plain line. Nothing new is recorded here; it only reads.
 //
-//   shopTimeline({ shopId, registry, auditLog?, activity, supportStore?, releases?, emailLog?, limit, before?, kinds? })
+//   shopTimeline({ shopId, registry, auditLog?, activity, supportStore?, releases?, emailLog?, shopData?, limit, before?, kinds? })
 //     -> { entries: [{ at, kind, words, by? }], next }
 //
 // The sources:
@@ -15,13 +15,16 @@
 //   emailLog      optional: listForShop(shopId), the platform's own emails about the shop (the email service's sent log,
 //                 entries marked `platform`; a shop's emails to its shoppers are never read)
 //   releases      optional: () -> release runs, in place of registry.listReleases
+//   shopData      optional: find(shopId, "audit-log", { where }), the shop's own audit log in its own database. Only its
+//                 "security" lines are read (two-step sign-in turned on or off, backup codes made or used), for a live
+//                 shop; a shop that can't be read leaves the rest of the timeline
 //   auditLog      optional: list(shopId) -> the shop's own audit log. It repeats the registry's events, so only its
 //                 release lines are read, and only when no release runs can be read
 //
 // Paging: `before` is the `next` of the page before (or any time), and the page holds entries older than it.
 import { ControlError, adminOf } from "./controlRoom.js";
 
-export const TIMELINE_KINDS = Object.freeze(["billing", "release", "health", "support", "switch", "visit", "email", "other"]);
+export const TIMELINE_KINDS = Object.freeze(["billing", "release", "health", "support", "switch", "visit", "email", "security", "other"]);
 export const MAX_LIMIT = 500;
 
 const plain = (value) => String(value ?? "").replace(/[-_.]+/g, " ").trim();
@@ -116,6 +119,10 @@ const emailLine = (m) => ({
   words: cut(m.status === "sent" ? `Emailed the press: ${plain(m.kind)}` : `Couldn't email the press: ${plain(m.kind)}`),
 });
 
+// The shop's own security lines (apps/shop functions/twoStepBackup.js): its words are already plain.
+const securityLine = (doc) => ({ at: doc.data?.createdAt ?? null, kind: "security", key: `security:${doc.id}`, words: cut(doc.data?.message ?? "A sign-in safety change") });
+export const MAX_SECURITY = 500;
+
 /** Sorts newest first; equal times by key, so paging is stable. */
 const newestFirst = (a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : a.key < b.key ? 1 : a.key > b.key ? -1 : 0);
 const cursorOf = (entry) => `${entry.at}|${entry.key}`;
@@ -128,7 +135,7 @@ function olderThan(entry, before) {
   return key !== null && entry.key < key;
 }
 
-export async function shopTimeline({ shopId, registry, auditLog, activity, supportStore, releases, emailLog, limit = 200, before, kinds } = {}) {
+export async function shopTimeline({ shopId, registry, auditLog, activity, supportStore, releases, emailLog, shopData, live = false, limit = 200, before, kinds } = {}) {
   if (typeof shopId !== "string" || !shopId) throw new ControlError(400, "Choose a shop.");
   const wanted = kinds == null ? null : new Set(kinds);
   if (wanted && (!Array.isArray(kinds) || kinds.some((k) => !TIMELINE_KINDS.includes(k)))) throw new ControlError(400, `The kinds are: ${TIMELINE_KINDS.join(", ")}.`);
@@ -159,6 +166,10 @@ export async function shopTimeline({ shopId, registry, auditLog, activity, suppo
   }
   if (supportStore?.listByShop) for (const t of await supportStore.listByShop(shopId)) lines.push(supportLine(t));
   if (emailLog?.listForShop) for (const m of await emailLog.listForShop(shopId, { limit: 1000 })) if (m.platform === true) lines.push(emailLine(m));
+  if (live && shopData?.find && (!wanted || wanted.has("security"))) {
+    const docs = await shopData.find(shopId, "audit-log", { where: [["type", "==", "security"]], limit: MAX_SECURITY }).catch(() => []);
+    for (const doc of docs) lines.push(securityLine(doc));
+  }
 
   const shown = lines.filter((l) => l.at && (!wanted || wanted.has(l.kind)) && olderThan(l, before)).sort(newestFirst);
   const page = shown.slice(0, n);
@@ -169,12 +180,13 @@ export async function shopTimeline({ shopId, registry, auditLog, activity, suppo
 }
 
 /** The control room's door to it: platform admins only (adminOf). */
-export function createTimeline({ admins, registry, auditLog, activity, supportStore, releases, emailLog, now = () => new Date() }) {
+export function createTimeline({ admins, registry, auditLog, activity, supportStore, releases, emailLog, shopData, now = () => new Date() }) {
   return {
     async timeline(claims, { shopId, kinds, before, limit } = {}) {
       adminOf(claims, admins, now().getTime());
-      if (typeof shopId !== "string" || !shopId || !(await registry.getShop(shopId))) throw new ControlError(404, "There's no shop with that id.");
-      return shopTimeline({ shopId, registry, auditLog, activity, supportStore, releases, emailLog, kinds, before, ...(limit ? { limit } : {}) });
+      const row = typeof shopId === "string" && shopId ? await registry.getShop(shopId) : null;
+      if (!row) throw new ControlError(404, "There's no shop with that id.");
+      return shopTimeline({ shopId, registry, auditLog, activity, supportStore, releases, emailLog, shopData, live: row.status === "live", kinds, before, ...(limit ? { limit } : {}) });
     },
   };
 }
