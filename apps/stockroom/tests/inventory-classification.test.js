@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   deriveOnHand,
   deriveStockBreakdown,
@@ -150,6 +150,17 @@ describe('transferAuthorStock', () => {
     expect(s.authorStock).toBe(0);
     expect(breakdown.publisherOnHand).toBe(100);
     expect(breakdown.authorHeld).toBe(0);
+  });
+
+  it('dates a transfer on the owner’s own day, also late in the evening', () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date(2026, 9, 31, 23, 30)); // local 11:30 pm
+      const { transfer } = transferAuthorStock(state({ stock: 100 }), book(100), 5);
+      expect(transfer.date).toBe('2026-10-31');
+      const late = transferAuthorStock(state({ stock: 100 }), book(100), 5, '', new Date(2026, 9, 30, 23, 30).toISOString()).transfer;
+      expect(late.date).toBe('2026-10-30');
+    } finally { vi.useRealTimers(); }
   });
 
   it('is a safe no-op on zero delta', () => {

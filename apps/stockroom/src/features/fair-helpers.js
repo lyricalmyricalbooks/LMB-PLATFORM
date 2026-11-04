@@ -66,6 +66,13 @@ async function publishMenu() {
   _lastMenu = key;
 }
 
+/** Each book's own price and currency: a helper's sale is never brought in below them. */
+function ownPrices(books = BOOKS) {
+  const out = {};
+  for (const b of Object.values(books || {})) if (b && b.id) out[b.id] = { price: b.listPrice, cur: getBookCurrencyCode(b) };
+  return out;
+}
+
 /** A book holds a record of this helper sale already (brought in earlier, or by another of the owner's devices). */
 function alreadyIn(bookId, num) {
   return (states[bookId]?.hist || []).some((h) => h && h.num === num && h.chan === FAIR_CHANNEL);
@@ -82,7 +89,7 @@ async function bringInSales(docs, { claim = (id) => window._fbClaimFairSale(id) 
     if (sale?.imported || sale?.cancelled) _refused.delete(sale.id);
     // Undone by the helper who rang it up: never brought in.
     if (!sale || sale.imported || sale.cancelled || _busy.has(sale.id)) continue;
-    const plan = helperImportPlan(sale, Object.keys(BOOKS), alreadyIn);
+    const plan = helperImportPlan(sale, Object.keys(BOOKS), alreadyIn, ownPrices());
     if (plan.problem) {
       if (!_refused.has(sale.id)) console.warn(`Fair helper sale ${sale.id} not brought in: ${plan.problem}`);
       _refused.set(sale.id, { by: String(sale.by || ''), day: String(sale.day || ''), problem: plan.problem });
@@ -122,7 +129,12 @@ async function bringInSales(docs, { claim = (id) => window._fbClaimFairSale(id) 
  */
 function fairHelperTodo() {
   if (!_refused.size) return null;
-  return { stuck: _refused.size, by: [...new Set([..._refused.values()].map((r) => r.by).filter(Boolean))] };
+  const values = [..._refused.values()];
+  return {
+    stuck: _refused.size,
+    by: [...new Set(values.map((r) => r.by).filter(Boolean))],
+    belowPrice: values.filter((r) => r.problem === 'below-price').length,
+  };
 }
 
 export {

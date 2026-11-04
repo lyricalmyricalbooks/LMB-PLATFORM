@@ -47,6 +47,8 @@ async function world() {
     calls.push(name);
     return real[name](...args);
   }]));
+  // Who pays is asked first for the card's calls; it isn't a billing change, so it isn't counted.
+  billing.paidBy = real.paidBy;
 
   const stores = fakeAccountStores();
   const signupStores = fakeSignupStores();
@@ -91,6 +93,19 @@ test("the owner's calls each reach billing once and are logged, a second owner f
   assert.deepEqual(w.logged().map((e) => [e.what, e.by, e.outcome]), ROUTES.map((route) => [`billing-${route}`, OWNER.email, "done"]));
   assert.equal([...w.auditLog.entries.get(SHOP).values()].filter((e) => e.source === "billing-door").length, ROUTES.length);
   assert.equal((await w.ask(SECOND_OWNER, "status")).status, 200);
+});
+
+test("a second owner can't put their card on the account holder's Stripe customer, which pays the holder's other shops", async () => {
+  const w = await world();
+  const refused = await w.ask(SECOND_OWNER, "card");
+  assert.equal(refused.status, 403);
+  assert.match(refused.body.message, /Only the person whose account pays for this plan/);
+  assert.equal(w.stripe.requests.filter((r) => r.path === "/v1/checkout/sessions").length, 0, "no card page was made");
+  assert.deepEqual(w.logged().map((e) => [e.by, e.outcome.slice(0, 7)]), [[SECOND_OWNER.email, "failed:"]]);
+  assert.equal((await w.ask(OWNER, "card")).status, 200, "the account holder still can");
+  // The shop admin's door names the person by email only: the holder's email is the holder.
+  assert.equal(await w.real.paidBy(SHOP, { email: OWNER.email }), true);
+  assert.equal(await w.real.paidBy(SHOP, { accountId: "uid-someone", email: SECOND_OWNER.email }), false);
 });
 
 test("the answers: status, a preview that changes nothing, then the change; cancel and keep", async () => {

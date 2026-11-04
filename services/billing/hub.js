@@ -49,6 +49,15 @@ export function addressOf(raw, BillingError) {
   return Object.fromEntries(Object.entries(address).filter(([, v]) => v));
 }
 
+/**
+ * The tax on a Stripe invoice or preview: `total_taxes` summed (Stripe API 2025-03-31.basil and later, which the
+ * platform pins), else the older `tax` field.
+ */
+export function invoiceTax(invoice) {
+  if (Array.isArray(invoice?.total_taxes)) return invoice.total_taxes.reduce((sum, t) => sum + (t?.amount ?? 0), 0);
+  return invoice?.tax ?? 0;
+}
+
 const https = (url) => (typeof url === "string" && url.startsWith("https://") ? url : null);
 
 export function createBillingHub({ call, rowFor, save, logChange, subscriptions, settings, tax, BillingError, money, iso, nowIso, refresh, cardNowPays, syncInvoiceLanguage = async () => {} }) {
@@ -196,7 +205,7 @@ export function createBillingHub({ call, rowFor, save, logChange, subscriptions,
       if (!preview) return null;
       const currency = preview.currency ?? settings.currency;
       const discount = (preview.total_discount_amounts ?? []).reduce((sum, d) => sum + (d.amount ?? 0), 0);
-      const taxAmount = preview.tax ?? (preview.total_taxes ?? []).reduce((sum, t) => sum + (t.amount ?? 0), 0);
+      const taxAmount = invoiceTax(preview);
       return {
         date: iso(preview.next_payment_attempt ?? preview.period_end) ?? row.currentPeriodEnd ?? row.trialEnd,
         lines: (preview.lines?.data ?? []).map((line) => ({ words: clip(line.description ?? `${settings.platformName} plan`, 200), amount: money(line.amount ?? 0, currency) })),

@@ -45,7 +45,7 @@ import { recordOrder, voidHistEntry } from './sales-ledger.js';
 import { updateDash } from './dashboard.js';
 import { escapeHtml } from '../lib/html.js';
 import { closeM, confirmDialog, openM, promptDialog } from '../lib/modal.js';
-import { buildPaymentMeta, getBookCurrencyCode, getSym, normalizeCurrencyCode } from '../lib/money.js';
+import { buildPaymentMeta, getBookCurrencyCode, getSym, normalizeCurrencyCode, roundCents } from '../lib/money.js';
 import { posOversellSummary, posStockView } from '../lib/pos-stock.js';
 import { FAIR_SEARCH_OVER, FAIR_UNDO_MS, countLabel, fairDaySummary, fairSyncPill, fairTileHtml, keepScreenAwake, readCurrentFair, readLastMethod, registerSalesForDay, rememberMethod, saveCurrentFair, soldLabel, undoOpen } from '../lib/fair-mode.js';
 
@@ -632,8 +632,9 @@ async function fairVoidSale(saleNum) {
   const what = sale.lines.map((l) => `${l.title}${l.qty > 1 ? ` ×${l.qty}` : ''}`).join(', ');
   const ok = await confirmDialog(`Void this sale? ${what} goes back into stock and ${fairTotalsText(sale.totals)} comes out of your takings. Do this if it was refunded or rung up by mistake.`, { okLabel: 'Void sale', cancelLabel: 'Keep it', danger: true, title: 'Void sale' });
   if (!ok) return;
-  if (_posLastSale?.saleNum === saleNum) { _posLastSale = null; const bar = $('fm-undo'); if (bar) bar.hidden = true; }
   const undone = voidRegisterSale(saleNum, [...new Set(sale.lines.map((l) => l.bookId))], 'Voided at the register');
+  if (undone === null) return;
+  if (_posLastSale?.saleNum === saleNum) { _posLastSale = null; const bar = $('fm-undo'); if (bar) bar.hidden = true; }
   renderPOS();
   renderHist();
   updateDash();
@@ -766,32 +767,37 @@ function fairShowUndo(text) {
 // only inside the undo window so it can never reach an older sale.
 // Reverses one register checkout exactly the way the History Void button
 // does (stock back, revenue and channel totals out, Sheets row deleted).
-// Returns how many book rows were reversed.
+// Returns how many book rows were reversed, or null when nothing was: one row is in an author settlement, and a
+// checkout is voided whole or not at all.
 function voidRegisterSale(saleNum, bookIds, reason) {
-  let undone = 0;
+  const rows = [];
   for (const bookId of bookIds) {
     const s = states[bookId];
-    const book = BOOKS[bookId];
     const h = s?.hist?.find((x) => x.num === saleNum && x.chan === 'Book Fair' && !x.voided);
-    if (!h) continue;
-    if (h.artistSettlementId) { showToast('Undo the author settlement before voiding this sale.', 'warn'); continue; }
+    if (h) rows.push({ bookId, s, h });
+  }
+  if (rows.some(({ h }) => h.artistSettlementId)) {
+    showToast('Part of this sale is in an author settlement. Undo the settlement first; nothing was voided.', 'warn', 5000);
+    return null;
+  }
+  for (const { bookId, s, h } of rows) {
     // voidHistEntry's Sheets sync names the active book.
-    withActiveBook(bookId, () => voidHistEntry(s, book, h));
+    withActiveBook(bookId, () => voidHistEntry(s, BOOKS[bookId], h));
     h.voidedReason = reason;
     saveState(bookId);
-    undone++;
   }
-  return undone;
+  return rows.length;
 }
 
 async function fairUndoLastSale() {
   const sale = _posLastSale;
   const bar = $('fm-undo');
   if (!sale || !undoOpen(sale.at)) { if (bar) bar.hidden = true; return; }
-  _posLastSale = null;
   const btn = $('fm-undo-btn');
-  if (btn) btn.disabled = true;
   const undone = voidRegisterSale(sale.saleNum, sale.bookIds, 'Undone at the register');
+  if (undone === null) return;
+  _posLastSale = null;
+  if (btn) btn.disabled = true;
   if (sale.posOnly.length) {
     // The POS-only tally is written after the sale; take it back only once
     // that write has landed, so the two can't cross.
@@ -1151,7 +1157,7 @@ function _posItemToManualPayload(book, qty, paymentMethod, basePrice, txnCurCode
   const isFx = txnCurCode !== nativeCurCode;
 
   // Amount actually paid in the transaction currency (what the customer handed over)
-  const foreignTotal = qty * convertedUnitInTxnCur;
+  const foreignTotal = roundCents(qty * convertedUnitInTxnCur);
 
   const payment = buildPaymentMeta({
     book,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { isTradeInvoiceOrder, tradeInvoicesToSend, tradeInvoiceDraft } from '../src/lib/trade-invoice.js';
+import { isTradeInvoiceOrder, tradeInvoicesToSend, tradeInvoiceDraft, rateForTax } from '../src/lib/trade-invoice.js';
+import { computeInvoiceTotals } from '../src/lib/invoices.js';
 
 const web = (extra = {}) => ({
   v: 1, orderId: 'ABC123', number: '#WEB-ABC123', test: false, paymentStatus: 'paid', refundState: 'none',
@@ -57,10 +58,48 @@ describe('the invoice draft', () => {
     expect(d.discount).toBe(5);
     expect(d.taxRate).toBe(0);
   });
-  it('skips books whose copies all went back, and gives nothing for a normal order', () => {
+  it('skips books whose copies all went back (never billed as other items), and gives nothing for a normal order', () => {
     const d = tradeInvoiceDraft(web({ books: { b1: { net: 0, sold: 2, restocked: 2, unitCAD: 20, titles: ['Tee'] } }, totals: { subtotal: 40, discount: 0, shipping: 0, tax: 0, total: 40 } }));
-    expect(d.items.map(i => i.description)).toEqual(['Order items']);
+    expect(d.items).toEqual([]);
     expect(d.ownerBookId).toBeNull();
     expect(tradeInvoiceDraft(web({ invoice: undefined }))).toBeNull();
+  });
+});
+
+describe('the invoice total matches what the website says is owed', () => {
+  const totalOf = (d) => computeInvoiceTotals({ items: d.items, discountType: 'flat', discountValue: d.discount, taxRate: d.taxRate }).total;
+  const one = (books, totals, extra = {}) => web({ books, totals, ...extra });
+
+  it('uses the website line total when the copies don’t divide evenly (no stray cent, no filler line)', () => {
+    for (const merch of [200, 100]) {
+      const d = tradeInvoiceDraft(one({ b1: { net: 3, sold: 3, restocked: 0, unitCAD: merch / 3, merchCAD: merch, titles: ['T'] } }, { subtotal: merch, discount: 0, shipping: 0, tax: merch * 0.13, total: merch * 1.13 }));
+      expect(d.items.map(i => i.description)).toEqual(['T']);
+      expect(totalOf(d)).toBe(Math.round(merch * 113) / 100);
+    }
+  });
+
+  it('reproduces the website tax to the cent on big orders', () => {
+    for (const [sub, tax] of [[9876.54, 1283.95], [12345.67, 1604.94], [25000, 3250.01], [7777.77, 1011.11]]) {
+      const d = tradeInvoiceDraft(one({ b1: { net: 1, sold: 1, restocked: 0, unitCAD: sub, merchCAD: sub, titles: ['T'] } }, { subtotal: sub, discount: 0, shipping: 0, tax, total: Math.round((sub + tax) * 100) / 100 }));
+      expect(totalOf(d)).toBe(Math.round((sub + tax) * 100) / 100);
+    }
+    expect(rateForTax(1040, 8000)).toBe(13);
+  });
+
+  it('names unlinked items by their titles', () => {
+    const d = tradeInvoiceDraft(web({ unlinked: [{ title: 'Zine', qty: 1 }], totals: { subtotal: 80, discount: 0, shipping: 10, tax: 0, total: 90 } }));
+    expect(d.items.map(i => i.description)).toEqual(['Tee', 'Hoodie — XL', 'Zine', 'Shipping']);
+    expect(totalOf(d)).toBe(90);
+  });
+
+  it('does not bill copies a partial refund took back, nor their tax', () => {
+    const d = tradeInvoiceDraft(one({ b1: { net: 1, sold: 2, restocked: 1, unitCAD: 40, merchCAD: 80, titles: ['T'] } }, { subtotal: 80, discount: 0, shipping: 0, tax: 10.4, total: 90.4 }, { refundState: 'partial', refund: { amountMinor: 4520, currency: 'CAD' } }));
+    expect(d.items).toEqual([{ description: 'T', qty: 1, unitPrice: 40, bookId: 'b1' }]);
+    expect(totalOf(d)).toBe(45.2);
+  });
+
+  it('takes money refunded beyond the returned copies off the bill', () => {
+    const d = tradeInvoiceDraft(one({ b1: { net: 2, sold: 2, restocked: 0, unitCAD: 40, merchCAD: 80, titles: ['T'] } }, { subtotal: 80, discount: 0, shipping: 0, tax: 10.4, total: 90.4 }, { refundState: 'partial', refund: { amountMinor: 1000, currency: 'CAD' } }));
+    expect(totalOf(d)).toBe(80.4);
   });
 });

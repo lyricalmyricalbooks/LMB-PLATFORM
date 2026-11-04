@@ -77,7 +77,8 @@ export function saveList(rows, now = new Date()) {
     let endsAt = null;
     if (billing.cancelAtPeriodEnd && billing.access !== "closed") {
       why = "cancelled";
-      endsAt = billing.status === "trialing" ? billing.trialEnd : billing.currentPeriodEnd;
+      // billing.js mirror writes `endsAt` (a press paying as they sell leaves on its own date); older rows have none.
+      endsAt = billing.endsAt ?? (billing.status === "trialing" ? billing.trialEnd : billing.currentPeriodEnd);
     } else if (billing.access === "paused" && !billing.hasCard) {
       why = "no-card";
       const pausedAt = row.closing?.stage === "paused" ? row.closing.pausedAt : billing.troubleSince ?? billing.updatedAt;

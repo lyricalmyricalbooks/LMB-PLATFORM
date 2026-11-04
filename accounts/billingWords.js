@@ -16,7 +16,9 @@ const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /** Every line of the page's plan, card and cancel cards. */
 export function billingWords(billing, now = new Date()) {
-  const until = billing.status === "trialing" ? billing.trialEnd : billing.currentPeriodEnd;
+  // The day a cancel closes the shop (billing status `cancelEndsAt`: a press paying as they sell leaves at the end of
+  // their billing month); older answers without it fall back to the trial or the paid month.
+  const until = billing.cancelEndsAt ?? (billing.status === "trialing" ? billing.trialEnd : billing.currentPeriodEnd);
   const tax = billing.plusTax ? ", plus tax" : "";
   let state = "Active";
   let when = "";

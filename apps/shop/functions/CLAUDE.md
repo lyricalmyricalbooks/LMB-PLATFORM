@@ -1068,6 +1068,9 @@ queue `twoStepBackupUsed`; a failed send never undoes the sign-in). The function
   `partialRestockedItems`. `fulfillment.copiesToSend(o, index)` = ordered − sent in parts − taken off; `itemsToPack(o)`
   drives the packing checklist, pick list, packing slip and suggested label weight, so the rest's label weighs only what
   is left. `packingKey` adds the count only for a changed line, so orders packed before this keep their key.
+  The amount fills from `copiesValueMinor` (payment currency, like returns). Take-off is always a partial refund: no
+  ticked line, a blank amount or everything left is refused (`takeOffProblem`), since those mean the full refund that
+  cancels the order. `refundPlan` refuses past orders brought over (`source: "import"`): they are refunded in the old shop.
 - **Add items to a paid order (plan 24.6, part B):** Orders › order › ⋯ › **Add items to this order** opens the payment-link
   dialog (`PaymentLinkDialog` `addTo`) filled from the order (`linkFormForAddOn`: customer, address, shipping 0, 14 days,
   a note). The request carries `shipsWith`; `paymentLinks.js` checks the first order with `addOnParentProblem` (paid,

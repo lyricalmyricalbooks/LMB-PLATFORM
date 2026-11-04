@@ -56,6 +56,10 @@ describe("words", () => {
     expect(statusBadge({ status: "active", cancelAtPeriodEnd: true, paymentWay: "monthly" }).word).toBe("Ending");
     expect(statusBadge({ status: "past_due", cancelAtPeriodEnd: false, paymentWay: "monthly" }).tone).toBe("danger");
     expect(statusBadge({ status: "canceled", cancelAtPeriodEnd: true, paymentWay: "payAsYouSell" }).word).toBe("Closed");
+    // Paying as they sell, Stripe's plan has ended on purpose and the shop is open; cancelling it says Ending.
+    expect(statusBadge({ status: "canceled", access: "open", cancelAtPeriodEnd: false, paymentWay: "payAsYouSell" }).word).toBe("Paying as you sell");
+    expect(statusBadge({ status: "canceled", access: "open", cancelAtPeriodEnd: true, paymentWay: "payAsYouSell" }).word).toBe("Ending");
+    expect(statusBadge({ status: "canceled", access: "closed", cancelAtPeriodEnd: true, paymentWay: "payAsYouSell" }).word).toBe("Closed");
     expect(billState("open").word).toBe("Waiting for payment");
     expect(billState("paid").tone).toBe("success");
   });

@@ -83,6 +83,15 @@ export function gridOffers(sizesText, coloursText) {
   return out.slice(0, 100);
 }
 
+/**
+ * The group id for a new product typed with sizes and colours ("grid-moth-tee"), never one another item already
+ * has: a second product with the same name starts its own group instead of joining the first one's.
+ */
+export function freeGridGroupId(name, items = []) {
+  const taken = new Set((items || []).map(it => groupOf(it)?.id).filter(Boolean));
+  return freeItemId(`grid ${name}`, taken);
+}
+
 const slug = (value) => clean(value, 120).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
 /** An item id built from `base` that no item in `taken` has: "moth-tee-m", then "moth-tee-m-2", ... */
@@ -102,8 +111,9 @@ export function sizeItem(saved, offer, name, taken = new Set()) {
   const price = Number.isFinite(offer.price) && offer.price >= 0 ? offer.price : saved.listPrice;
   // A copy, so the sizes never share a list (profit tiers, payment methods) in memory.
   const copy = JSON.parse(JSON.stringify(saved));
-  // A card payment link is for one price: a size priced differently gets none until the owner adds its own.
-  if (price !== saved.listPrice) copy.stripeLink = '';
+  // A card payment link sells one item: shared, a payment for this size would name the saved one (and its price).
+  // Each size gets none until the owner adds its own.
+  copy.stripeLink = '';
   return {
     ...copy,
     id,

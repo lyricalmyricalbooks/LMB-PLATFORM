@@ -108,6 +108,7 @@ const DETAIL_LIST_SHOWN = 6;
 let _started = false;
 let _wired = false;
 let _docs = new Map();          // orderId → pending websiteOrders doc
+let _tradeDocs = new Map();     // orderId → trade order on invoice terms not yet paid, pending or brought in
 let _ordersSeen = false;
 let _docsFromCache = false;     // the last snapshot came from this device's cache
 let _link = { website: null, app: null, catalog: null };
@@ -301,6 +302,10 @@ function startWebsiteLink() {
     window._fbWatchWebsiteOrders(onOrders, onWatchError);
   } catch (e) { onWatchError(e); }
   try {
+    // The trade list only; a failure here leaves the inbox and its warnings alone.
+    if (typeof window._fbWatchTradeOrders === 'function') window._fbWatchTradeOrders(onTradeOrders, (e) => console.warn('[website link] trade orders watch', e));
+  } catch (e) { console.warn('[website link] trade orders watch', e); }
+  try {
     if (typeof window._fbWatchWebsiteLinkStatus === 'function') window._fbWatchWebsiteLinkStatus(onLinkStatus, onWatchError);
   } catch (e) { onWatchError(e); }
   window.addEventListener('online', () => { scheduleImport(0); scheduleWebsiteFeedPublish('all'); resendLinkRequests(); });
@@ -349,6 +354,17 @@ function onOrders(docs, meta = {}) {
   if (_docs.size) noteLinkSeen();
   noteUnlinked(docs || []);
   scheduleImport(0);
+}
+
+function onTradeOrders(docs) {
+  _tradeDocs = new Map();
+  for (const d of docs || []) if (d && d.id) _tradeDocs.set(d.id, d);
+  renderWebsiteLinkCard();
+}
+
+/** Every trade order we know of: the ones brought in, and the inbox's (the newer copy when both have it). */
+function tradeOrderDocs() {
+  return new Map([..._tradeDocs, ..._docs]);
 }
 
 /** The parts of the link documents an import depends on (not the to-do lists or the books offered). */
@@ -1114,7 +1130,7 @@ function unlinkedHtml() {
 /** Trade accounts' orders placed on invoice terms that have no invoice yet (lib/trade-invoice.js). */
 function tradeInvoicesHtml() {
   const invoices = Object.keys(states || {}).flatMap(id => ((states[id] || {}).invoices) || []);
-  const list = tradeInvoicesToSend([..._docs.values()], invoices);
+  const list = tradeInvoicesToSend([...tradeOrderDocs().values()], invoices);
   if (!list.length) return '';
   const items = list.map(o => `<li class="wl-item">
         <div class="wl-item-head"><strong class="wl-num">${escapeHtml(o.number)}</strong><span class="wl-sub">${escapeHtml(o.name)}</span></div>
@@ -1130,7 +1146,7 @@ function tradeInvoicesHtml() {
 
 /** Opens the invoice editor filled in from a trade order (main.js listens and opens it). */
 function prepareTradeInvoice(orderId) {
-  const doc = _docs.get(orderId);
+  const doc = tradeOrderDocs().get(orderId);
   const draft = doc && doc.web ? tradeInvoiceDraft(doc.web, { today: localDay() }) : null;
   if (!draft) return;
   window.dispatchEvent(new CustomEvent('trade-invoice-open', { detail: { draft } }));

@@ -18,6 +18,13 @@ test("plans: partial below what is left, full at it, refused above it", () => {
   expect(chargedOf({ ...base, expectedAmountMinor: 4400, expectedCurrency: "usd" })).toEqual({ minor: 4400, currency: "USD" });
 });
 
+test("a past order brought over from the old shop is never refunded here (history only)", () => {
+  const past = { ...base, source: "import", paymentMethod: "Old shop" };
+  expect(() => refundPlan(past, null)).toThrow("old shop");
+  expect(() => refundPlan(past, 1000)).toThrow("old shop");
+  try { refundPlan(past, null); } catch (err) { expect(err.status).toBe(409); }
+});
+
 test("restock lines: printed books only, never more copies than are left", () => {
   expect(restockLinesFor(base, [{ index: 0, quantity: 1 }])).toEqual([{ index: 0, id: "a", variantId: null, quantity: 1 }]);
   expect(() => restockLinesFor(base, [{ index: 2, quantity: 1 }])).toThrow("not a printed book");

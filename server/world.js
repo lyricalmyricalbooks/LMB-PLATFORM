@@ -160,7 +160,8 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   });
   const feeLedger = firestoreFeeLedger(platform);
   const paymentWay = createPaymentWay({
-    stripe: platformBillingStripe({ env, fetch }), mode: "test", settings, customers: billingStores.customers, subscriptions: billingStores.subscriptions,
+    // The same Stripe mode as billing itself, from the one place that reads it.
+    stripe: platformBillingStripe({ env, fetch }), mode: readBillingConfig(env).mode, settings, customers: billingStores.customers, subscriptions: billingStores.subscriptions,
     registry, auditLog, email, now: nowMs, billing, feeLedger, live,
   });
   // Each Stripe event is counted per shop, for the control room's delivery counts and health (control-room/delivery.js).

@@ -12,6 +12,8 @@ export type BillingStatus = {
   plan: PlanId | null; planName: string; price: string; plusTax: boolean; status: string; access: string;
   trialEnd: string | null; trialDaysLeft: number | null; currentPeriodEnd: string | null; nextPaymentAt: string | null;
   cancelAtPeriodEnd: boolean; hasCard: boolean;
+  /** The day a cancel (asked for, or asked for now) closes the shop; a press paying as they sell leaves at its month's end. */
+  cancelEndsAt?: string | null;
   card: { brand: string; last4: string; expMonth: number | null; expYear: number | null; words: string } | null;
   appsClosing: { apps: string[]; at: string; downloadUntil: string } | null;
   /** Apps a plan change closed: their records can be downloaded until `downloadUntil`, then they are deleted. */
@@ -79,9 +81,14 @@ export async function billingCall<T = any>(plan: Pick<PlatformPlan, "hub" | "sho
 }
 
 /** "Free trial", "Paid and open"… the badge on the plan card, from billing's own status. */
-export function statusBadge(status: Pick<BillingStatus, "status" | "cancelAtPeriodEnd" | "paymentWay">): { tone: "info" | "success" | "warning" | "danger"; word: string } {
-  if (status.paymentWay === "payAsYouSell" && !["paused", "canceled", "incomplete_expired"].includes(status.status)) return { tone: "success", word: "Paying as you sell" };
-  if (status.cancelAtPeriodEnd && !["canceled", "incomplete_expired"].includes(status.status)) return { tone: "warning", word: "Ending" };
+export function statusBadge(status: Pick<BillingStatus, "status" | "cancelAtPeriodEnd" | "paymentWay"> & { access?: string }): { tone: "info" | "success" | "warning" | "danger"; word: string } {
+  // The shop's access when the platform gives it: a press paying as they sell is open with Stripe's plan ended.
+  const closed = status.access ? status.access === "closed" : ["canceled", "incomplete_expired"].includes(status.status);
+  const open = status.access ? status.access === "open" : !closed && status.status !== "paused";
+  // "Ending" is the press's own cancel: the platform never says so for the cancel that is a switch to pay as you sell.
+  if (status.cancelAtPeriodEnd && !closed) return { tone: "warning", word: "Ending" };
+  if (status.paymentWay === "payAsYouSell" && open) return { tone: "success", word: "Paying as you sell" };
+  if (closed) return { tone: "danger", word: "Closed" };
   switch (status.status) {
     case "trialing": return { tone: "info", word: "Free trial" };
     case "active": return { tone: "success", word: "Paid and open" };

@@ -72,7 +72,7 @@ function createTickRegistry() {
   const register = (options, handler) => {
     if (!options || !options.name) throw new Error("Every scheduled job needs a name");
     if (jobs.some(j => j.name === options.name)) throw new Error(`Scheduled job "${options.name}" is registered twice`);
-    jobs.push({ name: options.name, spec: parseSchedule(options.schedule, options.timeZone), secrets: options.secrets || [], handler });
+    jobs.push({ name: options.name, spec: parseSchedule(options.schedule, options.timeZone), secrets: options.secrets || [], timeoutSeconds: options.timeoutSeconds, handler });
     // The sweep keeps the options it declared (its secrets, memory), which the tests read.
     if (typeof handler === "function") handler.__opts = options;
     return handler;
@@ -80,30 +80,52 @@ function createTickRegistry() {
   return { jobs, register, secrets: () => [...new Set(jobs.flatMap(j => j.secrets))] };
 }
 
-/** Runs every sweep that is due and records the outcome. Never throws for one sweep's failure. */
+/** How long the tick itself may run (index.js `exports.tick`); a sweep's running mark older than this is a crashed run. */
+const TICK_TIMEOUT_SECONDS = 1800;
+
+/**
+ * Runs every sweep that is due and records the outcome. Never throws for one sweep's failure.
+ * Ticks can overlap (a slow sweep keeps one running past the next five-minute wake), so the due sweeps are claimed in
+ * one transaction against fresh state before any runs: a sweep another tick is still running (its `running` mark is
+ * younger than its timeout) is skipped, and each sweep writes back only its own entry, never a stale copy of the rest.
+ */
 async function runTick({ jobs, db, now = Date.now(), log = console }) {
   const ref = db.collection("systemStatus").doc("tick");
-  const snap = await ref.get().catch(() => null);
-  const state = (snap && snap.exists && snap.data() && snap.data().jobs) || {};
-  const ran = [];
-  const next = { ...state };
-  await Promise.all(jobs.map(async job => {
-    const last = state[job.name] && state[job.name].at || 0;
-    if (!isDue(job.spec, now, last)) {
-      if (!last && job.spec.kind !== "interval") next[job.name] = { at: now, ok: true, started: true };
-      return;
+  const claimed = await db.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    const state = (snap && snap.exists && snap.data() && snap.data().jobs) || {};
+    const marks = {};
+    const due = [];
+    for (const job of jobs) {
+      const entry = state[job.name] || {};
+      const timeoutMs = (Number(job.timeoutSeconds) || TICK_TIMEOUT_SECONDS) * 1000;
+      if (entry.running && now - entry.running < timeoutMs) continue;
+      const last = entry.at || 0;
+      if (!isDue(job.spec, now, last)) {
+        if (!last && job.spec.kind !== "interval") marks[job.name] = { at: now, ok: true, started: true };
+        continue;
+      }
+      marks[job.name] = { running: now };
+      due.push(job);
     }
+    tx.set(ref, { jobs: marks, lastTickAt: now }, { merge: true });
+    return due;
+  });
+  const ran = [];
+  await Promise.all(claimed.map(async job => {
+    let record;
     try {
       await job.handler();
-      next[job.name] = { at: now, ok: true };
+      record = { at: now, ok: true, error: null, running: null };
     } catch (err) {
       log.error(`tick: ${job.name} failed:`, err && err.message);
-      next[job.name] = { at: now, ok: false, error: String((err && err.message) || err).slice(0, 300) };
+      record = { at: now, ok: false, error: String((err && err.message) || err).slice(0, 300), running: null };
     }
     ran.push(job.name);
+    await ref.set({ jobs: { [job.name]: record } }, { merge: true })
+      .catch(err => log.error(`tick: could not record ${job.name}:`, err && err.message));
   }));
-  await ref.set({ jobs: next, lastTickAt: now }, { merge: true });
   return { ran };
 }
 
-module.exports = { TICK_EVERY_MINUTES, parseSchedule, isDue, lastOccurrence, createTickRegistry, runTick };
+module.exports = { TICK_EVERY_MINUTES, TICK_TIMEOUT_SECONDS, parseSchedule, isDue, lastOccurrence, createTickRegistry, runTick };

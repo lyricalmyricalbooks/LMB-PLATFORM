@@ -123,12 +123,29 @@ export function parseMoneyToMinor(text: string): number | null {
  * payment's currency (CAD prices scaled by what the order was charged), capped at what is left.
  */
 export function returnedValueMinor(order: any, received: Record<number, number>): number {
+  return Math.min(copiesValueMinor(order, received), refundableMinor(order));
+}
+
+/**
+ * The price of these copies ({ line index: copies }) in the payment's currency, in minor units, not capped: CAD line
+ * prices scaled by what the order was charged. Taking items off an order (code plan 24.6) fills its amount from this.
+ */
+export function copiesValueMinor(order: any, copies: Record<number, number>): number {
   const items = Array.isArray(order?.items) ? order.items : [];
-  const valueCad = Object.entries(received || {}).reduce((sum, [index, qty]) => sum + (Number(items[Number(index)]?.price) || 0) * Math.max(0, Number(qty) || 0), 0);
+  const valueCad = Object.entries(copies || {}).reduce((sum, [index, qty]) => sum + (Number(items[Number(index)]?.price) || 0) * Math.max(0, Number(qty) || 0), 0);
   const charged = chargedOf(order);
   const totalCad = Number(order?.total) || 0;
-  const minor = charged.currency === "CAD" || !(totalCad > 0) ? Math.round(valueCad * 100) : Math.round(valueCad * charged.minor / totalCad);
-  return Math.min(minor, refundableMinor(order));
+  return charged.currency === "CAD" || !(totalCad > 0) ? Math.round(valueCad * 100) : Math.round(valueCad * charged.minor / totalCad);
+}
+
+/**
+ * Why a "Take items off this order" refund can't go ahead yet, or "". A blank amount means "refund everything" in the
+ * refund dialog, which would cancel the whole order, so taking items off needs a ticked line and an amount.
+ */
+export function takeOffProblem(copies: Record<number, number>, amountText: string): string {
+  if (!Object.values(copies || {}).some(q => Number(q) > 0)) return "Tick what the customer will no longer get.";
+  if (!String(amountText ?? "").trim()) return "Type the amount to refund for these items.";
+  return "";
 }
 
 /** Plain step labels for the return workflow instead of raw state names. */

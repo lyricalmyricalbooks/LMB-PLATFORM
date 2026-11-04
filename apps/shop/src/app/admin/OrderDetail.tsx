@@ -33,7 +33,7 @@ import { PastImportUndo, PastOrderRate } from "./PastOrdersDialog";
 import { refreshOrdersCache } from "./Orders";
 import { printOrders, type SlipShop } from "./orderPrint";
 import { getCopy } from "../features/site/storeCopy";
-import { discountLabel, giftCardConflictOpen, giftCardPaid, issuedGiftCards, linePricing, chargedOf, refundedMinor, refundableMinor, formatMinor, parseMoneyToMinor, customerMailto, customerTrackUrl, telHref } from "./orderLines";
+import { discountLabel, giftCardConflictOpen, giftCardPaid, issuedGiftCards, copiesValueMinor, takeOffProblem, chargedOf, refundedMinor, refundableMinor, formatMinor, parseMoneyToMinor, customerMailto, customerTrackUrl, telHref } from "./orderLines";
 import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, ChevronLeft, ChevronRight, Copy, ExternalLink } from "lucide-react";
 import { adminApi } from "./api";
@@ -191,7 +191,8 @@ export function OrderDetail({
     const next = { ...refundRestockLines, [index]: copies };
     setRefundRestockLines(next);
     if (!takeOffAmount.current) return;
-    const minor = Object.entries(next).reduce((sum, [i, q]) => sum + Math.round((linePricing(order?.items?.[Number(i)] || {}).unit || 0) * 100) * q, 0);
+    // In the payment's currency: line prices are in CAD, a US-dollar order is refunded in US dollars.
+    const minor = copiesValueMinor(order, next);
     setRefundAmount(minor > 0 ? (minor / 100).toFixed(2) : "");
   };
   const [confirmAction, setConfirmAction] = useState<null | "markPaid" | "mismatch" | "giftConflict" | "requestHandled" | "resendConfirmation" | "resetDownloads" | "restockRefunded" | "invoicePaid">(null);
@@ -559,10 +560,15 @@ export function OrderDetail({
   function refundAmountPlan(): { partial: boolean; minor: number; currency: string; error: string } {
     const charged = order ? chargedOf(order) : { minor: 0, currency: "CAD" };
     const left = order ? refundableMinor(order) : 0;
+    const takeOffError = takeOff ? takeOffProblem(refundRestockLines, refundAmount) : "";
+    if (takeOffError) return { partial: false, minor: 0, currency: charged.currency, error: takeOffError };
     if (!refundAmount.trim()) return { partial: false, minor: left, currency: charged.currency, error: "" };
     const minor = parseMoneyToMinor(refundAmount);
     if (minor == null || minor <= 0) return { partial: false, minor: 0, currency: charged.currency, error: "Enter an amount like 12.50." };
     if (minor > left) return { partial: false, minor, currency: charged.currency, error: `At most ${formatMinor(left, charged.currency)} can be refunded.` };
+    // Taking items off keeps the rest of the order going: everything left would be a full refund, which cancels the
+    // order and puts every copy back, including any part already sent.
+    if (takeOff && minor >= left) return { partial: false, minor, currency: charged.currency, error: "That's everything left to refund. Use Refund order instead, which cancels the whole order." };
     return { partial: minor < left, minor, currency: charged.currency, error: "" };
   }
 
@@ -800,7 +806,7 @@ export function OrderDetail({
                   ...(canMarkManualPaid(order)
                     ? [{ label: "Payment received — mark paid", onSelect: () => setConfirmAction("markPaid") }]
                     : []),
-                  ...(paid && !order.isTest
+                  ...(paid && !order.isTest && order.source !== "import"
                     ? [{ label: "Resend order confirmation", onSelect: () => setConfirmAction("resendConfirmation") }]
                     : []),
                   // Each digital book can be downloaded a limited number of times; this gives the buyer a fresh allowance.
@@ -825,7 +831,8 @@ export function OrderDetail({
                         },
                       ]
                     : []),
-                  ...(paid
+                  // A past order brought over from the old shop is history only: it was paid and refunded there.
+                  ...(order.source === "import" ? [] : paid
                     ? [
                         ...(!["In transit", "Completed"].includes(queueOf(order)) && (order.items || []).some((item: any, index: number) => !isDigitalItem(item) && copiesToSend(order, index) > 0)
                           ? [{

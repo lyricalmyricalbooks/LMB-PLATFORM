@@ -119,16 +119,18 @@ function privacyActions({
     }
   }
 
-  // Everything the shop holds about one email address (any capitalisation: see privacyData.js).
-  async function personalDataFor(email) {
+  // Everything the shop holds about one email address (any capitalisation: see privacyData.js). `scan: false` (the
+  // shopper's own copy) uses indexed lookups only, so a signed-in visitor can never make the shop read whole collections.
+  async function personalDataFor(email, { scan = true } = {}) {
+    const find = (collection, field, options = {}) => findByEmailData(db, collection, field, email, { ...options, scan });
     const [orders, alerts, carts, contacts, messages, newsletter, queuedEmails, emailRows, giftCards] = await Promise.all([
-      findByEmailData(db, "orders", "customer.email", email), findByEmailData(db, "stockAlerts", "email", email),
-      findByEmailData(db, "abandoned-carts", "email", email), findByEmailData(db, "reviewContacts", "email", email),
-      findByEmailData(db, "contactMessages", "email", email), db.collection("newsletter").doc(email).get(),
+      find("orders", "customer.email"), find("stockAlerts", "email"),
+      find("abandoned-carts", "email"), find("reviewContacts", "email"),
+      find("contactMessages", "email"), db.collection("newsletter").doc(email).get(),
       // Emails waiting in the retry queue to or about this person, and their delivery-log rows
       // (`to` can list several recipients, so it is matched as a list).
       db.collection("emailOutbox").where("toLower", "array-contains", email).get().then(s => s.docs),
-      findByEmailData(db, "emailLog", "to", email, { contains: true }),
+      find("emailLog", "to", { contains: true }),
       giftCardsFor(db, email),
     ]);
     // Private fulfilment notes kept about the person's orders (admin-only order-operations).
@@ -178,7 +180,9 @@ function privacyActions({
     if (!decoded || !email || decoded.email_verified === false) return res.status(401).json({ error: "sign_in" });
     try {
       if (req.body?.action === "myDataExport") {
-        return res.status(200).json(exportBody(await personalDataFor(email), email));
+        // A few copies an hour per account, on top of the per-connection limit above.
+        if (!(await hitLimit(db, "myDataExport", req, LIMITS.myDataExport, { key: `uid:${decoded.uid || email}` }))) return res.status(429).json({ error: "too_many" });
+        return res.status(200).json(exportBody(await personalDataFor(email, { scan: false }), email));
       }
       const open = await db.collection("privacyRequests").where("email", "==", email).where("status", "==", "open").get();
       if (open.docs.some(d => d.data()?.verified === true && d.data()?.type === "delete")) return res.status(200).json({ ok: true, already: true });

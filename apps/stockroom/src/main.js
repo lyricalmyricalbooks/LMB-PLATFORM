@@ -1150,7 +1150,7 @@ import { STORE_REVERSAL_PENDING_KEY } from './lib/store-reversals.js';
 import { DEFAULT_SHOP_PROFILE, fileStem, hasWebsite, readShopProfile, shopProfile, switchOn } from './lib/shop-profile.js';
 import { guideApplies, guideHtml, guideSteps, readGuide, showGuide, writeGuide } from './lib/setup-guide.js';
 import { readReady, readyApplies, readyHtml, readyLines, showReady, writeReady } from './lib/stockroom-ready.js';
-import { catalogGroups, freeItemId, gridOffers, groupOf, sizeItem } from './lib/product-groups.js';
+import { catalogGroups, freeGridGroupId, freeItemId, gridOffers, groupOf, sizeItem } from './lib/product-groups.js';
 import { applyPageWords, noteSellsAnswer, sellsBooks, words, wordsReported, wordsToReport } from './lib/shop-words.js';
 import { applyWebsiteParts } from './lib/website-parts.js';
 // The page's own words follow what the shop sells (plan 10.23): "product" and "maker" for a shop that doesn't sell books.
@@ -2501,10 +2501,11 @@ async function saveBookFromModal() {
 
   // Two books with one title share one tab on the Google Sheet, so their sales
   // and expenses mix there (the sheet tells books apart by title alone).
-  const titleKey = sheetTabKey($('nb-title').value);
-  const titleTwin = Object.values(BOOKS).find(b => b && b.id !== editingBookId && b.id !== id && !isTestBook(b) && sheetTabKey(b.title) === titleKey);
+  // A product typed with sizes and colours saves one title per combination: every one of them is checked.
+  const titleKeys = new Set((gridMore.length ? gridMore.map(o => `${gridBase} · ${o.edition}`) : [$('nb-title').value]).map(sheetTabKey));
+  const titleTwin = Object.values(BOOKS).find(b => b && b.id !== editingBookId && b.id !== id && !isTestBook(b) && titleKeys.has(sheetTabKey(b.title)));
   if (titleTwin) {
-    fieldError('nb-title', `“${titleTwin.title}” already has this title. Add something to tell them apart, such as the edition — your Google Sheet keeps one tab per title.`);
+    fieldError('nb-title', `“${titleTwin.title}” already has ${gridMore.length ? 'one of the titles these sizes and colours would get' : 'this title'}. Add something to tell them apart, such as the edition — your Google Sheet keeps one tab per title.`);
     switchBookModalTab('general');
     $('nb-title').focus();
     return;
@@ -2546,7 +2547,7 @@ async function saveBookFromModal() {
   };
   // A size of a website product joins its product's group (plan 10.5).
   if (!editingBookId && _bookFromWebsiteGroup) book.group = _bookFromWebsiteGroup;
-  if (gridMore.length) book.group = { id: `grid-${freeItemId(gridBase, new Set())}`, name: gridBase };
+  if (gridMore.length) book.group = { id: freeGridGroupId(gridBase, Object.values(BOOKS)), name: gridBase };
 
 
   // A currency change re-denominates every figure already on the books, so ask

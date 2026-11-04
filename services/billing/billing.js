@@ -56,7 +56,7 @@ import { createHash } from "node:crypto";
 import { verifySignature } from "../payments/stripeSignature.js";
 import { isPlan, planPrice, PLAN_APPS, PLAN_IDS } from "./plans.js";
 import { taxWatch as watchTaxLines, WATCH_WINDOW_DAYS } from "./taxWatch.js";
-import { currentPaymentWay, payAsYouSellAccess } from "./paymentWayState.js";
+import { cancelEndsAt, currentPaymentWay, payAsYouSellAccess, payAsYouSellEnds, planEnding } from "./paymentWayState.js";
 import { claimEvent, releaseEvent, IN_PROGRESS_STATUS } from "./eventClaims.js";
 import { CARD_WARNING_DAYS, cardEnds, cardRunningOut, cardWarningDue } from "./cardExpiry.js";
 import { leavingAnswer } from "./leaving.js";
@@ -66,7 +66,7 @@ import { DOWNLOAD_ENDING_DAYS, closedAppSteps, downloadHolds, dropReason, keepLi
 import { cardWords } from "./cards.js";
 import { withRetries } from "./stripeRetry.js";
 import { ensureFoundingCoupon, foundingAmount, foundingOfferOf } from "./founding.js";
-import { createBillingHub } from "./hub.js";
+import { createBillingHub, invoiceTax } from "./hub.js";
 import { siteUrlOf } from "../domains/names.js";
 import { PAY_AS_YOU_SELL_PLANS } from "../payments/payAsYouSell.js";
 
@@ -206,8 +206,10 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
   // The copy on the registry row, once the row exists (the sign-up's trial starts before the shop maker makes it).
   async function mirror(shopId, row) {
     if (!(await registry.getShop(shopId))) return;
-    const { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, hasCard } = row;
-    await registry.updateShop(shopId, { billing: { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, hasCard, percentOff: row.founding === true ? row.foundingPercentOff ?? null : null, appsClosing: row.appsClosing ?? null, appDrops: row.appDrops ?? [], updatedAt: row.updatedAt, leaving: row.leaving ?? null, troubleSince: row.troubleSince ?? null, language: row.language ?? null, province: row.province ?? null } });
+    const { plan, status, access, trialEnd, currentPeriodEnd, hasCard } = row;
+    // "Cancelled" is the press's own choice: Stripe's cancel of a pay-as-you-sell plan is the switch (paymentWayState.js).
+    const { cancelling: cancelAtPeriodEnd, endsAt } = planEnding(row);
+    await registry.updateShop(shopId, { billing: { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, endsAt, hasCard, percentOff: row.founding === true ? row.foundingPercentOff ?? null : null, appsClosing: row.appsClosing ?? null, appDrops: row.appDrops ?? [], updatedAt: row.updatedAt, leaving: row.leaving ?? null, troubleSince: row.troubleSince ?? null, language: row.language ?? null, province: row.province ?? null } });
   }
 
   // The shop's own platform/plan and platform/status (shopPlan.js), once its database exists.
@@ -444,6 +446,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     }
     // Invoices in the same language (a shop billed before this was kept, or a change Stripe didn't take yesterday).
     await syncInvoiceLanguage(row.shopId);
+    await endPayAsYouSell(row);
     if (Object.keys(row.closedApps ?? {}).length) await afterClosing(row.shopId);
     if (!row.appsClosing?.apps?.length) return;
     // A week before: one reminder, with the way to keep it (keepClosingApps), for a press who never opens the admin.
@@ -556,6 +559,45 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     return save(shopId, { foundingOn: row.subscriptionId }, "founding-discount-on");
   }
 
+  /**
+   * Cancelling while paying as they sell (6.19): the terms stop at the end of the current billing month (or before fees
+   * start, when they haven't yet), the shop stays open until then, and the daily sweep closes it after (sweepOne). No
+   * subscription runs, so Stripe only makes sure a plan still waiting to end (the switch) does end.
+   */
+  async function cancelPayAsYouSell(shopId, row, leaving) {
+    if (payAsYouSellEnds(row)) return row;
+    const until = cancelEndsAt(row, now());
+    let fields = {};
+    if (!ENDED.has(row.status) && !row.cancelAtPeriodEnd) {
+      fields = fromSubscription(await call("POST", `/v1/subscriptions/${row.subscriptionId}`, { params: { cancel_at_period_end: true }, idempotencyKey: `pays-${shopId}-leave-${row.subscriptionId}` }));
+      if (!fields.plan) delete fields.plan;
+    }
+    const terms = { ...row.payAsYouSell, until };
+    if (await registry.getShop(shopId)) await registry.updateShop(shopId, { payAsYouSell: terms });
+    const saved = await save(shopId, { ...fields, payAsYouSell: terms, leaving }, null);
+    await logChange(shopId, "cancel-requested", { status: saved.status, plan: saved.plan, access: saved.access, paymentWay: "payAsYouSell", until, ...(leaving ? { reason: leaving.reason, words: leaving.words } : {}) });
+    await notify(shopId, "subscription-cancelled", { date: dateText(until) }, `${shopId}/cancel/pays/${until}/${at()}`);
+    return saved;
+  }
+
+  /**
+   * Can Stripe Tax place this press? Only with an address on the account's customer (the card's billing address with tax
+   * on, or the billing details): asking for tax without one makes Stripe refuse the whole change.
+   */
+  async function taxLocated(row) {
+    const customer = await call("GET", `/v1/customers/${row.customerId}`);
+    return Boolean(customer?.address?.country || customer?.shipping?.address?.country);
+  }
+
+  /** A press paying as they sell whose cancel has come: the shop closes, and the closing sweep (closing.js) takes over. */
+  async function endPayAsYouSell(row) {
+    const until = payAsYouSellEnds(row);
+    if (!until || now() < Date.parse(until) || row.access !== "open") return;
+    // A subscription still running ends on its own day, and Stripe's event closes the shop then.
+    if (ACCESS[row.status] === "open") return;
+    await save(row.shopId, { access: ACCESS[row.status] ?? "paused" }, "pay-as-you-sell-ended");
+  }
+
   const hub = createBillingHub({
     call, rowFor, save, logChange, subscriptions, settings, tax, BillingError, money: moneyText, cardNowPays, syncInvoiceLanguage,
     iso, nowIso: at,
@@ -572,6 +614,19 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     claimFounding,
     applyFounding,
     ...hub,
+
+    /**
+     * Is this person the one whose account pays for the shop's plan? The card and billing details sit on that account's
+     * Stripe customer, shared by every shop it pays for, so a co-owner is not. `payer` is { accountId?, email }: the
+     * platform's sign-in gives both, the shop admin's only the email. A plan with no account on record answers true.
+     */
+    async paidBy(shopId, { accountId = null, email = null } = {}) {
+      const row = await subscriptions.get(shopId);
+      if (!row?.accountId) return true;
+      if (accountId && accountId === row.accountId) return true;
+      const holder = String((await customers.get(row.accountId))?.email ?? "").toLowerCase();
+      return Boolean(holder) && typeof email === "string" && email.toLowerCase() === holder;
+    },
 
     /**
      * Writes the shop's copy of its plan again (the shop maker once the database exists; the closing sweep), and the
@@ -666,6 +721,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     async cancel({ shopId, reason, words }) {
       const leaving = leavingAnswer({ reason, words, at: at() });
       const row = await rowFor(shopId);
+      if (row.paymentWay === "payAsYouSell" && row.payAsYouSell) return cancelPayAsYouSell(shopId, row, leaving);
       if (ENDED.has(row.status)) return row;
       if (row.cancelAtPeriodEnd) return row;
       const sub = await call("POST", `/v1/subscriptions/${row.subscriptionId}`, { params: { cancel_at_period_end: true } });
@@ -692,6 +748,15 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     /** Undoes a cancel that hasn't happened yet. */
     async keep({ shopId }) {
       const row = await rowFor(shopId);
+      // Paying as they sell, Stripe's cancel is the switch itself: undoing it would bill monthly on top of the fees.
+      if (row.paymentWay === "payAsYouSell") {
+        const until = payAsYouSellEnds(row);
+        if (!until) throw new BillingError(409, "You pay as you sell, so there's no cancel to undo. To pay monthly instead, switch under How you pay.");
+        if (now() >= Date.parse(until)) return row;
+        const terms = { ...row.payAsYouSell, until: null };
+        if (await registry.getShop(shopId)) await registry.updateShop(shopId, { payAsYouSell: terms });
+        return save(shopId, { payAsYouSell: terms, ...(row.leaving ? { leaving: { ...row.leaving, keptAt: at() } } : {}) }, "cancel-undone");
+      }
       if (!row.cancelAtPeriodEnd || ENDED.has(row.status)) return row;
       const sub = await call("POST", `/v1/subscriptions/${row.subscriptionId}`, { params: { cancel_at_period_end: false } });
       // The press's answer stays, marked as one who stayed (19.8).
@@ -739,7 +804,8 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
           items: [{ id: row.itemId, price: await ensurePrice(plan) }],
           proration_behavior: move.prorate ? "create_prorations" : "none",
           metadata: { lmb_plan: plan },
-          ...(tax && row.hasCard ? { automatic_tax: { enabled: true } } : {}),
+          // Only once Stripe Tax can place the press: a card added while tax was off left no address on the customer.
+          ...(tax && row.hasCard && (await taxLocated(row)) ? { automatic_tax: { enabled: true } } : {}),
         },
         idempotencyKey: `plan-${shopId}-${changes}-${plan}`,
       });
@@ -771,7 +837,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       for (let page = 0; page < 200; page += 1) {
         const list = await call("GET", "/v1/invoices", { params: { status: "paid", created: { gte: since }, limit: 100, ...(after ? { starting_after: after } : {}) } });
         for (const inv of list?.data ?? []) {
-          invoices.push({ created: inv.created, amount: (inv.total ?? 0) - (inv.tax ?? 0), currency: inv.currency, state: inv.customer_address?.state });
+          invoices.push({ created: inv.created, amount: (inv.total ?? 0) - invoiceTax(inv), currency: inv.currency, state: inv.customer_address?.state });
         }
         if (!list?.has_more || !list.data?.length) break;
         after = list.data.at(-1).id;
@@ -791,7 +857,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
           number: invoice.number ?? "",
           date: iso(invoice.created),
           amount: moneyText(invoice.total ?? invoice.amount_due ?? 0, invoice.currency ?? settings.currency),
-          tax: invoice.tax ? moneyText(invoice.tax, invoice.currency ?? settings.currency) : "",
+          tax: invoiceTax(invoice) ? moneyText(invoiceTax(invoice), invoice.currency ?? settings.currency) : "",
           status: invoice.status,
           pdfUrl: httpsOrNull(invoice.invoice_pdf),
           pageUrl: httpsOrNull(invoice.hosted_invoice_url),
@@ -808,7 +874,10 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       const nextPaymentAt = ended || row.cancelAtPeriodEnd || !row.hasCard ? null : row.status === "trialing" ? row.trialEnd : PAID.has(row.status) ? row.currentPeriodEnd : null;
       return {
         plan: row.plan, planName: price?.name ?? "", price: price?.priceText ?? "", plusTax: tax, status: row.status, access: row.access,
-        trialEnd: row.trialEnd, trialDaysLeft, currentPeriodEnd: row.currentPeriodEnd, nextPaymentAt, cancelAtPeriodEnd: row.cancelAtPeriodEnd,
+        trialEnd: row.trialEnd, trialDaysLeft, currentPeriodEnd: row.currentPeriodEnd, nextPaymentAt,
+        // Cancelled by the press (never Stripe's cancel that is a switch to pay as you sell), and the day a cancel (asked
+        // for, or asked for now) closes the shop.
+        cancelAtPeriodEnd: planEnding(row).cancelling, cancelEndsAt: cancelEndsAt(row, now()),
         hasCard: row.hasCard, card: row.hasCard && row.card ? { brand: row.card.brand, last4: row.card.last4, expMonth: row.card.expMonth, expYear: row.card.expYear, words: cardWords(row.card) } : null,
         appsClosing: row.appsClosing ?? null, closedApps: row.closedApps ?? {},
         plans: PLAN_IDS.map((id) => { const p = planPrice(id, settings); return { plan: id, name: p.name, price: p.priceText, apps: APPS.filter((app) => PLAN_APPS[id][app]) }; }),

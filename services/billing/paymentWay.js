@@ -23,7 +23,7 @@ import { ACCESS, BillingError, dateText } from "./billing.js";
 import { planPrice } from "./plans.js";
 import { liveSettings, priceText } from "../settings.js";
 import { PAY_AS_YOU_SELL_PLANS, billingMonth, createFeeLedger } from "../payments/payAsYouSell.js";
-import { currentPaymentWay, payAsYouSellAccess } from "./paymentWayState.js";
+import { currentPaymentWay, payAsYouSellAccess, planEnding } from "./paymentWayState.js";
 
 export { currentPaymentWay, payAsYouSellAccess };
 
@@ -124,7 +124,7 @@ export function createPaymentWay({ stripe, mode = "test", settings, customers, s
     row.access = access;
     await subscriptions.set(shopId, row);
     const shop = await registry.getShop(shopId);
-    if (shop) await registry.updateShop(shopId, { payAsYouSell: terms, billing: { ...(shop.billing ?? {}), status: row.status, access, cancelAtPeriodEnd: row.cancelAtPeriodEnd, trialEnd: row.trialEnd, currentPeriodEnd: row.currentPeriodEnd, hasCard: row.hasCard, updatedAt: row.updatedAt } });
+    if (shop) await registry.updateShop(shopId, { payAsYouSell: terms, billing: { ...(shop.billing ?? {}), status: row.status, access, cancelAtPeriodEnd: planEnding(row).cancelling, endsAt: planEnding(row).endsAt, trialEnd: row.trialEnd, currentPeriodEnd: row.currentPeriodEnd, hasCard: row.hasCard, updatedAt: row.updatedAt } });
     await logChange(shopId, what, { paymentWay: row.paymentWay, ...(terms ? { basisPoints: terms.basisPoints, capMinor: terms.capMinor, from: terms.from, until: terms.until ?? null } : {}) });
     return row;
   }

@@ -143,7 +143,7 @@ test("invoices come newest first with Stripe's PDF links; drafts and odd links a
   const row = await w.start();
   assert.deepEqual(await w.billing.invoices("nobody"), []);
   w.stripe.addInvoice(row.subscriptionId, { created: START / 1000 - 86400, total: 3900 });
-  w.stripe.addInvoice(row.subscriptionId, { created: START / 1000, total: 4407, tax: 507 });
+  w.stripe.addInvoice(row.subscriptionId, { created: START / 1000, total: 4407, total_taxes: [{ amount: 507 }] });
   w.stripe.addInvoice(row.subscriptionId, { status: "draft" });
   w.stripe.addInvoice(row.subscriptionId, { created: START / 1000 - 2 * 86400, invoice_pdf: "javascript:alert(1)" });
   w.stripe.addInvoice("sub_someone_else");
@@ -218,6 +218,24 @@ test("a price made before tax was turned on is marked 'plus tax' once", async ()
   await tax.ensurePrice("both");
   assert.equal([...off.stripe.world.prices.values()][0].tax_behavior, "exclusive");
   assert.equal(off.stripe.world.prices.size, 1);
+});
+
+test("tax turned on later: a press whose card came while it was off can still change plan, and is taxed once an address is saved", async () => {
+  const off = make();
+  const row = await off.start();
+  await off.payMonth(row);
+  assert.equal([...off.stripe.world.customers.values()][0].address, undefined, "tax off: no address went on the customer");
+  const taxed = createBilling({
+    stripe: createStripeApi({ fetch: off.stripe.fetch, keys: { test: "sk_test_fake", live: null } }),
+    mode: "test", settings: platformSettings({}), ...off.stores, registry: off.registry, auditLog: off.auditLog, email: off.email, tax: true,
+  });
+  const changed = await taxed.changePlan({ shopId: SHOP, plan: "shop" });
+  assert.equal(changed.changed, true, "Stripe isn't asked for tax it can't place");
+  assert.equal(lastPlanRequest(off.stripe).params["automatic_tax[enabled]"], undefined);
+  // The billing details give the address: Stripe Tax starts, and the next plan change keeps it on.
+  await taxed.saveBillingDetails({ shopId: SHOP, name: "Moth Press", email: "books@moth.example", address: { line1: "1 King St W", city: "Toronto", state: "ON", postalCode: "M5H 1A1" }, taxNumber: "" });
+  await taxed.changePlan({ shopId: SHOP, plan: "both" });
+  assert.equal(lastPlanRequest(off.stripe).params["automatic_tax[enabled]"], "true");
 });
 
 test("the plan that opens exactly some apps", () => {

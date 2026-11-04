@@ -39,6 +39,8 @@
 import { createHash } from "node:crypto";
 import { personOf, SignupError } from "../signup/signup.js";
 import { paymentWayView } from "../services/billing/paymentWay.js";
+import { planEnding } from "../services/billing/paymentWayState.js";
+import { BillingError } from "../services/billing/billing.js";
 import { ownerTwoStepProblem } from "./twoStep.js";
 
 /** This shop's Plan & billing page: the one place a card page may send people back to. */
@@ -49,15 +51,23 @@ export const billingPage = (settings, shopId) => `${settings.platformUrl}/accoun
  * a test of the body) marks the changes a paid plan's owner needs two-step sign-in for (plan 14.1); looking is free.
  */
 export function billingCalls({ billing, paymentWay = null, settings, exports = null }) {
+  // The card and the billing details are the paying account's (one Stripe customer for every shop it pays for), so only
+  // that person changes them: a co-owner's card would otherwise pay the account holder's other shops too.
+  const payerOnly = (run) => async (shopId, body, context) => {
+    if (typeof billing.paidBy === "function" && !(await billing.paidBy(shopId, context?.payer ?? {}))) {
+      throw new BillingError(403, "Only the person whose account pays for this plan can change its card or billing details. Ask them to sign in and do it.");
+    }
+    return run(shopId, body, context);
+  };
   const calls = {
     status: { run: async (shopId) => ({ billing: await billing.status(shopId) }) },
     "email-language": { run: async (shopId, { language }) => billing.setEmailLanguage({ shopId, language }) },
-    card: { run: async (shopId, _body, { returnUrl }) => billing.cardLink({ shopId, returnUrl }), secondStep: true },
+    card: { run: payerOnly(async (shopId, _body, { returnUrl }) => billing.cardLink({ shopId, returnUrl })), secondStep: true },
     cancel: {
-      run: async (shopId, { reason, words }) => ({ cancelAtPeriodEnd: Boolean((await billing.cancel({ shopId, reason, words })).cancelAtPeriodEnd) }),
+      run: async (shopId, { reason, words }) => ({ cancelAtPeriodEnd: planEnding(await billing.cancel({ shopId, reason, words })).cancelling }),
       secondStep: true,
     },
-    keep: { run: async (shopId) => ({ cancelAtPeriodEnd: Boolean((await billing.keep({ shopId })).cancelAtPeriodEnd) }) },
+    keep: { run: async (shopId) => ({ cancelAtPeriodEnd: planEnding(await billing.keep({ shopId })).cancelling }) },
     "change-plan": {
       run: async (shopId, { plan, preview, reason }) => {
         if (preview === true) return { preview: await billing.changePlan({ shopId, plan, preview: true }) };
@@ -87,10 +97,10 @@ export function billingCalls({ billing, paymentWay = null, settings, exports = n
     const cardId = (body) => (typeof body.cardId === "string" ? body.cardId : "");
     Object.assign(calls, {
       "payment-methods": { run: async (shopId) => billing.paymentMethods(shopId) },
-      "payment-methods/primary": { run: async (shopId, body) => billing.makePrimary({ shopId, cardId: cardId(body) }), secondStep: true },
-      "payment-methods/remove": { run: async (shopId, body) => billing.removeCard({ shopId, cardId: cardId(body) }), secondStep: true },
+      "payment-methods/primary": { run: payerOnly(async (shopId, body) => billing.makePrimary({ shopId, cardId: cardId(body) })), secondStep: true },
+      "payment-methods/remove": { run: payerOnly(async (shopId, body) => billing.removeCard({ shopId, cardId: cardId(body) })), secondStep: true },
       details: { run: async (shopId) => ({ details: await billing.billingDetails(shopId) }) },
-      "details/save": { run: async (shopId, { name, email, address, taxNumber }) => billing.saveBillingDetails({ shopId, name, email, address, taxNumber }), secondStep: true },
+      "details/save": { run: payerOnly(async (shopId, { name, email, address, taxNumber }) => billing.saveBillingDetails({ shopId, name, email, address, taxNumber })), secondStep: true },
       upcoming: { run: async (shopId) => ({ bill: await billing.upcomingBill(shopId) }) },
       "pay-now": { run: async (shopId) => billing.payNow({ shopId }) },
     });
@@ -143,7 +153,7 @@ export function billingRoutes({ billing, paymentWay = null, accounts, registry, 
         throw new SignupError(problem.status, problem.message);
       }
       try {
-        const answer = await entry.run(shopId, asked, { returnUrl: billingPage(settings, shopId), claims });
+        const answer = await entry.run(shopId, asked, { returnUrl: billingPage(settings, shopId), claims, payer: { accountId: person.accountId, email: person.email } });
         await log(shopId, call, person.email, "done");
         return answer;
       } catch (error) {

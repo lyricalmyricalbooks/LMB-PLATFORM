@@ -2,6 +2,7 @@
 // imported anywhere and unit-tested in isolation.
 
 import { roundCents } from './money.js';
+import { localDay } from './calendar-day.js';
 
 /** @typedef {import('../types/ledger').BookState} BookState */
 /** @typedef {import('../types/ledger').Book} Book */
@@ -412,7 +413,8 @@ export function transferAuthorStock(s, book, delta, note = '', isoDate = '') {
   /** @type {StockTransfer} */
   const transfer = {
     id: 'st_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
-    date: (isoDate && isoDate.slice(0, 10)) || new Date().toISOString().slice(0, 10),
+    // The owner's own calendar day: a UTC date is already tomorrow on a Canadian evening.
+    date: (isoDate && localDay(isoDate)) || localDay(),
     delta: d,
     direction: d > 0 ? 'to_author' : 'from_author',
     qty: Math.abs(d),

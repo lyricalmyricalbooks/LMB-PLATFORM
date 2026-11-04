@@ -60,7 +60,7 @@ import { bagPreorder } from "./features/site/preorder";
 import { discountAmountFor, discountableItems, pickAutomaticDiscount } from "./features/site/discountMath";
 import { expandDiscountCategories } from "./features/site/discountCategories";
 import { clearSharedDiscount, sharedDiscount } from "./features/site/sharedDiscount";
-import { taxPartsByKind } from "../shared/taxByKind";
+import { discountedLineValues, taxPartsByKind } from "../shared/taxByKind";
 import { productKind } from "../shared/productOptions";
 import { bagNote, orderNoteBoxOn, rememberBagNote } from "./features/site/bagNote";
 import { isGiftCardProduct, bundleComponents, bundleWeightGrams } from "./features/site/promotions";
@@ -897,7 +897,10 @@ export function Checkout() {
     // Plan 12.2: a rate that lists product kinds taxes only those (src/shared/taxByKind.ts); with none listed this is the
     // single rate on the whole taxable amount it has always been.
     const rateFor = (rates: any[], address: any) => matchTaxRate(rates, address?.country, address?.state);
-    const kindLines = (lines: any[]) => lines.map(item => ({ kind: productKind(booksMap.get(item.id)), value: Number(item.price) * Number(item.quantity) }));
+    // Each line's share after the discount comes off the lines it covers, as on the server.
+    const allLines = taxLines || [];
+    const afterDiscount = discountedLineValues(allLines, discountAmount, activeDiscount, (id: string) => booksMap.get(id)?.categories || []);
+    const kindLines = (lines: any[]) => lines.map(item => ({ kind: productKind(booksMap.get(item.id)), value: afterDiscount[allLines.indexOf(item)] }));
     const taxOf = (lines: any[], amount: number, address: any) => taxPartsByKind(kindLines(lines), amount, taxRates, (set: any[]) => rateFor(set, address)).reduce((sum, part) => sum + part.amount, 0);
     const taxable = Math.max(0, cartTotal - giftCardLinesTotal + freeGiftPrice - discountAmount);
     if (fulfillmentSelection.method === "pickup") {
@@ -910,7 +913,7 @@ export function Checkout() {
       return;
     }
     setTaxCost(taxOf(taxLines || [], taxable, customer.address));
-  }, [customer.address.country, customer.address.state, customer.billingAddress.country, customer.billingAddress.state, fulfillmentSelection, localQuotes, physicalSubtotalAfterDiscount, cartTotal, appliedDiscount, taxRates, discountAmount, giftCardLinesTotal, freeGiftPrice, taxLines, booksMap]);
+  }, [customer.address.country, customer.address.state, customer.billingAddress.country, customer.billingAddress.state, fulfillmentSelection, localQuotes, physicalSubtotalAfterDiscount, cartTotal, appliedDiscount, activeDiscount, taxRates, discountAmount, giftCardLinesTotal, freeGiftPrice, taxLines, booksMap]);
 
   const applyDiscount = async () => {
     // Pasted codes often carry spaces; the server trims too.

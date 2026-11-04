@@ -3,6 +3,7 @@
 
 import { escapeHtml as esc } from './html.js';
 import { POS_LOW_STOCK_AT } from './pos-stock.js';
+import { normalizeCurrencyCode, roundCents } from './money.js';
 
 /** Payment choices on the charge sheet, in thumb order. `value` is what the
  *  sale records, and must match the register's payment <select>. */
@@ -142,10 +143,15 @@ export function registerSalesForDay(books, day) {
       if (!sale) { sale = { num: h.num, at: 0, method: saleMethod(h.notes), lines: [], totals: {}, units: 0 }; byNum.set(h.num, sale); }
       sale.at = Math.max(sale.at, eventTime(h.sheetsId));
       const qty = Number(h.qty) || 0;
-      const amount = qty * (Number(h.price) || 0);
-      const cur = h.cur || book.currency || 'CAD';
+      // What the card reader or the cash box took: a sale rung up in another currency (the till set to the fair's
+      // currency) took the payment's amount in that currency, not the book's price.
+      const native = h.cur || book.currency || 'CAD';
+      const paid = h.payment && h.payment.currency && Number(h.payment.amount) >= 0
+        && normalizeCurrencyCode(h.payment.currency, '') !== normalizeCurrencyCode(native, '') ? h.payment : null;
+      const amount = roundCents(paid ? Number(paid.amount) : qty * (Number(h.price) || 0));
+      const cur = paid ? normalizeCurrencyCode(paid.currency) : native;
       sale.lines.push({ bookId: book.id, title: book.title || 'Untitled', qty, amount, cur });
-      sale.totals[cur] = (sale.totals[cur] || 0) + amount;
+      sale.totals[cur] = roundCents((sale.totals[cur] || 0) + amount);
       sale.units += qty;
     }
   }
@@ -156,7 +162,7 @@ export function registerSalesForDay(books, day) {
   let units = 0;
   for (const s of sales) {
     units += s.units;
-    for (const [cur, amt] of Object.entries(s.totals)) totals[cur] = (totals[cur] || 0) + amt;
+    for (const [cur, amt] of Object.entries(s.totals)) totals[cur] = roundCents((totals[cur] || 0) + amt);
   }
   return { sales, totals, units };
 }
@@ -204,12 +210,12 @@ export function fairDaySummary(day, leftById = {}) {
   for (const sale of day.sales || []) {
     const m = methods.get(sale.method) || { method: sale.method, label: methodLabel(sale.method), sales: 0, totals: {} };
     m.sales++;
-    for (const [cur, amt] of Object.entries(sale.totals)) m.totals[cur] = (m.totals[cur] || 0) + amt;
+    for (const [cur, amt] of Object.entries(sale.totals)) m.totals[cur] = roundCents((m.totals[cur] || 0) + amt);
     methods.set(sale.method, m);
     for (const line of sale.lines) {
       const t = titles.get(line.bookId) || { bookId: line.bookId, title: line.title, units: 0, totals: {}, left: leftById[line.bookId] ?? null };
       t.units += line.qty;
-      t.totals[line.cur] = (t.totals[line.cur] || 0) + line.amount;
+      t.totals[line.cur] = roundCents((t.totals[line.cur] || 0) + line.amount);
       titles.set(line.bookId, t);
     }
   }
