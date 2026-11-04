@@ -616,6 +616,41 @@ describe("notification fixes from the email review", () => {
     expect(toReader(app2)).toHaveLength(2);
   });
 
+  test("carrier parcels: out for delivery and delivered email only once the owner switches it on, once each (25.5)", async () => {
+    const shipped = order({ paymentStatus: "paid", fulfillmentStatus: "shipped", trackingNumber: "T1", trackingCarrier: "Canada Post" });
+    const off = harness({ gmailFails: false });
+    await off.exports.onOrderUpdated(updated(shipped, { ...shipped, fulfillmentStatus: "out_for_delivery" }));
+    expect(toReader(off)).toHaveLength(0);
+    const on = harness({ gmailFails: false, docs: notif({ carrier_delivery_update: { enabled: true } }) });
+    await on.exports.onOrderUpdated(updated(shipped, { ...shipped, fulfillmentStatus: "out_for_delivery" }));
+    await on.exports.onOrderUpdated(updated(shipped, { ...shipped, fulfillmentStatus: "out_for_delivery" }));
+    await on.exports.onOrderUpdated(updated({ ...shipped, fulfillmentStatus: "out_for_delivery" }, { ...shipped, fulfillmentStatus: "delivered" }));
+    expect(toReader(on).map(m => m.subject)).toEqual([expect.stringMatching(/is out for delivery$/), expect.stringMatching(/is delivered$/)]);
+    expect(toReader(on)[0].html).toContain("T1");
+  });
+
+  test("a shopper's return or cancel request is acknowledged once, and turning it off stops it (25.7)", async () => {
+    const paid = order({ paymentStatus: "paid" });
+    const request = { type: "return", message: "Wrong size", status: "open", createdAt: "2026-11-04T10:00:00.000Z" };
+    const app = harness({ gmailFails: false });
+    await app.exports.onOrderUpdated(updated(paid, { ...paid, customerRequest: request }));
+    await app.exports.onOrderUpdated(updated(paid, { ...paid, customerRequest: request }));
+    expect(toReader(app)).toHaveLength(1);
+    expect(toReader(app)[0].html).toContain("request to return");
+    const quiet = harness({ gmailFails: false, docs: notif({ request_received: { enabled: false } }) });
+    await quiet.exports.onOrderUpdated(updated(paid, { ...paid, customerRequest: request }));
+    expect(toReader(quiet)).toHaveLength(0);
+  });
+
+  test("a delayed payment that fails tells the shopper once, with the amount (25.8)", async () => {
+    const unpaid = order({ paymentStatus: "processing" });
+    const app = harness({ gmailFails: false });
+    await app.exports.onOrderUpdated(updated(unpaid, { ...unpaid, paymentStatus: "failed" }));
+    await app.exports.onOrderUpdated(updated(unpaid, { ...unpaid, paymentStatus: "failed" }));
+    expect(toReader(app)).toHaveLength(1);
+    expect(toReader(app)[0].subject).toMatch(/didn't go through/);
+  });
+
   test("refund emails: no email for a lost chargeback, gift-card refunds say so, partial refunds are announced", async () => {
     const paid = order({ paymentStatus: "paid" });
     const dispute = harness({ gmailFails: false });
