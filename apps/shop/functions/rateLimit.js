@@ -54,8 +54,9 @@ function nextWindow(saved, nowMs, { max, windowMs }) {
 
 // Returns true when allowed. Fails open if Firestore is unavailable: a broken
 // counter must never stop a real customer from paying.
-async function hitLimit(db, bucket, req, opts) {
-  const id = `${bucket}_${crypto.createHash("sha256").update(ipKey(clientIpOf(req))).digest("hex").slice(0, 32)}`;
+// `key` limits something other than the connection (a signed-in account's uid).
+async function hitLimit(db, bucket, req, opts, { key = "" } = {}) {
+  const id = `${bucket}_${crypto.createHash("sha256").update(key || ipKey(clientIpOf(req))).digest("hex").slice(0, 32)}`;
   const ref = db.collection("rate-limits").doc(id);
   try {
     return await db.runTransaction(async tx => {
@@ -95,6 +96,8 @@ const LIMITS = {
   oldShop: { max: 10, windowMs: 10 * 60 * 1000 },
   // Two-step backup codes (functions/twoStepBackup.js): a few typing mistakes, never a guessing run.
   twoStepBackup: { max: 10, windowMs: 10 * 60 * 1000 },
+  // A signed-in shopper's own data copy (privacyRequests.js), per account: each copy runs several lookups.
+  myDataExport: { max: 5, windowMs: 60 * 60 * 1000 },
 };
 
 module.exports = { clientIpOf, ipKey, serverGeoCountry, nextWindow, hitLimit, LIMITS };

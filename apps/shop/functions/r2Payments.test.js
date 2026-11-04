@@ -467,6 +467,34 @@ test('invoices: an approved shop with terms places a wholesale order that counts
   expect(Date.parse(order.invoice.dueAt) - Date.parse(order.createdAt)).toBeGreaterThan(29.9 * 86400000);
 });
 
+test('invoices: a 12-copy trade order skips the per-shopper hold caps, but never holds more than the shop has', async () => {
+  const withStock = stockLevel => { const docs = invoiceDocs(30); docs.books.tee = { ...docs.books.tee, trackInventory: true, stockLevel }; return docs; };
+  const app = harness({ docs: withStock(15), identity: boutique });
+  const placed = await app.call('createStripeCheckoutSession', invoiceBody({ orderDraft: manualDraft([{ id: 'tee', quantity: 12 }]) }));
+  expect(placed.code).toBe(200);
+  const short = harness({ docs: withStock(5), identity: boutique });
+  const refused = await short.call('createStripeCheckoutSession', invoiceBody({ orderDraft: manualDraft([{ id: 'tee', quantity: 12 }]) }));
+  expect(refused.code).toBe(400);
+  expect(refused.value.code).toBeUndefined();
+  // An ordinary shopper paying at pickup still meets the cap.
+  const shopper = harness({ docs: withStock(15) });
+  expect((await shopper.call('createStripeCheckoutSession', { action: 'createManualLocalOrder', manualMethodId: 'cash', orderDraft: manualDraft([{ id: 'tee', quantity: 12 }]) })).value.code).toBe('hold_limit');
+});
+
+test('stockists: a card order claimed by an approved stockist holds 12 copies; a paused one meets the cap', async () => {
+  const pay = async status => {
+    const docs = stockistDocs({ stockists: { 'shop@boutique.example': { status, name: 'Boutique' } } });
+    docs.books.tee = { ...docs.books.tee, trackInventory: true, stockLevel: 50 };
+    docs.orders = { o1: { ...stockistOrder({ items: [{ id: 'tee', quantity: 12 }] }), stockistId: 'shop@boutique.example', paymentStatus: 'unpaid', status: 'pending_payment', trackingKey: 'a'.repeat(64) } };
+    const app = harness({ docs });
+    return app.call('createStripeCheckoutSession', { orderId: 'o1', currency: 'cad', returnUrl: 'http://localhost:5173/track?orderId=o1', embedded: false });
+  };
+  expect((await pay('approved')).code).toBe(200);
+  const paused = await pay('paused');
+  expect(paused.code).toBe(409);
+  expect(paused.value.code).toBe('hold_limit');
+});
+
 test('invoices: a shop without terms, a paused shop, an unverified email or a stranger cannot order on invoice', async () => {
   for (const [docs, identity] of [
     [invoiceDocs(0), boutique],

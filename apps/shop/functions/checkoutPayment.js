@@ -80,7 +80,8 @@ function checkoutPaymentActions({
       if (refusePreviousAttemptPaid(res, await releaseSupersededAttempt(req, order.customer.email, orderId, items))) return;
       // Hold the priced lines (box-set parts and the free gift included), not the browser's raw list.
       const heldItems = Array.isArray(trusted.items) && trusted.items.length ? trusted.items : items;
-      await reserveStock(db, orderId, heldItems, Date.now(), holdOwner(order), { limits: true, ip: clientIpOf(req), holdLimits: await loadHoldLimits() });
+      // An approved trade account orders wholesale quantities: the per-shopper caps don't apply (stock still must be there).
+      await reserveStock(db, orderId, heldItems, Date.now(), holdOwner(order), { limits: !stockist, ip: clientIpOf(req), holdLimits: await loadHoldLimits() });
       try {
         await db.collection('orders').doc(orderId).create({ ...order, ...trusted, orderId, trackingKey, paymentStatus: 'pending', status: 'pending_payment', paymentMethod: manual.name, paymentInstructions: manual.instructions || '', ...(stockist ? { invoice: invoiceRecord(stockist.terms) } : {}), createdAt: now, updatedAt: now, activity: [{ type: 'event', message: 'Order created', createdAt: now },
           // An EU/EEA/UK shopper's download consent (src/app/features/site/digitalConsent.ts), echoed in the confirmation.

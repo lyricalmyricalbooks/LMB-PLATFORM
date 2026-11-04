@@ -39,6 +39,20 @@ function reviewProblem(order, operations = {}) {
 }
 
 /**
+ * Gift cards are as good as cash, so a paid order's cards wait while the owner still has to look at it: an open review,
+ * or (Settings › Payments › Check big orders) a card or PayPal order at or above the amount, which gets its review now
+ * when the payment read hasn't flagged it yet. `{ hold, reasons }`: `reasons` is set when the order needs that new
+ * review written. "It looks fine" (`operations.reviewCleared`) releases them.
+ */
+function giftCardHold(order, operations = {}, own = {}) {
+  if (operations?.reviewCleared) return { hold: false };
+  if (order?.review) return { hold: order.review.status === "needs_review" };
+  const byProvider = ["Stripe", "PayPal"].includes(order?.paymentMethod);
+  const reasons = byProvider ? reviewReasons(null, order, own) : [];
+  return reasons.length ? { hold: true, reasons } : { hold: false };
+}
+
+/**
  * Flags the order when the payment looks risky. Only for the order's own saved payment, and only the first time, so an
  * owner's decision stands. Answers true when it flagged.
  */
@@ -58,4 +72,4 @@ async function recordReview(db, orderId, paymentId, risk, now = () => new Date()
   });
 }
 
-module.exports = { reviewReasons, reviewOpen, reviewProblem, recordReview };
+module.exports = { reviewReasons, reviewOpen, reviewProblem, giftCardHold, recordReview };

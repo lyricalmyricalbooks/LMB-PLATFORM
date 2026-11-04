@@ -12,7 +12,7 @@
 const { onDocumentUpdated, onDocumentCreated, onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { onSchedule: onScheduleReal } = require("firebase-functions/v2/scheduler");
 // Code plan 15.16: sweeps register with the tick (tick.js) instead of each owning a Cloud Scheduler job.
-const { TICK_EVERY_MINUTES, createTickRegistry, runTick } = require("./tick");
+const { TICK_EVERY_MINUTES, TICK_TIMEOUT_SECONDS, createTickRegistry, runTick } = require("./tick");
 const tickRegistry = createTickRegistry();
 const onSchedule = tickRegistry.register;
 const { onRequest } = require("firebase-functions/v2/https");
@@ -46,7 +46,7 @@ const { pressName } = require("./shared/shopIdentity");
 const { sellerSection, digitalConsentSection } = require("./sellerDetails");
 const { emailDefaultsFor, goodsDownloadNote, sellsBooks, withShopEmailWords, wordsFor } = require("./shared/shopSells");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem } = require("./shared/localFulfillment");
-const { taxPartsByKind } = require("./shared/taxByKind");
+const { taxPartsByKind, discountedLineValues } = require("./shared/taxByKind");
 const { productKind } = require("./shared/productOptions");
 const { catalogUnitPrice } = require("./catalogPrice");
 const { loadStockist, wholesaleUnitPrice, privateWholesale, stockistActions } = require("./stockists");
@@ -125,6 +125,7 @@ const db = admin.firestore();
 // their refunds put it back.
 const { createSettlement, sandboxStockTaken, sandboxTakesStock } = require("./settlePayment");
 const { recordOrderMoney, recordPayout } = require("./orderMoney");
+const { giftCardHold } = require("./orderReview");
 const { settlePayment } = createSettlement({ db, increment: n => admin.firestore.FieldValue.increment(n), testShop: require("./shopConfig").shopConfig.testShop });
 
 const IS_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
@@ -1006,7 +1007,9 @@ function authoritativeTax(items, discountAmount, discount, booksById, settings, 
   const taxableTotal = Math.max(0, items.reduce((sum, item) => sum + item.price * item.quantity, 0) - discountAmount);
   const address = order.customer?.address || {};
   const charged = parts => ({ tax: parts.reduce((sum, part) => sum + part.amount, 0), taxLines: taxLinesFor(parts) });
-  const lineKinds = lines => lines.map(item => ({ kind: productKind(booksById[item.id]), value: item.price * item.quantity }));
+  // Each line's share after the discount comes off the lines it covers (a books-only code lowers only the books' tax).
+  const afterDiscount = discountedLineValues(items, discountAmount, discount, id => booksById[id]?.categories || []);
+  const lineKinds = lines => lines.map(item => ({ kind: productKind(booksById[item.id]), value: afterDiscount[items.indexOf(item)] }));
   if (fulfillment?.method === 'pickup') {
     const pickup = fulfillment.address;
     // Pickup limited to an area collects the shopper's address instead of a separate billing location.
@@ -1406,8 +1409,10 @@ async function loadHoldLimits() {
 }
 
 async function reserveCheckout(orderId, items, order, giftCardRedemptions, testMode, req = null) {
-  // A payment link's quantities were set by the owner (plan 21.1): the per-shopper hold caps don't apply to it.
-  await reserveStock(db, orderId, items, Date.now(), holdOwner(order), { limits: order?.source !== "payment_link", ip: req ? clientIpOf(req) : "", holdLimits: await loadHoldLimits() });
+  // A payment link's quantities were set by the owner (plan 21.1), and an approved stockist (read again here) orders
+  // wholesale quantities: the per-shopper hold caps apply to neither. Stock must still be there.
+  const trade = order?.stockistId && order?.source !== "payment_link" ? await loadStockist(db, order.stockistId) : null;
+  await reserveStock(db, orderId, items, Date.now(), holdOwner(order), { limits: order?.source !== "payment_link" && !trade, ip: req ? clientIpOf(req) : "", holdLimits: await loadHoldLimits() });
   if (!(giftCardRedemptions || []).length) return;
   try {
     await reserveGiftCards(db, orderId, giftCardRedemptions, { testMode, owner: holdOwner(order) });
@@ -3151,14 +3156,25 @@ async function emailGiftCard(cardId, card, { to = "", notificationSettings = nul
   await db.collection("giftCards").doc(cardId).update({ emailedAt: at, history: withHistory(card, { type: "emailed", minor: 0, to: recipient, at }), updatedAt: at });
 }
 
-// A paid order with gift-card lines gets its cards once (giftCardsIssuedAt), then each is emailed.
+// A paid order with gift-card lines gets its cards once (giftCardsIssuedAt), then each is emailed. Cards are as good as
+// cash, so they wait while the order needs the owner's look (orderReview.js giftCardHold: a risky card payment or
+// "Check big orders"); "It looks fine" issues them (onOrderReviewCleared).
 async function issueGiftCardsForOrder(orderId) {
   const orderRef = db.collection("orders").doc(orderId);
+  const operationsRef = db.collection("order-operations").doc(orderId);
+  // The card company's risk answer may not be on the order yet (the webhook reads it after marking the order paid):
+  // read it now, so a risky payment is flagged before any code goes out. Best effort, as in the webhook.
+  const first = (await orderRef.get()).data() || {};
+  if (first.stripePaymentIntentId && !first.review && !first.giftCardsIssuedAt) {
+    await recordOrderMoney({ db, payments, orderId }).catch(err => console.warn(`Order ${orderId}: the payment's risk wasn't read (${err?.message || err}).`));
+  }
+  const own = { above: Number((await db.collection("settings").doc("website").get().catch(() => null))?.data?.()?.payments?.reviewAbove) || 0 };
   let created = [];
   let testOrder = false;
   await db.runTransaction(async tx => {
     created = [];
     const snap = await tx.get(orderRef);
+    const operationsSnap = await tx.get(operationsRef);
     if (!snap.exists) return;
     const order = snap.data();
     testOrder = order.isTest === true || order.sandboxPayment === true;
@@ -3166,6 +3182,12 @@ async function issueGiftCardsForOrder(orderId) {
     const cards = cardsForOrder(orderId, order);
     if (!cards.length) return;
     const now = new Date().toISOString();
+    // A rehearsal only ever emails the shop, so it is never held.
+    const hold = testOrder ? { hold: false } : giftCardHold(order, operationsSnap.exists ? operationsSnap.data() : {}, own);
+    if (hold.hold) {
+      if (hold.reasons) tx.update(orderRef, { review: { status: "needs_review", reasons: hold.reasons, flaggedAt: now }, updatedAt: now });
+      return;
+    }
     for (const card of cards) tx.create(db.collection("giftCards").doc(card.id), card.data);
     tx.update(orderRef, {
       giftCardsIssuedAt: now,
@@ -3187,6 +3209,24 @@ async function issueGiftCardsForOrder(orderId) {
     }
   }
 }
+
+// The owner pressed "It looks fine" on an order under review (admin api.ts clear_review writes reviewCleared): the gift
+// cards it held go out now. issueGiftCardsForOrder issues them once, so a repeat write changes nothing.
+exports.onOrderReviewCleared = onDocumentWritten(
+  { document: "order-operations/{orderId}", secrets: withPlatformKey([RESEND_API_KEY]) },
+  async event => {
+    const before = event.data?.before?.data?.() || {};
+    const after = event.data?.after?.data?.() || {};
+    if (before.reviewCleared || !after.reviewCleared) return;
+    const order = (await db.collection("orders").doc(event.params.orderId).get()).data() || {};
+    if ((order.isTest === true && order.sandboxPayment !== true) || order.source === "import") return;
+    if (!(order.items || []).some(item => item && item.giftCard === true)) return;
+    try {
+      await issueGiftCardsForOrder(event.params.orderId);
+    } catch (err) {
+      console.error(`Could not issue the held gift cards for ${event.params.orderId}:`, err);
+    }
+  });
 
 // The carrier address check is a nice-to-have: it runs AFTER every email, so a slow Shippo can
 // never cost the customer their confirmation or the shop its new-order alert.
@@ -4736,7 +4776,7 @@ async function handleBackupNow(req, res) {
 // The one scheduled job (code plan 15.16, tick.js): every sweep above registered itself with the tick, so a shop has one
 // Cloud Scheduler job instead of ten. It declares every sweep's secrets and the largest memory any sweep asked for.
 exports.tick = onScheduleReal(
-  { schedule: `every ${TICK_EVERY_MINUTES} minutes`, timeoutSeconds: 1800, memory: "1GiB", secrets: tickRegistry.secrets() },
+  { schedule: `every ${TICK_EVERY_MINUTES} minutes`, timeoutSeconds: TICK_TIMEOUT_SECONDS, memory: "1GiB", secrets: tickRegistry.secrets() },
   async () => {
     const { ran } = await runTick({ jobs: tickRegistry.jobs, db });
     if (ran.length) console.log("tick ran:", ran.join(", "));
