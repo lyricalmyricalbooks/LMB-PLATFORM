@@ -359,7 +359,18 @@ function googleView(record) {
     el("p", { className: "rp-hint", textContent: `${google.stage}${google.accountEmail ? ` as ${google.accountEmail}` : ""}${google.connectedAt ? ` since ${dateOnly(google.connectedAt)}` : ""}.` }),
     google.steps.length ? list : el("p", { className: "rp-hint", textContent: "No Google steps yet." }),
     // Extras the press switched off in Settings › Google (#385): they stopped at once; what they made stays the press's.
-    stoppedExtras(google.parts));
+    stoppedExtras(google.parts),
+    stockSheetLine(record.connections?.google?.sheet));
+}
+
+// The stockroom's Google Sheet in the press's Drive (#402): when it was last written, flagged after two days.
+const SHEET_STALE_MS = 2 * 24 * 60 * 60 * 1000;
+function stockSheetLine(sheet) {
+  if (!sheet?.url) return null;
+  const written = Date.parse(sheet.writtenAt ?? "");
+  const stale = !Number.isFinite(written) || Date.now() - written > SHEET_STALE_MS;
+  return el("p", { className: "rp-hint" }, `Google Sheet: ${Number.isFinite(written) ? `last sent ${when(sheet.writtenAt)}` : "never sent"}${sheet.rows ? `, ${plural(sheet.rows, "stock row")}` : ""} `,
+    stale ? pill("warning", "over 2 days old") : null);
 }
 
 const GOOGLE_PART_WORDS = { analytics: "Analytics", searchConsole: "Search Console", merchantCenter: "Google Shopping", domain: "Domains", email: "Gmail sending", drive: "Drive", youtube: "YouTube", calendar: "Calendar", businessProfile: "Business Profile", ads: "Ads" };
