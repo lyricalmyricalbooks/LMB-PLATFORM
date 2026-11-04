@@ -264,6 +264,8 @@ const TABS = TEMPLATE_IDS.map((id) => ({ id, label: TAB_META[id]?.label || id.re
 const GROUP_IDS = [...Object.keys(GROUP_LABELS).filter((g) => TABS.some((t) => t.group === g)), "shopAlerts"];
 
 const WORD_FIELDS = ["subject", "body", "buttonText", "signoff"] as const;
+/** Emails with no order behind them: they follow the shop's own language, not the shopper's (functions/emailFrench.js). */
+const NO_ORDER_EMAILS = new Set<string>(["customer_welcome", "contact_reply", "abandoned_cart"]);
 type WordField = typeof WORD_FIELDS[number];
 /** Status and request words as a French email fills them (functions/emailFrench.js VALUES_FR). */
 const FRENCH_SAMPLES = { status: "en cours de livraison", request: "retourner" };
@@ -292,7 +294,7 @@ function compilePreviewHtml(templateId: TemplateKey, data: NotificationSettings,
   const signoff = fillSample(templateId, template.signoff || fallback.signoff, values);
   // {{items_table}} survives filling so it lands where the owner put it, as the server does.
   const hasTable = (PLACEHOLDERS[templateId as keyof typeof PLACEHOLDERS] || []).includes("items_table");
-  const placed = placeItemsTable(fillSample(templateId, body, hasTable ? { ...values, items_table: "{{items_table}}" } : values).replace(/\n/g, "<br/>"), hasTable ? previewItemsTable(order, brand.emailTheme) : "");
+  const placed = placeItemsTable(fillSample(templateId, body, hasTable ? { ...values, items_table: "{{items_table}}" } : values).replace(/\n/g, "<br/>"), hasTable ? previewItemsTable(order, brand.emailTheme, french ? "fr" : "en") : "");
   const finalBody = placed.body;
 
   const ctaButtonHtml = buttonText ? risoButton("#", buttonText, brandColor, brand.emailTheme) : "";
@@ -574,6 +576,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
         templateId: activeTab,
         email: testEmail.trim(),
         template: { subject, body, buttonText, signoff },
+        language: editLanguage,
         brand: { logoUrl, brandColor, emailTheme },
       });
 
@@ -627,7 +630,16 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
   const previewShopName = (senderSaved.fromName || "").trim() || shopNameDefault;
   const subjectPreview = fillSample(activeTab, shownWords.subject || (editLanguage === "fr" ? FRENCH_DEFAULTS[activeTab].subject : shopDefaults[activeTab].subject), { shop_name: previewShopName, ...orderPreviewVars((recentOrders || []).find((o) => o.id === previewOrderId)), ...(editLanguage === "fr" ? FRENCH_SAMPLES : {}) });
   const badColor = !!data.brand?.brandColor && !/^#[0-9a-f]{3,8}$/i.test(data.brand.brandColor.trim());
-  const problems = templateProblems(activeTab, shownWords, editLanguage);
+  // The English words were changed but the French ones never were: French shoppers would miss what was added.
+  const englishWords = wordsFor(activeTab, data, "en", shopDefaults);
+  const frenchUntouched = hasFrench && !WORD_FIELDS.some((k) => typeof currentTemplate.fr?.[k] === "string");
+  const englishChanged = WORD_FIELDS.some((k) => (englishWords[k] || "") !== (shopDefaults[activeTab][k] || ""));
+  const problems = [
+    ...templateProblems(activeTab, shownWords, editLanguage),
+    ...(editLanguage === "en" && frenchUntouched && englishChanged
+      ? [{ tone: "warning" as const, text: "The French version still has the default words. Add anything new on the French tab too." }]
+      : []),
+  ];
   const defaults = editLanguage === "fr" ? FRENCH_DEFAULTS[activeTab] : shopDefaults[activeTab];
   const isDefault = WORD_FIELDS.every((k) => (shownWords[k] || "") === (defaults[k] || ""));
   const resetTemplate = () => {
@@ -895,10 +907,12 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
             )}
             {hasFrench && (
               <div>
-                <Tabs label="Language of this email" idPrefix="lang-" value={editLanguage} onChange={(id) => setLanguage(id as EmailLanguage)}
+                <Tabs label="Language of this email" idPrefix="lang-" variant="page" value={editLanguage} onChange={(id) => setLanguage(id as EmailLanguage)}
                   tabs={[{ id: "en", label: "English" }, { id: "fr", label: "French" }]} />
                 <p className="rp-hint" style={{ margin: "8px 0 0" }}>
-                  {editLanguage === "fr" ? "Sent to shoppers who ordered with the shop in French. The switch above turns both off." : "Shoppers who order in French get the French words."}
+                  {NO_ORDER_EMAILS.has(activeTab)
+                    ? (editLanguage === "fr" ? "Used when your shop is in French." : "Sent in French when your shop is in French.")
+                    : (editLanguage === "fr" ? "For customers who shop in French. One switch covers both." : "Customers who shop in French get the French version.")}
                 </p>
               </div>
             )}

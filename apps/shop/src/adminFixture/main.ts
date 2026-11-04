@@ -13,7 +13,7 @@ const order = (n: number, status: string, name: string) => ({
   shippingAddress: { street: "1 Example St", city: "Toronto", state: "ON", zip: "M5V 1A1", country: "Canada" },
   trackingKey: `key${n}`, fulfillmentStatus: status === "shipped" ? "shipped" : "unfulfilled",
 });
-const ORDERS = [order(1, "paid", "Ada Example"), order(2, "paid", "Ben Example"), order(3, "shipped", "Cleo Example")];
+const ORDERS = [order(1, "paid", "Ada Example"), { ...order(2, "paid", "Ben Example"), locale: "fr-CA" } as any, order(3, "shipped", "Cleo Example")];
 
 // One open order with its address reviewed, two lines and a parcel already sent ahead (Send part now, plan 24.5).
 function orderDetail(id: string) {

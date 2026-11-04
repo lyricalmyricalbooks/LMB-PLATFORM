@@ -5,6 +5,8 @@
 
 const { withPlatformKey } = require("./platformKey");
 const { lowStockLine, lowStockRows, newlyLow, lowStockLabel, lowStockEmailEnabled } = require("./lowStockAlert");
+const { sayer, shopLanguage } = require("./emailFrench");
+
 function scheduledJobs({
   onSchedule, admin, db, crypto, ADMIN_TO, RESEND_API_KEY, DIGEST_ORDER_LIMIT, RESTOCK_BUDGET_MS, TRANSIT_DAYS,
   buildOrderDigest, catalogUnitPrice, claimEmailSend, compileEmailTemplate, dailyDigestEnabled,
@@ -233,6 +235,8 @@ function scheduledJobs({
         }
 
         const subtotal = lines.reduce((sum, line) => sum + line.price * line.qty, 0);
+        const language = await shopLanguage(db);
+        const say = sayer(language);
         const itemsTable = `
           <div style="margin: 20px 0; border-top: 1px solid #eee; padding-top: 15px;">
             <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
@@ -242,7 +246,7 @@ function scheduledJobs({
                   <td style="padding: 8px 0; text-align: right; font-family: monospace;">${moneyFmt(line.price * line.qty)}</td>
                 </tr>`).join("")}
               <tr style="font-weight: bold;">
-                <td style="padding: 12px 0;">Total</td>
+                <td style="padding: 12px 0;">${say("Total")}</td>
                 <td style="padding: 12px 0; text-align: right; font-family: monospace;">${moneyFmt(subtotal)}</td>
               </tr>
             </table>
@@ -257,7 +261,7 @@ function scheduledJobs({
           cart_url: cartUrl,
           button_url: cartUrl,
           items_table: itemsTable
-        }, `<p style="margin-top:28px;font-size:11px;color:#888;">Don't want reminders like this? <a href="${escapeHtml(unsubscribeUrl)}">Unsubscribe</a>.</p>`);
+        }, `<p style="margin-top:28px;font-size:11px;color:#888;">${language === "fr" ? "Vous ne voulez plus recevoir ces rappels?" : "Don't want reminders like this?"} <a href="${escapeHtml(unsubscribeUrl)}">${language === "fr" ? "Se désabonner" : "Unsubscribe"}</a>.</p>`, { language });
 
         try {
           await sendEmail({

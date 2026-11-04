@@ -725,6 +725,20 @@ describe("notification fixes from the email review", () => {
     expect(toReader(en)[0].html).toContain("Subtotal");
   });
 
+  test("the French tab's test email sends the French words, with French table and status words", async () => {
+    const app = harness({ gmailFails: false });
+    const res = await app.call({ templateId: "order_confirmation", email: "owner@example.com", language: "fr", template: { subject: "Essai {{order_id}}", body: "Bonjour {{customer_name}}" } });
+    expect(res.code).toBe(200);
+    const sent = app.delivered.at(-1);
+    expect(sent.subject).toBe("[TEST] Essai LM-98241");
+    expect(sent.html).toContain("Sous-total");
+    expect(sent.html).toContain("Télécharger");
+    const en = harness({ gmailFails: false });
+    await en.call({ templateId: "order_confirmation", email: "owner@example.com", template: { subject: "Try {{order_id}}" } });
+    expect(en.delivered.at(-1).subject).toBe("[TEST] Try LM-98241");
+    expect(en.delivered.at(-1).html).toContain("Subtotal");
+  });
+
   test("turning an email off turns off its French version too", async () => {
     const app = harness({ gmailFails: false, docs: notif({ order_confirmation: { enabled: false, fr: { subject: "Bonjour" } } }) });
     const fr = order({ paymentStatus: "paid", locale: "fr-CA" });
