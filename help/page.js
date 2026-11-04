@@ -17,10 +17,11 @@ function article(a, open) {
 
 /**
  * The list for a search and a plan ("both" when the page doesn't know), grouped by topic. `openId` opens one article
- * (the address's #id). An empty search result says so and points to a person.
+ * (the address's #id), and `sells` words them for what the shop sells. An empty search result says so and points to a
+ * person.
  */
-export function renderHelp({ search = "", plan = "both", openId = "" } = {}) {
-  const found = searchArticles(search, articlesFor(plan));
+export function renderHelp({ search = "", plan = "both", openId = "", sells = null } = {}) {
+  const found = searchArticles(search, articlesFor(plan, sells));
   if (!found.length) {
     return `<p class="empty" role="status">No answer has all of those words. Try fewer words, or ask us: use <b>Get help from Colophon</b> on your account page.</p>`;
   }
@@ -39,8 +40,8 @@ ${list.map((a) => article(a, a.id === openId || (search && found.length <= 3))).
 const slug = (topic) => topic.toLowerCase().replace(/[^a-z]+/g, "-");
 
 /** The six topics as sheets over the answers: how many answers each has and its first three questions. */
-export function renderTopics({ plan = "both" } = {}) {
-  const all = articlesFor(plan);
+export function renderTopics({ plan = "both", sells = null } = {}) {
+  const all = articlesFor(plan, sells);
   return TOPICS.map((topic) => {
     const list = all.filter((a) => a.topic === topic);
     if (!list.length) return "";

@@ -20,7 +20,7 @@ import type { PlanList, SetupChange, SetupDoor, SetupPress } from "./door";
 import { CreateShopCard, type CreateShop } from "./CreateShop";
 import type { CreateNames } from "./launchWords";
 import {
-  DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, IMPORT_PAGE, PLAN_PAGE, SETUP_QUESTIONS, STEP_HELP, guideProgress, guideSteps, lockedPageLine, nextGuideStep,
+  DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, IMPORT_PAGE, PLAN_PAGE, SETUP_QUESTIONS, STEP_HELP, guideProgress, guideSteps, helpFor, lockedPageLine, nextGuideStep,
   pageFromHash, readyToCreate, setupLocked, showMoveIn, setupMenu, setupMenuItemFor, setupPageLabel,
 } from "./pages";
 
@@ -106,7 +106,7 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
   const pressName = press.pressName || "Your press";
   let content;
   if (setupLocked(page)) content = <OpensWithShop page={setupPageLabel(page, menu)} line={w(lockedPageLine(page))} onOpenShop={openCreate} onBack={() => open(HOME_PAGE)} />;
-  else if (page === HOME_PAGE) content = <SetupGuide press={press} plans={plans} helpUrl={helpUrl} answers={answers} onOpen={open} onAsk={openAsk} onCreate={openCreate} save={save} />;
+  else if (page === HOME_PAGE) content = <SetupGuide press={press} plans={plans} helpUrl={helpFor(helpUrl, press.sells)} answers={answers} onOpen={open} onAsk={openAsk} onCreate={openCreate} save={save} />;
   else if (page === GENERAL_PAGE) content = <PressDetails press={press} lists={lists} save={save} />;
   else if (page === IMPORT_PAGE) content = <ImportPage press={press} door={door} onSaved={setPress} />;
   else if (page === DESIGN_PAGE) content = <DesignPage press={press} save={save} />;
@@ -115,7 +115,7 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
       names={{ countries: lists.countries, sells: lists.sells, lookName: themeName(press.look) }} email={email}
       createShop={(choice) => door.openShop(press.pressId, choice)} onCreated={setPress} onOpen={open} />
   );
-  else content = <HelpPage helpUrl={helpUrl} accountUrl={accountUrl} answers={answers} ask={door.askForHelp} pressName={press.pressName} />;
+  else content = <HelpPage helpUrl={helpFor(helpUrl, press.sells)} accountUrl={accountUrl} answers={answers} ask={door.askForHelp} pressName={press.pressName} />;
 
   return (
     <ShopWordsContext.Provider value={w}>
@@ -562,6 +562,7 @@ function PlanPage({ press, plans, failed, onRetry, save, termsUrl, names, email,
 function HelpPage({ helpUrl, accountUrl, answers, ask, pressName }: {
   helpUrl: string; accountUrl: string; answers: HelpAnswers; ask: SetupDoor["askForHelp"]; pressName: string;
 }) {
+  const w = useShopWords();
   return (
     <>
       <PageHeader title="Help" description="Answers about setting up and creating your shop." />
@@ -575,7 +576,7 @@ function HelpPage({ helpUrl, accountUrl, answers, ask, pressName }: {
           </SectionCard>
         </section>
         <SectionCard title="Help centre" collapsible={false}>
-          <p style={{ marginTop: 0 }}>Every answer, on plans, payments, moving your books in, and your website.</p>
+          <p style={{ marginTop: 0 }}>{w("Every answer, on plans, payments, moving your books in, and your website.")}</p>
           <a className="rp-btn rp-btn-secondary" href={helpUrl} target="_blank" rel="noopener">Open the help centre</a>
         </SectionCard>
       </div>

@@ -152,7 +152,8 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
 
   // The platform's emails, through Resend, from their real templates.
   const sentLog = firestoreSentLog(platform);
-  const email = createEmailService({ env, fetch, registry, sentLog, now });
+  // shopStart: the shop's own Settings answer to "What do you sell?", so platform emails follow a later change (plan 12.18).
+  const email = createEmailService({ env, fetch, registry, sentLog, shopStart: (shopId) => shopData.get(shopId, "firstWeek/start"), now });
 
   // Billing on Stripe's test mode (services/payments alone reads the key).
   const billingStores = firestoreBillingStores(platform);

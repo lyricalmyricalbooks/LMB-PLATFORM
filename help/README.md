@@ -12,7 +12,11 @@ no build step, like the status page and the waitlist.
   to the plans (it has no build step, so the test checks the two match word for word).
 - **The page** (`page.js`) groups them by topic, filters by the search box and opens the answer named in the address
   (`#editions`), so support can send a link to one answer. `?plan=shop`, `?plan=stockroom` or `?plan=both` shows only
-  that plan's answers.
+  that plan's answers. `?sells=clothing` (the shop's answer to "What do you sell?") shows the answers in that shop's
+  words, the same words its admin uses, and hides the ISBN answer from a shop with no books; setup mode's Help page
+  links with it. An article's `goods` words replace the swap where it would read wrongly.
+- **`sells.js`** is a word-for-word copy of `shared/sells/sells.js` (this folder is published on its own); a test fails
+  when they differ, so copy the file again after changing the shared one.
 - **Rules for the words** (`help.test.js` checks them): plain words, sentences of at most 32 words, no tool or code
   names, never a rival's name ("Bring your shop with you"), and every "Page › Part" path must be a real page in the
   shop's admin menu (`apps/shop/src/app/admin/riso/nav.ts`). Say only what the shop does today; when something isn't

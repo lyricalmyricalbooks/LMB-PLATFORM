@@ -8,6 +8,7 @@ import { useId, useState, type FormEvent } from "react";
 import { ChevronDown, ExternalLink } from "lucide-react";
 import { PrimaryButton, TextArea, TextField } from "../app/admin/riso/components";
 import type { SupportAsk } from "./door";
+import { useShopWords } from "../app/admin/shopWords";
 
 /** One help answer, as help/articles.js writes it. */
 export interface HelpArticle { id: string; question: string; answer: string[]; steps?: string[] }
@@ -44,6 +45,7 @@ export function HelpQuestions({ questions, answers, helpUrl, ruled = false }: {
 }) {
   const [open, setOpen] = useState("");
   const base = useId();
+  const w = useShopWords();
   return (
     <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: ruled ? 0 : 4 }}>
       {questions.map((q) => {
@@ -56,12 +58,12 @@ export function HelpQuestions({ questions, answers, helpUrl, ruled = false }: {
           <li key={q.id} style={ruled ? { borderTop: "1px solid var(--rp-divider)" } : undefined}>
             {article ? (
               <button type="button" aria-expanded={isOpen} aria-controls={panel} onClick={() => setOpen(isOpen ? "" : q.id)} style={row}>
-                <span style={linkStyle}>{q.question}</span>
+                <span style={linkStyle}>{w(q.question)}</span>
                 <ChevronDown size={16} aria-hidden style={{ flex: "none", transform: isOpen ? "rotate(180deg)" : undefined, color: "var(--rp-text-subtle)" }} />
               </button>
             ) : (
               <a href={`${helpUrl}#${q.id}`} target="_blank" rel="noopener" style={{ ...row, ...linkStyle }}>
-                <span>{q.question}</span><ExternalLink size={14} aria-hidden /><span className="rp-sr-only"> (opens in a new tab)</span>
+                <span>{w(q.question)}</span><ExternalLink size={14} aria-hidden /><span className="rp-sr-only"> (opens in a new tab)</span>
               </a>
             )}
             {isOpen && <div id={panel} style={{ padding: "4px 0 14px" }}><HelpAnswer article={article!} helpUrl={helpUrl} /></div>}

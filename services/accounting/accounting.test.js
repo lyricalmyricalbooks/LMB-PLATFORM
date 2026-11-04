@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { readAccountingConfig } from "./config.js";
-import { createAccountingService, readSummary, ITEM_NAMES } from "./accounting.js";
+import { createAccountingService, readSummary, ITEM_NAMES, GOODS_SALES_NAME } from "./accounting.js";
 import { createQuickBooksApi } from "./quickbooksApi.js";
 import { handleAccounting } from "./http.js";
 import { companyPath, ACCOUNTING_SCOPE, AUTHORIZE_URL, TOKEN_URL } from "./endpoints.js";
@@ -412,4 +412,19 @@ test("going live: real sales never go to the practice company connected during t
   const after = (await t.call("accounting.status")).body;
   assert.equal(after.connected, true);
   assert.equal(after.ready, false, "the real company is set up afresh");
+});
+
+test("a shop that doesn't sell books gets a Product sales item; an earlier setup keeps its own name (plan 12.18)", async () => {
+  const t = await setup();
+  await t.registry.saveProfile(SHOP, { sells: "clothing" });
+  await connect(t);
+  await t.call("accounting.save", SAVE);
+  const names = () => t.pretend.world.companies.get(REALM).Item.map((i) => i.Name).sort();
+  assert.deepEqual(names(), [GOODS_SALES_NAME, "Gift cards", "Shipping"].sort());
+  await t.call("accounting.post", { days: [day("2026-10-27")] });
+  assert.equal(t.pretend.world.companies.get(REALM).SalesReceipt[0].Line[0].Description, GOODS_SALES_NAME);
+  // Saved again after the shop changes back to books: the company keeps the item it already has.
+  await t.registry.saveProfile(SHOP, { sells: "books" });
+  await t.call("accounting.save", { ...SAVE, style: "orders" });
+  assert.equal(t.pretend.world.companies.get(REALM).Item.length, 3);
 });
