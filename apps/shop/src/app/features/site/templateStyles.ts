@@ -40,6 +40,15 @@ export const TEMPLATE_STYLE_IDS = TEMPLATE_STYLES.map((t) => t.id);
 export type TemplateStyleId = (typeof TEMPLATE_STYLES)[number]["id"];
 
 const S = "[data-fm-store]";
+/**
+ * The buttons a template draws: the shop's own (`.custom-btn`, `.store-btn-primary`) and the newsletter sign-up
+ * button under the page (`.fm-newsletter-btn`), which has no other template style.
+ */
+const BUTTON_CLASSES = [".custom-btn", ".store-btn-primary", "button.custom-btn", ".fm-newsletter-btn"];
+const buttons = (state = "") => BUTTON_CLASSES.filter((c) => !state || !c.startsWith("button.")).map((c) => `${S} ${c}${state}`).join(",");
+const BTN = buttons();
+const BTN_HOVER = buttons(":hover");
+const BTN_ACTIVE = buttons(":active");
 
 // ── Knobs: the Studio controls every template obeys ─────────────────────────────────────────────────────────────
 type Design = Record<string, any>;
@@ -76,14 +85,20 @@ export type TemplateKnob = {
  * border each template writes into `--template-btn-border` wins on every button. Untouched, those buttons keep the
  * border they have always had.
  */
-const BUTTON_OUTLINE_RULE = `${S} .custom-btn,${S} .store-btn-primary{border:var(--template-btn-border) !important;}`;
+const BUTTON_OUTLINE_RULE = `${BTN}{border:var(--template-btn-border) !important;}`;
+/**
+ * The same for shadows: the book page's Add to bag draws its own soft shadow (important), and hides any shadow on
+ * hover. Once the press sets a template shadow control, each template's own button shadow (`--template-btn-shadow`,
+ * including its hover and pressed shadows) wins there too. Add to bag's Glow animation (`.fm-cta-glow`) keeps its glow.
+ */
+const BUTTON_SHADOW_RULE = `${["", ":hover", ":active"].map((st) => buttons(`:not(.fm-cta-glow)${st}`)).join(",")}{box-shadow:var(--template-btn-shadow) !important;}`;
 
 export const TEMPLATE_KNOBS: TemplateKnob[] = [
   { cssVar: "--tpl-btn-radius", keys: ["buttonRadius"], value: (d) => px(d.buttonRadius, 0, 999) },
   { cssVar: "--tpl-btn-case", keys: ["buttonUppercase"], value: (d) => yesNo(d.buttonUppercase, "uppercase", "none") },
   // On gives buttons the template's hard shadow on a template that draws none (Shelf, Atlas, Arch, Index); it
   // multiplies the shadow's distance. Off keeps the template's own: Hard shadow distance 0 takes a shadow away.
-  { cssVar: "--tpl-btn-shadow", keys: ["buttonShadow"], value: (d) => (d.buttonShadow === true ? "1" : undefined) },
+  { cssVar: "--tpl-btn-shadow", keys: ["buttonShadow"], value: (d) => (d.buttonShadow === true ? "1" : undefined), rule: BUTTON_SHADOW_RULE },
   {
     // "As typed" lifts a template's capitals (Marquee, Market stall); "Capitals" puts every heading in capitals. As
     // typed never forces the other templates' headings down, so a section's own capitals setting still shows.
@@ -108,8 +123,8 @@ export const TEMPLATE_KNOBS: TemplateKnob[] = [
   // draws its own outlines and shadows; Marquee's fall back to the Riso Press controls it has always followed.
   { cssVar: "--tpl-outline", keys: ["templateOutlineColor"], value: (d) => colour(d.templateOutlineColor), rule: BUTTON_OUTLINE_RULE },
   { cssVar: "--tpl-outline-w", keys: ["templateOutlineWidth"], value: (d) => px(d.templateOutlineWidth, 0, 8), rule: BUTTON_OUTLINE_RULE },
-  { cssVar: "--tpl-shadow", keys: ["templateShadowColor"], value: (d) => colour(d.templateShadowColor) },
-  { cssVar: "--tpl-shadow-x", keys: ["templateShadowOffset"], value: (d) => px(d.templateShadowOffset, 0, 16) },
+  { cssVar: "--tpl-shadow", keys: ["templateShadowColor"], value: (d) => colour(d.templateShadowColor), rule: BUTTON_SHADOW_RULE },
+  { cssVar: "--tpl-shadow-x", keys: ["templateShadowOffset"], value: (d) => px(d.templateShadowOffset, 0, 16), rule: BUTTON_SHADOW_RULE },
   { cssVar: "--tpl-rule-w", keys: ["templateRuleWidth"], value: (d) => px(d.templateRuleWidth, 0, 12) },
   {
     cssVar: "--tpl-frame-w", keys: ["templateFrameWidth"], value: (d) => px(d.templateFrameWidth, 0, 24),
@@ -157,6 +172,7 @@ ${S} :where(a,button,input,select,textarea,[tabindex]):focus-visible{outline:2px
 ${S} ::selection{background:var(--accent);color:var(--on-accent);}
 ${S} h1,${S} h2,${S} h3{text-wrap:balance;}
 ${S} .fm-card-price-old{opacity:.75 !important;}
+${S} .fm-newsletter-btn{border:var(--template-btn-border) !important;box-shadow:var(--template-btn-shadow) !important;}
 @media (pointer:coarse){${S} .custom-btn{min-height:44px;}}
 @media (prefers-reduced-motion:reduce){${S} *{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important;}}
 `;
@@ -184,9 +200,9 @@ ${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3 > span{display:grid;pl
 ${S} .fm-card [data-studio-label="Card title & price"]{border-top:0 !important;padding-top:0;}
 ${S} .fm-card-title{text-transform:${v("title-case", "uppercase")};font-size:.8rem;font-weight:800;letter-spacing:.05em;line-height:1.2;}
 ${S} .fm-card-price-tag{border:0 !important;padding:0 !important;font-size:.8rem;}
-${S} .custom-btn,${S} .store-btn-primary,${S} button.custom-btn{--template-btn-border:${OUTLINE_W_M} solid ${OUTLINE_M};border:var(--template-btn-border);border-radius:${v("btn-radius", "0px")} !important;text-transform:${v("btn-case", "uppercase")};letter-spacing:.1em;font-weight:800;box-shadow:${BTN_SHADOW(v("shadow-x", "5px"), v("shadow-x", "5px"), SHADOW_M)};transition:translate .1s ease,box-shadow .1s ease;}
-${S} .custom-btn:hover,${S} .store-btn-primary:hover{translate:2px 2px;box-shadow:${BTN_SHADOW(`max(0px, ${v("shadow-x", "5px")} - 2px)`, `max(0px, ${v("shadow-x", "5px")} - 2px)`, SHADOW_M)};}
-${S} .custom-btn:active,${S} .store-btn-primary:active{translate:5px 5px;box-shadow:${BTN_SHADOW("0px", "0px", SHADOW_M)};}
+${BTN}{--template-btn-border:${OUTLINE_W_M} solid ${OUTLINE_M};border:var(--template-btn-border);border-radius:${v("btn-radius", "0px")} !important;text-transform:${v("btn-case", "uppercase")};letter-spacing:.1em;font-weight:800;--template-btn-shadow:${BTN_SHADOW(v("shadow-x", "5px"), v("shadow-x", "5px"), SHADOW_M)};box-shadow:var(--template-btn-shadow);transition:translate .1s ease,box-shadow .1s ease;}
+${BTN_HOVER}{translate:2px 2px;--template-btn-shadow:${BTN_SHADOW(`max(0px, ${v("shadow-x", "5px")} - 2px)`, `max(0px, ${v("shadow-x", "5px")} - 2px)`, SHADOW_M)};box-shadow:var(--template-btn-shadow);}
+${BTN_ACTIVE}{translate:5px 5px;--template-btn-shadow:${BTN_SHADOW("0px", "0px", SHADOW_M)};box-shadow:var(--template-btn-shadow);}
 ${S} input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file]),${S} select,${S} textarea{border-radius:${v("btn-radius", "0px")} !important;}
 ${S} [class*="rounded-"]:not([class*="rounded-full"]):not([style*="border-radius"]){border-radius:${v("corner", "0px")} !important;}
 ${S} :is(button,a,label).rounded-full:not([style*="border-radius"]){border-radius:${v("btn-radius", "0px")} !important;}
@@ -214,8 +230,8 @@ ${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3{top:.6rem;left:.6rem;}
 ${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3 > span{border-radius:999px !important;border:0 !important;padding:.2rem .7rem;font-size:.62rem;letter-spacing:.04em;}
 ${S} .fm-card-title{font-family:var(--heading-font);font-weight:400;font-size:1.05rem;line-height:1.15;letter-spacing:0;text-transform:${v("title-case", "none")} !important;}
 ${S} .fm-card-price-tag{border:0 !important;padding:0 !important;font-size:.85rem;font-weight:500;}
-${S} .custom-btn,${S} .store-btn-primary,${S} button.custom-btn{border-radius:${v("btn-radius", "999px")} !important;--template-btn-border:${v("outline-w", "2px")} solid ${v("outline", "transparent")};border:var(--template-btn-border);font-weight:700;letter-spacing:.01em;text-transform:${v("btn-case", "none")};box-shadow:${NO_BTN_SHADOW(v("shadow", "rgb(var(--fg-rgb))"))};transition:translate .15s ease,background-color .15s ease;}
-${S} .custom-btn:hover,${S} .store-btn-primary:hover{translate:0 -2px;}
+${BTN}{border-radius:${v("btn-radius", "999px")} !important;--template-btn-border:${v("outline-w", "2px")} solid ${v("outline", "transparent")};border:var(--template-btn-border);font-weight:700;letter-spacing:.01em;text-transform:${v("btn-case", "none")};--template-btn-shadow:${NO_BTN_SHADOW(v("shadow", "rgb(var(--fg-rgb))"))};box-shadow:var(--template-btn-shadow);transition:translate .15s ease,background-color .15s ease;}
+${BTN_HOVER}{translate:0 -2px;}
 ${S} :is(button,a).rounded-full{border-radius:999px;}
 ${S} [data-store-region="catalogSearch"],${S} [data-store-region="catalogSort"],${S} [data-store-region="catalogStock"],${S} [data-store-region="catalogSale"]{border-radius:${v("btn-radius", "999px")} !important;}
 ${S} [data-store-region^="catalog"] :is(button,select),${S} button[data-store-region^="catalog"],${S} select[data-store-region^="catalog"]{color:rgba(var(--fg-rgb),.82);}
@@ -244,7 +260,7 @@ ${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3{top:.5rem;left:.5rem;}
 ${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3 > span{border-radius:${v("corner", "2px")} !important;border:0 !important;padding:.18rem .5rem;font-size:.6rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;}
 ${S} .fm-card-title{font-size:.86rem;font-weight:600;line-height:1.25;letter-spacing:0;text-transform:${v("title-case", "none")} !important;}
 ${S} .fm-card-price-tag{border:0 !important;padding:0 !important;font-size:.82rem;font-variant-numeric:tabular-nums;}
-${S} .custom-btn,${S} .store-btn-primary,${S} button.custom-btn{--template-btn-border:${v("outline-w", "1px")} solid ${v("outline", "transparent")};border:var(--template-btn-border);border-radius:${v("btn-radius", "2px")} !important;text-transform:${v("btn-case", "uppercase")};letter-spacing:.08em;font-size:.78rem;font-weight:600;box-shadow:${NO_BTN_SHADOW(v("shadow", "rgb(var(--fg-rgb))"))};transition:background-color .15s ease,color .15s ease;}
+${BTN}{--template-btn-border:${v("outline-w", "1px")} solid ${v("outline", "transparent")};border:var(--template-btn-border);border-radius:${v("btn-radius", "2px")} !important;text-transform:${v("btn-case", "uppercase")};letter-spacing:.08em;font-size:.78rem;font-weight:600;--template-btn-shadow:${NO_BTN_SHADOW(v("shadow", "rgb(var(--fg-rgb))"))};box-shadow:var(--template-btn-shadow);transition:background-color .15s ease,color .15s ease;}
 ${S} input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file]),${S} select,${S} textarea{border-radius:${v("btn-radius", "2px")} !important;}
 ${S} [class*="rounded-"]:not([class*="rounded-full"]):not([style*="border-radius"]){border-radius:${v("corner", "2px")} !important;}
 ${S} .glass-card{backdrop-filter:none;border:${v("outline-w", "1px")} solid ${v("outline", HAIR_A)};border-radius:${v("corner", "2px")};background:var(--surface);}
@@ -277,9 +293,9 @@ ${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3{top:.4rem;left:.4rem;}
 ${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3 > span{border-radius:999px !important;border:${v("outline-w", "2px")} solid ${INK} !important;padding:.15rem .6rem;font-size:.62rem;font-weight:800;letter-spacing:.04em;}
 ${S} .fm-card-title{font-family:var(--heading-font);font-size:1rem;font-weight:800;line-height:1.1;letter-spacing:-.005em;text-transform:${v("title-case", "none")} !important;}
 ${S} .fm-card-price-tag{border:0 !important;padding:0 !important;font-size:.85rem;font-weight:700;}
-${S} .custom-btn,${S} .store-btn-primary,${S} button.custom-btn{--template-btn-border:${v("outline-w", "2px")} solid ${INK};border:var(--template-btn-border);border-radius:${v("btn-radius", "12px")} !important;font-weight:800;letter-spacing:.02em;text-transform:${v("btn-case", "none")};box-shadow:${BTN_SHADOW("0px", v("shadow-x", "4px"), v("shadow", INK))};transition:translate .1s ease,box-shadow .1s ease;}
-${S} .custom-btn:hover,${S} .store-btn-primary:hover{translate:0 2px;box-shadow:${BTN_SHADOW("0px", `calc(${v("shadow-x", "4px")} / 2)`, v("shadow", INK))};}
-${S} .custom-btn:active,${S} .store-btn-primary:active{translate:0 4px;box-shadow:${BTN_SHADOW("0px", "0px", v("shadow", INK))};}
+${BTN}{--template-btn-border:${v("outline-w", "2px")} solid ${INK};border:var(--template-btn-border);border-radius:${v("btn-radius", "12px")} !important;font-weight:800;letter-spacing:.02em;text-transform:${v("btn-case", "none")};--template-btn-shadow:${BTN_SHADOW("0px", v("shadow-x", "4px"), v("shadow", INK))};box-shadow:var(--template-btn-shadow);transition:translate .1s ease,box-shadow .1s ease;}
+${BTN_HOVER}{translate:0 2px;--template-btn-shadow:${BTN_SHADOW("0px", `calc(${v("shadow-x", "4px")} / 2)`, v("shadow", INK))};box-shadow:var(--template-btn-shadow);}
+${BTN_ACTIVE}{translate:0 4px;--template-btn-shadow:${BTN_SHADOW("0px", "0px", v("shadow", INK))};box-shadow:var(--template-btn-shadow);}
 ${S} input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file]),${S} select,${S} textarea{border-radius:calc(${v("btn-radius", "12px")} * 5 / 6) !important;}
 ${S} .glass-card{backdrop-filter:none;border:${v("outline-w", "2px")} solid ${INK};border-radius:calc(${v("corner", "14px")} + 2px);background:var(--surface);}
 ${S} [data-store-region="newsletterPanel"]{border-top:${v("rule-w", "3px")} solid ${INK};}
@@ -307,8 +323,8 @@ ${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3 > span{border-radius:9
 ${S} .fm-card [data-studio-label="Card title & price"]{text-align:center;}
 ${S} .fm-card-title{font-family:var(--heading-font);font-size:1.2rem;font-weight:500;line-height:1.1;letter-spacing:0;text-transform:${v("title-case", "none")} !important;}
 ${S} .fm-card-price-tag{border:0 !important;padding:0 !important;font-size:.8rem;letter-spacing:.08em;}
-${S} .custom-btn,${S} .store-btn-primary,${S} button.custom-btn{--template-btn-border:${v("outline-w", "1px")} solid ${v("outline", "transparent")};border:var(--template-btn-border);border-radius:${v("btn-radius", "999px")} !important;text-transform:${v("btn-case", "uppercase")};letter-spacing:.14em;font-size:.74rem;font-weight:600;box-shadow:${NO_BTN_SHADOW(v("shadow", "rgb(var(--fg-rgb))"))};transition:translate .15s ease,background-color .15s ease;}
-${S} .custom-btn:hover,${S} .store-btn-primary:hover{translate:0 -2px;}
+${BTN}{--template-btn-border:${v("outline-w", "1px")} solid ${v("outline", "transparent")};border:var(--template-btn-border);border-radius:${v("btn-radius", "999px")} !important;text-transform:${v("btn-case", "uppercase")};letter-spacing:.14em;font-size:.74rem;font-weight:600;--template-btn-shadow:${NO_BTN_SHADOW(v("shadow", "rgb(var(--fg-rgb))"))};box-shadow:var(--template-btn-shadow);transition:translate .15s ease,background-color .15s ease;}
+${BTN_HOVER}{translate:0 -2px;}
 ${S} :is(button,a).rounded-full{border-radius:999px;}
 ${S} input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file]),${S} select{border-radius:${v("btn-radius", "999px")} !important;}
 ${S} textarea{border-radius:min(${v("btn-radius", "999px")}, 20px) !important;}
@@ -345,9 +361,9 @@ ${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3{top:.5rem;left:.5rem;}
 ${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3 > span{border-radius:999px !important;border:${v("outline-w", "2px")} solid ${INK_K} !important;padding:.15rem .6rem;font-size:.62rem;font-weight:800;letter-spacing:.04em;transform:rotate(-4deg);}
 ${S} .fm-card-title{font-family:var(--heading-font);font-size:1rem;font-weight:400;line-height:1;letter-spacing:-.005em;text-transform:${v("title-case", "uppercase")} !important;}
 ${S} .fm-card-price{background:rgb(var(--fg-rgb));color:var(--bg-color);padding:.12rem .5rem;font-size:.8rem;font-weight:700;border:0 !important;}
-${S} .custom-btn,${S} .store-btn-primary,${S} button.custom-btn{--template-btn-border:${W_K} solid ${INK_K};border:var(--template-btn-border);border-radius:${v("btn-radius", "10px")} !important;text-transform:${v("btn-case", "uppercase")};font-weight:800;letter-spacing:.04em;box-shadow:${BTN_SHADOW(v("shadow-x", "4px"), v("shadow-x", "4px"), SHADOW_K)};transition:translate .1s ease,box-shadow .1s ease;}
-${S} .custom-btn:hover,${S} .store-btn-primary:hover{translate:2px 2px;box-shadow:${BTN_SHADOW(`calc(${v("shadow-x", "4px")} / 2)`, `calc(${v("shadow-x", "4px")} / 2)`, SHADOW_K)};}
-${S} .custom-btn:active,${S} .store-btn-primary:active{translate:4px 4px;box-shadow:${BTN_SHADOW("0px", "0px", SHADOW_K)};}
+${BTN}{--template-btn-border:${W_K} solid ${INK_K};border:var(--template-btn-border);border-radius:${v("btn-radius", "10px")} !important;text-transform:${v("btn-case", "uppercase")};font-weight:800;letter-spacing:.04em;--template-btn-shadow:${BTN_SHADOW(v("shadow-x", "4px"), v("shadow-x", "4px"), SHADOW_K)};box-shadow:var(--template-btn-shadow);transition:translate .1s ease,box-shadow .1s ease;}
+${BTN_HOVER}{translate:2px 2px;--template-btn-shadow:${BTN_SHADOW(`calc(${v("shadow-x", "4px")} / 2)`, `calc(${v("shadow-x", "4px")} / 2)`, SHADOW_K)};box-shadow:var(--template-btn-shadow);}
+${BTN_ACTIVE}{translate:4px 4px;--template-btn-shadow:${BTN_SHADOW("0px", "0px", SHADOW_K)};box-shadow:var(--template-btn-shadow);}
 ${S} input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file]),${S} select,${S} textarea{border-radius:calc(${v("btn-radius", "10px")} * .8) !important;border-width:2px;}
 ${S} .glass-card{backdrop-filter:none;border:${W_K} solid ${INK_K};border-radius:calc(${v("corner", "6px")} + 6px);background:var(--surface);box-shadow:calc(${CARD_X} - 1px) calc(${CARD_X} - 1px) 0 ${SHADOW_K};}
 ${S} [data-store-region="newsletterPanel"]{border-top:${v("rule-w", "4px")} solid ${INK_K};}
@@ -383,7 +399,7 @@ ${S} .fm-card .fm-photo-frame{border-radius:${v("photo-radius", "0px")} !importa
 ${S} .fm-card-title{font-size:1.15rem !important;font-weight:700;line-height:1.1;letter-spacing:-.01em;text-transform:${v("title-case", "none")} !important;}
 ${S} .fm-card-price{font-variant-numeric:tabular-nums;font-size:.95rem !important;font-weight:600;border:0 !important;padding:0 !important;}
 ${S} [data-studio-label="Product grid"] > .fm-card :is(.fm-card-creator,.fm-card-formats,.fm-card-rating){font-size:.72rem;}
-${S} .custom-btn,${S} .store-btn-primary,${S} button.custom-btn{--template-btn-border:${v("outline-w", "2px")} solid ${INK_I};border:var(--template-btn-border);border-radius:${v("btn-radius", "0px")} !important;text-transform:${v("btn-case", "uppercase")};letter-spacing:.08em;font-size:.74rem;font-weight:700;box-shadow:${NO_BTN_SHADOW(v("shadow", INK_I))};transition:background-color .12s ease,color .12s ease;}
+${BTN}{--template-btn-border:${v("outline-w", "2px")} solid ${INK_I};border:var(--template-btn-border);border-radius:${v("btn-radius", "0px")} !important;text-transform:${v("btn-case", "uppercase")};letter-spacing:.08em;font-size:.74rem;font-weight:700;--template-btn-shadow:${NO_BTN_SHADOW(v("shadow", INK_I))};box-shadow:var(--template-btn-shadow);transition:background-color .12s ease,color .12s ease;}
 ${S} input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file]),${S} select,${S} textarea{border-radius:${v("btn-radius", "0px")} !important;border-width:1px;}
 ${S} [class*="rounded-"]:not([class*="rounded-full"]):not([style*="border-radius"]){border-radius:${v("corner", "0px")} !important;}
 ${S} .glass-card{backdrop-filter:none;border:calc(${v("outline-w", "2px")} / 2) solid ${INK_I};border-radius:${v("corner", "0px")};background:var(--surface);}

@@ -4480,6 +4480,12 @@ exports.onOrderInventoryPush = onDocumentWritten({ document: "orders/{orderId}",
   if (result.status === "failed") console.warn(`inventory link: order ${event.params.orderId} not delivered yet (${result.error}); the sweep retries it.`);
 });
 
+// Changes an installed outside app asked for (platform plan 26.3b, appRequests.js): the platform writes the request,
+// this applies it with the shop's own checks and writes the answer back on the same document.
+exports.onAppRequest = onDocumentCreated({ document: "appRequests/{requestId}", timeoutSeconds: 60 }, async event => {
+  await require("./appRequests").applyAppRequest(db, event.params.requestId);
+});
+
 // The link's regular check: labels bought in the inventory app, missed or failed pushes, past orders,
 // and (every 15 minutes, once the owner switched it on) linked books' stock.
 exports.inventoryLinkSweep = onSchedule({ schedule: "every 5 minutes", name: "inventoryLinkSweep", timeoutSeconds: 300 }, async () => {
