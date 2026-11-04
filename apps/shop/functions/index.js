@@ -44,6 +44,7 @@ const { FALLBACK_COPY_GRAMS, parcelGrams } = require("./parcelWeight");
 const { addressMissing } = require("./shared/addressRules");
 const { pressName } = require("./shared/shopIdentity");
 const { sellerSection, digitalConsentSection } = require("./sellerDetails");
+const emailFrench = require("./emailFrench");
 const { emailDefaultsFor, goodsDownloadNote, sellsBooks, withShopEmailWords, wordsFor } = require("./shared/shopSells");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem } = require("./shared/localFulfillment");
 const { taxPartsByKind, discountedLineValues } = require("./shared/taxByKind");
@@ -82,6 +83,7 @@ const { checkoutAdminActions } = require("./checkoutAdmin");
 const { customDomainActions } = require("./customDomains");
 const { googleConnectActions } = require("./googleConnect");
 const { bookkeepingActions, dayFromOrders } = require("./quickbooksLink");
+const { socialActions } = require("./socialLink");
 const { practiceCheckoutActions } = require("./practiceCheckout");
 const { checkoutPaymentActions } = require("./checkoutPayment");
 const { createPayments, providerName } = require("./payments");
@@ -382,45 +384,45 @@ function moneyFmt(n) {
 }
 
 // The customer's items + totals table, in the currency they paid.
-function customerTotalsTable(order) {
+function customerTotalsTable(order, say = text => text) {
   const m = v => orderMoneyFmt(v, order);
   return `
         <table style="width:100%;border-collapse:collapse;margin:24px 0;font-size:13px;">
-          ${orderRowsHtml(order.items, order)}
-          <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Subtotal</td><td style="text-align:right;">${m(order.subtotal)}</td></tr>
-          <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Shipping</td><td style="text-align:right;">${m(order.shipping)}</td></tr>
-          ${order.tax ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Tax</td><td style="text-align:right;">${m(order.tax)}</td></tr>` : ""}
-          ${order.discount ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#0a7;">${discountLabel(order)}</td><td style="text-align:right;color:#0a7;">−${m(order.discount)}</td></tr>` : ""}
-          ${order.giftCardAmount ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Gift card${(order.giftCardRedemptions || []).length > 1 ? "s" : ""} ${escapeHtml((order.giftCardRedemptions || []).map(r => `••••${r.last4 || ""}`).join(", "))}</td><td style="text-align:right;">−${m(order.giftCardAmount)}</td></tr>` : ""}
-          <tr><td colspan="2" style="padding:12px 0;text-align:right;font-weight:bold;">Total</td><td style="text-align:right;font-weight:bold;">${chargedTotalFmt(order)}</td></tr>
+          ${orderRowsHtml(order.items, order, say)}
+          <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">${say("Subtotal")}</td><td style="text-align:right;">${m(order.subtotal)}</td></tr>
+          <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">${say("Shipping")}</td><td style="text-align:right;">${m(order.shipping)}</td></tr>
+          ${order.tax ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">${say("Tax")}</td><td style="text-align:right;">${m(order.tax)}</td></tr>` : ""}
+          ${order.discount ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#0a7;">${discountLabel(order, say)}</td><td style="text-align:right;color:#0a7;">−${m(order.discount)}</td></tr>` : ""}
+          ${order.giftCardAmount ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">${say((order.giftCardRedemptions || []).length > 1 ? "Gift cards" : "Gift card")} ${escapeHtml((order.giftCardRedemptions || []).map(r => `••••${r.last4 || ""}`).join(", "))}</td><td style="text-align:right;">−${m(order.giftCardAmount)}</td></tr>` : ""}
+          <tr><td colspan="2" style="padding:12px 0;text-align:right;font-weight:bold;">${say("Total")}</td><td style="text-align:right;font-weight:bold;">${chargedTotalFmt(order)}</td></tr>
         </table>
       `;
 }
 
 // "Discount" / "Discount (SPRING)" / the automatic offer's title.
-function discountLabel(order) {
+function discountLabel(order, say = text => text) {
   const applied = order.appliedDiscount || {};
   const name = applied.automatic ? applied.title : applied.code;
-  return name ? `Discount (${escapeHtml(name)})` : "Discount";
+  return name ? `${say("Discount")} (${escapeHtml(name)})` : say("Discount");
 }
 
 // Add-ons, box-set contents, free gift and gift-card recipient under an order line (escaped).
-function lineExtrasHtml(i) {
+function lineExtrasHtml(i, say = text => text) {
   const notes = [];
-  if (i.promoGift) notes.push("Free gift");
+  if (i.promoGift) notes.push(say("Free gift"));
   for (const addOn of Array.isArray(i.addOns) ? i.addOns : []) notes.push(`${escapeHtml(addOn.label)}${addOn.text ? `: “${escapeHtml(addOn.text)}”` : ""}`);
-  if (Array.isArray(i.components) && i.components.length) notes.push(`Includes ${i.components.map(c => `${Number(c.quantity) > 1 ? `${Number(c.quantity)} × ` : ""}${escapeHtml(c.title || "")}${c.variantName ? ` (${escapeHtml(c.variantName)})` : ""}`).join(", ")}`);
-  if (i.giftCard && i.giftCardDetails?.recipientEmail) notes.push(`For ${escapeHtml(i.giftCardDetails.recipientName || i.giftCardDetails.recipientEmail)}`);
+  if (Array.isArray(i.components) && i.components.length) notes.push(`${say("Includes")} ${i.components.map(c => `${Number(c.quantity) > 1 ? `${Number(c.quantity)} × ` : ""}${escapeHtml(c.title || "")}${c.variantName ? ` (${escapeHtml(c.variantName)})` : ""}`).join(", ")}`);
+  if (i.giftCard && i.giftCardDetails?.recipientEmail) notes.push(`${say("For")} ${escapeHtml(i.giftCardDetails.recipientName || i.giftCardDetails.recipientEmail)}`);
   return notes.length ? `<div style="color:#888;font-size:12px;margin-top:4px;">${notes.join("<br/>")}</div>` : "";
 }
 
-function orderRowsHtml(items = [], order = null) {
+function orderRowsHtml(items = [], order = null, say = text => text) {
   return items
     .map(
       i => `
       <tr>
         <td style="padding:12px 0;border-bottom:1px solid #eee;">
-          ${escapeHtml(i.title)}${i.variantName ? ` <span style="color:#888;">(${escapeHtml(i.variantName)})</span>` : ""}${lineExtrasHtml(i)}
+          ${escapeHtml(i.title)}${i.variantName ? ` <span style="color:#888;">(${escapeHtml(i.variantName)})</span>` : ""}${lineExtrasHtml(i, say)}
         </td>
         <td style="padding:12px 0;border-bottom:1px solid #eee;text-align:right;color:#888;">×${i.quantity}</td>
         <td style="padding:12px 0;border-bottom:1px solid #eee;text-align:right;">${order ? orderMoneyFmt(i.price * i.quantity, order) : moneyFmt(i.price * i.quantity)}</td>
@@ -557,6 +559,10 @@ exports.fairHelperPayment = onBrowserRequest({ secrets: withPlatformKey([STRIPE_
   }
 });
 
+// Safety emails to the shop's own team come in French when the shop is written in French
+// (Studio › Text & labels › Shop language), like the rest of what the team reads there.
+const adminEmailLanguage = () => emailFrench.shopLanguage(db);
+
 // Two-step backup codes (functions/twoStepBackup.js, plan 22.9). "status" and "make" are for the signed-in person
 // in Settings › Security; "use" comes from the sign-in page, before there is a sign-in, with Google's own token.
 exports.twoStepBackup = onBrowserRequest({ secrets: withPlatformKey([RESEND_API_KEY]) }, async (req, res) => {
@@ -576,8 +582,9 @@ exports.twoStepBackup = onBrowserRequest({ secrets: withPlatformKey([RESEND_API_
       const google = { idToken: typeof req.body?.idToken === "string" ? req.body.idToken : "", accessToken: typeof req.body?.accessToken === "string" ? req.body.accessToken : "" };
       // The person and the owner are told by email, so a stolen code can't be used quietly.
       const notify = async ({ email, left }) => {
-        const when = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", dateStyle: "long", timeStyle: "short" }).format(new Date(nowIso));
-        const message = twoStepBackup.backupUsedEmail({ email, ownerEmail: ADMIN_TO, left, shopName: shopConfig.senderName, when, adminLink: siteLink("/admin#settings/security") });
+        const language = await adminEmailLanguage();
+        const when = new Intl.DateTimeFormat(language === "fr" ? "fr-CA" : "en-CA", { timeZone: "America/Toronto", dateStyle: "long", timeStyle: "short" }).format(new Date(nowIso));
+        const message = twoStepBackup.backupUsedEmail({ language,  email, ownerEmail: ADMIN_TO, left, shopName: shopConfig.senderName, when, adminLink: siteLink("/admin#settings/security") });
         if (message.to.length) await sendEmail({ queue: "twoStepBackupUsed", ...message, secret: resendSecretValue() });
       };
       res.json(await twoStepBackup.spendBackup({ db, auth: admin.auth(), google, code: String(req.body?.code || ""), nowIso, notify }));
@@ -597,8 +604,9 @@ exports.twoStepBackup = onBrowserRequest({ secrets: withPlatformKey([RESEND_API_
     // Code plan 25.4: two-step was turned on or off in Settings › Security; the person and the owner are told.
     if (action === "changed") {
       const notify = async ({ email, on }) => {
-        const when = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", dateStyle: "long", timeStyle: "short" }).format(new Date(nowIso));
-        const message = twoStepBackup.twoStepChangedEmail({ email, ownerEmail: ADMIN_TO, on, shopName: shopConfig.senderName, when, adminLink: siteLink("/admin#settings/security") });
+        const language = await adminEmailLanguage();
+        const when = new Intl.DateTimeFormat(language === "fr" ? "fr-CA" : "en-CA", { timeZone: "America/Toronto", dateStyle: "long", timeStyle: "short" }).format(new Date(nowIso));
+        const message = twoStepBackup.twoStepChangedEmail({ language,  email, ownerEmail: ADMIN_TO, on, shopName: shopConfig.senderName, when, adminLink: siteLink("/admin#settings/security") });
         if (message.to.length) await sendEmail({ queue: "twoStepChanged", ...message, secret: resendSecretValue() });
       };
       res.json(await twoStepBackup.noteTwoStepChange({ db, auth: admin.auth(), uid: decoded.uid, nowIso, notify }));
@@ -1772,6 +1780,9 @@ const { handleBookkeeping } = bookkeepingActions({
   url: shopConfig.platformAccountingUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin,
   buildDay: async (date) => dayFromOrders((await db.collection("orders").get()).docs.map((d) => ({ id: d.id, ...d.data() })), date),
 });
+// Sales channels and Social posts: the press's social accounts, through the platform's social service (socialLink.js, plan 27.4).
+const social = socialActions({ url: shopConfig.platformSocialUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin, db, siteUrl: shopConfig.siteUrl });
+const handleSocial = social.handleSocial;
 // Practice orders on a platform shop while it is private, for the owner only (practiceCheckout.js, plan 7.6).
 const { handlePracticeCheckout, practiceFor } = practiceCheckoutActions({ db, platform: payments.mode === "platform", requireAdmin, orderRequestIdentity });
 
@@ -1836,6 +1847,7 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   customDomains: handleCustomDomains,
   googleConnect: handleGoogleConnect,
   bookkeeping: handleBookkeeping,
+  social: handleSocial,
   practiceCheckout: handlePracticeCheckout,
   webhookHealth: handleWebhookHealth,
   giftCardAdmin: handleGiftCardAdmin,
@@ -1936,7 +1948,9 @@ async function sendLateRefundEmail(orderId, order, { amountMinor, currency, paym
     order_id: order.orderId || orderId,
     total_price: refundAmountText({ refund: { amount: Number(amountMinor || 0) / 100, currency: String(currency || "").toUpperCase() } }),
     button_url: await orderTrackUrl(orderId, order),
-  }, `<p style="margin-top:20px;font-size:13px;line-height:1.6;">Your payment reached us after the checkout had closed, so ${sellsBooks(notificationSettings.sells) ? "the books were" : "your items were"} no longer set aside for you and this order wasn't placed. We've refunded the full amount. You're welcome to order again.</p>`);
+  }, `<p style="margin-top:20px;font-size:13px;line-height:1.6;">${emailFrench.emailLanguage(order) === "fr"
+    ? "Votre paiement nous est parvenu après la fermeture du paiement : les articles n'étaient plus réservés pour vous et cette commande n'a pas été passée. Nous avons remboursé le montant au complet. N'hésitez pas à commander de nouveau."
+    : `Your payment reached us after the checkout had closed, so ${sellsBooks(notificationSettings.sells) ? "the books were" : "your items were"} no longer set aside for you and this order wasn't placed. We've refunded the full amount. You're welcome to order again.`}</p>`, { language: emailFrench.emailLanguage(order) });
   await sendOrderEmailOnce(orderId, `latePaymentRefund_${paymentIntentId}`, {
     to, subject: compiled.subject, html: compiled.html, secret: RESEND_API_KEY.value(),
   });
@@ -2970,6 +2984,14 @@ const DEFAULT_NOTIFICATIONS = {
     buttonText: "Track shipment",
     signoff: "Best,\nThe {{shop_name}} team",
     enabled: true
+  },
+  // A pickup order the owner marked collected (Orders › Confirm collected): a thank-you the shopper can keep.
+  order_picked_up: {
+    subject: "Thanks for picking up order {{order_id}}",
+    body: "Hi {{customer_name}},\n\nYou've picked up order {{order_id}}. Thank you for shopping with {{shop_name}}! Keep this email as your receipt.",
+    buttonText: "View your order",
+    signoff: "Thanks,\nThe {{shop_name}} team",
+    enabled: true
   }
 };
 
@@ -3097,30 +3119,31 @@ function escapeHtml(value) {
 const localMethodOf = order => order?.fulfillment?.method || order?.fulfillmentSelection?.method || "";
 const isLocalOrder = order => ["pickup", "local_delivery"].includes(localMethodOf(order));
 
-function deliveryDetails(order) {
+function deliveryDetails(order, say = text => text) {
   const local = order.fulfillment || {};
   if (local.method === "pickup") {
     const a = local.address || {};
     return {
-      heading: "Pickup",
-      method: local.name || "Pickup",
+      heading: say("Pickup"),
+      method: local.name || say("Pickup"),
       estimate: local.estimate || "",
-      lines: [local.name, [a.street, a.city, a.state, a.zip].filter(Boolean).join(", "), local.hours, local.estimate, "We'll email you when your order is ready to collect."].filter(Boolean),
+      lines: [local.name, [a.street, a.city, a.state, a.zip].filter(Boolean).join(", "), local.hours, local.estimate, say("We'll email you when your order is ready to collect.")].filter(Boolean),
     };
   }
   if (local.method === "local_delivery") {
-    return { heading: "Local delivery", method: local.name || "Local delivery", estimate: local.estimate || "", lines: [local.name, local.estimate].filter(Boolean) };
+    return { heading: say("Local delivery"), method: local.name || say("Local delivery"), estimate: local.estimate || "", lines: [local.name, local.estimate].filter(Boolean) };
   }
   if (!order.shippingMethod) return { heading: "", method: "", estimate: "", lines: [] };
   const est = order.shippingEstimate || {};
   const days = String(est.days || "").trim();
-  const estimate = days ? `${days} business day${days === "1" ? "" : "s"} after dispatch` : String(est.terms || "").trim();
+  const french = say("Shipping") !== "Shipping";
+  const estimate = days ? (french ? `${days} jour${days === "1" ? "" : "s"} ouvrable${days === "1" ? "" : "s"} après l'envoi` : `${days} business day${days === "1" ? "" : "s"} after dispatch`) : String(est.terms || "").trim();
   const a = order.customer?.address || {};
   return {
-    heading: "Shipping",
+    heading: say("Shipping"),
     method: order.shippingMethod,
     estimate,
-    lines: [order.shippingMethod, estimate && `Expected delivery: ${estimate}`, [a.street, a.city, a.state, a.zip, a.country].filter(Boolean).join(", "), "We'll email your tracking number as soon as it ships."].filter(Boolean),
+    lines: [order.shippingMethod, estimate && `${say("Expected delivery:")} ${estimate}`, [a.street, a.city, a.state, a.zip, a.country].filter(Boolean).join(", "), say("We'll email your tracking number as soon as it ships.")].filter(Boolean),
   };
 }
 
@@ -3180,7 +3203,9 @@ function getTrackingUrl(carrier, trackingNum, customUrl) {
   return `https://www.google.com/search?q=${encodeURIComponent(carrier + " " + cleanNum)}`;
 }
 
-function compileEmailTemplate(templateId, settings, vars, additionalSection) {
+// `language` "fr" sends the French words (emailFrench.js, code plan 25.9) where the email has them. `transform`
+// rewrites the body that is sent (both languages), for example to drop tracking lines when there is no tracking number.
+function compileEmailTemplate(templateId, settings, vars, additionalSection, { language = "en", transform = null } = {}) {
   const brand = settings.brand || {};
   // {{shop_name}} is known to every email; a caller's own value wins.
   const shopName = String(settings.shopName || shopConfig.senderName || "");
@@ -3189,11 +3214,14 @@ function compileEmailTemplate(templateId, settings, vars, additionalSection) {
   const brandColor = brand.brandColor || "#e8402a";
   
   // An emptied field falls back to this shop's default words (plan 10.23: settings.sells from loadNotificationSettings).
-  const fallback = emailDefaultsFor(settings.sells, DEFAULT_NOTIFICATIONS)[templateId];
-  const template = settings[templateId] || fallback;
+  const french = language === "fr" ? emailFrench.frenchTemplate(templateId, settings) : null;
+  const fallback = french || emailDefaultsFor(settings.sells, DEFAULT_NOTIFICATIONS)[templateId];
+  const template = french || settings[templateId] || fallback;
+  if (french) vars = emailFrench.frenchValues(vars);
   let subject = template.subject || fallback.subject;
   // A required line (the gift-card code) comes back even if an edit removed it.
-  let body = withRequiredPlaceholders(templateId, template.body || fallback.body);
+  let body = withRequiredPlaceholders(templateId, template.body || fallback.body, french ? "fr" : "en");
+  if (transform) body = transform(body);
   let buttonText = template.buttonText !== undefined ? template.buttonText : fallback.buttonText;
   let signoff = template.signoff || fallback.signoff;
 
@@ -3254,10 +3282,10 @@ async function emailGiftCard(cardId, card, { to = "", notificationSettings = nul
     amount: `CA$${(Number(card.initialMinor) / 100).toFixed(2)}`,
     code: card.code,
     message: card.message || "",
-    expires: card.expiresOn ? `It can be used until ${card.expiresOn}.` : "",
+    expires: card.expiresOn ? (emailFrench.emailLanguage(card) === "fr" ? `Elle est valide jusqu'au ${card.expiresOn}.` : `It can be used until ${card.expiresOn}.`) : "",
     button_url: siteLink("/"),
     shop_url: siteLink("/"),
-  });
+  }, undefined, { language: emailFrench.emailLanguage(card) });
   await sendEmail({ to: recipient, subject: `${test ? "[TEST] " : ""}${compiled.subject}`, html: compiled.html, secret: RESEND_API_KEY.value(), queue, about: { giftCardId: cardId } });
   const at = new Date().toISOString();
   await db.collection("giftCards").doc(cardId).update({ emailedAt: at, history: withHistory(card, { type: "emailed", minor: 0, to: recipient, at }), updatedAt: at });
@@ -3445,6 +3473,8 @@ async function handleOrderUpdated(event) {
         isPhysical: isPhysicalItem, catalogDigital, preorderActive, releaseDateOf, today: shopDate(),
       });
 
+      // The fixed words around the email in the shopper's language (emailFrench.js, plan 25.9).
+      const say = emailFrench.sayer(emailFrench.emailLanguage(order));
       let downloadSection = "";
       if (digitalItems.length > 0) {
         const linkFor = item => `${functionLink(shopConfig, "downloadDigitalAsset")}?orderId=${encodeURIComponent(orderId)}&itemId=${encodeURIComponent(item.itemId)}${item.variantId ? `&variantId=${encodeURIComponent(item.variantId)}` : ""}&token=${encodeURIComponent(order.downloadToken || "")}`;
@@ -3452,7 +3482,7 @@ async function handleOrderUpdated(event) {
           || (sellsBooks(notificationSettings.sells) ? digitalDelivery.DEFAULT_DOWNLOAD_NOTE : goodsDownloadNote(digitalDelivery.DOWNLOAD_LIMIT)));
         downloadSection = `
           <div style="margin-top:28px;padding:24px;background:#f8f6ff;border-radius:16px;border:1px solid #7c3aed20;">
-            <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#7c3aed;">${sellsBooks(notificationSettings.sells) ? "Digital Library Access" : "Your downloads"}</h3>
+            <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#7c3aed;">${say(sellsBooks(notificationSettings.sells) ? "Digital Library Access" : "Your downloads")}</h3>
             <p style="font-size:11px;color:#666;margin-bottom:16px;line-height:1.5;">${escapeHtml(note)}</p>
             <table style="width:100%;font-size:12px;border-collapse:collapse;">
               ${digitalItems.map(item => `
@@ -3460,9 +3490,9 @@ async function handleOrderUpdated(event) {
                   <td style="padding:8px 0;border-bottom:1px solid #7c3aed10;"><strong>${escapeHtml(item.title)}</strong></td>
                   <td style="padding:8px 0;text-align:right;border-bottom:1px solid #7c3aed10;">
                     ${item.pendingUntil
-                      ? `<span style="font-size:11px;color:#666;">${item.pendingUntil === "announced" ? (sellsBooks(notificationSettings.sells) ? "Available once the book is released" : "Available once it is released") : `Available from ${escapeHtml(item.pendingUntil)}`}</span>`
+                      ? `<span style="font-size:11px;color:#666;">${item.pendingUntil === "announced" ? say(sellsBooks(notificationSettings.sells) ? "Available once the book is released" : "Available once it is released") : `${say("Available from")} ${escapeHtml(item.pendingUntil)}`}</span>`
                       : `<a href="${linkFor(item)}"
-                       style="display:inline-block;background:#7C3AED;color:#fff;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:10px;font-weight:bold;letter-spacing:.05em;text-transform:uppercase;">Download File</a>`}
+                       style="display:inline-block;background:#7C3AED;color:#fff;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:10px;font-weight:bold;letter-spacing:.05em;text-transform:uppercase;">${say("Download File")}</a>`}
                   </td>
                 </tr>
               `).join("")}
@@ -3471,18 +3501,20 @@ async function handleOrderUpdated(event) {
         `;
       }
 
-      const itemsTable = customerTotalsTable(order);
+      const itemsTable = customerTotalsTable(order, say);
 
       let paymentConfirmedSection = "";
       if (order.paymentMethod && !["Stripe", "PayPal", "Free"].includes(order.paymentMethod)) {
         paymentConfirmedSection = `
           <div style="margin-top:28px;padding:24px;background:#ecfdf5;border-radius:16px;border:1px solid #10b98120;">
-            <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#10b981;">Payment Verified</h3>
-            <p style="font-size:12px;color:#065f46;margin-bottom:0;line-height:1.6;">We have verified your payment via <strong>${escapeHtml(order.paymentMethod)}</strong>. Your order is now confirmed${isPhysicalAny(order) ? " and being prepared for shipment" : ""}.</p>
+            <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#10b981;">${say("Payment Verified")}</h3>
+            <p style="font-size:12px;color:#065f46;margin-bottom:0;line-height:1.6;">${say === emailFrench.sayer("en") || say("Shipping") === "Shipping"
+              ? `We have verified your payment via <strong>${escapeHtml(order.paymentMethod)}</strong>. Your order is now confirmed${isPhysicalAny(order) ? " and being prepared for shipment" : ""}.`
+              : `Nous avons vérifié votre paiement par <strong>${escapeHtml(order.paymentMethod)}</strong>. Votre commande est maintenant confirmée${isPhysicalAny(order) ? " et en préparation pour l'envoi" : ""}.`}</p>
           </div>
         `;
       }
-      const delivery = deliveryDetails(order);
+      const delivery = deliveryDetails(order, say);
       // Nothing physical in the order: no "preparing it for shipment" / "we'll email when it ships".
       const digitalOnlyOrder = (order.items || []).length > 0 && (order.items || []).every(item => !item || !isPhysicalItem(item));
       const deliverySection = delivery.heading ? `
@@ -3494,17 +3526,15 @@ async function handleOrderUpdated(event) {
       const preorderLines = preorderEmailLines(order);
       const preorderSection = preorderLines.length ? `
           <div style="margin-top:28px;padding:20px 24px;border:2px solid #111;">
-            <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;">Pre-order</h3>
+            <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;">${say("Pre-order")}</h3>
             ${preorderLines.map(line => `<p style="font-size:13px;margin:4px 0;line-height:1.6;">${escapeHtml(line)}</p>`).join("")}
           </div>` : "";
       // Who sold it and the policies, always at the foot (sellerDetails.js: provincial and EU/UK consumer rules).
       const sellerWebsite = (await db.collection("settings").doc("website").get().catch(() => null))?.data?.() || {};
-      const sellerBlock = sellerSection(sellerWebsite, siteLink, shopConfig.senderName);
-      const combinedSection = [preorderSection, deliverySection, paymentConfirmedSection, downloadSection, digitalConsentSection(order), sellerBlock].filter(Boolean).join("\n");
+      const sellerBlock = sellerSection(sellerWebsite, siteLink, shopConfig.senderName, say);
+      const combinedSection = [preorderSection, deliverySection, paymentConfirmedSection, downloadSection, digitalConsentSection(order, say), sellerBlock].filter(Boolean).join("\n");
 
-      const confirmationSettings = digitalOnlyOrder ? { ...notificationSettings, order_confirmation: { ...notificationSettings.order_confirmation,
-        body: forDigitalOnlyOrder(notificationSettings.order_confirmation?.body || DEFAULT_NOTIFICATIONS.order_confirmation.body, { hasDownloads: digitalItems.length > 0 }) } } : notificationSettings;
-      const compiled = compileEmailTemplate("order_confirmation", confirmationSettings, {
+      const compiled = compileEmailTemplate("order_confirmation", notificationSettings, {
         customer_name: order.customer.name || "there",
         order_id: order.orderId || orderId,
         shipping_method: delivery.method,
@@ -3513,7 +3543,8 @@ async function handleOrderUpdated(event) {
         button_url: await trackUrl(),
         items_table: itemsTable,
         total_price: chargedTotalFmt(order)
-      }, combinedSection);
+      }, combinedSection, { language: emailFrench.emailLanguage(order),
+        transform: digitalOnlyOrder ? body => forDigitalOnlyOrder(body, { hasDownloads: digitalItems.length > 0 }) : null });
 
       const adminOrderUrl = siteLink(`/admin#orders/${encodeURIComponent(orderId)}`);
       const adminAddr = order.customer?.address
@@ -3572,17 +3603,14 @@ async function handleOrderUpdated(event) {
         ? getTrackingUrl(after.trackingCarrier, after.trackingNumber, after.trackingUrl)
         : await trackUrl();
       // No tracking number: leave out the carrier/tracking lines instead of printing blanks.
-      const shippedSettings = after.trackingNumber ? notificationSettings : { ...notificationSettings, shipping_confirmation: {
-        ...notificationSettings.shipping_confirmation,
-        body: withoutTrackingLines(notificationSettings.shipping_confirmation?.body || DEFAULT_NOTIFICATIONS.shipping_confirmation.body) } };
-      const compiled = compileEmailTemplate("shipping_confirmation", shippedSettings, {
+      const compiled = compileEmailTemplate("shipping_confirmation", notificationSettings, {
         customer_name: after.customer?.name || "there",
         order_id: after.orderId || orderId,
         tracking_carrier: after.trackingCarrier || "carrier",
         tracking_number: after.trackingNumber || "",
         button_url: trackingUrl,
         tracking_url: trackingUrl
-      });
+      }, "", { language: emailFrench.emailLanguage(after), transform: after.trackingNumber ? null : withoutTrackingLines });
 
       const shippedAdminHtml = `
         <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
@@ -3634,7 +3662,7 @@ async function handleOrderUpdated(event) {
           items_list: (part.lines || []).map(l => `${Number(l.quantity) || 0} × ${String(l.title || "Item")}`).join("\n"),
           button_url: partUrl,
           tracking_url: partUrl,
-        });
+        }, "", { language: emailFrench.emailLanguage(after) });
         try {
           await sendOrderEmailOnce(orderId, `shippedPart_${part.id}`, {
             to: after.customer.email, subject: compiled.subject, html: compiled.html, secret: RESEND_API_KEY.value(),
@@ -3655,10 +3683,7 @@ async function handleOrderUpdated(event) {
       const trackingUrl = after.trackingNumber
         ? getTrackingUrl(after.trackingCarrier, after.trackingNumber, after.trackingUrl)
         : await trackUrl();
-      const carrierSettings = after.trackingNumber ? notificationSettings : { ...notificationSettings, carrier_delivery_update: {
-        ...notificationSettings.carrier_delivery_update,
-        body: withoutTrackingLines(notificationSettings.carrier_delivery_update?.body || DEFAULT_NOTIFICATIONS.carrier_delivery_update.body) } };
-      const compiled = compileEmailTemplate("carrier_delivery_update", carrierSettings, {
+      const compiled = compileEmailTemplate("carrier_delivery_update", notificationSettings, {
         customer_name: after.customer?.name || "there",
         order_id: after.orderId || orderId,
         status: carrierStep,
@@ -3666,7 +3691,7 @@ async function handleOrderUpdated(event) {
         tracking_number: after.trackingNumber || "",
         button_url: trackingUrl,
         tracking_url: trackingUrl,
-      });
+      }, "", { language: emailFrench.emailLanguage(after), transform: after.trackingNumber ? null : withoutTrackingLines });
       try {
         await sendOrderEmailOnce(orderId, `carrier_${after.fulfillmentStatus}`, {
           to: after.customer.email, subject: compiled.subject, html: compiled.html, secret: RESEND_API_KEY.value(),
@@ -3686,7 +3711,7 @@ async function handleOrderUpdated(event) {
         order_id: after.orderId || orderId,
         request: request.type === "cancel" ? "cancel" : "return",
         button_url: await trackUrl(),
-      });
+      }, "", { language: emailFrench.emailLanguage(after) });
       try {
         await sendOrderEmailOnce(orderId, `request_${request.type}_${request.createdAt}`, {
           to: after.customer.email, subject: compiled.subject, html: compiled.html, secret: RESEND_API_KEY.value(),
@@ -3705,7 +3730,7 @@ async function handleOrderUpdated(event) {
         order_id: after.orderId || orderId,
         total_price: chargedTotalFmt(after),
         button_url: await trackUrl(),
-      });
+      }, "", { language: emailFrench.emailLanguage(after) });
       try {
         await sendOrderEmailOnce(orderId, "payment_failed", {
           to: after.customer.email, subject: compiled.subject, html: compiled.html, secret: RESEND_API_KEY.value(),
@@ -3722,17 +3747,16 @@ async function handleOrderUpdated(event) {
       : localMethod === "local_delivery" ? { out_for_delivery: "out for delivery", delivered: "delivered" } : {};
     const localStep = LOCAL_STEPS[after.fulfillmentStatus];
     if (localStep && before.fulfillmentStatus !== after.fulfillmentStatus && notificationSettings.delivery_update?.enabled !== false) {
-      const localSettings = { ...notificationSettings, delivery_update: { ...notificationSettings.delivery_update,
-        body: withoutCarrierLines(notificationSettings.delivery_update?.body || DEFAULT_NOTIFICATIONS.delivery_update.body) } };
-      const compiled = compileEmailTemplate("delivery_update", localSettings, {
+      const compiled = compileEmailTemplate("delivery_update", notificationSettings, {
         customer_name: after.customer?.name || "there",
         order_id: after.orderId || orderId,
         status: localStep,
         button_url: await trackUrl(),
       }, localMethod === "pickup" ? (() => {
-        const lines = deliveryDetails(after).lines.filter(line => !/we'll email you/i.test(line));
-        return lines.length ? `<div style="margin-top:28px;padding:20px 24px;border:2px solid #111;"><h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;">Pickup</h3>${lines.map(line => `<p style="font-size:13px;margin:4px 0;line-height:1.6;">${escapeHtml(line)}</p>`).join("")}</div>` : "";
-      })() : "");
+        const say = emailFrench.sayer(emailFrench.emailLanguage(after));
+        const lines = deliveryDetails(after, say).lines.filter(line => !/we'll email you|nous vous écrirons/i.test(line));
+        return lines.length ? `<div style="margin-top:28px;padding:20px 24px;border:2px solid #111;"><h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;">${say("Pickup")}</h3>${lines.map(line => `<p style="font-size:13px;margin:4px 0;line-height:1.6;">${escapeHtml(line)}</p>`).join("")}</div>` : "";
+      })() : "", { language: emailFrench.emailLanguage(after), transform: withoutCarrierLines });
       try {
         await sendOrderEmailOnce(orderId, `local_${after.fulfillmentStatus}`, {
           to: after.customer.email,
@@ -3742,6 +3766,23 @@ async function handleOrderUpdated(event) {
         });
       } catch (err) {
         console.error("Pickup/local delivery email failed", err);
+      }
+    }
+
+    // 2d. Picked up: the owner confirmed a pickup order was collected. One thank-you, kept as the receipt.
+    if (localMethod === "pickup" && after.fulfillmentStatus === "collected" && before.fulfillmentStatus !== "collected"
+      && after.customer?.email && notificationSettings.order_picked_up?.enabled !== false) {
+      const compiled = compileEmailTemplate("order_picked_up", notificationSettings, {
+        customer_name: after.customer?.name || "there",
+        order_id: after.orderId || orderId,
+        button_url: await trackUrl(),
+      }, "", { language: emailFrench.emailLanguage(after) });
+      try {
+        await sendOrderEmailOnce(orderId, "picked_up", {
+          to: after.customer.email, subject: compiled.subject, html: compiled.html, secret: RESEND_API_KEY.value(),
+        });
+      } catch (err) {
+        console.error("Picked up email failed", err);
       }
     }
 
@@ -3760,7 +3801,7 @@ async function handleOrderUpdated(event) {
         customer_name: after.customer?.name || "there",
         order_id: after.orderId || orderId,
         button_url: await trackUrl()
-      });
+      }, "", { language: emailFrench.emailLanguage(after) });
 
       try {
         await sendOrderEmailOnce(orderId, "cancelled", {
@@ -3803,22 +3844,28 @@ async function handleOrderUpdated(event) {
       if (facts && notificationSettings.order_refunded?.enabled !== false) {
       // {{total_price}} now carries its own currency (e.g. "US$12.40"); older saved templates
       // that wrote "CA${{total_price}}" are read without the hard-coded prefix.
-      const refundBody = String(notificationSettings.order_refunded?.body || "").replace(/CA\$\s*\{\{total_price\}\}/g, "{{total_price}}");
-      const refundSettings = { ...notificationSettings, order_refunded: { ...notificationSettings.order_refunded,
-        // Paid entirely by gift card: the money is back on the card now, not "in 5-10 business days".
-        body: facts.giftOnly ? withoutBankRefundSentences(refundBody || DEFAULT_NOTIFICATIONS.order_refunded.body) : refundBody } };
+      const say = emailFrench.sayer(emailFrench.emailLanguage(after));
       const giftSection = facts.giftText ? `
           <div style="margin-top:28px;padding:20px 24px;border:2px solid #111;">
-            <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;">Gift card</h3>
-            <p style="font-size:13px;margin:4px 0;line-height:1.6;">${escapeHtml(facts.giftText)} is back on your gift card${facts.cards ? ` ${escapeHtml(facts.cards)}` : ""} and can be used right away.</p>
+            <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;">${say("Gift card")}</h3>
+            <p style="font-size:13px;margin:4px 0;line-height:1.6;">${emailFrench.emailLanguage(after) === "fr"
+              ? `${escapeHtml(facts.giftText)} ${facts.cards ? `est de retour sur votre carte-cadeau ${escapeHtml(facts.cards)}` : "est de retour sur votre carte-cadeau"} et peut être utilisé tout de suite.`
+              : `${escapeHtml(facts.giftText)} is back on your gift card${facts.cards ? ` ${escapeHtml(facts.cards)}` : ""} and can be used right away.`}</p>
           </div>` : "";
-      const compiled = compileEmailTemplate("order_refunded", refundSettings, {
+      const compiled = compileEmailTemplate("order_refunded", notificationSettings, {
         customer_name: after.customer?.name || "there",
         order_id: after.orderId || orderId,
         // What was actually refunded, in the currency it went back in.
         total_price: facts.amountText,
         button_url: await trackUrl()
-      }, giftSection);
+      }, giftSection, { language: emailFrench.emailLanguage(after),
+        // {{total_price}} now carries its own currency (e.g. "US$12.40"); older saved templates that wrote
+        // "CA${{total_price}}" are read without the hard-coded prefix. Paid entirely by gift card: the money is back
+        // on the card now, not "in 5-10 business days".
+        transform: body => {
+          const text = body.replace(/CA\$\s*\{\{total_price\}\}/g, "{{total_price}}");
+          return facts.giftOnly ? withoutBankRefundSentences(text) : text;
+        } });
 
       try {
         await sendOrderEmailOnce(orderId, "refunded", {
@@ -3847,7 +3894,7 @@ async function handleOrderUpdated(event) {
         order_id: after.orderId || orderId,
         total_price: amountText,
         button_url: await trackUrl()
-      }, `<p style="margin-top:20px;font-size:13px;line-height:1.6;">This is a partial refund. The rest of your order is unchanged.</p>`);
+      }, `<p style="margin-top:20px;font-size:13px;line-height:1.6;">${emailFrench.sayer(emailFrench.emailLanguage(after))("This is a partial refund. The rest of your order is unchanged.")}</p>`, { language: emailFrench.emailLanguage(after) });
       try {
         await sendOrderEmailOnce(orderId, `partialRefund_${refundedAfter}`, {
           to: after.customer.email,
@@ -4198,7 +4245,8 @@ exports.onOrderCreated = onDocumentCreated(
 
     // 2. Customer Email: Send "Order Received (Pending Payment)" confirmation email if order was placed via manual payment method (i.e. starts as "pending")
     if (order.paymentStatus === "pending" && notificationSettings.order_pending_payment?.enabled !== false) {
-      const itemsTable = customerTotalsTable(order);
+      const say = emailFrench.sayer(emailFrench.emailLanguage(order));
+      const itemsTable = customerTotalsTable(order, say);
 
       // Instructions come from the shop's own settings, never from the order
       // document (which a browser can write), so nobody can make the shop email
@@ -4211,7 +4259,7 @@ exports.onOrderCreated = onDocumentCreated(
       if (paymentInstructions) {
         additionalSection = `
           <div style="margin-top:28px;padding:24px;background:#fffbeb;border-radius:16px;border:1px solid #d9770620;">
-            <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#d97706;">Payment Instructions</h3>
+            <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#d97706;">${say("Payment Instructions")}</h3>
             <p style="font-size:12px;color:#451a03;margin-bottom:0;line-height:1.6;white-space:pre-wrap;">${escapeHtml(paymentInstructions)}</p>
           </div>
         `;
@@ -4225,7 +4273,7 @@ exports.onOrderCreated = onDocumentCreated(
         button_url: await orderTrackUrl(orderId, order),
         items_table: itemsTable,
         total_price: chargedTotalFmt(order)
-      }, additionalSection);
+      }, additionalSection, { language: emailFrench.emailLanguage(order) });
 
       try {
         await sendEmail({
@@ -4420,6 +4468,13 @@ exports.onOrderInventoryPush = onDocumentWritten({ document: "orders/{orderId}",
 exports.inventoryLinkSweep = onSchedule({ schedule: "every 5 minutes", name: "inventoryLinkSweep", timeoutSeconds: 300 }, async () => {
   const out = await require("./inventoryLinkJobs").runSweep(inventoryLinkDeps(), { stock: "auto" });
   if (out.error) console.error("inventoryLinkSweep:", out.error);
+});
+
+// Social posts whose time has come (plan 27.4): each is claimed, then sent once to each of its places.
+exports.socialPostSweep = onSchedule({ schedule: "every 5 minutes", name: "socialPostSweep", timeoutSeconds: 300 }, async () => {
+  if (!shopConfig.platformSocialUrl) return;
+  const out = await social.runDuePosts();
+  if (out.sent) console.log(`socialPostSweep: sent ${out.sent} post(s)`);
 });
 
 // The storefront's catalog file stays in use only while nothing it holds has changed (functions/catalogVersion.js).

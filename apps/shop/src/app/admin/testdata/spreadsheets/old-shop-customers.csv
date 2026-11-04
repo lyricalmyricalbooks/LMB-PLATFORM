@@ -1,0 +1,5 @@
+First Name,Last Name,Email,Accepts Email Marketing,Default Address City,Default Address Province Code,Default Address Country Code,Total Orders,Total Spent,Tags,Note
+Ada,Moreau,ada@example.com,yes,Montréal,QC,CA,4,112.00,"zines, fair",Met at the Toronto book fair.
+Ben,Okafor,ben@example.com,no,Calgary,AB,CA,1,26.00,,
+Chloé,Lam,chloe@example.com,yes,Victoria,BC,CA,7,240.50,photobooks,Buys every photobook.
+Dev,Rao,dev@example.com,no,Halifax,NS,CA,2,48.00,,

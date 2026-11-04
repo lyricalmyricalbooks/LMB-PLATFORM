@@ -8,6 +8,22 @@
 // No import from templatesFr.js: that file imports this one, so the small day helper is copied here.
 import { layout, safeLink } from "./templates.js";
 
+// What the shop sells (code plan 12.18): the French twin of shared/sells goodsWords, for the French emails whose English
+// twin is worded for a shop that doesn't sell books. Only the words these emails use: livres → produits, titre → produit,
+// maison d'édition → boutique. A books shop's emails never pass through it.
+const GOODS_SWAPS_FR = [
+  [/\bVos livres\b/g, "Vos produits"], [/\bvos livres\b/g, "vos produits"], [/\bLivres\b/g, "Produits"], [/\blivres\b/g, "produits"],
+  [/\bun livre\b/g, "un produit"], [/\blivre\b/g, "produit"], [/\bun nouveau titre\b/g, "un nouveau produit"],
+  [/\bla maison d'édition\b/g, "la boutique"], [/\bmaison d'édition\b/g, "boutique"],
+];
+
+/** French words for a shop that isn't books: livres → produits. */
+export function goodsWordsFr(text) {
+  return GOODS_SWAPS_FR.reduce((out, [from, to]) => out.replace(from, to), String(text));
+}
+
+const sameFr = (text) => text;
+
 /** The plans' names in French (services/settings.js PLAN_NAMES); a name not known comes through as it was. */
 const PLAN_NAMES_FR = Object.freeze({ Shop: "Boutique", Stockroom: "Réserve", "Shop and stockroom": "Boutique et réserve" });
 export const planNameFr = (name) => PLAN_NAMES_FR[String(name ?? "").trim()] ?? name;
@@ -336,12 +352,12 @@ export const PRESS_TEMPLATES_FR = {
   }),
 
   /** French twin of "quiet-shop". */
-  "quiet-shop": ({ pressName, link, helpLink }, { settings }) => layout({
+  "quiet-shop": ({ pressName, link, helpLink }, { settings, wFr = sameFr }) => layout({
     subject: `Comment ça va pour ${pressName}?`,
     greeting: "Bonjour,",
     paragraphs: [
       `C'est calme chez ${pressName} ces temps-ci, alors nous voulions prendre de vos nouvelles. Les boutiques ralentissent souvent entre deux saisons, et c'est normal.`,
-      "Quelques idées qui ramènent souvent les clients : ajoutez un nouveau titre ou une nouvelle photo, parlez-en dans votre infolettre, ou affichez un petit code de réduction sur votre page d'accueil pendant une semaine.",
+      wFr("Quelques idées qui ramènent souvent les clients : ajoutez un nouveau titre ou une nouvelle photo, parlez-en dans votre infolettre, ou affichez un petit code de réduction sur votre page d'accueil pendant une semaine."),
       `Si quelque chose dans ${settings.platformName} vous bloque, répondez à ce courriel pour nous dire quoi. Les pages d'aide sont toujours là aussi : ${helpLink}`,
     ],
     buttons: [["Ouvrir l'administration de votre boutique", safeLink(link)]],
@@ -578,7 +594,7 @@ export const PRESS_TEMPLATES_FR = {
   }),
 
   /** French twin of "payments-moved". */
-  "payments-moved": ({ to, ready }, { settings, pressName }) => {
+  "payments-moved": ({ to, ready }, { settings, pressName, wFr = sameFr }) => {
     const words = {
       own: {
         subject: `${pressName} accepte maintenant les cartes avec votre propre compte Stripe`,
@@ -607,7 +623,7 @@ export const PRESS_TEMPLATES_FR = {
     return layout({
       subject: words.subject,
       greeting: "Bonjour,",
-      paragraphs: [...words.paragraphs, "Vos livres, vos commandes et les versements déjà faits ne sont pas touchés. Nous vous écrirons de nouveau si quoi que ce soit change."],
+      paragraphs: [...words.paragraphs, wFr("Vos livres, vos commandes et les versements déjà faits ne sont pas touchés. Nous vous écrirons de nouveau si quoi que ce soit change.")],
       footer: signOff(settings),
     });
   },
@@ -737,14 +753,14 @@ export const PRESS_TEMPLATES_FR = {
   },
 
   /** French twin of "data-export-ready". */
-  "data-export-ready": ({ link, until, asked, reason }, { settings, pressName }) => layout({
+  "data-export-ready": ({ link, until, asked, reason }, { settings, pressName, wFr = sameFr }) => layout({
     subject: `Les données de ${pressName} sont prêtes à télécharger`,
     greeting: "Bonjour,",
     paragraphs: [
       asked === "owner"
         ? `Voici la copie des données de ${pressName} que vous avez demandée.`
         : `${settings.platformName} a fait une copie des données de ${pressName} pour vous${reason ? ` : ${reason}` : "."}`,
-      "Elle contient vos livres, commandes, clients, codes de réduction, avis, pages, réglages, inscriptions à l'infolettre et données de la réserve, dans une feuille de calcul pour chacun, avec une courte note qui explique ce qu'elles contiennent.",
+      wFr("Elle contient vos livres, commandes, clients, codes de réduction, avis, pages, réglages, inscriptions à l'infolettre et données de la réserve, dans une feuille de calcul pour chacun, avec une courte note qui explique ce qu'elles contiennent."),
       `Le lien fonctionne jusqu'au ${frenchDay(until)}. Ensuite, demandez une nouvelle copie à partir de la page de votre compte.`,
       "Gardez le fichier en lieu sûr : il contient le nom et l'adresse de vos clients.",
     ],

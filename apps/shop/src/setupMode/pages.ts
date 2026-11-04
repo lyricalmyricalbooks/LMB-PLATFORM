@@ -1,5 +1,6 @@
 // What setup mode shows (code plan 18.6): the real admin's menu, with the pages that work before a shop exists and
 // every other page locked until the shop opens. Pure, so the menu and the locks are tested without a browser.
+import { sellsBooks } from "../shared/shopSells";
 import type { NavEntry } from "../app/admin/riso/components";
 import { NAV, SETTINGS_ITEM_PREFIX, sidebarItems } from "../app/admin/riso/nav";
 import type { SetupPress } from "./door";
@@ -109,6 +110,12 @@ export function pageFromHash(hash: string, menu: NavEntry[] = setupMenu()): stri
   return known ? page : null;
 }
 
+/** The help centre's address for this shop: a shop that doesn't sell books gets the answers in its own words (`?sells=`). */
+export function helpFor(helpUrl: string, sells?: string | null): string {
+  if (!sells || sellsBooks(sells)) return helpUrl;
+  return `${helpUrl}${helpUrl.includes("?") ? "&" : "?"}sells=${encodeURIComponent(sells)}`;
+}
+
 /**
  * The help answer behind each setup guide step (help/articles.js ids), opened in place from the step as "How this works".
  * The plan step has none (its prices and trial are on Settings › Plan itself), nor has Tell us about your press: the
@@ -141,6 +148,8 @@ const LOCKED_LINES: Readonly<Record<string, string>> = Object.freeze({
   messages: "Messages people send you from your website's contact form.",
   inventory: "How many copies you have of each book, with a warning before one runs out.",
   reviews: "Reviews from your readers, checked by you before they show on your website.",
+  channels: "Sell on Facebook, Instagram, Pinterest and TikTok.",
+  socialPosts: "Post your books to your social accounts, now or later.",
   [SETTINGS_ITEM_PREFIX + "shipping"]: "What you charge to send a parcel, by country or by weight, and pickup if you offer it.",
   [SETTINGS_ITEM_PREFIX + "payments"]: "Connect your bank so card payments from your website reach you.",
   [SETTINGS_ITEM_PREFIX + "taxes"]: "The sales tax your shop adds at checkout, worked out from where your shoppers are.",

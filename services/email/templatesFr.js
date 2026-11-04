@@ -13,6 +13,8 @@
 import { layout, safeLink } from "./templates.js";
 import { PRESS_TEMPLATES_FR, frenchDay } from "./templatesFrPress.js";
 
+const sameFr = (text) => text;
+
 export { frenchDay };
 
 const signOff = (settings) => `Envoyé par ${settings.platformName}. Répondez à ce courriel si vous avez besoin d'un coup de main.`;
@@ -82,14 +84,14 @@ export const TEMPLATES_FR = {
   ...PRESS_TEMPLATES_FR,
 
   /** French twin of "shop-closed". */
-  "shop-closed": ({ date, on, link }, { settings, pressName }) => {
+  "shop-closed": ({ date, on, link }, { settings, pressName, wFr = sameFr }) => {
     const day = dateFr(on, date);
     return layout({
       subject: `${pressName} est fermée. Téléchargez tout d'ici le ${day}`,
       greeting: "Bonjour,",
       paragraphs: [
         `${pressName} est en pause depuis un moment, elle est donc maintenant fermée. Les clients voient une page de fermeture et aucune commande n'arrive.`,
-        `Tout est conservé jusqu'au ${day} : vos livres, commandes, clients et stocks. Ouvrez l'administration de votre boutique pour tout télécharger sous forme de fichiers.`,
+        wFr(`Tout est conservé jusqu'au ${day} : vos livres, commandes, clients et stocks. Ouvrez l'administration de votre boutique pour tout télécharger sous forme de fichiers.`),
         `Après le ${day}, la boutique et tout son contenu seront supprimés pour de bon. Reprenez un forfait d'ici là et elle rouvrira telle que vous l'avez laissée.`,
       ],
       buttons: [["Voir votre forfait", safeLink(link)]],
@@ -98,14 +100,14 @@ export const TEMPLATES_FR = {
   },
 
   /** French twin of "shop-deletion-warning". */
-  "shop-deletion-warning": ({ date, on, days, link }, { settings, pressName }) => {
+  "shop-deletion-warning": ({ date, on, days, link }, { settings, pressName, wFr = sameFr }) => {
     if (days !== 30 && days !== 7) throw new Error("the deletion warning is sent 30 or 7 days before");
     const day = dateFr(on, date);
     return layout({
       subject: `${pressName} sera supprimée le ${day}`,
       greeting: "Bonjour,",
       paragraphs: [
-        `Dans ${days} jours, le ${day}, ${pressName} et tout son contenu seront supprimés : livres, commandes, clients et stocks. C'est irréversible.`,
+        `Dans ${days} jours, le ${day}, ${pressName} et tout son contenu seront supprimés : ${wFr("livres")}, commandes, clients et stocks. C'est irréversible.`,
         "Si ce n'est pas déjà fait, ouvrez l'administration de votre boutique et téléchargez tout sous forme de fichiers.",
         `Pour garder la boutique, reprenez un forfait avant le ${day}.`,
       ],

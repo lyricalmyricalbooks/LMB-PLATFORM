@@ -1,0 +1,8 @@
+Name,Email,Financial Status,Currency,Subtotal,Shipping,Taxes,Total,Discount Amount,Created at,Lineitem quantity,Lineitem name,Lineitem price,Billing Name,Refunded Amount,Cancelled at
+#1001,ada@example.com,paid,CAD,48.00,10.00,7.54,65.54,0.00,2026-03-02 14:10:00 -0500,2,Moth Hoodie,24.00,Ada Moreau,,
+#1002,chloe@example.com,paid,CAD,40.00,0.00,2.00,42.00,0.00,2026-04-11 09:30:00 -0400,1,Salt Hours,40.00,Chloé Lam,,
+#1003,dev@example.com,paid,USD,30.00,8.00,0.00,38.00,0.00,2026-05-20 18:45:00 -0400,1,Night Buses,30.00,Dev Rao,,
+#1004,ben@example.com,pending,CAD,26.00,0.00,0.00,26.00,0.00,2026-06-01 11:00:00 -0400,1,Small Hours,26.00,Ben Okafor,,
+#1005,ada@example.com,refunded,CAD,40.00,0.00,2.00,42.00,0.00,2026-06-15 10:00:00 -0400,1,Salt Hours,40.00,Ada Moreau,42.00,
+#1006,chloe@example.com,partially_refunded,CAD,48.00,0.00,2.40,50.40,0.00,2026-07-02 16:20:00 -0400,2,Moth Hoodie,24.00,Chloé Lam,10.00,
+#1007,dev@example.com,voided,CAD,26.00,0.00,0.00,26.00,0.00,2026-07-09 12:00:00 -0400,1,Small Hours,26.00,Dev Rao,,2026-07-09 12:30:00 -0400

@@ -42,18 +42,25 @@
 <script type="module">
   import { renderHelp, renderTopics } from "./page.js";
   import { renderSupport } from "./support.js";
+  import { SELLS, wordsFor } from "./sells.js";
   document.getElementById("support").innerHTML = renderSupport();
   const box = document.getElementById("answers");
   const search = document.getElementById("search");
+  const query = new URLSearchParams(location.search);
   // ?plan=shop|stockroom|both shows only the answers for that plan (the account page can link with it).
-  const plan = ["shop", "stockroom", "both"].includes(new URLSearchParams(location.search).get("plan")) ? new URLSearchParams(location.search).get("plan") : "both";
+  const plan = ["shop", "stockroom", "both"].includes(query.get("plan")) ? query.get("plan") : "both";
+  // ?sells=clothing (the shop's answer to "What do you sell?") words the answers for that shop; books is the default.
+  const sells = SELLS.includes(query.get("sells")) ? query.get("sells") : null;
+  const w = wordsFor(sells);
+  search.placeholder = w(search.placeholder);
+  for (const chip of document.querySelectorAll(".cp-chip")) chip.textContent = w(chip.textContent);
   const draw = () => {
-    box.innerHTML = renderHelp({ search: search.value, plan, openId: decodeURIComponent(location.hash.slice(1)) });
+    box.innerHTML = renderHelp({ search: search.value, plan, sells, openId: decodeURIComponent(location.hash.slice(1)) });
     if (!search.value && location.hash) document.getElementById(decodeURIComponent(location.hash.slice(1)))?.scrollIntoView();
   };
   search.addEventListener("input", draw);
   addEventListener("hashchange", draw);
-  document.getElementById("topics").innerHTML = renderTopics({ plan });
+  document.getElementById("topics").innerHTML = renderTopics({ plan, sells });
   // The topic sheets hide while searching; the answers that match show instead.
   search.addEventListener("input", () => { document.getElementById("topics-wrap").hidden = Boolean(search.value); });
   document.getElementById("search-go").addEventListener("click", () => { draw(); document.getElementById("answers").scrollIntoView({ behavior: "smooth" }); });

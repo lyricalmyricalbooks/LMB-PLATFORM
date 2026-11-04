@@ -1,6 +1,7 @@
 import {
   BookOpen, Settings, Inbox, LayoutDashboard, BadgePercent, Star, ShoppingCart, Users, Boxes, Gift,
   SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail, UserPlus, Calculator, Wallet, FileText, Store, Megaphone, PiggyBank, ShieldCheck,
+  Share2, Send,
 } from "lucide-react";
 import type { NavEntry } from "./components";
 import { COMBINED_PAGES, SALES_TAB, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES } from "../combined";
@@ -15,6 +16,10 @@ export const NAV: NavEntry[] = [
   { id: "giftCards", label: "Gift cards", icon: Gift },
   { id: "reviews", label: "Reviews", icon: Star },
   { id: "messages", label: "Messages", icon: Inbox },
+  // Facebook & Instagram, Pinterest, TikTok and Google & YouTube, like Shopify's sales channels (plan 27.5).
+  { id: "channels", label: "Sales channels", icon: Share2 },
+  // Posting a product to the connected accounts, now or later (plan 27.6), next to Discounts like Shopify's Marketing.
+  { id: "socialPosts", label: "Social posts", icon: Send },
   { id: "settings", label: "Settings", icon: Settings, children: [
     { id: "general", label: "General", icon: SlidersHorizontal },
     { id: "shipping", label: "Shipping", icon: Truck },
@@ -49,8 +54,9 @@ export type Menu = { label: string; icon: NavEntry["icon"]; pages: string[] }[];
 const SETTINGS_PAGES = (NAV.find((n) => n.id === "settings")?.children || []).map((c) => SETTINGS_ITEM_PREFIX + c.id).filter((id) => id !== SETTINGS_ITEM_PREFIX + "designer");
 export const MENU: Menu = [
   { label: "Home", icon: LayoutDashboard, pages: ["overview"] },
-  { label: "Orders", icon: ShoppingCart, pages: ["orders", "customers", "discounts", "giftCards", "messages"] },
-  { label: "Books", icon: BookOpen, pages: ["catalog", "inventory", "reviews"] },
+  { label: "Orders", icon: ShoppingCart, pages: ["orders", "customers", "discounts", "giftCards", "socialPosts", "messages"] },
+  // Sales channels sit with the products: where each one is listed (Studio opens full screen, so not under Design).
+  { label: "Books", icon: BookOpen, pages: ["catalog", "inventory", "reviews", "channels"] },
   { label: "Design", icon: Palette, pages: [SETTINGS_ITEM_PREFIX + "designer"] },
   { label: "Settings", icon: Settings, pages: SETTINGS_PAGES },
 ];
@@ -64,9 +70,9 @@ const S = (id: string) => STOCKROOM_ITEM_PREFIX + id;
 export const COMBINED_MENU: Menu = [
   { label: "Home", icon: LayoutDashboard, pages: ["overview", S("todo")] },
   { label: "Orders", icon: ShoppingCart, pages: ["orders", SALES_TAB, S("history"), S("manual"), S("shipping"), "customers", S("customers"), "messages"] },
-  { label: "Books", icon: BookOpen, pages: ["catalog", "inventory", S("dashboard"), "reviews"] },
+  { label: "Books", icon: BookOpen, pages: ["catalog", "inventory", S("dashboard"), "reviews", "channels"] },
   { label: "Sell in person", icon: Store, pages: [S("pos"), S("consignment"), S("qrcodes")] },
-  { label: "Marketing", icon: Megaphone, pages: ["discounts", "giftCards", S("opencall")] },
+  { label: "Marketing", icon: Megaphone, pages: ["discounts", "giftCards", "socialPosts", S("opencall")] },
   { label: "Money", icon: PiggyBank, pages: [S("reconcile"), S("expenses"), S("taxcenter"), S("intel")] },
   { label: "Online store", icon: Palette, pages: [SETTINGS_ITEM_PREFIX + "designer"] },
   { label: "Settings", icon: Settings, pages: [...SETTINGS_PAGES, S("sheets"), S("backups")] },
@@ -108,6 +114,8 @@ export const PAGE_COPY: Record<string, { title: string; description: string }> =
   discounts: { title: "Discounts", description: "Create and schedule discount codes and automatic offers." },
   giftCards: { title: "Gift cards", description: "Gift cards shoppers bought and ones you issued: balances, history and resending codes." },
   reviews: { title: "Reviews", description: "Moderate customer reviews before they appear on the storefront." },
+  channels: { title: "Sales channels", description: "Sell where people already look: Facebook, Instagram, Pinterest, TikTok and Google." },
+  socialPosts: { title: "Social posts", description: "Post your products to your connected accounts, now or at a time you pick." },
   messages: { title: "Messages", description: "Messages people send you from the contact form on your website." },
   settings: { title: "Settings", description: "Store identity, shipping, payments, design, and notifications." },
   shipping: { title: "Shipping", description: "Shipping profiles, zones, and rates." },

@@ -676,6 +676,76 @@ describe("notification fixes from the email review", () => {
     expect(toReader(partial).map(m => /US\$(\d+\.\d\d)/.exec(m.html)?.[1])).toEqual(["10.00", "5.00"]);
   });
 
+  test("a pickup the owner marks collected gets one thank-you email, which can be turned off (25.6)", async () => {
+    const pickup = order({ paymentStatus: "paid", fulfillment: { method: "pickup", name: "Shop counter" } });
+    const app = harness({ gmailFails: false });
+    await app.exports.onOrderUpdated(updated({ ...pickup, fulfillmentStatus: "ready_for_pickup" }, { ...pickup, fulfillmentStatus: "collected" }));
+    await app.exports.onOrderUpdated(updated({ ...pickup, fulfillmentStatus: "ready_for_pickup" }, { ...pickup, fulfillmentStatus: "collected" }));
+    expect(toReader(app).map(m => m.subject)).toEqual([expect.stringMatching(/^Thanks for picking up order/)]);
+    expect(toReader(app)[0].html).toContain("Keep this email as your receipt");
+    const shipped = order({ paymentStatus: "paid" });
+    const notPickup = harness({ gmailFails: false });
+    await notPickup.exports.onOrderUpdated(updated({ ...shipped, fulfillmentStatus: "shipped" }, { ...shipped, fulfillmentStatus: "collected" }));
+    expect(toReader(notPickup)).toHaveLength(0);
+    const quiet = harness({ gmailFails: false, docs: notif({ order_picked_up: { enabled: false } }) });
+    await quiet.exports.onOrderUpdated(updated({ ...pickup, fulfillmentStatus: "ready_for_pickup" }, { ...pickup, fulfillmentStatus: "collected" }));
+    expect(toReader(quiet)).toHaveLength(0);
+  });
+
+  test("a shopper who ordered in French gets French emails: words, totals and status (25.9)", async () => {
+    const fr = order({ paymentStatus: "paid", locale: "fr-CA" });
+    const app = harness({ gmailFails: false });
+    await app.exports.onOrderUpdated(updated({ ...fr, paymentStatus: "unpaid" }, fr));
+    const confirmation = toReader(app)[0];
+    expect(confirmation.subject).toMatch(/^Commande confirmée : /);
+    expect(confirmation.html).toContain("Merci pour votre achat");
+    expect(confirmation.html).toContain("Sous-total");
+    expect(confirmation.html).not.toMatch(/>Subtotal</);
+    const on = harness({ gmailFails: false, docs: notif({ carrier_delivery_update: { enabled: true } }) });
+    const shipped = { ...fr, fulfillmentStatus: "shipped", trackingNumber: "T1", trackingCarrier: "Canada Post" };
+    await on.exports.onOrderUpdated(updated(shipped, { ...shipped, fulfillmentStatus: "out_for_delivery" }));
+    expect(toReader(on)[0].subject).toMatch(/est en cours de livraison$/);
+    const request = { type: "return", status: "open", createdAt: "2026-11-04T10:00:00.000Z" };
+    const asked = harness({ gmailFails: false });
+    await asked.exports.onOrderUpdated(updated(fr, { ...fr, customerRequest: request }));
+    expect(toReader(asked)[0].html).toContain("votre demande pour retourner la commande");
+  });
+
+  test("the owner's own French words win, an empty French field uses the French default, and English orders stay English", async () => {
+    const docs = notif({ order_confirmation: { fr: { subject: "Merci! Commande {{order_id}}", body: "" } } });
+    const app = harness({ gmailFails: false, docs });
+    const fr = order({ paymentStatus: "paid", locale: "fr" });
+    await app.exports.onOrderUpdated(updated({ ...fr, paymentStatus: "unpaid" }, fr));
+    expect(toReader(app)[0].subject).toMatch(/^Merci! Commande /);
+    expect(toReader(app)[0].html).toContain("Merci pour votre achat");
+    const en = harness({ gmailFails: false, docs });
+    const english = order({ paymentStatus: "paid", locale: "en-CA" });
+    await en.exports.onOrderUpdated(updated({ ...english, paymentStatus: "unpaid" }, english));
+    expect(toReader(en)[0].subject).toMatch(/^Order confirmed: /);
+    expect(toReader(en)[0].html).toContain("Subtotal");
+  });
+
+  test("the French tab's test email sends the French words, with French table and status words", async () => {
+    const app = harness({ gmailFails: false });
+    const res = await app.call({ templateId: "order_confirmation", email: "owner@example.com", language: "fr", template: { subject: "Essai {{order_id}}", body: "Bonjour {{customer_name}}" } });
+    expect(res.code).toBe(200);
+    const sent = app.delivered.at(-1);
+    expect(sent.subject).toBe("[TEST] Essai LM-98241");
+    expect(sent.html).toContain("Sous-total");
+    expect(sent.html).toContain("Télécharger");
+    const en = harness({ gmailFails: false });
+    await en.call({ templateId: "order_confirmation", email: "owner@example.com", template: { subject: "Try {{order_id}}" } });
+    expect(en.delivered.at(-1).subject).toBe("[TEST] Try LM-98241");
+    expect(en.delivered.at(-1).html).toContain("Subtotal");
+  });
+
+  test("turning an email off turns off its French version too", async () => {
+    const app = harness({ gmailFails: false, docs: notif({ order_confirmation: { enabled: false, fr: { subject: "Bonjour" } } }) });
+    const fr = order({ paymentStatus: "paid", locale: "fr-CA" });
+    await app.exports.onOrderUpdated(updated({ ...fr, paymentStatus: "unpaid" }, fr));
+    expect(toReader(app)).toHaveLength(0);
+  });
+
   test("a failed back-in-stock email is queued for a retry instead of waiting for the next restock", async () => {
     const book = { title: "Book", slug: "book", status: "published", trackInventory: true, stockLevel: 0 };
     const app = harness({ docs: { books: { b1: book }, stockAlerts: { a: { email: "reader@example.com", bookId: "b1", variantId: "", status: "waiting" } },

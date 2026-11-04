@@ -29,7 +29,7 @@ const num = (value) => (Number.isFinite(Number(value)) ? Number(value) : null);
 const text = (value) => (typeof value === "string" ? value : null);
 
 /** A product as an app sees it. Stock only with read_inventory. */
-function product(id, data, granted) {
+export function product(id, data, granted) {
   const out = {
     id, title: text(data.title) ?? "", subtitle: text(data.subtitle), description: text(data.description), kind: text(data.kind) ?? "book",
     sku: text(data.sku), isbn: text(data.isbn), price: num(data.retailPrice), status: text(data.status) ?? "published",
@@ -47,13 +47,13 @@ function product(id, data, granted) {
 }
 
 /** How many of each product (and variant) the shop has. */
-const stockOf = (id, data) => ({
+export const stockOf = (id, data) => ({
   productId: id, sku: text(data.sku), available: num(data.stockLevel) ?? 0,
   variants: Array.isArray(data.variants) ? data.variants.map((v) => ({ id: text(v?.id), sku: text(v?.sku), available: num(v?.stockLevel ?? v?.stock) ?? 0 })) : [],
 });
 
 /** An order as an app sees it: what was bought and where it ships; email and phone only with read_customers. */
-function order(id, data, granted) {
+export function order(id, data, granted) {
   const customer = data.customer ?? {};
   const address = customer.address ?? data.shippingAddress ?? null;
   const out = {

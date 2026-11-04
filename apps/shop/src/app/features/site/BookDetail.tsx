@@ -9,7 +9,7 @@ import toast from "react-hot-toast";
 import { useParams, Link, useNavigate, useLocation } from "react-router";
 import {
   ChevronLeft, ChevronRight, ShoppingBag, ArrowLeft,
-  Package, Share2, Check, BookOpen, Globe, Ruler,
+  Package, Check, BookOpen, Globe, Ruler,
   Weight, Tag, Zap, Heart, ChevronDown, Minus, Plus, Bell, Maximize2, Play
 } from "lucide-react";
 import { useCart, catalogUnitPrice, lineQuantityCap, backorderable } from "../../CartContext";
@@ -22,6 +22,7 @@ import { TemplateSections, GlobalSections } from "../../components/sectionRender
 import { SectionPageContext } from "../../components/sectionCopy";
 import { useMissingRedirect } from "./useMissingRedirect";
 import { getCopy } from "./storeCopy";
+import { ShareMenu } from "./ShareMenu";
 import { OptionPicker, variantBuyable } from "./OptionPicker";
 import { findVariant, isBookKind, picksPossible, productKind, productOptions, usesOptionPicker, variantPicks, type OptionPicks } from "../../../shared/productOptions";
 import { preorderActive, releaseDateOf, formatReleaseDate } from "./preorder";
@@ -614,20 +615,11 @@ export default function BookDetail() {
     }, 1000);
   };
 
-  const handleShare = async () => {
-    ga4PdpInteract("share");
-    if (navigator.share) {
-      // Closing the share sheet is not an error.
-      await navigator.share({ title: book?.title, url: window.location.href }).catch(() => {});
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      toast.success(getCopy(settings?.design, "bookLinkCopied"));
-    } catch {
-      // Clipboard blocked: say so instead of a false "copied" (or nothing at all).
-      toast.error(getCopy(settings?.design, "bookShareCopyFailed"));
-    }
+  const shareWord = (key: string) => getCopy(settings?.design, key);
+  const shareCopied = (ok: boolean) => {
+    if (ok) toast.success(shareWord("bookLinkCopied"));
+    // Clipboard blocked: say so instead of a false "copied" (or nothing at all).
+    else toast.error(shareWord("bookShareCopyFailed"));
   };
 
   const configuredPhotos = (book as any)?.photos;
@@ -1267,15 +1259,8 @@ export default function BookDetail() {
                     )}
 
                     {showSocialShare && (
-                      <button
-                        type="button"
-                        onClick={handleShare}
-                        aria-label={getCopy(settings?.design, "bookShare")}
-                        title={getCopy(settings?.design, "bookShare")}
-                        className="fm-pdp-sq transition-all"
-                      >
-                        <Share2 size={16} />
-                      </button>
+                      <ShareMenu title={book?.title || ""} image={photos[0]?.url} word={shareWord}
+                        onShare={() => ga4PdpInteract("share")} onCopied={shareCopied} />
                     )}
                   </div>
                   {isComingSoon && showComingSoonSignup && soonOpen && book && (

@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
 import { PAGE_STARTERS } from "./pageStarters";
 import {
-  PRESET_SECTION_TEMPLATES, applyPresetSections, hasPresetContent, presetContentSummary, presetPagesToAdd, presetSections, presetStarterPages,
+  PRESET_SECTION_TEMPLATES, applyPresetSections, hasPresetContent, presetContentSummary, presetPagesToAdd, presetSections, presetStarterPages, wordedSettings,
 } from "./presetContent";
 import { getSections } from "./studioModel";
 import { THEME_LIBRARY } from "./themeLibrary";
+import { goodsWords } from "../../../shared/shopSells";
 
 const meta = (type: string) => ({ defaults: { fromMeta: type } });
 const home = { kind: "template", id: "heroPage" } as const;
@@ -65,5 +66,24 @@ describe("theme presets hold section lists and starter pages (plan 1.23)", () =>
     expect(lines[1]).toMatch(/^Pages added as drafts .*: Frequently asked questions$/);
     expect(lines[2]).toBe("Kept as they are: your own About page");
     expect(presetContentSummary({}, { homeLayoutTemplate: "press-riso" }, [])[0]).toMatch(/replace the default ones$/);
+  });
+});
+
+describe("layouts in the shop's words (code plan 12.18)", () => {
+  it("a shop that doesn't sell books gets the layout's words in its own words, with links and pictures kept", () => {
+    const settings = { title: "New books", eyebrow: "From the press", ctaLink: "/collections/books", imageUrl: "https://x.test/books.jpg", collectionId: "books", items: [{ label: "Our books", href: "/books" }], count: 4 };
+    expect(wordedSettings(settings, goodsWords)).toEqual({
+      title: "New products", eyebrow: "From the press", ctaLink: "/collections/books", imageUrl: "https://x.test/books.jpg", collectionId: "books", items: [{ label: "Our products", href: "/books" }], count: 4,
+    });
+  });
+
+  it("every shipped home layout reads without book words for a clothing shop, and a books shop's is unchanged", () => {
+    for (const tpl of HOME_LAYOUT_TEMPLATES) {
+      const books = applyPresetSections({}, { homeLayoutTemplate: tpl.id }, meta);
+      const goods = applyPresetSections({}, { homeLayoutTemplate: tpl.id }, meta, goodsWords);
+      expect(getSections(books, home).map(s => s.settings)).toEqual(tpl.sections.map(s => ({ fromMeta: s.type, ...(s.settings || {}) })));
+      const words = JSON.stringify(getSections(goods, home).map(s => Object.fromEntries(Object.entries(s.settings).filter(([k]) => !/url|href|link|image|src|slug|handle|collection|icon|video|Id$/i.test(k)))));
+      expect(words, tpl.id).not.toMatch(/\bnew books\b/i);
+    }
   });
 });
