@@ -291,7 +291,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
                     {!text.trim() && (
                       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, marginTop: 8 }}>
                         {/* Reads the latest saved policy again so a click can never replace words typed meanwhile. */}
-                        <SecondaryButton size="sm" onClick={() => setSettings((prev: any) => ({ ...prev, policies: { ...prev?.policies, [k]: withStarter(prev?.policies?.[k], k, starterFacts(prev, sellsAnswer)) } }))}>Start from our wording</SecondaryButton>
+                        <SecondaryButton size="sm" onClick={() => setSettings((prev: any) => ({ ...prev, policies: { ...prev?.policies, [k]: withStarter(prev?.policies?.[k], k, starterFacts(prev, sellsAnswer, providerName())) } }))}>Start from our wording</SecondaryButton>
                         <span className="rp-hint">Filled with your shop name, address and returns window. {STARTER_POLICY_NOTE}</span>
                       </div>
                     )}
