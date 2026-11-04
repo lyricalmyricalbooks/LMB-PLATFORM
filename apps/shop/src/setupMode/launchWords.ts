@@ -5,11 +5,12 @@
 // private. "Open my shop" (in the shop's own admin, after the final check) lets shoppers in. Help, emails and the
 // shop's guide already call the second one "Open your shop", so setup never uses "open" for the first.
 import type { PlanList, SetupPress } from "./door";
-import { DESIGN_PAGE, GENERAL_PAGE, IMPORT_PAGE, PLAN_PAGE } from "./pages";
+import { DESIGN_PAGE, GENERAL_PAGE, IMPORT_PAGE, PAYMENTS_PAGE, PLAN_PAGE } from "./pages";
+import { cardProviderName, chosenCardProvider } from "./cardChoice";
 
 /** One line of "What goes into your shop". `needed` lines stop Create my shop until they're filled in. */
 export interface CreateRow {
-  id: "plan" | "details" | "look" | "domain" | "books";
+  id: "plan" | "details" | "look" | "cards" | "domain" | "books";
   label: string;
   value: string;
   state: "done" | "needed" | "later";
@@ -55,6 +56,11 @@ export function createChecklist(press: SetupPress, plans: PlanList | null, names
     rows.push(press.look
       ? { id: "look", label: "Website look", value: names.lookName || "Chosen", state: "done", page: DESIGN_PAGE, change: "Change" }
       : { id: "look", label: "Website look", value: "Not chosen yet", state: "later", page: DESIGN_PAGE, change: "Choose a look" });
+    // Stripe or Square (cardChoice.ts): never "needed", since a press that doesn't choose starts on Stripe.
+    const cards = cardProviderName(chosenCardProvider(press));
+    rows.push(press.cardProvider
+      ? { id: "cards", label: "Card payments", value: cards, state: "done", page: PAYMENTS_PAGE, change: "Change" }
+      : { id: "cards", label: "Card payments", value: `${cards} (default)`, state: "later", page: PAYMENTS_PAGE, change: "Choose" });
   }
   if (press.plan !== "stockroom") {
     const free = press.freeAddress || "Free address";

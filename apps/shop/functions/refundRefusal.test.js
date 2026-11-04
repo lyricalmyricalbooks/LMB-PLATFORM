@@ -17,5 +17,6 @@ describe("refund refusals", () => {
     expect(refundRefused({ type: "api_error", statusCode: 500 })).toBe(false);
     expect(refundRefused({ type: "idempotency_error", statusCode: 409 })).toBe(false);
     expect(refundRefused(new Error("socket hang up"))).toBe(false);
+    expect(refundRefused({ type: "invalid_request_error", code: "idempotency_key_in_use", statusCode: 400 })).toBe(false);
   });
 });

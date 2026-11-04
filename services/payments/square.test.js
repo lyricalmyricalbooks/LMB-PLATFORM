@@ -277,6 +277,10 @@ test("the platform fee rides on the checkout and goes back in proportion with a 
   const listed = await w.call("square.refunds.forPayment", { paymentId: payment.id });
   assert.deepEqual(listed.body.data.map((r) => r.amountMinor), [2500, 2500]);
   assert.equal((await w.call("square.refunds.retrieve", { id: half.body.id })).body.paymentId, payment.id);
+  // A retry of the full refund once nothing is left: a conflict, so the shop keeps its claim instead of releasing it.
+  const again = await w.call("square.refunds.create", { params: { paymentId: payment.id }, idempotencyKey: "order1-refund-2" });
+  assert.equal(again.status, 409);
+  assert.equal(again.body.error.code, "already_refunded");
 });
 
 test("gift card plus card (5.3): the gift card's share is a discount on Square's order, the card pays the rest, the fee is on the rest", async () => {

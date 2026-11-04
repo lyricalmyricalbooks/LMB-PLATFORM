@@ -7,18 +7,22 @@ import { sellsBooks, goodsWords } from "../../shared/shopSells";
 
 export const STARTER_POLICY_NOTE = "A starting point, not legal advice.";
 
-export type StarterFacts = { name: string; address: string; email: string; returnDays: number; sells?: string | null };
+export type StarterFacts = {
+  name: string; address: string; email: string; returnDays: number; sells?: string | null;
+  /** Who takes the shop's card payments (shopProfile providerName): the policies name it. Stripe when not given. */
+  cards?: "Stripe" | "Square";
+};
 
 const clean = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 
 /** The shop details the starter wording uses, read from the settings document the General tab edits. */
-export function starterFacts(settings: any, sells?: string | null): StarterFacts {
+export function starterFacts(settings: any, sells?: string | null, cards?: "Stripe" | "Square"): StarterFacts {
   const loc = settings?.location || {};
   const region = [clean(loc.state), clean(loc.zip)].filter(Boolean).join(" ");
   const address = [clean(loc.street), clean(loc.city), region, clean(loc.country)].filter(Boolean).join(", ");
   // The returns window is the one book pages already tell search engines (Text & labels › seoReturnDays): 0 = none.
   const days = Math.floor(Number(getCopy(settings?.design, "seoReturnDays")));
-  return { name: clean(settings?.info?.name), address, email: clean(settings?.info?.email), returnDays: Number.isFinite(days) && days > 0 ? Math.min(days, 365) : 0, sells };
+  return { name: clean(settings?.info?.name), address, email: clean(settings?.info?.email), returnDays: Number.isFinite(days) && days > 0 ? Math.min(days, 365) : 0, sells, ...(cards ? { cards } : {}) };
 }
 
 const contact = (f: StarterFacts) => (f.email ? `write to us at ${f.email}` : "contact us");
@@ -60,7 +64,7 @@ function bookPolicy(key: PolicyKey, f: StarterFacts): string {
       return [
         sentences(`${we} ${f.address ? `(${f.address}) ` : ""}${f.name ? "is" : "are"} responsible for the personal information you share with this shop.`,
           "We collect only what we need to fulfil your order and, if you opt in, send you our newsletter: your name, email, shipping address and order details."),
-        "Payments are processed by Stripe; we never see or store your card number. We do not sell your personal information.",
+        `Payments are processed by ${f.cards ?? "Stripe"}; we never see or store your card number. We do not sell your personal information.`,
         `To see, correct or delete the information we hold about you, ${contact(f)}.`,
       ].join("\n\n");
     case "terms":
@@ -75,7 +79,7 @@ function bookPolicy(key: PolicyKey, f: StarterFacts): string {
       return [
         sentences(`${f.name || "We"} want${f.name ? "s" : ""} everyone to be able to browse and buy from this shop, including people who use a screen reader, a keyboard instead of a mouse, zoom or high-contrast settings.`,
           "We aim to meet the Web Content Accessibility Guidelines (WCAG) 2.1 at level AA."),
-        "The shop's pages work with a keyboard, describe their buttons and links to screen readers, keep text readable when you zoom in, and respect a reduced-motion setting. Checkout is run by Stripe, which publishes its own accessibility commitment.",
+        `The shop's pages work with a keyboard, describe their buttons and links to screen readers, keep text readable when you zoom in, and respect a reduced-motion setting. ${f.cards === "Square" ? "Card payments are taken on Square's own secure page, and Square publishes its own accessibility commitment." : "Checkout is run by Stripe, which publishes its own accessibility commitment."}`,
         "Some photos and older descriptions may not yet have full text alternatives. We add them as we go.",
         `If anything here is hard to use, or you need information in another format, ${contact(f)} and we will help you place your order another way.`,
       ].join("\n\n");

@@ -1,6 +1,6 @@
 import { test, expect } from 'vitest';
 import { createRequire } from 'node:module';
-const { checkoutCurrencyOf, paidAmountCheck, toMinor } = createRequire(import.meta.url)('./paymentGuards');
+const { checkoutCurrencyOf, paidAmountCheck, platformRefusedRefund, toMinor } = createRequire(import.meta.url)('./paymentGuards');
 
 test('only the shop currencies are accepted', () => {
   expect(checkoutCurrencyOf(undefined)).toBe('cad');
@@ -61,4 +61,17 @@ test('a plain release date opens in Toronto, matching the storefront', () => {
   const book = { status: 'published', scheduleDate: '2026-10-08' };
   expect(purchaseProblem(book, null, '2026-10-08T00:30:00.000Z')).toBe('unavailable');
   expect(purchaseProblem(book, null, '2026-10-08T04:30:00.000Z')).toBeNull();
+});
+
+test('a refund claim is released only when the platform plainly refused the refund', () => {
+  const err = (type, statusCode, code = 'bad_request') => Object.assign(new Error('no'), { type, statusCode, code });
+  expect(platformRefusedRefund(err('square_error', 400))).toBe(true);
+  expect(platformRefusedRefund(err('platform_error', 404, 'not_found'))).toBe(true);
+  // Nothing left to refund: most likely a retry whose first answer was lost, so the claim stays.
+  expect(platformRefusedRefund(err('platform_error', 409, 'already_refunded'))).toBe(false);
+  // A reused idempotency key, a server error, or a Stripe error the shop already handles: the claim stays.
+  expect(platformRefusedRefund(err('platform_error', 400, 'idempotency_key_reused'))).toBe(false);
+  expect(platformRefusedRefund(err('square_error', 502))).toBe(false);
+  expect(platformRefusedRefund(err('StripeInvalidRequestError', 400))).toBe(false);
+  expect(platformRefusedRefund(new Error('network'))).toBe(false);
 });

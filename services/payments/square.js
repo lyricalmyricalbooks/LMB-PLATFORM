@@ -321,6 +321,8 @@ export function createSquareService({ square, registry, tokens, states, deliver,
       const { payment } = await square.call(mode, "GET", `/v2/payments/${paymentId}`, { accessToken: token });
       const left = money(payment.total_money) - money(payment.refunded_money);
       const amount = params.amountMinor === undefined || params.amountMinor === null ? left : params.amountMinor;
+      // A full refund with nothing left: most likely a retry of one whose answer was lost, so the shop keeps its claim.
+      if (amount === left && left < 1) throw refuse(409, "already_refunded", "This payment has nothing left to refund.");
       if (!Number.isInteger(amount) || amount < 1) throw bad("amountMinor must be a whole number above 0");
       // The fee goes back in proportion to the refund, from the platform's share (Square's refund app_fee_money).
       const feeBack = fee.refunded || payAsYouSell?.termsFor(row) ? refundedFee(payment, amount) : 0;

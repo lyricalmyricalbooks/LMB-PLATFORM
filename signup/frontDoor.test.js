@@ -531,6 +531,53 @@ test("the email language chosen in setup is the one the plan starts with; none c
   assert.equal(other.trials[0].language, undefined);
 });
 
+test("Stripe or Square picked in setup is the shop's card provider; none picked means Stripe", async () => {
+  const w = world();
+  const pressId = await readyPress(w);
+  const saved = await w.ask("POST", "/api/press/setup", { pressId, cardProvider: "square" }, ADA);
+  assert.equal(saved.body.press.cardProvider, "square");
+  const bad = await w.ask("POST", "/api/press/setup", { pressId, cardProvider: "paypal" }, ADA);
+  assert.match(bad.body.message, /Stripe or Square/);
+  const opened = await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA);
+  assert.equal(w.signupStores.signups.rows.get(opened.body.press.shopId).paymentProvider, "square");
+  // Locked once the shop is opening, like every other answer.
+  assert.equal((await w.ask("POST", "/api/press/setup", { pressId, cardProvider: "stripe" }, ADA)).status, 409);
+  const other = world();
+  const plain = await other.ask("POST", "/api/press/open", { pressId: await readyPress(other), ...OPEN }, ADA);
+  assert.equal(plain.body.press.cardProvider, "");
+  assert.equal(other.signupStores.signups.rows.get(plain.body.press.shopId).paymentProvider, "stripe");
+});
+
+test("Square only for a country where it works with checkout: refused when picked, and at Open my shop after a country change", async () => {
+  const w = world();
+  const pressId = await readyPress(w);
+  await w.ask("POST", "/api/press/setup", { pressId, country: "GB" }, ADA);
+  const refused = await w.ask("POST", "/api/press/setup", { pressId, cardProvider: "square" }, ADA);
+  assert.equal(refused.status, 409);
+  assert.match(refused.body.message, /United Kingdom/);
+  // Picked first, then the country changed: Open my shop says so and leaves the press in setup.
+  await w.ask("POST", "/api/press/setup", { pressId, country: "CA" }, ADA);
+  assert.equal((await w.ask("POST", "/api/press/setup", { pressId, cardProvider: "square" }, ADA)).status, 200);
+  await w.ask("POST", "/api/press/setup", { pressId, country: "GB" }, ADA);
+  const open = await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA);
+  assert.equal(open.status, 400);
+  assert.match(open.body.message, /Pick Stripe/);
+  assert.equal(w.signupStores.signups.rows.size, 0);
+});
+
+test("a card provider changed after Open my shop was refused is the one the shop is made with", async () => {
+  let fail = true;
+  const w = world({ billing: { startTrial: async () => { if (fail) throw new Error("The payment service is busy."); return { status: "trialing" }; } } });
+  const pressId = await readyPress(w);
+  await w.ask("POST", "/api/press/setup", { pressId, cardProvider: "square" }, ADA);
+  assert.equal((await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA)).status, 500);
+  await w.ask("POST", "/api/press/setup", { pressId, cardProvider: "stripe" }, ADA);
+  fail = false;
+  const opened = await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA);
+  assert.equal(opened.status, 200);
+  assert.equal(w.signupStores.signups.rows.get(opened.body.press.shopId).paymentProvider, "stripe");
+});
+
 test("a language changed after Open my shop was refused is the one the plan starts with; automatic clears it", async () => {
   let fail = true;
   const trials = [];

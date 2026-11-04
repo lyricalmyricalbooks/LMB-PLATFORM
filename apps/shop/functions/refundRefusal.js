@@ -11,8 +11,10 @@ const DEFINITE_REFUSALS = Object.freeze([
 
 const httpStatus = (err) => Number(err?.status ?? err?.statusCode) || 0;
 
-/** True when the refund was refused for good. A 409 (a refund already under way, say) is never counted. */
+/** True when the refund was refused for good. A 409 (a refund already under way, say) or an idempotency clash never counts. */
 function refundRefused(err) {
+  // An idempotency clash is a retry of a refund that may have gone through.
+  if (err?.type === "idempotency_error" || /idempotenc/i.test(String(err?.code || ""))) return false;
   if (DEFINITE_REFUSALS.includes(err?.type)) return true;
   const status = httpStatus(err);
   return status >= 400 && status < 500 && status !== 409;

@@ -1809,7 +1809,7 @@ function deliveryView(delivery) {
   return [
     el("h3", { className: "cr-section", textContent: "Payments and email, last 7 days" }),
     el("dl", { className: "cr-facts" },
-      el("dt", { textContent: "Payments" }), el("dd", { textContent: `${payments.received} message${payments.received === 1 ? "" : "s"} from Stripe, ${payments.failed} not passed on` }),
+      el("dt", { textContent: "Payments" }), el("dd", { textContent: `${payments.received} message${payments.received === 1 ? "" : "s"} from Stripe or Square, ${payments.failed} not passed on` }),
       el("dt", { textContent: "Email" }), el("dd", { textContent: `${email.sent} sent, ${email.bounced} bounced, ${email.complained} marked as spam` })),
   ];
 }
@@ -2200,6 +2200,8 @@ async function loadSetup() {
         { header: "Press", lead: true, render: (p) => el("div", {}, el("p", { className: "cr-title", textContent: p.pressName || "No name yet" }), meta(p.ownerEmail, p.sells ? `sells ${p.sells.toLowerCase()}` : null, p.country || null)) },
         { header: "Plan", render: (p) => (p.plan ? PLAN_WORDS[p.plan] ?? p.plan : el("span", { className: "rp-hint", textContent: "not picked" })) },
         { header: "Looks", render: (p) => el("div", {}, el("span", { textContent: `Website: ${lookWords(p.look)}` }), meta(`Admin: ${lookWords(p.adminLook)}`)) },
+        { header: "Cards", render: (p) => (p.plan === "stockroom" ? el("span", { className: "rp-hint", textContent: "no website" })
+          : p.cardProvider ? el("span", { textContent: p.cardProvider === "square" ? "Square" : "Stripe" }) : el("span", { className: "rp-hint", textContent: "Stripe (not picked)" })) },
         { header: "Moving in", render: (p) => el("div", {}, el("span", { textContent: MOVING_WORDS[p.moving] ?? "not answered" }),
           meta(p.import ? `product file: ${p.import.rows ?? "?"} rows` : null, LANGUAGE_CHOICE_WORDS[p.language] ?? null)) },
         { header: "Last visit", render: (p) => el("div", {}, el("span", { className: "rp-mono", textContent: p.idleDays == null ? "" : daysWords(p.idleDays) }), meta(p.createdAt ? `signed up ${dateOnly(p.createdAt)}` : null)) },
