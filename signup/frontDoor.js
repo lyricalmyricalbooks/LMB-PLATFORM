@@ -11,6 +11,8 @@
 //                                              saves answers while the press is in setup
 //   POST /api/press/old-shop { pressId, address }
 //   POST /api/press/domain { pressId, domain }   the press's own domain for its shop ("" takes it off)
+//   POST /api/press/free-name { pressId, name }  checks a name for the free address while the press types it:
+//                                              { name, address, problem, available } (nothing is saved)
 //                                              reads the old shop's public product list (23.2) and answers it as a
 //                                              product file { host, csv, products, notes } for the browser to preview
 //
@@ -23,6 +25,8 @@
 //   email     sendPlatform({ kind, to, data, idempotencyKey })
 //   auth      signInLink(email, { url }) -> link (clients/signInLinks.js in the platform project)
 //   settings  { platformUrl }
+//   freeNameTaken  optional: (address) -> boolean, whether a shop already has that free address (freeAddress.js
+//             freeAddressTaken over the registry)
 import { createHash, randomBytes } from "node:crypto";
 import { SignupError, randomSuffix } from "./signup.js";
 import { createSignInCode } from "./signInCode.js";
@@ -32,7 +36,7 @@ import { COUNTRIES, PUBLISHES, isEmail } from "./form.js";
 import { readOldShop as readPublicShop } from "../services/moving/oldShop.js";
 import { domainProblem, normalDomain } from "../services/domains/names.js";
 import { sellerName } from "../services/domains/sellers.js";
-import { freeAddressPreview } from "../services/domains/freeAddress.js";
+import { FALLBACK_HANDLE, baseHandle, cleanHandle, freeAddressPreview, handleProblem } from "../services/domains/freeAddress.js";
 
 /** The page the front door lives on, under the platform's address. */
 export const START_PAGE = "join";
@@ -42,6 +46,8 @@ const shownRecord = (record, shopDomain = "") => ({
   // The free address the shop would get (moth-press.<shop domain>, or the name the press picked, `freeName`; a number
   // is added if it's taken), or "".
   freeAddress: freeAddressPreview(record.pressName ?? "", shopDomain, record.freeName ?? ""), freeName: record.freeName ?? "",
+  // The press's name can't be an address (a big brand's, a rude word, one the platform keeps): setup asks for a name.
+  freeNameNeeded: Boolean(shopDomain && record.pressName && !record.freeName && baseHandle(record.pressName) === FALLBACK_HANDLE),
   pressId: record.pressId, status: record.status, plan: record.plan ?? "", shopId: record.shopId ?? "",
   // How the shop is starting once opened (18.8): "queued", or "in-line" with the words saying why it waits.
   shopStatus: record.shopStatus ?? "", shopMessage: record.shopMessage ?? "", pressName: record.pressName, sells: record.sells, country: record.country,
@@ -85,7 +91,7 @@ const UPLOAD_MINUTES = 15;
  * daily cap, the countries that are open, invites, the free trial (billing.startTrial) and the shop maker's queue work
  * exactly as they do for every shop.
  */
-export function createFrontDoor({ presses, codes, email, auth, settings, stagedFiles, signup = null, now = () => new Date(), suffix = randomSuffix, random = null, readOldShop = readPublicShop, domainLookup = null }) {
+export function createFrontDoor({ presses, codes, email, auth, settings, stagedFiles, signup = null, now = () => new Date(), suffix = randomSuffix, random = null, readOldShop = readPublicShop, domainLookup = null, freeNameTaken = null }) {
   const shown = (record) => shownRecord(record, settings?.shopAddressDomain ?? "");
   const signInCode = createSignInCode({
     store: codes,
@@ -264,6 +270,22 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
       return { press: saved.press };
     },
 
+    // A name for the free address, checked as the press types it (freeAddress.js): cleaned, refused when the platform
+    // keeps it or it's a brand's or rude, and `available: false` when a shop already has it (`freeNameTaken`, the
+    // registry). Nothing is saved: Use this name saves `freeName` through saveSetup.
+    async checkFreeName(claims, body = {}) {
+      await ownPress(claims, body.pressId);
+      const shopDomain = settings?.shopAddressDomain ?? "";
+      const name = cleanHandle(String(body.name ?? "").slice(0, 60));
+      const problem = handleProblem(name);
+      const address = shopDomain && name ? `${name}.${shopDomain}` : "";
+      let available = !problem;
+      if (available && address && freeNameTaken) {
+        try { available = !(await freeNameTaken(address)); } catch { available = true; }
+      }
+      return { name, address, problem, available };
+    },
+
     async removeImport(claims, body = {}) {
       const record = await ownPress(claims, body.pressId);
       // The record lets go first, then the files: at worst a file is left with nothing pointing at it.
@@ -354,5 +376,6 @@ export const frontDoorRoutes = (door) => ({
   "POST /api/press/import/remove": (claims, request) => door.removeImport(claims, request.body ?? {}),
   "POST /api/press/old-shop": (claims, request) => door.oldShop(claims, request.body ?? {}),
   "POST /api/press/domain": (claims, request) => door.saveDomain(claims, request.body ?? {}),
+  "POST /api/press/free-name": (claims, request) => door.checkFreeName(claims, request.body ?? {}),
   "POST /api/press/open": (claims, request) => door.openShop(claims, request.body ?? {}),
 });

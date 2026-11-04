@@ -441,6 +441,25 @@ test("setup shows the free address a press's shop will get, once the platform ha
   assert.equal((await withDomain.myPresses(ADA)).presses[0].freeAddress, "moth-press.shops.example");
 });
 
+test("a name for the free address is checked while the press types it, and a press name that can't be one asks for a name", async () => {
+  const w = world();
+  const pressId = await pressFor(w);
+  const taken = new Set(["moth-press.shops.example"]);
+  const door = createFrontDoor({ ...w.stores, stagedFiles: w.files, email: { sendPlatform: async () => {} }, auth: fakeAuth(),
+    settings: { ...SETTINGS, shopAddressDomain: "shops.example" }, freeNameTaken: async (address) => taken.has(address) });
+  assert.deepEqual(await door.checkFreeName(ADA, { pressId, name: "Moth Press" }), { name: "moth-press", address: "moth-press.shops.example", problem: "", available: false });
+  assert.deepEqual(await door.checkFreeName(ADA, { pressId, name: "Moth Books!" }), { name: "moth-books", address: "moth-books.shops.example", problem: "", available: true });
+  const refused = await door.checkFreeName(ADA, { pressId, name: "admin" });
+  assert.equal(refused.available, false);
+  assert.match(refused.problem, /kept for the platform/);
+  await w.ask("POST", "/api/press/setup", { pressId, pressName: "Amazon Books" }, ADA);
+  let [press] = (await door.myPresses(ADA)).presses;
+  assert.deepEqual([press.freeAddress, press.freeNameNeeded], ["my-shop.shops.example", true]);
+  await w.ask("POST", "/api/press/setup", { pressId, freeName: "river-books" }, ADA);
+  [press] = (await door.myPresses(ADA)).presses;
+  assert.deepEqual([press.freeAddress, press.freeNameNeeded], ["river-books.shops.example", false]);
+});
+
 // ── Open my shop (code plan 18.8) ──
 
 async function readyPress(w, fields = { pressName: "Moth Press", country: "CA", plan: "both", sells: "zines", look: "riso" }) {

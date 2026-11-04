@@ -155,7 +155,7 @@ describe("Your web address: connect in one step (plan 6.15)", () => {
     const el = await mount();
     const card = el.querySelector('[data-domain="moth-press.shops.example"]')!;
     expect(card.textContent).toContain("Setting up");
-    expect(card.textContent).toContain("nothing to do");
+    expect(card.textContent).toContain("Nothing to do");
     expect(card.querySelector("details")).toBeNull();
     expect(button(card, "Remove")).toBeUndefined();
   });
@@ -181,12 +181,12 @@ describe("Your web address: connect in one step (plan 6.15)", () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "Moth Books!");
       input.dispatchEvent(new Event("input", { bubbles: true }));
     });
-    expect(card.textContent).toContain("Your shop will open at moth-books.shops.example");
+    expect(card.textContent).toContain("moth-books.shops.example");
     await act(async () => button(card, "Use this name")!.click());
     expect(api.customDomains).toHaveBeenCalledWith("renameFree", "moth-books");
-    expect(el.textContent).toContain("moth-press.shops.example keeps opening your shop");
+    expect(el.textContent).toContain("moth-press.shops.example sends visitors to it");
     card = el.querySelector('[data-domain="moth-press.shops.example"]')!;
-    expect(card.textContent).toContain("Your free address before");
+    expect(card.textContent).toContain("Main until your new free address works");
     expect(button(card, "Change name")).toBeUndefined();
     expect(button(el.querySelector('[data-domain="moth-books.shops.example"]')!, "Change name")).toBeTruthy();
     // Free addresses never use up one of the three of the press's own.

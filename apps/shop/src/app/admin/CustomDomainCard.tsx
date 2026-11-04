@@ -122,7 +122,7 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
       takeList(await adminApi.customDomains("renameFree", name));
       setRenaming(false);
       setNameDraft("");
-      setNotice(`Your new free address is being set up. ${current} keeps opening your shop, so links you shared still work.`);
+      setNotice(`Setting up your new address. ${current} sends visitors to it once it works.`);
     } catch (err: any) {
       setError(friendlyError(err, "change your free address"));
     } finally {
@@ -237,8 +237,8 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
                   {actions.note && <p className="rp-hint" style={{ margin: "8px 0 0" }}>{actions.note}</p>}
                   {d.free && !d.former && renaming && (
                     <form className="rp-stack" style={{ gap: 8, marginTop: 12 }} data-rename onSubmit={(e) => { e.preventDefault(); void rename(d.name); }}>
-                      <TextField label="New name for your free address" placeholder="moth-books" spellCheck={false} autoCapitalize="none" value={nameDraft}
-                        hint={freeNameOf(nameDraft) ? `Your shop will open at ${freeNameOf(nameDraft)}.${d.name.slice(d.name.indexOf(".") + 1)}. ${d.name} keeps working too.` : "Letters, numbers and dashes, like moth-books."}
+                      <TextField label="New name" placeholder="moth-books" spellCheck={false} autoCapitalize="none" value={nameDraft}
+                        hint={freeNameOf(nameDraft) ? `${freeNameOf(nameDraft)}.${d.name.slice(d.name.indexOf(".") + 1)}` : "Letters, numbers and dashes."}
                         onChange={(e) => setNameDraft(e.target.value)} />
                       <div className="rp-card-actions">
                         <PrimaryButton type="submit" size="sm" disabled={!freeNameOf(nameDraft) || !!busy} busy={busy === "rename"}>Use this name</PrimaryButton>

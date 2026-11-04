@@ -127,7 +127,7 @@ async function checkFrontDoor(browser, walk, log) {
       await page.locator("[role=radio]", { hasText: "I already have a domain" }).click();
       await page.fill("input[placeholder='yourpress.com']", "mothpress.example");
       await page.locator("button", { hasText: "Use this domain" }).click();
-      await page.locator("text=you press Allow once at GoDaddy").waitFor({ state: "visible", timeout: 10_000 });
+      await page.locator("text=you press Allow there once").waitFor({ state: "visible", timeout: 10_000 });
       const [kept] = await walk.world.frontDoorStores.presses.listByOwner(`uid-${address}`);
       if (kept?.domain !== "mothpress.example" || kept?.domainSeller !== "GoDaddy") throw new Error(`the domain wasn't kept: ${JSON.stringify([kept?.domain, kept?.domainSeller])}`);
       if (!(await fits())) throw new Error("Your web address scrolls sideways on a phone");

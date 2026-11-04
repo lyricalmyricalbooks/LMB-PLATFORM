@@ -301,6 +301,20 @@ export function createDomainService({
         await saveEntry(shopId, name, { mainWhenLive: true });
       }
     }
+    // The current free address works: a name it had before now sends visitors on to it (Hosting redirect), so the
+    // address bar shows the new name. Never the main address (makeMain refuses an address that sends on).
+    if (state === "live" && entry.free && !entry.former && typeof hosting.redirectDomain === "function") {
+      const fresh = await rowOf(shopId);
+      for (const old of domainsOf(fresh).filter((d) => d.free && d.former && d.redirectTo !== name && d.name !== mainAddress(fresh))) {
+        try {
+          await hosting.redirectDomain(projectOf(fresh), old.name, name);
+          await saveEntry(shopId, old.name, { redirectTo: name });
+          await logChange(shopId, `domain-sends-on-${old.name}-${name}`, { kind: "domains.sends-on", domain: old.name, to: name });
+        } catch (err) {
+          console.error(`Sending ${old.name} on to ${name} for ${shopId} failed:`, err?.message || err);
+        }
+      }
+    }
     return { name, state, records, paymentDomain, ...view.answer };
   }
 
@@ -520,9 +534,16 @@ export function createDomainService({
     }
     row = await rowOf(shopId);
     const wasMain = mainAddress(row) === before;
+    // Taking back a name that sends visitors on: it serves the shop again (Hosting has no "stop sending on", so it is
+    // added afresh).
+    const back = domainsOf(row).find((d) => d.name === name && d.redirectTo);
+    if (back) await hosting.removeDomain(projectOf(row), name);
     const domains = domainsOf(row).map((d) => {
       if (d.name === before) return { ...d, former: true, mainWhenLive: false };
-      if (d.name === name) return { ...d, former: false, mainWhenLive: wasMain };
+      if (d.name === name) {
+        const { redirectTo: _sent, ...kept } = d;
+        return { ...kept, former: false, mainWhenLive: wasMain, ...(back ? { state: "connecting" } : {}) };
+      }
       return d;
     });
     if (!domains.some((d) => d.name === name)) domains.push({ name, free: true, state: "connecting", addedAt: iso(), mainWhenLive: wasMain });

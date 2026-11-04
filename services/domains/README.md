@@ -145,7 +145,10 @@ under it, so a shop's pages can never read the platform's sign-in. Unset, shops 
   checkout …), big brands' names and rude words (whole words of the name), so an address under the platform's name
   never passes as someone else's. A press name that can't be an address gets `my-shop`.
 - **A new name later** (`domains.renameFree { name }`, Settings › General › Change name): refused when another shop
-  has it. The one before stays as `former: true`, keeps opening the shop and stays main until the new one is live; the
-  press may then remove it. Only one former address is kept: the next rename takes the older one off (Hosting and zone).
+  has it. The one before stays as `former: true`, keeps opening the shop and stays main until the new one is live; then
+  it sends visitors on to the new one (`hosting.redirectDomain`, customDomains.patch) and the press may remove it.
+  Taking back a name that sends on removes and re-adds it in Hosting so it serves the shop again.
+- **Setup's check while typing**: `POST /api/press/free-name` (frontDoor.js checkFreeName, `freeAddressTaken` over the
+  registry). A press whose own name can't be an address (`freeNameNeeded`) is asked for one. Only one former address is kept: the next rename takes the older one off (Hosting and zone).
 - **Email.** `free-address-live` goes once when the current free address works (the welcome email goes out before it
   exists).

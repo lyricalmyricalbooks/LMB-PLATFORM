@@ -3,10 +3,10 @@
 // there is no shop yet. The domain is kept on the press's setup record (door.saveDomain looks up where it was bought),
 // and once the shop is made it is connected in one step, made the main address as soon as it works, with www sent on
 // to it (platform signup/shopMaker.js). Press-facing words never name the technical lines behind it.
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { ExternalLink, Globe } from "lucide-react";
 import { GhostButton, PrimaryButton, SectionCard, TextField, useRisoToast } from "../app/admin/riso/components";
-import type { SetupChange, SetupDoor, SetupPress } from "./door";
+import type { FreeNameCheck, SetupChange, SetupDoor, SetupPress } from "./door";
 
 /** The anchor the setup guide's step scrolls to. */
 export const WEB_ADDRESS_ANCHOR = "web-address";
@@ -25,16 +25,16 @@ export function buyDomainUrl(pressName: string, country = ""): string {
 export function endingHint(country = ""): string {
   const ending = LOCAL_ENDINGS[country];
   return ending
-    ? `Opens GoDaddy in a new tab, searching for your press's name. A .${ending} name tells shoppers you're local; .com works everywhere.`
-    : "Opens GoDaddy in a new tab, searching for your press's name. Names ending in .com are easiest for shoppers to remember.";
+    ? `A .${ending} name tells shoppers you're local.`
+    : "";
 }
 
 /** What happens with the kept domain once the shop is made, in plain words. */
 export function domainPlan(press: Pick<SetupPress, "domain" | "domainSeller" | "domainEasy">): string {
   const seller = press.domainSeller || "";
-  if (press.domainEasy && seller) return `Bought at ${seller}. Once your shop is made, you press Allow once at ${seller} and we do the rest, padlock included.`;
-  if (seller) return `Bought at ${seller}. Once your shop is made, we show you exactly what to copy into ${seller}, step by step, or you can send it to your web person in one email.`;
-  return "Once your shop is made, we show you how to connect it where you bought it, step by step, or you can send it to your web person in one email.";
+  if (press.domainEasy && seller) return `Bought at ${seller}. Once your shop is made, you press Allow there once.`;
+  if (seller) return `Bought at ${seller}. Once your shop is made, we show you what to copy there.`;
+  return "Once your shop is made, we show you how to connect it.";
 }
 
 /** www.yourpress.com goes to yourpress.com (and the other way round); a sub-address has no partner. */
@@ -51,17 +51,33 @@ export function freeNamePreview(text: string): string {
     .replace(/&/g, " and ").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 30).replace(/-+$/, "");
 }
 
-type FreeLineProps = { press: SetupPress; save: (c: SetupChange) => Promise<SetupPress>; inSetup: boolean };
+type FreeLineProps = { press: SetupPress; save: (c: SetupChange) => Promise<SetupPress>; check?: SetupDoor["checkFreeName"]; inSetup: boolean };
+
+/** How long typing must pause before a name is checked. */
+const CHECK_AFTER_MS = 350;
 
 /** "Your free address: moth-press.<shop domain>", and a name of the press's own in its place. */
-function FreeAddressLine({ press, save, inSetup }: FreeLineProps) {
+function FreeAddressLine({ press, save, check, inSetup }: FreeLineProps) {
   const address = press.freeAddress ?? "";
   const shopDomain = address.slice(address.indexOf(".") + 1);
-  const [editing, setEditing] = useState(false);
+  // A press whose own name can't be an address is asked for a name straight away.
+  const [editing, setEditing] = useState(Boolean(press.freeNameNeeded && inSetup));
   const [draft, setDraft] = useState(press.freeName ?? "");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const name = freeNamePreview(draft);
+  // The platform's answer for what's typed now: why it can't be used, or whether another shop has it.
+  const [checked, setChecked] = useState<FreeNameCheck | null>(null);
+  useEffect(() => {
+    if (!editing || !check || !name) { setChecked(null); return; }
+    let live = true;
+    const timer = setTimeout(() => {
+      check(press.pressId, name).then((answer) => { if (live) setChecked(answer); }, () => { if (live) setChecked(null); });
+    }, CHECK_AFTER_MS);
+    return () => { live = false; clearTimeout(timer); };
+  }, [name, editing]); // eslint-disable-line react-hooks/exhaustive-deps
+  const current = checked?.name === name ? checked : null;
+  const refusal = current?.problem || (current && !current.available ? `Another shop already has ${current.address}. Try another name.` : "");
 
   const keep = async (value: string, which: string) => {
     setBusy(which); setError("");
@@ -77,23 +93,23 @@ function FreeAddressLine({ press, save, inSetup }: FreeLineProps) {
 
   return (
     <div style={{ display: "grid", gap: 8 }}>
-      <p style={{ margin: 0 }}>
-        Your free address: <strong style={{ overflowWrap: "anywhere" }}>{address}</strong>
-        <span className="rp-hint" style={{ display: "block" }}>
-          {press.freeName ? "The name you picked." : "Made from your press's name."} If another shop has it when your shop is made, we add a number.
-        </span>
+      <p style={{ margin: 0, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "baseline" }}>
+        <span>Free address: <strong style={{ overflowWrap: "anywhere" }}>{address}</strong></span>
+        {inSetup && !editing && (
+          <button type="button" className="rp-link" style={{ background: "none", border: 0, padding: 0, cursor: "pointer", color: "var(--rp-text)", textDecoration: "underline", font: "inherit" }}
+            onClick={() => { setEditing(true); setDraft(press.freeName ?? ""); setError(""); }}>Change name</button>
+        )}
       </p>
-      {inSetup && !editing && (
-        <GhostButton size="sm" style={{ justifySelf: "start" }} onClick={() => { setEditing(true); setDraft(press.freeName ?? ""); setError(""); }}>Pick another name</GhostButton>
-      )}
+      {press.freeNameNeeded && <p className="rp-hint" style={{ margin: 0 }}>Your press's name can't be used here. Pick a name.</p>}
       {editing && (
         <form onSubmit={(e) => { e.preventDefault(); if (name && !busy) void keep(draft.trim(), "name"); }} style={{ display: "grid", gap: 12, maxWidth: 520 }}>
-          <TextField label="Name for your free address" value={draft} placeholder="moth-books" autoCapitalize="none" autoCorrect="off" spellCheck={false}
-            hint={name ? `Your shop opens at ${name}.${shopDomain}` : "Letters, numbers and dashes, like moth-books."} onChange={(e) => setDraft(e.target.value)} />
+          <TextField label="New name" value={draft} placeholder="moth-books" autoCapitalize="none" autoCorrect="off" spellCheck={false}
+            hint={refusal ? undefined : name ? `${name}.${shopDomain}${current?.available ? " is free" : ""}` : "Letters, numbers and dashes."}
+            error={refusal || undefined} onChange={(e) => setDraft(e.target.value)} />
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            <PrimaryButton type="submit" size="sm" busy={busy === "name"} disabled={!name || !!busy}>Use this name</PrimaryButton>
+            <PrimaryButton type="submit" size="sm" busy={busy === "name"} disabled={!name || !!busy || !!refusal}>Use this name</PrimaryButton>
             {press.freeName && <GhostButton size="sm" busy={busy === "press"} disabled={!!busy} onClick={() => void keep("", "press")}>Use my press's name</GhostButton>}
-            <GhostButton size="sm" disabled={!!busy} onClick={() => { setEditing(false); setError(""); }}>Cancel</GhostButton>
+            {!press.freeNameNeeded && <GhostButton size="sm" disabled={!!busy} onClick={() => { setEditing(false); setError(""); }}>Cancel</GhostButton>}
           </div>
         </form>
       )}
@@ -104,12 +120,12 @@ function FreeAddressLine({ press, save, inSetup }: FreeLineProps) {
 
 type Choice = "own" | "buy" | "free";
 const CHOICES: Array<{ id: Choice; title: string; line: string }> = [
-  { id: "own", title: "I already have a domain", line: "Bring it over. It keeps showing your old site until you connect it after your shop is made." },
-  { id: "buy", title: "I need a domain", line: "Buy one at GoDaddy, then come back and add it here. It takes a few minutes." },
-  { id: "free", title: "Use the free address for now", line: "Your shop works straight away on its free address. Add your own domain any time." },
+  { id: "own", title: "I already have a domain", line: "Your old site stays up until you connect it." },
+  { id: "buy", title: "I need a domain", line: "Buy one at GoDaddy, then add it here." },
+  { id: "free", title: "Use the free address for now", line: "Add your own domain any time." },
 ];
 
-type CardProps = { press: SetupPress; door: Pick<SetupDoor, "saveDomain">; save: (c: SetupChange) => Promise<SetupPress>; onSaved: (p: SetupPress) => void };
+type CardProps = { press: SetupPress; door: Pick<SetupDoor, "saveDomain"> & Partial<Pick<SetupDoor, "checkFreeName">>; save: (c: SetupChange) => Promise<SetupPress>; onSaved: (p: SetupPress) => void };
 
 export function WebAddressCard(props: CardProps) {
   return <div id={WEB_ADDRESS_ANCHOR} style={{ scrollMarginTop: 16 }}><WebAddressInner {...props} /></div>;
@@ -163,7 +179,7 @@ function WebAddressInner({ press, door, save, onSaved }: CardProps) {
   const field = (label: string): ReactNode => (
     <form onSubmit={keep} style={{ display: "grid", gap: 12, maxWidth: 520 }}>
       <TextField label={label} value={draft} placeholder="yourpress.com" inputMode="url" autoCapitalize="none" autoCorrect="off" spellCheck={false}
-        hint="Just the name, like yourpress.com. We find where it was bought." onChange={(e) => setDraft(e.target.value)} disabled={!inSetup} />
+        hint="Like yourpress.com" onChange={(e) => setDraft(e.target.value)} disabled={!inSetup} />
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         <PrimaryButton type="submit" busy={busy === "keep"} disabled={!draft.trim() || !!busy || !inSetup}>Use this domain</PrimaryButton>
         {press.domain && <GhostButton onClick={() => { setEditing(false); setDraft(""); setError(""); }}>Keep {press.domain}</GhostButton>}
@@ -177,7 +193,7 @@ function WebAddressInner({ press, door, save, onSaved }: CardProps) {
   if (press.domain && !editing) {
     const partner = partnerOf(press.domain);
     return (
-      <SectionCard title="Your web address" description="Where shoppers find your shop." collapsible={false}>
+      <SectionCard title="Your web address" collapsible={false}>
         <div style={{ display: "grid", gap: 12 }}>
           <div style={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", gap: 12, alignItems: "start", padding: 14, border: "2px solid var(--rp-text)", background: "var(--rp-primary-tint)" }}>
             <span aria-hidden style={{ display: "inline-flex", paddingTop: 2 }}><Globe size={22} /></span>
@@ -185,7 +201,7 @@ function WebAddressInner({ press, door, save, onSaved }: CardProps) {
               <strong style={{ overflowWrap: "anywhere", fontSize: 18 }}>{press.domain}</strong>
               <span>{domainPlan(press)}</span>
               <span className="rp-hint">
-                {`It becomes your shop's main address as soon as it works${partner ? `, and ${partner} opens it too` : ""}. Until then your shop uses its free address${press.freeAddress ? `, ${press.freeAddress}` : ""}, which keeps working.`}
+                {`Becomes your main address once it works${partner ? `; ${partner} opens it too` : ""}.`}
               </span>
             </div>
           </div>
@@ -202,9 +218,9 @@ function WebAddressInner({ press, door, save, onSaved }: CardProps) {
   }
 
   return (
-    <SectionCard title="Your web address" description="Where shoppers find your shop. Your shop always has a free address too." collapsible={false}>
+    <SectionCard title="Your web address" collapsible={false}>
       <div style={{ display: "grid", gap: 16 }}>
-        {press.freeAddress && <FreeAddressLine press={press} save={save} inSetup={inSetup} />}
+        {press.freeAddress && <FreeAddressLine press={press} save={save} check={door.checkFreeName} inSetup={inSetup} />}
         <div role="radiogroup" aria-label="Your web address" style={{ display: "grid", gap: 8 }}>
           {CHOICES.map((c) => {
             const on = picked === c.id;
@@ -225,12 +241,11 @@ function WebAddressInner({ press, door, save, onSaved }: CardProps) {
               <a className="rp-btn rp-btn-primary" href={buyDomainUrl(press.pressName, press.country)} target="_blank" rel="noopener noreferrer" style={{ justifySelf: "start", display: "inline-flex", gap: 8, alignItems: "center" }}>
                 Find a domain at GoDaddy <ExternalLink size={16} aria-hidden />
               </a>
-              <span className="rp-hint">{endingHint(press.country)}</span>
+              {endingHint(press.country) && <span className="rp-hint">{endingHint(press.country)}</span>}
             </div>
             {field("Bought it? Add it here")}
           </div>
         )}
-        {picked === "free" && <p className="rp-hint" style={{ margin: 0 }}>Fine for now. Add your own domain any time here or, once your shop is made, in Settings › General.</p>}
         {errorLine}
       </div>
     </SectionCard>

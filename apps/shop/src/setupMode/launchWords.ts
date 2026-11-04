@@ -57,10 +57,10 @@ export function createChecklist(press: SetupPress, plans: PlanList | null, names
       : { id: "look", label: "Website look", value: "Not chosen yet. You can pick one now, or in Design once your shop is made.", state: "later", page: DESIGN_PAGE, change: "Choose a look" });
   }
   if (press.plan !== "stockroom") {
-    const free = press.freeAddress ? `its free address, ${press.freeAddress}` : "its free address";
+    const free = press.freeAddress || "Free address";
     rows.push(press.domain
-      ? { id: "domain", label: "Web address", value: `${press.domain}${press.domainSeller ? `, bought at ${press.domainSeller}` : ""}. We connect it once your shop is made; until then your shop uses ${free}.`, state: "done", page: GENERAL_PAGE, change: "Change" }
-      : { id: "domain", label: "Web address", value: `Your shop starts at ${free}. You can bring your own domain now, or any time later.`, state: "later", page: GENERAL_PAGE, change: "Add a domain" });
+      ? { id: "domain", label: "Web address", value: press.domain, state: "done", page: GENERAL_PAGE, change: "Change" }
+      : { id: "domain", label: "Web address", value: free, state: "later", page: GENERAL_PAGE, change: "Add a domain" });
   }
   const file = press.stagedImport;
   rows.push(file

@@ -6,6 +6,7 @@
 // This is also where the pieces that have no hosted home yet are joined: sign-up starts its trial through billing, the
 // shop maker hands the new shop its plan (`billing.publishPlan`, plan 6.14), and one web door carries the sign-up,
 // account, billing and control-room routes.
+import { freeAddressTaken } from "../services/domains/freeAddress.js";
 import { accountRoutes, deletionRoutes } from "../accounts/routes.js";
 import { createAccountDeletion } from "../accounts/deleteAccount.js";
 import { billingPublicRoutes, billingRoutes } from "../accounts/billingRoutes.js";
@@ -157,7 +158,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     "mothpress.example": { registrar: { name: "GoDaddy.com, LLC" }, domainConnect: fakeDomainConnectSeller() },
     "inkpress.example": { registrar: { name: "Hover" } },
   });
-  const frontDoor = createFrontDoor({ ...frontDoorStores, email, auth: fakeAuth(), settings, stagedFiles, signup, now: clock.date, domainLookup, ...(suffix ? { suffix } : {}) });
+  const frontDoor = createFrontDoor({ ...frontDoorStores, email, auth: fakeAuth(), settings, stagedFiles, signup, now: clock.date, domainLookup, freeNameTaken: freeAddressTaken(registry), ...(suffix ? { suffix } : {}) });
   const repairStore = fakeRepairStore();
   const repairs = createRepairQueue({ store: repairStore, registry, auditLog, now: clock.date });
   const steps = () => shopSteps({ ...services, google, registry, profileFiles, config: TEST_CONFIG });

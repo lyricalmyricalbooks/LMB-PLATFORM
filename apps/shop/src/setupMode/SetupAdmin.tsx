@@ -208,7 +208,7 @@ const STEP_WHY: Record<string, string> = {
   details: "Your press's name, what you sell and your country set your shop's words, money and taxes.",
   look: "Every look keeps your words and books, and you can change everything in Design later.",
   books: "Bring your old shop's product file and your books come in as drafts for you to check.",
-  domain: "Bring a domain you already have, or buy one. Your shop always has a free address too.",
+  domain: "Use a domain you have, or buy one.",
   open: "Check what goes in, then we make your shop. It starts private, so only you can see it.",
 };
 

@@ -134,6 +134,9 @@ test("a new name for the free address: the one before keeps working and stays ma
   await t.service.checkAll();
   row = await t.registry.getShop("moth-press");
   assert.equal(row.mainDomain, "moth-books.shops.example", "the new one takes over once it works");
+  // And the one before now sends visitors on to it, so the address bar shows the new name.
+  assert.ok(t.hosting.calls.some(([op, , d, to]) => op === "redirectDomain" && d === "moth-press.shops.example" && to === "moth-books.shops.example"));
+  assert.equal((await t.service.list("moth-press")).domains.find((d) => d.name === "moth-press.shops.example").sendsTo, "moth-books.shops.example");
   // The one before can now be taken off by the press; the current one never.
   await assert.rejects(() => t.service.remove("moth-press", "moth-books.shops.example"), (e) => e.code === "own_address" || e.code === "is_main");
   // Another shop's name is refused in plain words. And only one name before is kept: renaming again takes off the oldest.
@@ -142,6 +145,13 @@ test("a new name for the free address: the one before keeps working and stays ma
   assert.deepEqual(again.domains.map((d) => d.name).sort(), ["moth-books.shops.example", "moth-press-3.shops.example"]);
   assert.ok(t.hosting.calls.some(([op, , d]) => op === "removeDomain" && d === "moth-press.shops.example"));
   assert.equal([...t.zone.lines.keys()].some((k) => k.startsWith("moth-press.shops.example ")), false, "its lines are taken out of the zone");
+  // Taking back a name that sends visitors on: it serves the shop again.
+  t.hosting.set("moth-press", "moth-press-3.shops.example", "live");
+  await t.service.checkAll();
+  const back = await t.service.renameFreeAddress("moth-press", "moth-books");
+  assert.equal(back.domains.find((d) => d.name === "moth-books.shops.example").sendsTo, undefined);
+  assert.ok(t.hosting.calls.some(([op, , d]) => op === "removeDomain" && d === "moth-books.shops.example"));
+  await t.service.renameFreeAddress("moth-press", "moth-press-3");
   // Same name again changes nothing.
   const calls = t.hosting.calls.length;
   await t.service.renameFreeAddress("moth-press", "moth-press-3");

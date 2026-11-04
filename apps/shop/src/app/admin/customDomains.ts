@@ -20,9 +20,9 @@ export type DomainStep = "list" | "add" | "connect" | "check" | "makeMain" | "re
 /** What the press can do with one address (plan 5.9): only a live one becomes main; the main one is never removed. */
 export function domainActions(entry: DomainEntry, main: string | undefined): { canMakeMain: boolean; canRemove: boolean; note: string } {
   const isMain = entry.name === main;
-  // The free address before a new name: it still opens the shop, so links shared with it keep working.
-  if (entry.free && entry.former) return { canMakeMain: false, canRemove: !isMain, note: isMain ? "Your free address before. It stays your main address until the new one works." : "Your free address before. It still opens your shop, so links you shared keep working. Remove it when you no longer need it." };
-  if (entry.free) return { canMakeMain: !isMain && entry.state === "live", canRemove: false, note: isMain ? "Your shop's free address. It always works." : "Your shop's free address. It always works, and opens the same shop." };
+  // The free address before a new name: it sends visitors on to the new one once that works.
+  if (entry.free && entry.former) return { canMakeMain: false, canRemove: !isMain, note: isMain ? "Main until your new free address works." : entry.sendsTo ? `Old free address. Sends visitors to ${entry.sendsTo}.` : "Old free address. Still works." };
+  if (entry.free) return { canMakeMain: !isMain && entry.state === "live", canRemove: false, note: "Free address. Always works." };
   if (entry.sendsTo) return { canMakeMain: false, canRemove: !isMain, note: `Visitors here are sent on to ${entry.sendsTo}.` };
   if (isMain) return { canMakeMain: false, canRemove: false, note: "This is your main address. To remove it, make another address main first." };
   return { canMakeMain: entry.state === "live", canRemove: true, note: entry.state === "live" ? "" : "Once it shows as Live, you can make it your main address." };
@@ -45,7 +45,7 @@ export function describeDomain(state: DomainState | undefined): { tone: Tone; la
 /** Where one address stands, for its card: a free address is set up by the platform, so there is nothing to finish. */
 export function describeEntry(entry: Pick<DomainEntry, "free" | "former">, state: DomainState | undefined): { tone: Tone; label: string; text: string } {
   if (entry.free && state !== "live" && state !== "conflict") {
-    return { tone: "info", label: "Setting up", text: "We're setting up your shop's free address. There's nothing to do: it's ready within the hour." };
+    return { tone: "info", label: "Setting up", text: "Ready within the hour. Nothing to do." };
   }
   return describeDomain(state);
 }

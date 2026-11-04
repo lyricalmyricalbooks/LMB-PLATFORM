@@ -39,6 +39,11 @@ export function fakeHosting() {
       calls.push(["removeDomain", projectId, domain]);
       domains.delete(key(projectId, domain));
     },
+    async redirectDomain(projectId, domain, redirectTo) {
+      calls.push(["redirectDomain", projectId, domain, redirectTo]);
+      const found = domains.get(key(projectId, domain));
+      if (found) found.redirectTo = redirectTo;
+    },
   };
 }
 

@@ -103,3 +103,12 @@ export async function pickFreeAddress(pressName, shopDomain, taken, options = {}
   }
   return null;
 }
+
+/**
+ * Whether a shop in the registry already has `name` (as its free address or any of its addresses), for setup's check
+ * while a press types a name. `registry.listShops()` (setup/fakes.js, clients/registry.js).
+ */
+export function freeAddressTaken(registry) {
+  return async (name) => (await registry.listShops()).some((shop) => shop?.freeAddress === name
+    || (Array.isArray(shop?.domains) && shop.domains.some((d) => d?.name === name)));
+}
