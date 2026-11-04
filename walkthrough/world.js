@@ -6,6 +6,7 @@
 // This is also where the pieces that have no hosted home yet are joined: sign-up starts its trial through billing, the
 // shop maker hands the new shop its plan (`billing.publishPlan`, plan 6.14), and one web door carries the sign-up,
 // account, billing and control-room routes.
+import { freeAddressTaken } from "../services/domains/freeAddress.js";
 import { accountRoutes, deletionRoutes } from "../accounts/routes.js";
 import { createAccountDeletion } from "../accounts/deleteAccount.js";
 import { billingPublicRoutes, billingRoutes } from "../accounts/billingRoutes.js";
@@ -87,6 +88,7 @@ import { costRoutes, createCostsDesk } from "../control-room/costs.js";
 import { createCostReader } from "../services/costs/costs.js";
 import { createDataExports, exportRoutes } from "../services/export/export.js";
 import { fakeExportStorage, fakeExportStore } from "../services/export/fakes.js";
+import { fakeDomainConnectSeller, fakeSellers } from "../services/domains/fakes.js";
 
 export const DAY = 86_400_000;
 const generousLimits = () => Object.fromEntries(Object.entries(DEFAULT_LIMITS).map(([kind, limit]) => [kind, { ...limit, max: limit.max * 100 }]));
@@ -113,7 +115,8 @@ export function fakeClock(start = "2026-10-28T12:00:00Z") {
  * invite), `waitlisted` (people on the waitlist the control room lists), `google` (a pretend Google, to make a step fail), `suffix` (the five characters of a new shop's id).
  */
 export function platformWorld({ start, clock = fakeClock(start), env = {}, invited = [], waitlisted = [], google = fakeGoogle(), suffix = null } = {}) {
-  const settingsEnv = { SIGNUP_OPEN: "true", ...env };
+  // Shops' free addresses go under a made-up shop domain, so setup shows the address a shop will get.
+  const settingsEnv = { SIGNUP_OPEN: "true", SHOP_ADDRESS_DOMAIN: "shops.example", ...env };
   const settings = platformSettings(settingsEnv);
   const live = () => liveSettings({ env: settingsEnv });
 
@@ -159,7 +162,12 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const frontDoorStores = fakeFrontDoorStores();
   // Kept product files (18.7): the walkthrough's server takes the upload at /walkthrough/uploads/<token>.
   const stagedFiles = fakeStagedFiles({ uploadBase: "/walkthrough/uploads", now: clock.date });
-  const frontDoor = createFrontDoor({ ...frontDoorStores, email, auth: fakeAuth(), settings, stagedFiles, signup, now: clock.date, ...(suffix ? { suffix } : {}) });
+  // "Your web address": a made-up domain bought at a seller with the Allow window, and one with none (the guide).
+  const domainLookup = fakeSellers({
+    "mothpress.example": { registrar: { name: "GoDaddy.com, LLC" }, domainConnect: fakeDomainConnectSeller() },
+    "inkpress.example": { registrar: { name: "Hover" } },
+  });
+  const frontDoor = createFrontDoor({ ...frontDoorStores, email, auth: fakeAuth(), settings, stagedFiles, signup, now: clock.date, domainLookup, freeNameTaken: freeAddressTaken(registry), ...(suffix ? { suffix } : {}) });
   const repairStore = fakeRepairStore();
   const repairs = createRepairQueue({ store: repairStore, registry, auditLog, now: clock.date });
   const steps = () => shopSteps({ ...services, google, registry, profileFiles, config: TEST_CONFIG });

@@ -18,7 +18,8 @@ describe("Create my shop's review", () => {
       ["plan", "done", "Shop · $21.75 a month"],
       ["details", "done", "Moth Press · Zines · Canada"],
       ["look", "done", "Riso"],
-      ["books", "later", "None brought over. You can add them, or bring a file, once your shop is made."],
+      ["domain", "later", "Free address"],
+      ["books", "later", "None yet"],
     ]);
     expect(canCreate(rows)).toBe(true);
   });
@@ -38,6 +39,14 @@ describe("Create my shop's review", () => {
     expect(rows.find((r) => r.id === "books")!.value).toMatch(/^1 book from a.csv/);
   });
 
+  it("shows the web address: the press's own domain and where it was bought, or the free address it starts at", () => {
+    const own = createChecklist(press({ domain: "mothpress.example", domainSeller: "GoDaddy", freeAddress: "moth-press.shops.example" }), plans, names).find((r) => r.id === "domain")!;
+    expect(own).toMatchObject({ state: "done", value: "mothpress.example" });
+    const free = createChecklist(press({ freeAddress: "moth-press.shops.example" }), plans, names).find((r) => r.id === "domain")!;
+    expect(free.value).toBe("moth-press.shops.example");
+    expect(createChecklist(press({ plan: "stockroom" }), plans, names).map((r) => r.id)).not.toContain("domain");
+  });
+
   it("names the plan even before the prices load", () => {
     expect(planLine(press({ plan: "both" }), null)).toBe("Shop and stockroom");
   });
@@ -52,11 +61,11 @@ describe("the price beside the button", () => {
 });
 
 describe("what happens next", () => {
-  it("tells a website press its shop starts private and how it opens to shoppers", () => {
+  it("tells a website press, in two lines, that its shop stays private until opened", () => {
     const lines = whatHappensNext("both");
     expect(lines[0]).toContain("We make your website and your stockroom");
-    expect(lines[1]).toContain("starts private");
-    expect(lines[2]).toContain("open it to shoppers");
+    expect(lines[1]).toBe("It stays private until you open it.");
+    expect(lines).toHaveLength(2);
   });
 
   it("has no opening step for a stockroom on its own", () => {

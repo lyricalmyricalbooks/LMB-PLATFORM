@@ -251,3 +251,48 @@ test("the sign-up page opens the stockroom for a stockroom-only press, and the a
   assert.deepEqual((await registry.getProfile(shopId)).apps, { shop: true, stockroom: true });
   assert.equal(stores.signups.rows.get(shopId).openUrl, `${(await registry.getProfile(shopId)).siteUrl}/admin`);
 });
+
+// ── A domain brought in setup ("Your web address"): connected once the shop is ready ──
+
+test("the press's own domain from setup is connected once the shop is ready, as main with www, and retried after a snag", async () => {
+  let clock = Date.parse("2026-11-04T12:00:00Z");
+  const now = () => new Date(clock);
+  const stores = fakeSignupStores();
+  const registry = fakeRegistry();
+  const reported = [];
+  const asked = [];
+  let fail = true;
+  const freeAsked = [];
+  const domains = { async connectFreeAddress(shopId, { handle }) { freeAsked.push([shopId, handle]); return { name: `${shopId.split("-")[0]}-press.shops.example`, state: "waiting_dns" }; },
+    async connect(shopId, domain, options) {
+    asked.push([shopId, domain, options]);
+    if (fail) { fail = false; throw new Error("Google said no for now"); }
+    return { name: domain, state: "waiting_dns", way: "allow" };
+  } };
+  const pressRecords = new Map([["press-moth", { pressId: "press-moth", domain: "mothpress.example" }], ["press-ink", { pressId: "press-ink", domain: "", freeName: "ink-books" }]]);
+  const maker = createShopMaker({
+    signups: stores.signups, registry, now, run: async () => ({ ok: true }), repairs: { report: async (r) => void reported.push(r) },
+    presses: { get: async (id) => pressRecords.get(id) ?? null }, domains,
+  });
+  await registry.createShop("moth-press", { shopId: "moth-press", plan: "both" });
+  await registry.createShop("ink-press", { shopId: "ink-press", plan: "shop" });
+  await stores.signups.set("moth-press", { shopId: "moth-press", pressId: "press-moth", plan: "both", status: "queued" });
+  await stores.signups.set("ink-press", { shopId: "ink-press", pressId: "press-ink", plan: "shop", status: "queued" });
+  await maker.sweep();
+  assert.deepEqual(asked, [["moth-press", "mothpress.example", { main: true, www: true }]], "only a press that brought a domain");
+  let row = stores.signups.rows.get("moth-press");
+  assert.equal(row.status, "ready", "a domain snag never holds the shop up");
+  assert.equal(row.ownDomain.tries, 1);
+  assert.equal(reported[0].check, "own-domain");
+  await maker.sweep();
+  assert.equal(asked.length, 1, "waits before trying again");
+  clock += 16 * 60_000;
+  await maker.sweep();
+  row = stores.signups.rows.get("moth-press");
+  assert.deepEqual([row.ownDomain.name, row.ownDomain.way, Boolean(row.ownDomain.doneAt)], ["mothpress.example", "allow", true]);
+  await maker.sweep();
+  assert.equal(asked.length, 2, "connected once");
+  assert.deepEqual(freeAsked.sort(), [["ink-press", "ink-books"], ["moth-press", ""]], "every shop gets its free address, once, with the name picked in setup");
+  assert.equal(stores.signups.rows.get("moth-press").freeAddress.name, "moth-press.shops.example");
+  assert.ok(stores.signups.rows.get("ink-press").ownDomain.doneAt, "no domain brought: nothing more to do");
+});

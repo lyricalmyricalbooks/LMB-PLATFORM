@@ -48,9 +48,18 @@ export const TIPS = Object.freeze({
 /** Words written out for a shop that sells no books, where swapping single words would read oddly. */
 const GOODS_TIPS = Object.freeze({ look: { subject: "Make your shop look like yours" } });
 
+/**
+ * The web address tip names the shop's own free address (services/domains freeAddress.js) when it has one, and asks the
+ * owner to share it.
+ */
+function withFreeAddress(tip, freeAddress) {
+  if (!freeAddress) return tip;
+  return { ...tip, paragraphs: [`Your shop's free address is ${freeAddress}. Share it: put it on your social pages, your cards and your email signature.`, "If you own a name of your own, connect it in Settings › General. Your free address keeps working too."] };
+}
+
 /** A tip in the words of what the shop sells (code plan 12.18): a books shop's tips are exactly TIPS. */
-export function tipWords(step, sells) {
-  const tip = TIPS[step];
+export function tipWords(step, sells, { freeAddress = "" } = {}) {
+  const tip = step === "address" ? withFreeAddress(TIPS[step], freeAddress) : TIPS[step];
   if (!tip || sellsBooks(sells)) return tip;
   const w = wordsFor(sells);
   return { ...tip, subject: w(tip.subject), paragraphs: tip.paragraphs.map(w), action: w(tip.action), ...GOODS_TIPS[step] };
@@ -197,7 +206,7 @@ export function createTrialTips({ registry, auditLog, guide, email, store, setti
             skipped.push({ shopId, why: "no-shop-admin" });
             continue;
           }
-          const words = tipWords(tip.step, sellsOf(start, profile));
+          const words = tipWords(tip.step, sellsOf(start, profile), { freeAddress: typeof row.freeAddress === "string" ? row.freeAddress : "" });
           await email.sendPlatform({
             kind: "trial-tip",
             to: row.ownerEmail,

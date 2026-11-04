@@ -97,15 +97,18 @@ export function readStockSheet(answer: unknown): StockSheet {
   return { available: true, url, writtenAt: typeof a.writtenAt === "string" ? a.writtenAt : undefined, rows: Number.isFinite(a.rows) ? a.rows : undefined, gone: a.gone === true };
 }
 
-/** What Google sent the press back with (`?google=connected|denied|failed`), then removed from the address. */
-export function takeGoogleOutcome(): "connected" | "denied" | "failed" | null {
+/** What Google sent the press back with (`?google=…`), then removed from the address. */
+export type GoogleOutcome = "connected" | "denied" | "failed" | "other_account";
+const OUTCOMES: readonly string[] = ["connected", "denied", "failed", "other_account"];
+/** `other_account`: the press signed in with a different Google account than the shop's; nothing was changed. */
+export function takeGoogleOutcome(): GoogleOutcome | null {
   if (typeof window === "undefined") return null;
   const url = new URL(window.location.href);
   const outcome = url.searchParams.get("google");
-  if (outcome !== "connected" && outcome !== "denied" && outcome !== "failed") return null;
+  if (!outcome || !OUTCOMES.includes(outcome)) return null;
   url.searchParams.delete("google");
   window.history.replaceState(window.history.state, "", url.toString());
-  return outcome;
+  return outcome as GoogleOutcome;
 }
 
 async function call(payload: Record<string, unknown>): Promise<any> {
@@ -149,6 +152,8 @@ export const googleConnectApi = {
   /** Google's Allow page for this shop; the press comes back to `returnUrl` with `?google=…`. */
   connectLink: async (extras: GoogleExtra[], returnUrl = window.location.href): Promise<string> => (await call({ step: "connectLink", extras, returnUrl })).url,
   tryAgain: async (part: string) => { const next = readGoogleStatus(await call({ step: "tryAgain", part })); changed(next); return next; },
+  /** Switches extras off at once, with no trip to Google (the grant and the other parts stay). */
+  turnOff: async (extras: GoogleExtra[]) => { const next = readGoogleStatus(await call({ step: "turnOff", extras })); changed(next); return next; },
   disconnect: async () => { const next = readGoogleStatus(await call({ step: "disconnect" })); changed(next); return next; },
   /** The books Google Shopping turned down, each with what to fix. */
   shoppingProblems: async (): Promise<ShoppingProblems> => readShoppingProblems(await call({ step: "productProblems" })),
@@ -167,7 +172,7 @@ export function useGoogleConnect() {
   const [state, setState] = useState<{ mode: "loading" | "own" | "platform" | "error"; status: GoogleStatus | null; error: string | null }>({ mode: "loading", status: null, error: null });
   const load = () => {
     setState((s) => (s.mode === "error" ? { mode: "loading", status: null, error: null } : s));
-    readShared().then(
+    googleConnectApi.status().then(
       // A shop run by Colophon (code plan 6.16) is always a "platform" shop here, switched on or not: it never falls back
       // to today's ID-and-access Analytics and Search Console cards, which ask for things a press shouldn't meet.
       (answer) => setState(answer === "not_available" ? (runsOnColophon() ? { mode: "platform", status: { enabled: false }, error: null } : { mode: "own", status: null, error: null }) : { mode: "platform", status: answer, error: null }),

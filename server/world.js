@@ -31,6 +31,7 @@
 //   GET  /tips/off, /checkup/off the emails' "turn off" pages
 //
 // What can't be real yet answers plainly that it isn't switched on (server/notConnected.js; listed in README.md).
+import { freeAddressTaken } from "../services/domains/freeAddress.js";
 import { accountRoutes, deletionRoutes } from "../accounts/routes.js";
 import { createAccountDeletion } from "../accounts/deleteAccount.js";
 import { platformAuthUsers } from "../clients/identity.js";
@@ -111,6 +112,8 @@ import { createFrontDoor, frontDoorPublicRoutes, frontDoorRoutes } from "../sign
 import { signInLinks } from "../clients/signInLinks.js";
 import { createIdTokenVerifier } from "./verifyIdToken.js";
 import { NOT_CONNECTED, notConnectedClient, notConnectedFn, notConnectedPage } from "./notConnected.js";
+import { resolveTxt } from "node:dns/promises";
+import { sellerLookupClient } from "../services/domains/sellers.js";
 
 export const DEFAULT_PROJECT = "lmb-platform-prod";
 
@@ -190,11 +193,16 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   });
   // The front door (18.4): the six-digit code and each press's setup record, before any shop exists.
   const stagedFiles = notConnectedClient(NOT_CONNECTED.stagedImports, ["uploadUrl", "stat", "read", "remove"]);
-  const frontDoor = createFrontDoor({ ...firestoreFrontDoorStores(platform), email, auth: signInLinkMaker, settings, now, signup, stagedFiles });
+  // "Your web address" in setup names where a press bought its domain from the public lookup (nothing is connected
+  // until the shop is made). Whether that seller has Colophon's Allow window waits for the Domain Connect settings.
+  const domainLookup = sellerLookupClient({ fetch, resolveTxt });
+  const frontDoor = createFrontDoor({ ...firestoreFrontDoorStores(platform), email, auth: signInLinkMaker, settings, now, signup, stagedFiles, domainLookup, freeNameTaken: freeAddressTaken(registry) });
   // The clock for a press that hasn't opened (18.11): two warnings, then its setup is cleared.
   const setupClock = createSetupClock({ presses: firestoreFrontDoorStores(platform).presses, stagedFiles, email, settings, now });
   const repairStore = firestoreRepairs(platform);
   const repairs = createRepairQueue({ store: repairStore, registry, auditLog, now });
+  // Once making shops is connected, pass `presses` and the domain service as `domains` too, so a domain brought in
+  // setup is connected when its shop is ready (shopMaker.js connectAddresses; the free address too, with freeAddress and platformZone on the domain service).
   const shopMaker = createShopMaker({ signups: stores.signups, run: notConnectedFn(NOT_CONNECTED.shopMaking), registry, repairs, line: signup, billing, now });
 
   // Accounts, and the control room.
