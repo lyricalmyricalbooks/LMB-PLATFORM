@@ -22,7 +22,7 @@ import type { PlanList, SetupChange, SetupDoor, SetupPress } from "./door";
 import { CreateShopCard, type CreateShop } from "./CreateShop";
 import type { CreateNames } from "./launchWords";
 import {
-  DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, IMPORT_PAGE, PAYMENTS_PAGE, PLAN_PAGE, SETUP_QUESTIONS, STEP_HELP, guideProgress, guideSteps, helpFor, lockedPageLine, nextGuideStep,
+  DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, IMPORT_PAGE, PAYMENTS_PAGE, PLAN_PAGE, SETUP_QUESTIONS, STEP_HELP, guideProgress, guideSteps, setupGroups, helpFor, lockedPageLine, nextGuideStep,
   pageFromHash, readyToCreate, setupLocked, showMoveIn, setupMenu, setupMenuItemFor, setupPageLabel,
 } from "./pages";
 
@@ -164,12 +164,15 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
             </IconButton>
             <a className="rp-topbar-wordmark" href={`#${HOME_PAGE}`} onClick={(e) => { e.preventDefault(); open(HOME_PAGE); }}>{pressName}</a>
             <div className="rp-topbar-actions">
-              {/* On a phone the button keeps only its icon, as the admin's top-bar buttons do. Once the shop is
-                  being made there is nothing left to press. */}
+              {/* The one action setup is for, so it keeps a word on a phone ("Create"; setup.css) where the admin's
+                  other top-bar buttons keep only their icon. Once the shop is being made there is nothing left to press. */}
               {press.status === "setup" && (
-                <PrimaryButton size="sm" aria-label="Create my shop" icon={<Store size={16} aria-hidden />} onClick={openCreate}>
-                  <span className="rp-btn-label">Create my shop</span>
-                </PrimaryButton>
+                <span className="rp-setup-create">
+                  <PrimaryButton size="sm" icon={<Store size={16} aria-hidden />} onClick={openCreate}>
+                    <span className="rp-setup-create-long">Create my shop</span><span className="rp-setup-create-short" aria-hidden>Create</span>
+                    <span className="rp-sr-only rp-setup-create-sr">Create my shop</span>
+                  </PrimaryButton>
+                </span>
               )}
             </div>
           </Topbar>
@@ -192,7 +195,7 @@ export function OpensWithShop({ page, line = "", onOpenShop, onBack }: { page: s
       <EmptyState
         icon={<Lock size={28} aria-hidden />}
         title="Comes with your shop"
-        description={`${line ? `${line} ` : ""}${page} starts working as soon as your shop is made. Nothing is charged before then.`}
+        description={`${line ? `${line} ` : ""}Ready once your shop is made.`}
         action={
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
             {onBack && <PrimaryButton icon={<ArrowRight size={16} aria-hidden />} onClick={onBack}>Back to the setup guide</PrimaryButton>}
@@ -208,8 +211,8 @@ export function OpensWithShop({ page, line = "", onOpenShop, onBack }: { page: s
 const STEP_WHY: Record<string, string> = {
   plan: "Your website, your stockroom or both. You can change it until your shop is made.",
   details: "Your press's name, what you sell and your country set your shop's words, money and taxes.",
-  look: "Every look keeps your words and books, and you can change everything in Design later.",
-  books: "Bring your old shop's product file and your books come in as drafts for you to check.",
+  look: "Your words and books stay the same in every look. Change any part later in Design.",
+  books: "Your old shop's product file brings your books in as drafts to check.",
   domain: "Use a domain you have, or buy one.",
   open: "Check what goes in, then we make your shop. It starts private, so only you can see it.",
 };
@@ -239,23 +242,28 @@ function SetupGuide({ press, plans, helpUrl, answers, onOpen, onAsk, onCreate, s
   const shown = picked === "" ? "" : pickedStep && !pickedStep.done && !pickedStep.locked ? pickedStep.id : next?.id ?? null;
   // The last step goes straight to the review on Plan; every other step opens its page.
   const go = (step: { id: string; page: string }) => (step.id === "open" ? onCreate() : onOpen(step.page, step.id === "domain" ? WEB_ADDRESS_ANCHOR : undefined));
-  const left = total - done;
   // A step's help answer, opened in place under its button.
   const [howOpen, setHowOpen] = useState("");
   return (
     <div className="rp-setup-home">
       <PageHeader title={press.pressName ? `Welcome, ${press.pressName}` : "Welcome"}
-        description="Set up your shop here. Nothing is charged, and your free days don't start, until you create it." />
+        description="Nothing is charged, and your free days don't start, until you create your shop." />
       {ready && <ReadyCard onCreate={onCreate} />}
       {showMoveIn(press) && <MoveInCard onBring={() => onOpen(IMPORT_PAGE)} save={save} />}
       <SectionCard title="Setup guide" collapsible={false}
-        description={ready ? "All set. Create your shop when you're ready." : `${done} of ${total} done · ${left === 1 ? "one step" : `${left} steps`} to go`}>
+        description={ready ? "All set. Create your shop when you're ready." : `${done} of ${total} done`}>
         <div role="progressbar" aria-label="Setup guide" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done}
           style={{ height: 6, background: "var(--rp-divider)", marginBottom: 8 }}>
           <div style={{ width: `${(done / total) * 100}%`, height: "100%", background: "var(--rp-primary)" }} />
         </div>
-        <ol aria-label="Setup steps" style={{ listStyle: "none", margin: 0, padding: 0, display: "grid" }}>
-          {steps.map((step) => {
+        {setupGroups(steps).map((g) => (
+        <section key={g.id} aria-labelledby={`setup-part-${g.id}`} style={{ marginTop: 16 }}>
+          <h3 id={`setup-part-${g.id}`} className="rp-mono"
+            style={{ display: "flex", justifyContent: "space-between", gap: 8, margin: "0 0 4px", fontSize: 12, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--rp-text-muted)" }}>
+            <span>{g.title}</span><span>{g.done}/{g.total}<span className="rp-sr-only"> done</span></span>
+          </h3>
+        <ol aria-label={g.title} data-setup-steps="" style={{ listStyle: "none", margin: 0, padding: 0, display: "grid" }}>
+          {g.steps.map((step) => {
             const isNext = step.id === next?.id;
             const isOpen = step.id === shown && !step.locked;
             const help = STEP_HELP[step.id];
@@ -311,6 +319,8 @@ function SetupGuide({ press, plans, helpUrl, answers, onOpen, onAsk, onCreate, s
             );
           })}
         </ol>
+        </section>
+        ))}
       </SectionCard>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))", gap: 16, marginTop: 16 }}>
         <AfterCreating plan={press.plan} plans={plans} />
@@ -400,7 +410,7 @@ function MoveInCard({ onBring, save }: { onBring: () => void; save: (c: SetupCha
         <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
           <div>
             <h2 id="move-in-title" style={{ margin: 0, fontSize: 20 }}>Selling somewhere already?</h2>
-            <p style={{ margin: "6px 0 0" }}>{w("Bring your shop with you. Your books, prices, photos and stock come across from your old shop's web address or its product file, and links to your old pages keep working. You see everything before anything is kept.")}</p>
+            <p style={{ margin: "6px 0 0" }}>{w("Bring your shop with you. Your books, prices, photos and stock come across, and old links keep working. You see everything before it's kept.")}</p>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             <PrimaryButton icon={<ArrowRight size={16} aria-hidden />} onClick={bring}>Bring my shop over</PrimaryButton>
@@ -496,7 +506,7 @@ function DesignPage({ press, save }: { press: SetupPress; save: (c: SetupChange)
         publishes={press.sells || null}
         settings={{ info: { name: press.pressName } }}
         apply={async () => {}}
-        intro="Pick a look for your website. It's kept with your setup and put in place when your shop opens."
+        intro="It goes on your website when your shop is made."
         keep={press.look ? { label: `Keep ${themeName(press.look) || "my look"}`, onKeep: () => setChoosing(false) } : undefined}
         onDone={async (welcome) => {
           await save({ look: welcome.theme, ...(welcome.adminLook ? { adminLook: welcome.adminLook } : {}) });

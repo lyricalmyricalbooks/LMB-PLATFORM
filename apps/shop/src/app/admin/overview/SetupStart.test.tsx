@@ -52,6 +52,7 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
     expect(text()).not.toContain("Set up your shop");
     const suggested = [...document.querySelectorAll("ul[aria-label='Suggested looks'] > li > div > strong")].map(s => s.textContent);
     expect(suggested[0]).toBe("Zine");
+    await act(async () => { [...document.querySelectorAll("button")].find(b => /^See all \d+ looks$/.test(b.textContent?.trim() || ""))!.click(); });
     expect(document.querySelectorAll("ul[aria-label='Every look'] li").length).toBeGreaterThan(5);
     expect(document.body.innerHTML).toContain("Moth Press in this look");
   });
@@ -107,11 +108,11 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
     api.getFirstWeek.mockResolvedValue({ plan: "both", welcome: { theme: "press-zine", at: "now" } });
     await mount({});
     expect(text()).not.toContain("Choose your look.");
-    expect([...document.querySelectorAll("section h3")].map(h => h.firstElementChild?.textContent)).toEqual(["Your shop", "Ready to sell", "Launch"]);
+    expect([...document.querySelectorAll("section h3")].map(h => h.firstElementChild?.textContent)).toEqual(["Your shop", "Ready to sell", "Launch", "Reach more shoppers"]);
     expect(document.querySelectorAll("ol[aria-label='Your shop'] > li").length).toBe(3);
     expect(document.querySelectorAll("button[aria-expanded='true']").length).toBe(1);
     expect(document.querySelector("li[aria-current='step']")?.textContent).toContain("Add your first book");
-    expect(text()).toContain("0 of 10 done");
+    expect(text()).toContain("0 of 12 done");
     expect(api.updateFirstWeek).toHaveBeenCalledWith({ progress: { steps: expect.any(Array), done: [], at: expect.any(String) } });
   });
 

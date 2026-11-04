@@ -75,14 +75,15 @@ export interface GuideProgress {
 
 export type StepId =
   | "logo" | "look" | "add-books" | "bring-books" | "import-spreadsheet" | "shipping" | "taxes" | "payments" | "policies"
-  | "address" | "practice" | "open" | "switch";
+  | "address" | "practice" | "open" | "switch" | "google" | "channels";
 
 /** The guide's three parts, in order. */
-export type StepGroup = "shop" | "sell" | "launch";
+export type StepGroup = "shop" | "sell" | "launch" | "reach";
 export const GROUPS: ReadonlyArray<{ id: StepGroup; title: string }> = Object.freeze([
   { id: "shop", title: "Your shop" },
   { id: "sell", title: "Ready to sell" },
   { id: "launch", title: "Launch" },
+  { id: "reach", title: "Reach more shoppers" },
 ]);
 
 export interface FirstWeekStep {
@@ -91,6 +92,12 @@ export interface FirstWeekStep {
   why: string;
   /** Admin page the step's button opens (riso/nav.ts ids), or none. */
   tab?: string;
+  /** An address the page switch can't reach (a Settings sub tab, `#settings/general/details`), opened instead of `tab`. */
+  hash?: string;
+  /** The card to scroll to once the page shows (a SettingsAnchor id). */
+  anchor?: string;
+  /** The words on the owner's tick for a step it may tick ("Mark done" when none). */
+  tickLabel?: string;
   action?: string;
   /** "auto": worked out from the shop; "manual": the owner ticks it. */
   kind: "auto" | "manual";
@@ -101,6 +108,7 @@ export interface FirstWeekStep {
 }
 
 type StepWords = Omit<FirstWeekStep, "done" | "kind" | "id" | "group" | "optional">;
+const DETAILS = "#settings/general/details";
 
 const WORDS: Record<StepId, StepWords> = {
   logo: { title: "Add your logo", why: "Your logo goes in the shop's header, on your emails and when someone shares a link to your shop.", tab: "designer", action: "Open Design" },
@@ -109,12 +117,14 @@ const WORDS: Record<StepId, StepWords> = {
   "bring-books": { title: "Bring your shop with you", why: "Export your products from your old shop and choose that file in Import spreadsheet. Photos, prices and editions come over as drafts, and old links keep working.", tab: "catalog", action: "Open Books" },
   "import-spreadsheet": { title: "Import your spreadsheet", why: "Choose your spreadsheet of books in Import spreadsheet: Excel or CSV both work. You see every book before anything is saved.", tab: "catalog", action: "Open Books" },
   shipping: { title: "Set your shipping prices", why: "Make a shipping profile from the starter and check its prices, so shoppers see the cost of delivery before they pay.", tab: "shipping", action: "Open Shipping" },
-  taxes: { title: "Set up sales tax", why: "Add the rates you're registered to collect. Not registered yet? Switch tax off in Taxes, and turn it on when you are.", tab: "taxes", action: "Open Taxes" },
+  taxes: { title: "Set up sales tax", why: "Add the rates you're registered to collect, and checkout adds them. Not registered yet? Say so here: no tax is charged until you add a rate.", tab: "taxes", action: "Add tax rates", tickLabel: "I don't collect tax yet" },
   payments: { title: "Get paid", why: "Tell the card company where to send your money. Their own secure page asks for your bank details, and you come straight back here.", tab: "payments", action: "Open Payments" },
-  policies: { title: "Add your store policies", why: "Shipping, returns, privacy and terms. Shoppers read them before they buy, and the law asks for them. Each one starts from our wording.", tab: "general", action: "Open General settings" },
-  address: { title: "Choose your web address", why: "Your shop already has a free address. Connect a name you own, or keep the free one.", tab: "general", action: "Open General settings" },
+  policies: { title: "Add your store policies", why: "Shipping, returns, privacy and terms. Shoppers read them before they buy, and the law asks for them. Each one starts from our wording.", tab: "general", hash: DETAILS, anchor: "gs-policies", action: "Write your policies" },
+  address: { title: "Choose your web address", why: "Your shop already has a free address. Connect a name you own, or keep the free one.", tab: "general", hash: DETAILS, anchor: "gs-domain", action: "Connect a domain", tickLabel: "Keep the free address" },
   practice: { title: "Place a practice order", why: "While the shop is private, press Try a practice order in Payments and buy a book with the practice card. No money moves.", tab: "payments", action: "Open Payments" },
   open: { title: "Open your shop", why: "Your shop is private until you open it. We check it's ready to sell first, then shoppers can buy.", action: "Open your shop" },
+  google: { title: "Show up on Google", why: "One Google sign-in puts your books in Google search, Shopping and Maps, and counts your visits.", tab: "google", hash: "#settings/google", action: "Open Google" },
+  channels: { title: "Sell on social media", why: "Connect Instagram, Facebook, Pinterest or TikTok, so people can buy from your posts.", tab: "channels", action: "Open Sales channels" },
   switch: { title: "Move over from your old shop", why: "On the day you move: take your last orders in your old shop, check your old links in General settings so none show page not found, point your web address here, then tell your mailing list where to find you. Tick this once you've moved.", tab: "general", action: "Check your old links" },
 };
 
@@ -128,15 +138,21 @@ const ORDER: ReadonlyArray<[StepId | "books", StepGroup]> = [
   ["books", "shop"], ["logo", "shop"], ["look", "shop"],
   ["shipping", "sell"], ["taxes", "sell"], ["payments", "sell"], ["policies", "sell"],
   ["address", "launch"], ["practice", "launch"], ["open", "launch"],
+  ["google", "reach"], ["channels", "reach"],
 ];
 /** A press moving from another online shop finishes with the switch itself (plan 23.8), after its new shop is open. */
 const MOVE: [StepId, StepGroup] = ["switch", "launch"];
+/** Where the move goes: straight after Open your shop, before the optional steps. */
+const withMove = (order: ReadonlyArray<[StepId | "books", StepGroup]>) => {
+  const at = order.findIndex(([id]) => id === "open") + 1;
+  return [...order.slice(0, at), MOVE, ...order.slice(at)];
+};
 
-/** Steps a shop can open without. */
-const OPTIONAL = new Set<StepId>(["address"]);
+/** Steps a shop can open without: never in the way, and never what keeps the guide on Home. */
+const OPTIONAL = new Set<StepId>(["address", "google", "channels"]);
 
 /** The address step can't always tell (the free address is a fine choice), so the owner can tick it too. */
-const MANUAL = new Set<StepId>(["address", "switch"]);
+const MANUAL = new Set<StepId>(["address", "switch", "channels"]);
 
 export interface FirstWeekFacts {
   books: any[] | null;
@@ -156,7 +172,7 @@ export const shopIsOpen = (settings: any) =>
   !!settings && !settings.design?.showUnderConstruction && !settings.maintenance?.enabled && !settings.maintenanceMode;
 
 /** Whether a step is done from what the shop holds; null when the shop can't tell (the owner ticks it). */
-function autoDone(id: StepId, { books, readiness, settings, orders, platform }: FirstWeekFacts): boolean | null {
+function autoDone(id: StepId, { books, readiness, settings, orders, platform }: FirstWeekFacts, doc?: FirstWeekDoc): boolean | null {
   const list = books || [];
   const ok = (check: string) => readiness?.find(i => i.id === check)?.status === "ok";
   switch (id) {
@@ -166,11 +182,12 @@ function autoDone(id: StepId, { books, readiness, settings, orders, platform }: 
     case "bring-books": case "import-spreadsheet": case "add-books": return list.length > 0;
     case "shipping": return ok("shipping");
     // Rates set, or collection switched off (a press not registered yet): either is a choice made.
-    case "taxes": return ok("tax");
+    case "taxes": return ok("tax") ? true : null;
     case "policies": return ok("policies");
     // Platform shops: the card account takes cards and pays out (plan 7.9). Own keys: the payment checks pass.
     case "payments": return platform ? ok("card-account") : ok("payments") && !readiness?.some(i => i.id === "stripe-secret" && i.status !== "ok");
     case "address": return settings?.domain?.custom ? true : null;
+    case "google": return !!doc?.google?.connected;
     // Practice works only while the shop is private, so an open shop has nothing left to practise here.
     case "practice": return (orders || []).some(practiced) || shopIsOpen(settings);
     case "open": return shopIsOpen(settings);
@@ -191,29 +208,31 @@ export function shippingStarterWords(country?: string | null): string {
 
 export function firstWeekSteps(doc: FirstWeekDoc, facts: FirstWeekFacts): FirstWeekStep[] {
   const answer = answerOf(doc);
-  const order = answer === "online" ? [...ORDER, MOVE] : ORDER;
+  const order = answer === "online" ? withMove(ORDER) : ORDER;
   return order.map(([entry, group]) => {
     const id: StepId = entry === "books" ? FIRST_BOOK[answer] : entry;
     const words = { ...WORDS[id] };
     if (id === "add-books") Object.assign(words, firstProductWords(currentSells(doc)));
     if (id === "shipping") words.why = `${words.why} ${shippingStarterWords(doc.country ?? facts.settings?.country)}`;
     if (id === "payments" && facts.platform === "square") words.why = "Connect your Square account, so card payments go straight to you. Square's own page asks for your details.";
+    if (id === "google" && doc.google?.coming) words.why = "Coming soon: Google is still approving the one sign-in for shops here. We'll remind you when it's ready.";
     if (id === "look" && doc.welcome && !facts.settings?.design?.themeBase?.id) words.why = "Your look is saved as a draft. Open Design and press Publish so shoppers see it.";
-    const auto = autoDone(id, facts);
+    const auto = autoDone(id, facts, doc);
     const ticked = !!doc.done?.[id];
     // A shop that doesn't sell books reads product and maker (plan 12.1); a books shop's words are untouched.
     const w = wordsFor(currentSells(doc));
-    const { tab, action } = words;
+    const { tab, action, hash, anchor, tickLabel } = words;
     const title = w(words.title), why = w(words.why);
     const kind = MANUAL.has(id) || auto === null ? "manual" : "auto";
-    return { id, title, why, ...(tab || action ? { ...(tab ? { tab } : {}), action } : {}), kind, done: auto === true || (kind === "manual" && ticked), group,
+    return { id, title, why, ...(tab || action ? { ...(tab ? { tab } : {}), action } : {}), ...(hash ? { hash } : {}), ...(anchor ? { anchor } : {}),
+      ...(tickLabel ? { tickLabel } : {}), kind, done: auto === true || (kind === "manual" && ticked), group,
       ...(OPTIONAL.has(id) ? { optional: true } : {}) };
   });
 }
 
-/** Shown while the shop has the document, the owner hasn't hidden it, and something is left to do. */
+/** Shown while the shop has the document, the owner hasn't hidden it, and a step it needs is left (optional ones never hold it). */
 export function showFirstWeek(doc: FirstWeekDoc | null, steps: FirstWeekStep[]): boolean {
-  return !!doc && !doc.hiddenAt && steps.some(s => !s.done);
+  return !!doc && !doc.hiddenAt && steps.some(s => !s.done && !s.optional);
 }
 
 /** The step to do next: the first open step that isn't optional, else the first open one. */
@@ -226,7 +245,7 @@ export function nextStep(steps: FirstWeekStep[]): FirstWeekStep | null {
 export function guideGroups(steps: FirstWeekStep[]) {
   return GROUPS.map(g => {
     const list = steps.filter(s => s.group === g.id);
-    return { ...g, steps: list, done: list.filter(s => s.done).length };
+    return { ...g, steps: list, done: list.filter(s => s.done).length, total: list.length };
   }).filter(g => g.steps.length > 0);
 }
 

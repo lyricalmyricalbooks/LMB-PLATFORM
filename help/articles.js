@@ -308,6 +308,17 @@ export const ARTICLES = Object.freeze([
     plans: ["shop"],
   },
   {
+    id: "sell-on-social",
+    topic: "Selling",
+    question: "Can I sell on Instagram, Facebook, Pinterest or TikTok?",
+    answer: [
+      "Yes. Open Sales channels and connect the accounts you use. Your books go to each one's shop, so people can buy from your posts.",
+      "Then post a book from Social posts, now or at a time you choose. Connecting is optional, and you can do it any time.",
+    ],
+    where: ["Sales channels", "Social posts"],
+    plans: ["shop"],
+  },
+  {
     id: "policies",
     topic: "Selling",
     question: "Which store policies does my shop need?",
@@ -504,6 +515,8 @@ export const CHECKLIST_ANSWERS = Object.freeze({
   address: "own-address",
   practice: "test-order",
   open: "open-shop",
+  google: "google-sign-in",
+  channels: "sell-on-social",
   switch: "switch-day",
 });
 

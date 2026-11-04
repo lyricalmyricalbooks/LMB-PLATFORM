@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { adminApi } from "../api";
 import { firstWeekIntro, firstWeekSteps, guideGroups, nextStep, openBlockers, progressToSave, showFirstWeek, type FirstWeekDoc, type FirstWeekFacts, type FirstWeekStep } from "../firstWeek";
 import { GhostButton, LoadingState, PrimaryButton, SectionCard } from "../riso/components";
+import { jumpWhenShown } from "../settingsLayout";
 
 /**
  * Overview › Set up your shop (plan 6.9, regrouped as code plan 28). The steps in three parts (Your shop, Ready to sell,
@@ -66,6 +67,13 @@ export function SetupGuideCard({ doc, setDoc, facts, onOpen, onSetWall }: {
     try { await onSetWall(false); } finally { setSaving(""); }
   };
 
+  // A step that names a sub tab and a card opens right at it (the policies, say); others open their page.
+  const go = (s: FirstWeekStep) => {
+    if (s.hash) { window.location.hash = s.hash; if (s.anchor) jumpWhenShown(s.anchor); return; }
+    if (s.tab) onOpen?.(s.tab);
+  };
+
+  // "3 of 12 done" counts every row shown, optional ones too, as setup mode's guide does.
   const total = steps.length;
   const doneCount = steps.filter(s => s.done).length;
   const next = nextStep(steps);
@@ -112,10 +120,10 @@ export function SetupGuideCard({ doc, setDoc, facts, onOpen, onSetWall }: {
             <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
               {s.id === "open"
                 ? !s.done && <PrimaryButton size="sm" busy={saving === "open"} disabled={!!saving || !onSetWall} onClick={() => void openShop()}>{s.action}</PrimaryButton>
-                : s.tab && onOpen && (s.done
-                  ? <GhostButton size="sm" onClick={() => onOpen(s.tab!)}>Change</GhostButton>
-                  : <PrimaryButton size="sm" onClick={() => onOpen(s.tab!)}>{s.action}</PrimaryButton>)}
-              {s.kind === "manual" && !s.done && <GhostButton size="sm" disabled={saving === s.id} onClick={() => tick(s.id)}>{s.id === "address" ? "Keep the free address" : "Mark done"}</GhostButton>}
+                : (s.hash || (s.tab && onOpen)) && (s.done
+                  ? <GhostButton size="sm" onClick={() => go(s)}>Change</GhostButton>
+                  : <PrimaryButton size="sm" onClick={() => go(s)}>{s.action}</PrimaryButton>)}
+              {s.kind === "manual" && !s.done && <GhostButton size="sm" disabled={saving === s.id} onClick={() => tick(s.id)}>{s.tickLabel || "Mark done"}</GhostButton>}
             </div>
           </div>
         )}
@@ -136,7 +144,7 @@ export function SetupGuideCard({ doc, setDoc, facts, onOpen, onSetWall }: {
           <section key={g.id} aria-labelledby={`setup-group-${g.id}`} style={{ marginTop: 16 }}>
             <h3 id={`setup-group-${g.id}`} className="rp-mono"
               style={{ display: "flex", justifyContent: "space-between", gap: 8, margin: "0 0 4px", fontSize: 12, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--rp-text-muted)" }}>
-              <span>{g.title}</span><span>{g.done}/{g.steps.length}<span className="rp-sr-only"> done</span></span>
+              <span>{g.title}</span><span>{g.done}/{g.total}<span className="rp-sr-only"> done</span></span>
             </h3>
             <ol aria-label={g.title} style={{ listStyle: "none", margin: 0, padding: 0, display: "grid" }}>{g.steps.map(row)}</ol>
           </section>

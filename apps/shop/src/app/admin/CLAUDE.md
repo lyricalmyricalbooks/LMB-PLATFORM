@@ -570,7 +570,11 @@ see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `A
   (web address, optional: custom domain, or the owner ticks "Keep the free address"; practice order, an `isTest` paid or
   refunded order, plan 7.6, done once the shop is open; Open your shop, no wall, no maintenance). Rule: every Ready to
   sell `block` row has a step before Open your shop (firstWeek.test.ts). Rows are the setup-mode guide's accordion:
-  `nextStep` (first open non-optional) opens by itself, any other row on a click, each part shows done/total. Gmail is
+  `nextStep` (first open non-optional) opens by itself, any other row on a click, each part shows done/total (every row
+  counted). Then **Reach more shoppers**, optional: Google (`#settings/google`, ticks on `firstWeek.google.connected`)
+  and social media (ticked by hand). Optional steps never keep the guide on Home. A step with `hash` + `anchor` opens a
+  sub tab and scrolls to a card (`jumpWhenShown`): policies and web address → `#settings/general/details`. Taxes is
+  tickable ("I don't collect tax yet": with no rate no tax is charged). Gmail is
   never a step. **Open your shop** runs `openBlockers` (Ready to sell's `block` rows) and, when none, Dashboard's `toggleUnderConstruction(false)`
   (passed down as `onSetWall`). The `online` answer has a ninth step after it, **Move over from your old shop**
   (`switch`, ticked by hand, plan 23.8), opening Settings › General where **Check your old links** sits under URL
