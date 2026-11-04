@@ -1,5 +1,6 @@
 import React from "react";
 import { Check, MapPin, Package, Truck, ExternalLink } from "lucide-react";
+import { useShopWords } from "./shopWords";
 import { canShipPart, partShipmentsOf } from "./partShipments";
 import {
   addressIssues,
@@ -87,6 +88,7 @@ export function FulfillmentWorkbench({
   labelStep,
   books,
 }: Props) {
+  const w = useShopWords();
   const queue = queueOf(order);
   const addr = order.customer?.address || {};
   const reviewed = order.operations?.addressReviewed === addressKey(order);
@@ -141,7 +143,7 @@ export function FulfillmentWorkbench({
         <ol className="fw-strip" aria-label="Steps">
           {([
             { key: "address", done: reviewed, now: addressActive, title: reviewed ? "Address checked" : "Check the address", sub: [addr.city, addr.state, addr.zip].filter(Boolean).join(" ") },
-            { key: "pack", done: packed, now: packingActive, title: packed ? "Packed" : "Pack", sub: `${copies} book${copies === 1 ? "" : "s"}` },
+            { key: "pack", done: packed, now: packingActive, title: packed ? "Packed" : "Pack", sub: w(`${copies} book${copies === 1 ? "" : "s"}`) },
             {
               key: "ship",
               done: ["In transit", "Completed"].includes(queue),
@@ -190,7 +192,7 @@ export function FulfillmentWorkbench({
             <p>
               {preorderShipDate(order)
                 ? `Ships from ${formatReleaseDate(preorderShipDate(order), "en-CA")}. It moves to Ready to pack on that day by itself.`
-                : "The release date hasn't been announced. Setting it in Books › edit › Inventory updates this order; press Ready to ship now when the books arrive."}
+                : w("The release date hasn't been announced. Setting it in Books › edit › Inventory updates this order; press Ready to ship now when the books arrive.")}
             </p>
           </div>
           {onReleasePreorder && !order.isTest && (
@@ -321,10 +323,10 @@ export function FulfillmentWorkbench({
             {packed ? <Check size={18} /> : <Package size={18} />}
           </span>
           <div>
-            <h3>{shipping ? "Books to pack" : "Order items"}</h3>
+            <h3>{shipping ? w("Books to pack") : "Order items"}</h3>
             <span className="rp-hint">
               {packed
-                ? "All books packed"
+                ? w("All books packed")
                 : (() => { const n = (order.items || []).reduce((sum: number, i: any) => sum + Number(i.quantity || 0), 0); return `${n} item${n === 1 ? "" : "s"}`; })()}
             </span>
           </div>

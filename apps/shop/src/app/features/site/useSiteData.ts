@@ -22,6 +22,7 @@ import { resolveProductRoutes } from "./productRoutes";
 import { loadCatalog, newestFirst } from "./loadCatalog";
 import { currentStorefrontData, fetchStorefrontDataFile } from "./storefrontDataFile";
 import { inThemePreview, loadThemePreview } from "./themePreview";
+import { withShopWordsFor } from "../../admin/sells";
 
 const isPreviewUrl = () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "true";
 
@@ -263,7 +264,10 @@ export function useSiteData() {
     return resolveProductRoutes(withBundleStock(visible, books)).map(applyBackorderPolicy);
   }, [books, studioPreview]);
 
-  return { books: sellableBooks, settings: { ...settings, design: resolveSurfaceDesign(settings.design, location.pathname) }, pages, loading, fresh, loadError, retry };
+  // Shoppers read the words of what the shop sells now (admin/sells.ts withShopWordsFor), under the owner's own words.
+  const sells = (settings as any)?.sells as string | undefined;
+  const wordedDesign = useMemo(() => withShopWordsFor(settings.design, sells), [settings.design, sells]);
+  return { books: sellableBooks, settings: { ...settings, design: resolveSurfaceDesign(wordedDesign, location.pathname) }, pages, loading, fresh, loadError, retry };
 }
 
 /**

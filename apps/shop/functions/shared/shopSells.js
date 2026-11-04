@@ -32,6 +32,11 @@ const GOODS_SWAPS = [
     [/(?<![-\w])books\b/g, "products"], [/(?<![-\w])Books\b/g, "Products"], [/(?<![-\w])BOOKS\b/g, "PRODUCTS"],
     [/(?<![-\w])book\b/g, "product"], [/(?<![-\w])Book\b/g, "Product"], [/(?<![-\w])BOOK\b/g, "PRODUCT"],
     [/\bauthors\b/g, "makers"], [/\bAuthors\b/g, "Makers"], [/\bauthor\b/g, "maker"], [/\bAuthor\b/g, "Maker"],
+    // Counting words (4 November 2026): "copies", "titles" and "readers" are a book shop's words for items, products and
+    // shoppers. "copy" alone stays ("Copy the link"), and so do screen readers and page or SEO titles.
+    [/\bcopies\b/g, "items"], [/\bCopies\b/g, "Items"],
+    [/(?<!(?:page|SEO|search|tab|meta) )\btitles\b/g, "products"], [/(?<!(?:Page|SEO|Search|Tab|Meta) )\bTitles\b/g, "Products"],
+    [/(?<![Ss]creen )\breaders\b/g, "shoppers"], [/(?<![Ss]creen )\breader\b/g, "shopper"], [/\bReaders\b/g, "Shoppers"], [/\bReader\b/g, "Shopper"],
 ];
 /** Words for a shop or product that isn't books: book → product, author → maker. */
 function goodsWords(text) {

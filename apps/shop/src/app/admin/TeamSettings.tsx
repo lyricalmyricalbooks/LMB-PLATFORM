@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
+import { useShopWords } from "./shopWords";
 import { Checkbox, DataTable, DestructiveButton, EmptyState, PrimaryButton, SectionCard, SelectField, StatusBadge, TextField, useConfirm, type Column } from "./riso/components";
 import { shopOwnerEmail } from "../lib/ownerDevice";
 import { adminApi } from "./api";
@@ -23,6 +24,11 @@ const ROLE_WORDS: Record<TeamRole, { label: string; detail: string; added: strin
   bookkeeper: { label: "Bookkeeper", detail: `Reads the orders, sales, tax collected, payouts and bookkeeping downloads${STOCKROOM ? ", and the stockroom's tax centre" : ""}. Can't change anything, and doesn't see books, settings, the customer list or the Team.`, added: "can read the shop's sales and tax" },
 };
 
+/** The role words in this shop's words ("Maker" and "products" in a shop that sells no books). */
+function wordedRoles(w: (text: string) => string): Record<TeamRole, { label: string; detail: string; added: string }> {
+  return Object.fromEntries(Object.entries(ROLE_WORDS).map(([role, r]) => [role, { label: w(r.label), detail: w(r.detail), added: w(r.added) }])) as Record<TeamRole, { label: string; detail: string; added: string }>;
+}
+
 /** "Until tonight" or "Until Nov 5", for a helper added for a set time. */
 function untilWords(iso: string, now = new Date()): string {
   const end = new Date(iso);
@@ -35,6 +41,8 @@ const TEAM_ABOUT = STOCKROOM ? "People who can open this admin or the stockroom.
 
 // Settings › Team. The owner adds people by their Google email; they sign in with that account.
 export function TeamSettings() {
+  const w = useShopWords();
+  const roles = wordedRoles(w);
   const [ask, confirmNode] = useConfirm();
   const [myRole, setMyRole] = useState<AdminRole | null | undefined>(undefined);
   const [members, setMembers] = useState<TeamMember[] | null>(null);
@@ -71,7 +79,7 @@ export function TeamSettings() {
     try {
       const ends = role === "fairHelper" && todayOnly;
       await teamApi.save(email, role, ends ? { until: endOfToday() } : {});
-      toast.success(`${teamEmail(email)} ${ROLE_WORDS[role].added} the next time they sign in${ends ? ", until tonight" : ""}.`);
+      toast.success(`${teamEmail(email)} ${roles[role].added} the next time they sign in${ends ? ", until tonight" : ""}.`);
       setEmail(""); setTried(false);
       await load();
     } catch {
@@ -80,7 +88,7 @@ export function TeamSettings() {
   };
   const remove = async (member: TeamMember) => {
     const message = member.role === "author"
-      ? `${member.email} will be signed out. A book that still names them as its author stays open to them in the stockroom until you change that book's author.`
+      ? `${member.email} ${w("will be signed out. A book that still names them as its author stays open to them in the stockroom until you change that book's author.")}`
       : member.role === "fairHelper"
         ? `${member.email} will be signed out of the Fair till and can't open it again until you add them back. Sales they already sent stay in your records.`
         : `${member.email} will be signed out of the admin and can't open it again until you add them back.`;
@@ -99,7 +107,7 @@ export function TeamSettings() {
     { key: "email", header: "Email", lead: true, render: m => m.email },
     { key: "role", header: "Role", render: m => (
       <span className="inline-flex flex-wrap items-center gap-2">
-        <StatusBadge tone={m.role === "owner" ? "info" : "neutral"} glyph={false}>{ROLE_WORDS[m.role].label}</StatusBadge>
+        <StatusBadge tone={m.role === "owner" ? "info" : "neutral"} glyph={false}>{roles[m.role].label}</StatusBadge>
         {m.until && <span className="text-sm">{untilWords(m.until)}</span>}
       </span>
     ) },
@@ -118,16 +126,16 @@ export function TeamSettings() {
           : <DataTable caption="Team" columns={columns} rows={members ? rows : []} rowKey={m => m.email} stackOnPhone
               empty={<EmptyState inline title="Loading the Team…" />} />}
       </SectionCard>
-      <SectionCard title="Add someone" description={ROLE_WORDS[role].detail}>
+      <SectionCard title="Add someone" description={roles[role].detail}>
         <form className="grid gap-4 sm:grid-cols-[2fr_1fr_auto] sm:items-end" onSubmit={e => { e.preventDefault(); void add(); }}>
           <TextField label="Google email" type="email" autoComplete="off" value={email} onChange={e => setEmail(e.target.value)}
             error={tried ? problem || undefined : undefined} placeholder="name@example.com" />
           <SelectField label="Role" value={role} onChange={e => setRole(e.target.value as TeamRole)}>
-            <option value="staff">{ROLE_WORDS.staff.label}</option>
-            <option value="owner">{ROLE_WORDS.owner.label}</option>
-            {STOCKROOM && <option value="author">{ROLE_WORDS.author.label}</option>}
-            <option value="bookkeeper">{ROLE_WORDS.bookkeeper.label}</option>
-            {FAIR_HELPERS && <option value="fairHelper">{ROLE_WORDS.fairHelper.label}</option>}
+            <option value="staff">{roles.staff.label}</option>
+            <option value="owner">{roles.owner.label}</option>
+            {STOCKROOM && <option value="author">{roles.author.label}</option>}
+            <option value="bookkeeper">{roles.bookkeeper.label}</option>
+            {FAIR_HELPERS && <option value="fairHelper">{roles.fairHelper.label}</option>}
           </SelectField>
           <PrimaryButton type="submit" disabled={busy === "add"}>{busy === "add" ? "Adding…" : "Add to Team"}</PrimaryButton>
           {role === "fairHelper" && (

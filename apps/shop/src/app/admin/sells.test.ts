@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { BOOK_ONLY_COPY, SELLS, SWAPPED, adminWordsFor, firstProductWords, goodsWords, sellsBooks, starterWords, startingKind, withStarterWords } from "./sells";
+import { BOOK_ONLY_COPY, SELLS, SWAPPED, adminWordsFor, withShopWordsFor, firstProductWords, goodsWords, sellsBooks, starterWords, startingKind, withStarterWords } from "./sells";
 import { DEFAULT_COPY, getCopy } from "../features/site/storeCopy";
 import { firstWeekSteps } from "./firstWeek";
 import { suggestedThemes } from "./chooseLook";
 import { PRODUCT_KINDS } from "../../shared/productOptions";
 
 // Book words a shopper of a shop that sells shirts should never read.
-const BOOK_WORDS = /\b(books?|authors?|publications?|publishing|publisher|photobooks?|zines?|e-books?|paperback|hardcover)\b/i;
+const BOOK_WORDS = /\b(books?|authors?|publications?|publishing|publisher|photobooks?|zines?|e-books?|paperback|hardcover|copies|titles|editions?|readers?)\b/i;
 
 describe("What a shop sells (plan 10.1)", () => {
   it("lists the sign-up form's answers, in its order", () => {
@@ -73,5 +73,34 @@ describe("What a shop sells (plan 10.1)", () => {
     // Book-only and look-alike words are left alone.
     expect(goodsWords("E-book (PDF), e-books, Bookkeeping, bookkeeper, Facebook")).toBe("E-book (PDF), e-books, Bookkeeping, bookkeeper, Facebook");
     expect(goodsWords("An author at a book fair, an author at Book Fairs")).toBe("A maker at a market, a maker at Markets");
+  });
+
+  it("counts items, products and shoppers instead of copies, titles and readers", () => {
+    const w = adminWordsFor("clothing");
+    expect(w("3 copies sold to returning readers")).toBe("3 items sold to returning shoppers");
+    expect(w("Readers waiting · Copies in all · Top titles")).toBe("Shoppers waiting · Items in all · Top products");
+    expect(w("A reader asked")).toBe("A shopper asked");
+    // Look-alikes stay: screen readers, page and SEO titles, and "copy" on its own.
+    expect(w("Named for screen readers. A screen reader, page titles, SEO titles. Copy the link")).toBe("Named for screen readers. A screen reader, page titles, SEO titles. Copy the link");
+    expect(adminWordsFor("books")("3 copies sold to readers")).toBe("3 copies sold to readers");
+  });
+
+  it("shoppers read the words of what the shop sells now, even after a change", () => {
+    const design = { copy: { footerAbout: "Ours" }, primary: "#000" };
+    // No answer yet (an older shop): unchanged. A books shop with no starter words: unchanged.
+    expect(withShopWordsFor(design, null)).toBe(design);
+    expect(withShopWordsFor(design, "books")).toBe(design);
+    expect(withShopWordsFor(null, "clothing")).toBeNull();
+    // Changed to clothing in Settings: the starter words show under the owner's own.
+    const clothing = withShopWordsFor(design, "clothing");
+    expect(getCopy(clothing, "catalogCountMany", { count: 3 })).toBe("3 products");
+    expect(getCopy(clothing, "pdpInBagMany", { count: 2 })).toBe("2 already in your bag");
+    expect(getCopy(clothing, "footerAbout")).toBe("Ours");
+    // Back to books: the starter words an earlier answer wrote go, the owner's own stay.
+    const back = withShopWordsFor({ copy: { ...clothing.copy, catalogEmpty: "Nothing here, friend." } }, "zines");
+    expect(getCopy(back, "catalogCountMany", { count: 3 })).toBe("3 titles");
+    expect(getCopy(back, "bookNotFound")).toBe(DEFAULT_COPY.bookNotFound);
+    expect(getCopy(back, "catalogEmpty")).toBe("Nothing here, friend.");
+    expect(getCopy(back, "footerAbout")).toBe("Ours");
   });
 });

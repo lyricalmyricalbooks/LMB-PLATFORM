@@ -6,6 +6,7 @@ import { smallPhotoUrl } from "../../features/site/photoSources";
 import { Funnel, RankBars, type RankRow } from "./OverviewViz";
 import { DEFAULT_MIN_VIEWS, LOW_ADD_RATE, dropOffPath, lookedNotAdded } from "./overviewVisitorPath";
 import "./overviewVisitorPath.css";
+import { useShopWords } from "../shopWords";
 
 export type PathWidget = "dropOff" | "lookNoBuy";
 
@@ -37,6 +38,7 @@ function Source({ phrase, children }: { phrase?: string; children?: ReactNode })
 }
 
 function DropOffWidget({ cur, prev, all, phrase }: { cur: Daily[]; prev: Daily[]; all: Daily[]; phrase?: string }) {
+  const words = useShopWords();
   const checkoutSince = useMemo(() => recordedSince(all, "checkout"), [all]);
   const path = useMemo(() => dropOffPath(cur, prev, { checkoutSince }), [cur, prev, checkoutSince]);
   if (!path) {
@@ -67,7 +69,7 @@ function DropOffWidget({ cur, prev, all, phrase }: { cur: Daily[]; prev: Daily[]
       )}
       <Funnel label="Where visitors drop off, from a visit to a paid order" steps={steps} />
       <Source phrase={phrase}>
-        Visits are counted once per visit; book pages and bag adds each time they happen, so a step can count more than the one before.
+        {words("Visits are counted once per visit; book pages and bag adds each time they happen, so a step can count more than the one before.")}
         {!path.checkoutSteps && " The checkout steps (email to Pay) are not recorded yet."}
         {path.checkoutSince && ` Checkout steps counted since ${dayWords(path.checkoutSince)}.`}
       </Source>
@@ -78,27 +80,28 @@ function DropOffWidget({ cur, prev, all, phrase }: { cur: Daily[]; prev: Daily[]
 function LookNoBuyWidget({ cur, all, books, minViews, onConfig, onEditBook, phrase }: {
   cur: Daily[]; all: Daily[]; books: Book[]; minViews: number; onConfig?: (patch: { minViews?: number }) => void; onEditBook?: (id: string) => void; phrase?: string;
 }) {
+  const w = useShopWords();
   const addsSince = useMemo(() => recordedSince(all, "bookAdds"), [all]);
   const viewsSince = useMemo(() => recordedSince(all, "bookViews"), [all]);
   const data = useMemo(() => lookedNotAdded(cur, books, minViews, { addsSince }), [cur, books, minViews, addsSince]);
   const choices = MIN_VIEW_CHOICES.includes(minViews) ? MIN_VIEW_CHOICES : [...MIN_VIEW_CHOICES, minViews].sort((a, b) => a - b);
   const picker = onConfig && (
     <label className="rp-vp-pick">
-      <span>Books opened at least</span>
+      <span>{w("Books opened at least")}</span>
       <select className="rp-select" value={minViews} onChange={e => onConfig({ minViews: Number(e.target.value) })}>
         {choices.map(n => <option key={n} value={n}>{n} times</option>)}
       </select>
     </label>
   );
   if (!data) {
-    if (addsSince === null || viewsSince === null) return notYet("Book page visits and bag adds");
-    return <EmptyState inline icon="–" title="No book pages opened in this period" description="Pick a longer period at the top of the board." />;
+    if (addsSince === null || viewsSince === null) return notYet(w("Book page visits and bag adds"));
+    return <EmptyState inline icon="–" title={w("No book pages opened in this period")} description="Pick a longer period at the top of the board." />;
   }
   if (data.rows.length === 0) {
     return (
       <div className="rp-vp">
         {picker}
-        <EmptyState inline icon="–" title={`No book was opened ${minViews} times or more`} description={data.viewedBooks ? `${data.viewedBooks} book${data.viewedBooks === 1 ? " was" : "s were"} opened fewer times. Lower the number above, or pick a longer period.` : "Pick a longer period at the top of the board."} />
+        <EmptyState inline icon="–" title={w(`No book was opened ${minViews} times or more`)} description={data.viewedBooks ? w(`${data.viewedBooks} book${data.viewedBooks === 1 ? " was" : "s were"} opened fewer times. Lower the number above, or pick a longer period.`) : "Pick a longer period at the top of the board."} />
       </div>
     );
   }
@@ -108,7 +111,7 @@ function LookNoBuyWidget({ cur, all, books, minViews, onConfig, onEditBook, phra
     ? top.adds === 0
       ? `${top.title} was opened ${top.views.toLocaleString()} times but never put in the bag.`
       : `${top.title} was opened ${top.views.toLocaleString()} times but put in the bag only ${top.adds === 1 ? "once" : `${top.adds.toLocaleString()} times`}.`
-    : "Most books people open also go in the bag.";
+    : w("Most books people open also go in the bag.");
   const rows: RankRow[] = data.rows.slice(0, 8).map(r => ({
     key: r.id,
     label: r.title,
@@ -120,19 +123,19 @@ function LookNoBuyWidget({ cur, all, books, minViews, onConfig, onEditBook, phra
     sub: <>{r.low && <span className="rp-vp-low">! Hardly added · </span>}{r.adds.toLocaleString()} added · {pct(r.addRate)}</>,
     details: onEditBook && r.book ? (
       <div className="rp-vp-drill">
-        <p>{(r.views - r.adds).toLocaleString()} visits to this book's page ended without a bag add. Check its price, photos and description.</p>
-        <GhostButton type="button" onClick={() => onEditBook(r.id)}>Edit this book</GhostButton>
+        <p>{(r.views - r.adds).toLocaleString()} {w("visits to this book's page ended without a bag add. Check its price, photos and description.")}</p>
+        <GhostButton type="button" onClick={() => onEditBook(r.id)}>{w("Edit this book")}</GhostButton>
       </div>
     ) : undefined,
   }));
   return (
     <div className="rp-vp">
       <p className="rp-vp-headline">{headline}</p>
-      {lows > 0 && <p className="rp-vp-sub"><span className="rp-vp-flag" aria-hidden="true">!</span> {lows} book{lows === 1 ? "" : "s"} put in the bag by fewer than {LOW_ADD_RATE}% of visitors</p>}
+      {lows > 0 && <p className="rp-vp-sub"><span className="rp-vp-flag" aria-hidden="true">!</span> {lows} {w(lows === 1 ? "book" : "books")} put in the bag by fewer than {LOW_ADD_RATE}% of visitors</p>}
       {picker}
-      <RankBars label="Books opened most, with how often they went in the bag" rows={rows} />
+      <RankBars label={w("Books opened most, with how often they went in the bag")} rows={rows} />
       <Source phrase={phrase}>
-        Each book counted once per visit.{data.addsSince && ` Bag adds counted since ${dayWords(data.addsSince)}, so earlier visits are left out.`}
+        {w("Each book counted once per visit.")}{data.addsSince && ` Bag adds counted since ${dayWords(data.addsSince)}, so earlier visits are left out.`}
       </Source>
     </div>
   );
