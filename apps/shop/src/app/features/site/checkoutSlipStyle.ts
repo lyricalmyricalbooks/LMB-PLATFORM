@@ -179,6 +179,8 @@ export function checkoutSlipCss(design: any): string {
     `${P} .fm-co-pay[data-pay-tabs="list"] .fm-co-pay-body{padding:16px;border:1px solid var(--co-rule);border-top:0;}`,
     `${P} .fm-co-brands{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;}`,
     `${P} .fm-co-brands span{font-family:var(--co-meta);font-size:12px;line-height:16px;letter-spacing:.08em;padding:4px 8px;border:1px solid var(--co-rule);color:var(--co-muted);}`,
+    `${P} .fm-co-brands span[data-brand-mark]{display:inline-flex;align-items:center;padding:2px 8px;}`,
+    `${P} .fm-co-brands span[data-brand-mark] svg{width:30px;height:20px;display:block;}`,
     // Pay button
     `${P} .fm-co-paybtn{display:flex;align-items:center;justify-content:space-between;gap:16px;width:100%;height:${payH}px;padding:0 24px;border:0;border-radius:0;background:${payBg};color:${payText};box-shadow:${payShadow};font-family:var(--co-head);font-size:24px;line-height:32px;text-transform:uppercase;letter-spacing:.01em;font-weight:400;cursor:pointer;transition:transform .08s, box-shadow .08s;}`,
     `${P} .fm-co-paybtn:hover:not(:disabled){filter:brightness(1.06);}`,
