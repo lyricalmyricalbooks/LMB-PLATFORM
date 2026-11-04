@@ -139,3 +139,13 @@ builders give every shop a name on their own domain. `connectFreeAddress(shopId)
 and writes Hosting's lines in the platform's own Cloud DNS zone on every check until it is live. It becomes main once
 live, unless the press's own domain is main. The shop domain must be a domain of its own, never the platform's or one
 under it, so a shop's pages can never read the platform's sign-in. Unset, shops keep their `<project id>.web.app` address.
+
+- **The press's own pick.** Setup's `freeName` (signup/pressRecord.js) is used instead of the press name when it can be
+  (`connectFreeAddress(shopId, { handle })`). `handleProblem` refuses names the platform keeps (www, admin, help,
+  checkout …), big brands' names and rude words (whole words of the name), so an address under the platform's name
+  never passes as someone else's. A press name that can't be an address gets `my-shop`.
+- **A new name later** (`domains.renameFree { name }`, Settings › General › Change name): refused when another shop
+  has it. The one before stays as `former: true`, keeps opening the shop and stays main until the new one is live; the
+  press may then remove it. Only one former address is kept: the next rename takes the older one off (Hosting and zone).
+- **Email.** `free-address-live` goes once when the current free address works (the welcome email goes out before it
+  exists).

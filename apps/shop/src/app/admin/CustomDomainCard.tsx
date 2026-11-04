@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { adminApi } from "./api";
 import { DestructiveButton, ErrorState, LoadingState, PrimaryButton, SecondaryButton, SectionCard, StatusBadge, TextField, useConfirm } from "./riso/components";
 import { friendlyError } from "./settingsLayout";
-import { allowLabel, describeEntry, domainActions, guideLineTitle, guideMailto, moveWarning, type DomainCheck, type DomainEntry, type DomainList } from "./customDomains";
+import { allowLabel, describeEntry, domainActions, freeNameOf, guideLineTitle, guideMailto, moveWarning, type DomainCheck, type DomainEntry, type DomainList } from "./customDomains";
 import { copyText } from "./clipboard";
 
 // Settings › General › Your web address (plan 2.9): put the shop on the press's own address through Colophon. A shop
@@ -21,6 +21,8 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
   const [own, setOwn] = useState("");
   const [main, setMain] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
   const [confirm, confirmNode] = useConfirm();
 
   const takeList = (answer: DomainList) => {
@@ -107,6 +109,25 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
   const allow = async (name: string, url: string) => {
     if (busy || !(await confirm(moveWarning(name)))) return;
     window.location.assign(url);
+  };
+
+  // A new name for the free address (after a new press name, say): the one before keeps opening the shop.
+  const rename = async (current: string) => {
+    const name = freeNameOf(nameDraft);
+    if (!name || busy) return;
+    setBusy("rename");
+    setError(null);
+    setNotice(null);
+    try {
+      takeList(await adminApi.customDomains("renameFree", name));
+      setRenaming(false);
+      setNameDraft("");
+      setNotice(`Your new free address is being set up. ${current} keeps opening your shop, so links you shared still work.`);
+    } catch (err: any) {
+      setError(friendlyError(err, "change your free address"));
+    } finally {
+      setBusy(null);
+    }
   };
 
   const remove = async (name: string) => {
@@ -214,7 +235,21 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
                     </p>
                   )}
                   {actions.note && <p className="rp-hint" style={{ margin: "8px 0 0" }}>{actions.note}</p>}
-                  {(state !== "live" || actions.canMakeMain || actions.canRemove) && <div className="rp-card-actions">
+                  {d.free && !d.former && renaming && (
+                    <form className="rp-stack" style={{ gap: 8, marginTop: 12 }} data-rename onSubmit={(e) => { e.preventDefault(); void rename(d.name); }}>
+                      <TextField label="New name for your free address" placeholder="moth-books" spellCheck={false} autoCapitalize="none" value={nameDraft}
+                        hint={freeNameOf(nameDraft) ? `Your shop will open at ${freeNameOf(nameDraft)}.${d.name.slice(d.name.indexOf(".") + 1)}. ${d.name} keeps working too.` : "Letters, numbers and dashes, like moth-books."}
+                        onChange={(e) => setNameDraft(e.target.value)} />
+                      <div className="rp-card-actions">
+                        <PrimaryButton type="submit" size="sm" disabled={!freeNameOf(nameDraft) || !!busy} busy={busy === "rename"}>Use this name</PrimaryButton>
+                        <SecondaryButton size="sm" disabled={!!busy} onClick={() => { setRenaming(false); setNameDraft(""); }}>Cancel</SecondaryButton>
+                      </div>
+                    </form>
+                  )}
+                  {(state !== "live" || actions.canMakeMain || actions.canRemove || (d.free && !d.former && !renaming)) && <div className="rp-card-actions">
+                    {d.free && !d.former && !renaming && (
+                      <SecondaryButton size="sm" disabled={!!busy} onClick={() => { setRenaming(true); setError(null); }}>Change name</SecondaryButton>
+                    )}
                     {state !== "live" && (
                       <SecondaryButton size="sm" disabled={!!busy} onClick={() => check(d.name)}>{busy === d.name ? "Checking…" : "Check again"}</SecondaryButton>
                     )}
@@ -228,7 +263,7 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
                 </div>
               );
             })}
-            {domains.length < max && (
+            {domains.filter((d) => !d.free).length < max && (
               <div className="rp-stack" style={{ gap: 8 }}>
                 <TextField label="Connect an address you own" placeholder="shop.yourpress.com" spellCheck={false} autoCapitalize="none" value={draft}
                   hint="Type the address, press Connect, and we'll take you through the rest."

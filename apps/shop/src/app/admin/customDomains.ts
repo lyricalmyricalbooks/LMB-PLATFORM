@@ -2,9 +2,9 @@
 
 export type DnsRecord = { action: "add" | "remove"; host: string; type: string; value: string };
 export type DomainState = "connecting" | "waiting_dns" | "securing" | "live" | "conflict" | "missing";
-/** `free`: the shop's free address on the platform's shop domain (set up by the platform, never removed). `sendsTo`: this
+/** `former`: a free address the shop had before a new name (it still opens the shop). `free`: the shop's free address on the platform's shop domain (set up by the platform, never removed). `sendsTo`: this
  * address sends visitors on to that one (www to the bare domain). */
-export type DomainEntry = { name: string; state: DomainState; addedAt?: string; paymentDomainAt?: string | null; main?: boolean; free?: boolean; sendsTo?: string };
+export type DomainEntry = { name: string; state: DomainState; addedAt?: string; paymentDomainAt?: string | null; main?: boolean; free?: boolean; former?: boolean; sendsTo?: string };
 /** One thing to add (or take out) by hand, in plain words: `kind` is Address, Text, Mail or Alias (plan 6.15). */
 export type GuideLine = { action: "add" | "remove"; kind: string; name: string; value: string; priority?: number };
 export type DomainGuide = { seller: string | null; zone: string; steps: string[]; lines: GuideLine[]; message: { subject: string; body: string } };
@@ -15,11 +15,13 @@ export type DomainCheck = {
 };
 /** `own` is the address the shop came with; `main` the one emails, links and Google use (plan 5.9). */
 export type DomainList = { domains: DomainEntry[]; max: number; own?: string; main?: string; removed?: string };
-export type DomainStep = "list" | "add" | "connect" | "check" | "makeMain" | "remove";
+export type DomainStep = "list" | "add" | "connect" | "check" | "makeMain" | "remove" | "renameFree";
 
 /** What the press can do with one address (plan 5.9): only a live one becomes main; the main one is never removed. */
 export function domainActions(entry: DomainEntry, main: string | undefined): { canMakeMain: boolean; canRemove: boolean; note: string } {
   const isMain = entry.name === main;
+  // The free address before a new name: it still opens the shop, so links shared with it keep working.
+  if (entry.free && entry.former) return { canMakeMain: false, canRemove: !isMain, note: isMain ? "Your free address before. It stays your main address until the new one works." : "Your free address before. It still opens your shop, so links you shared keep working. Remove it when you no longer need it." };
   if (entry.free) return { canMakeMain: !isMain && entry.state === "live", canRemove: false, note: isMain ? "Your shop's free address. It always works." : "Your shop's free address. It always works, and opens the same shop." };
   if (entry.sendsTo) return { canMakeMain: false, canRemove: !isMain, note: `Visitors here are sent on to ${entry.sendsTo}.` };
   if (isMain) return { canMakeMain: false, canRemove: false, note: "This is your main address. To remove it, make another address main first." };
@@ -41,11 +43,17 @@ export function describeDomain(state: DomainState | undefined): { tone: Tone; la
 }
 
 /** Where one address stands, for its card: a free address is set up by the platform, so there is nothing to finish. */
-export function describeEntry(entry: Pick<DomainEntry, "free">, state: DomainState | undefined): { tone: Tone; label: string; text: string } {
+export function describeEntry(entry: Pick<DomainEntry, "free" | "former">, state: DomainState | undefined): { tone: Tone; label: string; text: string } {
   if (entry.free && state !== "live" && state !== "conflict") {
     return { tone: "info", label: "Setting up", text: "We're setting up your shop's free address. There's nothing to do: it's ready within the hour." };
   }
   return describeDomain(state);
+}
+
+/** A name typed for the free address, as the platform cleans it: "Moth Books!" -> "moth-books". */
+export function freeNameOf(text: string): string {
+  return text.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    .replace(/&/g, " and ").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 30).replace(/-+$/, "");
 }
 
 /**

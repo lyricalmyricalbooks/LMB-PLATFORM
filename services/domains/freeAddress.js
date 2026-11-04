@@ -33,21 +33,71 @@ export function readFreeAddressConfig(env = {}, { platformDomain = "" } = {}) {
 /** The part before the shop domain for a press's name: "Moth Press & Co." -> "moth-press-and-co". */
 export const shopHandle = (pressName) => slugFromPressName(pressName);
 
+/** The longest name a press may pick (room is kept for "-99"). */
+export const MAX_HANDLE = 30;
+/** The name used when a press's own name can't be an address (rude, a big brand's, or one the platform keeps). */
+export const FALLBACK_HANDLE = "my-shop";
+
+// Names the platform keeps for itself, or that would look like it speaks for the platform.
+const RESERVED = new Set([
+  "www", "mail", "email", "smtp", "imap", "pop", "mx", "ns", "ns1", "ns2", "ftp", "cdn", "static", "assets", "img",
+  "api", "app", "apps", "admin", "administrator", "root", "system", "platform", "colophon", "help", "support", "status",
+  "login", "signin", "sign-in", "signup", "sign-up", "account", "accounts", "billing", "pay", "payment", "payments",
+  "checkout", "secure", "security", "verify", "password", "shop", "shops", "store", "stores", "test", "dev", "staging",
+  "demo", "blog", "docs", "news", "official", "abuse", "postmaster", "webmaster", "hostmaster", "noreply", "no-reply",
+]);
+// Words a free address can't carry: big brands (an address under the platform's name must not pass as theirs) and
+// rude words. Matched as whole words of the name, so "grassy-press" is fine and "amazon-books" is not.
+const BLOCKED_WORDS = new Set([
+  "amazon", "google", "gmail", "microsoft", "facebook", "instagram", "tiktok", "youtube", "netflix",
+  "paypal", "stripe", "visa", "mastercard", "amex", "interac", "nike", "adidas", "disney", "walmart",
+  "costco", "ebay", "etsy", "harpercollins", "scholastic", "canadapost", "fedex",
+  "fuck", "fucking", "shit", "cunt", "bitch", "bastard", "dick", "cock", "pussy", "asshole", "nigger", "nigga",
+  "faggot", "fag", "retard", "whore", "slut", "porn", "porno", "xxx", "sex", "nazi", "hitler", "kkk", "rape",
+  "merde", "putain", "salope", "connard", "conne", "encule", "tabarnak", "calisse",
+]);
+
+/** A name a press typed, made into an address part: "Moth Press!" -> "moth-press". "" when nothing usable is left. */
+export function cleanHandle(text) {
+  return String(text ?? "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    .replace(/&/g, " and ").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, MAX_HANDLE).replace(/-+$/, "");
+}
+
+/** Why a name can't be a free address, in plain words, or "" when it can. */
+export function handleProblem(handle) {
+  const name = String(handle ?? "");
+  if (name.length < 3) return "Use at least three letters or numbers.";
+  if (name.length > MAX_HANDLE) return `Keep it to ${MAX_HANDLE} letters or fewer.`;
+  if (!/^[a-z][a-z0-9-]*[a-z0-9]$/.test(name) || name.includes("--")) return "Use letters, numbers and dashes, starting with a letter.";
+  if (RESERVED.has(name)) return "That name is kept for the platform. Try another one.";
+  if (name.split("-").some((word) => BLOCKED_WORDS.has(word))) return "That name can't be used for a shop address. Try another one.";
+  return "";
+}
+
+/** The name to build on: the press's pick when it can be used, else its press name, else FALLBACK_HANDLE. */
+export function baseHandle(pressName, { handle = "" } = {}) {
+  const picked = cleanHandle(handle);
+  if (picked && !handleProblem(picked)) return picked;
+  const fromName = shopHandle(pressName);
+  return handleProblem(fromName) ? FALLBACK_HANDLE : fromName;
+}
+
 /** The names to try, in order: moth-press, moth-press-2, moth-press-3 … */
-export function handleCandidates(pressName) {
-  const base = shopHandle(pressName);
+export function handleCandidates(pressName, options = {}) {
+  const base = baseHandle(pressName, options);
   return [base, ...Array.from({ length: MAX_NUMBER - 1 }, (_, i) => `${base}-${i + 2}`)];
 }
 
 /** The free address a press would get if nobody else had its name, for setup's preview. "" when there's no shop domain. */
-export const freeAddressPreview = (pressName, shopDomain) => (shopDomain && pressName ? `${shopHandle(pressName)}.${shopDomain}` : "");
+export const freeAddressPreview = (pressName, shopDomain, handle = "") =>
+  (shopDomain && (pressName || handle) ? `${baseHandle(pressName, { handle })}.${shopDomain}` : "");
 
 /**
  * The first free address not taken: `taken(name)` says whether a shop (or a press's own domain) already has it.
- * Null when all are taken.
+ * `handle`: the name the press picked, used instead of its press name when it can be. Null when all are taken.
  */
-export async function pickFreeAddress(pressName, shopDomain, taken) {
-  for (const handle of handleCandidates(pressName)) {
+export async function pickFreeAddress(pressName, shopDomain, taken, options = {}) {
+  for (const handle of handleCandidates(pressName, options)) {
     const name = `${handle}.${shopDomain}`;
     if (!(await taken(name))) return name;
   }

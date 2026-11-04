@@ -497,6 +497,27 @@ describe("your web address in setup", () => {
     expect(el.textContent).toContain("A .ca name tells shoppers you're local");
   });
 
+  it("a press can pick its own name for the free address", async () => {
+    let current: any = { ...PRESS, freeAddress: "moth-press.shops.example" };
+    const d = door();
+    d.save = vi.fn(async (_id: string, change: any) => {
+      current = { ...current, ...change, freeAddress: change.freeName ? `${change.freeName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-$/, "")}.shops.example` : "moth-press.shops.example" };
+      return current;
+    });
+    const el = await mount(d, "#settings/general", current);
+    const pick = [...el.querySelectorAll("main button")].find((b) => b.textContent === "Pick another name") as HTMLButtonElement;
+    await act(async () => { pick.click(); });
+    const input = [...el.querySelectorAll("main input")].find((i) => i.closest("label, div")?.textContent?.includes("Name for your free address")) as HTMLInputElement;
+    await act(async () => { typeInto(input, "Moth Books!"); });
+    expect(el.textContent).toContain("Your shop opens at moth-books.shops.example");
+    const use = [...el.querySelectorAll("main button")].find((b) => b.textContent === "Use this name") as HTMLButtonElement;
+    await act(async () => { use.click(); });
+    await flush();
+    expect(d.save).toHaveBeenCalledWith(PRESS.pressId, { freeName: "Moth Books!" });
+    expect(el.textContent).toContain("Your free address: moth-books.shops.example");
+    expect(el.textContent).toContain("The name you picked.");
+  });
+
   it("a stockroom-only press has no website, so no web address to choose", async () => {
     const el = await mount(door(), "#settings/general", { ...PRESS, plan: "stockroom" });
     expect(el.textContent).not.toContain("Your web address");

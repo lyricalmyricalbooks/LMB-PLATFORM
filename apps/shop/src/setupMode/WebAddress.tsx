@@ -45,12 +45,60 @@ export function partnerOf(domain: string): string {
 }
 
 /** The free address the shop will get, with what happens if another shop has the name. */
-function FreeAddressLine({ address }: { address: string }) {
+/** A name typed for the free address, as the platform cleans it: "Moth Books!" -> "moth-books" (signup/pressRecord.js). */
+export function freeNamePreview(text: string): string {
+  return text.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    .replace(/&/g, " and ").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 30).replace(/-+$/, "");
+}
+
+type FreeLineProps = { press: SetupPress; save: (c: SetupChange) => Promise<SetupPress>; inSetup: boolean };
+
+/** "Your free address: moth-press.<shop domain>", and a name of the press's own in its place. */
+function FreeAddressLine({ press, save, inSetup }: FreeLineProps) {
+  const address = press.freeAddress ?? "";
+  const shopDomain = address.slice(address.indexOf(".") + 1);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(press.freeName ?? "");
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+  const name = freeNamePreview(draft);
+
+  const keep = async (value: string, which: string) => {
+    setBusy(which); setError("");
+    try {
+      await save({ freeName: value });
+      setEditing(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "That didn't save. Try again.");
+    } finally {
+      setBusy("");
+    }
+  };
+
   return (
-    <p style={{ margin: 0 }}>
-      Your free address: <strong style={{ overflowWrap: "anywhere" }}>{address}</strong>
-      <span className="rp-hint" style={{ display: "block" }}>Made from your press's name when your shop is created. If another shop has it, we add a number.</span>
-    </p>
+    <div style={{ display: "grid", gap: 8 }}>
+      <p style={{ margin: 0 }}>
+        Your free address: <strong style={{ overflowWrap: "anywhere" }}>{address}</strong>
+        <span className="rp-hint" style={{ display: "block" }}>
+          {press.freeName ? "The name you picked." : "Made from your press's name."} If another shop has it when your shop is made, we add a number.
+        </span>
+      </p>
+      {inSetup && !editing && (
+        <GhostButton size="sm" style={{ justifySelf: "start" }} onClick={() => { setEditing(true); setDraft(press.freeName ?? ""); setError(""); }}>Pick another name</GhostButton>
+      )}
+      {editing && (
+        <form onSubmit={(e) => { e.preventDefault(); if (name && !busy) void keep(draft.trim(), "name"); }} style={{ display: "grid", gap: 12, maxWidth: 520 }}>
+          <TextField label="Name for your free address" value={draft} placeholder="moth-books" autoCapitalize="none" autoCorrect="off" spellCheck={false}
+            hint={name ? `Your shop opens at ${name}.${shopDomain}` : "Letters, numbers and dashes, like moth-books."} onChange={(e) => setDraft(e.target.value)} />
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <PrimaryButton type="submit" size="sm" busy={busy === "name"} disabled={!name || !!busy}>Use this name</PrimaryButton>
+            {press.freeName && <GhostButton size="sm" busy={busy === "press"} disabled={!!busy} onClick={() => void keep("", "press")}>Use my press's name</GhostButton>}
+            <GhostButton size="sm" disabled={!!busy} onClick={() => { setEditing(false); setError(""); }}>Cancel</GhostButton>
+          </div>
+        </form>
+      )}
+      {error && <p role="alert" className="rp-hint" style={{ margin: 0, color: "var(--rp-danger)" }}>{error}</p>}
+    </div>
   );
 }
 
@@ -156,7 +204,7 @@ function WebAddressInner({ press, door, save, onSaved }: CardProps) {
   return (
     <SectionCard title="Your web address" description="Where shoppers find your shop. Your shop always has a free address too." collapsible={false}>
       <div style={{ display: "grid", gap: 16 }}>
-        {press.freeAddress && <FreeAddressLine address={press.freeAddress} />}
+        {press.freeAddress && <FreeAddressLine press={press} save={save} inSetup={inSetup} />}
         <div role="radiogroup" aria-label="Your web address" style={{ display: "grid", gap: 8 }}>
           {CHOICES.map((c) => {
             const on = picked === c.id;

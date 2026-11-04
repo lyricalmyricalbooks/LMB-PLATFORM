@@ -160,6 +160,39 @@ describe("Your web address: connect in one step (plan 6.15)", () => {
     expect(button(card, "Remove")).toBeUndefined();
   });
 
+  it("the free address can get a new name; the one before keeps working and can then be removed", async () => {
+    state.main = "moth-press.shops.example";
+    state.domains = [{ name: "moth-press.shops.example", state: "live", free: true }];
+    api.customDomains.mockImplementation(async (step: string, domain?: string) => {
+      if (step === "list") return listOf();
+      if (step === "renameFree") {
+        state.domains = [{ name: "moth-press.shops.example", state: "live", free: true, former: true }, { name: `${domain}.shops.example`, state: "waiting_dns", free: true }];
+        return listOf();
+      }
+      if (step === "check") return { name: domain, state: "waiting_dns", records: [] };
+      throw new Error(`unexpected ${step}`);
+    });
+    const el = await mount();
+    let card = el.querySelector('[data-domain="moth-press.shops.example"]')!;
+    expect(button(card, "Remove")).toBeUndefined();
+    await act(async () => button(card, "Change name")!.click());
+    const input = card.querySelector("[data-rename] input") as HTMLInputElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "Moth Books!");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(card.textContent).toContain("Your shop will open at moth-books.shops.example");
+    await act(async () => button(card, "Use this name")!.click());
+    expect(api.customDomains).toHaveBeenCalledWith("renameFree", "moth-books");
+    expect(el.textContent).toContain("moth-press.shops.example keeps opening your shop");
+    card = el.querySelector('[data-domain="moth-press.shops.example"]')!;
+    expect(card.textContent).toContain("Your free address before");
+    expect(button(card, "Change name")).toBeUndefined();
+    expect(button(el.querySelector('[data-domain="moth-books.shops.example"]')!, "Change name")).toBeTruthy();
+    // Free addresses never use up one of the three of the press's own.
+    expect(el.textContent).toContain("Connect an address you own");
+  });
+
   it("any other seller gets the guide: plain steps, a Copy button on every line, and a mail for the web person", async () => {
     connectWith({ way: "guide", seller: "Namecheap", guide: GUIDE });
     const el = await mount();

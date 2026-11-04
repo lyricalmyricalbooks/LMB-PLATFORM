@@ -37,7 +37,7 @@
 // it and the domain made the shop's main address as soon as it is live. The owner's Allow link (or guide) waits in
 // their admin under Settings › General, and the domain service emails them when it's live. A snag never holds the shop
 // up: it goes on the repair queue and is tried again after 15, 60 and then 240 minutes.
-//   presses    optional: get(pressId) -> the setup record (signup/pressRecord.js), read for `domain`
+//   presses    optional: get(pressId) -> the setup record (signup/pressRecord.js), read for `domain` and `freeName`
 //   domains    optional: connect(shopId, domain, { main, www }) and connectFreeAddress(shopId) (services/domains
 //              createDomainService): the shop's free address on the shop domain is connected first, for every shop
 import { SignupError, personOf } from "./signup.js";
@@ -210,8 +210,11 @@ export function createShopMaker({ signups, run, registry, repairs = null, selfCh
   async function connectAddresses(shopId) {
     if (!domains) return null;
     const free = typeof domains.connectFreeAddress === "function"
-      ? await addressStep(shopId, "freeAddress", "free-address", async () => {
-        const answer = await domains.connectFreeAddress(shopId);
+      ? await addressStep(shopId, "freeAddress", "free-address", async (row) => {
+        // The name the press picked in setup (`freeName`), if any; else its press name.
+        const press = presses && row.pressId ? await presses.get(row.pressId) : null;
+        const handle = typeof press?.freeName === "string" ? press.freeName : "";
+        const answer = await domains.connectFreeAddress(shopId, { handle });
         return answer?.skipped ? null : answer;
       })
       : null;

@@ -39,8 +39,9 @@ export const START_PAGE = "join";
 
 /** What a press sees of its own record: never the owner's uid or the platform's own fields. */
 const shownRecord = (record, shopDomain = "") => ({
-  // The free address the shop would get (moth-press.<shop domain>; a number is added if it's taken), or "".
-  freeAddress: freeAddressPreview(record.pressName ?? "", shopDomain),
+  // The free address the shop would get (moth-press.<shop domain>, or the name the press picked, `freeName`; a number
+  // is added if it's taken), or "".
+  freeAddress: freeAddressPreview(record.pressName ?? "", shopDomain, record.freeName ?? ""), freeName: record.freeName ?? "",
   pressId: record.pressId, status: record.status, plan: record.plan ?? "", shopId: record.shopId ?? "",
   // How the shop is starting once opened (18.8): "queued", or "in-line" with the words saying why it waits.
   shopStatus: record.shopStatus ?? "", shopMessage: record.shopMessage ?? "", pressName: record.pressName, sells: record.sells, country: record.country,

@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createDomainService } from "./domains.js";
-import { freeAddressPreview, handleCandidates, pickFreeAddress, readFreeAddressConfig } from "./freeAddress.js";
+import { FALLBACK_HANDLE, baseHandle, cleanHandle, freeAddressPreview, handleCandidates, handleProblem, pickFreeAddress, readFreeAddressConfig } from "./freeAddress.js";
 import { fakePlatformZone, platformZoneClient } from "./platformZone.js";
 import { fakeDeploy, fakeEnvFiles, fakeHosting, fakeProfileFiles, fakeSellers } from "./fakes.js";
 import { profileScript } from "../../profile/profile.js";
@@ -31,7 +31,27 @@ test("names come from the press's name, then numbers; the preview shows the plai
   assert.equal(await pickFreeAddress("Moth Press", "shops.example", async () => true), null);
 });
 
-async function world() {
+test("a name the press picks is cleaned and checked: no platform names, big brands or rude words", () => {
+  assert.equal(cleanHandle("  Moth Books! "), "moth-books");
+  assert.equal(cleanHandle("Éditions Café"), "editions-cafe");
+  assert.equal(handleProblem("moth-books"), "");
+  assert.match(handleProblem("ab"), /three/);
+  assert.match(handleProblem("admin"), /kept for the platform/);
+  assert.match(handleProblem("www"), /kept for the platform/);
+  assert.match(handleProblem("amazon-books"), /can't be used/);
+  assert.match(handleProblem("shit-press"), /can't be used/);
+  assert.equal(handleProblem("grassy-press"), "", "whole words only: a rude word inside another word is fine");
+  assert.match(handleProblem("xn--abc"), /letters, numbers and dashes/);
+  assert.match(handleProblem("9lives"), /starting with a letter/);
+  // The pick wins when it can be used; a press name that can't be an address gets the plain fallback.
+  assert.equal(baseHandle("Moth Press", { handle: "moth-books" }), "moth-books");
+  assert.equal(baseHandle("Moth Press", { handle: "admin" }), "moth-press");
+  assert.equal(baseHandle("Amazon Books"), FALLBACK_HANDLE);
+  assert.equal(freeAddressPreview("Moth Press", "shops.example", "moth-books"), "moth-books.shops.example");
+  assert.equal(handleCandidates("Moth Press", { handle: "moth-books" })[1], "moth-books-2");
+});
+
+async function world({ email = null } = {}) {
   const registry = fakeRegistry();
   const PROFILE = { version: 1, shopId: "moth-press", name: "Moth Press", functionsRegion: "northamerica-northeast1", siteUrl: "https://moth-press.web.app", apps: { shop: true, stockroom: false },
     firebase: { apiKey: "AIzaSyFakeKeyForTests000000000000000000", authDomain: "moth-press.firebaseapp.com", projectId: "moth-press", storageBucket: "x", messagingSenderId: "1", appId: "1:1:web:a" } };
@@ -47,7 +67,7 @@ async function world() {
     registry, auditLog: fakeAuditLog(), hosting, deploy, platformDomain: "platform.example", sellers: fakeSellers({}),
     envFiles: fakeEnvFiles({ "moth-press": env, "press-two": env }),
     profileFiles: fakeProfileFiles({ "moth-press": profileScript(PROFILE), "press-two": profileScript(PROFILE) }),
-    freeAddress: CONFIG, platformZone: zone, now: () => Date.parse("2026-11-04T12:00:00Z"),
+    freeAddress: CONFIG, platformZone: zone, email, now: () => Date.parse("2026-11-04T12:00:00Z"),
   });
   return { registry, hosting, zone, deploy, service };
 }
@@ -86,6 +106,46 @@ test("the press's own domain from setup takes over from the free address once it
   t.hosting.set("moth-press", "mothpress.example", "live");
   await t.service.checkAll();
   assert.equal((await t.registry.getShop("moth-press")).mainDomain, "mothpress.example");
+});
+
+test("the name picked in setup is used, and the owner hears once when the free address works", async () => {
+  const sent = [];
+  const t = await world({ email: { sendPlatform: async (m) => void sent.push(m) } });
+  assert.equal((await t.service.connectFreeAddress("moth-press", { handle: "moth-books" })).name, "moth-books.shops.example");
+  assert.equal(sent.length, 0, "not before it works");
+  t.hosting.set("moth-press", "moth-books.shops.example", "live");
+  await t.service.checkAll();
+  await t.service.checkAll();
+  assert.deepEqual(sent.map((m) => [m.kind, m.data.domain, m.to]), [["free-address-live", "moth-books.shops.example", "owner@example.com"]]);
+});
+
+test("a new name for the free address: the one before keeps working and stays main until the new one is live", async () => {
+  const t = await world();
+  await t.service.connectFreeAddress("moth-press");
+  t.hosting.set("moth-press", "moth-press.shops.example", "live");
+  await t.service.checkAll();
+  await t.service.connectFreeAddress("press-two");
+  await assert.rejects(() => t.service.renameFreeAddress("moth-press", "admin"), (e) => e.code === "bad_name" && /kept for the platform/.test(e.message));
+  const renamed = await t.service.renameFreeAddress("moth-press", "Moth Books");
+  assert.deepEqual(renamed.domains.map((d) => [d.name, d.main, Boolean(d.former)]), [["moth-press.shops.example", true, true], ["moth-books.shops.example", false, false]]);
+  let row = await t.registry.getShop("moth-press");
+  assert.equal(row.freeAddress, "moth-books.shops.example");
+  t.hosting.set("moth-press", "moth-books.shops.example", "live");
+  await t.service.checkAll();
+  row = await t.registry.getShop("moth-press");
+  assert.equal(row.mainDomain, "moth-books.shops.example", "the new one takes over once it works");
+  // The one before can now be taken off by the press; the current one never.
+  await assert.rejects(() => t.service.remove("moth-press", "moth-books.shops.example"), (e) => e.code === "own_address" || e.code === "is_main");
+  // Another shop's name is refused in plain words. And only one name before is kept: renaming again takes off the oldest.
+  await assert.rejects(() => t.service.renameFreeAddress("moth-press", "moth-press-2"), (e) => e.code === "taken" && /Another shop already has moth-press-2/.test(e.message));
+  const again = await t.service.renameFreeAddress("moth-press", "moth-press-3");
+  assert.deepEqual(again.domains.map((d) => d.name).sort(), ["moth-books.shops.example", "moth-press-3.shops.example"]);
+  assert.ok(t.hosting.calls.some(([op, , d]) => op === "removeDomain" && d === "moth-press.shops.example"));
+  assert.equal([...t.zone.lines.keys()].some((k) => k.startsWith("moth-press.shops.example ")), false, "its lines are taken out of the zone");
+  // Same name again changes nothing.
+  const calls = t.hosting.calls.length;
+  await t.service.renameFreeAddress("moth-press", "moth-press-3");
+  assert.ok(t.hosting.calls.slice(calls).every(([op]) => op === "getDomain"));
 });
 
 test("no shop domain: nothing is picked and shops keep their web.app address", async () => {

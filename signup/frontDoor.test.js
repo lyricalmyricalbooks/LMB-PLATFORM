@@ -430,6 +430,15 @@ test("setup shows the free address a press's shop will get, once the platform ha
   const withDomain = createFrontDoor({ ...w.stores, stagedFiles: w.files, email: { sendPlatform: async () => {} }, auth: fakeAuth(), settings: { ...SETTINGS, shopAddressDomain: "shops.example" } });
   const [press] = (await withDomain.myPresses(ADA)).presses;
   assert.equal(press.freeAddress, "moth-press.shops.example");
+  // A name of the press's own: cleaned, checked, and shown in place of its press name; "" goes back to the press name.
+  assert.equal((await w.ask("POST", "/api/press/setup", { pressId, freeName: "Moth Books!" }, ADA)).body.press.freeName, "moth-books");
+  assert.equal((await withDomain.myPresses(ADA)).presses[0].freeAddress, "moth-books.shops.example");
+  const refused = await w.ask("POST", "/api/press/setup", { pressId, freeName: "admin" }, ADA);
+  assert.equal(refused.status, 409);
+  assert.match(refused.body.message, /kept for the platform/);
+  assert.equal((await w.ask("POST", "/api/press/setup", { pressId, freeName: "amazon-books" }, ADA)).status, 409, "a big brand's name");
+  assert.equal((await w.ask("POST", "/api/press/setup", { pressId, freeName: "" }, ADA)).body.press.freeName, "");
+  assert.equal((await withDomain.myPresses(ADA)).presses[0].freeAddress, "moth-press.shops.example");
 });
 
 // ── Open my shop (code plan 18.8) ──

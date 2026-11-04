@@ -58,7 +58,7 @@ export function setupClockDue(record, nowMs) {
 
 /** The typed answers and kept file a cleared record no longer holds (pressRecord.js newPressRecord's fields). */
 const CLEARED = Object.freeze({ plan: "", pressName: "", sells: "", country: "", look: "", adminLook: "", moving: "", language: "",
-  domainChoice: "", domain: "", domainSeller: "", domainEasy: false, stagedImportPath: "", stagedImport: null, pendingImportPath: "" });
+  domainChoice: "", freeName: "", domain: "", domainSeller: "", domainEasy: false, stagedImportPath: "", stagedImport: null, pendingImportPath: "" });
 
 export function createSetupClock({ presses, stagedFiles, email, settings, now = () => new Date() }) {
   const link = () => `${String(settings.platformUrl ?? "").replace(/\/$/, "")}/${START_PAGE}/`;
