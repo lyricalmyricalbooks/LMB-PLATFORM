@@ -11,10 +11,22 @@ import type { SetupChange, SetupDoor, SetupPress } from "./door";
 /** The anchor the setup guide's step scrolls to. */
 export const WEB_ADDRESS_ANCHOR = "web-address";
 
-/** A domain-seller search for the press's name, so a press starting out lands on names it might want. */
-export function buyDomainUrl(pressName: string): string {
-  const name = pressName.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "");
-  return `https://www.godaddy.com/domainsearch/find?domainToCheck=${encodeURIComponent(name || "yourpress")}`;
+/** Country endings shoppers there trust most, for the GoDaddy search (a Canadian press is shown the .ca first). */
+const LOCAL_ENDINGS: Record<string, string> = { CA: "ca", GB: "co.uk", IE: "ie", FR: "fr", DE: "de", NL: "nl", AU: "com.au", NZ: "co.nz" };
+
+/** A domain-seller search for the press's name (with its country's ending, when it has one), so it lands on names it might want. */
+export function buyDomainUrl(pressName: string, country = ""): string {
+  const name = pressName.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "") || "yourpress";
+  const ending = LOCAL_ENDINGS[country];
+  return `https://www.godaddy.com/domainsearch/find?domainToCheck=${encodeURIComponent(ending ? `${name}.${ending}` : name)}`;
+}
+
+/** The line under the GoDaddy button: which endings shoppers remember. */
+export function endingHint(country = ""): string {
+  const ending = LOCAL_ENDINGS[country];
+  return ending
+    ? `Opens GoDaddy in a new tab, searching for your press's name. A .${ending} name tells shoppers you're local; .com works everywhere.`
+    : "Opens GoDaddy in a new tab, searching for your press's name. Names ending in .com are easiest for shoppers to remember.";
 }
 
 /** What happens with the kept domain once the shop is made, in plain words. */
@@ -30,6 +42,16 @@ export function partnerOf(domain: string): string {
   const labels = domain.split(".");
   if (labels[0] === "www" && labels.length === 3) return labels.slice(1).join(".");
   return labels.length === 2 ? `www.${domain}` : "";
+}
+
+/** The free address the shop will get, with what happens if another shop has the name. */
+function FreeAddressLine({ address }: { address: string }) {
+  return (
+    <p style={{ margin: 0 }}>
+      Your free address: <strong style={{ overflowWrap: "anywhere" }}>{address}</strong>
+      <span className="rp-hint" style={{ display: "block" }}>Made from your press's name when your shop is created. If another shop has it, we add a number.</span>
+    </p>
+  );
 }
 
 type Choice = "own" | "buy" | "free";
@@ -115,7 +137,7 @@ function WebAddressInner({ press, door, save, onSaved }: CardProps) {
               <strong style={{ overflowWrap: "anywhere", fontSize: 18 }}>{press.domain}</strong>
               <span>{domainPlan(press)}</span>
               <span className="rp-hint">
-                {`It becomes your shop's main address as soon as it works${partner ? `, and ${partner} opens it too` : ""}. Until then your shop uses its free address, which keeps working.`}
+                {`It becomes your shop's main address as soon as it works${partner ? `, and ${partner} opens it too` : ""}. Until then your shop uses its free address${press.freeAddress ? `, ${press.freeAddress}` : ""}, which keeps working.`}
               </span>
             </div>
           </div>
@@ -134,6 +156,7 @@ function WebAddressInner({ press, door, save, onSaved }: CardProps) {
   return (
     <SectionCard title="Your web address" description="Where shoppers find your shop. Your shop always has a free address too." collapsible={false}>
       <div style={{ display: "grid", gap: 16 }}>
+        {press.freeAddress && <FreeAddressLine address={press.freeAddress} />}
         <div role="radiogroup" aria-label="Your web address" style={{ display: "grid", gap: 8 }}>
           {CHOICES.map((c) => {
             const on = picked === c.id;
@@ -151,10 +174,10 @@ function WebAddressInner({ press, door, save, onSaved }: CardProps) {
         {picked === "buy" && (
           <div style={{ display: "grid", gap: 16 }}>
             <div style={{ display: "grid", gap: 8 }}>
-              <a className="rp-btn rp-btn-primary" href={buyDomainUrl(press.pressName)} target="_blank" rel="noopener noreferrer" style={{ justifySelf: "start", display: "inline-flex", gap: 8, alignItems: "center" }}>
+              <a className="rp-btn rp-btn-primary" href={buyDomainUrl(press.pressName, press.country)} target="_blank" rel="noopener noreferrer" style={{ justifySelf: "start", display: "inline-flex", gap: 8, alignItems: "center" }}>
                 Find a domain at GoDaddy <ExternalLink size={16} aria-hidden />
               </a>
-              <span className="rp-hint">Opens GoDaddy in a new tab, searching for your press's name. Names ending in .com or .ca are easiest for shoppers to remember.</span>
+              <span className="rp-hint">{endingHint(press.country)}</span>
             </div>
             {field("Bought it? Add it here")}
           </div>

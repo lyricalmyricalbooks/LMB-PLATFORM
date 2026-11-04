@@ -32,12 +32,15 @@ import { COUNTRIES, PUBLISHES, isEmail } from "./form.js";
 import { readOldShop as readPublicShop } from "../services/moving/oldShop.js";
 import { domainProblem, normalDomain } from "../services/domains/names.js";
 import { sellerName } from "../services/domains/sellers.js";
+import { freeAddressPreview } from "../services/domains/freeAddress.js";
 
 /** The page the front door lives on, under the platform's address. */
 export const START_PAGE = "join";
 
 /** What a press sees of its own record: never the owner's uid or the platform's own fields. */
-const shown = (record) => ({
+const shownRecord = (record, shopDomain = "") => ({
+  // The free address the shop would get (moth-press.<shop domain>; a number is added if it's taken), or "".
+  freeAddress: freeAddressPreview(record.pressName ?? "", shopDomain),
   pressId: record.pressId, status: record.status, plan: record.plan ?? "", shopId: record.shopId ?? "",
   // How the shop is starting once opened (18.8): "queued", or "in-line" with the words saying why it waits.
   shopStatus: record.shopStatus ?? "", shopMessage: record.shopMessage ?? "", pressName: record.pressName, sells: record.sells, country: record.country,
@@ -82,6 +85,7 @@ const UPLOAD_MINUTES = 15;
  * exactly as they do for every shop.
  */
 export function createFrontDoor({ presses, codes, email, auth, settings, stagedFiles, signup = null, now = () => new Date(), suffix = randomSuffix, random = null, readOldShop = readPublicShop, domainLookup = null }) {
+  const shown = (record) => shownRecord(record, settings?.shopAddressDomain ?? "");
   const signInCode = createSignInCode({
     store: codes,
     now,

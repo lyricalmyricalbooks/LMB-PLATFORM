@@ -245,6 +245,7 @@ export const ARTICLES = Object.freeze([
       "No domain yet? Choose I need a domain and buy one at GoDaddy, then come back and add it. Or keep the free address for now and add your own any time.",
       "Once your shop is made, we connect it for you. At most domain sellers, GoDaddy among them, you press Allow once in their window. At any other, we show you exactly what to copy across, with a Copy button on each line, or you can email it to your web person in one step.",
       "Your domain becomes your shop's main address as soon as it works, padlock included, and www.yourpress.com opens it too. We email you when it's live. Your free address keeps working the whole time.",
+      "Before you say yes, take your last orders in your old shop and close its checkout: once you do, your domain shows this shop instead.",
     ],
     where: ["Settings › General"],
   },

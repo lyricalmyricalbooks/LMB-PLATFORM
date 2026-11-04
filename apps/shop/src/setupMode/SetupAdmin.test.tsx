@@ -468,6 +468,7 @@ describe("your web address in setup", () => {
     expect(d.saved).toEqual([{ domainChoice: "buy" }]);
     const link = [...el.querySelectorAll("a")].find((a) => a.textContent?.includes("Find a domain at GoDaddy")) as HTMLAnchorElement;
     expect(link.href).toBe("https://www.godaddy.com/domainsearch/find?domainToCheck=mothpress");
+    expect(el.textContent).toContain(".com are easiest");
     expect(link.target).toBe("_blank");
     expect(el.textContent).toContain("Bought it? Add it here");
   });
@@ -481,6 +482,19 @@ describe("your web address in setup", () => {
     const home = await mount(door(), "", { ...PRESS, domainChoice: "free" });
     expect(home.textContent).toContain("Choose your web address");
     expect(home.textContent).toContain("2 of 5 done");
+  });
+
+  it("a Canadian press is pointed at a .ca name, and every press sees the free address its shop will get", async () => {
+    const canadian = { ...PRESS, country: "CA", freeAddress: "moth-press.shops.example" };
+    const d = door();
+    d.save = vi.fn(async (_id: string, change: any) => ({ ...canadian, ...change }));
+    const el = await mount(d, "#settings/general", canadian);
+    expect(el.textContent).toContain("Your free address: moth-press.shops.example");
+    await act(async () => { radio(el, "I need a domain").click(); });
+    await flush();
+    const link = [...el.querySelectorAll("a")].find((a) => a.textContent?.includes("Find a domain at GoDaddy")) as HTMLAnchorElement;
+    expect(link.href).toBe("https://www.godaddy.com/domainsearch/find?domainToCheck=mothpress.ca");
+    expect(el.textContent).toContain("A .ca name tells shoppers you're local");
   });
 
   it("a stockroom-only press has no website, so no web address to choose", async () => {

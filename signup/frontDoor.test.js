@@ -422,6 +422,16 @@ test("a press's own domain is kept with where it was bought, only by its owner a
   assert.deepEqual(asked, ["mothpress.example", "ink.example", "broken.example"]);
 });
 
+test("setup shows the free address a press's shop will get, once the platform has a shop domain", async () => {
+  const w = world();
+  const pressId = await pressFor(w);
+  const named = (await w.ask("POST", "/api/press/setup", { pressId, pressName: "Moth Press" }, ADA)).body.press;
+  assert.equal(named.freeAddress, "", "no shop domain set: nothing promised");
+  const withDomain = createFrontDoor({ ...w.stores, stagedFiles: w.files, email: { sendPlatform: async () => {} }, auth: fakeAuth(), settings: { ...SETTINGS, shopAddressDomain: "shops.example" } });
+  const [press] = (await withDomain.myPresses(ADA)).presses;
+  assert.equal(press.freeAddress, "moth-press.shops.example");
+});
+
 // ── Open my shop (code plan 18.8) ──
 
 async function readyPress(w, fields = { pressName: "Moth Press", country: "CA", plan: "both", sells: "zines", look: "riso" }) {

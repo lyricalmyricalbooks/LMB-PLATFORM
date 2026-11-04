@@ -9,7 +9,7 @@ import { DESIGN_PAGE, GENERAL_PAGE, IMPORT_PAGE, PLAN_PAGE } from "./pages";
 
 /** One line of "What goes into your shop". `needed` lines stop Create my shop until they're filled in. */
 export interface CreateRow {
-  id: "plan" | "details" | "look" | "books";
+  id: "plan" | "details" | "look" | "domain" | "books";
   label: string;
   value: string;
   state: "done" | "needed" | "later";
@@ -55,6 +55,12 @@ export function createChecklist(press: SetupPress, plans: PlanList | null, names
     rows.push(press.look
       ? { id: "look", label: "Website look", value: names.lookName || "Chosen", state: "done", page: DESIGN_PAGE, change: "Change" }
       : { id: "look", label: "Website look", value: "Not chosen yet. You can pick one now, or in Design once your shop is made.", state: "later", page: DESIGN_PAGE, change: "Choose a look" });
+  }
+  if (press.plan !== "stockroom") {
+    const free = press.freeAddress ? `its free address, ${press.freeAddress}` : "its free address";
+    rows.push(press.domain
+      ? { id: "domain", label: "Web address", value: `${press.domain}${press.domainSeller ? `, bought at ${press.domainSeller}` : ""}. We connect it once your shop is made; until then your shop uses ${free}.`, state: "done", page: GENERAL_PAGE, change: "Change" }
+      : { id: "domain", label: "Web address", value: `Your shop starts at ${free}. You can bring your own domain now, or any time later.`, state: "later", page: GENERAL_PAGE, change: "Add a domain" });
   }
   const file = press.stagedImport;
   rows.push(file

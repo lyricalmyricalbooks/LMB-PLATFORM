@@ -104,7 +104,8 @@ export function fakeClock(start = "2026-10-28T12:00:00Z") {
  * invite), `waitlisted` (people on the waitlist the control room lists), `google` (a pretend Google, to make a step fail), `suffix` (the five characters of a new shop's id).
  */
 export function platformWorld({ start, clock = fakeClock(start), env = {}, invited = [], waitlisted = [], google = fakeGoogle(), suffix = null } = {}) {
-  const settingsEnv = { SIGNUP_OPEN: "true", ...env };
+  // Shops' free addresses go under a made-up shop domain, so setup shows the address a shop will get.
+  const settingsEnv = { SIGNUP_OPEN: "true", SHOP_ADDRESS_DOMAIN: "shops.example", ...env };
   const settings = platformSettings(settingsEnv);
   const live = () => liveSettings({ env: settingsEnv });
 

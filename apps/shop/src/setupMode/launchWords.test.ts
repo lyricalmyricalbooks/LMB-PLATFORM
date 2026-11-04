@@ -18,6 +18,7 @@ describe("Create my shop's review", () => {
       ["plan", "done", "Shop · $21.75 a month"],
       ["details", "done", "Moth Press · Zines · Canada"],
       ["look", "done", "Riso"],
+      ["domain", "later", "Your shop starts at its free address. You can bring your own domain now, or any time later."],
       ["books", "later", "None brought over. You can add them, or bring a file, once your shop is made."],
     ]);
     expect(canCreate(rows)).toBe(true);
@@ -36,6 +37,14 @@ describe("Create my shop's review", () => {
     const rows = createChecklist(press({ plan: "stockroom", stagedImport: { name: "a.csv", size: 1, rows: 1, at: "" } }), plans, names);
     expect(rows.map((r) => r.id)).not.toContain("look");
     expect(rows.find((r) => r.id === "books")!.value).toMatch(/^1 book from a.csv/);
+  });
+
+  it("shows the web address: the press's own domain and where it was bought, or the free address it starts at", () => {
+    const own = createChecklist(press({ domain: "mothpress.example", domainSeller: "GoDaddy", freeAddress: "moth-press.shops.example" }), plans, names).find((r) => r.id === "domain")!;
+    expect(own).toMatchObject({ state: "done", value: "mothpress.example, bought at GoDaddy. We connect it once your shop is made; until then your shop uses its free address, moth-press.shops.example." });
+    const free = createChecklist(press({ freeAddress: "moth-press.shops.example" }), plans, names).find((r) => r.id === "domain")!;
+    expect(free.value).toBe("Your shop starts at its free address, moth-press.shops.example. You can bring your own domain now, or any time later.");
+    expect(createChecklist(press({ plan: "stockroom" }), plans, names).map((r) => r.id)).not.toContain("domain");
   });
 
   it("names the plan even before the prices load", () => {

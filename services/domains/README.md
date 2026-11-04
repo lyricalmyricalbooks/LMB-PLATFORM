@@ -117,3 +117,25 @@ builds the template file Julian registers with each seller (a one-time step), an
 - The shop's own copy of the sitemap is written only by a full shop build; platform shops' pages skip it (see
   `services/release-runner/builder.js`), so the main address reaches the sitemap whenever that build runs.
 - Two adds for one shop at the same moment could overwrite each other's registry entry; the admin sends one at a time.
+
+## A domain brought in setup, and www
+
+`domains.connect` takes `{ main, www, redirectTo }` (platform calls; the shop's door sends `www` on by default):
+
+- `main: true` marks the address `mainWhenLive`: the first check that finds it live makes it the main address, unless
+  the press already chose a main address of its own (a free address doesn't count: the press's domain takes over from it).
+- `www: true` connects the partner of a bare domain (`www.<domain>`, or the bare one for a www name) as a Hosting
+  redirect (`redirectTarget`) to the main one. It never becomes main, and failing to add it never stops the main one.
+
+The shop maker (`signup/shopMaker.js connectAddresses`) calls `connect(shopId, press.domain, { main: true, www: true })`
+for the domain a press kept in setup (`POST /api/press/domain`, signup/frontDoor.js).
+
+## Free addresses (freeAddress.js, platformZone.js)
+
+With `SHOP_ADDRESS_DOMAIN`, `SHOP_ADDRESS_ZONE` and `SHOP_ADDRESS_ZONE_PROJECT` set, every shop gets
+`<press name>.<shop domain>` (`moth-press.shops.example`; `moth-press-2` when the name is taken), the way the big shop
+builders give every shop a name on their own domain. `connectFreeAddress(shopId)` picks the name once (registry
+`freeAddress`), adds it as a `free: true` entry (not counted in the three a press may add, never removable by the press)
+and writes Hosting's lines in the platform's own Cloud DNS zone on every check until it is live. It becomes main once
+live, unless the press's own domain is main. The shop domain must be a domain of its own, never the platform's or one
+under it, so a shop's pages can never read the platform's sign-in. Unset, shops keep their `<project id>.web.app` address.

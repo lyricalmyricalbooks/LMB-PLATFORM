@@ -2,7 +2,9 @@
 
 export type DnsRecord = { action: "add" | "remove"; host: string; type: string; value: string };
 export type DomainState = "connecting" | "waiting_dns" | "securing" | "live" | "conflict" | "missing";
-export type DomainEntry = { name: string; state: DomainState; addedAt?: string; paymentDomainAt?: string | null; main?: boolean };
+/** `free`: the shop's free address on the platform's shop domain (set up by the platform, never removed). `sendsTo`: this
+ * address sends visitors on to that one (www to the bare domain). */
+export type DomainEntry = { name: string; state: DomainState; addedAt?: string; paymentDomainAt?: string | null; main?: boolean; free?: boolean; sendsTo?: string };
 /** One thing to add (or take out) by hand, in plain words: `kind` is Address, Text, Mail or Alias (plan 6.15). */
 export type GuideLine = { action: "add" | "remove"; kind: string; name: string; value: string; priority?: number };
 export type DomainGuide = { seller: string | null; zone: string; steps: string[]; lines: GuideLine[]; message: { subject: string; body: string } };
@@ -18,6 +20,8 @@ export type DomainStep = "list" | "add" | "connect" | "check" | "makeMain" | "re
 /** What the press can do with one address (plan 5.9): only a live one becomes main; the main one is never removed. */
 export function domainActions(entry: DomainEntry, main: string | undefined): { canMakeMain: boolean; canRemove: boolean; note: string } {
   const isMain = entry.name === main;
+  if (entry.free) return { canMakeMain: !isMain && entry.state === "live", canRemove: false, note: isMain ? "Your shop's free address. It always works." : "Your shop's free address. It always works, and opens the same shop." };
+  if (entry.sendsTo) return { canMakeMain: false, canRemove: !isMain, note: `Visitors here are sent on to ${entry.sendsTo}.` };
   if (isMain) return { canMakeMain: false, canRemove: false, note: "This is your main address. To remove it, make another address main first." };
   return { canMakeMain: entry.state === "live", canRemove: true, note: entry.state === "live" ? "" : "Once it shows as Live, you can make it your main address." };
 }
@@ -34,6 +38,26 @@ export function describeDomain(state: DomainState | undefined): { tone: Tone; la
     case "waiting_dns": return { tone: "warning", label: "Waiting for you", text: "Finish connecting it below. Changes can take a few hours to reach everyone; we check every few minutes and email you when it opens your shop." };
     default: return { tone: "neutral", label: "Connecting", text: "Getting the address ready." };
   }
+}
+
+/** Where one address stands, for its card: a free address is set up by the platform, so there is nothing to finish. */
+export function describeEntry(entry: Pick<DomainEntry, "free">, state: DomainState | undefined): { tone: Tone; label: string; text: string } {
+  if (entry.free && state !== "live" && state !== "conflict") {
+    return { tone: "info", label: "Setting up", text: "We're setting up your shop's free address. There's nothing to do: it's ready within the hour." };
+  }
+  return describeDomain(state);
+}
+
+/**
+ * Said before the press connects a domain that may still show an old shop: once they say yes, the domain opens this shop
+ * instead, so the last orders should be taken there first.
+ */
+export function moveWarning(name: string): { title: string; message: string; confirmLabel: string } {
+  return {
+    title: `Move ${name} to this shop now?`,
+    message: `Once you say yes, ${name} shows this shop instead of anything it shows today, within minutes to a few hours. If your old shop is still selling there, take your last orders and close its checkout first, so no order lands in the wrong place. Your shop's own address keeps working throughout.`,
+    confirmLabel: "Yes, connect it",
+  };
 }
 
 /** The Allow button's words: names the domain seller when it is known (plan 6.15). */

@@ -59,12 +59,21 @@
 //   publicLines has(record) -> boolean: the line shows from outside (sellers.js); optional
 //   domainConnect  readDomainConnectConfig(env) (config.js), or null: every press gets the guide
 //   email      sendPlatform({ kind, to, data, idempotencyKey, shopId }) (services/email); optional
+//   freeAddress  readFreeAddressConfig(env) (freeAddress.js), or null: shops keep their web.app address
+//   platformZone apply(records) (platformZone.js): the free addresses' lines in the platform's own zone; optional
+//
+// Free addresses (freeAddress.js): connectFreeAddress(shopId) gives the shop <press name>.<shop domain> (the next number
+// when the name is taken), saved as the registry row's `freeAddress`, as a domain entry with `free: true` that doesn't
+// count towards the three a press may add and can't be removed by the press. Its lines go into the platform's zone on
+// every check until it is live, and it becomes the main address once live, unless the press's own domain is main. A
+// press's own domain brought in setup (`mainWhenLive`) takes over from the free address when it goes live.
 import { randomBytes } from "node:crypto";
 import { serviceKeyMatches } from "../email/http.js";
 import { allowLink, fitTemplate, hostInZone, normalRecord, PURPOSES } from "./domainConnect.js";
 import { guideFor, sellerName, zoneGuess } from "./sellers.js";
 import { profileScript } from "../../profile/profile.js";
 import { domainOrigins, domainProblem, mainAddress, MAX_DOMAINS, normalDomain, ownAddress, siteUrlOf, withExtraOrigins, withSiteUrl } from "./names.js";
+import { pickFreeAddress } from "./freeAddress.js";
 
 export class DomainError extends Error {
   constructor(status, code, message) {
@@ -122,7 +131,7 @@ const sameLines = (a = [], b = []) => JSON.stringify(a) === JSON.stringify(b);
 
 export function createDomainService({
   registry, auditLog, hosting, envFiles, profileFiles, deploy, payments = null, platformDomain,
-  sellers = null, publicLines = null, domainConnect = null, email = null,
+  sellers = null, publicLines = null, domainConnect = null, email = null, freeAddress = null, platformZone = null,
   newState = () => randomBytes(12).toString("hex"), now = () => Date.now(),
 }) {
   const iso = () => new Date(now()).toISOString();
@@ -184,7 +193,7 @@ export function createDomainService({
     const row = await rowOf(shopId);
     const main = mainAddress(row);
     return {
-      domains: domainsOf(row).map(({ name, state, addedAt, paymentDomainAt }) => ({ name, state: state ?? "connecting", addedAt, paymentDomainAt: paymentDomainAt ?? null, main: name === main })),
+      domains: domainsOf(row).map(({ name, state, addedAt, paymentDomainAt, free, redirectTo }) => ({ name, state: state ?? "connecting", addedAt, paymentDomainAt: paymentDomainAt ?? null, main: name === main, ...(free ? { free: true } : {}), ...(redirectTo ? { sendsTo: redirectTo } : {}) })),
       own: ownAddress(row),
       main,
       max: MAX_DOMAINS,
@@ -198,6 +207,13 @@ export function createDomainService({
     if (!entry) throw new DomainError(404, "unknown_domain", "That address isn't connected to this shop.");
     const { state, records } = domainState(await hosting.getDomain(projectOf(row), name));
     const fields = {};
+    // A free address's lines are the platform's to write: put in on every check until it is live.
+    if (entry.free && state !== "live" && platformZone && records.length) {
+      await platformZone.apply(records);
+      const kept = [...(entry.zoneLines ?? [])];
+      for (const r of records) if (r.action === "add" && !kept.some((k) => k.host === r.host && k.type === r.type && k.value === r.value)) kept.push({ host: r.host, type: r.type, value: r.value });
+      if (kept.length !== (entry.zoneLines ?? []).length) fields.zoneLines = kept;
+    }
     if (state !== entry.state) {
       fields.state = state;
       if (state === "live") {
@@ -263,7 +279,9 @@ export function createDomainService({
     const promote = state === "live" && entry.mainWhenLive === true;
     if (promote) fields.mainWhenLive = false;
     if (Object.keys(fields).length) await saveEntry(shopId, name, fields);
-    if (promote && !row.mainDomain) {
+    // Main only over the shop's web.app address, or (for the press's own domain) over its free address.
+    const mainNow = normalDomain(row.mainDomain ?? "");
+    if (promote && (!mainNow || (!entry.free && mainNow === row.freeAddress))) {
       try { await makeMain(shopId, name); } catch (err) {
         console.error(`Making ${name} main for ${shopId} failed:`, err?.message || err);
         await saveEntry(shopId, name, { mainWhenLive: true });
@@ -311,9 +329,12 @@ export function createDomainService({
     if (problem) throw new DomainError(400, "bad_domain", problem);
     const row = await rowOf(shopId);
     if (name === `${projectOf(row)}.web.app` || name === `${projectOf(row)}.firebaseapp.com`) throw new DomainError(400, "bad_domain", "That is already your shop's own address.");
+    if (freeAddress && (name === freeAddress.domain || name.endsWith(`.${freeAddress.domain}`))) {
+      throw new DomainError(400, "bad_domain", name === row.freeAddress ? "That is already your shop's free address." : "That address belongs to the platform. Use an address you own.");
+    }
     const domains = domainsOf(row);
     if (!domains.some((d) => d.name === name)) {
-      if (domains.length >= MAX_DOMAINS) throw new DomainError(409, "too_many", `A shop can have ${MAX_DOMAINS} addresses of its own.`);
+      if (domains.filter((d) => !d.free).length >= MAX_DOMAINS) throw new DomainError(409, "too_many", `A shop can have ${MAX_DOMAINS} addresses of its own.`);
       // Held by another shop as an address, or still as the address its emails come from (services/email/ownDomain.js).
       const holder = (await registry.listShops()).find((other) => other?.shopId !== shopId
         && (domainsOf(other).some((d) => d.name === name) || other?.emailSender?.domain === name));
@@ -369,6 +390,7 @@ export function createDomainService({
       await syncServer(row);
       throw new DomainError(404, "unknown_domain", "That address isn't connected to this shop.");
     }
+    if (entry.free) throw new DomainError(400, "own_address", "This is your shop's free address. It always works and can't be removed.");
     if (mainAddress(row) === name) throw new DomainError(409, "is_main", "This is your shop's main address. Make another address main first, then remove this one.");
     await hosting.removeDomain(projectOf(row), name);
     // The shop's emails stop coming from orders@<this address> too (its email lines went with the entry), so the
@@ -420,6 +442,34 @@ export function createDomainService({
       await saveEntry(shopId, name, { connect: next });
       await logChange(shopId, `domain-connect-${name}-${next.way}-${iso()}`, { kind: "domains.connect", domain: name, way: next.way, seller });
     }
+    return check(shopId, name);
+  }
+
+  /**
+   * The shop's free address on the shop domain (freeAddress.js): picked once from the press's name and kept on the
+   * registry row, then connected with its lines in the platform's zone. `{ skipped: true }` when there is no shop domain.
+   * Safe to repeat.
+   */
+  async function connectFreeAddress(shopId) {
+    if (!freeAddress || !platformZone) return { skipped: true };
+    let row = await rowOf(shopId);
+    let name = row.freeAddress;
+    if (!name) {
+      const shops = await registry.listShops();
+      const taken = async (candidate) => shops.some((other) => other?.shopId !== shopId
+        && (other?.freeAddress === candidate || domainsOf(other ?? {}).some((d) => d.name === candidate)));
+      name = await pickFreeAddress(row.pressName || shopId, freeAddress.domain, taken);
+      if (!name) throw new DomainError(409, "no_free_address", `No free address is left for ${row.pressName || shopId}.`);
+      await registry.updateShop(shopId, { freeAddress: name });
+      await logChange(shopId, `domain-free-address-${name}`, { kind: "domains.free-address", domain: name });
+      row = await rowOf(shopId);
+    }
+    if (!domainsOf(row).some((d) => d.name === name)) {
+      await registry.updateShop(shopId, { domains: [...domainsOf(row), { name, free: true, state: "connecting", addedAt: iso(), mainWhenLive: true }] });
+      await logChange(shopId, `domain-added-${name}`, { kind: "domains.added", domain: name, free: true });
+    }
+    if (await syncServer(await rowOf(shopId))) await logChange(shopId, `domain-origins-${name}`, { kind: "domains.server-allowed", domain: name });
+    await hosting.addDomain(projectOf(row), name);
     return check(shopId, name);
   }
 
@@ -491,6 +541,8 @@ export function createDomainService({
     if (!domainsOf(row).some((d) => d.name === name)) return { done: true, removed: null };
     if (deleting !== true) return { done: true, ...(await remove(shopId, name)) };
     await hosting.removeDomain(projectOf(row), name);
+    const entry = domainsOf(row).find((d) => d.name === name);
+    if (entry?.free && platformZone && entry.zoneLines?.length) await platformZone.apply(entry.zoneLines.map((l) => ({ ...l, action: "remove" })));
     const fields = { domains: domainsOf(row).filter((d) => d.name !== name) };
     if (normalDomain(row.mainDomain ?? "") === name) fields.mainDomain = null;
     await registry.updateShop(shopId, fields);
@@ -576,11 +628,12 @@ export function createDomainService({
     "domains.makeMain": (shopId, args) => makeMain(shopId, args.domain),
     "domains.remove": (shopId, args) => remove(shopId, args.domain),
     // From the shop's own admin: the press chooses main itself, but www comes along, as in setup.
-    "domains.connect": (shopId, args) => connect(shopId, args.domain, { www: args.www === true }),
+    "domains.connect": (shopId, args) => connect(shopId, args.domain, { www: args.www !== false }),
   };
 
   return {
     list,
+    connectFreeAddress,
     add,
     check,
     makeMain,

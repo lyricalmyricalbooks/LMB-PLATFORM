@@ -24,6 +24,8 @@ export interface SetupPress {
   domainSeller?: string;
   /** The seller has an Allow window for us: connecting is one press of Allow there. */
   domainEasy?: boolean;
+  /** The free address the shop will get (moth-press.<shop domain>, a number added if taken), or "" when there is none. */
+  freeAddress?: string;
   /** The shop's id once Open my shop has started it (18.8), else "". */
   shopId?: string;
   /** How the shop is starting once opening: "queued", or "in-line" with `shopMessage` saying why it waits. */

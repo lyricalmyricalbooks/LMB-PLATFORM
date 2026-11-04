@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { adminApi } from "./api";
 import { DestructiveButton, ErrorState, LoadingState, PrimaryButton, SecondaryButton, SectionCard, StatusBadge, TextField, useConfirm } from "./riso/components";
 import { friendlyError } from "./settingsLayout";
-import { allowLabel, describeDomain, domainActions, guideLineTitle, guideMailto, type DomainCheck, type DomainEntry, type DomainList } from "./customDomains";
+import { allowLabel, describeEntry, domainActions, guideLineTitle, guideMailto, moveWarning, type DomainCheck, type DomainEntry, type DomainList } from "./customDomains";
 import { copyText } from "./clipboard";
 
 // Settings › General › Your web address (plan 2.9): put the shop on the press's own address through Colophon. A shop
@@ -103,6 +103,12 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
     }
   };
 
+  // The old site goes once the press says yes at the seller, so they're asked first (and told to close the old checkout).
+  const allow = async (name: string, url: string) => {
+    if (busy || !(await confirm(moveWarning(name)))) return;
+    window.location.assign(url);
+  };
+
   const remove = async (name: string) => {
     if (busy) return;
     const ok = await confirm({
@@ -151,8 +157,9 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
             {domains.map((d) => {
               const found = checks[d.name];
               const state = found?.state ?? d.state;
-              const info = describeDomain(state);
-              const guide = state !== "live" ? found?.guide : undefined;
+              const info = describeEntry(d, state);
+              // A free address is the platform's to set up: no seller, no lines to copy.
+              const guide = state !== "live" && !d.free ? found?.guide : undefined;
               const actions = domainActions({ ...d, state }, main);
               return (
                 <div key={d.name} className="rp-card" style={{ padding: 16, boxShadow: "none" }} data-domain={d.name}>
@@ -164,17 +171,18 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
                     </span>
                   </div>
                   <p className="rp-hint" style={{ margin: "8px 0 0" }}>{info.text}</p>
-                  {state !== "live" && found?.allowUrl && (
+                  {state !== "live" && !d.free && found?.allowUrl && (
                     <div className="rp-stack" style={{ gap: 8, marginTop: 12 }} data-allow>
                       <p style={{ margin: 0 }}>{found.seller ? `${found.seller} will ask you to sign in and say yes. That is all it takes.` : "Your domain seller will ask you to sign in and say yes. That is all it takes."}</p>
                       <div className="rp-card-actions">
-                        <PrimaryButton size="sm" disabled={!!busy} onClick={() => window.location.assign(found.allowUrl!)}>{allowLabel(found.seller)}</PrimaryButton>
+                        <PrimaryButton size="sm" disabled={!!busy} onClick={() => void allow(d.name, found.allowUrl!)}>{allowLabel(found.seller)}</PrimaryButton>
                       </div>
                     </div>
                   )}
                   {guide && (
                     <details style={{ marginTop: 12 }} open={!found?.allowUrl} data-guide>
                       <summary style={{ cursor: "pointer", fontWeight: 600 }}>{found?.allowUrl ? "Prefer to do it yourself?" : `Connect ${d.name} yourself`}</summary>
+                      <p className="rp-hint" style={{ margin: "8px 0 0" }}>{moveWarning(d.name).message}</p>
                       <ol style={{ margin: "8px 0", paddingLeft: 20 }}>
                         {guide.steps.map((step, i) => <li key={i}>{step}</li>)}
                       </ol>

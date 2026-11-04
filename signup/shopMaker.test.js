@@ -262,7 +262,9 @@ test("the press's own domain from setup is connected once the shop is ready, as 
   const reported = [];
   const asked = [];
   let fail = true;
-  const domains = { async connect(shopId, domain, options) {
+  const freeAsked = [];
+  const domains = { async connectFreeAddress(shopId) { freeAsked.push(shopId); return { name: `${shopId.split("-")[0]}-press.shops.example`, state: "waiting_dns" }; },
+    async connect(shopId, domain, options) {
     asked.push([shopId, domain, options]);
     if (fail) { fail = false; throw new Error("Google said no for now"); }
     return { name: domain, state: "waiting_dns", way: "allow" };
@@ -290,4 +292,7 @@ test("the press's own domain from setup is connected once the shop is ready, as 
   assert.deepEqual([row.ownDomain.name, row.ownDomain.way, Boolean(row.ownDomain.doneAt)], ["mothpress.example", "allow", true]);
   await maker.sweep();
   assert.equal(asked.length, 2, "connected once");
+  assert.deepEqual(freeAsked.sort(), ["ink-press", "moth-press"], "every shop gets its free address, once");
+  assert.equal(stores.signups.rows.get("moth-press").freeAddress.name, "moth-press.shops.example");
+  assert.ok(stores.signups.rows.get("ink-press").ownDomain.doneAt, "no domain brought: nothing more to do");
 });
