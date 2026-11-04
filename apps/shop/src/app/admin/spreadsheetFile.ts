@@ -21,11 +21,13 @@ export async function spreadsheetText(file: Blob & { name?: string }, sheet?: st
   return (await readSpreadsheet(file, sheet)).text;
 }
 
+export type SpreadsheetRead = { text: string; sheet: string; sheets: string[] };
+
 /**
  * One sheet of the file as CSV text, with the workbook's visible sheets so a window can offer the others (plan 23.37).
  * With no sheet named, the first visible sheet that has anything in it is read. A text file has no sheets.
  */
-export async function readSpreadsheet(file: Blob & { name?: string }, sheet?: string): Promise<{ text: string; sheet: string; sheets: string[] }> {
+export async function readSpreadsheet(file: Blob & { name?: string }, sheet?: string): Promise<SpreadsheetRead> {
   const bytes = new Uint8Array(await file.arrayBuffer());
   const name = String(file.name || "").toLowerCase();
   if (bytes[0] === 0xd0 && bytes[1] === 0xcf && bytes[2] === 0x11 && bytes[3] === 0xe0) {

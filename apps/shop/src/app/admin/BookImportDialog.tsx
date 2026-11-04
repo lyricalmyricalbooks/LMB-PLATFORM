@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Download, Upload } from "lucide-react";
 import { adminApi } from "./api";
-import { IMPORT_COLUMNS, MATCHABLE_COLUMNS, type ImportField, type ImportPlan } from "./catalogImport";
+import { IMPORT_COLUMNS, MATCHABLE_COLUMNS, parseCsv, type ImportField, type ImportPlan } from "./catalogImport";
 import { ImportPreviewRows, MAX_FILE_BYTES } from "./importPreview";
 import { importRedirects, oldLinksMessage, planShopMove, SHAPE_WORDS, type ProductMove } from "./shopMove";
 import { inventoryLinkApi } from "./inventoryLinkApi";
@@ -13,8 +13,8 @@ import { normalizeCategories } from "../features/site/navItems";
 import { sellsBooks } from "./sells";
 import { useShopSells } from "./shopWords";
 import { useShopWords } from "./shopWords";
-import { SPREADSHEET_ACCEPT, readProblem, readSpreadsheet } from "./spreadsheetFile";
-import { SheetChoice } from "./SheetChoice";
+import { SPREADSHEET_ACCEPT, readProblem, readSpreadsheet, type SpreadsheetRead } from "./spreadsheetFile";
+import { FirstRows, SheetChoice } from "./SheetChoice";
 import { XLSX_TYPE, saveFile, toXlsx } from "./xlsxWriter";
 
 
@@ -48,11 +48,21 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
 
   const [stockMode, setStockMode] = useState<"leave" | "set">("leave");
   // The owner's matches for columns the shop didn't recognise (plan 23.36), by heading.
-  const [book, setBook] = useState<{ file: File; sheet: string; sheets: string[] } | null>(null);
+  const [book, setBook] = useState<{ file: File } & SpreadsheetRead | null>(null);
   const [columns, setColumns] = useState<Record<string, ImportField>>({});
   // A shop that doesn't sell books keeps the old shop's sizes and colours as option buttons (plan 10.6).
   const keepOptions = !sellsBooks(useShopSells());
   const [source, setSource] = useState<{ text: string; shopCategories: string[]; profiles: string[]; linkedBookIds: string[] } | null>(null);
+  // The first value under each heading, shown under its Match columns choice.
+  const samples = useMemo(() => {
+    const table = source ? parseCsv(source.text.split(/\r?\n/).slice(0, 60).join("\n")) : [];
+    const out: Record<string, string> = {};
+    (table[0] || []).forEach((h, i) => {
+      const value = table.slice(1).map((r) => (r[i] ?? "").trim()).find(Boolean);
+      if (value) out[h.trim()] = value.length > 40 ? `${value.slice(0, 39)}…` : value;
+    });
+    return out;
+  }, [source]);
   const work = plan ? plan.rows.filter(r => r.action === "create" || r.action === "update") : [];
 
   const replan = (src: typeof source, mode: "leave" | "set", cols = columns) => {
@@ -68,7 +78,7 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
     if (file.size > MAX_FILE_BYTES) { setReadError("That file is larger than 5 MB. Split it into smaller files and import them one at a time."); return; }
     try {
       const [text, settings, profiles, links] = await Promise.all([readSpreadsheet(file, sheet), adminApi.getPublicSettings().catch(() => null), Promise.resolve().then(() => adminApi.getShippingProfiles()).catch(() => []), inventoryLinkApi.links().catch(() => ({}))]);
-      setBook({ file, sheet: text.sheet, sheets: text.sheets });
+      setBook({ file, ...text });
       const defined = (settings as any)?.design?.categories;
       const shopCategories = Array.isArray(defined) ? normalizeCategories(defined).map((c: any) => c?.name).filter(Boolean) : [];
       // Books counted in the inventory app keep the stock it sets (adminApi.updateBook enforces it too).
@@ -165,6 +175,7 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
             {fileName && <span className="rp-mono" style={{ overflowWrap: "anywhere" }}>{fileName}</span>}
             {book && <SheetChoice sheets={book.sheets} sheet={book.sheet} disabled={busy} onChange={(s) => choose(book.file, readNotes, s)} />}
           </div>
+          {book && <FirstRows text={book.text} />}
           {/* Plan 23.11: the same address box as setup's Books page, for products found after the shop opened. */}
           {!fileName && <div className="rp-stack" style={{ borderTop: "var(--rp-hair) solid var(--rp-border)", paddingTop: 12 }}>
             <p className="rp-hint" style={{ margin: 0 }}>{w("Or bring your books straight from your old shop's web address: no file needed.")}</p>
@@ -175,7 +186,7 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
         {readError && <p role="alert" className="rp-hint" style={{ color: "var(--rp-danger)", margin: 0 }}>{readError}</p>}
 
         {plan && !results && !moved && (plan.unknownColumns?.length ?? 0) > 0 && (
-          <ColumnMatch unknown={plan.unknownColumns!} chosen={columns} used={plan.matchedFields ?? []} disabled={busy}
+          <ColumnMatch unknown={plan.unknownColumns!} samples={samples} chosen={columns} used={plan.matchedFields ?? []} disabled={busy}
             onChange={(next) => { setColumns(next); replan(source, stockMode, next); }} />
         )}
 
@@ -226,8 +237,8 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
  * Columns the shop didn't recognise (plan 23.36): each can be matched to a field, so a spreadsheet with its own
  * headings ("Cost to buyer", "Writer") still fills in prices and authors. Left as "Leave out", it is skipped.
  */
-function ColumnMatch({ unknown, chosen, used, disabled, onChange }: {
-  unknown: string[]; chosen: Record<string, ImportField>; used: ImportField[]; disabled: boolean;
+function ColumnMatch({ unknown, samples, chosen, used, disabled, onChange }: {
+  unknown: string[]; samples: Record<string, string>; chosen: Record<string, ImportField>; used: ImportField[]; disabled: boolean;
   onChange: (next: Record<string, ImportField>) => void;
 }) {
   const matched = unknown.filter((h) => chosen[h]).length;
@@ -240,6 +251,7 @@ function ColumnMatch({ unknown, chosen, used, disabled, onChange }: {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 260px), 1fr))", gap: 8 }}>
         {unknown.map((heading) => (
           <SelectField key={heading} label={heading} value={chosen[heading] ?? ""} disabled={disabled}
+            hint={samples[heading] ? `e.g. ${samples[heading]}` : undefined}
             onChange={(e) => {
               const next = { ...chosen };
               if (e.target.value) next[heading] = e.target.value as ImportField; else delete next[heading];

@@ -18,8 +18,8 @@ import {
 } from "./giftCardsAdmin";
 import { batches, readGiftCardFile, type GiftCardFile } from "./giftCardMove";
 import { shopDate } from "../features/site/preorder";
-import { SPREADSHEET_ACCEPT, readProblem, readSpreadsheet } from "./spreadsheetFile";
-import { SheetChoice } from "./SheetChoice";
+import { SPREADSHEET_ACCEPT, readProblem, readSpreadsheet, type SpreadsheetRead } from "./spreadsheetFile";
+import { FirstRows, SheetChoice } from "./SheetChoice";
 
 type Filter = "all" | GiftCardStatus["key"];
 const LINK = { color: "inherit", textDecoration: "underline", textUnderlineOffset: 2 } as const;
@@ -128,12 +128,12 @@ export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone:
   const [error, setError] = useState("");
   const [result, setResult] = useState<null | { added: number; emailed: number; emailFailed: number; skipped: { line: number; reason: string }[] }>(null);
 
-  const [book, setBook] = useState<{ file: File; sheet: string; sheets: string[] } | null>(null);
+  const [book, setBook] = useState<{ file: File } & SpreadsheetRead | null>(null);
   const choose = async (picked: File | undefined, sheet?: string) => {
     if (!picked) return;
     setError(""); setResult(null); setName(picked.name); if (!sheet) setBook(null);
     if (picked.size > 5 * 1024 * 1024) { setFile(null); setError("That file is larger than 5 MB. Split it and bring the parts one at a time."); return; }
-    try { const read = await readSpreadsheet(picked, sheet); setBook({ file: picked, sheet: read.sheet, sheets: read.sheets }); setFile(readGiftCardFile(read.text, shopDate())); }
+    try { const read = await readSpreadsheet(picked, sheet); setBook({ file: picked, ...read }); setFile(readGiftCardFile(read.text, shopDate())); }
     catch (err) { setFile(null); setError(readProblem(err)); }
   };
 
@@ -202,6 +202,7 @@ export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone:
           {name && <span className="rp-mono" style={{ overflowWrap: "anywhere" }}>{name}</span>}
           {book && <SheetChoice sheets={book.sheets} sheet={book.sheet} disabled={busy} onChange={(s) => void choose(book.file, s)} />}
         </div>
+        {book && <FirstRows text={book.text} />}
         {!file && <p className="rp-hint" style={{ margin: 0 }}>In your old shop, open its gift cards page and export them as a CSV or Excel file.</p>}
         {error && <p role="alert" className="rp-error-text" style={{ margin: 0 }}>{error}</p>}
         {file && (file.problems.length ? (

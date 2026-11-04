@@ -65,6 +65,12 @@ describe("BookImportDialog", () => {
     await act(async () => { input.dispatchEvent(new Event("change", { bubbles: true })); });
     await flush();
     expect(document.body.textContent).toContain("0 of 2 matched");
+    // Each choice shows the column's first value, and the top of the file can be unfolded (plan 23.39).
+    expect(document.body.textContent).toContain("e.g. 22.50");
+    const glance = document.querySelector("details.rp-first-rows")!;
+    expect(glance.querySelector("summary")!.textContent).toBe("First rows of the file");
+    expect([...glance.querySelectorAll("th")].map(t => t.textContent)).toEqual(["Book", "Cost to buyer"]);
+    expect([...glance.querySelectorAll("td")].map(t => t.textContent)).toEqual(["New Poems", "22.50"]);
     expect(document.body.textContent).toContain("Nothing can be imported");
     const pick = async (label: string, value: string) => {
       const select = [...document.querySelectorAll("select")].find(s => s.closest("label, div")?.textContent?.startsWith(label))!;
