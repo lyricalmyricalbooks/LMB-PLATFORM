@@ -370,3 +370,19 @@ test("endpoints: every QuickBooks address in this folder comes from endpoints.js
     assert.ok(!/intuit\.com|\/v3\/company/.test(text.replace(/^\s*\/\/.*$/gm, "")), `${file} spells a QuickBooks address`);
   }
 });
+
+test("connect: a company another shop took while this one was away stays that shop's", async () => {
+  const t = await setup();
+  await connect(t);
+  assert.equal((await t.call("accounting.disconnect")).status, 200);
+  // The other shop connects the same company while this one is disconnected: allowed, it is free.
+  const theirs = await connect(t, { shopId: OTHER, key: OTHER_KEY, code: "code-2" });
+  assert.equal(new URL(theirs.headers.Location).searchParams.get("quickbooks"), "connected");
+  // This shop's old, disconnected record for the company must not let it back in beside them.
+  const again = await connect(t, { code: "code-3" });
+  assert.equal(new URL(again.headers.Location).searchParams.get("quickbooks"), "in_use");
+  assert.equal((await t.call("accounting.status")).body.connected, false);
+  // Intuit's reconnect link for the company points at the shop that holds it now.
+  const reconnect = await handleAccounting({ method: "GET", path: "/quickbooks/reconnect", query: { realmId: REALM } }, { service: t.service });
+  assert.equal(reconnect.body.reconnect, OTHER);
+});

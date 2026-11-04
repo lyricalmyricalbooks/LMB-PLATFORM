@@ -30,7 +30,8 @@
 //   qbo          createQuickBooksApi(...) (quickbooksApi.js)
 //   registry     getShop(shopId), recordEvent(shopId, entry)
 //   auditLog     write(shopId, id, entry)
-//   connections  get(shopId), set(shopId, record), list(), findByRealm(mode, realmId) -> record with shopId | null
+//   connections  get(shopId), set(shopId, record), list(), byRealm(mode, realmId) -> every record (with its shopId) for
+//                that company, connected or not: a shop that disconnected keeps its record
 //   states       put(state, { shopId, mode, returnUrl, expiresAt }); take(state) -> that record | null (once only)
 //   sent         get(key), put(key, record)
 //   notifyOwner  (row, { kind, subject, text }) -> Promise; the owner's email (services/email), optional
@@ -569,8 +570,10 @@ export function createAccountingService({ qbo, registry, auditLog, connections, 
       const realmId = String(query.realmId ?? "");
       if (!QB_ID.test(realmId)) return backTo(saved.returnUrl, "failed");
       // One company per shop and one shop per company: anything else could put one press's sales in another's books.
-      const holder = await connections.findByRealm(saved.mode, realmId);
-      if (holder && holder.shopId !== row.shopId && connected(holder)) return backTo(saved.returnUrl, "in_use");
+      // Every record for the company is looked at, so this shop's own old (disconnected) one can't hide another
+      // shop's live one.
+      const holders = await connections.byRealm(saved.mode, realmId);
+      if (holders.some((holder) => holder.shopId !== row.shopId && connected(holder))) return backTo(saved.returnUrl, "in_use");
       const existing = await connections.get(row.shopId);
       if (connected(existing) && existing.realmId !== realmId) return backTo(saved.returnUrl, "other_company");
       let granted;
@@ -608,7 +611,9 @@ export function createAccountingService({ qbo, registry, auditLog, connections, 
       const realmId = String(query.realmId ?? "");
       if (QB_ID.test(realmId)) {
         for (const mode of ["live", "test"]) {
-          const conn = await connections.findByRealm(mode, realmId);
+          const holders = await connections.byRealm(mode, realmId);
+          // The shop connected to the company now, else the last one that was.
+          const conn = holders.find(connected) ?? holders.sort((a, b) => String(b.connectedAt ?? "").localeCompare(String(a.connectedAt ?? "")))[0];
           const row = conn ? await registry.getShop(conn.shopId) : null;
           if (row) return { status: 302, headers: { Location: adminUrl(row) }, body: { reconnect: row.shopId } };
         }
