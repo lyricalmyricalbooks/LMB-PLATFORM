@@ -80,5 +80,12 @@ payment icons (`features/site/paymentIcons.tsx`); the Google button on the platf
 | `dhl` | DHL | Deutsche Post AG | Simple Icons 16.36.0 (CC0), single colour #D40511 on #FFCC00 | [rules](https://www.dpdhl-brands.com/dhl/en/guides/design-basics/logo-and-claim.html) |
 
 Google Merchant Center and Google Business Profile have no public single-mark artwork, so their screens show the Google G
-with the product's name beside it. Canada Post, Shippo and Klaviyo are not in the kit yet: add their own artwork here
-before showing them.
+with the product's name beside it. Shippo and Klaviyo are not in the kit yet: add their own artwork here before showing
+them.
+
+**Canada Post stays out of the kit on purpose** (checked 4 November 2026,
+https://www.canadapost-postescanada.ca/cpc/en/our-company/news-and-media/media-centre/canada-post-logos.page). Its
+postmark is only for sponsors, media and schools. A shop that ships with it may use the wide "Shipped by Canada Post"
+logo, but on a website that logo must always be a link to canadapost.ca, must never be placed on another shape, and
+must sit on a page that talks about Canada Post. A small square tile breaks those rules. If it is ever shown, use their
+downloaded "Shipped by" file unchanged, as a link, next to the shipping choice.
