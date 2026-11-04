@@ -734,8 +734,11 @@ registerActions({
 const googleSheetScreen = lazyFeature(() => import('./features/google-sheet.js'), [], {
   onError: (e) => { console.warn('Google Sheet failed to load', e); showToast('⚠ The Google Sheet page couldn’t load. Check your connection and try again.', 'err', 7000); },
 });
+// The shop's last answer about the sheet, for the to-do list (attentionInput).
+let _googleSheetStatus;
 function googleSheetDeps() {
   return {
+    onStatus: (status) => { _googleSheetStatus = status; try { refreshAttentionSurfaces(); } catch (_) { /* repaints next time */ } },
     profile: shopProfile,
     getIdToken: () => window._fbGetIdToken(),
     books: () => BOOKS,
@@ -1172,8 +1175,8 @@ import { resolveCountryCode } from './lib/countries.js';
 import { PUBLISHER_ONLY_TABS, AUTHOR_ONLY_TABS, helpTabOpenFor, helpQueryWords, helpMatches } from './lib/help-guide.js';
 import { readStoredList } from './lib/stored-list.js';
 import { STORE_REVERSAL_PENDING_KEY } from './lib/store-reversals.js';
-import { DEFAULT_SHOP_PROFILE, fileStem, hasWebsite, readShopProfile, shopProfile, switchOn } from './lib/shop-profile.js';
-import { googleSheetApplies } from './lib/google-sheet.js';
+import { DEFAULT_SHOP_PROFILE, fileStem, hasWebsite, readShopProfile, runsOnColophon, shopProfile, switchOn } from './lib/shop-profile.js';
+import { googleSheetApplies, sheetSignalInput } from './lib/google-sheet.js';
 import { guideApplies, guideHtml, guideSteps, readGuide, showGuide, writeGuide } from './lib/setup-guide.js';
 import { readReady, readyApplies, readyHtml, readyLines, showReady, writeReady } from './lib/stockroom-ready.js';
 import { catalogGroups, freeGridGroupId, freeItemId, gridOffers, groupOf, sizeItem } from './lib/product-groups.js';
@@ -7320,6 +7323,9 @@ export function attentionInput() {
       connected: !!sheetsUrl,
       deployedVersion: _sheetsDeployedVersion,
       expectedVersion: EXPECTED_SCRIPT_VERSION,
+      // A Colophon shop hides the older script's panel, so its lines never apply there; with both apps the sheet
+      // comes from the shop's one Google sign-in instead.
+      ...(runsOnColophon(shopProfile) ? { colophon: true, google: googleSheetApplies(shopProfile) && _googleSheetStatus !== undefined ? sheetSignalInput(_googleSheetStatus) : null } : {}),
     },
     sync: {
       online: typeof navigator === 'undefined' || navigator.onLine !== false,

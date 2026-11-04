@@ -15,7 +15,8 @@ let _note = '';
 let _autoTried = false;
 
 /**
- * `deps`: { profile, getIdToken, books, states, isPractice, toast, now, fetchFn, win }. Paints `#settings-sec-google`,
+ * `deps`: { profile, getIdToken, books, states, isPractice, toast, onStatus, now, fetchFn, win }; `onStatus` hears each
+ * new answer (main.js passes it to the to-do list). Paints `#settings-sec-google`,
  * asks the shop for the Google link's state, and sends by itself when the sheet is due (once per page load).
  */
 async function openGoogleSheet(deps) {
@@ -23,6 +24,7 @@ async function openGoogleSheet(deps) {
   if (!el) return;
   paint(el, deps);
   _status = await ask(deps, { step: 'status' });
+  deps.onStatus?.(_status);
   paint(el, deps);
   if (!_autoTried && sheetDue(_status, (deps.now || Date.now)())) {
     _autoTried = true;
@@ -37,7 +39,7 @@ async function openGoogleSheet(deps) {
 async function refreshGoogleSheetIfDue(deps) {
   if (_autoTried) return false;
   _autoTried = true;
-  if (_status === undefined) _status = await ask(deps, { step: 'status' });
+  if (_status === undefined) { _status = await ask(deps, { step: 'status' }); deps.onStatus?.(_status); }
   if (!sheetDue(_status, (deps.now || Date.now)())) return false;
   await sendGoogleSheet(deps, { quiet: true });
   return true;
@@ -65,6 +67,7 @@ async function sendGoogleSheet(deps, { quiet = false } = {}) {
     _note = 'Your sheet was deleted in Google Drive. Send again to make a new one.';
   } else if (answer) {
     _status = { ..._status, sheet: { url: answer.url, writtenAt: answer.writtenAt, rows: answer.rows, sales: answer.sales ?? null, expenses: answer.expenses ?? null } };
+    deps.onStatus?.(_status);
     if (!quiet) deps.toast?.('Your Google Sheet is up to date', 'success');
   }
   if (el) paint(el, deps);

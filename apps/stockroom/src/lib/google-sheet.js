@@ -99,3 +99,8 @@ export function sentWords(writtenAt, now = Date.now()) {
   const days = Math.round(hours / 24);
   return `Sent ${days} day${days === 1 ? '' : 's'} ago`;
 }
+
+/** What the to-do list needs to know about the sheet: its card state, whether one was ever made, and when it was sent. */
+export function sheetSignalInput(status) {
+  return { state: sheetCardState(status), hasSheet: !!sheetUrl(status), writtenAt: status?.sheet?.writtenAt || '' };
+}

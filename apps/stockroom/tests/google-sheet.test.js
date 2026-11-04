@@ -2,7 +2,7 @@
 // The stockroom's Google Sheet on a Colophon shop (docs/plans/stockroom-google-sheet.md): the Sales lines, the card's
 // states, sending through the shop's server, refreshing by itself, and never touching the older sheet route.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { expensesSheetLines, googleSheetApplies, salesSheetLines, sheetCardState, sheetDue, sheetUrl, sentWords, REFRESH_AFTER_MS } from '../src/lib/google-sheet.js';
+import { expensesSheetLines, googleSheetApplies, salesSheetLines, sheetSignalInput, sheetCardState, sheetDue, sheetUrl, sentWords, REFRESH_AFTER_MS } from '../src/lib/google-sheet.js';
 import { openGoogleSheet, sendGoogleSheet, refreshGoogleSheetIfDue, __resetGoogleSheet } from '../src/features/google-sheet.js';
 
 const PROFILE = {
@@ -66,15 +66,17 @@ describe('the Sales lines and the card', () => {
     expect(sheetDue({ ...READY, sheet: null }, NOW)).toBe(true);
     expect(sheetDue({ enabled: true, connected: true, extrasChosen: [] }, NOW)).toBe(false);
     expect(sentWords(READY.sheet.writtenAt, NOW)).toBe('Sent 5 minutes ago');
+    expect(sheetSignalInput(READY)).toEqual({ state: 'ready', hasSheet: true, writtenAt: READY.sheet.writtenAt });
   });
 });
 
 describe('the Google Sheet tab', () => {
   let calls;
   let answers;
+  let heard;
   const deps = () => ({
     profile: PROFILE, getIdToken: async () => 'tok', books: () => BOOKS, states: () => STATES,
-    isPractice: (b) => b.title === 'Test', toast: vi.fn(), now: () => NOW,
+    isPractice: (b) => b.title === 'Test', toast: vi.fn(), now: () => NOW, onStatus: (st) => heard.push(st),
     fetchFn: async (url, init) => {
       const body = JSON.parse(init.body);
       calls.push({ url, body, auth: init.headers.Authorization });
@@ -85,6 +87,7 @@ describe('the Google Sheet tab', () => {
   beforeEach(() => {
     __resetGoogleSheet();
     calls = [];
+    heard = [];
     answers = { status: READY, sheetSync: { available: true, url: READY.sheet.url, writtenAt: '2026-11-04T12:00:00Z', rows: 3, sales: 2 } };
     document.body.innerHTML = '<div id="google-sheet-card"></div>';
   });
@@ -108,6 +111,8 @@ describe('the Google Sheet tab', () => {
     expect(calls[1].body.expenses).toHaveLength(2);
     expect(calls[1].body.rows).toBeUndefined();
     await vi.waitFor(() => expect(card().textContent).toContain('Sent just now'));
+    // The to-do list hears the opening answer and the fresh send.
+    expect(heard.map((h) => h.sheet?.writtenAt)).toEqual([READY.sheet.writtenAt, '2026-11-04T12:00:00Z']);
   });
 
   it('without Google or without Drive, it points to Settings › Google and sends nothing', async () => {
