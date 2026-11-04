@@ -171,3 +171,18 @@ test("Show older reaches every event, past the newest thousand the real registry
   assert.equal(total, 1101);
   assert.equal(sawBilling, true, "the oldest event is reachable");
 });
+
+test("a live shop's sign-in safety lines come from its own audit log, under their own kind", async () => {
+  const s = await sources();
+  const { fakeShopData } = await import("../accounts/fakes.js");
+  const shopData = fakeShopData();
+  await shopData.set(SHOP, "audit-log/a1", { type: "security", message: "Two-step sign-in turned off for owner@example.com", createdAt: t(50) });
+  await shopData.set(SHOP, "audit-log/a2", { type: "orders", message: "Brought 3 past orders over", createdAt: t(51) });
+  const timeline = createTimeline({ admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: "admin@example.com" }), ...s, shopData, now: () => new Date(NOW) });
+  const found = await timeline.timeline(ADMIN, { shopId: SHOP, kinds: ["security"] });
+  assert.deepEqual(found.entries.map((e) => [e.kind, e.words]), [["security", "Two-step sign-in turned off for owner@example.com"]]);
+  assert.ok(TIMELINE_KINDS.includes("security"));
+  // A shop whose records can't be read keeps the rest of its timeline.
+  const broken = createTimeline({ admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: "admin@example.com" }), ...s, shopData: { find: async () => { throw new Error("down"); } }, now: () => new Date(NOW) });
+  assert.ok((await broken.timeline(ADMIN, { shopId: SHOP })).entries.length > 0);
+});

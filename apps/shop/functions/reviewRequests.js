@@ -5,6 +5,7 @@
 // sends twice, and a failed send is released for at most MAX_ATTEMPTS tries.
 // Bounded: one single-field range query on `shippedAt` (no composite index), ≤200 orders, ≤50 sends.
 
+const { emailLanguage } = require("./emailFrench");
 const DAY = 86400000;
 const WINDOW_DAYS = 30; // orders shipped longer ago than delay + 30 days are never asked
 const MAX_SCAN = 200;
@@ -84,6 +85,7 @@ async function runReviewRequests(deps) {
       continue;
     }
     const esc = deps.escapeHtml;
+    const french = emailLanguage(order) === "fr";
     const list = `<ul style="margin:16px 0;padding-left:18px;">${books.map(b => `<li style="margin:6px 0;"><a href="${esc(b.url)}">${esc(b.title)}</a></li>`).join("")}</ul>`;
     const compiled = deps.compileEmailTemplate("review_request", notificationSettings, {
       customer_name: String(order.customer?.name || "there").slice(0, 80),
@@ -91,7 +93,7 @@ async function runReviewRequests(deps) {
       book_titles: books.map(b => b.title).join(", "),
       items_table: list,
       button_url: books[0].url,
-    }, `<p style="margin-top:28px;font-size:11px;color:#888;">Don't want emails like this? <a href="${esc(deps.unsubscribeUrl(email))}">Unsubscribe</a>.</p>`);
+    }, `<p style="margin-top:28px;font-size:11px;color:#888;">${french ? "Vous ne voulez plus recevoir ce genre de courriel?" : "Don't want emails like this?"} <a href="${esc(deps.unsubscribeUrl(email))}">${french ? "Se désabonner" : "Unsubscribe"}</a>.</p>`, { language: french ? "fr" : "en" });
     try {
       await deps.sendEmail({ to: email, subject: compiled.subject, html: compiled.html });
       sent += 1;

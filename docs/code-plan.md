@@ -847,10 +847,35 @@ control room's shop timeline ("Emailed the press: …"), from the sent log.
 | 25.3 | platform | **Open again and staying** (`shop-reopened` when a card reopens a paused shop, `cancel-undone` when the press keeps a plan they had cancelled) | `billing.test.js`, French twin tests | built (4 November 2026) |
 | 25.4 | shop | **Two-step sign-in turned on or off**: the person and the owner are emailed when two-step changes on a shop admin sign-in (the server reads the real state, so a fake call sends nothing) | `functions/twoStepBackup.test.js` || built (4 November 2026) |
 | 25.5 | shop | **Out for delivery and delivered** for carrier parcels: the tracking updates already reach the shop; an editable email for each, once per order, off until the owner turns it on in Notifications | shop functions tests || built (4 November 2026) |
-| 25.6 | shop | **Picked up**: an editable email when a pickup order is marked collected, as a receipt | shop functions tests | later: low value, the order email is already the receipt |
+| 25.6 | shop | **Picked up**: an editable email when a pickup order is marked collected, as a receipt | shop functions tests | built (4 November 2026): on by default, editable in English and French |
 | 25.7 | shop | **Return request received** to the shopper (today only the owner hears) | shop functions tests || built (4 November 2026) |
 | 25.8 | shop | **Payment failed** to the shopper when a delayed bank payment fails, with a link to try again | shop functions tests || built (4 November 2026) |
-| 25.9 | shop | **Shopper emails in French**: the order already keeps the shopper's language; every default shopper email gets a French twin, chosen per order, and the owner can edit both | `emailTemplateChecks.test.ts` | |
+| 25.9 | shop | **Shopper emails in French**: the order already keeps the shopper's language; every default shopper email gets a French twin, chosen per order, and the owner can edit both | `emailFrenchDefaults.test.ts`, `functions/emailOutbox.test.js` | built (4 November 2026): every email that goes with an order (and its totals, delivery and download words) follows the order's language; welcome, contact reply and abandoned cart stay in the main words. The team's two-step and backup-code emails follow the shop's language |
+
+## Phase 26: the app store (planned 4 November 2026)
+
+Julian asked how to let outside apps link to Colophon, the way Shopify's App Store does. The plan copies Shopify's
+pieces (app makers, install with permission, the app connection, alerts, app pages and blocks, app billing, review and
+listing) and fits them to one Firebase project per shop: apps never get a shop's own keys; every call goes through the
+platform, which checks the app's key and its permissions first. Details and reasons: `docs/app-store.md`. Built in order,
+without asking (Julian's standing rule).
+
+| # | Where | What | Check | Status |
+|---|---|---|---|---|
+| 26.1 | platform | **App makers register apps.** Any signed-in person with a confirmed email registers up to 10 apps: name, tagline, description, website, support email, the exact return addresses, the alerts address and what it asks to see or change, from a fixed list in plain words (`services/apps/scopes.js`). The app gets an id and a secret shown once (only its fingerprint is kept); the secret can be replaced. Send for review; platform admins approve (the approved copy is what the store shows), send back with a reason, or take it off the store. Later edits wait for review while the approved copy stays listed. Public list of approved apps and of permissions | `services/apps/apps.test.js` | built (4 November 2026) |
+| 26.2 | platform | **Install with permission.** Permission page `/account/install.html` (accounts/install.js), `services/apps/installs.js`. The press clicks Install, signs in, picks the shop and sees "This app wants to: see your orders…"; only the shop's owner says yes. A one-time code (10 minutes, single use, tied to the return address) is swapped for a key that works for that one shop and those permissions. Remove takes the key back at once. Each install and removal goes in the shop's audit log and the registry | `services/apps/installs.test.js`, page checks (`plain-words/`) | built (4 November 2026) |
+| 26.3 | platform | **The app connection, reading.** `GET /api/apps/v1/…` on the platform server (`services/apps/connection.js`): shop, products, stock and paid orders, read with the shop's key, each call checked against the permissions, at most 120 calls a minute per app and shop. Never cost prices, payment details, private notes or test orders; an order's email and phone only with the customers permission | `services/apps/connection.test.js`, `server/world.test.js` | built (4 November 2026) |
+| 26.3b | shop + platform | **The app connection, changing.** Add tracking and mark sent, change stock, add and change products, through the shop's own rules (a shop function the platform calls), so packing, address review, holds and disputes are never skipped by an app | shop functions tests, apps tests | |
+| 26.4 | shop + platform | **Alerts to apps.** Order placed, paid, shipped or refunded, product changed, stock changed, app removed: the shop tells the platform, which sends a signed message to each app that asked, retries for a day, then pauses the alert and tells the app maker | shop functions tests, apps tests | |
+| 26.5 | shop | **Apps in the shop admin.** Settings › Apps: what is installed, what each one can see, Remove, and the app's own page shown inside the admin (like the stockroom inside the combined admin) with a short-lived sign-in the app can check | shop tests, browser check | |
+| 26.6 | shop | **App blocks on the website.** An app can offer blocks (reviews, a booking form); the press places and styles them in Studio like any other section, so the site stays fully customizable (Julian's rule) | designer coverage tests | |
+| 26.7 | platform | **App charges on the Colophon bill.** An app can charge a monthly price or one-off amount the owner approves; it lands on the press's normal bill (Stripe), the platform keeps a share set in the control room, and removing the app stops the charge | billing tests (Stripe test mode) | |
+| 26.8 | platform | **The app store pages.** Public store on the platform site (search, categories, screenshots, price, permissions in plain words, reviews by presses who installed it), the app maker's own page, and emails for approved or sent back | page tests, plain-words and French-twin tests | |
+| 26.9 | platform | **Privacy with apps.** A shopper's "delete my data" request is passed to every installed app; 48 hours after removal the app is told to delete the shop's data; the developer terms cover Canada and Quebec | apps tests; lawyer question | |
+| 26.11 | platform | **Shipping apps** (Julian's pick, 4 November 2026). First a ShipStation-style order pull: the shipping service collects paid orders and sends back tracking, through the app connection with `read_orders` + `write_orders`; then labels from Canadian discount couriers. Built as Colophon's own app on the same plumbing | apps tests with a pretend courier | |
+| 26.12 | platform | **Email marketing apps** (Julian's pick). Customers who agreed to emails, and what they bought, flow to Mailchimp or Klaviyo; unsubscribes come back; abandoned-bag reminders use the alerts. Only newsletter-confirmed people are sent | apps tests with a pretend email list | |
+| 26.13 | platform | **Zapier** (Julian's pick). Triggers (new order, new customer, product changed) from the alerts, actions (add a product, add tracking) through the app connection, so a press can link thousands of other apps without code. Zapier's own listing needs a Zapier developer account (real-accounts checklist) | apps tests; Zapier's own test tool | |
+| 26.10 | platform | **Control room views.** Apps waiting for review, installs per app, apps with failing alerts, take an app off the store (with the control-room thread) | control-room tests | |
 
 ## Rules for every pull request
 
@@ -861,6 +886,8 @@ control room's shop timeline ("Emailed the press: …"), from the sent log.
 - Update the Status column here in the same pull request that finishes an item.
 
 ## Open decisions
+
+- **The platform's share of app charges** (26.7, 4 November 2026): Shopify keeps 0% of an app maker's first US$1 million a year, then 15%. Built as a control-room setting, 0% until Julian picks a number.
 
 - **Where setup lives before a press pays** (Phase 18, 30 October 2026): setup mode in the real admin with one record per press (recommended), a full practice database (breaks one shop, one database), or the browser only. Also confirm: no unsubscribed shop, and the 14 free days start when the shop opens.
 

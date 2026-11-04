@@ -441,6 +441,17 @@ test("the account's state is kept in the registry and logged once, in the regist
   assert.equal(auditLog.entries.get(SHOP).get("payments-account-evt_4").kind, "payments.account-updated");
 });
 
+test("account.updated keeps the merchant category Stripe holds, so the control room can check it", async () => {
+  const { service, registry } = await world();
+  const event = { id: "evt_mcc", livemode: true, account: "acct_moth", type: "account.updated", data: { object: { id: "acct_moth", charges_enabled: true, business_profile: { mcc: "5651" } } } };
+  await service.stripeEvent(signed(event).headers, signed(event).raw);
+  assert.equal((await registry.getShop(SHOP)).payments.mcc, "5651");
+  // An event without a category leaves the kept one alone.
+  const later = { ...event, id: "evt_mcc2", data: { object: { id: "acct_moth", charges_enabled: false } } };
+  await service.stripeEvent(signed(later).headers, signed(later).raw);
+  assert.equal((await registry.getShop(SHOP)).payments.mcc, "5651");
+});
+
 test("an older account.updated arriving late never turns cards back on after Stripe paused them", async () => {
   const email = fakeEmail();
   const { service, registry } = await world({ email });
@@ -544,7 +555,8 @@ test("setup's step 13 makes one Standard account through the service, saved with
   await step.act({ shop });
   assert.equal(await step.check({ shop }), true);
   const { payments } = await registry.getShop(SHOP);
-  assert.deepEqual(payments, { provider: "stripe", accountId: "acct_fake1", mode: "live" });
+  // The category it was filed under is kept, for the control room's check against what the shop sells.
+  assert.deepEqual(payments, { provider: "stripe", accountId: "acct_fake1", mode: "live", mcc: "5942" });
   assert.deepEqual((await registry.getProfile(SHOP)).payments, { provider: "stripe", mode: "platform", stripe: { accountId: "acct_fake1", publishableKey: "pk_live_platformExample" } });
   const create = stripe.requests.find((r) => r.path === "/v1/accounts");
   // Standard's behaviour, written as Stripe's controller settings, not the deprecated account type.

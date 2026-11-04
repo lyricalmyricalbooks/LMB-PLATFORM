@@ -44,7 +44,7 @@ function problemsIn(label, text, allowed = ALLOWED) {
 
 // ── The pages, as a press reads them ───────────────────────────────────────────────────────────────────────────────
 
-const PAGES = ["signup/index.html", "accounts/index.html", "accounts/billing.html", "accounts/keep.html", "help/index.html", "experts/index.html", "status/index.html", "terms/index.html", "waitlist/index.html"];
+const PAGES = ["signup/index.html", "accounts/index.html", "accounts/billing.html", "accounts/keep.html", "accounts/install.html", "help/index.html", "experts/index.html", "status/index.html", "terms/index.html", "waitlist/index.html"];
 
 test("every page a press opens says nothing technical", () => {
   const found = PAGES.flatMap((page) => problemsIn(page, visibleText(read(page))));
