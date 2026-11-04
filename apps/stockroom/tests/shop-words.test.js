@@ -71,12 +71,12 @@ describe('shop words', () => {
       if (!parent || parent.closest('script, style, textarea, template, code, pre, [data-keep-words]')) continue;
       const text = node.nodeValue.trim();
       if (text === 'Books, Research & Reference') continue;
-      if (/(?<![-\w])(books?|authors?)\b/i.test(text)) left.push(text);
+      if (/(?<![-\w])(books?|authors?|copies|ISBNs?|bookshops?)\b/i.test(text)) left.push(text);
     }
     for (const el of document.body.querySelectorAll('[placeholder], [title], [aria-label], [data-tip]')) {
       for (const name of ['placeholder', 'title', 'aria-label', 'data-tip']) {
         const value = el.getAttribute(name);
-        if (value && /(?<![-\w])(books?|authors?)\b/i.test(value)) left.push(`${name}: ${value}`);
+        if (value && /(?<![-\w])(books?|authors?|copies|ISBNs?|bookshops?)\b/i.test(value)) left.push(`${name}: ${value}`);
       }
     }
     expect(left).toEqual([]);

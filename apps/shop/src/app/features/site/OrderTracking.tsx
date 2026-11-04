@@ -1,4 +1,4 @@
-import { orderChargedTotal } from "./orderMoney";
+import { orderChargedTotal, orderGiftCardRows } from "./orderMoney";
 import { digitalEntries, downloadBookIds, UNREADABLE_BOOK, type DigitalEntry } from "./digitalLine";
 import { publicApi } from "../../lib/publicApi";
 import { orderLineNotes } from "./orderLineNotes";
@@ -515,6 +515,7 @@ function OrderTrackingContent() {
                   {order.discount > 0 && <div className="fm-track-row fm-success-text"><span className="fm-track-mono">{getCopy(settings?.design, "summaryDiscount")}</span><span className="font-mono">−{orderFormatPrice(order.discount)}</span></div>}
                   <div className="fm-track-row"><span className="fm-track-mono">{getCopy(settings?.design, "summaryShipping")}</span><span className="font-mono">{order.shipping > 0 ? orderFormatPrice(order.shipping) : getCopy(settings?.design, "coFree")}</span></div>
                   {order.tax > 0 && <div className="fm-track-row"><span className="fm-track-mono">{getCopy(settings?.design, "summaryTax")}</span><span className="font-mono">{orderFormatPrice(order.tax)}</span></div>}
+                  {orderGiftCardRows(order).map((card, n) => <div key={`gc-${n}`} className="fm-track-row"><span className="fm-track-mono">{getCopy(settings?.design, "coGiftCardSummary", { last4: card.last4 })}</span><span className="font-mono">−{orderFormatPrice(card.cad)}</span></div>)}
                   <div className="fm-track-total"><span className="fm-track-mono">{getCopy(settings?.design, "summaryTotal")}</span><span className="fm-track-display text-3xl sm:text-4xl">{orderChargedTotal(order, formatPrice)}</span></div>
                 </div>
               </section>

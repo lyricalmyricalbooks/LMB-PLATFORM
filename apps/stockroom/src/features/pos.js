@@ -44,6 +44,7 @@ import { BOOKS, states, activeBook, withActiveBook } from '../core/store.js';
 import { recordOrder, voidHistEntry } from './sales-ledger.js';
 import { updateDash } from './dashboard.js';
 import { escapeHtml } from '../lib/html.js';
+import { words } from '../lib/shop-words.js';
 import { closeM, confirmDialog, openM, promptDialog } from '../lib/modal.js';
 import { buildPaymentMeta, getBookCurrencyCode, getSym, normalizeCurrencyCode, roundCents } from '../lib/money.js';
 import { posOversellSummary, posStockView } from '../lib/pos-stock.js';
@@ -247,7 +248,7 @@ function posSyncCheckoutAvailability(hasItems) {
     if (!btn) continue;
     btn.disabled = !hasItems;
     if (hasItems) btn.removeAttribute('title');
-    else btn.setAttribute('title', 'Add a book to the cart first');
+    else btn.setAttribute('title', words('Add a book to the cart first'));
   }
 }
 
@@ -292,7 +293,7 @@ function posCartEmptyHtml() {
   return `<div class="empty-state pos-cart-empty">
       <div class="e-icon" aria-hidden="true">🛒</div>
       Nothing in the cart yet.
-      <span>Tap <strong>+</strong> on a book to start a sale, or press <kbd>/</kbd> to search.</span>
+      <span>${words('Tap')} <strong>+</strong> ${words('on a book to start a sale, or press')} <kbd>/</kbd> ${words('to search.')}</span>
     </div>`;
 }
 
@@ -384,7 +385,7 @@ function posRenderOversellNote(hostId, summary) {
     return;
   }
   host.hidden = false;
-  host.innerHTML = `<span class="pos-oversell-ico" aria-hidden="true">⚠</span><span><strong>More copies than you have on hand.</strong> ${escapeHtml(summary.message)} ${escapeHtml(summary.note)}</span>`;
+  host.innerHTML = `<span class="pos-oversell-ico" aria-hidden="true">⚠</span><span><strong>${words('More copies than you have on hand.')}</strong> ${escapeHtml(summary.message)} ${escapeHtml(summary.note)}</span>`;
 }
 
 function renderPOS() {
@@ -430,12 +431,12 @@ function renderPOS() {
     (b.author || '').toLowerCase().includes(posSearchQuery)
   );
   if (!booksArr.length && posSearchQuery) {
-    grid.innerHTML = `<div class="pos-search-empty">No books match <strong>&ldquo;${escapeHtml(posSearchQuery)}&rdquo;</strong>.<span class="pos-search-empty-hint">Clear the search to see every book.</span></div>`;
+    grid.innerHTML = `<div class="pos-search-empty">${words('No books match')} <strong>&ldquo;${escapeHtml(posSearchQuery)}&rdquo;</strong>.<span class="pos-search-empty-hint">${words('Clear the search to see every book.')}</span></div>`;
   } else {
     grid.innerHTML = booksArr.map(posBookCardHtml).join('') + (allowPosOnly && !posSearchQuery ? `
       <button type="button" class="card pos-card pos-add-tile" onclick="openPosBookModal()" aria-label="Add POS-only book">
         <div class="pos-add-tile-icon" aria-hidden="true">＋</div>
-        <div class="pos-add-tile-title">Add POS-only book</div>
+        <div class="pos-add-tile-title">${words('Add POS-only book')}</div>
         <div class="pos-add-tile-sub">Guest / consignment titles. Stays out of your catalog &amp; ledger.</div>
       </button>
     ` : '');
@@ -500,7 +501,7 @@ function renderFairMode(booksArr, titleCount, cartRows, totalText) {
     const priceText = converted === null ? posFormat(book.listPrice || 0, sourceCode) : posFormat(converted, posTransactionCurrency);
     const stock = posStockView({ onHand: posOnHandFor(book.id), inCart: qty });
     return fairTileHtml({ id: book.id, title: book.title || 'Untitled', priceText, qty, stock, accent: book.accent });
-  }).join('') || '<p class="fm-empty">No books to sell yet. Add a book to your catalogue, or add a POS-only book on a larger screen.</p>';
+  }).join('') || `<p class="fm-empty">${words('No books to sell yet. Add a book to your catalogue, or add a POS-only book on a larger screen.')}</p>`;
   // Currency switch: same list and state as the full checkout's selector.
   const ccy = $('fm-currency');
   if (ccy) {
@@ -611,7 +612,7 @@ function renderFairToday() {
   sum.textContent = n ? `${n} ${n === 1 ? 'sale' : 'sales'} · ${fairTotalsText(day.totals)}` : 'No sales yet';
   if ($('m-fair-today')?.style.display !== 'flex') return;
   $('fm-today-total').textContent = n
-    ? `${day.units} ${day.units === 1 ? 'book' : 'books'} in ${n} ${n === 1 ? 'sale' : 'sales'} · ${fairTotalsText(day.totals)}`
+    ? `${day.units} ${words(day.units === 1 ? 'book' : 'books')} in ${n} ${n === 1 ? 'sale' : 'sales'} · ${fairTotalsText(day.totals)}`
     : 'No register sales yet today.';
   $('fm-today-list').innerHTML = day.sales.map((sale) => {
     const lines = sale.lines.map((l) => `${escapeHtml(l.title)}${l.qty > 1 ? ` ×${l.qty}` : ''}`).join(', ');
@@ -641,7 +642,7 @@ async function fairVoidSale(saleNum) {
   if (typeof window.renderAllOverview === 'function') window.renderAllOverview();
   updateHeader();
   renderFairToday();
-  showToast(undone ? '↩ Sale voided — books back in stock' : 'That sale was already voided', undone ? 'ok' : 'warn');
+  showToast(undone ? words('↩ Sale voided — books back in stock') : 'That sale was already voided', undone ? 'ok' : 'warn');
 }
 
 // ── The fair you're at, sold-out books, end of day ──────────────────────
@@ -664,7 +665,7 @@ async function fairSetName() {
 
 async function fairTileNoneLeft(bookId) {
   const book = posResolveBook(bookId);
-  const ok = await confirmDialog(`Your records show no copies of “${book?.title || 'this book'}” left. Add one anyway? Only do this if you really have a copy in hand, then check its stock count later.`, { okLabel: 'Add anyway', cancelLabel: 'Cancel', title: 'None left' });
+  const ok = await confirmDialog(`${words('Your records show no copies of')} “${book?.title || words('this book')}” ${words('left. Add one anyway? Only do this if you really have a copy in hand, then check its stock count later.')}`, { okLabel: 'Add anyway', cancelLabel: 'Cancel', title: 'None left' });
   if (ok) window.posUpdateQty(bookId, 1);
 }
 
@@ -676,10 +677,10 @@ function fairSummaryData() {
 }
 
 function fairSummaryText(sum, fair) {
-  const out = [`${fair ? fair.name + ' · ' : ''}${today()}`, `${sum.units} books in ${sum.sales} sales · ${fairTotalsText(sum.totals) || '0'}`, ''];
+  const out = [`${fair ? fair.name + ' · ' : ''}${today()}`, `${sum.units} ${words('books')} in ${sum.sales} sales · ${fairTotalsText(sum.totals) || '0'}`, ''];
   out.push('By payment:');
   for (const m of sum.methods) out.push(`  ${m.label}: ${fairTotalsText(m.totals)} (${m.sales} ${m.sales === 1 ? 'sale' : 'sales'})`);
-  out.push('', 'By book:');
+  out.push('', words('By book:'));
   for (const t of sum.titles) out.push(`  ${t.title}: ${t.units} sold · ${fairTotalsText(t.totals)}${t.left === null ? '' : ` · ${t.left} left`}`);
   return out.join('\n');
 }
@@ -696,12 +697,12 @@ function fairOpenSummary() {
   const methodRows = sum.methods.map((m) => `<li class="fm-sum-row"><span>${escapeHtml(m.label)}<small>${m.sales} ${m.sales === 1 ? 'sale' : 'sales'}</small></span><strong class="tnum">${escapeHtml(fairTotalsText(m.totals))}</strong></li>`).join('');
   const titleRows = sum.titles.map((t) => `<li class="fm-sum-row"><span>${escapeHtml(t.title)}<small>${t.units} sold${t.left === null ? '' : ` · ${t.left} left`}</small></span><strong class="tnum">${escapeHtml(fairTotalsText(t.totals))}</strong></li>`).join('');
   $('fm-summary-body').innerHTML = sum.sales ? `
-    <div class="fm-sum-hero"><span class="fm-sum-big tnum">${escapeHtml(fairTotalsText(sum.totals))}</span><span>${sum.units} ${sum.units === 1 ? 'book' : 'books'} in ${sum.sales} ${sum.sales === 1 ? 'sale' : 'sales'}</span></div>
+    <div class="fm-sum-hero"><span class="fm-sum-big tnum">${escapeHtml(fairTotalsText(sum.totals))}</span><span>${sum.units} ${words(sum.units === 1 ? 'book' : 'books')} in ${sum.sales} ${sum.sales === 1 ? 'sale' : 'sales'}</span></div>
     <div class="fm-sum-sync ${synced ? 'is-ok' : 'is-wait'}" role="status">${synced ? '✓ Everything is uploaded. Safe to close the app.' : `⚠ ${escapeHtml(pill.text)}. Keep the app open until this says everything is uploaded.`}</div>
     <h3 class="fm-sum-h">By way of paying</h3>
     <p class="fm-sum-note">Check the card reader line against your card reader's own total for today.</p>
     <ul class="fm-sum-list">${methodRows}</ul>
-    <h3 class="fm-sum-h">By book</h3>
+    <h3 class="fm-sum-h">${words('By book')}</h3>
     <ul class="fm-sum-list">${titleRows}</ul>`
     : '<p class="fm-empty">No register sales yet today.</p>';
   openM('fair-summary');
@@ -777,7 +778,7 @@ function voidRegisterSale(saleNum, bookIds, reason) {
     if (h) rows.push({ bookId, s, h });
   }
   if (rows.some(({ h }) => h.artistSettlementId)) {
-    showToast('Part of this sale is in an author settlement. Undo the settlement first; nothing was voided.', 'warn', 5000);
+    showToast(words('Part of this sale is in an author settlement. Undo the settlement first; nothing was voided.'), 'warn', 5000);
     return null;
   }
   for (const { bookId, s, h } of rows) {
@@ -818,7 +819,7 @@ async function fairUndoLastSale() {
   updateDash();
   if (typeof window.renderAllOverview === 'function') window.renderAllOverview();
   updateHeader();
-  showToast(undone || sale.posOnly.length ? '↩ Sale undone — books back in stock' : 'That sale was already undone', undone || sale.posOnly.length ? 'ok' : 'warn');
+  showToast(undone || sale.posOnly.length ? words('↩ Sale undone — books back in stock') : 'That sale was already undone', undone || sale.posOnly.length ? 'ok' : 'warn');
 }
 
 // Screen stays on while the register is open on a phone.
@@ -1024,7 +1025,7 @@ async function posGenerateSaleQR() {
 
   const desc = rows.length === 1
     ? `${rows[0].book.title}${rows[0].qty > 1 ? ` ×${rows[0].qty}` : ''}`
-    : `Book fair sale — ${units} item${units === 1 ? '' : 's'}`;
+    : `${words('Book fair sale')} — ${units} item${units === 1 ? '' : 's'}`;
   const btn = $('pos-sale-qr-btn');
   const restore = btn ? btn.innerHTML : '';
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Creating…'; }

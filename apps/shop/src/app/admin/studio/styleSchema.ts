@@ -11,6 +11,7 @@ import { ELEMENT_SCHEME_TARGETS } from "../../features/site/colorSchemes";
 import { RADIUS_SCALES, TYPE_SCALES } from "../../features/site/designTokens";
 import { withFeatureStyle } from "../../features/site/extras/featureKit";
 import { STOREFRONT_FEATURES } from "../../features/site/extras/registry";
+import { TEMPLATE_STYLES } from "../../features/site/templateStyles";
 
 // `defaultValue` is what the storefront itself uses when the key is unset, so an untouched slider or
 // toggle shows the real setting instead of its minimum / "off".
@@ -139,7 +140,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
       { key: "buttonHoverTextColor", label: "Hover text", kind: "color" },
       { key: "buttonRadius", label: "Corner radius", kind: "range", min: 0, max: 999, step: 1, suffix: "px" },
       { key: "buttonUppercase", label: "UPPERCASE labels", kind: "toggle" },
-      { key: "buttonShadow", label: "Drop shadow", kind: "toggle" },
+      { key: "buttonShadow", label: "Drop shadow (on a template that draws none, adds its hard shadow; Print style & template details › Hard shadow distance 0 takes one away)", kind: "toggle" },
     ],
   },
   {
@@ -205,7 +206,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
       { key: "spaceUnit", label: "Spacing unit (sections' Space above and below are multiples of it)", kind: "range", min: 2, max: 16, step: 1, suffix: "px", defaultValue: 8 },
       { key: "phoneSpaceScale", label: "Spacing on phones", kind: "range", min: 40, max: 100, step: 5, suffix: "%", defaultValue: 75 },
       { key: "radiusScale", label: "Corner set (cards, buy card, order slip)", kind: "select", options: [{ value: "", label: "Off (each part's own corners)" }, ...Object.entries(RADIUS_SCALES).map(([value, r]) => ({ value, label: r.label }))] },
-      { key: "focusRingWidth", label: "Keyboard focus ring width (its colour: Printed-paper look (Riso) › Keyboard focus ring)", kind: "range", min: 1, max: 6, step: 1, suffix: "px", defaultValue: 2 },
+      { key: "focusRingWidth", label: "Keyboard focus ring width (its colour: Print style & template details › Keyboard focus ring)", kind: "range", min: 1, max: 6, step: 1, suffix: "px", defaultValue: 2 },
       { key: "inputFocusColor", label: "Box border while typing in it", kind: "color" },
       { key: "buttonPress", label: "Buttons when pressed", kind: "select", options: [{ value: "", label: "No change" }, { value: "shrink", label: "Shrink slightly" }, { value: "sink", label: "Sink into their shadow" }] },
     ],
@@ -889,18 +890,27 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
   },
   {
     id: "riso",
-    title: "Printed-paper look (Riso)",
-    hint: "Outlines, offset shadows, focus ring and texture of the Riso Press look.",
+    title: "Print style & template details",
+    hint: "Which template draws the shop (Riso Press, Marquee, Shelf…), and its outlines, offset shadows, ruled lines, photo frames, card tilt and footer curve. Untouched, each template keeps its own look.",
     fields: [
-      { key: "themeStyle", label: "Print style", kind: "select", options: [{ value: "riso", label: "Riso Press (outlined, flat shadows)" }, { value: "marquee", label: "Marquee (ruled masthead, stickers, offset buttons)" }, { value: "shelf", label: "Shelf (soft covers, pill buttons)" }, { value: "atlas", label: "Atlas (clean catalogue, hairline frames)" }, { value: "mosaic", label: "Mosaic (coloured tiles, keycap buttons)" }, { value: "arch", label: "Arch (arched photos, thin pill buttons)" }, { value: "market", label: "Market stall (tilted sticker cards, hard shadows)" }, { value: "index", label: "Index (the catalogue as ruled rows)" }, { value: "default", label: "Standard" }] },
-      { key: "risoOutlineColor", label: "Outline color", kind: "color" },
-      { key: "risoOutlineWidth", label: "Outline width", kind: "range", min: 0, max: 6, step: 1, suffix: "px" },
-      { key: "risoShadowColor", label: "Offset shadow color", kind: "color" },
-      { key: "risoShadowOffset", label: "Offset shadow distance", kind: "range", min: 0, max: 12, step: 1, suffix: "px" },
-      { key: "risoCardRadius", label: "Card corner radius", kind: "range", min: 0, max: 24, step: 1, suffix: "px" },
+      { key: "themeStyle", label: "Print style", kind: "select", options: [{ value: "riso", label: "Riso Press (outlined, flat shadows)" }, ...TEMPLATE_STYLES.map((t) => ({ value: t.id, label: t.label })), { value: "default", label: "Standard" }] },
+      { key: "risoOutlineColor", label: "Outline color (Riso Press; Marquee too until its own is set)", kind: "color" },
+      { key: "risoOutlineWidth", label: "Outline width (Riso Press; Marquee too until its own is set)", kind: "range", min: 0, max: 6, step: 1, suffix: "px" },
+      { key: "risoShadowColor", label: "Offset shadow color (Riso Press; Marquee too until its own is set)", kind: "color" },
+      { key: "risoShadowOffset", label: "Offset shadow distance (Riso Press; Marquee too until its own is set)", kind: "range", min: 0, max: 12, step: 1, suffix: "px" },
+      { key: "risoCardRadius", label: "Card corner radius (Riso Press)", kind: "range", min: 0, max: 24, step: 1, suffix: "px" },
       { key: "focusRingColor", label: "Keyboard focus ring", kind: "color" },
-      { key: "risoUppercaseHeadings", label: "UPPERCASE headings", kind: "toggle" },
-      { key: "risoGrain", label: "Halftone texture", kind: "range", min: 0, max: 1, step: 0.05 },
+      { key: "risoUppercaseHeadings", label: "UPPERCASE headings (Riso Press)", kind: "toggle" },
+      { key: "risoGrain", label: "Halftone texture (Riso Press)", kind: "range", min: 0, max: 1, step: 0.05 },
+      { key: "templateHeadingCase", label: "Headings in capitals (templates)", kind: "select", options: [{ value: "", label: "As the template draws them" }, { value: "uppercase", label: "Capitals" }, { value: "none", label: "As typed" }] },
+      { key: "templateOutlineColor", label: "Outline colour (templates)", kind: "color" },
+      { key: "templateOutlineWidth", label: "Outline width (templates)", kind: "range", min: 0, max: 8, step: 1, suffix: "px" },
+      { key: "templateShadowColor", label: "Hard shadow colour (templates)", kind: "color" },
+      { key: "templateShadowOffset", label: "Hard shadow distance (templates)", kind: "range", min: 0, max: 16, step: 1, suffix: "px" },
+      { key: "templateRuleWidth", label: "Ruled lines under the header and above the footer and newsletter (templates)", kind: "range", min: 0, max: 12, step: 1, suffix: "px" },
+      { key: "templateFrameWidth", label: "Frame around shop photos (templates)", kind: "range", min: 0, max: 24, step: 1, suffix: "px" },
+      { key: "templateCardTilt", label: "Tilt shop cards a little each way, like stickers (templates)", kind: "range", min: 0, max: 4, step: 0.1, suffix: "°" },
+      { key: "templateFooterCurve", label: "Footer rises in a curve (templates)", kind: "range", min: 0, max: 120, step: 4, suffix: "px" },
     ],
   },
   {

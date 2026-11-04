@@ -92,7 +92,7 @@ export const GROUP_BLURBS: Record<string, string> = {
   type: "The fonts and text sizes used on every page.",
   buttons: "How buttons look everywhere: style, colours and rounded corners.",
   logo: "Your logo or shop name at the top, plus the picture shown when someone shares your shop.",
-  riso: "The printed-paper grain and ink-style effects of the Riso look.",
+  riso: "Which template draws your shop, and its outlines, shadows, ruled lines, photo frames and footer curve.",
   effects: "Animations when the page loads or scrolls, and what happens when you hover.",
   header: "The strip at the very top: its layout and colours, the announcement bar, and the search, wishlist and bag icons.",
   navlinks: "The menu links in the header: their size, colour and spacing, and the drop-down menus.",

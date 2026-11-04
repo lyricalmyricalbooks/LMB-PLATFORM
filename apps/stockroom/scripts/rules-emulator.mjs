@@ -119,6 +119,17 @@ await check("author role can't read the book owners list (Firestore)", assertFai
 await check("author role can't make itself a book's author (Firestore)", assertFails(setDoc(doc(roleOnly.firestore(), "settings/bookOwners"), { b2: "newauthor@example.com" })));
 await check("author role can't make itself a book's author (Database)", assertFails(set(ref(roleOnly.database(), "lyrical/settings/bookOwners/b2"), "newauthor@example.com")));
 await check("author role reads no backups (Firestore)", assertFails(getDoc(doc(roleOnly.firestore(), "backups/x"))));
+// An author's address with no proof behind it. The stockroom shares its sign-in with the shop, whose email-link
+// sign-in needs the Email/Password provider on, so anyone can make a password account under an author's address
+// (the public web key is enough) and get a pass that names it, unverified. That pass must open nothing.
+const unverifiedAuthor = env.authenticatedContext("u-author-unv", { email: AUTHOR, email_verified: false });
+await check("unverified author address reads no book (Firestore)", assertFails(getDoc(doc(unverifiedAuthor.firestore(), "books/b1/data/ledger"))));
+await check("unverified author address writes no ledger (Firestore)", assertFails(setDoc(doc(unverifiedAuthor.firestore(), "books/b1/data/ledger"), { rows: [6] })));
+await check("unverified author address reads no submissions (Firestore)", assertFails(getDoc(doc(unverifiedAuthor.firestore(), "submissions/b1/expense/s1"))));
+await check("unverified author address reads no catalog setting (Firestore)", assertFails(getDoc(doc(unverifiedAuthor.firestore(), "settings/catalog"))));
+await check("unverified author address reads no book (Database)", assertFails(get(ref(unverifiedAuthor.database(), "lyrical/books/b1"))));
+await check("unverified author address writes no book (Database)", assertFails(set(ref(unverifiedAuthor.database(), "lyrical/books/b1"), { data: "{}", ts: 6 })));
+await check("unverified author address reads no catalog setting (Database)", assertFails(get(ref(unverifiedAuthor.database(), "lyrical/settings/catalog"))));
 const roleUnverified = shutOut["author role, unverified"];
 await check("unverified author role reads no catalog setting (Firestore)", assertFails(getDoc(doc(roleUnverified.firestore(), "settings/catalog"))));
 await check("unverified author role reads no catalog setting (Database)", assertFails(get(ref(roleUnverified.database(), "lyrical/settings/catalog"))));
@@ -150,7 +161,14 @@ await env.withSecurityRulesDisabled(async ctx => {
 await check("owner reads the plan", assertSucceeds(getDoc(doc(owner.firestore(), "platform/plan"))));
 await check("author reads the plan", assertSucceeds(getDoc(doc(author.firestore(), "platform/plan"))));
 await check("bookkeeper reads the plan", assertSucceeds(getDoc(doc(bookkeeper.firestore(), "platform/plan"))));
+await check("helper reads the plan", assertSucceeds(getDoc(doc(shutOut["fair helper role"].firestore(), "platform/plan"))));
+await check("author role reads the plan", assertSucceeds(getDoc(doc(shutOut["author role, no book"].firestore(), "platform/plan"))));
 await check("signed out reads no plan", assertFails(getDoc(doc(shutOut["signed out"].firestore(), "platform/plan"))));
+// The plan document holds the press's billing (trial end, next payment, card on file, the Plan & billing link). A
+// shopper's sign-in from the shop's account page lands in the same project, so a pass alone must not read it.
+const shopper = env.authenticatedContext("u-shopper", { email: "shopper@example.com", email_verified: true });
+await check("a shop customer's sign-in reads no plan", assertFails(getDoc(doc(shopper.firestore(), "platform/plan"))));
+await check("staff read no plan", assertFails(getDoc(doc(shutOut["staff role"].firestore(), "platform/plan"))));
 await check("owner can't change the plan", assertFails(setDoc(doc(owner.firestore(), "platform/plan"), { access: "open" })));
 await check("paused: owner still reads a book", assertSucceeds(getDoc(doc(owner.firestore(), "books/b1/data/ledger"))));
 await check("paused: owner can't change a setting", assertFails(setDoc(doc(owner.firestore(), "settings/catalog"), { data: "{}", ts: 9 })));

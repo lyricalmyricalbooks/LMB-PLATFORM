@@ -273,7 +273,7 @@ function moneySignals(book, s, out, ctx) {
   }
 }
 
-function catalogueSignals(book, s, out) {
+function catalogueSignals(book, s, out, ctx = {}) {
   if (num(book.productionCost) <= 0) {
     out.push({
       id: `catalogue-cost:${book.id}`,
@@ -288,7 +288,8 @@ function catalogueSignals(book, s, out) {
   }
 
   const isbn = String(book.isbn || '').trim();
-  if (!isbn || isbn === '—') {
+  // An ISBN is a book's number: a shop that sells other things is never asked for one (4 November 2026).
+  if (ctx.booksShop !== false && (!isbn || isbn === '—')) {
     out.push({
       id: `catalogue-isbn:${book.id}`,
       group: 'catalogue',
@@ -798,10 +799,31 @@ function automationSignals(ctx, out) {
  * @param {Object} [input.taxCenter]   the tax centre's own state — business expenses, recurring costs, settings
  * @param {Object} [input.tripsSummary] declared trips/events, keyed by name — same shape the Missing Costs scan already uses
  * @param {string} [input.today]      'YYYY-MM-DD', for invoice due dates
+ * @param {Function} [input.words]    the shop's words (shop-words.js `words`); product names are kept as written
+ * @param {boolean} [input.booksShop] false for a shop that sells no books: no ISBN reminders
  * @returns {{signals: Array, total: number, urgent: number, byGroup: Object}}
  *          `signals` is sorted most urgent first. A shop with nothing to do
  *          gets an empty array — that is what makes the panels self-clearing.
  */
+/**
+ * Puts `text` in the shop's words (shop-words.js) around the names in `keep`, so a product the owner named
+ * "Sketch book" or a maker called "Book & Co" is never changed.
+ */
+export function wordsAround(text, w, keep = []) {
+  const names = [...new Set(keep.filter(name => typeof name === 'string' && name.trim()))].sort((a, b) => b.length - a.length);
+  if (!names.length) return w(text);
+  const [first, ...rest] = names;
+  return String(text).split(first).map(part => wordsAround(part, w, rest)).join(first);
+}
+
+/** A signal's words in the shop's words, the product's own title and maker left as written. */
+function wordedSignal(signal, w, book) {
+  const keep = [book?.title, book?.author];
+  const out = { ...signal, label: wordsAround(signal.label, w, keep), detail: wordsAround(signal.detail || '', w, keep) };
+  if (signal.fix?.label) out.fix = { ...signal.fix, label: w(signal.fix.label) };
+  return out;
+}
+
 export function buildAttentionSignals(input = {}) {
   const ctx = {
     today: input.today || isoToday(),
@@ -813,6 +835,7 @@ export function buildAttentionSignals(input = {}) {
     taxCenter: input.taxCenter,
     tripsSummary: input.tripsSummary,
     automation: input.automation,
+    booksShop: input.booksShop,
   };
   const states = input.states || {};
   const booksById = {};
@@ -826,7 +849,7 @@ export function buildAttentionSignals(input = {}) {
     // reading that as zero announced every book as nearly sold out on startup.
     if (states[book.id]) stockSignals(book, s, signals);
     moneySignals(book, s, signals, ctx);
-    catalogueSignals(book, s, signals);
+    catalogueSignals(book, s, signals, ctx);
   }
   printedQrSignals({ states, booksById }, signals);
   setupSignals(ctx, signals);
@@ -837,6 +860,9 @@ export function buildAttentionSignals(input = {}) {
   // Most urgent first; within a severity keep collection order, which groups a
   // book's own signals together rather than interleaving the whole catalogue.
   signals.sort((a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status]);
+  if (typeof input.words === 'function') {
+    for (let i = 0; i < signals.length; i++) signals[i] = wordedSignal(signals[i], input.words, booksById[signals[i].bookId]);
+  }
 
   const byGroup = {};
   for (const group of SIGNAL_GROUPS) byGroup[group] = [];

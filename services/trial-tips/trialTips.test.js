@@ -194,3 +194,23 @@ test("a finished run gets no nudge, and a bad START_NUDGES value is refused when
   assert.ok(!keysSent(w).some((k) => k.startsWith("start-nudge")));
   assert.throws(() => platformSettings({ START_NUDGES: "maybe" }), /START_NUDGES must be one of hold, beside, instead/);
 });
+
+test("a shop that sells no books gets its tips and nudges in its own words; a books shop's are unchanged (plan 12.18)", async () => {
+  const { TIPS, tipWords, nudgeWords } = await import("./index.js");
+  const { START_NUDGE_WORDS } = await import("./startNudges.js");
+  for (const sells of [null, "books", "zines"]) {
+    assert.equal(tipWords("add-books", sells), TIPS["add-books"]);
+    assert.equal(nudgeWords("details", sells), START_NUDGE_WORDS.details);
+  }
+  const bookWords = /\b(books?|presses|press's|your press|copies|editions?)\b/i;
+  for (const step of Object.keys(TIPS)) {
+    const tip = tipWords(step, "clothing");
+    for (const text of [tip.subject, ...tip.paragraphs, tip.action]) assert.doesNotMatch(text, bookWords, `${step}: ${text}`);
+  }
+  for (const stage of Object.keys(START_NUDGE_WORDS)) {
+    const nudge = nudgeWords(stage, "jewelry");
+    for (const text of [nudge.subject, ...nudge.paragraphs, nudge.action]) assert.doesNotMatch(text, bookWords, `${stage}: ${text}`);
+  }
+  assert.equal(tipWords("look", "clothing").subject, "Make your shop look like yours");
+  assert.equal(tipWords("add-books", "clothing").subject, "Add your first product");
+});

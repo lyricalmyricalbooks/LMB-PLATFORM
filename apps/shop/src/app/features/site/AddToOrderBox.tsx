@@ -5,6 +5,7 @@ import { functionFetch } from "../../lib/functionsBase";
 import { getCopy } from "./storeCopy";
 import { regionProps } from "./storefrontRegions";
 import { isGiftCardProduct } from "./promotions";
+import { isPhysicalItem } from "./localFulfillment";
 
 const LEFT = ["shipped", "out_for_delivery", "delivered", "completed", "picked_up", "collected", "cancelled", "refunded"];
 
@@ -19,9 +20,25 @@ export function canAddToOrder(order: any): boolean {
   return !LEFT.includes(String(order.fulfillmentStatus || "").toLowerCase()) && !LEFT.includes(status);
 }
 
-/** Products a shopper can add: published, priced, not a gift card or a coming-soon book. */
-export function addableBooks(books: any[]): any[] {
+/** A product (in an edition) is shipped, as the server reads it (functions/paymentLinks.js catalogPhysical). */
+function shippedProduct(book: any, variant?: any): boolean {
+  const isDigital = variant ? variant.digital === true || variant.isDigital === true : book.digital === true || book.isDigital === true;
+  return isPhysicalItem({ digital: isDigital, format: variant?.format || variant?.name || book.format || "" });
+}
+
+/**
+ * Products a shopper can add: published, priced, not a gift card or a coming-soon book. An order with nothing to ship
+ * (only e-books) has no parcel for printed items, so it is offered digital editions only (the server refuses the rest).
+ */
+export function addableBooks(books: any[], order?: any): any[] {
+  const parcel = !order || (order.items || []).some(isPhysicalItem);
   return (books || []).filter(b => b?.id && b.status !== "draft" && b.comingSoon !== true && !isGiftCardProduct(b))
+    .flatMap(b => {
+      if (parcel) return [b];
+      const variants = Array.isArray(b.variants) && b.variants.length ? b.variants.filter((v: any) => v && !shippedProduct(b, v)) : null;
+      if (variants) return variants.length ? [{ ...b, variants }] : [];
+      return shippedProduct(b) ? [] : [b];
+    })
     .sort((a, b) => String(a.title || "").localeCompare(String(b.title || "")));
 }
 
@@ -32,7 +49,7 @@ export function addableBooks(books: any[]): any[] {
 export function AddToOrderBox({ design, order, access, books }: {
   design: any; order: any; access: { email?: string; key?: string }; books: any[];
 }) {
-  const list = useMemo(() => addableBooks(books), [books]);
+  const list = useMemo(() => addableBooks(books, order), [books, order]);
   const [open, setOpen] = useState(false);
   const [bookId, setBookId] = useState("");
   const [variantId, setVariantId] = useState("");

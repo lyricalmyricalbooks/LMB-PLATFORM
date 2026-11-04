@@ -136,6 +136,8 @@ test("cancel keeps the shop open to the end of the period, emails once, and can 
   assert.equal(notes.length, 1);
   assert.match(notes[0].data.date, /2027/);
   assert.equal((await billing.keep({ shopId: "moth-press" })).cancelAtPeriodEnd, false);
+  await billing.keep({ shopId: "moth-press" });
+  assert.equal(email.list().filter((m) => m.kind === "cancel-undone").length, 1, "keeping a plan says so once (25.3)");
   const logged = [...registry.events.get("moth-press").values()].map((e) => e.what);
   assert.deepEqual(logged, ["trial-started", "cancel-requested", "cancel-undone"]);
   assert.equal(auditLog.entries.get("moth-press").size, 3);

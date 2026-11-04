@@ -29,7 +29,19 @@ export class DiscountProblem extends Error {
   }
 }
 
-export type DiscountLine = { id: string; price: number; quantity: number; giftCard?: boolean; promoGift?: boolean; [key: string]: any };
+/**
+ * Discounts › a code › Allowed email domains (comma separated, "" = everyone). Each entry may be typed ".edu",
+ * "school.ca" or "@school.ca": all mean that domain and its sub-domains. Checkout's early check and the server's
+ * (functions/index.js validateDiscountCustomer) both use this, so a shopper is never refused a code the server accepts.
+ */
+export function emailDomainAllowed(email: unknown, domainsText: unknown): boolean {
+  const domains = String(domainsText || "").split(",").map((v) => v.trim().toLowerCase().replace(/^[@.]+/, "")).filter(Boolean);
+  if (!domains.length) return true;
+  const customerDomain = String(email || "").trim().toLowerCase().split("@")[1] || "";
+  return !!customerDomain && domains.some((domain) => customerDomain === domain || customerDomain.endsWith(`.${domain}`));
+}
+
+export type DiscountLine ={ id: string; price: number; quantity: number; giftCard?: boolean; promoGift?: boolean; [key: string]: any };
 
 export function moneyFmt(n: unknown): string {
   return `$${Number(n || 0).toFixed(2)}`;

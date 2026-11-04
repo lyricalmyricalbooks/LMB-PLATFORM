@@ -535,6 +535,12 @@ see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `A
   `saveDraft`, retried once on a conflict; then `updateFirstWeek({ welcome: { theme, at, skipped? } })`. Skip takes the
   first suggestion. The look goes into the **draft**; the guide's look step ticks once the published design has a
   `themeBase`. The preview is drawn, not a screenshot, so every theme has one by construction (`chooseLook.test.ts`).
+  **Theme store (4 November 2026):** cards show a whole shop page (`overview/LookStage.tsx`: announcement, header,
+  the template's own opening band and cards, chips, footer, drawn at 1200px or 390px and scaled by `ScaledStage`),
+  filters All / Full templates / Light / Dark (`filterLooks`, `isTemplate` = own `themeStyle`, `isDarkLook`), and Try it
+  on opens a full-size `Dialog` (`size="full"`): Previous/Next look (and arrow keys), Computer/Phone, Home/Product page,
+  Your products/Samples (`sampleProducts(publishes)` when the press has none). Each look's faces load from Google Fonts
+  once (`useLookFonts`). Drawn, not the real storefront, because setup mode has no shop to render.
 - **Set up your shop** (`overview/SetupGuideCard.tsx`, pure `firstWeek.ts`): eight steps per answer (`ORDER`; the first-
   book step is `bring-books`, `import-spreadsheet` or `add-books`): logo, look, books, shipping (starter words per
   country, `shippingStarterWords`), Get paid (`card-account` ok on platform shops, plan 7.9; the payment checks on own

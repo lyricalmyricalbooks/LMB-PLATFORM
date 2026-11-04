@@ -28,14 +28,14 @@ export function pressTemplates({ layout, safeLink, signOff }) {
      * A press's data, ready to download (services/export, 19.16). `data`: { pressName, link (the download, works 7
      * days), until (the last day it works, in words), asked: "owner" | "platform", reason (why the platform made it) }.
      */
-    "data-export-ready": ({ link, until, asked, reason }, { settings, pressName }) => layout({
+    "data-export-ready": ({ link, until, asked, reason }, { settings, pressName, w = (text) => text }) => layout({
       subject: `${pressName}'s data is ready to download`,
       greeting: "Hello,",
       paragraphs: [
         asked === "owner"
           ? `Here is the copy of ${pressName}'s data you asked for.`
           : `${settings.platformName} made a copy of ${pressName}'s data for you${reason ? `: ${reason}` : "."}`,
-        "It holds your books, orders, customers, discounts, reviews, pages, settings, newsletter list and stockroom records, one spreadsheet file for each, with a short note saying what is in them.",
+        w("It holds your books, orders, customers, discounts, reviews, pages, settings, newsletter list and stockroom records, one spreadsheet file for each, with a short note saying what is in them."),
         `The link works until ${until}. After that, ask for a new copy from your account page.`,
         "Keep the file somewhere safe: it has your customers' names and addresses in it.",
       ],

@@ -215,7 +215,19 @@ describe('author role', () => {
     const role = "(auth.token.email_verified === true && auth.token.role === 'author')";
     expect(expr.split(role).length - 1).toBe(1);
     const after = expr.slice(expr.indexOf(role));
-    expect(after).toMatch(/^\(auth\.token\.email_verified === true && auth\.token\.role === 'author'\) \|\| root\.child\('lyrical\/settings\/bookOwners\/authorEmails'\)[^&]*\.exists\(\)\) && \(\$key === /);
+    expect(after).toMatch(/^\(auth\.token\.email_verified === true && auth\.token\.role === 'author'\) \|\| \(auth\.token\.email_verified === true && root\.child\('lyrical\/settings\/bookOwners\/authorEmails'\)[^&]*\.exists\(\)\)\) && \(\$key === /);
+  });
+
+  // The shop's email-link sign-in keeps the Email/Password provider on in the shared project, so an unverified
+  // password account can carry any author's address: every per-book and author-list check needs a verified one.
+  it('counts an address as an author only when it is verified', () => {
+    expect(fn(firestoreRules, 'isBookAuthor')).toContain('request.auth.token.email_verified == true');
+    expect(fn(storageRules, 'isBookAuthor')).toContain('request.auth.token.email_verified == true');
+    expect(fn(firestoreRules, 'isAnyAuthor')).toMatch(/\|\| \(request\.auth != null && request\.auth\.token\.email_verified == true && /);
+    const { books, submissions } = rtdbRules.rules.lyrical;
+    for (const e of [books.$bookId['.read'], books.$bookId['.write'], submissions.$bookId['.read'], submissions.$bookId['.write']]) {
+      expect(e).toContain("(auth.token.email_verified === true && root.child('lyrical/settings/bookOwners').child($bookId).val() === auth.token.email.toLowerCase())");
+    }
   });
 
   it('never opens a book, a receipt or a publisher check', () => {
@@ -360,8 +372,8 @@ describe('the app and the rules agree', () => {
     expect(read('src/main.js')).toMatch(/planReadOnly\(plan\)/);
     expect(read('src/main.js')).toMatch(/if \(window\.PLAN_READ_ONLY\) \{\s*showToast/);
   });
-  it('lets signed-in people read the plan, nobody write it, and every write needs an open plan', () => {
-    expect(firestoreRules).toMatch(/match \/platform\/\{docId\} \{\s*allow get: if docId == 'plan' && request\.auth != null;\s*allow list, write: if false;/);
+  it("lets the stockroom's own people read the plan, nobody write it, and every write needs an open plan", () => {
+    expect(firestoreRules).toMatch(/match \/platform\/\{docId\} \{\s*allow get: if docId == 'plan' && \(isPublisher\(\) \|\| isAnyAuthor\(\) \|\| isFairHelper\(\) \|\| isBookkeeper\(\)\);\s*allow list, write: if false;/);
     // Error reports (clientErrors) stay open: they are how a problem reaches the owner, paused or not.
     const errorReports = firestoreRules.slice(firestoreRules.indexOf('match /clientErrors/'), firestoreRules.indexOf('\n    }', firestoreRules.indexOf('match /clientErrors/')));
     const writeLines = firestoreRules.replace(errorReports, '').split('\n')

@@ -123,6 +123,33 @@ describe("planShopMove", () => {
     expect(oldPaths.get(2)).toEqual(["/products/moth-songs"]);
   });
 
+  it("a product the old shop didn't count comes over without stock counting, not as sold out", () => {
+    const file = csv([
+      ["Product ID [Non Editable]", "Variant ID [Non Editable]", "Product Page", "Product URL", "Title", "SKU", "Option Name 1", "Option Value 1", "Price", "On Sale", "Stock"],
+      ["p1", "v1", "shop", "poster", "Poster", "PO", "", "", "30", "No", "Unlimited"],
+      ["p2", "v2", "shop", "prints", "Prints", "PR-S", "Size", "Small", "15", "No", "Unlimited"],
+      ["p2", "v3", "", "", "", "PR-L", "", "Large", "25", "No", "Unlimited"],
+      ["p3", "v4", "shop", "tide", "Tide", "TI-S", "Size", "Small", "15", "No", "4"],
+      ["p3", "v5", "", "", "", "TI-L", "", "Large", "25", "No", "Unlimited"],
+      ["p4", "v6", "shop", "salt", "Salt", "SA", "", "", "18", "No", "7"],
+    ]);
+    const { plan } = planShopMove(file, []);
+    const row = (t: string) => plan.rows.find(r => r.title === t)!;
+    expect(row("Poster").patch.trackInventory).toBe(false);
+    expect(row("Prints").patch.trackInventory).toBe(false);
+    expect(row("Poster").warnings.join(" ")).toMatch(/didn't count/);
+    // Some versions counted: stock counting stays on, and the owner is told which version starts at 0.
+    expect(row("Tide").patch.trackInventory).toBe(true);
+    expect(row("Tide").warnings.join(" ")).toMatch(/Large/);
+    expect(row("Salt").patch).toMatchObject({ trackInventory: true, stockLevel: 7 });
+    expect(row("Salt").warnings.join(" ")).not.toMatch(/count/);
+    // A one-line-per-edition file (also what reading an old shop's address writes) leaves a count blank when it isn't
+    // shown publicly: those books keep stock counting on, as before.
+    const fromAddress = planShopMove(csv([["Handle", "Title", "Variant Price", "Variant Inventory Qty"], ["poster", "Poster", "30", ""]]), []);
+    expect(fromAddress.plan.rows[0].patch.trackInventory).toBe(true);
+    expect(fromAddress.plan.rows[0].warnings.join(" ")).not.toMatch(/didn't count/);
+  });
+
   it("a book already in the shop is updated, but its editions are left to the book editor", () => {
     const books = [{ id: "b1", title: "Moth Songs", status: "published", variants: [{ id: "v", name: "Paperback", price: 20, stock: 1 }], photos: [{ url: "https://cdn.example/moth-1.jpg" }] }];
     const { plan } = planShopMove(HANDLE_ROWS, books);

@@ -26,6 +26,16 @@ const SWAPS = [
   [/(?<![-\w])books\b/g, 'products'], [/(?<![-\w])Books\b/g, 'Products'], [/(?<![-\w])BOOKS\b/g, 'PRODUCTS'],
   [/(?<![-\w])book\b/g, 'product'], [/(?<![-\w])Book\b/g, 'Product'], [/(?<![-\w])BOOK\b/g, 'PRODUCT'],
   [/\bauthors\b/g, 'makers'], [/\bAuthors\b/g, 'Makers'], [/\bauthor\b/g, 'maker'], [/\bAuthor\b/g, 'Maker'],
+  // Counting and making words (4 November 2026), as in the shop's admin: copies are items, titles are products, readers
+  // are shoppers (screen readers and page titles stay), a print run is a batch and a printing cost a making cost.
+  [/\bcopies\b/g, 'items'], [/\bCopies\b/g, 'Items'],
+  [/(?<!(?:page|SEO|search|tab|meta) )\btitles\b/g, 'products'], [/(?<!(?:Page|SEO|Search|Tab|Meta) )\bTitles\b/g, 'Products'],
+  [/(?<![Ss]creen )\breaders\b/g, 'shoppers'], [/(?<![Ss]creen )\breader\b/g, 'shopper'], [/\bReaders\b/g, 'Shoppers'], [/\bReader\b/g, 'Shopper'],
+  [/\bprint runs\b/g, 'batches'], [/\bprint run\b/g, 'batch'], [/\bPrint runs\b/g, 'Batches'], [/\bPrint [Rr]un\b/g, 'Batch'],
+  [/\bprinting costs?\b/g, 'making cost'], [/\bPrinting costs?\b/g, 'Making cost'],
+  [/\bbookshops\b/g, 'stores'], [/\bBookshops\b/g, 'Stores'], [/\bbookshop\b/g, 'store'], [/\bBookshop\b/g, 'Store'],
+  [/\b(\d+) title\b/g, '$1 product'],
+  [/\bthe press's\b/g, "the shop's"], [/\bThe press's\b/g, "The shop's"], [/\byour press's\b/g, "your shop's"],
 ];
 
 /** "Add new book" → "Add new product", "author" → "maker". */
@@ -33,11 +43,25 @@ export function goodsWords(text) {
   return SWAPS.reduce((out, [from, to]) => out.replace(from, to), String(text));
 }
 
+// A shop with no books at all keeps its products' codes in the ISBN box (the website link sends a product's SKU there,
+// shop functions/inventoryLink.js codeOf), so the box and the words about it say SKU. A shop of books and other things
+// keeps "ISBN": its books have one.
+const CODE_SWAPS = [
+  [/\bISBN or SKU\b/g, 'SKU'], [/\bISBN, SKU\b/g, 'SKU'], [/\bISBN-13\b/g, 'SKU or barcode'],
+  [/978-X-XXXX-XXXX-X/g, 'e.g. TEE-BLK-M'], [/\bISBNs\b/g, 'SKUs'], [/\bISBN\b/g, 'SKU'],
+];
+
+/** goodsWords for a shop with no books at all: ISBN is SKU too. */
+export function noBookWords(text) {
+  return CODE_SWAPS.reduce((out, [from, to]) => out.replace(from, to), goodsWords(text));
+}
+
 const same = (text) => text;
 
-/** The word function for a sign-up answer: unchanged for a books shop. */
+/** The word function for a sign-up answer: unchanged for a books shop; "mixed" (books and other things) keeps ISBN. */
 export function wordsFor(answer) {
-  return sellsBooks(answer) ? same : goodsWords;
+  if (sellsBooks(answer)) return same;
+  return answer === 'mixed' ? goodsWords : noBookWords;
 }
 
 // What the owner chose later in the shop's Settings › What you sell (plan 12.14). The shop's server copies it into the
@@ -64,7 +88,8 @@ export function noteSellsAnswer(answer, profile = shopProfile) {
   const was = currentAnswer(profile);
   if (answer === was) return false;
   try { globalThis.localStorage?.setItem(SELLS_KEY, answer); } catch { return false; }
-  // Books answers share one set of words and the rest another, so only a move between the two needs a fresh start.
+  // Books answers share one set of words, a mix of books and other things another and the rest a third, so only a move
+  // between sets needs a fresh start.
   return wordsFor(answer) !== wordsFor(was);
 }
 

@@ -3,6 +3,7 @@
 // Column names are matched loosely, so the order files of the common shop builders read the same: one line per order,
 // or one line per item with the order's number repeated (its totals on the first line). Pure and tested.
 import { parseCsv, parseMoney } from "./catalogImport";
+import { shopDate } from "../../shared/preorder";
 
 export interface PastOrderLine { title: string; quantity: number; price: number; sku?: string }
 export interface PastOrder {
@@ -68,6 +69,20 @@ const day = (value: string): string | null => {
   return /^(\d{4}-\d{2}-\d{2})/.exec(v)?.[1] ?? null;
 };
 
+/**
+ * An amount in an order file: "35.00", "CA$35.00", "US$35.00", "€35,00", and a discount or refund written as money
+ * taken off, "-5.00" or "(5.00)", which comes back negative. NaN when it isn't an amount.
+ */
+const amount = (value: string): number => {
+  let v = value.replace(/\s/g, "");
+  let sign = 1;
+  if (/^\(.*\)$/.test(v)) { sign = -1; v = v.slice(1, -1); }
+  if (v.startsWith("-")) { sign = -sign; v = v.slice(1); }
+  v = v.replace(/^[A-Z]{0,3}[$€£¥]/i, "").replace(/([$€£¥]|[A-Z]{3})$/i, "");
+  const n = parseMoney(v);
+  return Number.isNaN(n) ? NaN : sign * n;
+};
+
 export function readPastOrders(text: string, now = new Date()): PastOrderFile {
   const out: PastOrderFile = { orders: [], skipped: [], problems: [], foreign: {} };
   const table = parseCsv(text);
@@ -87,7 +102,7 @@ export function readPastOrders(text: string, now = new Date()): PastOrderFile {
     return out;
   }
   const cell = (row: string[], i: number) => (i >= 0 ? String(row[i] ?? "").trim() : "");
-  const num = (row: string[], i: number) => { const v = cell(row, i); if (!v) return undefined; const n = parseMoney(v); return Number.isNaN(n) ? undefined : n; };
+  const num = (row: string[], i: number) => { const v = cell(row, i); if (!v) return undefined; const n = amount(v); return Number.isNaN(n) ? undefined : n; };
 
   const groups = new Map<string, { line: number; rows: string[][] }>();
   table.slice(1).forEach((row, n) => {
@@ -121,6 +136,7 @@ export function readPastOrders(text: string, now = new Date()): PastOrderFile {
     const email = first(col.email).toLowerCase();
     const name = first(col.name) || [first(col.first), first(col.last)].filter(Boolean).join(" ");
     let refunded = firstNum(col.refunded);
+    if (refunded !== undefined) refunded = Math.abs(refunded);
     if (refunded === undefined && /refunded/i.test(status) && !/partial/i.test(status)) refunded = total;
     const order: PastOrder = {
       oldRef: `order:${ref}`.slice(0, 200), number: ref.slice(0, 40), orderedAt: when, items: items.slice(0, 100), total,
@@ -191,7 +207,8 @@ export function readyToSend(file: PastOrderFile, rates: Record<string, number>):
     out.orders.push(order);
     out.totalSales += order.total - (order.refunded || 0);
     if (order.email) emails.add(order.email);
-    const d = order.orderedAt.slice(0, 10);
+    // A bare day stays as written; a moment is named by its day in the shop's own time, not in UTC.
+    const d = /^\d{4}-\d{2}-\d{2}$/.test(order.orderedAt) ? order.orderedAt : shopDate(new Date(order.orderedAt));
     if (!out.from || d < out.from) out.from = d;
     if (!out.to || d > out.to) out.to = d;
   }

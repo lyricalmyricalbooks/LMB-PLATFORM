@@ -42,6 +42,8 @@ type Outline = { label: string; radius?: string; clip?: string };
 export const PHOTO_OUTLINES: Record<string, Outline> = {
   default: { label: "Normal (use the corner radius setting)" },
   arch: { label: "Arch (round top)", radius: "999px 999px 0 0" },
+  tallArch: { label: "Tall arch (the Arch template's photos)", radius: "999px 999px 0 0 / 55% 55% 0 0" },
+  book: { label: "Book (square spine, soft fore-edge)", radius: "6px 12px 12px 6px" },
   window: { label: "Window (round top, soft bottom)", radius: "999px 999px 24px 24px" },
   pill: { label: "Pill (fully rounded ends)", radius: "999px" },
   circle: { label: "Circle / oval", radius: "50%" },

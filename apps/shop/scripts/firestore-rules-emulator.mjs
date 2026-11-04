@@ -393,6 +393,21 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("an edit visit changes a book", assertSucceeds(setDoc(doc(support, "books/draft"), { status: "draft", title: "Unannounced" })));
   await check("a view visit reads a draft book", assertSucceeds(getDoc(doc(viewer, "books/draft"))));
   await check("a view visit reads the audit log", assertSucceeds(getDocs(collection(viewer, "audit-log"))));
+  // The audit log is the shop's record of what was done, support visits included (the platform writes each "act as
+  // this shop" there before the sign-in exists), so the admin only adds lines (admin/auditLog.ts): never changes or
+  // removes one, the record of its own visit least of all.
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), "audit-log/support-visit"), { type: "support", message: "Support visit: help", createdAt: "2026-11-04T08:00:00.000Z" }));
+  const auditStaff = env.authenticatedContext("s1", { email: "sam@press.test", email_verified: true, role: "staff" }).firestore();
+  const auditOwner = env.authenticatedContext("o1", { email: "owner@example.com", email_verified: true }).firestore();
+  const line = { type: "settings", message: "Updated settings: storeName", createdAt: new Date().toISOString() };
+  await check("staff adds an audit line", assertSucceeds(setDoc(doc(collection(auditStaff, "audit-log")), line)));
+  await check("an edit visit adds an audit line", assertSucceeds(setDoc(doc(collection(support, "audit-log")), line)));
+  await check("an edit visit can't delete the record of its visit", assertFails(deleteDoc(doc(support, "audit-log/support-visit"))));
+  await check("an edit visit can't rewrite the record of its visit", assertFails(setDoc(doc(support, "audit-log/support-visit"), { ...line, message: "nothing" })));
+  await check("staff can't delete an audit line", assertFails(deleteDoc(doc(auditStaff, "audit-log/support-visit"))));
+  await check("owner can't rewrite an audit line", assertFails(setDoc(doc(auditOwner, "audit-log/support-visit"), { ...line, message: "nothing" })));
+  await check("an audit line keeps its shape", assertFails(setDoc(doc(collection(auditStaff, "audit-log")), { ...line, by: "someone" })));
+  await check("a view visit adds no audit line", assertFails(setDoc(doc(collection(viewer, "audit-log")), line)));
   await check("a view visit can't change a book", assertFails(setDoc(doc(viewer, "books/draft"), { status: "published" })));
   await check("a view visit can't change settings", assertFails(setDoc(doc(viewer, "settings/website"), { storeName: "Mine" })));
   await check("a view visit can't delete a page", assertFails(deleteDoc(doc(viewer, "pages/draft"))));

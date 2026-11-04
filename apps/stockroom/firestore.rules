@@ -31,8 +31,10 @@ service cloud.firestore {
       return !exists(/databases/$(database)/documents/platform/plan)
         || get(/databases/$(database)/documents/platform/plan).data.get('access', 'open') == 'open';
     }
+    // The plan holds the press's billing (trial end, next payment, card on file, the Plan & billing link), so only
+    // the stockroom's own people read it: a shop customer's sign-in lands in the same project and must not.
     match /platform/{docId} {
-      allow get: if docId == 'plan' && request.auth != null;
+      allow get: if docId == 'plan' && (isPublisher() || isAnyAuthor() || isFairHelper() || isBookkeeper());
       allow list, write: if false;
     }
 
@@ -46,8 +48,12 @@ service cloud.firestore {
         ? get(/databases/$(database)/documents/settings/bookOwners).data.get(bookId, '')
         : '';
     }
+    // email_verified as for the publisher: the stockroom shares its sign-in with the shop, whose email-link sign-in
+    // keeps the Email/Password provider on, so anyone can make an unverified password account under an author's
+    // address with the public web key. Only a verified address is that author.
     function isBookAuthor(bookId) {
       return request.auth != null
+        && request.auth.token.email_verified == true
         && request.auth.token.email != null
         && request.auth.token.email.lower() == bookOwnerEmail(bookId);
     }
@@ -72,6 +78,7 @@ service cloud.firestore {
     function isAnyAuthor() {
       return hasAuthorRole()
         || (request.auth != null
+          && request.auth.token.email_verified == true
           && request.auth.token.email != null
           && exists(/databases/$(database)/documents/settings/bookOwners)
           && request.auth.token.email.lower().replace('\\.', ',')

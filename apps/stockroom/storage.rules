@@ -11,12 +11,13 @@ service firebase.storage {
             || request.auth.token.get('role', '') == 'owner');
     }
 
-    // Mirrors isBookAuthor() in firestore.rules, resolved cross-service against
+    // Mirrors isBookAuthor() in firestore.rules (a verified address only, see there), resolved cross-service against
     // the same settings/bookOwners map ({ bookId: authorEmailLower }) the
     // publisher client maintains on every catalog save. Guarded by exists() so
     // a missing map denies rather than erroring.
     function isBookAuthor(bookId) {
       return request.auth != null
+        && request.auth.token.email_verified == true
         && request.auth.token.email != null
         && firestore.exists(/databases/(default)/documents/settings/bookOwners)
         && request.auth.token.email.lower() ==
