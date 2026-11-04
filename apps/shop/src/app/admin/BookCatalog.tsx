@@ -18,6 +18,7 @@ import { lineSheetRows, printLineSheet } from "./lineSheet";
 import { getCopy } from "../features/site/storeCopy";
 import { KIND_CHOICES, isProductKind, planKindChange } from "./bulkKind";
 import { catalogToCsv, inventoryCsv, planPriceChange, type PriceMode } from "./bulkPricing";
+import { saveTable } from "./xlsxWriter";
 import { adminApi } from "./api";
 import { inventoryApi } from "./inventoryApi";
 import { liveStockOf, lowStockThreshold } from "./inventoryInsights";
@@ -86,6 +87,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   const [exportOpen, setExportOpen] = useState(false);
   const [exportScope, setExportScope] = useState<"all" | "filtered" | "selected">("filtered");
   const [exportKind, setExportKind] = useState<"full" | "inventory">("full");
+  const [exportFormat, setExportFormat] = useState<"xlsx" | "csv">("xlsx");
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkOp, setBulkOp] = useState<BulkOp>("category-add");
   const [bulkTarget, setBulkTarget] = useState("");
@@ -293,18 +295,12 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
     } finally { setBulkBusy(false); }
   };
 
-  const download = (name: string, text: string) => {
-    const url = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));
-    const a = document.createElement("a");
-    a.href = url; a.download = name; a.click();
-    URL.revokeObjectURL(url);
-  };
   const exportCsv = () => {
     const list = exportScope === "selected" ? selectedBooks : exportScope === "filtered" ? rows : books;
     if (!list.length) return toast.error("Nothing to export");
     const day = new Date().toISOString().slice(0, 10);
-    if (exportKind === "inventory") download(`inventory-${day}.csv`, inventoryCsv(list));
-    else download(`books-${day}.csv`, catalogToCsv(list));
+    if (exportKind === "inventory") saveTable(`inventory-${day}`, inventoryCsv(list), exportFormat, "Inventory");
+    else saveTable(`books-${day}`, catalogToCsv(list), exportFormat, "Books");
     setExportOpen(false);
   };
 
@@ -641,7 +637,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
       {!runsOnColophon() && <MerchantFeedDialog open={feedOpen} onClose={() => setFeedOpen(false)} books={books} />}
       {!runsOnColophon() && <GoogleIndexDialog open={indexOpen} onClose={() => setIndexOpen(false)} books={books} />}
       <Dialog open={exportOpen} onClose={() => setExportOpen(false)} title={w("Export books")}
-        footer={<><SecondaryButton onClick={() => setExportOpen(false)}>Cancel</SecondaryButton><PrimaryButton onClick={exportCsv}>Download CSV</PrimaryButton></>}>
+        footer={<><SecondaryButton onClick={() => setExportOpen(false)}>Cancel</SecondaryButton><PrimaryButton onClick={exportCsv}>Download</PrimaryButton></>}>
         <div className="rp-stack">
           <SelectField label={w("Which books")} value={exportScope} onChange={e => setExportScope(e.target.value as any)}>
             <option value="all">{w("All books")} ({books.length})</option>
@@ -652,6 +648,10 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
             hint={exportKind === "full" ? "Every column Import spreadsheet reads: edit it in a spreadsheet and import it back." : "ID, title, ISBN, SKU, edition and stock — one line per edition — for a stock count."}>
             <option value="full">Full catalog</option>
             <option value="inventory">Inventory only</option>
+          </SelectField>
+          <SelectField label="File" value={exportFormat} onChange={e => setExportFormat(e.target.value as "xlsx" | "csv")}>
+            <option value="xlsx">Excel (.xlsx)</option>
+            <option value="csv">CSV</option>
           </SelectField>
         </div>
       </Dialog>

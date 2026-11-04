@@ -95,6 +95,9 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
   const shown = (record) => shownRecord(record, settings?.shopAddressDomain ?? "");
   // A name for the free address held by another press still setting up (or opening), or a shop that has it already.
   const HOLDING = new Set(["setup", "opening"]);
+  /** Endings tried, in order, to suggest a free name close to a taken one. */
+  const NAME_ENDINGS = ["shop", "studio", "co", "2", "3"];
+
   async function freeNameHeld(pressId, name) {
     if (!name) return false;
     if (typeof presses.listByFreeName === "function"
@@ -295,7 +298,17 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
       const name = cleanHandle(String(body.name ?? "").slice(0, 60));
       const problem = handleProblem(name);
       const address = shopDomain && name ? `${name}.${shopDomain}` : "";
-      return { name, address, problem, available: !problem && !(await freeNameHeld(body.pressId, name)) };
+      const available = !problem && !(await freeNameHeld(body.pressId, name));
+      // A taken name comes back with up to three free ones close to it, so the press picks instead of guessing.
+      const suggestions = [];
+      if (name && !problem && !available) {
+        for (const ending of NAME_ENDINGS) {
+          if (suggestions.length >= 3) break;
+          const candidate = `${name.slice(0, 30 - ending.length - 1).replace(/-+$/, "")}-${ending}`;
+          if (!handleProblem(candidate) && !(await freeNameHeld(body.pressId, candidate))) suggestions.push(candidate);
+        }
+      }
+      return { name, address, problem, available, suggestions };
     },
 
     async removeImport(claims, body = {}) {

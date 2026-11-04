@@ -521,7 +521,8 @@ describe("your web address in setup", () => {
   it("a name another shop has is caught while typing, and a press whose name can't be used is asked for one", async () => {
     const pressed: any = { ...PRESS, pressName: "Amazon Books", freeAddress: "my-shop.shops.example", freeNameNeeded: true };
     const d = door();
-    (d as any).checkFreeName = vi.fn(async (_id: string, name: string) => ({ name, address: `${name}.shops.example`, problem: "", available: name !== "moth-press" }));
+    (d as any).checkFreeName = vi.fn(async (_id: string, name: string) => ({ name, address: `${name}.shops.example`, problem: "", available: name !== "moth-press",
+      suggestions: name === "moth-press" ? ["moth-press-shop", "moth-press-studio"] : [] }));
     const el = await mount(d, "#settings/general", pressed);
     expect(el.textContent).toContain("Your press's name can't be used here. Pick a name.");
     const input = [...el.querySelectorAll("main input")].find((i) => i.getAttribute("placeholder") === "moth-books") as HTMLInputElement;
@@ -531,10 +532,24 @@ describe("your web address in setup", () => {
     expect(el.textContent).toContain("Another shop already has moth-press.shops.example. Try another name.");
     const use = [...el.querySelectorAll("main button")].find((b) => b.textContent === "Use this name") as HTMLButtonElement;
     expect(use.disabled).toBe(true);
+    const pick = [...el.querySelectorAll("main button")].find((b) => b.textContent === "moth-press-shop") as HTMLButtonElement;
+    expect(pick).toBeTruthy();
+    await act(async () => { pick.click(); });
+    expect(input.value).toBe("moth-press-shop");
     await act(async () => { typeInto(input, "Moth Books"); });
     await act(async () => { await new Promise((r) => setTimeout(r, 450)); });
     expect(el.textContent).toContain("moth-books.shops.example is free");
     expect(use.disabled).toBe(false);
+  });
+
+  it("a name picked earlier that another shop has taken since asks for a new one", async () => {
+    const pressed: any = { ...PRESS, freeName: "moth-press", freeAddress: "moth-press.shops.example" };
+    const d = door();
+    (d as any).checkFreeName = vi.fn(async (_id: string, name: string) => ({ name, address: `${name}.shops.example`, problem: "", available: false, suggestions: ["moth-press-shop"] }));
+    const el = await mount(d, "#settings/general", pressed);
+    await flush();
+    expect(el.textContent).toContain("Another shop already has moth-press.shops.example. Try another name.");
+    expect([...el.querySelectorAll("main button")].some((b) => b.textContent === "moth-press-shop")).toBe(true);
   });
 
   it("a stockroom-only press has no website, so no web address to choose", async () => {
