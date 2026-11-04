@@ -678,12 +678,24 @@ export function planShopMove(text: string, books: any[], shopCategories: string[
     let m = moved.books[row.line - 2];
     const next: ImportRow = { ...row, line: m.line, errors: row.errors.map(relabel), warnings: [...row.warnings.map(relabel), ...m.notes] };
     if (m.oldPaths.length) oldPaths.set(m.line, m.oldPaths);
+    // No stock number anywhere means the old shop didn't count this product ("Unlimited", stock not managed). Saved
+    // with 0 copies and counting on, it would show as sold out here, so it comes over without stock counting. Not for
+    // one-line-per-edition files: a file read from an old shop's address has that layout and leaves a stock count blank
+    // because it isn't shown publicly, not because the old shop didn't count it (services/moving/oldShop.js).
+    const blankMeansUncounted = moved.shape !== "handle-rows";
+    if (blankMeansUncounted && row.action === "create" && !m.cells.Stock) {
+      next.patch = { ...next.patch, trackInventory: false };
+      next.warnings.push("Your old shop didn't count this product's stock, so it comes over without stock counting and never shows as sold out. To count copies, turn on stock counting in the book editor and type how many you have.");
+    } else if (blankMeansUncounted && row.action === "create" && m.editions.length > 1) {
+      const uncounted = m.editions.filter(e => e.stock === null).map(e => e.name || "Edition");
+      if (uncounted.length) next.warnings.push(`Your old shop didn't count the stock of ${uncounted.join(", ")}, so ${uncounted.length === 1 ? "it starts" : "they start"} at 0 here and ${uncounted.length === 1 ? "shows" : "show"} as sold out. Type how many you have in the book editor.`);
+    }
     if (m.editions.length > 1) {
       // A books shop keeps today's editions list: an old shop's "Format: Hardcover" stays an edition (plan 10.20).
       if (!keepOptions) m = { ...m, options: [] };
       const names = m.editions.map(e => e.name || "Edition").join("; ");
       if (row.action === "create") {
-        next.patch = { ...row.patch, variants: editionsFor(m), ...(m.options.length ? { options: m.options } : {}) };
+        next.patch = { ...next.patch, variants: editionsFor(m), ...(m.options.length ? { options: m.options } : {}) };
         next.changes = [...row.changes, { field: "variants", label: "Editions", from: "", to: names }];
         if (m.options.length) next.changes.push({ field: "options", label: "Options", from: "", to: m.options.map(o => `${o.name}: ${o.values.join(", ")}`).join("; ") });
       } else if (row.action !== "error") {
