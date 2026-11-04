@@ -430,9 +430,17 @@ service cloud.firestore {
       allow read: if isAdminReader();
       allow write: if isAdmin();
     }
+    // The shop's record of what was done, written by the admin (admin/auditLog.ts adds lines), the Functions and the
+    // platform (setup steps, and every support visit before its sign-in exists). Append-only from a browser: staff or
+    // a support visit could otherwise delete or rewrite the line that records them.
     match /audit-log/{logId} {
       allow read: if isAdminReader();
-      allow write: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasOnly(["type", "message", "createdAt"])
+        && request.resource.data.type is string && request.resource.data.type.size() <= 100
+        && request.resource.data.message is string && request.resource.data.message.size() <= 20000
+        && request.resource.data.createdAt is string && request.resource.data.createdAt.size() <= 40;
+      allow update, delete: if false;
     }
     match /analytics/{docId} {
       // Visitors may bump traffic/funnel counters, but order and revenue
