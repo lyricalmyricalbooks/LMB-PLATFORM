@@ -799,7 +799,7 @@ function appCard(app) {
       app.draftDiffers ? el("p", { className: "rp-hint", textContent: "Being changed: the store keeps the approved copy until the maker sends it again." }) : null,
       app.review?.sentBack ? el("p", { className: "rp-hint", textContent: `Last sent back ${dateOnly(app.review.sentBack.at)}: ${app.review.sentBack.reason}` }) : null,
       app.unlisted ? el("p", { className: "rp-hint", textContent: `Taken off ${dateOnly(app.unlisted.at)} by ${app.unlisted.by}: ${app.unlisted.reason}` }) : null,
-      app.history?.length ? el("details", {}, el("summary", { textContent: "History" }), history(app.history.slice().reverse().map((h) => `${when(h.at)} · ${h.by ?? "the maker"} · ${h.what}`))) : null,
+      app.history?.length ? el("details", {}, el("summary", { textContent: "History", style: "min-height: 44px; padding: 11px 0; cursor: pointer" }), history(app.history.slice().reverse().map((h) => `${when(h.at)} · ${h.by ?? "the maker"} · ${h.what}`))) : null,
     ].filter(Boolean),
     actions: el("div", { className: "cr-actions" }, ...actions),
   });
