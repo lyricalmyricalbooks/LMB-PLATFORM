@@ -1702,7 +1702,7 @@ const { handleCancelOrder, handleResolveMismatch, handleCheckoutStatus, handleTr
 });
 
 const { handleStockistPricing, handleStockistStatus } = stockistActions({ db, LIMITS, hitLimit, canViewOrder, orderRequestIdentity, orderRequestKey });
-const { handlePaymentLink } = paymentLinkActions({ db, requireAdmin, priceOrder, PricingError, publicErrorMessage });
+const { handlePaymentLink, handleCustomerAddOn } = paymentLinkActions({ db, requireAdmin, priceOrder, PricingError, publicErrorMessage, hitLimit, LIMITS, canViewOrder, orderRequestKey, orderRequestIdentity });
 
 // Customers › Newsletter (newsletterSend.js): who is on the list, and sending to them a page at a time from the sweep.
 const { runNewsletterIssues, newsletterAdminActions, audienceCount } = require("./newsletterSend");
@@ -1764,6 +1764,7 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   stockistPricing: handleStockistPricing,
   stockistStatus: handleStockistStatus,
   paymentLink: handlePaymentLink,
+  addToOrder: handleCustomerAddOn,
   privacyRequest: handlePrivacyRequest,
   myDataExport: handleMyData,
   myDataErase: handleMyData,

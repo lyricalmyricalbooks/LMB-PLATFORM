@@ -68,10 +68,10 @@ export const REGION_GROUPS: RegionGroup[] = withFeatureRegions<RegionGroup>([
     { id: "accountLineDetails", label: "Extras, gift cards & box sets under ordered books" },
     { id: "accountGlow", label: "Account background glow" },
   ] },
-  { id: "trackingLayout", title: "Order tracking · layout & elements", copy: "Order tracking", files: ["features/site/OrderTracking.tsx", "features/site/OrderRequests.tsx"], regions: [
+  { id: "trackingLayout", title: "Order tracking · layout & elements", copy: "Order tracking", files: ["features/site/OrderTracking.tsx", "features/site/OrderRequests.tsx", "features/site/AddToOrderBox.tsx"], regions: [
     { id: "trackingHeader", label: "Tracking navigation" }, { id: "trackingForm", label: "Order lookup form", required: true },
     { id: "trackingIntro", label: "Lookup heading & description" }, { id: "trackingSummary", label: "Order summary", required: true },
-    { id: "trackingTimeline", label: "Fulfillment timeline" }, { id: "trackingFulfillment", label: "Pickup and delivery details", required: true, copy: "Order tracking" }, { id: "trackingShipment", label: "Carrier information", required: true }, { id: "trackingParts", label: "Parcels sent so far", required: true },
+    { id: "trackingTimeline", label: "Fulfillment timeline" }, { id: "trackingFulfillment", label: "Pickup and delivery details", required: true, copy: "Order tracking" }, { id: "trackingShipment", label: "Carrier information", required: true }, { id: "trackingParts", label: "Parcels sent so far", required: true }, { id: "trackingAddItems", label: "Add something to this order" },
     { id: "trackingDownloads", label: "Purchased downloads", required: true }, { id: "trackingItems", label: "Order items & totals", required: true },
     { id: "trackingStatusBanner", label: "Payment, cancelled & refunded notice", required: true }, { id: "trackingShipping", label: "Shipping method & estimate" },
     { id: "trackingHelp", label: "Help line" },

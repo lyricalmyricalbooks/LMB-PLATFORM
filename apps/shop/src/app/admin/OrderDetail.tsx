@@ -424,7 +424,9 @@ export function OrderDetail({
       const s: any = await adminApi.getPublicSettings();
       shop = { name: getCopy(s?.design || {}, "siteName"), location: s?.location };
     } catch { /* print without the shop block */ }
-    printOrders([order], false, shop);
+    // Items the customer added after paying (code plan 24.6) go in the same parcel.
+    const added = order.shipsWith ? [] : await adminApi.getOrdersShippingWith(order.id).then(list => (Array.isArray(list) ? list : []), () => []);
+    printOrders([order], false, shop, { [order.id]: added });
   };
 
   const handlePushToShippo = async () => {

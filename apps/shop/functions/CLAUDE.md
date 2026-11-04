@@ -1078,6 +1078,14 @@ queue `twoStepBackupUsed`; a failed send never undoes the sign-in). The function
   fully refunded (`addOnParentClosed`, message `LINK_MESSAGES.parentClosed`), so its link takes no payment. A partially
   refunded first order (items taken off) can still take more. Before the rest is dispatched, a refund's restock skips
   copies sent ahead in a part (`returns.unsentItems`, used by `returnRestockItems`), so they never go back on the shelf.
+- **Customers add items themselves (plan 24.6):** the tracking page's **Add something to this order** (region
+  `trackingAddItems`, `features/site/AddToOrderBox.tsx`, words Text & labels › Order tracking › Parcels & adding to an
+  order) posts `action: "addToOrder"` with the order's access headers. `handleCustomerAddOn` (paymentLinks.js) checks the
+  key or signed-in email (`canViewOrder`), `addOnParentProblem`, 1 to 10 lines of 1 to 20 copies, no gift cards, and at
+  most 3 unpaid added orders, then makes the same linked order as the owner's Add items (`createLinkOrder`): shop prices
+  only (browser prices are ignored), shipping 0 or nothing to ship for pickup, 3 days to pay, `addedByCustomer: true`,
+  source still `payment_link` so the sweep, reminder and stock holds follow it. The page then opens the new order to pay.
+  Owners who don't want it hide the region in Studio.
 - **One line everywhere (plan 24.9):** Overview › Running low (`OverviewStock` `lowLine`), the Books list badges
   (`catalogList.stockInfo(book, getBook, line)`) and the book editor read the same `lowStockThreshold(settings)`. Before
   this they used a fixed 5.

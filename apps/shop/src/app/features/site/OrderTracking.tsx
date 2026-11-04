@@ -22,6 +22,7 @@ import { getCopy, CopyError, copyErrorText } from "./storeCopy";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
 import { orderStage, orderStep, shippingDays, stepDates } from "./orderStatus";
 import { OrderRequestBox, PrivacyRequestBox } from "./OrderRequests";
+import { AddToOrderBox } from "./AddToOrderBox";
 import { PaymentLinkPay } from "./PaymentLinkPay";
 import { payLinkState } from "./payLinkState";
 import { waitingPreorderLines, shipDateOf, formatReleaseDate, linePreorderNote } from "./preorder";
@@ -518,6 +519,7 @@ function OrderTrackingContent() {
                 </div>
               </section>
 
+              <AddToOrderBox design={settings?.design} order={order} access={access} books={books || []} />
               <OrderRequestBox design={settings?.design} order={order} access={access} onUpdated={setOrder} returns={settings?.returns} />
 
               <p {...regionProps("trackingHelp")} className="text-center text-sm leading-6 fm-muted">{getCopy(settings?.design, "trackHelp")}</p>
