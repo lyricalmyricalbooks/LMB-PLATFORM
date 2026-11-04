@@ -113,7 +113,8 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
   else if (page === PLAN_PAGE) content = (
     <PlanPage press={press} plans={plans} failed={plansFailed} onRetry={loadPlans} save={save} termsUrl={termsUrl}
       names={{ countries: lists.countries, sells: lists.sells, lookName: themeName(press.look) }} email={email}
-      createShop={(choice) => door.openShop(press.pressId, choice)} onCreated={setPress} onOpen={open} />
+      createShop={(choice) => door.openShop(press.pressId, choice)} onCreated={setPress} onOpen={open}
+      follow={async () => (await door.presses()).find((p) => p.pressId === press.pressId) ?? null} />
   );
   else content = <HelpPage helpUrl={helpUrl} accountUrl={accountUrl} answers={answers} ask={door.askForHelp} pressName={press.pressName} />;
 
@@ -496,9 +497,10 @@ function DesignPage({ press, save }: { press: SetupPress; save: (c: SetupChange)
   );
 }
 
-function PlanPage({ press, plans, failed, onRetry, save, termsUrl, names, email, createShop, onCreated, onOpen }: {
+function PlanPage({ press, plans, failed, onRetry, save, termsUrl, names, email, createShop, onCreated, onOpen, follow }: {
   press: SetupPress; plans: PlanList | null; failed: boolean; onRetry: () => void; save: (c: SetupChange) => Promise<SetupPress>;
   termsUrl: string; names: CreateNames; email: string; createShop: CreateShop; onCreated: (press: SetupPress) => void; onOpen: (page: string) => void;
+  follow?: () => Promise<SetupPress | null>;
 }) {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -553,7 +555,7 @@ function PlanPage({ press, plans, failed, onRetry, save, termsUrl, names, email,
           </p>
         )}
       </SectionCard>
-      <CreateShopCard press={press} plans={plans} names={names} email={email} termsUrl={termsUrl} createShop={createShop} onCreated={onCreated} onOpen={onOpen} />
+      <CreateShopCard press={press} plans={plans} names={names} email={email} termsUrl={termsUrl} createShop={createShop} onCreated={onCreated} onOpen={onOpen} follow={follow} />
     </>
   );
 }

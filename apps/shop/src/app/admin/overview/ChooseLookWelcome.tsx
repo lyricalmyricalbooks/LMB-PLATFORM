@@ -156,7 +156,7 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
       {picked ? (
         <>
           <p className="rp-hint" style={{ marginTop: 0 }}>
-            You chose “{picked.name}” while you were setting up. Use it as it is, try it on first, or see every look. Whatever you pick goes into your draft, and you can change it any time in Design.
+            You chose “{picked.name}” in setup. Use it, try it on, or see every look. You can change it any time in Design.
           </p>
           <ul aria-label="The look you chose" style={{ ...grid(320), maxWidth: 720 }}>{card(picked, false, true)}</ul>
         </>

@@ -8,7 +8,7 @@ import { fakeFrontDoorStores, fakeStagedFiles } from "../signup/fakes.js";
 const SHOP = { shopId: "moth-press-k3f9q", pressId: "press-moth" };
 const PATH = "press-imports/press-moth/abc.csv";
 
-function world({ file = "Title,Price,Stock\nMoth Zine,8,20\n", path = PATH } = {}) {
+function world({ file = "Title,Price,Stock\nMoth Zine,8,20\n", path = PATH, filesConnected = true } = {}) {
   const { presses } = fakeFrontDoorStores();
   const stagedFiles = fakeStagedFiles();
   const docs = new Map();
@@ -18,7 +18,7 @@ function world({ file = "Title,Price,Stock\nMoth Zine,8,20\n", path = PATH } = {
   };
   presses.create("press-moth", { pressId: "press-moth", look: "press-riso", adminLook: "paper", stagedImportPath: file === null ? "" : path, stagedImport: file === null ? null : { name: "my zines.csv", size: file.length, rows: 1, at: "2026-11-03T09:00:00.000Z" } });
   if (file !== null) stagedFiles.files.set(path, Buffer.from(file));
-  const step = handoverStep({ presses, stagedFiles, shopData, now: () => new Date("2026-11-04T10:00:00Z") });
+  const step = handoverStep({ presses, stagedFiles: filesConnected ? stagedFiles : null, shopData, now: () => new Date("2026-11-04T10:00:00Z") });
   return { presses, stagedFiles, docs, step };
 }
 
@@ -49,6 +49,16 @@ test("a press with no kept file hands over its looks only", async () => {
   await w.step.act({ shop: SHOP });
   assert.equal(w.docs.get(HANDOVER_DOC).file, null);
   assert.equal(w.docs.get(HANDOVER_DOC).look, "press-riso");
+  assert.equal(await w.step.check({ shop: SHOP }), true);
+});
+
+test("without the kept files' store, the looks go over and the file stays kept for a later run", async () => {
+  const w = world({ filesConnected: false });
+  await w.step.act({ shop: SHOP });
+  assert.equal(w.docs.get(HANDOVER_DOC).file, null);
+  assert.equal(w.docs.get(HANDOVER_DOC).look, "press-riso");
+  assert.equal((await w.presses.get("press-moth")).stagedImportPath, PATH);
+  assert.equal(w.stagedFiles.files.size, 1);
   assert.equal(await w.step.check({ shop: SHOP }), true);
 });
 

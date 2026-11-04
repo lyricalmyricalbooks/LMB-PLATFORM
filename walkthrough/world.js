@@ -154,7 +154,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const frontDoorStores = fakeFrontDoorStores();
   // Kept product files (18.7): the walkthrough's server takes the upload at /walkthrough/uploads/<token>.
   const stagedFiles = fakeStagedFiles({ uploadBase: "/walkthrough/uploads", now: clock.date });
-  const frontDoor = createFrontDoor({ ...frontDoorStores, email, auth: fakeAuth(), settings, stagedFiles, signup, now: clock.date, ...(suffix ? { suffix } : {}) });
+  const frontDoor = createFrontDoor({ ...frontDoorStores, email, auth: fakeAuth(), settings, stagedFiles, signup, making: (shopId) => shopMaker.progress(shopId), now: clock.date, ...(suffix ? { suffix } : {}) });
   const repairStore = fakeRepairStore();
   const repairs = createRepairQueue({ store: repairStore, registry, auditLog, now: clock.date });
   const steps = () => shopSteps({ ...services, google, registry, profileFiles, presses: frontDoorStores.presses, stagedFiles, config: TEST_CONFIG });

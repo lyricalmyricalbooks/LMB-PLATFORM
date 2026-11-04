@@ -186,7 +186,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   });
   // The front door (18.4): the six-digit code and each press's setup record, before any shop exists.
   const stagedFiles = notConnectedClient(NOT_CONNECTED.stagedImports, ["uploadUrl", "stat", "read", "remove"]);
-  const frontDoor = createFrontDoor({ ...firestoreFrontDoorStores(platform), email, auth: signInLinkMaker, settings, now, signup, stagedFiles });
+  const frontDoor = createFrontDoor({ ...firestoreFrontDoorStores(platform), email, auth: signInLinkMaker, settings, now, signup, stagedFiles, making: (shopId) => shopMaker.progress(shopId) });
   // The clock for a press that hasn't opened (18.11): two warnings, then its setup is cleared.
   const setupClock = createSetupClock({ presses: firestoreFrontDoorStores(platform).presses, stagedFiles, email, settings, now });
   const repairStore = firestoreRepairs(platform);

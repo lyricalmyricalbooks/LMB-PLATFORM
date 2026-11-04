@@ -38,7 +38,8 @@ export function handoverStep({ number = 20, presses = null, stagedFiles = null, 
       const press = await pressOf(shop);
       if (!press) return true;
       const handover = await shopData.get(shop.shopId, HANDOVER_DOC);
-      return !!handover && !press.stagedImportPath;
+      // Without the kept files' store (not connected yet) the file stays where it is, for a later run to carry.
+      return !!handover && (!press.stagedImportPath || !stagedFiles);
     },
     async act({ shop }) {
       const press = await pressOf(shop);
@@ -46,9 +47,9 @@ export function handoverStep({ number = 20, presses = null, stagedFiles = null, 
       const at = now().toISOString();
       const earlier = await shopData.get(shop.shopId, HANDOVER_DOC);
       let file = earlier?.file ?? null;
-      const path = press.stagedImportPath;
+      const path = stagedFiles ? press.stagedImportPath : "";
       if (path) {
-        const bytes = await stagedFiles?.read(path);
+        const bytes = await stagedFiles.read(path);
         // The record names a file the platform no longer has: nothing to carry, and nothing to promise the press.
         if (bytes) {
           const parts = partsOf(Buffer.from(bytes).toString("utf8"));

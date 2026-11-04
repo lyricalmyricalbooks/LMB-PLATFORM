@@ -64,6 +64,17 @@ describe("what happens next", () => {
     expect(makingSteps("stockroom", {}).map((s) => s.id)).toEqual(["plan", "make", "email"]);
   });
 
+  it("follows the making in plain words, and once ready points to the next thing to do (code plan 18.9)", () => {
+    const making = makingSteps("both", { making: { status: "making", done: 7, total: 20, now: "putting your shop's pages online", message: "" } });
+    expect(making[1]).toMatchObject({ title: "Making your website and your stockroom", detail: "Now putting your shop's pages online. 7 of 20 steps done.", progress: { done: 7, total: 20 } });
+    const help = makingSteps("shop", { making: { status: "needs-help", done: 9, total: 20, now: "", message: "It needs a hand from us." } });
+    expect(help[1]).toMatchObject({ title: "We're finishing it by hand", detail: "It needs a hand from us." });
+    const ready = makingSteps("both", { ready: true, email: "owner@example.com" });
+    expect(ready.map((s) => [s.id, s.state])).toEqual([["plan", "done"], ["make", "done"], ["email", "done"], ["open", "now"]]);
+    expect(ready[1].title).toBe("Your website and your stockroom are made");
+    expect(makingSteps("stockroom", { ready: true }).map((s) => s.id)).toEqual(["plan", "make", "email"]);
+  });
+
   it("shows the free days' end, and why a shop waits its turn", () => {
     const steps = makingSteps("shop", { trialEnd: "2026-11-17T23:30:00Z", email: "owner@example.com" });
     expect(steps.map((s) => s.state)).toEqual(["done", "now", "next", "next"]);

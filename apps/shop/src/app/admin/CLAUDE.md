@@ -742,6 +742,13 @@ built by `pnpm run build:setup` with `vite.setup.config.ts` into `dist-setup/`; 
   try so a retry makes one request.
 - **Plan words:** free days are promised only when `/api/plans` gives a trial, and as "your first shop"
   (billing gives one trial per account). Prices that fail to load say so with Try again.
+- **Hand-over and the making (code plan 18.9, 4 November 2026):** setup step 20 writes `firstWeek/handover` (look,
+  admin look, kept file as `parts/<n>` pieces; rules: admin read, never written from a browser). `setupHandover.ts`
+  reads it; Get started's bring step offers the kept file to `BookImportDialog` (`initialFile`), the look step passes
+  `chosen` to `ChooseLookWelcome` (the setup look alone, See every look for the rest). A shop without a hand-over, or
+  one that can't be read, runs Get started as before. In setup mode an `opening` press stays on Settings › Plan, where
+  `CreateShopCard` asks `door.presses()` every 5 s (`making`: done of total, now) until the record is `open`, then
+  shows Open my shop's admin (`openUrl`).
 
 ## One admin for shop + stockroom (3 November 2026)
 

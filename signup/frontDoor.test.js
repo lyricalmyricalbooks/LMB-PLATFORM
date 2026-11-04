@@ -6,6 +6,7 @@ import { createFrontDoor, frontDoorPublicRoutes, frontDoorRoutes } from "./front
 import { createApi } from "./api.js";
 import { fakeAuth, fakeFrontDoorStores, fakeSignupStores, fakeStagedFiles, fakeVerifyIdToken } from "./fakes.js";
 import { createSignup } from "./signup.js";
+import { createShopMaker, STEP_WORDS } from "./shopMaker.js";
 import { fakeRegistry } from "../setup/fakes.js";
 import { fakePlatformEmail } from "../services/billing/fakes.js";
 import { platformSettings } from "../services/settings.js";
@@ -30,10 +31,14 @@ function world({ billing = null, readOldShop } = {}) {
   let clock = new Date("2026-11-03T09:00:00Z").getTime();
   let n = 0;
   const files = fakeStagedFiles({ now: () => new Date(clock) });
+  // The shop maker's progress (18.9) over the same sign-up rows, with its own step history.
+  const registry = fakeRegistry();
+  const maker = createShopMaker({ signups: signupStores.signups, run: async () => ({ ok: true, ran: [] }), registry });
   const door = createFrontDoor({
     ...stores,
     stagedFiles: files,
     signup,
+    making: (shopId) => maker.progress(shopId),
     email: { sendPlatform: async (message) => { sent.push(message); } },
     auth: fakeAuth(),
     settings: SETTINGS,
@@ -47,7 +52,7 @@ function world({ billing = null, readOldShop } = {}) {
     routes: frontDoorRoutes(door), publicRoutes: frontDoorPublicRoutes(door), live: () => ({}), log: () => {},
   });
   const ask = (method, path, body, claims) => api({ method, path, body, headers: claims ? { authorization: `Bearer ${JSON.stringify(claims)}` } : {} });
-  return { stores, sent, door, ask, files, trials, signupStores, tick: (ms) => { clock += ms; } };
+  return { stores, sent, door, ask, files, trials, signupStores, registry, tick: (ms) => { clock += ms; } };
 }
 
 test("a code is emailed, and the right code answers with a sign-in link for that address, once", async () => {
@@ -408,6 +413,48 @@ test("Open my shop starts the plan once, queues the shop and locks setup", async
   assert.equal(again.body.press.shopId, "moth-press-abcde");
   assert.equal(w.trials.length, 1);
   assert.equal((await w.ask("POST", "/api/press/setup", { pressId, pressName: "Other" }, ADA)).status, 409);
+});
+
+test("while the shop is made, the press sees how far it has got; once it is ready, the press is open with its way in", async () => {
+  const w = world();
+  const pressId = await readyPress(w);
+  await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA);
+  const listed = async () => (await w.ask("GET", "/api/press", undefined, ADA)).body.presses.find((p) => p.pressId === pressId);
+  const total = Object.keys(STEP_WORDS).length;
+  assert.deepEqual((await listed()).making, { status: "queued", done: 0, total, now: "", message: "" });
+
+  const rows = w.signupStores.signups.rows;
+  rows.set("moth-press-abcde", { ...rows.get("moth-press-abcde"), status: "making" });
+  for (const step of [1, 2, 3, 4, 5]) await w.registry.recordStep("moth-press-abcde", { step, status: "done" });
+  await w.registry.recordStep("moth-press-abcde", { step: 6, status: "failed" });
+  const making = await listed();
+  assert.equal(making.status, "opening");
+  assert.deepEqual(making.making, { status: "making", done: 5, total, now: STEP_WORDS[6], message: "" });
+
+  rows.set("moth-press-abcde", { ...rows.get("moth-press-abcde"), status: "ready", openUrl: "https://moth-press-abcde.shops.example/admin" });
+  const ready = await listed();
+  assert.equal(ready.status, "open");
+  assert.equal(ready.openUrl, "https://moth-press-abcde.shops.example/admin");
+  assert.deepEqual(ready.making, { status: "ready", done: total, total, now: "", message: "" });
+  const record = await w.stores.presses.get(pressId);
+  assert.deepEqual([record.status, record.shopStatus, record.openUrl], ["open", "ready", "https://moth-press-abcde.shops.example/admin"]);
+  // Read again, it stays open and is not followed any more.
+  const after = await listed();
+  assert.equal(after.status, "open");
+  assert.equal(after.making, undefined);
+});
+
+test("a shop that stopped for a person says so in plain words, and the press stays opening", async () => {
+  const w = world();
+  const pressId = await readyPress(w);
+  await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA);
+  const rows = w.signupStores.signups.rows;
+  rows.set("moth-press-abcde", { ...rows.get("moth-press-abcde"), status: "needs-help", message: "It needs a hand from us." });
+  const press = (await w.ask("GET", "/api/press", undefined, ADA)).body.presses.find((p) => p.pressId === pressId);
+  assert.equal(press.status, "opening");
+  assert.deepEqual([press.making.status, press.making.message], ["needs-help", "It needs a hand from us."]);
+  // Someone else never sees it.
+  assert.deepEqual((await w.ask("GET", "/api/press", undefined, BEN)).body.presses, []);
 });
 
 test("a plan chosen on the Open my shop page is the one started", async () => {

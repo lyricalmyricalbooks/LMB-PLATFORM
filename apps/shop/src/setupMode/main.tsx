@@ -10,6 +10,7 @@ import "./setup.css";
 import { SetupAdmin, type SetupLists } from "./SetupAdmin";
 import { platformDoor, pressToOpen } from "./door";
 import { helpAnswersFrom } from "./SetupHelp";
+import { PLAN_PAGE } from "./pages";
 
 const FRONT_DOOR = "/join/";
 const ACCOUNT_PAGE = "/account/";
@@ -41,7 +42,9 @@ async function start() {
   const press = pressToOpen(presses, new URLSearchParams(location.search).get("press"));
   // No press in setup: an opened one is run from the account page; none at all starts at the front door.
   if (!press) return location.replace(presses.some((p) => p.status === "opening" || p.status === "open") ? ACCOUNT_PAGE : FRONT_DOOR);
-  if (press.status === "opening" || press.status === "open") return location.replace(ACCOUNT_PAGE);
+  if (press.status === "open" || press.status === "expired") return location.replace(ACCOUNT_PAGE);
+  // A shop being made opens on its timeline (Settings › Plan), which follows it until it is ready (code plan 18.9).
+  if (press.status === "opening" && !location.hash) history.replaceState(null, "", `#${PLAN_PAGE}`);
 
   const lists: SetupLists = {
     countries: form.COUNTRIES,

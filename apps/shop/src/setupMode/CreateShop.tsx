@@ -1,8 +1,8 @@
 // Create my shop (code plan 18.8, polished): the review a press reads before its shop is made, and the timeline it sees
 // while it's being made. One tick for the terms and one button; the platform starts the plan and queues the shop, and a
 // refusal comes back in plain words with the press still in setup and everything kept. The words come from createShop.ts.
-import { useState } from "react";
-import { Check, Circle, Clock, Store } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Check, Circle, Clock, ExternalLink, Store } from "lucide-react";
 import { GhostButton, PrimaryButton, SectionCard } from "../app/admin/riso/components";
 import { useShopWords } from "../app/admin/shopWords";
 import type { OpenedShop, PlanList, SetupPress } from "./door";
@@ -10,9 +10,14 @@ import { canCreate, createChecklist, makingSteps, priceWords, whatHappensNext, t
 
 export type CreateShop = (choice: { plan: SetupPress["plan"]; termsVersion: string }) => Promise<OpenedShop>;
 
-export function CreateShopCard({ press, plans, names, email, termsUrl, createShop, onCreated, onOpen }: {
+/** How often the timeline asks how far the shop has got while it is made. */
+export const FOLLOW_EVERY_MS = 5000;
+
+export function CreateShopCard({ press, plans, names, email, termsUrl, createShop, onCreated, onOpen, follow }: {
   press: SetupPress; plans: PlanList | null; names: CreateNames; email: string; termsUrl: string; createShop: CreateShop;
   onCreated: (press: SetupPress) => void; onOpen: (page: string) => void;
+  /** Reads the press again (code plan 18.9): the timeline follows the making with it until the shop is ready. */
+  follow?: () => Promise<SetupPress | null>;
 }) {
   const w = useShopWords();
   const [agreed, setAgreed] = useState(false);
@@ -21,8 +26,21 @@ export function CreateShopCard({ press, plans, names, email, termsUrl, createSho
   const [waiting, setWaiting] = useState("");
   const [trialEnd, setTrialEnd] = useState<string | null>(null);
 
+  // Followed while it is being made; a read that fails is simply tried again on the next beat.
+  const following = press.status === "opening" && !!follow;
+  useEffect(() => {
+    if (!following || !follow) return;
+    let live = true;
+    const beat = async () => {
+      const next = await follow().catch(() => null);
+      if (live && next) onCreated(next);
+    };
+    const timer = setInterval(() => void beat(), FOLLOW_EVERY_MS);
+    return () => { live = false; clearInterval(timer); };
+  }, [following, press.pressId]);
+
   if (press.status !== "setup") {
-    return <BeingMade press={press} trialEnd={trialEnd} waiting={press.shopMessage || waiting} email={email} />;
+    return <BeingMade press={press} trialEnd={trialEnd} waiting={press.status === "opening" ? press.shopMessage || waiting : ""} email={email} />;
   }
 
   const rows = createChecklist(press, plans, names);
@@ -100,11 +118,16 @@ function ReviewRow({ row, w, onOpen }: { row: CreateRow; w: (words: string) => s
   );
 }
 
-/** While the shop is made: what's done, what's happening now and what comes next. Nothing on it can be pressed. */
+/**
+ * While the shop is made: what's done, what's happening now and what comes next, with how far the making has got.
+ * Once it is ready, the way into the shop's admin. Nothing else on it can be pressed.
+ */
 function BeingMade({ press, trialEnd, waiting, email }: { press: SetupPress; trialEnd: string | null; waiting: string; email: string }) {
-  const steps = makingSteps(press.plan, { trialEnd, waiting, email });
+  const ready = press.status === "open";
+  const steps = makingSteps(press.plan, { trialEnd, waiting, email, making: press.making ?? null, ready });
+  const title = ready ? "Your shop is ready" : waiting ? "Your shop is in line" : press.making?.status === "needs-help" ? "Your shop is nearly made" : "Your shop is being made";
   return (
-    <SectionCard title={waiting ? "Your shop is in line" : "Your shop is being made"} collapsible={false}>
+    <SectionCard title={title} collapsible={false}>
       <div role="status" style={{ display: "grid", gap: 16, maxWidth: 640 }}>
         <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "grid" }}>
           {steps.map((step, i) => (
@@ -120,11 +143,19 @@ function BeingMade({ press, trialEnd, waiting, email }: { press: SetupPress; tri
                   {step.title}<span className="rp-sr-only">{step.state === "done" ? " (done)" : step.state === "now" ? " (happening now)" : " (next)"}</span>
                 </strong>
                 <span className="rp-hint" style={{ overflowWrap: "anywhere" }}>{step.detail}</span>
+                {step.progress && (
+                  <span role="progressbar" aria-label="Steps done" aria-valuemin={0} aria-valuemax={step.progress.total} aria-valuenow={step.progress.done}
+                    style={{ display: "block", height: 8, marginTop: 6, maxWidth: 360, border: "1px solid var(--rp-text)", background: "var(--rp-surface)" }}>
+                    <span style={{ display: "block", height: "100%", width: `${Math.round((step.progress.done / step.progress.total) * 100)}%`, background: "var(--rp-primary)", transition: "width 400ms ease" }} />
+                  </span>
+                )}
               </span>
             </li>
           ))}
         </ol>
-        <p className="rp-hint" style={{ margin: 0 }}>You can close this page. Nothing you set up is lost.</p>
+        {ready && press.openUrl
+          ? <div><a className="rp-btn rp-btn-primary" href={press.openUrl} style={{ display: "inline-flex", alignItems: "center", gap: 8, minHeight: 44 }}>Open my shop's admin <ExternalLink size={16} aria-hidden /></a></div>
+          : !ready && <p className="rp-hint" style={{ margin: 0 }}>You can close this page. We'll email you when it's ready, and nothing you set up is lost.</p>}
       </div>
     </SectionCard>
   );

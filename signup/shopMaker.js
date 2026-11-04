@@ -33,6 +33,7 @@
 //              at sign-up, before either place existed (plan 6.14)
 import { SignupError, personOf } from "./signup.js";
 import { PLANS, PLAN_STEPS } from "../setup/steps.js";
+import { latestByStep } from "../setup/runner.js";
 
 export const AUTO_TRIES = 3;
 export const BACKOFF_MINUTES = Object.freeze([1, 5, 15]);
@@ -219,9 +220,32 @@ export function createShopMaker({ signups, run, registry, repairs = null, selfCh
     return { shopId, plan, from: built, status: needsHelp ? "needs-help" : "failed" };
   }
 
+  /**
+   * How far one shop's making has got, for setup mode's timeline (code plan 18.9): the sign-up row's status, how many
+   * setup steps are done of how many, and what is happening now in the press's words (STEP_WORDS). Null when there is
+   * no such shop. Read only; the step history is the registry's, so a retry picks up where the count stopped.
+   */
+  async function progress(shopId) {
+    const row = typeof shopId === "string" && shopId ? await signups.get(shopId) : null;
+    if (!row) return null;
+    const numbers = Object.keys(STEP_WORDS).map(Number);
+    const latest = latestByStep(await Promise.resolve().then(() => registry.readSteps(shopId)).catch(() => []) ?? []);
+    const ready = row.status === "ready";
+    const next = numbers.find((n) => latest[n]?.status !== "done");
+    return {
+      status: row.status,
+      done: ready ? numbers.length : numbers.filter((n) => latest[n]?.status === "done").length,
+      total: numbers.length,
+      now: ready || !next || row.status !== "making" ? "" : STEP_WORDS[next],
+      message: row.status === "waiting" || row.status === "needs-help" ? row.message ?? "" : "",
+      openUrl: ready ? row.openUrl ?? null : null,
+    };
+  }
+
   return {
     make,
     syncPlan,
+    progress,
 
     /** Runs every queued shop and every shop due its automatic try. Returns what it did, per shop. */
     async sweep() {
