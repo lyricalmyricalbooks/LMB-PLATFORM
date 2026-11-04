@@ -77,3 +77,52 @@ describe("the look previews show the first book's photo (plan 17.8)", () => {
     expect(emailThemeFor("press-zine")).toBeNull();
   });
 });
+
+describe("browsing the looks (theme store)", () => {
+  it("reads picture shapes, keeping odd ones sensible", async () => {
+    const { pictureRatio } = await import("./lookGallery");
+    expect(pictureRatio("3:4")).toBe(0.75);
+    expect(pictureRatio("1:1")).toBe(1);
+    expect(pictureRatio("9:1")).toBe(2);
+    expect(pictureRatio("tall")).toBe(0.75);
+    expect(pictureRatio(undefined)).toBe(0.75);
+  });
+  it("tells light from dark and finds the full templates", async () => {
+    const { filterLooks, isTemplate, lightness, LOOK_FILTERS } = await import("./lookGallery");
+    expect(lightness("#000")).toBe(0);
+    expect(lightness("#ffffff")).toBe(1);
+    expect(lightness("rgb(0,0,0)")).toBeNull();
+    const all = THEME_LIBRARY as any[];
+    const templates = filterLooks(all, "templates").map(t => t.id);
+    for (const id of ["press-marquee", "press-shelf", "press-atlas", "press-mosaic", "press-market", "press-rows", "press-arch"]) expect(templates).toContain(id);
+    expect(templates).not.toContain("press-zine");
+    expect(isTemplate(all.find(t => t.id === "press-zine"))).toBe(false);
+    const dark = filterLooks(all, "dark").map(t => t.id);
+    expect(dark).toContain("night-neon");
+    expect(dark).not.toContain("press-shelf");
+    expect(filterLooks(all, "light").length + dark.length).toBe(all.length);
+    expect(filterLooks(all, "all")).toHaveLength(all.length);
+    expect(LOOK_FILTERS.map(f => f.id)).toEqual(["all", "templates", "light", "dark"]);
+  });
+  it("every look gives the try-on what it draws", () => {
+    for (const theme of THEME_LIBRARY as any[]) {
+      const look = lookPreview(theme);
+      expect(look.ratio, theme.id).toBeGreaterThan(0);
+      expect(look.cta.length, theme.id).toBeGreaterThan(0);
+      expect(look.cta, theme.id).toBe(look.cta.charAt(0) + look.cta.slice(1).toLowerCase());
+      for (const c of [look.footerBg, look.footerText, look.muted, look.secondary, look.badgeBg]) expect(c, theme.id).toMatch(/^(#|rgb|var)/);
+    }
+    const marquee = lookPreview((THEME_LIBRARY as any[]).find(t => t.id === "press-marquee"));
+    expect(marquee.heading).toBe("The wall");
+    expect(marquee.outline).toBe(3);
+    expect(marquee.announcement).not.toBeNull();
+  });
+  it("samples are worded for what the press sells", async () => {
+    const { sampleProducts } = await import("./lookGallery");
+    expect(sampleProducts("books")[0].title).toBe("Salt Hours");
+    expect(sampleProducts(null)[0].title).toBe("Salt Hours");
+    expect(sampleProducts("clothing")[0].title).toBe("Heavy Tee");
+    expect(sampleProducts("jewelry")[0].title).toBe("Moon Hoops");
+    for (const s of ["books", "prints", "clothing", "shoes", "jewelry", "music", "other"]) expect(sampleProducts(s).length, s).toBeGreaterThanOrEqual(8);
+  });
+});
