@@ -735,6 +735,11 @@ built by `pnpm run build:setup` with `vite.setup.config.ts` into `dist-setup/`; 
   A "You're ready" card tops Home once only Create is left; the opened step is remembered per press for the visit
   (sessionStorage). On a phone the welcome title is smaller (`.rp-setup-home`, `setupMode/setup.css`). Locked pages say what they will do (`lockedPageLine`; pages.test.ts fails a locked menu page without a line) and lead
   back to the guide. Help ids are checked against `help/articles.js`.
+- **Help in place (4 November 2026):** `main.tsx` loads the platform's `/help/articles.js` (one copy) into
+  `SetupHelp.tsx` `helpAnswersFrom`; step help, Need a hand? and Help open answers in place, falling back to help-centre
+  links when they didn't load. Help's **Ask a person** (`AskForm`, `id="ask"`) sends `door.askForHelp` →
+  `POST /api/support/open` (no shopId: a press in setup has no shop; the body notes the press name), one request id per
+  try so a retry makes one request.
 - **Plan words:** free days are promised only when `/api/plans` gives a trial, and as "your first shop"
   (billing gives one trial per account). Prices that fail to load say so with Try again.
 
