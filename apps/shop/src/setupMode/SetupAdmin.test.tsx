@@ -41,7 +41,7 @@ function door(): SetupDoor & { saved: any[] } {
   };
 }
 
-async function mount(d: SetupDoor, hash = "", press: SetupPress = PRESS, answers?: Map<string, any>) {
+async function mount(d: SetupDoor, hash = "", press: SetupPress = PRESS, answers?: Map<string, any> | ((sells: string | null) => Map<string, any>)) {
   location.hash = hash;
   const el = document.createElement("div");
   document.body.append(el);
@@ -650,6 +650,20 @@ describe("help without leaving setup", async () => {
     const [first, second] = (d.askForHelp as any).mock.calls.map((c: any[]) => c[0].requestId);
     expect(second).toBe(first);
     expect(el.textContent).toContain("We've emailed you a copy");
+  });
+
+  it("help answers follow a new answer to What do you sell? at once, with no reload (code plan 12.18)", async () => {
+    const answersFor = vi.fn((sells: string | null) => (sells === "zines" ? new Map([["bring-books", { ...answers.get("bring-books"), answer: ["Zine words."] }]]) : answers));
+    const el = await mount(door(), "#settings/general", { ...PRESS, country: "CA", moving: "yes" }, answersFor as any);
+    expect(answersFor).toHaveBeenLastCalledWith("books");
+    const sells = [...el.querySelectorAll("form select")].find((s) => [...(s as HTMLSelectElement).options].some((o) => o.value === "zines")) as HTMLSelectElement;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!.call(sells, "zines");
+      sells.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await act(async () => { el.querySelector("form")!.requestSubmit(); });
+    await flush();
+    expect(answersFor).toHaveBeenLastCalledWith("zines");
   });
 
   it("Home's Ask a person goes to the form on Help", async () => {
