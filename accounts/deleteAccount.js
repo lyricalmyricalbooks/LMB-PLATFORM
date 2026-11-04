@@ -71,6 +71,13 @@ export function createAccountDeletion({ accounts, memberships, registry, shopDat
       if (shop.role !== "owner" || CLOSED.has(shop.status)) continue;
       if (!(await anotherOwner(shop, person))) blockers.push({ shopId: shop.shopId, pressName: shop.pressName });
     }
+    // A shop still being made: its trial began at sign-up, and the shop maker will make it with this person as its only
+    // owner. Its registry row may not exist yet, so the teams above can't see it; deleting now would open it with
+    // nobody to sign in. A sign-up whose trial never started (in line, or its country not open yet) simply goes.
+    for (const signup of await signups.listByAccount(person.accountId)) {
+      if (!signup.trialStartedAt || shops.some((s) => s.shopId === signup.shopId) || (await registry.getShop(signup.shopId))) continue;
+      blockers.push({ shopId: signup.shopId, pressName: signup.pressName || signup.shopId, making: true });
+    }
     return {
       email: person.email,
       leaving: shops.filter((s) => !blockers.some((b) => b.shopId === s.shopId)).map(({ shopId, pressName, role }) => ({ shopId, pressName, role })),
@@ -86,6 +93,11 @@ export function createAccountDeletion({ accounts, memberships, registry, shopDat
     }
     if (normal(confirmEmail) !== person.email) throw new SignupError(400, "Type your email address exactly as it shows to confirm.");
     const { blockers } = await preview(claims);
+    const making = blockers.filter((b) => b.making);
+    if (making.length) {
+      const names = making.map((b) => b.pressName).join(", ");
+      throw new SignupError(409, `${names} ${making.length === 1 ? "is" : "are"} still being made, with you as the only owner. Wait until it's ready, then make someone else an owner from Team or close the shop, before deleting your account.`);
+    }
     if (blockers.length) {
       const names = blockers.map((b) => b.pressName).join(", ");
       throw new SignupError(409, `You're the only owner of ${names}. Make someone else an owner from Team, or close the shop, before deleting your account.`);

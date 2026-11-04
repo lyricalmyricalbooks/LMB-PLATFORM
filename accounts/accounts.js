@@ -56,6 +56,10 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
     return row && normal(row.ownerEmail) === person.email ? "owner" : null;
   }
 
+  // An invite carries its sender's say-so: once they are off the team or no longer an owner (here, or in the shop's
+  // own Settings › Team), what they sent stops working, so a removed co-owner can't still let someone in.
+  const senderStillOwner = async (invite) => (await roleIn({ email: normal(invite.invitedBy) }, invite.shopId)) === "owner";
+
   // `change` is true for the calls that alter the team: on a paid plan they need the second step (plan 14.1).
   async function ownerOnly(claims, shopId, change = false) {
     const person = personOf(claims);
@@ -139,8 +143,9 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
       await ownerOnly(claims, shopId);
       const row = await registry.getShop(shopId);
       const members = (await memberships.listByShop(shopId)).map(({ email: address, role, addedAt }) => ({ email: address, role, addedAt }));
-      if (row?.ownerEmail && !members.some((m) => m.email === normal(row.ownerEmail))) members.unshift({ email: normal(row.ownerEmail), role: "owner", addedAt: row.createdAt ?? null });
-      const open = (await invites.listByShop(shopId)).filter((i) => !i.acceptedAt && !i.cancelledAt && i.expiresAt > at());
+      if (row?.ownerEmail && !members.some((m) => m.email === normal(row.ownerEmail))) members.unshift({ email: normal(row.ownerEmail), role: "owner", addedAt: row.createdAt ?? null, signupOwner: true });
+      const open = [];
+      for (const i of await invites.listByShop(shopId)) if (!i.acceptedAt && !i.cancelledAt && i.expiresAt > at() && (await senderStillOwner(i))) open.push(i);
       return { members, invites: open.map(({ id, email: address, role, expiresAt }) => ({ id, email: address, role, expiresAt })) };
     },
 
@@ -155,8 +160,9 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
       if (to === normal(shopRow?.ownerEmail)) throw new SignupError(409, "That's the shop's own owner address. It always has full access.");
       if (await memberships.get(shopId, to)) throw new SignupError(409, "That person is already on the team. Change their role instead.");
       const open = (await invites.listByShop(shopId)).filter((i) => !i.acceptedAt && !i.cancelledAt && i.expiresAt > at());
-      for (const old of open.filter((i) => i.email === to)) await invites.set(old.id, { ...old, cancelledAt: at(), cancelledBy: "replaced" });
+      // The limit first: a refused invite must leave the one this person already has working.
       if (open.filter((i) => i.email !== to).length >= MAX_PENDING_INVITES) throw new SignupError(429, `A shop can have ${MAX_PENDING_INVITES} open invites at once. Cancel some first.`);
+      for (const old of open.filter((i) => i.email === to)) await invites.set(old.id, { ...old, cancelledAt: at(), cancelledBy: "replaced" });
 
       const secret = token();
       const id = hash(secret).slice(0, 40);
@@ -197,6 +203,11 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
       }
       if (invite.expiresAt <= at()) throw new SignupError(410, "That invite has run out. Ask the shop's owner for a new one.");
       if (invite.email !== person.email) throw new SignupError(403, `This invite is for ${invite.email}. Sign in with that address to accept it.`);
+      if (!(await senderStillOwner(invite))) {
+        await invites.set(invite.id, { ...invite, cancelledAt: at(), cancelledBy: "sender-no-longer-owner" });
+        await log(invite.shopId, "invite-cancelled", { email: invite.email, by: "sender-no-longer-owner", sender: invite.invitedBy });
+        throw new SignupError(410, "That invite was cancelled. Ask the shop's owner for a new one.");
+      }
 
       // The shop's own team list first (its rules decide access), then the platform's copy.
       await shopData.set(invite.shopId, `members/${invite.email}`, { role: invite.role, addedBy: "invite", invitedBy: invite.invitedBy, addedAt: at() });
@@ -211,6 +222,7 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
       const person = await ownerOnly(claims, shopId, true);
       const who = normal(address);
       if (!ROLES.includes(role)) throw new SignupError(400, "Choose a role: owner, staff, author, bookkeeper or fair helper.");
+      await notSignupOwner(shopId, who);
       const member = await memberships.get(shopId, who);
       if (!member) throw new SignupError(404, "That person isn't on the team.");
       if (member.role === role) return { email: who, role, changed: false };
@@ -225,6 +237,7 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
     async remove(claims, { shopId, email: address }) {
       const person = await ownerOnly(claims, shopId, true);
       const who = normal(address);
+      await notSignupOwner(shopId, who);
       const member = await memberships.get(shopId, who);
       if (!member) throw new SignupError(404, "That person isn't on the team.");
       if (member.role === "owner") await keepAnOwner(shopId, who);
@@ -234,6 +247,13 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
       return { email: who, removed: true };
     },
   };
+
+  // The shop's own owner address is the shop's, not the team list's (apps/shop/functions/roles.js): it can't be changed
+  // or removed here, so it gets that answer rather than "not on the team".
+  async function notSignupOwner(shopId, who) {
+    const row = await registry.getShop(shopId);
+    if (row?.ownerEmail && normal(row.ownerEmail) === who) throw new SignupError(409, "That's the shop's own owner address. It always has full access, so its role can't be changed or taken away.");
+  }
 
   async function keepAnOwner(shopId, leaving) {
     const row = await registry.getShop(shopId);

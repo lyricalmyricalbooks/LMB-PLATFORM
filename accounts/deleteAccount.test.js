@@ -92,6 +92,21 @@ test("a person on no shop can delete their account", async () => {
   assert.equal(w.authUsers.live.has(loner.uid), false);
 });
 
+test("a shop still being made (its trial started, no shop yet) stops the deletion, so it never opens without an owner", async () => {
+  const w = world();
+  w.registry.shops.get("ada-books").ownerEmail = BEA.email;
+  // Signed up and admitted: the trial began, the shop maker hasn't made the shop's registry row yet.
+  w.signup.signups.rows.set("ada-zines", { shopId: "ada-zines", accountId: ADA.uid, ownerEmail: ADA.email, ownerName: "Ada", pressName: "Ada Zines", status: "making", trialStartedAt: "2026-11-03T11:00:00Z" });
+  const preview = await w.deletion.preview(signedIn(ADA));
+  assert.deepEqual(preview.blockers, [{ shopId: "ada-zines", pressName: "Ada Zines", making: true }]);
+  await assert.rejects(w.deletion.deleteMe(signedIn(ADA), { confirmEmail: ADA.email }), (e) => e.status === 409 && /Ada Zines is still being made/.test(e.message));
+  assert.ok(w.authUsers.live.has(ADA.uid));
+  assert.ok(w.signup.signups.rows.has("ada-zines"));
+  // A sign-up whose trial never started (waiting in line, or its country not open) doesn't stop it.
+  w.signup.signups.rows.set("ada-zines", { ...w.signup.signups.rows.get("ada-zines"), status: "in-line", trialStartedAt: undefined });
+  assert.deepEqual((await w.deletion.preview(signedIn(ADA))).blockers, []);
+});
+
 test("a stale sign-in or a wrong confirmation is refused before anything changes", async () => {
   const w = world();
   w.registry.shops.get("ada-books").ownerEmail = BEA.email;

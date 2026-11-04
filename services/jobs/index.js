@@ -56,9 +56,19 @@ export const jobNamed = (name) => BY_NAME.get(name) ?? null;
 
 const plainError = (error) => String(error?.message ?? error ?? "it stopped with no reason given").replace(/\s+/g, " ").trim().slice(0, 300);
 
+/**
+ * The entries of a sweep that answers one line per shop (web addresses, own sending addresses) whose check threw:
+ * those sweeps catch each shop's failure so the others still run, and mark it `state: "failed"`.
+ */
+const failedEntries = (list) => list.filter((entry) => entry && typeof entry === "object" && entry.state === "failed");
+
 /** A short summary of what a job returned: its own `summary`, or its counts ("checked 3, sent 1"). */
 export function summaryOf(result) {
   if (typeof result === "string") return result.slice(0, 200);
+  if (Array.isArray(result)) {
+    const failed = failedEntries(result).length;
+    return `checked ${result.length}${failed ? `, failed ${failed}` : ""}`;
+  }
   if (!result || typeof result !== "object") return "";
   if (typeof result.summary === "string") return result.summary.slice(0, 200);
   const counts = Object.entries(result).filter(([, v]) => Number.isInteger(v)).map(([k, v]) => `${k.replace(/([A-Z])/g, " $1").toLowerCase()} ${v}`);
@@ -136,6 +146,11 @@ export function createJobs({ store, email = null, alertTo = null, now = () => ne
         if (result && typeof result === "object" && result.ok === false) {
           ok = false;
           error = plainError(result.error ?? "it finished but said something went wrong");
+        } else if (Array.isArray(result) && failedEntries(result).length) {
+          // Every shop failing (a refused key, a provider down) must not show as a run that went well.
+          const failed = failedEntries(result);
+          ok = false;
+          error = plainError(`${failed.length} of ${result.length} failed: ${failed.slice(0, 3).map((f) => `${f.shopId ?? "?"}: ${f.detail ?? "no reason given"}`).join("; ")}`);
         }
       } catch (failure) {
         ok = false;

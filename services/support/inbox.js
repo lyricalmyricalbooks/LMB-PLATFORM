@@ -75,9 +75,17 @@ export function createSupportInbox({ store, email, registry, roleIn, settings, a
       // The same Send twice (a double press, a retry after a dropped connection) is one ticket.
       const requestId = typeof input.requestId === "string" && /^[A-Za-z0-9-]{8,64}$/.test(input.requestId) ? input.requestId : null;
       const id = requestId ? createHash("sha256").update(`${person.email} ${requestId}`).digest("hex").slice(0, 12) : newId();
+      // Its two emails, keyed by the ticket, so sending them again never sends twice.
+      const tell = async (ticket) => {
+        const data = { pressName: ticket.pressName ?? "", ticketId: ticket.id, subject: ticket.subject, body: ticket.messages[0].body, from: ticket.email };
+        await email.sendPlatform({ kind: "support-received", to: ticket.email, shopId: ticket.shopId, data, idempotencyKey: `support-${ticket.id}-received` });
+        await email.sendPlatform({ kind: "support-new", to: settings.supportEmail, shopId: ticket.shopId, data, idempotencyKey: `support-${ticket.id}-new` });
+      };
       const existing = await store.get(id);
       if (existing) {
         if (existing.email !== person.email) throw new SignupError(409, "Try sending that again.");
+        // A retry after the emails failed (the ticket was kept, the press saw an error): they go out now.
+        await tell(existing);
         return { ticket: forPress(existing) };
       }
       const since = new Date(now().getTime() - 24 * 3600_000).toISOString();
@@ -89,9 +97,7 @@ export function createSupportInbox({ store, email, registry, roleIn, settings, a
         messages: [{ from: "press", by: person.email, body, at: at() }],
       };
       await store.put(id, ticket);
-      const data = { pressName: pressName ?? "", ticketId: id, subject, body, from: person.email };
-      await email.sendPlatform({ kind: "support-received", to: person.email, shopId, data, idempotencyKey: `support-${id}-received` });
-      await email.sendPlatform({ kind: "support-new", to: settings.supportEmail, shopId, data, idempotencyKey: `support-${id}-new` });
+      await tell(ticket);
       return { ticket: forPress(ticket) };
     },
 

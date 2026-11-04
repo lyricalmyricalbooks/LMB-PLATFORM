@@ -175,7 +175,7 @@ export function fakeConnections() {
     get: async (shopId) => (rows.has(shopId) ? structuredClone(rows.get(shopId)) : null),
     set: async (shopId, record) => void rows.set(shopId, structuredClone({ ...record, shopId })),
     list: async () => [...rows.values()].map((row) => structuredClone(row)),
-    findByRealm: async (mode, realmId) => structuredClone([...rows.values()].find((row) => row.mode === mode && row.realmId === realmId) ?? null),
+    byRealm: async (mode, realmId) => structuredClone([...rows.values()].filter((row) => row.mode === mode && row.realmId === realmId)),
   };
 }
 
