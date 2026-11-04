@@ -9,8 +9,8 @@ const g = vi.hoisted(() => ({
   connectLink: vi.fn(async () => "https://accounts.example/allow"),
   reload: vi.fn(),
 }));
-vi.mock("../googleConnect", () => ({
-  GOOGLE_PARTS: { analytics: { label: "Google Analytics", about: "" }, searchConsole: { label: "Google search", about: "" } },
+vi.mock("../googleConnect", async (real) => ({
+  GOOGLE_PARTS: (await real<any>()).GOOGLE_PARTS,
   googleConnectApi: { connectLink: g.connectLink },
   takeGoogleOutcome: () => g.outcome,
   useGoogleConnect: () => ({ ...g.state, reload: g.reload }),
