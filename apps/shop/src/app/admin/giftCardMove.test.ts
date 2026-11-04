@@ -58,4 +58,16 @@ describe("reading an old shop's gift card file (plan 23.5)", () => {
     expect(batches([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]);
     expect(batches([], 2)).toEqual([]);
   });
+
+  it("keeps the day a written-out date names, even late in the evening in the shop's time", () => {
+    const was = process.env.TZ;
+    process.env.TZ = "America/Toronto";
+    try {
+      expect(dayOf("Dec 31, 2026 11:59 PM")).toBe("2026-12-31");
+      expect(dayOf("11/30/2026 23:30")).toBe("2026-11-30");
+      expect(dayOf("December 1, 2026")).toBe("2026-12-01");
+    } finally {
+      if (was === undefined) delete process.env.TZ; else process.env.TZ = was;
+    }
+  });
 });

@@ -47,7 +47,10 @@ export function dayOf(value: string): string | null {
   const iso = /^(\d{4}-\d{2}-\d{2})/.exec(v);
   if (iso) return iso[1];
   const t = Date.parse(v);
-  return Number.isNaN(t) ? null : new Date(t).toISOString().slice(0, 10);
+  if (Number.isNaN(t)) return null;
+  // The browser read it as a local time, so its day is the local one: "Dec 31, 11:59 PM" is the 31st, not UTC's 1st.
+  const d = new Date(t);
+  return `${String(d.getFullYear()).padStart(4, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 export function readGiftCardFile(text: string, today: string): GiftCardFile {
