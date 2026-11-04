@@ -1,4 +1,4 @@
-import { PLAN_CHOICES } from "./form.js";
+import { PLAN_CHOICES, SQUARE_COUNTRIES, squareWords } from "./form.js";
 
 // The setup record for one press (code plan 18.2): the only thing made for a press before it launches. One document per
 // press in the platform's own project, `presses/{pressId}`. It holds what the press typed during setup and nothing that
@@ -64,6 +64,9 @@ export function setupChange(current, change) {
     if (key === "moving" && !MOVING_CHOICES.includes(text)) return { ok: false, message: "Pick one of the choices." };
     if (key === "language" && !LANGUAGE_CHOICES.includes(text)) return { ok: false, message: "Pick automatic, French or English." };
     if (key === "cardProvider" && !CARD_PROVIDER_CHOICES.includes(text)) return { ok: false, message: "Pick Stripe or Square." };
+    // Square only where it works with the shop's checkout; a country changed afterwards is checked again at Open my shop.
+    const country = typeof change?.country === "string" ? change.country.trim() : current.country;
+    if (key === "cardProvider" && text === "square" && country && !SQUARE_COUNTRIES.includes(country)) return { ok: false, message: squareWords(country) };
     fields[key] = text;
   }
   return { ok: true, fields };

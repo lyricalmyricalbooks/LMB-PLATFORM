@@ -14,8 +14,8 @@ const names = { countries: { CA: { name: "Canada" } }, sells: [{ id: "zines", la
 describe("Create my shop's review", () => {
   it("shows the card provider the press picked, which never stops Create my shop", () => {
     const square = createChecklist(press({ cardProvider: "square" }), plans, names).find((r) => r.id === "cards")!;
-    expect([square.state, square.value, square.page]).toEqual(["done", "Square. You connect your account once your shop is made.", "settings/payments"]);
-    expect(createChecklist(press({ cardProvider: "stripe" }), plans, names).find((r) => r.id === "cards")!.value).toMatch(/^Stripe\. /);
+    expect([square.state, square.value, square.page]).toEqual(["done", "Square", "settings/payments"]);
+    expect(createChecklist(press({ cardProvider: "stripe" }), plans, names).find((r) => r.id === "cards")!.value).toBe("Stripe");
   });
 
   it("lists the plan with its founding price, the press, the look and the books", () => {
@@ -24,7 +24,7 @@ describe("Create my shop's review", () => {
       ["plan", "done", "Shop · $21.75 a month"],
       ["details", "done", "Moth Press · Zines · Canada"],
       ["look", "done", "Riso"],
-      ["cards", "later", "Stripe, unless you pick Square instead. You connect your account once your shop is made."],
+      ["cards", "later", "Stripe (default)"],
       ["books", "later", "None brought over. You can add them, or bring a file, once your shop is made."],
     ]);
     expect(canCreate(rows)).toBe(true);

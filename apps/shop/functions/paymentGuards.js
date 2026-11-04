@@ -5,6 +5,15 @@ const { isPaymentId } = require("./payments/ids");
 // CA$100 order, so it is refused before a payment is created.
 const CHECKOUT_CURRENCIES = ["cad", "usd", "eur"];
 
+// A refund the platform's payment service, or Square behind it, certainly refused (payments/platform.js serviceError).
+// Not a 409 (a call still in flight, or "already_refunded": a refund whose answer was lost may have gone through) and
+// not an idempotency clash (a retry of a refund that may have gone through): those keep the claim until the webhook.
+function platformRefusedRefund(err) {
+  const status = Number(err?.statusCode);
+  return ["platform_error", "square_error"].includes(err?.type) && status >= 400 && status < 500 && status !== 409
+    && !/idempotenc/i.test(String(err?.code || ""));
+}
+
 function checkoutCurrencyOf(value) {
   const currency = String(value || "cad").trim().toLowerCase();
   return CHECKOUT_CURRENCIES.includes(currency) ? currency : null;
@@ -196,7 +205,7 @@ function stripeIntentKey(orderId, amountMinor, currency, previousIntentId) {
   return `pi-${orderId}-${String(currency || "").toLowerCase()}-${Math.round(Number(amountMinor))}-${previousIntentId || "first"}`;
 }
 
-module.exports = { sameOrderLines, cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, checkoutRefusal, manualPaidRefusal, stripeIntentKey, discountUsedUp, refundProviderOf, paypalReversalCaptureId, paypalCreateRequestId, lateFailureMayMarkFailed, purchaseProblem, CHECKOUT_CURRENCIES, checkoutCurrencyOf, paidAmountCheck, toMinor, shopDate, discountDateState, releaseArrived };
+module.exports = { platformRefusedRefund, sameOrderLines, cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, checkoutRefusal, manualPaidRefusal, stripeIntentKey, discountUsedUp, refundProviderOf, paypalReversalCaptureId, paypalCreateRequestId, lateFailureMayMarkFailed, purchaseProblem, CHECKOUT_CURRENCIES, checkoutCurrencyOf, paidAmountCheck, toMinor, shopDate, discountDateState, releaseArrived };
 
 /**
  * PayPal sends one PAYMENT.CAPTURE.REFUNDED per refund, carrying only that refund's amount.

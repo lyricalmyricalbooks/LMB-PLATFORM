@@ -27,7 +27,7 @@ import { SignupError, randomSuffix } from "./signup.js";
 import { createSignInCode } from "./signInCode.js";
 import { createAccountStart } from "./accountStart.js";
 import { MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, SETUP_FIELDS, advanceStatus, importPathFor, setupChange } from "./pressRecord.js";
-import { COUNTRIES, PUBLISHES, isEmail } from "./form.js";
+import { COUNTRIES, PUBLISHES, SQUARE_COUNTRIES, isEmail, squareWords } from "./form.js";
 import { readOldShop as readPublicShop } from "../services/moving/oldShop.js";
 
 /** The page the front door lives on, under the platform's address. */
@@ -252,6 +252,9 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
       if (record.status !== "setup") return { press: shown(record) };
       const plan = typeof body.plan === "string" && body.plan ? body.plan : record.plan;
       for (const [field, words] of Object.entries(OPEN_NEEDS)) if (!record[field]) throw new SignupError(400, words, { [field]: words });
+      // Square only where it works with the shop's checkout (form.js SQUARE_COUNTRIES): a country changed after picking it.
+      const cardProvider = plan === "stockroom" ? "" : record.cardProvider;
+      if (cardProvider === "square" && !SQUARE_COUNTRIES.includes(record.country)) throw new SignupError(400, squareWords(record.country), { cardProvider: squareWords(record.country) });
       const hold = now().toISOString();
       const held = await presses.update(record.pressId, (current) => {
         const refused = setupRefusal(current, claims);
@@ -270,7 +273,7 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
           // The language chosen for the platform's emails, if any (pressRecord.js LANGUAGE_CHOICES).
           ...(record.language ? { language: record.language } : {}),
           // Stripe or Square for the website's cards (pressRecord.js CARD_PROVIDER_CHOICES); Stripe when not chosen.
-          ...(record.cardProvider ? { paymentProvider: record.cardProvider } : {}),
+          ...(cardProvider ? { paymentProvider: cardProvider } : {}),
           termsAccepted: body.termsAccepted === true, termsVersion: body.termsVersion,
         }, { pressId: record.pressId });
       } catch (error) {

@@ -437,7 +437,7 @@ describe("Stripe or Square in setup's Settings › Payments", () => {
     const d = door();
     const el = await mount(d, "#settings/payments");
     const radios = [...el.querySelectorAll<HTMLButtonElement>("[role='radiogroup'][aria-label='Card payments'] [role='radio']")];
-    expect(radios.map((r) => r.querySelector("strong")?.textContent)).toEqual(["Stripe (picked for you)", "Square"]);
+    expect(radios.map((r) => r.querySelector("strong")?.textContent)).toEqual(["Stripe", "Square"]);
     expect(radios.map((r) => r.getAttribute("aria-checked"))).toEqual(["true", "false"]);
     await act(async () => { radios[1].click(); });
     await flush();
@@ -449,6 +449,12 @@ describe("Stripe or Square in setup's Settings › Payments", () => {
   it("a stockroom on its own has no website checkout to choose for", async () => {
     const el = await mount(door(), "#settings/payments", { ...PRESS, plan: "stockroom" });
     expect(el.textContent).toContain("no website checkout");
-    expect(el.querySelector("[role='radiogroup'][aria-label='Card payments']")).toBeNull();
+  });
+
+  it("Square can't be picked from a country where it doesn't work with checkout", async () => {
+    const el = await mount(door(), "#settings/payments", { ...PRESS, country: "GB" });
+    const square = el.querySelectorAll<HTMLButtonElement>("[role='radiogroup'][aria-label='Card payments'] [role='radio']")[1];
+    expect(square.disabled).toBe(true);
+    expect(square.textContent).toContain("Not available in your country yet.");
   });
 });

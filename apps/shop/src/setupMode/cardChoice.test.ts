@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { CARD_CHOICE_NOTES, CARD_PROVIDER_CHOICES, cardProviderName, chosenCardProvider } from "./cardChoice";
+import { CARD_CHOICE_NOTE, CARD_PROVIDER_CHOICES, SQUARE_COUNTRIES, cardProviderName, chosenCardProvider, squareAvailable } from "./cardChoice";
+import { readFileSync } from "node:fs";
 import { guideSteps, PAYMENTS_PAGE, setupLocked } from "./pages";
 import type { SetupPress } from "./door";
 
@@ -25,7 +26,18 @@ describe("Stripe or Square in setup", () => {
   });
 
   it("speaks plainly: no keys, accounts set up here, or technical words", () => {
-    const text = [...CARD_PROVIDER_CHOICES.map((c) => c.line), ...CARD_CHOICE_NOTES].join(" ");
+    const text = [...CARD_PROVIDER_CHOICES.map((c) => c.line), CARD_CHOICE_NOTE].join(" ");
     expect(text).not.toMatch(/\b(key|api|webhook|token|oauth|firebase|server|deploy)\b/i);
+    // Short: one line per choice (owner's note, 4 Nov 2026: no extra description text).
+    for (const line of [...CARD_PROVIDER_CHOICES.map((c) => c.line), CARD_CHOICE_NOTE]) expect(line.split(/\s+/).length).toBeLessThanOrEqual(12);
+  });
+
+  it("offers Square only where the platform does, with the same list", () => {
+    const platform = readFileSync(new URL("../../../../signup/form.js", import.meta.url), "utf8");
+    const list = /SQUARE_COUNTRIES = Object\.freeze\((\[[^\]]*\])\)/.exec(platform)?.[1];
+    expect(JSON.parse(list ?? "null")).toEqual([...SQUARE_COUNTRIES]);
+    expect(squareAvailable("CA")).toBe(true);
+    expect(squareAvailable("GB")).toBe(false);
+    expect(squareAvailable("")).toBe(true);
   });
 });

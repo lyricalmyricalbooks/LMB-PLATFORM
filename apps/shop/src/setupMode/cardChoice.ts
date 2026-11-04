@@ -6,26 +6,16 @@ import type { SetupPress } from "./door";
 export type CardProviderId = "stripe" | "square";
 
 export const CARD_PROVIDER_CHOICES: ReadonlyArray<{ id: CardProviderId; name: string; line: string }> = Object.freeze([
-  {
-    id: "stripe",
-    name: "Stripe",
-    line: "Shoppers pay without leaving your website, with Apple Pay and Google Pay too. A good choice if you don't use Square already.",
-  },
-  {
-    id: "square",
-    name: "Square",
-    line: "Use the Square account you already have for fairs and markets, so all your card sales land in one place. Shoppers pay on Square's secure page and come straight back.",
-  },
+  { id: "stripe", name: "Stripe", line: "Shoppers pay on your website. Apple Pay and Google Pay included." },
+  { id: "square", name: "Square", line: "Use the Square account you already have." },
 ]);
 
-export const CARD_CHOICE_INTRO = "Pick the company that takes your website's card payments and sends the money to your bank.";
+/** The one line under the choice. */
+export const CARD_CHOICE_NOTE = "You connect it after your shop is made.";
 
-export const CARD_CHOICE_NOTES: ReadonlyArray<string> = Object.freeze([
-  "Refunds, part refunds, payment links, extra payments on an order, gift cards and your payout reports work the same with either one.",
-  "You connect your account after your shop is made, in Settings › Payments. It takes a few minutes on their own secure page.",
-  "Each company charges its own card fee. Colophon charges you the same either way.",
-  "You can change your pick any time before your shop is made.",
-]);
+/** Countries where Square works with the shop's checkout (the platform's signup/form.js SQUARE_COUNTRIES; tested). */
+export const SQUARE_COUNTRIES: ReadonlyArray<string> = Object.freeze(["CA", "US", "IE", "FR"]);
+export const squareAvailable = (country: string): boolean => !country || SQUARE_COUNTRIES.includes(country);
 
 /** The provider the shop will start with: the press's pick, else Stripe. */
 export const chosenCardProvider = (press: Pick<SetupPress, "cardProvider">): CardProviderId => (press.cardProvider === "square" ? "square" : "stripe");

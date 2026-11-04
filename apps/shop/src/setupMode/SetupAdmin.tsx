@@ -15,7 +15,7 @@ import { THEME_LIBRARY } from "../app/admin/studio/themeLibrary";
 import { ShopWordsContext, useShopWords } from "../app/admin/shopWords";
 import { adminWordsFor } from "../app/admin/sells";
 import { ImportPage } from "./ImportPage";
-import { CARD_CHOICE_INTRO, CARD_CHOICE_NOTES, CARD_PROVIDER_CHOICES, chosenCardProvider, type CardProviderId } from "./cardChoice";
+import { CARD_CHOICE_NOTE, CARD_PROVIDER_CHOICES, chosenCardProvider, squareAvailable, type CardProviderId } from "./cardChoice";
 import type { PlanList, SetupChange, SetupDoor, SetupPress } from "./door";
 import { CreateShopCard, type CreateShop } from "./CreateShop";
 import type { CreateNames } from "./launchWords";
@@ -101,7 +101,7 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
   else if (page === GENERAL_PAGE) content = <PressDetails press={press} lists={lists} save={save} />;
   else if (page === IMPORT_PAGE) content = <ImportPage press={press} door={door} onSaved={setPress} />;
   else if (page === DESIGN_PAGE) content = <DesignPage press={press} save={save} />;
-  else if (page === PAYMENTS_PAGE) content = <CardPaymentsPage press={press} save={save} onOpen={open} />;
+  else if (page === PAYMENTS_PAGE) content = <CardPaymentsPage press={press} save={save} />;
   else if (page === PLAN_PAGE) content = (
     <PlanPage press={press} plans={plans} failed={plansFailed} onRetry={loadPlans} save={save} termsUrl={termsUrl}
       names={{ countries: lists.countries, sells: lists.sells, lookName: themeName(press.look) }} email={email}
@@ -481,7 +481,7 @@ function DesignPage({ press, save }: { press: SetupPress; save: (c: SetupChange)
  * The press connects the account itself once the shop is made; nothing is connected here. The words come from
  * cardChoice.ts.
  */
-function CardPaymentsPage({ press, save, onOpen }: { press: SetupPress; save: (c: SetupChange) => Promise<SetupPress>; onOpen: (page: string) => void }) {
+function CardPaymentsPage({ press, save }: { press: SetupPress; save: (c: SetupChange) => Promise<SetupPress> }) {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const inSetup = press.status === "setup";
@@ -489,7 +489,7 @@ function CardPaymentsPage({ press, save, onOpen }: { press: SetupPress; save: (c
     return (
       <>
         <PageHeader title="Payments" />
-        <EmptyState title="No website on your plan" description="You picked the stockroom on its own, so there's no website checkout to set up. Add the shop in Settings › Plan any time." />
+        <EmptyState title="No website on your plan" description="The stockroom on its own has no website checkout." />
       </>
     );
   }
@@ -501,32 +501,26 @@ function CardPaymentsPage({ press, save, onOpen }: { press: SetupPress; save: (c
   };
   return (
     <>
-      <PageHeader title="Payments" description="Who takes the card payments on your website." />
-      <SectionCard title="Card payments" description={inSetup ? CARD_CHOICE_INTRO : "Your shop is being made with this choice. Connect your account in Settings › Payments once it's ready."} collapsible={false}>
+      <PageHeader title="Payments" />
+      <SectionCard title="Card payments" collapsible={false}>
         <div role="radiogroup" aria-label="Card payments" style={{ display: "grid", gap: 8 }}>
           {CARD_PROVIDER_CHOICES.map((option) => {
             const on = chosen === option.id;
+            const unavailable = option.id === "square" && !squareAvailable(press.country);
             return (
-              <button key={option.id} type="button" role="radio" aria-checked={on} disabled={!!busy || !inSetup} onClick={() => void choose(option.id)}
-                style={{ display: "grid", gap: 4, textAlign: "left", minHeight: 56, padding: 14,
-                  background: on ? "var(--rp-primary-tint)" : "var(--rp-surface)", color: "var(--rp-text)", cursor: "pointer",
-                  border: on ? "2px solid var(--rp-text)" : "1px solid var(--rp-border)" }}>
-                <strong>{option.name}{!press.cardProvider && option.id === "stripe" ? " (picked for you)" : ""}</strong>
-                <span className="rp-hint">{option.line}</span>
+              <button key={option.id} type="button" role="radio" aria-checked={on} disabled={!!busy || !inSetup || unavailable} onClick={() => void choose(option.id)}
+                style={{ display: "grid", gap: 2, textAlign: "left", minHeight: 56, padding: "12px 14px",
+                  background: on ? "var(--rp-primary-tint)" : "var(--rp-surface)", color: "var(--rp-text)", cursor: unavailable ? "not-allowed" : "pointer",
+                  opacity: unavailable ? 0.6 : 1, border: on ? "2px solid var(--rp-text)" : "1px solid var(--rp-border)" }}>
+                <strong>{option.name}</strong>
+                <span className="rp-hint">{unavailable ? "Not available in your country yet." : option.line}</span>
               </button>
             );
           })}
         </div>
         {error && <p role="alert" className="rp-hint" style={{ color: "var(--rp-danger)" }}>{error}</p>}
-        <ul className="rp-hint" style={{ margin: "12px 0 0", paddingLeft: 20, display: "grid", gap: 4 }}>
-          {CARD_CHOICE_NOTES.map((line) => <li key={line}>{line}</li>)}
-        </ul>
+        <p className="rp-hint" style={{ margin: "12px 0 0" }}>{inSetup ? CARD_CHOICE_NOTE : "Connect it in Settings › Payments once your shop is ready."}</p>
       </SectionCard>
-      {inSetup && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-          <GhostButton onClick={() => onOpen(PLAN_PAGE)}>Back to Create my shop</GhostButton>
-        </div>
-      )}
     </>
   );
 }

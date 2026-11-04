@@ -47,6 +47,8 @@ function fakeService({ live = false } = {}) {
     if (op === "square.checkout.delete") {
       const link = world.checkouts.get(args.id);
       if (!link) return missing();
+      // A shopper who pays in the moment the link is being closed: Square keeps the payment.
+      if (world.payOnClose === args.id) { world.pay(args.id); return reply(400, { error: { type: "square_error", code: "BAD_REQUEST", message: "already paid" } }); }
       link.state = "CANCELED";
       return reply(200, { id: args.id });
     }
@@ -70,15 +72,21 @@ function fakeService({ live = false } = {}) {
 
 function fakeDb({ website = {}, orders = {} } = {}) {
   const docs = { "settings/website": website, ...Object.fromEntries(Object.entries(orders).map(([id, data]) => [`orders/${id}`, data])) };
+  const inCollection = (name) => Object.entries(docs).filter(([key]) => key.startsWith(`${name}/`)).map(([key, data]) => ({ id: key.slice(name.length + 1), data: () => data }));
   return {
     docs,
-    collection: (name) => ({ doc: (id) => ({
-      async get() {
-        const data = docs[`${name}/${id}`];
-        return { exists: data != null, data: () => data };
-      },
-      async set(data) { docs[`${name}/${id}`] = { ...data }; },
-    }) }),
+    collection: (name) => ({
+      doc: (id) => ({
+        async get() {
+          const data = docs[`${name}/${id}`];
+          return { exists: data != null, data: () => data };
+        },
+        async set(data) { docs[`${name}/${id}`] = { ...data }; },
+      }),
+      where: (field, op, value) => ({ limit: (n) => ({
+        async get() { return { docs: inCollection(name).filter((doc) => op === "==" && doc.data()[field] === value).slice(0, n) }; },
+      }) }),
+    }),
   };
 }
 
@@ -398,6 +406,32 @@ describe("a fair helper's QR payment on Square (no shop order)", () => {
     const fresh = await checkout.open(fairParams(Math.floor(Date.now() / 1000)), "fair-new-sale-3500-CAD");
     await checkout.close(fresh.id);
     expect(service.world.checkouts.get("LNK2").state).toBe("CANCELED");
+  });
+
+  test("the sweep closes links past their half hour that nobody is watching, and leaves fresh and other-mode links open", async () => {
+    const { payments, service, db } = make();
+    const checkout = await payments.standaloneCheckout("test");
+    const now = Math.floor(Date.now() / 1000);
+    await checkout.open(fairParams(now - 60 * 60), "fair-old-3500-CAD");
+    await checkout.open(fairParams(now), "fair-new-3500-CAD");
+    db.docs["fairCardPayments/sqlink_LNK9"] = { ...db.docs["fairCardPayments/sqlink_LNK1"], mode: "live" };
+    expect(await checkout.closeDue()).toEqual({ closed: 1 });
+    expect(service.world.checkouts.get("LNK1").state).toBe("CANCELED");
+    expect(service.world.checkouts.get("LNK2").state).toBe("OPEN");
+    expect(db.docs["fairCardPayments/sqlink_LNK1"]).toMatchObject({ open: false });
+    expect(db.docs["fairCardPayments/sqlink_LNK2"]).toMatchObject({ open: true });
+    // Run twice: nothing more to close.
+    expect(await checkout.closeDue()).toEqual({ closed: 0 });
+  });
+
+  test("a payment that lands as the link closes still counts as paid", async () => {
+    const { payments, service, db } = make();
+    const checkout = await payments.standaloneCheckout("test");
+    const session = await checkout.open(fairParams(Math.floor(Date.now() / 1000) - 60 * 60), "fair-late-3500-CAD");
+    service.world.payOnClose = "LNK1";
+    const { fairPaymentState } = require("../fairHelperPay.js");
+    expect(fairPaymentState(await checkout.read(session.id), "helper@example.com")).toEqual({ paid: true, open: false });
+    expect(db.docs["fairCardPayments/sqlink_LNK1"]).toMatchObject({ open: false });
   });
 
   test("its payment never reaches the webhook as an order's", async () => {

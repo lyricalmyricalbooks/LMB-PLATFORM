@@ -67,7 +67,7 @@ const { pendingRecord, confirmedRecord, confirmationEmail } = require("./newslet
 const { findByEmail: findByEmailData, neverPaid, redactedOrderFields, redactedOperationsFields, giftCardsFor, reviewErasure, GIFT_CARD_PERSONAL } = require("./privacyData");
 const { optOutId, unsubscribeToken, tokenMatches, purposeToken, purposeTokenMatches, footerAddress, normEmail: normMarketingEmail } = require("./marketingOptOut");
 const { runReviewRequests, REVIEW_REQUEST_TEMPLATE } = require("./reviewRequests");
-const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, paypalRefundedTotalMinor, sameOrderLines, shopDate } = require("./paymentGuards");
+const { platformRefusedRefund, checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, paypalRefundedTotalMinor, sameOrderLines, shopDate } = require("./paymentGuards");
 const { canViewOrder, publicOrderView } = require("./orderAccess");
 const { encodeAcquisition } = require("./acquisition");
 const { returnTransition, publicReturn, returnRestockItems } = require("./returns");
@@ -2839,8 +2839,7 @@ exports.refundOrder = onBrowserRequest(
       // Keep the claim only when the provider may have taken the refund (accepted, or a lost
       // connection): its webhook then follows the admin's restock choice.
       if (claimed && !providerAccepted && (!providerCalled || DEFINITE_REFUSALS.includes(err?.type) || (err?.status >= 400 && err?.status < 500)
-        // A refusal through the platform's payment service (Square, or Stripe on the platform) carries statusCode.
-        || (err?.statusCode >= 400 && err?.statusCode < 500))) await releaseClaim();
+        || platformRefusedRefund(err))) await releaseClaim();
       const status = err.status || (err.type?.startsWith("Stripe") ? 400 : 500); // Stripe shops only (an error type)
       res.status(status).json({ error: err.message || "Refund failed" });
     }
@@ -4648,6 +4647,15 @@ exports.paymentPageSweep = onSchedule(
     if (payments.provider !== "square") return;
     const result = await paymentPages.closeDuePages();
     if (result.closed || result.refunded) console.log("paymentPageSweep:", result);
+    // Fair helpers' QR links (payments/square.js standaloneCheckout): closed after their half hour, like Stripe's.
+    for (const mode of ["test", "live"]) {
+      try {
+        const fair = await (await payments.standaloneCheckout(mode))?.closeDue?.();
+        if (fair?.closed) console.log(`paymentPageSweep: ${fair.closed} fair QR link(s) closed (${mode}).`);
+      } catch (err) {
+        console.warn(`paymentPageSweep: fair QR links (${mode}) weren't checked: ${err?.message || err}`);
+      }
+    }
   });
 
 exports.unpaidPaymentSweep = onSchedule(

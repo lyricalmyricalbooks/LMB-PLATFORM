@@ -211,7 +211,12 @@ function checkoutPaymentActions({
       const card = await payments.forCheckout(settings);
       // A provider whose account takes one currency only (Square: its location's) charges in that one, converted from
       // the shop's prices like any other, so a shopper browsing in another currency can still pay.
-      if (finalTotal > 0 && typeof card.chargeCurrency === "function") checkoutCurrency = checkoutCurrencyOf(await card.chargeCurrency(checkoutCurrency)) || checkoutCurrency;
+      if (finalTotal > 0 && typeof card.chargeCurrency === "function") {
+        const charged = await card.chargeCurrency(checkoutCurrency);
+        // An account in a currency the shop can't charge in: say so before any stock is held, never charge another one.
+        if (!checkoutCurrencyOf(charged)) return res.status(409).json({ error: "Card payments aren't available in this shop right now. Please contact the shop.", code: "card_currency_unsupported" });
+        checkoutCurrency = checkoutCurrencyOf(charged);
+      }
       const rates = await getExchangeRates();
       const exchangeRate = rates[checkoutCurrency] || FALLBACK_RATES[checkoutCurrency] || 1.0;
 

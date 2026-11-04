@@ -59,8 +59,8 @@ export function createChecklist(press: SetupPress, plans: PlanList | null, names
     // Stripe or Square (cardChoice.ts): never "needed", since a press that doesn't choose starts on Stripe.
     const cards = cardProviderName(chosenCardProvider(press));
     rows.push(press.cardProvider
-      ? { id: "cards", label: "Card payments", value: `${cards}. You connect your account once your shop is made.`, state: "done", page: PAYMENTS_PAGE, change: "Change" }
-      : { id: "cards", label: "Card payments", value: `${cards}, unless you pick Square instead. You connect your account once your shop is made.`, state: "later", page: PAYMENTS_PAGE, change: "Choose" });
+      ? { id: "cards", label: "Card payments", value: cards, state: "done", page: PAYMENTS_PAGE, change: "Change" }
+      : { id: "cards", label: "Card payments", value: `${cards} (default)`, state: "later", page: PAYMENTS_PAGE, change: "Choose" });
   }
   const file = press.stagedImport;
   rows.push(file

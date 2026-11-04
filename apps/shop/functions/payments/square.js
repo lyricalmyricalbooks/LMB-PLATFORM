@@ -446,6 +446,19 @@ function createSquareProvider({ db, platform = null }) {
       await call("square.checkout.delete", linkMode, { id: squareIdOf(id) });
       return { id, status: "expired" };
     }
+    // Closes a link past its time, then reads it again: a payment that landed just before the close counts as paid.
+    async function expire(id, fair) {
+      const before = await sessionFrom(await call("square.checkout.retrieve", linkMode, { id: squareIdOf(id) }), linkMode);
+      if (before.status !== "open") {
+        await kept(id).set({ ...fair, open: false });
+        return before;
+      }
+      await close(id).catch(() => {});
+      const after = await sessionFrom(await call("square.checkout.retrieve", linkMode, { id: squareIdOf(id) }), linkMode).catch(() => null);
+      await kept(id).set({ ...fair, open: false, closedAt: new Date().toISOString() });
+      if (after?.payment_status === "paid") return after;
+      return { ...before, status: "expired" };
+    }
     return Object.freeze({
       async open(params, idempotencyKey) {
         const item = params?.line_items?.[0]?.price_data;
@@ -465,7 +478,7 @@ function createSquareProvider({ db, platform = null }) {
         });
         const id = squareCheckoutId(made.id);
         await kept(id).set({
-          sale: String(metadata.fair_sale), helper: String(metadata.fair_helper), referenceId, mode: linkMode,
+          sale: String(metadata.fair_sale), helper: String(metadata.fair_helper), referenceId, mode: linkMode, open: true,
           expiresAt: Number.isFinite(params.expires_at) ? params.expires_at : null, createdAt: new Date().toISOString(),
         });
         return { id, object: "checkout.session", url: made.url, status: "open", payment_status: "unpaid", expires_at: Number.isFinite(params.expires_at) ? params.expires_at : null, metadata: { ...metadata } };
@@ -477,14 +490,31 @@ function createSquareProvider({ db, platform = null }) {
         if (!fair || fair.mode !== linkMode) return null;
         const checkout = await call("square.checkout.retrieve", linkMode, { id: squareIdOf(id) });
         if (checkout.referenceId !== fair.referenceId) return null;
-        const session = await sessionFrom(checkout, linkMode);
-        if (session.status === "open" && session.payment_status !== "paid" && Number.isFinite(fair.expiresAt) && fair.expiresAt * 1000 <= Date.now()) {
-          await close(id).catch(() => {});
-          session.status = "expired";
-        }
+        let session = await sessionFrom(checkout, linkMode);
+        if (session.status === "open" && Number.isFinite(fair.expiresAt) && fair.expiresAt * 1000 <= Date.now()) session = await expire(id, fair);
         return { ...session, metadata: { fair_sale: fair.sale, fair_helper: fair.helper } };
       },
       close,
+      /**
+       * The scheduled sweep (index.js paymentPageSweep): every link of this mode still open past its half hour is
+       * closed, so a QR code the helper's phone stopped watching (no signal, page closed) can't be paid later. A link
+       * found paid is left as it is.
+       */
+      async closeDue(nowMs = Date.now()) {
+        const snap = await db.collection(FAIR_PAYMENTS).where("open", "==", true).limit(200).get();
+        let closed = 0;
+        for (const doc of snap.docs) {
+          const fair = doc.data();
+          if (fair.mode !== linkMode || !Number.isFinite(fair.expiresAt) || fair.expiresAt * 1000 > nowMs) continue;
+          try {
+            const session = await expire(doc.id, fair);
+            if (session.status === "expired") closed += 1;
+          } catch (err) {
+            console.warn(`Fair payment link ${doc.id} couldn't be closed yet: ${err?.message || err}`);
+          }
+        }
+        return { closed };
+      },
     });
   }
 
