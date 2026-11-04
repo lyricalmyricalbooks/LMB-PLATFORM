@@ -344,10 +344,10 @@ describe("the admin in setup mode (code plan 18.6)", () => {
       const text = el.textContent!;
       expect(text).toContain("Shop and stockroom · $39.00 a month");
       expect(text).toContain("Moth Press · Books · Canada");
-      expect(text).toContain("Not chosen yet.");
+      expect(text).toContain("Not chosen yet");
       expect(text).toContain("42 books from old-shop.csv");
       expect(text).toContain("Nothing is charged today. Your first shop is free for 14 days, then $39.00 a month.");
-      expect(text).toContain("Your website starts private.");
+      expect(text).toContain("It stays private until you open it.");
       expect(text).toContain("Tick the terms to create your shop.");
     });
 

@@ -452,6 +452,12 @@ test("a name for the free address is checked while the press types it, and a pre
   const refused = await door.checkFreeName(ADA, { pressId, name: "admin" });
   assert.equal(refused.available, false);
   assert.match(refused.problem, /kept for the platform/);
+  // A name another press in setup picked is held for it.
+  await w.stores.presses.set("press-other-one", { pressId: "press-other-one", ownerUid: "someone-else", status: "setup", freeName: "held-books" });
+  assert.equal((await door.checkFreeName(ADA, { pressId, name: "held-books" })).available, false);
+  await assert.rejects(() => door.saveSetup(ADA, { pressId, freeName: "Held Books" }), (e) => e.status === 409 && /Another shop already has that name/.test(e.message));
+  await w.stores.presses.set("press-other-one", { pressId: "press-other-one", ownerUid: "someone-else", status: "expired", freeName: "held-books" });
+  assert.equal((await door.checkFreeName(ADA, { pressId, name: "held-books" })).available, true, "a cleared setup lets the name go");
   await w.ask("POST", "/api/press/setup", { pressId, pressName: "Amazon Books" }, ADA);
   let [press] = (await door.myPresses(ADA)).presses;
   assert.deepEqual([press.freeAddress, press.freeNameNeeded], ["my-shop.shops.example", true]);

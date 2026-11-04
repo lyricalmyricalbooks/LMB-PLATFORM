@@ -444,15 +444,15 @@ function PressDetails({ press, lists, save }: { press: SetupPress; lists: SetupL
       <SectionCard title="Your press" collapsible={false}>
         <form onSubmit={submit} style={{ display: "grid", gap: 16, maxWidth: 520 }}>
           <TextField label="Press name" value={name} maxLength={120} autoComplete="organization" onChange={(e) => setName(e.target.value)} />
-          <SelectField label="What you sell" hint="It sets your shop's words and the looks we suggest." value={sells} onChange={(e) => setSells(e.target.value)}>
+          <SelectField label="What you sell" value={sells} onChange={(e) => setSells(e.target.value)}>
             <option value="">Not said yet</option>
             {lists.sells.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
           </SelectField>
-          <SelectField label="Country" hint="It sets your shop's money and taxes." value={country} onChange={(e) => setCountry(e.target.value)}>
+          <SelectField label="Country" value={country} onChange={(e) => setCountry(e.target.value)}>
             <option value="">Choose your country</option>
             {Object.entries(lists.countries).map(([code, c]) => <option key={code} value={code}>{c.name}</option>)}
           </SelectField>
-          <SelectField label="Language of our emails" hint="Automatic writes in French with the English below when your billing address is in Quebec, and in English otherwise. You can change it later in Settings › Plan."
+          <SelectField label="Language of our emails" hint="Automatic: French in Quebec, English elsewhere."
             value={language} onChange={(e) => setLanguage(e.target.value as "" | "fr" | "en")}>
             <option value="">Automatic</option>
             <option value="fr" lang="fr">Français</option>
@@ -524,8 +524,8 @@ function PlanPage({ press, plans, failed, onRetry, save, termsUrl, names, email,
   const trialWords = trial > 0 ? `Your first shop is free for ${trial} days once it's made, then monthly` : "Monthly once your shop is made";
   return (
     <>
-      <PageHeader title="Plan" description="What you're setting up, and creating your shop." />
-      <SectionCard title="Your plan" description={inSetup ? "Change it any time before your shop is made." : "You can change it in Settings › Plan once your shop is ready."} collapsible={false}>
+      <PageHeader title="Plan" />
+      <SectionCard title="Your plan" collapsible={false}>
         <div id="plan-choice" role="radiogroup" aria-label="Your plan" style={{ display: "grid", gap: 8 }}>
           {PLAN_ORDER.map((id) => {
             const offer = byId[id];

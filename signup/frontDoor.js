@@ -19,7 +19,7 @@
 // Nothing here starts a trial, takes a card or makes a shop: those wait for Open my shop (18.8).
 //
 // Clients passed in:
-//   presses   get(pressId); create(pressId, record) -> bool; listByOwner(ownerUid);
+//   presses   get(pressId); create(pressId, record) -> bool; listByOwner(ownerUid); listByFreeName(name) (optional);
 //             update(pressId, change) -> change's result, read and written in one transaction
 //   codes     the sign-in code store (signInCode.js): get(key); set(key, row)
 //   email     sendPlatform({ kind, to, data, idempotencyKey })
@@ -93,6 +93,18 @@ const UPLOAD_MINUTES = 15;
  */
 export function createFrontDoor({ presses, codes, email, auth, settings, stagedFiles, signup = null, now = () => new Date(), suffix = randomSuffix, random = null, readOldShop = readPublicShop, domainLookup = null, freeNameTaken = null }) {
   const shown = (record) => shownRecord(record, settings?.shopAddressDomain ?? "");
+  // A name for the free address held by another press still setting up (or opening), or a shop that has it already.
+  const HOLDING = new Set(["setup", "opening"]);
+  async function freeNameHeld(pressId, name) {
+    if (!name) return false;
+    if (typeof presses.listByFreeName === "function"
+      && (await presses.listByFreeName(name)).some((other) => other.pressId !== pressId && HOLDING.has(other.status))) return true;
+    const address = settings?.shopAddressDomain ? `${name}.${settings.shopAddressDomain}` : "";
+    if (address && freeNameTaken) {
+      try { return await freeNameTaken(address); } catch { return false; }
+    }
+    return false;
+  }
   const signInCode = createSignInCode({
     store: codes,
     now,
@@ -164,6 +176,10 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
       }
       if (typeof change.country === "string" && change.country && !(change.country in COUNTRIES)) {
         throw new SignupError(400, "Pick your country from the list.", { country: "Pick your country from the list." });
+      }
+      // A name for the free address another press (or shop) already holds is refused, so two presses never pick one.
+      if (typeof change.freeName === "string" && change.freeName && await freeNameHeld(record.pressId, cleanHandle(change.freeName))) {
+        throw new SignupError(409, "Another shop already has that name. Try another one.", { freeName: "Another shop already has that name. Try another one." });
       }
       // Read and written in one step, so a save can never put back a status the platform has just moved on.
       const saved = await presses.update(record.pressId, (current) => {
@@ -279,11 +295,7 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
       const name = cleanHandle(String(body.name ?? "").slice(0, 60));
       const problem = handleProblem(name);
       const address = shopDomain && name ? `${name}.${shopDomain}` : "";
-      let available = !problem;
-      if (available && address && freeNameTaken) {
-        try { available = !(await freeNameTaken(address)); } catch { available = true; }
-      }
-      return { name, address, problem, available };
+      return { name, address, problem, available: !problem && !(await freeNameHeld(body.pressId, name)) };
     },
 
     async removeImport(claims, body = {}) {

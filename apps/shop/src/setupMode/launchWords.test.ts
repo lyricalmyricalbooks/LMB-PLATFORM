@@ -19,7 +19,7 @@ describe("Create my shop's review", () => {
       ["details", "done", "Moth Press · Zines · Canada"],
       ["look", "done", "Riso"],
       ["domain", "later", "Free address"],
-      ["books", "later", "None brought over. You can add them, or bring a file, once your shop is made."],
+      ["books", "later", "None yet"],
     ]);
     expect(canCreate(rows)).toBe(true);
   });
@@ -61,11 +61,11 @@ describe("the price beside the button", () => {
 });
 
 describe("what happens next", () => {
-  it("tells a website press its shop starts private and how it opens to shoppers", () => {
+  it("tells a website press, in two lines, that its shop stays private until opened", () => {
     const lines = whatHappensNext("both");
     expect(lines[0]).toContain("We make your website and your stockroom");
-    expect(lines[1]).toContain("starts private");
-    expect(lines[2]).toContain("open it to shoppers");
+    expect(lines[1]).toBe("It stays private until you open it.");
+    expect(lines).toHaveLength(2);
   });
 
   it("has no opening step for a stockroom on its own", () => {
