@@ -6,6 +6,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { ExternalLink, Globe } from "lucide-react";
 import { GhostButton, PrimaryButton, SectionCard, TextField, useRisoToast } from "../app/admin/riso/components";
+import { BrandLogo } from "../app/components/brand/BrandLogo";
 import type { FreeNameCheck, SetupChange, SetupDoor, SetupPress } from "./door";
 
 /** The anchor the setup guide's step scrolls to. */
@@ -239,7 +240,7 @@ function WebAddressInner({ press, door, save, onSaved }: CardProps) {
           <div style={{ display: "grid", gap: 16 }}>
             <div style={{ display: "grid", gap: 8 }}>
               <a className="rp-btn rp-btn-primary" href={buyDomainUrl(press.pressName, press.country)} target="_blank" rel="noopener noreferrer" style={{ justifySelf: "start", display: "inline-flex", gap: 8, alignItems: "center" }}>
-                Find a domain at GoDaddy <ExternalLink size={16} aria-hidden />
+                <BrandLogo id="godaddy" size="sm" />Find a domain at GoDaddy <ExternalLink size={16} aria-hidden />
               </a>
               {endingHint(press.country) && <span className="rp-hint">{endingHint(press.country)}</span>}
             </div>
