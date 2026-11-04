@@ -542,7 +542,7 @@ preset `press-riso-noir`). `RISO_STOREFRONT_CSS` in `themeTokens.ts` must stay t
 (no literal hex — `themeTokens.test.ts` enforces it). Colour triplet variables (`--fg-rgb`, `--accent-rgb`,
 …) are **comma-separated** (`255, 255, 255`) so `rgba(var(--x-rgb), a)` is valid. Every shopper-facing
 string goes through `getCopy(design, key)` with a `COPY_SCHEMA` entry (`storeCopy.coverage.test.ts`
-guards this); print-treatment knobs live in Colors › **Printed-paper look (Riso)**, element toggles in
+guards this); print-treatment knobs live in **Print style & template details** (group id `riso`), element toggles in
 Additional › **Show or hide whole features**.
 
 **Section contract:** the storefront looks up renderers by the registry `type`
@@ -670,6 +670,26 @@ text group or field stops being reachable — place new STYLE_GROUPS / COPY_SCHE
 ## Public designer coverage (2 October 2026)
 
 Wishlist, Customer account and Order tracking have Studio canvases and section stacks. `features/site/storefrontRegions.ts` owns the public region manifest, responsive styling and click-to-edit hooks; its categories are generated in `studio/styleSchema.ts`. Attach `regionProps` in every supported renderer layout when adding optional public elements. Required commerce/consent regions support presentation controls without hide toggles. Merge page-only regions with root settings, preserve product overrides over catalog defaults, and keep phone overrides in `autoFitRegions`. `docs/THEME_EDITOR.md` records the page-by-page ownership and authenticated/live verification limits. Local validation reasons and public order statuses use Text & labels; provider diagnostics must not bypass editable recovery copy.
+
+## Template designer coverage (4 November 2026)
+
+Every storefront template (Print style: Marquee, Shelf, Atlas, Mosaic, Arch, Market stall, Index) must stay fully
+editable in Studio. `features/site/templateStyles.ts` holds the list (`TEMPLATE_STYLES`, which also builds the Print
+style options), each stylesheet (`TEMPLATE_CSS`) and `TEMPLATE_KNOBS`: one CSS variable per Studio control a template
+shape answers to (button corners/case/shadow, photo corners from Image outline › Corner set › Card corner radius, card
+title case, panel and card corners, outlines, hard shadows, ruled lines, photo frames, card tilt, footer curve, price
+tag, heading capitals). Templates read `var(--tpl-…, <their own look>)`; `templateKnobCss` writes a variable only for a
+control the press set, after the template, so an untouched shop is pixel-identical and a changed control wins. A knob
+with `rule` brings its shape to templates that don't draw it by default. Outline, shadow and heading capitals use
+their own `template*` keys, never the Riso Press ones (every look's palette writes `risoOutlineColor` /
+`risoShadowColor`, and Riso Noir's widths and capitals carry over), so stale Riso values never restyle a template.
+Template photo shapes set by a look (`photoOutline`: Arch `tallArch`, Shelf `book`) go away on the next look switch
+unless the press changed them (`themeLook.ts`). `features/site/templateCoverage.test.ts` fails a template that is
+missing from Print style, the theme library or the home layouts, whose home layout uses settings with no Studio field,
+that writes a colour, font or words of its own, writes an owned shape as a literal, or ignores a knob; and fails a
+knob that is not a Studio control or does not change the page. To add a template: TEMPLATE_STYLES + TEMPLATE_CSS, a
+THEME_LIBRARY look, a home layout, then run that test. `a11y-fixture.html?theme=<id>&design={…}` lays settings over
+a look, to watch a control work in the browser.
 
 ## Responsive public element editing (4 October 2026)
 
