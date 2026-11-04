@@ -265,3 +265,25 @@ test("a later Settings change of what the shop sells reaches its platform emails
   await failing.service.sendPlatform({ kind: "shop-closed", to: "owner@example.com", shopId: "moth-press", data: { pressName: "Moth Press", date: "1 March", link: "https://platform.example/account" }, idempotencyKey: "s3" });
   assert.match(failing.resend.requests.at(-1).body.text, /your products, orders, customers and stock/);
 });
+
+test("a French shop that doesn't sell books gets its French platform emails in its words too (plan 12.18)", async () => {
+  const { registry, resend, service } = await make();
+  const send = (kind, data, key) => service.sendPlatform({ kind, to: "owner@example.com", shopId: "moth-press", language: "fr", data: { pressName: "Moth Press", ...data }, idempotencyKey: key });
+  const closed = { date: "1 March", on: "2027-03-01", link: "https://platform.example/account" };
+  await send("shop-closed", closed, "fr1");
+  assert.match(resend.requests.at(-1).body.text, /vos livres, commandes/);
+  await registry.saveProfile("moth-press", { sells: "clothing" });
+  await send("shop-closed", closed, "fr2");
+  assert.match(resend.requests.at(-1).body.text, /vos produits, commandes/);
+  await send("shop-deletion-warning", { ...closed, days: 30 }, "fr3");
+  assert.match(resend.requests.at(-1).body.text, /supprimés : produits, commandes/);
+  await send("quiet-shop", { link: "https://shop.example/admin", helpLink: "https://platform.example/help/" }, "fr4");
+  assert.match(resend.requests.at(-1).body.text, /ajoutez un nouveau produit/);
+  await send("payments-moved", { to: "platform" }, "fr5");
+  assert.match(resend.requests.at(-1).body.text, /Vos produits, vos commandes/);
+  await send("data-export-ready", { link: "https://platform.example/export", until: "2027-03-01", asked: "owner" }, "fr6");
+  assert.match(resend.requests.at(-1).body.text, /contient vos produits, commandes/);
+  for (const r of resend.requests.slice(1)) assert.doesNotMatch(r.body.text, /\blivres?\b|maison d'édition/, r.body.subject);
+  // The shop's own name is never changed.
+  assert.match(resend.requests.at(-1).body.subject, /Moth Press/);
+});

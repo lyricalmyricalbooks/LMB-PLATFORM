@@ -33,7 +33,8 @@
 // `gmailSender.on`, the shop's emails go from the press's Gmail through the Google link; if Gmail refuses one, it goes
 // the usual way instead, so nothing is lost.
 import { platformSettings } from "../settings.js";
-import { sellsOf, wordsFor } from "../../shared/sells/sells.js";
+import { sellsBooks, sellsOf, wordsFor } from "../../shared/sells/sells.js";
+import { goodsWordsFr } from "./templatesFrPress.js";
 import { resendClient } from "./resend.js";
 import { COMMERCIAL_KINDS, TEMPLATES, customProblems, withIdentity } from "./templates.js";
 import { TEMPLATES_FR, bilingual, shopMailLanguage } from "./templatesFr.js";
@@ -181,7 +182,7 @@ export function createEmailService({ env = process.env, fetch = globalThis.fetch
       const sells = message.shopId
         ? sellsOf(shopStart ? await quietly(() => shopStart(message.shopId)) : null, await quietly(() => registry.getProfile?.(message.shopId)))
         : null;
-      const words = { settings, pressName: message.data?.pressName ?? "", w: wordsFor(sells) };
+      const words = { settings, pressName: message.data?.pressName ?? "", w: wordsFor(sells), wFr: sellsBooks(sells) ? (text) => text : goodsWordsFr };
       // No language given: the shop's own (its billing row's language and province, mirrored on the registry).
       let language = message.language;
       if (language === undefined && message.shopId && TEMPLATES_FR[message.kind]) language = shopLanguage(await registry.getShop(message.shopId).catch(() => null));
