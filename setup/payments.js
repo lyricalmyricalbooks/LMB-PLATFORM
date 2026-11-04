@@ -6,7 +6,7 @@
 // A provider client, one per provider, passed in as `providers[name]`:
 //
 //   findAccount(shopId)            -> { accountId, mode? } | null   the press's account the service already made, if any
-//   createAccount(shopId, details) -> { accountId, mode? }          details: { pressName, ownerEmail, country, currency, testMode, sells }
+//   createAccount(shopId, details) -> { accountId, mode?, mcc? }    details: { pressName, ownerEmail, country, currency, testMode, sells }
 //
 // `mode` is the mode the account was made in ("live" or "test"); the payment service takes live payments only for an
 // account made live, so a press in test mode (and the test shop) can never take real money.
@@ -131,9 +131,11 @@ export function connectPaymentsStep({ number = 13, registry, providers, profileF
       if (!account?.accountId) throw new Error(`${PAYMENT_PROVIDERS[provider].name} gave no account id`);
       const mode = account.mode === "live" || account.mode === "test" ? account.mode : shop.testMode === true ? "test" : "live";
       const saved = (await registry.getShop(shop.shopId))?.payments;
-      const payments = { provider, accountId: account.accountId, mode };
+      // The merchant category the account was filed under, when the service says (the control room checks it against
+      // what the shop sells).
+      const payments = { provider, accountId: account.accountId, mode, ...(typeof account.mcc === "string" && account.mcc ? { mcc: account.mcc } : {}) };
       // Kept as it is when it already says so: the payment service adds the account's state to it.
-      if (!(saved && saved.provider === provider && saved.accountId === account.accountId && saved.mode === mode)) {
+      if (!(saved && saved.provider === provider && saved.accountId === account.accountId && saved.mode === mode && (!payments.mcc || saved.mcc))) {
         await registry.updateShop(shop.shopId, { payments: { ...(saved ?? {}), ...payments } });
       }
       const { profile, written } = await profileFor(shop, provider, account.accountId);

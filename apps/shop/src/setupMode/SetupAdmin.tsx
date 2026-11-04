@@ -16,11 +16,12 @@ import { ShopWordsContext, useShopWords } from "../app/admin/shopWords";
 import { adminWordsFor } from "../app/admin/sells";
 import { ImportPage } from "./ImportPage";
 import { CARD_CHOICE_NOTE, CARD_PROVIDER_CHOICES, chosenCardProvider, squareAvailable, type CardProviderId } from "./cardChoice";
+import { AskForm, HelpAnswer, HelpQuestions, type HelpAnswers } from "./SetupHelp";
 import type { PlanList, SetupChange, SetupDoor, SetupPress } from "./door";
 import { CreateShopCard, type CreateShop } from "./CreateShop";
 import type { CreateNames } from "./launchWords";
 import {
-  DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, IMPORT_PAGE, PAYMENTS_PAGE, PLAN_PAGE, SETUP_QUESTIONS, STEP_HELP, guideProgress, guideSteps, lockedPageLine, nextGuideStep,
+  DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, IMPORT_PAGE, PAYMENTS_PAGE, PLAN_PAGE, SETUP_QUESTIONS, STEP_HELP, guideProgress, guideSteps, helpFor, lockedPageLine, nextGuideStep,
   pageFromHash, readyToCreate, setupLocked, showMoveIn, setupMenu, setupMenuItemFor, setupPageLabel,
 } from "./pages";
 
@@ -39,6 +40,8 @@ const PLAN_ORDER = ["both", "shop", "stockroom"] as const;
 /** The plans' names while the platform's prices load (or if they can't). */
 const PLAN_NAMES: Record<string, string> = { both: "Shop and stockroom", shop: "Shop", stockroom: "Stockroom" };
 
+const NO_ANSWERS: HelpAnswers = new Map();
+
 const isAdminLook = (value: string): value is AdminLookId => ADMIN_LOOKS.some((l) => l.id === value);
 const themeName = (id: string) => (THEME_LIBRARY as Array<{ id: string; name: string }>).find((t) => t.id === id)?.name ?? "";
 
@@ -48,14 +51,16 @@ function readAppearance(): "light" | "dark" {
 
 export function SetupAdmin(props: {
   press: SetupPress; door: SetupDoor; lists: SetupLists; email: string; onSignOut: () => void; helpUrl: string; termsUrl?: string;
-  /** Where a press asks a person for help (the platform's account page). */
+  /** Where a press sees its earlier help requests (the platform's account page). */
   accountUrl?: string;
+  /** The platform's help answers by id, shown in place; empty (links into the help centre) when they didn't load. */
+  answers?: HelpAnswers;
 }) {
   return <ToastProvider><SetupAdminInner {...props} /></ToastProvider>;
 }
 
-function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl, termsUrl = "/terms/", accountUrl = "/account/" }: {
-  press: SetupPress; door: SetupDoor; lists: SetupLists; email: string; onSignOut: () => void; helpUrl: string; termsUrl?: string; accountUrl?: string;
+function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl, termsUrl = "/terms/", accountUrl = "/account/", answers = NO_ANSWERS }: {
+  press: SetupPress; door: SetupDoor; lists: SetupLists; email: string; onSignOut: () => void; helpUrl: string; termsUrl?: string; accountUrl?: string; answers?: HelpAnswers;
 }) {
   const [press, setPress] = useState(first);
   const [plans, setPlans] = useState<PlanList | null>(null);
@@ -88,6 +93,11 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
     open(PLAN_PAGE);
     requestAnimationFrame(() => document.getElementById("create-shop")?.scrollIntoView?.({ block: "start" }));
   };
+  // "Ask a person" (Home's help card) lands on the form on Help.
+  const openAsk = () => {
+    open(HELP_PAGE);
+    requestAnimationFrame(() => document.getElementById("ask")?.scrollIntoView?.({ block: "start" }));
+  };
   const save = async (change: SetupChange) => {
     const saved = await door.save(press.pressId, change);
     setPress(saved);
@@ -97,7 +107,7 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
   const pressName = press.pressName || "Your press";
   let content;
   if (setupLocked(page)) content = <OpensWithShop page={setupPageLabel(page, menu)} line={w(lockedPageLine(page))} onOpenShop={openCreate} onBack={() => open(HOME_PAGE)} />;
-  else if (page === HOME_PAGE) content = <SetupGuide press={press} plans={plans} helpUrl={helpUrl} accountUrl={accountUrl} onOpen={open} onCreate={openCreate} save={save} />;
+  else if (page === HOME_PAGE) content = <SetupGuide press={press} plans={plans} helpUrl={helpFor(helpUrl, press.sells)} answers={answers} onOpen={open} onAsk={openAsk} onCreate={openCreate} save={save} />;
   else if (page === GENERAL_PAGE) content = <PressDetails press={press} lists={lists} save={save} />;
   else if (page === IMPORT_PAGE) content = <ImportPage press={press} door={door} onSaved={setPress} />;
   else if (page === DESIGN_PAGE) content = <DesignPage press={press} save={save} />;
@@ -107,7 +117,7 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
       names={{ countries: lists.countries, sells: lists.sells, lookName: themeName(press.look) }} email={email}
       createShop={(choice) => door.openShop(press.pressId, choice)} onCreated={setPress} onOpen={open} />
   );
-  else content = <HelpPage helpUrl={helpUrl} accountUrl={accountUrl} />;
+  else content = <HelpPage helpUrl={helpFor(helpUrl, press.sells)} accountUrl={accountUrl} answers={answers} ask={door.askForHelp} pressName={press.pressName} />;
 
   return (
     <ShopWordsContext.Provider value={w}>
@@ -201,8 +211,9 @@ const helpLink = (helpUrl: string, id: string) => `${helpUrl}#${id}`;
  * Home in setup mode: the setup guide (one row per step, Shopify-style: the next step opens with why it matters and its
  * button, and any other step opens on a click), then what happens once the shop is made and where to get help.
  */
-function SetupGuide({ press, plans, helpUrl, accountUrl, onOpen, onCreate, save }: {
-  press: SetupPress; plans: PlanList | null; helpUrl: string; accountUrl: string; onOpen: (page: string) => void; onCreate: () => void; save: (c: SetupChange) => Promise<SetupPress>;
+function SetupGuide({ press, plans, helpUrl, answers, onOpen, onAsk, onCreate, save }: {
+  press: SetupPress; plans: PlanList | null; helpUrl: string; answers: HelpAnswers; onOpen: (page: string) => void; onAsk: () => void; onCreate: () => void;
+  save: (c: SetupChange) => Promise<SetupPress>;
 }) {
   const w = useShopWords();
   const steps = guideSteps(press);
@@ -220,6 +231,8 @@ function SetupGuide({ press, plans, helpUrl, accountUrl, onOpen, onCreate, save 
   // The last step goes straight to the review on Plan; every other step opens its page.
   const go = (step: { id: string; page: string }) => (step.id === "open" ? onCreate() : onOpen(step.page));
   const left = total - done;
+  // A step's help answer, opened in place under its button.
+  const [howOpen, setHowOpen] = useState("");
   return (
     <div className="rp-setup-home">
       <PageHeader title={press.pressName ? `Welcome, ${press.pressName}` : "Welcome"}
@@ -264,13 +277,25 @@ function SetupGuide({ press, plans, helpUrl, accountUrl, onOpen, onCreate, save 
                       {step.done
                         ? <GhostButton size="sm" onClick={() => go(step)}>Change</GhostButton>
                         : <PrimaryButton size="sm" onClick={() => go(step)}>{step.action}</PrimaryButton>}
-                      {help && (
+                      {help && answers.get(help) && (
+                        <button type="button" className="rp-hint" aria-expanded={howOpen === step.id} aria-controls={`${panel}-how`}
+                          onClick={() => setHowOpen(howOpen === step.id ? "" : step.id)}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "none", border: 0, padding: 0, cursor: "pointer", color: "var(--rp-text)", textDecoration: "underline", textUnderlineOffset: 3, font: "inherit" }}>
+                          How this works<ChevronDown size={12} aria-hidden style={{ transform: howOpen === step.id ? "rotate(180deg)" : undefined }} />
+                        </button>
+                      )}
+                      {help && !answers.get(help) && (
                         <a className="rp-hint" href={helpLink(helpUrl, help)} target="_blank" rel="noopener"
                           style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--rp-text)", textDecoration: "underline", textUnderlineOffset: 3 }}>
                           How this works<ExternalLink size={12} aria-hidden /><span className="rp-sr-only"> (opens in a new tab)</span>
                         </a>
                       )}
                     </div>
+                    {help && howOpen === step.id && answers.get(help) && (
+                      <div id={`${panel}-how`} style={{ padding: 12, background: "var(--rp-surface)", border: "1px solid var(--rp-border)" }}>
+                        <HelpAnswer article={answers.get(help)!} helpUrl={helpUrl} />
+                      </div>
+                    )}
                   </div>
                 )}
               </li>
@@ -280,7 +305,7 @@ function SetupGuide({ press, plans, helpUrl, accountUrl, onOpen, onCreate, save 
       </SectionCard>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))", gap: 16, marginTop: 16 }}>
         <AfterCreating plan={press.plan} plans={plans} />
-        <HelpCard helpUrl={helpUrl} accountUrl={accountUrl} />
+        <HelpCard helpUrl={helpUrl} answers={answers} onAsk={onAsk} />
       </div>
     </div>
   );
@@ -325,18 +350,15 @@ function AfterCreating({ plan, plans }: { plan: SetupPress["plan"]; plans: PlanL
   );
 }
 
-/** Where to get help: the answers asked about most, and a person who answers in writing. */
-function HelpCard({ helpUrl, accountUrl }: { helpUrl: string; accountUrl: string }) {
+/** Where to get help: the answers asked about most, opened in place, and a person who answers in writing. */
+function HelpCard({ helpUrl, answers, onAsk }: { helpUrl: string; answers: HelpAnswers; onAsk: () => void }) {
   return (
     <SectionCard title="Need a hand?" collapsible={false}>
-      <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 8 }}>
-        {SETUP_QUESTIONS.slice(0, 3).map((q) => (
-          <li key={q.id}><a href={helpLink(helpUrl, q.id)} target="_blank" rel="noopener" style={{ color: "var(--rp-text)", textDecoration: "underline", textUnderlineOffset: 3 }}>{q.question}<span className="rp-sr-only"> (opens in a new tab)</span></a></li>
-        ))}
-      </ul>
+      <HelpQuestions questions={SETUP_QUESTIONS.slice(0, 3)} answers={answers} helpUrl={helpUrl} />
       <p className="rp-hint" style={{ margin: "12px 0 0", display: "flex", alignItems: "center", gap: 6 }}>
         <MessageCircle size={14} aria-hidden />
-        <span>Stuck? <a href={accountUrl} style={{ color: "var(--rp-text)", textDecoration: "underline" }}>Ask us from your account page</a> and a person answers in writing.</span>
+        <span>Stuck? <button type="button" onClick={onAsk}
+          style={{ background: "none", border: 0, padding: 0, cursor: "pointer", font: "inherit", color: "var(--rp-text)", textDecoration: "underline" }}>Ask a person</button> and we answer in writing.</span>
       </p>
     </SectionCard>
   );
@@ -587,31 +609,26 @@ function PlanPage({ press, plans, failed, onRetry, save, termsUrl, names, email,
   );
 }
 
-/** Help in setup: the answers asked about most while setting up, the help centre, and a person to ask. */
-function HelpPage({ helpUrl, accountUrl }: { helpUrl: string; accountUrl: string }) {
+/** Help in setup: the answers asked about most, opened in place, a person to ask, and the help centre. */
+function HelpPage({ helpUrl, accountUrl, answers, ask, pressName }: {
+  helpUrl: string; accountUrl: string; answers: HelpAnswers; ask: SetupDoor["askForHelp"]; pressName: string;
+}) {
+  const w = useShopWords();
   return (
     <>
       <PageHeader title="Help" description="Answers about setting up and creating your shop." />
       <SectionCard title="While you set up" collapsible={false}>
-        <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid" }}>
-          {SETUP_QUESTIONS.map((q) => (
-            <li key={q.id} style={{ borderTop: "1px solid var(--rp-divider)" }}>
-              <a href={`${helpUrl}#${q.id}`} target="_blank" rel="noopener"
-                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, minHeight: 48, padding: "8px 0", color: "var(--rp-text)" }}>
-                <span>{q.question}</span><ExternalLink size={14} aria-hidden /><span className="rp-sr-only"> (opens in a new tab)</span>
-              </a>
-            </li>
-          ))}
-        </ul>
+        <HelpQuestions questions={SETUP_QUESTIONS} answers={answers} helpUrl={helpUrl} ruled />
       </SectionCard>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))", gap: 16, marginTop: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))", gap: 16, marginTop: 16, alignItems: "start" }}>
+        <section id="ask" style={{ scrollMarginTop: 16 }}>
+          <SectionCard title="Ask a person" description="A person answers in writing, by email." collapsible={false}>
+            <AskForm ask={ask} pressName={pressName} accountUrl={accountUrl} />
+          </SectionCard>
+        </section>
         <SectionCard title="Help centre" collapsible={false}>
-          <p style={{ marginTop: 0 }}>Plain answers on plans, payments, moving your books in, and your website.</p>
-          <a className="rp-btn rp-btn-secondary" href={helpUrl}>Open the help centre</a>
-        </SectionCard>
-        <SectionCard title="Ask a person" collapsible={false}>
-          <p style={{ marginTop: 0 }}>Ask from your account page and a person answers in writing.</p>
-          <a className="rp-btn rp-btn-secondary" href={accountUrl}>Go to my account</a>
+          <p style={{ marginTop: 0 }}>{w("Every answer, on plans, payments, moving your books in, and your website.")}</p>
+          <a className="rp-btn rp-btn-secondary" href={helpUrl} target="_blank" rel="noopener">Open the help centre</a>
         </SectionCard>
       </div>
     </>

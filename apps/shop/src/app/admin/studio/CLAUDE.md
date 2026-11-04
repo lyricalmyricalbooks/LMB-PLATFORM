@@ -690,6 +690,11 @@ that writes a colour, font or words of its own, writes an owned shape as a liter
 knob that is not a Studio control or does not change the page. To add a template: TEMPLATE_STYLES + TEMPLATE_CSS, a
 THEME_LIBRARY look, a home layout, then run that test. `a11y-fixture.html?theme=<id>&design={…}` lays settings over
 a look, to watch a control work in the browser.
+Buttons that draw their own border inline (the header bag button `.fm-hdr-cart`, the book page's Add to bag and retry
+buttons, whose `--btn-border` rule is important) used to hide the outline controls. Each template's button rule now
+writes its border into `--template-btn-border`, and the outline knobs' shared `rule` sets
+`border:var(--template-btn-border) !important` on `.custom-btn` / `.store-btn-primary` once either control is set
+(untouched, those buttons keep their old border). The coverage test reads a same-rule variable as its value.
 
 ## Responsive public element editing (4 October 2026)
 

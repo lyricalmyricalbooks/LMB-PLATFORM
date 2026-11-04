@@ -1,15 +1,24 @@
 // Help articles for the questions a press asks most in its first weeks (plan 3.4), with one for every step of the
-// first-week list (plan 8.2, `CHECKLIST_ANSWERS`). Plain ES module with no imports, so the help page loads it as is
-// and the tests read the same list.
+// first-week list (plan 8.2, `CHECKLIST_ANSWERS`). Plain ES module with no build step, so the help page loads it as is
+// and the tests read the same list. Its only import is `./sells.js`, this folder's copy of shared/sells/sells.js.
+//
+// What the shop sells (code plan 12.18): the answers are written for a books shop. For a shop that sells something else
+// (`?sells=clothing` on the page's address), `articlesFor` passes them through the shop's words ("Add book" → "Add
+// product", "editions" → "options"), the same words its admin shows. An article with `goods` uses those words instead,
+// as written, where the swap alone would read wrongly. An article with `books: true` is only for shops that have
+// books (the ISBN answer); a shop that sells books and other things still sees it.
 //
 // Words here are customer-facing: plain words, short sentences, no code or tool names, never a rival's name. Every
 // "where to click" path names real admin pages (help.test.js checks them against the shop's menu). Say only what the
 // shop does today; when something isn't built yet, say so and say what to do instead.
 
+import { sellsBooks, wordsFor } from "./sells.js";
+
 /**
- * @typedef {{ id: string, topic: string, question: string, answer: string[], steps?: string[], where?: string[], plans?: string[] }} Article
+ * @typedef {{ id: string, topic: string, question: string, answer: string[], steps?: string[], where?: string[], plans?: string[], books?: boolean, goods?: { question?: string, answer?: string[] } }} Article
  * `where`: click paths in the shop's admin, written "Page › Part". `plans`: only for presses whose plan includes these
- * apps ("shop", "stockroom"); missing means everyone.
+ * apps ("shop", "stockroom"); missing means everyone. `books`: only for shops that have books. `goods`: the words for a
+ * shop that doesn't sell books, used as written.
  */
 
 export const TOPICS = Object.freeze(["Getting started", "Moving your shop", "Selling", "Orders", "Your stockroom", "Your account"]);
@@ -53,6 +62,13 @@ export const ARTICLES = Object.freeze([
       "Open the book, go to Editions and press Add edition for each one. Shoppers then choose the edition they want on the book's page.",
     ],
     where: ["Books › a book › Editions"],
+    goods: {
+      question: "How do I sell one product in more than one version?",
+      answer: [
+        "Some products come in versions, such as a plain and a signed print, or a small and a large size. Each version has its own price and its own stock.",
+        "Open the product, go to Editions and press Add edition for each version. Shoppers then choose the one they want on the product's page.",
+      ],
+    },
   },
   {
     id: "sizes-and-colours",
@@ -112,6 +128,13 @@ export const ARTICLES = Object.freeze([
       "Your press is the name, contact email and address that go on your receipts, labels and contact page. Fill in the press name, the contact email, the street address, the city, the postal code and the country.",
       "Your changes are saved when you finish the step. You can change any of them later in Settings.",
     ],
+    // The step keeps its name, Your press, for every shop, so the swap must not rename it.
+    goods: {
+      answer: [
+        "Your press is the step for your shop's name, contact email and address, which go on your receipts, labels and contact page. Fill in the shop name, the contact email, the street address, the city, the postal code and the country.",
+        "Your changes are saved when you finish the step. You can change any of them later in Settings.",
+      ],
+    },
     where: ["Overview › Get started"],
   },
   {
@@ -131,7 +154,7 @@ export const ARTICLES = Object.freeze([
     question: "How do I bring in my books from a spreadsheet?",
     answer: [
       "Save your list of books as a CSV file. Most spreadsheet programs can do this from Save as or Download.",
-      "Open Books, press Import CSV and choose the file. You see every book before anything is saved, and each one arrives as a draft.",
+      "Open Books, press Import spreadsheet and choose the file. You see every book before anything is saved, and each one arrives as a draft.",
     ],
     where: ["Books"],
   },
@@ -154,6 +177,7 @@ export const ARTICLES = Object.freeze([
       "Bookshops and distributors order by ISBN, and the shop shows the barcode on the book's page.",
     ],
     where: ["Books"],
+    books: true,
   },
   {
     id: "publish",
@@ -171,11 +195,11 @@ export const ARTICLES = Object.freeze([
     question: "How do I bring my books over from my old shop?",
     answer: [
       "Bring your shop with you. In your old shop, export your products as a file. Don't change the file.",
-      "Here, open Books, press Import CSV and choose that file. You see every book before anything is saved. Photos, prices, sale prices, stock and editions come over, and every new book arrives as a draft.",
+      "Here, open Books, press Import spreadsheet and choose that file. You see every book before anything is saved. Photos, prices, sale prices, stock and editions come over, and every new book arrives as a draft.",
       "Bringing the same file over twice adds nothing new, so you can try again safely.",
       "For now the photos still load from your old shop. Keep your old shop open until we tell you they have been copied over.",
     ],
-    where: ["Books › Import CSV"],
+    where: ["Books › Import spreadsheet"],
   },
   {
     id: "bring-customers",
@@ -209,16 +233,16 @@ export const ARTICLES = Object.freeze([
       "Everything below is optional, and each step is safe to repeat: bringing the same file twice adds nothing twice. Most old shops let you export each list as a CSV file from their settings or reports.",
     ],
     steps: [
-      "Books: open Books, press Import CSV and choose your old shop's product file. Old book addresses are sent on to the new pages.",
+      "Books: open Books, press Import spreadsheet and choose your old shop's product file. Old book addresses are sent on to the new pages.",
       "Customers: open Customers and press Bring customers over.",
       "Gift cards: open Gift cards and press Bring gift cards over, so balances still work.",
       "Discount codes: open Discounts and press Bring codes over, so codes your customers already have still work. Codes for only some items, and buy-some-get-some offers, are listed for you to set up by hand.",
-      "Past orders: open Orders and press Bring past orders over. They count in your sales reports and each customer's history, and change no stock. Orders in another currency are converted at the Bank of Canada's average rate, which you can change, later too, on each order's page. Got a file per year? Press Bring another file after each one. Wrong file? Remove that whole import in one step.",
+      "Past orders: open Orders and press Bring past orders over. They count in your sales reports and each customer's history, and change no stock. Orders in another currency are converted at the Bank of Canada's average rate, which you can change, later too, on each order's page. Got a file per year? Press Bring another file after each one. Every window takes Excel, CSV and LibreOffice files as your old shop gives them. Wrong file? Remove that whole import in one step.",
       "Your own pages and old links: open Settings › General and use Check your old links under URL redirects, then Bring your own pages over for pages such as About or FAQ.",
       "On the day you move, follow What do I do on the day I move from my old shop?",
       "Your Overview shows Your move so far: what has come over and what is left. Choose We had none for anything your old shop didn't have.",
     ],
-    where: ["Books › Import CSV", "Customers › Bring customers over", "Gift cards › Bring gift cards over", "Discounts › Bring codes over", "Orders › Bring past orders over", "Settings › General"],
+    where: ["Books › Import spreadsheet", "Customers › Bring customers over", "Gift cards › Bring gift cards over", "Discounts › Bring codes over", "Orders › Bring past orders over", "Settings › General"],
   },
   {
     id: "switch-day",
@@ -468,10 +492,31 @@ export const RUN_ANSWERS = Object.freeze({
   final: "open-shop",
 });
 
-/** The articles for a plan ("both", "shop" or "stockroom"); everyone gets the ones with no plan. */
-export function articlesFor(plan) {
+/** True for a shop with no books at all: not a books shop, and not one that sells books and other things. */
+const noBooks = (sells) => !sellsBooks(sells) && sells !== "mixed";
+
+/** One article in a shop's words: its `goods` words as written, the rest through `w`. */
+function worded(a, w) {
+  const goods = a.goods || {};
+  return {
+    ...a,
+    question: goods.question ?? w(a.question),
+    answer: goods.answer ?? a.answer.map(w),
+    ...(a.steps ? { steps: a.steps.map(w) } : {}),
+    ...(a.where ? { where: a.where.map(w) } : {}),
+  };
+}
+
+/**
+ * The articles for a plan ("both", "shop" or "stockroom"); everyone gets the ones with no plan. `sells` is the shop's
+ * answer to "What do you sell?": a books shop (or no answer) gets the articles exactly as written.
+ */
+export function articlesFor(plan, sells = null) {
   const apps = plan === "both" ? ["shop", "stockroom"] : [plan];
-  return ARTICLES.filter((a) => !a.plans || a.plans.some((p) => apps.includes(p)));
+  const list = ARTICLES.filter((a) => (!a.plans || a.plans.some((p) => apps.includes(p))) && !(a.books && noBooks(sells)));
+  if (sellsBooks(sells)) return list;
+  const w = wordsFor(sells);
+  return list.map((a) => worded(a, w));
 }
 
 /** Articles whose question or answer has every word typed in the search box. */

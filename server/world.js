@@ -49,6 +49,11 @@ import { readGoogleConfig } from "../google/config.js";
 import { googleReadiness } from "../google/readiness.js";
 import { createSupportInbox } from "../services/support/inbox.js";
 import { supportRoutes } from "../services/support/routes.js";
+import { createAppMakers } from "../services/apps/makers.js";
+import { createAppInstalls } from "../services/apps/installs.js";
+import { createAppConnection } from "../services/apps/connection.js";
+import { createAppAlerts } from "../services/apps/alerts.js";
+import { appInstallPublicRoutes, appInstallRoutes, appMakerRoutes, appStorePublicRoutes } from "../services/apps/routes.js";
 import { createRecovery, recoveryByHand } from "../accounts/recovery.js";
 import { recoveryRoutes } from "../accounts/recoveryRoutes.js";
 import { deviceWatch } from "../accounts/devices.js";
@@ -79,6 +84,7 @@ import { broughtOverRoutes, createBroughtOver } from "../control-room/broughtOve
 import { createSalesChannels, salesChannelsRoutes } from "../control-room/salesChannels.js";
 import { createShopFeatures, shopFeaturesRoutes } from "../control-room/shopFeatures.js";
 import { createShopLooks, shopLooksRoutes } from "../control-room/shopLooks.js";
+import { createShopEmails, shopEmailsRoutes } from "../control-room/shopEmails.js";
 import { deliveryReader } from "../control-room/delivery.js";
 import { createJobs } from "../services/jobs/index.js";
 import { createPressMessages, messageRoutes } from "../control-room/messages.js";
@@ -93,6 +99,7 @@ import { STOCKROOM_DATABASE, registryFiles, shopDataClient, stockroomDataClient 
 import {
   firestoreAccounts, firestoreActivity, firestoreBreaches, firestoreDeliveryStats, firestoreDevices, firestoreIncomeHistory, firestoreInvites,
   firestoreJobRuns, firestorePlatformState, firestoreRecoveries, firestoreRepairs, firestoreSentLog, firestoreShopNotes, firestoreSupport, firestoreWaitlist,
+  firestoreApps, firestoreAppCodes, firestoreAppInstalls, firestoreAppAlerts, firestoreAppAlertState,
 } from "../clients/stores.js";
 import {
   firestoreAccessRequests, firestoreAccountStores, firestoreBillingStores, firestoreFoundingSeats, firestoreDataExports, firestoreFeeLedger, firestorePressMessages,
@@ -145,7 +152,8 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
 
   // The platform's emails, through Resend, from their real templates.
   const sentLog = firestoreSentLog(platform);
-  const email = createEmailService({ env, fetch, registry, sentLog, now });
+  // shopStart: the shop's own Settings answer to "What do you sell?", so platform emails follow a later change (plan 12.18).
+  const email = createEmailService({ env, fetch, registry, sentLog, shopStart: (shopId) => shopData.get(shopId, "firstWeek/start"), now });
 
   // Billing on Stripe's test mode (services/payments alone reads the key).
   const billingStores = firestoreBillingStores(platform);
@@ -219,6 +227,21 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     runBook: runBook({ state: platformState, registry, platform, rollBack: notConnectedFn(NOT_CONNECTED.rollBack), now }),
   });
   const support = createSupportInbox({ store: supportStore, email, registry, settings, admins, roleIn: (who, shopId) => accounts.roleIn(who, shopId), now });
+  // Outside apps registered by app makers (code plan 26.1).
+  const appStore = firestoreApps(platform);
+  const appMakers = createAppMakers({ store: appStore, admins, now });
+  // Installing them on a shop with its owner's permission (26.2).
+  const appInstallStore = firestoreAppInstalls(platform);
+  // Alerts to apps when orders, products or stock change, and when an app is removed (26.4; the app-alerts job).
+  const appAlerts = createAppAlerts({
+    apps: appStore, installs: appInstallStore, outbox: firestoreAppAlerts(platform), state: firestoreAppAlertState(platform), shopData, fetch, now,
+  });
+  const appInstalls = createAppInstalls({
+    apps: appStore, makers: appMakers, installs: appInstallStore, codes: firestoreAppCodes(platform), registry, auditLog, now,
+    roleIn: (who, shopId) => accounts.roleIn(who, shopId), onRemoved: (install) => appAlerts.removed(install),
+  });
+  // The app connection: installed apps read their shop through the platform, with their key (26.3).
+  const appConnection = createAppConnection({ installs: appInstalls, shopData, registry, now });
   const recovery = createRecovery({
     store: recoveryStore, email, registry, auditLog, settings, admins, now,
     findAccount: async (address) => {
@@ -231,7 +254,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   // The business side, the timeline, the jobs page, notes, messages to presses, costs and a press's data.
   const incomeHistory = firestoreIncomeHistory(platform);
   const business = createBusinessRoom({ registry, incomeHistory, admins, now });
-  const timeline = createTimeline({ admins, registry, activity, supportStore, now });
+  const timeline = createTimeline({ admins, registry, activity, supportStore, emailLog: sentLog, shopData, now });
   const jobRuns = firestoreJobRuns(platform);
   const jobs = createJobs({ store: jobRuns, email, alertTo: String(env.HEALTH_ALERT_TO ?? "").trim() || null, now });
   const pressMessages = createPressMessages({ store: firestorePressMessages(platform), registry, auditLog, shopData, email, activity, admins, now });
@@ -244,6 +267,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const driftDesk = createDriftDesk({ admins, registry, settings, activity, now });
   const shopFeatures = createShopFeatures({ admins, registry, shopData, now });
   const shopLooks = createShopLooks({ admins, registry, shopData, now });
+  const shopEmails = createShopEmails({ admins, registry, emailLog: sentLog, now });
   const salesChannels = createSalesChannels({ admins, registry, shopData, stockroomData, now });
   // The billing export to BigQuery isn't on yet (19.15): the Costs page shows its "not on yet" state.
   const costsDesk = createCostsDesk({ registry, reader: createCostReader({}), settings: live, admins, now });
@@ -286,6 +310,8 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...platformRoutes(controls),
     ...emergencyRoutes(backup),
     ...supportRoutes(support),
+    ...appMakerRoutes(appMakers),
+    ...appInstallRoutes(appInstalls),
     ...recoveryRoutes(recovery),
     ...accessRequestRoutes({ requests: accessRequests, accounts, activity, registry, auditLog, now }),
     ...businessRoutes(business),
@@ -298,13 +324,14 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...salesChannelsRoutes(salesChannels),
     ...shopFeaturesRoutes(shopFeatures),
     ...shopLooksRoutes(shopLooks),
+    ...shopEmailsRoutes(shopEmails),
     ...driftRoutes(driftDesk),
     ...messageRoutes(pressMessages),
     ...costRoutes(costsDesk),
     ...exportRoutes(dataExports),
   };
   const door = createApi({
-    signup, verifyIdToken: createIdTokenVerifier({ projectId, fetch, now: nowMs }), settings, live, plusTax: readBillingConfig(env).tax, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }) },
+    signup, verifyIdToken: createIdTokenVerifier({ projectId, fetch, now: nowMs }), settings, live, plusTax: readBillingConfig(env).tax, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls) },
     onSignedIn: deviceWatch({ devices: firestoreDevices(platform), email, now }),
     limits: createLimits({ throttle: firestoreThrottle(platform), admins, proxyHops: proxyHopsOf(env), now, log }),
     log,
@@ -335,6 +362,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     }
     if (path.startsWith(SHOP_BILLING_PREFIX)) return shopBilling(request);
     if (path === "/api/payments" || path.startsWith("/api/payments/")) return handlePayments({ ...request, path: path.slice("/api/payments".length) || "/" }, { service: payments });
+    if (path === "/api/apps/v1" || path.startsWith("/api/apps/v1/")) return appConnection(request);
     if (path === "/api/email/shop") return handleShopEmail(request, { service: email, registry, sentLog });
     if (path === "/tips/off" || path === "/checkup/off") {
       if (request.method !== "GET") return { status: 405, body: { ok: false, message: "Open the link from the email." } };
@@ -345,7 +373,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
 
   return {
     projectId, settings, live, platform, registry, auditLog, shopData, stockroomData, email, billing, paymentWay, payments, signup, frontDoor, shopMaker, accounts, room, controls,
-    backup, support, recovery, business, timeline, jobs, jobRuns, jobsPage, notes, pressMessages, costsDesk, dataExports, trialTips, checkups, closing, setupClock, driftWatch,
+    appAlerts, backup, support, recovery, business, timeline, jobs, jobRuns, jobsPage, notes, pressMessages, costsDesk, dataExports, trialTips, checkups, closing, setupClock, driftWatch,
     routes, door, shopBilling, handle, parts,
   };
 }

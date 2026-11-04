@@ -21,6 +21,8 @@
 //   fetch      the network (tests pass a fake)
 //   reputation optional: isPaused(shopId) (reputation.js). A paused shop's newsletter-stream emails are refused;
 //              its orders-stream emails (receipts, notices) always go.
+//   shopStart  optional: (shopId) -> the shop's own firstWeek/start record (clients/shop.js shopData), where the shop's
+//              admin keeps a later Settings answer to "What do you sell?" (`sells`)
 //
 // Streams (streams.js, plan 8.3): every email is tagged with its stream, "orders" or "newsletter", and with
 // SHOP_SENDER_ADDRESSES on, a shop's email comes from its own address on that stream's subdomain.
@@ -31,7 +33,8 @@
 // `gmailSender.on`, the shop's emails go from the press's Gmail through the Google link; if Gmail refuses one, it goes
 // the usual way instead, so nothing is lost.
 import { platformSettings } from "../settings.js";
-import { sellsOf, wordsFor } from "../../shared/sells/sells.js";
+import { sellsBooks, sellsOf, wordsFor } from "../../shared/sells/sells.js";
+import { goodsWordsFr } from "./templatesFrPress.js";
 import { resendClient } from "./resend.js";
 import { COMMERCIAL_KINDS, TEMPLATES, customProblems, withIdentity } from "./templates.js";
 import { TEMPLATES_FR, bilingual, shopMailLanguage } from "./templatesFr.js";
@@ -68,7 +71,7 @@ export function platformWords(kind, data, context, language) {
   return language === "fr" ? french(data, context) : bilingual(french(data, context), english());
 }
 
-export function createEmailService({ env = process.env, fetch = globalThis.fetch, registry, sentLog, reputation = null, gmailSend = null, now = () => new Date(), sleep } = {}) {
+export function createEmailService({ env = process.env, fetch = globalThis.fetch, registry, sentLog, reputation = null, gmailSend = null, shopStart = null, now = () => new Date(), sleep } = {}) {
   if (!registry?.getShop) throw new Error("The email service needs the shop registry");
   if (!sentLog?.get || !sentLog?.put || !sentLog?.findSent) throw new Error("The email service needs its sent log");
   const settings = platformSettings(env);
@@ -172,9 +175,14 @@ export function createEmailService({ env = process.env, fetch = globalThis.fetch
         throw new Error(`PLATFORM_MAILING_ADDRESS is needed before ${settings.platformName} sends a ${message.kind} email: the law asks for a mailing address in commercial emails`);
       }
       // `w`: the platform's words about the shop in the words of what it sells (shared/sells), for a shop's own email.
-      // A books shop, or one whose profile can't be read, keeps every word.
-      const sells = message.shopId ? sellsOf(await Promise.resolve().then(() => registry.getProfile?.(message.shopId)).catch(() => null)) : null;
-      const words = { settings, pressName: message.data?.pressName ?? "", w: wordsFor(sells) };
+      // The shop's own Settings answer comes first (its `firstWeek/start.sells`, read through `shopStart`), so a shop that
+      // changed What you sell after signing up is written to in its new words; then the profile's sign-up answer. A books
+      // shop, or one whose records can't be read, keeps every word.
+      const quietly = (read) => Promise.resolve().then(read).catch(() => null);
+      const sells = message.shopId
+        ? sellsOf(shopStart ? await quietly(() => shopStart(message.shopId)) : null, await quietly(() => registry.getProfile?.(message.shopId)))
+        : null;
+      const words = { settings, pressName: message.data?.pressName ?? "", w: wordsFor(sells), wFr: sellsBooks(sells) ? (text) => text : goodsWordsFr };
       // No language given: the shop's own (its billing row's language and province, mirrored on the registry).
       let language = message.language;
       if (language === undefined && message.shopId && TEMPLATES_FR[message.kind]) language = shopLanguage(await registry.getShop(message.shopId).catch(() => null));

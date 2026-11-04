@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en" class="rp cp-page">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Add an app · Colophon</title>
+<meta name="description" content="Say yes or no to an app that wants to link to your shop, after reading what it can see and change.">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700&family=DM+Mono&display=swap">
+<link rel="stylesheet" href="./look/adminThemes.css">
+<link rel="stylesheet" href="./look/pressroom.css">
+<link rel="stylesheet" href="./look/platform-pages.css">
+<script src="./look/platform-look.js"></script>
+</head>
+<body class="cp">
+<a class="rp-skip-link" href="#main">Skip to content</a>
+<div class="rp-app">
+  <div class="rp-app-body">
+    <header class="rp-topbar"><a class="cp-kicker" href="/account/">Colophon · Your account</a></header>
+    <div class="rp-workspace"><div class="rp-workspace-inner">
+<!-- The permission page an app sends a press to (code plan 26.2, accounts/install.js): what the app wants, then Add or
+     Cancel. Only the shop's owner can say yes; the server checks it all again. -->
+<main id="main" tabindex="-1">
+  <div class="rp-page-header"><div><div class="cp-kicker" id="shop-name" style="margin-bottom:10px">Your shop</div><h1 class="rp-page-title">Add an app</h1></div></div>
+
+  <section id="view-loading" aria-live="polite">
+    <p class="loading">Loading the app…</p>
+  </section>
+
+  <section id="view-signin" class="stack" hidden aria-labelledby="signin-title">
+    <h2 id="signin-title" tabindex="-1" class="cp-view-title">Sign in</h2>
+    
+    <div class="cp-actions cp-start"><button type="button" id="google" class="primary">Continue with Google</button></div>
+    <a href="/account/">Or get an email sign-in link on your shops page</a>
+  </section>
+
+  <section id="view-error" class="stack" hidden aria-labelledby="error-title">
+    <h2 id="error-title" tabindex="-1" class="cp-view-title">We couldn't open this app</h2>
+    <p class="error" id="error-words" role="alert"></p>
+    <div class="cp-actions cp-start"><button type="button" id="retry">Try again</button><a class="button" href="/account/">Your shops</a></div>
+  </section>
+
+  <section id="view-ask" class="stack" hidden aria-labelledby="ask-title">
+    <h2 id="ask-title" tabindex="-1" class="cp-view-title"></h2>
+    <p id="app-tagline" class="hint"></p>
+    <p id="testing" class="hint" hidden>Not on the store yet: only you can try it.</p>
+    <div class="card stack">
+      <p><strong>This app wants to:</strong></p>
+      <ul id="permissions"></ul>
+      <p id="personal" class="hint" hidden>Includes your customers' personal details.</p>
+      <p id="already" class="hint" hidden></p>
+    </div>
+    <p class="hint">Remove it any time. Help: <a id="support-link" href="#"></a></p>
+    <p id="not-owner" class="empty" hidden>Only the shop's owner can add apps.</p>
+    <div class="cp-actions cp-start">
+      <button type="button" class="primary" id="approve">Add the app</button>
+      <a class="button" href="/account/" id="cancel">Cancel</a>
+    </div>
+  </section>
+
+  <p id="status" role="status" aria-live="polite"></p>
+</main>
+    </div></div>
+  </div>
+</div>
+<script type="module" src="/accounts/install.js"></script>
+</body>
+</html>

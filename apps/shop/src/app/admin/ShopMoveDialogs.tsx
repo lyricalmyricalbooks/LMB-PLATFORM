@@ -4,6 +4,7 @@ import { Upload } from "lucide-react";
 import { adminApi } from "./api";
 import { emailHash } from "./Customers";
 import { Checkbox, Dialog, PrimaryButton, SecondaryButton, StatusBadge } from "./riso/components";
+import { SPREADSHEET_ACCEPT, readProblem, spreadsheetText } from "./spreadsheetFile";
 import {
   IMPORTED_CONSENT_TEXT, newsletterJoiners, optedOutBy, planCustomerNotes, readCustomerExport, type CustomerMove, type CustomerWrite,
   type MovedCustomer,
@@ -38,8 +39,8 @@ export function CustomerMoveDialog({ onClose, onDone }: { onClose: () => void; o
     setReadError(""); setReady(null); setResult(null); setPermission(false); setFileName(file.name);
     if (file.size > MAX_FILE_BYTES) { setReadError("That file is larger than 5 MB. Split it into smaller files and bring them over one at a time."); return; }
     let text: string, notes: Awaited<ReturnType<typeof adminApi.listCustomerNotes>>, consent: Awaited<ReturnType<typeof adminApi.getMarketingConsent>>;
-    try { text = await file.text(); }
-    catch { setReadError("This file couldn't be read. Save it as CSV (comma separated) and try again."); return; }
+    try { text = await spreadsheetText(file); }
+    catch (err) { setReadError(readProblem(err)); return; }
     // The shop's own lists, to merge with: a failure here is the connection, not the file.
     try { [notes, consent] = await Promise.all([adminApi.listCustomerNotes(), adminApi.getMarketingConsent()]); }
     catch { setReadError("Your customers couldn't be checked just now. Check your connection and try again."); return; }
@@ -51,7 +52,7 @@ export function CustomerMoveDialog({ onClose, onDone }: { onClose: () => void; o
       const joiners = newsletterJoiners(move.customers, consent.subscribed, optedOutBy(consent.optedOutHashes, email => ids.get(email)));
       setReady({ move, writes, joiners });
     } catch {
-      setReadError("This file couldn't be read. Save it as CSV (comma separated) and try again.");
+      setReadError("This file couldn't be read. Save it as CSV or Excel (.xlsx) and try again.");
     }
   }
 
@@ -101,7 +102,7 @@ export function CustomerMoveDialog({ onClose, onDone }: { onClose: () => void; o
             <li>Only people your old shop or mailing list says agreed to marketing email can join your newsletter, and only if you confirm below. Anyone who unsubscribed stays off it.</li>
           </ul>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-            <input ref={fileRef} type="file" accept=".csv,text/csv" hidden aria-label="Customer list file"
+            <input ref={fileRef} type="file" accept={SPREADSHEET_ACCEPT} hidden aria-label="Customer list file"
               onChange={e => { void choose(e.target.files?.[0]); e.target.value = ""; }} />
             <PrimaryButton icon={<Upload size={16} aria-hidden />} disabled={busy} onClick={() => fileRef.current?.click()}>
               {fileName ? "Choose another file" : "Choose customer file"}

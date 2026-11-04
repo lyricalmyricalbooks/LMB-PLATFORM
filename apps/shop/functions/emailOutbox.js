@@ -110,8 +110,13 @@ const REQUIRED_PLACEHOLDERS = {
   gift_card: { code: "Your gift card code: {{code}}" },
 };
 
-function withRequiredPlaceholders(templateId, body) {
-  const required = REQUIRED_PLACEHOLDERS[templateId];
+// The same lines in French, for an email sent in French (emailFrench.js).
+const REQUIRED_PLACEHOLDERS_FR = {
+  gift_card: { code: "Votre code de carte-cadeau : {{code}}" },
+};
+
+function withRequiredPlaceholders(templateId, body, language = "en") {
+  const required = (language === "fr" ? REQUIRED_PLACEHOLDERS_FR : REQUIRED_PLACEHOLDERS)[templateId];
   let text = String(body ?? "");
   if (!required) return text;
   for (const [token, line] of Object.entries(required)) {
@@ -127,7 +132,7 @@ function blankUnknownPlaceholders(text) {
 }
 
 module.exports = {
-  RETRY_DELAYS_MS, MAX_ATTEMPTS, LEASE_MS, LOG_RETENTION_DAYS, GAVE_UP_RETENTION_DAYS, REQUIRED_PLACEHOLDERS,
+  RETRY_DELAYS_MS, MAX_ATTEMPTS, LEASE_MS, LOG_RETENTION_DAYS, GAVE_UP_RETENTION_DAYS, REQUIRED_PLACEHOLDERS, REQUIRED_PLACEHOLDERS_FR,
   cleanRecipients, cleanSubject, cleanFromName, nextRetryAt, isPermanentEmailError, canSendNow, publicOutboxEntry, staleOrderEmailReason,
   daysAgoIso, withRequiredPlaceholders, blankUnknownPlaceholders,
 };

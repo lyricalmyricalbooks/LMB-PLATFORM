@@ -517,6 +517,9 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
   `ratePastOrder` (action in adminReports.js, `ratePastOrder` in orderImport.js) re-rates one `source: "import"` order
   from `paidIn.total` (total exact, other CA$ fields scaled); `PastOrderRate` on OrderDetail calls it. In move mode the
   admin fixture has one brought-over order, `past-1004`, and `getOrderById`.
+- **Spreadsheets (23.35):** every file picker uses `SPREADSHEET_ACCEPT` and reads through `spreadsheetText()` in
+  `spreadsheetFile.ts` (CSV/TSV text in any common encoding, .xlsx, .ods → CSV text); show errors with `readProblem(err)`.
+  A new bring-a-file window must do the same. Test files made by real programs live in `testdata/spreadsheets/`.
 - **Whole move on screen (23.22, in CI since 23.29 as `pnpm run test:move` in the `shop-admin-phone` job):** `node scripts/move-check.mjs` (`CHROMIUM_PATH`, `MOVE_SHOTS=dir`) drives
   `admin-fixture.html?move=1` with the demo's sample files and answers the old-shop server actions in the script.
   Extend it when a bring-over window changes. The fixture's dev-only `__fixtureIdToken` lets `oldShopApi.ask` run
@@ -735,6 +738,11 @@ built by `pnpm run build:setup` with `vite.setup.config.ts` into `dist-setup/`; 
   A "You're ready" card tops Home once only Create is left; the opened step is remembered per press for the visit
   (sessionStorage). On a phone the welcome title is smaller (`.rp-setup-home`, `setupMode/setup.css`). Locked pages say what they will do (`lockedPageLine`; pages.test.ts fails a locked menu page without a line) and lead
   back to the guide. Help ids are checked against `help/articles.js`.
+- **Help in place (4 November 2026):** `main.tsx` loads the platform's `/help/articles.js` (one copy) into
+  `SetupHelp.tsx` `helpAnswersFrom`; step help, Need a hand? and Help open answers in place, falling back to help-centre
+  links when they didn't load. Help's **Ask a person** (`AskForm`, `id="ask"`) sends `door.askForHelp` →
+  `POST /api/support/open` (no shopId: a press in setup has no shop; the body notes the press name), one request id per
+  try so a retry makes one request.
 - **Plan words:** free days are promised only when `/api/plans` gives a trial, and as "your first shop"
   (billing gives one trial per account). Prices that fail to load say so with Try again.
 
@@ -748,3 +756,11 @@ own address, kept open once opened), route `#stockroom/<page>`, and no Website �
 Other pages ask the stockroom through `stockroomBridge.ts` (`ask`, `openBook`; the frame opens hidden on first need):
 the book editor's **Stock and sales** tab (`StockroomBookPanel.tsx`, combined admin only) reads one book's figures from
 the stockroom's own `bookSummary`, never from a copy here, and matches an unmatched book with `linkNewBook`.
+
+## Sales channels and Social posts (plan 27.5-27.7, 4 November 2026)
+
+Design and rules: `docs/social.md` (platform root). `SalesChannels.tsx` (tab `channels`, under Books in both menus) and
+`SocialPosts.tsx` (tab `socialPosts`, under Orders; Marketing in the combined admin) share `socialChannels.ts` (pure,
+tested). They call `adminApi.social(step, args)` → `functions/socialLink.js`. `#social-posts/book/<id>` opens the
+composer on a product (Books › row › Post to social). Keep words lean (Julian, 4 November 2026): one short line per
+card, no explanations the badge or button already gives. Screens: fixture `?page=channels` / `social-posts`.

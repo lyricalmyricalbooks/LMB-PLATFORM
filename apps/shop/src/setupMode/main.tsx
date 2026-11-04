@@ -9,6 +9,7 @@ import "../styles/index.css";
 import "./setup.css";
 import { SetupAdmin, type SetupLists } from "./SetupAdmin";
 import { platformDoor, pressToOpen } from "./door";
+import { helpAnswersFrom } from "./SetupHelp";
 
 const FRONT_DOOR = "/join/";
 const ACCOUNT_PAGE = "/account/";
@@ -27,7 +28,9 @@ function say(words: string) {
 }
 
 async function start() {
-  const [config, form] = await Promise.all([load("/signup/config.js"), load("/signup/form.js")]);
+  // The help answers are the platform's own (one copy, on the help page); setup works without them, linking out instead.
+  // They come in this shop's words (help/articles.js articlesFor, code plan 12.18), as the help centre shows them.
+  const [config, form, help] = await Promise.all([load("/signup/config.js"), load("/signup/form.js"), load("/help/articles.js").catch(() => null)]);
   const { initializeApp } = await import(/* @vite-ignore */ `${config.FIREBASE_SDK}/firebase-app.js`);
   const { getAuth, onAuthStateChanged, signOut } = await import(/* @vite-ignore */ `${config.FIREBASE_SDK}/firebase-auth.js`);
   const auth = getAuth(initializeApp(config.PLATFORM_FIREBASE));
@@ -46,7 +49,7 @@ async function start() {
     sells: form.PUBLISHES.options.map((o: { id: string; label: string }) => ({ id: o.id, label: o.label })),
   };
   createRoot(document.getElementById("root")!).render(
-    <SetupAdmin press={press} door={door} lists={lists} email={user.email ?? ""} helpUrl={HELP_PAGE}
+    <SetupAdmin press={press} door={door} lists={lists} email={user.email ?? ""} helpUrl={HELP_PAGE} accountUrl={ACCOUNT_PAGE} answers={helpAnswersFrom(typeof help?.articlesFor === "function" ? help.articlesFor("both", press.sells ?? null) : help?.ARTICLES)}
       onSignOut={() => { void signOut(auth).then(() => location.replace(FRONT_DOOR)); }} />,
   );
 }

@@ -1,5 +1,6 @@
 // What setup mode shows (code plan 18.6): the real admin's menu, with the pages that work before a shop exists and
 // every other page locked until the shop opens. Pure, so the menu and the locks are tested without a browser.
+import { sellsBooks } from "../shared/shopSells";
 import type { NavEntry } from "../app/admin/riso/components";
 import { NAV, SETTINGS_ITEM_PREFIX, sidebarItems } from "../app/admin/riso/nav";
 import type { SetupPress } from "./door";
@@ -113,12 +114,18 @@ export function pageFromHash(hash: string, menu: NavEntry[] = setupMenu()): stri
   return known ? page : null;
 }
 
+/** The help centre's address for this shop: a shop that doesn't sell books gets the answers in its own words (`?sells=`). */
+export function helpFor(helpUrl: string, sells?: string | null): string {
+  if (!sells || sellsBooks(sells)) return helpUrl;
+  return `${helpUrl}${helpUrl.includes("?") ? "&" : "?"}sells=${encodeURIComponent(sells)}`;
+}
+
 /**
- * The help answer behind each setup guide step (help/articles.js ids), opened from the step as "How this works". The
- * plan step has none: its prices and trial are on Settings › Plan itself.
+ * The help answer behind each setup guide step (help/articles.js ids), opened in place from the step as "How this works".
+ * The plan step has none (its prices and trial are on Settings › Plan itself), nor has Tell us about your press: the
+ * help centre's Your press answer is the open shop's contact details, not setup's three questions.
  */
 export const STEP_HELP: Readonly<Record<string, string>> = Object.freeze({
-  details: "your-press",
   books: "bring-books",
   look: "look",
   cards: "get-paid",
@@ -127,7 +134,7 @@ export const STEP_HELP: Readonly<Record<string, string>> = Object.freeze({
 
 /** The help answers a press in setup asks about most, for Home and the Help page (help/articles.js ids). */
 export const SETUP_QUESTIONS: ReadonlyArray<{ id: string; question: string }> = Object.freeze([
-  { id: "your-press", question: "What do I put in my press details?" },
+  { id: "what-you-sell", question: "Can I change what my shop sells later?" },
   { id: "bring-books", question: "How do I bring my books over from my old shop?" },
   { id: "look", question: "How do I change how my shop looks?" },
   { id: "open-shop", question: "How do I open my shop to shoppers?" },
@@ -146,6 +153,8 @@ const LOCKED_LINES: Readonly<Record<string, string>> = Object.freeze({
   messages: "Messages people send you from your website's contact form.",
   inventory: "How many copies you have of each book, with a warning before one runs out.",
   reviews: "Reviews from your readers, checked by you before they show on your website.",
+  channels: "Sell on Facebook, Instagram, Pinterest and TikTok.",
+  socialPosts: "Post your books to your social accounts, now or later.",
   [SETTINGS_ITEM_PREFIX + "shipping"]: "What you charge to send a parcel, by country or by weight, and pickup if you offer it.",
   [SETTINGS_ITEM_PREFIX + "taxes"]: "The sales tax your shop adds at checkout, worked out from where your shoppers are.",
   [SETTINGS_ITEM_PREFIX + "notifications"]: "The emails your shoppers get: order received, shipped, and the words in each.",

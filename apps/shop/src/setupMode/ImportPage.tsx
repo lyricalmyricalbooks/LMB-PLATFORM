@@ -13,9 +13,10 @@ import { fileWithoutPhotos, photoCheckLine, useBrokenPhotos, withoutBrokenPhotos
 import { sellsBooks } from "../app/admin/sells";
 import { useShopWords } from "../app/admin/shopWords";
 import type { SetupDoor, SetupPress } from "./door";
+import { SPREADSHEET_ACCEPT, readProblem, spreadsheetText } from "../app/admin/spreadsheetFile";
 
 const TOO_BIG = "That file is larger than 5 MB. Split it into smaller files: bring one now and the rest once your shop is open.";
-const UNREADABLE = "This file couldn't be read. Save it from your spreadsheet as CSV (comma separated) and try again.";
+const UNREADABLE = "This file couldn't be read. Save it from your spreadsheet as CSV or Excel (.xlsx) and try again.";
 
 /** The day a file was kept, in the press's own words ("3 November 2026"). */
 const dayOf = (at: string) => {
@@ -43,13 +44,16 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
 
   async function choose(next: File | undefined, notes: string[] = []) {
     if (!next) return;
-    setError(""); setPreview(null); setFile(next); setReadNotes(notes);
+    setError(""); setPreview(null); setFile(null); setReadNotes(notes);
     if (next.size > MAX_FILE_BYTES) { setError(TOO_BIG); return; }
     try {
+      // A spreadsheet of any kind is kept as CSV (plan 23.35), under the name the press chose.
+      const text = await spreadsheetText(next);
+      setFile(new File([text], next.name, { type: "text/csv" }));
       // No books yet, so every row is new; a shop that doesn't sell books keeps the old shop's sizes and colours.
-      setPreview(planShopMove(await next.text(), [], [], {}, { keepOptions: !sellsBooks(press.sells || null) }));
-    } catch {
-      setError(UNREADABLE);
+      setPreview(planShopMove(text, [], [], {}, { keepOptions: !sellsBooks(press.sells || null) }));
+    } catch (err) {
+      setError(readProblem(err, UNREADABLE));
     }
   }
 
@@ -85,7 +89,7 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
 
   return (
     <>
-      <input ref={fileRef} type="file" accept=".csv,text/csv" hidden aria-label="Product file"
+      <input ref={fileRef} type="file" accept={SPREADSHEET_ACCEPT} hidden aria-label="Product file"
         onChange={(e) => { void choose(e.target.files?.[0]); e.target.value = ""; }} />
       <PageHeader title={w("Books")} description={w("Bring your books over from your old shop or a spreadsheet. They come in when your shop opens, as drafts for you to check.")} />
 
@@ -112,7 +116,7 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
         <SectionCard title="Or bring a file" collapsible={false}>
           <div style={{ display: "grid", gap: 12, maxWidth: 560 }}>
             <EmptyState icon={<FileUp size={28} aria-hidden />} title={w("Your books, in one file")}
-              description={w("In your old shop, export your products as a CSV file. Or save your spreadsheet of books as CSV. You'll see your books before anything is kept.")}
+              description={w("In your old shop, export your products as a file. Or choose your own spreadsheet of books: Excel, CSV and LibreOffice files all work. You'll see your books before anything is kept.")}
               action={<div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
                 <PrimaryButton icon={<FileUp size={16} aria-hidden />} disabled={!!busy} onClick={pick}>Choose a file</PrimaryButton>
                 {kept && <SecondaryButton disabled={!!busy} onClick={cancel}>Keep {kept.name}</SecondaryButton>}

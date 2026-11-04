@@ -55,11 +55,32 @@ export function hasPresetContent(preset: PresetLike): boolean {
   return Object.keys(presetSections(preset)).length > 0 || presetStarterPages(preset).length > 0;
 }
 
-/** The draft with the preset's section lists in place of those templates' sections. Everything else is kept. */
-export function applyPresetSections(design: any, preset: PresetLike, meta: (type: string) => any): any {
+// Settings that hold an address, a picture or an id, never words: the shop's words leave them alone, so a link such as
+// /collections/books keeps working.
+const NOT_WORDS = /url|href|link|image|src|slug|handle|collection|icon|video|(?:^|[a-z])Id$|^id$/i;
+
+/**
+ * A section's starter settings in the shop's words (code plan 12.18): a shop that doesn't sell books gets "New products"
+ * instead of "New books" in the layouts it picks. Only the words change; addresses, pictures and ids are kept.
+ */
+export function wordedSettings(settings: Record<string, any>, w: (text: string) => string): Record<string, any> {
+  const word = (key: string, value: any): any => {
+    if (typeof value === "string") return NOT_WORDS.test(key) || /^(?:\/|https?:|#)/.test(value) ? value : w(value);
+    if (Array.isArray(value)) return value.map((v) => word(key, v));
+    if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, word(k, v)]));
+    return value;
+  };
+  return word("", settings);
+}
+
+/**
+ * The draft with the preset's section lists in place of those templates' sections. Everything else is kept. `w` is the
+ * shop's words (useShopWords): a books shop's layouts come in exactly as written.
+ */
+export function applyPresetSections(design: any, preset: PresetLike, meta: (type: string) => any, w: (text: string) => string = (t) => t): any {
   let next = design;
   for (const [id, specs] of Object.entries(presetSections(preset))) {
-    const sections = specs.map(s => makeSection(s.type, { ...(meta(s.type)?.defaults || {}), ...(s.settings || {}) }));
+    const sections = specs.map(s => makeSection(s.type, wordedSettings({ ...(meta(s.type)?.defaults || {}), ...(s.settings || {}) }, w)));
     next = setSections(next, { kind: "template", id }, sections);
   }
   return next;
