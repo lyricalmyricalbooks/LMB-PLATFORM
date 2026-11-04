@@ -4,7 +4,8 @@ import { Upload } from "lucide-react";
 import { adminApi } from "./api";
 import { emailHash } from "./Customers";
 import { Checkbox, Dialog, PrimaryButton, SecondaryButton, StatusBadge } from "./riso/components";
-import { SPREADSHEET_ACCEPT, readProblem, spreadsheetText } from "./spreadsheetFile";
+import { SPREADSHEET_ACCEPT, readProblem, readSpreadsheet, type SpreadsheetRead } from "./spreadsheetFile";
+import { FirstRows, SheetChoice } from "./SheetChoice";
 import {
   IMPORTED_CONSENT_TEXT, newsletterJoiners, optedOutBy, planCustomerNotes, readCustomerExport, type CustomerMove, type CustomerWrite,
   type MovedCustomer,
@@ -34,12 +35,13 @@ export function CustomerMoveDialog({ onClose, onDone }: { onClose: () => void; o
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<{ saved: number; failed: string[]; joined: number } | null>(null);
 
-  async function choose(file: File | undefined) {
+  const [book, setBook] = useState<{ file: File } & SpreadsheetRead | null>(null);
+  async function choose(file: File | undefined, sheet?: string) {
     if (!file) return;
-    setReadError(""); setReady(null); setResult(null); setPermission(false); setFileName(file.name);
+    setReadError(""); setReady(null); setResult(null); setPermission(false); setFileName(file.name); if (!sheet) setBook(null);
     if (file.size > MAX_FILE_BYTES) { setReadError("That file is larger than 5 MB. Split it into smaller files and bring them over one at a time."); return; }
     let text: string, notes: Awaited<ReturnType<typeof adminApi.listCustomerNotes>>, consent: Awaited<ReturnType<typeof adminApi.getMarketingConsent>>;
-    try { text = await spreadsheetText(file); }
+    try { const read = await readSpreadsheet(file, sheet); text = read.text; setBook({ file, ...read }); }
     catch (err) { setReadError(readProblem(err)); return; }
     // The shop's own lists, to merge with: a failure here is the connection, not the file.
     try { [notes, consent] = await Promise.all([adminApi.listCustomerNotes(), adminApi.getMarketingConsent()]); }
@@ -108,7 +110,9 @@ export function CustomerMoveDialog({ onClose, onDone }: { onClose: () => void; o
               {fileName ? "Choose another file" : "Choose customer file"}
             </PrimaryButton>
             {fileName && <span className="rp-mono" style={{ overflowWrap: "anywhere" }}>{fileName}</span>}
+            {book && <SheetChoice sheets={book.sheets} sheet={book.sheet} disabled={busy} onChange={(s) => void choose(book.file, s)} />}
           </div>
+          {book && <FirstRows text={book.text} />}
         </>}
 
         {readError && <p role="alert" className="rp-hint" style={{ color: "var(--rp-danger)", margin: 0 }}>{readError}</p>}
