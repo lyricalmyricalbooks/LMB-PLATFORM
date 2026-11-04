@@ -22,6 +22,10 @@ test("every logo has its own SVG file, an owner, a colour or its own colours, an
     if (logo.color === null) assert.match(logo.body, /fill="#/, `${id} carries its own colours`);
     else assert.match(logo.color, /^#[0-9A-F]{6}$/i, `${id} is drawn in its company's colour`);
     assert.doesNotMatch(logo.body, /<script|on[a-z]+=|href=/i, `${id} is plain artwork`);
+    if (logo.full) {
+      assert.match(logo.full.body, /fill="#/, `${id}'s full-colour artwork carries its own colours`);
+      assert.doesNotMatch(logo.full.body, /<script|on[a-z]+=|href=/i, `${id}'s full-colour artwork is plain artwork`);
+    }
   }
 });
 

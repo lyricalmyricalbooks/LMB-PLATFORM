@@ -28,18 +28,24 @@ export function BrandMark({ id, size = 18, label }: { id: BrandId; size?: number
   );
 }
 
+/** The artwork to draw in the company's own colours: its full-colour file when it has one, else its coloured mark. */
+export function colourArt(logo: { viewBox: string; body: string; color: string | null; full?: { viewBox: string; body: string } }) {
+  return logo.full ? { viewBox: logo.full.viewBox, body: logo.full.body, fill: undefined } : { viewBox: logo.viewBox, body: logo.body, fill: logo.color ?? undefined };
+}
+
 /**
  * A company's logo on its tile. Decorative by default (the company's name is in the text beside it); pass `label`
  * when the logo stands alone.
  */
 export function BrandLogo({ id, size = "md", label, className }: { id: BrandId; size?: BrandLogoSize; label?: string; className?: string }) {
   const logo = BRAND_LOGOS[id];
+  const art = colourArt(logo);
   return (
     <span className={`brand-logo brand-logo--${size}${className ? ` ${className}` : ""}`} data-brand={id}
       style={logo.background ? { background: logo.background, borderColor: logo.background } : undefined}
       {...(label ? { role: "img", "aria-label": label } : { "aria-hidden": true })}>
-      <svg viewBox={logo.viewBox} fill={logo.color ?? undefined} focusable="false" aria-hidden="true"
-        dangerouslySetInnerHTML={{ __html: logo.body }} />
+      <svg viewBox={art.viewBox} fill={art.fill} focusable="false" aria-hidden="true"
+        dangerouslySetInnerHTML={{ __html: art.body }} />
     </span>
   );
 }

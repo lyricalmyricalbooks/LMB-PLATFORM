@@ -392,9 +392,41 @@ function printedQrSignals({ states, booksById }, out) {
   });
 }
 
+// A sheet this old on a Colophon shop's one-sign-in sheet (lib/google-sheet.js) is worth a line on the to-do list.
+const GOOGLE_SHEET_STALE_DAYS = 2;
+
+/**
+ * On a Colophon shop the sheet comes from the shop's Google sign-in, not the older script, so the older sheet lines
+ * never show. Only a sheet that stopped updating gets a line: Drive switched off, or not sent for two days.
+ */
+function googleSheetSignals(google, ctx, out) {
+  if (!google) return;
+  if (google.state === 'nodrive' && google.hasSheet) {
+    out.push({
+      id: 'setup-google-sheet-off', group: 'setup', status: 'warn', icon: '📊',
+      label: 'Google Sheet stopped updating',
+      detail: 'Google Drive is switched off in Settings › Google, so your sheet keeps its old numbers.',
+      fix: { label: 'Open', ...openTab('sheets') },
+    });
+    return;
+  }
+  const sent = Date.parse(google.writtenAt || '');
+  const now = Date.parse(`${ctx.today}T23:59:59Z`);
+  if (google.state !== 'ready' || !Number.isFinite(sent) || !Number.isFinite(now)) return;
+  const days = Math.floor((now - sent) / 86400000);
+  if (days < GOOGLE_SHEET_STALE_DAYS) return;
+  out.push({
+    id: 'setup-google-sheet-stale', group: 'setup', status: 'warn', icon: '📊',
+    label: `Google Sheet is ${days} days old`,
+    detail: `Last sent ${String(google.writtenAt).slice(0, 10)}. Send it again so it matches the stockroom.`,
+    fix: { label: 'Send now', ...openTab('sheets') },
+  });
+}
+
 function setupSignals(ctx, out) {
   const sheets = ctx.sheets || {};
-  if (sheets.connected && sheets.deployedVersion && sheets.expectedVersion
+  if (sheets.colophon) googleSheetSignals(sheets.google, ctx, out);
+  else if (sheets.connected && sheets.deployedVersion && sheets.expectedVersion
       && sheets.deployedVersion !== sheets.expectedVersion) {
     out.push({
       id: 'setup-sheets-version',

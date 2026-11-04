@@ -53,14 +53,21 @@ describe("inline Stripe payment section", () => {
   it("uses Studio labels and optional badge visibility", () => {
     const view = render({ design: { regions: { stripeBrandsVisible: false }, copy: { coCard: "Pay with Stripe" } } });
     expect(view.textContent).toContain("Pay with Stripe");
-    expect(view.textContent).not.toContain("VISA");
+    expect(view.querySelector(".fm-co-brands")).toBeNull();
     expect(view.querySelector('[data-studio-target]')).not.toBeNull();
   });
 });
 it("never advertises configured wallets as eligible card brands", () => {
   const view = render({ design: { copy: { coCardBrands: "VISA, Apple Pay, Google Pay, Link" } } });
-  expect(view.textContent).toContain("VISA");
+  expect(view.querySelector('[data-brand="visa"]')?.getAttribute("aria-label")).toBe("Visa");
   expect(view.textContent).not.toContain("Apple Pay");
   expect(view.textContent).not.toContain("Google Pay");
   expect(view.textContent).not.toContain("Link");
+});
+
+it("draws the card networks' real marks for the brands it knows, and keeps any other word as a word", () => {
+  const view = render({ design: { copy: { coCardBrands: "VISA, MC, American Express, JCB" } } });
+  for (const id of ["visa", "mastercard", "americanexpress"]) expect(view.querySelector(`.fm-co-brands [data-brand="${id}"]`), id).not.toBeNull();
+  expect(view.querySelector('[data-brand="visa"]')?.getAttribute("fill")).toBe("currentColor");
+  expect(view.textContent).toContain("JCB");
 });

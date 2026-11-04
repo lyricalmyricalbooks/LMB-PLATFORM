@@ -7,6 +7,7 @@ import { RECONNECT_WORDS, googleConnectApi, takeGoogleOutcome, useGoogleConnect,
 import { extrasChanged, googleServices, googleSummary, serviceBadge, type ServiceId, type ServiceView } from "./googleHub";
 import { useShopWords } from "./shopWords";
 import { hasStockroom } from "../../lib/shopProfile";
+import { BrandLogo, type BrandId } from "../components/brand/BrandLogo";
 import "./google.css";
 
 // Settings › Google: one page for every Google service, as cards (googleHub.ts). The included parts come with the one
@@ -17,6 +18,20 @@ export const SERVICE_ICONS: Record<ServiceId, LucideIcon> = {
   analytics: ChartColumn, searchConsole: Search, merchantCenter: ShoppingBag, email: Mail, domain: Globe,
   businessProfile: MapPin, drive: HardDrive, youtube: Clapperboard, calendar: CalendarDays, ads: Megaphone,
 };
+/**
+ * Google's own product logo where the brand kit has one (shared/brand-logos); Merchant Center, Business Profile and the
+ * web address keep a plain icon, as there is no logo of theirs in the kit.
+ */
+const SERVICE_LOGOS: Partial<Record<ServiceId, BrandId>> = {
+  analytics: "googleanalytics", searchConsole: "googlesearchconsole", email: "gmail", drive: "googledrive",
+  youtube: "youtube", calendar: "googlecalendar", ads: "googleads",
+};
+function ServiceIcon({ id, size }: { id: ServiceId; size: number }) {
+  const logo = SERVICE_LOGOS[id];
+  if (logo) return <BrandLogo id={logo} className="gg-logo" />;
+  const Icon = SERVICE_ICONS[id];
+  return <span className="gg-icon" data-ink={INK[id]} aria-hidden="true"><Icon size={size} strokeWidth={2.2} /></span>;
+}
 /** Each service's ink: the look's four tile colours, in turn, so every look colours the page its own way. */
 const INK: Record<ServiceId, "a" | "b" | "c" | "d"> = {
   analytics: "a", searchConsole: "b", merchantCenter: "c", email: "d", domain: "a",
@@ -115,7 +130,7 @@ export function GoogleHub({ status }: { status: GoogleStatus }) {
       <section className="gg-hero rp-card" aria-labelledby="gg-title">
         <div className="gg-hero-main">
           <div className="gg-hero-text">
-            <span className="gg-mark" aria-hidden="true"><span /><span /><span /><span /></span>
+            <BrandLogo id="google" size="lg" className="gg-mark" />
             <h2 id="gg-title" className="gg-title">{headline}</h2>
             {lead && <p className="gg-lead">{lead}</p>}
             {status.connected && status.accountEmail && (
@@ -214,13 +229,12 @@ function GroupHead({ title, sub }: { title: string; sub?: string }) {
 }
 
 function ServiceCard({ view, action, after, w }: { view: ServiceView; action?: ReactNode; after?: ReactNode; w: (s: string) => string }) {
-  const Icon = SERVICE_ICONS[view.id];
   const badge = serviceBadge(view);
   const live = view.state === "done";
   return (
     <article id={`gg-card-${view.id}`} className="gg-card rp-card" data-state={view.state} aria-labelledby={`gg-${view.id}`}>
       <header className="gg-card-head">
-        <span className="gg-icon" data-ink={INK[view.id]} aria-hidden="true"><Icon size={20} strokeWidth={2.2} /></span>
+        <ServiceIcon id={view.id} size={20} />
         <h4 id={`gg-${view.id}`} className="gg-card-title">{view.label}</h4>
         {/* While Google is still coming, the page says so once, at the top, rather than on every card. */}
         {/* An extra's switch already says On or Off, so its badge shows only how a switched-on one is going. */}
@@ -246,11 +260,10 @@ export function GoogleTiles({ status, only }: { status: GoogleStatus; only?: Ser
   return (
     <ul className="gg gg-tiles" aria-label="What Google links to your shop">
       {list.map((s) => {
-        const Icon = SERVICE_ICONS[s.id];
         const badge = serviceBadge(s);
         return (
           <li key={s.id} className="gg-tile" data-state={s.state}>
-            <span className="gg-icon" data-ink={INK[s.id]} aria-hidden="true"><Icon size={18} strokeWidth={2.2} /></span>
+            <ServiceIcon id={s.id} size={18} />
             <span className="gg-tile-text"><strong>{s.label}</strong><span>{status.connected ? badge.text : w(s.gives[0])}</span></span>
           </li>
         );

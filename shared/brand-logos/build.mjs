@@ -49,6 +49,9 @@ export function build(only = null) {
     if (!existsSync(file)) throw new Error(`Missing svg/${id}.svg`);
     const { viewBox, body } = parseSvg(readFileSync(file, "utf8"));
     const full = meta.colors === "full";
+    // A single-colour mark can also carry the company's full-colour artwork (full/<id>.svg), used wherever the logo
+    // is shown in its own colours; one-colour places (the storefront's payment icons) keep the single-colour mark.
+    const fullArt = meta.full ? parseSvg(readFileSync(join(here, "full", `${id}.svg`), "utf8")) : null;
     out[id] = {
       name: meta.name,
       owner: meta.owner,
@@ -60,6 +63,7 @@ export function build(only = null) {
       body,
       source: full ? meta.source : `simple-icons ${simpleIconsVersion} (CC0), from ${meta.source}`,
       guidelines: meta.guidelines || meta.source,
+      ...(fullArt ? { full: { viewBox: fullArt.viewBox, body: fullArt.body, source: meta.full.source } } : {}),
     };
   }
   const banner =
