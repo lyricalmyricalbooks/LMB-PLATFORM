@@ -225,6 +225,19 @@ export function fakeGoogle({ failOnce = [], refuse = [] } = {}) {
       sheet.tabs[tab] = structuredClone(values);
       return {};
     },
+    // A sheet the press brings in (23.42): `ids` and `hidden` by tab name stand in for Google's tab numbers and hiding.
+    async readSheetInfo(token, id) {
+      who(token, "sheets");
+      const sheet = world.spreadsheets.get(id);
+      if (!sheet) throw new GoogleError(404, "Requested entity was not found.");
+      return { title: sheet.title, tabs: Object.keys(sheet.tabs).map((title, i) => ({ id: sheet.ids?.[title] ?? i, title, hidden: (sheet.hidden ?? []).includes(title) })) };
+    },
+    async readSheetValues(token, id, tab) {
+      who(token, "sheets");
+      const sheet = world.spreadsheets.get(id);
+      if (!sheet || !(tab in sheet.tabs)) throw new GoogleError(400, `Unable to parse range: ${tab}`);
+      return structuredClone(sheet.tabs[tab]);
+    },
     myChannel: async (token) => (who(token, "youtube"), world.channel ? structuredClone(world.channel) : null),
     channelVideos: async (token) => (who(token, "youtube"), [{ id: { videoId: "trailer1" }, snippet: { title: "Trailer" } }]),
     async getCalendar(token, id) { who(token, "calendar"); if (!world.calendars.has(id)) throw new GoogleError(404, "not found"); return { id }; },

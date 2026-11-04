@@ -164,6 +164,17 @@ if (gstate) {
   googleConnectApi.turnOff = async (extras: any) => { calls.push(["turnOff", extras]); return status; };
   googleConnectApi.shoppingProblems = async () => ({ available: true, problems: gstate === "trouble" ? [{ offerId: "b3", title: "Night Songs", issues: [{ severity: "DISAPPROVED", description: "The photo has a border.", resolution: "Upload a photo without one." }] }] : [] });
   googleConnectApi.sendStockSheet = async () => ({ available: true, url: "https://docs.google.com/spreadsheets/d/example/edit", rows: 24 });
+  // A pasted Google Sheet link (plan 23.42): two tabs of books; under ?gstate=trouble reading isn't allowed yet.
+  googleConnectApi.readSheet = async (args: any) => {
+    calls.push(["readSheet", args]);
+    if (gstate === "trouble") return { available: false };
+    return {
+      available: true, title: "Spring list", sheet: args.sheet ?? "Books", sheets: ["Books", "Zines"],
+      rows: args.sheet === "Zines"
+        ? [["Title", "Price", "Stock"], ["Moth Zine", "6.00", "40"]]
+        : [["Title", "Writer", "Cost to buyer", "Stock"], ["Spring Light", "R. Field", "22.00", "12"], ["Low Tide", "M. Shore", "18.50", "5"]],
+    };
+  };
 }
 
 const params = new URLSearchParams(location.search);

@@ -17,6 +17,7 @@ import { SPREADSHEET_ACCEPT, readProblem, readSpreadsheet, type SpreadsheetRead 
 import { FirstRows, SheetChoice } from "./SheetChoice";
 import { XLSX_TYPE, saveFile, toXlsx } from "./xlsxWriter";
 import { rememberColumns, rememberedColumns } from "./columnMemory";
+import { GoogleSheetLink } from "./GoogleSheetLink";
 
 
 type Result = { line: number; title: string; ok: boolean; message?: string };
@@ -181,6 +182,7 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
             <SecondaryButton size="sm" icon={<Download size={14} aria-hidden />} disabled={busy} onClick={() => saveFile("books-import-template.xlsx", toXlsx([IMPORT_COLUMNS.map(c => c.label)], "Books"), XLSX_TYPE)}>
               Blank template
             </SecondaryButton>
+            <GoogleSheetLink disabled={busy} onFile={(f) => void choose(f)} />
             {fileName && <span className="rp-mono" style={{ overflowWrap: "anywhere" }}>{fileName}</span>}
             {book && <SheetChoice sheets={book.sheets} sheet={book.sheet} disabled={busy} onChange={(s) => choose(book.file, readNotes, s)} />}
           </div>
