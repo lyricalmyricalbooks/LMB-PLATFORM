@@ -525,6 +525,8 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
   or for a field matched twice. Choosing a new file clears the matches.
 - **Sheets (23.37):** a window that reads one file uses `readSpreadsheet(file, sheet)` and shows `<SheetChoice>` beside the
   file name (renders nothing for one sheet or a text file); changing it calls the window's `choose(file, sheet)` again.
+- **Excel downloads (23.38):** `xlsxWriter.ts` `toXlsx(rows, sheet)` / `saveTable(base, csv, format, sheet)`; a new table
+  download should offer Excel first and CSV second the same way (Books › Export… is the pattern).
 - **Whole move on screen (23.22, in CI since 23.29 as `pnpm run test:move` in the `shop-admin-phone` job):** `node scripts/move-check.mjs` (`CHROMIUM_PATH`, `MOVE_SHOTS=dir`) drives
   `admin-fixture.html?move=1` with the demo's sample files and answers the old-shop server actions in the script.
   Extend it when a bring-over window changes. The fixture's dev-only `__fixtureIdToken` lets `oldShopApi.ask` run

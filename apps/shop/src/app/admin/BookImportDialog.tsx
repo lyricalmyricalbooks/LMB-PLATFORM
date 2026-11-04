@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Download, Upload } from "lucide-react";
 import { adminApi } from "./api";
-import { importTemplateCsv, IMPORT_COLUMNS, MATCHABLE_COLUMNS, type ImportField, type ImportPlan } from "./catalogImport";
+import { IMPORT_COLUMNS, MATCHABLE_COLUMNS, type ImportField, type ImportPlan } from "./catalogImport";
 import { ImportPreviewRows, MAX_FILE_BYTES } from "./importPreview";
 import { importRedirects, oldLinksMessage, planShopMove, SHAPE_WORDS, type ProductMove } from "./shopMove";
 import { inventoryLinkApi } from "./inventoryLinkApi";
@@ -15,17 +15,12 @@ import { useShopSells } from "./shopWords";
 import { useShopWords } from "./shopWords";
 import { SPREADSHEET_ACCEPT, readProblem, readSpreadsheet } from "./spreadsheetFile";
 import { SheetChoice } from "./SheetChoice";
+import { XLSX_TYPE, saveFile, toXlsx } from "./xlsxWriter";
 
 
 type Result = { line: number; title: string; ok: boolean; message?: string };
 type LinkResult = { added: number; skipped: number; full: number; failed: boolean };
 
-function download(name: string, text: string) {
-  const url = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));
-  const a = document.createElement("a");
-  a.href = url; a.download = name; a.click();
-  URL.revokeObjectURL(url);
-}
 
 /**
  * Books › Import CSV: choose a file → preview every row's changes → import. Rows with problems are
@@ -164,7 +159,7 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
             <PrimaryButton icon={<Upload size={16} aria-hidden />} disabled={busy} onClick={() => fileRef.current?.click()}>
               {fileName ? "Choose another file" : "Choose a file"}
             </PrimaryButton>
-            <SecondaryButton size="sm" icon={<Download size={14} aria-hidden />} disabled={busy} onClick={() => download("books-import-template.csv", importTemplateCsv())}>
+            <SecondaryButton size="sm" icon={<Download size={14} aria-hidden />} disabled={busy} onClick={() => saveFile("books-import-template.xlsx", toXlsx([IMPORT_COLUMNS.map(c => c.label)], "Books"), XLSX_TYPE)}>
               Blank template
             </SecondaryButton>
             {fileName && <span className="rp-mono" style={{ overflowWrap: "anywhere" }}>{fileName}</span>}
