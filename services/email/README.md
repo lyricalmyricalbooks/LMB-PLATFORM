@@ -105,6 +105,16 @@ kind (`COMMERCIAL_KINDS`): `sendPlatform` refuses it until the address is set. T
 take you off the list at once"; a person who replies STOP is removed from the waitlist by hand from the support inbox
 within 10 business days (a clickable link waits on the platform being able to remove a waitlist entry).
 
+## Receipts and account changes (plan 25.1-25.3)
+
+- `bill-paid`: a receipt for every paid bill with money on it (Stripe's `invoice.paid`): amount, bill number, the days
+  it covers, tax, and buttons to the bill and the billing page. Keyed on the bill (`billing/bill-paid/<invoice id>`), so
+  a repeated event never sends two. A bill that settles a failed payment sends `payment-received` instead (with the
+  bill's button). **Leave Stripe's own "email customers about successful payments" off**, or presses get two receipts.
+- `card-changed`: a card was added or made the one that pays (safety notice). The card company's automatic update
+  sends nothing.
+- `shop-reopened` (a card reopened a paused shop, instead of `card-changed`) and `cancel-undone` (Keep my plan).
+
 ## The control room's view (plan 19.10-19.12)
 
 - `sendPlatform` marks its sent-log entries `platform: true`, and the sent log has `listForShop(shopId, { limit })`:

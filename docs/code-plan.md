@@ -830,6 +830,28 @@ The review compared Colophon with what Shopify gives a small shop, checked again
 | 24.8 | platform | Press-to-press referral and partner codes | billing tests | on hold: Julian picks the reward |
 | 24.9 | shop | **One low-stock line everywhere** (next moves, 3 November 2026). Overview › Running low, the Books list badges and the book editor use Inventory's low-stock line, like the 8am email (they used a fixed 5) | `catalogList.test.ts` | built (3 November 2026) |
 
+## Phase 25: emails for every major event (planned 4 November 2026)
+
+Julian asked that the platform email the press for every major event, as Shopify does (invoices, shop creation and the
+rest). The audit (4 November 2026) found most events already covered, in English and French: sign-up (`shop-starting`),
+shop made (`owner-welcome`, `app-added`), trial ending, card needed, payment failed or needing the bank's yes, payment
+recovered, plan changed, cancelled, ended, closing and deletion warnings, card running out, new device, account
+recovery, team invites, web address live or broken, data export ready, support replies and the backup-code alert.
+The rows below are the gaps, built in order without asking (Julian's standing rule). Every platform email shows in the
+control room's shop timeline ("Emailed the press: …"), from the sent log.
+
+| # | Where | What | Check | Status |
+|---|---|---|---|---|
+| 25.1 | platform | **A receipt for every paid bill** (`bill-paid`), like Shopify's bill email: amount, bill number, the month it covers, tax, a button to the bill itself and one to the billing page. Not for a $0 bill; a bill that settles a failed payment keeps its own "went through" email instead, now with the bill's link. Keyed on the bill, never sent twice | `services/billing/billing.test.js`, French twin and plain-words tests | built (4 November 2026) |
+| 25.2 | platform | **The card that pays changed** (`card-changed`): a security notice when a card is added or made the one that pays, saying what to do if it wasn't them. Not for the card company's own automatic update | `billing.test.js`, French twin tests | built (4 November 2026) |
+| 25.3 | platform | **Open again and staying** (`shop-reopened` when a card reopens a paused shop, `cancel-undone` when the press keeps a plan they had cancelled) | `billing.test.js`, French twin tests | built (4 November 2026) |
+| 25.4 | shop | **Two-step sign-in turned on or off**: the person and the owner are emailed when two-step changes on a shop admin sign-in (the server reads the real state, so a fake call sends nothing) | `functions/twoStepBackup.test.js` | |
+| 25.5 | shop | **Out for delivery and delivered** for carrier parcels: the tracking updates already reach the shop; send an editable email for each, once per parcel | shop functions tests | |
+| 25.6 | shop | **Picked up**: an editable email when a pickup order is marked collected, as a receipt | shop functions tests | |
+| 25.7 | shop | **Return request received** to the shopper (today only the owner hears) | shop functions tests | |
+| 25.8 | shop | **Payment failed** to the shopper when a delayed bank payment fails, with a link to try again | shop functions tests | |
+| 25.9 | shop | **Shopper emails in French**: the order already keeps the shopper's language; every default shopper email gets a French twin, chosen per order, and the owner can edit both | `emailTemplateChecks.test.ts` | |
+
 ## Rules for every pull request
 
 - Tests never touch real money or a paying press's project. Use fakes or the test shop.

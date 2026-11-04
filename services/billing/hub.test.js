@@ -242,13 +242,34 @@ test("the bank asks the press to confirm: the hub shows Stripe's page, and Pay n
   assert.deepEqual(await billing.payNow({ shopId: "moth-press" }), { needsConfirming: true, url: invoice.hosted_invoice_url });
 });
 
-test("an ordinary monthly bill paid sends nothing and changes nothing the press sees", async () => {
+test("an ordinary monthly bill paid sends a receipt once, with its number, period, tax and link; a $0 bill sends none", async () => {
   const { billing, stripe, stores, event, email, start, addCard } = make();
   await start();
   await addCard();
-  const invoice = stripe.addInvoice(stores.subscriptions.rows.get("moth-press").subscriptionId);
+  assert.deepEqual(email.list().map((m) => m.kind), ["card-changed"], "the new card is a safety notice");
+  const subscriptionId = stores.subscriptions.rows.get("moth-press").subscriptionId;
+  const free = stripe.addInvoice(subscriptionId, { total: 0, amount_paid: 0 });
+  assert.equal((await event("invoice.paid", free)).body.handled, "paid");
+  assert.equal(email.list().length, 1, "no receipt for a $0 bill");
+
+  const start1 = Date.UTC(2026, 10, 4, 17) / 1000;
+  const end1 = Date.UTC(2026, 11, 4, 17) / 1000;
+  const invoice = stripe.addInvoice(subscriptionId, {
+    amount_paid: 4407, total_taxes: [{ amount: 507 }], status_transitions: { paid_at: start1 },
+    lines: { data: [{ period: { start: start1, end: end1 } }] },
+  });
   assert.equal((await event("invoice.paid", invoice)).body.handled, "paid");
-  assert.equal(email.list().length, 0);
+  assert.equal((await event("invoice.paid", invoice)).body.handled, "paid");
+  const receipts = email.list().filter((m) => m.kind === "bill-paid");
+  assert.equal(receipts.length, 1, "keyed on the bill: a second event sends nothing");
+  const { data, to } = receipts[0];
+  assert.equal(to, stores.subscriptions.rows.get("moth-press").billingEmail);
+  assert.equal(data.price, "$44.07");
+  assert.equal(data.number, invoice.number);
+  assert.equal(data.tax, "$5.07");
+  assert.equal(data.from, "November 4, 2026");
+  assert.equal(data.to, "December 4, 2026");
+  assert.equal(data.bill, invoice.hosted_invoice_url);
   assert.equal((await billing.status("moth-press")).paymentProblem, null);
 });
 
@@ -290,12 +311,17 @@ test("the card page may come back to this shop's own admin, but not another shop
 // The fresh-eyes review's cases (22.1-22.5): each was a real way for a press to pay too much, get stuck or see the wrong thing.
 
 test("a founding press whose trial ended without a card pays the founding price on the bill that reopens the shop", async () => {
-  const { stripe, stores, event, start, addCard } = make();
+  const { stripe, stores, event, start, addCard, email } = make();
   await start();
   const subId = stores.subscriptions.rows.get("moth-press").subscriptionId;
   await event("customer.subscription.updated", stripe.endTrial(subId));
   assert.equal(stores.subscriptions.rows.get("moth-press").status, "paused");
   await addCard();
+  // The card that reopened the shop says so, and doesn't also send the plain card notice (25.3).
+  const sent = email.list().map((m) => m.kind);
+  assert.equal(sent.filter((k) => k === "shop-reopened").length, 1);
+  assert.equal(sent.includes("card-changed"), false);
+  assert.match(email.list().find((m) => m.kind === "shop-reopened").data.card, /ending/);
   const sub = stripe.world.subscriptions.get(subId);
   assert.equal(sub.status, "active");
   assert.equal(stripe.world.invoices.get(sub.latest_invoice).total, 2925, "$39 less 25%, on the very first bill");

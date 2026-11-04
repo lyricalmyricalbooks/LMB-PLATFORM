@@ -533,12 +533,16 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     const row = await subscriptions.get(shopId);
     await call("POST", `/v1/customers/${row.customerId}`, { params: { invoice_settings: { default_payment_method: card.id }, ...customer }, idempotencyKey: `${key}-customer` });
     let sub = null;
+    let reopened = false;
     if (row.subscriptionId && !ENDED.has(row.status)) {
       await claimFounding(shopId);
       await applyFounding(shopId);
       sub = await call("POST", `/v1/subscriptions/${row.subscriptionId}`, { params: { default_payment_method: card.id, ...subscription }, idempotencyKey: `${key}-subscription` });
       // A trial that ended without a card paused the plan: the card opens the shop again, billed from today.
-      if (sub.status === "paused") sub = await call("POST", `/v1/subscriptions/${row.subscriptionId}/resume`, { params: { billing_cycle_anchor: "now" }, idempotencyKey: `${key}-resume` });
+      if (sub.status === "paused") {
+        sub = await call("POST", `/v1/subscriptions/${row.subscriptionId}/resume`, { params: { billing_cycle_anchor: "now" }, idempotencyKey: `${key}-resume` });
+        reopened = true;
+      }
       // A plan started again without a trial waits for its first payment: pay it with the new card.
       const invoice = typeof sub.latest_invoice === "string" ? sub.latest_invoice : sub.latest_invoice?.id;
       if (sub.status === "incomplete" && invoice) {
@@ -547,7 +551,11 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       }
     }
     await save(shopId, { card, hasCard: true, cardChanges: (row.cardChanges ?? 0) + 1 }, null);
-    return sub ? sync(shopId, sub, what) : subscriptions.get(shopId);
+    const result = sub ? await sync(shopId, sub, what) : await subscriptions.get(shopId);
+    // The press hears about it (25.2, 25.3): a card that reopened a paused shop says so; any other new card that now
+    // pays is a safety notice, so a change they didn't make doesn't go unseen.
+    await notify(shopId, reopened ? "shop-reopened" : "card-changed", { card: cardWords(card) }, `${key}-${reopened ? "reopened" : "card-changed"}`);
+    return result;
   }
 
   /** Puts the founding coupon on the shop's running subscription, once per subscription. */
@@ -755,13 +763,17 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         if (now() >= Date.parse(until)) return row;
         const terms = { ...row.payAsYouSell, until: null };
         if (await registry.getShop(shopId)) await registry.updateShop(shopId, { payAsYouSell: terms });
-        return save(shopId, { payAsYouSell: terms, ...(row.leaving ? { leaving: { ...row.leaving, keptAt: at() } } : {}) }, "cancel-undone");
+        const kept = await save(shopId, { payAsYouSell: terms, ...(row.leaving ? { leaving: { ...row.leaving, keptAt: at() } } : {}) }, "cancel-undone");
+        await notify(shopId, "cancel-undone", {}, `${shopId}/kept/pays/${at()}`);
+        return kept;
       }
       if (!row.cancelAtPeriodEnd || ENDED.has(row.status)) return row;
       const sub = await call("POST", `/v1/subscriptions/${row.subscriptionId}`, { params: { cancel_at_period_end: false } });
       // The press's answer stays, marked as one who stayed (19.8).
       if (row.leaving) await save(shopId, { leaving: { ...row.leaving, keptAt: at() } }, null);
-      return sync(shopId, sub, "cancel-undone");
+      const kept = await sync(shopId, sub, "cancel-undone");
+      await notify(shopId, "cancel-undone", {}, `${shopId}/kept/${row.subscriptionId}/${at()}`);
+      return kept;
     },
 
     /**
@@ -1078,9 +1090,24 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         const problem = row.paymentProblem;
         const settles = problem && (!problem.invoiceId || problem.invoiceId === object.id);
         await save(row.shopId, { lastPaidAt: at(), lastPaidInvoiceId: object.id ?? null, ...((object.amount_paid ?? 0) > 0 ? { paidOnce: true } : {}), ...(settles ? { paymentProblem: null } : {}) }, null);
-        if (!settles) return "paid";
+        const paid = moneyText(object.amount_paid ?? object.total ?? 0, object.currency ?? settings.currency);
+        const bill = httpsOrNull(object.hosted_invoice_url);
+        if (!settles) {
+          // A receipt for every bill with money on it (25.1), keyed on the bill so a second event never sends it twice.
+          if ((object.amount_paid ?? 0) <= 0) return "paid";
+          const period = object.lines?.data?.[0]?.period ?? {};
+          const taxCents = invoiceTax(object);
+          await notify(row.shopId, "bill-paid", {
+            price: paid, number: typeof object.number === "string" ? object.number : "",
+            paidOn: dateText(iso(object.status_transitions?.paid_at) ?? at()),
+            from: dateText(iso(period.start)), to: dateText(iso(Number.isFinite(period.end) ? period.end - 1 : null)),
+            tax: taxCents > 0 ? moneyText(taxCents, object.currency ?? settings.currency) : "",
+            bill,
+          }, `bill-paid/${object.id ?? event.id}`);
+          return "paid";
+        }
         await logChange(row.shopId, "payment-recovered", {});
-        await notify(row.shopId, "payment-received", { price: moneyText(object.amount_paid ?? object.total ?? 0, object.currency ?? settings.currency) }, event.id);
+        await notify(row.shopId, "payment-received", { price: paid, bill }, event.id);
         return "payment recovered";
       }
       case "checkout.session.completed": {
