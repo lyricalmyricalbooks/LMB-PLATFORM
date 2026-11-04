@@ -259,7 +259,16 @@ export function createDomainService({
     if (extraChanged) fields.extraRecords = extra;
     const view = connectView(shopId, { ...entry, ...fields }, state, records);
     if (view.link && !sameLines(view.link, entry.connect?.link ?? null)) fields.connect = { ...entry.connect, link: view.link };
+    // An address brought in setup becomes the main one once it is live (unless the press already chose another).
+    const promote = state === "live" && entry.mainWhenLive === true;
+    if (promote) fields.mainWhenLive = false;
     if (Object.keys(fields).length) await saveEntry(shopId, name, fields);
+    if (promote && !row.mainDomain) {
+      try { await makeMain(shopId, name); } catch (err) {
+        console.error(`Making ${name} main for ${shopId} failed:`, err?.message || err);
+        await saveEntry(shopId, name, { mainWhenLive: true });
+      }
+    }
     return { name, state, records, paymentDomain, ...view.answer };
   }
 
@@ -296,7 +305,7 @@ export function createDomainService({
     return { link, answer: { ...answer, allowedAt: link.allowedAt ?? null, allowUrl, window: { width: connect.sync.width ?? 750, height: connect.sync.height ?? 750 } } };
   }
 
-  async function add(shopId, domain) {
+  async function add(shopId, domain, { redirectTo = null } = {}) {
     const name = normalDomain(domain);
     const problem = domainProblem(name, { platformDomain });
     if (problem) throw new DomainError(400, "bad_domain", problem);
@@ -309,13 +318,15 @@ export function createDomainService({
       const holder = (await registry.listShops()).find((other) => other?.shopId !== shopId
         && (domainsOf(other).some((d) => d.name === name) || other?.emailSender?.domain === name));
       if (holder) throw new DomainError(409, "in_use", "That address is already connected to another shop.");
-      await registry.updateShop(shopId, { domains: [...domains, { name, state: "connecting", addedAt: iso() }] });
-      await logChange(shopId, `domain-added-${name}`, { kind: "domains.added", domain: name });
+      await registry.updateShop(shopId, { domains: [...domains, { name, state: "connecting", addedAt: iso(), ...(redirectTo ? { redirectTo } : {}) }] });
+      await logChange(shopId, `domain-added-${name}`, { kind: "domains.added", domain: name, ...(redirectTo ? { redirectTo } : {}) });
     }
     if (await syncServer(await rowOf(shopId))) {
       await logChange(shopId, `domain-origins-${name}`, { kind: "domains.server-allowed", domain: name });
     }
-    await hosting.addDomain(projectOf(row), name);
+    // A "send it to" address (www to the bare domain, as the big shop builders do) is served as a redirect by Hosting.
+    if (redirectTo) await hosting.addDomain(projectOf(row), name, { redirectTo });
+    else await hosting.addDomain(projectOf(row), name);
     return check(shopId, name);
   }
 
@@ -325,7 +336,9 @@ export function createDomainService({
     if (name === `${projectOf(row)}.firebaseapp.com`) name = ownAddress(row);
     let paymentDomain = null;
     if (name && name !== ownAddress(row)) {
-      if (!domainsOf(row).some((d) => d.name === name)) throw new DomainError(404, "unknown_domain", "That address isn't connected to this shop.");
+      const entry = domainsOf(row).find((d) => d.name === name);
+      if (!entry) throw new DomainError(404, "unknown_domain", "That address isn't connected to this shop.");
+      if (entry.redirectTo) throw new DomainError(409, "sends_on", `This address sends visitors on to ${entry.redirectTo}, so ${entry.redirectTo} is the one to make main.`);
       // Only an address that works now: a fresh look at Google's state, which also registers it for Apple Pay and Google Pay.
       const found = await check(shopId, name);
       if (found.state !== "live") throw new DomainError(409, "not_live", "This address isn't working yet. Make it your main address once it shows as Live.");
@@ -369,10 +382,24 @@ export function createDomainService({
     return { removed: name, ...(await list(shopId)) };
   }
 
-  /** The one step (plan 6.15): add, find the domain's seller, then the Allow link or the guide. */
-  async function connect(shopId, domain) {
-    const first = await add(shopId, domain);
+  /**
+   * The one step (plan 6.15): add, find the domain's seller, then the Allow link or the guide.
+   * `main`: make it the shop's main address on its own once it is live (a domain brought in setup, shopMaker.js).
+   * `www`: for a bare domain (or its www name), connect the other one too, sending visitors on to this one, so both
+   * yourpress.com and www.yourpress.com open the shop. That second address never holds up the first.
+   * `redirectTo`: this address sends visitors on to that one (the `www` partner).
+   */
+  async function connect(shopId, domain, { main = false, www = false, redirectTo = null } = {}) {
+    const first = await add(shopId, domain, { redirectTo });
     const name = first.name;
+    if (main && !redirectTo) {
+      if (first.state === "live") {
+        if (!(await rowOf(shopId)).mainDomain) return { ...first, ...(await makeMain(shopId, name)) };
+      } else {
+        await saveEntry(shopId, name, { mainWhenLive: true });
+      }
+    }
+    if (www && !redirectTo) await connectPartner(shopId, name);
     if (first.state === "live") return first;
     const entry = domainsOf(await rowOf(shopId)).find((d) => d.name === name);
     let found = null;
@@ -394,6 +421,25 @@ export function createDomainService({
       await logChange(shopId, `domain-connect-${name}-${next.way}-${iso()}`, { kind: "domains.connect", domain: name, way: next.way, seller });
     }
     return check(shopId, name);
+  }
+
+  /** The www partner of a bare domain (or the bare one of a www name), sending visitors on to `name`. */
+  async function connectPartner(shopId, name) {
+    let zone = zoneGuess(name);
+    if (sellers) {
+      try {
+        const found = await sellers.lookup(name);
+        if (typeof found?.zone === "string" && found.zone) zone = found.zone;
+      } catch { /* the guess will do */ }
+    }
+    const partner = name === zone ? `www.${name}` : name === `www.${zone}` ? zone : null;
+    if (!partner || domainsOf(await rowOf(shopId)).some((d) => d.name === partner)) return;
+    try {
+      await connect(shopId, partner, { redirectTo: name });
+    } catch (err) {
+      // Too many addresses, or another shop has it: the main one still connects.
+      console.error(`Connecting ${partner} for ${shopId} failed:`, err?.message || err);
+    }
   }
 
   function extraPurpose(purpose) {
@@ -529,7 +575,8 @@ export function createDomainService({
     "domains.check": (shopId, args) => check(shopId, args.domain),
     "domains.makeMain": (shopId, args) => makeMain(shopId, args.domain),
     "domains.remove": (shopId, args) => remove(shopId, args.domain),
-    "domains.connect": (shopId, args) => connect(shopId, args.domain),
+    // From the shop's own admin: the press chooses main itself, but www comes along, as in setup.
+    "domains.connect": (shopId, args) => connect(shopId, args.domain, { www: args.www === true }),
   };
 
   return {

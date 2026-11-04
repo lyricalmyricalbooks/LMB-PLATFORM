@@ -16,7 +16,7 @@ const ADA = { uid: "uid-ada", email: "owner@example.com", email_verified: true }
 const BEN = { uid: "uid-ben", email: "ben@example.com", email_verified: true };
 const SETTINGS = { platformUrl: "https://platform.example", platformName: "Colophon", trialDays: 14, currency: "CAD" };
 
-function world({ billing = null, readOldShop } = {}) {
+function world({ billing = null, readOldShop, domainLookup } = {}) {
   const stores = fakeFrontDoorStores();
   // Open my shop (18.8) goes through sign-up's own start, with a pretend plan maker.
   const trials = [];
@@ -41,6 +41,7 @@ function world({ billing = null, readOldShop } = {}) {
     suffix: () => `s${(n += 1)}xyz`,
     random: () => 0.123456,
     ...(readOldShop ? { readOldShop } : {}),
+    ...(domainLookup ? { domainLookup } : {}),
   });
   const api = createApi({
     signup: {}, verifyIdToken: fakeVerifyIdToken, settings: SETTINGS,
@@ -381,6 +382,44 @@ test("an old shop read from its address (23.2): the owner gets a file to preview
   await w.stores.presses.set(pressId, { ...(await w.stores.presses.get(pressId)), status: "opening" });
   assert.equal((await w.ask("POST", "/api/press/old-shop", { pressId, address: "moth.example" }, ADA)).status, 409);
   assert.deepEqual(asked, ["moth.example", "nowhere.example"], "strangers and opening shops never reach the old shop");
+});
+
+// ── Your web address (setup guide) ──
+
+test("a press's own domain is kept with where it was bought, only by its owner and only in setup", async () => {
+  const asked = [];
+  const w = world({ domainLookup: { lookup: async (name) => {
+    asked.push(name);
+    if (name === "broken.example") throw new Error("lookup down");
+    return name === "mothpress.example"
+      ? { zone: name, registrar: { name: "GoDaddy.com, LLC" }, domainConnect: { providerName: "GoDaddy", hasTemplate: true } }
+      : { zone: name, registrar: { name: "Shopify Inc." }, domainConnect: null };
+  } } });
+  const pressId = await pressFor(w);
+  const saved = await w.ask("POST", "/api/press/domain", { pressId, domain: " https://WWW.MothPress.example/ " }, ADA);
+  assert.equal(saved.status, 200, JSON.stringify(saved.body));
+  const { domain, domainSeller, domainEasy, domainChoice } = saved.body.press;
+  assert.deepEqual({ domain, domainSeller, domainEasy, domainChoice }, { domain: "mothpress.example", domainSeller: "GoDaddy", domainEasy: true, domainChoice: "own" },
+    "www is taken off: the bare domain is the main one and www goes to it");
+  // A rival platform's name never reaches the press, and a seller with no Allow window is not "easy".
+  const rival = (await w.ask("POST", "/api/press/domain", { pressId, domain: "ink.example" }, ADA)).body.press;
+  assert.deepEqual([rival.domain, rival.domainSeller, rival.domainEasy], ["ink.example", "", false]);
+  // A lookup that fails still keeps the domain.
+  assert.equal((await w.ask("POST", "/api/press/domain", { pressId, domain: "broken.example" }, ADA)).body.press.domain, "broken.example");
+  const bad = await w.ask("POST", "/api/press/domain", { pressId, domain: "not a domain" }, ADA);
+  assert.equal(bad.status, 400);
+  assert.match(bad.body.problems.domain, /doesn't look like a web address/);
+  assert.equal((await w.ask("POST", "/api/press/domain", { pressId, domain: "moth-press.web.app" }, ADA)).status, 400);
+  assert.equal((await w.ask("POST", "/api/press/domain", { pressId, domain: "ink.example" }, BEN)).status, 404);
+  // Empty takes it off and clears the answer, so the guide asks again.
+  const cleared = (await w.ask("POST", "/api/press/domain", { pressId, domain: "" }, ADA)).body.press;
+  assert.deepEqual([cleared.domain, cleared.domainChoice], ["", ""]);
+  // The other answers go through setup like any other.
+  assert.equal((await w.ask("POST", "/api/press/setup", { pressId, domainChoice: "buy" }, ADA)).body.press.domainChoice, "buy");
+  assert.equal((await w.ask("POST", "/api/press/setup", { pressId, domainChoice: "sometime" }, ADA)).status, 409);
+  await w.stores.presses.set(pressId, { ...(await w.stores.presses.get(pressId)), status: "opening" });
+  assert.equal((await w.ask("POST", "/api/press/domain", { pressId, domain: "late.example" }, ADA)).status, 409);
+  assert.deepEqual(asked, ["mothpress.example", "ink.example", "broken.example"]);
 });
 
 // ── Open my shop (code plan 18.8) ──

@@ -318,10 +318,13 @@ export function googleClients({ fetch, token, sleep, today = () => new Date().to
       async getDomain(projectId, domain) {
         return orNull(call("GET", `${HOSTING}/projects/${projectId}/sites/${projectId}/customDomains/${encodeURIComponent(domain)}`));
       },
-      /** Starts connecting `domain`; one that is already there is left as it is. */
-      async addDomain(projectId, domain) {
+      /**
+       * Starts connecting `domain`; one that is already there is left as it is. `redirectTo`: Hosting sends visitors
+       * on to that address (CustomDomain.redirectTarget), as for www.yourpress.com to yourpress.com.
+       */
+      async addDomain(projectId, domain, { redirectTo = null } = {}) {
         try {
-          await call("POST", `${HOSTING}/projects/${projectId}/sites/${projectId}/customDomains`, { query: { customDomainId: domain }, body: {} });
+          await call("POST", `${HOSTING}/projects/${projectId}/sites/${projectId}/customDomains`, { query: { customDomainId: domain }, body: redirectTo ? { redirectTarget: redirectTo } : {} });
         } catch (error) {
           if (!isAlreadyExists(error)) throw error;
         }

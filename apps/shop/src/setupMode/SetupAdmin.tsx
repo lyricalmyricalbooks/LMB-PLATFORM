@@ -15,6 +15,7 @@ import { THEME_LIBRARY } from "../app/admin/studio/themeLibrary";
 import { ShopWordsContext, useShopWords } from "../app/admin/shopWords";
 import { adminWordsFor } from "../app/admin/sells";
 import { ImportPage } from "./ImportPage";
+import { WEB_ADDRESS_ANCHOR, WebAddressCard } from "./WebAddress";
 import type { PlanList, SetupChange, SetupDoor, SetupPress } from "./door";
 import { CreateShopCard, type CreateShop } from "./CreateShop";
 import type { CreateNames } from "./launchWords";
@@ -74,11 +75,13 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
     return () => window.removeEventListener("hashchange", onHash);
   }, [menu]);
 
-  const open = (next: string) => {
+  const open = (next: string, anchor?: string) => {
     setSidebarOpen(false);
     if (location.hash !== `#${next}`) location.hash = next;
     setPage(next);
     document.getElementById("rp-main")?.focus();
+    // A guide step that lives part way down its page (Your web address on General) is scrolled to.
+    if (anchor) requestAnimationFrame(() => document.getElementById(anchor)?.scrollIntoView?.({ block: "start" }));
   };
   // Create my shop (top bar, locked pages, the guide's last step) lands on the review, not the top of Plan.
   const openCreate = () => {
@@ -95,7 +98,12 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
   let content;
   if (setupLocked(page)) content = <OpensWithShop page={setupPageLabel(page, menu)} onOpenShop={openCreate} />;
   else if (page === HOME_PAGE) content = <SetupGuide press={press} onOpen={open} onCreate={openCreate} save={save} />;
-  else if (page === GENERAL_PAGE) content = <PressDetails press={press} lists={lists} save={save} />;
+  else if (page === GENERAL_PAGE) content = (
+    <>
+      <PressDetails press={press} lists={lists} save={save} />
+      {press.plan !== "stockroom" && <WebAddressCard press={press} door={door} save={save} onSaved={setPress} />}
+    </>
+  );
   else if (page === IMPORT_PAGE) content = <ImportPage press={press} door={door} onSaved={setPress} />;
   else if (page === DESIGN_PAGE) content = <DesignPage press={press} save={save} />;
   else if (page === PLAN_PAGE) content = (
@@ -180,17 +188,18 @@ const STEP_WHY: Record<string, string> = {
   details: "Your press's name, what you sell and your country set your shop's words, money and taxes.",
   look: "Every look keeps your words and books, and you can change everything in Design later.",
   books: "Bring your old shop's product file and your books come in as drafts for you to check.",
+  domain: "Bring a domain you already have, or buy one. Your shop always has a free address too.",
   open: "Check what goes in, then we make your shop. It starts private, so only you can see it.",
 };
 
-function SetupGuide({ press, onOpen, onCreate, save }: { press: SetupPress; onOpen: (page: string) => void; onCreate: () => void; save: (c: SetupChange) => Promise<SetupPress> }) {
+function SetupGuide({ press, onOpen, onCreate, save }: { press: SetupPress; onOpen: (page: string, anchor?: string) => void; onCreate: () => void; save: (c: SetupChange) => Promise<SetupPress> }) {
   const w = useShopWords();
   const steps = guideSteps(press);
   const { done, total } = guideProgress(steps);
   const next = nextGuideStep(steps, press);
   const ready = readyToCreate(steps);
   // The last step goes straight to the review on Plan; every other step opens its page.
-  const go = (step: { id: string; page: string }) => (step.id === "open" ? onCreate() : onOpen(step.page));
+  const go = (step: { id: string; page: string }) => (step.id === "open" ? onCreate() : onOpen(step.page, step.id === "domain" ? WEB_ADDRESS_ANCHOR : undefined));
   return (
     <>
       <PageHeader title={press.pressName ? `Welcome, ${press.pressName}` : "Welcome"}

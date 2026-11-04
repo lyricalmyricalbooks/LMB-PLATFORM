@@ -10,6 +10,7 @@
 //   POST /api/press/setup { pressId, plan?, pressName?, sells?, country?, look?, adminLook?, moving? }
 //                                              saves answers while the press is in setup
 //   POST /api/press/old-shop { pressId, address }
+//   POST /api/press/domain { pressId, domain }   the press's own domain for its shop ("" takes it off)
 //                                              reads the old shop's public product list (23.2) and answers it as a
 //                                              product file { host, csv, products, notes } for the browser to preview
 //
@@ -29,6 +30,8 @@ import { createAccountStart } from "./accountStart.js";
 import { MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, SETUP_FIELDS, advanceStatus, importPathFor, setupChange } from "./pressRecord.js";
 import { COUNTRIES, PUBLISHES, isEmail } from "./form.js";
 import { readOldShop as readPublicShop } from "../services/moving/oldShop.js";
+import { domainProblem, normalDomain } from "../services/domains/names.js";
+import { sellerName } from "../services/domains/sellers.js";
 
 /** The page the front door lives on, under the platform's address. */
 export const START_PAGE = "join";
@@ -39,6 +42,8 @@ const shown = (record) => ({
   // How the shop is starting once opened (18.8): "queued", or "in-line" with the words saying why it waits.
   shopStatus: record.shopStatus ?? "", shopMessage: record.shopMessage ?? "", pressName: record.pressName, sells: record.sells, country: record.country,
   look: record.look ?? "", adminLook: record.adminLook ?? "", moving: record.moving ?? "", language: record.language ?? "",
+  // "Your web address" (setup guide): the answer, the press's own domain and where it was bought.
+  domainChoice: record.domainChoice ?? "", domain: record.domain ?? "", domainSeller: record.domainSeller ?? "", domainEasy: record.domainEasy === true,
   // What the press sees of its kept file: never the path.
   stagedImport: record.stagedImport ? { name: record.stagedImport.name, size: record.stagedImport.size, rows: record.stagedImport.rows, at: record.stagedImport.at } : null,
 });
@@ -76,7 +81,7 @@ const UPLOAD_MINUTES = 15;
  * daily cap, the countries that are open, invites, the free trial (billing.startTrial) and the shop maker's queue work
  * exactly as they do for every shop.
  */
-export function createFrontDoor({ presses, codes, email, auth, settings, stagedFiles, signup = null, now = () => new Date(), suffix = randomSuffix, random = null, readOldShop = readPublicShop }) {
+export function createFrontDoor({ presses, codes, email, auth, settings, stagedFiles, signup = null, now = () => new Date(), suffix = randomSuffix, random = null, readOldShop = readPublicShop, domainLookup = null }) {
   const signInCode = createSignInCode({
     store: codes,
     now,
@@ -224,6 +229,36 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
       return { host: read.host, csv: read.csv, products: read.products, notes: read.notes };
     },
 
+    // "Your web address" (setup guide): the press's own domain, kept until the shop is made, when the shop maker
+    // connects it (shopMaker.js). Where it was bought is looked up now (public, services/domains/sellers.js), so
+    // setup can say "you'll press Allow once at GoDaddy" before anything is connected. A lookup that fails only means
+    // the seller isn't named. An empty domain takes it off.
+    async saveDomain(claims, body = {}) {
+      const record = await ownPress(claims, body.pressId);
+      if (record.status !== "setup") throw new SignupError(409, "Your shop is already opening, so setup is locked.");
+      const name = normalDomain(String(body.domain ?? "")).replace(/^www\.(?=[^.]+\.[^.]+$)/, "");
+      let fields = { domain: "", domainSeller: "", domainEasy: false, domainChoice: "" };
+      if (name) {
+        const problem = domainProblem(name, { platformDomain: settings?.domain ?? "" });
+        if (problem) throw new SignupError(400, problem, { domain: problem });
+        let found = null;
+        if (domainLookup) {
+          try { found = await domainLookup.lookup(name); } catch { found = null; }
+        }
+        const seller = sellerName(found?.registrar?.name) ?? sellerName(found?.domainConnect?.providerName) ?? "";
+        fields = { domain: name, domainSeller: seller, domainEasy: found?.domainConnect?.hasTemplate === true, domainChoice: "own" };
+      }
+      const saved = await presses.update(record.pressId, (current) => {
+        const refused = setupRefusal(current, claims);
+        if (refused) return { row: null, result: refused };
+        if (holding(current, now().getTime())) return { row: null, result: { ok: false, status: 409, message: OPENING_WORDS } };
+        const updated = { ...current, ...fields, lastSeenAt: now().toISOString() };
+        return { row: updated, result: { ok: true, press: shown(updated) } };
+      });
+      if (!saved.ok) throw new SignupError(saved.status, saved.message);
+      return { press: saved.press };
+    },
+
     async removeImport(claims, body = {}) {
       const record = await ownPress(claims, body.pressId);
       // The record lets go first, then the files: at worst a file is left with nothing pointing at it.
@@ -313,5 +348,6 @@ export const frontDoorRoutes = (door) => ({
   "POST /api/press/import/kept": (claims, request) => door.keepImport(claims, request.body ?? {}),
   "POST /api/press/import/remove": (claims, request) => door.removeImport(claims, request.body ?? {}),
   "POST /api/press/old-shop": (claims, request) => door.oldShop(claims, request.body ?? {}),
+  "POST /api/press/domain": (claims, request) => door.saveDomain(claims, request.body ?? {}),
   "POST /api/press/open": (claims, request) => door.openShop(claims, request.body ?? {}),
 });

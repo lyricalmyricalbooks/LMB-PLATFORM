@@ -31,9 +31,9 @@ export function fakeHosting() {
       if (found.state === "conflict") return { name, hostState: "HOST_CONFLICT", ownershipState: "OWNERSHIP_CONFLICT" };
       return { name, hostState: "HOST_UNHOSTED", ownershipState: "OWNERSHIP_MISSING", cert: { state: "CERT_PREPARING" }, requiredDnsUpdates: DNS(domain) };
     },
-    async addDomain(projectId, domain) {
-      calls.push(["addDomain", projectId, domain]);
-      if (!domains.has(key(projectId, domain))) domains.set(key(projectId, domain), { state: "dns" });
+    async addDomain(projectId, domain, options) {
+      calls.push(options ? ["addDomain", projectId, domain, options] : ["addDomain", projectId, domain]);
+      if (!domains.has(key(projectId, domain))) domains.set(key(projectId, domain), { state: "dns", ...(options?.redirectTo ? { redirectTo: options.redirectTo } : {}) });
     },
     async removeDomain(projectId, domain) {
       calls.push(["removeDomain", projectId, domain]);
