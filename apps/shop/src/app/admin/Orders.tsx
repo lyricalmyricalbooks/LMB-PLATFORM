@@ -9,6 +9,8 @@ import { adminApi } from "./api";
 import toast from "react-hot-toast";
 import { WORK_QUEUES, queueOf, packingKey, daysInTransit, isOverdueInTransit } from "./fulfillment";
 import { printOrders } from "./orderPrint";
+import { useShopSells, useShopWords } from "./shopWords";
+import { sellsBooks } from "../../shared/shopSells";
 import { mergeNewestPage, mergeOrder } from "./ordersDesk";
 import { noteLoadedOrders, patchCachedOrder } from "./ordersCache";
 import { buildCatalogSearchIndex, type CatalogSearchIndex } from "./orderSearch";
@@ -142,6 +144,8 @@ export function Orders({
 }: {
   onSelectOrder: (order: any, queueIds: string[]) => void;
 }) {
+  const w = useShopWords();
+  const goods = !sellsBooks(useShopSells());
   const [orders, setOrders] = useState<any[]>(() => listMemory.orders || []);
   const [loading, setLoading] = useState(() => !listMemory.orders);
   const [activeTab, setActiveTabState] = useState(listMemory.activeTab);
@@ -703,7 +707,7 @@ export function Orders({
                     size="sm"
                     disabled={busy}
                     onClick={() =>
-                      printOrders(orders.filter((o) => selected.has(o.id)))
+                      printOrders(orders.filter((o) => selected.has(o.id)), false, { goods })
                     }
                   >
                     Print packing slips
@@ -715,6 +719,7 @@ export function Orders({
                       printOrders(
                         orders.filter((o) => selected.has(o.id)),
                         true,
+                        { goods },
                       )
                     }
                   >
@@ -878,7 +883,7 @@ export function Orders({
       <Dialog
         open={!!confirmBatch}
         onClose={() => setConfirmBatch(false)}
-        title={confirmBatch ? BATCH[confirmBatch].title : ""}
+        title={confirmBatch ? w(BATCH[confirmBatch].title) : ""}
         footer={
           <>
             <SecondaryButton onClick={() => setConfirmBatch(false)}>
@@ -890,7 +895,7 @@ export function Orders({
           </>
         }
       >
-        <p>{confirmBatch ? BATCH[confirmBatch].text(selected.size) : ""}</p>
+        <p>{confirmBatch ? w(BATCH[confirmBatch].text(selected.size)) : ""}</p>
       </Dialog>
       <Dialog
         open={confirmDeleteOrders}

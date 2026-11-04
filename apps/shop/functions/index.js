@@ -1928,7 +1928,7 @@ async function sendLateRefundEmail(orderId, order, { amountMinor, currency, paym
     order_id: order.orderId || orderId,
     total_price: refundAmountText({ refund: { amount: Number(amountMinor || 0) / 100, currency: String(currency || "").toUpperCase() } }),
     button_url: await orderTrackUrl(orderId, order),
-  }, `<p style="margin-top:20px;font-size:13px;line-height:1.6;">Your payment reached us after the checkout had closed, so the books were no longer set aside for you and this order wasn't placed. We've refunded the full amount. You're welcome to order again.</p>`);
+  }, `<p style="margin-top:20px;font-size:13px;line-height:1.6;">Your payment reached us after the checkout had closed, so ${sellsBooks(notificationSettings.sells) ? "the books were" : "your items were"} no longer set aside for you and this order wasn't placed. We've refunded the full amount. You're welcome to order again.</p>`);
   await sendOrderEmailOnce(orderId, `latePaymentRefund_${paymentIntentId}`, {
     to, subject: compiled.subject, html: compiled.html, secret: RESEND_API_KEY.value(),
   });
@@ -2954,17 +2954,20 @@ async function shopSellsAnswer() {
   }
 }
 
-/** When the owner changes what the shop sells, the stockroom's words follow (plan 12.14). A shop without a stockroom is fine. */
+/**
+ * When the owner changes what the shop sells, the shop's and the stockroom's words follow (plan 12.14). The answer is
+ * copied to the public settings/website `sells`, where the storefront reads it (admin/sells.ts withShopWordsFor), and
+ * to the stockroom. A shop without a stockroom is fine.
+ */
 exports.syncStockroomWords = onDocumentWritten("firstWeek/start", async event => {
-  const data = event.data?.after?.data?.();
-  const answer = data?.sells || data?.publishes;
-  if (typeof answer !== "string" || !answer) return;
-  if (answer === (event.data?.before?.data?.()?.sells || event.data?.before?.data?.()?.publishes)) return;
-  try {
-    await require("./inventoryLinkStore").writeSellsWords(answer);
-  } catch (err) {
-    console.warn("Couldn't copy what the shop sells to the stockroom:", err?.message || err);
-  }
+  const website = db.collection("settings").doc("website");
+  await require("./sellsSync").syncSells({
+    before: event.data?.before?.data?.(),
+    after: event.data?.after?.data?.(),
+    readWebsiteSells: async () => (await website.get()).get("sells"),
+    writeWebsiteSells: answer => website.set({ sells: answer }, { merge: true }),
+    writeStockroomWords: answer => require("./inventoryLinkStore").writeSellsWords(answer),
+  });
 });
 
 /** Your move so far (plan 23.20): the owner gets one email when the last part of the move from the old shop is ticked. */
@@ -3417,7 +3420,7 @@ async function handleOrderUpdated(event) {
           || (sellsBooks(notificationSettings.sells) ? digitalDelivery.DEFAULT_DOWNLOAD_NOTE : goodsDownloadNote(digitalDelivery.DOWNLOAD_LIMIT)));
         downloadSection = `
           <div style="margin-top:28px;padding:24px;background:#f8f6ff;border-radius:16px;border:1px solid #7c3aed20;">
-            <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#7c3aed;">Digital Library Access</h3>
+            <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#7c3aed;">${sellsBooks(notificationSettings.sells) ? "Digital Library Access" : "Your downloads"}</h3>
             <p style="font-size:11px;color:#666;margin-bottom:16px;line-height:1.5;">${escapeHtml(note)}</p>
             <table style="width:100%;font-size:12px;border-collapse:collapse;">
               ${digitalItems.map(item => `
@@ -3425,7 +3428,7 @@ async function handleOrderUpdated(event) {
                   <td style="padding:8px 0;border-bottom:1px solid #7c3aed10;"><strong>${escapeHtml(item.title)}</strong></td>
                   <td style="padding:8px 0;text-align:right;border-bottom:1px solid #7c3aed10;">
                     ${item.pendingUntil
-                      ? `<span style="font-size:11px;color:#666;">${item.pendingUntil === "announced" ? "Available once the book is released" : `Available from ${escapeHtml(item.pendingUntil)}`}</span>`
+                      ? `<span style="font-size:11px;color:#666;">${item.pendingUntil === "announced" ? (sellsBooks(notificationSettings.sells) ? "Available once the book is released" : "Available once it is released") : `Available from ${escapeHtml(item.pendingUntil)}`}</span>`
                       : `<a href="${linkFor(item)}"
                        style="display:inline-block;background:#7C3AED;color:#fff;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:10px;font-weight:bold;letter-spacing:.05em;text-transform:uppercase;">Download File</a>`}
                   </td>
@@ -4215,7 +4218,7 @@ async function sendRestockAlerts({ bookId, book, docs, deadline, released = fals
         subject: isRelease ? `Out now: ${book.title || alert.bookTitle}` : `Back in stock: ${book.title || alert.bookTitle}`,
         html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;">
             <h2 style="margin-top:0;">${isRelease ? "It's here!" : "It's back!"}</h2>
-            <p style="font-size:15px;line-height:1.6;"><strong>${title}</strong>${variant} ${isRelease ? "is out now and ready to order." : "is available again. Stock is limited, so grab your copy while you can."}</p>
+            <p style="font-size:15px;line-height:1.6;"><strong>${title}</strong>${variant} ${isRelease ? "is out now and ready to order." : `is available again. Stock is limited, so grab ${sellsBooks(restockSettings.sells) ? "your copy" : "yours"} while you can.`}</p>
             ${risoButton(link, "Shop now", restockSettings.brand?.brandColor, restockSettings.brand?.emailTheme)}
             <p style="font-size:12px;color:#888;">You received this because you asked to be notified. This is a one-time message.</p>
           </div>`,

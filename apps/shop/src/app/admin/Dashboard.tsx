@@ -440,7 +440,7 @@ export function Dashboard() {
       }
     }
     const ok = await confirm(on
-      ? { title: "Close the shop for now?", message: "Shoppers will see the “under construction” wall instead of your books until you turn it off. You can keep working in the admin.", confirmLabel: "Show the wall" }
+      ? { title: "Close the shop for now?", message: w("Shoppers will see the “under construction” wall instead of your books until you turn it off. You can keep working in the admin."), confirmLabel: "Show the wall" }
       : { title: "Open your shop to shoppers?", message: "The “under construction” page comes down, and anyone with your shop's address can browse and buy straight away. You can close it again any time in Settings › General › Store status.", confirmLabel: "Open my shop" });
     if (!ok) return false;
     setUcSaving(true);
@@ -568,8 +568,8 @@ export function Dashboard() {
   };
   openBookById.current = (id: string) => {
     adminApi.getBook(id)
-      .then((book: any) => { if (book) handleEditBook(book); else setBookLinkProblem("That book isn't on the website any more. It may have been deleted."); })
-      .catch(() => setBookLinkProblem("That book couldn't be opened just now. Try the link again in a minute, or find it on this Books page."));
+      .then((book: any) => { if (book) handleEditBook(book); else setBookLinkProblem(w("That book isn't on the website any more. It may have been deleted.")); })
+      .catch(() => setBookLinkProblem(w("That book couldn't be opened just now. Try the link again in a minute, or find it on this Books page.")));
   };
 
   const handleAddBook = () => {
@@ -772,7 +772,7 @@ export function Dashboard() {
     <ShopWordsContext.Provider value={w}>
     <ShopSellsContext.Provider value={sellsAnswer}>
     <ToastProvider>
-      <Dialog open={!!bookLinkProblem} onClose={() => setBookLinkProblem(null)} title="Couldn't open that book"
+      <Dialog open={!!bookLinkProblem} onClose={() => setBookLinkProblem(null)} title={w("Couldn't open that book")}
         footer={<SecondaryButton data-autofocus onClick={() => setBookLinkProblem(null)}>Close</SecondaryButton>}>
         <p style={{ margin: 0 }}>{bookLinkProblem}</p>
       </Dialog>
@@ -903,7 +903,7 @@ export function Dashboard() {
         <div className="rp-help">
           <h3 className="rp-help-head">Keyboard shortcuts</h3>
           <dl className="rp-help-keys">
-            <dt><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>K</kbd></dt><dd>Search: jump to any admin page, or open a book (title, author, ISBN, SKU), an order (number with or without #, customer email or name) or a customer.</dd>
+            <dt><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>K</kbd></dt><dd>{w("Search: jump to any admin page, or open a book (title, author, ISBN, SKU), an order (number with or without #, customer email or name) or a customer.")}</dd>
             <dt><kbd>J</kbd> / <kbd>K</kbd></dt><dd>Orders: next / previous order.</dd>
             <dt><kbd>/</kbd></dt><dd>Orders: jump to the search box (<kbd>Esc</kbd> clears it).</dd>
             <dt><kbd>Esc</kbd></dt><dd>Close any dialog; you go back to where you were.</dd>
@@ -933,9 +933,9 @@ export function Dashboard() {
               exit={{ opacity: 0, x: 32 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
               className="rp-dialog rp-editor-panel"
-              role="dialog" aria-modal="true" aria-label={editingBook ? "Edit book" : "New book"}
+              role="dialog" aria-modal="true" aria-label={w(editingBook ? "Edit book" : "New book")}
             >
-              <Suspense fallback={<LoadingState label="Opening book editor…" />}>
+              <Suspense fallback={<LoadingState label={w("Opening book editor…")} />}>
               <BookEditor
                 book={editingBook}
                 prefill={editingBook ? null : newBookStart?.prefill}

@@ -9,7 +9,8 @@ import { listDate, orderMoney, waitedText } from "./orderListHelpers";
 import { printOrders } from "./orderPrint";
 import { queueOf } from "./fulfillment";
 import type { CatalogSearchIndex } from "./orderSearch";
-import { useShopWords } from "./shopWords";
+import { useShopSells, useShopWords } from "./shopWords";
+import { sellsBooks } from "../../shared/shopSells";
 
 const REFRESH_MS = 60 * 1000;
 const PAGE = 40;
@@ -33,6 +34,7 @@ const typingIn = (t: EventTarget | null) => {
 // labels and dispatch all work exactly as before, and finishing an order moves straight to the next one.
 export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null; onSelect: (id: string | null) => void }) {
   const w = useShopWords();
+  const goods = !sellsBooks(useShopSells());
   const [orders, setOrders] = useState<any[] | null>(null);
   const [failed, setFailed] = useState(false);
   // Orders always opens on All orders › Open, newest first, as covers (owner's choice, 18 October 2026);
@@ -152,7 +154,7 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
   const openInStation = (id: string) => { pickLayout("desk"); open(id); };
   // The pick list covers every order still to pack, whatever the search box holds.
   const toPack = useMemo(() => stationQueue(orders || [], "", showTest).filter((o) => deskQueue(o) === "Ready to pack"), [orders, showTest]);
-  const printPickList = () => { if (toPack.length) printOrders(toPack, true); };
+  const printPickList = () => { if (toPack.length) printOrders(toPack, true, { goods }); };
 
   const testToggle = <Toggle label="Show test orders" checked={showTest} onChange={setShowTest} />;
   const loadProblem = failed && orders ? (

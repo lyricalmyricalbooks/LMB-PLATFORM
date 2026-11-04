@@ -32,3 +32,12 @@ describe("items added later on the packing slip (plan 24.6)", () => {
     expect(packingSlipHtml(first)).not.toContain("Added later");
   });
 });
+
+test("a shop that sells no books gets its own column heading; a books shop's slip is unchanged", () => {
+  const added = [{ id: "o2", orderId: "ADD-1", paymentStatus: "paid", items: [{ id: "b", title: "Tee", quantity: 1 }] }];
+  const books = packingSlipHtml(order, {}, added);
+  expect(books).toContain("<th>Book / edition</th>");
+  const goods = packingSlipHtml(order, { goods: true }, added);
+  expect(goods).not.toContain("Book / edition");
+  expect(goods.match(/<th>Item \/ option<\/th>/g)?.length).toBe(2);
+});

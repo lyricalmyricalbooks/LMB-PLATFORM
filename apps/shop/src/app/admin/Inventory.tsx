@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Download, History, Minus, PackagePlus, Plus } from "lucide-react";
 import { adminApi } from "./api";
+import { useShopWords } from "./shopWords";
 import { getOrdersCached } from "./ordersCache";
 import { inventoryApi, type InventoryLogEntry } from "./inventoryApi";
 import { InventoryLinkPanel } from "./InventoryLinkPanel";
@@ -54,6 +55,7 @@ const rowCoverUrl = (r: InventoryRow): string => {
 
 function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: InventoryProps) {
   const toast = useRisoToast();
+  const w = useShopWords();
   const [ask, askNode] = useAsk();
   const [books, setBooks] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
@@ -156,15 +158,15 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
     if (!waking.length) return true;
     let readers = 0;
     try {
-      for (const bookId of [...new Set(waking.map((w) => w.row.bookId))]) {
+      for (const bookId of [...new Set(waking.map((item) => item.row.bookId))]) {
         const alerts = await inventoryApi.stockAlerts(bookId);
-        waking.filter((w) => w.row.bookId === bookId).forEach((w) => { readers += waitingReaders(alerts, w.row.variantId); });
+        waking.filter((item) => item.row.bookId === bookId).forEach((item) => { readers += waitingReaders(alerts, item.row.variantId); });
       }
-    } catch { return ask({ title: "Back in stock", confirmLabel: "Save anyway", message: "Readers who asked to hear when this is back in stock may be emailed. Their sign-ups couldn't be checked just now." }); }
+    } catch { return ask({ title: "Back in stock", confirmLabel: "Save anyway", message: w("Readers who asked to hear when this is back in stock may be emailed. Their sign-ups couldn't be checked just now.") }); }
     if (!readers) return true;
     return ask({
-      title: "Readers will be emailed", confirmLabel: "Save and email them",
-      message: `${readers} reader${readers === 1 ? " is" : "s are"} waiting for ${waking.length === 1 ? rowName(waking[0].row) : "these books"} and will be emailed that ${waking.length === 1 ? "it's" : "they're"} back in stock.`,
+      title: w("Readers will be emailed"), confirmLabel: "Save and email them",
+      message: `${readers} ${w(readers === 1 ? "reader is" : "readers are")} waiting for ${waking.length === 1 ? rowName(waking[0].row) : w("these books")} and will be emailed that ${waking.length === 1 ? "it's" : "they're"} back in stock.`,
     });
   };
 
@@ -328,7 +330,7 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
       <div style={{ overflowWrap: "anywhere", minWidth: 150 }}>
         {onEditBook
           ? <button type="button" className="rp-row-link"
-              onClick={() => onEditBook(r.book)} aria-label={`Edit ${r.title} in Books`}>{r.title}</button>
+              onClick={() => onEditBook(r.book)} aria-label={`Edit ${r.title} in ${w("Books")}`}>{r.title}</button>
           : <div className="rp-row-link" style={{ cursor: "default", textDecoration: "none" }}>{r.title}</div>}
         <div className="rp-hint">
           {[r.edition, r.format].filter(Boolean).join(" · ") || "—"}
@@ -373,7 +375,7 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
             <span className="inv-sheet-cover" aria-hidden="true">{cover ? <img src={cover} alt="" loading="lazy" decoding="async" /> : null}</span>
             <span className="inv-sheet-body">
               {onEditBook
-                ? <button type="button" className="inv-sheet-title" onClick={() => onEditBook(r.book)} aria-label={`Edit ${r.title} in Books`}>{r.title}</button>
+                ? <button type="button" className="inv-sheet-title" onClick={() => onEditBook(r.book)} aria-label={`Edit ${r.title} in ${w("Books")}`}>{r.title}</button>
                 : <span className="inv-sheet-title">{r.title}</span>}
               <span className="inv-sheet-meta"><span className="inv-sheet-status" data-tone={TONE[r.status]}>{GLYPH[TONE[r.status]] ? <span aria-hidden="true">{GLYPH[TONE[r.status]]} </span> : null}{STATUS_LABELS[r.status]}</span>{meta ? <span className="rp-mono">· {meta}</span> : null}</span>
               {counted && linked(r) ? <span className="inv-sheet-note">Synced from the app</span> : null}

@@ -42,7 +42,8 @@ import { inventoryOrderUrl, orderInInventoryApp, useInventoryLink } from "./appS
 import { InventoryOrderLink } from "./AppSwitcher";
 import toast from "react-hot-toast";
 import { providerDashboardUrl, providerName } from "./providerWords";
-import { useShopWords } from "./shopWords";
+import { useShopSells, useShopWords } from "./shopWords";
+import { sellsBooks } from "../../shared/shopSells";
 import {
   ActionMenu,
   Checkbox,
@@ -86,6 +87,7 @@ export function OrderDetail({
   onChanged?: (order: any) => void;
 }) {
   const w = useShopWords();
+  const goods = !sellsBooks(useShopSells());
   const inventoryLink = useInventoryLink();
   const queueIndex = queueIds.indexOf(orderId);
   const prevId = queueIndex > 0 ? queueIds[queueIndex - 1] : "";
@@ -427,7 +429,7 @@ export function OrderDetail({
     } catch { /* print without the shop block */ }
     // Items the customer added after paying (code plan 24.6) go in the same parcel.
     const added = order.shipsWith ? [] : await adminApi.getOrdersShippingWith(order.id).then(list => (Array.isArray(list) ? list : []), () => []);
-    printOrders([order], false, shop, { [order.id]: added });
+    printOrders([order], false, { ...shop, goods }, { [order.id]: added });
   };
 
   const handlePushToShippo = async () => {
