@@ -307,3 +307,29 @@ test("the shop card lists a dropped app that has closed while its data can still
   [shop] = (await w.ask(OWNER, "GET", "/api/accounts/shops")).body.shops;
   assert.deepEqual(shop.closed, [], "its 90 days are over");
 });
+
+test("an invite stops working once the owner who sent it is off the team or no longer an owner", async () => {
+  const w = world();
+  // Bea is made a co-owner, invites Cal as an owner, and is then taken off the team before Cal accepts.
+  await w.accounts.invite(OWNER, { shopId: SHOP, email: BEA.email, role: "owner" });
+  await w.accounts.accept(BEA, w.secretOf(BEA.email));
+  await w.accounts.invite(BEA, { shopId: SHOP, email: CAL.email, role: "owner" });
+  const secret = w.secretOf(CAL.email);
+  await w.accounts.remove(OWNER, { shopId: SHOP, email: BEA.email });
+
+  const answer = await w.ask(CAL, "POST", "/api/accounts/accept", { invite: secret });
+  assert.equal(answer.status, 410);
+  assert.match(answer.body.message, /cancelled/);
+  assert.equal(await w.accounts.roleIn({ email: CAL.email }, SHOP), null, "Cal never joins");
+  assert.equal(w.shopData.docs.has(`${SHOP} members/${CAL.email}`), false);
+  // The team page no longer shows it as waiting.
+  assert.deepEqual((await w.accounts.team(OWNER, SHOP)).invites, []);
+
+  // The same when the sender is moved down to staff instead.
+  await w.accounts.invite(OWNER, { shopId: SHOP, email: BEA.email, role: "owner" });
+  await w.accounts.accept(BEA, w.secretOf(BEA.email));
+  await w.accounts.invite(BEA, { shopId: SHOP, email: CAL.email, role: "staff" });
+  const second = w.secretOf(CAL.email);
+  await w.accounts.setRole(OWNER, { shopId: SHOP, email: BEA.email, role: "staff" });
+  await assert.rejects(w.accounts.accept(CAL, second), (e) => e.status === 410);
+});

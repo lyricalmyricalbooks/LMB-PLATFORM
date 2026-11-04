@@ -103,6 +103,8 @@ to the platform's one web door: `createApi({ …, routes: accountRoutes(accounts
 | `POST /api/accounts/remove` | owner | `{ shopId, email }` |
 
 - Only the invited address, confirmed by Google or an email link, can accept. Accepting twice is fine.
+- An invite works only while the owner who sent it is still an owner: take them off the team (here or in the shop's
+  Settings › Team) or make them staff, and their waiting invites stop working and leave the team page.
 - The invite's secret is only in the email: the platform keeps its hash. Inviting the same address again replaces the
   open invite. A shop can have 20 open invites at once.
 - Every invite, acceptance, role change and removal is logged in the registry and the shop's audit log.

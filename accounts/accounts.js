@@ -56,6 +56,10 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
     return row && normal(row.ownerEmail) === person.email ? "owner" : null;
   }
 
+  // An invite carries its sender's say-so: once they are off the team or no longer an owner (here, or in the shop's
+  // own Settings › Team), what they sent stops working, so a removed co-owner can't still let someone in.
+  const senderStillOwner = async (invite) => (await roleIn({ email: normal(invite.invitedBy) }, invite.shopId)) === "owner";
+
   // `change` is true for the calls that alter the team: on a paid plan they need the second step (plan 14.1).
   async function ownerOnly(claims, shopId, change = false) {
     const person = personOf(claims);
@@ -140,7 +144,8 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
       const row = await registry.getShop(shopId);
       const members = (await memberships.listByShop(shopId)).map(({ email: address, role, addedAt }) => ({ email: address, role, addedAt }));
       if (row?.ownerEmail && !members.some((m) => m.email === normal(row.ownerEmail))) members.unshift({ email: normal(row.ownerEmail), role: "owner", addedAt: row.createdAt ?? null });
-      const open = (await invites.listByShop(shopId)).filter((i) => !i.acceptedAt && !i.cancelledAt && i.expiresAt > at());
+      const open = [];
+      for (const i of await invites.listByShop(shopId)) if (!i.acceptedAt && !i.cancelledAt && i.expiresAt > at() && (await senderStillOwner(i))) open.push(i);
       return { members, invites: open.map(({ id, email: address, role, expiresAt }) => ({ id, email: address, role, expiresAt })) };
     },
 
@@ -197,6 +202,11 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
       }
       if (invite.expiresAt <= at()) throw new SignupError(410, "That invite has run out. Ask the shop's owner for a new one.");
       if (invite.email !== person.email) throw new SignupError(403, `This invite is for ${invite.email}. Sign in with that address to accept it.`);
+      if (!(await senderStillOwner(invite))) {
+        await invites.set(invite.id, { ...invite, cancelledAt: at(), cancelledBy: "sender-no-longer-owner" });
+        await log(invite.shopId, "invite-cancelled", { email: invite.email, by: "sender-no-longer-owner", sender: invite.invitedBy });
+        throw new SignupError(410, "That invite was cancelled. Ask the shop's owner for a new one.");
+      }
 
       // The shop's own team list first (its rules decide access), then the platform's copy.
       await shopData.set(invite.shopId, `members/${invite.email}`, { role: invite.role, addedBy: "invite", invitedBy: invite.invitedBy, addedAt: at() });
