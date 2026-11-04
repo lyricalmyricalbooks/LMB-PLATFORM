@@ -271,6 +271,12 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
       if (name) {
         const problem = domainProblem(name, { platformDomain: settings?.domain ?? "" });
         if (problem) throw new SignupError(400, problem, { domain: problem });
+        // An address on the platform's own shop domain is a free address, never a domain the press owns.
+        const shopDomain = settings?.shopAddressDomain ?? "";
+        if (shopDomain && (name === shopDomain || name.endsWith(`.${shopDomain}`))) {
+          const words = "That address belongs to Colophon. Use an address you own.";
+          throw new SignupError(400, words, { domain: words });
+        }
         let found = null;
         if (domainLookup) {
           try { found = await domainLookup.lookup(name); } catch { found = null; }

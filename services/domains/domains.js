@@ -491,6 +491,13 @@ export function createDomainService({
       name = await pickFreeAddress(row.pressName || shopId, freeAddress.domain, taken, { handle });
       if (!name) throw new DomainError(409, "no_free_address", `No free address is left for ${row.pressName || shopId}.`);
       await registry.updateShop(shopId, { freeAddress: name });
+      // Two shops made at the same moment can both pick a name: read again after saving, and the shop whose id sorts
+      // later picks again (the other keeps it), so no name ever serves two shops.
+      const clash = (await registry.listShops()).some((other) => other?.shopId && other.shopId !== shopId && other.shopId < shopId && other.freeAddress === name);
+      if (clash) {
+        await registry.updateShop(shopId, { freeAddress: null });
+        return connectFreeAddress(shopId, { handle });
+      }
       await logChange(shopId, `domain-free-address-${name}`, { kind: "domains.free-address", domain: name });
       row = await rowOf(shopId);
     }
@@ -533,7 +540,8 @@ export function createDomainService({
       await logChange(shopId, `domain-removed-${old.name}-${iso()}`, { kind: "domains.removed", domain: old.name, free: true });
     }
     row = await rowOf(shopId);
-    const wasMain = mainAddress(row) === before;
+    // Main is still a free address (the one before, or an older one not yet live-replaced): the new name takes over.
+    const wasMain = domainsOf(row).some((d) => d.free && d.name === mainAddress(row));
     // Taking back a name that sends visitors on: it serves the shop again (Hosting has no "stop sending on", so it is
     // added afresh).
     const back = domainsOf(row).find((d) => d.name === name && d.redirectTo);
@@ -627,6 +635,8 @@ export function createDomainService({
     if (entry?.free && platformZone && entry.zoneLines?.length) await platformZone.apply(entry.zoneLines.map((l) => ({ ...l, action: "remove" })));
     const fields = { domains: domainsOf(row).filter((d) => d.name !== name) };
     if (normalDomain(row.mainDomain ?? "") === name) fields.mainDomain = null;
+    // A deleted shop gives its free name back, so the next press with that name gets it, not a number.
+    if (row.freeAddress === name) fields.freeAddress = null;
     await registry.updateShop(shopId, fields);
     await logChange(shopId, `domain-removed-at-deletion-${name}`, { kind: "domains.removed-at-deletion", domain: name });
     return { done: true, removed: name };

@@ -158,6 +158,36 @@ test("a new name for the free address: the one before keeps working and stays ma
   assert.ok(t.hosting.calls.slice(calls).every(([op]) => op === "getDomain"));
 });
 
+test("two renames before the first is live: the newest still takes over and both older names send visitors on", async () => {
+  const t = await world();
+  await t.service.connectFreeAddress("moth-press");
+  t.hosting.set("moth-press", "moth-press.shops.example", "live");
+  await t.service.checkAll();
+  await t.service.renameFreeAddress("moth-press", "moth-books");
+  await t.service.renameFreeAddress("moth-press", "moth-paper");
+  t.hosting.set("moth-press", "moth-paper.shops.example", "live");
+  await t.service.checkAll();
+  assert.equal((await t.registry.getShop("moth-press")).mainDomain, "moth-paper.shops.example");
+  assert.ok(t.hosting.calls.some(([op, , d, to]) => op === "redirectDomain" && d === "moth-press.shops.example" && to === "moth-paper.shops.example"));
+});
+
+test("two shops made at the same moment with one press name never get the same free address", async () => {
+  const t = await world();
+  const [a, b] = await Promise.all([t.service.connectFreeAddress("moth-press"), t.service.connectFreeAddress("press-two")]);
+  assert.notEqual(a.name, b.name);
+  assert.equal(a.name, "moth-press.shops.example");
+  assert.equal((await t.registry.getShop("press-two")).freeAddress, b.name);
+  assert.equal((await t.registry.getShop("press-two")).domains.filter((d) => d.name === a.name).length, 0);
+});
+
+test("a deleted shop gives its free name back for the next press", async () => {
+  const t = await world();
+  await t.service.connectFreeAddress("moth-press");
+  await t.service.removeDomain("moth-press", { domain: "moth-press.shops.example", deleting: true });
+  assert.equal((await t.registry.getShop("moth-press")).freeAddress, null);
+  assert.equal((await t.service.connectFreeAddress("press-two")).name, "moth-press.shops.example");
+});
+
 test("no shop domain: nothing is picked and shops keep their web.app address", async () => {
   const registry = fakeRegistry();
   await registry.createShop("s", { shopId: "s", pressName: "S" });
