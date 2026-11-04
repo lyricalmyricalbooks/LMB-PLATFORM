@@ -4,7 +4,7 @@ import { describe, expect, test } from "vitest";
 import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
-const { googleConnectActions, stockSheetRows, salesSheetRows } = require("./googleConnect.js");
+const { googleConnectActions, stockSheetRows, salesSheetRows, expensesSheetRows } = require("./googleConnect.js");
 
 const URL_ = "https://google.platform.example";
 const KEY = "service-key-moth-press-0123456789abcdef0123";
@@ -84,6 +84,17 @@ describe("Connect Google in the admin", () => {
     for (const sales of ["x", [["a"], "b"], Array.from({ length: 5001 }, () => ["a"])]) expect((await run({ step: "sheetSync", sales })).statusCode).toBe(400);
     expect(calls).toHaveLength(2);
     expect(salesSheetRows(undefined)).toBeNull();
+  });
+
+  test("costs go in an Expenses tab under our own headings; a broken list is refused", async () => {
+    const { run, calls } = make({ readStock: async () => [] });
+    await run({ step: "sheetSync", expenses: [["2026-10-01", "Moth Book", "Expense", "Printing", "INV-4", 400, "CAD", 400, "Riso run"]] });
+    expect(Object.keys(calls[0].args.tabs)).toEqual(["Stock", "Expenses"]);
+    expect(calls[0].args.tabs.Expenses[0]).toEqual(["Date", "Book", "Kind", "Category", "Reference", "Amount", "Currency", "Amount in CAD", "Notes"]);
+    expect(calls[0].args.tabs.Expenses[1][5]).toBe(400);
+    expect((await run({ step: "sheetSync", sales: [], expenses: "x" })).statusCode).toBe(400);
+    expect(calls).toHaveLength(1);
+    expect(expensesSheetRows(undefined)).toBeNull();
   });
 
   test("a stockroom that can't be read sends nothing", async () => {

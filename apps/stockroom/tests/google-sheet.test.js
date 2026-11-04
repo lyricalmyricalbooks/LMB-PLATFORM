@@ -2,7 +2,7 @@
 // The stockroom's Google Sheet on a Colophon shop (docs/plans/stockroom-google-sheet.md): the Sales lines, the card's
 // states, sending through the shop's server, refreshing by itself, and never touching the older sheet route.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { googleSheetApplies, salesSheetLines, sheetCardState, sheetDue, sheetUrl, sentWords, REFRESH_AFTER_MS } from '../src/lib/google-sheet.js';
+import { expensesSheetLines, googleSheetApplies, salesSheetLines, sheetCardState, sheetDue, sheetUrl, sentWords, REFRESH_AFTER_MS } from '../src/lib/google-sheet.js';
 import { openGoogleSheet, sendGoogleSheet, refreshGoogleSheetIfDue, __resetGoogleSheet } from '../src/features/google-sheet.js';
 
 const PROFILE = {
@@ -22,6 +22,12 @@ const STATES = {
   },
   test: { hist: [{ date: '2026-11-04', qty: 1, price: 1 }] },
 };
+STATES.moth.expenses = [
+  { id: 1, date: '2026-10-01', cat: 'Printing', ref: 'INV-4', amount: 400, currency: 'CAD', desc: 'Riso run' },
+  { id: 2, date: '2026-10-05', cat: 'Fair fee', amount: 30, currency: 'CAD', voided: true },
+  { id: 3, date: '2026-10-06', cat: 'Fair fee', amount: 20, currency: 'CAD', pendingAuth: true },
+];
+STATES.moth.artistPayouts = [{ id: 9, date: '2026-10-20', method: 'E-transfer', amount: 50, currency: 'CAD' }];
 const READY = { enabled: true, connected: true, extrasChosen: ['drive'], sheet: { url: 'https://docs.google.com/spreadsheets/d/s1/edit', writtenAt: '2026-11-04T11:55:00Z', rows: 3, sales: 2 } };
 
 describe('the Sales lines and the card', () => {
@@ -33,6 +39,13 @@ describe('the Sales lines and the card', () => {
     ]);
     expect(salesSheetLines(BOOKS, STATES, { max: 1 })).toHaveLength(1);
     expect(salesSheetLines({ moth: BOOKS.moth }, { moth: { _loadFailed: true, hist: STATES.moth.hist } })).toEqual([]);
+  });
+
+  it('lists costs and payments to artists newest first, leaving out voided and unapproved ones', () => {
+    expect(expensesSheetLines(BOOKS, STATES, { isPractice: (b) => b.title === 'Test' })).toEqual([
+      ['2026-10-20', 'Moth Book', 'Payment to artist', 'E-transfer', '', 50, 'CAD', 50, ''],
+      ['2026-10-01', 'Moth Book', 'Expense', 'Printing', 'INV-4', 400, 'CAD', 400, 'Riso run'],
+    ]);
   });
 
   it('shows only on a Colophon shop with both apps', () => {
@@ -82,7 +95,7 @@ describe('the Google Sheet tab', () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({ url: 'https://us-central1-moth-press.cloudfunctions.net/createStripeCheckoutSession', body: { action: 'googleConnect', step: 'status' }, auth: 'Bearer tok' });
     expect(card().dataset.state).toBe('ready');
-    expect(card().textContent).toContain('Sent 5 minutes ago · 3 products · 2 sales');
+    expect(card().textContent).toContain('Sent 5 minutes ago · 3 products · 2 sales · 0 costs');
     expect(card().querySelector('a[target=_blank]').getAttribute('href')).toBe(READY.sheet.url);
   });
 
@@ -92,6 +105,7 @@ describe('the Google Sheet tab', () => {
     await vi.waitFor(() => expect(calls).toHaveLength(2));
     expect(calls[1].body.step).toBe('sheetSync');
     expect(calls[1].body.sales).toHaveLength(2);
+    expect(calls[1].body.expenses).toHaveLength(2);
     expect(calls[1].body.rows).toBeUndefined();
     await vi.waitFor(() => expect(card().textContent).toContain('Sent just now'));
   });

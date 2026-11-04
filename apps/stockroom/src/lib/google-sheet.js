@@ -1,11 +1,12 @@
 // The stockroom's Google Sheet on a Colophon shop (docs/plans/stockroom-google-sheet.md). The shop's one Google sign-in
-// (admin Settings › Google, with Drive on) makes the sheet in the press's own Drive; each send replaces its Stock and
-// Sales tabs with what the stockroom holds now, so sending twice changes nothing and a voided sale simply drops off.
+// (admin Settings › Google, with Drive on) makes the sheet in the press's own Drive; each send replaces its Stock,
+// Sales and Expenses tabs with what the stockroom holds now, so sending twice changes nothing and a voided sale simply drops off.
 // The older sheet route (an Apps Script the press deploys, `sheetsUrl`) is untouched and stays hidden on these shops.
 //
 // Pure: no DOM, no storage, no network. features/google-sheet.js draws the card and makes the calls.
 import { getBookCurrencyCode, normalizeCurrencyCode, roundCents } from './money.js';
 import { runsOnColophon } from './shop-profile.js';
+import { MONEY_OUT_TYPES, moneyOutSheetRows } from './sheet-rows.js';
 
 /** The most sales lines one send carries: the newest ones. The shop's server takes no more. */
 export const MAX_SALES_LINES = 5000;
@@ -37,6 +38,25 @@ export function salesSheetLines(books = {}, states = {}, { isPractice = () => fa
       const price = num(h.price);
       const total = qty !== '' && price !== '' ? roundCents(qty * price) : '';
       lines.push([text(h.date, 40), text(book.title, 200), text(h.num, 60), text(h.chan, 60), qty, price, total, currency, text(h.notes)]);
+    }
+  }
+  lines.sort((a, b) => (a[0] < b[0] ? 1 : a[0] > b[0] ? -1 : 0));
+  return lines.slice(0, max);
+}
+
+/**
+ * One line per expense and payment to an artist, newest first: date, book, kind, category, reference, amount,
+ * currency, amount in CAD (blank when the stockroom has no rate yet), notes. The same records the older sheet route
+ * sends (lib/sheet-rows.js): voided ones and an author's submissions still waiting for approval are left out.
+ */
+export function expensesSheetLines(books = {}, states = {}, { isPractice = () => false, max = MAX_SALES_LINES } = {}) {
+  const lines = [];
+  for (const [id, book] of Object.entries(books || {})) {
+    const s = states?.[id];
+    if (!book || !s || s._loadFailed || isPractice(book, id)) continue;
+    for (const r of moneyOutSheetRows(book, id, s)) {
+      const kind = r.type === MONEY_OUT_TYPES.PAYOUT ? 'Payment to artist' : 'Expense';
+      lines.push([text(r.date, 40), text(r.book, 200), kind, text(r.chan, 60), text(r.num, 60), num(r.total), text(r.currency, 3), num(r.convertedTotal), text(r.notes)]);
     }
   }
   lines.sort((a, b) => (a[0] < b[0] ? 1 : a[0] > b[0] ? -1 : 0));

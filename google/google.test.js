@@ -774,7 +774,7 @@ test("the stockroom sends a Stock and a Sales tab; an older one-tab sheet gets i
   assert.equal((await t.shopRow()).google.sheet.sales, 1);
   // The status names the sheet, so the stockroom can link to it and say when it was sent.
   const { body: st } = await t.call("google.status");
-  assert.deepEqual(st.sheet, { url: `https://docs.google.com/spreadsheets/d/${id}/edit`, writtenAt: sent.body.writtenAt, rows: 2, sales: 1 });
+  assert.deepEqual(st.sheet, { url: `https://docs.google.com/spreadsheets/d/${id}/edit`, writtenAt: sent.body.writtenAt, rows: 2, sales: 1, expenses: null });
   // Sent again: nothing new is made, the same cells are written over.
   const before = changeNames(t).filter((n) => n === "addSheetTabs" || n === "createSpreadsheet").length;
   await t.call("google.sheetSync", { tabs: { Stock: STOCK, Sales: SALES } });
@@ -793,6 +793,18 @@ test("a first send with both tabs makes the sheet with both; unknown tabs, a mis
     assert.equal((await t.call("google.sheetSync", { tabs })).status, 400, JSON.stringify(tabs).slice(0, 60));
   }
   assert.equal((await t.call("google.sheetSync", { tabs: { Stock: STOCK, Sales: Array.from({ length: 5001 }, () => ["a"]) } })).status, 200);
+});
+
+test("an Expenses tab is added beside the others and counted", async () => {
+  const t = await setup();
+  await t.signIn({ extras: ["drive"] });
+  await t.call("google.sheetSync", { tabs: { Stock: STOCK, Sales: SALES } });
+  const EXP = [["Date", "Book", "Kind"], ["2026-10-01", "Moth Book", "Expense"]];
+  const sent = await t.call("google.sheetSync", { tabs: { Stock: STOCK, Sales: SALES, Expenses: EXP } });
+  assert.deepEqual([sent.body.rows, sent.body.sales, sent.body.expenses], [2, 1, 1]);
+  const [[, sheet]] = [...t.google.world.spreadsheets];
+  assert.deepEqual(Object.keys(sheet.tabs), ["Stock", "Sales", "Expenses"]);
+  assert.equal((await t.call("google.status")).body.sheet.expenses, 1);
 });
 
 test("Gmail sending stops at 80% of the daily limit, the email goes the usual way, and it starts again the next day (15.24)", async () => {

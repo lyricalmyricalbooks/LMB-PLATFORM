@@ -1,9 +1,9 @@
-// Settings › Google Sheet on a Colophon shop: the stockroom's Stock and Sales in a sheet in the press's own Google
+// Settings › Google Sheet on a Colophon shop: the stockroom's Stock, Sales and Expenses in a sheet in the press's own Google
 // Drive, through the shop's one Google sign-in (lib/google-sheet.js, docs/plans/stockroom-google-sheet.md). The shop's
 // server holds the link (apps/shop/functions/googleConnect.js); this page asks it, sends the sales, and links to the
 // sheet. Nothing here touches the older sheet route (sheetsUrl), which these shops never show.
 import { callShopFunction, shopFunctionUrl } from '../lib/publisher-access.js';
-import { sentWords, salesSheetLines, sheetCardState, sheetDue, sheetUrl } from '../lib/google-sheet.js';
+import { expensesSheetLines, sentWords, salesSheetLines, sheetCardState, sheetDue, sheetUrl } from '../lib/google-sheet.js';
 import { escapeHtml } from '../lib/html.js';
 
 // Where the shop admin keeps the Google link. The stockroom opens inside that admin, so the top page goes there.
@@ -50,8 +50,10 @@ async function sendGoogleSheet(deps, { quiet = false } = {}) {
   _sending = true;
   _note = '';
   if (el) paint(el, deps);
-  const sales = salesSheetLines(deps.books(), deps.states(), { isPractice: deps.isPractice });
-  const answer = await ask(deps, { step: 'sheetSync', sales });
+  const opts = { isPractice: deps.isPractice };
+  const sales = salesSheetLines(deps.books(), deps.states(), opts);
+  const expenses = expensesSheetLines(deps.books(), deps.states(), opts);
+  const answer = await ask(deps, { step: 'sheetSync', sales, expenses });
   _sending = false;
   if (answer?.error) {
     _note = answer.error;
@@ -62,7 +64,7 @@ async function sendGoogleSheet(deps, { quiet = false } = {}) {
     // The press deleted the sheet in Drive: the next send makes a new one.
     _note = 'Your sheet was deleted in Google Drive. Send again to make a new one.';
   } else if (answer) {
-    _status = { ..._status, sheet: { url: answer.url, writtenAt: answer.writtenAt, rows: answer.rows, sales: answer.sales ?? null } };
+    _status = { ..._status, sheet: { url: answer.url, writtenAt: answer.writtenAt, rows: answer.rows, sales: answer.sales ?? null, expenses: answer.expenses ?? null } };
     if (!quiet) deps.toast?.('Your Google Sheet is up to date', 'success');
   }
   if (el) paint(el, deps);
@@ -82,16 +84,16 @@ function paint(el, deps) {
   const state = sheetCardState(_status);
   const url = sheetUrl(_status);
   const sent = sentWords(_status?.sheet?.writtenAt, (deps.now || Date.now)());
-  const counts = _status?.sheet ? `${_status.sheet.rows ?? 0} products · ${_status.sheet.sales ?? 0} sales` : '';
+  const counts = _status?.sheet ? `${_status.sheet.rows ?? 0} products · ${_status.sheet.sales ?? 0} sales · ${_status.sheet.expenses ?? 0} costs` : '';
   const goGoogle = `<a class="btn" href="${GOOGLE_SETTINGS}" target="_top">Open Google settings</a>`;
   let line = '';
   let actions = '';
   if (state === 'loading') line = 'Checking your Google link…';
   else if (state === 'error') { line = escapeHtml(_status?.error || 'Couldn\'t check your Google link.'); actions = '<button type="button" class="btn" data-gs="retry">Try again</button>'; }
-  else if (state === 'off') { line = 'Connect Google once and your stock and sales go into a sheet in your own Drive.'; actions = goGoogle; }
+  else if (state === 'off') { line = 'Connect Google once and your stock, sales and costs go into a sheet in your own Drive.'; actions = goGoogle; }
   else if (state === 'nodrive') { line = 'Switch on Google Drive in Settings › Google to get your sheet.'; actions = goGoogle; }
   else {
-    line = url ? `${escapeHtml(sent)}${counts ? ` · ${escapeHtml(counts)}` : ''}` : 'Your stock and sales, in a sheet in your own Drive.';
+    line = url ? `${escapeHtml(sent)}${counts ? ` · ${escapeHtml(counts)}` : ''}` : 'Your stock, sales and costs, in a sheet in your own Drive.';
     actions = `<button type="button" class="btn gold" data-gs="send"${_sending ? ' disabled' : ''}>${_sending ? 'Sending…' : url ? 'Send now' : 'Make my sheet'}</button>`
       + (url ? `<a class="btn" href="${escapeHtml(url)}" target="_blank" rel="noopener">Open sheet</a>` : '');
   }
