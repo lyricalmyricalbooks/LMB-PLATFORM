@@ -52,14 +52,14 @@ function refundEmailFacts(order, redemptions = []) {
 // Drops sentences that only apply to a card/bank refund (a gift-card-only refund is instant).
 function withoutBankRefundSentences(body) {
   return String(body || "").split("\n").map(line => line.split(/(?<=[.!?])\s+/)
-    .filter(sentence => !/original payment method|business days|bank/i.test(sentence)).join(" ")).join("\n");
+    .filter(sentence => !/original payment method|business days|bank|moyen de paiement d'origine|jours ouvrables|banque/i.test(sentence)).join(" ")).join("\n");
 }
 
 // Pickup / local-delivery updates have no carrier at all: drop every line that names one.
 function withoutCarrierLines(body) {
   return String(body || "")
     .split("\n")
-    .filter(line => !/\{\{\s*tracking_(?:carrier|number|url)\s*\}\}|carrier'?s website/i.test(line))
+    .filter(line => !/\{\{\s*tracking_(?:carrier|number|url)\s*\}\}|carrier'?s website|site du transporteur/i.test(line))
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
@@ -68,9 +68,9 @@ function withoutCarrierLines(body) {
 function withoutTrackingLines(body) {
   return String(body || "")
     .split("\n")
-    .filter(line => !/\{\{tracking_number\}\}|\{\{tracking_url\}\}|carrier'?s website/i.test(line))
+    .filter(line => !/\{\{tracking_number\}\}|\{\{tracking_url\}\}|carrier'?s website|site du transporteur/i.test(line))
     .join("\n")
-    .replace(/\s+with \{\{tracking_carrier\}\}/g, "")
+    .replace(/\s+(?:with|avec) \{\{tracking_carrier\}\}/g, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
@@ -82,11 +82,13 @@ function forDigitalOnlyOrder(body, { hasDownloads = false } = {}) {
   let dropped = false;
   const text = String(body || "").split("\n").map(line => line.split(/(?<=[.!?])\s+/)
     .filter(sentence => {
-      const drop = /\b(ship|shipped|shipping|shipment|dispatch|dispatched|tracking|deliver(?:y|ed)?)\b/i.test(sentence);
+      const drop = /\b(ship|shipped|shipping|shipment|dispatch|dispatched|tracking|deliver(?:y|ed)?)\b|exp[ée]di|\benvoi\b|\bsuivi\b|livraison/i.test(sentence);
       dropped = dropped || drop;
       return !drop;
     }).join(" ")).join("\n").replace(/\n{3,}/g, "\n\n").trim();
-  return dropped && hasDownloads ? `${text}${text ? " " : ""}Your download links are below.` : text;
+  if (!dropped || !hasDownloads) return text;
+  const french = /\b(Bonjour|Merci|votre)\b/.test(text);
+  return `${text}${text ? " " : ""}${french ? "Vos liens de téléchargement sont ci-dessous." : "Your download links are below."}`;
 }
 
 module.exports = { orderMoneyFmt, chargedTotalFmt, refundAmountText, withoutTrackingLines, withoutCarrierLines, refundEmailFacts, withoutBankRefundSentences, forDigitalOnlyOrder };

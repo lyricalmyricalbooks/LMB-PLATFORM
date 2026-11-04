@@ -159,3 +159,10 @@ test("a shop's Stripe events and sent emails reach its control-room record (the 
   assert.equal(record.delivery.payments.received, 1);
   assert.equal(record.delivery.email.sent, 1);
 });
+
+test("the app connection answers under /api/apps/v1 and refuses a call without an app's key (code plan 26.3)", async () => {
+  const { world } = build();
+  const answer = await world.handle({ method: "GET", path: "/api/apps/v1/shop", headers: {}, body: {}, rawBody: "" });
+  assert.equal(answer.status, 401);
+  assert.match(answer.body.message, /key/);
+});

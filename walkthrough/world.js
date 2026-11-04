@@ -27,6 +27,10 @@ import { taxWatch as watchTaxLines } from "../services/billing/taxWatch.js";
 import { createSupportInbox } from "../services/support/inbox.js";
 import { supportRoutes } from "../services/support/routes.js";
 import { fakeSupportStore } from "../services/support/fakes.js";
+import { createAppMakers } from "../services/apps/makers.js";
+import { createAppInstalls } from "../services/apps/installs.js";
+import { appInstallPublicRoutes, appInstallRoutes, appMakerRoutes, appStorePublicRoutes } from "../services/apps/routes.js";
+import { fakeAppInstallStores, fakeAppStore } from "../services/apps/fakes.js";
 import { createRecovery, recoveryByHand } from "../accounts/recovery.js";
 import { recoveryRoutes } from "../accounts/recoveryRoutes.js";
 import { fakeRecoveryStore } from "../accounts/fakes.js";
@@ -204,6 +208,14 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     runBook: runBook({ state: platformState, registry, platform: { set: async () => {} }, rollBack: async () => ({ ok: true }), now: clock.date }),
   });
   const support = createSupportInbox({ store: supportStore, email, registry, settings, admins: [ADMIN_EMAIL], roleIn: (person, shopId) => accounts.roleIn(person, shopId), now: clock.date });
+  // Outside apps registered by app makers (code plan 26.1).
+  const appStore = fakeAppStore();
+  const appMakers = createAppMakers({ store: appStore, admins: [ADMIN_EMAIL], now: clock.date });
+  const appInstallStores = fakeAppInstallStores();
+  const appInstalls = createAppInstalls({
+    apps: appStore, makers: appMakers, installs: appInstallStores.installs, codes: appInstallStores.codes, registry, auditLog, now: clock.date,
+    roleIn: (person, shopId) => accounts.roleIn(person, shopId),
+  });
   const recovery = createRecovery({
     store: recoveryStore, email, registry, auditLog, settings, admins: [ADMIN_EMAIL], now: clock.date,
     findAccount: async (address) => {
@@ -262,6 +274,8 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...platformRoutes(controls),
     ...emergencyRoutes(backup),
     ...supportRoutes(support),
+    ...appMakerRoutes(appMakers),
+    ...appInstallRoutes(appInstalls),
     ...recoveryRoutes(recovery),
     ...accessRequestRoutes({ requests: accessRequests, accounts, activity, registry, auditLog, now: clock.date }),
     ...businessRoutes(business),
@@ -281,7 +295,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...exportRoutes(dataExports),
   };
   const door = createApi({
-    signup, verifyIdToken: fakeVerifyIdToken, settings, live, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }) },
+    signup, verifyIdToken: fakeVerifyIdToken, settings, live, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls) },
     // Fair-use limits (19.5) on an in-memory counter, a hundred times the real ones so a person clicking never meets them.
     limits: createLimits({ throttle: fakeThrottle(), admins, limits: generousLimits(), now: clock.date, log: () => {} }),
     log: () => {},
@@ -290,7 +304,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
 
   return {
     clock, settings, registry, auditLog, services, google, profileFiles, shopData, stockroomData, stripe, email, closed, billing, paymentWay, stripeEvent,
-    stores, frontDoor, frontDoorStores, stagedFiles, signup, shopMaker, run, steps, repairs, repairStore, accounts, accountStores, shopAccess, driftWatch, room, controls, backup, support, recovery, platformState, activity, door, routes, ask, invites, accessRequests,
+    stores, frontDoor, frontDoorStores, stagedFiles, signup, shopMaker, run, steps, repairs, repairStore, accounts, accountStores, shopAccess, driftWatch, room, controls, backup, support, appMakers, appStore, appInstalls, recovery, platformState, activity, door, routes, ask, invites, accessRequests,
     deliveryStats, timeline, jobs, jobRuns, jobsPage, notes,
     pressMessages, costsDesk, dataExports, exportStorage,
     /** The shop's own database as the platform wrote it: a document, or null. */
