@@ -204,6 +204,8 @@ function cardsForOrder(orderId, order, { now = new Date().toISOString(), makeCod
           message: details.message || "",
           purchaserEmail: String(order.customer?.email || "").toLowerCase(),
           source: "order", orderId, lineIndex,
+          // The email goes in the language the buyer shopped in (emailFrench.js).
+          ...(order.locale ? { locale: String(order.locale).slice(0, 12) } : {}),
           holds: {},
           history: [{ type: "issued", minor, orderId, at: now }],
           createdAt: now, updatedAt: now,

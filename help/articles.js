@@ -131,7 +131,7 @@ export const ARTICLES = Object.freeze([
     question: "How do I bring in my books from a spreadsheet?",
     answer: [
       "Save your list of books as a CSV file. Most spreadsheet programs can do this from Save as or Download.",
-      "Open Books, press Import CSV and choose the file. You see every book before anything is saved, and each one arrives as a draft.",
+      "Open Books, press Import spreadsheet and choose the file. You see every book before anything is saved, and each one arrives as a draft.",
     ],
     where: ["Books"],
   },
@@ -171,11 +171,11 @@ export const ARTICLES = Object.freeze([
     question: "How do I bring my books over from my old shop?",
     answer: [
       "Bring your shop with you. In your old shop, export your products as a file. Don't change the file.",
-      "Here, open Books, press Import CSV and choose that file. You see every book before anything is saved. Photos, prices, sale prices, stock and editions come over, and every new book arrives as a draft.",
+      "Here, open Books, press Import spreadsheet and choose that file. You see every book before anything is saved. Photos, prices, sale prices, stock and editions come over, and every new book arrives as a draft.",
       "Bringing the same file over twice adds nothing new, so you can try again safely.",
       "For now the photos still load from your old shop. Keep your old shop open until we tell you they have been copied over.",
     ],
-    where: ["Books › Import CSV"],
+    where: ["Books › Import spreadsheet"],
   },
   {
     id: "bring-customers",
@@ -209,16 +209,16 @@ export const ARTICLES = Object.freeze([
       "Everything below is optional, and each step is safe to repeat: bringing the same file twice adds nothing twice. Most old shops let you export each list as a CSV file from their settings or reports.",
     ],
     steps: [
-      "Books: open Books, press Import CSV and choose your old shop's product file. Old book addresses are sent on to the new pages.",
+      "Books: open Books, press Import spreadsheet and choose your old shop's product file. Old book addresses are sent on to the new pages.",
       "Customers: open Customers and press Bring customers over.",
       "Gift cards: open Gift cards and press Bring gift cards over, so balances still work.",
       "Discount codes: open Discounts and press Bring codes over, so codes your customers already have still work. Codes for only some items, and buy-some-get-some offers, are listed for you to set up by hand.",
-      "Past orders: open Orders and press Bring past orders over. They count in your sales reports and each customer's history, and change no stock. Orders in another currency are converted at the Bank of Canada's average rate, which you can change, later too, on each order's page. Got a file per year? Press Bring another file after each one. Wrong file? Remove that whole import in one step.",
+      "Past orders: open Orders and press Bring past orders over. They count in your sales reports and each customer's history, and change no stock. Orders in another currency are converted at the Bank of Canada's average rate, which you can change, later too, on each order's page. Got a file per year? Press Bring another file after each one. Every window takes Excel, CSV and LibreOffice files as your old shop gives them. Wrong file? Remove that whole import in one step.",
       "Your own pages and old links: open Settings › General and use Check your old links under URL redirects, then Bring your own pages over for pages such as About or FAQ.",
       "On the day you move, follow What do I do on the day I move from my old shop?",
       "Your Overview shows Your move so far: what has come over and what is left. Choose We had none for anything your old shop didn't have.",
     ],
-    where: ["Books › Import CSV", "Customers › Bring customers over", "Gift cards › Bring gift cards over", "Discounts › Bring codes over", "Orders › Bring past orders over", "Settings › General"],
+    where: ["Books › Import spreadsheet", "Customers › Bring customers over", "Gift cards › Bring gift cards over", "Discounts › Bring codes over", "Orders › Bring past orders over", "Settings › General"],
   },
   {
     id: "switch-day",

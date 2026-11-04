@@ -521,6 +521,27 @@ test("one shop's record: owner, billing, setup, fee and its history, admins only
   assert.equal(listed.emailLanguage, "en", "the list carries each press's email language too");
 });
 
+test("what a shop sells, against the category its Stripe account was filed under (12.18)", async () => {
+  const w = await world();
+  const row = await w.registry.getShop(ID);
+  await w.registry.updateShop(ID, { publishes: "clothing", payments: { ...(row.payments ?? {}), provider: "stripe", accountId: "acct_moth", mcc: "5651" } });
+  let listed = (await w.ask(ADMIN, "GET", "/api/control/shops")).body.shops.find((s) => s.shopId === ID);
+  assert.deepEqual([listed.sells.words, listed.sells.mismatch], ["Clothing", false]);
+  let record = (await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: ID })).body;
+  assert.equal(record.sells.line, "Clothing · Stripe files it as Clothing");
+  // Filed as a book shop but sells shoes: flagged on the list and in the record.
+  await w.registry.updateShop(ID, { publishes: "shoes", payments: { ...(row.payments ?? {}), provider: "stripe", accountId: "acct_moth", mcc: "5942" } });
+  listed = (await w.ask(ADMIN, "GET", "/api/control/shops")).body.shops.find((s) => s.shopId === ID);
+  assert.equal(listed.sells.mismatch, true);
+  record = (await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: ID })).body;
+  assert.match(record.sells.line, /^Shoes · Stripe files it as Book stores, but this answer fits Shoes/);
+  // The owner changed the answer later in Settings: the record goes by the shop's own answer.
+  await w.registry.updateShop(ID, { status: "live" });
+  await w.services.shopData.set(ID, "firstWeek/start", { sells: "books" });
+  record = (await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: ID })).body;
+  assert.deepEqual([record.sells.words, record.sells.mismatch], ["Books", false]);
+});
+
 test("the per-order fee: the press is emailed and the change starts 30 days later; same again changes nothing; today's fee cancels it (plan 9.6)", async () => {
   const w = await world();
   const why = "founding press agreed to 1.5%";

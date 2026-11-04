@@ -7,7 +7,7 @@
 import { chromium } from "playwright";
 import { createServer } from "vite";
 
-const PAGES = (process.env.ADMIN_PAGES || "overview,orders,orders/o1,customers,inventory,catalog,discounts,giftCards,reviews,messages,settings/general,settings/shipping,settings/payments,settings/google").split(",");
+const PAGES = (process.env.ADMIN_PAGES || "overview,orders,orders/o1,customers,inventory,catalog,discounts,giftCards,reviews,messages,settings/general,settings/shipping,settings/payments,settings/google,channels,social-posts").split(",");
 const server = await createServer({ server: { port: 0, strictPort: false }, logLevel: "error" });
 await server.listen();
 const base = server.resolvedUrls.local[0].replace(/\/$/, "");

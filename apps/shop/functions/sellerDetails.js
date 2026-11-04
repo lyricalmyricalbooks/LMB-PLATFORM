@@ -17,7 +17,7 @@ const LINKED = [["returns", "Returns and cancellations"], ["shipping", "Shipping
  * The block's HTML, or "" when there is nothing to say. `website` is settings/website; `link(path)` makes a full
  * address on the shop's site.
  */
-function sellerSection(website, link, fallbackName) {
+function sellerSection(website, link, fallbackName, say = (text) => text) {
   const s = website || {};
   const named = pressName(s, fallbackName) || "";
   const name = named === DEFAULT_SHOP_NAME ? "" : named;
@@ -26,25 +26,27 @@ function sellerSection(website, link, fallbackName) {
   const policies = LINKED.filter(([key]) => has(s.policies?.[key]));
   const who = [name, address, email].filter(Boolean);
   if (!who.length && !policies.length) return "";
-  const links = policies.map(([key, label]) => `<a href="${esc(link(`/page/policy-${key}`))}" style="color:inherit;">${esc(label)}</a>`).join(" &middot; ");
+  const links = policies.map(([key, label]) => `<a href="${esc(link(`/page/policy-${key}`))}" style="color:inherit;">${esc(say(label))}</a>`).join(" &middot; ");
   return `
           <div style="margin-top:28px;padding:16px 0 0;border-top:1px solid #ddd;font-size:11px;line-height:1.6;color:#555;">
-            ${who.length ? `<p style="margin:0 0 6px;">Sold by ${who.map(esc).join(", ")}.</p>` : ""}
-            ${policies.length ? `<p style="margin:0;">Keep this email as your record of the sale. ${links}</p>` : ""}
+            ${who.length ? `<p style="margin:0 0 6px;">${say("Sold by")} ${who.map(esc).join(", ")}.</p>` : ""}
+            ${policies.length ? `<p style="margin:0;">${say("Keep this email as your record of the sale.")} ${links}</p>` : ""}
           </div>`;
 }
 
 /** Checkout's order-history words (src/app/features/site/digitalConsent.ts) for an EU/EEA/UK download consent. */
 const DIGITAL_CONSENT_NOTE = "Shopper asked for the digital items to be available straight away and agreed that this ends their 14-day right to cancel them.";
 
+const DIGITAL_CONSENT_EMAIL = "You asked for your digital items to be available straight away and agreed that this ends your 14-day right to cancel them. Your right to cancel any printed or physical items is not affected.";
+
 /**
  * The confirmation's record of that consent, or "" without one. EU and UK rules ask the seller to confirm it on a
  * durable medium, and the email is that record.
  */
-function digitalConsentSection(order) {
+function digitalConsentSection(order, say = (text) => text) {
   const agreed = Array.isArray(order?.activity) && order.activity.some((entry) => entry?.message === DIGITAL_CONSENT_NOTE);
   return agreed ? `
-          <p style="margin-top:20px;font-size:12px;line-height:1.6;">You asked for your digital items to be available straight away and agreed that this ends your 14-day right to cancel them. Your right to cancel any printed or physical items is not affected.</p>` : "";
+          <p style="margin-top:20px;font-size:12px;line-height:1.6;">${say(DIGITAL_CONSENT_EMAIL)}</p>` : "";
 }
 
 module.exports = { sellerSection, digitalConsentSection, DIGITAL_CONSENT_NOTE, LINKED };

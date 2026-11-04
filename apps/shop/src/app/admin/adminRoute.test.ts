@@ -23,6 +23,12 @@ describe("admin route ↔ hash", () => {
     expect(hashForRoute({ tab: "orders", orderId: "abc/12" })).toBe("#orders/abc%2F12");
   });
 
+  it("opens Social posts, and the composer on a book from its row (plan 27.6)", () => {
+    expect(routeFromHash("#social-posts")).toEqual({ tab: "socialPosts" });
+    expect(routeFromHash("#social-posts/book/abc123")).toEqual({ tab: "socialPosts", bookId: "abc123" });
+    expect(hashForRoute({ tab: "socialPosts" })).toBe("#social-posts");
+    expect(routeFromHash("#channels")).toEqual({ tab: "channels" });
+  });
   it("leaves Studio links and unknown hashes alone", () => {
     expect(routeFromHash("#designer?t=productPage")).toBeNull();
     expect(routeFromHash("#nope")).toBeNull();

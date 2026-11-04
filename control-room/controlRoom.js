@@ -34,6 +34,8 @@
 //   delivery      optional: (shopId) -> the last 7 days' payment events and emails (delivery.js deliveryReader, plan
 //                 19.12), shown on the shop's record and in its health
 import { setupSummary } from "./setupPresses.js";
+import { sellsFacts, sellsLine } from "./shopSells.js";
+import { sellsOf } from "../shared/sells/sells.js";
 import { testShopDocs } from "../setup/test-catalogue.js";
 import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";
@@ -307,6 +309,8 @@ export function createControlRoom({
             snoozedUntil: Date.parse(row.drift.snoozedUntil ?? "") > now().getTime() ? row.drift.snoozedUntil : null, snoozedBy: row.drift.snoozedBy ?? null,
           } : null,
           moveStuck: row.moveStuck ?? null,
+          // What it sells (the sign-up answer) against the category its Stripe account was filed under (12.18).
+          sells: sellsFacts(row.publishes ?? null, row.payments),
         });
       }
       const order = { problem: 0, watch: 1, ok: 2 };
@@ -392,6 +396,9 @@ export function createControlRoom({
       const next = row.platformFee?.next && Date.parse(row.platformFee.next.from) > now().getTime() ? row.platformFee.next : null;
       // Payments and email delivery (19.12); a count that can't be read leaves the rest of the record.
       const counts = delivery ? await delivery(shopId).catch(() => null) : null;
+      // An answer changed later in the shop's Settings wins over the sign-up one; a shop that can't be read keeps it.
+      const start = row.status === "live" && shopData?.get ? await shopData.get(shopId, "firstWeek/start").catch(() => null) : null;
+      const sells = sellsFacts(sellsOf(start, row), row.payments);
       return {
         shopId,
         pressName: row.pressName ?? shopId,
@@ -405,6 +412,7 @@ export function createControlRoom({
         billing: row.billing ?? null,
         // The language of the platform's emails to this press (services/email/templatesFr.js): "fr", "fr+en" or "en".
         emailLanguage: shopMailLanguage(row),
+        sells: { ...sells, line: sellsLine(sells) },
         emailSample: emailSample(row, settings ? await settings() : platformSettings({}), now()),
         setup: [...lastByStep.values()].map(({ step, name, ok, error, at, finishedAt }) => ({ step, name: name ?? null, ok: ok !== false && !error, at: finishedAt ?? at ?? null, error: error ?? null })),
         connections: {

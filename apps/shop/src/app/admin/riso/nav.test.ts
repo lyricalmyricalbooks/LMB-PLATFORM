@@ -3,7 +3,7 @@ import { MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, navPages, side
 
 describe("admin navigation", () => {
   it("lists the primary modules in order", () => {
-    expect(NAV.map((n) => n.id)).toEqual(["overview", "orders", "customers", "inventory", "catalog", "discounts", "giftCards", "reviews", "messages", "settings"]);
+    expect(NAV.map((n) => n.id)).toEqual(["overview", "orders", "customers", "inventory", "catalog", "discounts", "giftCards", "reviews", "messages", "channels", "socialPosts", "settings"]);
   });
 
   it("has unique ids across modules and settings children", () => {
@@ -44,7 +44,8 @@ describe("the five-item admin menu (plan 1.27)", () => {
 
   it("lists an item's pages under it with their own names", () => {
     const orders = items.find((i) => i.label === "Orders")!;
-    expect(orders.children?.map((c) => c.label)).toEqual(["Orders", "Customers", "Discounts", "Gift cards", "Messages"]);
+    expect(orders.children?.map((c) => c.label)).toEqual(["Orders", "Customers", "Discounts", "Gift cards", "Social posts", "Messages"]);
+    expect(items.find((i) => i.label === "Books")!.children?.map((c) => c.label)).toEqual(["Books", "Inventory", "Reviews", "Sales channels"]);
     const settings = items.find((i) => i.label === "Settings")!;
     expect(settings.children?.map((c) => c.id)).toEqual(["general", "shipping", "payments", "taxes", "notifications", "google", "team", "security", "bookkeeping", "plan", "billing"].map((id) => SETTINGS_ITEM_PREFIX + id));
     expect(items.find((i) => i.label === "Design")!.children).toBeUndefined();

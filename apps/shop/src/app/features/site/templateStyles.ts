@@ -61,13 +61,22 @@ export type TemplateKnob = {
   /** The variable's value from the design, or undefined to keep the template's own look. */
   value: (d: Design) => string | undefined;
   /**
-   * Shapes only some templates draw by default (headings in capitals, a tilt, an arched footer, a boxed price). Once
-   * the press sets the control, this rule draws it on every template, so the control never does nothing.
+   * Shapes only some templates draw by default (headings in capitals, a tilt, an arched footer, a boxed price), or
+   * that buttons with their own inline border would hide. Once the press sets the control, this rule draws it on
+   * every template and every button, so the control never does nothing.
    */
   rule?: string;
   /** Draw `rule` only for these values (default: whenever the control is set). */
   ruleFor?: string[];
 };
+
+/**
+ * Some buttons draw their own border inline from the Button style setting (the header's bag button, the book page's
+ * Add to bag and retry buttons), which beats a template's button rule. Once the press sets a template outline, the
+ * border each template writes into `--template-btn-border` wins on every button. Untouched, those buttons keep the
+ * border they have always had.
+ */
+const BUTTON_OUTLINE_RULE = `${S} .custom-btn,${S} .store-btn-primary{border:var(--template-btn-border) !important;}`;
 
 export const TEMPLATE_KNOBS: TemplateKnob[] = [
   { cssVar: "--tpl-btn-radius", keys: ["buttonRadius"], value: (d) => px(d.buttonRadius, 0, 999) },
@@ -97,8 +106,8 @@ export const TEMPLATE_KNOBS: TemplateKnob[] = [
   { cssVar: "--tpl-corner", keys: ["radiusScale", "cardRadius"], value: corner },
   // Template keys of their own (not the Riso Press ones, which every look's palette writes): untouched, each template
   // draws its own outlines and shadows; Marquee's fall back to the Riso Press controls it has always followed.
-  { cssVar: "--tpl-outline", keys: ["templateOutlineColor"], value: (d) => colour(d.templateOutlineColor) },
-  { cssVar: "--tpl-outline-w", keys: ["templateOutlineWidth"], value: (d) => px(d.templateOutlineWidth, 0, 8) },
+  { cssVar: "--tpl-outline", keys: ["templateOutlineColor"], value: (d) => colour(d.templateOutlineColor), rule: BUTTON_OUTLINE_RULE },
+  { cssVar: "--tpl-outline-w", keys: ["templateOutlineWidth"], value: (d) => px(d.templateOutlineWidth, 0, 8), rule: BUTTON_OUTLINE_RULE },
   { cssVar: "--tpl-shadow", keys: ["templateShadowColor"], value: (d) => colour(d.templateShadowColor) },
   { cssVar: "--tpl-shadow-x", keys: ["templateShadowOffset"], value: (d) => px(d.templateShadowOffset, 0, 16) },
   { cssVar: "--tpl-rule-w", keys: ["templateRuleWidth"], value: (d) => px(d.templateRuleWidth, 0, 12) },
@@ -126,14 +135,14 @@ export const TEMPLATE_KNOBS: TemplateKnob[] = [
 export function templateKnobCss(design: StorefrontTokenInput | null | undefined): string {
   const d = (design || {}) as Design;
   const vars: string[] = [];
-  let rules = "";
+  const rules = new Set<string>(); // two knobs can share a rule (outline colour and width)
   for (const k of TEMPLATE_KNOBS) {
     const v = k.value(d);
     if (v === undefined) continue;
     vars.push(`${k.cssVar}:${v}`);
-    if (k.rule && (!k.ruleFor || k.ruleFor.includes(v))) rules += k.rule;
+    if (k.rule && (!k.ruleFor || k.ruleFor.includes(v))) rules.add(k.rule);
   }
-  return vars.length ? `${S}{${vars.join(";")};}${rules}` : "";
+  return vars.length ? `${S}{${vars.join(";")};}${[...rules].join("")}` : "";
 }
 
 /** `var(--tpl-<name>, <fallback>)`: a knob, with the template's own look when the press has not set it. */
@@ -175,7 +184,7 @@ ${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3 > span{display:grid;pl
 ${S} .fm-card [data-studio-label="Card title & price"]{border-top:0 !important;padding-top:0;}
 ${S} .fm-card-title{text-transform:${v("title-case", "uppercase")};font-size:.8rem;font-weight:800;letter-spacing:.05em;line-height:1.2;}
 ${S} .fm-card-price-tag{border:0 !important;padding:0 !important;font-size:.8rem;}
-${S} .custom-btn,${S} .store-btn-primary,${S} button.custom-btn{border:${OUTLINE_W_M} solid ${OUTLINE_M};border-radius:${v("btn-radius", "0px")} !important;text-transform:${v("btn-case", "uppercase")};letter-spacing:.1em;font-weight:800;box-shadow:${BTN_SHADOW(v("shadow-x", "5px"), v("shadow-x", "5px"), SHADOW_M)};transition:translate .1s ease,box-shadow .1s ease;}
+${S} .custom-btn,${S} .store-btn-primary,${S} button.custom-btn{--template-btn-border:${OUTLINE_W_M} solid ${OUTLINE_M};border:var(--template-btn-border);border-radius:${v("btn-radius", "0px")} !important;text-transform:${v("btn-case", "uppercase")};letter-spacing:.1em;font-weight:800;box-shadow:${BTN_SHADOW(v("shadow-x", "5px"), v("shadow-x", "5px"), SHADOW_M)};transition:translate .1s ease,box-shadow .1s ease;}
 ${S} .custom-btn:hover,${S} .store-btn-primary:hover{translate:2px 2px;box-shadow:${BTN_SHADOW(`max(0px, ${v("shadow-x", "5px")} - 2px)`, `max(0px, ${v("shadow-x", "5px")} - 2px)`, SHADOW_M)};}
 ${S} .custom-btn:active,${S} .store-btn-primary:active{translate:5px 5px;box-shadow:${BTN_SHADOW("0px", "0px", SHADOW_M)};}
 ${S} input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file]),${S} select,${S} textarea{border-radius:${v("btn-radius", "0px")} !important;}
@@ -205,7 +214,7 @@ ${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3{top:.6rem;left:.6rem;}
 ${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3 > span{border-radius:999px !important;border:0 !important;padding:.2rem .7rem;font-size:.62rem;letter-spacing:.04em;}
 ${S} .fm-card-title{font-family:var(--heading-font);font-weight:400;font-size:1.05rem;line-height:1.15;letter-spacing:0;text-transform:${v("title-case", "none")} !important;}
 ${S} .fm-card-price-tag{border:0 !important;padding:0 !important;font-size:.85rem;font-weight:500;}
-${S} .custom-btn,${S} .store-btn-primary,${S} button.custom-btn{border-radius:${v("btn-radius", "999px")} !important;border:${v("outline-w", "2px")} solid ${v("outline", "transparent")};font-weight:700;letter-spacing:.01em;text-transform:${v("btn-case", "none")};box-shadow:${NO_BTN_SHADOW(v("shadow", "rgb(var(--fg-rgb))"))};transition:translate .15s ease,background-color .15s ease;}
+${S} .custom-btn,${S} .store-btn-primary,${S} button.custom-btn{border-radius:${v("btn-radius", "999px")} !important;--template-btn-border:${v("outline-w", "2px")} solid ${v("outline", "transparent")};border:var(--template-btn-border);font-weight:700;letter-spacing:.01em;text-transform:${v("btn-case", "none")};box-shadow:${NO_BTN_SHADOW(v("shadow", "rgb(var(--fg-rgb))"))};transition:translate .15s ease,background-color .15s ease;}
 ${S} .custom-btn:hover,${S} .store-btn-primary:hover{translate:0 -2px;}
 ${S} :is(button,a).rounded-full{border-radius:999px;}
 ${S} [data-store-region="catalogSearch"],${S} [data-store-region="catalogSort"],${S} [data-store-region="catalogStock"],${S} [data-store-region="catalogSale"]{border-radius:${v("btn-radius", "999px")} !important;}
@@ -235,7 +244,7 @@ ${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3{top:.5rem;left:.5rem;}
 ${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3 > span{border-radius:${v("corner", "2px")} !important;border:0 !important;padding:.18rem .5rem;font-size:.6rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;}
 ${S} .fm-card-title{font-size:.86rem;font-weight:600;line-height:1.25;letter-spacing:0;text-transform:${v("title-case", "none")} !important;}
 ${S} .fm-card-price-tag{border:0 !important;padding:0 !important;font-size:.82rem;font-variant-numeric:tabular-nums;}
-${S} .custom-btn,${S} .store-btn-primary,${S} button.custom-btn{border:${v("outline-w", "1px")} solid ${v("outline", "transparent")};border-radius:${v("btn-radius", "2px")} !important;text-transform:${v("btn-case", "uppercase")};letter-spacing:.08em;font-size:.78rem;font-weight:600;box-shadow:${NO_BTN_SHADOW(v("shadow", "rgb(var(--fg-rgb))"))};transition:background-color .15s ease,color .15s ease;}
+${S} .custom-btn,${S} .store-btn-primary,${S} button.custom-btn{--template-btn-border:${v("outline-w", "1px")} solid ${v("outline", "transparent")};border:var(--template-btn-border);border-radius:${v("btn-radius", "2px")} !important;text-transform:${v("btn-case", "uppercase")};letter-spacing:.08em;font-size:.78rem;font-weight:600;box-shadow:${NO_BTN_SHADOW(v("shadow", "rgb(var(--fg-rgb))"))};transition:background-color .15s ease,color .15s ease;}
 ${S} input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file]),${S} select,${S} textarea{border-radius:${v("btn-radius", "2px")} !important;}
 ${S} [class*="rounded-"]:not([class*="rounded-full"]):not([style*="border-radius"]){border-radius:${v("corner", "2px")} !important;}
 ${S} .glass-card{backdrop-filter:none;border:${v("outline-w", "1px")} solid ${v("outline", HAIR_A)};border-radius:${v("corner", "2px")};background:var(--surface);}
@@ -268,7 +277,7 @@ ${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3{top:.4rem;left:.4rem;}
 ${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3 > span{border-radius:999px !important;border:${v("outline-w", "2px")} solid ${INK} !important;padding:.15rem .6rem;font-size:.62rem;font-weight:800;letter-spacing:.04em;}
 ${S} .fm-card-title{font-family:var(--heading-font);font-size:1rem;font-weight:800;line-height:1.1;letter-spacing:-.005em;text-transform:${v("title-case", "none")} !important;}
 ${S} .fm-card-price-tag{border:0 !important;padding:0 !important;font-size:.85rem;font-weight:700;}
-${S} .custom-btn,${S} .store-btn-primary,${S} button.custom-btn{border:${v("outline-w", "2px")} solid ${INK};border-radius:${v("btn-radius", "12px")} !important;font-weight:800;letter-spacing:.02em;text-transform:${v("btn-case", "none")};box-shadow:${BTN_SHADOW("0px", v("shadow-x", "4px"), v("shadow", INK))};transition:translate .1s ease,box-shadow .1s ease;}
+${S} .custom-btn,${S} .store-btn-primary,${S} button.custom-btn{--template-btn-border:${v("outline-w", "2px")} solid ${INK};border:var(--template-btn-border);border-radius:${v("btn-radius", "12px")} !important;font-weight:800;letter-spacing:.02em;text-transform:${v("btn-case", "none")};box-shadow:${BTN_SHADOW("0px", v("shadow-x", "4px"), v("shadow", INK))};transition:translate .1s ease,box-shadow .1s ease;}
 ${S} .custom-btn:hover,${S} .store-btn-primary:hover{translate:0 2px;box-shadow:${BTN_SHADOW("0px", `calc(${v("shadow-x", "4px")} / 2)`, v("shadow", INK))};}
 ${S} .custom-btn:active,${S} .store-btn-primary:active{translate:0 4px;box-shadow:${BTN_SHADOW("0px", "0px", v("shadow", INK))};}
 ${S} input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file]),${S} select,${S} textarea{border-radius:calc(${v("btn-radius", "12px")} * 5 / 6) !important;}
@@ -298,7 +307,7 @@ ${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3 > span{border-radius:9
 ${S} .fm-card [data-studio-label="Card title & price"]{text-align:center;}
 ${S} .fm-card-title{font-family:var(--heading-font);font-size:1.2rem;font-weight:500;line-height:1.1;letter-spacing:0;text-transform:${v("title-case", "none")} !important;}
 ${S} .fm-card-price-tag{border:0 !important;padding:0 !important;font-size:.8rem;letter-spacing:.08em;}
-${S} .custom-btn,${S} .store-btn-primary,${S} button.custom-btn{border:${v("outline-w", "1px")} solid ${v("outline", "transparent")};border-radius:${v("btn-radius", "999px")} !important;text-transform:${v("btn-case", "uppercase")};letter-spacing:.14em;font-size:.74rem;font-weight:600;box-shadow:${NO_BTN_SHADOW(v("shadow", "rgb(var(--fg-rgb))"))};transition:translate .15s ease,background-color .15s ease;}
+${S} .custom-btn,${S} .store-btn-primary,${S} button.custom-btn{--template-btn-border:${v("outline-w", "1px")} solid ${v("outline", "transparent")};border:var(--template-btn-border);border-radius:${v("btn-radius", "999px")} !important;text-transform:${v("btn-case", "uppercase")};letter-spacing:.14em;font-size:.74rem;font-weight:600;box-shadow:${NO_BTN_SHADOW(v("shadow", "rgb(var(--fg-rgb))"))};transition:translate .15s ease,background-color .15s ease;}
 ${S} .custom-btn:hover,${S} .store-btn-primary:hover{translate:0 -2px;}
 ${S} :is(button,a).rounded-full{border-radius:999px;}
 ${S} input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file]),${S} select{border-radius:${v("btn-radius", "999px")} !important;}
@@ -336,7 +345,7 @@ ${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3{top:.5rem;left:.5rem;}
 ${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3 > span{border-radius:999px !important;border:${v("outline-w", "2px")} solid ${INK_K} !important;padding:.15rem .6rem;font-size:.62rem;font-weight:800;letter-spacing:.04em;transform:rotate(-4deg);}
 ${S} .fm-card-title{font-family:var(--heading-font);font-size:1rem;font-weight:400;line-height:1;letter-spacing:-.005em;text-transform:${v("title-case", "uppercase")} !important;}
 ${S} .fm-card-price{background:rgb(var(--fg-rgb));color:var(--bg-color);padding:.12rem .5rem;font-size:.8rem;font-weight:700;border:0 !important;}
-${S} .custom-btn,${S} .store-btn-primary,${S} button.custom-btn{border:${W_K} solid ${INK_K};border-radius:${v("btn-radius", "10px")} !important;text-transform:${v("btn-case", "uppercase")};font-weight:800;letter-spacing:.04em;box-shadow:${BTN_SHADOW(v("shadow-x", "4px"), v("shadow-x", "4px"), SHADOW_K)};transition:translate .1s ease,box-shadow .1s ease;}
+${S} .custom-btn,${S} .store-btn-primary,${S} button.custom-btn{--template-btn-border:${W_K} solid ${INK_K};border:var(--template-btn-border);border-radius:${v("btn-radius", "10px")} !important;text-transform:${v("btn-case", "uppercase")};font-weight:800;letter-spacing:.04em;box-shadow:${BTN_SHADOW(v("shadow-x", "4px"), v("shadow-x", "4px"), SHADOW_K)};transition:translate .1s ease,box-shadow .1s ease;}
 ${S} .custom-btn:hover,${S} .store-btn-primary:hover{translate:2px 2px;box-shadow:${BTN_SHADOW(`calc(${v("shadow-x", "4px")} / 2)`, `calc(${v("shadow-x", "4px")} / 2)`, SHADOW_K)};}
 ${S} .custom-btn:active,${S} .store-btn-primary:active{translate:4px 4px;box-shadow:${BTN_SHADOW("0px", "0px", SHADOW_K)};}
 ${S} input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file]),${S} select,${S} textarea{border-radius:calc(${v("btn-radius", "10px")} * .8) !important;border-width:2px;}
@@ -374,7 +383,7 @@ ${S} .fm-card .fm-photo-frame{border-radius:${v("photo-radius", "0px")} !importa
 ${S} .fm-card-title{font-size:1.15rem !important;font-weight:700;line-height:1.1;letter-spacing:-.01em;text-transform:${v("title-case", "none")} !important;}
 ${S} .fm-card-price{font-variant-numeric:tabular-nums;font-size:.95rem !important;font-weight:600;border:0 !important;padding:0 !important;}
 ${S} [data-studio-label="Product grid"] > .fm-card :is(.fm-card-creator,.fm-card-formats,.fm-card-rating){font-size:.72rem;}
-${S} .custom-btn,${S} .store-btn-primary,${S} button.custom-btn{border:${v("outline-w", "2px")} solid ${INK_I};border-radius:${v("btn-radius", "0px")} !important;text-transform:${v("btn-case", "uppercase")};letter-spacing:.08em;font-size:.74rem;font-weight:700;box-shadow:${NO_BTN_SHADOW(v("shadow", INK_I))};transition:background-color .12s ease,color .12s ease;}
+${S} .custom-btn,${S} .store-btn-primary,${S} button.custom-btn{--template-btn-border:${v("outline-w", "2px")} solid ${INK_I};border:var(--template-btn-border);border-radius:${v("btn-radius", "0px")} !important;text-transform:${v("btn-case", "uppercase")};letter-spacing:.08em;font-size:.74rem;font-weight:700;box-shadow:${NO_BTN_SHADOW(v("shadow", INK_I))};transition:background-color .12s ease,color .12s ease;}
 ${S} input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file]),${S} select,${S} textarea{border-radius:${v("btn-radius", "0px")} !important;border-width:1px;}
 ${S} [class*="rounded-"]:not([class*="rounded-full"]):not([style*="border-radius"]){border-radius:${v("corner", "0px")} !important;}
 ${S} .glass-card{backdrop-filter:none;border:calc(${v("outline-w", "2px")} / 2) solid ${INK_I};border-radius:${v("corner", "0px")};background:var(--surface);}
