@@ -73,3 +73,20 @@ for (const [name, setup] of cases) {
     });
   }
 }
+
+it('edits the French words beside the English ones, and a saved French word shows (25.9)', async () => {
+  m.notifications = { order_confirmation: { subject: 'Thanks! {{order_id}}', body: 'Hi', fr: { subject: 'Merci! {{order_id}}' } } };
+  const { root } = await renderEditor();
+  const subject = () => [...container.querySelectorAll('input')].find(i => /\{\{order_id\}\}/.test(i.value)) as HTMLInputElement;
+  const tab = (name: string) => [...container.querySelectorAll('[role="tab"]')].find(b => b.textContent === name) as HTMLButtonElement;
+  expect(subject().value).toBe('Thanks! {{order_id}}');
+  await act(async () => { tab('French').click(); });
+  expect(subject().value).toBe('Merci! {{order_id}}');
+  expect(container.textContent).toContain('Merci pour votre achat');
+  const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+  await act(async () => { const input = subject(); setValue.call(input, 'Bravo {{order_id}}'); input.dispatchEvent(new Event('input', { bubbles: true })); });
+  expect(subject().value).toBe('Bravo {{order_id}}');
+  await act(async () => { tab('English').click(); });
+  expect(subject().value).toBe('Thanks! {{order_id}}');
+  await act(async () => root.unmount());
+});
