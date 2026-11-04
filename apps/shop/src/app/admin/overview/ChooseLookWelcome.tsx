@@ -96,7 +96,7 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
   );
 
   const card = (theme: LibraryTheme, suggestion: boolean) => {
-    const look = lookPreview(theme);
+    const look = lookPreview(theme, settings?.design);
     return (
       <li key={theme.id} data-look-card={theme.id} style={{ display: "grid", gap: 10, alignContent: "start", minWidth: 0 }}>
         <button type="button" onClick={() => { setPage("home"); setTrying(theme.id); }} disabled={!!busy} aria-label={`Try on ${theme.name}`}
@@ -179,7 +179,7 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
           <PrimaryButton busy={busy === current.id} disabled={!!busy && busy !== current.id} onClick={() => void choose(current)}>Use {current.name}</PrimaryButton>
         </>}>
         {current && (() => {
-          const look = lookPreview(current);
+          const look = lookPreview(current, settings?.design);
           return (
             <div onKeyDown={onStageKey} style={{ display: "grid", gap: 16 }}>
               <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>

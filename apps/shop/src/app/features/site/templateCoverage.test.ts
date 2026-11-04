@@ -46,7 +46,7 @@ const parts = (selector: string) => selector.split(/,(?=\[data-fm-store\])/).map
 
 // Shapes Studio controls own. A declaration of `prop` on an element matched by `sel` must read one of the knobs.
 const OWNED: { what: string; sel: RegExp; props: Record<string, string[]> }[] = [
-  { what: "buttons", sel: /\.custom-btn|\.store-btn-primary/, props: { "border-radius": ["--tpl-btn-radius"], "text-transform": ["--tpl-btn-case"], "box-shadow": ["--tpl-btn-shadow"], border: ["--tpl-outline-w"] } },
+  { what: "buttons", sel: /\.custom-btn|\.store-btn-primary|\.fm-newsletter-btn/, props: { "border-radius": ["--tpl-btn-radius"], "text-transform": ["--tpl-btn-case"], "box-shadow": ["--tpl-btn-shadow"], border: ["--tpl-outline-w"] } },
   { what: "shop photos", sel: /\.fm-photo-frame$/, props: { "border-radius": ["--tpl-photo-radius"], border: ["--tpl-frame-w"] } },
   { what: "card titles", sel: /\.fm-card-title$/, props: { "text-transform": ["--tpl-title-case"] } },
   { what: "headings", sel: /(^|\s)h1$/, props: { "text-transform": ["--tpl-heading-case"] } },
@@ -202,8 +202,35 @@ describe("template knobs", () => {
     // Important, so it beats an inline border and the book page's own important one; written once for both controls.
     const both = templateKnobCss({ templateOutlineColor: "#123456", templateOutlineWidth: 3 });
     expect(both.split("border:var(--template-btn-border) !important").length).toBe(2);
-    expect(templateKnobCss({ templateOutlineColor: "#123456" })).toContain(".store-btn-primary{border:var(--template-btn-border) !important;}");
+    expect(templateKnobCss({ templateOutlineColor: "#123456" })).toContain(".store-btn-primary,[data-fm-store] button.custom-btn,[data-fm-store] .fm-newsletter-btn{border:var(--template-btn-border) !important;}");
     expect(templateKnobCss({ buttonRadius: 4 })).not.toContain("--template-btn-border"); // untouched: buttons as before
+  });
+
+  it("reach Add to bag's own shadow once a shadow control is set, but leave its Glow animation alone", () => {
+    for (const id of TEMPLATE_STYLE_IDS) {
+      const btn = declarations(TEMPLATE_CSS[id]).filter((d) => /\.store-btn-primary/.test(d.selector) && /\.custom-btn/.test(d.selector));
+      expect(btn.some((d) => d.prop === "--template-btn-shadow"), `${id} does not write --template-btn-shadow`).toBe(true);
+      // Hover and pressed shadows go through the same variable, so the important rule keeps them.
+      for (const d of btn.filter((x) => x.prop === "box-shadow")) expect(d.value, `${id} ${d.selector}`).toContain("var(--tpl-");
+    }
+    for (const key of ["buttonShadow", "templateShadowColor", "templateShadowOffset"]) {
+      const out = templateKnobCss({ [key]: SAMPLE[key] });
+      expect(out, key).toContain(".custom-btn:not(.fm-cta-glow):hover");
+      expect(out, key).toContain("{box-shadow:var(--template-btn-shadow) !important;}");
+    }
+    expect(templateKnobCss({ buttonShadow: true, templateShadowOffset: 2 }).split("var(--template-btn-shadow) !important").length).toBe(2);
+    expect(templateKnobCss({ buttonRadius: 4 })).not.toContain("--template-btn-shadow");
+  });
+
+  it("draw the newsletter sign-up button like every other button", () => {
+    const base = themeStyleCss({ themeStyle: "shelf" });
+    // Its inline border would beat the template's, so the template's own border and shadow are important on it.
+    expect(base).toContain(".fm-newsletter-btn{border:var(--template-btn-border) !important;box-shadow:var(--template-btn-shadow) !important;}");
+    for (const id of TEMPLATE_STYLE_IDS) {
+      const btn = declarations(TEMPLATE_CSS[id]).filter((d) => /\.fm-newsletter-btn/.test(d.selector) && d.prop === "--template-btn-border");
+      expect(btn.length, `${id} does not style the newsletter button`).toBeGreaterThan(0);
+    }
+    expect(themeStyleCss({ themeStyle: "default" })).not.toContain("fm-newsletter-btn"); // other looks: unchanged
   });
 
   it("come after the template, so a changed control wins", () => {

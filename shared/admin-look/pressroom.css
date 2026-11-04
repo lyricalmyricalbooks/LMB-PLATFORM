@@ -393,7 +393,8 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-composer-time input { min-height: var(--rp-touch); font-size: 16px; padding: 0 10px; border: var(--rp-hair) solid var(--rp-border-strong); border-radius: var(--rp-radius); background: var(--rp-surface); color: var(--rp-text); max-width: 100%; }
 .rp-composer-preview { display: flex; flex-direction: column; gap: 6px; position: sticky; top: 0; }
 .rp-composer-card { border: var(--rp-hair) solid var(--rp-border); border-radius: var(--rp-radius-lg); background: var(--rp-surface); overflow: hidden; }
-.rp-composer-card img, .rp-composer-blank { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; background: var(--rp-surface-2); }
+.rp-composer-card img, .rp-composer-blank { display: block; width: 100%; aspect-ratio: 1; object-fit: contain; background: var(--rp-surface-2); }
+.rp-composer-card[data-square="false"] img { aspect-ratio: auto; max-height: 420px; }
 .rp-composer-blank { display: grid; place-items: center; color: var(--rp-text-subtle); font-size: var(--rp-text-sm); }
 .rp-composer-card p { margin: 10px 12px 4px; font-size: var(--rp-text-sm); white-space: pre-line; overflow-wrap: anywhere; max-height: 9.5em; overflow: hidden; }
 .rp-composer-card .rp-hint { display: block; margin: 0 12px 10px; }
