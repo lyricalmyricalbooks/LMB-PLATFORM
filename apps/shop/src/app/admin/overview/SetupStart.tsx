@@ -20,6 +20,7 @@ import { GoogleStage } from "./GoogleStage";
 import { FinalCheckStage } from "./FinalCheckStage";
 import { ShopOpenedCard, publicAddress } from "./ShopOpenedCard";
 import { MoveProgressCard } from "./MoveProgressCard";
+import { chosenLook, keptFile, type SetupHandover } from "../setupHandover";
 
 // The welcome pulls in Studio's theme library and switcher, so it loads only for a shop that will show it.
 const ChooseLookWelcome = lazy(() => import("./ChooseLookWelcome").then(m => ({ default: m.ChooseLookWelcome })));
@@ -40,6 +41,8 @@ export function SetupStart({ books, orders, readiness, settings, onOpen, onSetWa
   onRetrySettings?: () => void;
 }) {
   const [doc, setDoc] = useState<FirstWeekDoc | null>(null);
+  // What the press set up before its shop existed (code plan 18.9); null for a shop made without setup.
+  const [handover, setHandover] = useState<SetupHandover | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   // Set once Open your shop took the wall down here, so the step ticks before the Overview reads the settings again.
   const [opened, setOpened] = useState(false);
@@ -50,8 +53,9 @@ export function SetupStart({ books, orders, readiness, settings, onOpen, onSetWa
   const load = useCallback(() => {
     let live = true;
     setState("loading");
-    Promise.resolve().then(() => adminApi.getFirstWeek())
-      .then(d => { if (live) { setDoc(d); setState("ready"); } })
+    // The hand-over only adds to the steps: when it can't be read, they work as they do for any shop.
+    Promise.resolve().then(() => Promise.all([adminApi.getFirstWeek(), Promise.resolve().then(() => adminApi.getSetupHandover()).catch(() => null)]))
+      .then(([d, h]) => { if (live) { setDoc(d); setHandover(h); setState("ready"); } })
       .catch(() => { if (live) setState("error"); });
     return () => { live = false; };
   }, []);
@@ -90,7 +94,7 @@ export function SetupStart({ books, orders, readiness, settings, onOpen, onSetWa
       await adminApi.updateFirstWeek({ bring });
       setDoc({ ...doc, bring });
     };
-    return <BringShopStage books={books} onDone={bringDone} />;
+    return <BringShopStage books={books} onDone={bringDone} kept={keptFile(handover)} />;
   }
   if (step === "look") {
     const done = async (welcome: WelcomeDone) => {
@@ -99,7 +103,7 @@ export function SetupStart({ books, orders, readiness, settings, onOpen, onSetWa
     };
     return (
       <Suspense fallback={<SectionCard title="Choose your look"><LoadingState label="Opening the looks…" /></SectionCard>}>
-        <ChooseLookWelcome publishes={doc.publishes} books={ownBooks(books)} settings={settings} onDone={done} onRetrySettings={onRetrySettings} />
+        <ChooseLookWelcome publishes={doc.publishes} books={ownBooks(books)} settings={settings} onDone={done} onRetrySettings={onRetrySettings} chosen={chosenLook(handover)} />
       </Suspense>
     );
   }

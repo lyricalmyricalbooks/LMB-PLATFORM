@@ -87,6 +87,7 @@ import { returnSettingsProblem, type ReturnSettings } from "../../shared/returnR
 import type { LocalFulfillmentConfig } from "../features/site/types";
 import { dailyTrafficBetween } from "./dailyTrafficCache";
 import { exampleProducts } from "./exampleProducts";
+import { joinParts } from "./setupHandover";
 
 /** books/{id}/private/admin: cost prices, shelf codes and other fields shoppers must not read (bookPrivate.ts). */
 const privateBookRef = (bookId: string) => doc(db, "books", bookId, "private", "admin");
@@ -2065,6 +2066,19 @@ export const adminApi = {
   getFirstWeek: async () => {
     const snap = await getDoc(doc(db, "firstWeek", "start"));
     return snap.exists() ? (snap.data() as import("./firstWeek").FirstWeekDoc) : null;
+  },
+  /**
+   * What the press set up before its shop existed (code plan 18.9): `firstWeek/handover`, written once by the platform's
+   * setup step 20 (setup/handover.js) with the look it chose and the product file it kept. Null when there is none.
+   */
+  getSetupHandover: async () => {
+    const snap = await getDoc(doc(db, "firstWeek", "handover"));
+    return snap.exists() ? (snap.data() as import("./setupHandover").SetupHandover) : null;
+  },
+  /** The kept product file's text, put back together from its `parts` pieces. Throws when a piece is missing. */
+  getSetupHandoverFile: async (parts: number) => {
+    const snaps = await Promise.all(Array.from({ length: parts }, (_, n) => getDoc(doc(db, "firstWeek", "handover", "parts", String(n)))));
+    return joinParts(snaps.map(s => (s.exists() ? (s.data() as { text?: unknown }).text : undefined)));
   },
   /**
    * Ticks a step by hand (`done.<id>`), hides the guide (`hiddenAt`), records Choose your look (`welcome`, plan 6.3) or

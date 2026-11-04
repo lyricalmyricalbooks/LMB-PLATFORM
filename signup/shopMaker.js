@@ -56,6 +56,10 @@ export const STEP_WORDS = Object.freeze({
   14: "emailing you the way in",
   15: "checking everything works",
   16: "linking your shop and stockroom",
+  17: "tidying up your shop's running costs",
+  18: "setting your shop's spending limit",
+  19: "switching on sign-in codes",
+  20: "bringing over your look and your books",
 });
 
 // Setup steps stop "for a person" when what they find is neither done nor untouched: a retry can't fix those.
@@ -68,6 +72,8 @@ export const retryable = (error) => !NEEDS_A_PERSON.test(String(error ?? ""));
 export function shopFromSignup(row, { testMode }) {
   return {
     shopId: row.shopId,
+    // Opened from the front door's setup mode (18.8): step 20 hands that setup over (setup/handover.js).
+    ...(row.pressId ? { pressId: row.pressId } : {}),
     pressName: row.pressName,
     ownerEmail: row.ownerEmail,
     plan: row.plan,

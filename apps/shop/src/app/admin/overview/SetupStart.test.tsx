@@ -4,7 +4,11 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { bringHelp } from "../bringShop";
 
-const api = vi.hoisted(() => ({ getFirstWeek: vi.fn(), updateFirstWeek: vi.fn(async () => {}), updateSettings: vi.fn(async () => {}) }));
+const api = vi.hoisted(() => ({
+  getFirstWeek: vi.fn(), updateFirstWeek: vi.fn(async () => {}), updateSettings: vi.fn(async () => {}),
+  getSetupHandover: vi.fn(async () => null as any), getSetupHandoverFile: vi.fn(async (_parts: number) => ""),
+  getPublicSettings: vi.fn(async () => null), getShippingProfiles: vi.fn(async () => []),
+}));
 const store = vi.hoisted(() => {
   class ThemeConflictError extends Error {}
   return {
@@ -15,6 +19,7 @@ const store = vi.hoisted(() => {
 });
 vi.mock("../api", () => ({ adminApi: api }));
 vi.mock("../themeStore", () => store);
+vi.mock("../inventoryLinkApi", () => ({ inventoryLinkApi: { links: async () => ({}) } }));
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 const { SetupStart } = await import("./SetupStart");
 
@@ -293,3 +298,59 @@ describe("Get started, step 8 inside the run (plan 17.13)", () => {
   });
 });
 
+
+describe("What the press set up before its shop existed (code plan 18.9)", () => {
+  const kept = { pressId: "press-moth", look: "press-riso", adminLook: "paper", at: "then", file: { name: "my zines.csv", rows: 1, at: "2026-11-03T09:00:00.000Z", parts: 2 } };
+
+  it("the bring step offers the file kept in setup, and opens it in the importer's preview", async () => {
+    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" } });
+    api.getSetupHandover.mockResolvedValue(kept);
+    api.getSetupHandoverFile.mockResolvedValue("Title,Price,Stock\nMoth Zine,8,20\n");
+    await mount({ waitForWelcome: false });
+    expect(text()).toContain("Your file from setup is here");
+    expect(text()).toContain("my zines.csv, 1 book, kept on November 3");
+    expect(button("Choose a different file")).toBeTruthy();
+    await act(async () => { button("Bring in my file")!.click(); });
+    await waitFor(() => /Moth Zine/.test(text()));
+    expect(api.getSetupHandoverFile).toHaveBeenCalledWith(2);
+    expect(text()).toContain("Import books from a spreadsheet");
+    expect(text()).toContain("Moth Zine");
+    expect(api.updateFirstWeek).not.toHaveBeenCalled();
+  });
+
+  it("a kept file that can't be read back says so, and the other ways stay open", async () => {
+    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" } });
+    api.getSetupHandover.mockResolvedValue(kept);
+    api.getSetupHandoverFile.mockRejectedValueOnce(new Error("offline"));
+    await mount({ waitForWelcome: false });
+    await act(async () => { button("Bring in my file")!.click(); });
+    await flush();
+    expect(document.querySelector("[role=alert]")?.textContent).toContain("Your file from setup couldn't be opened");
+    expect(text()).not.toContain("Import books from a spreadsheet");
+    expect(button("Start fresh")).toBeTruthy();
+  });
+
+  it("a shop whose hand-over can't be read still runs its steps as usual", async () => {
+    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" } });
+    api.getSetupHandover.mockRejectedValueOnce(new Error("offline"));
+    await mount({ waitForWelcome: false });
+    expect(text()).toContain("Where do you sell now?");
+    expect(text()).not.toContain("Your file from setup");
+  });
+
+  it("the look step opens on the look chosen in setup, and every look is one tap away", async () => {
+    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true } });
+    api.getSetupHandover.mockResolvedValue(kept);
+    await mount({ waitForWelcome: false });
+    await waitFor(() => /look you chose/.test(text()));
+    expect(text()).toContain("Welcome to Moth Press. Here's the look you chose");
+    expect(document.querySelectorAll("ul[aria-label='The look you chose'] [data-look-card]").length).toBe(1);
+    expect(document.querySelector("[data-look-card='press-riso']")).not.toBeNull();
+    expect(document.querySelector("[role=radio][aria-checked=true]")).toBeNull();
+    await act(async () => { button("See every look")!.click(); });
+    expect(text()).toContain("Welcome to Moth Press. Choose your look");
+    expect(document.querySelector("ul[aria-label='Suggested looks']")).not.toBeNull();
+    // The admin look chosen in setup is the one picked here.
+    expect(document.querySelector("[role=radio][aria-checked=true]")?.textContent).toContain("Paper");
+  });
+});
