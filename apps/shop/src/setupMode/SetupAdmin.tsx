@@ -55,14 +55,17 @@ export function SetupAdmin(props: {
   press: SetupPress; door: SetupDoor; lists: SetupLists; email: string; onSignOut: () => void; helpUrl: string; termsUrl?: string;
   /** Where a press sees its earlier help requests (the platform's account page). */
   accountUrl?: string;
-  /** The platform's help answers by id, shown in place; empty (links into the help centre) when they didn't load. */
-  answers?: HelpAnswers;
+  /**
+   * The platform's help answers by id, shown in place; empty (links into the help centre) when they didn't load. Given
+   * as what the shop sells → answers, they follow a change in Settings › General at once (code plan 12.18).
+   */
+  answers?: HelpAnswers | ((sells: string | null) => HelpAnswers);
 }) {
   return <ToastProvider><SetupAdminInner {...props} /></ToastProvider>;
 }
 
-function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl, termsUrl = "/terms/", accountUrl = "/account/", answers = NO_ANSWERS }: {
-  press: SetupPress; door: SetupDoor; lists: SetupLists; email: string; onSignOut: () => void; helpUrl: string; termsUrl?: string; accountUrl?: string; answers?: HelpAnswers;
+function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl, termsUrl = "/terms/", accountUrl = "/account/", answers: given = NO_ANSWERS }: {
+  press: SetupPress; door: SetupDoor; lists: SetupLists; email: string; onSignOut: () => void; helpUrl: string; termsUrl?: string; accountUrl?: string; answers?: HelpAnswers | ((sells: string | null) => HelpAnswers);
 }) {
   const [press, setPress] = useState(first);
   const [plans, setPlans] = useState<PlanList | null>(null);
@@ -71,6 +74,7 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const appearance = useMemo(readAppearance, []);
   const w = useMemo(() => adminWordsFor(press.sells || null), [press.sells]);
+  const answers = useMemo(() => (typeof given === "function" ? given(press.sells || null) : given), [given, press.sells]);
 
   const [plansFailed, setPlansFailed] = useState(false);
   const loadPlans = () => { setPlansFailed(false); door.plans().then(setPlans, () => setPlansFailed(true)); };
