@@ -72,7 +72,7 @@ export function fakeGoogle({ failOnce = [], refuse = [] } = {}) {
       world.codes.set(code, { email, scopes });
       return code;
     },
-    authorizeUrl: ({ state, scopes }) => `https://accounts.google.example/allow?state=${state}&scope=${encodeURIComponent(scopes.join(" "))}`,
+    authorizeUrl: ({ state, scopes, loginHint }) => `https://accounts.google.example/allow?state=${state}&scope=${encodeURIComponent(scopes.join(" "))}${loginHint ? `&login_hint=${encodeURIComponent(loginHint)}` : ""}`,
     async exchangeCode(code) {
       const found = world.codes.get(code);
       if (!found) throw new GoogleError(400, "Bad code", { grant: "invalid_grant" });
