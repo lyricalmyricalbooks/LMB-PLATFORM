@@ -16,7 +16,7 @@ const READ = 500;
 export const KIND_WORDS = Object.freeze({
   "owner-welcome": "Welcome", "app-added": "App added", "shop-starting": "Shop being made", "setup-ending": "Setup ending soon",
   "platform-fee-changing": "Order fee changing", "health-alert": "Shop health alert", "invite": "Team invitation",
-  "support-received": "Help request received", "support-reply": "Help request answered", "trial-ending": "Trial ending",
+  "support-received": "Help request received", "support-new": "Help request (to the platform team)", "support-reply": "Help request answered", "trial-ending": "Trial ending",
   "card-needed": "Card needed", "newsletter-paused": "Newsletter paused", "domain-live": "Web address live",
   "quiet-shop": "Quiet shop nudge", "domain-expiring": "Web address expiring", "domain-not-pointing": "Web address not pointing at the shop",
   "own-email-paused": "Own email address paused", "payment-failed": "Plan payment failed", "payment-needs-confirming": "Payment needs confirming",

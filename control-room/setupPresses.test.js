@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { GOING_SOON_DAYS, STUCK_OPENING_HOURS, createSetupDesk, setupRoutes, setupSummary } from "./setupPresses.js";
+import { GOING_SOON_DAYS, STUCK_OPENING_HOURS, createSetupDesk, guideOf, setupRoutes, setupSummary } from "./setupPresses.js";
 import { controlRoomAdmins } from "./controlRoom.js";
 import { SETUP_EXPIRY_DAYS, newPressRecord } from "../signup/pressRecord.js";
 import { fakeFrontDoorStores, fakeVerifyIdToken } from "../signup/fakes.js";
@@ -98,4 +98,18 @@ test("the page has a Setting up page that loads the route, and both web doors se
   for (const door of ["../server/world.js", "../walkthrough/world.js"]) {
     assert.match(readFileSync(new URL(door, import.meta.url), "utf8"), /setupRoutes\(setupDesk\)/, door);
   }
+});
+
+test("how far through the setup guide: the shop's own steps, counted the same way", () => {
+  const ts = readFileSync(new URL("../apps/shop/src/setupMode/pages.ts", import.meta.url), "utf8");
+  const body = /export function guideSteps[\s\S]*?\n}\n/.exec(ts)[0];
+  const shopIds = [...body.matchAll(/\bid: "([a-z]+)"/g)].map((m) => m[1]);
+  const record = { plan: "", pressName: "", sells: "", country: "", look: "", moving: "", stagedImport: null, status: "setup" };
+  assert.deepEqual(guideOf(record).steps.map((s) => s.id).sort(), [...new Set(shopIds)].sort(), "same steps as the shop's guide");
+  assert.deepEqual([guideOf(record).done, guideOf(record).total, guideOf(record).next], [0, 4, "Pick what to set up"], "the bring-over step counts only once done");
+  const halfway = { ...record, plan: "both", pressName: "Moth Press", sells: "books", country: "CA" };
+  assert.deepEqual([guideOf(halfway).done, guideOf(halfway).total, guideOf(halfway).next], [2, 4, "Choose the website's look"]);
+  const stockroom = { ...halfway, plan: "stockroom", stagedImport: { rows: 3 } };
+  assert.deepEqual([guideOf(stockroom).done, guideOf(stockroom).total, guideOf(stockroom).next], [3, 4, "Create the shop"], "no look step without a website");
+  assert.deepEqual([guideOf({ ...halfway, look: "riso", status: "opening" }).done, guideOf({ ...halfway, look: "riso", status: "opening" }).next], [4, null]);
 });

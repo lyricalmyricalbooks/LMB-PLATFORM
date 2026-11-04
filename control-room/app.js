@@ -720,6 +720,15 @@ async function loadTickets() {
   }
 }
 
+// A request sent from setup mode's Help has no shop yet: the press's name is in its first message
+// (apps/shop setupMode/SetupHelp.tsx), so it is labelled as a press setting up.
+const SETUP_NOTE = /\(Sent while setting up (.+?)\.\)\s*$/;
+function setupNote(ticket) {
+  if (ticket.shopId) return null;
+  const name = SETUP_NOTE.exec(ticket.messages?.[0]?.body ?? "")?.[1];
+  return name ? `setting up ${name}, no shop yet` : null;
+}
+
 function ticketCard(ticket) {
   const answer = el("textarea", { className: "rp-textarea", maxLength: 5000, placeholder: "Your answer, emailed to the press" });
   answer.setAttribute("aria-label", `Answer to ${ticket.email}`);
@@ -751,7 +760,7 @@ function ticketCard(ticket) {
   return sheet({
     title: ticket.subject,
     tone, pillWords: words,
-    metaParts: [ticket.pressName ? `${ticket.pressName} (${ticket.shopId})` : null, ticket.email, `opened ${when(ticket.openedAt)}`, ticket.id],
+    metaParts: [ticket.pressName ? `${ticket.pressName} (${ticket.shopId})` : setupNote(ticket), ticket.email, `opened ${when(ticket.openedAt)}`, ticket.id],
     body: ticket.messages.map((m) => el("div", { className: "cr-quote", dataset: { from: m.from } },
       el("p", { className: "cr-meta", textContent: `${m.from === "press" ? ticket.email : m.by} · ${when(m.at)}` }),
       el("div", { textContent: m.body }))),
@@ -2119,7 +2128,8 @@ async function loadSetup() {
           meta(p.import ? `product file: ${p.import.rows ?? "?"} rows` : null, LANGUAGE_CHOICE_WORDS[p.language] ?? null)) },
         { header: "Last visit", render: (p) => el("div", {}, el("span", { className: "rp-mono", textContent: p.idleDays == null ? "" : daysWords(p.idleDays) }), meta(p.createdAt ? `signed up ${dateOnly(p.createdAt)}` : null)) },
         { header: "Where", render: (p) => el("div", {}, setupStatusCell(p),
-          meta(p.stillToDo.length ? `still to add: ${p.stillToDo.join(", ")}` : null, p.shopId ? `shop ${p.shopId}` : null, p.shopMessage || null,
+          meta(p.status === "setup" && p.guide ? `setup guide ${p.guide.done} of ${p.guide.total}${p.guide.next ? `, next: ${p.guide.next.toLowerCase()}` : ""}` : null,
+            p.stillToDo.length ? `still to add: ${p.stillToDo.join(", ")}` : null, p.shopId ? `shop ${p.shopId}` : null, p.shopMessage || null,
             Object.keys(p.warned).length ? `emailed ${Object.keys(p.warned).sort((a, b) => b - a).map((d) => `${d} days`).join(" and ")} before removal` : null,
             p.expiredAt ? `cleared ${dateOnly(p.expiredAt)}` : null)) },
       ],
