@@ -425,6 +425,15 @@ const STATUS_WORDS = { open: "Waiting for an answer", answered: "Answered", clos
 $("#open-help").addEventListener("click", () => openHelp().catch((failure) => { showFailure(status, failure); }));
 $("#help-back").addEventListener("click", () => loadShops().catch((failure) => { showFailure(status, failure); }));
 
+// The Get help links on the help, status and billing pages land on /account/#get-help: once signed in, that opens
+// the help form (the hash is cleared, so Back to your shops and a reload show the shops as usual).
+function openHelpFromLink() {
+  if (location.hash !== "#get-help" || !auth.currentUser) return;
+  history.replaceState(null, "", location.pathname + location.search);
+  openHelp().catch((failure) => { showFailure(status, failure); });
+}
+addEventListener("hashchange", openHelpFromLink);
+
 async function openHelp() {
   $("#help-shop").replaceChildren(new Option("Not about one shop", ""), ...myShops.map((shop) => new Option(shop.pressName, shop.shopId)));
   if (myShops.length === 1) $("#help-shop").value = myShops[0].shopId;
@@ -641,6 +650,7 @@ onAuthStateChanged(auth, async (user) => {
     }
   }
   await openShops();
+  openHelpFromLink();
 });
 
 // ── Colophon support asks before making changes (plan 19.6): approve or decline, and the shop's past support visits. ──

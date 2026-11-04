@@ -150,6 +150,9 @@ test("invites: bad input is refused in plain words, a second invite replaces the
   const w = world();
   const bad = await w.ask(OWNER, "POST", "/api/accounts/invite", { shopId: SHOP, email: "not-an-email", role: "staff" });
   assert.deepEqual([bad.status, bad.body.problems.email], [400, "Enter the email address to invite."]);
+  // A "/" would break the membership's record id later; it is refused here in plain words instead.
+  const slash = await w.ask(OWNER, "POST", "/api/accounts/invite", { shopId: SHOP, email: "cal/x@example.com", role: "staff" });
+  assert.deepEqual([slash.status, slash.body.problems?.email], [400, "Enter the email address to invite."]);
   assert.equal((await w.ask(OWNER, "POST", "/api/accounts/invite", { shopId: SHOP, email: CAL.email, role: "boss" })).status, 400);
   assert.equal((await w.ask(OWNER, "POST", "/api/accounts/invite", { shopId: SHOP, email: OWNER.email, role: "staff" })).status, 409, "the shop's own owner");
 
@@ -235,6 +238,10 @@ test("the page: one sign-in, every shop, owners manage the team; built without m
   }
   assert.doesNotMatch(app, /innerHTML|insertAdjacentHTML|document\.write/, "names and emails are shown as text only");
   assert.doesNotMatch(app, /node:/, "the page loads nothing made for Node");
+  // The help, status and billing pages link to /account/#get-help: the page opens the help form for it after sign-in.
+  assert.match(app, /location\.hash !== "#get-help"/);
+  assert.match(app, /await openShops\(\);\s*openHelpFromLink\(\);/);
+  assert.match(app, /addEventListener\("hashchange", openHelpFromLink\)/);
   const words = (page + app).toLowerCase();
   for (const rival of ["big cartel", "bigcartel", "shopify", "squarespace", "etsy", "wix", "woocommerce"]) assert.ok(!words.includes(rival), rival);
 });

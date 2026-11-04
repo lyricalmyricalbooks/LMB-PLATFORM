@@ -54,6 +54,12 @@ test("a setup record unseen for 60 days is due for removal, a recent one is not"
   assert.equal(setupExpired({ ...r, status: "opening" }, new Date("2027-06-01T00:00:00Z")), false);
 });
 
+test("a setup record whose last visit can't be read counts as unseen, so it can't stay forever", () => {
+  for (const lastSeenAt of ["not a date", "", null, undefined]) {
+    assert.equal(setupExpired({ ...record(), lastSeenAt }, new Date("2026-11-03T00:00:00Z")), true, String(lastSeenAt));
+  }
+});
+
 // The rules file is checked by its text here; the Firestore emulator run (waitlist/firestore-emulator.mjs) is the full test.
 test("the setup record rules let only its verified owner read it, and no one write it from a page", async () => {
   const { readFile } = await import("node:fs/promises");

@@ -60,7 +60,7 @@ export const ADDRESS_SUFFIX = ".web.app";
 // letters, digits and hyphens, starting with a letter and not ending with a hyphen. Google refuses ids holding the first
 // words; the rest are the platform's own.
 const ADDRESS = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
-const NOT_IN_AN_ADDRESS = Object.freeze(["google", "null", "undefined", "ssl"]);
+export const NOT_IN_AN_ADDRESS = Object.freeze(["google", "null", "undefined", "ssl"]);
 const RESERVED = Object.freeze(["admin", "api", "www", "colophon", "platform", "support", "help", "status", "signup", "accounts"]);
 
 /**
@@ -108,12 +108,18 @@ const clean = (value, max) => (typeof value === "string" ? value.replace(/\s+/g,
 
 /**
  * The start of a shop id from the press's name: lowercase letters, digits and hyphens, starting with a letter, at most
- * 24 characters (the server adds "-" and 5 characters, and Google allows 30).
+ * 24 characters (the server adds "-" and 5 characters, and Google allows 30). Words Google refuses in a project id
+ * ("Google Books" -> "books") are left out, so the address always passes `checkAddress`.
  */
 export function slugFromPressName(name) {
-  const base = clean(name, 200)
+  let words = clean(name, 200)
     .normalize("NFKD").replace(/[̀-ͯ]/g, "")
-    .toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, "-").replace(/^[^a-z]+/, "").replace(/-+$/, "")
+    .toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, "-");
+  for (let before = ""; before !== words;) {
+    before = words;
+    for (const word of NOT_IN_AN_ADDRESS) words = words.split(word).join("");
+  }
+  const base = words.replace(/-{2,}/g, "-").replace(/^[^a-z]+/, "").replace(/-+$/, "")
     .slice(0, 24).replace(/-+$/, "");
   return base.length >= 3 ? base : `press${base ? `-${base}` : ""}`.slice(0, 24);
 }

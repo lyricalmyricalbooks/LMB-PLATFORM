@@ -9,8 +9,9 @@ import { gcloudToken } from "../../release-check/run.js";
 import { PLATFORM_PROJECT } from "../../setup/real.js";
 import { runRetention } from "./retention.js";
 
-export async function realRetention({ fetch = globalThis.fetch, token = gcloudToken, print = console.log } = {}) {
-  const firestore = firestoreClient({ fetch, token, projectId: PLATFORM_PROJECT });
+/** `projectId`: the platform project; the hosted jobs server passes its own (server/jobs.js). */
+export async function realRetention({ fetch = globalThis.fetch, token = gcloudToken, projectId = PLATFORM_PROJECT, print = console.log } = {}) {
+  const firestore = firestoreClient({ fetch, token, projectId });
   return runRetention({ firestore, registry: firestoreRegistry(firestore), print });
 }
 

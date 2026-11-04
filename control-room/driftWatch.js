@@ -166,7 +166,11 @@ export function createDriftWatch({ registry, shopData, stockroomData = null, sho
 
   // A live shop's move: written to the row only when it changed (a move that was never stuck writes nothing).
   async function checkMove(row, nowMs) {
-    if (row.testShop === true || row.status !== "live" || row.closure || !shopData.get) return false;
+    if (row.testShop === true || row.status !== "live" || row.closure || !shopData.get) {
+      // A shop no longer looked at (closed, say) doesn't keep a stuck move from before.
+      if (row.moveStuck) await registry.updateShop(row.shopId, { moveStuck: null });
+      return false;
+    }
     const stuck = moveStuck(await shopData.get(row.shopId, "firstWeek/start"), nowMs);
     // The shop's own stalled-move email (apps/shop moveReminder, once per stall): when it went, if it was for this stall.
     if (stuck) {
@@ -204,7 +208,18 @@ export function createDriftWatch({ registry, shopData, stockroomData = null, sho
         } catch (failure) {
           tally.failed.push({ shopId: row.shopId, error: `newsletter: ${failure.message}` });
         }
-        if (!watched(row)) continue;
+        if (!watched(row)) {
+          // A press that stopped paying or was closed keeps no level from before (Today, the Shops list and its record
+          // read it), only when it was last emailed, so the 60 days between check-ins still hold if it comes back.
+          if (row.drift?.level) {
+            try {
+              await registry.updateShop(row.shopId, { drift: { at: new Date(nowMs).toISOString(), checkedInAt: row.drift.checkedInAt ?? null } });
+            } catch (failure) {
+              tally.failed.push({ shopId: row.shopId, error: failure.message });
+            }
+          }
+          continue;
+        }
         try {
           const { recent, before, fair } = await ordersOf(row, nowMs);
           const lastSignInAt = await lastSignInOf(row);

@@ -110,7 +110,8 @@ export function createTrialTips({ registry, auditLog, guide, email, store, setti
       for (const row of await registry.listShops()) {
         const shopId = row.shopId;
         try {
-          if (row.testShop === true || ["closed", "abandoned"].includes(row.status) || row.billing?.access === "closed") {
+          // A shop the platform closed (controlRoom.js `closure`) keeps its status and plan, so it is checked on its own.
+          if (row.testShop === true || ["closed", "abandoned"].includes(row.status) || row.closure || row.billing?.access === "closed") {
             skipped.push({ shopId, why: "not-a-trial-shop" });
             continue;
           }

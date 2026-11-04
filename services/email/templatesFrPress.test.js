@@ -5,12 +5,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { TEMPLATES } from "./templates.js";
-import { PRESS_TEMPLATES_FR, frenchMoney, planNameFr } from "./templatesFrPress.js";
+import { PRESS_TEMPLATES_FR, frenchMoment, frenchMoney, planNameFr } from "./templatesFrPress.js";
 import { PLAN_NAMES } from "../settings.js";
 import { platformSettings } from "../settings.js";
 import { TIPS } from "../trial-tips/index.js";
 import { START_NUDGE_WORDS } from "../trial-tips/startNudges.js";
 import { ROLE_WORDS } from "../../accounts/roles.js";
+import { browserWords } from "../../accounts/devices.js";
+import { requirementWords } from "../payments/requirements.js";
 
 const settings = platformSettings({});
 const words = { settings, pressName: "Moth Press" };
@@ -164,6 +166,25 @@ test("a twin refuses the same bad data the English email refuses", () => {
   assert.ok(checked > 30, `only ${checked} bad cases`);
 });
 
+test("what the platform itself fills in reads French: Stripe's needs, a browser, and the times it passes as ISO", () => {
+  // Every need requirements.js can name (and its catch-all) has French words.
+  const fields = ["external_account", "tos_acceptance.date", "company.verification.document", "individual.verification.document", "individual.dob.day", "individual.id_number", "company.tax_id", "company.address.city", "business_profile.url", "business_profile.mcc", "business_profile.support_phone", "business_type", "settings.payments.statement_descriptor", "owners", "individual.address.city", "individual.first_name", "individual.email", "individual.phone", "individual.relationship.title", "something.new"];
+  const needs = [...new Set(fields.map(requirementWords))];
+  assert.equal(needs.length, 20);
+  const pastDue = PRESS_TEMPLATES_FR["payments-past-due"]({ provider: "Stripe", needs, link: "https://moth-press.web.app/admin" }, words);
+  for (const need of needs) assert.ok(!pastDue.text.includes(need), `"${need}" is still English`);
+  assert.match(pastDue.text, /vos coordonnées bancaires, .* et quelques renseignements de plus\./);
+
+  const at = "2026-11-01T09:05:00.000Z";
+  for (const agent of ["", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit Safari/604.1"]) {
+    const device = PRESS_TEMPLATES_FR["new-device"]({ browser: browserWords(agent), at }, words);
+    assert.match(device.text, /le 1er novembre 2026 à 9 h 05 \(UTC\)/);
+    assert.doesNotMatch(device.text, /A browser|iPhone or iPad|2026-11-01T/);
+  }
+  const moved = PRESS_TEMPLATES_FR["recovery-approved"]({ oldEmail: "old@example.com", newEmail: "new@example.com", holdUntil: "2026-11-06T17:30:00.000Z" }, words);
+  assert.match(moved.text, /après le 6 novembre 2026 à 17 h 30 \(UTC\)/);
+});
+
 test("prices and plan names read the French way", () => {
   assert.equal(frenchMoney("$29.00"), "29,00 $");
   assert.equal(frenchMoney("US$1,234.50"), "1 234,50 US$");
@@ -174,6 +195,8 @@ test("prices and plan names read the French way", () => {
   for (const name of Object.values(PLAN_NAMES)) assert.notEqual(planNameFr(name), name, `${name} has a French name`);
   assert.equal(planNameFr("Shop and stockroom"), "Boutique et réserve");
   assert.equal(planNameFr("Custom"), "Custom");
+  assert.equal(frenchMoment("2026-11-01T09:05:00.000Z"), "1er novembre 2026 à 9 h 05");
+  assert.equal(frenchMoment("March 1, 2027"), "1er mars 2027");
   const settings = platformSettings({});
   const fr = PRESS_TEMPLATES_FR["trial-ending"]({ planName: "Shop", price: "$29.00", date: "November 17, 2026", link: "https://platform.example/a", hasCard: true }, { settings, pressName: "Moth Press" });
   assert.match(fr.text, /29,00 \$ par mois pour le forfait Boutique/);

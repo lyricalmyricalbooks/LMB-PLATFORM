@@ -159,6 +159,28 @@ test("resumed by a person: it sends again, and only new problems count from then
   assert.ok([...(w.registry.events.get("moth-press")?.values() ?? [])].some((e) => e.what === "newsletter-resumed" && e.by === "admin@example.com"));
 });
 
+test("after a resume, late complaints about emails sent before it don't pause the newsletter again", async () => {
+  const w = await make();
+  const sentAt = new Date(NOW).toISOString();
+  const late = (n, emailSentAt) => ({ ...event("email.complained", n), created_at: new Date(NOW + 240_000).toISOString(), data: { ...event("email.complained", n).data, created_at: emailSentAt } });
+  for (let n = 1; n <= 100; n += 1) await w.service.send("moth-press", newsletter(n));
+  await w.guard.record(event("email.complained", 1));
+  await w.guard.record(event("email.complained", 2));
+  w.tick(60_000);
+  await w.guard.resume("moth-press", { by: "admin@example.com", reason: "the press cleaned its list" });
+  w.tick(60_000);
+  for (let n = 101; n <= 110; n += 1) await w.service.send("moth-press", newsletter(n));
+  w.tick(60_000);
+  // Two people get round to marking the old (pre-pause) email as spam: they don't count.
+  assert.deepEqual(await w.guard.record(late(3, sentAt)), { counted: false, paused: false });
+  assert.deepEqual(await w.guard.record(late(4, sentAt)), { counted: false, paused: false });
+  assert.equal(await w.guard.isPaused("moth-press"), false);
+  // Complaints about the new emails still do.
+  const newSentAt = new Date(NOW + 120_000).toISOString();
+  await w.guard.record(late(5, newSentAt));
+  assert.equal((await w.guard.record(late(6, newSentAt))).paused, true);
+});
+
 test("the shop door answers a paused newsletter plainly, without a retry", async () => {
   const w = await make();
   await w.store.setState("moth-press", { paused: true, pausedAt: new Date(NOW).toISOString() });

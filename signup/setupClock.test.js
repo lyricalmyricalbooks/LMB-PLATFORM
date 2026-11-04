@@ -40,6 +40,12 @@ test("nothing is due before 30 days are left", () => {
   assert.equal(setupClockDue(record({ status: "open" }), day(400)), null);
 });
 
+test("a last visit that can't be read counts from when the record was made, so the clock still runs", () => {
+  const bad = record({ lastSeenAt: "not a date", createdAt: new Date(SEEN).toISOString() });
+  assert.equal(setupClockDue(bad, day(SETUP_EXPIRY_DAYS - 31)), null);
+  assert.equal(setupClockDue(bad, day(SETUP_EXPIRY_DAYS - 30))?.action, "warn");
+});
+
 test("two warnings, each once, then the setup is cleared with its kept file", async () => {
   const w = world();
   w.at(day(SETUP_EXPIRY_DAYS - 30));

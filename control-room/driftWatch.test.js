@@ -95,6 +95,20 @@ test("hosted, where the shop's sign-in can't be read yet, the orders decide alon
   assert.equal(w.sent.length, 0);
 });
 
+test("a drifting press the platform closes leaves Today and the Shops list's risk, keeping when it was emailed", async () => {
+  const w = await world();
+  await w.watch.sweep();
+  const emailed = (await w.registry.getShop("moth")).drift.checkedInAt;
+  await w.registry.updateShop("moth", { closure: { by: "admin@example.com", reason: "selling stolen goods", at: ago(0) } });
+  w.at(NOW + DAY);
+  await w.watch.sweep();
+  const drift = (await w.registry.getShop("moth")).drift;
+  assert.equal(drift.level, undefined);
+  assert.equal(drift.checkedInAt, emailed);
+  const { needs } = todaySummary({ rows: await w.registry.listShops(), settings, now: new Date(NOW + DAY) });
+  assert.deepEqual(needs.filter((n) => n.kind === "drift"), []);
+});
+
 test("Today lists the drifting presses with their reasons", async () => {
   const w = await world();
   await w.watch.sweep();

@@ -35,6 +35,22 @@ test("a job runs once per call and is recorded; a good run answers 200", async (
   assert.deepEqual(outside.other, []);
 });
 
+test("the health, backup, keep-times and drill jobs read the server's own platform project, never the default one", async () => {
+  const outside = fakeOutside();
+  const projects = new Set();
+  const fetch = async (url, init) => {
+    const match = /\/projects\/([^/]+)\/databases\//.exec(String(url));
+    if (match) projects.add(match[1]);
+    return outside.fetch(url, init);
+  };
+  const world = hostedWorld({ env: TEST_ENV, fetch, token: outside.token, log: () => {} });
+  for (const name of ["health-checks", "nightly-backups", "keep-times", "restore-drill"]) {
+    projects.clear();
+    await runnerFor(world, name)();
+    assert.deepEqual([...projects], [TEST_PROJECT], name);
+  }
+});
+
 test("a job that can't run yet is a failed run that says what it waits for, answered 500 so the scheduler notices", async () => {
   const logged = [];
   const { handle } = build(TEST_ENV, (line) => logged.push(line));

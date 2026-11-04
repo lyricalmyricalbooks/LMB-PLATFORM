@@ -44,6 +44,13 @@ test("each stage is nudged at most once, and the next stage gets its own nudge",
   assert.deepEqual(startNudgeDue({ day: 4, doc: next, record }), { nudge: { day: 4, stage: "look" }, why: "due" });
 });
 
+test("one nudge per nudge day: a press that finishes a stage after day 2's nudge hears nothing more until day 4", () => {
+  const record = { startNudges: { bring: { day: 2, at: "t" } } };
+  const next = step("details", "bring");
+  assert.deepEqual(startNudgeDue({ day: 3, doc: next, record }), { nudge: null, why: "already-sent" });
+  assert.deepEqual(startNudgeDue({ day: 4, doc: next, record }), { nudge: { day: 4, stage: "look" }, why: "due" });
+});
+
 test("tips off, days between, and a finished run send nothing", () => {
   assert.equal(startNudgeDue({ day: 2, doc: started, record: { off: true } }).why, "tips-off");
   assert.equal(startNudgeDue({ day: 3, doc: started, record: { off: true } }).why, "tips-off");

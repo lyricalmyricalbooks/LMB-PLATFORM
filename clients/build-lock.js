@@ -8,7 +8,10 @@
 // `withBuildLock(dir, work)` holds a lock file in the folder for the length of `work`, so the deploys queue instead.
 //
 // The lock is a file made with the "wx" flag (only one maker wins), holding who took it and when. A lock left behind
-// by a process that died, or older than `staleMs`, is taken over, so a crash never blocks releases for good.
+// by a process that died, or older than `staleMs`, is taken over, so a crash never blocks releases for good. Each holder
+// writes its own token and, when its work ends, removes the lock only while it still holds that token: a deploy whose
+// lock was taken over as too old never takes away the lock the next deploy now holds.
+import { randomUUID } from "node:crypto";
 import { open, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -29,9 +32,10 @@ export function buildLock({ now = () => Date.now(), sleep = (ms) => new Promise(
     for (;;) {
       try {
         const file = await open(path, "wx");
-        await file.writeFile(JSON.stringify({ pid, at: now() }));
+        const mine = JSON.stringify({ pid, at: now(), token: randomUUID() });
+        await file.writeFile(mine);
         await file.close();
-        return;
+        return mine;
       } catch (error) {
         if (error?.code !== "EEXIST") throw error;
       }
@@ -56,11 +60,11 @@ export function buildLock({ now = () => Date.now(), sleep = (ms) => new Promise(
 
   return async function withBuildLock(dir, work) {
     const path = join(dir, LOCK_FILE);
-    await take(path);
+    const mine = await take(path);
     try {
       return await work();
     } finally {
-      await rm(path, { force: true });
+      if ((await readFile(path, "utf8").catch(() => null)) === mine) await rm(path, { force: true });
     }
   };
 }

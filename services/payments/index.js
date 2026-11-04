@@ -20,7 +20,7 @@ export { activeTerms, billingMonth, createFeeLedger } from "./payAsYouSell.js";
  * @param {object} [deps.email] the email service (services/email), for the owner's one past-due email (7.9)
  * @param {object} [deps.feeLedger] the pay-as-you-sell ledger store (payAsYouSell.js; 6.19)
  */
-export function createPaymentsFromEnv({ env, fetch, registry, auditLog, accounts, squareTokens = null, squareStates = null, email = null, feeLedger = null, now }) {
+export function createPaymentsFromEnv({ env, fetch, registry, auditLog, accounts, squareTokens = null, squareStates = null, email = null, feeLedger = null, deliveryStats = null, now }) {
   const config = readServiceConfig(env);
   const squareReady = Boolean((config.square.apps.live || config.square.apps.test) && squareTokens && squareStates);
   return createPaymentService({
@@ -33,6 +33,7 @@ export function createPaymentsFromEnv({ env, fetch, registry, auditLog, accounts
     config,
     email,
     feeLedger,
+    deliveryStats,
     now,
   });
 }

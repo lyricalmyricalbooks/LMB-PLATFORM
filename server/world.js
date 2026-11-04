@@ -163,7 +163,9 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     stripe: platformBillingStripe({ env, fetch }), mode: "test", settings, customers: billingStores.customers, subscriptions: billingStores.subscriptions,
     registry, auditLog, email, now: nowMs, billing, feeLedger, live,
   });
-  const payments = createPaymentsFromEnv({ env, fetch, registry, auditLog, accounts: firestoreAccounts(platform), email, feeLedger, now: nowMs });
+  // Each Stripe event is counted per shop, for the control room's delivery counts and health (control-room/delivery.js).
+  const deliveryStats = firestoreDeliveryStats(platform);
+  const payments = createPaymentsFromEnv({ env, fetch, registry, auditLog, accounts: firestoreAccounts(platform), email, feeLedger, deliveryStats, now: nowMs });
 
   // Sign-up and the shop maker. Making the shop itself waits for the Google organization (15.5): a queued shop stays
   // queued, and the shop-maker job answers that it isn't switched on.
@@ -197,7 +199,6 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const recoveryStore = firestoreRecoveries(platform);
   const waitlist = firestoreWaitlist(platform);
   const accessRequests = createAccessRequests({ store: firestoreAccessRequests(platform), email, settings, now });
-  const deliveryStats = firestoreDeliveryStats(platform);
   // The shop's own sign-in (support visits, two-step reset, sign-in safety) waits for the platform's access to it.
   const shopAccess = { ...notConnectedClient(NOT_CONNECTED.supportSignIn, ["supportSignIn"]), ...notConnectedClient(NOT_CONNECTED.twoStepReset, ["removeTwoStep"]),
     ...notConnectedClient(NOT_CONNECTED.signInSafety, ["signInSafety"]) };
@@ -207,7 +208,8 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     activity, supportStore, recoveryStore, platformState, accessRequests, admins, now, presses: firestoreFrontDoorStores(platform).presses,
     googleReady: (at) => googleReadiness(readGoogleConfig(env), at),
     taxWatch: () => billing.taxWatch(),
-    delivery: deliveryReader({ deliveryStats, now }),
+    // Bounces and spam reports come from the newsletter guard's store (services/email/reputation.js), not hosted yet.
+    delivery: deliveryReader({ deliveryStats, sentLog, now }),
   });
   const controls = createPlatformControls({ admins, settingsStore: platformState, env, activity, waitlist, signups: stores.signups, now, invites });
   const backup = createBackupAccess({
@@ -259,7 +261,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const closing = createClosingSweep({ registry, auditLog, billing, email, projects: notConnectedClient(NOT_CONNECTED.projectDeletion, ["deleteProject"]), settings, now: nowMs });
 
   // What the jobs can run (server/jobs.js reads these); the jobs page's "Run now" runs the ones that need nothing more.
-  const parts = { env, fetch, token, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups };
+  const parts = { env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups };
   const runNow = {
     "dropped-apps": () => billing.closeDroppedApps(),
     "press-messages": () => pressMessages.sweep(),

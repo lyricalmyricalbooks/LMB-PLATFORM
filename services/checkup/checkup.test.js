@@ -57,7 +57,7 @@ test("a month with nothing to fix says the shop is in good shape", async () => {
 });
 
 test("nothing for a new, closed, paused, test or stockroom-only shop, or one with nothing to say", async () => {
-  for (const [row, why] of [[{ createdAt: "2026-10-25T00:00:00.000Z" }, "too-new"], [{ status: "closed" }, "not-live"], [{ billing: { access: "paused" } }, "not-live"], [{ testShop: true }, "not-live"], [{ ownerEmail: "" }, "no-owner"]]) {
+  for (const [row, why] of [[{ createdAt: "2026-10-25T00:00:00.000Z" }, "too-new"], [{ status: "closed" }, "not-live"], [{ status: "creating" }, "not-live"], [{ closure: { by: "admin@example.com", reason: "abuse", at: "2026-11-01T00:00:00Z" } }, "not-live"],[{ billing: { access: "paused" } }, "not-live"], [{ testShop: true }, "not-live"], [{ ownerEmail: "" }, "no-owner"]]) {
     const w = world({ row });
     assert.equal((await w.checkups.run()).skipped[0].why, why);
     assert.equal(w.email.sent.length, 0);

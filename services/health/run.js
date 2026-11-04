@@ -22,10 +22,11 @@ import { runNightlyBackups } from "./nightly.js";
 import { runRestoreDrill } from "./restoreDrill.js";
 import { runHealth } from "./runner.js";
 
-export async function realHealth({ job, env = process.env, fetch = globalThis.fetch, token = gcloudToken, print = console.log }) {
+/** `projectId`: the platform project; the hosted jobs server passes its own (server/jobs.js). */
+export async function realHealth({ job, env = process.env, fetch = globalThis.fetch, token = gcloudToken, projectId = PLATFORM_PROJECT, print = console.log }) {
   if (!["checks", "nightly", "drill"].includes(job)) throw new Error('say which job to run: "checks", "nightly" or "drill"');
   if (job !== "nightly" && !env.HEALTH_ALERT_TO) throw new Error("HEALTH_ALERT_TO is not set");
-  const platform = firestoreClient({ fetch, token, projectId: PLATFORM_PROJECT });
+  const platform = firestoreClient({ fetch, token, projectId });
   const registry = firestoreRegistry(platform);
   const shopDb = (projectId) => firestoreClient({ fetch, token, projectId });
   if (job === "nightly") return runNightlyBackups({ registry, backups: googleClients({ fetch, token }).backups, shopDb, print });

@@ -12,6 +12,9 @@ import { fakeSentLog } from "../services/email/fakes.js";
 import { createApi } from "../signup/api.js";
 import { fakeVerifyIdToken } from "../signup/fakes.js";
 import { platformSettings } from "../services/settings.js";
+import { fakeFirestore } from "../clients/fake-firestore.js";
+import { firestoreClient } from "../clients/firestore.js";
+import { firestoreRegistry } from "../clients/registry.js";
 
 const SHOP = "moth-press";
 const NOW = Date.parse("2026-11-02T12:00:00Z");
@@ -147,4 +150,24 @@ test("the door: platform admins only, a real shop, POST /api/control/timeline", 
   assert.equal(answer.status, 200);
   assert.deepEqual(answer.body.entries.map((e) => e.kind), ["support"]);
   assert.equal((await ask(ADMIN, { shopId: SHOP, before: "yesterday" })).status, 400);
+});
+
+test("Show older reaches every event, past the newest thousand the real registry reads at once", async () => {
+  const stored = fakeFirestore();
+  const registry = firestoreRegistry(firestoreClient({ fetch: stored.fetch, token: async () => "test-token", projectId: "demo-lmb-platform" }));
+  await registry.createShop(SHOP, { shopId: SHOP });
+  await registry.recordEvent(SHOP, { id: "old-billing", source: "billing", what: "plan-changed", status: "active", at: "2025-06-01T12:00:00.000Z" });
+  const start = Date.parse("2025-06-02T06:00:00Z");
+  for (let i = 0; i < 1100; i += 1) await registry.recordEvent(SHOP, { id: `b${i}`, kind: "backup", database: "(default)", ok: true, at: new Date(start + i * 3600_000).toISOString() });
+  let before;
+  let total = 0;
+  let sawBilling = false;
+  do {
+    const page = await shopTimeline({ shopId: SHOP, registry, before, limit: 500 });
+    total += page.entries.length;
+    sawBilling ||= page.entries.some((e) => e.kind === "billing");
+    before = page.next;
+  } while (before);
+  assert.equal(total, 1101);
+  assert.equal(sawBilling, true, "the oldest event is reachable");
 });

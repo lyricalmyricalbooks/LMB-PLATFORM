@@ -21,7 +21,7 @@ function make({ env = {}, invited = [], stores = fakeSignupStores() } = {}) {
     ...stores, registry: fakeRegistry(), email: fakePlatformEmail(), auth: fakeAuth(), settings: platformSettings(env),
     now: () => new Date("2026-10-28T15:00:00Z"), invites, suffix: () => "abcde",
     billing: { startTrial: async (args) => (trials.push(args.shopId), { status: "trialing", trialEnd: null }) },
-    live: async () => ({ signupDailyCap: 1 }),
+    live: async () => ({ signupOpen: true, signupDailyCap: 1 }),
   });
   return { signup, trials, stores, invites };
 }

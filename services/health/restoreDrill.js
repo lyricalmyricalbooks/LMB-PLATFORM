@@ -8,14 +8,16 @@
 //   { database }; `backups.removeScratch(shopId, database)`; `firestore.count(shopId, database, collection)` -> number.
 // - The result is the row's `restoreDrill: { at, ok, folder, counts: { <collection>: { restored, live } }, detail? }` and
 //   the health check `drill` (so the control room's list of shops with a problem shows it, and a failure sends the same
-//   `health-alert` email as any other check). It runs again after a month, not on every call.
+//   `health-alert` email as any other check). It runs once per calendar month in Toronto, not on every call.
 // - Only a shop with a backup is picked. The shop whose last drill is oldest goes first, so every shop is tried in turn.
 // - Nothing in the live shop is written: the scratch database is the only thing created, and it is always removed.
 import { leftOut } from "../release-runner/rings.js";
 import { HEALTH_ALERT, nextState } from "./runner.js";
 
 export const DRILL_COLLECTIONS = ["books", "orders", "reviews"];
-export const DRILL_EVERY_DAYS = 28;
+
+/** The month in Toronto, `YYYY-MM`: the drill runs once per calendar month (scheduled on the 1st, server/schedules.js). */
+export const drillMonth = (date) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit" }).format(date);
 
 const message = (error) => (error instanceof Error ? error.message : String(error));
 
@@ -29,7 +31,8 @@ export async function runRestoreDrill({ registry, backups, firestore, notify, co
   if (!config.alertTo) throw new Error("the restore drill needs an address to send alerts to (HEALTH_ALERT_TO)");
   const rows = (await registry.listShops()).filter((row) => !leftOut(row));
   const last = Math.max(0, ...rows.map((row) => Date.parse(row.restoreDrill?.at ?? 0) || 0));
-  if (last && (now().getTime() - last) / 86_400_000 < DRILL_EVERY_DAYS) return { ran: false, reason: "the last drill was less than a month ago" };
+  // A calendar month, not a count of days: 1 March comes 28 days after 1 February, a few seconds short in a run's time.
+  if (last && drillMonth(new Date(last)) === drillMonth(now())) return { ran: false, reason: "the last drill was less than a month ago" };
 
   const candidates = [];
   for (const row of [...rows].sort((a, b) => (Date.parse(a.restoreDrill?.at ?? 0) || 0) - (Date.parse(b.restoreDrill?.at ?? 0) || 0))) {

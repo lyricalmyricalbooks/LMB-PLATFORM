@@ -149,3 +149,29 @@ test("a store page whose next page points at another site stops there", async ()
   const read = await readOldShop("mothpress.example", { getJson });
   assert.equal(read.products, 1);
 });
+
+test("a site that ignores the page number brings each product over once, not once per page", async () => {
+  const same = { products: Array.from({ length: 100 }, (_, i) => product(i)) };
+  const asked = [];
+  const read = await readOldShop("mothpress.example", { getJson: async (url) => { asked.push(url); return url.includes("/products.json") ? same : null; } });
+  assert.equal(read.ok, true);
+  assert.equal(read.products, 100);
+  assert.equal(new Set(read.csv.trim().split("\n").slice(1).map((l) => l.split(",")[0])).size, 100);
+  // It stops at the first page that brings nothing new.
+  assert.equal(asked.length, 2);
+});
+
+test("a store list that repeats its last page stops there", async () => {
+  const item = (n) => ({ slug: `moth-${n}`, name: `Moth ${n}`, prices: { price: "2000", regular_price: "2000", currency_minor_unit: 2 } });
+  const full = Array.from({ length: 100 }, (_, i) => item(i));
+  const read = await readOldShop("mothpress.example", { getJson: async (url) => (url.includes("/wp-json/") ? full : null) });
+  assert.equal(read.products, 100);
+});
+
+test("a store page whose next-page link leads back to itself brings its products over once", async () => {
+  const page = { collection: { typeName: "products" }, items: [storeItem(1, [storeVariant("", 8)]), storeItem(2, [storeVariant("", 8)])], pagination: { nextPage: true, nextPageUrl: "https://mothpress.example/shop?offset=0" } };
+  const asked = [];
+  const read = await readOldShop("mothpress.example", { getJson: async (url) => { asked.push(url); return url.startsWith("https://mothpress.example/shop?") ? page : null; } });
+  assert.equal(read.products, 2);
+  assert.equal(asked.filter((u) => u.includes("/shop?")).length, 2);
+});

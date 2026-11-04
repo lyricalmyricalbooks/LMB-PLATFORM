@@ -42,6 +42,14 @@ test("the shutdown promise: 90 days' notice, a full download, and the press can 
   assert.match(shutdown, /hand that copy over to your press/);
 });
 
+test("every id on the page is used once, so the contents links land on their section", () => {
+  const shell = readFileSync(new URL("./index.html", import.meta.url), "utf8");
+  for (const lang of ["en", "fr"]) {
+    const ids = [...(shell + renderTerms(lang)).matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
+    assert.deepEqual(ids.filter((id, i) => ids.indexOf(id) !== i), [], lang);
+  }
+});
+
 test("marked DRAFT for the lawyer while it is one", () => {
   assert.equal(DRAFT, true);
   assert.match(renderTerms(), /<b>DRAFT\.<\/b> A lawyer hasn't read these words yet/);

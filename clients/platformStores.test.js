@@ -61,6 +61,40 @@ test("sign-up's accounts and sign-ups answer like the fakes", async () => {
   assert.equal(out[7][0].status, "making");
 });
 
+test("sign-up's claim on a press and the day's count answer like the fakes", async () => {
+  const row = (shopId) => ({ shopId, accountId: "uid-1", status: "queued" });
+  let seeds = 0;
+  const seed = async () => (seeds += 1, 1);
+  await sameAnswers(fakeSignupStores, (db) => firestoreSignupStores(db), async (stores) => [
+    await stores.signups.claim("uid-1", "name:moth press", row("moth-press-aaaaa"), { max: 2 }),
+    await stores.signups.claim("uid-1", "name:moth press", row("moth-press-bbbbb"), { max: 2 }),
+    await stores.signups.claim("uid-1", "name:ink press", row("moth-press-aaaaa"), { max: 2 }),
+    await stores.signups.claim("uid-1", "name:ink press", row("ink-press-aaaaa"), { max: 2 }),
+    await stores.signups.claim("uid-1", "name:third", row("third-press-aaaaa"), { max: 2 }),
+    // A removed sign-up gives its place back.
+    await stores.signups.remove("ink-press-aaaaa"),
+    await stores.signups.claim("uid-1", "name:third", row("third-press-aaaaa"), { max: 2 }),
+    (await stores.signups.listByStatus("queued")).map((r) => r.shopId).sort(),
+    await stores.signups.takeDaySlot("2026-11-03", { cap: 3, seed }),
+    await stores.signups.takeDaySlot("2026-11-03", { cap: 3, seed }),
+    await stores.signups.takeDaySlot("2026-11-03", { cap: 3, seed }),
+    await stores.signups.giveBackDaySlot("2026-11-03"),
+    await stores.signups.takeDaySlot("2026-11-03", { cap: 3, seed }),
+    await stores.signups.takeDaySlot("2026-11-03", { cap: 3, seed }),
+  ]);
+  assert.equal(seeds, 2, "a day is counted from the sign-ups once, then kept");
+});
+
+test("the real claim and day count hold when calls arrive together", async () => {
+  const { db } = realDb();
+  const { signups } = firestoreSignupStores(db);
+  const claims = await Promise.all(["aaaaa", "bbbbb", "ccccc"].map((s) => signups.claim("uid-1", "name:moth press", { shopId: `moth-press-${s}`, accountId: "uid-1" }, { max: 5 })));
+  assert.equal(claims.filter((c) => c.made).length, 1);
+  assert.equal(new Set(claims.map((c) => c.row.shopId)).size, 1, "the others get the winner's row back");
+  const slots = await Promise.all([1, 2, 3, 4].map(() => signups.takeDaySlot("2026-11-03", { cap: 2, seed: async () => 0 })));
+  assert.equal(slots.filter(Boolean).length, 2);
+});
+
 test("the real accounts store finds an account by its email, for account recovery", async () => {
   const { db } = realDb();
   const stores = firestoreSignupStores(db);
