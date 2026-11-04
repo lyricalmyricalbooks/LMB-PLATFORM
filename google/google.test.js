@@ -360,10 +360,15 @@ test("tokens are kept sealed, bound to their shop", async () => {
   const t = await setup();
   await t.signIn();
   const stored = t.connections.map.get(SHOP);
-  assert.ok(!JSON.stringify(stored).includes("ya29."), "no plain access token");
-  assert.ok(!JSON.stringify(stored).includes("1//"), "no plain refresh token");
+  const opened = unseal(t.config.tokenKey, `google/${SHOP}`, stored.sealed);
+  assert.match(opened.refreshToken, /^1\/\//);
+  // The whole tokens, not their short prefixes: random sealed text can hold "1//" by chance (base64 has 1 and /).
+  const kept = JSON.stringify(stored);
+  assert.ok(!kept.includes(opened.refreshToken), "no plain refresh token");
+  if (opened.accessToken) assert.ok(!kept.includes(opened.accessToken), "no plain access token");
+  const { sealed: _sealed, ...rest } = stored;
+  assert.ok(!/ya29\.|1\/\//.test(JSON.stringify(rest)), "no token prefix outside the sealed box");
   assert.throws(() => unseal(t.config.tokenKey, "google/lark-press", stored.sealed));
-  assert.match(unseal(t.config.tokenKey, `google/${SHOP}`, stored.sealed).refreshToken, /^1\/\//);
 });
 
 test("the door: a wrong key, an expired sign-in, a foreign return address and a switched-off link are refused", async () => {
