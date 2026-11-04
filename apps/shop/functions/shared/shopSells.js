@@ -8,13 +8,14 @@
 // instead of "your book" and "reading". The admin's Settings › Notifications shows the same defaults, and every word
 // stays editable there.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.GOODS_EMAILS = exports.SELLS = void 0;
+exports.PRODUCT_BASES = exports.GOODS_EMAILS = exports.SELLS = void 0;
 exports.sellsBooks = sellsBooks;
 exports.goodsWords = goodsWords;
 exports.wordsFor = wordsFor;
 exports.goodsDownloadNote = goodsDownloadNote;
 exports.emailDefaultsFor = emailDefaultsFor;
 exports.withShopEmailWords = withShopEmailWords;
+exports.productBase = productBase;
 /** The sign-up answers (signup/form.js PUBLISHES.options), in the form's order. */
 exports.SELLS = ["books", "zines", "comics", "prints", "mix", "mixed", "clothing", "shoes", "jewelry", "music", "other"];
 /** The answers that keep a books shop exactly as it is. */
@@ -95,4 +96,12 @@ function withShopEmailWords(answer, settings, bookDefaults) {
         out[id] = next;
     }
     return out;
+}
+// Web addresses (plan 12.18, 4 November 2026): a product's page is /books/<slug> in a books shop and /products/<slug>
+// in any other. Both addresses open every product page in every shop, so links shared before a change keep working.
+/** Every first part a product's web address may have. */
+exports.PRODUCT_BASES = ["books", "products"];
+/** The first part of this shop's product addresses: "books" for a books shop, "products" for any other. */
+function productBase(answer) {
+    return sellsBooks(answer) ? "books" : "products";
 }

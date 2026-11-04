@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { SOCIAL_FEED_FILE, merchantFeedItems } from "../features/site/merchantFeed.mjs";
 import { Dialog, PrimaryButton, SecondaryButton, StatusBadge } from "./riso/components";
 import { useShopWords } from "./shopWords";
+import { productSegment } from "../lib/productHref";
 
 const base = () => `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}`;
 const feedUrl = () => `${base()}/${SOCIAL_FEED_FILE}`;
@@ -16,7 +17,7 @@ const feedUrl = () => `${base()}/${SOCIAL_FEED_FILE}`;
 export function SocialFeedDialog({ open, onClose, books }: { open: boolean; onClose: () => void; books: any[] }) {
   const w = useShopWords();
   const [live, setLive] = useState<"checking" | "yes" | "no">("checking");
-  const feed = useMemo(() => (open ? merchantFeedItems(base(), books) : { items: [], skipped: [] }), [open, books]);
+  const feed = useMemo(() => (open ? merchantFeedItems(base(), books, { productBase: productSegment() }) : { items: [], skipped: [] }), [open, books]);
 
   useEffect(() => {
     if (!open) return;
@@ -34,7 +35,7 @@ export function SocialFeedDialog({ open, onClose, books }: { open: boolean; onCl
   };
 
   return (
-    <Dialog open={open} onClose={onClose} size="lg" title="Instagram, Facebook and Pinterest"
+    <Dialog open={open} onClose={onClose} size="lg" title="Instagram, Facebook and Pinterest" logo={["instagram", "facebook", "pinterest"]}
       description={w("Let people buy your books from your posts and pins. Facebook, Instagram and Pinterest read this file from your site every day.")}
       footer={<PrimaryButton onClick={onClose}>Done</PrimaryButton>}>
       <div className="rp-stack">

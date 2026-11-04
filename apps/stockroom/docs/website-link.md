@@ -279,11 +279,13 @@ It shows only items whose `href` is on a website origin. "Website orders not sen
   price: 40 | null,                       // CAD, the regular price (no sale), null when none
   cover: "https://…" | "",                // a small copy of the first photo
   status: "published" | "draft" | "scheduled",
+  tracked: true, stock: 14,               // only when the website counts this edition's stock (plan 23.9)
 } ] }
 ```
 
 The app lists them as **On the website, not in this app yet** with **Add to the app** (opens its Add new book form filled
-with title, author, ISBN, price in CA$; the owner adds the print run and saves) and **Not a book for the app** (dismiss).
+with title, author, ISBN, price in CA$ and, when the website counts it, its stock as the starting count, so both agree
+from day one; otherwise the owner adds the print run; then saves) and **Not a book for the app** (dismiss).
 
 ### `websiteLink/app` additions (written by the app)
 

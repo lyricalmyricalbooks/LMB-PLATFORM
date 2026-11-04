@@ -89,6 +89,15 @@ test("What do you sell? is skippable, and the answer travels with the shop", asy
   assert.equal(shopFromSignup({ ...row, publishes: undefined }, { testMode: true }).publishes, null);
 });
 
+test("Square is taken only for a country where it works with the shop's checkout", () => {
+  assert.equal(checkSignup({ ...details, paymentProvider: "square" }).details.paymentProvider, "square");
+  assert.equal(checkSignup({ ...details }).details.paymentProvider, "stripe");
+  const gb = checkSignup({ ...details, country: "GB", paymentProvider: "square" });
+  assert.equal(gb.ok, false);
+  assert.match(gb.problems.paymentProvider, /United Kingdom/);
+  assert.equal(checkSignup({ ...details, country: "GB", paymentProvider: "stripe" }).problems.paymentProvider, undefined);
+});
+
 test("sign-up is refused without the tick, and with words the page no longer shows", async () => {
   const { ask, stores } = make();
   const unticked = await ask("POST", "/api/signup", { ...details, termsAccepted: false });

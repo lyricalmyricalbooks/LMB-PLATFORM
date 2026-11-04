@@ -252,7 +252,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     roleIn: (who, shopId) => accounts.roleIn(who, shopId), onRemoved: (install) => appAlerts.removed(install),
   });
   // The app connection: installed apps read their shop through the platform, with their key (26.3).
-  const appConnection = createAppConnection({ installs: appInstalls, shopData, registry, now });
+  const appConnection = createAppConnection({ installs: appInstalls, shopData, registry, outbox: appAlertOutbox, now });
   const recovery = createRecovery({
     store: recoveryStore, email, registry, auditLog, settings, admins, now,
     findAccount: async (address) => {

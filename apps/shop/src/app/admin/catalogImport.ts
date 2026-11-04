@@ -440,7 +440,3 @@ export function planImport(text: string, books: any[], shopCategories: string[] 
   return { rows, ignoredColumns: ignored, ...columnInfo, problems: [], counts };
 }
 
-/** Headings-only file the owner can fill in (Export CSV is the full template). */
-export function importTemplateCsv(): string {
-  return IMPORT_COLUMNS.map(c => c.label).join(",") + "\n";
-}

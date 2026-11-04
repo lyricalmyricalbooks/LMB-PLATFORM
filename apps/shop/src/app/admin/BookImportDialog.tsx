@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Download, Upload } from "lucide-react";
 import { adminApi } from "./api";
-import { importTemplateCsv, IMPORT_COLUMNS, MATCHABLE_COLUMNS, type ImportField, type ImportPlan } from "./catalogImport";
+import { IMPORT_COLUMNS, MATCHABLE_COLUMNS, parseCsv, type ImportField, type ImportPlan } from "./catalogImport";
 import { ImportPreviewRows, MAX_FILE_BYTES } from "./importPreview";
 import { importRedirects, oldLinksMessage, planShopMove, SHAPE_WORDS, type ProductMove } from "./shopMove";
 import { inventoryLinkApi } from "./inventoryLinkApi";
@@ -13,18 +13,14 @@ import { normalizeCategories } from "../features/site/navItems";
 import { sellsBooks } from "./sells";
 import { useShopSells } from "./shopWords";
 import { useShopWords } from "./shopWords";
-import { SPREADSHEET_ACCEPT, readProblem, spreadsheetText } from "./spreadsheetFile";
+import { SPREADSHEET_ACCEPT, readProblem, readSpreadsheet, type SpreadsheetRead } from "./spreadsheetFile";
+import { FirstRows, SheetChoice } from "./SheetChoice";
+import { XLSX_TYPE, saveFile, toXlsx } from "./xlsxWriter";
 
 
 type Result = { line: number; title: string; ok: boolean; message?: string };
 type LinkResult = { added: number; skipped: number; full: number; failed: boolean };
 
-function download(name: string, text: string) {
-  const url = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));
-  const a = document.createElement("a");
-  a.href = url; a.download = name; a.click();
-  URL.revokeObjectURL(url);
-}
 
 /**
  * Books › Import CSV: choose a file → preview every row's changes → import. Rows with problems are
@@ -52,10 +48,21 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
 
   const [stockMode, setStockMode] = useState<"leave" | "set">("leave");
   // The owner's matches for columns the shop didn't recognise (plan 23.36), by heading.
+  const [book, setBook] = useState<{ file: File } & SpreadsheetRead | null>(null);
   const [columns, setColumns] = useState<Record<string, ImportField>>({});
   // A shop that doesn't sell books keeps the old shop's sizes and colours as option buttons (plan 10.6).
   const keepOptions = !sellsBooks(useShopSells());
   const [source, setSource] = useState<{ text: string; shopCategories: string[]; profiles: string[]; linkedBookIds: string[] } | null>(null);
+  // The first value under each heading, shown under its Match columns choice.
+  const samples = useMemo(() => {
+    const table = source ? parseCsv(source.text.split(/\r?\n/).slice(0, 60).join("\n")) : [];
+    const out: Record<string, string> = {};
+    (table[0] || []).forEach((h, i) => {
+      const value = table.slice(1).map((r) => (r[i] ?? "").trim()).find(Boolean);
+      if (value) out[h.trim()] = value.length > 40 ? `${value.slice(0, 39)}…` : value;
+    });
+    return out;
+  }, [source]);
   const work = plan ? plan.rows.filter(r => r.action === "create" || r.action === "update") : [];
 
   const replan = (src: typeof source, mode: "leave" | "set", cols = columns) => {
@@ -64,18 +71,19 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
     setPlan(next.plan); setMoved(next.moved); setOldPaths(next.oldPaths);
   };
 
-  async function choose(file: File | undefined, notes: string[] = []) {
+  async function choose(file: File | undefined, notes: string[] = [], sheet?: string) {
     if (!file) return;
     setReadNotes(notes);
-    setReadError(""); setPlan(null); setMoved(null); setOldPaths(new Map()); setLinks(null); setResults(null); setFileName(file.name);
+    setReadError(""); setPlan(null); setMoved(null); setOldPaths(new Map()); setLinks(null); setResults(null); setFileName(file.name); if (!sheet) setBook(null);
     if (file.size > MAX_FILE_BYTES) { setReadError("That file is larger than 5 MB. Split it into smaller files and import them one at a time."); return; }
     try {
-      const [text, settings, profiles, links] = await Promise.all([spreadsheetText(file), adminApi.getPublicSettings().catch(() => null), Promise.resolve().then(() => adminApi.getShippingProfiles()).catch(() => []), inventoryLinkApi.links().catch(() => ({}))]);
+      const [text, settings, profiles, links] = await Promise.all([readSpreadsheet(file, sheet), adminApi.getPublicSettings().catch(() => null), Promise.resolve().then(() => adminApi.getShippingProfiles()).catch(() => []), inventoryLinkApi.links().catch(() => ({}))]);
+      setBook({ file, ...text });
       const defined = (settings as any)?.design?.categories;
       const shopCategories = Array.isArray(defined) ? normalizeCategories(defined).map((c: any) => c?.name).filter(Boolean) : [];
       // Books counted in the inventory app keep the stock it sets (adminApi.updateBook enforces it too).
       const linkedBookIds = Object.entries(links as Record<string, Record<string, string>>).filter(([, e]) => !!e?.["_"]).map(([id]) => id);
-      const src = { text, shopCategories, profiles: (profiles as any[]).map(p => p.id), linkedBookIds };
+      const src = { text: text.text, shopCategories, profiles: (profiles as any[]).map(p => p.id), linkedBookIds };
       setSource(src);
       setColumns({});
       replan(src, stockMode, {});
@@ -161,11 +169,13 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
             <PrimaryButton icon={<Upload size={16} aria-hidden />} disabled={busy} onClick={() => fileRef.current?.click()}>
               {fileName ? "Choose another file" : "Choose a file"}
             </PrimaryButton>
-            <SecondaryButton size="sm" icon={<Download size={14} aria-hidden />} disabled={busy} onClick={() => download("books-import-template.csv", importTemplateCsv())}>
+            <SecondaryButton size="sm" icon={<Download size={14} aria-hidden />} disabled={busy} onClick={() => saveFile("books-import-template.xlsx", toXlsx([IMPORT_COLUMNS.map(c => c.label)], "Books"), XLSX_TYPE)}>
               Blank template
             </SecondaryButton>
             {fileName && <span className="rp-mono" style={{ overflowWrap: "anywhere" }}>{fileName}</span>}
+            {book && <SheetChoice sheets={book.sheets} sheet={book.sheet} disabled={busy} onChange={(s) => choose(book.file, readNotes, s)} />}
           </div>
+          {book && <FirstRows text={book.text} />}
           {/* Plan 23.11: the same address box as setup's Books page, for products found after the shop opened. */}
           {!fileName && <div className="rp-stack" style={{ borderTop: "var(--rp-hair) solid var(--rp-border)", paddingTop: 12 }}>
             <p className="rp-hint" style={{ margin: 0 }}>{w("Or bring your books straight from your old shop's web address: no file needed.")}</p>
@@ -176,7 +186,7 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
         {readError && <p role="alert" className="rp-hint" style={{ color: "var(--rp-danger)", margin: 0 }}>{readError}</p>}
 
         {plan && !results && !moved && (plan.unknownColumns?.length ?? 0) > 0 && (
-          <ColumnMatch unknown={plan.unknownColumns!} chosen={columns} used={plan.matchedFields ?? []} disabled={busy}
+          <ColumnMatch unknown={plan.unknownColumns!} samples={samples} chosen={columns} used={plan.matchedFields ?? []} disabled={busy}
             onChange={(next) => { setColumns(next); replan(source, stockMode, next); }} />
         )}
 
@@ -227,8 +237,8 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
  * Columns the shop didn't recognise (plan 23.36): each can be matched to a field, so a spreadsheet with its own
  * headings ("Cost to buyer", "Writer") still fills in prices and authors. Left as "Leave out", it is skipped.
  */
-function ColumnMatch({ unknown, chosen, used, disabled, onChange }: {
-  unknown: string[]; chosen: Record<string, ImportField>; used: ImportField[]; disabled: boolean;
+function ColumnMatch({ unknown, samples, chosen, used, disabled, onChange }: {
+  unknown: string[]; samples: Record<string, string>; chosen: Record<string, ImportField>; used: ImportField[]; disabled: boolean;
   onChange: (next: Record<string, ImportField>) => void;
 }) {
   const matched = unknown.filter((h) => chosen[h]).length;
@@ -241,6 +251,7 @@ function ColumnMatch({ unknown, chosen, used, disabled, onChange }: {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 260px), 1fr))", gap: 8 }}>
         {unknown.map((heading) => (
           <SelectField key={heading} label={heading} value={chosen[heading] ?? ""} disabled={disabled}
+            hint={samples[heading] ? `e.g. ${samples[heading]}` : undefined}
             onChange={(e) => {
               const next = { ...chosen };
               if (e.target.value) next[heading] = e.target.value as ImportField; else delete next[heading];

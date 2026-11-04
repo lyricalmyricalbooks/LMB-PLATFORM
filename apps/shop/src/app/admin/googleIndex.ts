@@ -3,6 +3,7 @@
 import { isLiveBook } from "../features/site/liveBook";
 import { resolveProductRoutes } from "../features/site/productRoutes";
 import type { BadgeTone } from "./riso/components";
+import { productHref } from "../lib/productHref";
 
 export const MAX_INSPECT = 30; // functions/searchConsole.js MAX_INSPECT
 
@@ -19,7 +20,7 @@ export function indexPages(books: any[], siteUrl: string, now = new Date().toISO
   const routed = resolveProductRoutes(live).filter((b: any) => b.seoNoindex !== true);
   return [
     { id: "_home", title: "Home page", url: `${base}/` },
-    ...routed.map((b: any) => ({ id: b.id, title: String(b.title || "Untitled"), url: `${base}/books/${encodeURIComponent(b.slug)}` })),
+    ...routed.map((b: any) => ({ id: b.id, title: String(b.title || "Untitled"), url: `${base}${productHref(encodeURIComponent(b.slug))}` })),
   ].slice(0, MAX_INSPECT);
 }
 

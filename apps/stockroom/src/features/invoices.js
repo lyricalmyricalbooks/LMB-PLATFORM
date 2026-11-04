@@ -107,7 +107,7 @@ function openInvoiceTemplateSettings() {
   $('ivs-addr').value = s.addr || '';
   $('ivs-vat').value = s.vat || '';
   $('ivs-web').value = s.web || '';
-  $('ivs-terms').value = s.terms || 'Net 30. Payment via Stripe, PayPal, or bank transfer.';
+  $('ivs-terms').value = s.terms || 'Net 30. Payment by card, PayPal, or bank transfer.';
   $('ivs-footer').value = s.footer || words('Thank you for stocking our books.');
   $('ivs-bank').value = s.bank || '';
   if ($('ivs-stripe-key')) $('ivs-stripe-key').value = s.stripeKey || '';
@@ -481,7 +481,7 @@ function openCreateInvoice(storeId, editingId, { copyFrom = null, draft = null }
     $('inv-paylink').value = '';
     const settings = getInvoiceSettings();
     $('inv-notes').value = '';
-    $('inv-terms').value = settings.terms || 'Net 30. Payment via Stripe, PayPal, or bank transfer.';
+    $('inv-terms').value = settings.terms || 'Net 30. Payment by card, PayPal, or bank transfer.';
     $('inv-delete-btn').style.display = 'none';
     $('inv-save-draft-btn').style.display = '';
     if (source) fillInvoiceEditorFromCopy(source.inv, sel);

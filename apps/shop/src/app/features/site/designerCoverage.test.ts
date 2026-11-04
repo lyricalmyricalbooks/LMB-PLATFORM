@@ -17,6 +17,9 @@ const APP = join(__dirname, "..", "..");
 const TOKEN_SOURCES = new Set(["features/site/risoNoir.ts", "features/site/colorSchemes.ts"]);
 // Neutral shadow-depth scales (not palette colours) and the admin-only rich-text editor chrome.
 const SHADOW_SOURCES = new Set(["components/sectionStyleHelpers.ts", "features/site/themeTokens.ts", "components/RichTextEditor.tsx"]);
+// Partner companies' own logo artwork (generated from shared/brand-logos): its colours belong to each company and must
+// never be recoloured, so they are not Studio colours. The storefront draws its payment icons in the shop's text colour.
+const BRAND_ARTWORK = new Set(["components/brand/brandLogos.ts", "components/brand/paymentMarks.ts"]);
 
 function publicSources(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
@@ -32,7 +35,7 @@ describe("the public website is fully editable in Studio", () => {
     const offenders: string[] = [];
     for (const file of publicSources(APP)) {
       const rel = relative(APP, file).split("\\").join("/");
-      if (TOKEN_SOURCES.has(rel)) continue;
+      if (TOKEN_SOURCES.has(rel) || BRAND_ARTWORK.has(rel)) continue;
       readFileSync(file, "utf8").split("\n").forEach((line, i) => {
         for (const m of line.matchAll(/#[0-9a-fA-F]{3,8}\b/g)) {
           const before = line.slice(0, m.index);

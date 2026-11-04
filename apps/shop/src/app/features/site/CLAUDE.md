@@ -745,3 +745,14 @@ names. Availability uses their spaced words, and `backorder` becomes `preorder` 
 Instagram, Facebook and Pinterest (`admin/SocialFeedDialog.tsx`) shows the address and the one-time steps. It appears on
 every shop, including those on Colophon, since there is no one-click connection for these sites. Tests:
 `socialFeed.test.ts`.
+
+## Product addresses follow what the shop sells (4 November 2026, platform plan 12.18 part 5)
+
+- A product page is `/books/<slug>` in a books shop and `/products/<slug>` in any other (`productBase` in
+  `src/shared/shopSells.ts`). App.tsx routes both to `BookDetail` in every shop, so old links never break.
+- Build product links with `productHref(slug)` / `productSegment()` from `src/app/lib/productHref.ts`, never a
+  hard-coded `/books/`. `useSiteData` and the admin's Dashboard set the shop's answer there (`setProductSells`).
+  Code that reads an address back accepts both (`productSlugOf`, `isProductPath`, or `(?:books|products)`).
+- The build (`generate-sitemap.mjs`) takes the base from `settings/website.sells` through the Functions' copy of the
+  shared rules and hands it to the sitemap, the shopping and social files and llms.txt (`productBase` option, default
+  `books`). The Functions use `productBase(sells)` for back-in-stock and review emails and social posts.

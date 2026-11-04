@@ -15,13 +15,14 @@ import { THEME_LIBRARY } from "../app/admin/studio/themeLibrary";
 import { ShopWordsContext, useShopWords } from "../app/admin/shopWords";
 import { adminWordsFor } from "../app/admin/sells";
 import { ImportPage } from "./ImportPage";
+import { CARD_CHOICE_NOTE, CARD_PROVIDER_CHOICES, chosenCardProvider, squareAvailable, type CardProviderId } from "./cardChoice";
 import { WEB_ADDRESS_ANCHOR, WebAddressCard } from "./WebAddress";
 import { AskForm, HelpAnswer, HelpQuestions, type HelpAnswers } from "./SetupHelp";
 import type { PlanList, SetupChange, SetupDoor, SetupPress } from "./door";
 import { CreateShopCard, type CreateShop } from "./CreateShop";
 import type { CreateNames } from "./launchWords";
 import {
-  DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, IMPORT_PAGE, PLAN_PAGE, SETUP_QUESTIONS, STEP_HELP, guideProgress, guideSteps, helpFor, lockedPageLine, nextGuideStep,
+  DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, IMPORT_PAGE, PAYMENTS_PAGE, PLAN_PAGE, SETUP_QUESTIONS, STEP_HELP, guideProgress, guideSteps, helpFor, lockedPageLine, nextGuideStep,
   pageFromHash, readyToCreate, setupLocked, showMoveIn, setupMenu, setupMenuItemFor, setupPageLabel,
 } from "./pages";
 
@@ -118,6 +119,7 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
   );
   else if (page === IMPORT_PAGE) content = <ImportPage press={press} door={door} onSaved={setPress} />;
   else if (page === DESIGN_PAGE) content = <DesignPage press={press} save={save} />;
+  else if (page === PAYMENTS_PAGE) content = <CardPaymentsPage press={press} save={save} />;
   else if (page === PLAN_PAGE) content = (
     <PlanPage press={press} plans={plans} failed={plansFailed} onRetry={loadPlans} save={save} termsUrl={termsUrl}
       names={{ countries: lists.countries, sells: lists.sells, lookName: themeName(press.look) }} email={email}
@@ -501,6 +503,55 @@ function DesignPage({ press, save }: { press: SetupPress; save: (c: SetupChange)
           setChoosing(false);
         }}
       />
+    </>
+  );
+}
+
+/**
+ * Settings › Payments in setup: Stripe or Square for the website's card payments (cardProvider on the setup record).
+ * The press connects the account itself once the shop is made; nothing is connected here. The words come from
+ * cardChoice.ts.
+ */
+function CardPaymentsPage({ press, save }: { press: SetupPress; save: (c: SetupChange) => Promise<SetupPress> }) {
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+  const inSetup = press.status === "setup";
+  if (press.plan === "stockroom") {
+    return (
+      <>
+        <PageHeader title="Payments" />
+        <EmptyState title="No website on your plan" description="The stockroom on its own has no website checkout." />
+      </>
+    );
+  }
+  const chosen = chosenCardProvider(press);
+  const choose = async (provider: CardProviderId) => {
+    if (busy || (press.cardProvider === provider)) return;
+    setBusy(provider); setError("");
+    try { await save({ cardProvider: provider }); } catch (err) { setError(err instanceof Error ? err.message : "That didn't save. Try again."); } finally { setBusy(""); }
+  };
+  return (
+    <>
+      <PageHeader title="Payments" />
+      <SectionCard title="Card payments" collapsible={false}>
+        <div role="radiogroup" aria-label="Card payments" style={{ display: "grid", gap: 8 }}>
+          {CARD_PROVIDER_CHOICES.map((option) => {
+            const on = chosen === option.id;
+            const unavailable = option.id === "square" && !squareAvailable(press.country);
+            return (
+              <button key={option.id} type="button" role="radio" aria-checked={on} disabled={!!busy || !inSetup || unavailable} onClick={() => void choose(option.id)}
+                style={{ display: "grid", gap: 2, textAlign: "left", minHeight: 56, padding: "12px 14px",
+                  background: on ? "var(--rp-primary-tint)" : "var(--rp-surface)", color: "var(--rp-text)", cursor: unavailable ? "not-allowed" : "pointer",
+                  opacity: unavailable ? 0.6 : 1, border: on ? "2px solid var(--rp-text)" : "1px solid var(--rp-border)" }}>
+                <strong>{option.name}</strong>
+                <span className="rp-hint">{unavailable ? "Not available in your country yet." : option.line}</span>
+              </button>
+            );
+          })}
+        </div>
+        {error && <p role="alert" className="rp-hint" style={{ color: "var(--rp-danger)" }}>{error}</p>}
+        <p className="rp-hint" style={{ margin: "12px 0 0" }}>{inSetup ? CARD_CHOICE_NOTE : "Connect it in Settings › Payments once your shop is ready."}</p>
+      </SectionCard>
     </>
   );
 }

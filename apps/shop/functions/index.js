@@ -45,7 +45,7 @@ const { addressMissing } = require("./shared/addressRules");
 const { pressName } = require("./shared/shopIdentity");
 const { sellerSection, digitalConsentSection } = require("./sellerDetails");
 const emailFrench = require("./emailFrench");
-const { emailDefaultsFor, goodsDownloadNote, sellsBooks, withShopEmailWords, wordsFor } = require("./shared/shopSells");
+const { emailDefaultsFor, goodsDownloadNote, productBase, sellsBooks, withShopEmailWords, wordsFor } = require("./shared/shopSells");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem } = require("./shared/localFulfillment");
 const { taxPartsByKind, discountedLineValues } = require("./shared/taxByKind");
 const { productKind } = require("./shared/productOptions");
@@ -68,7 +68,7 @@ const { pendingRecord, confirmedRecord, confirmationEmail } = require("./newslet
 const { findByEmail: findByEmailData, neverPaid, redactedOrderFields, redactedOperationsFields, giftCardsFor, reviewErasure, GIFT_CARD_PERSONAL } = require("./privacyData");
 const { optOutId, unsubscribeToken, tokenMatches, purposeToken, purposeTokenMatches, footerAddress, normEmail: normMarketingEmail } = require("./marketingOptOut");
 const { runReviewRequests, REVIEW_REQUEST_TEMPLATE } = require("./reviewRequests");
-const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, paypalRefundedTotalMinor, sameOrderLines, shopDate } = require("./paymentGuards");
+const { platformRefusedRefund, checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, paypalRefundedTotalMinor, sameOrderLines, shopDate } = require("./paymentGuards");
 const { canViewOrder, publicOrderView } = require("./orderAccess");
 const { encodeAcquisition } = require("./acquisition");
 const { returnTransition, publicReturn, returnRestockItems } = require("./returns");
@@ -537,7 +537,8 @@ exports.fairHelperPayment = onBrowserRequest({ secrets: withPlatformKey([STRIPE_
       return;
     }
     const sessionId = String(req.body?.sessionId || "");
-    if (!/^cs_[A-Za-z0-9_]{8,200}$/.test(sessionId) || (action !== "status" && action !== "cancel")) {
+    // A Stripe Checkout Session, or a Square payment link (payments/square.js standaloneCheckout).
+    if (!/^(cs_[A-Za-z0-9_]{8,200}|sqlink_[A-Za-z0-9_-]{1,192})$/.test(sessionId) || (action !== "status" && action !== "cancel")) {
       res.status(400).json({ error: "Unknown request.", code: "bad_request" });
       return;
     }
@@ -1782,7 +1783,7 @@ const { handleBookkeeping } = bookkeepingActions({
 });
 // Sales channels and Social posts: the press's social accounts, through the platform's social service (socialLink.js, plan 27.4).
 const social = socialActions({
-  url: shopConfig.platformSocialUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin, db, siteUrl: shopConfig.siteUrl,
+  url: shopConfig.platformSocialUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin, db, siteUrl: shopConfig.siteUrl, sellsAnswer: shopSellsAnswer,
   // The post's square picture (socialPicture.js), made in this shop's bucket.
   makeSquare: async (imageUrl, postId) => {
     const sharp = require("sharp");
@@ -2868,7 +2869,8 @@ exports.refundOrder = onBrowserRequest(
       console.error("refundOrder failed:", err);
       // Keep the claim only when the provider may have taken the refund (accepted, or a lost
       // connection): its webhook then follows the admin's restock choice.
-      if (claimed && !providerAccepted && (!providerCalled || DEFINITE_REFUSALS.includes(err?.type) || (err?.status >= 400 && err?.status < 500))) await releaseClaim();
+      if (claimed && !providerAccepted && (!providerCalled || DEFINITE_REFUSALS.includes(err?.type) || (err?.status >= 400 && err?.status < 500)
+        || platformRefusedRefund(err))) await releaseClaim();
       const status = err.status || (err.type?.startsWith("Stripe") ? 400 : 500); // Stripe shops only (an error type)
       res.status(status).json({ error: err.message || "Refund failed" });
     }
@@ -4337,8 +4339,9 @@ async function sendRestockAlerts({ bookId, book, docs, deadline, released = fals
   // released = the book just stopped being "Coming soon": signups made on that page get "Out now" wording.
   // (backInStockSweep can't see the switch any more; it reads the releasePending stamp set below.)
   const stuckBefore = Date.now() - 15 * 60 * 1000;
-  const link = siteLink(`/books/${encodeURIComponent(book.slug || bookId)}`);
   const restockSettings = await loadNotificationSettings();
+  // /products/<slug> in a shop that doesn't sell books (src/shared/shopSells.ts productBase).
+  const link = siteLink(`/${productBase(restockSettings.sells)}/${encodeURIComponent(book.slug || bookId)}`);
   const esc = t => String(t || "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const keyOf = alert => `${String(alert.email || "").trim().toLowerCase()}|${String(alert.variantId || "")}`;
   // One email per address per book edition, however many signups exist for it: the first signup sends,
@@ -4723,6 +4726,15 @@ exports.paymentPageSweep = onSchedule(
     if (payments.provider !== "square") return;
     const result = await paymentPages.closeDuePages();
     if (result.closed || result.refunded) console.log("paymentPageSweep:", result);
+    // Fair helpers' QR links (payments/square.js standaloneCheckout): closed after their half hour, like Stripe's.
+    for (const mode of ["test", "live"]) {
+      try {
+        const fair = await (await payments.standaloneCheckout(mode))?.closeDue?.();
+        if (fair?.closed) console.log(`paymentPageSweep: ${fair.closed} fair QR link(s) closed (${mode}).`);
+      } catch (err) {
+        console.warn(`paymentPageSweep: fair QR links (${mode}) weren't checked: ${err?.message || err}`);
+      }
+    }
   });
 
 exports.unpaidPaymentSweep = onSchedule(

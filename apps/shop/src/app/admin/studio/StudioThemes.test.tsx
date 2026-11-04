@@ -44,6 +44,17 @@ describe("Studio › Themes", () => {
     expect(props.onApplyPreset).toHaveBeenCalledWith(props.presets[0]);
   });
 
+  it("draws every look on the press's own covers and product name", async () => {
+    await mount(setup({ products: [{ title: "Zqx Poems", photo: "https://example.com/a.jpg" }, { title: "", photo: "https://example.com/b.jpg" }] }));
+    const thumb = document.querySelector('[data-theme-card="preset:p1"] [role=img]')!;
+    expect(thumb.textContent).toContain("Zqx Poems");
+    const covers = [...thumb.querySelectorAll("b")].map(b => (b as HTMLElement).style.background);
+    expect(covers[0]).toContain("https://example.com/a.jpg");
+    expect(covers[1]).toContain("https://example.com/b.jpg");
+    await act(async () => root!.unmount());
+    await mount(setup());
+    expect(document.querySelector('[data-theme-card="preset:p1"] [role=img]')!.textContent).toContain("Books & prints");
+  });
   it("creates a private preview link of the draft for the chosen time", async () => {
     const props = setup();
     await mount(props);

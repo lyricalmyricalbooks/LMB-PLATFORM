@@ -65,6 +65,12 @@ describe("BookImportDialog", () => {
     await act(async () => { input.dispatchEvent(new Event("change", { bubbles: true })); });
     await flush();
     expect(document.body.textContent).toContain("0 of 2 matched");
+    // Each choice shows the column's first value, and the top of the file can be unfolded (plan 23.39).
+    expect(document.body.textContent).toContain("e.g. 22.50");
+    const glance = document.querySelector("details.rp-first-rows")!;
+    expect(glance.querySelector("summary")!.textContent).toBe("First rows of the file");
+    expect([...glance.querySelectorAll("th")].map(t => t.textContent)).toEqual(["Book", "Cost to buyer"]);
+    expect([...glance.querySelectorAll("td")].map(t => t.textContent)).toEqual(["New Poems", "22.50"]);
     expect(document.body.textContent).toContain("Nothing can be imported");
     const pick = async (label: string, value: string) => {
       const select = [...document.querySelectorAll("select")].find(s => s.closest("label, div")?.textContent?.startsWith(label))!;
@@ -80,6 +86,34 @@ describe("BookImportDialog", () => {
     expect(text).toContain("2 of 2 matched");
     expect(text).toContain("1 new");
     expect([...document.querySelectorAll("button")].some(b => /Import 1 book/.test(b.textContent || ""))).toBe(true);
+  });
+
+  it("offers the workbook's other sheets and reads the one chosen (plan 23.37)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const host = document.createElement("div"); document.body.append(host);
+    root = createRoot(host);
+    act(() => root!.render(h(BookImportDialog, { books, onClose: () => {}, onDone: () => {} })));
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const bytes = readFileSync(join(__dirname, "testdata", "spreadsheets", "sheets.xlsx"));
+    Object.defineProperty(input, "files", { value: [new File([bytes], "sheets.xlsx")], configurable: true });
+    await act(async () => { input.dispatchEvent(new Event("change", { bubbles: true })); });
+    const sheetSelect = async () => {
+      for (let i = 0; i < 50; i++) {
+        const found = [...document.querySelectorAll("select")].find(s => [...s.options].some(o => o.text === "Sheet: Summary"));
+        if (found && !document.body.textContent?.includes("Loading")) return found;
+        await act(async () => { await new Promise(r => setTimeout(r, 20)); });
+      }
+      throw new Error(document.body.textContent || "no select");
+    };
+    const sheet = await sheetSelect();
+    expect(sheet.value).toBe("Books");
+    expect([...sheet.options].map(o => o.text)).toEqual(["Sheet: Cover", "Sheet: Books", "Sheet: Summary"]);
+    expect(document.body.textContent).toContain("1 unchanged"); // Salt Hours, already in the shop
+    await act(async () => { sheet.value = "Summary"; sheet.dispatchEvent(new Event("change", { bubbles: true })); });
+    for (let i = 0; i < 50 && !document.body.textContent?.includes("no book rows"); i++) await act(async () => { await new Promise(r => setTimeout(r, 20)); });
+    expect((await sheetSelect()).value).toBe("Summary");
+    expect(document.body.textContent).toContain("The file has no book rows"); // the Summary sheet is one line
   });
 
   it("reads an old shop's address into the same preview (plan 23.11)", async () => {

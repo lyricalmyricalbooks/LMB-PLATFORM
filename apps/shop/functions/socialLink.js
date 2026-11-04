@@ -19,6 +19,7 @@
 // Without PLATFORM_SOCIAL_URL the link is off: `status` answers { enabled: false } (Sales channels shows the by-hand
 // steps) and every other platform step is refused.
 
+const { productBase } = require("./shared/shopSells");
 const COLLECTION = "socialPosts";
 const FEED_FILE = "social-product-feed.csv";
 const SHOP_CURRENCY = "CAD";
@@ -80,8 +81,9 @@ function failedPostEmail({ post, ownerEmail, shopName, adminLink, language = "en
   return { to, subject, html, failed: failed.length };
 }
 
-function productLink(siteUrl, book, placeId) {
-  const url = new URL(`${siteUrl.replace(/\/+$/, "")}/books/${encodeURIComponent(book.slug)}`);
+/** The product's page, tagged for the place it is posted to; `base` is "products" in a shop that doesn't sell books. */
+function productLink(siteUrl, book, placeId, base = "books") {
+  const url = new URL(`${siteUrl.replace(/\/+$/, "")}/${base}/${encodeURIComponent(book.slug)}`);
   url.searchParams.set("utm_source", SOURCE[placeId.split(":")[0]] || "social");
   url.searchParams.set("utm_medium", "social");
   url.searchParams.set("utm_campaign", "shop-post");
@@ -96,7 +98,7 @@ function overall(results, places) {
   return "failed";
 }
 
-function socialActions({ url, shopId, serviceKey, requireAdmin, db, siteUrl, fetch = globalThis.fetch, now = () => Date.now(), timeoutMs = 30000, randomId = null, onFailed = null, makeSquare = null }) {
+function socialActions({ url, shopId, serviceKey, requireAdmin, db, siteUrl, sellsAnswer = async () => null, fetch = globalThis.fetch, now = () => Date.now(), timeoutMs = 30000, randomId = null, onFailed = null, makeSquare = null }) {
   const iso = (ms = now()) => new Date(ms).toISOString();
   const posts = () => db.collection(COLLECTION);
 
@@ -129,6 +131,7 @@ function socialActions({ url, shopId, serviceKey, requireAdmin, db, siteUrl, fet
   async function sendPost(ref, post, { only = null } = {}) {
     const book = (await db.collection("books").doc(post.bookId).get()).data?.() || null;
     const results = { ...(post.results || {}) };
+    const base = productBase(await sellsAnswer().catch(() => null));
     for (const place of post.places) {
       if (results[place.id]?.state === "posted") continue;
       if (only && !only.includes(place.id)) continue;
@@ -139,7 +142,7 @@ function socialActions({ url, shopId, serviceKey, requireAdmin, db, siteUrl, fet
       try {
         const done = await platform("social.publish", {
           postId: ref.id, placeId: place.id, imageUrl: post.imageUrl, caption: post.caption,
-          link: productLink(siteUrl, book, place.id), title: post.title, altText: post.title, retailerId: post.retailerId, tagProduct: post.tagProduct,
+          link: productLink(siteUrl, book, place.id, base), title: post.title, altText: post.title, retailerId: post.retailerId, tagProduct: post.tagProduct,
         });
         results[place.id] = done.state === "posted"
           ? { state: "posted", at: done.at || iso(), ...(done.tagged ? { tagged: true } : {}), ...(done.privateOnly ? { privateOnly: true } : {}) }

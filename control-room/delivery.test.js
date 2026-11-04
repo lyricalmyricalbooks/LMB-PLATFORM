@@ -51,7 +51,7 @@ test("over the bounce line, or past three failed payment events, the shop's heal
   assert.equal(shopHealth({ row, profile, delivery: { ...fine, email: { sent: BOUNCE_MIN_SENT - 1, bounced: 10, complained: 0 } } }).level, "ok");
   const failing = shopHealth({ row, profile, delivery: { ...fine, payments: { received: 40, failed: 4 } } });
   assert.equal(failing.level, "watch");
-  assert.match(failing.reasons[0], /4 payment messages from Stripe couldn't be passed to the shop/);
+  assert.match(failing.reasons[0], /4 payment messages from Stripe or Square couldn't be passed to the shop/);
   // Old callers, without delivery, see what they always saw.
   assert.deepEqual(shopHealth({ row, profile }), { level: "ok", reasons: [] });
 });

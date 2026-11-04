@@ -122,24 +122,37 @@ export type PreviewLinkApi = {
   revoke: (token: string) => Promise<void>;
 };
 
-/** A small drawing of a design: page colour, a heading in its font, an accent button and two cards. */
-export function ThemeThumb({ design, label }: { design: any; label: string }) {
+/** A cover for the drawing: a product's title and its first photo (ownBooks). */
+export type ThumbProduct = { title: string; photo: string };
+
+/**
+ * A small drawing of a design: page colour, a heading in its font, an accent button and two cards. Given the press's
+ * own products, the cards are their covers and the line under the heading is a real product name, so every look is
+ * seen on the press's shop, as in Choose your look.
+ */
+export function ThemeThumb({ design, label, products = [] }: { design: any; label: string; products?: ThumbProduct[] }) {
   const d = withRisoNoirDefault(design || {}) || {};
   const bg = d.backgroundColor || "#000000", fg = d.textColor || "#ffffff", accent = d.primaryColor || "#e8402a";
   const surface = d.surfaceColor || bg, border = d.borderColor || fg;
   const font = (f: any) => (typeof f === "string" && f ? `"${f}", system-ui, sans-serif` : "system-ui, sans-serif");
+  const card = (i: number) => {
+    const photo = products[i]?.photo;
+    return <b key={i} style={{ background: photo ? `${surface} center / cover no-repeat url("${photo.replace(/"/g, "%22")}")` : surface, borderColor: border }} />;
+  };
   return (
     <div className="studio-theme-thumb" role="img" aria-label={`${label}: page ${bg}, text ${fg}, accent ${accent}`} style={{ background: bg, color: fg }}>
       <span style={{ fontFamily: font(d.headingFont), textTransform: d.risoUppercaseHeadings ? "uppercase" : undefined }}>Aa</span>
-      <span className="studio-theme-thumb-body" style={{ fontFamily: font(d.bodyFont) }}>Books &amp; prints</span>
+      <span className="studio-theme-thumb-body" style={{ fontFamily: font(d.bodyFont) }}>{products.find(x => x.title)?.title || "Books & prints"}</span>
       <i style={{ background: accent }} />
-      <b style={{ background: surface, borderColor: border }} /><b style={{ background: surface, borderColor: border }} />
+      {card(0)}{card(1)}
     </div>
   );
 }
 
 type Props = {
   design: any;
+  /** The press's own products (ownBooks), drawn as the covers on every card. */
+  products?: ThumbProduct[];
   published: any;
   unpublished: boolean;
   savedThemes: SavedTheme[];
@@ -232,7 +245,7 @@ export function StudioThemes(p: Props) {
       <section className="studio-themes-current">
         <h3>Live now</h3>
         <article className="studio-theme-card" data-theme-card="live">
-          <ThemeThumb design={p.published} label="Live theme" />
+          <ThemeThumb design={p.published} label="Live theme" products={p.products} />
           <div>
             <strong>Live theme</strong>
             <small>{p.unpublished ? "Your draft has changes that aren't live yet." : "Your draft matches the live shop."}</small>
@@ -242,7 +255,7 @@ export function StudioThemes(p: Props) {
           </div>
         </article>
         <article className="studio-theme-card" data-theme-card="draft">
-          <ThemeThumb design={p.design} label="Your draft" />
+          <ThemeThumb design={p.design} label="Your draft" products={p.products} />
           <div>
             <strong>Your draft</strong> {p.unpublished && <StatusBadge tone="warning">Not published</StatusBadge>}
             <small>What you're editing now, including unsaved changes.</small>
@@ -267,7 +280,7 @@ export function StudioThemes(p: Props) {
         <div className="studio-theme-grid">
           {p.savedThemes.map(t => (
             <article key={t.id} className="studio-theme-card" data-theme-card={t.id}>
-              <ThemeThumb design={t.design} label={t.name} />
+              <ThemeThumb design={t.design} label={t.name} products={p.products} />
               <div>
                 <strong>{t.name}</strong>
                 <small>Saved {when(t.savedAt)}</small>
@@ -299,7 +312,7 @@ export function StudioThemes(p: Props) {
             const look = themedDesign(preset, p.design);
             return (
               <article key={preset.id} className="studio-theme-card" data-theme-card={`preset:${preset.id}`}>
-                <ThemeThumb design={look} label={preset.name} />
+                <ThemeThumb design={look} label={preset.name} products={p.products} />
                 <div>
                   <strong>{preset.name}</strong> {p.currentPresetId === preset.id && <StatusBadge tone="success">Current</StatusBadge>}
                   {preset.mood && <small>{preset.mood}</small>}

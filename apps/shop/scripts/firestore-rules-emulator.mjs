@@ -468,6 +468,13 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("owner can't write the platform's messages", assertFails(setDoc(doc(owner, "platform/messages"), { messages: [] })));
   await env.withSecurityRulesDisabled((ctx) => deleteDoc(doc(ctx.firestore(), "platform/messages")));
   await env.withSecurityRulesDisabled((ctx) => Promise.all([deleteDoc(doc(ctx.firestore(), "platform/status")), deleteDoc(doc(ctx.firestore(), "platform/plan"))]));
+  // Changes asked for by installed apps (functions/appRequests.js): admins read them in Settings › Apps; only the server writes.
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "appRequests/r1"), { op: "order.dispatch", appName: "Parcel Pal", createdAt: "2026-11-04T15:00:00Z", status: "done" }));
+  await check("owner reads app activity", assertSucceeds(getDocs(query(collection(owner, "appRequests"), orderBy("createdAt", "desc")))));
+  await check("a shopper can't read app activity", assertFails(getDoc(doc(reader, "appRequests/r1"))));
+  await check("anon can't read app activity", assertFails(getDoc(doc(anon, "appRequests/r1"))));
+  await check("owner can't write an app request", assertFails(setDoc(doc(owner, "appRequests/r2"), { op: "order.dispatch" })));
+  await check("owner can't answer an app request", assertFails(setDoc(doc(owner, "appRequests/r1"), { status: "refused" }, { merge: true })));
 }
 
 await env.cleanup();

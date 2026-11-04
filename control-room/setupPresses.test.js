@@ -84,6 +84,15 @@ test("looks are counted by how many presses picked them, not chosen yet last", a
   assert.deepEqual(looks.admin, [{ id: "bento", count: 1 }, { id: "desk", count: 1 }, { id: "", count: 3 }]);
 });
 
+test("each press shows Stripe or Square for its cards, and the picks are counted", async () => {
+  const w = await world();
+  await w.presses.create("press-on-square", record("press-on-square", { pressName: "Square Press", country: "CA", plan: "shop", cardProvider: "square", lastSeenAt: ago(0) }));
+  const { presses, cards } = await w.desk.list(ADMIN);
+  assert.equal(presses.find((p) => p.pressId === "press-on-square").cardProvider, "square");
+  assert.equal(presses.find((p) => p.pressId === "press-fresh-one").cardProvider, "");
+  assert.deepEqual(cards, [{ id: "square", count: 1 }, { id: "", count: 5 }]);
+});
+
 test("without the setup records the page says so instead of showing none", async () => {
   const desk = createSetupDesk({ admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: "admin@example.com" }), presses: null, registry: fakeRegistry(), now: () => new Date(NOW) });
   await assert.rejects(desk.list(ADMIN), { status: 503 });

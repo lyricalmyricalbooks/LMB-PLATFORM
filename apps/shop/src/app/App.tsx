@@ -162,6 +162,8 @@ export default function App() {
                     />
                   } />
                   <Route path="/books/:slug" element={<BookDetail />} />
+                  {/* The same page under the address a shop that doesn't sell books uses (lib/productHref.ts). */}
+                  <Route path="/products/:slug" element={<BookDetail />} />
                   {/* A category link opens the normal shop (same header + footer) filtered to that category. */}
                   <Route path="/collections/:slug" element={
                     <MainSite

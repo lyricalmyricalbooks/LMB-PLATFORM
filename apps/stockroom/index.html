@@ -4487,7 +4487,7 @@
               <option value="Card">Card</option>
               <option value="Bank Transfer">Bank Transfer</option>
               <option value="Comp/Gift">Comp/Gift</option>
-              <option value="Stripe QR">Stripe QR</option>
+              <option value="Stripe QR" data-own-accounts>QR code</option>
             </select>
           </div>
           <!-- Painted by posRenderOversellNote() when a cart line sells more copies
@@ -4498,11 +4498,11 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
             Complete Sale
           </button>
-          <button class="btn ink pos-checkout-cta pos-checkout-cta-alt" id="pos-sale-qr-btn" onclick="posGenerateSaleQR()">
+          <button class="btn ink pos-checkout-cta pos-checkout-cta-alt" id="pos-sale-qr-btn" data-own-accounts onclick="posGenerateSaleQR()">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><path d="M14 14h3v3h-3zM20 14h1v1h-1zM14 20h3v1h-3zM20 17h1v4h-4v-1"></path></svg>
             Pay by QR (this total)
           </button>
-          <div class="pos-checkout-foot">Charges the exact total above, discounts included. Needs internet and your connected Stripe account.</div>
+          <div class="pos-checkout-foot" data-own-accounts>Charges the exact total above, discounts included. Needs internet and your connected Stripe account.</div>
         </div>
       </div>
     </div>
@@ -6236,7 +6236,8 @@
       </div>
       <div class="form-group">
         <label for="nb-max">Print Run Edition Size</label>
-        <input id="nb-max" type="number" inputmode="numeric" value="100" min="1" oninput="updateBookModalFinancials()" style="font-family:var(--font-mono);">
+        <input id="nb-max" type="number" inputmode="numeric" value="100" min="1" oninput="updateBookModalFinancials()" style="font-family:var(--font-mono);" aria-describedby="nb-max-hint">
+        <div class="tc-form-hint" id="nb-max-hint" hidden></div>
       </div>
     </div>
     <div class="form-group" style="margin-bottom:12px;">

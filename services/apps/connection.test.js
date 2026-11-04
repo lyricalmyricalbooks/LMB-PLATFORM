@@ -174,3 +174,31 @@ test("changes need write_orders and good input", async () => {
   assert.equal((await w.post("/api/apps/v1/orders/o1/fulfillment", { trackingCarrier: "UPS", trackingNumber: "1" }, { key: "cak_bad" })).status, 401);
   assert.equal([...w.docs.keys()].filter((k) => k.includes("appRequests")).length, 0);
 });
+
+test("an app adds or takes copies, with write_inventory only", async () => {
+  const w = changeWorld(["write_inventory"]);
+  const res = await w.post("/api/apps/v1/inventory/b1", { change: -1, expected: 7, variantId: "" });
+  assert.equal(res.status, 200);
+  assert.deepEqual(w.docs.get("moth-press/appRequests/req_1").input, { productId: "b1", variantId: "", change: -1, expected: 7 });
+  assert.equal(w.docs.get("moth-press/appRequests/req_1").op, "inventory.adjust");
+  assert.equal((await w.post("/api/apps/v1/inventory/b1", { change: 0 })).status, 400);
+  assert.equal((await w.post("/api/apps/v1/inventory/b1", { change: 2.5 })).status, 400);
+  assert.equal((await w.post("/api/apps/v1/inventory/b1", { change: 1, expected: -1 })).status, 400);
+  assert.equal((await changeWorld(["read_inventory"]).post("/api/apps/v1/inventory/b1", { change: 1 })).status, 403);
+});
+
+test("an app catches up on its own alerts, oldest first", async () => {
+  const rows = [
+    { id: "a2", installId: "moth-press~app_1", topic: "orders/shipped", createdAt: "2026-11-04T11:00:00Z", data: { order: { id: "o2" } }, status: "failed" },
+    { id: "a1", installId: "moth-press~app_1", topic: "orders/paid", createdAt: "2026-11-04T10:00:00Z", data: { order: { id: "o1" } }, status: "sent" },
+    { id: "a3", installId: "moth-press~app_1", topic: "orders/paid", createdAt: "2026-11-04T11:30:00Z", data: {}, status: "dropped" },
+    { id: "b1", installId: "moth-press~app_2", topic: "orders/paid", createdAt: "2026-11-04T10:00:00Z", data: {}, status: "sent" },
+  ];
+  const outbox = { listByInstall: async (installId) => rows.filter((r) => r.installId === installId) };
+  const installs = { authenticate: async () => ({ installId: "moth-press~app_1", shopId: "moth-press", appId: "app_1", granted: [] }) };
+  const handle = createAppConnection({ installs, shopData: {}, registry: fakeRegistry(), outbox });
+  const res = await handle({ method: "GET", path: "/api/apps/v1/alerts", headers: { authorization: "Bearer cak_a" } });
+  assert.deepEqual(res.body.alerts.map((a) => [a.id, a.delivered]), [["a1", true], ["a2", false]]);
+  const later = await handle({ method: "GET", path: "/api/apps/v1/alerts", query: { since: "2026-11-04T10:30:00Z" }, headers: { authorization: "Bearer cak_a" } });
+  assert.deepEqual(later.body.alerts.map((a) => a.id), ["a2"]);
+});

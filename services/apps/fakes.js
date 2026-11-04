@@ -46,6 +46,7 @@ export function fakeAppAlertStores() {
       put: async (id, row) => void alerts.set(id, structuredClone(row)),
       listDue: async (nowIso, limit) => [...alerts.values()].filter((a) => a.status === "waiting" && a.nextAt <= nowIso).sort((a, b) => (a.nextAt < b.nextAt ? -1 : 1)).slice(0, limit).map((a) => structuredClone(a)),
       listByStatus: async (status) => [...alerts.values()].filter((a) => a.status === status).map((a) => structuredClone(a)),
+      listByInstall: async (installId) => [...alerts.values()].filter((a) => a.installId === installId).map((a) => structuredClone(a)),
     },
     state: {
       rows: looks,

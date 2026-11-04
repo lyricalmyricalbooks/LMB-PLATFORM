@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { BookOpen, KeyRound, LogIn } from "lucide-react";
+import { BookOpen, KeyRound } from "lucide-react";
+import { GoogleSignInButton } from "../components/brand/BrandLogo";
 import { adminApi } from "./api";
 import { PrimaryButton, SecondaryButton, TextField } from "./riso/components";
 import { BACKUP_USED_KEY, BackupCodeError, TwoStepNeeded, backupCodeLooksRight, codeLooksRight, twoStepWords } from "./adminTwoStep";
@@ -125,10 +126,10 @@ export function Login({ onLogin }: LoginProps) {
             </form>
           ) : (
             <>
-              <PrimaryButton size="lg" icon={<LogIn size={16} aria-hidden />} onClick={handleGoogleLogin} disabled={loading}
-                aria-busy={loading || undefined} style={{ width: "100%" }}>
-                {loading ? "Waiting for Google…" : "Sign in with Google"}
-              </PrimaryButton>
+              {/* Google's own button (its branding rules fix the words, so the wait shows in the note below). */}
+              <GoogleSignInButton onClick={handleGoogleLogin} disabled={loading} aria-busy={loading || undefined} style={{ width: "100%" }}>
+                Sign in with Google
+              </GoogleSignInButton>
               {loading && <p className="rp-hint rp-login-note" role="status">Finish signing in in the Google window that opened.</p>}
             </>
           )}

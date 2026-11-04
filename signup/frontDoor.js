@@ -7,7 +7,7 @@
 //                                              (signInWithEmailLink). The link is never emailed: the code was the proof.
 //   POST /api/press       {}                   makes the press's setup record, or gives back the one still in setup
 //   GET  /api/press                            the signed-in person's presses
-//   POST /api/press/setup { pressId, plan?, pressName?, sells?, country?, look?, adminLook?, moving? }
+//   POST /api/press/setup { pressId, plan?, pressName?, sells?, country?, look?, adminLook?, moving?, language?, cardProvider? }
 //                                              saves answers while the press is in setup
 //   POST /api/press/old-shop { pressId, address }
 //   POST /api/press/domain { pressId, domain }   the press's own domain for its shop ("" takes it off)
@@ -32,7 +32,7 @@ import { SignupError, randomSuffix } from "./signup.js";
 import { createSignInCode } from "./signInCode.js";
 import { createAccountStart } from "./accountStart.js";
 import { MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, SETUP_FIELDS, advanceStatus, importPathFor, setupChange } from "./pressRecord.js";
-import { COUNTRIES, PUBLISHES, isEmail } from "./form.js";
+import { COUNTRIES, PUBLISHES, SQUARE_COUNTRIES, isEmail, squareWords } from "./form.js";
 import { readOldShop as readPublicShop } from "../services/moving/oldShop.js";
 import { domainProblem, normalDomain } from "../services/domains/names.js";
 import { sellerName } from "../services/domains/sellers.js";
@@ -52,6 +52,7 @@ const shownRecord = (record, shopDomain = "") => ({
   // How the shop is starting once opened (18.8): "queued", or "in-line" with the words saying why it waits.
   shopStatus: record.shopStatus ?? "", shopMessage: record.shopMessage ?? "", pressName: record.pressName, sells: record.sells, country: record.country,
   look: record.look ?? "", adminLook: record.adminLook ?? "", moving: record.moving ?? "", language: record.language ?? "",
+  cardProvider: record.cardProvider ?? "",
   // "Your web address" (setup guide): the answer, the press's own domain and where it was bought.
   domainChoice: record.domainChoice ?? "", domain: record.domain ?? "", domainSeller: record.domainSeller ?? "", domainEasy: record.domainEasy === true,
   // What the press sees of its kept file: never the path.
@@ -338,6 +339,9 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
       if (record.status !== "setup") return { press: shown(record) };
       const plan = typeof body.plan === "string" && body.plan ? body.plan : record.plan;
       for (const [field, words] of Object.entries(OPEN_NEEDS)) if (!record[field]) throw new SignupError(400, words, { [field]: words });
+      // Square only where it works with the shop's checkout (form.js SQUARE_COUNTRIES): a country changed after picking it.
+      const cardProvider = plan === "stockroom" ? "" : record.cardProvider;
+      if (cardProvider === "square" && !SQUARE_COUNTRIES.includes(record.country)) throw new SignupError(400, squareWords(record.country), { cardProvider: squareWords(record.country) });
       const hold = now().toISOString();
       const held = await presses.update(record.pressId, (current) => {
         const refused = setupRefusal(current, claims);
@@ -355,6 +359,8 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
           pressName: record.pressName, plan, country: record.country, publishes: record.sells || null,
           // The language chosen for the platform's emails, if any (pressRecord.js LANGUAGE_CHOICES).
           ...(record.language ? { language: record.language } : {}),
+          // Stripe or Square for the website's cards (pressRecord.js CARD_PROVIDER_CHOICES); Stripe when not chosen.
+          ...(cardProvider ? { paymentProvider: cardProvider } : {}),
           termsAccepted: body.termsAccepted === true, termsVersion: body.termsVersion,
         }, { pressId: record.pressId });
       } catch (error) {

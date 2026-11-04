@@ -527,11 +527,17 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
   from `paidIn.total` (total exact, other CA$ fields scaled); `PastOrderRate` on OrderDetail calls it. In move mode the
   admin fixture has one brought-over order, `past-1004`, and `getOrderById`.
 - **Spreadsheets (23.35):** every file picker uses `SPREADSHEET_ACCEPT` and reads through `spreadsheetText()` in
-  `spreadsheetFile.ts` (CSV/TSV text in any common encoding, .xlsx, .ods → CSV text); show errors with `readProblem(err)`.
+  `spreadsheetFile.ts` (CSV/TSV text in any common encoding, .xlsx, .ods, and .xls via `xlsFile.ts` since 23.40 → CSV text); show errors with `readProblem(err)`.
   A new bring-a-file window must do the same. Test files made by real programs live in `testdata/spreadsheets/`.
 - **Match columns (23.36):** Books import keeps the owner's matches for unknown headings in `columns` state and passes
   them to `planImport({ columns })`; `mapHeadings` ignores a match for `id`, for a field a known heading already fills,
   or for a field matched twice. Choosing a new file clears the matches.
+- **Sheets (23.37):** a window that reads one file uses `readSpreadsheet(file, sheet)` and shows `<SheetChoice>` beside the
+  file name (renders nothing for one sheet or a text file); changing it calls the window's `choose(file, sheet)` again.
+- **Excel downloads (23.38):** `xlsxWriter.ts` `toXlsx(rows, sheet)` / `saveTable(base, csv, format, sheet)`; a new table
+  download should offer Excel first and CSV second the same way (Books › Export… is the pattern).
+- **First rows (23.39):** keep the `readSpreadsheet` result (`{ file, ...read }`) in state and render `<FirstRows text>`
+  under the file row; it stays folded so the window keeps its lean look.
 - **Whole move on screen (23.22, in CI since 23.29 as `pnpm run test:move` in the `shop-admin-phone` job):** `node scripts/move-check.mjs` (`CHROMIUM_PATH`, `MOVE_SHOTS=dir`) drives
   `admin-fixture.html?move=1` with the demo's sample files and answers the old-shop server actions in the script.
   Extend it when a bring-over window changes. The fixture's dev-only `__fixtureIdToken` lets `oldShopApi.ask` run
@@ -779,3 +785,7 @@ card, no explanations the badge or button already gives. Screens: fixture `?page
 Round two (4 November 2026, plan 27.10-27.12): Overview widget `social` ("Social media that sells", `socialPerformance`
 in `overview/overviewTraffic.ts`, on the Marketing board), the composer's Square picture toggle (`square`, on by
 default; `functions/socialPicture.js`) and the Shop alerts switch `socialPostFailed`.
+
+## Partner company logos (4 November 2026)
+
+A card or dialog about one outside company passes `logo` (`SectionCard logo="quickbooks"`, `Dialog logo={["instagram", "facebook"]}`); the logo sits on a white tile before the title in every look, day and night. Google sign-in uses `GoogleSignInButton` (Google's own style and words). Logos come only from `shared/brand-logos` (README there: sources, owners, rules); never redraw or recolour one, and never show a rival shop builder's.
