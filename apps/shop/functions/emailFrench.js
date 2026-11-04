@@ -208,12 +208,31 @@ function frenchTemplate(templateId, settings) {
 /** The English stand-ins for a missing name, in French ("Bonjour there," reads "Bonjour à vous,"). */
 const NAME_FALLBACKS_FR = Object.freeze({ customer_name: ["there", "à vous"], recipient_name: ["there", "à vous"], sender_name: ["Someone", "Quelqu'un"] });
 
+/** The currency marks emailMoney.js writes, as a French Canadian reads them after the amount. */
+const CURRENCY_FR = Object.freeze({ "CA$": "$", "US$": "$ US", "€": "€", "$": "$" });
+
+/**
+ * An amount as the shop's emails write it ("CA$1,234.50", "US$12.00", "-€5.00", "GBP 9.00") the French way
+ * ("1 234,50 $", "12,00 $ US", "-5,00 €", "9,00 GBP"). Anything else comes through as it was.
+ */
+function frenchMoney(text) {
+  const m = String(text ?? "").trim().match(/^(-?)([A-Z]{3} |[^\d\s,.-]+)(-?)(\d{1,3}(?:,\d{3})*|\d+)(?:\.(\d+))?$/);
+  if (!m) return text;
+  const mark = m[2].trim();
+  const whole = m[4].replace(/,/g, "").replace(/\B(?=(\d{3})+(?!\d))/g, "\u202f");
+  return `${m[1] || m[3]}${whole}${m[5] ? `,${m[5]}` : ""}\u00a0${CURRENCY_FR[mark] ?? mark}`;
+}
+
+/** The values that hold an amount (emailMoney.js), shown the French way in a French email. */
+const MONEY_KEYS = Object.freeze(["total_price", "amount"]);
+
 /** {{status}}, {{request}} and the stand-ins for a missing name in French for a French email; every other value as it was. */
 function frenchValues(vars) {
   const out = { ...vars };
   for (const key of ["status", "request"]) if (typeof out[key] === "string" && VALUES_FR[out[key]]) out[key] = VALUES_FR[out[key]];
   for (const [key, [english, french]] of Object.entries(NAME_FALLBACKS_FR)) if (out[key] === english) out[key] = french;
+  for (const key of MONEY_KEYS) if (typeof out[key] === "string") out[key] = frenchMoney(out[key]);
   return out;
 }
 
-module.exports = { DEFAULT_NOTIFICATIONS_FR, GOODS_FR, PHRASES_FR, VALUES_FR, emailLanguage, shopLanguage, frenchTemplate, frenchValues, sayer };
+module.exports = { DEFAULT_NOTIFICATIONS_FR, GOODS_FR, frenchMoney, PHRASES_FR, VALUES_FR, emailLanguage, shopLanguage, frenchTemplate, frenchValues, sayer };

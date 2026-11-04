@@ -42,6 +42,13 @@ describe("French customer emails in Settings › Notifications (code plan 25.9)"
     expect(french.frenchValues({ customer_name: "Ada" }).customer_name).toBe("Ada");
   });
 
+  it("amounts read the French way in a French email", () => {
+    const out = french.frenchValues({ total_price: "CA$1,234.50", amount: "US$12.00", order_id: "1001.50" });
+    expect(out).toEqual({ total_price: "1\u202f234,50\u00a0$", amount: "12,00\u00a0$ US", order_id: "1001.50" });
+    expect(french.frenchMoney("-€5.00")).toBe("-5,00\u00a0€");
+    expect(french.frenchMoney("free")).toBe("free");
+  });
+
   it("the payment link reminder names its closing day in French", () => {
     const links = require("../../../functions/paymentLinks.js");
     expect(links.closingDay("2026-11-14T20:00:00Z", "fr")).toBe("14 novembre 2026");
