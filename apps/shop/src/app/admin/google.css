@@ -1,0 +1,106 @@
+/* Settings › Google (GoogleSettings.tsx, gg-*). Tokens only: every look (riso.css, adminThemes.css) colours it its own way.
+   Service inks use the look's tile colours where it has them (Bento), else its primary, info, warning and success. */
+.gg { --gg-a: var(--rp-tile-a, var(--rp-primary)); --gg-b: var(--rp-tile-b, var(--rp-info)); --gg-c: var(--rp-tile-c, var(--rp-warning)); --gg-d: var(--rp-tile-d, var(--rp-success));
+  display: flex; flex-direction: column; gap: var(--rp-space-4); min-width: 0; }
+
+/* ── Hero: what Google does for the shop, the account, and the working count ── */
+.gg .gg-hero { display: flex; flex-wrap: wrap; align-items: stretch; justify-content: space-between; gap: var(--rp-space-5); padding: clamp(18px, 3vw, 32px); position: relative; overflow: hidden; }
+.gg-hero-main { display: flex; gap: 20px; align-items: flex-start; flex: 1 1 420px; min-width: 0; }
+.gg-hero-text { min-width: 0; }
+.gg-hero-text > .gg-mark { margin-bottom: 12px; }
+.gg-kicker { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; font-size: var(--rp-text-xs); font-weight: 700; letter-spacing: var(--rp-label-tracking, .08em); text-transform: var(--rp-label-case, uppercase); color: var(--rp-text-subtle); }
+.gg-mark { flex: none; display: inline-flex; gap: 4px; }
+.gg-mark span { width: 10px; height: 10px; border-radius: var(--rp-radius-pill); background: var(--gg-a); }
+.gg-mark span:nth-child(2) { background: var(--gg-b); }
+.gg-mark span:nth-child(3) { background: var(--gg-c); }
+.gg-mark span:nth-child(4) { background: var(--gg-d); }
+.gg-title { margin: 0; font-family: var(--rp-font-display); font-size: clamp(var(--rp-text-xl), 3.2vw, var(--rp-text-3xl)); font-weight: var(--rp-title-weight, 700); text-transform: var(--rp-title-case, none); letter-spacing: var(--rp-title-tracking, 0); line-height: 1.08; color: var(--rp-text); overflow-wrap: anywhere; }
+.gg-lead { margin: 10px 0 0; max-width: 62ch; font-size: var(--rp-text-md); line-height: 1.55; color: var(--rp-text-muted); }
+.gg-account { display: flex; align-items: center; gap: 10px; margin: 16px 0 0; font-size: var(--rp-text-sm); color: var(--rp-text-muted); min-width: 0; }
+.gg-account strong { color: var(--rp-text); overflow-wrap: anywhere; }
+.gg-avatar { flex: none; display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: var(--rp-radius-pill); background: var(--rp-primary); color: var(--rp-on-primary); font-weight: 800; }
+.gg-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 18px; }
+
+.gg-meter { flex: 0 1 240px; align-self: center; display: flex; flex-direction: column; justify-content: center; gap: 12px; padding: 16px 18px; border-radius: var(--rp-radius); background: var(--rp-surface-2, var(--rp-canvas)); border: var(--rp-hair) solid var(--rp-divider); }
+.gg-meter-count { display: flex; align-items: baseline; gap: 8px; margin: 0; color: var(--rp-text-muted); font-size: var(--rp-text-sm); }
+.gg-meter-count strong { font-family: var(--rp-font-display); font-size: var(--rp-text-3xl); line-height: 1; color: var(--rp-text); }
+.gg-meter-bar { display: flex; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.gg-meter-bar li { flex: 1; height: 10px; border-radius: var(--rp-radius-pill); background: var(--rp-divider); }
+.gg-meter-bar li[data-state="done"] { background: var(--rp-success); }
+.gg-meter-bar li[data-state="waiting"], .gg-meter-bar li[data-state="linking"] { background: var(--rp-warning); }
+.gg-meter-bar li[data-state="failed"] { background: var(--rp-danger); }
+
+.gg-needs { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; padding: 0; list-style: none; }
+.gg-need { display: inline-flex; align-items: center; gap: 6px; min-height: var(--rp-touch); padding: 0 14px; border-radius: var(--rp-radius-pill); border: var(--rp-hair) solid var(--rp-warning); background: var(--rp-warning-tint); color: var(--rp-text); font: inherit; font-size: var(--rp-text-sm); font-weight: 600; cursor: pointer; }
+.gg-need[data-state="failed"] { border-color: var(--rp-danger); background: var(--rp-danger-tint); }
+.gg-need:focus-visible { outline: 2px solid var(--rp-focus, currentColor); outline-offset: 2px; }
+.gg-outcome { margin: 0; font-size: var(--rp-text-sm); color: var(--rp-text); }
+.gg-outcome[data-tone="success"] { color: var(--rp-success); }
+.gg-outcome[data-tone="danger"] { color: var(--rp-danger); }
+.gg-note { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-radius: var(--rp-radius); background: var(--rp-warning-tint); color: var(--rp-text); font-size: var(--rp-text-sm); }
+
+/* ── Groups of service cards ── */
+.gg-group { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin-top: var(--rp-space-3); }
+.gg-group .rp-hint { margin: 0; }
+.gg-group-title { margin: 0; font-size: var(--rp-text-lg); font-weight: var(--rp-title-weight-sm, 700); color: var(--rp-text); }
+.gg-grid { display: grid; gap: var(--rp-space-4); grid-template-columns: repeat(auto-fill, minmax(min(100%, 270px), 1fr)); }
+
+.gg .gg-card { display: flex; flex-direction: column; gap: 12px; padding: 18px; min-width: 0; transition: box-shadow var(--rp-dur) var(--rp-ease), transform var(--rp-dur) var(--rp-ease); }
+.gg-card:hover { box-shadow: var(--rp-shadow-hover, var(--rp-shadow)); }
+.gg-card[data-state="failed"] { border-color: var(--rp-danger); }
+.gg-card[data-state="coming"] .gg-icon { filter: saturate(.6); }
+.gg-card-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.gg-card-title { flex: 1 1 auto; min-width: 0; margin: 0; font-size: var(--rp-text-md); font-weight: 700; color: var(--rp-text); overflow-wrap: anywhere; }
+.gg-icon { flex: none; display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: var(--rp-radius); color: var(--gg-ink); background: color-mix(in srgb, var(--gg-ink) 16%, var(--rp-surface)); }
+.gg-icon[data-ink="a"] { --gg-ink: var(--gg-a); }
+.gg-icon[data-ink="b"] { --gg-ink: var(--gg-b); }
+.gg-icon[data-ink="c"] { --gg-ink: var(--gg-c); }
+.gg-icon[data-ink="d"] { --gg-ink: var(--gg-d); }
+.gg-icon svg { color: color-mix(in srgb, var(--gg-ink) 70%, var(--rp-text)); }
+.gg-gives { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: var(--rp-text-sm); line-height: 1.45; color: var(--rp-text-muted); }
+.gg-gives li { position: relative; padding-left: 18px; }
+.gg-gives li::before { content: "✓"; position: absolute; left: 0; top: 0; font-weight: 800; color: var(--rp-text-subtle); }
+.gg-card[data-state="done"] .gg-gives li::before { color: var(--rp-success); }
+.gg-about { margin: 0; font-size: var(--rp-text-sm); line-height: 1.45; color: var(--rp-text-muted); }
+.gg-detail[data-state="failed"] { color: var(--rp-danger); }
+.gg-detail { margin: 0; font-size: var(--rp-text-xs); line-height: 1.5; color: var(--rp-text-subtle); }
+.gg-card-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: auto; padding-top: 12px; border-top: var(--rp-hair) solid var(--rp-divider); }
+.gg-card-foot:empty { display: none; }
+.gg-link { display: inline-flex; align-items: center; gap: 4px; min-height: var(--rp-touch); font-size: var(--rp-text-sm); font-weight: 700; color: var(--rp-primary-text); text-decoration: none; }
+.gg-link:hover { text-decoration: underline; }
+.gg-link:focus-visible { outline: 2px solid var(--rp-focus, currentColor); outline-offset: 2px; }
+
+.gg-problems { font-size: var(--rp-text-sm); }
+.gg-problems summary { cursor: pointer; font-weight: 700; color: var(--rp-warning); min-height: var(--rp-touch); display: flex; align-items: center; }
+.gg-problems ul { margin: 6px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.gg-sheet { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+
+/* ── What stays the press's, and Disconnect ── */
+.gg .gg-trust { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 24px; padding: 20px 22px; margin-top: var(--rp-space-3); background: var(--rp-surface-2, var(--rp-surface)); }
+.gg-trust-icon { flex: none; width: 32px; height: 32px; color: var(--rp-success); }
+.gg-trust-text { flex: 1 1 320px; min-width: 0; }
+.gg-trust .rp-hint { margin: 4px 0 0; }
+.gg-trust ul { margin: 8px 0 0; padding-left: 18px; font-size: var(--rp-text-sm); line-height: 1.6; color: var(--rp-text-muted); }
+
+/* ── Get started step 4: the same services as a compact row of tiles ── */
+.gg-tiles { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); margin: 0; padding: 0; list-style: none; }
+.gg-tile { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--rp-radius); border: var(--rp-hair) solid var(--rp-divider); background: var(--rp-surface); min-width: 0; }
+.gg-tile .gg-icon { width: 34px; height: 34px; }
+.gg-tile-text { display: flex; flex-direction: column; min-width: 0; font-size: var(--rp-text-sm); }
+.gg-tile-text strong { color: var(--rp-text); }
+.gg-tile-text span { color: var(--rp-text-subtle); font-size: var(--rp-text-xs); }
+
+@media (max-width: 640px) {
+  .gg-meter { flex-basis: 100%; flex-direction: row; align-items: center; gap: 14px; padding: 10px 14px; }
+  .gg-meter-count { flex: none; }
+  .gg-meter-count strong { font-size: var(--rp-text-xl); }
+  .gg-meter-bar { flex: 1; }
+  .gg .gg-hero { gap: var(--rp-space-3); }
+  .gg-actions .rp-btn { flex: 1 1 100%; }
+}
+@media (prefers-reduced-motion: reduce) { .gg-card { transition: none; } }
+
+/* Bento trims every card to a thin frame; the hub's cards keep their own room to breathe. */
+:root[data-admin-look="bento"] .rp:not(.studio-editor) .gg .gg-hero { padding: clamp(18px, 3vw, 32px); }
+:root[data-admin-look="bento"] .rp:not(.studio-editor) .gg .gg-card { padding: 20px; }
+:root[data-admin-look="bento"] .rp:not(.studio-editor) .gg .gg-trust { padding: 20px 22px; }

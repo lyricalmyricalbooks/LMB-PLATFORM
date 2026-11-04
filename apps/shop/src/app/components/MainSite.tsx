@@ -198,7 +198,7 @@ function Newsletter({ design }: { design?: any }) {
           <button {...regionProps("newsletterButton")}
             type="submit"
             disabled={status === "loading"}
-            className={`px-5 py-3 text-[10px] font-bold tracking-widest transition-all disabled:opacity-50 flex items-center gap-2 hover:scale-[1.02] ${
+            className={`fm-newsletter-btn px-5 py-3 text-[10px] font-bold tracking-widest transition-all disabled:opacity-50 flex items-center gap-2 hover:scale-[1.02] ${
               buttonShadow ? "shadow-xl" : ""
             } ${buttonUppercase ? "uppercase" : ""}`}
             style={{

@@ -292,6 +292,16 @@ test("only the shop's owner can run Check my shop, and it only looks (plan 14.3)
   assert.equal(JSON.stringify([...w.registry.shops.entries()]), before);
 });
 
+test("the account page shows the shop's free address, and whether it works yet", async () => {
+  const w = world();
+  w.registry.shops.set(SHOP, { ...w.registry.shops.get(SHOP), freeAddress: "moth-press.shops.example", domains: [{ name: "moth-press.shops.example", free: true, state: "waiting_dns" }] });
+  let [shop] = (await w.ask(OWNER, "GET", "/api/accounts/shops")).body.shops;
+  assert.deepEqual([shop.freeAddress, shop.freeAddressLive], ["moth-press.shops.example", false]);
+  w.registry.shops.set(SHOP, { ...w.registry.shops.get(SHOP), domains: [{ name: "moth-press.shops.example", free: true, state: "live" }] });
+  [shop] = (await w.ask(OWNER, "GET", "/api/accounts/shops")).body.shops;
+  assert.equal(shop.freeAddressLive, true);
+});
+
 test("a stockroom-only shop shows the stockroom's address, never a website it doesn't have", async () => {
   const w = world();
   w.registry.shops.set(SHOP, { ...w.registry.shops.get(SHOP), plan: "stockroom" });

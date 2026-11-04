@@ -29,7 +29,8 @@ export function sharedUrl(pageUrl: string, source: string): string {
 /** The share page on each site for this product. `image` is used by Pinterest (a pin needs a picture). */
 export function shareHref(target: ShareTarget, { url, title, image }: { url: string; title: string; image?: string }): string {
   const e = encodeURIComponent;
-  const link = sharedUrl(url, target);
+  // "email" alone would read as a newsletter in the visit sources.
+  const link = sharedUrl(url, target === "email" ? "email_share" : target);
   switch (target) {
     case "facebook": return `https://www.facebook.com/sharer/sharer.php?u=${e(link)}`;
     case "pinterest": return `https://www.pinterest.com/pin/create/button/?url=${e(link)}${image && /^https:\/\//.test(image) ? `&media=${e(image)}` : ""}&description=${e(title)}`;

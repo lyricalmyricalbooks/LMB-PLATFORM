@@ -351,6 +351,18 @@ export const PRESS_TEMPLATES_FR = {
     footer: signOff(settings),
   }),
 
+  /** French twin of "free-address-live". */
+  "free-address-live": ({ domain, link }, { settings, pressName }) => layout({
+    subject: `${pressName} s'ouvre maintenant à l'adresse ${domain}`,
+    greeting: "Bonjour,",
+    paragraphs: [
+      `Votre boutique s'ouvre maintenant à l'adresse ${domain}, avec le cadenas de sécurité. C'est l'adresse à partager : mettez-la sur vos pages sociales, vos cartes et vos courriels.`,
+      "Elle est gratuite et reste la vôtre tant que votre boutique est ouverte. Vous pouvez changer son nom, ou apporter votre propre domaine, dans les réglages de votre adresse Web.",
+    ],
+    buttons: [["Ouvrir les réglages de votre adresse Web", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
   /** French twin of "quiet-shop". */
   "quiet-shop": ({ pressName, link, helpLink }, { settings, wFr = sameFr }) => layout({
     subject: `Comment ça va pour ${pressName}?`,

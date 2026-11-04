@@ -89,8 +89,25 @@ The app sends its key as `Authorization: Bearer cak_…`. All calls are GET and 
 Lists page with `next` (pass it back as `after`), at most 250 a page. At most 120 calls a minute per app and shop
 (429 with `Retry-After`). Never answered: cost prices, payment details, private notes, test or unpaid orders.
 
-Changing things comes in 26.3b, through the shop's own rules, so an app can never skip the packing checklist, the
-address review, a hold or a dispute.
+## 26.3b (part built): the app connection, changing
+
+Apps never change a shop directly. The platform checks the key and permission, writes a request to the shop's
+`appRequests/<id>` with its own access, and the shop's `onAppRequest` function applies it with the shop's own checks
+(`apps/shop/functions/appRequests.js`), then writes the answer on the same document. No shop rule lets shoppers or
+staff read or write `appRequests`.
+
+| Call | Permission | What |
+| --- | --- | --- |
+| `POST /api/apps/v1/orders/<id>/fulfillment` | `write_orders` | `{ trackingCarrier, trackingNumber, trackingUrl?, shipped? }`: add tracking and mark sent (`shipped: false` only adds tracking) |
+| `GET /api/apps/v1/requests/<id>` | the app that asked | `{ status: waiting \| done \| refused, result, reason }` |
+
+The POST waits up to 5 seconds for the shop's answer (200), else answers 202 with the request to look up. An
+`Idempotency-Key` header makes a retry return the first request. Marking sent uses the same checks as a dispatch from
+the stockroom app (paid, not a test, ships by carrier, no open request, dispute, hold, failed refund, label being bought
+or waiting pre-order), and tracking the shop or another app put on an order is never replaced. The customer gets the
+usual shipped email.
+
+Stock and product changes come next, the same way.
 
 ## 26.4 (built): alerts to apps
 

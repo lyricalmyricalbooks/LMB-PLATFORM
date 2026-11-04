@@ -712,6 +712,9 @@
 .studio-structure-actions button:hover, .studio-structure-actions button:focus-visible { text-decoration-thickness: 2px; }
 @media (pointer: coarse) { .studio-structure-actions button { min-height: 32px; padding: 0 2px; } }
 .studio-field-note { display: block; margin-top: 4px; font-size: 11px; line-height: 1.4; color: var(--rp-text-subtle); }
+/* Template-only controls while the shop is on Riso Press or Standard: one note above the run, not one per control. */
+.studio-template-note { margin: 0 0 10px; padding: 8px 10px; border-left: 3px solid var(--rp-border-strong); background: var(--rp-surface-2); font-size: 12px; line-height: 1.4; color: var(--rp-text); }
+.studio-field[data-template-only] ~ .studio-field[data-template-only] .studio-template-note { display: none; }
 
 /* Essentials (plan 1.27): the first settings, one short card per step. */
 .studio-essentials { display: grid; gap: 12px; padding: 12px 16px 24px; }

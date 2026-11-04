@@ -34,6 +34,12 @@ connections, catalogs and recent post failures, with no tokens.
 - Every product link carries `utm_source` (the place) so visits from posts and shares show in the visit sources.
 - Catalogs read the shop's product file (`/social-product-feed.csv`) daily, so published changes follow on their own.
 - TikTok posts stay private (`SELF_ONLY`) until TikTok audits the platform's app.
+- A post uses a **square picture** unless turned off (`functions/socialPicture.js`): the photo whole on a 1080 JPEG,
+  bordered in its own main colour, saved as `social/<postId>.jpg` in the shop's bucket.
+- A scheduled post a place refused emails the owner once ("A post didn't go out"), unless Settings › Notifications ›
+  Shop alerts turns it off (`shopAlerts.socialPostFailed`).
+- The Overview's **Social media that sells** groups visit sources per network (`socialPerformance`); share-menu links
+  arrive as `copy_link`, `native_share` and `email_share`.
 
 ## Settings (platform)
 

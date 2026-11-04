@@ -254,7 +254,7 @@ export const ARTICLES = Object.freeze([
     steps: [
       "Take your last orders in your old shop, then close its checkout.",
       "Open Settings › General and use Check your old links under URL redirects, so none of your old addresses show page not found.",
-      "Point your web address at this shop.",
+      "Connect your web address in Settings › General: press Allow where you bought it, or copy across the lines it shows.",
       "Tell your mailing list where to find you.",
       "Tick Move over from your old shop in Set up your shop on the Overview.",
     ],
@@ -265,9 +265,14 @@ export const ARTICLES = Object.freeze([
     topic: "Moving your shop",
     question: "Can my shop use my own web address?",
     answer: [
-      "Not by yourself yet. Connecting your own web address is still being finished.",
-      "Until then your shop works at its own address, which you find in the welcome email. Ask us with Get help from Colophon on your account page, and we'll tell you when your own address is ready.",
+      "Yes. While you set up, open Settings › General and choose I already have a domain under Your web address. Type it, like yourpress.com, and we find where you bought it. Nothing changes for your old site yet.",
+      "No domain yet? Choose I need a domain and buy one at GoDaddy, then come back and add it. Or keep the free address for now and add your own any time.",
+      "Every shop gets a free address made from your press's name. To use another name, press Pick another name in setup. Once your shop is open, press Change name in Settings › General. The address before keeps working, so anyone who has it still reaches you.",
+      "Once your shop is made, we connect it for you. At most domain sellers, GoDaddy among them, you press Allow once in their window. At any other, we show you exactly what to copy across, with a Copy button on each line, or you can email it to your web person in one step.",
+      "Your domain becomes your shop's main address as soon as it works, padlock included, and www.yourpress.com opens it too. We email you when it's live. Your free address keeps working the whole time.",
+      "Before you say yes, take your last orders in your old shop and close its checkout: once you do, your domain shows this shop instead.",
     ],
+    where: ["Settings › General"],
   },
   {
     id: "shipping",

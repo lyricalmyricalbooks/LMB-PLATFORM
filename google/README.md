@@ -72,7 +72,14 @@ before `deletionDue`.
 | `GET /google/oauth` | Google, sending the press back with `code` and `state` | the one-use state (15 minutes) |
 
 The shop's calls: `google.status`, `google.connectLink { returnUrl, extras }`, `google.tryAgain { step }`,
-`google.disconnect`.
+`google.turnOff { extras }`, `google.disconnect`.
+
+**One Google account per shop (4 November 2026).** Every part runs on the one grant. Once a shop is connected, Google's
+page opens on that account (`login_hint`), and a sign-in that comes back with a different account changes nothing: its
+new access is given straight back and the shop is sent back with `?google=other_account`. Switching extras off needs no
+new sign-in (`google.turnOff`): the grant stays, the extras' records get `stoppedAt`, their steps leave the list, and the
+Ads link to the book feed comes off. Saving fewer extras through Google's page stops the ones left off the same way.
+Switching one on again goes through Google's page once, on the same account.
 
 ## Files
 

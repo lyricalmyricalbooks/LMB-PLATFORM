@@ -37,7 +37,7 @@ describe("the admin of a website-only press", () => {
   });
 
   it("doesn't offer the stock list that is read from the stockroom", () => {
-    expect(read("ConnectGoogleCard.tsx")).toMatch(/status\.connected && hasStockroom\(\) && \(status\.extrasChosen \?\? \[\]\)\.includes\("drive"\) && <StockSheetRow \/>/);
+    expect(read("GoogleSettings.tsx")).toMatch(/s\.id === "drive" && status\.connected && hasStockroom\(\) && saved\.includes\("drive"\)/);
   });
 
   it("offers the Author role and stockroom words only with the stockroom", () => {

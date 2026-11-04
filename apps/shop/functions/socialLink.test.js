@@ -4,7 +4,7 @@ import { describe, expect, test } from "vitest";
 import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
-const { socialActions, productLink, retailerIdOf } = require("./socialLink.js");
+const { socialActions, failedPostEmail, productLink, retailerIdOf } = require("./socialLink.js");
 const { readShopConfig } = require("./shopConfig.js");
 
 const URL_ = "https://social.platform.example";
@@ -54,7 +54,7 @@ const STATUS = {
   ],
 };
 
-function make({ url = URL_, books = { nm: BOOK }, publish } = {}) {
+function make({ url = URL_, books = { nm: BOOK }, publish, onFailed, makeSquare } = {}) {
   let clock = NOW;
   const calls = [];
   const db = fakeDb({ books });
@@ -68,7 +68,7 @@ function make({ url = URL_, books = { nm: BOOK }, publish } = {}) {
   };
   let ids = 0;
   const actions = socialActions({
-    url, shopId: "moth-press", serviceKey: () => KEY, fetch, db, siteUrl: SITE, now: () => clock, randomId: () => `post${++ids}`,
+    url, shopId: "moth-press", serviceKey: () => KEY, fetch, db, siteUrl: SITE, now: () => clock, randomId: () => `post${++ids}`, onFailed, makeSquare,
     requireAdmin: async (req, res) => (req.admin ? { email: "owner@example.com" } : (res.status(403).json({ error: "Admin access required" }), null)),
   });
   const run = async (body, { admin = true } = {}) => {
@@ -161,6 +161,40 @@ describe("posts", () => {
     expect(doc("post1").status).toBe("posted");
     expect((await sweep()).sent).toBe(0);
     expect(calls.filter((c) => c.op === "social.publish")).toHaveLength(1);
+  });
+
+  test("a scheduled post a place refused tells the owner once; a post that went out tells nobody", async () => {
+    const told = [];
+    const publish = (args, reply) => (args.placeId === "ig:222" ? reply(400, { error: { code: "refused", message: "Instagram only takes JPEG photos." } }) : reply(200, { state: "posted" }));
+    const { run, sweep, tick } = make({ publish, onFailed: async (post) => { told.push(post); } });
+    await run({ step: "savePost", bookId: "nm", imageUrl: BOOK.photoUrl, caption: "Friday", placeIds: ["fb:111", "ig:222"], sendAt: later(60 * 1000) });
+    await run({ step: "savePost", bookId: "nm", imageUrl: BOOK.photoUrl, caption: "Fine", placeIds: ["fb:111"], sendAt: later(60 * 1000) });
+    tick(2 * 60 * 1000);
+    await sweep();
+    await sweep();
+    expect(told.map((p) => p.status)).toEqual(["partly"]);
+    const mail = failedPostEmail({ post: { ...told[0], title: "Night <Moths>" }, ownerEmail: "owner@example.com", shopName: "Moth Press", adminLink: `${SITE}/admin#social-posts` });
+    expect(mail.to).toEqual(["owner@example.com"]);
+    expect(mail.failed).toBe(1);
+    expect(mail.subject).toBe("A post didn't go out (Moth Press)");
+    expect(mail.html).toContain("Night &lt;Moths&gt;");
+    expect(mail.html).toContain("<strong>Instagram</strong> (@mothpress): Instagram only takes JPEG photos.");
+    expect(mail.html).not.toContain("Facebook");
+    expect(failedPostEmail({ post: told[0], ownerEmail: "", language: "fr" }).subject).toMatch(/^Une publication n'est pas partie/);
+  });
+
+  test("the post uses a square copy of the photo unless turned off; a failed copy keeps the photo", async () => {
+    const made = [];
+    const makeSquare = async (url, id) => { made.push([url, id]); return id === "post2" ? null : `https://img.example/social/${id}.jpg`; };
+    const { run, calls } = make({ makeSquare });
+    const first = await run({ step: "savePost", bookId: "nm", imageUrl: BOOK.photoUrl, caption: "Hi", placeIds: ["fb:111"] });
+    expect(first.body.post).toMatchObject({ imageUrl: "https://img.example/social/post1.jpg", photoUrl: BOOK.photoUrl, square: true });
+    expect(calls.find((c) => c.op === "social.publish").args.imageUrl).toBe("https://img.example/social/post1.jpg");
+    const second = await run({ step: "savePost", bookId: "nm", imageUrl: BOOK.photoUrl, caption: "Hi", placeIds: ["fb:111"] });
+    expect(second.body.post).toMatchObject({ imageUrl: BOOK.photoUrl, square: false });
+    const third = await run({ step: "savePost", bookId: "nm", imageUrl: BOOK.photoUrl, caption: "Hi", placeIds: ["fb:111"], square: false });
+    expect(third.body.post.imageUrl).toBe(BOOK.photoUrl);
+    expect(made.map(([, id]) => id)).toEqual(["post1", "post2"]);
   });
 
   test("a scheduled post can be cancelled until it goes; then it can't", async () => {
