@@ -121,6 +121,7 @@ import { hasTokens, isDynamic } from "../../features/site/dynamicSources";
 const isConnectedValue = (v: any) => isDynamic(v) || hasTokens(v);
 import { CANDIDATE_ID, deletePreset, deleteSharedBlock, renamePreset, renameSharedBlock, withCandidate } from "./sectionLibrary";
 import "./studio.css";
+import { productHref } from "../../lib/productHref";
 
 type LeftTab = "essentials" | "sections" | "style" | "text" | "menus" | "pages" | "media" | "themes";
 /** `expect`: the design the toast's Undo belongs to (filled in once the change lands); see `undoAction`. */
@@ -1011,7 +1012,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     switch (template.id) {
       case "storefront": return withQ("/?catalog=true");
       // "template=default" keeps the default layout even for a book or category that uses an alternate.
-      case "productPage": return withQ(`/books/${productSlug || ""}?template=default`);
+      case "productPage": return withQ(`${productHref(productSlug || "")}?template=default`);
       case "collectionPage": return withQ(`/collections/${collectionSlug}?template=default`);
       case "cartPage": return withQ("/checkout");
       case "page404": return withQ("/studio-missing-page");
@@ -1021,7 +1022,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       case "page": return withQ(`/page/${(sharedPageSlug && pages.some((p) => p.slug === sharedPageSlug) ? sharedPageSlug : pages.find((p) => p.status === "published")?.slug) || ""}`);
       default: {
         const alt = parseAltSurface(template.id);
-        if (alt?.base === "productPage") return withQ(`/books/${productSlug || ""}?template=${alt.id}`);
+        if (alt?.base === "productPage") return withQ(`${productHref(productSlug || "")}?template=${alt.id}`);
         if (alt?.base === "collectionPage") return withQ(`/collections/${collectionSlug}?template=${alt.id}`);
         return withQ(template.pageSlug ? `/page/${template.pageSlug}` : "/");
       }
@@ -1073,7 +1074,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const base = window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, "");
     const alt = parseAltSurface(template.id)?.base;
     const id = alt || template.id;
-    const path = id === "productPage" && productSlug ? `/books/${productSlug}`
+    const path = id === "productPage" && productSlug ? productHref(productSlug)
       : id === "collectionPage" && collectionSlug ? `/collections/${collectionSlug}`
       : id === "storefront" ? "/?catalog=true"
       : ["wishlistPage", "accountPage", "trackingPage"].includes(id) ? ({ wishlistPage: "/wishlist", accountPage: "/account", trackingPage: "/track" } as Record<string, string>)[id]

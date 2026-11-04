@@ -5,7 +5,7 @@ const decodeXml = value => value.replace(/&amp;/g, '&').replace(/&lt;/g, '<').re
 export function routeOutputPath(route) {
   if (route === '/') return 'index.html';
   const parts = route.split('/');
-  if (parts.length !== 3 || !['books', 'page', 'collections'].includes(parts[1])) throw new Error(`Unsupported snapshot route: ${route}`);
+  if (parts.length !== 3 || !['books', 'products', 'page', 'collections'].includes(parts[1])) throw new Error(`Unsupported snapshot route: ${route}`);
   const slug = decodeSlug(parts[2]);
   if (!safeSlug(slug)) throw new Error(`Unsafe snapshot route: ${route}`);
   // `<route>.html`, not `<route>/index.html`: GitHub Pages serves /books/x from books/x.html with 200,
@@ -24,7 +24,7 @@ export function publicRoutes(xml, siteUrl, onSkip = route => console.warn(`::war
     const url = new URL(decodeXml(match[1]));
     if (url.origin !== base.origin || !url.pathname.startsWith(base.pathname) || url.search || url.hash) return [];
     const route = '/' + url.pathname.slice(base.pathname.length).replace(/\/$/, '');
-    if (route !== '/' && !/^\/(books|page|collections)\/[^/]+$/.test(route)) return [];
+    if (route !== '/' && !/^\/(books|products|page|collections)\/[^/]+$/.test(route)) return [];
     try { routeOutputPath(route); } catch { onSkip(route); return []; }
     return [route];
   }))];

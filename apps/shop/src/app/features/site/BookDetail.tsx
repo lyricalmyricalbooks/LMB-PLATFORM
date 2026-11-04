@@ -94,6 +94,7 @@ import { adjustStyle, framingStyle, motionFraming } from "./photoFraming";
 import { PhotoToneDefs } from "./PhotoToneDefs";
 import { ThumbStrip } from "./ThumbStrip.tsx";
 import { PHONE_MAX } from "./breakpoints";
+import { productHref, productSegment } from "../../lib/productHref";
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
 /** The title's inline variables: Studio's "Title size" preset and the phone cap that keeps its longest word whole. */
@@ -430,7 +431,7 @@ export default function BookDetail() {
   }, [showPdpFreeShipping, book, selectedVariant, shippingProfiles, cart, books]);
   const siteBase = new URL(import.meta.env.BASE_URL, window.location.origin).href;
 
-  const bookUrl = canonicalUrl(new URL(`${import.meta.env.BASE_URL}books/${encodeURIComponent(book?.slug || book?.id || slug || "")}`, window.location.origin).href);
+  const bookUrl = canonicalUrl(new URL(`${import.meta.env.BASE_URL}${productSegment()}/${encodeURIComponent(book?.slug || book?.id || slug || "")}`, window.location.origin).href);
   // A shirt or ring with sizes tells search engines about every version (price range, stock per size), not just the chosen one (plan 10.21).
   const goodsWithVersions = !!book && !isBookKind(productKind(book)) && (book.variants || []).length > 0;
   const seoBook = selectedVariant && book && !goodsWithVersions ? {
@@ -1796,7 +1797,7 @@ export default function BookDetail() {
                       transition={{ delay: i * 0.07 }}
                       className="fm-card group min-w-0"
                     >
-                      <Link to={`/books/${relSlug}`}>
+                      <Link to={productHref(relSlug)}>
                         <div {...regionProps("relatedPhoto")} className="relative fm-surface rounded-[1.5rem] overflow-hidden mb-4 border border-white/[0.05] group-hover:border-white/[0.12] transition-all shadow-xl" style={{ aspectRatio: productImageAspect }}>
                           <img
                             loading="lazy"
