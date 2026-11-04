@@ -18,7 +18,7 @@ const api = vi.hoisted(() => {
 vi.mock("./api", () => ({ adminApi: api }));
 const old = vi.hoisted(() => ({
   readOldLinks: vi.fn(async (_a: string) => ({
-    host: "moth.example", notes: [], paths: ["/", "/products/moth-songs", "/products/salt-hours", "/pages/about-us", "/blog/news"],
+    host: "moth.example", notes: [], paths: ["/", "/products/moth-songs", "/product/salt-hours", "/pages/about-us", "/blog/news"],
   })),
   readOldPages: vi.fn(async (_a: string, _paths: string[]) => ({
     host: "moth.example", skipped: [{ path: "/pages/gone", reason: "couldn't be read" }],
@@ -40,6 +40,7 @@ const type = (input: HTMLInputElement, value: string) => {
 };
 
 describe("Check your old links", () => {
+  // "/product/salt-hours" (singular, as some shops write it): a /products/<slug> address opens the product itself (plan 12.18).
   it("lists the old addresses that would show page not found, and adds every suggested redirect at once", async () => {
     root = createRoot(document.body.appendChild(document.createElement("div")));
     act(() => root!.render(h(RedirectsCard)));
@@ -61,7 +62,7 @@ describe("Check your old links", () => {
     await flush();
     expect(api.saveRedirects).toHaveBeenCalledWith([
       { from: "/products/moth-songs", to: "/books/moth-songs" },
-      { from: "/products/salt-hours", to: "/books/salt-hours" },
+      { from: "/product/salt-hours", to: "/books/salt-hours" },
       { from: "/pages/about-us", to: "/page/about" },
       { from: "/blog/news", to: "/" },
     ]);

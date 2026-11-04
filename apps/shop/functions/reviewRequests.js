@@ -6,6 +6,7 @@
 // Bounded: one single-field range query on `shippedAt` (no composite index), ≤200 orders, ≤50 sends.
 
 const { emailLanguage } = require("./emailFrench");
+const { productBase } = require("./shared/shopSells");
 const DAY = 86400000;
 const WINDOW_DAYS = 30; // orders shipped longer ago than delay + 30 days are never asked
 const MAX_SCAN = 200;
@@ -78,7 +79,7 @@ async function runReviewRequests(deps) {
     for (const id of reviewBookIds(order)) {
       const book = await db.collection("books").doc(id).get().then(d => (d.exists ? d.data() : null)).catch(() => null);
       if (!book || book.status === "draft" || book.status === "archived") continue;
-      books.push({ title: String(book.title || "").slice(0, 200), url: deps.siteLink(`/books/${encodeURIComponent(book.slug || id)}`) });
+      books.push({ title: String(book.title || "").slice(0, 200), url: deps.siteLink(`/${productBase(notificationSettings.sells)}/${encodeURIComponent(book.slug || id)}`) });
     }
     if (!books.length) {
       await doc.ref.update({ reviewRequestSkipped: "no_live_books" }).catch(() => {});

@@ -82,6 +82,8 @@ const MAIN_IMPORT_BUDGET = {
   'fair-helper-view.js': 0,
   // The read-only lock while the shop's plan is paused (platform plan 6.7) needs nothing from main.js.
   'plan-pause.js': 0,
+  // The Google Sheet on a Colophon shop (plan stockroom-google-sheet.md): main.js hands it everything it needs.
+  'google-sheet.js': 0,
   // The review inbox is a window over receipts.js and shipping.js, which hold its
   // data. From main.js it needs only the DOM lookup, the role check, the toast,
   // and the call that repaints the landing page after something is filed.
@@ -358,6 +360,8 @@ const MIN_EXPORTS = {
   'fair-helper-view.js': 5,
   // The read-only lock: the call that locks the stockroom and shows the banner.
   'plan-pause.js': 1,
+  // Open the tab, refresh at start-up, send, and the tests' reset.
+  'google-sheet.js': 4,
   // The places pop-up: open, preview, step, submit and close a place.
   'stock-places.js': 6,
   // The book form's cover photo: pick, remove, and fill the field when the form opens.

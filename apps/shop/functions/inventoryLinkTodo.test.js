@@ -42,6 +42,13 @@ describe("book lists", () => {
     expect(list.filter(b => b.bookId === "t1").map(b => [b.key, b.edition, b.product])).toEqual([["t1|m", "M", "Moth Tee"], ["t1|s", "S", "Moth Tee"]]);
     expect(list.find(b => b.key === "b3|s").product).toBeUndefined();
   });
+  test("plan 23.9: an edition the website counts carries its count, so the app starts the item from it", () => {
+    const counted = [{ id: "c1", title: "Counted", trackInventory: true, stockLevel: 14 },
+      { id: "c2", title: "Sized", trackInventory: true, variants: [{ id: "a", name: "A", stockLevel: 3 }] },
+      { id: "c3", title: "Uncounted", stockLevel: 9 }];
+    const list = link.shopBooksForApp(counted, APP, {}, { now: now.getTime() });
+    expect(list.map(b => [b.key, b.tracked, b.stock])).toEqual([["c1|", true, 14], ["c2|a", true, 3], ["c3|", undefined, undefined]]);
+  });
   test("app books the shop doesn't have: unmatched, not a suggestion, not marked Not for the shop", () => {
     expect(link.appBooksForShop(BOOKS, APP, STATE.links)).toEqual([{ id: "zine", title: "Fair Zine", author: "Your Press", isbn: "", price: 12, currency: "CA$" }]);
     expect(link.appBooksForShop(BOOKS, APP, STATE.links, { ignoredAppBooks: { zine: "x" } })).toEqual([]);

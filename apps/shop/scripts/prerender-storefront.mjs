@@ -93,7 +93,7 @@ try {
       // reads succeed. Never publish a fallback caused by a backend outage.
       await page.waitForFunction(() => !!sessionStorage.getItem('site-bootstrap-v1'), undefined, { timeout: 60000 });
       if (!publishedCache) publishedCache = await page.evaluate(() => sessionStorage.getItem('site-bootstrap-v1'));
-      if (route.startsWith('/books/')) {
+      if (/^\/(?:books|products)\//.test(route)) {
         await page.waitForFunction(() => !!document.querySelector('[data-studio-label="Product page"][data-seo-reviews="ready"]') && !!document.getElementById('seo-jsonld-page'), undefined, { timeout: 30000 });
       } else if (route.startsWith('/page/')) {
         await page.waitForFunction(slug => document.querySelector('[data-seo-page]')?.getAttribute('data-seo-page') === slug, decodeURIComponent(route.slice('/page/'.length)), { timeout: 30000 });

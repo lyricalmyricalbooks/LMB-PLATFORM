@@ -106,6 +106,8 @@ export function cleanShopBook(raw) {
     status,
     // Plan 10.5: the product an edition is a size or colour of (lib/product-groups.js); empty for a book's edition.
     product: plainText(raw.product, 200),
+    // Plan 23.9: how many the website counts now, when it keeps count; the stockroom starts the item from it.
+    stock: raw.tracked === true && Number.isInteger(raw.stock) && raw.stock >= 0 ? Math.min(raw.stock, 1_000_000) : null,
   };
 }
 
@@ -142,8 +144,9 @@ export function shopBookName(book) {
 
 /**
  * What the Add new book form starts with for a website book: its name, author,
- * ISBN and regular price in CA$. The print run and everything else are left
- * for the owner, who checks it all and saves.
+ * ISBN and regular price in CA$, and (plan 23.9) the website's stock count as
+ * the opening count, so the stockroom and the website agree from day one.
+ * Everything else is left for the owner, who checks it all and saves.
  */
 export function bookPrefill(book) {
   const price = book && Number.isFinite(book.price) && book.price >= 0 ? book.price : null;
@@ -153,6 +156,7 @@ export function bookPrefill(book) {
     isbn: clean(book && book.isbn),
     price: price == null ? '' : String(price),
     currency: 'CA$',
+    ...(book && Number.isInteger(book.stock) && book.stock >= 1 ? { onHand: book.stock } : {}),
   };
 }
 

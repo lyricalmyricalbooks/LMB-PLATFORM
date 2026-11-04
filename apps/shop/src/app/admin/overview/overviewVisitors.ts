@@ -67,7 +67,7 @@ const cleanPath = (p: string) => {
 };
 
 function bookForPath(path: string, books: Book[] | null | undefined): Book | null {
-  const m = cleanPath(path).match(/\/books\/([^/]+)$/);
+  const m = cleanPath(path).match(/\/(?:books|products)\/([^/]+)$/);
   if (!m) return null;
   let slug = m[1];
   try { slug = decodeURIComponent(slug); } catch { /* keep raw */ }
@@ -82,7 +82,7 @@ export function pageLabel(path: string, books: Book[] | null | undefined): strin
   // A sub-path build (SITE_BASE) still ends in the same route.
   const book = bookForPath(p, books);
   if (book) return String(book.title || book.name || "Book");
-  let m = p.match(/\/books\/([^/]+)$/);
+  let m = p.match(/\/(?:books|products)\/([^/]+)$/);
   if (m) { try { return titleCase(decodeURIComponent(m[1])); } catch { return titleCase(m[1]); } }
   m = p.match(/\/page\/([^/]+)$/);
   if (m) { try { return titleCase(decodeURIComponent(m[1])); } catch { return titleCase(m[1]); } }

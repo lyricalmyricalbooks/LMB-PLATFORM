@@ -21,7 +21,7 @@ const { setImageLoader } = await import("./photoLinks");
 setImageLoader(async (url) => !url.includes("gone"));
 
 let root: Root | null = null;
-afterEach(() => { act(() => root?.unmount()); root = null; document.body.innerHTML = ""; vi.clearAllMocks(); });
+afterEach(() => { act(() => root?.unmount()); root = null; document.body.innerHTML = ""; vi.clearAllMocks(); localStorage.clear(); });
 
 const books = [{ id: "b1", title: "Salt Hours", isbn: "9780306406157", retailPrice: 24, stockLevel: 7, status: "published" }];
 const flush = async () => { for (let i = 0; i < 5; i++) await act(async () => { await Promise.resolve(); }); };
@@ -86,6 +86,48 @@ describe("BookImportDialog", () => {
     expect(text).toContain("2 of 2 matched");
     expect(text).toContain("1 new");
     expect([...document.querySelectorAll("button")].some(b => /Import 1 book/.test(b.textContent || ""))).toBe(true);
+  });
+
+  it("matches the same columns again in the next import (plan 23.41)", async () => {
+    const open = async () => {
+      act(() => root?.unmount());
+      document.body.innerHTML = "";
+      const host = document.createElement("div"); document.body.append(host);
+      root = createRoot(host);
+      act(() => root!.render(h(BookImportDialog, { books, onClose: () => {}, onDone: () => {} })));
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+      Object.defineProperty(input, "files", { value: [new File(["Book,Cost to buyer,Notes\nNew Poems,22.50,signed\n"], "list.csv")], configurable: true });
+      await act(async () => { input.dispatchEvent(new Event("change", { bubbles: true })); });
+      await flush();
+    };
+    const select = (label: string) => [...document.querySelectorAll("select")].find(s => s.closest("label, div")?.textContent?.startsWith(label))!;
+    const pick = async (label: string, value: string) => {
+      const s = select(label);
+      await act(async () => { s.value = value; s.dispatchEvent(new Event("change", { bubbles: true })); });
+      await flush();
+    };
+    await open();
+    expect(document.body.textContent).toContain("0 of 3 matched");
+    await pick("Book", "title");
+    await pick("Cost to buyer", "retailPrice");
+    // Nothing is remembered until the books are imported.
+    expect(localStorage.length).toBe(0);
+    const importBtn = [...document.querySelectorAll("button")].find(b => /Import 1 book/.test(b.textContent || ""))!;
+    await act(async () => { importBtn.click(); });
+    await flush();
+
+    await open();
+    let text = document.body.textContent || "";
+    expect(text).toContain("2 of 3 matched, as last time");
+    expect(select("Book").value).toBe("title");
+    expect(select("Cost to buyer").value).toBe("retailPrice");
+    expect(select("Notes").value).toBe("");
+    expect(text).toContain("1 new");
+    // Changing a match drops the "as last time" note.
+    await pick("Book", "");
+    text = document.body.textContent || "";
+    expect(text).toContain("1 of 3 matched");
+    expect(text).not.toContain("as last time");
   });
 
   it("offers the workbook's other sheets and reads the one chosen (plan 23.37)", async () => {

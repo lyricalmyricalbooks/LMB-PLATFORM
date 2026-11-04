@@ -21,8 +21,8 @@ import { LookStage, ScaledStage, STAGE_WIDTH, type StageDevice, type StagePage }
  */
 export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onRetrySettings, apply, intro: introWords, keep }: {
   publishes?: string | null;
-  /** The press's own books (ownBooks), shown with their covers and titles in each look's preview (plan 17.8). */
-  books?: { title: string; photo: string }[];
+  /** The press's own books (ownBooks), shown with their covers, titles and prices in each look's preview (plan 17.8). */
+  books?: { title: string; photo: string; price?: string }[];
   settings: any;
   onDone: (welcome: WelcomeDone) => Promise<void>;
   onRetrySettings?: () => void;
@@ -49,8 +49,8 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
   const press = pressNameOf(settings);
   const bookShop = sellsBooks(publishes);
   const samples = useMemo(() => sampleProducts(publishes), [publishes]);
-  // The press's own products have no prices in the preview; the sample prices fill in so the cards read as a shop.
-  const products: PreviewProduct[] = own && books.length ? books.map((b, i) => ({ ...b, price: samples[i % samples.length].price })) : samples;
+  // The press's own products show their own prices; one without a price borrows a sample price so the cards read as a shop.
+  const products: PreviewProduct[] = own && books.length ? books.map((b, i) => ({ ...b, price: b.price || samples[i % samples.length].price })) : samples;
   const shown = useMemo(() => filterLooks(others, filter), [others, filter]);
   // The try-on flips through what the press is looking at: the suggestions, then the filtered list.
   const order = useMemo(() => [...suggested, ...shown], [suggested, shown]);

@@ -189,6 +189,27 @@ let allShops = [];
 async function loadShops() {
   allShops = (await api("GET", "/control/shops")).shops;
   showShops();
+  loadSocialLost();
+}
+
+// Social connections a network stopped accepting (27.8), across the shops: the press reconnects from their Sales
+// channels page, so each line opens the shop to see who to tell. Nothing shows while there are none.
+async function loadSocialLost() {
+  try {
+    const { lost } = await api("POST", "/control/social-lost");
+    $("#social-lost").replaceChildren(...(lost?.length ? [el("div", { className: "rp-alerts" }, ...lost.map((l) => {
+      const open = button("Open", "secondary");
+      open.addEventListener("click", () => { const shop = allShops.find((x) => x.shopId === l.shopId); if (shop) openShop(shop); });
+      return el("div", { className: "rp-alert", dataset: { tone: "warning" } },
+        el("span", { className: "rp-alert-glyph", ariaHidden: "true", textContent: "!" }),
+        el("span", { className: "rp-alert-text" },
+          el("strong", { className: "rp-alert-title", textContent: `${l.pressName}: ${l.name} stopped working` }),
+          el("span", { className: "rp-alert-detail", textContent: `${l.lostAt ? `Since ${dateOnly(l.lostAt)}. ` : ""}The press reconnects it in Sales channels.` })),
+        el("span", { className: "rp-alert-actions" }, open));
+    }))] : []));
+  } catch {
+    $("#social-lost").replaceChildren();
+  }
 }
 // Every shop's tags (19.13), for the list's pills and search.
 let shopTags = {};
@@ -336,7 +357,35 @@ function googleView(record) {
   }));
   return el("div", { className: "cr-list" },
     el("p", { className: "rp-hint", textContent: `${google.stage}${google.accountEmail ? ` as ${google.accountEmail}` : ""}${google.connectedAt ? ` since ${dateOnly(google.connectedAt)}` : ""}.` }),
-    google.steps.length ? list : el("p", { className: "rp-hint", textContent: "No Google steps yet." }));
+    google.steps.length ? list : el("p", { className: "rp-hint", textContent: "No Google steps yet." }),
+    // Extras the press switched off in Settings › Google (#385): they stopped at once; what they made stays the press's.
+    stoppedExtras(google.parts),
+    stockSheetLine(record.connections?.google?.sheet));
+}
+
+// The stockroom's Google Sheet in the press's Drive (#402): when it was last written, flagged after two days.
+const SHEET_STALE_MS = 2 * 24 * 60 * 60 * 1000;
+function stockSheetLine(sheet) {
+  if (!sheet?.url) return null;
+  const written = Date.parse(sheet.writtenAt ?? "");
+  const stale = !Number.isFinite(written) || Date.now() - written > SHEET_STALE_MS;
+  return el("p", { className: "rp-hint" }, `Google Sheet: ${Number.isFinite(written) ? `last sent ${when(sheet.writtenAt)}` : "never sent"}${sheet.rows ? `, ${plural(sheet.rows, "stock row")}` : ""} `,
+    stale ? pill("warning", "over 2 days old") : null);
+}
+
+const GOOGLE_PART_WORDS = { analytics: "Analytics", searchConsole: "Search Console", merchantCenter: "Google Shopping", domain: "Domains", email: "Gmail sending", drive: "Drive", youtube: "YouTube", calendar: "Calendar", businessProfile: "Business Profile", ads: "Ads" };
+function stoppedExtras(parts = {}) {
+  const stopped = Object.entries(parts ?? {}).filter(([, part]) => part?.stoppedAt).sort(([, a], [, b]) => (a.stoppedAt < b.stoppedAt ? 1 : -1));
+  if (!stopped.length) return null;
+  return el("p", { className: "rp-hint", textContent: `Switched off by the press: ${stopped.map(([name, part]) => `${GOOGLE_PART_WORDS[name] ?? name} (${dateOnly(part.stoppedAt)})`).join(", ")}.` });
+}
+
+// One web address in the record: free or own, its state, and where an old one sends visitors (#381).
+const ADDRESS_STATE = { live: "working", connecting: "connecting", waiting_dns: "waiting for its records", securing: "getting its padlock", conflict: "clashes with another site", missing: "not set up at Google", failed: "failed" };
+function addressWords(d) {
+  const parts = [d.free ? (d.former ? "old free address" : "free address") : null, d.brokeAt ? "stopped opening the shop" : ADDRESS_STATE[d.state] ?? d.state,
+    d.redirectTo ? `sends visitors to ${d.redirectTo}` : null, d.expiresAt ? `paid up until ${dateOnly(d.expiresAt)}` : null];
+  return `${d.name} (${parts.filter(Boolean).join(", ")})`;
 }
 
 /** The language of the platform's emails to a press (the record's `emailLanguage`). */
@@ -363,7 +412,7 @@ function recordView(record) {
     ["Sells", record.sells?.line ?? ""],
     ["Emails", EMAIL_LANGUAGE_WORDS[record.emailLanguage] ?? ""],
     ["Payments", connections.payments ? `${connections.payments.provider ?? "?"}${connections.payments.connected ? ", connected" : ", not connected yet"}` : "not set up yet"],
-    ["Web address", Array.isArray(connections.domains) && connections.domains.length ? connections.domains.map((d) => `${d.name} (${d.brokeAt ? "stopped opening the shop" : d.state}${d.expiresAt ? `, paid up until ${dateOnly(d.expiresAt)}` : ""})`).join(", ") : "the shop's own .web.app address"],
+    ["Web address", Array.isArray(connections.domains) && connections.domains.length ? connections.domains.map(addressWords).join(", ") : "the shop's own .web.app address"],
     ["Version", record.version ?? "none yet"],
   ].filter(([, value]) => value);
   return el("div", { className: "record" },
@@ -615,6 +664,9 @@ function card(shop) {
     shop.status === "live" ? broughtOverSection(shop) : null,
     shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Payment links and fair till" }) : null,
     shop.status === "live" ? salesChannelsSection(shop) : null,
+    // Social channels post the website's products, so a stockroom-only shop has none.
+    shop.status === "live" && shop.plan !== "stockroom" ? el("h3", { className: "cr-section", textContent: "Social channels" }) : null,
+    shop.status === "live" && shop.plan !== "stockroom" ? shopSocialSection(shop) : null,
     shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Newsletters, morning emails and changed orders" }) : null,
     shop.status === "live" ? shopFeaturesSection(shop) : null,
     shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Website look" }) : null,
@@ -734,6 +786,7 @@ function setupNote(ticket) {
 // and take an app off the store. A failed read leaves the rest of the control room. ──
 let appStatus = "in-review";
 let appPermissions = {};
+let appUse = null;
 filterChips("#app-filters", (picked) => { appStatus = picked; loadApps(); });
 const APP_WORDS = { "in-review": ["warning", "Waiting for review"], listed: ["success", "On the store"], unlisted: ["neutral", "Taken off"], draft: ["info", "Being made"] };
 
@@ -743,14 +796,50 @@ async function loadApps() {
       const { permissions } = await api("GET", "/apps/permissions");
       appPermissions = Object.fromEntries((permissions ?? []).map((p) => [p.scope, p]));
     }
-    const { apps } = await api("POST", "/control/apps", { status: appStatus });
-    if (appStatus === "in-review") setBadge("apps", apps.length);
-    else api("POST", "/control/apps", { status: "in-review" }).then((r) => setBadge("apps", r.apps.length)).catch(() => {});
+    const [{ apps }, use] = await Promise.all([api("POST", "/control/apps", { status: appStatus }), api("POST", "/control/app-use").catch(() => null)]);
+    appUse = use;
+    $("#app-failing").replaceChildren(...(use?.failing?.length ? [failingAlerts(use.failing)] : []));
+    // The menu's count: apps waiting for review, plus apps whose alerts are failing.
+    const failingCount = use?.failing?.length ?? 0;
+    if (appStatus === "in-review") setBadge("apps", apps.length + failingCount);
+    else api("POST", "/control/apps", { status: "in-review" }).then((r) => setBadge("apps", r.apps.length + failingCount)).catch(() => {});
     const empty = { "in-review": ["No apps waiting.", "An app shows here as soon as its maker sends it for review."], "on-store": ["No apps on the store yet."], unlisted: ["No apps taken off the store."], draft: ["No apps being made."] }[appStatus];
     $("#apps").replaceChildren(...(apps.length ? apps.map(appCard) : [emptyState(...empty)]));
   } catch (failure) {
     $("#apps").replaceChildren(emptyState("Couldn't read the app store.", failure.message));
   }
+}
+
+/** Apps whose alerts gave up in the last week (26.4), each with one "Send again" for once the maker has fixed their end. */
+function failingAlerts(failing) {
+  return el("div", { className: "rp-alerts" }, ...failing.map((row) => {
+    const name = row.appName ?? row.appId;
+    const again = button("Send again", "secondary");
+    again.addEventListener("click", async () => {
+      again.disabled = true;
+      try {
+        const { resent } = await api("POST", "/control/app-use/resend", { appId: row.appId });
+        status.textContent = `${name}: ${plural(resent, "alert")} sent again.`;
+        await loadApps();
+      } catch (failure) {
+        status.textContent = failure.message;
+        again.disabled = false;
+      }
+    });
+    return el("div", { className: "rp-alert", dataset: { tone: "warning" } },
+      el("span", { className: "rp-alert-glyph", ariaHidden: "true", textContent: "!" }),
+      el("span", { className: "rp-alert-text" },
+        el("strong", { className: "rp-alert-title", textContent: `${name}'s alerts aren't getting through` }),
+        el("span", { className: "rp-alert-detail", textContent: `${plural(row.alerts, "alert")} from ${plural(row.shops, "shop")} gave up this week: the app ${row.lastError ?? "didn't answer"}.` })),
+      el("span", { className: "rp-alert-actions" }, again));
+  }));
+}
+
+/** How many shops an app is on, from the installs; the maker's own test installs counted apart. */
+function appReach(appId) {
+  const row = appUse?.byApp?.[appId];
+  if (!row) return appUse ? "on no shops" : null;
+  return [row.shops ? `on ${plural(row.shops, "shop")}` : "on no shops", row.recent ? `${row.recent} new in 30 days` : null, row.testing ? `${row.testing} testing` : null].filter(Boolean).join(", ");
 }
 
 /** A permission in the words the press reads before saying yes; one that reaches shoppers' details is marked. */
@@ -789,7 +878,7 @@ function appCard(app) {
   return sheet({
     title: d.name ?? app.appId,
     tone, pillWords: words,
-    metaParts: [app.makerEmail, d.supportEmail && d.supportEmail !== app.makerEmail ? `help: ${d.supportEmail}` : null, app.updatedAt ? `updated ${dateOnly(app.updatedAt)}` : null],
+    metaParts: [app.makerEmail, app.status === "in-review" || app.status === "draft" ? null : appReach(app.appId), d.supportEmail && d.supportEmail !== app.makerEmail ? `help: ${d.supportEmail}` : null, app.updatedAt ? `updated ${dateOnly(app.updatedAt)}` : null],
     body: [
       d.tagline ? el("p", { className: "cr-body", textContent: d.tagline }) : null,
       d.description ? el("p", { className: "cr-quote", textContent: d.description }) : null,
@@ -2207,6 +2296,8 @@ async function loadSetup() {
         { header: "Last visit", render: (p) => el("div", {}, el("span", { className: "rp-mono", textContent: p.idleDays == null ? "" : daysWords(p.idleDays) }), meta(p.createdAt ? `signed up ${dateOnly(p.createdAt)}` : null)) },
         { header: "Where", render: (p) => el("div", {}, setupStatusCell(p),
           meta(p.status === "setup" && p.guide ? `setup guide ${p.guide.done} of ${p.guide.total}${p.guide.next ? `, next: ${p.guide.next.toLowerCase()}` : ""}` : null,
+            p.webAddress?.choice === "own" ? `own address${p.webAddress.domain ? ` ${p.webAddress.domain}` : ", domain not added yet"}${p.webAddress.seller ? ` (${p.webAddress.seller})` : ""}` : null,
+            p.webAddress?.choice === "free" ? `free address${p.webAddress.freeName ? ` (picked “${p.webAddress.freeName}”)` : ""}` : null,
             p.stillToDo.length ? `still to add: ${p.stillToDo.join(", ")}` : null, p.shopId ? `shop ${p.shopId}` : null, p.shopMessage || null,
             Object.keys(p.warned).length ? `emailed ${Object.keys(p.warned).sort((a, b) => b - a).map((d) => `${d} days`).join(" and ")} before removal` : null,
             p.expiredAt ? `cleared ${dateOnly(p.expiredAt)}` : null)) },
@@ -2332,6 +2423,33 @@ function shopEmailsSection(shop) {
         ],
       }),
       found.more ? el("p", { className: "rp-hint", textContent: `${plural(found.more, "older email")} not shown. The timeline's Email filter lists them all.` }) : null);
+  }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
+  return slot;
+}
+
+// Social channels (27.8): each network the press connected, whether it still works, and the posts that didn't go out.
+function shopSocialSection(shop) {
+  const slot = el("div", {}, el("p", { className: "rp-hint", textContent: "Reading the social channels…" }));
+  api("POST", "/control/shop-social", { shopId: shop.shopId }).then((found) => {
+    if (!found.networks) return slot.replaceChildren(el("p", { className: "rp-hint", textContent: found.words }));
+    if (!found.networks.length) return slot.replaceChildren(el("p", { className: "rp-hint", textContent: "No social channels connected." }));
+    const state = (n) => {
+      if (!n.connected) return pill("neutral", n.disconnectedAt ? "disconnected" : "not connected");
+      return n.problem === "lost" ? pill("warning", "stopped working") : pill("success", "connected");
+    };
+    fill(slot,
+      table({
+        caption: "Social channels",
+        rows: found.networks,
+        columns: [
+          { header: "Network", lead: true, render: (n) => el("div", {}, el("p", { className: "cr-title", textContent: n.name }), n.accountName ? meta(n.accountName) : null) },
+          { header: "Posts to", render: (n) => (n.connected ? plural(n.places, "place") : "—") },
+          { header: "Catalog", render: (n) => (n.catalog?.sentAt ? `sent ${dateOnly(n.catalog.sentAt)}` : n.network === "tiktok" ? "—" : "not sent") },
+          { header: "", end: true, render: (n) => el("div", {}, state(n), n.problem === "lost" && n.lostAt ? meta(`since ${dateOnly(n.lostAt)}`) : null) },
+        ],
+      }),
+      found.failedCount ? el("h4", { className: "cr-section", textContent: `Posts that didn't go out (${found.failedCount} in 30 days)` }) : null,
+      found.failedCount ? history(found.failed.map((f) => `${when(f.at)} · ${f.name ?? "?"} · ${f.detail ?? "no reason given"}`)) : null);
   }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
   return slot;
 }

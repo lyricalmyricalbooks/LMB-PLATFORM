@@ -188,9 +188,12 @@
     "mastercard": {
       "name": "Mastercard",
       "owner": "Mastercard International Inc.",
-      "color": "#EB001B",
       "source": "https://www.mastercard.com/brandcenter/us/en/download-artwork.html",
-      "guidelines": "https://www.mastercard.com/brandcenter/us/en/brand-requirements/mastercard.html"
+      "guidelines": "https://www.mastercard.com/brandcenter/us/en/brand-requirements/mastercard.html",
+      "color": "#EB001B",
+      "full": {
+        "source": "https://commons.wikimedia.org/wiki/File:Mastercard-logo.svg (the 2016 Mastercard symbol: its two circles and overlap only)"
+      }
     },
     "americanexpress": {
       "name": "American Express",

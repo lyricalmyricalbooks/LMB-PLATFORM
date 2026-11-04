@@ -11,6 +11,7 @@ import { MAX_IMPORT_ROWS, parseCsv, parseMoney, planImport, validIsbn, type Impo
 import { MOVED_MARK, parseTags } from "./customerInsights";
 import { addToIndex, MAX_REDIRECTS, normalizePath, redirectIndex, redirectProblemIn, type Redirect } from "../features/site/redirects";
 import { MAX_OPTIONS, MAX_VARIANTS, type ProductOption } from "../../shared/productOptions";
+import { productHref } from "../lib/productHref";
 
 /** Which shape an export has. Named after how its rows are laid out, not after who made it. */
 export type ExportShape =
@@ -747,7 +748,7 @@ export function importRedirects(existing: Redirect[], links: { oldPaths: string[
   for (const r of items) { const f = normalizePath(r.from); if (!saved.has(f)) saved.set(f, r.to); }
   for (const { oldPaths, bookId } of links) {
     if (!bookId) continue;
-    const to = `/books/${encodeURIComponent(bookId)}`;
+    const to = productHref(encodeURIComponent(bookId));
     for (const path of oldPaths) {
       const from = normalizePath(path);
       const had = saved.get(from);

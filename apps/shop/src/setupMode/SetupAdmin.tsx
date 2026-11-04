@@ -17,6 +17,7 @@ import { adminWordsFor } from "../app/admin/sells";
 import { ImportPage } from "./ImportPage";
 import { CARD_CHOICE_NOTE, CARD_PROVIDER_CHOICES, chosenCardProvider, squareAvailable, type CardProviderId } from "./cardChoice";
 import { WEB_ADDRESS_ANCHOR, WebAddressCard } from "./WebAddress";
+import { BrandLogo } from "../app/components/brand/BrandLogo";
 import { AskForm, HelpAnswer, HelpQuestions, type HelpAnswers } from "./SetupHelp";
 import type { PlanList, SetupChange, SetupDoor, SetupPress } from "./door";
 import { CreateShopCard, type CreateShop } from "./CreateShop";
@@ -54,14 +55,17 @@ export function SetupAdmin(props: {
   press: SetupPress; door: SetupDoor; lists: SetupLists; email: string; onSignOut: () => void; helpUrl: string; termsUrl?: string;
   /** Where a press sees its earlier help requests (the platform's account page). */
   accountUrl?: string;
-  /** The platform's help answers by id, shown in place; empty (links into the help centre) when they didn't load. */
-  answers?: HelpAnswers;
+  /**
+   * The platform's help answers by id, shown in place; empty (links into the help centre) when they didn't load. Given
+   * as what the shop sells → answers, they follow a change in Settings › General at once (code plan 12.18).
+   */
+  answers?: HelpAnswers | ((sells: string | null) => HelpAnswers);
 }) {
   return <ToastProvider><SetupAdminInner {...props} /></ToastProvider>;
 }
 
-function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl, termsUrl = "/terms/", accountUrl = "/account/", answers = NO_ANSWERS }: {
-  press: SetupPress; door: SetupDoor; lists: SetupLists; email: string; onSignOut: () => void; helpUrl: string; termsUrl?: string; accountUrl?: string; answers?: HelpAnswers;
+function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl, termsUrl = "/terms/", accountUrl = "/account/", answers: given = NO_ANSWERS }: {
+  press: SetupPress; door: SetupDoor; lists: SetupLists; email: string; onSignOut: () => void; helpUrl: string; termsUrl?: string; accountUrl?: string; answers?: HelpAnswers | ((sells: string | null) => HelpAnswers);
 }) {
   const [press, setPress] = useState(first);
   const [plans, setPlans] = useState<PlanList | null>(null);
@@ -70,6 +74,7 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const appearance = useMemo(readAppearance, []);
   const w = useMemo(() => adminWordsFor(press.sells || null), [press.sells]);
+  const answers = useMemo(() => (typeof given === "function" ? given(press.sells || null) : given), [given, press.sells]);
 
   const [plansFailed, setPlansFailed] = useState(false);
   const loadPlans = () => { setPlansFailed(false); door.plans().then(setPlans, () => setPlansFailed(true)); };
@@ -540,11 +545,14 @@ function CardPaymentsPage({ press, save }: { press: SetupPress; save: (c: SetupC
             const unavailable = option.id === "square" && !squareAvailable(press.country);
             return (
               <button key={option.id} type="button" role="radio" aria-checked={on} disabled={!!busy || !inSetup || unavailable} onClick={() => void choose(option.id)}
-                style={{ display: "grid", gap: 2, textAlign: "left", minHeight: 56, padding: "12px 14px",
+                style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "0 12px", alignItems: "center", textAlign: "left", minHeight: 56, padding: "12px 14px",
                   background: on ? "var(--rp-primary-tint)" : "var(--rp-surface)", color: "var(--rp-text)", cursor: unavailable ? "not-allowed" : "pointer",
                   opacity: unavailable ? 0.6 : 1, border: on ? "2px solid var(--rp-text)" : "1px solid var(--rp-border)" }}>
-                <strong>{option.name}</strong>
-                <span className="rp-hint">{unavailable ? "Not available in your country yet." : option.line}</span>
+                <BrandLogo id={option.id} size="md" />
+                <span style={{ display: "grid", gap: 2 }}>
+                  <strong>{option.name}</strong>
+                  <span className="rp-hint">{unavailable ? "Not available in your country yet." : option.line}</span>
+                </span>
               </button>
             );
           })}

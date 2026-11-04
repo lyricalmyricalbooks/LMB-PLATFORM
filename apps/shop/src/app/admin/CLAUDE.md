@@ -527,11 +527,12 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
   from `paidIn.total` (total exact, other CA$ fields scaled); `PastOrderRate` on OrderDetail calls it. In move mode the
   admin fixture has one brought-over order, `past-1004`, and `getOrderById`.
 - **Spreadsheets (23.35):** every file picker uses `SPREADSHEET_ACCEPT` and reads through `spreadsheetText()` in
-  `spreadsheetFile.ts` (CSV/TSV text in any common encoding, .xlsx, .ods → CSV text); show errors with `readProblem(err)`.
+  `spreadsheetFile.ts` (CSV/TSV text in any common encoding, .xlsx, .ods, and .xls via `xlsFile.ts` since 23.40 → CSV text); show errors with `readProblem(err)`.
   A new bring-a-file window must do the same. Test files made by real programs live in `testdata/spreadsheets/`.
 - **Match columns (23.36):** Books import keeps the owner's matches for unknown headings in `columns` state and passes
   them to `planImport({ columns })`; `mapHeadings` ignores a match for `id`, for a field a known heading already fills,
-  or for a field matched twice. Choosing a new file clears the matches.
+  or for a field matched twice. Choosing a new file starts from the matches remembered by `columnMemory.ts` (23.41, this
+  browser only, saved when the import runs) for its unknown headings.
 - **Sheets (23.37):** a window that reads one file uses `readSpreadsheet(file, sheet)` and shows `<SheetChoice>` beside the
   file name (renders nothing for one sheet or a text file); changing it calls the window's `choose(file, sheet)` again.
 - **Excel downloads (23.38):** `xlsxWriter.ts` `toXlsx(rows, sheet)` / `saveTable(base, csv, format, sheet)`; a new table

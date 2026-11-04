@@ -135,16 +135,21 @@ export function ThemeThumb({ design, label, products = [] }: { design: any; labe
   const bg = d.backgroundColor || "#000000", fg = d.textColor || "#ffffff", accent = d.primaryColor || "#e8402a";
   const surface = d.surfaceColor || bg, border = d.borderColor || fg;
   const font = (f: any) => (typeof f === "string" && f ? `"${f}", system-ui, sans-serif` : "system-ui, sans-serif");
-  const card = (i: number) => {
+  const cover = (i: number) => {
     const photo = products[i]?.photo;
-    return <b key={i} style={{ background: photo ? `${surface} center / cover no-repeat url("${photo.replace(/"/g, "%22")}")` : surface, borderColor: border }} />;
+    return photo ? `${surface} center / cover no-repeat url("${photo.replace(/"/g, "%22")}")` : surface;
   };
+  const card = (i: number) => <b key={i} style={{ background: cover(i), borderColor: border }} />;
   return (
-    <div className="studio-theme-thumb" role="img" aria-label={`${label}: page ${bg}, text ${fg}, accent ${accent}`} style={{ background: bg, color: fg }}>
+    <div className="studio-theme-thumb" role="img" aria-label={`${label} on a computer and a phone: page ${bg}, text ${fg}, accent ${accent}`} style={{ background: bg, color: fg }}>
       <span style={{ fontFamily: font(d.headingFont), textTransform: d.risoUppercaseHeadings ? "uppercase" : undefined }}>Aa</span>
       <span className="studio-theme-thumb-body" style={{ fontFamily: font(d.bodyFont) }}>{products.find(x => x.title)?.title || "Books & prints"}</span>
       <i style={{ background: accent }} />
       {card(0)}{card(1)}
+      {/* The same look at phone width: one column, a cover and the button, so a crowded phone layout shows before switching. */}
+      <em className="studio-theme-thumb-phone" style={{ background: bg, borderColor: fg }}>
+        <u style={{ background: fg }} /><b style={{ background: cover(0), borderColor: border }} /><i style={{ background: accent }} />
+      </em>
     </div>
   );
 }
@@ -153,6 +158,9 @@ type Props = {
   design: any;
   /** The press's own products (ownBooks), drawn as the covers on every card. */
   products?: ThumbProduct[];
+  /** "You've changed card tilt." when the draft sets template details (templateDetailsLine), with the reset beside it. */
+  templateDetails?: string | null;
+  onResetTemplateDetails?: () => void;
   published: any;
   unpublished: boolean;
   savedThemes: SavedTheme[];
@@ -263,6 +271,10 @@ export function StudioThemes(p: Props) {
               <SecondaryButton size="sm" onClick={() => setShare({ name: "Draft", design: p.design })}><Link2 size={13} aria-hidden /> Share a preview link</SecondaryButton>
               <SecondaryButton size="sm" onClick={p.onSaveCurrent}>Save as a theme…</SecondaryButton>
             </div>
+            {p.templateDetails && p.onResetTemplateDetails && <div className="studio-field-status" data-template-reset>
+              <small>{p.templateDetails}</small>
+              <button type="button" className="studio-reset" onClick={p.onResetTemplateDetails}>Reset template details</button>
+            </div>}
           </div>
         </article>
       </section>

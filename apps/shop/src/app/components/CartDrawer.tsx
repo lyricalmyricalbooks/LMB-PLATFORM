@@ -39,6 +39,7 @@ import { canSaveForLater, saveForLaterOn } from "../features/site/saveForLater";
 import { emptyBagPicks, emptyBagPicksCount, emptyBagPicksOn } from "../features/site/emptyBagPicks";
 import { bookSlug } from "../features/site/staffNotes";
 import { tabReminderApplies, tabReminderOn, tabReminderTitle, titleToRestore } from "../features/site/extras/cart-tab-reminder/tabReminder";
+import { productHref } from "../lib/productHref";
 
 // The shopping bag. Its look is the Studio › Style › "Cart drawer (shopping bag)" group (CSS from
 // features/site/cartDrawerStyle.ts); its words are Studio › Text & labels › Cart.
@@ -437,7 +438,7 @@ export function CartDrawer() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <h3 className="fm-bag-name fm-bag-upsell-name" title={book.title}>
-                            <Link to={`/books/${bookSlug(book)}`} onClick={() => setIsCartOpen(false)} className="hover:underline">{breakableTitle(book.title)}</Link>
+                            <Link to={productHref(bookSlug(book) ?? "")} onClick={() => setIsCartOpen(false)} className="hover:underline">{breakableTitle(book.title)}</Link>
                           </h3>
                           <p className="fm-bag-meta mt-1 whitespace-nowrap" translate="no">{formatPrice(catalogUnitPrice(book, recommendedChoice(book)))}</p>
                         </div>

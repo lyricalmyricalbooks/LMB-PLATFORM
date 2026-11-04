@@ -121,8 +121,9 @@ import { hasTokens, isDynamic } from "../../features/site/dynamicSources";
 // Connected text (a $dyn value or {{tokens}}) opens the inspector instead of being typed over in the preview.
 const isConnectedValue = (v: any) => isDynamic(v) || hasTokens(v);
 import { CANDIDATE_ID, deletePreset, deleteSharedBlock, renamePreset, renameSharedBlock, withCandidate } from "./sectionLibrary";
-import { templateDetailsSet, templateOnlyNote } from "./templateNote";
+import { templateDetailsLine, templateDetailsSet, templateOnlyNote } from "./templateNote";
 import "./studio.css";
+import { productHref } from "../../lib/productHref";
 
 type LeftTab = "essentials" | "sections" | "style" | "text" | "menus" | "pages" | "media" | "themes";
 /** `expect`: the design the toast's Undo belongs to (filled in once the change lands); see `undoAction`. */
@@ -1025,7 +1026,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     switch (template.id) {
       case "storefront": return withQ("/?catalog=true");
       // "template=default" keeps the default layout even for a book or category that uses an alternate.
-      case "productPage": return withQ(`/books/${productSlug || ""}?template=default`);
+      case "productPage": return withQ(`${productHref(productSlug || "")}?template=default`);
       case "collectionPage": return withQ(`/collections/${collectionSlug}?template=default`);
       case "cartPage": return withQ("/checkout");
       case "page404": return withQ("/studio-missing-page");
@@ -1035,7 +1036,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       case "page": return withQ(`/page/${(sharedPageSlug && pages.some((p) => p.slug === sharedPageSlug) ? sharedPageSlug : pages.find((p) => p.status === "published")?.slug) || ""}`);
       default: {
         const alt = parseAltSurface(template.id);
-        if (alt?.base === "productPage") return withQ(`/books/${productSlug || ""}?template=${alt.id}`);
+        if (alt?.base === "productPage") return withQ(`${productHref(productSlug || "")}?template=${alt.id}`);
         if (alt?.base === "collectionPage") return withQ(`/collections/${collectionSlug}?template=${alt.id}`);
         return withQ(template.pageSlug ? `/page/${template.pageSlug}` : "/");
       }
@@ -1087,7 +1088,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const base = window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, "");
     const alt = parseAltSurface(template.id)?.base;
     const id = alt || template.id;
-    const path = id === "productPage" && productSlug ? `/books/${productSlug}`
+    const path = id === "productPage" && productSlug ? productHref(productSlug)
       : id === "collectionPage" && collectionSlug ? `/collections/${collectionSlug}`
       : id === "storefront" ? "/?catalog=true"
       : ["wishlistPage", "accountPage", "trackingPage"].includes(id) ? ({ wishlistPage: "/wishlist", accountPage: "/account", trackingPage: "/track" } as Record<string, string>)[id]
@@ -2433,9 +2434,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                     ))}
                   </div>}
                   {group?.id === "riso" && (() => {
-                    const set = templateDetailsSet(design).length;
-                    return set > 0 && <div className="px-4 pb-3"><div className="studio-field-status" data-template-reset>
-                      <small>You've changed {set} template {set === 1 ? "detail" : "details"}.</small>
+                    const line = templateDetailsLine(design);
+                    return line && <div className="px-4 pb-3"><div className="studio-field-status" data-template-reset>
+                      <small>{line}</small>
                       <button type="button" className="studio-reset" onClick={resetTemplateDetails}>Reset template details</button>
                     </div></div>;
                   })()}
@@ -2595,6 +2596,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             {leftTab === "themes" && (
               <StudioThemes design={design} published={published} unpublished={unpublished || dirtyDraft} savedThemes={savedThemes}
                 presets={THEME_LIBRARY as any[]} currentPresetId={design.themeLibraryPreset} products={themeProducts}
+                templateDetails={templateDetailsLine(design)} onResetTemplateDetails={resetTemplateDetails}
                 previewingId={themePreview?.id || null} onPreview={setThemePreview}
                 onSaveCurrent={saveCurrentAsTheme} onImport={file => importTheme(file)}
                 onLoad={t => { setThemePreview(null); applySavedTheme(t); }} onPublish={publishSavedTheme}

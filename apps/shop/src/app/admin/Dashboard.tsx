@@ -56,6 +56,7 @@ import { stockroomBridge } from "./stockroomBridge";
 import { StockroomFrame } from "./StockroomFrame";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
 import { providerName } from "./providerWords";
+import { setProductSells } from "../lib/productHref";
 
 // Studio is large and only opened from Settings › Design, so it loads in its own chunk.
 const StudioEditor = lazy(() => import("./studio/StudioWorkspace").then(m => ({ default: m.StudioWorkspace })));
@@ -260,6 +261,8 @@ export function Dashboard() {
     window.addEventListener(SELLS_CHANGED_EVENT, on);
     return () => window.removeEventListener(SELLS_CHANGED_EVENT, on);
   }, []);
+  // Product addresses follow the same answer: /products/<slug> in a shop that doesn't sell books (lib/productHref.ts).
+  setProductSells(sellsAnswer);
   const w = adminWordsFor(sellsAnswer);
   const nav = useMemo(() => NAV.map((n) => ({ ...n, label: w(n.label) })), [w]);
   const [otherBadges, setOtherBadges] = useState<{ pendingReviews: number | null; unreadMessages: number | null; openPrivacyRequests: number | null }>({ pendingReviews: null, unreadMessages: null, openPrivacyRequests: null });

@@ -121,6 +121,8 @@ test("how far through the setup guide: the shop's own steps, counted the same wa
   const stockroom = { ...halfway, plan: "stockroom", stagedImport: { rows: 3 } };
   assert.deepEqual([guideOf(stockroom).done, guideOf(stockroom).total, guideOf(stockroom).next], [3, 4, "Create the shop"], "no look step without a website");
   assert.deepEqual([guideOf({ ...halfway, look: "riso", status: "opening" }).done, guideOf({ ...halfway, look: "riso", status: "opening" }).next], [4, null]);
-  assert.deepEqual([guideOf({ ...halfway, domainChoice: "free" }).done, guideOf({ ...halfway, domainChoice: "free" }).total], [3, 5], "the web address step counts once answered");
-  assert.equal(guideOf({ ...halfway, domainChoice: "own" }).total, 4, "a domain not typed yet isn't done");
+  // The web address step is optional: it counts once answered ("own" once the domain is in).
+  assert.deepEqual([guideOf({ ...halfway, domainChoice: "free" }).done, guideOf({ ...halfway, domainChoice: "free" }).total], [3, 5]);
+  assert.equal(guideOf({ ...halfway, domainChoice: "own" }).total, 4, "own, but no domain yet");
+  assert.equal(guideOf({ ...halfway, domainChoice: "own", domain: "mothpress.example" }).total, 5);
 });
