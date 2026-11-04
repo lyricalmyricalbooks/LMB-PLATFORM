@@ -91,6 +91,8 @@ export function SecuritySettings({ two = firebaseTwoStep(auth), user = auth.curr
     setError("");
     try {
       await finishSetup(two, user, setup.secret, code);
+      // The safety email never blocks the screen: a failed check is retried the next time two-step changes.
+      void backup?.changed?.().catch(() => {});
       setSetup(null);
       setDone(true);
       refresh();
@@ -152,6 +154,7 @@ export function SecuritySettings({ two = firebaseTwoStep(auth), user = auth.curr
     setError("");
     try {
       await two.unenroll(user, uid);
+      void backup?.changed?.().catch(() => {});
       setDone(false);
       setNewCodes(null);
       setCodesLeft(null);
