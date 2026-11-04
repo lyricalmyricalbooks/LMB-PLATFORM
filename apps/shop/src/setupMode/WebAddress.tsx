@@ -70,7 +70,7 @@ function WebAddressInner({ press, door, save, onSaved }: CardProps) {
       const saved = await door.saveDomain(press.pressId, draft.trim());
       onSaved(saved);
       setDraft(""); setEditing(false); setPicked("own");
-      toast(`${saved.domain} is kept for your shop`, { tone: "ok" });
+      toast(`Saved. We connect ${saved.domain} once your shop is made.`, { tone: "ok" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "That didn't save. Try again.");
     } finally {

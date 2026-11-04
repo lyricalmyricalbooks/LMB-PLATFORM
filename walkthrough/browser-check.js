@@ -123,6 +123,14 @@ async function checkFrontDoor(browser, walk, log) {
         if (i === 49) throw new Error("General didn't save the country");
         await page.waitForTimeout(100);
       }
+      // Your web address: a domain the press already has is kept, with where it was bought.
+      await page.locator("[role=radio]", { hasText: "I already have a domain" }).click();
+      await page.fill("input[placeholder='yourpress.com']", "mothpress.example");
+      await page.locator("button", { hasText: "Use this domain" }).click();
+      await page.locator("text=you press Allow once at GoDaddy").waitFor({ state: "visible", timeout: 10_000 });
+      const [kept] = await walk.world.frontDoorStores.presses.listByOwner(`uid-${address}`);
+      if (kept?.domain !== "mothpress.example" || kept?.domainSeller !== "GoDaddy") throw new Error(`the domain wasn't kept: ${JSON.stringify([kept?.domain, kept?.domainSeller])}`);
+      if (!(await fits())) throw new Error("Your web address scrolls sideways on a phone");
       // Design shows the look gallery, and picking a look saves it.
       await page.evaluate(() => { location.hash = "settings/designer"; });
       await page.locator("ul[aria-label='Suggested looks'] button", { hasText: "Use this look" }).first().click();
