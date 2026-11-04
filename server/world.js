@@ -51,6 +51,7 @@ import { createSupportInbox } from "../services/support/inbox.js";
 import { supportRoutes } from "../services/support/routes.js";
 import { createAppMakers } from "../services/apps/makers.js";
 import { createAppInstalls } from "../services/apps/installs.js";
+import { createAppConnection } from "../services/apps/connection.js";
 import { appInstallPublicRoutes, appInstallRoutes, appMakerRoutes, appStorePublicRoutes } from "../services/apps/routes.js";
 import { createRecovery, recoveryByHand } from "../accounts/recovery.js";
 import { recoveryRoutes } from "../accounts/recoveryRoutes.js";
@@ -231,6 +232,8 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     apps: appStore, makers: appMakers, installs: firestoreAppInstalls(platform), codes: firestoreAppCodes(platform), registry, auditLog, now,
     roleIn: (who, shopId) => accounts.roleIn(who, shopId),
   });
+  // The app connection: installed apps read their shop through the platform, with their key (26.3).
+  const appConnection = createAppConnection({ installs: appInstalls, shopData, registry, now });
   const recovery = createRecovery({
     store: recoveryStore, email, registry, auditLog, settings, admins, now,
     findAccount: async (address) => {
@@ -349,6 +352,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     }
     if (path.startsWith(SHOP_BILLING_PREFIX)) return shopBilling(request);
     if (path === "/api/payments" || path.startsWith("/api/payments/")) return handlePayments({ ...request, path: path.slice("/api/payments".length) || "/" }, { service: payments });
+    if (path === "/api/apps/v1" || path.startsWith("/api/apps/v1/")) return appConnection(request);
     if (path === "/api/email/shop") return handleShopEmail(request, { service: email, registry, sentLog });
     if (path === "/tips/off" || path === "/checkup/off") {
       if (request.method !== "GET") return { status: 405, body: { ok: false, message: "Open the link from the email." } };

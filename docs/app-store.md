@@ -74,6 +74,24 @@ Installs are `appInstalls/<shopId>~<appId>`, codes `appInstallCodes/<fingerprint
 goes in the shop's audit log and the registry's events. A draft app can be installed only by its own maker on a shop
 they own (testing). `authenticate(key)` is ready for 26.3.
 
+## 26.3 (built): the app connection, reading
+
+`services/apps/connection.js`, answered by the hosted server under `/api/apps/v1` (Hosting already sends `/api/**` to it).
+The app sends its key as `Authorization: Bearer cak_…`. All calls are GET and answer JSON with `ok`:
+
+| Call | Permission | Answers |
+| --- | --- | --- |
+| `/api/apps/v1/shop` | `read_shop` | name, web address, currency |
+| `/api/apps/v1/products?limit&after` and `/products/<id>` | `read_products` | products; stock too with `read_inventory` |
+| `/api/apps/v1/inventory?limit&after` | `read_inventory` | how many of each product and variant |
+| `/api/apps/v1/orders?limit&after&since&status` and `/orders/<id>` | `read_orders` | paid orders, newest first, with where they ship; email and phone only with `read_customers` |
+
+Lists page with `next` (pass it back as `after`), at most 250 a page. At most 120 calls a minute per app and shop
+(429 with `Retry-After`). Never answered: cost prices, payment details, private notes, test or unpaid orders.
+
+Changing things comes in 26.3b, through the shop's own rules, so an app can never skip the packing checklist, the
+address review, a hold or a dispute.
+
 ## The first apps (Julian's picks, 4 November 2026)
 
 Shipping (26.11), email marketing (26.12) and Zapier (26.13). Outside companies rarely build for a new platform, so
