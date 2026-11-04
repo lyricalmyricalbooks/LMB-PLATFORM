@@ -32,7 +32,7 @@ test('POS search-empty state keeps the quoted term readable on the page backgrou
 });
 
 test('POS zero-results markup uses the themed class instead of inline styles', () => {
-  const call = mainJs.match(/grid\.innerHTML = `<div class="pos-search-empty">No books match[\s\S]*?`;/);
+  const call = mainJs.match(/grid\.innerHTML = `<div class="pos-search-empty">\$\{words\('No books match'\)\}[\s\S]*?`;/);
   expect(call).not.toBeNull();
   expect(call[0]).not.toMatch(/style="/);
   expect(call[0]).not.toMatch(/--on-inverse/);
