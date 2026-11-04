@@ -85,6 +85,8 @@ import { createSalesChannels, salesChannelsRoutes } from "../control-room/salesC
 import { createShopFeatures, shopFeaturesRoutes } from "../control-room/shopFeatures.js";
 import { createShopLooks, shopLooksRoutes } from "../control-room/shopLooks.js";
 import { createShopEmails, shopEmailsRoutes } from "../control-room/shopEmails.js";
+import { appUseRoutes, createAppUse } from "../control-room/appUse.js";
+import { createShopSocial, shopSocialRoutes } from "../control-room/shopSocial.js";
 import { deliveryReader } from "../control-room/delivery.js";
 import { createJobs } from "../services/jobs/index.js";
 import { createPressMessages, messageRoutes } from "../control-room/messages.js";
@@ -232,9 +234,10 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const appMakers = createAppMakers({ store: appStore, admins, now });
   // Installing them on a shop with its owner's permission (26.2).
   const appInstallStore = firestoreAppInstalls(platform);
+  const appAlertOutbox = firestoreAppAlerts(platform);
   // Alerts to apps when orders, products or stock change, and when an app is removed (26.4; the app-alerts job).
   const appAlerts = createAppAlerts({
-    apps: appStore, installs: appInstallStore, outbox: firestoreAppAlerts(platform), state: firestoreAppAlertState(platform), shopData, fetch, now,
+    apps: appStore, installs: appInstallStore, outbox: appAlertOutbox, state: firestoreAppAlertState(platform), shopData, fetch, now,
   });
   const appInstalls = createAppInstalls({
     apps: appStore, makers: appMakers, installs: appInstallStore, codes: firestoreAppCodes(platform), registry, auditLog, now,
@@ -268,6 +271,9 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const shopFeatures = createShopFeatures({ admins, registry, shopData, now });
   const shopLooks = createShopLooks({ admins, registry, shopData, now });
   const shopEmails = createShopEmails({ admins, registry, emailLog: sentLog, now });
+  const appUse = createAppUse({ admins, installs: appInstallStore, outbox: appAlertOutbox, now });
+  // Social channels (27.8): the social service has no hosted home yet (services/social/index.js), so the room says so.
+  const shopSocial = createShopSocial({ admins, registry, social: null, now });
   const salesChannels = createSalesChannels({ admins, registry, shopData, stockroomData, now });
   // The billing export to BigQuery isn't on yet (19.15): the Costs page shows its "not on yet" state.
   const costsDesk = createCostsDesk({ registry, reader: createCostReader({}), settings: live, admins, now });
@@ -325,6 +331,8 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...shopFeaturesRoutes(shopFeatures),
     ...shopLooksRoutes(shopLooks),
     ...shopEmailsRoutes(shopEmails),
+    ...appUseRoutes(appUse),
+    ...shopSocialRoutes(shopSocial),
     ...driftRoutes(driftDesk),
     ...messageRoutes(pressMessages),
     ...costRoutes(costsDesk),
