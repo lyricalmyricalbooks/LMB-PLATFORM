@@ -885,7 +885,7 @@ can tag products), its posts from Marketing, and share buttons on product pages.
 Row 24.7 already writes the product file Meta and Pinterest read. The connections run on the platform's own Meta,
 Pinterest and TikTok app registrations, like the QuickBooks link (`services/accounting`), not through the app store
 (Phase 26). Built in order without asking (Julian's standing rule); the real developer approvals are on Julian's
-real-accounts list (`docs/start-real-accounts.md`).
+real-accounts list (`docs/start-real-accounts.md`), with the forms' words ready in `docs/social-approvals.md`.
 
 | # | Where | What | Check | Status |
 |---|---|---|---|---|
@@ -897,6 +897,9 @@ real-accounts list (`docs/start-real-accounts.md`).
 | 27.6 | shop | **Social posts** page (under Orders, next to Discounts; Marketing in the combined admin): scheduled, posted and needs-attention lists, a composer (product, photo, words, where, now or later) and Post from a book | `SalesChannels.test.tsx` | built (4 November 2026) |
 | 27.7 | shop | **Share links on product pages**: Facebook, Pinterest, X, WhatsApp, email and copy link, on a phone its own share sheet; the Studio Share button switch and words in Text & labels | `shareLinks.test.ts`, designer coverage tests | built (4 November 2026) |
 | 27.8 | platform | **Control room**: each shop's social connections, catalog and post failures (with the control-room thread) | control-room tests | |
+| 27.10 | shop | **Social media that sells** (Overview widget, Visitors › Where from): visits, orders and sales per network, share-menu links counted as Shared links | `overviewTraffic.test.ts` | built (4 November 2026) |
+| 27.11 | shop | **Square picture**: a post's photo, whole, on a 1080 square JPEG in the shop's bucket (on by default; fits every feed, and Instagram takes only JPEG) | `functions/socialPicture.test.js` | built (4 November 2026) |
+| 27.12 | shop | **A post didn't go out** email to the owner when a scheduled post is refused (Settings › Notifications › Shop alerts) | `functions/socialLink.test.js` | built (4 November 2026) |
 | 27.9 | Julian | Meta app review (Pages and Instagram posting, catalogs), Pinterest app approval, TikTok app audit and site check | `docs/start-real-accounts.md` | waiting on Julian |
 
 ## Rules for every pull request

@@ -164,6 +164,7 @@ function Composer({ places, bookId, onClose, onDone }: {
   const [later, setLater] = useState(false);
   const [at, setAt] = useState(() => localInputValue(Date.now() + 60 * 60 * 1000));
   const [tag, setTag] = useState(true);
+  const [square, setSquare] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -195,7 +196,7 @@ function Composer({ places, bookId, onClose, onDone }: {
     if (later && (!sendAt || Date.parse(sendAt) < Date.now())) return setError("Choose a time that hasn't passed yet.");
     setSaving(true);
     try {
-      const { post } = await adminApi.social("savePost", { bookId: book.id, imageUrl: photo, caption, placeIds: where, sendAt, tagProduct: tag });
+      const { post } = await adminApi.social("savePost", { bookId: book.id, imageUrl: photo, caption, placeIds: where, sendAt, tagProduct: tag, square });
       if (post) onDone(post);
     } catch (err) { setError(socialError(err, later ? "schedule the post" : "post")); } finally { setSaving(false); }
   };
@@ -227,7 +228,8 @@ function Composer({ places, bookId, onClose, onDone }: {
               ))}
             </fieldset>
           )}
-          {toInstagram && photo && maybeNotJpeg(photo) && (
+          {photo && <Toggle label="Square picture (whole photo, fits every feed)" checked={square} onChange={setSquare} />}
+          {!square && toInstagram && photo && maybeNotJpeg(photo) && (
             <p className="rp-hint" role="note" style={{ margin: 0 }}>Instagram may refuse this photo (JPEG only).</p>
           )}
 
@@ -266,7 +268,7 @@ function Composer({ places, bookId, onClose, onDone }: {
 
         <aside className="rp-composer-preview" aria-label="Preview">
           <span className="rp-hint">Preview</span>
-          <div className="rp-composer-card">
+          <div className="rp-composer-card" data-square={square}>
             {photo ? <img src={photo} alt="" /> : <div className="rp-composer-blank">Choose a product</div>}
             <p>{caption || "Your words show here."}</p>
             {book && <span className="rp-hint">Links to {book.title}</span>}
