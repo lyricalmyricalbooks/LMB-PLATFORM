@@ -102,10 +102,12 @@ staff read or write `appRequests`.
 | `GET /api/apps/v1/requests/<id>` | the app that asked | `{ status: waiting \| done \| refused, result, reason }` |
 
 The POST waits up to 5 seconds for the shop's answer (200), else answers 202 with the request to look up. An
-`Idempotency-Key` header makes a retry return the first request. Marking sent uses the same checks as a dispatch from
+`Idempotency-Key` header makes a retry return the first request; the same key with a different order or tracking is
+refused (409). Each order line carries `quantityToSend`, the copies still to pack after some went ahead or were
+refunded. Marking sent uses the same checks as a dispatch from
 the stockroom app (paid, not a test, ships by carrier, no open request, dispute, hold, failed refund, label being bought
-or waiting pre-order), and tracking the shop or another app put on an order is never replaced. The customer gets the
-usual shipped email.
+or waiting pre-order), and tracking the shop or another app put on an order is never replaced (nor can the shop buy a
+second label on top of an app's). The customer gets the usual shipped email.
 
 Stock and product changes come next, the same way.
 

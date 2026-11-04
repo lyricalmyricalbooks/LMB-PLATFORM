@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeRegistry } from "../../setup/fakes.js";
-import { PER_MINUTE, createAppConnection } from "./connection.js";
+import { PER_MINUTE, createAppConnection, order } from "./connection.js";
 
 const BOOKS = {
   b1: { title: "Moth Songs", retailPrice: 24, costPrice: 9, stockLevel: 7, sku: "MS-1", photos: [{ url: "https://img.example/1.jpg" }], status: "published" },
@@ -163,6 +163,23 @@ test("a retried call with the same Idempotency-Key makes one request", async () 
   const second = await w.post("/api/apps/v1/orders/o1/fulfillment", body, { headers });
   assert.equal(first.body.request.id, second.body.request.id);
   assert.equal([...w.docs.keys()].filter((k) => k.includes("appRequests")).length, 1);
+});
+
+test("a reused Idempotency-Key for a different order is refused, not answered with the first order's result", async () => {
+  const w = changeWorld(["write_orders"], { shopAnswers: false });
+  const headers = { "Idempotency-Key": "batch-1" };
+  assert.equal((await w.post("/api/apps/v1/orders/o1/fulfillment", { trackingCarrier: "UPS", trackingNumber: "1Z" }, { headers })).status, 202);
+  const other = await w.post("/api/apps/v1/orders/o2/fulfillment", { trackingCarrier: "UPS", trackingNumber: "1Z" }, { headers });
+  assert.equal(other.status, 409);
+  assert.match(other.body.message ?? other.body.error ?? JSON.stringify(other.body), /already used for a different request/);
+});
+
+test("an app sees how many copies are still to send after some went ahead or were refunded", () => {
+  const view = order("o1", {
+    paymentStatus: "paid", items: [{ id: "b1", title: "A", quantity: 3 }, { id: "b2", title: "B", quantity: 1 }],
+    partShipments: [{ lines: [{ line: 0, quantity: 1 }] }], partialRestockedItems: [{ index: 0, quantity: 1 }],
+  }, []);
+  assert.deepEqual(view.items.map((i) => [i.quantity, i.quantityToSend]), [[3, 1], [1, 1]]);
 });
 
 test("changes need write_orders and good input", async () => {
