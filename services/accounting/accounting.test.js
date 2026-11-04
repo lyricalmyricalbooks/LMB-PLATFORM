@@ -386,3 +386,30 @@ test("connect: a company another shop took while this one was away stays that sh
   const reconnect = await handleAccounting({ method: "GET", path: "/quickbooks/reconnect", query: { realmId: REALM } }, { service: t.service });
   assert.equal(reconnect.body.reconnect, OTHER);
 });
+
+test("going live: real sales never go to the practice company connected during testing", async () => {
+  const t = await setup();
+  await ready(t);
+  assert.equal((await t.call("accounting.post", { days: [day("2026-10-27")] })).status, 200);
+  const writes = t.pretend.writes.length;
+  await t.registry.updateShop(SHOP, { payments: { provider: "stripe", mode: "live" } });
+
+  const status = (await t.call("accounting.status")).body;
+  assert.equal(status.mode, "live");
+  assert.equal(status.connected, false);
+  assert.equal(status.problem, "other_mode");
+  const post = await t.call("accounting.post", { days: [day("2026-10-28")] });
+  assert.equal(post.status, 409);
+  assert.equal(post.body.error.code, "not_connected");
+  assert.equal(t.pretend.writes.length, writes, "nothing sent to the practice company");
+
+  // Connecting the real company is not refused as "another company".
+  t.pretend.world.addCompany("777", "live", "Moth Press Ltd");
+  const link = await t.call("accounting.connectLink", { returnUrl: `https://${SHOP}.web.app/admin#settings/bookkeeping` });
+  t.pretend.world.codes.set("code-live", "777");
+  const back = await handleAccounting({ method: "GET", path: "/quickbooks/oauth", query: { code: "code-live", state: new URL(link.body.url).searchParams.get("state"), realmId: "777" } }, { service: t.service });
+  assert.equal(new URL(back.headers.Location).searchParams.get("quickbooks"), "connected");
+  const after = (await t.call("accounting.status")).body;
+  assert.equal(after.connected, true);
+  assert.equal(after.ready, false, "the real company is set up afresh");
+});

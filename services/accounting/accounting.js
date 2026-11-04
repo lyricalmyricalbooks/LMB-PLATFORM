@@ -124,9 +124,18 @@ export function createAccountingService({ qbo, registry, auditLog, connections, 
   const modeOf = (row) => (row.payments?.mode === "live" ? "live" : "test");
   const isOn = (row) => config.enabled && qbo.hasMode(modeOf(row));
   const connected = (conn) => Boolean(conn?.realmId && conn.sealed && !conn.disconnectedAt);
+  // A company connected while the shop took test payments is one of Intuit's practice companies: once the shop takes
+  // real payments, its real sales must never go there, so that link no longer counts for it.
+  const otherMode = (row, conn) => connected(conn) && conn.mode !== modeOf(row);
+  const connectedFor = (row, conn) => connected(conn) && !otherMode(row, conn);
 
   async function connectionOf(row) {
     const conn = await connections.get(row.shopId);
+    if (otherMode(row, conn)) {
+      throw new AccountingError(409, "not_connected", conn.mode === "test"
+        ? "This shop takes real payments now, and its QuickBooks link is to a practice company. Connect to QuickBooks again with your real company."
+        : "This shop takes test payments now. Connect to QuickBooks again with a practice company to try it.");
+    }
     if (!connected(conn)) {
       throw conn?.problem === "lost"
         ? new AccountingError(409, "disconnected", "QuickBooks stopped taking this shop's sales. Connect to QuickBooks again.")
@@ -196,20 +205,21 @@ export function createAccountingService({ qbo, registry, auditLog, connections, 
     if (!isOn(row)) return { enabled: false };
     const conn = await connections.get(row.shopId);
     const ends = endsAt(conn);
+    const linked = connectedFor(row, conn);
     return {
       enabled: true,
       mode: modeOf(row),
-      connected: connected(conn),
+      connected: linked,
       companyName: conn?.companyName ?? null,
-      problem: connected(conn) ? null : conn?.problem ?? null,
+      problem: linked ? null : otherMode(row, conn) ? "other_mode" : conn?.problem ?? null,
       disconnectedAt: conn?.disconnectedAt ?? null,
       style: conn?.setup?.style ?? null,
-      ready: Boolean(connected(conn) && conn.setup?.savedAt),
+      ready: Boolean(linked && conn.setup?.savedAt),
       taxCodes: conn?.setup?.taxCodes ? Object.fromEntries(Object.entries(conn.setup.taxCodes).map(([name, code]) => [name, code.codeId])) : {},
       noTaxCode: conn?.setup?.noTaxCode ?? null,
       lastSent: conn?.lastSent ?? null,
-      endsAt: connected(conn) ? ends : null,
-      endsSoon: Boolean(connected(conn) && ends && Date.parse(ends) - now() <= WARN_BEFORE_MS),
+      endsAt: linked ? ends : null,
+      endsSoon: Boolean(linked && ends && Date.parse(ends) - now() <= WARN_BEFORE_MS),
     };
   }
 
@@ -575,7 +585,7 @@ export function createAccountingService({ qbo, registry, auditLog, connections, 
       const holders = await connections.byRealm(saved.mode, realmId);
       if (holders.some((holder) => holder.shopId !== row.shopId && connected(holder))) return backTo(saved.returnUrl, "in_use");
       const existing = await connections.get(row.shopId);
-      if (connected(existing) && existing.realmId !== realmId) return backTo(saved.returnUrl, "other_company");
+      if (connected(existing) && existing.mode === saved.mode && existing.realmId !== realmId) return backTo(saved.returnUrl, "other_company");
       let granted;
       try {
         granted = await qbo.exchangeCode(saved.mode, query.code);
