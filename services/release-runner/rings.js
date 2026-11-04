@@ -10,6 +10,9 @@ export function leftOut(row, { exclude = [] } = {}) {
   if (!row?.shopId) return "the row has no shop id";
   if (exclude.includes(row.shopId)) return "held back for this release";
   if (row.status !== "live") return `not live (${row.status ?? "no status"}); the shop maker finishes it first`;
+  // Its row stays "live" after the closing sweep deletes the project (services/billing/closing.js): a deploy there
+  // fails, and would stop the release for every shop after it. A closed shop still gets releases: it can open again.
+  if (row.closing?.stage === "deleted") return "deleted when its plan ended; there is nothing left to send to";
   if (row.projectId && row.projectId !== row.shopId) return `its project ${row.projectId} isn't the shop id; a person looks at it`;
   if (row.testShop === true && row.testMode !== true) return "a test shop that isn't in test mode; a person looks at it";
   return null;
