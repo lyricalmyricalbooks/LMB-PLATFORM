@@ -74,6 +74,20 @@ describe("bringing helpers' sales in", () => {
     expect(app.written).toHaveLength(0);
   });
 
+  test('a sale written straight to the inbox below the book’s price, or in another currency, is never brought in', async () => {
+    const claim = vi.fn(async () => true);
+    await bringInSales([sale('fs-cheap-12345678', { lines: [{ bookId: 'b1', qty: 2, price: 0 }] })], { claim });
+    await bringInSales([sale('fs-usd-123456789', { lines: [{ bookId: 'b1', qty: 1, price: 24, cur: 'USD' }] })], { claim });
+    expect(claim).not.toHaveBeenCalled();
+    expect(app.written).toHaveLength(0);
+    expect(fairHelperTodo()).toMatchObject({ belowPrice: 2 });
+    // At the book's own price (or above, after the owner lowered it), it comes in.
+    expect(await bringInSales([sale('fs-fair-12345678', { lines: [{ bookId: 'b1', qty: 1, price: 26 }] })], { claim })).toBe(1);
+    // Undone by the helper: off the to-do list.
+    await bringInSales([sale('fs-cheap-12345678', { cancelled: true }), sale('fs-usd-123456789', { cancelled: true })], { claim });
+    expect(fairHelperTodo()?.belowPrice || 0).toBe(0);
+  });
+
   test('a stuck sale shows as a to-do until its book is back, then comes in by itself', async () => {
     const claim = vi.fn(async () => true);
     const stuck = sale('fs-seven-1234567', { lines: [{ bookId: 'b3', qty: 1, price: 9 }] });

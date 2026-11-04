@@ -597,7 +597,9 @@ function automationSignals(ctx, out) {
     out.push({
       id: 'orders-fair-helper-stuck', group: 'orders', status: 'blocked', icon: '🎪',
       label: `${stuck} ${plural(stuck, 'sale', 'sales')} from a fair helper couldn’t be added`,
-      detail: `${who ? `Rung up by ${who}. ` : ''}A book in ${plural(stuck, 'it', 'them')} is no longer in your stockroom, so the copies and takings aren’t in your records yet. Add the book back and ${plural(stuck, 'it is', 'they are')} added by ${plural(stuck, 'itself', 'themselves')}, or record ${plural(stuck, 'the sale', 'them')} by hand.`,
+      detail: Number(helpers.belowPrice) >= stuck
+        ? `${who ? `Rung up by ${who}. ` : ''}${plural(stuck, 'It names', 'They name')} a price below the book’s own price (or in another currency), which the fair till never charges, so the copies and takings aren’t in your records yet. Check with the helper, then record ${plural(stuck, 'the sale', 'them')} by hand.`
+        : `${who ? `Rung up by ${who}. ` : ''}A book in ${plural(stuck, 'it', 'them')} is no longer in your stockroom${helpers.belowPrice ? ', or names a price below the book’s own' : ''}, so the copies and takings aren’t in your records yet. Add the book back and ${plural(stuck, 'it is', 'they are')} added by ${plural(stuck, 'itself', 'themselves')}, or record ${plural(stuck, 'the sale', 'them')} by hand.`,
     });
   }
 

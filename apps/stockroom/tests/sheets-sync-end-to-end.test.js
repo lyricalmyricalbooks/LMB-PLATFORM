@@ -327,7 +327,8 @@ describe('the sheet itself', () => {
     expect(res.cleared).toBe(2100);
     expect(gs.ss.dataRows('Overview')).toHaveLength(0);
     expect(gs.ss.dataRows('Night Zine')).toHaveLength(0);
-  });
+  // ~3 s alone (1050 rows through the stand-in Apps Script); under a busy full run it has passed 10 s.
+  }, 30000);
 
   it('can replace the only row of a tab whose grid is full', () => {
     const row = { action: 'add', type: 'order', book: 'Night Zine', date: '2026-09-01', num: '#1', qty: 1, price: 30, total: 30, currency: 'CAD', sheetsId: 'evt-1' };

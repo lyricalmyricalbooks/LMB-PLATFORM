@@ -116,12 +116,26 @@ export function helperSaleNotes(sale) {
  * books group together like one till sale. `alreadyIn(bookId, num)` says whether a book already holds a record from
  * this sale (another device brought it in): those books are left out, so bringing a sale in twice never counts it
  * twice. `problem` is "" or one of checkedHelperLines' problems; with a problem nothing is brought in.
+ *
+ * `prices` ({ bookId: { price, cur } }, the stockroom's own list prices) guards the prices: the rules can't check a
+ * sale's lines, so a sale written straight to the inbox could name any price. A line below the book's price, or in
+ * another currency, is 'below-price' and nothing is brought in (a helper's till only charges the owner's prices).
  */
-export function helperImportPlan(sale, knownBookIds, alreadyIn = () => false) {
+export function helperImportPlan(sale, knownBookIds, alreadyIn = () => false, prices = null) {
   const num = String(sale?.id || '');
   if (!SALE_ID.test(num)) return { rows: [], problem: 'bad-sale' };
   const { lines, problem } = checkedHelperLines(sale, knownBookIds);
   if (problem) return { rows: [], problem };
+  if (prices) {
+    for (const l of lines) {
+      const own = prices[l.bookId];
+      if (!own) continue;
+      const ownPrice = Number(own.price);
+      if ((Number.isFinite(ownPrice) && l.price < cents(ownPrice) - 0.004) || (own.cur && l.cur !== String(own.cur).toUpperCase())) {
+        return { rows: [], problem: 'below-price' };
+      }
+    }
+  }
   const date = DAY.test(String(sale?.day || '')) ? sale.day : '';
   const notes = helperSaleNotes(sale);
   // Two lines for one book (rung up twice in one checkout) become one record of both.
