@@ -14,14 +14,14 @@ import { OWNER_WELCOME } from "../../setup/later-steps.js";
 const KEY = "re_test_not_a_real_key";
 const SHOP_KEY = "shop-service-key-0123456789abcdef0123456789";
 
-async function make({ answers, env = {}, shop = {} } = {}) {
+async function make({ answers, env = {}, shop = {}, shopStart } = {}) {
   const registry = fakeRegistry();
   await registry.createShop("moth-press", {
     shopId: "moth-press", pressName: "Moth Press", ownerEmail: "Owner@Example.com", status: "live", serviceKeyHash: hashServiceKey(SHOP_KEY), ...shop,
   });
   const resend = fakeResendFetch(answers);
   const sentLog = fakeSentLog();
-  const service = createEmailService({ env: { RESEND_API_KEY: KEY, ...env }, fetch: resend.fetch, registry, sentLog, sleep: async () => {} });
+  const service = createEmailService({ env: { RESEND_API_KEY: KEY, ...env }, fetch: resend.fetch, registry, sentLog, shopStart, sleep: async () => {} });
   return { registry, resend, sentLog, service };
 }
 
@@ -244,4 +244,24 @@ test("a shop's own platform emails speak of what it sells; a books shop's are un
   assert.match(resend.requests.at(-1).body.text, /your products, orders, customers and stock/);
   // The shop's own name is never changed.
   assert.match(resend.requests.at(-1).body.subject, /^Moth Press is closed/);
+});
+
+test("a later Settings change of what the shop sells reaches its platform emails, before the sign-up answer (plan 12.18)", async () => {
+  let start = { sells: "music" };
+  const { registry, resend, service } = await make({ shopStart: async (shopId) => (shopId === "moth-press" ? start : null) });
+  await registry.saveProfile("moth-press", { sells: "books" });
+  const send = (key) => service.sendPlatform({ kind: "shop-closed", to: "owner@example.com", shopId: "moth-press", data: { pressName: "Moth Press", date: "1 March", link: "https://platform.example/account" }, idempotencyKey: key });
+  await send("s1");
+  assert.match(resend.requests.at(-1).body.text, /your products, orders, customers and stock/);
+  // Changed back to books in Settings: the books words return.
+  start = { sells: "books" };
+  await send("s2");
+  assert.match(resend.requests.at(-1).body.text, /your books, orders, customers and stock/);
+  // The shop's own records can't be read: the profile's answer is used, and the email still goes.
+  start = null;
+  await registry.saveProfile("moth-press", { sells: "clothing" });
+  const failing = await make({ shopStart: async () => { throw new Error("shop database unreachable"); } });
+  await failing.registry.saveProfile("moth-press", { sells: "clothing" });
+  await failing.service.sendPlatform({ kind: "shop-closed", to: "owner@example.com", shopId: "moth-press", data: { pressName: "Moth Press", date: "1 March", link: "https://platform.example/account" }, idempotencyKey: "s3" });
+  assert.match(failing.resend.requests.at(-1).body.text, /your products, orders, customers and stock/);
 });
