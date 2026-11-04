@@ -33,6 +33,7 @@ import { runsOnColophon } from "../../lib/shopProfile";
 import {
   LOW_STOCK, STATUS_FILTERS, STOCK_FILTERS, bookAuthor, bookReferences, inlineEditable, matchesStatus, matchesStock, priceInfo, publicationBadge, stockInfo,
 } from "./catalogList";
+import { productHref } from "../lib/productHref";
 
 interface BookCatalogProps {
   onEdit: (book: any) => void;
@@ -48,7 +49,7 @@ const slugOf = (b: any) => b.slug || (b.title || "").toLowerCase().replace(/[^a-
 
 /** Sub-path safe public URL (the site is served under /shop/ on GitHub Pages). */
 const listingUrl = (b: any) =>
-  `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}/books/${slugOf(b)}`;
+  `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}${productHref(slugOf(b))}`;
 
 /** Runs one write per book; names the books that failed (they stay selected for a retry). */
 async function eachBook(books: any[], write: (b: any) => Promise<unknown>) {

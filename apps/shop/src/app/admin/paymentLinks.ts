@@ -125,7 +125,7 @@ export function quoteRequestOf(m: { name?: string; email?: string; phone?: strin
   const qty = /^Quantity:\s*(\d{1,6})\s*$/.exec(lines[0] || "");
   const title = /^Book:\s*(.+?)\s*$/.exec(lines[1] || "");
   if (!qty || !title || !(Number(qty[1]) >= 1)) return null;
-  const slug = /\/books\/([^/?#]+)/.exec(String(m?.page || ""));
+  const slug = /\/(?:books|products)\/([^/?#]+)/.exec(String(m?.page || ""));
   const edition = /\(([^()]+)\)\s*$/.exec(String(m?.subject || ""));
   let decoded = "";
   try { decoded = slug ? decodeURIComponent(slug[1]) : ""; } catch { decoded = slug ? slug[1] : ""; }

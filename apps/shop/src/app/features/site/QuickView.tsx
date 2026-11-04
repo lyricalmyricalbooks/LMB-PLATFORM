@@ -12,6 +12,7 @@ import { placeholderImage } from "./constants";
 import { photoSrcSet } from "./photoSources";
 import { framingStyle } from "./photoFraming";
 import { PhotoToneDefs } from "./PhotoToneDefs";
+import { productHref } from "../../lib/productHref";
 
 /** Plain-text blurb from a book's description (which may hold HTML), cut on a word. */
 export function quickViewBlurb(description: unknown, max = 320): string {
@@ -98,7 +99,7 @@ export function QuickView({ book, design, onClose }: { book: any; design: any; o
               </button>
             )}
             <Link
-              to={`/books/${slug}`}
+              to={productHref(slug)}
               onClick={onClose}
               className="min-h-[44px] flex items-center justify-center text-[10px] font-bold tracking-[0.2em] uppercase border border-current"
             >

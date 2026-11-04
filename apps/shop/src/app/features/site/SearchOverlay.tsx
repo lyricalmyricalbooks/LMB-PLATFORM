@@ -15,6 +15,7 @@ import { getCopy } from "./storeCopy";
 import { funnelApi } from "../../lib/commerce";
 import { useFocusTrap } from "../../lib/useFocusTrap";
 import { gridPhotoSizes, photoSrcSet, smallPhotoUrl } from "./photoSources";
+import { productHref } from "../../lib/productHref";
 
 type Book = any;
 
@@ -205,7 +206,7 @@ export function SearchOverlay({
           <Column heading={c("searchNewInLabel")} attrs={regionProps("searchNewIn")}>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {newIn.map(b => (
-                <Link key={b.id} to={`/books/${bookSlug(b)}`} onClick={onClose} className="fm-card grid content-start gap-1.5 text-white">
+                <Link key={b.id} to={productHref(bookSlug(b))} onClick={onClose} className="fm-card grid content-start gap-1.5 text-white">
                   {coverBox(b, 240, "w-full", NEW_IN_SIZES)}
                   <span className="fm-card-title text-xs leading-snug" data-studio-target="style:products" data-studio-label="Card title & price">{b.title}</span>
                   {displayPrice(b) > 0 && (
@@ -283,7 +284,7 @@ export function SearchOverlay({
                     id={`fm-search-opt-${b.id}`}
                     role="option"
                     aria-selected={idx === active}
-                    to={`/books/${bookSlug(b)}`}
+                    to={productHref(bookSlug(b))}
                     onClick={close}
                     onMouseEnter={() => setActive(idx)}
                     className={`-mx-2 grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3.5 border-2 p-2 text-white ${idx === active ? "border-white bg-white/5" : ""}`}
@@ -405,7 +406,7 @@ export function SearchOverlay({
                   else if (e.key === "Enter") {
                     e.preventDefault();
                     const hit = results[Math.min(active, results.length - 1)];
-                    if (hit) { remember(); navigate(`/books/${bookSlug(hit)}`); onClose(); }
+                    if (hit) { remember(); navigate(productHref(bookSlug(hit))); onClose(); }
                   }
                 }}
                 placeholder={c("searchPlaceholder")}
