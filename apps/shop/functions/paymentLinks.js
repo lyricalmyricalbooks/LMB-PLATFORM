@@ -54,7 +54,7 @@ function addOnParentProblem(order) {
  * The day a link closes, as the customer reads it ("November 5, 2026"), in the shop's time zone. Every place that names
  * the day (the order's history, the owner's email text in admin/paymentLinks.ts, the reminder) uses this same day.
  */
-const closingDay = iso => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "long", day: "numeric" }).format(new Date(iso));
+const closingDay = (iso, language = "en") => new Intl.DateTimeFormat(language === "fr" ? "fr-CA" : "en-CA", { timeZone: "America/Toronto", year: "numeric", month: "long", day: "numeric" }).format(new Date(iso));
 
 /**
  * Checks what the admin sent and returns the cleaned link: { customer, lines, shipping, note, days }. Throws
@@ -356,7 +356,7 @@ async function sendLinkReminders({ db, orders, settings, compileEmailTemplate, o
         order_id: order.orderId || orderId,
         // What the customer is charged, in the currency of their card page (as every order email shows it).
         total_price: formatTotal(order),
-        expires_on: closingDay(link.expiresAt),
+        expires_on: closingDay(link.expiresAt, emailLanguage(order)),
         button_url: await orderTrackUrl(orderId, order),
       }, undefined, { language: emailLanguage(order) });
       await sendOrderEmailOnce(orderId, "payment_link_reminder", { to: cleanEmail(order.customer.email), subject: compiled.subject, html: compiled.html, secret });

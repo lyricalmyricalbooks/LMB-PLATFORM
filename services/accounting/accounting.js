@@ -103,7 +103,7 @@ const saleCents = (s) => s.salesCents + s.shippingCents + s.giftCardsSoldCents;
 /** What the sales receipt carries, so a changed day can be told from an unchanged one. */
 const saleFingerprint = (s) => JSON.stringify([s.salesCents, s.shippingCents, s.discountsCents, s.giftCardsSoldCents, s.giftCardsUsedCents, Object.entries(s.taxes).sort()]);
 
-export function createAccountingService({ qbo, registry, auditLog, connections, states, sent, notifyOwner = null, config, now = () => Date.now() }) {
+export function createAccountingService({ qbo, registry, auditLog, connections, states, sent, notifyOwner = null, shopStart = null, config, now = () => Date.now() }) {
   const iso = (ms = now()) => new Date(ms).toISOString();
   const bound = (shopId, mode, realmId) => `quickbooks/${shopId}/${mode}/${realmId}`;
   const sealKey = () => {
@@ -298,7 +298,9 @@ export function createAccountingService({ qbo, registry, auditLog, connections, 
       // it), else "Product sales" for a shop that doesn't sell books.
       const prior = (await connections.get(row.shopId))?.setup;
       const profile = prior ? null : await Promise.resolve().then(() => registry.getProfile?.(row.shopId)).catch(() => null);
-      const salesName = prior ? prior.salesName ?? ITEM_NAMES.sales : sellsBooks(sellsOf(row, profile)) ? ITEM_NAMES.sales : GOODS_SALES_NAME;
+      // The shop's own Settings answer comes first (firstWeek/start.sells), so a later change of what it sells counts.
+      const start = prior || !shopStart ? null : await Promise.resolve().then(() => shopStart(row.shopId)).catch(() => null);
+      const salesName = prior ? prior.salesName ?? ITEM_NAMES.sales : sellsBooks(sellsOf(start, row, profile)) ? ITEM_NAMES.sales : GOODS_SALES_NAME;
       const items = {};
       for (const [part, name] of Object.entries({ ...ITEM_NAMES, sales: salesName })) {
         const [found] = await qbo.query(c.mode, c.realmId, token, "Item", `select * from Item where Name = '${quote(name)}'`);
