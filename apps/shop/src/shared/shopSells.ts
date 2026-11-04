@@ -94,3 +94,15 @@ export function withShopEmailWords<T extends Record<string, any>>(answer: string
   }
   return out as T;
 }
+
+// Web addresses (plan 12.18, 4 November 2026): a product's page is /books/<slug> in a books shop and /products/<slug>
+// in any other. Both addresses open every product page in every shop, so links shared before a change keep working.
+
+/** Every first part a product's web address may have. */
+export const PRODUCT_BASES = ["books", "products"] as const;
+export type ProductBase = (typeof PRODUCT_BASES)[number];
+
+/** The first part of this shop's product addresses: "books" for a books shop, "products" for any other. */
+export function productBase(answer?: string | null): ProductBase {
+  return sellsBooks(answer) ? "books" : "products";
+}

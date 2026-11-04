@@ -16,6 +16,7 @@ import { isLiveBook } from "../../features/site/liveBook";
 import { slugify } from "../../features/site/storeMenu";
 import { normalizeCategories, parentOf } from "../../features/site/categoryMembership.mjs";
 import { FONT_CHOICES } from "../../features/site/fonts";
+import { productHref } from "../../lib/productHref";
 
 export type PickOption = { id: string; value: string; label: string; group: string; hint?: string };
 
@@ -82,7 +83,7 @@ export function linkOptions(data: { books?: any[]; pages?: any[]; categories?: a
     ...FIXED_LINKS.map((f) => ({ id: `fixed:${f.value}`, value: f.value, label: f.label, group: "Store pages", hint: f.hint })),
     ...pageOptions(data.pages || []).map((o) => ({ ...o, value: `/page/${o.value}` })),
     ...categoryOptions(data.categories || []).map((o) => ({ ...o, value: `/collections/${slugify(o.value)}` })),
-    ...bookOptions(data.books || [], now).map((o) => ({ ...o, value: `/books/${o.value}` })),
+    ...bookOptions(data.books || [], now).map((o) => ({ ...o, value: productHref(o.value) })),
   ];
 }
 

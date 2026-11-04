@@ -274,13 +274,14 @@ export function auditDocument(doc: Document, win: Window = doc.defaultView as Wi
     if (url.origin !== origin) continue;
     let path = url.pathname;
     if (path.startsWith(base)) path = `/${path.slice(base.length)}`;
-    const m = /^\/(books|page|collections)\/([^/?#]+)\/?$/.exec(path);
+    const m = /^\/(books|products|page|collections)\/([^/?#]+)\/?$/.exec(path);
     if (!m) continue;
     const slug = decodeURIComponent(m[2]);
-    const set = m[1] === "books" ? opts.known.books : m[1] === "page" ? opts.known.pages : opts.known.collections;
+    const product = m[1] === "books" || m[1] === "products";
+    const set = product ? opts.known.books : m[1] === "page" ? opts.known.pages : opts.known.collections;
     if (!set || set.has(slug)) continue;
     add("broken", { category: "links", severity: "issue", owner, element: el, groupKey: path,
-      title: `A link leads to a missing ${m[1] === "books" ? "book" : m[1] === "page" ? "page" : "collection"}`,
+      title: `A link leads to a missing ${product ? "book" : m[1] === "page" ? "page" : "collection"}`,
       detail: `“${clip(accessibleName(el) || raw, 40)}” goes to ${path}, which doesn't exist (or isn't published). Choose it again with the link picker.` });
   }
 

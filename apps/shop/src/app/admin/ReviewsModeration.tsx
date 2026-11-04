@@ -12,6 +12,7 @@ import {
   ActionMenu, Checkbox, ConfirmButton, ConfirmDialog, Dialog, EmptyState, ErrorState, FilterBar, IconButton, LoadingState, MetricCard, PrimaryButton,
   SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, Tabs, TextArea, ToastProvider, useRisoToast, type BadgeTone,
 } from "./riso/components";
+import { productSegment } from "../lib/productHref";
 
 type Filter = "pending" | "approved" | "rejected" | "all";
 const TONE: Record<Review["status"], BadgeTone> = { approved: "success", rejected: "danger", pending: "warning" };
@@ -99,7 +100,7 @@ function Queue() {
   }, []);
   const purchases = useMemo(() => purchaseIndex(orders), [orders]);
   const verified = (r: Review) => isVerifiedPurchase(r, purchases);
-  const bookUrl = (id: string) => `${import.meta.env.BASE_URL}books/${encodeURIComponent(slugs[id] || id)}`;
+  const bookUrl = (id: string) => `${import.meta.env.BASE_URL}${productSegment()}/${encodeURIComponent(slugs[id] || id)}`;
   const stats = useMemo(() => reviewStats(reviews), [reviews]);
 
   const counts = useMemo(() => ({

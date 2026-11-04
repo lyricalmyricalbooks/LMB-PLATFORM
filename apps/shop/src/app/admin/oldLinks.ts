@@ -1,6 +1,6 @@
 // Settings › General › URL redirects › Check your old links (plan 23.8). The shop's server reads the old shop's site
 // map (functions/oldShopRead.js); this tries each old address on the new shop the way the shop's own routes would
-// (App.tsx: /books/:slug, /page/:slug, /collections/:slug, then the redirect list for anything else) and, for each one
+// (App.tsx: /books/:slug or /products/:slug, /page/:slug, /collections/:slug, then the redirect list for anything else) and, for each one
 // that would land on "page not found", suggests where to send it. Pure and tested; nothing is saved here.
 import { findRedirect, normalizePath, type Redirect } from "../features/site/redirects";
 import { findProduct } from "../features/site/productRoutes";
@@ -8,6 +8,7 @@ import { resolveProductRoutes } from "../features/site/productRouteData.mjs";
 import { categoryNames, normalizeCategories } from "../features/site/categoryMembership.mjs";
 import { policyPageFor } from "../features/site/policyPages";
 import { slugify } from "../features/site/storeMenu";
+import { productHref } from "../lib/productHref";
 
 /** works: a page of the new shop answers. redirected: a saved redirect sends it on. draft: its page isn't published yet. */
 export type OldLinkState = "works" | "redirected" | "draft" | "missing";
@@ -52,7 +53,7 @@ export function checkOldLinks(paths: string[], shop: NewShop): OldLink[] {
   const suggest = (path: string): { to: string; label: string } => {
     const word = lastSegment(path);
     const book = books.find((b: any) => b.slug === word) || books.find((b: any) => near(word, b.slug) || near(word, slugify(b.title || "")));
-    if (book) return { to: `/books/${book.slug}`, label: book.title || book.slug };
+    if (book) return { to: productHref(book.slug), label: book.title || book.slug };
     const page = pages.find((p) => p.slug === word) || pages.find((p) => near(word, String(p.slug)) || near(word, slugify(p.title || "")));
     if (page) return { to: `/page/${page.slug}`, label: page.title || String(page.slug) };
     const policy = POLICIES.find(([re, key]) => re.test(word) && policyPageFor(`policy-${key}`, policies, design));
@@ -68,10 +69,11 @@ export function checkOldLinks(paths: string[], shop: NewShop): OldLink[] {
     if (!path || seen.has(path)) continue;
     seen.add(path);
     if (path === "/" || FIXED.test(path) || /^\/collections\/[^/]+$/.test(path)) { out.push({ path, state: "works" }); continue; }
-    const [, kind, slug] = /^\/(books|page)\/([^/]+)$/.exec(path) || [];
-    if (kind === "books") {
+    const [, kind, slug] = /^\/(books|products|page)\/([^/]+)$/.exec(path) || [];
+    // Either product address opens the product (lib/productHref.ts), so an old /products/<slug> link can already work.
+    if (kind === "books" || kind === "products") {
       const book = findProduct(books, slug, true);
-      if (book) { out.push(book.status && book.status !== "published" ? { path, state: "draft", to: `/books/${book.slug}` } : { path, state: "works" }); continue; }
+      if (book) { out.push(book.status && book.status !== "published" ? { path, state: "draft", to: productHref(book.slug) } : { path, state: "works" }); continue; }
     }
     if (kind === "page") {
       const page = pages.find((p) => p.slug === slug);

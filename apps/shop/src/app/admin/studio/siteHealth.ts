@@ -4,6 +4,7 @@
 import { alternatesFor, bookTemplateSurface } from "../../features/site/templateAlternates";
 import { POLICY_KEYS, policySlug, policyTitle } from "../../features/site/policyPages";
 import type { HealthFinding, HealthCategory, HealthSeverity, HealthOwner } from "./healthAudit";
+import { productHref } from "../../lib/productHref";
 
 export type HealthRouteGroup = "Home" | "Books" | "Pages" | "Categories" | "Other";
 export type HealthRoute = { id: string; label: string; group: HealthRouteGroup; /** Shop path, without the site's sub-path. */ path: string };
@@ -40,10 +41,10 @@ export function healthRoutes(i: RouteInput): { routes: HealthRoute[]; skipped: n
   if (books.length) {
     const title = (b: any) => clean(b.title) || clean(b.slug);
     const usesDefault = books.find(b => bookTemplateSurface(d, b) === "productPage") || books[0];
-    routes.push({ id: "book:default", label: `Book page · ${title(usesDefault)}`, group: "Books", path: `/books/${enc(clean(usesDefault.slug))}?template=default` });
+    routes.push({ id: "book:default", label: `Book page · ${title(usesDefault)}`, group: "Books", path: `${productHref(enc(clean(usesDefault.slug)))}?template=default` });
     for (const alt of alternatesFor(d, "productPage")) {
       const book = books.find(b => clean(b.templateId) === alt.id) || books[0];
-      routes.push({ id: `book:${alt.id}`, label: `Book page (${alt.name}) · ${title(book)}`, group: "Books", path: `/books/${enc(clean(book.slug))}?template=${alt.id}` });
+      routes.push({ id: `book:${alt.id}`, label: `Book page (${alt.name}) · ${title(book)}`, group: "Books", path: `${productHref(enc(clean(book.slug)))}?template=${alt.id}` });
     }
   }
 

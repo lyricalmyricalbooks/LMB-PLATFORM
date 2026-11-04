@@ -6,6 +6,6 @@ export function canonicalUrl(value: string): string {
   url.hash = '';
   // Content routes are published slash-less (`books/<slug>.html`, sitemap, JSON-LD); a visitor who
   // arrived on `/books/<slug>/` must still name the same canonical URL.
-  url.pathname = url.pathname.replace(/(\/(?:books|page|collections)\/[^/]+)\/+$/, '$1');
+  url.pathname = url.pathname.replace(/(\/(?:books|products|page|collections)\/[^/]+)\/+$/, '$1');
   return url.href;
 }

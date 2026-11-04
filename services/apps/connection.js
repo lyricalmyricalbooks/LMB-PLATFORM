@@ -14,12 +14,16 @@
 //   /api/apps/v1/orders?limit&after&since&status   read_orders   paid orders, newest first; email and phone only
 //                                                                 with read_customers
 //   /api/apps/v1/orders/<id>              read_orders
+//   /api/apps/v1/alerts?since&limit&after any             the alerts queued for this app, oldest first, whether or not
+//                                                         they reached it: a way to catch up after its server was down
 //
 // Changing things (code plan 26.3b) goes through the shop's own rules, never around them. The platform writes a request
 // to the shop's `appRequests/<id>`; the shop applies it with its own checks (apps/shop/functions/appRequests.js) and
 // writes the answer on the same document. The call waits a few seconds for it, else answers 202 with the request's id:
 //
 //   POST /api/apps/v1/orders/<id>/fulfillment   write_orders   { trackingCarrier, trackingNumber, trackingUrl?, shipped? }
+//   POST /api/apps/v1/inventory/<productId>     write_inventory  { change, variantId?, expected? }: add or take copies;
+//                                                                with `expected`, only if the stock is still that
 //   GET  /api/apps/v1/requests/<id>             any            the answer: { status: waiting|done|refused, result, reason }
 //
 // An `Idempotency-Key` header makes a retried POST return the first request instead of making a second one.
@@ -107,7 +111,7 @@ function page(rows, { limit, after }, key = (row) => row.id) {
 }
 
 export function createAppConnection({
-  installs, shopData, registry, now = () => new Date(), sleep = (ms) => new Promise((done) => setTimeout(done, ms)), waitMs = WAIT_MS,
+  installs, shopData, registry, outbox = null, now = () => new Date(), sleep = (ms) => new Promise((done) => setTimeout(done, ms)), waitMs = WAIT_MS,
   newRequestId = () => `req_${randomBytes(12).toString("hex")}`,
 }) {
   // Calls per install in the current minute. Each server keeps its own count, so a busy app spread over servers gets a
@@ -174,6 +178,16 @@ export function createAppConnection({
       if (input.trackingUrl && !input.trackingUrl.startsWith("https://")) throw new SignupError(400, "trackingUrl must start with https://");
       return ask(install, "order.dispatch", input, headers);
     }
+    if (what === "inventory" && ID.test(id ?? "") && action === undefined) {
+      need(install, "write_inventory");
+      const change = Number(body?.change);
+      const expected = body?.expected === undefined || body?.expected === null ? undefined : Number(body.expected);
+      if (!Number.isInteger(change) || change === 0 || Math.abs(change) > 10_000) throw new SignupError(400, "Give change as a whole number between -10000 and 10000, not 0.");
+      if (expected !== undefined && (!Number.isInteger(expected) || expected < 0)) throw new SignupError(400, "expected must be a whole number, 0 or more.");
+      const variantId = short(body?.variantId, 128);
+      if (variantId && !ID.test(variantId)) throw new SignupError(400, "That isn't a variant id.");
+      return ask(install, "inventory.adjust", { productId: id, variantId, change, ...(expected === undefined ? {} : { expected }) }, headers);
+    }
     throw new SignupError(404, "There's nothing here.");
   }
 
@@ -208,6 +222,15 @@ export function createAppConnection({
       const rows = (await shopData.list(shopId, "books")).sort((a, b) => (a.id < b.id ? -1 : 1));
       const { slice, next } = page(rows, query);
       return { inventory: slice.map((row) => stockOf(row.id, row.data)), next };
+    }
+
+    if (what === "alerts" && id === undefined && outbox) {
+      const since = typeof query.since === "string" ? query.since : "";
+      const rows = (await outbox.listByInstall(install.installId))
+        .filter((alert) => alert.status !== "dropped" && (!since || String(alert.createdAt) >= since))
+        .sort((a, b) => (a.createdAt === b.createdAt ? (a.id < b.id ? -1 : 1) : a.createdAt < b.createdAt ? -1 : 1));
+      const { slice, next } = page(rows, query);
+      return { alerts: slice.map((alert) => ({ id: alert.id, topic: alert.topic, createdAt: alert.createdAt, data: alert.data, delivered: alert.status === "sent" })), next };
     }
 
     if (what === "requests" && id) {

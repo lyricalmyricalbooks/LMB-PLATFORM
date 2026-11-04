@@ -1713,6 +1713,7 @@ function resetBookForm() {
   _bookFromWebsiteKey = '';
   _bookFromWebsiteGroup = null;
   _bookFromWebsiteSizes = [];
+  if ($('nb-max-hint')) { $('nb-max-hint').hidden = true; $('nb-max-hint').textContent = ''; }
   if ($('book-modal-badge')) $('book-modal-badge').textContent = '✨ New Release';
   $('add-book-modal-title').textContent = words('Add new book');
   $('add-book-save-btn').textContent = 'Save Book';
@@ -1781,8 +1782,14 @@ export function openAddBookFromWebsite(prefill, key) {
   $('nb-isbn').value = p.isbn || '';
   if (p.price !== '' && p.price != null) $('nb-price').value = String(p.price);
   setSelectCurrency($('nb-cur'), p.currency || 'CA$');
-  // The print run is the owner's to fill in: the form won't save without it.
-  $('nb-max').value = '';
+  // Plan 23.9: the website's count is the opening count, so both agree from the first day. With no count kept there,
+  // the print run is the owner's to fill in: the form won't save without it.
+  $('nb-max').value = p.onHand ? String(p.onHand) : '';
+  const maxHint = $('nb-max-hint');
+  if (maxHint) {
+    maxHint.textContent = p.onHand ? `${p.onHand} in stock on your website now. Sales from here on count down from it.` : '';
+    maxHint.hidden = !p.onHand;
+  }
   _bookFromWebsiteKey = String(key || '');
   _bookFromWebsiteGroup = p.group || null;
   _bookFromWebsiteSizes = Array.isArray(p.sizes) ? p.sizes : [];

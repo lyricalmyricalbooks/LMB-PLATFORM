@@ -208,7 +208,7 @@ const money = n => `${n.toFixed(2)} CAD`;
  * The feed's items, plus the published books left out and why (shown in the admin panel).
  * `books` = the whole catalog; only books shoppers can buy today are listed.
  */
-export function merchantFeedItems(siteUrl, books, { shopName = UNNAMED_SHOP, now = new Date() } = {}) {
+export function merchantFeedItems(siteUrl, books, { shopName = UNNAMED_SHOP, now = new Date(), productBase = 'books' } = {}) {
   const base = siteUrl.replace(/\/$/, '');
   const byId = new Map(books.map(b => [b.id, b]));
   const live = books.filter(b => isLive(b, now));
@@ -221,7 +221,7 @@ export function merchantFeedItems(siteUrl, books, { shopName = UNNAMED_SHOP, now
     const creators = isBook(kind) ? creatorNames(book) : [];
     if (book.productType === 'giftCard') continue;
     if (book.seoNoindex === true) { skipped.push({ id: book.id, title, reason: 'Hidden from search engines (Search (SEO) › Hide from search)' }); continue; }
-    const link = `${base}/books/${encodeURIComponent(book.slug)}`;
+    const link = `${base}/${productBase}/${encodeURIComponent(book.slug)}`;
     const photos = [...new Set((Array.isArray(book.photos) ? book.photos : []).map(p => httpsUrl(p?.url, base + '/')).filter(Boolean))];
     if (!photos.length && book.photoUrl) { const u = httpsUrl(book.photoUrl, base + '/'); if (u) photos.push(u); }
     const description = cut(plain(book.metaDescription) || plain(book.description) || `${title}${book.subtitle ? (isBook(kind) ? ` by ${plain(book.subtitle)}` : ` – ${plain(book.subtitle)}`) : ''}`, 5000);
