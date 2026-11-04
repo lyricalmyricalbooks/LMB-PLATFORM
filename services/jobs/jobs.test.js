@@ -57,6 +57,19 @@ test("a run is recorded with its time, result and summary; a failure is a run, n
   assert.equal(summaryOf({ summary: "all fine", checked: 3 }), "all fine");
 });
 
+test("a sweep that answers one line per shop is a failed run when any shop failed, and says how many", async () => {
+  const w = world();
+  // The own-address and web-address sweeps answer a list, one entry per shop, with "failed" where a check threw.
+  const fine = await w.jobs.runJob("own-email-addresses", async () => [{ shopId: "a", state: "verified" }, { shopId: "b", state: "pending" }]);
+  assert.deepEqual([fine.ok, fine.summary], [true, "checked 2"]);
+  const broke = await w.jobs.runJob("own-email-addresses", async () => [
+    { shopId: "a", state: "failed", detail: "the email company refused the key" }, { shopId: "b", state: "verified" },
+  ]);
+  assert.equal(broke.ok, false);
+  assert.equal(broke.summary, "checked 2, failed 1");
+  assert.match(broke.error, /1 of 2 failed.*a: the email company refused the key/);
+});
+
 test("the run log keeps the newest 50 runs of each job", async () => {
   const w = world();
   for (let i = 0; i < KEEP_RUNS + 7; i += 1) {
