@@ -19,6 +19,7 @@ const OUTCOME_WORDS = {
   connected: { tone: "success", text: "✓ Google is connected. Settings › Google shows how each part went." },
   denied: { tone: "neutral", text: "Nothing was changed. You can connect Google any time." },
   failed: { tone: "danger", text: "✕ Google didn't finish connecting. Press Connect Google to try again." },
+  other_account: { tone: "danger", text: "✕ That was a different Google account from your shop's. Nothing was changed. Sign in with the one your shop already uses." },
 } as const;
 
 function useConnect() {
@@ -43,10 +44,10 @@ export function ConnectGoogleCard({ variant = "full", fallback = null }: { varia
   // Every Google service now has its own page, Settings › Google; Visitors & Google keeps one line and the way there.
   const s = google.status;
   return (
-    <SectionCard title="Google" description="Analytics, search, Google Shopping, Maps and more, with one sign-in."
+    <SectionCard title="Google"
       actions={s?.needsReconnect ? <StatusBadge tone="warning">Needs you</StatusBadge> : s?.connected ? <StatusBadge tone="success">Connected</StatusBadge> : s?.enabled ? <StatusBadge tone="neutral">Not connected</StatusBadge> : undefined}>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
-        <p className="rp-hint" style={{ margin: 0, flex: "1 1 260px" }}>Every Google service your shop can use is on its own page: what each one does, how it's going, and the extras you can switch on.</p>
+        <p className="rp-hint" style={{ margin: 0, flex: "1 1 260px" }}>Every Google service now has its own page.</p>
         <SecondaryButton size="sm" onClick={() => { window.location.hash = "#settings/google"; }}>Open Google settings</SecondaryButton>
       </div>
     </SectionCard>

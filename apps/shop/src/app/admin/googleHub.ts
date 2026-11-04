@@ -29,10 +29,10 @@ export const SERVICE_INFO: Record<ServiceId, ServiceInfo> = {
   merchantCenter: { gives: ["Your books in Google Shopping's free listings, every day", "A list of any book Google turned down, with the fix"], googleUrl: "https://merchants.google.com/" },
   email: { gives: ["Order emails sent from your own address", "Replies land in your own inbox"], admin: { hash: "#settings/notifications", label: "Open Email sender" } },
   domain: { gives: ["Your own web address counted with your shop", "Search results show your address"], admin: { hash: "#settings/general/details", label: "Open your web address" } },
-  businessProfile: { gives: ["Your opening hours and shop link on Google Maps", "Shows up when people search your press's name"], googleUrl: "https://business.google.com/" },
-  drive: { gives: ["A copy of your shop each night, in a folder you own", "Your stock list in a Google Sheet"], googleUrl: "https://drive.google.com/" },
-  youtube: { gives: ["Pick trailers from your channel for your book pages", "No copying links by hand"], googleUrl: "https://studio.youtube.com/" },
-  calendar: { gives: ["Launches and fairs from your calendar", "Shown on your website's events"], googleUrl: "https://calendar.google.com/" },
+  businessProfile: { gives: ["Your Google Maps listing linked to your shop", "Nothing on it is changed without you"], googleUrl: "https://business.google.com/" },
+  drive: { gives: ["A folder you own for copies of your shop", "Your stock list in a Google Sheet"], googleUrl: "https://drive.google.com/" },
+  youtube: { gives: ["Your YouTube channel linked to your shop", "Only read, never posted to"], googleUrl: "https://studio.youtube.com/" },
+  calendar: { gives: ["A calendar of your own for launches and fairs", "Made for you in your Google Calendar"], googleUrl: "https://calendar.google.com/" },
   ads: { gives: ["Advertise your books on Google", "Nothing is spent unless you start an ad yourself"], googleUrl: "https://ads.google.com/" },
 };
 

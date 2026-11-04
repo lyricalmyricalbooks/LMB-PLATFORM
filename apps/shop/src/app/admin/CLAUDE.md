@@ -316,6 +316,8 @@ The private operations, label purchase safeguards, payment authority and server 
   "what you get" lines, Google's own line, Try again or Open in Google), **Extras** as switches saved together through
   `connectLink(extras)`, then Disconnect. Listed only when `runsOnColophon()` or the platform answers (Dashboard
   `googleOn`); Visitors & Google keeps a pointer card. Get started step 4 shows the same services (`GoogleTiles`).
+  Switching extras off saves at once (`googleConnectApi.turnOff`, no Google trip); switching one on opens Google's page
+  on the shop's one account, and another account comes back as `?google=other_account` with nothing changed.
   Fixture: `admin-fixture.html?gstate=coming|ready|connected|trouble&page=settings/google`.
 - **Google Analytics 4:** Settings › General › **Google Analytics** (`GoogleAnalyticsCard.tsx`, `admin/googleAnalytics.ts`).
   Measurement ID (public) = `settings/website.analytics.ga4MeasurementId`, written only by that card (`updateSettings` drops

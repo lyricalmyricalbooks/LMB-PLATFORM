@@ -30,6 +30,7 @@ const OUTCOME = {
   connected: { tone: "success", text: "Google is connected. Each card below shows how its part went." },
   denied: { tone: "neutral", text: "Nothing was changed. You can connect Google any time." },
   failed: { tone: "danger", text: "Google didn't finish connecting. Press Connect Google to try again." },
+  other_account: { tone: "danger", text: "That was a different Google account from your shop's, so nothing was changed. Every part of your shop uses one Google account: sign in with the one shown above." },
 } as const;
 
 /** Opens Google's Allow page with these extras; the press comes back to this page. */
@@ -87,31 +88,39 @@ export function GoogleHub({ status }: { status: GoogleStatus }) {
     catch (err: any) { toast.error(friendlyError(err, "disconnect Google")); }
     finally { setLeaving(false); }
   };
+  const [saving, setSaving] = useState(false);
+  const saveExtras = async () => {
+    if (change.added.length) return signIn.go(picked);
+    setSaving(true);
+    try { await googleConnectApi.turnOff(change.removed); toast.success(change.removed.length === 1 ? "That extra is off" : "Those extras are off"); }
+    catch (err: any) { toast.error(friendlyError(err, "switch that off")); }
+    finally { setSaving(false); }
+  };
   const toggle = (id: GoogleExtra, on: boolean) => setPicked((list) => (on ? [...list, id] : list.filter((x) => x !== id)));
 
   const found = outcomeOnce();
   const needs = status.connected ? [...services.included, ...services.extras].filter((x) => x.state === "failed" || x.state === "waiting") : [];
-  const headline = !status.enabled ? "Google, all in one place"
+  const headline = !status.enabled ? "Google is coming soon"
     : status.needsReconnect ? RECONNECT_WORDS.title
     : status.connected ? (summary.needsYou ? `${summary.needsYou} ${summary.needsYou === 1 ? "part needs" : "parts need"} a look` : summary.working === summary.total ? "Everything is working" : "Google is linking your shop")
     : "Connect Google with one sign-in";
-  const lead = !status.enabled
-    ? w("Google search, Google Shopping, Maps, visit figures and more, linked to your shop with one sign-in. Google is still approving the sign-in for Colophon shops; this page switches on by itself once it's ready.")
+  // One short line, only where it tells the press something the headline and cards don't.
+  const lead = !status.enabled ? "Google is approving the sign-in. This page switches on by itself."
     : status.needsReconnect ? RECONNECT_WORDS.text
-    : status.connected ? w("Your Google account is linked to your shop. Each card shows what it does and how it's going.")
-    : w("Sign in with your Google account once. Your shop shows up on Google search, your books on Google Shopping, and you see where visitors come from. Nothing technical to set up.");
+    : status.connected ? ""
+    : w("One sign-in puts your shop on Google search, your books on Google Shopping, and shows where visitors come from.");
 
   return (
     <div className="gg">
       <section className="gg-hero rp-card" aria-labelledby="gg-title">
         <div className="gg-hero-main">
           <div className="gg-hero-text">
-            <p className="gg-kicker"><span className="gg-mark" aria-hidden="true"><span /><span /><span /><span /></span>One sign-in, every Google service</p>
+            <span className="gg-mark" aria-hidden="true"><span /><span /><span /><span /></span>
             <h2 id="gg-title" className="gg-title">{headline}</h2>
-            <p className="gg-lead">{lead}</p>
+            {lead && <p className="gg-lead">{lead}</p>}
             {status.connected && status.accountEmail && (
               <p className="gg-account"><span className="gg-avatar" aria-hidden="true">{status.accountEmail[0]?.toUpperCase()}</span>
-                <span>Signed in as <strong>{status.accountEmail}</strong>{status.connectedAt ? <> · since {shortDate(status.connectedAt)}</> : null}</span></p>
+                <span><strong>{status.accountEmail}</strong> runs every part{status.connectedAt ? <> · since {shortDate(status.connectedAt)}</> : null}</span></p>
             )}
             {needs.length > 0 && (
               <ul className="gg-needs" aria-label="Parts that need a look">
@@ -126,8 +135,6 @@ export function GoogleHub({ status }: { status: GoogleStatus }) {
               {status.enabled && (!status.connected || status.needsReconnect) && (
                 <PrimaryButton disabled={signIn.busy} onClick={() => signIn.go(picked)}>{signIn.busy ? "Opening Google…" : status.needsReconnect ? RECONNECT_WORDS.button : "Connect Google"}</PrimaryButton>
               )}
-              {!status.enabled && <StatusBadge tone="neutral">Coming soon</StatusBadge>}
-              {status.enabled && !status.connected && <span className="rp-hint">Google asks you to allow Colophon once. You can untick any part there.</span>}
             </div>
           </div>
         </div>
@@ -149,7 +156,7 @@ export function GoogleHub({ status }: { status: GoogleStatus }) {
         </div>
       )}
 
-      <GroupHead title="Included with your sign-in" sub={status.connected ? "Linked for you when you connected." : "Linked for you the moment you connect."} />
+      <GroupHead title="Included" />
       <div className="gg-grid">
         {services.included.map((s) => (
           <ServiceCard key={s.id} view={s} w={w}
@@ -158,7 +165,7 @@ export function GoogleHub({ status }: { status: GoogleStatus }) {
         ))}
       </div>
 
-      <GroupHead title="Extras" sub="Optional. Switch on any you like; Google asks you about them once." />
+      <GroupHead title="Extras" sub="Optional" />
       <div className="gg-grid">
         {services.extras.map((s) => (
           <ServiceCard key={s.id} view={s} w={w}
@@ -172,10 +179,11 @@ export function GoogleHub({ status }: { status: GoogleStatus }) {
       </div>
       {changes > 0 && status.connected && (
         <div className="rp-savebar" role="region" aria-label="Extras not saved yet">
-          <span role="status">{changes === 1 ? "1 extra changed." : `${changes} extras changed.`} Google asks you to allow {change.removed.length && !change.added.length ? "the change" : "them"}.</span>
+          {/* Switching off needs no new permission, so it saves here; switching on asks Google once, on the same account. */}
+          <span role="status">{saveWords(change)}</span>
           <span style={{ display: "flex", gap: 8 }}>
-            <SecondaryButton onClick={() => setPicked(saved)} disabled={signIn.busy}>Discard</SecondaryButton>
-            <PrimaryButton onClick={() => signIn.go(picked)} disabled={signIn.busy}>{signIn.busy ? "Opening Google…" : "Save with Google"}</PrimaryButton>
+            <SecondaryButton onClick={() => setPicked(saved)} disabled={signIn.busy || saving}>Discard</SecondaryButton>
+            <PrimaryButton onClick={saveExtras} disabled={signIn.busy || saving}>{signIn.busy ? "Opening Google…" : saving ? "Saving…" : change.added.length ? "Save with Google" : "Save"}</PrimaryButton>
           </span>
         </div>
       )}
@@ -184,11 +192,7 @@ export function GoogleHub({ status }: { status: GoogleStatus }) {
         <ShieldCheck className="gg-trust-icon" aria-hidden="true" />
         <div className="gg-trust-text">
           <h3 id="gg-trust-title" className="gg-group-title">Your Google accounts stay yours</h3>
-          <ul>
-            <li>Colophon only asks Google for what each part needs, and never reads your Gmail.</li>
-            <li>Your visit figures, search history and Shopping listings live in your own Google accounts.</li>
-            <li>Disconnect here any time. Everything Google kept stays with you.</li>
-          </ul>
+          <p className="rp-hint">With all their history, even if you disconnect. Colophon never reads your Gmail.</p>
         </div>
         {status.connected && <GhostButton disabled={leaving} onClick={disconnect}>{leaving ? "Disconnecting…" : "Disconnect Google"}</GhostButton>}
       </section>
@@ -197,8 +201,16 @@ export function GoogleHub({ status }: { status: GoogleStatus }) {
   );
 }
 
-function GroupHead({ title, sub }: { title: string; sub: string }) {
-  return <div className="gg-group"><h3 className="gg-group-title">{title}</h3><p className="rp-hint">{sub}</p></div>;
+/** What the save bar says: switching off saves here; switching on opens Google's page on the shop's account. */
+export function saveWords(change: { added: GoogleExtra[]; removed: GoogleExtra[] }): string {
+  const n = change.added.length + change.removed.length;
+  const head = n === 1 ? "1 extra changed." : `${n} extras changed.`;
+  if (!change.added.length) return `${head} Switching off saves straight away, with no new sign-in.`;
+  return `${head} Google asks you once to allow ${change.added.length === 1 ? "the new one" : "the new ones"}, on the same Google account.`;
+}
+
+function GroupHead({ title, sub }: { title: string; sub?: string }) {
+  return <div className="gg-group"><h3 className="gg-group-title">{title}</h3>{sub && <p className="rp-hint">{sub}</p>}</div>;
 }
 
 function ServiceCard({ view, action, after, w }: { view: ServiceView; action?: ReactNode; after?: ReactNode; w: (s: string) => string }) {
@@ -211,10 +223,11 @@ function ServiceCard({ view, action, after, w }: { view: ServiceView; action?: R
         <span className="gg-icon" data-ink={INK[view.id]} aria-hidden="true"><Icon size={20} strokeWidth={2.2} /></span>
         <h4 id={`gg-${view.id}`} className="gg-card-title">{view.label}</h4>
         {/* While Google is still coming, the page says so once, at the top, rather than on every card. */}
-        {view.state !== "coming" && <StatusBadge tone={badge.tone}>{badge.text}</StatusBadge>}
+        {/* An extra's switch already says On or Off, so its badge shows only how a switched-on one is going. */}
+        {view.state !== "coming" && !(view.picked !== undefined && (view.state === "off" || view.state === "ready")) && <StatusBadge tone={badge.tone}>{badge.text}</StatusBadge>}
       </header>
-      <ul className="gg-gives">{view.gives.map((g) => <li key={g}>{w(g)}</li>)}</ul>
-      {view.detail && <p className="gg-detail">{view.detail}</p>}
+      <p className="gg-about">{w(view.gives[0])}</p>
+      {view.detail && (view.state === "failed" || view.state === "waiting" || view.state === "off") && <p className="gg-detail" data-state={view.state}>{view.detail}</p>}
       {after}
       <footer className="gg-card-foot">
         {action}
@@ -261,7 +274,7 @@ export function ShoppingProblemsList() {
     return () => { live = false; };
   }, []);
   if (!found?.available) return null;
-  if (found.problems.length === 0) return <p className="gg-detail">{w("Google Shopping has no problems with your books.")}</p>;
+  if (found.problems.length === 0) return null;
   return (
     <details className="gg-problems">
       <summary>{found.problems.length === 1 ? w("1 book") : w(`${found.problems.length} books`)} Google Shopping isn't showing</summary>
@@ -296,10 +309,7 @@ export function StockSheetRow() {
   };
   return (
     <div className="gg-sheet">
-      <p className="gg-detail">
-        <strong>Stock list in Google Sheets.</strong> {w("Each product's title, author, code, price and how many you have.")}
-        {sheet?.url ? <> <a href={sheet.url} target="_blank" rel="noreferrer noopener">Open your sheet</a>{sheet.rows !== undefined ? ` (${sheet.rows} products)` : ""}.</> : " Change your stock in the stockroom, not in the sheet."}
-      </p>
+      <p className="gg-detail"><strong>{w("Stock list in Google Sheets")}</strong>{sheet?.url ? <> · <a href={sheet.url} target="_blank" rel="noreferrer noopener">Open it</a>{sheet.rows !== undefined ? ` (${sheet.rows} products)` : ""}</> : null}</p>
       <SecondaryButton size="sm" disabled={busy} onClick={send}>{busy ? "Sending…" : sheet?.url ? "Update my sheet" : "Send my stock list"}</SecondaryButton>
     </div>
   );

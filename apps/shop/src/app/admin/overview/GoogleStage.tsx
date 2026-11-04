@@ -81,6 +81,7 @@ export function GoogleStage({ onDone }: { onDone: (google: GoogleMarker) => Prom
   return (
     <SectionCard title={title} description="Optional for now. One sign-in with your Google account links search, Google Shopping listings and visitor statistics." collapsible={false}>
       {outcome === "denied" && <p role="alert" className="rp-hint" style={{ margin: "0 0 12px", color: "var(--rp-danger)" }}>Google didn't connect, because the sign-in was cancelled on Google's page. You can try again now or later.</p>}
+      {outcome === "other_account" && <p role="alert" className="rp-hint" style={{ margin: "0 0 12px", color: "var(--rp-danger)" }}>That was a different Google account from your shop's, so nothing was changed. Sign in with the one your shop already uses.</p>}
       {outcome === "failed" && <p role="alert" className="rp-hint" style={{ margin: "0 0 12px", color: "var(--rp-danger)" }}>Google didn't connect this time. You can try again now or later.</p>}
       {status.needsReconnect && <p className="rp-hint" style={{ margin: "0 0 12px" }}>Google asks you to sign in again.</p>}
       {error && <p role="alert" className="rp-hint" style={{ margin: "0 0 12px", color: "var(--rp-danger)" }}>{error}</p>}

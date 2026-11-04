@@ -134,6 +134,7 @@ if (gstate) {
   googleConnectApi.connectLink = async (extras: any) => { calls.push(["connectLink", extras]); return "#settings/google"; };
   googleConnectApi.tryAgain = async (part: string) => { calls.push(["tryAgain", part]); return status; };
   googleConnectApi.disconnect = async () => { calls.push(["disconnect"]); return status; };
+  googleConnectApi.turnOff = async (extras: any) => { calls.push(["turnOff", extras]); return status; };
   googleConnectApi.shoppingProblems = async () => ({ available: true, problems: gstate === "trouble" ? [{ offerId: "b3", title: "Night Songs", issues: [{ severity: "DISAPPROVED", description: "The photo has a border.", resolution: "Upload a photo without one." }] }] : [] });
   googleConnectApi.sendStockSheet = async () => ({ available: true, url: "https://docs.google.com/spreadsheets/d/example/edit", rows: 24 });
 }

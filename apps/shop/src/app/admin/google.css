@@ -7,6 +7,7 @@
 .gg .gg-hero { display: flex; flex-wrap: wrap; align-items: stretch; justify-content: space-between; gap: var(--rp-space-5); padding: clamp(18px, 3vw, 32px); position: relative; overflow: hidden; }
 .gg-hero-main { display: flex; gap: 20px; align-items: flex-start; flex: 1 1 420px; min-width: 0; }
 .gg-hero-text { min-width: 0; }
+.gg-hero-text > .gg-mark { margin-bottom: 12px; }
 .gg-kicker { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; font-size: var(--rp-text-xs); font-weight: 700; letter-spacing: var(--rp-label-tracking, .08em); text-transform: var(--rp-label-case, uppercase); color: var(--rp-text-subtle); }
 .gg-mark { flex: none; display: inline-flex; gap: 4px; }
 .gg-mark span { width: 10px; height: 10px; border-radius: var(--rp-radius-pill); background: var(--gg-a); }
@@ -60,8 +61,10 @@
 .gg-gives li { position: relative; padding-left: 18px; }
 .gg-gives li::before { content: "✓"; position: absolute; left: 0; top: 0; font-weight: 800; color: var(--rp-text-subtle); }
 .gg-card[data-state="done"] .gg-gives li::before { color: var(--rp-success); }
+.gg-about { margin: 0; font-size: var(--rp-text-sm); line-height: 1.45; color: var(--rp-text-muted); }
+.gg-detail[data-state="failed"] { color: var(--rp-danger); }
 .gg-detail { margin: 0; font-size: var(--rp-text-xs); line-height: 1.5; color: var(--rp-text-subtle); }
-.gg-card-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: auto; padding-top: 12px; border-top: var(--rp-hair) solid var(--rp-divider); min-height: calc(var(--rp-touch) + 12px); }
+.gg-card-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: auto; padding-top: 12px; border-top: var(--rp-hair) solid var(--rp-divider); }
 .gg-card-foot:empty { display: none; }
 .gg-link { display: inline-flex; align-items: center; gap: 4px; min-height: var(--rp-touch); font-size: var(--rp-text-sm); font-weight: 700; color: var(--rp-primary-text); text-decoration: none; }
 .gg-link:hover { text-decoration: underline; }
@@ -76,6 +79,7 @@
 .gg .gg-trust { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 24px; padding: 20px 22px; margin-top: var(--rp-space-3); background: var(--rp-surface-2, var(--rp-surface)); }
 .gg-trust-icon { flex: none; width: 32px; height: 32px; color: var(--rp-success); }
 .gg-trust-text { flex: 1 1 320px; min-width: 0; }
+.gg-trust .rp-hint { margin: 4px 0 0; }
 .gg-trust ul { margin: 8px 0 0; padding-left: 18px; font-size: var(--rp-text-sm); line-height: 1.6; color: var(--rp-text-muted); }
 
 /* ── Get started step 4: the same services as a compact row of tiles ── */
@@ -87,7 +91,11 @@
 .gg-tile-text span { color: var(--rp-text-subtle); font-size: var(--rp-text-xs); }
 
 @media (max-width: 640px) {
-  .gg-meter { flex-basis: 100%; }
+  .gg-meter { flex-basis: 100%; flex-direction: row; align-items: center; gap: 14px; padding: 10px 14px; }
+  .gg-meter-count { flex: none; }
+  .gg-meter-count strong { font-size: var(--rp-text-xl); }
+  .gg-meter-bar { flex: 1; }
+  .gg .gg-hero { gap: var(--rp-space-3); }
   .gg-actions .rp-btn { flex: 1 1 100%; }
 }
 @media (prefers-reduced-motion: reduce) { .gg-card { transition: none; } }

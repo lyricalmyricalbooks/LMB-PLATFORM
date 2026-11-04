@@ -29,6 +29,7 @@ beforeEach(() => {
   googleConnectApi.tryAgain = vi.fn(async (part: string) => { calls.push(["tryAgain", part]); return STATUS; });
   googleConnectApi.connectLink = vi.fn(async (extras: any) => { calls.push(["connectLink", extras]); return "about:blank"; });
   googleConnectApi.disconnect = vi.fn(async () => { calls.push(["disconnect"]); return STATUS; });
+  googleConnectApi.turnOff = vi.fn(async (extras: any) => { calls.push(["turnOff", extras]); return STATUS; });
   googleConnectApi.shoppingProblems = vi.fn(async () => ({ available: true, problems: [] }));
   googleConnectApi.sendStockSheet = vi.fn(async () => ({ available: true }));
   Object.defineProperty(window, "location", { configurable: true, value: { ...window.location, href: "http://localhost/admin#settings/google", assign: vi.fn() } });
@@ -74,6 +75,24 @@ describe("Settings › Google", () => {
     expect(window.location.assign).toHaveBeenCalledWith("about:blank");
   });
 
+  it("switching an extra off saves at once, with no trip to Google", async () => {
+    await mount();
+    await act(async () => { (card("drive").querySelector("[role=switch]") as HTMLButtonElement).click(); });
+    expect(text()).toContain("Switching off saves straight away, with no new sign-in.");
+    await act(async () => { button("Save")!.click(); });
+    expect(calls).toEqual([["turnOff", ["drive"]]]);
+    expect(window.location.assign).not.toHaveBeenCalled();
+  });
+
+  it("switching one on and one off goes to Google once, with the full list", async () => {
+    await mount();
+    await act(async () => { (card("drive").querySelector("[role=switch]") as HTMLButtonElement).click(); });
+    await act(async () => { (card("youtube").querySelector("[role=switch]") as HTMLButtonElement).click(); });
+    expect(text()).toContain("on the same Google account");
+    await act(async () => { button("Save with Google")!.click(); });
+    expect(calls).toEqual([["connectLink", ["youtube"]]]);
+  });
+
   it("offers the stock list on a saved Drive", async () => {
     await mount();
     expect(card("drive").textContent).toContain("Send my stock list");
@@ -90,7 +109,7 @@ describe("Settings › Google", () => {
 
   it("before Google is switched on, it shows every service and says it's coming, with nothing to press", async () => {
     await mount(readGoogleStatus({ enabled: false }));
-    expect(document.querySelector("h2")?.textContent).toBe("Google, all in one place");
+    expect(document.querySelector("h2")?.textContent).toBe("Google is coming soon");
     expect(document.querySelectorAll(".gg-card")).toHaveLength(10);
     expect(button("Connect Google")).toBeUndefined();
     expect([...document.querySelectorAll("[role=switch]")].every((s) => (s as HTMLButtonElement).disabled)).toBe(true);

@@ -45,6 +45,13 @@ describe("Connect Google in the admin", () => {
     expect(calls[0].headers).toMatchObject({ "X-Shop-Id": "moth-press", Authorization: `Bearer ${KEY}` });
   });
 
+  test("switching extras off sends only known extras, and an empty list is refused before the platform is asked", async () => {
+    const { run, calls } = make();
+    await run({ step: "turnOff", extras: ["calendar", "nonsense"] });
+    expect((await run({ step: "turnOff", extras: ["nonsense"] })).statusCode).toBe(400);
+    expect(calls.map((c) => [c.op, c.args])).toEqual([["google.turnOff", { extras: ["calendar"] }]]);
+  });
+
   test("the books Google Shopping turned down are asked for as this shop", async () => {
     const { run, calls } = make();
     await run({ step: "productProblems" });
