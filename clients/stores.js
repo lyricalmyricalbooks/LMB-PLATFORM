@@ -61,6 +61,21 @@ export function firestoreSupport(firestore) {
   };
 }
 
+/**
+ * apps/<appId>: one outside app registered by an app maker (services/apps/makers.js, code plan 26.1). Equality filters
+ * only, no extra index; sorting happens in the service.
+ */
+export function firestoreApps(firestore) {
+  const rows = async (where) => (await firestore.query("apps", { where, limit: 1000 })).map((row) => row.data);
+  return {
+    get: (appId) => firestore.get(`apps/${appId}`),
+    put: (appId, app) => firestore.set(`apps/${appId}`, app),
+    listByMaker: (email) => rows([["makerEmail", "==", email]]),
+    listByStatus: (status) => rows([["status", "==", status]]),
+    listOnStore: () => rows([["onStore", "==", true]]),
+  };
+}
+
 /** repairs/<id>: one problem for a person (control-room/repairs.js). Equality filters only, no extra index. */
 export function firestoreRepairs(firestore) {
   return {

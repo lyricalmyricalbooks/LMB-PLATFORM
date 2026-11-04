@@ -49,6 +49,8 @@ import { readGoogleConfig } from "../google/config.js";
 import { googleReadiness } from "../google/readiness.js";
 import { createSupportInbox } from "../services/support/inbox.js";
 import { supportRoutes } from "../services/support/routes.js";
+import { createAppMakers } from "../services/apps/makers.js";
+import { appMakerRoutes, appStorePublicRoutes } from "../services/apps/routes.js";
 import { createRecovery, recoveryByHand } from "../accounts/recovery.js";
 import { recoveryRoutes } from "../accounts/recoveryRoutes.js";
 import { deviceWatch } from "../accounts/devices.js";
@@ -93,6 +95,7 @@ import { STOCKROOM_DATABASE, registryFiles, shopDataClient, stockroomDataClient 
 import {
   firestoreAccounts, firestoreActivity, firestoreBreaches, firestoreDeliveryStats, firestoreDevices, firestoreIncomeHistory, firestoreInvites,
   firestoreJobRuns, firestorePlatformState, firestoreRecoveries, firestoreRepairs, firestoreSentLog, firestoreShopNotes, firestoreSupport, firestoreWaitlist,
+  firestoreApps,
 } from "../clients/stores.js";
 import {
   firestoreAccessRequests, firestoreAccountStores, firestoreBillingStores, firestoreFoundingSeats, firestoreDataExports, firestoreFeeLedger, firestorePressMessages,
@@ -219,6 +222,8 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     runBook: runBook({ state: platformState, registry, platform, rollBack: notConnectedFn(NOT_CONNECTED.rollBack), now }),
   });
   const support = createSupportInbox({ store: supportStore, email, registry, settings, admins, roleIn: (who, shopId) => accounts.roleIn(who, shopId), now });
+  // Outside apps registered by app makers (code plan 26.1).
+  const appMakers = createAppMakers({ store: firestoreApps(platform), admins, now });
   const recovery = createRecovery({
     store: recoveryStore, email, registry, auditLog, settings, admins, now,
     findAccount: async (address) => {
@@ -286,6 +291,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...platformRoutes(controls),
     ...emergencyRoutes(backup),
     ...supportRoutes(support),
+    ...appMakerRoutes(appMakers),
     ...recoveryRoutes(recovery),
     ...accessRequestRoutes({ requests: accessRequests, accounts, activity, registry, auditLog, now }),
     ...businessRoutes(business),
@@ -304,7 +310,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...exportRoutes(dataExports),
   };
   const door = createApi({
-    signup, verifyIdToken: createIdTokenVerifier({ projectId, fetch, now: nowMs }), settings, live, plusTax: readBillingConfig(env).tax, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }) },
+    signup, verifyIdToken: createIdTokenVerifier({ projectId, fetch, now: nowMs }), settings, live, plusTax: readBillingConfig(env).tax, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers) },
     onSignedIn: deviceWatch({ devices: firestoreDevices(platform), email, now }),
     limits: createLimits({ throttle: firestoreThrottle(platform), admins, proxyHops: proxyHopsOf(env), now, log }),
     log,
