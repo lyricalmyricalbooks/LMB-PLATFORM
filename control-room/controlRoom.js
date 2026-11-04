@@ -55,6 +55,8 @@ import { platformSettings } from "../services/settings.js";
 import { editVisit } from "./accessRequests.js";
 import { deliveryReasons } from "./delivery.js";
 
+const CARD_PROVIDERS = new Set(["stripe", "square"]);
+
 export const ACT_AS_MINUTES = 30;
 /**
  * The email this press would get a few days before its trial ends, in the language its emails go in (shopMailLanguage),
@@ -312,6 +314,8 @@ export function createControlRoom({
           // What it sells (the sign-up answer) against the category its Stripe account was filed under (12.18).
           sells: sellsFacts(row.publishes ?? null, row.payments),
           // Every web address the shop answers on (free and own, #381), so the list's search finds a shop by it.
+          // Who takes its card payments (Stripe or Square, #386), so an outage at one shows which shops it stops.
+          cards: CARD_PROVIDERS.has(row.payments?.provider) ? row.payments.provider : null,
           addresses: [row.freeAddress, ...(row.domains ?? []).map((d) => d?.name)].filter((a) => typeof a === "string" && a),
         });
       }

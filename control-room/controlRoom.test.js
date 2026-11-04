@@ -527,6 +527,7 @@ test("what a shop sells, against the category its Stripe account was filed under
   await w.registry.updateShop(ID, { publishes: "clothing", payments: { ...(row.payments ?? {}), provider: "stripe", accountId: "acct_moth", mcc: "5651" } });
   let listed = (await w.ask(ADMIN, "GET", "/api/control/shops")).body.shops.find((s) => s.shopId === ID);
   assert.deepEqual([listed.sells.words, listed.sells.mismatch], ["Clothing", false]);
+  assert.equal(listed.cards, "stripe", "the list says who takes the shop's card payments");
   let record = (await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: ID })).body;
   assert.equal(record.sells.line, "Clothing · Stripe files it as Clothing");
   // Filed as a book shop but sells shoes: flagged on the list and in the record.

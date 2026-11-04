@@ -81,6 +81,9 @@ export async function seedRoom(world) {
     ],
   });
 
+  // Card payments (#386): Lantern Zines takes cards through Square; the others through Stripe.
+  await world.registry.updateShop("lantern-zines", { payments: { provider: "square", mode: "test", accountId: "MLWALKTHROUGH", locationId: "LWALKTHROUGH" } });
+
   // Social channels (27.8): Kestrel posts to Facebook and Instagram; Lantern Zines' Pinterest stopped working.
   const sealed = { iv: "walkthrough", data: "pretend" };
   await world.socialConnections.set("kestrel", "meta", { sealed, accountName: "Kestrel Books", places: [{ id: "fb:1" }, { id: "ig:2" }], connectedAt: at, catalog: { feedId: "walk-feed", sentAt: at, feedUrl: "https://kestrel.example/feed.csv" } });
