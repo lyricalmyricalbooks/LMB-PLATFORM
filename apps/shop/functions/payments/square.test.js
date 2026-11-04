@@ -38,10 +38,16 @@ function fakeService({ live = false } = {}) {
     if (body.mode !== connected) return reply(body.mode === "live" ? 403 : 409, { error: { type: "platform_error", code: body.mode === "live" ? "test_only" : "not_connected", message: "elsewhere" } });
     const { op, args } = body;
     if (op === "square.checkout.create") {
+      // Square replays a key it has seen, even for a link it has since deleted (world.replayKeys turns that on).
+      const seen = world.replayKeys && world.keys?.get(args.idempotencyKey);
+      if (seen) return reply(200, seen);
       const totalMinor = args.params.lineItems.reduce((sum, line) => sum + line.unitAmountMinor * line.quantity, 0);
-      const link = { id: `LNK${world.checkouts.size + 1}`, url: `https://square.link/u/${world.checkouts.size + 1}`, referenceId: args.params.referenceId, state: "OPEN", totalMinor, currency: args.params.currency.toUpperCase(), paymentIds: [], params: args.params, idempotencyKey: args.idempotencyKey };
+      world.made = (world.made ?? 0) + 1;
+      const link = { id: `LNK${world.made}`, url: `https://square.link/u/${world.made}`, referenceId: args.params.referenceId, state: "OPEN", totalMinor, currency: args.params.currency.toUpperCase(), paymentIds: [], params: args.params, idempotencyKey: args.idempotencyKey };
       world.checkouts.set(link.id, link);
-      return reply(200, { id: link.id, url: link.url, squareOrderId: `ORD-${link.id}` });
+      const answer = { id: link.id, url: link.url, squareOrderId: `ORD-${link.id}` };
+      (world.keys ??= new Map()).set(args.idempotencyKey, answer);
+      return reply(200, answer);
     }
     if (op === "square.checkout.retrieve") return world.checkouts.has(args.id) ? reply(200, { ...world.checkouts.get(args.id) }) : missing();
     if (op === "square.checkout.delete") {
@@ -50,6 +56,8 @@ function fakeService({ live = false } = {}) {
       // A shopper who pays in the moment the link is being closed: Square keeps the payment.
       if (world.payOnClose === args.id) { world.pay(args.id); return reply(400, { error: { type: "square_error", code: "BAD_REQUEST", message: "already paid" } }); }
       link.state = "CANCELED";
+      // Square deletes a link for good (world.deleteOnClose): reading it then answers "not found".
+      if (world.deleteOnClose) world.checkouts.delete(args.id);
       return reply(200, { id: args.id });
     }
     if (op === "square.payments.retrieve") return world.payments.has(args.id) ? reply(200, { ...world.payments.get(args.id) }) : missing();
@@ -406,6 +414,32 @@ describe("a fair helper's QR payment on Square (no shop order)", () => {
     const fresh = await checkout.open(fairParams(Math.floor(Date.now() / 1000)), "fair-new-sale-3500-CAD");
     await checkout.close(fresh.id);
     expect(service.world.checkouts.get("LNK2").state).toBe("CANCELED");
+  });
+
+  test("a sale tapped again after a cancel gets a fresh link, and a closed link reads as closed without asking Square", async () => {
+    const { payments, service } = make();
+    Object.assign(service.world, { replayKeys: true, deleteOnClose: true });
+    const checkout = await payments.standaloneCheckout("test");
+    const now = Math.floor(Date.now() / 1000);
+    const { fairPaymentState } = require("../fairHelperPay.js");
+    const first = await checkout.open(fairParams(now), "fair-sale-0001-abcd-3500-CAD");
+    await checkout.close(first.id);
+    expect(fairPaymentState(await checkout.read(first.id), "helper@example.com")).toEqual({ paid: false, open: false });
+    const again = await checkout.open(fairParams(now), "fair-sale-0001-abcd-3500-CAD");
+    expect(again.id).not.toBe(first.id);
+    expect(again.url).not.toBe(first.url);
+    expect(fairPaymentState(await checkout.read(again.id), "helper@example.com")).toEqual({ paid: false, open: true });
+    // A resent tap while it is open still gets the same link.
+    expect((await checkout.open(fairParams(now), "fair-sale-0001-abcd-3500-CAD")).id).toBe(again.id);
+  });
+
+  test("a sale in a currency the Square account can't take is refused plainly", async () => {
+    const { payments, service } = make();
+    const checkout = await payments.standaloneCheckout("test");
+    const usd = fairParams(Math.floor(Date.now() / 1000));
+    usd.line_items[0].price_data.currency = "usd";
+    await expect(checkout.open(usd, "fair-usd-3500-USD")).rejects.toMatchObject({ code: "currency_mismatch", statusCode: 409 });
+    expect(service.world.checkouts.size).toBe(0);
   });
 
   test("the sweep closes links past their half hour that nobody is watching, and leaves fresh and other-mode links open", async () => {

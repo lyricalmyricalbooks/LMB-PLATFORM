@@ -444,6 +444,9 @@ function createSquareProvider({ db, platform = null }) {
     async function close(id) {
       if (!isSquareCheckoutId(id)) return null;
       await call("square.checkout.delete", linkMode, { id: squareIdOf(id) });
+      // Square deletes the link: later reads answer from this record, not from Square (which no longer has it).
+      const snap = await kept(id).get();
+      if (snap.exists && snap.data().open !== false) await kept(id).set({ ...snap.data(), open: false, closedAt: new Date().toISOString() });
       return { id, status: "expired" };
     }
     // Closes a link past its time, then reads it again: a payment that landed just before the close counts as paid.
@@ -455,7 +458,7 @@ function createSquareProvider({ db, platform = null }) {
       }
       await close(id).catch(() => {});
       const after = await sessionFrom(await call("square.checkout.retrieve", linkMode, { id: squareIdOf(id) }), linkMode).catch(() => null);
-      await kept(id).set({ ...fair, open: false, closedAt: new Date().toISOString() });
+      await kept(id).set({ ...fair, open: false, closedAt: new Date().toISOString(), paidAtClose: after?.payment_status === "paid" });
       if (after?.payment_status === "paid") return after;
       return { ...before, status: "expired" };
     }
@@ -464,30 +467,58 @@ function createSquareProvider({ db, platform = null }) {
         const item = params?.line_items?.[0]?.price_data;
         const metadata = params?.metadata || {};
         if (!item || !Number.isInteger(item.unit_amount) || !metadata.fair_sale || !metadata.fair_helper) throw new Error("A fair payment needs one priced line, its sale and its helper.");
-        // The same sale and amount (the caller's key) always give the same reference, and so the same link.
-        const referenceId = `${FAIR_REFERENCE}${crypto.createHash("sha256").update(String(idempotencyKey)).digest("hex").slice(0, 32)}`;
-        const made = await call("square.checkout.create", linkMode, {
-          params: {
-            referenceId,
-            currency: item.currency,
-            lineItems: [{ name: String(item.product_data?.name || "Fair sale").slice(0, 512), quantity: 1, unitAmountMinor: item.unit_amount }],
-            redirectUrl: String(params.success_url || ""),
-            note: String(params.payment_intent_data?.description || item.product_data?.name || "Fair sale").slice(0, 500),
-          },
-          idempotencyKey,
-        });
-        const id = squareCheckoutId(made.id);
-        await kept(id).set({
-          sale: String(metadata.fair_sale), helper: String(metadata.fair_helper), referenceId, mode: linkMode, open: true,
-          expiresAt: Number.isFinite(params.expires_at) ? params.expires_at : null, createdAt: new Date().toISOString(),
-        });
-        return { id, object: "checkout.session", url: made.url, status: "open", payment_status: "unpaid", expires_at: Number.isFinite(params.expires_at) ? params.expires_at : null, metadata: { ...metadata } };
+        // Square takes payments only in its location's currency: say so plainly rather than "couldn't be reached".
+        let accountCurrency = null;
+        try { accountCurrency = lower((await platform.call("account.status", undefined))?.currency) || null; } catch { accountCurrency = null; }
+        if (accountCurrency && lower(item.currency) !== accountCurrency) {
+          throw Object.assign(new Error(`Square takes card payments in ${accountCurrency.toUpperCase()} only. Use the card reader or cash for this sale.`), { code: "currency_mismatch", statusCode: 409 });
+        }
+        // A link closed earlier (cancelled, or past its half hour) is gone at Square, but the same key would hand its
+        // address back: a sale tapped again after that gets a fresh link (still one per closing, so resent taps agree).
+        let key = String(idempotencyKey);
+        for (let tries = 0; ; tries += 1) {
+          const opened = await openLink(key);
+          const before = await kept(opened.id).get();
+          const dead = before.exists && before.data().open === false && before.data().closedAt && !before.data().paidAtClose;
+          if (!dead) return opened.finish();
+          if (tries >= 4) throw new Error("This sale's card links were all closed. Start the sale again.");
+          key = `${idempotencyKey}-${Date.parse(before.data().closedAt)}`;
+        }
+        async function openLink(key) {
+          // The same sale and amount (the caller's key) always give the same reference, and so the same link.
+          const referenceId = `${FAIR_REFERENCE}${crypto.createHash("sha256").update(key).digest("hex").slice(0, 32)}`;
+          const made = await call("square.checkout.create", linkMode, {
+            params: {
+              referenceId,
+              currency: item.currency,
+              lineItems: [{ name: String(item.product_data?.name || "Fair sale").slice(0, 512), quantity: 1, unitAmountMinor: item.unit_amount }],
+              redirectUrl: String(params.success_url || ""),
+              note: String(params.payment_intent_data?.description || item.product_data?.name || "Fair sale").slice(0, 500),
+            },
+            idempotencyKey: key,
+          });
+          const id = squareCheckoutId(made.id);
+          return {
+            id,
+            async finish() {
+              await kept(id).set({
+                sale: String(metadata.fair_sale), helper: String(metadata.fair_helper), referenceId, mode: linkMode, open: true,
+                expiresAt: Number.isFinite(params.expires_at) ? params.expires_at : null, createdAt: new Date().toISOString(),
+              });
+              return { id, object: "checkout.session", url: made.url, status: "open", payment_status: "unpaid", expires_at: Number.isFinite(params.expires_at) ? params.expires_at : null, metadata: { ...metadata } };
+            },
+          };
+        }
       },
       async read(id) {
         if (!isSquareCheckoutId(id)) return null;
         const snap = await kept(id).get();
         const fair = snap.exists ? snap.data() : null;
         if (!fair || fair.mode !== linkMode) return null;
+        // Closed here, unpaid: Square has deleted the link, so answer without asking it.
+        if (fair.open === false && fair.closedAt && !fair.paidAtClose) {
+          return { id, object: "checkout.session", status: "expired", payment_status: "unpaid", metadata: { fair_sale: fair.sale, fair_helper: fair.helper } };
+        }
         const checkout = await call("square.checkout.retrieve", linkMode, { id: squareIdOf(id) });
         if (checkout.referenceId !== fair.referenceId) return null;
         let session = await sessionFrom(checkout, linkMode);

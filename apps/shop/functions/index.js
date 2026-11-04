@@ -556,6 +556,11 @@ exports.fairHelperPayment = onBrowserRequest({ secrets: withPlatformKey([STRIPE_
     }
     res.json(state);
   } catch (err) {
+    // A sale in a currency the shop's Square account can't take: say so, not "couldn't be reached" (payments/square.js).
+    if (err?.code === "currency_mismatch") {
+      res.status(409).json({ error: err.message, code: "currency_mismatch" });
+      return;
+    }
     console.error("fairHelperPayment failed:", err?.message || err);
     res.status(502).json({ error: "The card payment couldn't be reached. Try again, or use the card reader or cash.", code: "unreachable" });
   }
