@@ -41,7 +41,7 @@ const forShop = (install, app) => ({
 });
 
 export function createAppInstalls({
-  apps, makers, installs, codes, roleIn, registry, auditLog, now = () => new Date(),
+  apps, makers, installs, codes, roleIn, registry, auditLog, onRemoved = async () => {}, now = () => new Date(),
   newCode = () => randomBytes(24).toString("base64url"), newKey = () => `cak_${randomBytes(32).toString("base64url")}`,
 }) {
   const at = () => now().toISOString();
@@ -151,6 +151,11 @@ export function createAppInstalls({
       if (!install || install.status !== "active") throw new SignupError(404, "That app isn't installed on this shop.");
       Object.assign(install, { status: "removed", keyHash: null, removedAt: at(), removedBy: person.email, updatedAt: at() });
       await installs.put(id, install);
+      try {
+        await onRemoved(install);
+      } catch {
+        // The app is removed whatever happens to its goodbye alert.
+      }
       await log(shopId, "app-removed", { appId: install.appId, appName: install.appName, by: person.email });
       return { removed: true };
     },

@@ -52,6 +52,7 @@ import { supportRoutes } from "../services/support/routes.js";
 import { createAppMakers } from "../services/apps/makers.js";
 import { createAppInstalls } from "../services/apps/installs.js";
 import { createAppConnection } from "../services/apps/connection.js";
+import { createAppAlerts } from "../services/apps/alerts.js";
 import { appInstallPublicRoutes, appInstallRoutes, appMakerRoutes, appStorePublicRoutes } from "../services/apps/routes.js";
 import { createRecovery, recoveryByHand } from "../accounts/recovery.js";
 import { recoveryRoutes } from "../accounts/recoveryRoutes.js";
@@ -98,7 +99,7 @@ import { STOCKROOM_DATABASE, registryFiles, shopDataClient, stockroomDataClient 
 import {
   firestoreAccounts, firestoreActivity, firestoreBreaches, firestoreDeliveryStats, firestoreDevices, firestoreIncomeHistory, firestoreInvites,
   firestoreJobRuns, firestorePlatformState, firestoreRecoveries, firestoreRepairs, firestoreSentLog, firestoreShopNotes, firestoreSupport, firestoreWaitlist,
-  firestoreApps, firestoreAppCodes, firestoreAppInstalls,
+  firestoreApps, firestoreAppCodes, firestoreAppInstalls, firestoreAppAlerts, firestoreAppAlertState,
 } from "../clients/stores.js";
 import {
   firestoreAccessRequests, firestoreAccountStores, firestoreBillingStores, firestoreFoundingSeats, firestoreDataExports, firestoreFeeLedger, firestorePressMessages,
@@ -229,9 +230,14 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const appStore = firestoreApps(platform);
   const appMakers = createAppMakers({ store: appStore, admins, now });
   // Installing them on a shop with its owner's permission (26.2).
+  const appInstallStore = firestoreAppInstalls(platform);
+  // Alerts to apps when orders, products or stock change, and when an app is removed (26.4; the app-alerts job).
+  const appAlerts = createAppAlerts({
+    apps: appStore, installs: appInstallStore, outbox: firestoreAppAlerts(platform), state: firestoreAppAlertState(platform), shopData, fetch, now,
+  });
   const appInstalls = createAppInstalls({
-    apps: appStore, makers: appMakers, installs: firestoreAppInstalls(platform), codes: firestoreAppCodes(platform), registry, auditLog, now,
-    roleIn: (who, shopId) => accounts.roleIn(who, shopId),
+    apps: appStore, makers: appMakers, installs: appInstallStore, codes: firestoreAppCodes(platform), registry, auditLog, now,
+    roleIn: (who, shopId) => accounts.roleIn(who, shopId), onRemoved: (install) => appAlerts.removed(install),
   });
   // The app connection: installed apps read their shop through the platform, with their key (26.3).
   const appConnection = createAppConnection({ installs: appInstalls, shopData, registry, now });
@@ -366,7 +372,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
 
   return {
     projectId, settings, live, platform, registry, auditLog, shopData, stockroomData, email, billing, paymentWay, payments, signup, frontDoor, shopMaker, accounts, room, controls,
-    backup, support, recovery, business, timeline, jobs, jobRuns, jobsPage, notes, pressMessages, costsDesk, dataExports, trialTips, checkups, closing, setupClock, driftWatch,
+    appAlerts, backup, support, recovery, business, timeline, jobs, jobRuns, jobsPage, notes, pressMessages, costsDesk, dataExports, trialTips, checkups, closing, setupClock, driftWatch,
     routes, door, shopBilling, handle, parts,
   };
 }

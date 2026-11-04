@@ -1,7 +1,8 @@
 /**
- * The French words of every customer email that goes with an order (code plan 25.9), for Settings › Notifications.
+ * The French words of every customer email (code plan 25.9), for Settings › Notifications.
  * A copy of functions/emailFrench.js DEFAULT_NOTIFICATIONS_FR (the server sends those; parity in emailFrenchDefaults.test.ts).
- * An order placed with the shop in French gets these, or the owner's own French words saved as `<template>.fr`.
+ * An order placed with the shop in French gets these, or the owner's own French words saved as `<template>.fr`. Emails with no
+ * order behind them (welcome, contact reply, abandoned cart) use them when the shop itself is written in French.
  */
 
 import type { TemplateFields } from "./emailTemplateChecks";
@@ -85,6 +86,24 @@ export const FRENCH_DEFAULTS: Record<string, FrenchFields> = {
     "subject": "Merci d'être passé chercher votre commande {{order_id}}",
     "body": "Bonjour {{customer_name}},\n\nVous avez récupéré votre commande {{order_id}}. Merci de magasiner chez {{shop_name}}! Gardez ce courriel comme preuve d'achat.",
     "buttonText": "Voir votre commande",
+    "signoff": "Merci,\nL'équipe {{shop_name}}"
+  },
+  "customer_welcome": {
+    "subject": "Bienvenue chez {{shop_name}}!",
+    "body": "Bonjour {{customer_name}},\n\nMerci d'avoir créé un compte chez {{shop_name}}! Vous pouvez maintenant vous connecter pour voir vos commandes, enregistrer vos adresses de livraison et télécharger vos achats numériques.",
+    "buttonText": "Aller à votre compte",
+    "signoff": "Chaleureusement,\nL'équipe {{shop_name}}"
+  },
+  "contact_reply": {
+    "subject": "Nous avons bien reçu votre message",
+    "body": "Bonjour {{customer_name}},\n\nMerci d'avoir écrit à {{shop_name}}! Nous avons bien reçu votre message et nous vous répondrons dès que possible.",
+    "buttonText": "",
+    "signoff": "Chaleureusement,\nL'équipe {{shop_name}}"
+  },
+  "abandoned_cart": {
+    "subject": "Vous avez oublié quelque chose?",
+    "body": "Bonjour {{customer_name}},\n\nVous avez laissé des articles dans votre panier. Nous les avons gardés pour vous : vous pouvez terminer votre achat quand vous voulez!",
+    "buttonText": "Reprendre mon achat",
     "signoff": "Merci,\nL'équipe {{shop_name}}"
   },
   "review_request": {

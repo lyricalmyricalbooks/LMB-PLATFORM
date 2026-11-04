@@ -18,7 +18,9 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { adminOf } from "../../control-room/controlRoom.js";
 import { SignupError, personOf } from "../../signup/signup.js";
-import { cleanScopes, scopeList, scopeWords } from "./scopes.js";
+import { cleanScopes, grantedScopes, scopeList, scopeWords } from "./scopes.js";
+import { TOPICS } from "./topics.js";
+import { publicAlertAddress } from "./alerts.js";
 
 export const MAX_APPS_PER_MAKER = 10;
 export const MAX_RETURN_ADDRESSES = 5;
@@ -69,6 +71,7 @@ function detailsFrom(input, before = {}) {
   const alertsText = oneLine(pick("alertsAddress"));
   const returnList = pick("returnAddresses");
   const scopes = cleanScopes(pick("scopes"));
+  const topicList = pick("alertTopics") ?? [];
 
   if (name.length < 2) problems.name = "Give your app a name.";
   if (name.length > LIMITS.name) problems.name = `Keep the name under ${LIMITS.name} characters.`;
@@ -79,7 +82,7 @@ function detailsFrom(input, before = {}) {
   const website = websiteText ? webAddress(websiteText) : "";
   if (website === null) problems.website = "Give your app's website as a full https address.";
   const alertsAddress = alertsText ? webAddress(alertsText) : "";
-  if (alertsAddress === null) problems.alertsAddress = "Give the alerts address as a full https address.";
+  if (alertsAddress === null || (alertsAddress && !publicAlertAddress(alertsAddress))) problems.alertsAddress = "Give the alerts address as a full https address on the public internet (not an IP number or a local name).";
   let returnAddresses = [];
   if (!Array.isArray(returnList) || returnList.length === 0) {
     problems.returnAddresses = "Give at least one address to send presses back to after they install your app.";
@@ -93,8 +96,19 @@ function detailsFrom(input, before = {}) {
   if (!scopes) problems.scopes = "Pick permissions from the list.";
   else if (scopes.length === 0) problems.scopes = "Pick at least one thing your app needs to see or change.";
 
+  let alertTopics = [];
+  if (!Array.isArray(topicList) || topicList.some((topic) => typeof topic !== "string" || !Object.hasOwn(TOPICS, topic))) {
+    problems.alertTopics = "Pick alerts from the list.";
+  } else {
+    alertTopics = Object.keys(TOPICS).filter((topic) => topicList.includes(topic));
+    const granted = grantedScopes(scopes ?? []);
+    const missing = alertTopics.filter((topic) => TOPICS[topic].needs && !granted.includes(TOPICS[topic].needs));
+    if (missing.length) problems.alertTopics = `These alerts need a permission your app doesn't ask for: ${missing.map((t) => `${t} needs ${TOPICS[t].needs}`).join(", ")}.`;
+    else if (alertTopics.length && !alertsAddress) problems.alertsAddress = "Give the address to send alerts to.";
+  }
+
   if (Object.keys(problems).length) throw new SignupError(400, "Check the highlighted fields.", problems);
-  return { name, tagline, description, category, supportEmail, website, alertsAddress, returnAddresses, scopes };
+  return { name, tagline, description, category, supportEmail, website, alertsAddress, alertTopics, returnAddresses, scopes };
 }
 
 const sameDetails = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
@@ -149,7 +163,7 @@ export function createAppMakers({
   return {
     // ── Anyone ──
 
-    permissions: () => ({ permissions: scopeList(), categories: Object.entries(CATEGORIES).map(([id, name]) => ({ id, name })) }),
+    permissions: () => ({ permissions: scopeList(), alertTopics: Object.entries(TOPICS).map(([topic, t]) => ({ topic, words: t.words, needs: t.needs ?? null })), categories: Object.entries(CATEGORIES).map(([id, name]) => ({ id, name })) }),
 
     /** Approved apps on the store, by name; `category` narrows it. */
     async storeList({ category } = {}) {

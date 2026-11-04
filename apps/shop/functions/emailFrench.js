@@ -3,8 +3,15 @@
 // Notifications: the French words are saved beside the English ones, as `<template>.fr` ({ subject, body, buttonText,
 // signoff }); an empty French field falls back to the French default here, never to English. The switch (`enabled`)
 // is shared, so turning an email off turns off both. Emails with no order behind them (welcome, contact reply,
-// abandoned cart) have no language to go by and stay in the owner's main words.
+// abandoned cart) have no order language to go by: they follow the shop's own language (Studio › Text & labels ›
+// Shop language), so a shop written in French sends them in French.
 "use strict";
+
+/** "fr" when the shop is written in French (settings/website design.language), else "en". Never throws. */
+async function shopLanguage(db) {
+  const website = await db.collection("settings").doc("website").get().then(d => d.data?.() || {}).catch(() => ({}));
+  return website?.design?.language === "fr" ? "fr" : "en";
+}
 
 /** "fr" for an order placed in French, else "en". */
 function emailLanguage(order) {
@@ -14,7 +21,7 @@ function emailLanguage(order) {
 const SIGN = "Merci,\nL'équipe {{shop_name}}";
 const SIGN_BEST = "Bonne journée,\nL'équipe {{shop_name}}";
 
-/** The French default words of every customer email that goes with an order. Same placeholders as the English ones. */
+/** The French default words of every customer email. Same placeholders as the English ones. */
 const DEFAULT_NOTIFICATIONS_FR = Object.freeze({
   order_confirmation: {
     subject: "Commande confirmée : {{order_id}}",
@@ -92,6 +99,24 @@ const DEFAULT_NOTIFICATIONS_FR = Object.freeze({
     subject: "Merci d'être passé chercher votre commande {{order_id}}",
     body: "Bonjour {{customer_name}},\n\nVous avez récupéré votre commande {{order_id}}. Merci de magasiner chez {{shop_name}}! Gardez ce courriel comme preuve d'achat.",
     buttonText: "Voir votre commande",
+    signoff: SIGN,
+  },
+  customer_welcome: {
+    subject: "Bienvenue chez {{shop_name}}!",
+    body: "Bonjour {{customer_name}},\n\nMerci d'avoir créé un compte chez {{shop_name}}! Vous pouvez maintenant vous connecter pour voir vos commandes, enregistrer vos adresses de livraison et télécharger vos achats numériques.",
+    buttonText: "Aller à votre compte",
+    signoff: "Chaleureusement,\nL'équipe {{shop_name}}",
+  },
+  contact_reply: {
+    subject: "Nous avons bien reçu votre message",
+    body: "Bonjour {{customer_name}},\n\nMerci d'avoir écrit à {{shop_name}}! Nous avons bien reçu votre message et nous vous répondrons dès que possible.",
+    buttonText: "",
+    signoff: "Chaleureusement,\nL'équipe {{shop_name}}",
+  },
+  abandoned_cart: {
+    subject: "Vous avez oublié quelque chose?",
+    body: "Bonjour {{customer_name}},\n\nVous avez laissé des articles dans votre panier. Nous les avons gardés pour vous : vous pouvez terminer votre achat quand vous voulez!",
+    buttonText: "Reprendre mon achat",
     signoff: SIGN,
   },
   review_request: {
@@ -172,4 +197,4 @@ function frenchValues(vars) {
   return out;
 }
 
-module.exports = { DEFAULT_NOTIFICATIONS_FR, PHRASES_FR, VALUES_FR, emailLanguage, frenchTemplate, frenchValues, sayer };
+module.exports = { DEFAULT_NOTIFICATIONS_FR, PHRASES_FR, VALUES_FR, emailLanguage, shopLanguage, frenchTemplate, frenchValues, sayer };

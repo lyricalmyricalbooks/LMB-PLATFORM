@@ -328,3 +328,24 @@ test('{{items_table}} written into a body is replaced once, without <br/> inside
   expect(html.split('<td>Row</td>').length - 1).toBe(1);
   expect(html).not.toMatch(/<table><br\/>/);
 });
+
+// ── Code plan 25.9: emails with no order behind them follow the shop's own language ───────────
+const FRENCH_SHOP = { 'settings/website': { ...SETTINGS['settings/website'], design: { language: 'fr' } } };
+
+test('a shop written in French sends the contact reply and the cart reminder in French', async () => {
+  const app = load({ db: makeDb(FRENCH_SHOP) });
+  await app.exports.onContactMessage(contact('visitor@example.com'));
+  const reply = app.sent.find(m => m.to === 'visitor@example.com');
+  expect(reply.subject).toBe('Nous avons bien reçu votre message');
+  expect(reply.html).toContain('nous vous répondrons dès que possible');
+  const carts = load({ db: makeDb({ ...FRENCH_SHOP, ...BOOK, 'abandoned-carts/c1': cartDoc('guest@example.com') }) });
+  await runSweep(carts);
+  expect(carts.sent[0].subject).toBe('Vous avez oublié quelque chose?');
+  expect(carts.sent[0].html).toContain('Se désabonner');
+});
+
+test('an English shop keeps them in English', async () => {
+  const app = load({ db: makeDb(SETTINGS) });
+  await app.exports.onContactMessage(contact('visitor@example.com'));
+  expect(app.sent.find(m => m.to === 'visitor@example.com').subject).toBe('We got your message');
+});

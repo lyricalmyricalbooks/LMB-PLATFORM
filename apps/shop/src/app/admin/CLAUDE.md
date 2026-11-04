@@ -517,6 +517,9 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
   `ratePastOrder` (action in adminReports.js, `ratePastOrder` in orderImport.js) re-rates one `source: "import"` order
   from `paidIn.total` (total exact, other CA$ fields scaled); `PastOrderRate` on OrderDetail calls it. In move mode the
   admin fixture has one brought-over order, `past-1004`, and `getOrderById`.
+- **Spreadsheets (23.35):** every file picker uses `SPREADSHEET_ACCEPT` and reads through `spreadsheetText()` in
+  `spreadsheetFile.ts` (CSV/TSV text in any common encoding, .xlsx, .ods → CSV text); show errors with `readProblem(err)`.
+  A new bring-a-file window must do the same. Test files made by real programs live in `testdata/spreadsheets/`.
 - **Whole move on screen (23.22, in CI since 23.29 as `pnpm run test:move` in the `shop-admin-phone` job):** `node scripts/move-check.mjs` (`CHROMIUM_PATH`, `MOVE_SHOTS=dir`) drives
   `admin-fixture.html?move=1` with the demo's sample files and answers the old-shop server actions in the script.
   Extend it when a bring-over window changes. The fixture's dev-only `__fixtureIdToken` lets `oldShopApi.ask` run
@@ -753,3 +756,11 @@ own address, kept open once opened), route `#stockroom/<page>`, and no Website �
 Other pages ask the stockroom through `stockroomBridge.ts` (`ask`, `openBook`; the frame opens hidden on first need):
 the book editor's **Stock and sales** tab (`StockroomBookPanel.tsx`, combined admin only) reads one book's figures from
 the stockroom's own `bookSummary`, never from a copy here, and matches an unmatched book with `linkNewBook`.
+
+## Sales channels and Social posts (plan 27.5-27.7, 4 November 2026)
+
+Design and rules: `docs/social.md` (platform root). `SalesChannels.tsx` (tab `channels`, under Books in both menus) and
+`SocialPosts.tsx` (tab `socialPosts`, under Orders; Marketing in the combined admin) share `socialChannels.ts` (pure,
+tested). They call `adminApi.social(step, args)` → `functions/socialLink.js`. `#social-posts/book/<id>` opens the
+composer on a product (Books › row › Post to social). Keep words lean (Julian, 4 November 2026): one short line per
+card, no explanations the badge or button already gives. Screens: fixture `?page=channels` / `social-posts`.

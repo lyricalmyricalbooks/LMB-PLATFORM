@@ -18,6 +18,7 @@ import {
 } from "./giftCardsAdmin";
 import { batches, readGiftCardFile, type GiftCardFile } from "./giftCardMove";
 import { shopDate } from "../features/site/preorder";
+import { SPREADSHEET_ACCEPT, readProblem, spreadsheetText } from "./spreadsheetFile";
 
 type Filter = "all" | GiftCardStatus["key"];
 const LINK = { color: "inherit", textDecoration: "underline", textUnderlineOffset: 2 } as const;
@@ -130,8 +131,8 @@ export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone:
     if (!picked) return;
     setError(""); setResult(null); setName(picked.name);
     if (picked.size > 5 * 1024 * 1024) { setFile(null); setError("That file is larger than 5 MB. Split it and bring the parts one at a time."); return; }
-    try { setFile(readGiftCardFile(await picked.text(), shopDate())); }
-    catch { setFile(null); setError("This file couldn't be read. Save it as CSV (comma separated) and try again."); }
+    try { setFile(readGiftCardFile(await spreadsheetText(picked), shopDate())); }
+    catch (err) { setFile(null); setError(readProblem(err)); }
   };
 
   const bring = async () => {
@@ -192,13 +193,13 @@ export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone:
         </PrimaryButton>
       </>}>
       <div className="rp-stack" style={{ gap: 12 }}>
-        <input ref={fileRef} type="file" accept=".csv,text/csv" hidden aria-label="Gift card file"
+        <input ref={fileRef} type="file" accept={SPREADSHEET_ACCEPT} hidden aria-label="Gift card file"
           onChange={(e) => { void choose(e.target.files?.[0]); e.target.value = ""; }} />
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
           <SecondaryButton icon={<Upload size={16} aria-hidden />} disabled={busy} onClick={() => fileRef.current?.click()}>{name ? "Choose another file" : "Choose the file"}</SecondaryButton>
           {name && <span className="rp-mono" style={{ overflowWrap: "anywhere" }}>{name}</span>}
         </div>
-        {!file && <p className="rp-hint" style={{ margin: 0 }}>In your old shop, open its gift cards page and export them as a CSV file.</p>}
+        {!file && <p className="rp-hint" style={{ margin: 0 }}>In your old shop, open its gift cards page and export them as a CSV or Excel file.</p>}
         {error && <p role="alert" className="rp-error-text" style={{ margin: 0 }}>{error}</p>}
         {file && (file.problems.length ? (
           <div role="alert" className="rp-error-text">{file.problems.map((p) => <p key={p} style={{ margin: 0 }}>{p}</p>)}</div>
