@@ -32,7 +32,7 @@
     <div class="rp-workspace"><div class="rp-workspace-inner">
 <main id="main" tabindex="-1">
   <div class="rp-page-header"><div><h1 class="rp-page-title">Your shops</h1><p class="rp-page-desc" id="page-desc">Every shop you run or help with, in one place.</p></div><div class="rp-page-actions"><a class="rp-btn rp-btn-secondary" href="../signup/">Start another shop</a></div></div>
-  <nav class="cp-phone-nav" aria-label="More"><a class="button" href="/help/">Help centre</a><a class="button" href="/status/">Service status</a></nav>
+  <nav class="cp-phone-nav" aria-label="More"><a href="/account/#get-help" data-press="#open-help">Get help</a><a href="/help/">Help centre</a><a href="/terms/">Terms &amp; privacy</a></nav>
 
   <!-- Shown first, until the page knows whether someone is signed in and has their shops. -->
   <section id="view-loading" aria-live="polite">
@@ -66,10 +66,11 @@
   <!-- The shop switcher: every shop this person belongs to, with their role. -->
   <section id="view-shops" class="stack" hidden aria-labelledby="shops-title">
     <h2 id="shops-title" tabindex="-1" class="rp-sr-only">Choose a shop</h2>
-    <div id="ledger" class="cp-ledger" hidden></div>
-    <div id="recovery-alerts" class="stack"></div>
+    <!-- What needs the person comes first, then the counts, then the shops. -->
     <div id="shop-alerts" class="stack"></div>
+    <div id="recovery-alerts" class="stack"></div>
     <div id="access-requests" class="stack"></div>
+    <div id="ledger" class="cp-ledger" hidden></div>
     <div id="shops" class="cp-shops"></div>
     <div class="cp-grid2">
       <div class="card"><h3>Need a hand?</h3><p class="hint">Most questions have a written answer in the help centre. A person answers anything else, usually within a day.</p><div class="cp-actions cp-start"><button type="button" class="primary" id="open-help">Get help from Colophon</button><a class="button" href="../help/">Help centre</a></div></div>
