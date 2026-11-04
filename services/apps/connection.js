@@ -15,15 +15,26 @@
 //                                                                 with read_customers
 //   /api/apps/v1/orders/<id>              read_orders
 //
-// Changing things (tracking, products, stock) comes next, through the shop's own rules (code plan 26.3, second part):
-// the shop's checks (packing, address review, holds, disputes) must never be skipped by an app.
+// Changing things (code plan 26.3b) goes through the shop's own rules, never around them. The platform writes a request
+// to the shop's `appRequests/<id>`; the shop applies it with its own checks (apps/shop/functions/appRequests.js) and
+// writes the answer on the same document. The call waits a few seconds for it, else answers 202 with the request's id:
+//
+//   POST /api/apps/v1/orders/<id>/fulfillment   write_orders   { trackingCarrier, trackingNumber, trackingUrl?, shipped? }
+//   GET  /api/apps/v1/requests/<id>             any            the answer: { status: waiting|done|refused, result, reason }
+//
+// An `Idempotency-Key` header makes a retried POST return the first request instead of making a second one.
 //
 // Nothing here ever returns cost prices, card or payment details, private notes or test orders.
+import { createHash, randomBytes } from "node:crypto";
 import { SignupError } from "../../signup/signup.js";
 
 export const PER_MINUTE = 120;
 export const MAX_PAGE = 250;
 const ID = /^[A-Za-z0-9_-]{1,128}$/;
+export const WAIT_MS = 5000;
+const short = (value, max) => (typeof value === "string" ? value.trim().slice(0, max) : "");
+/** A request as the app sees it. */
+const requestView = (id, data) => ({ id, op: data.op, status: data.status ?? "waiting", result: data.result ?? null, reason: data.reason ?? "", createdAt: data.createdAt, answeredAt: data.answeredAt ?? null });
 
 const num = (value) => (Number.isFinite(Number(value)) ? Number(value) : null);
 const text = (value) => (typeof value === "string" ? value : null);
@@ -81,7 +92,10 @@ function page(rows, { limit, after }, key = (row) => row.id) {
   return { slice, next: more && slice.length ? key(slice.at(-1)) : null };
 }
 
-export function createAppConnection({ installs, shopData, registry, now = () => new Date() }) {
+export function createAppConnection({
+  installs, shopData, registry, now = () => new Date(), sleep = (ms) => new Promise((done) => setTimeout(done, ms)), waitMs = WAIT_MS,
+  newRequestId = () => `req_${randomBytes(12).toString("hex")}`,
+}) {
   // Calls per install in the current minute. Each server keeps its own count, so a busy app spread over servers gets a
   // little more; the point is that one app can't flood a shop.
   const counts = new Map();
@@ -108,6 +122,43 @@ export function createAppConnection({ installs, shopData, registry, now = () => 
     const bearer = String(find("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
     return bearer || String(find("x-colophon-access-key") ?? "").trim();
   };
+
+  const header = (headers = {}, name) => Object.entries(headers).find(([key]) => key.toLowerCase() === name)?.[1];
+
+  /** Writes a request into the shop, then waits a little for the shop's answer. A repeated Idempotency-Key reuses it. */
+  async function ask(install, op, input, headers) {
+    const key = short(String(header(headers, "idempotency-key") ?? ""), 200);
+    const id = key ? `req_${createHash("sha256").update(`${install.installId}\n${key}`).digest("hex").slice(0, 24)}` : newRequestId();
+    const path = `appRequests/${id}`;
+    const request = { op, appId: install.appId, appName: install.appName ?? install.appId, installId: install.installId, input, createdAt: now().toISOString() };
+    try {
+      await shopData.create(install.shopId, path, request);
+    } catch (error) {
+      const before = key ? await shopData.get(install.shopId, path) : null;
+      if (!before) throw error;
+      if (before.appId !== install.appId) throw new SignupError(409, "Use a different Idempotency-Key.");
+    }
+    for (let waited = 0; ; waited += 500) {
+      const data = await shopData.get(install.shopId, path);
+      if (data?.status || waited >= waitMs) return { status: data?.status ? 200 : 202, body: { request: requestView(id, data ?? request) } };
+      await sleep(500);
+    }
+  }
+
+  async function change(install, parts, body, headers) {
+    const [what, id, action, ...rest] = parts;
+    if (what === "orders" && ID.test(id ?? "") && action === "fulfillment" && !rest.length) {
+      need(install, "write_orders");
+      const input = {
+        orderId: id, trackingCarrier: short(body?.trackingCarrier, 80), trackingNumber: short(body?.trackingNumber, 100),
+        trackingUrl: short(body?.trackingUrl, 500), shipped: body?.shipped !== false,
+      };
+      if (!input.trackingCarrier || !input.trackingNumber) throw new SignupError(400, "Give trackingCarrier and trackingNumber.");
+      if (input.trackingUrl && !input.trackingUrl.startsWith("https://")) throw new SignupError(400, "trackingUrl must start with https://");
+      return ask(install, "order.dispatch", input, headers);
+    }
+    throw new SignupError(404, "There's nothing here.");
+  }
 
   const visibleOrder = (data) => data && data.isTest !== true && ["paid", "refunded", "partially_refunded"].includes(data.paymentStatus);
 
@@ -142,6 +193,12 @@ export function createAppConnection({ installs, shopData, registry, now = () => 
       return { inventory: slice.map((row) => stockOf(row.id, row.data)), next };
     }
 
+    if (what === "requests" && id) {
+      const data = await shopData.get(shopId, `appRequests/${id}`);
+      if (!data || data.appId !== install.appId) throw new SignupError(404, "There's no such request.");
+      return { request: requestView(id, data) };
+    }
+
     if (what === "orders") {
       need(install, "read_orders");
       if (id) {
@@ -166,13 +223,17 @@ export function createAppConnection({ installs, shopData, registry, now = () => 
   /** Answers one call under /api/apps/v1 (server/http.js request shape: method, path, headers, query). */
   return async function handle(request) {
     try {
-      if (request.method !== "GET") throw new SignupError(405, "Only GET calls so far.");
+      if (!["GET", "POST"].includes(request.method)) throw new SignupError(405, "Use GET or POST.");
       const install = await installs.authenticate(keyOf(request.headers));
       if (!install) throw new SignupError(401, "That key isn't valid. It may have been removed: install the app again.");
       spend(install.installId);
       const [pathOnly, search = ""] = String(request.path ?? "").split("?");
       const parts = pathOnly.replace(/^\/api\/apps\/v1\/?/, "").replace(/\/+$/, "").split("/").filter(Boolean).map(decodeURIComponent);
       const query = request.query ?? Object.fromEntries(new URLSearchParams(search));
+      if (request.method === "POST") {
+        const done = await change(install, parts, request.body, request.headers);
+        return { status: done.status, body: { ok: true, ...done.body } };
+      }
       return { status: 200, body: { ok: true, ...(await answer(install, parts, query)) } };
     } catch (error) {
       if (Number.isInteger(error?.status) && error.status < 500) {
