@@ -769,3 +769,53 @@ test("Gmail sending stops at 80% of the daily limit, the email goes the usual wa
   assert.equal(t.google.world.gmail.length, 3);
   assert.equal((await t.shopRow()).gmailSends.count, 1);
 });
+
+// ---- Settings › Google: one Google account, extras on and off (4 November 2026) ----
+
+test("switching an extra off needs no new sign-in: it stops at once, the grant and the other parts stay", async () => {
+  const t = await setup({ env: { ...ENV, GOOGLE_BUSINESS_PROFILE: "on", GOOGLE_ADS_ACCESS: "explorer" } });
+  await t.signIn({ extras: ["drive", "calendar", "ads"] });
+  const refused = await t.call("google.turnOff", { extras: ["youtube"] });
+  assert.equal(refused.status, 400, "only an extra that is on can be switched off");
+  const answer = await t.call("google.turnOff", { extras: ["calendar", "ads"] });
+  assert.equal(answer.status, 200, JSON.stringify(answer.body));
+  assert.deepEqual(answer.body.extrasChosen, ["drive"]);
+  assert.equal(answer.body.connected, true);
+  assert.equal(answer.body.steps.some((s) => s.step === "calendar" || s.step === "ads"), false);
+  const g = (await t.shopRow()).google;
+  assert.ok(g.calendar.stoppedAt && g.ads.stoppedAt);
+  assert.equal(g.drive.stoppedAt, null);
+  assert.equal(t.google.world.productLinks.size, 0, "the Ads link comes off");
+  // The calendar the press owns is never deleted.
+  assert.ok(g.calendar.calendarId);
+  // Ticking it again later starts it afresh with the same sign-in.
+  await t.signIn({ extras: ["drive", "calendar"] });
+  assert.equal((await t.shopRow()).google.calendar.stoppedAt, null);
+  assert.equal((await t.step("calendar")).state, "done");
+});
+
+test("saving fewer extras through Google's page stops the ones left off", async () => {
+  const t = await setup();
+  await t.signIn({ extras: ["drive", "youtube"] });
+  await t.signIn({ extras: ["drive"] });
+  const g = (await t.shopRow()).google;
+  assert.ok(g.youtube.stoppedAt);
+  assert.equal(g.steps.some((s) => s.step === "youtube"), false);
+});
+
+test("one Google account runs the whole shop: a sign-in with another account changes nothing and is given back", async () => {
+  const t = await setup();
+  await t.signIn({ extras: ["drive"] });
+  const link = await t.call("google.connectLink", { returnUrl: ADMIN, extras: ["drive", "youtube"] });
+  // Google's page opens on the account already connected.
+  assert.equal(new URL(link.body.url).searchParams.get("login_hint"), "owner@example.com");
+  const state = new URL(link.body.url).searchParams.get("state");
+  const before = structuredClone((await t.shopRow()).google);
+  const back = await handleGoogle({ method: "GET", path: "/google/oauth", query: { state, code: t.google.allow({ email: "someone-else@example.com" }) } }, { service: t.link.service });
+  assert.equal(new URL(back.headers.Location).searchParams.get("google"), "other_account");
+  assert.deepEqual((await t.shopRow()).google, before);
+  const status = await t.call("google.status");
+  assert.equal(status.body.accountEmail, "owner@example.com");
+  assert.deepEqual(status.body.extrasChosen, ["drive"]);
+  assert.ok(t.google.world.revoked.size >= 1, "the other account's new access is given straight back");
+});
