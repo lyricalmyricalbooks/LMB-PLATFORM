@@ -52,7 +52,7 @@ const { catalogUnitPrice } = require("./catalogPrice");
 const { loadStockist, wholesaleUnitPrice, privateWholesale, stockistActions } = require("./stockists");
 const { paymentLinkFor, addOnParentClosed, linkProblem, applyLinkPrices, paymentLinkActions, LINK_MESSAGES, reminderDue, sendLinkReminders } = require("./paymentLinks");
 const { expandDiscountCategories } = require("./shared/discountCategories");
-const { discountableItems, discountAmountFor, pickAutomaticDiscount } = require("./shared/discountMath");
+const { discountableItems, discountAmountFor, pickAutomaticDiscount, emailDomainAllowed } = require("./shared/discountMath");
 const { taxLinesFor } = require("./shared/taxBooks");
 const { addOnSelection, bundleComponents, bundleAvailable, isGiftCardProduct, giftCardDetails } = require("./shared/promotions");
 const { expiryChange } = require("./giftCards");
@@ -877,13 +877,11 @@ async function assertDiscountNotUsedByCustomer(discount, email, orderId = "") {
 function validateDiscountCustomer(discount, email) {
   const normalized = String(email || "").trim().toLowerCase();
   const emails = String(discount.allowedCustomerEmails || "").split(",").map(v => v.trim().toLowerCase()).filter(Boolean);
-  const domains = String(discount.allowedEmailDomains || "").split(",").map(v => v.trim().toLowerCase().replace(/^[@.]+/, "")).filter(Boolean);
-  if ((emails.length || domains.length) && !normalized) throw new Error("Enter your email address to use this code.");
+  const domainsListed = String(discount.allowedEmailDomains || "").split(",").some(v => v.trim().replace(/^[@.]+/, ""));
+  if ((emails.length || domainsListed) && !normalized) throw new Error("Enter your email address to use this code.");
   if (emails.length && !emails.includes(normalized)) throw new Error("This code is restricted to selected customers.");
-  if (domains.length) {
-    const customerDomain = normalized.split("@")[1] || "";
-    if (!domains.some(domain => customerDomain === domain || customerDomain.endsWith(`.${domain}`))) throw new Error("This code is restricted to selected email domains.");
-  }
+  // The same rule checkout shows before paying (shared/discountMath emailDomainAllowed).
+  if (!emailDomainAllowed(normalized, discount.allowedEmailDomains)) throw new Error("This code is restricted to selected email domains.");
 }
 
 // Exchange rates (functions/exchangeRates.js): checkout charges the saved daily copy in settings/exchangeRates,
