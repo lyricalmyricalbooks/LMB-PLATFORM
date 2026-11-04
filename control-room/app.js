@@ -219,6 +219,16 @@ function riskPill(shop) {
   return null;
 }
 
+/** The Sells filter: books answers (or none), everything else, one answer, or a Stripe category that doesn't fit. */
+function sellsMatches(shop, wanted) {
+  if (!wanted) return true;
+  const sells = shop.sells ?? { books: true, answer: null, mismatch: false };
+  if (wanted === "books") return sells.books;
+  if (wanted === "goods") return !sells.books;
+  if (wanted === "mismatch") return sells.mismatch;
+  return sells.answer === wanted;
+}
+
 function showShops() {
   const form = $("#shop-filters");
   const words = form.q.value.trim().toLowerCase();
@@ -226,7 +236,8 @@ function showShops() {
     && (!form.health.value || shop.health.level === form.health.value)
     && (!form.plan.value || shop.plan === form.plan.value)
     && (!form.billing.value || shop.billingStatus === form.billing.value)
-    && riskMatches(shop, form.risk.value));
+    && riskMatches(shop, form.risk.value)
+    && sellsMatches(shop, form.sells.value));
   const problems = allShops.filter((s) => s.health.level === "problem").length;
   $("#summary").textContent = `${allShops.length} shop${allShops.length === 1 ? "" : "s"} · ${problems} with a problem${languageCount(allShops)}${shown.length !== allShops.length ? ` · showing ${shown.length}` : ""}`;
   if (!shown.length) {
@@ -238,7 +249,7 @@ function showShops() {
     rows: shown,
     open: (shop) => openShop(shop),
     columns: [
-      { header: "Press", lead: true, render: (shop) => el("div", {}, el("p", { className: "cr-title", textContent: shop.pressName ?? shop.shopId }), meta(shop.shopId, shop.ownerEmail, shop.testShop ? "test shop" : null), tagPills(shopTags[shop.shopId]), riskPill(shop)) },
+      { header: "Press", lead: true, render: (shop) => el("div", {}, el("p", { className: "cr-title", textContent: shop.pressName ?? shop.shopId }), meta(shop.shopId, shop.ownerEmail, shop.testShop ? "test shop" : null, shop.sells?.answer ? `sells ${shop.sells.words.toLowerCase()}` : null), tagPills(shopTags[shop.shopId]), riskPill(shop), shop.sells?.mismatch ? pill("warning", "Stripe category doesn't match") : null) },
       { header: "Plan", render: (shop) => PLAN_WORDS[shop.plan] ?? shop.plan ?? "?" },
       { header: "Billing", render: (shop) => (shop.billingStatus ? pill(BILLING_TONE[shop.billingStatus] ?? "neutral", BILLING_WORDS[shop.billingStatus] ?? shop.billingStatus) : el("span", { className: "rp-hint", textContent: shop.access ?? "none" })) },
       { header: "Cost this month", render: (shop) => costCell(shop.costThisMonth) },
@@ -348,6 +359,7 @@ function recordView(record) {
     ["Started", dateOnly(record.createdAt)],
     ["Address", record.siteUrl],
     ["Plan", billing ? `${billing.plan ?? record.plan} · ${BILLING_WORDS[billing.status] ?? billing.status}${billing.trialEnd ? ` · trial ends ${dateOnly(billing.trialEnd)}` : ""}${billing.currentPeriodEnd ? ` · next payment ${dateOnly(billing.currentPeriodEnd)}` : ""} · ${billing.hasCard ? "card on file" : "no card yet"}${billing.cancelAtPeriodEnd ? " · cancelling" : ""}` : record.plan],
+    ["Sells", record.sells?.line ?? ""],
     ["Emails", EMAIL_LANGUAGE_WORDS[record.emailLanguage] ?? ""],
     ["Payments", connections.payments ? `${connections.payments.provider ?? "?"}${connections.payments.connected ? ", connected" : ", not connected yet"}` : "not set up yet"],
     ["Web address", Array.isArray(connections.domains) && connections.domains.length ? connections.domains.map((d) => `${d.name} (${d.brokeAt ? "stopped opening the shop" : d.state}${d.expiresAt ? `, paid up until ${dateOnly(d.expiresAt)}` : ""})`).join(", ") : "the shop's own .web.app address"],
@@ -592,6 +604,8 @@ function card(shop) {
     shop.status === "live" ? paymentsMenu(shop.paymentsMoved?.to ?? "platform", { shopId: shop.shopId }, shop.pressName) : null,
     el("h3", { className: "cr-section", textContent: "The record" }),
     recordSlot,
+    el("h3", { className: "cr-section", textContent: "Emails to the press" }),
+    shopEmailsSection(shop),
     shop.drift ? el("h3", { className: "cr-section", textContent: "Drift watch" }) : null,
     shop.drift ? driftSection(shop) : null,
     shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Sign-in safety" }) : null,
@@ -1801,7 +1815,7 @@ function notesSection(shop) {
 }
 
 // ── One timeline per shop (plan 19.10): everything recorded about it, newest first, by kind, with Show older. ──
-const TIMELINE_WORDS = { billing: "Billing", release: "Releases", health: "Health", support: "Support", switch: "Switches", visit: "Visits", email: "Email", other: "Other" };
+const TIMELINE_WORDS = { billing: "Billing", release: "Releases", health: "Health", support: "Support", switch: "Switches", visit: "Visits", email: "Email", security: "Sign-in safety", other: "Other" };
 function timelineSection(shop) {
   let kind = null;
   let next = null;
@@ -2206,6 +2220,30 @@ function shopLookSection(shop) {
         : look.publishedAt ? `Shoppers see the press's own design (not from a ready-made look), published ${dateOnly(look.publishedAt)}.` : "Nothing published from Studio yet." }),
       look.draft ? el("p", { className: "rp-hint", textContent: `Trying ${look.draft.name} in Studio, not published.` }) : null,
       look.welcome ? el("p", { className: "rp-hint", textContent: `Choose your look: ${look.welcome.skipped ? "skipped, so it took" : "picked"} ${lookWords(look.welcome.theme)}${look.welcome.at ? ` on ${dateOnly(look.welcome.at)}` : ""}${look.welcome.adminLook ? `; admin look ${lookWords(look.welcome.adminLook)}` : ""}.` }) : null);
+  }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
+  return slot;
+}
+
+// The platform's own emails to this press (billing receipts, trial and payment notices…), newest first, with this
+// month's receipts counted so "I never got my bill" can be answered at once.
+function shopEmailsSection(shop) {
+  const slot = el("div", {}, el("p", { className: "rp-hint", textContent: "Reading the email log…" }));
+  api("POST", "/control/shop-emails", { shopId: shop.shopId }).then((found) => {
+    if (!found.emails) return slot.replaceChildren(el("p", { className: "rp-hint", textContent: found.words }));
+    const month = `This month: ${plural(found.receiptsThisMonth, "receipt")} sent${found.lastReceiptAt ? ` (last receipt ${dateOnly(found.lastReceiptAt)})` : ""}, ${plural(found.sentThisMonth, "email")} in all${found.failedThisMonth ? `, ${found.failedThisMonth} couldn't be sent` : ""}.`;
+    if (!found.emails.length) return slot.replaceChildren(el("p", { className: "rp-hint", textContent: "The platform hasn't emailed this press yet." }));
+    fill(slot,
+      el("p", { className: "rp-hint", textContent: month }),
+      table({
+        caption: "Emails to the press",
+        rows: found.emails,
+        columns: [
+          { header: "Email", lead: true, render: (m) => el("div", {}, el("p", { className: "cr-title", textContent: m.words }), m.error ? meta(m.error) : null) },
+          { header: "When", render: (m) => (m.at ? when(m.at) : "?") },
+          { header: "", end: true, render: (m) => (m.sent ? pill("success", "sent") : pill("danger", "not sent")) },
+        ],
+      }),
+      found.more ? el("p", { className: "rp-hint", textContent: `${plural(found.more, "older email")} not shown. The timeline's Email filter lists them all.` }) : null);
   }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
   return slot;
 }

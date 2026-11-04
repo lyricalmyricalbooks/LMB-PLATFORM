@@ -79,6 +79,7 @@ import { broughtOverRoutes, createBroughtOver } from "../control-room/broughtOve
 import { createSalesChannels, salesChannelsRoutes } from "../control-room/salesChannels.js";
 import { createShopFeatures, shopFeaturesRoutes } from "../control-room/shopFeatures.js";
 import { createShopLooks, shopLooksRoutes } from "../control-room/shopLooks.js";
+import { createShopEmails, shopEmailsRoutes } from "../control-room/shopEmails.js";
 import { deliveryReader } from "../control-room/delivery.js";
 import { createJobs } from "../services/jobs/index.js";
 import { createPressMessages, messageRoutes } from "../control-room/messages.js";
@@ -238,7 +239,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   // The business side, the timeline, the jobs page, notes, messages to presses, costs and a press's data.
   const incomeHistory = firestoreIncomeHistory(platform);
   const business = createBusinessRoom({ registry, incomeHistory, admins, now });
-  const timeline = createTimeline({ admins, registry, activity, supportStore, now });
+  const timeline = createTimeline({ admins, registry, activity, supportStore, emailLog: sentLog, shopData, now });
   const jobRuns = firestoreJobRuns(platform);
   const jobs = createJobs({ store: jobRuns, email, alertTo: String(env.HEALTH_ALERT_TO ?? "").trim() || null, now });
   const pressMessages = createPressMessages({ store: firestorePressMessages(platform), registry, auditLog, shopData, email, activity, admins, now });
@@ -251,6 +252,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const driftDesk = createDriftDesk({ admins, registry, settings, activity, now });
   const shopFeatures = createShopFeatures({ admins, registry, shopData, now });
   const shopLooks = createShopLooks({ admins, registry, shopData, now });
+  const shopEmails = createShopEmails({ admins, registry, emailLog: sentLog, now });
   const salesChannels = createSalesChannels({ admins, registry, shopData, stockroomData, now });
   // The billing export to BigQuery isn't on yet (19.15): the Costs page shows its "not on yet" state.
   const costsDesk = createCostsDesk({ registry, reader: createCostReader({}), settings: live, admins, now });
@@ -305,6 +307,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...salesChannelsRoutes(salesChannels),
     ...shopFeaturesRoutes(shopFeatures),
     ...shopLooksRoutes(shopLooks),
+    ...shopEmailsRoutes(shopEmails),
     ...driftRoutes(driftDesk),
     ...messageRoutes(pressMessages),
     ...costRoutes(costsDesk),

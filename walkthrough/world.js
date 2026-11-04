@@ -66,6 +66,7 @@ import { broughtOverRoutes, createBroughtOver } from "../control-room/broughtOve
 import { createSalesChannels, salesChannelsRoutes } from "../control-room/salesChannels.js";
 import { createShopFeatures, shopFeaturesRoutes } from "../control-room/shopFeatures.js";
 import { createShopLooks, shopLooksRoutes } from "../control-room/shopLooks.js";
+import { createShopEmails, shopEmailsRoutes } from "../control-room/shopEmails.js";
 import { createDriftDesk, createDriftWatch, driftRoutes } from "../control-room/driftWatch.js";
 import { deliveryReader } from "../control-room/delivery.js";
 import { fakeDeliveryStats, fakeShopNotes } from "../control-room/visibilityFakes.js";
@@ -216,7 +217,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const business = createBusinessRoom({ registry, incomeHistory, admins, now: clock.date });
   // One timeline per shop, the jobs page and the private notes (19.10, 19.11, 19.13). The jobs this world can run by
   // hand are the ones with nothing outside it; the rest answer "only on the server".
-  const timeline = createTimeline({ admins, registry, activity, supportStore, now: clock.date });
+  const timeline = createTimeline({ admins, registry, activity, supportStore, shopData, now: clock.date });
   const jobRuns = fakeJobRuns();
   const jobs = createJobs({ store: jobRuns, email, alertTo: ADMIN_EMAIL, now: clock.date });
   // Paying presses drifting away (24.4): the practice shops' own orders and sign-ins.
@@ -233,6 +234,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const driftDesk = createDriftDesk({ admins, registry, settings, activity, now: clock.date });
   const shopFeatures = createShopFeatures({ admins, registry, shopData, now: clock.date });
   const shopLooks = createShopLooks({ admins, registry, shopData, now: clock.date });
+  const shopEmails = createShopEmails({ admins, registry, now: clock.date });
   const salesChannels = createSalesChannels({ admins, registry, shopData, stockroomData, now: clock.date });
   // Messages to presses (19.14), what each shop costs (19.15; no billing export in the practice world, so the empty
   // state) and a press's data on request (19.16).
@@ -271,6 +273,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...salesChannelsRoutes(salesChannels),
     ...shopFeaturesRoutes(shopFeatures),
     ...shopLooksRoutes(shopLooks),
+    ...shopEmailsRoutes(shopEmails),
     ...driftRoutes(driftDesk),
     ...messageRoutes(pressMessages),
     ...costRoutes(costsDesk),

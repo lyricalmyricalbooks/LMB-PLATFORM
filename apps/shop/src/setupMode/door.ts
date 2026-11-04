@@ -73,7 +73,12 @@ export interface SetupDoor {
   readOldShop(pressId: string, address: string): Promise<OldShopRead>;
   /** Open my shop (18.8): starts the plan and queues the shop. A refusal leaves the press in setup. */
   openShop(pressId: string, choice: { plan: SetupPress["plan"]; termsVersion: string }): Promise<OpenedShop>;
+  /** Asks a person for help (the platform's support inbox, as the account page's Get help form does). */
+  askForHelp: SupportAsk;
 }
+
+/** Sends one support request; a failure carries the platform's `problems` per field (subject, body). */
+export type SupportAsk = (ask: { subject: string; body: string; requestId: string }) => Promise<void>;
 
 const UNREACHABLE = "We couldn't reach Colophon. Check your connection and try again.";
 
@@ -90,7 +95,9 @@ export function platformDoor(apiBase: string, token: () => Promise<string>, fetc
       throw new Error(UNREACHABLE);
     }
     const answer = await response.json().catch(() => ({ ok: false, message: UNREACHABLE }));
-    if (!response.ok || answer?.ok === false) throw new Error(answer?.message || "Something went wrong. Try again.");
+    if (!response.ok || answer?.ok === false) {
+      throw Object.assign(new Error(answer?.message || "Something went wrong. Try again."), answer?.problems ? { problems: answer.problems } : {});
+    }
     return answer;
   }
   return {
@@ -119,6 +126,7 @@ export function platformDoor(apiBase: string, token: () => Promise<string>, fetc
       const answer = await call("POST", "/press/open", { pressId, plan, termsAccepted: true, termsVersion });
       return { press: answer.press as SetupPress, ...(answer.shop ? { shop: answer.shop } : {}) };
     },
+    askForHelp: async ({ subject, body, requestId }) => { await call("POST", "/support/open", { subject, body, requestId }); },
   };
 }
 
