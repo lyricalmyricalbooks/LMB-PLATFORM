@@ -1,7 +1,7 @@
 import { getCopy } from "../../storeCopy";
 import { regionProps } from "../../storefrontRegions";
 import { PAYMENT_BADGE_OPTIONS } from "../../paymentBadges";
-import { PAYMENT_ICONS } from "../../paymentIcons";
+import { PAYMENT_ICONS, paymentIcon } from "../../paymentIcons";
 
 /** The payment icons the book page can draw: the footer's list, in its order, minus unknown ids and repeats. */
 export function pdpPaymentBadges(ids: unknown): string[] {
@@ -26,7 +26,7 @@ export default function PdpPaymentIcons({ badges, design }: { badges: unknown; d
   return (
     <div {...regionProps("productPaymentIcons")} className="fm-pdp-pay-icons fm-pdp-meta w-full flex flex-wrap items-center gap-3 select-none"
       role="img" aria-label={pdpPaymentLabel(design, ids)}>
-      {ids.map((id) => <span key={id} className="inline-flex opacity-70" aria-hidden="true">{PAYMENT_ICONS[id]}</span>)}
+      {ids.map((id) => <span key={id} className={`inline-flex${design?.paymentIconsFullColour === true ? "" : " opacity-70"}`} aria-hidden="true">{paymentIcon(id, design)}</span>)}
     </div>
   );
 }

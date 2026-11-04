@@ -44,7 +44,7 @@ export function ConnectGoogleCard({ variant = "full", fallback = null }: { varia
   // Every Google service now has its own page, Settings › Google; Visitors & Google keeps one line and the way there.
   const s = google.status;
   return (
-    <SectionCard title="Google"
+    <SectionCard logo="google" title="Google"
       actions={s?.needsReconnect ? <StatusBadge tone="warning">Needs you</StatusBadge> : s?.connected ? <StatusBadge tone="success">Connected</StatusBadge> : s?.enabled ? <StatusBadge tone="neutral">Not connected</StatusBadge> : undefined}>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
         <p className="rp-hint" style={{ margin: 0, flex: "1 1 260px" }}>Every Google service now has its own page.</p>
@@ -67,7 +67,7 @@ function GooglePrompt({ status }: { status: GoogleStatus | null }) {
   const connect = useConnect();
   if (!status?.enabled || status.connected) return null;
   return (
-    <SectionCard title="Connect Google" description={w("See where visitors come from, put your shop on Google search and your books on Google Shopping, with one sign-in.")}
+    <SectionCard logo="google" title="Connect Google" description={w("See where visitors come from, put your shop on Google search and your books on Google Shopping, with one sign-in.")}
       actions={<PrimaryButton size="sm" disabled={connect.busy} onClick={() => connect.go([])}>{connect.busy ? "Opening Google…" : "Connect Google"}</PrimaryButton>}>
       <OutcomeLine />
       <p className="rp-hint" style={{ margin: 0 }}>Until then, visit figures come from your shop's own counter. Extras like backups to your Google Drive are in Settings › Google.</p>

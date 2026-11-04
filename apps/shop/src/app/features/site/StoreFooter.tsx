@@ -8,7 +8,7 @@ import { contentMaxWidth } from "./headerNav";
 import { getCopy, shopCopyFallback } from "./storeCopy";
 import { shopName, wordmarkWords } from "./shopIdentity";
 import { resolveFooterBadges } from "./paymentBadges";
-import { PAYMENT_ICONS } from "./paymentIcons";
+import { paymentIcon } from "./paymentIcons";
 import { regionProps } from "./storefrontRegions";
 import { GroupedFooterNavigation } from "../../components/GroupedFooterNavigation";
 import { FooterMenu } from "../../components/StoreMenu";
@@ -179,7 +179,7 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
           {badges.length > 0 && (
             <div className="fm-footer-pay-icons flex items-center gap-4 text-white/55 select-none" data-studio-target="style:paymentIcons|style:footer" data-studio-label="Payment icons">
               {badges.map((badgeId: string) => {
-                const icon = PAYMENT_ICONS[badgeId];
+                const icon = paymentIcon(badgeId, d);
                 if (!icon) return null;
                 return (
                   <div key={badgeId} className="fm-footer-pay-icon opacity-30 hover:opacity-100 transition-opacity duration-300">

@@ -55,6 +55,14 @@ describe("Settings › Google", () => {
     expect(document.querySelector(".gg-need")?.textContent).toContain("Google search · Didn't work");
   });
 
+  it("shows Google's own G and each product's own logo, with a plain icon where the kit has none", async () => {
+    await mount();
+    expect(document.querySelector(".gg-hero [data-brand='google']")).not.toBeNull();
+    expect(card("analytics").querySelector("[data-brand='googleanalytics']")).not.toBeNull();
+    expect(card("email").querySelector("[data-brand='gmail']")).not.toBeNull();
+    expect(card("merchantCenter").querySelector(".gg-icon")).not.toBeNull();
+  });
+
   it("asks Google again for a part that didn't work", async () => {
     await mount();
     const retry = [...card("searchConsole").querySelectorAll("button")].find((b) => b.textContent === "Try again")!;
