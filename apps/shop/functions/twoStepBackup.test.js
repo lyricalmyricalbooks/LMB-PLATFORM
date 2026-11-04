@@ -226,5 +226,14 @@ describe("two-step turned on or off (code plan 25.4)", () => {
     expect(off.html).toContain("Moth &lt;Press&gt;");
     expect(off.html).toMatch(/turn two-step sign-in back on/);
     expect(twoStepChangedEmail({ email: "owner@example.com", ownerEmail: "owner@example.com", on: true }).to).toEqual(["owner@example.com"]);
+    const fr = twoStepChangedEmail({ email: "helper@example.com", ownerEmail: "owner@example.com", on: false, shopName: "Moth <Press>", when: "4 novembre 2026", language: "fr" });
+    expect(fr.subject).toBe("La connexion en deux étapes a été désactivée pour Moth <Press>");
+    expect(fr.html).toContain("Moth &lt;Press&gt;");
+    expect(fr.html).toContain("réactivez la connexion en deux étapes");
+    expect(fr.html).not.toMatch(/Two-step|If it wasn't/);
+    const used = backupUsedEmail({ email: "helper@example.com", ownerEmail: "owner@example.com", left: 1, shopName: "Moth", when: "x", adminLink: "https://shop.example/admin", language: "fr" });
+    expect(used.subject).toBe("Un code de secours a servi à se connecter à Moth");
+    expect(used.html).toContain("Il reste 1 code de secours.");
+    expect(used.html).toContain("Ouvrir Paramètres, Sécurité");
   });
 });

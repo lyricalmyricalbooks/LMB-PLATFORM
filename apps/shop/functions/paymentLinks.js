@@ -16,6 +16,7 @@
 // same reasons any order can't, and cancelling the order (Orders › order › Cancel) closes its link.
 const crypto = require("crypto");
 const { isPhysicalItem } = require("./shared/localFulfillment");
+const { emailLanguage } = require("./emailFrench");
 
 const MAX_LINES = 50;
 const DEFAULT_DAYS = 30;
@@ -357,7 +358,7 @@ async function sendLinkReminders({ db, orders, settings, compileEmailTemplate, o
         total_price: formatTotal(order),
         expires_on: closingDay(link.expiresAt),
         button_url: await orderTrackUrl(orderId, order),
-      });
+      }, undefined, { language: emailLanguage(order) });
       await sendOrderEmailOnce(orderId, "payment_link_reminder", { to: cleanEmail(order.customer.email), subject: compiled.subject, html: compiled.html, secret });
       await ref.set({ reminderSentAt: new Date(now).toISOString() }, { merge: true });
       sent += 1;

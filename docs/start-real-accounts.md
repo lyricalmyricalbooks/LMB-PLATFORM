@@ -39,13 +39,23 @@ so a stage that is added to the build also needs a line here.
   (plan 15.22) comes before any real card is taken. Status: built on pretend Stripe states; the real connection is
   still to do.
 - **Plan and billing in the admin** (plan 22.1-22.5): in Stripe's test mode on the platform account, Julian adds the
-  events `invoice.paid` and `invoice.payment_action_required` to the billing events address, and turns on Stripe's
-  emailed receipts (Stripe's settings, Customer emails, "Successful payments" and "Finalized invoices"), so every press
-  gets its bill by email for its bookkeeper. Do this test payment before the first real press pays. Then, in the test shop's Settings › Billing, he adds Stripe's test card,
+  events `invoice.paid` and `invoice.payment_action_required` to the billing events address, and leaves Stripe's own
+  emailed receipts off (Stripe's settings, Customer emails, "Successful payments" and "Finalized invoices"): Colophon
+  sends every press its own receipt for each paid bill (plan 25.1), and with Stripe's on too a press gets two. Do this
+  test payment before the first real press pays. Then, in the test shop's Settings › Billing, he adds Stripe's test card,
   adds a second, makes it primary, removes the first, saves a GST/HST number, and checks the bill shows it and the
   founding 25% off. Stripe's "3D Secure required" test card checks the "Confirm the payment" step, and a test card that
   runs out next month shows the "card runs out" warning on Settings › Billing. Status: built on pretend Stripe; nothing
   real is connected.
+- **The bill receipt** (plan 25.1, about 10 minutes, Stripe's test mode): put the test shop on a paid test plan and
+  let its first bill be paid with Stripe's test card. Then check the inbox of the test shop's owner address:
+  1. One "receipt" email arrives for the bill, and only one. A second one from Stripe means Stripe's own receipts are
+     still on (see the step above): turn them off.
+  2. The amount matches the bill in Stripe, and the tax line matches the bill's tax (GST/HST for the test shop's
+     province). A press with a saved GST/HST number sees it on the bill.
+  3. The month it covers is the right one, and both buttons open: the bill itself, and Settings › Billing.
+  4. With the test shop's email language set to French (Settings › Billing), the next bill's receipt comes in French.
+  Status: built and tested with pretend Stripe; nothing real has run yet.
 - **Two-step sign-in in the shop admin** (plans 22.6, 22.9, 22.10, setup step 19). About 15 minutes, with your phone
   and an authenticator app (Google Authenticator, Microsoft Authenticator or 1Password). Use the test shop only, never a
   paying press's shop. Status: built against pretend Google and Firebase; nothing real has run yet.

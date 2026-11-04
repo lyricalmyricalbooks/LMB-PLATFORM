@@ -24,16 +24,20 @@ const controls = new Set(STYLE_GROUPS.flatMap((g) => g.fields.map((f) => f.key))
 const printStyle: any = STYLE_GROUPS.flatMap((g) => g.fields).find((f) => f.key === "themeStyle");
 const looksFor = (id: string) => THEME_LIBRARY.filter((t: any) => t.global?.themeStyle === id);
 
-/** `{ selector, prop, value }` for every declaration (rules inside @media included). */
+/**
+ * `{ selector, prop, value }` for every declaration (rules inside @media included). A value that reads a variable set
+ * in the same rule (`--template-btn-border: …; border: var(--template-btn-border)`) is checked as what it reads.
+ */
 function declarations(css: string) {
   const out: { selector: string; prop: string; value: string }[] = [];
   for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
     const selector = m[1].trim();
-    for (const decl of m[2].split(/;(?![^(]*\))/)) {
+    const decls = m[2].split(/;(?![^(]*\))/).map((decl) => {
       const i = decl.indexOf(":");
-      if (i < 0) continue;
-      out.push({ selector, prop: decl.slice(0, i).trim(), value: decl.slice(i + 1).trim() });
-    }
+      return i < 0 ? null : { prop: decl.slice(0, i).trim(), value: decl.slice(i + 1).trim() };
+    }).filter((x): x is { prop: string; value: string } => !!x);
+    const local = new Map(decls.filter((x) => x.prop.startsWith("--")).map((x) => [x.prop, x.value]));
+    for (const x of decls) out.push({ selector, prop: x.prop, value: x.value.replace(/var\((--[\w-]+)\)/g, (all, name) => local.get(name) ?? all) });
   }
   return out;
 }
@@ -186,6 +190,20 @@ describe("template knobs", () => {
     expect(templateKnobCss({ radiusScale: "round", cardRadius: 4 })).toContain("--tpl-photo-radius:18px");
     // Every shop stores a card corner (8 from the starting look, 0 from Arch's): it must not flatten Arch's arches.
     expect(templateKnobCss({ cardRadius: 0 })).not.toContain("--tpl-photo-radius");
+  });
+
+  it("reach buttons that draw their own border (bag button, Add to bag) once an outline is set", () => {
+    for (const id of TEMPLATE_STYLE_IDS) {
+      // Every template hands its button border to the rule, on the same buttons the rule reaches.
+      const btn = declarations(TEMPLATE_CSS[id]).filter((d) => /\.store-btn-primary/.test(d.selector) && /\.custom-btn/.test(d.selector));
+      expect(btn.some((d) => d.prop === "--template-btn-border"), `${id} does not write --template-btn-border`).toBe(true);
+      expect(btn.find((d) => d.prop === "border")?.value, `${id} button border`).toContain("var(--tpl-outline-w");
+    }
+    // Important, so it beats an inline border and the book page's own important one; written once for both controls.
+    const both = templateKnobCss({ templateOutlineColor: "#123456", templateOutlineWidth: 3 });
+    expect(both.split("border:var(--template-btn-border) !important").length).toBe(2);
+    expect(templateKnobCss({ templateOutlineColor: "#123456" })).toContain(".store-btn-primary{border:var(--template-btn-border) !important;}");
+    expect(templateKnobCss({ buttonRadius: 4 })).not.toContain("--template-btn-border"); // untouched: buttons as before
   });
 
   it("come after the template, so a changed control wins", () => {
