@@ -100,6 +100,13 @@ export async function seedRoom(world) {
   for (const [i, days] of [2, 9, 16, 30, 40, 50].entries()) await world.shopData.set("kestrel", `orders/seed-${i}`, { paymentStatus: "paid", createdAt: daysAgo(days), total: 30 });
   world.shopAccess.lastSignIn.set("lantern-zines lou@example.com", daysAgo(40));
   world.shopAccess.lastSignIn.set("kestrel kit@example.com", daysAgo(1));
+  // Newsletters, morning emails and changed orders: Kestrel sent one newsletter to 212 people and a second stopped
+  // part-way; both morning emails are on with two books low; one order went out in two parts.
+  await world.shopData.set("kestrel", "newsletterIssues/n1", { subject: "Autumn books are here", status: "sent", createdAt: daysAgo(20), finishedAt: daysAgo(20), sent: 212, skipped: 4, failed: 0 });
+  await world.shopData.set("kestrel", "newsletterIssues/n2", { subject: "Fair weekend", status: "paused", createdAt: daysAgo(2), sent: 80, skipped: 1, failed: 26, lastError: "Too many emails bounced, so sending stopped." });
+  await world.shopData.set("kestrel", "settings/notifications", { shopAlerts: { dailyOrderDigest: true, lowStock: true } });
+  await world.shopData.set("kestrel", "systemStatus/lowStockAlerts", { items: { birdsong: "low", "wren-songs": "low", "old-zine": "out" } });
+  await world.shopData.set("kestrel", "orders/seed-parts", { paymentStatus: "paid", createdAt: daysAgo(8), total: 52, partShipments: [{ at: daysAgo(7) }, { at: daysAgo(3) }] });
   await world.driftWatch.sweep();
 
   // Selling away from the website: Kestrel sent three payment links (two paid, one still unpaid after five days) and rang up two checkouts on
