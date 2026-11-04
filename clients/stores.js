@@ -105,6 +105,7 @@ export function firestoreAppAlerts(firestore) {
       return (await rows([["status", "==", "waiting"]])).filter((a) => a.nextAt <= nowIso).sort((a, b) => (a.nextAt < b.nextAt ? -1 : 1)).slice(0, limit);
     },
     listByStatus: (status) => rows([["status", "==", status]]),
+    listByInstall: (installId) => rows([["installId", "==", installId]], 5000),
   };
 }
 

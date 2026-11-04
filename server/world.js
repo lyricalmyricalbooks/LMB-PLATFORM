@@ -241,15 +241,16 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   // Installing them on a shop with its owner's permission (26.2).
   const appInstallStore = firestoreAppInstalls(platform);
   // Alerts to apps when orders, products or stock change, and when an app is removed (26.4; the app-alerts job).
+  const appAlertOutbox = firestoreAppAlerts(platform);
   const appAlerts = createAppAlerts({
-    apps: appStore, installs: appInstallStore, outbox: firestoreAppAlerts(platform), state: firestoreAppAlertState(platform), shopData, fetch, now,
+    apps: appStore, installs: appInstallStore, outbox: appAlertOutbox, state: firestoreAppAlertState(platform), shopData, fetch, now,
   });
   const appInstalls = createAppInstalls({
     apps: appStore, makers: appMakers, installs: appInstallStore, codes: firestoreAppCodes(platform), registry, auditLog, now,
     roleIn: (who, shopId) => accounts.roleIn(who, shopId), onRemoved: (install) => appAlerts.removed(install),
   });
   // The app connection: installed apps read their shop through the platform, with their key (26.3).
-  const appConnection = createAppConnection({ installs: appInstalls, shopData, registry, now });
+  const appConnection = createAppConnection({ installs: appInstalls, shopData, registry, outbox: appAlertOutbox, now });
   const recovery = createRecovery({
     store: recoveryStore, email, registry, auditLog, settings, admins, now,
     findAccount: async (address) => {

@@ -86,6 +86,9 @@ The app sends its key as `Authorization: Bearer cak_…`. All calls are GET and 
 | `/api/apps/v1/inventory?limit&after` | `read_inventory` | how many of each product and variant |
 | `/api/apps/v1/orders?limit&after&since&status` and `/orders/<id>` | `read_orders` | paid orders, newest first, with where they ship; email and phone only with `read_customers` |
 
+`/api/apps/v1/alerts?since&limit&after` (no permission needed) lists the alerts queued for the app, oldest first, with
+`delivered`, so an app whose server was down can catch up.
+
 Lists page with `next` (pass it back as `after`), at most 250 a page. At most 120 calls a minute per app and shop
 (429 with `Retry-After`). Never answered: cost prices, payment details, private notes, test or unpaid orders.
 
@@ -99,15 +102,17 @@ staff read or write `appRequests`.
 | Call | Permission | What |
 | --- | --- | --- |
 | `POST /api/apps/v1/orders/<id>/fulfillment` | `write_orders` | `{ trackingCarrier, trackingNumber, trackingUrl?, shipped? }`: add tracking and mark sent (`shipped: false` only adds tracking) |
+| `POST /api/apps/v1/inventory/<productId>` | `write_inventory` | `{ change, variantId?, expected? }`: add or take copies; with `expected`, only if the stock is still that |
 | `GET /api/apps/v1/requests/<id>` | the app that asked | `{ status: waiting \| done \| refused, result, reason }` |
 
 The POST waits up to 5 seconds for the shop's answer (200), else answers 202 with the request to look up. An
 `Idempotency-Key` header makes a retry return the first request. Marking sent uses the same checks as a dispatch from
 the stockroom app (paid, not a test, ships by carrier, no open request, dispute, hold, failed refund, label being bought
 or waiting pre-order), and tracking the shop or another app put on an order is never replaced. The customer gets the
-usual shipped email.
+usual shipped email. Stock changes are refused for items whose stock comes from the stockroom (it would undo them) and
+items that don't count stock; stock never goes below 0, and checkout holds are untouched.
 
-Stock and product changes come next, the same way.
+Product changes come next, the same way.
 
 ## 26.4 (built): alerts to apps
 

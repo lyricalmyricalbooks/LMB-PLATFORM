@@ -13,6 +13,12 @@
 //     review or on hold, no website label being bought, no waiting pre-order. The packing checklist and address review
 //     are the app's own steps, as with the stockroom app. `shipped: false` only attaches the tracking.
 //     Marking it shipped sends the customer the shipped email (the order trigger does that, as for any dispatch).
+//   inventory.adjust  { productId, variantId?, change, expected? }   (permission write_inventory)
+//     Adds or takes away copies (`change`, a whole number). With `expected`, refused unless the stock is still that
+//     (so an app can set a count without losing a sale made meanwhile). Refused for an item whose stock comes from the
+//     stockroom link (the stockroom would undo it; editions sharing one pile are always linked), and for an item that
+//     doesn't track stock. Stock never goes below 0. Checkout holds are kept apart and are untouched.
+//     Result: { available }.
 const { externalDispatchProblem } = require("./fulfillmentGuard");
 
 const text = (value, max) => String(value ?? "").trim().slice(0, max);
@@ -65,7 +71,47 @@ async function dispatchOrder(db, request, now) {
   });
 }
 
-const OPS = { "order.dispatch": dispatchOrder };
+const stockOf = (book, key) => {
+  if (key === "_") return Math.max(0, Math.floor(Number(book.stockLevel) || 0));
+  const v = (Array.isArray(book.variants) ? book.variants : []).find(x => x && x.id === key);
+  return v ? Math.max(0, Math.floor(Number(v.stockLevel !== undefined ? v.stockLevel : v.stock) || 0)) : null;
+};
+
+async function adjustStock(db, request, now) {
+  const input = request.input || {};
+  const productId = text(input.productId, 128);
+  const variantId = text(input.variantId, 128);
+  const change = Number(input.change);
+  const expected = input.expected === undefined || input.expected === null ? null : Number(input.expected);
+  const app = text(request.appName, 80) || "an app";
+  if (!productId || !/^[A-Za-z0-9_-]+$/.test(productId)) return { status: "refused", reason: "Give the product's id." };
+  if (variantId && !/^[A-Za-z0-9_-]+$/.test(variantId)) return { status: "refused", reason: "That isn't a variant id." };
+  if (!Number.isInteger(change) || change === 0 || Math.abs(change) > 10000) return { status: "refused", reason: "Give the change as a whole number between -10000 and 10000, not 0." };
+  if (expected !== null && (!Number.isInteger(expected) || expected < 0)) return { status: "refused", reason: "expected must be a whole number, 0 or more." };
+  const key = variantId || "_";
+  const bookRef = db.collection("books").doc(productId);
+  const linkRef = db.collection("systemStatus").doc("inventoryLink");
+  return db.runTransaction(async (tx) => {
+    const [snap, linkSnap] = await Promise.all([tx.get(bookRef), tx.get(linkRef)]);
+    if (!snap.exists) return { status: "refused", reason: "There's no such product." };
+    const book = snap.data();
+    const from = stockOf(book, key);
+    if (from === null) return { status: "refused", reason: "There's no such variant." };
+    if (variantId === "" && Array.isArray(book.variants) && book.variants.length) return { status: "refused", reason: "This product has variants: give the variantId." };
+    if (book.trackInventory !== true) return { status: "refused", reason: "The shop doesn't count stock for this product." };
+    const links = (linkSnap.exists ? linkSnap.data() || {} : {}).links || {};
+    if (links[productId] && typeof links[productId][key] === "string") return { status: "refused", reason: "This item's stock comes from the shop's stockroom. Change it there." };
+    if (expected !== null && expected !== from) return { status: "refused", reason: `The stock is now ${from}, not ${expected}. Read it again and retry.` };
+    const to = Math.max(0, from + change);
+    const at = now.toISOString();
+    // The same patch as the admin's stock change (inventoryLink.js stockPatch).
+    const patch = key === "_" ? { stockLevel: to } : { variants: book.variants.map(v => (v && v.id === key ? { ...v, stockLevel: to, stock: to } : v)) };
+    tx.update(bookRef, { ...patch, updatedAt: at });
+    return { status: "done", result: { available: to }, reason: `Stock ${from} → ${to} (${app}).` };
+  });
+}
+
+const OPS = { "order.dispatch": dispatchOrder, "inventory.adjust": adjustStock };
 
 /** Applies one request and writes the answer on its document. Answers once: a request already answered is left alone. */
 async function applyAppRequest(db, id, now = new Date()) {
