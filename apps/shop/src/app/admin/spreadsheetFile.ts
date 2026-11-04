@@ -103,19 +103,26 @@ async function openZip(bytes: Uint8Array): Promise<Zip> {
     at += 46 + nameLength + extra + comment;
   }
   let total = 0;
+  // Each part is unzipped once: the shared words and styles are read again for every sheet tried (an empty cover
+  // sheet, say), and counting them again would call a fine workbook too large.
+  const read = new Map<string, Promise<string | null>>();
+  const text = async (path: string): Promise<string | null> => {
+    const entry = entries.get(path);
+    if (!entry) return null;
+    total += entry.unzipped;
+    if (total > MAX_UNZIPPED) throw new SpreadsheetError("This file is too large to read here. Save a shorter part of it and bring the parts one at a time.");
+    if (view.getUint32(entry.local, true) !== 0x04034b50) throw new SpreadsheetError("This file looks damaged: it couldn't be opened. Save it again and try once more.");
+    const start = entry.local + 30 + view.getUint16(entry.local + 26, true) + view.getUint16(entry.local + 28, true);
+    const raw = bytes.subarray(start, start + entry.size);
+    if (entry.method === 0) return utf8.decode(raw);
+    if (entry.method !== 8) throw new SpreadsheetError("This file uses a kind of compression that can't be read here. Save it again as .xlsx or CSV.");
+    return inflate(raw);
+  };
   return {
     has: (path) => entries.has(path),
-    async text(path) {
-      const entry = entries.get(path);
-      if (!entry) return null;
-      total += entry.unzipped;
-      if (total > MAX_UNZIPPED) throw new SpreadsheetError("This file is too large to read here. Save a shorter part of it and bring the parts one at a time.");
-      if (view.getUint32(entry.local, true) !== 0x04034b50) throw new SpreadsheetError("This file looks damaged: it couldn't be opened. Save it again and try once more.");
-      const start = entry.local + 30 + view.getUint16(entry.local + 26, true) + view.getUint16(entry.local + 28, true);
-      const raw = bytes.subarray(start, start + entry.size);
-      if (entry.method === 0) return utf8.decode(raw);
-      if (entry.method !== 8) throw new SpreadsheetError("This file uses a kind of compression that can't be read here. Save it again as .xlsx or CSV.");
-      return inflate(raw);
+    text(path) {
+      if (!read.has(path)) read.set(path, text(path));
+      return read.get(path)!;
     },
   };
 }
