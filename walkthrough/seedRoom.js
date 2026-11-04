@@ -108,6 +108,9 @@ export async function seedRoom(world) {
   // part-way; both morning emails are on with two books low; one order went out in two parts.
   await world.shopData.set("kestrel", "newsletterIssues/n1", { subject: "Autumn books are here", status: "sent", createdAt: daysAgo(20), finishedAt: daysAgo(20), sent: 212, skipped: 4, failed: 0 });
   await world.shopData.set("kestrel", "newsletterIssues/n2", { subject: "Fair weekend", status: "paused", createdAt: daysAgo(2), sent: 80, skipped: 1, failed: 26, lastError: "Too many emails bounced, so sending stopped." });
+  // Its website wears Marquee, picked in Choose your look, with Atlas being tried in Studio's draft.
+  await world.shopData.set("kestrel", "settings/website", { design: { themeBase: { id: "marquee", name: "Marquee", look: {}, sig: "seed" } }, designPublishedAt: daysAgo(30) });
+  await world.shopData.set("kestrel", "themes/workspace", { draft: { themeBase: { id: "atlas", name: "Atlas", look: {}, sig: "seed" } }, rev: 4 });
   await world.shopData.set("kestrel", "settings/notifications", { shopAlerts: { dailyOrderDigest: true, lowStock: true } });
   await world.shopData.set("kestrel", "systemStatus/lowStockAlerts", { items: { birdsong: "low", "wren-songs": "low", "old-zine": "out" } });
   await world.shopData.set("kestrel", "orders/seed-parts", { paymentStatus: "paid", createdAt: daysAgo(8), total: 52, partShipments: [{ at: daysAgo(7) }, { at: daysAgo(3) }] });
