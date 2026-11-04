@@ -43,10 +43,13 @@ export function guideOf(record) {
   const website = record.plan !== "stockroom";
   const books = { id: "books", title: "Bring products over", done: Boolean(record.stagedImport), optional: true };
   const look = website ? [{ id: "look", title: "Choose the website's look", done: Boolean(record.look) }] : [];
+  const cards = website ? [{ id: "cards", title: "Stripe or Square", done: Boolean(record.cardProvider), optional: true }] : [];
+  const domain = website ? [{ id: "domain", title: "Web address", done: record.domainChoice === "free" || (record.domainChoice === "own" && Boolean(record.domain)), optional: true }] : [];
   const steps = [
     { id: "plan", title: "Pick what to set up", done: Boolean(record.plan) },
     { id: "details", title: "Press details", done: Boolean(record.pressName && record.sells && record.country) },
-    ...(record.moving === "fresh" ? [...look, books] : [books, ...look]),
+    ...(record.moving === "fresh" ? [...look, ...cards, books] : [books, ...look, ...cards]),
+    ...domain,
     { id: "open", title: "Create the shop", done: record.status === "opening" || record.status === "open" },
   ];
   const counted = steps.filter((step) => !step.optional || step.done);
