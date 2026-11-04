@@ -49,3 +49,15 @@ describe("storefront payment icons", () => {
     expect(renderToStaticMarkup(h("span", null, PAYMENT_ICONS.amex))).toContain(BRAND_LOGOS.americanexpress.body);
   });
 });
+
+describe("full-colour payment icons", () => {
+  it("draw each company's own colour on a white card when the shop turns them on", async () => {
+    const { paymentIcon } = await import("../../features/site/paymentIcons");
+    const mono = renderToStaticMarkup(h("span", null, paymentIcon("visa", {})));
+    const colour = renderToStaticMarkup(h("span", null, paymentIcon("visa", { paymentIconsFullColour: true })));
+    expect(mono).toContain('fill="currentColor"');
+    expect(colour).toContain(`fill="${BRAND_LOGOS.visa.color}"`);
+    expect(colour).toContain("fm-pay-chip");
+    expect(renderToStaticMarkup(h("span", null, paymentIcon("afterpay", { paymentIconsFullColour: true })))).toContain("background:#B2FCE4");
+  });
+});

@@ -77,7 +77,9 @@ export function footerStyleCss(d: any = {}): string {
   // default draws exactly as the classes do (30% at rest, full on hover).
   const iconRest = num(d.footerPaymentIconOpacity, 30, 10, 100);
   const iconHover = num(d.footerPaymentIconHoverOpacity, 100, 10, 100);
-  if (iconRest !== 30 || iconHover !== 100) {
+  // Full-colour icons show at full strength: the card companies' colours are never faded or recoloured.
+  if (d.paymentIconsFullColour === true) css += `${s} .fm-footer-pay-icon{opacity:1 !important;}`;
+  else if (iconRest !== 30 || iconHover !== 100) {
     css += `${s} .fm-footer-pay-icon{opacity:${iconRest / 100} !important;}`
       + `${s} .fm-footer-pay-icon:hover{opacity:${iconHover / 100} !important;}`;
   }

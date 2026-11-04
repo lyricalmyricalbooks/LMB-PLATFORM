@@ -432,6 +432,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
       { key: "footerPaymentIconOpacity", label: "Payment icons: how strongly they show (%)", kind: "range", defaultValue: 30, min: 10, max: 100, step: 5, suffix: "%" },
       { key: "footerPaymentIconHoverOpacity", label: "Payment icons: how strongly they show with the mouse over one (%)", kind: "range", defaultValue: 100, min: 10, max: 100, step: 5, suffix: "%" },
       { key: "footerPaymentIconColor", label: "Payment icons colour (blank = the footer's faint text colour)", kind: "color" },
+      { key: "paymentIconsFullColour", label: "Payment icons in the card companies' own colours, on small white cards (footer and book page; turns off the colour and fade above)", kind: "toggle", defaultValue: false },
       { key: "showPoweredBy", label: "Show “Powered by” line", kind: "toggle" },
       { key: "social.instagram", label: "Instagram URL", kind: "text" },
       { key: "social.twitter", label: "X / Twitter URL", kind: "text" },
