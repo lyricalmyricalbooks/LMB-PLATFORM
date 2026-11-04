@@ -273,18 +273,28 @@ export function emailThemeFor(themeId: string, current?: string | null): "market
   return current === "market" || current === "index" ? "light" : null;
 }
 
+/** A product's price as the preview shows it ("$22", "$18.50"), or "" when it has none. On sale, the sale price. */
+export function previewPrice(book: any): string {
+  const sale = book?.isOnSale && Number(book?.salePrice) > 0 ? Number(book.salePrice) : NaN;
+  const n = Number.isFinite(sale) ? sale : Number(book?.retailPrice ?? book?.price);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  return `$${Number.isInteger(n) ? n : n.toFixed(2)}`;
+}
+
 /**
- * The press's own books for the look previews: up to `limit` of them, each with its title and its first secure photo, so
- * every look shows the press's real covers and names. A book with neither a title nor a photo is skipped.
+ * The press's own books for the look previews: up to `limit` of them, each with its title, its first secure photo and
+ * its real price, so every look shows the press's real covers, names and prices. A book with neither a title nor a
+ * photo is skipped.
  */
-export function ownBooks(books: any[] | null | undefined, limit = 8): { title: string; photo: string }[] {
-  const out: { title: string; photo: string }[] = [];
+export function ownBooks(books: any[] | null | undefined, limit = 8): { title: string; photo: string; price?: string }[] {
+  const out: { title: string; photo: string; price?: string }[] = [];
   for (const book of books || []) {
     if (out.length >= limit) break;
     const title = String(book?.title || "").trim().slice(0, 60);
     const url = String(book?.photos?.[0]?.url || book?.photoUrl || "");
     const photo = url.startsWith("https://") ? url : "";
-    if (title || photo) out.push({ title, photo });
+    const price = previewPrice(book);
+    if (title || photo) out.push(price ? { title, photo, price } : { title, photo });
   }
   return out;
 }

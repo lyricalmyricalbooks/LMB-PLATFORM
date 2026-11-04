@@ -1,5 +1,6 @@
 // Template buttons follow Studio (4 November 2026): under every storefront template, the header's bag
-// button, Add to bag and (on a collection page) the newsletter sign-up button must take the press's template outline and hard shadow, since
+// button, Add to bag, the newsletter sign-up button (on a collection page) and the home page's newsletter and
+// pop-up sign-up sections' buttons must take the press's template outline and hard shadow, since
 // each of them draws its own border or shadow that a template's stylesheet alone cannot beat. Runs the real storefront
 // in Chromium through a11y-fixture.html, with sample books and no shop data read. CI job `shop-accessibility` runs it.
 //
@@ -23,6 +24,9 @@ const SET = { templateOutlineColor: "#123456", templateOutlineWidth: 3, template
 const PAGES = [
   ["/books/night-songs", ".fm-pdp-title", { "bag button": ".fm-hdr-cart", "Add to bag": "button.custom-btn" }],
   ["/collections/zines", ".fm-newsletter-btn", { "newsletter button": ".fm-newsletter-btn" }],
+  // The home page with a newsletter section and a pop-up sign-up section, as a press adds them in Studio.
+  ["/", "form .fm-newsletter-btn", { "home newsletter section button": ["form .fm-newsletter-btn", 0], "pop-up sign-up button": ["form .fm-newsletter-btn", 1] },
+    { homepageSections: [{ id: "nl", type: "NewsletterSection", settings: {} }, { id: "pop", type: "NewsletterPopupSection", settings: {} }] }],
 ];
 
 const failures = [];
@@ -34,12 +38,13 @@ await page.waitForTimeout(3000);
 
 for (const [id, theme] of looks) {
   if (!theme) { failures.push(`${id}: no theme-library look uses it`); continue; }
-  for (const [path, ready, buttons] of PAGES) {
-    await page.goto(`${base}/a11y-fixture.html?theme=${theme}&path=${encodeURIComponent(path)}&design=${encodeURIComponent(JSON.stringify(SET))}`);
+  for (const [path, ready, buttons, extra] of PAGES) {
+    await page.goto(`${base}/a11y-fixture.html?theme=${theme}&path=${encodeURIComponent(path)}&design=${encodeURIComponent(JSON.stringify({ ...SET, ...extra }))}`);
     if (!(await page.waitForSelector(ready, { timeout: 60000 }).catch(() => null))) { failures.push(`${id}: ${path} did not open`); continue; }
     await page.waitForTimeout(600);
     for (const [name, sel] of Object.entries(buttons)) {
-      const got = await page.$eval(sel, (e) => { const c = getComputedStyle(e); return { width: c.borderTopWidth, colour: c.borderTopColor, shadow: c.boxShadow }; }).catch(() => null);
+      const [selector, nth] = Array.isArray(sel) ? sel : [sel, 0];
+      const got = await page.$$eval(selector, (els, i) => { const e = els[i]; if (!e) return null; const c = getComputedStyle(e); return { width: c.borderTopWidth, colour: c.borderTopColor, shadow: c.boxShadow }; }, nth).catch(() => null);
       if (!got) { failures.push(`${id}: no ${name} on ${path}`); continue; }
       const line = `${id} ${name}: border ${got.width} ${got.colour}, shadow ${got.shadow}`;
       console.log(line);

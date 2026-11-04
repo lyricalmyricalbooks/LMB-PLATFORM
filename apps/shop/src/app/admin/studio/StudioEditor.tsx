@@ -121,7 +121,7 @@ import { hasTokens, isDynamic } from "../../features/site/dynamicSources";
 // Connected text (a $dyn value or {{tokens}}) opens the inspector instead of being typed over in the preview.
 const isConnectedValue = (v: any) => isDynamic(v) || hasTokens(v);
 import { CANDIDATE_ID, deletePreset, deleteSharedBlock, renamePreset, renameSharedBlock, withCandidate } from "./sectionLibrary";
-import { templateDetailsSet, templateOnlyNote } from "./templateNote";
+import { templateDetailsLine, templateDetailsSet, templateOnlyNote } from "./templateNote";
 import "./studio.css";
 import { productHref } from "../../lib/productHref";
 
@@ -2434,9 +2434,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                     ))}
                   </div>}
                   {group?.id === "riso" && (() => {
-                    const set = templateDetailsSet(design).length;
-                    return set > 0 && <div className="px-4 pb-3"><div className="studio-field-status" data-template-reset>
-                      <small>You've changed {set} template {set === 1 ? "detail" : "details"}.</small>
+                    const line = templateDetailsLine(design);
+                    return line && <div className="px-4 pb-3"><div className="studio-field-status" data-template-reset>
+                      <small>{line}</small>
                       <button type="button" className="studio-reset" onClick={resetTemplateDetails}>Reset template details</button>
                     </div></div>;
                   })()}
@@ -2596,6 +2596,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             {leftTab === "themes" && (
               <StudioThemes design={design} published={published} unpublished={unpublished || dirtyDraft} savedThemes={savedThemes}
                 presets={THEME_LIBRARY as any[]} currentPresetId={design.themeLibraryPreset} products={themeProducts}
+                templateDetails={templateDetailsLine(design)} onResetTemplateDetails={resetTemplateDetails}
                 previewingId={themePreview?.id || null} onPreview={setThemePreview}
                 onSaveCurrent={saveCurrentAsTheme} onImport={file => importTheme(file)}
                 onLoad={t => { setThemePreview(null); applySavedTheme(t); }} onPublish={publishSavedTheme}

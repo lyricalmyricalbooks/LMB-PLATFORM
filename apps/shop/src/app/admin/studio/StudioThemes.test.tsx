@@ -55,6 +55,17 @@ describe("Studio › Themes", () => {
     await mount(setup());
     expect(document.querySelector('[data-theme-card="preset:p1"] [role=img]')!.textContent).toContain("Books & prints");
   });
+  it("offers Reset template details on the draft when it sets any", async () => {
+    const onResetTemplateDetails = vi.fn();
+    await mount(setup({ templateDetails: "You've changed card tilt.", onResetTemplateDetails }));
+    const bar = document.querySelector('[data-theme-card="draft"] [data-template-reset]')!;
+    expect(bar.textContent).toContain("You've changed card tilt.");
+    await click(button("Reset template details", bar));
+    expect(onResetTemplateDetails).toHaveBeenCalled();
+    await act(async () => root!.unmount());
+    await mount(setup());
+    expect(document.querySelector("[data-template-reset]")).toBeNull();
+  });
   it("creates a private preview link of the draft for the chosen time", async () => {
     const props = setup();
     await mount(props);
