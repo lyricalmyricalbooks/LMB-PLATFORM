@@ -676,15 +676,15 @@ Wishlist, Customer account and Order tracking have Studio canvases and section s
 Every storefront template (Print style: Marquee, Shelf, Atlas, Mosaic, Arch, Market stall, Index) must stay fully
 editable in Studio. `features/site/templateStyles.ts` holds the list (`TEMPLATE_STYLES`, which also builds the Print
 style options), each stylesheet (`TEMPLATE_CSS`) and `TEMPLATE_KNOBS`: one CSS variable per Studio control a template
-shape answers to (button corners/case/shadow, photo corners from Image outline › Corner set › Card corner radius, card
+shape answers to (button corners/case/shadow, photo corners from Image outline › Corner set, card
 title case, panel and card corners, outlines, hard shadows, ruled lines, photo frames, card tilt, footer curve, price
 tag, heading capitals). Templates read `var(--tpl-…, <their own look>)`; `templateKnobCss` writes a variable only for a
 control the press set, after the template, so an untouched shop is pixel-identical and a changed control wins. A knob
 with `rule` brings its shape to templates that don't draw it by default. Outline, shadow and heading capitals use
 their own `template*` keys, never the Riso Press ones (every look's palette writes `risoOutlineColor` /
 `risoShadowColor`, and Riso Noir's widths and capitals carry over), so stale Riso values never restyle a template.
-Template photo shapes set by a look (`photoOutline`: Arch `tallArch`, Shelf `book`) go away on the next look switch
-unless the press changed them (`themeLook.ts`). `features/site/templateCoverage.test.ts` fails a template that is
+Shop photo corners on a template follow Image outline, then Corner set, never Card corner radius (every shop stores
+one, and it would flatten Arch's arches and Shelf's book corners in shops that never asked). `features/site/templateCoverage.test.ts` fails a template that is
 missing from Print style, the theme library or the home layouts, whose home layout uses settings with no Studio field,
 that writes a colour, font or words of its own, writes an owned shape as a literal, or ignores a knob; and fails a
 knob that is not a Studio control or does not change the page. To add a template: TEMPLATE_STYLES + TEMPLATE_CSS, a

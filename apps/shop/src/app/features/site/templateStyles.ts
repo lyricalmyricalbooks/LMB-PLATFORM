@@ -83,13 +83,15 @@ export const TEMPLATE_KNOBS: TemplateKnob[] = [
   },
   { cssVar: "--tpl-title-case", keys: ["catalogTitleTransform"], value: (d) => oneOf(d.catalogTitleTransform, ["none", "uppercase", "capitalize"]) },
   {
-    // The shop grid's photo corners: an Image outline with round corners wins, then a Design scales corner set,
-    // then Card corner radius (the same order the grid itself uses). A cut-out outline (hexagon …) squares them.
-    cssVar: "--tpl-photo-radius", keys: ["photoOutline", "radiusScale", "cardRadius"],
+    // The shop grid's photo shape: an Image outline wins (a cut-out one, like hexagon, squares the corners), then a
+    // Design scales corner set. Card corner radius is left out on purpose: every shop has one stored (the starting
+    // look writes 8, Arch's look 0), so it would flatten Arch's arches and Shelf's book corners in shops that never
+    // asked for it. Untouched, each template keeps its own photo shape.
+    cssVar: "--tpl-photo-radius", keys: ["photoOutline", "radiusScale"],
     value: (d) => {
       const o = typeof d.photoOutline === "string" && d.photoOutline !== "default" ? PHOTO_OUTLINES[d.photoOutline] : undefined;
       if (o) return o.radius || "0px";
-      return corner(d);
+      return RADIUS_SCALES[d.radiusScale] ? `${RADIUS_SCALES[d.radiusScale].m}px` : undefined;
     },
   },
   { cssVar: "--tpl-corner", keys: ["radiusScale", "cardRadius"], value: corner },

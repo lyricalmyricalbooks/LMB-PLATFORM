@@ -180,11 +180,12 @@ describe("template knobs", () => {
     expect(templateKnobCss({ risoOutlineColor: "#ffffff", risoOutlineWidth: 2, risoShadowColor: "#e8402a", risoShadowOffset: 3, risoUppercaseHeadings: true })).toBe("");
   });
 
-  it("give shop photos the Image outline first, then the corner set, then the card corners", () => {
+  it("give shop photos the Image outline first, then the corner set, and never a stored card corner", () => {
     expect(templateKnobCss({ photoOutline: "arch", cardRadius: 4 })).toContain("--tpl-photo-radius:999px 999px 0 0");
     expect(templateKnobCss({ photoOutline: "hexagon", cardRadius: 4 })).toContain("--tpl-photo-radius:0px");
     expect(templateKnobCss({ radiusScale: "round", cardRadius: 4 })).toContain("--tpl-photo-radius:18px");
-    expect(templateKnobCss({ cardRadius: 4 })).toContain("--tpl-photo-radius:4px");
+    // Every shop stores a card corner (8 from the starting look, 0 from Arch's): it must not flatten Arch's arches.
+    expect(templateKnobCss({ cardRadius: 0 })).not.toContain("--tpl-photo-radius");
   });
 
   it("come after the template, so a changed control wins", () => {
@@ -200,13 +201,13 @@ describe("the template list", () => {
     expect(Object.keys(TEMPLATE_CSS).sort()).toEqual([...TEMPLATE_STYLE_IDS].sort());
   });
 
-  it("a template's photo shape goes away with it when the press switches looks", () => {
-    const arch: any = THEME_LIBRARY.find((t: any) => t.id === "press-arch");
-    const atlas: any = THEME_LIBRARY.find((t: any) => t.id === "press-atlas");
-    const onArch = { ...themeLookKeys(arch, {}) };
-    expect(onArch.photoOutline).toBe("tallArch");
-    expect(themeLookKeys(atlas, onArch).photoOutline).toBe("default");
-    // A shape the press picked themselves stays.
-    expect(themeLookKeys(atlas, { ...onArch, photoOutline: "circle" }).photoOutline).toBeUndefined();
+  it("an Arch or Shelf shop keeps its photo shape with the settings its look stored, with no update to take", () => {
+    for (const id of ["press-arch", "press-shelf"]) {
+      const look: any = THEME_LIBRARY.find((t: any) => t.id === id);
+      const design = themeLookKeys(look, {});
+      expect(themeStyleCss(design)).not.toMatch(/--tpl-photo-radius\s*:/);
+    }
+    expect(TEMPLATE_CSS.arch).toContain('var(--tpl-photo-radius,999px 999px 0 0 / 55% 55% 0 0)');
+    expect(TEMPLATE_CSS.shelf).toContain('var(--tpl-photo-radius,6px 12px 12px 6px)');
   });
 });
