@@ -1,0 +1,59 @@
+/* GENERATED from shared/brand-logos/brand-logos.css by shared/brand-logos/build.mjs. Edit the source, never this copy. */
+/* Partner company logos (the shop's BrandLogo.tsx and the platform pages). One white tile in three sizes for every admin look, day and night: the tile
+ * keeps each company's own colours readable and gives the mark the clear space its owner asks for (about a fifth of
+ * the tile on every side). The tile follows the look's corner rounding; the mark itself is never recoloured. */
+.brand-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  box-sizing: border-box;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: var(--rp-radius-sm, 4px);
+  line-height: 0;
+  vertical-align: middle;
+}
+.brand-logo svg { width: 62%; height: 62%; display: block; }
+.brand-logo--sm { width: 24px; height: 24px; }
+.brand-logo--md { width: 36px; height: 36px; }
+.brand-logo--lg { width: 48px; height: 48px; }
+
+.brand-logo-row { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.brand-title { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
+
+/* Google's sign-in button (developers.google.com/identity/branding-guidelines): white, #747775 outline, #1F1F1F
+ * text in Roboto Medium 14px, the G at 20px with 12px before it and 10px after it, 40px tall. Night: Google's dark
+ * version. Only the corner rounding follows the admin look, which Google allows. The class is doubled so the
+ * platform pages' own button style never repaints it. */
+button.gsi-button.gsi-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-sizing: border-box;
+  min-height: 40px;
+  padding: 0 12px;
+  background: #ffffff;
+  color: #1f1f1f;
+  border: 1px solid #747775;
+  border-radius: var(--rp-radius, 4px);
+  font: 500 14px/20px Roboto, Arial, sans-serif;
+  letter-spacing: 0.25px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+button.gsi-button.gsi-button:hover:not(:disabled) { background: #f8f9fa; box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15); }
+button.gsi-button.gsi-button:focus-visible { outline: 2px solid #1a73e8; outline-offset: 2px; }
+button.gsi-button.gsi-button:disabled { cursor: default; background: rgba(255, 255, 255, 0.61); border-color: rgba(31, 31, 31, 0.12); color: rgba(31, 31, 31, 0.38); }
+.gsi-button:disabled .gsi-button-g { opacity: 0.38; }
+.gsi-button-g { display: inline-flex; line-height: 0; }
+.rp[data-rp-appearance="dark"] button.gsi-button.gsi-button,
+.admin-reso[data-admin-theme="dark"] button.gsi-button.gsi-button { background: #131314; color: #e3e3e3; border-color: #8e918f; }
+.rp[data-rp-appearance="dark"] button.gsi-button.gsi-button:hover:not(:disabled),
+.admin-reso[data-admin-theme="dark"] button.gsi-button.gsi-button:hover:not(:disabled) { background: #1f1f20; }
+
+/* A card or dialog about one partner company (SectionCard / Dialog `logo`): the logo sits before the title. */
+.brand-card-heading { display: flex; align-items: center; gap: 12px; }
+.brand-card-heading-text { min-width: 0; }
+.rp-dialog-logos { display: inline-flex; gap: 6px; margin-right: 10px; vertical-align: middle; }

@@ -146,7 +146,7 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
       )}
       {gaAsked && ga.status === "off" && colophonGoogle && (!only || gaPitch) && <ConnectGoogleCard variant="prompt" />}
       {gaAsked && ga.status === "off" && !colophonGoogle && !gaPitch && (
-        <SectionCard title="Google Analytics"><SetUpLine needs="Google Analytics" onSetUp={setActiveTab ? () => setActiveTab("general") : undefined} /></SectionCard>
+        <SectionCard title="Google Analytics" logo="googleanalytics"><SetUpLine needs="Google Analytics" onSetUp={setActiveTab ? () => setActiveTab("general") : undefined} /></SectionCard>
       )}
       {gaAsked && ga.status === "off" && !colophonGoogle && gaPitch && (
         <SectionCard title="Connect Google Analytics" description="See where visitors come from (search, social, email, other sites), which pages they land on, how long they stay, their countries and devices — and how many are on the site right now."

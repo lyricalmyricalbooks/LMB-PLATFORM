@@ -753,3 +753,7 @@ own address, kept open once opened), route `#stockroom/<page>`, and no Website Â
 Other pages ask the stockroom through `stockroomBridge.ts` (`ask`, `openBook`; the frame opens hidden on first need):
 the book editor's **Stock and sales** tab (`StockroomBookPanel.tsx`, combined admin only) reads one book's figures from
 the stockroom's own `bookSummary`, never from a copy here, and matches an unmatched book with `linkNewBook`.
+
+## Partner company logos (4 November 2026)
+
+A card or dialog about one outside company passes `logo` (`SectionCard logo="quickbooks"`, `Dialog logo={["instagram", "facebook"]}`); the logo sits on a white tile before the title in every look, day and night. Google sign-in uses `GoogleSignInButton` (Google's own style and words). Logos come only from `shared/brand-logos` (README there: sources, owners, rules); never redraw or recolour one, and never show a rival shop builder's.

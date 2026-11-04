@@ -11,6 +11,7 @@ import { createPortal } from "react-dom";
 import "./adminThemes.css";
 import "./riso.css";
 import { useFocusTrap } from "../../lib/useFocusTrap";
+import { BrandLogo, type BrandId } from "../../components/brand/BrandLogo";
 export { useFocusTrap };
 
 const cx = (...p: Array<string | false | null | undefined>) => p.filter(Boolean).join(" ");
@@ -192,9 +193,11 @@ export const PageAlertsSlot = createContext<ReactNode>(null);
  * A titled card. Cards with a title can be folded down to just their heading (chevron button); the choice is
  * remembered per browser by `foldKey` (default: the title). Pass `collapsible={false}` to keep a card always open.
  */
-export function SectionCard({ title, description, actions, children, bodyClassName, flush, collapsible, foldKey, ...rest }: {
+export function SectionCard({ title, description, actions, children, bodyClassName, flush, collapsible, foldKey, logo, ...rest }: {
   title?: string; description?: string; actions?: ReactNode; children: ReactNode; bodyClassName?: string; flush?: boolean;
   collapsible?: boolean; foldKey?: string;
+  /** The partner company this card is about (Google Analytics, Stripe, QuickBooks …): its logo sits before the title. */
+  logo?: BrandId;
   "data-print"?: "hide";
 }) {
   const inWidget = useContext(CardInWidget);
@@ -204,14 +207,22 @@ export function SectionCard({ title, description, actions, children, bodyClassNa
   const bodyId = useId();
   const toggle = () => setFolded(f => { writeFolded(key, !f); return !f; });
   const isFolded = canFold && folded;
+  const heading = (
+    <>
+      {title && !inWidget && <h2 className="rp-card-title" onClick={canFold ? toggle : undefined} style={canFold ? { cursor: "pointer" } : undefined}>{title}</h2>}
+      {description && <p className="rp-card-desc">{description}</p>}
+    </>
+  );
   return (
     <section className="rp-card" data-folded={isFolded || undefined} {...rest}>
       {((title && (!inWidget || description)) || actions) && (
         <div className="rp-card-head" style={isFolded ? { borderBottom: 0 } : undefined}>
-          <div className="rp-card-heading">
-            {title && !inWidget && <h2 className="rp-card-title" onClick={canFold ? toggle : undefined} style={canFold ? { cursor: "pointer" } : undefined}>{title}</h2>}
-            {description && <p className="rp-card-desc">{description}</p>}
-          </div>
+          {logo ? (
+            <div className="rp-card-heading brand-card-heading" data-logo={logo}>
+              <BrandLogo id={logo} size="md" />
+              <div className="brand-card-heading-text">{heading}</div>
+            </div>
+          ) : <div className="rp-card-heading">{heading}</div>}
           {!isFolded && actions}
           {canFold && (
             <button type="button" className="rp-card-fold" aria-expanded={!isFolded} aria-controls={bodyId}
@@ -454,8 +465,9 @@ export function TabPanel({ tabId, active, children, alone = false }: {
 
 /* ── Overlays ────────────────────────────────────────────────────────── */
 
-export function Dialog({ open, onClose, title, description, footer, footerStart, badge, children, size, variant = "dialog", appearance }: {
+export function Dialog({ open, onClose, title, description, footer, footerStart, badge, logo, children, size, variant = "dialog", appearance }: {
   open: boolean; onClose: () => void; title: string; description?: string; footer?: ReactNode;
+  /** Partner companies this dialog is about: their logos sit before the title. */ logo?: BrandId | BrandId[];
   /** A destructive action, alone on the far left of the footer. */ footerStart?: ReactNode; badge?: string;
   children: ReactNode; size?: "md" | "lg" | "full"; variant?: "dialog" | "drawer"; appearance?: "light" | "dark";
 }) {
@@ -471,7 +483,9 @@ export function Dialog({ open, onClose, title, description, footer, footerStart,
         style={size === "full" ? { width: "min(100%, 1400px)", height: "calc(100dvh - 32px)", maxHeight: "none" } : undefined}>
         <div className="rp-dialog-head">
           <div>
-            <h2 id={titleId} className="rp-dialog-title">{badge && <span className="rp-dialog-badge" aria-hidden="true">{badge}</span>}{title}</h2>
+            <h2 id={titleId} className="rp-dialog-title">{badge && <span className="rp-dialog-badge" aria-hidden="true">{badge}</span>}{logo && (
+              <span className="rp-dialog-logos">{(Array.isArray(logo) ? logo : [logo]).map((id) => <BrandLogo key={id} id={id} size="md" />)}</span>
+            )}{title}</h2>
             {description && <p className="rp-card-desc">{description}</p>}
           </div>
           <IconButton label="Close dialog" onClick={onClose}><X size={18} aria-hidden /></IconButton>

@@ -1622,7 +1622,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
         </SettingsAnchor>
         ) : (
         <SettingsAnchor id="pay-stripe">
-          <SectionCard title="Stripe" description="Cards, Apple Pay, Google Pay." /* Stripe shops only (own keys) */
+          <SectionCard title="Stripe" logo="stripe" description="Cards, Apple Pay, Google Pay." /* Stripe shops only (own keys) */
             actions={<SecondaryButton size="sm" onClick={() => window.open("https://dashboard.stripe.com", "_blank", "noopener")}>{/* Stripe shops only */}Stripe dashboard ↗</SecondaryButton>}>
             <div className="rp-stack" style={{ gap: 20 }}>
               <Toggle label="Stripe checkout" /* Stripe shops only */ checked={!!stripe.connected} onChange={(v) => updateStripe({ connected: v })} />
@@ -1687,7 +1687,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
         {/* PayPal needs the press's own PayPal credentials, so a shop run by Colophon doesn't offer it (code plan 6.16). */}
         {!platformCards && (
         <SettingsAnchor id="pay-paypal">
-          <SectionCard title="PayPal">
+          <SectionCard title="PayPal" logo="paypal">
             <div className="rp-stack" style={{ gap: 20 }}>
               <Toggle label="PayPal checkout" checked={!!paypal.connected} onChange={(v) => updatePaypal({ connected: v })} />
               {paypal.connected && (
