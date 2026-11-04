@@ -153,3 +153,15 @@ describe('#117 file name and content type', () => {
     expect(dd.contentDisposition('Café.pdf')).toContain("filename*=UTF-8''Caf%C3%A9.pdf");
   });
 });
+
+describe('orders held for the owner to check', () => {
+  test('a held order opens no file until the owner presses It looks fine', async () => {
+    const app = harness(world({ review: { status: 'needs_review', reasons: ['big'] } }));
+    const held = await app.download({ itemId: 'b1' });
+    expect(held.code).toBe(403);
+    expect(held.location).toBeNull();
+    expect(app.signed).toHaveLength(0);
+    app.docs['order-operations'] = { o1: { reviewCleared: '2026-11-04T00:00:00Z' } };
+    expect((await app.download({ itemId: 'b1' })).location).toBeTruthy();
+  });
+});
