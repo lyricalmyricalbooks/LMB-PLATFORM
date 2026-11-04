@@ -31,6 +31,7 @@ const LINES = [
   { type: "orders", message: "Removed 2 past orders brought over from the old shop", orders: 2, createdAt: "2026-11-02T11:00:00Z" },
   { type: "orders", message: "Brought 2 past orders over from the old shop (CA$20.00 in sales, history only)", orders: 2, createdAt: "2026-11-02T12:00:00Z" },
   { type: "orders", message: "Refunded order #12", createdAt: "2026-11-02T09:00:00Z" },
+  { type: "orders", message: "Changed the rate on past order P-7 from the old shop to 0.74", orders: 1, createdAt: "2026-11-02T13:00:00Z" },
   { type: "catalog", message: "Removed book: Moths", createdAt: "2026-11-02T09:40:00Z" },
   { type: "catalog", message: "Created book: Moths", createdAt: "2026-11-02T09:30:00Z" },
 ];
@@ -44,6 +45,14 @@ async function world() {
   const shopData = fakeShopData();
   for (const [i, line] of LINES.entries()) await shopData.set(SHOP, `audit-log/l${i}`, line);
   await shopData.set(SHOP, "systemStatus/photoImport", PHOTOS);
+  await shopData.set(SHOP, "orders/p1", { source: "import", importedFile: "orders-2025.csv" });
+  await shopData.set(SHOP, "orders/p2", { source: "import", importedFile: "orders-2025.csv" });
+  await shopData.set(SHOP, "orders/p3", { source: "import", importedFile: "orders-2024.csv" });
+  await shopData.set(SHOP, "orders/p4", { source: "import" });
+  await shopData.set(SHOP, "orders/w1", { source: "website", importedFile: "nope.csv" });
+  await shopData.set(SHOP, "discounts/SPRING", { code: "SPRING", isActive: true, description: "Brought over from your old shop" });
+  await shopData.set(SHOP, "discounts/OLD", { code: "OLD", isActive: false, description: "Brought over from your old shop" });
+  await shopData.set(SHOP, "discounts/NEW", { code: "NEW", isActive: true, description: "Made here" });
   await shopData.set(SHOP, "firstWeek/start", { bring: { from: "online" }, done: { "move-customers": "2026-11-01", "move-orders": "2026-11-01", logo: "2026-11-01" } });
   const desk = createBroughtOver({ admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: "admin@example.com" }), registry, shopData, now: () => new Date(NOW) });
   const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), routes: broughtOverRoutes(desk), log: () => {} });
@@ -61,12 +70,13 @@ test("only platform admins see what a shop brought over", async () => {
 test("each kind added up across runs, with its latest date; other lines are left out", async () => {
   const { brought, nothing } = await (await world()).desk.forShop(ADMIN, { shopId: SHOP });
   assert.equal(nothing, false);
-  assert.deepEqual(brought.orders, { count: 42, amount: 1274.5, runs: 3, removed: 2, lastAt: "2026-11-02T12:00:00Z" }, "a batch taken out again is counted off");
+  assert.deepEqual(brought.orders, { count: 42, amount: 1274.5, runs: 3, removed: 2, rerated: 1, lastAt: "2026-11-02T13:00:00Z", files: [{ file: "orders-2025.csv", orders: 2 }, { file: "orders-2024.csv", orders: 1 }] }, "a batch taken out again is counted off");
   assert.deepEqual(brought.move.steps.map((s) => [s.id, s.done]), [["move-books", true], ["move-customers", true], ["move-giftcards", false], ["move-orders", true], ["move-links", false]]);
   assert.deepEqual([brought.move.done, brought.move.of, brought.move.putAway], [3, 5, false]);
   assert.deepEqual(brought.giftCards, { count: 3, amount: 75, runs: 1, lastAt: "2026-11-01T11:00:00Z" });
   assert.deepEqual(brought.customers, { count: 120, amount: 0, newsletter: 80, runs: 1, lastAt: "2026-11-01T12:00:00Z" });
   assert.equal(brought.links.count, 15);
+  assert.deepEqual(brought.codes, { count: 2, active: 1 }, "only codes brought over, switched-off ones counted apart");
   assert.deepEqual(brought.photos, { copied: 30, waiting: 4, unreadable: 1, lastRunAt: "2026-11-03T11:00:00Z" });
 });
 

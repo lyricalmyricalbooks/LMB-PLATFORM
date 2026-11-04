@@ -6,7 +6,8 @@
 // press writes "my old orders are missing", the record already says what came over, when and how much, and whether
 // photos are still waiting to be copied off the old shop before it closes. For a press that brought its shop over in Get
 // started, it also shows which parts of "Your move so far" are done (`firstWeek/start` `done`, plan 23.17), and past
-// orders taken out again (the undo, plan 23.15) are counted off.
+// orders taken out again (the undo, plan 23.15) are counted off. Also: past orders re-rated later, the files they came
+// from (`importedFile` on each past order), and discount codes from Discounts › Bring codes over.
 //
 // Clients passed in:
 //   registry  getShop(shopId)
@@ -14,12 +15,26 @@
 import { ControlError, adminOf } from "./controlRoom.js";
 
 /** The kinds of line the import steps write, by the start of their words (the shop's own wording, kept in step). */
-const STARTS = ["Brought ", "Removed ", "Old shop links: "];
+const STARTS = ["Brought ", "Removed ", "Old shop links: ", "Changed the rate on "];
+/** The description Discounts › Bring codes over gives each code it saves (apps/shop admin/DiscountMoveDialog.tsx). */
+export const MOVED_CODE = "Brought over from your old shop";
 /** The shop admin's "Your move so far" parts (apps/shop admin/moveProgress.ts), ticked in `firstWeek/start` `done`. */
 export const MOVE_STEPS = Object.freeze([["move-books", "Books"], ["move-customers", "Customers"], ["move-giftcards", "Gift cards"], ["move-orders", "Past orders"], ["move-links", "Pages and old links"]]);
 /** A string range that holds exactly the lines starting with `start` (a plain range query: no extra index needed). */
 const startsWith = (start) => [["message", ">=", start], ["message", "<", start.slice(0, -1) + String.fromCharCode(start.at(-1).charCodeAt(0) + 1)]];
 const MAX_LINES = 200;
+const MAX_PAST = 5000;
+const SHOWN_FILES = 10;
+
+/** The files past orders came from (`importedFile`, plan 23.33), most orders first, with how many each brought. */
+export function filesOf(orders) {
+  const byFile = new Map();
+  for (const o of orders) {
+    const file = typeof o?.importedFile === "string" && o.importedFile ? o.importedFile : null;
+    if (file) byFile.set(file, (byFile.get(file) ?? 0) + 1);
+  }
+  return [...byFile].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, SHOWN_FILES).map(([file, orders]) => ({ file, orders }));
+}
 
 const count = (message, word) => Number(new RegExp(`(\\d+) ${word}`).exec(message)?.[1] ?? 0);
 const money = (message, after) => Number(new RegExp(`CA\\$([\\d.]+) in ${after}`).exec(message)?.[1] ?? 0);
@@ -31,6 +46,8 @@ export function runOf(line) {
   if (line?.type === "orders" && message.startsWith("Brought ")) return { kind: "orders", at, count: line.orders ?? count(message, "past order"), amount: money(message, "sales") };
   // Undo (plan 23.15): a batch of past orders taken out again.
   if (line?.type === "orders" && message.startsWith("Removed ") && message.includes("brought over")) return { kind: "orders", at, count: -(line.orders ?? count(message, "past order")), removed: true };
+  // A past order sold in another currency, re-rated afterwards (plans 23.23 and 23.34): one line per change, not a run.
+  if (line?.type === "orders" && message.startsWith("Changed the rate on ")) return { kind: "orders", at, count: 0, rerated: Number(line.orders) || count(message, "past order") || 1 };
   if (line?.type === "giftCards" && message.startsWith("Brought ")) return { kind: "giftCards", at, count: line.cards ?? count(message, "gift card"), amount: line.balanceMinor != null ? line.balanceMinor / 100 : money(message, "balances") };
   if (line?.type === "customers" && message.startsWith("Brought ")) return { kind: "customers", at, count: count(message, "customer"), newsletter: count(message, "joined") };
   if (line?.type === "catalog" && message.startsWith("Old shop links: ")) return { kind: "links", at, count: count(message, "now lead") };
@@ -38,23 +55,27 @@ export function runOf(line) {
 }
 
 /** The totals per kind, each with its runs and the latest run's date. */
-export function broughtOverSummary(lines, photos, start = null) {
+export function broughtOverSummary(lines, photos, start = null, codes = [], files = []) {
   const kinds = {};
   for (const run of lines.map(runOf).filter(Boolean)) {
     const kind = (kinds[run.kind] ??= { count: 0, amount: 0, runs: 0, lastAt: null });
     kind.count += run.count;
     if (run.removed) kind.removed = (kind.removed ?? 0) - run.count;
+    if (run.rerated) kind.rerated = (kind.rerated ?? 0) + run.rerated;
     kind.amount = Math.round((kind.amount + (run.amount ?? 0)) * 100) / 100;
     if (run.newsletter) kind.newsletter = (kind.newsletter ?? 0) + run.newsletter;
-    if (!run.removed) kind.runs += 1;
+    if (!run.removed && !run.rerated) kind.runs += 1;
     if (run.at && (!kind.lastAt || run.at > kind.lastAt)) kind.lastAt = run.at;
   }
   const failed = photos?.failed && typeof photos.failed === "object" ? Object.keys(photos.failed).length : 0;
+  if (kinds.orders && files.length) kinds.orders.files = files;
   return {
     orders: kinds.orders ?? null,
     giftCards: kinds.giftCards ?? null,
     customers: kinds.customers ?? null,
     links: kinds.links ?? null,
+    // Discount codes from Discounts › Bring codes over: how many, and how many still switched on.
+    codes: codes.length ? { count: codes.length, active: codes.filter((c) => c?.isActive !== false).length } : null,
     photos: photos && (photos.copiedTotal || photos.pending || failed)
       ? { copied: photos.copiedTotal ?? 0, waiting: photos.pending ?? 0, unreadable: failed, lastRunAt: photos.lastRunAt ?? null }
       : null,
@@ -85,7 +106,12 @@ export function createBroughtOver({ admins, registry, shopData, now = () => new 
         const lines = [];
         for (const start of STARTS) lines.push(...(await shopData.find(shopId, "audit-log", { where: startsWith(start), limit: MAX_LINES })).map((doc) => doc.data));
         const photos = await shopData.get(shopId, "systemStatus/photoImport");
-        const brought = broughtOverSummary(lines, photos, await shopData.get(shopId, "firstWeek/start"));
+        const codes = (await shopData.find(shopId, "discounts", { where: [["description", "==", MOVED_CODE]], limit: MAX_LINES })).map((doc) => doc.data);
+        // The file names live on the past orders themselves; read only when a run of past orders came over.
+        const files = lines.some((l) => l?.type === "orders" && String(l.message ?? "").startsWith("Brought "))
+          ? filesOf((await shopData.find(shopId, "orders", { where: [["source", "==", "import"]], limit: MAX_PAST })).map((doc) => doc.data))
+          : [];
+        const brought = broughtOverSummary(lines, photos, await shopData.get(shopId, "firstWeek/start"), codes, files);
         return { shopId, brought, nothing: Object.values(brought).every((kind) => kind === null) };
       } catch (failure) {
         if (failure.status === 503) throw new ControlError(503, failure.message);

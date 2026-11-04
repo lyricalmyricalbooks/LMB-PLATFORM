@@ -2215,12 +2215,13 @@ function broughtOverSection(shop) {
   const slot = el("div", {}, el("p", { className: "rp-hint", textContent: "Reading the shop's records…" }));
   api("POST", "/control/brought-over", { shopId: shop.shopId }).then(({ brought, nothing, words }) => {
     if (!brought) return slot.replaceChildren(el("p", { className: "rp-hint", textContent: words }));
-    if (nothing && !brought.move) return slot.replaceChildren(el("p", { className: "rp-hint", textContent: "Nothing brought over yet: no past orders, customers, gift cards or old shop links." }));
+    if (nothing && !brought.move) return slot.replaceChildren(el("p", { className: "rp-hint", textContent: "Nothing brought over yet: no past orders, customers, gift cards, discount codes or old shop links." }));
     const cad = (n) => money(Math.round(n * 100), "CAD");
     const rows = [
-      brought.orders && { what: "Past orders", amount: plural(brought.orders.count, "order"), more: [`${cad(brought.orders.amount)} in sales, history only`, plural(brought.orders.runs, "file"), brought.orders.removed ? `${brought.orders.removed} taken out again` : null, lastOn(brought.orders)] },
+      brought.orders && { what: "Past orders", amount: plural(brought.orders.count, "order"), more: [`${cad(brought.orders.amount)} in sales, history only`, plural(brought.orders.runs, "file"), brought.orders.removed ? `${brought.orders.removed} taken out again` : null, brought.orders.rerated ? `rate changed on ${plural(brought.orders.rerated, "order")}` : null, brought.orders.files?.length ? `from ${brought.orders.files.map((f) => `${f.file} (${f.orders})`).join(", ")}` : null, lastOn(brought.orders)] },
       brought.customers && { what: "Customers", amount: plural(brought.customers.count, "customer"), more: [brought.customers.newsletter ? `${brought.customers.newsletter} joined the newsletter` : null, lastOn(brought.customers)] },
       brought.giftCards && { what: "Gift cards", amount: plural(brought.giftCards.count, "card"), more: [`${cad(brought.giftCards.amount)} in balances`, lastOn(brought.giftCards)] },
+      brought.codes && { what: "Discount codes", amount: plural(brought.codes.count, "code"), more: [`${brought.codes.active} switched on`] },
       brought.links && { what: "Old shop links", amount: plural(brought.links.count, "link"), more: ["now lead to the imported products", lastOn(brought.links)] },
       brought.photos && { what: "Photos", amount: `${brought.photos.copied} copied`, more: [brought.photos.waiting ? `${brought.photos.waiting} still on the old shop` : "all copied", brought.photos.unreadable ? `${brought.photos.unreadable} couldn't be read` : null], warn: brought.photos.waiting > 0 || brought.photos.unreadable > 0 },
     ].filter(Boolean);
