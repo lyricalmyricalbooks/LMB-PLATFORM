@@ -4,6 +4,7 @@ import { Upload } from "lucide-react";
 import { importPastOrders, ratePastOrder, removePastOrders, suggestedRates } from "./oldShopApi";
 import { goodRate, mergePastOrderFiles, readPastOrders, readyToSend, type PastOrder, type PastOrderFile } from "./pastOrders";
 import { Dialog, GhostButton, PrimaryButton, SecondaryButton, StatusBadge, TextField } from "./riso/components";
+import { SPREADSHEET_ACCEPT, readProblem, spreadsheetText } from "./spreadsheetFile";
 
 /**
  * Orders › Bring past orders over (plan 23.7): the old shop's order file → a preview → the server saves each order as
@@ -66,11 +67,11 @@ export function PastOrdersDialog({ onClose, onDone }: { onClose: () => void; onD
     const read: { name: string; file: PastOrderFile }[] = [];
     for (const f of list) {
       try {
-        const parsed = readPastOrders(await f.text());
+        const parsed = readPastOrders(await spreadsheetText(f));
         // Each order remembers its file (plan 23.33), so its page can say where it came from.
         read.push({ name: f.name, file: { ...parsed, orders: parsed.orders.map((o) => ({ ...o, file: f.name })) } });
       }
-      catch { setError(`${f.name} couldn't be read. Save it as CSV (comma separated) and try again.`); return; }
+      catch (err) { setError(`${f.name}: ${readProblem(err)}`); return; }
     }
     // A file chosen twice counts once.
     setChosen((was) => [...(add ? was : []), ...read].filter((c, i, all) => all.findIndex((o) => o.name === c.name) === i));
@@ -185,14 +186,14 @@ export function PastOrdersDialog({ onClose, onDone }: { onClose: () => void; onD
         </PrimaryButton>
       </>}>
       <div className="rp-stack" style={{ gap: 12 }}>
-        <input ref={fileRef} type="file" accept=".csv,text/csv" multiple hidden aria-label="Order file"
+        <input ref={fileRef} type="file" accept={SPREADSHEET_ACCEPT} multiple hidden aria-label="Order file"
           onChange={(e) => { void choose([...(e.target.files || [])], adding.current); e.target.value = ""; }} />
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
           <SecondaryButton icon={<Upload size={16} aria-hidden />} disabled={busy} onClick={() => { adding.current = false; fileRef.current?.click(); }}>{chosen.length ? "Choose other files" : "Choose the file"}</SecondaryButton>
           {chosen.length > 0 && <GhostButton disabled={busy} onClick={() => { adding.current = true; fileRef.current?.click(); }}>Add another file</GhostButton>}
           {chosen.length > 0 && <span className="rp-mono" style={{ overflowWrap: "anywhere" }}>{chosen.map((c) => c.name).join(", ")}</span>}
         </div>
-        {!file && <p className="rp-hint" style={{ margin: 0 }}>In your old shop, open its orders page and export them as a CSV file. If it gives you one file per year or per month, choose them all: they come over together.</p>}
+        {!file && <p className="rp-hint" style={{ margin: 0 }}>In your old shop, open its orders page and export them as a CSV or Excel file. If it gives you one file per year or per month, choose them all: they come over together.</p>}
         {error && <p role="alert" className="rp-error-text" style={{ margin: 0 }}>{error}</p>}
         {file && ready && (file.problems.length ? (
           <div role="alert" className="rp-error-text">{file.problems.map((p) => <p key={p} style={{ margin: 0 }}>{p}</p>)}</div>

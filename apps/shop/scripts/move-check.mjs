@@ -7,12 +7,15 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 import { createServer } from "vite";
 import { SAMPLE_FILES } from "../../../demo/sampleFiles.js";
 
 const files = join(tmpdir(), `move-check-${process.pid}`);
 mkdirSync(files, { recursive: true });
+// Spreadsheets as Excel and LibreOffice save them (plan 23.35), made from the same sample files.
+const SHEETS = fileURLToPath(new URL("../src/app/admin/testdata/spreadsheets/", import.meta.url));
 const sample = (name) => { const path = join(files, name); writeFileSync(path, SAMPLE_FILES[name].body()); return path; };
 const shots = process.env.MOVE_SHOTS || "";
 if (shots) mkdirSync(shots, { recursive: true });
@@ -72,11 +75,11 @@ try {
   // Customers.
   await go("customers");
   await page.getByRole("button", { name: "Bring customers over" }).first().click();
-  await page.setInputFiles('input[aria-label="Customer list file"]', sample("old-shop-customers.csv"));
+  await page.setInputFiles('input[aria-label="Customer list file"]', join(SHEETS, "old-shop-customers.xlsx"));
   await page.getByRole("button", { name: /^Bring over 4 customers$/ }).click();
   await page.getByRole("button", { name: "Done" }).waitFor({ timeout: 10000 });
   const notes = await page.evaluate(() => window.__adminFixture.calls.filter((c) => c[0] === "saveCustomerNote").length);
-  check(notes === 4, "4 customers saved", `${notes}`);
+  check(notes === 4, "4 customers saved, from an Excel file", `${notes}`);
   await shot("2-customers");
   await page.getByRole("button", { name: "Done" }).click();
 
@@ -119,11 +122,11 @@ try {
   // The next file comes over in the same window (plan 23.32), as a run of its own.
   const firstRun = server_.removed;
   await page.getByRole("button", { name: "Bring another file" }).click();
-  await page.setInputFiles('input[aria-label="Order file"]', sample("old-shop-orders.csv"));
+  await page.setInputFiles('input[aria-label="Order file"]', join(SHEETS, "old-shop-orders.ods"));
   await page.getByRole("button", { name: /^Bring 5 past orders over$/ }).click();
   await page.getByRole("button", { name: "Wrong file? Take this import back" }).waitFor({ timeout: 10000 });
   check(server_.imported.length === 5 && server_.removed === firstRun && new Set(server_.imported.map((o) => o.batch)).size === 1,
-    "Bring another file brought the next file over in the same window", `${server_.imported.length}`);
+    "Bring another file brought the next file (a LibreOffice sheet) over in the same window", `${server_.imported.length}`);
   await page.keyboard.press("Escape");
 
   // A brought-over order's page says which file it came from (plan 23.33).

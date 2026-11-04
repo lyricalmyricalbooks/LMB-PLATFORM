@@ -4,6 +4,7 @@ import { adminApi } from "./api";
 import { today } from "./discountState";
 import { describeMoved, readDiscountFile, type DiscountFile } from "./discountMove";
 import { Dialog, PrimaryButton, SecondaryButton, StatusBadge } from "./riso/components";
+import { SPREADSHEET_ACCEPT, readProblem, spreadsheetText } from "./spreadsheetFile";
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString("en")} ${n === 1 ? one : many}`;
 
@@ -25,8 +26,8 @@ export function DiscountMoveDialog({ existing, onClose, onDone }: { existing: st
     if (!picked) return;
     setError(""); setResult(null); setName(picked.name);
     if (picked.size > 5 * 1024 * 1024) { setFile(null); setError("That file is larger than 5 MB. A discount code list is usually much smaller: check it is the right file."); return; }
-    try { setFile(readDiscountFile(await picked.text(), today(), existing)); }
-    catch { setFile(null); setError("This file couldn't be read. Save it as CSV (comma separated) and try again."); }
+    try { setFile(readDiscountFile(await spreadsheetText(picked), today(), existing)); }
+    catch (err) { setFile(null); setError(readProblem(err)); }
   };
 
   const bring = async () => {
@@ -83,13 +84,13 @@ export function DiscountMoveDialog({ existing, onClose, onDone }: { existing: st
         </PrimaryButton>
       </>}>
       <div className="rp-stack" style={{ gap: 12 }}>
-        <input ref={fileRef} type="file" accept=".csv,text/csv" hidden aria-label="Discount code file"
+        <input ref={fileRef} type="file" accept={SPREADSHEET_ACCEPT} hidden aria-label="Discount code file"
           onChange={(e) => { void choose(e.target.files?.[0]); e.target.value = ""; }} />
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
           <SecondaryButton icon={<Upload size={16} aria-hidden />} disabled={busy} onClick={() => fileRef.current?.click()}>{name ? "Choose another file" : "Choose the file"}</SecondaryButton>
           {name && <span className="rp-mono" style={{ overflowWrap: "anywhere" }}>{name}</span>}
         </div>
-        {!file && <p className="rp-hint" style={{ margin: 0 }}>In your old shop, open its discounts or coupons page and export them as a CSV file.</p>}
+        {!file && <p className="rp-hint" style={{ margin: 0 }}>In your old shop, open its discounts or coupons page and export them as a CSV or Excel file.</p>}
         {error && <p role="alert" className="rp-error-text" style={{ margin: 0 }}>{error}</p>}
         {file && (file.problems.length ? (
           <div role="alert" className="rp-error-text">{file.problems.map((p) => <p key={p} style={{ margin: 0 }}>{p}</p>)}</div>
