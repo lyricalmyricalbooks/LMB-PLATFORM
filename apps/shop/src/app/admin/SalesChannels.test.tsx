@@ -186,12 +186,16 @@ describe("Social posts", () => {
     const words = document.querySelector("textarea") as HTMLTextAreaElement;
     expect(words.value).toContain("Night Moths");
     expect(words.value).toContain("$24.00");
-    // The second photo is a PNG: picking it with Instagram ticked warns.
+    // The second photo is a PNG: the square picture is a JPEG, so only with it off does Instagram ticked warn.
     await act(async () => { (document.querySelectorAll(".rp-composer-photos input")[1] as HTMLInputElement).click(); });
+    expect(text()).not.toContain("Instagram may refuse this photo");
+    const square = () => document.querySelector('[role=switch][aria-label^="Square picture"]') as HTMLButtonElement;
+    await act(async () => { square().click(); });
     expect(text()).toContain("Instagram may refuse this photo");
+    await act(async () => { square().click(); });
     await act(async () => { (document.querySelectorAll(".rp-composer-photos input")[0] as HTMLInputElement).click(); });
     await click("Post now");
-    expect(api.social).toHaveBeenCalledWith("savePost", { bookId: "nm", imageUrl: "https://img.example/a.jpg", caption: words.value, placeIds: ["fb:111", "ig:222"], sendAt: null, tagProduct: true });
+    expect(api.social).toHaveBeenCalledWith("savePost", { bookId: "nm", imageUrl: "https://img.example/a.jpg", caption: words.value, placeIds: ["fb:111", "ig:222"], sendAt: null, tagProduct: true, square: true });
     expect(text()).toContain("Posted.");
   });
 
