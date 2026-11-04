@@ -58,6 +58,34 @@ export async function seedRoom(world) {
   const { app: counts } = await world.appMakers.create(maker, appDetails("Stock Counter", "Count your stock with a phone camera", ["write_inventory"]));
   await world.appMakers.submit(maker, { appId: counts.appId });
   await world.appMakers.approve(admin(), { appId: counts.appId });
+  // Stock Counter is on two shops, and its alerts address has been failing (26.4): what the App store page shows.
+  const at = world.clock.date().toISOString();
+  for (const shopId of ["kestrel", "driftwood"]) {
+    const installId = `${shopId}~${counts.appId}`;
+    await world.appInstallStores.installs.put(installId, { installId, appId: counts.appId, appName: "Stock Counter", shopId, scopes: ["write_inventory"], status: "active", installedAt: at });
+  }
+  for (const [n, shopId] of [[1, "kestrel"], [2, "kestrel"], [3, "driftwood"]]) {
+    await world.appAlertStores.outbox.put(`walk-alert-${n}`, {
+      id: `walk-alert-${n}`, installId: `${shopId}~${counts.appId}`, appId: counts.appId, shopId, topic: "inventory/changed", data: {}, createdAt: at,
+      status: "failed", tries: 8, nextAt: null, lastError: "answered 502", failedAt: at,
+    });
+  }
+
+  // Web addresses (#381): Lantern Zines has its free address and its own domain, which stopped opening the shop.
+  await world.registry.updateShop("lantern-zines", {
+    freeAddress: "lantern-zines.shops.example",
+    domains: [
+      { name: "lantern-zines.shops.example", state: "live", free: true, addedAt: at },
+      { name: "lanternzines.example", state: "waiting_dns", addedAt: at, brokeAt: at },
+      { name: "www.lanternzines.example", state: "live", addedAt: at, redirectTo: "lanternzines.example" },
+    ],
+  });
+
+  // Social channels (27.8): Kestrel posts to Facebook and Instagram; Lantern Zines' Pinterest stopped working.
+  const sealed = { iv: "walkthrough", data: "pretend" };
+  await world.socialConnections.set("kestrel", "meta", { sealed, accountName: "Kestrel Books", places: [{ id: "fb:1" }, { id: "ig:2" }], connectedAt: at, catalog: { feedId: "walk-feed", sentAt: at, feedUrl: "https://kestrel.example/feed.csv" } });
+  await world.socialConnections.set("lantern-zines", "pinterest", { sealed, accountName: "lanternzines", places: [{ id: "board:1" }], connectedAt: at, problem: "lost", lostAt: at, lostDetail: "Pinterest said the sign-in was taken back" });
+  await world.registry.recordEvent("kestrel", { id: "walk-social-failed", kind: "social.failed", network: "meta", detail: "Instagram turned down the photo: it's smaller than 320 pixels wide.", at });
 
   // Account recovery: one to check.
   await world.recovery.ask(person("uid-kit-new", "kit.kestrel@example.com", "Kit Kestrel"), {
@@ -85,7 +113,6 @@ export async function seedRoom(world) {
 
   // Brought over: Kestrel moved its past orders, customers and gift cards in, as the shop's import steps record them,
   // and a few photos are still waiting to be copied off the old shop.
-  const at = world.clock.date().toISOString();
   const lines = [
     { type: "orders", message: "Brought 212 past orders over from the old shop (CA$6480.25 in sales, history only)", orders: 212 },
     { type: "customers", message: "Brought 340 customers over from the old shop; 190 joined the newsletter" },

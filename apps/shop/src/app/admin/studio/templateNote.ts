@@ -18,3 +18,19 @@ export function templateOnlyNote(key: string, design: Record<string, any> | null
 export function templateDetailsSet(design: Record<string, any> | null | undefined): string[] {
   return [...TEMPLATE_ONLY_KEYS].filter((key) => design?.[key] != null && design[key] !== "");
 }
+
+/** Short names for the template details, for the line that says what Reset template details would clear. */
+export const TEMPLATE_DETAIL_NAMES: Record<string, string> = {
+  templateHeadingCase: "heading capitals", templateOutlineColor: "outline colour", templateOutlineWidth: "outline width",
+  templateShadowColor: "shadow colour", templateShadowOffset: "shadow distance", templateRuleWidth: "ruled lines",
+  templateFrameWidth: "photo frames", templateCardTilt: "card tilt", templateFooterCurve: "footer curve",
+};
+
+/** "You've changed card tilt and photo frames." (three named at most), or null when no template detail is set. */
+export function templateDetailsLine(design: Record<string, any> | null | undefined): string | null {
+  const names = templateDetailsSet(design).map((key) => TEMPLATE_DETAIL_NAMES[key] || key);
+  if (!names.length) return null;
+  const shown = names.length > 3 ? [...names.slice(0, 2), `${names.length - 2} more`] : names;
+  const list = shown.length === 1 ? shown[0] : `${shown.slice(0, -1).join(", ")} and ${shown[shown.length - 1]}`;
+  return `You've changed ${list}.`;
+}

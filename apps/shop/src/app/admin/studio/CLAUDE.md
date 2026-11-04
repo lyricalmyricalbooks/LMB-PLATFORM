@@ -705,6 +705,9 @@ the press's own design (`lookPreview(theme, design)` = what Use this look leaves
 and first product name (`ThemeThumb products`, `ownBooks(books, 2)`). Print style & template details shows **Reset template
 details** once any template-only control is set (`templateDetailsSet`; one undo step). Section newsletter forms (home and
 pop-up) carry `fm-newsletter-btn` unless the section sets its own button style or corners.
+`ThemeThumb` also draws a phone frame (`.studio-theme-thumb-phone`). The reset line names what it clears
+(`templateDetailsLine`, short names in `TEMPLATE_DETAIL_NAMES`) and shows on the Themes draft card too. Look previews use
+real prices (`previewPrice` in `ownBooks`). The template button check covers the home newsletter and pop-up sections.
 
 ## Responsive public element editing (4 October 2026)
 
