@@ -46,7 +46,7 @@ export function deliveryReasons(delivery) {
     reasons.push(`${bounced} of ${sent} emails bounced in the last ${DELIVERY_DAYS} days (${Math.round((bounced / sent) * 1000) / 10}%)`);
   }
   const failed = delivery.payments?.failed ?? 0;
-  if (failed > FAILED_PAYMENTS) reasons.push(`${failed} payment messages from Stripe couldn't be passed to the shop in the last ${DELIVERY_DAYS} days`);
+  if (failed > FAILED_PAYMENTS) reasons.push(`${failed} payment messages from Stripe or Square couldn't be passed to the shop in the last ${DELIVERY_DAYS} days`);
   return reasons;
 }
 

@@ -99,6 +99,14 @@ describe("Newsletter sign-up (pop-up)", () => {
     expect(signup.subscribeNewsletter).toHaveBeenCalledWith("reader@example.com", "website-popup");
     expect(el.querySelector("[role=status]")?.textContent).toBe("Welcome");
   });
+  it("draws its button like the template's others unless the section gives it its own shape", async () => {
+    const plain = await render("NewsletterSection", {});
+    expect(plain.querySelector("button[type=submit]")?.classList.contains("fm-newsletter-btn")).toBe(true);
+    for (const own of [{ btnRadius: 4 }, { btnStyle: "outline" }, { btnStyle: "ghost" }]) {
+      const el = await render("NewsletterSection", own);
+      expect(el.querySelector("button[type=submit]")?.classList.contains("fm-newsletter-btn"), JSON.stringify(own)).toBe(false);
+    }
+  });
   it("never adds an address from the Studio preview", async () => {
     window.history.replaceState(null, "", "/?preview=true");
     const el = await render("NewsletterSection", {});

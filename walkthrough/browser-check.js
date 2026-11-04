@@ -138,6 +138,17 @@ async function checkFrontDoor(browser, walk, log) {
       const [saved] = await walk.world.frontDoorStores.presses.listByOwner(`uid-${address}`);
       if (!saved?.look) throw new Error("the chosen look wasn't saved");
       if (!(await fits())) throw new Error("Design scrolls sideways on a phone");
+      // Settings › Payments picks Stripe or Square for the website's cards, and saves the pick.
+      await page.evaluate(() => { location.hash = "settings/payments"; });
+      await page.locator("[role='radiogroup'][aria-label='Card payments'] [role='radio']").nth(1).click();
+      for (let i = 0; i < 50; i += 1) {
+        const [picked] = await walk.world.frontDoorStores.presses.listByOwner(`uid-${address}`);
+        if (picked?.cardProvider === "square") break;
+        if (i === 49) throw new Error("Payments didn't save Square");
+        await page.waitForTimeout(100);
+      }
+      if (!(await fits())) throw new Error("Payments scrolls sideways on a phone");
+      if (process.env.WALKTHROUGH_SHOTS) await page.screenshot({ path: join(process.env.WALKTHROUGH_SHOTS, "setup-card-payments-phone.png"), fullPage: true });
       // Books previews a product file and keeps it for the shop, sent through the upload link (18.7).
       await page.evaluate(() => { location.hash = "catalog"; });
       await page.locator("input[type=file]").setInputFiles({ name: "my-zines.csv", mimeType: "text/csv", buffer: Buffer.from("Title,Price,Stock\nMoth Zine,8,20\nNight Zine,6,12\n") });

@@ -9,7 +9,7 @@ const torontoDay = ms => new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: 
 
 // The till's ways of paying, longest first so "Stripe QR (printed …)" isn't read as something shorter.
 const METHODS = [
-  { value: "Bank Transfer", label: "E-transfer" }, { value: "Stripe QR", label: "QR / Stripe" },
+  { value: "Bank Transfer", label: "E-transfer" }, { value: "Stripe QR", label: "QR code" },
   { value: "Comp/Gift", label: "Comp" }, { value: "Card", label: "Card reader" }, { value: "Cash", label: "Cash" },
 ];
 const methodOf = notes => METHODS.find(m => String(notes || "").startsWith(m.value)) || { value: "Other", label: "Other" };

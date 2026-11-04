@@ -907,6 +907,21 @@ real-accounts list (`docs/start-real-accounts.md`), with the forms' words ready 
 | 27.12 | shop | **A post didn't go out** email to the owner when a scheduled post is refused (Settings › Notifications › Shop alerts) | `functions/socialLink.test.js` | built (4 November 2026) |
 | 27.9 | Julian | Meta app review (Pages and Instagram posting, catalogs), Pinterest app approval, TikTok app audit and site check | `docs/start-real-accounts.md` | waiting on Julian |
 
+## Phase 27: Stripe or Square, the press's choice (planned and built 4 November 2026)
+
+Julian: "make sure customers can choose if they want to use Stripe or Square account, and depending on what they choose,
+everything will work for them". An audit of every money path for a Square shop found the gaps below; all are closed.
+
+| Row | What | State |
+| --- | --- | --- |
+| 27.1 | Setup mode's Settings › Payments: pick Stripe or Square (`cardProvider` on the setup record), an optional guide step, a line in Create my shop's review; Open my shop carries it to sign-up's `paymentProvider`, so the shop maker sets `SHOP_PAYMENT_PROVIDER`. Not picked = Stripe. | built |
+| 27.2 | Control room › Setting up shows each press's pick and counts them. | built |
+| 27.3 | Square checkout charges in the Square account's currency (its location's), converted like any other, so a shopper browsing in USD or EUR can pay; the checkout note says so. | built |
+| 27.4 | Fair helpers' QR card payments on Square: a payment link with no order (`fair-` reference, kept in server-only `fairCardPayments`), closed after its half hour; its payment never reaches the webhook as an order's. | built |
+| 27.5 | Opening a Square order checks its payment and shows Sync with Square; a refund the platform's service refuses releases its claim; starter privacy and accessibility policies name the shop's provider; stockroom invoice terms and the fair-day summary say "card"/"QR code"; the till's own-key QR button is hidden on platform shops. | built |
+| 27.6 | Switching provider after the shop is made (older sales still refunded through the first provider): needs dual routing in the payment service and a redeploy of the shop's settings. | next |
+
+
 ## Phase 28: the pre-launch setup guide, in order (planned and built 4 November 2026)
 
 Julian, 4 November 2026: "be logical with the store setup before launch, suggest things that should go in that section,

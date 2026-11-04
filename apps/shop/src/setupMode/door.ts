@@ -16,6 +16,8 @@ export interface SetupPress {
   moving?: "" | "yes" | "fresh";
   /** The language of the platform's emails: "" automatic (French then English for a Quebec billing address), or a choice. */
   language?: "" | "fr" | "en";
+  /** Who takes the website's card payments: Stripe or Square, or "" (not chosen: the shop starts on Stripe). */
+  cardProvider?: "" | "stripe" | "square";
   /** "Your web address": bringing a domain ("own"), gone to buy one ("buy"), the free address for now ("free"), or "". */
   domainChoice?: "" | "own" | "buy" | "free";
   /** The press's own domain, connected when its shop is made, else "". */
@@ -48,7 +50,7 @@ export interface StagedImport { name: string; size: number; rows: number; at: st
 /** A name for the free address checked as the press types it: cleaned, why it can't be used (""), and whether it's free. */
 export interface FreeNameCheck { name: string; address: string; problem: string; available: boolean; suggestions?: string[] }
 
-export type SetupChange = Partial<Pick<SetupPress, "plan" | "pressName" | "sells" | "country" | "look" | "adminLook" | "moving" | "language" | "domainChoice" | "freeName">>;
+export type SetupChange = Partial<Pick<SetupPress, "plan" | "pressName" | "sells" | "country" | "look" | "adminLook" | "moving" | "language" | "cardProvider" | "domainChoice" | "freeName">>;
 
 /** A plan as GET /api/plans lists it. */
 export interface PlanOffer { plan: "shop" | "stockroom" | "both"; name: string; priceText: string; foundingPriceText?: string }

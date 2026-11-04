@@ -24,7 +24,7 @@ describe("setup mode's menu (code plan 18.6)", () => {
     for (const page of [HOME_PAGE, DESIGN_PAGE, GENERAL_PAGE, PLAN_PAGE, HELP_PAGE, "catalog"]) expect(setupLocked(page)).toBe(false);
     const every = menu.flatMap((i) => (i.children ? i.children.map((c) => c.id) : [i.id]));
     const locked = every.filter(setupLocked);
-    expect(locked).toEqual(expect.arrayContaining(["orders", "customers", "inventory", SETTINGS_ITEM_PREFIX + "payments", SETTINGS_ITEM_PREFIX + "shipping"]));
+    expect(locked).toEqual(expect.arrayContaining(["orders", "customers", "inventory", SETTINGS_ITEM_PREFIX + "shipping"]));
     expect(locked).not.toContain(GENERAL_PAGE);
   });
 
@@ -50,7 +50,7 @@ describe("the setup guide", () => {
   it("starts with nothing done and counts only what can be done before opening", () => {
     const steps = guideSteps(press());
     // Not yet said whether it is moving: bringing books over comes before the look (23.0).
-    expect(steps.map((s) => s.id)).toEqual(["plan", "details", "books", "look", "domain", "open"]);
+    expect(steps.map((s) => s.id)).toEqual(["plan", "details", "books", "look", "cards", "domain", "open"]);
     expect(guideProgress(steps)).toEqual({ done: 0, total: 4 });
   });
 
@@ -102,12 +102,12 @@ describe("bringing a shop over is easy to find (23.0)", () => {
   const order = (over: Partial<SetupPress>) => guideSteps(press(over)).map((s) => s.id);
 
   it("a press moving over brings its books right after its details, before the look", () => {
-    expect(order({ moving: "yes" })).toEqual(["plan", "details", "books", "look", "domain", "open"]);
-    expect(order({ moving: "" })).toEqual(["plan", "details", "books", "look", "domain", "open"]);
+    expect(order({ moving: "yes" })).toEqual(["plan", "details", "books", "look", "cards", "domain", "open"]);
+    expect(order({ moving: "" })).toEqual(["plan", "details", "books", "look", "cards", "domain", "open"]);
   });
 
   it("a press starting fresh has it last, still optional", () => {
-    expect(order({ moving: "fresh" })).toEqual(["plan", "details", "look", "books", "domain", "open"]);
+    expect(order({ moving: "fresh" })).toEqual(["plan", "details", "look", "cards", "books", "domain", "open"]);
     expect(guideProgress(guideSteps(press({ moving: "fresh" })))).toEqual({ done: 0, total: 4 });
   });
 

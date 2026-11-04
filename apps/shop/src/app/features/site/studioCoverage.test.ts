@@ -43,7 +43,8 @@ function publicSources(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
     const full = join(dir, name);
     if (statSync(full).isDirectory()) { if (name !== "admin") publicSources(full, out); }
-    else if (/\.tsx?$/.test(name) && !/\.test\./.test(name)) out.push(full);
+    // Partner logo artwork (components/brand): its brand-rule links (design.intuit.com …) are not design keys.
+    else if (/\.tsx?$/.test(name) && !/\.test\./.test(name) && dir.split(/[\\/]/).pop() !== "brand") out.push(full);
   }
   return out;
 }

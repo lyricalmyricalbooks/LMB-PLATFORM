@@ -128,6 +128,17 @@ export function slugFromPressName(name) {
  * Checks the sign-up details. Returns { ok, details, problems }, where problems maps a field to plain words for the
  * page to show next to it.
  */
+/** The card payment providers a shop can start with (setup/payments.js PAYMENT_PROVIDERS). */
+export const PAYMENT_PROVIDER_CHOICES = Object.freeze(["stripe", "square"]);
+
+/**
+ * The countries whose presses can take cards with Square: Square works there, in a currency the shop's checkout charges
+ * in (CAD, USD, EUR; apps/shop/functions/paymentGuards.js). Square in the UK or Australia would charge GBP or AUD, which
+ * checkout can't yet. The setup page keeps its own copy (apps/shop/src/setupMode/cardChoice.ts; form.test.js checks).
+ */
+export const SQUARE_COUNTRIES = Object.freeze(["CA", "US", "IE", "FR"]);
+export const squareWords = (country) => `Square isn't available for presses in ${COUNTRIES[country]?.name ?? "your country"} yet. Pick Stripe in Settings › Payments.`;
+
 export function checkSignup(input) {
   const problems = {};
   const pressName = clean(input?.pressName, 80);
@@ -154,6 +165,10 @@ export function checkSignup(input) {
   // General page, or French from a French browser on the old page). A press that says nothing gets the Quebec rule
   // (French first, then English) from its billing address instead.
   const language = ["fr", "en"].includes(input?.language) ? input.language : null;
-  const details = { pressName, plan, country, currency: country ? COUNTRIES[country].currency : "", answer, publishes, address, termsVersion, ...(language ? { language } : {}) };
+  // Who takes the website's card payments (setup's Settings › Payments): Stripe unless Square was picked.
+  if (input?.paymentProvider !== undefined && !PAYMENT_PROVIDER_CHOICES.includes(input.paymentProvider)) problems.paymentProvider = "Pick Stripe or Square for card payments.";
+  const paymentProvider = PAYMENT_PROVIDER_CHOICES.includes(input?.paymentProvider) ? input.paymentProvider : "stripe";
+  if (paymentProvider === "square" && country && !SQUARE_COUNTRIES.includes(country)) problems.paymentProvider = squareWords(country);
+  const details = { pressName, plan, country, currency: country ? COUNTRIES[country].currency : "", answer, publishes, address, termsVersion, paymentProvider, ...(language ? { language } : {}) };
   return { ok: Object.keys(problems).length === 0, details, problems };
 }

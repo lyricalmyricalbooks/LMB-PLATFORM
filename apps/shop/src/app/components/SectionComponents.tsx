@@ -2619,6 +2619,9 @@ function NewsletterForm({ settings, type, source, buttonClassName = "" }: { sett
   if (status === "done") {
     return <p role="status" className="text-sm" style={bStyle(settings)} data-theme-field="successMessage">{word("successMessage")}</p>;
   }
+  // On a template the button looks like the template's others (fm-newsletter-btn), unless this section gives it its
+  // own shape: a button style or corner set in the section's Style tab wins.
+  const ownShape = settings.btnStyle === "outline" || settings.btnStyle === "ghost" || settings.btnRadius != null;
   return (
     <>
       <form className="flex gap-2" onSubmit={submit} noValidate>
@@ -2637,7 +2640,7 @@ function NewsletterForm({ settings, type, source, buttonClassName = "" }: { sett
           magnetic={!!settings.btnMagnetic}
           type="submit"
           disabled={status === "sending"}
-          className={`fm-active rounded-full px-8 py-3 text-[10px] font-bold tracking-widest flex items-center gap-2 ${hoverEffectClassName(settings.hoverEffect) || "transition-all"} ${buttonClassName}`}
+          className={`fm-active${ownShape ? "" : " fm-newsletter-btn"} rounded-full px-8 py-3 text-[10px] font-bold tracking-widest flex items-center gap-2 ${hoverEffectClassName(settings.hoverEffect) || "transition-all"} ${buttonClassName}`}
           style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #fff)", color: "var(--btn-text, #000)", ...btnS(settings) }}
         >
           <Send size={12} aria-hidden="true" />

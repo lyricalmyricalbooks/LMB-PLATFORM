@@ -1,4 +1,4 @@
-import { PLAN_CHOICES } from "./form.js";
+import { PLAN_CHOICES, SQUARE_COUNTRIES, squareWords } from "./form.js";
 import { cleanHandle, handleProblem } from "../services/domains/freeAddress.js";
 
 // The setup record for one press (code plan 18.2): the only thing made for a press before it launches. One document per
@@ -12,17 +12,21 @@ export const PRESS_STATUSES = Object.freeze(["setup", "opening", "open", "expire
 // in the welcome inside setup mode (18.6).
 // `moving` is the press's answer to Home's "Selling somewhere already?" card (code plan 23.0): "yes" (bringing a shop
 // over), "fresh" (starting fresh, which puts the card away) or "" (not answered yet).
+// `cardProvider` is who takes the website's card payments, Stripe or Square, chosen in setup's Settings › Payments
+// ("" until chosen: the shop maker then uses Stripe). It goes to sign-up's row when the shop opens (frontDoor.js openShop).
 // `domainChoice` is the setup guide's "Your web address" answer: "own" (bringing a domain the press has; the domain
 // itself is saved through frontDoor.js saveDomain, which looks up where it was bought), "buy" (gone to buy one),
 // "free" (the free address for now) or "" (not answered). `freeName` is the name the press picked for its free address
 // (moth-press in moth-press.<shop domain>), cleaned and checked; "" means its press name.
-export const SETUP_FIELDS = Object.freeze(["plan", "pressName", "sells", "country", "look", "adminLook", "moving", "language", "domainChoice", "freeName"]);
-const TEXT_LIMITS = Object.freeze({ plan: 9, pressName: 120, sells: 300, country: 2, look: 40, adminLook: 40, moving: 5, language: 2, domainChoice: 4, freeName: 60 });
+export const SETUP_FIELDS = Object.freeze(["plan", "pressName", "sells", "country", "look", "adminLook", "moving", "language", "cardProvider", "domainChoice", "freeName"]);
+const TEXT_LIMITS = Object.freeze({ plan: 9, pressName: 120, sells: 300, country: 2, look: 40, adminLook: 40, moving: 5, language: 2, cardProvider: 6, domainChoice: 4, freeName: 60 });
 export const DOMAIN_CHOICES = Object.freeze(["", "own", "buy", "free"]);
 export const MOVING_CHOICES = Object.freeze(["", "yes", "fresh"]);
 // The language of the platform's emails (services/email/templatesFr.js): "" is automatic (French then English for a
 // Quebec billing address), "fr" or "en" a choice. It goes to the plan when the shop opens (frontDoor.js openShop).
 export const LANGUAGE_CHOICES = Object.freeze(["", "fr", "en"]);
+// The card payment providers a press can pick (setup/payments.js PAYMENT_PROVIDERS), or "" for not chosen yet.
+export const CARD_PROVIDER_CHOICES = Object.freeze(["", "stripe", "square"]);
 // A look is stored by its id. The platform checks only the shape, not a list: the shop and the stockroom own their lists
 // and grow them, and the shop maker (18.9) applies a look the new shop knows and falls back to the default otherwise.
 const LOOK_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -44,7 +48,7 @@ export function newPressRecord({ pressId, ownerUid, email, now }) {
   if (!ownerUid || !email) throw new Error("A press needs an owner.");
   const at = now.toISOString();
   return { pressId, ownerUid, ownerEmail: email.toLowerCase(), status: "setup", plan: "", pressName: "", sells: "", country: "",
-    look: "", adminLook: "", moving: "", language: "", domainChoice: "", freeName: "", domain: "", domainSeller: "", domainEasy: false, stagedImportPath: "", stagedImport: null, pendingImportPath: "", shopId: "", shopStatus: "", shopMessage: "", openingSince: "", createdAt: at, lastSeenAt: at };
+    look: "", adminLook: "", moving: "", language: "", cardProvider: "", domainChoice: "", freeName: "", domain: "", domainSeller: "", domainEasy: false, stagedImportPath: "", stagedImport: null, pendingImportPath: "", shopId: "", shopStatus: "", shopMessage: "", openingSince: "", createdAt: at, lastSeenAt: at };
 }
 
 // Checks a change a press makes through the platform's door. Returns the fields to write, or a plain-words refusal.
@@ -65,6 +69,10 @@ export function setupChange(current, change) {
     if (key === "plan" && text !== "" && !PLAN_CHOICES.includes(text)) return { ok: false, message: "Pick the shop, the stockroom or both." };
     if (key === "moving" && !MOVING_CHOICES.includes(text)) return { ok: false, message: "Pick one of the choices." };
     if (key === "language" && !LANGUAGE_CHOICES.includes(text)) return { ok: false, message: "Pick automatic, French or English." };
+    if (key === "cardProvider" && !CARD_PROVIDER_CHOICES.includes(text)) return { ok: false, message: "Pick Stripe or Square." };
+    // Square only where it works with the shop's checkout; a country changed afterwards is checked again at Open my shop.
+    const country = typeof change?.country === "string" ? change.country.trim() : current.country;
+    if (key === "cardProvider" && text === "square" && country && !SQUARE_COUNTRIES.includes(country)) return { ok: false, message: squareWords(country) };
     if (key === "domainChoice" && !DOMAIN_CHOICES.includes(text)) return { ok: false, message: "Pick one of the choices." };
     if (key === "freeName") {
       // The press's own pick for its free address (services/domains/freeAddress.js); "" goes back to its press name.

@@ -701,7 +701,10 @@ important rule that skips Add to bag's Glow animation (`.fm-cta-glow`). Template
 (MainSite). `scripts/template-buttons-check.mjs` (`pnpm run test:template-buttons`, CI job `shop-accessibility`)
 checks the bag, Add to bag and newsletter buttons on every template in Chromium. Studio shows one note above the
 template-only controls while Print style isn't a template (`templateNote.ts`). Choose your look draws each look over
-the press's own design (`lookPreview(theme, design)` = what Use this look leaves).
+the press's own design (`lookPreview(theme, design)` = what Use this look leaves). Studio › Themes cards draw the press's own covers
+and first product name (`ThemeThumb products`, `ownBooks(books, 2)`). Print style & template details shows **Reset template
+details** once any template-only control is set (`templateDetailsSet`; one undo step). Section newsletter forms (home and
+pop-up) carry `fm-newsletter-btn` unless the section sets its own button style or corners.
 
 ## Responsive public element editing (4 October 2026)
 
