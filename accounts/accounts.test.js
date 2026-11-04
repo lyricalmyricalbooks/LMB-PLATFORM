@@ -212,6 +212,17 @@ test("the team list shows the shop's sign-up owner, members and open invites", a
   assert.equal(JSON.stringify(answer.body).includes("tokenHash"), false);
 });
 
+test("the sign-up owner's row says it can't be changed, and trying says why instead of 'not on the team'", async () => {
+  const w = world();
+  const { members } = await w.accounts.team(OWNER, SHOP);
+  assert.equal(members.find((m) => m.email === OWNER.email).signupOwner, true);
+  for (const call of [() => w.accounts.setRole(OWNER, { shopId: SHOP, email: OWNER.email, role: "staff" }), () => w.accounts.remove(OWNER, { shopId: SHOP, email: OWNER.email })]) {
+    await assert.rejects(call(), (e) => e.status === 409 && /shop's own owner address/.test(e.message));
+  }
+  const page = readFileSync(new URL("./app.js", import.meta.url), "utf8");
+  assert.match(page, /member\.signupOwner/, "the page leaves the role and Remove off that row");
+});
+
 test("a sign-in link can bring the person back to the account page (an invite), and nowhere else", async () => {
   const settings = platformSettings({});
   const email = fakePlatformEmail();

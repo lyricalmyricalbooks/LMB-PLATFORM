@@ -368,6 +368,8 @@ async function loadTeam() {
 }
 
 function memberRow(member) {
+  // The address the shop was started with is always its owner (it can't be changed or removed), so its row has no controls.
+  if (member.signupOwner) return el("li", { className: "row" }, el("span", { textContent: member.email }), el("span", { className: "hint", textContent: "Owner · the address the shop was started with" }));
   const select = el("select", {}, ...ROLES.map((role) => new Option(ROLE_NAMES[role], role, false, role === member.role)));
   select.setAttribute("aria-label", `Role for ${member.email}`);
   select.addEventListener("change", () => act(select, "/accounts/role", { email: member.email, role: select.value }, `${member.email} is now ${ROLE_NAMES[select.value]}.`));

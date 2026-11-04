@@ -143,7 +143,7 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
       await ownerOnly(claims, shopId);
       const row = await registry.getShop(shopId);
       const members = (await memberships.listByShop(shopId)).map(({ email: address, role, addedAt }) => ({ email: address, role, addedAt }));
-      if (row?.ownerEmail && !members.some((m) => m.email === normal(row.ownerEmail))) members.unshift({ email: normal(row.ownerEmail), role: "owner", addedAt: row.createdAt ?? null });
+      if (row?.ownerEmail && !members.some((m) => m.email === normal(row.ownerEmail))) members.unshift({ email: normal(row.ownerEmail), role: "owner", addedAt: row.createdAt ?? null, signupOwner: true });
       const open = [];
       for (const i of await invites.listByShop(shopId)) if (!i.acceptedAt && !i.cancelledAt && i.expiresAt > at() && (await senderStillOwner(i))) open.push(i);
       return { members, invites: open.map(({ id, email: address, role, expiresAt }) => ({ id, email: address, role, expiresAt })) };
@@ -221,6 +221,7 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
       const person = await ownerOnly(claims, shopId, true);
       const who = normal(address);
       if (!ROLES.includes(role)) throw new SignupError(400, "Choose a role: owner, staff, author, bookkeeper or fair helper.");
+      await notSignupOwner(shopId, who);
       const member = await memberships.get(shopId, who);
       if (!member) throw new SignupError(404, "That person isn't on the team.");
       if (member.role === role) return { email: who, role, changed: false };
@@ -235,6 +236,7 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
     async remove(claims, { shopId, email: address }) {
       const person = await ownerOnly(claims, shopId, true);
       const who = normal(address);
+      await notSignupOwner(shopId, who);
       const member = await memberships.get(shopId, who);
       if (!member) throw new SignupError(404, "That person isn't on the team.");
       if (member.role === "owner") await keepAnOwner(shopId, who);
@@ -244,6 +246,13 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
       return { email: who, removed: true };
     },
   };
+
+  // The shop's own owner address is the shop's, not the team list's (apps/shop/functions/roles.js): it can't be changed
+  // or removed here, so it gets that answer rather than "not on the team".
+  async function notSignupOwner(shopId, who) {
+    const row = await registry.getShop(shopId);
+    if (row?.ownerEmail && normal(row.ownerEmail) === who) throw new SignupError(409, "That's the shop's own owner address. It always has full access, so its role can't be changed or taken away.");
+  }
 
   async function keepAnOwner(shopId, leaving) {
     const row = await registry.getShop(shopId);
