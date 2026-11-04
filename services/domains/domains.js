@@ -62,6 +62,8 @@
 //   email      sendPlatform({ kind, to, data, idempotencyKey, shopId }) (services/email); optional
 //   freeAddress  readFreeAddressConfig(env) (freeAddress.js), or null: shops keep their web.app address
 //   platformZone apply(records) (platformZone.js): the free addresses' lines in the platform's own zone; optional
+//   presses      listByFreeName(name) (clients/platformStores.js), optional: a name a press in setup picked is never
+//                given to another shop (freeAddress.js pickedByAnotherPress)
 //
 // Free addresses (freeAddress.js): connectFreeAddress(shopId) gives the shop <press name>.<shop domain> (the next number
 // when the name is taken), saved as the registry row's `freeAddress`, as a domain entry with `free: true` that doesn't
@@ -74,7 +76,7 @@ import { allowLink, fitTemplate, hostInZone, normalRecord, PURPOSES } from "./do
 import { guideFor, sellerName, zoneGuess } from "./sellers.js";
 import { profileScript } from "../../profile/profile.js";
 import { domainOrigins, domainProblem, mainAddress, MAX_DOMAINS, normalDomain, ownAddress, siteUrlOf, withExtraOrigins, withSiteUrl } from "./names.js";
-import { cleanHandle, handleProblem, pickFreeAddress } from "./freeAddress.js";
+import { cleanHandle, handleProblem, pickFreeAddress, pickedByAnotherPress } from "./freeAddress.js";
 
 export class DomainError extends Error {
   constructor(status, code, message) {
@@ -134,10 +136,12 @@ const sameLines = (a = [], b = []) => JSON.stringify(a) === JSON.stringify(b);
 
 export function createDomainService({
   registry, auditLog, hosting, envFiles, profileFiles, deploy, payments = null, platformDomain,
-  sellers = null, publicLines = null, domainConnect = null, email = null, freeAddress = null, platformZone = null,
+  sellers = null, publicLines = null, domainConnect = null, email = null, freeAddress = null, platformZone = null, presses = null,
   newState = () => randomBytes(12).toString("hex"), now = () => Date.now(),
 }) {
   const iso = () => new Date(now()).toISOString();
+  /** moth-books.<shop domain> → moth-books. */
+  const handleOf = (address) => (freeAddress && address.endsWith(`.${freeAddress.domain}`) ? address.slice(0, -freeAddress.domain.length - 1) : "");
 
   async function logChange(shopId, id, entry) {
     const full = { id, source: "domain-service", at: iso(), ...entry };
@@ -487,7 +491,8 @@ export function createDomainService({
     if (!name) {
       const shops = await registry.listShops();
       const taken = async (candidate) => shops.some((other) => other?.shopId !== shopId
-        && (other?.freeAddress === candidate || domainsOf(other ?? {}).some((d) => d.name === candidate)));
+        && (other?.freeAddress === candidate || domainsOf(other ?? {}).some((d) => d.name === candidate)))
+        || pickedByAnotherPress(presses, handleOf(candidate), row.pressId ?? "");
       name = await pickFreeAddress(row.pressName || shopId, freeAddress.domain, taken, { handle });
       if (!name) throw new DomainError(409, "no_free_address", `No free address is left for ${row.pressName || shopId}.`);
       await registry.updateShop(shopId, { freeAddress: name });
@@ -526,7 +531,8 @@ export function createDomainService({
     // This shop's own names (the one before, say) can be taken back; another shop's never.
     const shops = await registry.listShops();
     const taken = async (candidate) => shops.some((other) => other?.shopId !== shopId
-      && (other?.freeAddress === candidate || domainsOf(other ?? {}).some((d) => d.name === candidate)));
+      && (other?.freeAddress === candidate || domainsOf(other ?? {}).some((d) => d.name === candidate)))
+      || pickedByAnotherPress(presses, handleOf(candidate), row.pressId ?? "");
     // A name the press asks for is the name it gets, or a plain no: never a number it didn't ask for.
     const name = `${handle}.${freeAddress.domain}`;
     if (name === before) return list(shopId);

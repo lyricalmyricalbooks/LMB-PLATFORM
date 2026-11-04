@@ -51,7 +51,7 @@ test("a name the press picks is cleaned and checked: no platform names, big bran
   assert.equal(handleCandidates("Moth Press", { handle: "moth-books" })[1], "moth-books-2");
 });
 
-async function world({ email = null } = {}) {
+async function world({ email = null, presses = null } = {}) {
   const registry = fakeRegistry();
   const PROFILE = { version: 1, shopId: "moth-press", name: "Moth Press", functionsRegion: "northamerica-northeast1", siteUrl: "https://moth-press.web.app", apps: { shop: true, stockroom: false },
     firebase: { apiKey: "AIzaSyFakeKeyForTests000000000000000000", authDomain: "moth-press.firebaseapp.com", projectId: "moth-press", storageBucket: "x", messagingSenderId: "1", appId: "1:1:web:a" } };
@@ -67,7 +67,7 @@ async function world({ email = null } = {}) {
     registry, auditLog: fakeAuditLog(), hosting, deploy, platformDomain: "platform.example", sellers: fakeSellers({}),
     envFiles: fakeEnvFiles({ "moth-press": env, "press-two": env }),
     profileFiles: fakeProfileFiles({ "moth-press": profileScript(PROFILE), "press-two": profileScript(PROFILE) }),
-    freeAddress: CONFIG, platformZone: zone, email, now: () => Date.parse("2026-11-04T12:00:00Z"),
+    freeAddress: CONFIG, platformZone: zone, email, presses, now: () => Date.parse("2026-11-04T12:00:00Z"),
   });
   return { registry, hosting, zone, deploy, service };
 }
@@ -178,6 +178,22 @@ test("two shops made at the same moment with one press name never get the same f
   assert.equal(a.name, "moth-press.shops.example");
   assert.equal((await t.registry.getShop("press-two")).freeAddress, b.name);
   assert.equal((await t.registry.getShop("press-two")).domains.filter((d) => d.name === a.name).length, 0);
+});
+
+test("a name a press picked in setup stays its own: shops already open can't take it, and its own shop gets it", async () => {
+  const held = [{ pressId: "press-ada", status: "setup", freeName: "moth-books" }, { pressId: "press-old", status: "expired", freeName: "moth-paper" }];
+  const presses = { listByFreeName: async (name) => held.filter((p) => p.freeName === name) };
+  const t = await world({ presses });
+  await t.service.connectFreeAddress("press-two");
+  await assert.rejects(() => t.service.renameFreeAddress("press-two", "moth-books"), (e) => e.code === "taken");
+  assert.equal((await t.service.renameFreeAddress("press-two", "moth-paper")).domains.some((d) => d.name === "moth-paper.shops.example"), true, "an expired press holds nothing");
+  // Another shop's press name that happens to be the held name gets a number instead.
+  assert.equal((await t.service.connectFreeAddress("moth-press", { handle: "moth-books" })).name, "moth-books-2.shops.example");
+  // The press that picked it opens: its shop gets the plain name.
+  held[0].status = "opening";
+  const t2 = await world({ presses });
+  await t2.registry.updateShop("moth-press", { pressId: "press-ada" });
+  assert.equal((await t2.service.connectFreeAddress("moth-press", { handle: "moth-books" })).name, "moth-books.shops.example");
 });
 
 test("a deleted shop gives its free name back for the next press", async () => {

@@ -18,5 +18,7 @@ describe("refund refusals", () => {
     expect(refundRefused({ type: "idempotency_error", statusCode: 409 })).toBe(false);
     expect(refundRefused(new Error("socket hang up"))).toBe(false);
     expect(refundRefused({ type: "invalid_request_error", code: "idempotency_key_in_use", statusCode: 400 })).toBe(false);
+    // Square's reused key (a retry whose body changed): the first refund may have gone through.
+    expect(refundRefused({ type: "square_error", code: "IDEMPOTENCY_KEY_REUSED", statusCode: 400 })).toBe(false);
   });
 });

@@ -199,7 +199,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const setupClock = createSetupClock({ presses: firestoreFrontDoorStores(platform).presses, stagedFiles, email, settings, now });
   const repairStore = firestoreRepairs(platform);
   const repairs = createRepairQueue({ store: repairStore, registry, auditLog, now });
-  // Once making shops is connected, pass `presses` and the domain service as `domains` too, so a domain brought in
+  // Once making shops is connected, pass `presses` here and to the domain service, and the domain service as `domains`, so a domain brought in
   // setup is connected when its shop is ready (shopMaker.js connectAddresses; the free address too, with freeAddress and platformZone on the domain service).
   const shopMaker = createShopMaker({ signups: stores.signups, run: notConnectedFn(NOT_CONNECTED.shopMaking), registry, repairs, line: signup, billing, now });
 
