@@ -553,6 +553,8 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
           payoutsEnabled: account.payouts_enabled === true,
           detailsSubmitted: account.details_submitted === true,
           pastDue: needs.pastDue,
+          // The merchant category Stripe holds (what the shop sells, for the control room's check against its answer).
+          ...(typeof account.business_profile?.mcc === "string" && account.business_profile.mcc ? { mcc: account.business_profile.mcc } : {}),
         };
         const saved = row.payments;
         let payments = saved;
@@ -676,9 +678,10 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
         idempotencyKey: `lmb-account-${shopId}-${mode}`,
       });
       if (!ACCOUNT_ID.test(account?.id ?? "")) throw new Error("Stripe gave no account id");
-      await accounts.set(shopId, { provider: "stripe", accountId: account.id, mode, createdAt: iso() });
-      await logChange(shopId, `payments-account-created-${account.id}`, { kind: "payments.account-created", accountId: account.id, mode });
-      return { accountId: account.id, mode };
+      const mcc = account.business_profile?.mcc || businessKind(sells).mcc;
+      await accounts.set(shopId, { provider: "stripe", accountId: account.id, mode, mcc, createdAt: iso() });
+      await logChange(shopId, `payments-account-created-${account.id}`, { kind: "payments.account-created", accountId: account.id, mode, mcc });
+      return { accountId: account.id, mode, mcc };
     },
   };
 }
