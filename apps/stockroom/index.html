@@ -6236,7 +6236,8 @@
       </div>
       <div class="form-group">
         <label for="nb-max">Print Run Edition Size</label>
-        <input id="nb-max" type="number" inputmode="numeric" value="100" min="1" oninput="updateBookModalFinancials()" style="font-family:var(--font-mono);">
+        <input id="nb-max" type="number" inputmode="numeric" value="100" min="1" oninput="updateBookModalFinancials()" style="font-family:var(--font-mono);" aria-describedby="nb-max-hint">
+        <div class="tc-form-hint" id="nb-max-hint" hidden></div>
       </div>
     </div>
     <div class="form-group" style="margin-bottom:12px;">

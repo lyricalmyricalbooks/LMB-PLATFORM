@@ -86,7 +86,7 @@ try {
   // Gift cards.
   await go("giftCards");
   await page.getByRole("button", { name: "Bring gift cards over" }).first().click();
-  await page.setInputFiles('input[aria-label="Gift card file"]', sample("old-shop-gift-cards.csv"));
+  await page.setInputFiles('input[aria-label="Gift card file"]', join(SHEETS, "old-shop-gift-cards.xls"));
   await page.getByRole("button", { name: /^Bring 2 gift cards over$/ }).click();
   await page.waitForTimeout(800);
   const cards = await page.evaluate(() => window.__adminFixture.calls.find((c) => c[0] === "giftCardAdmin")?.[2]?.cards?.length || 0);
