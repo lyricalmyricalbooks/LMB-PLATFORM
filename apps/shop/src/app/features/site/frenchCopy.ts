@@ -827,7 +827,7 @@ export const FRENCH_COPY: Record<string, string> = {
   coPaypalOption: "PayPal",
   coDiscountRejected: "Votre code promo n'a pas pu être utilisé et a été retiré : {reason} Vérifiez votre total et réessayez.",
   coNoPayment: "Aucun mode de paiement n'est disponible pour le moment. Veuillez communiquer avec la boutique avant de passer votre commande.",
-  coSquareNote: "Vous entrerez votre carte sur la page de paiement sécurisée de Square, puis reviendrez ici pour votre reçu.",
+  coSquareNote: "Vous entrerez votre carte sur la page de paiement sécurisée de Square, dans la devise de la boutique, puis reviendrez ici pour votre reçu.",
   coStripeConfigError: "Les paiements par carte sont temporairement indisponibles. Veuillez communiquer avec la boutique ou choisir un autre mode de paiement.",
   coPrivacyNote: "Les données de votre carte sont transmises directement au fournisseur de paiement",
   coPackedNote: "Vous recevrez une confirmation de commande et les mises à jour d'expédition par courriel.",

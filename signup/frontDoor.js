@@ -7,7 +7,7 @@
 //                                              (signInWithEmailLink). The link is never emailed: the code was the proof.
 //   POST /api/press       {}                   makes the press's setup record, or gives back the one still in setup
 //   GET  /api/press                            the signed-in person's presses
-//   POST /api/press/setup { pressId, plan?, pressName?, sells?, country?, look?, adminLook?, moving? }
+//   POST /api/press/setup { pressId, plan?, pressName?, sells?, country?, look?, adminLook?, moving?, language?, cardProvider? }
 //                                              saves answers while the press is in setup
 //   POST /api/press/old-shop { pressId, address }
 //                                              reads the old shop's public product list (23.2) and answers it as a
@@ -39,6 +39,7 @@ const shown = (record) => ({
   // How the shop is starting once opened (18.8): "queued", or "in-line" with the words saying why it waits.
   shopStatus: record.shopStatus ?? "", shopMessage: record.shopMessage ?? "", pressName: record.pressName, sells: record.sells, country: record.country,
   look: record.look ?? "", adminLook: record.adminLook ?? "", moving: record.moving ?? "", language: record.language ?? "",
+  cardProvider: record.cardProvider ?? "",
   // What the press sees of its kept file: never the path.
   stagedImport: record.stagedImport ? { name: record.stagedImport.name, size: record.stagedImport.size, rows: record.stagedImport.rows, at: record.stagedImport.at } : null,
 });
@@ -268,6 +269,8 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
           pressName: record.pressName, plan, country: record.country, publishes: record.sells || null,
           // The language chosen for the platform's emails, if any (pressRecord.js LANGUAGE_CHOICES).
           ...(record.language ? { language: record.language } : {}),
+          // Stripe or Square for the website's cards (pressRecord.js CARD_PROVIDER_CHOICES); Stripe when not chosen.
+          ...(record.cardProvider ? { paymentProvider: record.cardProvider } : {}),
           termsAccepted: body.termsAccepted === true, termsVersion: body.termsVersion,
         }, { pressId: record.pressId });
       } catch (error) {

@@ -7,13 +7,15 @@ import type { SetupPress } from "./door";
 export const PLAN_PAGE = SETTINGS_ITEM_PREFIX + "plan";
 export const GENERAL_PAGE = SETTINGS_ITEM_PREFIX + "general";
 export const DESIGN_PAGE = SETTINGS_ITEM_PREFIX + "designer";
+/** Settings › Payments: in setup, the choice of Stripe or Square for the website's card payments. */
+export const PAYMENTS_PAGE = SETTINGS_ITEM_PREFIX + "payments";
 export const HELP_PAGE = "help";
 export const HOME_PAGE = "overview";
 /** Books (the catalog): in setup, the place to bring a product file over and see what it holds (18.7). */
 export const IMPORT_PAGE = "catalog";
 
 /** The pages that work in setup mode. Everything else in the menu opens "Opens with your shop". */
-export const SETUP_PAGES: ReadonlySet<string> = new Set([HOME_PAGE, DESIGN_PAGE, GENERAL_PAGE, PLAN_PAGE, HELP_PAGE, IMPORT_PAGE]);
+export const SETUP_PAGES: ReadonlySet<string> = new Set([HOME_PAGE, DESIGN_PAGE, GENERAL_PAGE, PLAN_PAGE, HELP_PAGE, IMPORT_PAGE, PAYMENTS_PAGE]);
 
 export const setupLocked = (page: string): boolean => !SETUP_PAGES.has(page);
 
@@ -59,13 +61,15 @@ export function guideSteps(press: SetupPress): GuideStep[] {
   // Written in book words; the guide shows them in the shop's own (sells.ts).
   const books: GuideStep = { id: "books", title: "Bring your books over from your old shop", done: !!press.stagedImport, page: IMPORT_PAGE, action: "Bring a file", optional: true };
   const look: GuideStep[] = website ? [{ id: "look", title: "Choose your website's look", done: !!press.look, page: DESIGN_PAGE, action: "Choose a look" }] : [];
+  // Stripe or Square for the website's cards. Optional: a press that doesn't choose starts on Stripe.
+  const cards: GuideStep[] = website ? [{ id: "cards", title: "Choose Stripe or Square for card payments", done: !!press.cardProvider, page: PAYMENTS_PAGE, action: "Choose", optional: true }] : [];
   // A press that may be moving brings its books before picking a look, so the look previews can show them (23.0);
   // one starting fresh has it last, as an optional step.
   const fresh = press.moving === "fresh";
   return [
     { id: "plan", title: "Pick what you want to set up", done: !!press.plan, page: PLAN_PAGE, action: "Choose" },
     { id: "details", title: "Tell us about your press", done: !!(press.pressName && press.sells && press.country), page: GENERAL_PAGE, action: "Add details" },
-    ...(fresh ? [...look, books] : [books, ...look]),
+    ...(fresh ? [...look, ...cards, books] : [books, ...look, ...cards]),
     // "Create", not "open": the shop is made private, and the press opens it to shoppers from its own admin later.
     { id: "open", title: "Create your shop", done: press.status === "opening" || press.status === "open", page: PLAN_PAGE, action: "Create my shop" },
   ];
@@ -117,6 +121,7 @@ export const STEP_HELP: Readonly<Record<string, string>> = Object.freeze({
   details: "your-press",
   books: "bring-books",
   look: "look",
+  cards: "get-paid",
   open: "open-shop",
 });
 
@@ -142,7 +147,6 @@ const LOCKED_LINES: Readonly<Record<string, string>> = Object.freeze({
   inventory: "How many copies you have of each book, with a warning before one runs out.",
   reviews: "Reviews from your readers, checked by you before they show on your website.",
   [SETTINGS_ITEM_PREFIX + "shipping"]: "What you charge to send a parcel, by country or by weight, and pickup if you offer it.",
-  [SETTINGS_ITEM_PREFIX + "payments"]: "Connect your bank so card payments from your website reach you.",
   [SETTINGS_ITEM_PREFIX + "taxes"]: "The sales tax your shop adds at checkout, worked out from where your shoppers are.",
   [SETTINGS_ITEM_PREFIX + "notifications"]: "The emails your shoppers get: order received, shipped, and the words in each.",
   [SETTINGS_ITEM_PREFIX + "team"]: "Invite someone to help run your shop, with only the pages they need.",

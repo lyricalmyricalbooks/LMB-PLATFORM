@@ -431,3 +431,24 @@ describe("bringing books over from the old shop's address (code plan 23.2)", () 
     expect(el.textContent).toContain("Stock counts aren't shown publicly");
   });
 });
+
+describe("Stripe or Square in setup's Settings › Payments", () => {
+  it("offers both, shows Stripe picked for the press until it chooses, and saves Square when pressed", async () => {
+    const d = door();
+    const el = await mount(d, "#settings/payments");
+    const radios = [...el.querySelectorAll<HTMLButtonElement>("[role='radiogroup'][aria-label='Card payments'] [role='radio']")];
+    expect(radios.map((r) => r.querySelector("strong")?.textContent)).toEqual(["Stripe (picked for you)", "Square"]);
+    expect(radios.map((r) => r.getAttribute("aria-checked"))).toEqual(["true", "false"]);
+    await act(async () => { radios[1].click(); });
+    await flush();
+    expect(d.saved).toEqual([{ cardProvider: "square" }]);
+    const after = [...el.querySelectorAll("[role='radiogroup'][aria-label='Card payments'] [role='radio']")].map((r) => r.getAttribute("aria-checked"));
+    expect(after).toEqual(["false", "true"]);
+  });
+
+  it("a stockroom on its own has no website checkout to choose for", async () => {
+    const el = await mount(door(), "#settings/payments", { ...PRESS, plan: "stockroom" });
+    expect(el.textContent).toContain("no website checkout");
+    expect(el.querySelector("[role='radiogroup'][aria-label='Card payments']")).toBeNull();
+  });
+});

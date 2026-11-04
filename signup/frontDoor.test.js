@@ -432,6 +432,36 @@ test("the email language chosen in setup is the one the plan starts with; none c
   assert.equal(other.trials[0].language, undefined);
 });
 
+test("Stripe or Square picked in setup is the shop's card provider; none picked means Stripe", async () => {
+  const w = world();
+  const pressId = await readyPress(w);
+  const saved = await w.ask("POST", "/api/press/setup", { pressId, cardProvider: "square" }, ADA);
+  assert.equal(saved.body.press.cardProvider, "square");
+  const bad = await w.ask("POST", "/api/press/setup", { pressId, cardProvider: "paypal" }, ADA);
+  assert.match(bad.body.message, /Stripe or Square/);
+  const opened = await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA);
+  assert.equal(w.signupStores.signups.rows.get(opened.body.press.shopId).paymentProvider, "square");
+  // Locked once the shop is opening, like every other answer.
+  assert.equal((await w.ask("POST", "/api/press/setup", { pressId, cardProvider: "stripe" }, ADA)).status, 409);
+  const other = world();
+  const plain = await other.ask("POST", "/api/press/open", { pressId: await readyPress(other), ...OPEN }, ADA);
+  assert.equal(plain.body.press.cardProvider, "");
+  assert.equal(other.signupStores.signups.rows.get(plain.body.press.shopId).paymentProvider, "stripe");
+});
+
+test("a card provider changed after Open my shop was refused is the one the shop is made with", async () => {
+  let fail = true;
+  const w = world({ billing: { startTrial: async () => { if (fail) throw new Error("The payment service is busy."); return { status: "trialing" }; } } });
+  const pressId = await readyPress(w);
+  await w.ask("POST", "/api/press/setup", { pressId, cardProvider: "square" }, ADA);
+  assert.equal((await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA)).status, 500);
+  await w.ask("POST", "/api/press/setup", { pressId, cardProvider: "stripe" }, ADA);
+  fail = false;
+  const opened = await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA);
+  assert.equal(opened.status, 200);
+  assert.equal(w.signupStores.signups.rows.get(opened.body.press.shopId).paymentProvider, "stripe");
+});
+
 test("a language changed after Open my shop was refused is the one the plan starts with; automatic clears it", async () => {
   let fail = true;
   const trials = [];

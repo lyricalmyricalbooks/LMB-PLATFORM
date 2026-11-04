@@ -161,7 +161,7 @@ describe('phase 3', () => {
       { num: '3', method: 'Card', totals: { CAD: 0 }, lines: [{ bookId: 'z', title: 'Zine', qty: 1, amount: 0, cur: 'CAD' }] },
     ] };
     const sum = fairDaySummary(day, { a: 7, z: null });
-    expect(sum.methods.map((m) => [m.label, m.sales, m.totals.CAD])).toEqual([['Card reader', 2, 80], ['QR / Stripe', 1, 40]]);
+    expect(sum.methods.map((m) => [m.label, m.sales, m.totals.CAD])).toEqual([['Card reader', 2, 80], ['QR code', 1, 40]]);
     expect(sum.titles[0]).toMatchObject({ title: 'Harbour', units: 3, left: 7, totals: { CAD: 120 } });
     expect(sum.titles[1].left).toBeNull();
     expect(sum.sales).toBe(3);

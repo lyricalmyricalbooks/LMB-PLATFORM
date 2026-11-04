@@ -12,12 +12,19 @@ const plans: PlanList = { trialDays: 14, plusTax: true, termsVersion: "v1", plan
 const names = { countries: { CA: { name: "Canada" } }, sells: [{ id: "zines", label: "Zines" }], lookName: "Riso" };
 
 describe("Create my shop's review", () => {
+  it("shows the card provider the press picked, which never stops Create my shop", () => {
+    const square = createChecklist(press({ cardProvider: "square" }), plans, names).find((r) => r.id === "cards")!;
+    expect([square.state, square.value, square.page]).toEqual(["done", "Square. You connect your account once your shop is made.", "settings/payments"]);
+    expect(createChecklist(press({ cardProvider: "stripe" }), plans, names).find((r) => r.id === "cards")!.value).toMatch(/^Stripe\. /);
+  });
+
   it("lists the plan with its founding price, the press, the look and the books", () => {
     const rows = createChecklist(press(), plans, names);
     expect(rows.map((r) => [r.id, r.state, r.value])).toEqual([
       ["plan", "done", "Shop · $21.75 a month"],
       ["details", "done", "Moth Press · Zines · Canada"],
       ["look", "done", "Riso"],
+      ["cards", "later", "Stripe, unless you pick Square instead. You connect your account once your shop is made."],
       ["books", "later", "None brought over. You can add them, or bring a file, once your shop is made."],
     ]);
     expect(canCreate(rows)).toBe(true);
@@ -35,6 +42,7 @@ describe("Create my shop's review", () => {
   it("has no website look for a stockroom on its own, and says one book in the singular", () => {
     const rows = createChecklist(press({ plan: "stockroom", stagedImport: { name: "a.csv", size: 1, rows: 1, at: "" } }), plans, names);
     expect(rows.map((r) => r.id)).not.toContain("look");
+    expect(rows.map((r) => r.id)).not.toContain("cards");
     expect(rows.find((r) => r.id === "books")!.value).toMatch(/^1 book from a.csv/);
   });
 

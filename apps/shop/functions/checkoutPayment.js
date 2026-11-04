@@ -146,7 +146,7 @@ function checkoutPaymentActions({
   // embedded) or a PaymentIntent (Payment Element). The webhook, never this step, marks the order paid.
   async function handleStripeCheckout(req, res) {
     const { orderId, currency: reqCurrency, returnUrl, embedded, paymentElement } = req.body;
-    const checkoutCurrency = checkoutCurrencyOf(reqCurrency);
+    let checkoutCurrency = checkoutCurrencyOf(reqCurrency);
     if (!checkoutCurrency) {
       res.status(400).json({ error: "Unsupported currency." });
       return;
@@ -207,6 +207,11 @@ function checkoutPaymentActions({
       const giftCardAmount = priced.giftCardAmount;
       const giftCardRedemptions = priced.giftCardRedemptions;
       const finalTotal = priced.total;
+      // 5. Checkout parameters: the shop's provider for its current mode (functions/payments; throws without one).
+      const card = await payments.forCheckout(settings);
+      // A provider whose account takes one currency only (Square: its location's) charges in that one, converted from
+      // the shop's prices like any other, so a shopper browsing in another currency can still pay.
+      if (finalTotal > 0 && typeof card.chargeCurrency === "function") checkoutCurrency = checkoutCurrencyOf(await card.chargeCurrency(checkoutCurrency)) || checkoutCurrency;
       const rates = await getExchangeRates();
       const exchangeRate = rates[checkoutCurrency] || FALLBACK_RATES[checkoutCurrency] || 1.0;
 
@@ -219,8 +224,6 @@ function checkoutPaymentActions({
       const ipCountryMatchesShipping = !ipCountry || ipCountry.toUpperCase() === shippingCountryCode.toUpperCase();
       const testMode = settings.payments?.testMode || false;
 
-      // 5. Stripe checkout parameters: the shop's key for its current mode (functions/payments; throws without one).
-      const card = await payments.forCheckout(settings);
       // The discount is spread over the discountable lines; gift cards are always face value.
       const discountableSubtotal = items.filter(item => item.giftCard !== true).reduce((sum, item) => sum + item.price * item.quantity, 0);
       const discountFactor = discountableSubtotal > 0 ? (discountableSubtotal - discountAmount) / discountableSubtotal : 1;

@@ -60,6 +60,8 @@ export function setupPress(record, { shop, now }) {
     adminLook: record.adminLook || "",
     moving: record.moving || "",
     language: record.language || "",
+    // Stripe or Square for the website's cards ("" = not picked: the shop starts on Stripe).
+    cardProvider: record.cardProvider || "",
     // What the press sees of its kept product file: never the path.
     import: record.stagedImport ? { name: record.stagedImport.name ?? "", rows: record.stagedImport.rows ?? null, at: record.stagedImport.at ?? null } : null,
     stillToDo: record.status === "setup" ? stillToDo(record) : [],
@@ -111,7 +113,7 @@ export function setupSummary({ records, rows = [], now = Date.now() }) {
     bringingShopOver: inSetup.filter((p) => p.moving === "yes").length,
     withProductFile: inSetup.filter((p) => p.import).length,
   };
-  return { counts, looks: { website: tally(records, "look"), admin: tally(records, "adminLook") }, presses };
+  return { counts, looks: { website: tally(records, "look"), admin: tally(records, "adminLook") }, cards: tally(records, "cardProvider"), presses };
 }
 
 /** The page's door. Platform admins only; nothing here changes anything, so nothing asks for a reason. */

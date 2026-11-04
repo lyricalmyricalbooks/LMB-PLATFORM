@@ -128,6 +128,9 @@ export function slugFromPressName(name) {
  * Checks the sign-up details. Returns { ok, details, problems }, where problems maps a field to plain words for the
  * page to show next to it.
  */
+/** The card payment providers a shop can start with (setup/payments.js PAYMENT_PROVIDERS). */
+export const PAYMENT_PROVIDER_CHOICES = Object.freeze(["stripe", "square"]);
+
 export function checkSignup(input) {
   const problems = {};
   const pressName = clean(input?.pressName, 80);
@@ -154,6 +157,9 @@ export function checkSignup(input) {
   // General page, or French from a French browser on the old page). A press that says nothing gets the Quebec rule
   // (French first, then English) from its billing address instead.
   const language = ["fr", "en"].includes(input?.language) ? input.language : null;
-  const details = { pressName, plan, country, currency: country ? COUNTRIES[country].currency : "", answer, publishes, address, termsVersion, ...(language ? { language } : {}) };
+  // Who takes the website's card payments (setup's Settings › Payments): Stripe unless Square was picked.
+  if (input?.paymentProvider !== undefined && !PAYMENT_PROVIDER_CHOICES.includes(input.paymentProvider)) problems.paymentProvider = "Pick Stripe or Square for card payments.";
+  const paymentProvider = PAYMENT_PROVIDER_CHOICES.includes(input?.paymentProvider) ? input.paymentProvider : "stripe";
+  const details = { pressName, plan, country, currency: country ? COUNTRIES[country].currency : "", answer, publishes, address, termsVersion, paymentProvider, ...(language ? { language } : {}) };
   return { ok: Object.keys(problems).length === 0, details, problems };
 }

@@ -206,7 +206,8 @@ describe('a practice order through the platform (fake Stripe and fake Square)', 
     const out = await shop.run(OWNER, { embedded: false, practice: true });
     expect(out.statusCode).toBe(200);
     expect(out.body.url).toBe('https://square.link/u/1');
-    expect(shop.service.calls.map(c => [c.op, c.mode])).toEqual([['square.checkout.create', 'test']]);
+    // The account's currency is read first (Square charges in it), then the Sandbox page is made.
+    expect(shop.service.calls.map(c => [c.op, c.mode])).toEqual([['account.status', undefined], ['square.checkout.create', 'test']]);
     expect(shop.order).toMatchObject({ practiceOrder: true, stripeMode: 'test' });
   });
 

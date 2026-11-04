@@ -45,7 +45,7 @@ describe("the helper's till", () => {
   test('the cart totals the sale and offers every way of paying', () => {
     const html = cartHtml(menu, { b1: 2, b2: 1 });
     expect(html).toContain('CAD 66.00');
-    for (const label of ['Card reader', 'QR / Stripe', 'E-transfer', 'Cash', 'Comp']) expect(html).toContain(label);
+    for (const label of ['Card reader', 'QR code', 'E-transfer', 'Cash', 'Comp']) expect(html).toContain(label);
     expect(cartHtml(menu, {})).toContain('Tap a book');
     // Straight after a sale: the note and its Undo.
     const done = cartHtml(menu, {}, '✓ Sold 2 books · Cash', true);

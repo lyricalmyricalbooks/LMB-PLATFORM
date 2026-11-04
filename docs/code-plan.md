@@ -852,7 +852,21 @@ control room's shop timeline ("Emailed the press: …"), from the sent log.
 | 25.8 | shop | **Payment failed** to the shopper when a delayed bank payment fails, with a link to try again | shop functions tests || built (4 November 2026) |
 | 25.9 | shop | **Shopper emails in French**: the order already keeps the shopper's language; every default shopper email gets a French twin, chosen per order, and the owner can edit both | `emailTemplateChecks.test.ts` | |
 
-## Rules for every pull request
+## Phase 27: Stripe or Square, the press's choice (planned and built 4 November 2026)
+
+Julian: "make sure customers can choose if they want to use Stripe or Square account, and depending on what they choose,
+everything will work for them". An audit of every money path for a Square shop found the gaps below; all are closed.
+
+| Row | What | State |
+| --- | --- | --- |
+| 27.1 | Setup mode's Settings › Payments: pick Stripe or Square (`cardProvider` on the setup record), an optional guide step, a line in Create my shop's review; Open my shop carries it to sign-up's `paymentProvider`, so the shop maker sets `SHOP_PAYMENT_PROVIDER`. Not picked = Stripe. | built |
+| 27.2 | Control room › Setting up shows each press's pick and counts them. | built |
+| 27.3 | Square checkout charges in the Square account's currency (its location's), converted like any other, so a shopper browsing in USD or EUR can pay; the checkout note says so. | built |
+| 27.4 | Fair helpers' QR card payments on Square: a payment link with no order (`fair-` reference, kept in server-only `fairCardPayments`), closed after its half hour; its payment never reaches the webhook as an order's. | built |
+| 27.5 | Opening a Square order checks its payment and shows Sync with Square; a refund the platform's service refuses releases its claim; starter privacy and accessibility policies name the shop's provider; stockroom invoice terms and the fair-day summary say "card"/"QR code"; the till's own-key QR button is hidden on platform shops. | built |
+| 27.6 | Switching provider after the shop is made (older sales still refunded through the first provider): needs dual routing in the payment service and a redeploy of the shop's settings. | next |
+
+
 
 - Tests never touch real money or a paying press's project. Use fakes or the test shop.
 - Customer-facing words never name a rival.

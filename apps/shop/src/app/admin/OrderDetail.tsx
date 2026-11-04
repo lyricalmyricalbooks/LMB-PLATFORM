@@ -215,11 +215,11 @@ export function OrderDetail({
 
   // Any order paid (or being paid) through Stripe: ask Stripe (server-side) once per
   // visit for the truth — payment received, refunded or disputed — so a missed
-  // webhook never leaves the order out of step with Stripe.
+  // webhook never leaves the order out of step with Stripe. Square's saved ids carry our own prefixes (sqpay_, sqlink_).
   const autoChecked = useRef<string | null>(null);
   const [checkingPayment, setCheckingPayment] = useState(false);
   const hasStripePayment = (o: any) =>
-    !!o && ["unpaid", "paid"].includes(o.paymentStatus) && (String(o.stripePaymentIntentId || "").startsWith("pi_") || String(o.stripeCheckoutSessionId || "").startsWith("cs_"));
+    !!o && ["unpaid", "paid"].includes(o.paymentStatus) && (/^(pi|sqpay)_/.test(String(o.stripePaymentIntentId || "")) || /^(cs|sqlink)_/.test(String(o.stripeCheckoutSessionId || "")));
 
   async function checkStripePayment(manual: boolean) {
     setCheckingPayment(true);

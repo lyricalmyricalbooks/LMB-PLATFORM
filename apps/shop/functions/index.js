@@ -535,7 +535,8 @@ exports.fairHelperPayment = onBrowserRequest({ secrets: withPlatformKey([STRIPE_
       return;
     }
     const sessionId = String(req.body?.sessionId || "");
-    if (!/^cs_[A-Za-z0-9_]{8,200}$/.test(sessionId) || (action !== "status" && action !== "cancel")) {
+    // A Stripe Checkout Session, or a Square payment link (payments/square.js standaloneCheckout).
+    if (!/^(cs_[A-Za-z0-9_]{8,200}|sqlink_[A-Za-z0-9_-]{1,192})$/.test(sessionId) || (action !== "status" && action !== "cancel")) {
       res.status(400).json({ error: "Unknown request.", code: "bad_request" });
       return;
     }
@@ -2837,7 +2838,9 @@ exports.refundOrder = onBrowserRequest(
       console.error("refundOrder failed:", err);
       // Keep the claim only when the provider may have taken the refund (accepted, or a lost
       // connection): its webhook then follows the admin's restock choice.
-      if (claimed && !providerAccepted && (!providerCalled || DEFINITE_REFUSALS.includes(err?.type) || (err?.status >= 400 && err?.status < 500))) await releaseClaim();
+      if (claimed && !providerAccepted && (!providerCalled || DEFINITE_REFUSALS.includes(err?.type) || (err?.status >= 400 && err?.status < 500)
+        // A refusal through the platform's payment service (Square, or Stripe on the platform) carries statusCode.
+        || (err?.statusCode >= 400 && err?.statusCode < 500))) await releaseClaim();
       const status = err.status || (err.type?.startsWith("Stripe") ? 400 : 500); // Stripe shops only (an error type)
       res.status(status).json({ error: err.message || "Refund failed" });
     }
