@@ -40,6 +40,18 @@ async function clickConfirm(label: string) {
 }
 
 describe("Your web address: main address and remove", () => {
+  it("offers Copy link on an address that works, not on one still being set up", async () => {
+    serve();
+    state.domains = [{ name: "moth-press.shops.example", state: "live", free: true }, { name: "new.mothpress.example", state: "waiting_dns" }];
+    const writeText = vi.fn(async () => {});
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    const el = await mount();
+    const free = el.querySelector('[data-domain="moth-press.shops.example"]')!;
+    expect(button(el.querySelector('[data-domain="new.mothpress.example"]')!, "Copy link")).toBeUndefined();
+    await act(async () => button(free, "Copy link")!.click());
+    expect(writeText).toHaveBeenCalledWith("https://moth-press.shops.example");
+  });
+
   it("shows the main address, offers Make main only on a live address, and never Remove on the main one", async () => {
     state.main = OWN;
     state.domains = [{ name: "shop.mothpress.example", state: "live" }, { name: "new.mothpress.example", state: "waiting_dns" }];

@@ -246,7 +246,10 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
                       </div>
                     </form>
                   )}
-                  {(state !== "live" || actions.canMakeMain || actions.canRemove || (d.free && !d.former && !renaming)) && <div className="rp-card-actions">
+                  {(state === "live" || actions.canMakeMain || actions.canRemove || (d.free && !d.former && !renaming)) && <div className="rp-card-actions">
+                    {state === "live" && !d.sendsTo && (
+                      <SecondaryButton size="sm" onClick={() => copyText(`https://${d.name}`, "Link")}>Copy link</SecondaryButton>
+                    )}
                     {d.free && !d.former && !renaming && (
                       <SecondaryButton size="sm" disabled={!!busy} onClick={() => { setRenaming(true); setError(null); }}>Change name</SecondaryButton>
                     )}
