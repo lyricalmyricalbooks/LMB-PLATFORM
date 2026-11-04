@@ -700,12 +700,12 @@ test('payment links: an e-book order has no parcel, so added books are refused a
   expect((await add([{ id: 'tee', quantity: 1 }])).code).toBe(409);
 });
 
-test('discount codes: a code for "@school.ca" addresses works for them and only them', async () => {
-  const docs = stockistDocs({ discounts: { s: { code: 'SCHOOL', method: 'code', type: 'percentage', value: 10, allowedEmailDomains: '@school.ca' } } });
+test('discount codes: a code for "@school.example" addresses works for them and only them', async () => {
+  const docs = stockistDocs({ discounts: { s: { code: 'SCHOOL', method: 'code', type: 'percentage', value: 10, allowedEmailDomains: '@school.example' } } });
   const app = harness({ docs });
   const order = email => stockistOrder({ customer: { ...stockistOrder().customer, email }, appliedDiscount: { code: 'SCHOOL' } });
-  await expect(app.priceOrder(order('ada@school.ca'))).resolves.toMatchObject({ appliedDiscount: { code: 'SCHOOL' } });
-  await expect(app.priceOrder(order('ada@notschool.ca'))).rejects.toThrow(/selected email domains/);
+  await expect(app.priceOrder(order('ada@school.example'))).resolves.toMatchObject({ appliedDiscount: { code: 'SCHOOL' } });
+  await expect(app.priceOrder(order('ada@notschool.example'))).rejects.toThrow(/selected email domains/);
 });
 
 test('payment links: an ordinary order is priced exactly as before', async () => {
