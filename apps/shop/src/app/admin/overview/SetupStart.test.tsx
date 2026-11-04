@@ -50,7 +50,7 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
     await mount({});
     expect(text()).toContain("Welcome to Moth Press. Choose your look");
     expect(text()).not.toContain("Set up your shop");
-    const suggested = [...document.querySelectorAll("ul[aria-label='Suggested looks'] strong")].map(s => s.textContent);
+    const suggested = [...document.querySelectorAll("ul[aria-label='Suggested looks'] > li > div > strong")].map(s => s.textContent);
     expect(suggested[0]).toBe("Zine");
     expect(document.querySelectorAll("ul[aria-label='Every look'] li").length).toBeGreaterThan(5);
     expect(document.body.innerHTML).toContain("Moth Press in this look");

@@ -457,7 +457,7 @@ export function TabPanel({ tabId, active, children, alone = false }: {
 export function Dialog({ open, onClose, title, description, footer, footerStart, badge, children, size, variant = "dialog", appearance }: {
   open: boolean; onClose: () => void; title: string; description?: string; footer?: ReactNode;
   /** A destructive action, alone on the far left of the footer. */ footerStart?: ReactNode; badge?: string;
-  children: ReactNode; size?: "md" | "lg"; variant?: "dialog" | "drawer"; appearance?: "light" | "dark";
+  children: ReactNode; size?: "md" | "lg" | "full"; variant?: "dialog" | "drawer"; appearance?: "light" | "dark";
 }) {
   // `appearance` set = mounted outside an AppShell (owns its tokens); unset = inherits the shell's.
   const ref = useRef<HTMLDivElement>(null);
@@ -467,7 +467,8 @@ export function Dialog({ open, onClose, title, description, footer, footerStart,
   return (
     <div className={appearance ? "rp rp-dialog-root" : "rp-dialog-root"} data-variant={variant} data-rp-appearance={appearance} style={appearance ? { background: "transparent" } : undefined}>
       <div className="rp-dialog-scrim" onClick={onClose} aria-hidden="true" />
-      <div ref={ref} className="rp-dialog" data-size={size} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
+      <div ref={ref} className="rp-dialog" data-size={size} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
+        style={size === "full" ? { width: "min(100%, 1400px)", height: "calc(100dvh - 32px)", maxHeight: "none" } : undefined}>
         <div className="rp-dialog-head">
           <div>
             <h2 id={titleId} className="rp-dialog-title">{badge && <span className="rp-dialog-badge" aria-hidden="true">{badge}</span>}{title}</h2>

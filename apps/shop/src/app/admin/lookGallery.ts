@@ -61,6 +61,21 @@ export interface LookPreview {
   swatches: [string, string, string];
   /** The template's own drawing style (themeStyle), so Market stall tilts its cards and Index rows draws rows. */
   style: string;
+  /** The rest of what the try-on draws: the announcement bar, the footer, quieter words, the second colour, tags. */
+  announcement: { bg: string; text: string } | null;
+  footerBg: string; footerText: string; footerHeading: string;
+  muted: string; secondary: string;
+  badgeBg: string; badgeText: string;
+  /** The shop's catalogue heading ("The wall", "On the shelf"…), or "" for the shop's own words. */
+  heading: string;
+  /** The button words on a product ("Add to bag", "Grab it"…). */
+  cta: string;
+  /** Picture shape as width / height (3:4 gives 0.75). */
+  ratio: number;
+  /** Printed outlines and hard shadows (Riso and Marquee): the width and offset in pixels, 0 when the look has none. */
+  outline: number; outlineColor: string; shadow: number; shadowColor: string;
+  headingWeight: number;
+  chips: boolean;
 }
 
 const colour = (v: unknown, fallback: string) => (typeof v === "string" && v.trim() ? v : fallback);
@@ -84,7 +99,144 @@ export function lookPreview(theme: LibraryTheme): LookPreview {
     columns: { desktop: Math.max(2, Math.min(num(k.productColumnsDesktop, 3), 4)), phone: Math.max(1, Math.min(num(k.productColumnsMobile, 1), 2)) },
     swatches: [bg, text, accent],
     style: typeof k.themeStyle === "string" ? k.themeStyle : String((theme as any).global?.themeStyle || ""),
+    announcement: k.showAnnouncement === true ? { bg: colour(k.announcementBg, text), text: colour(k.announcementColor, bg) } : null,
+    footerBg: colour(k.footerBg, bg), footerText: colour(k.footerTextColor, text), footerHeading: colour(k.footerHeadingColor, colour(k.footerTextColor, text)),
+    muted: colour(k.mutedTextColor, text), secondary: colour(k.secondaryColor, accent),
+    badgeBg: colour(k.badgeBgPrimary, accent), badgeText: colour(k.badgeTextPrimary, colour(k.buttonTextColor, bg)),
+    heading: typeof k.catalogHeading === "string" ? k.catalogHeading.slice(0, 40) : "",
+    cta: sentenceCase(colour(k.productCTA ?? theme.productCTA, "Add to bag")),
+    ratio: pictureRatio(k.imageAspectRatio ?? theme.imageAspectRatio),
+    outline: Math.min(num(k.risoOutlineWidth, 0), 4), outlineColor: colour(k.risoOutlineColor, text),
+    shadow: Math.min(num(k.risoShadowOffset, 0), 8), shadowColor: colour(k.risoShadowColor, text),
+    headingWeight: Math.max(400, Math.min(num(k.headingWeight, 700), 900)),
+    chips: k.showCategoryChips === true,
   };
+}
+
+/** "ADD TO BAG" reads as "Add to bag"; the look's own capitals come back through `uppercase`. */
+function sentenceCase(words: string): string {
+  const w = words.trim().slice(0, 24).toLowerCase();
+  return w.charAt(0).toUpperCase() + w.slice(1);
+}
+
+/** "3:4" as 0.75; anything unreadable is a book's 3:4. Kept between a tall 1:2 and a wide 2:1. */
+export function pictureRatio(value: unknown): number {
+  const m = /^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/.exec(String(value ?? "").trim());
+  const r = m ? Number(m[1]) / Number(m[2]) : 0.75;
+  return Number.isFinite(r) && r > 0 ? Math.max(0.5, Math.min(r, 2)) : 0.75;
+}
+
+// --- Browsing the looks (the theme store) -----------------------------------------------------------------------
+
+/** How light a colour is, 0 (black) to 1 (white); null when it isn't a #rgb / #rrggbb colour. */
+export function lightness(hex: string): number | null {
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return null;
+  const h = m[1].length === 3 ? m[1].split("").map(c => c + c).join("") : m[1];
+  const [r, g, b] = [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16) / 255);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** A full template draws its own shop (its own `themeStyle`); every other look recolours and retypes the standard one. */
+export const isTemplate = (theme: LibraryTheme) => { const s = lookPreview(theme).style; return !!s && s !== "default"; };
+export const isDarkLook = (theme: LibraryTheme) => (lightness(lookPreview(theme).bg) ?? 1) < 0.35;
+
+export type LookFilter = "all" | "templates" | "light" | "dark";
+export const LOOK_FILTERS: { id: LookFilter; label: string }[] = [
+  { id: "all", label: "All looks" },
+  { id: "templates", label: "Full templates" },
+  { id: "light", label: "Light" },
+  { id: "dark", label: "Dark" },
+];
+
+/** The looks a filter keeps, in the library's order. */
+export function filterLooks(themes: LibraryTheme[], filter: LookFilter): LibraryTheme[] {
+  if (filter === "templates") return themes.filter(isTemplate);
+  if (filter === "light") return themes.filter(t => !isDarkLook(t));
+  if (filter === "dark") return themes.filter(isDarkLook);
+  return themes;
+}
+
+/** The faces a look draws with, for loading them before it is shown. */
+export const lookFonts = (look: LookPreview) => [...new Set([look.headingFont, look.bodyFont])].filter(f => f && f !== "inherit");
+
+export type PreviewProduct = { title: string; photo: string; maker?: string; price?: string };
+
+/**
+ * Made-up products for the try-on when the press has none yet, worded for what they sell (the sign-up answer). Prices
+ * are examples only; the covers are drawn in each look's own colours.
+ */
+const SAMPLES: Record<"books" | "general" | "clothing" | "jewelry" | "music" | "prints", PreviewProduct[]> = {
+  books: [
+    { title: "Salt Hours", maker: "Zoe Moss", photo: "", price: "$22" },
+    { title: "Night Songs", maker: "A. Poet", photo: "", price: "$18" },
+    { title: "Paper Weather", maker: "R. Lane", photo: "", price: "$30" },
+    { title: "The Long Field", maker: "M. Okafor", photo: "", price: "$26" },
+    { title: "Small Rooms", maker: "J. Tran", photo: "", price: "$15" },
+    { title: "Blue Hour", maker: "S. Ferris", photo: "", price: "$24" },
+    { title: "Field Notes", maker: "L. Haddad", photo: "", price: "$12" },
+    { title: "Ink & Bone", maker: "P. Ruiz", photo: "", price: "$28" },
+  ],
+  prints: [
+    { title: "Harbour at Dusk", maker: "Riso print", photo: "", price: "$40" },
+    { title: "Two Moons", maker: "Screen print", photo: "", price: "$55" },
+    { title: "Fern Study", maker: "Risograph", photo: "", price: "$30" },
+    { title: "Night Market", maker: "Giclée", photo: "", price: "$65" },
+    { title: "Paper Birds", maker: "Linocut", photo: "", price: "$45" },
+    { title: "Tide Chart", maker: "Riso print", photo: "", price: "$35" },
+    { title: "City Grid", maker: "Screen print", photo: "", price: "$50" },
+    { title: "Wild Garden", maker: "Risograph", photo: "", price: "$30" },
+  ],
+  clothing: [
+    { title: "Heavy Tee", maker: "Organic cotton", photo: "", price: "$38" },
+    { title: "Canvas Tote", maker: "Natural", photo: "", price: "$24" },
+    { title: "Crew Sweatshirt", maker: "Brushed fleece", photo: "", price: "$72" },
+    { title: "Work Cap", maker: "Washed twill", photo: "", price: "$30" },
+    { title: "Field Jacket", maker: "Waxed cotton", photo: "", price: "$140" },
+    { title: "Rib Socks", maker: "Merino", photo: "", price: "$16" },
+    { title: "Long Sleeve", maker: "Garment dyed", photo: "", price: "$46" },
+    { title: "Wool Beanie", maker: "Hand knit", photo: "", price: "$34" },
+  ],
+  jewelry: [
+    { title: "Moon Hoops", maker: "Gold vermeil", photo: "", price: "$85" },
+    { title: "Seed Ring", maker: "Sterling silver", photo: "", price: "$60" },
+    { title: "Pearl Drop", maker: "Freshwater pearl", photo: "", price: "$95" },
+    { title: "Chain Bracelet", maker: "Recycled silver", photo: "", price: "$70" },
+    { title: "Signet", maker: "Brass", photo: "", price: "$55" },
+    { title: "Star Studs", maker: "Gold fill", photo: "", price: "$40" },
+    { title: "Pebble Pendant", maker: "Sterling silver", photo: "", price: "$75" },
+    { title: "Twist Cuff", maker: "Bronze", photo: "", price: "$65" },
+  ],
+  music: [
+    { title: "Low Tide", maker: "LP", photo: "", price: "$32" },
+    { title: "Night Drive", maker: "Cassette", photo: "", price: "$12" },
+    { title: "Glass Garden", maker: "LP", photo: "", price: "$30" },
+    { title: "Static Hearts", maker: "7-inch", photo: "", price: "$10" },
+    { title: "Northern Lines", maker: "CD", photo: "", price: "$15" },
+    { title: "Slow Rooms", maker: "LP", photo: "", price: "$28" },
+    { title: "Paper Planes", maker: "Cassette", photo: "", price: "$12" },
+    { title: "Heat Wave", maker: "LP", photo: "", price: "$34" },
+  ],
+  general: [
+    { title: "Linen Napkins", maker: "Set of four", photo: "", price: "$32" },
+    { title: "Stoneware Mug", maker: "Handmade", photo: "", price: "$28" },
+    { title: "Beeswax Candle", maker: "Hand poured", photo: "", price: "$22" },
+    { title: "Wool Throw", maker: "Woven", photo: "", price: "$120" },
+    { title: "Field Notebook", maker: "Recycled paper", photo: "", price: "$14" },
+    { title: "Ceramic Vase", maker: "Glazed", photo: "", price: "$48" },
+    { title: "Tea Towel", maker: "Printed cotton", photo: "", price: "$18" },
+    { title: "Wooden Spoon", maker: "Cherry wood", photo: "", price: "$20" },
+  ],
+};
+
+export function sampleProducts(publishes?: string | null): PreviewProduct[] {
+  const p = String(publishes || "");
+  if (p === "prints") return SAMPLES.prints;
+  if (p === "clothing" || p === "shoes") return SAMPLES.clothing;
+  if (p === "jewelry") return SAMPLES.jewelry;
+  if (p === "music") return SAMPLES.music;
+  if (p === "other") return SAMPLES.general;
+  return SAMPLES.books;
 }
 
 /**
