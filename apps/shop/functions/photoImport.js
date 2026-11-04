@@ -48,6 +48,10 @@ function publicHttps(url) {
   return true;
 }
 
+/** The old addresses of a book's edition photos that still need copying. */
+const editionPhotos = (variants, bucketName) => (Array.isArray(variants) ? variants : [])
+  .map(v => v?.photoUrl).filter(url => needsImport({ url }, bucketName));
+
 /** A photo that still loads from another address (not a video, not already in this bucket). */
 function needsImport(photo, bucketName) {
   if (!photo || typeof photo !== "object" || photo.videoUrl || typeof photo.url !== "string") return false;
@@ -269,7 +273,7 @@ async function copyPhoto({ bucket, bucketName, url, fetch, lookup = defaultLooku
 }
 
 /**
- * Swaps every photo and description picture of the book still on an old address in `moved` (old → new) to its copy,
+ * Swaps every photo, edition photo and description picture of the book still on an old address in `moved` (old → new) to its copy,
  * in one transaction. Returns how many old addresses were swapped.
  */
 async function swapPhotos(db, bookId, moved, nowIso) {
@@ -287,6 +291,14 @@ async function swapPhotos(db, bookId, moved, nowIso) {
       return { ...p, url: moved.get(p.url), importedFrom: p.url };
     });
     if (swapped.size) patch.photos = next;
+    // An edition's own photo (a Size or Colour picked on the product page) is an old address too.
+    if (Array.isArray(data.variants) && data.variants.some(v => v && typeof v === "object" && moved.has(v.photoUrl))) {
+      patch.variants = data.variants.map(v => {
+        if (!v || typeof v !== "object" || !moved.has(v.photoUrl)) return v;
+        swapped.add(v.photoUrl);
+        return { ...v, photoUrl: moved.get(v.photoUrl) };
+      });
+    }
     if (typeof data.description === "string") {
       const { text, swaps } = rewriteDescription(data.description, moved);
       if (swaps.length) {
@@ -354,7 +366,7 @@ async function runPhotoImport({ db, bucket, fetch, lookup = defaultLookup, timeo
   for (const doc of snap.docs) {
     const data = doc.data() || {};
     want(`books/${doc.id}`, (Array.isArray(data.photos) ? data.photos : []).filter(p => needsImport(p, bucketName)).map(p => p.url)
-      .concat(descriptionImages(data.description, bucketName)));
+      .concat(editionPhotos(data.variants, bucketName), descriptionImages(data.description, bucketName)));
   }
   // The shop's own pages are few, so every run reads them all (plan 23.13).
   for (const doc of (await db.collection("pages").get()).docs) want(`pages/${doc.id}`, descriptionImages(doc.data()?.body, bucketName));

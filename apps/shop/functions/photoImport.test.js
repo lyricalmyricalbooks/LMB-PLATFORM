@@ -129,6 +129,24 @@ describe("runPhotoImport", () => {
     expect(saved.contentType).toBe("image/jpeg");
   });
 
+  it("copies an edition's own photo and points the edition at the copy, so it survives the old shop closing", async () => {
+    const db = fakeDb({
+      shirt: { title: "Shirt", photos: [{ url: OLD_A }], variants: [{ id: "v1", name: "Black", photoUrl: OLD_A }, { id: "v2", name: "White", photoUrl: OLD_B }, { id: "v3", name: "Grey", photoUrl: "" }] },
+    });
+    const bucket = fakeBucket();
+    const { fetch, calls } = fakeFetch({ [OLD_A]: { type: "image/jpeg" }, [OLD_B]: { type: "image/png" } });
+    const result = await runPhotoImport({ db, bucket, fetch, deadline: Date.now() + 60_000, log: quiet, lookup: publicLookup });
+    expect(calls.sort()).toEqual([OLD_A, OLD_B].sort());
+    expect(result).toMatchObject({ failed: 0, pending: 0 });
+    const shirt = book("shirt")(db);
+    expect(shirt.variants[0]).toMatchObject({ id: "v1", name: "Black", photoUrl: shirt.photos[0].url });
+    expect(shirt.variants[1].photoUrl).toContain(`/v0/b/${BUCKET}/o/products%2Fimported%2F`);
+    expect(shirt.variants[2]).toEqual({ id: "v3", name: "Grey", photoUrl: "" });
+    // A re-run downloads nothing more.
+    await runPhotoImport({ db, bucket, fetch, deadline: Date.now() + 60_000, log: quiet, lookup: publicLookup, now: Date.now() + 1 });
+    expect(calls).toHaveLength(2);
+  });
+
   it("writes one audit line per run that copied something, and none when nothing was left", async () => {
     const { db, bucket, fetch } = setup();
     await runPhotoImport({ db, bucket, fetch, deadline: Date.now() + 60_000, log: quiet, lookup: publicLookup });
