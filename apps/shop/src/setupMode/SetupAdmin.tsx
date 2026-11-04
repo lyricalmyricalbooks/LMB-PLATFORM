@@ -17,6 +17,7 @@ import { adminWordsFor } from "../app/admin/sells";
 import { ImportPage } from "./ImportPage";
 import { CARD_CHOICE_NOTE, CARD_PROVIDER_CHOICES, chosenCardProvider, squareAvailable, type CardProviderId } from "./cardChoice";
 import { WEB_ADDRESS_ANCHOR, WebAddressCard } from "./WebAddress";
+import { BrandLogo } from "../app/components/brand/BrandLogo";
 import { AskForm, HelpAnswer, HelpQuestions, type HelpAnswers } from "./SetupHelp";
 import type { PlanList, SetupChange, SetupDoor, SetupPress } from "./door";
 import { CreateShopCard, type CreateShop } from "./CreateShop";
@@ -540,11 +541,14 @@ function CardPaymentsPage({ press, save }: { press: SetupPress; save: (c: SetupC
             const unavailable = option.id === "square" && !squareAvailable(press.country);
             return (
               <button key={option.id} type="button" role="radio" aria-checked={on} disabled={!!busy || !inSetup || unavailable} onClick={() => void choose(option.id)}
-                style={{ display: "grid", gap: 2, textAlign: "left", minHeight: 56, padding: "12px 14px",
+                style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "0 12px", alignItems: "center", textAlign: "left", minHeight: 56, padding: "12px 14px",
                   background: on ? "var(--rp-primary-tint)" : "var(--rp-surface)", color: "var(--rp-text)", cursor: unavailable ? "not-allowed" : "pointer",
                   opacity: unavailable ? 0.6 : 1, border: on ? "2px solid var(--rp-text)" : "1px solid var(--rp-border)" }}>
-                <strong>{option.name}</strong>
-                <span className="rp-hint">{unavailable ? "Not available in your country yet." : option.line}</span>
+                <BrandLogo id={option.id} size="md" />
+                <span style={{ display: "grid", gap: 2 }}>
+                  <strong>{option.name}</strong>
+                  <span className="rp-hint">{unavailable ? "Not available in your country yet." : option.line}</span>
+                </span>
               </button>
             );
           })}
