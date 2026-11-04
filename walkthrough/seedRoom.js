@@ -107,6 +107,7 @@ export async function seedRoom(world) {
   await world.shopData.set("kestrel", "settings/notifications", { shopAlerts: { dailyOrderDigest: true, lowStock: true } });
   await world.shopData.set("kestrel", "systemStatus/lowStockAlerts", { items: { birdsong: "low", "wren-songs": "low", "old-zine": "out" } });
   await world.shopData.set("kestrel", "orders/seed-parts", { paymentStatus: "paid", createdAt: daysAgo(8), total: 52, partShipments: [{ at: daysAgo(7) }, { at: daysAgo(3) }] });
+  await world.shopData.set("kestrel", "orders/seed-added", { paymentStatus: "paid", status: "paid", source: "payment_link", createdAt: daysAgo(6), total: 18, shipsWith: "seed-parts", addedByCustomer: true });
   await world.driftWatch.sweep();
 
   // Selling away from the website: Kestrel sent three payment links (two paid, one still unpaid after five days) and rang up two checkouts on
