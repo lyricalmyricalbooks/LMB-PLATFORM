@@ -339,11 +339,11 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
                   <button type="button" className={`od-card${refund ? ` is-refunded is-refunded-${refund}` : ""}`} onClick={() => openInStation(o.id)} aria-label={`Order ${o.orderId || o.id}, ${o.customer?.name || "no name"}, ${badgeText(s.text)}, ${pay.text}`}>
                     <span className="od-card-cover" aria-hidden="true">{cover ? <img src={cover} alt="" loading="lazy" decoding="async" /> : <span className="od-card-blank">{titles || "No books"}</span>}</span>
                     <span className="od-card-body">
-                      <span className="od-row-top"><strong className="rp-mono">{o.orderId || o.id}</strong><span className="rp-hint rp-mono">{listDate(o.paidAt || o.createdAt)}</span></span>
+                      <span className="od-row-top"><span style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 }}><strong className="rp-mono">{o.orderId || o.id}</strong>{orderInFrench(o) ? <span title={FRENCH_ORDER_HINT}><StatusBadge tone="neutral" glyph={false}><span aria-hidden="true">FR</span><span className="rp-sr-only">Shopped in French</span></StatusBadge></span> : null}</span><span className="rp-hint rp-mono">{listDate(o.paidAt || o.createdAt)}</span></span>
                       <span className="od-card-who"><span><strong>{o.customer?.name || "—"}</strong> · {itemCount(o)}</span><span className="rp-mono od-row-amount" title={m.paid ? `Paid ${m.paid}` : undefined}>{m.text}</span></span>
                       {/* Without a cover the titles are already written in the cover box. */}
                       {titles && cover ? <span className="od-row-title" title={titles}>{titles}</span> : null}
-                      <span className="od-card-chips"><StatusBadge tone={s.tone}>{badgeText(s.text)}</StatusBadge><StatusBadge tone={pay.tone}>{pay.text}</StatusBadge>{o.isTest ? <StatusBadge tone="danger">Test</StatusBadge> : null}{orderInFrench(o) ? <span title={FRENCH_ORDER_HINT}><StatusBadge tone="neutral">French</StatusBadge></span> : null}</span>
+                      <span className="od-card-chips"><StatusBadge tone={s.tone}>{badgeText(s.text)}</StatusBadge><StatusBadge tone={pay.tone}>{pay.text}</StatusBadge>{o.isTest ? <StatusBadge tone="danger">Test</StatusBadge> : null}</span>
                     </span>
                   </button>
                 </li>

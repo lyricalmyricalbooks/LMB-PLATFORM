@@ -94,10 +94,10 @@ it('edits the French words beside the English ones, and a saved French word show
 it('warns when the English words changed but the French ones were never touched', async () => {
   m.notifications = { order_confirmation: { subject: 'Thanks! {{order_id}}', body: 'Pickup at the side door.' } };
   const { root } = await renderEditor();
-  expect(container.textContent).toContain('the French version still has the default words');
+  expect(container.textContent).toContain('French version still has the default words');
   await act(async () => root.unmount());
   m.notifications = { order_confirmation: { subject: 'Thanks! {{order_id}}', body: 'Pickup at the side door.', fr: { body: 'Cueillette à la porte de côté.' } } };
   const again = await renderEditor();
-  expect(container.textContent).not.toContain('the French version still has the default words');
+  expect(container.textContent).not.toContain('French version still has the default words');
   await act(async () => again.root.unmount());
 });
