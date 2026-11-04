@@ -83,6 +83,7 @@ const { checkoutAdminActions } = require("./checkoutAdmin");
 const { customDomainActions } = require("./customDomains");
 const { googleConnectActions } = require("./googleConnect");
 const { bookkeepingActions, dayFromOrders } = require("./quickbooksLink");
+const { socialActions } = require("./socialLink");
 const { practiceCheckoutActions } = require("./practiceCheckout");
 const { checkoutPaymentActions } = require("./checkoutPayment");
 const { createPayments, providerName } = require("./payments");
@@ -1782,6 +1783,9 @@ const { handleBookkeeping } = bookkeepingActions({
   url: shopConfig.platformAccountingUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin,
   buildDay: async (date) => dayFromOrders((await db.collection("orders").get()).docs.map((d) => ({ id: d.id, ...d.data() })), date),
 });
+// Sales channels and Social posts: the press's social accounts, through the platform's social service (socialLink.js, plan 27.4).
+const social = socialActions({ url: shopConfig.platformSocialUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin, db, siteUrl: shopConfig.siteUrl });
+const handleSocial = social.handleSocial;
 // Practice orders on a platform shop while it is private, for the owner only (practiceCheckout.js, plan 7.6).
 const { handlePracticeCheckout, practiceFor } = practiceCheckoutActions({ db, platform: payments.mode === "platform", requireAdmin, orderRequestIdentity });
 
@@ -1846,6 +1850,7 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   customDomains: handleCustomDomains,
   googleConnect: handleGoogleConnect,
   bookkeeping: handleBookkeeping,
+  social: handleSocial,
   practiceCheckout: handlePracticeCheckout,
   webhookHealth: handleWebhookHealth,
   giftCardAdmin: handleGiftCardAdmin,
@@ -4466,6 +4471,13 @@ exports.onOrderInventoryPush = onDocumentWritten({ document: "orders/{orderId}",
 exports.inventoryLinkSweep = onSchedule({ schedule: "every 5 minutes", name: "inventoryLinkSweep", timeoutSeconds: 300 }, async () => {
   const out = await require("./inventoryLinkJobs").runSweep(inventoryLinkDeps(), { stock: "auto" });
   if (out.error) console.error("inventoryLinkSweep:", out.error);
+});
+
+// Social posts whose time has come (plan 27.4): each is claimed, then sent once to each of its places.
+exports.socialPostSweep = onSchedule({ schedule: "every 5 minutes", name: "socialPostSweep", timeoutSeconds: 300 }, async () => {
+  if (!shopConfig.platformSocialUrl) return;
+  const out = await social.runDuePosts();
+  if (out.sent) console.log(`socialPostSweep: sent ${out.sent} post(s)`);
 });
 
 // The storefront's catalog file stays in use only while nothing it holds has changed (functions/catalogVersion.js).

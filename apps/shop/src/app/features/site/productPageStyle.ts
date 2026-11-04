@@ -307,6 +307,11 @@ export function productPageCss(design: any): string {
   css += `${S} .fm-pdp-buynow{display:flex;width:100%;min-height:48px;margin-top:10px;align-items:center;justify-content:center;font-size:10px;font-weight:900;letter-spacing:.3em;background:transparent;color:rgb(var(--fg-rgb));border:${outlineW} solid ${outline};cursor:pointer;}`;
   css += `${S} .fm-pdp-buynow:hover{background:rgb(var(--fg-rgb));color:var(--surface);}`;
   css += `${S} .fm-pdp-sq:hover{border-color:rgb(var(--fg-rgb));}`;
+  // Share menu (plan 27.7): the share button opens a short list of sites plus Copy link, in the page's own colours.
+  css += `${S} .fm-pdp-share{position:relative;display:inline-flex;}`;
+  css += `${S} .fm-pdp-share-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:30;min-width:190px;display:flex;flex-direction:column;padding:6px 0;background:var(--surface);color:rgb(var(--fg-rgb));border:2px solid rgba(var(--border-rgb), 0.6);box-shadow:0 8px 24px rgba(var(--fg-rgb), 0.12);}`;
+  css += `${S} .fm-pdp-share-menu a,${S} .fm-pdp-share-menu button{display:flex;align-items:center;gap:10px;min-height:40px;padding:0 14px;font-size:14px;text-align:left;background:transparent;color:inherit;text-decoration:none;border:0;cursor:pointer;}`;
+  css += `${S} .fm-pdp-share-menu a:hover,${S} .fm-pdp-share-menu a:focus-visible,${S} .fm-pdp-share-menu button:hover,${S} .fm-pdp-share-menu button:focus-visible{background:var(--surface-2);outline:none;}`;
   css += signupBoxCss(d);
   css += extraFieldsCss(d);
   css += photoViewerCss(d);

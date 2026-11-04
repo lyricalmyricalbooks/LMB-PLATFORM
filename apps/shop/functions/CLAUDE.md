@@ -1092,3 +1092,10 @@ queue `twoStepBackupUsed`; a failed send never undoes the sign-in). The function
 - **One line everywhere (plan 24.9):** Overview › Running low (`OverviewStock` `lowLine`), the Books list badges
   (`catalogList.stockInfo(book, getBook, line)`) and the book editor read the same `lowStockThreshold(settings)`. Before
   this they used a fixed 5.
+
+## Social posts (4 November 2026, platform plan 27.4)
+
+`socialLink.js` passes the admin's Sales channels / Social posts steps to the platform social service
+(`shopConfig.platformSocialUrl`) with the shop's service key. Posts live in `socialPosts` (rules: server only; indexes
+on status + sendAt and status + claimedAt). `socialPostSweep` (every 5 minutes, in the tick registry) claims due posts
+in a transaction (stale after 15 minutes) and publishes each once per place; product links carry `utm_source`.

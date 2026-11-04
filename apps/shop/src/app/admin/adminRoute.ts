@@ -8,7 +8,7 @@ import { DEFAULT_STOCKROOM_PAGE, SALES_TAB, STOCKROOM_TAB, combinedAdmin, stockr
 
 export type AdminRoute = { tab: string; settingsTab?: string; orderId?: string; giftCardId?: string; subTab?: string; bookId?: string };
 
-export const ADMIN_TABS = ["overview", "analytics", "orders", "customers", "inventory", "catalog", "discounts", "giftCards", "reviews", "messages", "settings"] as const;
+export const ADMIN_TABS = ["overview", "analytics", "orders", "customers", "inventory", "catalog", "discounts", "giftCards", "reviews", "messages", "channels", "socialPosts", "settings"] as const;
 /** Old Settings page ids that now open another page (Email sender was merged into the one email page). */
 export const SETTINGS_TAB_ALIASES: Record<string, string> = { communications: "notifications" };
 /** The Settings page an id really opens (an alias resolves to its page). */
@@ -59,6 +59,11 @@ export function routeFromHash(hash: string, combined: boolean = combinedAdmin())
   const [head, rest] = [h.split("/")[0], h.split("/").slice(1).join("/")];
   if (head === "gift-cards") return { tab: "giftCards", ...(rest ? { giftCardId: decode(rest) } : {}) };
   if (head === "orders") return { tab: "orders", ...(rest ? { orderId: decode(rest) } : {}) };
+  // Social posts (`#social-posts`), and a post started from a book (`#social-posts/book/<id>`).
+  if (head === "social-posts" || head === "socialPosts") {
+    const bookId = rest.startsWith("book/") ? decode(rest.slice(5)).trim() : "";
+    return { tab: "socialPosts", ...(BOOK_ID.test(bookId) ? { bookId } : {}) };
+  }
   // A stockroom page in the combined admin (combined.ts): `#stockroom/<page>`; an unknown page opens the first.
   if (head === STOCKROOM_TAB) return !combined ? null : { tab: STOCKROOM_TAB, subTab: stockroomPage(rest.split("/")[0])?.id ?? DEFAULT_STOCKROOM_PAGE };
   // Every sale in one list, a combined-admin page (`#sales`).
@@ -103,6 +108,7 @@ export function hashForRoute(r: AdminRoute): string {
   if (r.tab === "settings") return r.settingsTab === "designer" ? "#designer" : `#settings/${page}${sub}`;
   if (r.tab === "orders") return r.orderId ? `#orders/${encodeURIComponent(r.orderId)}` : "#orders";
   if (r.tab === "giftCards") return "#gift-cards";
+  if (r.tab === "socialPosts") return "#social-posts";
   if (r.tab === STOCKROOM_TAB) return `#${STOCKROOM_TAB}/${stockroomPage(r.subTab)?.id ?? DEFAULT_STOCKROOM_PAGE}`;
   if (r.tab === SALES_TAB) return `#${SALES_TAB}`;
   return TABS.has(r.tab) ? `#${r.tab}${sub}` : "#overview";
