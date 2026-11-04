@@ -25,6 +25,9 @@ payment icons (`features/site/paymentIcons.tsx`); the Google button on the platf
   [disclaimer](https://github.com/simple-icons/simple-icons/blob/develop/DISCLAIMER.md)), drawn in each company's own
   colour as Simple Icons records it, with each company's source page below. Simple Icons grants no trademark rights:
   the owners' rules below still apply.
+- **Full-colour artwork beside a single-colour mark.** A logo can also keep the company's full-colour file in `full/`
+  (Mastercard: its official two-circle symbol). Places that show logos in their own colours use it; places that show
+  them in one colour (the storefront's payment icons by default) keep the single-colour mark.
 - **Never alter a logo.** No redrawing, recolouring (except the storefront's payment icons, which follow the shop's
   one text colour as the card brands allow for single-colour use), stretching, rotating, outlines, shadows or cropping.
   To change one, replace its SVG file with the owner's newer artwork and rebuild.
@@ -77,5 +80,12 @@ payment icons (`features/site/paymentIcons.tsx`); the Google button on the platf
 | `dhl` | DHL | Deutsche Post AG | Simple Icons 16.36.0 (CC0), single colour #D40511 on #FFCC00 | [rules](https://www.dpdhl-brands.com/dhl/en/guides/design-basics/logo-and-claim.html) |
 
 Google Merchant Center and Google Business Profile have no public single-mark artwork, so their screens show the Google G
-with the product's name beside it. Canada Post, Shippo and Klaviyo are not in the kit yet: add their own artwork here
-before showing them.
+with the product's name beside it. Shippo and Klaviyo are not in the kit yet: add their own artwork here before showing
+them.
+
+**Canada Post stays out of the kit on purpose** (checked 4 November 2026,
+https://www.canadapost-postescanada.ca/cpc/en/our-company/news-and-media/media-centre/canada-post-logos.page). Its
+postmark is only for sponsors, media and schools. A shop that ships with it may use the wide "Shipped by Canada Post"
+logo, but on a website that logo must always be a link to canadapost.ca, must never be placed on another shape, and
+must sit on a page that talks about Canada Post. A small square tile breaks those rules. If it is ever shown, use their
+downloaded "Shipped by" file unchanged, as a link, next to the shipping choice.

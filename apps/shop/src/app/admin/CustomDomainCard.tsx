@@ -1,9 +1,16 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { adminApi } from "./api";
+import { BrandLogo, isBrandId } from "../components/brand/BrandLogo";
 import { DestructiveButton, ErrorState, LoadingState, PrimaryButton, SecondaryButton, SectionCard, StatusBadge, TextField, useConfirm } from "./riso/components";
 import { friendlyError } from "./settingsLayout";
 import { allowLabel, describeEntry, domainActions, freeNameOf, guideLineTitle, guideMailto, moveWarning, type DomainCheck, type DomainEntry, type DomainList } from "./customDomains";
 import { copyText } from "./clipboard";
+
+/** The domain seller's own logo on its Connect button, when the brand kit has it (GoDaddy today). */
+function sellerLogo(seller: string | null | undefined) {
+  const id = (seller || "").toLowerCase().replace(/[^a-z]/g, "");
+  return isBrandId(id) ? <BrandLogo id={id} size="sm" /> : null;
+}
 
 // Settings › General › Your web address (plan 2.9): put the shop on the press's own address through Colophon. A shop
 // without the platform's domain service shows `fallback` (the older "for your records" field) instead. Plan 5.9: each
@@ -196,7 +203,7 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
                     <div className="rp-stack" style={{ gap: 8, marginTop: 12 }} data-allow>
                       <p style={{ margin: 0 }}>{found.seller ? `${found.seller} will ask you to sign in and say yes. That is all it takes.` : "Your domain seller will ask you to sign in and say yes. That is all it takes."}</p>
                       <div className="rp-card-actions">
-                        <PrimaryButton size="sm" disabled={!!busy} onClick={() => void allow(d.name, found.allowUrl!)}>{allowLabel(found.seller)}</PrimaryButton>
+                        <PrimaryButton size="sm" disabled={!!busy} onClick={() => void allow(d.name, found.allowUrl!)}>{sellerLogo(found.seller)}{allowLabel(found.seller)}</PrimaryButton>
                       </div>
                     </div>
                   )}

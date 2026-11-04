@@ -957,7 +957,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "coPaymentInstructions", label: "Manual payment heading", default: "Payment Instructions" },
       { key: "coCheckEmail", label: "Manual payment fallback text", default: "Please check your email for payment instructions." },
       { key: "coEnterAddress", label: "Shipping methods placeholder", default: "Enter your delivery address to see available shipping methods." },
-      { key: "coCardBrands", label: "Card brand badges (comma-separated)", default: "VISA, MC, AMEX", hint: "Write Apple Pay to show the Apple Pay mark." },
+      { key: "coCardBrands", label: "Card brand badges (comma-separated)", default: "VISA, MC, AMEX", hint: "Visa, MC (Mastercard) and Amex show as the real logos; any other word shows as written." },
       { key: "coStripeRetry", label: "Inline Stripe form retry button", default: "Reload payment form" },
       { key: "coStripeRetryNote", label: "Inline Stripe form retry explanation", multiline: true, default: "Reload the secure payment fields here. Your bag and delivery details stay saved." },
       { key: "coStripeNote", label: "Card redirect note", default: "After you click “Pay securely,” you’ll complete your card payment on Stripe’s secure checkout." },

@@ -115,7 +115,7 @@ describe("Your web address: connect in one step (plan 6.15)", () => {
     await act(async () => button(el, "Connect")!.click());
     expect(api.customDomains).toHaveBeenCalledWith("connect", "shop.mothpress.example");
     const card = el.querySelector('[data-domain="shop.mothpress.example"]')!;
-    expect(button(card, "Connect with GoDaddy")).toBeTruthy();
+    expect(button(card, "Connect with GoDaddy")?.querySelector('[data-brand="godaddy"]')).toBeTruthy();
     expect(card.textContent).toContain("sign in and say yes");
     // The by-hand guide stays folded away behind a plain question.
     expect(card.querySelector("details")?.hasAttribute("open")).toBe(false);
