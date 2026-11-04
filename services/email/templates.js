@@ -344,11 +344,69 @@ export const TEMPLATES = {
   }),
 
   /** A payment that had failed went through after all (22.5). Only sent after a problem, never for an ordinary month. */
-  "payment-received": ({ price, link }, { settings, pressName }) => layout({
+  "payment-received": ({ price, link, bill }, { settings, pressName }) => layout({
     subject: `Thanks, ${pressName}'s payment went through`,
     greeting: "Hello,",
     paragraphs: [`Your ${price} payment for ${pressName} went through, so everything is back to normal. Your bills are on your billing page whenever you need them.`],
-    buttons: [["See your bills", safeLink(link)]],
+    buttons: [...(bill ? [["See this bill", safeLink(bill)]] : []), ["See your bills", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /**
+   * A receipt for a paid bill (code plan 25.1), every month and for any other bill with money on it. `data`: { price
+   * (what was paid), number (the bill's number, or ""), paidOn, from and to (the days the bill covers, or ""), tax (the
+   * tax in it, or ""), bill (the bill's own page, https, or null), link (the billing page) }.
+   */
+  "bill-paid": ({ price, number, paidOn, from, to, tax, bill, link, planName }, { settings, pressName }) => {
+    if (!price) throw new Error("a receipt needs the amount paid");
+    return layout({
+      subject: `Your ${settings.platformName} receipt for ${pressName}${number ? ` (${number})` : ""}`,
+      greeting: "Hello,",
+      paragraphs: [
+        `Thanks: we received your ${price} payment for ${pressName}${planName ? `, ${planName} plan` : ""}${paidOn ? `, on ${paidOn}` : ""}.`,
+        ...(from && to ? [`It pays for ${from} to ${to}.`] : []),
+        ...(tax ? [`It includes ${tax} in sales tax.`] : []),
+        `${number ? `Bill ${number} is` : "This bill is"} kept on your billing page, with all your earlier ones, whenever you need them for your books.`,
+      ],
+      buttons: [...(bill ? [["See this bill", safeLink(bill)]] : []), ["See your bills", safeLink(link)]],
+      footer: signOff(settings),
+    });
+  },
+
+  /** A card was added or made the one that pays (code plan 25.2): a safety notice. `data`: { card (e.g. "Visa ending 4242"), link }. */
+  "card-changed": ({ card, link }, { settings, pressName }) => layout({
+    subject: `The card that pays for ${pressName} changed`,
+    greeting: "Hello,",
+    paragraphs: [
+      `${card ? `${card} now pays` : "A new card now pays"} for ${pressName}'s ${settings.platformName} plan.`,
+      "If you made this change, there's nothing to do.",
+      "If you didn't, sign in and check your billing page now, then reply to this email so we can help straight away.",
+    ],
+    buttons: [["See your billing", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /** A card reopened a shop that was paused (code plan 25.3). `data`: { card, link }. */
+  "shop-reopened": ({ card, price, planName, link }, { settings, pressName }) => layout({
+    subject: `${pressName} is open again`,
+    greeting: "Hello,",
+    paragraphs: [
+      `Thanks for adding ${card || "a card"}. ${pressName} is open again, and shoppers can order as usual.`,
+      "Your plan carries on from today, billed each month as before, and you can change or cancel it at any time.",
+    ],
+    buttons: [["See your plan", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /** The press kept a plan they had cancelled (code plan 25.3). `data`: { link }. */
+  "cancel-undone": ({ price, planName, link }, { settings, pressName }) => layout({
+    subject: `${pressName} stays open`,
+    greeting: "Hello,",
+    paragraphs: [
+      `You kept your ${settings.platformName} plan, so ${pressName} won't close. We're glad you're staying.`,
+      "Your plan carries on just as before, and you won't be asked to set anything up again.",
+    ],
+    buttons: [["See your plan", safeLink(link)]],
     footer: signOff(settings),
   }),
 

@@ -412,11 +412,65 @@ export const PRESS_TEMPLATES_FR = {
   }),
 
   /** French twin of "payment-received". */
-  "payment-received": ({ price, link }, { settings, pressName }) => layout({
+  "payment-received": ({ price, link, bill }, { settings, pressName }) => layout({
     subject: `Merci, le paiement de ${pressName} est passé`,
     greeting: "Bonjour,",
     paragraphs: [`Votre paiement de ${frenchMoney(price)} pour ${pressName} est passé : tout est revenu à la normale. Vos factures sont sur votre page de facturation quand vous en avez besoin.`],
-    buttons: [["Voir vos factures", safeLink(link)]],
+    buttons: [...(bill ? [["Voir cette facture", safeLink(bill)]] : []), ["Voir vos factures", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /** French twin of "bill-paid". */
+  "bill-paid": ({ price, number, paidOn, from, to, tax, bill, link, planName }, { settings, pressName }) => {
+    if (!price) throw new Error("a receipt needs the amount paid");
+    return layout({
+      subject: `Votre reçu ${settings.platformName} pour ${pressName}${number ? ` (${number})` : ""}`,
+      greeting: "Bonjour,",
+      paragraphs: [
+        `Merci : nous avons bien reçu votre paiement de ${frenchMoney(price)} pour ${pressName}${planName ? `, forfait ${planNameFr(planName)}` : ""}${paidOn ? `, le ${frenchDay(paidOn)}` : ""}.`,
+        ...(from && to ? [`Il couvre la période du ${frenchDay(from)} au ${frenchDay(to)}.`] : []),
+        ...(tax ? [`Il comprend ${frenchMoney(tax)} de taxes de vente.`] : []),
+        `${number ? `La facture ${number} est conservée` : "Cette facture est conservée"} sur votre page de facturation, avec toutes les précédentes, quand vous en avez besoin pour votre comptabilité.`,
+      ],
+      buttons: [...(bill ? [["Voir cette facture", safeLink(bill)]] : []), ["Voir vos factures", safeLink(link)]],
+      footer: signOff(settings),
+    });
+  },
+
+  /** French twin of "card-changed". */
+  "card-changed": ({ card, link }, { settings, pressName }) => layout({
+    subject: `La carte qui paie ${pressName} a changé`,
+    greeting: "Bonjour,",
+    paragraphs: [
+      `${card ? `La carte ${cardFr(card)} paie` : "Une nouvelle carte paie"} désormais le forfait ${settings.platformName} de ${pressName}.`,
+      "Si c'est vous qui avez fait ce changement, il n'y a rien à faire.",
+      "Sinon, connectez-vous et vérifiez votre page de facturation tout de suite, puis répondez à ce courriel pour que nous vous aidions sans attendre.",
+    ],
+    buttons: [["Voir votre facturation", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /** French twin of "shop-reopened". */
+  "shop-reopened": ({ card, price, planName, link }, { settings, pressName }) => layout({
+    subject: `${pressName} est de nouveau ouverte`,
+    greeting: "Bonjour,",
+    paragraphs: [
+      `Merci d'avoir ajouté ${card ? `la carte ${cardFr(card)}` : "une carte"}. ${pressName} est de nouveau ouverte, et les clients peuvent commander comme d'habitude.`,
+      "Votre forfait reprend aujourd'hui, facturé chaque mois comme avant, et vous pouvez le changer ou l'annuler à tout moment.",
+    ],
+    buttons: [["Voir votre forfait", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /** French twin of "cancel-undone". */
+  "cancel-undone": ({ price, planName, link }, { settings, pressName }) => layout({
+    subject: `${pressName} reste ouverte`,
+    greeting: "Bonjour,",
+    paragraphs: [
+      `Vous avez gardé votre forfait ${settings.platformName} : ${pressName} ne fermera pas. Nous sommes heureux que vous restiez.`,
+      "Votre forfait continue exactement comme avant, et vous n'avez rien à reconfigurer.",
+    ],
+    buttons: [["Voir votre forfait", safeLink(link)]],
     footer: signOff(settings),
   }),
 
