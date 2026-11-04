@@ -49,7 +49,7 @@ async function load() {
     list.replaceChildren(...preview.permissions.map((p) => Object.assign(document.createElement("li"), { textContent: p.words })));
     $("#personal").hidden = !preview.permissions.some((p) => p.personal);
     $("#already").hidden = !preview.alreadyInstalled;
-    if (preview.alreadyInstalled) $("#already").textContent = "This app is already on your shop. Saying yes again updates what it can see and change to the list above.";
+    if (preview.alreadyInstalled) $("#already").textContent = "Already added. Saying yes again updates its access to this list.";
     const support = $("#support-link");
     support.textContent = preview.app.supportEmail;
     support.href = `mailto:${preview.app.supportEmail}`;

@@ -561,10 +561,7 @@ exports.fairHelperPayment = onBrowserRequest({ secrets: withPlatformKey([STRIPE_
 
 // Safety emails to the shop's own team come in French when the shop is written in French
 // (Studio › Text & labels › Shop language), like the rest of what the team reads there.
-async function adminEmailLanguage() {
-  const website = (await db.collection("settings").doc("website").get().catch(() => null))?.data?.() || {};
-  return website.design?.language === "fr" ? "fr" : "en";
-}
+const adminEmailLanguage = () => emailFrench.shopLanguage(db);
 
 // Two-step backup codes (functions/twoStepBackup.js, plan 22.9). "status" and "make" are for the signed-in person
 // in Settings › Security; "use" comes from the sign-in page, before there is a sign-in, with Google's own token.

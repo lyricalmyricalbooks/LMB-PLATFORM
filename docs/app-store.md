@@ -92,6 +92,20 @@ Lists page with `next` (pass it back as `after`), at most 250 a page. At most 12
 Changing things comes in 26.3b, through the shop's own rules, so an app can never skip the packing checklist, the
 address review, a hold or a dispute.
 
+## 26.4 (built): alerts to apps
+
+`services/apps/alerts.js`, run by the `app-alerts` job every minute. An app lists `alertTopics` when it registers, each
+needing its permission (`services/apps/topics.js`): `orders/paid`, `orders/shipped`, `orders/refunded`,
+`products/changed`, `inventory/changed`. `app/uninstalled` goes to every app with an alerts address.
+
+The message is a POST of `{ id, topic, shopId, createdAt, data }`, with `X-Colophon-Topic`, `X-Colophon-Shop`,
+`X-Colophon-Alert-Id` and `X-Colophon-Signature`: Base64 HMAC-SHA256 of the body, keyed with the SHA-256 (hex) of the
+app's secret. A 2xx answer within 10 seconds counts. Retries after 1, 5, 15, 60, 180, 360 and 720 minutes, then the alert
+is marked failed. Only public https addresses are sent to (no IP numbers or local names). Outbox `appAlerts/<id>`, last
+look `appAlertState/<shopId>`.
+
+The platform finds changes by reading orders and products changed since its last look, so the shops need no change.
+
 ## The first apps (Julian's picks, 4 November 2026)
 
 Shipping (26.11), email marketing (26.12) and Zapier (26.13). Outside companies rarely build for a new platform, so

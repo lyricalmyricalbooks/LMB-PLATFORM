@@ -1,5 +1,6 @@
 // What setup mode shows (code plan 18.6): the real admin's menu, with the pages that work before a shop exists and
 // every other page locked until the shop opens. Pure, so the menu and the locks are tested without a browser.
+import { sellsBooks } from "../shared/shopSells";
 import type { NavEntry } from "../app/admin/riso/components";
 import { NAV, SETTINGS_ITEM_PREFIX, sidebarItems } from "../app/admin/riso/nav";
 import type { SetupPress } from "./door";
@@ -111,6 +112,12 @@ export function pageFromHash(hash: string, menu: NavEntry[] = setupMenu()): stri
   if (!page) return HOME_PAGE;
   const known = !!EXTRA_PAGES[page] || menu.some((item) => item.id === page || item.children?.some((c) => c.id === page));
   return known ? page : null;
+}
+
+/** The help centre's address for this shop: a shop that doesn't sell books gets the answers in its own words (`?sells=`). */
+export function helpFor(helpUrl: string, sells?: string | null): string {
+  if (!sells || sellsBooks(sells)) return helpUrl;
+  return `${helpUrl}${helpUrl.includes("?") ? "&" : "?"}sells=${encodeURIComponent(sells)}`;
 }
 
 /**

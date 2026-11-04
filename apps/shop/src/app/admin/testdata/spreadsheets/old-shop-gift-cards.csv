@@ -1,0 +1,4 @@
+Code,Customer Name,Email,Date Issued,Expires On,Initial Value,Balance,Currency,Disabled At
+MOTH-GIFT-AAAA-1111,Ada Moreau,ada@example.com,2026-02-14,2027-12-31,50.00,35.00,CAD,
+MOTH-GIFT-BBBB-2222,Chloé Lam,chloe@example.com,2026-05-01,,25.00,25.00,CAD,
+MOTH-GIFT-CCCC-3333,Ben Okafor,ben@example.com,2025-12-01,,20.00,0.00,CAD,

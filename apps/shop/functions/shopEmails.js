@@ -6,6 +6,7 @@
 
 const { withPlatformKey } = require("./platformKey");
 const { sellsBooks } = require("./shared/shopSells");
+const { DEFAULT_NOTIFICATIONS_FR, sayer, shopLanguage } = require("./emailFrench");
 function shopEmails({
   onBrowserRequest, onDocumentCreated, admin, db, mailer, applyCors, requireAdmin, ADMIN_TO,
   DEFAULT_NOTIFICATIONS, RESEND_API_KEY, claimEmailSend, cleanRecipients, compileEmailTemplate,
@@ -84,7 +85,7 @@ function shopEmails({
         email: safe(m.email),
         subject: "",
         message: "",
-      });
+      }, undefined, { language: await shopLanguage(db) });
       try {
         await sendEmail({
           to: m.email,
@@ -129,7 +130,7 @@ function shopEmails({
         customer_name: customer.name || "there",
         email: customer.email,
         button_url: siteLink("/account"),
-      });
+      }, undefined, { language: await shopLanguage(db) });
 
       try {
         await sendEmail({
@@ -274,11 +275,18 @@ function shopEmails({
       try {
         const notificationSettings = await loadNotificationSettings();
         // Send test uses what the admin sees in the editor, saved or not (bounded, admin-only).
+        // The French tab's test (code plan 25.9): only for an email that has French words.
+        const french = body.language === "fr" && !!DEFAULT_NOTIFICATIONS_FR[templateId];
+        const say = sayer(french ? "fr" : "en");
         const draft = body.template && typeof body.template === "object" ? body.template : null;
         if (draft) {
           const field = (value, max) => (typeof value === "string" ? value.slice(0, max) : undefined);
           const fields = { subject: field(draft.subject, 300), body: field(draft.body, 10000), buttonText: field(draft.buttonText, 80), signoff: field(draft.signoff, 500) };
-          notificationSettings[templateId] = { ...notificationSettings[templateId], ...Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined)) };
+          const given = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
+          // A French draft is the template's French words (`<template>.fr`), so the test is what a French shopper gets.
+          notificationSettings[templateId] = french
+            ? { ...notificationSettings[templateId], fr: { ...(notificationSettings[templateId]?.fr || {}), ...given } }
+            : { ...notificationSettings[templateId], ...given };
         }
         const draftBrand = body.brand && typeof body.brand === "object" ? body.brand : null;
         if (draftBrand) {
@@ -319,22 +327,22 @@ function shopEmails({
           shop_url: siteLink("/"),
           items_table: `
             <div style="margin: 30px 0; border-top: 1px solid #eeeeee; padding-top: 20px;">
-              <h4 style="margin-top: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: #888888;">Order Details</h4>
+              <h4 style="margin-top: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: #888888;">${french ? "Détails de la commande" : "Order Details"}</h4>
               <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
                 <tr style="border-bottom: 1px solid #eeeeee;">
                   <td style="padding: 10px 0; font-weight: bold;">Visions of Toronto - Limited Edition (x1)</td>
                   <td style="padding: 10px 0; text-align: right; font-family: monospace;">CA$35.00</td>
                 </tr>
                 <tr>
-                  <td style="padding: 10px 0; color: #666666;">Subtotal</td>
+                  <td style="padding: 10px 0; color: #666666;">${say("Subtotal")}</td>
                   <td style="padding: 10px 0; text-align: right; font-family: monospace;">CA$35.00</td>
                 </tr>
                 <tr>
-                  <td style="padding: 5px 0; color: #666666;">Shipping</td>
+                  <td style="padding: 5px 0; color: #666666;">${say("Shipping")}</td>
                   <td style="padding: 5px 0; text-align: right; font-family: monospace;">CA$10.00</td>
                 </tr>
                 <tr style="font-size: 15px; font-weight: bold; border-top: 1px solid #dddddd;">
-                  <td style="padding: 15px 0;">Total</td>
+                  <td style="padding: 15px 0;">${say("Total")}</td>
                   <td style="padding: 15px 0; text-align: right; font-family: monospace;">CA$45.00</td>
                 </tr>
               </table>
@@ -346,13 +354,13 @@ function shopEmails({
         if (templateId === "order_confirmation") {
           sampleDownloadSection = `
             <div style="margin-top:28px;padding:24px;background:#f8f6ff;border-radius:16px;border:1px solid #7c3aed20;">
-              <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#7c3aed;">Digital Library Access (Sample)</h3>
-              <p style="font-size:11px;color:#666;margin-bottom:16px;line-height:1.5;">Click the links below to download your digital ${books ? "books" : "files"}. For security, these download links are active for 24 hours.</p>
+              <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#7c3aed;">${say("Digital Library Access")} ${french ? "(exemple)" : "(Sample)"}</h3>
+              <p style="font-size:11px;color:#666;margin-bottom:16px;line-height:1.5;">${french ? `Cliquez sur les liens ci-dessous pour télécharger vos ${books ? "livres" : "fichiers"} numériques. Par sécurité, ces liens restent actifs 24 heures.` : `Click the links below to download your digital ${books ? "books" : "files"}. For security, these download links are active for 24 hours.`}</p>
               <table style="width:100%;font-size:12px;border-collapse:collapse;">
                 <tr>
                   <td style="padding:8px 0;border-bottom:1px solid #7c3aed10;"><strong>Visions of Toronto - PDF Edition</strong></td>
                   <td style="padding:8px 0;text-align:right;border-bottom:1px solid #7c3aed10;">
-                    <a href="#" style="display:inline-block;background:#7C3AED;color:#fff;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:10px;font-weight:bold;letter-spacing:.05em;text-transform:uppercase;">Download File</a>
+                    <a href="#" style="display:inline-block;background:#7C3AED;color:#fff;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:10px;font-weight:bold;letter-spacing:.05em;text-transform:uppercase;">${say("Download File")}</a>
                   </td>
                 </tr>
               </table>
@@ -360,7 +368,7 @@ function shopEmails({
           `;
         }
 
-        const compiled = compileEmailTemplate(templateId, notificationSettings, mockVars, sampleDownloadSection);
+        const compiled = compileEmailTemplate(templateId, notificationSettings, french ? { ...mockVars, expires_on: "5 novembre 2026" } : mockVars, sampleDownloadSection, { language: french ? "fr" : "en" });
 
         await sendEmail({
           to: email,

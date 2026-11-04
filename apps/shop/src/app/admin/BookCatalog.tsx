@@ -513,7 +513,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
         <EmptyState icon="📚" title={w("No books yet")} description={w("Add your first title to start selling — it appears on the storefront as soon as it's published.")}
           action={<div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
             <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={onAdd}>{w("Add book")}</PrimaryButton>
-            <SecondaryButton icon={<Upload size={16} aria-hidden />} onClick={() => setImportOpen(true)}>Import CSV</SecondaryButton>
+            <SecondaryButton icon={<Upload size={16} aria-hidden />} onClick={() => setImportOpen(true)}>Import spreadsheet</SecondaryButton>
             <SecondaryButton onClick={async () => {
               try { await adminApi.addExampleProducts(sells); toast.success("Example products added. They disappear when you add your first real product."); setLoading(true); await loadBooks(); }
               catch { toast.error("Couldn't add the examples. Try again."); }
@@ -598,7 +598,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
 
       <PageActions>
             <ActionMenu label="More catalog actions" actions={[
-              { label: "Import CSV…", onSelect: () => setImportOpen(true) },
+              { label: "Import spreadsheet…", onSelect: () => setImportOpen(true) },
               { label: "Export…", onSelect: () => { setExportScope(selected.length ? "selected" : "filtered"); setExportOpen(true); } },
               { label: "Print a line sheet", onSelect: printSheet },
               // Facebook, Instagram and Pinterest: the file and the by-hand steps (plan 24.7); one-button connect is in Sales channels (27.5).
@@ -648,7 +648,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
             <option value="selected" disabled={!selected.length}>Selected ({selected.length})</option>
           </SelectField>
           <SelectField label="What" value={exportKind} onChange={e => setExportKind(e.target.value as any)}
-            hint={exportKind === "full" ? "Every column Import CSV reads: edit it in a spreadsheet and import it back." : "ID, title, ISBN, SKU, edition and stock — one line per edition — for a stock count."}>
+            hint={exportKind === "full" ? "Every column Import spreadsheet reads: edit it in a spreadsheet and import it back." : "ID, title, ISBN, SKU, edition and stock — one line per edition — for a stock count."}>
             <option value="full">Full catalog</option>
             <option value="inventory">Inventory only</option>
           </SelectField>

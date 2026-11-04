@@ -16,7 +16,7 @@ export const MOVE_HIDDEN = "move-list";
 export interface MoveStep { id: MoveStepId; title: string; why: string; tab: string; hash?: string; anchor?: string; action: string; done: boolean }
 
 const STEPS: Omit<MoveStep, "done">[] = [
-  { id: "move-books", title: "Books", why: "Your product file from the old shop, in Books › Import CSV. Old book addresses are sent on to the new pages.", tab: "catalog", action: "Open Books" },
+  { id: "move-books", title: "Books", why: "Your product file from the old shop, in Books › Import spreadsheet. Old book addresses are sent on to the new pages.", tab: "catalog", action: "Open Books" },
   { id: "move-customers", title: "Customers", why: "Your customer file, so you know who bought from you before. Nobody is emailed.", tab: "customers", action: "Bring customers over" },
   { id: "move-giftcards", title: "Gift cards", why: "Your gift card file, so cards people already hold still work here.", tab: "giftCards", action: "Bring gift cards over" },
   { id: "move-orders", title: "Past orders", why: "Your order file, kept as history: it counts in your reports and each customer's history, and changes no stock.", tab: "orders", action: "Bring past orders over" },
