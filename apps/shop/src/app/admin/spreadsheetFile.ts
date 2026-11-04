@@ -17,7 +17,15 @@ const MAX_CELLS = 2_000_000;
 const MAX_UNZIPPED = 200 * 1024 * 1024;
 
 /** The file's rows as CSV text (comma separated, quoted where needed). Throws a SpreadsheetError the owner can act on. */
-export async function spreadsheetText(file: Blob & { name?: string }): Promise<string> {
+export async function spreadsheetText(file: Blob & { name?: string }, sheet?: string): Promise<string> {
+  return (await readSpreadsheet(file, sheet)).text;
+}
+
+/**
+ * One sheet of the file as CSV text, with the workbook's visible sheets so a window can offer the others (plan 23.37).
+ * With no sheet named, the first visible sheet that has anything in it is read. A text file has no sheets.
+ */
+export async function readSpreadsheet(file: Blob & { name?: string }, sheet?: string): Promise<{ text: string; sheet: string; sheets: string[] }> {
   const bytes = new Uint8Array(await file.arrayBuffer());
   const name = String(file.name || "").toLowerCase();
   if (bytes[0] === 0xd0 && bytes[1] === 0xcf && bytes[2] === 0x11 && bytes[3] === 0xe0) {
@@ -25,16 +33,27 @@ export async function spreadsheetText(file: Blob & { name?: string }): Promise<s
   }
   if (bytes[0] === 0x50 && bytes[1] === 0x4b) {
     const zip = await openZip(bytes);
-    if (zip.has("xl/workbook.xml")) return toCsv(await xlsxRows(zip));
-    if (zip.has("content.xml")) return toCsv(await odsRows(zip));
+    const book = zip.has("xl/workbook.xml") ? await xlsxBook(zip) : zip.has("content.xml") ? await odsBook(zip) : null;
+    if (book) {
+      const sheets = book.sheets.filter((s) => !s.hidden);
+      const chosen = sheet === undefined ? null : book.sheets.find((s) => s.name === sheet);
+      if (sheet !== undefined && !chosen) throw new SpreadsheetError(`This workbook has no sheet called “${sheet}”. Choose the file again.`);
+      let pick = chosen || sheets[0] || book.sheets[0];
+      let rows = pick ? await pick.rows() : [];
+      // A cover or empty first sheet: carry on to the first visible sheet with something in it.
+      for (const s of chosen ? [] : sheets.slice(1)) { if (rows.length) break; const next = await s.rows(); if (next.length) { pick = s; rows = next; } }
+      return { text: toCsv(rows), sheet: pick?.name ?? "", sheets: sheets.map((s) => s.name) };
+    }
     if (name.endsWith(".numbers") || zip.has("Index/Document.iwa")) {
       throw new SpreadsheetError("This is a Numbers file. In Numbers choose File › Export To › Excel or CSV, and choose that file instead.");
     }
     throw new SpreadsheetError("This file is compressed but isn't a spreadsheet. Choose a CSV or Excel file.");
   }
   if (name.endsWith(".numbers")) throw new SpreadsheetError("This is a Numbers file. In Numbers choose File › Export To › Excel or CSV, and choose that file instead.");
-  return decodeText(bytes);
+  return { text: decodeText(bytes), sheet: "", sheets: [] };
 }
+
+type Book = { sheets: { name: string; hidden: boolean; rows: () => Promise<string[][]> }[] };
 
 // ---- Plain text: the encodings spreadsheet programs save in. ----
 
@@ -121,6 +140,7 @@ async function inflate(raw: Uint8Array): Promise<string> {
 const parseXml = (text: string) => new DOMParser().parseFromString(text, "application/xml");
 /** Child elements by local name, whatever prefix the file uses. */
 const kids = (el: Element, name: string) => [...el.children].filter((c) => c.localName === name);
+const attr = (el: Element, name: string) => [...el.attributes].find((a) => a.localName === name)?.value ?? null;
 const all = (root: Document | Element, name: string) => [...root.getElementsByTagNameNS("*", name)];
 
 /** A whole or decimal number as a spreadsheet shows it: 64.24, not 64.239999999999995. */
@@ -133,18 +153,24 @@ const numberText = (v: string) => {
 
 const BUILT_IN_DATES = new Set([14, 15, 16, 17, 18, 19, 20, 21, 22, 27, 30, 36, 45, 46, 47, 50, 57]);
 
-async function xlsxRows(zip: Zip): Promise<string[][]> {
+async function xlsxBook(zip: Zip): Promise<Book> {
   const workbook = parseXml((await zip.text("xl/workbook.xml"))!);
-  const sheets = all(workbook, "sheet");
-  const first = sheets.find((s) => s.getAttribute("state") !== "hidden" && s.getAttribute("state") !== "veryHidden") || sheets[0];
-  if (!first) return [];
-  const rid = first.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id")
-    || [...first.attributes].find((a) => a.localName === "id")?.value || "";
   const rels = parseXml((await zip.text("xl/_rels/workbook.xml.rels")) || "<Relationships/>");
-  const target = all(rels, "Relationship").find((r) => r.getAttribute("Id") === rid)?.getAttribute("Target") || "worksheets/sheet1.xml";
-  const path = target.startsWith("/") ? target.slice(1) : `xl/${target}`.replace(/\/\.\//g, "/");
+  return {
+    sheets: all(workbook, "sheet").map((el, i) => {
+      const rid = el.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id")
+        || [...el.attributes].find((a) => a.localName === "id")?.value || "";
+      const target = all(rels, "Relationship").find((r) => r.getAttribute("Id") === rid)?.getAttribute("Target") || `worksheets/sheet${i + 1}.xml`;
+      const path = target.startsWith("/") ? target.slice(1) : `xl/${target}`.replace(/\/\.\//g, "/");
+      const state = el.getAttribute("state");
+      return { name: el.getAttribute("name") || `Sheet ${i + 1}`, hidden: state === "hidden" || state === "veryHidden", rows: () => xlsxRows(zip, workbook, path) };
+    }),
+  };
+}
+
+async function xlsxRows(zip: Zip, workbook: Document, path: string): Promise<string[][]> {
   const sheetXml = await zip.text(path);
-  if (!sheetXml) throw new SpreadsheetError("This workbook's first sheet couldn't be found. Save it again and try once more.");
+  if (!sheetXml) throw new SpreadsheetError("This workbook's sheet couldn't be found. Save it again and try once more.");
 
   const shared = all(parseXml((await zip.text("xl/sharedStrings.xml")) || "<sst/>"), "si").map(
     (si) => all(si, "t").filter((t) => t.parentElement?.localName !== "rPh").map((t) => t.textContent || "").join(""),
@@ -220,13 +246,20 @@ function excelDate(serial: number, epoch: number): string {
 
 // ---- OpenDocument (.ods): the first table's cells. ----
 
-async function odsRows(zip: Zip): Promise<string[][]> {
+async function odsBook(zip: Zip): Promise<Book> {
   const doc = parseXml((await zip.text("content.xml"))!);
-  const table = all(doc, "table")[0];
-  if (!table) return [];
+  // A hidden sheet's table style says display="false".
+  const hiddenStyles = new Set(all(doc, "style").filter((st) => all(st, "table-properties").some((p) => attr(p, "display") === "false")).map((st) => attr(st, "name")));
+  return {
+    sheets: all(doc, "table").filter((t) => t.parentElement?.localName === "spreadsheet").map((t, i) => ({
+      name: attr(t, "name") || `Sheet ${i + 1}`, hidden: hiddenStyles.has(attr(t, "style-name")), rows: async () => odsRows(t),
+    })),
+  };
+}
+
+function odsRows(table: Element): string[][] {
   const rows: string[][] = [];
   let cells = 0;
-  const attr = (el: Element, name: string) => [...el.attributes].find((a) => a.localName === name)?.value ?? null;
   for (const row of all(table, "table-row")) {
     const out: string[] = [];
     for (const c of [...row.children].filter((e) => e.localName === "table-cell" || e.localName === "covered-table-cell")) {

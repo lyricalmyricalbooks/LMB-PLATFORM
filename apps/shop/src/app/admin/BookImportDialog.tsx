@@ -13,7 +13,8 @@ import { normalizeCategories } from "../features/site/navItems";
 import { sellsBooks } from "./sells";
 import { useShopSells } from "./shopWords";
 import { useShopWords } from "./shopWords";
-import { SPREADSHEET_ACCEPT, readProblem, spreadsheetText } from "./spreadsheetFile";
+import { SPREADSHEET_ACCEPT, readProblem, readSpreadsheet } from "./spreadsheetFile";
+import { SheetChoice } from "./SheetChoice";
 
 
 type Result = { line: number; title: string; ok: boolean; message?: string };
@@ -52,6 +53,7 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
 
   const [stockMode, setStockMode] = useState<"leave" | "set">("leave");
   // The owner's matches for columns the shop didn't recognise (plan 23.36), by heading.
+  const [book, setBook] = useState<{ file: File; sheet: string; sheets: string[] } | null>(null);
   const [columns, setColumns] = useState<Record<string, ImportField>>({});
   // A shop that doesn't sell books keeps the old shop's sizes and colours as option buttons (plan 10.6).
   const keepOptions = !sellsBooks(useShopSells());
@@ -64,18 +66,19 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
     setPlan(next.plan); setMoved(next.moved); setOldPaths(next.oldPaths);
   };
 
-  async function choose(file: File | undefined, notes: string[] = []) {
+  async function choose(file: File | undefined, notes: string[] = [], sheet?: string) {
     if (!file) return;
     setReadNotes(notes);
-    setReadError(""); setPlan(null); setMoved(null); setOldPaths(new Map()); setLinks(null); setResults(null); setFileName(file.name);
+    setReadError(""); setPlan(null); setMoved(null); setOldPaths(new Map()); setLinks(null); setResults(null); setFileName(file.name); if (!sheet) setBook(null);
     if (file.size > MAX_FILE_BYTES) { setReadError("That file is larger than 5 MB. Split it into smaller files and import them one at a time."); return; }
     try {
-      const [text, settings, profiles, links] = await Promise.all([spreadsheetText(file), adminApi.getPublicSettings().catch(() => null), Promise.resolve().then(() => adminApi.getShippingProfiles()).catch(() => []), inventoryLinkApi.links().catch(() => ({}))]);
+      const [text, settings, profiles, links] = await Promise.all([readSpreadsheet(file, sheet), adminApi.getPublicSettings().catch(() => null), Promise.resolve().then(() => adminApi.getShippingProfiles()).catch(() => []), inventoryLinkApi.links().catch(() => ({}))]);
+      setBook({ file, sheet: text.sheet, sheets: text.sheets });
       const defined = (settings as any)?.design?.categories;
       const shopCategories = Array.isArray(defined) ? normalizeCategories(defined).map((c: any) => c?.name).filter(Boolean) : [];
       // Books counted in the inventory app keep the stock it sets (adminApi.updateBook enforces it too).
       const linkedBookIds = Object.entries(links as Record<string, Record<string, string>>).filter(([, e]) => !!e?.["_"]).map(([id]) => id);
-      const src = { text, shopCategories, profiles: (profiles as any[]).map(p => p.id), linkedBookIds };
+      const src = { text: text.text, shopCategories, profiles: (profiles as any[]).map(p => p.id), linkedBookIds };
       setSource(src);
       setColumns({});
       replan(src, stockMode, {});
@@ -165,6 +168,7 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
               Blank template
             </SecondaryButton>
             {fileName && <span className="rp-mono" style={{ overflowWrap: "anywhere" }}>{fileName}</span>}
+            {book && <SheetChoice sheets={book.sheets} sheet={book.sheet} disabled={busy} onChange={(s) => choose(book.file, readNotes, s)} />}
           </div>
           {/* Plan 23.11: the same address box as setup's Books page, for products found after the shop opened. */}
           {!fileName && <div className="rp-stack" style={{ borderTop: "var(--rp-hair) solid var(--rp-border)", paddingTop: 12 }}>

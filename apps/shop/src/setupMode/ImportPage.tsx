@@ -13,7 +13,8 @@ import { fileWithoutPhotos, photoCheckLine, useBrokenPhotos, withoutBrokenPhotos
 import { sellsBooks } from "../app/admin/sells";
 import { useShopWords } from "../app/admin/shopWords";
 import type { SetupDoor, SetupPress } from "./door";
-import { SPREADSHEET_ACCEPT, readProblem, spreadsheetText } from "../app/admin/spreadsheetFile";
+import { SPREADSHEET_ACCEPT, readProblem, readSpreadsheet } from "../app/admin/spreadsheetFile";
+import { SheetChoice } from "../app/admin/SheetChoice";
 
 const TOO_BIG = "That file is larger than 5 MB. Split it into smaller files: bring one now and the rest once your shop is open.";
 const UNREADABLE = "This file couldn't be read. Save it from your spreadsheet as CSV or Excel (.xlsx) and try again.";
@@ -42,13 +43,17 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
   const plan = useMemo(() => (preview?.plan ? withoutBrokenPhotos(preview.plan, photoCheck.broken) : undefined), [preview, photoCheck.broken]);
   const ready = plan && !plan.problems.length ? plan.counts.create : 0;
 
-  async function choose(next: File | undefined, notes: string[] = []) {
+  const [book, setBook] = useState<{ file: File; sheet: string; sheets: string[] } | null>(null);
+  async function choose(next: File | undefined, notes: string[] = [], sheet?: string) {
     if (!next) return;
     setError(""); setPreview(null); setFile(null); setReadNotes(notes);
+    if (!sheet) setBook(null);
     if (next.size > MAX_FILE_BYTES) { setError(TOO_BIG); return; }
     try {
       // A spreadsheet of any kind is kept as CSV (plan 23.35), under the name the press chose.
-      const text = await spreadsheetText(next);
+      const read = await readSpreadsheet(next, sheet);
+      const text = read.text;
+      setBook({ file: next, sheet: read.sheet, sheets: read.sheets });
       setFile(new File([text], next.name, { type: "text/csv" }));
       // No books yet, so every row is new; a shop that doesn't sell books keeps the old shop's sizes and colours.
       setPreview(planShopMove(text, [], [], {}, { keepOptions: !sellsBooks(press.sells || null) }));
@@ -141,6 +146,7 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
       {plan && file && (
         <SectionCard title={file.name} description={preview?.moved ? `Read as ${SHAPE_WORDS[preview.moved.shape]}.` : undefined} collapsible={false}>
           <div style={{ display: "grid", gap: 12 }}>
+            {book && <SheetChoice sheets={book.sheets} sheet={book.sheet} disabled={!!busy} onChange={(s) => void choose(book.file, readNotes, s)} />}
             {plan.problems.length ? (
               <div role="alert" style={{ display: "grid", gap: 8 }}>
                 <StatusBadge tone="danger">Nothing can be brought in from this file</StatusBadge>

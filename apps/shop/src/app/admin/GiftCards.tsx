@@ -18,7 +18,8 @@ import {
 } from "./giftCardsAdmin";
 import { batches, readGiftCardFile, type GiftCardFile } from "./giftCardMove";
 import { shopDate } from "../features/site/preorder";
-import { SPREADSHEET_ACCEPT, readProblem, spreadsheetText } from "./spreadsheetFile";
+import { SPREADSHEET_ACCEPT, readProblem, readSpreadsheet } from "./spreadsheetFile";
+import { SheetChoice } from "./SheetChoice";
 
 type Filter = "all" | GiftCardStatus["key"];
 const LINK = { color: "inherit", textDecoration: "underline", textUnderlineOffset: 2 } as const;
@@ -127,11 +128,12 @@ export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone:
   const [error, setError] = useState("");
   const [result, setResult] = useState<null | { added: number; emailed: number; emailFailed: number; skipped: { line: number; reason: string }[] }>(null);
 
-  const choose = async (picked: File | undefined) => {
+  const [book, setBook] = useState<{ file: File; sheet: string; sheets: string[] } | null>(null);
+  const choose = async (picked: File | undefined, sheet?: string) => {
     if (!picked) return;
-    setError(""); setResult(null); setName(picked.name);
+    setError(""); setResult(null); setName(picked.name); if (!sheet) setBook(null);
     if (picked.size > 5 * 1024 * 1024) { setFile(null); setError("That file is larger than 5 MB. Split it and bring the parts one at a time."); return; }
-    try { setFile(readGiftCardFile(await spreadsheetText(picked), shopDate())); }
+    try { const read = await readSpreadsheet(picked, sheet); setBook({ file: picked, sheet: read.sheet, sheets: read.sheets }); setFile(readGiftCardFile(read.text, shopDate())); }
     catch (err) { setFile(null); setError(readProblem(err)); }
   };
 
@@ -198,6 +200,7 @@ export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone:
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
           <SecondaryButton icon={<Upload size={16} aria-hidden />} disabled={busy} onClick={() => fileRef.current?.click()}>{name ? "Choose another file" : "Choose the file"}</SecondaryButton>
           {name && <span className="rp-mono" style={{ overflowWrap: "anywhere" }}>{name}</span>}
+          {book && <SheetChoice sheets={book.sheets} sheet={book.sheet} disabled={busy} onChange={(s) => void choose(book.file, s)} />}
         </div>
         {!file && <p className="rp-hint" style={{ margin: 0 }}>In your old shop, open its gift cards page and export them as a CSV or Excel file.</p>}
         {error && <p role="alert" className="rp-error-text" style={{ margin: 0 }}>{error}</p>}
