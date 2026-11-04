@@ -13,13 +13,22 @@ export const FAILING_DAYS = 7;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RESEND_MAX = 200;
 
-/** Active installs per app: { [appId]: { shops, testing } }, where `testing` counts the maker's own test installs. */
-export function installsByApp(installs) {
+export const RECENT_DAYS = 30;
+
+/**
+ * Active installs per app: { [appId]: { shops, recent, testing } }. `recent` counts the shops that installed it in the
+ * last 30 days; `testing` counts the maker's own test installs, kept apart.
+ */
+export function installsByApp(installs, now = new Date()) {
+  const since = new Date(now.getTime() - RECENT_DAYS * DAY_MS).toISOString();
   const byApp = {};
   for (const install of installs) {
-    const row = (byApp[install.appId] ??= { shops: 0, testing: 0 });
+    const row = (byApp[install.appId] ??= { shops: 0, recent: 0, testing: 0 });
     if (install.testing) row.testing += 1;
-    else row.shops += 1;
+    else {
+      row.shops += 1;
+      if (typeof install.installedAt === "string" && install.installedAt >= since) row.recent += 1;
+    }
   }
   return byApp;
 }
@@ -49,7 +58,7 @@ export function createAppUse({ admins, installs, outbox, now = () => new Date() 
       const [active, failed] = await Promise.all([installs.listActive(), outbox.listByStatus("failed")]);
       const names = new Map(active.map((install) => [install.appId, install.appName]));
       const failing = failingApps(failed, now()).map((row) => ({ ...row, appName: names.get(row.appId) ?? null }));
-      return { byApp: installsByApp(active), failing, failingDays: FAILING_DAYS };
+      return { byApp: installsByApp(active, now()), failing, failingDays: FAILING_DAYS };
     },
 
     /** Sends an app's failed alerts from the last week once more (one try each; if it fails again it stays failed). */

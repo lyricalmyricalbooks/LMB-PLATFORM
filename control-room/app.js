@@ -828,7 +828,7 @@ function failingAlerts(failing) {
 function appReach(appId) {
   const row = appUse?.byApp?.[appId];
   if (!row) return appUse ? "on no shops" : null;
-  return [row.shops ? `on ${plural(row.shops, "shop")}` : "on no shops", row.testing ? `${row.testing} testing` : null].filter(Boolean).join(", ");
+  return [row.shops ? `on ${plural(row.shops, "shop")}` : "on no shops", row.recent ? `${row.recent} new in 30 days` : null, row.testing ? `${row.testing} testing` : null].filter(Boolean).join(", ");
 }
 
 /** A permission in the words the press reads before saying yes; one that reaches shoppers' details is marked. */

@@ -16,8 +16,9 @@ const admins = controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: "admin@example.com" })
 
 test("shops per app, with the maker's own test installs counted apart", () => {
   assert.deepEqual(installsByApp([
-    { appId: "a", shopId: "s1" }, { appId: "a", shopId: "s2" }, { appId: "a", shopId: "lmb-test-shop", testing: true }, { appId: "b", shopId: "s1" },
-  ]), { a: { shops: 2, testing: 1 }, b: { shops: 1, testing: 0 } });
+    { appId: "a", shopId: "s1", installedAt: "2026-11-10T00:00:00Z" }, { appId: "a", shopId: "s2", installedAt: "2026-09-01T00:00:00Z" },
+    { appId: "a", shopId: "lmb-test-shop", testing: true, installedAt: "2026-11-19T00:00:00Z" }, { appId: "b", shopId: "s1" },
+  ], NOW), { a: { shops: 2, recent: 1, testing: 1 }, b: { shops: 1, recent: 0, testing: 0 } });
 });
 
 test("failing apps: last week only, worst first, with the newest reason", () => {
@@ -56,7 +57,7 @@ test("send again: a given-up alert gets exactly one more try, and is delivered o
   const desk = createAppUse({ admins, installs, outbox: stores.outbox, now });
   const fresh = { ...ADMIN, auth_time: Math.floor(clock / 1000) };
   const overview = await desk.overview(fresh);
-  assert.deepEqual(overview.byApp, { app_1: { shops: 1, testing: 0 } });
+  assert.deepEqual(overview.byApp, { app_1: { shops: 1, recent: 1, testing: 0 } });
   assert.equal(overview.failing[0].appId, "app_1");
 
   calls = 0;
