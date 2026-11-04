@@ -41,7 +41,7 @@ function door(): SetupDoor & { saved: any[] } {
   };
 }
 
-async function mount(d: SetupDoor, hash = "", press: SetupPress = PRESS, answers?: Map<string, any>) {
+async function mount(d: SetupDoor, hash = "", press: SetupPress = PRESS, answers?: Map<string, any> | ((sells: string | null) => Map<string, any>)) {
   location.hash = hash;
   const el = document.createElement("div");
   document.body.append(el);
@@ -55,13 +55,13 @@ describe("the admin in setup mode (code plan 18.6)", () => {
   it("opens on the setup guide with the press's progress", async () => {
     const el = await mount(door());
     expect(el.querySelector("h1")?.textContent).toBe("Welcome, Moth Press");
-    expect(el.textContent).toContain("1 of 4 done");
+    expect(el.textContent).toContain("1 of 7 done");
     expect(el.textContent).toContain("Bring your books over from your old shop · optional");
   });
 
   it("opens the next step with its button and help, and any other step on a click", async () => {
     const el = await mount(door());
-    const rows = () => [...el.querySelectorAll("main ol[aria-label='Setup steps'] > li > button")] as HTMLButtonElement[];
+    const rows = () => [...el.querySelectorAll("main ol[data-setup-steps] > li > button")] as HTMLButtonElement[];
     const open = () => rows().filter((b) => b.getAttribute("aria-expanded") === "true").map((b) => b.textContent);
     expect(open()).toEqual([expect.stringContaining("Tell us about your press")]);
     // Tell us about your press has no help answer of its own (the help centre's is about the open shop's contact details).
@@ -76,17 +76,17 @@ describe("the admin in setup mode (code plan 18.6)", () => {
 
   it("keeps the step the press opened when it comes back to Home, and moves on once that step is done", async () => {
     const el = await mount(door());
-    const rows = () => [...el.querySelectorAll("main ol[aria-label='Setup steps'] > li > button")] as HTMLButtonElement[];
+    const rows = () => [...el.querySelectorAll("main ol[data-setup-steps] > li > button")] as HTMLButtonElement[];
     act(() => rows().find((b) => b.textContent?.includes("Choose your website's look"))!.click());
     act(() => root!.unmount());
     root = null; document.body.innerHTML = "";
     const again = await mount(door());
-    expect([...again.querySelectorAll("main ol[aria-label='Setup steps'] > li > button")].filter((b) => b.getAttribute("aria-expanded") === "true").map((b) => b.textContent))
+    expect([...again.querySelectorAll("main ol[data-setup-steps] > li > button")].filter((b) => b.getAttribute("aria-expanded") === "true").map((b) => b.textContent))
       .toEqual([expect.stringContaining("Choose your website's look")]);
     act(() => root!.unmount());
     root = null; document.body.innerHTML = "";
     const looked = await mount(door(), "", { ...PRESS, look: "press-riso" });
-    expect([...looked.querySelectorAll("main ol[aria-label='Setup steps'] > li > button")].filter((b) => b.getAttribute("aria-expanded") === "true").map((b) => b.textContent))
+    expect([...looked.querySelectorAll("main ol[data-setup-steps] > li > button")].filter((b) => b.getAttribute("aria-expanded") === "true").map((b) => b.textContent))
       .toEqual([expect.stringContaining("Tell us about your press")]);
   });
 
@@ -285,7 +285,7 @@ describe("the admin in setup mode (code plan 18.6)", () => {
       expect(el.textContent).toContain("Then open it to shoppers");
       expect(openButton(el)).toBeUndefined();
       // Nothing left to press in the top bar either.
-      expect([...el.querySelectorAll("header button")].some((b) => b.getAttribute("aria-label") === "Create my shop")).toBe(false);
+      expect([...el.querySelectorAll("header button")].some((b) => /Create my shop/.test(b.textContent ?? ""))).toBe(false);
     });
 
     it("marks the press's missing country as needed, and points at General", async () => {
@@ -406,7 +406,7 @@ describe("bringing a shop over, at the top of Home (code plan 23.0)", () => {
     await flush();
     expect(d.saved).toEqual([{ moving: "fresh" }]);
     expect(el.textContent).not.toContain("Selling somewhere already?");
-    const steps = [...el.querySelectorAll("main ol[aria-label='Setup steps'] > li")].map((li) => li.textContent ?? "");
+    const steps = [...el.querySelectorAll("main ol[data-setup-steps] > li")].map((li) => li.textContent ?? "");
     expect(steps[steps.length - 3]).toContain("Bring your books over");
   });
 
@@ -509,7 +509,7 @@ describe("your web address in setup", () => {
     expect(d.saved).toEqual([{ domainChoice: "free" }]);
     const home = await mount(door(), "", { ...PRESS, domainChoice: "free" });
     expect(home.textContent).toContain("Choose your web address");
-    expect(home.textContent).toContain("2 of 5 done");
+    expect(home.textContent).toContain("2 of 7 done");
   });
 
   it("a Canadian press is pointed at a .ca name, and every press sees the free address its shop will get", async () => {
@@ -650,6 +650,20 @@ describe("help without leaving setup", async () => {
     const [first, second] = (d.askForHelp as any).mock.calls.map((c: any[]) => c[0].requestId);
     expect(second).toBe(first);
     expect(el.textContent).toContain("We've emailed you a copy");
+  });
+
+  it("help answers follow a new answer to What do you sell? at once, with no reload (code plan 12.18)", async () => {
+    const answersFor = vi.fn((sells: string | null) => (sells === "zines" ? new Map([["bring-books", { ...answers.get("bring-books"), answer: ["Zine words."] }]]) : answers));
+    const el = await mount(door(), "#settings/general", { ...PRESS, country: "CA", moving: "yes" }, answersFor as any);
+    expect(answersFor).toHaveBeenLastCalledWith("books");
+    const sells = [...el.querySelectorAll("form select")].find((s) => [...(s as HTMLSelectElement).options].some((o) => o.value === "zines")) as HTMLSelectElement;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!.call(sells, "zines");
+      sells.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await act(async () => { el.querySelector("form")!.requestSubmit(); });
+    await flush();
+    expect(answersFor).toHaveBeenLastCalledWith("zines");
   });
 
   it("Home's Ask a person goes to the form on Help", async () => {

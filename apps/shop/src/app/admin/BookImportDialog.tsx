@@ -16,6 +16,7 @@ import { useShopWords } from "./shopWords";
 import { SPREADSHEET_ACCEPT, readProblem, readSpreadsheet, type SpreadsheetRead } from "./spreadsheetFile";
 import { FirstRows, SheetChoice } from "./SheetChoice";
 import { XLSX_TYPE, saveFile, toXlsx } from "./xlsxWriter";
+import { rememberColumns, rememberedColumns } from "./columnMemory";
 
 
 type Result = { line: number; title: string; ok: boolean; message?: string };
@@ -69,7 +70,10 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
     if (!src) return;
     const next = planShopMove(src.text, books, src.shopCategories, { stockMode: mode, shippingProfiles: src.profiles, linkedBookIds: src.linkedBookIds, columns: cols }, { keepOptions });
     setPlan(next.plan); setMoved(next.moved); setOldPaths(next.oldPaths);
+    return next.plan;
   };
+  // How many of the matches came from the last import (plan 23.41), for the Match columns hint.
+  const [recalled, setRecalled] = useState(0);
 
   async function choose(file: File | undefined, notes: string[] = [], sheet?: string) {
     if (!file) return;
@@ -85,8 +89,12 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
       const linkedBookIds = Object.entries(links as Record<string, Record<string, string>>).filter(([, e]) => !!e?.["_"]).map(([id]) => id);
       const src = { text: text.text, shopCategories, profiles: (profiles as any[]).map(p => p.id), linkedBookIds };
       setSource(src);
-      setColumns({});
-      replan(src, stockMode, {});
+      // Headings matched in an earlier import are matched the same way again (plan 23.41).
+      const first = replan(src, stockMode, {});
+      const recalledCols = rememberedColumns(first?.unknownColumns ?? []);
+      const count = Object.keys(recalledCols).length;
+      setColumns(recalledCols); setRecalled(count);
+      if (count) replan(src, stockMode, recalledCols);
     } catch (err) {
       setReadError(readProblem(err));
     }
@@ -94,6 +102,7 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
 
   async function run() {
     setBusy(true); setProgress(0);
+    if (plan?.unknownColumns?.length) rememberColumns(plan.unknownColumns, columns);
     const byId = new Map(books.map(b => [b.id, b]));
     const done: Result[] = [];
     const created: string[] = [];
@@ -186,8 +195,8 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
         {readError && <p role="alert" className="rp-hint" style={{ color: "var(--rp-danger)", margin: 0 }}>{readError}</p>}
 
         {plan && !results && !moved && (plan.unknownColumns?.length ?? 0) > 0 && (
-          <ColumnMatch unknown={plan.unknownColumns!} samples={samples} chosen={columns} used={plan.matchedFields ?? []} disabled={busy}
-            onChange={(next) => { setColumns(next); replan(source, stockMode, next); }} />
+          <ColumnMatch unknown={plan.unknownColumns!} samples={samples} chosen={columns} used={plan.matchedFields ?? []} disabled={busy} recalled={recalled}
+            onChange={(next) => { setColumns(next); setRecalled(0); replan(source, stockMode, next); }} />
         )}
 
         {plan && !results && (plan.problems.length
@@ -237,8 +246,8 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
  * Columns the shop didn't recognise (plan 23.36): each can be matched to a field, so a spreadsheet with its own
  * headings ("Cost to buyer", "Writer") still fills in prices and authors. Left as "Leave out", it is skipped.
  */
-function ColumnMatch({ unknown, samples, chosen, used, disabled, onChange }: {
-  unknown: string[]; samples: Record<string, string>; chosen: Record<string, ImportField>; used: ImportField[]; disabled: boolean;
+function ColumnMatch({ unknown, samples, chosen, used, disabled, recalled = 0, onChange }: {
+  unknown: string[]; samples: Record<string, string>; chosen: Record<string, ImportField>; used: ImportField[]; disabled: boolean; recalled?: number;
   onChange: (next: Record<string, ImportField>) => void;
 }) {
   const matched = unknown.filter((h) => chosen[h]).length;
@@ -246,7 +255,7 @@ function ColumnMatch({ unknown, samples, chosen, used, disabled, onChange }: {
     <section className="rp-stack" aria-label="Match columns" style={{ gap: 8, borderTop: "var(--rp-hair) solid var(--rp-border)", paddingTop: 12 }}>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "baseline", justifyContent: "space-between" }}>
         <strong>Match columns</strong>
-        <span className="rp-hint">{matched} of {unknown.length} matched</span>
+        <span className="rp-hint">{matched} of {unknown.length} matched{recalled > 0 ? ", as last time" : ""}</span>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 260px), 1fr))", gap: 8 }}>
         {unknown.map((heading) => (
