@@ -299,6 +299,10 @@ service cloud.firestore {
     match /twoStepBackup/{uid} {
       allow read, write: if false;
     }
+    // Server-only: whether two-step was on at the last check, so its on/off email is sent once (code plan 25.4).
+    match /twoStepState/{uid} {
+      allow read, write: if false;
+    }
     // Server-only checkout stock holds (functions/stockHolds.js).
     match /stock-holds/{bookId} {
       allow read, write: if false;
