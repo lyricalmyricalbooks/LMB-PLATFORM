@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { googleConnectApi, takeGoogleOutcome, useGoogleConnect } from "../googleConnect";
+import { GOOGLE_BUTTON_WORDS, googleConnectApi, takeGoogleOutcome, useGoogleConnect } from "../googleConnect";
+import { GoogleSignInButton } from "../../components/brand/BrandLogo";
 import { type GoogleMarker } from "../googleStage";
 import { GoogleTiles } from "../GoogleSettings";
 import { friendlyError } from "../studio/friendlyError";
@@ -87,7 +88,7 @@ export function GoogleStage({ onDone }: { onDone: (google: GoogleMarker) => Prom
       {error && <p role="alert" className="rp-hint" style={{ margin: "0 0 12px", color: "var(--rp-danger)" }}>{error}</p>}
       <GoogleTiles status={status} />
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 16 }}>
-        <PrimaryButton disabled={busy} onClick={connect}>Connect Google</PrimaryButton>
+        <GoogleSignInButton disabled={busy} aria-busy={busy || undefined} onClick={connect}>{GOOGLE_BUTTON_WORDS}</GoogleSignInButton>
         <SecondaryButton disabled={busy} onClick={() => finish({ skipped: true })}>Connect later</SecondaryButton>
       </div>
     </SectionCard>
