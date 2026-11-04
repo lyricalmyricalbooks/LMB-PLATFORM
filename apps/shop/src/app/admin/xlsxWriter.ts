@@ -73,7 +73,7 @@ function crc32(bytes: Uint8Array): number {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-function zipStored(files: [string, Uint8Array][]): Uint8Array {
+export function zipStored(files: [string, Uint8Array][]): Uint8Array {
   const chunks: Uint8Array[] = [];
   const central: Uint8Array[] = [];
   let offset = 0;
@@ -117,8 +117,14 @@ export function saveFile(name: string, data: string | Uint8Array, type: string) 
   URL.revokeObjectURL(url);
 }
 
+/**
+ * The CSV's cells for a workbook: the apostrophe the CSV puts before = + - @ (so a spreadsheet won't run it as a
+ * formula) comes off, since a workbook's text cells never run. "-isms" stays "-isms" and a stock of -3 stays a number.
+ */
+export const csvForSheet = (csv: string) => parseCsv(csv).map((row) => row.map((v) => v.replace(/^'([=+\-@\t\r])/, "$1")));
+
 /** A table as a download: Excel unless the owner asked for CSV (the CSV text is what the shop's exporters write). */
 export function saveTable(base: string, csv: string, format: "xlsx" | "csv", sheetName: string) {
   if (format === "csv") saveFile(`${base}.csv`, csv, "text/csv;charset=utf-8");
-  else saveFile(`${base}.xlsx`, toXlsx(parseCsv(csv), sheetName), XLSX_TYPE);
+  else saveFile(`${base}.xlsx`, toXlsx(csvForSheet(csv), sheetName), XLSX_TYPE);
 }

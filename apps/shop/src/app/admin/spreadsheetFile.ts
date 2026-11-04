@@ -70,7 +70,8 @@ export function decodeText(bytes: Uint8Array): string {
 
 /** Rows back to CSV, each cell quoted when it holds a comma, quote or line break. */
 export function toCsv(rows: string[][]): string {
-  const cell = (v: string) => (/[",\r\n]/.test(v) || /^\s|\s$/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+  // A semicolon or tab is quoted too: the reader guesses the separator from the first line, and must still pick commas.
+  const cell = (v: string) => (/[",;\t\r\n]/.test(v) || /^\s|\s$/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
   return rows.map((r) => r.map(cell).join(",")).join("\n");
 }
 
@@ -179,7 +180,7 @@ async function xlsxRows(zip: Zip, workbook: Document, path: string): Promise<str
   );
   const date1904 = all(workbook, "workbookPr")[0]?.getAttribute("date1904");
   const epoch = Date.UTC(date1904 === "1" || date1904 === "true" ? 1904 : 1899, date1904 === "1" || date1904 === "true" ? 0 : 11, date1904 === "1" || date1904 === "true" ? 1 : 30);
-  const dateStyles = await xlsxDateStyles(zip);
+  const { dates: dateStyles, percents: percentStyles } = await xlsxNumberStyles(zip);
 
   const rows: string[][] = [];
   let cells = 0;
@@ -198,12 +199,15 @@ async function xlsxRows(zip: Zip, workbook: Document, path: string): Promise<str
       const type = c.getAttribute("t") || "n";
       const v = kids(c, "v")[0]?.textContent ?? "";
       let value = "";
-      if (type === "s") value = shared[Number(v)] ?? "";
+      // A shared-string cell with no value is empty (Number("") would be the workbook's first string).
+      if (type === "s") value = v === "" ? "" : shared[Number(v)] ?? "";
       else if (type === "inlineStr") value = all(c, "t").map((t) => t.textContent || "").join("");
       else if (type === "b") value = v === "1" ? "TRUE" : "FALSE";
       else if (type === "str" || type === "e") value = v;
       else if (type === "d") value = v.replace(/T00:00:00(\.0+)?Z?$/, "");
       else if (v !== "" && dateStyles.has(Number(c.getAttribute("s") || 0))) value = excelDate(Number(v), epoch);
+      // A percent cell holds the fraction (15% is 0.15): read it as the sheet shows it.
+      else if (v !== "" && percentStyles.has(Number(c.getAttribute("s") || 0))) value = percentText(v);
       else value = v === "" ? "" : numberText(v);
       while (out.length < col) out.push("");
       out[col] = value;
@@ -221,8 +225,19 @@ const columnIndex = (ref: string) => {
   return n - 1;
 };
 
-/** The cell styles that show a date (built-in date formats, or a custom one made of d, m, y and time parts). */
-async function xlsxDateStyles(zip: Zip): Promise<Set<number>> {
+/** 0.15 → "15%", the way a percent cell shows it. */
+const percentText = (v: string) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? `${numberText(String(n * 100))}%` : v;
+};
+
+const BUILT_IN_PERCENTS = new Set([9, 10]);
+
+/**
+ * The cell styles that show a date (built-in date formats, or a custom one made of d, m, y and time parts), and the
+ * ones that show a percent.
+ */
+async function xlsxNumberStyles(zip: Zip): Promise<{ dates: Set<number>; percents: Set<number> }> {
   const styles = parseXml((await zip.text("xl/styles.xml")) || "<styleSheet/>");
   const custom = new Map(all(styles, "numFmt").map((f) => [Number(f.getAttribute("numFmtId")), f.getAttribute("formatCode") || ""]));
   const isDate = (id: number) => {
@@ -232,10 +247,16 @@ async function xlsxDateStyles(zip: Zip): Promise<Set<number>> {
     const bare = code.replace(/"[^"]*"|\[[^\]]*\]|\\./g, "");
     return /[dy]/i.test(bare) || /(^|[^a-z])m+([^a-z]|$)/i.test(bare) && /[dhys]/i.test(bare);
   };
+  const isPercent = (id: number) => BUILT_IN_PERCENTS.has(id) || /%/.test((custom.get(id) || "").replace(/"[^"]*"|\[[^\]]*\]|\\./g, ""));
   const xfs = all(styles, "cellXfs")[0];
-  const out = new Set<number>();
-  if (xfs) kids(xfs, "xf").forEach((xf, i) => { if (isDate(Number(xf.getAttribute("numFmtId") || 0))) out.add(i); });
-  return out;
+  const dates = new Set<number>();
+  const percents = new Set<number>();
+  if (xfs) kids(xfs, "xf").forEach((xf, i) => {
+    const id = Number(xf.getAttribute("numFmtId") || 0);
+    if (isDate(id)) dates.add(i);
+    else if (isPercent(id)) percents.add(i);
+  });
+  return { dates, percents };
 }
 
 /** An Excel date number as YYYY-MM-DD, or YYYY-MM-DD HH:MM:SS when it carries a time. */
@@ -268,7 +289,8 @@ function odsRows(table: Element): string[][] {
       const type = attr(c, "value-type");
       let value = "";
       if (type === "date") value = (attr(c, "date-value") || "").replace(/T00:00:00(\.0+)?$/, "").replace("T", " ");
-      else if (type === "float" || type === "currency" || type === "percentage") value = numberText(attr(c, "value") || "");
+      else if (type === "percentage") value = percentText(attr(c, "value") || "");
+      else if (type === "float" || type === "currency") value = numberText(attr(c, "value") || "");
       else if (type === "boolean") value = attr(c, "boolean-value") === "true" ? "TRUE" : "FALSE";
       else value = kids(c, "p").map(odsText).join("\n");
       // A run of empty cells is written once with a repeat count (often thousands, to the sheet's edge).

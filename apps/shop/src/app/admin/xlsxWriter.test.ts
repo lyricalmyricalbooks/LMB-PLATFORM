@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { parseCsv } from "./catalogImport";
 import { spreadsheetText } from "./spreadsheetFile";
-import { toXlsx } from "./xlsxWriter";
+import { csvForSheet, toXlsx } from "./xlsxWriter";
 
 const table = [
   ["Title", "ISBN", "Price", "Stock", "SKU", "Description"],
@@ -26,5 +26,13 @@ describe("toXlsx", () => {
     expect(zip).toContain('<c r="E2" t="inlineStr"><is><t xml:space="preserve">00123</t>');
     expect(zip).toContain('<c r="A1" t="inlineStr" s="1">');
     expect(zip).toContain('state="frozen"');
+  });
+
+  it("an exported book list keeps -isms and a stock of -3 as they are, with no formula apostrophe", () => {
+    const rows = csvForSheet(`"Title","Stock"\n"'-isms","'-3"\n"'=SUM(A1)","4"`);
+    expect(rows).toEqual([["Title", "Stock"], ["-isms", "-3"], ["=SUM(A1)", "4"]]);
+    const zip = new TextDecoder().decode(toXlsx(rows));
+    expect(zip).toContain('<c r="B2"><v>-3</v></c>');
+    expect(zip).toContain('<c r="A3" t="inlineStr">');
   });
 });
