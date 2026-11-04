@@ -93,6 +93,34 @@ export function sourcePerformance(visitsBySource: Record<string, number>, orders
   return out.sort((a, b) => b.visits - a.visits || b.revenue - a.revenue || a.source.localeCompare(b.source));
 }
 
+/** The social networks the Overview's "Social media that sells" groups sources into, with the names a source can carry. */
+export const SOCIAL_NETWORKS: { id: string; label: string; sources: string[] }[] = [
+  { id: "facebook", label: "Facebook", sources: ["facebook", "fb", "m facebook com", "l facebook com", "facebook com", "messenger"] },
+  { id: "instagram", label: "Instagram", sources: ["instagram", "ig", "l instagram com", "instagram com"] },
+  { id: "pinterest", label: "Pinterest", sources: ["pinterest", "pin it", "pinterest com"] },
+  { id: "tiktok", label: "TikTok", sources: ["tiktok", "tiktok com"] },
+  { id: "x", label: "X", sources: ["x", "twitter", "t co", "x com", "twitter com"] },
+  { id: "whatsapp", label: "WhatsApp", sources: ["whatsapp", "wa me"] },
+  // Product-page share menu (plan 27.7): a copied link, the phone's share sheet or an email.
+  { id: "shared", label: "Shared links", sources: ["copy_link", "native_share", "email_share"] },
+];
+
+export interface SocialRow { id: string; label: string; visits: number; orders: number; revenue: number }
+
+/** Visits, paid orders and revenue per social network, from the same rows as "Sources that sell" (plan 27.10). */
+export function socialPerformance(sources: SourceRow[]): SocialRow[] {
+  const of = new Map(SOCIAL_NETWORKS.flatMap(n => n.sources.map(src => [analyticsKey(src), n] as const)));
+  const rows = new Map<string, SocialRow>();
+  sources.forEach(r => {
+    const n = of.get(r.source);
+    if (!n) return;
+    const row = rows.get(n.id) || { id: n.id, label: n.label, visits: 0, orders: 0, revenue: 0 };
+    row.visits += r.visits; row.orders += r.orders; row.revenue += r.revenue;
+    rows.set(n.id, row);
+  });
+  return [...rows.values()].sort((a, b) => b.revenue - a.revenue || b.visits - a.visits || a.label.localeCompare(b.label));
+}
+
 export interface BookInterest { id: string; title: string; views: number; sold: number; viewToSale: number | null }
 
 /** Product-page views beside units sold. `watch` = looked at a lot, never bought in the period. */

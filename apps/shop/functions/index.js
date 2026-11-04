@@ -1781,7 +1781,24 @@ const { handleBookkeeping } = bookkeepingActions({
   buildDay: async (date) => dayFromOrders((await db.collection("orders").get()).docs.map((d) => ({ id: d.id, ...d.data() })), date),
 });
 // Sales channels and Social posts: the press's social accounts, through the platform's social service (socialLink.js, plan 27.4).
-const social = socialActions({ url: shopConfig.platformSocialUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin, db, siteUrl: shopConfig.siteUrl });
+const social = socialActions({
+  url: shopConfig.platformSocialUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin, db, siteUrl: shopConfig.siteUrl,
+  // The post's square picture (socialPicture.js), made in this shop's bucket.
+  makeSquare: async (imageUrl, postId) => {
+    const sharp = require("sharp");
+    sharp.cache(false);
+    const bucket = admin.storage().bucket(admin.app().options.storageBucket || `${shopConfig.project}.firebasestorage.app`);
+    return require("./socialPicture").squarePicture({ bucket, sharp, imageUrl, postId });
+  },
+  // A scheduled post a place refused: the owner is emailed unless Settings › Notifications › Shop alerts turns it off.
+  onFailed: async (post) => {
+    const saved = (await db.collection("settings").doc("notifications").get()).data() || {};
+    if (saved.shopAlerts?.socialPostFailed === false) return;
+    const { failedPostEmail } = require("./socialLink");
+    const message = failedPostEmail({ post, ownerEmail: ADMIN_TO, shopName: shopConfig.senderName, adminLink: siteLink("/admin#social-posts"), language: await adminEmailLanguage() });
+    if (message.to.length && message.failed) await sendEmail({ queue: "socialPostFailed", to: message.to, subject: message.subject, html: message.html, secret: resendSecretValue() });
+  },
+});
 const handleSocial = social.handleSocial;
 // Practice orders on a platform shop while it is private, for the owner only (practiceCheckout.js, plan 7.6).
 const { handlePracticeCheckout, practiceFor } = practiceCheckoutActions({ db, platform: payments.mode === "platform", requireAdmin, orderRequestIdentity });
@@ -4463,6 +4480,12 @@ exports.onOrderInventoryPush = onDocumentWritten({ document: "orders/{orderId}",
   if (result.status === "failed") console.warn(`inventory link: order ${event.params.orderId} not delivered yet (${result.error}); the sweep retries it.`);
 });
 
+// Changes an installed outside app asked for (platform plan 26.3b, appRequests.js): the platform writes the request,
+// this applies it with the shop's own checks and writes the answer back on the same document.
+exports.onAppRequest = onDocumentCreated({ document: "appRequests/{requestId}", timeoutSeconds: 60 }, async event => {
+  await require("./appRequests").applyAppRequest(db, event.params.requestId);
+});
+
 // The link's regular check: labels bought in the inventory app, missed or failed pushes, past orders,
 // and (every 15 minutes, once the owner switched it on) linked books' stock.
 exports.inventoryLinkSweep = onSchedule({ schedule: "every 5 minutes", name: "inventoryLinkSweep", timeoutSeconds: 300 }, async () => {
@@ -4471,7 +4494,7 @@ exports.inventoryLinkSweep = onSchedule({ schedule: "every 5 minutes", name: "in
 });
 
 // Social posts whose time has come (plan 27.4): each is claimed, then sent once to each of its places.
-exports.socialPostSweep = onSchedule({ schedule: "every 5 minutes", name: "socialPostSweep", timeoutSeconds: 300 }, async () => {
+exports.socialPostSweep = onSchedule({ schedule: "every 5 minutes", name: "socialPostSweep", timeoutSeconds: 300, secrets: withPlatformKey([RESEND_API_KEY]) }, async () => {
   if (!shopConfig.platformSocialUrl) return;
   const out = await social.runDuePosts();
   if (out.sent) console.log(`socialPostSweep: sent ${out.sent} post(s)`);

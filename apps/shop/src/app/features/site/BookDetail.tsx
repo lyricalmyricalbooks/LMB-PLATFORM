@@ -1219,7 +1219,7 @@ export default function BookDetail() {
                           ? "bg-white/[0.06] text-white/25 cursor-not-allowed border border-white/[0.06]"
                           : added
                           ? "fm-success-solid"
-                          : `custom-btn ${buttonShadow ? "shadow-2xl" : ""} ${buttonUppercase ? "uppercase" : ""}`
+                          : `custom-btn${productCtaAnimation === "glow" ? " fm-cta-glow" : ""} ${buttonShadow ? "shadow-2xl" : ""} ${buttonUppercase ? "uppercase" : ""}`
                       }`}
                       style={
                         !isOutOfStock && !added

@@ -9,7 +9,7 @@ import { parseCsv } from "./catalogImport";
 import { readDiscountFile } from "./discountMove";
 import { readGiftCardFile } from "./giftCardMove";
 import { readPastOrders } from "./pastOrders";
-import { SpreadsheetError, decodeText, spreadsheetText, toCsv } from "./spreadsheetFile";
+import { SpreadsheetError, decodeText, readSpreadsheet, spreadsheetText, toCsv } from "./spreadsheetFile";
 
 const DIR = join(__dirname, "testdata", "spreadsheets");
 const file = (name: string, bytes: Uint8Array | string = readFileSync(join(DIR, name))) => new File([bytes as BlobPart], name);
@@ -47,6 +47,17 @@ describe("reading a spreadsheet file", () => {
     expect(table[2].slice(0, 4)).toEqual(["#2", "2024-12-31", "", "64.24"]);
     expect(table[3]).toEqual(["", "", "", "", "", "", "far away"]);
     expect(table.flat()).not.toContain("not this one"); // the hidden sheet
+  });
+
+  it.each(["sheets.xlsx", "sheets.ods"])("%s: skips an empty cover sheet, lists visible sheets and reads the one asked for (plan 23.37)", async (name) => {
+    const first = await readSpreadsheet(file(name));
+    expect(first.sheets).toEqual(["Cover", "Books", "Summary"]);
+    expect(first.sheet).toBe("Books");
+    expect(parseCsv(first.text)).toEqual([["Title", "Price"], ["Salt Hours", "24"]]);
+    expect(parseCsv(await spreadsheetText(file(name), "Summary"))).toEqual([["Total", "24"]]);
+    expect(await spreadsheetText(file(name), "Cover")).toBe("");
+    await expect(spreadsheetText(file(name), "Gone")).rejects.toThrow(/no sheet called “Gone”/);
+    expect((await readSpreadsheet(file("codes.csv", "a,b\n"))).sheets).toEqual([]);
   });
 
   it("reads the text encodings spreadsheet programs save in", async () => {

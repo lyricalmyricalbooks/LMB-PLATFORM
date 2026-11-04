@@ -69,7 +69,7 @@ export type WidgetType =
   | "story" | "chart" | "figures" | "best" | "money" | "formats" | "countries" | "categories" | "weekdays" | "hours" | "fulfilment" | "codes"
   | "calendar" | "goal" | "notes" | "shipDays"
   | "titles" | "viewed" | "launches" | "bookOfWeek" | "preorders" | "signed"
-  | "gaKpis" | "channels" | "gaSources" | "landing" | "gaPages" | "gaCountries" | "gaDevices" | "funnel" | "checkout" | "sources" | "campaigns" | "landingSales" | "devices"
+  | "gaKpis" | "channels" | "gaSources" | "landing" | "gaPages" | "gaCountries" | "gaDevices" | "funnel" | "checkout" | "sources" | "social" | "campaigns" | "landingSales" | "devices"
   | "livePages" | "pageTime" | "visitHours" | "actions" | "outbound" | "newReturning" | "dropOff" | "lookNoBuy"
   | "moves" | "firstPage" | "sectionClicks" | "deviceSteps"
   | "navLinks" | "bookPage" | "notFound" | "filters" | "bagPeek" | "readDepth"
@@ -146,6 +146,7 @@ export const WIDGETS: WidgetMeta[] = [
   { type: "funnel", band: "traffic", title: "Shopping funnel", blurb: "Book views → bag → checkout → purchase", size: "m" },
   { type: "checkout", band: "traffic", title: "Where checkout loses people", blurb: "Each checkout step and where shoppers stop", size: "m" },
   { type: "sources", band: "traffic", title: "Sources that sell", blurb: "Visits per source beside the orders it brought", size: "l" },
+  { type: "social", band: "traffic", title: "Social media that sells", blurb: "Visits, orders and sales from Facebook, Instagram, Pinterest, TikTok and shared links", size: "m" },
   { type: "campaigns", band: "traffic", title: "Campaigns and links that sell", blurb: "Tagged links and campaigns with orders and new customers", size: "l" },
   { type: "landingSales", band: "traffic", title: "Pages that start sales", blurb: "Where buyers first landed", size: "m" },
   { type: "devices", band: "traffic", title: "Devices (shop counter)", blurb: "What shoppers browse on, from the shop's own counter", size: "s" },
@@ -205,7 +206,7 @@ export const TEMPLATES: Array<{ id: TemplateId; name: string; blurb: string; ord
   {
     id: "marketing", name: "Marketing", blurb: "Visitors, sources, campaigns, the funnel and Google",
     order: ["traffic", "search", "sales", "titles", "customers", "today", "stock"],
-    widgets: [["chart", "m", { metric: "visitors" }], ["chart", "m", { metric: "conversion" }], "gaKpis", "sources", ["funnel", "s"], "campaigns", ["landingSales", "s"],
+    widgets: [["chart", "m", { metric: "visitors" }], ["chart", "m", { metric: "conversion" }], "gaKpis", "sources", ["social", "m"], ["funnel", "s"], "campaigns", ["landingSales", "s"],
       "checkout", "channels", "landing", "google", "googleQueries", "searches", "missed", "speed", "viewed", "newsletter", "reminders"],
   },
   {

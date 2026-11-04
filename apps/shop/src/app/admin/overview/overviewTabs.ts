@@ -25,7 +25,7 @@ const GROUP_IDS = new Set<string>(VISITOR_GROUPS.map(g => g.id));
 /** Which Visitors sub tab each Visitors widget sits under. */
 export const VISITOR_GROUP_OF: Partial<Record<WidgetType, VisitorGroup>> = {
   gaKpis: "now", livePages: "now", newReturning: "now",
-  channels: "from", gaSources: "from", landing: "from", gaCountries: "from", gaDevices: "from", sources: "from", campaigns: "from",
+  channels: "from", gaSources: "from", landing: "from", gaCountries: "from", gaDevices: "from", sources: "from", social: "from", campaigns: "from",
   landingSales: "from", devices: "from", firstPage: "from",
   moves: "move", sectionClicks: "move", pageTime: "move", gaPages: "move", visitHours: "move", navLinks: "move", notFound: "move", journeys: "move",
   actions: "do", bookPage: "do", filters: "do", readDepth: "do", clarity: "do",

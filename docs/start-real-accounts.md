@@ -102,6 +102,8 @@ so a stage that is added to the build also needs a line here.
   the test shop, Julian connects his own Facebook Page and Instagram account, Pinterest and TikTok from Sales channels,
   sends the products, posts one book now and schedules one for later, and checks each arrives once. Until TikTok's
   audit, its posts are visible only to the account itself. Status: built behind the switch that is still off.
+  Ready to paste: every form's words, the permission uses and a 2-minute recording script are in
+  `docs/social-approvals.md`.
 
 ## Legal (review of 3 November 2026)
 

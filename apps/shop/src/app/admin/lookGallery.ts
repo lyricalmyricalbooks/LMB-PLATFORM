@@ -4,7 +4,7 @@
 
 import type { FirstWeekDoc } from "./firstWeek";
 import { THEME_LIBRARY } from "./studio/themeLibrary";
-import { themeLookKeys } from "./studio/themeLook";
+import { themedDesign } from "./studio/themeLook";
 import type { Sells } from "./sells";
 
 /** The sign-up answers to "What do you sell?" (signup/form.js, plans 6.2 and 10.1; sells.ts SELLS). */
@@ -81,8 +81,17 @@ export interface LookPreview {
 const colour = (v: unknown, fallback: string) => (typeof v === "string" && v.trim() ? v : fallback);
 const num = (v: unknown, fallback: number) => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
 
-export function lookPreview(theme: LibraryTheme): LookPreview {
-  const k = themeLookKeys(theme, {});
+/**
+ * `theme` as a small picture. With the press's own `design`, the picture is the shop exactly as Use this look would
+ * leave it: the look's colours and fonts, plus the press's own settings the look doesn't set (button corners and
+ * capitals, template outlines and shadows…). Without one, the look as it comes.
+ */
+export function lookPreview(theme: LibraryTheme, design?: Record<string, any> | null): LookPreview {
+  const k = themedDesign(theme, design && typeof design === "object" ? design : {});
+  // On a template, the template's own outline and shadow controls win over the Riso Press ones it falls back to.
+  const template = typeof k.themeStyle === "string" && k.themeStyle !== "riso" && k.themeStyle !== "default";
+  const set = (v: unknown) => (typeof v === "number" && Number.isFinite(v)) || (typeof v === "string" && v.trim() !== "");
+  const pick = (own: string, riso: string) => (template && set(k[own]) ? k[own] : k[riso]);
   const bg = colour(k.backgroundColor, "#ffffff");
   const text = colour(k.textColor, "#111111");
   const accent = colour(k.primaryColor, text);
@@ -106,8 +115,10 @@ export function lookPreview(theme: LibraryTheme): LookPreview {
     heading: typeof k.catalogHeading === "string" ? k.catalogHeading.slice(0, 40) : "",
     cta: sentenceCase(colour(k.productCTA ?? theme.productCTA, "Add to bag")),
     ratio: pictureRatio(k.imageAspectRatio ?? theme.imageAspectRatio),
-    outline: Math.min(num(k.risoOutlineWidth, 0), 4), outlineColor: colour(k.risoOutlineColor, text),
-    shadow: Math.min(num(k.risoShadowOffset, 0), 8), shadowColor: colour(k.risoShadowColor, text),
+    outline: Math.min(num(pick("templateOutlineWidth", "risoOutlineWidth"), 0), 4),
+    outlineColor: colour(pick("templateOutlineColor", "risoOutlineColor"), text),
+    shadow: Math.min(num(pick("templateShadowOffset", "risoShadowOffset"), 0), 8),
+    shadowColor: colour(pick("templateShadowColor", "risoShadowColor"), text),
     headingWeight: Math.max(400, Math.min(num(k.headingWeight, 700), 900)),
     chips: k.showCategoryChips === true,
   };
