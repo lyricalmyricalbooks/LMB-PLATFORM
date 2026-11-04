@@ -135,6 +135,18 @@ if (new URLSearchParams(location.search).get("move")) {
   (globalThis as any).__fixtureIdToken = "fixture-token";
 }
 
+// ?guide=1 (Set up your shop screenshots): a private shop that finished Get started, with books and a logo, so Home
+// shows the setup guide part way through.
+if (new URLSearchParams(location.search).get("guide")) {
+  const at = "2026-11-01T10:00:00.000Z";
+  const week: any = { plan: "both", sellingToday: "starting", publishes: "books", details: { at }, bring: { at, skipped: true },
+    welcome: { at, theme: "riso" }, google: { at, skipped: true }, payments: { at, skipped: true }, shipping: { at, skipped: true }, finalCheck: { at } };
+  const api = adminApi as any;
+  api.getFirstWeek = async () => JSON.parse(JSON.stringify(week));
+  api.updateFirstWeek = async (change: any) => { const { done, ...rest } = change; Object.assign(week, rest); if (done) week.done = { ...week.done, ...done }; };
+  api.getSettings = async () => ({ design: { showUnderConstruction: true, logoUrl: "https://photos.example/logo.png" } });
+}
+
 // ?gstate=coming|ready|connected|trouble (Settings › Google screenshots): a pretend Google link, nothing reaches Google.
 // coming: not switched on yet · ready: switched on, not connected · connected: all working · trouble: needs a look.
 const gstate = new URLSearchParams(location.search).get("gstate");

@@ -1,9 +1,14 @@
-// Set up your shop (plan 6.9, which replaced Your first week, 3.3): one eight-step guide on the Overview, ordered by
-// the one question a press answered at sign-up ("How do you sell today?", signup/form.js). Setup writes the answer
-// once, in `firstWeek/start`; a shop that has no such document (made before this, or by hand) never shows the guide.
+// Set up your shop (plan 6.9, which replaced Your first week, 3.3; regrouped 4 November 2026, plan 28): the guide on the
+// Overview while the shop is private, in the order a shop is built, the way Shopify's setup guide runs. Three parts:
+//   Your shop        first book (or bring your shop, or import a spreadsheet), logo, look
+//   Ready to sell    shipping, taxes, get paid, store policies
+//   Launch           web address, a practice order, open your shop (and, for a press moving in, the move itself)
+// Every check that stops Open your shop (Ready to sell's blocks: books, shipping, payments, policies) is a step before
+// it, so the last step never surprises a press with work it wasn't shown. The sign-up answer ("How do you sell
+// today?", signup/form.js) picks which first-book step a press gets and the intro line; the order is the same for all.
+// Setup writes the answer once, in `firstWeek/start`; a shop that has no such document never shows the guide.
 // Pure: the card hands in what the Overview already read (books, orders, settings, launch checks) and this works out
-// each step. The steps are logo, look, first book (or bring your shop), shipping, get paid, web address, a practice
-// order, open your shop. Gmail is not a step: platform email works from the start and Gmail stays in Settings.
+// each step. Gmail is not a step: platform email works from the start and Gmail stays in Settings.
 
 import type { ReadinessItem } from "./launchReadiness";
 import type { BringMarker } from "./bringShop";
@@ -69,8 +74,16 @@ export interface GuideProgress {
 }
 
 export type StepId =
-  | "logo" | "look" | "add-books" | "bring-books" | "import-spreadsheet" | "shipping" | "payments" | "address"
-  | "practice" | "open" | "switch";
+  | "logo" | "look" | "add-books" | "bring-books" | "import-spreadsheet" | "shipping" | "taxes" | "payments" | "policies"
+  | "address" | "practice" | "open" | "switch";
+
+/** The guide's three parts, in order. */
+export type StepGroup = "shop" | "sell" | "launch";
+export const GROUPS: ReadonlyArray<{ id: StepGroup; title: string }> = Object.freeze([
+  { id: "shop", title: "Your shop" },
+  { id: "sell", title: "Ready to sell" },
+  { id: "launch", title: "Launch" },
+]);
 
 export interface FirstWeekStep {
   id: StepId;
@@ -82,9 +95,12 @@ export interface FirstWeekStep {
   /** "auto": worked out from the shop; "manual": the owner ticks it. */
   kind: "auto" | "manual";
   done: boolean;
+  group: StepGroup;
+  /** A step the shop opens without (the free address works): shown, never in the way. */
+  optional?: boolean;
 }
 
-type StepWords = Omit<FirstWeekStep, "done" | "kind" | "id">;
+type StepWords = Omit<FirstWeekStep, "done" | "kind" | "id" | "group" | "optional">;
 
 const WORDS: Record<StepId, StepWords> = {
   logo: { title: "Add your logo", why: "Your logo goes in the shop's header, on your emails and when someone shares a link to your shop.", tab: "designer", action: "Open Design" },
@@ -93,8 +109,10 @@ const WORDS: Record<StepId, StepWords> = {
   "bring-books": { title: "Bring your shop with you", why: "Export your products from your old shop and choose that file in Import spreadsheet. Photos, prices and editions come over as drafts, and old links keep working.", tab: "catalog", action: "Open Books" },
   "import-spreadsheet": { title: "Import your spreadsheet", why: "Choose your spreadsheet of books in Import spreadsheet: Excel or CSV both work. You see every book before anything is saved.", tab: "catalog", action: "Open Books" },
   shipping: { title: "Set your shipping prices", why: "Make a shipping profile from the starter and check its prices, so shoppers see the cost of delivery before they pay.", tab: "shipping", action: "Open Shipping" },
+  taxes: { title: "Set up sales tax", why: "Add the rates you're registered to collect. Not registered yet? Switch tax off in Taxes, and turn it on when you are.", tab: "taxes", action: "Open Taxes" },
   payments: { title: "Get paid", why: "Tell the card company where to send your money. Their own secure page asks for your bank details, and you come straight back here.", tab: "payments", action: "Open Payments" },
-  address: { title: "Choose your web address", why: "Your shop already has a free address. Connect a name you own, or keep the free one and mark this done.", tab: "general", action: "Open General settings" },
+  policies: { title: "Add your store policies", why: "Shipping, returns, privacy and terms. Shoppers read them before they buy, and the law asks for them. Each one starts from our wording.", tab: "general", action: "Open General settings" },
+  address: { title: "Choose your web address", why: "Your shop already has a free address. Connect a name you own, or keep the free one.", tab: "general", action: "Open General settings" },
   practice: { title: "Place a practice order", why: "While the shop is private, press Try a practice order in Payments and buy a book with the practice card. No money moves.", tab: "payments", action: "Open Payments" },
   open: { title: "Open your shop", why: "Your shop is private until you open it. We check it's ready to sell first, then shoppers can buy.", action: "Open your shop" },
   switch: { title: "Move over from your old shop", why: "On the day you move: take your last orders in your old shop, check your old links in General settings so none show page not found, point your web address here, then tell your mailing list where to find you. Tick this once you've moved.", tab: "general", action: "Check your old links" },
@@ -105,16 +123,17 @@ const FIRST_BOOK: Record<SellingToday | "general", StepId> = {
   starting: "add-books", fairs: "add-books", online: "bring-books", shops: "add-books", spreadsheet: "import-spreadsheet", general: "add-books",
 };
 
-/** The steps for each answer, in order ("books" stands for that answer's first-book step). Open your shop is last but for the move. */
-const ORDER: Record<SellingToday | "general", (StepId | "books")[]> = {
-  starting: ["logo", "look", "books", "shipping", "payments", "address", "practice", "open"],
-  fairs: ["books", "payments", "logo", "look", "shipping", "address", "practice", "open"],
-  // A press moving from another online shop finishes with the switch itself (plan 23.8), after its new shop is open.
-  online: ["books", "look", "logo", "payments", "shipping", "address", "practice", "open", "switch"],
-  shops: ["books", "logo", "look", "shipping", "payments", "address", "practice", "open"],
-  spreadsheet: ["books", "logo", "look", "shipping", "payments", "address", "practice", "open"],
-  general: ["logo", "look", "books", "shipping", "payments", "address", "practice", "open"],
-};
+/** The steps in order, with their part ("books" stands for the answer's first-book step). Open your shop is last but for the move. */
+const ORDER: ReadonlyArray<[StepId | "books", StepGroup]> = [
+  ["books", "shop"], ["logo", "shop"], ["look", "shop"],
+  ["shipping", "sell"], ["taxes", "sell"], ["payments", "sell"], ["policies", "sell"],
+  ["address", "launch"], ["practice", "launch"], ["open", "launch"],
+];
+/** A press moving from another online shop finishes with the switch itself (plan 23.8), after its new shop is open. */
+const MOVE: [StepId, StepGroup] = ["switch", "launch"];
+
+/** Steps a shop can open without. */
+const OPTIONAL = new Set<StepId>(["address"]);
 
 /** The address step can't always tell (the free address is a fine choice), so the owner can tick it too. */
 const MANUAL = new Set<StepId>(["address", "switch"]);
@@ -146,6 +165,9 @@ function autoDone(id: StepId, { books, readiness, settings, orders, platform }: 
     case "look": return !!settings?.design?.themeBase?.id;
     case "bring-books": case "import-spreadsheet": case "add-books": return list.length > 0;
     case "shipping": return ok("shipping");
+    // Rates set, or collection switched off (a press not registered yet): either is a choice made.
+    case "taxes": return ok("tax");
+    case "policies": return ok("policies");
     // Platform shops: the card account takes cards and pays out (plan 7.9). Own keys: the payment checks pass.
     case "payments": return platform ? ok("card-account") : ok("payments") && !readiness?.some(i => i.id === "stripe-secret" && i.status !== "ok");
     case "address": return settings?.domain?.custom ? true : null;
@@ -169,7 +191,8 @@ export function shippingStarterWords(country?: string | null): string {
 
 export function firstWeekSteps(doc: FirstWeekDoc, facts: FirstWeekFacts): FirstWeekStep[] {
   const answer = answerOf(doc);
-  return ORDER[answer].map(entry => {
+  const order = answer === "online" ? [...ORDER, MOVE] : ORDER;
+  return order.map(([entry, group]) => {
     const id: StepId = entry === "books" ? FIRST_BOOK[answer] : entry;
     const words = { ...WORDS[id] };
     if (id === "add-books") Object.assign(words, firstProductWords(currentSells(doc)));
@@ -183,7 +206,8 @@ export function firstWeekSteps(doc: FirstWeekDoc, facts: FirstWeekFacts): FirstW
     const { tab, action } = words;
     const title = w(words.title), why = w(words.why);
     const kind = MANUAL.has(id) || auto === null ? "manual" : "auto";
-    return { id, title, why, ...(tab || action ? { ...(tab ? { tab } : {}), action } : {}), kind, done: auto === true || (kind === "manual" && ticked) };
+    return { id, title, why, ...(tab || action ? { ...(tab ? { tab } : {}), action } : {}), kind, done: auto === true || (kind === "manual" && ticked), group,
+      ...(OPTIONAL.has(id) ? { optional: true } : {}) };
   });
 }
 
@@ -192,13 +216,18 @@ export function showFirstWeek(doc: FirstWeekDoc | null, steps: FirstWeekStep[]):
   return !!doc && !doc.hiddenAt && steps.some(s => !s.done);
 }
 
-/** How many steps show at a time; the rest wait under Later. */
-export const STEPS_AT_A_TIME = 3;
-
-/** The guide in three parts: the next steps to do, the ones under Later, and the ones done. */
-export function guideParts(steps: FirstWeekStep[], atATime = STEPS_AT_A_TIME) {
+/** The step to do next: the first open step that isn't optional, else the first open one. */
+export function nextStep(steps: FirstWeekStep[]): FirstWeekStep | null {
   const open = steps.filter(s => !s.done);
-  return { now: open.slice(0, atATime), later: open.slice(atATime), done: steps.filter(s => s.done) };
+  return open.find(s => !s.optional) ?? open[0] ?? null;
+}
+
+/** The guide's parts, in order, each with its steps and how many are done. Parts with no steps are left out. */
+export function guideGroups(steps: FirstWeekStep[]) {
+  return GROUPS.map(g => {
+    const list = steps.filter(s => s.group === g.id);
+    return { ...g, steps: list, done: list.filter(s => s.done).length };
+  }).filter(g => g.steps.length > 0);
 }
 
 /** What the platform reads for the trial emails, or null when it is what the document already holds. */
@@ -222,10 +251,10 @@ export function firstWeekIntro(doc: FirstWeekDoc): string {
 function introFor(doc: FirstWeekDoc): string {
   switch (doc.sellingToday) {
     case "online": return "You told us you sell through another online shop, so bringing it over comes first.";
-    case "fairs": return "You told us you sell at fairs and markets, so your books and getting paid come first.";
+    case "fairs": return "You told us you sell at fairs and markets, so your books come first.";
     case "shops": return "You told us you sell through bookshops and distributors, so your books come first.";
     case "spreadsheet": return "You told us you keep track in a spreadsheet, so importing it comes first.";
-    case "starting": return "You're just starting out, so these steps take you from your logo to your first sale.";
-    default: return "Eight steps take you from your logo to your first sale. Your shop stays private until the last one.";
+    case "starting": return "You're just starting out, so these steps take you from your first book to your first sale.";
+    default: return "From your first book to your first sale. Your shop stays private until the last step.";
   }
 }

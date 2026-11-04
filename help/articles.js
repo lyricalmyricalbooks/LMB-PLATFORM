@@ -297,6 +297,28 @@ export const ARTICLES = Object.freeze([
     plans: ["shop"],
   },
   {
+    id: "taxes",
+    topic: "Selling",
+    question: "How do I set up sales tax?",
+    answer: [
+      "Open Settings › Taxes and add the rates you're registered to collect, such as GST or HST. Checkout works out the tax from where each shopper is.",
+      "Not registered yet? Switch tax off there, and turn it on when you are. In Canada you register once your sales pass $30,000 over four quarters. Ask an accountant which rates apply to you.",
+    ],
+    where: ["Settings › Taxes"],
+    plans: ["shop"],
+  },
+  {
+    id: "policies",
+    topic: "Selling",
+    question: "Which store policies does my shop need?",
+    answer: [
+      "Four: shipping, returns, privacy and terms. Shoppers read them before they buy, and the law and the card companies ask for them. Your shop won't open until all four have words.",
+      "Open Settings › General › Store policies. Each one has a Start from our wording button: read it, change what doesn't fit your press, and save.",
+    ],
+    where: ["Settings › General"],
+    plans: ["shop"],
+  },
+  {
     id: "look",
     topic: "Selling",
     question: "How do I change how my shop looks?",
@@ -367,7 +389,7 @@ export const ARTICLES = Object.freeze([
     question: "How do I open my shop to shoppers?",
     answer: [
       "A new shop starts private: shoppers see an under-construction page while you set it up. When you are ready, press Open your shop, the last step of Set up your shop on the Overview.",
-      "It first checks that your shop can sell: a published book, shipping, payments and your address for emails. If something is missing, it says what and takes you there. You can close the shop again from Settings › General › Store status.",
+      "It first checks that your shop can sell: a published book, shipping, payments, your store policies and your address for emails. If something is missing, it says what and takes you there. You can close the shop again from Settings › General › Store status.",
     ],
     where: ["Overview", "Settings › General"],
     plans: ["shop"],
@@ -476,7 +498,9 @@ export const CHECKLIST_ANSWERS = Object.freeze({
   "bring-books": "bring-books",
   "import-spreadsheet": "import-spreadsheet",
   shipping: "shipping",
+  taxes: "taxes",
   payments: "get-paid",
+  policies: "policies",
   address: "own-address",
   practice: "test-order",
   open: "open-shop",

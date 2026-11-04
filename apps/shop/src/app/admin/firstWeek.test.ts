@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { firstWeekIntro, firstWeekSteps, guideParts, openBlockers, progressToSave, SELLING_TODAY, shippingStarterWords, showFirstWeek, type FirstWeekFacts } from "./firstWeek";
+import { firstWeekIntro, firstWeekSteps, guideGroups, nextStep, openBlockers, progressToSave, SELLING_TODAY, shippingStarterWords, showFirstWeek, type FirstWeekFacts } from "./firstWeek";
 import type { ReadinessItem } from "./launchReadiness";
 
 const ok = (id: string): ReadinessItem => ({ id, label: "", detail: "", status: "ok", tab: id, action: "" });
@@ -10,15 +10,23 @@ const none: FirstWeekFacts = { books: [], readiness: [], settings: privateShop, 
 const ids = (answer: string | null) => firstWeekSteps({ sellingToday: answer }, none).map(s => s.id);
 const doneOf = (facts: FirstWeekFacts, doc = {}) => Object.fromEntries(firstWeekSteps(doc, facts).map(s => [s.id, s.done]));
 
-describe("Set up your shop: eight steps, ordered by the sign-up answer (plan 6.9)", () => {
-  it("every answer gets the same eight steps, with Open your shop last and the practice order just before it", () => {
+describe("Set up your shop: one order, in three parts, the way a shop is built (plans 6.9 and 28)", () => {
+  it("every answer gets the same ten steps: your shop, ready to sell, then launch", () => {
     for (const answer of [...SELLING_TODAY, null]) {
       // A press moving from another online shop has one more: the move itself, once its new shop is open (plan 23.8).
       const list = answer === "online" ? ids(answer).slice(0, -1) : ids(answer);
-      expect(list).toHaveLength(8);
-      expect(list.slice(-2)).toEqual(["practice", "open"]);
-      for (const step of ["logo", "look", "shipping", "payments", "address"]) expect(list).toContain(step);
+      expect(list.slice(1)).toEqual(["logo", "look", "shipping", "taxes", "payments", "policies", "address", "practice", "open"]);
     }
+    expect(guideGroups(firstWeekSteps({}, none)).map(g => [g.title, g.steps.map(s => s.id)])).toEqual([
+      ["Your shop", ["add-books", "logo", "look"]],
+      ["Ready to sell", ["shipping", "taxes", "payments", "policies"]],
+      ["Launch", ["address", "practice", "open"]],
+    ]);
+  });
+  it("every check that stops Open your shop is a step before it", () => {
+    // Ready to sell's blocks (launchReadiness.ts): books, shipping, payments or the card account, and policies.
+    const steps = firstWeekSteps({}, none).map(s => s.id);
+    for (const step of ["add-books", "shipping", "payments", "policies"]) expect(steps.indexOf(step)).toBeLessThan(steps.indexOf("open"));
   });
   it("a press moving from another online shop ends with the move, ticked by hand (plan 23.8)", () => {
     expect(ids("online").at(-1)).toBe("switch");
@@ -27,11 +35,11 @@ describe("Set up your shop: eight steps, ordered by the sign-up answer (plan 6.9
     expect(firstWeekSteps({ sellingToday: "online", done: { switch: "2026-11-03" } }, none).at(-1)!.done).toBe(true);
     for (const answer of SELLING_TODAY.filter((a) => a !== "online")) expect(ids(answer)).not.toContain("switch");
   });
-  it("the first-book step follows the answer: bring your shop, import the spreadsheet, or add a book", () => {
+  it("the first-book step follows the answer, and always comes first: bring your shop, import the spreadsheet, or add a book", () => {
     expect(ids("online")[0]).toBe("bring-books");
     expect(ids("spreadsheet")[0]).toBe("import-spreadsheet");
-    expect(ids("fairs").slice(0, 2)).toEqual(["add-books", "payments"]);
-    expect(ids(null).slice(0, 3)).toEqual(["logo", "look", "add-books"]);
+    expect(ids("fairs")[0]).toBe("add-books");
+    expect(ids(null)[0]).toBe("add-books");
     expect(ids("something-else")).toEqual(ids(null));
     expect(firstWeekSteps({ sellingToday: "online" }, none)[0].title).toBe("Bring your shop with you");
   });
@@ -53,19 +61,19 @@ describe("Set up your shop: eight steps, ordered by the sign-up answer (plan 6.9
 });
 
 describe("steps tick themselves from the shop", () => {
-  it("logo, look, books, shipping, payments, address, practice order and opening", () => {
+  it("books, logo, look, shipping, taxes, payments, policies, address, practice order and opening", () => {
     const facts: FirstWeekFacts = {
       books: [{ id: "a", status: "draft" }],
-      readiness: [ok("shipping"), ok("card-account")],
+      readiness: [ok("shipping"), ok("tax"), ok("card-account"), ok("policies")],
       orders: [{ isTest: true, paymentStatus: "refunded" }],
       settings: { design: { logoUrl: "https://x.example/logo.png", themeBase: { id: "press-zine" }, showUnderConstruction: true }, domain: { custom: "press.example" } },
       platform: "stripe",
     };
-    expect(doneOf(facts)).toEqual({ logo: true, look: true, "add-books": true, shipping: true, payments: true, address: true, practice: true, open: false });
+    expect(doneOf(facts)).toEqual({ "add-books": true, logo: true, look: true, shipping: true, taxes: true, payments: true, policies: true, address: true, practice: true, open: false });
     expect(doneOf({ ...facts, settings: { ...facts.settings, design: { ...facts.settings.design, showUnderConstruction: false } } }).open).toBe(true);
   });
   it("nothing is done for a brand-new private shop, and a warning keeps a step open", () => {
-    const done = doneOf({ ...none, readiness: [warn("shipping"), warn("card-account")], platform: "stripe" });
+    const done = doneOf({ ...none, readiness: [warn("shipping"), warn("tax"), warn("card-account"), block("policies")], platform: "stripe" });
     expect(Object.values(done).every(v => v === false)).toBe(true);
   });
   it("a look still in the draft isn't done: the step says to publish it", () => {
@@ -89,13 +97,17 @@ describe("steps tick themselves from the shop", () => {
   });
 });
 
-describe("three at a time, the rest under Later", () => {
-  it("the next three open steps show; the others wait; done ones are listed apart", () => {
-    const steps = firstWeekSteps({}, { ...none, settings: { design: { logoUrl: "x", showUnderConstruction: true } } });
-    const { now, later, done } = guideParts(steps);
-    expect(now.map(s => s.id)).toEqual(["look", "add-books", "shipping"]);
-    expect(later.map(s => s.id)).toEqual(["payments", "address", "practice", "open"]);
-    expect(done.map(s => s.id)).toEqual(["logo"]);
+describe("the next step opens; parts count their own steps", () => {
+  it("the next step is the first open one that isn't optional", () => {
+    const steps = firstWeekSteps({}, { ...none, books: [{ id: "a" }], settings: { design: { logoUrl: "x", themeBase: { id: "t" }, showUnderConstruction: true } } });
+    expect(nextStep(steps)?.id).toBe("shipping");
+    const onlyAddress = steps.map(s => ({ ...s, done: s.id !== "address" }));
+    expect(nextStep(onlyAddress)?.id).toBe("address");
+    expect(nextStep(steps.map(s => ({ ...s, done: true })))).toBeNull();
+    expect(guideGroups(steps).map(g => g.done)).toEqual([3, 0, 0]);
+  });
+  it("only the web address is optional", () => {
+    expect(firstWeekSteps({}, none).filter(s => s.optional).map(s => s.id)).toEqual(["address"]);
   });
 });
 
@@ -111,7 +123,7 @@ describe("progress for the trial emails (plan 6.10)", () => {
   it("is saved when it changes and not again when it is the same", () => {
     const steps = firstWeekSteps({}, none);
     const first = progressToSave({}, steps, "t1")!;
-    expect(first.steps).toHaveLength(8);
+    expect(first.steps).toHaveLength(10);
     expect(first.done).toEqual([]);
     expect(progressToSave({ progress: first }, steps, "t2")).toBeNull();
     const later = firstWeekSteps({}, { ...none, books: [{ id: "a" }] });

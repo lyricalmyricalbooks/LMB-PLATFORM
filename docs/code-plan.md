@@ -907,6 +907,23 @@ real-accounts list (`docs/start-real-accounts.md`), with the forms' words ready 
 | 27.12 | shop | **A post didn't go out** email to the owner when a scheduled post is refused (Settings › Notifications › Shop alerts) | `functions/socialLink.test.js` | built (4 November 2026) |
 | 27.9 | Julian | Meta app review (Pages and Instagram posting, catalogs), Pinterest app approval, TikTok app audit and site check | `docs/start-real-accounts.md` | waiting on Julian |
 
+## Phase 28: the pre-launch setup guide, in order (planned and built 4 November 2026)
+
+Julian, 4 November 2026: "be logical with the store setup before launch, suggest things that should go in that section,
+follow shopify". The shop admin's **Set up your shop** (Home, while the shop is private) had eight steps whose order
+changed with the sign-up answer, and Open your shop could refuse over store policies the guide never showed. Shopify's
+guide runs in the order a shop is built: products, look, domain, shipping, taxes, payments, a test order, then remove
+the password. The press's pre-shop setup (setup mode, plan, details, books, look, card company, web address, Create my
+shop) stays as it is; this phase is the guide after the shop is made.
+
+| # | Who | What | Test | Status |
+|---|-----|------|------|--------|
+| 28.1 | shop | **One order, three parts**: Your shop (first book or bring your shop, logo, look), Ready to sell (shipping, taxes, get paid, policies), Launch (web address, practice order, Open your shop; the move for presses coming from another online shop). The answer only picks the first-book step and the intro | `firstWeek.test.ts` | built (4 November 2026) |
+| 28.2 | shop | **Set up sales tax** step: done when rates are set or collection is switched off (not registered yet) | `firstWeek.test.ts` | built (4 November 2026) |
+| 28.3 | shop | **Add your store policies** step: done when all four have words; every Ready to sell block now has a step before Open your shop | `firstWeek.test.ts` | built (4 November 2026) |
+| 28.4 | shop | **Rows like setup mode's guide**: the next step opens by itself, others on a click, each part shows done/total, web address marked optional | `SetupStart.test.tsx` | built (4 November 2026) |
+| 28.5 | platform | Trial tip emails and help answers for the two new steps; the tips' default order follows the guide | `services/trial-tips`, `help/help.test.js` | built (4 November 2026) |
+
 ## Rules for every pull request
 
 - Tests never touch real money or a paying press's project. Use fakes or the test shop.
