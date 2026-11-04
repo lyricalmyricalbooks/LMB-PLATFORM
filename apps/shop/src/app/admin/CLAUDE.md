@@ -520,6 +520,9 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
 - **Spreadsheets (23.35):** every file picker uses `SPREADSHEET_ACCEPT` and reads through `spreadsheetText()` in
   `spreadsheetFile.ts` (CSV/TSV text in any common encoding, .xlsx, .ods → CSV text); show errors with `readProblem(err)`.
   A new bring-a-file window must do the same. Test files made by real programs live in `testdata/spreadsheets/`.
+- **Match columns (23.36):** Books import keeps the owner's matches for unknown headings in `columns` state and passes
+  them to `planImport({ columns })`; `mapHeadings` ignores a match for `id`, for a field a known heading already fills,
+  or for a field matched twice. Choosing a new file clears the matches.
 - **Whole move on screen (23.22, in CI since 23.29 as `pnpm run test:move` in the `shop-admin-phone` job):** `node scripts/move-check.mjs` (`CHROMIUM_PATH`, `MOVE_SHOTS=dir`) drives
   `admin-fixture.html?move=1` with the demo's sample files and answers the old-shop server actions in the script.
   Extend it when a bring-over window changes. The fixture's dev-only `__fixtureIdToken` lets `oldShopApi.ask` run

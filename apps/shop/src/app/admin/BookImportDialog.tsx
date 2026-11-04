@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Download, Upload } from "lucide-react";
 import { adminApi } from "./api";
-import { importTemplateCsv, IMPORT_COLUMNS, type ImportPlan } from "./catalogImport";
+import { importTemplateCsv, IMPORT_COLUMNS, MATCHABLE_COLUMNS, type ImportField, type ImportPlan } from "./catalogImport";
 import { ImportPreviewRows, MAX_FILE_BYTES } from "./importPreview";
 import { importRedirects, oldLinksMessage, planShopMove, SHAPE_WORDS, type ProductMove } from "./shopMove";
 import { inventoryLinkApi } from "./inventoryLinkApi";
@@ -51,14 +51,16 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
   const [results, setResults] = useState<Result[] | null>(null);
 
   const [stockMode, setStockMode] = useState<"leave" | "set">("leave");
+  // The owner's matches for columns the shop didn't recognise (plan 23.36), by heading.
+  const [columns, setColumns] = useState<Record<string, ImportField>>({});
   // A shop that doesn't sell books keeps the old shop's sizes and colours as option buttons (plan 10.6).
   const keepOptions = !sellsBooks(useShopSells());
   const [source, setSource] = useState<{ text: string; shopCategories: string[]; profiles: string[]; linkedBookIds: string[] } | null>(null);
   const work = plan ? plan.rows.filter(r => r.action === "create" || r.action === "update") : [];
 
-  const replan = (src: typeof source, mode: "leave" | "set") => {
+  const replan = (src: typeof source, mode: "leave" | "set", cols = columns) => {
     if (!src) return;
-    const next = planShopMove(src.text, books, src.shopCategories, { stockMode: mode, shippingProfiles: src.profiles, linkedBookIds: src.linkedBookIds }, { keepOptions });
+    const next = planShopMove(src.text, books, src.shopCategories, { stockMode: mode, shippingProfiles: src.profiles, linkedBookIds: src.linkedBookIds, columns: cols }, { keepOptions });
     setPlan(next.plan); setMoved(next.moved); setOldPaths(next.oldPaths);
   };
 
@@ -75,7 +77,8 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
       const linkedBookIds = Object.entries(links as Record<string, Record<string, string>>).filter(([, e]) => !!e?.["_"]).map(([id]) => id);
       const src = { text, shopCategories, profiles: (profiles as any[]).map(p => p.id), linkedBookIds };
       setSource(src);
-      replan(src, stockMode);
+      setColumns({});
+      replan(src, stockMode, {});
     } catch (err) {
       setReadError(readProblem(err));
     }
@@ -141,6 +144,8 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
       description={w("Add new books or update many at once from a spreadsheet: Excel, CSV and LibreOffice files all work. You'll see every change before anything is saved.")}>
       <div className="rp-stack">
         {!results && <>
+          {/* Once a file is chosen, the how-to and the address box step aside so the preview sits near the top. */}
+          {!fileName && <>
           <ul className="rp-hint" style={{ margin: 0, paddingLeft: 18 }}>
             <li>{w("Easiest: in Books, open")} <strong>⋯ More catalog actions › Export…</strong>, edit the file in Excel, Numbers or Google Sheets and import it back here, as Excel or CSV.</li>
             <li>{w("Books are matched by")} <strong>ID</strong>, then <strong>ISBN</strong>, then <strong>SKU</strong>. Rows that match nothing become <strong>{w("new draft books")}</strong>.</li>
@@ -149,6 +154,7 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
             <li><strong>Bring your shop with you:</strong> {w("choose the product export from your old shop as it is. Books, photos and editions come over as new drafts.")}</li>
           </ul>
           <p className="rp-hint" style={{ margin: 0 }}>Columns it reads: {IMPORT_COLUMNS.map(c => c.label).join(", ")}. Categories are separated with “;”.</p>
+          </>}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
             <input ref={fileRef} type="file" accept={SPREADSHEET_ACCEPT} hidden aria-label="Spreadsheet file"
               onChange={e => { choose(e.target.files?.[0]); e.target.value = ""; }} />
@@ -161,13 +167,18 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
             {fileName && <span className="rp-mono" style={{ overflowWrap: "anywhere" }}>{fileName}</span>}
           </div>
           {/* Plan 23.11: the same address box as setup's Books page, for products found after the shop opened. */}
-          <div className="rp-stack" style={{ borderTop: "var(--rp-hair) solid var(--rp-border)", paddingTop: 12 }}>
+          {!fileName && <div className="rp-stack" style={{ borderTop: "var(--rp-hair) solid var(--rp-border)", paddingTop: 12 }}>
             <p className="rp-hint" style={{ margin: 0 }}>{w("Or bring your books straight from your old shop's web address: no file needed.")}</p>
             <OldShopAddressForm read={readOldShopAddress} onRead={choose} disabled={busy} primary={false} />
-          </div>
+          </div>}
         </>}
 
         {readError && <p role="alert" className="rp-hint" style={{ color: "var(--rp-danger)", margin: 0 }}>{readError}</p>}
+
+        {plan && !results && !moved && (plan.unknownColumns?.length ?? 0) > 0 && (
+          <ColumnMatch unknown={plan.unknownColumns!} chosen={columns} used={plan.matchedFields ?? []} disabled={busy}
+            onChange={(next) => { setColumns(next); replan(source, stockMode, next); }} />
+        )}
 
         {plan && !results && (plan.problems.length
           ? <div role="alert" className="rp-stack">
@@ -192,7 +203,6 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
               {photoCheckLine(photoCheck) && <p className="rp-hint" role="status" style={{ margin: 0 }}>{w(photoCheckLine(photoCheck))}</p>}
               {readNotes.map(n => <p key={n} className="rp-hint" style={{ margin: 0 }}>{w(n)}</p>)}
               {moved && moved.notices.map(n => <p key={n} className="rp-hint" style={{ margin: 0 }}>{n}</p>)}
-              {!moved && plan.ignoredColumns.length > 0 && <p className="rp-hint" style={{ margin: 0 }}>Ignored columns: {plan.ignoredColumns.join(", ")}.</p>}
               <ImportPreviewRows plan={plan} />
             </div>)}
 
@@ -210,5 +220,39 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
         </div>}
       </div>
     </Dialog>
+  );
+}
+
+/**
+ * Columns the shop didn't recognise (plan 23.36): each can be matched to a field, so a spreadsheet with its own
+ * headings ("Cost to buyer", "Writer") still fills in prices and authors. Left as "Leave out", it is skipped.
+ */
+function ColumnMatch({ unknown, chosen, used, disabled, onChange }: {
+  unknown: string[]; chosen: Record<string, ImportField>; used: ImportField[]; disabled: boolean;
+  onChange: (next: Record<string, ImportField>) => void;
+}) {
+  const matched = unknown.filter((h) => chosen[h]).length;
+  return (
+    <section className="rp-stack" aria-label="Match columns" style={{ gap: 8, borderTop: "var(--rp-hair) solid var(--rp-border)", paddingTop: 12 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "baseline", justifyContent: "space-between" }}>
+        <strong>Match columns</strong>
+        <span className="rp-hint">{matched} of {unknown.length} matched</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 260px), 1fr))", gap: 8 }}>
+        {unknown.map((heading) => (
+          <SelectField key={heading} label={heading} value={chosen[heading] ?? ""} disabled={disabled}
+            onChange={(e) => {
+              const next = { ...chosen };
+              if (e.target.value) next[heading] = e.target.value as ImportField; else delete next[heading];
+              onChange(next);
+            }}>
+            <option value="">Leave out</option>
+            {MATCHABLE_COLUMNS.filter((c) => c.field === chosen[heading] || !used.includes(c.field)).map((c) => (
+              <option key={c.field} value={c.field}>{c.label}</option>
+            ))}
+          </SelectField>
+        ))}
+      </div>
+    </section>
   );
 }

@@ -104,21 +104,39 @@ export function parseCsv(input: string): string[][] {
 
 const headingKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
-/** Which field each column feeds (null = ignored), plus the headings nobody recognised. */
-export function mapHeadings(headings: string[]): { fields: (ImportField | null)[]; ignored: string[]; duplicates: string[] } {
+/**
+ * Which field each column feeds (null = ignored), plus the headings nobody recognised. `chosen` (plan 23.36): the
+ * owner's own match for a heading the shop doesn't know, such as "Cost to buyer" → Price. `unknown` lists every such
+ * heading, matched or not, so the window can keep offering the choice.
+ */
+export function mapHeadings(headings: string[], chosen: Record<string, ImportField> = {}): { fields: (ImportField | null)[]; ignored: string[]; duplicates: string[]; unknown: string[] } {
   const seen = new Set<ImportField>();
   const ignored: string[] = [];
   const duplicates: string[] = [];
-  const fields = headings.map(heading => {
-    const key = headingKey(heading);
-    const column = IMPORT_COLUMNS.find(c => c.aliases.some(a => headingKey(a) === key));
-    if (!column) { if (heading.trim()) ignored.push(heading.trim()); return null; }
-    if (seen.has(column.field)) { duplicates.push(heading.trim()); return null; }
-    seen.add(column.field);
-    return column.field;
+  const unknown: string[] = [];
+  const known = headings.map(heading => IMPORT_COLUMNS.find(c => c.aliases.some(a => headingKey(a) === headingKey(heading)))?.field ?? null);
+  // A field a heading already feeds can't be chosen for another column.
+  const taken = new Set(known.filter((f): f is ImportField => !!f));
+  const fields = headings.map((heading, i) => {
+    let field = known[i];
+    if (!field) {
+      if (!heading.trim()) return null;
+      unknown.push(heading.trim());
+      const pick = chosen[heading.trim()];
+      if (!pick || pick === "id" || taken.has(pick) || seen.has(pick) || !LABEL_OF.has(pick)) { ignored.push(heading.trim()); return null; }
+      field = pick;
+    }
+    if (seen.has(field)) { duplicates.push(heading.trim()); return null; }
+    seen.add(field);
+    return field;
   });
-  return { fields, ignored, duplicates };
+  return { fields, ignored, duplicates, unknown };
 }
+
+const LABEL_OF = new Map(IMPORT_COLUMNS.map(c => [c.field, c.label]));
+
+/** The fields a column the shop didn't recognise can be matched to (never ID, which only an export carries). */
+export const MATCHABLE_COLUMNS = IMPORT_COLUMNS.filter(c => c.field !== "id");
 
 // ── Values ────────────────────────────────────────────────────────
 
@@ -183,6 +201,10 @@ export interface ImportRow {
 export interface ImportPlan {
   rows: ImportRow[];
   ignoredColumns: string[];
+  /** Headings the shop didn't recognise, matched by the owner or not (plan 23.36). */
+  unknownColumns?: string[];
+  /** The fields the file's columns feed, after the owner's matches. */
+  matchedFields?: ImportField[];
   /** File-level problems; when present nothing is imported. */
   problems: string[];
   counts: { create: number; update: number; unchanged: number; error: number };
@@ -213,6 +235,8 @@ export interface ImportOptions {
   shippingProfiles?: string[];
   /** Books counted in the inventory app (Inventory › Inventory app link): their stock is never written. */
   linkedBookIds?: string[];
+  /** The owner's matches for headings the shop didn't recognise (plan 23.36). */
+  columns?: Record<string, ImportField>;
 }
 
 const isHttps = (value: string) => { try { return new URL(value).protocol === "https:"; } catch { return false; } };
@@ -223,12 +247,13 @@ export function planImport(text: string, books: any[], shopCategories: string[] 
   const empty = (problems: string[]): ImportPlan => ({ rows: [], ignoredColumns: [], problems, counts: { create: 0, update: 0, unchanged: 0, error: 0 } });
   const table = parseCsv(text);
   if (table.length < 2) return empty(["The file has no book rows. The first line must be the column headings (Title, ISBN, Price…), with one book per line under it."]);
-  const { fields, ignored, duplicates } = mapHeadings(table[0]);
+  const { fields, ignored, duplicates, unknown } = mapHeadings(table[0], opts.columns);
+  const columnInfo = { unknownColumns: unknown, matchedFields: fields.filter((f): f is ImportField => !!f) };
   const problems: string[] = [];
-  if (!fields.some(Boolean)) problems.push("None of the column headings were recognised. Use headings such as Title, Author, ISBN, Price and Stock (the Export CSV file is a ready-made template).");
+  if (!fields.some(Boolean)) problems.push("None of the columns were recognised. Match them to fields, or use headings such as Title, Price and Stock.");
   if (duplicates.length) problems.push(`These columns appear twice: ${duplicates.join(", ")}. Remove the extra copy and try again.`);
   if (table.length - 1 > MAX_IMPORT_ROWS) problems.push(`The file has ${table.length - 1} rows; import up to ${MAX_IMPORT_ROWS} at a time.`);
-  if (problems.length) return { ...empty(problems), ignoredColumns: ignored };
+  if (problems.length) return { ...empty(problems), ignoredColumns: ignored, ...columnInfo };
 
   const byId = new Map(books.map(b => [String(b.id), b]));
   const index = (key: (b: any) => string) => {
@@ -412,7 +437,7 @@ export function planImport(text: string, books: any[], shopCategories: string[] 
 
   const counts = { create: 0, update: 0, unchanged: 0, error: 0 };
   rows.forEach(r => counts[r.action]++);
-  return { rows, ignoredColumns: ignored, problems: [], counts };
+  return { rows, ignoredColumns: ignored, ...columnInfo, problems: [], counts };
 }
 
 /** Headings-only file the owner can fill in (Export CSV is the full template). */
