@@ -21,6 +21,13 @@ export function jumpTo(id: string) {
   el.focus({ preventScroll: true });
 }
 
+/** Scrolls to a card once the page that holds it is showing (Settings loads on its own, after the address changes). */
+export function jumpWhenShown(id: string, tries = 50) {
+  const el = typeof document !== "undefined" ? document.getElementById(id) : null;
+  if (el && el.offsetParent !== null) return jumpTo(id);
+  if (tries > 0) window.setTimeout(() => jumpWhenShown(id, tries - 1), 100);
+}
+
 /**
  * A page's open sub tab. With `onChange` the Dashboard owns it (it lives in the address bar, `adminRoute.ts`);
  * without, the page keeps it itself. `undefined` from the Dashboard means the page's first tab.

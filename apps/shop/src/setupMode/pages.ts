@@ -54,6 +54,28 @@ export interface GuideStep {
   id: string; title: string; done: boolean; page: string; action: string; locked?: boolean;
   /** A step a press may leave undone (nothing to bring over): counted only once it is done. */
   optional?: boolean;
+  /** Its part of the guide (SETUP_GROUPS). */
+  group?: SetupGroup;
+}
+
+/**
+ * The guide's parts, in order (code plan 28.6): who you are, then the shop itself, then creating it. The shop's own guide
+ * on Home carries on with Your shop, Ready to sell and Launch (app/admin/firstWeek.ts), so the two read as one journey.
+ */
+export type SetupGroup = "press" | "shop" | "create";
+export const SETUP_GROUPS: ReadonlyArray<{ id: SetupGroup; title: string }> = Object.freeze([
+  { id: "press", title: "Your press" },
+  { id: "shop", title: "Your shop" },
+  { id: "create", title: "Create" },
+]);
+
+/** The guide's parts with their steps and how many are done (counted as guideProgress does); empty parts left out. */
+export function setupGroups(steps: GuideStep[]) {
+  return SETUP_GROUPS.map((g) => {
+    const list = steps.filter((s) => s.group === g.id);
+    const counted = list.filter((s) => !s.locked);
+    return { ...g, steps: list, done: counted.filter((s) => s.done).length, total: counted.length };
+  }).filter((g) => g.steps.length > 0);
 }
 
 /** The setup guide's steps from the press's record, in order. A stockroom-only press has no website look to pick. */
@@ -67,7 +89,7 @@ export function guideSteps(press: SetupPress): GuideStep[] {
   // A press that may be moving brings its books before picking a look, so the look previews can show them (23.0);
   // one starting fresh has it last, as an optional step.
   const fresh = press.moving === "fresh";
-  return [
+  const steps: GuideStep[] = [
     { id: "plan", title: "Pick what you want to set up", done: !!press.plan, page: PLAN_PAGE, action: "Choose" },
     { id: "details", title: "Tell us about your press", done: !!(press.pressName && press.sells && press.country), page: GENERAL_PAGE, action: "Add details" },
     ...(fresh ? [...look, ...cards, books] : [books, ...look, ...cards]),
@@ -78,6 +100,7 @@ export function guideSteps(press: SetupPress): GuideStep[] {
     // "Create", not "open": the shop is made private, and the press opens it to shoppers from its own admin later.
     { id: "open", title: "Create your shop", done: press.status === "opening" || press.status === "open", page: PLAN_PAGE, action: "Create my shop" },
   ];
+  return steps.map((s) => ({ ...s, group: s.id === "plan" || s.id === "details" ? "press" : s.id === "open" ? "create" : "shop" }));
 }
 
 /**
@@ -100,9 +123,12 @@ export function nextGuideStep(steps: GuideStep[], press?: Pick<SetupPress, "movi
 export const readyToCreate = (steps: GuideStep[]): boolean =>
   steps.every((s) => s.done || s.optional || s.id === "open") && !steps.find((s) => s.id === "open")?.done;
 
-/** "2 of 5 done", counting only the steps that can be done in setup. */
+/**
+ * "2 of 7 done": every step the guide shows (optional ones too), so the count matches the rows a press sees. Steps
+ * that only come with the shop (locked) aren't counted.
+ */
 export function guideProgress(steps: GuideStep[]): { done: number; total: number } {
-  const counted = steps.filter((s) => !s.locked && (!s.optional || s.done));
+  const counted = steps.filter((s) => !s.locked);
   return { done: counted.filter((s) => s.done).length, total: counted.length };
 }
 
@@ -165,7 +191,7 @@ const LOCKED_LINES: Readonly<Record<string, string>> = Object.freeze({
   [SETTINGS_ITEM_PREFIX + "taxes"]: "The sales tax your shop adds at checkout, worked out from where your shoppers are.",
   [SETTINGS_ITEM_PREFIX + "notifications"]: "The emails your shoppers get: order received, shipped, and the words in each.",
   [SETTINGS_ITEM_PREFIX + "team"]: "Invite someone to help run your shop, with only the pages they need.",
-  [SETTINGS_ITEM_PREFIX + "google"]: "Google search, Google Shopping, Maps and visit figures, linked with one Google sign-in.",
+  [SETTINGS_ITEM_PREFIX + "google"]: "Show up on Google search, Shopping and Maps with one sign-in. It's a step in your shop's setup guide.",
   [SETTINGS_ITEM_PREFIX + "apps"]: "What the apps you add change in your shop, after your shop's own checks.",
   [SETTINGS_ITEM_PREFIX + "security"]: "Two-step sign-in and who has signed in to your shop.",
   [SETTINGS_ITEM_PREFIX + "bookkeeping"]: "Your sales and fees, ready for your accountant.",

@@ -5,3 +5,12 @@
   :root:root .rp .rp-setup-home .rp-page-title { font-size: 34px; line-height: 1.05; }
   :root:root .rp .rp-setup-home .rp-page-header { padding-top: 16px; }
 }
+
+/* The top bar's Create my shop keeps a word on a phone: "Create", with the full name for screen readers. */
+.rp-setup-create-short, .rp-setup-create-sr { display: none; }
+@media (max-width: 767px) {
+  :root:root .rp .rp-topbar-actions .rp-setup-create .rp-btn-primary { width: auto; padding: 0 12px; }
+  .rp-setup-create-long { display: none; }
+  .rp-setup-create-short { display: inline; }
+  .rp-setup-create .rp-setup-create-sr { display: inline; }
+}

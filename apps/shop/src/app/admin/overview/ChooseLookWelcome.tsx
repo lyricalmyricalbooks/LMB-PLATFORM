@@ -39,6 +39,8 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<LookFilter>("all");
+  // The suggested looks show first; the whole gallery opens on "See all looks" (a long list buries the three picked for you).
+  const [showAll, setShowAll] = useState(false);
   const [trying, setTrying] = useState<string | null>(null);
   const [device, setDevice] = useState<StageDevice>(() => (typeof window !== "undefined" && window.innerWidth < 720 ? "phone" : "desktop"));
   const [page, setPage] = useState<StagePage>("home");
@@ -145,20 +147,26 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
         : first && <GhostButton size="sm" disabled={!!busy} onClick={() => void choose(first, true)}>Skip for now</GhostButton>}>
       {error && <p role="alert" className="rp-hint" style={{ marginTop: 0, color: "var(--rp-danger)" }}>{error}</p>}
       <p className="rp-hint" style={{ marginTop: 0 }}>
-        Tap any look to try it on, on a computer or a phone, before you choose. Every look keeps your words, products and pages, and you can change it any time.
-        {first && !keep && ` Skip uses “${first.name}”, our suggestion for you.`}
+        Try any look on before you choose. You can change it any time.
+        {first && !keep && ` Skip uses “${first.name}”.`}
       </p>
 
       <h3 className="rp-card-title" style={{ fontSize: "var(--rp-text-base)", margin: "16px 0 12px" }}>Suggested for you</h3>
       <ul aria-label="Suggested looks" style={grid(320)}>{suggested.map(t => card(t, true))}</ul>
 
-      <h3 className="rp-card-title" style={{ fontSize: "var(--rp-text-base)", margin: "40px 0 12px" }}>Every look</h3>
-      <Tabs label="Show looks" idPrefix="looks-" value={filter} onChange={setFilter}
-        tabs={LOOK_FILTERS.map(f => ({ id: f.id, label: f.label, count: counts[f.id] }))} />
-      <ul aria-label="Every look" style={{ ...grid(240), marginTop: 16 }}>{shown.map(t => card(t, false))}</ul>
+      {showAll ? <>
+        <h3 className="rp-card-title" style={{ fontSize: "var(--rp-text-base)", margin: "40px 0 12px" }}>Every look</h3>
+        <Tabs label="Show looks" idPrefix="looks-" value={filter} onChange={setFilter}
+          tabs={LOOK_FILTERS.map(f => ({ id: f.id, label: f.label, count: counts[f.id] }))} />
+        <ul aria-label="Every look" style={{ ...grid(240), marginTop: 16 }}>{shown.map(t => card(t, false))}</ul>
+      </> : others.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <SecondaryButton onClick={() => setShowAll(true)}>See all {others.length + suggested.length} looks</SecondaryButton>
+        </div>
+      )}
 
       <h3 className="rp-card-title" style={{ fontSize: "var(--rp-text-base)", margin: "40px 0 4px" }}>Your admin</h3>
-      <p className="rp-hint" style={{ marginTop: 0 }}>How this admin looks to you, not to your customers. Tap one and the whole admin changes right away, so you can see it before you go on. Change it any time from the top bar.</p>
+      <p className="rp-hint" style={{ marginTop: 0 }}>How this admin looks to you, not to your customers. Tap one to see it now; change it any time from the top bar.</p>
       <div role="radiogroup" aria-label="Admin look" style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 180px), 1fr))" }}>
         {ADMIN_LOOKS.map(l => (
           <button key={l.id} type="button" role="radio" aria-checked={adminLook === l.id} disabled={!!busy}
