@@ -4861,6 +4861,8 @@
     <button class="settings-sub-tab active" id="btn-subtab-catalog" onclick="switchSettingsSubTab('catalog')"><span class="lead-emoji" aria-hidden="true">📚 </span>Book Catalog</button>
     <button class="settings-sub-tab" id="btn-subtab-profit" onclick="switchSettingsSubTab('profit')"><span class="lead-emoji" aria-hidden="true">⚖️ </span>Profit Tiers</button>
     <button class="settings-sub-tab" id="btn-subtab-sync" data-own-accounts onclick="switchSettingsSubTab('sync')"><span class="lead-emoji" aria-hidden="true">📊 </span>Sheets Connection</button>
+    <!-- Colophon shops with both apps only (main.js googleSheetApplies): the sheet from the shop's one Google sign-in. -->
+    <button type="button" class="settings-sub-tab" id="btn-subtab-google" hidden data-action="settings.googleSheet"><span class="lead-emoji" aria-hidden="true">📊 </span>Google Sheet</button>
     <button class="settings-sub-tab" id="btn-subtab-letterhead" onclick="switchSettingsSubTab('letterhead')"><span class="lead-emoji" aria-hidden="true">✉️ </span>Letterhead</button>
   </div>
 
@@ -4968,6 +4970,11 @@
          <span id="ps-save-indicator" class="save-indicator">Syncing...</span>
        </div>
     </div>
+  </div>
+
+  <!-- Google Sheet through the shop's one Google sign-in (features/google-sheet.js paints it). -->
+  <div id="settings-sec-google" class="settings-section" style="display:none;">
+    <div class="card gsheet-card" id="google-sheet-card" aria-live="polite"></div>
   </div>
 
   <!-- 3. GOOGLE SHEETS CONNECTION SECTION -->

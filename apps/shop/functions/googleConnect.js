@@ -5,7 +5,7 @@
 // searchConsole.js read them as before. The shop proves who it is with its service key, like the payment, email and
 // domain services. Admin-only. A shop without the link answers "not_available", and the admin keeps its older cards.
 //
-//   body { action: "googleConnect", step: "status" | "connectLink" | "tryAgain" | "disconnect" | "turnOff" | "productProblems" | "sheetSync", returnUrl?, extras?, part? }
+//   body { action: "googleConnect", step: "status" | "connectLink" | "tryAgain" | "disconnect" | "turnOff" | "productProblems" | "sheetSync", returnUrl?, extras?, part?, sales? }
 
 const STEPS = Object.freeze({ status: "google.status", connectLink: "google.connectLink", tryAgain: "google.tryAgain", disconnect: "google.disconnect", turnOff: "google.turnOff", productProblems: "google.productProblems", sheetSync: "google.sheetSync" });
 const EXTRAS = Object.freeze(["drive", "youtube", "calendar", "businessProfile", "ads"]);
@@ -39,6 +39,20 @@ function stockSheetRows(books) {
   return [HEADINGS, ...lines];
 }
 
+const SALES_HEADINGS = ["Date", "Book", "Order", "Where sold", "Copies", "Price", "Total", "Currency", "Notes"];
+const MAX_SALES = 5000;
+const salesCell = (v) => (typeof v === "number" && Number.isFinite(v) ? v : cell(v, 300));
+
+/**
+ * The Sales tab, from the stockroom's own sales as the signed-in admin's browser sends them: our headings, then up to
+ * 5,000 lines of text and numbers. Null when the stockroom sent none (the sheet then keeps the Stock tab alone).
+ */
+function salesSheetRows(lines) {
+  if (lines === undefined) return null;
+  if (!Array.isArray(lines) || lines.length > MAX_SALES || lines.some((l) => !Array.isArray(l))) return undefined;
+  return [SALES_HEADINGS, ...lines.map((l) => SALES_HEADINGS.map((_, i) => salesCell(l[i])))];
+}
+
 function googleConnectActions({ url, shopId, serviceKey, requireAdmin, readStock = async () => [], fetch = globalThis.fetch, timeoutMs = 60000 }) {
   async function handleGoogleConnect(req, res) {
     if (!await requireAdmin(req, res)) return;
@@ -49,11 +63,19 @@ function googleConnectActions({ url, shopId, serviceKey, requireAdmin, readStock
     const step = req.body?.step;
     let args = Object.hasOwn(STEPS, step) ? argsFor(step, req.body) : null;
     if (step === "sheetSync") {
-      try { args = { rows: stockSheetRows(await readStock()) }; } catch (err) {
+      const sales = salesSheetRows(req.body?.sales);
+      if (sales === undefined) {
+        res.status(400).json({ error: "The sales list couldn't be read.", code: "bad_request" });
+        return;
+      }
+      let stock;
+      try { stock = stockSheetRows(await readStock()); } catch (err) {
         console.error("Stock list for the Google Sheet couldn't be read:", err?.message || err);
         res.status(409).json({ error: "Your stockroom isn't set up in this shop yet, so there is no stock list to send.", code: "no_stockroom" });
         return;
       }
+      // The stock counts are always read here, never taken from the browser; the sales are the admin's own records.
+      args = sales ? { tabs: { Stock: stock, Sales: sales } } : { rows: stock };
     }
     if (!args) {
       res.status(400).json({ error: "Unknown step.", code: "bad_request" });
@@ -89,4 +111,4 @@ function googleConnectActions({ url, shopId, serviceKey, requireAdmin, readStock
   return { handleGoogleConnect };
 }
 
-module.exports = { googleConnectActions, stockSheetRows, STEPS, EXTRAS };
+module.exports = { googleConnectActions, stockSheetRows, salesSheetRows, STEPS, EXTRAS };

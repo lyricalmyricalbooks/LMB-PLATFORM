@@ -11,7 +11,7 @@
 //                                        back to `oauthCallback` (GET /google/oauth), which keeps the tokens sealed,
 //                                        runs the connect job and goes back to the shop
 //   google.productProblems               the books Google Shopping turned down, each with what to fix, in plain words
-//   google.sheetSync { rows }            writes the shop's stock list into one spreadsheet in the press's own Google Drive
+//   google.sheetSync { tabs: { Stock, Sales } } (or { rows } for Stock) rewrites the tabs of one spreadsheet in the press's own Drive
 //                                        (made the first time; only with the Drive box ticked), and answers its address
 //   google.tryAgain { step }             one connect step again (the shop's Try again)
 //   google.disconnect                    the closing steps of the teardown job: the shop stays open
@@ -32,16 +32,26 @@ export class GoogleLinkError extends Error {
 }
 
 const STATE_MS = 15 * 60 * 1000;
-const MAX_SHEET_ROWS = 2001;
+/** The tabs a stock sheet may have, and the most lines each takes (a heading line plus 2,000 or 5,000). */
+const SHEET_TABS = Object.freeze({ Stock: 2001, Sales: 5001 });
 const MAX_SHEET_COLUMNS = 12;
 
-/** The cells the shop sends: a heading row and up to 2,000 lines of text and numbers, nothing else. */
-function sheetRows(rows) {
-  if (!Array.isArray(rows) || rows.length < 1 || rows.length > MAX_SHEET_ROWS) throw bad("rows must be a heading line and up to 2,000 lines");
+/** One tab's cells: a heading line and its lines of text and numbers, nothing else. */
+function sheetRows(rows, max = SHEET_TABS.Stock) {
+  if (!Array.isArray(rows) || rows.length < 1 || rows.length > max) throw bad(`rows must be a heading line and up to ${(max - 1).toLocaleString("en")} lines`);
   return rows.map((line) => {
     if (!Array.isArray(line) || line.length > MAX_SHEET_COLUMNS) throw bad("every line must be a list of up to 12 cells");
     return line.map((cell) => (typeof cell === "number" && Number.isFinite(cell) ? cell : typeof cell === "string" ? cell.slice(0, 300) : ""));
   });
+}
+
+/** `{ tabs: { Stock, Sales } }`, or the older `{ rows }` for the Stock tab alone: each tab's checked cells, in tab order. */
+function sheetTabs({ rows, tabs } = {}) {
+  const given = tabs ?? (rows !== undefined ? { Stock: rows } : null);
+  if (!given || typeof given !== "object" || Array.isArray(given)) throw bad("send the Stock tab, and the Sales tab if you like");
+  const names = Object.keys(given);
+  if (!names.includes("Stock") || names.some((name) => !Object.hasOwn(SHEET_TABS, name))) throw bad("the tabs are Stock and Sales");
+  return Object.keys(SHEET_TABS).filter((name) => names.includes(name)).map((name) => [name, sheetRows(given[name], SHEET_TABS[name])]);
 }
 const bad = (message) => new GoogleLinkError(400, "bad_request", message);
 
@@ -89,6 +99,8 @@ export function createGoogleService({ config, google, tokens, states, registry, 
       extrasOffered: offeredExtras(config),
       extrasChosen: tokens.live(conn) ? conn.extras ?? [] : [],
       gmailSending: config.gmailSending,
+      // The stock sheet in the press's Drive, once one was sent: where it is and when it was last written.
+      sheet: tokens.live(conn) && g.sheet?.url ? { url: g.sheet.url, writtenAt: g.sheet.writtenAt ?? null, rows: g.sheet.rows ?? 0, sales: g.sheet.sales ?? null } : null,
       steps: tokens.live(conn) ? (g.steps ?? []).filter((s) => CONNECT_STEPS.includes(s.step)).map(({ step, state, detail, at }) => ({ step, state, detail, at })) : [],
     };
   }
@@ -111,26 +123,34 @@ export function createGoogleService({ config, google, tokens, states, registry, 
 
   const OPS = {
     "google.status": (row) => status(row),
-    async "google.sheetSync"(row, { rows } = {}) {
-      const values = sheetRows(rows);
+    async "google.sheetSync"(row, args = {}) {
+      const tabs = sheetTabs(args);
       const grant = await tokens.fresh(row.shopId);
       if (!grant || !SCOPES.drive.every((scope) => grant.scopes.includes(scope))) return { available: false };
       const known = row.google?.sheet ?? {};
       let sheet = known.spreadsheetId ? known : null;
+      const names = tabs.map(([name]) => name);
       if (!sheet) {
-        const made = await google.createSpreadsheet(grant.token, `${row.pressName || row.shopId} stock from Colophon`);
+        const made = await google.createSpreadsheet(grant.token, `${row.pressName || row.shopId} stock from Colophon`, names);
         sheet = { spreadsheetId: made.spreadsheetId, url: made.spreadsheetUrl, madeAt: new Date(now()).toISOString() };
       }
       try {
-        await google.writeStockSheet(grant.token, sheet.spreadsheetId, values);
+        // A sheet made before the Sales tab existed gets it added; the press's own extra tabs are left alone.
+        if (known.spreadsheetId) {
+          const have = await google.sheetTabs(grant.token, sheet.spreadsheetId);
+          const missing = names.filter((name) => !have.includes(name));
+          if (missing.length) await google.addSheetTabs(grant.token, sheet.spreadsheetId, missing);
+        }
+        for (const [name, values] of tabs) await google.writeSheetTab(grant.token, sheet.spreadsheetId, name, values);
       } catch (err) {
         // The press deleted the sheet in their Drive: make a fresh one next time rather than failing for good.
         if (err?.status === 404 && known.spreadsheetId) { await registry.updateShop(row.shopId, { google: { ...(row.google ?? {}), sheet: null } }); return { available: true, gone: true }; }
         throw err;
       }
-      const next = { ...sheet, writtenAt: new Date(now()).toISOString(), rows: values.length - 1 };
+      const lines = Object.fromEntries(tabs.map(([name, values]) => [name, values.length - 1]));
+      const next = { ...sheet, writtenAt: new Date(now()).toISOString(), rows: lines.Stock, ...(lines.Sales !== undefined ? { sales: lines.Sales } : {}) };
       await registry.updateShop(row.shopId, { google: { ...(row.google ?? {}), sheet: next } });
-      return { available: true, url: next.url, writtenAt: next.writtenAt, rows: next.rows };
+      return { available: true, url: next.url, writtenAt: next.writtenAt, rows: next.rows, ...(next.sales !== undefined ? { sales: next.sales } : {}) };
     },
     async "google.productProblems"(row) {
       const account = row.google?.merchantCenter?.account;
