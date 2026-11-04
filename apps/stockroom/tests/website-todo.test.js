@@ -110,6 +110,14 @@ describe('the website’s books not in this app yet', () => {
     expect(bookPrefill(cleanShopBook(shopBook()))).toEqual({ title: 'The Hound — Signed', author: 'Ada Lovelace', isbn: '9781234567897', price: '40', currency: 'CA$' });
     expect(bookPrefill(cleanShopBook(shopBook({ price: null, isbn: '', author: '' })))).toEqual({ title: 'The Hound — Signed', author: '', isbn: '', price: '', currency: 'CA$' });
   });
+
+  it('starts the item from the website’s stock count, when the website keeps one (plan 23.9)', () => {
+    expect(bookPrefill(cleanShopBook(shopBook({ tracked: true, stock: 12 })))).toMatchObject({ onHand: 12 });
+    // Not counted on the website, none left, or not a whole number: the owner fills in the print run.
+    for (const over of [{ tracked: false, stock: 12 }, { tracked: true, stock: 0 }, { tracked: true, stock: 2.5 }, { tracked: true, stock: '7' }, {}]) {
+      expect(bookPrefill(cleanShopBook(shopBook(over)))).not.toHaveProperty('onHand');
+    }
+  });
 });
 
 describe('where an "Add to the app" stands', () => {
