@@ -676,6 +676,8 @@ function card(shop) {
     // Social channels post the website's products, so a stockroom-only shop has none.
     shop.status === "live" && shop.plan !== "stockroom" ? el("h3", { className: "cr-section", textContent: "Social channels" }) : null,
     shop.status === "live" && shop.plan !== "stockroom" ? shopSocialSection(shop) : null,
+    shop.plan !== "stockroom" ? el("h3", { className: "cr-section", textContent: "Apps" }) : null,
+    shop.plan !== "stockroom" ? shopAppsSection(shop) : null,
     shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Newsletters, morning emails and changed orders" }) : null,
     shop.status === "live" ? shopFeaturesSection(shop) : null,
     shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Website look" }) : null,
@@ -2459,6 +2461,36 @@ function shopSocialSection(shop) {
       }),
       found.failedCount ? el("h4", { className: "cr-section", textContent: `Posts that didn't go out (${found.failedCount} in 30 days)` }) : null,
       found.failedCount ? history(found.failed.map((f) => `${when(f.at)} · ${f.name ?? "?"} · ${f.detail ?? "no reason given"}`)) : null);
+  }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
+  return slot;
+}
+
+// Outside apps on the shop: each app's permissions and its alerts that stopped getting through; the changes apps asked for.
+const CHANGE_TONE = { done: "success", refused: "warning", waiting: "neutral" };
+const CHANGE_WORDS = { done: "done", refused: "turned down", waiting: "waiting" };
+function shopAppsSection(shop) {
+  const slot = el("div", {}, el("p", { className: "rp-hint", textContent: "Reading the shop's apps…" }));
+  api("POST", "/control/shop-apps", { shopId: shop.shopId }).then((found) => {
+    if (!found.apps.length && !found.changeCount) return slot.replaceChildren(el("p", { className: "rp-hint", textContent: found.removed ? `No apps installed (${plural(found.removed, "app")} removed).` : "No apps installed." }));
+    fill(slot,
+      found.apps.length ? table({
+        caption: "Apps",
+        rows: found.apps,
+        columns: [
+          { header: "App", lead: true, render: (a) => el("div", {}, el("p", { className: "cr-title", style: "min-width: 8em", textContent: a.name }), meta(a.installedAt ? `since ${dateOnly(a.installedAt)}` : null, a.testing ? "maker's test" : null)) },
+          { header: "Can", render: (a) => a.permissions.map((p) => p.words).join(", ") || "—" },
+          { header: "", end: true, render: (a) => (a.failedAlerts ? el("div", {}, pill("warning", `${plural(a.failedAlerts, "alert")} not getting through`), a.lastError ? meta(a.lastError) : null) : pill("success", "alerts arriving")) },
+        ],
+      }) : el("p", { className: "rp-hint", textContent: "No apps installed now." }),
+      found.changeCount ? el("h4", { className: "cr-section", textContent: `Changes apps asked for (${found.changeCount}${found.refused ? `, ${found.refused} turned down` : ""})` }) : null,
+      found.changeCount ? table({
+        caption: "Changes apps asked for",
+        rows: found.changes,
+        columns: [
+          { header: "Change", lead: true, render: (c) => el("div", {}, el("p", { textContent: c.what }), meta(c.app, c.at ? when(c.at) : null)) },
+          { header: "", end: true, render: (c) => el("div", {}, pill(CHANGE_TONE[c.state], CHANGE_WORDS[c.state]), c.reason ? meta(c.reason) : null) },
+        ],
+      }) : null);
   }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
   return slot;
 }

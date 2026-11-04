@@ -88,6 +88,7 @@ import { createShopLooks, shopLooksRoutes } from "../control-room/shopLooks.js";
 import { createShopEmails, shopEmailsRoutes } from "../control-room/shopEmails.js";
 import { appUseRoutes, createAppUse } from "../control-room/appUse.js";
 import { createShopSocial, shopSocialRoutes } from "../control-room/shopSocial.js";
+import { createShopApps, shopAppsRoutes } from "../control-room/shopApps.js";
 import { deliveryReader } from "../control-room/delivery.js";
 import { createJobs } from "../services/jobs/index.js";
 import { createPressMessages, messageRoutes } from "../control-room/messages.js";
@@ -280,6 +281,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const shopLooks = createShopLooks({ admins, registry, shopData, now });
   const shopEmails = createShopEmails({ admins, registry, emailLog: sentLog, now });
   const appUse = createAppUse({ admins, installs: appInstallStore, outbox: appAlertOutbox, now });
+  const shopApps = createShopApps({ admins, registry, installs: appInstallStore, outbox: appAlertOutbox, shopData, now });
   // Social channels (27.8): the social service has no hosted home yet (services/social/index.js), so the room says so.
   const shopSocial = createShopSocial({ admins, registry, social: null, now });
   const salesChannels = createSalesChannels({ admins, registry, shopData, stockroomData, now });
@@ -341,6 +343,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...shopEmailsRoutes(shopEmails),
     ...appUseRoutes(appUse),
     ...shopSocialRoutes(shopSocial),
+    ...shopAppsRoutes(shopApps),
     ...driftRoutes(driftDesk),
     ...messageRoutes(pressMessages),
     ...costRoutes(costsDesk),
