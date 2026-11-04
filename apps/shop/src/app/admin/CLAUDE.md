@@ -785,3 +785,7 @@ card, no explanations the badge or button already gives. Screens: fixture `?page
 Round two (4 November 2026, plan 27.10-27.12): Overview widget `social` ("Social media that sells", `socialPerformance`
 in `overview/overviewTraffic.ts`, on the Marketing board), the composer's Square picture toggle (`square`, on by
 default; `functions/socialPicture.js`) and the Shop alerts switch `socialPostFailed`.
+
+## Partner company logos (4 November 2026)
+
+A card or dialog about one outside company passes `logo` (`SectionCard logo="quickbooks"`, `Dialog logo={["instagram", "facebook"]}`); the logo sits on a white tile before the title in every look, day and night. Google sign-in uses `GoogleSignInButton` (Google's own style and words). Logos come only from `shared/brand-logos` (README there: sources, owners, rules); never redraw or recolour one, and never show a rival shop builder's.

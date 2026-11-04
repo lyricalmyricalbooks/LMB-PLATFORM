@@ -37,7 +37,7 @@ export function MerchantFeedDialog({ open, onClose, books }: { open: boolean; on
   };
 
   return (
-    <Dialog open={open} onClose={onClose} size="lg" title="Google Shopping feed"
+    <Dialog open={open} onClose={onClose} size="lg" title="Google Shopping feed" logo="google"
       description={w("List your books on Google Shopping for free. Google reads this file from your site every day.")}
       footer={<PrimaryButton onClick={onClose}>Done</PrimaryButton>}>
       <div className="rp-stack">

@@ -118,7 +118,7 @@ export function BookkeepingSettings({ taxRates, openSignIn = (url) => window.loc
       {outcome && <p role="status" className="rp-hint" style={{ margin: 0 }}><StatusBadge tone={outcome.tone}>{outcome.tone === "success" ? "Done" : "Not connected"}</StatusBadge> {outcome.text}</p>}
 
       {step === 1 && (
-        <SectionCard title="QuickBooks" description="Send your sales to QuickBooks each night.">
+        <SectionCard title="QuickBooks" logo="quickbooks" description="Send your sales to QuickBooks each night.">
           <div className="rp-stack" style={{ gap: 12 }}>
             <p className="rp-hint" style={{ margin: 0 }}>Step 1 of 3: sign in with Intuit and choose your QuickBooks company.</p>
             {status.problem === "lost" && <p role="alert" style={{ margin: 0, color: "var(--rp-danger)" }}>QuickBooks stopped taking this shop's sales. Connect again; the days you missed are sent after.</p>}
@@ -181,7 +181,7 @@ export function BookkeepingSettings({ taxRates, openSignIn = (url) => window.loc
       )}
 
       {step === "done" && (
-        <SectionCard title="QuickBooks" description={status.companyName ? `Connected to ${status.companyName}.` : "Connected."}>
+        <SectionCard title="QuickBooks" logo="quickbooks" description={status.companyName ? `Connected to ${status.companyName}.` : "Connected."}>
           <div className="rp-stack" style={{ gap: 12 }}>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
               <StatusBadge tone="success">Connected</StatusBadge>

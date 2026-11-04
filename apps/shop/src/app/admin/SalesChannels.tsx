@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Globe, Music2, Pin, PlaySquare } from "lucide-react";
-import { Facebook, Instagram } from "../features/site/socialIcons";
+import { Globe } from "lucide-react";
+import { BrandLogo, type BrandId } from "../components/brand/BrandLogo";
 import { adminApi } from "./api";
 import { SocialFeedDialog } from "./SocialFeedDialog";
 import {
@@ -17,11 +17,9 @@ type Props = {
   openSignIn?: (url: string) => void;
 };
 
-const ICONS: Record<SocialNetwork, React.ReactNode> = {
-  meta: <span className="rp-channel-icons" aria-hidden="true"><Facebook size={18} /><Instagram size={18} /></span>,
-  pinterest: <span className="rp-channel-icons" aria-hidden="true"><Pin size={18} /></span>,
-  tiktok: <span className="rp-channel-icons" aria-hidden="true"><Music2 size={18} /></span>,
-};
+// Each network's own logo (shared/brand-logos), so the channel reads as the real thing.
+const LOGOS: Record<SocialNetwork, BrandId[]> = { meta: ["facebook", "instagram"], pinterest: ["pinterest"], tiktok: ["tiktok"] };
+const brandLogos = (ids: BrandId[]) => <span className="brand-logo-row" aria-hidden="true">{ids.map((id) => <BrandLogo key={id} id={id} size="md" />)}</span>;
 
 /** Takes `?social=…&network=…` off the address after reading it, so a reload doesn't say it again. */
 function readOutcome() {
@@ -134,7 +132,7 @@ export function SalesChannels({ onOpen, openSignIn = (url) => window.location.as
           <SectionCard key={channel.id} title={channel.name} collapsible={false} actions={badge}>
             <div className="rp-stack" style={{ gap: 12 }} data-channel={channel.id}>
               <div className="rp-channel-row">
-                {ICONS[channel.id]}
+                {brandLogos(LOGOS[channel.id])}
                 <p className="rp-hint" style={{ margin: 0, flex: "1 1 220px" }}>{channel.does}</p>
               </div>
 
@@ -184,7 +182,7 @@ export function SalesChannels({ onOpen, openSignIn = (url) => window.location.as
 
       <SectionCard title="Google & YouTube" collapsible={false} actions={<StatusBadge tone="neutral" glyph={false}>In Settings</StatusBadge>}>
         <div className="rp-channel-row">
-          <span className="rp-channel-icons" aria-hidden="true"><PlaySquare size={18} /></span>
+          {brandLogos(["google", "youtube"])}
           <p className="rp-hint" style={{ margin: 0, flex: "1 1 220px" }}>
             Free Shopping listings and YouTube, with your Google sign-in.
           </p>
