@@ -77,7 +77,18 @@ function FreeAddressLine({ press, save, check, inSetup }: FreeLineProps) {
     }, CHECK_AFTER_MS);
     return () => { live = false; clearTimeout(timer); };
   }, [name, editing]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A name picked earlier is checked again on the way in: if another shop has taken it since, the press is asked for a new one.
+  useEffect(() => {
+    const saved = press.freeName ?? "";
+    if (!inSetup || !check || !saved || editing) return;
+    let live = true;
+    check(press.pressId, saved).then((answer) => {
+      if (live && answer.name === saved && !answer.problem && !answer.available) { setDraft(saved); setChecked(answer); setEditing(true); }
+    }, () => {});
+    return () => { live = false; };
+  }, [press.freeName]); // eslint-disable-line react-hooks/exhaustive-deps
   const current = checked?.name === name ? checked : null;
+  const suggestions = current && !current.available && !current.problem ? current.suggestions ?? [] : [];
   const refusal = current?.problem || (current && !current.available ? `Another shop already has ${current.address}. Try another name.` : "");
 
   const keep = async (value: string, which: string) => {
@@ -107,6 +118,12 @@ function FreeAddressLine({ press, save, check, inSetup }: FreeLineProps) {
           <TextField label="New name" value={draft} placeholder="moth-books" autoCapitalize="none" autoCorrect="off" spellCheck={false}
             hint={refusal ? undefined : name ? `${name}.${shopDomain}${current?.available ? " is free" : ""}` : "Letters, numbers and dashes."}
             error={refusal || undefined} onChange={(e) => setDraft(e.target.value)} />
+          {suggestions.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }} aria-label="Free names">
+              <span className="rp-hint">Free:</span>
+              {suggestions.map((s) => <GhostButton key={s} size="sm" disabled={!!busy} onClick={() => setDraft(s)}>{s}</GhostButton>)}
+            </div>
+          )}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             <PrimaryButton type="submit" size="sm" busy={busy === "name"} disabled={!name || !!busy || !!refusal}>Use this name</PrimaryButton>
             {press.freeName && <GhostButton size="sm" busy={busy === "press"} disabled={!!busy} onClick={() => void keep("", "press")}>Use my press's name</GhostButton>}

@@ -120,6 +120,7 @@ import { hasTokens, isDynamic } from "../../features/site/dynamicSources";
 // Connected text (a $dyn value or {{tokens}}) opens the inspector instead of being typed over in the preview.
 const isConnectedValue = (v: any) => isDynamic(v) || hasTokens(v);
 import { CANDIDATE_ID, deletePreset, deleteSharedBlock, renamePreset, renameSharedBlock, withCandidate } from "./sectionLibrary";
+import { templateOnlyNote } from "./templateNote";
 import "./studio.css";
 
 type LeftTab = "essentials" | "sections" | "style" | "text" | "menus" | "pages" | "media" | "themes";
@@ -929,8 +930,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     // All pages shows the shop-wide value; say so when the previewed page draws its own instead.
     const pageOwn = !region && !local && !showGlobal ? fieldPageOverride(design, template.id, f.key) : null;
     const tuned = region ? null : fineTuneConflict(design, f.key, "productPage");
+    const templateNote = region ? null : templateOnlyNote(f.key, design);
     return (
-      <div key={f.key} className="studio-field" data-style-key={f.key}>
+      <div key={f.key} className="studio-field" data-style-key={f.key} data-template-only={templateNote ? "" : undefined}>
+        {/* Said once, above the first template-only control in a list (studio.css hides it on the ones after). */}
+        {templateNote && <p className="studio-template-note" data-template-note role="note">{templateNote}</p>}
         <SectionFieldEditor field={f as any} value={effective ?? f.defaultValue}
           onChange={v => setScopedStyle(g.id, f.key, v)}
           uploadFile={uploadStudioImage} />
