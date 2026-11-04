@@ -32,8 +32,11 @@ so a stage that is added to the build also needs a line here.
   at the live site before the first press sees it. Status: built.
 - **Google** (plan 17.9, 15.4, 15.5, 15.12): Google approves the sign-in screen (submission 1 December). Until then the
   step says Google is coming soon and the run carries on. Once it is approved, Julian connects his own Google account
-  to the test shop and checks what was linked: search, shopping listings, visitor statistics and order email. Status:
-  built behind the switch that is still off.
+  to the test shop and checks what was linked: search, shopping listings, visitor statistics and order email. Then,
+  in Settings › Google, he switches Drive on and saves with Google, uses Try again on any part that didn't work, and
+  disconnects at the end. With Drive on, he opens the stockroom's Settings › Google Sheet, presses **Make my sheet**, and
+  checks the Stock, Sales and Expenses tabs in Drive. He voids a test sale, sends again, and checks that it is gone.
+  Status: built behind the switch that is still off.
 - **Get paid** (plan 17.10, 15.2, 15.10, 15.22): Stripe's platform profile is due 13 November. Then Julian connects
   the test shop to Stripe's test mode and buys one practice book, with no money moving. The lawyer's written answer
   (plan 15.22) comes before any real card is taken. Status: built on pretend Stripe states; the real connection is
