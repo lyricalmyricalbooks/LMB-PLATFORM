@@ -52,6 +52,20 @@ test("a press opens a request; they get a copy and the team is told", async () =
   assert.equal(email.list().length, 2);
 });
 
+test("a request whose emails failed is emailed when the press presses Send again", async () => {
+  const { ask, email, store } = world();
+  const real = email.sendPlatform;
+  email.sendPlatform = async (message) => { if (message.kind === "support-new") throw new Error("the email company didn't answer"); return real(message); };
+  const first = await ask(ADA, "POST", "/api/support/open", { subject: "Orders vanished", body: "Yesterday's orders are gone from the list.", requestId: "req-00000009" });
+  assert.notEqual(first.status, 200, "the press is told it didn't go through");
+  assert.equal(store.tickets.size, 1);
+  email.sendPlatform = real;
+  const again = await ask(ADA, "POST", "/api/support/open", { subject: "Orders vanished", body: "Yesterday's orders are gone from the list.", requestId: "req-00000009" });
+  assert.equal(again.status, 200);
+  assert.equal(store.tickets.size, 1);
+  assert.deepEqual(email.list().map((m) => m.kind).sort(), ["support-new", "support-received"], "the team hears of it, the press gets one copy");
+});
+
 test("nobody files in another press's name, and the form's words are checked", async () => {
   const { ask } = world();
   const other = await ask(BEA, "POST", "/api/support/open", { subject: "Hi", body: "Help with Moth Press please", shopId: "moth-press" });
