@@ -76,6 +76,28 @@ export function firestoreApps(firestore) {
   };
 }
 
+/**
+ * appInstalls/<shopId>~<appId>: one app on one shop, with its key's fingerprint (services/apps/installs.js, 26.2), and
+ * appInstallCodes/<hash>: the one-time codes of the install step. Equality filters only, no extra index.
+ */
+export function firestoreAppInstalls(firestore) {
+  const rows = async (where) => (await firestore.query("appInstalls", { where, limit: 1000 })).map((row) => row.data);
+  return {
+    get: (id) => firestore.get(`appInstalls/${id}`),
+    put: (id, row) => firestore.set(`appInstalls/${id}`, row),
+    getByKeyHash: async (hash) => (await firestore.query("appInstalls", { where: [["keyHash", "==", hash]], limit: 1 }))[0]?.data ?? null,
+    listByShop: (shopId) => rows([["shopId", "==", shopId]]),
+    listByApp: (appId) => rows([["appId", "==", appId]]),
+  };
+}
+
+export function firestoreAppCodes(firestore) {
+  return {
+    get: (hash) => firestore.get(`appInstallCodes/${hash}`),
+    put: (hash, row) => firestore.set(`appInstallCodes/${hash}`, row),
+  };
+}
+
 /** repairs/<id>: one problem for a person (control-room/repairs.js). Equality filters only, no extra index. */
 export function firestoreRepairs(firestore) {
   return {

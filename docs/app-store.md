@@ -56,6 +56,24 @@ edited after it was listed stays listed with its approved copy until the new dra
 
 `verifyClient(appId, secret)` and `returnAddressAllowed(app, address)` are ready for 26.2's code swap.
 
+## 26.2 (built): install with permission
+
+`services/apps/installs.js` `createAppInstalls({ apps, makers, installs, codes, roleIn, registry, auditLog })` and the
+permission page `accounts/install.html` (served at `/account/install.html`).
+
+1. The app sends the press to `/account/install.html?app=<appId>&shop=<shopId>&back=<return address>&state=<its own>`.
+2. The page shows the app's name and its permissions in plain words (`POST /api/apps/install/preview`). Anyone on the
+   team can look; only the owner sees Add the app (`POST /api/apps/install/approve`).
+3. The press goes back to the return address with `code`, `shop` and `state`. The code lasts 10 minutes and works once.
+4. The app posts `{ appId, secret, code, returnAddress }` to `POST /api/apps/oauth/token` and gets
+   `{ accessToken, shopId, scopes }`. The key starts `cak_`; only its fingerprint is kept. A code used twice takes back
+   the key made from it.
+5. The owner removes the app with `POST /api/apps/install/remove`; `POST /api/apps/installed` lists a shop's apps.
+
+Installs are `appInstalls/<shopId>~<appId>`, codes `appInstallCodes/<fingerprint>`. Each install, change and removal
+goes in the shop's audit log and the registry's events. A draft app can be installed only by its own maker on a shop
+they own (testing). `authenticate(key)` is ready for 26.3.
+
 ## The first apps (Julian's picks, 4 November 2026)
 
 Shipping (26.11), email marketing (26.12) and Zapier (26.13). Outside companies rarely build for a new platform, so

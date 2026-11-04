@@ -14,6 +14,13 @@
 //   POST /api/control/apps/approve      { appId } -> { app }
 //   POST /api/control/apps/send-back    { appId, reason } -> { app }
 //   POST /api/control/apps/unlist       { appId, reason } -> { app }
+// Installing (26.2), for a shop's team (signed in):
+//   POST /api/apps/install/preview      { appId, shopId, returnAddress } -> { app, permissions, canApprove, ... }
+//   POST /api/apps/install/approve      { appId, shopId, returnAddress, state } -> { redirect }   owner only
+//   POST /api/apps/install/remove       { appId, shopId } -> { removed }                          owner only
+//   POST /api/apps/installed            { shopId } -> { apps }
+// For the app itself (public, proves itself with its secret):
+//   POST /api/apps/oauth/token          { appId, secret, code, returnAddress } -> { accessToken, shopId, scopes }
 
 const body = (request) => (request.body && typeof request.body === "object" ? request.body : {});
 
@@ -35,5 +42,20 @@ export function appStorePublicRoutes(makers) {
   return {
     "GET /api/apps/permissions": async () => makers.permissions(),
     "GET /api/apps/store": async (request) => makers.storeList({ category: typeof request.query?.category === "string" ? request.query.category : undefined }),
+  };
+}
+
+export function appInstallRoutes(installs) {
+  return {
+    "POST /api/apps/install/preview": (claims, request) => installs.preview(claims, body(request)),
+    "POST /api/apps/install/approve": (claims, request) => installs.approve(claims, body(request)),
+    "POST /api/apps/install/remove": (claims, request) => installs.remove(claims, body(request)),
+    "POST /api/apps/installed": (claims, request) => installs.forShop(claims, body(request)),
+  };
+}
+
+export function appInstallPublicRoutes(installs) {
+  return {
+    "POST /api/apps/oauth/token": async (request) => installs.exchange(body(request)),
   };
 }
