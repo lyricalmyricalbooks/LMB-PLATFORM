@@ -1155,7 +1155,7 @@ import { DEFAULT_SHOP_PROFILE, fileStem, hasWebsite, readShopProfile, shopProfil
 import { guideApplies, guideHtml, guideSteps, readGuide, showGuide, writeGuide } from './lib/setup-guide.js';
 import { readReady, readyApplies, readyHtml, readyLines, showReady, writeReady } from './lib/stockroom-ready.js';
 import { catalogGroups, freeGridGroupId, freeItemId, gridOffers, groupOf, sizeItem } from './lib/product-groups.js';
-import { applyPageWords, noteSellsAnswer, sellsBooks, words, wordsReported, wordsToReport } from './lib/shop-words.js';
+import { applyPageWords, currentAnswer, noteSellsAnswer, sellsBooks, words, wordsReported, wordsToReport } from './lib/shop-words.js';
 import { applyWebsiteParts } from './lib/website-parts.js';
 // The page's own words follow what the shop sells (plan 10.23): "product" and "maker" for a shop that doesn't sell books.
 applyPageWords(document.body);
@@ -1728,7 +1728,7 @@ function resetBookForm() {
   $('nb-thresh').value = '10';
   if ($('nb-grid-sizes')) { $('nb-grid-sizes').value = ''; $('nb-grid-colours').value = ''; }
   // Sizes and colours are for a new product in a shop that doesn't sell books.
-  if ($('nb-grid')) $('nb-grid').hidden = sellsBooks(shopProfile?.sells);
+  if ($('nb-grid')) $('nb-grid').hidden = sellsBooks(currentAnswer());
   $('nb-accent').value = '#E8402A';
   onCustomAccentInput('#E8402A');
   setBookCoverField('');
@@ -2653,7 +2653,7 @@ async function saveBookFromModal() {
   _bookFromWebsiteGroup = null;
   _bookFromWebsiteSizes = [];
 
-  showToast(editingBookId ? '✓ Book updated' : '✓ Book added to catalog');
+  showToast(words(editingBookId ? '✓ Book updated' : '✓ Book added to catalog'));
   // Saved, so nothing is unsaved: close without the "Discard your unsaved changes?" question, which used to
   // open over the saved form (and swallow the next question, such as the other sizes below).
   closeM('add-book');
@@ -2851,7 +2851,7 @@ async function deleteBook(id) {
     renderProfitSettings();
     return;
   }
-  if (!(await confirmDialog(`Permanently remove "${BOOKS[id].title}" and all its inventory records?`, { danger: true, okLabel: 'Remove book' }))) return;
+  if (!(await confirmDialog(`Permanently remove "${BOOKS[id].title}" and all its inventory records?`, { danger: true, okLabel: words('Remove book') }))) return;
   delete BOOKS[id];
   refreshBookList();
   delete states[id];
@@ -6444,7 +6444,8 @@ function renderSetupGuide(allBooksVisible = BOOK_LIST.filter(b => !isTestBook(b)
   const steps = guideSteps({ books: allBooksVisible, states }, saved);
   const on = !isAuthor() && guideApplies(readShopProfile(), DEFAULT_SHOP_PROFILE) && showGuide(steps, saved);
   el.hidden = !on;
-  el.innerHTML = on ? guideHtml(steps) : '';
+  // The guide's own words, in the shop's words (it holds no owner data).
+  el.innerHTML = on ? words(guideHtml(steps)) : '';
   renderReadyCheck(allBooksVisible);
 }
 
@@ -6457,7 +6458,7 @@ function renderReadyCheck(allBooksVisible = BOOK_LIST.filter(b => !isTestBook(b)
   const saved = readReady();
   const on = !isAuthor() && readyApplies(readShopProfile(), DEFAULT_SHOP_PROFILE) && showReady(saved);
   el.hidden = !on;
-  el.innerHTML = on ? readyHtml(readyLines(allBooksVisible)) : '';
+  el.innerHTML = on ? words(readyHtml(readyLines(allBooksVisible))) : '';
 }
 registerActions({
   'ready.open': el => switchTab(el.dataset.tab),
@@ -7291,6 +7292,8 @@ export function attentionInput() {
   return {
     books: attentionBooks(),
     states,
+    words,
+    booksShop: sellsBooks(currentAnswer()),
     sheets: {
       connected: !!sheetsUrl,
       deployedVersion: _sheetsDeployedVersion,
@@ -8181,7 +8184,7 @@ function renderTodoTab() {
     host.innerHTML = `<div class="empty-state sys-empty">
         <div class="e-icon" aria-hidden="true">✅</div>
         <strong>You're all caught up</strong>
-        <span>Every book has its details filled in, nobody owes you money, and your connections are working. Anything new will appear here on its own.</span>
+        <span>${words('Every book has its details filled in, nobody owes you money, and your connections are working. Anything new will appear here on its own.')}</span>
       </div>${hiddenNote}`;
     return;
   }
@@ -8192,7 +8195,7 @@ function renderTodoTab() {
     return `<section class="overview-section todo-group">
         <div class="sec-head is-muted is-inline">
           <div class="sec-head-titles">
-            <div class="sec-kicker"><span class="sec-kicker-dot"></span><span class="lead-emoji" aria-hidden="true">${escapeHtml(GROUP_ICONS[group] || '')} </span>${escapeHtml(GROUP_LABELS[group] || group)}</div>
+            <div class="sec-kicker"><span class="sec-kicker-dot"></span><span class="lead-emoji" aria-hidden="true">${escapeHtml(GROUP_ICONS[group] || '')} </span>${escapeHtml(words(GROUP_LABELS[group] || group))}</div>
           </div>
           <div class="sec-head-badges"><span class="pill gray">${items.length}</span></div>
         </div>
@@ -12500,7 +12503,7 @@ function confirmReturn() {
   s.ledger.push({ id: Date.now(), storeId: st.id, storeName: st.name, type: 'Return', date, qty, rate: st.rate, amountDue: 0, paid: 'n/a', notes: (notes ? notes + ' · ' : '') + cond, status: good ? 'restocked' : 'written off', sheetsId });
   closeM('return'); renderStores(); renderLedger(); updateDash(); saveState(activeBook);
   syncToSheets({ type: 'consignment', book: book.title, date, store: st.name, event: 'Return', qty, rate: st.rate, amountDue: 0, notes: cond, status: good ? 'restocked' : 'written off', sheetsId, currency: getBookCurrencyCode(book) });
-  showToast(good ? `✓ ${qty} books returned to stock` : `✓ ${qty} books written off`);
+  showToast(words(good ? `✓ ${qty} books returned to stock` : `✓ ${qty} books written off`));
 }
 // ── Invoice ↔ Ledger ↔ History consistency helpers ───────────────────────
 // Single source of truth for keeping the three views cross-referenced. All
@@ -19241,12 +19244,12 @@ export async function createStripePaymentLinkForAmount({ amountMajor, currencyCo
   const priceParams = new URLSearchParams();
   priceParams.set('unit_amount', String(amount));
   priceParams.set('currency', curCode.toLowerCase());
-  priceParams.set('product_data[name]', (description || 'Book fair sale').slice(0, 250));
+  priceParams.set('product_data[name]', (description || words('Book fair sale')).slice(0, 250));
   Object.entries(meta).forEach(([k, v]) => priceParams.set(`metadata[${k}]`, v == null ? '' : String(v)));
 
   const linkParams = new URLSearchParams();
   linkParams.set('line_items[0][quantity]', '1');
-  linkParams.set('payment_intent_data[description]', (description || 'Book fair sale').slice(0, 350));
+  linkParams.set('payment_intent_data[description]', (description || words('Book fair sale')).slice(0, 350));
   Object.entries(meta).forEach(([k, v]) => {
     linkParams.set(`metadata[${k}]`, v == null ? '' : String(v));
     linkParams.set(`payment_intent_data[metadata][${k}]`, v == null ? '' : String(v));

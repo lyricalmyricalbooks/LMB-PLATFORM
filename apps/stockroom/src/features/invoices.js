@@ -37,6 +37,10 @@ import {
 } from '../main.js';
 import { BOOKS, BOOK_LIST, states, activeBook, getState, getBook } from '../core/store.js';
 import { localDayPlus } from '../lib/calendar-day.js';
+import { currentAnswer, sellsBooks, words } from '../lib/shop-words.js';
+
+/** The name on an invoice before the owner types theirs: "Your Press", or "Your Shop" for a shop that sells no books. */
+const defaultSenderName = () => (sellsBooks(currentAnswer()) ? 'Your Press' : 'Your Shop');
 import { consignmentSyncPayload, stampLedgerInvoiceLink } from '../lib/consignment.js';
 import { downloadText } from '../lib/download.js';
 import { loadExternalScript } from '../lib/external-scripts.js';
@@ -98,13 +102,13 @@ function saveInvoiceSettingsObj(o) { localStorage.setItem(INVOICE_SETTINGS_KEY, 
 
 function openInvoiceTemplateSettings() {
   const s = getInvoiceSettings();
-  $('ivs-name').value = s.name || 'Your Press';
+  $('ivs-name').value = s.name || defaultSenderName();
   $('ivs-email').value = s.email || '';
   $('ivs-addr').value = s.addr || '';
   $('ivs-vat').value = s.vat || '';
   $('ivs-web').value = s.web || '';
   $('ivs-terms').value = s.terms || 'Net 30. Payment via Stripe, PayPal, or bank transfer.';
-  $('ivs-footer').value = s.footer || 'Thank you for stocking our books.';
+  $('ivs-footer').value = s.footer || words('Thank you for stocking our books.');
   $('ivs-bank').value = s.bank || '';
   if ($('ivs-stripe-key')) $('ivs-stripe-key').value = s.stripeKey || '';
   if ($('ivs-stripe-auto')) $('ivs-stripe-auto').checked = s.stripeAuto !== false; // default ON
@@ -849,7 +853,7 @@ function renderInvoiceItems() {
   const body = $('inv-items-body'), code = getInvoiceCurrency(), cur = getSym(code);
   renderInvoiceAddBookChips();
   if (!invoiceCtx.items.length) {
-    body.innerHTML = `<div class="inv-lines-empty">Nothing on this invoice yet — tap one of your books below, or <strong>+ Add a blank line</strong>.</div>`;
+    body.innerHTML = `<div class="inv-lines-empty">${words('Nothing on this invoice yet — tap one of your books below, or')} <strong>+ Add a blank line</strong>.</div>`;
     renderInvoiceBooksHint();
     return;
   }
@@ -873,7 +877,7 @@ function renderInvoiceItems() {
     </div>
     <label class="inv-item-field inv-item-desc"><span class="inv-item-lbl">Description (printed on the invoice)</span><input type="text" data-f="description" value="${escapeHtml(it.description || '')}" placeholder="e.g. ${escapeHtml(getBook().title || '')} — consignment sale, Sept 2026" oninput="updateInvoiceItem(${i},'description',this.value)"></label>
     <div class="inv-item-nums">
-      <label class="inv-item-field"><span class="inv-item-lbl">Copies</span><input class="num" type="number" data-f="qty" min="0" step="1" inputmode="numeric" value="${Number(it.qty) || 0}" onfocus="this.select()" oninput="updateInvoiceItem(${i},'qty',this.value)"></label>
+      <label class="inv-item-field"><span class="inv-item-lbl">${words('Copies')}</span><input class="num" type="number" data-f="qty" min="0" step="1" inputmode="numeric" value="${Number(it.qty) || 0}" onfocus="this.select()" oninput="updateInvoiceItem(${i},'qty',this.value)"></label>
       <label class="inv-item-field"><span class="inv-item-lbl">Price each</span><span class="inv-item-prefix"><i>${escapeHtml(cur)}</i><input class="num" type="number" data-f="unitPrice" min="0" step="0.01" inputmode="decimal" value="${(Number(it.unitPrice) || 0).toFixed(2)}" onfocus="this.select()" oninput="updateInvoiceItem(${i},'unitPrice',this.value)"></span></label>
       <label class="inv-item-field" title="A percentage off this one line — e.g. 40 for a trade discount"><span class="inv-item-lbl">Discount</span><span class="inv-item-suffix"><input class="num inv-item-disc" type="text" data-f="discountPct" inputmode="decimal" autocomplete="off" placeholder="0" value="${pct > 0 ? pct : ''}" onfocus="this.select()" oninput="updateInvoiceItem(${i},'discountPct',this.value)"><i>%</i></span></label>
       <div class="inv-item-field inv-item-total"><span class="inv-item-lbl">Line total</span><span class="inv-item-amt">${fmt(invoiceLineAmount(it), cur)}</span><span class="inv-item-was" aria-label="Before the line discount">${pct > 0 ? fmt(invoiceLineGross(it), cur) : ''}</span></div>
@@ -891,7 +895,7 @@ function renderInvoiceAddBookChips() {
   if (!wrap) return;
   const books = invoiceBookOptions();
   if (!books.length) { wrap.innerHTML = ''; return; }
-  wrap.innerHTML = `<span class="inv-chip-row-label">Add a book</span>` + books.map(b =>
+  wrap.innerHTML = `<span class="inv-chip-row-label">${words('Add a book')}</span>` + books.map(b =>
     `<button type="button" class="preset-chip-btn inv-chip" onclick="addInvoiceBookLine('${escapeHtml(b.id)}')">+ ${escapeHtml(b.title)}</button>`).join('');
 }
 
@@ -1584,7 +1588,7 @@ function renderInvoicePaperHTML(inv, { showChase = false } = {}) {
   return `<div style="--book-accent:${accent};">
     <header class="inv-head">
       <div class="inv-brand">
-        <h1>${escapeHtml(settings.name || 'Your Press')}</h1>
+        <h1>${escapeHtml(settings.name || defaultSenderName())}</h1>
         <div class="inv-addr">${escapeHtml(settings.addr || '')}${settings.email ? '\n' + escapeHtml(settings.email) : ''}${settings.web ? '\n' + escapeHtml(settings.web) : ''}${settings.vat ? '\nVAT/Tax ID: ' + escapeHtml(settings.vat) : ''}</div>
       </div>
       <div class="inv-id">
@@ -1635,7 +1639,7 @@ function renderInvoicePaperHTML(inv, { showChase = false } = {}) {
       ${bankBlock}
     </div>
 
-    <div class="inv-foot">${escapeHtml(settings.footer || 'Thank you for stocking our books.')}</div>
+    <div class="inv-foot">${escapeHtml(settings.footer || words('Thank you for stocking our books.'))}</div>
   </div>`;
 }
 
@@ -1768,7 +1772,7 @@ function copyInvoicePayLink() {
   const inv = invoiceHome(currentViewInvoiceId).inv;
   if (!inv) return;
   const url = effectivePaymentLink(inv);
-  if (!url) { showToast('No payment link set for this book or invoice', 'warn'); return; }
+  if (!url) { showToast(words('No payment link set for this book or invoice'), 'warn'); return; }
   navigator.clipboard.writeText(url).then(
     () => showToast('✓ Payment link copied'),
     () => showToast('Could not copy — your browser blocked it', 'err')
@@ -1789,7 +1793,7 @@ function invoiceEmailPlainText(inv) {
     inv.notes ? `Notes: ${inv.notes}` : null,
     ``,
     `Thank you,`,
-    settings.name || 'Your Press',
+    settings.name || defaultSenderName(),
   ].filter(v => v !== null).join('\n');
 }
 
@@ -1829,7 +1833,7 @@ function buildInvoiceEmailHTML(inv) {
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-bottom:26px;">
           <tr>
             <td style="vertical-align:top;">
-              <div style="font-family:Georgia,'Times New Roman',serif;font-size:28px;font-weight:700;color:#0e0c0a;line-height:1.1;">${escapeHtml(settings.name || 'Your Press')}</div>
+              <div style="font-family:Georgia,'Times New Roman',serif;font-size:28px;font-weight:700;color:#0e0c0a;line-height:1.1;">${escapeHtml(settings.name || defaultSenderName())}</div>
               <div style="font-size:12px;line-height:1.55;color:#756e64;margin-top:10px;white-space:pre-wrap;">${escapeHtml(settings.addr || '')}${settings.email ? '<br>' + escapeHtml(settings.email) : ''}${settings.web ? '<br>' + escapeHtml(settings.web) : ''}</div>
             </td>
             <td align="right" style="vertical-align:top;white-space:nowrap;">
@@ -1862,10 +1866,10 @@ function buildInvoiceEmailHTML(inv) {
     ? `<a href="${escapeHtml(followableUrl(payUrl))}" style="display:inline-block;background:#0e0c0a;color:#f0c060;text-decoration:none;border-radius:999px;padding:11px 22px;font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;">Pay ${fmt(inv.total || 0, cur)} →</a>`
     : `<div style="font-size:14px;line-height:1.5;color:#0e0c0a;">Send by Interac e-Transfer to <strong>${escapeHtml(payUrl)}</strong></div>`}<div style="font-size:11px;line-height:1.4;color:#6b6459;margin-top:10px;word-break:break-all;">${escapeHtml(payUrl)}</div></div>` : ''}
         ${notes}
-        <div style="text-align:center;font-size:12px;color:#6b6459;margin-top:24px;font-style:italic;">${escapeHtml(settings.footer || 'Thank you for stocking our books.')}</div>
+        <div style="text-align:center;font-size:12px;color:#6b6459;margin-top:24px;font-style:italic;">${escapeHtml(settings.footer || words('Thank you for stocking our books.'))}</div>
       </div>
     </div>
-    <p style="font-size:15px;line-height:1.55;margin:22px 0 0;">Thank you,<br>${escapeHtml(settings.name || 'Your Press')}</p>
+    <p style="font-size:15px;line-height:1.55;margin:22px 0 0;">Thank you,<br>${escapeHtml(settings.name || defaultSenderName())}</p>
   </div>
 </div>`;
 }
@@ -1891,7 +1895,7 @@ async function emailInvoice() {
   const inv = invoiceHome(currentViewInvoiceId).inv;
   if (!inv) return;
   const settings = getInvoiceSettings();
-  const subject = `Invoice ${inv.num} — ${settings.name || 'Your Press'}`;
+  const subject = `Invoice ${inv.num} — ${settings.name || defaultSenderName()}`;
   const to = inv.storeEmail || '';
   let richCopied = false;
   try {

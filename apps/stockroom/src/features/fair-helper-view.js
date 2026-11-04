@@ -6,6 +6,7 @@
 // books (features/fair-helpers.js). With no signal a sale waits on this phone, in Firestore's own queue, and goes
 // when the signal comes back; the screen says how many are waiting. Nothing else of the press is read or written.
 import { escapeHtml } from '../lib/html.js';
+import { words } from '../lib/shop-words.js';
 import { registerActions } from '../lib/actions.js';
 import { FAIR_METHODS, FAIR_UNDO_MS } from '../lib/fair-mode.js';
 import { helperCopiesLeft, helperDay, helperSaleDoc, newSaleId } from '../lib/fair-helper.js';
@@ -58,16 +59,16 @@ function frameHtml(email, fair) {
       <div class="sec-head-titles">
         <div class="sec-kicker"><span class="sec-kicker-dot"></span>Fair helper</div>
         <h1 class="section-hed sec-head-title">Fair till</h1>
-        <p class="section-subcopy">Signed in as ${escapeHtml(email)}. The sales you ring up here go straight to the press's stockroom.</p>
+        <p class="section-subcopy">Signed in as ${escapeHtml(email)}. ${words("The sales you ring up here go straight to the press's stockroom.")}</p>
       </div>
       <button class="btn sm" data-action="helper.signOut">Sign out</button>
     </div>
     <div id="fh-sync" class="fh-sync" role="status"></div>
     <div class="form-group fh-field"><label for="fh-fair">Today's fair</label>
-      <input id="fh-fair" type="text" maxlength="80" placeholder="e.g. Harbour Book Fair" value="${escapeHtml(fair)}" data-on-change="helper.fair" autocomplete="off"></div>
+      <input id="fh-fair" type="text" maxlength="80" placeholder="${words('e.g. Harbour Book Fair')}" value="${escapeHtml(fair)}" data-on-change="helper.fair" autocomplete="off"></div>
     <div class="fh-layout">
-      <section class="fh-books-col" aria-label="Books">
-        <div class="form-group fh-field"><label for="fh-search">Find a book</label>
+      <section class="fh-books-col" aria-label="${words('Books')}">
+        <div class="form-group fh-field"><label for="fh-search">${words('Find a book')}</label>
           <input id="fh-search" type="search" placeholder="Title" data-on-input="helper.search" autocomplete="off"></div>
         <div id="fh-books"></div>
       </section>
@@ -95,8 +96,8 @@ function booksHtml(menu, search, left, cart, failed = false) {
   }
   const q = search.trim().toLowerCase();
   const books = (menu.books || []).filter((b) => !q || b.title.toLowerCase().includes(q));
-  if (!menu.books?.length) return '<div class="empty-state"><div class="e-icon">📚</div>No books on the till yet. The press\'s owner adds them by opening their stockroom.</div>';
-  if (!books.length) return `<div class="empty-state">No book matches “${escapeHtml(search)}”.</div>`;
+  if (!menu.books?.length) return '<div class="empty-state"><div class="e-icon">📚</div>' + words("No books on the till yet. The press's owner adds them by opening their stockroom.") + '</div>';
+  if (!books.length) return `<div class="empty-state">${words('No book matches')} “${escapeHtml(search)}”.</div>`;
   const rows = books.slice(0, SHOWN_LIMIT).map((b) => {
     const n = left[b.id];
     const inCart = cart[b.id] || 0;
@@ -127,7 +128,7 @@ function cartHtml(menu, cart, note = '', canUndo = false, cardPay = false) {
   const head = '<h2 class="fh-h">This sale</h2>';
   const undo = canUndo ? ' <button type="button" class="btn sm fh-undo" data-action="helper.undo">Undo</button>' : '';
   const noteHtml = note ? `<p class="fh-done" role="status">${escapeHtml(note)}${undo}</p>` : '';
-  if (!lines.length) return `${head}${noteHtml}<p class="fh-note">Tap a book to add it.</p>`;
+  if (!lines.length) return `${head}${noteHtml}<p class="fh-note">${words('Tap a book to add it.')}</p>`;
   const totals = {};
   const rows = lines.map(([id, qty]) => {
     const b = byId.get(id);
@@ -201,11 +202,11 @@ function todayHtml(day) {
     const status = s.cancelled ? 'Undone' : s.pending ? '<span class="fh-wait">Waiting for signal</span>' : s.imported ? 'In the books' : 'Uploaded';
     return `<li class="fh-sale${s.cancelled ? ' is-undone' : ''}"><span class="fh-sale-what">${escapeHtml(what)}</span><span class="fh-sale-meta">${escapeHtml(method)} · ${status}</span><strong class="tnum">${escapeHtml(totalsText(totals))}</strong></li>`;
   }).join('');
-  const summary = day.kept ? `${plural(day.units, 'book', 'books')} in ${plural(day.kept, 'sale', 'sales')} · ${escapeHtml(totalsText(day.totals))}` : 'No sales kept today';
+  const summary = day.kept ? `${words(plural(day.units, 'book', 'books'))} in ${plural(day.kept, 'sale', 'sales')} · ${escapeHtml(totalsText(day.totals))}` : 'No sales kept today';
   return `${head}<p class="fh-day tnum">${summary}</p>
     ${countHtml(day)}
     <ul class="fh-sales">${rows}</ul>
-    <p class="fh-note">Rang one up by mistake? Tap Undo straight after the sale. Later, tell the press's owner: they can void it in their stockroom.</p>`;
+    <p class="fh-note">${words("Rang one up by mistake? Tap Undo straight after the sale. Later, tell the press's owner: they can void it in their stockroom.")}</p>`;
 }
 
 function paint(parts = ['sync', 'books', 'cart', 'today']) {
