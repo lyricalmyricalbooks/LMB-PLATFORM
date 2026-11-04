@@ -756,7 +756,7 @@ async function loadApps() {
 /** A permission in the words the press reads before saying yes; one that reaches shoppers' details is marked. */
 function permissionLine(scope) {
   const known = appPermissions[scope];
-  return el("li", {}, `${known?.words ?? scope} `, known?.personal ? pill("warning", "shoppers' details") : null);
+  return el("li", {}, `${known?.words ?? scope} `, known?.personal ? pill("warning", "Personal details") : null);
 }
 
 function appCard(app) {
@@ -793,7 +793,7 @@ function appCard(app) {
     body: [
       d.tagline ? el("p", { className: "cr-body", textContent: d.tagline }) : null,
       d.description ? el("p", { className: "cr-quote", textContent: d.description }) : null,
-      el("p", { className: "rp-hint", textContent: [d.website ? d.website : null, d.alertsAddress ? `alerts to ${d.alertsAddress}` : null, d.returnAddresses?.length ? `returns to ${d.returnAddresses.join(", ")}` : null].filter(Boolean).join(" · ") }),
+      el("p", { className: "rp-hint", textContent: [d.website ? d.website : null, d.installAddress ? `adds from ${d.installAddress}` : null, d.alertsAddress ? `alerts to ${d.alertsAddress}` : null, d.returnAddresses?.length ? `returns to ${d.returnAddresses.join(", ")}` : null].filter(Boolean).join(" · ") }),
       el("h4", { className: "cr-section", textContent: "Asks to" }),
       scopes.length ? el("ul", { className: "cr-steps" }, ...scopes.map(permissionLine)) : el("p", { className: "rp-hint", textContent: "No permissions." }),
       app.draftDiffers ? el("p", { className: "rp-hint", textContent: "Being changed: the store keeps the approved copy until the maker sends it again." }) : null,

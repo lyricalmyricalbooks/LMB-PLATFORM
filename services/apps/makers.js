@@ -68,6 +68,7 @@ function detailsFrom(input, before = {}) {
   const category = pick("category") ?? "other";
   const supportEmail = oneLine(pick("supportEmail")).toLowerCase();
   const websiteText = oneLine(pick("website"));
+  const installText = oneLine(pick("installAddress"));
   const alertsText = oneLine(pick("alertsAddress"));
   const returnList = pick("returnAddresses");
   const scopes = cleanScopes(pick("scopes"));
@@ -81,6 +82,9 @@ function detailsFrom(input, before = {}) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(supportEmail)) problems.supportEmail = "Give an email address presses can write to for help.";
   const website = websiteText ? webAddress(websiteText) : "";
   if (website === null) problems.website = "Give your app's website as a full https address.";
+  // Where a press starts adding the app from the store (the store adds ?shop=<shopId>), like the big platforms' app URL.
+  const installAddress = installText ? webAddress(installText) : "";
+  if (installAddress === null) problems.installAddress = "Give the install address as a full https address.";
   const alertsAddress = alertsText ? webAddress(alertsText) : "";
   if (alertsAddress === null || (alertsAddress && !publicAlertAddress(alertsAddress))) problems.alertsAddress = "Give the alerts address as a full https address on the public internet (not an IP number or a local name).";
   let returnAddresses = [];
@@ -108,7 +112,7 @@ function detailsFrom(input, before = {}) {
   }
 
   if (Object.keys(problems).length) throw new SignupError(400, "Check the highlighted fields.", problems);
-  return { name, tagline, description, category, supportEmail, website, alertsAddress, alertTopics, returnAddresses, scopes };
+  return { name, tagline, description, category, supportEmail, website, installAddress, alertsAddress, alertTopics, returnAddresses, scopes };
 }
 
 const sameDetails = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
@@ -121,8 +125,8 @@ function forMaker(app) {
 
 /** What anyone sees in the store: the approved copy only, with the permissions in plain words. */
 function forStore(app) {
-  const { name, tagline, description, category, supportEmail, website, scopes } = app.listing.details;
-  return { appId: app.appId, name, tagline, description, category, categoryName: CATEGORIES[category], supportEmail, website, permissions: scopeWords(scopes), listedSince: app.listing.firstApprovedAt };
+  const { name, tagline, description, category, supportEmail, website, installAddress = "", scopes } = app.listing.details;
+  return { appId: app.appId, name, tagline, description, category, categoryName: CATEGORIES[category], supportEmail, website, installAddress, permissions: scopeWords(scopes), listedSince: app.listing.firstApprovedAt };
 }
 
 export function createAppMakers({

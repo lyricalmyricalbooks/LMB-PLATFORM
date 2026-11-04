@@ -114,10 +114,27 @@ items that don't count stock; stock never goes below 0, and checkout holds are u
 
 Product changes come next, the same way.
 
-The shop's admin lists these requests in **Settings › Apps** (`AppsSettings.tsx`, `appActivity.ts`): the app, the change
-in plain words, Done / Refused / Waiting, and the shop's reason for a refusal. Admins can read `appRequests`; nobody
-writes them from the browser (`firestore.rules`). The page shows only on shops Colophon runs. This is the first part of
-26.5.
+## 26.5 (part built): apps in the shop's admin
+
+**Settings › Apps** (`AppsSettings.tsx`, `apps.css`, `appActivity.ts`) has three tabs, like the big platforms' Apps page:
+
+- **Installed**: one row per app with its category picture, a chip per permission ("Changes orders", "Sees customers";
+  ones with customers' personal details are marked), Help (the app's support email) and Remove (asks first).
+- **App store**: every listed app as a card, filtered by category. Details shows the description and "It can" list;
+  Add opens the app's install address (`installAddress` when its maker gave one, with `?shop=<shopId>`, else its
+  website), which leads to the permission page.
+- **Activity**: every request an app made (`appRequests`, read from the shop's own Firestore): the change in plain words,
+  Done / Refused / Waiting and the shop's reason. Admins can read `appRequests`; nobody writes them from the browser.
+
+Installed and the store come through the **shop door**: the shop's server action `apps` (`functions/appsLink.js`,
+admins only) posts `{op, args}` to `POST /api/apps/shop` (`services/apps/shopDoor.js`) with `X-Shop-Id` and the shop's
+service key, the same pattern as the email and payments doors. Ops: `apps.installed`, `apps.store` (listed apps plus
+categories), `apps.remove` (recorded as `shop admin: <email>`). The address is `PLATFORM_APPS_URL` in the shop's settings
+(`setup/later-steps.js`); without it the two tabs say "The app store opens soon" and only Activity works.
+
+The permission page (`accounts/install.html`) uses the same category picture, names the shop (`shopName` in the preview)
+and lists the permissions with the same "Personal details" tag. An app already added shows "Added" and the button reads
+"Update access".
 
 ## 26.4 (built): alerts to apps
 

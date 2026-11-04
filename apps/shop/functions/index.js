@@ -82,6 +82,7 @@ const { adminReportActions } = require("./adminReports");
 const { checkoutAdminActions } = require("./checkoutAdmin");
 const { customDomainActions } = require("./customDomains");
 const { googleConnectActions } = require("./googleConnect");
+const { appsLinkActions } = require("./appsLink");
 const { bookkeepingActions, dayFromOrders } = require("./quickbooksLink");
 const { socialActions } = require("./socialLink");
 const { practiceCheckoutActions } = require("./practiceCheckout");
@@ -1775,6 +1776,9 @@ const { handleCustomDomains } = customDomainActions({ url: shopConfig.platformDo
 const { handleGoogleConnect } = googleConnectActions({ url: shopConfig.platformGoogleUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin,
   readStock: () => require("./inventoryLinkStore").readCatalog() });
 
+// Settings › Apps: installed apps, the store and Remove, through the platform's app store door (appsLink.js, plan 26.5).
+const { handleApps } = appsLinkActions({ url: shopConfig.platformAppsUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin });
+
 // Settings › Bookkeeping: the QuickBooks link, through the platform's bookkeeping service (quickbooksLink.js, plan 7.16).
 // Send again builds the day from every order with the shared daily bookkeeping rules (dayFromOrders, Toronto days).
 const { handleBookkeeping } = bookkeepingActions({
@@ -1864,6 +1868,7 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   platformPayments: handlePlatformPayments,
   customDomains: handleCustomDomains,
   googleConnect: handleGoogleConnect,
+  apps: handleApps,
   bookkeeping: handleBookkeeping,
   social: handleSocial,
   practiceCheckout: handlePracticeCheckout,
