@@ -48,7 +48,7 @@ export interface OldShopRead { host: string; csv: string; products: number; note
 export interface StagedImport { name: string; size: number; rows: number; at: string }
 
 /** A name for the free address checked as the press types it: cleaned, why it can't be used (""), and whether it's free. */
-export interface FreeNameCheck { name: string; address: string; problem: string; available: boolean }
+export interface FreeNameCheck { name: string; address: string; problem: string; available: boolean; suggestions?: string[] }
 
 export type SetupChange = Partial<Pick<SetupPress, "plan" | "pressName" | "sells" | "country" | "look" | "adminLook" | "moving" | "language" | "cardProvider" | "domainChoice" | "freeName">>;
 
@@ -127,8 +127,8 @@ export function platformDoor(apiBase: string, token: () => Promise<string>, fetc
     },
     saveDomain: async (pressId, domain) => (await call("POST", "/press/domain", { pressId, domain })).press as SetupPress,
     checkFreeName: async (pressId, name) => {
-      const { name: cleaned, address, problem, available } = await call("POST", "/press/free-name", { pressId, name });
-      return { name: cleaned, address, problem, available } as FreeNameCheck;
+      const { name: cleaned, address, problem, available, suggestions } = await call("POST", "/press/free-name", { pressId, name });
+      return { name: cleaned, address, problem, available, suggestions: Array.isArray(suggestions) ? suggestions : [] } as FreeNameCheck;
     },
     removeImport: async (pressId) => (await call("POST", "/press/import/remove", { pressId })).press as SetupPress,
     readOldShop: async (pressId, address) => {

@@ -44,12 +44,12 @@ export function guideOf(record) {
   const books = { id: "books", title: "Bring products over", done: Boolean(record.stagedImport), optional: true };
   const look = website ? [{ id: "look", title: "Choose the website's look", done: Boolean(record.look) }] : [];
   const cards = website ? [{ id: "cards", title: "Stripe or Square", done: Boolean(record.cardProvider), optional: true }] : [];
-  const domain = website ? [{ id: "domain", title: "Web address", done: record.domainChoice === "free" || (record.domainChoice === "own" && Boolean(record.domain)), optional: true }] : [];
   const steps = [
     { id: "plan", title: "Pick what to set up", done: Boolean(record.plan) },
     { id: "details", title: "Press details", done: Boolean(record.pressName && record.sells && record.country) },
     ...(record.moving === "fresh" ? [...look, ...cards, books] : [books, ...look, ...cards]),
-    ...domain,
+    // Optional, counted once answered, as in the shop's guide: the free address always works.
+    ...(website ? [{ id: "domain", title: "Choose the web address", done: record.domainChoice === "free" || (record.domainChoice === "own" && Boolean(record.domain)), optional: true }] : []),
     { id: "open", title: "Create the shop", done: record.status === "opening" || record.status === "open" },
   ];
   const counted = steps.filter((step) => !step.optional || step.done);

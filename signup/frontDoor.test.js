@@ -447,8 +447,13 @@ test("a name for the free address is checked while the press types it, and a pre
   const taken = new Set(["moth-press.shops.example"]);
   const door = createFrontDoor({ ...w.stores, stagedFiles: w.files, email: { sendPlatform: async () => {} }, auth: fakeAuth(),
     settings: { ...SETTINGS, shopAddressDomain: "shops.example" }, freeNameTaken: async (address) => taken.has(address) });
-  assert.deepEqual(await door.checkFreeName(ADA, { pressId, name: "Moth Press" }), { name: "moth-press", address: "moth-press.shops.example", problem: "", available: false });
-  assert.deepEqual(await door.checkFreeName(ADA, { pressId, name: "Moth Books!" }), { name: "moth-books", address: "moth-books.shops.example", problem: "", available: true });
+  assert.deepEqual(await door.checkFreeName(ADA, { pressId, name: "Moth Press" }), { name: "moth-press", address: "moth-press.shops.example", problem: "", available: false, suggestions: ["moth-press-shop", "moth-press-studio", "moth-press-co"] });
+  taken.add("moth-press-shop.shops.example");
+  assert.deepEqual((await door.checkFreeName(ADA, { pressId, name: "moth-press" })).suggestions, ["moth-press-studio", "moth-press-co", "moth-press-2"], "a taken suggestion is skipped");
+  taken.add(`${"a".repeat(30)}.shops.example`);
+  const long = (await door.checkFreeName(ADA, { pressId, name: "a".repeat(30) })).suggestions;
+  assert.ok(long.length === 3 && long.every((n) => n.length <= 30), "a long name is shortened to fit an ending");
+  assert.deepEqual(await door.checkFreeName(ADA, { pressId, name: "Moth Books!" }), { name: "moth-books", address: "moth-books.shops.example", problem: "", available: true, suggestions: [] });
   const refused = await door.checkFreeName(ADA, { pressId, name: "admin" });
   assert.equal(refused.available, false);
   assert.match(refused.problem, /kept for the platform/);
