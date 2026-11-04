@@ -207,16 +207,22 @@ function SetupGuide({ press, plans, helpUrl, accountUrl, onOpen, onCreate, save 
   const { done, total } = guideProgress(steps);
   const next = nextGuideStep(steps, press);
   const ready = readyToCreate(steps);
-  // The open row follows the next step as steps get done, until the press opens another one itself.
-  const [picked, setPicked] = useState<string | null>(null);
-  const shown = picked ?? next?.id ?? null;
+  // The open row follows the next step as steps get done, until the press opens another one itself. That choice is
+  // remembered for this visit, so going to a step's page and back keeps the same row open.
+  const pickKey = `setupGuideStep:${press.pressId}`;
+  const [picked, setPickedState] = useState<string | null>(() => { try { return sessionStorage.getItem(pickKey); } catch { return null; } });
+  const setPicked = (id: string) => { setPickedState(id); try { sessionStorage.setItem(pickKey, id); } catch { /* private window */ } };
+  // A remembered step that is now done gives way to the next one, so finishing a step moves the guide on.
+  const pickedStep = steps.find((st) => st.id === picked);
+  const shown = picked === "" ? "" : pickedStep && !pickedStep.done && !pickedStep.locked ? pickedStep.id : next?.id ?? null;
   // The last step goes straight to the review on Plan; every other step opens its page.
   const go = (step: { id: string; page: string }) => (step.id === "open" ? onCreate() : onOpen(step.page));
   const left = total - done;
   return (
-    <>
+    <div className="rp-setup-home">
       <PageHeader title={press.pressName ? `Welcome, ${press.pressName}` : "Welcome"}
         description="Set up your shop here. Nothing is charged, and your free days don't start, until you create it." />
+      {ready && <ReadyCard onCreate={onCreate} />}
       {showMoveIn(press) && <MoveInCard onBring={() => onOpen(IMPORT_PAGE)} save={save} />}
       <SectionCard title="Setup guide" collapsible={false}
         description={ready ? "All set. Create your shop when you're ready." : `${done} of ${total} done · ${left === 1 ? "one step" : `${left} steps`} to go`}>
@@ -274,7 +280,25 @@ function SetupGuide({ press, plans, helpUrl, accountUrl, onOpen, onCreate, save 
         <AfterCreating plan={press.plan} plans={plans} />
         <HelpCard helpUrl={helpUrl} accountUrl={accountUrl} />
       </div>
-    </>
+    </div>
+  );
+}
+
+/** Everything the shop needs is in: one clear card at the top of Home, so the last step can't be missed. */
+function ReadyCard({ onCreate }: { onCreate: () => void }) {
+  return (
+    <section className="rp-card" aria-labelledby="ready-title" style={{ borderColor: "var(--rp-success)", borderWidth: 2, marginBottom: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", gap: 16, padding: 20, alignItems: "start" }}>
+        <span aria-hidden style={{ display: "inline-flex", color: "var(--rp-success)", paddingTop: 2 }}><Check size={28} /></span>
+        <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
+          <div>
+            <h2 id="ready-title" style={{ margin: 0, fontSize: 20 }}>You're ready to create your shop</h2>
+            <p style={{ margin: "6px 0 0" }}>Everything your shop needs is in. Check it over once more, then create it. It starts private, so only you can see it.</p>
+          </div>
+          <div><PrimaryButton icon={<Store size={16} aria-hidden />} onClick={onCreate}>Create my shop</PrimaryButton></div>
+        </div>
+      </div>
+    </section>
   );
 }
 

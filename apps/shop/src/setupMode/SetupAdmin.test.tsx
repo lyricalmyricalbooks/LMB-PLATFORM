@@ -10,7 +10,7 @@ const { setImageLoader } = await import("../app/admin/photoLinks");
 setImageLoader(async (url) => !url.includes("gone"));
 
 let root: Root | null = null;
-afterEach(() => { act(() => root?.unmount()); root = null; document.body.innerHTML = ""; location.hash = ""; });
+afterEach(() => { act(() => root?.unmount()); root = null; document.body.innerHTML = ""; location.hash = ""; sessionStorage.clear(); });
 const flush = async () => { for (let i = 0; i < 8; i++) await act(async () => { await new Promise((r) => setTimeout(r, 0)); }); };
 
 const PRESS: SetupPress = { pressId: "press-moth", status: "setup", plan: "both", pressName: "Moth Press", sells: "books", country: "", look: "", adminLook: "", stagedImport: null };
@@ -67,6 +67,36 @@ describe("the admin in setup mode (code plan 18.6)", () => {
     act(() => choose.click());
     await flush();
     expect(el.querySelector("h1")?.textContent).toBe("Design");
+  });
+
+  it("keeps the step the press opened when it comes back to Home, and moves on once that step is done", async () => {
+    const el = await mount(door());
+    const rows = () => [...el.querySelectorAll("main ol[aria-label='Setup steps'] > li > button")] as HTMLButtonElement[];
+    act(() => rows().find((b) => b.textContent?.includes("Choose your website's look"))!.click());
+    act(() => root!.unmount());
+    root = null; document.body.innerHTML = "";
+    const again = await mount(door());
+    expect([...again.querySelectorAll("main ol[aria-label='Setup steps'] > li > button")].filter((b) => b.getAttribute("aria-expanded") === "true").map((b) => b.textContent))
+      .toEqual([expect.stringContaining("Choose your website's look")]);
+    act(() => root!.unmount());
+    root = null; document.body.innerHTML = "";
+    const looked = await mount(door(), "", { ...PRESS, look: "press-riso" });
+    expect([...looked.querySelectorAll("main ol[aria-label='Setup steps'] > li > button")].filter((b) => b.getAttribute("aria-expanded") === "true").map((b) => b.textContent))
+      .toEqual([expect.stringContaining("Tell us about your press")]);
+  });
+
+  it("says plainly when everything is in, with Create my shop at the top", async () => {
+    const el = await mount(door(), "", { ...PRESS, country: "CA", look: "press-riso", moving: "fresh" });
+    expect(el.textContent).toContain("You're ready to create your shop");
+    const button = [...el.querySelectorAll("main section button")].find((b) => b.textContent === "Create my shop") as HTMLButtonElement;
+    act(() => button.click());
+    await flush();
+    expect(el.querySelector("h1")?.textContent).toBe("Plan");
+  });
+
+  it("doesn't say it's ready while a step is still missing", async () => {
+    const el = await mount(door());
+    expect(el.textContent).not.toContain("You're ready to create your shop");
   });
 
   it("says what happens once the shop is made, and where to get help", async () => {
