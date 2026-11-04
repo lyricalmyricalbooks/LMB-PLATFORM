@@ -59,8 +59,10 @@ describe("Get started, step 4: Google in one sign-in (plan 17.9)", () => {
     ] }, error: null };
     const onDone = await mount();
     expect(text()).toContain("Google is connected");
-    expect(text()).toContain("Google Analytics: Linked");
-    expect(text()).toContain("Google search: Waiting");
+    const tile = (name: string) => [...document.querySelectorAll(".gg-tile")].find((t) => t.querySelector("strong")?.textContent === name)?.textContent;
+    expect(tile("Google Analytics")).toContain("Working");
+    expect(tile("Google search")).toContain("Waiting on Google");
+    expect(text()).toContain("Settings › Google");
     expect(text()).not.toContain("searchConsole");
     await act(async () => { button("Continue")!.click(); });
     await flush();

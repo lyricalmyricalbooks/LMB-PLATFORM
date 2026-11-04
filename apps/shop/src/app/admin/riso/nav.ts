@@ -1,6 +1,6 @@
 import {
   BookOpen, Settings, Inbox, LayoutDashboard, BadgePercent, Star, ShoppingCart, Users, Boxes, Gift,
-  SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail, UserPlus, Calculator, Wallet, FileText, Store, Megaphone, PiggyBank, ShieldCheck,
+  SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail, UserPlus, Calculator, Wallet, FileText, Store, Megaphone, PiggyBank, ShieldCheck, Plug,
 } from "lucide-react";
 import type { NavEntry } from "./components";
 import { COMBINED_PAGES, SALES_TAB, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES } from "../combined";
@@ -23,6 +23,8 @@ export const NAV: NavEntry[] = [
     { id: "designer", label: "Design", icon: Palette },
     // One email page: templates, shop alerts, Gmail sending, sender details and recent deliveries.
     { id: "notifications", label: "Email sender", icon: Mail },
+    // Every Google service in one place, with one sign-in (GoogleSettings.tsx); hidden on a shop not run by Colophon.
+    { id: "google", label: "Google", icon: Plug },
     { id: "team", label: "Team", icon: UserPlus },
     // Two-step sign-in with an authenticator app, for whoever is signed in (22.6).
     { id: "security", label: "Security", icon: ShieldCheck },

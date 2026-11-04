@@ -167,7 +167,7 @@ export function useGoogleConnect() {
   const [state, setState] = useState<{ mode: "loading" | "own" | "platform" | "error"; status: GoogleStatus | null; error: string | null }>({ mode: "loading", status: null, error: null });
   const load = () => {
     setState((s) => (s.mode === "error" ? { mode: "loading", status: null, error: null } : s));
-    readShared().then(
+    googleConnectApi.status().then(
       // A shop run by Colophon (code plan 6.16) is always a "platform" shop here, switched on or not: it never falls back
       // to today's ID-and-access Analytics and Search Console cards, which ask for things a press shouldn't meet.
       (answer) => setState(answer === "not_available" ? (runsOnColophon() ? { mode: "platform", status: { enabled: false }, error: null } : { mode: "own", status: null, error: null }) : { mode: "platform", status: answer, error: null }),

@@ -310,6 +310,13 @@ The private operations, label purchase safeguards, payment authority and server 
   `settings/website.analytics.ga4MeasurementId` and `adminSecrets/googleAnalytics` fields the older cards do, so the tag
   and reports below work unchanged. `useGoogleConnect().mode === "own"` (no link) keeps the older cards. On those shops
   Email sender shows `PlatformSenderCard` instead of the Gmail app-password panel (`senderStatus.backup === "platform"`).
+- **Settings › Google (4 November 2026):** `GoogleSettings.tsx` (+ `google.css`, pure card states in `googleHub.ts`) is
+  the one page for every Google service: hero (headline, account, "n of m working" meter, chips that scroll to parts
+  needing a look), **Included with your sign-in** cards (analytics, search, Shopping, email, web address: badge, two
+  "what you get" lines, Google's own line, Try again or Open in Google), **Extras** as switches saved together through
+  `connectLink(extras)`, then Disconnect. Listed only when `runsOnColophon()` or the platform answers (Dashboard
+  `googleOn`); Visitors & Google keeps a pointer card. Get started step 4 shows the same services (`GoogleTiles`).
+  Fixture: `admin-fixture.html?gstate=coming|ready|connected|trouble&page=settings/google`.
 - **Google Analytics 4:** Settings › General › **Google Analytics** (`GoogleAnalyticsCard.tsx`, `admin/googleAnalytics.ts`).
   Measurement ID (public) = `settings/website.analytics.ga4MeasurementId`, written only by that card (`updateSettings` drops
   `analytics` so a stale settings form can't put an old ID back); property ID = admin-only `adminSecrets/googleAnalytics`.
