@@ -847,10 +847,10 @@ control room's shop timeline ("Emailed the press: …"), from the sent log.
 | 25.3 | platform | **Open again and staying** (`shop-reopened` when a card reopens a paused shop, `cancel-undone` when the press keeps a plan they had cancelled) | `billing.test.js`, French twin tests | built (4 November 2026) |
 | 25.4 | shop | **Two-step sign-in turned on or off**: the person and the owner are emailed when two-step changes on a shop admin sign-in (the server reads the real state, so a fake call sends nothing) | `functions/twoStepBackup.test.js` || built (4 November 2026) |
 | 25.5 | shop | **Out for delivery and delivered** for carrier parcels: the tracking updates already reach the shop; an editable email for each, once per order, off until the owner turns it on in Notifications | shop functions tests || built (4 November 2026) |
-| 25.6 | shop | **Picked up**: an editable email when a pickup order is marked collected, as a receipt | shop functions tests | later: low value, the order email is already the receipt |
+| 25.6 | shop | **Picked up**: an editable email when a pickup order is marked collected, as a receipt | shop functions tests | built (4 November 2026): on by default, editable in English and French |
 | 25.7 | shop | **Return request received** to the shopper (today only the owner hears) | shop functions tests || built (4 November 2026) |
 | 25.8 | shop | **Payment failed** to the shopper when a delayed bank payment fails, with a link to try again | shop functions tests || built (4 November 2026) |
-| 25.9 | shop | **Shopper emails in French**: the order already keeps the shopper's language; every default shopper email gets a French twin, chosen per order, and the owner can edit both | `emailTemplateChecks.test.ts` | |
+| 25.9 | shop | **Shopper emails in French**: the order already keeps the shopper's language; every default shopper email gets a French twin, chosen per order, and the owner can edit both | `emailFrenchDefaults.test.ts`, `functions/emailOutbox.test.js` | built (4 November 2026): every email that goes with an order (and its totals, delivery and download words) follows the order's language; welcome, contact reply and abandoned cart stay in the main words. The team's two-step and backup-code emails follow the shop's language |
 
 ## Rules for every pull request
 
