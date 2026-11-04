@@ -44,6 +44,7 @@ import { applyPresetSections, hasPresetContent, presetContentSummary, presetPage
 import { useShopWords } from "../shopWords";
 import { applyThemeKeysToSurfaces } from "../themeScope";
 import { THEME_LIBRARY } from "./themeLibrary";
+import { ownBooks } from "../lookGallery";
 import { applyLook, bringBack, ownEdits, resetToLook, switchSummary, themeSwitchReport, updateLookKeepingEdits, updatedTheme, type SwitchItem, type ThemeSwitchReport } from "./themeSwitch";
 import { importedThemeProblems } from "./themeCheck";
 import { ESSENTIALS, essentialCopyField, essentialStyleField } from "./essentials";
@@ -120,7 +121,7 @@ import { hasTokens, isDynamic } from "../../features/site/dynamicSources";
 // Connected text (a $dyn value or {{tokens}}) opens the inspector instead of being typed over in the preview.
 const isConnectedValue = (v: any) => isDynamic(v) || hasTokens(v);
 import { CANDIDATE_ID, deletePreset, deleteSharedBlock, renamePreset, renameSharedBlock, withCandidate } from "./sectionLibrary";
-import { templateOnlyNote } from "./templateNote";
+import { templateDetailsSet, templateOnlyNote } from "./templateNote";
 import "./studio.css";
 
 type LeftTab = "essentials" | "sections" | "style" | "text" | "menus" | "pages" | "media" | "themes";
@@ -420,6 +421,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [books, setBooks] = useState<any[]>([]);
   const booksRef = useRef(books); booksRef.current = books;
   // Link / book / category / page pickers search what Studio already loaded (StudioPickers.tsx).
+  // The press's own covers for the Themes cards, so each look is drawn on their products.
+  const themeProducts = useMemo(() => ownBooks(books, 2), [books]);
   const pickerData = useMemo(() => ({ books, pages, categories: design?.categories || [] }), [books, pages, design?.categories]);
   // The page open in Studio › Pages with unsaved edits — shown in the preview only, never saved from here.
   const [draftPage, setDraftPage] = useState<any | null>(null);
@@ -726,6 +729,13 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       ? { ...shared, block: { ...shared.block, ...patch }, updatedAt: new Date().toISOString() } : shared),
   }));
   const setStyle = (path: string, value: any) => change((d) => applyGlobalStyle(d, path, value, surfaceIds), { label: `Change ${settingLabel(path)}`, coalesce: `style:${path}` });
+  /** Clears every template-only control at once (one undo step), so the template's own look comes back. */
+  const resetTemplateDetails = () => {
+    const keys = templateDetailsSet(designRef.current);
+    if (!keys.length) return;
+    change(d => keys.reduce((next, key) => applyGlobalStyle(next, key, undefined, surfaceIds), d), { label: "Reset template details" });
+    say("ok", "Template details reset.", undoAction());
+  };
   /** Text & labels edits; Reset to default offers Undo, which puts the owner's own wording back. */
   const setCopy = (key: string, value: string | undefined) => {
     const prev = designRef.current.copy?.[key];
@@ -2422,6 +2432,13 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                       </section>
                     ))}
                   </div>}
+                  {group?.id === "riso" && (() => {
+                    const set = templateDetailsSet(design).length;
+                    return set > 0 && <div className="px-4 pb-3"><div className="studio-field-status" data-template-reset>
+                      <small>You've changed {set} template {set === 1 ? "detail" : "details"}.</small>
+                      <button type="button" className="studio-reset" onClick={resetTemplateDetails}>Reset template details</button>
+                    </div></div>;
+                  })()}
                   {group && (REGION_GROUPS.some(r => r.id === group.id)
                     ? <div className="px-4 pb-4"><StudioRegionBrowser groupId={group.id} fields={group.fields} device={device}
                         values={{ ...design.regions, ...(local ? design[template.id]?.regions : {}) }} onPick={openRegion} /></div>
@@ -2577,7 +2594,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
             {leftTab === "themes" && (
               <StudioThemes design={design} published={published} unpublished={unpublished || dirtyDraft} savedThemes={savedThemes}
-                presets={THEME_LIBRARY as any[]} currentPresetId={design.themeLibraryPreset}
+                presets={THEME_LIBRARY as any[]} currentPresetId={design.themeLibraryPreset} products={themeProducts}
                 previewingId={themePreview?.id || null} onPreview={setThemePreview}
                 onSaveCurrent={saveCurrentAsTheme} onImport={file => importTheme(file)}
                 onLoad={t => { setThemePreview(null); applySavedTheme(t); }} onPublish={publishSavedTheme}
