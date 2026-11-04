@@ -65,7 +65,7 @@ describe("the look previews show the first book's photo (plan 17.8)", () => {
   });
   it("gives the previews each product's real price, the sale price when it is on sale", () => {
     expect(ownBooks([{ title: "A", retailPrice: 22 }, { title: "B", retailPrice: 24, salePrice: 18.5, isOnSale: true }, { title: "C", retailPrice: 0 }]))
-      .toEqual([{ title: "A", photo: "", price: "$22" }, { title: "B", photo: "", price: "$18.50" }, { title: "C", photo: "" }]);
+      .toEqual([{ title: "A", photo: "", price: "CA$ 22.00" }, { title: "B", photo: "", price: "CA$ 18.50" }, { title: "C", photo: "" }]);
   });
   it("tells the preview which template style to draw", () => {
     const style = (id: string) => lookPreview((THEME_LIBRARY as any[]).find(t => t.id === id)).style;

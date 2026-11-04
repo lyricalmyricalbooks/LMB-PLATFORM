@@ -546,6 +546,11 @@
 .studio-theme-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }
 .studio-theme-thumb { position: relative; height: 72px; overflow: hidden; border: 1px solid var(--rp-border-strong); padding: 6px; display: grid; align-content: start; gap: 2px; }
 .studio-theme-thumb > span:first-child { font-size: 18px; font-weight: 800; line-height: 1; }
+.studio-theme-thumb > span.studio-theme-thumb-name { font-size: 10px; line-height: 1.1; display: flex; align-items: flex-start; gap: 3px; min-width: 0; max-width: calc(100% - 26px); overflow: hidden; }
+.studio-theme-thumb-name > span { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
+.studio-theme-thumb-name img { height: 12px; width: auto; max-width: 24px; object-fit: contain; flex: none; }
+.studio-theme-thumb-btn { display: block; width: 100%; padding: 0; text-align: left; font: inherit; color: inherit; border: 0; background: none; cursor: zoom-in; align-self: start; }
+.studio-theme-thumb-btn:focus-visible { outline: 2px solid var(--rp-focus, var(--rp-accent)); outline-offset: 2px; }
 .studio-theme-thumb-body { font-size: 8px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: calc(100% - 26px); }
 .studio-theme-thumb i { position: absolute; left: 6px; bottom: 6px; width: 20px; height: 9px; }
 .studio-theme-thumb b { position: absolute; bottom: 6px; width: 16px; height: 22px; border: 1px solid; }
