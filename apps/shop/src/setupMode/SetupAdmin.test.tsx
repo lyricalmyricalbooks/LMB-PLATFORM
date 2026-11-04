@@ -55,11 +55,42 @@ describe("the admin in setup mode (code plan 18.6)", () => {
     expect(el.textContent).toContain("Bring your books over from your old shop · optional");
   });
 
+  it("opens the next step with its button and help, and any other step on a click", async () => {
+    const el = await mount(door());
+    const rows = () => [...el.querySelectorAll("main ol[aria-label='Setup steps'] > li > button")] as HTMLButtonElement[];
+    const open = () => rows().filter((b) => b.getAttribute("aria-expanded") === "true").map((b) => b.textContent);
+    expect(open()).toEqual([expect.stringContaining("Tell us about your press")]);
+    expect(el.querySelector("a[href='/help/#your-press']")?.textContent).toContain("How this works");
+    act(() => rows().find((b) => b.textContent?.includes("Choose your website's look"))!.click());
+    expect(open()).toEqual([expect.stringContaining("Choose your website's look")]);
+    const choose = [...el.querySelectorAll("main button")].find((b) => b.textContent === "Choose a look") as HTMLButtonElement;
+    act(() => choose.click());
+    await flush();
+    expect(el.querySelector("h1")?.textContent).toBe("Design");
+  });
+
+  it("says what happens once the shop is made, and where to get help", async () => {
+    const el = await mount(door());
+    expect(el.textContent).toContain("Once your shop is made");
+    expect(el.textContent).toContain("Your first shop is free for 14 days from then");
+    expect(el.textContent).toContain("Need a hand?");
+    expect(el.querySelector("main a[href='/account/']")).not.toBeNull();
+  });
+
+  it("promises no free days on Home when the platform gives no trial", async () => {
+    const d = door();
+    (d.plans as any).mockImplementation(async () => ({ trialDays: 0, termsVersion: "v1", plans: [] }));
+    const el = await mount(d);
+    expect(el.textContent).not.toMatch(/free for \d+ days/);
+  });
+
   it("a locked page says it comes with the shop, offers Create my shop, and writes nothing", async () => {
     const d = door();
     const el = await mount(d, "#orders");
     expect(el.querySelector("h1")?.textContent).toBe("Orders");
     expect(el.textContent).toContain("Comes with your shop");
+    expect(el.textContent).toContain("Every order in one list");
+    expect([...el.querySelectorAll("main button")].some((b) => b.textContent === "Back to the setup guide")).toBe(true);
     const button = [...el.querySelectorAll("main button")].find((b) => b.textContent === "Create my shop") as HTMLButtonElement;
     act(() => button.click());
     await flush();
@@ -340,7 +371,7 @@ describe("bringing a shop over, at the top of Home (code plan 23.0)", () => {
     await flush();
     expect(d.saved).toEqual([{ moving: "fresh" }]);
     expect(el.textContent).not.toContain("Selling somewhere already?");
-    const steps = [...el.querySelectorAll("main ol li")].map((li) => li.textContent ?? "");
+    const steps = [...el.querySelectorAll("main ol[aria-label='Setup steps'] > li")].map((li) => li.textContent ?? "");
     expect(steps[steps.length - 2]).toContain("Bring your books over");
   });
 

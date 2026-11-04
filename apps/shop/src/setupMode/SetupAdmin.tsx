@@ -4,7 +4,7 @@
 // it comes with the shop. Everything saves to the press's setup record through the platform's door (door.ts); nothing
 // here reads or writes a shop database, because there is none until the press opens its shop.
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { ArrowRight, Check, Circle, HelpCircle, Lock, LogOut, Menu, Store, Truck } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, Circle, ExternalLink, HelpCircle, Lock, LogOut, Menu, MessageCircle, Store, Truck } from "lucide-react";
 import {
   AppShell, EmptyState, GhostButton, IconButton, PageHeader, PrimaryButton, SectionCard, SelectField, Sidebar,
   TextField, ToastProvider, Topbar, useRisoToast,
@@ -19,8 +19,8 @@ import type { PlanList, SetupChange, SetupDoor, SetupPress } from "./door";
 import { CreateShopCard, type CreateShop } from "./CreateShop";
 import type { CreateNames } from "./launchWords";
 import {
-  DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, IMPORT_PAGE, PLAN_PAGE, guideProgress, guideSteps, nextGuideStep, pageFromHash, readyToCreate, setupLocked, showMoveIn, setupMenu,
-  setupMenuItemFor, setupPageLabel,
+  DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, IMPORT_PAGE, PLAN_PAGE, SETUP_QUESTIONS, STEP_HELP, guideProgress, guideSteps, lockedPageLine, nextGuideStep,
+  pageFromHash, readyToCreate, setupLocked, showMoveIn, setupMenu, setupMenuItemFor, setupPageLabel,
 } from "./pages";
 
 /** The platform's own lists (signup/form.js), passed in so the platform keeps one copy of them. */
@@ -47,12 +47,14 @@ function readAppearance(): "light" | "dark" {
 
 export function SetupAdmin(props: {
   press: SetupPress; door: SetupDoor; lists: SetupLists; email: string; onSignOut: () => void; helpUrl: string; termsUrl?: string;
+  /** Where a press asks a person for help (the platform's account page). */
+  accountUrl?: string;
 }) {
   return <ToastProvider><SetupAdminInner {...props} /></ToastProvider>;
 }
 
-function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl, termsUrl = "/terms/" }: {
-  press: SetupPress; door: SetupDoor; lists: SetupLists; email: string; onSignOut: () => void; helpUrl: string; termsUrl?: string;
+function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl, termsUrl = "/terms/", accountUrl = "/account/" }: {
+  press: SetupPress; door: SetupDoor; lists: SetupLists; email: string; onSignOut: () => void; helpUrl: string; termsUrl?: string; accountUrl?: string;
 }) {
   const [press, setPress] = useState(first);
   const [plans, setPlans] = useState<PlanList | null>(null);
@@ -93,8 +95,8 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
 
   const pressName = press.pressName || "Your press";
   let content;
-  if (setupLocked(page)) content = <OpensWithShop page={setupPageLabel(page, menu)} onOpenShop={openCreate} />;
-  else if (page === HOME_PAGE) content = <SetupGuide press={press} onOpen={open} onCreate={openCreate} save={save} />;
+  if (setupLocked(page)) content = <OpensWithShop page={setupPageLabel(page, menu)} line={w(lockedPageLine(page))} onOpenShop={openCreate} onBack={() => open(HOME_PAGE)} />;
+  else if (page === HOME_PAGE) content = <SetupGuide press={press} plans={plans} helpUrl={helpUrl} accountUrl={accountUrl} onOpen={open} onCreate={openCreate} save={save} />;
   else if (page === GENERAL_PAGE) content = <PressDetails press={press} lists={lists} save={save} />;
   else if (page === IMPORT_PAGE) content = <ImportPage press={press} door={door} onSaved={setPress} />;
   else if (page === DESIGN_PAGE) content = <DesignPage press={press} save={save} />;
@@ -103,7 +105,7 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
       names={{ countries: lists.countries, sells: lists.sells, lookName: themeName(press.look) }} email={email}
       createShop={(choice) => door.openShop(press.pressId, choice)} onCreated={setPress} onOpen={open} />
   );
-  else content = <HelpPage helpUrl={helpUrl} />;
+  else content = <HelpPage helpUrl={helpUrl} accountUrl={accountUrl} />;
 
   return (
     <ShopWordsContext.Provider value={w}>
@@ -159,22 +161,30 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
   );
 }
 
-/** A page that needs the shop: says so in plain words and points at Create my shop. Writes nothing. */
-export function OpensWithShop({ page, onOpenShop }: { page: string; onOpenShop: () => void }) {
+/**
+ * A page that needs the shop: says what it will do and that it comes with the shop, sends the press back to the setup
+ * guide, and offers Create my shop. Writes nothing.
+ */
+export function OpensWithShop({ page, line = "", onOpenShop, onBack }: { page: string; line?: string; onOpenShop: () => void; onBack?: () => void }) {
   return (
     <>
       <PageHeader title={page} />
       <EmptyState
         icon={<Lock size={28} aria-hidden />}
         title="Comes with your shop"
-        description={`${page} starts working as soon as your shop is made. Finish setting up, then create your shop. Nothing is charged before then.`}
-        action={<PrimaryButton onClick={onOpenShop}>Create my shop</PrimaryButton>}
+        description={`${line ? `${line} ` : ""}${page} starts working as soon as your shop is made. Nothing is charged before then.`}
+        action={
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+            {onBack && <PrimaryButton icon={<ArrowRight size={16} aria-hidden />} onClick={onBack}>Back to the setup guide</PrimaryButton>}
+            <GhostButton onClick={onOpenShop}>Create my shop</GhostButton>
+          </div>
+        }
       />
     </>
   );
 }
 
-/** Why each step matters, shown on the step to do next. Written in book words; the guide shows the shop's own. */
+/** Why each step matters, shown when its row is open. Written in book words; the guide shows the shop's own. */
 const STEP_WHY: Record<string, string> = {
   plan: "Your website, your stockroom or both. You can change it until your shop is made.",
   details: "Your press's name, what you sell and your country set your shop's words, money and taxes.",
@@ -183,55 +193,126 @@ const STEP_WHY: Record<string, string> = {
   open: "Check what goes in, then we make your shop. It starts private, so only you can see it.",
 };
 
-function SetupGuide({ press, onOpen, onCreate, save }: { press: SetupPress; onOpen: (page: string) => void; onCreate: () => void; save: (c: SetupChange) => Promise<SetupPress> }) {
+const helpLink = (helpUrl: string, id: string) => `${helpUrl}#${id}`;
+
+/**
+ * Home in setup mode: the setup guide (one row per step, Shopify-style: the next step opens with why it matters and its
+ * button, and any other step opens on a click), then what happens once the shop is made and where to get help.
+ */
+function SetupGuide({ press, plans, helpUrl, accountUrl, onOpen, onCreate, save }: {
+  press: SetupPress; plans: PlanList | null; helpUrl: string; accountUrl: string; onOpen: (page: string) => void; onCreate: () => void; save: (c: SetupChange) => Promise<SetupPress>;
+}) {
   const w = useShopWords();
   const steps = guideSteps(press);
   const { done, total } = guideProgress(steps);
   const next = nextGuideStep(steps, press);
   const ready = readyToCreate(steps);
+  // The open row follows the next step as steps get done, until the press opens another one itself.
+  const [picked, setPicked] = useState<string | null>(null);
+  const shown = picked ?? next?.id ?? null;
   // The last step goes straight to the review on Plan; every other step opens its page.
   const go = (step: { id: string; page: string }) => (step.id === "open" ? onCreate() : onOpen(step.page));
+  const left = total - done;
   return (
     <>
       <PageHeader title={press.pressName ? `Welcome, ${press.pressName}` : "Welcome"}
         description="Set up your shop here. Nothing is charged, and your free days don't start, until you create it." />
       {showMoveIn(press) && <MoveInCard onBring={() => onOpen(IMPORT_PAGE)} save={save} />}
-      <SectionCard title="Setup guide" description={ready ? "All set. Create your shop when you're ready." : `${done} of ${total} done`} collapsible={false}>
+      <SectionCard title="Setup guide" collapsible={false}
+        description={ready ? "All set. Create your shop when you're ready." : `${done} of ${total} done · ${left === 1 ? "one step" : `${left} steps`} to go`}>
         <div role="progressbar" aria-label="Setup guide" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done}
-          style={{ height: 6, background: "var(--rp-divider)", marginBottom: 16 }}>
+          style={{ height: 6, background: "var(--rp-divider)", marginBottom: 8 }}>
           <div style={{ width: `${(done / total) * 100}%`, height: "100%", background: "var(--rp-primary)" }} />
         </div>
-        <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "grid" }}>
+        <ol aria-label="Setup steps" style={{ listStyle: "none", margin: 0, padding: 0, display: "grid" }}>
           {steps.map((step) => {
-            // The next step stands out: a tinted row, a line on why it matters and the page's one main button.
             const isNext = step.id === next?.id;
+            const isOpen = step.id === shown && !step.locked;
+            const help = STEP_HELP[step.id];
+            const panel = `guide-step-${step.id}`;
             return (
               <li key={step.id} aria-current={isNext ? "step" : undefined}
-                style={{ display: "grid", gridTemplateColumns: "20px minmax(0, 1fr) auto", alignItems: isNext ? "start" : "center", gap: 12, padding: isNext ? "14px 12px" : "12px 0",
-                  margin: isNext ? "0 -12px" : 0, borderTop: "1px solid var(--rp-divider)", background: isNext ? "var(--rp-primary-tint)" : undefined }}>
-                <span aria-hidden style={{ display: "inline-flex", color: step.done ? "var(--rp-success)" : isNext ? "var(--rp-text)" : "var(--rp-text-subtle)" }}>
-                  {step.done ? <Check size={20} /> : step.locked ? <Lock size={18} /> : <Circle size={18} />}
-                </span>
-                <span style={{ minWidth: 0, display: "grid", gap: 2 }}>
-                  <span>
+                style={{ borderTop: "1px solid var(--rp-divider)", margin: "0 -12px", padding: "0 12px", background: isOpen ? "var(--rp-primary-tint)" : undefined }}>
+                <button type="button" aria-expanded={isOpen} aria-controls={panel} disabled={step.locked}
+                  onClick={() => setPicked(isOpen ? "" : step.id)}
+                  style={{ display: "grid", gridTemplateColumns: "20px minmax(0, 1fr) auto", alignItems: "center", gap: 12, width: "100%", minHeight: 48,
+                    padding: "12px 0", background: "none", border: 0, color: "inherit", font: "inherit", textAlign: "left", cursor: step.locked ? "default" : "pointer" }}>
+                  <span aria-hidden style={{ display: "inline-flex", color: step.done ? "var(--rp-success)" : isNext ? "var(--rp-text)" : "var(--rp-text-subtle)" }}>
+                    {step.done ? <Check size={20} /> : step.locked ? <Lock size={18} /> : <Circle size={18} />}
+                  </span>
+                  <span style={{ minWidth: 0 }}>
                     <strong style={{ color: step.done ? "var(--rp-text-muted)" : undefined }}>{w(step.title)}</strong>
                     {step.optional && !step.done && <span className="rp-hint"> · optional</span>}
                     <span className="rp-sr-only">{step.done ? " (done)" : step.locked ? " (comes with your shop)" : isNext ? " (next)" : ""}</span>
                   </span>
-                  {isNext && STEP_WHY[step.id] && <span className="rp-hint">{w(STEP_WHY[step.id])}</span>}
-                  {/* Under its reason, so a phone keeps the words full width. */}
-                  {isNext && <span style={{ marginTop: 8 }}><PrimaryButton size="sm" onClick={() => go(step)}>{step.action}</PrimaryButton></span>}
-                </span>
-                {step.locked
-                  ? <span className="rp-hint" style={{ textAlign: "right", maxWidth: 120 }}>{step.action}</span>
-                  : isNext ? <span />
-                    : <GhostButton size="sm" onClick={() => go(step)}>{step.done ? "Change" : step.action}</GhostButton>}
+                  {step.locked
+                    ? <span className="rp-hint" style={{ textAlign: "right", maxWidth: 120 }}>{step.action}</span>
+                    : <ChevronDown size={18} aria-hidden style={{ transform: isOpen ? "rotate(180deg)" : undefined, color: "var(--rp-text-subtle)" }} />}
+                </button>
+                {isOpen && (
+                  <div id={panel} style={{ display: "grid", gap: 10, padding: "0 0 16px 32px" }}>
+                    {STEP_WHY[step.id] && <p className="rp-hint" style={{ margin: 0 }}>{w(STEP_WHY[step.id])}</p>}
+                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px 16px" }}>
+                      {step.done
+                        ? <GhostButton size="sm" onClick={() => go(step)}>Change</GhostButton>
+                        : <PrimaryButton size="sm" onClick={() => go(step)}>{step.action}</PrimaryButton>}
+                      {help && (
+                        <a className="rp-hint" href={helpLink(helpUrl, help)} target="_blank" rel="noopener"
+                          style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--rp-text)", textDecoration: "underline", textUnderlineOffset: 3 }}>
+                          How this works<ExternalLink size={12} aria-hidden /><span className="rp-sr-only"> (opens in a new tab)</span>
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                )}
               </li>
             );
           })}
         </ol>
       </SectionCard>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))", gap: 16, marginTop: 16 }}>
+        <AfterCreating plan={press.plan} plans={plans} />
+        <HelpCard helpUrl={helpUrl} accountUrl={accountUrl} />
+      </div>
     </>
+  );
+}
+
+/**
+ * What happens once the shop is made, so creating it isn't a leap in the dark. The free days are promised only when the
+ * platform's plans say there is a trial (and as "your first shop": billing gives one trial per account).
+ */
+function AfterCreating({ plan, plans }: { plan: SetupPress["plan"]; plans: PlanList | null }) {
+  const trial = plans?.trialDays ?? 0;
+  const website = plan !== "stockroom";
+  const lines = [
+    website ? "We make your shop privately. Only you can see your website until you open it." : "We make your stockroom. Only you and the people you invite can see it.",
+    trial > 0 ? `Your first shop is free for ${trial} days from then. Add a card any time before they end to carry on.` : "Your plan starts then, and you can change it in Settings › Plan.",
+    website ? "Add how you get paid and what shipping costs, try a test order, then open to shoppers when you're ready." : "Add your stock, then ring up sales at fairs and in stores.",
+  ];
+  return (
+    <SectionCard title="Once your shop is made" collapsible={false}>
+      <ol style={{ margin: 0, paddingLeft: 20, display: "grid", gap: 8, listStyle: "decimal" }}>
+        {lines.map((line) => <li key={line}>{line}</li>)}
+      </ol>
+    </SectionCard>
+  );
+}
+
+/** Where to get help: the answers asked about most, and a person who answers in writing. */
+function HelpCard({ helpUrl, accountUrl }: { helpUrl: string; accountUrl: string }) {
+  return (
+    <SectionCard title="Need a hand?" collapsible={false}>
+      <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 8 }}>
+        {SETUP_QUESTIONS.slice(0, 3).map((q) => (
+          <li key={q.id}><a href={helpLink(helpUrl, q.id)} target="_blank" rel="noopener" style={{ color: "var(--rp-text)", textDecoration: "underline", textUnderlineOffset: 3 }}>{q.question}<span className="rp-sr-only"> (opens in a new tab)</span></a></li>
+        ))}
+      </ul>
+      <p className="rp-hint" style={{ margin: "12px 0 0", display: "flex", alignItems: "center", gap: 6 }}>
+        <MessageCircle size={14} aria-hidden />
+        <span>Stuck? <a href={accountUrl} style={{ color: "var(--rp-text)", textDecoration: "underline" }}>Ask us from your account page</a> and a person answers in writing.</span>
+      </p>
+    </SectionCard>
   );
 }
 
@@ -431,14 +512,33 @@ function PlanPage({ press, plans, failed, onRetry, save, termsUrl, names, email,
   );
 }
 
-function HelpPage({ helpUrl }: { helpUrl: string }) {
+/** Help in setup: the answers asked about most while setting up, the help centre, and a person to ask. */
+function HelpPage({ helpUrl, accountUrl }: { helpUrl: string; accountUrl: string }) {
   return (
     <>
       <PageHeader title="Help" description="Answers about setting up and creating your shop." />
-      <SectionCard title="Help centre" collapsible={false}>
-        <p style={{ marginTop: 0 }}>Plain answers on plans, payments, moving your books in, and your website.</p>
-        <a className="rp-btn rp-btn-secondary" href={helpUrl}>Open the help centre</a>
+      <SectionCard title="While you set up" collapsible={false}>
+        <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid" }}>
+          {SETUP_QUESTIONS.map((q) => (
+            <li key={q.id} style={{ borderTop: "1px solid var(--rp-divider)" }}>
+              <a href={`${helpUrl}#${q.id}`} target="_blank" rel="noopener"
+                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, minHeight: 48, padding: "8px 0", color: "var(--rp-text)" }}>
+                <span>{q.question}</span><ExternalLink size={14} aria-hidden /><span className="rp-sr-only"> (opens in a new tab)</span>
+              </a>
+            </li>
+          ))}
+        </ul>
       </SectionCard>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))", gap: 16, marginTop: 16 }}>
+        <SectionCard title="Help centre" collapsible={false}>
+          <p style={{ marginTop: 0 }}>Plain answers on plans, payments, moving your books in, and your website.</p>
+          <a className="rp-btn rp-btn-secondary" href={helpUrl}>Open the help centre</a>
+        </SectionCard>
+        <SectionCard title="Ask a person" collapsible={false}>
+          <p style={{ marginTop: 0 }}>Ask from your account page and a person answers in writing.</p>
+          <a className="rp-btn rp-btn-secondary" href={accountUrl}>Go to my account</a>
+        </SectionCard>
+      </div>
     </>
   );
 }
