@@ -215,6 +215,10 @@ service cloud.firestore {
     match /inventoryPushes/{orderId} {
       allow read, write: if false;
     }
+    // Changes installed apps asked for (functions/appRequests.js): written and answered only by the server.
+    match /appRequests/{requestId} {
+      allow read: if isAdminReader();
+    }
     match /order-operations/{orderId} {
       allow read: if isAdminReader();
       allow write: if isAdmin();

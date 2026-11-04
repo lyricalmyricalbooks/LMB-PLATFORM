@@ -24,7 +24,7 @@ describe("order.dispatch", () => {
     expect(db.docs["order-operations/A-1"].data.activity[0].message).toContain("Parcel Pal");
     const again = await applyAppRequest(db, "r1", new Date("2026-11-04T16:00:00Z"));
     expect(again.answeredAt).toBe(now.toISOString());
-    expect(APP_REQUEST_OPS).toEqual(["order.dispatch"]);
+    expect(APP_REQUEST_OPS).toEqual(["order.dispatch", "inventory.adjust"]);
   });
 
   test("tracking only, then sent; the same tracking again is fine", async () => {
@@ -65,5 +65,48 @@ describe("order.dispatch", () => {
     });
     for (const id of ["r1", "r2", "r3", "r4", "r5"]) expect((await applyAppRequest(db, id, now)).status).toBe("refused");
     expect(db.docs["orders/A-1"].data.trackingNumber).toBeUndefined();
+  });
+});
+
+describe("inventory.adjust", () => {
+  const book = { title: "Moth Songs", trackInventory: true, stockLevel: 5 };
+  const tote = { title: "Tote", trackInventory: true, variants: [{ id: "s", stockLevel: 2, stock: 2 }, { id: "l", stockLevel: 1, stock: 1 }] };
+  const adjust = (input) => ({ op: "inventory.adjust", appId: "app_1", appName: "Fair Till", input, createdAt: now.toISOString() });
+
+  test("adds and takes copies, never below 0; a variant only changes itself", async () => {
+    const db = fakeDb({
+      "books/b1": book, "books/t1": tote,
+      "appRequests/r1": adjust({ productId: "b1", change: -2 }),
+      "appRequests/r2": adjust({ productId: "b1", change: -9 }),
+      "appRequests/r3": adjust({ productId: "t1", variantId: "l", change: 4 }),
+    });
+    expect(await applyAppRequest(db, "r1", now)).toMatchObject({ status: "done", result: { available: 3 } });
+    expect((await applyAppRequest(db, "r2", now)).result).toEqual({ available: 0 });
+    expect((await applyAppRequest(db, "r3", now)).result).toEqual({ available: 5 });
+    expect(db.docs["books/t1"].data.variants).toEqual([{ id: "s", stockLevel: 2, stock: 2 }, { id: "l", stockLevel: 5, stock: 5 }]);
+  });
+
+  test("expected guards against a sale made meanwhile", async () => {
+    const db = fakeDb({ "books/b1": book, "appRequests/r1": adjust({ productId: "b1", change: 5, expected: 4 }), "appRequests/r2": adjust({ productId: "b1", change: 5, expected: 5 }) });
+    expect((await applyAppRequest(db, "r1", now)).reason).toMatch(/now 5, not 4/);
+    expect((await applyAppRequest(db, "r2", now)).result).toEqual({ available: 10 });
+  });
+
+  test("refused: stockroom-linked, not counted, no variant given, bad change", async () => {
+    const db = fakeDb({
+      "books/b1": book, "books/b2": { ...book, trackInventory: false }, "books/t1": tote,
+      "systemStatus/inventoryLink": { links: { b1: { _: "hound" } } },
+      "appRequests/r1": adjust({ productId: "b1", change: 1 }),
+      "appRequests/r2": adjust({ productId: "b2", change: 1 }),
+      "appRequests/r3": adjust({ productId: "t1", change: 1 }),
+      "appRequests/r4": adjust({ productId: "t1", variantId: "s", change: 1.5 }),
+      "appRequests/r5": adjust({ productId: "t1", variantId: "xl", change: 1 }),
+    });
+    expect((await applyAppRequest(db, "r1", now)).reason).toMatch(/stockroom/);
+    expect((await applyAppRequest(db, "r2", now)).reason).toMatch(/doesn't count stock/);
+    expect((await applyAppRequest(db, "r3", now)).reason).toMatch(/variantId/);
+    expect((await applyAppRequest(db, "r4", now)).status).toBe("refused");
+    expect((await applyAppRequest(db, "r5", now)).reason).toMatch(/no such variant/);
+    expect(db.docs["books/b1"].data.stockLevel).toBe(5);
   });
 });

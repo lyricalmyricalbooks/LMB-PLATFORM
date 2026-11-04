@@ -247,7 +247,7 @@ export function Dashboard() {
     // older Analytics and Search Console cards in Visitors & Google.
     googleConnectApi.status().then((g) => setGoogleOn(g !== "not_available" || runsOnColophon())).catch(() => setGoogleOn(runsOnColophon()));
   }, [activeTab]);
-  const hiddenPages = new Set([...(bookkeepingOn ? [] : [SETTINGS_ITEM_PREFIX + "bookkeeping"]), ...(googleOn ? [] : [SETTINGS_ITEM_PREFIX + "google"])]);
+  const hiddenPages = new Set([...(bookkeepingOn ? [] : [SETTINGS_ITEM_PREFIX + "bookkeeping"]), ...(googleOn ? [] : [SETTINGS_ITEM_PREFIX + "google"]), ...(runsOnColophon() ? [] : [SETTINGS_ITEM_PREFIX + "apps"])]);
   // What the shop sells (plan 10.23): sign-up's answer in `firstWeek/start`. A shop that doesn't sell books reads
   // "Products" for "Books" across the admin (sells.ts `adminWordsFor`); with no answer every word stays as it is.
   const [sellsAnswer, setSellsAnswer] = useState<string | null>(null);
@@ -704,7 +704,7 @@ export function Dashboard() {
   ];
 
   // Pages fully built from Riso components render outside the legacy compatibility layer.
-  const migrated = activeTab === STOCKROOM_TAB || activeTab === SALES_TAB || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "channels" || activeTab === "socialPosts" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "bookkeeping" || settingsTab === "plan" || settingsTab === "billing" || settingsTab === "security" || settingsTab === "google"));
+  const migrated = activeTab === STOCKROOM_TAB || activeTab === SALES_TAB || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "channels" || activeTab === "socialPosts" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "bookkeeping" || settingsTab === "plan" || settingsTab === "billing" || settingsTab === "security" || settingsTab === "google" || settingsTab === "apps"));
   const content = (() => {
     switch (activeTab) {
       case "overview":
