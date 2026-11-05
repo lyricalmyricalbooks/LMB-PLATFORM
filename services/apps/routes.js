@@ -21,6 +21,8 @@
 //   POST /api/apps/installed            { shopId } -> { apps }
 // For the app itself (public, proves itself with its secret):
 //   POST /api/apps/oauth/token          { appId, secret, code, returnAddress } -> { accessToken, shopId, scopes }
+// For a shop's own server (public, proves itself with its service key; shopDoor.js):
+//   POST /api/apps/shop                 { op, args } -> installed apps, the store, or remove one (Settings › Apps)
 
 const body = (request) => (request.body && typeof request.body === "object" ? request.body : {});
 
@@ -51,6 +53,12 @@ export function appInstallRoutes(installs) {
     "POST /api/apps/install/approve": (claims, request) => installs.approve(claims, body(request)),
     "POST /api/apps/install/remove": (claims, request) => installs.remove(claims, body(request)),
     "POST /api/apps/installed": (claims, request) => installs.forShop(claims, body(request)),
+  };
+}
+
+export function appShopDoorRoutes(door) {
+  return {
+    "POST /api/apps/shop": async (request) => door.shopCall(request),
   };
 }
 

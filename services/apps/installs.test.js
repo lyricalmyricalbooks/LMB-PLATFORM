@@ -30,6 +30,7 @@ function world({ stores = { apps: fakeAppStore(), ...fakeAppInstallStores() } } 
   const now = () => new Date(clock);
   const roles = { "ada@moth.example moth-press": "owner", "sam@moth.example moth-press": "staff", "dev@tools.example dev-shop": "owner" };
   const registry = fakeRegistry();
+  registry.shops?.set?.("moth-press", { shopId: "moth-press", pressName: "Moth Press" });
   const auditLog = fakeAuditLog();
   let k = 0;
   const makers = createAppMakers({ store: stores.apps, admins: ["team@platform.example"], now });
@@ -60,6 +61,7 @@ test("the owner says yes, the app swaps the code for a key that works for that s
   const preview = await w.ask(OWNER, "POST", "/api/apps/install/preview", { appId, shopId: "moth-press", returnAddress: RETURN });
   assert.equal(preview.status, 200, JSON.stringify(preview.body));
   assert.equal(preview.body.app.name, "Parcel Pal");
+  assert.equal(preview.body.shopName, "Moth Press", "the page names the shop the app joins");
   assert.deepEqual(preview.body.permissions.map((p) => p.words), ["See your shop's name, address and currency", "Add tracking and mark orders as sent"]);
   assert.equal(preview.body.canApprove, true);
 
