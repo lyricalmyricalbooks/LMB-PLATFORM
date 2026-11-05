@@ -44,7 +44,7 @@ import { applyPresetSections, hasPresetContent, presetContentSummary, presetPage
 import { useShopWords } from "../shopWords";
 import { applyThemeKeysToSurfaces } from "../themeScope";
 import { THEME_LIBRARY } from "./themeLibrary";
-import { ownBooks } from "../lookGallery";
+import { ownBooks, pressNameOf } from "../lookGallery";
 import { applyLook, bringBack, ownEdits, resetToLook, switchSummary, themeSwitchReport, updateLookKeepingEdits, updatedTheme, type SwitchItem, type ThemeSwitchReport } from "./themeSwitch";
 import { importedThemeProblems } from "./themeCheck";
 import { ESSENTIALS, essentialCopyField, essentialStyleField } from "./essentials";
@@ -2595,9 +2595,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
             {leftTab === "themes" && (
               <StudioThemes design={design} published={published} unpublished={unpublished || dirtyDraft} savedThemes={savedThemes}
-                presets={THEME_LIBRARY as any[]} currentPresetId={design.themeLibraryPreset} products={themeProducts}
+                presets={THEME_LIBRARY as any[]} currentPresetId={design.themeLibraryPreset} products={themeProducts} pressName={pressNameOf(settings)}
                 templateDetails={templateDetailsLine(design)} onResetTemplateDetails={resetTemplateDetails}
-                previewingId={themePreview?.id || null} onPreview={setThemePreview}
+                previewingId={themePreview?.id || null} onPreview={(entry, onPhone) => { setThemePreview(entry); if (entry && onPhone) setDevice(onPhone); }}
                 onSaveCurrent={saveCurrentAsTheme} onImport={file => importTheme(file)}
                 onLoad={t => { setThemePreview(null); applySavedTheme(t); }} onPublish={publishSavedTheme}
                 onRename={renameTheme} onDuplicate={duplicateTheme}
