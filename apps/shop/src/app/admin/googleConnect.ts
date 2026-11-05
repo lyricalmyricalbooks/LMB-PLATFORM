@@ -41,10 +41,12 @@ export const GOOGLE_PARTS: Record<string, { label: string; about: string }> = {
   ads: { label: "Google Ads", about: "Lets you advertise your books. Nothing is spent unless you start an ad yourself." },
 };
 
+/** The words on Google's own sign-in button: Google's branding rules allow only a few, so every Connect uses this. */
+export const GOOGLE_BUTTON_WORDS = "Continue with Google";
+
 export const RECONNECT_WORDS = {
   title: "Google needs you to sign in again",
   text: "Google stopped letting Colophon in, often after a password change or removing access. Your shop keeps working, and your order emails go out from Colophon's address until you reconnect. Nothing is lost.",
-  button: "Reconnect Google",
 } as const;
 
 const TONE = { done: "success", waiting: "warning", failed: "danger" } as const;
