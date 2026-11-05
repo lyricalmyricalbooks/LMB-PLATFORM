@@ -12,7 +12,9 @@
 //   Drive          developers.google.com/drive/api/reference/rest/v3/files/create (a folder)
 //   YouTube        developers.google.com/youtube/v3/docs/channels/list, search/list
 //   Sheets         developers.google.com/workspace/sheets/api/reference/rest/v4/spreadsheets (create, values.clear, values.update);
-//                  the `drive.file` permission is enough for a sheet this app made (Google's Sheets scopes page)
+//                  the `drive.file` permission is enough for a sheet this app made (Google's Sheets scopes page);
+//                  spreadsheets.get and values.get read a sheet the press names by its link (`spreadsheets.readonly`,
+//                  "sensitive", not restricted)
 //   Calendar       developers.google.com/calendar/api/v3/reference/calendars/insert
 //   Business       developers.google.com/my-business/reference/accountmanagement/rest/v1/accounts/list
 //   Ads            developers.google.com/google-ads/api/reference/rpc (CustomerService.ListAccessibleCustomers,
@@ -67,6 +69,8 @@ export const SCOPES = Object.freeze({
   merchantCenter: ["https://www.googleapis.com/auth/content"],
   email: ["https://www.googleapis.com/auth/gmail.send"],
   drive: ["https://www.googleapis.com/auth/drive.file"],
+  // Asked with the Drive box (plan 23.42), kept apart so a press who unticks it on Google's page still gets backups.
+  sheets: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
   youtube: ["https://www.googleapis.com/auth/youtube.readonly"],
   calendar: ["https://www.googleapis.com/auth/calendar.app.created"],
   businessProfile: ["https://www.googleapis.com/auth/business.manage"],
@@ -77,7 +81,7 @@ export const SCOPES = Object.freeze({
  * Which parts join Google's first review and which wait for a second one (plan 15.12). The permission document
  * (docs/google-verification.md) lists each permission under one of these, and a test keeps the two in step.
  */
-export const LAUNCH_PARTS = Object.freeze(["identity", "analytics", "searchConsole", "merchantCenter", "email", "drive"]);
+export const LAUNCH_PARTS = Object.freeze(["identity", "analytics", "searchConsole", "merchantCenter", "email", "drive", "sheets"]);
 export const LATER_PARTS = Object.freeze(["youtube", "calendar", "businessProfile", "ads"]);
 
 /** Permissions Google calls restricted: they need a yearly outside security assessment, so none may be asked for. */

@@ -5,6 +5,7 @@ import { adminApi } from "./api";
 import { emailHash } from "./Customers";
 import { Checkbox, Dialog, PrimaryButton, SecondaryButton, StatusBadge } from "./riso/components";
 import { SPREADSHEET_ACCEPT, readProblem, readSpreadsheet, type SpreadsheetRead } from "./spreadsheetFile";
+import { GoogleSheetLink } from "./GoogleSheetLink";
 import { FirstRows, SheetChoice } from "./SheetChoice";
 import {
   IMPORTED_CONSENT_TEXT, newsletterJoiners, optedOutBy, planCustomerNotes, readCustomerExport, type CustomerMove, type CustomerWrite,
@@ -109,6 +110,7 @@ export function CustomerMoveDialog({ onClose, onDone }: { onClose: () => void; o
             <PrimaryButton icon={<Upload size={16} aria-hidden />} disabled={busy} onClick={() => fileRef.current?.click()}>
               {fileName ? "Choose another file" : "Choose customer file"}
             </PrimaryButton>
+            <GoogleSheetLink disabled={busy} onFile={(f) => void choose(f)} />
             {fileName && <span className="rp-mono" style={{ overflowWrap: "anywhere" }}>{fileName}</span>}
             {book && <SheetChoice sheets={book.sheets} sheet={book.sheet} disabled={busy} onChange={(s) => void choose(book.file, s)} />}
           </div>
