@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="rp cp-page">
+<html lang="en" class="rp cp-page cl">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,38 +7,55 @@
 <meta name="description" content="Set up a shop, a stockroom or both for your press. Setup is free and needs no card.">
 <meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700&family=DM+Mono&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="../signup/look/adminThemes.css">
 <link rel="stylesheet" href="../signup/look/pressroom.css">
+<link rel="stylesheet" href="../signup/look/colophon.css">
 <link rel="stylesheet" href="../signup/look/platform-pages.css">
 <link rel="stylesheet" href="../signup/look/brand-logos.css">
 <script src="../signup/look/platform-look.js"></script>
 <style>
-  /* The front door is one narrow column on every screen: one question at a time. */
-  .fd { max-width: 460px; margin: 0 auto; }
-  .fd-code { font-family: "DM Mono", monospace; font-size: 1.6rem; letter-spacing: .35em; text-align: center; }
+  /* The front door: the story and the three steps on a dark tile, one question at a time on a white one. */
+  .fd { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 16px; align-items: stretch; }
+  .cp .fd-story { padding: clamp(24px, 4vw, 36px); align-content: space-between; gap: 32px; }
+  .fd-story h1 { font: 600 clamp(36px, 4.5vw, 48px)/1.02 var(--rp-font-display); letter-spacing: -0.04em; margin: 0 0 16px; }
+  .cp .fd-story .cp-steps { display: grid; gap: 8px; margin: 0; }
+  .cp .fd-story .cp-steps li { min-height: 44px; padding: 0 16px; border-radius: 14px; background: var(--cl-dark-chip); color: var(--cl-on-dark-tile); box-shadow: none; }
+  .cp .fd-story .cp-steps li b { color: var(--cl-on-dark-tile-2); }
+  .cp .fd-story .cp-steps li[data-done]::after { margin-left: auto; color: var(--cl-mint); }
+  .cp .fd-story .cp-steps li[aria-current="step"] { background: var(--cl-on-dark-tile); color: var(--cl-dark-tile); }
+  .cp .fd-story .cp-steps li[aria-current="step"] b { color: var(--cl-dark-tile); }
+  .cp .fd-step { padding: clamp(24px, 4vw, 36px); align-content: start; }
+  .fd-step .cp-title { font-size: clamp(28px, 3.4vw, 34px); margin: 0; }
+  .fd-code { font-family: var(--rp-font-mono); font-size: 28px !important; letter-spacing: .35em; text-align: center; }
   .fd-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
   .fd-row > .primary { flex: 1 1 auto; }
   .fd-pick { display: grid; gap: 8px; }
-  .cp .fd-pick button.choice { display: grid; gap: 4px; justify-content: stretch; justify-items: start; text-align: left; min-height: 56px; padding: 12px 14px; line-height: 1.3; }
+  .cp .fd-pick button.choice { display: grid; gap: 4px; justify-content: stretch; justify-items: start; text-align: left; min-height: 56px; padding: 12px 18px; border-radius: 16px; line-height: 1.3; }
   .cp .fd-pick button.choice span { font-weight: 400; font-size: 12px; color: var(--rp-text-subtle); }
-  .fd-count { font-family: "DM Mono", monospace; font-size: .85rem; margin: 0; }
+  .fd-count { font: 400 12px/1 var(--rp-font-mono); color: var(--rp-text-subtle); margin: 0; white-space: nowrap; }
   /* Back sits with the question count above the question, Skip next to Continue, as in most sign-up flows. */
   .fd-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
   .fd-top .ghost { text-decoration: none; padding-inline: 0; }
   .fd-top .ghost::before { content: "\2190\00a0"; }
-  .fd-meter { height: 4px; background: var(--rp-divider); }
-  .fd-meter > span { display: block; height: 100%; background: var(--rp-primary); transition: width .25s ease; }
+  .fd-meter { height: 8px; border-radius: 999px; background: var(--rp-surface-2); overflow: hidden; }
+  .fd-meter > span { display: block; height: 100%; border-radius: 999px; background: var(--rp-inverse); transition: width .25s ease; }
   @media (prefers-reduced-motion: reduce) { .fd-meter > span { transition: none; } }
-  /* The plan tiles: name and what it is on the left, the price on the right. */
-  .fd-plans { display: grid; gap: 8px; }
-  .cp .fd-plans label.choice { grid-template-columns: 1fr auto; column-gap: 16px; align-items: center; padding: 14px 16px; }
-  .cp .fd-plans label.choice:has(input:checked) { padding: 13px 15px; }
-  .cp .fd-plans .fd-price { grid-column: 2; grid-row: 1 / span 3; text-align: right; font: 600 16px/1.2 var(--rp-font-body); color: var(--rp-text); white-space: nowrap; }
+  /* The plan tiles: three option cards, name and what it is on top, the price at the bottom. */
+  .fd-plans { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); }
+  .cp .fd-plans label.choice { grid-template-rows: auto auto 1fr auto; align-content: start; min-height: 168px; padding: 16px 18px; }
+  .cp .fd-plans .fd-price { align-self: end; margin-top: 18px; font: 600 20px/1.2 var(--rp-font-body); color: inherit; white-space: nowrap; }
   .cp .fd-plans .fd-price s { display: block; font-weight: 400; font-size: 12px; color: var(--rp-text-subtle); }
-  .cp .fd-plans .fd-price small { display: block; font: 400 11px/1.4 var(--rp-font-mono); color: var(--rp-text-subtle); }
-  .fd-plans .fd-tag { justify-self: start; font: 400 10px/1 var(--rp-font-mono); letter-spacing: .08em; text-transform: uppercase; border: 1px solid currentColor; padding: 3px 6px; margin-top: 4px; }
-  .fd-code::placeholder { color: var(--rp-text-subtle); opacity: .6; }
+  .cp .fd-plans .fd-price small { display: block; font: 400 11px/1.4 var(--rp-font-mono); color: var(--rp-text-subtle); white-space: normal; }
+  .cp .fd-plans label.choice:has(input:checked) .fd-price :is(s, small) { color: var(--cl-on-tile); }
+  .fd-plans .fd-tag { justify-self: start; font: 500 10px/1 var(--rp-font-mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 999px; padding: 4px 8px; margin-top: 6px; }
+  .fd-code::placeholder { color: var(--rp-text-faint); }
+  .fd-done .cp-dl { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .fd-done .cp-dl > div { padding: 14px 16px; border-radius: 14px; background: var(--rp-surface-2); }
+  .fd-done .cp-dl dt { font-size: 13px; }
+  .fd-done .cp-dl dd { padding: 4px 0 0; text-align: left; overflow-wrap: anywhere; }
+  @media (max-width: 900px) { .fd { grid-template-columns: minmax(0, 1fr); } .cp .fd-story { gap: 20px; } .cp .fd-plans label.choice { min-height: 0; } }
+  @media (max-width: 480px) { .fd-done .cp-dl { grid-template-columns: minmax(0, 1fr); } }
 </style>
 </head>
 <body class="cp">
@@ -47,16 +64,20 @@
   <nav aria-label="Colophon"><a href="../waitlist/">Plans</a><a href="../help/">Help</a></nav></div></header>
 <div class="cp-wrap">
 <main id="main" tabindex="-1" class="cp-main fd">
-  <ol class="cp-steps" aria-label="Steps">
-    <li data-step="email"><b>01</b> Your email</li>
-    <li data-step="code"><b>02</b> Your code</li>
-    <li data-step="press"><b>03</b> Your press</li>
-  </ol>
+  <aside class="card cp-dark fd-story">
+    <div><h1>Start your shop.</h1>
+    <p class="cp-lede">Setup is free and needs no card. Your free trial starts the day your shop opens.</p></div>
+    <ol class="cp-steps" aria-label="Steps">
+      <li data-step="email"><b>01</b> Your email</li>
+      <li data-step="code"><b>02</b> Your code</li>
+      <li data-step="press"><b>03</b> Your press</li>
+    </ol>
+  </aside>
+  <div class="card fd-step">
 
   <!-- 1. Email, or Google. New and returning presses come in the same way. -->
   <section id="view-email" class="stack" aria-labelledby="email-title">
-    <div><h1 id="email-title" tabindex="-1" class="cp-title">Start your shop</h1>
-    <p class="cp-lede">Setup is free and needs no card. Your free trial starts the day your shop opens.</p></div>
+    <h2 id="email-title" tabindex="-1" class="cp-title">What's your email?</h2>
     <button type="button" id="google" class="gsi-button"><span class="gsi-button-g"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg></span><span class="gsi-button-text">Continue with Google</span></button>
     <p class="or">or</p>
     <form id="email-form" class="stack" novalidate>
@@ -139,21 +160,20 @@
   </section>
 
   <!-- 4. Saved: what the press told us, then on to the admin and its setup guide. -->
-  <section id="view-done" class="stack" hidden aria-labelledby="done-title">
+  <section id="view-done" class="stack fd-done" hidden aria-labelledby="done-title">
     <h2 id="done-title" tabindex="-1" class="cp-title">Setting up <span id="done-name">your press</span></h2>
-    <div class="card">
-      <dl class="cp-dl">
-        <dt>Setting up</dt><dd id="done-plan"></dd>
-        <dt>Press</dt><dd id="done-press"></dd>
-        <dt>You sell</dt><dd id="done-sells"></dd>
-        <dt>Country</dt><dd id="done-country"></dd>
-      </dl>
-    </div>
+    <dl class="cp-dl">
+      <div><dt>Setting up</dt><dd id="done-plan"></dd></div>
+      <div><dt>Press</dt><dd id="done-press"></dd></div>
+      <div><dt>You sell</dt><dd id="done-sells"></dd></div>
+      <div><dt>Country</dt><dd id="done-country"></dd></div>
+    </dl>
     <p id="done-next">Everything is saved. Your setup guide walks you through the rest, and nothing is charged until you open your shop.</p>
     <div class="fd-row"><a class="button primary" id="done-go" hidden href="">Go to your setup guide</a><button type="button" class="ghost" id="done-change">Change an answer</button></div>
     <button type="button" class="ghost" id="sign-out">Sign out</button>
   </section>
 
+  </div>
   <p id="status" role="status" aria-live="polite"></p>
 </main>
 </div>

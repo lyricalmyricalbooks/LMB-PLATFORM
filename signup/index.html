@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="rp cp-page">
+<html lang="en" class="rp cp-page cl">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,9 +7,10 @@
 <meta name="description" content="Start a shop, a stockroom or both for your press. Free for 14 days, no card needed.">
 <meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700&family=DM+Mono&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="./look/adminThemes.css">
 <link rel="stylesheet" href="./look/pressroom.css">
+<link rel="stylesheet" href="./look/colophon.css">
 <link rel="stylesheet" href="./look/platform-pages.css">
 <link rel="stylesheet" href="./look/brand-logos.css">
 <script src="./look/platform-look.js"></script>
@@ -17,7 +18,7 @@
 <body class="cp">
 <a class="rp-skip-link" href="#main">Skip to content</a>
 <header class="cp-mast"><div class="cp-wrap"><a class="cp-word" href="../waitlist/">Colophon<small>start your free trial</small></a>
-  <nav aria-label="Colophon"><a href="../waitlist/">Plans</a><a href="../help/">Help</a><a href="../account/">Your shops</a></nav></div></header>
+  <nav aria-label="Colophon"><a href="../waitlist/">Plans</a><a href="../help/">Help</a><a class="cp-nav-cta" href="../account/">Your shops</a></nav></div></header>
 <div class="cp-wrap">
 <main id="main" tabindex="-1" class="cp-main">
   <ol class="cp-steps" aria-label="Steps">
@@ -32,7 +33,7 @@
   <p id="sample-press" hidden>Want to look around first? <a href="">Try a sample press</a>. Nothing you do there is saved.</p>
 
   <!-- 1. Sign in: an email link or Google. No password to remember. -->
-  <section id="view-signin" class="stack" aria-labelledby="signin-title">
+  <section id="view-signin" class="card stack" aria-labelledby="signin-title">
     <h2 id="signin-title" tabindex="-1" class="cp-view-title">Sign in</h2>
     <p class="hint">One sign-in, no password to remember. We use it to set everything up for you.</p>
     <button type="button" id="google" class="gsi-button"><span class="gsi-button-g"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg></span><span class="gsi-button-text">Continue with Google</span></button>
@@ -44,14 +45,14 @@
     </form>
   </section>
 
-  <section id="view-check" class="stack" hidden aria-labelledby="check-title">
+  <section id="view-check" class="card stack" hidden aria-labelledby="check-title">
     <h2 id="check-title" tabindex="-1" class="cp-view-title">Check your email</h2>
     <p>We sent a sign-in link to <strong id="check-email"></strong>. Open it on this device to carry on.</p>
     <button type="button" class="ghost" id="check-again">Use another email</button>
   </section>
 
   <!-- 2. About your press: its name, the plan, where it is, and one question it can skip. -->
-  <section id="view-details" hidden aria-labelledby="details-title">
+  <section id="view-details" class="card" hidden aria-labelledby="details-title">
     <form id="details-form" class="stack" novalidate style="gap:20px">
       <h2 id="details-title" tabindex="-1" class="cp-view-title">About your press</h2>
       <label>Press name<input name="pressName" autocomplete="organization" maxlength="80" required></label>
@@ -114,7 +115,7 @@
   </section>
 
   <!-- 3. The shop is being made: progress, then the way in, or a plain "try again". -->
-  <section id="view-making" class="stack" hidden aria-labelledby="making-title">
+  <section id="view-making" class="card stack" hidden aria-labelledby="making-title">
     <h2 id="making-title" tabindex="-1" class="cp-view-title">Making your shop</h2>
     <div id="shops" class="stack"></div>
   </section>
@@ -123,7 +124,7 @@
   <!-- The new shop as it's being described: the address, the plan and when the trial ends. -->
   <aside class="card" id="summary" aria-label="Your new shop">
     <div class="row"><h3>Your new shop</h3><span class="pill" data-tone="info">Free trial</span></div>
-    <div class="cp-mock" style="box-shadow:6px 6px 0 var(--rp-primary)"><div class="cp-mock-bar"><i></i><i></i><i></i><span style="margin-left:8px;overflow-wrap:anywhere" id="summary-address">yourpress.web.app</span></div><div style="padding:18px"><div class="cp-kicker" id="summary-press">Your press</div><div class="cp-summary-big" id="summary-sells">Books &amp; more</div></div></div>
+    <div class="cp-mock"><div class="cp-mock-bar"><i></i><i></i><i></i><span style="margin-left:8px;overflow-wrap:anywhere" id="summary-address">yourpress.web.app</span></div><div style="padding:18px"><div class="cp-kicker" id="summary-press">Your press</div><div class="cp-summary-big" id="summary-sells">Books &amp; more</div></div></div>
     <dl class="cp-dl">
       <dt>Plan</dt><dd id="summary-plan">Shop and stockroom</dd>
       <dt>Free trial</dt><dd id="summary-trial"><span data-trial-days>14</span> days</dd>

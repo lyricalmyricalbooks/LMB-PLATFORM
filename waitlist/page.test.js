@@ -28,7 +28,8 @@ test("the name is final: never called a working name, a placeholder or a code na
 });
 
 test("the name is spelled one way everywhere on the page", () => {
-  const spellings = new Set(page.match(/colophon/gi));
+  // The look file look/colophon.css is a file name, not the name on the page.
+  const spellings = new Set(page.replace(/colophon\.css/g, "").match(/colophon/gi));
   assert.deepEqual([...spellings], [NAME]);
 });
 

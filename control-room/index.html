@@ -6,11 +6,14 @@
 <title>Control room · Colophon</title>
 <meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700&family=DM+Mono&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap">
 <!-- The admin look (Pressroom), copied from shared/admin-look/ by its sync.mjs: never edit these copies here. -->
 <link rel="stylesheet" href="./look/adminThemes.css">
 <link rel="stylesheet" href="./look/pressroom.css">
+<link rel="stylesheet" href="./look/colophon.css">
 <link rel="stylesheet" href="./look/brand-logos.css">
+<!-- The control room's own layer of the Colophon look (layout and shapes; colours come from colophon.css). -->
+<link rel="stylesheet" href="./room.css">
 <style>
   /* Layout only: every colour, line and type size comes from the admin's tokens above. */
   body { margin: 0; }
@@ -65,15 +68,12 @@
   .rp .rp-card { background: var(--rp-surface); }
   .rp .rp-state { border: 1px dashed var(--rp-border); background: var(--rp-surface); }
   .cr-topbar-title { font: 400 13px/1 var(--rp-font-mono); color: var(--rp-text-subtle); }
-  .cr-look { display: inline-flex; gap: 4px; }
-  .cr-look .rp-btn[aria-pressed="true"] { background: var(--rp-text); border-color: var(--rp-text); color: var(--rp-canvas); }
   .rp-sidebar-foot .cr-who { padding: 12px; border-top: 1px solid var(--rp-rail-line); color: var(--rp-on-inverse); font-size: 13px; overflow-wrap: anywhere; }
   .rp-sidebar-foot .cr-who span { display: block; color: var(--rp-rail-faint); font: 400 11px/1.5 var(--rp-font-mono); }
   .rp-sidebar-foot .cr-signout { margin-top: 8px; padding: 0; min-height: 32px; border: 0; background: none; color: var(--rp-on-inverse); font: 400 13px var(--rp-font-body); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
   /* Phone (plan 13.12): the things you press are at least 44px tall. */
   @media (pointer: coarse), (max-width: 860px) { .rp-sidebar-foot .cr-signout { min-height: 44px; padding-inline: 4px; } }
   @media (pointer: coarse), (max-width: 767px) { .rp button.rp-tab { min-height: 44px !important; } }
-  @media (max-width: 767px) { .rp:not(.studio-editor) .rp-topbar-wordmark { display: inline-flex; align-items: center; min-height: 44px; } }
   .cr-qr { width: 220px; max-width: 100%; margin: 16px auto; padding: 8px; background: var(--rp-surface); border: 1px solid var(--rp-border); }
   .cr-qr:empty { display: none; }
   .cr-qr img { display: block; width: 100%; height: auto; image-rendering: pixelated; }
@@ -94,7 +94,7 @@
   @media (max-width: 767px) {
     .cr-facts { grid-template-columns: 1fr; gap: 2px; }
     .cr-facts dd { margin-bottom: 8px; }
-    .cr-topbar-title, .cr-look { display: none; }
+    .cr-topbar-title { display: none; }
     .cr-toolbar .rp-field { flex: 1 1 90px; min-width: 0; }
     .cr-toolbar .rp-field.cr-grow { flex: 1 1 100%; }
     .rp .rp-table .cr-actions { flex-wrap: wrap; justify-content: flex-start; }
@@ -106,7 +106,7 @@
 </style>
 </head>
 <body>
-<div class="rp" id="room" data-rp-appearance="light">
+<div class="rp cl" id="room" data-rp-appearance="light">
   <a class="rp-skip-link" href="#rp-main">Skip to content</a>
 
   <!-- Signing in: the website admin's sign-in card. -->
@@ -195,13 +195,9 @@
         <button type="button" class="rp-icon-btn rp-menu-only" id="menu-open" aria-label="Open menu" aria-expanded="false" aria-controls="sidebar">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
         </button>
-        <a class="rp-topbar-wordmark" href="#today">Control room</a>
-        <span class="cr-topbar-title" id="topbar-title">Colophon · control room</span>
+        <a class="cr-brand" href="#today" aria-label="Control room: go to Today"><b>colophon</b><span class="cr-tag">CONTROL ROOM</span></a>
+        <span class="cr-topbar-title rp-sr-only" id="topbar-title">Colophon · control room</span>
         <div class="rp-topbar-actions">
-          <div class="cr-look" role="group" aria-label="Look">
-            <button type="button" class="rp-btn rp-btn-ghost rp-btn-sm" data-look="riso" aria-pressed="true">Riso Press</button>
-            <button type="button" class="rp-btn rp-btn-ghost rp-btn-sm" data-look="paper" aria-pressed="false">Paper</button>
-          </div>
           <button type="button" class="rp-btn rp-btn-ghost rp-btn-sm" id="appearance" aria-pressed="false">Night</button>
           <span class="rp-status-pill" title="The control room only opens with your account and a code from your authenticator app"><span class="rp-status-dot" aria-hidden="true"></span>Two-step on</span>
         </div>
