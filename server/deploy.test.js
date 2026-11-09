@@ -41,7 +41,8 @@ test("each service is told its role and test mode, and gets only the keys it nee
   assert.ok(invoker.args.includes("--member=serviceAccount:platform-scheduler@lmb-platform-prod.iam.gserviceaccount.com"));
   assert.ok(invoker.args.includes("--role=roles/run.invoker"));
   const hosting = steps.at(-1);
-  assert.equal(hosting.cwd, "waitlist");
+  assert.equal(hosting.cwd, "site/out");
+  assert.deepEqual(steps.at(-2).args, ["site/build.js", "--api"]);
   assert.deepEqual(hosting.args.slice(-5), ["deploy", "--only", "hosting", "--project", "lmb-platform-prod"]);
   assert.throws(() => deployPlan({ version: "main", envFiles: files }), /commit id/);
 });
@@ -55,7 +56,7 @@ test("without --apply it prints the plan and runs nothing", async () => {
   const text = lines.join("\n");
   assert.match(text, /gcloud run deploy platform-api /);
   assert.match(text, /gcloud builds submit .*--config=server\/cloudbuild\.yaml --ignore-file=server\/\.gcloudignore/);
-  assert.match(text, /\(cd waitlist && npx --yes firebase-tools@15\.32\.1 deploy --only hosting --project lmb-platform-prod\)/);
+  assert.match(text, /\(cd site\/out && npx --yes firebase-tools@15\.32\.1 deploy --only hosting --project lmb-platform-prod\)/);
   assert.match(lines.at(-1), /Nothing was changed/);
   await assert.rejects(deploy({ version: VERSION, settingsText: "HEALTH_ALERT_TO: a@example.com\nPLATFORM_URL: https://platform.example", writeEnv, print: () => {} }), /needs PLATFORM_ADMIN_EMAILS/);
 });

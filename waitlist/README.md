@@ -16,9 +16,8 @@ switches the form off.
 Check it: `npx firebase-tools@15.32.1 emulators:exec --only firestore --project demo-waitlist "node firestore-emulator.mjs"`
 (CI job `waitlist-rules`).
 
-Publish it (a deliberate step on the owner's machine, never from CI):
-`firebase deploy --only firestore:rules,hosting --project lmb-platform-prod` from this folder. There is no `.firebaserc`,
-so a deploy has to name the project.
+Publish it: GitHub does, on every merge to main, as the front page of the whole platform site (`site/`, with the
+rules in this folder). This folder's `firebase.json` is no longer used for a deploy.
 
 The product is called Colophon (`page.test.js` keeps the page on that name). Which domain to buy: run
 `node waitlist/domain-check.js` (it only reads, over RDAP) and see `docs/name-and-domain.md`.
