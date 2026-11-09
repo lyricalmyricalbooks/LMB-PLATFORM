@@ -94,6 +94,23 @@ export class ControlError extends Error {
 }
 
 /** The platform admins, from PLATFORM_ADMIN_EMAILS (comma-separated). Empty unless set. */
+/**
+ * A Stripe press's payouts for its record, in a few words: "on · every Friday", "on · every day, 2 days after a sale",
+ * "paused". null for Square (it pays out by itself) or before Stripe has said.
+ */
+export function payoutWords(payments) {
+  if (!payments || payments.provider === "square" || typeof payments.payoutsEnabled !== "boolean") return null;
+  if (!payments.payoutsEnabled) return "paused";
+  const s = payments.payoutSchedule;
+  const when = !s ? null
+    : s.interval === "manual" ? "started by hand"
+    : s.interval === "daily" ? `every day${s.delayDays ? `, ${s.delayDays} ${s.delayDays === 1 ? "day" : "days"} after a sale` : ""}`
+    : s.interval === "weekly" && s.weeklyAnchor ? `every ${s.weeklyAnchor[0].toUpperCase()}${s.weeklyAnchor.slice(1)}`
+    : s.interval === "monthly" && s.monthlyAnchor ? `monthly, on day ${s.monthlyAnchor}`
+    : null;
+  return when ? `on · ${when}` : "on";
+}
+
 export function controlRoomAdmins(env = process.env) {
   return String(env.PLATFORM_ADMIN_EMAILS ?? "").split(",").map((e) => e.trim().toLowerCase()).filter((e) => e.includes("@"));
 }
@@ -435,7 +452,7 @@ export function createControlRoom({
         emailSample: emailSample(row, settings ? await settings() : platformSettings({}), now()),
         setup: [...lastByStep.values()].map(({ step, name, ok, error, at, finishedAt }) => ({ step, name: name ?? null, ok: ok !== false && !error, at: finishedAt ?? at ?? null, error: error ?? null })),
         connections: {
-          payments: row.payments ? { provider: row.payments.provider ?? null, connected: Boolean(row.payments.accountId) } : null,
+          payments: row.payments ? { provider: row.payments.provider ?? null, connected: Boolean(row.payments.accountId), payouts: payoutWords(row.payments) } : null,
           domains: row.domains ?? null,
           google: row.google ?? null,
           email: row.emailSending ?? null,

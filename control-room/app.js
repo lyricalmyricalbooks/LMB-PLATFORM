@@ -491,7 +491,7 @@ function recordView(record) {
     ["Plan", billing ? `${billing.plan ?? record.plan} · ${BILLING_WORDS[billing.status] ?? billing.status}${billing.trialEnd ? ` · trial ends ${dateOnly(billing.trialEnd)}` : ""}${billing.currentPeriodEnd ? ` · next payment ${dateOnly(billing.currentPeriodEnd)}` : ""} · ${billing.hasCard ? "card on file" : "no card yet"}${billing.cancelAtPeriodEnd ? " · cancelling" : ""}` : record.plan],
     ["Sells", record.sells?.line ?? ""],
     ["Emails", EMAIL_LANGUAGE_WORDS[record.emailLanguage] ?? ""],
-    ["Payments", connections.payments ? `${CARD_WORDS[connections.payments.provider] ?? connections.payments.provider ?? "?"}${connections.payments.connected ? ", connected" : ", not connected yet"}` : "not set up yet"],
+    ["Payments", connections.payments ? `${CARD_WORDS[connections.payments.provider] ?? connections.payments.provider ?? "?"}${connections.payments.connected ? ", connected" : ", not connected yet"}${connections.payments.payouts ? ` · payouts ${connections.payments.payouts}` : ""}` : "not set up yet"],
     ["Web address", Array.isArray(connections.domains) && connections.domains.length ? connections.domains.map(addressWords).join(", ") : "the shop's own .web.app address"],
     ["Version", record.version ?? "none yet"],
   ].filter(([, value]) => value);
