@@ -190,7 +190,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const invites = createInvites({ invites: inviteStore, email, settings, now });
   const signInLinkMaker = signInLinks({ fetch, token, projectId });
   const signup = createSignup({
-    ...stores, registry, billing, email, auth: signInLinkMaker, settings, invites, live, now,
+    ...stores, registry, billing, email, auth: signInLinkMaker, settings, invites, admins: controlRoomAdmins(env), live, now,
   });
   // The front door (18.4): the six-digit code and each press's setup record, before any shop exists.
   const stagedFiles = notConnectedClient(NOT_CONNECTED.stagedImports, ["uploadUrl", "stat", "read", "remove"]);

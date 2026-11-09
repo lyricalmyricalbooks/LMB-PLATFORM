@@ -147,6 +147,8 @@ export function firebaseJson({ api, app }) {
         // Pages and their scripts change with every release: always check for a new copy. Setup mode's built files carry
         // their own content hash, so they can be kept.
         { source: "**/*.@(html|js|css)", headers: [{ key: "Cache-Control", value: "no-cache" }] },
+        // Pictures and fonts change rarely: browsers keep them a day, which saves the site's download bill.
+        { source: "**/*.@(svg|png|ico|webp|jpg|jpeg|gif|woff|woff2)", headers: [{ key: "Cache-Control", value: "public, max-age=86400" }] },
         ...(app ? [{ source: "/app/assets/**", headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }] }] : []),
       ],
     },
