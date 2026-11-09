@@ -1021,7 +1021,7 @@ function loadChitChats() {
         rows: shops,
         open: (s) => { const shop = allShops.find((x) => x.shopId === s.shopId); if (shop) openShop(shop); },
         columns: [
-          { header: "Press", lead: true, render: (s) => el("div", {}, el("p", { className: "cr-title", textContent: s.pressName }), meta(s.connectedAt ? `since ${dateOnly(s.connectedAt)}` : null)) },
+          { header: "Press", lead: true, render: (s) => el("div", {}, el("p", { className: "cr-title", textContent: s.pressName }), meta(s.connectedAt ? `since ${dateOnly(s.connectedAt)}` : null, s.emailsOff ? "emails off" : null)) },
           { header: "Waiting for tracking", render: (s) => (s.waiting ? el("div", {}, el("p", { textContent: plural(s.waiting, "order") }), s.late ? pill("warning", `oldest over ${waitingDays} days`) : null) : "none") },
           { header: "", end: true, render: state },
         ],

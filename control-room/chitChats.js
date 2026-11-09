@@ -39,6 +39,8 @@ export function createChitChatsDesk({ admins, chitchats, stores, registry, now =
           problems: problems.length,
           problemOrders: problems.slice(0, PROBLEMS_SHOWN).map((s) => ({ orderNumber: s.orderNumber ?? s.orderId, words: String(s.problem ?? "").slice(0, 200) || null, at: s.updatedAt ?? s.createdAt ?? null })),
           lastProblem: row.lastProblem ? { at: row.lastProblem.at ?? null, words: String(row.lastProblem.words ?? "").slice(0, 200) } : null,
+          // The press turned off the emails about late or refused orders: the owner may want to phone instead.
+          emailsOff: row.emailsOff === true,
         });
       });
       const needs = (s) => (s.lastProblem ? 4 : 0) + (s.problems ? 2 : 0) + (s.late ? 1 : 0);

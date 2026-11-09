@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { adminApi } from "./api";
 import { ConfirmButton, GhostButton, PrimaryButton, SecondaryButton, StatusBadge } from "./riso/components";
 import { friendlyError } from "./settingsLayout";
-import { needsLine, otherProvider, providerName, switchingLine, switchStage, type SwitchAnswer } from "./platformPayments";
+import { movedLine, needsLine, otherProvider, providerName, switchingLine, switchStage, type SwitchAnswer } from "./platformPayments";
 
 // Settings › Payments › Card payments: moving the shop from Stripe to Square or back after it opens (code plan 27.6c).
 // Connect the other account, press Switch, and Colophon moves the shop over. Older orders keep refunding through the
@@ -74,7 +74,7 @@ export function SwitchProviderSection({ current }: { current: "stripe" | "square
         ) : stage === "connecting" ? (
           <p style={{ margin: 0 }}>{needs ?? `${name} can't take cards yet.`}</p>
         ) : (
-          <p className="rp-hint" style={{ margin: 0 }}>Older orders stay with {from} for refunds.</p>
+          <p className="rp-hint" style={{ margin: 0 }}>{movedLine(answer, current) ?? `Older orders stay with ${from} for refunds.`}</p>
         )}
         {error && <p role="alert" className="rp-hint" style={{ margin: 0, color: "var(--rp-danger)" }}>{error}</p>}
         {stage !== "switching" && (

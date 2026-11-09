@@ -230,3 +230,8 @@ test("pressing Switch to a Stripe account Stripe hasn't checked yet is refused, 
   await w.registry.updateShop(SHOP, { paymentsEmergency: { to: "own" } });
   assert.deepEqual(codeOf(await w.call("account.switch")), [409, "emergency_move"]);
 });
+
+test("with no switch under way, the next account's status names the accounts the shop sold through before, without ids", async () => {
+  const w = await world({ ...STRIPE_SHOP, earlier: [{ provider: "square", accountId: "MERCHANT0", until: "2026-10-01T12:00:00.000Z" }] });
+  assert.deepEqual((await w.call("account.status", { which: "next" })).body, { next: null, earlier: [{ provider: "square", until: "2026-10-01T12:00:00.000Z" }] });
+});

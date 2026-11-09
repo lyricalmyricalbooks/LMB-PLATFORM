@@ -71,7 +71,7 @@ function showConnected(answer) {
   $("#waiting").hidden = !answer.waiting;
   $("#waiting").textContent = answer.waiting === 1 ? "1 order is waiting for postage." : `${answer.waiting} orders are waiting for postage.`;
   $("#last-problem").hidden = !answer.lastProblem;
-  $("#last-problem").textContent = answer.lastProblem?.words ?? "";
+  $("#last-problem").textContent = answer.lastProblem ? `Chit Chats stopped accepting your details${answer.lastProblem.words ? `: ${String(answer.lastProblem.words).replace(/\.$/, "")}` : ""}. Press Change details to enter them again.` : "";
   $("#emails").checked = answer.emails !== false;
   show("connected");
 }
