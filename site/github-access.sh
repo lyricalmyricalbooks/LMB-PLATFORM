@@ -19,8 +19,15 @@ NUMBER=$(gcloud projects describe "$PROJECT" --format='value(projectNumber)')
 echo "1. Switching on the Google services a deploy uses"
 gcloud services enable --project="$PROJECT" iam.googleapis.com iamcredentials.googleapis.com sts.googleapis.com \
   cloudresourcemanager.googleapis.com serviceusage.googleapis.com firebasehosting.googleapis.com \
-  firebaserules.googleapis.com firestore.googleapis.com run.googleapis.com cloudbuild.googleapis.com \
-  artifactregistry.googleapis.com secretmanager.googleapis.com cloudscheduler.googleapis.com
+  firebaserules.googleapis.com firestore.googleapis.com
+# The server's services (Cloud Run and the rest) only switch on once the project has a billing account. Without one the
+# pages still go live; run this script again after adding billing to get the server's part too.
+SERVER_SERVICES=yes
+if ! gcloud services enable --project="$PROJECT" run.googleapis.com cloudbuild.googleapis.com \
+  artifactregistry.googleapis.com secretmanager.googleapis.com cloudscheduler.googleapis.com compute.googleapis.com 2> /dev/null; then
+  SERVER_SERVICES=no
+  echo "   The server's services need billing on the project, so they are left off for now. The pages don't need it."
+fi
 
 echo "2. The deploy account"
 gcloud iam service-accounts describe "$EMAIL" --project="$PROJECT" > /dev/null 2>&1 ||
@@ -47,6 +54,7 @@ fi
 gcloud iam service-accounts add-iam-policy-binding "$EMAIL" --project="$PROJECT" --role=roles/iam.workloadIdentityUser \
   --member="principalSet://iam.googleapis.com/projects/$NUMBER/locations/global/workloadIdentityPools/$POOL/attribute.repository_id/$REPO_ID" > /dev/null
 
+if [ "$SERVER_SERVICES" = yes ]; then
 echo "4. The server's two link phrases (random; nobody needs to know them)"
 for secret in trial-tips-secret checkup-secret; do
   gcloud secrets describe "$secret" --project="$PROJECT" > /dev/null 2>&1 ||
@@ -58,6 +66,9 @@ BUILDER="$NUMBER-compute@developer.gserviceaccount.com"
 for role in artifactregistry.writer storage.objectViewer logging.logWriter; do
   gcloud projects add-iam-policy-binding "$PROJECT" --member="serviceAccount:$BUILDER" --role="roles/$role" --condition=None --quiet > /dev/null
 done
+else
+echo "4-5. Skipped until the project has billing (the server's phrases and Cloud Build's roles)."
+fi
 
 echo
 echo "Done. GitHub can now deploy: open https://github.com/lyricalmyricalbooks/LMB-PLATFORM/actions/workflows/deploy.yml and press Run workflow."
