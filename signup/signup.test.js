@@ -159,6 +159,21 @@ test("closed sign-up: a new press needs an invite; one already signed up carries
   await assert.rejects(closedByDefault.start(ADA, details), (error) => error.status === 403);
 });
 
+test("closed sign-up: a platform admin may start a shop without an invite, so the owner can try it end to end", async () => {
+  const { stores, registry, email, trials } = make();
+  const billing = { startTrial: async (a) => (trials.push(a), { status: "trialing" }) };
+  const invites = fakeInvites([]);
+  const signup = createSignup({ ...stores, registry, billing, email, auth: fakeAuth(), settings: platformSettings({}), invites, admins: [" ADA@example.com "], live: async () => ({ signupOpen: false, signupDailyCap: 0 }), suffix: () => "ddddd" });
+  assert.equal((await signup.start(ADA, details)).status, "queued", "the admin skips the waitlist and the daily cap");
+  const BEA = { uid: "uid-bea", email: "bea@example.com", email_verified: true, name: "Bea" };
+  await assert.rejects(signup.start(BEA, { ...details, pressName: "Bea Books" }), (error) => error.status === 403, "everyone else still needs an invite");
+  const unconfirmed = { ...ADA, uid: "uid-ada-2", email_verified: false };
+  await assert.rejects(signup.start(unconfirmed, { ...details, pressName: "Third Press" }), "an admin's email must be confirmed too");
+  // No invite store at all: the admin still gets in, and nothing tries to use up an invite.
+  const bare = createSignup({ ...fakeSignupStores(), registry: fakeRegistry(), billing, email, auth: fakeAuth(), settings: platformSettings({}), admins: ["ada@example.com"], live: async () => ({ signupOpen: false, signupDailyCap: 10 }) });
+  assert.equal((await bare.start(ADA, details)).status, "queued");
+});
+
 test("a new press can't take over an address this account already uses", async () => {
   const { signup, stores, trials } = make();
   const { shopId } = await signup.start(ADA, details);

@@ -5,3 +5,7 @@ steps:
     args: ["build", "--file", "server/Dockerfile", "--tag", "${_IMAGE}", "."]
 images:
   - "${_IMAGE}"
+# The build's log goes to Cloud Logging only, not the default logs bucket: reading that bucket needs Viewer on the whole
+# project, which the deploy account doesn't hold, and without it gcloud stops waiting and fails the deploy.
+options:
+  logging: CLOUD_LOGGING_ONLY
