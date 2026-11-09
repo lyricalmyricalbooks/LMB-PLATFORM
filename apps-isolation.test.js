@@ -47,8 +47,10 @@ test("no app copy has a default Firebase project", () => {
 });
 
 // Nothing here may publish a site: no custom-domain file (GitHub Pages would claim that address) and no workflow in
-// the root folder, the only one GitHub runs, that deploys. The one exception is walkthrough-site.yml (the owner asked
-// for the walkthrough on GitHub Pages, 29 October 2026): it publishes pictures of pretend data and nothing else.
+// the root folder, the only one GitHub runs, that deploys. Two exceptions: walkthrough-site.yml (the owner asked for the
+// walkthrough on GitHub Pages, 29 October 2026), which publishes pictures of pretend data and nothing else, and
+// deploy.yml (the owner asked for the platform to be launched from GitHub, 9 November 2026), which deploys the
+// platform's own project only, from main only (checked below).
 test("no app copy claims a web address", () => {
   const found = [...files("apps")].filter((path) => basename(path) === "CNAME");
   assert.deepEqual(found, []);
@@ -57,10 +59,20 @@ test("no app copy claims a web address", () => {
 test("no workflow deploys anything", () => {
   const dir = ".github/workflows";
   const deploys = readdirSync(dir).filter((name) =>
-    name !== "walkthrough-site.yml" &&
+    name !== "walkthrough-site.yml" && name !== "deploy.yml" &&
     /firebase\s+deploy|deploy-pages|FirebaseExtended\/action-hosting-deploy|peaceiris\/actions-gh-pages/i.test(readFileSync(join(dir, name), "utf8")),
   );
   assert.deepEqual(deploys, []);
+});
+
+test("the platform deploy reaches the platform's own project only, from main only", () => {
+  const text = readFileSync(join(".github/workflows", "deploy.yml"), "utf8");
+  const projects = new Set([...text.matchAll(/--project[= ]"?\$?([\w-]+)/g)].map((m) => m[1]));
+  assert.deepEqual([...projects], ["PROJECT"], "every deploy names $PROJECT");
+  assert.match(text, /^  PROJECT: lmb-platform-prod$/m);
+  assert.match(text, /github\.ref == 'refs\/heads\/main'/);
+  assert.doesNotMatch(text, /pull_request/, "a pull request never deploys");
+  assert.doesNotMatch(text, /secrets\./, "the deploy signs in with GitHub's identity, never a stored key");
 });
 
 // The copies are a general shop and stockroom for any press: nothing in them may name Lyricalmyrical, send people to

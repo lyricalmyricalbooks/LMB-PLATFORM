@@ -97,7 +97,8 @@ test("the run book: pause releases, roll back a shop, post a status note; each l
 
   // Pause: a release no longer starts.
   assert.equal((await w.ask(BACKUP, "POST", "/api/control/emergency/pause-releases", { reason: WHY })).status, 200);
-  const blocked = await runRelease({ version: "1.2.0", ...w.clients, paused: () => w.access.status(BACKUP).then((s) => s.releasesPaused) });
+  // A weekday afternoon: the weekend window (plan 13.6) would stop the release before the pause is even asked.
+  const blocked = await runRelease({ version: "1.2.0", ...w.clients, now: () => new Date("2026-11-04T15:00:00Z"), paused: () => w.access.status(BACKUP).then((s) => s.releasesPaused) });
   assert.deepEqual([blocked.ok, blocked.paused.by], [false, "backup@example.com"]);
   assert.deepEqual(w.releases.builds, []);
 

@@ -38,6 +38,7 @@ Julian's own website and stockroom repos are never changed for the platform; the
 | `signup/` | Sign-up, plan choice and billing. |
 | `accounts/` | One sign-in for every shop a person belongs to: the shop switcher, and invites with a role for each shop's team. |
 | `waitlist/` | The public waitlist page. |
+| `site/` | The platform's live web site at https://lmb-platform-prod.web.app: every platform page built into one folder and put live by GitHub on every merge to main. |
 | `help/` | Plain answers to the questions presses ask most, one for every first-week step, and what our help includes, as one static page with search. |
 | `experts/` | A page of independent people for the work help doesn't cover (design, photos, packing, bookkeeping, writing); no booking, payment or fee here. |
 | `terms/` | The terms, privacy policy, data agreement and shutdown promise on one page, with the version sign-up records. |

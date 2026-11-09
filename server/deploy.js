@@ -121,7 +121,9 @@ export function deployPlan({ project = DEFAULT_PROJECT, region = REGION, version
     title: "Let only the scheduler call the jobs server",
     command: "gcloud", args: ["run", "services", "add-iam-policy-binding", JOBS_SERVICE, ...at, `--region=${region}`, `--member=serviceAccount:${schedulerAccount(project)}`, "--role=roles/run.invoker"],
   });
-  steps.push({ title: "Send the platform's /api addresses to the web door (Hosting)", command: "npx", args: ["--yes", FIREBASE_TOOLS, "deploy", "--only", "hosting", "--project", project], cwd: "waitlist" });
+  // The whole platform site (site/build.js), now with its /api addresses sent to the web door.
+  steps.push({ title: "Build the platform's pages with the server's addresses on", command: "node", args: ["site/build.js", "--api"] });
+  steps.push({ title: "Send the platform's /api addresses to the web door (Hosting)", command: "npx", args: ["--yes", FIREBASE_TOOLS, "deploy", "--only", "hosting", "--project", project], cwd: "site/out" });
   return { image, steps };
 }
 

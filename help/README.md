@@ -25,8 +25,8 @@ no build step, like the status page and the waitlist.
 
 ## Publishing it
 
-Like the status page: a deliberate step on the owner's machine, never from CI. Any Hosting site in the platform project
-can serve this folder; the account page links to it as `../help/`, so it sits next to `accounts/`.
+GitHub publishes it at https://lmb-platform-prod.web.app/help/ on every merge to main, with the rest of the platform
+site (`site/`). The account page links to it as `../help/`, so it sits next to `/account/`.
 
 ## Not yet
 
