@@ -3,7 +3,7 @@
 // thread shows these; nothing here edits control-room/.
 //
 //   googleStatus(shopId)      -> { shopId, stage, accountEmail, connectedAt, closedAt, deletedAt, reconnectSince, readsSheets,
-//                                parts, steps }
+//                                refusedSignIn, parts, steps }
 //   runAgain(shopId, step)    runs one step of whichever job it belongs to, and returns the step's new outcome
 import { CONNECT_STEPS } from "./connect.js";
 import { CLOSE_STEPS, DELETE_STEPS, deletionDue } from "./teardown.js";
@@ -29,6 +29,8 @@ export function createGoogleStatus({ registry, connect, teardown, tokens = null,
       // Whether the press let Google sheets be read (Bring a file › Google Sheet, #416; asked with the Drive box): null
       // when the shop has no live grant to look at.
       readsSheets: tokens?.live(conn) ? SCOPES.sheets.every((scope) => (conn.scopes ?? []).includes(scope)) : null,
+      // The last sign-in turned away because it used another Google account than the connected one (service.js).
+      refusedSignIn: g.refusedSignIn ? { at: g.refusedSignIn.at ?? null, triedEmail: g.refusedSignIn.triedEmail ?? null, times: g.refusedSignIn.times ?? 1 } : null,
       parts: Object.fromEntries(PARTS.filter((p) => g[p]).map((p) => [p, g[p]])),
       steps: (g.steps ?? []).map((s) => ({ ...s, canRunAgain: s.state !== "done" })),
     };
