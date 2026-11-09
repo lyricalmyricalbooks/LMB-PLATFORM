@@ -144,3 +144,13 @@ test("a shop whose details Chit Chats started refusing in the last day: named on
   assert.equal(parts.subject, "Chit Chats stopped taking your orders");
   assert.match(parts.text, /Until you enter them again in Settings › Apps › Chit Chats/);
 });
+
+test("a week on, a press whose details Chit Chats still refuses hears once more; other days, nothing", async () => {
+  const s = fakeChitChatsStores();
+  await s.connections.put("moth-press", { shopId: "moth-press", lastProblem: { at: ago(1), since: ago(7 * 24 + 3), words: "The access token was refused." } });
+  await s.connections.put("kestrel", { shopId: "kestrel", lastProblem: { at: ago(1), since: ago(4 * 24), words: "The access token was refused." } });
+  const email = fakePlatformEmail();
+  const result = await chitChatsNote({ stores: s, registry, email, to: "owner@example.com", now: () => NOW });
+  assert.deepEqual([result.shops, result.pressesTold], [1, 1]);
+  assert.deepEqual(presses(email).map((m) => [m.shopId, m.data.refused]), [["moth-press", "The access token was refused."]]);
+});
