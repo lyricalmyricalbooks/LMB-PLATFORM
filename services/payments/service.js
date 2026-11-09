@@ -18,6 +18,13 @@
 // `square.*`, `account.status` and `account.connectLink`, plus `squareOAuth` (Square sends the press back there) and
 // `squareEvent` (Square's events, one address per environment).
 //
+// A shop can switch providers after opening (accountSlots.js). `payments` stays the account that takes new sales; the
+// account it sold through before is kept in `payments.earlier`, so `square.*` calls go to its Square account and the
+// rest to its Stripe account, whichever is current, and only the current one starts a sale (`switched_provider`). The
+// account it is moving to waits in `payments.next`: Connect Square on a Stripe shop, or Stripe's onboarding on a
+// Square shop, makes it, `account.status` with `{ which: "next" }` says whether it is ready, and its events change only
+// its own state. Events for an earlier account still reach the shop.
+//
 // The service never writes a shop's database: the shop decides what an event means for its orders and stock. It keeps
 // the shop row's `payments` in the registry up to date (the account's state), and logs each change to the registry and
 // the shop's audit log.
@@ -42,7 +49,8 @@
 import { merchantProfile } from "../../shared/sells/sells.js";
 import { StripeApiError } from "./stripeApi.js";
 import { SquareApiError } from "./squareApi.js";
-import { createSquareService, SQUARE_OP_NAMES } from "./square.js";
+import { createSquareService, SQUARE_CREATE_OPS, SQUARE_OP_NAMES } from "./square.js";
+import { accountFor, accountOnly, findSlot, replaceSlot, viewOf, withNext } from "./accountSlots.js";
 import { verifySignature } from "./stripeSignature.js";
 import { feeFor, feeForShop, feeSummary, takesFee } from "./fees.js";
 import { activeTerms, createFeeLedger, intentBooksMinor, sessionBooksMinor } from "./payAsYouSell.js";
@@ -301,7 +309,7 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
       console.error(`The past-due email for ${row.shopId} wasn't sent: ${err?.message || err}`);
       return false;
     }
-    await registry.updateShop(row.shopId, { payments: { ...payments, pastDueEmailedAt: iso() } });
+    await registry.updateShop(row.shopId, { payments: replaceSlot(row.payments, { slot: "current" }, { ...payments, pastDueEmailedAt: iso() }) });
     await logChange(row.shopId, `payments-past-due-emailed-${accountId}-${payments.pastDueSince}`, { kind: "payments.past-due-emailed", accountId });
     return true;
   }
@@ -339,13 +347,14 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
   // A new press takes real money only once Stripe has checked them (charges_enabled; plan 8.4, so a trial made for
   // fraud can't sell before then). The registry keeps Stripe's answer from account.updated. Until it says yes, Stripe is
   // asked again, so a missed event never keeps a checked press from selling.
+  // Always the shop's current account (only it takes new sales); `row` is the whole registry row.
   async function liveChargesAllowed(row) {
     if (row.payments.chargesEnabled === true) return;
     const account = await stripe.call("live", "GET", `/v1/accounts/${row.payments.accountId}`);
     if (account.charges_enabled !== true) {
       throw new ServiceError(403, "not_checked", "Stripe is still checking this press's account, so it can't take real payments yet.");
     }
-    await registry.updateShop(row.shopId, { payments: { ...row.payments, chargesEnabled: true, stateAt: iso() } });
+    await registry.updateShop(row.shopId, { payments: replaceSlot(row.payments, { slot: "current" }, { ...accountOnly(row.payments), chargesEnabled: true, stateAt: iso() }) });
     await logChange(row.shopId, `payments-checked-${row.payments.accountId}`, { kind: "payments.charges-enabled", accountId: row.payments.accountId });
   }
 
@@ -429,22 +438,71 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
     return created;
   }
 
+  const squareReady = () => {
+    if (!square) throw new ServiceError(503, "square_not_ready", "The platform's Square connection isn't set up yet.");
+    return square;
+  };
+
+  // A switch between providers (accountSlots.js): the Stripe account it moves to, made now (or the shop's earlier
+  // Stripe account again) and kept as `payments.next` until the switch. The current account keeps selling meanwhile.
+  async function nextStripeAccount(row) {
+    if (row.payments.next?.provider === "stripe") return row.payments.next;
+    const earlier = accountFor(row.payments, "stripe")?.account;
+    const account = earlier
+      ? accountOnly(earlier)
+      : await createStripeAccount(row, { pressName: row.pressName, ownerEmail: row.ownerEmail, country: row.country, currency: row.currency, testMode: row.payments.mode !== "live", sells: row.publishes ?? null });
+    const next = { provider: "stripe", accountId: account.accountId, mode: account.mode, ...(account.mcc ? { mcc: account.mcc } : {}), ...(earlier ? { chargesEnabled: earlier.chargesEnabled === true } : {}), stagedAt: iso() };
+    await registry.updateShop(row.shopId, { payments: withNext(row.payments, next) });
+    await logChange(row.shopId, `payments-next-${next.accountId}`, { kind: "payments.next-staged", provider: "stripe", accountId: next.accountId, mode: next.mode });
+    return next;
+  }
+
+  // Which provider a call is for: `square.*` go to Square, the rest of the money calls to Stripe, and the account's
+  // state to the shop's current provider.
+  function providerOf(name, row) {
+    if (typeof name === "string" && name.startsWith("square.")) return "square";
+    if (name === "account.status") return row.payments.provider === "square" ? "square" : "stripe";
+    return "stripe";
+  }
+
+  const switchedAway = (name) => new ServiceError(409, "switched_provider", `This shop no longer takes new payments through ${name}.`);
+
   async function runShopOp(row, body) {
     const { op: name, args = {} } = body;
     if (!plainObject(args)) throw bad("args must be an object");
     if (name === "account.paymentDomain") return paymentDomain(row, args.domain);
     let fee;
     try { fee = feeForShop(row, config.fee); } catch (err) { throw new ServiceError(500, "fee_setting", `The shop's platform fee setting is wrong: ${err.message}`); }
-    if (row.payments.provider === "square") {
-      if (!square) throw new ServiceError(503, "square_not_ready", "The platform's Square connection isn't set up yet.");
-      return square.runShopOp(row, body, fee);
+    // The account being connected for a switch (args.which "next"): its state, for the admin's "ready to switch".
+    if (name === "account.status" && args.which === "next") {
+      const next = row.payments.next;
+      if (!next) return { next: null };
+      return next.provider === "square" ? squareReady().runShopOp(viewOf(row, next), { op: name }, fee) : accountStatus(viewOf(row, next), fee);
     }
+    if (name === "account.status" && args.which !== undefined) throw bad("which must be next when given");
+    // Connect Square sees the whole row: on a shop selling through Stripe it connects the account for a switch.
+    if (name === "account.connectLink") return squareReady().runShopOp(row, body, fee);
+    // A shop on Square asking for Stripe's onboarding is moving to Stripe: the link is for the account it moves to.
+    if (name === "account.onboardingLink" && row.payments.provider !== "stripe") return onboardingLink(viewOf(row, await nextStripeAccount(row)), args);
+    const provider = providerOf(name, row);
+    // After a switch, orders taken before it still go through the account that took them (the newest earlier one for
+    // that provider). New sales only ever go to the current account.
+    const found = accountFor(row.payments, provider);
+    if (provider === "square") {
+      if (!found) throw new ServiceError(409, "not_connected", "This shop hasn't connected Square yet.");
+      if (found.slot !== "current" && SQUARE_CREATE_OPS.has(name)) throw switchedAway("Square");
+      return squareReady().runShopOp(viewOf(row, found.account), body, fee);
+    }
+    if (!found) throw new ServiceError(409, "no_account", "This shop has no Stripe account with the platform yet.");
+    const whole = row;
+    row = viewOf(row, found.account);
     if (name === "account.status") return accountStatus(row, fee);
     if (name === "account.onboardingLink") return onboardingLink(row, args);
     const op = typeof name === "string" && Object.hasOwn(SHOP_OPS, name) ? SHOP_OPS[name] : null;
     if (!op) throw bad(`unknown call ${String(name).slice(0, 60)}`);
+    if (op.create && found.slot !== "current") throw switchedAway("Stripe");
     const mode = modeFor(row, body.mode);
-    if (op.create && mode === "live") await liveChargesAllowed(row);
+    if (op.create && mode === "live") await liveChargesAllowed(whole);
     const path = op.path(args);
     let idempotencyKey = null;
     if (op.create || op.refund) {
@@ -534,7 +592,11 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
         console.warn(`Stripe event ${event.id} names ${event.account}, which no shop has`);
         return { status: 200, body: { ignored: "no shop has this account" } };
       }
-      if (mode === "live" && row.payments?.mode !== "live") return { status: 200, body: { ignored: "live event for a test-only shop" } };
+      // The shop's current account, an earlier one (orders before a switch) or the next one (being connected).
+      const found = findSlot(row.payments, "stripe", event.account);
+      if (!found) return { status: 200, body: { ignored: "no shop has this account" } };
+      const held = found.account;
+      if (mode === "live" && held.mode !== "live") return { status: 200, body: { ignored: "live event for a test-only shop" } };
       // Per-shop counts for the control room (19.12).
       const tally = async (kind) => {
         try { if (deliveryStats) await deliveryStats.add(row.shopId, kind, iso()); } catch (err) { console.error(`couldn't count ${kind} for ${row.shopId}: ${err?.message || err}`); }
@@ -545,7 +607,7 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
       void tally("payment-event");
 
       // The account's own state, kept in the registry for the go-live checklist (2.10) and the control room.
-      if (event.type === "account.updated" && event.data?.object?.id === event.account && mode === row.payments.mode) {
+      if (event.type === "account.updated" && event.data?.object?.id === event.account && mode === held.mode) {
         const account = event.data.object;
         const needs = accountNeeds(account);
         const state = {
@@ -556,7 +618,7 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
           // The merchant category Stripe holds (what the shop sells, for the control room's check against its answer).
           ...(typeof account.business_profile?.mcc === "string" && account.business_profile.mcc ? { mcc: account.business_profile.mcc } : {}),
         };
-        const saved = row.payments;
+        const saved = held;
         let payments = saved;
         // Stripe doesn't promise order: an account.updated older than the one the row took would put old state back
         // (cards on again after Stripe paused them), so it changes nothing.
@@ -566,25 +628,29 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
           // When it turned past due; cleared once it isn't, so the next time emails the owner again.
           const { pastDueSince, pastDueEmailedAt, ...rest } = saved;
           payments = { ...rest, ...state, stateAt: iso(), ...(created !== null ? { accountEventCreated: created } : {}), ...(needs.pastDue ? { pastDueSince: pastDueSince ?? iso(), ...(pastDueEmailedAt ? { pastDueEmailedAt } : {}) } : {}) };
-          await registry.updateShop(row.shopId, { payments });
+          await registry.updateShop(row.shopId, { payments: replaceSlot(row.payments, found, payments) });
           await logChange(row.shopId, `payments-account-${event.id}`, { kind: "payments.account-updated", accountId: event.account, ...state });
         } else if (!stale && created !== null && created > (saved.accountEventCreated ?? -Infinity)) {
           // Nothing changed, but this is now the newest word from Stripe: an older one arriving later must not win.
           payments = { ...saved, accountEventCreated: created };
-          await registry.updateShop(row.shopId, { payments });
+          await registry.updateShop(row.shopId, { payments: replaceSlot(row.payments, found, payments) });
         }
         // Past due: Stripe has paused cards or payouts. The owner is emailed once (the admin shows a banner as well).
-        if (!stale && needs.pastDue && !payments.pastDueEmailedAt && email) {
+        // Only for the account that takes sales: an earlier one's cards don't matter to the shop any more.
+        if (!stale && found.slot === "current" && needs.pastDue && !payments.pastDueEmailedAt && email) {
           const emailed = await emailPastDue(row, payments, needs, event.account);
           if (!emailed) return failed({ status: 502, body: { error: "The owner couldn't be emailed; Stripe will send the event again." } });
         }
       }
-      if (event.type === "account.application.deauthorized" && mode === row.payments.mode && !row.payments.disconnectedAt) {
-        await registry.updateShop(row.shopId, { payments: { ...row.payments, disconnectedAt: iso() } });
+      if (event.type === "account.application.deauthorized" && mode === held.mode && !held.disconnectedAt) {
+        await registry.updateShop(row.shopId, { payments: replaceSlot(row.payments, found, { ...held, disconnectedAt: iso() }) });
         await logChange(row.shopId, `payments-disconnected-${event.id}`, { kind: "payments.disconnected", accountId: event.account });
       }
 
-      if (mode === row.payments.mode) {
+      // The account being connected for a switch has taken no sales: nothing for the shop yet.
+      if (found.slot === "next") return { status: 200, body: { ignored: "account not in use yet" } };
+
+      if (mode === held.mode) {
         try {
           await ledgerEvent(row, event);
         } catch (err) {
@@ -661,27 +727,32 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
      * Stores" (merchant category 5942) for a books shop, the matching category for one that sells other things
      * (shared/sells/sells.js merchantProfile).
      */
-    async createAccount(shopId, { pressName, ownerEmail, country, currency, testMode, sells }) {
+    async createAccount(shopId, details) {
       const row = await registry.getShop(shopId);
       if (!row) throw new Error(`${shopId} isn't in the registry`);
-      if (String(row.ownerEmail).toLowerCase() !== String(ownerEmail).toLowerCase()) throw new Error(`${shopId} belongs to another owner in the registry`);
-      const mode = testMode === true ? "test" : "live";
-      const account = await stripe.call(mode, "POST", "/v1/accounts", {
-        params: {
-          controller: STANDARD_CONTROLLER,
-          country,
-          email: ownerEmail,
-          default_currency: String(currency).toLowerCase(),
-          business_profile: { name: pressName, url: shopAddress(row), ...businessKind(sells) },
-          metadata: { lmb_shop_id: shopId },
-        },
-        idempotencyKey: `lmb-account-${shopId}-${mode}`,
-      });
-      if (!ACCOUNT_ID.test(account?.id ?? "")) throw new Error("Stripe gave no account id");
-      const mcc = account.business_profile?.mcc || businessKind(sells).mcc;
-      await accounts.set(shopId, { provider: "stripe", accountId: account.id, mode, mcc, createdAt: iso() });
-      await logChange(shopId, `payments-account-created-${account.id}`, { kind: "payments.account-created", accountId: account.id, mode, mcc });
-      return { accountId: account.id, mode, mcc };
+      if (String(row.ownerEmail).toLowerCase() !== String(details.ownerEmail).toLowerCase()) throw new Error(`${shopId} belongs to another owner in the registry`);
+      return createStripeAccount(row, details);
     },
   };
+
+  async function createStripeAccount(row, { pressName, ownerEmail, country, currency, testMode, sells }) {
+    const shopId = row.shopId;
+    const mode = testMode === true ? "test" : "live";
+    const account = await stripe.call(mode, "POST", "/v1/accounts", {
+      params: {
+        controller: STANDARD_CONTROLLER,
+        country,
+        email: ownerEmail,
+        default_currency: String(currency).toLowerCase(),
+        business_profile: { name: pressName, url: shopAddress(row), ...businessKind(sells) },
+        metadata: { lmb_shop_id: shopId },
+      },
+      idempotencyKey: `lmb-account-${shopId}-${mode}`,
+    });
+    if (!ACCOUNT_ID.test(account?.id ?? "")) throw new Error("Stripe gave no account id");
+    const mcc = account.business_profile?.mcc || businessKind(sells).mcc;
+    await accounts.set(shopId, { provider: "stripe", accountId: account.id, mode, mcc, createdAt: iso() });
+    await logChange(shopId, `payments-account-created-${account.id}`, { kind: "payments.account-created", accountId: account.id, mode, mcc });
+    return { accountId: account.id, mode, mcc };
+  }
 }

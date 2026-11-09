@@ -2,7 +2,7 @@
 // "compound file" (a small file system of 512-byte sectors) holding a "Workbook" stream of BIFF8 records: sheet names,
 // a shared table of words, number formats and one record per cell. Only what a shop's export uses is read: text,
 // numbers, dates, true/false and formula results. Charts, styles and pictures are skipped.
-import { MAX_CELLS, SpreadsheetError, TOO_LARGE, excelDate, excelEpoch, isBuiltInDate, isDateCode, numberText, type Book } from "./spreadsheetCells";
+import { MAX_CELLS, SpreadsheetError, TOO_LARGE, excelDate, excelEpoch, isBuiltInDate, isBuiltInPercent, isDateCode, isPercentCode, numberText, percentText, type Book } from "./spreadsheetCells";
 
 const DAMAGED = "This older Excel file (.xls) couldn't be opened. In Excel choose File › Save As › Excel Workbook (.xlsx), and choose that file instead.";
 const ENCRYPTED = "This Excel file is protected with a password. Open it in Excel, remove the password (File › Info › Protect Workbook), save it and choose it again.";
@@ -195,7 +195,8 @@ export function xlsBook(bytes: Uint8Array): Book {
   }
   const epoch = excelEpoch(is1904);
   const isDateXf = (xf: number) => { const f = xfFormat[xf]; return f !== undefined && (isBuiltInDate(f) || isDateCode(formats.get(f) || "")); };
-  const number = (n: number, xf: number) => (isDateXf(xf) ? excelDate(n, epoch) : numberText(String(n)));
+  const isPercentXf = (xf: number) => { const f = xfFormat[xf]; return f !== undefined && (isBuiltInPercent(f) || isPercentCode(formats.get(f) || "")); };
+  const number = (n: number, xf: number) => (isDateXf(xf) ? excelDate(n, epoch) : isPercentXf(xf) ? percentText(String(n)) : numberText(String(n)));
 
   const rowsOf = (start: number): string[][] => {
     const first = offsets.indexOf(start);

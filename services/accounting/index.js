@@ -14,11 +14,12 @@ export { handleAccounting } from "./http.js";
  * @param {object} deps.registry deps.auditLog deps.connections deps.states deps.sent (accounting.js has the shapes;
  *   connections, states and sent are platform-project collections in the real service)
  * @param {Function} [deps.notifyOwner] emails the press's owner (services/email)
+ * @param {Function} [deps.shopStart] (shopId) -> the shop's firstWeek/start record, whose `sells` is its Settings answer
  */
-export function createAccountingFromEnv({ env, fetch, registry, auditLog, connections, states, sent, notifyOwner = null, now }) {
+export function createAccountingFromEnv({ env, fetch, registry, auditLog, connections, states, sent, notifyOwner = null, shopStart = null, now }) {
   const config = readAccountingConfig(env);
   return createAccountingService({
     qbo: createQuickBooksApi({ fetch, apps: config.apps, redirectUrl: config.redirectUrl, now }),
-    registry, auditLog, connections, states, sent, notifyOwner, config, now,
+    registry, auditLog, connections, states, sent, notifyOwner, shopStart, config, now,
   });
 }

@@ -11,6 +11,7 @@ import { readDiscountFile } from "./discountMove";
 import { readGiftCardFile } from "./giftCardMove";
 import { readPastOrders } from "./pastOrders";
 import { SpreadsheetError, decodeText, readSpreadsheet, spreadsheetText, toCsv } from "./spreadsheetFile";
+import { zipStored } from "./xlsxWriter";
 
 const DIR = join(__dirname, "testdata", "spreadsheets");
 const file = (name: string, bytes: Uint8Array | string = readFileSync(join(DIR, name))) => new File([bytes as BlobPart], name);
@@ -99,5 +100,54 @@ describe("reading a spreadsheet file", () => {
   it("writes CSV that reads back cell for cell", () => {
     const table = [["a,b", 'say "hi"', "line\nbreak", " padded ", "plain"]];
     expect(parseCsv(toCsv(table))).toEqual(table);
+    // Headings full of semicolons still split on commas, so no column shifts.
+    const semis = [["Code", "Notes (a; b; c)"], ["X1", "one; two"]];
+    expect(parseCsv(toCsv(semis))).toEqual(semis);
+  });
+
+  it("reads a workbook's shared words once, so empty cover sheets don't make a fine file \"too large\"", async () => {
+    const xml = (body: string) => `<?xml version="1.0" encoding="UTF-8"?>\n${body}`;
+    const main = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"';
+    const rel = (n: number) => `<Relationship Id="rId${n}" Target="worksheets/sheet${n}.xml"/>`;
+    const empty = xml(`<worksheet ${main}><sheetData/></worksheet>`);
+    const parts: [string, string][] = [
+      ["[Content_Types].xml", xml('<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>')],
+      ["xl/workbook.xml", xml(`<workbook ${main} xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="A" sheetId="1" r:id="rId1"/><sheet name="B" sheetId="2" r:id="rId2"/><sheet name="Books" sheetId="3" r:id="rId3"/></sheets></workbook>`)],
+      ["xl/_rels/workbook.xml.rels", xml(`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${rel(1)}${rel(2)}${rel(3)}</Relationships>`)],
+      ["xl/sharedStrings.xml", xml(`<sst ${main}><si><t>Title</t></si><si><t>Salt Hours</t></si></sst>`)],
+      ["xl/worksheets/sheet1.xml", empty],
+      ["xl/worksheets/sheet2.xml", empty],
+      ["xl/worksheets/sheet3.xml", xml(`<worksheet ${main}><sheetData><row r="1"><c r="A1" t="s"><v>0</v></c></row><row r="2"><c r="A2" t="s"><v>1</v></c></row></sheetData></worksheet>`)],
+    ];
+    const bytes = zipStored(parts.map(([path, text]) => [path, new TextEncoder().encode(text)]));
+    // Say the shared words unzip to 80 MB (as a big real workbook's can): read once that is well under the 200 MB limit.
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    for (let at = 0; at < bytes.length - 46; at++) {
+      if (view.getUint32(at, true) !== 0x02014b50) continue;
+      const name = new TextDecoder().decode(bytes.subarray(at + 46, at + 46 + view.getUint16(at + 28, true)));
+      if (name === "xl/sharedStrings.xml") view.setUint32(at + 24, 80 * 1024 * 1024, true);
+    }
+    const read = await readSpreadsheet(new File([bytes as BlobPart], "books.xlsx"));
+    expect(read.sheet).toBe("Books");
+    expect(parseCsv(read.text)).toEqual([["Title"], ["Salt Hours"]]);
+  });
+
+  it("reads percent cells as the sheet shows them, and an empty shared-string cell as empty", async () => {
+    const xml = (body: string) => `<?xml version="1.0" encoding="UTF-8"?>\n${body}`;
+    const main = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"';
+    const parts: [string, string][] = [
+      ["[Content_Types].xml", xml('<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>')],
+      ["xl/workbook.xml", xml(`<workbook ${main} xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Codes" sheetId="1" r:id="rId1"/></sheets></workbook>`)],
+      ["xl/_rels/workbook.xml.rels", xml('<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>')],
+      ["xl/styles.xml", xml(`<styleSheet ${main}><numFmts><numFmt numFmtId="164" formatCode="0.0%"/></numFmts><cellXfs><xf numFmtId="0"/><xf numFmtId="9"/><xf numFmtId="164"/></cellXfs></styleSheet>`)],
+      ["xl/sharedStrings.xml", xml(`<sst ${main}><si><t>Code</t></si><si><t>Value</t></si><si><t>SAVE15</t></si></sst>`)],
+      ["xl/worksheets/sheet1.xml", xml(`<worksheet ${main}><sheetData>`
+        + '<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c><c r="C1" t="s"><v>1</v></c></row>'
+        + '<row r="2"><c r="A2" t="s"><v>2</v></c><c r="B2" s="1"><v>0.15</v></c><c r="C2" s="2"><v>0.125</v></c><c r="D2" t="s"/></row>'
+        + "</sheetData></worksheet>")],
+    ];
+    const bytes = zipStored(parts.map(([path, text]) => [path, new TextEncoder().encode(text)]));
+    const table = parseCsv(await spreadsheetText(new File([bytes as BlobPart], "codes.xlsx")));
+    expect(table[1]).toEqual(["SAVE15", "15%", "12.5%", ""]);
   });
 });

@@ -29,9 +29,11 @@ import { supportRoutes } from "../services/support/routes.js";
 import { fakeSupportStore } from "../services/support/fakes.js";
 import { createAppMakers } from "../services/apps/makers.js";
 import { createAppInstalls } from "../services/apps/installs.js";
+import { createChitChatsApp } from "../services/chitchats/app.js";
+import { chitChatsPublicRoutes, chitChatsRoutes } from "../services/chitchats/routes.js";
 import { appInstallPublicRoutes, appInstallRoutes, appMakerRoutes, appShopDoorRoutes, appStorePublicRoutes } from "../services/apps/routes.js";
 import { createAppShopDoor } from "../services/apps/shopDoor.js";
-import { fakeAppAlertStores, fakeAppInstallStores, fakeAppStore } from "../services/apps/fakes.js";
+import { fakeAppAlertStores, fakeAppInstallStores, fakeAppStore, fakeChitChatsStores } from "../services/apps/fakes.js";
 import { createRecovery, recoveryByHand } from "../accounts/recovery.js";
 import { recoveryRoutes } from "../accounts/recoveryRoutes.js";
 import { fakeRecoveryStore } from "../accounts/fakes.js";
@@ -75,6 +77,7 @@ import { createShopLooks, shopLooksRoutes } from "../control-room/shopLooks.js";
 import { createShopEmails, shopEmailsRoutes } from "../control-room/shopEmails.js";
 import { appUseRoutes, createAppUse } from "../control-room/appUse.js";
 import { createShopSocial, shopSocialRoutes } from "../control-room/shopSocial.js";
+import { createShopApps, shopAppsRoutes } from "../control-room/shopApps.js";
 import { createSocialService } from "../services/social/social.js";
 import { readSocialConfig } from "../services/social/config.js";
 import { fakeConnections, fakeSent, fakeStates } from "../services/social/fakes.js";
@@ -223,6 +226,13 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     apps: appStore, makers: appMakers, installs: appInstallStores.installs, codes: appInstallStores.codes, registry, auditLog, now: clock.date,
     roleIn: (person, shopId) => accounts.roleIn(person, shopId),
   });
+  // Colophon's Chit Chats app (26.11) has no app id here, so its pages answer "not connected yet", as before it is registered.
+  const chitchatsStores = fakeChitChatsStores();
+  const chitchats = createChitChatsApp({
+    appId: null, appSecret: null, sealKey: null, connections: chitchatsStores.connections, shipments: chitchatsStores.shipments,
+    exchange: (args) => appInstalls.exchange(args), appCall: async () => ({ status: 503, body: { ok: false } }),
+    roleIn: (person, shopId) => accounts.roleIn(person, shopId), now: clock.date, returnAddress: `${settings.platformUrl}/account/chitchats.html`,
+  });
   const recovery = createRecovery({
     store: recoveryStore, email, registry, auditLog, settings, admins: [ADMIN_EMAIL], now: clock.date,
     findAccount: async (address) => {
@@ -256,6 +266,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const shopLooks = createShopLooks({ admins, registry, shopData, now: clock.date });
   const shopEmails = createShopEmails({ admins, registry, emailLog: email.emailLog, now: clock.date });
   const appUse = createAppUse({ admins, installs: appInstallStores.installs, outbox: appAlertStores.outbox, now: clock.date });
+  const shopApps = createShopApps({ admins, registry, installs: appInstallStores.installs, outbox: appAlertStores.outbox, shopData: { ...shopData, list: (...args) => listDocs(...args) }, now: clock.date });
   const socialConnections = fakeConnections();
   const social = createSocialService({ clients: {}, registry, auditLog, connections: socialConnections, states: fakeStates(), sent: fakeSent(), config: readSocialConfig({}), now: () => clock.date().getTime() });
   const shopSocial = createShopSocial({ admins, registry, social, now: clock.date });
@@ -287,6 +298,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...supportRoutes(support),
     ...appMakerRoutes(appMakers),
     ...appInstallRoutes(appInstalls),
+    ...chitChatsRoutes(chitchats),
     ...recoveryRoutes(recovery),
     ...accessRequestRoutes({ requests: accessRequests, accounts, activity, registry, auditLog, now: clock.date }),
     ...businessRoutes(business),
@@ -302,13 +314,14 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...shopEmailsRoutes(shopEmails),
     ...appUseRoutes(appUse),
     ...shopSocialRoutes(shopSocial),
+    ...shopAppsRoutes(shopApps),
     ...driftRoutes(driftDesk),
     ...messageRoutes(pressMessages),
     ...costRoutes(costsDesk),
     ...exportRoutes(dataExports),
   };
   const door = createApi({
-    signup, verifyIdToken: fakeVerifyIdToken, settings, live, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls), ...appShopDoorRoutes(createAppShopDoor({ registry, installs: appInstalls, makers: appMakers })) },
+    signup, verifyIdToken: fakeVerifyIdToken, settings, live, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls), ...appShopDoorRoutes(createAppShopDoor({ registry, installs: appInstalls, makers: appMakers })), ...chitChatsPublicRoutes(chitchats) },
     // Fair-use limits (19.5) on an in-memory counter, a hundred times the real ones so a person clicking never meets them.
     limits: createLimits({ throttle: fakeThrottle(), admins, limits: generousLimits(), now: clock.date, log: () => {} }),
     log: () => {},

@@ -11,7 +11,7 @@ const { AppsSettings } = await import("./AppsSettings");
 const { addAddress } = await import("./appActivity");
 
 const PAL = { appId: "app_0000000000a1", name: "Parcel Pal", tagline: "Cheaper labels", description: "", category: "orders-shipping", categoryName: "Orders and shipping", supportEmail: "help@pal.example", website: "https://pal.example", installAddress: "https://pal.example/start", permissions: [{ scope: "write_orders", words: "Add tracking and mark orders as sent", personal: true }] };
-const MAIL = { ...PAL, appId: "app_0000000000b2", name: "Letterbox", category: "marketing", categoryName: "Marketing and email", installAddress: "" };
+const MAIL = { ...PAL, appId: "app_0000000000b2", name: "Mailchimp", brand: "mailchimp", category: "marketing", categoryName: "Marketing and email", installAddress: "" };
 
 let root: Root | null = null;
 afterEach(() => { act(() => root?.unmount()); root = null; document.body.innerHTML = ""; });
@@ -59,6 +59,7 @@ describe("Settings › Apps", () => {
     expect(document.querySelector(".ap-card")?.textContent).toContain("Installed");
     await click(byText("[role=tab]", "Marketing and email"));
     expect(document.querySelectorAll(".ap-card")).toHaveLength(1);
+    expect(document.querySelector(".ap-card [data-brand=mailchimp]"), "Colophon's own app shows the company's logo").not.toBeNull();
     await click(byText("button", "Details"));
     expect(document.querySelector(".rp-dialog")?.textContent).toContain("Personal details");
   });

@@ -45,8 +45,8 @@ export const appActivityApi = {
 // ── The store and the installed apps, through the platform's app store door (functions/appsLink.js) ──
 
 export type AppPermission = { scope: string; words: string; personal: boolean };
-export type InstalledApp = { appId: string; name: string; tagline: string; category: string; permissions: AppPermission[]; installedAt?: string; supportEmail: string; website: string; testing?: boolean };
-export type StoreApp = { appId: string; name: string; tagline: string; description: string; category: string; categoryName: string; permissions: AppPermission[]; supportEmail: string; website: string; installAddress: string };
+export type InstalledApp = { appId: string; name: string; tagline: string; category: string; brand?: string; permissions: AppPermission[]; installedAt?: string; supportEmail: string; website: string; testing?: boolean };
+export type StoreApp = { appId: string; name: string; tagline: string; description: string; category: string; brand?: string; categoryName: string; permissions: AppPermission[]; supportEmail: string; website: string; installAddress: string };
 export type StoreAnswer = { apps: StoreApp[]; categories: Array<{ id: string; name: string }> };
 
 /** Where Add sends the press: the app's own start address with this shop, as the big platforms do. */

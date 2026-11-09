@@ -112,19 +112,26 @@ export function deployPlan({ project = DEFAULT_PROJECT, region = REGION, version
     command: "gcloud", args: ["artifacts", "repositories", "create", IMAGE_STORE, "--repository-format=docker", `--location=${region}`, ...at],
     unless: { command: "gcloud", args: ["artifacts", "repositories", "describe", IMAGE_STORE, `--location=${region}`, ...at] },
   });
-  // --suppress-logs: streaming the build log needs Viewer on the whole project, which the deploy account doesn't hold;
-  // gcloud still waits for the build and fails when it fails (its log is in the console).
+  // Every deploy stores a new image; only the newest three are kept (server/image-cleanup.json), so the store's bill
+  // doesn't grow with each merge.
+  steps.push({
+    title: "Keep only the newest three images",
+    command: "gcloud", args: ["artifacts", "repositories", "set-cleanup-policies", IMAGE_STORE, `--location=${region}`, ...at, "--policy=server/image-cleanup.json", "--no-dry-run"],
+  });
+  // The build logs to Cloud Logging only (server/cloudbuild.yaml) and gcloud doesn't stream it: reading the default logs
+  // bucket needs Viewer on the whole project, which the deploy account doesn't hold. gcloud still waits for the build and
+  // fails when it fails (its log is in the console).
   steps.push({ title: "Build the image", command: "gcloud", args: ["builds", "submit", ...at, `--region=${region}`, "--config=server/cloudbuild.yaml", "--ignore-file=server/.gcloudignore", "--suppress-logs", `--substitutions=_IMAGE=${image}`, "."] });
   const common = (name) => ["run", "deploy", name, ...at, `--region=${region}`, `--image=${image}`, `--service-account=${accountOf(name, project)}`, "--cpu=1", "--memory=512Mi", "--min-instances=0"];
   steps.push({
     title: "Put the web door live (platform-api)",
     command: "gcloud",
-    args: [...common(API_SERVICE), "--allow-unauthenticated", "--max-instances=10", "--concurrency=40", "--timeout=60", `--env-vars-file=${envFiles.api}`, `--set-secrets=${secretsFor("api", present)}`],
+    args: [...common(API_SERVICE), "--allow-unauthenticated", "--max-instances=4", "--concurrency=40", "--timeout=60", `--env-vars-file=${envFiles.api}`, `--set-secrets=${secretsFor("api", present)}`],
   });
   steps.push({
     title: "Put the jobs server live (platform-jobs, private)",
     command: "gcloud",
-    args: [...common(JOBS_SERVICE), "--no-allow-unauthenticated", "--max-instances=3", "--concurrency=4", "--timeout=1800", `--env-vars-file=${envFiles.jobs}`, `--set-secrets=${secretsFor("jobs", present)}`],
+    args: [...common(JOBS_SERVICE), "--no-allow-unauthenticated", "--max-instances=2", "--concurrency=4", "--timeout=1800", `--env-vars-file=${envFiles.jobs}`, `--set-secrets=${secretsFor("jobs", present)}`],
   });
   steps.push({
     title: "Let only the scheduler call the jobs server",

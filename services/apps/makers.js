@@ -17,6 +17,7 @@
 //   store  get(appId); put(appId, app); listByMaker(email); listByStatus(status); listOnStore()
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { adminOf } from "../../control-room/controlRoom.js";
+import * as BRAND_LOGOS from "../../shared/brand-logos/logos.js";
 import { SignupError, personOf } from "../../signup/signup.js";
 import { cleanScopes, grantedScopes, scopeList, scopeWords } from "./scopes.js";
 import { TOPICS } from "./topics.js";
@@ -59,7 +60,7 @@ function webAddress(text, { allowLocal = false } = {}) {
 }
 
 /** The maker's details, checked; throws with each problem by field. Fields left out keep `before`'s values. */
-function detailsFrom(input, before = {}) {
+function detailsFrom(input, before = {}, { mayUseBrand = false } = {}) {
   const pick = (field) => (Object.hasOwn(input, field) ? input[field] : before[field]);
   const problems = {};
   const name = oneLine(pick("name"));
@@ -69,6 +70,7 @@ function detailsFrom(input, before = {}) {
   const supportEmail = oneLine(pick("supportEmail")).toLowerCase();
   const websiteText = oneLine(pick("website"));
   const installText = oneLine(pick("installAddress"));
+  const brand = oneLine(pick("brand"));
   const alertsText = oneLine(pick("alertsAddress"));
   const returnList = pick("returnAddresses");
   const scopes = cleanScopes(pick("scopes"));
@@ -111,8 +113,12 @@ function detailsFrom(input, before = {}) {
     else if (alertTopics.length && !alertsAddress) problems.alertsAddress = "Give the address to send alerts to.";
   }
 
+  // A company's logo only on Colophon's own apps that connect to that company (shared/brand-logos/README.md).
+  if (brand && brand !== before.brand && !mayUseBrand) problems.brand = "Company logos are added by the Colophon team.";
+  else if (brand && !Object.hasOwn(BRAND_LOGOS, brand)) problems.brand = "Pick a logo from the kit.";
+
   if (Object.keys(problems).length) throw new SignupError(400, "Check the highlighted fields.", problems);
-  return { name, tagline, description, category, supportEmail, website, installAddress, alertsAddress, alertTopics, returnAddresses, scopes };
+  return { name, tagline, description, category, supportEmail, website, installAddress, alertsAddress, alertTopics, returnAddresses, scopes, ...(brand ? { brand } : {}) };
 }
 
 const sameDetails = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
@@ -125,8 +131,8 @@ function forMaker(app) {
 
 /** What anyone sees in the store: the approved copy only, with the permissions in plain words. */
 function forStore(app) {
-  const { name, tagline, description, category, supportEmail, website, installAddress = "", scopes } = app.listing.details;
-  return { appId: app.appId, name, tagline, description, category, categoryName: CATEGORIES[category], supportEmail, website, installAddress, permissions: scopeWords(scopes), listedSince: app.listing.firstApprovedAt };
+  const { name, tagline, description, category, supportEmail, website, installAddress = "", scopes, brand } = app.listing.details;
+  return { appId: app.appId, name, tagline, description, category, ...(brand ? { brand } : {}), categoryName: CATEGORIES[category], supportEmail, website, installAddress, permissions: scopeWords(scopes), listedSince: app.listing.firstApprovedAt };
 }
 
 export function createAppMakers({
@@ -185,7 +191,7 @@ export function createAppMakers({
     /** Register an app. Answers its id and its secret; the secret is never shown again. */
     async create(claims, input = {}) {
       const person = personOf(claims);
-      const details = detailsFrom(input);
+      const details = detailsFrom(input, {}, { mayUseBrand: admins.includes(person.email) });
       if ((await store.listByMaker(person.email)).length >= MAX_APPS_PER_MAKER) {
         throw new SignupError(429, `You have ${MAX_APPS_PER_MAKER} apps already. Remove one you don't use, or write to us for more.`);
       }
@@ -218,7 +224,7 @@ export function createAppMakers({
     async update(claims, input = {}) {
       const person = personOf(claims);
       const app = await makersApp(person, input.appId);
-      const details = detailsFrom(input, app.draft);
+      const details = detailsFrom(input, app.draft, { mayUseBrand: admins.includes(person.email) });
       if (sameDetails(details, app.draft)) return { app: forMaker(app) };
       app.draft = details;
       // A change while waiting for review takes it out of the queue: send it again when it's ready.

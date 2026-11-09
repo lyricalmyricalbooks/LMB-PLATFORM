@@ -36,3 +36,15 @@ export function excelDate(serial: number, epoch: number): string {
   const iso = new Date(ms).toISOString();
   return serial % 1 === 0 ? iso.slice(0, 10) : `${iso.slice(0, 10)} ${iso.slice(11, 19)}`;
 }
+
+/** 0.15 → "15%", the way a percent cell shows it (Excel and OpenDocument keep the fraction). */
+export const percentText = (v: string) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? `${numberText(String(n * 100))}%` : v;
+};
+
+/** Excel's built-in percent formats (0% and 0.00%). */
+export const isBuiltInPercent = (id: number) => id === 9 || id === 10;
+
+/** A custom number format that shows a percent: a % outside quoted text, [colour] parts and escaped characters. */
+export const isPercentCode = (code: string) => /%/.test(code.replace(/"[^"]*"|\[[^\]]*\]|\\./g, ""));

@@ -21,6 +21,9 @@
 //   invites    optional: isInvited(email) -> boolean; markUsed(email, shopId) (the control room's waitlist invites,
 //              waitlist/invites.js createInvites)
 //   live       optional: () -> liveSettings (the daily cap, `signupDailyCap`; services/settings.js)
+//   admins     optional: the platform admins' emails (PLATFORM_ADMIN_EMAILS). They count as invited, so the owner can
+//              go through sign-up end to end while sign-up is closed (owner, 9 November 2026). Their email must be
+//              confirmed, like everyone's.
 //
 // Daily cap (plan 6.13): at most `signupDailyCap` new shops start each Toronto day. A press over the cap is put "in-line"
 // (its trial doesn't start, so no days are lost) and `admitFromLine()` (run by the shop maker's sweep) lets the oldest
@@ -71,7 +74,7 @@ export function personOf(claims) {
   return { accountId: claims.uid, email: String(claims.email).toLowerCase(), name: typeof claims.name === "string" ? claims.name.slice(0, 120) : "" };
 }
 
-export function createSignup({ accounts, signups, registry, billing, email, auth, throttle, settings, invites = null, live = () => liveSettings(), now = () => new Date(), suffix = randomSuffix }) {
+export function createSignup({ accounts, signups, registry, billing, email, auth, throttle, settings, invites = null, admins = [], live = () => liveSettings(), now = () => new Date(), suffix = randomSuffix }) {
   const at = () => now().toISOString();
   const isOpenCountry = (country) => (settings.openCountries ?? ["CA"]).includes(country);
 
@@ -92,13 +95,20 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
     throw new SignupError(503, "We couldn't find a free web address for your press just now. Try again in a minute.");
   }
 
+  const adminEmails = new Set(admins.map((a) => String(a).trim().toLowerCase()));
   const invited = async (address) => {
+    if (adminEmails.has(String(address ?? "").trim().toLowerCase())) return true;
     if (!invites) return false;
     try {
       return (await invites.isInvited(address)) === true;
     } catch {
       return false;
     }
+  };
+
+  // An admin has no invite to use up.
+  const markUsed = async (address, shopId) => {
+    if (invites && !adminEmails.has(String(address ?? "").trim().toLowerCase())) await invites.markUsed(address, shopId);
   };
 
   /** Shops let in today that count towards the cap (invited ones don't). */
@@ -217,7 +227,7 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
         if (claimed.full) throw new SignupError(429, `One account can start up to ${MAX_SHOPS_PER_ACCOUNT} shops. Write to us if you need more.`);
         if (claimed.taken) throw new SignupError(409, "That web address is taken.", { address: "That address is taken. Try another." });
         row = claimed.row;
-        if (claimed.made && isInvited && !held) await invites.markUsed(person.email, row.shopId);
+        if (claimed.made && isInvited && !held) await markUsed(person.email, row.shopId);
       } else {
         if (!row.termsAcceptedAt) {
           row = { ...row, ...agreement };
@@ -227,7 +237,7 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
         if (row.status === "in-line" && (await invited(person.email))) {
           row = { ...row, status: "queued", invited: true, admittedAt: at(), message: null };
           await signups.set(row.shopId, row);
-          await invites.markUsed(person.email, row.shopId);
+          await markUsed(person.email, row.shopId);
         }
       }
 
@@ -238,7 +248,7 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
         const myTurn = isInvited || (await takeSlot(torontoDay(now()), signupDailyCap));
         row = { ...row, invited: isInvited, status: myTurn ? "queued" : "in-line", ...(myTurn ? { admittedAt: at(), message: null } : { linedUpAt: at(), message: IN_LINE_WORDS }) };
         await signups.set(row.shopId, row);
-        if (isInvited) await invites.markUsed(person.email, row.shopId);
+        if (isInvited) await markUsed(person.email, row.shopId);
       }
       if (row.status !== "in-line" && row.status !== "later") row = await begin(row, person);
       return { shopId: row.shopId, pressName: row.pressName, plan: row.plan, status: row.status, trialEnd: row.trialEnd ?? null, ...(row.status === "in-line" ? { message: IN_LINE_WORDS } : {}), ...(row.status === "later" ? { message: LATER_WORDS } : {}) };

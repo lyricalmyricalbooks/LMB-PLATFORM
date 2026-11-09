@@ -9,6 +9,7 @@
  *   6. abandonedCartSweep (scheduled)     -> Send recovery email after 1h
  */
 
+const { httpStatus, refundRefused } = require("./refundRefusal");
 const { onDocumentUpdated, onDocumentCreated, onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { onSchedule: onScheduleReal } = require("firebase-functions/v2/scheduler");
 // Code plan 15.16: sweeps register with the tick (tick.js) instead of each owning a Cloud Scheduler job.
@@ -556,6 +557,11 @@ exports.fairHelperPayment = onBrowserRequest({ secrets: withPlatformKey([STRIPE_
     }
     res.json(state);
   } catch (err) {
+    // A sale in a currency the shop's Square account can't take: say so, not "couldn't be reached" (payments/square.js).
+    if (err?.code === "currency_mismatch") {
+      res.status(409).json({ error: err.message, code: "currency_mismatch" });
+      return;
+    }
     console.error("fairHelperPayment failed:", err?.message || err);
     res.status(502).json({ error: "The card payment couldn't be reached. Try again, or use the card reader or cash.", code: "unreachable" });
   }
@@ -2751,8 +2757,6 @@ exports.refundOrder = onBrowserRequest(
     const reasonText = String(reason || "Admin refund").slice(0, 500);
     const claimedAt = new Date().toISOString();
     let claimed = false, providerAccepted = false, providerCalled = false;
-    // Only these mean the provider certainly took no refund; anything else may still complete.
-    const DEFINITE_REFUSALS = ["StripeInvalidRequestError", "StripeCardError", "StripePermissionError", "StripeAuthenticationError"];
     // A refund attempt that never reached the provider must not leave its claim behind:
     // a stale refundRequest would block every later return step on this order.
     const releaseClaim = () => db.runTransaction(async transaction => {
@@ -2874,9 +2878,10 @@ exports.refundOrder = onBrowserRequest(
       console.error("refundOrder failed:", err);
       // Keep the claim only when the provider may have taken the refund (accepted, or a lost
       // connection): its webhook then follows the admin's restock choice.
-      if (claimed && !providerAccepted && (!providerCalled || DEFINITE_REFUSALS.includes(err?.type) || (err?.status >= 400 && err?.status < 500)
-        || platformRefusedRefund(err))) await releaseClaim();
-      const status = err.status || (err.type?.startsWith("Stripe") ? 400 : 500); // Stripe shops only (an error type)
+      // Only a certain refusal (refundRefusal.js, or the platform service's own: paymentGuards.js) means the provider
+      // took no refund; anything else may still complete.
+      if (claimed && !providerAccepted && (!providerCalled || refundRefused(err) || platformRefusedRefund(err))) await releaseClaim();
+      const status = httpStatus(err) || (err.type?.startsWith("Stripe") ? 400 : 500); // Stripe shops only (an error type)
       res.status(status).json({ error: err.message || "Refund failed" });
     }
   },

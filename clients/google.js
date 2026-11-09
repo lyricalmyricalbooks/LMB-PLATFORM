@@ -20,6 +20,9 @@
 //                         state is read back with get. Delete stops Hosting serving the shop there.
 //   Cloud Scheduler v1    projects.locations.jobs.list (pageSize, pageToken), projects.locations.jobs.delete: the shop's
 //                         scheduled jobs (plan 15.16). Google bills every job after the free three, a paused one too.
+//   Firebase App Check v1 projects.apps.recaptchaEnterpriseConfig.get/patch (updateMask tokenTtl): how long the bot check's
+//                         token lasts, 30 minutes to 7 days (plan 15.18). Cloud Monitoring v3 projects.timeSeries.list: the
+//                         month's reCAPTCHA Enterprise assessment_count, which the bot check's price follows.
 //   Billing Budgets v1    billingAccounts.budgets.list (pageSize, pageToken), billingAccounts.budgets.create: each shop's
 //                         alerts-only budget (Pub/Sub topic) and its Cloud Run functions spend cap (plan 15.17).
 //   Artifact Registry v1  projects.locations.repositories.get/patch (updateMask cleanupPolicies,cleanupPolicyDryRun): the
@@ -47,6 +50,8 @@ const SECRETS = "https://secretmanager.googleapis.com/v1";
 const HOSTING = "https://firebasehosting.googleapis.com/v1beta1";
 const SCHEDULER = "https://cloudscheduler.googleapis.com/v1";
 const ARTIFACTS = "https://artifactregistry.googleapis.com/v1";
+const APPCHECK = "https://firebaseappcheck.googleapis.com/v1";
+const MONITORING = "https://monitoring.googleapis.com/v3";
 const BUDGETS = "https://billingbudgets.googleapis.com/v1";
 const IDENTITY = "https://identitytoolkit.googleapis.com/v2";
 
@@ -387,6 +392,32 @@ export function googleClients({ fetch, token, sleep, today = () => new Date().to
       /** The project's number, which budget filters use (`projects/<number>`). */
       async projectNumber(projectId) {
         return projectNumber(projectId);
+      },
+    },
+    // The bot check (App Check with reCAPTCHA Enterprise), plan 15.18.
+    appCheck: {
+      /** The token lifetime in minutes (Google's default is 60), or null when the app has no reCAPTCHA configuration yet. */
+      async tokenMinutes(projectId, appId) {
+        const config = await orNull(call("GET", `${APPCHECK}/projects/${await projectNumber(projectId)}/apps/${appId}/recaptchaEnterpriseConfig`));
+        if (!config) return null;
+        return config.tokenTtl ? Math.round(Number.parseFloat(config.tokenTtl) / 60) : 60;
+      },
+      async setTokenMinutes(projectId, appId, minutes) {
+        await call("PATCH", `${APPCHECK}/projects/${await projectNumber(projectId)}/apps/${appId}/recaptchaEnterpriseConfig`, {
+          query: { updateMask: "tokenTtl" }, body: { tokenTtl: `${Math.round(minutes * 60)}s` },
+        });
+      },
+    },
+    monitoring: {
+      /** Assessments counted in the project between two times, from the metric reCAPTCHA Enterprise keeps. */
+      async assessments(projectId, { from, to }) {
+        const seconds = Math.max(60, Math.ceil((Date.parse(to) - Date.parse(from)) / 1000));
+        const page = await call("GET", `${MONITORING}/projects/${projectId}/timeSeries`, { query: {
+          filter: 'metric.type="recaptchaenterprise.googleapis.com/assessment_count"',
+          "interval.startTime": from, "interval.endTime": to,
+          "aggregation.alignmentPeriod": `${seconds}s`, "aggregation.perSeriesAligner": "ALIGN_SUM", "aggregation.crossSeriesReducer": "REDUCE_SUM",
+        } });
+        return (page.timeSeries ?? []).flatMap((series) => series.points ?? []).reduce((sum, point) => sum + Number(point.value?.int64Value ?? 0), 0);
       },
     },
     authConfig: {

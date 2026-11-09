@@ -55,3 +55,23 @@ export function fakeAppAlertStores() {
     },
   };
 }
+
+/** The Chit Chats app's stores in memory (services/chitchats/app.js). */
+export function fakeChitChatsStores() {
+  const shops = new Map();
+  const sent = new Map();
+  return {
+    shops, sent,
+    connections: {
+      get: async (shopId) => structuredClone(shops.get(shopId) ?? null),
+      put: async (shopId, row) => { shops.set(shopId, structuredClone(row)); },
+      remove: async (shopId) => shops.delete(shopId),
+      list: async () => [...shops.values()].map((row) => structuredClone(row)),
+    },
+    shipments: {
+      get: async (id) => structuredClone(sent.get(id) ?? null),
+      put: async (id, row) => { sent.set(id, structuredClone(row)); },
+      listOpen: async (shopId) => [...sent.values()].filter((row) => row.shopId === shopId && row.status === "open").map((row) => structuredClone(row)),
+    },
+  };
+}

@@ -42,6 +42,7 @@ export const RUNNERS = Object.freeze({
   "income-record": ({ parts }) => async () => runBusinessNightly({ registry: parts.registry, settings: await parts.live(), incomeHistory: parts.incomeHistory, billing: parts.billing, now: parts.now }),
   "press-messages": ({ pressMessages }) => () => pressMessages.sweep(),
   "app-alerts": ({ appAlerts }) => () => appAlerts.sweep(),
+  "chitchats-tracking": ({ chitchats }) => () => chitchats.sweep(),
   "setup-clock": ({ setupClock }) => () => setupClock.sweep(),
   "drift-watch": ({ driftWatch }) => () => driftWatch.sweep(),
   "deletion-note": ({ parts }) => () => weeklyDeletionNote({ registry: parts.registry, email: parts.email, to: controlRoomPeople(parts.env).adminEmail ?? (String(parts.env.HEALTH_ALERT_TO ?? "").trim() || null), now: parts.now }),

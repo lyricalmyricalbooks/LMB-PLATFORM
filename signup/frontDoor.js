@@ -36,7 +36,7 @@ import { COUNTRIES, PUBLISHES, SQUARE_COUNTRIES, isEmail, squareWords } from "./
 import { readOldShop as readPublicShop } from "../services/moving/oldShop.js";
 import { domainProblem, normalDomain } from "../services/domains/names.js";
 import { sellerName } from "../services/domains/sellers.js";
-import { FALLBACK_HANDLE, baseHandle, cleanHandle, freeAddressPreview, handleProblem } from "../services/domains/freeAddress.js";
+import { FALLBACK_HANDLE, baseHandle, cleanHandle, freeAddressPreview, handleProblem, pickedByAnotherPress } from "../services/domains/freeAddress.js";
 
 /** The page the front door lives on, under the platform's address. */
 export const START_PAGE = "join";
@@ -101,14 +101,12 @@ const UPLOAD_MINUTES = 15;
 export function createFrontDoor({ presses, codes, email, auth, settings, stagedFiles, signup = null, making = null, now = () => new Date(), suffix = randomSuffix, random = null, readOldShop = readPublicShop, domainLookup = null, freeNameTaken = null }) {
   const shown = (record) => shownRecord(record, settings?.shopAddressDomain ?? "");
   // A name for the free address held by another press still setting up (or opening), or a shop that has it already.
-  const HOLDING = new Set(["setup", "opening"]);
   /** Endings tried, in order, to suggest a free name close to a taken one. */
   const NAME_ENDINGS = ["shop", "studio", "co", "2", "3"];
 
   async function freeNameHeld(pressId, name) {
     if (!name) return false;
-    if (typeof presses.listByFreeName === "function"
-      && (await presses.listByFreeName(name)).some((other) => other.pressId !== pressId && HOLDING.has(other.status))) return true;
+    if (await pickedByAnotherPress(presses, name, pressId)) return true;
     const address = settings?.shopAddressDomain ? `${name}.${settings.shopAddressDomain}` : "";
     if (address && freeNameTaken) {
       try { return await freeNameTaken(address); } catch { return false; }
@@ -297,6 +295,12 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
       if (name) {
         const problem = domainProblem(name, { platformDomain: settings?.domain ?? "" });
         if (problem) throw new SignupError(400, problem, { domain: problem });
+        // An address on the platform's own shop domain is a free address, never a domain the press owns.
+        const shopDomain = settings?.shopAddressDomain ?? "";
+        if (shopDomain && (name === shopDomain || name.endsWith(`.${shopDomain}`))) {
+          const words = "That address belongs to Colophon. Use an address you own.";
+          throw new SignupError(400, words, { domain: words });
+        }
         let found = null;
         if (domainLookup) {
           try { found = await domainLookup.lookup(name); } catch { found = null; }

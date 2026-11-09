@@ -5,7 +5,7 @@
 // first visible sheet with anything in it is read unless the owner picks another (23.37). Older Excel files (.xls) are
 // read by xlsFile.ts (23.40); Numbers files get a plain way out.
 
-import { MAX_CELLS, SpreadsheetError, TOO_LARGE, excelDate, excelEpoch, isDateCode, isBuiltInDate, numberText, type Book } from "./spreadsheetCells";
+import { MAX_CELLS, SpreadsheetError, TOO_LARGE, excelDate, excelEpoch, isBuiltInPercent, isDateCode, isBuiltInDate, isPercentCode, numberText, percentText, type Book } from "./spreadsheetCells";
 import { xlsBook } from "./xlsFile";
 
 export { SpreadsheetError };
@@ -82,7 +82,8 @@ export function decodeText(bytes: Uint8Array): string {
 
 /** Rows back to CSV, each cell quoted when it holds a comma, quote or line break. */
 export function toCsv(rows: string[][]): string {
-  const cell = (v: string) => (/[",\r\n]/.test(v) || /^\s|\s$/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+  // A semicolon or tab is quoted too: the reader guesses the separator from the first line, and must still pick commas.
+  const cell = (v: string) => (/[",;\t\r\n]/.test(v) || /^\s|\s$/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
   return rows.map((r) => r.map(cell).join(",")).join("\n");
 }
 
@@ -114,19 +115,26 @@ async function openZip(bytes: Uint8Array): Promise<Zip> {
     at += 46 + nameLength + extra + comment;
   }
   let total = 0;
+  // Each part is unzipped once: the shared words and styles are read again for every sheet tried (an empty cover
+  // sheet, say), and counting them again would call a fine workbook too large.
+  const read = new Map<string, Promise<string | null>>();
+  const text = async (path: string): Promise<string | null> => {
+    const entry = entries.get(path);
+    if (!entry) return null;
+    total += entry.unzipped;
+    if (total > MAX_UNZIPPED) throw new SpreadsheetError(TOO_LARGE);
+    if (view.getUint32(entry.local, true) !== 0x04034b50) throw new SpreadsheetError("This file looks damaged: it couldn't be opened. Save it again and try once more.");
+    const start = entry.local + 30 + view.getUint16(entry.local + 26, true) + view.getUint16(entry.local + 28, true);
+    const raw = bytes.subarray(start, start + entry.size);
+    if (entry.method === 0) return utf8.decode(raw);
+    if (entry.method !== 8) throw new SpreadsheetError("This file uses a kind of compression that can't be read here. Save it again as .xlsx or CSV.");
+    return inflate(raw);
+  };
   return {
     has: (path) => entries.has(path),
-    async text(path) {
-      const entry = entries.get(path);
-      if (!entry) return null;
-      total += entry.unzipped;
-      if (total > MAX_UNZIPPED) throw new SpreadsheetError(TOO_LARGE);
-      if (view.getUint32(entry.local, true) !== 0x04034b50) throw new SpreadsheetError("This file looks damaged: it couldn't be opened. Save it again and try once more.");
-      const start = entry.local + 30 + view.getUint16(entry.local + 26, true) + view.getUint16(entry.local + 28, true);
-      const raw = bytes.subarray(start, start + entry.size);
-      if (entry.method === 0) return utf8.decode(raw);
-      if (entry.method !== 8) throw new SpreadsheetError("This file uses a kind of compression that can't be read here. Save it again as .xlsx or CSV.");
-      return inflate(raw);
+    text(path) {
+      if (!read.has(path)) read.set(path, text(path));
+      return read.get(path)!;
     },
   };
 }
@@ -186,7 +194,7 @@ async function xlsxRows(zip: Zip, workbook: Document, path: string): Promise<str
   );
   const date1904 = all(workbook, "workbookPr")[0]?.getAttribute("date1904");
   const epoch = excelEpoch(date1904 === "1" || date1904 === "true");
-  const dateStyles = await xlsxDateStyles(zip);
+  const { dates: dateStyles, percents: percentStyles } = await xlsxNumberStyles(zip);
 
   const rows: string[][] = [];
   let cells = 0;
@@ -205,12 +213,15 @@ async function xlsxRows(zip: Zip, workbook: Document, path: string): Promise<str
       const type = c.getAttribute("t") || "n";
       const v = kids(c, "v")[0]?.textContent ?? "";
       let value = "";
-      if (type === "s") value = shared[Number(v)] ?? "";
+      // A shared-string cell with no value is empty (Number("") would be the workbook's first string).
+      if (type === "s") value = v === "" ? "" : shared[Number(v)] ?? "";
       else if (type === "inlineStr") value = all(c, "t").map((t) => t.textContent || "").join("");
       else if (type === "b") value = v === "1" ? "TRUE" : "FALSE";
       else if (type === "str" || type === "e") value = v;
       else if (type === "d") value = v.replace(/T00:00:00(\.0+)?Z?$/, "");
       else if (v !== "" && dateStyles.has(Number(c.getAttribute("s") || 0))) value = excelDate(Number(v), epoch);
+      // A percent cell holds the fraction (15% is 0.15): read it as the sheet shows it.
+      else if (v !== "" && percentStyles.has(Number(c.getAttribute("s") || 0))) value = percentText(v);
       else value = v === "" ? "" : numberText(v);
       while (out.length < col) out.push("");
       out[col] = value;
@@ -228,18 +239,25 @@ const columnIndex = (ref: string) => {
   return n - 1;
 };
 
-/** The cell styles that show a date (built-in date formats, or a custom one made of d, m, y and time parts). */
-async function xlsxDateStyles(zip: Zip): Promise<Set<number>> {
+/**
+ * The cell styles that show a date (built-in date formats, or a custom one made of d, m, y and time parts), and the
+ * ones that show a percent.
+ */
+async function xlsxNumberStyles(zip: Zip): Promise<{ dates: Set<number>; percents: Set<number> }> {
   const styles = parseXml((await zip.text("xl/styles.xml")) || "<styleSheet/>");
   const custom = new Map(all(styles, "numFmt").map((f) => [Number(f.getAttribute("numFmtId")), f.getAttribute("formatCode") || ""]));
   const isDate = (id: number) => isBuiltInDate(id) || isDateCode(custom.get(id) || "");
+  const isPercent = (id: number) => isBuiltInPercent(id) || isPercentCode(custom.get(id) || "");
   const xfs = all(styles, "cellXfs")[0];
-  const out = new Set<number>();
-  if (xfs) kids(xfs, "xf").forEach((xf, i) => { if (isDate(Number(xf.getAttribute("numFmtId") || 0))) out.add(i); });
-  return out;
+  const dates = new Set<number>();
+  const percents = new Set<number>();
+  if (xfs) kids(xfs, "xf").forEach((xf, i) => {
+    const id = Number(xf.getAttribute("numFmtId") || 0);
+    if (isDate(id)) dates.add(i);
+    else if (isPercent(id)) percents.add(i);
+  });
+  return { dates, percents };
 }
-
-/** An Excel date number as YYYY-MM-DD, or YYYY-MM-DD HH:MM:SS when it carries a time. */
 
 // ---- OpenDocument (.ods): the first table's cells. ----
 
@@ -263,7 +281,8 @@ function odsRows(table: Element): string[][] {
       const type = attr(c, "value-type");
       let value = "";
       if (type === "date") value = (attr(c, "date-value") || "").replace(/T00:00:00(\.0+)?$/, "").replace("T", " ");
-      else if (type === "float" || type === "currency" || type === "percentage") value = numberText(attr(c, "value") || "");
+      else if (type === "percentage") value = percentText(attr(c, "value") || "");
+      else if (type === "float" || type === "currency") value = numberText(attr(c, "value") || "");
       else if (type === "boolean") value = attr(c, "boolean-value") === "true" ? "TRUE" : "FALSE";
       else value = kids(c, "p").map(odsText).join("\n");
       // A run of empty cells is written once with a repeat count (often thousands, to the sheet's edge).

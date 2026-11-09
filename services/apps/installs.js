@@ -38,7 +38,7 @@ export const installIdOf = (shopId, appId) => `${shopId}~${appId}`;
 const forShop = (install, app) => {
   const details = (install.testing ? app?.draft : app?.listing?.details) ?? app?.listing?.details ?? app?.draft ?? {};
   return {
-    appId: install.appId, name: details.name ?? install.appName, tagline: details.tagline ?? "", category: details.category ?? "other",
+    appId: install.appId, name: details.name ?? install.appName, tagline: details.tagline ?? "", category: details.category ?? "other", ...(details.brand ? { brand: details.brand } : {}),
     supportEmail: details.supportEmail ?? "", website: details.website ?? "",
     permissions: scopeWords(install.scopes), installedAt: install.installedAt, installedBy: install.installedBy, testing: install.testing === true,
   };
@@ -85,7 +85,7 @@ export function createAppInstalls({
       const current = await installs.get(installIdOf(shopId, app.appId));
       const shop = (await registry.getShop?.(shopId).catch(() => null)) ?? {};
       return {
-        app: { appId: app.appId, name: details.name, tagline: details.tagline, category: details.category ?? "other", website: details.website, supportEmail: details.supportEmail },
+        app: { appId: app.appId, name: details.name, tagline: details.tagline, category: details.category ?? "other", brand: details.brand ?? null, website: details.website, supportEmail: details.supportEmail },
         shopId, shopName: shop.pressName ?? shopId, permissions: scopeWords(details.scopes), canApprove: role === "owner", testing,
         alreadyInstalled: current?.status === "active" ? { permissions: scopeWords(current.scopes) } : null,
       };

@@ -56,6 +56,27 @@ describe("BookImportDialog", () => {
     expect(document.body.textContent).toContain("2 of 2 saved");
   });
 
+  it("a file chosen earlier that reads slowly never replaces the newer one's preview", async () => {
+    let release: () => void = () => {};
+    api.getPublicSettings.mockImplementationOnce(() => new Promise((resolve) => { release = () => resolve({ design: { categories: [] } }); }));
+    const host = document.createElement("div"); document.body.append(host);
+    root = createRoot(host);
+    act(() => root!.render(h(BookImportDialog, { books, onClose: () => {}, onDone: () => {} })));
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const pick = async (file: File) => {
+      Object.defineProperty(input, "files", { value: [file], configurable: true });
+      await act(async () => { input.dispatchEvent(new Event("change", { bubbles: true })); });
+      await flush();
+    };
+    await pick(new File(["Title,Price\nWrong One,10\nWrong Two,10\nWrong Three,10\n"], "wrong.csv"));
+    await pick(new File(["Title,Price\nRight One,12\n"], "right.csv"));
+    expect(document.body.textContent).toContain("1 new");
+    await act(async () => { release(); });
+    await flush();
+    expect(document.body.textContent).toContain("1 new");
+    expect(document.body.textContent).not.toContain("3 new");
+  });
+
   it("lets the owner match columns it doesn't know (plan 23.36)", async () => {
     const host = document.createElement("div"); document.body.append(host);
     root = createRoot(host);

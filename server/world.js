@@ -52,6 +52,9 @@ import { createSupportInbox } from "../services/support/inbox.js";
 import { supportRoutes } from "../services/support/routes.js";
 import { createAppMakers } from "../services/apps/makers.js";
 import { createAppInstalls } from "../services/apps/installs.js";
+import { createChitChatsApp } from "../services/chitchats/app.js";
+import { chitChatsPublicRoutes, chitChatsRoutes } from "../services/chitchats/routes.js";
+import { sealingKey } from "../services/payments/tokenSeal.js";
 import { createAppConnection } from "../services/apps/connection.js";
 import { createAppAlerts } from "../services/apps/alerts.js";
 import { appInstallPublicRoutes, appInstallRoutes, appMakerRoutes, appShopDoorRoutes, appStorePublicRoutes } from "../services/apps/routes.js";
@@ -89,6 +92,7 @@ import { createShopLooks, shopLooksRoutes } from "../control-room/shopLooks.js";
 import { createShopEmails, shopEmailsRoutes } from "../control-room/shopEmails.js";
 import { appUseRoutes, createAppUse } from "../control-room/appUse.js";
 import { createShopSocial, shopSocialRoutes } from "../control-room/shopSocial.js";
+import { createShopApps, shopAppsRoutes } from "../control-room/shopApps.js";
 import { deliveryReader } from "../control-room/delivery.js";
 import { createJobs } from "../services/jobs/index.js";
 import { createPressMessages, messageRoutes } from "../control-room/messages.js";
@@ -103,7 +107,7 @@ import { STOCKROOM_DATABASE, registryFiles, shopDataClient, stockroomDataClient 
 import {
   firestoreAccounts, firestoreActivity, firestoreBreaches, firestoreDeliveryStats, firestoreDevices, firestoreIncomeHistory, firestoreInvites,
   firestoreJobRuns, firestorePlatformState, firestoreRecoveries, firestoreRepairs, firestoreSentLog, firestoreShopNotes, firestoreSupport, firestoreWaitlist,
-  firestoreApps, firestoreAppCodes, firestoreAppInstalls, firestoreAppAlerts, firestoreAppAlertState,
+  firestoreApps, firestoreAppCodes, firestoreAppInstalls, firestoreAppAlerts, firestoreAppAlertState, firestoreChitChats,
 } from "../clients/stores.js";
 import {
   firestoreAccessRequests, firestoreAccountStores, firestoreBillingStores, firestoreFoundingSeats, firestoreDataExports, firestoreFeeLedger, firestorePressMessages,
@@ -190,7 +194,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const invites = createInvites({ invites: inviteStore, email, settings, now });
   const signInLinkMaker = signInLinks({ fetch, token, projectId });
   const signup = createSignup({
-    ...stores, registry, billing, email, auth: signInLinkMaker, settings, invites, live, now,
+    ...stores, registry, billing, email, auth: signInLinkMaker, settings, invites, admins: controlRoomAdmins(env), live, now,
   });
   // The front door (18.4): the six-digit code and each press's setup record, before any shop exists.
   const stagedFiles = notConnectedClient(NOT_CONNECTED.stagedImports, ["uploadUrl", "stat", "read", "remove"]);
@@ -202,7 +206,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const setupClock = createSetupClock({ presses: firestoreFrontDoorStores(platform).presses, stagedFiles, email, settings, now });
   const repairStore = firestoreRepairs(platform);
   const repairs = createRepairQueue({ store: repairStore, registry, auditLog, now });
-  // Once making shops is connected, pass `presses` and the domain service as `domains` too, so a domain brought in
+  // Once making shops is connected, pass `presses` here and to the domain service, and the domain service as `domains`, so a domain brought in
   // setup is connected when its shop is ready (shopMaker.js connectAddresses; the free address too, with freeAddress and platformZone on the domain service).
   const shopMaker = createShopMaker({ signups: stores.signups, run: notConnectedFn(NOT_CONNECTED.shopMaking), registry, repairs, line: signup, billing, now });
 
@@ -254,6 +258,16 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   });
   // The app connection: installed apps read their shop through the platform, with their key (26.3).
   const appConnection = createAppConnection({ installs: appInstalls, shopData, registry, outbox: appAlertOutbox, now });
+  // Colophon's own Chit Chats app (26.11): paid orders become Chit Chats shipments, tracking comes back. It needs its
+  // app id and secret from the app store and a sealing key; without them it answers "not connected yet".
+  const chitchatsStores = firestoreChitChats(platform);
+  const chitchats = createChitChatsApp({
+    appId: String(env.CHITCHATS_APP_ID ?? "").trim() || null, appSecret: String(env.CHITCHATS_APP_SECRET ?? "").trim() || null,
+    sealKey: env.CHITCHATS_SEAL_KEY ? sealingKey(env.CHITCHATS_SEAL_KEY, "CHITCHATS_SEAL_KEY") : null,
+    connections: chitchatsStores.connections, shipments: chitchatsStores.shipments,
+    exchange: (args) => appInstalls.exchange(args), appCall: (request) => appConnection(request),
+    roleIn: (who, shopId) => accounts.roleIn(who, shopId), fetch, now, returnAddress: `${settings.platformUrl}/account/chitchats.html`,
+  });
   const recovery = createRecovery({
     store: recoveryStore, email, registry, auditLog, settings, admins, now,
     findAccount: async (address) => {
@@ -281,6 +295,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const shopLooks = createShopLooks({ admins, registry, shopData, now });
   const shopEmails = createShopEmails({ admins, registry, emailLog: sentLog, now });
   const appUse = createAppUse({ admins, installs: appInstallStore, outbox: appAlertOutbox, now });
+  const shopApps = createShopApps({ admins, registry, installs: appInstallStore, outbox: appAlertOutbox, shopData, now });
   // Social channels (27.8): the social service has no hosted home yet (services/social/index.js), so the room says so.
   const shopSocial = createShopSocial({ admins, registry, social: null, now });
   const salesChannels = createSalesChannels({ admins, registry, shopData, stockroomData, now });
@@ -303,12 +318,13 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const closing = createClosingSweep({ registry, auditLog, billing, email, projects: notConnectedClient(NOT_CONNECTED.projectDeletion, ["deleteProject"]), settings, now: nowMs });
 
   // What the jobs can run (server/jobs.js reads these); the jobs page's "Run now" runs the ones that need nothing more.
-  const parts = { env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups };
+  const parts = { chitchats, env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups };
   const runNow = {
     "dropped-apps": () => billing.closeDroppedApps(),
     "press-messages": () => pressMessages.sweep(),
     "setup-clock": () => setupClock.sweep(),
     "drift-watch": () => driftWatch.sweep(),
+    "chitchats-tracking": () => chitchats.sweep(),
     ...(trialTips ? { "trial-tips": () => trialTips.run() } : {}),
     ...(checkups ? { "shop-checkup": () => checkups.run() } : {}),
   };
@@ -327,6 +343,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...supportRoutes(support),
     ...appMakerRoutes(appMakers),
     ...appInstallRoutes(appInstalls),
+    ...chitChatsRoutes(chitchats),
     ...recoveryRoutes(recovery),
     ...accessRequestRoutes({ requests: accessRequests, accounts, activity, registry, auditLog, now }),
     ...businessRoutes(business),
@@ -342,13 +359,14 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...shopEmailsRoutes(shopEmails),
     ...appUseRoutes(appUse),
     ...shopSocialRoutes(shopSocial),
+    ...shopAppsRoutes(shopApps),
     ...driftRoutes(driftDesk),
     ...messageRoutes(pressMessages),
     ...costRoutes(costsDesk),
     ...exportRoutes(dataExports),
   };
   const door = createApi({
-    signup, verifyIdToken: createIdTokenVerifier({ projectId, fetch, now: nowMs }), settings, live, plusTax: readBillingConfig(env).tax, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls), ...appShopDoorRoutes(createAppShopDoor({ registry, installs: appInstalls, makers: appMakers })) },
+    signup, verifyIdToken: createIdTokenVerifier({ projectId, fetch, now: nowMs }), settings, live, plusTax: readBillingConfig(env).tax, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls), ...appShopDoorRoutes(createAppShopDoor({ registry, installs: appInstalls, makers: appMakers })), ...chitChatsPublicRoutes(chitchats) },
     onSignedIn: deviceWatch({ devices: firestoreDevices(platform), email, now }),
     limits: createLimits({ throttle: firestoreThrottle(platform), admins, proxyHops: proxyHopsOf(env), now, log }),
     log,
@@ -390,7 +408,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
 
   return {
     projectId, settings, live, platform, registry, auditLog, shopData, stockroomData, email, billing, paymentWay, payments, signup, frontDoor, shopMaker, accounts, room, controls,
-    appAlerts, backup, support, recovery, business, timeline, jobs, jobRuns, jobsPage, notes, pressMessages, costsDesk, dataExports, trialTips, checkups, closing, setupClock, driftWatch,
+    appAlerts, chitchats, backup, support, recovery, business, timeline, jobs, jobRuns, jobsPage, notes, pressMessages, costsDesk, dataExports, trialTips, checkups, closing, setupClock, driftWatch,
     routes, door, shopBilling, handle, parts,
   };
 }
