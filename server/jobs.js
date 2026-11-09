@@ -14,11 +14,14 @@ import { realHealth } from "../services/health/run.js";
 import { realRetention } from "../services/retention/run.js";
 import { runBusinessNightly } from "../control-room/nightly.js";
 import { weeklyDeletionNote } from "../control-room/deletionNote.js";
+import { chitChatsNote } from "../control-room/chitChatsNote.js";
 import { controlRoomPeople } from "../control-room/people.js";
 import { createOwnDomainSender, resendDomainsFromEnv } from "../services/email/ownDomain.js";
 import { NOT_CONNECTED, NotConnected, notConnectedFn } from "./notConnected.js";
 
 const quiet = () => {};
+/** The platform owner's notes go to PLATFORM_ADMIN_EMAIL, else to the alert address. */
+const ownerOf = (env) => controlRoomPeople(env).adminEmail ?? (String(env.HEALTH_ALERT_TO ?? "").trim() || null);
 // The server's own platform project (PLATFORM_PROJECT), never the default one baked into the command-line runs.
 const health = (parts, job) => realHealth({ job, env: parts.env, fetch: parts.fetch, token: parts.token, projectId: parts.projectId, print: quiet });
 
@@ -45,7 +48,8 @@ export const RUNNERS = Object.freeze({
   "chitchats-tracking": ({ chitchats }) => () => chitchats.sweep(),
   "setup-clock": ({ setupClock }) => () => setupClock.sweep(),
   "drift-watch": ({ driftWatch }) => () => driftWatch.sweep(),
-  "deletion-note": ({ parts }) => () => weeklyDeletionNote({ registry: parts.registry, email: parts.email, to: controlRoomPeople(parts.env).adminEmail ?? (String(parts.env.HEALTH_ALERT_TO ?? "").trim() || null), now: parts.now }),
+  "deletion-note": ({ parts }) => () => weeklyDeletionNote({ registry: parts.registry, email: parts.email, to: ownerOf(parts.env), now: parts.now }),
+  "chitchats-note": ({ parts }) => () => chitChatsNote({ stores: parts.chitchatsStores, registry: parts.registry, email: parts.email, to: ownerOf(parts.env), now: parts.now }),
   "restore-drill": ({ parts }) => () => health(parts, "drill"),
 });
 

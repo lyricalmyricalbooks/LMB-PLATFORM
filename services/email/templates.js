@@ -776,6 +776,34 @@ export const TEMPLATES = {
   },
 
   /**
+   * The Chit Chats morning note to the platform owner (control-room/chitChatsNote.js). `data`: { shops: [{ shopId,
+   * pressName, late: [order], lateCount, problems: [{ order, words }], problemCount }], stillLate, days }.
+   */
+  "chitchats-late": ({ shops, stillLate, days }, { settings }) => {
+    if (!Array.isArray(shops) || !shops.length) throw new Error("the Chit Chats note names no shop");
+    const orders = (n) => `${n} order${n === 1 ? "" : "s"}`;
+    const more = (shown, n) => (n > shown.length ? ` and ${n - shown.length} more` : "");
+    const lines = shops.flatMap((s) => [
+      ...(s.lateCount ? [`${s.pressName} (${s.shopId}): ${orders(s.lateCount)} passed ${days} days without a tracking number: ${s.late.join(", ")}${more(s.late, s.lateCount)}.`] : []),
+      ...s.problems.map((p) => `${s.pressName} (${s.shopId}): order ${p.order} ran into a problem${p.words ? `: ${p.words}` : "."}`),
+      ...(s.problemCount > s.problems.length ? [`${s.pressName}: ${s.problemCount - s.problems.length} more orders ran into a problem.`] : []),
+    ]);
+    const late = shops.reduce((n, s) => n + s.lateCount, 0);
+    const problems = shops.reduce((n, s) => n + s.problemCount, 0);
+    return layout({
+      subject: `Chit Chats: ${[late ? `${orders(late)} waiting for tracking` : "", problems ? `${orders(problems)} with a problem` : ""].filter(Boolean).join(", ")}`,
+      greeting: "",
+      paragraphs: [
+        "These paid orders went wrong in Chit Chats in the last day. The press may not know yet, and their customers are waiting.",
+        ...lines,
+        ...(stillLate ? [`${orders(stillLate)} from before ${stillLate === 1 ? "is" : "are"} still waiting too.`] : []),
+        "Open App store in the control room for the Chit Chats table. Each order is in this note once, on the day it goes wrong.",
+      ],
+      footer: `${settings.platformName} control room`,
+    });
+  },
+
+  /**
    * A scheduled job stopped running on time (services/jobs, plan 19.11), to the platform's alert address only.
    * `data`: { job, words, every (minutes), lastRunAt }.
    */

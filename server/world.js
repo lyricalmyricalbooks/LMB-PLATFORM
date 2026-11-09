@@ -94,6 +94,7 @@ import { appUseRoutes, createAppUse } from "../control-room/appUse.js";
 import { createShopSocial, shopSocialRoutes } from "../control-room/shopSocial.js";
 import { createShopApps, shopAppsRoutes } from "../control-room/shopApps.js";
 import { chitChatsDeskRoutes, createChitChatsDesk } from "../control-room/chitChats.js";
+import { chitChatsNote } from "../control-room/chitChatsNote.js";
 import { createSellReady, sellReadyRoutes } from "../control-room/sellReady.js";
 import { deliveryReader } from "../control-room/delivery.js";
 import { createJobs } from "../services/jobs/index.js";
@@ -322,13 +323,14 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const closing = createClosingSweep({ registry, auditLog, billing, email, projects: notConnectedClient(NOT_CONNECTED.projectDeletion, ["deleteProject"]), settings, now: nowMs });
 
   // What the jobs can run (server/jobs.js reads these); the jobs page's "Run now" runs the ones that need nothing more.
-  const parts = { chitchats, env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups };
+  const parts = { chitchats, chitchatsStores, env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups };
   const runNow = {
     "dropped-apps": () => billing.closeDroppedApps(),
     "press-messages": () => pressMessages.sweep(),
     "setup-clock": () => setupClock.sweep(),
     "drift-watch": () => driftWatch.sweep(),
     "chitchats-tracking": () => chitchats.sweep(),
+    "chitchats-note": () => chitChatsNote({ stores: chitchatsStores, registry, email, to: people.adminEmail ?? (String(env.HEALTH_ALERT_TO ?? "").trim() || null), now }),
     ...(trialTips ? { "trial-tips": () => trialTips.run() } : {}),
     ...(checkups ? { "shop-checkup": () => checkups.run() } : {}),
   };
