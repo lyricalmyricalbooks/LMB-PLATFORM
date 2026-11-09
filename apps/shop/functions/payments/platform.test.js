@@ -188,7 +188,7 @@ describe("events passed on by the platform", () => {
   test("the webhook handler awaits the check, so a refused delivery stops before any order is touched", async () => {
     const fs = await import("node:fs");
     const source = fs.readFileSync(new URL("../index.js", import.meta.url), "utf8");
-    expect(source).toContain("await payments.verifyWebhookEvent(client, req.rawBody, sig, secrets)");
+    expect(source).toContain("await payments.verifyWebhookEvent(client, req.rawBody, sig, secrets, { platformEvent: req.headers[\"x-platform-event\"] })");
     const handler = source.slice(source.indexOf("exports.stripeWebhook"));
     const verify = handler.indexOf("await payments.verifyWebhookEvent");
     const refused = handler.indexOf("if (!event)");

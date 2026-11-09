@@ -130,8 +130,9 @@ async function recordOrderMoney({ db, payments, orderId, keys = null, now }) {
  * When a payout lands: every payment and refund in it, on its order (found by the saved payment id). Answers how
  * many orders changed. A line for a payment no order has (a sale made outside the shop) is skipped.
  */
-async function recordPayout({ db, payments, mode, payoutId, accountId = null, arrivalDate = null, now }) {
-  const { payout, lines } = await payments.payoutMoney({ mode, payoutId, accountId, arrivalDate });
+async function recordPayout({ db, payments, mode, payoutId, accountId = null, arrivalDate = null, provider = null, now }) {
+  // `provider`: whose webhook delivered the payout, for a shop that switched providers (payments/index.js).
+  const { payout, lines } = await payments.payoutMoney({ mode, payoutId, accountId, arrivalDate, ...(provider ? { provider } : {}) });
   const byPayment = new Map();
   for (const line of lines) {
     if (!line?.paymentId || !line.key || !line.part) continue;
