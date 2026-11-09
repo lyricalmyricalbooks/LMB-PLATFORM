@@ -22,6 +22,8 @@ import { WAITING_DAYS } from "./chitChats.js";
 export const CHITCHATS_NOTE = "chitchats-late";
 export const PRESS_NOTE = "chitchats-waiting";
 const DAY = 86_400_000;
+/** A press whose details Chit Chats still refuses this many days on hears once more. */
+export const REMIND_DAYS = 7;
 const SHOWN = 10;
 
 const orderOf = (s) => String(s.orderNumber ?? s.orderId ?? "").slice(0, 40) || "an order";
@@ -42,9 +44,11 @@ export async function chitChatsNote({ stores, registry, email, to, now = () => n
     const late = open.filter((s) => typeof s.createdAt === "string" && crossedToday(s.createdAt));
     stillLate += open.filter((s) => typeof s.createdAt === "string" && Date.parse(s.createdAt) <= lateBefore - DAY).length;
     const fresh = problems.filter((s) => today(s.updatedAt ?? s.createdAt));
-    // Chit Chats refused the shop's details in the last day, for the first time since they last worked.
-    const refusedAt = row.lastProblem?.since ?? row.lastProblem?.at;
-    const refused = row.lastProblem && today(refusedAt) ? String(row.lastProblem.words ?? "").slice(0, 200) || "no reason given" : null;
+    // Chit Chats refused the shop's details in the last day, for the first time since they last worked, or a week ago
+    // and still does (one reminder; Today keeps showing it after that).
+    const refusedAt = Date.parse(row.lastProblem?.since ?? row.lastProblem?.at ?? "");
+    const refusedToday = today(row.lastProblem?.since ?? row.lastProblem?.at) || (refusedAt <= at.getTime() - REMIND_DAYS * DAY && refusedAt > at.getTime() - (REMIND_DAYS + 1) * DAY);
+    const refused = row.lastProblem && refusedToday ? String(row.lastProblem.words ?? "").slice(0, 200) || "no reason given" : null;
     if (!late.length && !fresh.length && !refused) return;
     shops.push({
       shop, emailsOff: row.emailsOff === true,
