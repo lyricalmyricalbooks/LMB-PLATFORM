@@ -48,13 +48,15 @@ export function guideOf(record) {
     { id: "plan", title: "Pick what to set up", done: Boolean(record.plan) },
     { id: "details", title: "Press details", done: Boolean(record.pressName && record.sells && record.country) },
     ...(record.moving === "fresh" ? [...look, ...cards, books] : [books, ...look, ...cards]),
-    // Optional, counted once answered, as in the shop's guide: the free address always works.
+    // Optional, as in the shop's guide: the free address always works.
     ...(website ? [{ id: "domain", title: "Choose the web address", done: record.domainChoice === "free" || (record.domainChoice === "own" && Boolean(record.domain)), optional: true }] : []),
     { id: "open", title: "Create the shop", done: record.status === "opening" || record.status === "open" },
   ];
-  const counted = steps.filter((step) => !step.optional || step.done);
-  const next = steps.find((step) => !step.done && !step.optional) ?? null;
-  return { done: counted.filter((step) => step.done).length, total: counted.length, next: next?.title ?? null, steps: steps.map(({ id, done }) => ({ id, done })) };
+  // Every row the press sees is counted, optional ones too ("2 of 7", code plan 28.6/28.10), as the shop's guideProgress.
+  // The next step is the shop's too: the first not done that isn't optional; a press moving over is pointed at its books.
+  const open = steps.filter((step) => !step.done);
+  const next = (record.moving === "yes" ? open[0] : open.find((step) => !step.optional) ?? open[0]) ?? null;
+  return { done: steps.filter((step) => step.done).length, total: steps.length, next: next?.title ?? null, steps: steps.map(({ id, done }) => ({ id, done })) };
 }
 
 /**
