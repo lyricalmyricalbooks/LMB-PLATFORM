@@ -758,6 +758,42 @@ test("a sheet the press deleted is made again on the next send, and bad cells ar
   }
 });
 
+test("a failed first write keeps the sheet it made, so trying again fills it instead of making a second one", async () => {
+  const t = await setup({ google: { failOnce: ["writeSheetTab"] } });
+  await t.signIn({ extras: ["drive"] });
+  assert.notEqual((await t.call("google.sheetSync", { rows: STOCK })).status, 200);
+  const again = await t.call("google.sheetSync", { rows: STOCK });
+  assert.equal(again.status, 200, JSON.stringify(again.body));
+  assert.equal(t.google.world.spreadsheets.size, 1);
+  assert.deepEqual([...t.google.world.spreadsheets.values()][0].tabs.Stock, STOCK);
+});
+
+test("with the Drive box unticked no sheet is written, even though Google keeps the permission", async () => {
+  const t = await setup();
+  await t.signIn({ extras: ["drive"] });
+  assert.equal((await t.call("google.turnOff", { extras: ["drive"] })).status, 200);
+  assert.deepEqual((await t.call("google.sheetSync", { rows: STOCK })).body, { available: false });
+  const u = await setup();
+  await u.signIn();
+  assert.deepEqual((await u.call("google.sheetSync", { rows: STOCK })).body, { available: false });
+  assert.equal(t.google.world.spreadsheets.size + u.google.world.spreadsheets.size, 0);
+});
+
+test("writing the sheet keeps what a connect step saved while it ran", async () => {
+  const t = await setup();
+  await t.signIn({ extras: ["drive"] });
+  const write = t.google.writeSheetTab;
+  t.google.writeSheetTab = async (...args) => {
+    const row = await t.shopRow();
+    await t.registry.updateShop(SHOP, { google: { ...row.google, calendar: { calendarId: "meanwhile" } } });
+    return write(...args);
+  };
+  assert.equal((await t.call("google.sheetSync", { rows: STOCK })).status, 200);
+  const g = (await t.shopRow()).google;
+  assert.equal(g.calendar?.calendarId, "meanwhile");
+  assert.ok(g.sheet.writtenAt);
+});
+
 const SALES = [["Date", "Book", "Order", "Where", "Copies", "Price", "Total", "Currency", "Notes"], ["2026-11-01", "Moth Book", "F-1", "Fair", 2, 18, 36, "CAD", ""]];
 
 test("the stockroom sends a Stock and a Sales tab; an older one-tab sheet gets its Sales tab added, and the press's own tabs stay", async () => {
@@ -841,8 +877,8 @@ test("the Drive box asks to read sheets too, and backups don't depend on it", as
   assert.ok(scopes.includes(SCOPES.sheets[0]));
   const without = new URL((await t.call("google.connectLink", { returnUrl: ADMIN, extras: [] })).body.url);
   assert.ok(!without.searchParams.get("scope").split(" ").includes(SCOPES.sheets[0]));
-  // Unticked on Google's page: the stock sheet still goes out.
-  await t.signIn({ scopes: [...SCOPES.identity, ...SCOPES.drive] });
+  // Drive box ticked, the sheet-reading permission unticked on Google's page: the stock sheet still goes out.
+  await t.signIn({ extras: ["drive"], scopes: [...SCOPES.identity, ...SCOPES.drive] });
   assert.equal((await t.call("google.sheetSync", { rows: STOCK })).body.available, true);
 });
 

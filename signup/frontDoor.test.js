@@ -422,6 +422,17 @@ test("a press's own domain is kept with where it was bought, only by its owner a
   assert.deepEqual(asked, ["mothpress.example", "ink.example", "broken.example"]);
 });
 
+test("an address on Colophon's shop domain is refused as a press's own domain", async () => {
+  const w = world();
+  const pressId = await pressFor(w);
+  const door = createFrontDoor({ ...w.stores, stagedFiles: w.files, email: { sendPlatform: async () => {} }, auth: fakeAuth(), settings: { ...SETTINGS, shopAddressDomain: "shops.example" } });
+  for (const domain of ["other-press.shops.example", "shops.example"]) {
+    await assert.rejects(() => door.saveDomain(ADA, { pressId, domain }), (e) => e.status === 400 && /belongs to Colophon/.test(e.message));
+  }
+  await door.saveDomain(ADA, { pressId, domain: "mothpress.example" });
+  assert.equal((await w.stores.presses.get(pressId)).domain, "mothpress.example", "a domain the press owns is still kept");
+});
+
 test("setup shows the free address a press's shop will get, once the platform has a shop domain", async () => {
   const w = world();
   const pressId = await pressFor(w);

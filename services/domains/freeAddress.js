@@ -104,6 +104,18 @@ export async function pickFreeAddress(pressName, shopDomain, taken, options = {}
   return null;
 }
 
+/** Setup statuses in which a press holds the free-address name it picked (signup/frontDoor.js freeNameHeld). */
+export const HOLDING_STATUSES = Object.freeze(["setup", "opening"]);
+
+/**
+ * Whether another press, still in setup or opening its shop, picked `handle` (moth-books) for its free address, so
+ * the name it was told is free stays its own. `presses.listByFreeName` (clients/platformStores.js, signup/fakes.js).
+ */
+export async function pickedByAnotherPress(presses, handle, exceptPressId = "") {
+  if (!handle || typeof presses?.listByFreeName !== "function") return false;
+  return (await presses.listByFreeName(handle)).some((p) => p?.pressId !== exceptPressId && HOLDING_STATUSES.includes(p?.status));
+}
+
 /**
  * Whether a shop in the registry already has `name` (as its free address or any of its addresses), for setup's check
  * while a press types a name. `registry.listShops()` (setup/fakes.js, clients/registry.js).

@@ -56,7 +56,8 @@ export function GoogleStage({ onDone }: { onDone: (google: GoogleMarker) => Prom
     );
   }
 
-  if (status.connected) {
+  // A grant Google ended still reads as connected: it must offer a new sign-in, not a green badge.
+  if (status.connected && !status.needsReconnect) {
     return (
       <SectionCard logo="google" title={title} description="Your Google account is linked to your shop." collapsible={false}>
         <StatusBadge tone="success">Google is connected</StatusBadge>
@@ -73,7 +74,7 @@ export function GoogleStage({ onDone }: { onDone: (google: GoogleMarker) => Prom
   const connect = async () => {
     setError("");
     try {
-      window.location.href = await googleConnectApi.connectLink([]);
+      window.location.href = await googleConnectApi.connectLink(status.extrasChosen ?? []);
     } catch (e) {
       setError(friendlyError(e, "Google"));
     }

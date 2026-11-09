@@ -76,13 +76,17 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
   // How many of the matches came from the last import (plan 23.41), for the Match columns hint.
   const [recalled, setRecalled] = useState(0);
 
+  // Only the newest file (or sheet) chosen may fill the preview: an earlier read that finishes later is dropped.
+  const readSeq = useRef(0);
   async function choose(file: File | undefined, notes: string[] = [], sheet?: string) {
     if (!file) return;
+    const seq = ++readSeq.current;
     setReadNotes(notes);
     setReadError(""); setPlan(null); setMoved(null); setOldPaths(new Map()); setLinks(null); setResults(null); setFileName(file.name); if (!sheet) setBook(null);
     if (file.size > MAX_FILE_BYTES) { setReadError("That file is larger than 5 MB. Split it into smaller files and import them one at a time."); return; }
     try {
       const [text, settings, profiles, links] = await Promise.all([readSpreadsheet(file, sheet), adminApi.getPublicSettings().catch(() => null), Promise.resolve().then(() => adminApi.getShippingProfiles()).catch(() => []), inventoryLinkApi.links().catch(() => ({}))]);
+      if (seq !== readSeq.current) return;
       setBook({ file, ...text });
       const defined = (settings as any)?.design?.categories;
       const shopCategories = Array.isArray(defined) ? normalizeCategories(defined).map((c: any) => c?.name).filter(Boolean) : [];
@@ -97,7 +101,7 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
       setColumns(recalledCols); setRecalled(count);
       if (count) replan(src, stockMode, recalledCols);
     } catch (err) {
-      setReadError(readProblem(err));
+      if (seq === readSeq.current) setReadError(readProblem(err));
     }
   }
 

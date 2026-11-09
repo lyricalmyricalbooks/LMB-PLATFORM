@@ -67,6 +67,19 @@ export const stockOf = (id, data) => ({
   variants: Array.isArray(data.variants) ? data.variants.map((v) => ({ id: text(v?.id), sku: text(v?.sku), available: num(v?.stockLevel ?? v?.stock) ?? 0 })) : [],
 });
 
+/**
+ * Copies of line `index` still to go in a parcel: the quantity less copies sent ahead (`partShipments`) and copies
+ * taken off with a partial refund (`partialRestockedItems`), as the shop's own Orders page counts them
+ * (apps/shop/src/app/admin/fulfillment.ts copiesToSend).
+ */
+function copiesToSend(data, index) {
+  const whole = (n) => Math.max(0, Math.floor(Number(n) || 0));
+  let gone = 0;
+  for (const part of Array.isArray(data?.partShipments) ? data.partShipments : []) for (const l of part?.lines || []) if (Number(l?.line) === index) gone += whole(l.quantity);
+  for (const r of Array.isArray(data?.partialRestockedItems) ? data.partialRestockedItems : []) if (Number(r?.index) === index) gone += whole(r.quantity);
+  return Math.max(0, whole(data?.items?.[index]?.quantity ?? 1) - gone);
+}
+
 /** An order as an app sees it: what was bought and where it ships; email and phone only with read_customers. */
 export function order(id, data, granted) {
   const customer = data.customer ?? {};
@@ -75,9 +88,10 @@ export function order(id, data, granted) {
     id, orderNumber: text(data.orderId) ?? id, createdAt: text(data.createdAt), currency: text(data.currency),
     paymentStatus: text(data.paymentStatus), status: text(data.status), fulfillmentStatus: text(data.fulfillmentStatus) ?? "unfulfilled",
     fulfillmentMethod: text(data.fulfillmentMethod) ?? text(data.deliveryMethod), shippingMethod: text(data.shippingMethod),
-    items: (Array.isArray(data.items) ? data.items : []).map((item) => ({
+    // quantityToSend: what a shipping app should pack, after copies sent ahead or refunded and put back in stock.
+    items: (Array.isArray(data.items) ? data.items : []).map((item, index) => ({
       productId: text(item?.bookId ?? item?.id ?? item?.productId), variantId: text(item?.variantId), title: text(item?.title) ?? "",
-      sku: text(item?.sku), quantity: num(item?.quantity) ?? 1, price: num(item?.price),
+      sku: text(item?.sku), quantity: num(item?.quantity) ?? 1, quantityToSend: copiesToSend(data, index), price: num(item?.price),
     })),
     totals: { subtotal: num(data.subtotal), shipping: num(data.shippingCost ?? data.shipping), tax: num(data.tax ?? data.taxAmount), discount: num(data.discountAmount), total: num(data.total) },
     shipTo: address ? { name: text(customer.name) ?? text(address.name), line1: text(address.line1), line2: text(address.line2), city: text(address.city), region: text(address.state ?? address.province ?? address.region), postalCode: text(address.postalCode ?? address.postal_code), country: text(address.country) } : null,
@@ -140,7 +154,10 @@ export function createAppConnection({
     } catch (error) {
       const before = key ? await shopData.get(install.shopId, path) : null;
       if (!before) throw error;
-      if (before.appId !== install.appId) throw new SignupError(409, "Use a different Idempotency-Key.");
+      // A key reused for a different call (another order, other tracking) would answer with the first call's result.
+      if (before.appId !== install.appId || before.op !== op || JSON.stringify(before.input ?? null) !== JSON.stringify(input ?? null)) {
+        throw new SignupError(409, "That Idempotency-Key was already used for a different request. Use a new key for each change.");
+      }
     }
     for (let waited = 0; ; waited += 500) {
       const data = await shopData.get(install.shopId, path);
