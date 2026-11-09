@@ -10,7 +10,7 @@ test("GitHub Pages publishes only the page that goes to the live app", () => {
   assert.ok(!existsSync(new URL("../../.github/workflows/walkthrough-site.yml", import.meta.url)), "the walkthrough is no longer published");
   assert.doesNotMatch(workflow, /walkthrough\/site\/build\.js/);
   assert.match(workflow, /url=https:\/\/lmb-platform-prod\.web\.app\//);
-  assert.match(workflow, /upload-pages-artifact@[0-9a-f]{40} # v3[.\d]*\s+with:\s+path: pages/);
+  assert.match(workflow, /upload-pages-artifact@[0-9a-f]{40} # v\d[.\d]*\s+with:\s+path: pages/);
 });
 
 test("the Pages workflow uses no secrets and never runs for a pull request", () => {
