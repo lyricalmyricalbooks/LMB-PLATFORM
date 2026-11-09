@@ -196,7 +196,7 @@ if (gstate) {
   const store = [
     { appId: "app_0000000000a1", name: "Parcel Pal", tagline: "Cheaper Canada Post labels, printed from your orders.", description: "Buy labels at business rates, print them in one go, and tracking goes on each order by itself.", category: "orders-shipping", categoryName: "Orders and shipping", supportEmail: "help@parcelpal.example", website: "https://parcelpal.example", installAddress: "https://parcelpal.example/start",
       permissions: perms([["read_shop", "See your shop's name, address and currency"], ["write_orders", "Add tracking and mark orders as sent", true]]) },
-    { appId: "app_0000000000b2", name: "Letterbox", tagline: "Newsletters that send themselves when a book comes out.", description: "", category: "marketing", categoryName: "Marketing and email", supportEmail: "hi@letterbox.example", website: "https://letterbox.example", installAddress: "https://letterbox.example/install",
+    { appId: "app_0000000000b2", name: "Mailchimp", tagline: "Your customers and orders in Mailchimp, for newsletters.", description: "", category: "marketing", brand: "mailchimp", categoryName: "Marketing and email", supportEmail: "apps@yourpress.example", website: "https://mailchimp.com", installAddress: "https://yourpress.example/account/mailchimp.html",
       permissions: perms([["read_products", "See your products, prices and photos"], ["read_customers", "See your customers' names, emails and addresses", true]]) },
     { appId: "app_0000000000c3", name: "Zap Shelf", tagline: "Connect your shop to 6,000 other apps.", description: "", category: "other", categoryName: "Something else", supportEmail: "help@zapshelf.example", website: "https://zapshelf.example", installAddress: "",
       permissions: perms([["read_orders", "See your orders, what was in them and where they ship to", true], ["write_inventory", "Change how many of each product you have"]]) },
@@ -212,7 +212,7 @@ if (gstate) {
   appsApi.activity = async () => none ? [] : [
     { id: "r3", app: "Parcel Pal", what: "Marked order 1042 sent (Canada Post 7023 1100 4410)", when: "2026-11-04T16:10:00Z", state: "done", reason: "" },
     { id: "r2", app: "Parcel Pal", what: "Marked order 1039 sent (Canada Post 7023 1100 4388)", when: "2026-11-04T15:02:00Z", state: "refused", reason: "Order on hold: waiting on the author's signature." },
-    { id: "r1", app: "Letterbox", what: "Took away 2 of moth-songs", when: "2026-11-04T11:40:00Z", state: "done", reason: "" },
+    { id: "r1", app: "Mailchimp", what: "Took away 2 of moth-songs", when: "2026-11-04T11:40:00Z", state: "done", reason: "" },
   ];
 }
 

@@ -153,6 +153,34 @@ look `appAlertState/<shopId>`.
 
 The platform finds changes by reading orders and products changed since its last look, so the shops need no change.
 
+## 26.11 (first part built): Chit Chats, the shipping app
+
+Colophon's own app for [Chit Chats](https://chitchats.com/docs/api/v1), the Canadian discount courier, built on the same
+plumbing any app uses (`services/chitchats/`). The shop already buys labels itself; this app is for presses who ship
+through Chit Chats for its cheaper rates.
+
+1. Settings › Apps › Add opens `/account/chitchats.html?shop=<id>` (`accounts/chitchats.html`). The page sends the owner
+   through the permission page (`read_orders`, `write_orders`, alert `orders/paid`), and back with a code.
+2. The owner gives the Chit Chats client ID and access token (Chit Chats › Settings › Developer) and their usual parcel.
+   `POST /api/chitchats/connect` checks them with Chit Chats, swaps the code for the app's key (`installs.exchange`) and
+   keeps both sealed (`CHITCHATS_SEAL_KEY`, `services/payments/tokenSeal.js`) in `chitchatsShops/<shopId>`.
+3. A paid order's alert reaches `POST /api/chitchats/alerts` (signed like every app alert). The app makes one Chit Chats
+   shipment for it with `postage_type: "unknown"`, so nothing is bought: the press picks and pays for postage on Chit
+   Chats. Pickup and digital orders are skipped; an order with no full address is noted for the press.
+4. Every 10 minutes the `chitchats-tracking` job looks up open shipments. Once one has a tracking number, the app marks the
+   order sent through `POST /api/apps/v1/orders/<id>/fulfillment`, and the shop sends the usual shipped email.
+5. Disconnecting, or removing the app (alert `app/uninstalled`, or a key that stops working), forgets the details.
+
+Turning it on (real accounts): register the app in the app store as the platform team (`brand` left empty until Chit
+Chats' own logo is in `shared/brand-logos`), approve it, then set `CHITCHATS_APP_ID` (server/env.yaml) and the secrets
+`CHITCHATS_APP_SECRET` and `CHITCHATS_SEAL_KEY` (add them to `SECRETS` in `server/deploy.js` at the same time). Until
+then the page says "Opens soon" and the job does nothing. Try it first against Chit Chats' sandbox
+(`https://staging.chitchats.com`).
+
+Company logos on store cards: an app listing may carry `brand` (an id from `shared/brand-logos`), accepted only from the
+platform team's own apps, so an outside maker can't borrow a company's logo. The shop shows that logo in place of the
+category picture.
+
 ## The first apps (Julian's picks, 4 November 2026)
 
 Shipping (26.11), email marketing (26.12) and Zapier (26.13). Outside companies rarely build for a new platform, so
@@ -161,6 +189,8 @@ Colophon builds these itself, as apps on the same plumbing any app maker uses. T
 ## Needs real accounts or people
 
 - A Zapier developer account to publish the Zapier app (26.13); Mailchimp and Klaviyo app registrations (26.12).
+- A Chit Chats account (sandbox first) to register and try the Chit Chats app (26.11), and Chit Chats' permission to show
+  its logo.
 
 - A lawyer: the app developer terms (what makers promise about data, Quebec's Law 25), before the store opens (26.9).
 - Stripe test mode for app charges (26.7).
