@@ -46,6 +46,7 @@
 //   deliveryStats  optional: add(shopId, kind, atIso), the control room's per-shop counts (plan 19.12): every Stripe
 //              event for a shop is counted as "payment-event", and one the service answers with a failure as
 //              "payment-event-failed" too. A counter that fails never stops the event.
+import { isDeepStrictEqual } from "node:util";
 import { merchantProfile } from "../../shared/sells/sells.js";
 import { StripeApiError } from "./stripeApi.js";
 import { SquareApiError } from "./squareApi.js";
@@ -659,6 +660,8 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
           pastDue: needs.pastDue,
           // The merchant category Stripe holds (what the shop sells, for the control room's check against its answer).
           ...(typeof account.business_profile?.mcc === "string" && account.business_profile.mcc ? { mcc: account.business_profile.mcc } : {}),
+          // When Stripe pays the press, for the control room's shop record; an event without it keeps the kept one.
+          ...(payoutSchedule(account) ? { payoutSchedule: payoutSchedule(account) } : {}),
         };
         const saved = held;
         let payments = saved;
@@ -666,7 +669,7 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
         // (cards on again after Stripe paused them), so it changes nothing.
         const created = Number.isFinite(event.created) ? event.created : null;
         const stale = created !== null && Number.isFinite(saved.accountEventCreated) && created < saved.accountEventCreated;
-        if (!stale && Object.entries(state).some(([key, value]) => saved[key] !== value)) {
+        if (!stale && Object.entries(state).some(([key, value]) => !isDeepStrictEqual(saved[key], value))) {
           // When it turned past due; cleared once it isn't, so the next time emails the owner again.
           const { pastDueSince, pastDueEmailedAt, ...rest } = saved;
           payments = { ...rest, ...state, stateAt: iso(), ...(created !== null ? { accountEventCreated: created } : {}), ...(needs.pastDue ? { pastDueSince: pastDueSince ?? iso(), ...(pastDueEmailedAt ? { pastDueEmailedAt } : {}) } : {}) };

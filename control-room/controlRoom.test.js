@@ -5,7 +5,7 @@ import { test } from "node:test";
 import { PRIVACY_CONTACT } from "../terms/terms.js";
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
-import { ACT_AS_MINUTES, SHOPS_AT_ONCE, SIGN_IN_HOURS, adminOf, controlRoomAdmins, createControlRoom, eachInTurn, profilePublisher, shopHealth, twoStepProblem } from "./controlRoom.js";
+import { ACT_AS_MINUTES, SHOPS_AT_ONCE, SIGN_IN_HOURS, adminOf, controlRoomAdmins, createControlRoom, eachInTurn, payoutWords, profilePublisher, shopHealth, twoStepProblem } from "./controlRoom.js";
 import { controlRoutes } from "./routes.js";
 import { platformRoutes } from "./platformControls.js";
 import { parseSwitchArgs, switchCommand } from "./switch.js";
@@ -547,6 +547,19 @@ test("a line about one shop can be snoozed off Today for a while and put back, l
   assert.deepEqual(w.events(ID).filter((e) => e.what.startsWith("today-")).map((e) => [e.what, e.kind, e.days]), [["today-snoozed", "payment", 7], ["today-woken", "payment", 0]]);
 });
 
+test("a Stripe press's payouts in a few words for its record", () => {
+  const stripe = (payoutsEnabled, payoutSchedule) => payoutWords({ provider: "stripe", payoutsEnabled, payoutSchedule });
+  const base = { delayDays: null, weeklyAnchor: null, monthlyAnchor: null };
+  assert.equal(stripe(true, { ...base, interval: "daily", delayDays: 2 }), "on · every day, 2 days after a sale");
+  assert.equal(stripe(true, { ...base, interval: "daily", delayDays: 1 }), "on · every day, 1 day after a sale");
+  assert.equal(stripe(true, { ...base, interval: "monthly", monthlyAnchor: 15 }), "on · monthly, on day 15");
+  assert.equal(stripe(true, { ...base, interval: "manual" }), "on · started by hand");
+  assert.equal(stripe(true, undefined), "on");
+  assert.equal(stripe(false, { ...base, interval: "daily" }), "paused");
+  assert.equal(stripe(undefined, undefined), null, "Stripe hasn't said yet");
+  assert.equal(payoutWords({ provider: "square", payoutsEnabled: true }), null);
+});
+
 test("one shop's record: owner, billing, setup, fee and its history, admins only (plan 9.3)", async () => {
   const w = await world();
   await w.registry.updateShop(ID, { billing: { plan: "both", status: "trialing", access: "open", trialEnd: "2026-11-11T00:00:00Z", hasCard: false } });
@@ -574,6 +587,9 @@ test("one shop's record: owner, billing, setup, fee and its history, admins only
   await w.registry.updateShop(ID, { language: "fr", billing: { plan: "both", status: "trialing", province: "ON", language: null } });
   assert.equal((await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: ID })).body.emailLanguage, "en", "the Plan page's later choice wins");
   assert.equal((await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: "nope" })).status, 404);
+  // When Stripe pays the press (kept from account.updated), so "where's my money?" is answered from the record.
+  await w.registry.updateShop(ID, { payments: { provider: "stripe", accountId: "acct_x", payoutsEnabled: true, payoutSchedule: { interval: "weekly", delayDays: 7, weeklyAnchor: "friday", monthlyAnchor: null } } });
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: ID })).body.connections.payments.payouts, "on · every Friday");
   const listed = (await w.ask(ADMIN, "GET", "/api/control/shops")).body.shops.find((s) => s.shopId === ID);
   assert.deepEqual([listed.ownerEmail, listed.billingStatus], ["owner@example.com", "trialing"]);
   assert.equal(listed.emailLanguage, "en", "the list carries each press's email language too");

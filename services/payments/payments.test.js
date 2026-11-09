@@ -469,6 +469,20 @@ test("account.updated keeps the merchant category Stripe holds, so the control r
   assert.equal((await registry.getShop(SHOP)).payments.mcc, "5651");
 });
 
+test("account.updated keeps when Stripe pays the press, and an unchanged schedule isn't logged again", async () => {
+  const { service, registry } = await world();
+  const send = async (id, object) => {
+    const event = { id, livemode: true, account: "acct_moth", type: "account.updated", data: { object: { id: "acct_moth", charges_enabled: true, payouts_enabled: true, details_submitted: true, ...object } } };
+    await service.stripeEvent(signed(event).headers, signed(event).raw);
+  };
+  await send("evt_pay1", { settings: { payouts: { schedule: { interval: "weekly", delay_days: 7, weekly_anchor: "friday" } } } });
+  assert.deepEqual((await registry.getShop(SHOP)).payments.payoutSchedule, { interval: "weekly", delayDays: 7, weeklyAnchor: "friday", monthlyAnchor: null });
+  await send("evt_pay2", { settings: { payouts: { schedule: { interval: "weekly", delay_days: 7, weekly_anchor: "friday" } } } });
+  await send("evt_pay3", {});
+  assert.deepEqual([...registry.events.get(SHOP).keys()], ["payments-account-evt_pay1"], "the same schedule, or none, changes nothing");
+  assert.equal((await registry.getShop(SHOP)).payments.payoutSchedule.weeklyAnchor, "friday");
+});
+
 test("an older account.updated arriving late never turns cards back on after Stripe paused them", async () => {
   const email = fakeEmail();
   const { service, registry } = await world({ email });
