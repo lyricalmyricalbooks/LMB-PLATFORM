@@ -16,7 +16,7 @@ test("the shop and the stockroom each get every shared file", () => {
 
 test("every platform page folder gets the whole look", () => {
   for (const folder of PAGE_FOLDERS) {
-    for (const from of ["adminThemes.css", "pressroom.css", "platform-pages.css", "platform-look.js"]) {
+    for (const from of ["adminThemes.css", "pressroom.css", "colophon.css", "platform-pages.css", "platform-look.js"]) {
       assert.ok(COPIES.some((copy) => copy.from === from && copy.to.includes(`${folder}/look/${from}`)), `${folder}/look/${from}`);
     }
   }

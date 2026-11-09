@@ -202,34 +202,51 @@ function standing(shop) {
 
 function renderLedger(shops) {
   const states = shops.map(standing);
-  const trials = states.filter((s) => s.trialLeft !== undefined);
   const needs = shops.filter((shop) => shop.access === "paused");
-  const cells = [
-    ["Shops", String(shops.length), shops.length === 1 ? "you're on one team" : `you're on ${shops.length} teams`],
-    ["Open", String(shops.filter((shop) => shop.status === "live" && !["paused", "closed"].includes(shop.access)).length), "open to shoppers"],
-    trials.length ? ["Trial left", `${Math.min(...trials.map((s) => s.trialLeft))} days`, trials.length === 1 ? "on your free trial" : `${trials.length} shops on a trial`, "warning"] : ["Free trials", "0", "none running"],
-    ["Needs you", String(needs.length), needs.length ? `${needs[0].pressName}${needs.length > 1 ? ` and ${needs.length - 1} more` : ""}` : "nothing waiting", needs.length ? "danger" : undefined],
-  ];
+  // The trial that ends first, as a mint tile whose bar runs down.
+  const trials = shops.map((shop, i) => ({ shop, left: states[i].trialLeft })).filter((t) => t.left !== undefined).sort((a, b) => a.left - b.left);
   const ledger = $("#ledger");
-  ledger.style.setProperty("--n", String(cells.length));
-  ledger.replaceChildren(...cells.map(([label, value, foot, tone]) => {
-    const cell = el("div", {}, el("span", { className: "cp-kicker", textContent: label }), el("b", { textContent: value }), el("em", { textContent: foot }));
-    if (tone) cell.dataset.tone = tone;
-    return cell;
+  ledger.replaceChildren(...trials.slice(0, 1).map(({ shop, left }) => {
+    const bar = el("div", { className: "cp-bar", role: "img" }, el("i", { style: `width:${Math.round((Math.max(0, Math.min(14, left)) / 14) * 100)}%` }));
+    bar.setAttribute("aria-label", `${left} of 14 trial days left`);
+    return el("div", { className: "card cp-tone-mint" },
+      el("p", { className: "cp-kicker", textContent: `Free trial · ${shop.pressName}` }),
+      el("p", { className: "cp-big" }, String(left), el("small", { textContent: left === 1 ? "day left" : "days left" })),
+      bar);
   }));
-  ledger.hidden = !shops.length;
-  // One line per shop that needs its owner, with the button that fixes it.
-  $("#shop-alerts").replaceChildren(...needs.filter((shop) => shop.role === "owner").map((shop) => el("div", { className: "cp-alertline", role: "alert" },
-    el("p", {}, el("b", { textContent: `${shop.pressName} is paused. ` }), "Its plan payment didn't go through, so shoppers see a \"back soon\" page. Add a card and it opens again straight away."),
-    el("a", { className: "button primary", href: `/account/billing?shop=${encodeURIComponent(shop.shopId)}`, textContent: "Add a card" }))));
+  ledger.hidden = !trials.length;
+  // One tile per shop that needs its owner, with the button that fixes it.
+  $("#shop-alerts").replaceChildren(...needs.filter((shop) => shop.role === "owner").map((shop) => el("div", { className: "card cp-tone-apricot", role: "alert" },
+    el("p", { className: "cp-kicker", textContent: "Paused" }),
+    el("h3", { textContent: shop.pressName }),
+    el("p", { className: "hint", textContent: "Its plan payment didn't go through, so shoppers see a \"back soon\" page. Add a card and it opens again straight away." }),
+    el("div", { className: "cp-actions cp-start" }, el("a", { className: "button primary", href: `/account/billing?shop=${encodeURIComponent(shop.shopId)}`, textContent: "Add a card" })))));
+}
+
+/** The hero tile's two lines: a greeting, then how many shops and what needs a look. */
+function headline(shops) {
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const count = shops.length === 1 ? "One shop." : `${shops.length} shops.`;
+  const paused = shops.filter((shop) => shop.access === "paused").length;
+  const making = shops.filter((shop) => shop.status !== "live" && shop.access !== "closed").length;
+  const then = paused ? `${paused === 1 ? "One needs" : `${paused} need`} a new card.`
+    : making ? `${making === 1 ? "One is" : `${making} are`} being made.`
+    : "All running.";
+  return { greeting, count, then };
 }
 
 async function loadShops() {
   const { email, shops } = await api("GET", "/accounts/shops");
   myShops = shops;
   $("#me").textContent = email;
-  $("#topbar-who").textContent = `Signed in as ${email}`;
-  $("#page-desc").textContent = shops.length > 1 ? `${shops.length} shops. Open one to run it, or look after its team and plan.` : "Open your shop to run it, or look after its team and plan.";
+  const who = $("#topbar-who");
+  who.textContent = (email.trim()[0] ?? "").toUpperCase();
+  who.setAttribute("aria-label", `Signed in as ${email}`);
+  who.title = `Signed in as ${email}`;
+  const words = headline(shops);
+  $("#greeting").textContent = words.greeting;
+  $("#shops-title").replaceChildren(shops.length ? words.count : "No shops yet.", ...(shops.length ? [el("br"), words.then] : []));
   const list = $("#shops");
   if (!shops.length) {
     list.replaceChildren(el("div", { className: "empty" }, "You're not on any shop's team yet. ", el("a", { href: "../signup/", textContent: "Start a shop" }), ", or ask a shop's owner to invite you."));
@@ -259,7 +276,8 @@ function shopCard(shop) {
     const team = el("button", { type: "button", textContent: "Team" });
     team.addEventListener("click", () => openTeam(shop));
     // The Plan & billing page (accounts/billing.html, served at /account/billing).
-    const plan = el("a", { className: "button", href: `/account/billing?shop=${encodeURIComponent(shop.shopId)}`, textContent: "Plan & billing" });
+    const plan = el("a", { className: "button", href: `/account/billing?shop=${encodeURIComponent(shop.shopId)}`, textContent: "Billing" });
+    plan.setAttribute("aria-label", `Plan & billing for ${shop.pressName}`);
     const checkShop = el("button", { type: "button", textContent: "Check my shop" });
     checkShop.addEventListener("click", () => openCheck(shop));
     // Open and Plan & billing stay in sight; the rest sits in one More menu, as the big shop builders do.
@@ -300,7 +318,7 @@ function shopCard(shop) {
 /** A shop's More menu: a press-to-open list of its less-used actions. Closes on a choice, Escape or a press outside. */
 function moreMenu(shop, items) {
   const menu = el("details", { className: "cp-more" },
-    el("summary", { className: "button", textContent: "More" }),
+    el("summary", { className: "button", textContent: "···" }),
     el("div", { className: "cp-more-list", role: "group" }, ...items));
   menu.querySelector("summary").setAttribute("aria-label", `More for ${shop.pressName}`);
   for (const item of items) item.addEventListener("click", () => { menu.open = false; });
@@ -608,10 +626,19 @@ async function openDelete() {
     el("p", { style: "margin:0", textContent: shop.making
       ? "You'll be its only owner. Wait until it's ready, then make someone else an owner from Team, or close the shop, and come back."
       : "A shop always needs an owner. Make someone else an owner from Team, or close the shop, then come back." }))));
-  $("#delete-submit").disabled = blockers.length > 0;
+  deleteBlocked = blockers.length > 0;
   $("#delete-form").reset();
+  matchDeleteEmail();
   show("delete");
 }
+
+// The red button wakes only once the typed address matches the account's (and nothing blocks the delete).
+let deleteBlocked = false;
+function matchDeleteEmail() {
+  const typed = $("#delete-form").confirmEmail.value.trim().toLowerCase();
+  $("#delete-submit").disabled = deleteBlocked || !typed || typed !== $("#delete-email").textContent.trim().toLowerCase();
+}
+$("#delete-form").confirmEmail.addEventListener("input", matchDeleteEmail);
 
 $("#delete-form").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -625,7 +652,7 @@ $("#delete-form").addEventListener("submit", async (event) => {
     status.textContent = "Your account is deleted. We've sent a short note to your email address.";
   } catch (failure) {
     showFailure(status, failure);
-    button.disabled = false;
+    matchDeleteEmail();
   }
 });
 

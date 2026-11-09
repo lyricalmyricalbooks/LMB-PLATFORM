@@ -63,12 +63,15 @@ const px = (value) => { const m = /(^|\s)(\d+(?:\.\d+)?)px\b/.exec(value ?? "");
 /** The biggest `property` (in px) declared by a rule whose selector list contains `selector`. */
 const biggest = (rules, selector, property) => Math.max(0, ...rules.filter((r) => r.selectors.includes(selector)).map((r) => px(r.decls[property]) ?? 0));
 
-/** The look's colour tokens for day or night (the Riso Press look the pages wear), as { "rp-text": "#100f0d", … }. */
+/** The look's colour tokens for day or night, as { "rp-text": "#100f0d", … }: the admin's Riso Press tokens with the
+ *  platform's own Colophon look (colophon.css, on the `.rp.cl` root) over them, which is what the pages wear. */
 function variables(scope) {
+  const tokens = (block) => Object.fromEntries([...block.matchAll(/--([\w-]+):\s*(#[0-9a-fA-F]{6})\b/g)].map((m) => [m[1], m[2]]));
   const themes = read("shared/admin-look/adminThemes.css");
   const head = scope === "dark" ? /\n\.rp\[data-rp-appearance="dark"\],[^{]*\{([^}]*)\}/ : /\n\.rp,\s*\n\.admin-reso\s*\{([^}]*)\}/;
-  const block = head.exec(themes)?.[1] ?? "";
-  return Object.fromEntries([...block.matchAll(/--([\w-]+):\s*(#[0-9a-fA-F]{6})/g)].map((m) => [m[1], m[2]]));
+  const colophon = read("shared/admin-look/colophon.css");
+  const own = scope === "dark" ? /\n\.rp\.cl\[data-rp-appearance="dark"\]\s*\{([^}]*)\}/ : /\n\.rp\.cl\s*\{([^}]*)\}/;
+  return { ...tokens(head.exec(themes)?.[1] ?? ""), ...tokens(own.exec(colophon)?.[1] ?? "") };
 }
 
 function luminance(hex) {
@@ -166,6 +169,13 @@ for (const [name, page] of Object.entries(PAGES)) {
         assert.ok(contrast(v["rp-danger"], v[paper]) >= 4.5, `${scope}: error text on ${paper}`);
       }
       assert.ok(contrast(v["rp-on-primary"], v["rp-primary"]) >= 4.5, `${scope}: button text on the main button`);
+      // The accent tiles always carry the ink (day) or the light words (night).
+      for (const tile of ["cl-mint", "cl-apricot", "cl-sky", "cl-lilac", "cl-alert"]) {
+        assert.ok(v[tile] && contrast(v["cl-on-tile"], v[tile]) >= 4.5, `${scope}: words on the ${tile} tile`);
+      }
+      for (const [ink, tint] of [["rp-success", "rp-success-tint"], ["rp-warning", "rp-warning-tint"], ["rp-info", "rp-info-tint"], ["rp-danger", "rp-danger-tint"]]) {
+        assert.ok(contrast(v[ink], v[tint]) >= 4.5, `${scope}: ${ink} on its tint`);
+      }
     }
     // Day or night follows the device: the page loads the switch, and the layer names no colour of its own.
     assert.match(html, /<script src="\.\/look\/platform-look\.js"><\/script>/);

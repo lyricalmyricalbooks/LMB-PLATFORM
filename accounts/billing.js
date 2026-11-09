@@ -114,7 +114,7 @@ function renderLedger(billing, words) {
   const tax = billing.plusTax ? " + tax" : "";
   const cells = [["Plan", billing.price, `${billing.planName}, monthly${tax}`]];
   if (billing.access === "paused" || billing.access === "closed") cells.push(["Shop", words.state, billing.access === "paused" ? "kept for 60 days" : "90 days to download", "danger"]);
-  else if (billing.status === "trialing") cells.push(["Free trial", `${billing.trialDaysLeft ?? 0} days`, `until ${day(billing.trialEnd)}`, "warning"]);
+  else if (billing.status === "trialing") cells.push(["Free trial", `${billing.trialDaysLeft ?? 0} days`, `until ${day(billing.trialEnd)}`, "trial"]);
   else if (billing.cancelAtPeriodEnd) cells.push(["Open until", day(billing.cancelEndsAt ?? billing.currentPeriodEnd).replace(/ \d{4}$/, ""), "then the plan ends", "warning"]);
   else cells.push(["Status", words.state, billing.status === "past_due" ? "update your card" : "all paid up", billing.status === "past_due" ? "danger" : undefined]);
   cells.push(billing.nextPaymentAt ? ["Next bill", day(billing.nextPaymentAt).replace(/ \d{4}$/, ""), `${billing.price}${tax}`] : ["Next bill", "None", billing.hasCard ? "nothing due" : "until a card is added"]);
@@ -122,6 +122,8 @@ function renderLedger(billing, words) {
   $("#plan-ledger").replaceChildren(...cells.map(([label, value, foot, tone]) => {
     const cell = el("div", {}, el("span", { className: "cp-kicker", textContent: label }), el("b", { textContent: value }), el("em", { textContent: foot }));
     if (tone) cell.dataset.tone = tone;
+    // The trial's tile has a bar that runs down with the days left.
+    if (tone === "trial") cell.append(el("div", { className: "cp-bar", ariaHidden: "true" }, el("i", { style: `width:${Math.round((Math.max(0, Math.min(14, billing.trialDaysLeft ?? 0)) / 14) * 100)}%` })));
     return cell;
   }));
   const trouble = billing.access === "paused" || billing.status === "past_due";

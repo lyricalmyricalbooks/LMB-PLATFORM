@@ -18,13 +18,15 @@ export const COPIES = [
 /** The platform's own pages (waitlist, sign-up, accounts, help, terms, status, walkthrough start page): each folder is
  * served on its own, so each keeps a `look/` copy of the admin look plus the platform-pages layer. */
 export const PAGE_FOLDERS = ["waitlist", "signup", "accounts", "help", "experts", "terms", "trust", "status", "walkthrough"];
-export const PAGE_FILES = ["adminThemes.css", "pressroom.css", "platform-pages.css", "platform-look.js"];
+export const PAGE_FILES = ["adminThemes.css", "pressroom.css", "colophon.css", "platform-pages.css", "platform-look.js"];
 for (const from of PAGE_FILES) {
   const to = PAGE_FOLDERS.map((folder) => `${folder}/look/${from}`);
   const app = COPIES.find((copy) => copy.from === from);
   if (app) app.to.push(...to);
   else COPIES.push({ from, to, pagesOnly: true });
 }
+// The control room wears the platform's Colophon look too (it has no platform-pages layer: its own room.css).
+COPIES.find((copy) => copy.from === "colophon.css").to.push("control-room/look/colophon.css");
 
 const banner = (from) =>
   from.endsWith(".js")

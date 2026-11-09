@@ -1440,26 +1440,19 @@ $("#scrim").addEventListener("click", () => setMenu(false));
 $("#sidebar").addEventListener("keydown", (event) => { if (event.key === "Escape" && $("#sidebar").dataset.open === "true") { setMenu(false); $("#menu-open").focus(); } });
 $("#sign-out").addEventListener("click", () => signOut(auth));
 
-// The look, as in the website admin: Riso Press or Paper, day or night. Kept in this browser only.
+// Day or night (the Colophon look, colophon.css). Kept in this browser only.
 const remember = (key, value) => { try { if (value === undefined) return localStorage.getItem(key); localStorage.setItem(key, value); } catch { /* storage blocked */ } return null; };
-function applyLook(look, appearance) {
-  if (look === "paper") document.documentElement.dataset.adminLook = "paper";
-  else delete document.documentElement.dataset.adminLook;
+function applyAppearance(appearance) {
   $("#room").dataset.rpAppearance = appearance;
-  for (const choice of document.querySelectorAll("[data-look]")) choice.setAttribute("aria-pressed", String(choice.dataset.look === look));
   $("#appearance").setAttribute("aria-pressed", String(appearance === "dark"));
   $("#appearance").textContent = appearance === "dark" ? "Day" : "Night";
 }
-let look = remember("colophon-control-look") ?? "riso";
 let appearance = remember("colophon-control-appearance") ?? (window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-applyLook(look, appearance);
-for (const choice of document.querySelectorAll("[data-look]")) {
-  choice.addEventListener("click", () => { look = choice.dataset.look; remember("colophon-control-look", look); applyLook(look, appearance); });
-}
+applyAppearance(appearance);
 $("#appearance").addEventListener("click", () => {
   appearance = appearance === "dark" ? "light" : "dark";
   remember("colophon-control-appearance", appearance);
-  applyLook(look, appearance);
+  applyAppearance(appearance);
 });
 
 // Messages show as a toast, and a quiet one goes after a while.
