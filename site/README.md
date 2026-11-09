@@ -34,5 +34,7 @@ repository's main branch can use the `github-deploy` account, and only in `lmb-p
    `curl -fsSL https://raw.githubusercontent.com/lyricalmyricalbooks/LMB-PLATFORM/main/site/github-access.sh | bash`
 3. When it says Done, the next merge (or Run workflow) deploys.
 
+The pages need no billing on the project. The server (Cloud Run, Cloud Build, Secret Manager, Cloud Scheduler) does:
+without a billing account the script leaves those off and says so; add billing and run it again for the server's part.
 Safe to run again. It also makes the server's two link phrases (`trial-tips-secret`, `checkup-secret`) as random values,
 and gives Cloud Build the roles `server/README.md` mentions.
