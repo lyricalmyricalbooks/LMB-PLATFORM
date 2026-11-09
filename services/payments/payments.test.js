@@ -164,9 +164,9 @@ test("only a shop with its own service key gets in, with one answer for every re
   assert.equal(stripe.requests.length, 0);
 });
 
-test("a closed shop, one without a Stripe account, or a Square shop without the platform's Square app, is refused before Stripe is asked", async () => {
+test("a closed shop, one without a Stripe account, or a Square shop that never had one, is refused before Stripe is asked", async () => {
   const closure = { by: "admin@example.com", reason: "sold stolen cards", at: "2026-10-28T12:00:00Z" };
-  for (const [row, status, code] of [[shopRow({ status: "abandoned" }), 403, "shop_closed"], [shopRow({ closure }), 403, "shop_closed"], [shopRow({ payments: undefined }), 409, "no_account"], [shopRow({ payments: { provider: "square", accountId: "L1" } }), 503, "square_not_ready"]]) {
+  for (const [row, status, code] of [[shopRow({ status: "abandoned" }), 403, "shop_closed"], [shopRow({ closure }), 403, "shop_closed"], [shopRow({ payments: undefined }), 409, "no_account"], [shopRow({ payments: { provider: "square", accountId: "L1" } }), 409, "no_account"]]) {
     const { call, stripe } = await world({ row });
     const answer = await call("paymentIntents.create", intentArgs());
     assert.deepEqual([answer.status, answer.body.error.code], [status, code]);

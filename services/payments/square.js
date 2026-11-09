@@ -25,6 +25,7 @@ import { verifySquareSignature, SQUARE_SIGNATURE_HEADER } from "./squareSignatur
 import { seal, unseal } from "./tokenSeal.js";
 import { feeFor, feeSummary, takesFee } from "./fees.js";
 import { squareBooksMinor } from "./payAsYouSell.js";
+import { findSlot, replaceSlot, withNext } from "./accountSlots.js";
 
 /** What the platform asks a press to allow (the minimum Square lists for app fees, plus locations and disputes). */
 export const SQUARE_SCOPES = Object.freeze([
@@ -158,6 +159,9 @@ export const SQUARE_OP_NAMES = Object.freeze([
   "square.disputes.forPayment",
   "square.payouts.retrieve", "square.payouts.entries",
 ]);
+
+/** The calls that start a new sale: only the shop's current account takes them, never one it switched away from. */
+export const SQUARE_CREATE_OPS = Object.freeze(new Set(["square.checkout.create"]));
 
 /**
  * @param {object} deps see the header comment
@@ -390,6 +394,8 @@ export function createSquareService({ square, registry, tokens, states, deliver,
     };
   }
 
+  // On a shop selling through Stripe, the Square account connected here is the one it will switch to (payments.next,
+  // accountSlots.js); it takes no sales until the switch.
   async function connectLink(row, { returnUrl } = {}) {
     let url;
     try { url = new URL(returnUrl); } catch { throw bad("returnUrl must be an address"); }
@@ -397,7 +403,8 @@ export function createSquareService({ square, registry, tokens, states, deliver,
     const mode = row.payments.mode === "live" ? "live" : "test";
     const state = randomBytes(24).toString("hex");
     const expiresAt = now() + STATE_MS;
-    await states.put(state, { shopId: row.shopId, mode, returnUrl: url.toString(), expiresAt });
+    const forSwitch = row.payments.provider !== "square";
+    await states.put(state, { shopId: row.shopId, mode, returnUrl: url.toString(), expiresAt, ...(forSwitch ? { forSwitch } : {}) });
     return { url: square.authorizeUrl(mode, { scopes: SQUARE_SCOPES, state }), expiresAt: Math.floor(expiresAt / 1000) };
   }
 
@@ -448,7 +455,9 @@ export function createSquareService({ square, registry, tokens, states, deliver,
       const saved = /^[0-9a-f]{48}$/.test(state) ? await states.take(state) : null;
       if (!saved || saved.expiresAt < now()) return { status: 400, body: { error: "This sign-in link has expired. Go back to your shop's admin and press Connect Square again." } };
       const row = await registry.getShop(saved.shopId);
-      if (!row || row.payments?.provider !== "square") return backTo(saved.returnUrl, "failed");
+      // A switch's sign-in must still be for a shop not on Square, and a shop's own sign-in for one that is.
+      const forSwitch = saved.forSwitch === true;
+      if (!row || forSwitch === (row.payments?.provider === "square")) return backTo(saved.returnUrl, "failed");
       if (query.error || typeof query.code !== "string" || !query.code) return backTo(saved.returnUrl, "denied");
       let granted;
       try {
@@ -462,7 +471,11 @@ export function createSquareService({ square, registry, tokens, states, deliver,
       // One Square account per shop, one shop per Square account: anything else could send a press's money elsewhere.
       const holder = await registry.findShopByPaymentAccount("square", merchantId);
       if (holder && holder.shopId !== row.shopId) return backTo(saved.returnUrl, "in_use");
-      if (row.payments.accountId && row.payments.accountId !== merchantId && !row.payments.disconnectedAt) return backTo(saved.returnUrl, "other_account");
+      if (!forSwitch && row.payments.accountId && row.payments.accountId !== merchantId && !row.payments.disconnectedAt) return backTo(saved.returnUrl, "other_account");
+      // The service keeps one Square sign-in per shop and environment: another account would lose the sign-in that
+      // still refunds the orders taken through an earlier one.
+      const before = (row.payments.earlier ?? []).find((a) => a?.provider === "square" && a.mode === saved.mode && !a.disconnectedAt);
+      if (forSwitch && before && before.accountId !== merchantId) return backTo(saved.returnUrl, "other_account");
       let location;
       try {
         ({ location } = await square.call(saved.mode, "GET", "/v2/locations/main", { accessToken: granted.access_token }));
@@ -475,8 +488,14 @@ export function createSquareService({ square, registry, tokens, states, deliver,
         sealed: seal(sealKey(), bound(row.shopId, saved.mode), { accessToken: granted.access_token, refreshToken: granted.refresh_token }),
         merchantId, expiresAt: granted.expires_at, connectedAt: iso(),
       });
+      const connected = { provider: "square", mode: saved.mode, accountId: merchantId, locationId: location.id, currency: location.currency ?? null, country: location.country ?? null, connectedAt: iso() };
+      if (forSwitch) {
+        await registry.updateShop(row.shopId, { payments: withNext(row.payments, connected) });
+        await logChange(row.shopId, `payments-next-${merchantId}-${saved.mode}`, { kind: "payments.next-staged", provider: "square", accountId: merchantId, locationId: location.id, mode: saved.mode });
+        return backTo(saved.returnUrl, "connected");
+      }
       const { disconnectedAt: _gone, ...kept } = row.payments;
-      const payments = { ...kept, provider: "square", mode: saved.mode, accountId: merchantId, locationId: location.id, currency: location.currency ?? null, country: location.country ?? null, connectedAt: iso() };
+      const payments = { ...kept, ...connected };
       await registry.updateShop(row.shopId, { payments });
       await logChange(row.shopId, `payments-square-connected-${merchantId}-${saved.mode}`, { kind: "payments.square-connected", accountId: merchantId, locationId: location.id, mode: saved.mode });
       return backTo(saved.returnUrl, "connected");
@@ -491,17 +510,21 @@ export function createSquareService({ square, registry, tokens, states, deliver,
       try { event = JSON.parse(rawBody); } catch { return { status: 400, body: { error: "The event isn't JSON." } }; }
       if (typeof event.merchant_id !== "string" || !MERCHANT_ID.test(event.merchant_id)) return { status: 200, body: { ignored: "no merchant" } };
       const row = await registry.findShopByPaymentAccount("square", event.merchant_id);
-      if (!row || row.payments?.mode !== mode) return { status: 200, body: { ignored: "no shop has this Square account here" } };
+      // The shop's current account, an earlier one (orders before a switch) or the next one (being connected).
+      const found = row ? findSlot(row.payments, "square", event.merchant_id) : null;
+      if (!found || found.account.mode !== mode) return { status: 200, body: { ignored: "no shop has this Square account here" } };
       if (event.type === "oauth.authorization.revoked") {
-        if (!row.payments.disconnectedAt) {
+        if (!found.account.disconnectedAt) {
           await tokens.remove(row.shopId, mode);
-          await registry.updateShop(row.shopId, { payments: { ...row.payments, disconnectedAt: iso() } });
+          await registry.updateShop(row.shopId, { payments: replaceSlot(row.payments, found, { ...found.account, disconnectedAt: iso() }) });
           await logChange(row.shopId, `payments-square-revoked-${event.event_id}`, { kind: "payments.disconnected", accountId: event.merchant_id });
         }
         return { status: 200, body: { disconnected: row.shopId } };
       }
       // Only payments, refunds, disputes and payouts (each order's fees and payout, 7.10) mean anything to a shop; the
       // rest would be refused there and sent again.
+      // The account being connected for a switch has taken no sales: nothing for the shop yet.
+      if (found.slot === "next") return { status: 200, body: { ignored: "account not in use yet" } };
       const wanted = ["payment", "refund", "dispute"].includes(event.data?.type) || (event.data?.type === "payout" && event.type === "payout.paid");
       if (!wanted) return { status: 200, body: { ignored: "not a payment, refund, dispute or paid payout" } };
       try {

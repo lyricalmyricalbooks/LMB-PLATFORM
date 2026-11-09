@@ -1,3 +1,5 @@
+import { accountKey } from "../services/payments/accountSlots.js";
+
 // In-memory stand-ins for the shop registry and a shop's audit log, for tests and dry runs. The real ones (Firestore in
 // the platform project, and the shop's own `audit-log` collection) keep the same shape.
 //
@@ -7,8 +9,8 @@
 // `readLock(shopId)` -> { runId, takenAt, expiresAt } | null; `takeLock(shopId, lock)` takes the lock when it is free,
 // lapsed (expiresAt passed) or already this run's, and returns { taken: true } or { taken: false, runId, expiresAt }
 // (the real one does this in one Firestore transaction); `releaseLock(shopId, runId)` frees it only for the run that
-// holds it. The payment service also uses `findShopByPaymentAccount(provider, accountId)` (the row whose `payments`
-// names that account, or null) and `recordEvent(shopId, entry)` (its own changes, by entry id). The release check keeps
+// holds it. The payment service also uses `findShopByPaymentAccount(provider, accountId)` (the row whose `payments`, or its
+// `payments.otherAccounts`, names that account, or null) and `recordEvent(shopId, entry)` (its own changes, by entry id). The release check keeps
 // its runs with `recordReleaseCheck(shopId, entry)` / `readReleaseChecks(shopId)`; the release runner reads `listShops()`
 // and writes `recordRelease(entry)`. Audit log: `ready(shopId)` says
 // whether the shop's database exists yet; `write(shopId, id, entry)` stores the entry under `id`, replacing any entry
@@ -47,7 +49,11 @@ export function fakeRegistry(seed = {}) {
     locks,
     events,
     async findShopByPaymentAccount(provider, accountId) {
-      const row = [...shops.values()].find((shop) => shop.payments?.provider === provider && shop.payments?.accountId === accountId);
+      const matches = [...shops.values()].filter((shop) => (shop.payments?.provider === provider && shop.payments?.accountId === accountId)
+        // As the real registry does: earlier and next accounts only through payments.otherAccounts.
+        || (Array.isArray(shop.payments?.otherAccounts) && shop.payments.otherAccounts.includes(accountKey(provider, accountId))));
+      if (matches.length > 1) throw new Error(`two shops name the ${provider} account ${accountId}; a person checks the registry`);
+      const row = matches[0];
       return row ? structuredClone(row) : null;
     },
     async recordEvent(shopId, entry) {
