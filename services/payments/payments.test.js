@@ -377,6 +377,8 @@ test("every call a shop can make is listed", () => {
     "account.connectLink", "square.checkout.create", "square.checkout.delete", "square.checkout.retrieve", "square.disputes.forPayment",
     "square.payments.cancel", "square.payments.retrieve", "square.refunds.create", "square.refunds.forPayment", "square.refunds.retrieve",
     "square.payouts.entries", "square.payouts.retrieve",
+    // Switching between Stripe and Square (accountSlots.js)
+    "account.switch",
   ].sort());
 });
 

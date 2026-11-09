@@ -98,7 +98,7 @@ const MARKER = "Stripe shops only";
 const SCREENS = [
   "src/app/admin/OrderDetail.tsx", "src/app/admin/OrdersDesk.tsx", "src/app/admin/ordersDesk.ts", "src/app/admin/fulfillment.ts",
   "src/app/admin/adminAlerts.ts", "src/app/admin/api.ts", "src/app/admin/Dashboard.tsx", "src/app/admin/ShopSettings.tsx",
-  "src/app/admin/PlatformPaymentsCard.tsx", "src/app/admin/platformPayments.ts", "src/app/admin/launchReadiness.ts",
+  "src/app/admin/PlatformPaymentsCard.tsx", "src/app/admin/SwitchProviderSection.tsx", "src/app/admin/platformPayments.ts", "src/app/admin/launchReadiness.ts",
   "src/app/admin/paymentHealth.ts", "src/app/admin/testSaleWalkthrough.ts", "src/app/admin/BookkeeperDesk.tsx",
   "src/app/admin/providerWords.ts",
 ];

@@ -50,7 +50,7 @@ import { merchantProfile } from "../../shared/sells/sells.js";
 import { StripeApiError } from "./stripeApi.js";
 import { SquareApiError } from "./squareApi.js";
 import { createSquareService, SQUARE_CREATE_OPS, SQUARE_OP_NAMES } from "./square.js";
-import { accountFor, accountOnly, findSlot, replaceSlot, viewOf, withNext } from "./accountSlots.js";
+import { accountFor, accountOnly, findSlot, nextReady, replaceSlot, switchingTo, viewOf, withNext } from "./accountSlots.js";
 import { verifySignature } from "./stripeSignature.js";
 import { feeFor, feeForShop, feeSummary, takesFee } from "./fees.js";
 import { activeTerms, createFeeLedger, intentBooksMinor, sessionBooksMinor } from "./payAsYouSell.js";
@@ -168,7 +168,7 @@ const SHOP_OPS = Object.freeze({
   "balanceTransactions.list": { method: "GET", path: () => "/v1/balance_transactions", params: payoutListParams },
 });
 
-export const SHOP_OP_NAMES = Object.freeze([...Object.keys(SHOP_OPS), "account.status", "account.onboardingLink", "account.connectLink", "account.paymentDomain", ...SQUARE_OP_NAMES]);
+export const SHOP_OP_NAMES = Object.freeze([...Object.keys(SHOP_OPS), "account.status", "account.onboardingLink", "account.connectLink", "account.paymentDomain", "account.switch", ...SQUARE_OP_NAMES]);
 
 /** Stripe's controller settings that match a Standard account (the deprecated `type: "standard"`). */
 export const STANDARD_CONTROLLER = Object.freeze({
@@ -465,6 +465,21 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
     return "stripe";
   }
 
+  // The press pressed Switch (Settings › Payments): the account it connected takes sales alongside the current one
+  // until the platform has moved the shop's server over and finishes the switch (control-room/providerSwitch.js).
+  // Safe to press twice.
+  async function startSwitch(row) {
+    const payments = row.payments;
+    if (row.paymentsEmergency) throw new ServiceError(409, "emergency_move", "The platform moved this shop's card payments for now, so it can't switch providers until that ends.");
+    if (!payments.next) throw new ServiceError(409, "no_next_account", "Connect the account to switch to first.");
+    if (!nextReady(payments)) throw new ServiceError(409, "next_not_ready", "The account to switch to can't take payments yet.");
+    if (payments.switching?.accountId === payments.next.accountId) return { switching: payments.switching };
+    const switching = { to: payments.next.provider, accountId: payments.next.accountId, at: iso() };
+    await registry.updateShop(row.shopId, { payments: { ...payments, switching } });
+    await logChange(row.shopId, `payments-switch-${switching.accountId}`, { kind: "payments.switch-started", from: payments.provider, to: switching.to, accountId: switching.accountId });
+    return { switching };
+  }
+
   const switchedAway = (name) => new ServiceError(409, "switched_provider", `This shop no longer takes new payments through ${name}.`);
 
   async function runShopOp(row, body) {
@@ -477,8 +492,10 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
     if (name === "account.status" && args.which === "next") {
       const next = row.payments.next;
       if (!next) return { next: null };
-      return next.provider === "square" ? squareReady().runShopOp(viewOf(row, next), { op: name }, fee) : accountStatus(viewOf(row, next), fee);
+      const state = next.provider === "square" ? await squareReady().runShopOp(viewOf(row, next), { op: name }, fee) : await accountStatus(viewOf(row, next), fee);
+      return { ...state, provider: next.provider, switching: row.payments.switching ?? null };
     }
+    if (name === "account.switch") return startSwitch(row);
     if (name === "account.status" && args.which !== undefined) throw bad("which must be next when given");
     // Connect Square sees the whole row: on a shop selling through Stripe it connects the account for a switch.
     if (name === "account.connectLink") return squareReady().runShopOp(row, body, fee);
@@ -487,10 +504,12 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
     const provider = providerOf(name, row);
     // After a switch, orders taken before it still go through the account that took them (the newest earlier one for
     // that provider). New sales only ever go to the current account.
-    const found = accountFor(row.payments, provider);
+    // While a switch is under way the account switched to takes sales as well: the shop's server moves over to it.
+    const found = accountFor(row.payments, provider) ?? switchingTo(row.payments, provider);
+    const sells = found?.slot === "current" || found?.slot === "next";
     if (provider === "square") {
       if (!found) throw new ServiceError(409, "not_connected", "This shop hasn't connected Square yet.");
-      if (found.slot !== "current" && SQUARE_CREATE_OPS.has(name)) throw switchedAway("Square");
+      if (!sells && SQUARE_CREATE_OPS.has(name)) throw switchedAway("Square");
       return squareReady().runShopOp(viewOf(row, found.account), body, fee);
     }
     if (!found) throw new ServiceError(409, "no_account", "This shop has no Stripe account with the platform yet.");
@@ -500,9 +519,10 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
     if (name === "account.onboardingLink") return onboardingLink(row, args);
     const op = typeof name === "string" && Object.hasOwn(SHOP_OPS, name) ? SHOP_OPS[name] : null;
     if (!op) throw bad(`unknown call ${String(name).slice(0, 60)}`);
-    if (op.create && found.slot !== "current") throw switchedAway("Stripe");
+    if (op.create && !sells) throw switchedAway("Stripe");
     const mode = modeFor(row, body.mode);
-    if (op.create && mode === "live") await liveChargesAllowed(whole);
+    // The account switched to was checked before the switch could start (nextReady).
+    if (op.create && mode === "live" && found.slot === "current") await liveChargesAllowed(whole);
     const path = op.path(args);
     let idempotencyKey = null;
     if (op.create || op.refund) {
@@ -647,8 +667,8 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
         await logChange(row.shopId, `payments-disconnected-${event.id}`, { kind: "payments.disconnected", accountId: event.account });
       }
 
-      // The account being connected for a switch has taken no sales: nothing for the shop yet.
-      if (found.slot === "next") return { status: 200, body: { ignored: "account not in use yet" } };
+      // The account being connected for a switch has taken no sales before the switch starts: nothing for the shop yet.
+      if (found.slot === "next" && !switchingTo(row.payments, "stripe")) return { status: 200, body: { ignored: "account not in use yet" } };
 
       if (mode === held.mode) {
         try {

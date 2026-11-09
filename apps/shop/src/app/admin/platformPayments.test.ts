@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { accountConnected, dueDateText, feeLine, joinWords, needsLine, paymentsReady, providerName, returnNotice, withoutReturnFlags } from "./platformPayments";
+import { accountConnected, dueDateText, feeLine, joinWords, needsLine, otherProvider, paymentsReady, providerName, returnNotice, switchStage, withoutReturnFlags } from "./platformPayments";
 import { paymentHealth } from "./paymentHealth";
 import { alertRoute, cardAccountAlert } from "./adminAlerts";
 
@@ -71,5 +71,24 @@ describe("Card payments through Colophon", () => {
 
   test("an expired Stripe page sends the owner back to the one Continue with Stripe button", () => {
     expect(returnNotice("?stripe=refresh")?.text).toBe("That Stripe page expired. Press Continue with Stripe to get a new one.");
+  });
+});
+
+describe("Switching to the other card provider", () => {
+  test("the stage follows the account being connected", () => {
+    expect(switchStage(null)).toBe("start");
+    expect(switchStage({ next: null })).toBe("start");
+    expect(switchStage({ provider: "square", connected: true, chargesEnabled: false })).toBe("connecting");
+    expect(switchStage({ provider: "stripe", detailsSubmitted: false, chargesEnabled: false })).toBe("connecting");
+    expect(switchStage({ provider: "square", connected: true, chargesEnabled: true })).toBe("ready");
+    expect(switchStage({ provider: "stripe", detailsSubmitted: true, chargesEnabled: true })).toBe("ready");
+    expect(switchStage({ provider: "square", connected: true, chargesEnabled: true, switching: { to: "square", accountId: "MLR1", at: "2026-11-09T12:00:00Z" } })).toBe("switching");
+    expect([otherProvider("stripe"), otherProvider("square")]).toEqual(["square", "stripe"]);
+  });
+
+  test("coming back from Square on a Stripe shop is a switch being set up", () => {
+    expect(returnNotice("?square=connected", "stripe")?.text).toBe("Square is connected. Switch whenever you're ready.");
+    expect(returnNotice("?square=denied", "stripe")?.text).not.toMatch(/Connect Square/);
+    expect(returnNotice("?square=connected", "square")?.text).toMatch(/can take cards now/);
   });
 });

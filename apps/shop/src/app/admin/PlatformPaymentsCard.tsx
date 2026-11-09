@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { adminApi } from "./api";
 import { ErrorState, LoadingState, PrimaryButton, SecondaryButton, SectionCard, StatusBadge } from "./riso/components";
 import { friendlyError } from "./settingsLayout";
+import { SwitchProviderSection } from "./SwitchProviderSection";
 import { accountConnected, CONTINUE_WITH_STRIPE, feeLine, needsLine, paymentsReady, providerName, returnNotice, withoutReturnFlags, type PlatformPaymentsAnswer, type ReturnNotice } from "./platformPayments";
 
 // Settings › Payments › Ways to pay, for a shop whose cards run through Colophon (plan 2.2b / 2.10): no keys to paste.
@@ -13,7 +14,7 @@ export function PlatformPaymentsCard({ provider }: { provider: "stripe" | "squar
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<null | "status" | "connect">("status");
   // Read once, when Square or Stripe sends the owner back here; the flag is then taken out of the address.
-  const [notice] = useState<ReturnNotice | null>(() => (typeof window === "undefined" ? null : returnNotice(window.location.search)));
+  const [notice] = useState<ReturnNotice | null>(() => (typeof window === "undefined" ? null : returnNotice(window.location.search, provider)));
 
   const load = async () => {
     setBusy("status");
@@ -89,6 +90,7 @@ export function PlatformPaymentsCard({ provider }: { provider: "stripe" | "squar
               <p style={{ margin: 0 }}>{feeLine(answer.platformFee)}</p>
               <p className="rp-hint" style={{ margin: "8px 0 0" }}>{name} pays your sales into your own bank account on its usual schedule.</p>
             </div>
+            {connected && <SwitchProviderSection current={provider} />}
             {error && <p role="alert" className="rp-hint" style={{ margin: 0, color: "var(--rp-danger)" }}>{error}</p>}
           </>
         ) : null}

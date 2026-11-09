@@ -96,6 +96,9 @@ function platformAccount(call) {
     onboardingLink: (returnUrl, refreshUrl) => call("account.onboardingLink", undefined, { returnUrl, refreshUrl }),
     // Apple Pay and Google Pay on one of the shop's own addresses (plan 2.9): Stripe's payment method domain.
     paymentDomain: (domain) => call("account.paymentDomain", undefined, { domain }),
+    // Switching between Square and Stripe after opening (code plan 27.6c): the account being connected, and Switch.
+    nextStatus: () => call("account.status", undefined, { which: "next" }),
+    switchNow: () => call("account.switch", undefined, {}),
   });
 }
 

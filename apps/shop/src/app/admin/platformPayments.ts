@@ -47,10 +47,15 @@ export function feeLine(fee: PlatformFee | undefined): string {
 
 export type ReturnNotice = { tone: "success" | "warning" | "danger"; text: string };
 
-/** What happened when Square or Stripe sent the owner back here (`?square=…` / `?stripe=…`); null when nothing did. */
-export function returnNotice(search: string): ReturnNotice | null {
+/**
+ * What happened when Square or Stripe sent the owner back here (`?square=…` / `?stripe=…`); null when nothing did.
+ * `current` is the shop's provider: coming back from the other one is a switch being set up (code plan 27.6c).
+ */
+export function returnNotice(search: string, current?: "stripe" | "square"): ReturnNotice | null {
   const params = new URLSearchParams(search);
   const square = params.get("square");
+  if (current === "stripe" && square === "connected") return { tone: "success", text: "Square is connected. Switch whenever you're ready." };
+  if (current === "stripe" && square === "denied") return { tone: "warning", text: "Square wasn't connected: the sign-in was cancelled." };
   if (square === "connected") return { tone: "success", text: "Square is connected. Your shop can take cards now." };
   if (square === "denied") return { tone: "warning", text: "Square wasn't connected: the sign-in was cancelled. Press Connect Square to try again." };
   if (square === "in_use") return { tone: "danger", text: "That Square account is already connected to another shop. Sign in with this shop's own Square account." };
@@ -107,3 +112,23 @@ export function needsLine(answer: PlatformPaymentsAnswer, timeZone?: string): st
   if (due.length) parts.push(`${late.length ? "It also needs" : "Stripe needs"} ${joinWords(due)}${by ? ` by ${by}` : ""}.`); // Stripe shops only
   return parts.length ? parts.join(" ") : null;
 }
+
+/** The other provider's account, connected to switch to (functions/checkoutAdmin.js step "nextStatus"). */
+export type SwitchAnswer = PlatformPaymentsAnswer & {
+  /** No account connected to switch to yet. */
+  next?: null;
+  /** The press pressed Switch: both accounts take sales until Colophon has moved the shop over. */
+  switching?: { to: "stripe" | "square"; accountId: string; at: string } | null;
+};
+
+/** Where a switch to the other provider stands, for Settings › Payments. */
+export type SwitchStage = "start" | "connecting" | "ready" | "switching";
+
+export function switchStage(answer: SwitchAnswer | null): SwitchStage {
+  if (!answer || answer.next === null || !answer.provider) return "start";
+  if (answer.switching) return "switching";
+  return accountConnected(answer) && answer.chargesEnabled === true ? "ready" : "connecting";
+}
+
+/** The provider a shop selling through `current` can switch to. */
+export const otherProvider = (current: "stripe" | "square"): "stripe" | "square" => (current === "square" ? "stripe" : "square");

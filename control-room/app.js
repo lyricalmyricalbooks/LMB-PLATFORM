@@ -662,6 +662,7 @@ function card(shop) {
     switches,
     shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Card payments" }) : null,
     shop.status === "live" ? paymentsMenu(shop.paymentsMoved?.to ?? "platform", { shopId: shop.shopId }, shop.pressName) : null,
+    shop.status === "live" ? providerSwitchLine(shop) : null,
     el("h3", { className: "cr-section", textContent: "The record" }),
     recordSlot,
     el("h3", { className: "cr-section", textContent: "Emails to the press" }),
@@ -685,6 +686,36 @@ function card(shop) {
     shop.status === "live" ? shopLookSection(shop) : null,
     ...privateSections(shop),
   ].filter(Boolean);
+}
+
+// ── A press's own switch between Stripe and Square (providerSwitch.js): where it stands, and finishing it. ──
+const PROVIDER_WORDS = { stripe: "Stripe", square: "Square" };
+
+function providerSwitchLine(shop) {
+  const earlier = (shop.earlierPayments ?? []).map((a) => `${PROVIDER_WORDS[a.provider] ?? a.provider}${a.until ? ` until ${String(a.until).slice(0, 10)}` : ""}`);
+  const lines = [
+    shop.cardProvider ? `Sells through ${PROVIDER_WORDS[shop.cardProvider] ?? shop.cardProvider}.` : null,
+    earlier.length ? `Older orders: ${earlier.join(", ")}.` : null,
+  ].filter(Boolean);
+  const waiting = shop.paymentsSwitch;
+  if (!waiting && !lines.length) return null;
+  const finish = waiting ? button(`Finish the switch to ${PROVIDER_WORDS[waiting.to]}`, "primary") : null;
+  finish?.addEventListener("click", async () => {
+    finish.disabled = true;
+    try {
+      const answer = await api("POST", "/control/payments/finish-switch", { shopId: shop.shopId });
+      closeDrawer();
+      await load();
+      status.textContent = answer.finished ? `${shop.pressName ?? shop.shopId} now sells through ${PROVIDER_WORDS[waiting.to]}.` : `Not finished: ${answer.error ?? answer.skipped}`;
+    } catch (failure) {
+      status.textContent = failure.message;
+    }
+    finish.disabled = false;
+  });
+  return el("div", {},
+    lines.length ? el("p", { className: "rp-hint", textContent: lines.join(" ") }) : null,
+    waiting ? el("p", { className: "rp-hint", textContent: `The press switched to ${PROVIDER_WORDS[waiting.to]} on ${String(waiting.since).slice(0, 10)}. Both accounts take sales until it's finished.${waiting.problem ? ` Last try: ${waiting.problem.message}` : ""}` }) : null,
+    finish ? el("div", { className: "cr-actions" }, finish) : null);
 }
 
 // ── The emergency payments switch (plan 8.5): if the platform's Stripe is paused, move a shop, or every shop. ──

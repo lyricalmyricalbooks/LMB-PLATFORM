@@ -23,7 +23,7 @@ import { toCountryCodes } from "./shippingCountries";
 import { keepPhotoCopies, removedPhotos, shownUrls, unusedBookFiles } from "./bookFileCleanup";
 import { mediaApi } from "./mediaApi";
 import { auditLog } from "./auditLog";
-import type { PlatformPaymentsAnswer } from "./platformPayments";
+import type { SwitchAnswer } from "./platformPayments";
 import type { DomainCheck, DomainList, DomainStep } from "./customDomains";
 import type { BookkeepingOptions, BookkeepingSave, BookkeepingStatus } from "./quickbooksLink";
 import type { SocialPost, SocialStatus } from "./socialChannels";
@@ -1312,7 +1312,8 @@ export const adminApi = {
 
   // The press's card account on the platform (plan 2.2b / 2.10): "status" (connected? the platform's fee) or "connect"
   // (the address of Square's sign-in or Stripe's onboarding, coming back to Settings › Payments). Platform shops only.
-  platformPayments: async (step: "status" | "connect") => {
+  // Switching to the other provider (code plan 27.6c): "nextStatus", "connectNext" and "switch".
+  platformPayments: async (step: "status" | "connect" | "nextStatus" | "connectNext" | "switch") => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin.");
     const response = await functionFetch("createStripeCheckoutSession", {
@@ -1322,7 +1323,7 @@ export const adminApi = {
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || "Couldn't reach your card account.");
-    return result as PlatformPaymentsAnswer;
+    return result as SwitchAnswer;
   },
 
   // The press's own web address (plan 2.9), through the platform's domain service. A shop without that service answers
