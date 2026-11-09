@@ -963,7 +963,13 @@ test("one Google account runs the whole shop: a sign-in with another account cha
   const before = structuredClone((await t.shopRow()).google);
   const back = await handleGoogle({ method: "GET", path: "/google/oauth", query: { state, code: t.google.allow({ email: "someone-else@example.com" }) } }, { service: t.link.service });
   assert.equal(new URL(back.headers.Location).searchParams.get("google"), "other_account");
-  assert.deepEqual((await t.shopRow()).google, before);
+  const { refusedSignIn, ...after } = (await t.shopRow()).google;
+  assert.deepEqual(after, before, "nothing about the connection changes");
+  assert.equal(refusedSignIn.triedEmail, "someone-else@example.com");
+  assert.equal(refusedSignIn.times, 1);
+  assert.ok(Date.parse(refusedSignIn.at));
+  // The control room sees it.
+  assert.deepEqual((await t.link.status.googleStatus(SHOP)).refusedSignIn, refusedSignIn);
   const status = await t.call("google.status");
   assert.equal(status.body.accountEmail, "owner@example.com");
   assert.deepEqual(status.body.extrasChosen, ["drive"]);

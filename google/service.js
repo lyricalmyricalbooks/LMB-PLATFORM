@@ -299,6 +299,10 @@ export function createGoogleService({ config, google, tokens, states, registry, 
       const before = await tokens.get(saved.shopId);
       if (tokens.live(before) && before.accountEmail && accountEmail && before.accountEmail.toLowerCase() !== accountEmail.toLowerCase()) {
         await google.revoke(granted.refreshToken || granted.accessToken).catch(() => {});
+        // Written down for the control room, so "Google won't connect" has an answer: when, and which account was tried.
+        const tries = row.google?.refusedSignIn;
+        await registry.updateShop(saved.shopId, { google: { ...(row.google ?? {}), refusedSignIn: { at: new Date(now()).toISOString(), triedEmail: String(accountEmail).slice(0, 200), times: (tries?.times ?? 0) + 1 } } })
+          .catch((err) => console.error(`Noting the refused Google sign-in for ${saved.shopId} failed:`, err?.message || err));
         return backTo(saved.returnUrl, "other_account");
       }
       await tokens.save(saved.shopId, granted, { accountEmail, extras: saved.extras ?? [] });

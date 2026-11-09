@@ -395,6 +395,8 @@ function googleView(record) {
   return el("div", { className: "cr-list" },
     el("p", { className: "rp-hint", textContent: `${google.stage}${google.accountEmail ? ` as ${google.accountEmail}` : ""}${google.connectedAt ? ` since ${dateOnly(google.connectedAt)}` : ""}.${google.readsSheets === true ? " Can bring products in from a Google Sheet." : google.readsSheets === false ? " Didn't allow reading Google Sheets." : ""}` }),
     google.steps.length ? list : el("p", { className: "rp-hint", textContent: "No Google steps yet." }),
+    // A sign-in turned away for using another Google account (one account runs the whole shop).
+    google.refusedSignIn ? el("p", { className: "rp-hint", textContent: `Turned away a sign-in with ${google.refusedSignIn.triedEmail ?? "another Google account"} on ${dateOnly(google.refusedSignIn.at)}${google.refusedSignIn.times > 1 ? ` (${google.refusedSignIn.times} tries so far)` : ""}. The press has to sign in with ${google.accountEmail ?? "the connected account"}.` }) : null,
     // Extras the press switched off in Settings › Google (#385): they stopped at once; what they made stays the press's.
     stoppedExtras(google.parts),
     stockSheetLine(record.connections?.google?.sheet));
