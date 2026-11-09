@@ -14,6 +14,7 @@
 //   POST /api/control/apps/approve      { appId } -> { app }
 //   POST /api/control/apps/send-back    { appId, reason } -> { app }
 //   POST /api/control/apps/unlist       { appId, reason } -> { app }
+//   POST /api/control/apps/brand        { appId, brand } -> { app }        a kit logo on Colophon's own apps; "" takes it off
 // Installing (26.2), for a shop's team (signed in):
 //   POST /api/apps/install/preview      { appId, shopId, returnAddress } -> { app, permissions, canApprove, ... }
 //   POST /api/apps/install/approve      { appId, shopId, returnAddress, state } -> { redirect }   owner only
@@ -37,6 +38,7 @@ export function appMakerRoutes(makers) {
     "POST /api/control/apps/approve": (claims, request) => makers.approve(claims, body(request)),
     "POST /api/control/apps/send-back": (claims, request) => makers.sendBack(claims, body(request)),
     "POST /api/control/apps/unlist": (claims, request) => makers.unlist(claims, body(request)),
+    "POST /api/control/apps/brand": (claims, request) => makers.setBrand(claims, body(request)),
   };
 }
 

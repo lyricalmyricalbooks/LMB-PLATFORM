@@ -17,7 +17,7 @@
 //   store  get(appId); put(appId, app); listByMaker(email); listByStatus(status); listOnStore()
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { adminOf } from "../../control-room/controlRoom.js";
-import * as BRAND_LOGOS from "../../shared/brand-logos/logos.js";
+import { BRAND_LOGOS } from "../../shared/brand-logos/logos.js";
 import { SignupError, personOf } from "../../signup/signup.js";
 import { cleanScopes, grantedScopes, scopeList, scopeWords } from "./scopes.js";
 import { TOPICS } from "./topics.js";
@@ -271,7 +271,8 @@ export function createAppMakers({
       adminOf(claims, admins);
       if (!STATUSES.includes(status) && status !== "on-store") throw new SignupError(400, "Pick draft, in-review, listed, unlisted or on-store.");
       const apps = status === "on-store" ? (await store.listOnStore()).filter((app) => app.onStore) : await store.listByStatus(status);
-      return { apps: apps.sort((a, b) => (a.updatedAt < b.updatedAt ? -1 : 1)).map((app) => ({ ...forMaker(app), history: app.history ?? [] })) };
+      // `ours`: made by the platform team, so it may carry a company logo (shared/brand-logos/README.md).
+      return { apps: apps.sort((a, b) => (a.updatedAt < b.updatedAt ? -1 : 1)).map((app) => ({ ...forMaker(app), ours: admins.includes(app.makerEmail), history: app.history ?? [] })) };
     },
 
     /** The draft becomes the copy on the store. */
@@ -306,6 +307,29 @@ export function createAppMakers({
       const why = reasonFrom(reason);
       Object.assign(app, { status: "unlisted", onStore: false, unlisted: { reason: why, at: at(), by } });
       note(app, by, `taken off the store: ${why}`);
+      await store.put(app.appId, app);
+      return { app: forMaker(app) };
+    },
+
+    /**
+     * Put a kit logo on one of Colophon's own apps, or take one off any app, from its review card. The logo is a fact
+     * about which company the app connects to, so it goes on the draft and on the approved copy at once.
+     */
+    async setBrand(claims, { appId, brand } = {}) {
+      const by = adminOf(claims, admins);
+      const app = await adminsApp(appId);
+      const picked = oneLine(brand);
+      if (picked && !Object.hasOwn(BRAND_LOGOS, picked)) throw new SignupError(400, "Pick a logo from the kit.", { brand: "Pick a logo from the kit." });
+      if (picked && !admins.includes(app.makerEmail)) throw new SignupError(403, "Company logos go only on Colophon's own apps.", { brand: "Only on Colophon's own apps." });
+      const put = (details) => {
+        if (!details) return;
+        if (picked) details.brand = picked;
+        else delete details.brand;
+      };
+      if ((app.draft?.brand ?? "") === picked && (app.listing?.details?.brand ?? "") === picked) return { app: forMaker(app) };
+      put(app.draft);
+      put(app.listing?.details);
+      note(app, by, picked ? `logo set to ${BRAND_LOGOS[picked].name}` : "logo taken off");
       await store.put(app.appId, app);
       return { app: forMaker(app) };
     },
