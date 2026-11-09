@@ -358,7 +358,7 @@ async function readAdminSecret(id) {
 // functions/payments (code plans 1.11-1.12; the provider interface is listed there). In platform mode (plan 2.2) every
 // call goes through the platform's payment service instead, as this shop (its project id is its registry id).
 const payments = createPayments({
-  provider: shopConfig.paymentProvider, mode: shopConfig.paymentMode,
+  provider: shopConfig.paymentProvider, mode: shopConfig.paymentMode, earlier: shopConfig.earlierPaymentProvider,
   service: { url: shopConfig.paymentsServiceUrl, shopId: shopConfig.project, serviceKey: platformServiceKey },
   db, Stripe, liveSecretKey: STRIPE_SECRET_KEY, readAdminSecret,
 });
@@ -2460,7 +2460,8 @@ exports.stripeWebhook = onRequest(
     try { deployedSecret = STRIPE_WEBHOOK_SECRET.value(); } catch { /* not set */ }
     const secrets = signingSecrets(deployedSecret, savedSecrets.live, savedSecrets.test);
     // Awaited: in platform mode the event is fetched again through the payment service before anything trusts it.
-    const { event, lastError } = await payments.verifyWebhookEvent(client, req.rawBody, sig, secrets);
+    // After a switch of provider, the platform names which one sent the delivery (X-Platform-Event).
+    const { event, lastError } = await payments.verifyWebhookEvent(client, req.rawBody, sig, secrets, { platformEvent: req.headers["x-platform-event"] });
     if (!event) {
       const message = lastError?.message || "No webhook signing secret is configured.";
       console.error("Signature verification failed:", message);
@@ -2612,7 +2613,7 @@ exports.stripeWebhook = onRequest(
     if (event.type === "payout.paid") {
       const payout = event.data.object || {};
       try {
-        const changed = await recordPayout({ db, payments, mode: event.livemode ? "live" : "test", payoutId: payout.id, accountId: event.account || null, arrivalDate: payout.arrival_date });
+        const changed = await recordPayout({ db, payments, mode: event.livemode ? "live" : "test", payoutId: payout.id, accountId: event.account || null, arrivalDate: payout.arrival_date, provider: event.provider || null });
         console.log(`Payout ${payout.id}: ${changed} order(s) updated.`);
       } catch (err) {
         console.error("Failed to record payout.paid:", err);
@@ -4733,7 +4734,8 @@ exports.teamExpirySweep = onSchedule({ schedule: "every 30 minutes", name: "team
 exports.paymentPageSweep = onSchedule(
   { schedule: "every 5 minutes", name: "paymentPageSweep", timeoutSeconds: 120, secrets: withPlatformKey([RESEND_API_KEY]) },
   async () => {
-    if (payments.provider !== "square") return;
+    // Also after a switch away from Square, for the pages opened before it.
+    if (payments.provider !== "square" && shopConfig.earlierPaymentProvider !== "square") return;
     const result = await paymentPages.closeDuePages();
     if (result.closed || result.refunded) console.log("paymentPageSweep:", result);
     // Fair helpers' QR links (payments/square.js standaloneCheckout): closed after their half hour, like Stripe's.

@@ -20,6 +20,9 @@
 //                        (functions/payments/platform.js); the shop holds no provider key. Any other value stops the
 //                        functions from loading, like a wrong provider
 //   SHOP_PAYMENTS_SERVICE_URL the platform payment service's address (https://…), needed in platform mode
+//   SHOP_PAYMENT_EARLIER the provider the shop sold through before switching (platform mode only; "stripe" or
+//                        "square", not the current one). Older orders keep their lookups, refunds and payouts there
+//                        (functions/payments/index.js). Unset or empty: none. Anything else stops the functions loading
 //   SHOP_FUNCTIONS_REGION where the shop's server code runs (the shop profile's functionsRegion; the deploy writes it
 //                        from public/shop-profile.js). Every function deploys there (index.js setGlobalOptions), and
 //                        links to them (the Stripe webhook, e-book downloads) name it. Unset keeps us-central1
@@ -60,6 +63,7 @@ const PLACEHOLDER = Object.freeze({
   project: "lmb-test-shop",
   paymentProvider: DEFAULT_PROVIDER,
   paymentMode: DEFAULT_MODE,
+  earlierPaymentProvider: null,
   region: "us-central1",
   testShop: false,
   stockroomDatabase: "stockroom",
@@ -119,6 +123,16 @@ function providerModeOf(provider, mode) {
   return mode;
 }
 
+// The provider a shop sold through before a switch: only through the platform, and never the current one.
+function earlierProviderOf(value, provider, mode) {
+  const name = text(value).toLowerCase();
+  if (!name) return null;
+  if (!PROVIDER_NAMES.includes(name) || name === provider || mode !== "platform") {
+    throw new Error(`SHOP_PAYMENT_EARLIER is "${text(value).slice(0, 40)}". It must name the provider the shop used before switching through the platform (one of: ${PROVIDER_NAMES.filter(n => n !== provider).join(", ")}), or be empty, in the shop's functions/.env file. Then deploy again.`);
+  }
+  return name;
+}
+
 /** The shop's server settings from `env` (process.env in the functions), each one checked on its own. */
 function readShopConfig(env = {}) {
   const project = text(env.GCLOUD_PROJECT) || text(env.GOOGLE_CLOUD_PROJECT) || PLACEHOLDER.project;
@@ -144,6 +158,7 @@ function readShopConfig(env = {}) {
     siteHost: host.replace(/^www\./, ""),
     paymentProvider: paymentProviderOf(env.SHOP_PAYMENT_PROVIDER),
     paymentMode: providerModeOf(paymentProviderOf(env.SHOP_PAYMENT_PROVIDER), paymentModeOf(env.SHOP_PAYMENT_MODE)),
+    earlierPaymentProvider: earlierProviderOf(env.SHOP_PAYMENT_EARLIER, paymentProviderOf(env.SHOP_PAYMENT_PROVIDER), paymentModeOf(env.SHOP_PAYMENT_MODE)),
     paymentsServiceUrl: paymentsServiceUrlOf(paymentModeOf(env.SHOP_PAYMENT_MODE), env.SHOP_PAYMENTS_SERVICE_URL),
     testShop: text(env.SHOP_TEST_SHOP).toLowerCase() === "true",
     stockroomDatabase: DATABASE_ID.test(text(env.SHOP_STOCKROOM_DATABASE)) ? text(env.SHOP_STOCKROOM_DATABASE) : PLACEHOLDER.stockroomDatabase,
