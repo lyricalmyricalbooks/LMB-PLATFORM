@@ -5,6 +5,7 @@
 #   - a Workload Identity pool "github" with a provider "lmb-platform" that trusts GitHub's sign-in for one repository
 #     (lyricalmyricalbooks/LMB-PLATFORM, by its fixed id) and its main branch only, so no key or password exists anywhere
 #   - the two server phrases a person never needs to type (trial-tips-secret, checkup-secret), as random values
+#   - Identity Platform with authenticator-app two-step sign-in, which the control room needs
 # Safe to run twice. Changes nothing outside lmb-platform-prod.
 set -euo pipefail
 
@@ -24,7 +25,8 @@ gcloud services enable --project="$PROJECT" iam.googleapis.com iamcredentials.go
 # pages still go live; run this script again after adding billing to get the server's part too.
 SERVER_SERVICES=yes
 if ! gcloud services enable --project="$PROJECT" run.googleapis.com cloudbuild.googleapis.com \
-  artifactregistry.googleapis.com secretmanager.googleapis.com cloudscheduler.googleapis.com compute.googleapis.com 2> /dev/null; then
+  artifactregistry.googleapis.com secretmanager.googleapis.com cloudscheduler.googleapis.com compute.googleapis.com \
+  identitytoolkit.googleapis.com 2> /dev/null; then
   SERVER_SERVICES=no
   echo "   The server's services need billing on the project, so they are left off for now. The pages don't need it."
 fi
@@ -66,8 +68,18 @@ BUILDER="$NUMBER-compute@developer.gserviceaccount.com"
 for role in artifactregistry.writer storage.objectViewer logging.logWriter; do
   gcloud projects add-iam-policy-binding "$PROJECT" --member="serviceAccount:$BUILDER" --role="roles/$role" --condition=None --quiet > /dev/null
 done
+
+echo "6. Sign-in with an authenticator app (the control room asks for one)"
+# Identity Platform is Firebase sign-in with two-step codes; it needs billing (free for the first 50,000 people a month).
+TOKEN=$(gcloud auth print-access-token)
+AUTH_API="https://identitytoolkit.googleapis.com/v2/projects/$PROJECT"
+curl -fsS -X POST "$AUTH_API/identityPlatform:initializeAuth" -H "Authorization: Bearer $TOKEN" \
+  -H "x-goog-user-project: $PROJECT" -H "Content-Type: application/json" -d '{}' > /dev/null 2>&1 || true # already on
+curl -fsS -X PATCH "$AUTH_API/config?updateMask=mfa" -H "Authorization: Bearer $TOKEN" -H "x-goog-user-project: $PROJECT" \
+  -H "Content-Type: application/json" \
+  -d '{"mfa":{"state":"ENABLED","providerConfigs":[{"state":"ENABLED","totpProviderConfig":{"adjacentIntervals":5}}]}}' > /dev/null
 else
-echo "4-5. Skipped until the project has billing (the server's phrases and Cloud Build's roles)."
+echo "4-6. Skipped until the project has billing (the server's phrases, Cloud Build's roles, authenticator-app sign-in)."
 fi
 
 echo

@@ -2,7 +2,7 @@ name: Deploy the platform
 
 # Puts the platform live at https://lmb-platform-prod.web.app on every merge to main (and from the Actions tab, "Run
 # workflow"): the front page, the front door, sign-up, account, help, terms, status, the control room and setup mode
-# (site/build.js), the platform's database rules, and the platform's server once its keys are in Google's safe
+# (site/build.js), the platform's database rules, and the platform's server once its settings are saved
 # (server/README.md). Only the platform's own project, lmb-platform-prod: never a press's shop or any other project.
 #
 # Signs in to Google with GitHub's own short-lived identity (Workload Identity Federation): there is no key or password
@@ -60,25 +60,30 @@ jobs:
           service_account: ${{ env.DEPLOY_ACCOUNT }}
       - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
-      # The server goes live only when all six of its keys are in Secret Manager and its settings are saved in the
-      # repository variable SERVER_SETTINGS (server/env.example.yaml's lines). Until then this says what is missing and
-      # the pages go live without it.
+      # The server goes live once its two link phrases are in Secret Manager (site/github-access.sh makes them) and its
+      # settings are saved in the repository variable SERVER_SETTINGS (server/env.example.yaml's lines). The email and
+      # Stripe keys are optional: until they are added, those parts say "not connected" and everything else works.
       - name: Is the server ready?
         id: server
         env:
           SERVER_SETTINGS: ${{ vars.SERVER_SETTINGS }}
         run: |
           missing=""
-          for secret in resend-api-key stripe-platform-test-key stripe-billing-webhook-secret stripe-connect-webhook-secret-test trial-tips-secret checkup-secret; do
+          for secret in trial-tips-secret checkup-secret; do
             gcloud secrets describe "$secret" --project="$PROJECT" > /dev/null 2>&1 || missing="$missing $secret"
           done
           [ -n "$SERVER_SETTINGS" ] || missing="$missing (repository variable SERVER_SETTINGS)"
+          later=""
+          for secret in resend-api-key stripe-platform-test-key stripe-billing-webhook-secret stripe-connect-webhook-secret-test; do
+            gcloud secrets describe "$secret" --project="$PROJECT" > /dev/null 2>&1 || later="$later $secret"
+          done
           if [ -z "$missing" ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
+            [ -z "$later" ] || echo "Server live without:$later (email and Stripe say \"not connected\" until added)." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "ready=false" >> "$GITHUB_OUTPUT"
             echo "### The server isn't put live yet" >> "$GITHUB_STEP_SUMMARY"
-            echo "Waiting on:$missing. The pages go live without it (server/README.md, Your steps)." >> "$GITHUB_STEP_SUMMARY"
+            echo "Waiting on:$missing. The pages go live without it (site/README.md)." >> "$GITHUB_STEP_SUMMARY"
           fi
       - name: Put the server live
         if: steps.server.outputs.ready == 'true'
