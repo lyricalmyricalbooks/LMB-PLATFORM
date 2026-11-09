@@ -709,6 +709,7 @@ function card(shop) {
     shop.status === "live" && shop.plan !== "stockroom" ? shopSocialSection(shop) : null,
     shop.plan !== "stockroom" ? el("h3", { className: "cr-section", textContent: "Apps" }) : null,
     shop.plan !== "stockroom" ? shopAppsSection(shop) : null,
+    shop.plan !== "stockroom" ? shopChitChatsSection(shop) : null,
     shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Newsletters, morning emails and changed orders" }) : null,
     shop.status === "live" ? shopFeaturesSection(shop) : null,
     shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Website look" }) : null,
@@ -2598,6 +2599,34 @@ function shopAppsSection(shop) {
           { header: "", end: true, render: (c) => el("div", {}, pill(CHANGE_TONE[c.state], CHANGE_WORDS[c.state]), c.reason ? meta(c.reason) : null) },
         ],
       }) : null);
+  }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
+  return slot;
+}
+
+// The shop's Chit Chats orders (Colophon's own shipping app), only when it is connected: waiting for tracking, oldest
+// first and flagged once late, then the ones with a problem. The morning email names each once; this keeps them in view.
+function shopChitChatsSection(shop) {
+  const slot = el("div", {});
+  api("POST", "/control/shop-chitchats", { shopId: shop.shopId }).then((found) => {
+    if (!found.connected) return slot.remove();
+    const rows = [
+      ...found.problems.map((p) => ({ order: p.order, tone: "danger", state: "problem", more: [p.words, p.at ? when(p.at) : null] })),
+      ...found.waiting.map((w) => ({ order: w.order, tone: w.late ? "warning" : "neutral", state: w.late ? `waiting over ${found.waitingDays} days` : "waiting for tracking", more: [w.since ? `paid ${when(w.since)}` : null] })),
+    ];
+    const more = found.waitingCount + found.problemCount - rows.length;
+    fill(slot,
+      el("h4", { className: "cr-section", textContent: `Chit Chats orders${rows.length ? ` (${found.waitingCount} waiting${found.problemCount ? `, ${found.problemCount} with a problem` : ""})` : ""}` }),
+      found.lastProblem ? el("p", { className: "rp-hint", textContent: `Chit Chats stopped answering on ${dateOnly(found.lastProblem.at)}: ${found.lastProblem.words}` }) : null,
+      rows.length ? table({
+        caption: "Chit Chats orders",
+        rows,
+        columns: [
+          { header: "Order", lead: true, render: (r) => el("p", { className: "cr-title", textContent: r.order ?? "—" }) },
+          { header: "Details", render: (r) => meta(...r.more) },
+          { header: "", end: true, render: (r) => pill(r.tone, r.state) },
+        ],
+      }) : el("p", { className: "rp-hint", textContent: "No orders waiting for tracking." }),
+      more > 0 ? el("p", { className: "rp-hint", textContent: `${plural(more, "more order")} not shown.` }) : null);
   }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
   return slot;
 }

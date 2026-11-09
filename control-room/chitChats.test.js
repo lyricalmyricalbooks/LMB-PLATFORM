@@ -45,3 +45,18 @@ test("the door: platform admins only; switched off says so", async () => {
   assert.equal((await ask(PRESS)).status, 403);
   assert.equal((await ask(ADMIN)).status, 200);
 });
+
+test("one shop's record: its waiting orders oldest first, the late ones flagged, and its problems; a shop not connected says so", async () => {
+  const desk = await world();
+  const found = await desk.forShop(ADMIN, { shopId: "kestrel" });
+  assert.equal(found.connected, true);
+  assert.deepEqual(found.waiting.map((w) => [w.order, w.late]), [["k1", true], ["k2", false]]);
+  assert.deepEqual([found.waitingCount, found.problemCount], [2, 1]);
+  assert.equal(found.problems[0].words, "The order has no full shipping address.");
+  assert.ok(!JSON.stringify(found).includes("secret-chitchats-token"));
+  assert.deepEqual(await desk.forShop(ADMIN, { shopId: "paper-wasp" }), { connected: false });
+  const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), routes: chitChatsDeskRoutes(desk), log: () => {} });
+  const ask = (claims) => api({ method: "POST", path: "/api/control/shop-chitchats", body: { shopId: "kestrel" }, headers: { Authorization: `Bearer ${JSON.stringify(claims)}` } });
+  assert.equal((await ask(PRESS)).status, 403);
+  assert.equal((await ask(ADMIN)).status, 200);
+});
