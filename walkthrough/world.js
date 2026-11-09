@@ -202,6 +202,8 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const deliveryStats = fakeDeliveryStats();
   const shopAccess = fakeShopAccess();
   const room = createControlRoom({
+    // Today lists shops with stuck Chit Chats orders; the desk is made further down, and only called once a request comes.
+    parcels: () => chitChatsDesk.shops(),
     registry, auditLog, profileFiles, shopAccess, repairs, signups: stores.signups, shopData,
     publish: profilePublisher({ deploy: services.deploy, registry }), settings: live, email, breaches: createBreachRegister({ store: fakeBreachStore(), registry, auditLog, now: clock.date }), people,
     activity, supportStore, recoveryStore, platformState, accessRequests, admins, now: clock.date, presses: frontDoorStores.presses,
