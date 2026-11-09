@@ -5,7 +5,8 @@
 // control room's Chit Chats table keeps showing it until it is sorted.
 //
 // Each press hears too, the same morning, about its own orders in that note ("chitchats-waiting", to the shop's owner,
-// in the shop's language), so the press can buy the label or send the parcel another way. A press email that fails
+// in the shop's language), so the press can buy the label or send the parcel another way, unless the press turned it
+// off on its Chit Chats page (`emailsOff` on the connection; the owner's note still names it). A press email that fails
 // never stops the others or the owner's note.
 //
 // Reads the same shipments as control-room/chitChats.js. Nothing new, no email. Safe to run twice: each email's key
@@ -43,7 +44,7 @@ export async function chitChatsNote({ stores, registry, email, to, now = () => n
     const fresh = problems.filter((s) => today(s.updatedAt ?? s.createdAt));
     if (!late.length && !fresh.length) return;
     shops.push({
-      shop,
+      shop, emailsOff: row.emailsOff === true,
       shopId: row.shopId, pressName: shop?.pressName ?? row.shopId,
       late: late.map(orderOf).sort().slice(0, SHOWN), lateCount: late.length,
       problems: fresh.slice(0, SHOWN).map((s) => ({ order: orderOf(s), words: String(s.problem ?? "").slice(0, 200) || null })), problemCount: fresh.length,
@@ -53,9 +54,10 @@ export async function chitChatsNote({ stores, registry, email, to, now = () => n
   const day = at.toISOString().slice(0, 10);
   let pressesTold = 0;
   for (const row of shops) {
-    const { shop } = row;
+    const { shop, emailsOff } = row;
     delete row.shop;
-    if (!shop?.ownerEmail || ["closed", "abandoned"].includes(shop.status) || shop.closure) continue;
+    delete row.emailsOff;
+    if (emailsOff || !shop?.ownerEmail || ["closed", "abandoned"].includes(shop.status) || shop.closure) continue;
     try {
       const profile = registry.getProfile ? await registry.getProfile(row.shopId).catch(() => null) : null;
       await email.sendPlatform({

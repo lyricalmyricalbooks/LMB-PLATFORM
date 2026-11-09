@@ -170,6 +170,7 @@ export function createChitChatsApp({
         shopId, sealed: seal(sealKey, bound(shopId), { ...secrets, appKey }), clientId: secrets.clientId,
         tokenFingerprint: sha256(secrets.accessToken).slice(0, 12), parcel: usual,
         connectedAt: before?.connectedAt ?? at(), updatedAt: at(), connectedBy: person.email, lastProblem: null,
+        ...(before?.emailsOff ? { emailsOff: true } : {}),
       };
       await connections.put(shopId, row);
       return { connected: true, clientId: row.clientId, parcel: usual };
@@ -182,7 +183,18 @@ export function createChitChatsApp({
       const row = await connections.get(shopId);
       if (!row) return { available: true, appId, connected: false, parcel: USUAL_PARCEL };
       const waiting = await shipments.listOpen(shopId);
-      return { available: true, appId, connected: true, clientId: row.clientId, parcel: row.parcel ?? USUAL_PARCEL, connectedAt: row.connectedAt, waiting: waiting.length, lastProblem: row.lastProblem ?? null };
+      return { available: true, appId, connected: true, clientId: row.clientId, parcel: row.parcel ?? USUAL_PARCEL, connectedAt: row.connectedAt, waiting: waiting.length, lastProblem: row.lastProblem ?? null, emails: !row.emailsOff };
+    },
+
+    /** The owner's choice of the morning email about late or refused orders (control-room/chitChatsNote.js); on by default. */
+    async setEmails(claims, { shopId, on } = {}) {
+      await ownerOf(claims, shopId);
+      if (typeof on !== "boolean") throw new SignupError(400, "Say on or off.");
+      const row = await connections.get(shopId);
+      if (!row) throw new SignupError(409, "Connect Chit Chats first.");
+      const { emailsOff: _was, ...rest } = row;
+      await connections.put(shopId, { ...rest, ...(on ? {} : { emailsOff: true }), updatedAt: at() });
+      return { emails: on };
     },
 
     async disconnect(claims, { shopId } = {}) {

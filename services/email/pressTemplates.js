@@ -62,7 +62,7 @@ export function pressTemplates({ layout, safeLink, signOff }) {
           problemCount ? `Make ${problemCount === 1 ? "that parcel" : "those parcels"} in Chit Chats yourself, or send ${problemCount === 1 ? "it" : "them"} another way.` : null,
         ].filter(Boolean),
         buttons: link ? [["See your orders", safeLink(link)]] : [],
-        footer: signOff(settings),
+        footer: `${signOff(settings)} To stop these emails, open Chit Chats in Settings › Apps.`,
       });
     },
   };
