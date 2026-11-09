@@ -229,3 +229,18 @@ test("the Firestore store keeps apps at apps/<appId> and finds them by maker, st
   await ask(ADMIN, "POST", "/api/control/apps/approve", { appId: app.appId });
   assert.equal((await ask(null, "GET", "/api/apps/store")).body.apps.length, 1);
 });
+
+test("only Colophon's own apps carry a company logo, and only one from the kit", async () => {
+  const { ask } = world();
+  const outside = await ask(MAKER, "POST", "/api/apps/maker/create", { ...APP, brand: "mailchimp" });
+  assert.equal(outside.status, 400);
+  assert.match(outside.body.problems.brand, /Colophon team/);
+  const ours = await ask(ADMIN, "POST", "/api/apps/maker/create", { ...APP, brand: "nosuchco" });
+  assert.match(ours.body.problems.brand, /kit/);
+  const made = await ask(ADMIN, "POST", "/api/apps/maker/create", { ...APP, brand: "mailchimp" });
+  assert.equal(made.status, 200, JSON.stringify(made.body));
+  await ask(ADMIN, "POST", "/api/apps/maker/submit", { appId: made.body.app.appId });
+  await ask(ADMIN, "POST", "/api/control/apps/approve", { appId: made.body.app.appId });
+  const store = await ask(null, "GET", "/api/apps/store");
+  assert.equal(store.body.apps.find((a) => a.appId === made.body.app.appId).brand, "mailchimp");
+});

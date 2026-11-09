@@ -11,6 +11,7 @@ import {
 } from "./riso/components";
 import { addAddress, appsApi, type ActivityRow, type AppPermission, type AppsApi, type InstalledApp, type StoreAnswer, type StoreApp } from "./appActivity";
 import { shopProfile } from "../../lib/shopProfile";
+import { BrandLogo, isBrandId } from "../components/brand/BrandLogo";
 import "./apps.css";
 
 type Tab = "installed" | "store" | "activity";
@@ -27,7 +28,9 @@ const CATEGORY_LOOK: Record<string, { icon: LucideIcon; ink: "a" | "b" | "c" | "
   "in-person": { icon: Store, ink: "d" },
 };
 
-export function AppTile({ category, size = 44 }: { category: string; size?: number }) {
+/** The app's picture: the company's own logo for Colophon's apps that connect to one, else its category's. */
+export function AppTile({ category, brand, size = 48 }: { category: string; brand?: string; size?: number }) {
+  if (isBrandId(brand)) return <BrandLogo id={brand} size="lg" className="ap-logo" />;
   const look = CATEGORY_LOOK[category] ?? { icon: Blocks, ink: "c" as const };
   const Icon = look.icon;
   return <span className="ap-tile" data-ink={look.ink} style={{ width: size, height: size }} aria-hidden="true"><Icon size={Math.round(size * 0.48)} /></span>;
@@ -155,7 +158,7 @@ export function AppsSettings({ api = appsApi, shopId = shopProfile.shopId }: { a
               <ul className="ap-list">
                 {apps.map((app) => (
                   <li key={app.appId} className="rp-card ap-row">
-                    <AppTile category={app.category} />
+                    <AppTile category={app.category} brand={app.brand} />
                     <div className="ap-row-main">
                       <p className="ap-name">{app.name}{app.testing && <StatusBadge tone="info" glyph={false}>Testing</StatusBadge>}</p>
                       {app.tagline && <p className="ap-tagline">{app.tagline}</p>}
@@ -187,7 +190,7 @@ export function AppsSettings({ api = appsApi, shopId = shopProfile.shopId }: { a
                   {shown.map((app) => (
                     <li key={app.appId} className="rp-card ap-card">
                       <div className="ap-card-head">
-                        <AppTile category={app.category} />
+                        <AppTile category={app.category} brand={app.brand} />
                         <div className="ap-card-title">
                           <p className="ap-name">{app.name}</p>
                           <p className="ap-category">{app.categoryName}</p>

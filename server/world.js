@@ -52,6 +52,9 @@ import { createSupportInbox } from "../services/support/inbox.js";
 import { supportRoutes } from "../services/support/routes.js";
 import { createAppMakers } from "../services/apps/makers.js";
 import { createAppInstalls } from "../services/apps/installs.js";
+import { createChitChatsApp } from "../services/chitchats/app.js";
+import { chitChatsPublicRoutes, chitChatsRoutes } from "../services/chitchats/routes.js";
+import { sealingKey } from "../services/payments/tokenSeal.js";
 import { createAppConnection } from "../services/apps/connection.js";
 import { createAppAlerts } from "../services/apps/alerts.js";
 import { appInstallPublicRoutes, appInstallRoutes, appMakerRoutes, appShopDoorRoutes, appStorePublicRoutes } from "../services/apps/routes.js";
@@ -103,7 +106,7 @@ import { STOCKROOM_DATABASE, registryFiles, shopDataClient, stockroomDataClient 
 import {
   firestoreAccounts, firestoreActivity, firestoreBreaches, firestoreDeliveryStats, firestoreDevices, firestoreIncomeHistory, firestoreInvites,
   firestoreJobRuns, firestorePlatformState, firestoreRecoveries, firestoreRepairs, firestoreSentLog, firestoreShopNotes, firestoreSupport, firestoreWaitlist,
-  firestoreApps, firestoreAppCodes, firestoreAppInstalls, firestoreAppAlerts, firestoreAppAlertState,
+  firestoreApps, firestoreAppCodes, firestoreAppInstalls, firestoreAppAlerts, firestoreAppAlertState, firestoreChitChats,
 } from "../clients/stores.js";
 import {
   firestoreAccessRequests, firestoreAccountStores, firestoreBillingStores, firestoreFoundingSeats, firestoreDataExports, firestoreFeeLedger, firestorePressMessages,
@@ -254,6 +257,16 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   });
   // The app connection: installed apps read their shop through the platform, with their key (26.3).
   const appConnection = createAppConnection({ installs: appInstalls, shopData, registry, outbox: appAlertOutbox, now });
+  // Colophon's own Chit Chats app (26.11): paid orders become Chit Chats shipments, tracking comes back. It needs its
+  // app id and secret from the app store and a sealing key; without them it answers "not connected yet".
+  const chitchatsStores = firestoreChitChats(platform);
+  const chitchats = createChitChatsApp({
+    appId: String(env.CHITCHATS_APP_ID ?? "").trim() || null, appSecret: String(env.CHITCHATS_APP_SECRET ?? "").trim() || null,
+    sealKey: env.CHITCHATS_SEAL_KEY ? sealingKey(env.CHITCHATS_SEAL_KEY, "CHITCHATS_SEAL_KEY") : null,
+    connections: chitchatsStores.connections, shipments: chitchatsStores.shipments,
+    exchange: (args) => appInstalls.exchange(args), appCall: (request) => appConnection(request),
+    roleIn: (who, shopId) => accounts.roleIn(who, shopId), fetch, now, returnAddress: `${settings.platformUrl}/account/chitchats.html`,
+  });
   const recovery = createRecovery({
     store: recoveryStore, email, registry, auditLog, settings, admins, now,
     findAccount: async (address) => {
@@ -303,12 +316,13 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const closing = createClosingSweep({ registry, auditLog, billing, email, projects: notConnectedClient(NOT_CONNECTED.projectDeletion, ["deleteProject"]), settings, now: nowMs });
 
   // What the jobs can run (server/jobs.js reads these); the jobs page's "Run now" runs the ones that need nothing more.
-  const parts = { env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups };
+  const parts = { chitchats, env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups };
   const runNow = {
     "dropped-apps": () => billing.closeDroppedApps(),
     "press-messages": () => pressMessages.sweep(),
     "setup-clock": () => setupClock.sweep(),
     "drift-watch": () => driftWatch.sweep(),
+    "chitchats-tracking": () => chitchats.sweep(),
     ...(trialTips ? { "trial-tips": () => trialTips.run() } : {}),
     ...(checkups ? { "shop-checkup": () => checkups.run() } : {}),
   };
@@ -327,6 +341,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...supportRoutes(support),
     ...appMakerRoutes(appMakers),
     ...appInstallRoutes(appInstalls),
+    ...chitChatsRoutes(chitchats),
     ...recoveryRoutes(recovery),
     ...accessRequestRoutes({ requests: accessRequests, accounts, activity, registry, auditLog, now }),
     ...businessRoutes(business),
@@ -348,7 +363,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...exportRoutes(dataExports),
   };
   const door = createApi({
-    signup, verifyIdToken: createIdTokenVerifier({ projectId, fetch, now: nowMs }), settings, live, plusTax: readBillingConfig(env).tax, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls), ...appShopDoorRoutes(createAppShopDoor({ registry, installs: appInstalls, makers: appMakers })) },
+    signup, verifyIdToken: createIdTokenVerifier({ projectId, fetch, now: nowMs }), settings, live, plusTax: readBillingConfig(env).tax, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls), ...appShopDoorRoutes(createAppShopDoor({ registry, installs: appInstalls, makers: appMakers })), ...chitChatsPublicRoutes(chitchats) },
     onSignedIn: deviceWatch({ devices: firestoreDevices(platform), email, now }),
     limits: createLimits({ throttle: firestoreThrottle(platform), admins, proxyHops: proxyHopsOf(env), now, log }),
     log,
@@ -390,7 +405,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
 
   return {
     projectId, settings, live, platform, registry, auditLog, shopData, stockroomData, email, billing, paymentWay, payments, signup, frontDoor, shopMaker, accounts, room, controls,
-    appAlerts, backup, support, recovery, business, timeline, jobs, jobRuns, jobsPage, notes, pressMessages, costsDesk, dataExports, trialTips, checkups, closing, setupClock, driftWatch,
+    appAlerts, chitchats, backup, support, recovery, business, timeline, jobs, jobRuns, jobsPage, notes, pressMessages, costsDesk, dataExports, trialTips, checkups, closing, setupClock, driftWatch,
     routes, door, shopBilling, handle, parts,
   };
 }

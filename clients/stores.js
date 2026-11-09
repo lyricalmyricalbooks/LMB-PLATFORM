@@ -123,6 +123,26 @@ export function firestoreAppCodes(firestore) {
   };
 }
 
+/**
+ * chitchatsShops/<shopId>: a press's sealed Chit Chats details and the app's key; chitchatsShipments/<shopId~orderId>: one
+ * paid order sent to Chit Chats (services/chitchats/app.js). Equality filters only, no extra index.
+ */
+export function firestoreChitChats(firestore) {
+  return {
+    connections: {
+      get: (shopId) => firestore.get(`chitchatsShops/${shopId}`),
+      put: (shopId, row) => firestore.set(`chitchatsShops/${shopId}`, row),
+      remove: (shopId) => firestore.remove(`chitchatsShops/${shopId}`),
+      list: async () => (await firestore.query("chitchatsShops", { limit: 5000 })).map((row) => row.data),
+    },
+    shipments: {
+      get: (id) => firestore.get(`chitchatsShipments/${encodeURIComponent(id)}`),
+      put: (id, row) => firestore.set(`chitchatsShipments/${encodeURIComponent(id)}`, row),
+      listOpen: async (shopId) => (await firestore.query("chitchatsShipments", { where: [["shopId", "==", shopId], ["status", "==", "open"]], limit: 1000 })).map((row) => row.data),
+    },
+  };
+}
+
 /** repairs/<id>: one problem for a person (control-room/repairs.js). Equality filters only, no extra index. */
 export function firestoreRepairs(firestore) {
   return {
