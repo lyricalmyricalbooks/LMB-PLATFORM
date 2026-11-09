@@ -945,7 +945,7 @@ shop) stays as it is; this phase is the guide after the shop is made.
 | 28.7 | shop | **Steps open right at their card**: store policies and web address open General's Store details tab at the card; Google opens Settings › Google | `firstWeek.test.ts` | built (4 November 2026) |
 | 28.8 | shop | **"I don't collect tax yet"** on the tax step (no rate means no tax is charged), and **Reach more shoppers**, optional: Show up on Google (ticks once connected), Sell on social media | `firstWeek.test.ts` | built (4 November 2026) |
 | 28.9 | shop | Walkthrough fixes: the phone's Create my shop keeps a word ("Create"), Choose your look shows the suggested looks first with See all looks, the Google page in setup says it's a step in the shop's guide, shorter words on setup screens | `ChooseLookWelcome.test.tsx`, `SetupAdmin.test.tsx` | built (4 November 2026) |
-| 28.10 | platform | Control room's setup count follows 28.6 (every row counted) | `control-room/setupPresses.test.js` | for the control room thread |
+| 28.10 | platform | Control room's setup count follows 28.6 (every row counted) | `control-room/setupPresses.test.js` | built (9 November 2026) |
 
 ## Rules for every pull request
 

@@ -77,6 +77,7 @@ import { createShopLooks, shopLooksRoutes } from "../control-room/shopLooks.js";
 import { createShopEmails, shopEmailsRoutes } from "../control-room/shopEmails.js";
 import { appUseRoutes, createAppUse } from "../control-room/appUse.js";
 import { createShopSocial, shopSocialRoutes } from "../control-room/shopSocial.js";
+import { createShopApps, shopAppsRoutes } from "../control-room/shopApps.js";
 import { createSocialService } from "../services/social/social.js";
 import { readSocialConfig } from "../services/social/config.js";
 import { fakeConnections, fakeSent, fakeStates } from "../services/social/fakes.js";
@@ -265,6 +266,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const shopLooks = createShopLooks({ admins, registry, shopData, now: clock.date });
   const shopEmails = createShopEmails({ admins, registry, emailLog: email.emailLog, now: clock.date });
   const appUse = createAppUse({ admins, installs: appInstallStores.installs, outbox: appAlertStores.outbox, now: clock.date });
+  const shopApps = createShopApps({ admins, registry, installs: appInstallStores.installs, outbox: appAlertStores.outbox, shopData: { ...shopData, list: (...args) => listDocs(...args) }, now: clock.date });
   const socialConnections = fakeConnections();
   const social = createSocialService({ clients: {}, registry, auditLog, connections: socialConnections, states: fakeStates(), sent: fakeSent(), config: readSocialConfig({}), now: () => clock.date().getTime() });
   const shopSocial = createShopSocial({ admins, registry, social, now: clock.date });
@@ -312,6 +314,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...shopEmailsRoutes(shopEmails),
     ...appUseRoutes(appUse),
     ...shopSocialRoutes(shopSocial),
+    ...shopAppsRoutes(shopApps),
     ...driftRoutes(driftDesk),
     ...messageRoutes(pressMessages),
     ...costRoutes(costsDesk),

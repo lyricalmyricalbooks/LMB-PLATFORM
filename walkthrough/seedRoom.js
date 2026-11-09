@@ -71,6 +71,15 @@ export async function seedRoom(world) {
     });
   }
 
+  // What Stock Counter changed in Kestrel's stock (26.3b): two done, one turned down by the shop's own checks.
+  const appRequest = (n, minutes, input, status, reason) => world.shopData.set("kestrel", `appRequests/walk-req-${n}`, {
+    op: "inventory.adjust", appId: counts.appId, appName: "Stock Counter", input, status, ...(reason ? { reason } : {}),
+    createdAt: new Date(world.clock.ms() - minutes * 60_000).toISOString(),
+  });
+  await appRequest(1, 300, { productId: "the-moth-book", change: 3 }, "done");
+  await appRequest(2, 120, { productId: "salt-and-ink", change: -1 }, "done");
+  await appRequest(3, 30, { productId: "salt-and-ink", change: -2, expected: 4 }, "refused", "The stock is now 3, not 4: someone sold one in the meantime.");
+
   // Web addresses (#381): Lantern Zines has its free address and its own domain, which stopped opening the shop.
   await world.registry.updateShop("lantern-zines", {
     freeAddress: "lantern-zines.shops.example",
@@ -80,6 +89,9 @@ export async function seedRoom(world) {
       { name: "www.lanternzines.example", state: "live", addedAt: at, redirectTo: "lanternzines.example" },
     ],
   });
+
+  // Card payments (#386): Lantern Zines takes cards through Square; the others through Stripe.
+  await world.registry.updateShop("lantern-zines", { payments: { provider: "square", mode: "test", accountId: "MLWALKTHROUGH", locationId: "LWALKTHROUGH" } });
 
   // Social channels (27.8): Kestrel posts to Facebook and Instagram; Lantern Zines' Pinterest stopped working.
   const sealed = { iv: "walkthrough", data: "pretend" };

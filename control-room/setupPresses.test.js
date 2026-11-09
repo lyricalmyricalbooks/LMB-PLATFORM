@@ -115,14 +115,16 @@ test("how far through the setup guide: the shop's own steps, counted the same wa
   const shopIds = [...body.matchAll(/\bid: "([a-z]+)"/g)].map((m) => m[1]);
   const record = { plan: "", pressName: "", sells: "", country: "", look: "", moving: "", stagedImport: null, status: "setup" };
   assert.deepEqual(guideOf(record).steps.map((s) => s.id).sort(), [...new Set(shopIds)].sort(), "same steps as the shop's guide");
-  assert.deepEqual([guideOf(record).done, guideOf(record).total, guideOf(record).next], [0, 4, "Pick what to set up"], "the bring-over step counts only once done");
+  // Every row the press sees is counted, optional ones too (28.6/28.10): "0 of 7", as the shop's guideProgress.
+  assert.deepEqual([guideOf(record).done, guideOf(record).total, guideOf(record).next], [0, 7, "Pick what to set up"]);
   const halfway = { ...record, plan: "both", pressName: "Moth Press", sells: "books", country: "CA" };
-  assert.deepEqual([guideOf(halfway).done, guideOf(halfway).total, guideOf(halfway).next], [2, 4, "Choose the website's look"]);
+  assert.deepEqual([guideOf(halfway).done, guideOf(halfway).total, guideOf(halfway).next], [2, 7, "Choose the website's look"]);
+  assert.equal(guideOf({ ...halfway, moving: "yes" }).next, "Bring products over", "a press moving over is pointed at its products first");
   const stockroom = { ...halfway, plan: "stockroom", stagedImport: { rows: 3 } };
-  assert.deepEqual([guideOf(stockroom).done, guideOf(stockroom).total, guideOf(stockroom).next], [3, 4, "Create the shop"], "no look step without a website");
-  assert.deepEqual([guideOf({ ...halfway, look: "riso", status: "opening" }).done, guideOf({ ...halfway, look: "riso", status: "opening" }).next], [4, null]);
-  // The web address step is optional: it counts once answered ("own" once the domain is in).
-  assert.deepEqual([guideOf({ ...halfway, domainChoice: "free" }).done, guideOf({ ...halfway, domainChoice: "free" }).total], [3, 5]);
-  assert.equal(guideOf({ ...halfway, domainChoice: "own" }).total, 4, "own, but no domain yet");
-  assert.equal(guideOf({ ...halfway, domainChoice: "own", domain: "mothpress.example" }).total, 5);
+  assert.deepEqual([guideOf(stockroom).done, guideOf(stockroom).total, guideOf(stockroom).next], [3, 4, "Create the shop"], "no look, card or address step without a website");
+  assert.deepEqual([guideOf({ ...halfway, look: "riso", status: "opening" }).done, guideOf({ ...halfway, look: "riso", status: "opening" }).next], [4, "Bring products over"], "only optional steps left");
+  // The web address step is optional: done once answered ("own" once the domain is in).
+  assert.deepEqual([guideOf({ ...halfway, domainChoice: "free" }).done, guideOf({ ...halfway, domainChoice: "free" }).total], [3, 7]);
+  assert.equal(guideOf({ ...halfway, domainChoice: "own" }).done, 2, "own, but no domain yet");
+  assert.equal(guideOf({ ...halfway, domainChoice: "own", domain: "mothpress.example" }).done, 3);
 });

@@ -345,6 +345,13 @@ test("Google ending the grant becomes 'needs reconnect': emails fall back at onc
   assert.equal((await t.call("google.status")).body.needsReconnect, false);
   assert.equal((await t.link.status.googleStatus(SHOP)).stage, "connected");
   assert.ok(await t.link.tokens.fresh(SHOP));
+
+  // Whether the press let Google sheets be read (#416): from the grant's scopes.
+  const conn = t.connections.map.get(SHOP);
+  t.connections.map.set(SHOP, { ...conn, scopes: (conn.scopes ?? []).filter((s) => !s.endsWith("/spreadsheets.readonly")) });
+  assert.equal((await t.link.status.googleStatus(SHOP)).readsSheets, false);
+  t.connections.map.set(SHOP, { ...conn, scopes: [...(conn.scopes ?? []), "https://www.googleapis.com/auth/spreadsheets.readonly"] });
+  assert.equal((await t.link.status.googleStatus(SHOP)).readsSheets, true);
 });
 
 test("a Google outage while refreshing is not 'needs reconnect'", async () => {

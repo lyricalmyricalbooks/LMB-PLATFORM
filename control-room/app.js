@@ -223,6 +223,14 @@ function languageCount(shops) {
   return parts.length ? ` · emails: ${parts.map(([n, words]) => `${n} ${words}`).join(", ")}` : "";
 }
 
+const CARD_WORDS = { stripe: "Stripe", square: "Square" };
+/** " · cards: 7 Stripe, 2 Square" over the presses that took payments (not the test shop), or "". */
+function cardsCount(shops) {
+  const presses = shops.filter((shop) => !shop.testShop && shop.cards);
+  const parts = Object.entries(CARD_WORDS).map(([key, words]) => [presses.filter((shop) => shop.cards === key).length, words]).filter(([n]) => n);
+  return parts.length ? ` · cards: ${parts.map(([n, words]) => `${n} ${words}`).join(", ")}` : "";
+}
+
 // The Shops list's Risk filter: the drift watch's level, the owner's snooze, and a move left part-way.
 function riskMatches(shop, risk) {
   const level = shop.drift?.level;
@@ -259,9 +267,10 @@ function showShops() {
     && (!form.plan.value || shop.plan === form.plan.value)
     && (!form.billing.value || shop.billingStatus === form.billing.value)
     && riskMatches(shop, form.risk.value)
-    && sellsMatches(shop, form.sells.value));
+    && sellsMatches(shop, form.sells.value)
+    && (!form.cards.value || (form.cards.value === "none" ? !shop.cards : shop.cards === form.cards.value)));
   const problems = allShops.filter((s) => s.health.level === "problem").length;
-  $("#summary").textContent = `${allShops.length} shop${allShops.length === 1 ? "" : "s"} · ${problems} with a problem${languageCount(allShops)}${shown.length !== allShops.length ? ` · showing ${shown.length}` : ""}`;
+  $("#summary").textContent = `${allShops.length} shop${allShops.length === 1 ? "" : "s"} · ${problems} with a problem${cardsCount(allShops)}${languageCount(allShops)}${shown.length !== allShops.length ? ` · showing ${shown.length}` : ""}`;
   if (!shown.length) {
     $("#shops").replaceChildren(allShops.length ? emptyState("No shop matches.", "Clear the search or the filters to see every shop.") : emptyState("No shops yet.", "A press's shop shows here as soon as it is made."));
     return;
@@ -272,7 +281,7 @@ function showShops() {
     open: (shop) => openShop(shop),
     columns: [
       { header: "Press", lead: true, render: (shop) => el("div", {}, el("p", { className: "cr-title", textContent: shop.pressName ?? shop.shopId }), meta(shop.shopId, shop.ownerEmail, shop.testShop ? "test shop" : null, shop.sells?.answer ? `sells ${shop.sells.words.toLowerCase()}` : null), tagPills(shopTags[shop.shopId]), riskPill(shop), shop.sells?.mismatch ? pill("warning", "Stripe category doesn't match") : null) },
-      { header: "Plan", render: (shop) => PLAN_WORDS[shop.plan] ?? shop.plan ?? "?" },
+      { header: "Plan", render: (shop) => el("div", {}, el("span", { textContent: PLAN_WORDS[shop.plan] ?? shop.plan ?? "?" }), shop.cards ? meta(`cards by ${CARD_WORDS[shop.cards]}`) : null) },
       { header: "Billing", render: (shop) => (shop.billingStatus ? pill(BILLING_TONE[shop.billingStatus] ?? "neutral", BILLING_WORDS[shop.billingStatus] ?? shop.billingStatus) : el("span", { className: "rp-hint", textContent: shop.access ?? "none" })) },
       { header: "Cost this month", render: (shop) => costCell(shop.costThisMonth) },
       { header: "Health", render: (shop) => el("div", {}, pill(TONE[shop.health.level], LEVEL[shop.health.level]), shop.health.reasons[0] ? meta(shop.health.reasons[0]) : null) },
@@ -356,7 +365,7 @@ function googleView(record) {
     return item;
   }));
   return el("div", { className: "cr-list" },
-    el("p", { className: "rp-hint", textContent: `${google.stage}${google.accountEmail ? ` as ${google.accountEmail}` : ""}${google.connectedAt ? ` since ${dateOnly(google.connectedAt)}` : ""}.` }),
+    el("p", { className: "rp-hint", textContent: `${google.stage}${google.accountEmail ? ` as ${google.accountEmail}` : ""}${google.connectedAt ? ` since ${dateOnly(google.connectedAt)}` : ""}.${google.readsSheets === true ? " Can bring products in from a Google Sheet." : google.readsSheets === false ? " Didn't allow reading Google Sheets." : ""}` }),
     google.steps.length ? list : el("p", { className: "rp-hint", textContent: "No Google steps yet." }),
     // Extras the press switched off in Settings › Google (#385): they stopped at once; what they made stays the press's.
     stoppedExtras(google.parts),
@@ -411,7 +420,7 @@ function recordView(record) {
     ["Plan", billing ? `${billing.plan ?? record.plan} · ${BILLING_WORDS[billing.status] ?? billing.status}${billing.trialEnd ? ` · trial ends ${dateOnly(billing.trialEnd)}` : ""}${billing.currentPeriodEnd ? ` · next payment ${dateOnly(billing.currentPeriodEnd)}` : ""} · ${billing.hasCard ? "card on file" : "no card yet"}${billing.cancelAtPeriodEnd ? " · cancelling" : ""}` : record.plan],
     ["Sells", record.sells?.line ?? ""],
     ["Emails", EMAIL_LANGUAGE_WORDS[record.emailLanguage] ?? ""],
-    ["Payments", connections.payments ? `${connections.payments.provider ?? "?"}${connections.payments.connected ? ", connected" : ", not connected yet"}` : "not set up yet"],
+    ["Payments", connections.payments ? `${CARD_WORDS[connections.payments.provider] ?? connections.payments.provider ?? "?"}${connections.payments.connected ? ", connected" : ", not connected yet"}` : "not set up yet"],
     ["Web address", Array.isArray(connections.domains) && connections.domains.length ? connections.domains.map(addressWords).join(", ") : "the shop's own .web.app address"],
     ["Version", record.version ?? "none yet"],
   ].filter(([, value]) => value);
@@ -667,6 +676,8 @@ function card(shop) {
     // Social channels post the website's products, so a stockroom-only shop has none.
     shop.status === "live" && shop.plan !== "stockroom" ? el("h3", { className: "cr-section", textContent: "Social channels" }) : null,
     shop.status === "live" && shop.plan !== "stockroom" ? shopSocialSection(shop) : null,
+    shop.plan !== "stockroom" ? el("h3", { className: "cr-section", textContent: "Apps" }) : null,
+    shop.plan !== "stockroom" ? shopAppsSection(shop) : null,
     shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Newsletters, morning emails and changed orders" }) : null,
     shop.status === "live" ? shopFeaturesSection(shop) : null,
     shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Website look" }) : null,
@@ -2450,6 +2461,36 @@ function shopSocialSection(shop) {
       }),
       found.failedCount ? el("h4", { className: "cr-section", textContent: `Posts that didn't go out (${found.failedCount} in 30 days)` }) : null,
       found.failedCount ? history(found.failed.map((f) => `${when(f.at)} · ${f.name ?? "?"} · ${f.detail ?? "no reason given"}`)) : null);
+  }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
+  return slot;
+}
+
+// Outside apps on the shop: each app's permissions and its alerts that stopped getting through; the changes apps asked for.
+const CHANGE_TONE = { done: "success", refused: "warning", waiting: "neutral" };
+const CHANGE_WORDS = { done: "done", refused: "turned down", waiting: "waiting" };
+function shopAppsSection(shop) {
+  const slot = el("div", {}, el("p", { className: "rp-hint", textContent: "Reading the shop's apps…" }));
+  api("POST", "/control/shop-apps", { shopId: shop.shopId }).then((found) => {
+    if (!found.apps.length && !found.changeCount) return slot.replaceChildren(el("p", { className: "rp-hint", textContent: found.removed ? `No apps installed (${plural(found.removed, "app")} removed).` : "No apps installed." }));
+    fill(slot,
+      found.apps.length ? table({
+        caption: "Apps",
+        rows: found.apps,
+        columns: [
+          { header: "App", lead: true, render: (a) => el("div", {}, el("p", { className: "cr-title", style: "min-width: 8em", textContent: a.name }), meta(a.installedAt ? `since ${dateOnly(a.installedAt)}` : null, a.testing ? "maker's test" : null)) },
+          { header: "Can", render: (a) => a.permissions.map((p) => p.words).join(", ") || "—" },
+          { header: "", end: true, render: (a) => (a.failedAlerts ? el("div", {}, pill("warning", `${plural(a.failedAlerts, "alert")} not getting through`), a.lastError ? meta(a.lastError) : null) : pill("success", "alerts arriving")) },
+        ],
+      }) : el("p", { className: "rp-hint", textContent: "No apps installed now." }),
+      found.changeCount ? el("h4", { className: "cr-section", textContent: `Changes apps asked for (${found.changeCount}${found.refused ? `, ${found.refused} turned down` : ""})` }) : null,
+      found.changeCount ? table({
+        caption: "Changes apps asked for",
+        rows: found.changes,
+        columns: [
+          { header: "Change", lead: true, render: (c) => el("div", {}, el("p", { textContent: c.what }), meta(c.app, c.at ? when(c.at) : null)) },
+          { header: "", end: true, render: (c) => el("div", {}, pill(CHANGE_TONE[c.state], CHANGE_WORDS[c.state]), c.reason ? meta(c.reason) : null) },
+        ],
+      }) : null);
   }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
   return slot;
 }
