@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { firstWeekIntro, firstWeekSteps, guideGroups, nextStep, openBlockers, progressToSave, SELLING_TODAY, shippingStarterWords, showFirstWeek, type FirstWeekFacts } from "./firstWeek";
+import { addedSince, firstWeekIntro, firstWeekSteps, guideGroups, nextStep, openBlockers, progressToSave, SELLING_TODAY, shippingStarterWords, showFirstWeek, type FirstWeekFacts } from "./firstWeek";
 import type { ReadinessItem } from "./launchReadiness";
 
 const ok = (id: string): ReadinessItem => ({ id, label: "", detail: "", status: "ok", tab: id, action: "" });
@@ -155,6 +155,20 @@ describe("showing the guide", () => {
     expect(showFirstWeek(doc, all)).toBe(false);
     // Optional steps left over never keep the guide on Home.
     expect(showFirstWeek(doc, firstWeekSteps(doc, none).map(s => ({ ...s, done: !s.optional })))).toBe(false);
+  });
+  it("steps added since the progress was saved are new, and a hidden guide comes back for a needed one", () => {
+    const doc = { sellingToday: "starting" };
+    const steps = firstWeekSteps(doc, none);
+    // A press who started before sales tax and store policies were steps (plan 28).
+    const before = { steps: steps.map(s => s.id).filter(id => id !== "taxes" && id !== "policies" && id !== "channels"), done: [], at: "t" };
+    expect(addedSince({ ...doc, progress: before }, steps)).toEqual(["taxes", "policies", "channels"]);
+    expect(addedSince(doc, steps)).toEqual([]);
+    expect(addedSince({ ...doc, progress: { steps: steps.map(s => s.id), done: [], at: "t" } }, steps)).toEqual([]);
+    const hidden = { ...doc, hiddenAt: "now" };
+    expect(showFirstWeek(hidden, steps, ["taxes", "policies"])).toBe(true);
+    // Optional or done new steps never bring a hidden guide back.
+    expect(showFirstWeek(hidden, steps, ["channels"])).toBe(false);
+    expect(showFirstWeek(hidden, steps.map(s => ({ ...s, done: s.id === "taxes" || s.id === "policies" })), ["taxes", "policies"])).toBe(false);
   });
   it("the intro speaks to the answer", () => {
     expect(firstWeekIntro({ sellingToday: "online" })).toContain("another online shop");

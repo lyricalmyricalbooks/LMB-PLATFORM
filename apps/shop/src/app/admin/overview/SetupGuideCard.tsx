@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, Circle } from "lucide-react";
 import toast from "react-hot-toast";
 import { adminApi } from "../api";
-import { firstWeekIntro, firstWeekSteps, guideGroups, nextStep, openBlockers, progressToSave, showFirstWeek, type FirstWeekDoc, type FirstWeekFacts, type FirstWeekStep } from "../firstWeek";
-import { GhostButton, LoadingState, PrimaryButton, SectionCard } from "../riso/components";
+import { addedSince, firstWeekIntro, firstWeekSteps, guideGroups, nextStep, openBlockers, progressToSave, showFirstWeek, type FirstWeekDoc, type FirstWeekFacts, type FirstWeekStep } from "../firstWeek";
+import { GhostButton, LoadingState, PrimaryButton, SectionCard, StatusBadge } from "../riso/components";
 import { jumpWhenShown } from "../settingsLayout";
 
 /**
@@ -24,11 +24,16 @@ export function SetupGuideCard({ doc, setDoc, facts, onOpen, onSetWall }: {
 }) {
   const [saving, setSaving] = useState("");
   const [blocked, setBlocked] = useState<ReturnType<typeof openBlockers> | null>(null);
-  // The row the press opened itself; null follows the next step, "" closes every row.
+  // The row the press opened itself; null follows the next step, "" closes every row. `pickedDone`: it was done
+  // already when opened (to Change it), so it stays open; a row that gets done while open gives way to the next.
   const [picked, setPicked] = useState<string | null>(null);
+  const [pickedDone, setPickedDone] = useState(false);
   const loading = !facts.books || !facts.readiness || facts.settings === undefined;
   const steps = useMemo(() => firstWeekSteps(doc, facts), [doc, facts]);
   const savedProgress = useRef("");
+  // Steps new since the press last saw the guide, fixed when the card first shows: saving the progress below makes
+  // them old for the next visit, not while the press is looking.
+  const [added] = useState(() => addedSince(doc, steps));
 
   // The platform reads the progress for the trial emails: saved once the facts are in, and again only when it changes.
   useEffect(() => {
@@ -41,7 +46,7 @@ export function SetupGuideCard({ doc, setDoc, facts, onOpen, onSetWall }: {
     adminApi.updateFirstWeek({ progress }).catch(() => { savedProgress.current = ""; });
   }, [loading, doc, steps]);
 
-  if (!showFirstWeek(doc, steps) && !loading) return null;
+  if (!showFirstWeek(doc, steps, added) && !loading) return null;
 
   const change = async (what: string, next: FirstWeekDoc, write: Parameters<typeof adminApi.updateFirstWeek>[0]) => {
     const before = doc;
@@ -77,9 +82,12 @@ export function SetupGuideCard({ doc, setDoc, facts, onOpen, onSetWall }: {
   const total = steps.length;
   const doneCount = steps.filter(s => s.done).length;
   const next = nextStep(steps);
+  // The new steps still to do: a tag on each row and one line above the parts.
+  const fresh = new Set(added.filter(id => steps.some(s => s.id === id && !s.done)));
+  const freshTitles = steps.filter(s => fresh.has(s.id)).map(s => s.title);
   const pickedStep = steps.find(s => s.id === picked);
   // A picked step that got done gives way to the next one, so finishing a step moves the guide on.
-  const shown = picked === "" ? "" : pickedStep && !pickedStep.done ? pickedStep.id : next?.id ?? "";
+  const shown = picked === "" ? "" : pickedStep && (!pickedStep.done || pickedDone) ? pickedStep.id : next?.id ?? "";
 
   const row = (s: FirstWeekStep) => {
     const isOpen = s.id === shown;
@@ -88,7 +96,7 @@ export function SetupGuideCard({ doc, setDoc, facts, onOpen, onSetWall }: {
     return (
       <li key={s.id} aria-current={isNext ? "step" : undefined}
         style={{ borderTop: "1px solid var(--rp-divider)", margin: "0 -12px", padding: "0 12px", background: isOpen ? "var(--rp-primary-tint)" : undefined }}>
-        <button type="button" aria-expanded={isOpen} aria-controls={panel} onClick={() => setPicked(isOpen ? "" : s.id)}
+        <button type="button" aria-expanded={isOpen} aria-controls={panel} onClick={() => { setPicked(isOpen ? "" : s.id); setPickedDone(s.done); }}
           style={{ display: "grid", gridTemplateColumns: "20px minmax(0, 1fr) auto", alignItems: "center", gap: 12, width: "100%", minHeight: 48,
             padding: "12px 0", background: "none", border: 0, color: "inherit", font: "inherit", textAlign: "left", cursor: "pointer" }}>
           <span aria-hidden style={{ display: "inline-flex", color: s.done ? "var(--rp-success)" : isNext ? "var(--rp-text)" : "var(--rp-text-subtle)" }}>
@@ -97,6 +105,7 @@ export function SetupGuideCard({ doc, setDoc, facts, onOpen, onSetWall }: {
           <span style={{ minWidth: 0 }}>
             <strong style={{ color: s.done ? "var(--rp-text-muted)" : undefined }}>{s.title}</strong>
             {s.optional && !s.done && <span className="rp-hint"> · optional</span>}
+            {fresh.has(s.id) && <>{" "}<StatusBadge tone="info" glyph={false}>New</StatusBadge></>}
             <span className="rp-sr-only">{s.done ? " (done)" : isNext ? " (next)" : ""}</span>
           </span>
           <ChevronDown size={18} aria-hidden style={{ transform: isOpen ? "rotate(180deg)" : undefined, color: "var(--rp-text-subtle)" }} />
@@ -140,6 +149,11 @@ export function SetupGuideCard({ doc, setDoc, facts, onOpen, onSetWall }: {
           style={{ height: 6, background: "var(--rp-divider)", marginBottom: 4 }}>
           <div style={{ width: `${(doneCount / total) * 100}%`, height: "100%", background: "var(--rp-primary)" }} />
         </div>
+        {freshTitles.length > 0 && (
+          <p className="rp-hint" style={{ margin: "12px 0 0" }}>
+            <strong>{freshTitles.length === 1 ? "A new step" : `${freshTitles.length} new steps`}:</strong> {listWords(freshTitles)}.
+          </p>
+        )}
         {guideGroups(steps).map(g => (
           <section key={g.id} aria-labelledby={`setup-group-${g.id}`} style={{ marginTop: 16 }}>
             <h3 id={`setup-group-${g.id}`} className="rp-mono"
@@ -153,3 +167,6 @@ export function SetupGuideCard({ doc, setDoc, facts, onOpen, onSetWall }: {
     </SectionCard>
   );
 }
+
+/** "a", "a and b", "a, b and c". */
+const listWords = (items: string[]) => items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;

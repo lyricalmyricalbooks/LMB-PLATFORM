@@ -116,6 +116,31 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
     expect(api.updateFirstWeek).toHaveBeenCalledWith({ progress: { steps: expect.any(Array), done: [], at: expect.any(String) } });
   });
 
+  it("a done step opens on a click to show Change, and a step done while open gives way to the next", async () => {
+    api.getFirstWeek.mockResolvedValue({ plan: "both", welcome: { theme: "press-zine", at: "now" } });
+    await mount({ settings: { ...settings, design: { ...settings.design, logoUrl: "logo.png" } }, onOpen: vi.fn() });
+    const logo = document.querySelector("button[aria-controls='setup-step-logo']") as HTMLButtonElement;
+    act(() => logo.click());
+    expect(logo.getAttribute("aria-expanded")).toBe("true");
+    expect(document.querySelector("#setup-step-logo")?.textContent).toContain("Change");
+    // The address is ticked by hand: ticking it while open moves the guide on to the next step.
+    act(() => (document.querySelector("button[aria-controls='setup-step-address']") as HTMLButtonElement).click());
+    await act(async () => { button("Keep the free address")!.click(); });
+    expect(document.querySelector("button[aria-controls='setup-step-address']")?.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("a press who started before the new steps sees them tagged New, even with the guide hidden, until the next visit", async () => {
+    const { firstWeekSteps } = await import("../firstWeek");
+    const ids = firstWeekSteps({}, { books: [], readiness: [] }).map(s => s.id).filter(id => id !== "taxes" && id !== "policies");
+    api.getFirstWeek.mockResolvedValue({ plan: "both", welcome: { theme: "press-zine", at: "now" }, hiddenAt: "before", progress: { steps: ids, done: [], at: "t" } });
+    await mount({});
+    expect(text()).toContain("2 new steps: Set up sales tax and Add your store policies.");
+    const tagged = [...document.querySelectorAll("li")].filter(li => li.querySelector(".rp-badge")?.textContent === "New");
+    expect(tagged.map(li => li.querySelector("strong")?.textContent)).toEqual(["Set up sales tax", "Add your store policies"]);
+    // The progress now holds them, so the next visit treats them as ordinary steps.
+    expect(api.updateFirstWeek).toHaveBeenCalledWith({ progress: expect.objectContaining({ steps: expect.arrayContaining(["taxes", "policies"]) }) });
+  });
+
   it("Open your shop is refused while Ready to sell blocks, and takes the wall down once nothing does", async () => {
     api.getFirstWeek.mockResolvedValue({ plan: "both", welcome: { theme: "press-zine", at: "now" } });
     const onSetWall = vi.fn(async () => true);
