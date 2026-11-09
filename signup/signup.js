@@ -168,10 +168,10 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
       let row = pressId ? mine.find((s) => s.pressId === pressId) : mine.find((s) => !s.pressId && s.pressName.toLowerCase() === details.pressName.toLowerCase());
       // A press back from a refusal (its plan didn't start) opens with the answers it gives now, not the earlier ones.
       if (row && pressId && !row.trialStartedAt) {
-        const { pressName, plan, country, currency, answer, publishes } = details;
+        const { pressName, plan, country, currency, answer, publishes, paymentProvider } = details;
         // The email language too: a choice made now replaces the earlier one, and none (automatic) clears it.
         const { language: _earlier, ...kept } = row;
-        row = { ...kept, pressName, plan, country, currency, answer, publishes, ...(details.language ? { language: details.language } : {}) };
+        row = { ...kept, pressName, plan, country, currency, answer, publishes, paymentProvider, ...(details.language ? { language: details.language } : {}) };
         await signups.set(row.shopId, row);
       }
       if (!row) {
@@ -201,7 +201,7 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
           publishes: details.publishes,
           ...(details.language ? { language: details.language } : {}),
           ...agreement,
-          paymentProvider: "stripe",
+          paymentProvider: details.paymentProvider,
           // Opened from the front door's setup (18.8): the shop maker reads the look and the kept file there (18.9).
           ...(pressId ? { pressId } : {}),
           invited: isInvited,

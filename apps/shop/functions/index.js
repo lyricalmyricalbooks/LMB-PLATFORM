@@ -45,7 +45,7 @@ const { addressMissing } = require("./shared/addressRules");
 const { pressName } = require("./shared/shopIdentity");
 const { sellerSection, digitalConsentSection } = require("./sellerDetails");
 const emailFrench = require("./emailFrench");
-const { emailDefaultsFor, goodsDownloadNote, sellsBooks, withShopEmailWords, wordsFor } = require("./shared/shopSells");
+const { emailDefaultsFor, goodsDownloadNote, productBase, sellsBooks, withShopEmailWords, wordsFor } = require("./shared/shopSells");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem } = require("./shared/localFulfillment");
 const { taxPartsByKind, discountedLineValues } = require("./shared/taxByKind");
 const { productKind } = require("./shared/productOptions");
@@ -68,7 +68,7 @@ const { pendingRecord, confirmedRecord, confirmationEmail } = require("./newslet
 const { findByEmail: findByEmailData, neverPaid, redactedOrderFields, redactedOperationsFields, giftCardsFor, reviewErasure, GIFT_CARD_PERSONAL } = require("./privacyData");
 const { optOutId, unsubscribeToken, tokenMatches, purposeToken, purposeTokenMatches, footerAddress, normEmail: normMarketingEmail } = require("./marketingOptOut");
 const { runReviewRequests, REVIEW_REQUEST_TEMPLATE } = require("./reviewRequests");
-const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, paypalRefundedTotalMinor, sameOrderLines, shopDate } = require("./paymentGuards");
+const { platformRefusedRefund, checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, paypalRefundedTotalMinor, sameOrderLines, shopDate } = require("./paymentGuards");
 const { canViewOrder, publicOrderView } = require("./orderAccess");
 const { encodeAcquisition } = require("./acquisition");
 const { returnTransition, publicReturn, returnRestockItems } = require("./returns");
@@ -82,6 +82,7 @@ const { adminReportActions } = require("./adminReports");
 const { checkoutAdminActions } = require("./checkoutAdmin");
 const { customDomainActions } = require("./customDomains");
 const { googleConnectActions } = require("./googleConnect");
+const { appsLinkActions } = require("./appsLink");
 const { bookkeepingActions, dayFromOrders } = require("./quickbooksLink");
 const { socialActions } = require("./socialLink");
 const { practiceCheckoutActions } = require("./practiceCheckout");
@@ -537,7 +538,8 @@ exports.fairHelperPayment = onBrowserRequest({ secrets: withPlatformKey([STRIPE_
       return;
     }
     const sessionId = String(req.body?.sessionId || "");
-    if (!/^cs_[A-Za-z0-9_]{8,200}$/.test(sessionId) || (action !== "status" && action !== "cancel")) {
+    // A Stripe Checkout Session, or a Square payment link (payments/square.js standaloneCheckout).
+    if (!/^(cs_[A-Za-z0-9_]{8,200}|sqlink_[A-Za-z0-9_-]{1,192})$/.test(sessionId) || (action !== "status" && action !== "cancel")) {
       res.status(400).json({ error: "Unknown request.", code: "bad_request" });
       return;
     }
@@ -561,10 +563,7 @@ exports.fairHelperPayment = onBrowserRequest({ secrets: withPlatformKey([STRIPE_
 
 // Safety emails to the shop's own team come in French when the shop is written in French
 // (Studio › Text & labels › Shop language), like the rest of what the team reads there.
-async function adminEmailLanguage() {
-  const website = (await db.collection("settings").doc("website").get().catch(() => null))?.data?.() || {};
-  return website.design?.language === "fr" ? "fr" : "en";
-}
+const adminEmailLanguage = () => emailFrench.shopLanguage(db);
 
 // Two-step backup codes (functions/twoStepBackup.js, plan 22.9). "status" and "make" are for the signed-in person
 // in Settings › Security; "use" comes from the sign-in page, before there is a sign-in, with Google's own token.
@@ -1777,6 +1776,9 @@ const { handleCustomDomains } = customDomainActions({ url: shopConfig.platformDo
 const { handleGoogleConnect } = googleConnectActions({ url: shopConfig.platformGoogleUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin,
   readStock: () => require("./inventoryLinkStore").readCatalog() });
 
+// Settings › Apps: installed apps, the store and Remove, through the platform's app store door (appsLink.js, plan 26.5).
+const { handleApps } = appsLinkActions({ url: shopConfig.platformAppsUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin });
+
 // Settings › Bookkeeping: the QuickBooks link, through the platform's bookkeeping service (quickbooksLink.js, plan 7.16).
 // Send again builds the day from every order with the shared daily bookkeeping rules (dayFromOrders, Toronto days).
 const { handleBookkeeping } = bookkeepingActions({
@@ -1784,7 +1786,24 @@ const { handleBookkeeping } = bookkeepingActions({
   buildDay: async (date) => dayFromOrders((await db.collection("orders").get()).docs.map((d) => ({ id: d.id, ...d.data() })), date),
 });
 // Sales channels and Social posts: the press's social accounts, through the platform's social service (socialLink.js, plan 27.4).
-const social = socialActions({ url: shopConfig.platformSocialUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin, db, siteUrl: shopConfig.siteUrl });
+const social = socialActions({
+  url: shopConfig.platformSocialUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin, db, siteUrl: shopConfig.siteUrl, sellsAnswer: shopSellsAnswer,
+  // The post's square picture (socialPicture.js), made in this shop's bucket.
+  makeSquare: async (imageUrl, postId) => {
+    const sharp = require("sharp");
+    sharp.cache(false);
+    const bucket = admin.storage().bucket(admin.app().options.storageBucket || `${shopConfig.project}.firebasestorage.app`);
+    return require("./socialPicture").squarePicture({ bucket, sharp, imageUrl, postId });
+  },
+  // A scheduled post a place refused: the owner is emailed unless Settings › Notifications › Shop alerts turns it off.
+  onFailed: async (post) => {
+    const saved = (await db.collection("settings").doc("notifications").get()).data() || {};
+    if (saved.shopAlerts?.socialPostFailed === false) return;
+    const { failedPostEmail } = require("./socialLink");
+    const message = failedPostEmail({ post, ownerEmail: ADMIN_TO, shopName: shopConfig.senderName, adminLink: siteLink("/admin#social-posts"), language: await adminEmailLanguage() });
+    if (message.to.length && message.failed) await sendEmail({ queue: "socialPostFailed", to: message.to, subject: message.subject, html: message.html, secret: resendSecretValue() });
+  },
+});
 const handleSocial = social.handleSocial;
 // Practice orders on a platform shop while it is private, for the owner only (practiceCheckout.js, plan 7.6).
 const { handlePracticeCheckout, practiceFor } = practiceCheckoutActions({ db, platform: payments.mode === "platform", requireAdmin, orderRequestIdentity });
@@ -1849,6 +1868,7 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   platformPayments: handlePlatformPayments,
   customDomains: handleCustomDomains,
   googleConnect: handleGoogleConnect,
+  apps: handleApps,
   bookkeeping: handleBookkeeping,
   social: handleSocial,
   practiceCheckout: handlePracticeCheckout,
@@ -2854,7 +2874,8 @@ exports.refundOrder = onBrowserRequest(
       console.error("refundOrder failed:", err);
       // Keep the claim only when the provider may have taken the refund (accepted, or a lost
       // connection): its webhook then follows the admin's restock choice.
-      if (claimed && !providerAccepted && (!providerCalled || DEFINITE_REFUSALS.includes(err?.type) || (err?.status >= 400 && err?.status < 500))) await releaseClaim();
+      if (claimed && !providerAccepted && (!providerCalled || DEFINITE_REFUSALS.includes(err?.type) || (err?.status >= 400 && err?.status < 500)
+        || platformRefusedRefund(err))) await releaseClaim();
       const status = err.status || (err.type?.startsWith("Stripe") ? 400 : 500); // Stripe shops only (an error type)
       res.status(status).json({ error: err.message || "Refund failed" });
     }
@@ -4323,8 +4344,9 @@ async function sendRestockAlerts({ bookId, book, docs, deadline, released = fals
   // released = the book just stopped being "Coming soon": signups made on that page get "Out now" wording.
   // (backInStockSweep can't see the switch any more; it reads the releasePending stamp set below.)
   const stuckBefore = Date.now() - 15 * 60 * 1000;
-  const link = siteLink(`/books/${encodeURIComponent(book.slug || bookId)}`);
   const restockSettings = await loadNotificationSettings();
+  // /products/<slug> in a shop that doesn't sell books (src/shared/shopSells.ts productBase).
+  const link = siteLink(`/${productBase(restockSettings.sells)}/${encodeURIComponent(book.slug || bookId)}`);
   const esc = t => String(t || "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const keyOf = alert => `${String(alert.email || "").trim().toLowerCase()}|${String(alert.variantId || "")}`;
   // One email per address per book edition, however many signups exist for it: the first signup sends,
@@ -4466,6 +4488,12 @@ exports.onOrderInventoryPush = onDocumentWritten({ document: "orders/{orderId}",
   if (result.status === "failed") console.warn(`inventory link: order ${event.params.orderId} not delivered yet (${result.error}); the sweep retries it.`);
 });
 
+// Changes an installed outside app asked for (platform plan 26.3b, appRequests.js): the platform writes the request,
+// this applies it with the shop's own checks and writes the answer back on the same document.
+exports.onAppRequest = onDocumentCreated({ document: "appRequests/{requestId}", timeoutSeconds: 60 }, async event => {
+  await require("./appRequests").applyAppRequest(db, event.params.requestId);
+});
+
 // The link's regular check: labels bought in the inventory app, missed or failed pushes, past orders,
 // and (every 15 minutes, once the owner switched it on) linked books' stock.
 exports.inventoryLinkSweep = onSchedule({ schedule: "every 5 minutes", name: "inventoryLinkSweep", timeoutSeconds: 300 }, async () => {
@@ -4474,7 +4502,7 @@ exports.inventoryLinkSweep = onSchedule({ schedule: "every 5 minutes", name: "in
 });
 
 // Social posts whose time has come (plan 27.4): each is claimed, then sent once to each of its places.
-exports.socialPostSweep = onSchedule({ schedule: "every 5 minutes", name: "socialPostSweep", timeoutSeconds: 300 }, async () => {
+exports.socialPostSweep = onSchedule({ schedule: "every 5 minutes", name: "socialPostSweep", timeoutSeconds: 300, secrets: withPlatformKey([RESEND_API_KEY]) }, async () => {
   if (!shopConfig.platformSocialUrl) return;
   const out = await social.runDuePosts();
   if (out.sent) console.log(`socialPostSweep: sent ${out.sent} post(s)`);
@@ -4703,6 +4731,15 @@ exports.paymentPageSweep = onSchedule(
     if (payments.provider !== "square") return;
     const result = await paymentPages.closeDuePages();
     if (result.closed || result.refunded) console.log("paymentPageSweep:", result);
+    // Fair helpers' QR links (payments/square.js standaloneCheckout): closed after their half hour, like Stripe's.
+    for (const mode of ["test", "live"]) {
+      try {
+        const fair = await (await payments.standaloneCheckout(mode))?.closeDue?.();
+        if (fair?.closed) console.log(`paymentPageSweep: ${fair.closed} fair QR link(s) closed (${mode}).`);
+      } catch (err) {
+        console.warn(`paymentPageSweep: fair QR links (${mode}) weren't checked: ${err?.message || err}`);
+      }
+    }
   });
 
 exports.unpaidPaymentSweep = onSchedule(

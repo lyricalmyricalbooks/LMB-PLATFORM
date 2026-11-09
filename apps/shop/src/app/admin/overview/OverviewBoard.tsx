@@ -135,6 +135,7 @@ export const WIDGET_KEYWORDS: Partial<Record<WidgetType, string>> = {
   gaSources: "google sources sites referrers campaign", landing: "first page entry google", gaPages: "page views google pages",
   gaCountries: "google countries visitors", gaDevices: "google phone mobile computer tablet", funnel: "conversion bag checkout purchase steps",
   checkout: "abandon drop off checkout steps lost", sources: "where visits come from instagram newsletter referral orders",
+  social: "facebook instagram pinterest tiktok posts shares social media",
   campaigns: "utm links newsletter instagram ads campaign", landingSales: "entry page buyers", devices: "phone mobile computer tablet",
   searches: "search box terms looked for", missed: "no results not found wanted", google: "seo search console clicks ranking",
   googleQueries: "seo search console keywords queries", googlePages: "seo search console pages results", speed: "slow fast loading performance vitals",

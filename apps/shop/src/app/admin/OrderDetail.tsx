@@ -44,6 +44,7 @@ import toast from "react-hot-toast";
 import { providerDashboardUrl, providerName } from "./providerWords";
 import { useShopSells, useShopWords } from "./shopWords";
 import { sellsBooks } from "../../shared/shopSells";
+import { FRENCH_ORDER_HINT, orderInFrench } from "./orderLanguage";
 import {
   ActionMenu,
   Checkbox,
@@ -215,11 +216,11 @@ export function OrderDetail({
 
   // Any order paid (or being paid) through Stripe: ask Stripe (server-side) once per
   // visit for the truth — payment received, refunded or disputed — so a missed
-  // webhook never leaves the order out of step with Stripe.
+  // webhook never leaves the order out of step with Stripe. Square's saved ids carry our own prefixes (sqpay_, sqlink_).
   const autoChecked = useRef<string | null>(null);
   const [checkingPayment, setCheckingPayment] = useState(false);
   const hasStripePayment = (o: any) =>
-    !!o && ["unpaid", "paid"].includes(o.paymentStatus) && (String(o.stripePaymentIntentId || "").startsWith("pi_") || String(o.stripeCheckoutSessionId || "").startsWith("cs_"));
+    !!o && ["unpaid", "paid"].includes(o.paymentStatus) && (/^(pi|sqpay)_/.test(String(o.stripePaymentIntentId || "")) || /^(cs|sqlink)_/.test(String(o.stripeCheckoutSessionId || "")));
 
   async function checkStripePayment(manual: boolean) {
     setCheckingPayment(true);
@@ -897,6 +898,9 @@ export function OrderDetail({
             </StatusBadge>
             {order.isTest && (
               <StatusBadge tone="danger">Test order</StatusBadge>
+            )}
+            {orderInFrench(order) && (
+              <span title={FRENCH_ORDER_HINT}><StatusBadge tone="neutral" glyph={false}>Shopped in French</StatusBadge></span>
             )}
             {order.source === "import" && (
               <StatusBadge tone="neutral">Brought over from your old shop{order.oldOrderNumber ? ` (${order.oldOrderNumber})` : ""}</StatusBadge>

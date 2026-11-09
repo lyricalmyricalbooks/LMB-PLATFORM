@@ -91,6 +91,7 @@ import { isStockLinked, type InventoryLinks } from "./inventoryLink";
 import { releaseArrived } from "../features/site/liveBook";
 import { DETAILS_FIELD_TAB, detailsSubTabs, shownDetailsSubTab, type DetailsSubTab } from "./bookDetailsTabs";
 import { addOnProblems, bundleProblems, giftCardProblems, isBoxSet, isGiftCardProduct, productForSave, saleStatus, saleWindowProblem } from "./productExtras";
+import { productHref } from "../lib/productHref";
 
 const MAX_BOOK_PHOTOS = 50;
 
@@ -235,6 +236,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
 
   // Plan 10.23: the editor's words follow the product's kind: "Product images" for a shirt, "Book images" for a book.
   const w = isBookKind(productKind(formData)) ? (text: string) => text : goodsWords;
+  const addressExample = isBookKind(productKind(formData)) ? "your-book" : "your-product";
   const [publishReview, setPublishReview] = useState(false);
   const [shippingProfiles, setShippingProfiles] = useState<any[]>([]);
   const [authors, setAuthors] = useState<any[]>([]);
@@ -1152,7 +1154,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
     if (!slug) return;
     try {
       if (!navigator.clipboard) throw new Error("no clipboard");
-      await navigator.clipboard.writeText(`${window.location.origin}${import.meta.env.BASE_URL}books/${slug}`);
+      await navigator.clipboard.writeText(`${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}${productHref(slug)}`);
       toast.success("Link copied");
     } catch {
       toast.error("Couldn't copy the link. Your browser blocked the clipboard.");
@@ -1246,7 +1248,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
         <div className="be-actions">
           {book && (
             <ActionMenu label={w("More for this book")} actions={[
-              ...((book.slug || formData.slug) ? [{ label: "Preview page (new tab)", icon: <ExternalLink size={14} aria-hidden />, onSelect: () => { window.open(`${import.meta.env.BASE_URL}books/${encodeURIComponent(book.id)}?preview=true`, "_blank", "noreferrer"); } }] : []),
+              ...((book.slug || formData.slug) ? [{ label: "Preview page (new tab)", icon: <ExternalLink size={14} aria-hidden />, onSelect: () => { window.open(`${import.meta.env.BASE_URL.replace(/\/$/, "")}${productHref(encodeURIComponent(book.id))}?preview=true`, "_blank", "noreferrer"); } }] : []),
               ...(book.slug ? [{ label: w("Copy link to this book"), icon: <Copy size={14} aria-hidden />, onSelect: () => void copyBookLink() }] : []),
               ...(book.slug && book.status === "published" ? [{ label: "Design this page", icon: <Palette size={14} aria-hidden />, onSelect: () => {
                 if (isDirty) { toast.error(w("Save the book first, then design its page in the Design studio.")); return; }
@@ -1327,7 +1329,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   <div className="be-span-2">
                     <TextField label="Web address (URL slug)" name="slug" value={formData.slug} onChange={handleChange} placeholder="the-book-slug"
                       readOnly={addressLocked}
-                      hint={addressLocked ? `/books/${formData.slug || "your-book"} — locked while the book is published, so existing links keep working.` : `/books/${formData.slug || "your-book"}`} error={slugWarn || undefined} />
+                      hint={addressLocked ? `${productHref(formData.slug || addressExample)} — locked while the book is published, so existing links keep working.` : productHref(formData.slug || addressExample)} error={slugWarn || undefined} />
                     <div className="be-inline-actions">
                       {addressLocked
                         ? <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => setConfirmSlug(true)}><RefreshCw size={13} aria-hidden /> Change web address</button>

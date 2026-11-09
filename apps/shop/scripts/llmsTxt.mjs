@@ -24,7 +24,7 @@ function bookFacts(book) {
   ].filter(Boolean).join(' · ');
 }
 
-export function llmsTxt(siteUrl, books, pages, settings = {}, { now = new Date(), shopName = '' } = {}) {
+export function llmsTxt(siteUrl, books, pages, settings = {}, { now = new Date(), shopName = '', productBase = 'books' } = {}) {
   const base = siteUrl.replace(/\/$/, '');
   const info = settings?.info || {};
   const location = settings?.location || {};
@@ -40,11 +40,11 @@ export function llmsTxt(siteUrl, books, pages, settings = {}, { now = new Date()
   const live = books.filter(book => isLive(book, now) && book.productType !== 'giftCard');
   const listed = resolveProductRoutes(live).filter(book => book.seoNoindex !== true && safeSlug(book.slug));
   if (listed.length) {
-    out.push('## Books', '');
+    out.push(productBase === 'products' ? '## Products' : '## Books', '');
     for (const book of listed) {
       const facts = bookFacts(book);
       const about = cut(line(book.metaDescription) || line(book.description), 300);
-      out.push(`- [${linkText(book.title) || 'Untitled'}](${base}/books/${encodeURIComponent(book.slug)})${facts ? `: ${facts}.` : ''}${about ? ` ${about}` : ''}`);
+      out.push(`- [${linkText(book.title) || 'Untitled'}](${base}/${productBase}/${encodeURIComponent(book.slug)})${facts ? `: ${facts}.` : ''}${about ? ` ${about}` : ''}`);
     }
     out.push('');
   }

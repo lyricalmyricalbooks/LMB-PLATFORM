@@ -31,6 +31,15 @@
 //   billing    optional: { publishPlan(shopId) } (services/billing): once the shop's database exists, its plan is
 //              written there (the trial banner) and onto the registry row (the control room); the trial itself began
 //              at sign-up, before either place existed (plan 6.14)
+//
+// A press's own domain (setup guide "Your web address", signup/frontDoor.js saveDomain): once the shop is ready, the
+// domain kept on the press's setup record is connected through the domain service in its one step, with www sent on to
+// it and the domain made the shop's main address as soon as it is live. The owner's Allow link (or guide) waits in
+// their admin under Settings › General, and the domain service emails them when it's live. A snag never holds the shop
+// up: it goes on the repair queue and is tried again after 15, 60 and then 240 minutes.
+//   presses    optional: get(pressId) -> the setup record (signup/pressRecord.js), read for `domain` and `freeName`
+//   domains    optional: connect(shopId, domain, { main, www }) and connectFreeAddress(shopId) (services/domains
+//              createDomainService): the shop's free address on the shop domain is connected first, for every shop
 import { SignupError, personOf } from "./signup.js";
 import { PLANS, PLAN_STEPS } from "../setup/steps.js";
 import { latestByStep } from "../setup/runner.js";
@@ -103,7 +112,7 @@ export function openUrlOf(profile, shopId) {
 /** How long a plan change waits before trying again after a failure: 15 minutes, then an hour, then four. */
 export const PLAN_SYNC_BACKOFF_MINUTES = Object.freeze([15, 60, 240]);
 
-export function createShopMaker({ signups, run, registry, repairs = null, selfCheck = null, line = null, billing = null, testMode = true, now = () => new Date() }) {
+export function createShopMaker({ signups, run, registry, repairs = null, selfCheck = null, line = null, billing = null, presses = null, domains = null, testMode = true, now = () => new Date() }) {
   const at = () => now().toISOString();
   const later = (minutes) => new Date(now().getTime() + minutes * 60_000).toISOString();
 
@@ -151,6 +160,8 @@ export function createShopMaker({ signups, run, registry, repairs = null, selfCh
           await selfCheck.check(shopId, { why: "the shop maker finished" });
         } catch { /* the daily sweep checks it again */ }
       }
+      await signups.set(shopId, row);
+      return (await connectAddresses(shopId)) ?? row;
     } else if (result.locked) {
       // Another run holds the shop (only after a crash, until its lock lapses): look again shortly.
       row = { ...row, status: "waiting", attempts: attempts - 1, nextTryAt: later(BACKOFF_MINUTES[0]), message: "Still working on it. We'll carry on in a minute.", canRetry: false };
@@ -172,6 +183,56 @@ export function createShopMaker({ signups, run, registry, repairs = null, selfCh
     }
     await signups.set(shopId, row);
     return row;
+  }
+
+  /**
+   * One address step for a ready shop, tried until it is done (`key` on the sign-up row: { doneAt } or
+   * { error, tries, nextTryAt }). `work()` answers what was connected, or null when there is nothing to do.
+   */
+  async function addressStep(shopId, key, check, work) {
+    const row = await signups.get(shopId);
+    if (!row || row.status !== "ready" || row[key]?.doneAt) return null;
+    if (row[key]?.nextTryAt && row[key].nextTryAt > at()) return null;
+    const tries = (row[key]?.tries ?? 0) + 1;
+    let next;
+    try {
+      const answer = await work(row);
+      if (!answer) return null;
+      next = { ...row, [key]: { name: answer.name ?? null, doneAt: at(), state: answer.state ?? null, way: answer.way ?? null, tries } };
+      if (repairs?.passed) await repairs.passed(shopId, check);
+    } catch (error) {
+      const minutes = PLAN_SYNC_BACKOFF_MINUTES[Math.min(tries - 1, PLAN_SYNC_BACKOFF_MINUTES.length - 1)];
+      next = { ...row, [key]: { tries, error: error?.message ?? String(error), nextTryAt: later(minutes) } };
+      if (repairs) await repairs.report({ shopId, check, problem: check === "free-address" ? "the shop's free address could not be connected" : "the press's own domain could not be connected", detail: error?.message ?? String(error) });
+    }
+    await signups.set(shopId, next);
+    return next;
+  }
+
+  /**
+   * The shop's addresses once it is ready: its free address on the shop domain (moth-press.<shop domain>), then the
+   * domain the press brought in setup, made main once it works, with www sent on to it. Returns the row as left, or null
+   * when there was nothing to do.
+   */
+  async function connectAddresses(shopId) {
+    if (!domains) return null;
+    const free = typeof domains.connectFreeAddress === "function"
+      ? await addressStep(shopId, "freeAddress", "free-address", async (row) => {
+        // The name the press picked in setup (`freeName`), if any; else its press name.
+        const press = presses && row.pressId ? await presses.get(row.pressId) : null;
+        const handle = typeof press?.freeName === "string" ? press.freeName : "";
+        const answer = await domains.connectFreeAddress(shopId, { handle });
+        return answer?.skipped ? null : answer;
+      })
+      : null;
+    const own = presses ? await addressStep(shopId, "ownDomain", "own-domain", async (row) => {
+      const press = row.pressId ? await presses.get(row.pressId) : null;
+      const domain = typeof press?.domain === "string" ? press.domain : "";
+      // None brought: done for good (setup is over, so none can be added there now).
+      if (!domain) return { name: null };
+      return { name: domain, ...(await domains.connect(shopId, domain, { main: true, www: true })) };
+    }) : null;
+    return own ?? free;
   }
 
   /**
@@ -248,6 +309,7 @@ export function createShopMaker({ signups, run, registry, repairs = null, selfCh
     make,
     syncPlan,
     progress,
+    connectAddresses,
 
     /** Runs every queued shop and every shop due its automatic try. Returns what it did, per shop. */
     async sweep() {
@@ -259,10 +321,13 @@ export function createShopMaker({ signups, run, registry, repairs = null, selfCh
         const after = await make(row.shopId);
         done.push({ shopId: row.shopId, status: after?.status });
       }
-      // Ready shops whose plan changed since their steps last ran (an app added or dropped).
+      // Ready shops whose plan changed since their steps last ran (an app added or dropped), and any own domain from
+      // setup still to connect (a try that failed comes round again here).
       for (const row of (await signups.list()).filter((r) => r.status === "ready")) {
         const synced = await syncPlan(row.shopId);
         if (synced) done.push({ shopId: row.shopId, status: `plan-${synced.status}`, plan: synced.plan });
+        const addressed = await connectAddresses(row.shopId);
+        if (addressed) done.push({ shopId: row.shopId, status: "addresses", free: addressed.freeAddress?.name ?? null, own: addressed.ownDomain?.name ?? null });
       }
       return done;
     },

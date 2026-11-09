@@ -1099,3 +1099,6 @@ queue `twoStepBackupUsed`; a failed send never undoes the sign-in). The function
 (`shopConfig.platformSocialUrl`) with the shop's service key. Posts live in `socialPosts` (rules: server only; indexes
 on status + sendAt and status + claimedAt). `socialPostSweep` (every 5 minutes, in the tick registry) claims due posts
 in a transaction (stale after 15 minutes) and publishes each once per place; product links carry `utm_source`.
+Round two (plan 27.11-27.12): `savePost` makes a square JPEG copy through `makeSquare` (`socialPicture.js`, sharp,
+`social/<postId>.jpg`; the original stays in `photoUrl`); `runDuePosts` calls `onFailed` for a scheduled post that ends
+failed or partly, which emails the owner (`failedPostEmail`, queue `socialPostFailed`) unless `shopAlerts.socialPostFailed` is false.

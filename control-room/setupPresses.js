@@ -35,6 +35,29 @@ export function stillToDo(record) {
 }
 
 /**
+ * How far the press has got through setup mode's guide: the same steps and count as the shop's setup guide
+ * (apps/shop/src/setupMode/pages.ts guideSteps and guideProgress; a test keeps the steps in step). The bring-over step
+ * counts only once done, as there. `next` is the first step not done that isn't optional.
+ */
+export function guideOf(record) {
+  const website = record.plan !== "stockroom";
+  const books = { id: "books", title: "Bring products over", done: Boolean(record.stagedImport), optional: true };
+  const look = website ? [{ id: "look", title: "Choose the website's look", done: Boolean(record.look) }] : [];
+  const cards = website ? [{ id: "cards", title: "Stripe or Square", done: Boolean(record.cardProvider), optional: true }] : [];
+  const steps = [
+    { id: "plan", title: "Pick what to set up", done: Boolean(record.plan) },
+    { id: "details", title: "Press details", done: Boolean(record.pressName && record.sells && record.country) },
+    ...(record.moving === "fresh" ? [...look, ...cards, books] : [books, ...look, ...cards]),
+    // Optional, counted once answered, as in the shop's guide: the free address always works.
+    ...(website ? [{ id: "domain", title: "Choose the web address", done: record.domainChoice === "free" || (record.domainChoice === "own" && Boolean(record.domain)), optional: true }] : []),
+    { id: "open", title: "Create the shop", done: record.status === "opening" || record.status === "open" },
+  ];
+  const counted = steps.filter((step) => !step.optional || step.done);
+  const next = steps.find((step) => !step.done && !step.optional) ?? null;
+  return { done: counted.filter((step) => step.done).length, total: counted.length, next: next?.title ?? null, steps: steps.map(({ id, done }) => ({ id, done })) };
+}
+
+/**
  * One press as the page shows it, with `flag` set when it needs a look:
  *   "stuck"       pressed Open my shop over a day ago and its shop isn't live
  *   "going-soon"  idle in setup long enough that its record is removed within 15 days
@@ -60,9 +83,15 @@ export function setupPress(record, { shop, now }) {
     adminLook: record.adminLook || "",
     moving: record.moving || "",
     language: record.language || "",
+    // Stripe or Square for the website's cards ("" = not picked: the shop starts on Stripe).
+    cardProvider: record.cardProvider || "",
     // What the press sees of its kept product file: never the path.
     import: record.stagedImport ? { name: record.stagedImport.name ?? "", rows: record.stagedImport.rows ?? null, at: record.stagedImport.at ?? null } : null,
     stillToDo: record.status === "setup" ? stillToDo(record) : [],
+    guide: guideOf(record),
+    // "Your web address" in the setup guide (#381): free, or the press's own domain and where it was bought.
+    webAddress: record.domainChoice === "own" ? { choice: "own", domain: record.domain || "", seller: record.domainSeller || "" }
+      : record.domainChoice === "free" ? { choice: "free", freeName: record.freeName || "" } : null,
     createdAt: record.createdAt ?? null,
     lastSeenAt: record.lastSeenAt ?? null,
     idleDays: idle,
@@ -72,7 +101,7 @@ export function setupPress(record, { shop, now }) {
     shopStatus: shop?.status ?? null,
     shopMessage: record.shopMessage || "",
     // The removal warnings emailed for this visit (signup/setupClock.js): { "30": at, "7": at }.
-    warned: record.setupWarnings?.seen === record.lastSeenAt ? record.setupWarnings.sent ?? {} : {},
+    warned: record.setupWarnings && record.setupWarnings.seen === record.lastSeenAt ? record.setupWarnings.sent ?? {} : {},
     expiredAt: record.expiredAt ?? null,
     flag,
   };
@@ -111,7 +140,7 @@ export function setupSummary({ records, rows = [], now = Date.now() }) {
     bringingShopOver: inSetup.filter((p) => p.moving === "yes").length,
     withProductFile: inSetup.filter((p) => p.import).length,
   };
-  return { counts, looks: { website: tally(records, "look"), admin: tally(records, "adminLook") }, presses };
+  return { counts, looks: { website: tally(records, "look"), admin: tally(records, "adminLook") }, cards: tally(records, "cardProvider"), presses };
 }
 
 /** The page's door. Platform admins only; nothing here changes anything, so nothing asks for a reason. */

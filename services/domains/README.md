@@ -117,3 +117,38 @@ builds the template file Julian registers with each seller (a one-time step), an
 - The shop's own copy of the sitemap is written only by a full shop build; platform shops' pages skip it (see
   `services/release-runner/builder.js`), so the main address reaches the sitemap whenever that build runs.
 - Two adds for one shop at the same moment could overwrite each other's registry entry; the admin sends one at a time.
+
+## A domain brought in setup, and www
+
+`domains.connect` takes `{ main, www, redirectTo }` (platform calls; the shop's door sends `www` on by default):
+
+- `main: true` marks the address `mainWhenLive`: the first check that finds it live makes it the main address, unless
+  the press already chose a main address of its own (a free address doesn't count: the press's domain takes over from it).
+- `www: true` connects the partner of a bare domain (`www.<domain>`, or the bare one for a www name) as a Hosting
+  redirect (`redirectTarget`) to the main one. It never becomes main, and failing to add it never stops the main one.
+
+The shop maker (`signup/shopMaker.js connectAddresses`) calls `connect(shopId, press.domain, { main: true, www: true })`
+for the domain a press kept in setup (`POST /api/press/domain`, signup/frontDoor.js).
+
+## Free addresses (freeAddress.js, platformZone.js)
+
+With `SHOP_ADDRESS_DOMAIN`, `SHOP_ADDRESS_ZONE` and `SHOP_ADDRESS_ZONE_PROJECT` set, every shop gets
+`<press name>.<shop domain>` (`moth-press.shops.example`; `moth-press-2` when the name is taken), the way the big shop
+builders give every shop a name on their own domain. `connectFreeAddress(shopId)` picks the name once (registry
+`freeAddress`), adds it as a `free: true` entry (not counted in the three a press may add, never removable by the press)
+and writes Hosting's lines in the platform's own Cloud DNS zone on every check until it is live. It becomes main once
+live, unless the press's own domain is main. The shop domain must be a domain of its own, never the platform's or one
+under it, so a shop's pages can never read the platform's sign-in. Unset, shops keep their `<project id>.web.app` address.
+
+- **The press's own pick.** Setup's `freeName` (signup/pressRecord.js) is used instead of the press name when it can be
+  (`connectFreeAddress(shopId, { handle })`). `handleProblem` refuses names the platform keeps (www, admin, help,
+  checkout …), big brands' names and rude words (whole words of the name), so an address under the platform's name
+  never passes as someone else's. A press name that can't be an address gets `my-shop`.
+- **A new name later** (`domains.renameFree { name }`, Settings › General › Change name): refused when another shop
+  has it. The one before stays as `former: true`, keeps opening the shop and stays main until the new one is live; then
+  it sends visitors on to the new one (`hosting.redirectDomain`, customDomains.patch) and the press may remove it.
+  Taking back a name that sends on removes and re-adds it in Hosting so it serves the shop again.
+- **Setup's check while typing**: `POST /api/press/free-name` (frontDoor.js checkFreeName, `freeAddressTaken` over the
+  registry). A press whose own name can't be an address (`freeNameNeeded`) is asked for one. Only one former address is kept: the next rename takes the older one off (Hosting and zone).
+- **Email.** `free-address-live` goes once when the current free address works (the welcome email goes out before it
+  exists).

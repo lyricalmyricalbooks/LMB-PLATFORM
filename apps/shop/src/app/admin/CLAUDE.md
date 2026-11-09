@@ -310,6 +310,15 @@ The private operations, label purchase safeguards, payment authority and server 
   `settings/website.analytics.ga4MeasurementId` and `adminSecrets/googleAnalytics` fields the older cards do, so the tag
   and reports below work unchanged. `useGoogleConnect().mode === "own"` (no link) keeps the older cards. On those shops
   Email sender shows `PlatformSenderCard` instead of the Gmail app-password panel (`senderStatus.backup === "platform"`).
+- **Settings › Google (4 November 2026):** `GoogleSettings.tsx` (+ `google.css`, pure card states in `googleHub.ts`) is
+  the one page for every Google service: hero (headline, account, "n of m working" meter, chips that scroll to parts
+  needing a look), **Included with your sign-in** cards (analytics, search, Shopping, email, web address: badge, two
+  "what you get" lines, Google's own line, Try again or Open in Google), **Extras** as switches saved together through
+  `connectLink(extras)`, then Disconnect. Listed only when `runsOnColophon()` or the platform answers (Dashboard
+  `googleOn`); Visitors & Google keeps a pointer card. Get started step 4 shows the same services (`GoogleTiles`).
+  Switching extras off saves at once (`googleConnectApi.turnOff`, no Google trip); switching one on opens Google's page
+  on the shop's one account, and another account comes back as `?google=other_account` with nothing changed.
+  Fixture: `admin-fixture.html?gstate=coming|ready|connected|trouble&page=settings/google`.
 - **Google Analytics 4:** Settings › General › **Google Analytics** (`GoogleAnalyticsCard.tsx`, `admin/googleAnalytics.ts`).
   Measurement ID (public) = `settings/website.analytics.ga4MeasurementId`, written only by that card (`updateSettings` drops
   `analytics` so a stale settings form can't put an old ID back); property ID = admin-only `adminSecrets/googleAnalytics`.
@@ -518,8 +527,21 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
   from `paidIn.total` (total exact, other CA$ fields scaled); `PastOrderRate` on OrderDetail calls it. In move mode the
   admin fixture has one brought-over order, `past-1004`, and `getOrderById`.
 - **Spreadsheets (23.35):** every file picker uses `SPREADSHEET_ACCEPT` and reads through `spreadsheetText()` in
-  `spreadsheetFile.ts` (CSV/TSV text in any common encoding, .xlsx, .ods → CSV text); show errors with `readProblem(err)`.
+  `spreadsheetFile.ts` (CSV/TSV text in any common encoding, .xlsx, .ods, and .xls via `xlsFile.ts` since 23.40 → CSV text); show errors with `readProblem(err)`.
   A new bring-a-file window must do the same. Test files made by real programs live in `testdata/spreadsheets/`.
+- **Google Sheets (23.42):** put `<GoogleSheetLink onFile={(f) => choose(f)} />` beside a window's file button. It renders
+  nothing unless the shop's Google account is linked, and hands over a stand-in `File` that `readSpreadsheet` reads
+  through `readThrough` (another tab asks Google again), so the window needs no other change.
+- **Match columns (23.36):** Books import keeps the owner's matches for unknown headings in `columns` state and passes
+  them to `planImport({ columns })`; `mapHeadings` ignores a match for `id`, for a field a known heading already fills,
+  or for a field matched twice. Choosing a new file starts from the matches remembered by `columnMemory.ts` (23.41, this
+  browser only, saved when the import runs) for its unknown headings.
+- **Sheets (23.37):** a window that reads one file uses `readSpreadsheet(file, sheet)` and shows `<SheetChoice>` beside the
+  file name (renders nothing for one sheet or a text file); changing it calls the window's `choose(file, sheet)` again.
+- **Excel downloads (23.38):** `xlsxWriter.ts` `toXlsx(rows, sheet)` / `saveTable(base, csv, format, sheet)`; a new table
+  download should offer Excel first and CSV second the same way (Books › Export… is the pattern).
+- **First rows (23.39):** keep the `readSpreadsheet` result (`{ file, ...read }`) in state and render `<FirstRows text>`
+  under the file row; it stays folded so the window keeps its lean look.
 - **Whole move on screen (23.22, in CI since 23.29 as `pnpm run test:move` in the `shop-admin-phone` job):** `node scripts/move-check.mjs` (`CHROMIUM_PATH`, `MOVE_SHOTS=dir`) drives
   `admin-fixture.html?move=1` with the demo's sample files and answers the old-shop server actions in the script.
   Extend it when a bring-over window changes. The fixture's dev-only `__fixtureIdToken` lets `oldShopApi.ask` run
@@ -544,20 +566,30 @@ see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `A
   on opens a full-size `Dialog` (`size="full"`): Previous/Next look (and arrow keys), Computer/Phone, Home/Product page,
   Your products/Samples (`sampleProducts(publishes)` when the press has none). Each look's faces load from Google Fonts
   once (`useLookFonts`). Drawn, not the real storefront, because setup mode has no shop to render.
-- **Set up your shop** (`overview/SetupGuideCard.tsx`, pure `firstWeek.ts`): eight steps per answer (`ORDER`; the first-
-  book step is `bring-books`, `import-spreadsheet` or `add-books`): logo, look, books, shipping (starter words per
-  country, `shippingStarterWords`), Get paid (`card-account` ok on platform shops, plan 7.9; the payment checks on own
-  keys), web address (custom domain, or the owner ticks "Keep the free address"), practice order (an `isTest` paid or
-  refunded order, plan 7.6; done once the shop is open), Open your shop (no wall, no maintenance). Gmail is never a
-  step. Three open steps show (`guideParts`), the rest under **Later**, done ones under **Done**. **Open your shop**
-  runs `openBlockers` (Ready to sell's `block` rows) and, when none, Dashboard's `toggleUnderConstruction(false)`
+- **Set up your shop** (`overview/SetupGuideCard.tsx`, pure `firstWeek.ts`; regrouped 4 November 2026, plan 28): one
+  order for every answer, in three parts (`GROUPS`), Shopify-style: **Your shop** (the first-book step, `bring-books`,
+  `import-spreadsheet` or `add-books` per answer; logo; look), **Ready to sell** (shipping, starter words per country,
+  `shippingStarterWords`; taxes, Ready to sell's `tax` ok: rates set or collection off; Get paid, `card-account` ok on
+  platform shops, plan 7.9, the payment checks on own keys; store policies, Ready to sell's `policies` ok), **Launch**
+  (web address, optional: custom domain, or the owner ticks "Keep the free address"; practice order, an `isTest` paid or
+  refunded order, plan 7.6, done once the shop is open; Open your shop, no wall, no maintenance). Rule: every Ready to
+  sell `block` row has a step before Open your shop (firstWeek.test.ts). Rows are the setup-mode guide's accordion:
+  `nextStep` (first open non-optional) opens by itself, any other row on a click, each part shows done/total (every row
+  counted). Then **Reach more shoppers**, optional: Google (`#settings/google`, ticks on `firstWeek.google.connected`)
+  and social media (ticked by hand). Optional steps never keep the guide on Home. A step with `hash` + `anchor` opens a
+  sub tab and scrolls to a card (`jumpWhenShown`): policies and web address → `#settings/general/details`. Taxes is
+  tickable ("I don't collect tax yet": with no rate no tax is charged). Gmail is
+  never a step. **Open your shop** runs `openBlockers` (Ready to sell's `block` rows) and, when none, Dashboard's `toggleUnderConstruction(false)`
   (passed down as `onSetWall`). The `online` answer has a ninth step after it, **Move over from your old shop**
   (`switch`, ticked by hand, plan 23.8), opening Settings › General where **Check your old links** sits under URL
   redirects (`OldLinksCheck.tsx`, pure `oldLinks.ts`; the server's `readOldLinks` action reads the old shop's site map
   with `functions/moving/oldLinks.mjs`, a generated copy of `services/moving/oldLinks.js`). Its **Bring your own pages
   over** (plan 23.6) asks `readOldPages`, which rebuilds each old page with the allow-list in `services/moving/oldPages.js`
   (copied as `functions/moving/oldPages.mjs`); `pagesToSave` makes the drafts and redirects and never reuses a page's address. Pictures on public https addresses stay as `<img src alt>` and the hourly photo import copies them and rewrites `pages/*.body` (plan 23.13, `swapPagePictures`). The guide saves `progress { steps, done, at }` whenever it changes (`progressToSave`)
-  for the platform's trial emails (plan 6.10, `services/trial-tips`).
+  for the platform's trial emails (plan 6.10, `services/trial-tips`). Steps missing from the saved `progress.steps`
+  are new to that press (`addedSince`, fixed when the card mounts, since saving progress makes them old): they get a
+  New tag and one "N new steps" line, and a hidden guide comes back for a needed one (`showFirstWeek`'s `added`).
+  A done row opens on a click (to Change it); a row that gets done while open gives way to the next step.
 - `SELLING_TODAY` must list the sign-up form's answers and `StepId` must match `help/articles.js` `CHECKLIST_ANSWERS`
   (root tests check both). Firestore rule `firstWeek`: admin only, `hasOnly([... "publishes", "country", "welcome",
   "progress" ...])`, the four sign-up fields never change from the admin, `welcome`/`progress` shapes checked. The
@@ -773,3 +805,10 @@ Design and rules: `docs/social.md` (platform root). `SalesChannels.tsx` (tab `ch
 tested). They call `adminApi.social(step, args)` → `functions/socialLink.js`. `#social-posts/book/<id>` opens the
 composer on a product (Books › row › Post to social). Keep words lean (Julian, 4 November 2026): one short line per
 card, no explanations the badge or button already gives. Screens: fixture `?page=channels` / `social-posts`.
+Round two (4 November 2026, plan 27.10-27.12): Overview widget `social` ("Social media that sells", `socialPerformance`
+in `overview/overviewTraffic.ts`, on the Marketing board), the composer's Square picture toggle (`square`, on by
+default; `functions/socialPicture.js`) and the Shop alerts switch `socialPostFailed`.
+
+## Partner company logos (4 November 2026)
+
+A card or dialog about one outside company passes `logo` (`SectionCard logo="quickbooks"`, `Dialog logo={["instagram", "facebook"]}`); the logo sits on a white tile before the title in every look, day and night. Google sign-in uses `GoogleSignInButton` (Google's own style and words). Logos come only from `shared/brand-logos` (README there: sources, owners, rules); never redraw or recolour one, and never show a rival shop builder's.

@@ -82,8 +82,8 @@ describe('a stockroom run by Colophon: the screens', () => {
     expect(css).toMatch(/\[data-colophon\]\s+\[data-own-accounts\]\s*\{\s*display:\s*none\s*!important/);
     const doc = new DOMParser().parseFromString(html, 'text/html');
     // The AI, carrier, Stripe-reading and Google Sheet panels: the Tax Centre's Integrations tab and page, the Payments
-    // key box, the Shippo key card, the Sheets Connection tab and page, the invoice pay-link key and the buyers pull.
-    for (const id of ['btn-tctab-integrations', 'tc-sec-integrations', 'recon-keyrow', 'cust-stripe-btn', 'btn-subtab-sync', 'settings-sec-sync']) {
+    // key box, the Shippo key card, the Sheets Connection tab and page, the invoice pay-link key, the buyers pull and the till's own-key QR button (the Fair till's QR works for Stripe and Square).
+    for (const id of ['btn-tctab-integrations', 'tc-sec-integrations', 'recon-keyrow', 'cust-stripe-btn', 'btn-subtab-sync', 'settings-sec-sync', 'pos-sale-qr-btn']) {
       expect(doc.getElementById(id)?.hasAttribute('data-own-accounts'), id).toBe(true);
     }
     expect(doc.querySelectorAll('[data-own-accounts]').length).toBeGreaterThanOrEqual(9);

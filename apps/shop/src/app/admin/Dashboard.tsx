@@ -15,7 +15,8 @@ import { AdminAlerts } from "./AdminAlerts.tsx";
 import { shopErrorAlert, shopErrorRows } from "./shopErrors";
 import { backupAlert, buildAdminAlerts, cardAccountAlert, checkFailedAlert, inventoryLinkAlerts, settingsAlerts, type AdminAlert, type AlertRoute } from "./adminAlerts";
 import type { PlatformPaymentsAnswer } from "./platformPayments";
-import { hasStockroom, platformCardsProvider } from "../../lib/shopProfile";
+import { hasStockroom, platformCardsProvider, runsOnColophon } from "../../lib/shopProfile";
+import { googleConnectApi } from "./googleConnect";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { inventoryLinkView, setInventoryLink, type AppBookEntry } from "./appSwitch";
 import { AppSwitcher, AppSwitchPill, useWebsiteTabName } from "./AppSwitcher";
@@ -55,6 +56,7 @@ import { stockroomBridge } from "./stockroomBridge";
 import { StockroomFrame } from "./StockroomFrame";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
 import { providerName } from "./providerWords";
+import { setProductSells } from "../lib/productHref";
 
 // Studio is large and only opened from Settings › Design, so it loads in its own chunk.
 const StudioEditor = lazy(() => import("./studio/StudioWorkspace").then(m => ({ default: m.StudioWorkspace })));
@@ -236,13 +238,17 @@ export function Dashboard() {
   // Settings › Bookkeeping shows only when the platform's bookkeeping link is on for this shop (plan 7.16). Asked once,
   // the first time Settings opens (its pages are listed there only).
   const [bookkeepingOn, setBookkeepingOn] = useState(false);
+  const [googleOn, setGoogleOn] = useState(() => runsOnColophon());
   const bookkeepingAsked = useRef(false);
   useEffect(() => {
     if (activeTab !== "settings" || bookkeepingAsked.current) return;
     bookkeepingAsked.current = true;
     adminApi.bookkeeping("status").then((s) => setBookkeepingOn(!!s?.enabled)).catch(() => {});
+    // Settings › Google lists only on a shop Colophon runs (or one with the platform's Google link); others keep the
+    // older Analytics and Search Console cards in Visitors & Google.
+    googleConnectApi.status().then((g) => setGoogleOn(g !== "not_available" || runsOnColophon())).catch(() => setGoogleOn(runsOnColophon()));
   }, [activeTab]);
-  const hiddenPages = new Set(bookkeepingOn ? [] : [SETTINGS_ITEM_PREFIX + "bookkeeping"]);
+  const hiddenPages = new Set([...(bookkeepingOn ? [] : [SETTINGS_ITEM_PREFIX + "bookkeeping"]), ...(googleOn ? [] : [SETTINGS_ITEM_PREFIX + "google"]), ...(runsOnColophon() ? [] : [SETTINGS_ITEM_PREFIX + "apps"])]);
   // What the shop sells (plan 10.23): sign-up's answer in `firstWeek/start`. A shop that doesn't sell books reads
   // "Products" for "Books" across the admin (sells.ts `adminWordsFor`); with no answer every word stays as it is.
   const [sellsAnswer, setSellsAnswer] = useState<string | null>(null);
@@ -255,6 +261,8 @@ export function Dashboard() {
     window.addEventListener(SELLS_CHANGED_EVENT, on);
     return () => window.removeEventListener(SELLS_CHANGED_EVENT, on);
   }, []);
+  // Product addresses follow the same answer: /products/<slug> in a shop that doesn't sell books (lib/productHref.ts).
+  setProductSells(sellsAnswer);
   const w = adminWordsFor(sellsAnswer);
   const nav = useMemo(() => NAV.map((n) => ({ ...n, label: w(n.label) })), [w]);
   const [otherBadges, setOtherBadges] = useState<{ pendingReviews: number | null; unreadMessages: number | null; openPrivacyRequests: number | null }>({ pendingReviews: null, unreadMessages: null, openPrivacyRequests: null });
@@ -699,7 +707,7 @@ export function Dashboard() {
   ];
 
   // Pages fully built from Riso components render outside the legacy compatibility layer.
-  const migrated = activeTab === STOCKROOM_TAB || activeTab === SALES_TAB || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "channels" || activeTab === "socialPosts" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "bookkeeping" || settingsTab === "plan" || settingsTab === "billing" || settingsTab === "security"));
+  const migrated = activeTab === STOCKROOM_TAB || activeTab === SALES_TAB || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "channels" || activeTab === "socialPosts" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "bookkeeping" || settingsTab === "plan" || settingsTab === "billing" || settingsTab === "security" || settingsTab === "google" || settingsTab === "apps"));
   const content = (() => {
     switch (activeTab) {
       case "overview":

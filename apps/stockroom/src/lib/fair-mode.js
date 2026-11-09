@@ -9,7 +9,7 @@ import { normalizeCurrencyCode, roundCents } from './money.js';
  *  sale records, and must match the register's payment <select>. */
 export const FAIR_METHODS = [
   { value: 'Card', label: 'Card reader', icon: '💳' },
-  { value: 'Stripe QR', label: 'QR / Stripe', icon: '▦' },
+  { value: 'Stripe QR', label: 'QR code', icon: '▦' },
   { value: 'Bank Transfer', label: 'E-transfer', icon: '⇄', other: true },
   { value: 'Cash', label: 'Cash', icon: '＄', other: true },
   { value: 'Comp/Gift', label: 'Comp', icon: '♡', other: true },

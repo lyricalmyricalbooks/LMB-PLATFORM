@@ -16,6 +16,22 @@ export interface SetupPress {
   moving?: "" | "yes" | "fresh";
   /** The language of the platform's emails: "" automatic (French then English for a Quebec billing address), or a choice. */
   language?: "" | "fr" | "en";
+  /** Who takes the website's card payments: Stripe or Square, or "" (not chosen: the shop starts on Stripe). */
+  cardProvider?: "" | "stripe" | "square";
+  /** "Your web address": bringing a domain ("own"), gone to buy one ("buy"), the free address for now ("free"), or "". */
+  domainChoice?: "" | "own" | "buy" | "free";
+  /** The press's own domain, connected when its shop is made, else "". */
+  domain?: string;
+  /** Where the domain was bought, in the press's words ("GoDaddy"), or "" when not known. */
+  domainSeller?: string;
+  /** The seller has an Allow window for us: connecting is one press of Allow there. */
+  domainEasy?: boolean;
+  /** The free address the shop will get (moth-press.<shop domain>, a number added if taken), or "" when there is none. */
+  freeAddress?: string;
+  /** The name the press picked for its free address (moth-books), or "" for its press name. */
+  freeName?: string;
+  /** The press's name can't be an address (a brand's, a rude word, one the platform keeps): setup asks for a name. */
+  freeNameNeeded?: boolean;
   /** The shop's id once Open my shop has started it (18.8), else "". */
   shopId?: string;
   /** How the shop is starting once opening: "queued", or "in-line" with `shopMessage` saying why it waits. */
@@ -38,7 +54,10 @@ export interface OldShopRead { host: string; csv: string; products: number; note
 /** A kept product file as its owner sees it: never where it is kept. */
 export interface StagedImport { name: string; size: number; rows: number; at: string }
 
-export type SetupChange = Partial<Pick<SetupPress, "plan" | "pressName" | "sells" | "country" | "look" | "adminLook" | "moving" | "language">>;
+/** A name for the free address checked as the press types it: cleaned, why it can't be used (""), and whether it's free. */
+export interface FreeNameCheck { name: string; address: string; problem: string; available: boolean; suggestions?: string[] }
+
+export type SetupChange = Partial<Pick<SetupPress, "plan" | "pressName" | "sells" | "country" | "look" | "adminLook" | "moving" | "language" | "cardProvider" | "domainChoice" | "freeName">>;
 
 /** A plan as GET /api/plans lists it. */
 export interface PlanOffer { plan: "shop" | "stockroom" | "both"; name: string; priceText: string; foundingPriceText?: string }
@@ -60,6 +79,10 @@ export interface SetupDoor {
   plans(): Promise<PlanList>;
   /** Keeps a product file for the shop (it was previewed first): asks for an upload link, sends the file, then records it. */
   keepImport(pressId: string, file: Blob, details: { name: string; rows: number }): Promise<SetupPress>;
+  /** Keeps the press's own domain for its shop ("" takes it off); answers with where it was bought. */
+  saveDomain(pressId: string, domain: string): Promise<SetupPress>;
+  /** Checks a name for the free address as the press types it. Saves nothing. */
+  checkFreeName(pressId: string, name: string): Promise<FreeNameCheck>;
   /** Throws the kept file away. */
   removeImport(pressId: string): Promise<SetupPress>;
   /** Reads the old shop's public product list from its address (23.2), as a product file to preview. Keeps nothing. */
@@ -110,6 +133,11 @@ export function platformDoor(apiBase: string, token: () => Promise<string>, fetc
       }
       if (!sent.ok) throw new Error("The file didn't finish sending. Try again.");
       return (await call("POST", "/press/import/kept", { pressId, name, rows })).press as SetupPress;
+    },
+    saveDomain: async (pressId, domain) => (await call("POST", "/press/domain", { pressId, domain })).press as SetupPress,
+    checkFreeName: async (pressId, name) => {
+      const { name: cleaned, address, problem, available, suggestions } = await call("POST", "/press/free-name", { pressId, name });
+      return { name: cleaned, address, problem, available, suggestions: Array.isArray(suggestions) ? suggestions : [] } as FreeNameCheck;
     },
     removeImport: async (pressId) => (await call("POST", "/press/import/remove", { pressId })).press as SetupPress,
     readOldShop: async (pressId, address) => {

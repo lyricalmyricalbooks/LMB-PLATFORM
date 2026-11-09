@@ -19,6 +19,8 @@
 //   START_NUDGES               Get started nudges on days 2 and 4 (plan 17.14): hold (none sent), beside (sent with the
 //                              setup tips) or instead (sent in place of that day's setup tip)   default hold
 //   PLATFORM_URL               the platform's own pages (sign-up, account)           default https://<domain>
+//   SHOP_ADDRESS_DOMAIN        the domain shops' free addresses go under (moth-press.<it>), a domain of its own, never
+//                              the platform's (services/domains/freeAddress.js)    default none: web.app addresses
 //   SIGNUP_OPEN                "true": anyone may sign up; otherwise waitlist invites only (6.1, 6.13)   default false
 //   SIGNUP_OPEN_COUNTRIES      countries whose presses may start a shop now, comma-separated codes   default CA (15.23: tax
 //                              presets, addresses and shipping are Canadian; other countries join a "later" list)
@@ -118,6 +120,10 @@ export function platformSettings(env = process.env) {
   const platformUrl = text("PLATFORM_URL", `https://${domain}`).replace(/\/+$/, "");
   if (!/^https:\/\/[^/\s]+$/.test(platformUrl)) problems.push("PLATFORM_URL must be an https address with no path");
 
+  const shopAddressDomain = text("SHOP_ADDRESS_DOMAIN", "").toLowerCase();
+  if (shopAddressDomain && (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(shopAddressDomain) || shopAddressDomain === domain || shopAddressDomain.endsWith(`.${domain}`))) {
+    problems.push("SHOP_ADDRESS_DOMAIN must be a domain of its own, like shops.example, not the platform's domain or one under it");
+  }
   const openCountries = text("SIGNUP_OPEN_COUNTRIES", DEFAULT_SETTINGS.openCountries.join(",")).split(",").map((c) => c.trim().toUpperCase()).filter(Boolean);
   if (!openCountries.length || openCountries.some((c) => !/^[A-Z]{2}$/.test(c))) problems.push("SIGNUP_OPEN_COUNTRIES must be two-letter country codes like CA,US");
   const settings = {
@@ -136,6 +142,7 @@ export function platformSettings(env = process.env) {
     // Stripe allows trials of up to two years; 0 means no trial.
     trialDays: whole("TRIAL_DAYS", DEFAULT_SETTINGS.trialDays, LIMITS.trialDays),
     platformUrl,
+    shopAddressDomain,
     signupOpen: yesNo("SIGNUP_OPEN", DEFAULT_SETTINGS.signupOpen),
     startNudges: choice("START_NUDGES", DEFAULT_SETTINGS.startNudges, START_NUDGE_MODES),
     openCountries,

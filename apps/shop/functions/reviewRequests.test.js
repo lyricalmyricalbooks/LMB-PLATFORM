@@ -90,3 +90,12 @@ test('helpers', () => {
   expect(delayDaysOf({})).toBe(14);
   expect(delayDaysOf({ delayDays: 400 })).toBe(90);
 });
+
+test('links /products/<slug> in a shop that does not sell books', async () => {
+  const { db } = fakeDb({ o1: order() }, { books: { b1: { title: 'Tee', slug: 'tee', status: 'published' } } });
+  const sent = [];
+  const d = deps(db, sent);
+  await runReviewRequests({ ...d, notificationSettings: { ...d.notificationSettings, sells: 'clothing' } });
+  expect(sent[0].html).toContain('https://shop.test/products/tee');
+  expect(sent[0].html).not.toContain('/books/');
+});

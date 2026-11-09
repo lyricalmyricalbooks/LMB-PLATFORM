@@ -7,40 +7,56 @@
 //                                              (signInWithEmailLink). The link is never emailed: the code was the proof.
 //   POST /api/press       {}                   makes the press's setup record, or gives back the one still in setup
 //   GET  /api/press                            the signed-in person's presses
-//   POST /api/press/setup { pressId, plan?, pressName?, sells?, country?, look?, adminLook?, moving? }
+//   POST /api/press/setup { pressId, plan?, pressName?, sells?, country?, look?, adminLook?, moving?, language?, cardProvider? }
 //                                              saves answers while the press is in setup
 //   POST /api/press/old-shop { pressId, address }
+//   POST /api/press/domain { pressId, domain }   the press's own domain for its shop ("" takes it off)
+//   POST /api/press/free-name { pressId, name }  checks a name for the free address while the press types it:
+//                                              { name, address, problem, available } (nothing is saved)
 //                                              reads the old shop's public product list (23.2) and answers it as a
 //                                              product file { host, csv, products, notes } for the browser to preview
 //
 // Nothing here starts a trial, takes a card or makes a shop: those wait for Open my shop (18.8).
 //
 // Clients passed in:
-//   presses   get(pressId); create(pressId, record) -> bool; listByOwner(ownerUid);
+//   presses   get(pressId); create(pressId, record) -> bool; listByOwner(ownerUid); listByFreeName(name) (optional);
 //             update(pressId, change) -> change's result, read and written in one transaction
 //   codes     the sign-in code store (signInCode.js): get(key); set(key, row)
 //   email     sendPlatform({ kind, to, data, idempotencyKey })
 //   auth      signInLink(email, { url }) -> link (clients/signInLinks.js in the platform project)
 //   settings  { platformUrl }
+//   freeNameTaken  optional: (address) -> boolean, whether a shop already has that free address (freeAddress.js
+//             freeAddressTaken over the registry)
 import { createHash, randomBytes } from "node:crypto";
 import { SignupError, randomSuffix } from "./signup.js";
 import { createSignInCode } from "./signInCode.js";
 import { createAccountStart } from "./accountStart.js";
 import { MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, SETUP_FIELDS, advanceStatus, importPathFor, setupChange } from "./pressRecord.js";
-import { COUNTRIES, PUBLISHES, isEmail } from "./form.js";
+import { COUNTRIES, PUBLISHES, SQUARE_COUNTRIES, isEmail, squareWords } from "./form.js";
 import { readOldShop as readPublicShop } from "../services/moving/oldShop.js";
+import { domainProblem, normalDomain } from "../services/domains/names.js";
+import { sellerName } from "../services/domains/sellers.js";
+import { FALLBACK_HANDLE, baseHandle, cleanHandle, freeAddressPreview, handleProblem } from "../services/domains/freeAddress.js";
 
 /** The page the front door lives on, under the platform's address. */
 export const START_PAGE = "join";
 
 /** What a press sees of its own record: never the owner's uid or the platform's own fields. */
-const shown = (record) => ({
+const shownRecord = (record, shopDomain = "") => ({
+  // The free address the shop would get (moth-press.<shop domain>, or the name the press picked, `freeName`; a number
+  // is added if it's taken), or "".
+  freeAddress: freeAddressPreview(record.pressName ?? "", shopDomain, record.freeName ?? ""), freeName: record.freeName ?? "",
+  // The press's name can't be an address (a big brand's, a rude word, one the platform keeps): setup asks for a name.
+  freeNameNeeded: Boolean(shopDomain && record.pressName && !record.freeName && baseHandle(record.pressName) === FALLBACK_HANDLE),
   pressId: record.pressId, status: record.status, plan: record.plan ?? "", shopId: record.shopId ?? "",
   // How the shop is starting once opened (18.8): "queued", or "in-line" with the words saying why it waits.
   shopStatus: record.shopStatus ?? "", shopMessage: record.shopMessage ?? "",
   // Once the shop is ready (18.9): the way into its admin.
   openUrl: record.openUrl ?? "", pressName: record.pressName, sells: record.sells, country: record.country,
   look: record.look ?? "", adminLook: record.adminLook ?? "", moving: record.moving ?? "", language: record.language ?? "",
+  cardProvider: record.cardProvider ?? "",
+  // "Your web address" (setup guide): the answer, the press's own domain and where it was bought.
+  domainChoice: record.domainChoice ?? "", domain: record.domain ?? "", domainSeller: record.domainSeller ?? "", domainEasy: record.domainEasy === true,
   // What the press sees of its kept file: never the path.
   stagedImport: record.stagedImport ? { name: record.stagedImport.name, size: record.stagedImport.size, rows: record.stagedImport.rows, at: record.stagedImport.at } : null,
 });
@@ -82,7 +98,23 @@ const UPLOAD_MINUTES = 15;
  * canRetry, openUrl } | null. Listing the presses (setup mode follows it while the shop is made) adds it to each opening press,
  * and moves the record to `open` the first time it reads `ready` (18.9), keeping the way into the admin.
  */
-export function createFrontDoor({ presses, codes, email, auth, settings, stagedFiles, signup = null, making = null, now = () => new Date(), suffix = randomSuffix, random = null, readOldShop = readPublicShop }) {
+export function createFrontDoor({ presses, codes, email, auth, settings, stagedFiles, signup = null, making = null, now = () => new Date(), suffix = randomSuffix, random = null, readOldShop = readPublicShop, domainLookup = null, freeNameTaken = null }) {
+  const shown = (record) => shownRecord(record, settings?.shopAddressDomain ?? "");
+  // A name for the free address held by another press still setting up (or opening), or a shop that has it already.
+  const HOLDING = new Set(["setup", "opening"]);
+  /** Endings tried, in order, to suggest a free name close to a taken one. */
+  const NAME_ENDINGS = ["shop", "studio", "co", "2", "3"];
+
+  async function freeNameHeld(pressId, name) {
+    if (!name) return false;
+    if (typeof presses.listByFreeName === "function"
+      && (await presses.listByFreeName(name)).some((other) => other.pressId !== pressId && HOLDING.has(other.status))) return true;
+    const address = settings?.shopAddressDomain ? `${name}.${settings.shopAddressDomain}` : "";
+    if (address && freeNameTaken) {
+      try { return await freeNameTaken(address); } catch { return false; }
+    }
+    return false;
+  }
   const signInCode = createSignInCode({
     store: codes,
     now,
@@ -174,6 +206,10 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
       if (typeof change.country === "string" && change.country && !(change.country in COUNTRIES)) {
         throw new SignupError(400, "Pick your country from the list.", { country: "Pick your country from the list." });
       }
+      // A name for the free address another press (or shop) already holds is refused, so two presses never pick one.
+      if (typeof change.freeName === "string" && change.freeName && await freeNameHeld(record.pressId, cleanHandle(change.freeName))) {
+        throw new SignupError(409, "Another shop already has that name. Try another one.", { freeName: "Another shop already has that name. Try another one." });
+      }
       // Read and written in one step, so a save can never put back a status the platform has just moved on.
       const saved = await presses.update(record.pressId, (current) => {
         if (!current || current.ownerUid !== claims.uid) return { row: null, result: { ok: false, status: 404, message: "We couldn't find that press." } };
@@ -249,6 +285,58 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
       return { host: read.host, csv: read.csv, products: read.products, notes: read.notes };
     },
 
+    // "Your web address" (setup guide): the press's own domain, kept until the shop is made, when the shop maker
+    // connects it (shopMaker.js). Where it was bought is looked up now (public, services/domains/sellers.js), so
+    // setup can say "you'll press Allow once at GoDaddy" before anything is connected. A lookup that fails only means
+    // the seller isn't named. An empty domain takes it off.
+    async saveDomain(claims, body = {}) {
+      const record = await ownPress(claims, body.pressId);
+      if (record.status !== "setup") throw new SignupError(409, "Your shop is already opening, so setup is locked.");
+      const name = normalDomain(String(body.domain ?? "")).replace(/^www\.(?=[^.]+\.[^.]+$)/, "");
+      let fields = { domain: "", domainSeller: "", domainEasy: false, domainChoice: "" };
+      if (name) {
+        const problem = domainProblem(name, { platformDomain: settings?.domain ?? "" });
+        if (problem) throw new SignupError(400, problem, { domain: problem });
+        let found = null;
+        if (domainLookup) {
+          try { found = await domainLookup.lookup(name); } catch { found = null; }
+        }
+        const seller = sellerName(found?.registrar?.name) ?? sellerName(found?.domainConnect?.providerName) ?? "";
+        fields = { domain: name, domainSeller: seller, domainEasy: found?.domainConnect?.hasTemplate === true, domainChoice: "own" };
+      }
+      const saved = await presses.update(record.pressId, (current) => {
+        const refused = setupRefusal(current, claims);
+        if (refused) return { row: null, result: refused };
+        if (holding(current, now().getTime())) return { row: null, result: { ok: false, status: 409, message: OPENING_WORDS } };
+        const updated = { ...current, ...fields, lastSeenAt: now().toISOString() };
+        return { row: updated, result: { ok: true, press: shown(updated) } };
+      });
+      if (!saved.ok) throw new SignupError(saved.status, saved.message);
+      return { press: saved.press };
+    },
+
+    // A name for the free address, checked as the press types it (freeAddress.js): cleaned, refused when the platform
+    // keeps it or it's a brand's or rude, and `available: false` when a shop already has it (`freeNameTaken`, the
+    // registry). Nothing is saved: Use this name saves `freeName` through saveSetup.
+    async checkFreeName(claims, body = {}) {
+      await ownPress(claims, body.pressId);
+      const shopDomain = settings?.shopAddressDomain ?? "";
+      const name = cleanHandle(String(body.name ?? "").slice(0, 60));
+      const problem = handleProblem(name);
+      const address = shopDomain && name ? `${name}.${shopDomain}` : "";
+      const available = !problem && !(await freeNameHeld(body.pressId, name));
+      // A taken name comes back with up to three free ones close to it, so the press picks instead of guessing.
+      const suggestions = [];
+      if (name && !problem && !available) {
+        for (const ending of NAME_ENDINGS) {
+          if (suggestions.length >= 3) break;
+          const candidate = `${name.slice(0, 30 - ending.length - 1).replace(/-+$/, "")}-${ending}`;
+          if (!handleProblem(candidate) && !(await freeNameHeld(body.pressId, candidate))) suggestions.push(candidate);
+        }
+      }
+      return { name, address, problem, available, suggestions };
+    },
+
     async removeImport(claims, body = {}) {
       const record = await ownPress(claims, body.pressId);
       // The record lets go first, then the files: at worst a file is left with nothing pointing at it.
@@ -276,6 +364,9 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
       if (record.status !== "setup") return { press: shown(record) };
       const plan = typeof body.plan === "string" && body.plan ? body.plan : record.plan;
       for (const [field, words] of Object.entries(OPEN_NEEDS)) if (!record[field]) throw new SignupError(400, words, { [field]: words });
+      // Square only where it works with the shop's checkout (form.js SQUARE_COUNTRIES): a country changed after picking it.
+      const cardProvider = plan === "stockroom" ? "" : record.cardProvider;
+      if (cardProvider === "square" && !SQUARE_COUNTRIES.includes(record.country)) throw new SignupError(400, squareWords(record.country), { cardProvider: squareWords(record.country) });
       const hold = now().toISOString();
       const held = await presses.update(record.pressId, (current) => {
         const refused = setupRefusal(current, claims);
@@ -293,6 +384,8 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
           pressName: record.pressName, plan, country: record.country, publishes: record.sells || null,
           // The language chosen for the platform's emails, if any (pressRecord.js LANGUAGE_CHOICES).
           ...(record.language ? { language: record.language } : {}),
+          // Stripe or Square for the website's cards (pressRecord.js CARD_PROVIDER_CHOICES); Stripe when not chosen.
+          ...(cardProvider ? { paymentProvider: cardProvider } : {}),
           termsAccepted: body.termsAccepted === true, termsVersion: body.termsVersion,
         }, { pressId: record.pressId });
       } catch (error) {
@@ -338,5 +431,7 @@ export const frontDoorRoutes = (door) => ({
   "POST /api/press/import/kept": (claims, request) => door.keepImport(claims, request.body ?? {}),
   "POST /api/press/import/remove": (claims, request) => door.removeImport(claims, request.body ?? {}),
   "POST /api/press/old-shop": (claims, request) => door.oldShop(claims, request.body ?? {}),
+  "POST /api/press/domain": (claims, request) => door.saveDomain(claims, request.body ?? {}),
+  "POST /api/press/free-name": (claims, request) => door.checkFreeName(claims, request.body ?? {}),
   "POST /api/press/open": (claims, request) => door.openShop(claims, request.body ?? {}),
 });

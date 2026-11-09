@@ -270,7 +270,7 @@ describe('Fair Mode, a whole fair day', () => {
     const body = document.getElementById('fm-summary-body').textContent;
     expect(document.getElementById('fm-summary-title').textContent).toBe('End of day · Toronto Art Book Fair');
     expect(body).toMatch(/Card reader/);
-    expect(body).toMatch(/QR \/ Stripe/);
+    expect(body).toMatch(/QR code/);
     expect(body).toMatch(/Harbour Lights.*2 sold · 98 left/);
     expect(body).toMatch(/3 books in 2 sales/);
   });

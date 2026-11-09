@@ -21,14 +21,15 @@ describe("checking the old shop's links (plan 23.8)", () => {
     ], shop);
     expect(links).toEqual([
       { path: "/", state: "works" },
-      { path: "/products/moth-songs", state: "redirected", to: "/books/moth-songs" },
+      // Either product address opens the product (plan 12.18), so an old /products/<slug> link already works.
+      { path: "/products/moth-songs", state: "works" },
       { path: "/books/moth-songs", state: "works" },
       { path: "/books/salt-hours", state: "draft", to: "/books/salt-hours" },
       { path: "/page/faq", state: "draft", to: "/page/faq" },
       { path: "/page/policy-returns", state: "works" },
       { path: "/collections/zines", state: "works" },
       { path: "/cart", state: "works" },
-      { path: "/products/salt-hours", state: "missing", suggestion: { to: "/books/salt-hours", label: "Salt Hours" } },
+      { path: "/products/salt-hours", state: "draft", to: "/books/salt-hours" },
       { path: "/pages/about-us", state: "missing", suggestion: { to: "/page/about", label: "About the press" } },
       { path: "/policies/refund-policy", state: "missing", suggestion: { to: "/page/policy-returns", label: "Returns Policy" } },
       { path: "/collections/zines/products/moth-songs", state: "missing", suggestion: { to: "/books/moth-songs", label: "Moth Songs" } },
@@ -36,7 +37,7 @@ describe("checking the old shop's links (plan 23.8)", () => {
       { path: "/shop", state: "missing", suggestion: { to: "/collections/all", label: "All your books" } },
       { path: "/blog/news/a-new-year", state: "missing", suggestion: { to: "/", label: "Your home page" } },
     ]);
-    expect(countLinks(links)).toEqual({ works: 5, redirected: 1, draft: 2, missing: 7 });
+    expect(countLinks(links)).toEqual({ works: 6, redirected: 0, draft: 3, missing: 6 });
   });
 
   it("a book address that isn't one of the shop's books goes through the redirects too", () => {

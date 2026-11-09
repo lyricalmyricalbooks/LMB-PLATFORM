@@ -122,31 +122,59 @@ export type PreviewLinkApi = {
   revoke: (token: string) => Promise<void>;
 };
 
-/** A small drawing of a design: page colour, a heading in its font, an accent button and two cards. */
-export function ThemeThumb({ design, label }: { design: any; label: string }) {
+/** A cover for the drawing: a product's title and its first photo (ownBooks). */
+export type ThumbProduct = { title: string; photo: string };
+
+/**
+ * A small drawing of a design: page colour, a heading in its font, an accent button and two cards. Given the press's
+ * own products, the cards are their covers and the line under the heading is a real product name, so every look is
+ * seen on the press's shop, as in Choose your look.
+ */
+export function ThemeThumb({ design, label, products = [], pressName }: { design: any; label: string; products?: ThumbProduct[]; pressName?: string }) {
   const d = withRisoNoirDefault(design || {}) || {};
   const bg = d.backgroundColor || "#000000", fg = d.textColor || "#ffffff", accent = d.primaryColor || "#e8402a";
   const surface = d.surfaceColor || bg, border = d.borderColor || fg;
   const font = (f: any) => (typeof f === "string" && f ? `"${f}", system-ui, sans-serif` : "system-ui, sans-serif");
+  const cover = (i: number) => {
+    const photo = products[i]?.photo;
+    return photo ? `${surface} center / cover no-repeat url("${photo.replace(/"/g, "%22")}")` : surface;
+  };
+  const card = (i: number) => <b key={i} style={{ background: cover(i), borderColor: border }} />;
+  const logo = typeof d.logoUrl === "string" && d.logoUrl.startsWith("https://") ? d.logoUrl : "";
   return (
-    <div className="studio-theme-thumb" role="img" aria-label={`${label}: page ${bg}, text ${fg}, accent ${accent}`} style={{ background: bg, color: fg }}>
-      <span style={{ fontFamily: font(d.headingFont), textTransform: d.risoUppercaseHeadings ? "uppercase" : undefined }}>Aa</span>
-      <span className="studio-theme-thumb-body" style={{ fontFamily: font(d.bodyFont) }}>Books &amp; prints</span>
+    <div className="studio-theme-thumb" role="img" aria-label={`${label} on a computer and a phone: page ${bg}, text ${fg}, accent ${accent}`} style={{ background: bg, color: fg }}>
+      {/* The press's own name (and logo) in the look's heading type, as their header will show it. */}
+      <span className={pressName ? "studio-theme-thumb-name" : undefined} style={{ fontFamily: font(d.headingFont), textTransform: d.risoUppercaseHeadings ? "uppercase" : undefined }}>
+        {logo && <img src={logo} alt="" />}<span>{pressName || "Aa"}</span>
+      </span>
+      <span className="studio-theme-thumb-body" style={{ fontFamily: font(d.bodyFont) }}>{products.find(x => x.title)?.title || "Books & prints"}</span>
       <i style={{ background: accent }} />
-      <b style={{ background: surface, borderColor: border }} /><b style={{ background: surface, borderColor: border }} />
+      {card(0)}{card(1)}
+      {/* The same look at phone width: one column, a cover and the button, so a crowded phone layout shows before switching. */}
+      <em className="studio-theme-thumb-phone" style={{ background: bg, borderColor: fg }}>
+        <u style={{ background: fg }} /><b style={{ background: cover(0), borderColor: border }} /><i style={{ background: accent }} />
+      </em>
     </div>
   );
 }
 
 type Props = {
   design: any;
+  /** The press's own products (ownBooks), drawn as the covers on every card. */
+  products?: ThumbProduct[];
+  /** The press's name (pressNameOf), drawn as the heading on every card. */
+  pressName?: string;
+  /** "You've changed card tilt." when the draft sets template details (templateDetailsLine), with the reset beside it. */
+  templateDetails?: string | null;
+  onResetTemplateDetails?: () => void;
   published: any;
   unpublished: boolean;
   savedThemes: SavedTheme[];
   presets: { id: string; name: string; mood?: string; global?: any; homeLayoutTemplate?: string; content?: PresetContent }[];
   currentPresetId?: string;
   previewingId: string | null;
-  onPreview: (entry: { id: string; label: string; design: any } | null) => void;
+  /** Shows a design on the canvas; "mobile" also switches the preview to a phone (the card's drawing is that button). */
+  onPreview: (entry: { id: string; label: string; design: any } | null, device?: "mobile") => void;
   onSaveCurrent: () => void;
   onImport: (file: File) => void;
   onLoad: (t: SavedTheme) => void;
@@ -223,6 +251,13 @@ export function StudioThemes(p: Props) {
     </SecondaryButton>
   );
 
+  // The drawing itself opens that design full size on a phone in the preview.
+  const thumb = (id: string, label: string, design: any) => (
+    <button type="button" className="studio-theme-thumb-btn" aria-label={`Preview ${label} on a phone`} onClick={() => p.onPreview({ id, label, design }, "mobile")}>
+      <ThemeThumb design={design} label={label} products={p.products} pressName={p.pressName} />
+    </button>
+  );
+
   return (
     <div className="studio-themes" data-studio-panel="themes">
       {p.switchReport && p.onBringBack && p.onDismissSwitch &&
@@ -232,7 +267,7 @@ export function StudioThemes(p: Props) {
       <section className="studio-themes-current">
         <h3>Live now</h3>
         <article className="studio-theme-card" data-theme-card="live">
-          <ThemeThumb design={p.published} label="Live theme" />
+          {thumb("live", "Live theme", p.published)}
           <div>
             <strong>Live theme</strong>
             <small>{p.unpublished ? "Your draft has changes that aren't live yet." : "Your draft matches the live shop."}</small>
@@ -242,7 +277,7 @@ export function StudioThemes(p: Props) {
           </div>
         </article>
         <article className="studio-theme-card" data-theme-card="draft">
-          <ThemeThumb design={p.design} label="Your draft" />
+          {thumb("draft", "Your draft", p.design)}
           <div>
             <strong>Your draft</strong> {p.unpublished && <StatusBadge tone="warning">Not published</StatusBadge>}
             <small>What you're editing now, including unsaved changes.</small>
@@ -250,6 +285,10 @@ export function StudioThemes(p: Props) {
               <SecondaryButton size="sm" onClick={() => setShare({ name: "Draft", design: p.design })}><Link2 size={13} aria-hidden /> Share a preview link</SecondaryButton>
               <SecondaryButton size="sm" onClick={p.onSaveCurrent}>Save as a theme…</SecondaryButton>
             </div>
+            {p.templateDetails && p.onResetTemplateDetails && <div className="studio-field-status" data-template-reset>
+              <small>{p.templateDetails}</small>
+              <button type="button" className="studio-reset" onClick={p.onResetTemplateDetails}>Reset template details</button>
+            </div>}
           </div>
         </article>
       </section>
@@ -267,7 +306,7 @@ export function StudioThemes(p: Props) {
         <div className="studio-theme-grid">
           {p.savedThemes.map(t => (
             <article key={t.id} className="studio-theme-card" data-theme-card={t.id}>
-              <ThemeThumb design={t.design} label={t.name} />
+              {thumb(`saved:${t.id}`, t.name, t.design)}
               <div>
                 <strong>{t.name}</strong>
                 <small>Saved {when(t.savedAt)}</small>
@@ -299,7 +338,7 @@ export function StudioThemes(p: Props) {
             const look = themedDesign(preset, p.design);
             return (
               <article key={preset.id} className="studio-theme-card" data-theme-card={`preset:${preset.id}`}>
-                <ThemeThumb design={look} label={preset.name} />
+                {thumb(`preset:${preset.id}`, preset.name, look)}
                 <div>
                   <strong>{preset.name}</strong> {p.currentPresetId === preset.id && <StatusBadge tone="success">Current</StatusBadge>}
                   {preset.mood && <small>{preset.mood}</small>}

@@ -567,6 +567,8 @@ function shopBooksForApp(books, appBooks, links, { ignoredMatches = {}, dismisse
         // Plan 10.5: an edition of a product sold in options (sizes, colours) names its product, so the app can keep
         // the sizes together and add them all at once. A book with plain editions sends none, as before.
         ...(variant && usesOptionPicker(book) ? { product: text(book.title, 200) } : {}),
+        // Plan 23.9: the website's own count, so the app starts the item from it and both agree from day one.
+        ...(e.tracked && Number.isInteger(e.stock) ? { tracked: true, stock: e.stock } : {}),
       };
     });
 }

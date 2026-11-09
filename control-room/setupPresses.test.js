@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { GOING_SOON_DAYS, STUCK_OPENING_HOURS, createSetupDesk, setupRoutes, setupSummary } from "./setupPresses.js";
+import { GOING_SOON_DAYS, STUCK_OPENING_HOURS, createSetupDesk, guideOf, setupRoutes, setupSummary } from "./setupPresses.js";
 import { controlRoomAdmins } from "./controlRoom.js";
 import { SETUP_EXPIRY_DAYS, newPressRecord } from "../signup/pressRecord.js";
 import { fakeFrontDoorStores, fakeVerifyIdToken } from "../signup/fakes.js";
@@ -84,6 +84,15 @@ test("looks are counted by how many presses picked them, not chosen yet last", a
   assert.deepEqual(looks.admin, [{ id: "bento", count: 1 }, { id: "desk", count: 1 }, { id: "", count: 3 }]);
 });
 
+test("each press shows Stripe or Square for its cards, and the picks are counted", async () => {
+  const w = await world();
+  await w.presses.create("press-on-square", record("press-on-square", { pressName: "Square Press", country: "CA", plan: "shop", cardProvider: "square", lastSeenAt: ago(0) }));
+  const { presses, cards } = await w.desk.list(ADMIN);
+  assert.equal(presses.find((p) => p.pressId === "press-on-square").cardProvider, "square");
+  assert.equal(presses.find((p) => p.pressId === "press-fresh-one").cardProvider, "");
+  assert.deepEqual(cards, [{ id: "square", count: 1 }, { id: "", count: 5 }]);
+});
+
 test("without the setup records the page says so instead of showing none", async () => {
   const desk = createSetupDesk({ admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: "admin@example.com" }), presses: null, registry: fakeRegistry(), now: () => new Date(NOW) });
   await assert.rejects(desk.list(ADMIN), { status: 503 });
@@ -98,4 +107,22 @@ test("the page has a Setting up page that loads the route, and both web doors se
   for (const door of ["../server/world.js", "../walkthrough/world.js"]) {
     assert.match(readFileSync(new URL(door, import.meta.url), "utf8"), /setupRoutes\(setupDesk\)/, door);
   }
+});
+
+test("how far through the setup guide: the shop's own steps, counted the same way", () => {
+  const ts = readFileSync(new URL("../apps/shop/src/setupMode/pages.ts", import.meta.url), "utf8");
+  const body = /export function guideSteps[\s\S]*?\n}\n/.exec(ts)[0];
+  const shopIds = [...body.matchAll(/\bid: "([a-z]+)"/g)].map((m) => m[1]);
+  const record = { plan: "", pressName: "", sells: "", country: "", look: "", moving: "", stagedImport: null, status: "setup" };
+  assert.deepEqual(guideOf(record).steps.map((s) => s.id).sort(), [...new Set(shopIds)].sort(), "same steps as the shop's guide");
+  assert.deepEqual([guideOf(record).done, guideOf(record).total, guideOf(record).next], [0, 4, "Pick what to set up"], "the bring-over step counts only once done");
+  const halfway = { ...record, plan: "both", pressName: "Moth Press", sells: "books", country: "CA" };
+  assert.deepEqual([guideOf(halfway).done, guideOf(halfway).total, guideOf(halfway).next], [2, 4, "Choose the website's look"]);
+  const stockroom = { ...halfway, plan: "stockroom", stagedImport: { rows: 3 } };
+  assert.deepEqual([guideOf(stockroom).done, guideOf(stockroom).total, guideOf(stockroom).next], [3, 4, "Create the shop"], "no look step without a website");
+  assert.deepEqual([guideOf({ ...halfway, look: "riso", status: "opening" }).done, guideOf({ ...halfway, look: "riso", status: "opening" }).next], [4, null]);
+  // The web address step is optional: it counts once answered ("own" once the domain is in).
+  assert.deepEqual([guideOf({ ...halfway, domainChoice: "free" }).done, guideOf({ ...halfway, domainChoice: "free" }).total], [3, 5]);
+  assert.equal(guideOf({ ...halfway, domainChoice: "own" }).total, 4, "own, but no domain yet");
+  assert.equal(guideOf({ ...halfway, domainChoice: "own", domain: "mothpress.example" }).total, 5);
 });

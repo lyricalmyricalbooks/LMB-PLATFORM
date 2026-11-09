@@ -41,7 +41,7 @@ test("a key reads its shop; a wrong or missing key reads nothing", async () => {
   assert.equal((await call("/api/apps/v1/shop", { header: "x" })).status, 200, "the key also works in its own header");
   assert.equal((await call("/api/apps/v1/shop", { key: "cak_bad" })).status, 401);
   assert.equal((await call("/api/apps/v1/shop", { key: "" })).status, 401);
-  assert.equal((await call("/api/apps/v1/shop", { method: "POST" })).status, 405);
+  assert.equal((await call("/api/apps/v1/shop", { method: "DELETE" })).status, 405);
   assert.equal((await call("/api/apps/v1/nothing")).status, 404);
 });
 
@@ -111,4 +111,94 @@ test(`an app gets at most ${PER_MINUTE} calls a minute for a shop`, async () => 
   assert.ok(Number(over.headers["Retry-After"]) > 0);
   tick(60);
   assert.equal((await call("/api/apps/v1/shop")).status, 200, "a new minute, a new allowance");
+});
+
+// Changes (26.3b): the platform only writes a request into the shop; the shop's own checks answer it.
+function changeWorld(granted, { shopAnswers = true } = {}) {
+  const docs = new Map([["moth-press/orders/o1", ORDERS.o1]]);
+  const shopData = {
+    get: async (shopId, path) => structuredClone(docs.get(`${shopId}/${path}`) ?? null),
+    create: async (shopId, path, data) => {
+      if (docs.has(`${shopId}/${path}`)) throw new Error(`${path} already exists`);
+      docs.set(`${shopId}/${path}`, structuredClone(data));
+    },
+  };
+  let ids = 0;
+  const installs = { authenticate: async (key) => ({ cak_a: { installId: "moth-press~app_1", shopId: "moth-press", appId: "app_1", appName: "Parcel Pal", granted }, cak_b: { installId: "moth-press~app_2", shopId: "moth-press", appId: "app_2", granted } })[key] ?? null };
+  // Stands in for the shop's trigger: answers a waiting request after the first look.
+  const sleep = async () => {
+    if (!shopAnswers) return;
+    for (const [path, data] of docs) if (path.includes("/appRequests/") && !data.status) docs.set(path, { ...data, status: "done", result: "dispatched", reason: "Marked sent." });
+  };
+  const handle = createAppConnection({ installs, shopData, registry: fakeRegistry(), sleep, waitMs: 1000, newRequestId: () => `req_${++ids}` });
+  const post = (path, body, { key = "cak_a", headers = {} } = {}) => handle({ method: "POST", path, body, headers: { authorization: `Bearer ${key}`, ...headers } });
+  const get = (path, key = "cak_a") => handle({ method: "GET", path, headers: { authorization: `Bearer ${key}` } });
+  return { docs, post, get };
+}
+
+test("an app asks to mark an order sent; the shop's answer comes back", async () => {
+  const w = changeWorld(["write_orders"]);
+  const res = await w.post("/api/apps/v1/orders/o1/fulfillment", { trackingCarrier: "Canada Post", trackingNumber: "1234" });
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.body.request, { id: "req_1", op: "order.dispatch", status: "done", result: "dispatched", reason: "Marked sent.", createdAt: res.body.request.createdAt, answeredAt: null });
+  const written = w.docs.get("moth-press/appRequests/req_1");
+  assert.deepEqual(written.input, { orderId: "o1", trackingCarrier: "Canada Post", trackingNumber: "1234", trackingUrl: "", shipped: true });
+  assert.equal(written.appName, "Parcel Pal");
+  assert.equal((await w.get("/api/apps/v1/requests/req_1")).body.request.status, "done");
+  assert.equal((await w.get("/api/apps/v1/requests/req_1", "cak_b")).status, 404, "another app can't read it");
+});
+
+test("no answer yet: 202 with the request to look up later", async () => {
+  const w = changeWorld(["write_orders"], { shopAnswers: false });
+  const res = await w.post("/api/apps/v1/orders/o1/fulfillment", { trackingCarrier: "UPS", trackingNumber: "1Z" });
+  assert.equal(res.status, 202);
+  assert.equal(res.body.request.status, "waiting");
+});
+
+test("a retried call with the same Idempotency-Key makes one request", async () => {
+  const w = changeWorld(["write_orders"], { shopAnswers: false });
+  const body = { trackingCarrier: "UPS", trackingNumber: "1Z", shipped: false };
+  const headers = { "Idempotency-Key": "ship-o1" };
+  const first = await w.post("/api/apps/v1/orders/o1/fulfillment", body, { headers });
+  const second = await w.post("/api/apps/v1/orders/o1/fulfillment", body, { headers });
+  assert.equal(first.body.request.id, second.body.request.id);
+  assert.equal([...w.docs.keys()].filter((k) => k.includes("appRequests")).length, 1);
+});
+
+test("changes need write_orders and good input", async () => {
+  assert.equal((await changeWorld(["read_orders"]).post("/api/apps/v1/orders/o1/fulfillment", { trackingCarrier: "UPS", trackingNumber: "1" })).status, 403);
+  const w = changeWorld(["write_orders"]);
+  assert.equal((await w.post("/api/apps/v1/orders/o1/fulfillment", { trackingCarrier: "UPS" })).status, 400);
+  assert.equal((await w.post("/api/apps/v1/orders/o1/fulfillment", { trackingCarrier: "UPS", trackingNumber: "1", trackingUrl: "http://x.example" })).status, 400);
+  assert.equal((await w.post("/api/apps/v1/orders/o1/refund", {})).status, 404);
+  assert.equal((await w.post("/api/apps/v1/orders/o1/fulfillment", { trackingCarrier: "UPS", trackingNumber: "1" }, { key: "cak_bad" })).status, 401);
+  assert.equal([...w.docs.keys()].filter((k) => k.includes("appRequests")).length, 0);
+});
+
+test("an app adds or takes copies, with write_inventory only", async () => {
+  const w = changeWorld(["write_inventory"]);
+  const res = await w.post("/api/apps/v1/inventory/b1", { change: -1, expected: 7, variantId: "" });
+  assert.equal(res.status, 200);
+  assert.deepEqual(w.docs.get("moth-press/appRequests/req_1").input, { productId: "b1", variantId: "", change: -1, expected: 7 });
+  assert.equal(w.docs.get("moth-press/appRequests/req_1").op, "inventory.adjust");
+  assert.equal((await w.post("/api/apps/v1/inventory/b1", { change: 0 })).status, 400);
+  assert.equal((await w.post("/api/apps/v1/inventory/b1", { change: 2.5 })).status, 400);
+  assert.equal((await w.post("/api/apps/v1/inventory/b1", { change: 1, expected: -1 })).status, 400);
+  assert.equal((await changeWorld(["read_inventory"]).post("/api/apps/v1/inventory/b1", { change: 1 })).status, 403);
+});
+
+test("an app catches up on its own alerts, oldest first", async () => {
+  const rows = [
+    { id: "a2", installId: "moth-press~app_1", topic: "orders/shipped", createdAt: "2026-11-04T11:00:00Z", data: { order: { id: "o2" } }, status: "failed" },
+    { id: "a1", installId: "moth-press~app_1", topic: "orders/paid", createdAt: "2026-11-04T10:00:00Z", data: { order: { id: "o1" } }, status: "sent" },
+    { id: "a3", installId: "moth-press~app_1", topic: "orders/paid", createdAt: "2026-11-04T11:30:00Z", data: {}, status: "dropped" },
+    { id: "b1", installId: "moth-press~app_2", topic: "orders/paid", createdAt: "2026-11-04T10:00:00Z", data: {}, status: "sent" },
+  ];
+  const outbox = { listByInstall: async (installId) => rows.filter((r) => r.installId === installId) };
+  const installs = { authenticate: async () => ({ installId: "moth-press~app_1", shopId: "moth-press", appId: "app_1", granted: [] }) };
+  const handle = createAppConnection({ installs, shopData: {}, registry: fakeRegistry(), outbox });
+  const res = await handle({ method: "GET", path: "/api/apps/v1/alerts", headers: { authorization: "Bearer cak_a" } });
+  assert.deepEqual(res.body.alerts.map((a) => [a.id, a.delivered]), [["a1", true], ["a2", false]]);
+  const later = await handle({ method: "GET", path: "/api/apps/v1/alerts", query: { since: "2026-11-04T10:30:00Z" }, headers: { authorization: "Bearer cak_a" } });
+  assert.deepEqual(later.body.alerts.map((a) => a.id), ["a2"]);
 });

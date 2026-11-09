@@ -15,12 +15,15 @@ import { THEME_LIBRARY } from "../app/admin/studio/themeLibrary";
 import { ShopWordsContext, useShopWords } from "../app/admin/shopWords";
 import { adminWordsFor } from "../app/admin/sells";
 import { ImportPage } from "./ImportPage";
+import { CARD_CHOICE_NOTE, CARD_PROVIDER_CHOICES, chosenCardProvider, squareAvailable, type CardProviderId } from "./cardChoice";
+import { WEB_ADDRESS_ANCHOR, WebAddressCard } from "./WebAddress";
+import { BrandLogo } from "../app/components/brand/BrandLogo";
 import { AskForm, HelpAnswer, HelpQuestions, type HelpAnswers } from "./SetupHelp";
 import type { PlanList, SetupChange, SetupDoor, SetupPress } from "./door";
 import { CreateShopCard, type CreateShop } from "./CreateShop";
 import type { CreateNames } from "./launchWords";
 import {
-  DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, IMPORT_PAGE, PLAN_PAGE, SETUP_QUESTIONS, STEP_HELP, guideProgress, guideSteps, lockedPageLine, nextGuideStep,
+  DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, IMPORT_PAGE, PAYMENTS_PAGE, PLAN_PAGE, SETUP_QUESTIONS, STEP_HELP, guideProgress, guideSteps, setupGroups, helpFor, lockedPageLine, nextGuideStep,
   pageFromHash, readyToCreate, setupLocked, showMoveIn, setupMenu, setupMenuItemFor, setupPageLabel,
 } from "./pages";
 
@@ -52,14 +55,17 @@ export function SetupAdmin(props: {
   press: SetupPress; door: SetupDoor; lists: SetupLists; email: string; onSignOut: () => void; helpUrl: string; termsUrl?: string;
   /** Where a press sees its earlier help requests (the platform's account page). */
   accountUrl?: string;
-  /** The platform's help answers by id, shown in place; empty (links into the help centre) when they didn't load. */
-  answers?: HelpAnswers;
+  /**
+   * The platform's help answers by id, shown in place; empty (links into the help centre) when they didn't load. Given
+   * as what the shop sells → answers, they follow a change in Settings › General at once (code plan 12.18).
+   */
+  answers?: HelpAnswers | ((sells: string | null) => HelpAnswers);
 }) {
   return <ToastProvider><SetupAdminInner {...props} /></ToastProvider>;
 }
 
-function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl, termsUrl = "/terms/", accountUrl = "/account/", answers = NO_ANSWERS }: {
-  press: SetupPress; door: SetupDoor; lists: SetupLists; email: string; onSignOut: () => void; helpUrl: string; termsUrl?: string; accountUrl?: string; answers?: HelpAnswers;
+function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl, termsUrl = "/terms/", accountUrl = "/account/", answers: given = NO_ANSWERS }: {
+  press: SetupPress; door: SetupDoor; lists: SetupLists; email: string; onSignOut: () => void; helpUrl: string; termsUrl?: string; accountUrl?: string; answers?: HelpAnswers | ((sells: string | null) => HelpAnswers);
 }) {
   const [press, setPress] = useState(first);
   const [plans, setPlans] = useState<PlanList | null>(null);
@@ -68,6 +74,7 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const appearance = useMemo(readAppearance, []);
   const w = useMemo(() => adminWordsFor(press.sells || null), [press.sells]);
+  const answers = useMemo(() => (typeof given === "function" ? given(press.sells || null) : given), [given, press.sells]);
 
   const [plansFailed, setPlansFailed] = useState(false);
   const loadPlans = () => { setPlansFailed(false); door.plans().then(setPlans, () => setPlansFailed(true)); };
@@ -81,11 +88,13 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
     return () => window.removeEventListener("hashchange", onHash);
   }, [menu]);
 
-  const open = (next: string) => {
+  const open = (next: string, anchor?: string) => {
     setSidebarOpen(false);
     if (location.hash !== `#${next}`) location.hash = next;
     setPage(next);
     document.getElementById("rp-main")?.focus();
+    // A guide step that lives part way down its page (Your web address on General) is scrolled to.
+    if (anchor) requestAnimationFrame(() => document.getElementById(anchor)?.scrollIntoView?.({ block: "start" }));
   };
   // Create my shop (top bar, locked pages, the guide's last step) lands on the review, not the top of Plan.
   const openCreate = () => {
@@ -115,12 +124,18 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
   const made = press.status !== "setup";
   if (made && page !== HELP_PAGE) content = planPage();
   else if (setupLocked(page)) content = <OpensWithShop page={setupPageLabel(page, menu)} line={w(lockedPageLine(page))} onOpenShop={openCreate} onBack={() => open(HOME_PAGE)} />;
-  else if (page === HOME_PAGE) content = <SetupGuide press={press} plans={plans} helpUrl={helpUrl} answers={answers} onOpen={open} onAsk={openAsk} onCreate={openCreate} save={save} />;
-  else if (page === GENERAL_PAGE) content = <PressDetails press={press} lists={lists} save={save} />;
+  else if (page === HOME_PAGE) content = <SetupGuide press={press} plans={plans} helpUrl={helpFor(helpUrl, press.sells)} answers={answers} onOpen={open} onAsk={openAsk} onCreate={openCreate} save={save} />;
+  else if (page === GENERAL_PAGE) content = (
+    <>
+      <PressDetails press={press} lists={lists} save={save} />
+      {press.plan !== "stockroom" && <WebAddressCard press={press} door={door} save={save} onSaved={setPress} />}
+    </>
+  );
   else if (page === IMPORT_PAGE) content = <ImportPage press={press} door={door} onSaved={setPress} />;
   else if (page === DESIGN_PAGE) content = <DesignPage press={press} save={save} />;
+  else if (page === PAYMENTS_PAGE) content = <CardPaymentsPage press={press} save={save} />;
   else if (page === PLAN_PAGE) content = planPage();
-  else content = <HelpPage helpUrl={helpUrl} accountUrl={accountUrl} answers={answers} ask={door.askForHelp} pressName={press.pressName} />;
+  else content = <HelpPage helpUrl={helpFor(helpUrl, press.sells)} accountUrl={accountUrl} answers={answers} ask={door.askForHelp} pressName={press.pressName} />;
 
   return (
     <ShopWordsContext.Provider value={w}>
@@ -159,12 +174,15 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
             </IconButton>
             <a className="rp-topbar-wordmark" href={`#${HOME_PAGE}`} onClick={(e) => { e.preventDefault(); open(HOME_PAGE); }}>{pressName}</a>
             <div className="rp-topbar-actions">
-              {/* On a phone the button keeps only its icon, as the admin's top-bar buttons do. Once the shop is
-                  being made there is nothing left to press. */}
+              {/* The one action setup is for, so it keeps a word on a phone ("Create"; setup.css) where the admin's
+                  other top-bar buttons keep only their icon. Once the shop is being made there is nothing left to press. */}
               {press.status === "setup" && (
-                <PrimaryButton size="sm" aria-label="Create my shop" icon={<Store size={16} aria-hidden />} onClick={openCreate}>
-                  <span className="rp-btn-label">Create my shop</span>
-                </PrimaryButton>
+                <span className="rp-setup-create">
+                  <PrimaryButton size="sm" icon={<Store size={16} aria-hidden />} onClick={openCreate}>
+                    <span className="rp-setup-create-long">Create my shop</span><span className="rp-setup-create-short" aria-hidden>Create</span>
+                    <span className="rp-sr-only rp-setup-create-sr">Create my shop</span>
+                  </PrimaryButton>
+                </span>
               )}
             </div>
           </Topbar>
@@ -187,7 +205,7 @@ export function OpensWithShop({ page, line = "", onOpenShop, onBack }: { page: s
       <EmptyState
         icon={<Lock size={28} aria-hidden />}
         title="Comes with your shop"
-        description={`${line ? `${line} ` : ""}${page} starts working as soon as your shop is made. Nothing is charged before then.`}
+        description={`${line ? `${line} ` : ""}Ready once your shop is made.`}
         action={
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
             {onBack && <PrimaryButton icon={<ArrowRight size={16} aria-hidden />} onClick={onBack}>Back to the setup guide</PrimaryButton>}
@@ -203,8 +221,9 @@ export function OpensWithShop({ page, line = "", onOpenShop, onBack }: { page: s
 const STEP_WHY: Record<string, string> = {
   plan: "Your website, your stockroom or both. You can change it until your shop is made.",
   details: "Your press's name, what you sell and your country set your shop's words, money and taxes.",
-  look: "Every look keeps your words and books, and you can change everything in Design later.",
-  books: "Bring your old shop's product file and your books come in as drafts for you to check.",
+  look: "Your words and books stay the same in every look. Change any part later in Design.",
+  books: "Your old shop's product file brings your books in as drafts to check.",
+  domain: "Use a domain you have, or buy one.",
   open: "Check what goes in, then we make your shop. It starts private, so only you can see it.",
 };
 
@@ -215,7 +234,7 @@ const helpLink = (helpUrl: string, id: string) => `${helpUrl}#${id}`;
  * button, and any other step opens on a click), then what happens once the shop is made and where to get help.
  */
 function SetupGuide({ press, plans, helpUrl, answers, onOpen, onAsk, onCreate, save }: {
-  press: SetupPress; plans: PlanList | null; helpUrl: string; answers: HelpAnswers; onOpen: (page: string) => void; onAsk: () => void; onCreate: () => void;
+  press: SetupPress; plans: PlanList | null; helpUrl: string; answers: HelpAnswers; onOpen: (page: string, anchor?: string) => void; onAsk: () => void; onCreate: () => void;
   save: (c: SetupChange) => Promise<SetupPress>;
 }) {
   const w = useShopWords();
@@ -232,24 +251,29 @@ function SetupGuide({ press, plans, helpUrl, answers, onOpen, onAsk, onCreate, s
   const pickedStep = steps.find((st) => st.id === picked);
   const shown = picked === "" ? "" : pickedStep && !pickedStep.done && !pickedStep.locked ? pickedStep.id : next?.id ?? null;
   // The last step goes straight to the review on Plan; every other step opens its page.
-  const go = (step: { id: string; page: string }) => (step.id === "open" ? onCreate() : onOpen(step.page));
-  const left = total - done;
+  const go = (step: { id: string; page: string }) => (step.id === "open" ? onCreate() : onOpen(step.page, step.id === "domain" ? WEB_ADDRESS_ANCHOR : undefined));
   // A step's help answer, opened in place under its button.
   const [howOpen, setHowOpen] = useState("");
   return (
     <div className="rp-setup-home">
       <PageHeader title={press.pressName ? `Welcome, ${press.pressName}` : "Welcome"}
-        description="Set up your shop here. Nothing is charged, and your free days don't start, until you create it." />
+        description="Nothing is charged, and your free days don't start, until you create your shop." />
       {ready && <ReadyCard onCreate={onCreate} />}
       {showMoveIn(press) && <MoveInCard onBring={() => onOpen(IMPORT_PAGE)} save={save} />}
       <SectionCard title="Setup guide" collapsible={false}
-        description={ready ? "All set. Create your shop when you're ready." : `${done} of ${total} done · ${left === 1 ? "one step" : `${left} steps`} to go`}>
+        description={ready ? "All set. Create your shop when you're ready." : `${done} of ${total} done`}>
         <div role="progressbar" aria-label="Setup guide" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done}
           style={{ height: 6, background: "var(--rp-divider)", marginBottom: 8 }}>
           <div style={{ width: `${(done / total) * 100}%`, height: "100%", background: "var(--rp-primary)" }} />
         </div>
-        <ol aria-label="Setup steps" style={{ listStyle: "none", margin: 0, padding: 0, display: "grid" }}>
-          {steps.map((step) => {
+        {setupGroups(steps).map((g) => (
+        <section key={g.id} aria-labelledby={`setup-part-${g.id}`} style={{ marginTop: 16 }}>
+          <h3 id={`setup-part-${g.id}`} className="rp-mono"
+            style={{ display: "flex", justifyContent: "space-between", gap: 8, margin: "0 0 4px", fontSize: 12, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--rp-text-muted)" }}>
+            <span>{g.title}</span><span>{g.done}/{g.total}<span className="rp-sr-only"> done</span></span>
+          </h3>
+        <ol aria-label={g.title} data-setup-steps="" style={{ listStyle: "none", margin: 0, padding: 0, display: "grid" }}>
+          {g.steps.map((step) => {
             const isNext = step.id === next?.id;
             const isOpen = step.id === shown && !step.locked;
             const help = STEP_HELP[step.id];
@@ -305,6 +329,8 @@ function SetupGuide({ press, plans, helpUrl, answers, onOpen, onAsk, onCreate, s
             );
           })}
         </ol>
+        </section>
+        ))}
       </SectionCard>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))", gap: 16, marginTop: 16 }}>
         <AfterCreating plan={press.plan} plans={plans} />
@@ -394,7 +420,7 @@ function MoveInCard({ onBring, save }: { onBring: () => void; save: (c: SetupCha
         <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
           <div>
             <h2 id="move-in-title" style={{ margin: 0, fontSize: 20 }}>Selling somewhere already?</h2>
-            <p style={{ margin: "6px 0 0" }}>{w("Bring your shop with you. Your books, prices, photos and stock come across from your old shop's web address or its product file, and links to your old pages keep working. You see everything before anything is kept.")}</p>
+            <p style={{ margin: "6px 0 0" }}>{w("Bring your shop with you. Your books, prices, photos and stock come across, and old links keep working. You see everything before it's kept.")}</p>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             <PrimaryButton icon={<ArrowRight size={16} aria-hidden />} onClick={bring}>Bring my shop over</PrimaryButton>
@@ -440,15 +466,15 @@ function PressDetails({ press, lists, save }: { press: SetupPress; lists: SetupL
       <SectionCard title="Your press" collapsible={false}>
         <form onSubmit={submit} style={{ display: "grid", gap: 16, maxWidth: 520 }}>
           <TextField label="Press name" value={name} maxLength={120} autoComplete="organization" onChange={(e) => setName(e.target.value)} />
-          <SelectField label="What you sell" hint="It sets your shop's words and the looks we suggest." value={sells} onChange={(e) => setSells(e.target.value)}>
+          <SelectField label="What you sell" value={sells} onChange={(e) => setSells(e.target.value)}>
             <option value="">Not said yet</option>
             {lists.sells.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
           </SelectField>
-          <SelectField label="Country" hint="It sets your shop's money and taxes." value={country} onChange={(e) => setCountry(e.target.value)}>
+          <SelectField label="Country" value={country} onChange={(e) => setCountry(e.target.value)}>
             <option value="">Choose your country</option>
             {Object.entries(lists.countries).map(([code, c]) => <option key={code} value={code}>{c.name}</option>)}
           </SelectField>
-          <SelectField label="Language of our emails" hint="Automatic writes in French with the English below when your billing address is in Quebec, and in English otherwise. You can change it later in Settings › Plan."
+          <SelectField label="Language of our emails" hint="Automatic: French in Quebec, English elsewhere."
             value={language} onChange={(e) => setLanguage(e.target.value as "" | "fr" | "en")}>
             <option value="">Automatic</option>
             <option value="fr" lang="fr">Français</option>
@@ -490,13 +516,65 @@ function DesignPage({ press, save }: { press: SetupPress; save: (c: SetupChange)
         publishes={press.sells || null}
         settings={{ info: { name: press.pressName } }}
         apply={async () => {}}
-        intro="Pick a look for your website. It's kept with your setup and put in place when your shop opens."
+        intro="It goes on your website when your shop is made."
         keep={press.look ? { label: `Keep ${themeName(press.look) || "my look"}`, onKeep: () => setChoosing(false) } : undefined}
         onDone={async (welcome) => {
           await save({ look: welcome.theme, ...(welcome.adminLook ? { adminLook: welcome.adminLook } : {}) });
           setChoosing(false);
         }}
       />
+    </>
+  );
+}
+
+/**
+ * Settings › Payments in setup: Stripe or Square for the website's card payments (cardProvider on the setup record).
+ * The press connects the account itself once the shop is made; nothing is connected here. The words come from
+ * cardChoice.ts.
+ */
+function CardPaymentsPage({ press, save }: { press: SetupPress; save: (c: SetupChange) => Promise<SetupPress> }) {
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+  const inSetup = press.status === "setup";
+  if (press.plan === "stockroom") {
+    return (
+      <>
+        <PageHeader title="Payments" />
+        <EmptyState title="No website on your plan" description="The stockroom on its own has no website checkout." />
+      </>
+    );
+  }
+  const chosen = chosenCardProvider(press);
+  const choose = async (provider: CardProviderId) => {
+    if (busy || (press.cardProvider === provider)) return;
+    setBusy(provider); setError("");
+    try { await save({ cardProvider: provider }); } catch (err) { setError(err instanceof Error ? err.message : "That didn't save. Try again."); } finally { setBusy(""); }
+  };
+  return (
+    <>
+      <PageHeader title="Payments" />
+      <SectionCard title="Card payments" collapsible={false}>
+        <div role="radiogroup" aria-label="Card payments" style={{ display: "grid", gap: 8 }}>
+          {CARD_PROVIDER_CHOICES.map((option) => {
+            const on = chosen === option.id;
+            const unavailable = option.id === "square" && !squareAvailable(press.country);
+            return (
+              <button key={option.id} type="button" role="radio" aria-checked={on} disabled={!!busy || !inSetup || unavailable} onClick={() => void choose(option.id)}
+                style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "0 12px", alignItems: "center", textAlign: "left", minHeight: 56, padding: "12px 14px",
+                  background: on ? "var(--rp-primary-tint)" : "var(--rp-surface)", color: "var(--rp-text)", cursor: unavailable ? "not-allowed" : "pointer",
+                  opacity: unavailable ? 0.6 : 1, border: on ? "2px solid var(--rp-text)" : "1px solid var(--rp-border)" }}>
+                <BrandLogo id={option.id} size="md" />
+                <span style={{ display: "grid", gap: 2 }}>
+                  <strong>{option.name}</strong>
+                  <span className="rp-hint">{unavailable ? "Not available in your country yet." : option.line}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        {error && <p role="alert" className="rp-hint" style={{ color: "var(--rp-danger)" }}>{error}</p>}
+        <p className="rp-hint" style={{ margin: "12px 0 0" }}>{inSetup ? CARD_CHOICE_NOTE : "Connect it in Settings › Payments once your shop is ready."}</p>
+      </SectionCard>
     </>
   );
 }
@@ -521,8 +599,8 @@ function PlanPage({ press, plans, failed, onRetry, save, termsUrl, names, email,
   const trialWords = trial > 0 ? `Your first shop is free for ${trial} days once it's made, then monthly` : "Monthly once your shop is made";
   return (
     <>
-      <PageHeader title="Plan" description="What you're setting up, and creating your shop." />
-      <SectionCard title="Your plan" description={inSetup ? "Change it any time before your shop is made." : "You can change it in Settings › Plan once your shop is ready."} collapsible={false}>
+      <PageHeader title="Plan" />
+      <SectionCard title="Your plan" collapsible={false}>
         <div id="plan-choice" role="radiogroup" aria-label="Your plan" style={{ display: "grid", gap: 8 }}>
           {PLAN_ORDER.map((id) => {
             const offer = byId[id];
@@ -568,6 +646,7 @@ function PlanPage({ press, plans, failed, onRetry, save, termsUrl, names, email,
 function HelpPage({ helpUrl, accountUrl, answers, ask, pressName }: {
   helpUrl: string; accountUrl: string; answers: HelpAnswers; ask: SetupDoor["askForHelp"]; pressName: string;
 }) {
+  const w = useShopWords();
   return (
     <>
       <PageHeader title="Help" description="Answers about setting up and creating your shop." />
@@ -581,7 +660,7 @@ function HelpPage({ helpUrl, accountUrl, answers, ask, pressName }: {
           </SectionCard>
         </section>
         <SectionCard title="Help centre" collapsible={false}>
-          <p style={{ marginTop: 0 }}>Every answer, on plans, payments, moving your books in, and your website.</p>
+          <p style={{ marginTop: 0 }}>{w("Every answer, on plans, payments, moving your books in, and your website.")}</p>
           <a className="rp-btn rp-btn-secondary" href={helpUrl} target="_blank" rel="noopener">Open the help centre</a>
         </SectionCard>
       </div>

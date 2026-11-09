@@ -86,11 +86,69 @@ The app sends its key as `Authorization: Bearer cak_…`. All calls are GET and 
 | `/api/apps/v1/inventory?limit&after` | `read_inventory` | how many of each product and variant |
 | `/api/apps/v1/orders?limit&after&since&status` and `/orders/<id>` | `read_orders` | paid orders, newest first, with where they ship; email and phone only with `read_customers` |
 
+`/api/apps/v1/alerts?since&limit&after` (no permission needed) lists the alerts queued for the app, oldest first, with
+`delivered`, so an app whose server was down can catch up.
+
 Lists page with `next` (pass it back as `after`), at most 250 a page. At most 120 calls a minute per app and shop
 (429 with `Retry-After`). Never answered: cost prices, payment details, private notes, test or unpaid orders.
 
-Changing things comes in 26.3b, through the shop's own rules, so an app can never skip the packing checklist, the
-address review, a hold or a dispute.
+## 26.3b (part built): the app connection, changing
+
+Apps never change a shop directly. The platform checks the key and permission, writes a request to the shop's
+`appRequests/<id>` with its own access, and the shop's `onAppRequest` function applies it with the shop's own checks
+(`apps/shop/functions/appRequests.js`), then writes the answer on the same document. No shop rule lets shoppers or
+staff read or write `appRequests`.
+
+| Call | Permission | What |
+| --- | --- | --- |
+| `POST /api/apps/v1/orders/<id>/fulfillment` | `write_orders` | `{ trackingCarrier, trackingNumber, trackingUrl?, shipped? }`: add tracking and mark sent (`shipped: false` only adds tracking) |
+| `POST /api/apps/v1/inventory/<productId>` | `write_inventory` | `{ change, variantId?, expected? }`: add or take copies; with `expected`, only if the stock is still that |
+| `GET /api/apps/v1/requests/<id>` | the app that asked | `{ status: waiting \| done \| refused, result, reason }` |
+
+The POST waits up to 5 seconds for the shop's answer (200), else answers 202 with the request to look up. An
+`Idempotency-Key` header makes a retry return the first request. Marking sent uses the same checks as a dispatch from
+the stockroom app (paid, not a test, ships by carrier, no open request, dispute, hold, failed refund, label being bought
+or waiting pre-order), and tracking the shop or another app put on an order is never replaced. The customer gets the
+usual shipped email. Stock changes are refused for items whose stock comes from the stockroom (it would undo them) and
+items that don't count stock; stock never goes below 0, and checkout holds are untouched.
+
+Product changes come next, the same way.
+
+## 26.5 (part built): apps in the shop's admin
+
+**Settings › Apps** (`AppsSettings.tsx`, `apps.css`, `appActivity.ts`) has three tabs, like the big platforms' Apps page:
+
+- **Installed**: one row per app with its category picture, a chip per permission ("Changes orders", "Sees customers";
+  ones with customers' personal details are marked), Help (the app's support email) and Remove (asks first).
+- **App store**: every listed app as a card, filtered by category. Details shows the description and "It can" list;
+  Add opens the app's install address (`installAddress` when its maker gave one, with `?shop=<shopId>`, else its
+  website), which leads to the permission page.
+- **Activity**: every request an app made (`appRequests`, read from the shop's own Firestore): the change in plain words,
+  Done / Refused / Waiting and the shop's reason. Admins can read `appRequests`; nobody writes them from the browser.
+
+Installed and the store come through the **shop door**: the shop's server action `apps` (`functions/appsLink.js`,
+admins only) posts `{op, args}` to `POST /api/apps/shop` (`services/apps/shopDoor.js`) with `X-Shop-Id` and the shop's
+service key, the same pattern as the email and payments doors. Ops: `apps.installed`, `apps.store` (listed apps plus
+categories), `apps.remove` (recorded as `shop admin: <email>`). The address is `PLATFORM_APPS_URL` in the shop's settings
+(`setup/later-steps.js`); without it the two tabs say "The app store opens soon" and only Activity works.
+
+The permission page (`accounts/install.html`) uses the same category picture, names the shop (`shopName` in the preview)
+and lists the permissions with the same "Personal details" tag. An app already added shows "Added" and the button reads
+"Update access".
+
+## 26.4 (built): alerts to apps
+
+`services/apps/alerts.js`, run by the `app-alerts` job every minute. An app lists `alertTopics` when it registers, each
+needing its permission (`services/apps/topics.js`): `orders/paid`, `orders/shipped`, `orders/refunded`,
+`products/changed`, `inventory/changed`. `app/uninstalled` goes to every app with an alerts address.
+
+The message is a POST of `{ id, topic, shopId, createdAt, data }`, with `X-Colophon-Topic`, `X-Colophon-Shop`,
+`X-Colophon-Alert-Id` and `X-Colophon-Signature`: Base64 HMAC-SHA256 of the body, keyed with the SHA-256 (hex) of the
+app's secret. A 2xx answer within 10 seconds counts. Retries after 1, 5, 15, 60, 180, 360 and 720 minutes, then the alert
+is marked failed. Only public https addresses are sent to (no IP numbers or local names). Outbox `appAlerts/<id>`, last
+look `appAlertState/<shopId>`.
+
+The platform finds changes by reading orders and products changed since its last look, so the shops need no change.
 
 ## The first apps (Julian's picks, 4 November 2026)
 

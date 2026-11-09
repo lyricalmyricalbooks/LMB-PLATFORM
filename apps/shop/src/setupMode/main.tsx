@@ -30,6 +30,8 @@ function say(words: string) {
 
 async function start() {
   // The help answers are the platform's own (one copy, on the help page); setup works without them, linking out instead.
+  // They come in this shop's words (help/articles.js articlesFor, code plan 12.18), as the help centre shows them, and
+  // follow a change of what the shop sells at once.
   const [config, form, help] = await Promise.all([load("/signup/config.js"), load("/signup/form.js"), load("/help/articles.js").catch(() => null)]);
   const { initializeApp } = await import(/* @vite-ignore */ `${config.FIREBASE_SDK}/firebase-app.js`);
   const { getAuth, onAuthStateChanged, signOut } = await import(/* @vite-ignore */ `${config.FIREBASE_SDK}/firebase-auth.js`);
@@ -51,7 +53,7 @@ async function start() {
     sells: form.PUBLISHES.options.map((o: { id: string; label: string }) => ({ id: o.id, label: o.label })),
   };
   createRoot(document.getElementById("root")!).render(
-    <SetupAdmin press={press} door={door} lists={lists} email={user.email ?? ""} helpUrl={HELP_PAGE} accountUrl={ACCOUNT_PAGE} answers={helpAnswersFrom(help?.ARTICLES)}
+    <SetupAdmin press={press} door={door} lists={lists} email={user.email ?? ""} helpUrl={HELP_PAGE} accountUrl={ACCOUNT_PAGE} answers={(sells) => helpAnswersFrom(typeof help?.articlesFor === "function" ? help.articlesFor("both", sells) : help?.ARTICLES)}
       onSignOut={() => { void signOut(auth).then(() => location.replace(FRONT_DOOR)); }} />,
   );
 }

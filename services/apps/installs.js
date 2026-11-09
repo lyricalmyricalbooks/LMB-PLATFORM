@@ -35,13 +35,17 @@ const hashOf = (text) => createHash("sha256").update(String(text), "utf8").diges
 export const installIdOf = (shopId, appId) => `${shopId}~${appId}`;
 
 /** An install as the shop's team sees it. */
-const forShop = (install, app) => ({
-  appId: install.appId, name: app?.listing?.details?.name ?? app?.draft?.name ?? install.appName, supportEmail: app?.listing?.details?.supportEmail ?? app?.draft?.supportEmail ?? "",
-  permissions: scopeWords(install.scopes), installedAt: install.installedAt, installedBy: install.installedBy, testing: install.testing === true,
-});
+const forShop = (install, app) => {
+  const details = (install.testing ? app?.draft : app?.listing?.details) ?? app?.listing?.details ?? app?.draft ?? {};
+  return {
+    appId: install.appId, name: details.name ?? install.appName, tagline: details.tagline ?? "", category: details.category ?? "other",
+    supportEmail: details.supportEmail ?? "", website: details.website ?? "",
+    permissions: scopeWords(install.scopes), installedAt: install.installedAt, installedBy: install.installedBy, testing: install.testing === true,
+  };
+};
 
 export function createAppInstalls({
-  apps, makers, installs, codes, roleIn, registry, auditLog, now = () => new Date(),
+  apps, makers, installs, codes, roleIn, registry, auditLog, onRemoved = async () => {}, now = () => new Date(),
   newCode = () => randomBytes(24).toString("base64url"), newKey = () => `cak_${randomBytes(32).toString("base64url")}`,
 }) {
   const at = () => now().toISOString();
@@ -79,9 +83,10 @@ export function createAppInstalls({
       const role = typeof shopId === "string" && SHOP.test(shopId) ? await roleIn(person, shopId) : null;
       if (!role) throw new SignupError(403, "You're not on that shop's team.");
       const current = await installs.get(installIdOf(shopId, app.appId));
+      const shop = (await registry.getShop?.(shopId).catch(() => null)) ?? {};
       return {
-        app: { appId: app.appId, name: details.name, tagline: details.tagline, website: details.website, supportEmail: details.supportEmail },
-        shopId, permissions: scopeWords(details.scopes), canApprove: role === "owner", testing,
+        app: { appId: app.appId, name: details.name, tagline: details.tagline, category: details.category ?? "other", website: details.website, supportEmail: details.supportEmail },
+        shopId, shopName: shop.pressName ?? shopId, permissions: scopeWords(details.scopes), canApprove: role === "owner", testing,
         alreadyInstalled: current?.status === "active" ? { permissions: scopeWords(current.scopes) } : null,
       };
     },
@@ -146,33 +151,57 @@ export function createAppInstalls({
     async remove(claims, { appId, shopId } = {}) {
       const person = personOf(claims);
       await ownerOf(person, shopId);
-      const id = installIdOf(shopId, String(appId ?? ""));
-      const install = await installs.get(id);
-      if (!install || install.status !== "active") throw new SignupError(404, "That app isn't installed on this shop.");
-      Object.assign(install, { status: "removed", keyHash: null, removedAt: at(), removedBy: person.email, updatedAt: at() });
-      await installs.put(id, install);
-      await log(shopId, "app-removed", { appId: install.appId, appName: install.appName, by: person.email });
-      return { removed: true };
+      return removeInstall(shopId, appId, person.email);
     },
+
+    /**
+     * The same, asked by the shop's own server for an admin signed in to its admin (Settings › Apps, through the shop
+     * door, shopDoor.js): the shop checked who it is; `by` is that admin's email.
+     */
+    removeForShop: (shopId, appId, by) => removeInstall(shopId, appId, `shop admin: ${String(by ?? "").slice(0, 200)}`),
+
+    /** The apps installed on a shop, for its own server (shop door). */
+    installedOn,
 
     /** The apps installed on a shop, for anyone on its team. */
     async forShop(claims, { shopId } = {}) {
       const person = personOf(claims);
       if (typeof shopId !== "string" || !SHOP.test(shopId) || !(await roleIn(person, shopId))) throw new SignupError(403, "You're not on that shop's team.");
-      const active = (await installs.listByShop(shopId)).filter((install) => install.status === "active");
-      const rows = await Promise.all(active.map(async (install) => forShop(install, await apps.get(install.appId))));
-      return { apps: rows.sort((a, b) => a.name.localeCompare(b.name)) };
+      return { apps: await installedOn(shopId) };
     },
 
-    /**
-     * The install a key belongs to, or null: used by the app connection (26.3) on every call. An app taken off the store
-     * keeps working on shops that already installed it (as on the big platforms), unless an admin stops it.
-     */
-    async authenticate(accessToken) {
-      if (typeof accessToken !== "string" || !accessToken.startsWith("cak_")) return null;
-      const install = await installs.getByKeyHash(hashOf(accessToken));
-      if (!install || install.status !== "active") return null;
-      return { ...install, granted: grantedScopes(install.scopes) };
-    },
+    authenticate,
   };
+
+  async function installedOn(shopId) {
+    const active = (await installs.listByShop(shopId)).filter((install) => install.status === "active");
+    const rows = await Promise.all(active.map(async (install) => forShop(install, await apps.get(install.appId))));
+    return rows.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  async function removeInstall(shopId, appId, by) {
+    const id = installIdOf(shopId, String(appId ?? ""));
+    const install = await installs.get(id);
+    if (!install || install.status !== "active") throw new SignupError(404, "That app isn't installed on this shop.");
+    Object.assign(install, { status: "removed", keyHash: null, removedAt: at(), removedBy: by, updatedAt: at() });
+    await installs.put(id, install);
+    try {
+      await onRemoved(install);
+    } catch {
+      // The app is removed whatever happens to its goodbye alert.
+    }
+    await log(shopId, "app-removed", { appId: install.appId, appName: install.appName, by });
+    return { removed: true };
+  }
+
+  /**
+   * The install a key belongs to, or null: used by the app connection (26.3) on every call. An app taken off the store
+   * keeps working on shops that already installed it (as on the big platforms), unless an admin stops it.
+   */
+  async function authenticate(accessToken) {
+    if (typeof accessToken !== "string" || !accessToken.startsWith("cak_")) return null;
+    const install = await installs.getByKeyHash(hashOf(accessToken));
+    if (!install || install.status !== "active") return null;
+    return { ...install, granted: grantedScopes(install.scopes) };
+  }
 }

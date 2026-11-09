@@ -63,6 +63,10 @@ describe("the look previews show the first book's photo (plan 17.8)", () => {
     ]);
     expect(ownBooks(null)).toEqual([]);
   });
+  it("gives the previews each product's real price, the sale price when it is on sale", () => {
+    expect(ownBooks([{ title: "A", retailPrice: 22 }, { title: "B", retailPrice: 24, salePrice: 18.5, isOnSale: true }, { title: "C", retailPrice: 0 }]))
+      .toEqual([{ title: "A", photo: "", price: "CA$ 22.00" }, { title: "B", photo: "", price: "CA$ 18.50" }, { title: "C", photo: "" }]);
+  });
   it("tells the preview which template style to draw", () => {
     const style = (id: string) => lookPreview((THEME_LIBRARY as any[]).find(t => t.id === id)).style;
     expect(style("press-market")).toBe("market");
@@ -116,6 +120,19 @@ describe("browsing the looks (theme store)", () => {
     expect(marquee.heading).toBe("The wall");
     expect(marquee.outline).toBe(3);
     expect(marquee.announcement).not.toBeNull();
+  });
+  it("draws each look with the press's own settings, as Use this look would leave the shop", () => {
+    const shelf = (THEME_LIBRARY as any[]).find(t => t.id === "press-shelf");
+    const stock = lookPreview(shelf);
+    expect(lookPreview(shelf, null)).toEqual(stock);
+    const own = lookPreview(shelf, { templateOutlineWidth: 2, templateOutlineColor: "#123456", templateShadowOffset: 6, backgroundColor: "#000000" });
+    expect(own.outline).toBe(2);
+    expect(own.outlineColor).toBe("#123456");
+    expect(own.shadow).toBe(6);
+    expect(own.bg).toBe(stock.bg); // the look's colours still replace the press's, exactly as choosing it does
+    // A template's own outline wins over the Riso Press one; Riso Press keeps reading its own.
+    const riso = (THEME_LIBRARY as any[]).find(t => t.id === "press-riso");
+    expect(lookPreview(riso, { templateOutlineWidth: 4 }).outline).toBe(lookPreview(riso).outline);
   });
   it("samples are worded for what the press sells", async () => {
     const { sampleProducts } = await import("./lookGallery");

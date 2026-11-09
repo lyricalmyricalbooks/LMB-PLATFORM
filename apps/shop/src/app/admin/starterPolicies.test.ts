@@ -72,4 +72,14 @@ describe("starter wording for a shop that sells something other than books (plan
     for (const sells of ["books", "zines", "mix", null, "unknown"]) expect(starterPolicy("returns", { ...facts, sells })).toBe(books);
     expect(books).toContain("send a book back");
   });
+
+  it("names the company that takes the shop's cards: Square for a Square shop, Stripe otherwise", () => {
+    const facts = starterFacts({ info: { name: "Moth Press" } }, "books", "Square");
+    expect(starterPolicy("privacy", facts)).toContain("Payments are processed by Square");
+    expect(starterPolicy("accessibility", facts)).toContain("Square's own secure page");
+    expect(starterPolicy("accessibility", facts)).not.toMatch(/Stripe/);
+    const plain = starterFacts({ info: { name: "Moth Press" } }, "books");
+    expect(starterPolicy("privacy", plain)).toContain("Payments are processed by Stripe");
+    expect(starterPolicy("accessibility", plain)).toContain("Checkout is run by Stripe");
+  });
 });

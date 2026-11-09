@@ -8,7 +8,7 @@ import { contentMaxWidth } from "./headerNav";
 import { getCopy, shopCopyFallback } from "./storeCopy";
 import { shopName, wordmarkWords } from "./shopIdentity";
 import { resolveFooterBadges } from "./paymentBadges";
-import { PAYMENT_ICONS } from "./paymentIcons";
+import { paymentIcon } from "./paymentIcons";
 import { regionProps } from "./storefrontRegions";
 import { GroupedFooterNavigation } from "../../components/GroupedFooterNavigation";
 import { FooterMenu } from "../../components/StoreMenu";
@@ -177,9 +177,9 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
           {/* Style › Footer & social links › Currency picker in the footer (off by default). */}
           {footerCurrencyOn(d) && <FooterCurrency design={d} />}
           {badges.length > 0 && (
-            <div className="fm-footer-pay-icons flex items-center gap-4 text-white/55 select-none" data-studio-target="style:paymentIcons|style:footer" data-studio-label="Payment icons">
+            <div className="fm-footer-pay-icons flex flex-wrap items-center gap-x-4 gap-y-2 min-w-0 text-white/55 select-none" data-studio-target="style:paymentIcons|style:footer" data-studio-label="Payment icons">
               {badges.map((badgeId: string) => {
-                const icon = PAYMENT_ICONS[badgeId];
+                const icon = paymentIcon(badgeId, d);
                 if (!icon) return null;
                 return (
                   <div key={badgeId} className="fm-footer-pay-icon opacity-30 hover:opacity-100 transition-opacity duration-300">

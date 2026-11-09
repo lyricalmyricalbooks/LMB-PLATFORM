@@ -29,6 +29,9 @@ describe("Choose your look as a theme store", () => {
     await mount();
     const { suggested, others } = galleryThemes("books");
     expect(document.querySelectorAll("ul[aria-label='Suggested looks'] > li")).toHaveLength(suggested.length);
+    // The suggestions come first; the whole gallery waits behind See all looks.
+    expect(document.querySelector("ul[aria-label='Every look']")).toBeNull();
+    await click(button(`See all ${suggested.length + others.length} looks`));
     expect(document.querySelectorAll("ul[aria-label='Every look'] > li")).toHaveLength(others.length);
     expect(document.querySelectorAll("[data-look-stage]").length).toBeGreaterThanOrEqual(suggested.length + others.length);
     expect(document.body.innerHTML).toContain("Moth Press in this look, desktop width");
@@ -73,7 +76,9 @@ describe("Choose your look as a theme store", () => {
 
   it("choosing from the try-on records that look", async () => {
     const { onDone, apply } = await mount();
-    const look = galleryThemes("books").others[0];
+    const { suggested, others } = galleryThemes("books");
+    const look = others[0];
+    await click(button(`See all ${suggested.length + others.length} looks`));
     await click(button(`Try on ${look.name}`));
     await click(button(`Use ${look.name}`, dialog()!));
     expect(apply).toHaveBeenCalledWith(expect.objectContaining({ id: look.id }), expect.anything(), "books");

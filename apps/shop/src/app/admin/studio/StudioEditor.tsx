@@ -40,9 +40,11 @@ import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../../features/site/risoNoir";
 import { addSavedTheme, duplicateSavedTheme, parseThemeFile, removeSavedTheme, renameSavedTheme, savedThemeLimitProblem, serializeThemeFile, themeFileName, themeNamed, type SavedTheme } from "./savedThemes";
 import { PAYMENT_BADGE_OPTIONS, resolveFooterBadges } from "../../features/site/paymentBadges";
 import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
-import { applyPresetSections, hasPresetContent, presetContentSummary, presetPagesToAdd, presetSections } from "./presetContent";
+import { applyPresetSections, hasPresetContent, presetContentSummary, presetPagesToAdd, presetSections, wordedSettings } from "./presetContent";
+import { useShopWords } from "../shopWords";
 import { applyThemeKeysToSurfaces } from "../themeScope";
 import { THEME_LIBRARY } from "./themeLibrary";
+import { ownBooks, pressNameOf } from "../lookGallery";
 import { applyLook, bringBack, ownEdits, resetToLook, switchSummary, themeSwitchReport, updateLookKeepingEdits, updatedTheme, type SwitchItem, type ThemeSwitchReport } from "./themeSwitch";
 import { importedThemeProblems } from "./themeCheck";
 import { ESSENTIALS, essentialCopyField, essentialStyleField } from "./essentials";
@@ -119,7 +121,9 @@ import { hasTokens, isDynamic } from "../../features/site/dynamicSources";
 // Connected text (a $dyn value or {{tokens}}) opens the inspector instead of being typed over in the preview.
 const isConnectedValue = (v: any) => isDynamic(v) || hasTokens(v);
 import { CANDIDATE_ID, deletePreset, deleteSharedBlock, renamePreset, renameSharedBlock, withCandidate } from "./sectionLibrary";
+import { templateDetailsLine, templateDetailsSet, templateOnlyNote } from "./templateNote";
 import "./studio.css";
+import { productHref } from "../../lib/productHref";
 
 type LeftTab = "essentials" | "sections" | "style" | "text" | "menus" | "pages" | "media" | "themes";
 /** `expect`: the design the toast's Undo belongs to (filled in once the change lands); see `undoAction`. */
@@ -401,6 +405,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   onPersisted?: (design: any, published: boolean) => void;
 }) {
   const defaults = useMemo(() => adminApi.getDefaultSettings().design, []);
+  // The shop's words (code plan 12.18): layouts and the brand kit's starter Home come in this shop's words.
+  const shopWords = useShopWords();
   const [workspace] = useState<Workspace>(() => openedWorkspace ?? { draft: settings?.draftDesign ?? settings?.design, rev: 0, savedThemes: settings?.savedThemes || [] });
   const [hist, setHist] = useState(() => initHistory(normalizeDesign(settings?.draftDesign ?? settings?.design, defaults)));
   const design = hist.present;
@@ -416,6 +422,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [books, setBooks] = useState<any[]>([]);
   const booksRef = useRef(books); booksRef.current = books;
   // Link / book / category / page pickers search what Studio already loaded (StudioPickers.tsx).
+  // The press's own covers for the Themes cards, so each look is drawn on their products.
+  const themeProducts = useMemo(() => ownBooks(books, 2), [books]);
   const pickerData = useMemo(() => ({ books, pages, categories: design?.categories || [] }), [books, pages, design?.categories]);
   // The page open in Studio › Pages with unsaved edits — shown in the preview only, never saved from here.
   const [draftPage, setDraftPage] = useState<any | null>(null);
@@ -722,6 +730,13 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       ? { ...shared, block: { ...shared.block, ...patch }, updatedAt: new Date().toISOString() } : shared),
   }));
   const setStyle = (path: string, value: any) => change((d) => applyGlobalStyle(d, path, value, surfaceIds), { label: `Change ${settingLabel(path)}`, coalesce: `style:${path}` });
+  /** Clears every template-only control at once (one undo step), so the template's own look comes back. */
+  const resetTemplateDetails = () => {
+    const keys = templateDetailsSet(designRef.current);
+    if (!keys.length) return;
+    change(d => keys.reduce((next, key) => applyGlobalStyle(next, key, undefined, surfaceIds), d), { label: "Reset template details" });
+    say("ok", "Template details reset.", undoAction());
+  };
   /** Text & labels edits; Reset to default offers Undo, which puts the owner's own wording back. */
   const setCopy = (key: string, value: string | undefined) => {
     const prev = designRef.current.copy?.[key];
@@ -741,7 +756,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const tpl = HOME_LAYOUT_TEMPLATES.find((t) => t.id === RISO_NOIR_ID);
     if (!tpl) return;
     change((d) => setSections(d, { kind: "template", id: "heroPage" }, tpl.sections.map((s) =>
-      makeSection(s.type, { ...(getSectionMeta(s.type)?.defaults || {}), ...(s.settings || {}) }))), { label: "Install Riso Noir home layout" });
+      makeSection(s.type, wordedSettings({ ...(getSectionMeta(s.type)?.defaults || {}), ...(s.settings || {}) }, shopWords)))), { label: "Install Riso Noir home layout" });
     setTemplateId("heroPage");
     setShowGlobal(false);
     say("ok", "Noir homepage layout installed on the draft.", undoAction());
@@ -753,7 +768,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   };
   const applyBrandKit = (choice: BrandKitChoice) => {
     setBrandKit(false);
-    change((d) => brandKitDesign(d, choice, getSectionMeta), { label: "Apply brand kit" });
+    change((d) => brandKitDesign(d, choice, getSectionMeta, shopWords), { label: "Apply brand kit" });
     if (choice.home === "starter") { setTemplateId("heroPage"); setShowGlobal(false); }
     say("ok", "Brand kit applied to the draft — Publish to make it live.", undoAction());
   };
@@ -777,7 +792,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     });
     if (!ok) return;
     const sectionTemplates = Object.keys(presetSections(theme));
-    if (sectionTemplates.length) change((d) => applyPresetSections(d, theme, getSectionMeta), { label: `Use “${theme.name}” layout` });
+    if (sectionTemplates.length) change((d) => applyPresetSections(d, theme, getSectionMeta, shopWords), { label: `Use “${theme.name}” layout` });
     let added = 0;
     try {
       // Each page saves straight away as a draft, like Pages › New page; a page whose address is taken is skipped, so
@@ -926,8 +941,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     // All pages shows the shop-wide value; say so when the previewed page draws its own instead.
     const pageOwn = !region && !local && !showGlobal ? fieldPageOverride(design, template.id, f.key) : null;
     const tuned = region ? null : fineTuneConflict(design, f.key, "productPage");
+    const templateNote = region ? null : templateOnlyNote(f.key, design);
     return (
-      <div key={f.key} className="studio-field" data-style-key={f.key}>
+      <div key={f.key} className="studio-field" data-style-key={f.key} data-template-only={templateNote ? "" : undefined}>
+        {/* Said once, above the first template-only control in a list (studio.css hides it on the ones after). */}
+        {templateNote && <p className="studio-template-note" data-template-note role="note">{templateNote}</p>}
         <SectionFieldEditor field={f as any} value={effective ?? f.defaultValue}
           onChange={v => setScopedStyle(g.id, f.key, v)}
           uploadFile={uploadStudioImage} />
@@ -1008,7 +1026,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     switch (template.id) {
       case "storefront": return withQ("/?catalog=true");
       // "template=default" keeps the default layout even for a book or category that uses an alternate.
-      case "productPage": return withQ(`/books/${productSlug || ""}?template=default`);
+      case "productPage": return withQ(`${productHref(productSlug || "")}?template=default`);
       case "collectionPage": return withQ(`/collections/${collectionSlug}?template=default`);
       case "cartPage": return withQ("/checkout");
       case "page404": return withQ("/studio-missing-page");
@@ -1018,7 +1036,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       case "page": return withQ(`/page/${(sharedPageSlug && pages.some((p) => p.slug === sharedPageSlug) ? sharedPageSlug : pages.find((p) => p.status === "published")?.slug) || ""}`);
       default: {
         const alt = parseAltSurface(template.id);
-        if (alt?.base === "productPage") return withQ(`/books/${productSlug || ""}?template=${alt.id}`);
+        if (alt?.base === "productPage") return withQ(`${productHref(productSlug || "")}?template=${alt.id}`);
         if (alt?.base === "collectionPage") return withQ(`/collections/${collectionSlug}?template=${alt.id}`);
         return withQ(template.pageSlug ? `/page/${template.pageSlug}` : "/");
       }
@@ -1038,7 +1056,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const previewDesign = historyPreview?.design || themePreview?.design || ((candidate || draftCandidate) && adding !== null
       ? withCandidate(current, showGlobal ? globalGroup : template.id, getSections(current, target), adding, candidate ? makeSection(candidate, getSectionMeta(candidate)?.defaults || {}) : draftCandidate!)
       : candidateOwner ? withBlockCandidate(current, blockPicker!, getBlocksKey(candidateOwner.section.type), blockCandidate)
-      : brandChoice ? brandKitDesign(current, brandChoice, getSectionMeta)
+      : brandChoice ? brandKitDesign(current, brandChoice, getSectionMeta, shopWords)
       : current);
     let state: ReturnType<typeof buildPreviewState>;
     try { state = buildPreviewState(settings, previewDesign, withDraftPage(pages, draftPage), books); }
@@ -1070,7 +1088,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const base = window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, "");
     const alt = parseAltSurface(template.id)?.base;
     const id = alt || template.id;
-    const path = id === "productPage" && productSlug ? `/books/${productSlug}`
+    const path = id === "productPage" && productSlug ? productHref(productSlug)
       : id === "collectionPage" && collectionSlug ? `/collections/${collectionSlug}`
       : id === "storefront" ? "/?catalog=true"
       : ["wishlistPage", "accountPage", "trackingPage"].includes(id) ? ({ wishlistPage: "/wishlist", accountPage: "/account", trackingPage: "/track" } as Record<string, string>)[id]
@@ -2415,6 +2433,13 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                       </section>
                     ))}
                   </div>}
+                  {group?.id === "riso" && (() => {
+                    const line = templateDetailsLine(design);
+                    return line && <div className="px-4 pb-3"><div className="studio-field-status" data-template-reset>
+                      <small>{line}</small>
+                      <button type="button" className="studio-reset" onClick={resetTemplateDetails}>Reset template details</button>
+                    </div></div>;
+                  })()}
                   {group && (REGION_GROUPS.some(r => r.id === group.id)
                     ? <div className="px-4 pb-4"><StudioRegionBrowser groupId={group.id} fields={group.fields} device={device}
                         values={{ ...design.regions, ...(local ? design[template.id]?.regions : {}) }} onPick={openRegion} /></div>
@@ -2570,8 +2595,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
             {leftTab === "themes" && (
               <StudioThemes design={design} published={published} unpublished={unpublished || dirtyDraft} savedThemes={savedThemes}
-                presets={THEME_LIBRARY as any[]} currentPresetId={design.themeLibraryPreset}
-                previewingId={themePreview?.id || null} onPreview={setThemePreview}
+                presets={THEME_LIBRARY as any[]} currentPresetId={design.themeLibraryPreset} products={themeProducts} pressName={pressNameOf(settings)}
+                templateDetails={templateDetailsLine(design)} onResetTemplateDetails={resetTemplateDetails}
+                previewingId={themePreview?.id || null} onPreview={(entry, onPhone) => { setThemePreview(entry); if (entry && onPhone) setDevice(onPhone); }}
                 onSaveCurrent={saveCurrentAsTheme} onImport={file => importTheme(file)}
                 onLoad={t => { setThemePreview(null); applySavedTheme(t); }} onPublish={publishSavedTheme}
                 onRename={renameTheme} onDuplicate={duplicateTheme}

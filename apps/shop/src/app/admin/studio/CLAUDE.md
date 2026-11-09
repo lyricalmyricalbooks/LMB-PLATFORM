@@ -695,6 +695,21 @@ buttons, whose `--btn-border` rule is important) used to hide the outline contro
 writes its border into `--template-btn-border`, and the outline knobs' shared `rule` sets
 `border:var(--template-btn-border) !important` on `.custom-btn` / `.store-btn-primary` once either control is set
 (untouched, those buttons keep their old border). The coverage test reads a same-rule variable as its value.
+Shadows work the same way: `--template-btn-shadow` (base, hover and pressed), and the three shadow knobs share an
+important rule that skips Add to bag's Glow animation (`.fm-cta-glow`). Template button selectors come from
+`BUTTON_CLASSES` (`BTN`, `BTN_HOVER`, `BTN_ACTIVE`), which includes the page newsletter button `.fm-newsletter-btn`
+(MainSite). `scripts/template-buttons-check.mjs` (`pnpm run test:template-buttons`, CI job `shop-accessibility`)
+checks the bag, Add to bag and newsletter buttons on every template in Chromium. Studio shows one note above the
+template-only controls while Print style isn't a template (`templateNote.ts`). Choose your look draws each look over
+the press's own design (`lookPreview(theme, design)` = what Use this look leaves). Studio › Themes cards draw the press's own covers
+and first product name (`ThemeThumb products`, `ownBooks(books, 2)`). Print style & template details shows **Reset template
+details** once any template-only control is set (`templateDetailsSet`; one undo step). Section newsletter forms (home and
+pop-up) carry `fm-newsletter-btn` unless the section sets its own button style or corners.
+`ThemeThumb` also draws a phone frame (`.studio-theme-thumb-phone`). The reset line names what it clears
+(`templateDetailsLine`, short names in `TEMPLATE_DETAIL_NAMES`) and shows on the Themes draft card too. Look previews use
+real prices (`previewPrice` in `ownBooks`). The template button check covers the home newsletter and pop-up sections.
+Thumbs show the press's name (`pressNameOf`) and `design.logoUrl` in place of "Aa"; the drawing is a button that
+previews that design on a phone (`onPreview(entry, "mobile")`). Preview prices use the storefront's format (`CA$ 22.00`).
 
 ## Responsive public element editing (4 October 2026)
 

@@ -38,19 +38,32 @@ export const TIPS = Object.freeze({
   "bring-books": { subject: "Bring your books over from your old shop", paragraphs: ["Export your products from your old shop and choose that file in Books › Import spreadsheet. Photos, prices and editions come over as drafts.", "Old links keep working, so shoppers who bookmarked a book still find it."], action: "Open Books", hash: "catalog" },
   "import-spreadsheet": { subject: "Bring in your spreadsheet of books", paragraphs: ["Choose your spreadsheet of books in Books › Import spreadsheet: Excel or CSV both work.", "You see every book before anything is saved, and each one arrives as a draft."], action: "Open Books", hash: "catalog" },
   shipping: { subject: "Set your shipping prices", paragraphs: ["Shoppers see the price of delivery before they pay. Start from the ready-made profile and check its prices.", "You can add free shipping over an amount, or local pickup, at any time."], action: "Open Shipping", hash: "settings/shipping" },
+  taxes: { subject: "Set up sales tax", paragraphs: ["Add the sales tax rates you're registered to collect in Settings › Taxes, and checkout adds them for you.", "Not registered yet? Switch tax off there, and turn it on when you are. An accountant can tell you when you need to."], action: "Open Taxes", hash: "settings/taxes" },
+  policies: { subject: "Add your store policies", paragraphs: ["Shoppers read your shipping, returns, privacy and terms pages before they buy, and the law asks for them. Your shop opens once all four have words.", "Each one has a Start from our wording button in Settings › General, so it takes a few minutes."], action: "Open General settings", hash: "settings/general" },
   payments: { subject: "Get paid for your books", paragraphs: ["Tell the card company where to send your money. Their own secure page asks for your bank details, and you come straight back.", "It takes about five minutes, and sales go straight to your bank."], action: "Open Payments", hash: "settings/payments" },
   address: { subject: "Choose your web address", paragraphs: ["Your shop already has a free web address. If you own a name, you can connect it in Settings › General.", "Happy with the free one? Mark the step done in Set up your shop."], action: "Open General settings", hash: "settings/general" },
   practice: { subject: "Try a practice order", paragraphs: ["While your shop is private, press Try a practice order in Payments and buy a book with the practice card. No money moves.", "You see your order, the customer's email and a refund, just as a shopper's order will go."], action: "Open Payments", hash: "settings/payments" },
   open: { subject: "Your shop is ready to open", paragraphs: ["When you're ready, press Open your shop on the Overview. We check that everything needed to sell is in place first.", "You can close it again at any time from Settings › General › Store status."], action: "Open the Overview", hash: "overview" },
+  google: { subject: "Show up on Google", paragraphs: ["One Google sign-in puts your books in Google search, Google Shopping and Maps, and counts your visits.", "Open Settings › Google and press Connect Google. Google asks you to say yes, and you come straight back."], action: "Open Google", hash: "settings/google" },
+  channels: { subject: "Sell on social media", paragraphs: ["Connect Instagram, Facebook, Pinterest or TikTok in Sales channels, so people can buy from your posts.", "Then post a book from Social posts, now or at a time you choose."], action: "Open Sales channels", hash: "channels" },
   switch: { subject: "Moving over from your old shop", paragraphs: ["Before you point your web address here, open Settings › General and press Check your old links. Every page of your old shop is tried here, and any that would show page not found gets a new home in one click.", "Then take your last orders in your old shop, move your web address, and tell your mailing list where to find you."], action: "Check your old links", hash: "settings/general" },
 });
 
 /** Words written out for a shop that sells no books, where swapping single words would read oddly. */
 const GOODS_TIPS = Object.freeze({ look: { subject: "Make your shop look like yours" } });
 
+/**
+ * The web address tip names the shop's own free address (services/domains freeAddress.js) when it has one, and asks the
+ * owner to share it.
+ */
+function withFreeAddress(tip, freeAddress) {
+  if (!freeAddress) return tip;
+  return { ...tip, paragraphs: [`Your shop's free address is ${freeAddress}. Share it: put it on your social pages, your cards and your email signature.`, "If you own a name of your own, connect it in Settings › General. Your free address keeps working too."] };
+}
+
 /** A tip in the words of what the shop sells (code plan 12.18): a books shop's tips are exactly TIPS. */
-export function tipWords(step, sells) {
-  const tip = TIPS[step];
+export function tipWords(step, sells, { freeAddress = "" } = {}) {
+  const tip = step === "address" ? withFreeAddress(TIPS[step], freeAddress) : TIPS[step];
   if (!tip || sellsBooks(sells)) return tip;
   const w = wordsFor(sells);
   return { ...tip, subject: w(tip.subject), paragraphs: tip.paragraphs.map(w), action: w(tip.action), ...GOODS_TIPS[step] };
@@ -67,8 +80,8 @@ export function nudgeWords(stage, sells) {
   return { ...nudge, subject: w(nudge.subject), paragraphs: nudge.paragraphs.map(w), action: w(nudge.action), ...GOODS_NUDGES[stage] };
 }
 
-/** The guide's general order (firstWeek.ts ORDER.general), for a shop whose admin hasn't saved its progress yet. */
-export const DEFAULT_STEPS = Object.freeze(["logo", "look", "add-books", "shipping", "payments", "address", "practice", "open"]);
+/** The guide's order (firstWeek.ts ORDER, with the add-a-book step), for a shop whose admin hasn't saved its progress yet. */
+export const DEFAULT_STEPS = Object.freeze(["add-books", "logo", "look", "shipping", "taxes", "payments", "policies", "address", "practice", "open", "google", "channels"]);
 
 /** Whole days since the trial started (day 0 is the day the shop was made). */
 export function trialDay(start, now) {
@@ -197,7 +210,7 @@ export function createTrialTips({ registry, auditLog, guide, email, store, setti
             skipped.push({ shopId, why: "no-shop-admin" });
             continue;
           }
-          const words = tipWords(tip.step, sellsOf(start, profile));
+          const words = tipWords(tip.step, sellsOf(start, profile), { freeAddress: typeof row.freeAddress === "string" ? row.freeAddress : "" });
           await email.sendPlatform({
             kind: "trial-tip",
             to: row.ownerEmail,

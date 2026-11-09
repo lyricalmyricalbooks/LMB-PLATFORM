@@ -1,15 +1,24 @@
 // Help articles for the questions a press asks most in its first weeks (plan 3.4), with one for every step of the
-// first-week list (plan 8.2, `CHECKLIST_ANSWERS`). Plain ES module with no imports, so the help page loads it as is
-// and the tests read the same list.
+// first-week list (plan 8.2, `CHECKLIST_ANSWERS`). Plain ES module with no build step, so the help page loads it as is
+// and the tests read the same list. Its only import is `./sells.js`, this folder's copy of shared/sells/sells.js.
+//
+// What the shop sells (code plan 12.18): the answers are written for a books shop. For a shop that sells something else
+// (`?sells=clothing` on the page's address), `articlesFor` passes them through the shop's words ("Add book" → "Add
+// product", "editions" → "options"), the same words its admin shows. An article with `goods` uses those words instead,
+// as written, where the swap alone would read wrongly. An article with `books: true` is only for shops that have
+// books (the ISBN answer); a shop that sells books and other things still sees it.
 //
 // Words here are customer-facing: plain words, short sentences, no code or tool names, never a rival's name. Every
 // "where to click" path names real admin pages (help.test.js checks them against the shop's menu). Say only what the
 // shop does today; when something isn't built yet, say so and say what to do instead.
 
+import { sellsBooks, wordsFor } from "./sells.js";
+
 /**
- * @typedef {{ id: string, topic: string, question: string, answer: string[], steps?: string[], where?: string[], plans?: string[] }} Article
+ * @typedef {{ id: string, topic: string, question: string, answer: string[], steps?: string[], where?: string[], plans?: string[], books?: boolean, goods?: { question?: string, answer?: string[] } }} Article
  * `where`: click paths in the shop's admin, written "Page › Part". `plans`: only for presses whose plan includes these
- * apps ("shop", "stockroom"); missing means everyone.
+ * apps ("shop", "stockroom"); missing means everyone. `books`: only for shops that have books. `goods`: the words for a
+ * shop that doesn't sell books, used as written.
  */
 
 export const TOPICS = Object.freeze(["Getting started", "Moving your shop", "Selling", "Orders", "Your stockroom", "Your account"]);
@@ -53,6 +62,13 @@ export const ARTICLES = Object.freeze([
       "Open the book, go to Editions and press Add edition for each one. Shoppers then choose the edition they want on the book's page.",
     ],
     where: ["Books › a book › Editions"],
+    goods: {
+      question: "How do I sell one product in more than one version?",
+      answer: [
+        "Some products come in versions, such as a plain and a signed print, or a small and a large size. Each version has its own price and its own stock.",
+        "Open the product, go to Editions and press Add edition for each version. Shoppers then choose the one they want on the product's page.",
+      ],
+    },
   },
   {
     id: "sizes-and-colours",
@@ -112,6 +128,13 @@ export const ARTICLES = Object.freeze([
       "Your press is the name, contact email and address that go on your receipts, labels and contact page. Fill in the press name, the contact email, the street address, the city, the postal code and the country.",
       "Your changes are saved when you finish the step. You can change any of them later in Settings.",
     ],
+    // The step keeps its name, Your press, for every shop, so the swap must not rename it.
+    goods: {
+      answer: [
+        "Your press is the step for your shop's name, contact email and address, which go on your receipts, labels and contact page. Fill in the shop name, the contact email, the street address, the city, the postal code and the country.",
+        "Your changes are saved when you finish the step. You can change any of them later in Settings.",
+      ],
+    },
     where: ["Overview › Get started"],
   },
   {
@@ -154,6 +177,7 @@ export const ARTICLES = Object.freeze([
       "Bookshops and distributors order by ISBN, and the shop shows the barcode on the book's page.",
     ],
     where: ["Books"],
+    books: true,
   },
   {
     id: "publish",
@@ -230,7 +254,7 @@ export const ARTICLES = Object.freeze([
     steps: [
       "Take your last orders in your old shop, then close its checkout.",
       "Open Settings › General and use Check your old links under URL redirects, so none of your old addresses show page not found.",
-      "Point your web address at this shop.",
+      "Connect your web address in Settings › General: press Allow where you bought it, or copy across the lines it shows.",
       "Tell your mailing list where to find you.",
       "Tick Move over from your old shop in Set up your shop on the Overview.",
     ],
@@ -241,9 +265,14 @@ export const ARTICLES = Object.freeze([
     topic: "Moving your shop",
     question: "Can my shop use my own web address?",
     answer: [
-      "Not by yourself yet. Connecting your own web address is still being finished.",
-      "Until then your shop works at its own address, which you find in the welcome email. Ask us with Get help from Colophon on your account page, and we'll tell you when your own address is ready.",
+      "Yes. While you set up, open Settings › General and choose I already have a domain under Your web address. Type it, like yourpress.com, and we find where you bought it. Nothing changes for your old site yet.",
+      "No domain yet? Choose I need a domain and buy one at GoDaddy, then come back and add it. Or keep the free address for now and add your own any time.",
+      "Every shop gets a free address made from your press's name. To use another name, press Pick another name in setup. Once your shop is open, press Change name in Settings › General. The address before keeps working, so anyone who has it still reaches you.",
+      "Once your shop is made, we connect it for you. At most domain sellers, GoDaddy among them, you press Allow once in their window. At any other, we show you exactly what to copy across, with a Copy button on each line, or you can email it to your web person in one step.",
+      "Your domain becomes your shop's main address as soon as it works, padlock included, and www.yourpress.com opens it too. We email you when it's live. Your free address keeps working the whole time.",
+      "Before you say yes, take your last orders in your old shop and close its checkout: once you do, your domain shows this shop instead.",
     ],
+    where: ["Settings › General"],
   },
   {
     id: "shipping",
@@ -265,6 +294,39 @@ export const ARTICLES = Object.freeze([
       "Before you tell people about your shop, buy one book yourself to check that a payment goes all the way through.",
     ],
     where: ["Settings › Payments"],
+    plans: ["shop"],
+  },
+  {
+    id: "taxes",
+    topic: "Selling",
+    question: "How do I set up sales tax?",
+    answer: [
+      "Open Settings › Taxes and add the rates you're registered to collect, such as GST or HST. Checkout works out the tax from where each shopper is.",
+      "Not registered yet? Switch tax off there, and turn it on when you are. In Canada you register once your sales pass $30,000 over four quarters. Ask an accountant which rates apply to you.",
+    ],
+    where: ["Settings › Taxes"],
+    plans: ["shop"],
+  },
+  {
+    id: "sell-on-social",
+    topic: "Selling",
+    question: "Can I sell on Instagram, Facebook, Pinterest or TikTok?",
+    answer: [
+      "Yes. Open Sales channels and connect the accounts you use. Your books go to each one's shop, so people can buy from your posts.",
+      "Then post a book from Social posts, now or at a time you choose. Connecting is optional, and you can do it any time.",
+    ],
+    where: ["Sales channels", "Social posts"],
+    plans: ["shop"],
+  },
+  {
+    id: "policies",
+    topic: "Selling",
+    question: "Which store policies does my shop need?",
+    answer: [
+      "Four: shipping, returns, privacy and terms. Shoppers read them before they buy, and the law and the card companies ask for them. Your shop won't open until all four have words.",
+      "Open Settings › General › Store policies. Each one has a Start from our wording button: read it, change what doesn't fit your press, and save.",
+    ],
+    where: ["Settings › General"],
     plans: ["shop"],
   },
   {
@@ -338,7 +400,7 @@ export const ARTICLES = Object.freeze([
     question: "How do I open my shop to shoppers?",
     answer: [
       "A new shop starts private: shoppers see an under-construction page while you set it up. When you are ready, press Open your shop, the last step of Set up your shop on the Overview.",
-      "It first checks that your shop can sell: a published book, shipping, payments and your address for emails. If something is missing, it says what and takes you there. You can close the shop again from Settings › General › Store status.",
+      "It first checks that your shop can sell: a published book, shipping, payments, your store policies and your address for emails. If something is missing, it says what and takes you there. You can close the shop again from Settings › General › Store status.",
     ],
     where: ["Overview", "Settings › General"],
     plans: ["shop"],
@@ -447,10 +509,14 @@ export const CHECKLIST_ANSWERS = Object.freeze({
   "bring-books": "bring-books",
   "import-spreadsheet": "import-spreadsheet",
   shipping: "shipping",
+  taxes: "taxes",
   payments: "get-paid",
+  policies: "policies",
   address: "own-address",
   practice: "test-order",
   open: "open-shop",
+  google: "google-sign-in",
+  channels: "sell-on-social",
   switch: "switch-day",
 });
 
@@ -468,10 +534,31 @@ export const RUN_ANSWERS = Object.freeze({
   final: "open-shop",
 });
 
-/** The articles for a plan ("both", "shop" or "stockroom"); everyone gets the ones with no plan. */
-export function articlesFor(plan) {
+/** True for a shop with no books at all: not a books shop, and not one that sells books and other things. */
+const noBooks = (sells) => !sellsBooks(sells) && sells !== "mixed";
+
+/** One article in a shop's words: its `goods` words as written, the rest through `w`. */
+function worded(a, w) {
+  const goods = a.goods || {};
+  return {
+    ...a,
+    question: goods.question ?? w(a.question),
+    answer: goods.answer ?? a.answer.map(w),
+    ...(a.steps ? { steps: a.steps.map(w) } : {}),
+    ...(a.where ? { where: a.where.map(w) } : {}),
+  };
+}
+
+/**
+ * The articles for a plan ("both", "shop" or "stockroom"); everyone gets the ones with no plan. `sells` is the shop's
+ * answer to "What do you sell?": a books shop (or no answer) gets the articles exactly as written.
+ */
+export function articlesFor(plan, sells = null) {
   const apps = plan === "both" ? ["shop", "stockroom"] : [plan];
-  return ARTICLES.filter((a) => !a.plans || a.plans.some((p) => apps.includes(p)));
+  const list = ARTICLES.filter((a) => (!a.plans || a.plans.some((p) => apps.includes(p))) && !(a.books && noBooks(sells)));
+  if (sellsBooks(sells)) return list;
+  const w = wordsFor(sells);
+  return list.map((a) => worded(a, w));
 }
 
 /** Articles whose question or answer has every word typed in the search box. */

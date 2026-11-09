@@ -88,6 +88,31 @@ export function firestoreAppInstalls(firestore) {
     getByKeyHash: async (hash) => (await firestore.query("appInstalls", { where: [["keyHash", "==", hash]], limit: 1 }))[0]?.data ?? null,
     listByShop: (shopId) => rows([["shopId", "==", shopId]]),
     listByApp: (appId) => rows([["appId", "==", appId]]),
+    listActive: () => rows([["status", "==", "active"]]),
+  };
+}
+
+/**
+ * appAlerts/<id>: one alert to one app (services/apps/alerts.js, 26.4), and appAlertState/<shopId>: what the last look
+ * at a shop saw. Equality filters only (the due time is compared here), so no extra index.
+ */
+export function firestoreAppAlerts(firestore) {
+  const rows = async (where, limit = 1000) => (await firestore.query("appAlerts", { where, limit })).map((row) => row.data);
+  return {
+    get: (id) => firestore.get(`appAlerts/${id}`),
+    put: (id, row) => firestore.set(`appAlerts/${id}`, row),
+    async listDue(nowIso, limit) {
+      return (await rows([["status", "==", "waiting"]])).filter((a) => a.nextAt <= nowIso).sort((a, b) => (a.nextAt < b.nextAt ? -1 : 1)).slice(0, limit);
+    },
+    listByStatus: (status) => rows([["status", "==", status]]),
+    listByInstall: (installId) => rows([["installId", "==", installId]], 5000),
+  };
+}
+
+export function firestoreAppAlertState(firestore) {
+  return {
+    get: (shopId) => firestore.get(`appAlertState/${shopId}`),
+    put: (shopId, row) => firestore.set(`appAlertState/${shopId}`, row),
   };
 }
 

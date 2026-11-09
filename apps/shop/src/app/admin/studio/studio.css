@@ -546,11 +546,20 @@
 .studio-theme-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }
 .studio-theme-thumb { position: relative; height: 72px; overflow: hidden; border: 1px solid var(--rp-border-strong); padding: 6px; display: grid; align-content: start; gap: 2px; }
 .studio-theme-thumb > span:first-child { font-size: 18px; font-weight: 800; line-height: 1; }
-.studio-theme-thumb-body { font-size: 8px; opacity: .85; white-space: nowrap; }
-.studio-theme-thumb i { position: absolute; left: 6px; bottom: 6px; width: 28px; height: 9px; }
+.studio-theme-thumb > span.studio-theme-thumb-name { font-size: 10px; line-height: 1.1; display: flex; align-items: flex-start; gap: 3px; min-width: 0; max-width: calc(100% - 26px); overflow: hidden; }
+.studio-theme-thumb-name > span { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
+.studio-theme-thumb-name img { height: 12px; width: auto; max-width: 24px; object-fit: contain; flex: none; }
+.studio-theme-thumb-btn { display: block; width: 100%; padding: 0; text-align: left; font: inherit; color: inherit; border: 0; background: none; cursor: zoom-in; align-self: start; }
+.studio-theme-thumb-btn:focus-visible { outline: 2px solid var(--rp-focus, var(--rp-accent)); outline-offset: 2px; }
+.studio-theme-thumb-body { font-size: 8px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: calc(100% - 26px); }
+.studio-theme-thumb i { position: absolute; left: 6px; bottom: 6px; width: 20px; height: 9px; }
 .studio-theme-thumb b { position: absolute; bottom: 6px; width: 16px; height: 22px; border: 1px solid; }
-.studio-theme-thumb b:nth-of-type(1) { right: 26px; }
-.studio-theme-thumb b:nth-of-type(2) { right: 6px; }
+.studio-theme-thumb > b:nth-of-type(1) { right: 50px; }
+.studio-theme-thumb > b:nth-of-type(2) { right: 30px; }
+.studio-theme-thumb-phone { position: absolute; right: 5px; top: 6px; bottom: 6px; width: 20px; border: 1.5px solid; border-radius: 4px; display: grid; align-content: start; gap: 2px; padding: 4px 3px; }
+.studio-theme-thumb-phone u { display: block; height: 2px; opacity: .8; }
+.studio-theme-thumb-phone b { position: static; width: 100%; height: 18px; }
+.studio-theme-thumb-phone i { position: static; width: 100%; height: 4px; }
 .studio-share { display: grid; gap: 10px; }
 .studio-share-created { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .studio-share-created input { flex: 1 1 240px; min-height: 36px; padding: 0 8px; border: 1px solid var(--rp-border); background: var(--rp-input-bg); color: var(--rp-text); font-size: 12px; }
@@ -712,6 +721,9 @@
 .studio-structure-actions button:hover, .studio-structure-actions button:focus-visible { text-decoration-thickness: 2px; }
 @media (pointer: coarse) { .studio-structure-actions button { min-height: 32px; padding: 0 2px; } }
 .studio-field-note { display: block; margin-top: 4px; font-size: 11px; line-height: 1.4; color: var(--rp-text-subtle); }
+/* Template-only controls while the shop is on Riso Press or Standard: one note above the run, not one per control. */
+.studio-template-note { margin: 0 0 10px; padding: 8px 10px; border-left: 3px solid var(--rp-border-strong); background: var(--rp-surface-2); font-size: 12px; line-height: 1.4; color: var(--rp-text); }
+.studio-field[data-template-only] ~ .studio-field[data-template-only] .studio-template-note { display: none; }
 
 /* Essentials (plan 1.27): the first settings, one short card per step. */
 .studio-essentials { display: grid; gap: 12px; padding: 12px 16px 24px; }

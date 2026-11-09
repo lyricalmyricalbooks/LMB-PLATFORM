@@ -1,0 +1,52 @@
+/* Settings › Apps (AppsSettings.tsx, ap-*). Tokens only: every look colours it its own way. Category inks use the
+   look's tile colours where it has them (Bento), else its primary, info, warning and success, like Settings › Google. */
+.ap { --ap-a: var(--rp-tile-a, var(--rp-primary)); --ap-b: var(--rp-tile-b, var(--rp-info)); --ap-c: var(--rp-tile-c, var(--rp-warning)); --ap-d: var(--rp-tile-d, var(--rp-success));
+  display: flex; flex-direction: column; gap: var(--rp-space-4); min-width: 0; }
+.ap [role="tabpanel"], .ap-store { display: flex; flex-direction: column; gap: var(--rp-space-4); min-width: 0; }
+.ap-notice { margin: 0; font-size: var(--rp-text-sm); color: var(--rp-text); }
+
+.ap-tile { flex: none; display: inline-grid; place-items: center; border-radius: var(--rp-radius); --ap-ink: var(--ap-c);
+  background: color-mix(in srgb, var(--ap-ink) 18%, var(--rp-surface)); color: color-mix(in srgb, var(--ap-ink) 70%, var(--rp-text)); }
+.ap-tile[data-ink="a"] { --ap-ink: var(--ap-a); }
+.ap-tile[data-ink="b"] { --ap-ink: var(--ap-b); }
+.ap-tile[data-ink="d"] { --ap-ink: var(--ap-d); }
+
+.ap-name { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; font-size: var(--rp-text-md); font-weight: 700; color: var(--rp-text); overflow-wrap: anywhere; }
+.ap-tagline { margin: 0; font-size: var(--rp-text-sm); line-height: 1.45; color: var(--rp-text-muted); }
+.ap-category { margin: 2px 0 0; font-size: var(--rp-text-xs); font-weight: 600; letter-spacing: var(--rp-label-tracking, .06em); text-transform: var(--rp-label-case, uppercase); color: var(--rp-text-subtle); }
+
+/* ── Installed: one row per app ── */
+.ap-list { display: flex; flex-direction: column; gap: var(--rp-space-3); margin: 0; padding: 0; list-style: none; }
+.ap .ap-row { display: flex; align-items: center; gap: 16px; padding: 16px 18px; min-width: 0; }
+.ap-row-main { flex: 1 1 auto; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ap-row-actions { flex: none; display: flex; align-items: center; gap: 4px; }
+.ap-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 0; padding: 0; list-style: none; }
+.ap-chips li { padding: 2px 10px; border-radius: var(--rp-radius-pill); border: var(--rp-hair) solid var(--rp-divider); background: var(--rp-surface-2, var(--rp-canvas)); font-size: var(--rp-text-xs); font-weight: 600; color: var(--rp-text-muted); }
+.ap-chips li[data-personal] { border-color: var(--rp-warning); background: var(--rp-warning-tint); color: var(--rp-text); }
+@media (max-width: 560px) {
+  .ap .ap-row { flex-wrap: wrap; align-items: flex-start; }
+  .ap-row-main { flex-basis: calc(100% - 60px); }
+  .ap-row-actions { width: 100%; justify-content: flex-end; }
+}
+
+/* ── App store: a gallery of cards ── */
+.ap-grid { display: grid; gap: var(--rp-space-4); grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); margin: 0; padding: 0; list-style: none; }
+.ap .ap-card { display: flex; flex-direction: column; gap: 12px; padding: 18px; min-width: 0; transition: box-shadow var(--rp-dur) var(--rp-ease); }
+.ap-card:hover { box-shadow: var(--rp-shadow-hover, var(--rp-shadow)); }
+.ap-card-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.ap-card-title { min-width: 0; }
+.ap-card .ap-tagline { flex: 1 1 auto; }
+.ap-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 12px; border-top: var(--rp-hair) solid var(--rp-divider); }
+.ap-empty .rp-state { padding-block: clamp(24px, 6vw, 56px); }
+
+/* ── Permissions ── */
+.ap-perms { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 0; padding: 0; list-style: none; }
+.ap-perms li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding-left: 22px; position: relative; font-size: var(--rp-text-sm); line-height: 1.45; color: var(--rp-text); }
+.ap-perms li::before { content: ""; position: absolute; left: 2px; top: .45em; width: 10px; height: 10px; border-radius: var(--rp-radius-pill); border: 2px solid var(--rp-text-subtle); }
+.ap-perms li[data-change]::before { background: var(--rp-primary); border-color: var(--rp-primary); }
+
+.ap-details { display: flex; flex-direction: column; gap: 12px; }
+.ap-lead { margin: 0; font-size: var(--rp-text-md); color: var(--rp-text); }
+.ap-description { margin: 0; white-space: pre-line; font-size: var(--rp-text-sm); line-height: 1.55; color: var(--rp-text-muted); }
+.ap-subtitle { margin: 4px 0 0; font-size: var(--rp-text-sm); font-weight: 700; color: var(--rp-text); }
+.ap-change { display: flex; flex-direction: column; gap: 2px; }

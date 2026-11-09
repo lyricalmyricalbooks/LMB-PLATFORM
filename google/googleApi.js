@@ -158,12 +158,32 @@ export function createGoogleApi({ fetch = globalThis.fetch, app, redirectUrl, no
     },
     createFolder: (token, name) => call("POST", `${DRIVE}/files`, token, { body: { name, mimeType: FOLDER }, query: { fields: "id,name" } }),
     /** A new spreadsheet in the press's own Drive with one tab, \"Stock\". Allowed by `drive.file` because this app makes it. */
-    createSpreadsheet: (token, title) =>
-      call("POST", SHEETS, token, { body: { properties: { title }, sheets: [{ properties: { title: "Stock" } }] }, query: { fields: "spreadsheetId,spreadsheetUrl" } }),
-    /** Replaces the Stock tab's cells with `values`. RAW, so nothing typed into a title is ever read as a formula. */
-    async writeStockSheet(token, spreadsheetId, values) {
-      await call("POST", `${SHEETS}/${enc(spreadsheetId)}/values/Stock:clear`, token, { body: {} });
-      return call("PUT", `${SHEETS}/${enc(spreadsheetId)}/values/Stock!A1`, token, { query: { valueInputOption: "RAW" }, body: { range: "Stock!A1", majorDimension: "ROWS", values } });
+    createSpreadsheet: (token, title, tabs = ["Stock"]) =>
+      call("POST", SHEETS, token, { body: { properties: { title }, sheets: tabs.map((t) => ({ properties: { title: t } })) }, query: { fields: "spreadsheetId,spreadsheetUrl" } }),
+    /** The titles of a spreadsheet's tabs. */
+    sheetTabs: async (token, spreadsheetId) =>
+      ((await call("GET", `${SHEETS}/${enc(spreadsheetId)}`, token, { query: { fields: "sheets.properties.title" } })).sheets ?? []).map((s) => s.properties?.title),
+    /** Adds tabs a sheet made before them doesn't have yet. */
+    addSheetTabs: (token, spreadsheetId, tabs) =>
+      call("POST", `${SHEETS}/${enc(spreadsheetId)}:batchUpdate`, token, { body: { requests: tabs.map((t) => ({ addSheet: { properties: { title: t } } })) } }),
+    /** Replaces one tab's cells with `values`. RAW, so nothing typed into a title is ever read as a formula. */
+    async writeSheetTab(token, spreadsheetId, tab, values) {
+      await call("POST", `${SHEETS}/${enc(spreadsheetId)}/values/${enc(tab)}:clear`, token, { body: {} });
+      return call("PUT", `${SHEETS}/${enc(spreadsheetId)}/values/${enc(`${tab}!A1`)}`, token, { query: { valueInputOption: "RAW" }, body: { range: `${tab}!A1`, majorDimension: "ROWS", values } });
+    },
+    /** A sheet's title and its tabs (plan 23.42). */
+    async readSheetInfo(token, spreadsheetId) {
+      const answer = await call("GET", `${SHEETS}/${enc(spreadsheetId)}`, token, { query: { fields: "properties.title,sheets.properties(sheetId,title,hidden)" } });
+      return {
+        title: String(answer.properties?.title ?? ""),
+        tabs: (answer.sheets ?? []).map((s) => ({ id: s.properties?.sheetId ?? 0, title: String(s.properties?.title ?? ""), hidden: s.properties?.hidden === true })),
+      };
+    },
+    /** One tab's cells as the press sees them (formatted text: a date stays a date, a price keeps its look). */
+    async readSheetValues(token, spreadsheetId, tab) {
+      const range = `'${tab.replace(/'/g, "''")}'`;
+      const answer = await call("GET", `${SHEETS}/${enc(spreadsheetId)}/values/${enc(range)}`, token, { query: { majorDimension: "ROWS", valueRenderOption: "FORMATTED_VALUE" } });
+      return answer.values ?? [];
     },
     myChannel: async (token) => (await call("GET", `${YOUTUBE}/channels`, token, { query: { part: "snippet", mine: "true" } })).items?.[0] ?? null,
     channelVideos: async (token, channelId) =>

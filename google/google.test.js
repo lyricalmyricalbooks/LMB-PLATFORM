@@ -692,6 +692,25 @@ test("the Google client reads product problems from Merchant API v1 and keeps on
   assert.match(seen[0], /\/products\/v1\/accounts\/7001\/products\?pageSize=250/);
 });
 
+test("the Google client writes one sheet tab as plain text, and adds missing tabs in one request", async () => {
+  const seen = [];
+  const api = createGoogleApi({
+    fetch: async (url, init = {}) => {
+      seen.push([init.method, String(url), init.body ? JSON.parse(init.body) : null]);
+      return { ok: true, status: 200, json: async () => ({ sheets: [{ properties: { title: "Stock" } }] }) };
+    },
+  });
+  assert.deepEqual(await api.sheetTabs("tok", "s1"), ["Stock"]);
+  await api.addSheetTabs("tok", "s1", ["Sales"]);
+  await api.writeSheetTab("tok", "s1", "Sales", [["Date"]]);
+  assert.match(seen[0][1], /\/spreadsheets\/s1\?fields=sheets.properties.title/);
+  assert.deepEqual(seen[1][2], { requests: [{ addSheet: { properties: { title: "Sales" } } }] });
+  assert.match(seen[2][1], /\/spreadsheets\/s1\/values\/Sales:clear$/);
+  assert.match(seen[3][1], /\/values\/Sales(!|%21)A1\?valueInputOption=RAW$/);
+  assert.equal(seen[3][0], "PUT");
+  assert.deepEqual(seen[3][2], { range: "Sales!A1", majorDimension: "ROWS", values: [["Date"]] });
+});
+
 // ---- One-click Google Sheet (plan 16.1) ----
 
 const STOCK = [["Title", "Author", "ISBN", "Price", "On hand"], ["Moth Book", "A. Writer", "9780000000000", 18, 12], ["=HYPERLINK(\"x\")", "", "", "", 0]];
@@ -706,13 +725,13 @@ test("the stock list goes into one spreadsheet in the press's own Drive, made on
   assert.equal(t.google.world.spreadsheets.size, 1);
   const [[id, sheet]] = [...t.google.world.spreadsheets];
   assert.equal(sheet.title, "Moth Press stock from Colophon");
-  assert.deepEqual(sheet.values, STOCK);
+  assert.deepEqual(sheet.tabs, { Stock: STOCK });
   assert.equal(first.body.url, `https://docs.google.com/spreadsheets/d/${id}/edit`);
   // Again with new numbers: the same sheet is written, no second one is made.
   const second = await t.call("google.sheetSync", { rows: [STOCK[0], ["Moth Book", "A. Writer", "9780000000000", 18, 11]] });
   assert.equal(second.body.rows, 1);
   assert.equal(t.google.world.spreadsheets.size, 1);
-  assert.equal(t.google.world.spreadsheets.get(id).values[1][4], 11);
+  assert.equal(t.google.world.spreadsheets.get(id).tabs.Stock[1][4], 11);
   assert.equal((await t.shopRow()).google.sheet.spreadsheetId, id);
   // Nothing in the press's Drive is ever deleted by the platform.
   assert.ok(!changeNames(t).some((name) => /delete/i.test(name) && /sheet/i.test(name)));
@@ -737,6 +756,94 @@ test("a sheet the press deleted is made again on the next send, and bad cells ar
   for (const rows of [[], "x", [["a"], "b"], Array.from({ length: 2002 }, () => ["a"]), [Array.from({ length: 13 }, () => "a")]]) {
     assert.equal((await t.call("google.sheetSync", { rows })).status, 400);
   }
+});
+
+const SALES = [["Date", "Book", "Order", "Where", "Copies", "Price", "Total", "Currency", "Notes"], ["2026-11-01", "Moth Book", "F-1", "Fair", 2, 18, 36, "CAD", ""]];
+
+test("the stockroom sends a Stock and a Sales tab; an older one-tab sheet gets its Sales tab added, and the press's own tabs stay", async () => {
+  const t = await setup();
+  await t.signIn({ extras: ["drive"] });
+  // An older sheet: made with the Stock tab only, and a tab the press added themselves.
+  await t.call("google.sheetSync", { rows: STOCK });
+  const [[id, sheet]] = [...t.google.world.spreadsheets];
+  sheet.tabs.Notes = [["mine"]];
+  const sent = await t.call("google.sheetSync", { tabs: { Stock: STOCK, Sales: SALES } });
+  assert.equal(sent.status, 200, JSON.stringify(sent.body));
+  assert.deepEqual([sent.body.rows, sent.body.sales], [2, 1]);
+  assert.deepEqual(t.google.world.spreadsheets.get(id).tabs, { Stock: STOCK, Notes: [["mine"]], Sales: SALES });
+  assert.equal((await t.shopRow()).google.sheet.sales, 1);
+  // The status names the sheet, so the stockroom can link to it and say when it was sent.
+  const { body: st } = await t.call("google.status");
+  assert.deepEqual(st.sheet, { url: `https://docs.google.com/spreadsheets/d/${id}/edit`, writtenAt: sent.body.writtenAt, rows: 2, sales: 1, expenses: null });
+  // Sent again: nothing new is made, the same cells are written over.
+  const before = changeNames(t).filter((n) => n === "addSheetTabs" || n === "createSpreadsheet").length;
+  await t.call("google.sheetSync", { tabs: { Stock: STOCK, Sales: SALES } });
+  assert.equal(changeNames(t).filter((n) => n === "addSheetTabs" || n === "createSpreadsheet").length, before);
+  assert.equal(t.google.world.spreadsheets.size, 1);
+});
+
+test("a first send with both tabs makes the sheet with both; unknown tabs, a missing Stock tab and too many sales lines are refused", async () => {
+  const t = await setup();
+  await t.signIn({ extras: ["drive"] });
+  await t.call("google.sheetSync", { tabs: { Sales: SALES, Stock: STOCK } });
+  const [[, sheet]] = [...t.google.world.spreadsheets];
+  assert.deepEqual(Object.keys(sheet.tabs), ["Stock", "Sales"]);
+  assert.ok(!changeNames(t).includes("addSheetTabs"));
+  for (const tabs of [{ Sales: SALES }, { Stock: STOCK, Orders: SALES }, [STOCK], { Stock: STOCK, Sales: Array.from({ length: 5002 }, () => ["a"]) }]) {
+    assert.equal((await t.call("google.sheetSync", { tabs })).status, 400, JSON.stringify(tabs).slice(0, 60));
+  }
+  assert.equal((await t.call("google.sheetSync", { tabs: { Stock: STOCK, Sales: Array.from({ length: 5001 }, () => ["a"]) } })).status, 200);
+});
+
+test("an Expenses tab is added beside the others and counted", async () => {
+  const t = await setup();
+  await t.signIn({ extras: ["drive"] });
+  await t.call("google.sheetSync", { tabs: { Stock: STOCK, Sales: SALES } });
+  const EXP = [["Date", "Book", "Kind"], ["2026-10-01", "Moth Book", "Expense"]];
+  const sent = await t.call("google.sheetSync", { tabs: { Stock: STOCK, Sales: SALES, Expenses: EXP } });
+  assert.deepEqual([sent.body.rows, sent.body.sales, sent.body.expenses], [2, 1, 1]);
+  const [[, sheet]] = [...t.google.world.spreadsheets];
+  assert.deepEqual(Object.keys(sheet.tabs), ["Stock", "Sales", "Expenses"]);
+  assert.equal((await t.call("google.status")).body.sheet.expenses, 1);
+});
+
+test("a Google Sheet the press names is read, tab by tab, only with the Drive box ticked (23.42)", async () => {
+  const t = await setup();
+  const ID = "1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789";
+  t.google.world.spreadsheets.set(ID, { title: "Old shop list", ids: { Cover: 0, Books: 7, Secret: 9 }, hidden: ["Secret"],
+    tabs: { Cover: [], Books: [["Title", "Price"], ["Moth Book", "$18.00"], ["Second", null]], Secret: [["x"]] } });
+  assert.deepEqual((await t.call("google.sheetRead", { spreadsheetId: ID })).body, { available: false });
+  // Signed in before the Drive box was asked for reading: the press is asked to allow it.
+  await t.signIn({ scopes: [...SCOPES.identity, ...SCOPES.drive] });
+  assert.deepEqual((await t.call("google.sheetRead", { spreadsheetId: ID })).body, { available: false });
+  await t.signIn({ extras: ["drive"] });
+  const first = await t.call("google.sheetRead", { spreadsheetId: ID });
+  assert.equal(first.status, 200, JSON.stringify(first.body));
+  assert.deepEqual(first.body, { available: true, title: "Old shop list", sheet: "Books", sheets: ["Cover", "Books"], rows: [["Title", "Price"], ["Moth Book", "$18.00"], ["Second", ""]] });
+  assert.equal((await t.call("google.sheetRead", { spreadsheetId: ID, gid: 7 })).body.sheet, "Books");
+  assert.deepEqual((await t.call("google.sheetRead", { spreadsheetId: ID, sheet: "Cover" })).body.rows, []);
+  const missingTab = await t.call("google.sheetRead", { spreadsheetId: ID, sheet: "Nope" });
+  assert.equal(missingTab.body.error.code, "tab_not_found");
+  const missing = await t.call("google.sheetRead", { spreadsheetId: "1ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ" });
+  assert.equal(missing.status, 404);
+  assert.match(missing.body.error.message, /Check the link/);
+  for (const args of [{}, { spreadsheetId: "short" }, { spreadsheetId: ID, gid: -1 }, { spreadsheetId: ID, sheet: "" }]) {
+    assert.equal((await t.call("google.sheetRead", args)).status, 400);
+  }
+  // Reading never changes anything in the press's Drive.
+  assert.ok(!changeNames(t).some((name) => /sheet/i.test(name)));
+});
+
+test("the Drive box asks to read sheets too, and backups don't depend on it", async () => {
+  const t = await setup();
+  const url = new URL((await t.call("google.connectLink", { returnUrl: ADMIN, extras: ["drive"] })).body.url);
+  const scopes = url.searchParams.get("scope").split(" ");
+  assert.ok(scopes.includes(SCOPES.sheets[0]));
+  const without = new URL((await t.call("google.connectLink", { returnUrl: ADMIN, extras: [] })).body.url);
+  assert.ok(!without.searchParams.get("scope").split(" ").includes(SCOPES.sheets[0]));
+  // Unticked on Google's page: the stock sheet still goes out.
+  await t.signIn({ scopes: [...SCOPES.identity, ...SCOPES.drive] });
+  assert.equal((await t.call("google.sheetSync", { rows: STOCK })).body.available, true);
 });
 
 test("Gmail sending stops at 80% of the daily limit, the email goes the usual way, and it starts again the next day (15.24)", async () => {
@@ -768,4 +875,54 @@ test("Gmail sending stops at 80% of the daily limit, the email goes the usual wa
   assert.equal(resend.requests.length, 1);
   assert.equal(t.google.world.gmail.length, 3);
   assert.equal((await t.shopRow()).gmailSends.count, 1);
+});
+
+// ---- Settings › Google: one Google account, extras on and off (4 November 2026) ----
+
+test("switching an extra off needs no new sign-in: it stops at once, the grant and the other parts stay", async () => {
+  const t = await setup({ env: { ...ENV, GOOGLE_BUSINESS_PROFILE: "on", GOOGLE_ADS_ACCESS: "explorer" } });
+  await t.signIn({ extras: ["drive", "calendar", "ads"] });
+  const refused = await t.call("google.turnOff", { extras: ["youtube"] });
+  assert.equal(refused.status, 400, "only an extra that is on can be switched off");
+  const answer = await t.call("google.turnOff", { extras: ["calendar", "ads"] });
+  assert.equal(answer.status, 200, JSON.stringify(answer.body));
+  assert.deepEqual(answer.body.extrasChosen, ["drive"]);
+  assert.equal(answer.body.connected, true);
+  assert.equal(answer.body.steps.some((s) => s.step === "calendar" || s.step === "ads"), false);
+  const g = (await t.shopRow()).google;
+  assert.ok(g.calendar.stoppedAt && g.ads.stoppedAt);
+  assert.equal(g.drive.stoppedAt, null);
+  assert.equal(t.google.world.productLinks.size, 0, "the Ads link comes off");
+  // The calendar the press owns is never deleted.
+  assert.ok(g.calendar.calendarId);
+  // Ticking it again later starts it afresh with the same sign-in.
+  await t.signIn({ extras: ["drive", "calendar"] });
+  assert.equal((await t.shopRow()).google.calendar.stoppedAt, null);
+  assert.equal((await t.step("calendar")).state, "done");
+});
+
+test("saving fewer extras through Google's page stops the ones left off", async () => {
+  const t = await setup();
+  await t.signIn({ extras: ["drive", "youtube"] });
+  await t.signIn({ extras: ["drive"] });
+  const g = (await t.shopRow()).google;
+  assert.ok(g.youtube.stoppedAt);
+  assert.equal(g.steps.some((s) => s.step === "youtube"), false);
+});
+
+test("one Google account runs the whole shop: a sign-in with another account changes nothing and is given back", async () => {
+  const t = await setup();
+  await t.signIn({ extras: ["drive"] });
+  const link = await t.call("google.connectLink", { returnUrl: ADMIN, extras: ["drive", "youtube"] });
+  // Google's page opens on the account already connected.
+  assert.equal(new URL(link.body.url).searchParams.get("login_hint"), "owner@example.com");
+  const state = new URL(link.body.url).searchParams.get("state");
+  const before = structuredClone((await t.shopRow()).google);
+  const back = await handleGoogle({ method: "GET", path: "/google/oauth", query: { state, code: t.google.allow({ email: "someone-else@example.com" }) } }, { service: t.link.service });
+  assert.equal(new URL(back.headers.Location).searchParams.get("google"), "other_account");
+  assert.deepEqual((await t.shopRow()).google, before);
+  const status = await t.call("google.status");
+  assert.equal(status.body.accountEmail, "owner@example.com");
+  assert.deepEqual(status.body.extrasChosen, ["drive"]);
+  assert.ok(t.google.world.revoked.size >= 1, "the other account's new access is given straight back");
 });

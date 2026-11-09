@@ -6,6 +6,7 @@
 // This is also where the pieces that have no hosted home yet are joined: sign-up starts its trial through billing, the
 // shop maker hands the new shop its plan (`billing.publishPlan`, plan 6.14), and one web door carries the sign-up,
 // account, billing and control-room routes.
+import { freeAddressTaken } from "../services/domains/freeAddress.js";
 import { accountRoutes, deletionRoutes } from "../accounts/routes.js";
 import { createAccountDeletion } from "../accounts/deleteAccount.js";
 import { billingPublicRoutes, billingRoutes } from "../accounts/billingRoutes.js";
@@ -28,8 +29,9 @@ import { supportRoutes } from "../services/support/routes.js";
 import { fakeSupportStore } from "../services/support/fakes.js";
 import { createAppMakers } from "../services/apps/makers.js";
 import { createAppInstalls } from "../services/apps/installs.js";
-import { appInstallPublicRoutes, appInstallRoutes, appMakerRoutes, appStorePublicRoutes } from "../services/apps/routes.js";
-import { fakeAppInstallStores, fakeAppStore } from "../services/apps/fakes.js";
+import { appInstallPublicRoutes, appInstallRoutes, appMakerRoutes, appShopDoorRoutes, appStorePublicRoutes } from "../services/apps/routes.js";
+import { createAppShopDoor } from "../services/apps/shopDoor.js";
+import { fakeAppAlertStores, fakeAppInstallStores, fakeAppStore } from "../services/apps/fakes.js";
 import { createRecovery, recoveryByHand } from "../accounts/recovery.js";
 import { recoveryRoutes } from "../accounts/recoveryRoutes.js";
 import { fakeRecoveryStore } from "../accounts/fakes.js";
@@ -71,6 +73,11 @@ import { createSalesChannels, salesChannelsRoutes } from "../control-room/salesC
 import { createShopFeatures, shopFeaturesRoutes } from "../control-room/shopFeatures.js";
 import { createShopLooks, shopLooksRoutes } from "../control-room/shopLooks.js";
 import { createShopEmails, shopEmailsRoutes } from "../control-room/shopEmails.js";
+import { appUseRoutes, createAppUse } from "../control-room/appUse.js";
+import { createShopSocial, shopSocialRoutes } from "../control-room/shopSocial.js";
+import { createSocialService } from "../services/social/social.js";
+import { readSocialConfig } from "../services/social/config.js";
+import { fakeConnections, fakeSent, fakeStates } from "../services/social/fakes.js";
 import { createDriftDesk, createDriftWatch, driftRoutes } from "../control-room/driftWatch.js";
 import { deliveryReader } from "../control-room/delivery.js";
 import { fakeDeliveryStats, fakeShopNotes } from "../control-room/visibilityFakes.js";
@@ -82,6 +89,7 @@ import { costRoutes, createCostsDesk } from "../control-room/costs.js";
 import { createCostReader } from "../services/costs/costs.js";
 import { createDataExports, exportRoutes } from "../services/export/export.js";
 import { fakeExportStorage, fakeExportStore } from "../services/export/fakes.js";
+import { fakeDomainConnectSeller, fakeSellers } from "../services/domains/fakes.js";
 
 export const DAY = 86_400_000;
 const generousLimits = () => Object.fromEntries(Object.entries(DEFAULT_LIMITS).map(([kind, limit]) => [kind, { ...limit, max: limit.max * 100 }]));
@@ -108,7 +116,8 @@ export function fakeClock(start = "2026-10-28T12:00:00Z") {
  * invite), `waitlisted` (people on the waitlist the control room lists), `google` (a pretend Google, to make a step fail), `suffix` (the five characters of a new shop's id).
  */
 export function platformWorld({ start, clock = fakeClock(start), env = {}, invited = [], waitlisted = [], google = fakeGoogle(), suffix = null } = {}) {
-  const settingsEnv = { SIGNUP_OPEN: "true", ...env };
+  // Shops' free addresses go under a made-up shop domain, so setup shows the address a shop will get.
+  const settingsEnv = { SIGNUP_OPEN: "true", SHOP_ADDRESS_DOMAIN: "shops.example", ...env };
   const settings = platformSettings(settingsEnv);
   const live = () => liveSettings({ env: settingsEnv });
 
@@ -125,7 +134,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   // Billing, on a pretend Stripe.
   const stripe = fakeBillingStripe({ clock: () => Math.floor(clock.ms() / 1000) });
   // The platform's emails, written from their real templates into a practice inbox (practiceEmail.js).
-  const email = practicePlatformEmail({ env: settingsEnv, registry });
+  const email = practicePlatformEmail({ env: settingsEnv, registry, now: clock.date });
   const closed = [];
   const billingDeps = {
     stripe: createStripeApi({ fetch: stripe.fetch, keys: { test: "sk_test_fake", live: null } }),
@@ -154,7 +163,12 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const frontDoorStores = fakeFrontDoorStores();
   // Kept product files (18.7): the walkthrough's server takes the upload at /walkthrough/uploads/<token>.
   const stagedFiles = fakeStagedFiles({ uploadBase: "/walkthrough/uploads", now: clock.date });
-  const frontDoor = createFrontDoor({ ...frontDoorStores, email, auth: fakeAuth(), settings, stagedFiles, signup, making: (shopId) => shopMaker.progress(shopId), now: clock.date, ...(suffix ? { suffix } : {}) });
+  // "Your web address": a made-up domain bought at a seller with the Allow window, and one with none (the guide).
+  const domainLookup = fakeSellers({
+    "mothpress.example": { registrar: { name: "GoDaddy.com, LLC" }, domainConnect: fakeDomainConnectSeller() },
+    "inkpress.example": { registrar: { name: "Hover" } },
+  });
+  const frontDoor = createFrontDoor({ ...frontDoorStores, email, auth: fakeAuth(), settings, stagedFiles, signup, making: (shopId) => shopMaker.progress(shopId), now: clock.date, domainLookup, freeNameTaken: freeAddressTaken(registry), ...(suffix ? { suffix } : {}) });
   const repairStore = fakeRepairStore();
   const repairs = createRepairQueue({ store: repairStore, registry, auditLog, now: clock.date });
   const steps = () => shopSteps({ ...services, google, registry, profileFiles, presses: frontDoorStores.presses, stagedFiles, config: TEST_CONFIG });
@@ -204,6 +218,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const appStore = fakeAppStore();
   const appMakers = createAppMakers({ store: appStore, admins: [ADMIN_EMAIL], now: clock.date });
   const appInstallStores = fakeAppInstallStores();
+  const appAlertStores = fakeAppAlertStores();
   const appInstalls = createAppInstalls({
     apps: appStore, makers: appMakers, installs: appInstallStores.installs, codes: appInstallStores.codes, registry, auditLog, now: clock.date,
     roleIn: (person, shopId) => accounts.roleIn(person, shopId),
@@ -222,7 +237,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const business = createBusinessRoom({ registry, incomeHistory, admins, now: clock.date });
   // One timeline per shop, the jobs page and the private notes (19.10, 19.11, 19.13). The jobs this world can run by
   // hand are the ones with nothing outside it; the rest answer "only on the server".
-  const timeline = createTimeline({ admins, registry, activity, supportStore, shopData, now: clock.date });
+  const timeline = createTimeline({ admins, registry, activity, supportStore, emailLog: email.emailLog, shopData, now: clock.date });
   const jobRuns = fakeJobRuns();
   const jobs = createJobs({ store: jobRuns, email, alertTo: ADMIN_EMAIL, now: clock.date });
   // Paying presses drifting away (24.4): the practice shops' own orders and sign-ins.
@@ -239,7 +254,11 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const driftDesk = createDriftDesk({ admins, registry, settings, activity, now: clock.date });
   const shopFeatures = createShopFeatures({ admins, registry, shopData, now: clock.date });
   const shopLooks = createShopLooks({ admins, registry, shopData, now: clock.date });
-  const shopEmails = createShopEmails({ admins, registry, now: clock.date });
+  const shopEmails = createShopEmails({ admins, registry, emailLog: email.emailLog, now: clock.date });
+  const appUse = createAppUse({ admins, installs: appInstallStores.installs, outbox: appAlertStores.outbox, now: clock.date });
+  const socialConnections = fakeConnections();
+  const social = createSocialService({ clients: {}, registry, auditLog, connections: socialConnections, states: fakeStates(), sent: fakeSent(), config: readSocialConfig({}), now: () => clock.date().getTime() });
+  const shopSocial = createShopSocial({ admins, registry, social, now: clock.date });
   const salesChannels = createSalesChannels({ admins, registry, shopData, stockroomData, now: clock.date });
   // Messages to presses (19.14), what each shop costs (19.15; no billing export in the practice world, so the empty
   // state) and a press's data on request (19.16).
@@ -281,13 +300,15 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...shopFeaturesRoutes(shopFeatures),
     ...shopLooksRoutes(shopLooks),
     ...shopEmailsRoutes(shopEmails),
+    ...appUseRoutes(appUse),
+    ...shopSocialRoutes(shopSocial),
     ...driftRoutes(driftDesk),
     ...messageRoutes(pressMessages),
     ...costRoutes(costsDesk),
     ...exportRoutes(dataExports),
   };
   const door = createApi({
-    signup, verifyIdToken: fakeVerifyIdToken, settings, live, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls) },
+    signup, verifyIdToken: fakeVerifyIdToken, settings, live, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls), ...appShopDoorRoutes(createAppShopDoor({ registry, installs: appInstalls, makers: appMakers })) },
     // Fair-use limits (19.5) on an in-memory counter, a hundred times the real ones so a person clicking never meets them.
     limits: createLimits({ throttle: fakeThrottle(), admins, limits: generousLimits(), now: clock.date, log: () => {} }),
     log: () => {},
@@ -296,7 +317,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
 
   return {
     clock, settings, registry, auditLog, services, google, profileFiles, shopData, stockroomData, stripe, email, closed, billing, paymentWay, stripeEvent,
-    stores, frontDoor, frontDoorStores, stagedFiles, signup, shopMaker, run, steps, repairs, repairStore, accounts, accountStores, shopAccess, driftWatch, room, controls, backup, support, appMakers, appStore, appInstalls, recovery, platformState, activity, door, routes, ask, invites, accessRequests,
+    stores, frontDoor, frontDoorStores, stagedFiles, signup, shopMaker, run, steps, repairs, repairStore, accounts, accountStores, shopAccess, driftWatch, room, controls, backup, support, appMakers, appStore, appInstalls, appInstallStores, appAlertStores, socialConnections, recovery, platformState, activity, door, routes, ask, invites, accessRequests,
     deliveryStats, timeline, jobs, jobRuns, jobsPage, notes,
     pressMessages, costsDesk, dataExports, exportStorage,
     /** The shop's own database as the platform wrote it: a document, or null. */

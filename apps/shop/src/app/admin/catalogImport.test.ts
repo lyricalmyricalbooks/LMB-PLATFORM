@@ -28,6 +28,21 @@ describe("headings and values", () => {
     expect(m.ignored).toEqual(["Colour"]);
     expect(m.duplicates).toEqual(["price"]);
   });
+  it("takes the owner's match for a heading it doesn't know (plan 23.36)", () => {
+    const m = mapHeadings(["Name", "Cost to buyer", "Writer", "Shelf"], { "Cost to buyer": "retailPrice", Writer: "subtitle", Shelf: "title" });
+    // Shelf can't be Title: the Name column already is.
+    expect(m.fields).toEqual(["title", "retailPrice", "subtitle", null]);
+    expect(m.unknown).toEqual(["Cost to buyer", "Writer", "Shelf"]);
+    expect(m.ignored).toEqual(["Shelf"]);
+    // ID is never offered: only a file exported from this shop carries it.
+    expect(mapHeadings(["Ref"], { Ref: "id" }).fields).toEqual([null]);
+    const plan = planImport("Book,Cost to buyer\nNew Poems,22.50", [], [], { columns: { Book: "title", "Cost to buyer": "retailPrice" } });
+    expect(plan.problems).toEqual([]);
+    expect(plan.rows[0]).toMatchObject({ action: "create", patch: { title: "New Poems", retailPrice: 22.5 } });
+    expect(plan.matchedFields).toEqual(["title", "retailPrice"]);
+    // Without the matches, nothing is recognised, and the file says how to fix it.
+    expect(planImport("Book,Cost to buyer\nNew Poems,22.50", []).problems[0]).toMatch(/Match them to fields/);
+  });
   it("parses prices written the usual ways", () => {
     expect(parseMoney("CA$12.50")).toBe(12.5);
     expect(parseMoney("$1,250.00")).toBe(1250);

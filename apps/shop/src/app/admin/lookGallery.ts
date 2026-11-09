@@ -4,7 +4,7 @@
 
 import type { FirstWeekDoc } from "./firstWeek";
 import { THEME_LIBRARY } from "./studio/themeLibrary";
-import { themeLookKeys } from "./studio/themeLook";
+import { themedDesign } from "./studio/themeLook";
 import type { Sells } from "./sells";
 
 /** The sign-up answers to "What do you sell?" (signup/form.js, plans 6.2 and 10.1; sells.ts SELLS). */
@@ -81,8 +81,17 @@ export interface LookPreview {
 const colour = (v: unknown, fallback: string) => (typeof v === "string" && v.trim() ? v : fallback);
 const num = (v: unknown, fallback: number) => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
 
-export function lookPreview(theme: LibraryTheme): LookPreview {
-  const k = themeLookKeys(theme, {});
+/**
+ * `theme` as a small picture. With the press's own `design`, the picture is the shop exactly as Use this look would
+ * leave it: the look's colours and fonts, plus the press's own settings the look doesn't set (button corners and
+ * capitals, template outlines and shadows…). Without one, the look as it comes.
+ */
+export function lookPreview(theme: LibraryTheme, design?: Record<string, any> | null): LookPreview {
+  const k = themedDesign(theme, design && typeof design === "object" ? design : {});
+  // On a template, the template's own outline and shadow controls win over the Riso Press ones it falls back to.
+  const template = typeof k.themeStyle === "string" && k.themeStyle !== "riso" && k.themeStyle !== "default";
+  const set = (v: unknown) => (typeof v === "number" && Number.isFinite(v)) || (typeof v === "string" && v.trim() !== "");
+  const pick = (own: string, riso: string) => (template && set(k[own]) ? k[own] : k[riso]);
   const bg = colour(k.backgroundColor, "#ffffff");
   const text = colour(k.textColor, "#111111");
   const accent = colour(k.primaryColor, text);
@@ -106,8 +115,10 @@ export function lookPreview(theme: LibraryTheme): LookPreview {
     heading: typeof k.catalogHeading === "string" ? k.catalogHeading.slice(0, 40) : "",
     cta: sentenceCase(colour(k.productCTA ?? theme.productCTA, "Add to bag")),
     ratio: pictureRatio(k.imageAspectRatio ?? theme.imageAspectRatio),
-    outline: Math.min(num(k.risoOutlineWidth, 0), 4), outlineColor: colour(k.risoOutlineColor, text),
-    shadow: Math.min(num(k.risoShadowOffset, 0), 8), shadowColor: colour(k.risoShadowColor, text),
+    outline: Math.min(num(pick("templateOutlineWidth", "risoOutlineWidth"), 0), 4),
+    outlineColor: colour(pick("templateOutlineColor", "risoOutlineColor"), text),
+    shadow: Math.min(num(pick("templateShadowOffset", "risoShadowOffset"), 0), 8),
+    shadowColor: colour(pick("templateShadowColor", "risoShadowColor"), text),
     headingWeight: Math.max(400, Math.min(num(k.headingWeight, 700), 900)),
     chips: k.showCategoryChips === true,
   };
@@ -168,64 +179,64 @@ export type PreviewProduct = { title: string; photo: string; maker?: string; pri
  */
 const SAMPLES: Record<"books" | "general" | "clothing" | "jewelry" | "music" | "prints", PreviewProduct[]> = {
   books: [
-    { title: "Salt Hours", maker: "Zoe Moss", photo: "", price: "$22" },
-    { title: "Night Songs", maker: "A. Poet", photo: "", price: "$18" },
-    { title: "Paper Weather", maker: "R. Lane", photo: "", price: "$30" },
-    { title: "The Long Field", maker: "M. Okafor", photo: "", price: "$26" },
-    { title: "Small Rooms", maker: "J. Tran", photo: "", price: "$15" },
-    { title: "Blue Hour", maker: "S. Ferris", photo: "", price: "$24" },
-    { title: "Field Notes", maker: "L. Haddad", photo: "", price: "$12" },
-    { title: "Ink & Bone", maker: "P. Ruiz", photo: "", price: "$28" },
+    { title: "Salt Hours", maker: "Zoe Moss", photo: "", price: "CA$ 22.00" },
+    { title: "Night Songs", maker: "A. Poet", photo: "", price: "CA$ 18.00" },
+    { title: "Paper Weather", maker: "R. Lane", photo: "", price: "CA$ 30.00" },
+    { title: "The Long Field", maker: "M. Okafor", photo: "", price: "CA$ 26.00" },
+    { title: "Small Rooms", maker: "J. Tran", photo: "", price: "CA$ 15.00" },
+    { title: "Blue Hour", maker: "S. Ferris", photo: "", price: "CA$ 24.00" },
+    { title: "Field Notes", maker: "L. Haddad", photo: "", price: "CA$ 12.00" },
+    { title: "Ink & Bone", maker: "P. Ruiz", photo: "", price: "CA$ 28.00" },
   ],
   prints: [
-    { title: "Harbour at Dusk", maker: "Riso print", photo: "", price: "$40" },
-    { title: "Two Moons", maker: "Screen print", photo: "", price: "$55" },
-    { title: "Fern Study", maker: "Risograph", photo: "", price: "$30" },
-    { title: "Night Market", maker: "Giclée", photo: "", price: "$65" },
-    { title: "Paper Birds", maker: "Linocut", photo: "", price: "$45" },
-    { title: "Tide Chart", maker: "Riso print", photo: "", price: "$35" },
-    { title: "City Grid", maker: "Screen print", photo: "", price: "$50" },
-    { title: "Wild Garden", maker: "Risograph", photo: "", price: "$30" },
+    { title: "Harbour at Dusk", maker: "Riso print", photo: "", price: "CA$ 40.00" },
+    { title: "Two Moons", maker: "Screen print", photo: "", price: "CA$ 55.00" },
+    { title: "Fern Study", maker: "Risograph", photo: "", price: "CA$ 30.00" },
+    { title: "Night Market", maker: "Giclée", photo: "", price: "CA$ 65.00" },
+    { title: "Paper Birds", maker: "Linocut", photo: "", price: "CA$ 45.00" },
+    { title: "Tide Chart", maker: "Riso print", photo: "", price: "CA$ 35.00" },
+    { title: "City Grid", maker: "Screen print", photo: "", price: "CA$ 50.00" },
+    { title: "Wild Garden", maker: "Risograph", photo: "", price: "CA$ 30.00" },
   ],
   clothing: [
-    { title: "Heavy Tee", maker: "Organic cotton", photo: "", price: "$38" },
-    { title: "Canvas Tote", maker: "Natural", photo: "", price: "$24" },
-    { title: "Crew Sweatshirt", maker: "Brushed fleece", photo: "", price: "$72" },
-    { title: "Work Cap", maker: "Washed twill", photo: "", price: "$30" },
-    { title: "Field Jacket", maker: "Waxed cotton", photo: "", price: "$140" },
-    { title: "Rib Socks", maker: "Merino", photo: "", price: "$16" },
-    { title: "Long Sleeve", maker: "Garment dyed", photo: "", price: "$46" },
-    { title: "Wool Beanie", maker: "Hand knit", photo: "", price: "$34" },
+    { title: "Heavy Tee", maker: "Organic cotton", photo: "", price: "CA$ 38.00" },
+    { title: "Canvas Tote", maker: "Natural", photo: "", price: "CA$ 24.00" },
+    { title: "Crew Sweatshirt", maker: "Brushed fleece", photo: "", price: "CA$ 72.00" },
+    { title: "Work Cap", maker: "Washed twill", photo: "", price: "CA$ 30.00" },
+    { title: "Field Jacket", maker: "Waxed cotton", photo: "", price: "CA$ 140.00" },
+    { title: "Rib Socks", maker: "Merino", photo: "", price: "CA$ 16.00" },
+    { title: "Long Sleeve", maker: "Garment dyed", photo: "", price: "CA$ 46.00" },
+    { title: "Wool Beanie", maker: "Hand knit", photo: "", price: "CA$ 34.00" },
   ],
   jewelry: [
-    { title: "Moon Hoops", maker: "Gold vermeil", photo: "", price: "$85" },
-    { title: "Seed Ring", maker: "Sterling silver", photo: "", price: "$60" },
-    { title: "Pearl Drop", maker: "Freshwater pearl", photo: "", price: "$95" },
-    { title: "Chain Bracelet", maker: "Recycled silver", photo: "", price: "$70" },
-    { title: "Signet", maker: "Brass", photo: "", price: "$55" },
-    { title: "Star Studs", maker: "Gold fill", photo: "", price: "$40" },
-    { title: "Pebble Pendant", maker: "Sterling silver", photo: "", price: "$75" },
-    { title: "Twist Cuff", maker: "Bronze", photo: "", price: "$65" },
+    { title: "Moon Hoops", maker: "Gold vermeil", photo: "", price: "CA$ 85.00" },
+    { title: "Seed Ring", maker: "Sterling silver", photo: "", price: "CA$ 60.00" },
+    { title: "Pearl Drop", maker: "Freshwater pearl", photo: "", price: "CA$ 95.00" },
+    { title: "Chain Bracelet", maker: "Recycled silver", photo: "", price: "CA$ 70.00" },
+    { title: "Signet", maker: "Brass", photo: "", price: "CA$ 55.00" },
+    { title: "Star Studs", maker: "Gold fill", photo: "", price: "CA$ 40.00" },
+    { title: "Pebble Pendant", maker: "Sterling silver", photo: "", price: "CA$ 75.00" },
+    { title: "Twist Cuff", maker: "Bronze", photo: "", price: "CA$ 65.00" },
   ],
   music: [
-    { title: "Low Tide", maker: "LP", photo: "", price: "$32" },
-    { title: "Night Drive", maker: "Cassette", photo: "", price: "$12" },
-    { title: "Glass Garden", maker: "LP", photo: "", price: "$30" },
-    { title: "Static Hearts", maker: "7-inch", photo: "", price: "$10" },
-    { title: "Northern Lines", maker: "CD", photo: "", price: "$15" },
-    { title: "Slow Rooms", maker: "LP", photo: "", price: "$28" },
-    { title: "Paper Planes", maker: "Cassette", photo: "", price: "$12" },
-    { title: "Heat Wave", maker: "LP", photo: "", price: "$34" },
+    { title: "Low Tide", maker: "LP", photo: "", price: "CA$ 32.00" },
+    { title: "Night Drive", maker: "Cassette", photo: "", price: "CA$ 12.00" },
+    { title: "Glass Garden", maker: "LP", photo: "", price: "CA$ 30.00" },
+    { title: "Static Hearts", maker: "7-inch", photo: "", price: "CA$ 10.00" },
+    { title: "Northern Lines", maker: "CD", photo: "", price: "CA$ 15.00" },
+    { title: "Slow Rooms", maker: "LP", photo: "", price: "CA$ 28.00" },
+    { title: "Paper Planes", maker: "Cassette", photo: "", price: "CA$ 12.00" },
+    { title: "Heat Wave", maker: "LP", photo: "", price: "CA$ 34.00" },
   ],
   general: [
-    { title: "Linen Napkins", maker: "Set of four", photo: "", price: "$32" },
-    { title: "Stoneware Mug", maker: "Handmade", photo: "", price: "$28" },
-    { title: "Beeswax Candle", maker: "Hand poured", photo: "", price: "$22" },
-    { title: "Wool Throw", maker: "Woven", photo: "", price: "$120" },
-    { title: "Field Notebook", maker: "Recycled paper", photo: "", price: "$14" },
-    { title: "Ceramic Vase", maker: "Glazed", photo: "", price: "$48" },
-    { title: "Tea Towel", maker: "Printed cotton", photo: "", price: "$18" },
-    { title: "Wooden Spoon", maker: "Cherry wood", photo: "", price: "$20" },
+    { title: "Linen Napkins", maker: "Set of four", photo: "", price: "CA$ 32.00" },
+    { title: "Stoneware Mug", maker: "Handmade", photo: "", price: "CA$ 28.00" },
+    { title: "Beeswax Candle", maker: "Hand poured", photo: "", price: "CA$ 22.00" },
+    { title: "Wool Throw", maker: "Woven", photo: "", price: "CA$ 120.00" },
+    { title: "Field Notebook", maker: "Recycled paper", photo: "", price: "CA$ 14.00" },
+    { title: "Ceramic Vase", maker: "Glazed", photo: "", price: "CA$ 48.00" },
+    { title: "Tea Towel", maker: "Printed cotton", photo: "", price: "CA$ 18.00" },
+    { title: "Wooden Spoon", maker: "Cherry wood", photo: "", price: "CA$ 20.00" },
   ],
 };
 
@@ -263,17 +274,31 @@ export function emailThemeFor(themeId: string, current?: string | null): "market
 }
 
 /**
- * The press's own books for the look previews: up to `limit` of them, each with its title and its first secure photo, so
- * every look shows the press's real covers and names. A book with neither a title nor a photo is skipped.
+ * A product's price as the preview shows it, in the shop's own currency and the way the storefront writes it
+ * ("CA$ 22.00", as CurrencyContext does: shop prices are kept in Canadian dollars), or "" when it has none. On sale,
+ * the sale price.
  */
-export function ownBooks(books: any[] | null | undefined, limit = 8): { title: string; photo: string }[] {
-  const out: { title: string; photo: string }[] = [];
+export function previewPrice(book: any): string {
+  const sale = book?.isOnSale && Number(book?.salePrice) > 0 ? Number(book.salePrice) : NaN;
+  const n = Number.isFinite(sale) ? sale : Number(book?.retailPrice ?? book?.price);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  return `CA$ ${n.toFixed(2)}`;
+}
+
+/**
+ * The press's own books for the look previews: up to `limit` of them, each with its title, its first secure photo and
+ * its real price, so every look shows the press's real covers, names and prices. A book with neither a title nor a
+ * photo is skipped.
+ */
+export function ownBooks(books: any[] | null | undefined, limit = 8): { title: string; photo: string; price?: string }[] {
+  const out: { title: string; photo: string; price?: string }[] = [];
   for (const book of books || []) {
     if (out.length >= limit) break;
     const title = String(book?.title || "").trim().slice(0, 60);
     const url = String(book?.photos?.[0]?.url || book?.photoUrl || "");
     const photo = url.startsWith("https://") ? url : "";
-    if (title || photo) out.push({ title, photo });
+    const price = previewPrice(book);
+    if (title || photo) out.push(price ? { title, photo, price } : { title, photo });
   }
   return out;
 }

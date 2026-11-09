@@ -123,6 +123,14 @@ async function checkFrontDoor(browser, walk, log) {
         if (i === 49) throw new Error("General didn't save the country");
         await page.waitForTimeout(100);
       }
+      // Your web address: a domain the press already has is kept, with where it was bought.
+      await page.locator("[role=radio]", { hasText: "I already have a domain" }).click();
+      await page.fill("input[placeholder='yourpress.com']", "mothpress.example");
+      await page.locator("button", { hasText: "Use this domain" }).click();
+      await page.locator("text=you press Allow there once").waitFor({ state: "visible", timeout: 10_000 });
+      const [kept] = await walk.world.frontDoorStores.presses.listByOwner(`uid-${address}`);
+      if (kept?.domain !== "mothpress.example" || kept?.domainSeller !== "GoDaddy") throw new Error(`the domain wasn't kept: ${JSON.stringify([kept?.domain, kept?.domainSeller])}`);
+      if (!(await fits())) throw new Error("Your web address scrolls sideways on a phone");
       // Design shows the look gallery, and picking a look saves it.
       await page.evaluate(() => { location.hash = "settings/designer"; });
       await page.locator("ul[aria-label='Suggested looks'] button", { hasText: "Use this look" }).first().click();
@@ -130,6 +138,17 @@ async function checkFrontDoor(browser, walk, log) {
       const [saved] = await walk.world.frontDoorStores.presses.listByOwner(`uid-${address}`);
       if (!saved?.look) throw new Error("the chosen look wasn't saved");
       if (!(await fits())) throw new Error("Design scrolls sideways on a phone");
+      // Settings › Payments picks Stripe or Square for the website's cards, and saves the pick.
+      await page.evaluate(() => { location.hash = "settings/payments"; });
+      await page.locator("[role='radiogroup'][aria-label='Card payments'] [role='radio']").nth(1).click();
+      for (let i = 0; i < 50; i += 1) {
+        const [picked] = await walk.world.frontDoorStores.presses.listByOwner(`uid-${address}`);
+        if (picked?.cardProvider === "square") break;
+        if (i === 49) throw new Error("Payments didn't save Square");
+        await page.waitForTimeout(100);
+      }
+      if (!(await fits())) throw new Error("Payments scrolls sideways on a phone");
+      if (process.env.WALKTHROUGH_SHOTS) await page.screenshot({ path: join(process.env.WALKTHROUGH_SHOTS, "setup-card-payments-phone.png"), fullPage: true });
       // Books previews a product file and keeps it for the shop, sent through the upload link (18.7).
       await page.evaluate(() => { location.hash = "catalog"; });
       await page.locator("input[type=file]").setInputFiles({ name: "my-zines.csv", mimeType: "text/csv", buffer: Buffer.from("Title,Price,Stock\nMoth Zine,8,20\nNight Zine,6,12\n") });

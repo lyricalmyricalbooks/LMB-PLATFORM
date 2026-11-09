@@ -89,6 +89,9 @@ Google for the tests is `fakes.js` and `clients/fake-firestore.js`.
 
 ## Your steps, once
 
+GitHub now does steps 3 and 4 on every merge to main, as soon as the six secrets exist and the repository variable
+`SERVER_SETTINGS` holds step 2's lines (`site/README.md`). The steps below are the same thing by hand.
+
 Each command prints what it would do and changes nothing. Add `--apply` to do it. Every step is safe to run twice.
 Run them from the repo's top folder, signed in with `gcloud auth login` as an owner of `lmb-platform-prod`.
 
@@ -107,7 +110,7 @@ Run them from the repo's top folder, signed in with `gcloud auth login` as an ow
    in this file; the deploy refuses one that looks like a key.
 3. **Put the server online.** Run `node server/deploy.js` and read the plan, then `node server/deploy.js --apply`. It
    makes the three service accounts and their roles, checks the six secrets exist, builds the program, starts both
-   servers and sends the waitlist site's `/api` addresses to the web server.
+   servers and sends the platform site's `/api` addresses to the web server (`site/build.js --api`).
 4. **Switch on the schedules.** Run `node server/setup-schedules.js`, then `node server/setup-schedules.js --apply`.
 5. **Check every door.** Run `node server/smoke.js --jobs-url <the platform-jobs address>`. The address is on the
    console's Cloud Run page, next to `platform-jobs`, and step 4 prints it too. Every line must say ok. It also checks

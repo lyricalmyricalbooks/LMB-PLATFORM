@@ -1,5 +1,6 @@
 // What setup mode shows (code plan 18.6): the real admin's menu, with the pages that work before a shop exists and
 // every other page locked until the shop opens. Pure, so the menu and the locks are tested without a browser.
+import { sellsBooks } from "../shared/shopSells";
 import type { NavEntry } from "../app/admin/riso/components";
 import { NAV, SETTINGS_ITEM_PREFIX, sidebarItems } from "../app/admin/riso/nav";
 import type { SetupPress } from "./door";
@@ -7,13 +8,15 @@ import type { SetupPress } from "./door";
 export const PLAN_PAGE = SETTINGS_ITEM_PREFIX + "plan";
 export const GENERAL_PAGE = SETTINGS_ITEM_PREFIX + "general";
 export const DESIGN_PAGE = SETTINGS_ITEM_PREFIX + "designer";
+/** Settings › Payments: in setup, the choice of Stripe or Square for the website's card payments. */
+export const PAYMENTS_PAGE = SETTINGS_ITEM_PREFIX + "payments";
 export const HELP_PAGE = "help";
 export const HOME_PAGE = "overview";
 /** Books (the catalog): in setup, the place to bring a product file over and see what it holds (18.7). */
 export const IMPORT_PAGE = "catalog";
 
 /** The pages that work in setup mode. Everything else in the menu opens "Opens with your shop". */
-export const SETUP_PAGES: ReadonlySet<string> = new Set([HOME_PAGE, DESIGN_PAGE, GENERAL_PAGE, PLAN_PAGE, HELP_PAGE, IMPORT_PAGE]);
+export const SETUP_PAGES: ReadonlySet<string> = new Set([HOME_PAGE, DESIGN_PAGE, GENERAL_PAGE, PLAN_PAGE, HELP_PAGE, IMPORT_PAGE, PAYMENTS_PAGE]);
 
 export const setupLocked = (page: string): boolean => !SETUP_PAGES.has(page);
 
@@ -51,6 +54,28 @@ export interface GuideStep {
   id: string; title: string; done: boolean; page: string; action: string; locked?: boolean;
   /** A step a press may leave undone (nothing to bring over): counted only once it is done. */
   optional?: boolean;
+  /** Its part of the guide (SETUP_GROUPS). */
+  group?: SetupGroup;
+}
+
+/**
+ * The guide's parts, in order (code plan 28.6): who you are, then the shop itself, then creating it. The shop's own guide
+ * on Home carries on with Your shop, Ready to sell and Launch (app/admin/firstWeek.ts), so the two read as one journey.
+ */
+export type SetupGroup = "press" | "shop" | "create";
+export const SETUP_GROUPS: ReadonlyArray<{ id: SetupGroup; title: string }> = Object.freeze([
+  { id: "press", title: "Your press" },
+  { id: "shop", title: "Your shop" },
+  { id: "create", title: "Create" },
+]);
+
+/** The guide's parts with their steps and how many are done (counted as guideProgress does); empty parts left out. */
+export function setupGroups(steps: GuideStep[]) {
+  return SETUP_GROUPS.map((g) => {
+    const list = steps.filter((s) => s.group === g.id);
+    const counted = list.filter((s) => !s.locked);
+    return { ...g, steps: list, done: counted.filter((s) => s.done).length, total: counted.length };
+  }).filter((g) => g.steps.length > 0);
 }
 
 /** The setup guide's steps from the press's record, in order. A stockroom-only press has no website look to pick. */
@@ -59,16 +84,23 @@ export function guideSteps(press: SetupPress): GuideStep[] {
   // Written in book words; the guide shows them in the shop's own (sells.ts).
   const books: GuideStep = { id: "books", title: "Bring your books over from your old shop", done: !!press.stagedImport, page: IMPORT_PAGE, action: "Bring a file", optional: true };
   const look: GuideStep[] = website ? [{ id: "look", title: "Choose your website's look", done: !!press.look, page: DESIGN_PAGE, action: "Choose a look" }] : [];
+  // Stripe or Square for the website's cards. Optional: a press that doesn't choose starts on Stripe.
+  const cards: GuideStep[] = website ? [{ id: "cards", title: "Choose Stripe or Square for card payments", done: !!press.cardProvider, page: PAYMENTS_PAGE, action: "Choose", optional: true }] : [];
   // A press that may be moving brings its books before picking a look, so the look previews can show them (23.0);
   // one starting fresh has it last, as an optional step.
   const fresh = press.moving === "fresh";
-  return [
+  const steps: GuideStep[] = [
     { id: "plan", title: "Pick what you want to set up", done: !!press.plan, page: PLAN_PAGE, action: "Choose" },
     { id: "details", title: "Tell us about your press", done: !!(press.pressName && press.sells && press.country), page: GENERAL_PAGE, action: "Add details" },
-    ...(fresh ? [...look, books] : [books, ...look]),
+    ...(fresh ? [...look, ...cards, books] : [books, ...look, ...cards]),
+    // Your web address: bring a domain, buy one, or keep the free address for now. Answered is done; a press gone to
+    // buy one is done once it comes back with the domain. Optional: the free address always works.
+    ...(website ? [{ id: "domain", title: "Choose your web address", done: press.domainChoice === "free" || (press.domainChoice === "own" && !!press.domain),
+      page: GENERAL_PAGE, action: "Choose", optional: true }] : []),
     // "Create", not "open": the shop is made private, and the press opens it to shoppers from its own admin later.
     { id: "open", title: "Create your shop", done: press.status === "opening" || press.status === "open", page: PLAN_PAGE, action: "Create my shop" },
   ];
+  return steps.map((s) => ({ ...s, group: s.id === "plan" || s.id === "details" ? "press" : s.id === "open" ? "create" : "shop" }));
 }
 
 /**
@@ -91,9 +123,12 @@ export function nextGuideStep(steps: GuideStep[], press?: Pick<SetupPress, "movi
 export const readyToCreate = (steps: GuideStep[]): boolean =>
   steps.every((s) => s.done || s.optional || s.id === "open") && !steps.find((s) => s.id === "open")?.done;
 
-/** "2 of 5 done", counting only the steps that can be done in setup. */
+/**
+ * "2 of 7 done": every step the guide shows (optional ones too), so the count matches the rows a press sees. Steps
+ * that only come with the shop (locked) aren't counted.
+ */
 export function guideProgress(steps: GuideStep[]): { done: number; total: number } {
-  const counted = steps.filter((s) => !s.locked && (!s.optional || s.done));
+  const counted = steps.filter((s) => !s.locked);
   return { done: counted.filter((s) => s.done).length, total: counted.length };
 }
 
@@ -109,6 +144,12 @@ export function pageFromHash(hash: string, menu: NavEntry[] = setupMenu()): stri
   return known ? page : null;
 }
 
+/** The help centre's address for this shop: a shop that doesn't sell books gets the answers in its own words (`?sells=`). */
+export function helpFor(helpUrl: string, sells?: string | null): string {
+  if (!sells || sellsBooks(sells)) return helpUrl;
+  return `${helpUrl}${helpUrl.includes("?") ? "&" : "?"}sells=${encodeURIComponent(sells)}`;
+}
+
 /**
  * The help answer behind each setup guide step (help/articles.js ids), opened in place from the step as "How this works".
  * The plan step has none (its prices and trial are on Settings › Plan itself), nor has Tell us about your press: the
@@ -117,6 +158,8 @@ export function pageFromHash(hash: string, menu: NavEntry[] = setupMenu()): stri
 export const STEP_HELP: Readonly<Record<string, string>> = Object.freeze({
   books: "bring-books",
   look: "look",
+  cards: "get-paid",
+  domain: "own-address",
   open: "open-shop",
 });
 
@@ -125,6 +168,7 @@ export const SETUP_QUESTIONS: ReadonlyArray<{ id: string; question: string }> = 
   { id: "what-you-sell", question: "Can I change what my shop sells later?" },
   { id: "bring-books", question: "How do I bring my books over from my old shop?" },
   { id: "look", question: "How do I change how my shop looks?" },
+  { id: "own-address", question: "Can my shop use my own web address?" },
   { id: "open-shop", question: "How do I open my shop to shoppers?" },
   { id: "trial-ends", question: "What happens when my free trial ends?" },
 ]);
@@ -144,10 +188,11 @@ const LOCKED_LINES: Readonly<Record<string, string>> = Object.freeze({
   channels: "Sell on Facebook, Instagram, Pinterest and TikTok.",
   socialPosts: "Post your books to your social accounts, now or later.",
   [SETTINGS_ITEM_PREFIX + "shipping"]: "What you charge to send a parcel, by country or by weight, and pickup if you offer it.",
-  [SETTINGS_ITEM_PREFIX + "payments"]: "Connect your bank so card payments from your website reach you.",
   [SETTINGS_ITEM_PREFIX + "taxes"]: "The sales tax your shop adds at checkout, worked out from where your shoppers are.",
   [SETTINGS_ITEM_PREFIX + "notifications"]: "The emails your shoppers get: order received, shipped, and the words in each.",
   [SETTINGS_ITEM_PREFIX + "team"]: "Invite someone to help run your shop, with only the pages they need.",
+  [SETTINGS_ITEM_PREFIX + "google"]: "Show up on Google search, Shopping and Maps with one sign-in. It's a step in your shop's setup guide.",
+  [SETTINGS_ITEM_PREFIX + "apps"]: "What the apps you add change in your shop, after your shop's own checks.",
   [SETTINGS_ITEM_PREFIX + "security"]: "Two-step sign-in and who has signed in to your shop.",
   [SETTINGS_ITEM_PREFIX + "bookkeeping"]: "Your sales and fees, ready for your accountant.",
   [SETTINGS_ITEM_PREFIX + "billing"]: "Your bills for your plan, and the card they're paid with.",

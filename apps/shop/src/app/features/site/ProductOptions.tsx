@@ -6,6 +6,7 @@ import { Link } from "react-router";
 import { getCopy } from "./storeCopy";
 import { regionProps, regionVisible } from "./storefrontRegions";
 import { bundleComponents, giftCardDetails, type BookAddOn, type GiftCardDetails } from "./promotions";
+import { productHref } from "../../lib/productHref";
 
 export type AddOnPicks = Record<string, { on: boolean; text: string }>;
 
@@ -109,7 +110,7 @@ export function BoxSetContents({ design, book, books }: { design: any; book: any
         {rows.map((row, i) => (
           <li key={`${row.id}-${row.variantId || ""}-${i}`} className="flex flex-wrap items-baseline gap-x-2 text-sm">
             <span className="fm-pdp-meta">{getCopy(design, "pdpBoxSetQty", { count: row.quantity })}</span>
-            <Link to={`/books/${encodeURIComponent(row.book.slug || row.book.id)}`} className="underline underline-offset-4">{row.book.title}</Link>
+            <Link to={productHref(encodeURIComponent(row.book.slug || row.book.id))} className="underline underline-offset-4">{row.book.title}</Link>
             {row.edition && <span className="fm-pdp-meta">{getCopy(design, "pdpBoxSetEdition", { edition: row.edition })}</span>}
           </li>
         ))}
