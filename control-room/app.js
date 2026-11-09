@@ -191,6 +191,7 @@ async function loadShops() {
   allShops = (await api("GET", "/control/shops")).shops;
   showShops();
   loadSocialLost();
+  loadSellGaps();
 }
 
 // Social connections a network stopped accepting (27.8), across the shops: the press reconnects from their Sales
@@ -212,6 +213,32 @@ async function loadSocialLost() {
     $("#social-lost").replaceChildren();
   }
 }
+// Live shops not ready to sell (28.2/28.3): a store policy with no words (danger: the law and card networks ask for
+// them), or no tax rates while collection is on (warning: checkout charges no tax).
+function sellGapWords(g) {
+  const names = g.missingPolicies.map((name) => name.toLowerCase());
+  const policies = !names.length ? null : names.length === 4 ? "no store policies"
+    : `no ${names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} or ${names.at(-1)}`} ${names.length === 1 ? "policy" : "policies"}`;
+  return [policies, g.tax === "none" ? "no sales tax rates" : null].filter(Boolean).join(" and ");
+}
+async function loadSellGaps() {
+  try {
+    const { gaps } = await api("POST", "/control/sell-gaps");
+    $("#sell-gaps").replaceChildren(...(gaps.length ? [el("div", { className: "rp-alerts" }, ...gaps.map((g) => {
+      const open = button("Open", "secondary");
+      open.addEventListener("click", () => { const shop = allShops.find((x) => x.shopId === g.shopId); if (shop) openShop(shop); });
+      return el("div", { className: "rp-alert", dataset: { tone: g.missingPolicies.length ? "danger" : "warning" } },
+        el("span", { className: "rp-alert-glyph", ariaHidden: "true", textContent: "!" }),
+        el("span", { className: "rp-alert-text" },
+          el("strong", { className: "rp-alert-title", textContent: `${g.pressName} is selling with ${sellGapWords(g)}` }),
+          el("span", { className: "rp-alert-detail", textContent: g.missingPolicies.length ? "Shoppers must see them before buying. The press adds them in Settings › General." : "Checkout charges no tax. The press adds rates in Taxes, or says it doesn't collect yet." })),
+        el("span", { className: "rp-alert-actions" }, open));
+    }))] : []));
+  } catch {
+    $("#sell-gaps").replaceChildren();
+  }
+}
+
 // Every shop's tags (19.13), for the list's pills and search.
 let shopTags = {};
 const BILLING_TONE = { trialing: "info", active: "success", past_due: "danger", paused: "warning", unpaid: "warning", incomplete: "warning", canceled: "neutral", incomplete_expired: "neutral" };
@@ -683,6 +710,8 @@ function card(shop) {
     shop.status === "live" ? shopFeaturesSection(shop) : null,
     shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Website look" }) : null,
     shop.status === "live" ? shopLookSection(shop) : null,
+    shop.status === "live" && shop.plan !== "stockroom" ? el("h3", { className: "cr-section", textContent: "Sales tax and store policies" }) : null,
+    shop.status === "live" && shop.plan !== "stockroom" ? sellReadySection(shop) : null,
     ...privateSections(shop),
   ].filter(Boolean);
 }
@@ -2438,6 +2467,18 @@ function shopFeaturesSection(shop) {
 
 // The look a live website wears (control-room/shopLooks.js): what shoppers see, a different look waiting unpublished,
 // and what the press picked in Choose your look.
+function sellReadySection(shop) {
+  const slot = el("div", {}, el("p", { className: "rp-hint", textContent: "Reading the shop's settings…" }));
+  api("POST", "/control/sell-ready", { shopId: shop.shopId }).then(({ ready, words }) => {
+    if (!ready) return slot.replaceChildren(el("p", { className: "rp-hint", textContent: words }));
+    const tax = { rates: [pill("success", "tax rates set"), meta(plural(ready.rates, "rate"))], off: [pill("neutral", "doesn't collect tax yet")], none: [pill("warning", "no tax rates"), meta("checkout charges no tax")] }[ready.tax];
+    fill(slot,
+      el("div", {}, ...tax),
+      el("div", {}, ready.missingPolicies.length ? pill("danger", `missing: ${ready.missingPolicies.join(", ").toLowerCase()}`) : pill("success", "all four policies written")));
+  }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
+  return slot;
+}
+
 function shopLookSection(shop) {
   const slot = el("div", {}, el("p", { className: "rp-hint", textContent: "Reading the shop's records…" }));
   api("POST", "/control/shop-look", { shopId: shop.shopId }).then(({ look, words }) => {

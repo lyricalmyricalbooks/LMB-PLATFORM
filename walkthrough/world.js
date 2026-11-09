@@ -79,6 +79,7 @@ import { appUseRoutes, createAppUse } from "../control-room/appUse.js";
 import { createShopSocial, shopSocialRoutes } from "../control-room/shopSocial.js";
 import { createShopApps, shopAppsRoutes } from "../control-room/shopApps.js";
 import { chitChatsDeskRoutes, createChitChatsDesk } from "../control-room/chitChats.js";
+import { createSellReady, sellReadyRoutes } from "../control-room/sellReady.js";
 import { createSocialService } from "../services/social/social.js";
 import { readSocialConfig } from "../services/social/config.js";
 import { fakeConnections, fakeSent, fakeStates } from "../services/social/fakes.js";
@@ -269,6 +270,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const appUse = createAppUse({ admins, installs: appInstallStores.installs, outbox: appAlertStores.outbox, now: clock.date });
   const shopApps = createShopApps({ admins, registry, installs: appInstallStores.installs, outbox: appAlertStores.outbox, shopData: { ...shopData, list: (...args) => listDocs(...args) }, now: clock.date });
   const chitChatsDesk = createChitChatsDesk({ admins, chitchats, stores: chitchatsStores, registry, now: clock.date });
+  const sellReady = createSellReady({ admins, registry, shopData, now: clock.date });
   const socialConnections = fakeConnections();
   const social = createSocialService({ clients: {}, registry, auditLog, connections: socialConnections, states: fakeStates(), sent: fakeSent(), config: readSocialConfig({}), now: () => clock.date().getTime() });
   const shopSocial = createShopSocial({ admins, registry, social, now: clock.date });
@@ -318,6 +320,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...shopSocialRoutes(shopSocial),
     ...shopAppsRoutes(shopApps),
     ...chitChatsDeskRoutes(chitChatsDesk),
+    ...sellReadyRoutes(sellReady),
     ...driftRoutes(driftDesk),
     ...messageRoutes(pressMessages),
     ...costRoutes(costsDesk),
