@@ -90,3 +90,13 @@ test("needs you: a shop whose Chit Chats orders have a problem or wait over thre
     ["Moth Press: 1 order waiting over 3 days for tracking", "#apps"],
   ]);
 });
+
+test("needs you: a press waiting for its switch between Stripe and Square to be finished, with the reason it waits", () => {
+  const since = new Date(NOW.getTime() - 2 * 86_400_000).toISOString();
+  const waiting = shop("wren", { status: "active" }, { pressName: "Wren Press", payments: { provider: "stripe", accountId: "acct_1", next: { provider: "square", accountId: "MLR1" }, switching: { to: "square", accountId: "MLR1", at: since } }, paymentsSwitchProblem: { message: "Deploys aren't connected on this server yet." } });
+  const plain = shop("fine", { status: "active" }, { payments: { provider: "stripe", accountId: "acct_2" } });
+  const { needs } = todaySummary({ rows: [waiting, plain], settings, now: NOW });
+  assert.deepEqual(needs.filter((n) => n.kind === "switch").map((n) => [n.words, n.go]), [
+    ["Wren Press pressed Switch to move card payments to Square 2 days ago and it isn't finished (Deploys aren't connected on this server yet): finish it from their record", "#shops"],
+  ]);
+});

@@ -6,6 +6,7 @@
 // today's price from the settings), less its own discount (`billing.percentOff`, the founding offer). A trial, a paused
 // or a closed plan counts nothing; a shop whose card is being retried still counts, and shows under failed payments.
 import { shopHealth } from "./controlRoom.js";
+import { switchWaiting } from "./providerSwitch.js";
 
 const DAY = 86_400_000;
 export const PAYING = new Set(["active", "past_due"]);
@@ -69,6 +70,15 @@ export function todaySummary({ rows, settings, profiles = {}, checks = {}, open 
       if (d.brokeAt) needs.push({ kind: "domain", shopId: row.shopId, words: `${name} stopped opening the shop${d.brokenEmailedAt ? " (the press was emailed)" : ""}`, go: "#shops" });
       else if (left > 0 && left <= DOMAIN_SOON_DAYS * DAY) needs.push({ kind: "domain", shopId: row.shopId, words: `${name} runs out in ${Math.ceil(left / DAY)} day${Math.ceil(left / DAY) === 1 ? "" : "s"} unless renewed`, go: "#shops" });
     }
+  }
+  // A press pressed Switch between Stripe and Square and the move isn't finished (providerSwitch.js): finished from the
+  // shop's record, and until then both accounts take sales but the shop still runs the old one.
+  for (const row of shops) {
+    const waiting = switchWaiting(row);
+    if (!waiting) continue;
+    const to = waiting.to === "square" ? "Square" : "Stripe";
+    const days = Math.floor((now.getTime() - Date.parse(waiting.since)) / DAY);
+    needs.push({ kind: "switch", shopId: row.shopId, words: `${row.pressName ?? row.shopId} pressed Switch to move card payments to ${to} ${days < 1 ? "today" : days === 1 ? "yesterday" : `${days} days ago`} and it isn't finished${waiting.problem?.message ? ` (${String(waiting.problem.message).replace(/\.$/, "")})` : ""}: finish it from their record`, go: "#shops" });
   }
   // Chit Chats orders (chitChats.js shops): one line per shop with a problem order or an order late for tracking.
   for (const p of parcels.filter((x) => x.problems || x.late)) {
