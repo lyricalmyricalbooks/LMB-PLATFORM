@@ -45,23 +45,25 @@ export function pressTemplates({ layout, safeLink, signOff }) {
 
     /**
      * Colophon's Chit Chats app (control-room/chitChatsNote.js), once a day at most: the press's paid orders that passed
-     * `days` days without a tracking number today, and the orders Chit Chats refused today. `data`: { pressName, late
-     * (order numbers), lateCount, problems [{ order, words }], problemCount, days, link (the shop's orders, or null) }.
+     * `days` days without a tracking number today, the orders Chit Chats refused today, and whether it started refusing
+     * the press's details today. `data`: { pressName, late (order numbers), lateCount, problems [{ order, words }],
+     * problemCount, refused (Chit Chats's words, or null), days, link (the shop's orders or apps page, or null) }.
      */
-    "chitchats-waiting": ({ late = [], lateCount = late.length, problems = [], problemCount = problems.length, days, link }, { settings }) => {
-      if (!lateCount && !problemCount) throw new Error("nothing is waiting");
+    "chitchats-waiting": ({ late = [], lateCount = late.length, problems = [], problemCount = problems.length, refused = null, days, link }, { settings }) => {
+      if (!lateCount && !problemCount && !refused) throw new Error("nothing is waiting");
       const orders = (n) => `${n} order${n === 1 ? "" : "s"}`;
       const more = (shown, n) => (n > shown ? ` and ${n - shown} more` : "");
       return layout({
-        subject: [lateCount ? `${orders(lateCount)} still waiting to ship` : null, problemCount ? `${orders(problemCount)} Chit Chats couldn't take` : null].filter(Boolean).join(", "),
+        subject: [refused ? "Chit Chats stopped taking your orders" : null, lateCount ? `${orders(lateCount)} still waiting to ship` : null, problemCount ? `${orders(problemCount)} Chit Chats couldn't take` : null].filter(Boolean).join(", "),
         greeting: "Hello,",
         paragraphs: [
+          refused ? `Chit Chats stopped accepting your account details (${refused.replace(/\.$/, "")}). Until you enter them again in Settings › Apps › Chit Chats, new paid orders won't reach Chit Chats.` : null,
           lateCount ? `${lateCount === 1 ? "A paid order has" : `${lateCount} paid orders have`} waited ${days} days without a tracking number: ${late.join(", ")}${more(late.length, lateCount)}. ${lateCount === 1 ? "It's" : "They're"} in your Chit Chats account, ready for a label. Once a parcel is on its way, its order is marked sent and the customer gets the tracking.` : null,
           ...problems.map((p) => `Chit Chats couldn't take order ${p.order}${p.words ? `: ${p.words}` : "."}`),
           problemCount > problems.length ? `It couldn't take ${problemCount - problems.length} more as well.` : null,
           problemCount ? `Make ${problemCount === 1 ? "that parcel" : "those parcels"} in Chit Chats yourself, or send ${problemCount === 1 ? "it" : "them"} another way.` : null,
         ].filter(Boolean),
-        buttons: link ? [["See your orders", safeLink(link)]] : [],
+        buttons: link ? [[refused && !lateCount && !problemCount ? "Open Settings › Apps" : "See your orders", safeLink(link)]] : [],
         footer: `${signOff(settings)} To stop these emails, open Chit Chats in Settings › Apps.`,
       });
     },

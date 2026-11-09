@@ -589,6 +589,8 @@ async function loadToday() {
         el("span", { className: "rp-alert-actions" }, el("span", { className: "rp-btn rp-btn-sm", textContent: "Open" })));
     }))
     : emptyState("Nothing needs you right now.", "Shops, payments, repairs, support and sign-ups are all in order."));
+  const switchCount = needs.filter((n) => n.kind === "switch").length;
+  if (switchCount > 1) $("#needs").append(el("div", { className: "rp-card-actions", style: "margin-top: 12px" }, finishSwitchesButton(switchCount)));
   $("#needs").append(...(snoozed.length ? [el("details", {},
     el("summary", { textContent: `Snoozed (${snoozed.length})`, style: "min-height: 44px; padding: 11px 0; cursor: pointer" }),
     el("div", { className: "rp-alerts" }, ...snoozed.map((need) => el("div", { className: "rp-alert", dataset: { tone: "neutral" } },
@@ -604,6 +606,25 @@ async function loadToday() {
   setBadge("support", count(["support"]));
   setBadge("repairs", count(["repairs"]));
   setBadge("recovery", count(["recovery"]));
+}
+
+/** Today's "Try all N card switches": finishes every waiting switch at once (providerSwitch.js finishAll). */
+function finishSwitchesButton(n) {
+  const go = button(`Try all ${n} card switches`, "secondary");
+  go.addEventListener("click", async () => {
+    go.disabled = true;
+    try {
+      const { shops } = await api("POST", "/control/payments/finish-switches");
+      const done = shops.filter((s) => s.finished).length;
+      const stuck = shops.find((s) => s.error);
+      status.textContent = `${done} of ${shops.length} finished${stuck ? `. Still waiting: ${stuck.error}` : "."}`;
+      await loadToday();
+    } catch (failure) {
+      status.textContent = failure.message;
+      go.disabled = false;
+    }
+  });
+  return go;
 }
 
 // The kinds of line Today lets the owner snooze (today.js SNOOZABLE).

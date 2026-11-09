@@ -712,6 +712,13 @@ export function createControlRoom({
       return switches.finish(shopId, { by });
     },
 
+    /** Tries every waiting switch once (after deploys come back, say); one shop's trouble never stops the others. */
+    async finishPaymentSwitches(claims) {
+      const by = adminOf(claims, admins, now().getTime());
+      if (!switches) throw new ControlError(503, "Deploys aren't connected here, so the switches wait. They still take sales on both accounts.");
+      return switches.finishAll({ by });
+    },
+
     /** The breach register (plan 8.6): every entry, newest first, and who the privacy contact is. */
     async breaches(claims) {
       adminOf(claims, admins, now().getTime());

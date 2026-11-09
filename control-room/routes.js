@@ -18,6 +18,7 @@
 //   POST /api/control/reopen   { shopId, reason }: open them again
 //   POST /api/control/two-step-reset { shopId, email, reason }: two-step sign-in off for one person (plan 22.11)
 //   POST /api/control/payments/finish-switch { shopId }: finishes a press's switch between Stripe and Square
+//   POST /api/control/payments/finish-switches {}: tries every waiting switch once
 //   POST /api/control/payments { shopId | all: true, to: "own" | "square" | "platform", reason }: the emergency
 //                              payments switch (plan 8.5)
 //   POST /api/control/breaches         the breach register and the privacy contact (plan 8.6)
@@ -54,6 +55,7 @@ export function controlRoutes(room) {
     "POST /api/control/two-step-reset": (claims, request) => room.resetTwoStep(claims, body(request)),
     "POST /api/control/payments": (claims, request) => room.movePayments(claims, body(request)),
     "POST /api/control/payments/finish-switch": (claims, request) => room.finishPaymentSwitch(claims, body(request)),
+    "POST /api/control/payments/finish-switches": (claims) => room.finishPaymentSwitches(claims),
     "POST /api/control/breaches": (claims) => room.breaches(claims),
     "POST /api/control/breaches/record": (claims, request) => room.recordBreach(claims, body(request)),
     "POST /api/control/breaches/update": (claims, request) => room.updateBreach(claims, body(request)),
