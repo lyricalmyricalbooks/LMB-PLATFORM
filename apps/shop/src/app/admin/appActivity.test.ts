@@ -11,6 +11,7 @@ describe("app activity rows", () => {
       .toMatchObject({ what: "Added tracking to order A-2", state: "refused", reason: "Order on hold: author" });
     expect(activityRow("r3", { op: "inventory.adjust", appId: "app_1", input: { productId: "tote", variantId: "l", change: -2 } }))
       .toMatchObject({ app: "app_1", what: "Took away 2 of tote (l)", state: "waiting" });
+    expect(activityRow("r5", { op: "inventory.adjust", status: "done", result: { available: 3, title: "Moth Songs" }, input: { productId: "b1", change: 2 } }).what).toBe("Added 2 of Moth Songs");
     expect(activityRow("r4", { op: "order.markPaid" }).what).toBe("Asked for a change the shop doesn't know");
   });
 });

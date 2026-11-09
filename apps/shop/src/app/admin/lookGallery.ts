@@ -179,64 +179,64 @@ export type PreviewProduct = { title: string; photo: string; maker?: string; pri
  */
 const SAMPLES: Record<"books" | "general" | "clothing" | "jewelry" | "music" | "prints", PreviewProduct[]> = {
   books: [
-    { title: "Salt Hours", maker: "Zoe Moss", photo: "", price: "$22" },
-    { title: "Night Songs", maker: "A. Poet", photo: "", price: "$18" },
-    { title: "Paper Weather", maker: "R. Lane", photo: "", price: "$30" },
-    { title: "The Long Field", maker: "M. Okafor", photo: "", price: "$26" },
-    { title: "Small Rooms", maker: "J. Tran", photo: "", price: "$15" },
-    { title: "Blue Hour", maker: "S. Ferris", photo: "", price: "$24" },
-    { title: "Field Notes", maker: "L. Haddad", photo: "", price: "$12" },
-    { title: "Ink & Bone", maker: "P. Ruiz", photo: "", price: "$28" },
+    { title: "Salt Hours", maker: "Zoe Moss", photo: "", price: "CA$ 22.00" },
+    { title: "Night Songs", maker: "A. Poet", photo: "", price: "CA$ 18.00" },
+    { title: "Paper Weather", maker: "R. Lane", photo: "", price: "CA$ 30.00" },
+    { title: "The Long Field", maker: "M. Okafor", photo: "", price: "CA$ 26.00" },
+    { title: "Small Rooms", maker: "J. Tran", photo: "", price: "CA$ 15.00" },
+    { title: "Blue Hour", maker: "S. Ferris", photo: "", price: "CA$ 24.00" },
+    { title: "Field Notes", maker: "L. Haddad", photo: "", price: "CA$ 12.00" },
+    { title: "Ink & Bone", maker: "P. Ruiz", photo: "", price: "CA$ 28.00" },
   ],
   prints: [
-    { title: "Harbour at Dusk", maker: "Riso print", photo: "", price: "$40" },
-    { title: "Two Moons", maker: "Screen print", photo: "", price: "$55" },
-    { title: "Fern Study", maker: "Risograph", photo: "", price: "$30" },
-    { title: "Night Market", maker: "Giclée", photo: "", price: "$65" },
-    { title: "Paper Birds", maker: "Linocut", photo: "", price: "$45" },
-    { title: "Tide Chart", maker: "Riso print", photo: "", price: "$35" },
-    { title: "City Grid", maker: "Screen print", photo: "", price: "$50" },
-    { title: "Wild Garden", maker: "Risograph", photo: "", price: "$30" },
+    { title: "Harbour at Dusk", maker: "Riso print", photo: "", price: "CA$ 40.00" },
+    { title: "Two Moons", maker: "Screen print", photo: "", price: "CA$ 55.00" },
+    { title: "Fern Study", maker: "Risograph", photo: "", price: "CA$ 30.00" },
+    { title: "Night Market", maker: "Giclée", photo: "", price: "CA$ 65.00" },
+    { title: "Paper Birds", maker: "Linocut", photo: "", price: "CA$ 45.00" },
+    { title: "Tide Chart", maker: "Riso print", photo: "", price: "CA$ 35.00" },
+    { title: "City Grid", maker: "Screen print", photo: "", price: "CA$ 50.00" },
+    { title: "Wild Garden", maker: "Risograph", photo: "", price: "CA$ 30.00" },
   ],
   clothing: [
-    { title: "Heavy Tee", maker: "Organic cotton", photo: "", price: "$38" },
-    { title: "Canvas Tote", maker: "Natural", photo: "", price: "$24" },
-    { title: "Crew Sweatshirt", maker: "Brushed fleece", photo: "", price: "$72" },
-    { title: "Work Cap", maker: "Washed twill", photo: "", price: "$30" },
-    { title: "Field Jacket", maker: "Waxed cotton", photo: "", price: "$140" },
-    { title: "Rib Socks", maker: "Merino", photo: "", price: "$16" },
-    { title: "Long Sleeve", maker: "Garment dyed", photo: "", price: "$46" },
-    { title: "Wool Beanie", maker: "Hand knit", photo: "", price: "$34" },
+    { title: "Heavy Tee", maker: "Organic cotton", photo: "", price: "CA$ 38.00" },
+    { title: "Canvas Tote", maker: "Natural", photo: "", price: "CA$ 24.00" },
+    { title: "Crew Sweatshirt", maker: "Brushed fleece", photo: "", price: "CA$ 72.00" },
+    { title: "Work Cap", maker: "Washed twill", photo: "", price: "CA$ 30.00" },
+    { title: "Field Jacket", maker: "Waxed cotton", photo: "", price: "CA$ 140.00" },
+    { title: "Rib Socks", maker: "Merino", photo: "", price: "CA$ 16.00" },
+    { title: "Long Sleeve", maker: "Garment dyed", photo: "", price: "CA$ 46.00" },
+    { title: "Wool Beanie", maker: "Hand knit", photo: "", price: "CA$ 34.00" },
   ],
   jewelry: [
-    { title: "Moon Hoops", maker: "Gold vermeil", photo: "", price: "$85" },
-    { title: "Seed Ring", maker: "Sterling silver", photo: "", price: "$60" },
-    { title: "Pearl Drop", maker: "Freshwater pearl", photo: "", price: "$95" },
-    { title: "Chain Bracelet", maker: "Recycled silver", photo: "", price: "$70" },
-    { title: "Signet", maker: "Brass", photo: "", price: "$55" },
-    { title: "Star Studs", maker: "Gold fill", photo: "", price: "$40" },
-    { title: "Pebble Pendant", maker: "Sterling silver", photo: "", price: "$75" },
-    { title: "Twist Cuff", maker: "Bronze", photo: "", price: "$65" },
+    { title: "Moon Hoops", maker: "Gold vermeil", photo: "", price: "CA$ 85.00" },
+    { title: "Seed Ring", maker: "Sterling silver", photo: "", price: "CA$ 60.00" },
+    { title: "Pearl Drop", maker: "Freshwater pearl", photo: "", price: "CA$ 95.00" },
+    { title: "Chain Bracelet", maker: "Recycled silver", photo: "", price: "CA$ 70.00" },
+    { title: "Signet", maker: "Brass", photo: "", price: "CA$ 55.00" },
+    { title: "Star Studs", maker: "Gold fill", photo: "", price: "CA$ 40.00" },
+    { title: "Pebble Pendant", maker: "Sterling silver", photo: "", price: "CA$ 75.00" },
+    { title: "Twist Cuff", maker: "Bronze", photo: "", price: "CA$ 65.00" },
   ],
   music: [
-    { title: "Low Tide", maker: "LP", photo: "", price: "$32" },
-    { title: "Night Drive", maker: "Cassette", photo: "", price: "$12" },
-    { title: "Glass Garden", maker: "LP", photo: "", price: "$30" },
-    { title: "Static Hearts", maker: "7-inch", photo: "", price: "$10" },
-    { title: "Northern Lines", maker: "CD", photo: "", price: "$15" },
-    { title: "Slow Rooms", maker: "LP", photo: "", price: "$28" },
-    { title: "Paper Planes", maker: "Cassette", photo: "", price: "$12" },
-    { title: "Heat Wave", maker: "LP", photo: "", price: "$34" },
+    { title: "Low Tide", maker: "LP", photo: "", price: "CA$ 32.00" },
+    { title: "Night Drive", maker: "Cassette", photo: "", price: "CA$ 12.00" },
+    { title: "Glass Garden", maker: "LP", photo: "", price: "CA$ 30.00" },
+    { title: "Static Hearts", maker: "7-inch", photo: "", price: "CA$ 10.00" },
+    { title: "Northern Lines", maker: "CD", photo: "", price: "CA$ 15.00" },
+    { title: "Slow Rooms", maker: "LP", photo: "", price: "CA$ 28.00" },
+    { title: "Paper Planes", maker: "Cassette", photo: "", price: "CA$ 12.00" },
+    { title: "Heat Wave", maker: "LP", photo: "", price: "CA$ 34.00" },
   ],
   general: [
-    { title: "Linen Napkins", maker: "Set of four", photo: "", price: "$32" },
-    { title: "Stoneware Mug", maker: "Handmade", photo: "", price: "$28" },
-    { title: "Beeswax Candle", maker: "Hand poured", photo: "", price: "$22" },
-    { title: "Wool Throw", maker: "Woven", photo: "", price: "$120" },
-    { title: "Field Notebook", maker: "Recycled paper", photo: "", price: "$14" },
-    { title: "Ceramic Vase", maker: "Glazed", photo: "", price: "$48" },
-    { title: "Tea Towel", maker: "Printed cotton", photo: "", price: "$18" },
-    { title: "Wooden Spoon", maker: "Cherry wood", photo: "", price: "$20" },
+    { title: "Linen Napkins", maker: "Set of four", photo: "", price: "CA$ 32.00" },
+    { title: "Stoneware Mug", maker: "Handmade", photo: "", price: "CA$ 28.00" },
+    { title: "Beeswax Candle", maker: "Hand poured", photo: "", price: "CA$ 22.00" },
+    { title: "Wool Throw", maker: "Woven", photo: "", price: "CA$ 120.00" },
+    { title: "Field Notebook", maker: "Recycled paper", photo: "", price: "CA$ 14.00" },
+    { title: "Ceramic Vase", maker: "Glazed", photo: "", price: "CA$ 48.00" },
+    { title: "Tea Towel", maker: "Printed cotton", photo: "", price: "CA$ 18.00" },
+    { title: "Wooden Spoon", maker: "Cherry wood", photo: "", price: "CA$ 20.00" },
   ],
 };
 
@@ -273,12 +273,16 @@ export function emailThemeFor(themeId: string, current?: string | null): "market
   return current === "market" || current === "index" ? "light" : null;
 }
 
-/** A product's price as the preview shows it ("$22", "$18.50"), or "" when it has none. On sale, the sale price. */
+/**
+ * A product's price as the preview shows it, in the shop's own currency and the way the storefront writes it
+ * ("CA$ 22.00", as CurrencyContext does: shop prices are kept in Canadian dollars), or "" when it has none. On sale,
+ * the sale price.
+ */
 export function previewPrice(book: any): string {
   const sale = book?.isOnSale && Number(book?.salePrice) > 0 ? Number(book.salePrice) : NaN;
   const n = Number.isFinite(sale) ? sale : Number(book?.retailPrice ?? book?.price);
   if (!Number.isFinite(n) || n <= 0) return "";
-  return `$${Number.isInteger(n) ? n : n.toFixed(2)}`;
+  return `CA$ ${n.toFixed(2)}`;
 }
 
 /**

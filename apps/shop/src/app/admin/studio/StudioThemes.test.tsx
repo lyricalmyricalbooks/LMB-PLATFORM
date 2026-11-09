@@ -55,6 +55,14 @@ describe("Studio › Themes", () => {
     await mount(setup());
     expect(document.querySelector('[data-theme-card="preset:p1"] [role=img]')!.textContent).toContain("Books & prints");
   });
+  it("draws the press's name and logo, and opens a look full size on a phone from its drawing", async () => {
+    const props = setup({ pressName: "Moth Press", presets: [{ id: "p1", name: "Paper", global: { backgroundColor: "#ffffff", logoUrl: "https://example.com/logo.png" } }] });
+    await mount(props);
+    const card = document.querySelector('[data-theme-card="preset:p1"]')!;
+    expect(card.querySelector(".studio-theme-thumb-name")!.textContent).toBe("Moth Press");
+    await click(button("Preview Paper on a phone", card));
+    expect(props.onPreview).toHaveBeenCalledWith(expect.objectContaining({ id: "preset:p1" }), "mobile");
+  });
   it("offers Reset template details on the draft when it sets any", async () => {
     const onResetTemplateDetails = vi.fn();
     await mount(setup({ templateDetails: "You've changed card tilt.", onResetTemplateDetails }));

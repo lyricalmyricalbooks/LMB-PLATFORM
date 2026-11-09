@@ -818,6 +818,8 @@ preview first; nothing is published, charged or emailed by moving in. Words neve
 | 23.38 | platform | **Excel downloads.** `xlsxWriter.ts` writes a one-sheet .xlsx with no added library (stored zip, bold frozen heading row, sized columns; numbers as numbers, ISBNs and leading-zero codes as text). Books › Export… has a File choice (Excel default, CSV) and Import spreadsheet's Blank template is .xlsx. Checked by reading back, by openpyxl and by LibreOffice | xlsxWriter.test.ts | small | built (4 November 2026) |
 | 23.39 | platform | **First rows as read.** `FirstRows` (in `SheetChoice.tsx`) is a folded "First rows of the file" table (headings and three rows) under the file name in Books import, setup's Books page, customers, gift cards and discount codes. Match columns shows each heading's first value as its hint ("e.g. 22.50") | BookImportDialog.test.tsx | small | built (4 November 2026) |
 | 23.40 | platform | **Old Excel files read directly.** `xlsFile.ts` reads .xls (Excel 97-2003) with no added library: the compound file's FAT, DIFAT and mini stream find the Workbook stream, then BIFF8 records give sheet names (hidden ones left out), the shared word table across CONTINUE records (8- and 16-bit text), number formats, dates, RK/MULRK numbers, true/false and formula results. Password-protected and pre-97 files get steps. Shared cell helpers moved to `spreadsheetCells.ts`. The move check brings the gift cards as .xls | spreadsheetFile.test.ts (LibreOffice and xlwt files, 601-row word table); move-check | medium | built (4 November 2026) |
+| 23.41 | platform | **Remember column matches.** `columnMemory.ts` keeps the owner's Match columns choices (by heading, ignoring case and spacing) in this browser when books are imported; the next file with those headings is matched the same way, with "as last time" beside the count. Changing a match drops the note; setting one back to Leave out forgets it. Never ID or an unknown field | columnMemory.test.ts; BookImportDialog.test.tsx | small | built (4 November 2026) |
+| 23.42 | platform, shop | **Bring a Google Sheet in by its link.** A **Google Sheet** button beside the file button in Books import, customers, gift cards, discount codes and past orders (a shop whose Google account is linked): paste the link and it comes in like a chosen file, other tabs included (`googleSheet.ts` makes a stand-in file that `readSpreadsheet` reads through `readThrough`). Read on the platform with the shop's one Google sign-in: `google.sheetRead` with `spreadsheets.readonly`, asked with the Drive box and checked apart from it, so backups don't depend on it. A shop linked before gets **Allow with Google** (everything already on stays on) and the link is kept for when it comes back. Not in setup mode (no Google link before launch) | google.test.js (tabs, gid, hidden tabs, not found, refused args, scope asked with Drive only); functions googleConnect.test.js; googleSheet.test.tsx (links, tabs read again, Books import end to end, Allow) | medium | built (4 November 2026) |
 
 ## Phase 24: gaps from the Shopify review (planned 3 November 2026)
 
@@ -923,6 +925,29 @@ everything will work for them". An audit of every money path for a Square shop f
 | 27.6 | Switching provider after the shop is made (older sales still refunded through the first provider): needs dual routing in the payment service and a redeploy of the shop's settings. | next |
 
 
+## Phase 28: the pre-launch setup guide, in order (planned and built 4 November 2026)
+
+Julian, 4 November 2026: "be logical with the store setup before launch, suggest things that should go in that section,
+follow shopify". The shop admin's **Set up your shop** (Home, while the shop is private) had eight steps whose order
+changed with the sign-up answer, and Open your shop could refuse over store policies the guide never showed. Shopify's
+guide runs in the order a shop is built: products, look, domain, shipping, taxes, payments, a test order, then remove
+the password. The press's pre-shop setup (setup mode, plan, details, books, look, card company, web address, Create my
+shop) stays as it is; this phase is the guide after the shop is made.
+
+| # | Who | What | Test | Status |
+|---|-----|------|------|--------|
+| 28.1 | shop | **One order, three parts**: Your shop (first book or bring your shop, logo, look), Ready to sell (shipping, taxes, get paid, policies), Launch (web address, practice order, Open your shop; the move for presses coming from another online shop). The answer only picks the first-book step and the intro | `firstWeek.test.ts` | built (4 November 2026) |
+| 28.2 | shop | **Set up sales tax** step: done when rates are set or collection is switched off (not registered yet) | `firstWeek.test.ts` | built (4 November 2026) |
+| 28.3 | shop | **Add your store policies** step: done when all four have words; every Ready to sell block now has a step before Open your shop | `firstWeek.test.ts` | built (4 November 2026) |
+| 28.4 | shop | **Rows like setup mode's guide**: the next step opens by itself, others on a click, each part shows done/total, web address marked optional | `SetupStart.test.tsx` | built (4 November 2026) |
+| 28.5 | platform | Trial tip emails and help answers for the new steps; the tips' default order follows the guide | `services/trial-tips`, `help/help.test.js` | built (4 November 2026) |
+| 28.6 | shop | **Setup mode's guide in parts too**: Your press (plan, details), Your shop (books, look, card company, web address), Create; the count covers every row shown ("2 of 7", was "2 of 4" beside 7 rows), in both guides | `pages.test.ts`, `SetupAdmin.test.tsx` | built (4 November 2026) |
+| 28.7 | shop | **Steps open right at their card**: store policies and web address open General's Store details tab at the card; Google opens Settings › Google | `firstWeek.test.ts` | built (4 November 2026) |
+| 28.8 | shop | **"I don't collect tax yet"** on the tax step (no rate means no tax is charged), and **Reach more shoppers**, optional: Show up on Google (ticks once connected), Sell on social media | `firstWeek.test.ts` | built (4 November 2026) |
+| 28.9 | shop | Walkthrough fixes: the phone's Create my shop keeps a word ("Create"), Choose your look shows the suggested looks first with See all looks, the Google page in setup says it's a step in the shop's guide, shorter words on setup screens | `ChooseLookWelcome.test.tsx`, `SetupAdmin.test.tsx` | built (4 November 2026) |
+| 28.10 | platform | Control room's setup count follows 28.6 (every row counted) | `control-room/setupPresses.test.js` | for the control room thread |
+
+## Rules for every pull request
 
 - Tests never touch real money or a paying press's project. Use fakes or the test shop.
 - Customer-facing words never name a rival.

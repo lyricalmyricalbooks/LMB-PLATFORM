@@ -529,9 +529,13 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
 - **Spreadsheets (23.35):** every file picker uses `SPREADSHEET_ACCEPT` and reads through `spreadsheetText()` in
   `spreadsheetFile.ts` (CSV/TSV text in any common encoding, .xlsx, .ods, and .xls via `xlsFile.ts` since 23.40 → CSV text); show errors with `readProblem(err)`.
   A new bring-a-file window must do the same. Test files made by real programs live in `testdata/spreadsheets/`.
+- **Google Sheets (23.42):** put `<GoogleSheetLink onFile={(f) => choose(f)} />` beside a window's file button. It renders
+  nothing unless the shop's Google account is linked, and hands over a stand-in `File` that `readSpreadsheet` reads
+  through `readThrough` (another tab asks Google again), so the window needs no other change.
 - **Match columns (23.36):** Books import keeps the owner's matches for unknown headings in `columns` state and passes
   them to `planImport({ columns })`; `mapHeadings` ignores a match for `id`, for a field a known heading already fills,
-  or for a field matched twice. Choosing a new file clears the matches.
+  or for a field matched twice. Choosing a new file starts from the matches remembered by `columnMemory.ts` (23.41, this
+  browser only, saved when the import runs) for its unknown headings.
 - **Sheets (23.37):** a window that reads one file uses `readSpreadsheet(file, sheet)` and shows `<SheetChoice>` beside the
   file name (renders nothing for one sheet or a text file); changing it calls the window's `choose(file, sheet)` again.
 - **Excel downloads (23.38):** `xlsxWriter.ts` `toXlsx(rows, sheet)` / `saveTable(base, csv, format, sheet)`; a new table
@@ -562,13 +566,20 @@ see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `A
   on opens a full-size `Dialog` (`size="full"`): Previous/Next look (and arrow keys), Computer/Phone, Home/Product page,
   Your products/Samples (`sampleProducts(publishes)` when the press has none). Each look's faces load from Google Fonts
   once (`useLookFonts`). Drawn, not the real storefront, because setup mode has no shop to render.
-- **Set up your shop** (`overview/SetupGuideCard.tsx`, pure `firstWeek.ts`): eight steps per answer (`ORDER`; the first-
-  book step is `bring-books`, `import-spreadsheet` or `add-books`): logo, look, books, shipping (starter words per
-  country, `shippingStarterWords`), Get paid (`card-account` ok on platform shops, plan 7.9; the payment checks on own
-  keys), web address (custom domain, or the owner ticks "Keep the free address"), practice order (an `isTest` paid or
-  refunded order, plan 7.6; done once the shop is open), Open your shop (no wall, no maintenance). Gmail is never a
-  step. Three open steps show (`guideParts`), the rest under **Later**, done ones under **Done**. **Open your shop**
-  runs `openBlockers` (Ready to sell's `block` rows) and, when none, Dashboard's `toggleUnderConstruction(false)`
+- **Set up your shop** (`overview/SetupGuideCard.tsx`, pure `firstWeek.ts`; regrouped 4 November 2026, plan 28): one
+  order for every answer, in three parts (`GROUPS`), Shopify-style: **Your shop** (the first-book step, `bring-books`,
+  `import-spreadsheet` or `add-books` per answer; logo; look), **Ready to sell** (shipping, starter words per country,
+  `shippingStarterWords`; taxes, Ready to sell's `tax` ok: rates set or collection off; Get paid, `card-account` ok on
+  platform shops, plan 7.9, the payment checks on own keys; store policies, Ready to sell's `policies` ok), **Launch**
+  (web address, optional: custom domain, or the owner ticks "Keep the free address"; practice order, an `isTest` paid or
+  refunded order, plan 7.6, done once the shop is open; Open your shop, no wall, no maintenance). Rule: every Ready to
+  sell `block` row has a step before Open your shop (firstWeek.test.ts). Rows are the setup-mode guide's accordion:
+  `nextStep` (first open non-optional) opens by itself, any other row on a click, each part shows done/total (every row
+  counted). Then **Reach more shoppers**, optional: Google (`#settings/google`, ticks on `firstWeek.google.connected`)
+  and social media (ticked by hand). Optional steps never keep the guide on Home. A step with `hash` + `anchor` opens a
+  sub tab and scrolls to a card (`jumpWhenShown`): policies and web address → `#settings/general/details`. Taxes is
+  tickable ("I don't collect tax yet": with no rate no tax is charged). Gmail is
+  never a step. **Open your shop** runs `openBlockers` (Ready to sell's `block` rows) and, when none, Dashboard's `toggleUnderConstruction(false)`
   (passed down as `onSetWall`). The `online` answer has a ninth step after it, **Move over from your old shop**
   (`switch`, ticked by hand, plan 23.8), opening Settings › General where **Check your old links** sits under URL
   redirects (`OldLinksCheck.tsx`, pure `oldLinks.ts`; the server's `readOldLinks` action reads the old shop's site map

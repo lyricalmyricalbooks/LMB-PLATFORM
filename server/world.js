@@ -54,7 +54,8 @@ import { createAppMakers } from "../services/apps/makers.js";
 import { createAppInstalls } from "../services/apps/installs.js";
 import { createAppConnection } from "../services/apps/connection.js";
 import { createAppAlerts } from "../services/apps/alerts.js";
-import { appInstallPublicRoutes, appInstallRoutes, appMakerRoutes, appStorePublicRoutes } from "../services/apps/routes.js";
+import { appInstallPublicRoutes, appInstallRoutes, appMakerRoutes, appShopDoorRoutes, appStorePublicRoutes } from "../services/apps/routes.js";
+import { createAppShopDoor } from "../services/apps/shopDoor.js";
 import { createRecovery, recoveryByHand } from "../accounts/recovery.js";
 import { recoveryRoutes } from "../accounts/recoveryRoutes.js";
 import { deviceWatch } from "../accounts/devices.js";
@@ -86,6 +87,8 @@ import { createSalesChannels, salesChannelsRoutes } from "../control-room/salesC
 import { createShopFeatures, shopFeaturesRoutes } from "../control-room/shopFeatures.js";
 import { createShopLooks, shopLooksRoutes } from "../control-room/shopLooks.js";
 import { createShopEmails, shopEmailsRoutes } from "../control-room/shopEmails.js";
+import { appUseRoutes, createAppUse } from "../control-room/appUse.js";
+import { createShopSocial, shopSocialRoutes } from "../control-room/shopSocial.js";
 import { deliveryReader } from "../control-room/delivery.js";
 import { createJobs } from "../services/jobs/index.js";
 import { createPressMessages, messageRoutes } from "../control-room/messages.js";
@@ -240,8 +243,8 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const appMakers = createAppMakers({ store: appStore, admins, now });
   // Installing them on a shop with its owner's permission (26.2).
   const appInstallStore = firestoreAppInstalls(platform);
-  // Alerts to apps when orders, products or stock change, and when an app is removed (26.4; the app-alerts job).
   const appAlertOutbox = firestoreAppAlerts(platform);
+  // Alerts to apps when orders, products or stock change, and when an app is removed (26.4; the app-alerts job).
   const appAlerts = createAppAlerts({
     apps: appStore, installs: appInstallStore, outbox: appAlertOutbox, state: firestoreAppAlertState(platform), shopData, fetch, now,
   });
@@ -277,6 +280,9 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const shopFeatures = createShopFeatures({ admins, registry, shopData, now });
   const shopLooks = createShopLooks({ admins, registry, shopData, now });
   const shopEmails = createShopEmails({ admins, registry, emailLog: sentLog, now });
+  const appUse = createAppUse({ admins, installs: appInstallStore, outbox: appAlertOutbox, now });
+  // Social channels (27.8): the social service has no hosted home yet (services/social/index.js), so the room says so.
+  const shopSocial = createShopSocial({ admins, registry, social: null, now });
   const salesChannels = createSalesChannels({ admins, registry, shopData, stockroomData, now });
   // The billing export to BigQuery isn't on yet (19.15): the Costs page shows its "not on yet" state.
   const costsDesk = createCostsDesk({ registry, reader: createCostReader({}), settings: live, admins, now });
@@ -334,13 +340,15 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...shopFeaturesRoutes(shopFeatures),
     ...shopLooksRoutes(shopLooks),
     ...shopEmailsRoutes(shopEmails),
+    ...appUseRoutes(appUse),
+    ...shopSocialRoutes(shopSocial),
     ...driftRoutes(driftDesk),
     ...messageRoutes(pressMessages),
     ...costRoutes(costsDesk),
     ...exportRoutes(dataExports),
   };
   const door = createApi({
-    signup, verifyIdToken: createIdTokenVerifier({ projectId, fetch, now: nowMs }), settings, live, plusTax: readBillingConfig(env).tax, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls) },
+    signup, verifyIdToken: createIdTokenVerifier({ projectId, fetch, now: nowMs }), settings, live, plusTax: readBillingConfig(env).tax, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls), ...appShopDoorRoutes(createAppShopDoor({ registry, installs: appInstalls, makers: appMakers })) },
     onSignedIn: deviceWatch({ devices: firestoreDevices(platform), email, now }),
     limits: createLimits({ throttle: firestoreThrottle(platform), admins, proxyHops: proxyHopsOf(env), now, log }),
     log,

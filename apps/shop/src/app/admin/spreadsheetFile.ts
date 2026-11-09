@@ -26,11 +26,22 @@ export async function spreadsheetText(file: Blob & { name?: string }, sheet?: st
 
 export type SpreadsheetRead = { text: string; sheet: string; sheets: string[] };
 
+// A file that stands in for something read elsewhere (a Google Sheet, plan 23.42): reading it, or another of its
+// sheets, asks its source again, so every window takes it like a chosen file.
+const sources = new WeakMap<Blob, (sheet?: string) => Promise<SpreadsheetRead>>();
+/** Makes `file` read through `read` instead of its own bytes. */
+export function readThrough<T extends Blob>(file: T, read: (sheet?: string) => Promise<SpreadsheetRead>): T {
+  sources.set(file, read);
+  return file;
+}
+
 /**
  * One sheet of the file as CSV text, with the workbook's visible sheets so a window can offer the others (plan 23.37).
  * With no sheet named, the first visible sheet that has anything in it is read. A text file has no sheets.
  */
 export async function readSpreadsheet(file: Blob & { name?: string }, sheet?: string): Promise<SpreadsheetRead> {
+  const source = sources.get(file);
+  if (source) return source(sheet);
   const bytes = new Uint8Array(await file.arrayBuffer());
   const name = String(file.name || "").toLowerCase();
   if (bytes[0] === 0xd0 && bytes[1] === 0xcf && bytes[2] === 0x11 && bytes[3] === 0xe0) return readBook(xlsBook(bytes), sheet);

@@ -6,6 +6,7 @@ import { A11Y_BOOKS } from "../a11yFixture/books";
 import { inventoryLinkApi } from "../app/admin/inventoryLinkApi";
 import { addressKey } from "../app/admin/fulfillment";
 import { googleConnectApi, readGoogleStatus } from "../app/admin/googleConnect";
+import { appsApi } from "../app/admin/appActivity";
 
 const order = (n: number, status: string, name: string) => ({
   id: `o${n}`, orderId: `FIXTURE-${n}`, status, paymentStatus: "paid", createdAt: new Date(Date.now() - n * 3_600_000).toISOString(),
@@ -135,6 +136,18 @@ if (new URLSearchParams(location.search).get("move")) {
   (globalThis as any).__fixtureIdToken = "fixture-token";
 }
 
+// ?guide=1 (Set up your shop screenshots): a private shop that finished Get started, with books and a logo, so Home
+// shows the setup guide part way through.
+if (new URLSearchParams(location.search).get("guide")) {
+  const at = "2026-11-01T10:00:00.000Z";
+  const week: any = { plan: "both", sellingToday: "starting", publishes: "books", details: { at }, bring: { at, skipped: true },
+    welcome: { at, theme: "riso" }, google: { at, skipped: true }, payments: { at, skipped: true }, shipping: { at, skipped: true }, finalCheck: { at } };
+  const api = adminApi as any;
+  api.getFirstWeek = async () => JSON.parse(JSON.stringify(week));
+  api.updateFirstWeek = async (change: any) => { const { done, ...rest } = change; Object.assign(week, rest); if (done) week.done = { ...week.done, ...done }; };
+  api.getSettings = async () => ({ design: { showUnderConstruction: true, logoUrl: "https://photos.example/logo.png" } });
+}
+
 // ?gstate=coming|ready|connected|trouble (Settings › Google screenshots): a pretend Google link, nothing reaches Google.
 // coming: not switched on yet · ready: switched on, not connected · connected: all working · trouble: needs a look.
 const gstate = new URLSearchParams(location.search).get("gstate");
@@ -164,6 +177,43 @@ if (gstate) {
   googleConnectApi.turnOff = async (extras: any) => { calls.push(["turnOff", extras]); return status; };
   googleConnectApi.shoppingProblems = async () => ({ available: true, problems: gstate === "trouble" ? [{ offerId: "b3", title: "Night Songs", issues: [{ severity: "DISAPPROVED", description: "The photo has a border.", resolution: "Upload a photo without one." }] }] : [] });
   googleConnectApi.sendStockSheet = async () => ({ available: true, url: "https://docs.google.com/spreadsheets/d/example/edit", rows: 24 });
+  // A pasted Google Sheet link (plan 23.42): two tabs of books; under ?gstate=trouble reading isn't allowed yet.
+  googleConnectApi.readSheet = async (args: any) => {
+    calls.push(["readSheet", args]);
+    if (gstate === "trouble") return { available: false };
+    return {
+      available: true, title: "Spring list", sheet: args.sheet ?? "Books", sheets: ["Books", "Zines"],
+      rows: args.sheet === "Zines"
+        ? [["Title", "Price", "Stock"], ["Moth Zine", "6.00", "40"]]
+        : [["Title", "Writer", "Cost to buyer", "Stock"], ["Spring Light", "R. Field", "22.00", "12"], ["Low Tide", "M. Shore", "18.50", "5"]],
+    };
+  };
+}
+
+// Settings › Apps: a pretend app store, two installed apps and their activity (?apps=none for the empty page).
+{
+  const perms = (list: Array<[string, string, boolean?]>) => list.map(([scope, words, personal]) => ({ scope, words, personal: !!personal }));
+  const store = [
+    { appId: "app_0000000000a1", name: "Parcel Pal", tagline: "Cheaper Canada Post labels, printed from your orders.", description: "Buy labels at business rates, print them in one go, and tracking goes on each order by itself.", category: "orders-shipping", categoryName: "Orders and shipping", supportEmail: "help@parcelpal.example", website: "https://parcelpal.example", installAddress: "https://parcelpal.example/start",
+      permissions: perms([["read_shop", "See your shop's name, address and currency"], ["write_orders", "Add tracking and mark orders as sent", true]]) },
+    { appId: "app_0000000000b2", name: "Letterbox", tagline: "Newsletters that send themselves when a book comes out.", description: "", category: "marketing", categoryName: "Marketing and email", supportEmail: "hi@letterbox.example", website: "https://letterbox.example", installAddress: "https://letterbox.example/install",
+      permissions: perms([["read_products", "See your products, prices and photos"], ["read_customers", "See your customers' names, emails and addresses", true]]) },
+    { appId: "app_0000000000c3", name: "Zap Shelf", tagline: "Connect your shop to 6,000 other apps.", description: "", category: "other", categoryName: "Something else", supportEmail: "help@zapshelf.example", website: "https://zapshelf.example", installAddress: "",
+      permissions: perms([["read_orders", "See your orders, what was in them and where they ship to", true], ["write_inventory", "Change how many of each product you have"]]) },
+    { appId: "app_0000000000d4", name: "Ledger Line", tagline: "Your sales in your accounting app each night.", description: "", category: "accounting", categoryName: "Accounting and taxes", supportEmail: "help@ledgerline.example", website: "https://ledgerline.example", installAddress: "https://ledgerline.example/go",
+      permissions: perms([["read_orders", "See your orders, what was in them and where they ship to", true]]) },
+  ];
+  const none = new URLSearchParams(location.search).get("apps") === "none";
+  let installed = none ? [] : [{ ...store[0], installedAt: "2026-11-02T10:00:00Z", installedBy: "owner@example.com" }, { ...store[1], installedAt: "2026-11-03T10:00:00Z", installedBy: "owner@example.com", testing: true }];
+  const categories = [["orders-shipping", "Orders and shipping"], ["marketing", "Marketing and email"], ["accounting", "Accounting and taxes"], ["other", "Something else"]].map(([id, name]) => ({ id, name }));
+  appsApi.installed = async () => installed as any;
+  appsApi.store = async () => ({ apps: store, categories });
+  appsApi.remove = async (appId: string) => { installed = installed.filter((a) => a.appId !== appId); };
+  appsApi.activity = async () => none ? [] : [
+    { id: "r3", app: "Parcel Pal", what: "Marked order 1042 sent (Canada Post 7023 1100 4410)", when: "2026-11-04T16:10:00Z", state: "done", reason: "" },
+    { id: "r2", app: "Parcel Pal", what: "Marked order 1039 sent (Canada Post 7023 1100 4388)", when: "2026-11-04T15:02:00Z", state: "refused", reason: "Order on hold: waiting on the author's signature." },
+    { id: "r1", app: "Letterbox", what: "Took away 2 of moth-songs", when: "2026-11-04T11:40:00Z", state: "done", reason: "" },
+  ];
 }
 
 const params = new URLSearchParams(location.search);

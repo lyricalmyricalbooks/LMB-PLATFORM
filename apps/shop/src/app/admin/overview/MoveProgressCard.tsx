@@ -5,15 +5,8 @@ import { adminApi } from "../api";
 import type { FirstWeekDoc } from "../firstWeek";
 import { MOVE_HIDDEN, moveSteps, moveUnfinished, movingShop, showMoveProgress, type MoveStep } from "../moveProgress";
 import { GhostButton, SecondaryButton, SectionCard, StatusBadge } from "../riso/components";
-import { jumpTo } from "../settingsLayout";
+import { jumpWhenShown } from "../settingsLayout";
 import { useShopWords } from "../shopWords";
-
-/** Scrolls to a card once the page that holds it is showing (Settings loads on its own, after the address changes). */
-function showWhenShown(id: string, tries = 50) {
-  const el = document.getElementById(id);
-  if (el && el.offsetParent !== null) return jumpTo(id);
-  if (tries > 0) window.setTimeout(() => showWhenShown(id, tries - 1), 100);
-}
 
 /**
  * Overview › Your move so far (plan 23.17): the five parts of an old shop that can come over, each ticked once its
@@ -41,7 +34,7 @@ export function MoveProgressCard({ doc, setDoc, onOpen }: {
   const open = (s: MoveStep) => {
     if (!s.hash) return onOpen?.(s.tab);
     window.location.hash = s.hash;
-    if (s.anchor) showWhenShown(s.anchor);
+    if (s.anchor) jumpWhenShown(s.anchor);
   };
 
   const tick = async (id: string) => {

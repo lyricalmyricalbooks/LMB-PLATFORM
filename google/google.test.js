@@ -843,6 +843,45 @@ test("an Expenses tab is added beside the others and counted", async () => {
   assert.equal((await t.call("google.status")).body.sheet.expenses, 1);
 });
 
+test("a Google Sheet the press names is read, tab by tab, only with the Drive box ticked (23.42)", async () => {
+  const t = await setup();
+  const ID = "1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789";
+  t.google.world.spreadsheets.set(ID, { title: "Old shop list", ids: { Cover: 0, Books: 7, Secret: 9 }, hidden: ["Secret"],
+    tabs: { Cover: [], Books: [["Title", "Price"], ["Moth Book", "$18.00"], ["Second", null]], Secret: [["x"]] } });
+  assert.deepEqual((await t.call("google.sheetRead", { spreadsheetId: ID })).body, { available: false });
+  // Signed in before the Drive box was asked for reading: the press is asked to allow it.
+  await t.signIn({ scopes: [...SCOPES.identity, ...SCOPES.drive] });
+  assert.deepEqual((await t.call("google.sheetRead", { spreadsheetId: ID })).body, { available: false });
+  await t.signIn({ extras: ["drive"] });
+  const first = await t.call("google.sheetRead", { spreadsheetId: ID });
+  assert.equal(first.status, 200, JSON.stringify(first.body));
+  assert.deepEqual(first.body, { available: true, title: "Old shop list", sheet: "Books", sheets: ["Cover", "Books"], rows: [["Title", "Price"], ["Moth Book", "$18.00"], ["Second", ""]] });
+  assert.equal((await t.call("google.sheetRead", { spreadsheetId: ID, gid: 7 })).body.sheet, "Books");
+  assert.deepEqual((await t.call("google.sheetRead", { spreadsheetId: ID, sheet: "Cover" })).body.rows, []);
+  const missingTab = await t.call("google.sheetRead", { spreadsheetId: ID, sheet: "Nope" });
+  assert.equal(missingTab.body.error.code, "tab_not_found");
+  const missing = await t.call("google.sheetRead", { spreadsheetId: "1ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ" });
+  assert.equal(missing.status, 404);
+  assert.match(missing.body.error.message, /Check the link/);
+  for (const args of [{}, { spreadsheetId: "short" }, { spreadsheetId: ID, gid: -1 }, { spreadsheetId: ID, sheet: "" }]) {
+    assert.equal((await t.call("google.sheetRead", args)).status, 400);
+  }
+  // Reading never changes anything in the press's Drive.
+  assert.ok(!changeNames(t).some((name) => /sheet/i.test(name)));
+});
+
+test("the Drive box asks to read sheets too, and backups don't depend on it", async () => {
+  const t = await setup();
+  const url = new URL((await t.call("google.connectLink", { returnUrl: ADMIN, extras: ["drive"] })).body.url);
+  const scopes = url.searchParams.get("scope").split(" ");
+  assert.ok(scopes.includes(SCOPES.sheets[0]));
+  const without = new URL((await t.call("google.connectLink", { returnUrl: ADMIN, extras: [] })).body.url);
+  assert.ok(!without.searchParams.get("scope").split(" ").includes(SCOPES.sheets[0]));
+  // Drive box ticked, the sheet-reading permission unticked on Google's page: the stock sheet still goes out.
+  await t.signIn({ extras: ["drive"], scopes: [...SCOPES.identity, ...SCOPES.drive] });
+  assert.equal((await t.call("google.sheetSync", { rows: STOCK })).body.available, true);
+});
+
 test("Gmail sending stops at 80% of the daily limit, the email goes the usual way, and it starts again the next day (15.24)", async () => {
   const t = await setup({ env: { ...ENV, GOOGLE_GMAIL_SENDING: "on" } });
   await t.signIn();

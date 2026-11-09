@@ -3,11 +3,11 @@ import toast from "react-hot-toast";
 import { CalendarDays, ChartColumn, Clapperboard, ExternalLink, Globe, HardDrive, Mail, MapPin, Megaphone, Search, ShieldCheck, ShoppingBag, type LucideIcon } from "lucide-react";
 import { ErrorState, GhostButton, LoadingState, PrimaryButton, SecondaryButton, StatusBadge, Toggle, useConfirm } from "./riso/components";
 import { friendlyError } from "./settingsLayout";
-import { RECONNECT_WORDS, googleConnectApi, takeGoogleOutcome, useGoogleConnect, type GoogleExtra, type GoogleStatus, type ShoppingProblems, type StockSheet } from "./googleConnect";
+import { GOOGLE_BUTTON_WORDS, RECONNECT_WORDS, googleConnectApi, takeGoogleOutcome, useGoogleConnect, type GoogleExtra, type GoogleStatus, type ShoppingProblems, type StockSheet } from "./googleConnect";
 import { extrasChanged, googleServices, googleSummary, serviceBadge, type ServiceId, type ServiceView } from "./googleHub";
 import { useShopWords } from "./shopWords";
 import { hasStockroom } from "../../lib/shopProfile";
-import { BrandLogo, type BrandId } from "../components/brand/BrandLogo";
+import { BrandLogo, GoogleSignInButton, type BrandId } from "../components/brand/BrandLogo";
 import "./google.css";
 
 // Settings › Google: one page for every Google service, as cards (googleHub.ts). The included parts come with the one
@@ -148,7 +148,7 @@ export function GoogleHub({ status }: { status: GoogleStatus }) {
             )}
             <div className="gg-actions">
               {status.enabled && (!status.connected || status.needsReconnect) && (
-                <PrimaryButton disabled={signIn.busy} onClick={() => signIn.go(picked)}>{signIn.busy ? "Opening Google…" : status.needsReconnect ? RECONNECT_WORDS.button : "Connect Google"}</PrimaryButton>
+                <GoogleSignInButton disabled={signIn.busy} aria-busy={signIn.busy || undefined} onClick={() => signIn.go(picked)}>{GOOGLE_BUTTON_WORDS}</GoogleSignInButton>
               )}
             </div>
           </div>
@@ -198,7 +198,10 @@ export function GoogleHub({ status }: { status: GoogleStatus }) {
           <span role="status">{saveWords(change)}</span>
           <span style={{ display: "flex", gap: 8 }}>
             <SecondaryButton onClick={() => setPicked(saved)} disabled={signIn.busy || saving}>Discard</SecondaryButton>
-            <PrimaryButton onClick={saveExtras} disabled={signIn.busy || saving}>{signIn.busy ? "Opening Google…" : saving ? "Saving…" : change.added.length ? "Save with Google" : "Save"}</PrimaryButton>
+            {/* Switching an extra on opens Google's sign-in, so it gets Google's own button and words. */}
+            {change.added.length
+              ? <GoogleSignInButton onClick={saveExtras} disabled={signIn.busy || saving} aria-busy={signIn.busy || saving || undefined}>{GOOGLE_BUTTON_WORDS}</GoogleSignInButton>
+              : <PrimaryButton onClick={saveExtras} disabled={saving}>{saving ? "Saving…" : "Save"}</PrimaryButton>}
           </span>
         </div>
       )}

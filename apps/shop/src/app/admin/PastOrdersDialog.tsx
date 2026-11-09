@@ -5,6 +5,7 @@ import { importPastOrders, ratePastOrder, removePastOrders, suggestedRates } fro
 import { goodRate, mergePastOrderFiles, readPastOrders, readyToSend, type PastOrder, type PastOrderFile } from "./pastOrders";
 import { Dialog, GhostButton, PrimaryButton, SecondaryButton, StatusBadge, TextField } from "./riso/components";
 import { SPREADSHEET_ACCEPT, readProblem, spreadsheetText } from "./spreadsheetFile";
+import { GoogleSheetLink } from "./GoogleSheetLink";
 
 /**
  * Orders › Bring past orders over (plan 23.7): the old shop's order file → a preview → the server saves each order as
@@ -191,6 +192,7 @@ export function PastOrdersDialog({ onClose, onDone }: { onClose: () => void; onD
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
           <SecondaryButton icon={<Upload size={16} aria-hidden />} disabled={busy} onClick={() => { adding.current = false; fileRef.current?.click(); }}>{chosen.length ? "Choose other files" : "Choose the file"}</SecondaryButton>
           {chosen.length > 0 && <GhostButton disabled={busy} onClick={() => { adding.current = true; fileRef.current?.click(); }}>Add another file</GhostButton>}
+          <GoogleSheetLink disabled={busy} onFile={(f) => void choose([f], chosen.length > 0)} />
           {chosen.length > 0 && <span className="rp-mono" style={{ overflowWrap: "anywhere" }}>{chosen.map((c) => c.name).join(", ")}</span>}
         </div>
         {!file && <p className="rp-hint" style={{ margin: 0 }}>In your old shop, open its orders page and export them as a CSV or Excel file. If it gives you one file per year or per month, choose them all: they come over together.</p>}

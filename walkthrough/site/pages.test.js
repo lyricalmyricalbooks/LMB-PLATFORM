@@ -1,16 +1,19 @@
-// The walkthrough web site's workflow may publish only what build.js wrote, and never holds a key.
+// The repository's GitHub Pages address only sends people to the real app (owner, 9 November 2026): no walkthrough
+// pictures are published any more, and the workflow never holds a key.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
-const workflow = readFileSync(new URL("../../.github/workflows/walkthrough-site.yml", import.meta.url), "utf8");
+const workflow = readFileSync(new URL("../../.github/workflows/pages-to-app.yml", import.meta.url), "utf8");
 
-test("the site workflow publishes only the folder build.js wrote", () => {
-  assert.match(workflow, /node walkthrough\/site\/build\.js site/);
-  assert.match(workflow, /upload-pages-artifact@[0-9a-f]{40} # v3[.\d]*\s+with:\s+path: site/);
+test("GitHub Pages publishes only the page that goes to the live app", () => {
+  assert.ok(!existsSync(new URL("../../.github/workflows/walkthrough-site.yml", import.meta.url)), "the walkthrough is no longer published");
+  assert.doesNotMatch(workflow, /walkthrough\/site\/build\.js/);
+  assert.match(workflow, /url=https:\/\/lmb-platform-prod\.web\.app\//);
+  assert.match(workflow, /upload-pages-artifact@[0-9a-f]{40} # v3[.\d]*\s+with:\s+path: pages/);
 });
 
-test("the site workflow uses no secrets and deploys only off pull requests", () => {
+test("the Pages workflow uses no secrets and never runs for a pull request", () => {
   assert.doesNotMatch(workflow, /secrets\./);
-  assert.match(workflow, /if: github\.event_name != 'pull_request'/);
+  assert.doesNotMatch(workflow, /pull_request/);
 });

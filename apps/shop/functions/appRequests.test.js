@@ -80,16 +80,16 @@ describe("inventory.adjust", () => {
       "appRequests/r2": adjust({ productId: "b1", change: -9 }),
       "appRequests/r3": adjust({ productId: "t1", variantId: "l", change: 4 }),
     });
-    expect(await applyAppRequest(db, "r1", now)).toMatchObject({ status: "done", result: { available: 3 } });
-    expect((await applyAppRequest(db, "r2", now)).result).toEqual({ available: 0 });
-    expect((await applyAppRequest(db, "r3", now)).result).toEqual({ available: 5 });
+    expect(await applyAppRequest(db, "r1", now)).toMatchObject({ status: "done", result: { available: 3, title: "Moth Songs" } });
+    expect((await applyAppRequest(db, "r2", now)).result).toMatchObject({ available: 0 });
+    expect((await applyAppRequest(db, "r3", now)).result).toMatchObject({ available: 5 });
     expect(db.docs["books/t1"].data.variants).toEqual([{ id: "s", stockLevel: 2, stock: 2 }, { id: "l", stockLevel: 5, stock: 5 }]);
   });
 
   test("expected guards against a sale made meanwhile", async () => {
     const db = fakeDb({ "books/b1": book, "appRequests/r1": adjust({ productId: "b1", change: 5, expected: 4 }), "appRequests/r2": adjust({ productId: "b1", change: 5, expected: 5 }) });
     expect((await applyAppRequest(db, "r1", now)).reason).toMatch(/now 5, not 4/);
-    expect((await applyAppRequest(db, "r2", now)).result).toEqual({ available: 10 });
+    expect((await applyAppRequest(db, "r2", now)).result).toMatchObject({ available: 10 });
   });
 
   test("refused: stockroom-linked, not counted, no variant given, bad change", async () => {

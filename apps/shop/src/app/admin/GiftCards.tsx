@@ -19,6 +19,7 @@ import {
 import { batches, readGiftCardFile, type GiftCardFile } from "./giftCardMove";
 import { shopDate } from "../features/site/preorder";
 import { SPREADSHEET_ACCEPT, readProblem, readSpreadsheet, type SpreadsheetRead } from "./spreadsheetFile";
+import { GoogleSheetLink } from "./GoogleSheetLink";
 import { FirstRows, SheetChoice } from "./SheetChoice";
 
 type Filter = "all" | GiftCardStatus["key"];
@@ -199,6 +200,7 @@ export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone:
           onChange={(e) => { void choose(e.target.files?.[0]); e.target.value = ""; }} />
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
           <SecondaryButton icon={<Upload size={16} aria-hidden />} disabled={busy} onClick={() => fileRef.current?.click()}>{name ? "Choose another file" : "Choose the file"}</SecondaryButton>
+          <GoogleSheetLink disabled={busy} onFile={(f) => void choose(f)} />
           {name && <span className="rp-mono" style={{ overflowWrap: "anywhere" }}>{name}</span>}
           {book && <SheetChoice sheets={book.sheets} sheet={book.sheet} disabled={busy} onChange={(s) => void choose(book.file, s)} />}
         </div>

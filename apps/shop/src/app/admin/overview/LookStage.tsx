@@ -248,7 +248,7 @@ function ProductPage({ look, product, phone, books }: { look: LookPreview; produ
       <div style={{ display: "grid", gap: 16 }}>
         <span style={{ fontSize: 13, color: look.muted, textTransform: "uppercase", letterSpacing: "0.1em" }}>{product.maker}</span>
         <h2 style={{ margin: 0, fontFamily: look.headingFont, fontWeight: look.headingWeight, fontSize: phone ? 34 : 52, lineHeight: 1, textTransform: look.uppercase ? "uppercase" : "none" }}>{product.title || "Untitled"}</h2>
-        <span style={{ fontSize: 22, fontWeight: 700 }}>{product.price || "$24"}</span>
+        <span style={{ fontSize: 22, fontWeight: 700 }}>{product.price || "CA$ 24.00"}</span>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <span style={{ ...pill(look, false), borderWidth: 2, borderColor: look.text }}>{books ? "Paperback" : "Standard"}</span>
           <span style={pill(look, false)}>{books ? "Signed copy" : "Gift wrapped"}</span>

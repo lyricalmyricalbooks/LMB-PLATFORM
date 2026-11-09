@@ -97,6 +97,21 @@ describe("Connect Google in the admin", () => {
     expect(expensesSheetRows(undefined)).toBeNull();
   });
 
+  test("a Google Sheet is asked for by its id and tab only, and a bad id is refused before the platform is asked (23.42)", async () => {
+    const { run, calls } = make();
+    const id = "1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789";
+    await run({ step: "sheetRead", spreadsheetId: id });
+    await run({ step: "sheetRead", spreadsheetId: id, sheet: "Books", gid: 7, extra: "x" });
+    await run({ step: "sheetRead", spreadsheetId: id, sheet: "", gid: -2 });
+    expect((await run({ step: "sheetRead", spreadsheetId: "../../etc" })).statusCode).toBe(400);
+    expect((await run({ step: "sheetRead" })).statusCode).toBe(400);
+    expect(calls.map((c) => [c.op, c.args])).toEqual([
+      ["google.sheetRead", { spreadsheetId: id }],
+      ["google.sheetRead", { spreadsheetId: id, sheet: "Books", gid: 7 }],
+      ["google.sheetRead", { spreadsheetId: id }],
+    ]);
+  });
+
   test("a stockroom that can't be read sends nothing", async () => {
     const { run, calls } = make({ readStock: async () => { throw new Error("NOT_FOUND"); } });
     const res = await run({ step: "sheetSync" });

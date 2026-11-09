@@ -171,6 +171,20 @@ export function createGoogleApi({ fetch = globalThis.fetch, app, redirectUrl, no
       await call("POST", `${SHEETS}/${enc(spreadsheetId)}/values/${enc(tab)}:clear`, token, { body: {} });
       return call("PUT", `${SHEETS}/${enc(spreadsheetId)}/values/${enc(`${tab}!A1`)}`, token, { query: { valueInputOption: "RAW" }, body: { range: `${tab}!A1`, majorDimension: "ROWS", values } });
     },
+    /** A sheet's title and its tabs (plan 23.42). */
+    async readSheetInfo(token, spreadsheetId) {
+      const answer = await call("GET", `${SHEETS}/${enc(spreadsheetId)}`, token, { query: { fields: "properties.title,sheets.properties(sheetId,title,hidden)" } });
+      return {
+        title: String(answer.properties?.title ?? ""),
+        tabs: (answer.sheets ?? []).map((s) => ({ id: s.properties?.sheetId ?? 0, title: String(s.properties?.title ?? ""), hidden: s.properties?.hidden === true })),
+      };
+    },
+    /** One tab's cells as the press sees them (formatted text: a date stays a date, a price keeps its look). */
+    async readSheetValues(token, spreadsheetId, tab) {
+      const range = `'${tab.replace(/'/g, "''")}'`;
+      const answer = await call("GET", `${SHEETS}/${enc(spreadsheetId)}/values/${enc(range)}`, token, { query: { majorDimension: "ROWS", valueRenderOption: "FORMATTED_VALUE" } });
+      return answer.values ?? [];
+    },
     myChannel: async (token) => (await call("GET", `${YOUTUBE}/channels`, token, { query: { part: "snippet", mine: "true" } })).items?.[0] ?? null,
     channelVideos: async (token, channelId) =>
       (await call("GET", `${YOUTUBE}/search`, token, { query: { part: "snippet", channelId, type: "video", order: "date", maxResults: 50 } })).items ?? [],

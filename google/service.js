@@ -13,6 +13,10 @@
 //   google.productProblems               the books Google Shopping turned down, each with what to fix, in plain words
 //   google.sheetSync { tabs: { Stock, Sales, Expenses } } (or { rows } for Stock) rewrites the tabs of one spreadsheet in the press's own Drive
 //                                        (made the first time; only with the Drive box ticked), and answers its address
+//   google.sheetRead { spreadsheetId, sheet?, gid? }
+//                                        reads one tab of a Google Sheet the press names by its link (plan 23.42): the
+//                                        tab asked for, else the one the link points at, else the first visible tab with
+//                                        anything in it; answers its title, the visible tabs and the cells as text
 //   google.tryAgain { step }             one connect step again (the shop's Try again)
 //   google.disconnect                    the closing steps of the teardown job: the shop stays open
 import { randomBytes } from "node:crypto";
@@ -55,6 +59,21 @@ function sheetTabs({ rows, tabs } = {}) {
 }
 const bad = (message) => new GoogleLinkError(400, "bad_request", message);
 
+const MAX_READ_ROWS = 10000;
+const MAX_READ_COLUMNS = 100;
+/** A sheet named by its link: Google's id, and a tab by name or by the link's `gid` number. */
+function sheetAsked({ spreadsheetId, sheet, gid } = {}) {
+  if (typeof spreadsheetId !== "string" || !/^[A-Za-z0-9_-]{20,128}$/.test(spreadsheetId)) throw bad("spreadsheetId must be a Google Sheet's id");
+  if (sheet !== undefined && (typeof sheet !== "string" || !sheet || sheet.length > 100)) throw bad("sheet must be a tab's name");
+  if (gid !== undefined && !(Number.isInteger(gid) && gid >= 0)) throw bad("gid must be a tab number");
+  return { spreadsheetId, sheet, gid };
+}
+/** Cells read back as text, cut to a size a shop's window takes in (10,000 lines of up to 100 cells). */
+function sheetCells(rows) {
+  if (rows.length > MAX_READ_ROWS) throw new GoogleLinkError(413, "sheet_too_large", "This sheet has more than 10,000 lines. Split it into smaller sheets and bring them in one at a time.");
+  return rows.map((line) => (Array.isArray(line) ? line.slice(0, MAX_READ_COLUMNS) : []).map((cell) => (cell === null || cell === undefined ? "" : String(cell).slice(0, 5000))));
+}
+
 export function createGoogleService({ config, google, tokens, states, registry, connect, teardown, now = () => Date.now() }) {
   const isOn = () => config.enabled && Boolean(config.app);
 
@@ -64,6 +83,8 @@ export function createGoogleService({ config, google, tokens, states, registry, 
       ...SCOPES.identity, ...SCOPES.analytics, ...SCOPES.searchConsole, ...SCOPES.merchantCenter,
       ...(config.gmailSending ? SCOPES.email : []),
       ...extras.flatMap((extra) => SCOPES[extra]),
+      // Reading a sheet the press brings in rides on the Drive box (plan 23.42).
+      ...(extras.includes("drive") ? SCOPES.sheets : []),
     ];
   }
 
@@ -161,6 +182,30 @@ export function createGoogleService({ config, google, tokens, states, registry, 
       const next = { ...sheet, writtenAt: new Date(now()).toISOString(), rows: lines.Stock, ...extra };
       await saveSheet(next);
       return { available: true, url: next.url, writtenAt: next.writtenAt, rows: next.rows, ...extra };
+    },
+    async "google.sheetRead"(row, args = {}) {
+      const { spreadsheetId, sheet, gid } = sheetAsked(args);
+      const grant = await tokens.fresh(row.shopId);
+      if (!grant || !SCOPES.sheets.every((scope) => grant.scopes.includes(scope))) return { available: false };
+      let book;
+      try {
+        book = await google.readSheetInfo(grant.token, spreadsheetId);
+      } catch (err) {
+        if (err?.status === 404 || err?.status === 403) throw new GoogleLinkError(404, "sheet_not_found", "Google can't open that sheet. Check the link, and that the sheet belongs to the Google account linked to your shop or is shared with it.");
+        throw err;
+      }
+      const tabs = book.tabs.filter((t) => !t.hidden);
+      let pick = sheet !== undefined ? book.tabs.find((t) => t.title === sheet) : gid !== undefined ? book.tabs.find((t) => t.id === gid) : null;
+      if (sheet !== undefined && !pick) throw new GoogleLinkError(404, "tab_not_found", `This sheet has no tab called “${sheet}”. Bring it in again.`);
+      // As with a file: with no tab named, a cover or empty first tab is passed over.
+      const order = pick ? [pick] : tabs.length ? tabs : book.tabs.slice(0, 1);
+      let rows = [];
+      for (const tab of order.slice(0, 5)) {
+        rows = await google.readSheetValues(grant.token, spreadsheetId, tab.title);
+        pick = tab;
+        if (rows.length) break;
+      }
+      return { available: true, title: book.title, sheet: pick?.title ?? "", sheets: tabs.map((t) => t.title), rows: sheetCells(rows) };
     },
     async "google.productProblems"(row) {
       const account = row.google?.merchantCenter?.account;

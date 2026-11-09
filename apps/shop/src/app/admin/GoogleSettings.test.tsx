@@ -78,7 +78,7 @@ describe("Settings › Google", () => {
     const maps = card("businessProfile").querySelector("[role=switch]") as HTMLButtonElement;
     await act(async () => { maps.click(); });
     expect(text()).toContain("1 extra changed.");
-    await act(async () => { button("Save with Google")!.click(); });
+    await act(async () => { button("Continue with Google")!.click(); });
     expect(calls).toEqual([["connectLink", ["drive", "businessProfile"]]]);
     expect(window.location.assign).toHaveBeenCalledWith("about:blank");
   });
@@ -97,7 +97,7 @@ describe("Settings › Google", () => {
     await act(async () => { (card("drive").querySelector("[role=switch]") as HTMLButtonElement).click(); });
     await act(async () => { (card("youtube").querySelector("[role=switch]") as HTMLButtonElement).click(); });
     expect(text()).toContain("on the same Google account");
-    await act(async () => { button("Save with Google")!.click(); });
+    await act(async () => { button("Continue with Google")!.click(); });
     expect(calls).toEqual([["connectLink", ["youtube"]]]);
   });
 
@@ -119,7 +119,7 @@ describe("Settings › Google", () => {
     await mount(readGoogleStatus({ enabled: false }));
     expect(document.querySelector("h2")?.textContent).toBe("Google is coming soon");
     expect(document.querySelectorAll(".gg-card")).toHaveLength(10);
-    expect(button("Connect Google")).toBeUndefined();
+    expect(button("Continue with Google")).toBeUndefined();
     expect([...document.querySelectorAll("[role=switch]")].every((s) => (s as HTMLButtonElement).disabled)).toBe(true);
   });
 
@@ -127,7 +127,8 @@ describe("Settings › Google", () => {
     await mount(readGoogleStatus({ enabled: true, connected: false, extrasOffered: ["drive", "ads"] }));
     await act(async () => { (card("ads").querySelector("[role=switch]") as HTMLButtonElement).click(); });
     expect(document.querySelector("[aria-label='Extras not saved yet']")).toBeNull();
-    await act(async () => { button("Connect Google")!.click(); });
+    expect(button("Continue with Google")!.classList.contains("gsi-button")).toBe(true);
+    await act(async () => { button("Continue with Google")!.click(); });
     expect(calls).toEqual([["connectLink", ["ads"]]]);
   });
 });

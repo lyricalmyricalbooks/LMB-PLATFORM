@@ -29,8 +29,9 @@ import { supportRoutes } from "../services/support/routes.js";
 import { fakeSupportStore } from "../services/support/fakes.js";
 import { createAppMakers } from "../services/apps/makers.js";
 import { createAppInstalls } from "../services/apps/installs.js";
-import { appInstallPublicRoutes, appInstallRoutes, appMakerRoutes, appStorePublicRoutes } from "../services/apps/routes.js";
-import { fakeAppInstallStores, fakeAppStore } from "../services/apps/fakes.js";
+import { appInstallPublicRoutes, appInstallRoutes, appMakerRoutes, appShopDoorRoutes, appStorePublicRoutes } from "../services/apps/routes.js";
+import { createAppShopDoor } from "../services/apps/shopDoor.js";
+import { fakeAppAlertStores, fakeAppInstallStores, fakeAppStore } from "../services/apps/fakes.js";
 import { createRecovery, recoveryByHand } from "../accounts/recovery.js";
 import { recoveryRoutes } from "../accounts/recoveryRoutes.js";
 import { fakeRecoveryStore } from "../accounts/fakes.js";
@@ -72,6 +73,11 @@ import { createSalesChannels, salesChannelsRoutes } from "../control-room/salesC
 import { createShopFeatures, shopFeaturesRoutes } from "../control-room/shopFeatures.js";
 import { createShopLooks, shopLooksRoutes } from "../control-room/shopLooks.js";
 import { createShopEmails, shopEmailsRoutes } from "../control-room/shopEmails.js";
+import { appUseRoutes, createAppUse } from "../control-room/appUse.js";
+import { createShopSocial, shopSocialRoutes } from "../control-room/shopSocial.js";
+import { createSocialService } from "../services/social/social.js";
+import { readSocialConfig } from "../services/social/config.js";
+import { fakeConnections, fakeSent, fakeStates } from "../services/social/fakes.js";
 import { createDriftDesk, createDriftWatch, driftRoutes } from "../control-room/driftWatch.js";
 import { deliveryReader } from "../control-room/delivery.js";
 import { fakeDeliveryStats, fakeShopNotes } from "../control-room/visibilityFakes.js";
@@ -212,6 +218,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const appStore = fakeAppStore();
   const appMakers = createAppMakers({ store: appStore, admins: [ADMIN_EMAIL], now: clock.date });
   const appInstallStores = fakeAppInstallStores();
+  const appAlertStores = fakeAppAlertStores();
   const appInstalls = createAppInstalls({
     apps: appStore, makers: appMakers, installs: appInstallStores.installs, codes: appInstallStores.codes, registry, auditLog, now: clock.date,
     roleIn: (person, shopId) => accounts.roleIn(person, shopId),
@@ -248,6 +255,10 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const shopFeatures = createShopFeatures({ admins, registry, shopData, now: clock.date });
   const shopLooks = createShopLooks({ admins, registry, shopData, now: clock.date });
   const shopEmails = createShopEmails({ admins, registry, emailLog: email.emailLog, now: clock.date });
+  const appUse = createAppUse({ admins, installs: appInstallStores.installs, outbox: appAlertStores.outbox, now: clock.date });
+  const socialConnections = fakeConnections();
+  const social = createSocialService({ clients: {}, registry, auditLog, connections: socialConnections, states: fakeStates(), sent: fakeSent(), config: readSocialConfig({}), now: () => clock.date().getTime() });
+  const shopSocial = createShopSocial({ admins, registry, social, now: clock.date });
   const salesChannels = createSalesChannels({ admins, registry, shopData, stockroomData, now: clock.date });
   // Messages to presses (19.14), what each shop costs (19.15; no billing export in the practice world, so the empty
   // state) and a press's data on request (19.16).
@@ -289,13 +300,15 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...shopFeaturesRoutes(shopFeatures),
     ...shopLooksRoutes(shopLooks),
     ...shopEmailsRoutes(shopEmails),
+    ...appUseRoutes(appUse),
+    ...shopSocialRoutes(shopSocial),
     ...driftRoutes(driftDesk),
     ...messageRoutes(pressMessages),
     ...costRoutes(costsDesk),
     ...exportRoutes(dataExports),
   };
   const door = createApi({
-    signup, verifyIdToken: fakeVerifyIdToken, settings, live, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls) },
+    signup, verifyIdToken: fakeVerifyIdToken, settings, live, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls), ...appShopDoorRoutes(createAppShopDoor({ registry, installs: appInstalls, makers: appMakers })) },
     // Fair-use limits (19.5) on an in-memory counter, a hundred times the real ones so a person clicking never meets them.
     limits: createLimits({ throttle: fakeThrottle(), admins, limits: generousLimits(), now: clock.date, log: () => {} }),
     log: () => {},
@@ -304,7 +317,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
 
   return {
     clock, settings, registry, auditLog, services, google, profileFiles, shopData, stockroomData, stripe, email, closed, billing, paymentWay, stripeEvent,
-    stores, frontDoor, frontDoorStores, stagedFiles, signup, shopMaker, run, steps, repairs, repairStore, accounts, accountStores, shopAccess, driftWatch, room, controls, backup, support, appMakers, appStore, appInstalls, recovery, platformState, activity, door, routes, ask, invites, accessRequests,
+    stores, frontDoor, frontDoorStores, stagedFiles, signup, shopMaker, run, steps, repairs, repairStore, accounts, accountStores, shopAccess, driftWatch, room, controls, backup, support, appMakers, appStore, appInstalls, appInstallStores, appAlertStores, socialConnections, recovery, platformState, activity, door, routes, ask, invites, accessRequests,
     deliveryStats, timeline, jobs, jobRuns, jobsPage, notes,
     pressMessages, costsDesk, dataExports, exportStorage,
     /** The shop's own database as the platform wrote it: a document, or null. */

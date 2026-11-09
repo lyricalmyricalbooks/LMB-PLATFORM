@@ -32,6 +32,7 @@ console when a permission is added. **Julian: read the label there and write it 
 | `https://www.googleapis.com/auth/content` | launch | Send the shop's products to Google Shopping | It is the only permission the Merchant API accepts for product data | |
 | `https://www.googleapis.com/auth/gmail.send` | launch (behind its switch) | Send the shop's order emails from the press's own address | Send-only: it cannot read the inbox. Sending is "sensitive", not restricted | |
 | `https://www.googleapis.com/auth/drive.file` | launch | Keep the press's backup folder that Colophon itself made | It only reaches files this app created, never the rest of the press's Drive | |
+| `https://www.googleapis.com/auth/spreadsheets.readonly` | launch (with the Drive box) | Read a Google Sheet the press pastes the link of, to bring books, customers, gift cards, codes or past orders into the shop | Read-only. `drive.file` only reaches sheets Colophon made, and a press's product list is a sheet they made themselves. Sensitive, not restricted | |
 | `https://www.googleapis.com/auth/youtube.readonly` | later | Show the press's own videos on its website | Read-only already | |
 | `https://www.googleapis.com/auth/calendar.app.created` | later | Keep an events calendar Colophon made | It only reaches calendars this app created | |
 | `https://www.googleapis.com/auth/business.manage` | later | Find the press's Business Profile (nothing on it is changed yet) | The only permission Business Profile offers | |

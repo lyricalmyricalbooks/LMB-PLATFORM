@@ -34,17 +34,19 @@ export const GOOGLE_PARTS: Record<string, { label: string; about: string }> = {
   searchConsole: { label: "Google search", about: "Tells Google about your shop and its books, and shows what people search for." },
   merchantCenter: { label: "Google Shopping", about: "Sends your books to Google Shopping's free listings each day." },
   email: { label: "Your emails", about: "Sends your shop's emails from your own address once it is ready." },
-  drive: { label: "Your Google Drive", about: "A copy of your shop each night in a folder you own, and your stock list in a Google Sheet you own." },
+  drive: { label: "Your Google Drive", about: "A copy of your shop each night in a folder you own, your stock list in a Google Sheet, and sheets you bring in by their link." },
   youtube: { label: "YouTube", about: "Pick book trailers from your channel for your book pages." },
   calendar: { label: "Google Calendar", about: "Launches and fairs from your calendar on your website's events." },
   businessProfile: { label: "Google Business Profile", about: "Your opening hours and shop link on Google Maps." },
   ads: { label: "Google Ads", about: "Lets you advertise your books. Nothing is spent unless you start an ad yourself." },
 };
 
+/** The words on Google's own sign-in button: Google's branding rules allow only a few, so every Connect uses this. */
+export const GOOGLE_BUTTON_WORDS = "Continue with Google";
+
 export const RECONNECT_WORDS = {
   title: "Google needs you to sign in again",
   text: "Google stopped letting Colophon in, often after a password change or removing access. Your shop keeps working, and your order emails go out from Colophon's address until you reconnect. Nothing is lost.",
-  button: "Reconnect Google",
 } as const;
 
 const TONE = { done: "success", waiting: "warning", failed: "danger" } as const;
@@ -159,6 +161,8 @@ export const googleConnectApi = {
   shoppingProblems: async (): Promise<ShoppingProblems> => readShoppingProblems(await call({ step: "productProblems" })),
   /** Writes the stockroom's stock list into the press's Google Sheet (made the first time). */
   sendStockSheet: async (): Promise<StockSheet> => readStockSheet(await call({ step: "sheetSync" })),
+  /** One tab of a Google Sheet the owner pasted the link of (plan 23.42); `available: false` until reading is allowed. */
+  readSheet: async (args: { spreadsheetId: string; sheet?: string; gid?: number }) => call({ step: "sheetRead", ...args }),
   /** Test hook. */
   __reset: () => { shared = null; },
 };
