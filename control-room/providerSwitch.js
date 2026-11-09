@@ -10,10 +10,14 @@
 // Where deploys aren't connected (the hosted server, server/world.js), step 1 fails and the switch waits, shown in
 // the control room with its reason, to be finished from there once they are.
 //
+// Once finished, the press hears ("payments-switched", to the shop's owner, in the shop's language): new sales and payouts
+// go to the new account, and refunds for older orders still go through the old one, so it stays open. An email that
+// fails never undoes the switch; its key holds the account, so finishing twice sends one.
+//
 // Clients passed in: registry (getShop, listShops, updateShop, getProfile, saveProfile), envFiles and profileFiles
 // (read, write), deploy and build (emergencyPayments.js redeployShopServer), publish (controlRoom.js
 // profilePublisher), log (the control room's, or the payment service's), now, publishableKeys (the platform's Stripe
-// publishable keys for the profile, setup/payments.js profilePayments).
+// publishable keys for the profile, setup/payments.js profilePayments), email (sendPlatform; optional).
 import { isDeepStrictEqual } from "node:util";
 import { profileProblems, profileScript } from "../profile/profile.js";
 import { profilePayments } from "../setup/payments.js";
@@ -27,7 +31,9 @@ export function switchWaiting(row) {
   return { shopId: row.shopId, from: row.payments.provider, to: switching.to, since: switching.at, problem: row.paymentsSwitchProblem ?? null };
 }
 
-export function providerSwitch({ registry, envFiles, profileFiles, deploy, build, publish, log, now = () => new Date(), publishableKeys = {} }) {
+export const SWITCHED_EMAIL = "payments-switched";
+
+export function providerSwitch({ registry, envFiles, profileFiles, deploy, build, publish, log, email = null, now = () => new Date(), publishableKeys = {} }) {
   const at = () => now().toISOString();
 
   /** Finishes one shop's switch. Resolves to { shopId, finished, server?, pages?, skipped?, error? }. */
@@ -62,11 +68,26 @@ export function providerSwitch({ registry, envFiles, profileFiles, deploy, build
 
       await registry.updateShop(shopId, { payments: switched(row.payments, at()), paymentsSwitchProblem: null });
       await log(shopId, "payments-switched", { by, from: row.payments.provider, to: next.provider, accountId: next.accountId });
-      return { shopId, finished: true, server, pages };
+      const told = await tellPress(row, next, nextProfile);
+      return { shopId, finished: true, server, pages, told };
     } catch (error) {
       const problem = { at: at(), message: String(error?.message ?? error).slice(0, 300) };
       await registry.updateShop(shopId, { paymentsSwitchProblem: problem });
       return { shopId, finished: false, error: problem.message };
+    }
+  }
+
+  async function tellPress(row, next, profile) {
+    if (!email || !row.ownerEmail) return false;
+    try {
+      await email.sendPlatform({
+        kind: SWITCHED_EMAIL, to: row.ownerEmail, shopId: row.shopId, idempotencyKey: `${SWITCHED_EMAIL}-${row.shopId}-${next.accountId}`,
+        data: { pressName: row.pressName ?? row.shopId, from: row.payments.provider, to: next.provider, link: profile?.siteUrl ? `${profile.siteUrl}/admin#settings/payments` : null },
+      });
+      return true;
+    } catch (error) {
+      console.error(`payments switch: couldn't email ${row.shopId}: ${error?.message ?? error}`);
+      return false;
     }
   }
 

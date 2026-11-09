@@ -225,7 +225,7 @@ export function createControlRoom({
     : null;
 
   const switches = envFiles && deploy
-    ? providerSwitch({ registry, envFiles, profileFiles, deploy, build, publish, log, now, publishableKeys: stripePublishableKeys })
+    ? providerSwitch({ registry, envFiles, profileFiles, deploy, build, publish, log, email, now, publishableKeys: stripePublishableKeys })
     : null;
 
   const reasonOf = (reason) => {
