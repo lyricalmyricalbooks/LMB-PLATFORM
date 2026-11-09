@@ -139,6 +139,8 @@ export function firestoreChitChats(firestore) {
       get: (id) => firestore.get(`chitchatsShipments/${encodeURIComponent(id)}`),
       put: (id, row) => firestore.set(`chitchatsShipments/${encodeURIComponent(id)}`, row),
       listOpen: async (shopId) => (await firestore.query("chitchatsShipments", { where: [["shopId", "==", shopId], ["status", "==", "open"]], limit: 1000 })).map((row) => row.data),
+      // The control room's Chit Chats view: orders that didn't become a shipment, or whose tracking the shop didn't take.
+      listProblems: async (shopId) => (await firestore.query("chitchatsShipments", { where: [["shopId", "==", shopId], ["status", "==", "problem"]], limit: 1000 })).map((row) => row.data),
     },
   };
 }
