@@ -2447,6 +2447,7 @@ function shopLookSection(shop) {
       el("p", { className: "rp-hint", textContent: look.live
         ? `Shoppers see ${look.live.name}${look.template ? ` (the ${lookWords(look.template)} template)` : ""}${look.publishedAt ? `, published ${dateOnly(look.publishedAt)}` : ""}.`
         : look.publishedAt ? `Shoppers see the press's own design (not from a ready-made look), published ${dateOnly(look.publishedAt)}.` : "Nothing published from Studio yet." }),
+      look.templateDetails?.length ? el("p", { className: "rp-hint", textContent: `Changed the template's ${look.templateDetails.join(", ")} in Studio (Reset template details on the Themes page puts them back).` }) : null,
       look.draft ? el("p", { className: "rp-hint", textContent: `Trying ${look.draft.name} in Studio, not published.` }) : null,
       look.welcome ? el("p", { className: "rp-hint", textContent: `Choose your look: ${look.welcome.skipped ? "skipped, so it took" : "picked"} ${lookWords(look.welcome.theme)}${look.welcome.at ? ` on ${dateOnly(look.welcome.at)}` : ""}${look.welcome.adminLook ? `; admin look ${lookWords(look.welcome.adminLook)}` : ""}.` }) : null);
   }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
