@@ -14,6 +14,17 @@ import { PLANS } from "../setup/steps.js";
 export const TEMPLATES = Object.freeze(["marquee", "shelf", "atlas", "mosaic", "arch", "market", "index"]);
 const templateOf = (design) => (TEMPLATES.includes(design?.themeStyle) ? design.themeStyle : null);
 
+/**
+ * The template details Studio can reset (apps/shop studio/templateNote.ts TEMPLATE_DETAIL_NAMES; a test keeps them in
+ * step), by the words the shop uses. A press who changed them sees its template drawn differently from the look cards.
+ */
+export const TEMPLATE_DETAIL_NAMES = Object.freeze({
+  templateHeadingCase: "heading capitals", templateOutlineColor: "outline colour", templateOutlineWidth: "outline width",
+  templateShadowColor: "shadow colour", templateShadowOffset: "shadow distance", templateRuleWidth: "ruled lines",
+  templateFrameWidth: "photo frames", templateCardTilt: "card tilt", templateFooterCurve: "footer curve",
+});
+const detailsOf = (design) => Object.keys(TEMPLATE_DETAIL_NAMES).filter((key) => design?.[key] != null && design[key] !== "").map((key) => TEMPLATE_DETAIL_NAMES[key]);
+
 const base = (design) => (design?.themeBase?.id ? { id: String(design.themeBase.id), name: String(design.themeBase.name ?? design.themeBase.id) } : null);
 
 /**
@@ -28,6 +39,8 @@ export function lookOf(settings, workspace, start) {
     live,
     // The template shoppers see (the design's `themeStyle`), null for the plain look or one switched off in Print style.
     template: templateOf(settings?.design),
+    // The template details the press changed in Studio (Reset template details clears them), as the shop names them.
+    templateDetails: detailsOf(settings?.design),
     publishedAt: settings?.designPublishedAt ?? null,
     draft: draft && draft.id !== live?.id ? draft : null,
     welcome,

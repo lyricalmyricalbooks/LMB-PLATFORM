@@ -78,6 +78,7 @@ import { createShopEmails, shopEmailsRoutes } from "../control-room/shopEmails.j
 import { appUseRoutes, createAppUse } from "../control-room/appUse.js";
 import { createShopSocial, shopSocialRoutes } from "../control-room/shopSocial.js";
 import { createShopApps, shopAppsRoutes } from "../control-room/shopApps.js";
+import { chitChatsDeskRoutes, createChitChatsDesk } from "../control-room/chitChats.js";
 import { createSocialService } from "../services/social/social.js";
 import { readSocialConfig } from "../services/social/config.js";
 import { fakeConnections, fakeSent, fakeStates } from "../services/social/fakes.js";
@@ -267,6 +268,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const shopEmails = createShopEmails({ admins, registry, emailLog: email.emailLog, now: clock.date });
   const appUse = createAppUse({ admins, installs: appInstallStores.installs, outbox: appAlertStores.outbox, now: clock.date });
   const shopApps = createShopApps({ admins, registry, installs: appInstallStores.installs, outbox: appAlertStores.outbox, shopData: { ...shopData, list: (...args) => listDocs(...args) }, now: clock.date });
+  const chitChatsDesk = createChitChatsDesk({ admins, chitchats, stores: chitchatsStores, registry, now: clock.date });
   const socialConnections = fakeConnections();
   const social = createSocialService({ clients: {}, registry, auditLog, connections: socialConnections, states: fakeStates(), sent: fakeSent(), config: readSocialConfig({}), now: () => clock.date().getTime() });
   const shopSocial = createShopSocial({ admins, registry, social, now: clock.date });
@@ -315,6 +317,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...appUseRoutes(appUse),
     ...shopSocialRoutes(shopSocial),
     ...shopAppsRoutes(shopApps),
+    ...chitChatsDeskRoutes(chitChatsDesk),
     ...driftRoutes(driftDesk),
     ...messageRoutes(pressMessages),
     ...costRoutes(costsDesk),
@@ -330,7 +333,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
 
   return {
     clock, settings, registry, auditLog, services, google, profileFiles, shopData, stockroomData, stripe, email, closed, billing, paymentWay, stripeEvent,
-    stores, frontDoor, frontDoorStores, stagedFiles, signup, shopMaker, run, steps, repairs, repairStore, accounts, accountStores, shopAccess, driftWatch, room, controls, backup, support, appMakers, appStore, appInstalls, appInstallStores, appAlertStores, socialConnections, recovery, platformState, activity, door, routes, ask, invites, accessRequests,
+    stores, frontDoor, frontDoorStores, stagedFiles, signup, shopMaker, run, steps, repairs, repairStore, accounts, accountStores, shopAccess, driftWatch, room, controls, backup, support, appMakers, appStore, appInstalls, appInstallStores, appAlertStores, socialConnections, chitchatsStores, recovery, platformState, activity, door, routes, ask, invites, accessRequests,
     deliveryStats, timeline, jobs, jobRuns, jobsPage, notes,
     pressMessages, costsDesk, dataExports, exportStorage,
     /** The shop's own database as the platform wrote it: a document, or null. */

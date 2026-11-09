@@ -80,6 +80,13 @@ export async function seedRoom(world) {
   await appRequest(2, 120, { productId: "salt-and-ink", change: -1 }, "done");
   await appRequest(3, 30, { productId: "salt-and-ink", change: -2, expected: 4 }, "refused", "The stock is now 3, not 4: someone sold one in the meantime.");
 
+  // Chit Chats (26.11): Kestrel ships with it; one order has waited four days for tracking, one had no full address.
+  const ago = (days) => new Date(world.clock.ms() - days * 86_400_000).toISOString();
+  await world.chitchatsStores.connections.put("kestrel", { shopId: "kestrel", sealed: { iv: "walkthrough", data: "pretend" }, clientId: "walk-client", connectedAt: ago(20), lastProblem: null });
+  await world.chitchatsStores.shipments.put("kestrel~walk-order-1", { id: "kestrel~walk-order-1", shopId: "kestrel", orderId: "walk-order-1", orderNumber: "1041", shipmentId: "CC1041", status: "open", createdAt: ago(4) });
+  await world.chitchatsStores.shipments.put("kestrel~walk-order-2", { id: "kestrel~walk-order-2", shopId: "kestrel", orderId: "walk-order-2", orderNumber: "1043", shipmentId: "CC1043", status: "open", createdAt: ago(1) });
+  await world.chitchatsStores.shipments.put("kestrel~walk-order-3", { id: "kestrel~walk-order-3", shopId: "kestrel", orderId: "walk-order-3", orderNumber: "1044", status: "problem", problem: "The order has no full shipping address.", createdAt: ago(2) });
+
   // Web addresses (#381): Lantern Zines has its free address and its own domain, which stopped opening the shop.
   await world.registry.updateShop("lantern-zines", {
     freeAddress: "lantern-zines.shops.example",

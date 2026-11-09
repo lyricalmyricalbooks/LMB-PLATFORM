@@ -72,6 +72,7 @@ export function fakeChitChatsStores() {
       get: async (id) => structuredClone(sent.get(id) ?? null),
       put: async (id, row) => { sent.set(id, structuredClone(row)); },
       listOpen: async (shopId) => [...sent.values()].filter((row) => row.shopId === shopId && row.status === "open").map((row) => structuredClone(row)),
+      listProblems: async (shopId) => [...sent.values()].filter((row) => row.shopId === shopId && row.status === "problem").map((row) => structuredClone(row)),
     },
   };
 }
