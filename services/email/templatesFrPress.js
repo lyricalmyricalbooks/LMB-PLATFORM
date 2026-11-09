@@ -24,6 +24,9 @@ export function goodsWordsFr(text) {
 
 const sameFr = (text) => text;
 
+// The reasons Colophon's Chit Chats app writes itself (services/chitchats/app.js); Chit Chats's own stay as they came.
+const CHITCHATS_WORDS_FR = Object.freeze({ "The order has no full shipping address.": "la commande n'a pas d'adresse de livraison complète." });
+
 /** The plans' names in French (services/settings.js PLAN_NAMES); a name not known comes through as it was. */
 const PLAN_NAMES_FR = Object.freeze({ Shop: "Boutique", Stockroom: "Réserve", "Shop and stockroom": "Boutique et réserve" });
 export const planNameFr = (name) => PLAN_NAMES_FR[String(name ?? "").trim()] ?? name;
@@ -760,6 +763,25 @@ export const PRESS_TEMPLATES_FR = {
           : "Nous vous l'envoyons par courriel pour que vous ne le manquiez pas.",
       ],
       buttons: link ? [["Ouvrir l'administration de votre boutique", safeLink(link)]] : [],
+      footer: signOff(settings),
+    });
+  },
+
+  /** French twin of "chitchats-waiting". The app's own reason is turned French; Chit Chats's come through as they are. */
+  "chitchats-waiting": ({ late = [], lateCount = late.length, problems = [], problemCount = problems.length, days, link }, { settings }) => {
+    if (!lateCount && !problemCount) throw new Error("nothing is waiting");
+    const orders = (n) => `${n} commande${n === 1 ? "" : "s"}`;
+    const more = (shown, n) => (n > shown ? ` et ${n - shown} autre${n - shown === 1 ? "" : "s"}` : "");
+    return layout({
+      subject: [lateCount ? `${orders(lateCount)} toujours en attente d'envoi` : null, problemCount ? `${orders(problemCount)} refusée${problemCount === 1 ? "" : "s"} par Chit Chats` : null].filter(Boolean).join(", "),
+      greeting: "Bonjour,",
+      paragraphs: [
+        lateCount ? `${lateCount === 1 ? "Une commande payée attend" : `${lateCount} commandes payées attendent`} depuis ${days} jours sans numéro de suivi : ${late.join(", ")}${more(late.length, lateCount)}. ${lateCount === 1 ? "Elle est" : "Elles sont"} dans votre compte Chit Chats, prête${lateCount === 1 ? "" : "s"} pour une étiquette. Dès qu'un colis part, sa commande est marquée envoyée et le client reçoit le suivi.` : null,
+        ...problems.map((p) => `Chit Chats n'a pas pu prendre la commande ${p.order}${p.words ? ` : ${CHITCHATS_WORDS_FR[p.words] ?? p.words}` : "."}`),
+        problemCount > problems.length ? `Chit Chats en a aussi refusé ${problemCount - problems.length} autre${problemCount - problems.length === 1 ? "" : "s"}.` : null,
+        problemCount ? `Préparez ${problemCount === 1 ? "ce colis" : "ces colis"} vous-même dans Chit Chats, ou ${problemCount === 1 ? "envoyez-le" : "envoyez-les"} autrement.` : null,
+      ].filter(Boolean),
+      buttons: link ? [["Voir vos commandes", safeLink(link)]] : [],
       footer: signOff(settings),
     });
   },

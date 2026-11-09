@@ -42,5 +42,28 @@ export function pressTemplates({ layout, safeLink, signOff }) {
       buttons: [["Download your data", safeLink(link)]],
       footer: signOff(settings),
     }),
+
+    /**
+     * Colophon's Chit Chats app (control-room/chitChatsNote.js), once a day at most: the press's paid orders that passed
+     * `days` days without a tracking number today, and the orders Chit Chats refused today. `data`: { pressName, late
+     * (order numbers), lateCount, problems [{ order, words }], problemCount, days, link (the shop's orders, or null) }.
+     */
+    "chitchats-waiting": ({ late = [], lateCount = late.length, problems = [], problemCount = problems.length, days, link }, { settings }) => {
+      if (!lateCount && !problemCount) throw new Error("nothing is waiting");
+      const orders = (n) => `${n} order${n === 1 ? "" : "s"}`;
+      const more = (shown, n) => (n > shown ? ` and ${n - shown} more` : "");
+      return layout({
+        subject: [lateCount ? `${orders(lateCount)} still waiting to ship` : null, problemCount ? `${orders(problemCount)} Chit Chats couldn't take` : null].filter(Boolean).join(", "),
+        greeting: "Hello,",
+        paragraphs: [
+          lateCount ? `${lateCount === 1 ? "A paid order has" : `${lateCount} paid orders have`} waited ${days} days without a tracking number: ${late.join(", ")}${more(late.length, lateCount)}. ${lateCount === 1 ? "It's" : "They're"} in your Chit Chats account, ready for a label. Once a parcel is on its way, its order is marked sent and the customer gets the tracking.` : null,
+          ...problems.map((p) => `Chit Chats couldn't take order ${p.order}${p.words ? `: ${p.words}` : "."}`),
+          problemCount > problems.length ? `It couldn't take ${problemCount - problems.length} more as well.` : null,
+          problemCount ? `Make ${problemCount === 1 ? "that parcel" : "those parcels"} in Chit Chats yourself, or send ${problemCount === 1 ? "it" : "them"} another way.` : null,
+        ].filter(Boolean),
+        buttons: link ? [["See your orders", safeLink(link)]] : [],
+        footer: signOff(settings),
+      });
+    },
   };
 }

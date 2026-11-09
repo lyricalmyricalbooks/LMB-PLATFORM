@@ -192,6 +192,7 @@ const PRESS_EMAILS = {
   "own-email-paused": [{ domain: "yourpress.example" }],
   "domain-live": [{ domain: "yourpress.example", link: SHOP_LINKS.shopAdmin }],
   "free-address-live": [{ domain: "moth-press.shops.example", link: SHOP_LINKS.shopAdmin }],
+  "chitchats-waiting": [{ pressName: "Moth Press", late: ["1041", "1042"], lateCount: 2, problems: [], problemCount: 0, days: 3, link: "https://moth-press.web.app/admin#orders" }, { pressName: "Moth Press", late: ["1041"], lateCount: 1, problems: [{ order: "77", words: "The order has no full shipping address." }, { order: "78", words: null }], problemCount: 3, days: 3, link: null }],
   "quiet-shop": [{ pressName: "Moth Press", link: SHOP_LINKS.shopAdmin, helpLink: "https://platform.example/help/" }],
   "domain-expiring": [{ domain: "yourpress.example", daysLeft: 30, date: "December 3, 2026", seller: "Example Names", own: "lmb-test-shop.web.app" }, { domain: "yourpress.example", daysLeft: 1, date: "December 3, 2026", seller: null, own: "lmb-test-shop.web.app" }],
   "domain-not-pointing": [{ domain: "yourpress.example", own: "lmb-test-shop.web.app", link: SHOP_LINKS.shopAdmin }],
