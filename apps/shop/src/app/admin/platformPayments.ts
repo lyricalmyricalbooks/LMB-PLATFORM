@@ -27,7 +27,8 @@ export type PlatformPaymentsAnswer = {
 };
 
 // One rule for the provider's name everywhere (code plan 5.2): a provider id here, the shop profile elsewhere.
-export { providerName } from "../../lib/shopProfile";
+import { providerName } from "../../lib/shopProfile";
+export { providerName };
 
 /** A Stripe account the platform made exists from the start; it is "connected" once its details are in. */
 export function accountConnected(answer: PlatformPaymentsAnswer): boolean {
@@ -117,6 +118,8 @@ export function needsLine(answer: PlatformPaymentsAnswer, timeZone?: string): st
 export type SwitchAnswer = PlatformPaymentsAnswer & {
   /** No account connected to switch to yet. */
   next?: null;
+  /** No switch under way: the accounts the shop sold through before, newest last (no ids). */
+  earlier?: { provider: "stripe" | "square"; until: string | null }[];
   /** The press pressed Switch: both accounts take sales until Colophon has moved the shop over. */
   switching?: { to: "stripe" | "square"; accountId: string; at: string } | null;
 };
@@ -143,6 +146,18 @@ export function switchingLine(answer: SwitchAnswer, from: string, nowMs = Date.n
   const slow = started && nowMs - new Date(at).getTime() > SWITCH_SLOW_MS;
   const parts = [started ? `Started ${started}.` : "", slow ? "It's taking longer than usual, and Colophon is on it." : "", `New sales keep going to ${from} until it's done.`];
   return parts.filter(Boolean).join(" ");
+}
+
+/**
+ * After a switch is finished: "Moved from Stripe on 9 November. Orders from before then still refund through Stripe."
+ * null when the shop never moved, or its last move left the provider it sells through now.
+ */
+export function movedLine(answer: SwitchAnswer | null, current: "stripe" | "square", timeZone?: string): string | null {
+  const last = [...(answer?.earlier ?? [])].reverse().find((a) => a.provider !== current && a.until);
+  if (!last) return null;
+  const name = providerName(last.provider);
+  const on = dueDateText(last.until as string, timeZone);
+  return on ? `Moved from ${name} on ${on}. Orders from before then still refund through ${name}.` : null;
 }
 
 /** The provider a shop selling through `current` can switch to. */

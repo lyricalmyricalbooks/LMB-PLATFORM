@@ -19,7 +19,7 @@ async function world(ready = true) {
   await registry.createShop("kestrel", { shopId: "kestrel", pressName: "Kestrel Books", status: "live" });
   const stores = fakeChitChatsStores();
   const sealed = { iv: "x", data: "secret-chitchats-token" };
-  await stores.connections.put("moth-press", { shopId: "moth-press", sealed, clientId: "c1", connectedAt: "2026-11-01T00:00:00Z", lastProblem: null });
+  await stores.connections.put("moth-press", { shopId: "moth-press", sealed, clientId: "c1", connectedAt: "2026-11-01T00:00:00Z", lastProblem: null, emailsOff: true });
   await stores.connections.put("kestrel", { shopId: "kestrel", sealed, clientId: "c2", connectedAt: "2026-11-02T00:00:00Z", lastProblem: null });
   const ship = (id, shopId, status, createdAt, more = {}) => stores.shipments.put(id, { id, shopId, orderId: id, orderNumber: id, status, createdAt, ...more });
   await ship("m1", "moth-press", "open", "2026-11-19T00:00:00Z");
@@ -33,7 +33,7 @@ async function world(ready = true) {
 test("each connected shop: orders waiting for tracking, the oldest flagged after three days, and its problems; worst first", async () => {
   const { ready, shops } = await (await world()).overview(ADMIN);
   assert.equal(ready, true);
-  assert.deepEqual(shops.map((s) => [s.pressName, s.waiting, s.late, s.problems]), [["Kestrel Books", 2, true, 1], ["Moth Press", 1, false, 0]]);
+  assert.deepEqual(shops.map((s) => [s.pressName, s.waiting, s.late, s.problems, s.emailsOff]), [["Kestrel Books", 2, true, 1, false], ["Moth Press", 1, false, 0, true]]);
   assert.equal(shops[0].problemOrders[0].words, "The order has no full shipping address.");
   assert.ok(!JSON.stringify(shops).includes("secret-chitchats-token"), "never the press's Chit Chats details");
 });

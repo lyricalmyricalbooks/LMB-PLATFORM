@@ -491,7 +491,9 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
     // The account being connected for a switch (args.which "next"): its state, for the admin's "ready to switch".
     if (name === "account.status" && args.which === "next") {
       const next = row.payments.next;
-      if (!next) return { next: null };
+      // No switch under way: the accounts it sold through before (provider and until when, no ids), so Settings ›
+      // Payments can say when the shop moved and where older orders refund.
+      if (!next) return { next: null, earlier: (row.payments.earlier ?? []).map((a) => ({ provider: a.provider, until: a.until ?? null })) };
       const state = next.provider === "square" ? await squareReady().runShopOp(viewOf(row, next), { op: name }, fee) : await accountStatus(viewOf(row, next), fee);
       return { ...state, provider: next.provider, switching: row.payments.switching ?? null };
     }

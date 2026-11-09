@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { accountConnected, dueDateText, feeLine, joinWords, needsLine, otherProvider, paymentsReady, providerName, returnNotice, switchingLine, switchStage, withoutReturnFlags } from "./platformPayments";
+import { accountConnected, dueDateText, feeLine, joinWords, movedLine, needsLine, otherProvider, paymentsReady, providerName, returnNotice, switchingLine, switchStage, withoutReturnFlags } from "./platformPayments";
 import { paymentHealth } from "./paymentHealth";
 import { alertRoute, cardAccountAlert } from "./adminAlerts";
 
@@ -92,6 +92,14 @@ describe("Switching to the other card provider", () => {
     expect(switchingLine(answer, "Stripe", soon, "UTC")).toBe("Started 3 November. New sales keep going to Stripe until it's done.");
     expect(switchingLine(answer, "Stripe", Date.parse("2026-11-09T12:00:00Z"), "UTC")).toBe("Started 3 November. It's taking longer than usual, and Colophon is on it. New sales keep going to Stripe until it's done.");
     expect(switchingLine({ switching: null }, "Stripe", soon)).toBe("New sales keep going to Stripe until it's done.");
+  });
+
+  test("after a finished switch, the page says when the shop moved and where older orders refund", () => {
+    const answer = { next: null, earlier: [{ provider: "stripe" as const, until: "2026-11-09T13:00:00Z" }] };
+    expect(movedLine(answer, "square", "UTC")).toBe("Moved from Stripe on 9 November. Orders from before then still refund through Stripe.");
+    expect(movedLine({ next: null, earlier: [] }, "square")).toBeNull();
+    expect(movedLine(answer, "stripe")).toBeNull();
+    expect(movedLine(null, "stripe")).toBeNull();
   });
 
   test("coming back from Square on a Stripe shop is a switch being set up", () => {
