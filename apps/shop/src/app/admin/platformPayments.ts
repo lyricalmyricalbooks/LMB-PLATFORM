@@ -23,7 +23,16 @@ export type PlatformPaymentsAnswer = {
   /** Something is past its deadline: Stripe has paused cards or payouts. */
   pastDue?: boolean;
   platformFee?: PlatformFee;
+  /** When Stripe pays the press (services/payments/service.js payoutSchedule); null when Stripe doesn't say. */
+  payoutSchedule?: PayoutSchedule | null;
   url?: string;
+};
+
+export type PayoutSchedule = {
+  interval: "manual" | "daily" | "weekly" | "monthly";
+  delayDays: number | null;
+  weeklyAnchor: string | null;
+  monthlyAnchor: number | null;
 };
 
 // One rule for the provider's name everywhere (code plan 5.2): a provider id here, the shop profile elsewhere.
@@ -44,6 +53,36 @@ export function feeLine(fee: PlatformFee | undefined): string {
     ? " When you refund a sale, the same share of the fee comes back to you."
     : " The fee stays with Colophon when you refund a sale.";
   return `Colophon keeps ${percent}% of each card sale before it reaches your payouts, on top of your card provider's own fee.${refunds}`;
+}
+
+/** "1st", "2nd", "23rd", "31st". */
+function ordinal(n: number): string {
+  const tens = n % 100;
+  if (tens >= 11 && tens <= 13) return `${n}th`;
+  return `${n}${({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th"}`;
+}
+
+/**
+ * When the money arrives, in one plain sentence: "Stripe pays your sales into your bank every day, about 2 days after
+ * each sale." Square, or a Stripe account that doesn't say, gets the general line.
+ */
+export function payoutLine(answer: PlatformPaymentsAnswer): string {
+  const name = providerName(answer.provider);
+  const general = `${name} pays your sales into your own bank account on its usual schedule.`;
+  const s = answer.provider === "square" ? null : answer.payoutSchedule;
+  if (!s) return general;
+  const lag = s.delayDays ? `, about ${s.delayDays} ${s.delayDays === 1 ? "day" : "days"} after each sale` : "";
+  if (s.interval === "manual") return "Stripe holds your sales until a payout is started by hand."; // Stripe shops only
+  if (s.interval === "daily") return `Stripe pays your sales into your bank every day${lag}.`; // Stripe shops only
+  if (s.interval === "weekly" && s.weeklyAnchor) {
+    const day = s.weeklyAnchor[0].toUpperCase() + s.weeklyAnchor.slice(1);
+    return `Stripe pays your sales into your bank every ${day}.`; // Stripe shops only
+  }
+  if (s.interval === "monthly" && s.monthlyAnchor) {
+    const short = s.monthlyAnchor > 28 ? ", or on the last day of a shorter month" : "";
+    return `Stripe pays your sales into your bank on the ${ordinal(s.monthlyAnchor)} of each month${short}.`; // Stripe shops only
+  }
+  return general;
 }
 
 export type ReturnNotice = { tone: "success" | "warning" | "danger"; text: string };

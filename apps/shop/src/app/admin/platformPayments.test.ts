@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { accountConnected, dueDateText, feeLine, joinWords, movedLine, needsLine, otherProvider, paymentsReady, providerName, returnNotice, switchingLine, switchStage, withoutReturnFlags } from "./platformPayments";
+import { accountConnected, dueDateText, feeLine, joinWords, movedLine, needsLine, otherProvider, payoutLine, paymentsReady, providerName, returnNotice, switchingLine, switchStage, withoutReturnFlags } from "./platformPayments";
 import { paymentHealth } from "./paymentHealth";
 import { alertRoute, cardAccountAlert } from "./adminAlerts";
 
@@ -9,6 +9,23 @@ describe("Card payments through Colophon", () => {
     expect(feeLine({ percent: 0, refundedWithRefunds: true })).toMatch(/no fee/);
     expect(feeLine({ percent: 2, refundedWithRefunds: true })).toBe("Colophon keeps 2% of each card sale before it reaches your payouts, on top of your card provider's own fee. When you refund a sale, the same share of the fee comes back to you.");
     expect(feeLine({ percent: 1.5, refundedWithRefunds: false })).toMatch(/^Colophon keeps 1\.5% .* stays with Colophon when you refund/);
+  });
+
+  test("payouts say when the money arrives, in plain words", () => {
+    const stripe = (payoutSchedule: Parameters<typeof payoutLine>[0]["payoutSchedule"]) => payoutLine({ provider: "stripe", payoutSchedule });
+    const base = { delayDays: null, weeklyAnchor: null, monthlyAnchor: null };
+    expect(stripe({ ...base, interval: "daily", delayDays: 2 })).toBe("Stripe pays your sales into your bank every day, about 2 days after each sale.");
+    expect(stripe({ ...base, interval: "daily", delayDays: 1 })).toMatch(/about 1 day after/);
+    expect(stripe({ ...base, interval: "daily" })).toBe("Stripe pays your sales into your bank every day.");
+    expect(stripe({ ...base, interval: "weekly", weeklyAnchor: "friday" })).toBe("Stripe pays your sales into your bank every Friday.");
+    expect(stripe({ ...base, interval: "monthly", monthlyAnchor: 1 })).toBe("Stripe pays your sales into your bank on the 1st of each month.");
+    expect(stripe({ ...base, interval: "monthly", monthlyAnchor: 22 })).toMatch(/on the 22nd of each month\.$/);
+    expect(stripe({ ...base, interval: "monthly", monthlyAnchor: 11 })).toMatch(/the 11th/);
+    expect(stripe({ ...base, interval: "monthly", monthlyAnchor: 31 })).toMatch(/31st of each month, or on the last day of a shorter month\.$/);
+    expect(stripe({ ...base, interval: "manual" })).toMatch(/until a payout is started by hand/);
+    expect(stripe(null)).toBe("Stripe pays your sales into your own bank account on its usual schedule.");
+    expect(stripe({ ...base, interval: "weekly" })).toMatch(/usual schedule/);
+    expect(payoutLine({ provider: "square", payoutSchedule: { ...base, interval: "daily" } })).toBe("Square pays your sales into your own bank account on its usual schedule.");
   });
 
   test("Square is connected when the platform says so; Stripe once its details are in", () => {

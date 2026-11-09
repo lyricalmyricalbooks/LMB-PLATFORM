@@ -309,8 +309,23 @@ test("account status tells the press what Stripe still needs, and the platform f
   const answer = await call("account.status");
   assert.deepEqual(answer.body, {
     accountId: "acct_moth", mode: "live", chargesEnabled: true, payoutsEnabled: false, detailsSubmitted: true, requirementsDue: 1, platformFee: { percent: 1.5, refundedWithRefunds: true },
-    needs: [{ words: "your bank details", pastDue: false }], deadline: null, pastDue: false, disabledReason: null,
+    needs: [{ words: "your bank details", pastDue: false }], deadline: null, pastDue: false, disabledReason: null, payoutSchedule: null,
   });
+});
+
+test("account status says when Stripe pays the press, passing only values Stripe can send", async () => {
+  const { call, stripe } = await world();
+  const account = (schedule) => stripe.world.accounts.set("acct_moth", { id: "acct_moth", charges_enabled: true, payouts_enabled: true, details_submitted: true, settings: { payouts: { schedule } } });
+  account({ interval: "daily", delay_days: 2 });
+  assert.deepEqual((await call("account.status")).body.payoutSchedule, { interval: "daily", delayDays: 2, weeklyAnchor: null, monthlyAnchor: null });
+  account({ interval: "weekly", delay_days: 7, weekly_anchor: "friday" });
+  assert.deepEqual((await call("account.status")).body.payoutSchedule, { interval: "weekly", delayDays: 7, weeklyAnchor: "friday", monthlyAnchor: null });
+  account({ interval: "monthly", delay_days: 7, monthly_anchor: 31 });
+  assert.equal((await call("account.status")).body.payoutSchedule.monthlyAnchor, 31);
+  account({ interval: "weekly", weekly_anchor: "<b>someday</b>", delay_days: "lots" });
+  assert.deepEqual((await call("account.status")).body.payoutSchedule, { interval: "weekly", delayDays: null, weeklyAnchor: null, monthlyAnchor: null });
+  account({ interval: "hourly" });
+  assert.equal((await call("account.status")).body.payoutSchedule, null);
 });
 
 test("what Stripe needs is told in plain words, past due first, each once, with the deadline", async () => {

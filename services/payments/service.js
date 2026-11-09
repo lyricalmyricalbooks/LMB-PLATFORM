@@ -57,6 +57,25 @@ import { activeTerms, createFeeLedger, intentBooksMinor, sessionBooksMinor } fro
 import { accountNeeds } from "./requirements.js";
 import { serviceKeyMatches } from "../email/http.js";
 
+const PAYOUT_INTERVALS = new Set(["manual", "daily", "weekly", "monthly"]);
+const WEEKDAYS = new Set(["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]);
+
+/**
+ * When Stripe pays the press (the account's settings.payouts.schedule), shown under Payouts in Settings › Payments:
+ * { interval, delayDays, weeklyAnchor, monthlyAnchor }, or null when Stripe doesn't say. Only known values pass.
+ */
+export function payoutSchedule(account) {
+  const s = account?.settings?.payouts?.schedule;
+  if (!s || !PAYOUT_INTERVALS.has(s.interval)) return null;
+  const whole = (n, lo, hi) => (Number.isInteger(n) && n >= lo && n <= hi ? n : null);
+  return {
+    interval: s.interval,
+    delayDays: whole(s.delay_days, 0, 365),
+    weeklyAnchor: s.interval === "weekly" && WEEKDAYS.has(s.weekly_anchor) ? s.weekly_anchor : null,
+    monthlyAnchor: s.interval === "monthly" ? whole(s.monthly_anchor, 1, 31) : null,
+  };
+}
+
 /** A refusal by the service itself (not Stripe), with the HTTP status to answer with. */
 export class ServiceError extends Error {
   constructor(status, code, message) {
@@ -399,6 +418,7 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
       // What Stripe still needs, in plain words, with its deadline (7.9): { needs: [{ words, pastDue }], deadline,
       // pastDue, disabledReason }.
       ...accountNeeds(account),
+      payoutSchedule: payoutSchedule(account),
       // Shown to the press next to their payouts (owner's instruction, 28 October 2026).
       platformFee: feeSummary(fee),
     };
