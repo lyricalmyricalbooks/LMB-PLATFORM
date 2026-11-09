@@ -586,7 +586,10 @@ see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `A
   with `functions/moving/oldLinks.mjs`, a generated copy of `services/moving/oldLinks.js`). Its **Bring your own pages
   over** (plan 23.6) asks `readOldPages`, which rebuilds each old page with the allow-list in `services/moving/oldPages.js`
   (copied as `functions/moving/oldPages.mjs`); `pagesToSave` makes the drafts and redirects and never reuses a page's address. Pictures on public https addresses stay as `<img src alt>` and the hourly photo import copies them and rewrites `pages/*.body` (plan 23.13, `swapPagePictures`). The guide saves `progress { steps, done, at }` whenever it changes (`progressToSave`)
-  for the platform's trial emails (plan 6.10, `services/trial-tips`).
+  for the platform's trial emails (plan 6.10, `services/trial-tips`). Steps missing from the saved `progress.steps`
+  are new to that press (`addedSince`, fixed when the card mounts, since saving progress makes them old): they get a
+  New tag and one "N new steps" line, and a hidden guide comes back for a needed one (`showFirstWeek`'s `added`).
+  A done row opens on a click (to Change it); a row that gets done while open gives way to the next step.
 - `SELLING_TODAY` must list the sign-up form's answers and `StepId` must match `help/articles.js` `CHECKLIST_ANSWERS`
   (root tests check both). Firestore rule `firstWeek`: admin only, `hasOnly([... "publishes", "country", "welcome",
   "progress" ...])`, the four sign-up fields never change from the admin, `welcome`/`progress` shapes checked. The
