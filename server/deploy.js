@@ -112,7 +112,9 @@ export function deployPlan({ project = DEFAULT_PROJECT, region = REGION, version
     command: "gcloud", args: ["artifacts", "repositories", "create", IMAGE_STORE, "--repository-format=docker", `--location=${region}`, ...at],
     unless: { command: "gcloud", args: ["artifacts", "repositories", "describe", IMAGE_STORE, `--location=${region}`, ...at] },
   });
-  steps.push({ title: "Build the image", command: "gcloud", args: ["builds", "submit", ...at, `--region=${region}`, "--config=server/cloudbuild.yaml", "--ignore-file=server/.gcloudignore", `--substitutions=_IMAGE=${image}`, "."] });
+  // --suppress-logs: streaming the build log needs Viewer on the whole project, which the deploy account doesn't hold;
+  // gcloud still waits for the build and fails when it fails (its log is in the console).
+  steps.push({ title: "Build the image", command: "gcloud", args: ["builds", "submit", ...at, `--region=${region}`, "--config=server/cloudbuild.yaml", "--ignore-file=server/.gcloudignore", "--suppress-logs", `--substitutions=_IMAGE=${image}`, "."] });
   const common = (name) => ["run", "deploy", name, ...at, `--region=${region}`, `--image=${image}`, `--service-account=${accountOf(name, project)}`, "--cpu=1", "--memory=512Mi", "--min-instances=0"];
   steps.push({
     title: "Put the web door live (platform-api)",
