@@ -42,6 +42,7 @@
 //              createDomainService): the shop's free address on the shop domain is connected first, for every shop
 import { SignupError, personOf } from "./signup.js";
 import { PLANS, PLAN_STEPS } from "../setup/steps.js";
+import { latestByStep } from "../setup/runner.js";
 
 export const AUTO_TRIES = 3;
 export const BACKOFF_MINUTES = Object.freeze([1, 5, 15]);
@@ -65,6 +66,10 @@ export const STEP_WORDS = Object.freeze({
   14: "emailing you the way in",
   15: "checking everything works",
   16: "linking your shop and stockroom",
+  17: "tidying up your shop's running costs",
+  18: "setting your shop's spending limit",
+  19: "switching on sign-in codes",
+  20: "bringing over your look and your books",
 });
 
 // Setup steps stop "for a person" when what they find is neither done nor untouched: a retry can't fix those.
@@ -77,6 +82,8 @@ export const retryable = (error) => !NEEDS_A_PERSON.test(String(error ?? ""));
 export function shopFromSignup(row, { testMode }) {
   return {
     shopId: row.shopId,
+    // Opened from the front door's setup mode (18.8): step 20 hands that setup over (setup/handover.js).
+    ...(row.pressId ? { pressId: row.pressId } : {}),
     pressName: row.pressName,
     ownerEmail: row.ownerEmail,
     plan: row.plan,
@@ -274,9 +281,34 @@ export function createShopMaker({ signups, run, registry, repairs = null, selfCh
     return { shopId, plan, from: built, status: needsHelp ? "needs-help" : "failed" };
   }
 
+  /**
+   * How far one shop's making has got, for setup mode's timeline (code plan 18.9): the sign-up row's status, how many
+   * setup steps are done of how many, and what is happening now in the press's words (STEP_WORDS). Null when there is
+   * no such shop. Read only; the step history is the registry's, so a retry picks up where the count stopped.
+   */
+  async function progress(shopId) {
+    const row = typeof shopId === "string" && shopId ? await signups.get(shopId) : null;
+    if (!row) return null;
+    const numbers = Object.keys(STEP_WORDS).map(Number);
+    const latest = latestByStep(await Promise.resolve().then(() => registry.readSteps(shopId)).catch(() => []) ?? []);
+    const ready = row.status === "ready";
+    const next = numbers.find((n) => latest[n]?.status !== "done");
+    return {
+      status: row.status,
+      done: ready ? numbers.length : numbers.filter((n) => latest[n]?.status === "done").length,
+      total: numbers.length,
+      now: ready || !next || row.status !== "making" ? "" : STEP_WORDS[next],
+      message: row.status === "waiting" || row.status === "needs-help" ? row.message ?? "" : "",
+      // A retryable stop whose automatic tries are used up: the press's Try again (`retry`) carries on.
+      canRetry: row.status === "waiting" && !!row.canRetry,
+      openUrl: ready ? row.openUrl ?? null : null,
+    };
+  }
+
   return {
     make,
     syncPlan,
+    progress,
     connectAddresses,
 
     /** Runs every queued shop and every shop due its automatic try. Returns what it did, per shop. */

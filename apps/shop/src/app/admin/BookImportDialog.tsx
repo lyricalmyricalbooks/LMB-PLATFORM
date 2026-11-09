@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, Upload } from "lucide-react";
 import { adminApi } from "./api";
 import { IMPORT_COLUMNS, MATCHABLE_COLUMNS, parseCsv, type ImportField, type ImportPlan } from "./catalogImport";
@@ -29,7 +29,13 @@ type LinkResult = { added: number; skipped: number; full: number; failed: boolea
  * skipped; new books arrive as drafts and are handed back (`onDone`) so the catalog can select them
  * for its Publish review.
  */
-export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onClose: () => void; onDone: (createdIds: string[]) => void }) {
+export function BookImportDialog({ books, onClose, onDone, initialFile }: {
+  books: any[];
+  onClose: () => void;
+  onDone: (createdIds: string[]) => void;
+  /** A file to read as soon as the dialog opens, e.g. the one the press kept in setup (code plan 18.9). */
+  initialFile?: File;
+}) {
   const w = useShopWords();
   const fileRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState("");
@@ -104,6 +110,9 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
       if (seq === readSeq.current) setReadError(readProblem(err));
     }
   }
+
+  // Read once, when the dialog opens with a file already in hand; choosing another file works as usual.
+  useEffect(() => { if (initialFile) void choose(initialFile); }, []);
 
   async function run() {
     setBusy(true); setProgress(0);

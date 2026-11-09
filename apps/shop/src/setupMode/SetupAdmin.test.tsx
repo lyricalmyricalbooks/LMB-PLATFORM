@@ -312,6 +312,48 @@ describe("the admin in setup mode (code plan 18.6)", () => {
       expect(openButton(el).disabled).toBe(false);
     });
 
+    it("follows the making step by step, then hands over the way into the new shop's admin (code plan 18.9)", async () => {
+      vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+      try {
+        const d = door();
+        const opening = { ...PRESS, country: "CA", status: "opening" as const, shopId: "moth-press", shopStatus: "queued" };
+        (d.presses as any).mockResolvedValueOnce([{ ...opening, making: { status: "making", done: 5, total: 20, now: "writing your shop's settings", message: "" } }]);
+        const el = await mount(d, "#settings/plan", { ...opening, making: { status: "queued", done: 0, total: 20, now: "", message: "" } });
+        expect(el.textContent).toContain("Your shop is being made");
+        await act(async () => { vi.advanceTimersByTime(5000); });
+        await flush();
+        expect(el.textContent).toContain("Now writing your shop's settings. 5 of 20 steps done.");
+        expect(el.querySelector("[role=progressbar]")?.getAttribute("aria-valuenow")).toBe("5");
+
+        (d.presses as any).mockResolvedValueOnce([{ ...opening, status: "open", shopStatus: "ready", openUrl: "https://moth-press.shops.example/admin", making: { status: "ready", done: 20, total: 20, now: "", message: "" } }]);
+        await act(async () => { vi.advanceTimersByTime(5000); });
+        await flush();
+        expect(el.textContent).toContain("Your shop is ready");
+        expect(el.textContent).toContain("We've emailed you the way in");
+        expect(el.querySelector("a[href='https://moth-press.shops.example/admin']")?.textContent).toContain("Open my shop's admin");
+        // Ready, it stops asking.
+        const asked = (d.presses as any).mock.calls.length;
+        await act(async () => { vi.advanceTimersByTime(15000); });
+        expect((d.presses as any).mock.calls.length).toBe(asked);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("a making that stopped offers Try again, and every page but Help shows the shop being made", async () => {
+      const d = { ...door(), retryShop: vi.fn(async () => {}) };
+      const opening = { ...PRESS, country: "CA", status: "opening" as const, shopId: "moth-press", making: { status: "waiting", done: 8, total: 20, now: "", message: "We couldn't finish putting your shop's pages online. Press Try again.", canRetry: true } };
+      const el = await mount(d, "#settings/general", opening);
+      expect(el.textContent).toContain("Your shop is being made");
+      expect(el.querySelector("input[type=text]")).toBeNull();
+      const tryAgain = [...el.querySelectorAll("button")].find((b) => b.textContent === "Try again")!;
+      await act(async () => { tryAgain.click(); });
+      await flush();
+      expect(d.retryShop).toHaveBeenCalledWith("moth-press");
+      expect(el.textContent).toContain("Carrying on.");
+      expect([...el.querySelectorAll("button")].some((b) => b.textContent === "Try again")).toBe(false);
+    });
+
     it("after a reload, a press waiting in line still reads why, not that its shop is being made", async () => {
       const el = await mount(door(), "#settings/plan", { ...PRESS, country: "CA", status: "opening", shopStatus: "in-line", shopMessage: "We're making a few shops a day. You're next in line." });
       expect(el.textContent).toContain("You're next in line.");

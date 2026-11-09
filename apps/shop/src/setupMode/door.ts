@@ -37,9 +37,16 @@ export interface SetupPress {
   /** How the shop is starting once opening: "queued", or "in-line" with `shopMessage` saying why it waits. */
   shopStatus?: string;
   shopMessage?: string;
+  /** While the shop is made: how far the shop maker has got (signup/frontDoor.js `withProgress`, code plan 18.9). */
+  making?: Making;
+  /** Once the shop is ready (`open`): the way into its admin. */
+  openUrl?: string;
   /** The product file kept for the shop (18.7), or null. */
   stagedImport: StagedImport | null;
 }
+
+/** How far a shop's making has got: the shop maker's status, steps done of all, and what it is doing now in plain words. */
+export interface Making { status: string; done: number; total: number; now: string; message: string; canRetry?: boolean }
 
 /** An old shop read from its address (23.2): a product file in the one-line-per-edition layout, and plain notes. */
 export interface OldShopRead { host: string; csv: string; products: number; notes: string[] }
@@ -82,6 +89,8 @@ export interface SetupDoor {
   readOldShop(pressId: string, address: string): Promise<OldShopRead>;
   /** Open my shop (18.8): starts the plan and queues the shop. A refusal leaves the press in setup. */
   openShop(pressId: string, choice: { plan: SetupPress["plan"]; termsVersion: string }): Promise<OpenedShop>;
+  /** Try again on a shop whose making stopped in a way a retry can fix (`making.canRetry`): it carries on within a minute. */
+  retryShop?(shopId: string): Promise<void>;
   /** Asks a person for help (the platform's support inbox, as the account page's Get help form does). */
   askForHelp: SupportAsk;
 }
@@ -139,13 +148,17 @@ export function platformDoor(apiBase: string, token: () => Promise<string>, fetc
       const answer = await call("POST", "/press/open", { pressId, plan, termsAccepted: true, termsVersion });
       return { press: answer.press as SetupPress, ...(answer.shop ? { shop: answer.shop } : {}) };
     },
+    retryShop: async (shopId) => { await call("POST", "/signup/retry", { shopId }); },
     askForHelp: async ({ subject, body, requestId }) => { await call("POST", "/support/open", { subject, body, requestId }); },
   };
 }
 
-/** Which press setup mode opens: the one in the address (`?press=`), else the only one still in setup. */
+/** Which press setup mode opens: the one in the address (`?press=`), else the only one still in setup, else the only one being made. */
 export function pressToOpen(presses: SetupPress[], wanted: string | null): SetupPress | null {
   if (wanted) return presses.find((p) => p.pressId === wanted) ?? null;
   const inSetup = presses.filter((p) => p.status === "setup");
-  return inSetup.length === 1 ? inSetup[0] : null;
+  if (inSetup.length) return inSetup.length === 1 ? inSetup[0] : null;
+  // A press whose shop is being made comes back to follow it (code plan 18.9), when it is the only one.
+  const opening = presses.filter((p) => p.status === "opening");
+  return opening.length === 1 ? opening[0] : null;
 }

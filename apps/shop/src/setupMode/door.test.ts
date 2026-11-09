@@ -76,6 +76,12 @@ describe("which press setup mode opens", () => {
     expect(pressToOpen(presses, "press-someone-else")).toBeNull();
     expect(pressToOpen([...presses, press("press-third", "setup")], null)).toBeNull();
   });
+
+  it("with none in setup, opens the one shop being made, so the press can follow it (code plan 18.9)", () => {
+    expect(pressToOpen([press("press-old", "open"), press("press-making", "opening")], null)?.pressId).toBe("press-making");
+    expect(pressToOpen([press("press-a", "opening"), press("press-b", "opening")], null)).toBeNull();
+    expect(pressToOpen([press("press-making", "opening"), press("press-new", "setup")], null)?.pressId).toBe("press-new");
+  });
 });
 
 describe("asking a person for help from setup", () => {

@@ -172,10 +172,10 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     "mothpress.example": { registrar: { name: "GoDaddy.com, LLC" }, domainConnect: fakeDomainConnectSeller() },
     "inkpress.example": { registrar: { name: "Hover" } },
   });
-  const frontDoor = createFrontDoor({ ...frontDoorStores, email, auth: fakeAuth(), settings, stagedFiles, signup, now: clock.date, domainLookup, freeNameTaken: freeAddressTaken(registry), ...(suffix ? { suffix } : {}) });
+  const frontDoor = createFrontDoor({ ...frontDoorStores, email, auth: fakeAuth(), settings, stagedFiles, signup, making: (shopId) => shopMaker.progress(shopId), now: clock.date, domainLookup, freeNameTaken: freeAddressTaken(registry), ...(suffix ? { suffix } : {}) });
   const repairStore = fakeRepairStore();
   const repairs = createRepairQueue({ store: repairStore, registry, auditLog, now: clock.date });
-  const steps = () => shopSteps({ ...services, google, registry, profileFiles, config: TEST_CONFIG });
+  const steps = () => shopSteps({ ...services, google, registry, profileFiles, presses: frontDoorStores.presses, stagedFiles, config: TEST_CONFIG });
   const run = (shop, options = {}) => runSteps({ shop, registry, auditLog, now: clock.date, steps: steps(), ...options });
   const shopMaker = createShopMaker({ signups: stores.signups, run, registry, repairs, line: signup, billing, now: clock.date });
 

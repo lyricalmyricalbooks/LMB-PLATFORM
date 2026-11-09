@@ -140,7 +140,7 @@ test("status: every state of the public status page", () => {
 test("setup steps: every step has plain words, and a stuck shop says nothing technical", async () => {
   const found = [];
   const steps = Object.entries(STEP_WORDS);
-  assert.equal(steps.length, 16, "a new setup step needs its plain words in signup/shopMaker.js STEP_WORDS");
+  assert.equal(steps.length, 20, "a new setup step needs its plain words in signup/shopMaker.js STEP_WORDS");
   for (const [n, words] of steps) found.push(...problemsIn(`step ${n}`, words));
 
   const messages = [];

@@ -202,7 +202,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   // "Your web address" in setup names where a press bought its domain from the public lookup (nothing is connected
   // until the shop is made). Whether that seller has Colophon's Allow window waits for the Domain Connect settings.
   const domainLookup = sellerLookupClient({ fetch, resolveTxt });
-  const frontDoor = createFrontDoor({ ...firestoreFrontDoorStores(platform), email, auth: signInLinkMaker, settings, now, signup, stagedFiles, domainLookup, freeNameTaken: freeAddressTaken(registry) });
+  const frontDoor = createFrontDoor({ ...firestoreFrontDoorStores(platform), email, auth: signInLinkMaker, settings, now, signup, stagedFiles, making: (shopId) => shopMaker.progress(shopId), domainLookup, freeNameTaken: freeAddressTaken(registry) });
   // The clock for a press that hasn't opened (18.11): two warnings, then its setup is cleared.
   const setupClock = createSetupClock({ presses: firestoreFrontDoorStores(platform).presses, stagedFiles, email, settings, now });
   const repairStore = firestoreRepairs(platform);

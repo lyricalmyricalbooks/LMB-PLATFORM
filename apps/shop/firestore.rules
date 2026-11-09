@@ -380,6 +380,12 @@ service cloud.firestore {
           && request.resource.data.progress.keys().hasOnly(["steps", "done", "at"])
           && request.resource.data.progress.steps is list && request.resource.data.progress.steps.size() <= 20
           && request.resource.data.progress.done is list && request.resource.data.progress.done.size() <= 20));
+      // `firstWeek/handover/parts/{n}` (code plan 18.9): the product file the press kept in setup, in pieces, written once
+      // by the platform's setup step 20 (Admin SDK). The admin reads it to bring the file in with the Books importer.
+      match /parts/{part} {
+        allow read: if isAdminReader();
+        allow write: if false;
+      }
     }
     match /customerNotes/{noteId} {
       // Private notes + tags per customer (id = sha256 of the lowercased email). Admin only.

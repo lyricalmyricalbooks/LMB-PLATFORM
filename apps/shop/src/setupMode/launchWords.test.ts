@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PlanList, SetupPress } from "./door";
-import { canCreate, createChecklist, freeUntil, makingSteps, planLine, priceWords, whatHappensNext } from "./launchWords";
+import { canCreate, createChecklist, freeUntil, makingSteps, openAdminLabel, planLine, priceWords, whatHappensNext } from "./launchWords";
 
 const press = (over: Partial<SetupPress> = {}): SetupPress => ({
   pressId: "press-moth", status: "setup", plan: "shop", pressName: "Moth Press", sells: "zines", country: "CA", look: "press-riso", adminLook: "", stagedImport: null, ...over,
@@ -79,6 +79,22 @@ describe("what happens next", () => {
   it("has no opening step for a stockroom on its own", () => {
     expect(whatHappensNext("stockroom").join(" ")).not.toMatch(/shoppers/);
     expect(makingSteps("stockroom", {}).map((s) => s.id)).toEqual(["plan", "make", "email"]);
+  });
+
+  it("follows the making in plain words, and once ready points to the next thing to do (code plan 18.9)", () => {
+    const making = makingSteps("both", { making: { status: "making", done: 7, total: 20, now: "putting your shop's pages online", message: "" } });
+    expect(making[1]).toMatchObject({ title: "Making your website and your stockroom", detail: "Now putting your shop's pages online. 7 of 20 steps done.", progress: { done: 7, total: 20 } });
+    const help = makingSteps("shop", { making: { status: "needs-help", done: 9, total: 20, now: "", message: "It needs a hand from us." } });
+    expect(help[1]).toMatchObject({ title: "We're finishing it by hand", detail: "It needs a hand from us." });
+    const ready = makingSteps("both", { ready: true, email: "owner@example.com" });
+    expect(ready.map((s) => [s.id, s.state])).toEqual([["plan", "done"], ["make", "done"], ["email", "done"], ["open", "now"]]);
+    expect(ready[1].title).toBe("Your website and your stockroom are made");
+    expect(makingSteps("stockroom", { ready: true }).map((s) => s.id)).toEqual(["plan", "make", "email"]);
+    expect([openAdminLabel("stockroom"), openAdminLabel("both")]).toEqual(["Open my stockroom", "Open my shop's admin"]);
+    // A press that waited in line follows the making once it starts, not the line's old words.
+    const started = makingSteps("shop", { waiting: "You're next in line.", making: { status: "making", done: 2, total: 20, now: "setting up your shop's sign-in", message: "" } });
+    expect(started[1].title).toBe("Making your website");
+    expect(makingSteps("shop", { waiting: "You're next in line.", making: { status: "in-line", done: 0, total: 20, now: "", message: "" } })[1].title).toBe("Waiting for your turn");
   });
 
   it("shows the free days' end, and why a shop waits its turn", () => {

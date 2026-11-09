@@ -4,7 +4,7 @@
 // Two moments, two words. "Create my shop" (here, in setup) starts the plan and makes the press's real shop, which starts
 // private. "Open my shop" (in the shop's own admin, after the final check) lets shoppers in. Help, emails and the
 // shop's guide already call the second one "Open your shop", so setup never uses "open" for the first.
-import type { PlanList, SetupPress } from "./door";
+import type { Making, PlanList, SetupPress } from "./door";
 import { DESIGN_PAGE, GENERAL_PAGE, IMPORT_PAGE, PAYMENTS_PAGE, PLAN_PAGE } from "./pages";
 import { cardProviderName, chosenCardProvider } from "./cardChoice";
 
@@ -104,20 +104,46 @@ export function whatHappensNext(plan: SetupPress["plan"]): string[] {
   ];
 }
 
-/** The timeline once Create my shop has started: done, now, then next. `waiting` is the platform's reason a shop waits its turn. */
-export function makingSteps(plan: SetupPress["plan"], { trialEnd, waiting, email }: { trialEnd?: string | null; waiting?: string; email?: string }) {
+/** One step of the timeline. `progress` is how many of the making's steps are done, shown as a bar while it runs. */
+export interface MakingStep { id: string; title: string; detail: string; state: "done" | "now" | "next"; progress?: { done: number; total: number } }
+
+/**
+ * The timeline once Create my shop has started: done, now, then next. `waiting` is the platform's reason a shop waits
+ * its turn; `making` is how far the shop maker has got (code plan 18.9); `ready` once the shop is made.
+ */
+export function makingSteps(plan: SetupPress["plan"], { trialEnd, waiting, email, making = null, ready = false }: {
+  trialEnd?: string | null; waiting?: string; email?: string; making?: Making | null; ready?: boolean;
+}): MakingStep[] {
   const makes = PLAN_MAKES[plan] ?? "your shop";
   const until = trialEnd ? freeUntil(trialEnd) : "";
-  const steps: Array<{ id: string; title: string; detail: string; state: "done" | "now" | "next" }> = [
-    { id: "plan", title: "Your plan has started", detail: until ? `It's free until ${until}.` : "Nothing is charged today.", state: "done" },
-    waiting
-      ? { id: "make", title: "Waiting for your turn", detail: waiting, state: "now" }
-      : { id: "make", title: `Making ${makes}`, detail: "With everything you set up here. It takes a few minutes.", state: "now" },
-    { id: "email", title: "We email you when it's ready", detail: email ? `To ${email}, with a button that opens your shop's admin.` : "With a button that opens your shop's admin.", state: "next" },
-  ];
+  const withButton = email ? `To ${email}, with a button that opens your shop's admin.` : "With a button that opens your shop's admin.";
+  const steps: MakingStep[] = [{ id: "plan", title: "Your plan has started", detail: until ? `It's free until ${until}.` : "Nothing is charged today.", state: "done" }];
+  if (ready) {
+    steps.push(
+      { id: "make", title: `${capital(makes)} ${plan === "both" ? "are" : "is"} made`, detail: "With everything you set up here.", state: "done" },
+      { id: "email", title: "We've emailed you the way in", detail: withButton, state: "done" },
+    );
+    if (plan !== "stockroom") steps.push({ id: "open", title: "Now open it to shoppers", detail: "Add payments and shipping, run the last check, and press Open my shop.", state: "now" });
+    return steps;
+  }
+  const counted = making && making.total > 0 ? { done: Math.min(making.done, making.total), total: making.total } : undefined;
+  // The line's words hold only until the making starts (the record keeps them from the day it joined the line).
+  if (waiting && (!making || making.status === "in-line" || making.status === "later")) steps.push({ id: "make", title: "Waiting for your turn", detail: waiting, state: "now" });
+  else if (making?.status === "needs-help") steps.push({ id: "make", title: "We're finishing it by hand", detail: making.message || "It needs a hand from us. We've been told, and we'll email you when it's done.", state: "now", progress: counted });
+  else if (making?.status === "waiting") steps.push({ id: "make", title: `Making ${makes}`, detail: making.message || "Still working on it. We'll carry on in a minute.", state: "now", progress: counted });
+  else if (making?.status === "making") {
+    const now = making.now ? `Now ${making.now}. ` : "";
+    steps.push({ id: "make", title: `Making ${makes}`, detail: `${now}${counted ? `${counted.done} of ${counted.total} steps done.` : "It takes a few minutes."}`, state: "now", progress: counted });
+  } else steps.push({ id: "make", title: `Making ${makes}`, detail: "With everything you set up here. It takes a few minutes.", state: "now" });
+  steps.push({ id: "email", title: "We email you when it's ready", detail: withButton, state: "next" });
   if (plan !== "stockroom") steps.push({ id: "open", title: "Then open it to shoppers", detail: "Add payments and shipping, run the last check, and press Open my shop.", state: "next" });
   return steps;
 }
+
+/** The ready card's button: the admin the press goes into next. */
+export const openAdminLabel = (plan: SetupPress["plan"]) => (plan === "stockroom" ? "Open my stockroom" : "Open my shop's admin");
+
+const capital = (words: string) => words.charAt(0).toUpperCase() + words.slice(1);
 
 /** "17 November" for a trial's end; "" when it can't be read. */
 export function freeUntil(at: string): string {
