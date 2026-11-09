@@ -25,6 +25,13 @@ export const KIND_WORDS = Object.freeze({
   "subscription-ended": "Plan ended", "payments-past-due": "Stripe needs details", "plan-changed": "Plan changed",
   "app-closing-soon": "App closing soon", "app-closed": "App closed", "app-download-ending": "Download ending",
   "app-records-deleted": "App records deleted", "card-expiring": "Card expiring", "payments-moved": "Card payments moved",
+  "payments-switched": "Card switch done", "chitchats-waiting": "Chit Chats needs a look", "sign-in-link": "Sign-in link",
+  "sign-in-code": "Sign-in code", "waitlist-invite": "Waitlist invitation", "new-device": "New sign-in", "account-deleted": "Account deleted",
+  "recovery-asked": "Account move asked", "recovery-received": "Account move request received", "recovery-stopped": "Account move stopped",
+  "recovery-approved": "Account move approved", "recovery-denied": "Account move refused", "recovery-applied": "Account moved",
+  "trial-tip": "Trial tip", "shop-checkup": "Monthly check-up", "shop-closed": "Shop closed", "shop-deletion-warning": "Shop deletion warning",
+  "shop-deleted": "Shop deleted", "support-access-request": "Support asks to make changes", "press-message": "Message from the platform",
+  "data-export-ready": "Data ready to download",
 });
 export const kindWords = (kind) => KIND_WORDS[kind] ?? (String(kind ?? "email").replace(/[-_]+/g, " ").replace(/^./, (c) => c.toUpperCase()));
 
