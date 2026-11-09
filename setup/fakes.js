@@ -153,6 +153,8 @@ export function fakeGoogle({ failOnce = [] } = {}) {
     authConfigs: new Map(),
     // Budgets on the billing account (plan 15.17): { id, displayName, body }.
     budgets: [],
+    // Each project's bot check token lifetime in minutes (absent: no reCAPTCHA configuration yet), and its assessments this month (plan 15.18).
+    appCheckMinutes: new Map(), assessments: new Map(),
   };
   const calls = [];
   const failures = [...failOnce];
@@ -300,6 +302,14 @@ export function fakeGoogle({ failOnce = [] } = {}) {
       },
       projectNumber: async (projectId) => number(projectId),
     },
+    appCheck: {
+      tokenMinutes: async (projectId) => world.appCheckMinutes.get(projectId) ?? null,
+      async setTokenMinutes(projectId, appId, minutes) {
+        change("appCheck.setTokenMinutes", projectId, minutes);
+        world.appCheckMinutes.set(projectId, minutes);
+      },
+    },
+    monitoring: { assessments: async (projectId) => world.assessments.get(projectId) ?? 0 },
     authConfig: {
       get: async (projectId) => structuredClone(world.authConfigs.get(projectId) ?? { subtype: "FIREBASE_AUTH" }),
       async upgrade(projectId) {
