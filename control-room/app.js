@@ -552,7 +552,7 @@ async function loadToday() {
       // A line about one shop can be snoozed for a week; it comes back by itself.
       if (need.shopId && TODAY_SNOOZABLE.has(need.kind)) {
         return el("div", { className: "rp-alert", dataset: { tone } }, glyph, text,
-          el("span", { className: "rp-alert-actions" }, el("a", { className: "rp-btn rp-btn-sm", href: need.go, textContent: "Open" }), needSnoozeButton(need, 7)));
+          el("span", { className: "rp-alert-actions" }, el("a", { className: "rp-btn rp-btn-sm", href: need.go, textContent: "Open" }), needSnoozeMenu(need)));
       }
       return el("a", { className: "rp-alert", href: need.go, dataset: { tone } }, glyph, text,
         el("span", { className: "rp-alert-actions" }, el("span", { className: "rp-btn rp-btn-sm", textContent: "Open" })));
@@ -577,6 +577,29 @@ async function loadToday() {
 
 // The kinds of line Today lets the owner snooze (today.js SNOOZABLE).
 const TODAY_SNOOZABLE = new Set(["shop", "payment", "move", "newsletter", "domain", "switch", "parcels"]);
+
+/** Snooze one Today line for a day, a week or a month: picked from a small menu, saved at once. */
+function needSnoozeMenu(need) {
+  const menu = el("select", { className: "rp-select", style: "width: auto" },
+    el("option", { value: "", textContent: "Snooze…", selected: true }),
+    ...[[1, "for a day"], [7, "for a week"], [30, "for a month"]].map(([days, words]) => el("option", { value: String(days), textContent: words })));
+  menu.setAttribute("aria-label", `Snooze: ${need.words}`);
+  menu.addEventListener("change", async () => {
+    const days = Number(menu.value);
+    if (!days) return;
+    menu.disabled = true;
+    try {
+      await api("POST", "/control/today-snooze", { shopId: need.shopId, kind: need.kind, days });
+      status.textContent = `Snoozed ${days === 1 ? "for a day" : days === 7 ? "for a week" : "for a month"}: it comes back by itself.`;
+      await loadToday();
+    } catch (failure) {
+      status.textContent = failure.message;
+      menu.value = "";
+      menu.disabled = false;
+    }
+  });
+  return menu;
+}
 
 /** Snooze one Today line for `days`, or put it back with 0. */
 function needSnoozeButton(need, days) {
