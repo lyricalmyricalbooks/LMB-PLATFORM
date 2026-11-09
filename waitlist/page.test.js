@@ -37,6 +37,7 @@ test("the waitlist says who is asking, what for, and how to stop (plan 15.8)", (
   const text = textOf(page);
   assert.match(text, /Colophon will email you about your place and the launch, and nothing else/);
   assert.match(text, /Reply STOP to any of our emails and we'll take you off the list at once/);
-  assert.match(text, /you can stop them at any time/);
+  // Said right under the email box, before anyone joins.
+  assert.match(page, /id="start-consent">Colophon will email you/);
   assert.doesNotMatch(text, /We'll only email you about the launch/);
 });

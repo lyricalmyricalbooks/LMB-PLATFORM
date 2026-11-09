@@ -24,7 +24,7 @@ function fakeDocument() {
     replaceChildren(...kids) { this.children = kids; },
     get text() { return [this.textContent, ...this.children.map((c) => (typeof c === "string" ? c : c.text))].join(""); },
   });
-  const ids = new Map(["pricing", "pricing-trial", "pricing-founding", "plan-cards", "start-trial", "not-ready"].map((id) => [id, node("div")]));
+  const ids = new Map(["pricing", "pricing-trial", "pricing-founding", "plan-cards", "start-trial"].map((id) => [id, node("div")]));
   return { ids, getElementById: (id) => ids.get(id), createElement: node };
 }
 
@@ -33,7 +33,6 @@ test("switched off (the default), the page asks nothing of the plans and stays t
   assert.equal(answer.signupOpen, false);
   assert.equal(pricingView(answer), null);
   assert.match(page, /<section id="pricing" hidden/);
-  assert.match(page, /<h2 id="not-ready" class="section" hidden>/);
   assert.match(page, /if \(PLANS_URL && SIGNUP_URL\)/);
   const config = readFileSync(new URL("./config.js", import.meta.url), "utf8");
   assert.match(config, /export const PLANS_URL = "";/);
@@ -58,7 +57,7 @@ test("switched on, the three plans and prices come from the settings, free for 1
   const doc = fakeDocument();
   assert.equal(renderPricing(doc, view, { signupUrl: "https://platform.example/signup/" }), true);
   assert.equal(doc.ids.get("pricing").hidden, false);
-  assert.equal(doc.ids.get("not-ready").hidden, false, "the waitlist stays, for presses not ready yet");
+  assert.equal(view.trialDays, 14);
   assert.equal(doc.ids.get("start-trial").href, "https://platform.example/signup/");
   assert.equal(doc.ids.get("pricing-founding").hidden, true);
   assert.match(doc.ids.get("plan-cards").text, /Shop\$31\.00 a month/);
@@ -68,7 +67,7 @@ test("switched on, the three plans and prices come from the settings, free for 1
 
 test("the founding price shows only when the offer is set", async () => {
   const view = pricingView(await plansAnswer({ SIGNUP_OPEN: "true", FOUNDING_PERCENT_OFF: "25", FOUNDING_PRESSES: "25", PAY_AS_YOU_SELL_BASIS_POINTS: "0" }));
-  assert.equal(view.founding, "Founding presses: 25% off for as long as you stay, for the first 25 presses.");
+  assert.equal(view.founding, "Founding shops: 25% off for as long as you stay, for the first 25 shops.");
   assert.deepEqual(view.plans.map((p) => p.foundingPriceText), ["$21.75", "$14.25", "$29.25"]);
   const doc = fakeDocument();
   renderPricing(doc, view, { signupUrl: "/signup/" });

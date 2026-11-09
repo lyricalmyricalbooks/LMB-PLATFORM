@@ -1,6 +1,10 @@
 # Waitlist
 
-The public waitlist page for presses: `index.html`, a single static page with no build step.
+The platform's front page (`index.html`, a single static page with no build step), rebuilt from the design handoff
+"Colophon front page" on 9 November 2026: a dark hero tile with one email box, three steps, four feature tiles, the
+founding card. `frontPage.js` holds its two states: until sign-up opens the email box joins the waitlist (an email is
+all it asks); once `/api/plans` says sign-up is open, every button says "Start free trial" and the email is handed to the
+front door (`join/`) through session storage, never the address bar. Proven by `frontPage.test.js`.
 
 `signup.js` is the sign-up handler. It checks the form, quietly ignores bots (the hidden `website` field), and stores
 each email once, keyed by a hash of the address so the record id doesn't show it. It uses only browser built-ins, so the

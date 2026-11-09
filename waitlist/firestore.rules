@@ -17,7 +17,7 @@ service cloud.firestore {
         && text(request.resource.data.email, 6, 254)
         && request.resource.data.email.matches('^[^\\s@A-Z]+@[^\\s@A-Z]+[.][^\\s@A-Z]+$')
         && id == hashing.sha256(request.resource.data.email).toHexString().lower()[0:32]
-        && text(request.resource.data.name, 1, 120)
+        && text(request.resource.data.name, 0, 120)
         && text(request.resource.data.get("press", ""), 0, 160)
         && request.resource.data.plan in ["shop", "stockroom", "both", "unsure"]
         && text(request.resource.data.get("today", ""), 0, 500)

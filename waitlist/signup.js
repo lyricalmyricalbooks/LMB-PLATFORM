@@ -19,12 +19,13 @@ export async function signupId(email) {
  * Returns `{ status, body }` for the HTTP reply. Bots that fill the hidden `website` field get a quiet "ok".
  */
 export async function handleSignup(input, { store, now = () => new Date() }) {
-  if (!input || typeof input !== "object") return reply(400, "Please add your name and a working email.");
+  if (!input || typeof input !== "object") return reply(400, "Enter a working email address.");
   if (clean(input.website, 200)) return reply(200, "ok");
 
   const email = clean(input.email, LIMITS.email).toLowerCase();
   const name = clean(input.name, LIMITS.name);
-  if (!name || !EMAIL.test(email)) return reply(400, "Please add your name and a working email.");
+  // The front page asks only for an email (9 November 2026); a name is kept when one is sent.
+  if (!EMAIL.test(email)) return reply(400, "Enter a working email address.");
 
   const plan = PLANS.has(input.plan) ? input.plan : "unsure";
   const id = await signupId(email);
