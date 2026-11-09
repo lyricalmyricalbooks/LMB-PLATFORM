@@ -263,11 +263,12 @@ function cardsCount(shops) {
   return `${parts.length ? ` · cards: ${parts.map(([n, words]) => `${n} ${words}`).join(", ")}` : ""}${switching ? ` · ${switching} switch${switching === 1 ? "" : "es"} not finished` : ""}`;
 }
 
-// The Shops list's Cards filter: who takes the cards, none yet, or a switch between them left unfinished.
+// The Shops list's Cards filter: who takes the cards, none yet, a switch between them left unfinished, or payouts paused.
 function cardsMatches(shop, wanted) {
   if (!wanted) return true;
   if (wanted === "none") return !shop.cards;
   if (wanted === "switching") return Boolean(shop.paymentsSwitch);
+  if (wanted === "paused") return shop.payoutsPaused === true;
   return shop.cards === wanted;
 }
 

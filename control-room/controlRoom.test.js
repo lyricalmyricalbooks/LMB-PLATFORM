@@ -593,6 +593,9 @@ test("one shop's record: owner, billing, setup, fee and its history, admins only
   const listed = (await w.ask(ADMIN, "GET", "/api/control/shops")).body.shops.find((s) => s.shopId === ID);
   assert.deepEqual([listed.ownerEmail, listed.billingStatus], ["owner@example.com", "trialing"]);
   assert.equal(listed.emailLanguage, "en", "the list carries each press's email language too");
+  assert.equal(listed.payoutsPaused, false);
+  await w.registry.updateShop(ID, { status: "live", payments: { provider: "stripe", accountId: "acct_x", detailsSubmitted: true, payoutsEnabled: false } });
+  assert.equal((await w.ask(ADMIN, "GET", "/api/control/shops")).body.shops.find((s) => s.shopId === ID).payoutsPaused, true, "the Cards filter's Payouts paused, the same rule as Today");
 });
 
 test("what a shop sells, against the category its Stripe account was filed under (12.18)", async () => {
