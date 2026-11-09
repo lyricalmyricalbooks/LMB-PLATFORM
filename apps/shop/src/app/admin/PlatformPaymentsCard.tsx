@@ -3,7 +3,7 @@ import { adminApi } from "./api";
 import { ErrorState, LoadingState, PrimaryButton, SecondaryButton, SectionCard, StatusBadge } from "./riso/components";
 import { friendlyError } from "./settingsLayout";
 import { SwitchProviderSection } from "./SwitchProviderSection";
-import { accountConnected, CONTINUE_WITH_STRIPE, feeLine, needsLine, paymentsReady, providerName, returnNotice, withoutReturnFlags, type PlatformPaymentsAnswer, type ReturnNotice } from "./platformPayments";
+import { accountConnected, CONTINUE_WITH_STRIPE, feeLine, needsLine, payoutLine, paymentsReady, providerName, returnNotice, withoutReturnFlags, type PlatformPaymentsAnswer, type ReturnNotice } from "./platformPayments";
 
 // Settings › Payments › Ways to pay, for a shop whose cards run through Colophon (plan 2.2b / 2.10): no keys to paste.
 // The press connects its own Square or Stripe account here, sees whether it can take cards, and sees Colophon's fee
@@ -88,7 +88,7 @@ export function PlatformPaymentsCard({ provider }: { provider: "stripe" | "squar
             <div className="rp-card" style={{ padding: 16, boxShadow: "none", background: "var(--rp-surface-sunken)" }}>
               <div className="rp-sect">Payouts &amp; Colophon's fee</div>
               <p style={{ margin: 0 }}>{feeLine(answer.platformFee)}</p>
-              <p className="rp-hint" style={{ margin: "8px 0 0" }}>{name} pays your sales into your own bank account on its usual schedule.</p>
+              <p className="rp-hint" style={{ margin: "8px 0 0" }}>{payoutLine(answer)}</p>
             </div>
             {connected && <SwitchProviderSection current={provider} />}
             {error && <p role="alert" className="rp-hint" style={{ margin: 0, color: "var(--rp-danger)" }}>{error}</p>}
