@@ -9,10 +9,10 @@ const PROFILE = JSON.parse(readFileSync(new URL("../profile/examples/test-shop.j
 const ENV = 'SHOP_OWNER_EMAIL="owner@example.com"\nSHOP_PAYMENT_PROVIDER="square"\nSHOP_PAYMENT_MODE="platform"\n';
 const SQUARE = { provider: "square", accountId: "MERCHANT1", mode: "test", locationId: "LOC1" };
 
-async function world({ deployFails = false } = {}) {
+async function world({ deployFails = false, emailFails = false } = {}) {
   const registry = fakeRegistry();
   await registry.createShop("moth-press", {
-    shopId: "moth-press", region: "northamerica-northeast1",
+    shopId: "moth-press", region: "northamerica-northeast1", pressName: "Moth Press", ownerEmail: "owner@example.com",
     payments: { ...SQUARE, next: { provider: "stripe", accountId: "acct_new", mode: "test", chargesEnabled: true }, otherAccounts: ["stripe:acct_new"], switching: { to: "stripe", accountId: "acct_new", at: "2026-11-09T12:00:00.000Z" } },
   });
   await registry.saveProfile("moth-press", { ...PROFILE, payments: { provider: "square", mode: "platform" } });
@@ -23,12 +23,14 @@ async function world({ deployFails = false } = {}) {
     functions: async (shopId, options) => { deployed.push(options.envFile); },
   };
   const logged = [];
-  const switches = providerSwitch({
+  const sent = [];
+  const email = { sendPlatform: async (m) => { if (emailFails) throw new Error("the email service is down"); sent.push(m); } };
+  const switches = providerSwitch({ email,
     registry, envFiles: { read: async () => env, write: async (_id, text) => { env = text; } }, profileFiles: fakeProfileFiles(), deploy,
     publish: async () => ({ apps: ["shop"] }), log: async (shopId, what, detail) => logged.push({ shopId, what, ...detail }),
     now: () => new Date("2026-11-09T13:00:00Z"), publishableKeys: { test: "pk_test_platform" },
   });
-  return { registry, switches, deployed, logged, env: () => env };
+  return { registry, switches, deployed, logged, sent, env: () => env };
 }
 
 test("a switch from Square to Stripe: the server names Stripe with Square kept for older orders, then the registry moves", async () => {
@@ -44,6 +46,15 @@ test("a switch from Square to Stripe: the server names Stripe with Square kept f
   assert.deepEqual([row.payments.provider, row.payments.accountId, row.payments.earlier[0].accountId, row.payments.earlier[0].until], ["stripe", "acct_new", "MERCHANT1", "2026-11-09T13:00:00.000Z"]);
   assert.equal(switchWaiting(row), null);
   assert.deepEqual(w.logged.map((e) => [e.what, e.from, e.to]), [["payments-switched", "square", "stripe"]]);
+  assert.equal(done.told, true);
+  assert.deepEqual(w.sent.map((m) => [m.kind, m.to, m.shopId, m.idempotencyKey, m.data.from, m.data.to]), [["payments-switched", "owner@example.com", "moth-press", "payments-switched-moth-press-acct_new", "square", "stripe"]]);
+});
+
+test("the press is told once the switch is done; an email that fails never undoes it", async () => {
+  const w = await world({ emailFails: true });
+  const done = await w.switches.finish("moth-press", { by: "admin@example.com" });
+  assert.deepEqual([done.finished, done.told], [true, false]);
+  assert.equal((await w.registry.getShop("moth-press")).payments.provider, "stripe");
 });
 
 test("where deploys aren't connected, the switch waits with its reason, and nothing has moved", async () => {
@@ -56,4 +67,5 @@ test("where deploys aren't connected, the switch waits with its reason, and noth
   assert.equal(row.payments.switching.to, "stripe", "both accounts still take sales");
   assert.equal(switchWaiting(row).problem.message, "deploys aren't connected on this server yet");
   assert.deepEqual((await w.switches.finishAll({ by: "admin@example.com" })).shops.map((s) => s.finished), [false]);
+  assert.deepEqual(w.sent, [], "nobody is told about a switch that hasn't happened");
 });

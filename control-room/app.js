@@ -834,7 +834,7 @@ function providerSwitchLine(shop) {
       const answer = await api("POST", "/control/payments/finish-switch", { shopId: shop.shopId });
       closeDrawer();
       await load();
-      status.textContent = answer.finished ? `${shop.pressName ?? shop.shopId} now sells through ${PROVIDER_WORDS[waiting.to]}.` : `Not finished: ${answer.error ?? answer.skipped}`;
+      status.textContent = answer.finished ? `${shop.pressName ?? shop.shopId} now sells through ${PROVIDER_WORDS[waiting.to]}${answer.told ? ", and they've been emailed" : ""}.` : `Not finished: ${answer.error ?? answer.skipped}`;
     } catch (failure) {
       status.textContent = failure.message;
     }

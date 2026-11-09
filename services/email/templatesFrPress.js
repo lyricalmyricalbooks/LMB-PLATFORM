@@ -786,6 +786,22 @@ export const PRESS_TEMPLATES_FR = {
     });
   },
 
+  /** French twin of "payments-switched". */
+  "payments-switched": ({ from, to, link }, { settings }) => {
+    const name = (p) => ({ stripe: "Stripe", square: "Square" })[p];
+    if (!name(from) || !name(to)) throw new Error("the switch names no card provider");
+    return layout({
+      subject: `Vos paiements par carte passent maintenant par ${name(to)}`,
+      greeting: "Bonjour,",
+      paragraphs: [
+        `Votre changement est terminé. Les nouvelles ventes par carte vont maintenant dans votre compte ${name(to)}, et ${name(to)} vous les verse.`,
+        `Les remboursements des commandes passées avant aujourd'hui passent toujours par ${name(from)} : gardez ce compte ouvert.`,
+      ],
+      buttons: link ? [["Ouvrir Paiements", safeLink(link)]] : [],
+      footer: signOff(settings),
+    });
+  },
+
   /** French twin of "data-export-ready". */
   "data-export-ready": ({ link, until, asked, reason }, { settings, pressName, wFr = sameFr }) => layout({
     subject: `Les données de ${pressName} sont prêtes à télécharger`,

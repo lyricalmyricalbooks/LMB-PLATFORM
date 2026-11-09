@@ -65,5 +65,24 @@ export function pressTemplates({ layout, safeLink, signOff }) {
         footer: `${signOff(settings)} To stop these emails, open Chit Chats in Settings › Apps.`,
       });
     },
+
+    /**
+     * A press's switch between Stripe and Square is finished (control-room/providerSwitch.js). `data`: { pressName,
+     * from, to ("stripe" | "square"), link (Settings › Payments in the shop's admin, or null) }.
+     */
+    "payments-switched": ({ from, to, link }, { settings }) => {
+      const name = (p) => ({ stripe: "Stripe", square: "Square" })[p];
+      if (!name(from) || !name(to)) throw new Error("the switch names no card provider");
+      return layout({
+        subject: `Your card payments now go through ${name(to)}`,
+        greeting: "Hello,",
+        paragraphs: [
+          `Your switch is done. New card sales now go to your ${name(to)} account, and ${name(to)} pays them out.`,
+          `Refunds for orders taken before today still go through ${name(from)}, so keep that account open.`,
+        ],
+        buttons: link ? [["Open Payments", safeLink(link)]] : [],
+        footer: signOff(settings),
+      });
+    },
   };
 }
