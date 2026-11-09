@@ -75,7 +75,7 @@ export function privateStart(shop, docs) {
 }
 
 /** The shop's functions/.env.<project id>, read by the shop's server code (apps/shop/functions/shopConfig.js). */
-export function envFileText(shop, { senderEmail, paymentsServiceUrl, region = REGION, platformEmailUrl = "", platformDomainsUrl = "", platformAccountingUrl = "", platformAccountsUrl = "", extraOrigins = [], siteUrl = "" }) {
+export function envFileText(shop, { senderEmail, paymentsServiceUrl, region = REGION, platformEmailUrl = "", platformDomainsUrl = "", platformAccountingUrl = "", platformAccountsUrl = "", platformAppsUrl = "", extraOrigins = [], siteUrl = "" }) {
   // Quotes and line breaks would end the value early; shopConfig.js drops the same characters from the sender name.
   const quote = (value) => `"${String(value).replace(/[\r\n"\\<>]+/g, " ").replace(/\s+/g, " ").trim()}"`;
   return [
@@ -115,6 +115,9 @@ export function envFileText(shop, { senderEmail, paymentsServiceUrl, region = RE
     // The platform accounts' shop door (accounts/teamSync.js, plan 5.11): told when Settings › Team changes, so the
     // account switcher lists the people added there. Written only once the platform hosts it (config.platformAccountsUrl).
     ...(platformAccountsUrl ? [`PLATFORM_ACCOUNTS_URL=${quote(platformAccountsUrl)}`] : []),
+    // The platform's app store door (services/apps/shopDoor.js, plan 26.5): Settings › Apps lists installed apps and the
+    // store. Written only once the platform hosts it (config.platformAppsUrl).
+    ...(platformAppsUrl ? [`PLATFORM_APPS_URL=${quote(platformAppsUrl)}`] : []),
     "",
   ].join("\n");
 }

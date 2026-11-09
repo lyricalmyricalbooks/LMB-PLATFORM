@@ -708,6 +708,8 @@ pop-up) carry `fm-newsletter-btn` unless the section sets its own button style o
 `ThemeThumb` also draws a phone frame (`.studio-theme-thumb-phone`). The reset line names what it clears
 (`templateDetailsLine`, short names in `TEMPLATE_DETAIL_NAMES`) and shows on the Themes draft card too. Look previews use
 real prices (`previewPrice` in `ownBooks`). The template button check covers the home newsletter and pop-up sections.
+Thumbs show the press's name (`pressNameOf`) and `design.logoUrl` in place of "Aa"; the drawing is a button that
+previews that design on a phone (`onPreview(entry, "mobile")`). Preview prices use the storefront's format (`CA$ 22.00`).
 
 ## Responsive public element editing (4 October 2026)
 

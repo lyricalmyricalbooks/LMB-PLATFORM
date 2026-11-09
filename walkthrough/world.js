@@ -29,7 +29,8 @@ import { supportRoutes } from "../services/support/routes.js";
 import { fakeSupportStore } from "../services/support/fakes.js";
 import { createAppMakers } from "../services/apps/makers.js";
 import { createAppInstalls } from "../services/apps/installs.js";
-import { appInstallPublicRoutes, appInstallRoutes, appMakerRoutes, appStorePublicRoutes } from "../services/apps/routes.js";
+import { appInstallPublicRoutes, appInstallRoutes, appMakerRoutes, appShopDoorRoutes, appStorePublicRoutes } from "../services/apps/routes.js";
+import { createAppShopDoor } from "../services/apps/shopDoor.js";
 import { fakeAppAlertStores, fakeAppInstallStores, fakeAppStore } from "../services/apps/fakes.js";
 import { createRecovery, recoveryByHand } from "../accounts/recovery.js";
 import { recoveryRoutes } from "../accounts/recoveryRoutes.js";
@@ -310,7 +311,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...exportRoutes(dataExports),
   };
   const door = createApi({
-    signup, verifyIdToken: fakeVerifyIdToken, settings, live, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls) },
+    signup, verifyIdToken: fakeVerifyIdToken, settings, live, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls), ...appShopDoorRoutes(createAppShopDoor({ registry, installs: appInstalls, makers: appMakers })) },
     // Fair-use limits (19.5) on an in-memory counter, a hundred times the real ones so a person clicking never meets them.
     limits: createLimits({ throttle: fakeThrottle(), admins, limits: generousLimits(), now: clock.date, log: () => {} }),
     log: () => {},

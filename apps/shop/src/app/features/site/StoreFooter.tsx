@@ -177,7 +177,7 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
           {/* Style › Footer & social links › Currency picker in the footer (off by default). */}
           {footerCurrencyOn(d) && <FooterCurrency design={d} />}
           {badges.length > 0 && (
-            <div className="fm-footer-pay-icons flex items-center gap-4 text-white/55 select-none" data-studio-target="style:paymentIcons|style:footer" data-studio-label="Payment icons">
+            <div className="fm-footer-pay-icons flex flex-wrap items-center gap-x-4 gap-y-2 min-w-0 text-white/55 select-none" data-studio-target="style:paymentIcons|style:footer" data-studio-label="Payment icons">
               {badges.map((badgeId: string) => {
                 const icon = paymentIcon(badgeId, d);
                 if (!icon) return null;

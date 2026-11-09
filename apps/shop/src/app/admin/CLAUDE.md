@@ -529,6 +529,9 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
 - **Spreadsheets (23.35):** every file picker uses `SPREADSHEET_ACCEPT` and reads through `spreadsheetText()` in
   `spreadsheetFile.ts` (CSV/TSV text in any common encoding, .xlsx, .ods, and .xls via `xlsFile.ts` since 23.40 → CSV text); show errors with `readProblem(err)`.
   A new bring-a-file window must do the same. Test files made by real programs live in `testdata/spreadsheets/`.
+- **Google Sheets (23.42):** put `<GoogleSheetLink onFile={(f) => choose(f)} />` beside a window's file button. It renders
+  nothing unless the shop's Google account is linked, and hands over a stand-in `File` that `readSpreadsheet` reads
+  through `readThrough` (another tab asks Google again), so the window needs no other change.
 - **Match columns (23.36):** Books import keeps the owner's matches for unknown headings in `columns` state and passes
   them to `planImport({ columns })`; `mapHeadings` ignores a match for `id`, for a field a known heading already fills,
   or for a field matched twice. Choosing a new file starts from the matches remembered by `columnMemory.ts` (23.41, this

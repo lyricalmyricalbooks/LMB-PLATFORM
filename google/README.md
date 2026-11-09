@@ -35,6 +35,7 @@ The registry row's `google` also holds `accountEmail`, `connectedAt`, `closedAt`
 | --- | --- | --- |
 | `google.productProblems` | Lists the books Google Shopping turned down or demoted, with the reason (Merchant API v1 product status). Reads only | `content`, already asked |
 | `google.sheetSync { tabs: { Stock, Sales, Expenses } }` (or `{ rows }` for Stock alone) | Makes one spreadsheet, "<press> stock from Colophon", in the press's own Drive the first time and rewrites its tabs after that (Sales and Expenses up to 5,000 lines each; an older sheet gets missing tabs added, and tabs the press made are left alone). Cells are written as plain text (never formulas). A sheet the press deleted is made again on the next send. Never deleted by the platform | `drive.file` (Google labels it non-sensitive), the Drive box |
+| `google.sheetRead { spreadsheetId, sheet?, gid? }` | Reads one tab of a Google Sheet the press pasted the link of (plan 23.42): the tab named, else the one the link's `gid` points at, else the first visible tab with anything in it. Answers the sheet's title, its visible tabs and the cells as text (up to 10,000 lines of 100 cells). Never changes the sheet. `available: false` until reading is allowed | `spreadsheets.readonly` (sensitive, not restricted), asked with the Drive box |
 
 The shop's server builds the rows itself from the stockroom (`apps/shop/functions/googleConnect.js`); the browser never supplies them.
 

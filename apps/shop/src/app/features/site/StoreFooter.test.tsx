@@ -33,4 +33,8 @@ describe("editable footer layouts", () => {
     expect(html).toContain('href="/page/archive"');
     expect(html).toContain('aria-label="Participate &amp; connect"');
   });
+  it("lets a long row of payment icons wrap onto a second line on phones", () => {
+    const html = render({ footerBadges: ["visa", "mastercard", "amex", "paypal", "applepay", "googlepay", "afterpay", "klarna"], paymentIconsFullColour: true });
+    expect(html).toMatch(/class="fm-footer-pay-icons flex flex-wrap /);
+  });
 });

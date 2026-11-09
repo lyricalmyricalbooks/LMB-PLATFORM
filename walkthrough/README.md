@@ -65,7 +65,6 @@ Joined here because no hosted web door exists yet (plan 6.14):
 ## The web version (`site/build.js`)
 
 `node walkthrough/site/build.js <folder>` (with `npm run demo` running) opens every stop on the start page in Chromium, as the
-person it names, and writes `<folder>/index.html` with a picture of each stop and what to try there. The workflow
-`.github/workflows/walkthrough-site.yml` does this on every merge to `main` and publishes the folder with GitHub Pages, so the
-walkthrough can be opened in a browser with nothing installed. They are pictures, not a live copy: nothing on that page
-can be clicked into. Made-up data only.
+person it names, and writes `<folder>/index.html` with a picture of each stop and what to try there. It is no longer published: since 9 November 2026 the real platform is live at
+https://lmb-platform-prod.web.app (`site/`), and the GitHub Pages address sends visitors there
+(`.github/workflows/pages-to-app.yml`). Made-up data only.

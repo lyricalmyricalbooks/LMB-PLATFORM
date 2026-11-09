@@ -1,0 +1,46 @@
+name: GitHub Pages points to the app
+
+# This repository's GitHub Pages address used to show pictures of the
+# walkthrough. The owner asked for the real app instead (9 November 2026), so this publishes one page there that sends
+# every visitor straight to it, https://lmb-platform-prod.web.app. Nothing else is published, and no key is used.
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/pages-to-app.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-to-app
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Make the page that goes to the app
+        run: |
+          mkdir pages
+          page='<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Colophon</title><meta http-equiv="refresh" content="0; url=https://lmb-platform-prod.web.app/"><link rel="canonical" href="https://lmb-platform-prod.web.app/"><script>location.replace("https://lmb-platform-prod.web.app/")</script></head><body><p><a href="https://lmb-platform-prod.web.app/">Go to Colophon</a></p></body></html>'
+          printf '%s\n' "$page" > pages/index.html
+          printf '%s\n' "$page" > pages/404.html
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
+        with:
+          path: pages
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

@@ -38,6 +38,13 @@ export const SECRETS = Object.freeze([
   { env: "CHECKUP_SECRET", secret: "checkup-secret", api: true, jobs: true },
 ]);
 
+/**
+ * The keys the server can start without (owner, 9 November 2026: open the platform before Stripe and email are
+ * connected). Without them sign-in by Google, the control room and every page work; email and Stripe answer "not
+ * connected" until their secret is added and the deploy runs again. The two link phrases are always needed.
+ */
+export const OPTIONAL_SECRETS = Object.freeze(new Set([...EMAIL_SECRETS, ...PAYMENTS_SECRETS, ...BILLING_SECRETS].map((s) => s.secret)));
+
 /** The services' own accounts and the roles each holds in the platform project. */
 export const ACCOUNTS = Object.freeze([
   { name: API_SERVICE, words: "The platform's web door", roles: ["roles/datastore.user", "roles/firebaseauth.admin", "roles/secretmanager.secretAccessor"] },
@@ -75,13 +82,13 @@ export function serviceEnv(role, settings, project) {
   return { ...settings, PLATFORM_ROLE: role, PLATFORM_PROJECT: project, BILLING_MODE: "test" };
 }
 
-const secretsFor = (role) => SECRETS.filter((s) => s[role]).map((s) => `${s.env}=${s.secret}:latest`).join(",");
+const secretsFor = (role, present) => SECRETS.filter((s) => s[role] && present.has(s.secret)).map((s) => `${s.env}=${s.secret}:latest`).join(",");
 
 /**
  * The plan: [{ title, command, args, cwd?, unless? }]. `unless` is a read-only command that, when it works, means the
  * step is already done (an account or image store that is there).
  */
-export function deployPlan({ project = DEFAULT_PROJECT, region = REGION, version, envFiles }) {
+export function deployPlan({ project = DEFAULT_PROJECT, region = REGION, version, envFiles, present = new Set(SECRETS.map((s) => s.secret)) }) {
   if (!/^[0-9a-f]{7,40}$/.test(version ?? "")) throw new Error("the version must be a commit id");
   const image = `${region}-docker.pkg.dev/${project}/${IMAGE_STORE}/server:${version}`;
   const at = [`--project=${project}`];
@@ -96,7 +103,7 @@ export function deployPlan({ project = DEFAULT_PROJECT, region = REGION, version
       steps.push({ title: `Give ${account.name} ${role}`, command: "gcloud", args: ["projects", "add-iam-policy-binding", project, `--member=serviceAccount:${accountOf(account.name, project)}`, `--role=${role}`, "--condition=None", "--quiet"] });
     }
   }
-  for (const { secret } of SECRETS) {
+  for (const { secret } of SECRETS.filter((s) => !OPTIONAL_SECRETS.has(s.secret))) {
     // Never made here: a secret's value is typed by a person (README.md). This only checks it is there.
     steps.push({ title: `Check the ${secret} secret is there`, command: "gcloud", args: ["secrets", "describe", secret, ...at] });
   }
@@ -105,23 +112,27 @@ export function deployPlan({ project = DEFAULT_PROJECT, region = REGION, version
     command: "gcloud", args: ["artifacts", "repositories", "create", IMAGE_STORE, "--repository-format=docker", `--location=${region}`, ...at],
     unless: { command: "gcloud", args: ["artifacts", "repositories", "describe", IMAGE_STORE, `--location=${region}`, ...at] },
   });
-  steps.push({ title: "Build the image", command: "gcloud", args: ["builds", "submit", ...at, `--region=${region}`, "--config=server/cloudbuild.yaml", "--ignore-file=server/.gcloudignore", `--substitutions=_IMAGE=${image}`, "."] });
+  // --suppress-logs: streaming the build log needs Viewer on the whole project, which the deploy account doesn't hold;
+  // gcloud still waits for the build and fails when it fails (its log is in the console).
+  steps.push({ title: "Build the image", command: "gcloud", args: ["builds", "submit", ...at, `--region=${region}`, "--config=server/cloudbuild.yaml", "--ignore-file=server/.gcloudignore", "--suppress-logs", `--substitutions=_IMAGE=${image}`, "."] });
   const common = (name) => ["run", "deploy", name, ...at, `--region=${region}`, `--image=${image}`, `--service-account=${accountOf(name, project)}`, "--cpu=1", "--memory=512Mi", "--min-instances=0"];
   steps.push({
     title: "Put the web door live (platform-api)",
     command: "gcloud",
-    args: [...common(API_SERVICE), "--allow-unauthenticated", "--max-instances=10", "--concurrency=40", "--timeout=60", `--env-vars-file=${envFiles.api}`, `--set-secrets=${secretsFor("api")}`],
+    args: [...common(API_SERVICE), "--allow-unauthenticated", "--max-instances=10", "--concurrency=40", "--timeout=60", `--env-vars-file=${envFiles.api}`, `--set-secrets=${secretsFor("api", present)}`],
   });
   steps.push({
     title: "Put the jobs server live (platform-jobs, private)",
     command: "gcloud",
-    args: [...common(JOBS_SERVICE), "--no-allow-unauthenticated", "--max-instances=3", "--concurrency=4", "--timeout=1800", `--env-vars-file=${envFiles.jobs}`, `--set-secrets=${secretsFor("jobs")}`],
+    args: [...common(JOBS_SERVICE), "--no-allow-unauthenticated", "--max-instances=3", "--concurrency=4", "--timeout=1800", `--env-vars-file=${envFiles.jobs}`, `--set-secrets=${secretsFor("jobs", present)}`],
   });
   steps.push({
     title: "Let only the scheduler call the jobs server",
     command: "gcloud", args: ["run", "services", "add-iam-policy-binding", JOBS_SERVICE, ...at, `--region=${region}`, `--member=serviceAccount:${schedulerAccount(project)}`, "--role=roles/run.invoker"],
   });
-  steps.push({ title: "Send the platform's /api addresses to the web door (Hosting)", command: "npx", args: ["--yes", FIREBASE_TOOLS, "deploy", "--only", "hosting", "--project", project], cwd: "waitlist" });
+  // The whole platform site (site/build.js), now with its /api addresses sent to the web door.
+  steps.push({ title: "Build the platform's pages with the server's addresses on", command: "node", args: ["site/build.js", "--api"] });
+  steps.push({ title: "Send the platform's /api addresses to the web door (Hosting)", command: "npx", args: ["--yes", FIREBASE_TOOLS, "deploy", "--only", "hosting", "--project", project], cwd: "site/out" });
   return { image, steps };
 }
 
@@ -153,9 +164,19 @@ export async function deploy({ project = DEFAULT_PROJECT, region = REGION, versi
     writeFileSync(files.jobs, envYaml(envs.jobs));
     return files;
   })();
-  const { image, steps } = deployPlan({ project, region, version, envFiles });
+  // An optional key that isn't in Secret Manager yet is left out (its part says "not connected"); the plan without
+  // --apply shows every key.
+  const present = new Set(SECRETS.map((s) => s.secret));
+  if (apply) {
+    for (const secret of OPTIONAL_SECRETS) {
+      if (!(await run("gcloud", ["secrets", "describe", secret, `--project=${project}`], {})).ok) present.delete(secret);
+    }
+  }
+  const missing = [...OPTIONAL_SECRETS].filter((s) => !present.has(s));
+  if (missing.length) print(`Not connected yet (no secret): ${missing.join(", ")}. The server starts without them.`);
+  const { image, steps } = deployPlan({ project, region, version, envFiles, present });
   print(`${apply ? "Putting" : "Plan: put"} the platform's server live in ${project} (${region}), image ${image}`);
-  for (const role of ["api", "jobs"]) print(`  ${role} settings: ${Object.keys(envs[role]).sort().join(", ")}; keys from Secret Manager: ${SECRETS.filter((s) => s[role]).map((s) => s.secret).join(", ")}`);
+  for (const role of ["api", "jobs"]) print(`  ${role} settings: ${Object.keys(envs[role]).sort().join(", ")}; keys from Secret Manager: ${SECRETS.filter((s) => s[role] && present.has(s.secret)).map((s) => s.secret).join(", ")}`);
   const done = [];
   for (const [i, step] of steps.entries()) {
     print(`${i + 1}. ${step.title}${step.unless ? " (skipped when it is there already)" : ""}`);

@@ -18,7 +18,7 @@
 //     (so an app can set a count without losing a sale made meanwhile). Refused for an item whose stock comes from the
 //     stockroom link (the stockroom would undo it; editions sharing one pile are always linked), and for an item that
 //     doesn't track stock. Stock never goes below 0. Checkout holds are kept apart and are untouched.
-//     Result: { available }.
+//     Result: { available, title }.
 const { externalDispatchProblem } = require("./fulfillmentGuard");
 
 const text = (value, max) => String(value ?? "").trim().slice(0, max);
@@ -107,7 +107,7 @@ async function adjustStock(db, request, now) {
     // The same patch as the admin's stock change (inventoryLink.js stockPatch).
     const patch = key === "_" ? { stockLevel: to } : { variants: book.variants.map(v => (v && v.id === key ? { ...v, stockLevel: to, stock: to } : v)) };
     tx.update(bookRef, { ...patch, updatedAt: at });
-    return { status: "done", result: { available: to }, reason: `Stock ${from} → ${to} (${app}).` };
+    return { status: "done", result: { available: to, title: text(book.title, 200) }, reason: `Stock ${from} → ${to} (${app}).` };
   });
 }
 
