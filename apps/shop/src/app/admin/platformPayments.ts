@@ -130,5 +130,20 @@ export function switchStage(answer: SwitchAnswer | null): SwitchStage {
   return accountConnected(answer) && answer.chargesEnabled === true ? "ready" : "connecting";
 }
 
+/** A switch waiting longer than this is "taking longer than usual" (the control room lists it under Today). */
+export const SWITCH_SLOW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * What the press reads while a switch is under way: when it started, and that sales keep going through the old
+ * provider. After a day it also says Colophon is on it, so a slow switch never looks forgotten.
+ */
+export function switchingLine(answer: SwitchAnswer, from: string, nowMs = Date.now(), timeZone?: string): string {
+  const at = answer.switching?.at ?? "";
+  const started = at ? dueDateText(at, timeZone) : "";
+  const slow = started && nowMs - new Date(at).getTime() > SWITCH_SLOW_MS;
+  const parts = [started ? `Started ${started}.` : "", slow ? "It's taking longer than usual, and Colophon is on it." : "", `New sales keep going to ${from} until it's done.`];
+  return parts.filter(Boolean).join(" ");
+}
+
 /** The provider a shop selling through `current` can switch to. */
 export const otherProvider = (current: "stripe" | "square"): "stripe" | "square" => (current === "square" ? "stripe" : "square");

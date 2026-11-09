@@ -287,6 +287,22 @@ function riskPill(shop) {
   return null;
 }
 
+// The Shops list's Chit Chats filter, from the app's own overview (control-room/chitChats.js): read once when the filter
+// is first picked (or the Apps page is opened), so the list itself stays one call.
+let chitChatsByShop = null;
+function chitChatsMatches(shop, wanted) {
+  if (!wanted) return true;
+  const s = chitChatsByShop?.get(shop.shopId);
+  if (!s) return false;
+  return wanted === "trouble" ? Boolean(s.lastProblem || s.problems || s.late) : true;
+}
+function readChitChats() {
+  return api("POST", "/control/chitchats").then((found) => {
+    chitChatsByShop = new Map(found.shops.map((s) => [s.shopId, s]));
+    return found;
+  });
+}
+
 /** The Sells filter: books answers (or none), everything else, one answer, or a Stripe category that doesn't fit. */
 function sellsMatches(shop, wanted) {
   if (!wanted) return true;
@@ -306,7 +322,12 @@ function showShops() {
     && (!form.billing.value || shop.billingStatus === form.billing.value)
     && riskMatches(shop, form.risk.value)
     && sellsMatches(shop, form.sells.value)
-    && cardsMatches(shop, form.cards.value));
+    && cardsMatches(shop, form.cards.value)
+    && chitChatsMatches(shop, form.chitchats.value));
+  if (form.chitchats.value && !chitChatsByShop) {
+    readChitChats().then(showShops, (failure) => { status.textContent = `Couldn't read Chit Chats: ${failure.message}`; });
+    return;
+  }
   const problems = allShops.filter((s) => s.health.level === "problem").length;
   $("#summary").textContent = `${allShops.length} shop${allShops.length === 1 ? "" : "s"} · ${problems} with a problem${cardsCount(allShops)}${languageCount(allShops)}${shown.length !== allShops.length ? ` · showing ${shown.length}` : ""}`;
   if (!shown.length) {
@@ -954,7 +975,7 @@ async function loadApps() {
 /** Colophon's own Chit Chats app (26.11): each connected shop's orders waiting for tracking and its problems. */
 function loadChitChats() {
   const slot = $("#chitchats");
-  api("POST", "/control/chitchats").then(({ ready, shops, waitingDays }) => {
+  readChitChats().then(({ ready, shops, waitingDays }) => {
     const head = el("div", { className: "cr-head", style: "margin-top: 32px" }, el("h2", { textContent: "Chit Chats" }));
     if (!shops.length) return slot.replaceChildren(head, el("p", { className: "rp-hint", textContent: ready ? "No shop has connected Chit Chats yet." : "Chit Chats isn't switched on yet." }));
     const state = (s) => {
