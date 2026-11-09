@@ -95,6 +95,7 @@ import { createShopSocial, shopSocialRoutes } from "../control-room/shopSocial.j
 import { createShopApps, shopAppsRoutes } from "../control-room/shopApps.js";
 import { chitChatsDeskRoutes, createChitChatsDesk } from "../control-room/chitChats.js";
 import { chitChatsNote } from "../control-room/chitChatsNote.js";
+import { switchNote } from "../control-room/switchNote.js";
 import { createSellReady, sellReadyRoutes } from "../control-room/sellReady.js";
 import { deliveryReader } from "../control-room/delivery.js";
 import { createJobs } from "../services/jobs/index.js";
@@ -332,6 +333,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     "setup-clock": () => setupClock.sweep(),
     "drift-watch": () => driftWatch.sweep(),
     "chitchats-tracking": () => chitchats.sweep(),
+    "switch-note": () => switchNote({ registry, email, to: people.adminEmail ?? (String(env.HEALTH_ALERT_TO ?? "").trim() || null), now }),
     "chitchats-note": () => chitChatsNote({ stores: chitchatsStores, registry, email, to: people.adminEmail ?? (String(env.HEALTH_ALERT_TO ?? "").trim() || null), now }),
     ...(trialTips ? { "trial-tips": () => trialTips.run() } : {}),
     ...(checkups ? { "shop-checkup": () => checkups.run() } : {}),

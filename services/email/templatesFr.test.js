@@ -117,7 +117,7 @@ test("a kind with no French twin (the platform's own alerts) goes in English eve
 });
 
 test("every email to a press has a French twin; only the platform's own alerts don't", () => {
-  const platformOnly = ["health-alert", "backup-access-used", "recovery-new", "support-new", "job-late", "apps-deleting-soon", "chitchats-late"];
+  const platformOnly = ["health-alert", "backup-access-used", "recovery-new", "support-new", "job-late", "apps-deleting-soon", "chitchats-late", "switch-stuck"];
   assert.deepEqual(Object.keys(TEMPLATES).filter((kind) => !TEMPLATES_FR[kind]).sort(), platformOnly.sort());
 });
 

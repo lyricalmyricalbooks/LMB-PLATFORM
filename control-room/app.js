@@ -192,6 +192,8 @@ async function loadShops() {
   showShops();
   loadSocialLost();
   loadSellGaps();
+  // The Chit Chats count in the summary, and the filter, once the app's overview is in. A failed read leaves both out.
+  readChitChats().then(showShops, () => {});
 }
 
 // Social connections a network stopped accepting (27.8), across the shops: the press reconnects from their Sales
@@ -290,11 +292,19 @@ function riskPill(shop) {
 // The Shops list's Chit Chats filter, from the app's own overview (control-room/chitChats.js): read once when the filter
 // is first picked (or the Apps page is opened), so the list itself stays one call.
 let chitChatsByShop = null;
+/** Refused details, orders not sent over, or orders waiting too long for tracking. */
+const chitChatsTrouble = (s) => Boolean(s.lastProblem || s.problems || s.late);
 function chitChatsMatches(shop, wanted) {
   if (!wanted) return true;
   const s = chitChatsByShop?.get(shop.shopId);
   if (!s) return false;
-  return wanted === "trouble" ? Boolean(s.lastProblem || s.problems || s.late) : true;
+  return wanted === "trouble" ? chitChatsTrouble(s) : true;
+}
+/** " · Chit Chats: 3 (1 needs a look)" once the overview is in, or "". */
+function chitChatsCount() {
+  const shops = [...(chitChatsByShop?.values() ?? [])];
+  const trouble = shops.filter(chitChatsTrouble).length;
+  return shops.length ? ` · Chit Chats: ${shops.length}${trouble ? ` (${trouble} need${trouble === 1 ? "s" : ""} a look)` : ""}` : "";
 }
 function readChitChats() {
   return api("POST", "/control/chitchats").then((found) => {
@@ -329,7 +339,7 @@ function showShops() {
     return;
   }
   const problems = allShops.filter((s) => s.health.level === "problem").length;
-  $("#summary").textContent = `${allShops.length} shop${allShops.length === 1 ? "" : "s"} · ${problems} with a problem${cardsCount(allShops)}${languageCount(allShops)}${shown.length !== allShops.length ? ` · showing ${shown.length}` : ""}`;
+  $("#summary").textContent = `${allShops.length} shop${allShops.length === 1 ? "" : "s"} · ${problems} with a problem${cardsCount(allShops)}${chitChatsCount()}${languageCount(allShops)}${shown.length !== allShops.length ? ` · showing ${shown.length}` : ""}`;
   if (!shown.length) {
     $("#shops").replaceChildren(allShops.length ? emptyState("No shop matches.", "Clear the search or the filters to see every shop.") : emptyState("No shops yet.", "A press's shop shows here as soon as it is made."));
     return;

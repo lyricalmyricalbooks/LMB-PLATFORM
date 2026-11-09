@@ -33,6 +33,8 @@ export const FIXED_TIMES = Object.freeze({
   "drift-watch": "45 9 * * *",
   // Each morning, before the presses' emails: the orders that went wrong in Chit Chats yesterday.
   "chitchats-note": "15 8 * * *",
+  // Each morning: card switches between Stripe and Square left waiting two days.
+  "switch-note": "20 8 * * *",
   // Monday mornings: the week's deletions, while there is still time to act on them.
   "deletion-note": "0 8 * * 1",
   // The first of each month, before anyone is up.

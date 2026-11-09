@@ -87,9 +87,10 @@ export function todaySummary({ rows, settings, profiles = {}, checks = {}, open 
     const days = Math.floor((now.getTime() - Date.parse(waiting.since)) / DAY);
     needs.push({ kind: "switch", shopId: row.shopId, words: `${row.pressName ?? row.shopId} pressed Switch to move card payments to ${to} ${days < 1 ? "today" : days === 1 ? "yesterday" : `${days} days ago`} and it isn't finished${waiting.problem?.message ? ` (${String(waiting.problem.message).replace(/\.$/, "")})` : ""}: finish it from their record`, go: "#shops" });
   }
-  // Chit Chats orders (chitChats.js shops): one line per shop with a problem order or an order late for tracking.
-  for (const p of parcels.filter((x) => x.problems || x.late)) {
-    const parts = [p.problems ? `${p.problems} Chit Chats order${p.problems === 1 ? "" : "s"} with a problem` : null, p.late ? `${p.lateCount ?? 1} order${(p.lateCount ?? 1) === 1 ? "" : "s"} waiting over 3 days for tracking` : null].filter(Boolean);
+  // Chit Chats orders (chitChats.js shops): one line per shop whose details Chit Chats refused (nothing reaches it until
+  // the press fixes them), with a problem order, or with an order late for tracking.
+  for (const p of parcels.filter((x) => x.lastProblem || x.problems || x.late)) {
+    const parts = [p.lastProblem ? `Chit Chats refused the shop's details${p.lastProblem.words ? ` (${String(p.lastProblem.words).replace(/\.$/, "")})` : ""}, so no order reaches it` : null, p.problems ? `${p.problems} ${p.lastProblem ? "" : "Chit Chats "}order${p.problems === 1 ? "" : "s"} with a problem` : null, p.late ? `${p.lateCount ?? 1} order${(p.lateCount ?? 1) === 1 ? "" : "s"} waiting over 3 days for tracking` : null].filter(Boolean);
     needs.push({ kind: "parcels", shopId: p.shopId, words: `${p.pressName ?? p.shopId}: ${parts.join(", and ")}`, go: "#apps" });
   }
   const repairCount = Object.values(open).reduce((n, list) => n + list.length, 0);

@@ -804,6 +804,27 @@ export const TEMPLATES = {
   },
 
   /**
+   * The stuck-switch note to the platform owner (control-room/switchNote.js). `data`: { shops: [{ shopId, pressName,
+   * from, to, since, problem }], stillWaiting, days }.
+   */
+  "switch-stuck": ({ shops, stillWaiting, days }, { settings }) => {
+    if (!Array.isArray(shops) || !shops.length) throw new Error("the stuck-switch note names no shop");
+    const name = (p) => ({ stripe: "Stripe", square: "Square" })[p] ?? p ?? "?";
+    const lines = shops.map((s) => `${s.pressName} (${s.shopId}): ${name(s.from)} to ${name(s.to)}, started ${s.since}${s.problem ? `. Last try: ${s.problem}` : "."}`);
+    return layout({
+      subject: `Card switch${shops.length === 1 ? "" : "es"} waiting ${days} days: ${shops.map((s) => s.pressName).join(", ")}`.slice(0, 150),
+      greeting: "",
+      paragraphs: [
+        `${shops.length === 1 ? "This press's switch" : "These presses' switches"} between Stripe and Square passed ${days} days without finishing. Their Payments page tells them Colophon is on it. Both accounts take sales meanwhile, so nothing is lost.`,
+        ...lines,
+        ...(stillWaiting ? [`${stillWaiting} older switch${stillWaiting === 1 ? " is" : "es are"} still waiting too.`] : []),
+        `Open each press in the control room's Shops list and press Finish the switch. Each switch is in this note once, on the day it passes ${days} days.`,
+      ],
+      footer: `${settings.platformName} control room`,
+    });
+  },
+
+  /**
    * A scheduled job stopped running on time (services/jobs, plan 19.11), to the platform's alert address only.
    * `data`: { job, words, every (minutes), lastRunAt }.
    */
