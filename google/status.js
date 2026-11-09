@@ -2,10 +2,12 @@
 // of the connect and teardown jobs with its state, and **Run again** for a step that failed or waits. The control room
 // thread shows these; nothing here edits control-room/.
 //
-//   googleStatus(shopId)      -> { shopId, stage, accountEmail, connectedAt, closedAt, deletedAt, parts, steps }
+//   googleStatus(shopId)      -> { shopId, stage, accountEmail, connectedAt, closedAt, deletedAt, reconnectSince, readsSheets,
+//                                parts, steps }
 //   runAgain(shopId, step)    runs one step of whichever job it belongs to, and returns the step's new outcome
 import { CONNECT_STEPS } from "./connect.js";
 import { CLOSE_STEPS, DELETE_STEPS, deletionDue } from "./teardown.js";
+import { SCOPES } from "./endpoints.js";
 
 const PARTS = ["analytics", "searchConsole", "merchantCenter", "domain", "email", "drive", "youtube", "calendar", "businessProfile", "ads"];
 
@@ -14,7 +16,8 @@ export function createGoogleStatus({ registry, connect, teardown, tokens = null,
     const row = await registry.getShop(shopId);
     if (!row) throw new Error(`The registry has no shop ${shopId}`);
     const g = row.google ?? {};
-    const reconnect = !g.deletedAt && !g.closedAt && tokens ? await tokens.get(shopId).then((c) => tokens.needsReconnect(c) ? c.reconnectAt : null) : null;
+    const conn = !g.deletedAt && !g.closedAt && tokens ? await tokens.get(shopId) : null;
+    const reconnect = conn && tokens.needsReconnect(conn) ? conn.reconnectAt : null;
     const stage = g.deletedAt ? "deleted" : g.closedAt ? "closed" : reconnect ? "needs reconnect" : g.connectedAt ? "connected" : "not connected";
     return {
       shopId, stage,
@@ -23,6 +26,9 @@ export function createGoogleStatus({ registry, connect, teardown, tokens = null,
       closedAt: g.closedAt ?? null,
       deletedAt: g.deletedAt ?? null,
       reconnectSince: reconnect,
+      // Whether the press let Google sheets be read (Bring a file › Google Sheet, #416; asked with the Drive box): null
+      // when the shop has no live grant to look at.
+      readsSheets: tokens?.live(conn) ? SCOPES.sheets.every((scope) => (conn.scopes ?? []).includes(scope)) : null,
       parts: Object.fromEntries(PARTS.filter((p) => g[p]).map((p) => [p, g[p]])),
       steps: (g.steps ?? []).map((s) => ({ ...s, canRunAgain: s.state !== "done" })),
     };
