@@ -6,8 +6,9 @@
 //
 //   body { action: "customDomains", step: "list" | "add" | "connect" | "check" | "makeMain" | "remove", domain? }
 // Plan 6.15: `connect` is the one step (add, then the Allow link or the guide for the press's domain seller).
+// `renameFree` gives the shop's free address a new name (`domain` carries the name); the one before keeps working.
 
-const STEPS = Object.freeze({ list: "domains.list", add: "domains.add", connect: "domains.connect", check: "domains.check", makeMain: "domains.makeMain", remove: "domains.remove" });
+const STEPS = Object.freeze({ list: "domains.list", add: "domains.add", connect: "domains.connect", check: "domains.check", makeMain: "domains.makeMain", remove: "domains.remove", renameFree: "domains.renameFree" });
 
 function customDomainActions({ url, shopId, serviceKey, requireAdmin, fetch = globalThis.fetch, timeoutMs = 30000 }) {
   async function handleCustomDomains(req, res) {
@@ -32,7 +33,7 @@ function customDomainActions({ url, shopId, serviceKey, requireAdmin, fetch = gl
       response = await fetch(`${url}/shop`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Shop-Id": shopId, Authorization: `Bearer ${key}` },
-        body: JSON.stringify({ op: STEPS[step], args: domain === undefined ? {} : { domain } }),
+        body: JSON.stringify({ op: STEPS[step], args: domain === undefined ? {} : step === "renameFree" ? { name: domain } : { domain } }),
         signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (err) {

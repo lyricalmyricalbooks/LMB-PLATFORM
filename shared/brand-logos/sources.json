@@ -1,0 +1,265 @@
+{
+  "simpleIconsVersion": "16.36.0",
+  "logos": {
+    "google": {
+      "name": "Google",
+      "owner": "Google LLC",
+      "from": "google",
+      "colors": "full",
+      "source": "https://www.gstatic.com/images/branding/productlogos/googleg/v6/24px.svg",
+      "guidelines": "https://developers.google.com/identity/branding-guidelines"
+    },
+    "googledrive": {
+      "name": "Google Drive",
+      "owner": "Google LLC",
+      "from": "google",
+      "colors": "full",
+      "source": "https://www.gstatic.com/images/branding/productlogos/drive_2020q4/v10/192px.svg",
+      "guidelines": "https://about.google/brand-resource-center/"
+    },
+    "gmail": {
+      "name": "Gmail",
+      "owner": "Google LLC",
+      "from": "google",
+      "colors": "full",
+      "source": "https://www.gstatic.com/images/branding/productlogos/gmail_2020q4/v11/192px.svg",
+      "guidelines": "https://about.google/brand-resource-center/"
+    },
+    "googlecalendar": {
+      "name": "Google Calendar",
+      "owner": "Google LLC",
+      "from": "google",
+      "colors": "full",
+      "source": "https://www.gstatic.com/images/branding/productlogos/calendar_2020q4/v13/192px.svg",
+      "guidelines": "https://about.google/brand-resource-center/"
+    },
+    "googleanalytics": {
+      "name": "Google Analytics",
+      "owner": "Google LLC",
+      "guidelines": "https://about.google/brand-resource-center/",
+      "color": "#E37400",
+      "source": "https://marketingplatform.google.com/intl/en_uk/about/analytics/"
+    },
+    "googlesearchconsole": {
+      "name": "Google Search Console",
+      "owner": "Google LLC",
+      "guidelines": "https://about.google/brand-resource-center/",
+      "color": "#458CF5",
+      "source": "https://search.google.com/search-console"
+    },
+    "googleads": {
+      "name": "Google Ads",
+      "owner": "Google LLC",
+      "guidelines": "https://about.google/brand-resource-center/",
+      "color": "#4285F4",
+      "source": "https://ads.google.com/home/"
+    },
+    "googlemaps": {
+      "name": "Google Maps",
+      "owner": "Google LLC",
+      "guidelines": "https://about.google/brand-resource-center/",
+      "color": "#4285F4",
+      "source": "https://commons.wikimedia.org/wiki/File:Google_Maps_icon.svg"
+    },
+    "googlesheets": {
+      "name": "Google Sheets",
+      "owner": "Google LLC",
+      "guidelines": "https://about.google/brand-resource-center/",
+      "color": "#34A853",
+      "source": "https://sheets.google.com"
+    },
+    "googlepay": {
+      "name": "Google Pay",
+      "owner": "Google LLC",
+      "guidelines": "https://developers.google.com/pay/api/web/guides/brand-guidelines",
+      "color": "#4285F4",
+      "source": "https://pay.google.com/intl/en_us/about/"
+    },
+    "youtube": {
+      "name": "YouTube",
+      "owner": "Google LLC",
+      "color": "#FF0000",
+      "source": "https://www.youtube.com/howyoutubeworks/resources/brand-resources/#logos-icons-and-colors",
+      "guidelines": "https://www.youtube.com/howyoutubeworks/resources/brand-resources/#logos-icons-and-colors"
+    },
+    "stripe": {
+      "name": "Stripe",
+      "owner": "Stripe, Inc.",
+      "guidelines": "https://stripe.com/newsroom/brand-assets",
+      "color": "#635BFF",
+      "source": "https://stripe.com/newsroom/information"
+    },
+    "square": {
+      "name": "Square",
+      "owner": "Block, Inc.",
+      "guidelines": "https://squareup.com/us/en/press",
+      "color": "#3E4348",
+      "source": "https://squareup.com"
+    },
+    "paypal": {
+      "name": "PayPal",
+      "owner": "PayPal, Inc.",
+      "color": "#002991",
+      "source": "https://www.paypal.com/us",
+      "guidelines": "https://newsroom.paypal-corp.com/media-resources"
+    },
+    "quickbooks": {
+      "name": "QuickBooks",
+      "owner": "Intuit Inc.",
+      "color": "#2CA01C",
+      "source": "https://design.intuit.com/quickbooks/brand",
+      "guidelines": "https://design.intuit.com/quickbooks/brand"
+    },
+    "godaddy": {
+      "name": "GoDaddy",
+      "owner": "GoDaddy Inc.",
+      "color": "#1BDBDB",
+      "source": "https://aboutus.godaddy.net/newsroom/media-resources/",
+      "guidelines": "https://aboutus.godaddy.net/newsroom/media-resources/"
+    },
+    "instagram": {
+      "name": "Instagram",
+      "owner": "Meta Platforms, Inc.",
+      "color": "#FF0069",
+      "source": "https://about.meta.com/brand/resources/instagram",
+      "guidelines": "https://about.meta.com/brand/resources/instagram"
+    },
+    "facebook": {
+      "name": "Facebook",
+      "owner": "Meta Platforms, Inc.",
+      "color": "#0866FF",
+      "source": "https://about.meta.com/brand/resources/facebook/logo",
+      "guidelines": "https://about.meta.com/brand/resources/facebook/logo"
+    },
+    "threads": {
+      "name": "Threads",
+      "owner": "Meta Platforms, Inc.",
+      "color": "#000000",
+      "source": "https://www.meta.com/brand/resources/instagram/threads",
+      "guidelines": "https://www.meta.com/brand/resources/instagram/threads"
+    },
+    "pinterest": {
+      "name": "Pinterest",
+      "owner": "Pinterest, Inc.",
+      "color": "#BD081C",
+      "source": "https://business.pinterest.com/en/brand-guidelines",
+      "guidelines": "https://business.pinterest.com/en/brand-guidelines"
+    },
+    "tiktok": {
+      "name": "TikTok",
+      "owner": "ByteDance Ltd.",
+      "guidelines": "https://developers.tiktok.com/doc/getting-started-design-guidelines",
+      "color": "#000000",
+      "source": "https://tiktok.com"
+    },
+    "x": {
+      "name": "X",
+      "owner": "X Corp.",
+      "color": "#000000",
+      "source": "https://x.com",
+      "guidelines": "https://about.x.com/en/who-we-are/brand-toolkit"
+    },
+    "zapier": {
+      "name": "Zapier",
+      "owner": "Zapier, Inc.",
+      "color": "#FF4F00",
+      "source": "https://www.figma.com/file/NQFxTCE5pGR3dHZt0DkOyy/Zapier-Brand-Guidelines-%5BExternal%5D?type=design&node-id=101-9701&mode=design",
+      "guidelines": "https://www.figma.com/file/NQFxTCE5pGR3dHZt0DkOyy/Zapier-Brand-Guidelines-%5BExternal%5D?type=design&node-id=101-9701&mode=design"
+    },
+    "mailchimp": {
+      "name": "Mailchimp",
+      "owner": "Intuit Inc.",
+      "color": "#FFE01B",
+      "source": "https://mailchimp.com/about/brand-assets",
+      "guidelines": "https://mailchimp.com/about/brand-assets",
+      "badge": {
+        "background": "#FFE01B",
+        "ink": "#241C15",
+        "why": "Mailchimp shows its mark in black on Cavendish yellow"
+      }
+    },
+    "visa": {
+      "name": "Visa",
+      "owner": "Visa Inc.",
+      "guidelines": "https://www.visa.com/brandcenter",
+      "color": "#1A1F71",
+      "source": "https://merchantsignageeu.visa.com/product.asp?dptID=696"
+    },
+    "mastercard": {
+      "name": "Mastercard",
+      "owner": "Mastercard International Inc.",
+      "source": "https://www.mastercard.com/brandcenter/us/en/download-artwork.html",
+      "guidelines": "https://www.mastercard.com/brandcenter/us/en/brand-requirements/mastercard.html",
+      "color": "#EB001B",
+      "full": {
+        "source": "https://commons.wikimedia.org/wiki/File:Mastercard-logo.svg (the 2016 Mastercard symbol: its two circles and overlap only)"
+      }
+    },
+    "americanexpress": {
+      "name": "American Express",
+      "owner": "American Express Company",
+      "color": "#2E77BC",
+      "source": "https://commons.wikimedia.org/wiki/File:American_Express_logo_(2018).svg"
+    },
+    "applepay": {
+      "name": "Apple Pay",
+      "owner": "Apple Inc.",
+      "guidelines": "https://developer.apple.com/apple-pay/marketing/",
+      "color": "#000000",
+      "source": "https://developer.apple.com/apple-pay/marketing"
+    },
+    "klarna": {
+      "name": "Klarna",
+      "owner": "Klarna Bank AB",
+      "color": "#FFB3C7",
+      "source": "https://klarna.design",
+      "badge": {
+        "background": "#FFB3C7",
+        "ink": "#0B051D",
+        "why": "Klarna shows its mark in black on pink"
+      }
+    },
+    "afterpay": {
+      "name": "Afterpay",
+      "owner": "Afterpay Ltd (Block, Inc.)",
+      "color": "#B2FCE4",
+      "source": "https://www.afterpay.com/en-AU/business/resources/marketing/logos",
+      "guidelines": "https://www.afterpay.com/en-AU/business/resources/marketing/brand-tools/brand-guidelines",
+      "badge": {
+        "background": "#B2FCE4",
+        "ink": "#000000",
+        "why": "Afterpay shows its mark in black on mint"
+      }
+    },
+    "ups": {
+      "name": "UPS",
+      "owner": "United Parcel Service of America, Inc.",
+      "color": "#150400",
+      "source": "https://www.ups.com"
+    },
+    "fedex": {
+      "name": "FedEx",
+      "owner": "FedEx Corporation",
+      "color": "#4D148C",
+      "source": "https://newsroom.fedex.com"
+    },
+    "usps": {
+      "name": "USPS",
+      "owner": "United States Postal Service",
+      "color": "#333366",
+      "source": "https://www.usps.com"
+    },
+    "dhl": {
+      "name": "DHL",
+      "owner": "Deutsche Post AG",
+      "color": "#FFCC00",
+      "source": "https://www.dpdhl-brands.com/dhl/en/guides/design-basics/logo-and-claim.html",
+      "guidelines": "https://www.dpdhl-brands.com/dhl/en/guides/design-basics/logo-and-claim.html",
+      "badge": {
+        "background": "#FFCC00",
+        "ink": "#D40511",
+        "why": "DHL shows its red wordmark on yellow"
+      }
+    }
+  }
+}

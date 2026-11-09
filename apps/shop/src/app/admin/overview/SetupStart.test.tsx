@@ -46,18 +46,19 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
   });
 
   it("a new shop sees the welcome first, with the press's name, suggestions and every look", async () => {
-    api.getFirstWeek.mockResolvedValue({ sellingToday: "starting", publishes: "zines", plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true } });
+    api.getFirstWeek.mockResolvedValue({ sellingToday: "starting", publishes: "zines", plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, google: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     await mount({});
     expect(text()).toContain("Welcome to Moth Press. Choose your look");
     expect(text()).not.toContain("Set up your shop");
-    const suggested = [...document.querySelectorAll("ul[aria-label='Suggested looks'] strong")].map(s => s.textContent);
+    const suggested = [...document.querySelectorAll("ul[aria-label='Suggested looks'] > li > div > strong")].map(s => s.textContent);
     expect(suggested[0]).toBe("Zine");
+    await act(async () => { [...document.querySelectorAll("button")].find(b => /^See all \d+ looks$/.test(b.textContent?.trim() || ""))!.click(); });
     expect(document.querySelectorAll("ul[aria-label='Every look'] li").length).toBeGreaterThan(5);
     expect(document.body.innerHTML).toContain("Moth Press in this look");
   });
 
   it("choosing applies the look to the draft once, records it, and then shows the guide", async () => {
-    api.getFirstWeek.mockResolvedValue({ sellingToday: "starting", publishes: "books", plan: "shop", details: { at: "then" }, bring: { at: "then", skipped: true } });
+    api.getFirstWeek.mockResolvedValue({ sellingToday: "starting", publishes: "books", plan: "shop", details: { at: "then" }, bring: { at: "then", skipped: true }, google: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     await mount({});
     await act(async () => { button("Use this look")!.click(); });
     await flush();
@@ -67,21 +68,33 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
     expect(draft.themeLibraryPreset).toBe("press-imprint");
     expect(draft.themeBase.id).toBe("press-imprint");
     expect(draft.copy).toEqual({ heroTitle: "Kept" });
-    expect(api.updateFirstWeek).toHaveBeenCalledWith({ welcome: { theme: "press-imprint", at: expect.any(String) } });
+    expect(api.updateFirstWeek).toHaveBeenCalledWith({ welcome: { theme: "press-imprint", at: expect.any(String), adminLook: "riso" } });
     expect(text()).toContain("Set up your shop");
     expect(text()).not.toContain("Choose your look.");
   });
 
+  it("picking an admin look applies it at once and records it with the welcome", async () => {
+    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, google: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
+    await mount({});
+    const radios = [...document.querySelectorAll("[role=radiogroup][aria-label='Admin look'] [role=radio]")] as HTMLButtonElement[];
+    expect(radios.map(r => r.textContent)).toHaveLength(6);
+    await act(async () => { radios[1].click(); });
+    expect(document.documentElement.getAttribute("data-admin-look")).toBe("paper");
+    await act(async () => { button("Use this look")!.click(); });
+    await flush();
+    expect(api.updateFirstWeek).toHaveBeenCalledWith({ welcome: expect.objectContaining({ adminLook: "paper" }) });
+  });
+
   it("Skip takes the first suggestion and says so", async () => {
-    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true } });
+    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, google: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     await mount({});
     await act(async () => { button("Skip for now")!.click(); });
     await flush();
-    expect(api.updateFirstWeek).toHaveBeenCalledWith({ welcome: { theme: "press-riso-noir", at: expect.any(String), skipped: true } });
+    expect(api.updateFirstWeek).toHaveBeenCalledWith({ welcome: expect.objectContaining({ theme: "press-riso-noir", skipped: true }) });
   });
 
   it("a failed save keeps the welcome up with a plain message", async () => {
-    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true } });
+    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, google: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     store.saveDraft.mockRejectedValueOnce(new Error("offline"));
     await mount({});
     await act(async () => { button("Use this look")!.click(); });
@@ -91,14 +104,41 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
     expect(text()).toContain("Choose your look");
   });
 
-  it("the welcome never shows again once done; the guide shows three steps and saves its progress", async () => {
+  it("the welcome never shows again once done; the guide shows its three parts, opens the next step and saves its progress", async () => {
     api.getFirstWeek.mockResolvedValue({ plan: "both", welcome: { theme: "press-zine", at: "now" } });
     await mount({});
     expect(text()).not.toContain("Choose your look.");
-    expect(document.querySelectorAll("ol[aria-label='Next steps'] > li").length).toBe(3);
-    expect(text()).toContain("Later (5)");
-    expect(text()).toContain("0 of 8 done");
+    expect([...document.querySelectorAll("section h3")].map(h => h.firstElementChild?.textContent)).toEqual(["Your shop", "Ready to sell", "Launch", "Reach more shoppers"]);
+    expect(document.querySelectorAll("ol[aria-label='Your shop'] > li").length).toBe(3);
+    expect(document.querySelectorAll("button[aria-expanded='true']").length).toBe(1);
+    expect(document.querySelector("li[aria-current='step']")?.textContent).toContain("Add your first book");
+    expect(text()).toContain("0 of 12 done");
     expect(api.updateFirstWeek).toHaveBeenCalledWith({ progress: { steps: expect.any(Array), done: [], at: expect.any(String) } });
+  });
+
+  it("a done step opens on a click to show Change, and a step done while open gives way to the next", async () => {
+    api.getFirstWeek.mockResolvedValue({ plan: "both", welcome: { theme: "press-zine", at: "now" } });
+    await mount({ settings: { ...settings, design: { ...settings.design, logoUrl: "logo.png" } }, onOpen: vi.fn() });
+    const logo = document.querySelector("button[aria-controls='setup-step-logo']") as HTMLButtonElement;
+    act(() => logo.click());
+    expect(logo.getAttribute("aria-expanded")).toBe("true");
+    expect(document.querySelector("#setup-step-logo")?.textContent).toContain("Change");
+    // The address is ticked by hand: ticking it while open moves the guide on to the next step.
+    act(() => (document.querySelector("button[aria-controls='setup-step-address']") as HTMLButtonElement).click());
+    await act(async () => { button("Keep the free address")!.click(); });
+    expect(document.querySelector("button[aria-controls='setup-step-address']")?.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("a press who started before the new steps sees them tagged New, even with the guide hidden, until the next visit", async () => {
+    const { firstWeekSteps } = await import("../firstWeek");
+    const ids = firstWeekSteps({}, { books: [], readiness: [] }).map(s => s.id).filter(id => id !== "taxes" && id !== "policies");
+    api.getFirstWeek.mockResolvedValue({ plan: "both", welcome: { theme: "press-zine", at: "now" }, hiddenAt: "before", progress: { steps: ids, done: [], at: "t" } });
+    await mount({});
+    expect(text()).toContain("2 new steps: Set up sales tax and Add your store policies.");
+    const tagged = [...document.querySelectorAll("li")].filter(li => li.querySelector(".rp-badge")?.textContent === "New");
+    expect(tagged.map(li => li.querySelector("strong")?.textContent)).toEqual(["Set up sales tax", "Add your store policies"]);
+    // The progress now holds them, so the next visit treats them as ordinary steps.
+    expect(api.updateFirstWeek).toHaveBeenCalledWith({ progress: expect.objectContaining({ steps: expect.arrayContaining(["taxes", "policies"]) }) });
   });
 
   it("Open your shop is refused while Ready to sell blocks, and takes the wall down once nothing does", async () => {
@@ -106,15 +146,22 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
     const onSetWall = vi.fn(async () => true);
     const blockers = [{ id: "books", label: "No published books", detail: "", status: "block", tab: "catalog", action: "Open Books" }];
     await mount({ readiness: blockers, onSetWall });
-    await act(async () => { (document.querySelector("details") as HTMLDetailsElement).open = true; });
-    await act(async () => { button("Open your shop")!.click(); });
+    // Any step opens on a click: the last one holds the button.
+    await act(async () => { [...document.querySelectorAll<HTMLButtonElement>("button[aria-expanded]")].find(b => b.textContent?.includes("Open your shop"))!.click(); });
+    await act(async () => { document.querySelector<HTMLButtonElement>("#setup-step-open button")!.click(); });
     expect(onSetWall).not.toHaveBeenCalled();
     expect(text()).toContain("No published books");
     act(() => root?.unmount()); document.body.innerHTML = "";
     await mount({ readiness: [], onSetWall });
-    await act(async () => { button("Open your shop")!.click(); });
+    await act(async () => { [...document.querySelectorAll<HTMLButtonElement>("button[aria-expanded]")].find(b => b.textContent?.includes("Open your shop"))!.click(); });
+    await act(async () => { document.querySelector<HTMLButtonElement>("#setup-step-open button")!.click(); });
     await flush();
     expect(onSetWall).toHaveBeenCalledWith(false);
+    // The moment it opens: one card says so, with the shop's address to visit and share.
+    expect(text()).toContain("Your shop is open");
+    expect(button("View your shop")).toBeDefined();
+    act(() => button("Done")!.click());
+    expect(text()).not.toContain("Your shop is open");
   });
 
   it("a read that fails offers Try again", async () => {
@@ -251,6 +298,28 @@ describe("Get started, step 2: bring your shop with you (plan 17.3)", () => {
     await mount({});
     await waitFor(() => /Choose your look/.test(text()));
     expect(text()).not.toContain("Where do you sell now?");
+  });
+});
+
+describe("Choose your look as step 3 of 8, with the press's first book (plan 17.8)", () => {
+  it("the look says it is step 3 of 8, and its previews show the first book's photo", async () => {
+    api.getFirstWeek.mockResolvedValue({ sellingToday: "starting", publishes: "books", plan: "shop", details: { at: "then" }, bring: { at: "then", skipped: true }, google: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
+    await mount({ books: [{ id: "b1", title: "Salt", photos: [{ url: "https://cdn.example/salt.jpg" }] }] });
+    expect(text()).toContain("Step 3 of 8");
+    expect(text()).toContain("Welcome to Moth Press. Choose your look");
+    expect(document.querySelector("img[src='https://cdn.example/salt.jpg']")).not.toBeNull();
+  });
+});
+
+describe("Get started, step 8 inside the run (plan 17.13)", () => {
+  it("after shipping, the final check shows; Finish later hands back to the setup guide", async () => {
+    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, welcome: { theme: "zine", at: "then" }, google: { at: "then", skipped: true }, shipping: { at: "then", skipped: true } });
+    await mount({ waitForWelcome: false });
+    expect(text()).toContain("Get started · Step 8 of 8: final check and open");
+    await act(async () => { button("Finish later")!.click(); });
+    await flush();
+    expect(text()).toContain("Set up your shop");
+    expect(text()).not.toContain("Step 8 of 8");
   });
 });
 

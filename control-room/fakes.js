@@ -12,6 +12,29 @@ export function fakeShopAccess() {
       calls.push({ shopId, ...options });
       return { url: `https://${shopId}.example/admin/?support=${calls.length}` };
     },
+    // People with two-step on, by "shopId email" -> how many second steps; removeTwoStep takes them off.
+    twoStep: new Map(),
+    async removeTwoStep(shopId, email) {
+      if (this.fail) throw new Error("the shop didn't answer (pretend error)");
+      calls.push({ shopId, removeTwoStep: email });
+      const key = `${shopId} ${email.toLowerCase()}`;
+      if (!this.twoStep.has(key)) return { found: false, removed: 0 };
+      const removed = this.twoStep.get(key);
+      this.twoStep.set(key, 0);
+      return { found: true, removed };
+    },
+    // Backup codes left, by "shopId email"; a person is found when either map knows them.
+    codes: new Map(),
+    // When each person last signed in, by "shopId email" (an ISO time); being here also makes the person found.
+    lastSignIn: new Map(),
+    async signInSafety(shopId, emails) {
+      if (this.fail) throw new Error("the shop didn't answer (pretend error)");
+      return emails.map((email) => {
+        const key = `${shopId} ${email.toLowerCase()}`;
+        const found = this.twoStep.has(key) || this.codes.has(key) || this.lastSignIn.has(key);
+        return { email, found, twoStep: (this.twoStep.get(key) ?? 0) > 0, codesLeft: found ? this.codes.get(key) ?? 0 : null, codesMadeAt: null, lastSignInAt: this.lastSignIn.get(key) ?? null };
+      });
+    },
   };
 }
 
@@ -95,5 +118,16 @@ export function fakeAccessRequestStore() {
       if (next) rows.set(id, structuredClone(next));
       return structuredClone(next ?? null);
     },
+  };
+}
+
+/** The nightly income records (incomeHistory.js, plan 19.7), in memory (clients/stores.js `firestoreIncomeHistory`). */
+export function fakeIncomeHistory() {
+  const rows = new Map();
+  return {
+    rows,
+    get: async (day) => structuredClone(rows.get(day) ?? null),
+    set: async (day, record) => void rows.set(day, structuredClone(record)),
+    list: async ({ since = "" } = {}) => structuredClone([...rows.values()].filter((r) => r.day >= since).sort((a, b) => (a.day < b.day ? -1 : 1))),
   };
 }

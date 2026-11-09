@@ -97,6 +97,18 @@ describe("weekly highlights PDF", () => {
     expect(two).toContain(hexText("Book views are not recorded yet."));
   });
 
+  it("wears Market stall or Index rows colours when the email theme says so, and goes back to the default after", () => {
+    const build = theme => pageStreams(buildWeeklyPdf(weeklyHighlights({ orders: [], daily: [], week }), { theme })).join("\n");
+    const stall = build("market");
+    expect(stall).toContain("1 0.88 0.3 rg"); // the yellow paper (#ffe14d)
+    const rows = build("index");
+    expect(rows).toContain("0.95 0.95 0.93 rg"); // the grey paper (#f2f2ee)
+    const plain = build(undefined);
+    expect(plain).toContain("0.98 0.96 0.93 rg"); // the cream paper (#faf6ec)
+    expect(plain).not.toContain("1 0.88 0.3 rg");
+    expect(build("dark")).toBe(plain);
+  });
+
   it("names the file after the week", () => {
     expect(weeklyPdfName(week)).toBe("press-weekly-highlights-2026-10-12.pdf");
   });

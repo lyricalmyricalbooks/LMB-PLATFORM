@@ -641,6 +641,10 @@ describe('the look choice', () => {
     expect(normalizeAdminLook('anything')).toBe('riso');
     expect(readAdminLook(store())).toBe('riso');
   });
+  it('accepts Desk and Bento', () => {
+    expect(normalizeAdminLook('desk')).toBe('desk');
+    expect(normalizeAdminLook('bento')).toBe('bento');
+  });
   it('is remembered', () => {
     const s = store();
     writeAdminLook('paper', s);
@@ -673,7 +677,7 @@ describe('the stockroom frame in the shared admin look', () => {
     const main = rd('src/main.js');
     expect(main.indexOf('stockroom-shell.css')).toBeGreaterThan(main.indexOf('stockroom-bridge.css'));
   });
-  it('makes the rail 264px, as wide as the website admin\'s', () => {
-    expect(shell).toMatch(/--rp-sidebar-w: 264px/);
+  it('makes the rail 232px, as wide as the website admin\'s', () => {
+    expect(shell).toMatch(/--rp-sidebar-w: 232px/);
   });
 });

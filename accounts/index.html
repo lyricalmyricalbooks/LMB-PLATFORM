@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="./look/adminThemes.css">
 <link rel="stylesheet" href="./look/pressroom.css">
 <link rel="stylesheet" href="./look/platform-pages.css">
+<link rel="stylesheet" href="./look/brand-logos.css">
 <script src="./look/platform-look.js"></script>
 </head>
 <body class="cp">
@@ -32,7 +33,7 @@
     <div class="rp-workspace"><div class="rp-workspace-inner">
 <main id="main" tabindex="-1">
   <div class="rp-page-header"><div><h1 class="rp-page-title">Your shops</h1><p class="rp-page-desc" id="page-desc">Every shop you run or help with, in one place.</p></div><div class="rp-page-actions"><a class="rp-btn rp-btn-secondary" href="../signup/">Start another shop</a></div></div>
-  <nav class="cp-phone-nav" aria-label="More"><a class="button" href="/help/">Help centre</a><a class="button" href="/status/">Service status</a></nav>
+  <nav class="cp-phone-nav" aria-label="More"><a href="/account/#get-help" data-press="#open-help">Get help</a><a href="/help/">Help centre</a><a href="/terms/">Terms &amp; privacy</a></nav>
 
   <!-- Shown first, until the page knows whether someone is signed in and has their shops. -->
   <section id="view-loading" aria-live="polite">
@@ -42,7 +43,7 @@
   <section id="view-signin" class="stack" hidden aria-labelledby="signin-title">
     <h2 id="signin-title" tabindex="-1" class="cp-view-title">Sign in</h2>
     <p class="hint" id="invite-hint" hidden>Sign in with the email address your invite was sent to.</p>
-    <button type="button" id="google" class="primary">Continue with Google</button>
+    <button type="button" id="google" class="gsi-button"><span class="gsi-button-g"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg></span><span class="gsi-button-text">Continue with Google</span></button>
     <p class="or">or</p>
     <form id="link-form" novalidate>
       <label>Email<input name="email" type="email" autocomplete="email" required></label>
@@ -66,14 +67,15 @@
   <!-- The shop switcher: every shop this person belongs to, with their role. -->
   <section id="view-shops" class="stack" hidden aria-labelledby="shops-title">
     <h2 id="shops-title" tabindex="-1" class="rp-sr-only">Choose a shop</h2>
-    <div id="ledger" class="cp-ledger" hidden></div>
-    <div id="recovery-alerts" class="stack"></div>
+    <!-- What needs the person comes first, then the counts, then the shops. -->
     <div id="shop-alerts" class="stack"></div>
+    <div id="recovery-alerts" class="stack"></div>
     <div id="access-requests" class="stack"></div>
+    <div id="ledger" class="cp-ledger" hidden></div>
     <div id="shops" class="cp-shops"></div>
     <div class="cp-grid2">
       <div class="card"><h3>Need a hand?</h3><p class="hint">Most questions have a written answer in the help centre. A person answers anything else, usually within a day.</p><div class="cp-actions cp-start"><button type="button" class="primary" id="open-help">Get help from Colophon</button><a class="button" href="../help/">Help centre</a></div></div>
-      <div class="card"><h3>Signed in as <span id="me"></span></h3><p class="hint">One sign-in for every shop you're on.</p><div class="cp-actions cp-start"><button type="button" id="sign-out">Sign out</button><button type="button" id="open-twostep">Set up two-step sign-in</button><button type="button" class="ghost" id="open-recovery">Lost access to the email your shops use?</button></div></div>
+      <div class="card"><h3>Signed in as <span id="me"></span></h3><p class="hint">One sign-in for every shop you're on.</p><div class="cp-actions cp-start"><button type="button" id="sign-out">Sign out</button><button type="button" id="open-twostep">Set up two-step sign-in</button><button type="button" class="ghost" id="open-recovery">Lost access to the email your shops use?</button><button type="button" class="ghost" id="open-delete">Delete my account</button></div></div>
     </div>
   </section>
 
@@ -91,6 +93,32 @@
     </form>
     <h3>Your requests</h3>
     <div id="recoveries" class="stack"></div>
+  </section>
+
+  <!-- Delete my account (accounts/deleteAccount.js, plan 24.2). -->
+  <section id="view-delete" class="stack" hidden aria-labelledby="delete-title">
+    <button type="button" class="ghost" id="delete-back">← All your shops</button>
+    <h2 id="delete-title" tabindex="-1" class="cp-view-title">Delete my account</h2>
+    <div id="delete-blockers" class="stack"></div>
+    <div class="card">
+      <h3>What happens</h3>
+      <ul id="delete-what">
+        <li>Your sign-in is deleted, and you can't sign in to Colophon with this address any more.</li>
+        <li id="delete-teams">You leave the team of every shop you're on.</li>
+        <li>Sign-ups for shops that were never made are deleted.</li>
+      </ul>
+      <h3>What we keep</h3>
+      <ul>
+        <li>Invoices and billing records, for six years, because tax law asks for it.</li>
+        <li>Your past support messages and account recovery requests, as a record of what was asked.</li>
+        <li>Each shop's activity history, which shows who changed what in that shop.</li>
+      </ul>
+    </div>
+    <form id="delete-form" class="card" novalidate>
+      <label>To confirm, type your email address: <strong id="delete-email"></strong><input name="confirmEmail" type="email" autocomplete="off" required></label>
+      <p class="hint">For your safety this works only within 15 minutes of signing in. If it says so, sign out, sign in again and come back.</p>
+      <button type="submit" class="danger" id="delete-submit">Delete my account for good</button>
+    </form>
   </section>
 
   <!-- Help: ask the platform team, and see the answers (services/support). -->
@@ -126,6 +154,14 @@
       <p class="hint" id="role-hint"></p>
       <button type="submit" class="primary">Send the invite</button>
     </form>
+  </section>
+
+  <!-- Check my shop (plan 14.3): the shop's checks in plain words, each with a button that fixes it. -->
+  <section id="view-check-shop" class="stack" hidden aria-labelledby="checkshop-title">
+    <button type="button" class="ghost" id="checkshop-back">← All your shops</button>
+    <h2 id="checkshop-title" tabindex="-1" class="cp-view-title">Check my shop</h2>
+    <p id="checkshop-summary" aria-live="polite"></p>
+    <ul class="list" id="checkshop-list"></ul>
   </section>
 
   <!-- Two-step sign-in (plan 14.1): the code at sign-in, and the one-time set-up of the authenticator app. -->

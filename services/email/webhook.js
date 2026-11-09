@@ -10,6 +10,7 @@
 //
 // The secret is RESEND_WEBHOOK_SECRET in this service's environment, like the sending key.
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { problemOf, tagsOf } from "./reputation.js";
 
 export const TOLERANCE_SECONDS = 5 * 60;
 
@@ -39,8 +40,12 @@ export function verifyEvent({ secret, headers, rawBody, now = () => new Date() }
   });
 }
 
-/** Handles one delivery event: checks the signature, then lets the reputation guard count it. */
-export async function handleResendEvent(request, { secret, guard, now = () => new Date() }) {
+/**
+ * Handles one delivery event: checks the signature, then lets the reputation guard count it. `onBounce` (optional) also
+ * hears every email that bounced for good, with its shop and kind from the email's tags (the platform's closing emails
+ * use it: services/billing/closedApps.js closingBounceRecorder).
+ */
+export async function handleResendEvent(request, { secret, guard, onBounce = null, now = () => new Date() }) {
   if (request?.method !== "POST") return { status: 405, body: { ok: false } };
   if (!verifyEvent({ secret, headers: request.headers, rawBody: request.rawBody, now })) return { status: 401, body: { ok: false } };
   let event;
@@ -51,5 +56,9 @@ export async function handleResendEvent(request, { secret, guard, now = () => ne
   }
   // Svix sends the same event again until it gets a 2xx; the event id makes a repeat count once.
   const result = await guard.record(event, { eventId: header(request.headers, "svix-id") });
+  if (onBounce && problemOf(event) === "bounces") {
+    const tags = tagsOf(event);
+    await onBounce({ shopId: tags.shop ?? null, kind: tags.kind ?? null, at: event.created_at || now().toISOString() });
+  }
   return { status: 200, body: { ok: true, ...result } };
 }

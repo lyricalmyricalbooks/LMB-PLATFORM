@@ -6,6 +6,7 @@ import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE } from "../signup/config.js";
 import { isEmail } from "../signup/form.js";
 import { ROLES, ROLE_HINTS, ROLE_NAMES } from "./roles.js";
 import { deviceId } from "../signup/device.js";
+import { changingLines } from "./billingWords.js";
 
 const { initializeApp } = await import(`${FIREBASE_SDK}/firebase-app.js`);
 const {
@@ -39,8 +40,21 @@ async function api(method, path, body) {
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   const answer = await response.json().catch(() => ({ ok: false, message: "We couldn't reach Colophon. Check your connection and try again." }));
-  if (!response.ok || answer.ok === false) throw Object.assign(new Error(answer.message || "Something went wrong."), { problems: answer.problems });
+  if (!response.ok || answer.ok === false) throw Object.assign(new Error(answer.message || "Something went wrong."), { problems: answer.problems, fix: answer.fix, helpLink: answer.helpLink });
   return answer;
+}
+
+// 14.4: the message, then what to do next, with a link to the exact help answer.
+function showFailure(target, failure) {
+  target.textContent = failure.message;
+  if (!failure.fix) return;
+  target.append(" ", failure.fix);
+  if (failure.helpLink) {
+    const link = document.createElement("a");
+    link.href = failure.helpLink;
+    link.textContent = "Read the help answer";
+    target.append(" ", link);
+  }
 }
 
 // An invite link: keep its secret through sign-in (an emailed sign-in link comes back without it).
@@ -143,7 +157,7 @@ $("#link-form").addEventListener("submit", async (event) => {
     $("#check-email").textContent = email;
     show("check");
   } catch (failure) {
-    error.textContent = failure.message;
+    showFailure(error, failure);
     error.hidden = false;
   } finally {
     button.disabled = false;
@@ -173,7 +187,7 @@ let myShops = [];
 
 /** Where a shop stands, in a few words and a tone, for its card and the strip at the top. */
 function standing(shop) {
-  if (shop.access === "paused") return { badge: "Paused", tone: "danger", line: "Paused until a card is added. Shoppers see a \"back soon\" page; nothing is deleted." };
+  if (shop.access === "paused") return { badge: "Paused", tone: "danger", line: "Paused until a card is added. Shoppers see a \"back soon\" page; everything is kept for 60 days." };
   if (shop.access === "closed") return { badge: "Closed", tone: "neutral", line: "Closed." };
   if (shop.status !== "live") return { badge: "Being made", tone: "info", line: "Still being made. It's usually ready in a minute or two." };
   const plan = shop.billing;
@@ -236,7 +250,7 @@ function shopCard(shop) {
       const { url } = await api("POST", "/accounts/switch", { shopId: shop.shopId });
       location.assign(url);
     } catch (failure) {
-      status.textContent = failure.message;
+      showFailure(status, failure);
       open.disabled = false;
     }
   });
@@ -246,16 +260,25 @@ function shopCard(shop) {
     team.addEventListener("click", () => openTeam(shop));
     // The Plan & billing page (accounts/billing.html, served at /account/billing).
     const plan = el("a", { className: "button", href: `/account/billing?shop=${encodeURIComponent(shop.shopId)}`, textContent: "Plan & billing" });
-    actions.append(team, plan);
+    const checkShop = el("button", { type: "button", textContent: "Check my shop" });
+    checkShop.addEventListener("click", () => openCheck(shop));
+    // Open and Plan & billing stay in sight; the rest sits in one More menu, as the big shop builders do.
+    actions.append(plan, moreMenu(shop, [team, checkShop, dataButton(shop)]));
   }
   const where = standing(shop);
-  const address = shop.siteUrl ? shop.siteUrl.replace(/^https?:\/\//, "") : "";
+  // The website's address, or the stockroom's for a press with the stockroom alone.
+  const place = shop.siteUrl ?? shop.stockroomUrl;
+  const address = place ? place.replace(/^https?:\/\//, "") : "";
+  // The free address once it's set up, unless it's already the address shown.
+  const free = shop.freeAddress && shop.freeAddress !== address ? `${shop.freeAddress}${shop.freeAddressLive ? "" : " · setting up"}` : "";
   const meta = el("div", { className: "cp-meta" },
     address ? el("span", { textContent: address }) : null,
+    free ? el("span", { textContent: free }) : null,
     shop.plan ? el("span", { textContent: `${PLAN_NAMES[shop.plan] ?? shop.plan} plan` }) : null);
   let trial = null;
   if (where.trialLeft !== undefined) {
-    trial = el("div", { className: "cp-bar", role: "img" }, el("i", { style: `width:${Math.round(((14 - Math.min(14, where.trialLeft)) / 14) * 100)}%` }));
+    // The bar shows the days left, so a new trial reads as a full bar that runs down.
+    trial = el("div", { className: "cp-bar", role: "img" }, el("i", { style: `width:${Math.round((Math.max(0, Math.min(14, where.trialLeft)) / 14) * 100)}%` }));
     trial.setAttribute("aria-label", `${where.trialLeft} of 14 trial days left`);
   }
   const badge = el("span", { className: "pill", textContent: where.badge });
@@ -269,9 +292,28 @@ function shopCard(shop) {
       el("h3", {}, shop.pressName, " ", badge, el("span", { className: "pill", textContent: ROLE_NAMES[shop.role] ?? shop.role })),
       meta,
       where.line ? el("p", { className: "hint", style: "margin-top:6px", textContent: where.line }) : null,
+      ...changingLines(shop).map((line) => el("p", { className: "hint", style: "margin-top:6px", textContent: line })),
       trial),
     actions);
 }
+
+/** A shop's More menu: a press-to-open list of its less-used actions. Closes on a choice, Escape or a press outside. */
+function moreMenu(shop, items) {
+  const menu = el("details", { className: "cp-more" },
+    el("summary", { className: "button", textContent: "More" }),
+    el("div", { className: "cp-more-list", role: "group" }, ...items));
+  menu.querySelector("summary").setAttribute("aria-label", `More for ${shop.pressName}`);
+  for (const item of items) item.addEventListener("click", () => { menu.open = false; });
+  menu.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !menu.open) return;
+    menu.open = false;
+    menu.querySelector("summary").focus();
+  });
+  return menu;
+}
+document.addEventListener("click", (event) => {
+  for (const menu of document.querySelectorAll("details.cp-more[open]")) if (!menu.contains(event.target)) menu.open = false;
+});
 
 // The rail's links that open a view on this page (Get help) press its button.
 for (const link of document.querySelectorAll("[data-press]")) {
@@ -283,9 +325,33 @@ for (const link of document.querySelectorAll("[data-press]")) {
   });
 }
 
+// ── Check my shop (plan 14.3) ──
+$("#checkshop-back").addEventListener("click", () => show("shops"));
+// Help opens on the answers for this shop's plan (help/index.html reads ?plan=).
+const helpFor = (shop) => (["shop", "stockroom", "both"].includes(shop?.plan) ? `../help/?plan=${shop.plan}` : "../help/");
+const FIX_TO = (shop, to) => (to === "billing" ? `/account/billing?shop=${encodeURIComponent(shop.shopId)}` : to === "admin" ? `${shop.siteUrl ?? ""}/admin` : helpFor(shop));
+async function openCheck(shop) {
+  status.textContent = "Checking your shop…";
+  try {
+    const { ok, results } = await api("POST", "/accounts/check", { shopId: shop.shopId });
+    $("#checkshop-title").textContent = `${shop.pressName}: check my shop`;
+    $("#checkshop-summary").textContent = ok ? "Everything we can check looks good." : "A few things need your attention.";
+    $("#checkshop-list").replaceChildren(...results.map((r) => {
+      const mark = el("span", { className: "pill", textContent: r.state === "ok" ? "Good" : r.state === "fix" ? "Needs you" : "Can't tell yet" });
+      mark.dataset.tone = r.state === "ok" ? "success" : r.state === "fix" ? "warning" : "neutral";
+      return el("li", {}, el("div", {}, el("strong", { textContent: r.title }), " ", mark, el("p", { className: "hint", textContent: r.words })),
+        r.fix ? el("a", { className: "button", href: FIX_TO(shop, r.fix.to), textContent: r.fix.label }) : null);
+    }));
+    status.textContent = "";
+    show("check-shop");
+  } catch (failure) {
+    showFailure(status, failure);
+  }
+}
+
 // ── One shop's team ──
 let current = null;
-$("#back").addEventListener("click", () => loadShops().catch((failure) => { status.textContent = failure.message; }));
+$("#back").addEventListener("click", () => loadShops().catch((failure) => { showFailure(status, failure); }));
 $("#invite-role").replaceChildren(...ROLES.map((role) => new Option(ROLE_NAMES[role], role, role === "staff", role === "staff")));
 const roleHint = () => { $("#role-hint").textContent = ROLE_HINTS[$("#invite-role").value]; };
 $("#invite-role").addEventListener("change", roleHint);
@@ -305,6 +371,8 @@ async function loadTeam() {
 }
 
 function memberRow(member) {
+  // The address the shop was started with is always its owner (it can't be changed or removed), so its row has no controls.
+  if (member.signupOwner) return el("li", { className: "row" }, el("span", { textContent: member.email }), el("span", { className: "hint", textContent: "Owner · the address the shop was started with" }));
   const select = el("select", {}, ...ROLES.map((role) => new Option(ROLE_NAMES[role], role, false, role === member.role)));
   select.setAttribute("aria-label", `Role for ${member.email}`);
   select.addEventListener("change", () => act(select, "/accounts/role", { email: member.email, role: select.value }, `${member.email} is now ${ROLE_NAMES[select.value]}.`));
@@ -328,7 +396,7 @@ async function act(control, path, body, done) {
     await api("POST", path, { shopId: current.shopId, ...body });
     status.textContent = done;
   } catch (failure) {
-    status.textContent = failure.message;
+    showFailure(status, failure);
   }
   control.disabled = false;
   await loadTeam().catch(() => {});
@@ -359,8 +427,17 @@ $("#invite-form").addEventListener("submit", async (event) => {
 
 // ── Get help (services/support) ──
 const STATUS_WORDS = { open: "Waiting for an answer", answered: "Answered", closed: "Closed" };
-$("#open-help").addEventListener("click", () => openHelp().catch((failure) => { status.textContent = failure.message; }));
-$("#help-back").addEventListener("click", () => loadShops().catch((failure) => { status.textContent = failure.message; }));
+$("#open-help").addEventListener("click", () => openHelp().catch((failure) => { showFailure(status, failure); }));
+$("#help-back").addEventListener("click", () => loadShops().catch((failure) => { showFailure(status, failure); }));
+
+// The Get help links on the help, status and billing pages land on /account/#get-help: once signed in, that opens
+// the help form (the hash is cleared, so Back to your shops and a reload show the shops as usual).
+function openHelpFromLink() {
+  if (location.hash !== "#get-help" || !auth.currentUser) return;
+  history.replaceState(null, "", location.pathname + location.search);
+  openHelp().catch((failure) => { showFailure(status, failure); });
+}
+addEventListener("hashchange", openHelpFromLink);
 
 async function openHelp() {
   $("#help-shop").replaceChildren(new Option("Not about one shop", ""), ...myShops.map((shop) => new Option(shop.pressName, shop.shopId)));
@@ -424,7 +501,7 @@ $("#help-form").addEventListener("submit", async (event) => {
       const p = form.querySelector(`[data-problem="${field}"]`);
       if (p) { p.textContent = words; p.hidden = false; }
     }
-    if (!Object.keys(problems).length) status.textContent = failure.message;
+    if (!Object.keys(problems).length) showFailure(status, failure);
   } finally {
     button.disabled = false;
   }
@@ -433,8 +510,8 @@ $("#help-form").addEventListener("submit", async (event) => {
 // ── Account recovery (accounts/recovery.js) ──
 const RECOVERY_WORDS = { waiting: "Waiting for a person to check", approved: "Approved, waiting", denied: "Not moved", cancelled: "Stopped by the old address", withdrawn: "You withdrew it", applied: "Moved" };
 const day = (at) => new Date(at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-$("#open-recovery").addEventListener("click", () => openRecovery().catch((failure) => { status.textContent = failure.message; }));
-$("#recovery-back").addEventListener("click", () => loadShops().catch((failure) => { status.textContent = failure.message; }));
+$("#open-recovery").addEventListener("click", () => openRecovery().catch((failure) => { showFailure(status, failure); }));
+$("#recovery-back").addEventListener("click", () => loadShops().catch((failure) => { showFailure(status, failure); }));
 
 /** Someone asked to move THIS account away: say so first, with a way to stop it. */
 async function loadRecoveryAlerts() {
@@ -448,7 +525,7 @@ async function loadRecoveryAlerts() {
         status.textContent = "Stopped. Nothing has moved, and we've told our team.";
         await loadRecoveryAlerts();
       } catch (failure) {
-        status.textContent = failure.message;
+        showFailure(status, failure);
         stop.disabled = false;
       }
     });
@@ -484,7 +561,7 @@ function recoveryCard(request) {
         status.textContent = "Withdrawn.";
         await loadRecoveries();
       } catch (failure) {
-        status.textContent = failure.message;
+        showFailure(status, failure);
         withdraw.disabled = false;
       }
     });
@@ -510,8 +587,44 @@ $("#recovery-form").addEventListener("submit", async (event) => {
       const p = form.querySelector(`[data-problem="${field}"]`);
       if (p) { p.textContent = words; p.hidden = false; }
     }
-    if (!Object.keys(problems).length) status.textContent = failure.message;
+    if (!Object.keys(problems).length) showFailure(status, failure);
   } finally {
+    button.disabled = false;
+  }
+});
+
+// ── Delete my account (accounts/deleteAccount.js) ──
+$("#open-delete").addEventListener("click", () => openDelete().catch((failure) => { showFailure(status, failure); }));
+$("#delete-back").addEventListener("click", () => loadShops().catch((failure) => { showFailure(status, failure); }));
+
+async function openDelete() {
+  const { email, leaving, blockers } = await api("GET", "/accounts/delete-check");
+  $("#delete-email").textContent = email;
+  $("#delete-teams").textContent = leaving.length
+    ? `You leave the team of ${leaving.map((shop) => shop.pressName).join(", ")}.`
+    : "You're not on any shop's team, so no shop changes.";
+  $("#delete-blockers").replaceChildren(...blockers.map((shop) => el("div", { className: "card warning", role: "alert" },
+    el("strong", { textContent: shop.making ? `${shop.pressName} is still being made` : `You're the only owner of ${shop.pressName}` }),
+    el("p", { style: "margin:0", textContent: shop.making
+      ? "You'll be its only owner. Wait until it's ready, then make someone else an owner from Team, or close the shop, and come back."
+      : "A shop always needs an owner. Make someone else an owner from Team, or close the shop, then come back." }))));
+  $("#delete-submit").disabled = blockers.length > 0;
+  $("#delete-form").reset();
+  show("delete");
+}
+
+$("#delete-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.target;
+  const button = $("#delete-submit");
+  button.disabled = true;
+  try {
+    await api("POST", "/accounts/delete-me", { confirmEmail: form.confirmEmail.value });
+    await signOut(auth).catch(() => {});
+    show("signin");
+    status.textContent = "Your account is deleted. We've sent a short note to your email address.";
+  } catch (failure) {
+    showFailure(status, failure);
     button.disabled = false;
   }
 });
@@ -522,7 +635,7 @@ async function openShops() {
   try {
     await loadShops();
   } catch (failure) {
-    $("#error-words").textContent = failure.message;
+    showFailure($("#error-words"), failure);
     show("error");
   }
 }
@@ -538,12 +651,13 @@ onAuthStateChanged(auth, async (user) => {
       status.textContent = "You've joined the team.";
       store(INVITE_KEY, "");
     } catch (failure) {
-      status.textContent = failure.message;
+      showFailure(status, failure);
       // Keep it only when signing in with another address could still accept it.
       if (!/Sign in with that address/.test(failure.message)) store(INVITE_KEY, "");
     }
   }
   await openShops();
+  openHelpFromLink();
 });
 
 // ── Colophon support asks before making changes (plan 19.6): approve or decline, and the shop's past support visits. ──
@@ -569,7 +683,7 @@ function accessCard(shop, waiting, visits) {
           ? `Approved. ${request.by} can open ${shop.pressName}'s admin once, for 30 minutes, within the day. It goes in your shop's log.`
           : "Declined. Nobody can make changes in your shop on that request.";
       } catch (failure) {
-        status.textContent = failure.message;
+        showFailure(status, failure);
       }
       await loadAccessRequests().catch(() => {});
     };
@@ -590,4 +704,26 @@ function accessCard(shop, waiting, visits) {
     ...asks,
     visitList ? el("p", { className: "hint", style: "margin:0", textContent: "The last visits from Colophon support, newest first:" }) : null,
     visitList);
+}
+
+// ── All your data (plan 19.16): every file of the shop and stockroom, with a link emailed to the owner. Once a day. ──
+function dataButton(shop) {
+  const data = el("button", { type: "button", className: "ghost", textContent: "Download all your data" });
+  data.addEventListener("click", async () => {
+    // What the copy holds follows the plan: a press with the stockroom alone has no website orders or customers.
+    // An app the plan dropped stays in the copy while its 90 days to download last (shop.closed).
+    const has = (app) => shop.plan !== (app === "shop" ? "stockroom" : "shop") || (shop.closed ?? []).some((c) => c.app === app);
+    const what = !has("shop") ? "books, stock, sales and settings" : !has("stockroom") ? "books, orders, customers and settings" : "books, orders, customers, stockroom and settings";
+    if (!window.confirm(`We'll gather everything in ${shop.pressName} (${what}) and email you a link that works for 7 days. Go ahead?`)) return;
+    data.disabled = true;
+    status.textContent = "Gathering your data…";
+    try {
+      const { emailedTo } = await api("POST", "/account/export", { shopId: shop.shopId });
+      status.textContent = `Done. We've emailed the link to ${emailedTo}. It works for 7 days.`;
+    } catch (failure) {
+      status.textContent = failure.message;
+    }
+    data.disabled = false;
+  });
+  return data;
 }

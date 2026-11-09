@@ -8,16 +8,22 @@
 
 import { metricWeightValue } from "../features/site/metricWeight";
 import { MAX_IMPORT_ROWS, parseCsv, parseMoney, planImport, validIsbn, type ImportOptions, type ImportPlan, type ImportRow } from "./catalogImport";
-import { parseTags } from "./customerInsights";
+import { MOVED_MARK, parseTags } from "./customerInsights";
 import { addToIndex, MAX_REDIRECTS, normalizePath, redirectIndex, redirectProblemIn, type Redirect } from "../features/site/redirects";
 import { MAX_OPTIONS, MAX_VARIANTS, type ProductOption } from "../../shared/productOptions";
+import { productHref } from "../lib/productHref";
 
 /** Which shape an export has. Named after how its rows are laid out, not after who made it. */
 export type ExportShape =
   | "handle-rows"     // one line per edition, grouped by a Handle column; photos on their own lines
   | "product-id-rows" // a product line, then one line per extra edition with a blank title
   | "parent-rows"     // product lines with Type simple/variable; editions are "variation" lines pointing at a Parent
-  | "listing-rows";   // one line per listing with numbered photo columns (IMAGE1…)
+  | "listing-rows"    // one line per listing with numbered photo columns (IMAGE1…)
+  | "field-type-rows" // a line marked Product, then its lines marked Variant under the same handleId (plan 23.1)
+  | "variation-name-rows" // one line per variation, named by Item Name and Variation Name, stock per location (plan 23.1)
+  | "item-rows"       // an Item column of Product, then its Variant and Image lines; options as Name=…|Value=… (plan 23.10)
+  | "sku-rows"        // an Item Type column of Product, then its SKU and Rule lines; options in the name, [S]Size=M (plan 23.10)
+  | "typed-rows";     // a type column of product or product_variation; versions point at their product by id (plan 23.10)
 
 export interface MovedEdition {
   name: string; price: number; salePrice: number; stock: number | null; sku: string; weight: string; photoUrl: string;
@@ -72,6 +78,11 @@ export function recognizeExport(headings: string[]): ExportShape | null {
   if (has("Product ID [Non Editable]", "Variant ID [Non Editable]", "Title", "Price")) return "product-id-rows";
   if (has("Type", "Parent", "Name", "Regular price")) return "parent-rows";
   if (has("TITLE", "PRICE", "QUANTITY", "IMAGE1")) return "listing-rows";
+  if (has("handleId", "fieldType", "name", "price")) return "field-type-rows";
+  if (has("Token", "Item Name", "Variation Name", "Price")) return "variation-name-rows";
+  if (has("Item", "Name", "SKU", "Options", "Price")) return "item-rows";
+  if (has("Item Type", "Product Name", "Price")) return "sku-rows";
+  if (has("type", "product_name", "product_price")) return "typed-rows";
   return null;
 }
 
@@ -232,7 +243,9 @@ function fromHandleRows(table: string[][]): MovedBook[] {
     const seoTitle = c.get(head, "SEO title"), seoDescription = c.get(head, "SEO description");
     if (seoTitle) cells["SEO title"] = seoTitle;
     if (seoDescription) cells["SEO description"] = seoDescription;
-    return book(line, cells, editions, photos.sort((a, b) => a.at - b.at).map(p => p.url), [`/products/${handle}`]);
+    // A file made from an old shop's address (plan 23.2) says where each product's page was.
+    const oldPage = c.get(head, "Old page address");
+    return book(line, cells, editions, photos.sort((a, b) => a.at - b.at).map(p => p.url), [oldPage.startsWith("/") ? oldPage : `/products/${handle}`]);
   });
 }
 
@@ -336,6 +349,276 @@ function fromListingRows(table: string[][]): MovedBook[] {
   }).filter(b => b.cells.Title || b.cells.Price);
 }
 
+/** A product page address made from a name the way most shop builders make one ("Moth Songs!" → "moth-songs"). */
+const slugOf = (name: string) => name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+// A line marked Product, then one line per version marked Variant under the same handleId (plan 23.1, from the
+// per-row product template the research notes of 3 November 2026 list). The product line names up to six options
+// (productOptionName1…) and its price; a version's line gives its choices (productOptionDescription1…), its stock and
+// a surcharge on top of the product's price. Photos are links separated by semicolons; the discount is a percent or an
+// amount off. Stock is a number, or InStock/OutOfStock when the old shop didn't count it.
+function fromFieldTypeRows(table: string[][], notices: string[]): MovedBook[] {
+  const c = columns(table[0]);
+  const optionNumbers = table[0].map(h => /^productoptionname(\d+)$/i.exec(h.replace(/\s+/g, ""))?.[1]).filter(Boolean).map(Number).sort((a, b) => a - b);
+  const stockOf = (row: string[]) => { const v = c.get(row, "inventory"); return /^outofstock$/i.test(v) ? 0 : count(v); };
+  const products: { line: number; head: string[]; variants: string[][] }[] = [];
+  const byHandle = new Map<string, (typeof products)[number]>();
+  let strays = 0;
+  table.slice(1).forEach((row, i) => {
+    const handle = c.get(row, "handleId"), type = c.get(row, "fieldType").toLowerCase();
+    if (type === "product") { const p = { line: i + 2, head: row, variants: [] as string[][] }; products.push(p); if (handle) byHandle.set(handle, p); return; }
+    if (type !== "variant") return;
+    const p = byHandle.get(handle);
+    if (p) p.variants.push(row); else strays++;
+  });
+  if (strays) notices.push(`${strays} version line${strays === 1 ? "" : "s"} belonged to no product in the file, so ${strays === 1 ? "it was" : "they were"} left out.`);
+  return products.map(({ line, head, variants }) => {
+    const base = money(c.get(head, "price"));
+    const off = Number(c.get(head, "discountValue")), mode = c.get(head, "discountMode").toLowerCase();
+    const sale = (price: number) => {
+      if (Number.isNaN(price) || !(off > 0)) return 0;
+      const s = mode === "percent" ? price * (1 - off / 100) : mode === "amount" ? price - off : NaN;
+      return s > 0 && s < price ? Math.round(s * 100) / 100 : 0;
+    };
+    const names = optionNumbers.map(n => c.get(head, `productOptionName${n}`));
+    const edition = (row: string[], name: string, picks?: Record<string, string>): MovedEdition => {
+      const surcharge = money(c.get(row, "surcharge"));
+      const price = Number.isNaN(base) ? NaN : Math.round((base + (Number.isNaN(surcharge) ? 0 : surcharge)) * 100) / 100;
+      const kg = Number(c.get(row, "weight"));
+      return { name, price, salePrice: sale(price), stock: stockOf(row), sku: c.get(row, "sku"), weight: Number.isFinite(kg) && kg > 0 ? metricWeightValue(`${kg} kg`) : "", photoUrl: "", ...(picks ? { picks } : {}) };
+    };
+    const editions = variants.length
+      ? variants.map(v => {
+        const values = optionNumbers.map(n => c.get(v, `productOptionDescription${n}`));
+        return edition(v, values.filter(Boolean).join(" / "), picksOf(names.map((n, i) => [n, values[i]])));
+      })
+      : [edition(head, "")];
+    const title = c.get(head, "name");
+    const cells: Record<string, string> = { Title: title };
+    const description = htmlToDescription(c.get(head, "description"));
+    if (description) cells.Description = description;
+    const collections = list(c.get(head, "collection"), /;/);
+    if (collections.length) cells.Categories = collections.join(";");
+    const kg = Number(c.get(head, "weight"));
+    if (Number.isFinite(kg) && kg > 0) cells.Weight = metricWeightValue(`${kg} kg`);
+    const notes = /^false$/i.test(c.get(head, "visible")) ? ["This product was hidden in your old shop."] : [];
+    // The export has no page address, so the one the old shop makes from the name is kept.
+    const slug = slugOf(title);
+    return book(line, cells, editions, list(c.get(head, "productImageUrl"), /;/), slug ? [`/product-page/${slug}`] : [], notes);
+  });
+}
+
+// One line per variation (plan 23.1): lines with the same Item Name are one product, Variation Name names the version
+// ("Regular" when there is one), stock is in a "Current Quantity <place>" column per place (added up), and options,
+// when the old shop named them, are in Option Name n / Option Value n. A price of "variable" or blank leaves the
+// version out with a note; archived items are left out.
+function fromVariationNameRows(table: string[][], notices: string[]): MovedBook[] {
+  const c = columns(table[0]);
+  const stockAt = table[0].map((h, i) => (/^current quantity\b/.test(key(h)) ? i : -1)).filter(i => i >= 0);
+  const optionNumbers = table[0].map(h => /^option name (\d+)$/.exec(key(h))?.[1]).filter(Boolean).map(Number);
+  const products: { line: number; rows: string[][] }[] = [];
+  const byName = new Map<string, (typeof products)[number]>();
+  let archived = 0;
+  table.slice(1).forEach((row, i) => {
+    const name = c.get(row, "Item Name");
+    if (!name) return;
+    if (/^(y|yes|true)$/i.test(c.get(row, "Archived"))) { archived++; return; }
+    const k = name.toLowerCase();
+    if (!byName.has(k)) { const p = { line: i + 2, rows: [] as string[][] }; byName.set(k, p); products.push(p); }
+    byName.get(k)!.rows.push(row);
+  });
+  if (archived) notices.push(`${archived} archived line${archived === 1 ? " was" : "s were"} left out.`);
+  return products.map(({ line, rows }) => {
+    const head = rows[0];
+    const editions = rows.map((r): MovedEdition => {
+      const counts = stockAt.map(i => count(unguard(r[i] ?? ""))).filter((n): n is number => n !== null);
+      const variation = c.get(r, "Variation Name");
+      const picks = picksOf(optionNumbers.map(n => [c.get(r, `Option Name ${n}`), c.get(r, `Option Value ${n}`)]));
+      return {
+        name: rows.length === 1 && /^regular$/i.test(variation) ? "" : variation,
+        ...prices(c.get(r, "Price"), c.get(r, "Online Sale Price"), false),
+        stock: counts.length ? counts.reduce((t, n) => t + n, 0) : null, sku: c.get(r, "SKU"), weight: "", photoUrl: "", ...(picks ? { picks } : {}),
+      };
+    });
+    const cells: Record<string, string> = { Title: c.get(head, "Item Name") };
+    const description = htmlToDescription(c.get(head, "Description"));
+    if (description) cells.Description = description;
+    const categories = list(c.get(head, "Categories", "Category"));
+    if (categories.length) cells.Categories = categories.join(";");
+    const seoTitle = c.get(head, "SEO Title"), seoDescription = c.get(head, "SEO Description");
+    if (seoTitle) cells["SEO title"] = seoTitle;
+    if (seoDescription) cells["SEO description"] = seoDescription;
+    const gtin = rows.length === 1 ? c.get(head, "GTIN") : "";
+    if (gtin && validIsbn(gtin)) cells.ISBN = gtin;
+    return book(line, cells, editions, [], [], []);
+  });
+}
+
+// ── Plan 23.10: the other big shop builders' files ──
+// Each groups a product line with the lines under it. Weights are left out: these files don't say whether they are in
+// pounds or kilograms. Category cells that are only numbers (ids, not names) are left out too.
+
+const yes = (v: string) => /^(y|yes|true|1)$/i.test(v.trim());
+const no = (v: string) => /^(n|no|false|0)$/i.test(v.trim());
+const named = (values: string[]) => values.filter(v => v && !/^\d+$/.test(v));
+const hiddenNote = "This product was hidden in your old shop.";
+
+/** Choices written as "Type=Dropdown|Name=Size|Value=M" pairs, any separator between them. */
+function namedPairs(value: string): [string, string][] {
+  return [...value.matchAll(/Name=([^|;\n]*)\|Value=([^|;\n]*)/g)].map(m => [m[1].trim(), m[2].trim()]);
+}
+
+/** Choices written in a version's name: "[S]Size=Small,[CS]Colour=Blue:#0000FF". */
+function bracketPairs(value: string): [string, string][] {
+  return [...value.matchAll(/\[[A-Z]+\]([^=,[\]]+)=([^,[]*)/g)].map(m => [m[1].trim(), m[2].replace(/:#[0-9a-f]{3,8}$/i, "").trim()]);
+}
+
+/** Groups lines under the product line above them; `kind` says which a line is. */
+function grouped(table: string[][], kind: (row: string[]) => "product" | "under" | "skip"): { line: number; head: string[]; under: string[][] }[] {
+  const out: { line: number; head: string[]; under: string[][] }[] = [];
+  table.slice(1).forEach((row, i) => {
+    const k = kind(row);
+    if (k === "product") out.push({ line: i + 2, head: row, under: [] });
+    else if (k === "under" && out.length) out[out.length - 1].under.push(row);
+  });
+  return out;
+}
+
+function fromItemRows(table: string[][]): MovedBook[] {
+  const c = columns(table[0]);
+  const item = (row: string[]) => c.get(row, "Item").toLowerCase();
+  return grouped(table, r => (item(r) === "product" ? "product" : item(r) === "variant" || item(r) === "image" ? "under" : "skip")).map(({ line, head, under }) => {
+    const tracking = c.get(head, "Inventory Tracking").toLowerCase();
+    const stockOf = (row: string[]) => (tracking === "none" ? null : count(c.get(row, "Current Stock")));
+    const was = c.get(head, "Retail Price");
+    const variants = under.filter(r => item(r) === "variant");
+    const edition = (row: string[], pairs: [string, string][]): MovedEdition => {
+      const own = prices(c.get(row, "Price") || c.get(head, "Price"), c.get(row, "Sale Price") || c.get(head, "Sale Price"), false);
+      const regular = prices(String(own.price), was, true);
+      const picks = picksOf(pairs);
+      return {
+        name: pairs.map(([, v]) => v).filter(Boolean).join(" / "), price: own.salePrice ? own.price : regular.price, salePrice: own.salePrice || regular.salePrice,
+        stock: tracking === "variant" ? count(c.get(row, "Current Stock")) : null, sku: c.get(row, "SKU"), weight: "", photoUrl: https(c.get(row, "Variant Image URL")), ...(picks ? { picks } : {}),
+      };
+    };
+    const editions = variants.length ? variants.map(v => edition(v, namedPairs(c.get(v, "Options")))) : [{ ...edition(head, []), stock: stockOf(head) }];
+    const cells: Record<string, string> = { Title: c.get(head, "Name") };
+    if (variants.length && tracking === "product") { const n = stockOf(head); if (n !== null) cells.Stock = String(n); }
+    const description = htmlToDescription(c.get(head, "Description"));
+    if (description) cells.Description = description;
+    const categories = named(list(c.get(head, "Categories"), /[;,]/));
+    if (categories.length) cells.Categories = categories.join(";");
+    const seoTitle = c.get(head, "Page Title"), seoDescription = c.get(head, "Meta Description");
+    if (seoTitle) cells["SEO title"] = seoTitle;
+    if (seoDescription) cells["SEO description"] = seoDescription;
+    const isbn = c.get(head, "Global Trade Number", "UPC/EAN");
+    if (validIsbn(isbn)) cells.ISBN = isbn;
+    const images = under.filter(r => item(r) === "image");
+    const photos = [...images.filter(r => yes(c.get(r, "Image is Thumbnail"))), ...images.filter(r => !yes(c.get(r, "Image is Thumbnail")))].map(r => c.get(r, "Internal Image URL (Export)", "Image URL (Import)"));
+    const path = c.get(head, "Product URL");
+    return book(line, cells, editions, photos, path.startsWith("/") ? [path] : [], no(c.get(head, "Is Visible")) ? [hiddenNote] : []);
+  });
+}
+
+/** A price rule on a version line: "[ADD]5", "[REMOVE]10%", "[FIXED]15". NaN when there is none. */
+function ruled(rule: string, base: number): number {
+  const m = /^\[(ADD|REMOVE|FIXED)\]\s*(-?[\d.,]+)\s*(%)?$/i.exec(rule.trim());
+  if (!m || Number.isNaN(base)) return NaN;
+  const n = parseMoney(m[2]), kind = m[1].toUpperCase();
+  if (Number.isNaN(n)) return NaN;
+  const by = m[3] ? (base * n) / 100 : n;
+  const price = kind === "FIXED" ? n : kind === "ADD" ? base + by : base - by;
+  return price >= 0 ? Math.round(price * 100) / 100 : NaN;
+}
+
+function fromSkuRows(table: string[][]): MovedBook[] {
+  const c = columns(table[0]);
+  const kind = (row: string[]) => c.get(row, "Item Type").toLowerCase();
+  const photoAt = table[0].map((h, i) => (/^product image url \d+$/.test(key(h)) ? i : -1)).filter(i => i >= 0);
+  return grouped(table, r => (kind(r) === "product" ? "product" : kind(r) === "sku" || kind(r) === "rule" ? "under" : "skip")).map(({ line, head, under }) => {
+    const track = c.get(head, "Track Inventory").toLowerCase();
+    const base = prices(c.get(head, "Price"), c.get(head, "Sale Price"), false);
+    const versions: { row: string[]; price: number }[] = [];
+    for (const row of under) {
+      if (kind(row) === "sku") { versions.push({ row, price: base.price }); continue; }
+      const name = c.get(row, "Product Name");
+      const target = (name && versions.find(v => c.get(v.row, "Product Name") === name)) || versions[versions.length - 1];
+      const price = target ? ruled(c.get(row, "Price"), base.price) : NaN;
+      if (target && !Number.isNaN(price)) target.price = price;
+    }
+    const stockOf = (row: string[]) => (/none|^$/.test(track) && !c.get(row, "Current Stock Level") ? null : count(c.get(row, "Current Stock Level")));
+    const editions: MovedEdition[] = versions.length
+      ? versions.map(({ row, price }) => {
+        const pairs = bracketPairs(c.get(row, "Product Name"));
+        const picks = picksOf(pairs);
+        return { name: pairs.map(([, v]) => v).join(" / "), price, salePrice: 0, stock: /option/.test(track) ? stockOf(row) : null, sku: c.get(row, "Product Code/SKU"), weight: "", photoUrl: "", ...(picks ? { picks } : {}) };
+      })
+      : [{ name: "", ...base, stock: stockOf(head), sku: c.get(head, "Product Code/SKU"), weight: "", photoUrl: "" }];
+    const cells: Record<string, string> = { Title: c.get(head, "Product Name") };
+    if (versions.length && /product/.test(track)) { const n = stockOf(head); if (n !== null) cells.Stock = String(n); }
+    const description = htmlToDescription(c.get(head, "Product Description"));
+    if (description) cells.Description = description;
+    const categories = named(list(c.get(head, "Category"), /;/).map(p => p.split("/").pop()!.trim()));
+    if (categories.length) cells.Categories = [...new Set(categories)].join(";");
+    const seoTitle = c.get(head, "Page Title"), seoDescription = c.get(head, "Meta Description");
+    if (seoTitle) cells["SEO title"] = seoTitle;
+    if (seoDescription) cells["SEO description"] = seoDescription;
+    const path = c.get(head, "Product URL");
+    const photos = photoAt.map(i => unguard(head[i] ?? ""));
+    return book(line, cells, editions, photos, path.startsWith("/") ? [path] : [], no(c.get(head, "Product Visible")) ? [hiddenNote] : []);
+  });
+}
+
+function fromTypedRows(table: string[][], notices: string[]): MovedBook[] {
+  const c = columns(table[0]);
+  const kind = (row: string[]) => c.get(row, "type").toLowerCase();
+  const optionAt = table[0].map((h, i) => ({ i, name: /^product_variation_option_(.+)$/i.exec(h.trim())?.[1]?.trim() ?? "" })).filter(o => o.name);
+  const galleryAt = table[0].map((h, i) => (/^product media gallery image url\b/.test(key(h)) ? i : -1)).filter(i => i >= 0);
+  const categoryAt = table[0].map((h, i) => (/^product category\b/.test(key(h)) ? i : -1)).filter(i => i >= 0);
+  const products: { line: number; head: string[]; under: string[][] }[] = [];
+  const byId = new Map<string, (typeof products)[number]>(), bySku = new Map<string, (typeof products)[number]>();
+  const pending: string[][] = [];
+  table.slice(1).forEach((row, i) => {
+    if (kind(row) === "product") {
+      const p = { line: i + 2, head: row, under: [] as string[][] };
+      products.push(p);
+      const id = c.get(row, "product_internal_id"), sku = c.get(row, "product_sku");
+      if (id) byId.set(id, p);
+      if (sku) bySku.set(sku, p);
+    } else if (kind(row) === "product_variation") pending.push(row);
+  });
+  let strays = 0;
+  for (const row of pending) {
+    const p = byId.get(c.get(row, "product_internal_id")) ?? bySku.get(c.get(row, "product_sku"));
+    if (p) p.under.push(row); else strays++;
+  }
+  if (strays) notices.push(`${strays} version line${strays === 1 ? "" : "s"} belonged to no product in the file, so ${strays === 1 ? "it was" : "they were"} left out.`);
+  return products.map(({ line, head, under }) => {
+    const tracked = !no(c.get(head, "product_is_inventory_tracked"));
+    const edition = (row: string[], pairs: [string, string][]): MovedEdition => {
+      const picks = picksOf(pairs);
+      return {
+        name: pairs.map(([, v]) => v).filter(Boolean).join(" / "),
+        ...prices(c.get(row, "product_price") || c.get(head, "product_price"), c.get(row, "product_compare_to_price") || c.get(head, "product_compare_to_price"), true),
+        stock: tracked ? count(c.get(row, "product_quantity")) : null, sku: c.get(row, "product_variation_sku") || (row === head ? c.get(head, "product_sku") : ""), weight: "", photoUrl: "", ...(picks ? { picks } : {}),
+      };
+    };
+    const editions = under.length ? under.map(r => edition(r, optionAt.map(({ i, name }) => [name, unguard(r[i] ?? "")]))) : [edition(head, [])];
+    const cells: Record<string, string> = { Title: c.get(head, "product_name") };
+    const description = htmlToDescription(c.get(head, "product_description"));
+    if (description) cells.Description = description;
+    const categories = named(categoryAt.flatMap(i => list(unguard(head[i] ?? ""), /;/)).map(p => p.split("/").pop()!.trim()));
+    if (categories.length) cells.Categories = [...new Set(categories)].join(";");
+    const seoTitle = c.get(head, "product_seo_title"), seoDescription = c.get(head, "product_seo_description");
+    if (seoTitle) cells["SEO title"] = seoTitle;
+    if (seoDescription) cells["SEO description"] = seoDescription;
+    const photos = [c.get(head, "product_media_main_image_url"), ...galleryAt.map(i => unguard(head[i] ?? ""))];
+    let path = "";
+    try { const url = c.get(head, "url"); path = url ? new URL(url, "https://old.example").pathname : ""; } catch { path = ""; }
+    return book(line, cells, editions, photos, path && path !== "/" ? [path] : [], no(c.get(head, "product_is_available")) ? [hiddenNote] : []);
+  });
+}
+
 /** Reads another shop's product export. Null when the file isn't one (the plain spreadsheet import takes it). */
 export function readProductExport(text: string): ProductMove | null {
   const table = parseCsv(text);
@@ -346,6 +629,11 @@ export function readProductExport(text: string): ProductMove | null {
   const books = shape === "handle-rows" ? fromHandleRows(table)
     : shape === "product-id-rows" ? fromProductIdRows(table)
     : shape === "parent-rows" ? fromParentRows(table, notices)
+    : shape === "field-type-rows" ? fromFieldTypeRows(table, notices)
+    : shape === "variation-name-rows" ? fromVariationNameRows(table, notices)
+    : shape === "item-rows" ? fromItemRows(table)
+    : shape === "sku-rows" ? fromSkuRows(table)
+    : shape === "typed-rows" ? fromTypedRows(table, notices)
     : fromListingRows(table);
   const problems = books.length ? [] : ["This export has no products in it. Export your products again from your old shop, including every product, and choose that file."];
   if (books.length > MAX_IMPORT_ROWS) problems.push(`The export has ${books.length} products; bring over up to ${MAX_IMPORT_ROWS} at a time.`);
@@ -391,12 +679,24 @@ export function planShopMove(text: string, books: any[], shopCategories: string[
     let m = moved.books[row.line - 2];
     const next: ImportRow = { ...row, line: m.line, errors: row.errors.map(relabel), warnings: [...row.warnings.map(relabel), ...m.notes] };
     if (m.oldPaths.length) oldPaths.set(m.line, m.oldPaths);
+    // No stock number anywhere means the old shop didn't count this product ("Unlimited", stock not managed). Saved
+    // with 0 copies and counting on, it would show as sold out here, so it comes over without stock counting. Not for
+    // one-line-per-edition files: a file read from an old shop's address has that layout and leaves a stock count blank
+    // because it isn't shown publicly, not because the old shop didn't count it (services/moving/oldShop.js).
+    const blankMeansUncounted = moved.shape !== "handle-rows";
+    if (blankMeansUncounted && row.action === "create" && !m.cells.Stock) {
+      next.patch = { ...next.patch, trackInventory: false };
+      next.warnings.push("Your old shop didn't count this product's stock, so it comes over without stock counting and never shows as sold out. To count copies, turn on stock counting in the book editor and type how many you have.");
+    } else if (blankMeansUncounted && row.action === "create" && m.editions.length > 1) {
+      const uncounted = m.editions.filter(e => e.stock === null).map(e => e.name || "Edition");
+      if (uncounted.length) next.warnings.push(`Your old shop didn't count the stock of ${uncounted.join(", ")}, so ${uncounted.length === 1 ? "it starts" : "they start"} at 0 here and ${uncounted.length === 1 ? "shows" : "show"} as sold out. Type how many you have in the book editor.`);
+    }
     if (m.editions.length > 1) {
       // A books shop keeps today's editions list: an old shop's "Format: Hardcover" stays an edition (plan 10.20).
       if (!keepOptions) m = { ...m, options: [] };
       const names = m.editions.map(e => e.name || "Edition").join("; ");
       if (row.action === "create") {
-        next.patch = { ...row.patch, variants: editionsFor(m), ...(m.options.length ? { options: m.options } : {}) };
+        next.patch = { ...next.patch, variants: editionsFor(m), ...(m.options.length ? { options: m.options } : {}) };
         next.changes = [...row.changes, { field: "variants", label: "Editions", from: "", to: names }];
         if (m.options.length) next.changes.push({ field: "options", label: "Options", from: "", to: m.options.map(o => `${o.name}: ${o.values.join(", ")}`).join("; ") });
       } else if (row.action !== "error") {
@@ -448,7 +748,7 @@ export function importRedirects(existing: Redirect[], links: { oldPaths: string[
   for (const r of items) { const f = normalizePath(r.from); if (!saved.has(f)) saved.set(f, r.to); }
   for (const { oldPaths, bookId } of links) {
     if (!bookId) continue;
-    const to = `/books/${encodeURIComponent(bookId)}`;
+    const to = productHref(encodeURIComponent(bookId));
     for (const path of oldPaths) {
       const from = normalizePath(path);
       const had = saved.get(from);
@@ -485,6 +785,11 @@ export function readCustomerExport(text: string): CustomerMove {
   const c = columns(table[0]);
   if (!c.has("Email") && !c.has("Email Address") && !c.has("E-mail")) return { customers: [], skipped: [], problems: ["There is no Email column, so the customers can't be matched. Export your customers again, or add an Email column."] };
   const consentHeading = ["Accepts Email Marketing", "Accepts Marketing", "Email Marketing", "Subscribed", "Newsletter", "Marketing Opt In", "Accepts Email"].find(h => c.has(h));
+  // A mailing list from an email-list tool (plan 23.4): a Status column says who is still subscribed, or the file is a
+  // list of sign-ups (an opt-in or confirm time per line), where being on it is the agreement, unless that line was
+  // unsubscribed or cleaned off. The owner still confirms the permission before anyone joins.
+  const statusHeading = ["Status", "Member Status", "Subscriber Status", "Subscription Status"].find(h => c.has(h));
+  const signUps = !consentHeading && !statusHeading && ["OPTIN_TIME", "CONFIRM_TIME", "Opt-in Time", "Signup Date", "Subscribed At"].some(h => c.has(h));
   const seen = new Set<string>();
   const customers: MovedCustomer[] = [];
   const skipped: CustomerMove["skipped"] = [];
@@ -497,7 +802,12 @@ export function readCustomerExport(text: string): CustomerMove {
     const name = c.get(row, "Name", "Full Name") || [c.get(row, "First Name", "Billing First Name"), c.get(row, "Last Name", "Billing Last Name")].filter(Boolean).join(" ");
     const place = [c.get(row, "Default Address City", "City", "Billing City"), c.get(row, "Default Address Province Code", "Province Code", "Province", "State", "Billing State"), c.get(row, "Default Address Country Code", "Country Code", "Country", "Billing Country")].filter(Boolean).join(", ");
     const consent = consentHeading ? c.get(row, consentHeading).toLowerCase() : "";
-    const acceptsEmail = !consentHeading || !consent ? null : /^(yes|y|true|1|subscribed|opted in|confirmed)$/.test(consent) ? true : false;
+    const status = statusHeading ? c.get(row, statusHeading).toLowerCase() : "";
+    const leftList = !!c.get(row, "UNSUB_TIME", "CLEAN_TIME", "Unsubscribed At");
+    const acceptsEmail = consentHeading && consent ? /^(yes|y|true|1|subscribed|opted in|confirmed)$/.test(consent)
+      : statusHeading && status ? /^(subscribed|active|confirmed|opted in)$/.test(status)
+      : signUps ? !leftList
+      : null;
     const orders = count(c.get(row, "Total Orders", "Orders", "Order Count"));
     const spentRaw = c.get(row, "Total Spent", "Total Spend", "Money Spent", "Spent");
     const spent = spentRaw ? money(spentRaw) : NaN;
@@ -507,12 +817,13 @@ export function readCustomerExport(text: string): CustomerMove {
 }
 
 /** The line that marks a note as brought over, so importing the same file twice changes nothing. */
-export const MOVED_MARK = "Brought over from your old shop";
+export { MOVED_MARK };
 
-export interface CustomerWrite { email: string; note: string; tags: string[]; action: "create" | "update" | "unchanged" }
+/** `name` and `place` are stored beside the note so the customer is listed before their first order here (plan 23.10). */
+export interface CustomerWrite { email: string; note: string; tags: string[]; name: string; place: string; action: "create" | "update" | "unchanged" }
 
 /** Each customer's private note and tags (Customers › a customer › Notes), merged with what is already there. */
-export function planCustomerNotes(customers: MovedCustomer[], existing: Map<string, { note: string; tags: string[] }>, today: string): CustomerWrite[] {
+export function planCustomerNotes(customers: MovedCustomer[], existing: Map<string, { note: string; tags: string[]; name?: string; place?: string }>, today: string): CustomerWrite[] {
   return customers.map(cu => {
     const was = existing.get(cu.email);
     const facts = [
@@ -522,12 +833,14 @@ export function planCustomerNotes(customers: MovedCustomer[], existing: Map<stri
     ].filter(Boolean).join(" · ");
     const block = [`${MOVED_MARK} on ${today}${facts ? `: ${facts}` : "."}`, cu.note].filter(Boolean).join("\n");
     const tags = parseTags([...(was?.tags || []), ...cu.tags].join(","));
+    const name = (was?.name || cu.name).slice(0, 100);
+    const place = (was?.place || cu.place).slice(0, 200);
     if (was?.note.includes(MOVED_MARK)) {
-      const same = tags.join(",") === (was.tags || []).join(",");
-      return { email: cu.email, note: was.note, tags, action: same ? "unchanged" : "update" };
+      const same = tags.join(",") === (was.tags || []).join(",") && name === (was.name || "") && place === (was.place || "");
+      return { email: cu.email, note: was.note, tags, name, place, action: same ? "unchanged" : "update" };
     }
     const note = (was?.note ? `${was.note}\n\n${block}` : block).slice(0, 5000);
-    return { email: cu.email, note, tags, action: was ? "update" : "create" };
+    return { email: cu.email, note, tags, name, place, action: was ? "update" : "create" };
   });
 }
 
@@ -539,6 +852,14 @@ export function newsletterJoiners(customers: MovedCustomer[], subscribed: Set<st
   return customers.filter(cu => cu.acceptsEmail === true && !subscribed.has(cu.email) && !optedOut(cu.email));
 }
 
+/**
+ * "Has this person opted out of marketing?" from the opt-out list (sha256 ids). When the list couldn't be read
+ * (`null`), everyone counts as opted out, so a failed read can never add someone who unsubscribed.
+ */
+export function optedOutBy(hashes: Set<string> | null | undefined, hashOf: (email: string) => string | undefined): (email: string) => boolean {
+  return (email) => !hashes || hashes.has(hashOf(email) || "");
+}
+
 export const IMPORTED_CONSENT_TEXT = "Agreed to email marketing at the shop's previous store. The owner brought the address over and confirmed they have this permission.";
 
 export const SHAPE_WORDS: Record<ExportShape, string> = {
@@ -546,4 +867,9 @@ export const SHAPE_WORDS: Record<ExportShape, string> = {
   "product-id-rows": "an export from your old shop (a product line, then its options)",
   "parent-rows": "an export from your old shop (products with their variations)",
   "listing-rows": "a listings export from your old shop",
+  "field-type-rows": "an export from your old shop (a product line, then its versions)",
+  "variation-name-rows": "an item list from your old shop (one line per variation)",
+  "item-rows": "an export from your old shop (a product line, then its versions and photos)",
+  "sku-rows": "an export from your old shop (a product line, then its versions)",
+  "typed-rows": "a catalog export from your old shop (products, then their versions)",
 };

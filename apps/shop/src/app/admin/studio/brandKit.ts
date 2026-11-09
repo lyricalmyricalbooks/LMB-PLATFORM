@@ -6,6 +6,7 @@ import { contrastRatio, parseColor, readableOn, type ColorScheme } from "../../f
 import { applyThemeKeysToSurfaces } from "../themeScope";
 import { editableSchemes, writeSchemes } from "./colorSchemeOps";
 import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
+import { wordedSettings } from "./presetContent";
 import { PALETTES } from "./themeLibrary";
 import { makeSection, setSections } from "./studioModel";
 
@@ -180,13 +181,13 @@ export function brandScheme(p: BrandPalette): ColorScheme {
 }
 
 /** Starter Home sections from a layout, without the layout's own fixed colours (they follow the palette instead). */
-export function starterSections(layoutId: string, meta: (type: string) => any) {
+export function starterSections(layoutId: string, meta: (type: string) => any, w: (text: string) => string = (t) => t) {
   const tpl = HOME_LAYOUT_TEMPLATES.find(t => t.id === layoutId);
   if (!tpl) return null;
   const isColour = (k: string, v: unknown) => typeof v === "string" && /^#[0-9a-f]{3,8}$/i.test(v) && /colou?r|background|bg$/i.test(k);
   return tpl.sections.map(s => {
     const own = Object.fromEntries(Object.entries(s.settings || {}).filter(([k, v]) => !isColour(k, v)));
-    return makeSection(s.type, { ...(meta(s.type)?.defaults || {}), ...own });
+    return makeSection(s.type, wordedSettings({ ...(meta(s.type)?.defaults || {}), ...own }, w));
   });
 }
 
@@ -200,7 +201,7 @@ export type BrandKitChoice = {
 
 /** The draft with the brand kit applied: colours, type and shape on every page, the logo, a "Brand colour" scheme and
  *  (when asked) a starter Home page. Everything else in the design is kept. */
-export function brandKitDesign(design: any, choice: BrandKitChoice, meta: (type: string) => any): any {
+export function brandKitDesign(design: any, choice: BrandKitChoice, meta: (type: string) => any, w: (text: string) => string = (t) => t): any {
   const keys: Record<string, any> = { ...paletteKeys(choice.palette), ...readableExtras(design, choice.palette), ...personalityKeys(choice.personality) };
   // Outline and soft buttons draw their label in the button colour on the page, so it needs text contrast (4.5:1).
   if (choice.personality.buttonStyle !== "solid") {
@@ -214,7 +215,7 @@ export function brandKitDesign(design: any, choice: BrandKitChoice, meta: (type:
   const schemes = editableSchemes(next).filter(s => s.id !== BRAND_SCHEME_ID);
   next = writeSchemes(next, [...schemes, brandScheme(choice.palette)]);
   if (choice.home === "starter") {
-    const sections = starterSections(choice.personality.homeLayoutId, meta);
+    const sections = starterSections(choice.personality.homeLayoutId, meta, w);
     if (sections) next = setSections(next, { kind: "template", id: "heroPage" }, sections);
   }
   return next;

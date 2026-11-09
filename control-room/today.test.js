@@ -54,3 +54,26 @@ test("needs you: broken shops, failed payments, the queues and stuck sign-ups, e
   assert.equal(needs.find((n) => n.kind === "support").count, 2);
   assert.deepEqual(todaySummary({ rows: [], settings, now: NOW }).needs, []);
 });
+
+test("needs you: a web address that stopped opening its shop, or runs out within two weeks", () => {
+  const soon = new Date(NOW.getTime() + 5 * 86_400_000).toISOString();
+  const later = new Date(NOW.getTime() + 60 * 86_400_000).toISOString();
+  const { needs } = todaySummary({ rows: [
+    shop("moth", { status: "active" }, { domains: [{ name: "mothpress.example", state: "waiting_dns", brokeAt: NOW.toISOString(), brokenEmailedAt: NOW.toISOString() }] }),
+    shop("wasp", { status: "active" }, { domains: [{ name: "wasp.example", state: "live", expiresAt: soon }, { name: "fine.example", state: "live", expiresAt: later }] }),
+  ], settings, now: NOW });
+  assert.deepEqual(needs.filter((n) => n.kind === "domain").map((n) => n.words), [
+    "moth: mothpress.example stopped opening the shop (the press was emailed)",
+    "wasp: wasp.example runs out in 5 days unless renewed",
+  ]);
+});
+
+test("needs you: a press that pressed Open my shop over a day ago, pointing at the Setting up page", () => {
+  const opening = [{ pressId: "press-1", pressName: "Wren & Ash", openedAt: new Date(NOW.getTime() - 30 * 3_600_000).toISOString() },
+    { pressId: "press-2", pressName: "", ownerEmail: "ivy@example.com", openedAt: new Date(NOW.getTime() - 3 * 86_400_000).toISOString() }];
+  const { needs } = todaySummary({ rows: [], settings, opening, now: NOW });
+  assert.deepEqual(needs.filter((n) => n.kind === "opening").map((n) => [n.words, n.go]), [
+    ["Wren & Ash: pressed Open my shop 30 hours ago and the shop isn't live yet", "#setting-up"],
+    ["ivy@example.com: pressed Open my shop 3 days ago and the shop isn't live yet", "#setting-up"],
+  ]);
+});

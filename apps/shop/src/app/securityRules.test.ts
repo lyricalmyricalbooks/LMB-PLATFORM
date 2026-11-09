@@ -162,8 +162,8 @@ describe("firestore.rules round-2 security (#18, #111, #112)", () => {
 // and staff alone, so an author on the Team opens nothing here. scripts/firestore-rules-emulator.mjs checks the same.
 describe("Team roles", () => {
   const fn = (text: string, name: string) => text.match(new RegExp(`function ${name}\\(\\)\\s*\\{([\\s\\S]*?)\\n\\s*\\}`))?.[1] ?? "";
-  it("the Team accepts owner, staff, author and bookkeeper", () => {
-    expect(block("members/{email}")).toContain('request.resource.data.role in ["owner", "staff", "author", "bookkeeper"]');
+  it("the Team accepts owner, staff, author, bookkeeper and fair helper", () => {
+    expect(block("members/{email}")).toContain('request.resource.data.role in ["owner", "staff", "author", "bookkeeper", "fairHelper"]');
   });
   it("the bookkeeper only ever reads: orders, gift cards and the daily figures, never a write", () => {
     expect(fn(rules, "isOwner") + fn(rules, "isAdmin")).not.toMatch(/bookkeeper/);
@@ -221,7 +221,7 @@ describe("The shop's plan", () => {
   it("is written by no browser, read by admins only, with a public open-or-not status", () => {
     const platform = block("platform/{docId}");
     expect(platform).toMatch(/allow write: if false;/);
-    expect(platform).toMatch(/allow read: if docId == 'status' \|\| \(docId == 'plan' && isAdmin\(\)\);/);
+    expect(platform).toMatch(/allow read: if docId == 'status' \|\| \(\(docId == 'plan' \|\| docId == 'messages'\) && isAdmin\(\)\);/);
   });
   it("leaves stopping orders to the server, which every checkout path goes through", () => {
     // functions/planPause.test.js proves the refusal; the guest order rule is at the engine's expression limit.

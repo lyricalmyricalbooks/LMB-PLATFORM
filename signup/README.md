@@ -72,7 +72,13 @@ Its trial doesn't start while it waits, so no free days are lost. `admitFromLine
 `sweep`, given `line: signup`) lets the oldest in as room opens, starts the trial and sends `shop-starting` once.
 An email invited from the control room (`invites`: `isInvited(email)`, `markUsed(email, shopId)`, from
 `waitlist/invites.js`) skips the cap and the line, doesn't count towards the cap, and an invite that arrives while the
-press waits lets it straight in on its next visit.
+press waits lets it straight in on its next visit. The day's count is one record (`signupDays/<day>`) taken in a
+transaction by sign-up and by the line alike, so presses arriving together can't go over the cap.
+
+While sign-up is closed (`signupOpen` off, the default) a new press needs an invite (403 otherwise); a press that already
+has a sign-up row carries on. Each new row is written with the account's claim on its press (`signupClaims/<uid>`) in
+one transaction: a double click gets the first shop back, an account can't pass its limit of shops, and a new press can
+never take an address already in use, even one of the same account's.
 
 Sign-up reads the control room's `liveSettings({ env, store })` (services/settings.js) through `live.js`: whether sign-up
 is open, the daily cap, the founding offer and pay as you sell, with the control room's saved changes on top.

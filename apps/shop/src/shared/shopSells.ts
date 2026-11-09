@@ -7,7 +7,7 @@
 // stays editable there.
 
 /** The sign-up answers (signup/form.js PUBLISHES.options), in the form's order. */
-export const SELLS = ["books", "zines", "comics", "prints", "mix", "clothing", "shoes", "jewelry", "music", "other"] as const;
+export const SELLS = ["books", "zines", "comics", "prints", "mix", "mixed", "clothing", "shoes", "jewelry", "music", "other"] as const;
 export type Sells = (typeof SELLS)[number];
 
 /** The answers that keep a books shop exactly as it is. */
@@ -27,6 +27,11 @@ const GOODS_SWAPS: [RegExp, string][] = [
   [/(?<![-\w])books\b/g, "products"], [/(?<![-\w])Books\b/g, "Products"], [/(?<![-\w])BOOKS\b/g, "PRODUCTS"],
   [/(?<![-\w])book\b/g, "product"], [/(?<![-\w])Book\b/g, "Product"], [/(?<![-\w])BOOK\b/g, "PRODUCT"],
   [/\bauthors\b/g, "makers"], [/\bAuthors\b/g, "Makers"], [/\bauthor\b/g, "maker"], [/\bAuthor\b/g, "Maker"],
+  // Counting words (4 November 2026): "copies", "titles" and "readers" are a book shop's words for items, products and
+  // shoppers. "copy" alone stays ("Copy the link"), and so do screen readers and page or SEO titles.
+  [/\bcopies\b/g, "items"], [/\bCopies\b/g, "Items"],
+  [/(?<!(?:page|SEO|search|tab|meta) )\btitles\b/g, "products"], [/(?<!(?:Page|SEO|Search|Tab|Meta) )\bTitles\b/g, "Products"],
+  [/(?<![Ss]creen )\breaders\b/g, "shoppers"], [/(?<![Ss]creen )\breader\b/g, "shopper"], [/\bReaders\b/g, "Shoppers"], [/\bReader\b/g, "Shopper"],
 ];
 
 /** Words for a shop or product that isn't books: book → product, author → maker. */
@@ -88,4 +93,16 @@ export function withShopEmailWords<T extends Record<string, any>>(answer: string
     out[id] = next;
   }
   return out as T;
+}
+
+// Web addresses (plan 12.18, 4 November 2026): a product's page is /books/<slug> in a books shop and /products/<slug>
+// in any other. Both addresses open every product page in every shop, so links shared before a change keep working.
+
+/** Every first part a product's web address may have. */
+export const PRODUCT_BASES = ["books", "products"] as const;
+export type ProductBase = (typeof PRODUCT_BASES)[number];
+
+/** The first part of this shop's product addresses: "books" for a books shop, "products" for any other. */
+export function productBase(answer?: string | null): ProductBase {
+  return sellsBooks(answer) ? "books" : "products";
 }

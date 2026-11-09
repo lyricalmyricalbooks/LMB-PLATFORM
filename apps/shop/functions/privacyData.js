@@ -16,13 +16,19 @@ const getPath = (data, field) => String(field).split(".").reduce((value, part) =
 /**
  * Documents of `collection` whose `field` holds `email` (any capitalisation). With `contains`, the
  * field may be a comma-separated list of addresses (emailLog `to`). Returns the documents, with
- * `.truncated` set when the safety cap stopped the legacy scan.
+ * `.truncated` set when the safety cap stopped the legacy scan. `scan: false` (a shopper's own self-service copy) reads
+ * only the indexed exact match, never the whole collection: older mixed-case rows are left to the owner's export.
  */
-async function findByEmail(db, collection, field, email, { contains = false } = {}) {
+async function findByEmail(db, collection, field, email, { contains = false, scan = true } = {}) {
   const target = lower(email);
   const found = new Map();
-  if (!contains) {
+  if (!contains || !scan) {
     for (const doc of (await db.collection(collection).where(field, "==", target).get()).docs) found.set(doc.id, doc);
+  }
+  if (!scan) {
+    const docs = [...found.values()];
+    docs.truncated = false;
+    return docs;
   }
   let truncated = false;
   let last = null;
@@ -59,10 +65,12 @@ function neverPaid(order) {
 }
 
 /** Fields written over a never-paid order when its customer is erased. */
-function redactedOrderFields(now) {
+function redactedOrderFields(now, order = null) {
   return {
     customer: { name: "", email: "", phone: "", address: {} },
     orderNote: "",
+    // A payment link's note to the customer (plan 21.1) can name them too.
+    ...(order?.paymentLink ? { "paymentLink.note": "" } : {}),
     privacyRedactedAt: now,
   };
 }

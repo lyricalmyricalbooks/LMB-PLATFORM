@@ -5,7 +5,10 @@
 // it and another job (the Google teardown, row 6.20) can follow it:
 //
 //   closing: {
-//     stage          "paused" | "closed" | "deleted"
+//     stage          "paused" | "closed" | "deleted", or "reopening" (with `from`) while an open shop's plan copy is
+//                    rewritten: the closing is cleared only once that copy says open
+//     pending        what the stage still owes, tried again each run until done: "shop-closed" / "shop-deleted" (the
+//                    email) and "plan" (billing.publishPlan)
 //     pausedAt       when the sweep first saw the plan paused
 //     closedAt       when the shop closed (60 days paused, or the plan ended)
 //     downloadUntil  the last day the press can download everything (closedAt + 90 days)
@@ -45,6 +48,7 @@
 //   hooks      { onClose: [fn], beforeDelete: [fn] }, each fn(shop, { at }) -> promise. None by default.
 //   settings   platformSettings(env): platformUrl, for the links
 import { dateText } from "./billing.js";
+import { mailLanguage } from "../email/templatesFr.js";
 
 const DAY = 86400_000;
 export const PAUSED_DAYS = 60;
@@ -105,6 +109,8 @@ export function createClosingSweep({ registry, auditLog, billing, email, project
     if (!shop.ownerEmail) return;
     await email.sendPlatform({
       kind, to: shop.ownerEmail, shopId: shop.shopId, idempotencyKey: `closing/${shop.shopId}/${key}`,
+      // The billing row's language and province, mirrored on the registry (billing.js mirror; templatesFr.js).
+      language: mailLanguage(shop.billing ?? {}),
       data: { pressName: shop.pressName || shop.shopId, link: link(shop.shopId), ...data },
     });
   }
@@ -127,6 +133,29 @@ export function createClosingSweep({ registry, auditLog, billing, email, project
     return true;
   }
 
+  // What a stage still owes once it is recorded (`pending` on the row): the stage's email and the shop's plan copy.
+  // Each is done in order and taken off the list once it worked, so one that failed is tried again on the next run.
+  const OWED = {
+    "shop-closed": (shop, c) => send(shop, "shop-closed", { date: dateText(c.downloadUntil), on: c.downloadUntil }, `closed/${c.closedAt}`),
+    plan: (shop) => billing.publishPlan(shop.shopId),
+    "shop-deleted": (shop, c) => send(shop, "shop-deleted", {}, `deleted/${c.closedAt}`),
+  };
+
+  /** Does what the stage still owes; true once nothing is left. */
+  async function settle(shop, closing) {
+    for (const what of closing.pending ?? []) {
+      try {
+        await OWED[what](shop, closing);
+      } catch (error) {
+        await setClosing(shop.shopId, { ...closing, problem: `${what}: ${error.message}` });
+        await log(shop.shopId, `${what}-failed`, { message: error.message });
+        return false;
+      }
+      closing = await setClosing(shop.shopId, { ...closing, pending: closing.pending.filter((p) => p !== what), problem: null });
+    }
+    return true;
+  }
+
   async function close(shop, closing) {
     const at = now();
     // The plan ends in Stripe first, so no card can bill a closed shop. A plan Stripe already ended is left as it is.
@@ -134,22 +163,22 @@ export function createClosingSweep({ registry, auditLog, billing, email, project
     const downloadUntil = iso(at + DOWNLOAD_DAYS * DAY);
     const next = await setClosing(shop.shopId, {
       stage: "closed", pausedAt: closing?.pausedAt ?? null, closedAt: iso(at), downloadUntil, deleteAfter: downloadUntil,
-      warned30At: null, warned7At: null, hooks: {}, problem: null,
+      warned30At: null, warned7At: null, hooks: {}, problem: null, pending: ["shop-closed", "plan"],
     });
     await log(shop.shopId, "closed", { downloadUntil });
-    await send(shop, "shop-closed", { date: dateText(downloadUntil) }, `closed/${next.closedAt}`);
-    await billing.publishPlan(shop.shopId);
-    await runHooks(shop, next, "onClose");
+    if (await settle(shop, next)) await runHooks(shop, (await registry.getShop(shop.shopId)).closing, "onClose");
   }
 
   async function warn(shop, closing, days) {
     const at = iso(now());
     // A warning sent late pushes the deletion back, so the press always has its full notice.
     const deleteAfter = later(closing.deleteAfter, iso(now() + days * DAY));
-    const next = await setClosing(shop.shopId, { ...closing, deleteAfter, [warnedField(days)]: at });
+    // The email first: a warning is recorded as sent (which lets the deletion come) only once it went.
+    await send(shop, "shop-deletion-warning", { date: dateText(deleteAfter), on: deleteAfter, days }, `warning-${days}/${closing.closedAt}`);
+    const pending = deleteAfter !== closing.deleteAfter ? [...new Set([...(closing.pending ?? []), "plan"])] : closing.pending ?? [];
+    const next = await setClosing(shop.shopId, { ...closing, deleteAfter, [warnedField(days)]: at, pending });
     await log(shop.shopId, `warning-${days}`, { deleteAfter });
-    await send(shop, "shop-deletion-warning", { date: dateText(deleteAfter), days }, `warning-${days}/${closing.closedAt}`);
-    if (deleteAfter !== closing.deleteAfter) await billing.publishPlan(shop.shopId);
+    await settle(shop, next);
     return next;
   }
 
@@ -165,28 +194,49 @@ export function createClosingSweep({ registry, auditLog, billing, email, project
       return;
     }
     const deletedAt = iso(now());
-    await setClosing(shop.shopId, { ...closing, stage: "deleted", deletedAt, problem: null });
+    const next = await setClosing(shop.shopId, { ...closing, stage: "deleted", deletedAt, problem: null, pending: ["shop-deleted"] });
     await registry.recordEvent(shop.shopId, { id: `closing-${deletedAt}-deleted`, source: "closing", at: deletedAt, what: "deleted" });
-    await send(shop, "shop-deleted", {}, `deleted/${closing.closedAt}`);
+    await settle(shop, next);
+  }
+
+  /** A shop opened again: its jobs come back, its plan copy says open, and only then is the closing cleared. */
+  async function reopen(shop, closing) {
+    // What a pause or closing took away (the scheduled jobs) comes back first; a failure is tried again next run.
+    if (!(await runHooks(shop, closing, "onReopen"))) return closing.stage;
+    let current = (await registry.getShop(shop.shopId)).closing;
+    // "reopening" is no longer closed (shopPlan.js shopAccess), so the plan copy written now says open; the closing
+    // stays on the row until that copy is written, and a failed one is written again next run.
+    if (current.stage !== "reopening") current = await setClosing(shop.shopId, { ...current, stage: "reopening", from: current.stage });
+    try {
+      await billing.publishPlan(shop.shopId);
+    } catch (error) {
+      await setClosing(shop.shopId, { ...current, problem: `plan: ${error.message}` });
+      await log(shop.shopId, "plan-failed", { message: error.message });
+      return "reopening";
+    }
+    await setClosing(shop.shopId, null);
+    await log(shop.shopId, "reopened", { from: current.from });
+    return null;
   }
 
   /** One shop's next step, if one is due. Returns the stage it is in afterwards (or null: nothing to do). */
   async function step(shop) {
-    const closing = shop.closing ?? null;
-    if (closing?.stage === "deleted") return "deleted";
+    let closing = shop.closing ?? null;
+    if (closing?.stage === "deleted") {
+      if (closing.pending?.length) await settle(shop, closing); // the "deleted" email, if it didn't go
+      return "deleted";
+    }
     const access = shop.billing?.access;
     if (!access) return null;
 
-    if (access === "open") {
-      // A card (or a new plan) came before the deletion: the shop is open again.
-      if (closing) {
-        // What a pause or closing took away (the scheduled jobs) comes back first; a failure is tried again next run.
-        if (!(await runHooks(shop, closing, "onReopen"))) return closing.stage;
-        await setClosing(shop.shopId, null);
-        await log(shop.shopId, "reopened", { from: closing.stage });
-        await billing.publishPlan(shop.shopId);
-      }
-      return null;
+    if (access === "open") return closing ? reopen(shop, closing) : null;
+
+    if (closing?.stage === "reopening") {
+      // The plan stopped again before the reopening was finished: back to the stage it came from, with its hooks to run
+      // again (the jobs onReopen brought back go again with onPause or onClose).
+      const { from, ...rest } = closing;
+      const { onReopen: _r, onPause: _p, onClose: _c, ...hooks } = closing.hooks ?? {};
+      closing = await setClosing(shop.shopId, { ...rest, stage: from ?? "paused", hooks });
     }
 
     if (!closing) {
@@ -209,8 +259,11 @@ export function createClosingSweep({ registry, auditLog, billing, email, project
       return "paused";
     }
 
-    // Closed: hooks that failed last time, the two warnings, then the deletion.
+    // Closed: what closing still owes (its email, the plan copy), hooks that failed last time, the two warnings, then
+    // the deletion.
     let current = closing;
+    if (!(await settle(shop, current))) return "closed";
+    current = (await registry.getShop(shop.shopId)).closing;
     if (!(await runHooks(shop, current, "onClose"))) return "closed";
     current = (await registry.getShop(shop.shopId)).closing;
     for (const days of WARNING_DAYS) {

@@ -33,13 +33,17 @@
     "redirects": [],
     "rewrites": [
       {
-        "regex": "^/(?:(?:books|collections|page)/[^/]+/?|(?:account|admin)(?:/.*)?|cart|checkout|track|wishlist)$",
+        "regex": "^/stockroom/app$",
+        "destination": "/stockroom/index.html"
+      },
+      {
+        "regex": "^/(?:(?:books|products|collections|page)/[^/]+/?|(?:account|admin)(?:/.*)?|cart|checkout|track|wishlist)$",
         "destination": "/spa.html"
       }
     ],
     "headers": [
       {
-        "regex": "^/assets/.+$",
+        "regex": "^/(?:stockroom/)?assets/.+$",
         "headers": [
           {
             "key": "Cache-Control",
@@ -57,7 +61,7 @@
         ]
       },
       {
-        "regex": "^/(?:|spa|404|(?:books|collections|page)/.*|(?:account|admin)(?:/.*)?|cart|checkout|track|wishlist|[^/]+\\.(?:xml|txt|json)|shop-profile\\.js|.*\\.html)$",
+        "regex": "^/(?:|spa|404|(?:books|products|collections|page)/.*|(?:account|admin)(?:/.*)?|cart|checkout|track|wishlist|[^/]+\\.(?:xml|txt|json|csv)|shop-profile\\.js|admin-sw\\.js|.*\\.html)$",
         "headers": [
           {
             "key": "Cache-Control",
@@ -66,7 +70,16 @@
         ]
       },
       {
-        "regex": "^/(?:spa|404|cart|checkout|track|wishlist|(?:account|admin)(?:/.*)?)(?:\\.html)?$",
+        "regex": "^/stockroom/(?:app|index\\.html|sw\\.js|sw-notify\\.js|registerSW\\.js|manifest\\.webmanifest|shop-profile\\.js|gas-code\\.txt)$",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      },
+      {
+        "regex": "^/(?:spa|404|cart|checkout|track|wishlist|(?:account|admin|stockroom)(?:/.*)?)(?:\\.html)?$",
         "headers": [
           {
             "key": "X-Robots-Tag",
@@ -95,7 +108,7 @@
           },
           {
             "key": "Permissions-Policy",
-            "value": "camera=(), microphone=(), geolocation=(), usb=()"
+            "value": "camera=(self), microphone=(), geolocation=(), usb=()"
           }
         ]
       }

@@ -5,14 +5,22 @@ const require = createRequire(import.meta.url);
 const { parseSchedule, isDue, lastOccurrence, createTickRegistry, runTick } = require("./tick");
 
 const T = iso => Date.parse(iso);
+// Firestore's set-with-merge merges nested maps; a transaction sees the stored document as it is when it runs.
+const mergeDeep = (a, b) => {
+  const out = { ...(a || {}) };
+  for (const [k, v] of Object.entries(b)) out[k] = v && typeof v === "object" && !Array.isArray(v) ? mergeDeep(out[k], v) : v;
+  return out;
+};
 function fakeDb(initial) {
   let doc = initial;
+  const ref = {
+    get: async () => ({ exists: Boolean(doc), data: () => JSON.parse(JSON.stringify(doc)) }),
+    set: async (value) => { doc = mergeDeep(doc, value); },
+  };
   return {
     get doc() { return doc; },
-    collection: () => ({ doc: () => ({
-      get: async () => ({ exists: Boolean(doc), data: () => doc }),
-      set: async (value) => { doc = { ...(doc || {}), ...value }; },
-    }) }),
+    collection: () => ({ doc: () => ref }),
+    runTransaction: async fn => fn({ get: r => r.get(), set: (r, value) => { doc = mergeDeep(doc, value); } }),
   };
 }
 
@@ -86,6 +94,33 @@ describe("runTick", () => {
     expect(good).toHaveBeenCalled();
     expect(db.doc.jobs.bad).toMatchObject({ ok: false, error: "boom" });
   });
+  it("does not run a daily sweep twice when a slow tick overlaps the next one, and keeps the newer records", async () => {
+    const reg = createTickRegistry();
+    const digest = vi.fn(async () => {});
+    let release;
+    let slowCalls = 0;
+    reg.register({ name: "dailyOrderDigest", schedule: "every day 08:00", timeZone: "America/Toronto" }, digest);
+    reg.register({ name: "slow", schedule: "every 5 minutes", timeoutSeconds: 540 }, () => {
+      slowCalls++;
+      return slowCalls === 1 ? new Promise(r => { release = r; }) : Promise.resolve();
+    });
+    const at8 = T("2026-11-03T13:00:00Z");
+    const db = fakeDb({ jobs: { dailyOrderDigest: { at: at8 - 86400000, ok: true }, slow: { at: at8 - 300000, ok: true } } });
+    const first = runTick({ jobs: reg.jobs, db, now: at8 });
+    await new Promise(r => setTimeout(r, 5));
+    // 8:05: the slow sweep from 8:00 is still running, so this tick leaves it alone; the digest already went out.
+    expect((await runTick({ jobs: reg.jobs, db, now: at8 + 300000 })).ran).toEqual([]);
+    expect(digest).toHaveBeenCalledTimes(1);
+    expect(slowCalls).toBe(1);
+    // 8:10: the running mark is older than the slow sweep's own timeout (a crashed run), so it runs again.
+    expect((await runTick({ jobs: reg.jobs, db, now: at8 + 600000 })).ran).toEqual(["slow"]);
+    release();
+    await first;
+    expect(digest).toHaveBeenCalledTimes(1);
+    // The 8:00 tick finishing late writes only its own sweeps' entries, never an old copy of the whole state.
+    expect(db.doc.jobs.dailyOrderDigest).toMatchObject({ at: at8, ok: true, running: null });
+    expect(db.doc.lastTickAt).toBe(at8 + 600000);
+  });
   it("refuses an unnamed or duplicate sweep", () => {
     const reg = createTickRegistry();
     expect(() => reg.register({ schedule: "every 5 minutes" }, () => {})).toThrow();
@@ -97,10 +132,10 @@ describe("runTick", () => {
 describe("wiring", () => {
   const index = readFileSync(new URL("./index.js", import.meta.url), "utf8");
   const jobsSrc = readFileSync(new URL("./scheduledJobs.js", import.meta.url), "utf8");
-  it("registers all ten sweeps by name and keeps exactly one real scheduler job", () => {
+  it("registers all fourteen sweeps by name and keeps exactly one real scheduler job", () => {
     const names = [...(index + jobsSrc).matchAll(/onSchedule\(\s*\{[^}]*?name: "(\w+)"/g)].map(m => m[1]);
-    expect(names.sort()).toEqual(["abandonedCartSweep", "backInStockSweep", "dailyOrderDigest", "inventoryLinkSweep",
-      "nightlyFirestoreBackup", "paymentPageSweep", "refreshExchangeRates", "storageImageSweep", "unpaidPaymentSweep", "weeklySummary"]);
+    expect(names.sort()).toEqual(["abandonedCartSweep", "backInStockSweep", "dailyOrderDigest", "fairDaySummary", "inventoryLinkSweep",
+      "moveReminder", "nightlyFirestoreBackup", "paymentPageSweep", "refreshExchangeRates", "socialPostSweep", "storageImageSweep", "teamExpirySweep", "unpaidPaymentSweep", "weeklySummary"]);
     expect(index.match(/onScheduleReal\(/g)).toHaveLength(1);
     expect(index).toMatch(/exports\.tick = onScheduleReal\(/);
   });

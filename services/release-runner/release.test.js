@@ -41,6 +41,20 @@ test("rings: the test shop alone first, then every other live shop by id; others
   assert.deepEqual(skipped.map((s) => s.shopId), ["press-new", "press-odd", "press-held"]);
 });
 
+test("a shop deleted when its plan ended is left out, so it can't stop the release for the shops after it", async () => {
+  const gone = row("press-alpha", { closing: { stage: "deleted", deletedAt: "2026-10-01T00:00:00Z" } });
+  const closed = row("press-charlie", { closing: { stage: "closed", closedAt: "2026-10-01T00:00:00Z" } });
+  const { rings, skipped } = planRings([TEST, gone, closed, row("press-bravo")]);
+  assert.deepEqual(rings[1].map((r) => r.shopId), ["press-bravo", "press-charlie"], "a closed shop still gets releases: it can open again");
+  assert.deepEqual(skipped.map((s) => s.shopId), ["press-alpha"]);
+  assert.match(skipped[0].reason, /deleted/);
+  // Its project is gone: if it were tried, its deploy would fail and stop every shop after it.
+  const t = await setup({ rows: [TEST, gone, row("press-bravo")] });
+  const result = await t.run("1.1.0", { projects: { get: async (id) => (id === "press-alpha" ? null : { projectId: id, parent: FOLDER }) } });
+  assert.equal(result.ok, true, result.error);
+  assert.deepEqual(shippedTo(t.world, "1.1.0"), ["lmb-test-shop", "press-bravo"]);
+});
+
 test("rings: no release without exactly one live test shop in test mode", () => {
   assert.match(planRings([row("press-alpha")]).problem, /no live test shop/);
   assert.match(planRings([TEST, row("other-test-shop", { testShop: true, testMode: true })]).problem, /2 live test shops/);

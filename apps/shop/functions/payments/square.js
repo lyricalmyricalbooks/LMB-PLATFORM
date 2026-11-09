@@ -17,6 +17,7 @@
 // shoppers to Square's own page instead. Webhook deliveries are never believed: only the object's id is read, and the
 // object is fetched again through the service, which only reaches this press's account.
 
+const crypto = require("crypto");
 const { modesToTry } = require("../stripeRecovery");
 const { isSquarePaymentId, isSquareCheckoutId, squarePaymentId, squareCheckoutId, squareIdOf } = require("./ids");
 
@@ -29,6 +30,13 @@ const EVENT_ID = /^[A-Za-z0-9_-]{1,100}$/;
 const elsewhere = (err) => ["test_only", "not_connected"].includes(err?.code) || err?.statusCode === 404;
 
 const lower = (value) => String(value || "").toLowerCase();
+
+// A fair helper's QR payment (standaloneCheckout) is a Square payment link with no shop order: its reference starts
+// with this, so the webhook and the sweeps never take it for an order. Shop order ids never start with it.
+const FAIR_REFERENCE = "fair-";
+const isFairReference = (reference) => typeof reference === "string" && reference.startsWith(FAIR_REFERENCE);
+// Where the shop keeps who opened each fair payment link (server only: firestore.rules lets no browser in).
+const FAIR_PAYMENTS = "fairCardPayments";
 
 const INTENT_STATUS = Object.freeze({ COMPLETED: "succeeded", APPROVED: "requires_capture", PENDING: "processing", CANCELED: "canceled", FAILED: "requires_payment_method" });
 const REFUND_STATUS = Object.freeze({ PENDING: "pending", COMPLETED: "succeeded", REJECTED: "canceled", FAILED: "failed" });
@@ -245,7 +253,7 @@ function createSquareProvider({ db, platform = null }) {
     const kind = claimed.data?.type;
     if (kind === "payment") {
       const payment = await call("square.payments.retrieve", mode, { id: objectId });
-      if (payment.status === "COMPLETED" && payment.referenceId) {
+      if (payment.status === "COMPLETED" && payment.referenceId && !isFairReference(payment.referenceId)) {
         const session = {
           id: await savedCheckoutOf(payment.referenceId),
           client_reference_id: payment.referenceId,
@@ -313,7 +321,16 @@ function createSquareProvider({ db, platform = null }) {
 
   async function forCheckout(settings) {
     const mode = settings.payments?.testMode ? "test" : "live";
+    let accountCurrency;
     return {
+      // Square takes payments only in its location's currency (the service refuses any other), so checkout charges in
+      // that one. Read once per checkout; when it can't be read the shopper's currency stays and the service decides.
+      async chargeCurrency(wanted) {
+        if (accountCurrency === undefined) {
+          try { accountCurrency = lower((await platform.call("account.status", undefined))?.currency) || null; } catch { accountCurrency = null; }
+        }
+        return accountCurrency || wanted;
+      },
       // Square's page takes the rest after the shop's gift cards (code plan 5.3): the checkout passes their share as
       // `gift_card_minor`, which the page shows as a "Gift card" discount. Stripe's hosted page has no such line.
       giftCardsOnHostedPage: true,
@@ -384,7 +401,16 @@ function createSquareProvider({ db, platform = null }) {
           parts[refund.id] = { fee: refundFee, net: -refund.amountMinor - refundFee, platformFee: -(refund.appFeeMinor || 0), currency };
         }
       }
-      return { parts };
+      // What Square said about the payment, in the words orderReview.js reads (Stripe's): Square's HIGH is its highest
+      // rating, MODERATE the elevated one; a rejected security code or postal code check is a fail.
+      const r = payment.risk;
+      const risk = r ? {
+        level: r.level === "HIGH" ? "highest" : r.level === "MODERATE" ? "elevated" : r.level ? "normal" : null,
+        cvcCheck: r.cvvStatus === "CVV_REJECTED" ? "fail" : r.cvvStatus ? "pass" : null,
+        postalCheck: r.avsStatus === "AVS_REJECTED" ? "fail" : r.avsStatus ? "pass" : null,
+        cardCountry: r.cardCountry || null,
+      } : null;
+      return { parts, risk };
     });
   }
 
@@ -408,12 +434,96 @@ function createSquareProvider({ db, platform = null }) {
     return { payout: { id: payout.id, date: payout.arrivalDate || null }, lines };
   }
 
+  // ── A payment with no shop order: a fair helper's QR code (fairHelperPay.js) ────────────────────────────────────
+  // The caller hands over Stripe Checkout Session parameters (fairCheckoutParams); this answers them as a Square
+  // payment link and keeps the sale and the helper beside it, since a payment link holds no metadata. Square's links
+  // don't close by themselves, so one read after its half hour closes it, as Stripe's session would have expired.
+  async function standaloneCheckout(mode) {
+    const linkMode = mode === "test" ? "test" : "live";
+    const kept = (id) => db.collection(FAIR_PAYMENTS).doc(id);
+    async function close(id) {
+      if (!isSquareCheckoutId(id)) return null;
+      await call("square.checkout.delete", linkMode, { id: squareIdOf(id) });
+      return { id, status: "expired" };
+    }
+    // Closes a link past its time, then reads it again: a payment that landed just before the close counts as paid.
+    async function expire(id, fair) {
+      const before = await sessionFrom(await call("square.checkout.retrieve", linkMode, { id: squareIdOf(id) }), linkMode);
+      if (before.status !== "open") {
+        await kept(id).set({ ...fair, open: false });
+        return before;
+      }
+      await close(id).catch(() => {});
+      const after = await sessionFrom(await call("square.checkout.retrieve", linkMode, { id: squareIdOf(id) }), linkMode).catch(() => null);
+      await kept(id).set({ ...fair, open: false, closedAt: new Date().toISOString() });
+      if (after?.payment_status === "paid") return after;
+      return { ...before, status: "expired" };
+    }
+    return Object.freeze({
+      async open(params, idempotencyKey) {
+        const item = params?.line_items?.[0]?.price_data;
+        const metadata = params?.metadata || {};
+        if (!item || !Number.isInteger(item.unit_amount) || !metadata.fair_sale || !metadata.fair_helper) throw new Error("A fair payment needs one priced line, its sale and its helper.");
+        // The same sale and amount (the caller's key) always give the same reference, and so the same link.
+        const referenceId = `${FAIR_REFERENCE}${crypto.createHash("sha256").update(String(idempotencyKey)).digest("hex").slice(0, 32)}`;
+        const made = await call("square.checkout.create", linkMode, {
+          params: {
+            referenceId,
+            currency: item.currency,
+            lineItems: [{ name: String(item.product_data?.name || "Fair sale").slice(0, 512), quantity: 1, unitAmountMinor: item.unit_amount }],
+            redirectUrl: String(params.success_url || ""),
+            note: String(params.payment_intent_data?.description || item.product_data?.name || "Fair sale").slice(0, 500),
+          },
+          idempotencyKey,
+        });
+        const id = squareCheckoutId(made.id);
+        await kept(id).set({
+          sale: String(metadata.fair_sale), helper: String(metadata.fair_helper), referenceId, mode: linkMode, open: true,
+          expiresAt: Number.isFinite(params.expires_at) ? params.expires_at : null, createdAt: new Date().toISOString(),
+        });
+        return { id, object: "checkout.session", url: made.url, status: "open", payment_status: "unpaid", expires_at: Number.isFinite(params.expires_at) ? params.expires_at : null, metadata: { ...metadata } };
+      },
+      async read(id) {
+        if (!isSquareCheckoutId(id)) return null;
+        const snap = await kept(id).get();
+        const fair = snap.exists ? snap.data() : null;
+        if (!fair || fair.mode !== linkMode) return null;
+        const checkout = await call("square.checkout.retrieve", linkMode, { id: squareIdOf(id) });
+        if (checkout.referenceId !== fair.referenceId) return null;
+        let session = await sessionFrom(checkout, linkMode);
+        if (session.status === "open" && Number.isFinite(fair.expiresAt) && fair.expiresAt * 1000 <= Date.now()) session = await expire(id, fair);
+        return { ...session, metadata: { fair_sale: fair.sale, fair_helper: fair.helper } };
+      },
+      close,
+      /**
+       * The scheduled sweep (index.js paymentPageSweep): every link of this mode still open past its half hour is
+       * closed, so a QR code the helper's phone stopped watching (no signal, page closed) can't be paid later. A link
+       * found paid is left as it is.
+       */
+      async closeDue(nowMs = Date.now()) {
+        const snap = await db.collection(FAIR_PAYMENTS).where("open", "==", true).limit(200).get();
+        let closed = 0;
+        for (const doc of snap.docs) {
+          const fair = doc.data();
+          if (fair.mode !== linkMode || !Number.isFinite(fair.expiresAt) || fair.expiresAt * 1000 > nowMs) continue;
+          try {
+            const session = await expire(doc.id, fair);
+            if (session.status === "expired") closed += 1;
+          } catch (err) {
+            console.warn(`Fair payment link ${doc.id} couldn't be closed yet: ${err?.message || err}`);
+          }
+        }
+        return { closed };
+      },
+    });
+  }
+
   return {
     id: "square",
     testMode: shopTestMode, readKeys, clientForMode, findOrderPayment, readAttempt, stopAttempt, checkReversal, refund,
     webhookClient, verifyWebhookEvent, forCheckout, deployedLiveKey, checkKey, webhookEndpoints, registerPaymentDomain,
-    paymentMoney, payoutMoney,
+    paymentMoney, payoutMoney, standaloneCheckout,
   };
 }
 
-module.exports = { createSquareProvider, intentFrom, refundFrom, disputeFrom, chargeFrom };
+module.exports = { createSquareProvider, intentFrom, refundFrom, disputeFrom, chargeFrom, isFairReference, FAIR_PAYMENTS };

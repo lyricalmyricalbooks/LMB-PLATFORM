@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OrderDetail } from "./OrderDetail";
+import { PastOrdersDialog } from "./PastOrdersDialog";
 import { Orders, loadOrderBooks, loadOrderSearchCatalog, patchOrdersCache, refreshOrdersCache } from "./Orders";
 import { EmptyState, LoadingState, MetricCard, PrimaryButton, SearchField, SecondaryButton, SelectField, StatusBadge, Tabs, Toggle } from "./riso/components";
 import { NEEDS_ME_QUEUES, nextToOpen, rowBooks, rowCover, rowStatus, refundState, stepOrder, deskQueue } from "./ordersDesk";
@@ -8,7 +9,9 @@ import { listDate, orderMoney, waitedText } from "./orderListHelpers";
 import { printOrders } from "./orderPrint";
 import { queueOf } from "./fulfillment";
 import type { CatalogSearchIndex } from "./orderSearch";
-import { useShopWords } from "./shopWords";
+import { useShopSells, useShopWords } from "./shopWords";
+import { sellsBooks } from "../../shared/shopSells";
+import { FRENCH_ORDER_HINT, orderInFrench } from "./orderLanguage";
 
 const REFRESH_MS = 60 * 1000;
 const PAGE = 40;
@@ -32,6 +35,7 @@ const typingIn = (t: EventTarget | null) => {
 // labels and dispatch all work exactly as before, and finishing an order moves straight to the next one.
 export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null; onSelect: (id: string | null) => void }) {
   const w = useShopWords();
+  const goods = !sellsBooks(useShopSells());
   const [orders, setOrders] = useState<any[] | null>(null);
   const [failed, setFailed] = useState(false);
   // Orders always opens on All orders › Open, newest first, as covers (owner's choice, 18 October 2026);
@@ -42,6 +46,8 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
   const [tab, setTab] = useState<GridTab>("open");
   const [only, setOnly] = useState<Only>("");
   const [sort, setSort] = useState<GridSort>("newest");
+  // Bring past orders over (plan 23.7), on the page a press lands on, not only in the Table layout (plan 23.22).
+  const [bringingPast, setBringingPast] = useState(false);
   const [shown, setShown] = useState(PAGE);
   const [showTest, setShowTest] = useState(false);
   const [narrow, setNarrow] = useState(() => typeof window !== "undefined" && window.matchMedia?.("(max-width: 900px)").matches);
@@ -149,7 +155,7 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
   const openInStation = (id: string) => { pickLayout("desk"); open(id); };
   // The pick list covers every order still to pack, whatever the search box holds.
   const toPack = useMemo(() => stationQueue(orders || [], "", showTest).filter((o) => deskQueue(o) === "Ready to pack"), [orders, showTest]);
-  const printPickList = () => { if (toPack.length) printOrders(toPack, true); };
+  const printPickList = () => { if (toPack.length) printOrders(toPack, true, { goods }); };
 
   const testToggle = <Toggle label="Show test orders" checked={showTest} onChange={setShowTest} />;
   const loadProblem = failed && orders ? (
@@ -303,9 +309,11 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
             <div className="od-head-actions od-grid-actions">
               <PrimaryButton onClick={() => pickLayout("desk")}>Ship station · {stats.toShip} to ship →</PrimaryButton>
               <SecondaryButton onClick={() => pickLayout("table")}>Export orders</SecondaryButton>
+              <SecondaryButton onClick={() => setBringingPast(true)}>Bring past orders over</SecondaryButton>
             </div>
           </div>
         </div>
+        {bringingPast && <PastOrdersDialog onClose={() => setBringingPast(false)} onDone={() => void refreshOrdersCache().then((data) => { setOrders(data); setFailed(false); }).catch(() => setFailed(true))} />}
         {only ? (
           <p className="od-only" role="status">
             Showing: <strong>{ONLY_LABEL[only]}</strong> <button type="button" className="od-link" onClick={() => setOnly("")}>Show every open order</button>
@@ -331,7 +339,7 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
                   <button type="button" className={`od-card${refund ? ` is-refunded is-refunded-${refund}` : ""}`} onClick={() => openInStation(o.id)} aria-label={`Order ${o.orderId || o.id}, ${o.customer?.name || "no name"}, ${badgeText(s.text)}, ${pay.text}`}>
                     <span className="od-card-cover" aria-hidden="true">{cover ? <img src={cover} alt="" loading="lazy" decoding="async" /> : <span className="od-card-blank">{titles || "No books"}</span>}</span>
                     <span className="od-card-body">
-                      <span className="od-row-top"><strong className="rp-mono">{o.orderId || o.id}</strong><span className="rp-hint rp-mono">{listDate(o.paidAt || o.createdAt)}</span></span>
+                      <span className="od-row-top"><span style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 }}><strong className="rp-mono">{o.orderId || o.id}</strong>{orderInFrench(o) ? <span title={FRENCH_ORDER_HINT}><StatusBadge tone="neutral" glyph={false}><span aria-hidden="true">FR</span><span className="rp-sr-only">Shopped in French</span></StatusBadge></span> : null}</span><span className="rp-hint rp-mono">{listDate(o.paidAt || o.createdAt)}</span></span>
                       <span className="od-card-who"><span><strong>{o.customer?.name || "—"}</strong> · {itemCount(o)}</span><span className="rp-mono od-row-amount" title={m.paid ? `Paid ${m.paid}` : undefined}>{m.text}</span></span>
                       {/* Without a cover the titles are already written in the cover box. */}
                       {titles && cover ? <span className="od-row-title" title={titles}>{titles}</span> : null}

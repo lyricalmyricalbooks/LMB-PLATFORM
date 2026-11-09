@@ -8,7 +8,7 @@ import { readServiceConfig } from "./config.js";
 import { createPaymentService } from "./service.js";
 import { createStripeApi } from "./stripeApi.js";
 import { handlePayments } from "./http.js";
-import { refundedFee, squareFee, squareKey, SQUARE_SCOPES } from "./square.js";
+import { paymentShape, refundedFee, squareFee, squareKey, SQUARE_SCOPES } from "./square.js";
 import { fakeAccounts, fakeDeliver, fakeStripeFetch } from "./fakes.js";
 import { fakeSquareFetch, fakeSquareStates, fakeSquareTokens } from "./squareFakes.js";
 import { fakeAuditLog, fakeRegistry } from "../../setup/fakes.js";
@@ -277,6 +277,10 @@ test("the platform fee rides on the checkout and goes back in proportion with a 
   const listed = await w.call("square.refunds.forPayment", { paymentId: payment.id });
   assert.deepEqual(listed.body.data.map((r) => r.amountMinor), [2500, 2500]);
   assert.equal((await w.call("square.refunds.retrieve", { id: half.body.id })).body.paymentId, payment.id);
+  // A retry of the full refund once nothing is left: a conflict, so the shop keeps its claim instead of releasing it.
+  const again = await w.call("square.refunds.create", { params: { paymentId: payment.id }, idempotencyKey: "order1-refund-2" });
+  assert.equal(again.status, 409);
+  assert.equal(again.body.error.code, "already_refunded");
 });
 
 test("gift card plus card (5.3): the gift card's share is a discount on Square's order, the card pays the rest, the fee is on the rest", async () => {
@@ -512,4 +516,10 @@ test("the web doors: Square's sign-in answer is a GET, its events a POST per env
   assert.equal(event.status, 200);
   assert.equal((await handlePayments({ method: "POST", path: "/square/events/elsewhere", rawBody: body }, { service: w.service })).status, 404);
   assert.equal((await handlePayments({ method: "POST", path: "/square/events/test", headers: {} }, { service: w.service })).status, 400);
+});
+
+test("a payment's shape carries what Square said about the card, for the shop's order review", () => {
+  const shaped = paymentShape({ id: "P1", status: "COMPLETED", amount_money: { amount: 4000, currency: "CAD" }, risk_evaluation: { risk_level: "MODERATE" }, card_details: { cvv_status: "CVV_REJECTED", avs_status: "AVS_ACCEPTED", card: { billing_address: { country: "GB" } } } }, "o1");
+  assert.deepEqual(shaped.risk, { level: "MODERATE", cvvStatus: "CVV_REJECTED", avsStatus: "AVS_ACCEPTED", cardCountry: "GB" });
+  assert.deepEqual(paymentShape({ id: "P2", status: "COMPLETED" }).risk, { level: null, cvvStatus: null, avsStatus: null, cardCountry: null });
 });

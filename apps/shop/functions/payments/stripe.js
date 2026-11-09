@@ -426,7 +426,7 @@ function createStripeProvider({ db, Stripe, liveSecretKey, readAdminSecret, plat
           if (refund.id && refundTxn) parts[refund.id] = partFrom(refundTxn);
         }
       }
-      // What the card company said about the payment, for the order review queue (orderReview.js). Square has none.
+      // What the card company said about the payment, for the order review queue (orderReview.js).
       const card = charge?.payment_method_details?.card || null;
       const risk = charge ? {
         level: charge.outcome?.risk_level || null,
@@ -465,13 +465,24 @@ function createStripeProvider({ db, Stripe, liveSecretKey, readAdminSecret, plat
     return { payout: { id: payoutId, date }, lines };
   }
 
+  // A hosted Stripe Checkout that belongs to no shop order (a fair helper's card payment by QR, fairHelperPay.js): it
+  // carries no client_reference_id, so the webhook never treats it as an order's payment.
+  async function standaloneCheckout(mode) {
+    const { stripe, requestOptions } = await getStripeClientForMode(mode === "test" ? "test" : "live");
+    return Object.freeze({
+      open: (params, idempotencyKey) => stripe.checkout.sessions.create(params, { ...requestOptions, idempotencyKey }),
+      read: (id) => stripe.checkout.sessions.retrieve(id, {}, requestOptions),
+      close: (id) => stripe.checkout.sessions.expire(id, {}, requestOptions),
+    });
+  }
+
   return {
     id: "stripe",
     // The provider interface (payments/index.js), under its provider-neutral names.
     testMode: shopTestMode, readKeys: readStripeKeys, clientForMode: getStripeClientForMode,
     findOrderPayment: retrieveOrderPayment, readAttempt, stopAttempt, checkReversal, refund: refundPayment,
     webhookClient, verifyWebhookEvent, forCheckout, deployedLiveKey, checkKey, webhookEndpoints, registerPaymentDomain,
-    paymentMoney, payoutMoney,
+    paymentMoney, payoutMoney, standaloneCheckout,
     // Stripe-only helpers, for this provider's own tests.
     withPrivateStripeKeys, stripeSecretFor, inOrderAccounts,
   };

@@ -1,10 +1,14 @@
+import { recordMoveStep } from "./moveProgress";
 import { useRef, useState } from "react";
 import { Upload } from "lucide-react";
 import { adminApi } from "./api";
 import { emailHash } from "./Customers";
 import { Checkbox, Dialog, PrimaryButton, SecondaryButton, StatusBadge } from "./riso/components";
+import { SPREADSHEET_ACCEPT, readProblem, readSpreadsheet, type SpreadsheetRead } from "./spreadsheetFile";
+import { GoogleSheetLink } from "./GoogleSheetLink";
+import { FirstRows, SheetChoice } from "./SheetChoice";
 import {
-  IMPORTED_CONSENT_TEXT, newsletterJoiners, planCustomerNotes, readCustomerExport, type CustomerMove, type CustomerWrite,
+  IMPORTED_CONSENT_TEXT, newsletterJoiners, optedOutBy, planCustomerNotes, readCustomerExport, type CustomerMove, type CustomerWrite,
   type MovedCustomer,
 } from "./shopMove";
 
@@ -32,20 +36,26 @@ export function CustomerMoveDialog({ onClose, onDone }: { onClose: () => void; o
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<{ saved: number; failed: string[]; joined: number } | null>(null);
 
-  async function choose(file: File | undefined) {
+  const [book, setBook] = useState<{ file: File } & SpreadsheetRead | null>(null);
+  async function choose(file: File | undefined, sheet?: string) {
     if (!file) return;
-    setReadError(""); setReady(null); setResult(null); setPermission(false); setFileName(file.name);
+    setReadError(""); setReady(null); setResult(null); setPermission(false); setFileName(file.name); if (!sheet) setBook(null);
     if (file.size > MAX_FILE_BYTES) { setReadError("That file is larger than 5 MB. Split it into smaller files and bring them over one at a time."); return; }
+    let text: string, notes: Awaited<ReturnType<typeof adminApi.listCustomerNotes>>, consent: Awaited<ReturnType<typeof adminApi.getMarketingConsent>>;
+    try { const read = await readSpreadsheet(file, sheet); text = read.text; setBook({ file, ...read }); }
+    catch (err) { setReadError(readProblem(err)); return; }
+    // The shop's own lists, to merge with: a failure here is the connection, not the file.
+    try { [notes, consent] = await Promise.all([adminApi.listCustomerNotes(), adminApi.getMarketingConsent()]); }
+    catch { setReadError("Your customers couldn't be checked just now. Check your connection and try again."); return; }
     try {
-      const [text, notes, consent] = await Promise.all([file.text(), adminApi.listCustomerNotes(), adminApi.getMarketingConsent()]);
       const move = readCustomerExport(text);
-      const byEmail = new Map(notes.map(n => [String(n.email || "").toLowerCase(), { note: n.note || "", tags: n.tags || [] }]));
+      const byEmail = new Map(notes.map(n => [String(n.email || "").toLowerCase(), { note: n.note || "", tags: n.tags || [], name: n.name || "", place: n.place || "" }]));
       const ids = new Map(await Promise.all(move.customers.map(async c => [c.email, await emailHash(c.email)] as const)));
       const writes = planCustomerNotes(move.customers, byEmail, new Date().toISOString().slice(0, 10)).map(w => ({ ...w, id: ids.get(w.email)! }));
-      const joiners = newsletterJoiners(move.customers, consent.subscribed, email => !!consent.optedOutHashes?.has(ids.get(email)!));
+      const joiners = newsletterJoiners(move.customers, consent.subscribed, optedOutBy(consent.optedOutHashes, email => ids.get(email)));
       setReady({ move, writes, joiners });
     } catch {
-      setReadError("This file couldn't be read. Save it as CSV (comma separated) and try again.");
+      setReadError("This file couldn't be read. Save it as CSV or Excel (.xlsx) and try again.");
     }
   }
 
@@ -58,7 +68,7 @@ export function CustomerMoveDialog({ onClose, onDone }: { onClose: () => void; o
     const failed: string[] = [];
     let saved = 0, joined = 0, done = 0;
     for (const w of work) {
-      try { await adminApi.saveCustomerNote(w.id, { email: w.email, note: w.note, tags: w.tags }); saved++; }
+      try { await adminApi.saveCustomerNote(w.id, { email: w.email, note: w.note, tags: w.tags, ...(w.name ? { name: w.name } : {}), ...(w.place ? { place: w.place } : {}) }); saved++; }
       catch { failed.push(w.email); }
       setProgress(++done);
     }
@@ -68,6 +78,7 @@ export function CustomerMoveDialog({ onClose, onDone }: { onClose: () => void; o
       setProgress(++done);
     }
     await adminApi.recordAuditLog("customers", `Brought ${saved} customer${saved === 1 ? "" : "s"} over from the old shop${joined ? `; ${joined} joined the newsletter` : ""}`).catch(() => {});
+    if (saved) void recordMoveStep("move-customers");
     setResult({ saved, failed, joined });
     setBusy(false);
     onDone();
@@ -85,22 +96,25 @@ export function CustomerMoveDialog({ onClose, onDone }: { onClose: () => void; o
 
   return (
     <Dialog open size="lg" onClose={() => { if (!busy) onClose(); }} title="Bring customers over" footer={footer}
-      description="Bring your shop with you: choose the customer list your old shop exports. You'll see what comes over before anything is saved.">
+      description="Bring your shop with you: choose the customer list your old shop exports, or your mailing list. You'll see what comes over before anything is saved.">
       <div className="rp-stack">
         {!result && <>
           <ul className="rp-hint" style={{ margin: 0, paddingLeft: 18 }}>
             <li>Each customer gets a private note with their name, town and what they spent at your old shop, plus their tags. Notes you already wrote are kept.</li>
-            <li>They show in the Customers list once they order here. Bringing the same file over again changes nothing.</li>
-            <li>Only customers your old shop says agreed to marketing email can join your newsletter, and only if you confirm below.</li>
+            <li>They show in Customers under Not ordered here yet until they order here. Bringing the same file over again changes nothing.</li>
+            <li>Only people your old shop or mailing list says agreed to marketing email can join your newsletter, and only if you confirm below. Anyone who unsubscribed stays off it.</li>
           </ul>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-            <input ref={fileRef} type="file" accept=".csv,text/csv" hidden aria-label="Customer list file"
+            <input ref={fileRef} type="file" accept={SPREADSHEET_ACCEPT} hidden aria-label="Customer list file"
               onChange={e => { void choose(e.target.files?.[0]); e.target.value = ""; }} />
             <PrimaryButton icon={<Upload size={16} aria-hidden />} disabled={busy} onClick={() => fileRef.current?.click()}>
               {fileName ? "Choose another file" : "Choose customer file"}
             </PrimaryButton>
+            <GoogleSheetLink disabled={busy} onFile={(f) => void choose(f)} />
             {fileName && <span className="rp-mono" style={{ overflowWrap: "anywhere" }}>{fileName}</span>}
+            {book && <SheetChoice sheets={book.sheets} sheet={book.sheet} disabled={busy} onChange={(s) => void choose(book.file, s)} />}
           </div>
+          {book && <FirstRows text={book.text} />}
         </>}
 
         {readError && <p role="alert" className="rp-hint" style={{ color: "var(--rp-danger)", margin: 0 }}>{readError}</p>}

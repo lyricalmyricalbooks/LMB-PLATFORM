@@ -45,7 +45,7 @@ export function locationForPath(pathname: string, base = "/"): StudioLocation {
   const path = "/" + pathname.slice(base.length).replace(/^\/+/, "");
   const decode = (v: string) => { try { return decodeURIComponent(v); } catch { return v; } };
   let m: RegExpMatchArray | null;
-  if ((m = path.match(/^\/books\/([^/]+)/))) return { templateId: "productPage", productSlug: decode(m[1]) };
+  if ((m = path.match(/^\/(?:books|products)\/([^/]+)/))) return { templateId: "productPage", productSlug: decode(m[1]) };
   if ((m = path.match(/^\/collections\/([^/]+)/))) return { templateId: "collectionPage", collectionSlug: decode(m[1]) };
   if ((m = path.match(/^\/page\/([^/]+)/))) return { templateId: `page:${decode(m[1])}` };
   if (path === "/checkout") return { templateId: "cartPage" };

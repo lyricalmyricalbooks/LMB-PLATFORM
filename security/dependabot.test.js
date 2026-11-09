@@ -13,4 +13,6 @@ test("weekly update requests cover every folder that has packages, and the actio
   for (const folder of folders) assert.ok(listed.has(`npm ${folder}`), `${folder} has no weekly update request`);
   assert.ok(listed.has("github-actions /"));
   assert.equal([...config.matchAll(/interval:\s*weekly/g)].length, listed.size);
+  // A new release waits a week before it is offered, so a poisoned release is usually pulled before it reaches us.
+  assert.equal([...config.matchAll(/cooldown:\s*\{\s*default-days:\s*7\s*\}/g)].length, listed.size, "every update request has the week's cooldown");
 });

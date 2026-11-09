@@ -194,3 +194,33 @@ test('a released pre-order (publication date passed) checks out as an ordinary b
   expect((await app.call('createStripeCheckoutSession')).code).toBe(200);
   expect(app.order.items[0]).toMatchObject({ preorder: false, releaseDate: null });
 });
+test('a clothing-only 0% rate leaves the book taxed and the shirt untaxed in a mixed bag (plan 12.2)', async () => {
+  const app = harness();
+  app.docs.books.shirt = { status: 'published', kind: 'clothing', format: '', retailPrice: 20, stockLevel: 9 };
+  app.order.items.push({ id: 'shirt', quantity: 1, price: 0, format: '' });
+  app.docs.settings.website.taxes.rates.push({ country: 'Canada', region: 'ON', rate: 0, kinds: ['clothing'] });
+  const response = await app.call('createPayPalOrder');
+  expect(response.code).toBe(200);
+  expect(app.order.tax).toBeCloseTo(3.9, 2);
+  expect(app.paypalCalls.some(call => String(call.options?.body).includes('"value":"55.90"'))).toBe(true);
+});
+test('a discount on the shirt only lowers the shirt\'s tax, not the book\'s (plan 12.2)', async () => {
+  const app = harness();
+  app.docs.books.shirt = { status: 'published', kind: 'clothing', format: '', retailPrice: 20, stockLevel: 9 };
+  app.order.items.push({ id: 'shirt', quantity: 1, price: 0, format: '' });
+  app.docs.settings.website.taxes.rates.push({ country: 'Canada', region: 'ON', rate: 0, kinds: ['clothing'] });
+  app.docs.discounts = { shirtOff: { method: 'automatic', type: 'fixed', value: 20, appliesTo: 'products', selectedProducts: ['shirt'] } };
+  const response = await app.call('createPayPalOrder');
+  expect(response.code).toBe(200);
+  expect(app.order.discount).toBe(20);
+  // The book still costs 30 and is taxed 13% on all of it; the free shirt is taxed nothing (was 2.34: 30 x 30/50 x 13%).
+  expect(app.order.tax).toBeCloseTo(3.9, 2);
+});
+test('without a kind-limited rate the same mixed bag is taxed on everything, as before (plan 12.2)', async () => {
+  const app = harness();
+  app.docs.books.shirt = { status: 'published', kind: 'clothing', format: '', retailPrice: 20, stockLevel: 9 };
+  app.order.items.push({ id: 'shirt', quantity: 1, price: 0, format: '' });
+  const response = await app.call('createPayPalOrder');
+  expect(response.code).toBe(200);
+  expect(app.order.tax).toBeCloseTo(6.5, 2);
+});

@@ -56,6 +56,21 @@ export function saleActive(book, now) {
   return !(DATE_ONLY.test(start) && start > today) && !(DATE_ONLY.test(end) && end < today);
 }
 
+/**
+ * The regular price a sale is shown against: the lowest of the 30 days before the sale (displayPrice.ts wasPrice; the
+ * two are kept equal by merchantFeed.test.ts). Google's listing must not show a bigger saving than the shop does.
+ */
+export function wasPrice(book, now = new Date()) {
+  const regular = Number(book?.retailPrice) || 0;
+  if (!Array.isArray(book?.priceHistory)) return regular;
+  const start = Date.parse(String(book?.saleStartsAt || '').slice(0, 10));
+  const saleStart = Number.isFinite(start) && start < now.getTime() ? start : now.getTime();
+  const earlier = book.priceHistory
+    .filter(entry => typeof entry?.price === 'number' && entry.price > 0 && Date.parse(entry.until) >= saleStart - 30 * 86400000)
+    .map(entry => entry.price);
+  return Math.min(regular, ...earlier);
+}
+
 /** functions/catalogPrice.js catalogUnitPrice: NaN = not for sale. */
 export function unitPrice(book, variant, now = new Date()) {
   if (variant) return variant.price === undefined || variant.price === null || variant.price === '' ? NaN : Number(variant.price);
@@ -193,7 +208,7 @@ const money = n => `${n.toFixed(2)} CAD`;
  * The feed's items, plus the published books left out and why (shown in the admin panel).
  * `books` = the whole catalog; only books shoppers can buy today are listed.
  */
-export function merchantFeedItems(siteUrl, books, { shopName = UNNAMED_SHOP, now = new Date() } = {}) {
+export function merchantFeedItems(siteUrl, books, { shopName = UNNAMED_SHOP, now = new Date(), productBase = 'books' } = {}) {
   const base = siteUrl.replace(/\/$/, '');
   const byId = new Map(books.map(b => [b.id, b]));
   const live = books.filter(b => isLive(b, now));
@@ -206,7 +221,7 @@ export function merchantFeedItems(siteUrl, books, { shopName = UNNAMED_SHOP, now
     const creators = isBook(kind) ? creatorNames(book) : [];
     if (book.productType === 'giftCard') continue;
     if (book.seoNoindex === true) { skipped.push({ id: book.id, title, reason: 'Hidden from search engines (Search (SEO) › Hide from search)' }); continue; }
-    const link = `${base}/books/${encodeURIComponent(book.slug)}`;
+    const link = `${base}/${productBase}/${encodeURIComponent(book.slug)}`;
     const photos = [...new Set((Array.isArray(book.photos) ? book.photos : []).map(p => httpsUrl(p?.url, base + '/')).filter(Boolean))];
     if (!photos.length && book.photoUrl) { const u = httpsUrl(book.photoUrl, base + '/'); if (u) photos.push(u); }
     const description = cut(plain(book.metaDescription) || plain(book.description) || `${title}${book.subtitle ? (isBook(kind) ? ` by ${plain(book.subtitle)}` : ` – ${plain(book.subtitle)}`) : ''}`, 5000);
@@ -231,6 +246,7 @@ export function merchantFeedItems(siteUrl, books, { shopName = UNNAMED_SHOP, now
       const availability = pre !== null ? 'preorder'
         : stock > 0 ? (tracked && book.allowBackorder === true && !(Number(variant ? (variant.stock ?? variant.stockLevel) : book.stockLevel) > 0) ? 'backorder' : 'in_stock')
         : 'out_of_stock';
+      const was = variant ? price : wasPrice(book, now);
       const item = {
         ...common,
         id: variant ? `${book.id}_${variant.id}`.slice(0, 50) : String(book.id).slice(0, 50),
@@ -238,7 +254,7 @@ export function merchantFeedItems(siteUrl, books, { shopName = UNNAMED_SHOP, now
         title: cut(name, 150),
         image,
         additionalImages: photos.filter(p => p !== image).slice(0, 10),
-        price: money(variant ? price : Number(book.retailPrice) > price ? Number(book.retailPrice) : price),
+        price: money(!variant && saleActive(book, now) && was > price ? was : price),
         salePrice: '',
         saleDates: '',
         availability,
@@ -247,7 +263,7 @@ export function merchantFeedItems(siteUrl, books, { shopName = UNNAMED_SHOP, now
           : gtinOf(variant?.barcode) || gtinOf(variant?.isbn) || gtinOf(book.barcode) || gtinOf(book.isbn),
         ...(isBook(kind) ? {} : { ...variantAttributes(variant), ...(variantAttributes(variant).material ? {} : { material: cut(plain(book.material), 200) }), ...(kind === 'clothing' || kind === 'shoes' ? apparelAudience(book) : {}) }),
       };
-      if (!variant && saleActive(book, now) && Number(book.retailPrice) > price) {
+      if (!variant && saleActive(book, now) && was > price) {
         item.salePrice = money(price);
         const start = String(book.saleStartsAt || '').slice(0, 10);
         const end = String(book.saleEndsAt || '').slice(0, 10);
@@ -281,4 +297,34 @@ export function merchantFeedXml(siteUrl, items, { shopName = UNNAMED_SHOP } = {}
     + (item.creators || []).map(person => `\n      <g:product_detail><g:section_name>Book</g:section_name><g:attribute_name>Author</g:attribute_name><g:attribute_value>${xml(person)}</g:attribute_value></g:product_detail>`).join('')
     + '\n    </item>').join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">\n  <channel>\n    <title>${xml(shopName)}</title>\n    <link>${xml(siteUrl.replace(/\/$/, '') + '/')}</link>\n    <description>${xml(`${shopName} ${items.length && items.every(i => i.kind && !isBook(i.kind)) ? 'products' : 'books'}`)}</description>\n${body}${body ? '\n' : ''}  </channel>\n</rss>\n`;
+}
+
+// ── Instagram, Facebook and Pinterest (code plan 24.7) ──────────────────────────────────────────────────────────────
+// Meta's Commerce Manager (one catalog for Facebook and Instagram shopping) and Pinterest's catalogs both read a CSV data
+// feed with Google's column names. It is built from the same items as the Google file, so price, sale and stock agree
+// everywhere. Their availability words have spaces, and neither has "backorder": an item that can be ordered now and
+// ships later is "preorder" on both.
+export const SOCIAL_FEED_FILE = 'social-product-feed.csv';
+
+const SOCIAL_AVAILABILITY = { in_stock: 'in stock', out_of_stock: 'out of stock', preorder: 'preorder', backorder: 'preorder' };
+const SOCIAL_COLUMNS = [
+  ['id', i => i.id], ['item_group_id', i => i.groupId], ['title', i => i.title], ['description', i => i.description],
+  ['availability', i => SOCIAL_AVAILABILITY[i.availability] || 'out of stock'], ['condition', i => i.condition],
+  ['price', i => i.price], ['sale_price', i => i.salePrice], ['sale_price_effective_date', i => i.saleDates],
+  ['link', i => i.link], ['image_link', i => i.image], ['additional_image_link', i => (i.additionalImages || []).join(',')],
+  ['brand', i => i.brand], ['gtin', i => i.gtin], ['google_product_category', i => i.googleCategory], ['product_type', i => i.productType],
+  ['size', i => i.size], ['color', i => i.color], ['material', i => i.material], ['gender', i => i.gender], ['age_group', i => i.ageGroup],
+];
+
+// One line per item: line breaks become spaces, control characters go, and a field with a comma or quote is quoted.
+const csvField = value => {
+  const text = String(value ?? '').replace(/[\r\n]+/g, ' ').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+  return /[",]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+};
+
+/** The CSV file Meta Commerce Manager and Pinterest fetch, from merchantFeedItems' items. */
+export function socialFeedCsv(items) {
+  const header = SOCIAL_COLUMNS.map(([name]) => name).join(',');
+  const rows = items.map(item => SOCIAL_COLUMNS.map(([, read]) => csvField(read(item))).join(','));
+  return [header, ...rows].join('\n') + '\n';
 }

@@ -22,7 +22,7 @@ export function fakeGoogle({ failOnce = [], refuse = [] } = {}) {
     webResources: new Map(), // id -> { id, site, owners }
     scSites: new Set(),
     sitemaps: new Set(),
-    spreadsheets: new Map(), // id -> { title, values }
+    spreadsheets: new Map(), // id -> { title, tabs: { Stock: [[…]], Sales: [[…]] } }
     productProblems: new Map(), // "accounts/n" -> [{ offerId, title, issues }]
     merchantAccounts: new Map(), // "accounts/n" -> { name, accountName }
     dataSources: new Map(), // name -> { name, displayName, fileUri }
@@ -72,7 +72,7 @@ export function fakeGoogle({ failOnce = [], refuse = [] } = {}) {
       world.codes.set(code, { email, scopes });
       return code;
     },
-    authorizeUrl: ({ state, scopes }) => `https://accounts.google.example/allow?state=${state}&scope=${encodeURIComponent(scopes.join(" "))}`,
+    authorizeUrl: ({ state, scopes, loginHint }) => `https://accounts.google.example/allow?state=${state}&scope=${encodeURIComponent(scopes.join(" "))}${loginHint ? `&login_hint=${encodeURIComponent(loginHint)}` : ""}`,
     async exchangeCode(code) {
       const found = world.codes.get(code);
       if (!found) throw new GoogleError(400, "Bad code", { grant: "invalid_grant" });
@@ -197,19 +197,46 @@ export function fakeGoogle({ failOnce = [], refuse = [] } = {}) {
 
     findFolder: async (token, name) => (who(token, "drive"), world.folders.has(name) ? { id: world.folders.get(name), name } : null),
     async createFolder(token, name) { who(token, "drive"); change("createFolder", name); const id = `folder-${next()}`; world.folders.set(name, id); return { id, name }; },
-    async createSpreadsheet(token, title) {
+    async createSpreadsheet(token, title, tabs = ["Stock"]) {
       who(token, "drive");
       change("createSpreadsheet", title);
       const spreadsheetId = `sheet-${next()}`;
-      world.spreadsheets.set(spreadsheetId, { title, values: [] });
+      world.spreadsheets.set(spreadsheetId, { title, tabs: Object.fromEntries(tabs.map((t) => [t, []])) });
       return { spreadsheetId, spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit` };
     },
-    async writeStockSheet(token, id, values) {
+    async sheetTabs(token, id) {
       who(token, "drive");
       if (!world.spreadsheets.has(id)) throw new GoogleError(404, "not found");
-      change("writeStockSheet", id, values.length);
-      world.spreadsheets.get(id).values = structuredClone(values);
+      return Object.keys(world.spreadsheets.get(id).tabs);
+    },
+    async addSheetTabs(token, id, tabs) {
+      who(token, "drive");
+      if (!world.spreadsheets.has(id)) throw new GoogleError(404, "not found");
+      change("addSheetTabs", id, tabs.join(","));
+      for (const t of tabs) world.spreadsheets.get(id).tabs[t] ??= [];
       return {};
+    },
+    async writeSheetTab(token, id, tab, values) {
+      who(token, "drive");
+      const sheet = world.spreadsheets.get(id);
+      if (!sheet) throw new GoogleError(404, "not found");
+      if (!(tab in sheet.tabs)) throw new GoogleError(400, `Unable to parse range: ${tab}!A1`);
+      change("writeSheetTab", id, tab, values.length);
+      sheet.tabs[tab] = structuredClone(values);
+      return {};
+    },
+    // A sheet the press brings in (23.42): `ids` and `hidden` by tab name stand in for Google's tab numbers and hiding.
+    async readSheetInfo(token, id) {
+      who(token, "sheets");
+      const sheet = world.spreadsheets.get(id);
+      if (!sheet) throw new GoogleError(404, "Requested entity was not found.");
+      return { title: sheet.title, tabs: Object.keys(sheet.tabs).map((title, i) => ({ id: sheet.ids?.[title] ?? i, title, hidden: (sheet.hidden ?? []).includes(title) })) };
+    },
+    async readSheetValues(token, id, tab) {
+      who(token, "sheets");
+      const sheet = world.spreadsheets.get(id);
+      if (!sheet || !(tab in sheet.tabs)) throw new GoogleError(400, `Unable to parse range: ${tab}`);
+      return structuredClone(sheet.tabs[tab]);
     },
     myChannel: async (token) => (who(token, "youtube"), world.channel ? structuredClone(world.channel) : null),
     channelVideos: async (token) => (who(token, "youtube"), [{ id: { videoId: "trailer1" }, snippet: { title: "Trailer" } }]),

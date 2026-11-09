@@ -156,6 +156,14 @@ describe("orderFootprint", () => {
 });
 
 describe("websiteOrder (contract v1)", () => {
+  test("a trade order on invoice terms carries its terms; other orders have no invoice field", () => {
+    const plain = websiteOrder(paid({}), { orderId: "ABCD-123456-WXYZ", links });
+    expect("invoice" in plain.web).toBe(false);
+    const invoiced = websiteOrder(paid({ invoice: { days: 30, dueAt: "2026-12-02T00:00:00.000Z", paidAt: null } }), { orderId: "ABCD-123456-WXYZ", links });
+    expect(invoiced.web.invoice).toEqual({ days: 30, dueAt: "2026-12-02T00:00:00.000Z", paidAt: null });
+    const settled = websiteOrder(paid({ invoice: { days: 30, dueAt: "2026-12-02T00:00:00.000Z", paidAt: "2026-12-01T00:00:00.000Z" } }), { orderId: "ABCD-123456-WXYZ", links });
+    expect(settled.hash).not.toBe(invoiced.hash); // recording the payment re-sends the order
+  });
   test("shape, order money, customer and a stable hash", () => {
     const order = paid({ customer: { name: "Ana", email: "ANA@x.com", phone: "1", address: { street: "1 Main", city: "Toronto", state: "ON", zip: "M5V1A1", country: "CA" } },
       appliedDiscount: { code: "FALL" }, discount: 8, stripePaymentIntentId: "pi_1", expectedAmountMinor: 9660, expectedCurrency: "CAD" });

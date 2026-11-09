@@ -3,10 +3,13 @@ import {
   collection, deleteDoc, doc, getCountFromServer, getDocs, limit, orderBy, query, startAfter, updateDoc, where,
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
-import { Archive, ArchiveRestore, Mail, MailOpen, Send, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Link2, Mail, MailOpen, Send, Trash2 } from "lucide-react";
 import { auth, db } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
 import { plainError } from "./plainError";
+import { adminApi } from "./api";
+import { PaymentLinkDialog } from "./PaymentLinkDialog";
+import { quoteRequestOf, type QuoteRequest } from "./paymentLinks";
 import {
   Checkbox, ConfirmDialog, EmptyState, ErrorState, FilterBar, GhostButton, IconButton, LoadingState, PrimaryButton,
   SearchField, SecondaryButton, SectionCard, StatusBadge, Tabs, TextArea, ToastProvider, useRisoToast,
@@ -59,6 +62,10 @@ async function replyCall(messageId: string, body: string) {
   return data.reply as { at: string; body: string; by?: string };
 }
 
+// The catalog for a payment link, read once per session (public fields are enough).
+let linkBooks: Promise<any[] | null> | null = null;
+const loadLinkBooks = () => (linkBooks ||= adminApi.getAllBooks({ includePrivate: false }).catch(() => { linkBooks = null; return null; }));
+
 type OrderSummary = { count: number; latestId: string | null; more: boolean };
 
 function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) => void; onOpenCustomers?: (email: string) => void }) {
@@ -78,6 +85,8 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [sending, setSending] = useState<string | null>(null);
   const [orders, setOrders] = useState<Record<string, OrderSummary | "loading" | "error">>({});
+  // A bulk-price request being turned into a payment link (code plan 21.4).
+  const [linkFrom, setLinkFrom] = useState<QuoteRequest | null>(null);
 
   const loadTotals = async () => {
     const col = collection(db, "contactMessages");
@@ -303,6 +312,11 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
                             <PrimaryButton icon={<Send size={16} aria-hidden />} disabled={sending === m.id || !(drafts[m.id] || "").trim()} onClick={() => sendReply(m)}>
                               {sending === m.id ? "Sending…" : "Send reply"}
                             </PrimaryButton>
+                            {quoteRequestOf(m) && (
+                              <SecondaryButton icon={<Link2 size={16} aria-hidden />} onClick={() => setLinkFrom(quoteRequestOf(m))}>
+                                Make a payment link
+                              </SecondaryButton>
+                            )}
                             <a className="rp-btn rp-btn-secondary" aria-label={`Reply to ${m.name} in your email app`}
                               href={`mailto:${encodeURIComponent(m.email)}?subject=${encodeURIComponent(`Re: ${m.subject || "your message"}`)}`}>
                               <Mail size={16} aria-hidden /> Use my email app
@@ -322,6 +336,19 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
             </>
           )}
       </SectionCard>
+
+      <PaymentLinkDialog
+        open={!!linkFrom}
+        start={linkFrom}
+        onClose={() => setLinkFrom(null)}
+        loadBooks={loadLinkBooks}
+        makeLink={adminApi.makePaymentLink}
+        onMade={(orderId) => {
+          setLinkFrom(null);
+          toast("Payment link made. Copy it or email it from the order.", { tone: "ok" });
+          if (onOpenOrder) onOpenOrder(orderId);
+        }}
+      />
 
       <ConfirmDialog open={!!deleting} title={deleting && deleting.length > 1 ? `Delete ${deleting.length} messages?` : "Delete this message?"}
         confirmLabel={deleting && deleting.length > 1 ? "Delete messages" : "Delete message"}

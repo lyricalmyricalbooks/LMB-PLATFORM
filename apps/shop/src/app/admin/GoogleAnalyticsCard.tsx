@@ -72,7 +72,7 @@ export function GoogleAnalyticsCard() {
   const checkTone = wrongProperty ? "--rp-warning" : check ? tone(check.connected) : "";
 
   return (
-    <SectionCard title="Google Analytics"
+    <SectionCard title="Google Analytics" logo="googleanalytics"
       description="Traffic, channels and who's on the site now."
       actions={loaded && <StatusBadge tone={tracking ? "success" : "neutral"}>{tracking ? "Tracking on" : "Off"}</StatusBadge>}>
       <HowTo summary="Setup steps" open={!!loaded && !loaded.measurementId}>

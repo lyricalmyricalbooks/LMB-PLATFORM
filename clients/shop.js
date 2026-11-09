@@ -10,6 +10,7 @@
 //   <functions>/createStripeCheckoutSession { action: "inventoryLink", op, … } with an admin's sign-in
 //   (apps/shop/functions/checkoutAdmin.js handleInventoryLinkAdmin). Only the test shop uses it, signed in as the test
 //   owner (clients/identity.js).
+import { missingDatabase } from "./firestore.js";
 
 /**
  * The stockroom's own named database in each shop's project (plan 1.20). Its name is set in one place: setup step 5
@@ -22,13 +23,17 @@ export const STOCKROOM_DATABASE = "stockroom";
 export function shopDataClient(firestoreFor) {
   return {
     get: (projectId, path) => firestoreFor(projectId).get(path),
-    set: (projectId, path, data) => firestoreFor(projectId).set(path, data),
+    // `{ fields }` writes only those fields and leaves the rest of the document as it is.
+    set: (projectId, path, data, options) => firestoreFor(projectId).set(path, data, options),
     remove: (projectId, path) => firestoreFor(projectId).remove(path),
     /**
      * The documents directly in one collection, as [{ id, data }] (the accounts team sync reads `members`, whose ids are
      * email addresses: the id is taken from the decoded path, so an `@` sent back as `%40` reads as `@`).
      */
     list: async (projectId, collection) => (await firestoreFor(projectId).query(collection)).map(({ path, data }) => ({ id: path.split("/").at(-1), data })),
+    /** Only the documents in one collection that pass `where` ([field, op, value], clients/firestore.js query), as [{ id, data }]. */
+    find: async (projectId, collection, { where = [], limit } = {}) => (await firestoreFor(projectId).query(collection, { where, limit }))
+      .map(({ path, data }) => ({ id: path.split("/").at(-1), data })),
     async create(projectId, path, data) {
       if (!(await firestoreFor(projectId).create(path, data))) throw new Error(`${path} already exists`);
     },
@@ -131,5 +136,29 @@ export function registryFiles(registryFirestore, name) {
   return {
     read: async (shopId) => (await registryFirestore.get(path(shopId)))?.text ?? null,
     write: (shopId, text) => registryFirestore.set(path(shopId), { text }),
+  };
+}
+
+/**
+ * The stockroom's own named database in each shop's project, read and written by the platform (the shop's plan copy,
+ * services/billing/shopPlan.js; a press's data export, services/export): the same calls as
+ * services/billing/closingFakes.js fakeStockroomData. `firestoreFor(projectId)` gives the stockroom database.
+ * `ready(shopId)` is false until setup step 5 has made that database (or the project), like the audit log's.
+ */
+export function stockroomDataClient(firestoreFor) {
+  return {
+    async ready(shopId) {
+      try {
+        await firestoreFor(shopId).get("settings/catalog");
+        return true;
+      } catch (error) {
+        if (missingDatabase(error) || error?.status === 404 || error?.status === 403) return false;
+        throw error;
+      }
+    },
+    get: (shopId, path) => firestoreFor(shopId).get(path),
+    set: (shopId, path, data) => firestoreFor(shopId).set(path, data),
+    /** The documents directly in one collection, as [{ id, data }] (the control room reads the fair helpers' `fairSales`). */
+    list: async (shopId, collection) => (await firestoreFor(shopId).query(collection)).map(({ path, data }) => ({ id: path.split("/").at(-1), data })),
   };
 }

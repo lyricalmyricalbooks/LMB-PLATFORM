@@ -10,7 +10,9 @@
 //   POST /api/signup         start the free trial and queue the shop (signed in)
 //   GET  /api/signup         the signed-in person's shops in the making (signed in)
 //
-// Later items add their routes through `routes` (the shop maker's "try again", accounts, invites).
+// Later items add their routes through `routes` (the shop maker's "try again", accounts, invites), each called with the
+// checked sign-in, and through `publicRoutes`, called with the request alone, for the few a person reaches before they
+// are signed in (the front door's sign-in code, frontDoor.js). Both pass the same fair-use limits.
 // `onSignedIn(claims, request)` sees every signed-in call (the new-device alerts, accounts/devices.js); a failure there
 // is logged and never stops the call.
 // `limits` (optional, limits.js createLimits, plan 19.5): fair-use limits per person, per costly call and per network;
@@ -24,6 +26,7 @@ import { LIVE_DEFAULTS, liveSettings } from "./live.js";
 import { randomBytes } from "node:crypto";
 
 /** The plans that have a website, so can be paid for as a share of its sales. */
+import { errorHelp } from "../help/errorHelp.js";
 export const PAY_AS_YOU_SELL_PLANS = Object.freeze(["shop", "both"]);
 
 /** 200 basis points -> "2%", 250 -> "2.5%". */
@@ -45,7 +48,8 @@ const header = (headers, name) => {
   return typeof found?.[1] === "string" ? found[1] : "";
 };
 
-export function createApi({ signup, verifyIdToken, settings, routes = {}, onSignedIn, limits = null, live = () => liveSettings(), log = console.error }) {
+// `plusTax`: whether plan prices are shown "plus tax" (billing's BILLING_TAX), so the plan choices say so only when it is true.
+export function createApi({ signup, verifyIdToken, settings, routes = {}, publicRoutes = {}, onSignedIn, limits = null, live = () => liveSettings(), plusTax = false, log = console.error }) {
   const pathOf = (request) => String(request?.path ?? "").split("?")[0].replace(/\/+$/, "");
   const queryOf = (request) => String(request?.path ?? "").split("?")[1] ?? "";
   const routeOf = (request) => `${request?.method} ${pathOf(request)}`;
@@ -87,6 +91,7 @@ export function createApi({ signup, verifyIdToken, settings, routes = {}, onSign
           ...(basisPoints > 0 && PAY_AS_YOU_SELL_PLANS.includes(plan) ? { payAsYouSell: { percentText: percentText(basisPoints), capText: price } } : {}),
         })),
         trialDays: settings.trialDays,
+        plusTax: plusTax === true,
         currency: settings.currency,
         productName: settings.platformName,
         signupOpen: now.signupOpen === true,
@@ -99,18 +104,19 @@ export function createApi({ signup, verifyIdToken, settings, routes = {}, onSign
     "POST /api/signup": async (request) => signup.start(await claimsOf(request), request.body ?? {}),
     "GET /api/signup": async (request) => ({ shops: await signup.mine(await claimsOf(request)) }),
     ...Object.fromEntries(Object.entries(routes).map(([route, run]) => [route, async (request) => run(await claimsOf(request), request)])),
+    ...publicRoutes,
   };
 
   return async function handle(request) {
     const route = table[routeOf(request)];
-    if (!route) return { status: 404, body: { ok: false, message: "There's nothing here." } };
+    if (!route) return { status: 404, body: { ok: false, message: "There's nothing here.", ...errorHelp(404) } };
     try {
       if (queryOf(request) && !request.query) request = { ...request, query: Object.fromEntries(new URLSearchParams(queryOf(request))) };
       if (limits) await limits.beforeCall(routeOf(request), request);
       return { status: 200, body: { ok: true, ...(await route(request)) } };
     } catch (error) {
       if (isOurError(error) && error.status < 500) {
-        return { status: error.status, body: { ok: false, message: error.message, ...(error.problems ? { problems: error.problems } : {}), ...(Number.isInteger(error.retryAfter) ? { retryAfter: error.retryAfter } : {}) } };
+        return { status: error.status, body: { ok: false, message: error.message, ...errorHelp(error.status, request?.path), ...(error.problems ? { problems: error.problems } : {}), ...(Number.isInteger(error.retryAfter) ? { retryAfter: error.retryAfter } : {}) } };
       }
       // Anything else is ours to look into: it goes in the log with a code, and the press sees the same code.
       const ref = errorRef();
@@ -119,10 +125,10 @@ export function createApi({ signup, verifyIdToken, settings, routes = {}, onSign
       } catch {
         // A broken log never turns a plain answer into a crash.
       }
-      if (isOurError(error)) return { status: error.status, body: { ok: false, message: error.message, ref } };
+      if (isOurError(error)) return { status: error.status, body: { ok: false, message: error.message, ref, ...errorHelp(error.status, request?.path) } };
       return {
         status: error?.fromProvider ? 502 : 500,
-        body: { ok: false, ref, message: `Something went wrong on our side. Try again in a minute. If it keeps happening, tell us this code: ${ref}.` },
+        body: { ok: false, ref, ...errorHelp(error?.fromProvider ? 502 : 500, request?.path), message: `Something went wrong on our side. Try again in a minute. If it keeps happening, tell us this code: ${ref}.` },
       };
     }
   };

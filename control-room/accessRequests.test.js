@@ -123,6 +123,15 @@ test("approve: exactly one 30-minute staff sign-in, recorded in the shop's audit
   assert.equal((await w.answer(OWNER, request.id, false)).status, 409);
 });
 
+test("the yes is for the person who asked: another admin can't spend it", async () => {
+  const w = await world();
+  const { request } = (await w.askPress()).body;
+  assert.equal((await w.answer(OWNER, request.id, true)).status, 200);
+  await assert.rejects(w.requests.use({ id: request.id, shopId: SHOP, by: "second-admin@example.com" }), (error) => error.status === 403 && /Only they can use/.test(error.message));
+  assert.equal((await w.requests.forShop(SHOP))[0].status, "approved", "still there for the person the press said yes to");
+  assert.equal((await w.openWith(request.id)).status, 200);
+});
+
 test("a sign-in that can't be made gives the yes back, so the visit can be tried again", async () => {
   const w = await world();
   const { request } = (await w.askPress()).body;

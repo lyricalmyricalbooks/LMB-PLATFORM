@@ -1,0 +1,27 @@
+/*
+ * The stockroom inside the combined admin (features/inside-admin.js puts .inside-admin on <html>).
+ * The admin around it already has the menu, search, notifications, account and look, so the stockroom's own copies
+ * go, and its pages use the full width of the admin's content area. The book picker, the header figures, the sync
+ * mark and the banners stay: they belong to these pages. Only the publisher's shell is affected.
+ */
+.inside-admin #pub-sidebar,
+.inside-admin .app-switch,
+.inside-admin .app-switch-pill,
+.inside-admin .phone-menu-btn,
+.inside-admin .header-brand,
+.inside-admin .app-header > .hsep,
+.inside-admin #shell-page-title,
+.inside-admin #theme-toggle-btn,
+.inside-admin #notif-header-btn,
+.inside-admin #app-search-header-btn,
+.inside-admin #hmenu-account,
+.inside-admin #global-actions,
+.inside-admin #tab-bar,
+.inside-admin #mnav,
+.inside-admin .mnav {
+  display: none !important;
+}
+
+.inside-admin .pub-shell { padding-left: 0 !important; }
+.inside-admin .pub-shell .app { padding-bottom: 0; }
+.inside-admin .pub-shell .tab-panel { padding-bottom: var(--space-6, 32px); }

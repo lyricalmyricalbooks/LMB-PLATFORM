@@ -1,4 +1,4 @@
-// Admin report actions of createStripeCheckoutSession: backups list, AI writing assistant, Google Analytics,
+// Admin report actions of createStripeCheckoutSession: backups list, reading an old shop's address, AI writing assistant, Google Analytics,
 // Search Console, BigQuery journeys and the traffic-count reset. Every one is admin-only and never touches orders,
 // payments or stock. index.js passes in its own db, admin SDK and guards, so the handler tests' fakes still apply.
 const { handleAiWrite } = require("./aiWriter");
@@ -7,6 +7,9 @@ const { handleGa4Report, metadataCredentials } = require("./googleAnalytics");
 const { handleSearchConsole, SCOPE: SEARCH_CONSOLE_SCOPE } = require("./searchConsole");
 const { handleBigQueryJourneys, SCOPE: BIGQUERY_SCOPE } = require("./bigQueryJourneys");
 const { handleTrafficReset } = require("./trafficReset");
+const { handlePastOrdersImport, handlePastOrdersRemove, handlePastOrderRate } = require("./orderImport");
+const { handleExchangeRates, getBankJson } = require("./pastOrderRates");
+const { handleOldLinksRead, handleOldPagesRead, handleOldShopRead, readOldLinks, readOldPages, readOldShop } = require("./oldShopRead");
 
 function adminReportActions({ db, admin, requireAdmin, readAdminSecret, hitLimit, LIMITS }) {
   /** Settings › General › Backups & export › the daily list (op "list") and Download (op "download", body.day). */
@@ -129,7 +132,105 @@ function adminReportActions({ db, admin, requireAdmin, readAdminSecret, hitLimit
     }
   }
 
+  // Books › Import › "From your old shop's address" (plan 23.11): reads the old shop's public product list.
+  async function handleOldShopRequest(req, res) {
+    const adminUser = await requireAdmin(req, res);
+    if (!adminUser) return;
+    try {
+      const { status, body } = await handleOldShopRead(req.body || {}, { allow: () => hitLimit(db, "old-shop", req, LIMITS.oldShop), read: readOldShop });
+      res.status(status).json(body);
+    } catch (err) {
+      console.error("readOldShop failed:", err?.message || err);
+      res.status(500).json({ error: "We couldn't read that shop just now. Try again in a minute, or choose its product file." });
+    }
+  }
+
+  // Settings › General › Check your old links (plan 23.8): the old shop's page addresses, from its site map.
+  async function handleOldLinksRequest(req, res) {
+    const adminUser = await requireAdmin(req, res);
+    if (!adminUser) return;
+    try {
+      const { status, body } = await handleOldLinksRead(req.body || {}, { allow: () => hitLimit(db, "old-shop", req, LIMITS.oldShop), read: readOldLinks });
+      res.status(status).json(body);
+    } catch (err) {
+      console.error("readOldLinks failed:", err?.message || err);
+      res.status(500).json({ error: "We couldn't read your old shop's pages just now. Try again in a minute." });
+    }
+  }
+
+  // Settings › General › URL redirects › Bring pages over (plan 23.6): the old shop's own pages, rebuilt safely.
+  async function handleOldPagesRequest(req, res) {
+    const adminUser = await requireAdmin(req, res);
+    if (!adminUser) return;
+    try {
+      const { status, body } = await handleOldPagesRead(req.body || {}, { allow: () => hitLimit(db, "old-shop", req, LIMITS.oldShop), read: readOldPages });
+      res.status(status).json(body);
+    } catch (err) {
+      console.error("readOldPages failed:", err?.message || err);
+      res.status(500).json({ error: "We couldn't read your old shop's pages just now. Try again in a minute." });
+    }
+  }
+
+  // Orders › Bring past orders over (plan 23.7): past orders as history only (functions/orderImport.js).
+  async function handlePastOrdersRequest(req, res) {
+    const adminUser = await requireAdmin(req, res);
+    if (!adminUser) return;
+    try {
+      const { status, body } = await handlePastOrdersImport(req.body || {}, { db, actor: adminUser.email || "admin", now: new Date() });
+      res.status(status).json(body);
+    } catch (err) {
+      console.error("importPastOrders failed:", err?.message || err);
+      res.status(500).json({ error: "We couldn't bring those orders over just now. Bring the same file again: orders already here are skipped." });
+    }
+  }
+
+  // Orders › Bring past orders over (plan 23.14): the Bank of Canada's average rate for the file's dates, as a suggestion.
+  async function handleExchangeRatesRequest(req, res) {
+    const adminUser = await requireAdmin(req, res);
+    if (!adminUser) return;
+    try {
+      const { status, body } = await handleExchangeRates(req.body || {}, { allow: () => hitLimit(db, "old-shop", req, LIMITS.oldShop), getJson: getBankJson });
+      res.status(status).json(body);
+    } catch (err) {
+      console.error("exchangeRates failed:", err?.message || err);
+      res.status(500).json({ error: "We couldn't look the rates up just now. Type your own rate instead." });
+    }
+  }
+
+  // Orders › a brought-over order › Remove this import (plan 23.15): takes one run of Bring past orders over back.
+  async function handlePastOrdersRemoveRequest(req, res) {
+    const adminUser = await requireAdmin(req, res);
+    if (!adminUser) return;
+    try {
+      const { status, body } = await handlePastOrdersRemove(req.body || {}, { db, actor: adminUser.email || "admin", now: new Date() });
+      res.status(status).json(body);
+    } catch (err) {
+      console.error("removePastOrders failed:", err?.message || err);
+      res.status(500).json({ error: "We couldn't remove those orders just now. Try again in a minute." });
+    }
+  }
+
+  // Orders › a brought-over order › Change the rate (plan 23.34): one order sold in another currency takes a new rate.
+  async function handlePastOrderRateRequest(req, res) {
+    const adminUser = await requireAdmin(req, res);
+    if (!adminUser) return;
+    try {
+      const { status, body } = await handlePastOrderRate(req.body || {}, { db, actor: adminUser.email || "admin", now: new Date() });
+      res.status(status).json(body);
+    } catch (err) {
+      console.error("ratePastOrder failed:", err?.message || err);
+      res.status(500).json({ error: "We couldn't change the rate just now. Try again in a minute." });
+    }
+  }
+
   return {
+    exchangeRates: handleExchangeRatesRequest,
+    ratePastOrder: handlePastOrderRateRequest,
+    removePastOrders: handlePastOrdersRemoveRequest,
+    importPastOrders: handlePastOrdersRequest,
+    readOldShop: handleOldShopRequest,
+    readOldLinks: handleOldLinksRequest,
+    readOldPages: handleOldPagesRequest,
     backups: handleBackups,
     aiWrite: handleAiWriteRequest,
     ga4Report: handleGa4ReportRequest,

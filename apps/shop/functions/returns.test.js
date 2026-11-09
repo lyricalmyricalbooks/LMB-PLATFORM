@@ -49,3 +49,12 @@ test("audiobooks, EPUBs and digital editions are not physical return lines", () 
   const audio = { ...order, items: [{ id: "x", quantity: 1, format: "Audiobook" }, { id: "y", quantity: 1, variantName: "EPUB" }, { id: "z", quantity: 1, format: "E-book (PDF)" }] };
   expect(() => returnTransition(audio, null, "approved", { instructions: "Return" }, "now", "admin")).toThrow("no physical books");
 });
+
+test("a refund before the rest ships never restocks copies already sent in a part (plan 24.5)", () => {
+  const order = { fulfillmentStatus: "processing", items: [{ id: "a", quantity: 3 }, { id: "b", quantity: 1 }, { id: "c", quantity: 2 }],
+    partShipments: [{ id: "p1", lines: [{ line: 0, quantity: 1 }, { line: 1, quantity: 1 }] }] };
+  expect(returnRestockItems(order, null)).toEqual([{ id: "a", quantity: 2 }, { id: "c", quantity: 2 }]);
+  // Nothing sent ahead: the lines as they are. Fully dispatched: the owner's choice covers every line, as before.
+  expect(returnRestockItems({ ...order, partShipments: [] }, null)).toBe(order.items);
+  expect(returnRestockItems({ ...order, fulfillmentStatus: "shipped" }, null)).toBe(order.items);
+});

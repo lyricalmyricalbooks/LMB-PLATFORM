@@ -10,7 +10,7 @@
 import { initializeTestEnvironment, assertSucceeds, assertFails } from "@firebase/rules-unit-testing";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from "firebase/firestore";
 import { ref, get, set } from "firebase/database";
 import { ref as fileRef, uploadString, getBytes } from "firebase/storage";
 
@@ -47,6 +47,8 @@ await env.withSecurityRulesDisabled(async ctx => {
   await set(ref(ctx.database(), "lyrical/books/b1"), { data: "{}", ts: 1 });
   await set(ref(ctx.database(), "lyrical/books/b2"), { data: "{}", ts: 1 });
   await uploadString(fileRef(ctx.storage(), "receipts/b2/r.pdf"), "x", "raw", { contentType: "application/pdf" });
+  await setDoc(doc(ctx.firestore(), "fairTill/menu"), { books: [{ id: "b1", title: "B1", price: 24, cur: "CAD", onHand: 5 }], at: "2026-11-03T10:00:00Z" });
+  await setDoc(doc(ctx.firestore(), "fairSales/other-helper-sale"), { by: "other@example.com", at: new Date(), day: "2026-11-03", fair: "", method: "Cash", lines: [{ bookId: "b1", qty: 1 }] });
 });
 
 const people = {
@@ -63,6 +65,7 @@ const shutOut = {
   "author of b1 with the author role": env.authenticatedContext("u-author-role", { email: AUTHOR, email_verified: true, role: "author" }),
   "author role, no book": env.authenticatedContext("u-role-only", { email: "newauthor@example.com", email_verified: true, role: "author" }),
   "author role, unverified": env.authenticatedContext("u-role-unv", { email: "newauthor@example.com", email_verified: false, role: "author" }),
+  "fair helper role": env.authenticatedContext("u-helper", { email: "helper@example.com", email_verified: true, role: "fairHelper" }),
   "signed out": env.unauthenticatedContext(),
 };
 
@@ -116,6 +119,17 @@ await check("author role can't read the book owners list (Firestore)", assertFai
 await check("author role can't make itself a book's author (Firestore)", assertFails(setDoc(doc(roleOnly.firestore(), "settings/bookOwners"), { b2: "newauthor@example.com" })));
 await check("author role can't make itself a book's author (Database)", assertFails(set(ref(roleOnly.database(), "lyrical/settings/bookOwners/b2"), "newauthor@example.com")));
 await check("author role reads no backups (Firestore)", assertFails(getDoc(doc(roleOnly.firestore(), "backups/x"))));
+// An author's address with no proof behind it. The stockroom shares its sign-in with the shop, whose email-link
+// sign-in needs the Email/Password provider on, so anyone can make a password account under an author's address
+// (the public web key is enough) and get a pass that names it, unverified. That pass must open nothing.
+const unverifiedAuthor = env.authenticatedContext("u-author-unv", { email: AUTHOR, email_verified: false });
+await check("unverified author address reads no book (Firestore)", assertFails(getDoc(doc(unverifiedAuthor.firestore(), "books/b1/data/ledger"))));
+await check("unverified author address writes no ledger (Firestore)", assertFails(setDoc(doc(unverifiedAuthor.firestore(), "books/b1/data/ledger"), { rows: [6] })));
+await check("unverified author address reads no submissions (Firestore)", assertFails(getDoc(doc(unverifiedAuthor.firestore(), "submissions/b1/expense/s1"))));
+await check("unverified author address reads no catalog setting (Firestore)", assertFails(getDoc(doc(unverifiedAuthor.firestore(), "settings/catalog"))));
+await check("unverified author address reads no book (Database)", assertFails(get(ref(unverifiedAuthor.database(), "lyrical/books/b1"))));
+await check("unverified author address writes no book (Database)", assertFails(set(ref(unverifiedAuthor.database(), "lyrical/books/b1"), { data: "{}", ts: 6 })));
+await check("unverified author address reads no catalog setting (Database)", assertFails(get(ref(unverifiedAuthor.database(), "lyrical/settings/catalog"))));
 const roleUnverified = shutOut["author role, unverified"];
 await check("unverified author role reads no catalog setting (Firestore)", assertFails(getDoc(doc(roleUnverified.firestore(), "settings/catalog"))));
 await check("unverified author role reads no catalog setting (Database)", assertFails(get(ref(roleUnverified.database(), "lyrical/settings/catalog"))));
@@ -147,7 +161,14 @@ await env.withSecurityRulesDisabled(async ctx => {
 await check("owner reads the plan", assertSucceeds(getDoc(doc(owner.firestore(), "platform/plan"))));
 await check("author reads the plan", assertSucceeds(getDoc(doc(author.firestore(), "platform/plan"))));
 await check("bookkeeper reads the plan", assertSucceeds(getDoc(doc(bookkeeper.firestore(), "platform/plan"))));
+await check("helper reads the plan", assertSucceeds(getDoc(doc(shutOut["fair helper role"].firestore(), "platform/plan"))));
+await check("author role reads the plan", assertSucceeds(getDoc(doc(shutOut["author role, no book"].firestore(), "platform/plan"))));
 await check("signed out reads no plan", assertFails(getDoc(doc(shutOut["signed out"].firestore(), "platform/plan"))));
+// The plan document holds the press's billing (trial end, next payment, card on file, the Plan & billing link). A
+// shopper's sign-in from the shop's account page lands in the same project, so a pass alone must not read it.
+const shopper = env.authenticatedContext("u-shopper", { email: "shopper@example.com", email_verified: true });
+await check("a shop customer's sign-in reads no plan", assertFails(getDoc(doc(shopper.firestore(), "platform/plan"))));
+await check("staff read no plan", assertFails(getDoc(doc(shutOut["staff role"].firestore(), "platform/plan"))));
 await check("owner can't change the plan", assertFails(setDoc(doc(owner.firestore(), "platform/plan"), { access: "open" })));
 await check("paused: owner still reads a book", assertSucceeds(getDoc(doc(owner.firestore(), "books/b1/data/ledger"))));
 await check("paused: owner can't change a setting", assertFails(setDoc(doc(owner.firestore(), "settings/catalog"), { data: "{}", ts: 9 })));
@@ -163,6 +184,50 @@ await env.withSecurityRulesDisabled(async ctx => {
 });
 await check("reopened: owner changes a setting", assertSucceeds(setDoc(doc(owner.firestore(), "settings/catalog"), { data: "{}", ts: 10 })));
 await check("reopened: author changes own ledger", assertSucceeds(setDoc(doc(author.firestore(), "books/b1/data/ledger"), { rows: [10] })));
+
+// Fair helpers (docs/combined-admin.md › Fair helpers plan): the till's menu and their own sales, nothing else.
+const helper = shutOut["fair helper role"].firestore();
+const unverifiedHelper = env.authenticatedContext("u-helper-unv", { email: "helper@example.com", email_verified: false, role: "fairHelper" }).firestore();
+const sale = (over = {}) => ({ by: "helper@example.com", at: serverTimestamp(), day: "2026-11-03", fair: "Harbour Fair", method: "Cash", lines: [{ bookId: "b1", title: "B1", qty: 1, price: 24, cur: "CAD" }], ...over });
+await check("helper reads the till's menu", assertSucceeds(getDoc(doc(helper, "fairTill/menu"))));
+await check("helper can't change the till's menu", assertFails(setDoc(doc(helper, "fairTill/menu"), { books: [], at: "x" })));
+await check("helper reads no catalog (author emails, costs)", assertFails(getDoc(doc(helper, "settings/catalog"))));
+await check("helper reads no book", assertFails(getDoc(doc(helper, "books/b1/data/ledger"))));
+await check("helper writes no book's sales", assertFails(setDoc(doc(helper, "books/b1/data/hist"), { data: "[]", ts: 9 })));
+await check("helper adds a sale", assertSucceeds(setDoc(doc(helper, "fairSales/sale-0000001"), sale())));
+await check("helper reads their own sale back", assertSucceeds(getDoc(doc(helper, "fairSales/sale-0000001"))));
+await check("helper lists their own sales", assertSucceeds(getDocs(query(collection(helper, "fairSales"), where("by", "==", "helper@example.com")))));
+await check("helper can't list everyone's sales", assertFails(getDocs(collection(helper, "fairSales"))));
+await check("helper can't read another helper's sale", assertFails(getDoc(doc(helper, "fairSales/other-helper-sale"))));
+await check("helper can't change a sale once sent", assertFails(setDoc(doc(helper, "fairSales/sale-0000001"), sale({ lines: [{ bookId: "b1", qty: 9 }] }))));
+await check("helper can't mark their sale brought in", assertFails(updateDoc(doc(helper, "fairSales/sale-0000001"), { imported: { at: "x" } })));
+await check("helper can't undo another helper's sale", assertFails(setDoc(doc(helper, "fairSales/other-helper-sale"), { cancelled: true }, { merge: true })));
+await check("helper can't undo with other changes", assertFails(setDoc(doc(helper, "fairSales/sale-0000001"), { cancelled: true, method: "Card" }, { merge: true })));
+await check("helper can't mark a sale anything but undone", assertFails(setDoc(doc(helper, "fairSales/sale-0000001"), { cancelled: "yes" }, { merge: true })));
+await check("helper undoes their own sale", assertSucceeds(setDoc(doc(helper, "fairSales/sale-0000001"), { cancelled: true }, { merge: true })));
+await check("helper can't delete a sale", assertFails(deleteDoc(doc(helper, "fairSales/sale-0000001"))));
+await check("helper can't add a sale under another address", assertFails(setDoc(doc(helper, "fairSales/sale-0000002"), sale({ by: "owner@example.com" }))));
+await check("helper can't backdate a sale", assertFails(setDoc(doc(helper, "fairSales/sale-0000003"), sale({ at: new Date("2026-01-01") }))));
+await check("helper can't use a made-up way of paying", assertFails(setDoc(doc(helper, "fairSales/sale-0000004"), sale({ method: "Free" }))));
+await check("helper can't send an empty sale", assertFails(setDoc(doc(helper, "fairSales/sale-0000005"), sale({ lines: [] }))));
+await check("helper can't send a sale of 51 lines", assertFails(setDoc(doc(helper, "fairSales/sale-0000006"), sale({ lines: Array.from({ length: 51 }, () => ({ bookId: "b1", qty: 1 })) }))));
+await check("helper can't add other fields", assertFails(setDoc(doc(helper, "fairSales/sale-0000007"), sale({ imported: { at: "x" } }))));
+await check("helper can't use a short id", assertFails(setDoc(doc(helper, "fairSales/x"), sale())));
+await check("unverified helper adds no sale", assertFails(setDoc(doc(unverifiedHelper, "fairSales/sale-0000008"), sale())));
+await check("unverified helper reads no menu", assertFails(getDoc(doc(unverifiedHelper, "fairTill/menu"))));
+await check("staff add no fair sale", assertFails(setDoc(doc(shutOut["staff role"].firestore(), "fairSales/sale-0000009"), sale({ by: "staff@example.com" }))));
+const publisher = people["owner address"].firestore();
+await check("publisher writes the till's menu", assertSucceeds(setDoc(doc(publisher, "fairTill/menu"), { books: [{ id: "b1", title: "B1", price: 24, cur: "CAD", onHand: null }], at: "2026-11-03T11:00:00Z" })));
+await check("publisher's menu keeps its shape", assertFails(setDoc(doc(publisher, "fairTill/menu"), { books: [], at: "x", extra: 1 })));
+await check("publisher reads every helper's sales", assertSucceeds(getDocs(collection(publisher, "fairSales"))));
+await check("publisher marks a sale brought in", assertSucceeds(updateDoc(doc(publisher, "fairSales/sale-0000001"), { imported: { at: "2026-11-03T12:00:00Z" } })));
+await check("publisher can't rewrite a helper's sale", assertFails(updateDoc(doc(publisher, "fairSales/sale-0000001"), { lines: [] })));
+await check("helper can't undo a sale once it is in the books", assertFails(setDoc(doc(helper, "fairSales/sale-0000001"), { cancelled: true }, { merge: true })));
+await check("publisher can't delete a helper's sale", assertFails(deleteDoc(doc(publisher, "fairSales/sale-0000001"))));
+await check("no one else reads the inbox", assertFails(getDocs(collection(shutOut["bookkeeper role"].firestore(), "fairSales"))));
+await env.withSecurityRulesDisabled(async ctx => { await setDoc(doc(ctx.firestore(), "platform/plan"), { access: "paused" }); });
+await check("a paused shop takes no helper sale", assertFails(setDoc(doc(helper, "fairSales/sale-0000010"), sale())));
+await env.withSecurityRulesDisabled(async ctx => { await deleteDoc(doc(ctx.firestore(), "platform/plan")); });
 
 await env.cleanup();
 console.log(failures ? `${failures} check(s) failed` : "all checks passed");

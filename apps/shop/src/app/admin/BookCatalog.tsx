@@ -1,33 +1,39 @@
+import { isExampleProduct } from "./exampleProducts";
 import { CatalogReviewDialog } from "./CatalogReviewDialog";
 import { catalogPublishIssues } from "./catalogPublishReview";
 import { useState, useEffect, useMemo } from "react";
 import { ArrowDown, ArrowUp, GripVertical, Plus, SlidersHorizontal, Upload, X } from "lucide-react";
 import "./books.css";
-import { useShopWords } from "./shopWords";
+import { useShopSells, useShopWords } from "./shopWords";
+import { sellsBooks } from "./sells";
 import { EditionStockDialog } from "./EditionStockDialog";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { type InventoryLinks } from "./inventoryLink";
 import { compareShopOrder, moveId, shopOrderWrites } from "../features/site/shopOrder";
 import { BookImportDialog } from "./BookImportDialog";
 import { MerchantFeedDialog } from "./MerchantFeedDialog";
+import { SocialFeedDialog } from "./SocialFeedDialog";
 import { GoogleIndexDialog } from "./GoogleIndexDialog";
 import { lineSheetRows, printLineSheet } from "./lineSheet";
 import { getCopy } from "../features/site/storeCopy";
+import { KIND_CHOICES, isProductKind, planKindChange } from "./bulkKind";
 import { catalogToCsv, inventoryCsv, planPriceChange, type PriceMode } from "./bulkPricing";
+import { saveTable } from "./xlsxWriter";
 import { adminApi } from "./api";
 import { inventoryApi } from "./inventoryApi";
-import { liveStockOf } from "./inventoryInsights";
+import { liveStockOf, lowStockThreshold } from "./inventoryInsights";
 import toast from "react-hot-toast";
 import {
-  ActionMenu, Checkbox, ConfirmDialog, DataTable, Dialog, DestructiveButton, GhostButton, TextField, EmptyState, ErrorState, FilterBar, LoadingState, MetricCard, Pagination,
+  ActionMenu, PageActions, Checkbox, ConfirmDialog, DataTable, Dialog, DestructiveButton, GhostButton, TextField, EmptyState, ErrorState, FilterBar, LoadingState, MetricCard, Pagination,
   PrimaryButton, Tabs, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, type Column,
 } from "./riso/components";
 import { preorderActive, releaseDateOf } from "../features/site/preorder";
 import { normalizeCategories } from "../features/site/navItems";
 import { runsOnColophon } from "../../lib/shopProfile";
 import {
-  STATUS_FILTERS, STOCK_FILTERS, bookAuthor, bookReferences, inlineEditable, matchesStatus, matchesStock, priceInfo, publicationBadge, stockInfo,
+  LOW_STOCK, STATUS_FILTERS, STOCK_FILTERS, bookAuthor, bookReferences, inlineEditable, matchesStatus, matchesStock, priceInfo, publicationBadge, stockInfo,
 } from "./catalogList";
+import { productHref } from "../lib/productHref";
 
 interface BookCatalogProps {
   onEdit: (book: any) => void;
@@ -36,14 +42,14 @@ interface BookCatalogProps {
 }
 
 type SortKey = "shop" | "newest" | "oldest" | "title" | "price-asc" | "price-desc" | "stock-asc" | "stock-desc";
-type BulkOp = "category-add" | "category-remove" | "shipping" | "track-on" | "track-off" | "backorder-on" | "backorder-off" | "archive";
+type BulkOp = "category-add" | "category-remove" | "shipping" | "track-on" | "track-off" | "backorder-on" | "backorder-off" | "archive" | "kind";
 const PAGE_SIZE = 25;
 
 const slugOf = (b: any) => b.slug || (b.title || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
 /** Sub-path safe public URL (the site is served under /shop/ on GitHub Pages). */
 const listingUrl = (b: any) =>
-  `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}/books/${slugOf(b)}`;
+  `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}${productHref(slugOf(b))}`;
 
 /** Runs one write per book; names the books that failed (they stay selected for a retry). */
 async function eachBook(books: any[], write: (b: any) => Promise<unknown>) {
@@ -56,6 +62,7 @@ const STATUS_CHIPS = [...STATUS_FILTERS, "Pre-order", "Coming soon"] as const;
 export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps) {
   // Plan 10.23: "Products" for a shop that doesn't sell books (sells.ts).
   const w = useShopWords();
+  const sells = useShopSells();
   const [books, setBooks] = useState<any[]>([]);
   const [authors, setAuthors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -75,10 +82,12 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   const [includeEditions, setIncludeEditions] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [feedOpen, setFeedOpen] = useState(false);
+  const [socialOpen, setSocialOpen] = useState(false);
   const [indexOpen, setIndexOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [exportScope, setExportScope] = useState<"all" | "filtered" | "selected">("filtered");
   const [exportKind, setExportKind] = useState<"full" | "inventory">("full");
+  const [exportFormat, setExportFormat] = useState<"xlsx" | "csv">("xlsx");
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkOp, setBulkOp] = useState<BulkOp>("category-add");
   const [bulkTarget, setBulkTarget] = useState("");
@@ -115,7 +124,10 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   }
 
   const byId = useMemo(() => new Map(books.map(b => [b.id, b])), [books]);
-  const stockOf = useMemo(() => { const cache = new Map<any, ReturnType<typeof stockInfo>>(); return (b: any) => { let s = cache.get(b); if (!s) { s = stockInfo(b, id => byId.get(id)); cache.set(b, s); } return s; }; }, [byId]);
+  // Inventory's low-stock line, so "Low" here matches Inventory, Overview and the 8am email.
+  const [lowLine, setLowLine] = useState(LOW_STOCK);
+  useEffect(() => { adminApi.getPublicSettings().then((s: any) => setLowLine(lowStockThreshold(s))).catch(() => {}); }, []);
+  const stockOf = useMemo(() => { const cache = new Map<any, ReturnType<typeof stockInfo>>(); return (b: any) => { let s = cache.get(b); if (!s) { s = stockInfo(b, id => byId.get(id), lowLine); cache.set(b, s); } return s; }; }, [byId, lowLine]);
 
   const categories = useMemo(() => {
     const cats = new Set<string>();
@@ -261,6 +273,12 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
         // One transaction over fresh records; only categories/genres change (studio/categoryManager).
         await adminApi.updateCategoryBooks(list.map(b => b.id), category, bulkOp === "category-add" ? "add" : "remove");
         await finish([], `${bulkOp === "category-add" ? "Added to" : "Removed from"} ${category.name}`, "");
+      } else if (bulkOp === "kind") {
+        if (!isProductKind(bulkTarget)) { toast.error("Choose what these are."); return; }
+        const plan = planKindChange(list, bulkTarget);
+        // The whole record goes back with removeMissing, so a book's dropped `kind` is deleted, as in the editor.
+        const bad = await eachBook(plan.changes.map(c => c.book), b => adminApi.updateBook(b.id, plan.changes.find(c => c.book === b)!.next, b, { removeMissing: true }));
+        await finish(bad, `Changed ${plan.changes.length - bad.length} to ${KIND_CHOICES.find(k => k.kind === bulkTarget)?.label.toLowerCase()}${plan.already ? `; ${plan.already} already were` : ""}`, "update");
       } else if (bulkOp === "shipping") {
         if (!bulkTarget) { toast.error("Choose a shipping profile."); return; }
         await adminApi.assignProductsToShippingProfile(bulkTarget, list.map(b => b.id));
@@ -277,18 +295,12 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
     } finally { setBulkBusy(false); }
   };
 
-  const download = (name: string, text: string) => {
-    const url = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));
-    const a = document.createElement("a");
-    a.href = url; a.download = name; a.click();
-    URL.revokeObjectURL(url);
-  };
   const exportCsv = () => {
     const list = exportScope === "selected" ? selectedBooks : exportScope === "filtered" ? rows : books;
     if (!list.length) return toast.error("Nothing to export");
     const day = new Date().toISOString().slice(0, 10);
-    if (exportKind === "inventory") download(`inventory-${day}.csv`, inventoryCsv(list));
-    else download(`books-${day}.csv`, catalogToCsv(list));
+    if (exportKind === "inventory") saveTable(`inventory-${day}`, inventoryCsv(list), exportFormat, "Inventory");
+    else saveTable(`books-${day}`, catalogToCsv(list), exportFormat, "Books");
     setExportOpen(false);
   };
 
@@ -387,6 +399,8 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
     const at = rows.findIndex(x => x.id === b.id);
     return (
       <span style={{ display: "inline-flex", gap: 2, alignItems: "center" }}>
+        {/* The tick box shares this column in shop order, so the table fits a laptop screen without scrolling sideways. */}
+        <span style={{ marginRight: 6, display: "inline-flex" }}><Checkbox label="" aria-label={`Select ${b.title}`} checked={selected.includes(b.id)} onChange={() => toggle(b.id)} /></span>
         <span aria-hidden="true" title={canArrange ? "Drag to move" : undefined}
           style={{ cursor: canArrange ? "grab" : "default", opacity: canArrange ? 1 : 0.35, display: "inline-flex" }}><GripVertical size={16} /></span>
         <span className="rp-mono" style={{ minWidth: 18, textAlign: "right" }}>{at + 1}</span>
@@ -430,19 +444,27 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
       { label: "Edit", onSelect: () => onEdit(b) },
       { label: "Duplicate", onSelect: () => duplicate(b) },
       { label: "View listing", onSelect: () => window.open(listingUrl(b), "_blank", "noopener") },
+      // Social posts' composer, started with this product (plan 27.6).
+      ...(b.slug ? [{ label: "Post to social", onSelect: () => { window.location.hash = `#social-posts/book/${encodeURIComponent(b.id)}`; } }] : []),
       { label: "Delete", tone: "danger", onSelect: () => setConfirm({ kind: "one", book: b }) },
     ]} />
   );
 
   const columns: Column<any>[] = [
-    ...(sort === "shop" ? [arrangeColumn] : []),
-    { key: "sel", header: "Select", render: b => <Checkbox label="" aria-label={`Select ${b.title}`} checked={selected.includes(b.id)} onChange={() => toggle(b.id)} /> },
+    ...(sort === "shop" ? [arrangeColumn] : [
+      { key: "sel", header: "Select", render: (b: any) => <Checkbox label="" aria-label={`Select ${b.title}`} checked={selected.includes(b.id)} onChange={() => toggle(b.id)} /> },
+    ]),
     { key: "title", header: "Title", lead: true, render: b => (
       <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 220 }}>{coverOf(b)}{titleOf(b)}</div>
     ) },
     { key: "status", header: "Status", render: badgesOf },
-    { key: "format", header: "Format", render: b => b.format || "—" },
-    { key: "isbn", header: "ISBN / SKU", render: b => <span className="rp-mono">{b.isbn || b.sku || "—"}</span> },
+    // Format with its ISBN or SKU under it: one column instead of two, like a shop builder's product list.
+    { key: "format", header: sellsBooks(sells) ? "Format · ISBN" : "Format · SKU", render: b => (
+      <div style={{ minWidth: 0 }}>
+        <div>{b.format || "—"}</div>
+        {(b.isbn || b.sku) && <div className="rp-hint rp-mono" style={{ overflowWrap: "anywhere" }}>{b.isbn || b.sku}</div>}
+      </div>
+    ) },
     { key: "stock", header: "Inventory", render: stockCell },
     { key: "price", header: "Price", numeric: true, render: priceCell },
     { key: "actions", header: "Actions", render: actionsOf },
@@ -488,7 +510,11 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
         <EmptyState icon="📚" title={w("No books yet")} description={w("Add your first title to start selling — it appears on the storefront as soon as it's published.")}
           action={<div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
             <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={onAdd}>{w("Add book")}</PrimaryButton>
-            <SecondaryButton icon={<Upload size={16} aria-hidden />} onClick={() => setImportOpen(true)}>Import CSV</SecondaryButton>
+            <SecondaryButton icon={<Upload size={16} aria-hidden />} onClick={() => setImportOpen(true)}>Import spreadsheet</SecondaryButton>
+            <SecondaryButton onClick={async () => {
+              try { await adminApi.addExampleProducts(sells); toast.success("Example products added. They disappear when you add your first real product."); setLoading(true); await loadBooks(); }
+              catch { toast.error("Couldn't add the examples. Try again."); }
+            }}>Show example products</SecondaryButton>
           </div>} />
         {importOpen && <BookImportDialog books={books} onClose={() => setImportOpen(false)} onDone={importDone} />}
       </SectionCard>
@@ -509,6 +535,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
       <Tabs label="Publication status" value={statusFilter} onChange={setStatusFilter}
         tabs={STATUS_CHIPS.map((v) => ({ id: v, label: v, count: statusCounts[v] }))} />
       <div className="bk-filters" data-open={filtersOpen}>
+      {books.some(isExampleProduct) && <p className="rp-hint" role="status" style={{ margin: "0 0 12px" }}>Some of these are examples so your shop isn't empty. They disappear when you add your first real product.</p>}
       <FilterBar>
         <div className="rp-grow"><SearchField label={w("Search books")} placeholder={w("Search title, author, ISBN or SKU…")} value={search} onChange={e => setSearch(e.target.value)} /></div>
         <SecondaryButton className="bk-filter-toggle" icon={<SlidersHorizontal size={16} aria-hidden />} aria-expanded={filtersOpen} onClick={() => setFiltersOpen(o => !o)}>
@@ -566,23 +593,25 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
         </div>
       )}
 
-      <SectionCard flush title="Catalog" collapsible={false}
-        actions={
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
-            {pageRows.length > 0 && <Checkbox label={sort === "shop" ? "Select all" : "Select page"} checked={allSelected} onChange={togglePage} />}
-            <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={onAdd}>{w("Add book")}</PrimaryButton>
+      <PageActions>
             <ActionMenu label="More catalog actions" actions={[
-              { label: "Import CSV…", onSelect: () => setImportOpen(true) },
+              { label: "Import spreadsheet…", onSelect: () => setImportOpen(true) },
               { label: "Export…", onSelect: () => { setExportScope(selected.length ? "selected" : "filtered"); setExportOpen(true); } },
               { label: "Print a line sheet", onSelect: printSheet },
+              // Facebook, Instagram and Pinterest: the file and the by-hand steps (plan 24.7); one-button connect is in Sales channels (27.5).
+              { label: "Instagram, Facebook and Pinterest", onSelect: () => setSocialOpen(true) },
+              { label: "Sales channels", onSelect: () => { window.location.hash = "#channels"; } },
               // Google's own tools: a Colophon shop sets those up on its own (Connect Google), so no step here (code plan 6.16).
               ...(runsOnColophon() ? [] : [
                 { label: "Google Shopping feed", onSelect: () => setFeedOpen(true) },
                 { label: "Google indexing", onSelect: () => setIndexOpen(true) },
               ]),
             ]} />
-          </div>
-        }>
+            <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={onAdd}>{w("Add book")}</PrimaryButton>
+      </PageActions>
+
+      <SectionCard flush title="Catalog" collapsible={false}
+        actions={pageRows.length > 0 ? <Checkbox label={sort === "shop" ? "Select all" : "Select page"} checked={allSelected} onChange={togglePage} /> : undefined}>
         {sort === "shop" && (
           <p className="rp-hint" role="status" style={{ padding: "8px 16px", margin: 0 }}>
             {filtering
@@ -604,10 +633,11 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
 
       {importOpen && <BookImportDialog books={books} onClose={() => setImportOpen(false)} onDone={importDone} />}
       <EditionStockDialog book={stockEditId ? byId.get(stockEditId) || null : null} onClose={() => setStockEditId(null)} onSaved={loadBooks} />
+      <SocialFeedDialog open={socialOpen} onClose={() => setSocialOpen(false)} books={books} />
       {!runsOnColophon() && <MerchantFeedDialog open={feedOpen} onClose={() => setFeedOpen(false)} books={books} />}
       {!runsOnColophon() && <GoogleIndexDialog open={indexOpen} onClose={() => setIndexOpen(false)} books={books} />}
       <Dialog open={exportOpen} onClose={() => setExportOpen(false)} title={w("Export books")}
-        footer={<><SecondaryButton onClick={() => setExportOpen(false)}>Cancel</SecondaryButton><PrimaryButton onClick={exportCsv}>Download CSV</PrimaryButton></>}>
+        footer={<><SecondaryButton onClick={() => setExportOpen(false)}>Cancel</SecondaryButton><PrimaryButton onClick={exportCsv}>Download</PrimaryButton></>}>
         <div className="rp-stack">
           <SelectField label={w("Which books")} value={exportScope} onChange={e => setExportScope(e.target.value as any)}>
             <option value="all">{w("All books")} ({books.length})</option>
@@ -615,9 +645,13 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
             <option value="selected" disabled={!selected.length}>Selected ({selected.length})</option>
           </SelectField>
           <SelectField label="What" value={exportKind} onChange={e => setExportKind(e.target.value as any)}
-            hint={exportKind === "full" ? "Every column Import CSV reads: edit it in a spreadsheet and import it back." : "ID, title, ISBN, SKU, edition and stock — one line per edition — for a stock count."}>
+            hint={exportKind === "full" ? "Every column Import spreadsheet reads: edit it in a spreadsheet and import it back." : "ID, title, ISBN, SKU, edition and stock — one line per edition — for a stock count."}>
             <option value="full">Full catalog</option>
             <option value="inventory">Inventory only</option>
+          </SelectField>
+          <SelectField label="File" value={exportFormat} onChange={e => setExportFormat(e.target.value as "xlsx" | "csv")}>
+            <option value="xlsx">Excel (.xlsx)</option>
+            <option value="csv">CSV</option>
           </SelectField>
         </div>
       </Dialog>
@@ -632,6 +666,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
             <option value="track-off">Track inventory: off</option>
             <option value="backorder-on">Allow backorders: on</option>
             <option value="backorder-off">Allow backorders: off</option>
+            <option value="kind">{w("Change what these are (book, clothing…)")}</option>
             <option value="archive">Archive (hide from the shop)</option>
           </SelectField>
           {(bulkOp === "category-add" || bulkOp === "category-remove") && (
@@ -640,6 +675,16 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
               {shopCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </SelectField>
           )}
+          {bulkOp === "kind" && (
+            <SelectField label="These are" value={bulkTarget} onChange={e => setBulkTarget(e.target.value)} hint="Changes how each product is described and which fields it shows. Prices, stock and photos are not touched.">
+              <option value="">Choose…</option>
+              {KIND_CHOICES.map(k => <option key={k.kind} value={k.kind}>{k.label}</option>)}
+            </SelectField>
+          )}
+          {bulkOp === "kind" && isProductKind(bulkTarget) && (() => {
+            const plan = planKindChange(selectedBooks, bulkTarget);
+            return <p className="rp-hint" role="status">{plan.changes.length === 0 ? "Nothing to change: all of these already are that." : `${plan.changes.length} will change${plan.already ? `; ${plan.already} already ${plan.already === 1 ? "is" : "are"} that and will be left alone` : ""}. Examples: ${plan.changes.slice(0, 3).map(c => `“${c.book.title || "Untitled"}”`).join(", ")}${plan.changes.length > 3 ? "…" : ""}.`}</p>;
+          })()}
           {bulkOp === "shipping" && (
             <SelectField label="Shipping profile" value={bulkTarget} onChange={e => setBulkTarget(e.target.value)}>
               <option value="">Choose…</option>

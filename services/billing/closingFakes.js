@@ -1,5 +1,6 @@
 // Pretend clients for the shop's plan copies and the closing sweep (shopPlan.js, closing.js). A shop's default
 // database is accounts/fakes.js fakeShopData; nothing here reaches Google.
+import { childrenOf } from "../../accounts/fakes.js";
 
 /** The stockroom's own database in each shop's project. `ready` says whether it exists yet (default: it does). */
 export function fakeStockroomData({ isReady = () => true } = {}) {
@@ -9,6 +10,7 @@ export function fakeStockroomData({ isReady = () => true } = {}) {
     ready: async (shopId) => Boolean(await isReady(shopId)),
     get: async (shopId, path) => structuredClone(docs.get(`${shopId} ${path}`) ?? null),
     set: async (shopId, path, data) => void docs.set(`${shopId} ${path}`, structuredClone(data)),
+    list: async (shopId, collection) => childrenOf(docs, shopId, collection),
   };
 }
 

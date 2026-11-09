@@ -132,12 +132,13 @@ describe('practiceFor: the checkout\'s own check', () => {
 
 // A pretend platform payment service for one provider: records the mode of each call and answers in the service's
 // shapes. The press's account is a test account: live calls are refused, as services/payments does.
-function fakeService(provider) {
+function fakeService(provider, { accountCurrency = null } = {}) {
   const calls = [];
   const reply = (status, body) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
   const fetch = async (url, init) => {
     const body = JSON.parse(init.body);
     calls.push(body);
+    if (body.op === 'account.status' && accountCurrency) return reply(200, { provider, connected: true, currency: accountCurrency });
     if (body.mode === 'live') return reply(403, { error: { type: 'platform_error', code: 'test_only', message: 'This shop takes test payments only.' } });
     if (provider === 'square' && body.op === 'square.checkout.create') return reply(200, { id: 'LNK1', url: 'https://square.link/u/1', squareOrderId: 'ORD-LNK1' });
     if (body.op === 'checkout.sessions.create') return reply(200, { id: 'cs_new', url: 'https://checkout.stripe.example/cs_new' });
@@ -151,9 +152,9 @@ class PricingError extends Error { constructor(message, code) { super(message); 
 
 // The real checkout step with the real payments module in platform mode; pricing honours the store status as
 // index.js's priceOrder does (store_closed while checkout is paused, unless the settings passed in say otherwise).
-function checkoutShop({ provider = 'stripe', website = PRIVATE, flag = null, order: orderExtra = {} } = {}) {
+function checkoutShop({ provider = 'stripe', website = PRIVATE, flag = null, order: orderExtra = {}, accountCurrency = null } = {}) {
   const shop = actions({ website, flag });
-  const service = fakeService(provider);
+  const service = fakeService(provider, { accountCurrency });
   const holds = [];
   const order = { customer: { email: 'owner@example.com', address: { country: 'Canada' } }, items: [{ id: 'book', quantity: 1 }], ...orderExtra };
   const orderRef = { get: async () => ({ exists: true, data: () => order }), update: async (data) => Object.assign(order, data) };
@@ -164,7 +165,7 @@ function checkoutShop({ provider = 'stripe', website = PRIVATE, flag = null, ord
   });
   const { handleStripeCheckout } = checkoutPaymentActions({
     ALLOWED_ORIGINS: ['https://moth-press.web.app'],
-    canViewOrder: () => true, checkoutCurrencyOf: (c) => (c || 'cad').toLowerCase(), checkoutRefusal: () => null,
+    canViewOrder: () => true, checkoutCurrencyOf: (c) => { const code = (c || 'cad').toLowerCase(); return ['cad', 'usd', 'eur', 'gbp', 'aud'].includes(code) ? code : null; }, checkoutRefusal: () => null,
     clientIpOf: () => '203.0.113.1', db: { collection: () => ({ doc: () => orderRef }) }, FALLBACK_RATES: { cad: 1 },
     getCountryCode: () => 'CA', getExchangeRates: async () => ({ cad: 1 }), GiftCardError: class extends Error {},
     orderRequestIdentity: async (req) => req.token || null, orderRequestKey: () => 'key', payments,
@@ -206,8 +207,18 @@ describe('a practice order through the platform (fake Stripe and fake Square)', 
     const out = await shop.run(OWNER, { embedded: false, practice: true });
     expect(out.statusCode).toBe(200);
     expect(out.body.url).toBe('https://square.link/u/1');
-    expect(shop.service.calls.map(c => [c.op, c.mode])).toEqual([['square.checkout.create', 'test']]);
+    // The account's currency is read first (Square charges in it), then the Sandbox page is made.
+    expect(shop.service.calls.map(c => [c.op, c.mode])).toEqual([['account.status', undefined], ['square.checkout.create', 'test']]);
     expect(shop.order).toMatchObject({ practiceOrder: true, stripeMode: 'test' });
+  });
+
+  test('Square: an account in a currency the shop can\'t charge in is refused in plain words, before any stock is held', async () => {
+    const shop = checkoutShop({ provider: 'square', flag: running, accountCurrency: 'JPY' });
+    const out = await shop.run(OWNER, { embedded: false, practice: true });
+    expect(out).toMatchObject({ statusCode: 409, body: { code: 'card_currency_unsupported' } });
+    expect(out.body.error).not.toMatch(/square|stripe|currency/i);
+    expect(shop.holds).toEqual([]);
+    expect(shop.service.calls.map(c => c.op)).toEqual(['account.status']);
   });
 
   test('a visitor meets the closed checkout while the owner practises, and nothing reaches the payment service', async () => {

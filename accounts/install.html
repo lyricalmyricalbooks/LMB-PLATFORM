@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en" class="rp cp-page">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Add an app · Colophon</title>
+<meta name="description" content="Say yes or no to an app that wants to link to your shop, after reading what it can see and change.">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700&family=DM+Mono&display=swap">
+<link rel="stylesheet" href="./look/adminThemes.css">
+<link rel="stylesheet" href="./look/pressroom.css">
+<link rel="stylesheet" href="./look/platform-pages.css">
+<link rel="stylesheet" href="./look/brand-logos.css">
+<script src="./look/platform-look.js"></script>
+</head>
+<body class="cp">
+<a class="rp-skip-link" href="#main">Skip to content</a>
+<div class="rp-app">
+  <div class="rp-app-body">
+    <header class="rp-topbar"><a class="cp-kicker" href="/account/">Colophon · Your account</a></header>
+    <div class="rp-workspace"><div class="rp-workspace-inner">
+<!-- The permission page an app sends a press to (code plan 26.2, accounts/install.js): what the app wants, then Add or
+     Cancel. Only the shop's owner can say yes; the server checks it all again. -->
+<main id="main" tabindex="-1" class="ins">
+  <style>
+    .cp .rp-workspace > .rp-workspace-inner > main.ins { max-width: 560px; margin: 0 auto; padding-block: 40px 64px; display: grid; gap: 24px; align-content: start; }
+    .ins-head { display: flex; align-items: flex-start; gap: 16px; min-width: 0; }
+    .ins-head > div { min-width: 0; display: grid; gap: 8px; }
+    .ins-tile { flex: none; width: 56px; height: 56px; display: inline-grid; place-items: center; border-radius: var(--rp-radius);
+      --ins-ink: var(--rp-tile-c, var(--rp-warning));
+      background: color-mix(in srgb, var(--ins-ink) 18%, var(--rp-surface)); color: color-mix(in srgb, var(--ins-ink) 70%, var(--rp-text)); }
+    .ins-tile[data-ink="a"] { --ins-ink: var(--rp-tile-a, var(--rp-primary)); }
+    .ins-tile[data-ink="b"] { --ins-ink: var(--rp-tile-b, var(--rp-info)); }
+    .ins-tile[data-ink="d"] { --ins-ink: var(--rp-tile-d, var(--rp-success)); }
+    .ins-tile svg { width: 28px; height: 28px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .ins-title { margin: 0; font: var(--rp-title-weight, 400) clamp(32px, 6vw, 44px)/1.02 var(--rp-font-display); text-transform: var(--rp-title-case, uppercase); letter-spacing: var(--rp-title-tracking, 0.01em); color: var(--rp-text); overflow-wrap: anywhere; }
+    .ins-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+    .ins-tagline { margin: 0; font-size: 16px; line-height: 1.45; color: var(--rp-text-muted); }
+    .ins .card { gap: 14px; }
+    .ins-subtitle { margin: 0; font: 600 16px/1.3 var(--rp-font-body); color: var(--rp-text); }
+    .ins-perms { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+    .ins-perms li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding-left: 24px; position: relative; font-size: 16px; line-height: 1.45; }
+    .ins-perms li::before { content: ""; position: absolute; left: 2px; top: .4em; width: 10px; height: 10px; border-radius: var(--rp-radius-pill); border: 2px solid var(--rp-text-subtle); }
+    .ins-perms li[data-change]::before { background: var(--rp-primary); border-color: var(--rp-primary); }
+    .ins-foot { margin: 0; font-size: 14px; color: var(--rp-text-subtle); }
+    @media (max-width: 480px) { .ins-tile { width: 48px; height: 48px; } .ins-tile svg { width: 24px; height: 24px; } .ins .cp-actions > * { flex: 1 1 auto; } }
+  </style>
+
+  <header class="ins-head">
+    <span class="ins-tile" id="app-tile" aria-hidden="true" hidden></span>
+    <div>
+      <div class="cp-kicker" id="shop-name">Add an app</div>
+      <div class="ins-title-row">
+        <h1 class="ins-title" id="title">Add an app</h1>
+        <span class="pill" data-tone="info" id="testing" title="Not on the store yet: only you can try it." hidden>Testing</span>
+        <span class="pill" data-tone="success" id="already" hidden>Added</span>
+      </div>
+      <p id="app-tagline" class="ins-tagline" hidden></p>
+    </div>
+  </header>
+
+  <section id="view-loading" aria-live="polite">
+    <p class="loading">Loading the app…</p>
+  </section>
+
+  <section id="view-signin" class="stack" hidden aria-labelledby="signin-title">
+    <h2 id="signin-title" tabindex="-1" class="cp-view-title">Sign in</h2>
+    <div class="cp-actions cp-start"><button type="button" id="google" class="gsi-button"><span class="gsi-button-g"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg></span><span class="gsi-button-text">Continue with Google</span></button></div>
+    <a href="/account/">Or get an email sign-in link on your shops page</a>
+  </section>
+
+  <section id="view-error" class="stack" hidden aria-labelledby="error-title">
+    <h2 id="error-title" tabindex="-1" class="cp-view-title">We couldn't open this app</h2>
+    <p class="error" id="error-words" role="alert"></p>
+    <div class="cp-actions cp-start"><button type="button" id="retry">Try again</button><a class="button" href="/account/">Your shops</a></div>
+  </section>
+
+  <section id="view-ask" class="stack" hidden aria-labelledby="perms-title">
+    <div class="card">
+      <h2 class="ins-subtitle" id="perms-title">It can</h2>
+      <ul id="permissions" class="ins-perms"></ul>
+    </div>
+    <p id="not-owner" class="empty" hidden>Only the shop's owner can add apps.</p>
+    <div class="cp-actions cp-start">
+      <button type="button" class="primary" id="approve">Add app</button>
+      <a class="button" href="/account/" id="cancel">Cancel</a>
+    </div>
+    <p class="ins-foot">Remove it any time in Settings › Apps.<span id="support" hidden> <a id="support-link" href="#">Help</a></span></p>
+  </section>
+
+  <p id="status" role="status" aria-live="polite"></p>
+</main>
+    </div></div>
+  </div>
+</div>
+<script type="module" src="/accounts/install.js"></script>
+</body>
+</html>

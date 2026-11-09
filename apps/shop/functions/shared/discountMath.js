@@ -8,6 +8,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.discountableItems = exports.DiscountProblem = void 0;
 exports.bogoPercent = bogoPercent;
+exports.emailDomainAllowed = emailDomainAllowed;
 exports.moneyFmt = moneyFmt;
 exports.computeDiscountAmount = computeDiscountAmount;
 exports.capDiscountAmount = capDiscountAmount;
@@ -36,15 +37,35 @@ class DiscountProblem extends Error {
     }
 }
 exports.DiscountProblem = DiscountProblem;
+/**
+ * Discounts › a code › Allowed email domains (comma separated, "" = everyone). Each entry may be typed ".edu",
+ * "school.ca" or "@school.ca": all mean that domain and its sub-domains. Checkout's early check and the server's
+ * (functions/index.js validateDiscountCustomer) both use this, so a shopper is never refused a code the server accepts.
+ */
+function emailDomainAllowed(email, domainsText) {
+    const domains = String(domainsText || "").split(",").map((v) => v.trim().toLowerCase().replace(/^[@.]+/, "")).filter(Boolean);
+    if (!domains.length)
+        return true;
+    const customerDomain = String(email || "").trim().toLowerCase().split("@")[1] || "";
+    return !!customerDomain && domains.some((domain) => customerDomain === domain || customerDomain.endsWith(`.${domain}`));
+}
 function moneyFmt(n) {
     return `$${Number(n || 0).toFixed(2)}`;
 }
 /** Gift cards are bought at face value and the free-gift line is paid for by its own discount. */
 const discountableItems = (items) => (items || []).filter((item) => item && item.giftCard !== true && item.promoGift !== true);
 exports.discountableItems = discountableItems;
+/**
+ * The money of the lines kept by `keep`, added smallest first. Adding in a fixed order makes the total the same however
+ * the bag is ordered: decimal prices added in a different order can differ in the last digit, which can tip a
+ * half-cent discount the other way (the property test "the order of the bag doesn't change the discount").
+ */
+function linesTotal(items, keep = () => true) {
+    return items.filter(keep).map((i) => i.price * i.quantity).sort((a, b) => a - b).reduce((s, n) => s + n, 0);
+}
 /** Never more than the books cost and never negative; then the optional cap. */
 function computeDiscountAmount(discount, items, booksById) {
-    const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
+    const subtotal = linesTotal(items);
     const raw = Number(computeRawDiscountAmount(discount, items, booksById)) || 0;
     return capDiscountAmount(discount, Math.max(0, Math.min(raw, subtotal)));
 }
@@ -59,7 +80,7 @@ const inCategories = (discount, booksById, item) => {
     return cats.some((c) => selected.includes(c));
 };
 function computeRawDiscountAmount(discount, items, booksById, ctx = {}) {
-    const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
+    const subtotal = linesTotal(items);
     if (discount.minOrderAmount && subtotal < Number(discount.minOrderAmount)) {
         throw new DiscountProblem("min_order", `This code requires a minimum order of ${moneyFmt(discount.minOrderAmount)}.`, { amount: Number(discount.minOrderAmount) });
     }
@@ -108,13 +129,13 @@ function computeRawDiscountAmount(discount, items, booksById, ctx = {}) {
             return 0;
         let qualSubtotal = subtotal;
         if (discount.appliesTo === "categories") {
-            qualSubtotal = items.reduce((s, i) => (inCategories(discount, booksById, i) ? s + i.price * i.quantity : s), 0);
+            qualSubtotal = linesTotal(items, (i) => inCategories(discount, booksById, i));
             if (qualSubtotal === 0)
                 throw new DiscountProblem("tiered_categories", "This tiered code only applies to specific categories not in your cart.");
         }
         else if (discount.appliesTo === "products") {
             const selected = discount.selectedProducts || [];
-            qualSubtotal = items.reduce((s, i) => (selected.includes(i.id) ? s + i.price * i.quantity : s), 0);
+            qualSubtotal = linesTotal(items, (i) => selected.includes(i.id));
             if (qualSubtotal === 0)
                 throw new DiscountProblem("tiered_products", "This tiered code only applies to specific products not in your cart.");
         }
@@ -134,13 +155,13 @@ function computeRawDiscountAmount(discount, items, booksById, ctx = {}) {
     // 3. Percentage & fixed (and the targeting checks every other type shares)
     let qualifying = subtotal;
     if (discount.appliesTo === "categories") {
-        qualifying = items.reduce((s, i) => (inCategories(discount, booksById, i) ? s + i.price * i.quantity : s), 0);
+        qualifying = linesTotal(items, (i) => inCategories(discount, booksById, i));
         if (qualifying === 0)
             throw new DiscountProblem("categories", "This code only applies to specific categories not in your cart.");
     }
     else if (discount.appliesTo === "products") {
         const selected = discount.selectedProducts || [];
-        qualifying = items.reduce((s, i) => (selected.includes(i.id) ? s + i.price * i.quantity : s), 0);
+        qualifying = linesTotal(items, (i) => selected.includes(i.id));
         if (qualifying === 0)
             throw new DiscountProblem("products", "This code only applies to specific products not in your cart.");
     }

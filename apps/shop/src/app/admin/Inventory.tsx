@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Download, History, Minus, PackagePlus, Plus } from "lucide-react";
 import { adminApi } from "./api";
+import { useShopWords } from "./shopWords";
 import { getOrdersCached } from "./ordersCache";
 import { inventoryApi, type InventoryLogEntry } from "./inventoryApi";
 import { InventoryLinkPanel } from "./InventoryLinkPanel";
@@ -8,6 +9,7 @@ import { useSubTab } from "./settingsLayout";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { isStockLinked, type InventoryLinks } from "./inventoryLink";
 import { smallPhotoUrl } from "../features/site/photoSources";
+import { hasStockroom } from "../../lib/shopProfile";
 import {
   buildInventory, inventorySummary, inventoryToCsv, lowStockThreshold, parseCost, parseReceive, parseStock,
   waitingReaders, wakesRestockEmails, ADJUST_REASONS, STATUS_LABELS,
@@ -53,6 +55,7 @@ const rowCoverUrl = (r: InventoryRow): string => {
 
 function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: InventoryProps) {
   const toast = useRisoToast();
+  const w = useShopWords();
   const [ask, askNode] = useAsk();
   const [books, setBooks] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
@@ -72,7 +75,10 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
     return () => mq?.removeEventListener?.("change", on);
   }, []);
   // Page sub tabs: the stock list, and the link to the inventory app.
-  const [view, setView] = useSubTab<"inv-stock" | "inv-link">("inv-stock", subTab, onSubTabChange);
+  const [chosenView, setView] = useSubTab<"inv-stock" | "inv-link">("inv-stock", subTab, onSubTabChange);
+  // A website-only press has no stockroom to link: stock is kept here, and the link tab isn't offered.
+  const stockroom = hasStockroom();
+  const view = stockroom ? chosenView : "inv-stock";
   const [q, setQ] = useState("");
   const [threshold, setThreshold] = useState(5);
   const [thresholdDraft, setThresholdDraft] = useState("5");
@@ -152,15 +158,15 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
     if (!waking.length) return true;
     let readers = 0;
     try {
-      for (const bookId of [...new Set(waking.map((w) => w.row.bookId))]) {
+      for (const bookId of [...new Set(waking.map((item) => item.row.bookId))]) {
         const alerts = await inventoryApi.stockAlerts(bookId);
-        waking.filter((w) => w.row.bookId === bookId).forEach((w) => { readers += waitingReaders(alerts, w.row.variantId); });
+        waking.filter((item) => item.row.bookId === bookId).forEach((item) => { readers += waitingReaders(alerts, item.row.variantId); });
       }
-    } catch { return ask({ title: "Back in stock", confirmLabel: "Save anyway", message: "Readers who asked to hear when this is back in stock may be emailed. Their sign-ups couldn't be checked just now." }); }
+    } catch { return ask({ title: "Back in stock", confirmLabel: "Save anyway", message: w("Readers who asked to hear when this is back in stock may be emailed. Their sign-ups couldn't be checked just now.") }); }
     if (!readers) return true;
     return ask({
-      title: "Readers will be emailed", confirmLabel: "Save and email them",
-      message: `${readers} reader${readers === 1 ? " is" : "s are"} waiting for ${waking.length === 1 ? rowName(waking[0].row) : "these books"} and will be emailed that ${waking.length === 1 ? "it's" : "they're"} back in stock.`,
+      title: w("Readers will be emailed"), confirmLabel: "Save and email them",
+      message: `${readers} ${w(readers === 1 ? "reader is" : "readers are")} waiting for ${waking.length === 1 ? rowName(waking[0].row) : w("these books")} and will be emailed that ${waking.length === 1 ? "it's" : "they're"} back in stock.`,
     });
   };
 
@@ -324,7 +330,7 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
       <div style={{ overflowWrap: "anywhere", minWidth: 150 }}>
         {onEditBook
           ? <button type="button" className="rp-row-link"
-              onClick={() => onEditBook(r.book)} aria-label={`Edit ${r.title} in Books`}>{r.title}</button>
+              onClick={() => onEditBook(r.book)} aria-label={`Edit ${r.title} in ${w("Books")}`}>{r.title}</button>
           : <div className="rp-row-link" style={{ cursor: "default", textDecoration: "none" }}>{r.title}</div>}
         <div className="rp-hint">
           {[r.edition, r.format].filter(Boolean).join(" · ") || "—"}
@@ -369,7 +375,7 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
             <span className="inv-sheet-cover" aria-hidden="true">{cover ? <img src={cover} alt="" loading="lazy" decoding="async" /> : null}</span>
             <span className="inv-sheet-body">
               {onEditBook
-                ? <button type="button" className="inv-sheet-title" onClick={() => onEditBook(r.book)} aria-label={`Edit ${r.title} in Books`}>{r.title}</button>
+                ? <button type="button" className="inv-sheet-title" onClick={() => onEditBook(r.book)} aria-label={`Edit ${r.title} in ${w("Books")}`}>{r.title}</button>
                 : <span className="inv-sheet-title">{r.title}</span>}
               <span className="inv-sheet-meta"><span className="inv-sheet-status" data-tone={TONE[r.status]}>{GLYPH[TONE[r.status]] ? <span aria-hidden="true">{GLYPH[TONE[r.status]]} </span> : null}{STATUS_LABELS[r.status]}</span>{meta ? <span className="rp-mono">· {meta}</span> : null}</span>
               {counted && linked(r) ? <span className="inv-sheet-note">Synced from the app</span> : null}
@@ -392,11 +398,11 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
           <SecondaryButton size="sm" onClick={load}>Retry</SecondaryButton>
         </div>
       )}
-      <Tabs variant="page" label="Inventory" value={view} onChange={setView} tabs={[
+      {stockroom && <Tabs variant="page" label="Inventory" value={view} onChange={setView} tabs={[
         { id: "inv-stock", label: "Stock" },
         { id: "inv-link", label: "Inventory app link" },
-      ]} />
-      <TabPanel tabId="inv-stock" active={view === "inv-stock"}>
+      ]} />}
+      <TabPanel tabId="inv-stock" active={view === "inv-stock"} alone={!stockroom}>
       <div className="rp-stack">
       <div className="rp-kpi-grid inv-figures">
         <MetricCard label="Units on hand" value={sum.units} footer="Counted print editions" />
@@ -449,14 +455,14 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
       </div>
       </div>
       </TabPanel>
-      <TabPanel tabId="inv-link" active={view === "inv-link"}>
+      {stockroom && <TabPanel tabId="inv-link" active={view === "inv-link"}>
         <div className="rp-stack">
           <InventoryLinkPanel books={books} onLinksChanged={setLinks} onStockChanged={refreshBooks} onAddBook={onAddBook} />
         </div>
-      </TabPanel>
+      </TabPanel>}
 
       <Drawer open={!!historyFor} onClose={() => setHistoryFor(null)} title={historyFor ? `Stock history · ${historyFor.title}` : "Stock history"}
-        description="Every count change made on this page or by the inventory app link, newest first. Sales and refunds change stock automatically and are listed on their orders.">
+        description={`Every count change made on this page${stockroom ? " or by the inventory app link" : ""}, newest first. Sales and refunds change stock automatically and are listed on their orders.`}>
         {historyError ? <ErrorState description="History could not be loaded." onRetry={() => historyFor && openHistory(historyFor)} />
           : !history ? <LoadingState label="Loading history…" />
           : !history.length ? <EmptyState title="No changes recorded yet" description="Changes made from now on appear here." />

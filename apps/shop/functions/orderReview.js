@@ -9,19 +9,24 @@
 
 const BAD_CHECKS = new Set(["fail"]);
 
-/** The plain-word reasons a payment looks risky; [] when it looks normal. `risk` is what the provider answered. */
-function reviewReasons(risk, order = {}) {
-  if (!risk || typeof risk !== "object") return [];
+/**
+ * The plain-word reasons a payment looks risky; [] when it looks normal. `risk` is what the provider answered;
+ * `own` is the owner's own rule (Settings › Payments › Check big orders): `{ above }`, an order total that is held.
+ */
+function reviewReasons(risk, order = {}, own = {}) {
+  const above = Number(own && own.above);
+  const big = above > 0 && Number(order.total) >= above ? [`The order is for ${Number(order.total).toFixed(2)}, at or above the ${above.toFixed(2)} you asked to check.`] : [];
+  if (!risk || typeof risk !== "object") return big;
   const reasons = [];
   if (risk.level === "elevated") reasons.push("The card company rated this payment as higher risk than usual.");
   if (risk.level === "highest") reasons.push("The card company rated this payment as very high risk.");
   if (BAD_CHECKS.has(risk.cvcCheck)) reasons.push("The card's security code did not match.");
   if (BAD_CHECKS.has(risk.postalCheck)) reasons.push("The card's postal code did not match the bank's record.");
-  if (!reasons.length) return [];
+  if (!reasons.length) return big;
   const delivery = String(order.customer?.address?.country || "").toUpperCase();
   const card = String(risk.cardCountry || "").toUpperCase();
   if (delivery && card && delivery !== card) reasons.push(`The card is from ${card} and the parcel goes to ${delivery}.`);
-  return reasons;
+  return [...reasons, ...big];
 }
 
 /** True while the owner still has to look at this order. `operations` is the order's private record. */
@@ -34,10 +39,24 @@ function reviewProblem(order, operations = {}) {
 }
 
 /**
+ * Gift cards are as good as cash, so a paid order's cards wait while the owner still has to look at it: an open review,
+ * or (Settings › Payments › Check big orders) a card or PayPal order at or above the amount, which gets its review now
+ * when the payment read hasn't flagged it yet. `{ hold, reasons }`: `reasons` is set when the order needs that new
+ * review written. "It looks fine" (`operations.reviewCleared`) releases them.
+ */
+function giftCardHold(order, operations = {}, own = {}) {
+  if (operations?.reviewCleared) return { hold: false };
+  if (order?.review) return { hold: order.review.status === "needs_review" };
+  const byProvider = ["Stripe", "PayPal"].includes(order?.paymentMethod);
+  const reasons = byProvider ? reviewReasons(null, order, own) : [];
+  return reasons.length ? { hold: true, reasons } : { hold: false };
+}
+
+/**
  * Flags the order when the payment looks risky. Only for the order's own saved payment, and only the first time, so an
  * owner's decision stands. Answers true when it flagged.
  */
-async function recordReview(db, orderId, paymentId, risk, now = () => new Date()) {
+async function recordReview(db, orderId, paymentId, risk, now = () => new Date(), own = {}) {
   if (typeof orderId !== "string" || !orderId || orderId.includes("/")) return false;
   const ref = db.collection("orders").doc(orderId);
   return db.runTransaction(async (t) => {
@@ -45,7 +64,7 @@ async function recordReview(db, orderId, paymentId, risk, now = () => new Date()
     if (!snap.exists) return false;
     const order = snap.data() || {};
     if (!paymentId || order.stripePaymentIntentId !== paymentId || order.review) return false;
-    const reasons = reviewReasons(risk, order);
+    const reasons = reviewReasons(risk, order, own);
     if (!reasons.length) return false;
     const at = now().toISOString();
     t.update(ref, { review: { status: "needs_review", reasons, flaggedAt: at }, updatedAt: at });
@@ -53,4 +72,4 @@ async function recordReview(db, orderId, paymentId, risk, now = () => new Date()
   });
 }
 
-module.exports = { reviewReasons, reviewOpen, reviewProblem, recordReview };
+module.exports = { reviewReasons, reviewOpen, reviewProblem, giftCardHold, recordReview };

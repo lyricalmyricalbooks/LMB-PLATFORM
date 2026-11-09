@@ -1,0 +1,25 @@
+# What Cloud Build uploads to build the server's image (server/deploy.js passes this file): only the folders the
+# Dockerfile copies. server/image.test.js keeps this list and the Dockerfile's in step.
+/*
+!/package.json
+!/accounts/
+!/clients/
+!/control-room/
+!/google/
+!/help/
+!/profile/
+!/release-check/
+!/security/
+!/server/
+!/services/
+!/setup/
+!/shared/
+!/signup/
+!/status/
+!/terms/
+!/waitlist/
+**/node_modules/
+**/*.test.js
+**/*.test.mjs
+/server/env.yaml
+**/.env*

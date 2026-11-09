@@ -36,6 +36,10 @@
 //              Stripe account goes past its deadline (code plan 7.9)
 //   feeLedger  the pay-as-you-sell ledger store (payAsYouSell.js, code plan 6.19); optional: without it a shop on pay
 //              as you sell takes no fee (and it is logged), never the wrong one
+//   deliveryStats  optional: add(shopId, kind, atIso), the control room's per-shop counts (plan 19.12): every Stripe
+//              event for a shop is counted as "payment-event", and one the service answers with a failure as
+//              "payment-event-failed" too. A counter that fails never stops the event.
+import { merchantProfile } from "../../shared/sells/sells.js";
 import { StripeApiError } from "./stripeApi.js";
 import { SquareApiError } from "./squareApi.js";
 import { createSquareService, SQUARE_OP_NAMES } from "./square.js";
@@ -169,6 +173,12 @@ export const STANDARD_CONTROLLER = Object.freeze({
 /** The merchant category for a press selling its books to readers: "Book Stores". */
 export const BOOK_STORES_MCC = "5942";
 
+/** Stripe's business_profile category and description for what the shop sells (sign-up's answer). */
+function businessKind(sells) {
+  const { mcc, description } = merchantProfile(sells);
+  return { mcc, product_description: description };
+}
+
 /** The shop's public web address for Stripe's business profile: its own site, or the Firebase address it starts on. */
 function shopAddress(row) {
   if (typeof row.siteUrl === "string" && /^https:\/\/[^/\s]+/.test(row.siteUrl)) return row.siteUrl;
@@ -232,7 +242,7 @@ const header = (headers, name) => {
  * @param {object} deps see the header comment
  * @param {{ webhookSecrets: { live: string[], test: string[] }, fee: object }} deps.config readServiceConfig()
  */
-export function createPaymentService({ stripe, registry, auditLog, accounts, deliver, config, squareApi = null, tokens = null, states = null, email = null, feeLedger = null, now = () => Date.now() }) {
+export function createPaymentService({ stripe, registry, auditLog, accounts, deliver, config, squareApi = null, tokens = null, states = null, email = null, feeLedger = null, deliveryStats = null, now = () => Date.now() }) {
   const { webhookSecrets } = config;
   const iso = () => new Date(now()).toISOString();
   const ledger = feeLedger ? createFeeLedger({ store: feeLedger, now }) : null;
@@ -525,6 +535,14 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
         return { status: 200, body: { ignored: "no shop has this account" } };
       }
       if (mode === "live" && row.payments?.mode !== "live") return { status: 200, body: { ignored: "live event for a test-only shop" } };
+      // Per-shop counts for the control room (19.12).
+      const tally = async (kind) => {
+        try { if (deliveryStats) await deliveryStats.add(row.shopId, kind, iso()); } catch (err) { console.error(`couldn't count ${kind} for ${row.shopId}: ${err?.message || err}`); }
+      };
+      const failed = async (answer) => { await tally("payment-event-failed"); return answer; };
+      // Counted alongside the work, not before it: on a busy day every event counts on the same record, and the shop's
+      // forward mustn't wait in line for it. A lost count is only a number on the control room's page.
+      void tally("payment-event");
 
       // The account's own state, kept in the registry for the go-live checklist (2.10) and the control room.
       if (event.type === "account.updated" && event.data?.object?.id === event.account && mode === row.payments.mode) {
@@ -535,6 +553,8 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
           payoutsEnabled: account.payouts_enabled === true,
           detailsSubmitted: account.details_submitted === true,
           pastDue: needs.pastDue,
+          // The merchant category Stripe holds (what the shop sells, for the control room's check against its answer).
+          ...(typeof account.business_profile?.mcc === "string" && account.business_profile.mcc ? { mcc: account.business_profile.mcc } : {}),
         };
         const saved = row.payments;
         let payments = saved;
@@ -556,7 +576,7 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
         // Past due: Stripe has paused cards or payouts. The owner is emailed once (the admin shows a banner as well).
         if (!stale && needs.pastDue && !payments.pastDueEmailedAt && email) {
           const emailed = await emailPastDue(row, payments, needs, event.account);
-          if (!emailed) return { status: 502, body: { error: "The owner couldn't be emailed; Stripe will send the event again." } };
+          if (!emailed) return failed({ status: 502, body: { error: "The owner couldn't be emailed; Stripe will send the event again." } });
         }
       }
       if (event.type === "account.application.deauthorized" && mode === row.payments.mode && !row.payments.disconnectedAt) {
@@ -569,14 +589,14 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
           await ledgerEvent(row, event);
         } catch (err) {
           console.error(`Stripe event ${event.id} for ${row.shopId} wasn't counted for pay as you sell: ${err?.message || err}`);
-          return { status: 500, body: { error: "The event couldn't be counted; Stripe will send it again." } };
+          return failed({ status: 500, body: { error: "The event couldn't be counted; Stripe will send it again." } });
         }
       }
 
       const result = await deliver(row, rawBody);
       if (result.status >= 200 && result.status < 300) return { status: 200, body: { forwarded: row.shopId } };
       console.error(`Stripe event ${event.id} for ${row.shopId} wasn't taken (${result.status}${result.error ? `: ${result.error}` : ""})`);
-      return { status: 502, body: { error: "The shop didn't take the event; Stripe will send it again." } };
+      return failed({ status: 502, body: { error: "The shop didn't take the event; Stripe will send it again." } });
     },
 
     /** Square sends the press back here after Connect Square (GET /square/oauth). */
@@ -637,10 +657,11 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
      * Accounts made earlier with `type: "standard"` already carry the same settings and are left as they are.
      *
      * What the platform knows is filled in, so Stripe's sign-up asks less (and on these accounts it can only be filled
-     * in now, before the press's first visit): the country from sign-up, the shop's web address and "Book Stores"
-     * (merchant category 5942).
+     * in now, before the press's first visit): the country from sign-up, the shop's web address and what it sells: "Book
+     * Stores" (merchant category 5942) for a books shop, the matching category for one that sells other things
+     * (shared/sells/sells.js merchantProfile).
      */
-    async createAccount(shopId, { pressName, ownerEmail, country, currency, testMode }) {
+    async createAccount(shopId, { pressName, ownerEmail, country, currency, testMode, sells }) {
       const row = await registry.getShop(shopId);
       if (!row) throw new Error(`${shopId} isn't in the registry`);
       if (String(row.ownerEmail).toLowerCase() !== String(ownerEmail).toLowerCase()) throw new Error(`${shopId} belongs to another owner in the registry`);
@@ -651,15 +672,16 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
           country,
           email: ownerEmail,
           default_currency: String(currency).toLowerCase(),
-          business_profile: { name: pressName, url: shopAddress(row), mcc: BOOK_STORES_MCC, product_description: "Books and printed matter" },
+          business_profile: { name: pressName, url: shopAddress(row), ...businessKind(sells) },
           metadata: { lmb_shop_id: shopId },
         },
         idempotencyKey: `lmb-account-${shopId}-${mode}`,
       });
       if (!ACCOUNT_ID.test(account?.id ?? "")) throw new Error("Stripe gave no account id");
-      await accounts.set(shopId, { provider: "stripe", accountId: account.id, mode, createdAt: iso() });
-      await logChange(shopId, `payments-account-created-${account.id}`, { kind: "payments.account-created", accountId: account.id, mode });
-      return { accountId: account.id, mode };
+      const mcc = account.business_profile?.mcc || businessKind(sells).mcc;
+      await accounts.set(shopId, { provider: "stripe", accountId: account.id, mode, mcc, createdAt: iso() });
+      await logChange(shopId, `payments-account-created-${account.id}`, { kind: "payments.account-created", accountId: account.id, mode, mcc });
+      return { accountId: account.id, mode, mcc };
     },
   };
 }

@@ -59,7 +59,10 @@ describe("legacy stockroom sign-in", () => {
   it("follows the profile's switch at sign-in", () => {
     expect(read("src/app/admin/legacySignIn.ts")).toContain('on: boolean = switchOn("legacyStockroomSignIn")');
     const api = read("src/app/admin/api.ts");
-    expect(api).toContain("await signIntoLegacyStockroom(GoogleAuthProvider.credentialFromResult(result));");
+    // Google's own sign-in reaches it, after the authenticator code too (the credential kept from Google's answer, 22.6).
+    expect(api).toContain("afterAdminSignIn(result.user, GoogleAuthProvider.credentialFromResult(result))");
+    expect(api).toContain("afterAdminSignIn(result.user, pending.googleCredential)");
+    expect(api).toContain("await signIntoLegacyStockroom(googleCredential);");
     expect(api).not.toContain("legacyFirebase");
   });
 });

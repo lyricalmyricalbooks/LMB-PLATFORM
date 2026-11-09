@@ -38,7 +38,9 @@ test("a signed-in person gets 120 calls a minute; the next is 429 with plain wor
   assert.ok(answers.every((a) => a.status === 200));
   const over = await w.ask(PRESS, "GET", "/api/signup/ping");
   assert.equal(over.status, 429);
-  assert.deepEqual(over.body, { ok: false, message: TOO_FAST, retryAfter: 60 });
+  assert.equal(over.body.message, TOO_FAST);
+  assert.equal(over.body.retryAfter, 60);
+  assert.ok(over.body.fix);
   assert.equal(over.body.message, "You're going a bit fast. Wait a minute and try again.");
   // Someone else isn't held up by it.
   assert.equal((await w.ask(OTHER, "GET", "/api/signup/ping")).status, 200);
@@ -74,7 +76,7 @@ test("control-room admins (two-step, on the list) skip the per-person limit; wit
 
 test("public calls: the plans 300 a minute and sign-in links 20 an hour per network, from x-forwarded-for or the ip", async () => {
   const w = make();
-  const from = (address) => ({ headers: { "X-Forwarded-For": `${address}, 10.0.0.1` } });
+  const from = (address) => ({ headers: { "X-Forwarded-For": `192.0.2.9, ${address}` } });
   const plans = await times(300, () => w.ask(null, "GET", "/api/plans", from("203.0.113.5")));
   assert.ok(plans.every((a) => a.status === 200));
   assert.equal((await w.ask(null, "GET", "/api/plans", from("203.0.113.5"))).status, 429);
@@ -85,11 +87,23 @@ test("public calls: the plans 300 a minute and sign-in links 20 an hour per netw
   const over = await w.ask(null, "POST", "/api/signin-link", { ...from("203.0.113.5"), body: { email: "a@example.com" } });
   assert.deepEqual([over.status, over.body.retryAfter], [429, 3600]);
 
-  assert.equal(networkOf({ headers: { "x-forwarded-for": " 198.51.100.7 , 10.0.0.1" }, ip: "10.9.9.9" }), "198.51.100.7");
+  // The caller writes the left of the header; only the right, added by our own proxies, is trusted.
+  assert.equal(networkOf({ headers: { "x-forwarded-for": " 198.51.100.7 , 10.0.0.1" }, ip: "10.9.9.9" }), "10.0.0.1");
+  assert.equal(networkOf({ headers: { "x-forwarded-for": "1.1.1.1, 198.51.100.7, 10.0.0.1" } }, { proxyHops: 1 }), "198.51.100.7");
+  assert.equal(networkOf({ headers: { "x-forwarded-for": "198.51.100.7" } }, { proxyHops: 1 }), "198.51.100.7", "fewer entries than hops: the left-most there is");
   assert.equal(networkOf({ headers: {}, ip: "10.9.9.9" }), "10.9.9.9");
   assert.equal(networkOf({}), "unknown");
   // The store never holds an address in the clear.
   assert.ok([...w.throttle.hits.keys()].every((key) => !key.includes("203.0.113") && !key.includes("uid-")));
+});
+
+test("a caller can't get a fresh sign-in-link limit by writing their own x-forwarded-for", async () => {
+  const w = make();
+  const spoofed = (i) => ({ headers: { "x-forwarded-for": `192.0.2.${i}, 203.0.113.5` }, body: { email: `p${i}@example.com` } });
+  let i = 0;
+  const links = await times(20, () => w.ask(null, "POST", "/api/signin-link", spoofed((i += 1))));
+  assert.ok(links.every((a) => a.status === 200));
+  assert.equal((await w.ask(null, "POST", "/api/signin-link", spoofed(99))).status, 429);
 });
 
 test("a broken counter never locks anyone out: the call goes through and it is logged", async () => {
@@ -107,4 +121,35 @@ test("a door without limits works as before, and a query on the path reaches the
   assert.deepEqual(answer.body.query, { shopId: "moth-press" });
   const plain = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), routes: { "GET /api/x": async () => ({ x: 1 }) }, log: () => {} });
   assert.equal((await plain({ method: "GET", path: "/api/x", headers: { Authorization: `Bearer ${JSON.stringify(PRESS)}` } })).body.x, 1);
+});
+
+test("the front door's code: 20 sends and 60 checks an hour per network, even with older custom limits", async () => {
+  let clock = START;
+  const limiter = createLimits({ throttle: fakeThrottle(), limits: { person: DEFAULT_LIMITS.person }, now: () => new Date(clock), log: () => {} });
+  const publicRoutes = { "POST /api/code/send": async () => ({}), "POST /api/code/check": async () => ({}) };
+  const door = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), publicRoutes, limits: limiter, live: () => ({}), log: () => {} });
+  const ask = (path) => door({ method: "POST", path, body: {}, headers: { "X-Forwarded-For": "203.0.113.5" } });
+  assert.ok((await times(20, () => ask("/api/code/send"))).every((a) => a.status === 200));
+  assert.equal((await ask("/api/code/send")).status, 429);
+  assert.ok((await times(60, () => ask("/api/code/check"))).every((a) => a.status === 200));
+  assert.equal((await ask("/api/code/check")).status, 429);
+  clock += 61 * 60_000;
+  assert.equal((await ask("/api/code/check")).status, 200, "an hour later it opens");
+});
+
+test("the email's one-time keep link: 60 tries an hour per network, counted apart from code checks", async () => {
+  const limiter = createLimits({ throttle: fakeThrottle(), now: () => new Date(START), log: () => {} });
+  const publicRoutes = { "POST /api/billing/keep-by-link": async () => ({}), "POST /api/code/check": async () => ({}) };
+  const door = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), publicRoutes, limits: limiter, live: () => ({}), log: () => {} });
+  const ask = (path) => door({ method: "POST", path, body: {}, headers: { "X-Forwarded-For": "203.0.113.9" } });
+  assert.ok((await times(60, () => ask("/api/billing/keep-by-link"))).every((a) => a.status === 200));
+  assert.equal((await ask("/api/billing/keep-by-link")).status, 429);
+  assert.equal((await ask("/api/code/check")).status, 200);
+});
+
+test("calls sent all at once are still held to the limit", async () => {
+  const limiter = createLimits({ throttle: fakeThrottle(), now: () => new Date(START), log: () => {} });
+  const request = { headers: { "X-Forwarded-For": "203.0.113.5" } };
+  const answers = await Promise.allSettled(Array.from({ length: 100 }, () => limiter.beforeCall("POST /api/code/check", request)));
+  assert.equal(answers.filter((a) => a.status === "fulfilled").length, DEFAULT_LIMITS.codeCheck.max);
 });

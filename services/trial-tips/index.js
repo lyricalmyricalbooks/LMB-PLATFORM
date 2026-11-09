@@ -8,6 +8,9 @@
 // - nothing once every step is done, for a closed or abandoned shop, or for the test shop;
 // - tips can be turned off (the email's own link, `turnOff`); the billing emails can't, since services/billing sends
 //   them and never asks this module.
+// - Get started nudges (plan 17.14, startNudges.js) ride the same sweep on days 2 and 4, only when the setting START_NUDGES
+//   is `beside` (sent with the setup tip that day) or `instead` (sent in place of that day's tip). `hold`, the default,
+//   sends none, and then this sweep behaves exactly as before.
 //
 // Every tip is recorded in the sweep's own store (so a re-run sends nothing new), in the registry (an event) and in the
 // shop's audit log. Words are plain and name no rival; the email itself is the "trial-tip" template in services/email.
@@ -20,6 +23,8 @@
 //   store     get(shopId) -> { sent: { [day]: { step, at } }, lastAt, off } | null; set(shopId, row)
 //   settings  platformSettings(env) (services/settings.js): platformName, platformUrl, trialDays
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { START_NUDGE_WORDS, nudgeDayOf, startNudgeDue } from "./startNudges.js";
+import { sellsBooks, sellsOf, wordsFor } from "../../shared/sells/sells.js";
 
 export const TIP_DAYS = Object.freeze([2, 4, 7, 21, 60]);
 const DAY = 86_400_000;
@@ -30,17 +35,53 @@ export const TIPS = Object.freeze({
   logo: { subject: "Put your logo on your shop", paragraphs: ["Your logo sits in your shop's header, on your emails and in the picture people see when they share your shop.", "Open Design and add it. A square or wide picture works best."], action: "Add your logo", hash: "designer" },
   look: { subject: "Make your shop look like your press", paragraphs: ["Your look is waiting in Design. Change the colours and type until it feels like yours, then press Publish so shoppers see it.", "Every look keeps your words, books and pages, so you can try a few."], action: "Open Design", hash: "designer" },
   "add-books": { subject: "Add your first book", paragraphs: ["A title, a price and a photo are enough to start. You can fill in the rest later.", "Your shop stays private while you work, so nobody sees a half-finished book."], action: "Add a book", hash: "catalog" },
-  "bring-books": { subject: "Bring your books over from your old shop", paragraphs: ["Export your products from your old shop and choose that file in Books › Import CSV. Photos, prices and editions come over as drafts.", "Old links keep working, so shoppers who bookmarked a book still find it."], action: "Open Books", hash: "catalog" },
-  "import-spreadsheet": { subject: "Bring in your spreadsheet of books", paragraphs: ["Save your list of books as a CSV file and choose it in Books › Import CSV.", "You see every book before anything is saved, and each one arrives as a draft."], action: "Open Books", hash: "catalog" },
+  "bring-books": { subject: "Bring your books over from your old shop", paragraphs: ["Export your products from your old shop and choose that file in Books › Import spreadsheet. Photos, prices and editions come over as drafts.", "Old links keep working, so shoppers who bookmarked a book still find it."], action: "Open Books", hash: "catalog" },
+  "import-spreadsheet": { subject: "Bring in your spreadsheet of books", paragraphs: ["Choose your spreadsheet of books in Books › Import spreadsheet: Excel or CSV both work.", "You see every book before anything is saved, and each one arrives as a draft."], action: "Open Books", hash: "catalog" },
   shipping: { subject: "Set your shipping prices", paragraphs: ["Shoppers see the price of delivery before they pay. Start from the ready-made profile and check its prices.", "You can add free shipping over an amount, or local pickup, at any time."], action: "Open Shipping", hash: "settings/shipping" },
+  taxes: { subject: "Set up sales tax", paragraphs: ["Add the sales tax rates you're registered to collect in Settings › Taxes, and checkout adds them for you.", "Not registered yet? Switch tax off there, and turn it on when you are. An accountant can tell you when you need to."], action: "Open Taxes", hash: "settings/taxes" },
+  policies: { subject: "Add your store policies", paragraphs: ["Shoppers read your shipping, returns, privacy and terms pages before they buy, and the law asks for them. Your shop opens once all four have words.", "Each one has a Start from our wording button in Settings › General, so it takes a few minutes."], action: "Open General settings", hash: "settings/general" },
   payments: { subject: "Get paid for your books", paragraphs: ["Tell the card company where to send your money. Their own secure page asks for your bank details, and you come straight back.", "It takes about five minutes, and sales go straight to your bank."], action: "Open Payments", hash: "settings/payments" },
   address: { subject: "Choose your web address", paragraphs: ["Your shop already has a free web address. If you own a name, you can connect it in Settings › General.", "Happy with the free one? Mark the step done in Set up your shop."], action: "Open General settings", hash: "settings/general" },
   practice: { subject: "Try a practice order", paragraphs: ["While your shop is private, press Try a practice order in Payments and buy a book with the practice card. No money moves.", "You see your order, the customer's email and a refund, just as a shopper's order will go."], action: "Open Payments", hash: "settings/payments" },
   open: { subject: "Your shop is ready to open", paragraphs: ["When you're ready, press Open your shop on the Overview. We check that everything needed to sell is in place first.", "You can close it again at any time from Settings › General › Store status."], action: "Open the Overview", hash: "overview" },
+  google: { subject: "Show up on Google", paragraphs: ["One Google sign-in puts your books in Google search, Google Shopping and Maps, and counts your visits.", "Open Settings › Google and press Connect Google. Google asks you to say yes, and you come straight back."], action: "Open Google", hash: "settings/google" },
+  channels: { subject: "Sell on social media", paragraphs: ["Connect Instagram, Facebook, Pinterest or TikTok in Sales channels, so people can buy from your posts.", "Then post a book from Social posts, now or at a time you choose."], action: "Open Sales channels", hash: "channels" },
+  switch: { subject: "Moving over from your old shop", paragraphs: ["Before you point your web address here, open Settings › General and press Check your old links. Every page of your old shop is tried here, and any that would show page not found gets a new home in one click.", "Then take your last orders in your old shop, move your web address, and tell your mailing list where to find you."], action: "Check your old links", hash: "settings/general" },
 });
 
-/** The guide's general order (firstWeek.ts ORDER.general), for a shop whose admin hasn't saved its progress yet. */
-export const DEFAULT_STEPS = Object.freeze(["logo", "look", "add-books", "shipping", "payments", "address", "practice", "open"]);
+/** Words written out for a shop that sells no books, where swapping single words would read oddly. */
+const GOODS_TIPS = Object.freeze({ look: { subject: "Make your shop look like yours" } });
+
+/**
+ * The web address tip names the shop's own free address (services/domains freeAddress.js) when it has one, and asks the
+ * owner to share it.
+ */
+function withFreeAddress(tip, freeAddress) {
+  if (!freeAddress) return tip;
+  return { ...tip, paragraphs: [`Your shop's free address is ${freeAddress}. Share it: put it on your social pages, your cards and your email signature.`, "If you own a name of your own, connect it in Settings › General. Your free address keeps working too."] };
+}
+
+/** A tip in the words of what the shop sells (code plan 12.18): a books shop's tips are exactly TIPS. */
+export function tipWords(step, sells, { freeAddress = "" } = {}) {
+  const tip = step === "address" ? withFreeAddress(TIPS[step], freeAddress) : TIPS[step];
+  if (!tip || sellsBooks(sells)) return tip;
+  const w = wordsFor(sells);
+  return { ...tip, subject: w(tip.subject), paragraphs: tip.paragraphs.map(w), action: w(tip.action), ...GOODS_TIPS[step] };
+}
+
+/** A Get started nudge in the shop's words, like tipWords. */
+const GOODS_NUDGES = Object.freeze({
+  details: { paragraphs: ["Your shop's name, contact email and address go on your receipts, labels and contact page.", "Open the Overview and fill in step 1. It takes a few minutes."] },
+});
+export function nudgeWords(stage, sells) {
+  const nudge = START_NUDGE_WORDS[stage];
+  if (!nudge || sellsBooks(sells)) return nudge;
+  const w = wordsFor(sells);
+  return { ...nudge, subject: w(nudge.subject), paragraphs: nudge.paragraphs.map(w), action: w(nudge.action), ...GOODS_NUDGES[stage] };
+}
+
+/** The guide's order (firstWeek.ts ORDER, with the add-a-book step), for a shop whose admin hasn't saved its progress yet. */
+export const DEFAULT_STEPS = Object.freeze(["add-books", "logo", "look", "shipping", "taxes", "payments", "policies", "address", "practice", "open", "google", "channels"]);
 
 /** Whole days since the trial started (day 0 is the day the shop was made). */
 export function trialDay(start, now) {
@@ -98,12 +139,15 @@ export function createTrialTips({ registry, auditLog, guide, email, store, setti
     /** One run over every shop. Returns what it sent and why it left each other shop alone. */
     async run() {
       const at = now();
+      // Get started nudges (plan 17.14): `hold` unless the platform setting names one of the two sending modes.
+      const mode = settings.startNudges === "beside" || settings.startNudges === "instead" ? settings.startNudges : "hold";
       const sent = [];
       const skipped = [];
       for (const row of await registry.listShops()) {
         const shopId = row.shopId;
         try {
-          if (row.testShop === true || ["closed", "abandoned"].includes(row.status) || row.billing?.access === "closed") {
+          // A shop the platform closed (controlRoom.js `closure`) keeps its status and plan, so it is checked on its own.
+          if (row.testShop === true || ["closed", "abandoned"].includes(row.status) || row.closure || row.billing?.access === "closed") {
             skipped.push({ shopId, why: "not-a-trial-shop" });
             continue;
           }
@@ -112,8 +156,41 @@ export function createTrialTips({ registry, auditLog, guide, email, store, setti
             skipped.push({ shopId, why: "paused" });
             continue;
           }
-          const mine = await store.get(shopId);
+          let mine = await store.get(shopId);
           const day = trialDay(trialStart(row, settings.trialDays), at);
+          // The Get started nudge due today, when the setting sends them (plan 17.14). Once per stage, and recorded like a tip.
+          if (mode !== "hold" && nudgeDayOf(day) !== null) {
+            const start = await guide.read(shopId);
+            const profile = await registry.getProfile(shopId);
+            const due = startNudgeDue({ day, doc: start, platformCards: profile?.payments?.mode === "platform", open: start?.finalCheck?.opened === true, record: mine });
+            if (due.nudge) {
+              if (!row.ownerEmail || !profile?.siteUrl || profile.apps?.shop === false) {
+                skipped.push({ shopId, why: "no-shop-admin", nudge: due.nudge.stage });
+              } else {
+                const { stage, day: nudgeDay } = due.nudge;
+                const words = nudgeWords(stage, sellsOf(start, profile));
+                const sentAt = at.toISOString();
+                await email.sendPlatform({
+                  kind: "trial-tip",
+                  to: row.ownerEmail,
+                  shopId,
+                  // Once per stage: the same key for the same stage, so the email service never sends it twice either.
+                  idempotencyKey: `start-nudge-${shopId}-${stage}`,
+                  data: { pressName: row.pressName ?? shopId, ...words, link: `${profile.siteUrl}/admin#${words.hash}`, offLink: offLink(shopId) },
+                });
+                // `instead` takes the nudge's place in that day's tip slot, so no setup tip goes out that day.
+                mine = {
+                  ...(mine ?? {}),
+                  startNudges: { ...(mine?.startNudges ?? {}), [stage]: { day: nudgeDay, at: sentAt } },
+                  // A day that already has a setup tip keeps its record, so that tip is never sent again.
+                  ...(mode === "instead" ? { sent: { [nudgeDay]: { step: `start-nudge-${stage}`, at: sentAt }, ...(mine?.sent ?? {}) } } : {}),
+                };
+                await store.set(shopId, mine);
+                await record(shopId, { id: `start-nudge-${stage}`, kind: "start-nudge", day: nudgeDay, step: stage, at: sentAt });
+                sent.push({ shopId, kind: "start-nudge", day: nudgeDay, step: stage });
+              }
+            }
+          }
           // The guide is read only when a tip could be due, so a quiet day reads no shop's database.
           const early = dueTip({ day, progress: { steps: Object.keys(TIPS), done: [] }, record: mine, now: at });
           if (!early.tip) {
@@ -133,7 +210,7 @@ export function createTrialTips({ registry, auditLog, guide, email, store, setti
             skipped.push({ shopId, why: "no-shop-admin" });
             continue;
           }
-          const words = TIPS[tip.step];
+          const words = tipWords(tip.step, sellsOf(start, profile), { freeAddress: typeof row.freeAddress === "string" ? row.freeAddress : "" });
           await email.sendPlatform({
             kind: "trial-tip",
             to: row.ownerEmail,

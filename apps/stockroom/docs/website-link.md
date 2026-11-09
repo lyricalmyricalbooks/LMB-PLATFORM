@@ -93,11 +93,13 @@ plan 1.21). Website Cloud Functions open it on the project's own Admin SDK app:
   },
   firstBook: "<inventoryBookId>" | null, // the row that carries the order's shipping/tax/discount/totals
   unlinked: [{ title, qty }],            // physical copies of website editions not linked to an inventory book
+  invoice: { days, dueAt, paidAt },      // only on a trade account's order placed on invoice terms (net `days`); paidAt is null until the owner records the payment
 }
 ```
 
 - **What counts.** `books` covers physical copies of **linked** editions only. Box sets count
   as the books inside them. Gift cards and e-books are never included.
+- **Trade invoices.** An order with `invoice` was sold on terms, so it is already a sale in the books. The app lists it under Trade invoices to send and opens its invoice editor filled in from the order (`src/lib/trade-invoice.js`). Nothing is written back; the website tracks when the money arrives.
 - **Order pushed, but unlinked.** An order with only unlinked copies is still pushed, so the
   app can say so.
 - **Refunds.**
@@ -277,11 +279,13 @@ It shows only items whose `href` is on a website origin. "Website orders not sen
   price: 40 | null,                       // CAD, the regular price (no sale), null when none
   cover: "https://…" | "",                // a small copy of the first photo
   status: "published" | "draft" | "scheduled",
+  tracked: true, stock: 14,               // only when the website counts this edition's stock (plan 23.9)
 } ] }
 ```
 
 The app lists them as **On the website, not in this app yet** with **Add to the app** (opens its Add new book form filled
-with title, author, ISBN, price in CA$; the owner adds the print run and saves) and **Not a book for the app** (dismiss).
+with title, author, ISBN, price in CA$ and, when the website counts it, its stock as the starting count, so both agree
+from day one; otherwise the owner adds the print run; then saves) and **Not a book for the app** (dismiss).
 
 ### `websiteLink/app` additions (written by the app)
 
@@ -327,6 +331,7 @@ linked: [ {                               // ≤ 500: every printed website edit
   price: 40 | null,                       // CAD regular price: the edition's own (an edition without one has none),
                                           // the book's for a book without editions; null when none
   sharedWith: 1,                          // how many website editions are matched to this same app book
+  cover: "https://…",                     // optional: the book's first photo, small (≤ 400 characters), for the Fair till
 } ]
 ```
 

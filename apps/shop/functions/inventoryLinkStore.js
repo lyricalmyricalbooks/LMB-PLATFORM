@@ -7,7 +7,7 @@
 // "the stockroom isn't set up in this shop".
 // The Admin SDK bypasses the stockroom's rules, so this file is the only code that may touch that database, and it
 // touches only the link's own documents (plus a read of the book list, reduced to safe fields by
-// projectInventoryCatalog). The shop's own data stays in the (default) database; this file never opens it.
+// projectInventoryCatalog, and, for the fair day email, a read of the sales records of books that changed today, and, for a helper's card payment, a read of the Fair till's menu). The shop's own data stays in the (default) database; this file never opens it.
 const admin = require("./adminSdk")(require("firebase-admin"));
 const { getFirestore } = require("firebase-admin/firestore");
 const { projectInventoryCatalog } = require("./inventoryLink");
@@ -196,7 +196,54 @@ async function readAppHeartbeat() {
   return snap.exists ? snap.data() : null;
 }
 
+/** What the shop sells, copied into the stockroom's settings so its words follow Settings › What you sell (plan 12.14). */
+async function writeSellsWords(sells, { now = Date.now(), db = inventoryDb() } = {}) {
+  await db.collection("settings").doc("sells").set({ data: JSON.stringify(String(sells)), ts: now });
+}
+
+/**
+ * The fair day email (fairDayEmail.js): the books whose sales records the stockroom uploaded at or after `sinceMs`,
+ * with those records ({ id, title, currency, hist }). Read-only. Two steps keep it cheap on a quiet day: each book's
+ * upload time first (`ts`, written with every save), then the records of only the books that changed.
+ * A shop without the stockroom answers NOT_FOUND, which the caller reads as "nothing to send".
+ */
+async function readBooksSoldSince(sinceMs, { db = inventoryDb() } = {}) {
+  const catalogSnap = await db.collection("settings").doc("catalog").get();
+  const books = catalogSnap.exists ? projectInventoryCatalog(catalogSnap.data()) : [];
+  const histRef = id => db.collection("books").doc(id).collection("data").doc("hist");
+  const changed = [];
+  for (let i = 0; i < books.length; i += 100) {
+    const slice = books.slice(i, i + 100);
+    const snaps = await db.getAll(...slice.map(b => histRef(b.id)), { fieldMask: ["ts"] });
+    snaps.forEach((snap, j) => { if (snap.exists && Number(snap.get("ts")) >= sinceMs) changed.push(slice[j]); });
+  }
+  const out = [];
+  for (let i = 0; i < changed.length; i += 50) {
+    const slice = changed.slice(i, i + 50);
+    const snaps = await db.getAll(...slice.map(b => histRef(b.id)));
+    snaps.forEach((snap, j) => {
+      let hist = [];
+      try { hist = JSON.parse(String(snap.get("data") || "[]")); } catch { hist = []; }
+      out.push({ id: slice[j].id, title: slice[j].title, currency: slice[j].currency, hist: Array.isArray(hist) ? hist : [] });
+    });
+  }
+  return out;
+}
+
+/**
+ * The Fair till's menu for helpers (fairTill/menu: each book's id, title, price, currency, copies) and whether the
+ * stockroom's plan is open (platform/plan, as its rules' planOpen()). Read-only; fairHelperPay.js prices from it.
+ */
+async function readFairTill({ db = inventoryDb() } = {}) {
+  const [menu, plan] = await db.getAll(db.collection("fairTill").doc("menu"), db.collection("platform").doc("plan"));
+  const access = plan.exists ? String(plan.get("access") ?? "open") : "open";
+  return { menu: menu.exists ? menu.data() : null, open: access === "open" };
+}
+
 module.exports = {
+  readBooksSoldSince,
+  readFairTill,
+  writeSellsWords,
   STOCKROOM_DATABASE, inventoryDb, serviceAccountEmail, connectionProblem, checkConnection, heartbeat, markPastOrders,
   writeWebsiteOrder, waitingShipments, replyShipment, readFeeds, readCatalog, pendingSummary, readAppHeartbeat,
   writeWebsiteSide, writeShopCatalog,

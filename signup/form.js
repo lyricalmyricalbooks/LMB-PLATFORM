@@ -44,6 +44,7 @@ export const PUBLISHES = Object.freeze({
     Object.freeze({ id: "comics", label: "Comics" }),
     Object.freeze({ id: "prints", label: "Art and prints" }),
     Object.freeze({ id: "mix", label: "A mix" }),
+    Object.freeze({ id: "mixed", label: "Books and other things" }),
     Object.freeze({ id: "clothing", label: "Clothing" }),
     Object.freeze({ id: "shoes", label: "Shoes" }),
     Object.freeze({ id: "jewelry", label: "Jewelry" }),
@@ -59,7 +60,7 @@ export const ADDRESS_SUFFIX = ".web.app";
 // letters, digits and hyphens, starting with a letter and not ending with a hyphen. Google refuses ids holding the first
 // words; the rest are the platform's own.
 const ADDRESS = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
-const NOT_IN_AN_ADDRESS = Object.freeze(["google", "null", "undefined", "ssl"]);
+export const NOT_IN_AN_ADDRESS = Object.freeze(["google", "null", "undefined", "ssl"]);
 const RESERVED = Object.freeze(["admin", "api", "www", "colophon", "platform", "support", "help", "status", "signup", "accounts"]);
 
 /**
@@ -79,6 +80,25 @@ export function checkAddress(value) {
   return { ok: !problem, address, problem };
 }
 
+// A best guess at the press's country from the time zone its computer's clock is set to (the front door starts the
+// country question on it). A time zone says where someone is far better than a browser language does: a Toronto
+// browser in "en-US" or "fr" is still in Canada. Returns "" when the zone isn't one of COUNTRIES' or isn't known.
+const ZONE_COUNTRY = [
+  [/^America\/(Toronto|Montreal|Nipigon|Thunder_Bay|Iqaluit|Pangnirtung|Rankin_Inlet|Resolute|Atikokan|Coral_Harbour|Winnipeg|Rainy_River|Regina|Swift_Current|Edmonton|Cambridge_Bay|Yellowknife|Inuvik|Creston|Dawson_Creek|Fort_Nelson|Whitehorse|Dawson|Vancouver|Halifax|Glace_Bay|Moncton|Goose_Bay|Blanc-Sablon|St_Johns)$|^Canada\//, "CA"],
+  [/^America\/(New_York|Detroit|Kentucky\/.+|Indiana\/.+|Indianapolis|Louisville|Chicago|Menominee|North_Dakota\/.+|Denver|Boise|Phoenix|Los_Angeles|Anchorage|Juneau|Sitka|Metlakatla|Yakutat|Nome|Adak)$|^Pacific\/Honolulu$|^US\//, "US"],
+  [/^Europe\/(London|Belfast)$|^GB$/, "GB"],
+  [/^Europe\/Dublin$|^Eire$/, "IE"],
+  [/^Europe\/Paris$/, "FR"],
+  [/^Europe\/(Berlin|Busingen)$/, "DE"],
+  [/^Europe\/Amsterdam$/, "NL"],
+  [/^Australia\//, "AU"],
+  [/^Pacific\/(Auckland|Chatham)$|^NZ(-CHAT)?$/, "NZ"],
+];
+export function countryFromTimeZone(zone) {
+  if (typeof zone !== "string") return "";
+  return ZONE_COUNTRY.find(([pattern]) => pattern.test(zone))?.[1] ?? "";
+}
+
 export const PLAN_CHOICES = Object.freeze(["both", "shop", "stockroom"]);
 
 const EMAIL = /^[^\s@<>"',;]+@[^\s@<>"',;]+\.[^\s@<>"',;]+$/;
@@ -88,12 +108,18 @@ const clean = (value, max) => (typeof value === "string" ? value.replace(/\s+/g,
 
 /**
  * The start of a shop id from the press's name: lowercase letters, digits and hyphens, starting with a letter, at most
- * 24 characters (the server adds "-" and 5 characters, and Google allows 30).
+ * 24 characters (the server adds "-" and 5 characters, and Google allows 30). Words Google refuses in a project id
+ * ("Google Books" -> "books") are left out, so the address always passes `checkAddress`.
  */
 export function slugFromPressName(name) {
-  const base = clean(name, 200)
+  let words = clean(name, 200)
     .normalize("NFKD").replace(/[̀-ͯ]/g, "")
-    .toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, "-").replace(/^[^a-z]+/, "").replace(/-+$/, "")
+    .toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, "-");
+  for (let before = ""; before !== words;) {
+    before = words;
+    for (const word of NOT_IN_AN_ADDRESS) words = words.split(word).join("");
+  }
+  const base = words.replace(/-{2,}/g, "-").replace(/^[^a-z]+/, "").replace(/-+$/, "")
     .slice(0, 24).replace(/-+$/, "");
   return base.length >= 3 ? base : `press${base ? `-${base}` : ""}`.slice(0, 24);
 }
@@ -102,6 +128,17 @@ export function slugFromPressName(name) {
  * Checks the sign-up details. Returns { ok, details, problems }, where problems maps a field to plain words for the
  * page to show next to it.
  */
+/** The card payment providers a shop can start with (setup/payments.js PAYMENT_PROVIDERS). */
+export const PAYMENT_PROVIDER_CHOICES = Object.freeze(["stripe", "square"]);
+
+/**
+ * The countries whose presses can take cards with Square: Square works there, in a currency the shop's checkout charges
+ * in (CAD, USD, EUR; apps/shop/functions/paymentGuards.js). Square in the UK or Australia would charge GBP or AUD, which
+ * checkout can't yet. The setup page keeps its own copy (apps/shop/src/setupMode/cardChoice.ts; form.test.js checks).
+ */
+export const SQUARE_COUNTRIES = Object.freeze(["CA", "US", "IE", "FR"]);
+export const squareWords = (country) => `Square isn't available for presses in ${COUNTRIES[country]?.name ?? "your country"} yet. Pick Stripe in Settings › Payments.`;
+
 export function checkSignup(input) {
   const problems = {};
   const pressName = clean(input?.pressName, 80);
@@ -124,6 +161,14 @@ export function checkSignup(input) {
   // The terms (terms/terms.js): the box must be ticked; the server checks the version is today's.
   if (input?.termsAccepted !== true) problems.terms = "Tick the box to agree to the terms.";
   const termsVersion = typeof input?.termsVersion === "string" ? input.termsVersion.slice(0, 60) : "";
-  const details = { pressName, plan, country, currency: country ? COUNTRIES[country].currency : "", answer, publishes, address, termsVersion };
+  // The language the platform writes to the press in (templatesFr.js): French or English when chosen (setup mode's
+  // General page, or French from a French browser on the old page). A press that says nothing gets the Quebec rule
+  // (French first, then English) from its billing address instead.
+  const language = ["fr", "en"].includes(input?.language) ? input.language : null;
+  // Who takes the website's card payments (setup's Settings › Payments): Stripe unless Square was picked.
+  if (input?.paymentProvider !== undefined && !PAYMENT_PROVIDER_CHOICES.includes(input.paymentProvider)) problems.paymentProvider = "Pick Stripe or Square for card payments.";
+  const paymentProvider = PAYMENT_PROVIDER_CHOICES.includes(input?.paymentProvider) ? input.paymentProvider : "stripe";
+  if (paymentProvider === "square" && country && !SQUARE_COUNTRIES.includes(country)) problems.paymentProvider = squareWords(country);
+  const details = { pressName, plan, country, currency: country ? COUNTRIES[country].currency : "", answer, publishes, address, termsVersion, paymentProvider, ...(language ? { language } : {}) };
   return { ok: Object.keys(problems).length === 0, details, problems };
 }

@@ -23,7 +23,7 @@ import { ACCESS, BillingError, dateText } from "./billing.js";
 import { planPrice } from "./plans.js";
 import { liveSettings, priceText } from "../settings.js";
 import { PAY_AS_YOU_SELL_PLANS, billingMonth, createFeeLedger } from "../payments/payAsYouSell.js";
-import { currentPaymentWay, payAsYouSellAccess } from "./paymentWayState.js";
+import { currentPaymentWay, payAsYouSellAccess, planEnding } from "./paymentWayState.js";
 
 export { currentPaymentWay, payAsYouSellAccess };
 
@@ -124,7 +124,7 @@ export function createPaymentWay({ stripe, mode = "test", settings, customers, s
     row.access = access;
     await subscriptions.set(shopId, row);
     const shop = await registry.getShop(shopId);
-    if (shop) await registry.updateShop(shopId, { payAsYouSell: terms, billing: { ...(shop.billing ?? {}), status: row.status, access, cancelAtPeriodEnd: row.cancelAtPeriodEnd, trialEnd: row.trialEnd, currentPeriodEnd: row.currentPeriodEnd, hasCard: row.hasCard, updatedAt: row.updatedAt } });
+    if (shop) await registry.updateShop(shopId, { payAsYouSell: terms, billing: { ...(shop.billing ?? {}), status: row.status, access, cancelAtPeriodEnd: planEnding(row).cancelling, endsAt: planEnding(row).endsAt, trialEnd: row.trialEnd, currentPeriodEnd: row.currentPeriodEnd, hasCard: row.hasCard, updatedAt: row.updatedAt } });
     await logChange(shopId, what, { paymentWay: row.paymentWay, ...(terms ? { basisPoints: terms.basisPoints, capMinor: terms.capMinor, from: terms.from, until: terms.until ?? null } : {}) });
     return row;
   }
@@ -141,7 +141,7 @@ export function createPaymentWay({ stripe, mode = "test", settings, customers, s
   });
 
   async function founding(shopId, row) {
-    if (row.founding === true) return true;
+    if (row.founding === true || (await subscriptions.get(shopId))?.founding === true) return true;
     return (await registry.getShop(shopId))?.founding === true;
   }
 
@@ -155,7 +155,8 @@ export function createPaymentWay({ stripe, mode = "test", settings, customers, s
       const terms = { ...row.payAsYouSell, until: null };
       return record(shopId, { paymentWay: "payAsYouSell", paymentWayFrom: row.paymentWayChosenAt ?? terms.from, cancelAtPeriodEnd: true, payAsYouSell: terms }, terms, "payment-way-pay-as-you-sell");
     }
-    const chosen = payAsYouSellTerms({ plan: row.plan, settings, live: await live(), founding: await founding(shopId, row) });
+    // The terms are checked first, so a refused switch changes nothing in Stripe and takes no founding place.
+    payAsYouSellTerms({ plan: row.plan, settings, live: await live(), founding: false });
     let fields = {};
     let from;
     let wayFrom;
@@ -173,6 +174,10 @@ export function createPaymentWay({ stripe, mode = "test", settings, customers, s
         fields = subFields(await call("POST", `/v1/subscriptions/${row.subscriptionId}`, { params: { cancel_at_period_end: true }, idempotencyKey: `pays-${shopId}-cancel-${row.subscriptionId}` }));
       }
     }
+    // Choosing pay as you sell makes the press a paying one: a founding place, if any are left (founding.js, 22.1), taken
+    // only once Stripe has made the switch, so a switch that failed never takes one.
+    if (typeof billing.claimFounding === "function") await billing.claimFounding(shopId);
+    const chosen = payAsYouSellTerms({ plan: row.plan, settings, live: await live(), founding: await founding(shopId, row) });
     const terms = { ...chosen, from, until: null };
     return record(shopId, { ...fields, paymentWay: "payAsYouSell", paymentWayFrom: wayFrom, paymentWayChosenAt: at(), payAsYouSell: terms }, terms, "payment-way-pay-as-you-sell");
   }
@@ -203,7 +208,10 @@ export function createPaymentWay({ stripe, mode = "test", settings, customers, s
       idempotencyKey: `subscription-${shopId}-${starts}`,
     });
     const ended = { ...terms, until };
-    return record(shopId, { ...subFields(sub), starts, paymentWay: "monthly", paymentWayFrom: until, payAsYouSell: ended }, ended, "payment-way-monthly");
+    const saved = await record(shopId, { ...subFields(sub), starts, paymentWay: "monthly", paymentWayFrom: until, payAsYouSell: ended }, ended, "payment-way-monthly");
+    // A founding press keeps its discount on the new monthly subscription (founding.js, 22.1).
+    if (saved.founding === true && typeof billing.applyFounding === "function") return (await billing.applyFounding(shopId)) ?? saved;
+    return saved;
   }
 
   /** billing.status() with the way the shop pays, its terms, the month's fees so far and the offer open to it. */

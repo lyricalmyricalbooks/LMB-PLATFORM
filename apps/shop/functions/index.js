@@ -12,7 +12,7 @@
 const { onDocumentUpdated, onDocumentCreated, onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { onSchedule: onScheduleReal } = require("firebase-functions/v2/scheduler");
 // Code plan 15.16: sweeps register with the tick (tick.js) instead of each owning a Cloud Scheduler job.
-const { TICK_EVERY_MINUTES, createTickRegistry, runTick } = require("./tick");
+const { TICK_EVERY_MINUTES, TICK_TIMEOUT_SECONDS, createTickRegistry, runTick } = require("./tick");
 const tickRegistry = createTickRegistry();
 const onSchedule = tickRegistry.register;
 const { onRequest } = require("firebase-functions/v2/https");
@@ -43,12 +43,17 @@ const { liveRateExtra, withLiveRateExtra, cleanLiveRateExtra } = require("./live
 const { FALLBACK_COPY_GRAMS, parcelGrams } = require("./parcelWeight");
 const { addressMissing } = require("./shared/addressRules");
 const { pressName } = require("./shared/shopIdentity");
-const { emailDefaultsFor, goodsDownloadNote, sellsBooks, withShopEmailWords, wordsFor } = require("./shared/shopSells");
+const { sellerSection, digitalConsentSection } = require("./sellerDetails");
+const emailFrench = require("./emailFrench");
+const { emailDefaultsFor, goodsDownloadNote, productBase, sellsBooks, withShopEmailWords, wordsFor } = require("./shared/shopSells");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem } = require("./shared/localFulfillment");
+const { taxPartsByKind, discountedLineValues } = require("./shared/taxByKind");
+const { productKind } = require("./shared/productOptions");
 const { catalogUnitPrice } = require("./catalogPrice");
 const { loadStockist, wholesaleUnitPrice, privateWholesale, stockistActions } = require("./stockists");
+const { paymentLinkFor, addOnParentClosed, linkProblem, applyLinkPrices, paymentLinkActions, LINK_MESSAGES, reminderDue, sendLinkReminders } = require("./paymentLinks");
 const { expandDiscountCategories } = require("./shared/discountCategories");
-const { discountableItems, discountAmountFor, pickAutomaticDiscount } = require("./shared/discountMath");
+const { discountableItems, discountAmountFor, pickAutomaticDiscount, emailDomainAllowed } = require("./shared/discountMath");
 const { taxLinesFor } = require("./shared/taxBooks");
 const { addOnSelection, bundleComponents, bundleAvailable, isGiftCardProduct, giftCardDetails } = require("./shared/promotions");
 const { expiryChange } = require("./giftCards");
@@ -63,7 +68,7 @@ const { pendingRecord, confirmedRecord, confirmationEmail } = require("./newslet
 const { findByEmail: findByEmailData, neverPaid, redactedOrderFields, redactedOperationsFields, giftCardsFor, reviewErasure, GIFT_CARD_PERSONAL } = require("./privacyData");
 const { optOutId, unsubscribeToken, tokenMatches, purposeToken, purposeTokenMatches, footerAddress, normEmail: normMarketingEmail } = require("./marketingOptOut");
 const { runReviewRequests, REVIEW_REQUEST_TEMPLATE } = require("./reviewRequests");
-const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, paypalRefundedTotalMinor, sameOrderLines, shopDate } = require("./paymentGuards");
+const { platformRefusedRefund, checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, paypalRefundedTotalMinor, sameOrderLines, shopDate } = require("./paymentGuards");
 const { canViewOrder, publicOrderView } = require("./orderAccess");
 const { encodeAcquisition } = require("./acquisition");
 const { returnTransition, publicReturn, returnRestockItems } = require("./returns");
@@ -77,7 +82,9 @@ const { adminReportActions } = require("./adminReports");
 const { checkoutAdminActions } = require("./checkoutAdmin");
 const { customDomainActions } = require("./customDomains");
 const { googleConnectActions } = require("./googleConnect");
+const { appsLinkActions } = require("./appsLink");
 const { bookkeepingActions, dayFromOrders } = require("./quickbooksLink");
+const { socialActions } = require("./socialLink");
 const { practiceCheckoutActions } = require("./practiceCheckout");
 const { checkoutPaymentActions } = require("./checkoutPayment");
 const { createPayments, providerName } = require("./payments");
@@ -85,6 +92,7 @@ const { isPaymentId, isCheckoutId } = require("./payments/ids");
 const { createEmail } = require("./email");
 const { createPlatformSender } = require("./email/platformSender");
 const { tellPlatformTeamChanged } = require("./teamNotice");
+const twoStepBackup = require("./twoStepBackup");
 const { shippoEndpoints } = require("./shippoEndpoints");
 const { scheduledJobs } = require("./scheduledJobs");
 const { shopEmails } = require("./shopEmails");
@@ -120,6 +128,7 @@ const db = admin.firestore();
 // their refunds put it back.
 const { createSettlement, sandboxStockTaken, sandboxTakesStock } = require("./settlePayment");
 const { recordOrderMoney, recordPayout } = require("./orderMoney");
+const { giftCardHold } = require("./orderReview");
 const { settlePayment } = createSettlement({ db, increment: n => admin.firestore.FieldValue.increment(n), testShop: require("./shopConfig").shopConfig.testShop });
 
 const IS_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
@@ -128,7 +137,9 @@ const IS_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
 // Firestore's TTL policy (firestore.indexes.json fieldOverrides) uses to delete them, so they cannot grow forever.
 const retainFor = days => new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
-const { adminRole, booksReader, supportOf, syncMemberRole } = require("./roles");
+const { adminRole, booksReader, removeExpiredMembers, supportOf, syncMemberRole } = require("./roles");
+const { becameFairHelper, fairHelperInviteEmail } = require("./teamInvite");
+const fairHelperPay = require("./fairHelperPay");
 const { shopConfig, functionLink } = require("./shopConfig");
 
 // Who may call the functions from a browser: local dev, this shop's Hosting address and its own domain (shopConfig.js).
@@ -214,17 +225,6 @@ async function requireBooksReader(req, res) {
   }
 }
 
-// Team (functions/roles.js). Adding, changing or removing someone in Settings › Team updates their sign-in pass at once.
-// On a platform shop (PLATFORM_ACCOUNTS_URL), the platform is then told, so the person sees the shop in its account
-// switcher (teamNotice.js); a failed notice is logged and never undoes the change.
-exports.syncMemberRole = onDocumentWritten("members/{email}", async event => {
-  await syncMemberRole({ auth: admin.auth(), db, email: event.params.email });
-  if (shopConfig.platformAccountsUrl) {
-    const notice = await tellPlatformTeamChanged({ url: shopConfig.platformAccountsUrl, shopId: shopConfig.project, serviceKey: platformServiceKey });
-    if (!notice.ok) console.warn("The platform wasn't told about the Team change:", notice.reason);
-  }
-});
-
 // The admin calls this right after Google sign-in: someone added before they ever signed in gets their role now.
 exports.refreshMyRole = onBrowserRequest(async (req, res) => {
   if (applyCors(req, res)) return;
@@ -298,6 +298,31 @@ const PAYPAL_WEBHOOK_ID = defineSecret("PAYPAL_WEBHOOK_ID");
 const SHIPPO_API_TOKEN = defineSecret("SHIPPO_API_TOKEN");
 const SHIPPO_CONFIG_DOC = db.collection("private-integrations").doc("shippo");
 
+// Team (functions/roles.js). Adding, changing or removing someone in Settings › Team updates their sign-in pass at once.
+// On a platform shop (PLATFORM_ACCOUNTS_URL), the platform is then told, so the person sees the shop in its account
+// switcher (teamNotice.js); a failed notice is logged and never undoes the change.
+exports.syncMemberRole = onDocumentWritten({ document: "members/{email}", secrets: withPlatformKey([RESEND_API_KEY]) }, async event => {
+  await syncMemberRole({ auth: admin.auth(), db, email: event.params.email });
+  // A new fair helper is told where the Fair till is and how to sign in (teamInvite.js), once per person.
+  const before = event.data?.before?.exists ? event.data.before.data() : null;
+  const after = event.data?.after?.exists ? event.data.after.data() : null;
+  if (becameFairHelper(before, after)) {
+    const invite = fairHelperInviteEmail({ email: event.params.email, shopName: shopConfig.senderName, tillLink: siteLink("/stockroom/app") });
+    if (invite) {
+      try {
+        await sendOrderEmailOnce(`team-${invite.to}`, "fairHelperInvite", { ...invite, secret: resendSecretValue() });
+      } catch (err) {
+        // The role is already on the pass; the owner can still pass the address on by hand.
+        console.warn("The fair helper's invitation wasn't sent:", err?.message || err);
+      }
+    }
+  }
+  if (shopConfig.platformAccountsUrl) {
+    const notice = await tellPlatformTeamChanged({ url: shopConfig.platformAccountsUrl, shopId: shopConfig.project, serviceKey: platformServiceKey });
+    if (!notice.ok) console.warn("The platform wasn't told about the Team change:", notice.reason);
+  }
+});
+
 async function getShippoToken() {
   const configDoc = await SHIPPO_CONFIG_DOC.get();
   const savedToken = configDoc.exists ? configDoc.data()?.apiToken : null;
@@ -360,45 +385,45 @@ function moneyFmt(n) {
 }
 
 // The customer's items + totals table, in the currency they paid.
-function customerTotalsTable(order) {
+function customerTotalsTable(order, say = text => text) {
   const m = v => orderMoneyFmt(v, order);
   return `
         <table style="width:100%;border-collapse:collapse;margin:24px 0;font-size:13px;">
-          ${orderRowsHtml(order.items, order)}
-          <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Subtotal</td><td style="text-align:right;">${m(order.subtotal)}</td></tr>
-          <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Shipping</td><td style="text-align:right;">${m(order.shipping)}</td></tr>
-          ${order.tax ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Tax</td><td style="text-align:right;">${m(order.tax)}</td></tr>` : ""}
-          ${order.discount ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#0a7;">${discountLabel(order)}</td><td style="text-align:right;color:#0a7;">−${m(order.discount)}</td></tr>` : ""}
-          ${order.giftCardAmount ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Gift card${(order.giftCardRedemptions || []).length > 1 ? "s" : ""} ${escapeHtml((order.giftCardRedemptions || []).map(r => `••••${r.last4 || ""}`).join(", "))}</td><td style="text-align:right;">−${m(order.giftCardAmount)}</td></tr>` : ""}
-          <tr><td colspan="2" style="padding:12px 0;text-align:right;font-weight:bold;">Total</td><td style="text-align:right;font-weight:bold;">${chargedTotalFmt(order)}</td></tr>
+          ${orderRowsHtml(order.items, order, say)}
+          <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">${say("Subtotal")}</td><td style="text-align:right;">${m(order.subtotal)}</td></tr>
+          <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">${say("Shipping")}</td><td style="text-align:right;">${m(order.shipping)}</td></tr>
+          ${order.tax ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">${say("Tax")}</td><td style="text-align:right;">${m(order.tax)}</td></tr>` : ""}
+          ${order.discount ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#0a7;">${discountLabel(order, say)}</td><td style="text-align:right;color:#0a7;">−${m(order.discount)}</td></tr>` : ""}
+          ${order.giftCardAmount ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">${say((order.giftCardRedemptions || []).length > 1 ? "Gift cards" : "Gift card")} ${escapeHtml((order.giftCardRedemptions || []).map(r => `••••${r.last4 || ""}`).join(", "))}</td><td style="text-align:right;">−${m(order.giftCardAmount)}</td></tr>` : ""}
+          <tr><td colspan="2" style="padding:12px 0;text-align:right;font-weight:bold;">${say("Total")}</td><td style="text-align:right;font-weight:bold;">${chargedTotalFmt(order)}</td></tr>
         </table>
       `;
 }
 
 // "Discount" / "Discount (SPRING)" / the automatic offer's title.
-function discountLabel(order) {
+function discountLabel(order, say = text => text) {
   const applied = order.appliedDiscount || {};
   const name = applied.automatic ? applied.title : applied.code;
-  return name ? `Discount (${escapeHtml(name)})` : "Discount";
+  return name ? `${say("Discount")} (${escapeHtml(name)})` : say("Discount");
 }
 
 // Add-ons, box-set contents, free gift and gift-card recipient under an order line (escaped).
-function lineExtrasHtml(i) {
+function lineExtrasHtml(i, say = text => text) {
   const notes = [];
-  if (i.promoGift) notes.push("Free gift");
+  if (i.promoGift) notes.push(say("Free gift"));
   for (const addOn of Array.isArray(i.addOns) ? i.addOns : []) notes.push(`${escapeHtml(addOn.label)}${addOn.text ? `: “${escapeHtml(addOn.text)}”` : ""}`);
-  if (Array.isArray(i.components) && i.components.length) notes.push(`Includes ${i.components.map(c => `${Number(c.quantity) > 1 ? `${Number(c.quantity)} × ` : ""}${escapeHtml(c.title || "")}${c.variantName ? ` (${escapeHtml(c.variantName)})` : ""}`).join(", ")}`);
-  if (i.giftCard && i.giftCardDetails?.recipientEmail) notes.push(`For ${escapeHtml(i.giftCardDetails.recipientName || i.giftCardDetails.recipientEmail)}`);
+  if (Array.isArray(i.components) && i.components.length) notes.push(`${say("Includes")} ${i.components.map(c => `${Number(c.quantity) > 1 ? `${Number(c.quantity)} × ` : ""}${escapeHtml(c.title || "")}${c.variantName ? ` (${escapeHtml(c.variantName)})` : ""}`).join(", ")}`);
+  if (i.giftCard && i.giftCardDetails?.recipientEmail) notes.push(`${say("For")} ${escapeHtml(i.giftCardDetails.recipientName || i.giftCardDetails.recipientEmail)}`);
   return notes.length ? `<div style="color:#888;font-size:12px;margin-top:4px;">${notes.join("<br/>")}</div>` : "";
 }
 
-function orderRowsHtml(items = [], order = null) {
+function orderRowsHtml(items = [], order = null, say = text => text) {
   return items
     .map(
       i => `
       <tr>
         <td style="padding:12px 0;border-bottom:1px solid #eee;">
-          ${escapeHtml(i.title)}${i.variantName ? ` <span style="color:#888;">(${escapeHtml(i.variantName)})</span>` : ""}${lineExtrasHtml(i)}
+          ${escapeHtml(i.title)}${i.variantName ? ` <span style="color:#888;">(${escapeHtml(i.variantName)})</span>` : ""}${lineExtrasHtml(i, say)}
         </td>
         <td style="padding:12px 0;border-bottom:1px solid #eee;text-align:right;color:#888;">×${i.quantity}</td>
         <td style="padding:12px 0;border-bottom:1px solid #eee;text-align:right;">${order ? orderMoneyFmt(i.price * i.quantity, order) : moneyFmt(i.price * i.quantity)}</td>
@@ -463,6 +488,151 @@ async function sendEmail(message) {
   return mailer.send(message);
 }
 
+
+// A fair helper's card payment by QR (functions/fairHelperPay.js, docs/combined-admin.md › H5). "start" prices the
+// helper's sale from the Fair till's menu on the server and opens a half-hour card checkout on the shop's own payment
+// account; "status" says whether it's paid; "cancel" closes it. Only a fair helper (or the owner and staff) may call
+// it, only for their own payment, and only while the stockroom's plan is open. No shop order is made.
+exports.fairHelperPayment = onBrowserRequest({ secrets: withPlatformKey([STRIPE_SECRET_KEY]) }, async (req, res) => {
+  if (applyCors(req, res)) return;
+  if (req.method !== "POST") {
+    res.status(405).send("Method Not Allowed");
+    return;
+  }
+  const match = (req.headers.authorization || "").match(/^Bearer (.+)$/);
+  let decoded = null;
+  try { decoded = match && await admin.auth().verifyIdToken(match[1]); } catch { decoded = null; }
+  const helper = decoded?.email_verified === true ? String(decoded.email || "").toLowerCase() : "";
+  if (!helper || (decoded.role !== "fairHelper" && !adminRole(decoded))) {
+    res.status(401).json({ error: "Sign in to the Fair till first." });
+    return;
+  }
+  if (!(await hitLimit(db, "fairHelperPay", req, LIMITS.fairHelperPay))) {
+    res.status(429).json({ error: "Too many tries in a row. Wait a few minutes, then try again." });
+    return;
+  }
+  const action = String(req.body?.action || "");
+  try {
+    const mode = (await shopTestMode()) ? "test" : "live";
+    const checkout = await payments.standaloneCheckout(mode);
+    if (!checkout) {
+      res.status(409).json({ error: "Card payments by QR aren't available for this shop. Use the card reader or cash.", code: "not_available" });
+      return;
+    }
+    if (action === "start") {
+      const till = await require("./inventoryLinkStore").readFairTill();
+      if (!till.open) {
+        res.status(409).json({ error: "The shop's plan is paused, so the till can't take payments.", code: "paused" });
+        return;
+      }
+      const saleId = String(req.body?.saleId || "");
+      const plan = fairHelperPay.fairPayPlan(till.menu, { saleId, lines: req.body?.lines });
+      if (plan.problem) {
+        res.status(400).json({ error: plan.problem, code: "bad_sale" });
+        return;
+      }
+      const params = fairHelperPay.fairCheckoutParams(plan, { saleId, helper, shopName: shopConfig.senderName, returnUrl: siteLink("/"), nowSeconds: Math.floor(Date.now() / 1000) });
+      // The same sale and amount always open the same checkout, so a resent tap never makes a second one.
+      const session = await checkout.open(params, `fair-${saleId}-${plan.amountMinor}-${plan.currency}`);
+      res.json({ url: session.url, sessionId: session.id, amount: plan.amountMinor, currency: plan.currency, test: mode === "test" });
+      return;
+    }
+    const sessionId = String(req.body?.sessionId || "");
+    // A Stripe Checkout Session, or a Square payment link (payments/square.js standaloneCheckout).
+    if (!/^(cs_[A-Za-z0-9_]{8,200}|sqlink_[A-Za-z0-9_-]{1,192})$/.test(sessionId) || (action !== "status" && action !== "cancel")) {
+      res.status(400).json({ error: "Unknown request.", code: "bad_request" });
+      return;
+    }
+    const session = await checkout.read(sessionId);
+    const state = fairHelperPay.fairPaymentState(session, helper);
+    if (!state) {
+      res.status(404).json({ error: "That payment isn't one of yours.", code: "not_found" });
+      return;
+    }
+    if (action === "cancel" && state.open && !state.paid) {
+      await checkout.close(sessionId).catch(() => {});
+      res.json({ paid: false, open: false });
+      return;
+    }
+    res.json(state);
+  } catch (err) {
+    console.error("fairHelperPayment failed:", err?.message || err);
+    res.status(502).json({ error: "The card payment couldn't be reached. Try again, or use the card reader or cash.", code: "unreachable" });
+  }
+});
+
+// Safety emails to the shop's own team come in French when the shop is written in French
+// (Studio › Text & labels › Shop language), like the rest of what the team reads there.
+const adminEmailLanguage = () => emailFrench.shopLanguage(db);
+
+// Two-step backup codes (functions/twoStepBackup.js, plan 22.9). "status" and "make" are for the signed-in person
+// in Settings › Security; "use" comes from the sign-in page, before there is a sign-in, with Google's own token.
+exports.twoStepBackup = onBrowserRequest({ secrets: withPlatformKey([RESEND_API_KEY]) }, async (req, res) => {
+  if (applyCors(req, res)) return;
+  if (req.method !== "POST") {
+    res.status(405).send("Method Not Allowed");
+    return;
+  }
+  if (!(await hitLimit(db, "twoStepBackup", req, LIMITS.twoStepBackup))) {
+    res.status(429).json({ error: "Too many tries in a row. Wait a few minutes, then try again." });
+    return;
+  }
+  const action = String(req.body?.action || "");
+  const nowIso = new Date().toISOString();
+  try {
+    if (action === "use") {
+      const google = { idToken: typeof req.body?.idToken === "string" ? req.body.idToken : "", accessToken: typeof req.body?.accessToken === "string" ? req.body.accessToken : "" };
+      // The person and the owner are told by email, so a stolen code can't be used quietly.
+      const notify = async ({ email, left }) => {
+        const language = await adminEmailLanguage();
+        const when = new Intl.DateTimeFormat(language === "fr" ? "fr-CA" : "en-CA", { timeZone: "America/Toronto", dateStyle: "long", timeStyle: "short" }).format(new Date(nowIso));
+        const message = twoStepBackup.backupUsedEmail({ language,  email, ownerEmail: ADMIN_TO, left, shopName: shopConfig.senderName, when, adminLink: siteLink("/admin#settings/security") });
+        if (message.to.length) await sendEmail({ queue: "twoStepBackupUsed", ...message, secret: resendSecretValue() });
+      };
+      res.json(await twoStepBackup.spendBackup({ db, auth: admin.auth(), google, code: String(req.body?.code || ""), nowIso, notify }));
+      return;
+    }
+    const match = (req.headers.authorization || "").match(/^Bearer (.+)$/);
+    let decoded = null;
+    try { decoded = match && await admin.auth().verifyIdToken(match[1]); } catch { decoded = null; }
+    if (!decoded || !adminRole(decoded)) {
+      res.status(401).json({ error: "Sign in first." });
+      return;
+    }
+    if (action === "status") {
+      res.json(await twoStepBackup.backupStatus(db, decoded.uid));
+      return;
+    }
+    // Code plan 25.4: two-step was turned on or off in Settings › Security; the person and the owner are told.
+    if (action === "changed") {
+      const notify = async ({ email, on }) => {
+        const language = await adminEmailLanguage();
+        const when = new Intl.DateTimeFormat(language === "fr" ? "fr-CA" : "en-CA", { timeZone: "America/Toronto", dateStyle: "long", timeStyle: "short" }).format(new Date(nowIso));
+        const message = twoStepBackup.twoStepChangedEmail({ language,  email, ownerEmail: ADMIN_TO, on, shopName: shopConfig.senderName, when, adminLink: siteLink("/admin#settings/security") });
+        if (message.to.length) await sendEmail({ queue: "twoStepChanged", ...message, secret: resendSecretValue() });
+      };
+      res.json(await twoStepBackup.noteTwoStepChange({ db, auth: admin.auth(), uid: decoded.uid, nowIso, notify }));
+      return;
+    }
+    if (action === "make") {
+      const problem = twoStepBackup.makeProblem(decoded, await admin.auth().getUser(decoded.uid), Date.now());
+      if (problem) {
+        res.status(403).json({ error: problem });
+        return;
+      }
+      res.json(await twoStepBackup.makeBackup({ db, uid: decoded.uid, email: decoded.email, nowIso }));
+      return;
+    }
+    res.status(400).json({ error: "Unknown action." });
+  } catch (err) {
+    if (err instanceof twoStepBackup.BackupRefused) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
+    console.error("twoStepBackup failed:", err);
+    res.status(500).json({ error: "Something went wrong. Try again in a moment." });
+  }
+});
 
 // ── Email retry queue (server-only emailOutbox; rules in ./emailOutbox) ──
 const resendSecretValue = () => { try { return RESEND_API_KEY.value(); } catch { return ""; } };
@@ -596,7 +766,7 @@ function getStateCode(stateName) {
 }
 
 // Shippo "address_from": Settings › General › Location (street, city, province, postal code,
-// country, phone), each blank field falling back to the original Toronto address.
+// country, phone). Blank fields stay blank (shopSettings.js), the country defaulting to Canada.
 function originAddress(settings) {
   const origin = shopOrigin(settings);
   return { ...origin, state: getStateCode(origin.state), country: getCountryCode(origin.country) || "CA" };
@@ -727,13 +897,11 @@ async function assertDiscountNotUsedByCustomer(discount, email, orderId = "") {
 function validateDiscountCustomer(discount, email) {
   const normalized = String(email || "").trim().toLowerCase();
   const emails = String(discount.allowedCustomerEmails || "").split(",").map(v => v.trim().toLowerCase()).filter(Boolean);
-  const domains = String(discount.allowedEmailDomains || "").split(",").map(v => v.trim().toLowerCase().replace(/^[@.]+/, "")).filter(Boolean);
-  if ((emails.length || domains.length) && !normalized) throw new Error("Enter your email address to use this code.");
+  const domainsListed = String(discount.allowedEmailDomains || "").split(",").some(v => v.trim().replace(/^[@.]+/, ""));
+  if ((emails.length || domainsListed) && !normalized) throw new Error("Enter your email address to use this code.");
   if (emails.length && !emails.includes(normalized)) throw new Error("This code is restricted to selected customers.");
-  if (domains.length) {
-    const customerDomain = normalized.split("@")[1] || "";
-    if (!domains.some(domain => customerDomain === domain || customerDomain.endsWith(`.${domain}`))) throw new Error("This code is restricted to selected email domains.");
-  }
+  // The same rule checkout shows before paying (shared/discountMath emailDomainAllowed).
+  if (!emailDomainAllowed(normalized, discount.allowedEmailDomains)) throw new Error("This code is restricted to selected email domains.");
 }
 
 // Exchange rates (functions/exchangeRates.js): checkout charges the saved daily copy in settings/exchangeRates,
@@ -929,25 +1097,27 @@ function authoritativeTax(items, discountAmount, discount, booksById, settings, 
   const taxableTotal = Math.max(0, items.reduce((sum, item) => sum + item.price * item.quantity, 0) - discountAmount);
   const address = order.customer?.address || {};
   const charged = parts => ({ tax: parts.reduce((sum, part) => sum + part.amount, 0), taxLines: taxLinesFor(parts) });
+  // Each line's share after the discount comes off the lines it covers (a books-only code lowers only the books' tax).
+  const afterDiscount = discountedLineValues(items, discountAmount, discount, id => booksById[id]?.categories || []);
+  const lineKinds = lines => lines.map(item => ({ kind: productKind(booksById[item.id]), value: afterDiscount[items.indexOf(item)] }));
   if (fulfillment?.method === 'pickup') {
     const pickup = fulfillment.address;
     // Pickup limited to an area collects the shopper's address instead of a separate billing location.
     const given = order.customer?.billingAddress;
     const billing = given?.country && given?.state ? given : order.customer?.address;
     if (!billing || !billing.country || !billing.state) throw new Error('Billing country and province or state are required for pickup.');
-    const physicalRate = matchTaxRate(rates, pickup.country, pickup.state);
-    const digitalRate = matchTaxRate(rates, billing.country, billing.state);
+    // Plan 12.2: a rate listing product kinds taxes only those; with none listed this is the plain pair of rates.
     return charged([
-      { rate: physicalRate, amount: discountedPhysical * (Number(physicalRate?.rate || 0) / 100) },
-      { rate: digitalRate, amount: (taxableTotal - discountedPhysical) * (Number(digitalRate?.rate || 0) / 100) },
+      ...taxPartsByKind(lineKinds(items.filter(isPhysicalItem)), discountedPhysical, rates, set => matchTaxRate(set, pickup.country, pickup.state)),
+      ...taxPartsByKind(lineKinds(items.filter(item => !isPhysicalItem(item))), taxableTotal - discountedPhysical, rates, set => matchTaxRate(set, billing.country, billing.state)),
     ]);
   }
   const basis = Object.keys(address).length ? address : order.customer?.billingAddress || {};
   if (!basis.country) throw new Error('Destination country is required for tax.');
-  const taxRate = matchTaxRate(rates, basis.country, basis.state);
+  const parts = taxPartsByKind(lineKinds(items), taxableTotal, rates, set => matchTaxRate(set, basis.country, basis.state));
   // Not silent: a country with rates but none for this province is flagged in Ready to sell.
-  if (!taxRate && taxableTotal > 0 && rates.length) console.warn(`No tax rate matches ${basis.country}/${basis.state || "-"}; charging no tax.`);
-  return charged([{ rate: taxRate, amount: taxableTotal * (Number(taxRate?.rate || 0) / 100) }]);
+  if (parts.some(part => !part.rate) && taxableTotal > 0 && rates.length) console.warn(`No tax rate matches ${basis.country}/${basis.state || "-"}; charging no tax.`);
+  return charged(parts);
 }
 
 function itemWeightGrams(book, variant) {
@@ -1004,7 +1174,9 @@ function cachedAutomaticDiscounts(now = Date.now()) {
 // Nothing the browser sends decides a price: books, editions, add-ons, box-set parts, the
 // discount (a code, else the best automatic offer, including a free gift), shipping, tax and
 // gift-card amounts are all worked out here. Throws PricingError for a shopper-fixable problem.
-async function priceOrder(order, { orderId = "", settings: knownSettings = null } = {}) {
+// An order the owner made with a payment link (paymentLinks.js, plan 21.1) pays the agreed prices and shipping instead,
+// with no discount on top; `paymentLink` is the draft record while the link is being made.
+async function priceOrder(order, { orderId = "", settings: knownSettings = null, paymentLink: draftLink = null } = {}) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(order.customer?.email || "").trim())) {
     throw new PricingError("Check the email address: it doesn't look complete.");
   }
@@ -1018,9 +1190,16 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
     return booksById[id];
   };
   const items = [];
+  const link = draftLink || await paymentLinkFor(db, orderId, order);
+  if (link && linkProblem(link)) throw new PricingError(LINK_MESSAGES[linkProblem(link)], "payment_link_closed");
+  // Items added to a paid order (plan 24.6) can't be paid for once that order is cancelled or refunded.
+  if (link && !draftLink && order.shipsWith) {
+    const parent = typeof order.shipsWith === "string" && order.shipsWith && !order.shipsWith.includes("/") ? await db.collection("orders").doc(order.shipsWith).get() : null;
+    if (addOnParentClosed(parent?.exists ? parent.data() : null)) throw new PricingError(LINK_MESSAGES.parentClosed, "payment_link_closed");
+  }
   // An order claimed by an approved stockist (stockists.js) pays the wholesale price where a product has one. The registry
   // is read again on every pricing, so a stockist who is paused after claiming pays the shop's price.
-  const stockist = await loadStockist(db, order.stockistId);
+  const stockist = link ? null : await loadStockist(db, order.stockistId);
   const wholesaleCache = new Map();
   for (const requested of order.items || []) {
     // A free gift is never taken from the browser: it is re-added below when the order earns it.
@@ -1103,6 +1282,7 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
     });
   }
   if (!items.length) throw new PricingError("Order has no items.");
+  if (link && (items.some(item => item.giftCard === true) || !applyLinkPrices(items, link))) throw new PricingError(LINK_MESSAGES.changed, "payment_link_closed");
 
   // The plan is paused or closed (plan 6.7): every checkout path is priced here, so this stops them all, practice
   // orders too (their settings don't carry the plan).
@@ -1146,7 +1326,9 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
     if (!(offer.id in giftLines)) giftLines[offer.id] = await giftLineFor(offer);
     giftPrices[offer.id] = giftLines[offer.id] ? giftLines[offer.id].price : NaN;
   };
-  if (order.appliedDiscount?.code) {
+  if (link) {
+    // The agreed prices are the whole deal: no code or automatic offer on top.
+  } else if (order.appliedDiscount?.code) {
     // Same "Discount code error:" prefix on every path, so checkout can drop the code and explain.
     try {
       const verified = expandDiscountCategories(await fetchValidDiscount(order.appliedDiscount.code), settings.design?.categories);
@@ -1193,7 +1375,10 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
   const discountedPhysical = discountedPhysicalSubtotal(taxable, discount, verifiedDiscount, booksById);
   let shipResult;
   try {
-    shipResult = await resolveShipping(items, order, profiles, freeShipping, settings, discountedPhysical);
+    // A payment link ships for the amount the owner set, or nothing when there is nothing to ship.
+    shipResult = link
+      ? { cost: link.shipping != null && items.some(isPhysicalItem) ? Math.round(Number(link.shipping) * 100) / 100 : 0, method: link.shipping != null && items.some(isPhysicalItem) ? "Shipping" : null, fulfillment: null }
+      : await resolveShipping(items, order, profiles, freeShipping, settings, discountedPhysical);
   } catch (err) {
     throw new PricingError(err.message, err.code === "shipping_rates_changed" ? err.code : undefined);
   }
@@ -1314,7 +1499,10 @@ async function loadHoldLimits() {
 }
 
 async function reserveCheckout(orderId, items, order, giftCardRedemptions, testMode, req = null) {
-  await reserveStock(db, orderId, items, Date.now(), holdOwner(order), { limits: true, ip: req ? clientIpOf(req) : "", holdLimits: await loadHoldLimits() });
+  // A payment link's quantities were set by the owner (plan 21.1), and an approved stockist (read again here) orders
+  // wholesale quantities: the per-shopper hold caps apply to neither. Stock must still be there.
+  const trade = order?.stockistId && order?.source !== "payment_link" ? await loadStockist(db, order.stockistId) : null;
+  await reserveStock(db, orderId, items, Date.now(), holdOwner(order), { limits: order?.source !== "payment_link" && !trade, ip: req ? clientIpOf(req) : "", holdLimits: await loadHoldLimits() });
   if (!(giftCardRedemptions || []).length) return;
   try {
     await reserveGiftCards(db, orderId, giftCardRedemptions, { testMode, owner: holdOwner(order) });
@@ -1588,12 +1776,35 @@ const { handleCustomDomains } = customDomainActions({ url: shopConfig.platformDo
 const { handleGoogleConnect } = googleConnectActions({ url: shopConfig.platformGoogleUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin,
   readStock: () => require("./inventoryLinkStore").readCatalog() });
 
+// Settings › Apps: installed apps, the store and Remove, through the platform's app store door (appsLink.js, plan 26.5).
+const { handleApps } = appsLinkActions({ url: shopConfig.platformAppsUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin });
+
 // Settings › Bookkeeping: the QuickBooks link, through the platform's bookkeeping service (quickbooksLink.js, plan 7.16).
 // Send again builds the day from every order with the shared daily bookkeeping rules (dayFromOrders, Toronto days).
 const { handleBookkeeping } = bookkeepingActions({
   url: shopConfig.platformAccountingUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin,
   buildDay: async (date) => dayFromOrders((await db.collection("orders").get()).docs.map((d) => ({ id: d.id, ...d.data() })), date),
 });
+// Sales channels and Social posts: the press's social accounts, through the platform's social service (socialLink.js, plan 27.4).
+const social = socialActions({
+  url: shopConfig.platformSocialUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin, db, siteUrl: shopConfig.siteUrl, sellsAnswer: shopSellsAnswer,
+  // The post's square picture (socialPicture.js), made in this shop's bucket.
+  makeSquare: async (imageUrl, postId) => {
+    const sharp = require("sharp");
+    sharp.cache(false);
+    const bucket = admin.storage().bucket(admin.app().options.storageBucket || `${shopConfig.project}.firebasestorage.app`);
+    return require("./socialPicture").squarePicture({ bucket, sharp, imageUrl, postId });
+  },
+  // A scheduled post a place refused: the owner is emailed unless Settings › Notifications › Shop alerts turns it off.
+  onFailed: async (post) => {
+    const saved = (await db.collection("settings").doc("notifications").get()).data() || {};
+    if (saved.shopAlerts?.socialPostFailed === false) return;
+    const { failedPostEmail } = require("./socialLink");
+    const message = failedPostEmail({ post, ownerEmail: ADMIN_TO, shopName: shopConfig.senderName, adminLink: siteLink("/admin#social-posts"), language: await adminEmailLanguage() });
+    if (message.to.length && message.failed) await sendEmail({ queue: "socialPostFailed", to: message.to, subject: message.subject, html: message.html, secret: resendSecretValue() });
+  },
+});
+const handleSocial = social.handleSocial;
 // Practice orders on a platform shop while it is private, for the owner only (practiceCheckout.js, plan 7.6).
 const { handlePracticeCheckout, practiceFor } = practiceCheckoutActions({ db, platform: payments.mode === "platform", requireAdmin, orderRequestIdentity });
 
@@ -1608,9 +1819,36 @@ const { handleCancelOrder, handleResolveMismatch, handleCheckoutStatus, handleTr
   releaseGiftCards, releaseStock, requireAdmin, sendEmail: lateSendEmail, siteLink, stripePaymentTaken,
 });
 
-const { handleStockistPricing } = stockistActions({ db, LIMITS, hitLimit, canViewOrder, orderRequestIdentity, orderRequestKey });
+const { handleStockistPricing, handleStockistStatus } = stockistActions({ db, LIMITS, hitLimit, canViewOrder, orderRequestIdentity, orderRequestKey });
+const { handlePaymentLink, handleCustomerAddOn } = paymentLinkActions({ db, requireAdmin, priceOrder, PricingError, publicErrorMessage, hitLimit, LIMITS, canViewOrder, orderRequestKey, orderRequestIdentity });
 
-const { handleNewsletterSignup, handleNewsletterConfirm, handlePrivacyRequest, handlePrivacyAdmin } = privacyActions({
+// Customers › Newsletter (newsletterSend.js): who is on the list, and sending to them a page at a time from the sweep.
+const { runNewsletterIssues, newsletterAdminActions, audienceCount } = require("./newsletterSend");
+async function newsletterOptedOutIds() {
+  const snap = await db.collection("marketing-optout").select().limit(50000).get();
+  return new Set(snap.docs.map(d => d.id));
+}
+async function listNewsletterSubscribers(afterId, limit) {
+  let query = db.collection("newsletter").orderBy("__name__");
+  if (afterId) query = query.startAfter(afterId);
+  const snap = await query.limit(limit).get();
+  return snap.docs.map(d => ({ id: d.id, data: d.data() }));
+}
+async function newsletterAudience() {
+  const [subscribers, optedOut] = await Promise.all([db.collection("newsletter").limit(20000).get(), newsletterOptedOutIds()]);
+  return audienceCount(subscribers.docs.map(d => d.data()), optedOut, optOutId);
+}
+async function newsletterUnsubscribeLink() {
+  const key = await marketingUnsubscribeKey();
+  return email => siteLink(`/track?unsubscribe=1&e=${encodeURIComponent(normMarketingEmail(email))}&t=${unsubscribeToken(email, key)}`);
+}
+const { handleNewsletterAdmin } = newsletterAdminActions({
+  db, requireAdmin, countAudience: newsletterAudience, compileEmailTemplate, loadNotificationSettings, escapeHtml,
+  unsubscribeLink: newsletterUnsubscribeLink,
+  sendEmail: message => lateSendEmail({ ...message, secret: resendSecretValue() }),
+});
+
+const { handleNewsletterSignup, handleNewsletterConfirm, handlePrivacyRequest, handlePrivacyAdmin, handleMyData } = privacyActions({
   db, admin, ADMIN_TO, GIFT_CARD_PERSONAL, LIMITS, RESEND_API_KEY, claimEmailSendDetailed, confirmationEmail,
   confirmedRecord, escapeHtml, findByEmailData, footerAddress, giftCardsFor, hitLimit, marketingUnsubscribeKey,
   neverPaid, normMarketingEmail, optOutId, pendingRecord, privacyRequestRecord, publicOutboxEntry,
@@ -1630,7 +1868,9 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   platformPayments: handlePlatformPayments,
   customDomains: handleCustomDomains,
   googleConnect: handleGoogleConnect,
+  apps: handleApps,
   bookkeeping: handleBookkeeping,
+  social: handleSocial,
   practiceCheckout: handlePracticeCheckout,
   webhookHealth: handleWebhookHealth,
   giftCardAdmin: handleGiftCardAdmin,
@@ -1642,9 +1882,15 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   resolvePaymentMismatch: handleResolveMismatch,
   orderRequest: handleOrderRequest,
   stockistPricing: handleStockistPricing,
+  stockistStatus: handleStockistStatus,
+  paymentLink: handlePaymentLink,
+  addToOrder: handleCustomerAddOn,
   privacyRequest: handlePrivacyRequest,
+  myDataExport: handleMyData,
+  myDataErase: handleMyData,
   privacyExport: handlePrivacyAdmin,
   privacyErase: handlePrivacyAdmin,
+  newsletterAdmin: handleNewsletterAdmin,
   verifyStripeKeys: handleVerifyStripeKeys,
 };
 
@@ -1725,7 +1971,9 @@ async function sendLateRefundEmail(orderId, order, { amountMinor, currency, paym
     order_id: order.orderId || orderId,
     total_price: refundAmountText({ refund: { amount: Number(amountMinor || 0) / 100, currency: String(currency || "").toUpperCase() } }),
     button_url: await orderTrackUrl(orderId, order),
-  }, `<p style="margin-top:20px;font-size:13px;line-height:1.6;">Your payment reached us after the checkout had closed, so the books were no longer set aside for you and this order wasn't placed. We've refunded the full amount. You're welcome to order again.</p>`);
+  }, `<p style="margin-top:20px;font-size:13px;line-height:1.6;">${emailFrench.emailLanguage(order) === "fr"
+    ? "Votre paiement nous est parvenu après la fermeture du paiement : les articles n'étaient plus réservés pour vous et cette commande n'a pas été passée. Nous avons remboursé le montant au complet. N'hésitez pas à commander de nouveau."
+    : `Your payment reached us after the checkout had closed, so ${sellsBooks(notificationSettings.sells) ? "the books were" : "your items were"} no longer set aside for you and this order wasn't placed. We've refunded the full amount. You're welcome to order again.`}</p>`, { language: emailFrench.emailLanguage(order) });
   await sendOrderEmailOnce(orderId, `latePaymentRefund_${paymentIntentId}`, {
     to, subject: compiled.subject, html: compiled.html, secret: RESEND_API_KEY.value(),
   });
@@ -2626,7 +2874,8 @@ exports.refundOrder = onBrowserRequest(
       console.error("refundOrder failed:", err);
       // Keep the claim only when the provider may have taken the refund (accepted, or a lost
       // connection): its webhook then follows the admin's restock choice.
-      if (claimed && !providerAccepted && (!providerCalled || DEFINITE_REFUSALS.includes(err?.type) || (err?.status >= 400 && err?.status < 500))) await releaseClaim();
+      if (claimed && !providerAccepted && (!providerCalled || DEFINITE_REFUSALS.includes(err?.type) || (err?.status >= 400 && err?.status < 500)
+        || platformRefusedRefund(err))) await releaseClaim();
       const status = err.status || (err.type?.startsWith("Stripe") ? 400 : 500); // Stripe shops only (an error type)
       res.status(status).json({ error: err.message || "Refund failed" });
     }
@@ -2713,11 +2962,59 @@ const DEFAULT_NOTIFICATIONS = {
     signoff: "Happy reading,\nThe {{shop_name}} team",
     enabled: true
   },
+  // Code plan 21.5: two days before an unpaid payment link closes (paymentLinks.js sendLinkReminders).
+  payment_link_reminder: {
+    subject: "Reminder: your order {{order_id}} is ready to pay",
+    body: "Hi {{customer_name}},\n\nJust a reminder that your order from {{shop_name}} is waiting for payment. The total is {{total_price}}, and the payment link stays open until {{expires_on}}.",
+    buttonText: "Pay now",
+    signoff: "Thanks,\nThe {{shop_name}} team",
+    enabled: true
+  },
+  // Code plan 24.5: part of the order went in its own parcel; the rest follows with the normal shipping email.
+  part_shipped: {
+    subject: "Part of your order {{order_id}} is on the way",
+    body: "Hi {{customer_name}},\n\nPart of your order {{order_id}} has shipped with {{tracking_carrier}}:\n\n{{items_list}}\n\nTracking number: {{tracking_number}}\n\nThe rest of your order will follow in another parcel, and we'll email you when it ships.",
+    buttonText: "Track this parcel",
+    signoff: "Best,\nThe {{shop_name}} team",
+    enabled: true
+  },
+  // Code plan 25.5: a shipped parcel is out for delivery or delivered. Off until the owner switches it on.
+  carrier_delivery_update: {
+    subject: "Your order {{order_id}} is {{status}}",
+    body: "Hi {{customer_name}},\n\nYour order {{order_id}} is {{status}}.\n\nCarrier: {{tracking_carrier}}\nTracking number: {{tracking_number}}",
+    buttonText: "Track your parcel",
+    signoff: "Best,\nThe {{shop_name}} team",
+    enabled: false
+  },
+  // Code plan 25.7: the shopper asked to cancel or return an order.
+  request_received: {
+    subject: "We got your request for order {{order_id}}",
+    body: "Hi {{customer_name}},\n\nThanks for letting us know. We received your request to {{request}} order {{order_id}}, and we'll reply by email soon with the next steps.",
+    buttonText: "View your order",
+    signoff: "Best,\nThe {{shop_name}} team",
+    enabled: true
+  },
+  // Code plan 25.8: a delayed bank payment failed after checkout.
+  payment_failed: {
+    subject: "Your payment for order {{order_id}} didn't go through",
+    body: "Hi {{customer_name}},\n\nYour bank let us know that the {{total_price}} payment for order {{order_id}} didn't go through, so the order isn't paid yet.\n\nIf you'd still like it, reply to this email and we'll help you pay another way.",
+    buttonText: "View your order",
+    signoff: "Thanks,\nThe {{shop_name}} team",
+    enabled: true
+  },
   delivery_update: {
     subject: "Delivery Update: Your order is {{status}}",
     body: "Hi {{customer_name}},\n\nYour package tracking status has been updated: {{status}}.\n\nCarrier: {{tracking_carrier}}\nTracking: {{tracking_number}}",
     buttonText: "Track shipment",
     signoff: "Best,\nThe {{shop_name}} team",
+    enabled: true
+  },
+  // A pickup order the owner marked collected (Orders › Confirm collected): a thank-you the shopper can keep.
+  order_picked_up: {
+    subject: "Thanks for picking up order {{order_id}}",
+    body: "Hi {{customer_name}},\n\nYou've picked up order {{order_id}}. Thank you for shopping with {{shop_name}}! Keep this email as your receipt.",
+    buttonText: "View your order",
+    signoff: "Thanks,\nThe {{shop_name}} team",
     enabled: true
   }
 };
@@ -2725,13 +3022,72 @@ const DEFAULT_NOTIFICATIONS = {
 /** Sign-up's "What do you sell?" answer (`firstWeek/start` › `publishes`), or "" when there is none or it can't be read. */
 async function shopSellsAnswer() {
   try {
-    const answer = (await db.collection("firstWeek").doc("start").get()).data()?.publishes;
+    // What the owner chose in Settings (`sells`) reads before the sign-up answer (`publishes`).
+    const data = (await db.collection("firstWeek").doc("start").get()).data();
+    const answer = data?.sells || data?.publishes;
     return typeof answer === "string" ? answer : "";
   } catch (err) {
     console.warn("Failed to read what the shop sells, using the books words:", err);
     return "";
   }
 }
+
+/**
+ * When the owner changes what the shop sells, the shop's and the stockroom's words follow (plan 12.14). The answer is
+ * copied to the public settings/website `sells`, where the storefront reads it (admin/sells.ts withShopWordsFor), and
+ * to the stockroom. A shop without a stockroom is fine.
+ */
+exports.syncStockroomWords = onDocumentWritten("firstWeek/start", async event => {
+  const website = db.collection("settings").doc("website");
+  await require("./sellsSync").syncSells({
+    before: event.data?.before?.data?.(),
+    after: event.data?.after?.data?.(),
+    readWebsiteSells: async () => (await website.get()).get("sells"),
+    writeWebsiteSells: answer => website.set({ sells: answer }, { merge: true }),
+    writeStockroomWords: answer => require("./inventoryLinkStore").writeSellsWords(answer),
+  });
+});
+
+/** Your move so far (plan 23.20): the owner gets one email when the last part of the move from the old shop is ticked. */
+exports.onMoveFinished = onDocumentUpdated("firstWeek/start", async event => {
+  const { justFinished, moveCounts, moveDoneEmail } = require("./moveDone");
+  const before = event.data?.before?.data?.();
+  const after = event.data?.after?.data?.();
+  // Counted only for the one change that finishes the move (plan 23.24); every other edit of the doc stops here.
+  if (!justFinished(before, after)) return;
+  const message = moveDoneEmail({
+    before, after, counts: await moveCounts(db),
+    ownerEmail: ADMIN_TO, shopName: shopConfig.senderName, adminLink: siteLink("/admin"),
+  });
+  if (!message) return;
+  try {
+    await sendEmail({ queue: "moveFinished", ...message, secret: resendSecretValue() });
+  } catch (err) {
+    console.warn("Couldn't send the move-finished email:", err?.message || err);
+  }
+});
+
+// Your move so far (plan 23.26): one reminder when a move from the old shop has seen nothing new for a week. The mark
+// is written before sending, so a failed send is never repeated daily.
+exports.moveReminder = onSchedule(
+  { schedule: "every day 10:00", name: "moveReminder", timeZone: "America/Toronto", timeoutSeconds: 60, secrets: withPlatformKey([RESEND_API_KEY]) },
+  async () => {
+    const markRef = db.collection("systemStatus").doc("moveReminder");
+    const [week, mark] = await Promise.all([db.collection("firstWeek").doc("start").get(), markRef.get()]);
+    if (!week.exists) return;
+    const stall = require("./moveDone").moveStallEmail({
+      doc: week.data(), mark: mark.exists ? mark.data() : null, now: new Date(),
+      ownerEmail: ADMIN_TO, shopName: shopConfig.senderName, adminLink: siteLink("/admin#overview"),
+    });
+    if (!stall) return;
+    await markRef.set(stall.mark);
+    try {
+      await sendEmail({ queue: "moveReminder", ...stall.message, secret: resendSecretValue() });
+    } catch (err) {
+      console.warn("Couldn't send the move reminder:", err?.message || err);
+    }
+  }
+);
 
 async function loadNotificationSettings() {
   let dbSettings = {};
@@ -2787,30 +3143,31 @@ function escapeHtml(value) {
 const localMethodOf = order => order?.fulfillment?.method || order?.fulfillmentSelection?.method || "";
 const isLocalOrder = order => ["pickup", "local_delivery"].includes(localMethodOf(order));
 
-function deliveryDetails(order) {
+function deliveryDetails(order, say = text => text) {
   const local = order.fulfillment || {};
   if (local.method === "pickup") {
     const a = local.address || {};
     return {
-      heading: "Pickup",
-      method: local.name || "Pickup",
+      heading: say("Pickup"),
+      method: local.name || say("Pickup"),
       estimate: local.estimate || "",
-      lines: [local.name, [a.street, a.city, a.state, a.zip].filter(Boolean).join(", "), local.hours, local.estimate, "We'll email you when your order is ready to collect."].filter(Boolean),
+      lines: [local.name, [a.street, a.city, a.state, a.zip].filter(Boolean).join(", "), local.hours, local.estimate, say("We'll email you when your order is ready to collect.")].filter(Boolean),
     };
   }
   if (local.method === "local_delivery") {
-    return { heading: "Local delivery", method: local.name || "Local delivery", estimate: local.estimate || "", lines: [local.name, local.estimate].filter(Boolean) };
+    return { heading: say("Local delivery"), method: local.name || say("Local delivery"), estimate: local.estimate || "", lines: [local.name, local.estimate].filter(Boolean) };
   }
   if (!order.shippingMethod) return { heading: "", method: "", estimate: "", lines: [] };
   const est = order.shippingEstimate || {};
   const days = String(est.days || "").trim();
-  const estimate = days ? `${days} business day${days === "1" ? "" : "s"} after dispatch` : String(est.terms || "").trim();
+  const french = say("Shipping") !== "Shipping";
+  const estimate = days ? (french ? `${days} jour${days === "1" ? "" : "s"} ouvrable${days === "1" ? "" : "s"} après l'envoi` : `${days} business day${days === "1" ? "" : "s"} after dispatch`) : String(est.terms || "").trim();
   const a = order.customer?.address || {};
   return {
-    heading: "Shipping",
+    heading: say("Shipping"),
     method: order.shippingMethod,
     estimate,
-    lines: [order.shippingMethod, estimate && `Expected delivery: ${estimate}`, [a.street, a.city, a.state, a.zip, a.country].filter(Boolean).join(", "), "We'll email your tracking number as soon as it ships."].filter(Boolean),
+    lines: [order.shippingMethod, estimate && `${say("Expected delivery:")} ${estimate}`, [a.street, a.city, a.state, a.zip, a.country].filter(Boolean).join(", "), say("We'll email your tracking number as soon as it ships.")].filter(Boolean),
   };
 }
 
@@ -2870,7 +3227,9 @@ function getTrackingUrl(carrier, trackingNum, customUrl) {
   return `https://www.google.com/search?q=${encodeURIComponent(carrier + " " + cleanNum)}`;
 }
 
-function compileEmailTemplate(templateId, settings, vars, additionalSection) {
+// `language` "fr" sends the French words (emailFrench.js, code plan 25.9) where the email has them. `transform`
+// rewrites the body that is sent (both languages), for example to drop tracking lines when there is no tracking number.
+function compileEmailTemplate(templateId, settings, vars, additionalSection, { language = "en", transform = null } = {}) {
   const brand = settings.brand || {};
   // {{shop_name}} is known to every email; a caller's own value wins.
   const shopName = String(settings.shopName || shopConfig.senderName || "");
@@ -2879,11 +3238,14 @@ function compileEmailTemplate(templateId, settings, vars, additionalSection) {
   const brandColor = brand.brandColor || "#e8402a";
   
   // An emptied field falls back to this shop's default words (plan 10.23: settings.sells from loadNotificationSettings).
-  const fallback = emailDefaultsFor(settings.sells, DEFAULT_NOTIFICATIONS)[templateId];
-  const template = settings[templateId] || fallback;
+  const french = language === "fr" ? emailFrench.frenchTemplate(templateId, settings) : null;
+  const fallback = french || emailDefaultsFor(settings.sells, DEFAULT_NOTIFICATIONS)[templateId];
+  const template = french || settings[templateId] || fallback;
+  if (french) vars = emailFrench.frenchValues(vars);
   let subject = template.subject || fallback.subject;
   // A required line (the gift-card code) comes back even if an edit removed it.
-  let body = withRequiredPlaceholders(templateId, template.body || fallback.body);
+  let body = withRequiredPlaceholders(templateId, template.body || fallback.body, french ? "fr" : "en");
+  if (transform) body = transform(body);
   let buttonText = template.buttonText !== undefined ? template.buttonText : fallback.buttonText;
   let signoff = template.signoff || fallback.signoff;
 
@@ -2944,23 +3306,34 @@ async function emailGiftCard(cardId, card, { to = "", notificationSettings = nul
     amount: `CA$${(Number(card.initialMinor) / 100).toFixed(2)}`,
     code: card.code,
     message: card.message || "",
-    expires: card.expiresOn ? `It can be used until ${card.expiresOn}.` : "",
+    expires: card.expiresOn ? (emailFrench.emailLanguage(card) === "fr" ? `Elle est valide jusqu'au ${card.expiresOn}.` : `It can be used until ${card.expiresOn}.`) : "",
     button_url: siteLink("/"),
     shop_url: siteLink("/"),
-  });
+  }, undefined, { language: emailFrench.emailLanguage(card) });
   await sendEmail({ to: recipient, subject: `${test ? "[TEST] " : ""}${compiled.subject}`, html: compiled.html, secret: RESEND_API_KEY.value(), queue, about: { giftCardId: cardId } });
   const at = new Date().toISOString();
   await db.collection("giftCards").doc(cardId).update({ emailedAt: at, history: withHistory(card, { type: "emailed", minor: 0, to: recipient, at }), updatedAt: at });
 }
 
-// A paid order with gift-card lines gets its cards once (giftCardsIssuedAt), then each is emailed.
+// A paid order with gift-card lines gets its cards once (giftCardsIssuedAt), then each is emailed. Cards are as good as
+// cash, so they wait while the order needs the owner's look (orderReview.js giftCardHold: a risky card payment or
+// "Check big orders"); "It looks fine" issues them (onOrderReviewCleared).
 async function issueGiftCardsForOrder(orderId) {
   const orderRef = db.collection("orders").doc(orderId);
+  const operationsRef = db.collection("order-operations").doc(orderId);
+  // The card company's risk answer may not be on the order yet (the webhook reads it after marking the order paid):
+  // read it now, so a risky payment is flagged before any code goes out. Best effort, as in the webhook.
+  const first = (await orderRef.get()).data() || {};
+  if (first.stripePaymentIntentId && !first.review && !first.giftCardsIssuedAt) {
+    await recordOrderMoney({ db, payments, orderId }).catch(err => console.warn(`Order ${orderId}: the payment's risk wasn't read (${err?.message || err}).`));
+  }
+  const own = { above: Number((await db.collection("settings").doc("website").get().catch(() => null))?.data?.()?.payments?.reviewAbove) || 0 };
   let created = [];
   let testOrder = false;
   await db.runTransaction(async tx => {
     created = [];
     const snap = await tx.get(orderRef);
+    const operationsSnap = await tx.get(operationsRef);
     if (!snap.exists) return;
     const order = snap.data();
     testOrder = order.isTest === true || order.sandboxPayment === true;
@@ -2968,6 +3341,12 @@ async function issueGiftCardsForOrder(orderId) {
     const cards = cardsForOrder(orderId, order);
     if (!cards.length) return;
     const now = new Date().toISOString();
+    // A rehearsal only ever emails the shop, so it is never held.
+    const hold = testOrder ? { hold: false } : giftCardHold(order, operationsSnap.exists ? operationsSnap.data() : {}, own);
+    if (hold.hold) {
+      if (hold.reasons) tx.update(orderRef, { review: { status: "needs_review", reasons: hold.reasons, flaggedAt: now }, updatedAt: now });
+      return;
+    }
     for (const card of cards) tx.create(db.collection("giftCards").doc(card.id), card.data);
     tx.update(orderRef, {
       giftCardsIssuedAt: now,
@@ -2989,6 +3368,24 @@ async function issueGiftCardsForOrder(orderId) {
     }
   }
 }
+
+// The owner pressed "It looks fine" on an order under review (admin api.ts clear_review writes reviewCleared): the gift
+// cards it held go out now. issueGiftCardsForOrder issues them once, so a repeat write changes nothing.
+exports.onOrderReviewCleared = onDocumentWritten(
+  { document: "order-operations/{orderId}", secrets: withPlatformKey([RESEND_API_KEY]) },
+  async event => {
+    const before = event.data?.before?.data?.() || {};
+    const after = event.data?.after?.data?.() || {};
+    if (before.reviewCleared || !after.reviewCleared) return;
+    const order = (await db.collection("orders").doc(event.params.orderId).get()).data() || {};
+    if ((order.isTest === true && order.sandboxPayment !== true) || order.source === "import") return;
+    if (!(order.items || []).some(item => item && item.giftCard === true)) return;
+    try {
+      await issueGiftCardsForOrder(event.params.orderId);
+    } catch (err) {
+      console.error(`Could not issue the held gift cards for ${event.params.orderId}:`, err);
+    }
+  });
 
 // The carrier address check is a nice-to-have: it runs AFTER every email, so a slow Shippo can
 // never cost the customer their confirmation or the shop its new-order alert.
@@ -3018,6 +3415,9 @@ async function handleOrderUpdated(event) {
     // Test orders send nothing — except sandbox payments, whose emails are part of
     // the checkout rehearsal (they still never buy labels or touch stock).
     if (after.isTest === true && after.sandboxPayment !== true) return;
+    // A past order brought over from the old shop is history only (functions/orderImport.js): an admin edit to it
+    // never sends an email, issues a gift card, takes stock or buys a label.
+    if (after.source === "import" || before.source === "import") return;
     // A refund the bank rejected put this order back to paid: tell the shop, because the customer
     // was told they were refunded (Orders › Needs attention also lists it).
     if (after.refundFailedAt && before.refundFailedAt !== after.refundFailedAt && after.paymentStatus === "paid") {
@@ -3097,6 +3497,8 @@ async function handleOrderUpdated(event) {
         isPhysical: isPhysicalItem, catalogDigital, preorderActive, releaseDateOf, today: shopDate(),
       });
 
+      // The fixed words around the email in the shopper's language (emailFrench.js, plan 25.9).
+      const say = emailFrench.sayer(emailFrench.emailLanguage(order));
       let downloadSection = "";
       if (digitalItems.length > 0) {
         const linkFor = item => `${functionLink(shopConfig, "downloadDigitalAsset")}?orderId=${encodeURIComponent(orderId)}&itemId=${encodeURIComponent(item.itemId)}${item.variantId ? `&variantId=${encodeURIComponent(item.variantId)}` : ""}&token=${encodeURIComponent(order.downloadToken || "")}`;
@@ -3104,7 +3506,7 @@ async function handleOrderUpdated(event) {
           || (sellsBooks(notificationSettings.sells) ? digitalDelivery.DEFAULT_DOWNLOAD_NOTE : goodsDownloadNote(digitalDelivery.DOWNLOAD_LIMIT)));
         downloadSection = `
           <div style="margin-top:28px;padding:24px;background:#f8f6ff;border-radius:16px;border:1px solid #7c3aed20;">
-            <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#7c3aed;">Digital Library Access</h3>
+            <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#7c3aed;">${say(sellsBooks(notificationSettings.sells) ? "Digital Library Access" : "Your downloads")}</h3>
             <p style="font-size:11px;color:#666;margin-bottom:16px;line-height:1.5;">${escapeHtml(note)}</p>
             <table style="width:100%;font-size:12px;border-collapse:collapse;">
               ${digitalItems.map(item => `
@@ -3112,9 +3514,9 @@ async function handleOrderUpdated(event) {
                   <td style="padding:8px 0;border-bottom:1px solid #7c3aed10;"><strong>${escapeHtml(item.title)}</strong></td>
                   <td style="padding:8px 0;text-align:right;border-bottom:1px solid #7c3aed10;">
                     ${item.pendingUntil
-                      ? `<span style="font-size:11px;color:#666;">${item.pendingUntil === "announced" ? "Available once the book is released" : `Available from ${escapeHtml(item.pendingUntil)}`}</span>`
+                      ? `<span style="font-size:11px;color:#666;">${item.pendingUntil === "announced" ? say(sellsBooks(notificationSettings.sells) ? "Available once the book is released" : "Available once it is released") : `${say("Available from")} ${escapeHtml(item.pendingUntil)}`}</span>`
                       : `<a href="${linkFor(item)}"
-                       style="display:inline-block;background:#7C3AED;color:#fff;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:10px;font-weight:bold;letter-spacing:.05em;text-transform:uppercase;">Download File</a>`}
+                       style="display:inline-block;background:#7C3AED;color:#fff;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:10px;font-weight:bold;letter-spacing:.05em;text-transform:uppercase;">${say("Download File")}</a>`}
                   </td>
                 </tr>
               `).join("")}
@@ -3123,18 +3525,20 @@ async function handleOrderUpdated(event) {
         `;
       }
 
-      const itemsTable = customerTotalsTable(order);
+      const itemsTable = customerTotalsTable(order, say);
 
       let paymentConfirmedSection = "";
       if (order.paymentMethod && !["Stripe", "PayPal", "Free"].includes(order.paymentMethod)) {
         paymentConfirmedSection = `
           <div style="margin-top:28px;padding:24px;background:#ecfdf5;border-radius:16px;border:1px solid #10b98120;">
-            <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#10b981;">Payment Verified</h3>
-            <p style="font-size:12px;color:#065f46;margin-bottom:0;line-height:1.6;">We have verified your payment via <strong>${escapeHtml(order.paymentMethod)}</strong>. Your order is now confirmed${isPhysicalAny(order) ? " and being prepared for shipment" : ""}.</p>
+            <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#10b981;">${say("Payment Verified")}</h3>
+            <p style="font-size:12px;color:#065f46;margin-bottom:0;line-height:1.6;">${say === emailFrench.sayer("en") || say("Shipping") === "Shipping"
+              ? `We have verified your payment via <strong>${escapeHtml(order.paymentMethod)}</strong>. Your order is now confirmed${isPhysicalAny(order) ? " and being prepared for shipment" : ""}.`
+              : `Nous avons vérifié votre paiement par <strong>${escapeHtml(order.paymentMethod)}</strong>. Votre commande est maintenant confirmée${isPhysicalAny(order) ? " et en préparation pour l'envoi" : ""}.`}</p>
           </div>
         `;
       }
-      const delivery = deliveryDetails(order);
+      const delivery = deliveryDetails(order, say);
       // Nothing physical in the order: no "preparing it for shipment" / "we'll email when it ships".
       const digitalOnlyOrder = (order.items || []).length > 0 && (order.items || []).every(item => !item || !isPhysicalItem(item));
       const deliverySection = delivery.heading ? `
@@ -3146,14 +3550,15 @@ async function handleOrderUpdated(event) {
       const preorderLines = preorderEmailLines(order);
       const preorderSection = preorderLines.length ? `
           <div style="margin-top:28px;padding:20px 24px;border:2px solid #111;">
-            <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;">Pre-order</h3>
+            <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;">${say("Pre-order")}</h3>
             ${preorderLines.map(line => `<p style="font-size:13px;margin:4px 0;line-height:1.6;">${escapeHtml(line)}</p>`).join("")}
           </div>` : "";
-      const combinedSection = [preorderSection, deliverySection, paymentConfirmedSection, downloadSection].filter(Boolean).join("\n");
+      // Who sold it and the policies, always at the foot (sellerDetails.js: provincial and EU/UK consumer rules).
+      const sellerWebsite = (await db.collection("settings").doc("website").get().catch(() => null))?.data?.() || {};
+      const sellerBlock = sellerSection(sellerWebsite, siteLink, shopConfig.senderName, say);
+      const combinedSection = [preorderSection, deliverySection, paymentConfirmedSection, downloadSection, digitalConsentSection(order, say), sellerBlock].filter(Boolean).join("\n");
 
-      const confirmationSettings = digitalOnlyOrder ? { ...notificationSettings, order_confirmation: { ...notificationSettings.order_confirmation,
-        body: forDigitalOnlyOrder(notificationSettings.order_confirmation?.body || DEFAULT_NOTIFICATIONS.order_confirmation.body, { hasDownloads: digitalItems.length > 0 }) } } : notificationSettings;
-      const compiled = compileEmailTemplate("order_confirmation", confirmationSettings, {
+      const compiled = compileEmailTemplate("order_confirmation", notificationSettings, {
         customer_name: order.customer.name || "there",
         order_id: order.orderId || orderId,
         shipping_method: delivery.method,
@@ -3162,7 +3567,8 @@ async function handleOrderUpdated(event) {
         button_url: await trackUrl(),
         items_table: itemsTable,
         total_price: chargedTotalFmt(order)
-      }, combinedSection);
+      }, combinedSection, { language: emailFrench.emailLanguage(order),
+        transform: digitalOnlyOrder ? body => forDigitalOnlyOrder(body, { hasDownloads: digitalItems.length > 0 }) : null });
 
       const adminOrderUrl = siteLink(`/admin#orders/${encodeURIComponent(orderId)}`);
       const adminAddr = order.customer?.address
@@ -3221,17 +3627,14 @@ async function handleOrderUpdated(event) {
         ? getTrackingUrl(after.trackingCarrier, after.trackingNumber, after.trackingUrl)
         : await trackUrl();
       // No tracking number: leave out the carrier/tracking lines instead of printing blanks.
-      const shippedSettings = after.trackingNumber ? notificationSettings : { ...notificationSettings, shipping_confirmation: {
-        ...notificationSettings.shipping_confirmation,
-        body: withoutTrackingLines(notificationSettings.shipping_confirmation?.body || DEFAULT_NOTIFICATIONS.shipping_confirmation.body) } };
-      const compiled = compileEmailTemplate("shipping_confirmation", shippedSettings, {
+      const compiled = compileEmailTemplate("shipping_confirmation", notificationSettings, {
         customer_name: after.customer?.name || "there",
         order_id: after.orderId || orderId,
         tracking_carrier: after.trackingCarrier || "carrier",
         tracking_number: after.trackingNumber || "",
         button_url: trackingUrl,
         tracking_url: trackingUrl
-      });
+      }, "", { language: emailFrench.emailLanguage(after), transform: after.trackingNumber ? null : withoutTrackingLines });
 
       const shippedAdminHtml = `
         <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
@@ -3268,8 +3671,98 @@ async function handleOrderUpdated(event) {
       }
     }
 
-    // 2b. Shipped parcels: "out for delivery" and "delivered" (admin buttons or Shippo tracking) send
-    // no customer email. The shipping email is the only one (owner's choice); the order status still moves.
+    // 2a. Part of the order shipped (code plan 24.5): one email per new parcel, under the "Order shipped" switch's
+    // sibling Part shipped. Never for the rest: that is the normal shipping email above.
+    const partsBefore = new Set((Array.isArray(before.partShipments) ? before.partShipments : []).map(p => p?.id));
+    const newParts = (Array.isArray(after.partShipments) ? after.partShipments : []).filter(p => p?.id && !partsBefore.has(p.id));
+    if (newParts.length && !handedOverLocally && notificationSettings.part_shipped?.enabled !== false && after.customer?.email) {
+      for (const part of newParts) {
+        const partUrl = part.trackingNumber ? getTrackingUrl(part.trackingCarrier, part.trackingNumber, part.trackingUrl) : await trackUrl();
+        const compiled = compileEmailTemplate("part_shipped", notificationSettings, {
+          customer_name: after.customer?.name || "there",
+          order_id: after.orderId || orderId,
+          tracking_carrier: part.trackingCarrier || "carrier",
+          tracking_number: part.trackingNumber || "",
+          items_list: (part.lines || []).map(l => `${Number(l.quantity) || 0} × ${String(l.title || "Item")}`).join("\n"),
+          button_url: partUrl,
+          tracking_url: partUrl,
+        }, "", { language: emailFrench.emailLanguage(after) });
+        try {
+          await sendOrderEmailOnce(orderId, `shippedPart_${part.id}`, {
+            to: after.customer.email, subject: compiled.subject, html: compiled.html, secret: RESEND_API_KEY.value(),
+          });
+        } catch (err) {
+          console.error("Part shipped email failed", err);
+        }
+      }
+    }
+
+    // 2b. Shipped parcels: "out for delivery" and "delivered" (admin buttons or Shippo tracking) send one
+    // Carrier delivery email each (code plan 25.5), only when the owner has switched it on in Notifications:
+    // off by default, so the shipping email stays the only one unless they choose more.
+    const CARRIER_STEPS = { out_for_delivery: "out for delivery", delivered: "delivered" };
+    const carrierStep = CARRIER_STEPS[after.fulfillmentStatus];
+    if (carrierStep && !isLocalOrder(after) && before.fulfillmentStatus !== after.fulfillmentStatus
+        && after.customer?.email && notificationSettings.carrier_delivery_update?.enabled === true) {
+      const trackingUrl = after.trackingNumber
+        ? getTrackingUrl(after.trackingCarrier, after.trackingNumber, after.trackingUrl)
+        : await trackUrl();
+      const compiled = compileEmailTemplate("carrier_delivery_update", notificationSettings, {
+        customer_name: after.customer?.name || "there",
+        order_id: after.orderId || orderId,
+        status: carrierStep,
+        tracking_carrier: after.trackingCarrier || "carrier",
+        tracking_number: after.trackingNumber || "",
+        button_url: trackingUrl,
+        tracking_url: trackingUrl,
+      }, "", { language: emailFrench.emailLanguage(after), transform: after.trackingNumber ? null : withoutTrackingLines });
+      try {
+        await sendOrderEmailOnce(orderId, `carrier_${after.fulfillmentStatus}`, {
+          to: after.customer.email, subject: compiled.subject, html: compiled.html, secret: RESEND_API_KEY.value(),
+        });
+      } catch (err) {
+        console.error("Carrier delivery email failed", err);
+      }
+    }
+
+    // 2b2. The shopper asked to cancel or return (orderRequests.js saves customerRequest): they hear it arrived
+    // (code plan 25.7). Before, only the owner was told. One email per request.
+    const request = after.customerRequest;
+    if (request?.createdAt && request.createdAt !== before.customerRequest?.createdAt && request.status === "open"
+        && after.customer?.email && notificationSettings.request_received?.enabled !== false) {
+      const compiled = compileEmailTemplate("request_received", notificationSettings, {
+        customer_name: after.customer?.name || "there",
+        order_id: after.orderId || orderId,
+        request: request.type === "cancel" ? "cancel" : "return",
+        button_url: await trackUrl(),
+      }, "", { language: emailFrench.emailLanguage(after) });
+      try {
+        await sendOrderEmailOnce(orderId, `request_${request.type}_${request.createdAt}`, {
+          to: after.customer.email, subject: compiled.subject, html: compiled.html, secret: RESEND_API_KEY.value(),
+        });
+      } catch (err) {
+        console.error("Request received email failed", err);
+      }
+    }
+
+    // 2b3. A delayed bank payment failed after checkout (the webhook marks paymentStatus "failed"): the shopper
+    // hears it didn't go through, with a link back to the order (code plan 25.8). Once per order.
+    if (before.paymentStatus !== "failed" && after.paymentStatus === "failed" && after.status !== "cancelled"
+        && after.customer?.email && notificationSettings.payment_failed?.enabled !== false) {
+      const compiled = compileEmailTemplate("payment_failed", notificationSettings, {
+        customer_name: after.customer?.name || "there",
+        order_id: after.orderId || orderId,
+        total_price: chargedTotalFmt(after),
+        button_url: await trackUrl(),
+      }, "", { language: emailFrench.emailLanguage(after) });
+      try {
+        await sendOrderEmailOnce(orderId, "payment_failed", {
+          to: after.customer.email, subject: compiled.subject, html: compiled.html, secret: RESEND_API_KEY.value(),
+        });
+      } catch (err) {
+        console.error("Payment failed email failed", err);
+      }
+    }
 
     // 2c. Pickup and local delivery: the confirmation promises "we'll email you when your order is
     // ready to collect", so each customer-facing step the admin records sends one Delivery email.
@@ -3278,17 +3771,16 @@ async function handleOrderUpdated(event) {
       : localMethod === "local_delivery" ? { out_for_delivery: "out for delivery", delivered: "delivered" } : {};
     const localStep = LOCAL_STEPS[after.fulfillmentStatus];
     if (localStep && before.fulfillmentStatus !== after.fulfillmentStatus && notificationSettings.delivery_update?.enabled !== false) {
-      const localSettings = { ...notificationSettings, delivery_update: { ...notificationSettings.delivery_update,
-        body: withoutCarrierLines(notificationSettings.delivery_update?.body || DEFAULT_NOTIFICATIONS.delivery_update.body) } };
-      const compiled = compileEmailTemplate("delivery_update", localSettings, {
+      const compiled = compileEmailTemplate("delivery_update", notificationSettings, {
         customer_name: after.customer?.name || "there",
         order_id: after.orderId || orderId,
         status: localStep,
         button_url: await trackUrl(),
       }, localMethod === "pickup" ? (() => {
-        const lines = deliveryDetails(after).lines.filter(line => !/we'll email you/i.test(line));
-        return lines.length ? `<div style="margin-top:28px;padding:20px 24px;border:2px solid #111;"><h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;">Pickup</h3>${lines.map(line => `<p style="font-size:13px;margin:4px 0;line-height:1.6;">${escapeHtml(line)}</p>`).join("")}</div>` : "";
-      })() : "");
+        const say = emailFrench.sayer(emailFrench.emailLanguage(after));
+        const lines = deliveryDetails(after, say).lines.filter(line => !/we'll email you|nous vous écrirons/i.test(line));
+        return lines.length ? `<div style="margin-top:28px;padding:20px 24px;border:2px solid #111;"><h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;">${say("Pickup")}</h3>${lines.map(line => `<p style="font-size:13px;margin:4px 0;line-height:1.6;">${escapeHtml(line)}</p>`).join("")}</div>` : "";
+      })() : "", { language: emailFrench.emailLanguage(after), transform: withoutCarrierLines });
       try {
         await sendOrderEmailOnce(orderId, `local_${after.fulfillmentStatus}`, {
           to: after.customer.email,
@@ -3298,6 +3790,23 @@ async function handleOrderUpdated(event) {
         });
       } catch (err) {
         console.error("Pickup/local delivery email failed", err);
+      }
+    }
+
+    // 2d. Picked up: the owner confirmed a pickup order was collected. One thank-you, kept as the receipt.
+    if (localMethod === "pickup" && after.fulfillmentStatus === "collected" && before.fulfillmentStatus !== "collected"
+      && after.customer?.email && notificationSettings.order_picked_up?.enabled !== false) {
+      const compiled = compileEmailTemplate("order_picked_up", notificationSettings, {
+        customer_name: after.customer?.name || "there",
+        order_id: after.orderId || orderId,
+        button_url: await trackUrl(),
+      }, "", { language: emailFrench.emailLanguage(after) });
+      try {
+        await sendOrderEmailOnce(orderId, "picked_up", {
+          to: after.customer.email, subject: compiled.subject, html: compiled.html, secret: RESEND_API_KEY.value(),
+        });
+      } catch (err) {
+        console.error("Picked up email failed", err);
       }
     }
 
@@ -3316,7 +3825,7 @@ async function handleOrderUpdated(event) {
         customer_name: after.customer?.name || "there",
         order_id: after.orderId || orderId,
         button_url: await trackUrl()
-      });
+      }, "", { language: emailFrench.emailLanguage(after) });
 
       try {
         await sendOrderEmailOnce(orderId, "cancelled", {
@@ -3359,22 +3868,28 @@ async function handleOrderUpdated(event) {
       if (facts && notificationSettings.order_refunded?.enabled !== false) {
       // {{total_price}} now carries its own currency (e.g. "US$12.40"); older saved templates
       // that wrote "CA${{total_price}}" are read without the hard-coded prefix.
-      const refundBody = String(notificationSettings.order_refunded?.body || "").replace(/CA\$\s*\{\{total_price\}\}/g, "{{total_price}}");
-      const refundSettings = { ...notificationSettings, order_refunded: { ...notificationSettings.order_refunded,
-        // Paid entirely by gift card: the money is back on the card now, not "in 5-10 business days".
-        body: facts.giftOnly ? withoutBankRefundSentences(refundBody || DEFAULT_NOTIFICATIONS.order_refunded.body) : refundBody } };
+      const say = emailFrench.sayer(emailFrench.emailLanguage(after));
       const giftSection = facts.giftText ? `
           <div style="margin-top:28px;padding:20px 24px;border:2px solid #111;">
-            <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;">Gift card</h3>
-            <p style="font-size:13px;margin:4px 0;line-height:1.6;">${escapeHtml(facts.giftText)} is back on your gift card${facts.cards ? ` ${escapeHtml(facts.cards)}` : ""} and can be used right away.</p>
+            <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;">${say("Gift card")}</h3>
+            <p style="font-size:13px;margin:4px 0;line-height:1.6;">${emailFrench.emailLanguage(after) === "fr"
+              ? `${escapeHtml(facts.giftText)} ${facts.cards ? `est de retour sur votre carte-cadeau ${escapeHtml(facts.cards)}` : "est de retour sur votre carte-cadeau"} et peut être utilisé tout de suite.`
+              : `${escapeHtml(facts.giftText)} is back on your gift card${facts.cards ? ` ${escapeHtml(facts.cards)}` : ""} and can be used right away.`}</p>
           </div>` : "";
-      const compiled = compileEmailTemplate("order_refunded", refundSettings, {
+      const compiled = compileEmailTemplate("order_refunded", notificationSettings, {
         customer_name: after.customer?.name || "there",
         order_id: after.orderId || orderId,
         // What was actually refunded, in the currency it went back in.
         total_price: facts.amountText,
         button_url: await trackUrl()
-      }, giftSection);
+      }, giftSection, { language: emailFrench.emailLanguage(after),
+        // {{total_price}} now carries its own currency (e.g. "US$12.40"); older saved templates that wrote
+        // "CA${{total_price}}" are read without the hard-coded prefix. Paid entirely by gift card: the money is back
+        // on the card now, not "in 5-10 business days".
+        transform: body => {
+          const text = body.replace(/CA\$\s*\{\{total_price\}\}/g, "{{total_price}}");
+          return facts.giftOnly ? withoutBankRefundSentences(text) : text;
+        } });
 
       try {
         await sendOrderEmailOnce(orderId, "refunded", {
@@ -3403,7 +3918,7 @@ async function handleOrderUpdated(event) {
         order_id: after.orderId || orderId,
         total_price: amountText,
         button_url: await trackUrl()
-      }, `<p style="margin-top:20px;font-size:13px;line-height:1.6;">This is a partial refund. The rest of your order is unchanged.</p>`);
+      }, `<p style="margin-top:20px;font-size:13px;line-height:1.6;">${emailFrench.sayer(emailFrench.emailLanguage(after))("This is a partial refund. The rest of your order is unchanged.")}</p>`, { language: emailFrench.emailLanguage(after) });
       try {
         await sendOrderEmailOnce(orderId, `partialRefund_${refundedAfter}`, {
           to: after.customer.email,
@@ -3420,6 +3935,7 @@ async function handleOrderUpdated(event) {
 const { digestSince, digestNeedsOperations, DIGEST_ORDER_LIMIT } = require("./orderDigest");
 const { lastWeek, buildWeeklySummary, weeklyHighlights, weeklySummaryEnabled, firstOrders } = require("./weeklySummary");
 const { buildWeeklyPdf, weeklyPdfName } = require("./weeklyPdf");
+const { fairDaySummary, buildFairDayEmail, fairDayEmailEnabled, torontoDay: fairTorontoDay } = require("./fairDayEmail");
 const { pruneOldCarts } = require("./cartCleanup");
 
 // Back-in-stock emails are sent a few at a time inside a time budget. Alerts a run could not reach keep
@@ -3434,10 +3950,12 @@ const jobs = scheduledJobs({
   digestNeedsOperations, digestSince, escapeHtml, footerAddress, loadNotificationSettings,
   marketingUnsubscribeKey, moneyFmt, nextDailyCount, normMarketingEmail, optOutId, pruneOldCarts,
   reminderFirstName, runInBatches, sendEmail: lateSendEmail, sendRestockAlerts, sendWeeklySummary, siteLink,
-  stockOf, unsubscribeToken, weeklySummaryEnabled,
+  stockOf, unsubscribeToken, weeklySummaryEnabled, sendFairDaySummary, fairDayEmailEnabled,
 });
 
 exports.dailyOrderDigest = jobs.dailyOrderDigest;
+
+exports.fairDaySummary = jobs.fairDaySummary;
 
 exports.weeklySummary = jobs.weeklySummary;
 
@@ -3468,13 +3986,38 @@ async function sendWeeklySummary(nowMs = Date.now()) {
   try {
     // Headed with the press's own name (Text & labels › Site name, plan 5.8).
     const website = (await db.collection("settings").doc("website").get().catch(() => null))?.data?.() || {};
-    const pdf = buildWeeklyPdf(weeklyHighlights({ orders: paid, daily, week, firstOrderIds, bookTitles, words }), { shopName: pressName(website, shopConfig.senderName), words });
+    const emailTheme = (await db.collection("settings").doc("notifications").get().catch(() => null))?.data?.()?.brand?.emailTheme;
+    const pdf = buildWeeklyPdf(weeklyHighlights({ orders: paid, daily, week, firstOrderIds, bookTitles, words }), { shopName: pressName(website, shopConfig.senderName), words, theme: emailTheme });
     attachments = [{ filename: weeklyPdfName(week), content: pdf, contentType: "application/pdf" }];
   } catch (err) {
     console.error("Weekly summary PDF failed; sending the email without it:", err);
   }
   await sendEmail({ to: ADMIN_TO, subject, html: attachments.length ? html : html.replace(pdfLine, ""), secret: RESEND_API_KEY.value(), attachments });
   return { subject };
+}
+
+// The fair day email (functions/fairDayEmail.js): today's Fair till sales, from what the stockroom has uploaded. Sent once
+// a day at most (systemStatus/fairDayEmail), and only when the till sold something; `force` (Send me today's now) sends
+// again. Returns { sent, subject?, reason? }. A shop without the stockroom has nothing to send.
+async function sendFairDaySummary(nowMs = Date.now(), { force = false } = {}) {
+  const day = fairTorontoDay(nowMs);
+  const markRef = db.collection("systemStatus").doc("fairDayEmail");
+  if (!force && (await markRef.get().catch(() => null))?.data?.()?.lastDay === day) return { sent: false, reason: "already-sent" };
+  let books;
+  try {
+    // Uploads of the last 36 hours cover the whole Toronto day, whatever the time zone of the server.
+    books = await require("./inventoryLinkStore").readBooksSoldSince(nowMs - 36 * 60 * 60 * 1000);
+  } catch (err) {
+    const problem = require("./inventoryLinkStore").connectionProblem(err);
+    if (problem === "no-stockroom") return { sent: false, reason: "no-stockroom" };
+    throw err;
+  }
+  const words = wordsFor(await shopSellsAnswer());
+  const email = buildFairDayEmail(fairDaySummary(books, day), { link: siteLink, words });
+  if (!email) return { sent: false, reason: "no-sales" };
+  await sendEmail({ to: ADMIN_TO, subject: email.subject, html: email.html, secret: RESEND_API_KEY.value() });
+  await markRef.set({ lastDay: day, at: new Date(nowMs).toISOString() }, { merge: true });
+  return { sent: true, subject: email.subject };
 }
 
 // Secret for signing unsubscribe links, created once and kept server-only in adminSecrets.
@@ -3678,6 +4221,8 @@ exports.onOrderCreated = onDocumentCreated(
     const orderId = event.params.orderId;
 
     if (order.isTest === true) return;
+    // A past order brought over from the old shop is history only (functions/orderImport.js): no email.
+    if (order.source === "import") return;
     if (!order.customer?.email) return;
 
     const notificationSettings = await loadNotificationSettings();
@@ -3724,7 +4269,8 @@ exports.onOrderCreated = onDocumentCreated(
 
     // 2. Customer Email: Send "Order Received (Pending Payment)" confirmation email if order was placed via manual payment method (i.e. starts as "pending")
     if (order.paymentStatus === "pending" && notificationSettings.order_pending_payment?.enabled !== false) {
-      const itemsTable = customerTotalsTable(order);
+      const say = emailFrench.sayer(emailFrench.emailLanguage(order));
+      const itemsTable = customerTotalsTable(order, say);
 
       // Instructions come from the shop's own settings, never from the order
       // document (which a browser can write), so nobody can make the shop email
@@ -3737,7 +4283,7 @@ exports.onOrderCreated = onDocumentCreated(
       if (paymentInstructions) {
         additionalSection = `
           <div style="margin-top:28px;padding:24px;background:#fffbeb;border-radius:16px;border:1px solid #d9770620;">
-            <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#d97706;">Payment Instructions</h3>
+            <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#d97706;">${say("Payment Instructions")}</h3>
             <p style="font-size:12px;color:#451a03;margin-bottom:0;line-height:1.6;white-space:pre-wrap;">${escapeHtml(paymentInstructions)}</p>
           </div>
         `;
@@ -3751,7 +4297,7 @@ exports.onOrderCreated = onDocumentCreated(
         button_url: await orderTrackUrl(orderId, order),
         items_table: itemsTable,
         total_price: chargedTotalFmt(order)
-      }, additionalSection);
+      }, additionalSection, { language: emailFrench.emailLanguage(order) });
 
       try {
         await sendEmail({
@@ -3773,7 +4319,7 @@ const shopMail = shopEmails({
   onBrowserRequest, onDocumentCreated, admin, db, mailer, applyCors, requireAdmin, ADMIN_TO,
   DEFAULT_NOTIFICATIONS, RESEND_API_KEY, claimEmailSend, cleanRecipients, compileEmailTemplate,
   loadNotificationSettings, logEmailAttempt, publicOutboxEntry, sendEmail: lateSendEmail, sendQueuedEmail,
-  sendWeeklySummary, siteLink,
+  sendWeeklySummary, sendFairDaySummary, siteLink,
 });
 
 exports.onContactMessage = shopMail.onContactMessage;
@@ -3798,8 +4344,9 @@ async function sendRestockAlerts({ bookId, book, docs, deadline, released = fals
   // released = the book just stopped being "Coming soon": signups made on that page get "Out now" wording.
   // (backInStockSweep can't see the switch any more; it reads the releasePending stamp set below.)
   const stuckBefore = Date.now() - 15 * 60 * 1000;
-  const link = siteLink(`/books/${encodeURIComponent(book.slug || bookId)}`);
   const restockSettings = await loadNotificationSettings();
+  // /products/<slug> in a shop that doesn't sell books (src/shared/shopSells.ts productBase).
+  const link = siteLink(`/${productBase(restockSettings.sells)}/${encodeURIComponent(book.slug || bookId)}`);
   const esc = t => String(t || "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const keyOf = alert => `${String(alert.email || "").trim().toLowerCase()}|${String(alert.variantId || "")}`;
   // One email per address per book edition, however many signups exist for it: the first signup sends,
@@ -3843,7 +4390,7 @@ async function sendRestockAlerts({ bookId, book, docs, deadline, released = fals
         subject: isRelease ? `Out now: ${book.title || alert.bookTitle}` : `Back in stock: ${book.title || alert.bookTitle}`,
         html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;">
             <h2 style="margin-top:0;">${isRelease ? "It's here!" : "It's back!"}</h2>
-            <p style="font-size:15px;line-height:1.6;"><strong>${title}</strong>${variant} ${isRelease ? "is out now and ready to order." : "is available again. Stock is limited, so grab your copy while you can."}</p>
+            <p style="font-size:15px;line-height:1.6;"><strong>${title}</strong>${variant} ${isRelease ? "is out now and ready to order." : `is available again. Stock is limited, so grab ${sellsBooks(restockSettings.sells) ? "your copy" : "yours"} while you can.`}</p>
             ${risoButton(link, "Shop now", restockSettings.brand?.brandColor, restockSettings.brand?.emailTheme)}
             <p style="font-size:12px;color:#888;">You received this because you asked to be notified. This is a one-time message.</p>
           </div>`,
@@ -3941,11 +4488,24 @@ exports.onOrderInventoryPush = onDocumentWritten({ document: "orders/{orderId}",
   if (result.status === "failed") console.warn(`inventory link: order ${event.params.orderId} not delivered yet (${result.error}); the sweep retries it.`);
 });
 
+// Changes an installed outside app asked for (platform plan 26.3b, appRequests.js): the platform writes the request,
+// this applies it with the shop's own checks and writes the answer back on the same document.
+exports.onAppRequest = onDocumentCreated({ document: "appRequests/{requestId}", timeoutSeconds: 60 }, async event => {
+  await require("./appRequests").applyAppRequest(db, event.params.requestId);
+});
+
 // The link's regular check: labels bought in the inventory app, missed or failed pushes, past orders,
 // and (every 15 minutes, once the owner switched it on) linked books' stock.
 exports.inventoryLinkSweep = onSchedule({ schedule: "every 5 minutes", name: "inventoryLinkSweep", timeoutSeconds: 300 }, async () => {
   const out = await require("./inventoryLinkJobs").runSweep(inventoryLinkDeps(), { stock: "auto" });
   if (out.error) console.error("inventoryLinkSweep:", out.error);
+});
+
+// Social posts whose time has come (plan 27.4): each is claimed, then sent once to each of its places.
+exports.socialPostSweep = onSchedule({ schedule: "every 5 minutes", name: "socialPostSweep", timeoutSeconds: 300, secrets: withPlatformKey([RESEND_API_KEY]) }, async () => {
+  if (!shopConfig.platformSocialUrl) return;
+  const out = await social.runDuePosts();
+  if (out.sent) console.log(`socialPostSweep: sent ${out.sent} post(s)`);
 });
 
 // The storefront's catalog file stays in use only while nothing it holds has changed (functions/catalogVersion.js).
@@ -3957,6 +4517,12 @@ const catalogChanged = (source, { publishedOnly = false } = {}) => async event =
   catch (err) { console.error("catalogVersion: could not record a change:", err.message); throw err; }
 };
 exports.catalogVersionBooks = onDocumentWritten("books/{bookId}", catalogChanged("books", { publishedOnly: true }));
+// A sale's "was" price must be the lowest of the 30 days before it (priceHistory.js): keep each book's earlier prices.
+exports.recordBookPriceHistory = onDocumentWritten("books/{bookId}", async event => {
+  if (!event.data?.after?.exists) return;
+  const history = require("./priceHistory").nextPriceHistory(event.data.before?.data(), event.data.after.data());
+  if (history) await event.data.after.ref.update({ priceHistory: history });
+});
 exports.catalogVersionPages = onDocumentWritten("pages/{pageId}", catalogChanged("pages", { publishedOnly: true }));
 exports.catalogVersionSettings = onDocumentWritten("settings/website", catalogChanged("settings"));
 // The file also carries the public shipping profiles (book pages' shipping figure, the bag's estimate and bar).
@@ -4153,12 +4719,27 @@ async function checkLabelRefunds(now = Date.now()) {
 
 // Square payment pages close when their stock hold ends; late refunds that failed are tried again (code plan 5.1,
 // paymentPages.js). Stripe's own Checkout Sessions expire by themselves, so a Stripe shop has nothing to do here.
+// Team entries added for one day only (a fair helper, roles.js removeExpiredMembers): removed once their time is up.
+exports.teamExpirySweep = onSchedule({ schedule: "every 30 minutes", name: "teamExpirySweep", timeoutSeconds: 120 }, async () => {
+  const removed = await removeExpiredMembers({ db });
+  if (removed) console.log(`teamExpirySweep: ${removed} Team entr${removed === 1 ? "y" : "ies"} removed.`);
+});
+
 exports.paymentPageSweep = onSchedule(
   { schedule: "every 5 minutes", name: "paymentPageSweep", timeoutSeconds: 120, secrets: withPlatformKey([RESEND_API_KEY]) },
   async () => {
     if (payments.provider !== "square") return;
     const result = await paymentPages.closeDuePages();
     if (result.closed || result.refunded) console.log("paymentPageSweep:", result);
+    // Fair helpers' QR links (payments/square.js standaloneCheckout): closed after their half hour, like Stripe's.
+    for (const mode of ["test", "live"]) {
+      try {
+        const fair = await (await payments.standaloneCheckout(mode))?.closeDue?.();
+        if (fair?.closed) console.log(`paymentPageSweep: ${fair.closed} fair QR link(s) closed (${mode}).`);
+      } catch (err) {
+        console.warn(`paymentPageSweep: fair QR links (${mode}) weren't checked: ${err?.message || err}`);
+      }
+    }
   });
 
 exports.unpaidPaymentSweep = onSchedule(
@@ -4176,7 +4757,11 @@ exports.unpaidPaymentSweep = onSchedule(
     const snap = await db.collection("orders").where("paymentStatus", "==", "unpaid").where("createdAt", ">=", since)
       .orderBy("createdAt", "desc").limit(300).get()
       .catch(err => { console.error("unpaidPaymentSweep: ordered query failed (deploy firestore:indexes), using unordered:", err.message); return db.collection("orders").where("paymentStatus", "==", "unpaid").limit(300).get(); });
-    const candidates = suspectOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    // Payment links (plan 21.1) can be paid weeks after they were made, outside that window: read the open ones too.
+    const linkSnap = await db.collection("orders").where("source", "==", "payment_link").where("paymentStatus", "==", "unpaid").limit(200).get()
+      .catch(err => { console.error("unpaidPaymentSweep: payment link query failed:", err.message); return { docs: [] }; });
+    const unpaid = new Map([...snap.docs, ...linkSnap.docs].map((d) => [d.id, { id: d.id, ...d.data() }]));
+    const candidates = suspectOrders([...unpaid.values()]);
     const found = [];
     // The Stripe mode and keys are read once for the whole sweep (only when Stripe is asked at all).
     // A failed read falls back to the per-call reads every lookup used to do.
@@ -4282,6 +4867,31 @@ exports.unpaidPaymentSweep = onSchedule(
         if (result.sent) console.log("unpaidPaymentSweep: review requests", result);
       }
     } catch (err) { console.error("unpaidPaymentSweep: review requests failed:", err.message); }
+
+    // Payment link reminders two days before a link closes (plan 21.5; own try/catch).
+    try {
+      // Never one to a customer whose payment this sweep just found in Stripe.
+      const due = [...unpaid.values()].filter(order => reminderDue(order) && !found.some(f => f.orderId === order.id));
+      if (due.length) {
+        const result = await sendLinkReminders({
+          db, orders: due, settings: await loadNotificationSettings(), compileEmailTemplate, orderTrackUrl, sendOrderEmailOnce,
+          formatTotal: chargedTotalFmt, secret: RESEND_API_KEY.value(),
+        });
+        if (result.sent) console.log("unpaidPaymentSweep: payment link reminders", result);
+      }
+    } catch (err) { console.error("unpaidPaymentSweep: payment link reminders failed:", err.message); }
+
+    // Customers › Newsletter: the next page of a newsletter that is sending (own try/catch; leased, so never twice).
+    try {
+      const result = await runNewsletterIssues({
+        db, optOutId, compileEmailTemplate, escapeHtml,
+        notificationSettings: await loadNotificationSettings(),
+        unsubscribeUrl: await newsletterUnsubscribeLink(),
+        listSubscribers: listNewsletterSubscribers, optedOutIds: newsletterOptedOutIds,
+        sendEmail: message => sendEmail({ ...message, secret: resendSecretValue() }),
+      });
+      if (result.sent || result.status) console.log("unpaidPaymentSweep: newsletter", result);
+    } catch (err) { console.error("unpaidPaymentSweep: newsletter failed:", err.message); }
   }
 );
 
@@ -4441,7 +5051,7 @@ async function handleBackupNow(req, res) {
 // The one scheduled job (code plan 15.16, tick.js): every sweep above registered itself with the tick, so a shop has one
 // Cloud Scheduler job instead of ten. It declares every sweep's secrets and the largest memory any sweep asked for.
 exports.tick = onScheduleReal(
-  { schedule: `every ${TICK_EVERY_MINUTES} minutes`, timeoutSeconds: 1800, memory: "1GiB", secrets: tickRegistry.secrets() },
+  { schedule: `every ${TICK_EVERY_MINUTES} minutes`, timeoutSeconds: TICK_TIMEOUT_SECONDS, memory: "1GiB", secrets: tickRegistry.secrets() },
   async () => {
     const { ran } = await runTick({ jobs: tickRegistry.jobs, db });
     if (ran.length) console.log("tick ran:", ran.join(", "));

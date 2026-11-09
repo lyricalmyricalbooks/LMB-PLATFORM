@@ -2,6 +2,7 @@
 // and returns { subject, text, html }. Every value from a press or a person is escaped in the HTML, and links must be
 // https. Customer-facing words: name the product (settings.platformName), never a rival.
 import { closingTemplates } from "./closingTemplates.js";
+import { pressTemplates } from "./pressTemplates.js";
 
 export const escapeHtml = (value) =>
   String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -68,6 +69,26 @@ export const TEMPLATES = {
     });
   },
 
+  /** Setup step 14 again, after a plan change adds an app: the link to the app that is new. */
+  "app-added": ({ links = {} }, { settings, pressName }) => {
+    const buttons = [];
+    if (links.shopAdmin) buttons.push(["Open your shop's admin", links.shopAdmin]);
+    if (links.stockroom) buttons.push(["Open your stockroom", links.stockroom]);
+    if (!buttons.length) throw new Error("the new-app email has no links");
+    const name = links.shopAdmin && links.stockroom ? "website and stockroom" : links.stockroom ? "stockroom" : "website";
+    const ready = `Your ${name} ${links.shopAdmin && links.stockroom ? "are" : "is"} ready`;
+    return layout({
+      subject: `${ready} on ${settings.platformName}`,
+      greeting: "Hello,",
+      paragraphs: [
+        `${ready} for ${pressName}. Sign in with this email address, as usual.`,
+        "Your setup checklist shows what is left to do.",
+      ],
+      buttons,
+      footer: signOff(settings),
+    });
+  },
+
   /** Sign-up and sign-in (signup/signup.js): a one-time link instead of a password. */
   "sign-in-link": ({ link }, { settings }) => layout({
     subject: `Your link to sign in to ${settings.platformName}`,
@@ -76,6 +97,17 @@ export const TEMPLATES = {
     buttons: [["Sign in", safeLink(link)]],
     footer: signOff(settings),
   }),
+
+  /** The front door's sign-in (signup/frontDoor.js): a six-digit code to type in, for new and returning presses. */
+  "sign-in-code": ({ code }, { settings }) => {
+    if (!/^\d{6}$/.test(String(code ?? ""))) throw new Error("A sign-in code is six numbers");
+    return layout({
+      subject: `${code} is your ${settings.platformName} code`,
+      greeting: "Hello,",
+      paragraphs: [`Your code to sign in to ${settings.platformName} is ${code}. Type it on the page you came from. It works once, for 10 minutes.`, "If you didn't ask for it, you can ignore this email. Nobody can sign in without the code."],
+      footer: signOff(settings),
+    });
+  },
 
   /** Sign-up's daily cap (signup/signup.js admitFromLine, plan 6.13): the press waited in line and its shop is starting. */
   "shop-starting": ({ pressName, link }, { settings }) => layout({
@@ -86,6 +118,18 @@ export const TEMPLATES = {
       "It takes a few minutes. We'll email you the way in as soon as it's ready.",
     ],
     buttons: [["See how it's going", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /** A press still in setup mode that hasn't been back (plan 18.11): 30 and 7 days before its setup is cleared. */
+  "setup-ending": ({ pressName, daysLeft, date, link }, { settings }) => layout({
+    subject: `Your ${settings.platformName} setup is kept until ${date}`,
+    greeting: "Hello,",
+    paragraphs: [
+      `You started setting up ${pressName || "your shop"} on ${settings.platformName}, but haven't been back for a while. We keep a setup for 60 days after your last visit, so what you've done so far is kept for ${daysLeft} more days, until ${date}.`,
+      "Sign in any time before then and everything is where you left it, and the 60 days start again. After that date we clear your answers and any product file you added. You can always start again.",
+    ],
+    buttons: [["Carry on setting up", safeLink(link)]],
     footer: signOff(settings),
   }),
 
@@ -187,7 +231,7 @@ export const TEMPLATES = {
     greeting: "Hello,",
     paragraphs: hasCard
       ? [`Your free trial for ${pressName} ends on ${date}. After that, your card is charged ${price} a month for the ${planName} plan.`, "You can change plan or cancel at any time before then."]
-      : [`Your free trial for ${pressName} ends on ${date}.`, `To keep it open, add a card. The ${planName} plan is ${price} a month, and you can cancel at any time.`, "If there is no card by then, your shop pauses. Nothing is deleted, and adding a card opens it again."],
+      : [`Your free trial for ${pressName} ends on ${date}.`, `To keep it open, add a card. The ${planName} plan is ${price} a month, and you can cancel at any time.`, "If there is no card by then, your shop pauses. Everything is kept for 60 days, and adding a card opens it again."],
     buttons: [[hasCard ? "Manage your plan" : "Add a card", safeLink(link)]],
     footer: signOff(settings),
   }),
@@ -196,7 +240,7 @@ export const TEMPLATES = {
   "card-needed": ({ link }, { settings, pressName }) => layout({
     subject: `${pressName} is paused until you add a card`,
     greeting: "Hello,",
-    paragraphs: [`Your free trial for ${pressName} has ended, so it is paused for now. Nothing is deleted.`, "Add a card and it opens again straight away."],
+    paragraphs: [`Your free trial for ${pressName} has ended, so it is paused for now. Everything is kept for 60 days.`, "Add a card and it opens again straight away."],
     buttons: [["Add a card", safeLink(link)]],
     footer: signOff(settings),
   }),
@@ -220,6 +264,56 @@ export const TEMPLATES = {
     paragraphs: [
       `Your shop now opens at ${domain}, with the secure padlock.`,
       "The address your shop came with keeps working too. To have emails, links and Google use the new one, make it your main address in your web address settings.",
+    ],
+    buttons: [["Open your web address settings", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /** The shop's free address on the platform's shop domain works (services/domains freeAddress.js). Sent once. */
+  "free-address-live": ({ domain, link }, { settings, pressName }) => layout({
+    subject: `${pressName} is open at ${domain}`,
+    greeting: "Hello,",
+    paragraphs: [
+      `Your shop now opens at ${domain}, with the secure padlock. This is the address to share: put it on your social pages, your cards and your emails.`,
+      "It's free and stays yours for as long as your shop is open. You can change its name, or bring a domain of your own, in your web address settings.",
+    ],
+    buttons: [["Open your web address settings", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /** A paying press whose shop has gone quiet (control-room/driftWatch.js): a gentle check-in, at most every 60 days. */
+  "quiet-shop": ({ pressName, link, helpLink }, { settings, w = (text) => text }) => layout({
+    subject: `How is ${pressName} getting on?`,
+    greeting: "Hello,",
+    paragraphs: [
+      `Things have been quiet at ${pressName} lately, so we wanted to check in. Shops often slow down between seasons, and that's fine.`,
+      w("A few things that tend to bring shoppers back: add a new title or a fresh photo, send your newsletter about it, or put a small discount code on your home page for a week."),
+      `If something in ${settings.platformName} is getting in your way, reply to this email and tell us what it is. The help pages are always there too: ${helpLink}`,
+    ],
+    buttons: [["Open your shop admin", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /** The press's web address is paid up only until `date` (services/domains checkAll, from the public registry). 30 and 7 days before. */
+  "domain-expiring": ({ domain, daysLeft, date, seller, own }, { settings }) => layout({
+    subject: `${domain} expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`,
+    greeting: "Hello,",
+    paragraphs: [
+      `Your web address ${domain} is paid up until ${date}. If it isn't renewed by then, your shop stops opening at ${domain}, and anything else that uses it stops too.`,
+      `To keep it, renew it where you bought it${seller ? ` (${seller})` : ""}. Most sellers can renew it for you every year: look for "auto-renew" in your account there.`,
+      `If you already renewed it, there's nothing to do. Your shop also keeps working at ${own}.`,
+    ],
+    footer: signOff(settings),
+  }),
+
+  /** The press's web address stopped opening their shop (services/domains checkAll): sent once per break, after an hour. */
+  "domain-not-pointing": ({ domain, own, link }, { settings }) => layout({
+    subject: `${domain} isn't opening your shop`,
+    greeting: "Hello,",
+    paragraphs: [
+      `${domain} no longer leads to your shop. This usually means the settings changed where you bought ${domain}, or the address wasn't renewed.`,
+      `Your shop still works at ${own}, and your orders are safe.`,
+      `Your web address settings show the lines to put back where you bought ${domain}. Once they are back, your shop opens at ${domain} again by itself.`,
     ],
     buttons: [["Open your web address settings", safeLink(link)]],
     footer: signOff(settings),
@@ -249,6 +343,85 @@ export const TEMPLATES = {
     footer: signOff(settings),
   }),
 
+  /** The bank wants the press to confirm this month's payment (Stripe keeps the bill open meanwhile, code plan 22.5). */
+  "payment-needs-confirming": ({ price, link }, { settings, pressName }) => layout({
+    subject: `Your bank wants you to confirm ${pressName}'s payment`,
+    greeting: "Hello,",
+    paragraphs: [
+      `Your bank asked you to confirm this month's ${price} payment for ${pressName} before it goes through. It's a normal safety step some banks take.`,
+      `Use the button below to confirm it with your bank. Your shop stays open meanwhile.`,
+    ],
+    buttons: [["Confirm the payment", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /** A payment that had failed went through after all (22.5). Only sent after a problem, never for an ordinary month. */
+  "payment-received": ({ price, link, bill }, { settings, pressName }) => layout({
+    subject: `Thanks, ${pressName}'s payment went through`,
+    greeting: "Hello,",
+    paragraphs: [`Your ${price} payment for ${pressName} went through, so everything is back to normal. Your bills are on your billing page whenever you need them.`],
+    buttons: [...(bill ? [["See this bill", safeLink(bill)]] : []), ["See your bills", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /**
+   * A receipt for a paid bill (code plan 25.1), every month and for any other bill with money on it. `data`: { price
+   * (what was paid), number (the bill's number, or ""), paidOn, from and to (the days the bill covers, or ""), tax (the
+   * tax in it, or ""), bill (the bill's own page, https, or null), link (the billing page) }.
+   */
+  "bill-paid": ({ price, number, paidOn, from, to, tax, bill, link, planName }, { settings, pressName }) => {
+    if (!price) throw new Error("a receipt needs the amount paid");
+    return layout({
+      subject: `Your ${settings.platformName} receipt for ${pressName}${number ? ` (${number})` : ""}`,
+      greeting: "Hello,",
+      paragraphs: [
+        `Thanks: we received your ${price} payment for ${pressName}${planName ? `, ${planName} plan` : ""}${paidOn ? `, on ${paidOn}` : ""}.`,
+        ...(from && to ? [`It pays for ${from} to ${to}.`] : []),
+        ...(tax ? [`It includes ${tax} in sales tax.`] : []),
+        `${number ? `Bill ${number} is` : "This bill is"} kept on your billing page, with all your earlier ones, whenever you need them for your books.`,
+      ],
+      buttons: [...(bill ? [["See this bill", safeLink(bill)]] : []), ["See your bills", safeLink(link)]],
+      footer: signOff(settings),
+    });
+  },
+
+  /** A card was added or made the one that pays (code plan 25.2): a safety notice. `data`: { card (e.g. "Visa ending 4242"), link }. */
+  "card-changed": ({ card, link }, { settings, pressName }) => layout({
+    subject: `The card that pays for ${pressName} changed`,
+    greeting: "Hello,",
+    paragraphs: [
+      `${card ? `${card} now pays` : "A new card now pays"} for ${pressName}'s ${settings.platformName} plan.`,
+      "If you made this change, there's nothing to do.",
+      "If you didn't, sign in and check your billing page now, then reply to this email so we can help straight away.",
+    ],
+    buttons: [["See your billing", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /** A card reopened a shop that was paused (code plan 25.3). `data`: { card, link }. */
+  "shop-reopened": ({ card, price, planName, link }, { settings, pressName }) => layout({
+    subject: `${pressName} is open again`,
+    greeting: "Hello,",
+    paragraphs: [
+      `Thanks for adding ${card || "a card"}. ${pressName} is open again, and shoppers can order as usual.`,
+      "Your plan carries on from today, billed each month as before, and you can change or cancel it at any time.",
+    ],
+    buttons: [["See your plan", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /** The press kept a plan they had cancelled (code plan 25.3). `data`: { link }. */
+  "cancel-undone": ({ price, planName, link }, { settings, pressName }) => layout({
+    subject: `${pressName} stays open`,
+    greeting: "Hello,",
+    paragraphs: [
+      `You kept your ${settings.platformName} plan, so ${pressName} won't close. We're glad you're staying.`,
+      "Your plan carries on just as before, and you won't be asked to set anything up again.",
+    ],
+    buttons: [["See your plan", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
   /** The press asked to cancel: the shop stays open until the end of the period already paid for. */
   "subscription-cancelled": ({ date, link }, { settings, pressName }) => layout({
     subject: `${pressName} will close on ${date}`,
@@ -262,7 +435,7 @@ export const TEMPLATES = {
   "subscription-ended": ({ link }, { settings, pressName }) => layout({
     subject: `${pressName} is closed`,
     greeting: "Hello,",
-    paragraphs: [`Your ${settings.platformName} plan for ${pressName} has ended, so the shop is closed. Your books, orders and settings are kept.`, "You can start a plan again at any time and pick up where you left off."],
+    paragraphs: [`Your ${settings.platformName} plan for ${pressName} has ended, so the shop is closed. You can download everything in it for 90 days; after that it is deleted, and we email you 30 and 7 days before.`, "You can start a plan again before then and pick up where you left off."],
     buttons: [["Start a plan again", safeLink(link)]],
     footer: signOff(settings),
   }),
@@ -304,6 +477,62 @@ export const TEMPLATES = {
     footer: signOff(settings),
   }),
 
+  /**
+   * A week before an app a plan change dropped closes (billing.js closeDroppedApps). `data`: { closing, date, link,
+   * signIn }: `signIn` when the link is the plan page (sign in, then one click) rather than the one-time keep link.
+   */
+  "app-closing-soon": ({ closing, date, link, signIn = false }, { settings, pressName }) => layout({
+    subject: `${String(closing || "An app").replace(/^t/, "T")} for ${pressName} ${/ and /.test(closing) ? "close" : "closes"} on ${date}`,
+    greeting: "Hello,",
+    paragraphs: [
+      `When you changed your plan, you left out ${closing || "an app"}. It closes on ${date}, the end of the month you've paid for.`,
+      `${signIn ? "If you meant to keep it, one click on your plan page keeps it." : `If you meant to keep it, the button below keeps it, with no need to sign in. It works once, until ${date}.`} If not, there's nothing to do: you can download everything in it for 90 days after it closes.`,
+    ],
+    buttons: [[signIn ? "Keep it or see your plan" : "Keep it", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /** A dropped app closed today (billing closeDroppedApps). `data`: { closing, date (the last day to download), link }. */
+  "app-closed": ({ closing, holds, date, link }, { settings, pressName }) => {
+    const many = / and /.test(closing ?? "");
+    const [it, them] = many ? ["they", "them"] : ["it", "it"];
+    return layout({
+      subject: `${String(closing || "An app").replace(/^t/, "T")} for ${pressName} ${many ? "are" : "is"} closed. Download ${them} by ${date}`,
+      greeting: "Hello,",
+      paragraphs: [
+        `Your plan no longer has ${closing || "this app"}, so ${it} closed today, at the end of the month you paid for.`,
+        `Everything that was in ${them} is kept until ${date}. To save a copy, open your account and choose Download all your data: we'll email you a link to every file${holds ? `, with ${holds}` : ""}.`,
+        `Changed your mind? Add ${them} back to your plan before ${date} and ${many ? "they open" : "it opens"} again with everything in ${them}.`,
+      ],
+      buttons: [["Download your data", safeLink(link)]],
+      footer: signOff(settings),
+    });
+  },
+
+  /** Three days before a closed app's download ends (billing closedApps.js). `data`: { closing, holds? (what the download holds), date (the last day), link }. */
+  "app-download-ending": ({ closing, holds, date, link }, { settings, pressName }) => layout({
+    subject: `Last days to download ${closing || "your closed app"} for ${pressName}`,
+    greeting: "Hello,",
+    paragraphs: [
+      `${String(closing || "The app").replace(/^t/, "T")} you dropped from your plan closed a while ago. Everything that was in it is kept until ${date}, then deleted for good.`,
+      `To save a copy, open your account and choose Download all your data: we'll email you a link to every file${holds ? `, with ${holds}` : ""}. To keep using it instead, add it back to your plan before then.`,
+    ],
+    buttons: [["Download your data", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /** A closed app's records were deleted after its 90 days (billing closedApps.js). `data`: { closing, link }. */
+  "app-records-deleted": ({ closing, link }, { settings, pressName }) => layout({
+    subject: `Everything that was in ${closing || "your closed app"} for ${pressName} is now deleted`,
+    greeting: "Hello,",
+    paragraphs: [
+      `As we wrote before, the 90 days to download ${closing || "the app you dropped"} are over, so everything that was in it has now been deleted for good.`,
+      "Nothing else was deleted with it. If you want it again one day, you can add it back to your plan; it starts empty.",
+    ],
+    buttons: [["Open your account", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
   /** The card on file runs out within a month (code plan 6.12). Sent once per card. `data`: { card, month, date, link }. */
   "card-expiring": ({ card, date, month, link }, { settings, pressName }) => layout({
     subject: `Your card for ${pressName} runs out soon`,
@@ -329,13 +558,26 @@ export const TEMPLATES = {
     footer: signOff(settings),
   }),
 
+  /** Delete my account (accounts/deleteAccount.js, plan 24.2): the goodbye note to the address that was deleted. */
+  "account-deleted": ({ shops = [] }, { settings }) => layout({
+    subject: `Your ${settings.platformName} account is deleted`,
+    greeting: "Hello,",
+    paragraphs: [
+      `Your ${settings.platformName} account and your sign-in are deleted, as you asked.`,
+      shops.length ? `You're no longer on the team of ${shops.join(", ")}.` : "",
+      "Invoices and billing records are kept for six years because tax law asks for it, and your past support messages stay as a record. Nothing else about you is kept.",
+      "If you didn't do this, reply to this email straight away.",
+    ].filter(Boolean),
+    footer: signOff(settings),
+  }),
+
   /** To the old address: someone asked to move this account away from it. */
   /**
    * The emergency payments switch (control-room/emergencyPayments.js, plan 8.5): a platform admin moved the shop's card
    * payments. `to`: "own" (the press's own Stripe keys), "square" or "platform" (back to normal); `ready`: whether the
    * press can take cards that way already.
    */
-  "payments-moved": ({ to, ready }, { settings, pressName }) => {
+  "payments-moved": ({ to, ready }, { settings, pressName, w = (text) => text }) => {
     const admin = "Open your shop's admin, then Settings and Payments";
     const words = {
       own: {
@@ -361,7 +603,7 @@ export const TEMPLATES = {
     return layout({
       subject: words.subject,
       greeting: "Hello,",
-      paragraphs: [...words.paragraphs, "Your books, orders and payouts already made are not affected. We'll email you again when anything changes."],
+      paragraphs: [...words.paragraphs, w("Your books, orders and payouts already made are not affected. We'll email you again when anything changes.")],
       footer: signOff(settings),
     });
   },
@@ -470,6 +712,26 @@ export const TEMPLATES = {
     });
   },
 
+  /**
+   * The monthly shop check-up (services/checkup, plan 14.9). `data`: { pressName, lines: [{ state, words, fix?: { label,
+   * link } }], offLink }. Every line that needs doing has its own button; a month with nothing to fix says so.
+   */
+  "shop-checkup": ({ lines = [], offLink }, { settings, pressName }) => {
+    if (!lines.length) throw new Error("the check-up has no lines");
+    const fixes = lines.filter((l) => l.state === "fix");
+    return layout({
+      subject: fixes.length ? `${pressName}: ${fixes.length === 1 ? "one thing" : `${fixes.length} things`} to fix in your shop` : `${pressName}: your shop is in good shape`,
+      greeting: "Hello,",
+      paragraphs: [
+        `Here is this month's check-up of ${pressName}. ${fixes.length ? "Each thing that needs you has a button." : "Nothing needs you this month."}`,
+        ...lines.map((l) => `${l.state === "ok" ? "Good: " : "To do: "}${l.words}`),
+        `Don't want this email each month? Turn it off here: ${safeLink(offLink)}. Emails about your plan and payments still come.`,
+      ],
+      buttons: fixes.filter((l) => l.fix).map((l) => [l.fix.label, safeLink(l.fix.link)]),
+      footer: signOff(settings),
+    });
+  },
+
   // Closing a shop (code plan 6.8): shop-closed, shop-deletion-warning, shop-deleted.
   ...closingTemplates({ layout, safeLink, signOff }),
 
@@ -488,6 +750,51 @@ export const TEMPLATES = {
     buttons: [["Approve or decline", safeLink(link)]],
     footer: signOff(settings),
   }),
+
+  /**
+   * The weekly deletion note to the platform owner (control-room/deletionNote.js). `data.apps`: [{ shopId, pressName,
+   * ownerEmail, app, date (download ends), overdue, warned (date of the last email, or null), problem, bounced }].
+   */
+  "apps-deleting-soon": ({ apps }, { settings }) => {
+    if (!Array.isArray(apps) || !apps.length) throw new Error("the deletion note lists no apps");
+    const line = (a) => [
+      `${a.pressName} (${a.shopId}${a.ownerEmail ? `, ${a.ownerEmail}` : ""}): ${a.app}.`,
+      a.overdue ? `Its download ended ${a.date} and it is still waiting to be deleted${a.problem ? `: ${a.problem}` : ""}.` : `Its download ends ${a.date}; its records are deleted after that.`,
+      a.warned ? `The last-days email went out ${a.warned}${a.bounced ? ", but a closing email bounced" : ""}.` : `The last-days email hasn't gone out yet${a.bounced ? ", and a closing email bounced" : ""}.`,
+    ].join(" ");
+    const stuck = apps.filter((a) => a.overdue).length;
+    return layout({
+      subject: `${apps.length} closed app${apps.length === 1 ? "" : "s"} to be deleted this week${stuck ? ` (${stuck} overdue)` : ""}`,
+      greeting: "",
+      paragraphs: [
+        "These closed apps' records are deleted within the next week. A press that asks in time can still add the app back to its plan, or download everything first.",
+        ...apps.map(line),
+        "Open Apps closing in the control room for the whole list. You get this note once a week, and only when something is due.",
+      ],
+      footer: `${settings.platformName} control room`,
+    });
+  },
+
+  /**
+   * A scheduled job stopped running on time (services/jobs, plan 19.11), to the platform's alert address only.
+   * `data`: { job, words, every (minutes), lastRunAt }.
+   */
+  "job-late": ({ job, words, every, lastRunAt }, { settings }) => {
+    if (!job || !Number.isFinite(every)) throw new Error("the late job alert names no job");
+    const gap = every < 60 ? `${every} minute${every === 1 ? "" : "s"}` : every < 1440 ? `${every / 60} hour${every === 60 ? "" : "s"}` : `${every / 1440} day${every === 1440 ? "" : "s"}`;
+    return layout({
+      subject: `Job late: ${words ?? job}`,
+      greeting: "",
+      paragraphs: [
+        `The job "${job}" (${words ?? job}) should run every ${gap}, but its last run started at ${lastRunAt ?? "an unknown time"}.`,
+        "Open the Jobs page in the control room to see its runs, or press Run now. You get this email once; another comes only if it runs on time and then stops again.",
+      ],
+      footer: `${settings.platformName} jobs`,
+    });
+  },
+
+  // From the control room to a press (code plan 19.14, 19.16): press-message, data-export-ready.
+  ...pressTemplates({ layout, safeLink, signOff }),
 };
 
 /** Problems with a free-form email a shop asks to send (its own order and account emails), in plain words. */

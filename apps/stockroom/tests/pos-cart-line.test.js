@@ -15,6 +15,8 @@ function makeHarness({ isPublisher = true } = {}) {
     names: ['posCartRowHtml', 'posCartEmptyHtml', 'posSyncCheckoutAvailability'],
     deps: {
       escapeHtml,
+      // A books shop's words (shop-words.js): unchanged.
+      words: (text) => text,
       // Deliberately simple: the formatter is covered by money.test.js, and a
       // real one here would hide which text came from which field.
       posFormat: (amount, code) => `${code} ${Number(amount ?? 0).toFixed(2)}`,

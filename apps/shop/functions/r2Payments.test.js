@@ -447,3 +447,286 @@ test('stockists: only a signed-in approved stockist can claim wholesale pricing,
   expect((await unverified.call('createStripeCheckoutSession', { action: 'stockistPricing', orderId: 'o1' })).code).toBe(401);
   expect(unverified.docs.orders.o1.stockistId).toBeUndefined();
 });
+
+// ── Trade invoices (plan 12.10): an approved shop with terms orders now and pays later ────────────────────────────────
+const invoiceDocs = (terms = 30) => stockistDocs({ stockists: { 'shop@boutique.example': { status: 'approved', name: 'Boutique', terms } } });
+const invoiceBody = (extra = {}) => ({ action: 'createManualLocalOrder', tradeInvoice: true, orderDraft: manualDraft([{ id: 'tee', quantity: 2 }]), ...extra });
+const boutique = { email: 'Shop@Boutique.example', email_verified: true, uid: 's1' };
+
+test('invoices: an approved shop with terms places a wholesale order that counts as a sale with the money still owed', async () => {
+  const app = harness({ docs: invoiceDocs(30), identity: boutique });
+  const status = await app.call('createStripeCheckoutSession', { action: 'stockistStatus' });
+  expect(status.value).toEqual({ wholesale: true, name: 'Boutique', terms: 30 });
+  const placed = await app.call('createStripeCheckoutSession', invoiceBody());
+  expect(placed.code).toBe(200);
+  expect(placed.value.invoice).toBe(true);
+  const order = app.docs.orders[placed.value.orderId];
+  expect(order).toMatchObject({ stockistId: 'shop@boutique.example', paymentMethod: 'Invoice (net 30)', paymentStatus: 'paid' });
+  expect(order.items[0].price).toBe(20);
+  expect(order.invoice).toMatchObject({ days: 30, paidAt: null });
+  expect(Date.parse(order.invoice.dueAt) - Date.parse(order.createdAt)).toBeGreaterThan(29.9 * 86400000);
+});
+
+test('invoices: a 12-copy trade order skips the per-shopper hold caps, but never holds more than the shop has', async () => {
+  const withStock = stockLevel => { const docs = invoiceDocs(30); docs.books.tee = { ...docs.books.tee, trackInventory: true, stockLevel }; return docs; };
+  const app = harness({ docs: withStock(15), identity: boutique });
+  const placed = await app.call('createStripeCheckoutSession', invoiceBody({ orderDraft: manualDraft([{ id: 'tee', quantity: 12 }]) }));
+  expect(placed.code).toBe(200);
+  const short = harness({ docs: withStock(5), identity: boutique });
+  const refused = await short.call('createStripeCheckoutSession', invoiceBody({ orderDraft: manualDraft([{ id: 'tee', quantity: 12 }]) }));
+  expect(refused.code).toBe(400);
+  expect(refused.value.code).toBeUndefined();
+  // An ordinary shopper paying at pickup still meets the cap.
+  const shopper = harness({ docs: withStock(15) });
+  expect((await shopper.call('createStripeCheckoutSession', { action: 'createManualLocalOrder', manualMethodId: 'cash', orderDraft: manualDraft([{ id: 'tee', quantity: 12 }]) })).value.code).toBe('hold_limit');
+});
+
+test('stockists: a card order claimed by an approved stockist holds 12 copies; a paused one meets the cap', async () => {
+  const pay = async status => {
+    const docs = stockistDocs({ stockists: { 'shop@boutique.example': { status, name: 'Boutique' } } });
+    docs.books.tee = { ...docs.books.tee, trackInventory: true, stockLevel: 50 };
+    docs.orders = { o1: { ...stockistOrder({ items: [{ id: 'tee', quantity: 12 }] }), stockistId: 'shop@boutique.example', paymentStatus: 'unpaid', status: 'pending_payment', trackingKey: 'a'.repeat(64) } };
+    const app = harness({ docs });
+    return app.call('createStripeCheckoutSession', { orderId: 'o1', currency: 'cad', returnUrl: 'http://localhost:5173/track?orderId=o1', embedded: false });
+  };
+  expect((await pay('approved')).code).toBe(200);
+  const paused = await pay('paused');
+  expect(paused.code).toBe(409);
+  expect(paused.value.code).toBe('hold_limit');
+});
+
+test('invoices: a shop without terms, a paused shop, an unverified email or a stranger cannot order on invoice', async () => {
+  for (const [docs, identity] of [
+    [invoiceDocs(0), boutique],
+    [stockistDocs({ stockists: { 'shop@boutique.example': { status: 'paused', name: 'Boutique', terms: 30 } } }), boutique],
+    [invoiceDocs(30), { ...boutique, email_verified: false }],
+    [invoiceDocs(30), { email: 'reader@example.com', email_verified: true, uid: 'r1' }],
+    [invoiceDocs(30), null],
+  ]) {
+    const app = harness({ docs, identity });
+    const refused = await app.call('createStripeCheckoutSession', invoiceBody());
+    expect(refused.code).toBe(400);
+    expect(Object.keys(app.docs.orders || {})).toHaveLength(0);
+  }
+  expect((await harness({ docs: invoiceDocs(0), identity: boutique }).call('createStripeCheckoutSession', { action: 'stockistStatus' })).value).toMatchObject({ wholesale: true, terms: 0 });
+});
+
+// ── Payment links (plan 21.1): an order the owner makes, at agreed prices, paid from a link ───────────────────────────
+const linkDocs = (extra = {}) => stockistDocs({
+  settings: baseSettings({ taxes: { rates: [{ country: 'CA', state: 'ON', rate: 13, name: 'HST' }] } }),
+  discounts: { auto: { method: 'automatic', title: 'Half off', type: 'percentage', value: 50, code: '' } },
+  ...extra,
+});
+const linkBody = (extra = {}) => ({
+  action: 'paymentLink', op: 'create',
+  link: {
+    customer: { name: 'Robin Reader', email: 'Robin@Example.com', address: { street: '1 King St', city: 'Toronto', state: 'ON', zip: 'M5H1A1', country: 'CA' } },
+    lines: [{ id: 'tee', quantity: 10, price: 25 }, { id: 'hoodie', variantId: 'xl', quantity: 1 }],
+    shipping: 12, note: 'Ten tees for the fair.', days: 14,
+    ...extra,
+  },
+});
+const makeLink = async (app, extra) => {
+  const made = await app.call('createStripeCheckoutSession', linkBody(extra), { admin: true });
+  expect(made.code).toBe(200);
+  return { ...made.value, order: app.docs.orders[made.value.orderId], link: app.docs.paymentLinks[made.value.orderId] };
+};
+
+test('payment links: the owner makes an unpaid order at the agreed prices and shipping, with tax and no discount on top', async () => {
+  const app = harness({ docs: linkDocs() });
+  const { order, link, trackingKey, expiresAt } = await makeLink(app);
+  expect(order).toMatchObject({ status: 'pending_payment', paymentStatus: 'unpaid', source: 'payment_link', trackingKey, discount: 0, appliedDiscount: null, shipping: 12 });
+  expect(order.customer.email).toBe('robin@example.com');
+  // The tee pays the agreed 25; the hoodie had no price given, so today's shop price (66) is frozen into the link.
+  expect(unitPrices(order)).toEqual([25, 66]);
+  expect(link.lines.map(line => line.price)).toEqual([25, 66]);
+  expect(order.subtotal).toBe(316);
+  expect(order.tax).toBeCloseTo(316 * 0.13, 2);
+  expect(order.total).toBeCloseTo(316 + 12 + 316 * 0.13, 2);
+  expect(Date.parse(expiresAt) - Date.parse(order.createdAt)).toBeGreaterThan(13.9 * 86400000);
+  expect(order.paymentLink).toEqual({ expiresAt, note: 'Ten tees for the fair.' });
+  expect(link.keyHash).not.toContain(trackingKey);
+  // Paying later prices the same order the same way, even after the catalog price moved.
+  app.docs.books.hoodie.variants[0].price = 90;
+  const again = await app.priceOrder(order, { orderId: order.orderId });
+  expect(unitPrices(again)).toEqual([25, 66]);
+  expect(again.total).toBeCloseTo(order.total, 2);
+});
+
+test('payment links: only the owner can make one, and the owner hears what to fix', async () => {
+  const stranger = harness({ docs: linkDocs(), identity: { email: 'reader@example.com', email_verified: true, uid: 'r1' } });
+  expect((await stranger.call('createStripeCheckoutSession', linkBody())).code).toBe(403);
+  expect(stranger.docs.orders || {}).toEqual({});
+  const app = harness({ docs: linkDocs() });
+  const bad = async (extra, words) => {
+    const answer = await app.call('createStripeCheckoutSession', linkBody(extra), { admin: true });
+    expect(answer.code).toBe(400);
+    expect(answer.value.error).toMatch(words);
+  };
+  await bad({ customer: { name: '', email: 'a@example.com', address: { country: 'CA', state: 'ON' } } }, /name/);
+  await bad({ customer: { name: 'A', email: 'nope', address: { country: 'CA', state: 'ON' } } }, /email/);
+  await bad({ customer: { name: 'A', email: 'a@example.com', address: { country: 'CA' } } }, /province/);
+  await bad({ customer: { name: 'A', email: 'a@example.com', address: { country: 'CA', state: 'ON' } } }, /street/);
+  await bad({ lines: [] }, /between 1/);
+  await bad({ lines: [{ id: 'tee', quantity: 0 }] }, /quantity/);
+  await bad({ lines: [{ id: 'tee', quantity: 1, price: -1 }] }, /price/);
+  await bad({ lines: [{ id: 'tee', quantity: 1 }, { id: 'tee', quantity: 2 }] }, /twice/);
+  await bad({ lines: [{ id: 'nothing', quantity: 1 }] }, /not found/);
+  await bad({ days: 365 }, /days/);
+  expect(app.docs.orders || {}).toEqual({});
+  // Nothing to ship needs no street address (handed over or digital), and charges no shipping.
+  const inPerson = await makeLink(app, { shipping: null, customer: { name: 'A', email: 'a@example.com', address: { country: 'CA', state: 'ON' } } });
+  expect(inPerson.order.shipping).toBe(0);
+});
+
+test('payment links: the card page charges the agreed total, and a closed, expired, changed or copied link is refused', async () => {
+  const app = harness({ docs: linkDocs() });
+  const { orderId, order } = await makeLink(app);
+  const pay = await app.call('createStripeCheckoutSession', { orderId, currency: 'cad', returnUrl: 'http://localhost:5173/checkout', embedded: false }, { orderKey: order.trackingKey });
+  expect(pay.code).toBe(200);
+  expect(app.docs.orders[orderId].expectedAmountMinor).toBe(Math.round(order.total * 100));
+  // Someone without the link's key can't open its card page.
+  expect((await app.call('createStripeCheckoutSession', { orderId, currency: 'cad', embedded: false }, { orderKey: 'b'.repeat(64) })).code).toBe(403);
+
+  const expired = harness({ docs: linkDocs() });
+  const late = await makeLink(expired);
+  expired.docs.paymentLinks[late.orderId].expiresAt = new Date(Date.now() - 1000).toISOString();
+  await expect(expired.priceOrder(late.order, { orderId: late.orderId })).rejects.toThrow(/expired/);
+
+  const closed = harness({ docs: linkDocs() });
+  const shut = await makeLink(closed);
+  closed.docs.paymentLinks[shut.orderId].status = 'cancelled';
+  await expect(closed.priceOrder(shut.order, { orderId: shut.orderId })).rejects.toThrow(/no longer open/);
+
+  const changed = harness({ docs: linkDocs() });
+  const edited = await makeLink(changed);
+  await expect(changed.priceOrder({ ...edited.order, items: [{ id: 'tee', quantity: 99 }, { id: 'hoodie', variantId: 'xl', quantity: 1 }] }, { orderId: edited.orderId })).rejects.toThrow(/changed/);
+  await expect(changed.priceOrder({ ...edited.order, items: [{ id: 'tee', quantity: 10 }] }, { orderId: edited.orderId })).rejects.toThrow(/changed/);
+
+  // A record left behind by a deleted order doesn't price a new order made at the same id with another key.
+  const copied = harness({ docs: linkDocs() });
+  const old = await makeLink(copied);
+  const forged = { ...stockistOrder({ items: [{ id: 'tee', quantity: 10 }, { id: 'hoodie', variantId: 'xl', quantity: 1 }] }), trackingKey: 'c'.repeat(64) };
+  const normal = await copied.priceOrder(forged, { orderId: old.orderId });
+  // The shop's own prices, with its automatic offer, exactly like any order.
+  expect(unitPrices(normal)).toEqual([40, 66]);
+  expect(normal.discount).toBe(233);
+});
+
+test('payment links: items added to a paid order ship with it, and only an active paid order that has not left takes them (plan 24.6)', async () => {
+  const docs = linkDocs();
+  docs.orders = {
+    paid: { orderId: 'PAID-1', paymentStatus: 'paid', status: 'processing', fulfillmentStatus: 'processing' },
+    gone: { orderId: 'GONE-1', paymentStatus: 'paid', status: 'processing', fulfillmentStatus: 'shipped' },
+    unpaid: { orderId: 'UNPAID-1', paymentStatus: 'unpaid', status: 'pending_payment' },
+  };
+  const app = harness({ docs });
+  const { order } = await makeLink(app, { shipsWith: 'paid', shipping: 0 });
+  expect(order.shipsWith).toBe('paid');
+  expect(order.activity[0].message).toMatch(/Adds to order PAID-1/);
+  // The paid order itself is not written to.
+  expect(app.docs.orders.paid).toEqual(docs.orders.paid);
+  for (const [id, words] of [['gone', /already left/], ['unpaid', /active paid order/], ['missing', /can't be found/], ['a/b', /can't be found/]]) {
+    const answer = await app.call('createStripeCheckoutSession', linkBody({ shipsWith: id }), { admin: true });
+    expect(answer.code).toBe(400);
+    expect(answer.value.error).toMatch(words);
+  }
+  // A link without shipsWith is unchanged.
+  expect((await makeLink(app)).order.shipsWith).toBeUndefined();
+  // Once the first order is cancelled or refunded, the added items' link takes no payment; until then it does.
+  const id = order.orderId;
+  await expect(app.priceOrder(order, { orderId: id })).resolves.toBeTruthy();
+  app.docs.orders.paid.paymentStatus = 'partially_refunded';
+  await expect(app.priceOrder(order, { orderId: id })).resolves.toBeTruthy();
+  app.docs.orders.paid.status = 'cancelled';
+  await expect(app.priceOrder(order, { orderId: id })).rejects.toThrow(/was cancelled/);
+  app.docs.orders.paid = { ...docs.orders.paid, paymentStatus: 'refunded' };
+  await expect(app.priceOrder(order, { orderId: id })).rejects.toThrow(/was cancelled/);
+  delete app.docs.orders.paid;
+  await expect(app.priceOrder(order, { orderId: id })).rejects.toThrow(/was cancelled/);
+});
+
+test('payment links: the customer adds items to their own paid order from its page, at shop prices, shipping in the same parcel (plan 24.6)', async () => {
+  const docs = linkDocs();
+  const key = 'k'.repeat(64);
+  const customer = { name: 'Robin Reader', email: 'robin@example.com', address: { street: '1 King St', city: 'Toronto', state: 'ON', zip: 'M5H1A1', country: 'CA' } };
+  docs.orders = {
+    mine: { orderId: 'MINE-1', trackingKey: key, customer, paymentStatus: 'paid', status: 'processing', fulfillmentStatus: 'processing', items: [{ id: 'tee', quantity: 1 }] },
+  };
+  const app = harness({ docs });
+  const add = (body, opts = { orderKey: key }) => app.call('createStripeCheckoutSession', { action: 'addToOrder', orderId: 'mine', lines: [{ id: 'tee', quantity: 2 }], ...body }, opts);
+  const made = await add({});
+  expect(made.code).toBe(200);
+  const order = app.docs.orders[made.value.orderId];
+  expect(order).toMatchObject({ shipsWith: 'mine', addedByCustomer: true, source: 'payment_link', status: 'pending_payment', paymentStatus: 'unpaid', shipping: 0, discount: 0 });
+  // The shop's own price, never one the browser sends.
+  expect(unitPrices(order)).toEqual([40]);
+  expect(order.customer.email).toBe('robin@example.com');
+  expect(order.activity[0].message).toMatch(/customer added items/);
+  expect(made.value.trackingKey).toBe(order.trackingKey);
+  // Prices sent by the browser are ignored.
+  const cheap = await add({ lines: [{ id: 'tee', quantity: 1, price: 0.01 }] });
+  expect(unitPrices(app.docs.orders[cheap.value.orderId])).toEqual([40]);
+  // Someone without the order's key, a gift card, too many copies, an unpaid order or too many open ones are refused.
+  expect((await add({}, { orderKey: 'z'.repeat(64) })).code).toBe(403);
+  expect((await add({ lines: [{ id: 'tee', quantity: 21 }] })).code).toBe(400);
+  expect((await add({ lines: [] })).code).toBe(400);
+  expect((await add({ orderId: 'nope' })).code).toBe(404);
+  await add({});
+  expect((await add({})).value.error).toBe('too_many_open');
+  app.docs.orders.mine.fulfillmentStatus = 'shipped';
+  expect((await add({})).value.error).toBe('closed');
+});
+
+test('payment links: an e-book order has no parcel, so added books are refused and added e-books ship nothing (plan 24.6)', async () => {
+  const docs = linkDocs();
+  docs.books.ebook = { status: 'published', title: 'Field Notes', format: 'eBook', digital: true, retailPrice: 10 };
+  const key = 'k'.repeat(64);
+  // A digital-only checkout asks only for the country and province (Checkout.tsx digitalOnly).
+  const customer = { name: 'Robin Reader', email: 'robin@example.com', address: { country: 'CA', state: 'ON' } };
+  docs.orders = { mine: { orderId: 'MINE-1', trackingKey: key, customer, paymentStatus: 'paid', status: 'processing', fulfillmentStatus: 'processing', items: [{ id: 'ebook', quantity: 1, digital: true, format: 'eBook' }] } };
+  const app = harness({ docs });
+  const add = lines => app.call('createStripeCheckoutSession', { action: 'addToOrder', orderId: 'mine', lines }, { orderKey: key });
+  // Another e-book: nothing to ship, so no street address is needed.
+  const ebook = await add([{ id: 'ebook', quantity: 1 }]);
+  expect(ebook.code).toBe(200);
+  expect(app.docs.orders[ebook.value.orderId]).toMatchObject({ shipping: 0, shipsWith: 'mine' });
+  // A printed tee: there is no parcel to put it in, so it is not added with free shipping.
+  const tee = await add([{ id: 'tee', quantity: 1 }]);
+  expect(tee.code).toBe(409);
+  expect(tee.value.error.length).toBeGreaterThan(20);
+  // Even with a full street address saved on the e-book order, the tee doesn't ride along for free.
+  app.docs.orders.mine.customer = { ...customer, address: { street: '1 King St', city: 'Toronto', state: 'ON', zip: 'M5H1A1', country: 'CA' } };
+  expect((await add([{ id: 'tee', quantity: 1 }])).code).toBe(409);
+});
+
+test('discount codes: a code for "@school.example" addresses works for them and only them', async () => {
+  const docs = stockistDocs({ discounts: { s: { code: 'SCHOOL', method: 'code', type: 'percentage', value: 10, allowedEmailDomains: '@school.example' } } });
+  const app = harness({ docs });
+  const order = email => stockistOrder({ customer: { ...stockistOrder().customer, email }, appliedDiscount: { code: 'SCHOOL' } });
+  await expect(app.priceOrder(order('ada@school.example'))).resolves.toMatchObject({ appliedDiscount: { code: 'SCHOOL' } });
+  await expect(app.priceOrder(order('ada@notschool.example'))).rejects.toThrow(/selected email domains/);
+});
+
+test('payment links: an ordinary order is priced exactly as before', async () => {
+  const app = harness({ docs: linkDocs() });
+  const priced = await app.priceOrder({ ...stockistOrder(), trackingKey: 'a'.repeat(64) }, { orderId: 'o-normal' });
+  expect(priced.appliedDiscount).toMatchObject({ automatic: true });
+  expect(unitPrices(priced)).toEqual([40, 66, 20]);
+  expect(priced.discount).toBe(83);
+});
+
+test('payment links: a card order to the rest of the shop, the owner sets the quantity, and a total a card can take', async () => {
+  const docs = linkDocs();
+  docs.books.tee = { ...docs.books.tee, trackInventory: true, stockLevel: 50 };
+  const app = harness({ docs });
+  // Refunds, the admin and stock read "Stripe" as a card order (a Square shop's too).
+  const { orderId, order } = await makeLink(app, { lines: [{ id: 'tee', quantity: 30, price: 20 }] });
+  expect(order.paymentMethod).toBe('Stripe');
+  // 30 copies is past the per-shopper hold cap, but the owner set it: paying holds them.
+  const pay = await app.call('createStripeCheckoutSession', { orderId, currency: 'cad', returnUrl: `http://localhost:5173/track?orderId=${orderId}`, embedded: false }, { orderKey: order.trackingKey });
+  expect(pay.code).toBe(200);
+  const free = await app.call('createStripeCheckoutSession', linkBody({ lines: [{ id: 'tee', quantity: 1, price: 0 }], shipping: null }), { admin: true });
+  expect(free.code).toBe(400);
+  expect(free.value.error).toMatch(/0\.50/);
+});

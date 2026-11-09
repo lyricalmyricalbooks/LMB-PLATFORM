@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { POLICY_KEYS, POLICY_TITLES, policySlug } from "../features/site/policyPages";
 import { STARTER_POLICY_NOTE, starterFacts, withStarter } from "./starterPolicies";
 import { useShopSells } from "./shopWords";
+import { AmountField } from "./AmountField";
 import { ActionMenu, Checkbox, ConfirmDialog, LoadingState, MetricCard, DestructiveButton, Dialog, EmptyState, ErrorState, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm } from "./riso/components";
 // `m` + the app-wide LazyMotion (domAnimation): the full `motion` component would pull layout/drag code into the shop's first load.
 import { m, AnimatePresence } from "motion/react";
@@ -38,8 +39,11 @@ import { duplicateProfile, profileSummary } from "./shippingProfileStarters";
 /** Same cap as functions/liveRateExtra.js MAX_LIVE_RATE_EXTRA. */
 const MAX_LIVE_RATE_EXTRA = 50;
 import { TeamSettings } from "./TeamSettings";
+import { SecuritySettings } from "./SecuritySettings";
+import { GoogleSettings } from "./GoogleSettings";
+import { AppsSettings } from "./AppsSettings";
 import { BookkeepingSettings } from "./BookkeepingSettings";
-import { PlanSettings } from "./PlanParts";
+import { BillingSettings, PlanSettings } from "./PlanParts";
 import { TaxesSettings } from "./TaxesSettings";
 import { BackupsExportCard } from "./BackupsExportCard";
 import { ShopErrorsCard } from "./ShopErrorsCard";
@@ -49,6 +53,7 @@ import { testSaleSteps } from "./testSaleWalkthrough";
 import { practiceCheckout, type PracticeState } from "../lib/practiceCheckout";
 import { studioHash } from "../lib/studioLocation";
 import { useShopWords } from "./shopWords";
+import { WhatYouSellCard } from "./WhatYouSellCard";
 
 export function ShopSettings({ 
   activeTab, 
@@ -129,8 +134,12 @@ export function ShopSettings({
             onOpenShipping={() => { setActiveTab("shipping"); if (onSubTabChange) onSubTabChange("carrier", "shipping"); else setShippingStart("carrier"); }} onOpenOrders={onOpenOrders} onOpenNotifications={() => setActiveTab("notifications")} />}
           {activeTab === "taxes" && <TaxesSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
           {activeTab === "team" && <TeamSettings />}
+          {activeTab === "security" && <SecuritySettings />}
+          {activeTab === "google" && <GoogleSettings />}
+          {activeTab === "apps" && <AppsSettings />}
           {activeTab === "bookkeeping" && <BookkeepingSettings taxRates={settings.taxes?.rates || []} />}
           {activeTab === "plan" && <PlanSettings />}
+          {activeTab === "billing" && <BillingSettings />}
           {/* Communications was retired: its links open Notifications. */}
           {(activeTab === "notifications" || activeTab === "communications") && <NotificationEditor focus={activeTab === "communications" ? "sender" : undefined} subTab={subTab} onSubTabChange={onSubTabChange} />}
         </m.div>
@@ -241,6 +250,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
       </SettingsGroup>
 
       <SettingsGroup id="gs-details" active={view === "gs-details"}>
+        <WhatYouSellCard />
         <SettingsAnchor id="gs-identity">
           <SectionCard title="Store identity" description="Name, blurb, contact.">
             <div className="rp-stack" style={{ gap: 20 }}>
@@ -256,7 +266,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
           <SectionCard title="Location" description="Where parcels ship from.">
             <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
               <div style={{ gridColumn: "1 / -1" }}>
-                <TextField label="Street address" value={settings.location?.street || ""} placeholder="456 Montrose Avenue" onChange={(e) => set("location", { street: e.target.value })} />
+                <TextField label="Street address" value={settings.location?.street || ""} placeholder="123 Example Street" onChange={(e) => set("location", { street: e.target.value })} />
               </div>
               <TextField label="City" value={settings.location?.city || ""} placeholder="Toronto" onChange={(e) => set("location", { city: e.target.value })} />
               <TextField label="State / province" value={settings.location?.state || ""} placeholder="Ontario" onChange={(e) => set("location", { state: e.target.value })} />
@@ -278,12 +288,12 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
                 return (
                   <div key={k}>
                     <TextArea label={POLICY_TITLES[k]} rows={5} maxLength={20000} value={text}
-                      hint={text.trim() ? `Live at /page/${policySlug(k)}` : "Hidden until it has text."}
+                      hint={text.trim() ? `Live at /page/${policySlug(k)}` : k === "accessibility" ? "Optional. Tells shoppers who use screen readers or keyboards what to expect, and how to ask for help. Hidden until it has text." : "Hidden until it has text."}
                       onChange={(e) => set("policies", { [k]: e.target.value })} />
                     {!text.trim() && (
                       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, marginTop: 8 }}>
                         {/* Reads the latest saved policy again so a click can never replace words typed meanwhile. */}
-                        <SecondaryButton size="sm" onClick={() => setSettings((prev: any) => ({ ...prev, policies: { ...prev?.policies, [k]: withStarter(prev?.policies?.[k], k, starterFacts(prev, sellsAnswer)) } }))}>Start from our wording</SecondaryButton>
+                        <SecondaryButton size="sm" onClick={() => setSettings((prev: any) => ({ ...prev, policies: { ...prev?.policies, [k]: withStarter(prev?.policies?.[k], k, starterFacts(prev, sellsAnswer, providerName())) } }))}>Start from our wording</SecondaryButton>
                         <span className="rp-hint">Filled with your shop name, address and returns window. {STARTER_POLICY_NOTE}</span>
                       </div>
                     )}
@@ -1616,7 +1626,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
         </SettingsAnchor>
         ) : (
         <SettingsAnchor id="pay-stripe">
-          <SectionCard title="Stripe" description="Cards, Apple Pay, Google Pay." /* Stripe shops only (own keys) */
+          <SectionCard title="Stripe" logo="stripe" description="Cards, Apple Pay, Google Pay." /* Stripe shops only (own keys) */
             actions={<SecondaryButton size="sm" onClick={() => window.open("https://dashboard.stripe.com", "_blank", "noopener")}>{/* Stripe shops only */}Stripe dashboard ↗</SecondaryButton>}>
             <div className="rp-stack" style={{ gap: 20 }}>
               <Toggle label="Stripe checkout" /* Stripe shops only */ checked={!!stripe.connected} onChange={(v) => updateStripe({ connected: v })} />
@@ -1681,7 +1691,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
         {/* PayPal needs the press's own PayPal credentials, so a shop run by Colophon doesn't offer it (code plan 6.16). */}
         {!platformCards && (
         <SettingsAnchor id="pay-paypal">
-          <SectionCard title="PayPal">
+          <SectionCard title="PayPal" logo="paypal">
             <div className="rp-stack" style={{ gap: 20 }}>
               <Toggle label="PayPal checkout" checked={!!paypal.connected} onChange={(v) => updatePaypal({ connected: v })} />
               {paypal.connected && (
@@ -1740,6 +1750,14 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
                 ))}
               </ul>
             )}
+          </SectionCard>
+        </SettingsAnchor>
+        <SettingsAnchor id="pay-review">
+          <SectionCard title="Check big orders" description="Hold large card orders until you look at them.">
+            <AmountField label="Hold card orders of at least (optional)" placeholder="500"
+              value={Number(settings.payments?.reviewAbove) || 0}
+              onValue={(reviewAbove) => setSettings({ ...settings, payments: { ...settings.payments, reviewAbove } })}
+              hint="An order this size or larger waits in Needs attention until you press It looks fine. Leave empty to turn it off." />
           </SectionCard>
         </SettingsAnchor>
       </SettingsGroup>

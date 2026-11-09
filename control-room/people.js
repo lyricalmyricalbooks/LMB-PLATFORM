@@ -2,11 +2,11 @@
 // a placeholder or nobody until Julian sets it.
 //
 //   PLATFORM_PRIVACY_CONTACT  who answers privacy questions (plan 8.6), shown on the terms page and with the breach
-//                             register. Default privacy@ the platform domain, a placeholder until Julian names one.
+//                             register. Default: the terms' privacy contact (terms/terms.js).
 //   PLATFORM_ADMIN_EMAIL      Julian's own address: every use of the backup person's access is emailed there (plan 8.7).
 //                             Nobody by default, and then the backup person's access stays shut.
 //   PLATFORM_BACKUP_PERSON    the one person with sealed emergency access (backupPerson.js, plan 8.7). Nobody by default.
-import { platformSettings } from "../services/settings.js";
+import { PRIVACY_CONTACT } from "../terms/terms.js";
 
 const EMAIL = /^[^@\s<>"',;]+@[^@\s<>"',;]+\.[^@\s<>"',;]+$/;
 
@@ -19,7 +19,7 @@ export function controlRoomPeople(env = process.env) {
     return value;
   };
   const people = {
-    privacyContact: address("PLATFORM_PRIVACY_CONTACT", `privacy@${platformSettings(env).domain}`),
+    privacyContact: address("PLATFORM_PRIVACY_CONTACT", PRIVACY_CONTACT),
     adminEmail: address("PLATFORM_ADMIN_EMAIL"),
     backupPerson: address("PLATFORM_BACKUP_PERSON"),
   };

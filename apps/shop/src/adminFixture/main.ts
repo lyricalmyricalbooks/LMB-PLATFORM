@@ -1,0 +1,222 @@
+// Development-only entry for admin-fixture.html: the real admin (signed in through the dev-only ?debug=true door) with
+// sample orders and books. Every other admin call answers with nothing, as an offline shop would, so the check sees
+// each screen's real empty and error states too. Nothing here reaches Firestore.
+import { adminApi } from "../app/admin/api";
+import { A11Y_BOOKS } from "../a11yFixture/books";
+import { inventoryLinkApi } from "../app/admin/inventoryLinkApi";
+import { addressKey } from "../app/admin/fulfillment";
+import { googleConnectApi, readGoogleStatus } from "../app/admin/googleConnect";
+import { appsApi } from "../app/admin/appActivity";
+
+const order = (n: number, status: string, name: string) => ({
+  id: `o${n}`, orderId: `FIXTURE-${n}`, status, paymentStatus: "paid", createdAt: new Date(Date.now() - n * 3_600_000).toISOString(),
+  customer: { name, email: `buyer${n}@example.com` },
+  items: [{ id: "b1", title: "Salt Hours", quantity: n, price: 20 }], total: 20 * n, subtotal: 20 * n, currency: "CAD",
+  shippingAddress: { street: "1 Example St", city: "Toronto", state: "ON", zip: "M5V 1A1", country: "Canada" },
+  trackingKey: `key${n}`, fulfillmentStatus: status === "shipped" ? "shipped" : "unfulfilled",
+});
+const ORDERS = [order(1, "paid", "Ada Example"), { ...order(2, "paid", "Ben Example"), locale: "fr-CA" } as any, order(3, "shipped", "Cleo Example")];
+
+// One open order with its address reviewed, two lines and a parcel already sent ahead (Send part now, plan 24.5).
+function orderDetail(id: string) {
+  const base: any = ORDERS.find((o) => o.id === id);
+  if (!base) return null;
+  const o: any = {
+    ...base, customer: { ...base.customer, address: base.shippingAddress },
+    items: [...base.items, { id: "b2", title: "Night Songs", quantity: 1, price: 18 }],
+    ...(id === "o2" ? { partShipments: [{ id: "p1", lines: [{ line: 0, title: "Salt Hours", quantity: 1 }], trackingCarrier: "Canada Post", trackingNumber: "7023 1100 0045", trackingUrl: "", shippedAt: new Date(Date.now() - 86_400_000).toISOString() }] } : {}),
+  };
+  o.operations = { addressReviewed: addressKey(o) };
+  return o;
+}
+
+const known: Record<string, (...a: any[]) => any> = {
+  getOrderById: async (id: string) => orderDetail(id),
+  // o2's customer added a book after paying (plan 24.6): an open payment-link order that ships with it.
+  getOrdersShippingWith: async (id: string) => (id === "o2" ? [{ id: "o2-add", orderId: "ADD-2", shipsWith: "o2", paymentStatus: "unpaid", status: "pending_payment", items: [{ id: "b2", title: "Night Songs", quantity: 1 }], paymentLink: { expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString() } }] : []),
+  getOrders: async () => ORDERS,
+  getAllOrders: async () => ORDERS,
+  getFulfillmentOrders: async () => ORDERS,
+  getRecentFulfillmentOrders: async () => ORDERS,
+  getBooks: async () => A11Y_BOOKS,
+  // A screenshot of the post composer sets __fixtureWebPhotos: the composer only offers web (https) photos, which the
+  // check's own page.route answers; every other check keeps the offline pictures.
+  getAllBooks: async () => ((window as any).__fixtureWebPhotos
+    ? A11Y_BOOKS.map((b: any, i: number) => ({ ...b, photos: (b.photos || []).map((p: any) => ({ ...p, url: `https://photos.example/cover-${i + 1}.jpg` })) }))
+    : A11Y_BOOKS),
+  getSettings: async () => ({}),
+  // A list, though its name doesn't end like one: the Overview's alerts read it on the way back from an order.
+  getRecentEmailLog: async () => [],
+  getAdminBadgeCounts: async () => ({ pendingReviews: 0, unreadMessages: 0, openPrivacyRequests: 0 }),
+  listNewsletterIssues: async () => [
+    { id: "n2", subject: "Spring list and where to find us", status: "paused", audience: 42, sent: 18, lastError: "Sending stopped after 5 failed tries in a row. Check Settings › Email sender, then press Resume.", createdAt: new Date(Date.now() - 600_000).toISOString() },
+    { id: "n1", subject: "Winter sale", status: "sent", audience: 40, sent: 40, createdAt: "2026-10-01T15:00:00Z", finishedAt: "2026-10-01T15:30:00Z" },
+  ],
+  // Sales channels and Social posts (plan 27.5, 27.6): Facebook & Instagram and Pinterest connected, TikTok not, and a
+  // post of each kind in the list.
+  social: async (step: string) => {
+    const img = (A11Y_BOOKS[0] as any).photos[0].url;
+    if (step === "status") return { enabled: true, networks: [
+      { network: "meta", name: "Facebook & Instagram", available: true, connected: true, problem: null, accountName: "Ada Example", canSendCatalog: true,
+        places: [{ id: "fb:111", kind: "facebookPage", name: "Example Press" }, { id: "ig:222", kind: "instagram", name: "@examplepress" }],
+        catalog: { sentAt: new Date(Date.now() - 86_400_000).toISOString(), feedUrl: "https://example.web.app/social-product-feed.csv" } },
+      { network: "pinterest", name: "Pinterest", available: true, connected: true, problem: null, accountName: "examplepress", canSendCatalog: true,
+        places: [{ id: "pin:900", kind: "pinterestBoard", name: "New books" }], catalog: null },
+      { network: "tiktok", name: "TikTok", available: true, connected: false, problem: null, accountName: null, places: [], catalog: null, canSendCatalog: false },
+    ] };
+    if (step === "posts") return { posts: [
+      { id: "p1", bookId: "b1", bookTitle: "Salt Hours", imageUrl: img, caption: "Salt Hours, new this week.\n\n$20.00. Link in the post.", status: "scheduled",
+        sendAt: new Date(Date.now() + 2 * 86_400_000).toISOString(), createdAt: new Date().toISOString(), results: {},
+        places: [{ id: "fb:111", kind: "facebookPage", name: "Example Press" }, { id: "ig:222", kind: "instagram", name: "@examplepress" }] },
+      { id: "p2", bookId: "b2", bookTitle: "Night Songs", imageUrl: img, caption: "Night Songs is back in stock.", status: "partly",
+        sendAt: new Date(Date.now() - 3_600_000).toISOString(), createdAt: new Date(Date.now() - 3_600_000).toISOString(),
+        places: [{ id: "fb:111", kind: "facebookPage", name: "Example Press" }, { id: "pin:900", kind: "pinterestBoard", name: "New books" }],
+        results: { "fb:111": { state: "posted" }, "pin:900": { state: "failed", message: "Pinterest turned that down. Check the photo and the words, then try again." } } },
+    ] };
+    return {};
+  },
+  newsletterAdmin: async (op: string) => (op === "audience" ? { audience: 42 } : { ok: true, to: "owner@example.com", audience: 42 }),
+};
+// Lists answer with an empty list and everything else with nothing, as an offline shop would.
+const quiet = (key: string) => async () => (/^(get|list)\w*(s|Orders|List)$/.test(key) || /^(getShippingProfiles|getDiscounts|getGiftCards)$/.test(key) ? [] : null);
+for (const key of Object.keys(adminApi as any)) {
+  const original = (adminApi as any)[key];
+  if (typeof original !== "function" || key === "onAuthStateChange") continue;
+  (adminApi as any)[key] = known[key] || quiet(key);
+}
+// Matches with the stockroom (Inventory app link): none, unless a check sets `window.__fixtureLinks` before loading.
+const links = () => ((window as any).__fixtureLinks ||= {});
+inventoryLinkApi.links = async () => links();
+inventoryLinkApi.state = async () => ({ links: links() });
+inventoryLinkApi.linkNewBook = async (bookId: string, inventoryBookId: string) => {
+  links()[bookId] = { _: inventoryBookId };
+  return { links: links(), already: false };
+};
+(window as any).__adminFixture = { orders: ORDERS };
+
+// ?move=1 (scripts/move-check.mjs): a press that brought its shop with it and finished Get started, so the Overview shows
+// Your move so far. Its firstWeek/start lives here in memory, with the calls each bring-over window makes recorded in
+// `window.__adminFixture.calls`; the shop's server (oldShopApi's actions) is answered by the check's own page.route.
+if (new URLSearchParams(location.search).get("move")) {
+  const at = "2026-11-01T10:00:00.000Z";
+  const week: any = { plan: "both", sellingToday: "online", publishes: "books", details: { at }, bring: { at, from: "online" },
+    welcome: { at, themeId: "riso" }, google: { at, skipped: true }, payments: { at, skipped: true }, shipping: { at, skipped: true }, finalCheck: { at } };
+  const calls: any[] = [];
+  (window as any).__adminFixture.calls = calls;
+  (window as any).__adminFixture.firstWeek = week;
+  const record = (name: string, answer: (...a: any[]) => any) => async (...a: any[]) => { calls.push([name, ...a]); return answer(...a); };
+  const api = adminApi as any;
+  api.getFirstWeek = async () => JSON.parse(JSON.stringify(week));
+  api.updateFirstWeek = record("updateFirstWeek", (change: any) => {
+    const { done, ...rest } = change;
+    Object.assign(week, rest);
+    if (done) week.done = { ...week.done, ...done };
+  });
+  api.untickFirstWeek = record("untickFirstWeek", (id: string) => { if (week.done) delete week.done[id]; });
+  api.saveCustomerNote = record("saveCustomerNote", () => undefined);
+  api.getMarketingConsent = async () => ({ subscribed: new Set<string>(), optedOutHashes: new Set<string>() });
+  api.addImportedSubscriber = record("addImportedSubscriber", () => true);
+  api.giftCardAdmin = record("giftCardAdmin", (_op: string, body: any) => ({ added: body?.cards?.length || 0, emailed: 0, emailFailed: 0, skipped: [] }));
+  api.getPages = async () => [];
+  // What came over, counted from the calls above (past orders live on the check's pretend server, so none here).
+  api.movedCounts = async () => ({
+    customers: new Set(calls.filter((c) => c[0] === "saveCustomerNote").map((c) => c[1])).size,
+    giftCards: calls.filter((c) => c[0] === "giftCardAdmin").reduce((n, c) => n + (c[2]?.cards?.length || 0), 0),
+    orders: null,
+  });
+  // One order brought over from the old shop, sold in US dollars (plans 23.33, 23.34): its page says which file it came
+  // from and shows its rate.
+  ORDERS.push({
+    ...order(4, "delivered", "Dee Example"), id: "past-1004", orderId: "PAST-1004", source: "import", oldOrderNumber: "#1004",
+    paymentMethod: "Old shop", fulfillmentStatus: "delivered", importBatch: "run-fixture-1", importedFile: "old-shop-orders.csv",
+    paidIn: { currency: "USD", total: 14.6, rate: 1.3712 }, total: 20.02, subtotal: 20.02, shippingAddress: undefined,
+  } as any);
+  api.getOrderById = async (id: string) => ORDERS.find((o) => o.id === id || o.orderId === id) ?? null;
+  // oldShopApi asks the server with the signed-in person's token; the fixture's pretend owner has one (development only).
+  (globalThis as any).__fixtureIdToken = "fixture-token";
+}
+
+// ?guide=1 (Set up your shop screenshots): a private shop that finished Get started, with books and a logo, so Home
+// shows the setup guide part way through.
+if (new URLSearchParams(location.search).get("guide")) {
+  const at = "2026-11-01T10:00:00.000Z";
+  const week: any = { plan: "both", sellingToday: "starting", publishes: "books", details: { at }, bring: { at, skipped: true },
+    welcome: { at, theme: "riso" }, google: { at, skipped: true }, payments: { at, skipped: true }, shipping: { at, skipped: true }, finalCheck: { at } };
+  const api = adminApi as any;
+  api.getFirstWeek = async () => JSON.parse(JSON.stringify(week));
+  api.updateFirstWeek = async (change: any) => { const { done, ...rest } = change; Object.assign(week, rest); if (done) week.done = { ...week.done, ...done }; };
+  api.getSettings = async () => ({ design: { showUnderConstruction: true, logoUrl: "https://photos.example/logo.png" } });
+}
+
+// ?gstate=coming|ready|connected|trouble (Settings › Google screenshots): a pretend Google link, nothing reaches Google.
+// coming: not switched on yet · ready: switched on, not connected · connected: all working · trouble: needs a look.
+const gstate = new URLSearchParams(location.search).get("gstate");
+if (gstate) {
+  const offered = ["businessProfile", "drive", "youtube", "calendar", "ads"];
+  const done = (step: string, detail: string) => ({ step, state: "done", detail, at: "2026-11-03T15:00:00Z" });
+  const steps = [
+    done("firebase", "Your shop is ready for Google."),
+    done("analytics", "Visits are counted for visitors who agree."),
+    done("searchConsole", "Google knows about your shop and 24 books."),
+    done("merchantCenter", "24 books sent to Google Shopping today."),
+    done("email", "Emails go out from hello@yourpress.example."),
+    gstate === "trouble" ? { step: "domain", state: "waiting", detail: "Waiting for yourpress.example to open your shop." } : done("domain", "yourpress.example is counted with your shop."),
+    done("businessProfile", "Your hours and link are on Google Maps."),
+    gstate === "trouble" ? { step: "drive", state: "failed", detail: "Google didn't allow the Drive folder. Try again, or switch it off." } : done("drive", "Last copy saved last night."),
+  ];
+  const answer: any = gstate === "coming" ? { enabled: false } : {
+    enabled: true, extrasOffered: offered,
+    ...(gstate === "ready" ? { connected: false } : { connected: true, accountEmail: "owner@example.com", connectedAt: "2026-11-03T15:00:00Z", extrasChosen: ["businessProfile", "drive"], steps }),
+  };
+  const calls: any[] = ((window as any).__adminFixture.googleCalls = []);
+  const status = readGoogleStatus(answer);
+  googleConnectApi.status = async () => status;
+  googleConnectApi.connectLink = async (extras: any) => { calls.push(["connectLink", extras]); return "#settings/google"; };
+  googleConnectApi.tryAgain = async (part: string) => { calls.push(["tryAgain", part]); return status; };
+  googleConnectApi.disconnect = async () => { calls.push(["disconnect"]); return status; };
+  googleConnectApi.turnOff = async (extras: any) => { calls.push(["turnOff", extras]); return status; };
+  googleConnectApi.shoppingProblems = async () => ({ available: true, problems: gstate === "trouble" ? [{ offerId: "b3", title: "Night Songs", issues: [{ severity: "DISAPPROVED", description: "The photo has a border.", resolution: "Upload a photo without one." }] }] : [] });
+  googleConnectApi.sendStockSheet = async () => ({ available: true, url: "https://docs.google.com/spreadsheets/d/example/edit", rows: 24 });
+  // A pasted Google Sheet link (plan 23.42): two tabs of books; under ?gstate=trouble reading isn't allowed yet.
+  googleConnectApi.readSheet = async (args: any) => {
+    calls.push(["readSheet", args]);
+    if (gstate === "trouble") return { available: false };
+    return {
+      available: true, title: "Spring list", sheet: args.sheet ?? "Books", sheets: ["Books", "Zines"],
+      rows: args.sheet === "Zines"
+        ? [["Title", "Price", "Stock"], ["Moth Zine", "6.00", "40"]]
+        : [["Title", "Writer", "Cost to buyer", "Stock"], ["Spring Light", "R. Field", "22.00", "12"], ["Low Tide", "M. Shore", "18.50", "5"]],
+    };
+  };
+}
+
+// Settings › Apps: a pretend app store, two installed apps and their activity (?apps=none for the empty page).
+{
+  const perms = (list: Array<[string, string, boolean?]>) => list.map(([scope, words, personal]) => ({ scope, words, personal: !!personal }));
+  const store = [
+    { appId: "app_0000000000a1", name: "Parcel Pal", tagline: "Cheaper Canada Post labels, printed from your orders.", description: "Buy labels at business rates, print them in one go, and tracking goes on each order by itself.", category: "orders-shipping", categoryName: "Orders and shipping", supportEmail: "help@parcelpal.example", website: "https://parcelpal.example", installAddress: "https://parcelpal.example/start",
+      permissions: perms([["read_shop", "See your shop's name, address and currency"], ["write_orders", "Add tracking and mark orders as sent", true]]) },
+    { appId: "app_0000000000b2", name: "Letterbox", tagline: "Newsletters that send themselves when a book comes out.", description: "", category: "marketing", categoryName: "Marketing and email", supportEmail: "hi@letterbox.example", website: "https://letterbox.example", installAddress: "https://letterbox.example/install",
+      permissions: perms([["read_products", "See your products, prices and photos"], ["read_customers", "See your customers' names, emails and addresses", true]]) },
+    { appId: "app_0000000000c3", name: "Zap Shelf", tagline: "Connect your shop to 6,000 other apps.", description: "", category: "other", categoryName: "Something else", supportEmail: "help@zapshelf.example", website: "https://zapshelf.example", installAddress: "",
+      permissions: perms([["read_orders", "See your orders, what was in them and where they ship to", true], ["write_inventory", "Change how many of each product you have"]]) },
+    { appId: "app_0000000000d4", name: "Ledger Line", tagline: "Your sales in your accounting app each night.", description: "", category: "accounting", categoryName: "Accounting and taxes", supportEmail: "help@ledgerline.example", website: "https://ledgerline.example", installAddress: "https://ledgerline.example/go",
+      permissions: perms([["read_orders", "See your orders, what was in them and where they ship to", true]]) },
+  ];
+  const none = new URLSearchParams(location.search).get("apps") === "none";
+  let installed = none ? [] : [{ ...store[0], installedAt: "2026-11-02T10:00:00Z", installedBy: "owner@example.com" }, { ...store[1], installedAt: "2026-11-03T10:00:00Z", installedBy: "owner@example.com", testing: true }];
+  const categories = [["orders-shipping", "Orders and shipping"], ["marketing", "Marketing and email"], ["accounting", "Accounting and taxes"], ["other", "Something else"]].map(([id, name]) => ({ id, name }));
+  appsApi.installed = async () => installed as any;
+  appsApi.store = async () => ({ apps: store, categories });
+  appsApi.remove = async (appId: string) => { installed = installed.filter((a) => a.appId !== appId); };
+  appsApi.activity = async () => none ? [] : [
+    { id: "r3", app: "Parcel Pal", what: "Marked order 1042 sent (Canada Post 7023 1100 4410)", when: "2026-11-04T16:10:00Z", state: "done", reason: "" },
+    { id: "r2", app: "Parcel Pal", what: "Marked order 1039 sent (Canada Post 7023 1100 4388)", when: "2026-11-04T15:02:00Z", state: "refused", reason: "Order on hold: waiting on the author's signature." },
+    { id: "r1", app: "Letterbox", what: "Took away 2 of moth-songs", when: "2026-11-04T11:40:00Z", state: "done", reason: "" },
+  ];
+}
+
+const params = new URLSearchParams(location.search);
+const page = params.get("page") || "";
+history.replaceState(null, "", `/admin?debug=true${page ? `#${page}` : ""}`);
+await import("../main");

@@ -61,6 +61,7 @@ import CardRatingStars from "../features/site/CardRatingStars";
 import { framingStyle } from "../features/site/photoFraming";
 import { PhotoToneDefs } from "../features/site/PhotoToneDefs";
 import { arrivedPrerendered } from "../lib/prerenderedPage";
+import { productHref, productSegment } from "../lib/productHref";
 
 const catNameForSEO = (category: any) => typeof category === "string" ? category : category?.name;
 
@@ -197,7 +198,7 @@ function Newsletter({ design }: { design?: any }) {
           <button {...regionProps("newsletterButton")}
             type="submit"
             disabled={status === "loading"}
-            className={`px-5 py-3 text-[10px] font-bold tracking-widest transition-all disabled:opacity-50 flex items-center gap-2 hover:scale-[1.02] ${
+            className={`fm-newsletter-btn px-5 py-3 text-[10px] font-bold tracking-widest transition-all disabled:opacity-50 flex items-center gap-2 hover:scale-[1.02] ${
               buttonShadow ? "shadow-xl" : ""
             } ${buttonUppercase ? "uppercase" : ""}`}
             style={{
@@ -621,7 +622,7 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
         const collectionUrl = new URL(`collections/${collectionSlug === "all" ? "all" : routeCategoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`, siteBase).href;
         const collectionBooks = (collectionSlug === "all" ? publishedBooks : getFilteredItems(books, routeCategory, new Date().toISOString(), categories))
           .filter((book: any) => book.seoNoindex !== true)
-          .map((book: any) => ({ name: book.title, url: new URL(`books/${encodeURIComponent(getBookSlug(book))}`, siteBase).href, image: book.photos?.[0]?.url }));
+          .map((book: any) => ({ name: book.title, url: new URL(`${productSegment()}/${encodeURIComponent(getBookSlug(book))}`, siteBase).href, image: book.photos?.[0]?.url }));
         return [
           collectionStructuredData({ name: routeCategoryName, description: collectionIntro(activeDesign, collectionSlug, routeCategory) || undefined, url: collectionUrl, books: collectionBooks }),
           breadcrumbData([{ name: getCopy(activeDesign, "breadcrumbHome"), url: siteBase }, { name: routeCategoryName, url: collectionUrl }]),
@@ -783,7 +784,7 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
               books={books}
               onCtaClick={() => setShowCatalog(true)}
               onProductClick={(book: any) =>
-                navigate(`/books/${(book as any).slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`)
+                navigate(productHref((book as any).slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-")))
               }
               enableAnimations={heroDesign?.enableAnimations ?? true}
               dataSection="homepage"
@@ -999,7 +1000,7 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
                     <Heart size={13} fill={wished ? "currentColor" : "none"} />
                   </button>
                   )}
-                  <Link to={`/books/${slug}`}>
+                  <Link to={productHref(slug)}>
                     <div className={`relative fm-surface fm-photo-frame mb-4 overflow-hidden ${isReferenceCatalog || cardStyle === "minimal" ? "" : "border border-white/5 shadow-2xl"}`} style={{ borderRadius: storefrontCardRadius, aspectRatio: imageAspectStyle }}>
                       <SkeletonImage
                         src={item.photos?.[0]?.url || placeholderImage(activeDesign)}
@@ -1158,7 +1159,7 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
                     const choice = quickAddChoice(item);
                     const btnClass = "fm-card-quickadd mt-3 w-full min-h-[44px] flex items-center justify-center text-[10px] font-bold tracking-[0.2em] uppercase border border-current hover:opacity-80 transition-opacity";
                     if (needsChoice || !choice.inStock) {
-                      return needsChoice ? <Link to={`/books/${slug}`} data-studio-target="style:products|copy:Product page" data-studio-label="Quick add button" className={btnClass}>{getCopy(activeDesign, "quickAddChoose")}</Link> : null;
+                      return needsChoice ? <Link to={productHref(slug)} data-studio-target="style:products|copy:Product page" data-studio-label="Quick add button" className={btnClass}>{getCopy(activeDesign, "quickAddChoose")}</Link> : null;
                     }
                     return (
                       <button
@@ -1212,7 +1213,7 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
           books={books}
           onCtaClick={() => setShowCatalog(true)}
           onProductClick={(book: any) =>
-            navigate(`/books/${(book as any).slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`)
+            navigate(productHref((book as any).slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-")))
           }
         />
         {!onHome && !activeDesign?.hideRecentlyViewed && <RecentlyViewedRow />}

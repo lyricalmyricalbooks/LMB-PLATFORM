@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/fireba
 import { getDatabase, connectDatabaseEmulator, ref, set, onValue, get, push, remove } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-database.js";
 import { getAuth, connectAuthEmulator, signInWithPopup, reauthenticateWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import { getStorage, connectStorageEmulator, ref as sRef, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-storage.js";
-import { initializeFirestore, connectFirestoreEmulator, persistentLocalCache, persistentMultipleTabManager, doc, setDoc, getDoc, getDocs, getDocFromServer, getDocsFromServer, getDocFromCache, getDocsFromCache, collection, onSnapshot, deleteDoc, writeBatch, runTransaction, query, where, deleteField } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+import { initializeFirestore, connectFirestoreEmulator, persistentLocalCache, persistentMultipleTabManager, doc, setDoc, getDoc, getDocs, getDocFromServer, getDocsFromServer, getDocFromCache, getDocsFromCache, collection, onSnapshot, deleteDoc, writeBatch, runTransaction, query, where, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 import { receiptDuplicate } from './lib/receipt-finder.js';
 import { ALL_PARTS, LIST_PARTS, assembleParts, emptyPart, splitState, stitchState, mergePart, mergeSettingDoc, stableStringify } from './lib/merge-state.js';
 import { readOldCopyCached, oldCopyCache } from './lib/old-copy-cache.js';
@@ -293,6 +293,16 @@ window._fbUploadReceipt = async (file, path) => {
         resolve(url);
       }
     );
+  });
+};
+
+// A book's cover photo for the Fair till (features/book-cover.js): already shrunk to a small JPEG on this device.
+window._fbUploadCover = async (blob, bookId) => {
+  const safeId = String(bookId || '').replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 120);
+  const storageRef = sRef(storage, `covers/${safeId}/cover-${Date.now()}.jpg`);
+  return new Promise((resolve, reject) => {
+    const uploadTask = uploadBytesResumable(storageRef, blob, { contentType: 'image/jpeg', cacheControl: 'public, max-age=31536000' });
+    uploadTask.on('state_changed', null, (err) => reject(err), async () => resolve(await getDownloadURL(uploadTask.snapshot.ref)));
   });
 };
 
@@ -914,6 +924,25 @@ window._fbSaveSettings = async (key, data) => {
 // flags arrived (see initStartup in main.js); left out, the loaded flags decide.
 const useGlobalStore = (opts) => (opts && typeof opts.global === 'boolean' ? opts.global : window._useFirestoreGlobal());
 
+// What the shop sells, as the owner last set it in the shop's Settings. The shop's server writes it here (plan 12.14);
+// read straight from the named document whichever store the mode flags name. null when there is none or it can't be read.
+window._fbLoadSells = async () => {
+  try {
+    const s = await getDoc(doc(fs, 'settings', 'sells'));
+    return s.exists() ? safeParse(s.data().data) : null;
+  } catch (e) { return null; }
+};
+
+// Tell the shop which words this stockroom is now showing, so Settings › What you sell can say it has caught up.
+// Only the publisher's session can write it; anyone else's attempt is refused and ignored.
+window._fbNoteWords = async (answer) => {
+  if (!auth.currentUser || !window.IS_PUBLISHER) return false;
+  try {
+    await setDoc(doc(fs, 'websiteLink', 'app'), { wordsSells: String(answer), wordsAt: new Date().toISOString() }, { merge: true });
+    return true;
+  } catch (e) { return false; }
+};
+
 window._fbLoadSettings = async (key, opts) => {
   try {
     if (useGlobalStore(opts)) {
@@ -987,6 +1016,29 @@ window._fbWatchWebsiteOrders = (cb, onErr) => {
   }
 };
 
+// Trade accounts' orders on invoice terms that the website hasn't marked paid (`web.invoice.paidAt` is null until
+// then). Watched apart from the pending inbox: an order brought in stops being pending long before the owner bills it.
+let _tradeOrdersUnsub = null;
+window._fbWatchTradeOrders = (cb, onErr) => {
+  try {
+    if (_tradeOrdersUnsub) { try { _tradeOrdersUnsub(); } catch (_) {} _tradeOrdersUnsub = null; }
+    const owed = query(collection(fs, 'websiteOrders'), where('web.invoice.paidAt', '==', null));
+    _tradeOrdersUnsub = onSnapshot(owed, (snap) => {
+      const docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...(d.data() || {}) }));
+      cb(docs);
+    }, (err) => {
+      console.error('trade orders watch failed', err);
+      if (typeof onErr === 'function') onErr(err);
+    });
+    return () => { if (_tradeOrdersUnsub) { try { _tradeOrdersUnsub(); } catch (_) {} _tradeOrdersUnsub = null; } };
+  } catch (e) {
+    console.error('fbWatchTradeOrders failed', e);
+    if (typeof onErr === 'function') onErr(e);
+    return null;
+  }
+};
+
 // websiteLink/website is the website's heartbeat; websiteLink/app is ours.
 let _webLinkUnsub = null;
 window._fbWatchWebsiteLinkStatus = (cb, onErr) => {
@@ -1036,6 +1088,85 @@ window._fbSetShopBookDismissed = async (key, at, drop = []) => {
   const dismissedShopBooks = { [String(key)]: at ? String(at) : deleteField() };
   (drop || []).forEach(k => { if (k !== key) dismissedShopBooks[String(k)] = deleteField(); });
   await setDoc(doc(fs, 'websiteLink', 'app'), { dismissedShopBooks }, { merge: true });
+  return true;
+};
+
+// ─────────────────────────────────────────────
+// FAIR HELPERS  (docs/combined-admin.md › Fair helpers plan)
+// A helper reads fairTill/menu and adds sales to fairSales; this app (the publisher's) writes the menu and brings
+// those sales into the books through the ledger's own path (features/fair-helpers.js). Nothing else writes a book.
+// ─────────────────────────────────────────────
+let _fairSalesUnsub = null;
+// The last fortnight of helper sales: the ones not yet brought in are in there, and the list stays short.
+window._fbWatchFairSales = (cb, onErr, { sinceMs = Date.now() - 14 * 86400000 } = {}) => {
+  try {
+    if (_fairSalesUnsub) { try { _fairSalesUnsub(); } catch (_) {} _fairSalesUnsub = null; }
+    const recent = query(collection(fs, 'fairSales'), where('at', '>=', new Date(sinceMs)));
+    _fairSalesUnsub = onSnapshot(recent, (snap) => {
+      const docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...(d.data() || {}) }));
+      cb(docs, { fromCache: !!(snap.metadata && snap.metadata.fromCache) });
+    }, (err) => {
+      console.error('fair sales watch failed', err);
+      if (typeof onErr === 'function') onErr(err);
+    });
+    return () => { if (_fairSalesUnsub) { try { _fairSalesUnsub(); } catch (_) {} _fairSalesUnsub = null; } };
+  } catch (e) {
+    console.error('fbWatchFairSales failed', e);
+    if (typeof onErr === 'function') onErr(e);
+    return null;
+  }
+};
+
+// Claims one helper sale for this device, on the server: true when this device should bring it in, false when it
+// was already brought in (by this or another of the owner's devices). Two devices can't both claim it.
+window._fbClaimFairSale = async (saleId, device = '') => {
+  if (!auth.currentUser || !window.IS_PUBLISHER) throw new Error('Publisher access required');
+  const ref = doc(fs, 'fairSales', String(saleId));
+  return runTransaction(fs, async (tx) => {
+    const snap = await tx.get(ref);
+    const data = snap.exists() ? (snap.data() || {}) : null;
+    // Gone, already brought in, or undone by the helper who rang it up: nothing to bring in.
+    if (!data || data.imported || data.cancelled) return false;
+    tx.update(ref, { imported: { at: new Date().toISOString(), device: String(device || '').slice(0, 80) } });
+    return true;
+  });
+};
+
+// The helper's side (features/fair-helper-view.js). The menu and the helper's own sales, live; the saved copy on this
+// device answers while offline.
+window._fbWatchFairMenu = (cb, onErr) => {
+  try {
+    return onSnapshot(doc(fs, 'fairTill', 'menu'), (snap) => cb(snap.exists() ? (snap.data() || null) : null), (err) => {
+      console.error('fair menu watch failed', err);
+      if (typeof onErr === 'function') onErr(err);
+    });
+  } catch (e) { if (typeof onErr === 'function') onErr(e); return null; }
+};
+// Each sale carries `pending` while it is only on this device (no signal yet).
+window._fbWatchMyFairSales = (email, cb, onErr) => {
+  try {
+    const mine = query(collection(fs, 'fairSales'), where('by', '==', String(email || '').toLowerCase()));
+    return onSnapshot(mine, { includeMetadataChanges: true }, (snap) => {
+      const docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...(d.data({ serverTimestamps: 'estimate' }) || {}), pending: d.metadata.hasPendingWrites }));
+      cb(docs);
+    }, (err) => {
+      console.error('my fair sales watch failed', err);
+      if (typeof onErr === 'function') onErr(err);
+    });
+  } catch (e) { if (typeof onErr === 'function') onErr(e); return null; }
+};
+// One sale into the inbox, stamped by the server's clock. Offline it waits on this device and goes when the signal
+// is back; the returned promise settles only then, so callers don't wait on it.
+window._fbAddFairSale = (id, sale) => setDoc(doc(fs, 'fairSales', String(id)), { ...sale, at: serverTimestamp() });
+// The helper's Undo: marks their own sale cancelled (the rules allow it within the hour, until it is in the books).
+window._fbCancelFairSale = (id) => setDoc(doc(fs, 'fairSales', String(id)), { cancelled: true }, { merge: true });
+
+// The till's menu for helpers, replaced whole (lib/fair-helper.js fairMenu).
+window._fbWriteFairMenu = async (menu) => {
+  if (!auth.currentUser || !window.IS_PUBLISHER) throw new Error('Publisher access required');
+  await setDoc(doc(fs, 'fairTill', 'menu'), { books: menu.books, at: String(menu.at) });
   return true;
 };
 

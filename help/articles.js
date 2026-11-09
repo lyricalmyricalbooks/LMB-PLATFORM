@@ -1,21 +1,48 @@
 // Help articles for the questions a press asks most in its first weeks (plan 3.4), with one for every step of the
-// first-week list (plan 8.2, `CHECKLIST_ANSWERS`). Plain ES module with no imports, so the help page loads it as is
-// and the tests read the same list.
+// first-week list (plan 8.2, `CHECKLIST_ANSWERS`). Plain ES module with no build step, so the help page loads it as is
+// and the tests read the same list. Its only import is `./sells.js`, this folder's copy of shared/sells/sells.js.
+//
+// What the shop sells (code plan 12.18): the answers are written for a books shop. For a shop that sells something else
+// (`?sells=clothing` on the page's address), `articlesFor` passes them through the shop's words ("Add book" → "Add
+// product", "editions" → "options"), the same words its admin shows. An article with `goods` uses those words instead,
+// as written, where the swap alone would read wrongly. An article with `books: true` is only for shops that have
+// books (the ISBN answer); a shop that sells books and other things still sees it.
 //
 // Words here are customer-facing: plain words, short sentences, no code or tool names, never a rival's name. Every
 // "where to click" path names real admin pages (help.test.js checks them against the shop's menu). Say only what the
 // shop does today; when something isn't built yet, say so and say what to do instead.
 
+import { sellsBooks, wordsFor } from "./sells.js";
+
 /**
- * @typedef {{ id: string, topic: string, question: string, answer: string[], steps?: string[], where?: string[], plans?: string[] }} Article
+ * @typedef {{ id: string, topic: string, question: string, answer: string[], steps?: string[], where?: string[], plans?: string[], books?: boolean, goods?: { question?: string, answer?: string[] } }} Article
  * `where`: click paths in the shop's admin, written "Page › Part". `plans`: only for presses whose plan includes these
- * apps ("shop", "stockroom"); missing means everyone.
+ * apps ("shop", "stockroom"); missing means everyone. `books`: only for shops that have books. `goods`: the words for a
+ * shop that doesn't sell books, used as written.
  */
 
 export const TOPICS = Object.freeze(["Getting started", "Moving your shop", "Selling", "Orders", "Your stockroom", "Your account"]);
 
 /** @type {readonly Article[]} */
 export const ARTICLES = Object.freeze([
+  {
+    id: "selling-legally",
+    topic: "Selling",
+    question: "What do I need to sell within the law?",
+    answer: [
+      "Your press is the seller, so the shopping, privacy and tax rules of the places you sell to apply to you. This is a short list of what most presses need, not legal advice.",
+      "Fill in your own name, address and email under Settings › General. Every order email and shipping label shows them, and the law asks for them.",
+      "Write your shipping, returns, privacy and terms pages. Each has a Start from our wording button, and your shop won't open until all four have words.",
+      "Your returns page can say no to change-of-mind returns, but shoppers always keep their rights for faulty items. Shoppers in Europe and the United Kingdom can cancel within 14 days of delivery.",
+      "In Canada, register for GST/HST once your sales pass $30,000 over four quarters. Quebec and British Columbia have their own sales tax lines. Ask an accountant which apply to you.",
+      "Selling to the United States, Europe, the United Kingdom or Australia can bring its own sales tax or VAT once your sales there pass a line. Ask an accountant before you sell a lot there.",
+      "Selling to shoppers in Quebec means your shop's pages, checkout and policies must also be in French. Your shop can translate its pages for you; check the wording before you rely on it.",
+      "Send newsletters only to people who asked for them. Your sign-up form already asks them to confirm by email, and every newsletter has a way to stop.",
+      "Your shop asks shoppers before it counts their visits. Leave the cookie banner on if you sell to Europe, the United Kingdom or Quebec.",
+      "When a shopper asks for a copy of their details or to be deleted, answer within 30 days under Settings › General › Privacy requests.",
+    ],
+    where: ["Settings › General"],
+  },
   {
     id: "add-a-book",
     topic: "Getting started",
@@ -35,6 +62,13 @@ export const ARTICLES = Object.freeze([
       "Open the book, go to Editions and press Add edition for each one. Shoppers then choose the edition they want on the book's page.",
     ],
     where: ["Books › a book › Editions"],
+    goods: {
+      question: "How do I sell one product in more than one version?",
+      answer: [
+        "Some products come in versions, such as a plain and a signed print, or a small and a large size. Each version has its own price and its own stock.",
+        "Open the product, go to Editions and press Add edition for each version. Shoppers then choose the one they want on the product's page.",
+      ],
+    },
   },
   {
     id: "sizes-and-colours",
@@ -47,11 +81,32 @@ export const ARTICLES = Object.freeze([
     where: ["Books › a product › Editions"],
   },
   {
+    id: "what-you-sell",
+    topic: "Getting started",
+    question: "I sell something different now. Can I change what my shop sells?",
+    answer: [
+      "Yes. Open Settings › General and find What you sell. Choose books, zines, comics, art and prints, clothing, shoes, jewelry, music, something else, or Books and other things if you sell both.",
+      "The shop's pages and emails change their words at once. Your stockroom changes the next time you open it, and Settings tells you when it has. Products you already made stay as they are.",
+    ],
+    where: ["Settings › General"],
+  },
+  {
+    id: "stock-places",
+    topic: "Your stockroom",
+    question: "Some of my copies are at a market stall. Can the stockroom track that?",
+    answer: [
+      "Yes. Open a product in the stockroom and choose the Move between places button on its dashboard. Pick where the copies are now, where they are going and how many. Type a new place name the first time, such as Studio or Market stall.",
+      "Everything you have not put in a place is called Main. The total on hand never changes when you move copies, and your sales and taxes are not affected. When something sells, Main goes down first. Close a place any time and its copies go back to Main.",
+    ],
+    plans: ["stockroom"],
+  },
+  {
     id: "size-guide",
     topic: "Getting started",
     question: "How do I add a size guide?",
     answer: [
       "Open the product and look in its details for Size guide. Type the measurements in the box, or choose a picture of your size chart. Shoppers see it next to the sizes on the product's page.",
+      "For clothing and shoes, press Start from a typical size guide to fill the box with a common chart. Change the numbers to match how your own pieces fit.",
     ],
     where: ["Books › a product"],
   },
@@ -66,12 +121,40 @@ export const ARTICLES = Object.freeze([
     where: ["Overview"],
   },
   {
+    id: "your-press",
+    topic: "Getting started",
+    question: "What goes in Your press, the first step?",
+    answer: [
+      "Your press is the name, contact email and address that go on your receipts, labels and contact page. Fill in the press name, the contact email, the street address, the city, the postal code and the country.",
+      "Your changes are saved when you finish the step. You can change any of them later in Settings.",
+    ],
+    // The step keeps its name, Your press, for every shop, so the swap must not rename it.
+    goods: {
+      answer: [
+        "Your press is the step for your shop's name, contact email and address, which go on your receipts, labels and contact page. Fill in the shop name, the contact email, the street address, the city, the postal code and the country.",
+        "Your changes are saved when you finish the step. You can change any of them later in Settings.",
+      ],
+    },
+    where: ["Overview › Get started"],
+  },
+  {
+    id: "google-sign-in",
+    topic: "Getting started",
+    question: "Do I have to connect Google?",
+    answer: [
+      "Connecting Google is optional for now. It links your shop to the Google tools it uses, such as search and shopping, and the step tells you what it linked.",
+      "Find step 4 of 8, Google in one sign-in, and press Connect Google. Google asks you to say yes, and you come straight back to your shop.",
+      "While Google is still approving the sign-in for shops on Colophon, the step says it is coming soon. Carry on with the other steps, and we'll remind you once it's ready.",
+    ],
+    where: ["Overview › Get started"],
+  },
+  {
     id: "import-spreadsheet",
     topic: "Getting started",
     question: "How do I bring in my books from a spreadsheet?",
     answer: [
       "Save your list of books as a CSV file. Most spreadsheet programs can do this from Save as or Download.",
-      "Open Books, press Import CSV and choose the file. You see every book before anything is saved, and each one arrives as a draft.",
+      "Open Books, press Import spreadsheet and choose the file. You see every book before anything is saved, and each one arrives as a draft.",
     ],
     where: ["Books"],
   },
@@ -94,6 +177,7 @@ export const ARTICLES = Object.freeze([
       "Bookshops and distributors order by ISBN, and the shop shows the barcode on the book's page.",
     ],
     where: ["Books"],
+    books: true,
   },
   {
     id: "publish",
@@ -111,11 +195,11 @@ export const ARTICLES = Object.freeze([
     question: "How do I bring my books over from my old shop?",
     answer: [
       "Bring your shop with you. In your old shop, export your products as a file. Don't change the file.",
-      "Here, open Books, press Import CSV and choose that file. You see every book before anything is saved. Photos, prices, sale prices, stock and editions come over, and every new book arrives as a draft.",
+      "Here, open Books, press Import spreadsheet and choose that file. You see every book before anything is saved. Photos, prices, sale prices, stock and editions come over, and every new book arrives as a draft.",
       "Bringing the same file over twice adds nothing new, so you can try again safely.",
       "For now the photos still load from your old shop. Keep your old shop open until we tell you they have been copied over.",
     ],
-    where: ["Books › Import CSV"],
+    where: ["Books › Import spreadsheet"],
   },
   {
     id: "bring-customers",
@@ -125,7 +209,7 @@ export const ARTICLES = Object.freeze([
       "Export your customer list from your old shop. Here, open Customers and press Bring customers over.",
       "Each customer gets a private note with their name, town and what they spent at your old shop. Notes you already wrote are kept.",
       "Customers who agreed to your emails at your old shop can join your newsletter too. That only happens after you tick the box to say you have their permission.",
-      "Brought-over customers appear in your Customers list once they order here.",
+      "Brought-over customers appear in your Customers list straight away. Until they order here, they are under Not ordered here yet.",
     ],
     where: ["Customers › Bring customers over"],
   },
@@ -136,6 +220,43 @@ export const ARTICLES = Object.freeze([
     answer: [
       "Yes, for your books. When you bring books over from your old shop's export, each book's old address is saved as a redirect to the same book here.",
       "The redirects start working once your web address leads to this shop. Redirects you made yourself are never replaced. You can see or remove them in Settings › General › URL redirects.",
+      "For your other pages, such as About or a collection, use Check your old links under URL redirects before you move your web address. It reads your old shop's list of pages, tries each one here and suggests a new home for any that would show page not found. Add them one by one or all at once.",
+      "Bring your own pages over brings pages such as About, FAQ or Contact here as drafts, with their words, headings, lists and links, and a redirect from each old address. Photos on those pages stay behind, so open Settings › Design, go to Pages, add them again, read each page through and publish it.",
+    ],
+    where: ["Settings › General"],
+  },
+  {
+    id: "moving-checklist",
+    topic: "Moving your shop",
+    question: "What can I bring over from my old shop, and in what order?",
+    answer: [
+      "Everything below is optional, and each step is safe to repeat: bringing the same file twice adds nothing twice. Most old shops let you export each list as a CSV file from their settings or reports.",
+    ],
+    steps: [
+      "Books: open Books, press Import spreadsheet and choose your old shop's product file. Old book addresses are sent on to the new pages.",
+      "Customers: open Customers and press Bring customers over.",
+      "Gift cards: open Gift cards and press Bring gift cards over, so balances still work.",
+      "Discount codes: open Discounts and press Bring codes over, so codes your customers already have still work. Codes for only some items, and buy-some-get-some offers, are listed for you to set up by hand.",
+      "Past orders: open Orders and press Bring past orders over. They count in your sales reports and each customer's history, and change no stock. Orders in another currency are converted at the Bank of Canada's average rate, which you can change, later too, on each order's page. Got a file per year? Press Bring another file after each one. Every window takes Excel, CSV and LibreOffice files as your old shop gives them. Wrong file? Remove that whole import in one step.",
+      "Your own pages and old links: open Settings › General and use Check your old links under URL redirects, then Bring your own pages over for pages such as About or FAQ.",
+      "On the day you move, follow What do I do on the day I move from my old shop?",
+      "Your Overview shows Your move so far: what has come over and what is left. Choose We had none for anything your old shop didn't have.",
+    ],
+    where: ["Books › Import spreadsheet", "Customers › Bring customers over", "Gift cards › Bring gift cards over", "Discounts › Bring codes over", "Orders › Bring past orders over", "Settings › General"],
+  },
+  {
+    id: "switch-day",
+    topic: "Moving your shop",
+    question: "What do I do on the day I move from my old shop?",
+    answer: [
+      "Move once your new shop is open and you have placed a practice order. Doing it in this order means shoppers are never left without a shop.",
+    ],
+    steps: [
+      "Take your last orders in your old shop, then close its checkout.",
+      "Open Settings › General and use Check your old links under URL redirects, so none of your old addresses show page not found.",
+      "Connect your web address in Settings › General: press Allow where you bought it, or copy across the lines it shows.",
+      "Tell your mailing list where to find you.",
+      "Tick Move over from your old shop in Set up your shop on the Overview.",
     ],
     where: ["Settings › General"],
   },
@@ -144,9 +265,14 @@ export const ARTICLES = Object.freeze([
     topic: "Moving your shop",
     question: "Can my shop use my own web address?",
     answer: [
-      "Not by yourself yet. Connecting your own web address is still being finished.",
-      "Until then your shop works at its own address, which you find in the welcome email. Ask us with Get help from Colophon on your account page, and we'll tell you when your own address is ready.",
+      "Yes. While you set up, open Settings › General and choose I already have a domain under Your web address. Type it, like yourpress.com, and we find where you bought it. Nothing changes for your old site yet.",
+      "No domain yet? Choose I need a domain and buy one at GoDaddy, then come back and add it. Or keep the free address for now and add your own any time.",
+      "Every shop gets a free address made from your press's name. To use another name, press Pick another name in setup. Once your shop is open, press Change name in Settings › General. The address before keeps working, so anyone who has it still reaches you.",
+      "Once your shop is made, we connect it for you. At most domain sellers, GoDaddy among them, you press Allow once in their window. At any other, we show you exactly what to copy across, with a Copy button on each line, or you can email it to your web person in one step.",
+      "Your domain becomes your shop's main address as soon as it works, padlock included, and www.yourpress.com opens it too. We email you when it's live. Your free address keeps working the whole time.",
+      "Before you say yes, take your last orders in your old shop and close its checkout: once you do, your domain shows this shop instead.",
     ],
+    where: ["Settings › General"],
   },
   {
     id: "shipping",
@@ -168,6 +294,39 @@ export const ARTICLES = Object.freeze([
       "Before you tell people about your shop, buy one book yourself to check that a payment goes all the way through.",
     ],
     where: ["Settings › Payments"],
+    plans: ["shop"],
+  },
+  {
+    id: "taxes",
+    topic: "Selling",
+    question: "How do I set up sales tax?",
+    answer: [
+      "Open Settings › Taxes and add the rates you're registered to collect, such as GST or HST. Checkout works out the tax from where each shopper is.",
+      "Not registered yet? Switch tax off there, and turn it on when you are. In Canada you register once your sales pass $30,000 over four quarters. Ask an accountant which rates apply to you.",
+    ],
+    where: ["Settings › Taxes"],
+    plans: ["shop"],
+  },
+  {
+    id: "sell-on-social",
+    topic: "Selling",
+    question: "Can I sell on Instagram, Facebook, Pinterest or TikTok?",
+    answer: [
+      "Yes. Open Sales channels and connect the accounts you use. Your books go to each one's shop, so people can buy from your posts.",
+      "Then post a book from Social posts, now or at a time you choose. Connecting is optional, and you can do it any time.",
+    ],
+    where: ["Sales channels", "Social posts"],
+    plans: ["shop"],
+  },
+  {
+    id: "policies",
+    topic: "Selling",
+    question: "Which store policies does my shop need?",
+    answer: [
+      "Four: shipping, returns, privacy and terms. Shoppers read them before they buy, and the law and the card companies ask for them. Your shop won't open until all four have words.",
+      "Open Settings › General › Store policies. Each one has a Start from our wording button: read it, change what doesn't fit your press, and save.",
+    ],
+    where: ["Settings › General"],
     plans: ["shop"],
   },
   {
@@ -241,7 +400,7 @@ export const ARTICLES = Object.freeze([
     question: "How do I open my shop to shoppers?",
     answer: [
       "A new shop starts private: shoppers see an under-construction page while you set it up. When you are ready, press Open your shop, the last step of Set up your shop on the Overview.",
-      "It first checks that your shop can sell: a published book, shipping, payments and your address for emails. If something is missing, it says what and takes you there. You can close the shop again from Settings › General › Store status.",
+      "It first checks that your shop can sell: a published book, shipping, payments, your store policies and your address for emails. If something is missing, it says what and takes you there. You can close the shop again from Settings › General › Store status.",
     ],
     where: ["Overview", "Settings › General"],
     plans: ["shop"],
@@ -333,7 +492,7 @@ export const ARTICLES = Object.freeze([
     topic: "Your account",
     question: "What happens when my free trial ends?",
     answer: [
-      "If you have added a card, your plan simply carries on. If you haven't, your shop pauses. Nothing is deleted.",
+      "If you have added a card, your plan simply carries on. If you haven't, your shop pauses. Everything is kept for 60 days, and adding a card opens it again.",
       "Add a card at any time and your shop opens again, billed from that day. If you cancel, your plan runs to the end of the time already paid for, and you can change your mind until then.",
     ],
   },
@@ -350,16 +509,56 @@ export const CHECKLIST_ANSWERS = Object.freeze({
   "bring-books": "bring-books",
   "import-spreadsheet": "import-spreadsheet",
   shipping: "shipping",
+  taxes: "taxes",
   payments: "get-paid",
+  policies: "policies",
   address: "own-address",
   practice: "test-order",
   open: "open-shop",
+  google: "google-sign-in",
+  channels: "sell-on-social",
+  switch: "switch-day",
 });
 
-/** The articles for a plan ("both", "shop" or "stockroom"); everyone gets the ones with no plan. */
-export function articlesFor(plan) {
+/**
+ * The Get started run's stages (apps/shop startRun.ts `RunStep`, plan 17.15): the help answer for each. Kept apart from
+ * CHECKLIST_ANSWERS, which is the setup guide's own list. help.test.js checks this list against the run's stages.
+ */
+export const RUN_ANSWERS = Object.freeze({
+  details: "your-press",
+  bring: "bring-books",
+  look: "look",
+  google: "google-sign-in",
+  payments: "get-paid",
+  shipping: "shipping",
+  final: "open-shop",
+});
+
+/** True for a shop with no books at all: not a books shop, and not one that sells books and other things. */
+const noBooks = (sells) => !sellsBooks(sells) && sells !== "mixed";
+
+/** One article in a shop's words: its `goods` words as written, the rest through `w`. */
+function worded(a, w) {
+  const goods = a.goods || {};
+  return {
+    ...a,
+    question: goods.question ?? w(a.question),
+    answer: goods.answer ?? a.answer.map(w),
+    ...(a.steps ? { steps: a.steps.map(w) } : {}),
+    ...(a.where ? { where: a.where.map(w) } : {}),
+  };
+}
+
+/**
+ * The articles for a plan ("both", "shop" or "stockroom"); everyone gets the ones with no plan. `sells` is the shop's
+ * answer to "What do you sell?": a books shop (or no answer) gets the articles exactly as written.
+ */
+export function articlesFor(plan, sells = null) {
   const apps = plan === "both" ? ["shop", "stockroom"] : [plan];
-  return ARTICLES.filter((a) => !a.plans || a.plans.some((p) => apps.includes(p)));
+  const list = ARTICLES.filter((a) => (!a.plans || a.plans.some((p) => apps.includes(p))) && !(a.books && noBooks(sells)));
+  if (sellsBooks(sells)) return list;
+  const w = wordsFor(sells);
+  return list.map((a) => worded(a, w));
 }
 
 /** Articles whose question or answer has every word typed in the search box. */

@@ -4,7 +4,7 @@ import { COUNTRIES } from "../features/site/shippingZones";
 import { regionsFor } from "../features/site/postalRegion";
 import { taxCollectionOn, uncoveredTaxRegions } from "../features/site/taxRate";
 import {
-  DataTable, DestructiveButton, EmptyState, PrimaryButton, SaveBar, SecondaryButton, SectionCard, SelectField, StatusBadge, TextField, Toggle, useConfirm, type Column,
+  DataTable, DestructiveButton, EmptyState, PrimaryButton, SaveBar, SecondaryButton, SectionCard, SelectField, StatusBadge, TextArea, TextField, Toggle, useConfirm, type Column,
 } from "./riso/components";
 import { cleanBookName, cleanTaxRate, taxRateProblem, type TaxRate } from "./taxRatesEdit";
 import { TAX_BOOK_NAMES, TAX_BOOK_NAME_MAX, suggestedTaxBookName } from "../../shared/taxBooks";
@@ -18,6 +18,8 @@ import { useShopWords } from "./shopWords";
 // Settings › Taxes. Edits settings.taxes.rates in place (same shape the server matches on);
 // nothing is live until Save. settings.taxes.collect === false switches all tax off (server + checkout).
 // Each rate's "name in your books" (bookName, plan 7.11) is what orders and the bookkeeping file call that tax.
+const KIND_LABELS: Record<string, string> = { book: "Printed books", ebook: "E-books", clothing: "Clothing", shoes: "Shoes", jewelry: "Jewelry", art: "Art and prints", music: "Music", other: "Other items" };
+
 export function TaxesSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection }: any) {
   const w = useShopWords();
   const [ask, confirmNode] = useConfirm();
@@ -25,6 +27,7 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
   const [region, setRegion] = useState("");
   const [rate, setRate] = useState("");
   const [bookName, setBookName] = useState("");
+  const [kind, setKind] = useState("");
   const [tried, setTried] = useState(false);
   const sells = useShopSells();
   const [presetId, setPresetId] = useState(suggestedTaxPresetId(sells));
@@ -36,19 +39,20 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
   useSettingsDirty("taxes", dirty);
 
   const regionChoices = regionsFor(country);
-  const problem = taxRateProblem({ country, region, rate }, rates);
+  const problem = taxRateProblem({ country, region, rate, kind }, rates);
   const gaps = useMemo(() => (collecting && rates.length ? uncoveredTaxRegions(rates) : []), [collecting, rates]);
   // Off keeps every rate saved, so switching back on restores them.
   const setCollecting = (on: boolean) => setSettings({ ...settings, taxes: { ...(settings.taxes || {}), rates, collect: on } });
+  const setDuties = (patch: Record<string, unknown>) => setSettings({ ...settings, taxes: { ...(settings.taxes || {}), duties: { ...(settings.taxes?.duties || {}), ...patch } } });
   const setRates = (next: TaxRate[]) => setSettings({ ...settings, taxes: { ...(settings.taxes || {}), rates: next } });
-  const savedKey = (r: TaxRate) => `${r.country}|${r.region}|${r.rate}|${r.bookName || ""}`.toLowerCase();
+  const savedKey = (r: TaxRate) => `${r.country}|${r.region}|${r.rate}|${r.bookName || ""}|${(r.kinds || []).join(",")}`.toLowerCase();
   const saved = new Set(savedRates.map(savedKey));
 
   const add = () => {
     setTried(true);
     if (problem) return;
-    setRates([...rates, cleanTaxRate({ country, region, rate, bookName: bookName || suggestedTaxBookName({ country, region, rate }) })]);
-    setRegion(""); setRate(""); setBookName(""); setTried(false);
+    setRates([...rates, cleanTaxRate({ country, region, rate, kind, bookName: bookName || suggestedTaxBookName({ country, region, rate }) })]);
+    setRegion(""); setRate(""); setBookName(""); setKind(""); setTried(false);
   };
   // A preset fills only the places with no rate yet, in the draft: nothing applies until Save.
   const registration = taxRegistration(settings);
@@ -74,6 +78,7 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
 
   const columns: Column<TaxRate & { index: number }>[] = [
     { key: "place", header: "Where", lead: true, render: (r) => <>{r.country}{r.region ? ` · ${r.region}` : <span className="rp-hint"> · whole country</span>}</> },
+    { key: "kinds", header: "Applies to", render: (r) => (r.kinds?.length ? KIND_LABELS[r.kinds[0]] || r.kinds[0] : <span className="rp-hint">Everything else</span>) },
     { key: "rate", header: "Rate", numeric: true, render: (r) => <span className="rp-mono">{r.rate}%</span> },
     { key: "book", header: "In your books", render: (r) => (
       <TextField label={`Name in your books for ${r.country}${r.region ? ` ${r.region}` : ""}`} hideLabel list="tax-book-names" maxLength={TAX_BOOK_NAME_MAX}
@@ -100,6 +105,22 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
           {collecting
             ? <StatusBadge tone="success">Collecting tax</StatusBadge>
             : <StatusBadge tone="warning">Tax switched off</StatusBadge>}
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Duties on parcels abroad" description="A checkout note so buyers abroad aren't surprised.">
+        <div style={{ display: "grid", gap: 12 }}>
+          <p className="rp-hint" style={{ margin: 0 }}>Buyers outside your country can owe duties and import tax when the parcel arrives. You don't collect or pay these; the note just tells them.</p>
+          <Toggle label="Warn buyers abroad about duties and import tax" checked={settings.taxes?.duties?.on === true} onChange={(on: boolean) => setDuties({ on })} />
+          {settings.taxes?.duties?.on === true && (
+            <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", alignItems: "start" }}>
+              <TextField label="Your country" value={settings.taxes?.duties?.home ?? "Canada"} onChange={(e) => setDuties({ home: e.target.value })} hint="Parcels staying here show no note." />
+              <TextField label="Estimate to show (percent, optional)" inputMode="decimal" value={String(settings.taxes?.duties?.estimateRate ?? "")} onChange={(e) => setDuties({ estimateRate: e.target.value.replace(/[^0-9.]/g, "").slice(0, 5) })} hint="Leave empty to show the note without a number." />
+            </div>
+          )}
+          {settings.taxes?.duties?.on === true && (
+            <TextArea label="Estimates for particular countries (optional)" rows={3} value={settings.taxes?.duties?.countryRates ?? ""} onChange={(e) => setDuties({ countryRates: e.target.value.slice(0, 1000) })} placeholder={"Germany 19\nUnited States 10"} hint="One country per line with a percent. Other countries use the estimate above." />
+          )}
         </div>
       </SectionCard>
 
@@ -157,6 +178,10 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
           ) : (
             <TextField label="Region (optional)" value={region} placeholder="Blank = whole country" onChange={(e) => setRegion(e.target.value)} />
           )}
+          <SelectField label="Applies to" value={kind} onChange={(e) => setKind(e.target.value)}>
+            <option value="">{w("Everything (all products)")}</option>
+            {Object.entries(KIND_LABELS).map(([id, name]) => <option key={id} value={id}>{name} only</option>)}
+          </SelectField>
           <TextField label="Rate (%)" inputMode="decimal" data-tax-rate value={rate} placeholder="13" error={tried && problem ? problem : undefined}
             onChange={(e) => setRate(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
           <TextField label={w("Name in your books")} list="tax-book-names" maxLength={TAX_BOOK_NAME_MAX} value={bookName}

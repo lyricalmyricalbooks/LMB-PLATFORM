@@ -80,11 +80,18 @@ function publicOutboxEntry(id, entry = {}) {
 // or "" when it should still go. `order` is the current order (null = deleted).
 function staleOrderEmailReason(kind, order) {
   const k = String(kind || "");
-  const isOrderKind = /^(orderConfirmed|shopNewOrder|orderPendingPayment|shopPendingOrder|shipped|shopShipped|delivery|local_)/.test(k);
+  const isOrderKind = /^(orderConfirmed|shopNewOrder|orderPendingPayment|shopPendingOrder|payment_link_reminder|shipped|shopShipped|delivery|local_)/.test(k);
   if (!isOrderKind) return "";
   if (!order) return "the order no longer exists";
   const refunded = ["refunded", "refund_pending"].includes(order.paymentStatus);
   const cancelled = order.status === "cancelled";
+  // "Ready to pay" (plan 21.5) is wrong once the order is paid (or Stripe has the payment), cancelled, or its link closed.
+  if (/^payment_link_reminder/.test(k)) {
+    if (order.paymentStatus === "paid" || refunded || order.reconciliationPending || order.paymentAlertSentAt) return "the order has been paid since";
+    if (cancelled) return "the order was cancelled since";
+    if (!(Date.parse(order.paymentLink?.expiresAt || "") > Date.now())) return "the payment link has closed";
+    return "";
+  }
   if (/^(orderPendingPayment|shopPendingOrder)/.test(k)) {
     if (order.paymentStatus === "paid" || refunded) return "the order has been paid since";
     if (cancelled) return "the order was cancelled since";
@@ -103,8 +110,13 @@ const REQUIRED_PLACEHOLDERS = {
   gift_card: { code: "Your gift card code: {{code}}" },
 };
 
-function withRequiredPlaceholders(templateId, body) {
-  const required = REQUIRED_PLACEHOLDERS[templateId];
+// The same lines in French, for an email sent in French (emailFrench.js).
+const REQUIRED_PLACEHOLDERS_FR = {
+  gift_card: { code: "Votre code de carte-cadeau : {{code}}" },
+};
+
+function withRequiredPlaceholders(templateId, body, language = "en") {
+  const required = (language === "fr" ? REQUIRED_PLACEHOLDERS_FR : REQUIRED_PLACEHOLDERS)[templateId];
   let text = String(body ?? "");
   if (!required) return text;
   for (const [token, line] of Object.entries(required)) {
@@ -120,7 +132,7 @@ function blankUnknownPlaceholders(text) {
 }
 
 module.exports = {
-  RETRY_DELAYS_MS, MAX_ATTEMPTS, LEASE_MS, LOG_RETENTION_DAYS, GAVE_UP_RETENTION_DAYS, REQUIRED_PLACEHOLDERS,
+  RETRY_DELAYS_MS, MAX_ATTEMPTS, LEASE_MS, LOG_RETENTION_DAYS, GAVE_UP_RETENTION_DAYS, REQUIRED_PLACEHOLDERS, REQUIRED_PLACEHOLDERS_FR,
   cleanRecipients, cleanSubject, cleanFromName, nextRetryAt, isPermanentEmailError, canSendNow, publicOutboxEntry, staleOrderEmailReason,
   daysAgoIso, withRequiredPlaceholders, blankUnknownPlaceholders,
 };

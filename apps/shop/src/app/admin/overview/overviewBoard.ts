@@ -69,7 +69,7 @@ export type WidgetType =
   | "story" | "chart" | "figures" | "best" | "money" | "formats" | "countries" | "categories" | "weekdays" | "hours" | "fulfilment" | "codes"
   | "calendar" | "goal" | "notes" | "shipDays"
   | "titles" | "viewed" | "launches" | "bookOfWeek" | "preorders" | "signed"
-  | "gaKpis" | "channels" | "gaSources" | "landing" | "gaPages" | "gaCountries" | "gaDevices" | "funnel" | "checkout" | "sources" | "campaigns" | "landingSales" | "devices"
+  | "gaKpis" | "channels" | "gaSources" | "landing" | "gaPages" | "gaCountries" | "gaDevices" | "funnel" | "checkout" | "sources" | "social" | "campaigns" | "landingSales" | "devices"
   | "livePages" | "pageTime" | "visitHours" | "actions" | "outbound" | "newReturning" | "dropOff" | "lookNoBuy"
   | "moves" | "firstPage" | "sectionClicks" | "deviceSteps"
   | "navLinks" | "bookPage" | "notFound" | "filters" | "bagPeek" | "readDepth"
@@ -146,6 +146,7 @@ export const WIDGETS: WidgetMeta[] = [
   { type: "funnel", band: "traffic", title: "Shopping funnel", blurb: "Book views → bag → checkout → purchase", size: "m" },
   { type: "checkout", band: "traffic", title: "Where checkout loses people", blurb: "Each checkout step and where shoppers stop", size: "m" },
   { type: "sources", band: "traffic", title: "Sources that sell", blurb: "Visits per source beside the orders it brought", size: "l" },
+  { type: "social", band: "traffic", title: "Social media that sells", blurb: "Visits, orders and sales from Facebook, Instagram, Pinterest, TikTok and shared links", size: "m" },
   { type: "campaigns", band: "traffic", title: "Campaigns and links that sell", blurb: "Tagged links and campaigns with orders and new customers", size: "l" },
   { type: "landingSales", band: "traffic", title: "Pages that start sales", blurb: "Where buyers first landed", size: "m" },
   { type: "devices", band: "traffic", title: "Devices (shop counter)", blurb: "What shoppers browse on, from the shop's own counter", size: "s" },
@@ -173,7 +174,7 @@ export const WIDGETS: WidgetMeta[] = [
   { type: "wanted", band: "stock", title: "Wanted but can't be bought", blurb: "Sold-out or coming-soon books people looked for", size: "m" },
   { type: "backInStock", band: "stock", title: "Back-in-stock demand", blurb: "Readers waiting to be emailed", size: "m" },
   { type: "slow", band: "stock", title: "Slow-moving stock", blurb: "In stock with no recent sale", size: "m" },
-  { type: "low", band: "stock", title: "Running low", blurb: "Five copies or fewer, with the days each has left", size: "m" },
+  { type: "low", band: "stock", title: "Running low", blurb: "At or below your low-stock line, with the days each has left", size: "m" },
   { type: "preorders", band: "stock", title: "Pre-order tracker", blurb: "Copies promised before each release, against the print run", size: "m" },
   { type: "soldOut", band: "stock", title: "Sold-out countdown", blurb: "When each book runs out at today's pace, against a reprint's wait", size: "xl", config: { leadDays: 35 } },
 ];
@@ -205,7 +206,7 @@ export const TEMPLATES: Array<{ id: TemplateId; name: string; blurb: string; ord
   {
     id: "marketing", name: "Marketing", blurb: "Visitors, sources, campaigns, the funnel and Google",
     order: ["traffic", "search", "sales", "titles", "customers", "today", "stock"],
-    widgets: [["chart", "m", { metric: "visitors" }], ["chart", "m", { metric: "conversion" }], "gaKpis", "sources", ["funnel", "s"], "campaigns", ["landingSales", "s"],
+    widgets: [["chart", "m", { metric: "visitors" }], ["chart", "m", { metric: "conversion" }], "gaKpis", "sources", ["social", "m"], ["funnel", "s"], "campaigns", ["landingSales", "s"],
       "checkout", "channels", "landing", "google", "googleQueries", "searches", "missed", "speed", "viewed", "newsletter", "reminders"],
   },
   {

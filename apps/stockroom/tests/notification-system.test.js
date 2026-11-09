@@ -154,6 +154,23 @@ describe('the to-do list knows what the automations left', () => {
     expect(none.signals.some(s => s.id.startsWith('orders-website-link') || s.id.startsWith('setup-storage'))).toBe(false);
   });
 
+  it("a fair helper's sale that couldn't be added goes on the list, with who rang it up", () => {
+    const all = buildAttentionSignals({
+      books: [book], states: { hound: { stock: 50, hist: [] } }, today: '2026-09-23',
+      automation: { fairHelpers: { stuck: 2, by: ['sam@example.com'] } },
+    });
+    const stuck = all.signals.find(s => s.id === 'orders-fair-helper-stuck');
+    expect(stuck).toMatchObject({ group: 'orders', status: 'blocked', label: '2 sales from a fair helper couldn’t be added' });
+    expect(stuck.detail).toContain('Rung up by sam@example.com.');
+    const none = buildAttentionSignals({ books: [book], states: { hound: { stock: 50, hist: [] } }, today: '2026-09-23', automation: { fairHelpers: null } });
+    expect(none.signals.some(s => s.id === 'orders-fair-helper-stuck')).toBe(false);
+    const cheap = buildAttentionSignals({
+      books: [book], states: { hound: { stock: 50, hist: [] } }, today: '2026-09-23',
+      automation: { fairHelpers: { stuck: 1, by: ['sam@example.com'], belowPrice: 1 } },
+    }).signals.find(s => s.id === 'orders-fair-helper-stuck');
+    expect(cheap.detail).toMatch(/price below the book’s own price/);
+  });
+
   it('reads unsent orders and problem parcels straight from the ledger', () => {
     const hist = [
       { chan: 'Website', num: '#AB-1', date: '2026-09-15', shipName: 'Dana', shipAddr1: '1 Main' },

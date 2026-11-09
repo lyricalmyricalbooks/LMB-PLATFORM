@@ -1,4 +1,4 @@
-import { orderChargedTotal } from "./orderMoney";
+import { orderChargedTotal, orderGiftCardRows } from "./orderMoney";
 import { finishEmailLinkSignIn } from "./emailLinkSignIn";
 import { digitalEntries, downloadBookIds, UNREADABLE_BOOK, type DigitalEntry } from "./digitalLine";
 import { publicApi } from "../../lib/publicApi";
@@ -41,6 +41,7 @@ import { isLiveBook } from "./liveBook";
 import { useSiteData } from "./useSiteData";
 import { StoreChrome, useInStoreChrome } from "./StoreChrome";
 import { getCopy } from "./storeCopy";
+import { YourDataCard } from "./YourDataCard";
 import { useCurrency } from "../../CurrencyContext";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
@@ -1021,6 +1022,12 @@ function AccountContent() {
                                 <span className="font-mono text-white/80">{money(o.tax, o)}</span>
                               </div>
                             )}
+                            {orderGiftCardRows(o).map((card, n) => (
+                              <div key={`gc-${n}`} className="flex justify-between">
+                                <span className="uppercase text-[9px] tracking-widest fm-muted">{getCopy(settings?.design, "coGiftCardSummary", { last4: card.last4 })}</span>
+                                <span className="font-mono text-white/80">-{money(card.cad, o)}</span>
+                              </div>
+                            ))}
                             <div className="flex justify-between border-t border-white/5 pt-3 text-white font-black">
                               <span className="uppercase text-[9px] tracking-widest text-white/30">{getCopy(settings?.design, "summaryTotal")}</span>
                               <span className="font-mono text-base">{orderChargedTotal(o, formatPrice)}</span>
@@ -1036,6 +1043,8 @@ function AccountContent() {
             </ul>
           )}
         </section>
+
+        {user && <YourDataCard design={settings?.design} user={user} />}
       </main>
 
       <TemplateSections design={settings?.design} templateId="accountPage" books={books} />

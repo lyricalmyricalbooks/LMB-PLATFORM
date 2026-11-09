@@ -27,6 +27,7 @@ export const initializeApp = () => handle('app');
 
 // firebase-auth
 export const getAuth = () => handle('auth');
+export const connectAuthEmulator = () => {};
 export class GoogleAuthProvider { addScope() {} setCustomParameters() {} }
 export const signInWithPopup = async () => ({ user: null });
 export const reauthenticateWithPopup = async () => ({ user: null });
@@ -76,3 +77,7 @@ export const writeBatch = () => ({ set: noop, update: noop, delete: noop, commit
 export const runTransaction = async (_fs, fn) =>
   fn({ get: async () => emptySnap(), set: noop, update: noop, delete: noop });
 export const deleteField = () => ({ __deleteField: true });
+export const serverTimestamp = () => new Date();
+export const connectDatabaseEmulator = () => {};
+export const connectStorageEmulator = () => {};
+export const connectFirestoreEmulator = () => {};

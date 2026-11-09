@@ -1,4 +1,5 @@
-import { physicalItems } from "./fulfillment";
+import { physicalItems, reviewOpen } from "./fulfillment";
+import { invoiceOverdue } from "./invoices";
 import { labelRefundProblems } from "./labelRefunds";
 import { currentRows } from "./emailLogDisplay";
 import { describeBackup, type BackupRecord } from "./backupStatus";
@@ -76,6 +77,16 @@ export function buildAdminAlerts(allOrders: any[], webhook: WebhookStatus = null
 
   const reconciliation = orders.filter(o => o.reconciliationPending && o.paymentStatus !== "paid" && o.paymentStatus !== "refunded");
   if (reconciliation.length) out.push(alert("payment-reconciliation", "danger", `${plural(reconciliation.length, "payment awaits", "payments await")} confirmation`, `The payment still needs to be confirmed: ${list(reconciliation)}. Check these orders again before packing.`, reconciliation));
+
+  // A payment that looked risky is held back from dispatch until the owner clears it (orderReview.js), so say so up front.
+  const held = orders.filter((o) => reviewOpen(o) && !isFinished(o));
+  if (held.length) out.push(alert("review-held", "warning", `${plural(held.length, "order is", "orders are")} held for review`,
+    `${providerName()} flagged ${held.length === 1 ? "this payment" : "these payments"} as risky, so ${held.length === 1 ? "it" : "they"} can't ship until you clear ${held.length === 1 ? "it" : "them"}: ${list(held)}. Open the order to see why.`, held));
+
+  // A trade account's invoice past its due date: the books shipped, the money hasn't come (invoices.ts).
+  const unpaidInvoices = orders.filter((o) => invoiceOverdue(o, now));
+  if (unpaidInvoices.length) out.push(alert("invoice-overdue", "warning", `${plural(unpaidInvoices.length, "invoice is", "invoices are")} overdue`,
+    `A trade account hasn't paid by the due date: ${list(unpaidInvoices)}. Contact them, then open the order and record the payment once it arrives.`, unpaidInvoices));
 
   const requests = orders.filter((o) => o.customerRequest?.status === "open");
   if (requests.length) out.push(alert("customer-request", "warning", `${plural(requests.length, "customer is", "customers are")} waiting on a cancel or return request`,

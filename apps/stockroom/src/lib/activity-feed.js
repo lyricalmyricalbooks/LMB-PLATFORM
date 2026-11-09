@@ -31,6 +31,7 @@
 
 import { fmt, entryNativeCode, getBookCurrencyCode } from './money.js';
 import { payoutNetted } from './earnings.js';
+import { localDay } from './calendar-day.js';
 
 /** How many events the feed returns unless the caller asks for more. */
 export const ACTIVITY_LIMIT = 40;
@@ -60,7 +61,8 @@ function dayOf(value) {
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
   const ts = activityTimestamp(value);
   if (!ts) return '';
-  return new Date(ts).toISOString().slice(0, 10);
+  // The day on the owner's clock, not UTC's (which has moved on by a Canadian evening).
+  return localDay(ts);
 }
 
 /** Numeric ids are `Date.now()` stamps; anything else sorts as 0. */

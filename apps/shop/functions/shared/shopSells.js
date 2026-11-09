@@ -8,15 +8,16 @@
 // instead of "your book" and "reading". The admin's Settings › Notifications shows the same defaults, and every word
 // stays editable there.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.GOODS_EMAILS = exports.SELLS = void 0;
+exports.PRODUCT_BASES = exports.GOODS_EMAILS = exports.SELLS = void 0;
 exports.sellsBooks = sellsBooks;
 exports.goodsWords = goodsWords;
 exports.wordsFor = wordsFor;
 exports.goodsDownloadNote = goodsDownloadNote;
 exports.emailDefaultsFor = emailDefaultsFor;
 exports.withShopEmailWords = withShopEmailWords;
+exports.productBase = productBase;
 /** The sign-up answers (signup/form.js PUBLISHES.options), in the form's order. */
-exports.SELLS = ["books", "zines", "comics", "prints", "mix", "clothing", "shoes", "jewelry", "music", "other"];
+exports.SELLS = ["books", "zines", "comics", "prints", "mix", "mixed", "clothing", "shoes", "jewelry", "music", "other"];
 /** The answers that keep a books shop exactly as it is. */
 const BOOK_ANSWERS = new Set(["books", "zines", "comics", "mix"]);
 /** True for a shop that sells books: a book answer, a skipped answer or one this version doesn't know. */
@@ -32,6 +33,11 @@ const GOODS_SWAPS = [
     [/(?<![-\w])books\b/g, "products"], [/(?<![-\w])Books\b/g, "Products"], [/(?<![-\w])BOOKS\b/g, "PRODUCTS"],
     [/(?<![-\w])book\b/g, "product"], [/(?<![-\w])Book\b/g, "Product"], [/(?<![-\w])BOOK\b/g, "PRODUCT"],
     [/\bauthors\b/g, "makers"], [/\bAuthors\b/g, "Makers"], [/\bauthor\b/g, "maker"], [/\bAuthor\b/g, "Maker"],
+    // Counting words (4 November 2026): "copies", "titles" and "readers" are a book shop's words for items, products and
+    // shoppers. "copy" alone stays ("Copy the link"), and so do screen readers and page or SEO titles.
+    [/\bcopies\b/g, "items"], [/\bCopies\b/g, "Items"],
+    [/(?<!(?:page|SEO|search|tab|meta) )\btitles\b/g, "products"], [/(?<!(?:Page|SEO|Search|Tab|Meta) )\bTitles\b/g, "Products"],
+    [/(?<![Ss]creen )\breaders\b/g, "shoppers"], [/(?<![Ss]creen )\breader\b/g, "shopper"], [/\bReaders\b/g, "Shoppers"], [/\bReader\b/g, "Shopper"],
 ];
 /** Words for a shop or product that isn't books: book → product, author → maker. */
 function goodsWords(text) {
@@ -90,4 +96,12 @@ function withShopEmailWords(answer, settings, bookDefaults) {
         out[id] = next;
     }
     return out;
+}
+// Web addresses (plan 12.18, 4 November 2026): a product's page is /books/<slug> in a books shop and /products/<slug>
+// in any other. Both addresses open every product page in every shop, so links shared before a change keep working.
+/** Every first part a product's web address may have. */
+exports.PRODUCT_BASES = ["books", "products"];
+/** The first part of this shop's product addresses: "books" for a books shop, "products" for any other. */
+function productBase(answer) {
+    return sellsBooks(answer) ? "books" : "products";
 }

@@ -115,7 +115,11 @@ when what it finds is neither done nor untouched:
 18. Spend guards (`spend.js`, plan 15.17): an alerts-only budget `shop:<id>` (notices go to the platform's Pub/Sub topic) and a Cloud Run
     functions spend cap `cap:<id>` on the billing account, both filtered to the shop's project, found by name so a re-run adds
     nothing. Does nothing until `config.spendGuards` is set.
-19. Bot check lifetime (`botCheck.js`, plan 15.18): set the App Check reCAPTCHA token lifetime (default 12 hours, `config.appCheckTokenMinutes`)
+19. Authenticator codes on the shop admin's sign-in (`twoStep.js`, plan 22.6): upgrades the project's Firebase Auth to
+    Identity Platform (Identity Toolkit v2 `identityPlatform:initializeAuth`) and turns the TOTP second step on
+    (`projects.updateConfig`, updateMask `mfa`), keeping any other second step already set. An existing shop gets it the
+    next time its steps run.
+20. Bot check lifetime (`botCheck.js`, plan 15.18): set the App Check reCAPTCHA token lifetime (default 12 hours, `config.appCheckTokenMinutes`)
     so the shop stays inside the free assessments. A shop with no configuration yet has nothing to set.
 
 Dry run for the test shop: `node setup/dry-run.js` (pretend Google and services, changes nothing).
@@ -136,7 +140,7 @@ real clients, all from `clients/` (each tested there with a fake `fetch` that ch
 | `deploy` | `clients/deploy.js` | Reads what is live over REST (rules stamp, functions' `SHOP_RELEASE_VERSION`, Hosting release message); deploys with the Firebase command line in the release's build folder |
 | `envFiles`, `profileFiles` | `clients/shop.js` | Registry documents `shops/<id>/files/<name>`, copied into each shop's deploy by the release build |
 | `shopData`, `stockroom` | `clients/shop.js` | Firestore: the shop's database, the stockroom's named database `stockroom` (plan 1.20) |
-| `inventoryLink` | `clients/shop.js` | The shop's own link admin call, as the test owner (`clients/identity.js`); test shop only |
+| `inventoryLink` | `clients/shop.js` | The shop's own link admin call, as the test owner (`clients/identity.js`); every shop with both apps (step 16, plan 17.12) |
 | `siteCheck` | `clients/shop.js` | A plain GET |
 | `registry`, `auditLog` | `clients/registry.js` | Firestore in the platform project, and the shop's `audit-log` |
 | `providers.stripe`, `email` | `services/payments`, `services/email` | The services themselves; their stores are `clients/stores.js` |

@@ -44,6 +44,15 @@ function digitalDownloadEndpoint({
           res.status(refusal.status).send(refusal.message);
           return;
         }
+        // An order the owner still has to look at (Settings › Payments › Check big orders, or a risky payment) opens its
+        // files only after "It looks fine": an e-book is as easy to resell as a gift card. The private record says so.
+        if (order.review?.status === "needs_review") {
+          const operations = (await db.collection("order-operations").doc(String(orderId)).get()).data?.() || {};
+          if (!operations.reviewCleared) {
+            res.status(403).send("The shop is checking this order. Your download opens as soon as they confirm it; there's nothing you need to do.");
+            return;
+          }
+        }
 
         // The order's own lines for this book, plus box-set parts (a part's book id is a valid itemId).
         const variantParam = req.query.variantId === undefined ? undefined : String(req.query.variantId);

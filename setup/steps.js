@@ -24,6 +24,7 @@
 import { isDeepStrictEqual } from "node:util";
 import { profileProblems, profileScript } from "../profile/profile.js";
 import { paymentProblems } from "./payments.js";
+import { NOT_IN_AN_ADDRESS } from "../signup/form.js";
 import { siteUrlOf } from "../services/domains/names.js";
 // The one name for the stockroom's database, shared with the real clients (clients/shop.js) and the release check.
 import { STOCKROOM_DATABASE } from "../clients/shop.js";
@@ -70,12 +71,23 @@ export const SERVICES = [
 
 export const PLANS = { shop: { shop: true, stockroom: false }, stockroom: { shop: false, stockroom: true }, both: { shop: true, stockroom: true } };
 
+/**
+ * The setup steps whose work depends on the plan: 5 (the stockroom's database, bucket and Realtime Database), 6 (the
+ * profile's `apps` and stockroom block), 8 (the shop's server code), 9 (each app's pages), 13 (payments) and 16 (the
+ * link between the shop and the stockroom). When an app is added or dropped, the shop maker runs them again
+ * (signup/shopMaker.js syncPlan); the steps after the first of them check before they act, as on any resumed run.
+ */
+export const PLAN_STEPS = Object.freeze([5, 6, 8, 9, 13, 14, 16]);
+
 /** Problems with the sign-up details, in plain words. The shop id is also its Google Cloud project id. */
 export function shopProblems(shop) {
   const problems = [];
   if (!shop || typeof shop !== "object") return ["the shop details are missing"];
   if (typeof shop.shopId !== "string" || !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(shop.shopId)) {
     problems.push("the shop id must be 6 to 30 lowercase letters, digits or hyphens, start with a letter and not end with a hyphen");
+  } else if (NOT_IN_AN_ADDRESS.some((word) => shop.shopId.includes(word))) {
+    // Google refuses a project id holding these words (signup/form.js checkAddress has the same list).
+    problems.push(`the shop id can't contain ${NOT_IN_AN_ADDRESS.map((w) => `"${w}"`).join(", ")}: Google refuses them in a project id`);
   }
   if (typeof shop.pressName !== "string" || !shop.pressName.trim()) problems.push("the press name is missing");
   if (typeof shop.ownerEmail !== "string" || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(shop.ownerEmail)) problems.push("the owner email is not an email address");
@@ -183,11 +195,12 @@ export function firstSteps({ google, registry, profileFiles, config, now = () =>
         return true;
       },
       async act({ shop }) {
-        const { shopId, pressName, ownerEmail, plan, country, currency } = shop;
+        const { shopId, pressName, ownerEmail, plan, country, currency, language } = shop;
         // The test marks live in the registry, where only the platform can change them (docs/test-shop.md).
         await registry.createShop(shopId, {
           shopId, projectId: shopId, pressName, ownerEmail, plan, country, currency, region,
           testMode: shop.testMode === true, testShop: shop.testShop === true, status: "creating", createdAt: now().toISOString(),
+          ...(language === "fr" ? { language } : {}),
         });
       },
     },

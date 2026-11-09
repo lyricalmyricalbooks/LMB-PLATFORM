@@ -15,9 +15,11 @@ import './styles/phone.css';
 // The Riso phone redesign sits on top of the phone layer above.
 import './styles/phone-riso.css';
 import { phoneBooksHtml } from './lib/phone-books.js';
-import { isPublisherUser, readPassClaims } from './lib/publisher-access.js';
+import { askShopForRole, callShopFunction, isPublisherUser, readPassClaims, shopFunctionUrl, shopRoleUrl } from './lib/publisher-access.js';
 import { isBookkeeperPass } from './lib/bookkeeper-copy.js';
-import { planReadOnly } from './lib/plan-pause.js';
+import { isFairHelperPass } from './lib/fair-helper.js';
+import { pickBookCover, removeBookCover, setBookCoverField } from './features/book-cover.js';
+import { planChangeNotice, planPageLink, planReadOnly } from './lib/plan-pause.js';
 import { foldFooterActions, initPhoneLayouts } from './lib/phone-layout.js';
 import { createPhonePageMemory, initPhoneWorkspace, observeSidebarBadges } from './lib/phone-workspace.js';
 const phonePages = createPhonePageMemory(window);
@@ -695,6 +697,9 @@ export { BOOKS, BOOK_LIST, states, activeBook, defaultState, getState, getBook, 
 // see lib/actions.js. Screens move onto this one at a time.
 registerActions({
   ...intelActions, ...bigCartelActions,
+  // The book form's cover photo for the Fair till (features/book-cover.js).
+  'book.coverPick': (_el, event) => pickBookCover(event),
+  'book.coverRemove': () => removeBookCover(),
   // The Settle up ledger's per-receipt button. Ids come back as strings from
   // the data attribute, so the expense is found by its string form.
   'settleUp.markExpenseReceived': el => {
@@ -708,7 +713,7 @@ registerActions({
       .map(bid => ({ book: BOOKS[bid], state: states[bid] || defaultState(BOOKS[bid]) }));
     if (!entries.length) { showToast(words('No books to list yet.'), 'err'); return; }
     downloadCsv(stockLocationsCsv(entries), `stock-counts-${today()}.csv`);
-    showToast(`✓ Stock counts for ${entries.length} book${entries.length === 1 ? '' : 's'} downloaded`, 'ok');
+    showToast(`✓ Stock counts for ${entries.length}${words(` book`)}${entries.length === 1 ? '' : 's'} downloaded`, 'ok');
   },
   // The money card's own buttons.
   'moneyCard.askPayLink': () => askAuthorForPayLink(),
@@ -724,6 +729,30 @@ registerActions({
     el.firstChild.textContent = open ? el.firstChild.textContent.replace(/^Show/, 'Hide') : el.firstChild.textContent.replace(/^Hide/, 'Show');
   },
 });
+
+// Settings › Google Sheet on a Colophon shop: the sheet comes from the shop's one Google sign-in (features/google-sheet.js).
+const googleSheetScreen = lazyFeature(() => import('./features/google-sheet.js'), [], {
+  onError: (e) => { console.warn('Google Sheet failed to load', e); showToast('⚠ The Google Sheet page couldn’t load. Check your connection and try again.', 'err', 7000); },
+});
+// The shop's last answer about the sheet, for the to-do list (attentionInput).
+let _googleSheetStatus;
+function googleSheetDeps() {
+  return {
+    onStatus: (status) => { _googleSheetStatus = status; try { refreshAttentionSurfaces(); } catch (_) { /* repaints next time */ } },
+    profile: shopProfile,
+    getIdToken: () => window._fbGetIdToken(),
+    books: () => BOOKS,
+    states: () => states,
+    isPractice: (book, id) => isTestBook(book) || isTestBookId(id),
+    toast: showToast,
+  };
+}
+registerActions({ 'settings.googleSheet': () => switchSettingsSubTab('google') });
+// The Google Sheet tab shows only where the shop's one sign-in can make the sheet.
+if (typeof document !== 'undefined' && googleSheetApplies(shopProfile)) {
+  const btn = document.getElementById('btn-subtab-google');
+  if (btn) btn.hidden = false;
+}
 
 export const openCallScreen = lazyFeature(() => import('./features/opencall.js'), OPEN_CALL_EXPORTS, {
   onError: (e) => {
@@ -855,6 +884,7 @@ import {
   printSalesTracker,
   printPaymentQRCodes,
   printFairKit,
+  printHangTags,
 } from './features/fair-kit.js';
 import {
   setInventoryAdjustmentMode,
@@ -944,6 +974,7 @@ import {
   posConfirmSale,
   posPrintReceipt,
   posSyncPaymentSeg,
+  fairSummaryData,
 } from './features/pos.js';
 import {
   changeExpenseCategory,
@@ -1058,6 +1089,7 @@ import {
   syncArtistSettlementSales,
   updateDash,
 } from './features/dashboard.js';
+import { startStockPlaces, openStockPlacesModal } from './features/stock-places.js';
 import {
   addSaleToState,
   recordOrder,
@@ -1082,6 +1114,10 @@ import {
 } from './features/website-link.js';
 import { STRIPE_CHARGE_PI_KEY, isWebsiteFulfilled, promisedPreorders, rememberChargeIntents } from './lib/website-link.js';
 import { startAppSearch } from './features/app-search.js';
+import { fairHelperTodo, startFairHelpers } from './features/fair-helpers.js';
+import './styles/inside-admin.css';
+import { STOCKROOM_PAGE_EVENT, startInsideAdmin } from './lib/inside-admin.js';
+import { bookSummary, findBook, salesRows, todoItems } from './lib/book-summary.js';
 import { appSwitchBooksReady, openWebsiteDetailDiffs, openWebsiteShopBooks, refreshAppSwitch, startAppSwitch } from './features/app-switch.js';
 import { WEBSITE_TAB_NAME, openOnWebsiteHtml, websiteOrderUrl } from './lib/app-switch.js';
 import { reviewTaskStillOpen } from './lib/review-queue.js';
@@ -1130,7 +1166,7 @@ import { downloadText, downloadCsv } from './lib/download.js';
 import { stockLocationsCsv } from './lib/stock-locations.js';
 import { OC_STAGES } from './lib/opencall.js';
 import { deriveOnHand, buildOrderTimeline, inventoryBreakdown, deduplicateDirectConsignmentSales, recalculateBookStatsFromHistory, orderStockPreview, orderStockPreviewCopy, deriveStockBreakdown, transferAuthorStock, isVoidStale } from './lib/inventory.js';
-import { fairSyncPill } from './lib/fair-mode.js';
+import { fairForAdmin, fairSyncPill, readCurrentFair } from './lib/fair-mode.js';
 import { histMirrorForLedger, reconcileConsignmentMirrors, syncHistMirrorFromLedger, ledgerSaleIndexForHistMirror, consignmentSyncPayload, collectUniqueConsignmentStores, consignmentLedgerTotals, storeBalanceSlug, storeBalanceComparison } from './lib/consignment.js';
 import { reminderSettings, reminderBlockReason, invoiceReminderState, dueForReminder, dueForReminderTomorrow, buildReminderEmail, canSendNow, daysLate, describeReminderSweep, describeReminderNotice, sampleReminderInvoice } from './lib/payment-reminders.js';
 import { LEDGER_TYPE_FILTERS, emptyLedgerFilter, ledgerFilterIsActive, ledgerStoreOptions, filterLedgerEntries, ledgerTypeCounts, describeLedgerFilter, ledgerTotalsScope } from './lib/consignment-ledger-filter.js';
@@ -1139,12 +1175,17 @@ import { resolveCountryCode } from './lib/countries.js';
 import { PUBLISHER_ONLY_TABS, AUTHOR_ONLY_TABS, helpTabOpenFor, helpQueryWords, helpMatches } from './lib/help-guide.js';
 import { readStoredList } from './lib/stored-list.js';
 import { STORE_REVERSAL_PENDING_KEY } from './lib/store-reversals.js';
-import { DEFAULT_SHOP_PROFILE, fileStem, readShopProfile, switchOn } from './lib/shop-profile.js';
+import { DEFAULT_SHOP_PROFILE, fileStem, hasWebsite, readShopProfile, runsOnColophon, shopProfile, switchOn } from './lib/shop-profile.js';
+import { googleSheetApplies, sheetSignalInput } from './lib/google-sheet.js';
 import { guideApplies, guideHtml, guideSteps, readGuide, showGuide, writeGuide } from './lib/setup-guide.js';
-import { catalogGroups, groupOf, sizeItem } from './lib/product-groups.js';
-import { applyPageWords, words } from './lib/shop-words.js';
+import { readReady, readyApplies, readyHtml, readyLines, showReady, writeReady } from './lib/stockroom-ready.js';
+import { catalogGroups, freeGridGroupId, freeItemId, gridOffers, groupOf, sizeItem } from './lib/product-groups.js';
+import { applyPageWords, currentAnswer, noteSellsAnswer, sellsBooks, words, wordsReported, wordsToReport } from './lib/shop-words.js';
+import { applyWebsiteParts } from './lib/website-parts.js';
 // The page's own words follow what the shop sells (plan 10.23): "product" and "maker" for a shop that doesn't sell books.
 applyPageWords(document.body);
+// A stockroom-only press: no website tabs, help or channel default (src/lib/website-parts.js).
+applyWebsiteParts(document);
 
 
 // Tells the boot watchdog in index.html that the bundle and every import it
@@ -1437,6 +1478,8 @@ function ownersFromBooks() {
 }
 
 let catalogLoadFailed = false;
+// The server's catalog has been read this visit (the combined admin's questions wait for it).
+let catalogReady = false;
 // Open until the server's catalogue is in (loadCatalog); see showStartupPreview.
 let _startupPreviewOpen = true;
 let _startupPreviewShown = false;
@@ -1445,7 +1488,7 @@ export function saveCatalogWithDeletions() {
   // The last catalog read failed, so BOOKS may be the built-in defaults rather
   // than the real catalog. Writing it would overwrite the real one.
   if (catalogLoadFailed) {
-    showToast('⚠ Not saving — the book catalog never loaded. Reload first.', 'err', 6000);
+    showToast(words('⚠ Not saving — the book catalog never loaded. Reload first.'), 'err', 6000);
     return Promise.resolve();
   }
   // Still the device's copy from startup: the server's may hold changes this
@@ -1477,6 +1520,7 @@ async function loadCatalog(early = null) {
   try {
     const stored = await (early || window._fbLoadCatalog()); // handles FS → RTDB fallback internally
     catalogLoadFailed = false;
+    catalogReady = true;
     // The server's catalog is in: the on-device preview (showStartupPreview)
     // must not paint over it from here on.
     _startupPreviewOpen = false;
@@ -1501,7 +1545,7 @@ async function loadCatalog(early = null) {
       deletedDefaultIds = [];
       posExtraBooks = {};
     }
-    showToast('⚠ Could not load the book catalog — showing what is saved on this device. Reload once you are back online.', 'err', 7000);
+    showToast(words('⚠ Could not load the book catalog — showing what is saved on this device. Reload once you are back online.'), 'err', 7000);
   }
 }
 
@@ -1694,6 +1738,7 @@ function resetBookForm() {
   _bookFromWebsiteKey = '';
   _bookFromWebsiteGroup = null;
   _bookFromWebsiteSizes = [];
+  if ($('nb-max-hint')) { $('nb-max-hint').hidden = true; $('nb-max-hint').textContent = ''; }
   if ($('book-modal-badge')) $('book-modal-badge').textContent = '✨ New Release';
   $('add-book-modal-title').textContent = words('Add new book');
   $('add-book-save-btn').textContent = 'Save Book';
@@ -1707,8 +1752,12 @@ function resetBookForm() {
   $('nb-price').value = '40';
   $('nb-cur').value = '€';
   $('nb-thresh').value = '10';
+  if ($('nb-grid-sizes')) { $('nb-grid-sizes').value = ''; $('nb-grid-colours').value = ''; }
+  // Sizes and colours are for a new product in a shop that doesn't sell books.
+  if ($('nb-grid')) $('nb-grid').hidden = sellsBooks(currentAnswer());
   $('nb-accent').value = '#E8402A';
   onCustomAccentInput('#E8402A');
+  setBookCoverField('');
   $('nb-pw').value = '';
   $('nb-prod').value = '0';
   if ($('nb-pub-grat')) $('nb-pub-grat').value = '0';
@@ -1758,8 +1807,14 @@ export function openAddBookFromWebsite(prefill, key) {
   $('nb-isbn').value = p.isbn || '';
   if (p.price !== '' && p.price != null) $('nb-price').value = String(p.price);
   setSelectCurrency($('nb-cur'), p.currency || 'CA$');
-  // The print run is the owner's to fill in: the form won't save without it.
-  $('nb-max').value = '';
+  // Plan 23.9: the website's count is the opening count, so both agree from the first day. With no count kept there,
+  // the print run is the owner's to fill in: the form won't save without it.
+  $('nb-max').value = p.onHand ? String(p.onHand) : '';
+  const maxHint = $('nb-max-hint');
+  if (maxHint) {
+    maxHint.textContent = p.onHand ? `${p.onHand} in stock on your website now. Sales from here on count down from it.` : '';
+    maxHint.hidden = !p.onHand;
+  }
   _bookFromWebsiteKey = String(key || '');
   _bookFromWebsiteGroup = p.group || null;
   _bookFromWebsiteSizes = Array.isArray(p.sizes) ? p.sizes : [];
@@ -1772,6 +1827,7 @@ function openEditBookModal(id) {
   const book = BOOKS[id];
   if (!book) return;
   editingBookId = id;
+  if ($('nb-grid')) $('nb-grid').hidden = true;
   if ($('book-modal-badge')) $('book-modal-badge').textContent = '📖 Project Settings';
   $('add-book-modal-title').textContent = `${words('Edit book')} · ${book.title}`;
   $('add-book-save-btn').textContent = 'Save Changes';
@@ -1787,6 +1843,7 @@ function openEditBookModal(id) {
   $('nb-thresh').value = book.threshold ?? 10;
   $('nb-accent').value = book.accent || '#E8402A';
   onCustomAccentInput(book.accent || '#E8402A');
+  setBookCoverField(book.coverUrl || '');
   $('nb-pw').value = book.authorEmail || '';
   $('nb-prod').value = book.productionCost ?? 0;
   if ($('nb-pub-grat')) $('nb-pub-grat').value = book.pubGratuity ?? 0;
@@ -2383,7 +2440,7 @@ export async function restateBookCurrency() {
   // A restatement rewrites one book's ledger, so it needs a book actually
   // selected — the "All books" view has no single currency to restate into.
   if (!activeBook || activeBook === 'all') {
-    showToast('⚠ Pick a single book first — a restatement applies to one book', 'warn');
+    showToast(words('⚠ Pick a single book first — a restatement applies to one book'), 'warn');
     return;
   }
   const book = getBook(), s = getState();
@@ -2429,7 +2486,7 @@ async function offerSheetsResyncAfterRestate(toCode) {
 async function saveBookFromModal() {
   // Validate fields and automatically switch to the correct tab if validation fails
   const isValid = validateFields([
-    { id: 'nb-id', test: val => val.trim().length > 0, msg: 'Book ID is required' },
+    { id: 'nb-id', test: val => val.trim().length > 0, msg: words('Book ID is required') },
     { id: 'nb-title', test: val => val.trim().length > 0, msg: 'Title is required' },
     { id: 'nb-payment-link', test: val => isValidPaymentLink(val.trim()), msg: 'Must be a valid URL or email address' },
     // A blank or nonsense price/print run used to be saved silently as 40 / 100.
@@ -2460,7 +2517,11 @@ async function saveBookFromModal() {
   // Book id doubles as a database key and is used in URLs/handlers, so
   // restrict it to a safe slug (lowercase letters, digits, dashes).
   const rawId = $('nb-id').value.trim();
-  const id = rawId.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  let id = rawId.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  // Plan 12.3: sizes and colours typed on a new product make one item per combination; the saved item is the first.
+  const gridBase = $('nb-title').value.trim();
+  const gridMore = !editingBookId ? gridOffers($('nb-grid-sizes')?.value, $('nb-grid-colours')?.value) : [];
+  if (gridMore.length) id = freeItemId(`${id} ${gridMore[0].edition}`, new Set(Object.keys(BOOKS)));
 
   await syncCatalog();
   if (catalogLoadFailed) {
@@ -2471,17 +2532,18 @@ async function saveBookFromModal() {
   // An id that already belongs to a different book must never be overwritten
   // (adding "The Hound" twice, or renaming one book onto another's id).
   if (BOOKS[id] && editingBookId !== id) {
-    showToast(`⚠ A book with the id "${id}" already exists — choose a different Book ID.`, 'err', 5000);
+    showToast(`${words(`⚠ A book with the id "`)}${id}${words(`" already exists — choose a different Book ID.`)}`, 'err', 5000);
     switchBookModalTab('general');
     return;
   }
 
   // Two books with one title share one tab on the Google Sheet, so their sales
   // and expenses mix there (the sheet tells books apart by title alone).
-  const titleKey = sheetTabKey($('nb-title').value);
-  const titleTwin = Object.values(BOOKS).find(b => b && b.id !== editingBookId && b.id !== id && !isTestBook(b) && sheetTabKey(b.title) === titleKey);
+  // A product typed with sizes and colours saves one title per combination: every one of them is checked.
+  const titleKeys = new Set((gridMore.length ? gridMore.map(o => `${gridBase} · ${o.edition}`) : [$('nb-title').value]).map(sheetTabKey));
+  const titleTwin = Object.values(BOOKS).find(b => b && b.id !== editingBookId && b.id !== id && !isTestBook(b) && titleKeys.has(sheetTabKey(b.title)));
   if (titleTwin) {
-    fieldError('nb-title', `“${titleTwin.title}” already has this title. Add something to tell them apart, such as the edition — your Google Sheet keeps one tab per title.`);
+    fieldError('nb-title', `“${titleTwin.title}” already has ${gridMore.length ? 'one of the titles these sizes and colours would get' : 'this title'}. Add something to tell them apart, such as the edition — your Google Sheet keeps one tab per title.`);
     switchBookModalTab('general');
     $('nb-title').focus();
     return;
@@ -2494,7 +2556,7 @@ async function saveBookFromModal() {
     // Start from the stored book so fields this form doesn't list survive an edit.
     ...currentBook,
     id,
-    title: $('nb-title').value.trim(),
+    title: gridMore.length ? `${gridBase} · ${gridMore[0].edition}` : $('nb-title').value.trim(),
     author: $('nb-author').value.trim(),
     isbn: $('nb-isbn').value.trim() || '—',
     maxPrint: parseInt($('nb-max').value, 10),
@@ -2508,6 +2570,8 @@ async function saveBookFromModal() {
     stripeLink: $('nb-paylink').value.trim(),
     accent: $('nb-accent').value,
     accentBg: hexToRgba($('nb-accent').value, 0.1),
+    // The cover photo for the Fair till (features/book-cover.js); '' when none.
+    coverUrl: $('nb-cover') ? $('nb-cover').value : currentBook.coverUrl || '',
     urlParam: currentBook.urlParam || id,
     authorEmail: ($('nb-pw').value || '').toLowerCase().trim(),
     profitTiers: currentBook.profitTiers || [],
@@ -2523,6 +2587,7 @@ async function saveBookFromModal() {
   };
   // A size of a website product joins its product's group (plan 10.5).
   if (!editingBookId && _bookFromWebsiteGroup) book.group = _bookFromWebsiteGroup;
+  if (gridMore.length) book.group = { id: freeGridGroupId(gridBase, Object.values(BOOKS)), name: gridBase };
 
 
   // A currency change re-denominates every figure already on the books, so ask
@@ -2615,11 +2680,12 @@ async function saveBookFromModal() {
   // to this book (read before the form closes, which forgets it).
   const fromWebsiteKey = !editingBookId ? _bookFromWebsiteKey : '';
   const fromWebsiteSizes = fromWebsiteKey ? _bookFromWebsiteSizes : [];
+  const gridRest = gridMore.slice(1);
   _bookFromWebsiteKey = '';
   _bookFromWebsiteGroup = null;
   _bookFromWebsiteSizes = [];
 
-  showToast(editingBookId ? '✓ Book updated' : '✓ Book added to catalog');
+  showToast(words(editingBookId ? '✓ Book updated' : '✓ Book added to catalog'));
   // Saved, so nothing is unsaved: close without the "Discard your unsaved changes?" question, which used to
   // open over the saved form (and swallow the next question, such as the other sizes below).
   closeM('add-book');
@@ -2642,6 +2708,31 @@ async function saveBookFromModal() {
   if (currencyResult) await offerSheetsResyncAfterRestate(currencyResult.to);
   // Plan 10.5: the website's other sizes of this product, also asked once the form is closed.
   if (fromWebsiteSizes.length) await addOtherSizes(id, fromWebsiteSizes);
+  if (gridRest.length) await addGridSizes(id, gridRest, gridBase);
+}
+
+/**
+ * Plan 12.3: the other combinations of sizes and colours typed on the new product's form. The owner asked for them
+ * by typing them, so there is no question: each is its own item (own stock count, ledger and low-stock alert) with
+ * the saved item's settings.
+ */
+async function addGridSizes(savedId, offers, baseName) {
+  const saved = BOOKS[savedId];
+  if (!saved || !groupOf(saved) || !offers.length) return;
+  const taken = new Set(Object.keys(BOOKS));
+  for (const offer of offers) {
+    const item = sizeItem(saved, { ...offer, price: saved.listPrice, isbn: '' }, `${baseName} · ${offer.edition}`, taken);
+    taken.add(item.id);
+    BOOKS[item.id] = item;
+    states[item.id] = defaultState(item);
+  }
+  refreshBookList();
+  await persistProductionCosts();
+  await saveCatalogWithDeletions();
+  buildBookSwitcher();
+  renderCatalogList();
+  renderProfitSettings();
+  showToast(`✓ ${offers.length + 1} sizes and colours of ${baseName} added`);
 }
 
 /**
@@ -2786,13 +2877,13 @@ function renderCatalogList() {
 async function deleteBook(id) {
   await syncCatalog();
   if (!BOOKS[id]) {
-    showToast('Book already removed or does not exist', 'warn');
+    showToast(words('Book already removed or does not exist'), 'warn');
     buildBookSwitcher();
     renderCatalogList();
     renderProfitSettings();
     return;
   }
-  if (!(await confirmDialog(`Permanently remove "${BOOKS[id].title}" and all its inventory records?`, { danger: true, okLabel: 'Remove book' }))) return;
+  if (!(await confirmDialog(`Permanently remove "${BOOKS[id].title}" and all its inventory records?`, { danger: true, okLabel: words('Remove book') }))) return;
   delete BOOKS[id];
   refreshBookList();
   delete states[id];
@@ -2813,7 +2904,7 @@ async function deleteBook(id) {
   // If the deleted book was being viewed, fall back to the All Books overview.
   if (activeBook === id) switchBook('all');
   else renderCurrent();
-  showToast('Book removed');
+  showToast(words('Book removed'));
 }
 
 window.saveBookFromModal = saveBookFromModal;
@@ -3064,7 +3155,7 @@ export function copyTextWithFallback(text) {
 }
 
 window.copyBookQR = function (bookId, url) {
-  if (!url) { showToast('No link set for this book', 'warn'); return; }
+  if (!url) { showToast(words('No link set for this book'), 'warn'); return; }
   copyTextWithFallback(url).then(() => showToast('Link copied'));
 };
 
@@ -3130,7 +3221,7 @@ window.copyAuthorQR = function () {
   if (!book) return;
   // The same link the QR above encodes.
   const url = getEffectiveBookPaymentLink(book);
-  if (!url) { showToast('No link configured for this book', 'warn'); return; }
+  if (!url) { showToast(words('No link configured for this book'), 'warn'); return; }
   copyTextWithFallback(url).then(() => showToast('Link copied'));
 };
 
@@ -4637,7 +4728,7 @@ export async function loadBook(bookId) {
     Object.defineProperty(states[bookId], '_loadFailed', { value: true, enumerable: false, configurable: true });
     setSyncState('error', '<b>Firestore</b> · connection failed');
     const title = (BOOKS[bookId] && BOOKS[bookId].title) || bookId;
-    showToast(`⚠ Could not load ${title} — showing an empty book, not real data. Reload once you're back online.`, 'err', 7000);
+    showToast(`⚠ Could not load ${title}${words(` — showing an empty book, not real data. Reload once you're back online.`)}`, 'err', 7000);
   }
 }
 
@@ -4695,7 +4786,7 @@ async function toggleFirestoreMode() {
     } catch (e) {
       console.error('Book migration failed:', e);
       window._setBookFirestoreMode(activeBook, false);
-      showToast('⚠ Failed to migrate book data', 'err');
+      showToast(words('⚠ Failed to migrate book data'), 'err');
     }
 
   } else {
@@ -4881,6 +4972,8 @@ async function loadAllBooks({ settingsLoaded } = {}) {
   startEmailInboxWatcher();
   // Orders from the shop's website, once every book is here to match them against.
   startWebsiteLink();
+  // Fair helpers' price list and sales (plan with both apps), once every book is here.
+  startFairHelpers();
   // A link from the website to one of its orders can open now.
   appSwitchBooksReady();
   setSyncState('ok', '<b>Firestore</b> · connected · live sync on');
@@ -5331,7 +5424,7 @@ function selectProfileTab(type) {
       switchBook(testBook.id);
       updateProfileTabs('test');
     } else {
-      showToast('Test profile book not found in catalog', 'warn');
+      showToast(words('Test profile book not found in catalog'), 'warn');
     }
   } else {
     const restoreId = window.lastActiveBookId || 'all';
@@ -5975,14 +6068,19 @@ function initPhoneFolds() {
 initPhoneFolds();
 
 
+const WEBSITE_TABS = new Set(['website', 'webanalytics']);
 export function switchTab(name) {
   // The old shop system's tab is behind the oldShopSync switch: off, a stale link, notification or To-do fix that
   // still points at it lands on Website orders instead (features/bigcartel.js).
   if (!applyOldShopSyncSwitch() && name === 'bigcartel') name = 'website';
+  // A stockroom-only press has no website: a stale link to its tabs lands on the Dashboard (lib/website-parts.js).
+  if (WEBSITE_TABS.has(name) && !hasWebsite()) name = 'dashboard';
   // publisher-only tabs redirect authors to dashboard
   if (isAuthor() && PUBLISHER_ONLY_TABS.has(name)) name = 'dashboard';
   // publisher redirected away from author-only myqr tab
   if (!isAuthor() && AUTHOR_ONLY_TABS.has(name)) name = 'dashboard';
+  // Inside the combined admin, the admin's menu and address follow the page shown here (lib/inside-admin.js).
+  try { window.dispatchEvent(new CustomEvent(STOCKROOM_PAGE_EVENT, { detail: name })); } catch (_) { /* no window */ }
 
   const phoneScope = `${isAuthor() ? 'author' : 'publisher'}:${activeBook}:`;
   const previousPanel = document.querySelector('.tab-panel.active');
@@ -6361,7 +6459,7 @@ function showCatalogueSkeleton() {
 }
 
 // ── ALL BOOKS OVERVIEW
-function updateAllOverview() {
+export function updateAllOverview() {
   const allBooksVisible = BOOK_LIST.filter(b => !isTestBook(b));
   renderSetupGuide(allBooksVisible);
   renderAllBooksStrips(allBooksVisible);
@@ -6378,9 +6476,28 @@ function renderSetupGuide(allBooksVisible = BOOK_LIST.filter(b => !isTestBook(b)
   const steps = guideSteps({ books: allBooksVisible, states }, saved);
   const on = !isAuthor() && guideApplies(readShopProfile(), DEFAULT_SHOP_PROFILE) && showGuide(steps, saved);
   el.hidden = !on;
-  el.innerHTML = on ? guideHtml(steps) : '';
+  // The guide's own words, in the shop's words (it holds no owner data).
+  el.innerHTML = on ? words(guideHtml(steps)) : '';
+  renderReadyCheck(allBooksVisible);
+}
+
+// Your stockroom is ready (plan 17.12, lib/stockroom-ready.js): the one-screen check for a press with both apps, the
+// first time its stockroom opens. Hidden for the author view, for a stockroom-only press (its guide shows instead) and
+// once the press has said "Got it" in this browser.
+function renderReadyCheck(allBooksVisible = BOOK_LIST.filter(b => !isTestBook(b))) {
+  const el = $('stockroom-ready-check');
+  if (!el) return;
+  const saved = readReady();
+  const on = !isAuthor() && readyApplies(readShopProfile(), DEFAULT_SHOP_PROFILE) && showReady(saved);
+  el.hidden = !on;
+  el.innerHTML = on ? words(readyHtml(readyLines(allBooksVisible))) : '';
 }
 registerActions({
+  'ready.open': el => switchTab(el.dataset.tab),
+  'ready.hide': () => {
+    writeReady({ ...readReady(), hiddenAt: new Date().toISOString() });
+    renderSetupGuide();
+  },
   'guide.open': el => switchTab(el.dataset.tab),
   'guide.tick': el => {
     const saved = readGuide();
@@ -7207,10 +7324,15 @@ export function attentionInput() {
   return {
     books: attentionBooks(),
     states,
+    words,
+    booksShop: sellsBooks(currentAnswer()),
     sheets: {
       connected: !!sheetsUrl,
       deployedVersion: _sheetsDeployedVersion,
       expectedVersion: EXPECTED_SCRIPT_VERSION,
+      // A Colophon shop hides the older script's panel, so its lines never apply there; with both apps the sheet
+      // comes from the shop's one Google sign-in instead.
+      ...(runsOnColophon(shopProfile) ? { colophon: true, google: googleSheetApplies(shopProfile) && _googleSheetStatus !== undefined ? sheetSignalInput(_googleSheetStatus) : null } : {}),
     },
     sync: {
       online: typeof navigator === 'undefined' || navigator.onLine !== false,
@@ -7263,6 +7385,7 @@ function automationTodoInput() {
     labelsToMatch: review.labels,
     syncConflicts: safe(() => listConflicts(syncConflictStorage()).length, 0),
     websiteLink: safe(() => websiteLinkTodo(), null),
+    fairHelpers: safe(() => fairHelperTodo(), null),
   };
 }
 
@@ -7489,6 +7612,7 @@ export function refreshAttentionSurfaces() {
   renderOverviewRail();
 }
 // The website link's waiting orders and storage check feed the To-do list.
+if (typeof window !== 'undefined') window.addEventListener('trade-invoice-open', (e) => { try { openCreateInvoice(null, null, { draft: e.detail && e.detail.draft }); } catch (_) { /* the editor stays closed */ } });
 if (typeof window !== 'undefined') window.addEventListener('website-link-todo', () => { try { refreshAttentionSurfaces(); } catch (_) { /* next render picks it up */ } });
 
 /** Tick one order off as sent, from the to-do list or the landing page. */
@@ -8095,7 +8219,7 @@ function renderTodoTab() {
     host.innerHTML = `<div class="empty-state sys-empty">
         <div class="e-icon" aria-hidden="true">✅</div>
         <strong>You're all caught up</strong>
-        <span>Every book has its details filled in, nobody owes you money, and your connections are working. Anything new will appear here on its own.</span>
+        <span>${words('Every book has its details filled in, nobody owes you money, and your connections are working. Anything new will appear here on its own.')}</span>
       </div>${hiddenNote}`;
     return;
   }
@@ -8106,7 +8230,7 @@ function renderTodoTab() {
     return `<section class="overview-section todo-group">
         <div class="sec-head is-muted is-inline">
           <div class="sec-head-titles">
-            <div class="sec-kicker"><span class="sec-kicker-dot"></span><span class="lead-emoji" aria-hidden="true">${escapeHtml(GROUP_ICONS[group] || '')} </span>${escapeHtml(GROUP_LABELS[group] || group)}</div>
+            <div class="sec-kicker"><span class="sec-kicker-dot"></span><span class="lead-emoji" aria-hidden="true">${escapeHtml(GROUP_ICONS[group] || '')} </span>${escapeHtml(words(GROUP_LABELS[group] || group))}</div>
           </div>
           <div class="sec-head-badges"><span class="pill gray">${items.length}</span></div>
         </div>
@@ -9220,7 +9344,7 @@ function unapplyOne(id) {
   const targetBook = o.bookId && BOOKS[o.bookId] ? o.bookId : activeBook;
   const state = states[targetBook];
   const book = BOOKS[targetBook];
-  if (!state || !book) { showToast('Cannot find book for this order', 'err'); return; }
+  if (!state || !book) { showToast(words('Cannot find book for this order'), 'err'); return; }
 
   const histIndex = (state.hist || []).findIndex(h => h.num === o.orderNum && h.chan === 'Website');
   if (histIndex === -1) {
@@ -9273,7 +9397,7 @@ function reapplyOne(id) {
   const targetBook = o.bookId && BOOKS[o.bookId] ? o.bookId : activeBook;
   const state = states[targetBook];
   const book = BOOKS[targetBook];
-  if (!state || !book) { showToast('Cannot find book for this order', 'err'); return; }
+  if (!state || !book) { showToast(words('Cannot find book for this order'), 'err'); return; }
   const history = (state.hist || []).find(h => h.num === o.orderNum && h.chan === 'Website');
   if (!history) { showToast('Applied order history not found', 'warn'); return; }
   const newPrice = Number(o.price) || Number(history.price) || Number(book.listPrice) || 0;
@@ -9324,7 +9448,7 @@ export function applyOne(id, { deferRender = false } = {}) {
   const targetBook = o.bookId && BOOKS[o.bookId] ? o.bookId : activeBook;
   const targetState = states[targetBook];
   const targetBk = BOOKS[targetBook];
-  if (!targetState || !targetBk) { showToast('Cannot find book for this order', 'err'); return; }
+  if (!targetState || !targetBk) { showToast(words('Cannot find book for this order'), 'err'); return; }
   // Use target book's price if not on order
   const price = o.price || targetBk.listPrice;
   if (!targetState.doneIds) targetState.doneIds = [];
@@ -10289,7 +10413,7 @@ function undoImport(importId) {
   const isLocked = h => h.artistSettlementId || h.webOrderId;
   const locked = rows.filter(isLocked);
   const undoable = rows.filter(h => !isLocked(h));
-  if (!undoable.length) { showToast('Every row of this import is in an author settlement or matched to a website order, so it stays.', 'warn', 5000); return; }
+  if (!undoable.length) { showToast(words('Every row of this import is in an author settlement or matched to a website order, so it stays.'), 'warn', 5000); return; }
   const name = rows[0].importName ? ` from “${rows[0].importName}”` : '';
   if (!confirm(`Undo this import${name}? ${undoable.length} order${undoable.length === 1 ? '' : 's'} will be voided, and their stock and revenue reversed.`)) return;
   undoable.forEach(h => {
@@ -10614,7 +10738,7 @@ window.approveSubmission = async function (type, subKey) {
 window.rejectSubmission = async function (type, subKey) {
   const flightKey = `${activeBook}:${type}:${subKey}`;
   if (_submissionsInFlight.has(flightKey)) return;
-  if (!(await confirmDialog('Reject this submission from the author?', { okLabel: 'Reject', danger: true }))) return;
+  if (!(await confirmDialog(words('Reject this submission from the author?'), { okLabel: 'Reject', danger: true }))) return;
   _submissionsInFlight.add(flightKey);
   try {
     await window._fbDeleteSubmission(activeBook, type, subKey);
@@ -10662,7 +10786,7 @@ async function mintArtistTransferPayLink(bookId, transferId, { quiet = false } =
     t.payLinkV = TRANSFER_LINK_VERSION;
     saveState(bookId);
     if (bookId === activeBook) renderArtistTransfers();
-    if (!quiet) showToast(`✓ Stripe link ready — the author's Send button now fills in ${fmt(amt, book.currency)}`);
+    if (!quiet) showToast(`${words(`✓ Stripe link ready — the author's Send button now fills in `)}${fmt(amt, book.currency)}`);
     return url;
   } catch (e) {
     if (!quiet) showToast(`Couldn't make the Stripe link: ${e.message}`, 'err', 5000);
@@ -11099,8 +11223,45 @@ consumeTransferPaidReturn();
 // orders (#website-order=<id>). It drops a leftover ?mode=admin (nothing reads
 // it) and leaves every other part of the address as it is.
 startAppSwitch();
+// Inside the combined admin (shop + stockroom plan): its menu replaces this app's own, and it opens pages here.
+// The combined admin's book page asks for one book's figures here, so the stockroom stays the master count. A book
+// still loading answers null; the admin asks again.
+startInsideAdmin({
+  // The admin menu's "Google Sheet" opens Settings on its Google Sheet tab where the shop's one sign-in makes the sheet.
+  switchTab: (tab) => { switchTab(tab); if (tab === 'sheets' && googleSheetApplies(shopProfile)) switchSettingsSubTab('google'); },
+  setAdminLook, setThemePreference,
+  selectBook: (id) => {
+    if (!BOOKS[id]) return;
+    // The "Author view" preview locks the picker to its book: back to the publisher's view, as its own button does.
+    if (AUTHOR_VIEW_BY_BOOK[activeBook] && activeBook !== id) toggleCurrentBookView();
+    switchBook(id);
+  },
+  openTodo: (id) => openTodoItem(id),
+  answer: (what, args) => {
+    // An author's own sign-in never answers; the publisher's "Author view" preview of one book still does.
+    if (IS_AUTHOR_MODE || String(sessionStorage.getItem('lm-unlocked') || '').startsWith('author:')) return { refused: true };
+    // Until the catalog is in, every book looks missing: answer nothing yet, and the admin asks again.
+    if (!catalogReady) return null;
+    if (what === 'find') return { match: findBook(BOOKS, args) };
+    // The to-do list and the sales judge every book's records: wait until all of them are in, as the stockroom's own
+    // to-do page does, so Home never counts a half-loaded stockroom as "all clear".
+    if ((what === 'todo' || what === 'sales' || what === 'fair') && !_attentionReady) return null;
+    // Today at the fair (the till's own end-of-day figures and upload state), read-only.
+    if (what === 'fair') {
+      const pill = fairSyncPill({ online: navigator.onLine !== false, pending: syncQueue.length, retrying: _syncRetrying, atRisk: _syncQueueHeldInMemory });
+      return fairForAdmin(fairSummaryData(), readCurrentFair(today()), pill, today());
+    }
+    if (what === 'todo') return { items: todoItems(visibleAttentionResult()) };
+    if (what === 'sales') return salesRows(BOOKS, states, { since: args.since });
+    const book = BOOKS[args.book];
+    if (!book) return { missing: true };
+    const s = states[args.book];
+    return s && !s._loadFailed ? bookSummary(args.book, s, book) : null;
+  },
+});
 // One search box (top-bar 🔍, Ctrl/⌘ K, "/"): this app's books and the website's.
 startAppSearch();
+startStockPlaces();
 // The return lands in the tab Stripe opened; refresh any other open tab too.
 window.addEventListener('storage', e => { if (e.key === PAID_TAP_KEY) { try { renderArtistTransfers(); } catch (_) { /* still loading */ } } });
 
@@ -11204,9 +11365,9 @@ function askAuthorForPayLink() {
     window.location.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     return;
   }
-  const done = () => showToast('No author email saved for this book — message copied, paste it to them', 'warn', 5000);
-  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(`${subject}\n\n${body}`).then(done).catch(() => showToast('Add the author’s email in the book settings to send this', 'warn', 5000));
-  else showToast('Add the author’s email in the book settings to send this', 'warn', 5000);
+  const done = () => showToast(words('No author email saved for this book — message copied, paste it to them'), 'warn', 5000);
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(`${subject}\n\n${body}`).then(done).catch(() => showToast(words('Add the author’s email in the book settings to send this'), 'warn', 5000));
+  else showToast(words('Add the author’s email in the book settings to send this'), 'warn', 5000);
 }
 window.askAuthorForPayLink = askAuthorForPayLink;
 
@@ -11709,7 +11870,7 @@ window.backfillGratuityExpenses = async function () {
 
   const unitCost = (book.productionCost || 0) / (book.maxPrint || 1);
   if (unitCost <= 0) {
-    showToast('⚠ Book has no production cost to expense', 'warn');
+    showToast(words('⚠ Book has no production cost to expense'), 'warn');
     return;
   }
 
@@ -12109,7 +12270,7 @@ function confirmSend() {
   s.ledger.push({ id: Date.now(), storeId: st.id, storeName: st.name, type: 'Shipment', date, qty, rate, amountDue: 0, paid: 'n/a', notes, status: 'sent', sheetsId });
   closeM('send-books'); renderStores(); renderLedger(); updateDash(); saveState(activeBook);
   syncToSheets({ type: 'consignment', book: book.title, date, store: st.name, event: 'Shipment', qty, rate, amountDue: 0, notes, status: 'sent', sheetsId, currency: getBookCurrencyCode(book) });
-  showToast(`✓ ${qty} books sent to ${st.name}`);
+  showToast(`✓ ${qty}${words(` books sent to `)}${st.name}`);
 }
 
 // ── BULK SEND (ship to several stores in one pass) ──────────────────────
@@ -12195,7 +12356,7 @@ function confirmBulkSend() {
     syncToSheets({ type: 'consignment', book: book.title, date, store: st.name, event: 'Shipment', qty, rate, amountDue: 0, notes, status: 'sent', sheetsId, currency: getBookCurrencyCode(book) });
   });
   closeM('bulk-send'); renderStores(); renderLedger(); updateDash(); saveState(activeBook);
-  showToast(`✓ Sent ${totalQty} book${totalQty > 1 ? 's' : ''} to ${picks.length} store${picks.length > 1 ? 's' : ''}`);
+  showToast(`✓ Sent ${totalQty}${words(` book`)}${totalQty > 1 ? 's' : ''} to ${picks.length} store${picks.length > 1 ? 's' : ''}`);
 }
 // ── Consignment in another currency ─────────────────────────────────────
 // A shop abroad sells at its own price and may pay in its own money. The ledger
@@ -12379,7 +12540,7 @@ function confirmReturn() {
   s.ledger.push({ id: Date.now(), storeId: st.id, storeName: st.name, type: 'Return', date, qty, rate: st.rate, amountDue: 0, paid: 'n/a', notes: (notes ? notes + ' · ' : '') + cond, status: good ? 'restocked' : 'written off', sheetsId });
   closeM('return'); renderStores(); renderLedger(); updateDash(); saveState(activeBook);
   syncToSheets({ type: 'consignment', book: book.title, date, store: st.name, event: 'Return', qty, rate: st.rate, amountDue: 0, notes: cond, status: good ? 'restocked' : 'written off', sheetsId, currency: getBookCurrencyCode(book) });
-  showToast(good ? `✓ ${qty} books returned to stock` : `✓ ${qty} books written off`);
+  showToast(words(good ? `✓ ${qty} books returned to stock` : `✓ ${qty} books written off`));
 }
 // ── Invoice ↔ Ledger ↔ History consistency helpers ───────────────────────
 // Single source of truth for keeping the three views cross-referenced. All
@@ -13104,7 +13265,7 @@ async function convertKeptAllToReceived() {
 export function openEditHist(idx) {
   const s = getState(), book = getBook(), h = s.hist[idx];
   if (!h) return;
-  if (h.artistSettlementId) { showToast('Undo the author settlement before changing this sale.', 'warn'); return; }
+  if (h.artistSettlementId) { showToast(words('Undo the author settlement before changing this sale.'), 'warn'); return; }
   // A consignment sale shown here is a mirror of its ledger row, and the ledger
   // row is the record that reaches the Google Sheet and gets re-derived on every
   // recompute. Editing the mirror directly would be overwritten, so send the
@@ -13412,7 +13573,7 @@ function saveLedgerEntryEdit(s, book) {
 function saveEntryEdit() {
   if (!editCtx) return;
   const s = getState(), book = getBook();
-  if (editCtx.kind === 'hist' && s.hist[editCtx.idx]?.artistSettlementId) { showToast('Undo the author settlement before changing this sale.', 'warn'); return; }
+  if (editCtx.kind === 'hist' && s.hist[editCtx.idx]?.artistSettlementId) { showToast(words('Undo the author settlement before changing this sale.'), 'warn'); return; }
   if (editCtx.kind === 'hist') {
     saveHistEntryEdit(s, book);
   } else {
@@ -13683,7 +13844,7 @@ function voidEntry() {
   if (editCtx.kind === 'hist') {
     const h = s.hist[editCtx.idx];
     if (!h) return;
-    if (h.artistSettlementId) { showToast('Undo the author settlement before voiding this sale.', 'warn'); return; }
+    if (h.artistSettlementId) { showToast(words('Undo the author settlement before voiding this sale.'), 'warn'); return; }
     if (h.webOrderId) { showToast(WEBSITE_SALE_LOCKED, 'warn', 5000); return; }
     if (!h.voided) {
       voidHistEntry(s, book, h);
@@ -13740,7 +13901,7 @@ async function resetBookData() {
   if (!(await confirmDialog(`Reset ALL data for "${book.title}"? Orders, history and consignment will be cleared. Your Google Sheet backup is untouched.`, { okLabel: 'Continue', danger: true }))) return;
   if (!(await confirmDialog('Last chance — this cannot be undone. Reset now?', { okLabel: 'Reset everything', danger: true }))) return;
   states[activeBook] = defaultState(book); lastSavedHashes[activeBook] = '';
-  renderAll(); saveState(activeBook); showToast('✓ Book data reset. Sheet backup untouched.', 'warn', 4000);
+  renderAll(); saveState(activeBook); showToast(words('✓ Book data reset. Sheet backup untouched.'), 'warn', 4000);
 }
 
 let _sheetsRestoreData = null;
@@ -13817,7 +13978,7 @@ async function restoreBookDataFromSheets() {
     const postageRows = rows.filter(r => String(r.Type).trim().toLowerCase() === 'shipping');
     const recordRows = rows.filter(r => String(r.Type).trim().toLowerCase() !== 'shipping');
     if (!recordRows.length) {
-      showToast('No records found in Google Sheet for this book', 'warn');
+      showToast(words('No records found in Google Sheet for this book'), 'warn');
       if (syncBtn) { syncBtn.disabled = false; syncBtn.innerHTML = originalBtnHtml; }
       return;
     }
@@ -15002,7 +15163,7 @@ async function applyBookRestore(bid) {
   if (!_bookRestoreCtx) return;
   const { snapshot } = _bookRestoreCtx;
   const book = snapshot.BOOKS?.[bid];
-  if (!book) { showToast('That book is not in this backup', 'err'); return; }
+  if (!book) { showToast(words('That book is not in this backup'), 'err'); return; }
 
   const title = book.title || bid;
   const exists = !!BOOKS[bid];
@@ -15062,7 +15223,7 @@ async function applyBookRestore(bid) {
     setTimeout(() => location.reload(), 1500);
   } catch (e) {
     console.error('Single-book restore failed', e);
-    showToast('Error restoring book', 'err');
+    showToast(words('Error restoring book'), 'err');
   }
 }
 
@@ -15675,7 +15836,7 @@ Object.assign(window, { previewLetterhead, saveLetterhead, loadLetterheadLogo, r
 
 function switchSettingsSubTab(subTabName) {
   activeSettingsSubTab = subTabName;
-  const subTabs = ['profit', 'catalog', 'sync', 'letterhead'];
+  const subTabs = ['profit', 'catalog', 'sync', 'google', 'letterhead'];
   subTabs.forEach(tab => {
     const btn = document.getElementById('btn-subtab-' + tab);
     const sec = document.getElementById('settings-sec-' + tab);
@@ -15693,6 +15854,7 @@ function switchSettingsSubTab(subTabName) {
     updateSheetsTabUI();
   }
   if (subTabName === 'letterhead') loadLetterhead();
+  if (subTabName === 'google' && googleSheetApplies(shopProfile)) googleSheetScreen.call('openGoogleSheet', googleSheetDeps());
 }
 window.switchSettingsSubTab = switchSettingsSubTab;
 
@@ -16114,7 +16276,7 @@ function updateProfitTierField(idx, field, val) {
 }
 
 async function saveProfitTiers() {
-  if (!psActiveBookId) { showToast('No book selected', 'warn'); return; }
+  if (!psActiveBookId) { showToast(words('No book selected'), 'warn'); return; }
   const ind = $('ps-save-indicator');
   if (ind) ind.classList.add('show');
 
@@ -16402,7 +16564,7 @@ async function boot(forcedBook) {
     if (forcedBook) {
       // Author mode — load only this book
       setActiveBook(forcedBook);
-      if (!BOOKS[forcedBook]) { showToast('Book not found', 'err'); return; }
+      if (!BOOKS[forcedBook]) { showToast(words('Book not found'), 'err'); return; }
       showAuthorBookFrame(forcedBook);
       Promise.all([loadBook(forcedBook), settingsLoaded]).then(() => {
         setSyncState('ok', '<b>Firestore</b> · connected');
@@ -17486,7 +17648,7 @@ function reconcileRecordSale(idSafe) {
   }
   const bookId = document.getElementById('recon-book-' + idSafe)?.value;
   const qty = Math.max(1, parseInt(document.getElementById('recon-qty-' + idSafe)?.value, 10) || 1);
-  if (!bookId || !BOOKS[bookId]) { showToast('Pick a book first', 'warn'); return; }
+  if (!bookId || !BOOKS[bookId]) { showToast(words('Pick a book first'), 'warn'); return; }
   const saleInputs = _reconReadSaleInputs(idSafe, bookId);
   if (!saleInputs) return;
   saleInputs.num ||= stripeOrderNumber(p);
@@ -19003,7 +19165,7 @@ function reconRecordGroup(gi) {
   if (!ids || !ids.length) return;
   const bookId = document.getElementById('recon-gbook-' + gi)?.value;
   const qty = Math.max(1, parseInt(document.getElementById('recon-gqty-' + gi)?.value, 10) || 1);
-  if (!bookId || !BOOKS[bookId]) { showToast('Pick a book first', 'warn'); return; }
+  if (!bookId || !BOOKS[bookId]) { showToast(words('Pick a book first'), 'warn'); return; }
   const saleInputs = _reconReadSaleInputs(gi, bookId, true);
   if (!saleInputs) return;
   const mem = getReconMemory();
@@ -19120,12 +19282,12 @@ export async function createStripePaymentLinkForAmount({ amountMajor, currencyCo
   const priceParams = new URLSearchParams();
   priceParams.set('unit_amount', String(amount));
   priceParams.set('currency', curCode.toLowerCase());
-  priceParams.set('product_data[name]', (description || 'Book fair sale').slice(0, 250));
+  priceParams.set('product_data[name]', (description || words('Book fair sale')).slice(0, 250));
   Object.entries(meta).forEach(([k, v]) => priceParams.set(`metadata[${k}]`, v == null ? '' : String(v)));
 
   const linkParams = new URLSearchParams();
   linkParams.set('line_items[0][quantity]', '1');
-  linkParams.set('payment_intent_data[description]', (description || 'Book fair sale').slice(0, 350));
+  linkParams.set('payment_intent_data[description]', (description || words('Book fair sale')).slice(0, 350));
   Object.entries(meta).forEach(([k, v]) => {
     linkParams.set(`metadata[${k}]`, v == null ? '' : String(v));
     linkParams.set(`payment_intent_data[metadata][${k}]`, v == null ? '' : String(v));
@@ -19153,13 +19315,13 @@ async function generateBookStripeLink() {
   const listPrice = parseFloat(document.getElementById('nb-price')?.value) || 0;
   const currency = document.getElementById('nb-cur')?.value || '€';
   const isbn = (document.getElementById('nb-isbn')?.value || '').trim();
-  if (!id || !title) { showToast('Set a book ID and title first', 'warn'); return; }
+  if (!id || !title) { showToast(words('Set a book ID and title first'), 'warn'); return; }
   if (!(listPrice > 0)) { showToast('Set a list price first', 'warn'); return; }
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Creating…'; }
   try {
     const url = await createStripePaymentLinkForBook({ id, title, listPrice, currency, isbn });
     if (field) field.value = url;
-    showToast('✓ SKU-tagged Stripe link created — Save the book to keep it');
+    showToast(words('✓ SKU-tagged Stripe link created — Save the book to keep it'));
   } catch (e) {
     showToast('Stripe: ' + (e.message || e), 'err', 6000);
   } finally {
@@ -19261,6 +19423,7 @@ Object.assign(window, {
   printPaymentQRCodes,
   printFairKit,
 });
+registerActions({ 'fairkit.hangTags': () => printHangTags() });
 // Declared in features/pos-books.js, likewise free of import-time side
 // effects, so the register-only book dialog's handlers are registered here.
 Object.assign(window, {
@@ -19336,7 +19499,7 @@ async function fetchRecentChanges() {
 async function showWhatsNew(event) {
   console.log('[showWhatsNew] Invoked. IS_PUBLISHER:', window.IS_PUBLISHER, 'isAuthor():', isAuthor());
   if (!window.IS_PUBLISHER || isAuthor()) {
-    showToast(`⚠️ Role verification failed (Publisher: ${!!window.IS_PUBLISHER}, Author: ${isAuthor()})`, 'warn');
+    showToast(`⚠️ Role verification failed (Publisher: ${!!window.IS_PUBLISHER}${words(`, Author: `)}${isAuthor()})`, 'warn');
     return;
   }
   if (event) event.stopPropagation();
@@ -19437,13 +19600,44 @@ async function initStartup() {
       // Firestore, once, ever), the early answers are dropped unread and read
       // again from the right store. The early reads write nothing; loadCatalog
       // still does any saving itself, after the flags are in.
+      // The owner may have changed what the shop sells since this page's words were chosen: start again in the new ones.
+      try {
+        const sells = await window._fbLoadSells?.();
+        if (noteSellsAnswer(sells) && !sessionStorage.getItem('lm-sells-reloaded')) {
+          sessionStorage.setItem('lm-sells-reloaded', '1');
+          location.reload();
+          return;
+        }
+      } catch (_) { /* the words stay as they are */ }
       const cachedGlobal = startupCachedGlobalMode();
       // On a device that has opened the app before: show the copy this device
       // already holds while the server is asked.
       const publisherAccount = await isPublisherUser(user, { askRules: window._fbAskRulesIfPublisher });
       // The shop Team's bookkeeper (plan 7.17) gets only the tax centre's expenses, read only
       // (features/bookkeeper-view.js); no book, catalogue or setting of the publisher's is loaded.
-      if (!publisherAccount && isBookkeeperPass(user, await readPassClaims(user))) {
+      let passClaims = publisherAccount ? null : await readPassClaims(user);
+      // Added to the Team before their first sign-in: the shop's server puts the role on the pass now (plan with both apps).
+      if (!publisherAccount && !passClaims?.role) {
+        passClaims = (await askShopForRole(user, { url: shopRoleUrl(shopProfile, { emulators: import.meta.env?.VITE_FIREBASE_EMULATORS === 'true' }) })) || passClaims;
+      }
+      // A fair helper (docs/combined-admin.md › Fair helpers plan) gets only the Fair till: the owner's price list
+      // and their own sales (features/fair-helper-view.js); no book, catalogue or setting is loaded.
+      if (!publisherAccount && isFairHelperPass(user, passClaims)) {
+        window.IS_PUBLISHER = false;
+        IS_AUTHOR_MODE = false;
+        _appShellShown = true;
+        const { showFairHelperView } = await import('./features/fair-helper-view.js');
+        const payUrl = shopFunctionUrl(shopProfile, 'fairHelperPayment', { emulators: import.meta.env?.VITE_FIREBASE_EMULATORS === 'true' });
+        showFairHelperView({
+          email: user.email, watchMenu: window._fbWatchFairMenu, watchMySales: window._fbWatchMyFairSales,
+          addSale: window._fbAddFairSale, cancelSale: window._fbCancelFairSale, signOut: () => window._fbSignOut(),
+          // Card payments by QR come from the shop's server (functions/fairHelperPay.js), on the plan with both apps.
+          cardPay: payUrl ? (action, body) => callShopFunction(user, payUrl, { action, ...body }) : null,
+        });
+        dismissSplash();
+        return;
+      }
+      if (!publisherAccount && isBookkeeperPass(user, passClaims)) {
         window.IS_PUBLISHER = false;
         IS_AUTHOR_MODE = false;
         await window._fbLoadModeFlags();
@@ -19455,9 +19649,16 @@ async function initStartup() {
       }
       // A paused or closed plan opens the stockroom read-only (lib/plan-pause.js), before anything can be changed.
       const plan = typeof window._fbLoadPlan === 'function' ? await window._fbLoadPlan() : null;
+      // On a plan, Settings gets a way to the platform's Plan & billing page (bills, card, email language).
+      const planLink = planPageLink(plan);
+      const planButton = document.getElementById('plan-billing-link');
+      if (planButton && planLink) { planButton.href = planLink; planButton.hidden = false; }
       if (planReadOnly(plan)) {
         const { showPlanPause } = await import('./features/plan-pause.js');
         showPlanPause(plan);
+      } else if (planChangeNotice(plan)) {
+        // An app being added or closing (lib/plan-pause.js): a note only, nothing is locked.
+        import('./features/plan-pause.js').then(({ showPlanNotice }) => showPlanNotice(plan)).catch(() => {});
       }
       if (cachedGlobal === true) {
         showStartupPreview(user, publisherAccount)
@@ -19507,7 +19708,11 @@ async function initStartup() {
         // even if the catalog isn't edited this session.
         if (typeof window._fbSaveBookOwners === 'function' && !window.PLAN_READ_ONLY) window._fbSaveBookOwners(ownersFromBooks());
         showApp('publisher', null);
+        // Once this page shows the owner's words, the shop is told, so Settings can say the stockroom has caught up.
+        try { const told = wordsToReport(); if (told && !window.PLAN_READ_ONLY && await window._fbNoteWords?.(told)) wordsReported(told); } catch (_) { /* told again next time */ }
         syncSheetsConnectionWithCloud();
+        // A Colophon shop's Google Sheet, sent again quietly when it is over six hours old.
+        if (googleSheetApplies(shopProfile) && !window.PLAN_READ_ONLY) googleSheetScreen.call('refreshGoogleSheetIfDue', googleSheetDeps());
         checkAppUpdate();
         dismissSplash();
         return;
@@ -19647,6 +19852,7 @@ export const SIGN_IN_ENDED_MSG = 'Your sign-in has ended, so your stockroom is h
 // errMsg: a refusal, in red. note: a calm line (the sign-in ended).
 function setupGate(errMsg, note = null) {
   document.getElementById('bookkeeper-view')?.remove();
+  document.getElementById('fair-helper-view')?.remove();
   $('pw-gate').style.display = '';
   $('pw-app').style.display = 'none';
   document.querySelector('#gate-sub').textContent = 'inventory app';
@@ -20148,7 +20354,7 @@ function exposeLegacyInlineHandlers() {
     invoicePaperBodyWithQR, buildStandaloneInvoiceHTML, downloadInvoiceHTML, loadExternalScript,
     ensurePdfLibs, downloadInvoicePDF, findKeptAllPayout, convertKeptAllToReceived, openEditHist,
     openEditLedger, saveEntryEdit, syncLedgerVoid, reconcileConsignmentChannel, reconcileStores,
-    recomputeAfters, recalcOnHand, setStockTransferDirection, openStockTransferModal, stepStockTransfer, onStockTransferQtyChange, updateStockTransferPreview, submitStockTransfer, syncHistoryVoidDeletion, voidEntry, resetBookData,
+    recomputeAfters, recalcOnHand, setStockTransferDirection, openStockTransferModal, stepStockTransfer, onStockTransferQtyChange, updateStockTransferPreview, submitStockTransfer, openStockPlacesModal, syncHistoryVoidDeletion, voidEntry, resetBookData,
     parseAndValidateDate, restoreBookDataFromSheets, confirmRestoreBookDataFromSheets,
     _modalFieldSig, _prefersReducedMotion, openM, closeM, attemptCloseModal, fieldError,
     clearFieldError, clearFieldErrors, validateFields, withButtonLoading, addLog,

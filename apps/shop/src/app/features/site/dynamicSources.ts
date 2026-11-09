@@ -6,6 +6,7 @@
 import type { BookFieldDef } from "./bookFields";
 import { slugify } from "./storeMenu";
 import { descriptionPlainText } from "./descriptionLinks";
+import { productHref } from "../../lib/productHref";
 
 /** `shop` is the shop itself on every page: its name is Text & labels › Site & sharing › Site name (plan 1.16). */
 export type DynamicContext = { book?: any; category?: any; page?: any; shop?: { name?: string } };
@@ -66,7 +67,7 @@ export function readSource(path: string, ctx: DynamicContext): string {
     if (key === "custom") return sub ? str(b.custom?.[sub]) : "";
     if (key === "description") return plain(descriptionPlainText(str(b.description)));
     if (key === "photo") return str(b.photos?.[0]?.url);
-    if (key === "url") return b.slug || b.id ? `/books/${b.slug || b.id}` : "";
+    if (key === "url") return b.slug || b.id ? productHref(b.slug || b.id) : "";
     return ["title", "subtitle", "authorName", "publisher", "publishDate", "pageCount", "format", "edition", "isbn"].includes(key) ? str(b[key]) : "";
   }
   if (group === "category") {

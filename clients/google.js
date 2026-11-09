@@ -15,7 +15,7 @@
 //   Secret Manager v1     projects.secrets.versions.access ("latest"), projects.secrets.create (secretId, automatic
 //                         replication), projects.secrets.addVersion: the shop's service key (setup/serviceKey.js)
 //   Firebase Hosting v1beta1  projects.sites.customDomains.get, projects.sites.customDomains.create (customDomainId),
-//                         projects.sites.customDomains.delete: a press's own web address on the shop's default site
+//                         projects.sites.customDomains.delete, .patch (redirectTarget): a press's own web address on the shop's default site
 //                         (plan 2.9, 5.9, services/domains). Create starts a long-running setup on Google's side; its
 //                         state is read back with get. Delete stops Hosting serving the shop there.
 //   Cloud Scheduler v1    projects.locations.jobs.list (pageSize, pageToken), projects.locations.jobs.delete: the shop's
@@ -27,6 +27,8 @@
 //                         alerts-only budget (Pub/Sub topic) and its Cloud Run functions spend cap (plan 15.17).
 //   Artifact Registry v1  projects.locations.repositories.get/patch (updateMask cleanupPolicies,cleanupPolicyDryRun): the
 //                         functions' build repository `gcf-artifacts` keeps only a day of old images (plan 15.16).
+//   Identity Toolkit v2   projects.getConfig, projects.updateConfig (updateMask mfa), projects.identityPlatform.initializeAuth:
+//                         the shop's own sign-in allows authenticator codes (plan 22.6, setup/twoStep.js)
 //   Firebase Storage (the address the shop's pages read files through, where storage rules apply):
 //                         GET https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{name}?alt=media, with no sign-in.
 //                         Not in a discovery document; it is the address Firebase's web SDK reads files from.
@@ -51,6 +53,7 @@ const ARTIFACTS = "https://artifactregistry.googleapis.com/v1";
 const APPCHECK = "https://firebaseappcheck.googleapis.com/v1";
 const MONITORING = "https://monitoring.googleapis.com/v3";
 const BUDGETS = "https://billingbudgets.googleapis.com/v1";
+const IDENTITY = "https://identitytoolkit.googleapis.com/v2";
 
 /** The repository 2nd-generation functions put their built images in, and the cleanup rule on it (plan 15.16). */
 export const BUILD_REPOSITORY = "gcf-artifacts";
@@ -320,13 +323,23 @@ export function googleClients({ fetch, token, sleep, today = () => new Date().to
       async getDomain(projectId, domain) {
         return orNull(call("GET", `${HOSTING}/projects/${projectId}/sites/${projectId}/customDomains/${encodeURIComponent(domain)}`));
       },
-      /** Starts connecting `domain`; one that is already there is left as it is. */
-      async addDomain(projectId, domain) {
+      /**
+       * Starts connecting `domain`; one that is already there is left as it is. `redirectTo`: Hosting sends visitors
+       * on to that address (CustomDomain.redirectTarget), as for www.yourpress.com to yourpress.com.
+       */
+      async addDomain(projectId, domain, { redirectTo = null } = {}) {
         try {
-          await call("POST", `${HOSTING}/projects/${projectId}/sites/${projectId}/customDomains`, { query: { customDomainId: domain }, body: {} });
+          await call("POST", `${HOSTING}/projects/${projectId}/sites/${projectId}/customDomains`, { query: { customDomainId: domain }, body: redirectTo ? { redirectTarget: redirectTo } : {} });
         } catch (error) {
           if (!isAlreadyExists(error)) throw error;
         }
+      },
+      /**
+       * Turns an address the shop already has into one that sends visitors on to `redirectTo` (a free address renamed:
+       * the old name sends shoppers to the new one). customDomains.patch with updateMask=redirectTarget.
+       */
+      async redirectDomain(projectId, domain, redirectTo) {
+        await call("PATCH", `${HOSTING}/projects/${projectId}/sites/${projectId}/customDomains/${encodeURIComponent(domain)}`, { query: { updateMask: "redirectTarget" }, body: { redirectTarget: redirectTo } });
       },
       /** Stops serving the shop at `domain`; one that is already gone is fine. */
       async removeDomain(projectId, domain) {
@@ -406,6 +419,20 @@ export function googleClients({ fetch, token, sleep, today = () => new Date().to
         } });
         return (page.timeSeries ?? []).flatMap((series) => series.points ?? []).reduce((sum, point) => sum + Number(point.value?.int64Value ?? 0), 0);
       },
+    },
+    authConfig: {
+      /** The project's sign-in settings (projects.getConfig): `subtype` says whether it is Identity Platform yet. */
+      get: (projectId) => call("GET", `${IDENTITY}/projects/${projectId}/config`),
+      /** Firebase Auth to Identity Platform (projects.identityPlatform.initializeAuth). Already done answers fine. */
+      async upgrade(projectId) {
+        try {
+          await call("POST", `${IDENTITY}/projects/${projectId}/identityPlatform:initializeAuth`, { body: {} });
+        } catch (error) {
+          if (!isAlreadyExists(error)) throw error;
+        }
+      },
+      /** Replaces the second-step settings (projects.updateConfig, updateMask mfa). */
+      setMfa: (projectId, mfa) => call("PATCH", `${IDENTITY}/projects/${projectId}/config`, { query: { updateMask: "mfa" }, body: { mfa } }),
     },
     buildCleanup: {
       /** Is Colophon's cleanup rule on the functions' build repository? Null when the repository doesn't exist yet. */

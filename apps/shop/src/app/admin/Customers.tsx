@@ -3,20 +3,21 @@ import { Download, Upload } from "lucide-react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
 import { StockistsCard } from "./StockistsCard";
+import { NewsletterCard } from "./NewsletterCard";
 import { copyText } from "./clipboard";
 import { getOrdersCached } from "./ordersCache";
 import { useShopWords } from "./shopWords";
 import {
-  buildCustomers, consentOf, copiesOf, customerCountries, customerStats, customersToCsv, parseTags, CONSENT_LABELS, SEGMENT_LABELS,
+  buildCustomers, withMovedCustomers, consentOf, copiesOf, customerCountries, customerStats, customersToCsv, parseTags, CONSENT_LABELS, SEGMENT_LABELS,
   type Consent, type CustomerRow, type CustomerSegment,
 } from "./customerInsights";
 import {
-  DataTable, Dialog, EmptyState, ErrorState, FilterBar, GhostButton, LoadingState, MetricCard, Pagination, PrimaryButton, SearchField,
+  DataTable, PageActions, Dialog, EmptyState, ErrorState, FilterBar, GhostButton, LoadingState, MetricCard, Pagination, PrimaryButton, SearchField,
   SecondaryButton, SectionCard, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, useConfirm, type BadgeTone, type Column,
 } from "./riso/components";
 
 const money = (n: number) => `CA$${n.toFixed(2)}`;
-const TONE: Record<CustomerSegment, BadgeTone> = { vip: "primary", "vip-lapsed": "danger", returning: "success", new: "info", "at-risk": "warning" };
+const TONE: Record<CustomerSegment, BadgeTone> = { vip: "primary", "vip-lapsed": "danger", returning: "success", new: "info", "at-risk": "warning", moved: "neutral" };
 const CONSENT_TONE: Record<Consent, BadgeTone> = { subscribed: "success", "opted-out": "danger", none: "neutral" };
 // Opened rarely, so it loads only when asked for (plan 3.1).
 const CustomerMoveDialog = lazy(() => import("./ShopMoveDialogs").then(m => ({ default: m.CustomerMoveDialog })));
@@ -57,6 +58,8 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
   const [consent, setConsent] = useState<{ subscribed: Set<string>; optedOutHashes: Set<string> | null } | null>(null);
   const [hashes, setHashes] = useState<Map<string, string>>(new Map());
   const [notes, setNotes] = useState<Map<string, Note>>(new Map());
+  // The stored notes as read, for the customers brought over who haven't ordered here yet.
+  const [noteRows, setNoteRows] = useState<{ email?: string; name?: string; place?: string; note?: string }[]>([]);
   // loaded: the stored note for this customer was read, so saving can't replace it with blanks.
   const [draft, setDraft] = useState<Draft | null>(null);
   const [notesState, setNotesState] = useState<"loading" | "ok" | "failed">("loading");
@@ -79,11 +82,11 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
   const loadNotes = () => {
     setNotesState("loading");
     adminApi.listCustomerNotes()
-      .then((rows) => { setNotes(new Map(rows.map((r) => [r.id, { note: r.note || "", tags: r.tags || [] }]))); setNotesState("ok"); })
+      .then((rows) => { setNoteRows(rows); setNotes(new Map(rows.map((r) => [r.id, { note: r.note || "", tags: r.tags || [] }]))); setNotesState("ok"); })
       .catch((e) => { console.error(e); setNotesState("failed"); });
   };
 
-  const all = useMemo(() => buildCustomers(orders), [orders]);
+  const all = useMemo(() => withMovedCustomers(buildCustomers(orders), noteRows), [orders, noteRows]);
   useEffect(() => {
     let alive = true;
     Promise.all(all.map(async (c) => [c.key, await emailHash(c.key)] as const))
@@ -97,7 +100,7 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
 
   const stats = useMemo(() => customerStats(all), [all]);
   const counts = useMemo(() => {
-    const c: Record<string, number> = { all: all.length, vip: 0, "vip-lapsed": 0, returning: 0, new: 0, "at-risk": 0 };
+    const c: Record<string, number> = { all: all.length, vip: 0, "vip-lapsed": 0, returning: 0, new: 0, "at-risk": 0, moved: 0 };
     all.forEach((x) => c[x.segment]++);
     return c;
   }, [all]);
@@ -194,6 +197,11 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
 
   return (
     <div className="rp-stack">
+      {/* Bringing customers over and exporting them are page actions, so they sit by the title, not among the filters. */}
+      <PageActions>
+        <SecondaryButton icon={<Download size={16} aria-hidden />} onClick={() => setExportOpen(true)}>Export CSV</SecondaryButton>
+        <SecondaryButton icon={<Upload size={16} aria-hidden />} onClick={() => setMoveOpen(true)}>Bring customers over</SecondaryButton>
+      </PageActions>
       <div className="rp-kpi-grid">
         <MetricCard label="Customers" value={stats.total} footer="With at least one paid order" />
         <MetricCard label="Repeat rate" value={`${Math.round(stats.repeatRate * 100)}%`} footer={`${stats.repeat} bought more than once`} />
@@ -209,6 +217,7 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
           { id: "returning", label: "Returning", count: counts.returning },
           { id: "new", label: "New", count: counts.new },
           { id: "at-risk", label: "At risk", count: counts["at-risk"] },
+          ...(counts.moved ? [{ id: "moved", label: "Not ordered here yet", count: counts.moved }] : []),
         ]} />
       <FilterBar>
         <div className="rp-grow"><SearchField label="Search customers" placeholder="Search name, email or city…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
@@ -237,11 +246,9 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
           </SelectField>
         )}
         {filtered && <GhostButton onClick={clearFilters}>Clear filters</GhostButton>}
-        <SecondaryButton icon={<Upload size={16} aria-hidden />} onClick={() => setMoveOpen(true)}>Bring customers over</SecondaryButton>
-        <SecondaryButton icon={<Download size={16} aria-hidden />} onClick={() => setExportOpen(true)}>Export CSV</SecondaryButton>
       </FilterBar>
       {moveOpen && <Suspense fallback={null}><CustomerMoveDialog onClose={() => setMoveOpen(false)} onDone={() => { loadNotes(); adminApi.getMarketingConsent().then(setConsent).catch(() => {}); }} /></Suspense>}
-      <SectionCard flush collapsible={false} title="Customers" description={`${rows.length} customer${rows.length === 1 ? "" : "s"} · paid orders only, refunds taken off.`}>
+      <SectionCard flush collapsible={false} title="Customers" description={`${rows.length} customer${rows.length === 1 ? "" : "s"} · paid orders only, refunds taken off${counts.moved ? ", plus the customers you brought over who haven't ordered here yet" : ""}.`}>
         <DataTable caption="Customers" columns={columns} rows={pageRows} rowKey={(c) => c.key} onRowClick={openCustomer}
           empty={all.length === 0
             ? <EmptyState title="No customers yet" description="Customers appear here after their first paid order." />
@@ -263,6 +270,7 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
             notesState={notesState} onRetryNotes={loadNotes} savingNote={savingNote} onSaveNote={saveNote} knownTags={allTags} onOpenOrder={() => setOpen(null)} />
         </Dialog>
       )}
+      <NewsletterCard />
       <StockistsCard />
       {confirmNode}
     </div>
@@ -290,7 +298,9 @@ export function CustomerDetail({ customer: c, tab, onTab, draft, onDraft, notesS
       <TabPanel tabId="cust-summary" active={tab === "cust-summary"}>
         <div className="rp-stack">
           <p className="rp-hint" style={{ margin: 0 }}>
-            {c.orderCount} paid order{c.orderCount === 1 ? "" : "s"} · {money(c.totalSpent)} lifetime after refunds{c.firstOrderAt ? ` · first order ${new Date(c.firstOrderAt).toLocaleDateString()}` : ""}
+            {c.segment === "moved"
+              ? "Brought over from your old shop, with no order here yet. What they bought there is in Notes & tags."
+              : <>{c.orderCount} paid order{c.orderCount === 1 ? "" : "s"} · {money(c.totalSpent)} lifetime after refunds{c.firstOrderAt ? ` · first order ${new Date(c.firstOrderAt).toLocaleDateString()}` : ""}</>}
           </p>
           <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "6px 16px", margin: 0 }}>
             {row("Location", [c.city, c.country].filter(Boolean).join(", ") || "—")}

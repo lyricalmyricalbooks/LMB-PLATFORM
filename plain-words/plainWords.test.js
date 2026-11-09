@@ -17,6 +17,7 @@ import { renderHelp } from "../help/page.js";
 import { billingWords, planChangeWords } from "../accounts/billingWords.js";
 import { statusWords } from "../status/summary.js";
 import { TIPS } from "../services/trial-tips/index.js";
+import { START_NUDGE_WORDS } from "../services/trial-tips/startNudges.js";
 import { createShopMaker, STEP_WORDS } from "../signup/shopMaker.js";
 import { fakeSignupStores } from "../signup/fakes.js";
 import { fakeRegistry } from "../setup/fakes.js";
@@ -27,6 +28,13 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf
 const ALLOWED = [
   // Route tables name web addresses such as "POST /api/signup"; they are the platform's doors, never shown.
   // (Skipped by `isRouteLabel`, not allowed here.)
+  // The name of the note inside a press's data download (services/export, 19.16): a file name every computer opens,
+  // not the TXT record of web addresses.
+  "README.txt",
+  // The terms' list of companies that help run Colophon (terms/terms.js HELPERS): privacy law asks for each one by its
+  // real name, so these are names of companies there, not technical words.
+  "Google Cloud: keeps each shop online",
+  "Resend: sends your shop's emails and ours",
 ];
 const isRouteLabel = (text) => /^(GET|POST|PUT|PATCH|DELETE) \//.test(text);
 
@@ -36,7 +44,7 @@ function problemsIn(label, text, allowed = ALLOWED) {
 
 // ── The pages, as a press reads them ───────────────────────────────────────────────────────────────────────────────
 
-const PAGES = ["signup/index.html", "accounts/index.html", "accounts/billing.html", "help/index.html", "experts/index.html", "status/index.html", "terms/index.html", "waitlist/index.html"];
+const PAGES = ["signup/index.html", "accounts/index.html", "accounts/billing.html", "accounts/keep.html", "accounts/install.html", "help/index.html", "experts/index.html", "status/index.html", "terms/index.html", "waitlist/index.html"];
 
 test("every page a press opens says nothing technical", () => {
   const found = PAGES.flatMap((page) => problemsIn(page, visibleText(read(page))));
@@ -47,7 +55,7 @@ test("every page a press opens says nothing technical", () => {
 
 // Files whose quoted words reach a press: the page scripts, the replies the services give them, and their words.
 const PRESS_FACING_CODE = [
-  "signup/app.js", "signup/form.js", "signup/signup.js", "signup/shopMaker.js", "signup/api.js",
+  "help/errorHelp.js", "services/checkup/index.js", "signup/app.js", "signup/form.js", "signup/signup.js", "signup/shopMaker.js", "signup/api.js",
   "accounts/accounts.js", "accounts/app.js", "accounts/billing.js", "accounts/billingWords.js", "accounts/billingRoutes.js",
   "accounts/devices.js", "accounts/recovery.js", "accounts/recoveryRoutes.js", "accounts/roles.js", "accounts/routes.js", "accounts/teamSync.js",
   "help/articles.js", "help/page.js", "help/support.js", "experts/directory.js", "experts/page.js", "status/page.js", "status/summary.js", "terms/page.js", "terms/terms.js",
@@ -59,6 +67,10 @@ const PRESS_FACING_CODE = [
   "google/status.js", "google/service.js", "google/teardown.js", "google/gmail.js",
   // Support asks before making changes (19.6), and the fair-use limits' words (19.5).
   "accounts/accessRequestRoutes.js", "control-room/accessRequests.js", "signup/limits.js",
+  // The "why are you leaving?" answer's refusals (19.8).
+  "services/billing/leaving.js",
+  // Messages to presses and a press's data on request (19.14, 19.16): the emails, the export's README and refusals.
+  "services/email/pressTemplates.js", "services/export/export.js",
 ];
 // Not read, with the reason: services/domains and the domain card are row 6.15's; the control room, health alerts and
 // the backup person's emails go to Julian, not to a press; setup/steps.js names the steps for the audit log (the press
@@ -164,8 +176,11 @@ const BILLING = { planName: "Shop and stockroom", price: "$39.00", date: "14 Nov
 // One sample for each kind of platform email a press can receive; each may be rendered several ways.
 const PRESS_EMAILS = {
   "owner-welcome": [{ links: SHOP_LINKS }, { links: { shopAdmin: SHOP_LINKS.shopAdmin } }],
+  "app-added": [{ links: { stockroom: SHOP_LINKS.stockroom } }, { links: { shopAdmin: SHOP_LINKS.shopAdmin } }, { links: SHOP_LINKS }],
   "sign-in-link": [{ link: LINK }],
+  "sign-in-code": [{ code: "042917" }],
   "shop-starting": [{ pressName: "Moth Press", link: LINK }],
+  "setup-ending": [{ pressName: "Moth Press", daysLeft: 30, date: "December 3, 2026", link: LINK }],
   "waitlist-invite": [{ link: LINK }],
   "platform-fee-changing": [{ fromPercent: 0, toPercent: 2, startsOn: "1 January 2027", refunded: true, link: LINK }, { fromPercent: 2, toPercent: 0, startsOn: "1 January 2027", refunded: false, link: LINK }],
   invite: [{ pressName: "Moth Press", invitedBy: "owner@example.com", roleWords: "a manager", link: LINK, days: 7 }],
@@ -176,13 +191,22 @@ const PRESS_EMAILS = {
   "newsletter-paused": [{ problems: ["3 people marked it as spam (1.5%)", "12 addresses bounced (6%)"], days: 7 }],
   "own-email-paused": [{ domain: "yourpress.example" }],
   "domain-live": [{ domain: "yourpress.example", link: SHOP_LINKS.shopAdmin }],
+  "free-address-live": [{ domain: "moth-press.shops.example", link: SHOP_LINKS.shopAdmin }],
+  "quiet-shop": [{ pressName: "Moth Press", link: SHOP_LINKS.shopAdmin, helpLink: "https://platform.example/help/" }],
+  "domain-expiring": [{ domain: "yourpress.example", daysLeft: 30, date: "December 3, 2026", seller: "Example Names", own: "lmb-test-shop.web.app" }, { domain: "yourpress.example", daysLeft: 1, date: "December 3, 2026", seller: null, own: "lmb-test-shop.web.app" }],
+  "domain-not-pointing": [{ domain: "yourpress.example", own: "lmb-test-shop.web.app", link: SHOP_LINKS.shopAdmin }],
   "payment-failed": [{ ...BILLING }, { ...BILLING, nextTry: null }],
   "subscription-cancelled": [{ ...BILLING }],
   "subscription-ended": [{ ...BILLING }],
   "payments-past-due": [{ provider: "Stripe", needs: ["your bank details"], link: SHOP_LINKS.shopAdmin }, { provider: "Stripe", needs: ["your bank details", "your date of birth"], link: SHOP_LINKS.shopAdmin }],
   "plan-changed": [{ ...BILLING, prorated: true }, { ...BILLING, prorated: false, closing: "the stockroom", date: "1 December 2026", now: false }, { ...BILLING, closing: "the stockroom", now: true }],
+  "app-closing-soon": [{ closing: "the stockroom", date: "1 December 2026", link: LINK }, { closing: "the stockroom", date: "1 December 2026", link: LINK, signIn: true }, { closing: "the shop and the stockroom", date: "1 December 2026", link: LINK }],
+  "app-download-ending": [{ closing: "the stockroom", holds: "a spreadsheet each of the books in your stockroom and the stock ledger", date: "1 March 2027", link: LINK }],
+  "app-records-deleted": [{ closing: "the stockroom", link: LINK }],
+  "app-closed": [{ closing: "the stockroom", holds: "a spreadsheet each of the books in your stockroom and the stock ledger", date: "1 March 2027", link: LINK }, { closing: "the shop and the stockroom", date: "1 March 2027", link: LINK }],
   "card-expiring": [{ card: "Visa ending 4242", month: "November", link: LINK }, { card: "", date: "30 November 2026", link: LINK }],
   "new-device": [{ browser: "Chrome on Mac", at: "2026-11-01 12:00" }],
+  "account-deleted": [{ shops: ["Moth Press", "Field Notes"] }, {}],
   "payments-moved": [{ to: "own", ready: true }, { to: "own", ready: false }, { to: "square", ready: true }, { to: "square", ready: false }, { to: "platform" }],
   "recovery-asked": [{ newEmail: "new@example.com" }],
   "recovery-received": [{ oldEmail: "old@example.com" }],
@@ -190,14 +214,26 @@ const PRESS_EMAILS = {
   "recovery-approved": [{ oldEmail: "old@example.com", newEmail: "new@example.com", holdUntil: "4 November 2026" }],
   "recovery-denied": [{ oldEmail: "old@example.com", reason: "We couldn't check who you are." }],
   "recovery-applied": [{ oldEmail: "old@example.com", newEmail: "new@example.com" }],
-  "trial-tip": Object.values(TIPS).map((tip) => ({ subject: tip.subject, paragraphs: tip.paragraphs, action: tip.action, link: LINK, offLink: LINK })),
+  "trial-tip": [...Object.values(TIPS), ...Object.values(START_NUDGE_WORDS)].map((tip) => ({ subject: tip.subject, paragraphs: tip.paragraphs, action: tip.action, link: LINK, offLink: LINK })),
+  "shop-checkup": [
+    { lines: [{ state: "ok", words: "Every link we tried on your shop works." }], offLink: LINK },
+    { lines: [{ state: "fix", words: "3 items have no description. A few lines about each helps people choose, and helps your shop show up in searches.", fix: { label: "Write the descriptions", link: LINK } }, { state: "ok", words: "Your shop opens quickly on a phone." }], offLink: LINK },
+  ],
+  "payment-needs-confirming": [{ price: "$29.25", link: LINK }],
+  "payment-received": [{ price: "$29.25", link: LINK }, { price: "$29.25", link: LINK, bill: LINK }],
+  "bill-paid": [{ ...BILLING, price: "$39.00", number: "CL-0042", paidOn: "4 November 2026", from: "4 November 2026", to: "3 December 2026", tax: "$4.49", bill: LINK }, { ...BILLING, price: "$29.25", number: "", paidOn: "", from: "", to: "", tax: "", bill: null }],
+  "card-changed": [{ card: "Visa ending 4242", link: LINK }, { card: "", link: LINK }],
+  "shop-reopened": [{ ...BILLING, card: "Visa ending 4242" }, { ...BILLING, card: "" }],
+  "cancel-undone": [{ ...BILLING }],
   "shop-closed": [{ date: "30 January 2027", link: LINK }],
   "shop-deletion-warning": [{ date: "30 January 2027", days: 30, link: LINK }, { date: "30 January 2027", days: 7, link: LINK }],
   "shop-deleted": [{}],
   "support-access-request": [{ by: "admin@example.com", reason: "You asked us to fix the price of a book.", until: "4 November 2026", link: LINK }],
+  "press-message": [{ words: "New: shipping labels from your admin.", endsOn: "9 November 2026", link: SHOP_LINKS.shopAdmin }, { words: "Card payments pause tonight.\n\nNothing to do.", endsOn: "9 November 2026", link: null }],
+  "data-export-ready": [{ link: LINK, until: "9 November 2026", asked: "owner" }, { link: LINK, until: "9 November 2026", asked: "platform", reason: "your privacy request" }],
 };
 // Emails that go to Julian or to the support address, never to a press.
-const PLATFORM_ONLY = ["health-alert", "backup-access-used", "recovery-new", "support-new"];
+const PLATFORM_ONLY = ["health-alert", "backup-access-used", "recovery-new", "support-new", "job-late", "apps-deleting-soon"];
 
 test("every kind of email is either read here or goes only to the platform's own people", () => {
   const kinds = Object.keys(TEMPLATES).sort();

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PLAN_WRITE_FUNCTIONS } from '../src/lib/plan-pause.js';
+import { HELPER_METHODS, MAX_FAIR_NAME, MAX_MENU_BOOKS, MAX_SALE_LINES } from '../src/lib/fair-helper.js';
 
 // The rules files can't be executed here (that needs the Firebase emulators),
 // so this pins down the decisions they encode: which settings documents a
@@ -30,7 +31,7 @@ const PUBLISHER = '__SHOP_OWNER_EMAIL__';
 // Loaded by an author session to render its own book (see firestore.rules).
 const AUTHOR_READS = [
   'modeFlags', 'notifyEndpoint', 'analyticsConfig', 'catalog',
-  'paymentLinks', 'productionCosts', 'websitePaymentMethods',
+  'paymentLinks', 'productionCosts', 'websitePaymentMethods', 'sells',
 ];
 // Read by the bookkeeper's screen (plan 7.17): which database, and the Tax Centre's key-free copy.
 const BOOKKEEPER_READS = ['modeFlags', 'taxCentreForBookkeeper'];
@@ -120,9 +121,13 @@ describe('bookkeeper settings reads (plan 7.17)', () => {
   });
   it('starts before any publisher data loads, and the Tax Centre save keeps the copy up to date', () => {
     const main = read('src/main.js');
-    const bookkeeper = main.indexOf('isBookkeeperPass(user, await readPassClaims(user))');
-    expect(bookkeeper).toBeGreaterThan(-1);
-    expect(bookkeeper).toBeLessThan(main.indexOf('const flagsLoaded = window._fbLoadModeFlags();'));
+    const flags = main.indexOf('const flagsLoaded = window._fbLoadModeFlags();');
+    // The fair helper's till (Fair helpers plan) branches off the same way, just before.
+    for (const pass of ['isBookkeeperPass(user, passClaims)', 'isFairHelperPass(user, passClaims)']) {
+      const at = main.indexOf(pass);
+      expect(at).toBeGreaterThan(-1);
+      expect(at).toBeLessThan(flags);
+    }
     const firebase = read('src/firebase.js');
     expect(firebase.match(/if \(key === 'taxCenter'\) void saveBookkeeperCopy\(/g)).toHaveLength(2);
   });
@@ -210,7 +215,19 @@ describe('author role', () => {
     const role = "(auth.token.email_verified === true && auth.token.role === 'author')";
     expect(expr.split(role).length - 1).toBe(1);
     const after = expr.slice(expr.indexOf(role));
-    expect(after).toMatch(/^\(auth\.token\.email_verified === true && auth\.token\.role === 'author'\) \|\| root\.child\('lyrical\/settings\/bookOwners\/authorEmails'\)[^&]*\.exists\(\)\) && \(\$key === /);
+    expect(after).toMatch(/^\(auth\.token\.email_verified === true && auth\.token\.role === 'author'\) \|\| \(auth\.token\.email_verified === true && root\.child\('lyrical\/settings\/bookOwners\/authorEmails'\)[^&]*\.exists\(\)\)\) && \(\$key === /);
+  });
+
+  // The shop's email-link sign-in keeps the Email/Password provider on in the shared project, so an unverified
+  // password account can carry any author's address: every per-book and author-list check needs a verified one.
+  it('counts an address as an author only when it is verified', () => {
+    expect(fn(firestoreRules, 'isBookAuthor')).toContain('request.auth.token.email_verified == true');
+    expect(fn(storageRules, 'isBookAuthor')).toContain('request.auth.token.email_verified == true');
+    expect(fn(firestoreRules, 'isAnyAuthor')).toMatch(/\|\| \(request\.auth != null && request\.auth\.token\.email_verified == true && /);
+    const { books, submissions } = rtdbRules.rules.lyrical;
+    for (const e of [books.$bookId['.read'], books.$bookId['.write'], submissions.$bookId['.read'], submissions.$bookId['.write']]) {
+      expect(e).toContain("(auth.token.email_verified === true && root.child('lyrical/settings/bookOwners').child($bookId).val() === auth.token.email.toLowerCase())");
+    }
   });
 
   it('never opens a book, a receipt or a publisher check', () => {
@@ -272,7 +289,7 @@ describe('website link rules', () => {
     const rules = block('websiteLink');
     expect(rules).toMatch(/allow read: if isPublisher\(\);/);
     expect(rules).toContain("isPublisher() && planOpen() && docId == 'app'");
-    expect(rules).toContain("keys().hasOnly(['importConsentAt', 'lastImportAt', 'lastFeedAt', 'build', 'todo', 'linkRequests', 'dismissedShopBooks'])");
+    expect(rules).toContain("keys().hasOnly(['importConsentAt', 'lastImportAt', 'lastFeedAt', 'build', 'todo', 'linkRequests', 'dismissedShopBooks', 'wordsSells', 'wordsAt'])");
     expect(rules).toContain('appTodoOk(request.resource.data)');
     expect(rules).toContain("linkMapOk(request.resource.data, 'linkRequests')");
     expect(rules).toContain("linkMapOk(request.resource.data, 'dismissedShopBooks')");
@@ -355,13 +372,32 @@ describe('the app and the rules agree', () => {
     expect(read('src/main.js')).toMatch(/planReadOnly\(plan\)/);
     expect(read('src/main.js')).toMatch(/if \(window\.PLAN_READ_ONLY\) \{\s*showToast/);
   });
-  it('lets signed-in people read the plan, nobody write it, and every write needs an open plan', () => {
-    expect(firestoreRules).toMatch(/match \/platform\/\{docId\} \{\s*allow get: if docId == 'plan' && request\.auth != null;\s*allow list, write: if false;/);
+  it("lets the stockroom's own people read the plan, nobody write it, and every write needs an open plan", () => {
+    expect(firestoreRules).toMatch(/match \/platform\/\{docId\} \{\s*allow get: if docId == 'plan' && \(isPublisher\(\) \|\| isAnyAuthor\(\) \|\| isFairHelper\(\) \|\| isBookkeeper\(\)\);\s*allow list, write: if false;/);
     // Error reports (clientErrors) stay open: they are how a problem reaches the owner, paused or not.
     const errorReports = firestoreRules.slice(firestoreRules.indexOf('match /clientErrors/'), firestoreRules.indexOf('\n    }', firestoreRules.indexOf('match /clientErrors/')));
     const writeLines = firestoreRules.replace(errorReports, '').split('\n')
       .filter(l => /allow [a-z, ]*(write|create|update|delete)[a-z, ]*:/.test(l) && !/if false/.test(l));
     const unguarded = writeLines.filter(l => !l.includes('planOpen()'));
     expect(unguarded).toEqual([]);
+  });
+});
+
+describe('fair helpers (docs/combined-admin.md › Fair helpers plan)', () => {
+  it('hold the same limits as src/lib/fair-helper.js', () => {
+    const methods = /request\.resource\.data\.method in \[([^\]]+)\]/.exec(firestoreRules)[1].split(',').map((s) => s.trim().replace(/'/g, ''));
+    expect(methods).toEqual([...HELPER_METHODS]);
+    expect(firestoreRules).toContain(`request.resource.data.lines.size() <= ${MAX_SALE_LINES}`);
+    expect(firestoreRules).toContain(`request.resource.data.fair.size() <= ${MAX_FAIR_NAME}`);
+    expect(firestoreRules).toContain(`request.resource.data.books.size() <= ${MAX_MENU_BOOKS}`);
+    expect(firestoreRules).toContain("saleId.matches('^[A-Za-z0-9_-]{8,64}$')");
+  });
+  it('never let a helper near a book or a setting', () => {
+    const helperLines = firestoreRules.split('\n').filter((l) => l.includes('isFairHelper()') && !l.includes('function isFairHelper'));
+    expect(helperLines.length).toBeGreaterThan(0);
+    const books = firestoreRules.slice(firestoreRules.indexOf('match /books/{bookId}'), firestoreRules.indexOf('match /submissions/'));
+    const settings = firestoreRules.slice(firestoreRules.indexOf('match /settings/{document}'), firestoreRules.indexOf('// Fair helpers (docs/combined-admin.md'));
+    expect(books).not.toMatch(/isFairHelper/);
+    expect(settings).not.toMatch(/isFairHelper/);
   });
 });

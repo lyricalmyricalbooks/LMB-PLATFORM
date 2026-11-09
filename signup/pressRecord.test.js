@@ -24,8 +24,8 @@ test("setup answers change while in setup", () => {
   assert.deepEqual(result, { ok: true, fields: { pressName: "Moth Press", sells: "Zines", country: "CA" } });
 });
 
-test("a press cannot set its status, owner or last-seen time", () => {
-  for (const key of ["status", "ownerUid", "ownerEmail", "lastSeenAt", "createdAt"]) {
+test("a press cannot set its status, owner, import file or timestamps", () => {
+  for (const key of ["status", "ownerUid", "ownerEmail", "lastSeenAt", "createdAt", "stagedImportPath", "pressId"]) {
     assert.equal(setupChange(record(), { [key]: "x" }).ok, false, key);
   }
 });
@@ -52,4 +52,29 @@ test("a setup record unseen for 60 days is due for removal, a recent one is not"
   assert.equal(setupExpired(r, new Date("2026-12-30T12:00:00Z")), false);
   assert.equal(setupExpired(r, new Date("2027-01-02T12:00:00Z")), true);
   assert.equal(setupExpired({ ...r, status: "opening" }, new Date("2027-06-01T00:00:00Z")), false);
+});
+
+test("a setup record whose last visit can't be read counts as unseen, so it can't stay forever", () => {
+  for (const lastSeenAt of ["not a date", "", null, undefined]) {
+    assert.equal(setupExpired({ ...record(), lastSeenAt }, new Date("2026-11-03T00:00:00Z")), true, String(lastSeenAt));
+  }
+});
+
+// The rules file is checked by its text here; the Firestore emulator run (waitlist/firestore-emulator.mjs) is the full test.
+test("the setup record rules let only its verified owner read it, and no one write it from a page", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const rules = await readFile(new URL("../waitlist/firestore.rules", import.meta.url), "utf8");
+  const block = rules.slice(rules.indexOf("match /presses/{pressId}"), rules.indexOf("// status/publish.js"));
+  assert.match(block, /email_verified == true/);
+  assert.match(block, /resource\.data\.ownerUid == request\.auth\.uid/);
+  assert.match(block, /allow create, update, delete: if false;/);
+  assert.equal((block.match(/allow /g) ?? []).length, 2, "a read rule and a no-writes rule, nothing else");
+});
+
+test("the moving answer (23.0): yes, fresh or not said; nothing else", () => {
+  assert.equal(record().moving, "");
+  assert.deepEqual(setupChange(record(), { moving: "fresh" }).fields, { moving: "fresh" });
+  assert.deepEqual(setupChange(record(), { moving: "" }).fields, { moving: "" });
+  assert.equal(setupChange(record(), { moving: "maybe" }).ok, false);
+  assert.equal(setupChange(record(), { moving: 3 }).ok, false);
 });

@@ -10,6 +10,7 @@ import { signatureHeader } from "../payments/stripeSignature.js";
 import { fakeFeeLedgerStore } from "../payments/feeLedgerFakes.js";
 import { liveSettings, platformSettings } from "../settings.js";
 import { fakeAuditLog, fakeRegistry } from "../../setup/fakes.js";
+import { activeTerms } from "../payments/payAsYouSell.js";
 
 const SECRET = "whsec_billing_test";
 const NOW = Date.parse("2026-10-28T12:00:00Z");
@@ -180,4 +181,100 @@ test("the page's two calls check the owner and answer the section's words", asyn
   await assert.rejects(routes["POST /api/billing/payment-way/switch"]({ email: "someone@example.com" }, { body: { shopId: SHOP, to: "monthly" } }), /owner/);
   assert.equal(asked.length, 3);
   await assert.rejects(w.ways.switchPaymentWay({ shopId: SHOP, to: "yearly" }), /monthly or pay as you sell/);
+});
+
+test("a press paying as they sell can add the stockroom (the cap follows the price) but not keep the stockroom alone", async () => {
+  const w = await make({ founding: true });
+  await w.ways.switchPaymentWay({ shopId: SHOP, to: "payAsYouSell" });
+  w.tick(14 * DAY);
+  const sub = w.stripe.world.subscriptions.get(w.subId());
+  sub.status = "canceled";
+  await w.event("customer.subscription.deleted", w.stripe.subscription(sub.id));
+  const cap = w.registry.shops.get(SHOP).payAsYouSell.capMinor;
+  assert.equal(cap, 2175, "the founding offer's 25% off the $29 cap");
+
+  await assert.rejects(w.billing.changePlan({ shopId: SHOP, plan: "stockroom" }), (error) => error.status === 409 && /switch to paying monthly first/.test(error.message));
+  assert.equal(w.registry.shops.get(SHOP).plan, "shop", "nothing changed");
+
+  const requests = w.stripe.requests.length;
+  const after = await w.billing.changePlan({ shopId: SHOP, plan: "both" });
+  assert.equal(after.changed, true);
+  assert.equal(w.stripe.requests.length, requests, "no subscription runs, so Stripe isn't asked");
+  assert.equal(w.registry.shops.get(SHOP).plan, "both", "the stockroom opens at once");
+  assert.equal(w.registry.shops.get(SHOP).payAsYouSell.capMinor, Math.floor((2175 * 3900) / 2900), "the cap follows the price, keeping the founding share off");
+  assert.equal(w.registry.shops.get(SHOP).payAsYouSell.basisPoints, 150, "the share of each sale stays as chosen");
+  assert.equal(w.stores.subscriptions.rows.get(SHOP).access, "open");
+
+  // Monthly is chosen; until it starts the pay-as-you-sell terms still apply, so dropping the stockroom brings the cap back.
+  await w.ways.switchPaymentWay({ shopId: SHOP, to: "monthly" });
+  assert.ok(w.registry.shops.get(SHOP).payAsYouSell.until, "pay as you sell runs to the end of this month");
+  await w.billing.changePlan({ shopId: SHOP, plan: "shop" });
+  assert.equal(w.registry.shops.get(SHOP).payAsYouSell.capMinor, Math.floor((Math.floor((2175 * 3900) / 2900) * 2900) / 3900), "the cap follows the price down again");
+});
+
+test("after a switch to pay as you sell the plan isn't shown as cancelled, and Keep can't bring back the monthly bill on top of the fees", async () => {
+  const w = await make();
+  await w.ways.switchPaymentWay({ shopId: SHOP, to: "payAsYouSell" });
+  assert.equal(w.stripe.world.subscriptions.get(w.subId()).cancel_at_period_end, true, "Stripe's cancel is the switch");
+  const status = await w.billing.status(SHOP);
+  assert.equal(status.cancelAtPeriodEnd, false, "no Cancelled badge and no Keep my plan button");
+  assert.equal(w.registry.shops.get(SHOP).billing.cancelAtPeriodEnd, false, "the control room doesn't count it as leaving");
+  await assert.rejects(w.billing.keep({ shopId: SHOP }), (error) => error.status === 409 && /switch under How you pay/.test(error.message));
+  assert.equal(w.stripe.world.subscriptions.get(w.subId()).cancel_at_period_end, true, "Stripe still ends the monthly plan");
+  assert.equal(w.stores.subscriptions.rows.get(SHOP).paymentWay, "payAsYouSell");
+});
+
+test("a press paying as they sell can cancel: fees stop when the billing month ends, Keep undoes it until then, and the shop closes after", async () => {
+  const w = await make();
+  await w.ways.switchPaymentWay({ shopId: SHOP, to: "payAsYouSell" });
+  w.tick(14 * DAY);
+  const sub = w.stripe.world.subscriptions.get(w.subId());
+  sub.status = "canceled";
+  await w.event("customer.subscription.deleted", w.stripe.subscription(sub.id));
+  w.tick(3 * DAY);
+  const monthEnd = "2026-12-11T12:00:00.000Z";
+  assert.equal((await w.billing.status(SHOP)).cancelEndsAt, monthEnd, "the page says when a cancel would close the shop");
+
+  const cancelled = await w.billing.cancel({ shopId: SHOP, reason: "price" });
+  assert.equal(cancelled.payAsYouSell.until, monthEnd);
+  assert.equal(w.registry.shops.get(SHOP).payAsYouSell.until, monthEnd, "services/payments stops taking fees then");
+  assert.equal(activeTerms(w.registry.shops.get(SHOP), Date.parse(monthEnd)), null);
+  const status = await w.billing.status(SHOP);
+  assert.deepEqual([status.cancelAtPeriodEnd, status.cancelEndsAt, status.access], [true, monthEnd, "open"]);
+  assert.deepEqual([w.registry.shops.get(SHOP).billing.cancelAtPeriodEnd, w.registry.shops.get(SHOP).billing.endsAt], [true, monthEnd]);
+  assert.deepEqual(w.email.list().map((m) => [m.kind, m.data.date]), [["subscription-cancelled", dateText(monthEnd)]]);
+  assert.equal((await w.billing.cancel({ shopId: SHOP })).payAsYouSell.until, monthEnd, "asking twice changes nothing");
+
+  // Changed their mind: Keep takes the end date away, and nothing in Stripe starts a monthly bill.
+  const requests = w.stripe.requests.length;
+  const kept = await w.billing.keep({ shopId: SHOP });
+  assert.equal(kept.payAsYouSell.until, null);
+  assert.equal(kept.leaving.keptAt, new Date(NOW + 17 * DAY).toISOString());
+  assert.equal(w.registry.shops.get(SHOP).payAsYouSell.until, null);
+  assert.equal(w.stripe.requests.length, requests);
+  assert.equal((await w.billing.status(SHOP)).cancelAtPeriodEnd, false);
+
+  // Cancelled again; the month ends and the daily sweep closes the shop, so the closing sweep takes over.
+  await w.billing.cancel({ shopId: SHOP });
+  w.tick(30 * DAY);
+  await w.billing.closeDroppedApps();
+  assert.equal(w.stores.subscriptions.rows.get(SHOP).access, "closed");
+  assert.equal(w.registry.shops.get(SHOP).billing.access, "closed");
+  assert.equal(activeTerms(w.registry.shops.get(SHOP), NOW + 47 * DAY), null, "no fee is ever taken again");
+  assert.deepEqual(charged(w), []);
+});
+
+test("cancelling pay as you sell during the trial ends it with the trial: no fee is ever taken", async () => {
+  const w = await make();
+  await w.ways.switchPaymentWay({ shopId: SHOP, to: "payAsYouSell" });
+  const trialEnd = new Date(NOW + 14 * DAY).toISOString();
+  await w.billing.cancel({ shopId: SHOP });
+  assert.equal(w.registry.shops.get(SHOP).payAsYouSell.until, trialEnd);
+  assert.equal(activeTerms(w.registry.shops.get(SHOP), Date.parse(trialEnd)), null);
+  // Stripe ends the trial's plan that day: the shop closes, as any cancelled plan does.
+  w.tick(14 * DAY);
+  const sub = w.stripe.world.subscriptions.get(w.subId());
+  sub.status = "canceled";
+  await w.event("customer.subscription.deleted", w.stripe.subscription(sub.id));
+  assert.equal(w.stores.subscriptions.rows.get(SHOP).access, "closed");
 });

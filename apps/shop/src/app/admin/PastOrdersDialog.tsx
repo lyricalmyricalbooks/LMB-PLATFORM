@@ -1,0 +1,307 @@
+import { recordMoveStep } from "./moveProgress";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Upload } from "lucide-react";
+import { importPastOrders, ratePastOrder, removePastOrders, suggestedRates } from "./oldShopApi";
+import { goodRate, mergePastOrderFiles, readPastOrders, readyToSend, type PastOrder, type PastOrderFile } from "./pastOrders";
+import { Dialog, GhostButton, PrimaryButton, SecondaryButton, StatusBadge, TextField } from "./riso/components";
+import { SPREADSHEET_ACCEPT, readProblem, spreadsheetText } from "./spreadsheetFile";
+import { GoogleSheetLink } from "./GoogleSheetLink";
+
+/**
+ * Orders › Bring past orders over (plan 23.7): the old shop's order file → a preview → the server saves each order as
+ * history only (functions/orderImport.js): counted in sales reports and each customer's history, with no stock change,
+ * no email and no payment. Bringing the same file again adds nothing. Several files (one per year, say) come over as
+ * one run (plan 23.27): chosen together, or added before bringing them over. After a run, "Bring another file" starts
+ * the next one in the same window (plan 23.32), so a press with a file per year never has to find the button again.
+ */
+const BATCH = 500;
+const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString("en")} ${n === 1 ? one : many}`;
+const dollars = (n: number) => `CA$${n.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+/** Names one run, so the whole run can be taken back at once (plan 23.15). */
+const newBatch = () => `run-${globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`}`.toLowerCase().slice(0, 40);
+const dayWords = (d: string) => (d ? new Date(`${d}T12:00:00Z`).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" }) : "");
+
+export function PastOrdersDialog({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [chosen, setChosen] = useState<{ name: string; file: PastOrderFile }[]>([]);
+  const file = useMemo(() => (chosen.length ? mergePastOrderFiles(chosen) : null), [chosen]);
+  const adding = useRef(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState<null | { added: number; skipped: string[] }>(null);
+  // Orders sold in another currency that an earlier run brought over (plan 23.23): one press gives them the new rate.
+  const [earlier, setEarlier] = useState<PastOrder[]>([]);
+  const [rerate, setRerate] = useState<"" | "busy" | "failed" | number>("");
+  // Orders sold in another currency come over converted at the owner's rate (plan 23.11), typed per currency.
+  const [rateText, setRateText] = useState<Record<string, string>>({});
+  const rates = useMemo(() => Object.fromEntries(Object.entries(rateText).map(([c, t]) => [c, Number(t.replace(",", "."))])), [rateText]);
+  const ready = useMemo(() => (file ? readyToSend(file, rates) : null), [file, rates]);
+  const waiting = ready ? Object.values(ready.waiting).reduce((a, b) => a + b, 0) : 0;
+  // The Bank of Canada's average for the file's dates, filled in as a starting point (plan 23.14).
+  const [suggested, setSuggested] = useState<{ rates: Record<string, number>; from: string; to: string } | null>(null);
+  const batch = useRef("");
+  const [undo, setUndo] = useState<"" | "confirm" | "busy" | "done" | "failed">("");
+  const [removed, setRemoved] = useState(0);
+
+  useEffect(() => {
+    const codes = file ? Object.keys(file.foreign) : [];
+    if (!file || !codes.length) return;
+    const days = file.orders.filter((o) => o.currency && o.currency !== "CAD").map((o) => o.orderedAt.slice(0, 10)).sort();
+    let alive = true;
+    suggestedRates(codes, days[0], days[days.length - 1])
+      .then((rates) => {
+        if (!alive) return;
+        setSuggested({ rates, from: days[0], to: days[days.length - 1] });
+        setRateText((typed) => ({ ...Object.fromEntries(Object.entries(rates).map(([c, r]) => [c, String(r)])), ...typed }));
+      })
+      .catch(() => { /* the owner types a rate instead */ });
+    return () => { alive = false; };
+  }, [file]);
+
+  /** Reads the chosen files; `add` keeps the ones already chosen (Add another file). */
+  const choose = async (list: File[], add: boolean) => {
+    if (!list.length) return;
+    setError(""); setResult(null); setEarlier([]); setRerate(""); setUndo("");
+    if (!add) { setChosen([]); setRateText({}); setSuggested(null); batch.current = newBatch(); }
+    const big = list.find((f) => f.size > 20 * 1024 * 1024);
+    if (big) { setError(`${big.name} is larger than 20 MB. Export a shorter date range and bring the parts one at a time.`); return; }
+    const read: { name: string; file: PastOrderFile }[] = [];
+    for (const f of list) {
+      try {
+        const parsed = readPastOrders(await spreadsheetText(f));
+        // Each order remembers its file (plan 23.33), so its page can say where it came from.
+        read.push({ name: f.name, file: { ...parsed, orders: parsed.orders.map((o) => ({ ...o, file: f.name })) } });
+      }
+      catch (err) { setError(`${f.name}: ${readProblem(err)}`); return; }
+    }
+    // A file chosen twice counts once.
+    setChosen((was) => [...(add ? was : []), ...read].filter((c, i, all) => all.findIndex((o) => o.name === c.name) === i));
+  };
+
+  const bring = async () => {
+    if (!ready?.orders.length || busy) return;
+    setBusy(true); setError("");
+    const numberOf = new Map(ready.orders.map((o) => [o.oldRef, o.number]));
+    const done = { added: 0, skipped: [] as string[] };
+    const here = new Set<string>();
+    try {
+      for (let i = 0; i < ready.orders.length; i += BATCH) {
+        const answer = await importPastOrders(ready.orders.slice(i, i + BATCH), batch.current);
+        done.added += answer.added;
+        for (const s of answer.skipped) {
+          done.skipped.push(`Order ${numberOf.get(s.oldRef) ?? s.oldRef}: ${s.reason}`);
+          if (s.reason === "already brought over") here.add(s.oldRef);
+        }
+      }
+      if (done.added) void recordMoveStep("move-orders");
+      setEarlier(ready.orders.filter((o) => o.paidIn && here.has(o.oldRef)));
+      setResult(done);
+      onDone();
+    } catch (err: any) {
+      setError(`${err?.message || "The orders couldn't be brought over."} Choose the same file again to finish: orders already brought over are skipped.`);
+      if (done.added) onDone();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const leftOut = (rows: string[]) => rows.length > 0 && (
+    <details>
+      <summary className="rp-hint">{plural(rows.length, "order")} left out</summary>
+      <ul className="rp-hint" style={{ margin: "6px 0 0", paddingLeft: 18, maxHeight: 200, overflow: "auto" }}>
+        {rows.slice(0, 200).map((r, i) => <li key={`${r}-${i}`}>{r}</li>)}
+      </ul>
+    </details>
+  );
+
+  /** Back to the chooser for the next file. Choosing it starts a run of its own, so taking it back never touches this one. */
+  const nextFile = () => {
+    setResult(null); setChosen([]); setRateText({}); setSuggested(null); setEarlier([]); setRerate(""); setUndo(""); setRemoved(0); setError("");
+  };
+
+  const applyNewRate = async () => {
+    setRerate("busy");
+    try {
+      let changed = 0;
+      for (let i = 0; i < earlier.length; i += BATCH) changed += (await importPastOrders(earlier.slice(i, i + BATCH), batch.current, { rerate: true })).rerated;
+      setRerate(changed);
+      if (changed) onDone();
+    } catch {
+      setRerate("failed");
+    }
+  };
+
+  if (result) {
+    // Orders a run brought over before keep that run's rate (plan 23.18) unless the owner asks for the new one (23.22).
+    const newRates = [...new Set(earlier.map((o) => `${o.paidIn!.currency} at ${o.paidIn!.rate}`))].join(", ");
+    return (
+      <Dialog open onClose={onClose} title="Past orders brought over" badge="🧾" footer={<>
+        <SecondaryButton icon={<Upload size={16} aria-hidden />} disabled={undo === "busy" || rerate === "busy"} onClick={nextFile}>Bring another file</SecondaryButton>
+        <PrimaryButton onClick={onClose}>Done</PrimaryButton>
+      </>}>
+        <div className="rp-stack" style={{ gap: 12 }} role="status">
+          <StatusBadge tone={result.added ? "success" : "neutral"}>{plural(result.added, "past order")} added</StatusBadge>
+          {result.added > 0 && <p className="rp-hint" style={{ margin: 0 }}>They show in your sales reports and in each customer's history, marked as brought over from your old shop.</p>}
+          {leftOut(result.skipped)}
+          {earlier.length > 0 && (typeof rerate === "number" ? (
+            <p className="rp-hint" style={{ margin: 0 }}>{rerate ? `${plural(rerate, "order")} now ${rerate === 1 ? "uses" : "use"} the new rate.` : "Those orders already use this rate."}</p>
+          ) : (
+            <div className="rp-stack" style={{ gap: 8 }}>
+              <p className="rp-hint" style={{ margin: 0 }}>{earlier.length === 1 ? "1 order sold in another currency was" : `${earlier.length.toLocaleString("en")} orders sold in another currency were`} already here from an earlier import, so {earlier.length === 1 ? "it keeps" : "they keep"} the rate used then. Only {earlier.length === 1 ? "its" : "their"} Canadian-dollar amounts change if you use the new rate ({newRates}).</p>
+              <div><SecondaryButton disabled={rerate === "busy"} onClick={() => void applyNewRate()}>{rerate === "busy" ? "Changing the rate…" : `Use the new rate for ${earlier.length === 1 ? "that order" : `those ${earlier.length.toLocaleString("en")} orders`}`}</SecondaryButton></div>
+              {rerate === "failed" && <p role="alert" className="rp-error-text" style={{ margin: 0 }}>The rate couldn't be changed just now. Try again in a minute.</p>}
+            </div>
+          ))}
+          {result.added > 0 && batch.current && (
+            undo === "done" ? <p className="rp-hint" style={{ margin: 0 }}>{plural(removed, "past order")} removed. Bring {chosen.length > 1 ? "the files" : "the file"} again whenever you like.</p>
+            : undo === "confirm" || undo === "busy" ? (
+              <div className="rp-stack" style={{ gap: 8 }}>
+                <p style={{ margin: 0 }}>Remove the past orders {chosen.length > 1 ? "these files" : "this file"} brought over? Orders already here before, and new sales, are never touched.</p>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <SecondaryButton disabled={undo === "busy"} onClick={() => setUndo("")}>Keep them</SecondaryButton>
+                  <PrimaryButton disabled={undo === "busy"} onClick={() => {
+                    setUndo("busy");
+                    removePastOrders(batch.current).then((n) => { setRemoved(n); setUndo("done"); onDone(); }).catch(() => setUndo("failed"));
+                  }}>{undo === "busy" ? "Removing them…" : "Yes, remove them"}</PrimaryButton>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <GhostButton onClick={() => setUndo("confirm")}>Wrong file? Take this import back</GhostButton>
+                {undo === "failed" && <p role="alert" className="rp-error-text" style={{ margin: "6px 0 0" }}>They couldn't be removed just now. Try again in a minute.</p>}
+              </div>
+            )
+          )}
+        </div>
+      </Dialog>
+    );
+  }
+
+  return (
+    <Dialog open onClose={() => { if (!busy) onClose(); }} title="Bring past orders over" badge="🧾" size="lg"
+      description="Choose the order file from your old shop. Each order comes over as history: it counts in your sales reports and in the customer's history, but changes no stock, sends no email and takes no payment."
+      footer={<>
+        <SecondaryButton disabled={busy} onClick={onClose}>Cancel</SecondaryButton>
+        <PrimaryButton disabled={busy || !ready?.orders.length} onClick={bring}>
+          {busy ? "Bringing them over…" : ready?.orders.length ? `Bring ${plural(ready.orders.length, "past order")} over` : "Nothing to bring over"}
+        </PrimaryButton>
+      </>}>
+      <div className="rp-stack" style={{ gap: 12 }}>
+        <input ref={fileRef} type="file" accept={SPREADSHEET_ACCEPT} multiple hidden aria-label="Order file"
+          onChange={(e) => { void choose([...(e.target.files || [])], adding.current); e.target.value = ""; }} />
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+          <SecondaryButton icon={<Upload size={16} aria-hidden />} disabled={busy} onClick={() => { adding.current = false; fileRef.current?.click(); }}>{chosen.length ? "Choose other files" : "Choose the file"}</SecondaryButton>
+          {chosen.length > 0 && <GhostButton disabled={busy} onClick={() => { adding.current = true; fileRef.current?.click(); }}>Add another file</GhostButton>}
+          <GoogleSheetLink disabled={busy} onFile={(f) => void choose([f], chosen.length > 0)} />
+          {chosen.length > 0 && <span className="rp-mono" style={{ overflowWrap: "anywhere" }}>{chosen.map((c) => c.name).join(", ")}</span>}
+        </div>
+        {!file && <p className="rp-hint" style={{ margin: 0 }}>In your old shop, open its orders page and export them as a CSV or Excel file. If it gives you one file per year or per month, choose them all: they come over together.</p>}
+        {error && <p role="alert" className="rp-error-text" style={{ margin: 0 }}>{error}</p>}
+        {file && ready && (file.problems.length ? (
+          <div role="alert" className="rp-error-text">{file.problems.map((p) => <p key={p} style={{ margin: 0 }}>{p}</p>)}</div>
+        ) : (
+          <>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }} aria-live="polite">
+              <StatusBadge tone="info">{plural(ready.orders.length, "order")}</StatusBadge>
+              <StatusBadge tone="neutral">{dollars(ready.totalSales)} in sales</StatusBadge>
+              <StatusBadge tone="neutral">{plural(ready.customers, "customer")}</StatusBadge>
+              {waiting > 0 && <StatusBadge tone="warning">{plural(waiting, "order")} waiting for a rate</StatusBadge>}
+            </div>
+            {ready.from && <p className="rp-hint" style={{ margin: 0 }}>From {dayWords(ready.from)} to {dayWords(ready.to)}.</p>}
+            {Object.keys(file.foreign).length > 0 && (
+              <div className="rp-stack" style={{ gap: 8 }}>
+                <p className="rp-hint" style={{ margin: 0 }}>Some orders were in another currency. Type what one unit was worth in Canadian dollars around when you sold, for example your bank's average rate for that time. Each order is converted at that rate, and what the old shop charged is kept on the order.</p>
+                {Object.entries(file.foreign).sort().map(([code, count]) => {
+                  const typed = rateText[code] ?? "";
+                  return (
+                    <TextField key={code} label={`1 ${code} in Canadian dollars (${plural(count, "order")})`} inputMode="decimal" placeholder="e.g. 1.37"
+                      value={typed} disabled={busy} onChange={(e) => setRateText((r) => ({ ...r, [code]: e.target.value }))}
+                      hint={suggested?.rates[code] ? `Bank of Canada average from ${dayWords(suggested.from)} to ${dayWords(suggested.to)}: ${suggested.rates[code]}.` : undefined}
+                      error={typed.trim() && !goodRate(rates[code]) ? "Type a number above 0, such as 1.37." : undefined} />
+                  );
+                })}
+              </div>
+            )}
+            {leftOut(file.skipped.map((s) => s.reason))}
+          </>
+        ))}
+      </div>
+    </Dialog>
+  );
+}
+
+/**
+ * On a brought-over order's page (plan 23.15): takes back the whole run of Bring past orders over that added it, after
+ * a second click. Orders made here are never touched (the server removes only `source: "import"` orders of that run).
+ */
+export function PastImportUndo({ batch, onRemoved }: { batch: string; onRemoved: (removed: number) => void }) {
+  const [step, setStep] = useState<"" | "confirm" | "busy" | "failed">("");
+  if (step === "confirm" || step === "busy") {
+    return (
+      <div className="rp-card rp-stack" style={{ padding: 16, gap: 8 }} role="group" aria-label="Remove this import">
+        <p style={{ margin: 0 }}>Remove every past order brought over with this one, from the same file? Orders made in this shop are never touched, and you can bring the file again later.</p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <SecondaryButton disabled={step === "busy"} onClick={() => setStep("")}>Keep them</SecondaryButton>
+          <PrimaryButton disabled={step === "busy"} onClick={() => {
+            setStep("busy");
+            removePastOrders(batch).then(onRemoved).catch(() => setStep("failed"));
+          }}>{step === "busy" ? "Removing them…" : "Yes, remove them"}</PrimaryButton>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <GhostButton onClick={() => setStep("confirm")}>Wrong file? Remove this import</GhostButton>
+      {step === "failed" && <p role="alert" className="rp-error-text" style={{ margin: "6px 0 0" }}>They couldn't be removed just now. Try again in a minute.</p>}
+    </div>
+  );
+}
+
+/**
+ * On a brought-over order's page (plan 23.34): what it was sold for in the other currency, the rate it came over at,
+ * and a way to change that rate for this one order. Only its Canadian-dollar amounts change (functions/orderImport.js).
+ */
+export function PastOrderRate({ orderId, paidIn, total, onChanged }: {
+  orderId: string; paidIn: { currency: string; total: number; rate: number }; total: number; onChanged: () => void;
+}) {
+  const [typed, setTyped] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const rate = Number((typed ?? "").replace(",", "."));
+  const sold = `${Number(paidIn.total).toFixed(2)} ${paidIn.currency}`;
+  if (typed === null) {
+    return (
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+        <p className="rp-hint" style={{ margin: 0 }}>Sold for {sold}, brought over at 1 {paidIn.currency} = {paidIn.rate} Canadian dollars ({dollars(total)}).</p>
+        <GhostButton onClick={() => { setTyped(String(paidIn.rate)); setError(""); }}>Change the rate</GhostButton>
+      </div>
+    );
+  }
+  const save = async () => {
+    if (!goodRate(rate) || busy) return;
+    setBusy(true); setError("");
+    try {
+      await ratePastOrder(orderId, rate);
+      setTyped(null);
+      onChanged();
+    } catch (err: any) {
+      setError(err?.message || "The rate couldn't be changed just now. Try again in a minute.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="rp-card rp-stack" style={{ padding: 16, gap: 8 }} role="group" aria-label="Change the rate">
+      <TextField label={`1 ${paidIn.currency} in Canadian dollars`} inputMode="decimal" value={typed} disabled={busy}
+        onChange={(e) => setTyped(e.target.value)}
+        hint={goodRate(rate) ? `This order becomes ${dollars(Math.round(paidIn.total * rate * 100) / 100)}. Only its Canadian-dollar amounts change.` : undefined}
+        error={typed.trim() && !goodRate(rate) ? "Type a number above 0, such as 1.37." : undefined} />
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <SecondaryButton disabled={busy} onClick={() => setTyped(null)}>Cancel</SecondaryButton>
+        <PrimaryButton disabled={busy || !goodRate(rate) || rate === paidIn.rate} onClick={() => void save()}>{busy ? "Saving…" : "Use this rate"}</PrimaryButton>
+      </div>
+      {error && <p role="alert" className="rp-error-text" style={{ margin: 0 }}>{error}</p>}
+    </div>
+  );
+}

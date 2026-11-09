@@ -54,8 +54,10 @@ service cloud.firestore {
     // the server (functions/shopSettings.js planPaused, in priceOrder, which every checkout and order path goes
     // through). The guest order rule below doesn't read the status too: it sits at the rules engine's limit of 1000
     // expressions (a free order already reaches it), and an unpaid order record can't be paid without that server.
+    // platform/messages (code plan 19.14): the control room's notes to the press, admin-only like the plan; the admin
+    // shows them as a banner, the storefront never reads them.
     match /platform/{docId} {
-      allow read: if docId == 'status' || (docId == 'plan' && isAdmin());
+      allow read: if docId == 'status' || ((docId == 'plan' || docId == 'messages') && isAdmin());
       allow write: if false;
     }
 
@@ -169,21 +171,25 @@ service cloud.firestore {
     // The owner's Team list (Settings › Team): one document per person, named by their lower-case email.
     // functions/roles.js copies the role onto that person's sign-in pass. "author" is for the stockroom only: it is not
     // an admin role here (isAdmin above names owner and staff), so an author on the Team never opens the shop's admin.
-    // "bookkeeper" opens only the admin's read-only Bookkeeping page (isBookkeeper above).
+    // "bookkeeper" opens only the admin's read-only Bookkeeping page (isBookkeeper above). "fairHelper" is for the
+    // stockroom's Fair till only and opens nothing here.
     match /members/{email} {
       allow read: if isOwner();
       allow delete: if isOwner();
       allow create, update: if isOwner()
         && email == email.lower()
         && email != "__SHOP_OWNER_EMAIL__"
-        && request.resource.data.keys().hasOnly(["role", "addedAt", "addedBy"])
-        && request.resource.data.role in ["owner", "staff", "author", "bookkeeper"];
+        && request.resource.data.keys().hasOnly(["role", "addedAt", "addedBy", "until"])
+        && request.resource.data.role in ["owner", "staff", "author", "bookkeeper", "fairHelper"]
+        // "For today only" (functions/roles.js removeExpiredMembers): a fair helper's entry may end at a set time.
+        && (!("until" in request.resource.data)
+            || (request.resource.data.until is timestamp && request.resource.data.role == "fairHelper"));
     }
     // The owner's admin screen layouts (Overview boards: admin/overview/overviewBoardStore.ts) and the Overview's sales notes
     // (admin/overview/overviewNotesStore.ts). Admin-only, one JSON string each.
     match /adminPrefs/{docId} {
       allow read: if isAdminReader();
-      allow write: if isAdmin() && (docId == "overviewBoard" || docId == "overviewNotes")
+      allow write: if isAdmin() && (docId == "overviewBoard" || docId == "overviewNotes" || docId == "combinedTour")
         && request.resource.data.keys().hasOnly(["data", "updatedAt"])
         && request.resource.data.data is string && request.resource.data.data.size() <= 200000
         && request.resource.data.updatedAt is number;
@@ -208,6 +214,10 @@ service cloud.firestore {
     // Server-only; the admin reads the link's summary from systemStatus/inventoryLink instead.
     match /inventoryPushes/{orderId} {
       allow read, write: if false;
+    }
+    // Changes installed apps asked for (functions/appRequests.js): written and answered only by the server.
+    match /appRequests/{requestId} {
+      allow read: if isAdminReader();
     }
     match /order-operations/{orderId} {
       allow read: if isAdminReader();
@@ -266,8 +276,9 @@ service cloud.firestore {
       allow update: if isAdmin();
       // Paid, refunded or shipped orders (or ones with money waiting on them) are kept
       // for the shop's records; only unpaid/cancelled/test orders may be deleted
-      // (mirrors deleteRefusal in src/app/admin/orderListHelpers.ts).
-      allow delete: if isAdmin() && (resource.data.get('isTest', false) == true || (
+      // (mirrors deleteRefusal in src/app/admin/orderListHelpers.ts). A past order brought over from the old shop
+      // (functions/orderImport.js, history only) may be deleted, so a wrong import can be undone.
+      allow delete: if isAdmin() && (resource.data.get('isTest', false) == true || resource.data.get('source', '') == 'import' || (
         !(resource.data.get('paymentStatus', '') in ['paid', 'refunded', 'refund_pending', 'partially_refunded'])
         && resource.data.get('paidAt', null) == null
         && resource.data.get('partiallyRefunded', false) != true
@@ -285,6 +296,15 @@ service cloud.firestore {
     }
     // Server-only counters for the public-endpoint rate limits (functions/rateLimit.js).
     match /rate-limits/{id} {
+      allow read, write: if false;
+    }
+    // Server-only two-step backup code hashes (functions/twoStepBackup.js): the admin reads its count through the
+    // twoStepBackup endpoint only.
+    match /twoStepBackup/{uid} {
+      allow read, write: if false;
+    }
+    // Server-only: whether two-step was on at the last check, so its on/off email is sent once (code plan 25.4).
+    match /twoStepState/{uid} {
       allow read, write: if false;
     }
     // Server-only checkout stock holds (functions/stockHolds.js).
@@ -318,14 +338,16 @@ service cloud.firestore {
       // Overview › Set up your shop (plan 6.9, was Your first week 3.3): the sign-up answers, written once by the
       // platform's setup (Admin SDK), and the steps the owner ticked, hiding the guide, Choose your look being done
       // (`welcome`, plan 6.3) and the guide's progress the platform's trial emails read (`progress`, plan 6.10).
-      // Admin only. The sign-up answers themselves never change from the admin.
+      // Admin only. The sign-up answers themselves never change from the admin; what the shop sells now is `sells`
+      // (Settings › General › What you sell), which reads before `publishes`.
       allow read: if isAdminReader();
       allow create, update: if isAdmin()
-        && request.resource.data.keys().hasOnly(["sellingToday", "publishes", "country", "plan", "done", "hiddenAt", "welcome", "progress", "details", "bring", "createdAt", "updatedAt"])
+        && request.resource.data.keys().hasOnly(["sellingToday", "publishes", "sells", "country", "plan", "done", "hiddenAt", "welcome", "progress", "details", "bring", "google", "payments", "shipping", "finalCheck", "createdAt", "updatedAt"])
         && (resource == null || (request.resource.data.get("sellingToday", null) == resource.data.get("sellingToday", null)
           && request.resource.data.get("publishes", null) == resource.data.get("publishes", null)
           && request.resource.data.get("country", null) == resource.data.get("country", null)
           && request.resource.data.get("plan", null) == resource.data.get("plan", null)))
+        && (!("sells" in request.resource.data) || request.resource.data.sells in ["books", "zines", "comics", "prints", "mix", "mixed", "clothing", "shoes", "jewelry", "music", "other"])
         && (!("done" in request.resource.data) || request.resource.data.done is map && request.resource.data.done.size() <= 20)
         && (!("hiddenAt" in request.resource.data) || request.resource.data.hiddenAt is string)
         && (!("details" in request.resource.data) || (request.resource.data.details is map
@@ -334,8 +356,25 @@ service cloud.firestore {
           && request.resource.data.bring.keys().hasOnly(["at", "from", "skipped"]) && request.resource.data.bring.at is string
           && (!("from" in request.resource.data.bring) || request.resource.data.bring.from is string)
           && (!("skipped" in request.resource.data.bring) || request.resource.data.bring.skipped is bool)))
+        && (!("shipping" in request.resource.data) || (request.resource.data.shipping is map
+          && request.resource.data.shipping.keys().hasOnly(["at", "starter", "skipped"]) && request.resource.data.shipping.at is string
+          && (!("starter" in request.resource.data.shipping) || request.resource.data.shipping.starter is string)
+          && (!("skipped" in request.resource.data.shipping) || request.resource.data.shipping.skipped is bool)))
+        && (!("finalCheck" in request.resource.data) || (request.resource.data.finalCheck is map
+          && request.resource.data.finalCheck.keys().hasOnly(["at", "opened"]) && request.resource.data.finalCheck.at is string
+          && request.resource.data.finalCheck.opened is bool))
+        && (!("google" in request.resource.data) || (request.resource.data.google is map
+          && request.resource.data.google.keys().hasOnly(["at", "connected", "coming", "skipped"]) && request.resource.data.google.at is string
+          && (!("connected" in request.resource.data.google) || request.resource.data.google.connected is bool)
+          && (!("coming" in request.resource.data.google) || request.resource.data.google.coming is bool)
+          && (!("skipped" in request.resource.data.google) || request.resource.data.google.skipped is bool)))
+        && (!("payments" in request.resource.data) || (request.resource.data.payments is map
+          && request.resource.data.payments.keys().hasOnly(["at", "ready", "skipped"]) && request.resource.data.payments.at is string
+          && (!("ready" in request.resource.data.payments) || request.resource.data.payments.ready is bool)
+          && (!("skipped" in request.resource.data.payments) || request.resource.data.payments.skipped is bool)))
         && (!("welcome" in request.resource.data) || (request.resource.data.welcome is map
-          && request.resource.data.welcome.keys().hasOnly(["theme", "at", "skipped"])
+          && request.resource.data.welcome.keys().hasOnly(["theme", "at", "skipped", "adminLook"])
+          && (!("adminLook" in request.resource.data.welcome) || (request.resource.data.welcome.adminLook is string && request.resource.data.welcome.adminLook in ["riso", "paper", "ledger", "pop", "desk", "bento"]))
           && request.resource.data.welcome.theme is string && request.resource.data.welcome.theme.size() <= 80))
         && (!("progress" in request.resource.data) || (request.resource.data.progress is map
           && request.resource.data.progress.keys().hasOnly(["steps", "done", "at"])
@@ -347,8 +386,11 @@ service cloud.firestore {
       allow read: if isAdminReader();
       allow delete: if isAdmin();
       allow create, update: if isAdmin()
-        && request.resource.data.keys().hasOnly(["email", "note", "tags", "updatedAt"])
+        && request.resource.data.keys().hasOnly(["email", "note", "tags", "updatedAt", "name", "place"])
         && request.resource.data.email is string && request.resource.data.email.size() <= 254
+        // Name and place: from Bring customers over, so a customer who hasn't ordered here yet is still listed (plan 23.10).
+        && request.resource.data.get("name", "") is string && request.resource.data.get("name", "").size() <= 100
+        && request.resource.data.get("place", "") is string && request.resource.data.get("place", "").size() <= 200
         && request.resource.data.note is string && request.resource.data.note.size() <= 5000
         && request.resource.data.tags is list && request.resource.data.tags.size() <= 20
         && request.resource.data.updatedAt is string;
@@ -396,9 +438,17 @@ service cloud.firestore {
       allow read: if isAdminReader();
       allow write: if isAdmin();
     }
+    // The shop's record of what was done, written by the admin (admin/auditLog.ts adds lines), the Functions and the
+    // platform (setup steps, and every support visit before its sign-in exists). Append-only from a browser: staff or
+    // a support visit could otherwise delete or rewrite the line that records them.
     match /audit-log/{logId} {
       allow read: if isAdminReader();
-      allow write: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasOnly(["type", "message", "createdAt"])
+        && request.resource.data.type is string && request.resource.data.type.size() <= 100
+        && request.resource.data.message is string && request.resource.data.message.size() <= 20000
+        && request.resource.data.createdAt is string && request.resource.data.createdAt.size() <= 40;
+      allow update, delete: if false;
     }
     match /analytics/{docId} {
       // Visitors may bump traffic/funnel counters, but order and revenue
@@ -502,11 +552,21 @@ service cloud.firestore {
       allow read: if isAdminReader() || isBookkeeper();
       allow write: if false;
     }
+    // Which old shop's gift cards were already brought over (functions/giftCardImport.js, plan 23.5): Functions only.
+    match /giftCardImports/{markerId} {
+      allow read, write: if false;
+    }
     // Stockists (functions/stockists.js): the shops the owner approves to pay wholesale prices, one document per lower-case email.
     // Only the owner's team reads and writes them; checkout reads them on the server.
     match /stockists/{stockistId} {
       allow read: if isAdminReader();
       allow write: if isAdmin();
+    }
+    // Payment links (functions/paymentLinks.js, plan 21.1): the prices the owner agreed for an order they made. Only
+    // Functions write them (checkout prices from them); the owner's team reads them.
+    match /paymentLinks/{orderId} {
+      allow read: if isAdminReader();
+      allow write: if false;
     }
     match /discounts/{docId} {
       // Public code validation happens via the validateDiscountCode function.
@@ -538,6 +598,22 @@ service cloud.firestore {
       // added without the owner confirming. Unsubscribe deletes the row server-side.
       allow read: if isAdminReader();
       allow create, update, delete: if isAdmin();
+    }
+    match /socialPosts/{postId} {
+      // Social posts (plan 27.4): what the press posts to Facebook, Instagram, Pinterest and TikTok, and when.
+      // Only the server's social action and its 5-minute sweep (functions/socialLink.js) read and write them, so a
+      // browser can't queue a post or change where it goes.
+      allow read, write: if false;
+    }
+    match /newsletterIssues/{issueId} {
+      // Customers › Newsletter: the newsletters sent and their progress. Written only by the server's
+      // newsletterAdmin action and the sweep that sends them (functions/newsletterSend.js), so a browser can't
+      // queue a send or change who it reached. `sent/{hash}` (who already got it) is server-only.
+      allow read: if isAdminReader();
+      allow write: if false;
+      match /sent/{hash} {
+        allow read, write: if false;
+      }
     }
     match /inventoryLog/{entryId} {
       // Inventory › stock adjustment history: admin-only, append-only (written with the stock change).

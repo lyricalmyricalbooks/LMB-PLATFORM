@@ -93,6 +93,8 @@ test("60 days paused closes the shop, ends the plan and emails once; 90 days lat
   assert.equal(t.sent("shop-closed").length, 1);
   assert.equal(t.sent("shop-closed")[0].to, "owner@example.com");
   assert.equal(t.sent("shop-closed")[0].data.link, "https://platform.example/account/billing?shop=moth-press");
+  assert.equal(t.sent("shop-closed")[0].language, "en", "no language chosen and no Quebec address: English");
+  assert.equal(t.sent("shop-closed")[0].data.on, closed.downloadUntil, "the day, for the French date");
 
   // Day by day to deletion: the 30-day warning, the 7-day one, then the delete on the day. Nothing before.
   const closedAt = Date.parse(closed.closedAt);
@@ -318,4 +320,107 @@ test("a pause and a closing run the job hooks once, and a card brings the jobs b
   await t.sweep.sweep();
   assert.equal(await t.closing(), null);
   assert.deepEqual(calls.map(([name]) => name), ["onPause", "onReopen", "onReopen"]);
+});
+
+test("a shop billed in Quebec gets the closing emails in French, then English", async () => {
+  const t = await make();
+  await t.billing.saveBillingDetails({ shopId: SHOP, name: "", email: "owner@example.com", address: { line1: "1 rue Saint-Denis", city: "Montréal", state: "QC", postalCode: "H2X 1K1", country: "CA" }, taxNumber: "" });
+  await t.pause();
+  await t.sweep.sweep();
+  await daily(t, PAUSED_DAYS);
+  assert.equal((await t.closing()).stage, "closed");
+  assert.equal(t.sent("shop-closed")[0].language, "fr+en");
+});
+
+/** Makes the next `n` calls fail: of one email kind (sendPlatform), or "plan" (billing.publishPlan). */
+function failNext(t, kind, n = 1) {
+  let left = n;
+  if (kind === "plan") {
+    const real = t.billing.publishPlan.bind(t.billing);
+    t.billing.publishPlan = async (id) => {
+      if (left > 0) { left -= 1; throw new Error("shop database busy"); }
+      return real(id);
+    };
+    return;
+  }
+  const real = t.email.sendPlatform;
+  t.email.sendPlatform = async (m) => {
+    if (m.kind === kind && left > 0) { left -= 1; throw new Error("Resend 503"); }
+    return real(m);
+  };
+}
+
+const cancel = (t) => t.event("customer.subscription.deleted", { ...t.stripe.subscription(t.row.subscriptionId), status: "canceled" });
+
+test("a closing email or plan copy that fails is tried again on later runs, and the hooks wait for them", async () => {
+  const calls = [];
+  const t = await make({ hooks: { onClose: [async () => { calls.push("onClose"); }] } });
+  await cancel(t);
+  failNext(t, "shop-closed");
+  failNext(t, "plan");
+  await t.sweep.sweep();
+  let c = await t.closing();
+  assert.equal(c.stage, "closed");
+  assert.match(c.problem, /shop-closed: Resend 503/);
+  assert.deepEqual(c.pending, ["shop-closed", "plan"]);
+  assert.deepEqual(calls, []);
+  await daily(t, 1); // the email goes; the plan copy fails once
+  c = await t.closing();
+  assert.equal(t.sent("shop-closed").length, 1);
+  assert.deepEqual(c.pending, ["plan"]);
+  assert.match(c.problem, /plan: shop database busy/);
+  await daily(t, 1);
+  c = await t.closing();
+  assert.deepEqual(c.pending, []);
+  assert.equal(c.problem, null);
+  assert.equal(t.shopData.docs.get(`${SHOP} ${PLAN_DOC}`).access, "closed");
+  assert.deepEqual(calls, ["onClose"]);
+  await daily(t, 3);
+  assert.equal(t.sent("shop-closed").length, 1, "once");
+  assert.deepEqual(t.events(), ["closed", "shop-closed-failed", "plan-failed"]);
+});
+
+test("a deletion warning that can't be sent isn't recorded, so the deletion waits for the press's notice", async () => {
+  const t = await make();
+  await cancel(t);
+  await t.sweep.sweep();
+  t.tick(DOWNLOAD_DAYS - 30);
+  failNext(t, "shop-deletion-warning");
+  await assert.rejects(t.sweep.step(await t.registry.getShop(SHOP)), /Resend 503/);
+  assert.equal((await t.closing()).warned30At, null);
+  await daily(t, 1);
+  assert.ok((await t.closing()).warned30At);
+  assert.equal(t.sent("shop-deletion-warning").length, 1);
+});
+
+test("a reopened shop's plan copy is written before the closing is cleared, and a failed one is written again", async () => {
+  const t = await make();
+  await t.pause();
+  await t.sweep.sweep();
+  t.tick(10);
+  const { url } = await t.billing.cardLink({ shopId: SHOP, returnUrl: "https://platform.example/account/billing" });
+  await t.event("checkout.session.completed", t.stripe.completeSetup(url.split("/").pop()));
+  failNext(t, "plan");
+  await t.sweep.sweep();
+  const c = await t.closing();
+  assert.equal(c.stage, "reopening", "the closing stays on the row until the shop's copy is written");
+  assert.match(c.problem, /plan: shop database busy/);
+  await daily(t, 1);
+  assert.equal(await t.closing(), null);
+  assert.equal(t.shopData.docs.get(`${SHOP} ${PLAN_DOC}`).access, "open");
+  assert.deepEqual(t.events(), ["paused", "plan-failed", "reopened"]);
+});
+
+test("a shop-deleted email that fails is sent on a later run", async () => {
+  const t = await make();
+  await cancel(t);
+  await t.sweep.sweep();
+  await daily(t, DOWNLOAD_DAYS - 1);
+  failNext(t, "shop-deleted");
+  await daily(t, 1);
+  assert.equal((await t.closing()).stage, "deleted");
+  assert.equal(t.sent("shop-deleted").length, 0);
+  await daily(t, 1);
+  assert.equal(t.sent("shop-deleted").length, 1);
+  assert.deepEqual((await t.closing()).pending, []);
 });

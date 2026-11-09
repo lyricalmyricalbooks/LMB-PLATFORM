@@ -129,6 +129,17 @@ describe("today's register sales", () => {
     ] }];
     expect(registerSalesForDay(wrapped, 'd').sales[0].num).toBe('POS-000010');
   });
+  test('counts a sale rung up in another currency at what the customer paid, in that currency, to the cent', () => {
+    const fx = [{ id: 'a', title: 'Hound', currency: 'CAD', hist: [
+      { num: 'POS-7', chan: 'Book Fair', date: 'd', qty: 2, price: 40, cur: 'CAD', notes: 'Card', sheetsId: t(1),
+        payment: { currency: 'MXN', amount: 1066.67, rate: 0.075, convertedTotal: 80 } },
+      { num: 'POS-8', chan: 'Book Fair', date: 'd', qty: 3, price: 0.1, cur: 'CAD', notes: 'Card', sheetsId: t(2),
+        payment: { currency: 'CAD', amount: 0.3, rate: null, convertedTotal: 0.3 } },
+    ] }];
+    const day = registerSalesForDay(fx, 'd');
+    expect(day.totals).toEqual({ MXN: 1066.67, CAD: 0.3 });
+    expect(fairDaySummary(day).methods[0].totals).toEqual({ MXN: 1066.67, CAD: 0.3 });
+  });
   test('event ids decode to their time, anything else to 0', () => {
     expect(eventTime(t(123456789))).toBe(123456789);
     expect(eventTime('')).toBe(0);
@@ -150,7 +161,7 @@ describe('phase 3', () => {
       { num: '3', method: 'Card', totals: { CAD: 0 }, lines: [{ bookId: 'z', title: 'Zine', qty: 1, amount: 0, cur: 'CAD' }] },
     ] };
     const sum = fairDaySummary(day, { a: 7, z: null });
-    expect(sum.methods.map((m) => [m.label, m.sales, m.totals.CAD])).toEqual([['Card reader', 2, 80], ['QR / Stripe', 1, 40]]);
+    expect(sum.methods.map((m) => [m.label, m.sales, m.totals.CAD])).toEqual([['Card reader', 2, 80], ['QR code', 1, 40]]);
     expect(sum.titles[0]).toMatchObject({ title: 'Harbour', units: 3, left: 7, totals: { CAD: 120 } });
     expect(sum.titles[1].left).toBeNull();
     expect(sum.sales).toBe(3);
@@ -167,5 +178,47 @@ describe('phase 3', () => {
     const html = fairTileHtml({ id: 'a', title: 'A', priceText: '1', qty: 1, stock: { tracked: true, onHand: 1, remaining: 0, level: 'ok' } });
     expect(html).toContain('fairTileNoneLeft(&quot;a&quot;)');
     expect(html).toContain('aria-label="None left: A');
+  });
+});
+
+describe('today at the fair, for the combined admin', () => {
+  test('passes the end-of-day figures as plain data, per currency, with the upload state', async () => {
+    const { fairForAdmin, fairDaySummary, registerSalesForDay, fairSyncPill } = await import('../src/lib/fair-mode.js');
+    const books = [
+      { id: 'b1', title: 'Harbour Lights', currency: 'CAD', hist: [
+        { chan: 'Book Fair', date: '2026-11-03', num: 'POS-1', qty: 2, price: 24, notes: 'Cash', sheetsId: 'evt-1-a' },
+        { chan: 'Book Fair', date: '2026-11-03', num: 'POS-2', qty: 1, price: 20, cur: 'USD', notes: 'Card reader', sheetsId: 'evt-2-a' },
+        { chan: 'Book Fair', date: '2026-11-03', num: 'POS-3', qty: 1, price: 24, notes: 'Cash', voided: true },
+        { chan: 'Book Fair', date: '2026-11-02', num: 'POS-0', qty: 5, price: 24, notes: 'Cash' },
+      ] },
+    ];
+    const sum = fairDaySummary(registerSalesForDay(books, '2026-11-03'), { b1: 7 });
+    const out = fairForAdmin(sum, { name: 'Harbour Fair', day: '2026-11-03' }, fairSyncPill({ online: false, pending: 2 }), '2026-11-03');
+    expect(out).toMatchObject({ day: '2026-11-03', fair: 'Harbour Fair', sales: 2, units: 3 });
+    expect(out.totals).toEqual([{ cur: 'CAD', amount: 48 }, { cur: 'USD', amount: 20 }]);
+    expect(out.titles).toEqual([{ bookId: 'b1', title: 'Harbour Lights', units: 3, left: 7, totals: [{ cur: 'CAD', amount: 48 }, { cur: 'USD', amount: 20 }] }]);
+    expect(out.methods.map((m) => m.sales)).toEqual([1, 1]);
+    expect(out.upload.tone).toBe('offline');
+    expect(out.low).toEqual([]);
+    expect(JSON.parse(JSON.stringify(out))).toEqual(out);
+  });
+  test('names every book sold today that is running low, fewest first, past the best ten', async () => {
+    const { fairForAdmin } = await import('../src/lib/fair-mode.js');
+    const titles = Array.from({ length: 12 }, (_, i) => ({ bookId: `b${i}`, title: `Book ${i}`, units: 12 - i, totals: { CAD: 10 }, left: 20 }));
+    titles[11].left = 2; // 12th best seller: not in the top ten, still flagged
+    titles[3].left = 0;
+    titles[4].left = 3;
+    titles[5].left = null; // not stock-counted: never flagged
+    const out = fairForAdmin({ sales: 1, units: 1, totals: { CAD: 10 }, methods: [], titles }, null, undefined, '2026-11-03');
+    expect(out.titles).toHaveLength(10);
+    expect(out.low).toEqual([
+      { bookId: 'b3', title: 'Book 3', left: 0 },
+      { bookId: 'b11', title: 'Book 11', left: 2 },
+      { bookId: 'b4', title: 'Book 4', left: 3 },
+    ]);
+  });
+  test('is empty, not broken, on a day with no sales', async () => {
+    const { fairForAdmin } = await import('../src/lib/fair-mode.js');
+    expect(fairForAdmin(undefined, null, undefined)).toMatchObject({ fair: null, sales: 0, units: 0, totals: [], titles: [], low: [], upload: { tone: 'ok' } });
   });
 });

@@ -106,9 +106,14 @@ export function formatMinor(minor: number, currency = "CAD"): string {
   catch { return `${amount.toFixed(2)} ${code}`; }
 }
 
-/** "12.40" typed by the admin → 1240; anything else → null. */
+/**
+ * "12.40" typed by the admin → 1240; anything else → null. A comma is read as thousands only in
+ * "1,234.50"; "12,40" is a decimal comma (12.40), never 1240 dollars.
+ */
 export function parseMoneyToMinor(text: string): number | null {
-  const t = String(text ?? "").trim().replace(/[$,\s]/g, "");
+  let t = String(text ?? "").trim().replace(/[$\s]/g, "");
+  if (/^\d{1,3}(,\d{3})+(\.\d{1,2})?$/.test(t)) t = t.replace(/,/g, "");
+  else if (/^\d+,\d{1,2}$/.test(t)) t = t.replace(",", ".");
   if (!/^\d+(\.\d{1,2})?$/.test(t)) return null;
   return Math.round(Number(t) * 100);
 }
@@ -118,12 +123,29 @@ export function parseMoneyToMinor(text: string): number | null {
  * payment's currency (CAD prices scaled by what the order was charged), capped at what is left.
  */
 export function returnedValueMinor(order: any, received: Record<number, number>): number {
+  return Math.min(copiesValueMinor(order, received), refundableMinor(order));
+}
+
+/**
+ * The price of these copies ({ line index: copies }) in the payment's currency, in minor units, not capped: CAD line
+ * prices scaled by what the order was charged. Taking items off an order (code plan 24.6) fills its amount from this.
+ */
+export function copiesValueMinor(order: any, copies: Record<number, number>): number {
   const items = Array.isArray(order?.items) ? order.items : [];
-  const valueCad = Object.entries(received || {}).reduce((sum, [index, qty]) => sum + (Number(items[Number(index)]?.price) || 0) * Math.max(0, Number(qty) || 0), 0);
+  const valueCad = Object.entries(copies || {}).reduce((sum, [index, qty]) => sum + (Number(items[Number(index)]?.price) || 0) * Math.max(0, Number(qty) || 0), 0);
   const charged = chargedOf(order);
   const totalCad = Number(order?.total) || 0;
-  const minor = charged.currency === "CAD" || !(totalCad > 0) ? Math.round(valueCad * 100) : Math.round(valueCad * charged.minor / totalCad);
-  return Math.min(minor, refundableMinor(order));
+  return charged.currency === "CAD" || !(totalCad > 0) ? Math.round(valueCad * 100) : Math.round(valueCad * charged.minor / totalCad);
+}
+
+/**
+ * Why a "Take items off this order" refund can't go ahead yet, or "". A blank amount means "refund everything" in the
+ * refund dialog, which would cancel the whole order, so taking items off needs a ticked line and an amount.
+ */
+export function takeOffProblem(copies: Record<number, number>, amountText: string): string {
+  if (!Object.values(copies || {}).some(q => Number(q) > 0)) return "Tick what the customer will no longer get.";
+  if (!String(amountText ?? "").trim()) return "Type the amount to refund for these items.";
+  return "";
 }
 
 /** Plain step labels for the return workflow instead of raw state names. */
@@ -161,6 +183,14 @@ export function customerMailto(order: any): string {
   const email = String(order?.customer?.email || "").trim();
   if (!email || /[\s<>"?&]/.test(email)) return "";
   return `mailto:${email}?subject=${encodeURIComponent(`Your order ${order?.orderId || order?.id || ""}`.trim())}`;
+}
+/** Private tracking link to send one customer, or "" when the order has no key yet. Needs the key: a bare order number is not enough to open it. */
+export function customerTrackUrl(order: any, origin: string, base = "/"): string {
+  const id = String(order?.id || "").trim();
+  const key = typeof order?.trackingKey === "string" ? order.trackingKey.trim() : "";
+  if (!id || !key) return "";
+  const root = `${origin.replace(/\/$/, "")}${base.replace(/\/$/, "")}`;
+  return `${root}/track?orderId=${encodeURIComponent(id)}&key=${encodeURIComponent(key)}`;
 }
 /** tel: link (digits and a leading +), or "" when the phone has too few digits. */
 export function telHref(phone: any): string {

@@ -17,11 +17,18 @@ import { sellsBooks, wordsFor, type Sells } from "../../shared/shopSells";
 export { SELLS, sellsBooks } from "../../shared/shopSells";
 export type { Sells } from "../../shared/shopSells";
 
+/** What the shop sells now: the owner's own choice in Settings (`sells`) first, else the sign-up answer (`publishes`). */
+export function currentSells(doc?: { sells?: string | null; publishes?: string | null } | null): string | null {
+  return doc?.sells || doc?.publishes || null;
+}
+
 /** The kind a new product starts as (the product editor's Product type). */
 export function startingKind(answer?: string | null): ProductKind {
   if (sellsBooks(answer)) return "book";
   if (answer === "prints") return "art";
-  return answer as Exclude<Sells, "books" | "zines" | "comics" | "mix" | "prints">;
+  // A shop of books and other things starts a new product as a book; the owner picks another kind per product.
+  if (answer === "mixed") return "book";
+  return answer as Exclude<Sells, "books" | "zines" | "comics" | "mix" | "mixed" | "prints">;
 }
 
 /** Text & labels keys that only show for books (book details, e-books, formats), so they keep their book words. */
@@ -74,6 +81,22 @@ const WRITTEN: Record<string, string> = {
   coErrEmailFormat: "Check your email address — we send your receipt there.",
   coErrFieldEmail: "Enter your email address — we send your receipt there.",
   reviewsEmpty: "Be the first to share your thoughts on this product.",
+  // Counting and choosing words (4 November 2026): copies, titles and editions are a book shop's.
+  pdpInBagOne: "1 already in your bag",
+  pdpInBagMany: "{count} already in your bag",
+  pdpQuoteToggle: "Ordering many? Ask for a quote",
+  pdpQuoteQuantity: "How many",
+  pdpQuoteInvalid: "Please add your name, a valid email and how many you need.",
+  pdpAddOnsTotal: "With extras: {price} each",
+  bookFormatLabel: "Option",
+  pdpEditionChoose: "Choose an option",
+  pdpEditionMissing: "Please choose an option first.",
+  productDescriptionLabel: "ABOUT THIS PRODUCT",
+  specEdition: "Option",
+  trackAddEdition: "Option",
+  catalogCountOne: "{count} product",
+  catalogCountMany: "{count} products",
+  searchNoBooks: "No products match.",
 };
 
 /** Longer defaults where only a few words change: each pair must still match the default (the tests check). */
@@ -89,6 +112,8 @@ export const SWAPPED: Record<string, [string, string][]> = {
   coPreorderNoticeTba: [["the book is out", "the item is out"]],
   coBelowMinimum: [["another book", "another item"]],
   coHoldWarning: [["copies of one book", "of one item"], ["{count} copies of", "{count} of"]],
+  coHoldLimit: [["as many copies set aside", "as many items set aside"]],
+  coHoldWarningUnits: [["{count} copies in total", "{count} items in total"], ["{limit} copies at a time", "{limit} items at a time"]],
 };
 
 const swapped = (key: string) =>
@@ -107,6 +132,22 @@ export function withStarterWords<T extends Record<string, any>>(design: T, answe
   const words = starterWords(answer);
   if (!Object.keys(words).length) return design;
   return { ...design, copy: { ...words, ...(design?.copy || {}) } };
+}
+
+/**
+ * The design shoppers read, in the words of what the shop sells now (settings/website `sells`, which the server copies
+ * from Settings › What you sell and the sign-up answer). A shop that sells something else gets the starter words under
+ * its own; a shop that sells books again drops the starter words an earlier answer left (they are ours, not the
+ * owner's: a word the owner changed is kept). No answer (an older shop the server hasn't copied yet) changes nothing.
+ */
+export function withShopWordsFor<T extends Record<string, any> | null | undefined>(design: T, answer?: string | null): T {
+  if (!design || !answer) return design;
+  if (!sellsBooks(answer)) return withStarterWords(design as Record<string, any>, answer) as T;
+  const copy = (design as Record<string, any>).copy;
+  if (!copy || typeof copy !== "object") return design;
+  const goods = starterWords("other");
+  const kept = Object.fromEntries(Object.entries(copy).filter(([key, text]) => !(key in goods && text === goods[key])));
+  return Object.keys(kept).length === Object.keys(copy).length ? design : { ...design, copy: kept } as T;
 }
 
 /** The setup guide's first-product step, in the shop's words. */

@@ -13,6 +13,17 @@ const doc = (over: Record<string, unknown> = {}) => ({
 const plan = (over: Record<string, unknown> = {}) => parsePlatformPlan(doc(over)) as PlatformPlan;
 
 describe("the plan banner, per state", () => {
+  it("an app being added, and an app closing at the end of the paid month", () => {
+    const adding = planBanner(plan({ state: "active", hasCard: true, changing: { adding: ["stockroom"], closing: null } }), NOW);
+    expect(adding).toMatchObject({ tone: "info", title: "Your stockroom is being set up." });
+    expect(adding?.detail).toMatch(/email you a link/);
+    const closing = planBanner(plan({ state: "active", hasCard: true, changing: { adding: [], closing: { apps: ["shop"], at: "2026-11-30T15:00:00.000Z" } } }), NOW);
+    expect(closing).toMatchObject({ tone: "warning", title: "Your website closes on 30 November 2026.", action: "See your plan" });
+    expect(planBanner(plan({ state: "active", hasCard: true, changing: { adding: ["gold"], closing: { apps: [] } } }), NOW)).toBeNull();
+    expect(plan({ changing: "nonsense" }).changing).toBeNull();
+    // A paused shop says so first.
+    expect(planBanner(plan({ state: "paused", access: "paused", changing: { adding: ["stockroom"], closing: null } }), NOW)?.title).toBe("Your shop is paused.");
+  });
   it("trial with no card: days left and Add a card", () => {
     expect(planBanner(plan(), NOW)).toMatchObject({ tone: "info", title: "Free trial: 9 days left.", action: "Add a card" });
     expect(planBanner(plan({ trialEnd: new Date(NOW + 2.5 * DAY).toISOString() }), NOW)).toMatchObject({ tone: "warning", title: "Free trial: 3 days left." });

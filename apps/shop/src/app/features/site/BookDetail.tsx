@@ -9,7 +9,7 @@ import toast from "react-hot-toast";
 import { useParams, Link, useNavigate, useLocation } from "react-router";
 import {
   ChevronLeft, ChevronRight, ShoppingBag, ArrowLeft,
-  Package, Share2, Check, BookOpen, Globe, Ruler,
+  Package, Check, BookOpen, Globe, Ruler,
   Weight, Tag, Zap, Heart, ChevronDown, Minus, Plus, Bell, Maximize2, Play
 } from "lucide-react";
 import { useCart, catalogUnitPrice, lineQuantityCap, backorderable } from "../../CartContext";
@@ -22,6 +22,7 @@ import { TemplateSections, GlobalSections } from "../../components/sectionRender
 import { SectionPageContext } from "../../components/sectionCopy";
 import { useMissingRedirect } from "./useMissingRedirect";
 import { getCopy } from "./storeCopy";
+import { ShareMenu } from "./ShareMenu";
 import { OptionPicker, variantBuyable } from "./OptionPicker";
 import { findVariant, isBookKind, picksPossible, productKind, productOptions, usesOptionPicker, variantPicks, type OptionPicks } from "../../../shared/productOptions";
 import { preorderActive, releaseDateOf, formatReleaseDate } from "./preorder";
@@ -50,8 +51,10 @@ import BackInStockForm from "./BackInStockForm";
 import PickupAvailability from "./PickupAvailability.tsx";
 import { isPickupItem, pickupSpots } from "./pickupAvailability";
 import PdpFreeShipping from "./extras/pdp-free-shipping/PdpFreeShipping.tsx";
+import { madeToOrderTime } from "./madeToOrder";
 import PdpShipBy from "./extras/pdp-ship-by/PdpShipBy";
 import PdpAskQuestion from "./extras/pdp-ask-question/PdpAskQuestion";
+import PdpBulkQuote from "./extras/pdp-bulk-quote/PdpBulkQuote";
 import PdpInBag from "./extras/pdp-in-bag/PdpInBag";
 import PdpPaymentIcons from "./extras/pdp-payment-icons/PdpPaymentIcons";
 import { resolveFooterBadges } from "./paymentBadges";
@@ -82,7 +85,7 @@ import { schemeButtonColors } from "./colorSchemes";
 
 import { findProduct } from "./productRoutes";
 import { bookAddOns, bundleWeightGrams, isBundle, isGiftCardProduct, saleActive, saleEndDate, type GiftCardDetails } from "./promotions";
-import { displayPrice, salePercentOff } from "./displayPrice";
+import { displayPrice, salePercentOff, showsSale } from "./displayPrice";
 import { ga4Once, ga4PageNotFound, ga4PdpInteract, pdpTabName } from "../../lib/ga4";
 import { SoldOutBadge, SoldOutVeil } from "./SoldOutBadge";
 import { AddOnPicker, BoxSetContents, GiftCardForm, addOnRequest, giftFormValid, missingWording, type AddOnPicks } from "./ProductOptions";
@@ -91,6 +94,7 @@ import { adjustStyle, framingStyle, motionFraming } from "./photoFraming";
 import { PhotoToneDefs } from "./PhotoToneDefs";
 import { ThumbStrip } from "./ThumbStrip.tsx";
 import { PHONE_MAX } from "./breakpoints";
+import { productHref, productSegment } from "../../lib/productHref";
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
 /** The title's inline variables: Studio's "Title size" preset and the phone cap that keeps its longest word whole. */
@@ -188,6 +192,7 @@ export default function BookDetail() {
   const showPdpFreeShipping    = storefrontDesign.showPdpFreeShipping === true;
   const showPdpShipBy          = storefrontDesign.showPdpShipBy === true;
   const showPdpAskQuestion     = storefrontDesign.showPdpAskQuestion === true;
+  const showPdpBulkQuote       = storefrontDesign.showPdpBulkQuote === true;
   const showPdpInBag           = storefrontDesign.showPdpInBag === true;
   const showPdpPaymentIcons    = storefrontDesign.showPdpPaymentIcons === true;
   const showPdpTaxNote         = storefrontDesign.showPdpTaxNote === true;
@@ -426,7 +431,7 @@ export default function BookDetail() {
   }, [showPdpFreeShipping, book, selectedVariant, shippingProfiles, cart, books]);
   const siteBase = new URL(import.meta.env.BASE_URL, window.location.origin).href;
 
-  const bookUrl = canonicalUrl(new URL(`${import.meta.env.BASE_URL}books/${encodeURIComponent(book?.slug || book?.id || slug || "")}`, window.location.origin).href);
+  const bookUrl = canonicalUrl(new URL(`${import.meta.env.BASE_URL}${productSegment()}/${encodeURIComponent(book?.slug || book?.id || slug || "")}`, window.location.origin).href);
   // A shirt or ring with sizes tells search engines about every version (price range, stock per size), not just the chosen one (plan 10.21).
   const goodsWithVersions = !!book && !isBookKind(productKind(book)) && (book.variants || []).length > 0;
   const seoBook = selectedVariant && book && !goodsWithVersions ? {
@@ -611,20 +616,11 @@ export default function BookDetail() {
     }, 1000);
   };
 
-  const handleShare = async () => {
-    ga4PdpInteract("share");
-    if (navigator.share) {
-      // Closing the share sheet is not an error.
-      await navigator.share({ title: book?.title, url: window.location.href }).catch(() => {});
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      toast.success(getCopy(settings?.design, "bookLinkCopied"));
-    } catch {
-      // Clipboard blocked: say so instead of a false "copied" (or nothing at all).
-      toast.error(getCopy(settings?.design, "bookShareCopyFailed"));
-    }
+  const shareWord = (key: string) => getCopy(settings?.design, key);
+  const shareCopied = (ok: boolean) => {
+    if (ok) toast.success(shareWord("bookLinkCopied"));
+    // Clipboard blocked: say so instead of a false "copied" (or nothing at all).
+    else toast.error(shareWord("bookShareCopyFailed"));
   };
 
   const configuredPhotos = (book as any)?.photos;
@@ -667,6 +663,8 @@ export default function BookDetail() {
   const salePrice     = selectedVariant ? 0 : ((book as any)?.salePrice   ?? 0);
   // Only while the sale is on (inside its optional start/end dates) — the price the server charges.
   const isOnSale      = selectedVariant ? false : (saleActive(book) && salePrice > 0);
+  // A saving is claimed only against the 30-day "was" price (displayPrice.ts › wasPrice).
+  const saleShown     = isOnSale && showsSale(book);
   const saleEnds      = isOnSale ? saleEndDate(book) : "";
   const isGiftCard    = isGiftCardProduct(book);
   const isBoxSet      = isBundle(book);
@@ -720,12 +718,14 @@ export default function BookDetail() {
   const isPreorder    = !isComingSoon && preorderActive(book);
   const preorderDate  = isPreorder ? formatReleaseDate(releaseDateOf(book)) : "";
   const comingDate    = isComingSoon ? formatReleaseDate(releaseDateOf(book)) : "";
+  const madeTime      = madeToOrderTime(book);
   const stockText     = isComingSoon
     ? (comingDate ? getCopy(settings?.design, "pdpComingSoonDate", { date: comingDate }) : getCopy(settings?.design, "pdpComingSoon"))
     : isOutOfStock
     ? getCopy(settings?.design, "soldOutLabel")
     : isPreorder ? (preorderDate ? getCopy(settings?.design, "pdpPreorder", { date: preorderDate }) : getCopy(settings?.design, "pdpPreorderTba"))
     : isBackorder ? getCopy(settings?.design, "pdpBackorder")
+    : madeTime ? getCopy(settings?.design, "pdpMadeToOrder", { time: madeTime })
     : isLowStock ? getCopy(settings?.design, "pdpInStockCount", { count: stockLevel }) : getCopy(settings?.design, "pdpInStock");
   // Books › edit › Publishing details › Details tab rows: the owner's order, wording and own rows.
   const SPEC_ICONS: Record<string, React.ReactNode> = { specLanguage: <Globe size={11} />, specDimensions: <Ruler size={11} />, specIsbn: <Package size={11} />, specWeight: <Weight size={11} /> };
@@ -1036,8 +1036,8 @@ export default function BookDetail() {
                       {isOnSale ? (
                         <>
                           <span className="fm-pdp-price" translate="no">{formatBookPrice(book)}</span>
-                          {regionVisible(regionDesign, "productOldPrice") && <span {...regionProps("productOldPrice")} className="text-white/25 line-through text-xl">{formatBookPrice(book, true)}</span>}
-                          {regionVisible(regionDesign, "productSaveBadge") && <span
+                          {saleShown && regionVisible(regionDesign, "productOldPrice") && <span {...regionProps("productOldPrice")} className="text-white/25 line-through text-xl">{formatBookPrice(book, true)}</span>}
+                          {saleShown && regionVisible(regionDesign, "productSaveBadge") && <span
                             {...regionProps("productSaveBadge")}
                             className="text-[9px] font-black tracking-widest border px-3 py-1.5 uppercase"
                             style={{
@@ -1220,7 +1220,7 @@ export default function BookDetail() {
                           ? "bg-white/[0.06] text-white/25 cursor-not-allowed border border-white/[0.06]"
                           : added
                           ? "fm-success-solid"
-                          : `custom-btn ${buttonShadow ? "shadow-2xl" : ""} ${buttonUppercase ? "uppercase" : ""}`
+                          : `custom-btn${productCtaAnimation === "glow" ? " fm-cta-glow" : ""} ${buttonShadow ? "shadow-2xl" : ""} ${buttonUppercase ? "uppercase" : ""}`
                       }`}
                       style={
                         !isOutOfStock && !added
@@ -1260,15 +1260,8 @@ export default function BookDetail() {
                     )}
 
                     {showSocialShare && (
-                      <button
-                        type="button"
-                        onClick={handleShare}
-                        aria-label={getCopy(settings?.design, "bookShare")}
-                        title={getCopy(settings?.design, "bookShare")}
-                        className="fm-pdp-sq transition-all"
-                      >
-                        <Share2 size={16} />
-                      </button>
+                      <ShareMenu title={book?.title || ""} image={photos[0]?.url} word={shareWord}
+                        onShare={() => ga4PdpInteract("share")} onCopied={shareCopied} />
                     )}
                   </div>
                   {isComingSoon && showComingSoonSignup && soonOpen && book && (
@@ -1305,7 +1298,7 @@ export default function BookDetail() {
                     <PdpFreeShipping info={freeShipInfo} design={settings?.design} formatPrice={formatPrice} />
                   )}
                   {/* Ships-by line (off by default): printed copies in stock now only (not pre-orders or backorders). */}
-                  {showPdpShipBy && !isOutOfStock && !isComingSoon && !isPreorder && !isBackorder && stockLevel > 0 && book && isPickupItem(book, selectedVariant) && regionVisible(regionDesign, "productShipBy") && (
+                  {showPdpShipBy && !isOutOfStock && !isComingSoon && !isPreorder && !isBackorder && !madeTime && stockLevel > 0 && book && isPickupItem(book, selectedVariant) && regionVisible(regionDesign, "productShipBy") && (
                     <PdpShipBy design={settings?.design} look={storefrontDesign} />
                   )}
                   {showPdpPickup && !isOutOfStock && !isComingSoon && regionVisible(regionDesign, "productPickup") && (
@@ -1318,6 +1311,10 @@ export default function BookDetail() {
                   {/* Ask a question (off by default): any book, sold out or not; sends to Admin › Messages. */}
                   {showPdpAskQuestion && book && regionVisible(regionDesign, "productAskQuestion") && (
                     <PdpAskQuestion key={book.id} design={settings?.design} title={book.title} edition={selectedVariant?.name} />
+                  )}
+                  {/* Ask for a bulk quote (off by default): any book; sends to Admin › Messages. */}
+                  {showPdpBulkQuote && book && regionVisible(regionDesign, "productBulkQuote") && (
+                    <PdpBulkQuote key={book.id} design={settings?.design} title={book.title} edition={selectedVariant?.name} />
                   )}
         </Fragment>;
       }
@@ -1584,7 +1581,7 @@ export default function BookDetail() {
                       )}
 
                       {/* Sale badge */}
-                      {isOnSale && !isOutOfStock && storefrontDesign.showSaleBadge !== false && (
+                      {saleShown && !isOutOfStock && storefrontDesign.showSaleBadge !== false && (
                         <div className="absolute top-5 left-5">
                           <span
                             className="text-[9px] font-black tracking-[0.3em] uppercase px-4 py-2 rounded-full"
@@ -1800,7 +1797,7 @@ export default function BookDetail() {
                       transition={{ delay: i * 0.07 }}
                       className="fm-card group min-w-0"
                     >
-                      <Link to={`/books/${relSlug}`}>
+                      <Link to={productHref(relSlug)}>
                         <div {...regionProps("relatedPhoto")} className="relative fm-surface rounded-[1.5rem] overflow-hidden mb-4 border border-white/[0.05] group-hover:border-white/[0.12] transition-all shadow-xl" style={{ aspectRatio: productImageAspect }}>
                           <img
                             loading="lazy"

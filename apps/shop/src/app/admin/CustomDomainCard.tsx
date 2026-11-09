@@ -1,9 +1,16 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { adminApi } from "./api";
+import { BrandLogo, isBrandId } from "../components/brand/BrandLogo";
 import { DestructiveButton, ErrorState, LoadingState, PrimaryButton, SecondaryButton, SectionCard, StatusBadge, TextField, useConfirm } from "./riso/components";
 import { friendlyError } from "./settingsLayout";
-import { allowLabel, describeDomain, domainActions, guideLineTitle, guideMailto, type DomainCheck, type DomainEntry, type DomainList } from "./customDomains";
+import { allowLabel, describeEntry, domainActions, freeNameOf, guideLineTitle, guideMailto, moveWarning, type DomainCheck, type DomainEntry, type DomainList } from "./customDomains";
 import { copyText } from "./clipboard";
+
+/** The domain seller's own logo on its Connect button, when the brand kit has it (GoDaddy today). */
+function sellerLogo(seller: string | null | undefined) {
+  const id = (seller || "").toLowerCase().replace(/[^a-z]/g, "");
+  return isBrandId(id) ? <BrandLogo id={id} size="sm" /> : null;
+}
 
 // Settings › General › Your web address (plan 2.9): put the shop on the press's own address through Colophon. A shop
 // without the platform's domain service shows `fallback` (the older "for your records" field) instead. Plan 5.9: each
@@ -21,6 +28,8 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
   const [own, setOwn] = useState("");
   const [main, setMain] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
   const [confirm, confirmNode] = useConfirm();
 
   const takeList = (answer: DomainList) => {
@@ -103,6 +112,31 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
     }
   };
 
+  // The old site goes once the press says yes at the seller, so they're asked first (and told to close the old checkout).
+  const allow = async (name: string, url: string) => {
+    if (busy || !(await confirm(moveWarning(name)))) return;
+    window.location.assign(url);
+  };
+
+  // A new name for the free address (after a new press name, say): the one before keeps opening the shop.
+  const rename = async (current: string) => {
+    const name = freeNameOf(nameDraft);
+    if (!name || busy) return;
+    setBusy("rename");
+    setError(null);
+    setNotice(null);
+    try {
+      takeList(await adminApi.customDomains("renameFree", name));
+      setRenaming(false);
+      setNameDraft("");
+      setNotice(`Setting up your new address. ${current} sends visitors to it once it works.`);
+    } catch (err: any) {
+      setError(friendlyError(err, "change your free address"));
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const remove = async (name: string) => {
     if (busy) return;
     const ok = await confirm({
@@ -151,8 +185,9 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
             {domains.map((d) => {
               const found = checks[d.name];
               const state = found?.state ?? d.state;
-              const info = describeDomain(state);
-              const guide = state !== "live" ? found?.guide : undefined;
+              const info = describeEntry(d, state);
+              // A free address is the platform's to set up: no seller, no lines to copy.
+              const guide = state !== "live" && !d.free ? found?.guide : undefined;
               const actions = domainActions({ ...d, state }, main);
               return (
                 <div key={d.name} className="rp-card" style={{ padding: 16, boxShadow: "none" }} data-domain={d.name}>
@@ -164,17 +199,18 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
                     </span>
                   </div>
                   <p className="rp-hint" style={{ margin: "8px 0 0" }}>{info.text}</p>
-                  {state !== "live" && found?.allowUrl && (
+                  {state !== "live" && !d.free && found?.allowUrl && (
                     <div className="rp-stack" style={{ gap: 8, marginTop: 12 }} data-allow>
                       <p style={{ margin: 0 }}>{found.seller ? `${found.seller} will ask you to sign in and say yes. That is all it takes.` : "Your domain seller will ask you to sign in and say yes. That is all it takes."}</p>
                       <div className="rp-card-actions">
-                        <PrimaryButton size="sm" disabled={!!busy} onClick={() => window.location.assign(found.allowUrl!)}>{allowLabel(found.seller)}</PrimaryButton>
+                        <PrimaryButton size="sm" disabled={!!busy} onClick={() => void allow(d.name, found.allowUrl!)}>{sellerLogo(found.seller)}{allowLabel(found.seller)}</PrimaryButton>
                       </div>
                     </div>
                   )}
                   {guide && (
                     <details style={{ marginTop: 12 }} open={!found?.allowUrl} data-guide>
                       <summary style={{ cursor: "pointer", fontWeight: 600 }}>{found?.allowUrl ? "Prefer to do it yourself?" : `Connect ${d.name} yourself`}</summary>
+                      <p className="rp-hint" style={{ margin: "8px 0 0" }}>{moveWarning(d.name).message}</p>
                       <ol style={{ margin: "8px 0", paddingLeft: 20 }}>
                         {guide.steps.map((step, i) => <li key={i}>{step}</li>)}
                       </ol>
@@ -206,7 +242,24 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
                     </p>
                   )}
                   {actions.note && <p className="rp-hint" style={{ margin: "8px 0 0" }}>{actions.note}</p>}
-                  {(state !== "live" || actions.canMakeMain || actions.canRemove) && <div className="rp-card-actions">
+                  {d.free && !d.former && renaming && (
+                    <form className="rp-stack" style={{ gap: 8, marginTop: 12 }} data-rename onSubmit={(e) => { e.preventDefault(); void rename(d.name); }}>
+                      <TextField label="New name" placeholder="moth-books" spellCheck={false} autoCapitalize="none" value={nameDraft}
+                        hint={freeNameOf(nameDraft) ? `${freeNameOf(nameDraft)}.${d.name.slice(d.name.indexOf(".") + 1)}` : "Letters, numbers and dashes."}
+                        onChange={(e) => setNameDraft(e.target.value)} />
+                      <div className="rp-card-actions">
+                        <PrimaryButton type="submit" size="sm" disabled={!freeNameOf(nameDraft) || !!busy} busy={busy === "rename"}>Use this name</PrimaryButton>
+                        <SecondaryButton size="sm" disabled={!!busy} onClick={() => { setRenaming(false); setNameDraft(""); }}>Cancel</SecondaryButton>
+                      </div>
+                    </form>
+                  )}
+                  {(state === "live" || actions.canMakeMain || actions.canRemove || (d.free && !d.former && !renaming)) && <div className="rp-card-actions">
+                    {state === "live" && !d.sendsTo && (
+                      <SecondaryButton size="sm" onClick={() => copyText(`https://${d.name}`, "Link")}>Copy link</SecondaryButton>
+                    )}
+                    {d.free && !d.former && !renaming && (
+                      <SecondaryButton size="sm" disabled={!!busy} onClick={() => { setRenaming(true); setError(null); }}>Change name</SecondaryButton>
+                    )}
                     {state !== "live" && (
                       <SecondaryButton size="sm" disabled={!!busy} onClick={() => check(d.name)}>{busy === d.name ? "Checking…" : "Check again"}</SecondaryButton>
                     )}
@@ -220,7 +273,7 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
                 </div>
               );
             })}
-            {domains.length < max && (
+            {domains.filter((d) => !d.free).length < max && (
               <div className="rp-stack" style={{ gap: 8 }}>
                 <TextField label="Connect an address you own" placeholder="shop.yourpress.com" spellCheck={false} autoCapitalize="none" value={draft}
                   hint="Type the address, press Connect, and we'll take you through the rest."

@@ -34,8 +34,38 @@ describe('product groups', () => {
     expect(l.profitTiers).toEqual(saved.profitTiers);
     expect(l.profitTiers).not.toBe(saved.profitTiers);
     const m = sizeItem(saved, { key: 't1|m', edition: 'M', price: 30 }, 'Moth Tee — M');
-    expect(m.stripeLink).toBe('https://buy.example/s');
+    // Same price, yet still no shared link: a payment through it would name the S item.
+    expect(m.stripeLink).toBe('');
+    expect(saved.stripeLink).toBe('https://buy.example/s');
     expect(m.listPrice).toBe(30);
     expect(freeItemId('Moth Tee M', new Set(['moth-tee-m', 'moth-tee-m-2']))).toBe('moth-tee-m-3');
+  });
+});
+
+import { gridOffers as _gridOffers } from '../src/lib/product-groups.js';
+import { describe as _d, it as _it, expect as _e } from 'vitest';
+_d('gridOffers (plan 12.3)', () => {
+  _it('makes one edition per size and colour, sizes first', () => {
+    _e(_gridOffers('S, M', 'Black, White').map(o => o.edition)).toEqual(['S / Black', 'S / White', 'M / Black', 'M / White']);
+  });
+  _it('takes sizes or colours alone, drops blanks and repeats in any case', () => {
+    _e(_gridOffers('S,, s, M', '').map(o => o.edition)).toEqual(['S', 'M']);
+    _e(_gridOffers('', 'Red\nBlue').map(o => o.edition)).toEqual(['Red', 'Blue']);
+    _e(_gridOffers('', '')).toEqual([]);
+    _e(_gridOffers(undefined, null)).toEqual([]);
+  });
+  _it('stops at 100 combinations', () => {
+    const n = Array.from({ length: 20 }, (_, i) => `s${i}`).join(',');
+    _e(_gridOffers(n, n)).toHaveLength(100);
+  });
+});
+
+import { freeGridGroupId as _freeGridGroupId } from '../src/lib/product-groups.js';
+_d('the group of a product typed with sizes and colours', () => {
+  _it('gets its own id even when another product has the same name', () => {
+    _e(_freeGridGroupId('Moth Tee', [])).toBe('grid-moth-tee');
+    const first = [{ id: 'moth-tee-s', group: { id: 'grid-moth-tee', name: 'Moth Tee' } }, { id: 'book', title: 'A book' }];
+    _e(_freeGridGroupId('Moth Tee', first)).toBe('grid-moth-tee-2');
+    _e(_freeGridGroupId('Moth Tee', [...first, { group: { id: 'grid-moth-tee-2', name: 'Moth Tee' } }])).toBe('grid-moth-tee-3');
   });
 });

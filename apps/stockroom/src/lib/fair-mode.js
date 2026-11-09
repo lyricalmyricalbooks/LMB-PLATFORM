@@ -2,12 +2,14 @@
 // screen wake lock; the sale itself still goes through posConfirmSale().
 
 import { escapeHtml as esc } from './html.js';
+import { POS_LOW_STOCK_AT } from './pos-stock.js';
+import { normalizeCurrencyCode, roundCents } from './money.js';
 
 /** Payment choices on the charge sheet, in thumb order. `value` is what the
  *  sale records, and must match the register's payment <select>. */
 export const FAIR_METHODS = [
   { value: 'Card', label: 'Card reader', icon: '💳' },
-  { value: 'Stripe QR', label: 'QR / Stripe', icon: '▦' },
+  { value: 'Stripe QR', label: 'QR code', icon: '▦' },
   { value: 'Bank Transfer', label: 'E-transfer', icon: '⇄', other: true },
   { value: 'Cash', label: 'Cash', icon: '＄', other: true },
   { value: 'Comp/Gift', label: 'Comp', icon: '♡', other: true },
@@ -141,10 +143,15 @@ export function registerSalesForDay(books, day) {
       if (!sale) { sale = { num: h.num, at: 0, method: saleMethod(h.notes), lines: [], totals: {}, units: 0 }; byNum.set(h.num, sale); }
       sale.at = Math.max(sale.at, eventTime(h.sheetsId));
       const qty = Number(h.qty) || 0;
-      const amount = qty * (Number(h.price) || 0);
-      const cur = h.cur || book.currency || 'CAD';
+      // What the card reader or the cash box took: a sale rung up in another currency (the till set to the fair's
+      // currency) took the payment's amount in that currency, not the book's price.
+      const native = h.cur || book.currency || 'CAD';
+      const paid = h.payment && h.payment.currency && Number(h.payment.amount) >= 0
+        && normalizeCurrencyCode(h.payment.currency, '') !== normalizeCurrencyCode(native, '') ? h.payment : null;
+      const amount = roundCents(paid ? Number(paid.amount) : qty * (Number(h.price) || 0));
+      const cur = paid ? normalizeCurrencyCode(paid.currency) : native;
       sale.lines.push({ bookId: book.id, title: book.title || 'Untitled', qty, amount, cur });
-      sale.totals[cur] = (sale.totals[cur] || 0) + amount;
+      sale.totals[cur] = roundCents((sale.totals[cur] || 0) + amount);
       sale.units += qty;
     }
   }
@@ -155,9 +162,22 @@ export function registerSalesForDay(books, day) {
   let units = 0;
   for (const s of sales) {
     units += s.units;
-    for (const [cur, amt] of Object.entries(s.totals)) totals[cur] = (totals[cur] || 0) + amt;
+    for (const [cur, amt] of Object.entries(s.totals)) totals[cur] = roundCents((totals[cur] || 0) + amt);
   }
   return { sales, totals, units };
+}
+
+/**
+ * The fair a register row was sold at, from its note: the till writes "<way of paying> · <fair>" (fairCharge), then
+ * " · Price A→B" when the price was changed. "" when no fair was named.
+ */
+export function fairNameOf(notes) {
+  const text = String(notes || '');
+  const method = saleMethod(text);
+  // "Stripe QR (printed code, …)" keeps its bracket before the fair.
+  const rest = method === 'Other' ? '' : text.slice(method.length).replace(/^ \([^)]*\)/, '');
+  const m = /^ · (.+?)(?: · Price [^·]*→[^·]*)?$/.exec(rest);
+  return m && !/^Price [^·]*→/.test(m[1]) ? m[1].trim() : '';
 }
 
 /** Epoch ms from an `evt-<base36 time>-<random>` id; 0 when absent. */
@@ -190,12 +210,12 @@ export function fairDaySummary(day, leftById = {}) {
   for (const sale of day.sales || []) {
     const m = methods.get(sale.method) || { method: sale.method, label: methodLabel(sale.method), sales: 0, totals: {} };
     m.sales++;
-    for (const [cur, amt] of Object.entries(sale.totals)) m.totals[cur] = (m.totals[cur] || 0) + amt;
+    for (const [cur, amt] of Object.entries(sale.totals)) m.totals[cur] = roundCents((m.totals[cur] || 0) + amt);
     methods.set(sale.method, m);
     for (const line of sale.lines) {
       const t = titles.get(line.bookId) || { bookId: line.bookId, title: line.title, units: 0, totals: {}, left: leftById[line.bookId] ?? null };
       t.units += line.qty;
-      t.totals[line.cur] = (t.totals[line.cur] || 0) + line.amount;
+      t.totals[line.cur] = roundCents((t.totals[line.cur] || 0) + line.amount);
       titles.set(line.bookId, t);
     }
   }
@@ -226,4 +246,31 @@ export function saveCurrentFair(name, dayStr, storage = globalThis.localStorage)
     else storage?.removeItem(FAIR_KEY);
   } catch { /* private mode: the name just isn't remembered */ }
   return clean || null;
+}
+
+const cents = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const totalsList = (totals) => Object.entries(totals || {}).sort(([a], [b]) => a.localeCompare(b)).map(([cur, amount]) => ({ cur, amount: cents(amount) }));
+
+/**
+ * Today at the fair, for the combined admin (docs/combined-admin.md, step 4a): the end-of-day summary
+ * (fairDaySummary), the fair's name and the upload state (fairSyncPill), as plain data. Read-only: the stockroom
+ * stays the only place sales are recorded. Totals stay per currency; the best-selling ten books are listed.
+ * `low` names every book sold today that is down to the till's own "only a few left" count (POS_LOW_STOCK_AT),
+ * fewest first, so a book outside the best ten still shows before the next fair.
+ */
+export function fairForAdmin(sum, fair, pill, day) {
+  return {
+    day: day || null,
+    fair: fair?.name || null,
+    sales: sum?.sales || 0,
+    units: sum?.units || 0,
+    totals: totalsList(sum?.totals),
+    methods: (sum?.methods || []).map((m) => ({ label: m.label, sales: m.sales, totals: totalsList(m.totals) })),
+    titles: (sum?.titles || []).slice(0, 10).map((t) => ({ bookId: t.bookId, title: t.title, units: t.units, left: t.left ?? null, totals: totalsList(t.totals) })),
+    low: (sum?.titles || [])
+      .filter((t) => Number.isFinite(t.left) && t.left <= POS_LOW_STOCK_AT)
+      .sort((a, b) => a.left - b.left || a.title.localeCompare(b.title))
+      .map((t) => ({ bookId: t.bookId, title: t.title, left: Math.max(0, t.left) })),
+    upload: { tone: pill?.tone || 'ok', text: pill?.text || '' },
+  };
 }

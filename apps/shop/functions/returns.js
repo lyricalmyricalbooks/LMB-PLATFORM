@@ -55,10 +55,27 @@ function publicReturn(current) {
 }
 const DISPATCHED = ["shipped", "out_for_delivery", "delivered", "completed", "picked_up", "collected"];
 const dispatched = order => DISPATCHED.includes(String(order.fulfillmentStatus || "").toLowerCase()) || DISPATCHED.includes(String(order.status || "").toLowerCase());
+/**
+ * The order's lines less copies already sent ahead in a part shipment (plan 24.5): before the rest is dispatched those
+ * copies are with the customer, so a refund's restock never puts them back on the shelf. Lines nothing was sent from
+ * are returned as they are.
+ */
+function unsentItems(order) {
+  const sent = new Map();
+  for (const part of Array.isArray(order.partShipments) ? order.partShipments : []) {
+    for (const l of Array.isArray(part?.lines) ? part.lines : []) {
+      if (Number.isInteger(l?.line)) sent.set(l.line, (sent.get(l.line) || 0) + Math.max(0, Math.floor(Number(l.quantity) || 0)));
+    }
+  }
+  const items = order.items || [];
+  if (!sent.size) return items;
+  return items.map((item, index) => (sent.get(index) ? { ...item, quantity: Math.max(0, Math.floor(Number(item.quantity) || 0) - sent.get(index)) } : item))
+    .filter((item, index) => !sent.get(index) || item.quantity > 0);
+}
 function returnRestockItems(order, returnCase) {
   const openReturn = order.customerRequest?.type === "return" && order.customerRequest.status === "open";
   // No return in progress, a declined one, or books that never left the shop: the admin's restock choice covers every line.
-  if (["rejected", "closed"].includes(order.returnProgress?.state) || (!order.returnProgress && (!openReturn || !dispatched(order)))) return order.items || [];
+  if (["rejected", "closed"].includes(order.returnProgress?.state) || (!order.returnProgress && (!openReturn || !dispatched(order)))) return dispatched(order) ? order.items || [] : unsentItems(order);
   if (returnCase?.state !== "inspected") return [];
   // A box set goes back as the books inside it (the order line keeps its components).
   return (returnCase.inspection || []).map(row => {
@@ -67,4 +84,4 @@ function returnRestockItems(order, returnCase) {
     return { id: row.id, variantId: row.variantId, quantity: row.restockQuantity ?? (row.condition === "resellable" ? row.quantity : 0), ...components };
   }).filter(row => row.quantity > 0);
 }
-module.exports = { physicalLines, returnTransition, publicReturn, returnRestockItems };
+module.exports = { physicalLines, returnTransition, publicReturn, returnRestockItems, unsentItems };

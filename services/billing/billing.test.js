@@ -136,6 +136,8 @@ test("cancel keeps the shop open to the end of the period, emails once, and can 
   assert.equal(notes.length, 1);
   assert.match(notes[0].data.date, /2027/);
   assert.equal((await billing.keep({ shopId: "moth-press" })).cancelAtPeriodEnd, false);
+  await billing.keep({ shopId: "moth-press" });
+  assert.equal(email.list().filter((m) => m.kind === "cancel-undone").length, 1, "keeping a plan says so once (25.3)");
   const logged = [...registry.events.get("moth-press").values()].map((e) => e.what);
   assert.deepEqual(logged, ["trial-started", "cancel-requested", "cancel-undone"]);
   assert.equal(auditLog.entries.get("moth-press").size, 3);
@@ -213,14 +215,19 @@ test("Stripe's events out of order: an older event never puts old state back ove
   };
   const ended = { ...stripe.subscription(row.subscriptionId), status: "canceled" };
   const earlier = { ...stripe.subscription(row.subscriptionId), status: "active" };
+  // A newer event is taken as usual, and an older one after it is left alone.
+  assert.equal((await at("customer.subscription.updated", earlier, NOW / 1000 + 5)).body.handled, "active");
+  assert.equal((await at("customer.subscription.updated", { ...earlier, status: "trialing" }, NOW / 1000 + 3)).body.handled, "older than what we have");
   assert.equal((await at("customer.subscription.deleted", ended, NOW / 1000 + 20)).body.handled, "canceled");
   // The "updated" from before the cancel arrives after it: answered 200 (so Stripe stops), and nothing changes.
   const late = await at("customer.subscription.updated", earlier, NOW / 1000 + 10);
   assert.equal(late.status, 200);
   assert.equal(late.body.handled, "older than what we have");
   assert.equal(stores.subscriptions.rows.get("moth-press").status, "canceled");
-  // An event in the same second still counts, and a newer one is taken as usual.
-  assert.equal((await at("customer.subscription.updated", earlier, NOW / 1000 + 30)).body.handled, "active");
-  assert.equal(stores.subscriptions.rows.get("moth-press").lastEvent.created, NOW / 1000 + 30);
+  // Once ended, nothing reopens it: not an "updated" from the same second (Stripe stamps whole seconds), not a later one.
+  assert.equal((await at("customer.subscription.updated", earlier, NOW / 1000 + 20)).body.handled, "already ended");
+  assert.equal((await at("customer.subscription.updated", earlier, NOW / 1000 + 30)).body.handled, "already ended");
+  assert.equal(stores.subscriptions.rows.get("moth-press").status, "canceled");
+  assert.equal(stores.subscriptions.rows.get("moth-press").lastEvent.created, NOW / 1000 + 20);
   assert.equal(email.list().filter((m) => m.kind === "subscription-ended").length, 1);
 });

@@ -310,6 +310,15 @@ The private operations, label purchase safeguards, payment authority and server 
   `settings/website.analytics.ga4MeasurementId` and `adminSecrets/googleAnalytics` fields the older cards do, so the tag
   and reports below work unchanged. `useGoogleConnect().mode === "own"` (no link) keeps the older cards. On those shops
   Email sender shows `PlatformSenderCard` instead of the Gmail app-password panel (`senderStatus.backup === "platform"`).
+- **Settings › Google (4 November 2026):** `GoogleSettings.tsx` (+ `google.css`, pure card states in `googleHub.ts`) is
+  the one page for every Google service: hero (headline, account, "n of m working" meter, chips that scroll to parts
+  needing a look), **Included with your sign-in** cards (analytics, search, Shopping, email, web address: badge, two
+  "what you get" lines, Google's own line, Try again or Open in Google), **Extras** as switches saved together through
+  `connectLink(extras)`, then Disconnect. Listed only when `runsOnColophon()` or the platform answers (Dashboard
+  `googleOn`); Visitors & Google keeps a pointer card. Get started step 4 shows the same services (`GoogleTiles`).
+  Switching extras off saves at once (`googleConnectApi.turnOff`, no Google trip); switching one on opens Google's page
+  on the shop's one account, and another account comes back as `?google=other_account` with nothing changed.
+  Fixture: `admin-fixture.html?gstate=coming|ready|connected|trouble&page=settings/google`.
 - **Google Analytics 4:** Settings › General › **Google Analytics** (`GoogleAnalyticsCard.tsx`, `admin/googleAnalytics.ts`).
   Measurement ID (public) = `settings/website.analytics.ga4MeasurementId`, written only by that card (`updateSettings` drops
   `analytics` so a stale settings form can't put an old ID back); property ID = admin-only `adminSecrets/googleAnalytics`.
@@ -370,6 +379,13 @@ The private operations, label purchase safeguards, payment authority and server 
   It attaches a two-page PDF (`functions/weeklyPdf.js`, hand-written PDF with built-in Helvetica, no package) drawn from
   `weeklyHighlights` (same sales rules; `analytics` maps for sources/devices/bookViews/searches/funnel; unrecorded = empty, never 0).
   `sendEmail` takes `attachments` (Gmail and Resend; never queued). If the PDF fails the email goes without it.
+- **Fair day summary (combined admin, 3 November 2026):** `exports.fairDaySummary` (every day 21:00 Toronto, via the tick)
+  → `functions/fairDayEmail.js` (pure; same rules as the till's end of day, a test checks it against the stockroom's
+  `fair-mode.js`). It reads, read-only, the `hist` of books whose stockroom record was uploaded in the last 36 hours
+  (`inventoryLinkStore.readBooksSoldSince`: `ts` first, then only the changed books). It sends only when the till sold
+  something that day, once per day (`systemStatus/fairDayEmail.lastDay`); a shop without the stockroom sends nothing.
+  The switch is `shopAlerts.fairDaySummary` (missing = on), shown under Shop alerts in the combined admin only, with
+  **Send me today's fair summary now** (`sendTestEmail` `fairDaySummaryNow`, sends again).
 - Deploy Firestore rules + Functions with the frontend.
 
 ## Round-2 catalog and settings (10 October 2026)
@@ -468,16 +484,75 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
   `planCustomerNotes` (merges into `customerNotes`; `MOVED_MARK` makes a re-run unchanged; tags capped by `parseTags`)
   and `newsletterJoiners` (said yes in the file, not subscribed, not in `marketing-optout`). Joiners are written only
   after the owner ticks the permission box, through `adminApi.addImportedSubscriber` (transaction; never touches an
-  existing row; `status: "imported"`, `source: "import"`, `IMPORTED_CONSENT_TEXT`). Imported customers appear in the
-  list once they order (the list is built from orders).
+  existing row; `status: "imported"`, `source: "import"`, `IMPORTED_CONSENT_TEXT`). The note also keeps `name` and
+  `place` (plan 23.10), and `withMovedCustomers` lists a brought-over customer with no order here under **Not ordered
+  here yet** (segment `moved`, counted in no figure). `saveCustomerNote` merges so a note save keeps them.
 - **Photos** stay on the old shop's addresses until plan 3.1b copies them into the shop's own storage.
+- **Past orders (plan 23.7, 3 November 2026):** Orders › **Bring past orders over** (`PastOrdersDialog.tsx`) reads the
+  order file in the browser (`pastOrders.ts`, headings matched loosely, rows grouped by order number; cancelled, unpaid
+  and non-CAD orders left out with a reason) and sends batches of 500 to the `importPastOrders` admin action
+  (`functions/orderImport.js`). Only the server writes them: id `PAST-` + a hash of the old reference (`tx.create`, so a
+  re-run adds none), `source: "import"`, paid (or refunded) and delivered, `reviewRequestedAt` set, no `shippedAt`,
+  `stripePaymentIntentId` or `cartId`. **History only:** `onOrderCreated`, `handleOrderUpdated`, the stockroom link's
+  `pushKind` and return requests all skip `source: "import"`, so a past order moves no stock and sends no email. The
+  owner (not the bookkeeper) may delete one (`firestore.rules`, `deleteRefusal`). A new order hook must skip it too.
+  Other currencies (plan 23.11): `readyToSend` converts every amount at the owner's typed rate and keeps what the old
+  shop charged in `paidIn` (the server checks its shape); orders without a rate wait and count in no preview figure.
+  Suggested rate (23.14): the `exchangeRates` admin action (`functions/pastOrderRates.js`) averages the Bank of Canada's
+  Valet series over the orders' dates; the owner's typed rate wins. Take back (23.15): every run sends one `importBatch`
+  (`run-<uuid>`); `removePastOrders` deletes only that run's `source: "import"` orders (400 a call, `more` to continue),
+  offered on the result screen and on each imported order (`PastImportUndo`).
+- **Your move so far (plan 23.17):** an Overview card under the setup guide (`overview/MoveProgressCard.tsx`,
+  `moveProgress.ts`) for a press whose `firstWeek.bring` says it brought its shop. Each bring-over window calls
+  `recordMoveStep` after it saves something; ticks live in `firstWeek.done` as `move-*` (the rules cap `done` at 20 keys:
+  11 guide steps + 6 here). `recordMoveStep` never creates the doc, so a shop without one never shows the guide.
+  Hidden with parts left, the card leaves a "Show it again" line (`adminApi.untickFirstWeek`, 23.19). The server's
+  `onMoveFinished` (`functions/moveDone.js`, 23.20) emails the owner once on the change to all done; its rules mirror
+  `moveProgress.ts` and `moveDone.test.js` checks the two agree. The email's counts (`moveCounts`, 23.24) are read only
+  for that one change. With every part done the card says "You're all moved in" until Closed (ticks `move-list`, 23.25).
+  `moveReminder` (daily 10:00 Toronto, 23.26) sends one email per stall of 7+ days, within 60 days of Get started,
+  marked in `systemStatus/moveReminder` before sending. The links step opens `#settings/general/visitors` and scrolls
+  to `gs-redirects`: the Overview's page switch can't reach a Settings sub tab.
+- **A new rate for orders already here (23.23):** `importPastOrders(…, { rerate: true })` re-rates only orders the server
+  made (`source: "import"`) with the same `paidIn` currency and amount; only the CA$ fields and `paidIn` change.
+- **Several order files (23.27):** `PastOrdersDialog` keeps a list of chosen files merged by `mergePastOrderFiles`
+  (one batch for all, so one take-back). "You're all moved in" shows `adminApi.movedCounts` (23.28), the client twin of
+  `moveCounts` in functions/moveDone.js.
+- **Discount codes (23.30):** Discounts › Bring codes over (`DiscountMoveDialog.tsx`, reader `discountMove.ts`) saves
+  each code through `adminApi.saveDiscount` (same shape check as the editor). Not one of Your move so far's five parts,
+  so finished moves stay finished.
+- **Next file, file name, one order's rate (23.32-23.34):** the result screen's "Bring another file" resets to the
+  chooser (choosing starts a new batch). Each order carries `file`, kept as `importedFile` and shown on its page.
+  `ratePastOrder` (action in adminReports.js, `ratePastOrder` in orderImport.js) re-rates one `source: "import"` order
+  from `paidIn.total` (total exact, other CA$ fields scaled); `PastOrderRate` on OrderDetail calls it. In move mode the
+  admin fixture has one brought-over order, `past-1004`, and `getOrderById`.
+- **Spreadsheets (23.35):** every file picker uses `SPREADSHEET_ACCEPT` and reads through `spreadsheetText()` in
+  `spreadsheetFile.ts` (CSV/TSV text in any common encoding, .xlsx, .ods, and .xls via `xlsFile.ts` since 23.40 → CSV text); show errors with `readProblem(err)`.
+  A new bring-a-file window must do the same. Test files made by real programs live in `testdata/spreadsheets/`.
+- **Google Sheets (23.42):** put `<GoogleSheetLink onFile={(f) => choose(f)} />` beside a window's file button. It renders
+  nothing unless the shop's Google account is linked, and hands over a stand-in `File` that `readSpreadsheet` reads
+  through `readThrough` (another tab asks Google again), so the window needs no other change.
+- **Match columns (23.36):** Books import keeps the owner's matches for unknown headings in `columns` state and passes
+  them to `planImport({ columns })`; `mapHeadings` ignores a match for `id`, for a field a known heading already fills,
+  or for a field matched twice. Choosing a new file starts from the matches remembered by `columnMemory.ts` (23.41, this
+  browser only, saved when the import runs) for its unknown headings.
+- **Sheets (23.37):** a window that reads one file uses `readSpreadsheet(file, sheet)` and shows `<SheetChoice>` beside the
+  file name (renders nothing for one sheet or a text file); changing it calls the window's `choose(file, sheet)` again.
+- **Excel downloads (23.38):** `xlsxWriter.ts` `toXlsx(rows, sheet)` / `saveTable(base, csv, format, sheet)`; a new table
+  download should offer Excel first and CSV second the same way (Books › Export… is the pattern).
+- **First rows (23.39):** keep the `readSpreadsheet` result (`{ file, ...read }`) in state and render `<FirstRows text>`
+  under the file row; it stays folded so the window keeps its lean look.
+- **Whole move on screen (23.22, in CI since 23.29 as `pnpm run test:move` in the `shop-admin-phone` job):** `node scripts/move-check.mjs` (`CHROMIUM_PATH`, `MOVE_SHOTS=dir`) drives
+  `admin-fixture.html?move=1` with the demo's sample files and answers the old-shop server actions in the script.
+  Extend it when a bring-over window changes. The fixture's dev-only `__fixtureIdToken` lets `oldShopApi.ask` run
+  without Firebase sign-in.
 
 ## Set up your shop (28 October 2026, code plan 6.3 and 6.9; was Your first week, 3.3)
 
 Both read the admin-only `firstWeek/start` (`adminApi.getFirstWeek`) that the platform's setup step 12 writes once
 (`sellingToday`, `publishes`, `country`, `plan`). No document, nothing shown: shops made before this, or by hand, never
 see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `AnalyticsDashboard`) picks which:
-- **Choose your look** (`overview/ChooseLookWelcome.tsx`, pure parts in `chooseLook.ts`, lazy-loaded): while
+- **Choose your look** (`overview/ChooseLookWelcome.tsx`, pure parts in `lookGallery.ts` (re-exported by `chooseLook.ts`, which also saves the look), lazy-loaded): while
   `welcome` is unset and the plan has a shop. A gallery of every `THEME_LIBRARY` theme (name, mood, three swatches,
   `LookPicture`: a small drawing in the theme's own colours and type with the press's name in the header; Preview opens
   it at phone or desktop width), two or three suggested per `publishes` (`SUGGESTED`). Use this look runs
@@ -485,15 +560,36 @@ see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `A
   `saveDraft`, retried once on a conflict; then `updateFirstWeek({ welcome: { theme, at, skipped? } })`. Skip takes the
   first suggestion. The look goes into the **draft**; the guide's look step ticks once the published design has a
   `themeBase`. The preview is drawn, not a screenshot, so every theme has one by construction (`chooseLook.test.ts`).
-- **Set up your shop** (`overview/SetupGuideCard.tsx`, pure `firstWeek.ts`): eight steps per answer (`ORDER`; the first-
-  book step is `bring-books`, `import-spreadsheet` or `add-books`): logo, look, books, shipping (starter words per
-  country, `shippingStarterWords`), Get paid (`card-account` ok on platform shops, plan 7.9; the payment checks on own
-  keys), web address (custom domain, or the owner ticks "Keep the free address"), practice order (an `isTest` paid or
-  refunded order, plan 7.6; done once the shop is open), Open your shop (no wall, no maintenance). Gmail is never a
-  step. Three open steps show (`guideParts`), the rest under **Later**, done ones under **Done**. **Open your shop**
-  runs `openBlockers` (Ready to sell's `block` rows) and, when none, Dashboard's `toggleUnderConstruction(false)`
-  (passed down as `onSetWall`). The guide saves `progress { steps, done, at }` whenever it changes (`progressToSave`)
-  for the platform's trial emails (plan 6.10, `services/trial-tips`).
+  **Theme store (4 November 2026):** cards show a whole shop page (`overview/LookStage.tsx`: announcement, header,
+  the template's own opening band and cards, chips, footer, drawn at 1200px or 390px and scaled by `ScaledStage`),
+  filters All / Full templates / Light / Dark (`filterLooks`, `isTemplate` = own `themeStyle`, `isDarkLook`), and Try it
+  on opens a full-size `Dialog` (`size="full"`): Previous/Next look (and arrow keys), Computer/Phone, Home/Product page,
+  Your products/Samples (`sampleProducts(publishes)` when the press has none). Each look's faces load from Google Fonts
+  once (`useLookFonts`). Drawn, not the real storefront, because setup mode has no shop to render.
+- **Set up your shop** (`overview/SetupGuideCard.tsx`, pure `firstWeek.ts`; regrouped 4 November 2026, plan 28): one
+  order for every answer, in three parts (`GROUPS`), Shopify-style: **Your shop** (the first-book step, `bring-books`,
+  `import-spreadsheet` or `add-books` per answer; logo; look), **Ready to sell** (shipping, starter words per country,
+  `shippingStarterWords`; taxes, Ready to sell's `tax` ok: rates set or collection off; Get paid, `card-account` ok on
+  platform shops, plan 7.9, the payment checks on own keys; store policies, Ready to sell's `policies` ok), **Launch**
+  (web address, optional: custom domain, or the owner ticks "Keep the free address"; practice order, an `isTest` paid or
+  refunded order, plan 7.6, done once the shop is open; Open your shop, no wall, no maintenance). Rule: every Ready to
+  sell `block` row has a step before Open your shop (firstWeek.test.ts). Rows are the setup-mode guide's accordion:
+  `nextStep` (first open non-optional) opens by itself, any other row on a click, each part shows done/total (every row
+  counted). Then **Reach more shoppers**, optional: Google (`#settings/google`, ticks on `firstWeek.google.connected`)
+  and social media (ticked by hand). Optional steps never keep the guide on Home. A step with `hash` + `anchor` opens a
+  sub tab and scrolls to a card (`jumpWhenShown`): policies and web address → `#settings/general/details`. Taxes is
+  tickable ("I don't collect tax yet": with no rate no tax is charged). Gmail is
+  never a step. **Open your shop** runs `openBlockers` (Ready to sell's `block` rows) and, when none, Dashboard's `toggleUnderConstruction(false)`
+  (passed down as `onSetWall`). The `online` answer has a ninth step after it, **Move over from your old shop**
+  (`switch`, ticked by hand, plan 23.8), opening Settings › General where **Check your old links** sits under URL
+  redirects (`OldLinksCheck.tsx`, pure `oldLinks.ts`; the server's `readOldLinks` action reads the old shop's site map
+  with `functions/moving/oldLinks.mjs`, a generated copy of `services/moving/oldLinks.js`). Its **Bring your own pages
+  over** (plan 23.6) asks `readOldPages`, which rebuilds each old page with the allow-list in `services/moving/oldPages.js`
+  (copied as `functions/moving/oldPages.mjs`); `pagesToSave` makes the drafts and redirects and never reuses a page's address. Pictures on public https addresses stay as `<img src alt>` and the hourly photo import copies them and rewrites `pages/*.body` (plan 23.13, `swapPagePictures`). The guide saves `progress { steps, done, at }` whenever it changes (`progressToSave`)
+  for the platform's trial emails (plan 6.10, `services/trial-tips`). Steps missing from the saved `progress.steps`
+  are new to that press (`addedSince`, fixed when the card mounts, since saving progress makes them old): they get a
+  New tag and one "N new steps" line, and a hidden guide comes back for a needed one (`showFirstWeek`'s `added`).
+  A done row opens on a click (to Change it); a row that gets done while open gives way to the next step.
 - `SELLING_TODAY` must list the sign-up form's answers and `StepId` must match `help/articles.js` `CHECKLIST_ANSWERS`
   (root tests check both). Firestore rule `firstWeek`: admin only, `hasOnly([... "publishes", "country", "welcome",
   "progress" ...])`, the four sign-up fields never change from the admin, `welcome`/`progress` shapes checked. The
@@ -501,7 +597,7 @@ see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `A
 
 - **What you sell** (plan 10.1, `sells.ts`): sign-up's "What do you sell?" (`firstWeek/start` › `publishes`). Book
   answers (books, zines, comics, mix), a skipped or unknown one change nothing. Any other answer: Choose your look's
-  suggestions for it (`chooseLook.ts` SUGGESTED, keys in the form's order, checked by `setup/later-steps.test.js`),
+  suggestions for it (`lookGallery.ts` SUGGESTED, keys in the form's order, checked by `setup/later-steps.test.js`),
   starter Text & labels words put in the draft by `applyChosenLook` under the owner's own (`withStarterWords`), new
   products start as `startingKind` (BookEditor, also in `initialData` so it isn't an unsaved edit) and the guide's
   first-product step. A new shopper word with "book" in it needs a starter word in `sells.ts` (or `BOOK_ONLY_COPY`
@@ -511,7 +607,7 @@ see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `A
   (`shopWords.tsx`, `useShopWords()`); the menu, page titles, the product list and the product editor use it (the
   editor follows the product's own kind). Wrap new admin words with `w(...)` on those pages.
 
-## Get started: your press first (29 October 2026, code plan 17.1 to 17.4)
+## Get started: your press first (29 October 2026, code plan 17.1 to 17.4, 17.8, 17.9, 17.10, 17.11 and 17.13)
 
 The first-visit run at the top of a new shop's Overview (`overview/SetupStart.tsx`) is **Get started**, eight steps in
 order. Built so far:
@@ -526,9 +622,38 @@ order. Built so far:
   preview. Continue records `firstWeek/start` › `bring: { at, from?, skipped? }`; **Start fresh** records `skipped: true`.
   The `firestore.rules` shape for `bring` is checked by `customerNotesRules.test.ts`.
 
-Then the look (Choose your look, plan 6.3) comes next, and a shop with a `welcome` already, or no `firstWeek` document,
-never sees the run. Still to come (17.5 to 17.13): more import layouts (needs a real sample from each builder), photos
-given as links, Google, payments, shipping, the stockroom and the final check. The run sits at the top of the Overview;
+- **Step 3 of 8, Choose your look** (`overview/ChooseLookWelcome.tsx`, plan 17.8, built in plan 6.3): the suggested looks
+  from the sign-up answer, every look, phone and desktop previews. Previews show the press's first book photo
+  (`firstBookPhoto` in `lookGallery.ts`, secure addresses only).
+- **Step 5 of 8, get paid** (`overview/PaymentsStage.tsx`, pure logic in `paymentsStage.ts`, plan 17.10): only for a press
+  whose cards go through the platform (Stripe or Square; `platformCardsProvider`). It reads the card status the Settings
+  card reads (`platformPayments.ts`, plan 7.9): one **Continue with Stripe** (or **Connect Square**) sends the press to the
+  company's own page and back, "What Stripe still needs, by when" is shown in plain words, and **Continue** records
+  `payments: { at, ready: true }` once cards and payouts work. **Set up later** records `skipped: true`; the final check
+  keeps its card blocker until they work. No key or account ID is shown. Shown after Google, before shipping.
+
+- **Step 6 of 8, shipping and your address** (`overview/ShippingStage.tsx`, pure logic in `shippingStage.ts`, plan 17.11):
+  the ship-from address from step 1 (named gaps block confirming), the starter for the country (Canada, the United States,
+  or start empty elsewhere), and one **Set up this shipping** that makes the Settings starter profile through
+  `adminApi.createShippingProfile`. A shop that already has a profile makes nothing new. Recorded as `shipping: { at,
+  starter?, skipped? }`, shown after the look for a press that went through step 1 only (`shippingStepShows`).
+
+- **Step 8 of 8, final check and open** (`overview/FinalCheckStage.tsx`, pure gate in `finalCheckStage.ts`, plan 17.13):
+  lists what the setup guide's open step still blocks (`openBlockers`, the same checks), with a button to each. It
+  recommends a practice order and never requires one. **Open my shop** takes the shop out of private mode (the same
+  `onSetWall` the guide uses) and records `finalCheck: { at, opened: true }`. **Finish later** shows the setup guide without
+  recording anything. The step doesn't show once the shop is open.
+
+- **Step 4 of 8, Google in one sign-in** (`overview/GoogleStage.tsx`, pure marker and lines in `googleStage.ts`, plan 17.9):
+  one **Connect Google** (`googleConnectApi.connectLink`, the 6.17 sign-in). While Google hasn't approved it for Colophon
+  shops, the step says it is coming and the run goes on (decision 2). Once connected it lists each part Google linked, in
+  plain words. **Connect later** is always there. Recorded as `google: { at, connected? | coming? | skipped? }`.
+
+**The order of the run lives in one place**, `startRun.ts` (`nextRunStep`): your press, bring your shop, the look, Google,
+Get paid (only for a platform press), shipping, the final check. Step 7, your stockroom, is the stockroom's own one-screen check (`apps/stockroom/CLAUDE.md`), not part of this run.
+
+A shop with a `welcome` already, or no `firstWeek` document, never sees the run. Still to come (17.5 and
+17.6): more import layouts (needs a real sample from each builder), and photos given as links. The run sits at the top of the Overview;
 it doesn't yet replace the whole screen (a separate start page is a later change).
 
 **Phase 18 rule (planned on main):** a press gets its own backend only at launch. Every write above goes to
@@ -605,3 +730,76 @@ name another system. The stockroom's matching stock file is `apps/stockroom/src/
 books: `BookImportDialog` reads the sign-up answer from `ShopSellsContext` (Dashboard). A books shop keeps today's
 editions list, so an old shop's "Format: Hardcover" never turns into option buttons. `productsForAnotherShop` writes a
 product's own Option1–3 Name/Value (names on its first line), so the export and import round-trip.
+
+## Messages from Colophon (plan 19.14, 2 November 2026)
+
+The platform's control room writes the admin-only `platform/messages` document (`{ messages: [{ id, words, level,
+startsAt, endsAt }] }`, rules: admins read, no browser writes). `PlatformMessagesBar` (`PlatformMessagesBar.tsx`, under
+`PlanBannerBar` in `Dashboard.tsx`) shows each message between its dates as an `rp-alert` banner over every admin page
+(important ones in the warning tone), at most three, with Close kept in `localStorage` (`platformMessages.ts`
+`pickPlatformMessages`, tested in `platformMessages.test.ts`, which also checks nothing outside `app/admin` reads it). The
+storefront never imports it. Admin-only words, Studio-free.
+
+## Setup mode (code plan 18.6, 3 November 2026)
+
+The admin a press meets before its shop exists, served by the platform at `/app/` (`setup.html`, `src/setupMode/`,
+built by `pnpm run build:setup` with `vite.setup.config.ts` into `dist-setup/`; the walkthrough serves it at `/app/`).
+- **No shop database.** `main.tsx` signs in with the platform's own account (it loads `/signup/config.js` and the
+  Firebase SDK the front door uses, so the front door's sign-in carries over) and never imports `../main`,
+  `lib/firebase` or `adminApi`. Every answer goes to the press's setup record through `door.ts` (`GET /api/press`,
+  `POST /api/press/setup`); the shop maker (18.9) carries it into the new shop.
+- **Same shell and menu** (`pages.ts` `setupMenu` is `sidebarItems(NAV)`, nothing added): Plan stays under Settings, as in
+  the open shop, and Help is a sidebar-footer button (`#help`). Home is the
+  setup guide; Design (the Choose your look gallery), Settings › General, Settings › Plan and Help work; every other
+  page is `OpensWithShop` and writes nothing. Pages live in the address (`#settings/general`); an address that names no
+  page (the skip link's `#rp-main`) leaves the page alone, so nothing typed is lost. General saves only the fields that
+  changed, so an answer saved meanwhile at the front door isn't written over.
+- **Look gallery without the database:** `lookGallery.ts` holds the pure gallery parts; `ChooseLookWelcome` takes
+  `apply` (setup mode passes one that does nothing) and loads `chooseLook.applyChosenLook` only when it isn't given.
+- **Open my shop (18.8):** Settings › Plan ends with `OpenShopCard`: a terms tick (version from `/api/plans`
+  `termsVersion`) and one button calling `door.openShop` (`POST /api/press/open`). The press then reads "Your shop is
+  being made" and the top-bar button goes away. A refusal shows in plain words and the press stays in setup.
+- **Books (18.7):** `setupMode/ImportPage.tsx` reads a product file in the browser (`planShopMove` with no books), shows
+  the first 150 rows, problems first, with `importPreview.tsx` `ImportPreviewRows` (also used by `BookImportDialog`), then
+  keeps it through `door.keepImport` (upload link from `POST /api/press/import`, a PUT straight to storage, then
+  `/import/kept`). Each upload has its own path (`pendingImportPath`) and becomes the kept file only on `/import/kept`. The guide's
+  Bring your books step is optional: counted only once a file is kept. The shop maker (18.9) brings it in.
+- **First landing (4 November 2026):** Home's guide is an accordion (the next step open with its why, button and "How this
+  works" help link from `pages.ts` `STEP_HELP`; any step opens on a click), then "Once your shop is made" (trial days
+  only from `/api/plans`) and "Need a hand?" (`SETUP_QUESTIONS`, ask a person via `accountUrl`, default `/account/`).
+  A "You're ready" card tops Home once only Create is left; the opened step is remembered per press for the visit
+  (sessionStorage). On a phone the welcome title is smaller (`.rp-setup-home`, `setupMode/setup.css`). Locked pages say what they will do (`lockedPageLine`; pages.test.ts fails a locked menu page without a line) and lead
+  back to the guide. Help ids are checked against `help/articles.js`.
+- **Help in place (4 November 2026):** `main.tsx` loads the platform's `/help/articles.js` (one copy) into
+  `SetupHelp.tsx` `helpAnswersFrom`; step help, Need a hand? and Help open answers in place, falling back to help-centre
+  links when they didn't load. Help's **Ask a person** (`AskForm`, `id="ask"`) sends `door.askForHelp` →
+  `POST /api/support/open` (no shopId: a press in setup has no shop; the body notes the press name), one request id per
+  try so a retry makes one request.
+- **Plan words:** free days are promised only when `/api/plans` gives a trial, and as "your first shop"
+  (billing gives one trial per account). Prices that fail to load say so with Try again.
+
+## One admin for shop + stockroom (3 November 2026)
+
+A shop whose profile has both apps gets the combined admin: `combined.ts` (`combinedAdmin`, `STOCKROOM_PAGES`),
+`riso/nav.ts` `COMBINED_MENU`, `StockroomFrame.tsx` (the stockroom's pages, framed from `/stockroom/app` on the shop's
+own address, kept open once opened), route `#stockroom/<page>`, and no Website · Inventory switcher. Shop-only shops keep
+`MENU`. Full notes and the next steps: LMB-PLATFORM `docs/combined-admin.md`. A new stockroom page in the menu goes in
+`STOCKROOM_PAGES` and `COMBINED_MENU` (combined.test.ts checks every page is listed once and exists in the stockroom).
+Other pages ask the stockroom through `stockroomBridge.ts` (`ask`, `openBook`; the frame opens hidden on first need):
+the book editor's **Stock and sales** tab (`StockroomBookPanel.tsx`, combined admin only) reads one book's figures from
+the stockroom's own `bookSummary`, never from a copy here, and matches an unmatched book with `linkNewBook`.
+
+## Sales channels and Social posts (plan 27.5-27.7, 4 November 2026)
+
+Design and rules: `docs/social.md` (platform root). `SalesChannels.tsx` (tab `channels`, under Books in both menus) and
+`SocialPosts.tsx` (tab `socialPosts`, under Orders; Marketing in the combined admin) share `socialChannels.ts` (pure,
+tested). They call `adminApi.social(step, args)` → `functions/socialLink.js`. `#social-posts/book/<id>` opens the
+composer on a product (Books › row › Post to social). Keep words lean (Julian, 4 November 2026): one short line per
+card, no explanations the badge or button already gives. Screens: fixture `?page=channels` / `social-posts`.
+Round two (4 November 2026, plan 27.10-27.12): Overview widget `social` ("Social media that sells", `socialPerformance`
+in `overview/overviewTraffic.ts`, on the Marketing board), the composer's Square picture toggle (`square`, on by
+default; `functions/socialPicture.js`) and the Shop alerts switch `socialPostFailed`.
+
+## Partner company logos (4 November 2026)
+
+A card or dialog about one outside company passes `logo` (`SectionCard logo="quickbooks"`, `Dialog logo={["instagram", "facebook"]}`); the logo sits on a white tile before the title in every look, day and night. Google sign-in uses `GoogleSignInButton` (Google's own style and words). Logos come only from `shared/brand-logos` (README there: sources, owners, rules); never redraw or recolour one, and never show a rival shop builder's.

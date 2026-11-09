@@ -5,7 +5,7 @@
 // shop's owner in.
 import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE } from "../signup/config.js";
 import { deviceId } from "../signup/device.js";
-import { billingWords, day, planChangeWords } from "./billingWords.js";
+import { DROP_CHOICES, LEAVING_CHOICES, billingWords, day, emailLanguageWords, planChangeWords } from "./billingWords.js";
 
 const { initializeApp } = await import(`${FIREBASE_SDK}/firebase-app.js`);
 const { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup } = await import(`${FIREBASE_SDK}/firebase-auth.js`);
@@ -70,12 +70,28 @@ async function load() {
     if (!billing) return show("none");
     render(billing);
     show("billing");
+    readyToKeep();
     loadPressName();
     loadInvoices();
     loadPaymentWay();
   } catch (failure) {
     fail(failure.message);
   }
+}
+
+// From the reminder email a week before a dropped app closes (`keep=closing`): the Keep it button, ready to press. Once.
+function readyToKeep() {
+  if (params.get("keep") !== "closing") return;
+  params.delete("keep");
+  history.replaceState(null, "", `${location.pathname}?${params}`);
+  const keep = $("#keep-closing");
+  if (keep.hidden) {
+    status.textContent = "Nothing on your plan is closing now, so there's nothing to keep.";
+    return;
+  }
+  status.textContent = `To keep it, press "${keep.textContent}". Your plan goes back to what it was, at the same price as before.`;
+  keep.scrollIntoView({ block: "center" });
+  keep.focus();
 }
 
 // The shop's name over the page, from the shops page's list (the billing status doesn't carry it).
@@ -97,9 +113,9 @@ async function loadPressName() {
 function renderLedger(billing, words) {
   const tax = billing.plusTax ? " + tax" : "";
   const cells = [["Plan", billing.price, `${billing.planName}, monthly${tax}`]];
-  if (billing.access === "paused" || billing.access === "closed") cells.push(["Shop", words.state, billing.access === "paused" ? "nothing is deleted" : "your files are kept", "danger"]);
+  if (billing.access === "paused" || billing.access === "closed") cells.push(["Shop", words.state, billing.access === "paused" ? "kept for 60 days" : "90 days to download", "danger"]);
   else if (billing.status === "trialing") cells.push(["Free trial", `${billing.trialDaysLeft ?? 0} days`, `until ${day(billing.trialEnd)}`, "warning"]);
-  else if (billing.cancelAtPeriodEnd) cells.push(["Open until", day(billing.currentPeriodEnd).replace(/ \d{4}$/, ""), "then the plan ends", "warning"]);
+  else if (billing.cancelAtPeriodEnd) cells.push(["Open until", day(billing.cancelEndsAt ?? billing.currentPeriodEnd).replace(/ \d{4}$/, ""), "then the plan ends", "warning"]);
   else cells.push(["Status", words.state, billing.status === "past_due" ? "update your card" : "all paid up", billing.status === "past_due" ? "danger" : undefined]);
   cells.push(billing.nextPaymentAt ? ["Next bill", day(billing.nextPaymentAt).replace(/ \d{4}$/, ""), `${billing.price}${tax}`] : ["Next bill", "None", billing.hasCard ? "nothing due" : "until a card is added"]);
   cells.push(billing.card ? ["Card", `•••• ${billing.card.last4}`, `runs out ${String(billing.card.expMonth).padStart(2, "0")}/${billing.card.expYear}`] : billing.hasCard ? ["Card", "On file", ""] : ["Card", "None", billing.status === "trialing" ? `needed before ${day(billing.trialEnd).replace(/ \d{4}$/, "")}` : "add one to keep the shop open", billing.status === "trialing" ? undefined : "danger"]);
@@ -131,20 +147,30 @@ function render(billing) {
   $("#plan-when").textContent = words.when;
   $("#plan-closing").textContent = words.closing;
   $("#plan-closing").hidden = !words.closing;
+  $("#keep-closing").textContent = words.keepClosing;
+  $("#keep-closing").hidden = !words.keepClosing;
   $("#plan-card").classList.toggle("warning", billing.access !== "open");
   $("#card-words").textContent = words.card;
   $("#card-button").textContent = billing.hasCard ? "Change card" : "Add a card";
   $("#cancel-title").textContent = billing.cancelAtPeriodEnd ? "Your plan is cancelled" : "Cancel plan";
   $("#cancel-words").textContent = words.cancel;
   const ended = billing.access === "closed";
-  $("#cancel-button").hidden = billing.cancelAtPeriodEnd || ended;
+  if (billing.cancelAtPeriodEnd || ended) $("#cancel-form").hidden = true;
+  $("#cancel-button").hidden = billing.cancelAtPeriodEnd || ended || !$("#cancel-form").hidden;
   $("#keep-button").hidden = !billing.cancelAtPeriodEnd || ended;
   $("#change-form").hidden = ended;
   $("#plan-choices").replaceChildren(el("legend", { className: "rp-sr-only", textContent: "Choose a plan" }), ...billing.plans.map((plan) => {
     const input = el("input", { type: "radio", name: "plan", value: plan.plan, checked: plan.plan === billing.plan });
     return el("label", { className: "choice" }, input, el("strong", { textContent: plan.name }), el("strong", { textContent: `${plan.price}${billing.plusTax ? " + tax" : ""}` }));
   }));
+  renderLanguage(billing.emailLanguage);
   resetPreview();
+}
+
+function renderLanguage(emailLanguage) {
+  const choice = emailLanguage?.choice ?? "auto";
+  for (const input of $("#language-form").querySelectorAll("input[name=language]")) input.checked = input.value === choice;
+  $("#language-words").textContent = emailLanguageWords(emailLanguage);
 }
 
 function resetPreview() {
@@ -152,6 +178,7 @@ function resetPreview() {
   $("#change-preview").replaceChildren();
   $("#change-confirm").hidden = true;
   $("#change-error").hidden = true;
+  $("#drop-choices").hidden = true;
 }
 $("#plan-choices").addEventListener("change", resetPreview);
 
@@ -183,7 +210,7 @@ async function loadInvoices() {
     }
     const head = el("tr", {}, ...["Date", "Invoice", "Amount", "State", ""].map((word, i) => el("th", { scope: "col", textContent: word, className: i === 2 ? "cp-amount" : "" })));
     list.replaceChildren(el("div", { className: "cp-table-wrap" }, el("table", { className: "cp-table" }, el("caption", { className: "rp-sr-only", textContent: "Your invoices" }), el("thead", {}, head), el("tbody", {}, ...rows))),
-      invoices.length ? null : el("p", { className: "hint", textContent: "Every invoice is emailed to you as well." }));
+      ...(invoices.length ? [] : [el("p", { className: "hint", textContent: "Every invoice is emailed to you as well." })]));
   } catch (failure) {
     list.replaceChildren(el("p", { className: "error", textContent: `We couldn't load your invoices: ${failure.message}` }));
   }
@@ -199,12 +226,13 @@ function renderPaymentWay(view) {
     status.textContent = answer.changed ? "Done. The lines above say when the change starts." : "Nothing to change.";
     renderPaymentWay(answer.view);
   }));
-  section.replaceChildren(
+  // replaceChildren would write an empty part as the word "null", so only real parts go in.
+  section.replaceChildren(...[
     el("h3", { textContent: view.title }),
     ...view.lines.filter(Boolean).map((line) => el("p", { textContent: line })),
     view.note ? el("p", { className: "hint", textContent: view.note }) : null,
     button,
-  );
+  ].filter(Boolean));
   section.hidden = false;
 }
 
@@ -235,16 +263,66 @@ const addCard = (event) => act(event.currentTarget, async () => {
 $("#card-button").addEventListener("click", addCard);
 $("#plan-alert-button").addEventListener("click", addCard);
 
-$("#cancel-button").addEventListener("click", (event) => act(event.currentTarget, async () => {
-  if (!window.confirm(billingWords(current, new Date()).cancelAsk)) return;
-  await api("/billing/cancel");
-  status.textContent = "Your plan is cancelled. Your shop stays open until the date below, and you can keep your plan until then.";
-  await load();
-}));
+// Cancelling (19.8): the confirmation says what happens and asks one optional question, why; no answer is fine.
+function closeCancelForm() {
+  $("#cancel-form").hidden = true;
+  $("#cancel-button").hidden = false;
+  $("#cancel-button").focus();
+}
+
+$("#cancel-button").addEventListener("click", () => {
+  $("#cancel-ask").textContent = billingWords(current, new Date()).cancelAsk;
+  $("#leaving-choices").replaceChildren($("#leaving-choices legend"), ...LEAVING_CHOICES.map(([value, words]) =>
+    el("label", { className: "choice" }, el("input", { type: "radio", name: "reason", value }), el("span", { textContent: words }))));
+  $("#leaving-words").value = "";
+  $("#cancel-error").hidden = true;
+  $("#cancel-button").hidden = true;
+  $("#cancel-form").hidden = false;
+  $("#leaving-choices input")?.focus();
+});
+
+$("#cancel-back").addEventListener("click", closeCancelForm);
+$("#cancel-form").addEventListener("keydown", (event) => { if (event.key === "Escape") closeCancelForm(); });
+
+$("#cancel-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  act($("#cancel-confirm"), async () => {
+    const reason = $("#cancel-form").querySelector("input[name=reason]:checked")?.value ?? null;
+    const words = $("#leaving-words").value.trim();
+    try {
+      await api("/billing/cancel", { ...(reason ? { reason } : {}), ...(words ? { words } : {}) });
+    } catch (failure) {
+      $("#cancel-error").textContent = failure.message;
+      $("#cancel-error").hidden = false;
+      return;
+    }
+    $("#cancel-form").hidden = true;
+    status.textContent = reason || words
+      ? "Your plan is cancelled. Thank you for telling us why. Your shop stays open until the date below, and you can keep your plan until then."
+      : "Your plan is cancelled. Your shop stays open until the date below, and you can keep your plan until then.";
+    await load();
+  });
+});
+
+$("#language-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  act($("#language-save"), async () => {
+    const language = $("#language-form").querySelector("input[name=language]:checked")?.value ?? "auto";
+    const { emailLanguage } = await api("/billing/email-language", { language });
+    renderLanguage(emailLanguage);
+    status.textContent = "Saved. Our emails to you and your team, for every shop on your account, use this language.";
+  });
+});
 
 $("#keep-button").addEventListener("click", (event) => act(event.currentTarget, async () => {
   await api("/billing/keep");
   status.textContent = "Your plan carries on as before.";
+  await load();
+}));
+
+$("#keep-closing").addEventListener("click", (event) => act(event.currentTarget, async () => {
+  await api("/billing/keep-closing-apps");
+  status.textContent = "Kept. Nothing closes, and your plan is back to what it was.";
   await load();
 }));
 
@@ -263,13 +341,17 @@ $("#change-form").addEventListener("submit", (event) => {
     const { preview } = await api("/billing/change-plan", { plan, preview: true });
     $("#change-preview").replaceChildren(...planChangeWords(preview, current).map((line) => el("p", { textContent: line })));
     $("#change-preview").hidden = false;
+    $("#drop-choices").replaceChildren($("#drop-choices legend"), ...DROP_CHOICES.map(([value, words]) =>
+      el("label", { className: "choice" }, el("input", { type: "radio", name: "drop-reason", value }), el("span", { textContent: words }))));
+    $("#drop-choices").hidden = !preview.closes?.length;
     $("#change-confirm").hidden = false;
   });
 });
 
 $("#change-confirm").addEventListener("click", (event) => act(event.currentTarget, async () => {
   const plan = chosen();
-  await api("/billing/change-plan", { plan });
+  const reason = $("#drop-choices").hidden ? null : $("#change-form").querySelector("input[name=drop-reason]:checked")?.value ?? null;
+  await api("/billing/change-plan", { plan, ...(reason ? { reason } : {}) });
   status.textContent = "Your plan is changed. We've emailed you the details.";
   await load();
 }));

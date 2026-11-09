@@ -973,3 +973,132 @@ with the claim `support: { by, reason, until }` (`until` in seconds, at most an 
 
 - `manageReturn` with `action: "exchange"` and `swaps: [{ index, toVariantId, quantity }]` swaps an inspected return for another version of the same product. The rules are in `exchanges.js` (`planExchange`, pure): the order is paid with no refund request, the return is inspected, one swap per line, up to the copies that came back, the new version has the same price and enough stock, never a box set. The resellable copies go back and the new version comes off in one write per product (stock is never written twice from one snapshot).
 - It ends the return as `completed` (no new customer words), sets the request to handled, keeps `order.exchanges[]` and adds an activity line. No money moves; a price difference is refused (refund the return instead). A second swap is refused because the return is no longer `inspected`.
+
+## Your data in the shopper's account (2 November 2026, platform plan 14.7)
+
+- `myDataExport` / `myDataErase` on `createStripeCheckoutSession` (`privacyRequests.js` `handleMyData`): the shopper's Firebase ID token
+  with a verified email is the proof of whose data it is, so a copy downloads at once (`exportBody`, the same file the admin gets) and a
+  deletion request is recorded in `privacyRequests` with `verified: true, source: "account", uid`. Nothing is erased until the owner presses
+  *Approve and delete their data* in Settings › General › Privacy requests (`handlePrivacyAdmin`, unchanged). A second request while one is open adds nothing.
+- Storefront: `features/site/YourDataCard.tsx` on the account page (region `accountYourData`, words `yourData*` in Text & labels › Customer account › Your data).
+
+## Payment links: orders the owner makes (3 November 2026, platform plan 21.1-21.5)
+- Orders › **New order to pay** (`admin/PaymentLinkDialog.tsx`) calls `paymentLink` / `op: "create"` on `createStripeCheckoutSession`
+  (`paymentLinks.js`, admin only). It makes an ordinary unpaid order (`source: "payment_link"`, `paymentLink: { expiresAt, note }`, which
+  `publicOrderView` shows) and `paymentLinks/{orderId}` (admin-read, Functions-write rules): the frozen line prices (blank = the shop's price
+  that day), the shipping amount or `null` for nothing to ship, the expiry and `keyHash` (sha256 of the order's `trackingKey`).
+- **Every payment path prices through `priceOrder`, which reads that record** (`paymentLinkFor`) and, when present: refuses an expired or closed
+  link and changed lines (`payment_link_closed`), uses the agreed prices, no discount or stockist pricing, the agreed shipping, tax as usual.
+  A record whose `keyHash` doesn't match the order's key is ignored (an order made later at a deleted order's id is priced normally). There is
+  no new payment code: the link is the order page (`/track?orderId&key`), whose **Pay now** (`features/site/PaymentLinkPay.tsx`) opens the
+  normal hosted card page and returns to the order page (not the bag); the order's own Cancel closes the link.
+- Link orders carry `paymentMethod: "Stripe"` like every card order (refund wording, test-mode stock), skip the per-shopper hold caps (the
+  owner set the quantity), must total at least $0.50, are swept for missed webhooks by `updatedAt` (`paymentSweep.js`), and an erase
+  blanks their note. Tests: `r2Payments.test.js` › payment links.
+- **From a bulk-price request (21.4):** a Messages row the product page's bulk-quote form sent ("Quantity: N" / "Book: <title>" lines, sent
+  from `/books/<slug>`) shows **Make a payment link**; `quoteRequestOf` / `linkFormFromQuote` (`admin/paymentLinks.ts`) start the dialog with
+  the customer, that product (by slug, else exact title), its edition (subject brackets) and the copies, capped at 99 per line (the server's
+  line limit; stock holds clamp at 99 too). The test builds the request with the form's own `quoteMessage`, so changing the words breaks it.
+- **Reminder (21.5):** `unpaidPaymentSweep` passes its unpaid orders to `sendLinkReminders`: one `payment_link_reminder` email (Settings ›
+  Notifications, on by default, `enabled: false` stops it) when an open, unpaid, un-cancelled link has 48 hours or less left and is a day
+  old. It stamps `paymentLinks/{id}.reminderSentAt` (never the order, so order triggers stay quiet), skips orders the same sweep found paid in
+  Stripe, and `sendOrderEmailOnce` stops a second copy. Never when Stripe has a payment the shop hasn't recorded (`reconciliationPending`,
+  `paymentAlertSentAt`) or the card page was opened in the last hour (`updatedAt`); a queued copy is dropped by `staleOrderEmailReason`
+  once the order is paid, cancelled or its link closed. The total is `chargedTotalFmt`, and every place naming the closing day (history line,
+  the owner's email text, the reminder) uses `closingDay` (Toronto day; client copy parity-tested). Tests: `paymentLinkReminders.test.js`.
+
+## Two-step backup codes (3 November 2026, platform plan 22.9)
+
+`twoStepBackup` (`twoStepBackup.js`): `status` / `make` for a signed-in admin, `use` from the sign-in page before there
+is a sign-in. Only SHA-256 hashes are kept, in server-only `twoStepBackup/{uid}` (rules deny the browser). `make` needs a
+sign-in finished with the app's code (`firebase.sign_in_second_factor`) or a setup and sign-in both under 15 minutes old.
+`use` needs Google's own token (checked by Google's tokeninfo: verified address, Google issuer) for the same address as
+the Firebase user, spends the code in a transaction, then removes only the TOTP factor (phone factors stay) and writes
+the audit log. Rate-limited (`LIMITS.twoStepBackup`). The token's audience isn't checked, so the code is still needed:
+never let `use` work on Google's token alone. Each use is emailed to the person and the owner (`backupUsedEmail`,
+queue `twoStepBackupUsed`; a failed send never undoes the sign-in). The function declares `RESEND_API_KEY`, so its
+`exports.` line sits after that secret is defined. Tests: `twoStepBackup.test.js`.
+
+## Newsletter sending (3 November 2026)
+
+- **Customers › Newsletter** (`admin/NewsletterCard.tsx`) writes a newsletter (subject, plain-text message, optional
+  button) and calls action `newsletterAdmin` (`functions/newsletterSend.js`): `audience` counts the list, `test` mails the
+  signed-in person only, `send` queues `newsletterIssues/{id}` (one active at a time; the browser never sends), `cancel` /
+  `resume`. `newsletterIssues` is admin-read, server-write only (`firestore.rules`).
+- **The sweep sends** (`runNewsletterIssues` in `unpaidPaymentSweep`): one issue under a 10-minute lease, pages of 100 by
+  document id from `cursor`, at most 250 per run. Recipients are `mayMail` rows not in `marketing-optout`. Each address is
+  claimed first (`newsletterIssues/{id}/sent/{optOutId}`, `create()`), so a rerun or an older cursor never mails twice.
+  A bad address keeps its claim (counted `failed`); any other failure frees the claim and stops the run (5 failed runs in a
+  row → `paused`, owner resumes); the platform's newsletter pause (`services/email/reputation.js`) → `paused` at once.
+  Cancelling during a run wins (the final write re-reads the status).
+- **Never through Gmail, never the outbox:** `sendEmail({ bulk: true, kind: "newsletter" })`. `bulk` skips the press's
+  Gmail (low daily cap, account risk); `kind` puts it on the platform's newsletter stream without `queue`, because the
+  emailOutbox retrying it would double-send alongside the run's own retry. Owner words are escaped (text, not HTML);
+  `{{shop_name}}` works; every email has the signed unsubscribe link.
+
+## Running low in the 8am email (3 November 2026)
+
+- The 8am `dailyOrderDigest` (`scheduledJobs.js`) also lists products, one row per edition, whose shelf count is at or
+  below Inventory's low-stock line (`settings/website.inventory.lowStockThreshold`, default 5), using
+  `functions/lowStockAlert.js`. It counts only what Inventory counts: `trackInventory` on, never drafts, archived,
+  digital editions (`isDigitalEdition`), box sets or gift cards. It is not a new schedule job (`tick.test.js` counts them).
+- **Once per dip:** marks in `systemStatus/lowStockAlerts.items` (`key → "low" | "out"`). A row is reported when it has no
+  mark or goes from low to out. Marks keep only today's low rows, so a restocked item loses its mark. Marks are saved
+  only after the email went out (or on a day with nothing to send), so a failed send retries tomorrow.
+- Its own switch: Notifications › Shop alerts › Running low (`shopAlerts.lowStock`, on unless off). It runs with the
+  orders switch off, and sends a `[STOCK] …` email on a day with no orders to chase.
+
+## Ship part of an order now (3 November 2026, platform plan 24.5)
+
+- Orders › order › Shipping & dispatch › **Send part now, the rest later** (`admin/PartShipmentDialog.tsx`) calls
+  `fulfillmentAction("ship_part", { picks: { [itemIndex]: qty }, trackingCarrier, trackingNumber, trackingUrl })`. The rules
+  live in `admin/partShipments.ts` (`partShipmentProblem`). Like dispatch, it needs a paid, active, carrier-shipped order
+  with a reviewed address and no hold, dispute, open request or risky-payment check. Unlike dispatch, it is allowed
+  before packing and while a pre-order awaits release. It must leave something unsent: sending everything is dispatch.
+- It appends to the public `partShipments` (`{ id: "pN", lines: [{ line, title, quantity }], tracking…, shippedAt }`) and
+  never changes `fulfillmentStatus`/`status`. The order becomes shipped only through the normal dispatch of the rest.
+  `orderAccess.js` exposes `partShipments`, and the tracking page lists each parcel (region `trackingParts`, words
+  Text & labels › Order tracking `trackPartsTitle`/`trackPartsText`/`trackPartTrack`).
+- `onOrderUpdated` sends the editable `part_shipped` email once per new part (claim `shippedPart_<id>`, so the outbox
+  drops it after a refund or cancel like `shipped`). It sits under its own switch in Notifications › Part Shipped, and
+  `{{items_list}}` is one line per item.
+- **Take items off before shipping (plan 24.6, part A):** Orders › order › ⋯ › **Take items off this order** opens the
+  refund dialog in a take-off mode: pick copies per line (at most `copiesToSend`), the amount fills from
+  `linePricing(item).unit` × copies (typing turns that off), restock is on, and the normal partial refund path saves
+  `partialRestockedItems`. `fulfillment.copiesToSend(o, index)` = ordered − sent in parts − taken off; `itemsToPack(o)`
+  drives the packing checklist, pick list, packing slip and suggested label weight, so the rest's label weighs only what
+  is left. `packingKey` adds the count only for a changed line, so orders packed before this keep their key.
+  The amount fills from `copiesValueMinor` (payment currency, like returns). Take-off is always a partial refund: no
+  ticked line, a blank amount or everything left is refused (`takeOffProblem`), since those mean the full refund that
+  cancels the order. `refundPlan` refuses past orders brought over (`source: "import"`): they are refunded in the old shop.
+- **Add items to a paid order (plan 24.6, part B):** Orders › order › ⋯ › **Add items to this order** opens the payment-link
+  dialog (`PaymentLinkDialog` `addTo`) filled from the order (`linkFormForAddOn`: customer, address, shipping 0, 14 days,
+  a note). The request carries `shipsWith`; `paymentLinks.js` checks the first order with `addOnParentProblem` (paid,
+  active, not left; the admin's `addItemsProblem` matches it) and stamps `shipsWith` on the new order only, so the
+  first order's triggers never fire. Payment, tax and stock run through the normal payment-link path. `AddedItemsCard`
+  lists the added orders on the first one (`getOrdersShippingWith`) and points the added order back to it.
+- **Guards (3 November 2026):** `priceOrder` refuses to price an added order whose first order is gone, cancelled or
+  fully refunded (`addOnParentClosed`, message `LINK_MESSAGES.parentClosed`), so its link takes no payment. A partially
+  refunded first order (items taken off) can still take more. Before the rest is dispatched, a refund's restock skips
+  copies sent ahead in a part (`returns.unsentItems`, used by `returnRestockItems`), so they never go back on the shelf.
+- **Customers add items themselves (plan 24.6):** the tracking page's **Add something to this order** (region
+  `trackingAddItems`, `features/site/AddToOrderBox.tsx`, words Text & labels › Order tracking › Parcels & adding to an
+  order) posts `action: "addToOrder"` with the order's access headers. `handleCustomerAddOn` (paymentLinks.js) checks the
+  key or signed-in email (`canViewOrder`), `addOnParentProblem`, 1 to 10 lines of 1 to 20 copies, no gift cards, and at
+  most 3 unpaid added orders, then makes the same linked order as the owner's Add items (`createLinkOrder`): shop prices
+  only (browser prices are ignored), shipping 0 or nothing to ship for pickup, 3 days to pay, `addedByCustomer: true`,
+  source still `payment_link` so the sweep, reminder and stock holds follow it. The page then opens the new order to pay.
+  Owners who don't want it hide the region in Studio.
+- **One line everywhere (plan 24.9):** Overview › Running low (`OverviewStock` `lowLine`), the Books list badges
+  (`catalogList.stockInfo(book, getBook, line)`) and the book editor read the same `lowStockThreshold(settings)`. Before
+  this they used a fixed 5.
+
+## Social posts (4 November 2026, platform plan 27.4)
+
+`socialLink.js` passes the admin's Sales channels / Social posts steps to the platform social service
+(`shopConfig.platformSocialUrl`) with the shop's service key. Posts live in `socialPosts` (rules: server only; indexes
+on status + sendAt and status + claimedAt). `socialPostSweep` (every 5 minutes, in the tick registry) claims due posts
+in a transaction (stale after 15 minutes) and publishes each once per place; product links carry `utm_source`.
+Round two (plan 27.11-27.12): `savePost` makes a square JPEG copy through `makeSquare` (`socialPicture.js`, sharp,
+`social/<postId>.jpg`; the original stays in `photoUrl`); `runDuePosts` calls `onFailed` for a scheduled post that ends
+failed or partly, which emails the owner (`failedPostEmail`, queue `socialPostFailed`) unless `shopAlerts.socialPostFailed` is false.

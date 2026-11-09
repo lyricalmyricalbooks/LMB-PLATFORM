@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { bookCreators } from "../../lib/bookSeo";
 import { PRODUCT_KINDS, productKind } from "../../../shared/productOptions";
 // @ts-ignore - plain ESM shared with the build script
-import { apparelAudience, creatorNames, gtinOf, kindOf, merchantFeedItems, merchantFeedXml, releaseArrived as feedRelease, stockOf, bundleStock, unitPrice, preorderDate } from "./merchantFeed.mjs";
+import { apparelAudience, creatorNames, gtinOf, kindOf, merchantFeedItems, merchantFeedXml, releaseArrived as feedRelease, stockOf, bundleStock, unitPrice, preorderDate, wasPrice as feedWasPrice } from "./merchantFeed.mjs";
+import { wasPrice as shopWasPrice } from "./displayPrice";
 // @ts-ignore - plain ESM build helper
 import { releaseArrived as buildRelease } from "../../../../scripts/publicStorefrontData.mjs";
 // @ts-ignore - CommonJS server modules
@@ -165,5 +166,22 @@ describe("products beyond books (plan 10.21)", () => {
     expect(gtinOf("96385074")).toBe("96385074");
     expect(gtinOf("123")).toBe("");
     for (const kind of [...PRODUCT_KINDS, "nonsense", "", undefined]) expect(kindOf({ kind }), String(kind)).toBe(productKind({ kind }));
+  });
+});
+
+describe("Google Shopping shows the same honest was-price as the shop (legal review, 3 November 2026)", () => {
+  const sale = { id: "w", title: "Raised", retailPrice: 40, isOnSale: true, salePrice: 30, photos: photo("w") };
+  const raised = { ...sale, priceHistory: [{ price: 35, until: "2026-10-01T00:00:00Z" }] };
+  const inflated = { ...sale, id: "x", priceHistory: [{ price: 25, until: "2026-10-01T00:00:00Z" }] };
+  it("lists the 30-day lowest as the price, and claims no sale when the sale price isn't below it", () => {
+    const { items } = merchantFeedItems(SITE, [raised, inflated], { now });
+    const byId = Object.fromEntries(items.map((item: any) => [item.id, item]));
+    expect(byId.w).toMatchObject({ price: "35.00 CAD", salePrice: "30.00 CAD" });
+    expect(byId.x).toMatchObject({ price: "30.00 CAD", salePrice: "" });
+  });
+  it("uses the same rule as the shop pages", () => {
+    for (const book of [sale, raised, inflated, { ...sale, saleStartsAt: "2026-09-20", priceHistory: [{ price: 20, until: "2026-09-01T00:00:00Z" }] }]) {
+      expect(feedWasPrice(book, now)).toBe(shopWasPrice(book, now));
+    }
   });
 });

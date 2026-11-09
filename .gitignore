@@ -5,3 +5,7 @@ node_modules/
 # The demo shop's working files and saved data (demo/run.js)
 .demo/
 .claude/worktrees/
+# The hosted server's real settings (server/deploy.js); server/env.example.yaml is the template
+server/env.yaml
+# The built platform site (site/build.js)
+site/out/

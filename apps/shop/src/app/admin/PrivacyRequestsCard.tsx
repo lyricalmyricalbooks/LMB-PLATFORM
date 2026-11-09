@@ -7,7 +7,8 @@ import { DestructiveButton, EmptyState, ErrorState, SecondaryButton, SectionCard
 /**
  * Settings › General › Privacy requests. Shoppers ask from the order-tracking page
  * ("copy of my data" / "delete my data"); anyone can ask, so the owner confirms the
- * person owns the address (reply from it) before exporting or erasing. Erasing keeps
+ * person owns the address (reply from it) before exporting or erasing. A request made from the shopper's signed-in
+ * account is already confirmed (`verified`): approve it with one tap. Erasing keeps
  * paid orders, which are tax and accounting records; orders that were never paid lose the
  * customer's details too, and gift cards lose names, emails and messages.
  */
@@ -86,13 +87,13 @@ export function PrivacyRequestsCard() {
     <li key={r.id} className="rp-row" style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid var(--rp-hairline, currentColor)" }}>
       <div style={{ minWidth: 0 }}>
         <strong>{r.email}</strong>{" "}
-        <StatusBadge tone={r.status === "open" ? "warning" : "success"}>{r.status === "open" ? (r.type === "delete" ? "Wants data deleted" : "Wants a copy") : r.status}</StatusBadge>
+        <StatusBadge tone={r.status === "open" ? "warning" : "success"}>{r.status === "open" ? (r.type === "delete" ? "Wants data deleted" : "Wants a copy") : r.status}</StatusBadge>{r.verified === true && <>{" "}<StatusBadge tone="success">Signed in: address confirmed</StatusBadge></>}
         <p className="rp-hint" style={{ margin: "4px 0 0" }}>{new Date(r.createdAt).toLocaleString()}{r.message ? ` · “${r.message}”` : ""}</p>
       </div>
       {r.status === "open" && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <SecondaryButton size="sm" disabled={!!busy} onClick={() => exportData(r.email, r.id)}>Download their data</SecondaryButton>
-          {r.type === "delete" && <DestructiveButton size="sm" disabled={!!busy} onClick={() => eraseData(r.email, r.id)}>Delete their data</DestructiveButton>}
+          {r.type === "delete" && <DestructiveButton size="sm" disabled={!!busy} onClick={() => eraseData(r.email, r.id)}>{r.verified === true ? "Approve and delete their data" : "Delete their data"}</DestructiveButton>}
           <SecondaryButton size="sm" disabled={!!busy} onClick={() => closeRequest(r)}>Close without action</SecondaryButton>
         </div>
       )}

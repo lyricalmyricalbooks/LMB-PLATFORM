@@ -98,7 +98,7 @@ check('/index.html', { status: 301, location: '/' });
 if (existsSync(resolve(dist, 'prerender-routes.xml'))) {
   const siteUrl = process.env.SITE_URL || (live ? base : '');
   const routes = siteUrl ? publicRoutes(await read('prerender-routes.xml'), siteUrl, () => {}) : [];
-  for (const kind of ['books', 'page', 'collections']) {
+  for (const kind of ['books', 'products', 'page', 'collections']) {
     const route = routes.find(r => r.startsWith(`/${kind}/`) && existsSync(resolve(dist, routeOutputPath(r))));
     if (!route) continue;
     const snapshot = await read(routeOutputPath(route));
@@ -110,6 +110,7 @@ if (existsSync(resolve(dist, 'prerender-routes.xml'))) {
 
 // App routes without a prerendered page get the app shell with 200; private pages also carry X-Robots-Tag: noindex.
 check('/books/zz-hosting-smoke-not-a-book', appShell);
+check('/products/zz-hosting-smoke-not-a-product', appShell);
 for (const path of ['/account', '/account/orders', '/admin', '/checkout?cartId=smoke', '/track?orderId=smoke&key=smoke', '/wishlist']) {
   check(path, { ...appShell, noindex: true });
 }
@@ -132,7 +133,7 @@ if (existsSync(resolve(dist, 'seo-published-fingerprint.txt'))) {
   if (!isFingerprint(fingerprint)) failures.push('dist/seo-published-fingerprint.txt is not a SHA-256 fingerprint');
   check('/seo-published-fingerprint.txt', { status: 200, cache: 'no-cache', match: new RegExp(`^${fingerprint}\\s*$`) });
 }
-for (const file of ['sitemap.xml', 'robots.txt', 'google-merchant-feed.xml', 'llms.txt']) {
+for (const file of ['sitemap.xml', 'robots.txt', 'google-merchant-feed.xml', 'social-product-feed.csv', 'llms.txt']) {
   if (existsSync(resolve(dist, file))) check(`/${file}`, { status: 200, cache: 'no-cache' });
 }
 

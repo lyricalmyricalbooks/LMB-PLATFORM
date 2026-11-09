@@ -29,7 +29,7 @@ describe("funnel analytics in the editor preview", () => {
   afterEach(() => { delete (globalThis as any).window; });
 
   it("counts a real shopper event", async () => {
-    (globalThis as any).window = { location: { search: "" } };
+    (globalThis as any).window = { location: { search: "" }, localStorage: { getItem: () => JSON.stringify({ necessary: true, analytics: true, marketing: true }) } };
     await funnelApi.track("add_to_cart");
     expect(setDoc).toHaveBeenCalledTimes(1);
   });

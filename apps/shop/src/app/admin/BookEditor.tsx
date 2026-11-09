@@ -1,3 +1,5 @@
+import { sizeGuideStarter } from "./sizeGuideStarters";
+import { kindHint } from "./kindFieldHints";
 import { CatalogReviewDialog } from "./CatalogReviewDialog";
 import { useState, useEffect, useRef } from "react";
 import { 
@@ -54,7 +56,10 @@ import { useCurrency } from "../CurrencyContext";
 import { BookCustomFields } from "./BookCustomFields";
 import { BookTemplatePicker } from "./BookTemplatePicker";
 import { BUILTIN_DETAILS, builtinDetailValue, editorDetailRows, type DetailRow } from "../features/site/detailRows";
-import { ActionMenu, ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs, useConfirm } from "./riso/components";
+import { ActionMenu, SecondaryButton, ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs, useConfirm } from "./riso/components";
+import { combinedAdmin } from "./combined";
+import { StockroomBookPanel } from "./StockroomBookPanel";
+import { stockroomBridge } from "./stockroomBridge";
 import "./books.css";
 import { uploadBookPhoto } from "./bookPhotoUpload";
 import { BOOK_VIDEO_ACCEPT, MAX_BOOK_VIDEOS, MAX_BOOK_VIDEO_BYTES, formatMegabytes, isVideoFile, uploadBookVideo, videoProblem } from "./bookVideoUpload";
@@ -73,22 +78,24 @@ import { preorderActive, releaseDateOf, formatReleaseDate } from "../features/si
 import { customsDefaultsFor, validHsCode } from "./customsFields";
 import { AddOnsEditor, BoxSetEditor, ProductTypeCard, SaleWindowFields } from "./BookEditorExtras";
 import { ProductOptionsEditor } from "./ProductOptionsEditor";
-import { goodsWords, startingKind } from "./sells";
+import { currentSells, goodsWords, startingKind } from "./sells";
 import { adoptEditions, isBookKind, productKind, usesOptionPicker, variantsForOptions, type ProductKind, type ProductOption } from "../../shared/productOptions";
 import { MediaLibraryDialog, WeightField, DescriptionLinkDialog } from "./BookEditorFields";
 import { applyFormat, linkMarkup, type FormatAction } from "../features/site/descriptionLinks";
 import { DescriptionText } from "../features/site/DescriptionText";
 import { editorDirty, fillEmpty, isbnWarning, lookupIsbn, needsPublishReview, slugClash, slugFollowsTitle, slugLocked, slugifyTitle, withMetricWeights } from "./bookEditorState";
 import { LOW_STOCK } from "./catalogList";
+import { lowStockThreshold } from "./inventoryInsights";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { isStockLinked, type InventoryLinks } from "./inventoryLink";
 import { releaseArrived } from "../features/site/liveBook";
 import { DETAILS_FIELD_TAB, detailsSubTabs, shownDetailsSubTab, type DetailsSubTab } from "./bookDetailsTabs";
 import { addOnProblems, bundleProblems, giftCardProblems, isBoxSet, isGiftCardProduct, productForSave, saleStatus, saleWindowProblem } from "./productExtras";
+import { productHref } from "../lib/productHref";
 
 const MAX_BOOK_PHOTOS = 50;
 
-type BookTab = "details" | "media" | "pricing" | "inventory" | "editions" | "addons" | "boxset" | "organize" | "more" | "seo";
+type BookTab = "details" | "media" | "pricing" | "inventory" | "stock" | "editions" | "addons" | "boxset" | "organize" | "more" | "seo";
 
 function SortablePhoto({ photo, index, onRemove, onAlt, onMakeCover, onCrop, onDescribe, describing, aiLocked }: {
   photo: any; index: number; onRemove: (id: string) => void; onAlt: (id: string, alt: string) => void; onMakeCover: (id: string) => void;
@@ -151,6 +158,9 @@ const DESC_TOOLS: { action: FormatAction; label: string; Icon: typeof Bold }[] =
   { action: "quote", label: "Quote", Icon: Quote },
   { action: "divider", label: "Divider line", Icon: Minus },
 ];
+
+// The combined admin (shop + stockroom plan): the book page has a Stock and sales tab from the stockroom.
+const COMBINED_ADMIN = combinedAdmin();
 
 export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, onCreated }: BookEditorProps) {
   const { rates } = useCurrency();
@@ -226,6 +236,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
 
   // Plan 10.23: the editor's words follow the product's kind: "Product images" for a shirt, "Book images" for a book.
   const w = isBookKind(productKind(formData)) ? (text: string) => text : goodsWords;
+  const addressExample = isBookKind(productKind(formData)) ? "your-book" : "your-product";
   const [publishReview, setPublishReview] = useState(false);
   const [shippingProfiles, setShippingProfiles] = useState<any[]>([]);
   const [authors, setAuthors] = useState<any[]>([]);
@@ -246,6 +257,8 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   // Books › edit › Images › Crop & edit (PhotoCropDialog); the design gives the shop's frame shapes.
   const [cropId, setCropId] = useState<string | null>(null);
   const [liveDesign, setLiveDesign] = useState<any>(null);
+  // Inventory's low-stock line (Inventory › Low-stock at or below), the same line Overview and the 8am email use.
+  const [lowLine, setLowLine] = useState(LOW_STOCK);
   const uploadingRef = useRef(false);
   const [metadataError, setMetadataError] = useState(false);
   const [photoInput, setPhotoInput] = useState("");
@@ -377,7 +390,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
       // (sells.ts). The starting kind isn't an edit, so it goes into both the form and what "unsaved" compares with.
       if (!(prefill as any)?.kind) {
         Promise.resolve().then(() => adminApi.getFirstWeek()).then(doc => {
-          const kind = startingKind(doc?.publishes);
+          const kind = startingKind(currentSells(doc));
           if (kind === "book") return;
           const start = (prev: any) => (prev && !prev.kind && !prev.id && !prev.productType ? { ...prev, kind, format: "" } : prev);
           setFormData(start);
@@ -514,6 +527,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
       setShippingProfiles(sh);
       setAuthors(au);
       setLiveDesign(settings?.design || null);
+      setLowLine(lowStockThreshold(settings));
       
       // Published categories only: a book can't be filed under a category shoppers can't see yet
       // (publish new Studio categories first).
@@ -570,6 +584,13 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [isDirty]);
+
+  // "Change stock in the stockroom": the stockroom's page for that book, inside the admin. Leaving drops unsaved edits.
+  const openInStockroom = async (stockroomBookId: string) => {
+    if (isDirty && !(await askConfirm({ title: "Leave without saving?", confirmLabel: w("Leave this book"),
+      message: w("Your changes to this book aren't saved yet. Save first to keep them.") }))) return;
+    stockroomBridge.openBook("dashboard", stockroomBookId);
+  };
 
   const handleClose = () => {
     if (isDirty) { setConfirmDiscard(true); return; }
@@ -1133,7 +1154,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
     if (!slug) return;
     try {
       if (!navigator.clipboard) throw new Error("no clipboard");
-      await navigator.clipboard.writeText(`${window.location.origin}${import.meta.env.BASE_URL}books/${slug}`);
+      await navigator.clipboard.writeText(`${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}${productHref(slug)}`);
       toast.success("Link copied");
     } catch {
       toast.error("Couldn't copy the link. Your browser blocked the clipboard.");
@@ -1156,7 +1177,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   const isbnWarn = isbnWarning(formData.isbn) || undefined;
   const addressLocked = slugLocked(initialData, slugUnlocked);
   const slugWarn =slugClash(formData.slug, book?.id, recommendationCatalog);
-  const lowStock = formData.trackInventory && !hasVariants && num(formData.stockLevel) <= LOW_STOCK;
+  const lowStock = formData.trackInventory && !hasVariants && num(formData.stockLevel) <= lowLine;
 
   const checklist = [
     { label: "Title", ok: !!formData.title?.trim(), tab: "details" as BookTab, field: "title" },
@@ -1168,7 +1189,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
     { label: "Search description", ok: !!formData.metaDescription, tab: "seo" as BookTab },
   ];
   const doneCount = checklist.filter((c) => c.ok).length;
-  const tabIssues: Record<BookTab, number> = { details: 0, media: 0, pricing: 0, inventory: 0, editions: 0, addons: 0, boxset: 0, organize: 0, more: 0, seo: 0 };
+  const tabIssues: Record<BookTab, number> = { details: 0, media: 0, pricing: 0, inventory: 0, stock: 0, editions: 0, addons: 0, boxset: 0, organize: 0, more: 0, seo: 0 };
   checklist.filter((c) => !c.ok).forEach((c) => { tabIssues[c.tab] += 1; });
   const detailsIssues: Partial<Record<DetailsSubTab, number>> = {};
   checklist.forEach((c) => {
@@ -1183,6 +1204,8 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
     { id: "media", label: "Images", count: (formData.photos || []).length },
     { id: "pricing", label: "Pricing", count: tabIssues.pricing || undefined },
     { id: "inventory", label: "Inventory & shipping" },
+    // The combined admin (shop + stockroom): the book's stock and sales on every channel, from the stockroom.
+    ...(COMBINED_ADMIN && book?.id && !giftCard && !boxSetOn ? [{ id: "stock" as BookTab, label: "Stock and sales" }] : []),
     { id: "editions", label: giftCard ? "Amounts" : "Editions", count: (formData.variants || []).length },
     // Add-ons and the box-set builder share one tab; gift cards have neither.
     ...(!giftCard ? [{ id: "boxset" as BookTab, label: "Add-ons & box set", count: (boxSetOn ? (formData.bundleItems || []).length : (formData.addOns || []).length) || undefined }] : []),
@@ -1204,7 +1227,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
     </div>
   );
 
-  const stockBadge = (n: number) => (n <= 0 ? <StatusBadge tone="danger">Out of stock</StatusBadge> : n <= LOW_STOCK ? <StatusBadge tone="warning">Low: {n}</StatusBadge> : <StatusBadge tone="success">{n} in stock</StatusBadge>);
+  const stockBadge = (n: number) => (n <= 0 ? <StatusBadge tone="danger">Out of stock</StatusBadge> : n <= lowLine ? <StatusBadge tone="warning">Low: {n}</StatusBadge> : <StatusBadge tone="success">{n} in stock</StatusBadge>);
 
   return (
     <div className="book-editor-riso w-full h-full flex flex-col relative overflow-hidden">
@@ -1225,7 +1248,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
         <div className="be-actions">
           {book && (
             <ActionMenu label={w("More for this book")} actions={[
-              ...((book.slug || formData.slug) ? [{ label: "Preview page (new tab)", icon: <ExternalLink size={14} aria-hidden />, onSelect: () => { window.open(`${import.meta.env.BASE_URL}books/${encodeURIComponent(book.id)}?preview=true`, "_blank", "noreferrer"); } }] : []),
+              ...((book.slug || formData.slug) ? [{ label: "Preview page (new tab)", icon: <ExternalLink size={14} aria-hidden />, onSelect: () => { window.open(`${import.meta.env.BASE_URL.replace(/\/$/, "")}${productHref(encodeURIComponent(book.id))}?preview=true`, "_blank", "noreferrer"); } }] : []),
               ...(book.slug ? [{ label: w("Copy link to this book"), icon: <Copy size={14} aria-hidden />, onSelect: () => void copyBookLink() }] : []),
               ...(book.slug && book.status === "published" ? [{ label: "Design this page", icon: <Palette size={14} aria-hidden />, onSelect: () => {
                 if (isDirty) { toast.error(w("Save the book first, then design its page in the Design studio.")); return; }
@@ -1306,7 +1329,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   <div className="be-span-2">
                     <TextField label="Web address (URL slug)" name="slug" value={formData.slug} onChange={handleChange} placeholder="the-book-slug"
                       readOnly={addressLocked}
-                      hint={addressLocked ? `/books/${formData.slug || "your-book"} — locked while the book is published, so existing links keep working.` : `/books/${formData.slug || "your-book"}`} error={slugWarn || undefined} />
+                      hint={addressLocked ? `${productHref(formData.slug || addressExample)} — locked while the book is published, so existing links keep working.` : productHref(formData.slug || addressExample)} error={slugWarn || undefined} />
                     <div className="be-inline-actions">
                       {addressLocked
                         ? <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => setConfirmSlug(true)}><RefreshCw size={13} aria-hidden /> Change web address</button>
@@ -1397,8 +1420,19 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   <TextField label="Page count" type="number" min={0} name="pageCount" value={formData.pageCount ?? 0} onChange={handleChange} />
                   <TextField label="Language" name="language" value={formData.language || ""} onChange={handleChange} placeholder="English" />
                   </> : <>
-                  <TextField label="Material" name="material" value={formData.material || ""} onChange={handleChange} placeholder="e.g. 100% organic cotton" />
-                  <TextField label="Care" name="care" value={formData.care || ""} onChange={handleChange} placeholder="e.g. Machine wash cold" />
+                  <TextField label={kindHint(productKind(formData)).materialLabel} name="material" value={formData.material || ""} onChange={handleChange} placeholder={kindHint(productKind(formData)).materialExample} />
+                  <div>
+                    <TextField label="Care" name="care" value={formData.care || ""} onChange={handleChange} placeholder={kindHint(productKind(formData)).careExample} />
+                    {!String(formData.care || "").trim() && kindHint(productKind(formData)).careStarters.length > 0 && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "6px 0 10px" }}>
+                        {kindHint(productKind(formData)).careStarters.map((s, i) => (
+                          <SecondaryButton key={i} size="sm" onClick={() => setFormData((prev: any) => ({ ...prev, care: s }))}>
+                            Use: {s.length > 34 ? s.slice(0, 33).trimEnd() + "…" : s}
+                          </SecondaryButton>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   {["clothing", "shoes"].includes(productKind(formData)) && <>
                     <SelectField label="Google Shopping: for" name="googleGender" value={formData.googleGender || ""} onChange={handleChange} hint="Google asks clothing and shoes who they are for. Blank = unisex.">
                       <option value="">Unisex (default)</option>
@@ -1417,6 +1451,12 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                     <TextArea label="Size guide" name="sizeChart" value={formData.sizeChart || ""} onChange={handleChange} rows={5}
                       placeholder={"e.g.\nS: chest 36 in, length 27 in\nM: chest 40 in, length 28 in"}
                       hint="Optional. Fill it in (or choose a picture below) and the product page gets a Size guide tab." />
+                    {!String(formData.sizeChart || "").trim() && sizeGuideStarter(productKind(formData)) && (
+                      <SecondaryButton size="sm" style={{ margin: "6px 0 10px" }}
+                        onClick={() => setFormData((prev: any) => ({ ...prev, sizeChart: sizeGuideStarter(productKind(prev)) }))}>
+                        Start from a typical size guide
+                      </SecondaryButton>
+                    )}
                     <SelectField label="Size guide picture" name="sizeChartPhoto" value={formData.sizeChartPhoto || ""} onChange={handleChange}>
                       <option value="">— None —</option>
                       {(formData.photos || []).map((p: any, idx: number) => isVideoItem(p) ? null : <option key={p.id || idx} value={p.url}>Image {idx + 1}{p.altText ? ` (${p.altText})` : ""}</option>)}
@@ -1619,6 +1659,11 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
             </>
           )}
 
+          {shownTab === "stock" && book?.id && (
+            <StockroomBookPanel book={{ id: book.id, title: formData.title, isbn: formData.isbn, variants: formData.variants || [] }}
+              links={stockLinks} linksFailed={stockLinksFailed} onLinks={setStockLinks} words={w} onOpen={openInStockroom} />
+          )}
+
           {shownTab === "inventory" && (
             <>
               {giftCard ? (
@@ -1698,6 +1743,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   <SelectField label="Shipping profile" name="shippingProfileId" value={formData.shippingProfileId} onChange={handleChange}>
                     {shippingProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </SelectField>
+                  <TextField label="Made to order: ships in" name="madeToOrderTime" value={formData.madeToOrderTime || ""} onChange={handleChange} placeholder="2 to 3 weeks" maxLength={40} hint="Leave empty if you ship it from stock. Shoppers see “Made to order · ships in …” on the product page." />
                 </div>
               </SectionCard>}
               {isDigital && !giftCard && (

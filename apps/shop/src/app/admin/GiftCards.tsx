@@ -1,20 +1,26 @@
 // Admin › Gift cards: every card the shop has sold or issued, its balance and history.
 // Cards are read straight from Firestore (admin-only); every change (issue, disable, adjust,
 // resend) goes through the server's giftCardAdmin action, which keeps balances and history right.
-import { useEffect, useMemo, useState } from "react";
-import { Copy, Download, Plus } from "lucide-react";
+import { recordMoveStep } from "./moveProgress";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Copy, Download, Plus, Upload } from "lucide-react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
 import { copyText } from "./clipboard";
 import { useShopWords } from "./shopWords";
 import {
-  DataTable, DestructiveButton, Dialog, Drawer, EmptyState, ErrorState, FilterBar, LoadingState, MetricCard, PrimaryButton, SearchField,
+  DataTable, PageActions, DestructiveButton, Dialog, Drawer, EmptyState, ErrorState, FilterBar, LoadingState, MetricCard, PrimaryButton, SearchField,
   SecondaryButton, SectionCard, StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm, type Column,
 } from "./riso/components";
 import {
   createdTime, dollarsToMinor, formatMinor, giftCardStatus, giftCardsCsv, historyAmount, historyLabel, historyTime, issuePayload, maskedCode, matchesGiftCard,
   type GiftCardStatus,
 } from "./giftCardsAdmin";
+import { batches, readGiftCardFile, type GiftCardFile } from "./giftCardMove";
+import { shopDate } from "../features/site/preorder";
+import { SPREADSHEET_ACCEPT, readProblem, readSpreadsheet, type SpreadsheetRead } from "./spreadsheetFile";
+import { GoogleSheetLink } from "./GoogleSheetLink";
+import { FirstRows, SheetChoice } from "./SheetChoice";
 
 type Filter = "all" | GiftCardStatus["key"];
 const LINK = { color: "inherit", textDecoration: "underline", textUnderlineOffset: 2 } as const;
@@ -28,6 +34,7 @@ function Source({ card }: { card: any }) {
   if (card.source === "order" && card.orderId) {
     return <a style={LINK} href={`#orders/${encodeURIComponent(card.orderId)}`}>Bought in order {card.orderId}</a>;
   }
+  if (card.source === "import") return <span>Brought over from your old shop</span>;
   return <span>Issued by you</span>;
 }
 
@@ -104,6 +111,117 @@ function IssueDialog({ onClose, onIssued }: { onClose: () => void; onIssued: () 
         <TextField label="Internal note (optional)" maxLength={500} value={form.note} onChange={(e) => set("note", e.target.value)} hint="Only you see this, e.g. “Poetry night raffle prize”." />
         <Toggle label="Email the code to the recipient" checked={form.sendEmail} onChange={(v) => set("sendEmail", v)} />
         <p className="rp-hint" style={{ margin: 0 }}>Uses the “Gift card” email in Settings › Email sender.</p>
+      </div>
+    </Dialog>
+  );
+}
+
+/**
+ * Bring gift cards over (plan 23.5): the old shop's gift card file → a preview → the server writes the cards, keeping
+ * each balance (and each code, when the file has it whole). Bringing the same file again adds nothing.
+ */
+export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [name, setName] = useState("");
+  const [file, setFile] = useState<GiftCardFile | null>(null);
+  const [sendEmail, setSendEmail] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState<null | { added: number; emailed: number; emailFailed: number; skipped: { line: number; reason: string }[] }>(null);
+
+  const [book, setBook] = useState<{ file: File } & SpreadsheetRead | null>(null);
+  const choose = async (picked: File | undefined, sheet?: string) => {
+    if (!picked) return;
+    setError(""); setResult(null); setName(picked.name); if (!sheet) setBook(null);
+    if (picked.size > 5 * 1024 * 1024) { setFile(null); setError("That file is larger than 5 MB. Split it and bring the parts one at a time."); return; }
+    try { const read = await readSpreadsheet(picked, sheet); setBook({ file: picked, ...read }); setFile(readGiftCardFile(read.text, shopDate())); }
+    catch (err) { setFile(null); setError(readProblem(err)); }
+  };
+
+  const bring = async () => {
+    if (!file?.cards.length || busy) return;
+    setBusy(true); setError("");
+    const lineOf = new Map(file.cards.map((c) => [c.oldRef, c.line]));
+    const done = { added: 0, emailed: 0, emailFailed: 0, skipped: [] as { line: number; reason: string }[] };
+    try {
+      for (const batch of batches(file.cards.map(({ line: _line, lastChars: _last, ...card }) => card))) {
+        const answer = await adminApi.giftCardAdmin("import", { cards: batch, sendEmail: sendEmail && file.canEmail > 0 });
+        done.added += Number(answer.added) || 0;
+        done.emailed += Number(answer.emailed) || 0;
+        done.emailFailed += Number(answer.emailFailed) || 0;
+        for (const s of Array.isArray(answer.skipped) ? answer.skipped : []) done.skipped.push({ line: lineOf.get(s.oldRef) ?? 0, reason: String(s.reason || "skipped") });
+      }
+      if (done.added) void recordMoveStep("move-giftcards");
+      setResult(done);
+      onDone();
+    } catch (err: any) {
+      // Bringing the file again is always safe: cards already here are skipped.
+      setError(`${err?.message || "The gift cards couldn't be brought over."} Choose the same file again to finish: cards already brought over are skipped.`);
+      if (done.added) onDone();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+  const skippedList = (rows: { line: number; reason: string }[]) => rows.length > 0 && (
+    <details>
+      <summary className="rp-hint">{plural(rows.length, "line")} left out</summary>
+      <ul className="rp-hint" style={{ margin: "6px 0 0", paddingLeft: 18, maxHeight: 200, overflow: "auto" }}>
+        {rows.slice(0, 200).map((r, i) => <li key={`${r.line}-${i}`}>{r.line ? `Line ${r.line}: ` : ""}{r.reason}</li>)}
+      </ul>
+    </details>
+  );
+
+  if (result) {
+    return (
+      <Dialog open onClose={onClose} title="Gift cards brought over" badge="🎁" footer={<PrimaryButton onClick={onClose}>Done</PrimaryButton>}>
+        <div className="rp-stack" style={{ gap: 12 }} role="status">
+          <StatusBadge tone={result.added ? "success" : "neutral"}>{plural(result.added, "gift card")} added</StatusBadge>
+          {result.emailed > 0 && <p className="rp-hint" style={{ margin: 0 }}>{plural(result.emailed, "holder")} {result.emailed === 1 ? "was" : "were"} emailed a new code.</p>}
+          {result.emailFailed > 0 && <p className="rp-error-text" style={{ margin: 0 }}>{plural(result.emailFailed, "email")} couldn't be sent. Open those cards and use “Resend email” once the problem is fixed.</p>}
+          {skippedList(result.skipped)}
+        </div>
+      </Dialog>
+    );
+  }
+
+  return (
+    <Dialog open onClose={() => { if (!busy) onClose(); }} title="Bring gift cards over" badge="🎁" size="lg"
+      description="Choose the gift card file from your old shop. Every card with money left comes over with its balance, so the people holding them can still spend them."
+      footer={<>
+        <SecondaryButton disabled={busy} onClick={onClose}>Cancel</SecondaryButton>
+        <PrimaryButton disabled={busy || !file?.cards.length} onClick={bring}>
+          {busy ? "Bringing them over…" : file?.cards.length ? `Bring ${plural(file.cards.length, "gift card")} over` : "Nothing to bring over"}
+        </PrimaryButton>
+      </>}>
+      <div className="rp-stack" style={{ gap: 12 }}>
+        <input ref={fileRef} type="file" accept={SPREADSHEET_ACCEPT} hidden aria-label="Gift card file"
+          onChange={(e) => { void choose(e.target.files?.[0]); e.target.value = ""; }} />
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+          <SecondaryButton icon={<Upload size={16} aria-hidden />} disabled={busy} onClick={() => fileRef.current?.click()}>{name ? "Choose another file" : "Choose the file"}</SecondaryButton>
+          <GoogleSheetLink disabled={busy} onFile={(f) => void choose(f)} />
+          {name && <span className="rp-mono" style={{ overflowWrap: "anywhere" }}>{name}</span>}
+          {book && <SheetChoice sheets={book.sheets} sheet={book.sheet} disabled={busy} onChange={(s) => void choose(book.file, s)} />}
+        </div>
+        {book && <FirstRows text={book.text} />}
+        {!file && <p className="rp-hint" style={{ margin: 0 }}>In your old shop, open its gift cards page and export them as a CSV or Excel file.</p>}
+        {error && <p role="alert" className="rp-error-text" style={{ margin: 0 }}>{error}</p>}
+        {file && (file.problems.length ? (
+          <div role="alert" className="rp-error-text">{file.problems.map((p) => <p key={p} style={{ margin: 0 }}>{p}</p>)}</div>
+        ) : (
+          <>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }} aria-live="polite">
+              <StatusBadge tone="info">{plural(file.cards.length, "gift card")}</StatusBadge>
+              <StatusBadge tone="neutral">{formatMinor(file.totalMinor)} in balances</StatusBadge>
+            </div>
+            {file.keepCodes > 0 && <p className="rp-hint" style={{ margin: 0 }}>{plural(file.keepCodes, "card")} keep{file.keepCodes === 1 ? "s" : ""} {file.keepCodes === 1 ? "its" : "their"} code, so {file.keepCodes === 1 ? "it works" : "they work"} at checkout just as before.</p>}
+            {file.newCodes > 0 && <p className="rp-hint" style={{ margin: 0 }}>Your old shop's file hides the full code of {plural(file.newCodes, "card")}, so {file.newCodes === 1 ? "it gets" : "they get"} a new code here. The old code won't work in this shop.</p>}
+            {file.canEmail > 0 && <Toggle label={`Email the ${plural(file.canEmail, "holder")} with an email address their new code`} checked={sendEmail} onChange={setSendEmail} />}
+            {file.newCodes > file.canEmail && <p className="rp-hint" style={{ margin: 0 }}>{plural(file.newCodes - file.canEmail, "card")} with a new code {file.newCodes - file.canEmail === 1 ? "has" : "have"} no email address: open {file.newCodes - file.canEmail === 1 ? "it" : "them"} afterwards to copy the code and pass it on yourself.</p>}
+            {skippedList(file.skipped)}
+          </>
+        ))}
       </div>
     </Dialog>
   );
@@ -315,6 +433,7 @@ export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpen
   const [filter, setFilter] = useState<Filter>("all");
   const [selectedId, setSelectedId] = useState<string | null>(openId || null);
   const [issuing, setIssuing] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [ask, confirmNode] = useConfirm();
   const [exporting, setExporting] = useState(false);
 
@@ -373,19 +492,22 @@ export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpen
   };
 
   const issueButton = <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={() => setIssuing(true)}>Issue gift card</PrimaryButton>;
+  const importButton = <SecondaryButton icon={<Upload size={16} aria-hidden />} onClick={() => setImporting(true)}>Bring gift cards over</SecondaryButton>;
 
   return (
     <div className="rp-stack">
-      <div className="rp-kpi-grid">
+      {/* The page's main buttons sit by its title; the counts show once there is something to count. */}
+      {cards.length > 0 && <PageActions>{importButton}{issueButton}</PageActions>}
+      {cards.length > 0 && <div className="rp-kpi-grid">
         <MetricCard label="Active cards" value={counts.active} footer={`${cards.length} in total`} />
         <MetricCard label="Balance outstanding" value={formatMinor(outstanding)} footer="Still to be spent on active cards" />
         <MetricCard label="Sold in the shop" value={formatMinor(sold)} footer="Face value of cards bought by shoppers" />
-      </div>
+      </div>}
       {cards.length === 0 ? (
         <SectionCard>
           <EmptyState icon="🎁" title="No gift cards yet"
             description={w("Cards appear here when a shopper buys a gift-card product (Books › add a book › Product type: Gift card) or when you issue one yourself.")}
-            action={issueButton} />
+            action={<div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>{issueButton}{importButton}</div>} />
         </SectionCard>
       ) : (
         <>
@@ -400,7 +522,6 @@ export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpen
           <FilterBar>
             <div className="rp-grow"><SearchField label="Search gift cards" placeholder="Search by code, last 4 characters or email…" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
             <SecondaryButton icon={<Download size={16} aria-hidden />} onClick={() => setExporting(true)}>Export CSV</SecondaryButton>
-            {issueButton}
           </FilterBar>
           <SectionCard flush collapsible={false} title="Gift cards" description={`${rows.length} of ${cards.length}. Open one to see its code, change it or resend it.`}>
             <DataTable caption="Gift cards" columns={columns} rows={rows} rowKey={(r) => r.card.id} onRowClick={(r) => setSelectedId(r.card.id)}
@@ -426,6 +547,7 @@ export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpen
         </Dialog>
       )}
       {issuing && <IssueDialog onClose={() => setIssuing(false)} onIssued={load} />}
+      {importing && <ImportDialog onClose={() => setImporting(false)} onDone={load} />}
       {confirmNode}
     </div>
   );

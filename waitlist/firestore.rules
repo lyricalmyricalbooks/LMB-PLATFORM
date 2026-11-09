@@ -27,28 +27,13 @@ service cloud.firestore {
         && request.resource.data.signups == 1;
     }
 
-    // The setup record (signup/pressRecord.js, code plan 18.2). Only the press's owner reads it and changes its setup
-    // answers; the platform's own server changes its status. A press cannot set its status, owner or creation time.
+    // The setup record (signup/pressRecord.js, code plan 18.2). The press's owner may read it. Only the platform's own
+    // server writes it (signup/frontDoor.js), which checks every answer against the choices on the page and moves the
+    // status; a signed-in person can't create, change or delete one directly.
     match /presses/{pressId} {
-      allow read: if request.auth != null && resource.data.ownerUid == request.auth.uid;
-      allow create: if request.auth != null
-        && request.resource.data.ownerUid == request.auth.uid
-        && request.resource.data.status == "setup"
-        && request.resource.data.keys().hasOnly(["pressId", "ownerUid", "ownerEmail", "status", "pressName", "sells",
-            "country", "look", "stagedImportPath", "createdAt", "lastSeenAt"])
-        && request.resource.data.keys().hasAll(["pressId", "ownerUid", "ownerEmail", "status", "createdAt", "lastSeenAt"]);
-      allow update: if request.auth != null
-        && resource.data.ownerUid == request.auth.uid
-        && resource.data.status == "setup"
-        && request.resource.data.ownerUid == resource.data.ownerUid
-        && request.resource.data.status == resource.data.status
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.keys().hasOnly(["pressId", "ownerUid", "ownerEmail", "status", "pressName", "sells",
-            "country", "look", "stagedImportPath", "createdAt", "lastSeenAt"])
-        && text(request.resource.data.get("pressName", ""), 0, 120)
-        && text(request.resource.data.get("sells", ""), 0, 300)
-        && text(request.resource.data.get("country", ""), 0, 2);
-      allow delete: if false;
+      allow read: if request.auth != null && request.auth.token.email_verified == true
+        && resource.data.ownerUid == request.auth.uid;
+      allow create, update, delete: if false;
     }
 
     // status/publish.js writes it with the platform's token; it names no shop (status/summary.js).

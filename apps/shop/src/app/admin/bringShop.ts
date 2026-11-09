@@ -38,14 +38,14 @@ const HELP: Record<BringAnswer, string[]> = {
   ],
   fairs: [
     "Fairs don't usually keep a product list, so start with your stock sheet: one row per book, with its title, its price and how many you have.",
-    "In your spreadsheet program, save it as a CSV file (File, then Save as, then CSV).",
+    "Choose that spreadsheet as it is: Excel, CSV and LibreOffice files all work.",
   ],
   bookshops: [
     "You don't need your stockist list to bring books over. Export your book list from wherever you keep it, such as a spreadsheet.",
-    "Save that list as a CSV file.",
+    "Choose that list as it is: Excel, CSV and LibreOffice files all work.",
   ],
   spreadsheet: [
-    "Save your list of books as a CSV file.",
+    "Choose your spreadsheet as it is: Excel, CSV and LibreOffice files all work.",
     "The column names don't have to match exactly. Any column the shop doesn't know is listed as ignored in the preview.",
   ],
   nowhere: [

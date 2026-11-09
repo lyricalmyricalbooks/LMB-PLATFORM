@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
-import { createAccounts, INVITE_DAYS, ROLES } from "./accounts.js";
+import { createAccounts, INVITE_DAYS, MAX_PENDING_INVITES, ROLES } from "./accounts.js";
 import { accountRoutes } from "./routes.js";
 import { fakeAccountStores, fakeShopData } from "./fakes.js";
 import { createApi } from "../signup/api.js";
@@ -150,6 +150,9 @@ test("invites: bad input is refused in plain words, a second invite replaces the
   const w = world();
   const bad = await w.ask(OWNER, "POST", "/api/accounts/invite", { shopId: SHOP, email: "not-an-email", role: "staff" });
   assert.deepEqual([bad.status, bad.body.problems.email], [400, "Enter the email address to invite."]);
+  // A "/" would break the membership's record id later; it is refused here in plain words instead.
+  const slash = await w.ask(OWNER, "POST", "/api/accounts/invite", { shopId: SHOP, email: "cal/x@example.com", role: "staff" });
+  assert.deepEqual([slash.status, slash.body.problems?.email], [400, "Enter the email address to invite."]);
   assert.equal((await w.ask(OWNER, "POST", "/api/accounts/invite", { shopId: SHOP, email: CAL.email, role: "boss" })).status, 400);
   assert.equal((await w.ask(OWNER, "POST", "/api/accounts/invite", { shopId: SHOP, email: OWNER.email, role: "staff" })).status, 409, "the shop's own owner");
 
@@ -195,7 +198,7 @@ test("roles change and people leave, but a shop always keeps an owner", async ()
   assert.deepEqual((await w.accounts.myShops(OWNER)).shops, [], "the account's old list of shops gives no role");
   const logged = [...w.registry.events.get(SHOP).values()].map((e) => e.what);
   assert.deepEqual(logged.slice(-3), ["role-changed", "role-changed", "member-removed"]);
-  assert.deepEqual(ROLES, ["owner", "staff", "author", "bookkeeper"]);
+  assert.deepEqual(ROLES, ["owner", "staff", "author", "bookkeeper", "fairHelper"]);
 });
 
 test("the team list shows the shop's sign-up owner, members and open invites", async () => {
@@ -207,6 +210,26 @@ test("the team list shows the shop's sign-up owner, members and open invites", a
   assert.deepEqual(answer.body.members.map((m) => [m.email, m.role]), [[OWNER.email, "owner"], [CAL.email, "staff"]]);
   assert.deepEqual(answer.body.invites.map((i) => [i.email, i.role]), [["dee@example.com", "author"]]);
   assert.equal(JSON.stringify(answer.body).includes("tokenHash"), false);
+});
+
+test("at the open-invite limit, inviting someone again is refused without cancelling the invite they already have", async () => {
+  const w = world();
+  await w.accounts.invite(OWNER, { shopId: SHOP, email: CAL.email, role: "staff" });
+  const first = w.secretOf(CAL.email);
+  for (let i = 0; i < MAX_PENDING_INVITES; i += 1) await w.stores.invites.set(`other-${i}`, { id: `other-${i}`, shopId: SHOP, email: `p${i}@example.com`, role: "staff", invitedBy: OWNER.email, expiresAt: "2099-01-01T00:00:00Z" });
+  await assert.rejects(w.accounts.invite(OWNER, { shopId: SHOP, email: CAL.email, role: "author" }), { status: 429 });
+  assert.deepEqual(await w.accounts.accept(CAL, first), { shopId: SHOP, role: "staff" }, "the first invite still works");
+});
+
+test("the sign-up owner's row says it can't be changed, and trying says why instead of 'not on the team'", async () => {
+  const w = world();
+  const { members } = await w.accounts.team(OWNER, SHOP);
+  assert.equal(members.find((m) => m.email === OWNER.email).signupOwner, true);
+  for (const call of [() => w.accounts.setRole(OWNER, { shopId: SHOP, email: OWNER.email, role: "staff" }), () => w.accounts.remove(OWNER, { shopId: SHOP, email: OWNER.email })]) {
+    await assert.rejects(call(), (e) => e.status === 409 && /shop's own owner address/.test(e.message));
+  }
+  const page = readFileSync(new URL("./app.js", import.meta.url), "utf8");
+  assert.match(page, /member\.signupOwner/, "the page leaves the role and Remove off that row");
 });
 
 test("a sign-in link can bring the person back to the account page (an invite), and nowhere else", async () => {
@@ -235,6 +258,10 @@ test("the page: one sign-in, every shop, owners manage the team; built without m
   }
   assert.doesNotMatch(app, /innerHTML|insertAdjacentHTML|document\.write/, "names and emails are shown as text only");
   assert.doesNotMatch(app, /node:/, "the page loads nothing made for Node");
+  // The help, status and billing pages link to /account/#get-help: the page opens the help form for it after sign-in.
+  assert.match(app, /location\.hash !== "#get-help"/);
+  assert.match(app, /await openShops\(\);\s*openHelpFromLink\(\);/);
+  assert.match(app, /addEventListener\("hashchange", openHelpFromLink\)/);
   const words = (page + app).toLowerCase();
   for (const rival of ["big cartel", "bigcartel", "shopify", "squarespace", "etsy", "wix", "woocommerce"]) assert.ok(!words.includes(rival), rival);
 });
@@ -252,4 +279,87 @@ test("a paid shop's owner needs the second step to change the team; looking and 
     assert.match(refused.body.message, /two-step/);
   }
   assert.equal((await w.ask(TWO, "POST", "/api/accounts/invite", { shopId: SHOP, email: BEA.email, role: "staff" })).status, 200);
+});
+
+test("only the shop's owner can run Check my shop, and it only looks (plan 14.3)", async () => {
+  const w = world();
+  const before = JSON.stringify([...w.registry.shops.entries()]);
+  const answer = await w.ask(OWNER, "POST", "/api/accounts/check", { shopId: SHOP });
+  assert.equal(answer.status, 200);
+  assert.ok(answer.body.results.length >= 5);
+  assert.equal(answer.body.results.find((r) => r.id === "backups").state, "unknown");
+  assert.equal((await w.ask(CAL, "POST", "/api/accounts/check", { shopId: SHOP })).status, 403);
+  assert.equal(JSON.stringify([...w.registry.shops.entries()]), before);
+});
+
+test("the account page shows the shop's free address, and whether it works yet", async () => {
+  const w = world();
+  w.registry.shops.set(SHOP, { ...w.registry.shops.get(SHOP), freeAddress: "moth-press.shops.example", domains: [{ name: "moth-press.shops.example", free: true, state: "waiting_dns" }] });
+  let [shop] = (await w.ask(OWNER, "GET", "/api/accounts/shops")).body.shops;
+  assert.deepEqual([shop.freeAddress, shop.freeAddressLive], ["moth-press.shops.example", false]);
+  w.registry.shops.set(SHOP, { ...w.registry.shops.get(SHOP), domains: [{ name: "moth-press.shops.example", free: true, state: "live" }] });
+  [shop] = (await w.ask(OWNER, "GET", "/api/accounts/shops")).body.shops;
+  assert.equal(shop.freeAddressLive, true);
+});
+
+test("a stockroom-only shop shows the stockroom's address, never a website it doesn't have", async () => {
+  const w = world();
+  w.registry.shops.set(SHOP, { ...w.registry.shops.get(SHOP), plan: "stockroom" });
+  w.registry.profiles.set(SHOP, { ...w.registry.profiles.get(SHOP), apps: { shop: false, stockroom: true } });
+  const [shop] = (await w.ask(OWNER, "GET", "/api/accounts/shops")).body.shops;
+  assert.equal(shop.siteUrl, null);
+  assert.equal(shop.adminUrl, null);
+  assert.equal(shop.stockroomUrl, `https://${SHOP}-stockroom.web.app`);
+  assert.equal((await w.ask(OWNER, "POST", "/api/accounts/switch", { shopId: SHOP })).body.url, `https://${SHOP}-stockroom.web.app`);
+});
+
+test("the shop card knows an app is being set up until the shop maker has built it", async () => {
+  const w = world();
+  w.registry.shops.set(SHOP, { ...w.registry.shops.get(SHOP), plan: "both", builtPlan: "stockroom", billing: { appsClosing: null } });
+  let [shop] = (await w.ask(OWNER, "GET", "/api/accounts/shops")).body.shops;
+  assert.deepEqual(shop.adding, ["shop"]);
+  assert.equal(shop.closing, null);
+  w.registry.shops.set(SHOP, { ...w.registry.shops.get(SHOP), builtPlan: "both", billing: { appsClosing: { apps: ["stockroom"], at: "2026-11-30T15:00:00Z" } } });
+  [shop] = (await w.ask(OWNER, "GET", "/api/accounts/shops")).body.shops;
+  assert.deepEqual(shop.adding, []);
+  assert.deepEqual(shop.closing, { apps: ["stockroom"], at: "2026-11-30T15:00:00Z" });
+});
+
+test("the shop card lists a dropped app that has closed while its data can still be downloaded", async () => {
+  const w = world();
+  const later = "2099-01-01T00:00:00.000Z";
+  const gone = "2000-01-01T00:00:00.000Z";
+  w.registry.shops.set(SHOP, { ...w.registry.shops.get(SHOP), plan: "shop", builtPlan: "shop", closedApps: { stockroom: { closedAt: gone, downloadUntil: later } } });
+  let [shop] = (await w.ask(OWNER, "GET", "/api/accounts/shops")).body.shops;
+  assert.deepEqual(shop.closed.map(({ app, downloadUntil }) => ({ app, downloadUntil })), [{ app: "stockroom", downloadUntil: later }]);
+  assert.match(shop.closed[0].holds, /^a spreadsheet each of the books in your stockroom, /);
+  w.registry.shops.set(SHOP, { ...w.registry.shops.get(SHOP), closedApps: { stockroom: { closedAt: gone, downloadUntil: gone } } });
+  [shop] = (await w.ask(OWNER, "GET", "/api/accounts/shops")).body.shops;
+  assert.deepEqual(shop.closed, [], "its 90 days are over");
+});
+
+test("an invite stops working once the owner who sent it is off the team or no longer an owner", async () => {
+  const w = world();
+  // Bea is made a co-owner, invites Cal as an owner, and is then taken off the team before Cal accepts.
+  await w.accounts.invite(OWNER, { shopId: SHOP, email: BEA.email, role: "owner" });
+  await w.accounts.accept(BEA, w.secretOf(BEA.email));
+  await w.accounts.invite(BEA, { shopId: SHOP, email: CAL.email, role: "owner" });
+  const secret = w.secretOf(CAL.email);
+  await w.accounts.remove(OWNER, { shopId: SHOP, email: BEA.email });
+
+  const answer = await w.ask(CAL, "POST", "/api/accounts/accept", { invite: secret });
+  assert.equal(answer.status, 410);
+  assert.match(answer.body.message, /cancelled/);
+  assert.equal(await w.accounts.roleIn({ email: CAL.email }, SHOP), null, "Cal never joins");
+  assert.equal(w.shopData.docs.has(`${SHOP} members/${CAL.email}`), false);
+  // The team page no longer shows it as waiting.
+  assert.deepEqual((await w.accounts.team(OWNER, SHOP)).invites, []);
+
+  // The same when the sender is moved down to staff instead.
+  await w.accounts.invite(OWNER, { shopId: SHOP, email: BEA.email, role: "owner" });
+  await w.accounts.accept(BEA, w.secretOf(BEA.email));
+  await w.accounts.invite(BEA, { shopId: SHOP, email: CAL.email, role: "staff" });
+  const second = w.secretOf(CAL.email);
+  await w.accounts.setRole(OWNER, { shopId: SHOP, email: BEA.email, role: "staff" });
+  await assert.rejects(w.accounts.accept(CAL, second), (e) => e.status === 410);
 });

@@ -24,10 +24,13 @@ function newGiftCardCode() {
   return raw.match(/.{4}/g).join("-");
 }
 
-// "abcd efgh-ijkl mnop" → "ABCD-EFGH-IJKL-MNOP"; "" when it can't be a code.
+// "abcd efgh-ijkl mnop" → "ABCD-EFGH-IJKL-MNOP"; "" when it can't be a code. This shop's own codes are 16 characters.
+// A code brought over from an old shop (plan 23.5) can be 8 to 24 letters and digits: it is kept as one run of them,
+// so "ab12-cd34" → "AB12CD34". A 16-character code always takes the grouped form, so every existing card keeps its id.
 function normalizeGiftCardCode(value) {
   const raw = String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-  return raw.length === 16 ? raw.match(/.{4}/g).join("-") : "";
+  if (raw.length === 16) return raw.match(/.{4}/g).join("-");
+  return raw.length >= 8 && raw.length <= 24 ? raw : "";
 }
 
 function giftCardId(code) {
@@ -201,6 +204,8 @@ function cardsForOrder(orderId, order, { now = new Date().toISOString(), makeCod
           message: details.message || "",
           purchaserEmail: String(order.customer?.email || "").toLowerCase(),
           source: "order", orderId, lineIndex,
+          // The email goes in the language the buyer shopped in (emailFrench.js).
+          ...(order.locale ? { locale: String(order.locale).slice(0, 12) } : {}),
           holds: {},
           history: [{ type: "issued", minor, orderId, at: now }],
           createdAt: now, updatedAt: now,

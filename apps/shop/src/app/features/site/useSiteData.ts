@@ -1,5 +1,6 @@
 import { useLocation } from "react-router";
-import { consentAllows, CONSENT_EVENT } from "../../lib/consent";
+import { consentAllows, CONSENT_EVENT, noteCookieBanner } from "../../lib/consent";
+import { noteShopLanguage } from "./shopLanguage";
 import { isLiveBook } from "./liveBook";
 import { resolveSurfaceDesign } from "./surfaceDesign";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -21,6 +22,8 @@ import { resolveProductRoutes } from "./productRoutes";
 import { loadCatalog, newestFirst } from "./loadCatalog";
 import { currentStorefrontData, fetchStorefrontDataFile } from "./storefrontDataFile";
 import { inThemePreview, loadThemePreview } from "./themePreview";
+import { withShopWordsFor } from "../../admin/sells";
+import { setProductSells } from "../../lib/productHref";
 
 const isPreviewUrl = () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "true";
 
@@ -148,6 +151,9 @@ export function useSiteData() {
           cachedAt: new Date().toISOString() 
         });
 
+        // Whether undecided shoppers may be counted depends on the cookie banner being on (lib/consent.ts).
+        noteCookieBanner((safeSettings as any)?.design);
+        noteShopLanguage((safeSettings as any)?.design);
         const sessionKey = `fm_visit_${new Date().toISOString().split("T")[0]}`;
         if (!isPreview && !sharing && consentAllows("analytics") && !sessionStorage.getItem(sessionKey)) {
           publicApi.recordVisit();
@@ -259,7 +265,12 @@ export function useSiteData() {
     return resolveProductRoutes(withBundleStock(visible, books)).map(applyBackorderPolicy);
   }, [books, studioPreview]);
 
-  return { books: sellableBooks, settings: { ...settings, design: resolveSurfaceDesign(settings.design, location.pathname) }, pages, loading, fresh, loadError, retry };
+  // Shoppers read the words of what the shop sells now (admin/sells.ts withShopWordsFor), under the owner's own words.
+  const sells = (settings as any)?.sells as string | undefined;
+  // Product links read /products/<slug> in a shop that doesn't sell books (lib/productHref.ts).
+  setProductSells(sells);
+  const wordedDesign = useMemo(() => withShopWordsFor(settings.design, sells), [settings.design, sells]);
+  return { books: sellableBooks, settings: { ...settings, design: resolveSurfaceDesign(wordedDesign, location.pathname) }, pages, loading, fresh, loadError, retry };
 }
 
 /**

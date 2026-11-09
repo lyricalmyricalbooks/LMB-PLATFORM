@@ -35,6 +35,9 @@
 //   PLATFORM_GOOGLE_URL  the platform's Google link (https, LMB-PLATFORM google/, plan 6.17). Set: the admin shows
 //                        Connect Google (one sign-in for Analytics, search, Google Shopping and email) instead of the
 //                        Google Analytics and Search Console cards. Unset: those cards, as before.
+//   PLATFORM_APPS_URL    the platform's app store door (https, LMB-PLATFORM services/apps/shopDoor.js, plan 26.5). Set:
+//                        Settings › Apps lists installed apps and the store, and can remove an app. Unset: the page
+//                        shows only the shop's own app activity.
 //   PLATFORM_ACCOUNTING_URL the platform bookkeeping service's address (https, LMB-PLATFORM services/accounting, plan
 //                        7.15). Set: Settings › Bookkeeping can connect QuickBooks. Unset: the page stays hidden.
 //   PLATFORM_EMAIL_URL   the platform email service's shop door (https). Set: when the shop hasn't connected its own
@@ -148,6 +151,8 @@ function readShopConfig(env = {}) {
     platformDomainsUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_DOMAINS_URL)) ? text(env.PLATFORM_DOMAINS_URL).replace(/\/+$/, "") : "",
     platformGoogleUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_GOOGLE_URL)) ? text(env.PLATFORM_GOOGLE_URL).replace(/\/+$/, "") : "",
     platformAccountingUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_ACCOUNTING_URL)) ? text(env.PLATFORM_ACCOUNTING_URL).replace(/\/+$/, "") : "",
+    platformSocialUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_SOCIAL_URL)) ? text(env.PLATFORM_SOCIAL_URL).replace(/\/+$/, "") : "",
+    platformAppsUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_APPS_URL)) ? text(env.PLATFORM_APPS_URL).replace(/\/+$/, "") : "",
     platformAccountsUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_ACCOUNTS_URL)) ? text(env.PLATFORM_ACCOUNTS_URL).replace(/\/+$/, "") : "",
     allowedOrigins: Object.freeze([...new Set([...LOCAL_ORIGINS, ...extraOrigins, ...(hosted ? [hosted] : []), siteUrl, ...www])]),
     project: functionsProject,

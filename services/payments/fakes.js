@@ -143,3 +143,8 @@ export function fakeDeliver(status = 200) {
   };
   return { deliver, delivered };
 }
+
+/** The payment service's settings with a made-up test key, for tests that build the hosted server (server/fakes.js). */
+export const pretendPaymentsEnv = () => ({ STRIPE_PLATFORM_TEST_KEY: "sk_test_pretend" });
+/** The same with a made-up live key, which the hosted server must refuse. */
+export const pretendLiveKeyEnv = () => ({ STRIPE_PLATFORM_LIVE_KEY: "sk_live_pretend" });

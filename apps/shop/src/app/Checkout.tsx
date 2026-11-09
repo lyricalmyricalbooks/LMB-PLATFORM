@@ -13,7 +13,8 @@ import { useCart, catalogUnitPrice, repriceCart } from "./CartContext";
 import { sameOrderLines } from "./features/site/orderLines";
 import { amountIn, orderMoney, orderChargedTotal, totalNeedsConfirming } from "./features/site/orderMoney";
 import { cardAttemptKey, intentIdOf, mayHaveGoneThrough, paymentSettled, reusableCardOrder, type PendingCardOrder } from "./features/site/cardAttempt";
-import { POLICY_KEYS, policySlug, policyTitle } from "./features/site/policyPages";
+import { SALE_POLICY_KEYS, policySlug, policyTitle } from "./features/site/policyPages";
+import { DIGITAL_CONSENT_NOTE, needsDigitalConsent } from "./features/site/digitalConsent";
 import { ChevronLeft, Tag, X, AlertCircle, CreditCard, Package, CheckCircle2, Loader2, Lock, Building } from "lucide-react";
 import { m } from "motion/react";
 import { adminApi } from "./admin/api";
@@ -34,7 +35,8 @@ import { accountsEnabled } from "./features/site/customerAccounts";
 import { getCopy, CopyError, copyErrorText } from "./features/site/storeCopy";
 import { DEFAULT_SETTINGS } from "./features/site/constants";
 import { subscribePreview } from "./features/site/previewTab";
-import { claimTradePricing } from "./lib/tradePricing";
+import { dutiesNote } from "./features/site/importDuties";
+import { claimTradePricing, tradeInvoiceTerms, tradeAuthHeader, INVOICE_METHOD_ID } from "./lib/tradePricing";
 import { CHECKOUT_ATTEMPT_KEY, orderAccessHeaders, rememberOrderAccess, savedOrderAccess } from "./lib/orderAccessClient";
 import { StripeCardForm, type StripeCardFormHandle } from "./features/site/StripeCardForm";
 import { StripePaymentSection } from "./features/site/StripePaymentSection";
@@ -55,9 +57,11 @@ import { currentStorefrontData, fetchStorefrontDataFile, shippingProfilesFrom } 
 import { quoteLocalFulfillment } from "./features/site/localFulfillment";
 import { catalogFulfillmentItems, discountedPhysicalSubtotal } from "./features/site/checkoutFulfillment";
 import { bagPreorder } from "./features/site/preorder";
-import { discountAmountFor, discountableItems, pickAutomaticDiscount } from "./features/site/discountMath";
+import { discountAmountFor, discountableItems, emailDomainAllowed, pickAutomaticDiscount } from "./features/site/discountMath";
 import { expandDiscountCategories } from "./features/site/discountCategories";
 import { clearSharedDiscount, sharedDiscount } from "./features/site/sharedDiscount";
+import { discountedLineValues, taxPartsByKind } from "../shared/taxByKind";
+import { productKind } from "../shared/productOptions";
 import { bagNote, orderNoteBoxOn, rememberBagNote } from "./features/site/bagNote";
 import { isGiftCardProduct, bundleComponents, bundleWeightGrams } from "./features/site/promotions";
 import { isLiveBook } from "./features/site/liveBook";
@@ -115,6 +119,8 @@ export function Checkout() {
   const setOrderNote = (value: string) => setOrderNoteState(rememberBagNote(value));
   // Style › Checkout › policy tick box (off by default): Pay and the express wallet wait for it.
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [digitalConsent, setDigitalConsent] = useState(false);
+  const [digitalConsentError, setDigitalConsentError] = useState(false);
   const [termsError, setTermsError] = useState(false);
   // Per-field problems found when the shopper pressed Pay (cleared as each is fixed).
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<DetailField, string>>>({});
@@ -182,13 +188,16 @@ export function Checkout() {
   const [settings, setSettings] = useState<any>(() => cachedSite?.settings || null);
   // Until the saved settings arrive (or if they never do) checkout wears the Riso Noir defaults.
   const checkoutDesign = resolveSurfaceDesign(settings?.design ?? DEFAULT_SETTINGS.design, "/checkout");
-  const checkoutPolicies = POLICY_KEYS.filter(k => Boolean(String((settings as any)?.policies?.[k] || "").trim()));
+  const checkoutPolicies = SALE_POLICY_KEYS.filter(k => Boolean(String((settings as any)?.policies?.[k] || "").trim()));
   // Only with a policy to agree to; a ticked box needs no reminder.
   const termsRequired = Boolean(checkoutDesign.requireCheckoutTerms) && checkoutPolicies.length > 0;
   useEffect(() => { if (termsAccepted) setTermsError(false); }, [termsAccepted]);
   useEffect(() => { if (settings?.design?.checkoutSummaryOpenOnPhones) setSummaryOpen(true); }, [settings?.design?.checkoutSummaryOpenOnPhones]);
   const c = (key: string, vars?: Record<string, string | number>) => getCopy(checkoutDesign, key, vars);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("stripe");
+  // A trade account with invoice terms may order now and pay later (plan 12.10); the server checks it again on placing.
+  const [invoiceTerms, setInvoiceTerms] = useState<{ days: number; name: string } | null>(null);
+  useEffect(() => { let live = true; void tradeInvoiceTerms().then(t => { if (live) setInvoiceTerms(t); }); return () => { live = false; }; }, []);
   const [successOrder, setSuccessOrder] = useState<any>(null);
   // Stripe card form shown on this page; a failed attempt keeps its order +
   // PaymentIntent so retrying with the same bag doesn't create another order.
@@ -322,9 +331,10 @@ export function Checkout() {
       ...(payments.stripe?.connected || platformTakesCards() ? ["stripe"] : []),
       ...(payments.paypal?.connected ? ["paypal"] : []),
       ...(Array.isArray(payments.manualMethods) ? payments.manualMethods : []).filter((m: any) => m?.enabled).map((m: any) => `manual_${m.id}`),
+      ...(invoiceTerms ? [`manual_${INVOICE_METHOD_ID}`] : []),
     ];
     if (offered.length && !offered.includes(selectedPaymentMethod)) setSelectedPaymentMethod(offered[0]);
-  }, [settings?.payments, selectedPaymentMethod]);
+  }, [settings?.payments, selectedPaymentMethod, invoiceTerms]);
 
   // Preview only replaces appearance; fulfillment and payment settings stay server-sourced.
   useEffect(() => {
@@ -500,21 +510,9 @@ export function Checkout() {
         }
       }
 
-      // Check email domains
-      if (discount.allowedEmailDomains && discount.allowedEmailDomains.trim()) {
-        const allowedDomains = discount.allowedEmailDomains.split(",")
-          .map((d: string) => d.trim().toLowerCase())
-          .filter(Boolean);
-        const matchesDomain = allowedDomains.some((domain: string) => {
-          if (domain.startsWith(".")) {
-            return lowerEmail.endsWith(domain);
-          } else {
-            return lowerEmail.endsWith("@" + domain) || lowerEmail.endsWith("." + domain);
-          }
-        });
-        if (allowedDomains.length > 0 && !matchesDomain) {
-          throw new CopyError(checkoutDesign, "coErrEmailDomains", { domains: discount.allowedEmailDomains });
-        }
+      // Check email domains (".edu", "school.ca" and "@school.ca" alike): the server's own rule.
+      if (!emailDomainAllowed(lowerEmail, discount.allowedEmailDomains)) {
+        throw new CopyError(checkoutDesign, "coErrEmailDomains", { domains: discount.allowedEmailDomains });
       }
     }
 
@@ -826,6 +824,10 @@ export function Checkout() {
   const preorderShip = useMemo(() => bagPreorder(cart.filter(i => !catalogItems || catalogItems.some(ci => ci.id === i.id && (ci.variantId || "") === (i.variantId || "") && ci.physical))), [cart, catalogItems]);
   // Known to be e-books only (not just "catalog still loading").
   const digitalOnly = Boolean(catalogItems && catalogItems.length && !physicalItems.length);
+  // EU/EEA/UK shoppers keep a 14-day right to cancel a download until they ask for it now (features/site/digitalConsent.ts).
+  const hasDownload = Boolean(catalogItems?.some(item => !item.physical && !isGiftCardProduct(booksMap.get(item.id))));
+  const digitalConsentNeeded = needsDigitalConsent(hasDownload, [customer.address.country, customer.billingAddress.country]);
+  useEffect(() => { if (digitalConsent) setDigitalConsentError(false); }, [digitalConsent]);
   const availableFulfillmentMethods = useMemo<FulfillmentSelection["method"][]>(() => {
     if (!physicalItems.length) return [];
     const methods: FulfillmentSelection["method"][] = ["shipping"];
@@ -880,21 +882,26 @@ export function Checkout() {
 
   useEffect(() => {
     // Same matching as the server's charge, so the tax shown is the tax paid.
-    const rateFor = (address: any) => matchTaxRate(taxRates, address?.country, address?.state);
+    // Plan 12.2: a rate that lists product kinds taxes only those (src/shared/taxByKind.ts); with none listed this is the
+    // single rate on the whole taxable amount it has always been.
+    const rateFor = (rates: any[], address: any) => matchTaxRate(rates, address?.country, address?.state);
+    // Each line's share after the discount comes off the lines it covers, as on the server.
+    const allLines = taxLines || [];
+    const afterDiscount = discountedLineValues(allLines, discountAmount, activeDiscount, (id: string) => booksMap.get(id)?.categories || []);
+    const kindLines = (lines: any[]) => lines.map(item => ({ kind: productKind(booksMap.get(item.id)), value: afterDiscount[allLines.indexOf(item)] }));
+    const taxOf = (lines: any[], amount: number, address: any) => taxPartsByKind(kindLines(lines), amount, taxRates, (set: any[]) => rateFor(set, address)).reduce((sum, part) => sum + part.amount, 0);
     const taxable = Math.max(0, cartTotal - giftCardLinesTotal + freeGiftPrice - discountAmount);
     if (fulfillmentSelection.method === "pickup") {
       const pickup = localQuotes.find(quote => quote.id === fulfillmentSelection.optionId && quote.method === "pickup");
       const physicalTaxable = Math.min(taxable, physicalSubtotalAfterDiscount);
       const digitalTaxable = Math.max(0, taxable - physicalTaxable);
-      const physicalRate = rateFor(pickup?.address);
       // Area-limited pickup already has the shopper's address, so no separate billing box is shown.
-      const digitalRate = rateFor(pickupNeedsAddress && !customer.billingAddress.state ? customer.address : customer.billingAddress);
-      setTaxCost(physicalTaxable * (Number(physicalRate?.rate || 0) / 100) + digitalTaxable * (Number(digitalRate?.rate || 0) / 100));
+      const digitalAddress = pickupNeedsAddress && !customer.billingAddress.state ? customer.address : customer.billingAddress;
+      setTaxCost(taxOf((taxLines || []).filter(item => item.physical), physicalTaxable, pickup?.address) + taxOf((taxLines || []).filter(item => !item.physical), digitalTaxable, digitalAddress));
       return;
     }
-    const matchedTaxRate = rateFor(customer.address);
-    setTaxCost(taxable * (Number(matchedTaxRate?.rate || 0) / 100));
-  }, [customer.address.country, customer.address.state, customer.billingAddress.country, customer.billingAddress.state, fulfillmentSelection, localQuotes, physicalSubtotalAfterDiscount, cartTotal, appliedDiscount, taxRates, discountAmount, giftCardLinesTotal, freeGiftPrice]);
+    setTaxCost(taxOf(taxLines || [], taxable, customer.address));
+  }, [customer.address.country, customer.address.state, customer.billingAddress.country, customer.billingAddress.state, fulfillmentSelection, localQuotes, physicalSubtotalAfterDiscount, cartTotal, appliedDiscount, activeDiscount, taxRates, discountAmount, giftCardLinesTotal, freeGiftPrice, taxLines, booksMap]);
 
   const applyDiscount = async () => {
     // Pasted codes often carry spaces; the server trims too.
@@ -1010,6 +1017,14 @@ export function Checkout() {
   const taxKnown = catalogState === "ready" && (fulfillmentSelection.method === "pickup"
     ? !!pickupQuote && taxAddressKnown(pickupQuote.address) && (physicalSubtotalAfterDiscount >= Math.max(0, cartTotal - discountAmount) || taxAddressKnown(pickupNeedsAddress && !customer.billingAddress.state ? customer.address : customer.billingAddress))
     : taxAddressKnown(customer.address));
+
+  // Parcels abroad: a note that duties and import tax may be due on arrival (Settings › Taxes › Duties). Display only.
+  const duties = dutiesNote(settings?.taxes?.duties, fulfillmentSelection.method === "shipping" ? customer.address.country : "", Math.max(0, itemsSubtotal - discountAmount));
+  const dutiesText = duties
+    ? duties.rate !== null && duties.amount !== null
+      ? c("coDutiesEstimate", { country: duties.country, amount: formatPrice(duties.amount), rate: duties.rate })
+      : c("coDuties", { country: duties.country })
+    : null;
 
   const getActiveShippingDetails = () => {
     if (fulfillmentSelection.method === "pickup" && selectedLocalQuote) return { serviceName: selectedLocalQuote.name };
@@ -1186,6 +1201,12 @@ export function Checkout() {
       setTimeout(() => document.getElementById("checkout-terms")?.focus(), 0);
       return;
     }
+    if (digitalConsentNeeded && !digitalConsent) {
+      setDigitalConsentError(true);
+      setNotice({ tone: "error", text: c("coErrDigitalConsent") });
+      setTimeout(() => document.getElementById("checkout-digital-consent")?.focus(), 0);
+      return;
+    }
     if (!validBilling) {
       setNotice({ tone: "error", text: c("coErrPickupBillingFields") });
       return;
@@ -1239,7 +1260,7 @@ export function Checkout() {
       let manualMethod = null;
       if (isManual) {
         const manualId = selectedPaymentMethod.replace("manual_", "");
-        manualMethod = (settings?.payments?.manualMethods || []).find((m: any) => m.id === manualId);
+        manualMethod = manualId === INVOICE_METHOD_ID && invoiceTerms ? { id: INVOICE_METHOD_ID } : (settings?.payments?.manualMethods || []).find((m: any) => m.id === manualId);
       }
 
       const referralSource = typeof window !== "undefined" ? window.sessionStorage.getItem("referral_source") : null;
@@ -1247,6 +1268,8 @@ export function Checkout() {
       const acquisition = orderAcquisition();
 
       const checkoutCartId = sessionStorage.getItem("fm_checkout_cart_id");
+      // Kept on the order's history and repeated in the confirmation email (functions/sellerDetails.js).
+      const consentNotes = digitalConsentNeeded && digitalConsent ? [DIGITAL_CONSENT_NOTE] : [];
       const orderData = {
         // Lowercased so Account › My orders (matched on the sign-in email) finds it.
         customer: { ...customer, email: String(customer.email || "").trim().toLowerCase() },
@@ -1312,7 +1335,7 @@ export function Checkout() {
       // The server said gift cards (or an offer only it could see) cover everything: complete without a card.
       if (finalTotal === 0 || serverSaysFree.current) {
         serverSaysFree.current = false;
-        const freeOrderId = await adminApi.createOrder({ ...orderData, paymentMethod: "Free" });
+        const freeOrderId = await adminApi.createOrder({ ...orderData, paymentMethod: "Free" }, consentNotes);
         const response = await functionFetch("createStripeCheckoutSession", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1330,10 +1353,11 @@ export function Checkout() {
       if (isManual) {
         const response = await functionFetch("createStripeCheckoutSession", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...(manualMethod?.id === INVOICE_METHOD_ID ? await tradeAuthHeader() : {}) },
           body: JSON.stringify({
             action: "createManualLocalOrder",
             manualMethodId: manualMethod?.id,
+            ...(manualMethod?.id === INVOICE_METHOD_ID ? { tradeInvoice: true } : {}),
             previousOrderId: previousAttempt(),
             currency: currency.toLowerCase(),
             orderDraft: {
@@ -1348,6 +1372,7 @@ export function Checkout() {
               ...(acquisition ? { acquisition } : {}),
               ...(appliedDiscount?.code ? { appliedDiscount: { code: appliedDiscount.code } } : {}),
               ...(orderNoteBoxOn(checkoutDesign) && orderNote.trim() ? { orderNote: orderNote.trim().slice(0, 500) } : {}),
+              ...(digitalConsentNeeded && digitalConsent ? { digitalConsent: true } : {}),
             },
           }),
         });
@@ -1356,7 +1381,7 @@ export function Checkout() {
         orderId = result.orderId;
         if (result.trackingKey) rememberOrderAccess(orderId, result.trackingKey);
       } else {
-        orderId = reuse ? reuse.orderId : await adminApi.createOrder(orderData);
+        orderId = reuse ? reuse.orderId : await adminApi.createOrder(orderData, consentNotes);
       }
       // The order this attempt replaces (named once, below), then this one for the next retry.
       const supersededOrderId = previousAttempt();
@@ -1837,7 +1862,10 @@ export function Checkout() {
   const hasStripe = Boolean(settings?.payments?.stripe?.connected) || platformTakesCards();
   const hasPaypal = Boolean(settings?.payments?.paypal?.connected);
   const configuredManualMethods = settings?.payments?.manualMethods;
-  const enabledManualMethods = (Array.isArray(configuredManualMethods) ? configuredManualMethods : []).filter((method: any) => method.enabled);
+  const enabledManualMethods = [
+    ...(Array.isArray(configuredManualMethods) ? configuredManualMethods : []).filter((method: any) => method.enabled),
+    ...(invoiceTerms ? [{ id: INVOICE_METHOD_ID, enabled: true, name: c("coPayInvoice", { days: String(invoiceTerms.days) }) }] : []),
+  ];
   // Physical books with no delivery option chosen yet: the total isn't final, so don't present one.
   const needsDeliveryChoice = physicalItems.length > 0 && !(fulfillmentSelection.method === "shipping" ? selectedShippingQuote : selectedLocalQuote);
   const showTotalOnPay = !checkoutDesign.hidePayButtonTotal && cart.length > 0 && !needsDeliveryChoice;
@@ -2037,6 +2065,7 @@ export function Checkout() {
               payTabs={payTabs} hasStripe={hasStripe} hasPaypal={hasPaypal} isCompleting={isCompleting} selectedPaymentMethod={selectedPaymentMethod} setSelectedPaymentMethod={setSelectedPaymentMethod}
               enabledManualMethods={enabledManualMethods} hasCodeBoxes={hasCodeBoxes} codeBoxes={codeBoxes} holdIssues={holdIssues} notice={notice} noticeRef={noticeRef} catalogState={catalogState}
               termsRequired={termsRequired} termsAccepted={termsAccepted} setTermsAccepted={setTermsAccepted} termsError={termsError} policyLinks={policyLinks}
+              digitalConsentNeeded={digitalConsentNeeded} digitalConsent={digitalConsent} setDigitalConsent={setDigitalConsent} digitalConsentError={digitalConsentError}
               payDisabled={payDisabled} payLabel={payLabel} payTotal={payTotal} checkoutPolicies={checkoutPolicies}
               stripeOption={hasStripe && (
               <StripePaymentSection
@@ -2069,7 +2098,7 @@ export function Checkout() {
                   onStateChange={setCardState}
                   expressText={c("coExpressCheckout")}
                   showExpress={!checkoutDesign.hideCheckoutExpressWallets}
-                  expressEnabled={expressWalletEnabled({ isCompleting, canPay: stripeRoute.canPay, needsDeliveryChoice, catalogReady: catalogState === "ready", total: finalTotal, problems: detailProblems, termsAccepted: !termsRequired || termsAccepted })}
+                  expressEnabled={expressWalletEnabled({ isCompleting, canPay: stripeRoute.canPay, needsDeliveryChoice, catalogReady: catalogState === "ready", total: finalTotal, problems: detailProblems, termsAccepted: (!termsRequired || termsAccepted) && (!digitalConsentNeeded || digitalConsent) })}
                   onExpressConfirm={async () => { await handleCompletePurchase(); return purchaseNavigating.current; }}
                   fontName={checkoutDesign.checkoutFieldFont || checkoutDesign.checkoutFont || checkoutDesign.font || checkoutDesign.bodyFont || undefined}
                   fieldBackground={checkoutDesign.checkoutFieldBg || undefined}
@@ -2101,7 +2130,7 @@ export function Checkout() {
           itemCount={itemCount} slipDate={slipDate} slipNumbers={slipNumbers} formatPrice={formatPrice} freeGift={freeGift} preorderShip={preorderShip}
           hasCodeBoxes={hasCodeBoxes} codeBoxes={codeBoxes} itemsSubtotal={itemsSubtotal} discountAmount={discountAmount} appliedDiscount={appliedDiscount} autoPick={autoPick}
           getActiveShippingDetails={getActiveShippingDetails} needsDeliveryChoice={needsDeliveryChoice} isFreeShipping={isFreeShipping} shippingCost={shippingCost}
-          finalShipping={finalShipping} taxCost={taxCost} taxKnown={taxKnown} giftCardUse={giftCardUse} freeShipNudge={freeShipNudge} cartTotal={cartTotal} finalTotal={finalTotal} />
+          finalShipping={finalShipping} taxCost={taxCost} taxKnown={taxKnown} giftCardUse={giftCardUse} freeShipNudge={freeShipNudge} cartTotal={cartTotal} finalTotal={finalTotal} dutiesNote={dutiesText} />
       </div>
 
       {payBar && (

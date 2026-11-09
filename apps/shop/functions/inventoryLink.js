@@ -57,6 +57,8 @@ function countsForInventory(order, startDay) {
  */
 function pushKind(order, { startDay = "", rehearsal = false, record = null, testShop = false } = {}) {
   if (!order) return null;
+  // A past order brought over from the old shop (functions/orderImport.js) was counted there: the stockroom never sees it.
+  if (order.source === "import") return null;
   if (order.isTest === true) {
     if (record && record.test === true) return "test";
     if (testShop === true && order.sandboxPayment === true) {
@@ -271,6 +273,8 @@ function websiteOrder(order, { orderId, links, frozen, partPrice, partDigital, t
     books,
     firstBook,
     unlinked: fp.unlinked,
+    // A trade account's order placed on invoice terms (stockists.js): the app offers to prepare the invoice from it.
+    ...(order.invoice && Number(order.invoice.days) > 0 ? { invoice: { days: Math.min(365, Math.floor(Number(order.invoice.days))), dueAt: text(order.invoice.dueAt, 40) || null, paidAt: text(order.invoice.paidAt, 40) || null } } : {}),
   };
   const hash = sha256(stable(body));
   return {
@@ -563,6 +567,8 @@ function shopBooksForApp(books, appBooks, links, { ignoredMatches = {}, dismisse
         // Plan 10.5: an edition of a product sold in options (sizes, colours) names its product, so the app can keep
         // the sizes together and add them all at once. A book with plain editions sends none, as before.
         ...(variant && usesOptionPicker(book) ? { product: text(book.title, 200) } : {}),
+        // Plan 23.9: the website's own count, so the app starts the item from it and both agree from day one.
+        ...(e.tracked && Number.isInteger(e.stock) ? { tracked: true, stock: e.stock } : {}),
       };
     });
 }
@@ -659,6 +665,8 @@ const MAX_DETAILS = 100;
 const MAX_APP_INDEX = 1000;
 const DETAIL_FIELDS = ["title", "author", "isbn", "price"];
 
+const linkedCover = book => { const url = smallCover(book); return url.length <= 400 ? url : ""; };
+
 /** Every printed website edition matched to an app book, for the app (`websiteLink/catalog.linked`). */
 function linkedForApp(books, links) {
   const byId = new Map((books || []).map(b => [b.id, b]));
@@ -674,6 +682,9 @@ function linkedForApp(books, links) {
       // An edition sells at its own price only (no price = can't be bought), so never fall back to the book's.
       price: positivePrice(e.variantId ? variant && variant.price : book.retailPrice),
       sharedWith: shared.get(inventoryBookId),
+      // The first photo, small, so the stockroom's Fair till for helpers can show the cover. Only a short address
+      // is sent, so 500 rows always fit in the catalog document.
+      ...(linkedCover(book) ? { cover: linkedCover(book) } : {}),
     };
   });
 }

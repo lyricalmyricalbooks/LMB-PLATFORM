@@ -4,7 +4,7 @@ import { isShopOwner, markOwnerDeviceOnSignIn } from "../lib/ownerDevice";
 // `m` + the app-wide LazyMotion (domAnimation): the full `motion` component would pull layout/drag code into the shop's first load.
 import { m, AnimatePresence } from "motion/react";
 import {
-  BookOpen, LogOut, History, Globe, Menu, HelpCircle, Sun, Moon, ChevronDown, Palette,
+  BookOpen, LogOut, History, Globe, Menu, HelpCircle, Compass, Sun, Moon, ChevronDown, Palette,
 } from "lucide-react";
 
 import { Login } from "./Login";
@@ -15,7 +15,8 @@ import { AdminAlerts } from "./AdminAlerts.tsx";
 import { shopErrorAlert, shopErrorRows } from "./shopErrors";
 import { backupAlert, buildAdminAlerts, cardAccountAlert, checkFailedAlert, inventoryLinkAlerts, settingsAlerts, type AdminAlert, type AlertRoute } from "./adminAlerts";
 import type { PlatformPaymentsAnswer } from "./platformPayments";
-import { platformCardsProvider } from "../../lib/shopProfile";
+import { hasStockroom, platformCardsProvider, runsOnColophon } from "../../lib/shopProfile";
+import { googleConnectApi } from "./googleConnect";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { inventoryLinkView, setInventoryLink, type AppBookEntry } from "./appSwitch";
 import { AppSwitcher, AppSwitchPill, useWebsiteTabName } from "./AppSwitcher";
@@ -26,24 +27,36 @@ import { scrubSavedSecrets } from "./privateKeys";
 import toast from "react-hot-toast";
 import {
   AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, PrimaryButton, SecondaryButton,
-  IconButton, Dialog, ToastProvider, SyncChip, useOnline, LoadingState, PageSkeleton, useConfirm, PageAlertsSlot,
+  IconButton, Dialog, ToastProvider, SyncChip, useOnline, LoadingState, PageSkeleton, useConfirm, PageAlertsSlot, PageActionsSlot,
 } from "./riso/components";
 import { GlobalSearch, ActivityLogDialog, ShopStatusMenu, DrawerAccount } from "./riso/shellParts";
+import { blockedMessage, blockersBeforeOpening } from "./launchCheck";
 import { WhatsNew } from "./WhatsNew";
 import { applyAdminLook, nextAdminLook, readAdminLook, type AdminLookId } from "./riso/adminLook";
 import { SupportBanner } from "./SupportBanner";
 import { PlanBannerBar, PlanDesk } from "./PlanParts";
+import { TwoStepReminder } from "./TwoStepReminder";
 import { planLocked } from "./platformPlan";
 import { usePlatformPlan } from "./platformPlanApi";
+import { PlatformMessagesBar } from "./PlatformMessagesBar";
 import type { SupportVisit } from "./supportSession";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
 import { useAdminAppManifest } from "./adminApp";
 import { shopNameFromSettings, wordmarkWords } from "../features/site/shopIdentity";
-import { adminWordsFor } from "./sells";
-import { ShopSellsContext, ShopWordsContext } from "./shopWords";
-import { NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, sidebarItems, withoutPages } from "./riso/nav";
+import { adminWordsFor, currentSells } from "./sells";
+import { SELLS_CHANGED_EVENT, ShopSellsContext, ShopWordsContext } from "./shopWords";
+import { COMBINED_MENU, MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, sidebarItems, withoutPages } from "./riso/nav";
+import { COMBINED_PAGES, DEFAULT_STOCKROOM_PAGE, SALES_TAB, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
+import { AllSales } from "./AllSales";
+import { keepAdminOffline } from "./adminOffline";
+import { CombinedTour, CombinedTourInvite, markTourSeen, tourSeen, type TourStop } from "./CombinedTour";
+import { markTourSeenOnAccount, tourSeenOnAccount } from "./combinedTourStore";
+import { FairToday } from "./FairToday";
+import { stockroomBridge } from "./stockroomBridge";
+import { StockroomFrame } from "./StockroomFrame";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
 import { providerName } from "./providerWords";
+import { setProductSells } from "../lib/productHref";
 
 // Studio is large and only opened from Settings › Design, so it loads in its own chunk.
 const StudioEditor = lazy(() => import("./studio/StudioWorkspace").then(m => ({ default: m.StudioWorkspace })));
@@ -51,6 +64,8 @@ const StudioEditor = lazy(() => import("./studio/StudioWorkspace").then(m => ({ 
 const BookEditor = lazy(() => import("./BookEditor").then(m => ({ default: m.BookEditor })));
 const Discounts = lazy(() => import("./Discounts").then(m => ({ default: m.Discounts })));
 const GiftCards = lazy(() => import("./GiftCards").then(m => ({ default: m.GiftCards })));
+const SalesChannels = lazy(() => import("./SalesChannels").then(m => ({ default: m.SalesChannels })));
+const SocialPosts = lazy(() => import("./SocialPosts").then(m => ({ default: m.SocialPosts })));
 const Customers = lazy(() => import("./Customers").then(m => ({ default: m.Customers })));
 const Inventory = lazy(() => import("./Inventory").then(m => ({ default: m.Inventory })));
 const OrdersDesk = lazy(() => import("./OrdersDesk.tsx").then(m => ({ default: m.OrdersDesk })));
@@ -77,15 +92,32 @@ function readBootRoute() {
   const hash = window.location.hash;
   const studio = parseStudioLocation(hash);
   if (studio) return { tab: "settings", settingsTab: "designer", studio };
-  return { ...(routeFromHash(hash) || { tab: "overview" }), studio: null as StudioLocation | null };
+  const route = routeFromHash(hash);
+  // `#stockroom/…` belongs to the combined admin only (shop + stockroom plan).
+  const usable = route && ((route.tab !== STOCKROOM_TAB && route.tab !== SALES_TAB) || COMBINED);
+  return { ...(usable ? route : { tab: "overview" }), studio: null as StudioLocation | null };
 }
+
+// One admin for a press with both apps (combined.ts): one menu, the stockroom's pages inside, no app switcher.
+const COMBINED = combinedAdmin();
+const ADMIN_MENU = COMBINED ? COMBINED_MENU : MENU;
 
 export function Dashboard() {
   const online = useOnline();
   useAdminAppManifest();
+  // The combined admin keeps an offline copy, so the fair till opens with no signal (adminOffline.ts); built sites only.
+  useEffect(() => { if (import.meta.env.PROD) void keepAdminOffline(COMBINED); }, []);
   useWebsiteTabName();
   const [boot] = useState(readBootRoute);
   const [activeTab, setActiveTab] = useState(boot.tab);
+  // The combined admin's stockroom frame: opened the first time a stockroom page is picked, then kept (StockroomFrame).
+  const [stockroomOpened, setStockroomOpened] = useState(false);
+  useEffect(() => { if (activeTab === STOCKROOM_TAB) setStockroomOpened(true); }, [activeTab]);
+  // Another page needs the stockroom (the book page's Stock and sales): the frame opens hidden, and is kept.
+  useEffect(() => (COMBINED ? stockroomBridge.onNeed(() => setStockroomOpened(true)) : undefined), []);
+  // "Open in the stockroom" from another page shows that stockroom page (set below, after the page helpers).
+  const openStockroomRef = useRef<(page: string) => void>(() => {});
+  useEffect(() => (COMBINED ? stockroomBridge.onOpen((page) => openStockroomRef.current(page)) : undefined), []);
   const [user, setUser] = useState<any>(null);
   // Signed in with the Team's bookkeeper role: the Bookkeeping page instead of the admin.
   const [bookkeeper, setBookkeeper] = useState<{ email: string | null } | null>(null);
@@ -100,6 +132,8 @@ export function Dashboard() {
   const [studioLocation, setStudioLocation] = useState<(StudioLocation & { key: number }) | null>(boot.studio ? { ...boot.studio, key: 1 } : null);
   const [selectedOrder, setSelectedOrder] = useState<any | null>(boot.orderId ? { id: boot.orderId } : null);
   const [openGiftCard, setOpenGiftCard] = useState<string | null>(boot.giftCardId || null);
+  // A post started from a book (`#social-posts/book/<id>`): the composer opens with that product.
+  const [postBook, setPostBook] = useState<string | null>(boot.tab === "socialPosts" ? boot.bookId || null : null);
   const [settingsTab, setSettingsTab] = useState(boot.settingsTab || "general");
   // The open sub tab of a page split into sub tabs (General, Payments, Email sender, Shipping, Inventory), with the
   // page it belongs to: any other page shows its first tab, so leaving a page and coming back starts on its first tab.
@@ -150,21 +184,22 @@ export function Dashboard() {
         return;
       }
       const route = routeFromHash(hash);
-      if (!route) return;
+      if (!route || ((route.tab === STOCKROOM_TAB || route.tab === SALES_TAB) && !COMBINED)) return;
       setShowEditor(false);
       setActiveTab(route.tab);
       if (route.settingsTab) setSettingsTab(route.settingsTab);
       setSubTabState({ page: subTabPage(route), id: route.subTab });
       setSelectedOrder(route.orderId ? { id: route.orderId } : null);
       setOpenGiftCard(route.giftCardId || null);
-      if (route.bookId) openBookById.current(route.bookId);
+      if (route.tab === "socialPosts") setPostBook(route.bookId || null);
+      else if (route.bookId) openBookById.current(route.bookId);
     };
     // The Overview names its sub tab in the address itself; remember it as seen.
     const overviewWrote = () => { lastHash.current = window.location.hash; };
     // The admin opened from one of those links (the boot route already chose the page).
     const bootSearch = searchFromHash(window.location.hash);
     if (bootSearch) setSearchRequest({ q: bootSearch, n: Date.now() });
-    if (boot.bookId) openBookById.current(boot.bookId);
+    if (boot.bookId && boot.tab !== "socialPosts") openBookById.current(boot.bookId);
     openFromHash();
     window.addEventListener("hashchange", openFromHash);
     window.addEventListener("popstate", openFromHash);
@@ -203,20 +238,31 @@ export function Dashboard() {
   // Settings › Bookkeeping shows only when the platform's bookkeeping link is on for this shop (plan 7.16). Asked once,
   // the first time Settings opens (its pages are listed there only).
   const [bookkeepingOn, setBookkeepingOn] = useState(false);
+  const [googleOn, setGoogleOn] = useState(() => runsOnColophon());
   const bookkeepingAsked = useRef(false);
   useEffect(() => {
     if (activeTab !== "settings" || bookkeepingAsked.current) return;
     bookkeepingAsked.current = true;
     adminApi.bookkeeping("status").then((s) => setBookkeepingOn(!!s?.enabled)).catch(() => {});
+    // Settings › Google lists only on a shop Colophon runs (or one with the platform's Google link); others keep the
+    // older Analytics and Search Console cards in Visitors & Google.
+    googleConnectApi.status().then((g) => setGoogleOn(g !== "not_available" || runsOnColophon())).catch(() => setGoogleOn(runsOnColophon()));
   }, [activeTab]);
-  const hiddenPages = new Set(bookkeepingOn ? [] : [SETTINGS_ITEM_PREFIX + "bookkeeping"]);
+  const hiddenPages = new Set([...(bookkeepingOn ? [] : [SETTINGS_ITEM_PREFIX + "bookkeeping"]), ...(googleOn ? [] : [SETTINGS_ITEM_PREFIX + "google"]), ...(runsOnColophon() ? [] : [SETTINGS_ITEM_PREFIX + "apps"])]);
   // What the shop sells (plan 10.23): sign-up's answer in `firstWeek/start`. A shop that doesn't sell books reads
   // "Products" for "Books" across the admin (sells.ts `adminWordsFor`); with no answer every word stays as it is.
   const [sellsAnswer, setSellsAnswer] = useState<string | null>(null);
   useEffect(() => {
     if (!user) return;
-    Promise.resolve().then(() => adminApi.getFirstWeek()).then((doc) => setSellsAnswer(doc?.publishes ?? null)).catch(() => {});
+    Promise.resolve().then(() => adminApi.getFirstWeek()).then((doc) => setSellsAnswer(currentSells(doc))).catch(() => {});
   }, [user]);
+  useEffect(() => {
+    const on = (e: Event) => setSellsAnswer(String((e as CustomEvent).detail || "") || null);
+    window.addEventListener(SELLS_CHANGED_EVENT, on);
+    return () => window.removeEventListener(SELLS_CHANGED_EVENT, on);
+  }, []);
+  // Product addresses follow the same answer: /products/<slug> in a shop that doesn't sell books (lib/productHref.ts).
+  setProductSells(sellsAnswer);
   const w = adminWordsFor(sellsAnswer);
   const nav = useMemo(() => NAV.map((n) => ({ ...n, label: w(n.label) })), [w]);
   const [otherBadges, setOtherBadges] = useState<{ pendingReviews: number | null; unreadMessages: number | null; openPrivacyRequests: number | null }>({ pendingReviews: null, unreadMessages: null, openPrivacyRequests: null });
@@ -251,7 +297,8 @@ export function Dashboard() {
             adminApi.getStripeWebhookStatus({ strict: true }).catch(() => { failedParts.push(`the payment status`); return null; }),
             adminApi.getRecentEmailLog(50).catch(() => { failedParts.push("the email log"); return []; }),
             adminApi.getBackupStatus().catch(() => { failedParts.push("the backup status"); return undefined; }),
-            inventoryLinkApi.state().catch(() => { failedParts.push("the inventory app link"); return null; }),
+            // A website-only press has no stockroom to link, so there is nothing to read (and nothing to fail).
+            hasStockroom() ? inventoryLinkApi.state().catch(() => { failedParts.push("the inventory app link"); return null; }) : Promise.resolve(null),
             adminApi.getClientErrors(20).catch(() => { failedParts.push("the shop errors"); return []; }),
             // Cards through Colophon: is anything on the press's Stripe account past its deadline? (plan 7.9)
             platformCardsProvider() === "stripe" ? adminApi.platformPayments("status").catch(() => null) : Promise.resolve(null),
@@ -305,6 +352,19 @@ export function Dashboard() {
     if (userMenuOpen) userMenuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
   }, [userMenuOpen]);
   const [helpOpen, setHelpOpen] = useState(false);
+  // The spot in the page header where a page's main buttons go (PageActions in riso/components.tsx).
+  const [pageActionsEl, setPageActionsEl] = useState<HTMLDivElement | null>(null);
+  // The combined admin's first-time tour: invited once on Home, and from the account menu any time (CombinedTour.tsx).
+  const [tourOpen, setTourOpen] = useState(false);
+  const [tourInvite, setTourInvite] = useState(() => COMBINED && !tourSeen());
+  const dismissTour = () => { markTourSeen(); void markTourSeenOnAccount(); setTourInvite(false); };
+  // Seen on another device of this shop: no invitation here either (combinedTourStore.ts).
+  useEffect(() => {
+    if (!user || !tourInvite) return;
+    let alive = true;
+    void tourSeenOnAccount().then((seen) => { if (alive && seen) { markTourSeen(); setTourInvite(false); } });
+    return () => { alive = false; };
+  }, [user]);
 
   const [adminTheme, setAdminTheme] = useState(() => {
     // Reso is the admin's primary design, not an optional storefront skin.
@@ -380,10 +440,21 @@ export function Dashboard() {
   // Settings sections register their unsaved edits (settingsDirty.ts); the tab can't close on them silently.
   useBeforeUnloadWhenDirty();
   /** True when the owner confirmed and the change was saved; false when cancelled or the save failed. */
-  async function toggleUnderConstruction(on: boolean): Promise<boolean> {
+  async function toggleUnderConstruction(on: boolean, { checked = false }: { checked?: boolean } = {}): Promise<boolean> {
+    // Opening runs the same last check as the setup guide, unless the caller just ran it (the guide, the final check).
+    if (!on && !checked) {
+      setUcSaving(true);
+      const blockers = await blockersBeforeOpening();
+      setUcSaving(false);
+      if (blockers && blockers.length) {
+        const look = await confirm({ title: "Your shop isn't ready to sell yet", message: blockedMessage(blockers), confirmLabel: "Show me what's missing" });
+        if (look) void goTo("overview");
+        return false;
+      }
+    }
     const ok = await confirm(on
-      ? { title: "Close the shop for now?", message: "Shoppers will see the “under construction” wall instead of your books until you turn it off. You can keep working in the admin.", confirmLabel: "Show the wall" }
-      : { title: "Open the shop?", message: "The “under construction” wall comes down and shoppers can browse and buy again straight away.", confirmLabel: "Open the shop" });
+      ? { title: "Close the shop for now?", message: w("Shoppers will see the “under construction” wall instead of your books until you turn it off. You can keep working in the admin."), confirmLabel: "Show the wall" }
+      : { title: "Open your shop to shoppers?", message: "The “under construction” page comes down, and anyone with your shop's address can browse and buy straight away. You can close it again any time in Settings › General › Store status.", confirmLabel: "Open my shop" });
     if (!ok) return false;
     setUcSaving(true);
     try {
@@ -447,6 +518,8 @@ export function Dashboard() {
   const settingsChild = activeTab === "shipping" || activeTab === "payments" ? activeTab : settingsPageOf(settingsTab);
   const pageTitle = isSettingsPage
     ? NAV.find((n) => n.id === "settings")?.children?.find((c) => c.id === settingsChild)?.label || "Settings"
+    : activeTab === STOCKROOM_TAB ? stockroomPage(subTab)?.label ?? "Stockroom"
+    : activeTab === SALES_TAB ? "All sales"
     : w((PAGE_COPY[activeTab] || PAGE_COPY.overview).title);
   useEffect(() => {
     const previous = document.title;
@@ -508,8 +581,8 @@ export function Dashboard() {
   };
   openBookById.current = (id: string) => {
     adminApi.getBook(id)
-      .then((book: any) => { if (book) handleEditBook(book); else setBookLinkProblem("That book isn't on the website any more. It may have been deleted."); })
-      .catch(() => setBookLinkProblem("That book couldn't be opened just now. Try the link again in a minute, or find it on this Books page."));
+      .then((book: any) => { if (book) handleEditBook(book); else setBookLinkProblem(w("That book isn't on the website any more. It may have been deleted.")); })
+      .catch(() => setBookLinkProblem(w("That book couldn't be opened just now. Try the link again in a minute, or find it on this Books page.")));
   };
 
   const handleAddBook = () => {
@@ -548,10 +621,30 @@ export function Dashboard() {
     return true;
   };
   // A menu page: a module id, or `settings/<page>` (riso/nav.ts).
-  const openMenuPage = (id: string) => { if (id.startsWith(SETTINGS_ITEM_PREFIX)) void openSettingsPage(id.slice(SETTINGS_ITEM_PREFIX.length)); else void goTo(id); };
+  const openMenuPage = (id: string) => {
+    if (id.startsWith(SETTINGS_ITEM_PREFIX)) void openSettingsPage(id.slice(SETTINGS_ITEM_PREFIX.length));
+    else if (id.startsWith(STOCKROOM_ITEM_PREFIX)) void openStockroomPage(id.slice(STOCKROOM_ITEM_PREFIX.length));
+    else void goTo(id);
+  };
+  // A stockroom page in the combined admin: the stockroom tab with that page as its sub tab (`#stockroom/<page>`).
+  // The tab and its page are set together, so the address gets one Back step and the frame opens on that page.
+  const openStockroomPage = async (page: string) => {
+    if (isSettingsPage && anyDirty() && !(await leaveSettings())) return;
+    setSubTabState({ page: STOCKROOM_TAB, id: stockroomPage(page)?.id ?? DEFAULT_STOCKROOM_PAGE });
+    setActiveTab(STOCKROOM_TAB);
+    setShowEditor(false);
+    setSelectedOrder(null);
+    setSidebarOpen(false);
+  };
+  openStockroomRef.current = (page) => { void openStockroomPage(page); };
+  const tourGo = (stop: TourStop) => { if ("stockroom" in stop) void openStockroomPage(stop.stockroom); else void goTo(stop.page); };
+  const onStockroomPage = activeTab === STOCKROOM_TAB;
+  const stockroomPageId = stockroomPage(onStockroomPage ? subTab : undefined)?.id ?? DEFAULT_STOCKROOM_PAGE;
+
 
   // Shipping/Payments can also be entered as top-level tabs by ShopSettings.
-  const navActive = activeTab === "shipping" || activeTab === "payments" ? "settings" : activeTab === "analytics" ? "overview" : activeTab;
+  const navActive = activeTab === "shipping" || activeTab === "payments" ? "settings" : activeTab === "analytics" ? "overview"
+    : activeTab === STOCKROOM_TAB ? STOCKROOM_ITEM_PREFIX + stockroomPageId : activeTab;
   // An old page id (e.g. Email sender's "communications" from older What's new shortcuts) highlights the page it opens.
   const navChild = activeTab === "shipping" || activeTab === "payments" ? activeTab : settingsPageOf(settingsTab);
   // A Settings page picked straight from the sidebar: leaves the book editor / an open order too.
@@ -564,7 +657,9 @@ export function Dashboard() {
     setSidebarOpen(false);
   };
 
-  const pageCopy = PAGE_COPY[activeTab] || PAGE_COPY.overview;
+  const stockroomCopy = onStockroomPage ? stockroomPage(stockroomPageId) : undefined;
+  const ownCopy = stockroomCopy || (COMBINED ? COMBINED_PAGES.find((p) => p.id === activeTab) : undefined);
+  const pageCopy = ownCopy ? { title: ownCopy.label, description: ownCopy.description } : PAGE_COPY[activeTab] || PAGE_COPY.overview;
   const copy = { ...pageCopy, title: w(pageCopy.title), description: w(pageCopy.description) };
   const childLabel = NAV.find((n) => n.id === "settings")?.children?.find((c) => c.id === navChild)?.label;
   const trail: Array<{ label: string; onClick?: () => void }> = [{ label: "Admin", onClick: () => goTo("overview") }];
@@ -587,6 +682,7 @@ export function Dashboard() {
   const accountActions = [
     { key: "logs", label: "Activity logs", icon: <History size={16} aria-hidden />, run: () => setShowLogs(true) },
     { key: "site", label: "View site", icon: <Globe size={16} aria-hidden />, run: openSite },
+    ...(COMBINED ? [{ key: "tour", label: "Take the tour", icon: <Compass size={16} aria-hidden />, run: () => setTourOpen(true) }] : []),
     { key: "help", label: "Help & shortcuts", icon: <HelpCircle size={16} aria-hidden />, run: () => setHelpOpen(true) },
     { key: "theme", label: adminTheme === "light" ? "Dark appearance" : "Light appearance", icon: adminTheme === "light" ? <Moon size={16} aria-hidden /> : <Sun size={16} aria-hidden />, run: toggleTheme },
     { key: "look", label: nextAdminLook(adminLook).label, icon: <Palette size={16} aria-hidden />, run: switchLook },
@@ -602,6 +698,8 @@ export function Dashboard() {
 
   const destinations = [
     ...nav.filter((n) => !n.children).map((n) => ({ id: n.id, label: n.label, run: () => goTo(n.id) })),
+    ...(COMBINED ? COMBINED_PAGES.map((p) => ({ id: p.id, label: p.label, run: () => { void goTo(p.id); } })) : []),
+    ...(COMBINED ? STOCKROOM_PAGES.map((p) => ({ id: `stockroom-${p.id}`, label: p.label, run: () => { void openStockroomPage(p.id); } })) : []),
     ...(NAV.find((n) => n.children)?.children || []).filter((c) => !hiddenPages.has(SETTINGS_ITEM_PREFIX + c.id)).map((c) => ({
       id: `settings-${c.id}`, label: `Settings · ${c.label}`,
       run: () => { setActiveTab("settings"); setSettingsTab(c.id); setShowEditor(false); setSelectedOrder(null); },
@@ -609,19 +707,24 @@ export function Dashboard() {
   ];
 
   // Pages fully built from Riso components render outside the legacy compatibility layer.
-  const migrated = activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "bookkeeping" || settingsTab === "plan"));
+  const migrated = activeTab === STOCKROOM_TAB || activeTab === SALES_TAB || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "channels" || activeTab === "socialPosts" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "bookkeeping" || settingsTab === "plan" || settingsTab === "billing" || settingsTab === "security" || settingsTab === "google" || settingsTab === "apps"));
   const content = (() => {
     switch (activeTab) {
       case "overview":
       case "analytics":
-        return <AnalyticsDashboard setActiveTab={(tab: string) => { if (tab === "general" || tab === "notifications" || tab === "taxes" || tab === "designer") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} onEditBook={handleEditBook} onSetWall={toggleUnderConstruction} />;
+        return <AnalyticsDashboard setActiveTab={(tab: string) => { if (tab === "general" || tab === "notifications" || tab === "taxes" || tab === "designer" || tab === "security") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} onEditBook={handleEditBook} onSetWall={(on: boolean) => toggleUnderConstruction(on, { checked: true })} />;
       case "catalog": return <BookCatalog onEdit={handleEditBook} onAdd={handleAddBook} refreshTrigger={catalogRefreshKey} />;
       case "customers": return <Customers initialQuery={searchCustomerQuery} />;
       case "inventory": return <Inventory onEditBook={handleEditBook} onAddBook={handleAddBookFrom} subTab={subTab} onSubTabChange={openSubTab} />;
       case "discounts": return <Discounts />;
       case "giftCards": return <GiftCards openId={openGiftCard} onOpened={() => setOpenGiftCard(null)} />;
+      case "channels": return <SalesChannels onOpen={(page) => { if (page === "socialPosts" || page === "channels") goTo(page); else { setActiveTab("settings"); setSettingsTab(page); } }} />;
+      case "socialPosts": return <SocialPosts onOpen={(page) => goTo(page)} startWithBook={postBook} onStarted={() => setPostBook(null)} />;
       case "reviews": return <ReviewsModeration />;
       case "messages": return <Messages onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }} onOpenCustomers={() => goTo("customers")} />;
+      // The stockroom's pages show in StockroomFrame below, kept open between visits.
+      case STOCKROOM_TAB: return null;
+      case SALES_TAB: return COMBINED ? <AllSales onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }} /> : null;
       case "orders":
         // Inbox-style desk: list + the full order page (all Stripe sync/refund/label actions) side by side.
         return <OrdersDesk selectedId={selectedOrder?.id || null} onSelect={(id) => setSelectedOrder(id ? { id } : null)} />;
@@ -655,6 +758,11 @@ export function Dashboard() {
   // The Overview draws its own masthead and shows the alerts under it (PageAlertsSlot); every other page gets them under its PageHeader.
   const ownMasthead = (activeTab === "overview" || activeTab === "analytics") && !selectedOrder;
   const pageAlerts = (
+    <>
+    {/* The combined admin's one-time tour invitation, on Home only (CombinedTour.tsx). */}
+    {COMBINED && ownMasthead && tourInvite && <CombinedTourInvite onStart={() => { setTourOpen(true); dismissTour(); }} onDismiss={dismissTour} />}
+    {/* A fair day: the till's takings and upload state on Home, read from the stockroom (FairToday.tsx). */}
+    {COMBINED && <FairToday active={activeTab === "overview" && !selectedOrder} onOpen={() => { void openStockroomPage("pos"); }} />}
     <AdminAlerts
       alerts={[...settingsAlerts(originalSettings), ...alerts]}
       onOpenNotifications={() => { setActiveTab("settings"); setSettingsTab("notifications"); setShowEditor(false); setSelectedOrder(null); }}
@@ -672,24 +780,27 @@ export function Dashboard() {
       }}
       onRetry={() => refreshAlertsRef.current()}
     />
+    </>
   );
 
   return (
     <ShopWordsContext.Provider value={w}>
     <ShopSellsContext.Provider value={sellsAnswer}>
     <ToastProvider>
-      <Dialog open={!!bookLinkProblem} onClose={() => setBookLinkProblem(null)} title="Couldn't open that book"
+      <Dialog open={!!bookLinkProblem} onClose={() => setBookLinkProblem(null)} title={w("Couldn't open that book")}
         footer={<SecondaryButton data-autofocus onClick={() => setBookLinkProblem(null)}>Close</SecondaryButton>}>
         <p style={{ margin: 0 }}>{bookLinkProblem}</p>
       </Dialog>
       <AppShell
         appearance={appearance}
-        overlay={<SyncChip state={online ? null : "offline"} />}
+        // A stockroom page (the Fair till above all) says it's offline in its own words and keeps selling; the admin's
+        // card would cover the till's buttons on a phone and repeat it.
+        overlay={<SyncChip state={online || onStockroomPage ? null : "offline"} />}
         sidebar={
           <Sidebar
             open={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
-            items={withoutPages(sidebarItems(nav), hiddenPages).map((n) => {
+            items={withoutPages(sidebarItems(nav, ADMIN_MENU), hiddenPages).map((n) => {
               // Orders counts open cancel/return requests too (they sit in Needs attention).
               // Privacy requests are handled in Settings › General.
               const badgeFor = (id: string) => id === "orders" ? ordersBadge : id === "reviews" ? otherBadges.pendingReviews
@@ -699,17 +810,17 @@ export function Dashboard() {
               const badge = pages ? pages.reduce((sum, c) => sum + c.badge, 0) : badgeFor(n.id);
               return { ...n, label: w(n.label), ...(pages ? { children: pages } : {}), ...(badge === undefined ? {} : { badge: badge || 0 }) };
             })}
-            activeId={showEditor ? null : menuItemFor(navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive)}
+            activeId={showEditor ? null : menuItemFor(navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive, ADMIN_MENU)}
             activeChildId={navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive}
             onSelect={openMenuPage}
             onSelectChild={(_item, page) => openMenuPage(page)}
-            top={<AppSwitcher onSwitch={() => setSidebarOpen(false)} />}
+            top={hasStockroom() && !COMBINED ? <AppSwitcher onSwitch={() => setSidebarOpen(false)} /> : undefined}
             brand={
-              <a className="rp-brand-link" href="#overview" aria-label="Website admin: go to Overview"
+              <a className="rp-brand-link" href="#overview" aria-label={COMBINED ? "Admin: go to Overview" : "Website admin: go to Overview"}
                 onClick={(e) => { e.preventDefault(); setSidebarOpen(false); void goTo("overview"); }}>
                 <span className="rp-brand-text">
                   <span className="rp-wordmark">{brandWords.first}{brandWords.rest ? <em> {brandWords.rest}</em> : null}</span>
-                  <span className="rp-wordmark-sub">Website admin</span>
+                  <span className="rp-wordmark-sub">{COMBINED ? "Admin" : "Website admin"}</span>
                 </span>
               </a>
             }
@@ -734,7 +845,7 @@ export function Dashboard() {
               onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }}
               onOpenCustomer={(q) => { setSearchCustomerQuery(q); goTo("customers"); }} />
             <div className="rp-topbar-actions">
-              <AppSwitchPill />
+              {hasStockroom() && !COMBINED && <AppSwitchPill />}
               <ShopStatusMenu
                 wallOn={!!settings?.design?.showUnderConstruction}
                 checkoutPaused={maintenanceOn}
@@ -771,10 +882,15 @@ export function Dashboard() {
       >
         <SupportBanner visit={supportVisit} onSignOut={() => { void adminApi.logout(); }} />
         <PlanBannerBar plan={platformPlan} />
+        {/* The control room's messages to the press (platform/messages, code plan 19.14): admin only, never the storefront. */}
+        <PlatformMessagesBar enabled={!!user} />
+        {/* The admin home asks a paid plan's owner to turn on two-step sign-in (TwoStepReminder.tsx, plan 22.10). */}
+        {activeTab === "overview" && !supportVisit && <TwoStepReminder plan={platformPlan} />}
         {/* The Overview board draws its own header (title, period, layout and Edit board). */}
         {!ownMasthead && <PageHeader
           breadcrumbs={trail.length > 2 ? <Breadcrumbs trail={trail} /> : undefined}
           title={selectedOrder && activeTab !== "orders" ? "Order detail" : navActive === "settings" && childLabel ? childLabel : copy.title}
+          actions={<div ref={setPageActionsEl} className="rp-page-actions-slot" />}
         />}
         {!ownMasthead && pageAlerts}
         {/* Feature pages still use legacy utility classes; scope the compatibility layer to them only. */}
@@ -786,18 +902,23 @@ export function Dashboard() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.18, ease: "easeOut" }}
             >
-              <PageAlertsSlot.Provider value={ownMasthead ? pageAlerts : null}><Suspense fallback={<PageSkeleton label="Opening page…" />}>{content}</Suspense></PageAlertsSlot.Provider>
+              <PageAlertsSlot.Provider value={ownMasthead ? pageAlerts : null}><PageActionsSlot.Provider value={ownMasthead ? null : pageActionsEl}><Suspense fallback={<PageSkeleton label="Opening page…" />}>{content}</Suspense></PageActionsSlot.Provider></PageAlertsSlot.Provider>
             </m.div>
           </AnimatePresence>
+          {COMBINED && stockroomOpened && (
+            <StockroomFrame page={stockroomPageId} visible={onStockroomPage && !selectedOrder} look={adminLook} appearance={appearance}
+              onPage={(tab) => { if (activeTab === STOCKROOM_TAB && stockroomPage(tab)) openSubTab(tab, STOCKROOM_TAB); }} />
+          )}
         </div>
       </AppShell>
 
+      {COMBINED && <CombinedTour open={tourOpen} onClose={() => setTourOpen(false)} onGo={tourGo} appearance={appearance} />}
       <Dialog open={helpOpen} onClose={() => setHelpOpen(false)} title="Help & shortcuts" appearance={appearance}
         footer={<PrimaryButton onClick={() => setHelpOpen(false)}>Got it</PrimaryButton>}>
         <div className="rp-help">
           <h3 className="rp-help-head">Keyboard shortcuts</h3>
           <dl className="rp-help-keys">
-            <dt><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>K</kbd></dt><dd>Search: jump to any admin page, or open a book (title, author, ISBN, SKU), an order (number with or without #, customer email or name) or a customer.</dd>
+            <dt><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>K</kbd></dt><dd>{w("Search: jump to any admin page, or open a book (title, author, ISBN, SKU), an order (number with or without #, customer email or name) or a customer.")}</dd>
             <dt><kbd>J</kbd> / <kbd>K</kbd></dt><dd>Orders: next / previous order.</dd>
             <dt><kbd>/</kbd></dt><dd>Orders: jump to the search box (<kbd>Esc</kbd> clears it).</dd>
             <dt><kbd>Esc</kbd></dt><dd>Close any dialog; you go back to where you were.</dd>
@@ -827,9 +948,9 @@ export function Dashboard() {
               exit={{ opacity: 0, x: 32 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
               className="rp-dialog rp-editor-panel"
-              role="dialog" aria-modal="true" aria-label={editingBook ? "Edit book" : "New book"}
+              role="dialog" aria-modal="true" aria-label={w(editingBook ? "Edit book" : "New book")}
             >
-              <Suspense fallback={<LoadingState label="Opening book editor…" />}>
+              <Suspense fallback={<LoadingState label={w("Opening book editor…")} />}>
               <BookEditor
                 book={editingBook}
                 prefill={editingBook ? null : newBookStart?.prefill}

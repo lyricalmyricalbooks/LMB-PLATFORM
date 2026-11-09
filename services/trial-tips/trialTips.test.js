@@ -5,24 +5,26 @@ import { DEFAULT_STEPS, TIPS, TIP_DAYS, createTrialTips, dueTip, offToken, trial
 import { fakeGuide, fakePlatformEmail, fakeTipStore } from "./fakes.js";
 import { fakeAuditLog, fakeRegistry } from "../../setup/fakes.js";
 import { platformSettings } from "../settings.js";
+import { START_NUDGE_WORDS } from "./startNudges.js";
 
-const settings = platformSettings({});
 const SECRET = "a-test-secret-of-enough-length";
 const START = "2026-11-01T09:00:00.000Z";
 const at = (day, hour = 9) => new Date(Date.parse(START) + day * 86_400_000 + (hour - 9) * 3_600_000);
 const ALL = ["logo", "look", "add-books", "shipping", "payments", "address", "practice", "open"];
 
-function world({ progress = { steps: ALL, done: [] }, row = {}, guideDoc } = {}) {
+// `env` sets the platform settings (START_NUDGES); `start` adds to the shop's firstWeek/start document (its run's markers).
+function world({ progress = { steps: ALL, done: [] }, row = {}, guideDoc, env = {}, start = {} } = {}) {
   const registry = fakeRegistry();
   const shop = { shopId: "moth-press", pressName: "Moth Press", ownerEmail: "owner@example.com", status: "ready", createdAt: START, billing: { status: "trialing", access: "open" }, ...row };
   registry.shops.set(shop.shopId, shop);
   registry.profiles.set(shop.shopId, { siteUrl: "https://moth-press.web.app", apps: { shop: true, stockroom: false } });
   const auditLog = fakeAuditLog();
-  const guide = fakeGuide({ "moth-press": guideDoc === undefined ? { sellingToday: "starting", progress } : guideDoc });
-  const email = fakePlatformEmail(settings);
+  const guide = fakeGuide({ "moth-press": guideDoc === undefined ? { sellingToday: "starting", progress, ...start } : guideDoc });
+  const cfg = platformSettings(env);
+  const email = fakePlatformEmail(cfg);
   const store = fakeTipStore();
   let clock = at(0);
-  const tips = createTrialTips({ registry, auditLog, guide, email, store, settings, secret: SECRET, now: () => clock });
+  const tips = createTrialTips({ registry, auditLog, guide, email, store, settings: cfg, secret: SECRET, now: () => clock });
   const runOn = async (day, hour) => { clock = at(day, hour); return tips.run(); };
   return { registry, auditLog, guide, email, store, tips, runOn };
 }
@@ -88,9 +90,10 @@ test("turned-off tips stop; the off link must be the platform's own; billing ema
   assert.ok([...w.registry.events.get("moth-press").keys()].some((k) => k.startsWith("trial-tips-off-")));
   for (const day of TIP_DAYS) await w.runOn(day);
   assert.equal(w.email.sent.length, 0);
-  // The sweep sends only setup tips; the billing emails (trial-ending, card-needed…) are sent by services/billing.
+  // The sweep sends only setup tips (Get started nudges go out under the same email kind); the billing emails
+  // (trial-ending, card-needed…) are sent by services/billing. Audit kinds such as "start-nudge" are not emails.
   const source = readFileSync(new URL("./index.js", import.meta.url), "utf8");
-  assert.deepEqual([...new Set(source.match(/kind: "[a-z-]+"/g))], ['kind: "trial-tip"', 'kind: "trial-tips-off"']);
+  assert.deepEqual([...new Set([...source.matchAll(/sendPlatform\(\{\s*kind: "([a-z-]+)"/g)].map((m) => m[1]))], ["trial-tip"]);
 });
 
 test("an owner who never opened the admin gets the general order; a stockroom-only or test shop and a closed one get none", async () => {
@@ -101,6 +104,7 @@ test("an owner who never opened the admin gets the general order; a stockroom-on
     ["no-guide", { guideDoc: null }],
     ["not-a-trial-shop", { row: { testShop: true } }],
     ["not-a-trial-shop", { row: { status: "closed" } }],
+    ["not-a-trial-shop", { row: { closure: { by: "admin@example.com", reason: "abuse", at: "2026-11-01T00:00:00Z" } } }],
     ["paused", { row: { billing: { status: "paused", access: "paused" } } }],
   ]) {
     const w = world(opts);
@@ -124,4 +128,92 @@ test("every step of the shop's setup guide has a tip, in plain words naming no r
   for (const bad of ["shopify", "big cartel", "squarespace", "etsy", "wix", "woocommerce", "firebase", "api", "webhook", "dns", "deploy", "secret"]) {
     assert.ok(!new RegExp(`\\b${bad}\\b`).test(words), bad);
   }
+});
+
+// Get started nudges (plan 17.14): a press that has opened its admin and not finished its run, on days 2 and 4.
+const STARTED = { details: { at: "t" } };
+const keysSent = (w) => w.email.sent.map((m) => m.idempotencyKey);
+
+test("the default setting sends no Get started nudge: the setup tips go out exactly as before", async () => {
+  const w = world({ start: STARTED });
+  for (let day = 0; day <= 8; day++) await w.runOn(day);
+  assert.deepEqual(keysSent(w), ["trial-tip-moth-press-day-2", "trial-tip-moth-press-day-4", "trial-tip-moth-press-day-7"]);
+});
+
+test("beside: the day-2 nudge goes with that day's setup tip, and is never sent twice", async () => {
+  const w = world({ env: { START_NUDGES: "beside" }, start: STARTED });
+  await w.runOn(2);
+  assert.deepEqual(keysSent(w), ["start-nudge-moth-press-bring", "trial-tip-moth-press-day-2"]);
+  assert.equal(w.email.sent[0].data.subject, START_NUDGE_WORDS.bring.subject);
+  assert.equal(w.email.sent[0].data.link, "https://moth-press.web.app/admin#catalog");
+  assert.equal(w.registry.events.get("moth-press").get("start-nudge-bring").step, "bring");
+  // Day 4 still has its setup tip, but the bring nudge is not repeated while that step is still to do.
+  await w.runOn(4);
+  assert.deepEqual(keysSent(w), ["start-nudge-moth-press-bring", "trial-tip-moth-press-day-2", "trial-tip-moth-press-day-4"]);
+});
+
+test("instead: the day-2 nudge takes the place of that day's setup tip, which is sent on the next tip day instead", async () => {
+  const w = world({ env: { START_NUDGES: "instead" }, start: STARTED });
+  await w.runOn(2);
+  assert.deepEqual(keysSent(w), ["start-nudge-moth-press-bring"]);
+  await w.runOn(3);
+  assert.equal(w.email.sent.length, 1, "day 3 sends nothing: day 2's slot is taken");
+  await w.runOn(4);
+  assert.deepEqual(keysSent(w), ["start-nudge-moth-press-bring", "trial-tip-moth-press-day-4"]);
+  // The tip that was held back is not lost: it is the first step, logo.
+  assert.equal(w.email.sent[1].data.subject, TIPS.logo.subject);
+});
+
+test("a missed run sends the nudge the day after, once, and the setup tip with it", async () => {
+  const w = world({ env: { START_NUDGES: "beside" }, start: STARTED });
+  await w.runOn(3);
+  assert.deepEqual(keysSent(w), ["start-nudge-moth-press-bring", "trial-tip-moth-press-day-2"]);
+  assert.equal(w.registry.events.get("moth-press").get("start-nudge-bring").day, 2);
+  // Day 4 is too soon after the day-3 send, and the nudge is already sent: nothing more.
+  assert.equal((await w.runOn(4)).sent.length, 0);
+});
+
+test("turned-off tips stop the Get started nudges as well", async () => {
+  const w = world({ env: { START_NUDGES: "beside" }, start: STARTED });
+  await w.store.set("moth-press", { off: true, offAt: "t" });
+  for (const day of [2, 3, 4, 5]) await w.runOn(day);
+  assert.equal(w.email.sent.length, 0);
+});
+
+test("a shop with no owner email is skipped with its reason, and sends nothing", async () => {
+  const w = world({ env: { START_NUDGES: "beside" }, start: STARTED, row: { ownerEmail: "" } });
+  const { skipped } = await w.runOn(2);
+  assert.ok(skipped.some((s) => s.why === "no-shop-admin" && s.nudge === "bring"));
+  assert.equal(w.email.sent.length, 0);
+});
+
+test("a finished run gets no nudge, and a bad START_NUDGES value is refused when the settings are read", async () => {
+  const done = { details: { at: "t" }, bring: { at: "t" }, welcome: { at: "t" }, google: { at: "t" }, shipping: { at: "t" }, finalCheck: { at: "t" } };
+  const w = world({ env: { START_NUDGES: "beside" }, start: done });
+  await w.runOn(2);
+  assert.ok(!keysSent(w).some((k) => k.startsWith("start-nudge")));
+  assert.throws(() => platformSettings({ START_NUDGES: "maybe" }), /START_NUDGES must be one of hold, beside, instead/);
+});
+
+test("a shop that sells no books gets its tips and nudges in its own words; a books shop's are unchanged (plan 12.18)", async () => {
+  const { TIPS, tipWords, nudgeWords } = await import("./index.js");
+  const { START_NUDGE_WORDS } = await import("./startNudges.js");
+  for (const sells of [null, "books", "zines"]) {
+    assert.equal(tipWords("add-books", sells), TIPS["add-books"]);
+    assert.equal(nudgeWords("details", sells), START_NUDGE_WORDS.details);
+  }
+  const bookWords = /\b(books?|presses|press's|your press|copies|editions?)\b/i;
+  for (const step of Object.keys(TIPS)) {
+    const tip = tipWords(step, "clothing");
+    for (const text of [tip.subject, ...tip.paragraphs, tip.action]) assert.doesNotMatch(text, bookWords, `${step}: ${text}`);
+  }
+  for (const stage of Object.keys(START_NUDGE_WORDS)) {
+    const nudge = nudgeWords(stage, "jewelry");
+    for (const text of [nudge.subject, ...nudge.paragraphs, nudge.action]) assert.doesNotMatch(text, bookWords, `${stage}: ${text}`);
+  }
+  assert.equal(tipWords("look", "clothing").subject, "Make your shop look like yours");
+  // The web address tip names the shop's free address when it has one.
+  assert.match(tipWords("address", "books", { freeAddress: "moth-press.shops.example" }).paragraphs[0], /free address is moth-press\.shops\.example\. Share it/);
+  assert.equal(tipWords("address", "books"), TIPS.address);
+  assert.equal(tipWords("add-books", "clothing").subject, "Add your first product");
 });

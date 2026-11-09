@@ -2,6 +2,7 @@
 // only platform admins get in; the list shows plan, version, health and switches; "act as this shop" is logged before
 // any sign-in is made; and a switch changes the saved profile, its file and the live pages, with a log entry.
 import { test } from "node:test";
+import { PRIVACY_CONTACT } from "../terms/terms.js";
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { ACT_AS_MINUTES, SHOPS_AT_ONCE, SIGN_IN_HOURS, adminOf, controlRoomAdmins, createControlRoom, eachInTurn, profilePublisher, shopHealth, twoStepProblem } from "./controlRoom.js";
@@ -237,6 +238,41 @@ test("the real support sign-in: a token for the support account with who, why an
   await assert.rejects(supportAccess({ identity, registry: w.registry }).supportSignIn(ID, { by: ADMIN.email, reason: "r" }), /service account/);
 });
 
+test("two-step off for someone who lost their phone and codes: admins only, a reason and an address, logged first", async () => {
+  const w = await world();
+  w.shopAccess.twoStep.set(`${ID} staff@example.com`, 1);
+  const reason = "owner replied from the address on file";
+  assert.equal((await w.ask(PRESS, "POST", "/api/control/two-step-reset", { shopId: ID, email: "staff@example.com", reason })).status, 403);
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/two-step-reset", { shopId: ID, email: "staff@example.com", reason: "lost it" })).status, 400);
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/two-step-reset", { shopId: ID, email: "not an address", reason })).status, 400);
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/two-step-reset", { shopId: "press-two", email: "two@example.com", reason })).status, 409);
+  assert.equal(w.events().length, 0);
+
+  const done = await w.ask(ADMIN, "POST", "/api/control/two-step-reset", { shopId: ID, email: " Staff@Example.com ", reason });
+  assert.equal(done.status, 200);
+  assert.deepEqual(done.body, { ok: true, shopId: ID, email: "staff@example.com", removed: 1 });
+  assert.equal(w.shopAccess.twoStep.get(`${ID} staff@example.com`), 0);
+  const [entry] = w.events();
+  assert.deepEqual([entry.what, entry.by, entry.reason, entry.email], ["two-step-reset", ADMIN.email, reason, "staff@example.com"]);
+  assert.ok(w.auditLog.entries.get(ID).has(entry.id), "in the shop's own audit log too");
+
+  // Someone who doesn't sign in to the shop: logged (the attempt is on record), and nothing changes.
+  const nobody = await w.ask(ADMIN, "POST", "/api/control/two-step-reset", { shopId: ID, email: "nobody@example.com", reason });
+  assert.equal(nobody.status, 404);
+  assert.match(nobody.body.message, /Nothing was changed/);
+});
+
+test("the real two-step reset reaches the shop's own sign-in project", async () => {
+  const w = await world();
+  const asked = [];
+  const identity = { removeSecondSteps: async (projectId, email) => { asked.push([projectId, email]); return { found: true, removed: 1 }; } };
+  const access = supportAccess({ identity, registry: w.registry, serviceAccount: "platform@example.com" });
+  assert.deepEqual(await access.removeTwoStep(ID, "staff@example.com"), { found: true, removed: 1 });
+  const profile = await w.registry.getProfile(ID);
+  assert.deepEqual(asked, [[profile.firebase.projectId, "staff@example.com"]]);
+  await assert.rejects(access.removeTwoStep("press-two", "two@example.com"), /no sign-in project/);
+});
+
 test("close a shop for abuse: admins only, a reason, logged first, checkout and pages closed; opening it again puts things back", async () => {
   const w = await world();
   const settingsKey = `${ID} settings/website`;
@@ -389,14 +425,14 @@ test("the breach register: admins only, every field required, kept two years wit
   assert.equal(w.breachStore.rows.get(entry.id).reportedToCommissioner, true);
 
   const list = await w.ask(ADMIN, "POST", "/api/control/breaches");
-  assert.deepEqual([list.body.breaches.length, list.body.privacyContact], [1, "privacy@platform.example"]);
+  assert.deepEqual([list.body.breaches.length, list.body.privacyContact], [1, PRIVACY_CONTACT]);
   assert.ok(!Object.keys(controlRoutes(w.room)).some((route) => /delete|remove/.test(route)), "no route deletes an entry");
   assert.equal(keepUntil("2028-02-29"), "2030-03-01");
 });
 
-test("the control room's people: a placeholder privacy contact, and nobody as admin address or backup person until set", () => {
-  assert.deepEqual(controlRoomPeople({}), { privacyContact: "privacy@platform.example", adminEmail: null, backupPerson: null });
-  assert.deepEqual(controlRoomPeople({ PLATFORM_DOMAIN: "colophon.example", PLATFORM_ADMIN_EMAIL: " Owner@Example.com ", PLATFORM_BACKUP_PERSON: "backup@example.com" }), {
+test("the control room's people: the terms' privacy contact, and nobody as admin address or backup person until set", () => {
+  assert.deepEqual(controlRoomPeople({}), { privacyContact: PRIVACY_CONTACT, adminEmail: null, backupPerson: null });
+  assert.deepEqual(controlRoomPeople({ PLATFORM_PRIVACY_CONTACT: "privacy@colophon.example", PLATFORM_ADMIN_EMAIL: " Owner@Example.com ", PLATFORM_BACKUP_PERSON: "backup@example.com" }), {
     privacyContact: "privacy@colophon.example", adminEmail: "owner@example.com", backupPerson: "backup@example.com",
   });
   assert.throws(() => controlRoomPeople({ PLATFORM_BACKUP_PERSON: "someone" }), /PLATFORM_BACKUP_PERSON is not an email address/);
@@ -464,9 +500,46 @@ test("one shop's record: owner, billing, setup, fee and its history, admins only
   assert.deepEqual([record.fee.basisPoints, record.fee.next], [0, null]);
   assert.deepEqual(record.history.map((e) => e.what), ["act-as"]);
   assert.equal((await w.ask(PRESS, "POST", "/api/control/shop", { shopId: ID })).status, 403);
+  assert.equal(record.emailLanguage, "en", "no choice and no Quebec address: English");
+  assert.equal(record.emailSample.language, "en");
+  assert.match(record.emailSample.text, /^Hello,/);
+  await w.registry.updateShop(ID, { billing: { plan: "both", status: "trialing", province: "QC", language: null, hasCard: true } });
+  const quebec = (await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: ID })).body;
+  assert.equal(quebec.emailLanguage, "fr+en", "the same rule the emails use");
+  assert.match(quebec.emailSample.text, /^Bonjour,.*----- English -----.*Hello,/s, "French first, then the English");
+  assert.match(quebec.emailSample.text, /39,00\u00a0\$/, "the price the French way");
+  assert.match(quebec.emailSample.text, /Boutique et réserve/, "the plan's French name");
+  assert.match(quebec.emailSample.subject, /^Votre essai .* \/ Your .* trial/);
+  await w.registry.updateShop(ID, { billing: { plan: "both", status: "trialing", province: "QC", language: null, hasCard: false } });
+  assert.match((await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: ID })).body.emailSample.subject, /^Ajoutez une carte .* \/ Add a card/, "no card yet: the add-a-card version, as the press gets it");
+  // French picked at sign-up, then automatic on the Plan page outside Quebec: billing's choice wins, so English.
+  await w.registry.updateShop(ID, { language: "fr", billing: { plan: "both", status: "trialing", province: "ON", language: null } });
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: ID })).body.emailLanguage, "en", "the Plan page's later choice wins");
   assert.equal((await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: "nope" })).status, 404);
   const listed = (await w.ask(ADMIN, "GET", "/api/control/shops")).body.shops.find((s) => s.shopId === ID);
   assert.deepEqual([listed.ownerEmail, listed.billingStatus], ["owner@example.com", "trialing"]);
+  assert.equal(listed.emailLanguage, "en", "the list carries each press's email language too");
+});
+
+test("what a shop sells, against the category its Stripe account was filed under (12.18)", async () => {
+  const w = await world();
+  const row = await w.registry.getShop(ID);
+  await w.registry.updateShop(ID, { publishes: "clothing", payments: { ...(row.payments ?? {}), provider: "stripe", accountId: "acct_moth", mcc: "5651" } });
+  let listed = (await w.ask(ADMIN, "GET", "/api/control/shops")).body.shops.find((s) => s.shopId === ID);
+  assert.deepEqual([listed.sells.words, listed.sells.mismatch], ["Clothing", false]);
+  let record = (await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: ID })).body;
+  assert.equal(record.sells.line, "Clothing · Stripe files it as Clothing");
+  // Filed as a book shop but sells shoes: flagged on the list and in the record.
+  await w.registry.updateShop(ID, { publishes: "shoes", payments: { ...(row.payments ?? {}), provider: "stripe", accountId: "acct_moth", mcc: "5942" } });
+  listed = (await w.ask(ADMIN, "GET", "/api/control/shops")).body.shops.find((s) => s.shopId === ID);
+  assert.equal(listed.sells.mismatch, true);
+  record = (await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: ID })).body;
+  assert.match(record.sells.line, /^Shoes · Stripe files it as Book stores, but this answer fits Shoes/);
+  // The owner changed the answer later in Settings: the record goes by the shop's own answer.
+  await w.registry.updateShop(ID, { status: "live" });
+  await w.services.shopData.set(ID, "firstWeek/start", { sells: "books" });
+  record = (await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: ID })).body;
+  assert.deepEqual([record.sells.words, record.sells.mismatch], ["Books", false]);
 });
 
 test("the per-order fee: the press is emailed and the change starts 30 days later; same again changes nothing; today's fee cancels it (plan 9.6)", async () => {

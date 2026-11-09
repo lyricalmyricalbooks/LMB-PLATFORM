@@ -3,10 +3,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { createSignup, personOf, MAX_SHOPS_PER_ACCOUNT, LINKS_PER_HOUR } from "./signup.js";
+import { createSignup, personOf, CLOSED_WORDS, MAX_SHOPS_PER_ACCOUNT, LINKS_PER_HOUR } from "./signup.js";
 import { createApi } from "./api.js";
-import { checkSignup, slugFromPressName, QUESTION } from "./form.js";
-import { fakeAuth, fakeSignupStores, fakeVerifyIdToken } from "./fakes.js";
+import { checkAddress, checkSignup, slugFromPressName, QUESTION } from "./form.js";
+import { fakeAuth, fakeInvites, fakeSignupStores, fakeVerifyIdToken } from "./fakes.js";
 import { fakePlatformEmail } from "../services/billing/fakes.js";
 import { platformSettings } from "../services/settings.js";
 import { fakeRegistry } from "../setup/fakes.js";
@@ -14,6 +14,8 @@ import { shopProblems } from "../setup/steps.js";
 import { TERMS_VERSION } from "../terms/terms.js";
 
 const ADA = { uid: "uid-ada", email: "Ada@Example.com", email_verified: true, name: "Ada" };
+// Sign-up open to anyone (the control room's setting); closed is tested on its own.
+const OPEN = async () => ({ signupOpen: true, signupDailyCap: 10 });
 
 function make() {
   const stores = fakeSignupStores();
@@ -27,7 +29,7 @@ function make() {
     },
   };
   let n = 0;
-  const signup = createSignup({ ...stores, registry, billing, email, auth: fakeAuth(), settings: platformSettings({}), suffix: () => `aaaa${n++}` });
+  const signup = createSignup({ ...stores, registry, billing, email, auth: fakeAuth(), settings: platformSettings({}), live: OPEN, suffix: () => `aaaa${n++}` });
   const api = createApi({ signup, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}) });
   const ask = (method, path, body, claims) => api({ method, path, body, headers: claims ? { Authorization: `Bearer ${JSON.stringify(claims)}` } : {} });
   return { stores, registry, email, trials, signup, ask };
@@ -47,6 +49,16 @@ test("signing up starts the free trial with no card and queues a shop the shop m
   assert.equal(row.currency, "CAD");
   assert.deepEqual(shopProblems({ shopId: row.shopId, pressName: row.pressName, ownerEmail: row.ownerEmail, plan: row.plan, country: row.country, currency: row.currency, paymentProvider: row.paymentProvider }), []);
   assert.deepEqual(stores.accounts.rows.get("uid-ada").shops, { "moth-press-aaaa0": "owner" });
+});
+
+test("a press signing up from a French browser gets the platform's emails in French; anything else stays unset", async () => {
+  const { ask, trials, stores } = make();
+  await ask("POST", "/api/signup", { ...details, language: "fr" }, ADA);
+  assert.equal(stores.signups.rows.get("moth-press-aaaa0").language, "fr");
+  assert.equal(trials[0].language, "fr", "kept on the plan, where the emails read it");
+  assert.equal(checkSignup({ ...details, language: "en" }).details.language, "en", "a choice of English is kept too");
+  assert.equal(checkSignup(details).details.language, undefined, "nothing said: Quebec's rule decides");
+  assert.equal(checkSignup({ ...details, language: "<b>" }).details.language, undefined);
 });
 
 test("the question can be skipped, and an unknown answer counts as skipped", async () => {
@@ -69,7 +81,7 @@ test("a trial that failed to start is started on the next try, for the same shop
   const { stores, registry, email } = make();
   let fail = true;
   const billing = { startTrial: async () => { if (fail) throw new Error("Stripe is down"); return { status: "trialing", trialEnd: null }; } };
-  const signup = createSignup({ ...stores, registry, billing, email, auth: fakeAuth(), settings: platformSettings({}), suffix: () => "bbbbb" });
+  const signup = createSignup({ ...stores, registry, billing, email, auth: fakeAuth(), settings: platformSettings({}), live: OPEN, suffix: () => "bbbbb" });
   await assert.rejects(signup.start(ADA, details), /Stripe is down/);
   fail = false;
   const again = await signup.start(ADA, details);
@@ -97,7 +109,7 @@ test("a shop id taken in the registry is skipped, and an account has a limit on 
   const { stores, registry, email, trials } = make();
   await registry.createShop("moth-press-taken", { shopId: "moth-press-taken" });
   const ids = ["taken", "fresh"];
-  const signup = createSignup({ ...stores, registry, billing: { startTrial: async (a) => (trials.push(a), { status: "trialing" }) }, email, auth: fakeAuth(), settings: platformSettings({}), suffix: () => ids.shift() ?? `x${trials.length}abc` });
+  const signup = createSignup({ ...stores, registry, billing: { startTrial: async (a) => (trials.push(a), { status: "trialing" }) }, email, auth: fakeAuth(), settings: platformSettings({}), live: OPEN, suffix: () => ids.shift() ?? `x${trials.length}abc` });
   assert.equal((await signup.start(ADA, details)).shopId, "moth-press-fresh");
   for (let i = 1; i < MAX_SHOPS_PER_ACCOUNT; i += 1) await signup.start(ADA, { ...details, pressName: `Press ${i}` });
   await assert.rejects(signup.start(ADA, { ...details, pressName: "One too many" }), /up to 5 shops/);
@@ -110,6 +122,61 @@ test("shop ids are made from the press name and always fit Google's rules", () =
   for (const name of ["Moth Press", "42", "Ö", "a—b", "x".repeat(90), "---"]) {
     assert.match(`${slugFromPressName(name)}-abcde`, /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/, name);
   }
+  // Words Google refuses in a project id are left out of a made-up address, so it always passes the typed rules too.
+  assert.equal(slugFromPressName("Google Books"), "books");
+  for (const name of ["Google Books", "Null Island Press", "Undefined Editions", "SSL Zines", "goognullle", "Google"]) {
+    const id = `${slugFromPressName(name)}-abcde`;
+    assert.equal(checkAddress(id).ok, true, `${name} -> ${id}`);
+    assert.deepEqual(shopProblems({ shopId: id, pressName: name, ownerEmail: "a@example.com", plan: "shop", country: "CA", currency: "CAD", paymentProvider: "stripe" }), [], id);
+  }
+  assert.match(shopProblems({ shopId: "google-press-abcde", pressName: "x", ownerEmail: "a@example.com", plan: "shop", country: "CA", currency: "CAD", paymentProvider: "stripe" }).join(), /Google refuses/);
+});
+
+test("a press named after a word Google refuses still signs up, with an address Google takes", async () => {
+  const { signup } = make();
+  const { shopId } = await signup.start(ADA, { ...details, pressName: "Google Books" });
+  assert.equal(shopId, "books-aaaa0");
+});
+
+test("closed sign-up: a new press needs an invite; one already signed up carries on", async () => {
+  const { stores, registry, email, trials } = make();
+  let open = true;
+  const invites = fakeInvites(["bea@example.com"]);
+  const billing = { startTrial: async (a) => (trials.push(a), { status: "trialing" }) };
+  const signup = createSignup({ ...stores, registry, billing, email, auth: fakeAuth(), settings: platformSettings({}), invites, live: async () => ({ signupOpen: open, signupDailyCap: 10 }), suffix: () => "ccccc" });
+  const first = await signup.start(ADA, details);
+  open = false;
+  const api = createApi({ signup, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}) });
+  const refused = await api({ method: "POST", path: "/api/signup", body: { ...details, pressName: "Second Press" }, headers: { Authorization: `Bearer ${JSON.stringify(ADA)}` } });
+  assert.deepEqual([refused.status, refused.body.message], [403, CLOSED_WORDS]);
+  assert.equal(trials.length, 1, "no second trial");
+  assert.equal(stores.signups.rows.size, 1);
+  assert.equal((await signup.start(ADA, details)).shopId, first.shopId, "the press already signed up carries on");
+  const BEA = { uid: "uid-bea", email: "bea@example.com", email_verified: true, name: "Bea" };
+  assert.equal((await signup.start(BEA, { ...details, pressName: "Bea Books" })).status, "queued", "an invited email may start");
+  // The default settings are closed too.
+  const closedByDefault = createSignup({ ...fakeSignupStores(), registry: fakeRegistry(), billing, email, auth: fakeAuth(), settings: platformSettings({}), live: async () => platformSettings({}) });
+  await assert.rejects(closedByDefault.start(ADA, details), (error) => error.status === 403);
+});
+
+test("a new press can't take over an address this account already uses", async () => {
+  const { signup, stores, trials } = make();
+  const { shopId } = await signup.start(ADA, details);
+  await assert.rejects(signup.start(ADA, { ...details, pressName: "Other Press", plan: "shop", address: shopId }), (error) => error.status === 409 && Boolean(error.problems?.address));
+  assert.equal(stores.signups.rows.get(shopId).pressName, "Moth Press", "the first press's row is untouched");
+  assert.equal(trials.length, 1);
+});
+
+test("sign-ups sent at the same moment make one shop and one trial, and can't pass the limit on shops", async () => {
+  const { signup, stores, trials } = make();
+  const answers = await Promise.all([signup.start(ADA, details), signup.start(ADA, details), signup.start(ADA, details)]);
+  assert.equal(new Set(answers.map((a) => a.shopId)).size, 1);
+  assert.equal(stores.signups.rows.size, 1);
+  assert.equal(new Set(trials.map((t) => t.shopId)).size, 1);
+  // Many different presses at once: never more than the limit.
+  const many = await Promise.allSettled(Array.from({ length: 8 }, (_, i) => signup.start(ADA, { ...details, pressName: `Press number ${i}` })));
+  assert.equal(stores.signups.rows.size, MAX_SHOPS_PER_ACCOUNT);
+  assert.ok(many.filter((m) => m.status === "rejected").every((m) => m.reason.status === 429));
 });
 
 test("the sign-in link comes from the platform, says the same whoever asks, and is limited per address", async () => {

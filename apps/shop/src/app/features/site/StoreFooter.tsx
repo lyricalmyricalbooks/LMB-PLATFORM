@@ -2,12 +2,13 @@ import { Link } from "react-router";
 import { Mail, Music2 } from "lucide-react";
 import { Facebook, Instagram, Twitter } from "./socialIcons";
 import { POLICY_KEYS, policySlug, policyTitle } from "./policyPages";
+import { openCookieSettings } from "../../lib/consent";
 import { DEFAULT_SOCIAL } from "./constants";
 import { contentMaxWidth } from "./headerNav";
 import { getCopy, shopCopyFallback } from "./storeCopy";
 import { shopName, wordmarkWords } from "./shopIdentity";
 import { resolveFooterBadges } from "./paymentBadges";
-import { PAYMENT_ICONS } from "./paymentIcons";
+import { paymentIcon } from "./paymentIcons";
 import { regionProps } from "./storefrontRegions";
 import { GroupedFooterNavigation } from "../../components/GroupedFooterNavigation";
 import { FooterMenu } from "../../components/StoreMenu";
@@ -166,15 +167,19 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
         className="fm-footer-rule fm-footer-bar border-t border-white/20 flex flex-col items-start gap-4 md:flex-row md:items-center md:justify-between">
         <p className="text-[9px] tracking-widest text-white/55 uppercase">
           <span data-studio-copy="footerCopyright">{getCopy(settings?.design, "footerCopyright")}</span>
+          {/* Shoppers can always change their cookie answer (EU/UK and Quebec rules); words in Text & labels › Footer. */}
+          {d.showCookieBanner !== false && <>{" · "}<button type="button" onClick={openCookieSettings} className="fm-footer-text text-white/80 uppercase tracking-widest underline-offset-2 hover:text-white hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--rp-focus)]">
+            <span data-studio-copy="footerCookieSettings">{getCopy(d, "footerCookieSettings")}</span>
+          </button></>}
         </p>
 
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           {/* Style › Footer & social links › Currency picker in the footer (off by default). */}
           {footerCurrencyOn(d) && <FooterCurrency design={d} />}
           {badges.length > 0 && (
-            <div className="fm-footer-pay-icons flex items-center gap-4 text-white/55 select-none" data-studio-target="style:paymentIcons|style:footer" data-studio-label="Payment icons">
+            <div className="fm-footer-pay-icons flex flex-wrap items-center gap-x-4 gap-y-2 min-w-0 text-white/55 select-none" data-studio-target="style:paymentIcons|style:footer" data-studio-label="Payment icons">
               {badges.map((badgeId: string) => {
-                const icon = PAYMENT_ICONS[badgeId];
+                const icon = paymentIcon(badgeId, d);
                 if (!icon) return null;
                 return (
                   <div key={badgeId} className="fm-footer-pay-icon opacity-30 hover:opacity-100 transition-opacity duration-300">

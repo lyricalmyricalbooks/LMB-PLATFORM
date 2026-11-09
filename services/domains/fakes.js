@@ -31,13 +31,18 @@ export function fakeHosting() {
       if (found.state === "conflict") return { name, hostState: "HOST_CONFLICT", ownershipState: "OWNERSHIP_CONFLICT" };
       return { name, hostState: "HOST_UNHOSTED", ownershipState: "OWNERSHIP_MISSING", cert: { state: "CERT_PREPARING" }, requiredDnsUpdates: DNS(domain) };
     },
-    async addDomain(projectId, domain) {
-      calls.push(["addDomain", projectId, domain]);
-      if (!domains.has(key(projectId, domain))) domains.set(key(projectId, domain), { state: "dns" });
+    async addDomain(projectId, domain, options) {
+      calls.push(options ? ["addDomain", projectId, domain, options] : ["addDomain", projectId, domain]);
+      if (!domains.has(key(projectId, domain))) domains.set(key(projectId, domain), { state: "dns", ...(options?.redirectTo ? { redirectTo: options.redirectTo } : {}) });
     },
     async removeDomain(projectId, domain) {
       calls.push(["removeDomain", projectId, domain]);
       domains.delete(key(projectId, domain));
+    },
+    async redirectDomain(projectId, domain, redirectTo) {
+      calls.push(["redirectDomain", projectId, domain, redirectTo]);
+      const found = domains.get(key(projectId, domain));
+      if (found) found.redirectTo = redirectTo;
     },
   };
 }
@@ -80,6 +85,12 @@ export function fakeSellers(table = {}) {
       const zone = Object.keys(table).find((z) => domain === z || domain.endsWith(`.${z}`));
       if (!zone) return { zone: domain.split(".").slice(-2).join("."), registrar: null, domainConnect: null };
       return { zone, registrar: table[zone].registrar ?? null, domainConnect: table[zone].domainConnect ?? null };
+    },
+    /** `table[zone].expiresAt`, which a test moves (a renewal), or null. */
+    async expiry(domain) {
+      calls.push(`expiry ${domain}`);
+      const zone = Object.keys(table).find((z) => domain === z || domain.endsWith(`.${z}`));
+      return zone ? table[zone].expiresAt ?? null : null;
     },
   };
 }

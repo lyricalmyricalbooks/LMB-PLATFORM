@@ -778,7 +778,10 @@ tr.hist-row:hover {
   transform:translateX(calc(var(--tseg-index, 0) * 100%));
   transition:transform var(--dur-base) var(--ease-spring);
 }
-.look-seg::before{width:calc((100% - 4px) / 2);}
+.look-seg::before{display:none;}
+/* Four looks do not fit in one row of the account menu: two by two, the chosen one outlined. */
+.theme-seg.look-seg,.pub-shell .theme-seg.look-seg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;}
+.look-seg .theme-seg-opt[aria-checked="true"]{box-shadow:inset 0 0 0 2px var(--gold);background:var(--gold-bg);}
 .theme-seg-opt{
   appearance:none;border:none;background:transparent;cursor:pointer;
   /* Above the travelling pill so the label is never painted over. */
@@ -4058,6 +4061,9 @@ option,optgroup{background-color:var(--surface-raised);color:var(--content-prima
 /* The old shop system's parts (oldShopSync switch). Buttons and chips set their own display, which beats the UA's
    [hidden] rule, and the author/publisher toggle writes display back on the tab buttons. */
 [data-old-shop-sync][hidden] { display: none !important; }
+/* A stockroom-only press has no website: its tabs, cards and help stay out (src/lib/website-parts.js). */
+html[data-website="off"] [data-needs-website] { display: none !important; }
+html:not([data-website="off"]) [data-no-website-only] { display: none !important; }
 /* Panels that ask for a key or an account of the press's own (AI, carriers, Stripe reading, Google Sheet). A shop the
    platform runs never shows them: src/lib/shop-profile.js marks the page with data-colophon (code plan 6.16). */
 [data-colophon] [data-own-accounts] { display: none !important; }
@@ -21599,3 +21605,16 @@ a.notif-action:hover { text-decoration: underline; }
 .setup-guide-text p { margin: var(--space-1) 0 0; color: var(--text3); font-size: var(--text-xs); }
 .setup-guide-step.is-done strong { text-decoration: line-through; color: var(--text3); }
 .setup-guide-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+/* The book form's cover photo for the Fair till (features/book-cover.js). */
+.nb-cover-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
+.nb-cover-row input[type="file"] { flex: 1 1 160px; min-width: 0; }
+.nb-cover-preview { width: 36px; height: 48px; object-fit: cover; border: var(--stroke) solid var(--rule-ink); box-shadow: var(--riso-off-sm); }
+
+/* Settings › Google Sheet on a Colophon shop (features/google-sheet.js). */
+.gsheet-card{display:flex;flex-direction:column;gap:14px;padding:1.25rem 1.4rem;max-width:720px;}
+.gsheet-card .section-subcopy{margin:6px 0 0;}
+.gsheet-actions{display:flex;flex-wrap:wrap;gap:8px;}
+.gsheet-note{margin:8px 0 0;font-size:var(--text-sm);color:var(--text2);}
+.gsheet-foot{margin:0;font-size:var(--text-sm);color:var(--text3);}
+@media (max-width: 768px){.gsheet-actions .btn{flex:1 1 auto;text-align:center;}}

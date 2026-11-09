@@ -8,7 +8,8 @@ import { GmailSendingCard } from "./GmailSendingCard";
 import { PlatformSenderCard } from "./PlatformSenderCard";
 import { useSenderStatus } from "./senderStatus";
 import { currentRows, emailLogBadge, emailLogDetail, needsAttention } from "./emailLogDisplay";
-import { fillSample, insertAt, PLACEHOLDERS, problemTemplates, templateProblems, withRequiredPlaceholders, type TemplateFields } from "./emailTemplateChecks";
+import { fillSample, insertAt, PLACEHOLDERS, problemTemplates, templateProblems, withRequiredPlaceholders, type EmailLanguage, type TemplateFields } from "./emailTemplateChecks";
+import { FRENCH_DEFAULTS } from "./emailFrenchDefaults";
 import { adminApi } from "./api";
 import { DEFAULT_SHOP_NAME, pressName } from "../features/site/shopIdentity";
 import { useSettingsDirty } from "./settingsDirty";
@@ -18,6 +19,7 @@ import { emailFunction, lastGmailProblem } from "./notificationApi";
 import { plainError } from "./plainError";
 import { runsOnColophon } from "../../lib/shopProfile";
 import { useSubTab } from "./settingsLayout";
+import { combinedAdmin } from "./combined";
 import { useShopSells } from "./shopWords";
 import { emailDefaultsFor, sellsBooks, withShopEmailWords } from "../../shared/shopSells";
 import {
@@ -64,18 +66,30 @@ type NotificationSettings = {
   brand: {
     logoUrl: string;
     brandColor: string;
-    emailTheme?: "light" | "dark";
+    emailTheme?: "light" | "dark" | "market" | "index";
     resendApiKey?: string;
     resendApiKeyStored?: boolean;
   };
   order_confirmation: TemplateFields;
   order_pending_payment: TemplateFields;
   shipping_confirmation: TemplateFields;
+  /** Part of an order sent in its own parcel (code plan 24.5). */
+  part_shipped: TemplateFields;
   abandoned_cart: TemplateFields;
   order_cancelled: TemplateFields;
   order_refunded: TemplateFields;
   customer_welcome: TemplateFields;
   delivery_update: TemplateFields;
+  /** A shipped parcel is out for delivery or delivered (code plan 25.5); off until switched on. */
+  carrier_delivery_update: TemplateFields;
+  /** The shopper asked to cancel or return an order (code plan 25.7). */
+  request_received: TemplateFields;
+  /** A delayed bank payment failed after checkout (code plan 25.8). */
+  payment_failed: TemplateFields;
+  /** A pickup order the owner marked collected (code plan 25.6). */
+  order_picked_up: TemplateFields;
+  /** Two days before an unpaid payment link closes (code plan 21.5). */
+  payment_link_reminder: TemplateFields;
   contact_reply: TemplateFields;
   gift_card: TemplateFields;
   /** Off unless switched on (server checks enabled === true); sent delayDays after shipping. */
@@ -83,7 +97,7 @@ type NotificationSettings = {
   /** Older saved switch for the shop's new-order email; read only as shopAlerts.newOrder's fallback. */
   new_order_admin?: { enabled?: boolean };
   /** Emails to the shop itself; on unless switched off. */
-  shopAlerts: { newOrder: boolean; shipped: boolean; dailyOrderDigest?: boolean; weeklySummary?: boolean };
+  shopAlerts: { newOrder: boolean; shipped: boolean; dailyOrderDigest?: boolean; lowStock?: boolean; weeklySummary?: boolean; fairDaySummary?: boolean; socialPostFailed?: boolean };
 };
 
 type TemplateKey = Exclude<keyof NotificationSettings, "brand" | "new_order_admin" | "shopAlerts">;
@@ -113,6 +127,14 @@ const DEFAULT_SETTINGS: NotificationSettings = {
     subject: "Your order is on the way!",
     body: "Hi {{customer_name}},\n\nGood news! Your order {{order_id}} has shipped with {{tracking_carrier}} and is on its way.\n\nTracking number: {{tracking_number}}\n\nUse the button below to follow your parcel on the carrier's website.",
     buttonText: "Track your shipment",
+    signoff: "Best,\nThe {{shop_name}} team",
+    enabled: true
+  },
+  // Mirrors functions/index.js DEFAULT_NOTIFICATIONS.part_shipped.
+  part_shipped: {
+    subject: "Part of your order {{order_id}} is on the way",
+    body: "Hi {{customer_name}},\n\nPart of your order {{order_id}} has shipped with {{tracking_carrier}}:\n\n{{items_list}}\n\nTracking number: {{tracking_number}}\n\nThe rest of your order will follow in another parcel, and we'll email you when it ships.",
+    buttonText: "Track this parcel",
     signoff: "Best,\nThe {{shop_name}} team",
     enabled: true
   },
@@ -158,11 +180,49 @@ const DEFAULT_SETTINGS: NotificationSettings = {
     signoff: "Happy reading,\nThe {{shop_name}} team",
     enabled: true
   },
+  // Mirrors functions/index.js DEFAULT_NOTIFICATIONS.payment_link_reminder.
+  payment_link_reminder: {
+    subject: "Reminder: your order {{order_id}} is ready to pay",
+    body: "Hi {{customer_name}},\n\nJust a reminder that your order from {{shop_name}} is waiting for payment. The total is {{total_price}}, and the payment link stays open until {{expires_on}}.",
+    buttonText: "Pay now",
+    signoff: "Thanks,\nThe {{shop_name}} team",
+    enabled: true
+  },
   delivery_update: {
     subject: "Delivery Update: Your order is {{status}}",
     body: "Hi {{customer_name}},\n\nYour package tracking status has been updated: {{status}}.\n\nCarrier: {{tracking_carrier}}\nTracking: {{tracking_number}}",
     buttonText: "Track shipment",
     signoff: "Best,\nThe {{shop_name}} team",
+    enabled: true
+  },
+  // Mirrors functions/index.js DEFAULT_NOTIFICATIONS.carrier_delivery_update, request_received and payment_failed.
+  carrier_delivery_update: {
+    subject: "Your order {{order_id}} is {{status}}",
+    body: "Hi {{customer_name}},\n\nYour order {{order_id}} is {{status}}.\n\nCarrier: {{tracking_carrier}}\nTracking number: {{tracking_number}}",
+    buttonText: "Track your parcel",
+    signoff: "Best,\nThe {{shop_name}} team",
+    enabled: false
+  },
+  request_received: {
+    subject: "We got your request for order {{order_id}}",
+    body: "Hi {{customer_name}},\n\nThanks for letting us know. We received your request to {{request}} order {{order_id}}, and we'll reply by email soon with the next steps.",
+    buttonText: "View your order",
+    signoff: "Best,\nThe {{shop_name}} team",
+    enabled: true
+  },
+  payment_failed: {
+    subject: "Your payment for order {{order_id}} didn't go through",
+    body: "Hi {{customer_name}},\n\nYour bank let us know that the {{total_price}} payment for order {{order_id}} didn't go through, so the order isn't paid yet.\n\nIf you'd still like it, reply to this email and we'll help you pay another way.",
+    buttonText: "View your order",
+    signoff: "Thanks,\nThe {{shop_name}} team",
+    enabled: true
+  },
+  // Mirrors functions/index.js DEFAULT_NOTIFICATIONS.order_picked_up.
+  order_picked_up: {
+    subject: "Thanks for picking up order {{order_id}}",
+    body: "Hi {{customer_name}},\n\nYou've picked up order {{order_id}}. Thank you for shopping with {{shop_name}}! Keep this email as your receipt.",
+    buttonText: "View your order",
+    signoff: "Thanks,\nThe {{shop_name}} team",
     enabled: true
   },
   // Mirrors functions/reviewRequests.js REVIEW_REQUEST_TEMPLATE.
@@ -174,7 +234,7 @@ const DEFAULT_SETTINGS: NotificationSettings = {
     enabled: false,
     delayDays: 14
   },
-  shopAlerts: { newOrder: true, shipped: true, dailyOrderDigest: true, weeklySummary: true }
+  shopAlerts: { newOrder: true, shipped: true, dailyOrderDigest: true, lowStock: true, weeklySummary: true, fairDaySummary: true, socialPostFailed: true }
 };
 
 // Every customer email the editor shows. A template added to DEFAULT_SETTINGS appears
@@ -183,10 +243,16 @@ const TAB_META: Record<string, { label: string; group: string }> = {
   order_confirmation: { label: "Order Paid", group: "orders" },
   order_pending_payment: { label: "Awaiting Payment", group: "orders" },
   shipping_confirmation: { label: "Order Shipped", group: "orders" },
+  part_shipped: { label: "Part Shipped", group: "orders" },
   delivery_update: { label: "Delivery", group: "orders" },
+  carrier_delivery_update: { label: "Out for delivery and delivered", group: "orders" },
+  request_received: { label: "Return or cancel request received", group: "orders" },
+  payment_failed: { label: "Payment didn't go through", group: "orders" },
+  order_picked_up: { label: "Picked up", group: "orders" },
   order_cancelled: { label: "Order Cancelled", group: "orders" },
   order_refunded: { label: "Order Refunded", group: "orders" },
   review_request: { label: "Review request", group: "orders" },
+  payment_link_reminder: { label: "Payment link reminder", group: "orders" },
   abandoned_cart: { label: "Abandoned Cart", group: "cart" },
   customer_welcome: { label: "Welcome", group: "account" },
   contact_reply: { label: "Message received", group: "contact" },
@@ -197,21 +263,38 @@ const TEMPLATE_IDS = Object.keys(DEFAULT_SETTINGS).filter((k) => k !== "brand" &
 const TABS = TEMPLATE_IDS.map((id) => ({ id, label: TAB_META[id]?.label || id.replace(/_/g, " "), group: TAB_META[id]?.group || "other" }));
 const GROUP_IDS = [...Object.keys(GROUP_LABELS).filter((g) => TABS.some((t) => t.group === g)), "shopAlerts"];
 
-function compilePreviewHtml(templateId: TemplateKey, data: NotificationSettings, order: any = null, shopName = DEFAULT_SHOP_NAME, defaults = DEFAULT_SETTINGS) {
+const WORD_FIELDS = ["subject", "body", "buttonText", "signoff"] as const;
+/** Emails with no order behind them: they follow the shop's own language, not the shopper's (functions/emailFrench.js). */
+const NO_ORDER_EMAILS = new Set<string>(["customer_welcome", "contact_reply", "abandoned_cart"]);
+type WordField = typeof WORD_FIELDS[number];
+/** Status and request words as a French email fills them (functions/emailFrench.js VALUES_FR). */
+const FRENCH_SAMPLES = { status: "en cours de livraison", request: "retourner" };
+
+/** The words shown and sent for `templateId` in `language`: the English template, or its French words over the French defaults. */
+function wordsFor(templateId: TemplateKey, data: NotificationSettings, language: EmailLanguage, defaults = DEFAULT_SETTINGS): TemplateFields {
+  const template = data[templateId] || defaults[templateId];
+  const french = FRENCH_DEFAULTS[templateId];
+  if (language !== "fr" || !french) return template;
+  const saved = template.fr || {};
+  const pick = (k: WordField) => (typeof saved[k] === "string" ? saved[k]! : french[k]);
+  return { subject: pick("subject"), body: pick("body"), buttonText: pick("buttonText"), signoff: pick("signoff"), enabled: template.enabled };
+}
+
+function compilePreviewHtml(templateId: TemplateKey, data: NotificationSettings, order: any = null, shopName = DEFAULT_SHOP_NAME, defaults = DEFAULT_SETTINGS, language: EmailLanguage = "en") {
   const brand: Partial<NotificationSettings["brand"]> = data.brand || {};
   const brandColor = brand.brandColor || "#e8402a";
-  
-  const template = data[templateId] || defaults[templateId];
+  const french = language === "fr" && !!FRENCH_DEFAULTS[templateId];
+  const template = wordsFor(templateId, data, language, defaults);
   // Same rules as the server: empty fields fall back to the default, required lines come back,
   // unknown placeholders read as blank.
-  const fallback = defaults[templateId];
-  const body = withRequiredPlaceholders(templateId, template.body || fallback.body);
-  const values = { shop_name: shopName, ...orderPreviewVars(order) };
+  const fallback = french ? FRENCH_DEFAULTS[templateId] : defaults[templateId];
+  const body = withRequiredPlaceholders(templateId, template.body || fallback.body, french ? "fr" : "en");
+  const values = { shop_name: shopName, ...orderPreviewVars(order), ...(french ? FRENCH_SAMPLES : {}) };
   const buttonText = fillSample(templateId, template.buttonText || "", values);
   const signoff = fillSample(templateId, template.signoff || fallback.signoff, values);
   // {{items_table}} survives filling so it lands where the owner put it, as the server does.
   const hasTable = (PLACEHOLDERS[templateId as keyof typeof PLACEHOLDERS] || []).includes("items_table");
-  const placed = placeItemsTable(fillSample(templateId, body, hasTable ? { ...values, items_table: "{{items_table}}" } : values).replace(/\n/g, "<br/>"), hasTable ? previewItemsTable(order, brand.emailTheme) : "");
+  const placed = placeItemsTable(fillSample(templateId, body, hasTable ? { ...values, items_table: "{{items_table}}" } : values).replace(/\n/g, "<br/>"), hasTable ? previewItemsTable(order, brand.emailTheme, french ? "fr" : "en") : "");
   const finalBody = placed.body;
 
   const ctaButtonHtml = buttonText ? risoButton("#", buttonText, brandColor, brand.emailTheme) : "";
@@ -239,6 +322,8 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
   // The saved templates could not be read: showing defaults and saving them would overwrite everything.
   const [loadFailed, setLoadFailed] = useState(false);
   const [activeTab, setActiveTab] = useState<TemplateKey>("order_confirmation");
+  // Which words are being edited: the English email, or the French one sent to shoppers who ordered in French.
+  const [language, setLanguage] = useState<EmailLanguage>("en");
   const [saving, setSaving] = useState(false);
   const [original, setOriginal] = useState("");
   // What the shop sells (plan 10.23): a shop that doesn't sell books gets its own default words, as the server sends.
@@ -455,6 +540,12 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
     }));
   };
 
+  // A word in the language being edited; the French words live beside the English ones, in `<template>.fr`.
+  const handleWordChange = (field: WordField, val: string) => {
+    if (editLanguage !== "fr") return handleFieldChange(field, val);
+    setData(prev => ({ ...prev, [activeTab]: { ...prev[activeTab], fr: { ...(prev[activeTab]?.fr || {}), [field]: val } } }));
+  };
+
   const handleToggleActive = () => {
     const isCurrentlyEnabled = activeTab === "review_request" ? currentTemplate.enabled === true : currentTemplate.enabled !== false;
     handleFieldChange("enabled", !isCurrentlyEnabled);
@@ -479,12 +570,13 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
     setTestResult(null);
     try {
       // What is on screen, saved or not: the template's words and the email branding.
-      const { subject, body, buttonText, signoff } = currentTemplate;
+      const { subject, body, buttonText, signoff } = shownWords;
       const { logoUrl, brandColor, emailTheme } = data.brand || ({} as NotificationSettings["brand"]);
       await emailFunction({
         templateId: activeTab,
         email: testEmail.trim(),
         template: { subject, body, buttonText, signoff },
+        language: editLanguage,
         brand: { logoUrl, brandColor, emailTheme },
       });
 
@@ -510,6 +602,10 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
   if (loadFailed) return <ErrorState title="Your email templates couldn't be loaded" description="Nothing has been changed. Saving is switched off until they load, so the defaults can't replace your saved emails." onRetry={() => { void loadSettings(); }} />;
 
   const currentTemplate = data[activeTab] || shopDefaults[activeTab];
+  // Emails with no order behind them (welcome, contact reply, abandoned cart) have only English words.
+  const hasFrench = !!FRENCH_DEFAULTS[activeTab];
+  const editLanguage: EmailLanguage = hasFrench ? language : "en";
+  const shownWords = wordsFor(activeTab, data, editLanguage, shopDefaults);
   const dirty = JSON.stringify(data) !== original;
   const groupTabs = TABS.filter((t) => t.group === group);
   const pickGroup = (g: string) => {
@@ -532,13 +628,27 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
   const enabled = activeTab === "review_request" ? currentTemplate.enabled === true : currentTemplate.enabled !== false;
   // The shop name in the preview: the saved sender name, which the server reads first (loadNotificationSettings).
   const previewShopName = (senderSaved.fromName || "").trim() || shopNameDefault;
-  const subjectPreview = fillSample(activeTab, currentTemplate.subject || shopDefaults[activeTab].subject, { shop_name: previewShopName, ...orderPreviewVars((recentOrders || []).find((o) => o.id === previewOrderId)) });
+  const subjectPreview = fillSample(activeTab, shownWords.subject || (editLanguage === "fr" ? FRENCH_DEFAULTS[activeTab].subject : shopDefaults[activeTab].subject), { shop_name: previewShopName, ...orderPreviewVars((recentOrders || []).find((o) => o.id === previewOrderId)), ...(editLanguage === "fr" ? FRENCH_SAMPLES : {}) });
   const badColor = !!data.brand?.brandColor && !/^#[0-9a-f]{3,8}$/i.test(data.brand.brandColor.trim());
-  const problems = templateProblems(activeTab, currentTemplate);
-  const defaults = shopDefaults[activeTab];
-  const isDefault = (["subject", "body", "buttonText", "signoff"] as const).every((k) => (currentTemplate[k] || "") === (defaults[k] || ""));
+  // The English words were changed but the French ones never were: French shoppers would miss what was added.
+  const englishWords = wordsFor(activeTab, data, "en", shopDefaults);
+  const frenchUntouched = hasFrench && !WORD_FIELDS.some((k) => typeof currentTemplate.fr?.[k] === "string");
+  const englishChanged = WORD_FIELDS.some((k) => (englishWords[k] || "") !== (shopDefaults[activeTab][k] || ""));
+  const problems = [
+    ...templateProblems(activeTab, shownWords, editLanguage),
+    ...(editLanguage === "en" && frenchUntouched && englishChanged
+      ? [{ tone: "warning" as const, text: "The French version still has the default words. Add anything new on the French tab too." }]
+      : []),
+  ];
+  const defaults = editLanguage === "fr" ? FRENCH_DEFAULTS[activeTab] : shopDefaults[activeTab];
+  const isDefault = WORD_FIELDS.every((k) => (shownWords[k] || "") === (defaults[k] || ""));
   const resetTemplate = () => {
-    setData((prev) => ({ ...prev, [activeTab]: { ...defaults, enabled: prev[activeTab]?.enabled } }));
+    // Resetting one language leaves the other language's words as they are.
+    setData((prev) => {
+      const { fr, ...english } = prev[activeTab] || ({} as TemplateFields);
+      const next = editLanguage === "fr" ? english : { ...shopDefaults[activeTab], ...(fr ? { fr } : {}) };
+      return { ...prev, [activeTab]: { ...next, enabled: prev[activeTab]?.enabled } };
+    });
     toast.success("Default words restored. Save to keep them, or Discard to undo.");
   };
   const remember = (field: "subject" | "body" | "signoff") => (e: SyntheticEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -548,8 +658,8 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
     // The order table is HTML: it only goes in the body (at the caret if the body was last used).
     const field = name === "items_table" ? "body" : cursor.field;
     const at = field === cursor.field ? cursor : { start: null, end: null };
-    const next = insertAt(currentTemplate[field] || "", token, at.start, at.end);
-    handleFieldChange(field, next.value);
+    const next = insertAt(shownWords[field] || "", token, at.start, at.end);
+    handleWordChange(field, next.value);
     setCursor({ field, start: next.caret, end: next.caret });
     toast.success(`Added ${token} to the ${field === "body" ? "body copy" : field === "subject" ? "subject line" : "sign-off"}.`);
   };
@@ -689,10 +799,12 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
             </div>
             {badColor && <p className="rp-error-text" role="alert" style={{ margin: "6px 0 0" }}>Use a colour code like #e8402a. Until then emails use flare red.</p>}
           </div>
-          <SelectField label="Email theme" value={data.brand?.emailTheme === "dark" ? "dark" : "light"} onChange={(e) => handleBrandChange("emailTheme", e.target.value)}
-            hint="Light = cream paper. Dark = black paper.">
+          <SelectField label="Email theme" value={["dark", "market", "index"].includes(String(data.brand?.emailTheme)) ? String(data.brand?.emailTheme) : "light"} onChange={(e) => handleBrandChange("emailTheme", e.target.value)}
+            hint="Light = cream paper. Dark = black paper. Market stall and Index match those shop designs.">
             <option value="light">Light (newsprint)</option>
             <option value="dark">Dark (Riso Noir)</option>
+            <option value="market">Market stall (yellow)</option>
+            <option value="index">Index rows (grey and black)</option>
           </SelectField>
         </div>
         {!sharedBackup && <details style={{ marginTop: 16 }}>
@@ -748,10 +860,23 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
             <Toggle label="Daily “orders needing you” email (8am)" checked={shopAlerts.dailyOrderDigest !== false}
               onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, dailyOrderDigest: on } })} />
             <p className="rp-hint" style={{ margin: 0 }}>Late orders, stuck parcels, odd labels. Silent on quiet days.</p>
+            <Toggle label="Running low — products that reach your low-stock line (in the 8am email)" checked={shopAlerts.lowStock !== false}
+              onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, lowStock: on } })} />
+            <p className="rp-hint" style={{ margin: 0 }}>Once per item, again if it sells out. Set the line in Inventory.</p>
+            <Toggle label="Social post didn't go out — a scheduled post that Facebook, Instagram, Pinterest or TikTok refused" checked={shopAlerts.socialPostFailed !== false}
+              onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, socialPostFailed: on } })} />
             <Toggle label="Monday summary — last week's sales and visits, with a PDF of the highlights (Mondays, 8am)" checked={shopAlerts.weeklySummary !== false}
               onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, weeklySummary: on } })} />
             <p className="rp-hint" style={{ margin: 0 }}>Sales, visits and best sellers vs last week.</p>
             <WeeklySummaryNow />
+            {combinedAdmin() && (
+              <>
+                <Toggle label="Fair day summary — the day's takings at the Fair till and what sold (evenings, 9pm)" checked={shopAlerts.fairDaySummary !== false}
+                  onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, fairDaySummary: on } })} />
+                <p className="rp-hint" style={{ margin: 0 }}>Only on a day the Fair till sold something.</p>
+                <FairDaySummaryNow />
+              </>
+            )}
           </div>
         </SectionCard>
       ) : (
@@ -782,10 +907,21 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
                   setDelayDraft(null);
                 }} />
             )}
-            <TextField label="Subject line" value={currentTemplate.subject} placeholder="Subject line" onSelect={remember("subject")} onChange={(e) => handleFieldChange("subject", e.target.value)} />
-            <TextArea label="Body copy" rows={7} value={currentTemplate.body} placeholder="Write your email body here…" onSelect={remember("body")} onChange={(e) => handleFieldChange("body", e.target.value)} />
-            <TextField label="Button text" value={currentTemplate.buttonText} placeholder="View details" hint="Leave blank to hide the button." onChange={(e) => handleFieldChange("buttonText", e.target.value)} />
-            <TextArea label="Sign-off" rows={2} value={currentTemplate.signoff} placeholder="Thanks," style={{ minHeight: 64 }} onSelect={remember("signoff")} onChange={(e) => handleFieldChange("signoff", e.target.value)} />
+            {hasFrench && (
+              <div>
+                <Tabs label="Language of this email" idPrefix="lang-" variant="page" value={editLanguage} onChange={(id) => setLanguage(id as EmailLanguage)}
+                  tabs={[{ id: "en", label: "English" }, { id: "fr", label: "French" }]} />
+                <p className="rp-hint" style={{ margin: "8px 0 0" }}>
+                  {NO_ORDER_EMAILS.has(activeTab)
+                    ? (editLanguage === "fr" ? "Used when your shop is in French." : "Sent in French when your shop is in French.")
+                    : (editLanguage === "fr" ? "For customers who shop in French. One switch covers both." : "Customers who shop in French get the French version.")}
+                </p>
+              </div>
+            )}
+            <TextField label="Subject line" value={shownWords.subject} placeholder="Subject line" onSelect={remember("subject")} onChange={(e) => handleWordChange("subject", e.target.value)} />
+            <TextArea label="Body copy" rows={7} value={shownWords.body} placeholder="Write your email body here…" onSelect={remember("body")} onChange={(e) => handleWordChange("body", e.target.value)} />
+            <TextField label="Button text" value={shownWords.buttonText} placeholder="View details" hint="Leave blank to hide the button." onChange={(e) => handleWordChange("buttonText", e.target.value)} />
+            <TextArea label="Sign-off" rows={2} value={shownWords.signoff} placeholder="Thanks," style={{ minHeight: 64 }} onSelect={remember("signoff")} onChange={(e) => handleWordChange("signoff", e.target.value)} />
 
             {problems.length > 0 && (
               <div role="status" className="rp-stack" style={{ gap: 8 }}>
@@ -834,7 +970,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
               {(recentOrders || []).map((o) => <option key={o.id} value={o.id}>{o.orderId || o.id} · {o.customer?.name || o.customer?.email || "Customer"}</option>)}
             </SelectField>
           </div>
-          <iframe srcDoc={compilePreviewHtml(activeTab, data, previewOrder, previewShopName, shopDefaults)} sandbox="" title={`Preview of the ${TABS.find((t) => t.id === activeTab)?.label} email`}
+          <iframe srcDoc={compilePreviewHtml(activeTab, data, previewOrder, previewShopName, shopDefaults, editLanguage)} sandbox="" title={`Preview of the ${TABS.find((t) => t.id === activeTab)?.label} email`}
             style={{ width: "100%", height: 560, border: "1px solid var(--rp-border)", background: "var(--rp-surface)" }} />
         </SectionCard>
       </div>
@@ -922,6 +1058,31 @@ function RowsOrCards<T>({ narrow, columns, rows, rowKey, caption, empty, rowStat
         </li>
       ))}
     </ul>
+  );
+}
+
+/** Settings › Email sender › Shop alerts › Send me today's fair summary now (the evening email, on demand). */
+function FairDaySummaryNow() {
+  const [sending, setSending] = useState(false);
+  const send = async () => {
+    setSending(true);
+    try {
+      const answer = await emailFunction({ action: "fairDaySummaryNow" }) as { sent?: boolean; reason?: string } | undefined;
+      if (answer && answer.sent === false) {
+        toast(answer.reason === "no-stockroom" ? "The stockroom isn't set up in this shop yet, so there's nothing to send." : "The Fair till hasn't uploaded any sales today, so there's nothing to send yet.");
+      } else {
+        toast.success("Today's fair summary is on its way to owner@example.com");
+      }
+    } catch (err: any) {
+      toast.error(plainError(err, "The fair summary wasn't sent"));
+    } finally {
+      setSending(false);
+    }
+  };
+  return (
+    <div>
+      <SecondaryButton size="sm" onClick={send} disabled={sending}>{sending ? "Sending…" : "Send me today's fair summary now"}</SecondaryButton>
+    </div>
   );
 }
 

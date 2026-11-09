@@ -49,7 +49,7 @@ test("every billing change writes the shop's plan document: trial, card, cancel,
   const row = await t.billing.startTrial({ account: ACCOUNT, shopId: "moth-press", pressName: "Moth Press", plan: "shop" });
   assert.deepEqual(t.plan(), {
     plan: "shop", state: "trial", access: "open", trialEnd: new Date(NOW + 14 * DAY).toISOString(), nextPaymentAt: null,
-    hasCard: false, cancelAtPeriodEnd: false, endsAt: null, paymentWay: "monthly", link: LINK, closing: null,
+    hasCard: false, cancelAtPeriodEnd: false, endsAt: null, paymentWay: "monthly", link: LINK, hub: "https://platform.example/api/shop-billing/", shopId: "moth-press", founding: false, closing: null, changing: null,
     updatedAt: new Date(NOW).toISOString(),
   });
   assert.deepEqual(t.status(), { access: "open", updatedAt: new Date(NOW).toISOString() });
@@ -140,4 +140,64 @@ test("a shop paying as it sells is open and active, with no trial, nothing due a
   assert.equal(doc.endsAt, null);
   // A switch that starts later still shows monthly until then.
   assert.equal(planDocument({ ...row, status: "active", paymentWayFrom: "2027-03-01T00:00:00.000Z" }, { link: LINK, at }).paymentWay, "monthly");
+  // Stripe's cancel is the switch; the press's own cancel ends the terms, and that is what the admin shows.
+  assert.equal(doc.cancelAtPeriodEnd, false);
+  const leaving = planDocument({ ...row, payAsYouSell: { from: "2027-01-10T00:00:00.000Z", until: "2027-02-10T00:00:00.000Z" } }, { link: LINK, at });
+  assert.deepEqual([leaving.cancelAtPeriodEnd, leaving.endsAt, leaving.access], [true, "2027-02-10T00:00:00.000Z", "open"]);
+});
+
+// Adding or dropping an app (code plan 6.11): the registry's plan says what is open; a closed app's copy says closed.
+test("dropping the website in the trial closes the website's copies at once; the stockroom carries on", async () => {
+  const t = make();
+  await t.registry.createShop("moth-press", { shopId: "moth-press", pressName: "Moth Press", plan: "both", status: "live" });
+  await t.billing.startTrial({ account: ACCOUNT, shopId: "moth-press", pressName: "Moth Press", plan: "both" });
+  await t.billing.changePlan({ shopId: "moth-press", plan: "stockroom" });
+  assert.equal((await t.registry.getShop("moth-press")).plan, "stockroom");
+  assert.equal(t.status().access, "closed", "the website refuses new orders");
+  assert.equal(t.plan().closing.stage, "closed");
+  assert.ok(t.plan().closing.downloadUntil, "with its download date");
+  const stockroom = await t.stockroomData.get("moth-press", PLAN_DOC);
+  assert.equal(stockroom.access, "open");
+  assert.equal(stockroom.plan, "stockroom");
+});
+
+test("dropping the stockroom in the trial opens it read-only; the website carries on", async () => {
+  const t = make();
+  await t.registry.createShop("moth-press", { shopId: "moth-press", pressName: "Moth Press", plan: "both", status: "live" });
+  await t.billing.startTrial({ account: ACCOUNT, shopId: "moth-press", pressName: "Moth Press", plan: "both" });
+  await t.billing.changePlan({ shopId: "moth-press", plan: "shop" });
+  assert.equal(t.status().access, "open");
+  assert.equal(t.plan().closing, null);
+  const stockroom = await t.stockroomData.get("moth-press", PLAN_DOC);
+  assert.equal(stockroom.access, "closed");
+  assert.equal(stockroom.closing.stage, "closed");
+});
+
+test("an app a plan dropped keeps getting the plan until the month already paid for ends", async () => {
+  const shopData = fakeShopData();
+  const stockroomData = fakeStockroomData();
+  const registry = fakeRegistry();
+  await registry.createShop("moth-press", { shopId: "moth-press", plan: "both", closedApps: {} });
+  const copies = shopPlanCopies({ shopData, stockroomData, registry });
+  // Billing's row already says "shop" (the new price next month); the registry keeps both open until then.
+  await copies.write("moth-press", { plan: "shop", status: "past_due", access: "open" }, { link: LINK, at: new Date(NOW).toISOString() });
+  assert.equal((await stockroomData.get("moth-press", PLAN_DOC)).state, "payment-problem", "the stockroom still hears about a payment problem");
+});
+
+test("the admins hear about an app being added until it is built, and about an app closing at the end of the month", async () => {
+  const shopData = fakeShopData();
+  const stockroomData = fakeStockroomData();
+  const registry = fakeRegistry();
+  await registry.createShop("moth-press", { shopId: "moth-press", plan: "both", builtPlan: "shop", closedApps: {} });
+  const copies = shopPlanCopies({ shopData, stockroomData, registry });
+  const at = new Date(NOW).toISOString();
+  await copies.write("moth-press", { plan: "both", status: "active" }, { link: LINK, at });
+  assert.deepEqual((await shopData.get("moth-press", PLAN_DOC)).changing, { adding: ["stockroom"], closing: null });
+  await registry.updateShop("moth-press", { builtPlan: "both" });
+  await copies.write("moth-press", { plan: "both", status: "active" }, { link: LINK, at });
+  assert.equal((await shopData.get("moth-press", PLAN_DOC)).changing, null, "once built, nothing to say");
+
+  const closesAt = new Date(NOW + 20 * DAY).toISOString();
+  await copies.write("moth-press", { plan: "shop", status: "active", appsClosing: { apps: ["stockroom"], at: closesAt } }, { link: LINK, at });
+  assert.deepEqual((await stockroomData.get("moth-press", PLAN_DOC)).changing, { adding: [], closing: { apps: ["stockroom"], at: closesAt } });
 });

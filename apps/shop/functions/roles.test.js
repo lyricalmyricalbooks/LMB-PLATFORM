@@ -1,7 +1,7 @@
 import { describe, test, expect, vi } from 'vitest';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { adminRole, booksReader, memberProblem, supportOf, syncMemberRole, OWNER_EMAILS } = require('./roles');
+const { adminRole, booksReader, memberProblem, removeExpiredMembers, supportOf, syncMemberRole, OWNER_EMAILS } = require('./roles');
 
 const OWNER = OWNER_EMAILS[0];
 
@@ -115,6 +115,13 @@ describe('syncMemberRole', () => {
     expect(await syncMemberRole({ auth, db, email: 'sam@press.test' })).toEqual({ status: 'unchanged', role: 'staff' });
     expect(auth.setCustomUserClaims).not.toHaveBeenCalled();
   });
+  test('a fair helper whose day is over gets no role, and is signed out', async () => {
+    const { auth, db } = fakes({ claims: { role: 'fairHelper' }, member: { role: 'fairHelper', until: new Date(Date.now() - 1000) } });
+    expect(await syncMemberRole({ auth, db, email: 'fay@press.test' })).toEqual({ status: 'updated', role: null });
+    expect(auth.revokeRefreshTokens).toHaveBeenCalledWith('u1');
+    const later = fakes({ member: { role: 'fairHelper', until: new Date(Date.now() + 3600e3) } });
+    expect(await syncMemberRole({ auth: later.auth, db: later.db, email: 'fay@press.test' })).toEqual({ status: 'updated', role: 'fairHelper' });
+  });
   test('waits for a person who has not signed in yet', async () => {
     const { auth, db } = fakes({ exists: false, member: { role: 'staff' } });
     expect(await syncMemberRole({ auth, db, email: 'new@press.test' })).toEqual({ status: 'no-account' });
@@ -144,5 +151,22 @@ describe('syncMemberRole', () => {
   test('ignores an unknown role in the Team entry', async () => {
     const { auth, db } = fakes({ claims: { role: 'staff' }, member: { role: 'boss' } });
     expect((await syncMemberRole({ auth, db, email: 'sam@press.test' })).role).toBeNull();
+  });
+});
+
+describe('removeExpiredMembers', () => {
+  test('deletes only the Team entries whose time is up', async () => {
+    const now = Date.parse('2026-11-04T05:00:00Z');
+    const deleted = [];
+    const row = (id, data) => ({ id, data: () => data, ref: { delete: async () => { deleted.push(id); } } });
+    let asked = null;
+    const db = { collection: () => ({ where: (f, op, v) => { asked = [f, op, v]; return { limit: () => ({ get: async () => ({ docs: [
+      row('fay@press.test', { role: 'fairHelper', until: new Date(now - 60e3) }),
+      row('odd@press.test', { role: 'fairHelper', until: new Date(now + 60e3) }),
+    ] }) }) }; } }) };
+    expect(await removeExpiredMembers({ db, nowMs: now })).toBe(1);
+    expect(deleted).toEqual(['fay@press.test']);
+    expect(asked[0]).toBe('until');
+    expect(asked[1]).toBe('<=');
   });
 });

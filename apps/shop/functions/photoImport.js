@@ -20,6 +20,10 @@
 // at the old shop. Those addresses are copied with the same rules and the same file names, and the description is
 // rewritten in the same transaction as the photos, only where the tag still points at the old address. Each rewritten
 // picture is listed in the book's `descriptionImages` as `{ url, importedFrom }`, so the old address is kept.
+//
+// Pictures on brought-over pages (plan 23.13): Bring your own pages over keeps an old page's pictures as `<img src>`
+// on their old addresses. Every run reads the shop's pages (a handful) and copies those pictures the same way, then
+// points the page's `body` at the copies in a transaction, only where a tag still points at the old address.
 "use strict";
 
 const crypto = require("crypto");
@@ -43,6 +47,10 @@ function publicHttps(url) {
   if (host === "localhost" || /\.(localhost|internal|local|lan|home|corp)$/.test(host)) return false;
   return true;
 }
+
+/** The old addresses of a book's edition photos that still need copying. */
+const editionPhotos = (variants, bucketName) => (Array.isArray(variants) ? variants : [])
+  .map(v => v?.photoUrl).filter(url => needsImport({ url }, bucketName));
 
 /** A photo that still loads from another address (not a video, not already in this bucket). */
 function needsImport(photo, bucketName) {
@@ -265,7 +273,7 @@ async function copyPhoto({ bucket, bucketName, url, fetch, lookup = defaultLooku
 }
 
 /**
- * Swaps every photo and description picture of the book still on an old address in `moved` (old → new) to its copy,
+ * Swaps every photo, edition photo and description picture of the book still on an old address in `moved` (old → new) to its copy,
  * in one transaction. Returns how many old addresses were swapped.
  */
 async function swapPhotos(db, bookId, moved, nowIso) {
@@ -283,6 +291,14 @@ async function swapPhotos(db, bookId, moved, nowIso) {
       return { ...p, url: moved.get(p.url), importedFrom: p.url };
     });
     if (swapped.size) patch.photos = next;
+    // An edition's own photo (a Size or Colour picked on the product page) is an old address too.
+    if (Array.isArray(data.variants) && data.variants.some(v => v && typeof v === "object" && moved.has(v.photoUrl))) {
+      patch.variants = data.variants.map(v => {
+        if (!v || typeof v !== "object" || !moved.has(v.photoUrl)) return v;
+        swapped.add(v.photoUrl);
+        return { ...v, photoUrl: moved.get(v.photoUrl) };
+      });
+    }
     if (typeof data.description === "string") {
       const { text, swaps } = rewriteDescription(data.description, moved);
       if (swaps.length) {
@@ -305,8 +321,23 @@ async function swapPhotos(db, bookId, moved, nowIso) {
   });
 }
 
+/** Points a page's pictures at their copies (plan 23.13): the number of old addresses swapped. */
+async function swapPagePictures(db, pageId, moved, nowIso) {
+  const ref = db.collection("pages").doc(pageId);
+  return db.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return 0;
+    const data = snap.data() || {};
+    if (typeof data.body !== "string") return 0;
+    const { text, swaps } = rewriteDescription(data.body, moved);
+    if (!swaps.length) return 0;
+    tx.update(ref, { body: text, updatedAt: nowIso });
+    return new Set(swaps.map(sw => sw.importedFrom)).size;
+  });
+}
+
 /**
- * One pass over the catalog: reads every book once a day (and only recently edited ones in between), copies until
+ * One pass over the catalog and the shop's pages: reads every book once a day (and only recently edited ones in between), copies until
  * `deadline`, and records the run in `systemStatus/photoImport` and, when anything was copied, in `audit-log`.
  */
 async function runPhotoImport({ db, bucket, fetch, lookup = defaultLookup, timeoutMs = FETCH_TIMEOUT_MS, deadline, now = Date.now(), log = console, limit = null }) {
@@ -323,23 +354,28 @@ async function runPhotoImport({ db, bucket, fetch, lookup = defaultLookup, timeo
   const failed = { ...(status.failed || {}) };
   const byBook = new Map();
   let found = 0;
-  for (const doc of snap.docs) {
-    const data = doc.data() || {};
-    const wanted = (Array.isArray(data.photos) ? data.photos : []).filter(p => needsImport(p, bucketName)).map(p => p.url)
-      .concat(descriptionImages(data.description, bucketName));
+  const want = (key, wanted) => {
     for (const url of wanted) {
       const f = failed[hashOf(url)];
       if (f && now - Date.parse(f.at) < FAILED_RETRY_MS) continue;
-      const urls = byBook.get(doc.id) || new Set();
+      const urls = byBook.get(key) || new Set();
       if (!urls.has(url)) { urls.add(url); found += 1; }
-      byBook.set(doc.id, urls);
+      byBook.set(key, urls);
     }
+  };
+  for (const doc of snap.docs) {
+    const data = doc.data() || {};
+    want(`books/${doc.id}`, (Array.isArray(data.photos) ? data.photos : []).filter(p => needsImport(p, bucketName)).map(p => p.url)
+      .concat(editionPhotos(data.variants, bucketName), descriptionImages(data.description, bucketName)));
   }
+  // The shop's own pages are few, so every run reads them all (plan 23.13).
+  for (const doc of (await db.collection("pages").get()).docs) want(`pages/${doc.id}`, descriptionImages(doc.data()?.body, bucketName));
   const copied = new Map(); // old address → new, shared by every book that used it
-  let done = 0, books = 0, failures = 0;
-  for (const [bookId, urls] of byBook) {
+  let done = 0, books = 0, pages = 0, failures = 0;
+  for (const [key, urls] of byBook) {
+    const [kind, id] = key.split("/");
     if (Date.now() > deadline) break;
-    if (limit !== null && books >= limit) break; // the spending limit (spendingGate.js): other books wait for the next run
+    if (limit !== null && books + pages >= limit) break; // the spending limit (spendingGate.js): other books wait for the next run
     const moved = new Map();
     for (const url of urls) {
       if (Date.now() > deadline) break;
@@ -355,8 +391,8 @@ async function runPhotoImport({ db, bucket, fetch, lookup = defaultLookup, timeo
       }
     }
     if (!moved.size) continue;
-    const swapped = await swapPhotos(db, bookId, moved, nowIso);
-    if (swapped) { done += swapped; books += 1; }
+    const swapped = kind === "pages" ? await swapPagePictures(db, id, moved, nowIso) : await swapPhotos(db, id, moved, nowIso);
+    if (swapped) { done += swapped; if (kind === "pages") pages += 1; else books += 1; }
   }
   const pending = Math.max(0, found - done - failures);
   await statusRef.set({
@@ -370,13 +406,14 @@ async function runPhotoImport({ db, bucket, fetch, lookup = defaultLookup, timeo
   if (done) {
     await db.collection("audit-log").add({
       type: "catalog",
-      message: `Copied ${done} imported photo${done === 1 ? "" : "s"} on ${books} book${books === 1 ? "" : "s"} into the shop's own storage`,
+      message: `Copied ${done} imported photo${done === 1 ? "" : "s"} on ${[books ? `${books} book${books === 1 ? "" : "s"}` : "", pages ? `${pages} page${pages === 1 ? "" : "s"}` : ""].filter(Boolean).join(" and ")} into the shop's own storage`,
       photos: done,
       books,
+      ...(pages ? { pages } : {}),
       createdAt: nowIso,
     }).catch(err => log.warn?.(`photoImport: audit log not written: ${err.message}`));
   }
-  return { found, done, books, failed: failures, pending };
+  return { found, done, books, pages, failed: failures, pending };
 }
 
-module.exports = { publicHttps, privateAddress, pinnedFetch, needsImport, descriptionImages, rewriteDescription, importedBase, copyPhoto, swapPhotos, runPhotoImport, MAX_BYTES };
+module.exports = { publicHttps, privateAddress, pinnedFetch, needsImport, descriptionImages, rewriteDescription, importedBase, copyPhoto, swapPhotos, swapPagePictures, runPhotoImport, MAX_BYTES };

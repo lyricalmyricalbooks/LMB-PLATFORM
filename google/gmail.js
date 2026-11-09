@@ -7,8 +7,13 @@ export function rawEmail({ from, to, replyTo, subject, text, html }) {
   const line = (value) => String(value ?? "").replace(/[\r\n]+/g, " ").trim();
   const boundary = `colophon-${Math.random().toString(36).slice(2)}`;
   const word = (value) => `=?UTF-8?B?${Buffer.from(line(value), "utf8").toString("base64")}?=`;
+  // A display name with accents ("Éditions du Hérisson") is encoded like the subject; raw UTF-8 garbles in some inboxes.
+  const mailbox = (value) => {
+    const found = line(value).match(/^"?([^"<]*?)"?\s*<([^<>\s]+)>$/);
+    return found && /[^\x20-\x7e]/.test(found[1]) ? `${word(found[1])} <${found[2]}>` : line(value);
+  };
   const parts = [
-    `From: ${line(from)}`, `To: ${line(to)}`, ...(replyTo ? [`Reply-To: ${line(replyTo)}`] : []),
+    `From: ${mailbox(from)}`, `To: ${line(to)}`, ...(replyTo ? [`Reply-To: ${line(replyTo)}`] : []),
     `Subject: ${word(subject)}`, "MIME-Version: 1.0", `Content-Type: multipart/alternative; boundary="${boundary}"`, "",
     `--${boundary}`, "Content-Type: text/plain; charset=UTF-8", "", text ?? "",
     ...(html ? [`--${boundary}`, "Content-Type: text/html; charset=UTF-8", "", html] : []),

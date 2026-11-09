@@ -8,6 +8,7 @@ import {
 import { auth, db } from "../../lib/firebase";
 import { planStockChange, type AdjustReason, type StockChange, type StockPlan } from "./inventoryInsights";
 import { isStockLinked } from "./inventoryLink";
+import { hasStockroom } from "../../lib/shopProfile";
 
 /** What a stock change did: the plan it saved, or why nothing was saved (a linked book is counted in the inventory app). */
 export type StockResult = StockPlan | { ok: false; reason: "linked"; live?: number };
@@ -28,7 +29,8 @@ export const inventoryApi = {
       const snap = await tx.get(ref);
       // A book matched to the inventory app is counted there; the link sets its stock (docs/INVENTORY_LINK.md).
       const link = await tx.get(doc(db, "systemStatus", "inventoryLink"));
-      if (isStockLinked(link.exists() ? (link.data() as any).links : null, bookId, variantId)) return { ok: false, reason: "linked" } as StockResult;
+      // A website-only press keeps all its stock here, whatever an old link left behind.
+      if (hasStockroom() && isStockLinked(link.exists() ? (link.data() as any).links : null, bookId, variantId)) return { ok: false, reason: "linked" } as StockResult;
       const plan = planStockChange(snap.exists() ? snap.data() : null, variantId, change, { force: meta.force });
       if (!plan.ok || plan.from === plan.to) return plan;
       const at = new Date().toISOString();

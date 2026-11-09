@@ -47,8 +47,10 @@ test("no app copy has a default Firebase project", () => {
 });
 
 // Nothing here may publish a site: no custom-domain file (GitHub Pages would claim that address) and no workflow in
-// the root folder, the only one GitHub runs, that deploys. The one exception is walkthrough-site.yml (the owner asked
-// for the walkthrough on GitHub Pages, 29 October 2026): it publishes pictures of pretend data and nothing else.
+// the root folder, the only one GitHub runs, that deploys. Two exceptions: pages-to-app.yml, which publishes one page on
+// GitHub Pages that sends visitors to the live app (it replaced the walkthrough pictures, 9 November 2026), and
+// deploy.yml (the owner asked for the platform to be launched from GitHub, 9 November 2026), which deploys the
+// platform's own project only, from main only (checked below).
 test("no app copy claims a web address", () => {
   const found = [...files("apps")].filter((path) => basename(path) === "CNAME");
   assert.deepEqual(found, []);
@@ -57,10 +59,20 @@ test("no app copy claims a web address", () => {
 test("no workflow deploys anything", () => {
   const dir = ".github/workflows";
   const deploys = readdirSync(dir).filter((name) =>
-    name !== "walkthrough-site.yml" &&
+    name !== "pages-to-app.yml" && name !== "deploy.yml" &&
     /firebase\s+deploy|deploy-pages|FirebaseExtended\/action-hosting-deploy|peaceiris\/actions-gh-pages/i.test(readFileSync(join(dir, name), "utf8")),
   );
   assert.deepEqual(deploys, []);
+});
+
+test("the platform deploy reaches the platform's own project only, from main only", () => {
+  const text = readFileSync(join(".github/workflows", "deploy.yml"), "utf8");
+  const projects = new Set([...text.matchAll(/--project[= ]"?\$?([\w-]+)/g)].map((m) => m[1]));
+  assert.deepEqual([...projects], ["PROJECT"], "every deploy names $PROJECT");
+  assert.match(text, /^  PROJECT: lmb-platform-prod$/m);
+  assert.match(text, /github\.ref == 'refs\/heads\/main'/);
+  assert.doesNotMatch(text, /pull_request/, "a pull request never deploys");
+  assert.doesNotMatch(text, /secrets\./, "the deploy signs in with GitHub's identity, never a stored key");
 });
 
 // The copies are a general shop and stockroom for any press: nothing in them may name Lyricalmyrical, send people to
@@ -96,6 +108,12 @@ const codeOf = (path, text) =>
   /\.md$/i.test(path) ? [...text.matchAll(/^```[^\n]*\n([\s\S]*?)^```/gm)].map((m) => m[1]).join("\n") : text;
 // This repository's own GitHub address: the organisation is still called lyricalmyricalbooks.
 const OWN_REPO = /lyricalmyricalbooks\/LMB-PLATFORM/gi;
+// The company that runs Colophon, named once in the terms (Julian, 3 November 2026): the legal seller of the plans
+// has to be named. Only this one line of terms/terms.js; nothing else may use the name.
+const OPERATOR_FILE = "terms/terms.js";
+// The company's name and its contact address (Julian, 3 November 2026: privacy and shop reports go to it).
+const OPERATOR_LINE = /export const OPERATOR_(NAME = "Lyricalmyrical Books"|EMAIL = "lyricalmyricalbooks@gmail\.com");/g;
+const withoutOperator = (path, text) => (path === OPERATOR_FILE ? text.replace(OPERATOR_LINE, "") : text);
 const LOCKFILES = /(^|\/)(pnpm-lock\.yaml|package-lock\.json)$/;
 // The checks themselves have to say the name to look for it (the live ids are still built from parts).
 const CHECKERS = new Set(["apps-isolation.test.js", "setup/steps.test.js"]);
@@ -116,7 +134,7 @@ test("no code outside apps/ and shops/ names Lyricalmyrical", () => {
   const hits = [];
   for (const [path, text] of TEXT) {
     if (path.startsWith("apps/") || CHECKERS.has(path)) continue; // apps/ is checked above, prose included
-    const match = codeOf(path, text).replace(OWN_REPO, "").match(/lyricalmyrical|lyrical-inventory/i);
+    const match = withoutOperator(path, codeOf(path, text)).replace(OWN_REPO, "").match(/lyricalmyrical|lyrical-inventory/i);
     if (match) hits.push(`${path}: ${match[0]}`);
   }
   assert.deepEqual(hits, []);
@@ -144,7 +162,7 @@ test("nothing outside shops/ names one press by its short name (plan 7.3)", () =
   const hits = [];
   for (const [path, text] of TEXT) {
     if (path === "apps/README.md" || CHECKERS.has(path) || LOCKFILES.test(path)) continue;
-    const hit = shortNameHit(path.startsWith("apps/") ? text : codeOf(path, text));
+    const hit = shortNameHit(path.startsWith("apps/") ? text : withoutOperator(path, codeOf(path, text)));
     if (hit) hits.push(`${path}: ${hit}`);
   }
   assert.deepEqual(hits, []);
@@ -184,7 +202,7 @@ const THROWAWAY_DOMAIN = /^[a-z]\.[a-z]{2,3}$/; // a@x.com, b@y.co: made up by c
 const SENDER_DOMAINS = new Set([
   "bigcartel.com", "email.bigcartel.com", "resend.dev", "stripe.com", "intl.paypal.com", "google.com", "github.com",
   "amazon.ca", "adobe.com", "interac.ca", "freedommobile.ca", "shippo.com", "canadapost.ca", "canadapost.postescanada.ca",
-  "anthropic.com", "developer.gserviceaccount.com",
+  "anthropic.com", "developer.gserviceaccount.com", "system.gserviceaccount.com",
 ]);
 // Stock "type your address here" examples in forms and help text, and the Gmail spellings the code folds together.
 const PLACEHOLDER_ADDRESSES = new Set([
@@ -210,7 +228,7 @@ test("every email address outside shops/ is a placeholder or a company's sender"
   const hits = new Set();
   for (const [path, text] of TEXT) {
     if (VENDORED.has(path) || LOCKFILES.test(path)) continue;
-    for (const [address] of text.matchAll(EMAIL)) if (!emailAllowed(address)) hits.add(`${path}: ${address}`);
+    for (const [address] of withoutOperator(path, text).matchAll(EMAIL)) if (!emailAllowed(address)) hits.add(`${path}: ${address}`);
   }
   assert.deepEqual([...hits], []);
 });

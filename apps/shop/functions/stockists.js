@@ -16,7 +16,23 @@ async function loadStockist(db, id) {
   if (!validId(id)) return null;
   const snap = await db.collection("stockists").doc(id).get();
   const data = snap.exists ? snap.data() : null;
-  return data && data.status === "approved" ? { id, name: String(data.name || "").slice(0, 200) } : null;
+  return data && data.status === "approved" ? { id, name: String(data.name || "").slice(0, 200), terms: invoiceDays(data.terms) } : null;
+}
+
+/** Days to pay an invoice (net 30 = 30), or 0 when the account pays by card. Whole days, at most a year. */
+function invoiceDays(value) {
+  const days = Math.floor(Number(value));
+  return Number.isFinite(days) && days > 0 ? Math.min(days, 365) : 0;
+}
+
+/** The invoice record on an order placed on terms: when it falls due, and that it is still open. */
+function invoiceRecord(days, now = new Date()) {
+  return { days, dueAt: new Date(now.getTime() + days * 86400000).toISOString(), paidAt: null };
+}
+
+/** Invoices past their due date that nobody has marked paid (the owner's "to chase" list). */
+function overdueInvoices(orders, now = new Date()) {
+  return (orders || []).filter(o => o && o.invoice && !o.invoice.paidAt && o.status !== "cancelled" && !["refunded", "refund_pending"].includes(o.paymentStatus) && o.invoice.dueAt && new Date(o.invoice.dueAt) < now);
 }
 
 /**
@@ -73,7 +89,19 @@ function stockistActions({ db, LIMITS, hitLimit, canViewOrder, orderRequestIdent
       return res.status(500).json({ error: "failed" });
     }
   }
-  return { handleStockistPricing };
+  // Checkout asks, before an order exists, whether this shopper may pay by invoice (and on how many days).
+  async function handleStockistStatus(req, res) {
+    if (!(await hitLimit(db, "track", req, LIMITS.track))) return res.status(429).json({ error: "too_many" });
+    try {
+      const identity = await orderRequestIdentity(req);
+      const stockist = identity && identity.email_verified === true ? await loadStockist(db, idOf(identity.email)) : null;
+      return res.status(200).json(stockist ? { wholesale: true, name: stockist.name, terms: stockist.terms } : { wholesale: false, terms: 0 });
+    } catch (err) {
+      console.error("Stockist status failed:", err);
+      return res.status(500).json({ error: "failed" });
+    }
+  }
+  return { handleStockistPricing, handleStockistStatus };
 }
 
-module.exports = { idOf, validId, loadStockist, wholesaleUnitPrice, privateWholesale, claimProblem, stockistActions };
+module.exports = { idOf, validId, loadStockist, invoiceDays, invoiceRecord, overdueInvoices, wholesaleUnitPrice, privateWholesale, claimProblem, stockistActions };

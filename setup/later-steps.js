@@ -1,5 +1,5 @@
 // Steps 7–16 of the shop maker (docs/shop-setup.md): rules, server code, pages, backup, private storage check, starter
-// content, payments, the owner's email, the shop check and (test shop only) the stockroom link. As in steps.js, `check` only looks and `act` only changes;
+// content, payments, the owner's email, the shop check and the stockroom link (plan 17.12: every shop with both apps). As in steps.js, `check` only looks and `act` only changes;
 // runner.js runs them. Each step stops for a person when what it finds is neither "done" nor "not started".
 //
 // Everything is reached through clients passed in. There is no real client in this folder yet, so nothing here can
@@ -17,7 +17,8 @@
 //   google.storageProbe  hasTestFile(projectId); writeTestFile(projectId); readUnsigned(projectId) -> { status }
 //   google.secrets       latest(projectId, name) -> value | null; add(projectId, name, value)   the shop's Functions
 //                        secrets (only PLATFORM_SERVICE_KEY, serviceKey.js)
-//   shopData    get(projectId, path) -> data | null; create(projectId, path, data)   create refuses a document that exists
+//   shopData    get(projectId, path) -> data | null; create(projectId, path, data)   create refuses a document that exists;
+//               set(projectId, path, data, { fields })   writes only `fields` (step 16 turns the link off)
 //   providers   payment providers by name (payments.js)
 //   email       wasSent(shopId, kind) -> boolean; send(shopId, { kind, to, pressName, links, idempotencyKey })
 //   siteCheck   get(url) -> { status, problems: [text] }
@@ -33,16 +34,20 @@
 // shop email is sent from (the email service adds the press's name and reply-to). `config.paymentsServiceUrl` is the
 // platform payment service's address, which every shop's server code calls (payments through the platform, plan 2.2);
 // `config.stripePublishableKeys` ({ live, test }, public) go in the profile for the card form (payments.js).
+import { createHash } from "node:crypto";
 import { PLANS, REGION, STOCKROOM_DATABASE, firstSteps } from "./steps.js";
 import { connectPaymentsStep, paymentProviderOf } from "./payments.js";
 import { ensureServiceKey, hasServiceKey } from "./serviceKey.js";
 import { testCatalogue } from "./test-catalogue.js";
 import { upkeepStep } from "./upkeep.js";
 import { spendGuardsStep } from "./spend.js";
+import { twoStepSignInStep } from "./twoStep.js";
 import { botCheckStep } from "./botCheck.js";
 import { domainOrigins, siteUrlOf } from "../services/domains/names.js";
 
 export const OWNER_WELCOME = "owner-welcome";
+// Step 14 after a plan change adds an app: the link to the new app.
+export const APP_ADDED = "app-added";
 
 /** The apps a shop's plan includes, as a list: ["shop"], ["stockroom"] or ["shop", "stockroom"]. */
 export function appsOf(shop) {
@@ -71,7 +76,7 @@ export function privateStart(shop, docs) {
 }
 
 /** The shop's functions/.env.<project id>, read by the shop's server code (apps/shop/functions/shopConfig.js). */
-export function envFileText(shop, { senderEmail, paymentsServiceUrl, region = REGION, platformEmailUrl = "", platformDomainsUrl = "", platformAccountingUrl = "", platformAccountsUrl = "", extraOrigins = [], siteUrl = "" }) {
+export function envFileText(shop, { senderEmail, paymentsServiceUrl, region = REGION, platformEmailUrl = "", platformDomainsUrl = "", platformAccountingUrl = "", platformAccountsUrl = "", platformAppsUrl = "", extraOrigins = [], siteUrl = "" }) {
   // Quotes and line breaks would end the value early; shopConfig.js drops the same characters from the sender name.
   const quote = (value) => `"${String(value).replace(/[\r\n"\\<>]+/g, " ").replace(/\s+/g, " ").trim()}"`;
   return [
@@ -111,6 +116,9 @@ export function envFileText(shop, { senderEmail, paymentsServiceUrl, region = RE
     // The platform accounts' shop door (accounts/teamSync.js, plan 5.11): told when Settings › Team changes, so the
     // account switcher lists the people added there. Written only once the platform hosts it (config.platformAccountsUrl).
     ...(platformAccountsUrl ? [`PLATFORM_ACCOUNTS_URL=${quote(platformAccountsUrl)}`] : []),
+    // The platform's app store door (services/apps/shopDoor.js, plan 26.5): Settings › Apps lists installed apps and the
+    // store. Written only once the platform hosts it (config.platformAppsUrl).
+    ...(platformAppsUrl ? [`PLATFORM_APPS_URL=${quote(platformAppsUrl)}`] : []),
     "",
   ].join("\n");
 }
@@ -120,11 +128,38 @@ export function torontoDay(date) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
 }
 
-/** Only the platform's test shop with both apps turns its stockroom link on during setup (docs/test-shop.md check 4). */
-export const needsStockroomLink = (shop) => shop.testShop === true && appsOf(shop).includes("shop") && appsOf(shop).includes("stockroom");
+/**
+ * Every shop with both apps turns its stockroom link on during setup (plan 17.12): the press's sales go to its stockroom
+ * from today, and an order whose book isn't linked yet is counted as unlinked on the shop's side, never dropped.
+ */
+export const needsStockroomLink = (shop) => appsOf(shop).includes("shop") && appsOf(shop).includes("stockroom");
+
+/** The shop's link state (apps/shop/functions/inventoryLinkJobs.js STATE_DOC), read and written by the shop's server. */
+export const LINK_DOC = "systemStatus/inventoryLink";
+/** The link is doing something: sending sales, matching books, or connected (the shop's server's `linkActive`). */
+export const linkActive = (state) => Boolean(state) && (
+  (typeof state.startDay === "string" && state.startDay !== "") || Object.keys(state.links ?? {}).length > 0 || state.connection?.ok === true);
+
+/** Only the platform's test shop gets the starter catalogue and its linked stockroom books (docs/test-shop.md check 4). */
+export const needsTestCatalogue = (shop) => shop.testShop === true && needsStockroomLink(shop);
 
 /** Steps 7–16. */
 export function laterSteps({ deploy, envFiles, google, shopData, providers, email, siteCheck, inventoryLink, stockroom, registry, profileFiles, config, now = () => new Date() }) {
+  // A short fingerprint of the profile file the pages are built with (step 6 writes it).
+  const profileStamp = async (shopId) => createHash("sha256").update((await profileFiles.read(shopId)) ?? "").digest("hex").slice(0, 16);
+  // Deploys each app's pages that are missing or were built from an older profile, and notes the profile they now carry.
+  const deployPages = async (shop) => {
+    const stamp = await profileStamp(shop.shopId);
+    const given = { ...((await registry.getShop(shop.shopId))?.pagesProfile ?? {}) };
+    let changed = false;
+    for (const app of appsOf(shop)) {
+      if (given[app] === stamp && (await deploy.deployed(shop.shopId, `pages:${app}`))) continue;
+      await deploy.pages(shop.shopId, { version, app });
+      given[app] = stamp;
+      changed = true;
+    }
+    if (changed) await registry.updateShop(shop.shopId, { pagesProfile: given });
+  };
   // The press's own web addresses (services/domains), so writing the server settings again never drops one.
   // The press's own addresses and its main one, from the registry row (services/domains writes both).
   const addressesOf = async (shop) => {
@@ -156,7 +191,7 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
       ? [{ path: "firstWeek/start", data: { sellingToday: sellingToday(shop), publishes: publishes(shop), country: countryOf(shop), plan: shop.plan } }]
       : []),
     ...privateStart(shop, release.starterContent(shop)),
-    ...(needsStockroomLink(shop) ? testCatalogue(shop).shopDocs : []),
+    ...(needsTestCatalogue(shop) ? testCatalogue(shop).shopDocs : []),
   ];
   const pageUrls = async (shop) => {
     const urls = {};
@@ -199,17 +234,18 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
     {
       number: 9,
       name: "Deploy the pages",
+      // Each app's pages carry the shop's profile (/shop-profile.js), so pages built from an older profile (an app
+      // added or dropped since) are deployed again. The registry row keeps which profile each app's pages were given.
       async check({ shop }) {
+        const stamp = await profileStamp(shop.shopId);
+        const given = (await registry.getShop(shop.shopId))?.pagesProfile ?? {};
         for (const app of appsOf(shop)) {
           if (!isCurrent(await deploy.deployed(shop.shopId, `pages:${app}`), `The ${app} pages`)) return false;
+          if (given[app] !== stamp) return false;
         }
         return true;
       },
-      async act({ shop }) {
-        for (const app of appsOf(shop)) {
-          if (!(await deploy.deployed(shop.shopId, `pages:${app}`))) await deploy.pages(shop.shopId, { version, app });
-        }
-      },
+      act: ({ shop }) => deployPages(shop),
     },
     {
       number: 10,
@@ -238,7 +274,7 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
       async check({ shop }) {
         // A document that is there counts, whatever it holds now: the press may already have changed it.
         for (const { path } of starterDocs(shop)) if (!(await shopData.get(shop.shopId, path))) return false;
-        if (!needsStockroomLink(shop)) return true;
+        if (!needsTestCatalogue(shop)) return true;
         // The test shop's catalogue: its stockroom books are there and each printed book is linked to one.
         const { stockroomBooks, links } = testCatalogue(shop);
         const have = (await stockroom.books(shop.shopId)) ?? {};
@@ -254,7 +290,7 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
             created.push(path);
           }
         }
-        if (!needsStockroomLink(shop)) return { detail: { created } };
+        if (!needsTestCatalogue(shop)) return { detail: { created } };
 
         const { stockroomBooks, links } = testCatalogue(shop);
         const have = (await stockroom.books(shop.shopId)) ?? {};
@@ -286,15 +322,32 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
     {
       number: 14,
       name: "Email the owner their sign-in link",
-      check: async ({ shop }) => Boolean(await email.wasSent(shop.shopId, OWNER_WELCOME)),
+      // The registry row keeps which apps the owner has been sent a link to (`welcomedApps`). An app added later (a plan
+      // change) gets its own email; a shop made before this list existed counts as welcomed for what it had.
+      async check({ shop }) {
+        if (!(await email.wasSent(shop.shopId, OWNER_WELCOME))) return false;
+        const welcomed = (await registry.getShop(shop.shopId))?.welcomedApps;
+        if (!welcomed) return true;
+        const apps = appsOf(shop);
+        return apps.length === welcomed.length && apps.every((app) => welcomed.includes(app));
+      },
       async act({ shop }) {
-        const urls = await pageUrls(shop);
-        const links = {};
-        if (urls.shop) links.shopAdmin = `${urls.shop}/admin`;
-        if (urls.stockroom) links.stockroom = urls.stockroom;
-        if (Object.keys(links).length !== appsOf(shop).length) throw new Error("a page address is missing, so the email would have a broken link");
-        // The key lets the email service send it once even if this step is retried after a lost answer.
-        await email.send(shop.shopId, { kind: OWNER_WELCOME, to: shop.ownerEmail, pressName: shop.pressName, links, idempotencyKey: `${shop.shopId}-${OWNER_WELCOME}` });
+        const row = await registry.getShop(shop.shopId);
+        const first = !(await email.wasSent(shop.shopId, OWNER_WELCOME));
+        const apps = appsOf(shop);
+        const toSend = first ? apps : apps.filter((app) => !(row?.welcomedApps ?? apps).includes(app));
+        if (toSend.length) {
+          const urls = await pageUrls(shop);
+          const links = {};
+          if (toSend.includes("shop") && urls.shop) links.shopAdmin = `${urls.shop}/admin`;
+          if (toSend.includes("stockroom") && urls.stockroom) links.stockroom = urls.stockroom;
+          if (Object.keys(links).length !== toSend.length) throw new Error("a page address is missing, so the email would have a broken link");
+          // The key lets the email service send it once even if this step is retried after a lost answer; an app
+          // added again after it was dropped is a new email (the count of earlier welcomes is in the key).
+          const idempotencyKey = first ? `${shop.shopId}-${OWNER_WELCOME}` : `${shop.shopId}-${APP_ADDED}-${toSend.join("+")}-${row?.welcomes ?? 1}`;
+          await email.send(shop.shopId, { kind: first ? OWNER_WELCOME : APP_ADDED, to: shop.ownerEmail, pressName: shop.pressName, links, idempotencyKey });
+        }
+        await registry.updateShop(shop.shopId, { welcomedApps: apps, ...(toSend.length ? { welcomes: (row?.welcomes ?? (first ? 0 : 1)) + 1 } : {}) });
       },
     },
     {
@@ -306,6 +359,8 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
         return row?.status === "live";
       },
       async act({ shop }) {
+        // Step 13 may have added the payments to the profile after step 9 deployed the pages: they go out again first.
+        await deployPages(shop);
         const urls = await pageUrls(shop);
         const failures = appsOf(shop).filter((app) => !urls[app]).map((app) => `the ${app} pages have no address`);
         const pages = [];
@@ -321,15 +376,23 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
     },
     {
       number: 16,
-      name: "Turn on the test shop's stockroom link",
-      // Every other shop: nothing to do (the owner turns the link on in the admin when they want it).
+      name: "Turn on the stockroom link",
+      // A shop without both apps (for example, the stockroom alone): nothing to do. A shop whose plan dropped the
+      // stockroom: the link is turned off, so its server stops sending sales and no book's stock is counted there.
       async check({ shop }) {
-        if (!needsStockroomLink(shop)) return true;
+        if (!needsStockroomLink(shop)) return !appsOf(shop).includes("shop") || !linkActive(await shopData.get(shop.shopId, LINK_DOC));
         const startDay = (await inventoryLink.state(shop.shopId))?.startDay;
         return typeof startDay === "string" && /^\d{4}-\d{2}-\d{2}$/.test(startDay);
       },
       async act({ shop }) {
-        if (!needsStockroomLink(shop)) return;
+        if (!needsStockroomLink(shop)) {
+          if (!appsOf(shop).includes("shop")) return;
+          const state = (await shopData.get(shop.shopId, LINK_DOC)) ?? {};
+          // The matches are kept beside it, so a person can put them back if the stockroom is added again.
+          const stockroomClosed = { at: now().toISOString(), links: state.links ?? {}, startDay: state.startDay ?? null };
+          await shopData.set(shop.shopId, LINK_DOC, { links: {}, startDay: null, connection: null, stockroomClosed }, { fields: ["links", "startDay", "connection", "stockroomClosed"] });
+          return { detail: { linkOff: true, links: Object.keys(stockroomClosed.links).length } };
+        }
         // The shop refuses to start sending sales before its own check reaches the stockroom.
         const { ok, problem } = await inventoryLink.check(shop.shopId);
         if (!ok) throw new Error(`the shop can't reach its stockroom${problem ? ` (${problem})` : ""}; a person checks the link`);
@@ -341,8 +404,10 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
     upkeepStep({ number: 17, google, config }),
     // Plan 15.17: a spend alert and a spend cap per shop (setup/spend.js); nothing until the platform's side is set up.
     spendGuardsStep({ number: 18, google, registry, config }),
+    // Plan 22.6: authenticator codes allowed on the shop admin's own sign-in (setup/twoStep.js).
+    twoStepSignInStep({ number: 19, google }),
     // Plan 15.18: a longer bot check token lifetime, to stay inside the free assessments (setup/botCheck.js).
-    botCheckStep({ number: 19, google, config }),
+    botCheckStep({ number: 20, google, config }),
   ];
 }
 
@@ -364,7 +429,7 @@ function shopOnly(step) {
   };
 }
 
-/** All nineteen steps, in order. One `config` holds the platform settings both halves read (see each for its keys). */
+/** All twenty steps, in order. One `config` holds the platform settings both halves read (see each for its keys). */
 export function shopSteps({ config, ...clients }) {
   return [...firstSteps({ ...clients, config }), ...laterSteps({ ...clients, config })];
 }

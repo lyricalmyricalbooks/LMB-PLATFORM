@@ -1,4 +1,4 @@
-import { collection, deleteDoc, doc, getDocs, serverTimestamp, setDoc } from "firebase/firestore";
+import { Timestamp, collection, deleteDoc, doc, getDocs, serverTimestamp, setDoc } from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";
 import { shopOwnerEmail } from "../lib/ownerDevice";
 import { TEAM_ROLES, type TeamRole } from "./adminAccess";
@@ -6,7 +6,15 @@ import { TEAM_ROLES, type TeamRole } from "./adminAccess";
 // Settings › Team: members/{email}, written only by the owner (firestore.rules). The server copies each role onto
 // that person's sign-in pass (functions/roles.js syncMemberRole), so a change takes effect at their next page load.
 
-export type TeamMember = { email: string; role: TeamRole };
+// `until`: a fair helper added for today only (ISO time); the server removes them after it (functions/roles.js).
+export type TeamMember = { email: string; role: TeamRole; until?: string };
+
+/** The end of the day `now` falls on, in this device's time: when a "for today only" helper is removed. */
+export function endOfToday(now = new Date()): Date {
+  const end = new Date(now);
+  end.setHours(23, 59, 59, 0);
+  return end;
+}
 
 export const teamEmail = (value: string) => value.trim().toLowerCase();
 
@@ -24,11 +32,18 @@ export const teamApi = {
   list: async (): Promise<TeamMember[]> => {
     const snap = await getDocs(collection(db, "members"));
     return snap.docs
-      .map(d => ({ email: d.id, role: d.data().role as TeamRole }))
+      .map(d => {
+        const until = d.data().until;
+        return { email: d.id, role: d.data().role as TeamRole, ...(until?.toDate ? { until: until.toDate().toISOString() } : {}) };
+      })
       .filter(m => TEAM_ROLES.includes(m.role))
       .sort((a, b) => a.email.localeCompare(b.email));
   },
-  save: (email: string, role: TeamRole) =>
-    setDoc(doc(db, "members", teamEmail(email)), { role, addedAt: serverTimestamp(), addedBy: auth.currentUser?.email || "" }),
+  save: (email: string, role: TeamRole, { until }: { until?: Date } = {}) =>
+    setDoc(doc(db, "members", teamEmail(email)), {
+      role, addedAt: serverTimestamp(), addedBy: auth.currentUser?.email || "",
+      // Only a fair helper may end (firestore.rules members).
+      ...(until && role === "fairHelper" ? { until: Timestamp.fromDate(until) } : {}),
+    }),
   remove: (email: string) => deleteDoc(doc(db, "members", teamEmail(email))),
 };

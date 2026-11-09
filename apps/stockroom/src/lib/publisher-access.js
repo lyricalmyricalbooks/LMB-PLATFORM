@@ -60,3 +60,62 @@ export async function isPublisherUser(user, { askRules = null, store = browserSt
   if (answer !== null) return answer;
   try { return store?.getItem(REMEMBER_KEY) === user.uid; } catch { return false; }
 }
+
+// How long to wait for the shop's server to name a Team role before carrying on without one.
+const ROLE_ASK_WAIT_MS = 5000;
+
+/**
+ * The address of one of the shop server's functions, on the plan with both apps only (the shop app brings the server:
+ * the Team, payments). '' when there is no shop server to ask, or on the demo shop.
+ */
+export function shopFunctionUrl(profile, name, { emulators = false } = {}) {
+  if (emulators || profile?.apps?.shop !== true || profile?.apps?.stockroom !== true) return '';
+  const project = profile?.firebase?.projectId;
+  const region = profile?.functionsRegion;
+  if (!project || !region || !/^[A-Za-z]+$/.test(String(name || ''))) return '';
+  return `https://${region}-${project}.cloudfunctions.net/${name}`;
+}
+
+/** The shop server's "what is my role" address (it keeps the Team and puts each person's role on their pass). */
+export function shopRoleUrl(profile, options) {
+  return shopFunctionUrl(profile, 'refreshMyRole', options);
+}
+
+/**
+ * Calls a shop function as the signed-in person: their answer as JSON, or { error } with the server's sentence.
+ * Throws only when the server can't be reached (no signal), so the caller can say so.
+ */
+export async function callShopFunction(user, url, body, { fetchFn = globalThis.fetch } = {}) {
+  if (!url || !user || typeof user.getIdToken !== 'function') return { error: 'This needs the shop app.' };
+  const token = await user.getIdToken();
+  const res = await fetchFn(url, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+  const answer = await res.json().catch(() => ({}));
+  return res.ok ? answer : { error: typeof answer?.error === 'string' ? answer.error : 'The shop couldn\'t do that just now.' };
+}
+
+/**
+ * Someone the owner added to the Team before they ever signed in has no role on their pass yet: the shop's server can
+ * only add it once the account exists. This asks it to (the shop admin does the same after sign-in), then reads the
+ * renewed pass. The fresh claims, or null when nothing changed or the server couldn't be reached. Never throws.
+ */
+export async function askShopForRole(user, { url, fetchFn = globalThis.fetch, waitMs = ROLE_ASK_WAIT_MS } = {}) {
+  if (!url || !user || user.emailVerified !== true || typeof fetchFn !== 'function') return null;
+  if (typeof user.getIdToken !== 'function') return null;
+  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), waitMs) : null;
+  try {
+    const token = await user.getIdToken();
+    const res = await fetchFn(url, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, signal: controller?.signal });
+    if (!res?.ok) return null;
+    const body = await res.json().catch(() => null);
+    if (!body?.role || body.role === 'owner') return null;
+    // The role is on the pass now; a fresh pass carries it.
+    await user.getIdToken(true);
+    const fresh = await readPassClaims(user, waitMs);
+    return fresh?.role ? fresh : null;
+  } catch {
+    return null;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}

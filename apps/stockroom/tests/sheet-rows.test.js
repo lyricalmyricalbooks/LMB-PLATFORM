@@ -129,7 +129,7 @@ describe('titles that would share a Google Sheet tab', () => {
   it('the book form refuses a second book with the same title', async () => {
     const { appSource } = await import('./helpers/extract-decl.js');
     const save = appSource.match(/async function saveBookFromModal\(\)[\s\S]+?\n\}/)[0];
-    expect(save).toContain('sheetTabKey(b.title) === titleKey');
+    expect(save).toContain('titleKeys.has(sheetTabKey(b.title))');
     expect(save.indexOf('titleTwin')).toBeLessThan(save.indexOf('BOOKS[id] = book;'));
     expect(save).toContain('queueSheetsRename(previousTitle, book.title');
   });

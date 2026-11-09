@@ -11,7 +11,8 @@
 //                       projects.accounts          POST https://identitytoolkit.googleapis.com/v1/projects/{project}/accounts
 //                       body { email, emailVerified } -> { localId }
 //                       projects.accounts.update   POST https://identitytoolkit.googleapis.com/v1/projects/{project}/accounts:update
-//                       body { localId, emailVerified }
+//                       body { localId, emailVerified }; body { localId, mfa: {} } takes every second step off (what the
+//                       Admin SDK sends for `multiFactor: { enrolledFactors: null }`; a lookup lists them as `mfaInfo`)
 //                       accounts.signInWithCustomToken POST https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key={web key}
 //                       body { token, returnSecureToken: true } -> { idToken, refreshToken, expiresIn }
 // The custom token's claims (iss, sub, aud, iat, exp, uid) follow Firebase's "create custom tokens using a third-party
@@ -60,7 +61,36 @@ export function identityClient({ fetch, token, now = () => new Date() }) {
     return result;
   }
 
-  return { ensureUser, customToken, signIn };
+  /**
+   * Takes every second step (authenticator app, phone) off the sign-in of `email` on the shop's project, for someone
+   * who lost both their phone and their backup codes (control room, plan 22.11). { found, removed }: removed counts them.
+   */
+  async function removeSecondSteps(projectId, email) {
+    const { users = [] } = await call("POST", `${IDENTITY}/projects/${projectId}/accounts:lookup`, { body: { email: [email] } });
+    const found = users.find((user) => user.email?.toLowerCase() === email.toLowerCase());
+    if (!found) return { found: false, removed: 0 };
+    const removed = Array.isArray(found.mfaInfo) ? found.mfaInfo.length : 0;
+    if (removed) await call("POST", `${IDENTITY}/projects/${projectId}/accounts:update`, { body: { localId: found.localId, mfa: {} } });
+    return { found: true, removed };
+  }
+
+  /**
+   * Who has a second step on the shop's project, for the control room's sign-in safety (read only):
+   * [{ email, found, uid, steps }] in the order asked. One lookup call for every address.
+   */
+  async function secondStepsOf(projectId, emails) {
+    if (!emails.length) return [];
+    const { users = [] } = await call("POST", `${IDENTITY}/projects/${projectId}/accounts:lookup`, { body: { email: emails } });
+    return emails.map((email) => {
+      const found = users.find((user) => user.email?.toLowerCase() === email.toLowerCase());
+      const last = Number(found?.lastLoginAt);
+      return found
+        ? { email, found: true, uid: found.localId, steps: Array.isArray(found.mfaInfo) ? found.mfaInfo.length : 0, lastSignInAt: Number.isFinite(last) && last > 0 ? new Date(last).toISOString() : null }
+        : { email, found: false, uid: null, steps: 0, lastSignInAt: null };
+    });
+  }
+
+  return { ensureUser, customToken, signIn, removeSecondSteps, secondStepsOf };
 }
 
 /**
@@ -87,6 +117,26 @@ export async function testOwnerSession({ identity, shop, profile, serviceAccount
       lastLoginAt: String(at),
       apiKey,
       appName: "[DEFAULT]",
+    },
+  };
+}
+
+/**
+ * The platform's own sign-ins (Delete my account, accounts/deleteAccount.js). Identity Toolkit v1
+ * projects.accounts.delete: POST {IDENTITY}/projects/{project}/accounts:delete, body { localId }. A sign-in that is
+ * already gone counts as deleted, so a retry after a half-finished deletion succeeds.
+ */
+export function platformAuthUsers({ fetch, token, projectId }) {
+  const call = googleHttp({ fetch, token });
+  return {
+    async remove(uid) {
+      if (typeof uid !== "string" || !uid) throw new Error("Which sign-in?");
+      try {
+        await call("POST", `${IDENTITY}/projects/${projectId}/accounts:delete`, { body: { localId: uid } });
+      } catch (error) {
+        if (/USER_NOT_FOUND/.test(String(error?.message ?? ""))) return;
+        throw error;
+      }
     },
   };
 }

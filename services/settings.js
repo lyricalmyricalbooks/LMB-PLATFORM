@@ -16,7 +16,11 @@
 //   PLAN_PRICE_STOCKROOM       monthly price of the stockroom alone, in cents        default 1900 ($19)
 //   PLAN_PRICE_BOTH            monthly price of the shop and the stockroom, cents    default 3900 ($39)
 //   TRIAL_DAYS                 free days before the first charge (no card needed)    default 14
+//   START_NUDGES               Get started nudges on days 2 and 4 (plan 17.14): hold (none sent), beside (sent with the
+//                              setup tips) or instead (sent in place of that day's setup tip)   default hold
 //   PLATFORM_URL               the platform's own pages (sign-up, account)           default https://<domain>
+//   SHOP_ADDRESS_DOMAIN        the domain shops' free addresses go under (moth-press.<it>), a domain of its own, never
+//                              the platform's (services/domains/freeAddress.js)    default none: web.app addresses
 //   SIGNUP_OPEN                "true": anyone may sign up; otherwise waitlist invites only (6.1, 6.13)   default false
 //   SIGNUP_OPEN_COUNTRIES      countries whose presses may start a shop now, comma-separated codes   default CA (15.23: tax
 //                              presets, addresses and shipping are Canadian; other countries join a "later" list)
@@ -40,9 +44,10 @@ export const DEFAULT_SETTINGS = Object.freeze({
   trialDays: 14,
   platformUrl: "https://platform.example",
   signupOpen: false,
+  startNudges: "hold",
   signupDailyCap: 10,
   openCountries: Object.freeze(["CA"]),
-  foundingOffer: Object.freeze({ percentOff: 25, presses: 25 }),
+  foundingOffer: Object.freeze({ percentOff: 25, presses: 25, giveBackUnpaid: true }),
   payAsYouSell: Object.freeze({ basisPoints: 200 }),
 });
 
@@ -61,6 +66,9 @@ const LIMITS = Object.freeze({
 });
 
 const EMAIL = /^[^@\s<>"]+@[^@\s<>"]+\.[^@\s<>"]+$/;
+
+/** The Get started nudge modes (plan 17.14, START_NUDGES). Kept here, not imported, so this file stays free of the sweep. */
+export const START_NUDGE_MODES = Object.freeze(["hold", "beside", "instead"]);
 
 /**
  * The settings, from `env` (process.env by default). A value that is set but wrong throws, in plain words, so a typo in
@@ -83,6 +91,15 @@ export function platformSettings(env = process.env) {
     }
     return Number(raw);
   };
+  const choice = (name, fallback, options) => {
+    const raw = text(name, null);
+    if (raw === null) return fallback;
+    if (!options.includes(raw)) {
+      problems.push(`${name} must be one of ${options.join(", ")}`);
+      return fallback;
+    }
+    return raw;
+  };
   const yesNo = (name, fallback) => {
     const raw = text(name, null);
     if (raw === null) return fallback;
@@ -103,6 +120,10 @@ export function platformSettings(env = process.env) {
   const platformUrl = text("PLATFORM_URL", `https://${domain}`).replace(/\/+$/, "");
   if (!/^https:\/\/[^/\s]+$/.test(platformUrl)) problems.push("PLATFORM_URL must be an https address with no path");
 
+  const shopAddressDomain = text("SHOP_ADDRESS_DOMAIN", "").toLowerCase();
+  if (shopAddressDomain && (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(shopAddressDomain) || shopAddressDomain === domain || shopAddressDomain.endsWith(`.${domain}`))) {
+    problems.push("SHOP_ADDRESS_DOMAIN must be a domain of its own, like shops.example, not the platform's domain or one under it");
+  }
   const openCountries = text("SIGNUP_OPEN_COUNTRIES", DEFAULT_SETTINGS.openCountries.join(",")).split(",").map((c) => c.trim().toUpperCase()).filter(Boolean);
   if (!openCountries.length || openCountries.some((c) => !/^[A-Z]{2}$/.test(c))) problems.push("SIGNUP_OPEN_COUNTRIES must be two-letter country codes like CA,US");
   const settings = {
@@ -121,12 +142,15 @@ export function platformSettings(env = process.env) {
     // Stripe allows trials of up to two years; 0 means no trial.
     trialDays: whole("TRIAL_DAYS", DEFAULT_SETTINGS.trialDays, LIMITS.trialDays),
     platformUrl,
+    shopAddressDomain,
     signupOpen: yesNo("SIGNUP_OPEN", DEFAULT_SETTINGS.signupOpen),
+    startNudges: choice("START_NUDGES", DEFAULT_SETTINGS.startNudges, START_NUDGE_MODES),
     openCountries,
     signupDailyCap: whole("SIGNUP_DAILY_CAP", DEFAULT_SETTINGS.signupDailyCap, LIMITS.signupDailyCap),
     foundingOffer: {
       percentOff: whole("FOUNDING_PERCENT_OFF", DEFAULT_SETTINGS.foundingOffer.percentOff, LIMITS["foundingOffer.percentOff"]),
       presses: whole("FOUNDING_PRESSES", DEFAULT_SETTINGS.foundingOffer.presses, LIMITS["foundingOffer.presses"]),
+      giveBackUnpaid: yesNo("FOUNDING_GIVE_BACK_UNPAID", DEFAULT_SETTINGS.foundingOffer.giveBackUnpaid),
     },
     payAsYouSell: { basisPoints: whole("PAY_AS_YOU_SELL_BASIS_POINTS", DEFAULT_SETTINGS.payAsYouSell.basisPoints, LIMITS["payAsYouSell.basisPoints"]) },
   };
@@ -152,6 +176,8 @@ export const EDITABLE = Object.freeze({
   trialDays: { kind: "whole", ...LIMITS.trialDays, label: "Free trial days" },
   "foundingOffer.percentOff": { kind: "whole", ...LIMITS["foundingOffer.percentOff"], label: "Founding offer: percent off, for as long as they stay" },
   "foundingOffer.presses": { kind: "whole", ...LIMITS["foundingOffer.presses"], label: "Founding offer: how many paying presses get it" },
+  // On by default (3 November 2026): a place taken by a press that left before paying anything goes back to the offer.
+  "foundingOffer.giveBackUnpaid": { kind: "yesNo", label: "Founding offer: give a place back when a press leaves before paying anything" },
   "payAsYouSell.basisPoints": { kind: "basisPoints", ...LIMITS["payAsYouSell.basisPoints"], label: "Pay as you sell: share of each website sale (0 turns it off)" },
 });
 

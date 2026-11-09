@@ -25,8 +25,11 @@ function fakeBucket() {
   };
 }
 
-function fakeDb(books) {
-  const docs = new Map(Object.entries(books).map(([id, d]) => [`books/${id}`, structuredClone(d)]));
+function fakeDb(books, pages = {}) {
+  const docs = new Map([
+    ...Object.entries(books).map(([id, d]) => [`books/${id}`, structuredClone(d)]),
+    ...Object.entries(pages).map(([id, d]) => [`pages/${id}`, structuredClone(d)]),
+  ]);
   const audit = [];
   const ref = path => ({
     path,
@@ -124,6 +127,24 @@ describe("runPhotoImport", () => {
     const saved = bucket.store.get(names.find(n => n.endsWith(".jpg")));
     expect(saved.metadata).toMatchObject({ cacheControl: "public, max-age=31536000, immutable", metadata: { importedFrom: OLD_A } });
     expect(saved.contentType).toBe("image/jpeg");
+  });
+
+  it("copies an edition's own photo and points the edition at the copy, so it survives the old shop closing", async () => {
+    const db = fakeDb({
+      shirt: { title: "Shirt", photos: [{ url: OLD_A }], variants: [{ id: "v1", name: "Black", photoUrl: OLD_A }, { id: "v2", name: "White", photoUrl: OLD_B }, { id: "v3", name: "Grey", photoUrl: "" }] },
+    });
+    const bucket = fakeBucket();
+    const { fetch, calls } = fakeFetch({ [OLD_A]: { type: "image/jpeg" }, [OLD_B]: { type: "image/png" } });
+    const result = await runPhotoImport({ db, bucket, fetch, deadline: Date.now() + 60_000, log: quiet, lookup: publicLookup });
+    expect(calls.sort()).toEqual([OLD_A, OLD_B].sort());
+    expect(result).toMatchObject({ failed: 0, pending: 0 });
+    const shirt = book("shirt")(db);
+    expect(shirt.variants[0]).toMatchObject({ id: "v1", name: "Black", photoUrl: shirt.photos[0].url });
+    expect(shirt.variants[1].photoUrl).toContain(`/v0/b/${BUCKET}/o/products%2Fimported%2F`);
+    expect(shirt.variants[2]).toEqual({ id: "v3", name: "Grey", photoUrl: "" });
+    // A re-run downloads nothing more.
+    await runPhotoImport({ db, bucket, fetch, deadline: Date.now() + 60_000, log: quiet, lookup: publicLookup, now: Date.now() + 1 });
+    expect(calls).toHaveLength(2);
   });
 
   it("writes one audit line per run that copied something, and none when nothing was left", async () => {
@@ -403,5 +424,37 @@ describe("pictures inside book descriptions (plan 5.5)", () => {
     expect(bucket.store.size).toBe(0);
     expect(db.docs.get("books/desc")).toEqual({ description: `<img src="${OLD_A}">` });
     expect(Object.values(db.docs.get("systemStatus/photoImport").failed)[0].reason).toBe("the address points inside a private network");
+  });
+});
+
+describe("pictures on brought-over pages (plan 23.13)", () => {
+  const body = `<p>About us</p><p><img src="${OLD_A}" alt="Studio"> <img src="${OWN}" alt=""></p>`;
+
+  it("copies a page's pictures once, points the page at the copies, and a re-run changes nothing", async () => {
+    const db = fakeDb({ one: { title: "One", photos: [{ url: OLD_A }] } }, { about: { title: "About", body, status: "draft" } });
+    const bucket = fakeBucket();
+    const { fetch, calls } = fakeFetch({ [OLD_A]: { type: "image/jpeg" } });
+    const result = await runPhotoImport({ db, bucket, fetch, deadline: Date.now() + 60_000, log: quiet, lookup: publicLookup });
+    // The book and the page share the picture: one download, and both point at the same copy.
+    expect(calls).toEqual([OLD_A]);
+    expect(result).toMatchObject({ books: 1, pages: 1, failed: 0, pending: 0 });
+    const page = db.docs.get("pages/about");
+    expect(page.body).not.toContain(OLD_A);
+    expect(page.body).toContain(`<img src="${db.docs.get("books/one").photos[0].url.replace(/&/g, "&amp;")}" alt="Studio">`);
+    expect(page.body).toContain(`<img src="${OWN}" alt="">`);
+    expect(page).toMatchObject({ title: "About", status: "draft" });
+    expect(db.audit.at(-1).message).toMatch(/on 1 book and 1 page into the shop's own storage/);
+    const again = await runPhotoImport({ db, bucket, fetch, deadline: Date.now() + 60_000, log: quiet, lookup: publicLookup });
+    expect(again).toMatchObject({ found: 0, done: 0 });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("leaves a page alone when its picture points at a private address", async () => {
+    const db = fakeDb({}, { about: { title: "About", body } });
+    const { fetch, calls } = fakeFetch({ [OLD_A]: { type: "image/jpeg" } });
+    const result = await runPhotoImport({ db, bucket: fakeBucket(), fetch, deadline: Date.now() + 60_000, log: quiet, lookup: async () => [{ address: "10.0.0.7", family: 4 }] });
+    expect(calls).toEqual([]);
+    expect(result).toMatchObject({ pages: 0, failed: 1 });
+    expect(db.docs.get("pages/about").body).toBe(body);
   });
 });

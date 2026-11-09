@@ -11,12 +11,13 @@ service firebase.storage {
             || request.auth.token.get('role', '') == 'owner');
     }
 
-    // Mirrors isBookAuthor() in firestore.rules, resolved cross-service against
+    // Mirrors isBookAuthor() in firestore.rules (a verified address only, see there), resolved cross-service against
     // the same settings/bookOwners map ({ bookId: authorEmailLower }) the
     // publisher client maintains on every catalog save. Guarded by exists() so
     // a missing map denies rather than erroring.
     function isBookAuthor(bookId) {
       return request.auth != null
+        && request.auth.token.email_verified == true
         && request.auth.token.email != null
         && firestore.exists(/databases/(default)/documents/settings/bookOwners)
         && request.auth.token.email.lower() ==
@@ -39,6 +40,15 @@ service firebase.storage {
     // stops path enumeration and un-tokenised access, not links already issued.
     // Original email text is evidence too. This exception is publisher-only
     // and scoped to finder imports; it does not broaden author uploads.
+    // A book's cover for the Fair till (features/book-cover.js): a small JPEG the publisher uploads. Anyone signed in
+    // may read it (a fair helper's till shows it; the address is a tokenised link anyway).
+    match /covers/{bookId}/{file} {
+      allow read: if request.auth != null;
+      allow write: if isPublisher()
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if isPublisher();
+    }
     match /receipts/email-imports/{allPaths=**} {
       allow read, delete: if isPublisher();
       allow write: if isPublisher()

@@ -9,7 +9,7 @@
 export const SUPPORT_UID = "colophon-support";
 export const MAX_MINUTES = 60;
 
-export function supportAccess({ identity, registry, serviceAccount, now = () => new Date() }) {
+export function supportAccess({ identity, registry, serviceAccount, shopData = null, now = () => new Date() }) {
   return {
     async supportSignIn(shopId, { by, reason, minutes = 30, mode = "view" }) {
       if (!serviceAccount) throw new Error("the support sign-in needs the platform's service account");
@@ -20,6 +20,33 @@ export function supportAccess({ identity, registry, serviceAccount, now = () => 
       const support = { by: String(by).slice(0, 120), reason: String(reason).slice(0, 200), until, mode: mode === "edit" ? "edit" : "view" };
       const token = await identity.customToken(serviceAccount, SUPPORT_UID, { support });
       return { url: `${profile.siteUrl}/admin/#support=${token}`, until };
+    },
+
+    /** Two-step sign-in off for one person on the shop's own project (plan 22.11): { found, removed }. */
+    async removeTwoStep(shopId, email) {
+      const profile = await registry.getProfile(shopId);
+      const projectId = profile?.firebase?.projectId;
+      if (!projectId) throw new Error(`${shopId} has no sign-in project yet`);
+      return identity.removeSecondSteps(projectId, email);
+    },
+
+    /**
+     * Each person's sign-in safety on the shop (read only): whether two-step is on, and how many backup codes are left
+     * (the shop's server-only `twoStepBackup/<uid>`, which holds only hashes; only their count is read here).
+     * [{ email, found, twoStep, codesLeft, codesMadeAt, lastSignInAt }]
+     */
+    async signInSafety(shopId, emails) {
+      const profile = await registry.getProfile(shopId);
+      const projectId = profile?.firebase?.projectId;
+      if (!projectId) throw new Error(`${shopId} has no sign-in project yet`);
+      const people = await identity.secondStepsOf(projectId, emails);
+      const out = [];
+      for (const person of people) {
+        const backup = person.uid && shopData ? await shopData.get(shopId, `twoStepBackup/${person.uid}`).catch(() => null) : null;
+        out.push({ email: person.email, found: person.found, twoStep: person.steps > 0,
+          codesLeft: backup ? (Array.isArray(backup.hashes) ? backup.hashes.length : 0) : person.found && shopData ? 0 : null, codesMadeAt: backup?.madeAt ?? null, lastSignInAt: person.lastSignInAt ?? null });
+      }
+      return out;
     },
   };
 }

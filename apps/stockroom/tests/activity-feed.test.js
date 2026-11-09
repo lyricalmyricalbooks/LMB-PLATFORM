@@ -48,6 +48,12 @@ describe('buildActivityFeed — sources', () => {
     expect(sale.sortKey).toBe(Date.parse(recordedAt));
   });
 
+  it('puts a late-evening delivery on the owner’s own day, not UTC’s', () => {
+    const late = new Date(2026, 9, 31, 23, 30); // local 11:30 pm: already the next day in UTC west of Greenwich
+    const feed = buildActivityFeed([hound], { hound: { hist: [{ date: '2026-10-30', deliveredDate: late.toISOString() }] } });
+    expect(feed.find(e => e.kind === 'delivered').date).toBe('2026-10-31');
+  });
+
   it('does not invent an exact time for a date-only sale', () => {
     const [sale] = buildActivityFeed([hound], { hound: { hist: [{ date: '2026-10-08', qty: 1, price: 25 }] } });
     expect(sale.timestamp).toBe(0);

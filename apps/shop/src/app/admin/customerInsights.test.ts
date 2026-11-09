@@ -62,3 +62,21 @@ describe("customerInsights", () => {
     expect(customerCountries(rows)).toEqual([{ country: "Canada", count: 2 }]);
   });
 });
+
+describe("customers brought over who haven't ordered here yet (plan 23.10)", () => {
+  it("are listed from their notes, once, and count in no figure", async () => {
+    const { withMovedCustomers, MOVED_MARK, SEGMENT_LABELS } = await import("./customerInsights");
+    const buyers = buildCustomers([{ id: "o1", paymentStatus: "paid", total: 20, createdAt: "2026-10-01T00:00:00Z", customer: { email: "Ada@example.com", name: "Ada" } }]);
+    const rows = withMovedCustomers(buyers, [
+      { email: "ada@example.com", name: "Ada M", note: `${MOVED_MARK} on 2026-11-01.` },
+      { email: "Ben@example.com", name: "Ben", place: "Montréal, QC", note: `${MOVED_MARK} on 2026-11-01: Ben` },
+      { email: "ben@example.com", note: `${MOVED_MARK}` },
+      { email: "cy@example.com", note: "Met at the fair" },
+      { note: MOVED_MARK },
+    ]);
+    expect(rows.map((c) => [c.key, c.segment])).toEqual([["ada@example.com", "new"], ["ben@example.com", "moved"]]);
+    expect(rows[1]).toMatchObject({ name: "Ben", city: "Montréal, QC", orderCount: 0, totalSpent: 0, orders: [] });
+    expect(customerStats(rows).total).toBe(1);
+    expect(SEGMENT_LABELS.moved).toBe("Not ordered here yet");
+  });
+});

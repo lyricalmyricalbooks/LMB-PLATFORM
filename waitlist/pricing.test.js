@@ -51,7 +51,7 @@ test("switched on, the three plans and prices come from the settings, free for 1
   const answer = await plansAnswer({ SIGNUP_OPEN: "true", PLAN_PRICE_SHOP: "3100", TRIAL_DAYS: "14", FOUNDING_PERCENT_OFF: "0", PAY_AS_YOU_SELL_BASIS_POINTS: "0" });
   const view = pricingView(answer);
   assert.deepEqual(view.plans.map((p) => [p.plan, p.name, p.priceText]), [["shop", "Shop", "$31.00"], ["stockroom", "Stockroom", "$19.00"], ["both", "Shop and stockroom", "$39.00"]]);
-  assert.equal(view.trial, "Free for 14 days, no card needed.");
+  assert.equal(view.trial, "Free for 14 days from the day your shop opens. Setup costs nothing and needs no card.");
   assert.equal(view.founding, null, "no founding price unless the offer is set");
   assert.ok(view.plans.every((p) => !p.foundingPriceText && !p.payAsYouSell));
 
@@ -63,7 +63,7 @@ test("switched on, the three plans and prices come from the settings, free for 1
   assert.equal(doc.ids.get("pricing-founding").hidden, true);
   assert.match(doc.ids.get("plan-cards").text, /Shop\$31\.00 a month/);
   assert.match(page, /id="start-trial"[^>]*>Start your free trial</);
-  assert.match(page, /Free for 14 days, no card needed\./);
+  assert.match(page, /Free for 14 days from the day your shop opens\./);
 });
 
 test("the founding price shows only when the offer is set", async () => {

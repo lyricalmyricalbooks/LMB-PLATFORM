@@ -48,6 +48,27 @@ export function fakeEventClaims() {
   };
 }
 
+/**
+ * The founding places (founding.js), in memory: a claim checks and writes with nothing awaited in between, so of two
+ * calls started together only one can take the last place. `rows` holds the shops given one.
+ */
+export function fakeFoundingSeats() {
+  const rows = new Map();
+  return {
+    rows,
+    async claim(shopId, { limit, at, percentOff }) {
+      if (rows.has(shopId)) return true;
+      if (rows.size >= limit) return false;
+      rows.set(shopId, { shopId, at, percentOff });
+      return true;
+    },
+    async release(shopId) {
+      return rows.delete(shopId);
+    },
+    count: async () => rows.size,
+  };
+}
+
 /** Records platform emails instead of sending them; one per idempotency key, like the real service. */
 export function fakePlatformEmail() {
   const sent = new Map();
@@ -62,19 +83,72 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
   const requests = [];
   const byKey = new Map();
   let next = 1;
-  const world = { products: new Map(), prices: new Map(), customers: new Map(), subscriptions: new Map(), sessions: new Map(), setupIntents: new Map(), invoices: new Map(), paymentMethods: new Map() };
+  const world = { products: new Map(), prices: new Map(), customers: new Map(), subscriptions: new Map(), sessions: new Map(), setupIntents: new Map(), invoices: new Map(), paymentMethods: new Map(), coupons: new Map(), taxIds: new Map(), payFails: null, down: 0, failOnce: null };
   const MONTH = 30 * 86400;
   const missing = (what) => ({ status: 404, body: { error: { type: "invalid_request_error", code: "resource_missing", message: `No such ${what}` } } });
   const ok = (body) => ({ status: 200, body: structuredClone(body) });
   const subBody = (sub) => ({ ...sub, items: { data: [{ id: sub.itemId, price: { id: sub.price }, current_period_end: sub.periodEnd }] } });
 
+  const cardBody = (id) => world.paymentMethods.get(id) ?? { id, type: "card", card: { brand: "visa", last4: "4242", exp_month: 12, exp_year: 2030 }, billing_details: { address: { country: "CA", postal_code: "M5V 2T6" } } };
+  /** A card saved on a customer (Stripe attaches the card a setup page collects). */
+  /** The bill Stripe makes when a plan starts paying now: the price less the plan's coupon at that moment. */
+  const billNow = (sub, status) => {
+    const price = world.prices.get(sub.price)?.unit_amount ?? 0;
+    const off = sub.coupon ? Math.round((price * (world.coupons.get(sub.coupon)?.percent_off ?? 0)) / 100) : 0;
+    const invoice = { id: `in_${next++}`, object: "invoice", status, subscription: sub.id, currency: "cad", subtotal: price, total: price - off, amount_due: price - off };
+    world.invoices.set(invoice.id, invoice);
+    sub.latest_invoice = invoice.id;
+    return invoice;
+  };
+  const attach = (customerId, id) => {
+    const card = cardBody(id);
+    world.paymentMethods.set(id, { ...card, customer: customerId });
+  };
+
   function answer(method, path, p) {
     let m;
+    // Stripe briefly busy: the next `world.down` calls are turned away with a 429, before anything is done, so nothing
+    // is kept against their idempotency key (stripeRetry.js tries again). `world.downStatus` picks another status.
+    if (world.down > 0) {
+      world.down -= 1;
+      return { status: world.downStatus ?? 429, turnedAway: true, body: { error: { type: "rate_limit_error", message: "Stripe is busy" } } };
+    }
+    if ((m = path.match(/^\/v1\/coupons\/([\w-]+)$/)) && method === "GET") return world.coupons.has(m[1]) ? ok(world.coupons.get(m[1])) : missing("coupon");
+    if (method === "POST" && path === "/v1/coupons") {
+      const coupon = { id: p.id, percent_off: Number(p.percent_off), duration: p.duration, name: p.name };
+      world.coupons.set(coupon.id, coupon);
+      return ok(coupon);
+    }
+    if ((m = path.match(/^\/v1\/customers\/(cus_\w+)$/)) && method === "GET") return world.customers.has(m[1]) ? ok(world.customers.get(m[1])) : missing("customer");
+    if ((m = path.match(/^\/v1\/customers\/(cus_\w+)\/payment_methods$/)) && method === "GET") {
+      return ok({ object: "list", data: [...world.paymentMethods.values()].filter((card) => card.customer === m[1]) });
+    }
+    if ((m = path.match(/^\/v1\/payment_methods\/(pm_\w+)\/detach$/)) && method === "POST") {
+      const card = world.paymentMethods.get(m[1]);
+      if (!card?.customer) return missing("payment_method");
+      card.customer = null;
+      return ok(card);
+    }
+    if ((m = path.match(/^\/v1\/customers\/(cus_\w+)\/tax_ids$/))) {
+      if (method === "GET") return ok({ object: "list", data: [...world.taxIds.values()].filter((t) => t.customer === m[1]) });
+      const taxId = { id: `txi_${next++}`, customer: m[1], type: p.type, value: p.value };
+      world.taxIds.set(taxId.id, taxId);
+      return ok(taxId);
+    }
+    if ((m = path.match(/^\/v1\/customers\/(cus_\w+)\/tax_ids\/(txi_\w+)$/)) && method === "DELETE") {
+      world.taxIds.delete(m[2]);
+      return ok({ id: m[2], deleted: true });
+    }
     if (method === "GET" && path === "/v1/prices") {
       const keys = p["lookup_keys[]"] ?? [];
       return ok({ object: "list", data: [...world.prices.values()].filter((price) => keys.includes(price.lookup_key) && price.active) });
     }
     if ((m = path.match(/^\/v1\/products\/([\w-]+)$/)) && method === "GET") return world.products.has(m[1]) ? ok(world.products.get(m[1])) : missing("product");
+    if ((m = path.match(/^\/v1\/products\/([\w-]+)$/)) && method === "POST") {
+      if (!world.products.has(m[1])) return missing("product");
+      if (p.name) world.products.get(m[1]).name = p.name;
+      return ok(world.products.get(m[1]));
+    }
     if (method === "POST" && path === "/v1/products") {
       if (world.products.has(p.id)) return { status: 400, body: { error: { type: "invalid_request_error", code: "resource_already_exists", message: "exists" } } };
       world.products.set(p.id, { id: p.id, name: p.name });
@@ -102,8 +176,14 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
     if ((m = path.match(/^\/v1\/customers\/(cus_\w+)$/)) && method === "POST") {
       const customer = world.customers.get(m[1]);
       if (!customer) return missing("customer");
-      customer.defaultCard = p["invoice_settings[default_payment_method]"];
-      if (p["address[country]"]) customer.address = { country: p["address[country]"], postal_code: p["address[postal_code]"] ?? null };
+      if (p["invoice_settings[default_payment_method]"]) {
+        customer.defaultCard = p["invoice_settings[default_payment_method]"];
+        if (!world.paymentMethods.get(customer.defaultCard)?.customer) attach(customer.id, customer.defaultCard);
+      }
+      if (p["address[country]"]) customer.address = { line1: p["address[line1]"] ?? null, line2: p["address[line2]"] ?? null, city: p["address[city]"] ?? null, state: p["address[state]"] ?? null, country: p["address[country]"], postal_code: p["address[postal_code]"] ?? null };
+      if ("email" in p) customer.email = p.email;
+      if ("name" in p) customer.name = p.name || null;
+      if (p["preferred_locales[]"]) customer.preferred_locales = p["preferred_locales[]"];
       return ok(customer);
     }
     if (method === "POST" && path === "/v1/subscriptions") {
@@ -118,13 +198,13 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
         periodEnd: trialEndAt ?? clock() + (trialDays || 30) * 86400, cancel_at_period_end: false, default_payment_method: null,
         metadata: { lmb_shop_id: p["metadata[lmb_shop_id]"], lmb_plan: p["metadata[lmb_plan]"], lmb_account_id: p["metadata[lmb_account_id]"] },
         missingCard: p["trial_settings[end_behavior][missing_payment_method]"] ?? null,
-        latest_invoice: null,
+        latest_invoice: null, coupon: null,
       };
-      if (!trialDays) {
-        const invoice = { id: `in_${next++}`, status: "open", subscription: id };
-        world.invoices.set(invoice.id, invoice);
-        sub.latest_invoice = invoice.id;
+      if (p["discounts[0][coupon]"]) {
+        if (!world.coupons.has(p["discounts[0][coupon]"])) return missing("coupon");
+        sub.coupon = p["discounts[0][coupon]"];
       }
+      if (!trialDays) billNow(sub, "open");
       world.subscriptions.set(id, sub);
       return ok(subBody(sub));
     }
@@ -146,6 +226,8 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
         if (sub.status !== "paused") return { status: 400, body: { error: { type: "invalid_request_error", message: "not paused" } } };
         sub.status = "active";
         sub.periodEnd = clock() + 30 * 86400;
+        // billing_cycle_anchor=now bills the plan at once, at the price (and coupon) it has now.
+        billNow(sub, "paid");
       } else if (method === "POST") {
         if ("cancel_at_period_end" in p) sub.cancel_at_period_end = p.cancel_at_period_end === "true";
         if (p.default_payment_method) sub.default_payment_method = p.default_payment_method;
@@ -154,6 +236,10 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
           sub.price = p["items[0][price]"];
         }
         if (p["metadata[lmb_plan]"]) sub.metadata.lmb_plan = p["metadata[lmb_plan]"];
+        if (p["discounts[0][coupon]"]) {
+          if (!world.coupons.has(p["discounts[0][coupon]"])) return missing("coupon");
+          sub.coupon = p["discounts[0][coupon]"];
+        }
         if (p["automatic_tax[enabled]"]) {
           // Like Stripe: Stripe Tax needs to know where the customer is.
           if (!world.customers.get(sub.customer)?.address?.country) return { status: 400, body: { error: { type: "invalid_request_error", code: "customer_tax_location_invalid", message: "no address" } } };
@@ -172,7 +258,7 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
     }
     if ((m = path.match(/^\/v1\/setup_intents\/(seti_\w+)$/))) return world.setupIntents.has(m[1]) ? ok(world.setupIntents.get(m[1])) : missing("setup_intent");
     if ((m = path.match(/^\/v1\/payment_methods\/(pm_\w+)$/)) && method === "GET") {
-      return ok(world.paymentMethods.get(m[1]) ?? { id: m[1], type: "card", card: { brand: "visa", last4: "4242", exp_month: 12, exp_year: 2030 }, billing_details: { address: { country: "CA", postal_code: "M5V 2T6" } } });
+      return ok(cardBody(m[1]));
     }
     if (method === "GET" && path === "/v1/invoices") {
       // With no subscription named, every invoice (optionally only paid ones since a time), a page at a time.
@@ -189,6 +275,17 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
       // The prorated part of a move: the rest of the month at the new price, less the rest at the old one.
       const sub = world.subscriptions.get(p.subscription);
       if (!sub) return missing("subscription");
+      if (!p["subscription_details[items][0][price]"]) {
+        // The next bill as it stands: the plan's price, less a coupon, plus 13% HST when Stripe Tax is on.
+        const price = world.prices.get(sub.price);
+        const off = sub.coupon ? Math.round((price.unit_amount * world.coupons.get(sub.coupon).percent_off) / 100) : 0;
+        const taxed = sub.automatic_tax?.enabled ? Math.round((price.unit_amount - off) * 0.13) : 0;
+        return ok({
+          object: "invoice", currency: price.currency, period_end: sub.periodEnd, next_payment_attempt: sub.periodEnd,
+          lines: { data: [{ description: "1 × Colophon Shop and stockroom (at $39.00 / month)", amount: price.unit_amount }] },
+          subtotal: price.unit_amount, total_discount_amounts: off ? [{ amount: off }] : [], total_taxes: taxed ? [{ amount: taxed, taxability_reason: "standard_rated", tax_behavior: "exclusive" }] : [], total: price.unit_amount - off + taxed,
+        });
+      }
       const from = world.prices.get(sub.price);
       const to = world.prices.get(p["subscription_details[items][0][price]"]);
       if (!from || !to) return missing("price");
@@ -203,6 +300,7 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
     if ((m = path.match(/^\/v1\/invoices\/(in_\w+)\/pay$/))) {
       const invoice = world.invoices.get(m[1]);
       if (!invoice) return missing("invoice");
+      if (world.payFails) return { status: world.payFails.status ?? 402, body: { error: { type: world.payFails.type ?? "card_error", code: world.payFails.code, message: "declined" } } };
       invoice.status = "paid";
       world.subscriptions.get(invoice.subscription).status = "active";
       return ok(invoice);
@@ -217,11 +315,19 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
     const headers = { ...(init.headers ?? {}) };
     requests.push({ method, path: parsed.pathname, headers, params });
     const key = headers["Idempotency-Key"];
+    const asked = `${method} ${parsed.pathname} ${JSON.stringify(params)}`;
     let result;
-    if (key && byKey.has(key)) result = byKey.get(key);
-    else {
+    if (key && byKey.has(key)) {
+      // Like Stripe: a key comes back with the same answer, but a key reused for different details is refused.
+      const kept = byKey.get(key);
+      result = kept.asked === asked ? kept.result : { status: 400, body: { error: { type: "idempotency_error", message: "Keys for idempotent requests can only be used with the same parameters they were first used with." } } };
+    } else if (world.failOnce && world.failOnce.test(`${method} ${parsed.pathname}`)) {
+      world.failOnce = null;
+      result = { status: 400, body: { error: { type: "invalid_request_error", message: "made to fail once" } } };
+      if (key) byKey.set(key, { asked, result });
+    } else {
       result = answer(method, parsed.pathname, params);
-      if (key) byKey.set(key, result);
+      if (key && !result.turnedAway) byKey.set(key, { asked, result });
     }
     return { ok: result.status < 300, status: result.status, json: async () => structuredClone(result.body) };
   };
@@ -251,11 +357,17 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
   const addInvoice = (subscriptionId, fields = {}) => {
     const id = `in_${next++}`;
     const invoice = {
-      id, object: "invoice", subscription: subscriptionId, number: `COL-${String(next).padStart(4, "0")}`, status: "paid", currency: "cad", total: 3900, tax: 0, created: clock(),
+      id, object: "invoice", subscription: subscriptionId, number: `COL-${String(next).padStart(4, "0")}`, status: "paid", currency: "cad", total: 3900, total_taxes: [], created: clock(),
       invoice_pdf: `https://pay.stripe.example/invoice/${id}/pdf`, hosted_invoice_url: `https://invoice.stripe.example/${id}`, ...fields,
     };
     world.invoices.set(id, invoice);
     return invoice;
   };
-  return { fetch, requests, world, endTrial, completeSetup, subscription, payMonth, addInvoice };
+  /** A payment is being retried after a decline (Stripe's past_due), with its bill open. */
+  const pastDue = (id) => {
+    const sub = world.subscriptions.get(id);
+    sub.status = "past_due";
+    return addInvoice(id, { status: "open", total: 3900, amount_due: 3900 });
+  };
+  return { fetch, requests, world, endTrial, completeSetup, subscription, payMonth, addInvoice, attach, pastDue };
 }

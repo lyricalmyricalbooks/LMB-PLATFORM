@@ -8,7 +8,8 @@ const absoluteUrl = (value, base) => {
   try { const url = new URL(value.trim(), base); return /^https?:$/.test(url.protocol) ? url.href : ''; } catch { return ''; }
 };
 const slugify = (value = '') => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-export function sitemapArtifacts(siteUrl, books, pages, collections, settings = {}, { includeEmptyCollections = false } = {}) {
+// productBase: "books" or "products", what the shop sells decides (src/shared/shopSells.ts productBase).
+export function sitemapArtifacts(siteUrl, books, pages, collections, settings = {}, { includeEmptyCollections = false, productBase = 'books' } = {}) {
   const base = siteUrl.replace(/\/$/, '');
   const urls = [{ loc: base + '/' }];
   // Same live-book set (and so the same collision-safe slugs) as the storefront's useSiteData / isLiveBook.
@@ -20,7 +21,7 @@ export function sitemapArtifacts(siteUrl, books, pages, collections, settings = 
     if (!safeSlug(book.slug)) { console.warn(`::warning::Book "${book.id}" has an unsafe URL slug and is left out of the sitemap: ${book.slug}`); continue; }
     // Google Images is a main way people find photo and art books: list each listing's photos.
     const images = [...new Set((Array.isArray(book.photos) ? book.photos : []).map(photo => absoluteUrl(photo?.url, base + '/')).filter(Boolean))].slice(0, 10);
-    urls.push({ loc: `${base}/books/${encodeURIComponent(book.slug)}`, lastmod: book.updatedAt || book._updateTime, images });
+    urls.push({ loc: `${base}/${productBase}/${encodeURIComponent(book.slug)}`, lastmod: book.updatedAt || book._updateTime, images });
   }
   for (const page of pages) {
     if (page.status !== 'published' || !page.slug) continue;
@@ -29,7 +30,7 @@ export function sitemapArtifacts(siteUrl, books, pages, collections, settings = 
   }
   // Store policies (Settings › General › Store policies) are public pages too; card networks and Google
   // must reach the refund and terms pages as real 200 documents.
-  for (const key of ['shipping', 'returns', 'privacy', 'terms']) {
+  for (const key of ['shipping', 'returns', 'privacy', 'terms', 'accessibility']) {
     const text = settings?.policies?.[key];
     if (typeof text === 'string' && text.trim()) urls.push({ loc: `${base}/page/policy-${key}` });
   }

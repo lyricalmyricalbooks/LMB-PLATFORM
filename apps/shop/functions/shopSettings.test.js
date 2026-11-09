@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 const { shopOrigin, checkoutClosed, dailyDigestEnabled, backupOutcome, backupStatusRecord } = require("./shopSettings");
 
 describe("shopOrigin", () => {
-  it("keeps the old Toronto origin when General › Location is blank", () => {
-    expect(shopOrigin({})).toMatchObject({ street1: "456 Montrose Ave", zip: "M6G3H1", country: "CA", phone: "6474096863" });
+  it("never invents an origin when General › Location is blank (no other shop's street or phone)", () => {
+    expect(shopOrigin({})).toMatchObject({ street1: "", city: "", zip: "", country: "", phone: "" });
   });
   it("reads postal code, country and phone from settings", () => {
     const o = shopOrigin({ info: { name: "Shop" }, location: { street: "1 Main", city: "Ottawa", state: "ON", zip: "k1a 0b1", country: "Canada", phone: "(613) 555-0100" } });

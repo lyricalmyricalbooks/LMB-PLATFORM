@@ -201,6 +201,8 @@ $("#details-form").addEventListener("submit", async (event) => {
     pressName: form.get("pressName"), plan: form.get("plan"), country: form.get("country"),
     [QUESTION.id]: form.get(QUESTION.id), [PUBLISHES.id]: form.get(PUBLISHES.id),
     address: addressInput.value, termsAccepted: event.target.termsAccepted.checked, termsVersion,
+    // A browser set to French: the platform's emails to this press go in French (only French is sent; form.js).
+    ...(/^fr\b/i.test(navigator.languages?.[0] ?? navigator.language ?? "") ? { language: "fr" } : {}),
   };
   const { ok, problems } = checkSignup(input);
   showProblems(problems);
@@ -265,8 +267,10 @@ function renderShops(shops) {
     head.append(Object.assign(document.createElement("h3"), { textContent: shop.pressName }), pill);
     card.append(head);
     card.append(Object.assign(document.createElement("p"), { textContent: shop.message || WORDS[shop.status] || WORDS.queued }));
-    if (shop.status === "ready" && shop.siteUrl) {
-      const link = Object.assign(document.createElement("a"), { className: "button primary", href: `${shop.siteUrl}/admin`, textContent: "Open your shop's admin" });
+    if (shop.status === "ready" && shop.openUrl) {
+      // The website's admin, or the stockroom for a press with the stockroom alone (shopMaker.js openUrlOf).
+      const stockroomOnly = /-stockroom\.web\.app$/.test(shop.openUrl);
+      const link = Object.assign(document.createElement("a"), { className: "button primary", href: shop.openUrl, textContent: stockroomOnly ? "Open your stockroom" : "Open your shop's admin" });
       card.append(link);
     }
     if (shop.canRetry) {

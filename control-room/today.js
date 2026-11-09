@@ -8,8 +8,10 @@
 import { shopHealth } from "./controlRoom.js";
 
 const DAY = 86_400_000;
-const PAYING = new Set(["active", "past_due"]);
-const PAYMENT_PROBLEM = new Set(["past_due", "unpaid", "incomplete"]);
+export const PAYING = new Set(["active", "past_due"]);
+export const PAYMENT_PROBLEM = new Set(["past_due", "unpaid", "incomplete"]);
+/** A web address that runs out this soon shows on Today. */
+export const DOMAIN_SOON_DAYS = 14;
 
 /** One shop's monthly charge in cents, or 0 when it isn't paying. */
 export function monthlyCents(row, settings) {
@@ -25,16 +27,12 @@ export function monthlyCents(row, settings) {
  * The numbers and the "needs you" list. `rows` are registry rows; `open` gives a shop's open repairs; the rest are
  * lists already read: waiting support requests, recoveries to check, shops being made.
  */
-export function todaySummary({ rows, settings, profiles = {}, checks = {}, open = {}, support = [], recoveries = [], making = [], now = new Date() }) {
+export function todaySummary({ rows, settings, profiles = {}, checks = {}, open = {}, support = [], recoveries = [], making = [], opening = [], now = new Date() }) {
   const shops = rows.filter((row) => row.testShop !== true);
-  const access = (row) => (row.closure ? "closed-by-platform" : row.billing?.access ?? null);
   const counts = {
     shops: shops.length,
     live: shops.filter((r) => r.status === "live" && !r.closure).length,
-    trial: shops.filter((r) => r.billing?.status === "trialing").length,
-    paying: shops.filter((r) => PAYING.has(r.billing?.status)).length,
-    paused: shops.filter((r) => access(r) === "paused" || access(r) === "closed-by-platform").length,
-    closed: shops.filter((r) => access(r) === "closed").length,
+    ...planCounts(shops),
     signupsThisWeek: shops.filter((r) => r.createdAt && now.getTime() - Date.parse(r.createdAt) <= 7 * DAY).length,
     failedPayments: shops.filter((r) => PAYMENT_PROBLEM.has(r.billing?.status)).length,
   };
@@ -48,12 +46,55 @@ export function todaySummary({ rows, settings, profiles = {}, checks = {}, open 
   for (const row of shops.filter((r) => PAYMENT_PROBLEM.has(r.billing?.status))) {
     needs.push({ kind: "payment", shopId: row.shopId, words: `${row.pressName ?? row.shopId}: their plan payment failed`, go: "#shops" });
   }
+  // Paying presses drifting away (driftWatch.js keeps `drift` on the row once a day).
+  // A press the owner snoozed stays off until the snooze ends.
+  for (const row of shops.filter((r) => r.drift?.level === "drifting" && PAYING.has(r.billing?.status) && !(Date.parse(r.drift.snoozedUntil ?? "") > now.getTime()))) {
+    needs.push({ kind: "drift", shopId: row.shopId, words: `${row.pressName ?? row.shopId} may be drifting away: ${row.drift.reasons.join("; ")}${row.drift.checkedInAt ? " (check-in email sent)" : ""}`, go: "#shops" });
+  }
+  // A press part-way through moving its old shop over, with nothing ticked for a week (driftWatch.js moveStuck).
+  for (const row of shops.filter((r) => r.moveStuck && r.status === "live" && !r.closure)) {
+    const m = row.moveStuck;
+    needs.push({ kind: "move", shopId: row.shopId, words: `${row.pressName ?? row.shopId} is part-way through moving from their old shop: ${m.done} of ${m.of} parts done, still to do ${m.left.map((t) => t.toLowerCase()).join(", ")} (last part done ${m.days} days ago${m.remindedAt ? `; the shop emailed them a reminder ${String(m.remindedAt).slice(0, 10)}` : ""})`, go: "#shops" });
+  }
+  // A newsletter that stopped part-way (driftWatch.js keeps `newsletterPaused` on the row once a day).
+  for (const row of shops.filter((r) => r.newsletterPaused && r.status === "live" && !r.closure)) {
+    const n = row.newsletterPaused;
+    needs.push({ kind: "newsletter", shopId: row.shopId, words: `${row.pressName ?? row.shopId}'s newsletter${n.subject ? ` "${n.subject}"` : ""} stopped part-way${n.lastError ? `: ${n.lastError}` : ""}`, go: "#shops" });
+  }
+  // Web addresses (services/domains, the daily watch): one that stopped opening its shop, or runs out within two weeks.
+  for (const row of rows) {
+    for (const d of Array.isArray(row.domains) ? row.domains : []) {
+      const name = `${row.pressName ?? row.shopId}: ${d.name}`;
+      const left = Date.parse(d.expiresAt ?? "") - now.getTime();
+      if (d.brokeAt) needs.push({ kind: "domain", shopId: row.shopId, words: `${name} stopped opening the shop${d.brokenEmailedAt ? " (the press was emailed)" : ""}`, go: "#shops" });
+      else if (left > 0 && left <= DOMAIN_SOON_DAYS * DAY) needs.push({ kind: "domain", shopId: row.shopId, words: `${name} runs out in ${Math.ceil(left / DAY)} day${Math.ceil(left / DAY) === 1 ? "" : "s"} unless renewed`, go: "#shops" });
+    }
+  }
   const repairCount = Object.values(open).reduce((n, list) => n + list.length, 0);
   if (repairCount) needs.push({ kind: "repairs", count: repairCount, words: `${repairCount} item${repairCount === 1 ? "" : "s"} in the repair queue`, go: "#repairs" });
   if (support.length) needs.push({ kind: "support", count: support.length, words: `${support.length} support request${support.length === 1 ? "" : "s"} waiting`, go: "#tickets" });
   if (recoveries.length) needs.push({ kind: "recovery", count: recoveries.length, words: `${recoveries.length} account recover${recoveries.length === 1 ? "y" : "ies"} to check`, go: "#recoveries" });
   const stuck = making.filter((s) => s.status === "failed" || s.status === "stopped" || s.canRetry);
+  for (const press of opening) {
+    const hours = Math.floor((now.getTime() - Date.parse(press.openedAt)) / 3_600_000);
+    needs.push({ kind: "opening", pressId: press.pressId, words: `${press.pressName || press.ownerEmail}: pressed Open my shop ${hours < 48 ? `${hours} hours` : `${Math.floor(hours / 24)} days`} ago and the shop isn't live yet`, go: "#setting-up" });
+  }
   if (stuck.length) needs.push({ kind: "signup", count: stuck.length, words: `${stuck.length} new shop${stuck.length === 1 ? "" : "s"} stuck while being made`, go: "#making" });
 
   return { counts, monthlyIncome, currency: settings.currency, needs };
+}
+
+/**
+ * Shops by where their plan stands, as Today counts them: on a free trial, paying (a card being retried still counts),
+ * paused (no card, or closed by the platform) and closed. Pass rows without the test shop. Also used by the nightly
+ * income record (incomeHistory.js, plan 19.7), so both count the same way.
+ */
+export function planCounts(shops) {
+  const access = (row) => (row.closure ? "closed-by-platform" : row.billing?.access ?? null);
+  return {
+    trial: shops.filter((r) => r.billing?.status === "trialing").length,
+    paying: shops.filter((r) => PAYING.has(r.billing?.status)).length,
+    paused: shops.filter((r) => access(r) === "paused" || access(r) === "closed-by-platform").length,
+    closed: shops.filter((r) => access(r) === "closed").length,
+  };
 }

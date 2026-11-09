@@ -19,6 +19,7 @@
 // file is the wiring and the "From your website" card on the Orders tab.
 //
 // Nothing here runs at import time (see tests/features-boundary.test.js).
+import { hasWebsite } from '../lib/shop-profile.js';
 import '../styles/website-link.css';
 import { escapeHtml } from '../lib/html.js';
 import { promptDialog } from '../lib/modal.js';
@@ -32,6 +33,7 @@ import { otherSizes, websiteGroup } from '../lib/product-groups.js';
 import { confirmDialog } from '../lib/modal.js';
 import { countWebsiteOrdersNotSent, openOnWebsiteHtml, websiteAdmin } from '../lib/app-switch.js';
 import { isTestProfileActive } from '../lib/test-profile.js';
+import { tradeInvoiceDraft, tradeInvoicesToSend } from '../lib/trade-invoice.js';
 import {
   bookPrefill,
   buildAppTodo,
@@ -106,6 +108,7 @@ const DETAIL_LIST_SHOWN = 6;
 let _started = false;
 let _wired = false;
 let _docs = new Map();          // orderId → pending websiteOrders doc
+let _tradeDocs = new Map();     // orderId → trade order on invoice terms not yet paid, pending or brought in
 let _ordersSeen = false;
 let _docsFromCache = false;     // the last snapshot came from this device's cache
 let _link = { website: null, app: null, catalog: null };
@@ -171,6 +174,8 @@ function online() {
 
 function linkAllowed() {
   if (!window.IS_PUBLISHER) return false;
+  // A stockroom-only press has no website: no orders to watch, no stock to publish.
+  if (!hasWebsite()) return false;
   if (typeof window._fbWatchWebsiteOrders !== 'function') return false;
   return typeof window._useFirestoreGlobal !== 'function' || window._useFirestoreGlobal();
 }
@@ -297,6 +302,10 @@ function startWebsiteLink() {
     window._fbWatchWebsiteOrders(onOrders, onWatchError);
   } catch (e) { onWatchError(e); }
   try {
+    // The trade list only; a failure here leaves the inbox and its warnings alone.
+    if (typeof window._fbWatchTradeOrders === 'function') window._fbWatchTradeOrders(onTradeOrders, (e) => console.warn('[website link] trade orders watch', e));
+  } catch (e) { console.warn('[website link] trade orders watch', e); }
+  try {
     if (typeof window._fbWatchWebsiteLinkStatus === 'function') window._fbWatchWebsiteLinkStatus(onLinkStatus, onWatchError);
   } catch (e) { onWatchError(e); }
   window.addEventListener('online', () => { scheduleImport(0); scheduleWebsiteFeedPublish('all'); resendLinkRequests(); });
@@ -345,6 +354,17 @@ function onOrders(docs, meta = {}) {
   if (_docs.size) noteLinkSeen();
   noteUnlinked(docs || []);
   scheduleImport(0);
+}
+
+function onTradeOrders(docs) {
+  _tradeDocs = new Map();
+  for (const d of docs || []) if (d && d.id) _tradeDocs.set(d.id, d);
+  renderWebsiteLinkCard();
+}
+
+/** Every trade order we know of: the ones brought in, and the inbox's (the newer copy when both have it). */
+function tradeOrderDocs() {
+  return new Map([..._tradeDocs, ..._docs]);
 }
 
 /** The parts of the link documents an import depends on (not the to-do lists or the books offered). */
@@ -913,6 +933,7 @@ function wireCard() {
     else if (action === 'detail-use') useWebsiteDetail(btn.dataset.id, btn);
     else if (action === 'detail-keep') keepDetail(btn.dataset.id);
     else if (action === 'detail-more') { _detailsOpen = !_detailsOpen; renderWebsiteLinkCard(); }
+    else if (action === 'trade-invoice') prepareTradeInvoice(order);
   });
 }
 
@@ -1106,6 +1127,31 @@ function unlinkedHtml() {
     </div>`;
 }
 
+/** Trade accounts' orders placed on invoice terms that have no invoice yet (lib/trade-invoice.js). */
+function tradeInvoicesHtml() {
+  const invoices = Object.keys(states || {}).flatMap(id => ((states[id] || {}).invoices) || []);
+  const list = tradeInvoicesToSend([...tradeOrderDocs().values()], invoices);
+  if (!list.length) return '';
+  const items = list.map(o => `<li class="wl-item">
+        <div class="wl-item-head"><strong class="wl-num">${escapeHtml(o.number)}</strong><span class="wl-sub">${escapeHtml(o.name)}</span></div>
+        <p class="wl-why">${escapeHtml(`${fmt(o.total, getSym('CAD'))} on net ${o.days} terms${o.dueDay ? `, due ${fmtD(o.dueDay)}` : ''}. Already counted as a sale.`)}</p>
+        <div class="wl-actions"><button class="btn gold sm" type="button" data-wl-action="trade-invoice" data-order="${escapeHtml(o.orderId)}">Prepare the invoice</button></div>
+      </li>`).join('');
+  return `<div class="wl-section">
+      <h4 class="wl-subhead">Trade invoices to send <span class="wl-count wl-mono">${list.length}</span></h4>
+      <p class="wl-note">A trade account ordered on the website and will pay later. The sale is already in your books; this makes the bill to send.</p>
+      <ul class="wl-list">${items}</ul>
+    </div>`;
+}
+
+/** Opens the invoice editor filled in from a trade order (main.js listens and opens it). */
+function prepareTradeInvoice(orderId) {
+  const doc = tradeOrderDocs().get(orderId);
+  const draft = doc && doc.web ? tradeInvoiceDraft(doc.web, { today: localDay() }) : null;
+  if (!draft) return;
+  window.dispatchEvent(new CustomEvent('trade-invoice-open', { detail: { draft } }));
+}
+
 function testsHtml() {
   if (!_tests.length) return '';
   const items = _tests.map(plan => {
@@ -1169,7 +1215,7 @@ function renderWebsiteLinkCard() {
   const statusEl = $('wl-status');
   if (statusEl && statusEl.textContent !== s.text) statusEl.textContent = s.text;
   const body = $('wl-body');
-  if (body) body.innerHTML = [factsHtml(), reviewHtml(), shopBooksHtml(), detailDiffsHtml(), promisedHtml(), blockedHtml(), unlinkedHtml(), storageHtml(), testsHtml()].join('');
+  if (body) body.innerHTML = [factsHtml(), reviewHtml(), tradeInvoicesHtml(), shopBooksHtml(), detailDiffsHtml(), promisedHtml(), blockedHtml(), unlinkedHtml(), storageHtml(), testsHtml()].join('');
   // The app switcher's "not sent yet" count follows the same orders.
   try { window.dispatchEvent(new Event('website-link-changed')); } catch (_) { /* old browser */ }
 }
@@ -1455,6 +1501,13 @@ function appBooksForCompare() {
   return appBooksForDetails(BOOK_LIST.filter(b => b && !isTestBook(b)));
 }
 
+/** The website's cover photo for a stockroom book (catalog.linked), or '' when it has none or isn't linked. */
+function websiteCoverOf(bookId) {
+  const linked = _link.catalog && Array.isArray(_link.catalog.linked) ? _link.catalog.linked : [];
+  const row = linked.find(r => r && r.inventoryBookId === bookId && typeof r.cover === 'string' && r.cover);
+  return row ? row.cover : '';
+}
+
 /** Every difference, before the owner's "Leave as is" choices. */
 function allDetailDiffs() {
   const linked = _link.catalog && Array.isArray(_link.catalog.linked) ? _link.catalog.linked : null;
@@ -1639,6 +1692,7 @@ function websiteShipmentNote(row) {
 
 export {
   noteBookAddedFromWebsite,
+  websiteCoverOf,
   publishWebsiteLinkNow,
   renderWebsiteLinkCard,
   runWebsiteImport,

@@ -13,6 +13,7 @@
 //   publish       (shopId) -> { apps }: puts the saved /shop-profile.js live (profilePublisher below)
 //   shopAccess    supportSignIn(shopId, { by, reason, minutes, mode }) -> { url }: a short sign-in to the shop's admin for
 //                 support (supportAccess.js; the shop copy shows a banner and treats it as staff until it ends).
+//                 removeTwoStep(shopId, email) -> { found, removed }: two-step sign-in off for one person (22.11)
 //   repairs       optional: the repair queue (repairs.js): open(shopId), list({ status }), markFixed(id, { by, note })
 //   selfCheck     optional: the self-checks (selfChecks.js): check(shopId, { why }), run after every change here
 //   shopData      optional: a shop's own database, get(shopId, path) / set(shopId, path, data) (clients/shop.js);
@@ -30,6 +31,11 @@
 //   activity      optional: the activity log (activity.js, plan 9.9): record(entry); every logged action goes there too
 //   accessRequests optional: support-access requests (accessRequests.js createAccessRequests, plan 19.6). "Make
 //                 changes" asks the press first and opens only on their yes; without it, "Make changes" is refused
+//   delivery      optional: (shopId) -> the last 7 days' payment events and emails (delivery.js deliveryReader, plan
+//                 19.12), shown on the shop's record and in its health
+import { setupSummary } from "./setupPresses.js";
+import { sellsFacts, sellsLine } from "./shopSells.js";
+import { sellsOf } from "../shared/sells/sells.js";
 import { testShopDocs } from "../setup/test-catalogue.js";
 import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";
@@ -41,10 +47,34 @@ import { activityEntry } from "./activity.js";
 import { todaySummary } from "./today.js";
 import { MAX_BASIS_POINTS, NO_FEE, feeForShop } from "../services/payments/fees.js";
 import { dateText } from "../services/billing/billing.js";
+import { shopMailLanguage } from "../services/email/templatesFr.js";
+import { platformWords } from "../services/email/index.js";
+import { withIdentity } from "../services/email/templates.js";
+import { isPlan, planPrice } from "../services/billing/plans.js";
 import { platformSettings } from "../services/settings.js";
 import { editVisit } from "./accessRequests.js";
+import { deliveryReasons } from "./delivery.js";
 
 export const ACT_AS_MINUTES = 30;
+/**
+ * The email this press would get a few days before its trial ends, in the language its emails go in (shopMailLanguage),
+ * with its own plan, price and day: the control room's sample, so a question about wording is answered without waiting
+ * for a real one. Nothing is sent. { kind, language, subject, text }.
+ */
+export function emailSample(row, settings, today) {
+  const plan = isPlan(row.billing?.plan) ? row.billing.plan : "both";
+  const price = planPrice(plan, settings);
+  const language = shopMailLanguage(row);
+  const pressName = row.pressName || row.shopId;
+  const data = {
+    pressName, planName: price.name, price: price.priceText, hasCard: row.billing?.hasCard === true,
+    date: dateText(row.billing?.trialEnd ?? today.toISOString()),
+    link: `${settings.platformUrl}/account/billing?shop=${encodeURIComponent(row.shopId)}`,
+  };
+  const { subject, text } = withIdentity(platformWords("trial-ending", data, { settings, pressName }, language), settings);
+  return { kind: "trial-ending", language, subject, text };
+}
+
 /** A change to a press's per-order fee starts this many days after the press is emailed (Julian, 28 October 2026). */
 export const FEE_NOTICE_DAYS = 30;
 /** Where the switch defaults for new shops are kept (`platformState`), read by the shop maker's setup step 6. */
@@ -110,7 +140,7 @@ export function costOf(spending) {
  * A shop's health in three levels, with the reasons in plain words: "ok", "watch" (nothing broken, but look) or
  * "problem" (something is broken or waiting on a person).
  */
-export function shopHealth({ row, profile, checks = [], repairs = [] }) {
+export function shopHealth({ row, profile, checks = [], repairs = [], delivery = null }) {
   const problems = [];
   const watch = [];
   if (row.status !== "live") watch.push(`not live yet (${row.status ?? "being made"})`);
@@ -125,6 +155,8 @@ export function shopHealth({ row, profile, checks = [], repairs = [] }) {
   // Spending limits (services/health/spending.js): past its budget, a shop's costly jobs slow down or wait.
   if (row.spending?.level === "slow") watch.push("past its budget: photo copies, AI writing and imports run slowly");
   if (row.spending?.level === "held") watch.push("twice its budget: photo copies, AI writing and imports wait until next month");
+  // Payments and email delivery over the last 7 days (19.12, delivery.js), when the caller read them.
+  watch.push(...deliveryReasons(delivery));
   for (const repair of repairs) problems.push(`in the repair queue: ${repair.problem}`);
   // The five-minute watch (services/health) keeps its latest results on the row.
   for (const [name, result] of Object.entries(row.health?.checks ?? {})) {
@@ -166,7 +198,7 @@ export async function eachInTurn(items, limit, work) {
 }
 
 export function createControlRoom({
-  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, settings, supportStore, recoveryStore, signups, platformState, googleSteps, googleReady, taxWatch, feeDefaults = NO_FEE, accessRequests, admins, now = () => new Date(),
+  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, settings, supportStore, recoveryStore, signups, platformState, googleSteps, googleReady, taxWatch, feeDefaults = NO_FEE, accessRequests, admins, now = () => new Date(), delivery, presses = null,
 }) {
   const at = () => now().toISOString();
 
@@ -265,10 +297,22 @@ export function createControlRoom({
           siteUrl: profile?.siteUrl ?? null,
           ownerEmail: row.ownerEmail ?? null,
           billingStatus: row.billing?.status ?? null,
+          // For the list's count of presses by email language (when a full French admin is worth building).
+          emailLanguage: shopMailLanguage(row),
           createdAt: row.createdAt ?? null,
           closed: row.closure ? { by: row.closure.by, reason: row.closure.reason, at: row.closure.at } : null,
           costThisMonth: costOf(row.spending),
           paymentsMoved: row.paymentsEmergency ? { to: row.paymentsEmergency.to, by: row.paymentsEmergency.by, at: row.paymentsEmergency.at } : null,
+          // The daily drift watch (driftWatch.js): its level and reasons, and the owner's snooze while it lasts.
+          drift: row.drift?.level ? {
+            level: row.drift.level, reasons: row.drift.reasons ?? [], at: row.drift.at ?? null, checkedInAt: row.drift.checkedInAt ?? null,
+            snoozedUntil: Date.parse(row.drift.snoozedUntil ?? "") > now().getTime() ? row.drift.snoozedUntil : null, snoozedBy: row.drift.snoozedBy ?? null,
+          } : null,
+          moveStuck: row.moveStuck ?? null,
+          // What it sells (the sign-up answer) against the category its Stripe account was filed under (12.18).
+          sells: sellsFacts(row.publishes ?? null, row.payments),
+          // Every web address the shop answers on (free and own, #381), so the list's search finds a shop by it.
+          addresses: [row.freeAddress, ...(row.domains ?? []).map((d) => d?.name)].filter((a) => typeof a === "string" && a),
         });
       }
       const order = { problem: 0, watch: 1, ok: 2 };
@@ -352,6 +396,11 @@ export function createControlRoom({
       for (const step of steps) lastByStep.set(step.step, step);
       const fee = feeForShop(row, feeDefaults, now());
       const next = row.platformFee?.next && Date.parse(row.platformFee.next.from) > now().getTime() ? row.platformFee.next : null;
+      // Payments and email delivery (19.12); a count that can't be read leaves the rest of the record.
+      const counts = delivery ? await delivery(shopId).catch(() => null) : null;
+      // An answer changed later in the shop's Settings wins over the sign-up one; a shop that can't be read keeps it.
+      const start = row.status === "live" && shopData?.get ? await shopData.get(shopId, "firstWeek/start").catch(() => null) : null;
+      const sells = sellsFacts(sellsOf(start, row), row.payments);
       return {
         shopId,
         pressName: row.pressName ?? shopId,
@@ -363,6 +412,10 @@ export function createControlRoom({
         siteUrl: profile?.siteUrl ?? null,
         version: row.release?.version ?? null,
         billing: row.billing ?? null,
+        // The language of the platform's emails to this press (services/email/templatesFr.js): "fr", "fr+en" or "en".
+        emailLanguage: shopMailLanguage(row),
+        sells: { ...sells, line: sellsLine(sells) },
+        emailSample: emailSample(row, settings ? await settings() : platformSettings({}), now()),
         setup: [...lastByStep.values()].map(({ step, name, ok, error, at, finishedAt }) => ({ step, name: name ?? null, ok: ok !== false && !error, at: finishedAt ?? at ?? null, error: error ?? null })),
         connections: {
           payments: row.payments ? { provider: row.payments.provider ?? null, connected: Boolean(row.payments.accountId) } : null,
@@ -372,13 +425,14 @@ export function createControlRoom({
         },
         fee: { ...fee, next, defaults: feeDefaults },
         lastChecks: checks.slice(-5).reverse(),
-        health: shopHealth({ row, profile, checks, repairs: open }),
+        health: shopHealth({ row, profile, checks, repairs: open, delivery: counts }),
         closed: row.closure ?? null,
         // Closing an unpaid or dropped shop (6.8): stage, dates and the warning emails sent.
         closing: row.closing ?? null,
         // Every Google step with its state (6.20, google/status.js); a failed read leaves the rest of the record.
         google: googleSteps ? await googleSteps.googleStatus(shopId).catch(() => null) : null,
         history: activity ? await activity.list({ shopId, limit: 50 }) : [],
+        delivery: counts ? { payments: counts.payments, email: counts.email } : null,
       };
     },
 
@@ -513,6 +567,8 @@ export function createControlRoom({
         support: supportStore ? await supportStore.list({ status: "open", limit: 200 }) : [],
         recoveries: recoveryStore ? await recoveryStore.list({ status: "waiting" }) : [],
         making: signups ? (await signups.list()).filter((s) => s.status !== "ready") : [],
+        // Presses that pressed Open my shop over a day ago with no live shop yet (setupPresses.js "stuck").
+        opening: presses?.list ? setupSummary({ records: await presses.list(), rows, now: now().getTime() }).presses.filter((p) => p.flag === "stuck") : [],
       });
     },
 
@@ -545,6 +601,26 @@ export function createControlRoom({
      * "Close this shop" for abuse (plan 8.4): its checkout and pages close (closure.js), with a reason. Logged before
      * anything changes. Closing a closed shop changes nothing.
      */
+    /**
+     * Two-step sign-in off for one person on a shop (plan 22.11), for someone who lost both their phone and their backup
+     * codes. Only after the platform admin has checked it's really them: the reason says how, and it is logged in the
+     * registry and the shop's own audit log before anything changes. Google alone then lets them in, and their admin's
+     * Settings › Security asks them to set it up again.
+     */
+    async resetTwoStep(claims, { shopId, email, reason } = {}) {
+      const by = adminOf(claims, admins, now().getTime());
+      const why = reasonOf(reason);
+      const address = typeof email === "string" ? email.trim().toLowerCase() : "";
+      if (!/^[^\s@<>,]+@[^\s@<>,]+\.[^\s@<>,]+$/.test(address)) throw new ControlError(400, "Type the email address the person signs in with.");
+      const row = await shopOr404(shopId);
+      if (row.status !== "live") throw new ControlError(409, "That shop isn't live yet, so no one signs in to it.");
+      if (!shopAccess?.removeTwoStep) throw new ControlError(503, "The control room can't reach the shop's sign-in yet, so nothing was changed.");
+      await log(shopId, "two-step-reset", { by, reason: why, email: address });
+      const { found, removed } = await shopAccess.removeTwoStep(shopId, address);
+      if (!found) throw new ControlError(404, `No one signs in to ${row.pressName ?? shopId} as ${address}. Nothing was changed.`);
+      return { shopId, email: address, removed };
+    },
+
     async closeShop(claims, { shopId, reason } = {}) {
       const by = adminOf(claims, admins, now().getTime());
       const why = reasonOf(reason);

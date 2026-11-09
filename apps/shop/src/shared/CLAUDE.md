@@ -58,3 +58,12 @@ browsers may write (mirroring `firestore.rules`).
 - Shipping by kind (plan 10.4, 29 October 2026): `kindDefaults.ts` (`kindShipping(product)`) holds each kind's customs words,
   tariff code and fallback weight. `functions/customs.js` uses it where a product's own boxes are blank; a product with
   no kind is a printed book with today's values. "other" has no tariff code, so the form goes without one.
+- Random-cart checks (3 November 2026): `discountMath.property.test.ts` uses fast-check to try 400 random bags and discount
+  codes per rule: the shop's figure equals the server copy's, a discount is 0 ≤ amount ≤ bag (and ≤ its cap), item order
+  never matters, and automatic discounts pick the biggest saving. A failure prints the smallest bag that breaks the rule.
+  Add a rule there when you change discount maths; the same pattern suits the shipping engine and tax.
+- `shippingAndTax.property.test.ts` (3 November 2026) does the same for shipping (shop = server, prices in whole cents and
+  never negative, cheapest first, unique ids, bag order never matters, Free-for-all is free) and tax (shop = server, the
+  tax sits between the lowest and highest rate used, no kinds means one rate as before, bookkeeping cents add up). It
+  found that two shipping profiles with equal bases charged by bag order: `quoteShipping` now breaks the leader tie by
+  the bigger waived extra, then profile id.

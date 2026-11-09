@@ -1,5 +1,5 @@
 // The waitlist page's pricing (code plan 6.1): the three plans from the platform's `/api/plans` (signup/api.js), "free
-// for 14 days, no card needed" and **Start your free trial**. It shows only when the platform says sign-up is open
+// for 14 days, no card needed" and **Start setting up**. The 14 days start when the shop opens. It shows only when the platform says sign-up is open
 // (`signupOpen`, the control room's live setting, off by default); closed, unreachable or empty, the page stays today's
 // waitlist. Plain ES module with no imports, so the page loads it as is. Words here are customer-facing: never a rival.
 
@@ -39,7 +39,7 @@ export function pricingView(answer) {
     ? `Founding presses: ${answer.foundingOffer.percentOff}% off for as long as you stay${Number.isInteger(answer.foundingOffer.presses) && answer.foundingOffer.presses > 0 ? `, for the first ${answer.foundingOffer.presses} presses` : ""}.`
     : null;
   return {
-    trial: trialDays ? `Free for ${trialDays} days, no card needed.` : "Free to try, no card needed.",
+    trial: trialDays ? `Free for ${trialDays} days from the day your shop opens. Setup costs nothing and needs no card.` : "Free to try. Setup costs nothing and needs no card.",
     founding,
     plans,
   };

@@ -9,6 +9,7 @@ import { regionProps } from "./storefrontRegions";
 import { gridPhotoSizes, photoSrcSet } from "./photoSources";
 import { framingStyle } from "./photoFraming";
 import { PhotoToneDefs } from "./PhotoToneDefs";
+import { productHref } from "../../lib/productHref";
 
 export default function RecentlyViewedRow({ excludeId }: { excludeId?: string }) {
   const { ids } = useRecentlyViewed();
@@ -35,7 +36,7 @@ export default function RecentlyViewedRow({ excludeId }: { excludeId?: string })
           {items.map(book => {
             const slug = book.slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-");
             return (
-              <Link key={book.id} to={`/books/${slug}`} className="fm-card group min-w-0">
+              <Link key={book.id} to={productHref(slug)} className="fm-card group min-w-0">
                 <div {...regionProps("recentPhoto")} className="relative aspect-[3/4] fm-surface rounded-xl overflow-hidden border border-white/[0.05]">
                   <img
                     loading="lazy"

@@ -22,7 +22,7 @@ function make({ now = () => new Date("2026-10-28T15:00:00Z") } = {}) {
   const signup = createSignup({
     ...stores, registry, email: fakePlatformEmail(), auth: fakeAuth(), settings: platformSettings({}), now, suffix: () => "k3f9q",
     billing: { startTrial: async () => ({ status: "trialing", trialEnd: null }) },
-    live: async () => ({ signupDailyCap: 10 }),
+    live: async () => ({ signupOpen: true, signupDailyCap: 10 }),
   });
   const api = createApi({ signup, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), live: async () => ({ signupOpen: true }) });
   const ask = (method, path, body, claims = ADA) => api({ method, path, body, headers: claims ? { Authorization: `Bearer ${JSON.stringify(claims)}` } : {} });
@@ -79,7 +79,7 @@ test("sign-up refuses an address that clashes or has bad characters, and keeps a
 
 test("What do you sell? is skippable, and the answer travels with the shop", async () => {
   const { ask, stores } = make();
-  assert.deepEqual(PUBLISHES.options.map((o) => o.id), ["books", "zines", "comics", "prints", "mix", "clothing", "shoes", "jewelry", "music", "other"]);
+  assert.deepEqual(PUBLISHES.options.map((o) => o.id), ["books", "zines", "comics", "prints", "mix", "mixed", "clothing", "shoes", "jewelry", "music", "other"]);
   assert.equal(PUBLISHES.label, "What do you sell?");
   await ask("POST", "/api/signup", { ...details, publishes: "zines" });
   const row = stores.signups.rows.get("moth-press-k3f9q");
@@ -87,6 +87,15 @@ test("What do you sell? is skippable, and the answer travels with the shop", asy
   assert.equal(shopFromSignup(row, { testMode: true }).publishes, "zines");
   assert.equal(checkSignup({ ...details, publishes: "pottery" }).details.publishes, null);
   assert.equal(shopFromSignup({ ...row, publishes: undefined }, { testMode: true }).publishes, null);
+});
+
+test("Square is taken only for a country where it works with the shop's checkout", () => {
+  assert.equal(checkSignup({ ...details, paymentProvider: "square" }).details.paymentProvider, "square");
+  assert.equal(checkSignup({ ...details }).details.paymentProvider, "stripe");
+  const gb = checkSignup({ ...details, country: "GB", paymentProvider: "square" });
+  assert.equal(gb.ok, false);
+  assert.match(gb.problems.paymentProvider, /United Kingdom/);
+  assert.equal(checkSignup({ ...details, country: "GB", paymentProvider: "stripe" }).problems.paymentProvider, undefined);
 });
 
 test("sign-up is refused without the tick, and with words the page no longer shows", async () => {

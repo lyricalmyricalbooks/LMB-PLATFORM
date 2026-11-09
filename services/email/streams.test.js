@@ -159,6 +159,28 @@ test("resumed by a person: it sends again, and only new problems count from then
   assert.ok([...(w.registry.events.get("moth-press")?.values() ?? [])].some((e) => e.what === "newsletter-resumed" && e.by === "admin@example.com"));
 });
 
+test("after a resume, late complaints about emails sent before it don't pause the newsletter again", async () => {
+  const w = await make();
+  const sentAt = new Date(NOW).toISOString();
+  const late = (n, emailSentAt) => ({ ...event("email.complained", n), created_at: new Date(NOW + 240_000).toISOString(), data: { ...event("email.complained", n).data, created_at: emailSentAt } });
+  for (let n = 1; n <= 100; n += 1) await w.service.send("moth-press", newsletter(n));
+  await w.guard.record(event("email.complained", 1));
+  await w.guard.record(event("email.complained", 2));
+  w.tick(60_000);
+  await w.guard.resume("moth-press", { by: "admin@example.com", reason: "the press cleaned its list" });
+  w.tick(60_000);
+  for (let n = 101; n <= 110; n += 1) await w.service.send("moth-press", newsletter(n));
+  w.tick(60_000);
+  // Two people get round to marking the old (pre-pause) email as spam: they don't count.
+  assert.deepEqual(await w.guard.record(late(3, sentAt)), { counted: false, paused: false });
+  assert.deepEqual(await w.guard.record(late(4, sentAt)), { counted: false, paused: false });
+  assert.equal(await w.guard.isPaused("moth-press"), false);
+  // Complaints about the new emails still do.
+  const newSentAt = new Date(NOW + 120_000).toISOString();
+  await w.guard.record(late(5, newSentAt));
+  assert.equal((await w.guard.record(late(6, newSentAt))).paused, true);
+});
+
 test("the shop door answers a paused newsletter plainly, without a retry", async () => {
   const w = await make();
   await w.store.setState("moth-press", { paused: true, pausedAt: new Date(NOW).toISOString() });
@@ -194,4 +216,24 @@ test("the owner's note is in plain words and names no rival", () => {
   const parts = TEMPLATES["newsletter-paused"]({ problems: ["3 people marked it as spam (0.5%)"], days: 7 }, { settings: platformSettings({}), pressName: "Moth Press" });
   assert.doesNotMatch(parts.text, /resend|webhook|api|bounce rate|complaint rate|shopify|big cartel/i);
   assert.match(parts.text, /reply to this email and we'll turn it back on/);
+});
+
+test("a platform closing email that bounced for good is marked for the control room; other bounces and soft ones aren't", async () => {
+  const w = await make();
+  const { closingBounceRecorder } = await import("../billing/closedApps.js");
+  const heard = [];
+  const record = closingBounceRecorder({ registry: w.registry });
+  const onBounce = async (bounce) => heard.push([bounce.kind, await record(bounce)]);
+  const send = async (id, body) => {
+    const rawBody = JSON.stringify(body);
+    const timestamp = String(Math.floor(NOW / 1000));
+    return handleResendEvent({ method: "POST", headers: { "svix-id": id, "svix-timestamp": timestamp, "svix-signature": signEvent({ secret: SECRET, id, timestamp, body: rawBody }) }, rawBody }, { secret: SECRET, guard: w.guard, onBounce, now: w.now });
+  };
+  const bounce = (kind, type = "Permanent") => ({ type: "email.bounced", created_at: new Date(NOW).toISOString(), data: { email_id: `e-${kind}-${type}`, bounce: { type }, tags: { kind, shop: "moth-press", stream: "orders" } } });
+  await send("b1", bounce("app-closing-soon", "Transient"));
+  await send("b2", bounce("order-confirmed"));
+  assert.equal((await w.registry.getShop("moth-press")).closingEmailBounce, undefined);
+  await send("b3", bounce("app-closing-soon"));
+  assert.deepEqual((await w.registry.getShop("moth-press")).closingEmailBounce, { kind: "app-closing-soon", at: new Date(NOW).toISOString() });
+  assert.deepEqual(heard, [["order-confirmed", false], ["app-closing-soon", true]]);
 });

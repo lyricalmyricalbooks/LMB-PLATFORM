@@ -16,16 +16,18 @@ const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /** Every line of the page's plan, card and cancel cards. */
 export function billingWords(billing, now = new Date()) {
-  const until = billing.status === "trialing" ? billing.trialEnd : billing.currentPeriodEnd;
+  // The day a cancel closes the shop (billing status `cancelEndsAt`: a press paying as they sell leaves at the end of
+  // their billing month); older answers without it fall back to the trial or the paid month.
+  const until = billing.cancelEndsAt ?? (billing.status === "trialing" ? billing.trialEnd : billing.currentPeriodEnd);
   const tax = billing.plusTax ? ", plus tax" : "";
   let state = "Active";
   let when = "";
   if (billing.access === "closed") {
     state = "Closed";
-    when = "This plan has ended and the shop is closed. Your books, orders and settings are kept.";
+    when = "This plan has ended and the shop is closed. You can download everything in it for 90 days after it closed, then it is deleted.";
   } else if (billing.access === "paused") {
     state = "Paused";
-    when = billing.hasCard ? "Your shop is paused until the payment goes through." : "Your shop is paused. Add a card and it opens again straight away. Nothing is deleted.";
+    when = billing.hasCard ? "Your shop is paused until the payment goes through." : "Your shop is paused. Add a card within 60 days and it opens again straight away, just as it was.";
   } else if (billing.cancelAtPeriodEnd) {
     state = "Cancelled";
     when = `Your shop stays open until ${day(until)}. You won't be charged again.`;
@@ -49,9 +51,35 @@ export function billingWords(billing, now = new Date()) {
   const cancel = billing.cancelAtPeriodEnd
     ? `Changed your mind? Keep your plan any time before ${day(until)}.`
     : billing.access === "closed" ? "" : `Your shop stays open until ${day(until)}, and you won't be charged again. You can keep your plan until then.`;
-  const cancelAsk = `Cancel your plan? Your shop stays open until ${day(until)}, then closes. Nothing is deleted.`;
-  return { state, when, closing, card, cancel, cancelAsk };
+  const cancelAsk = `Cancel your plan? Your shop stays open until ${day(until)}, then closes. You can download everything in it for 90 days after that, then it is deleted.`;
+  // "Keep it": the one-click way back for an app the plan change will close (billing.keepClosingApps).
+  const keepClosing = closing ? `Keep ${appList(billing.appsClosing.apps)}` : "";
+  return { state, when, closing, keepClosing, card, cancel, cancelAsk };
 }
+
+/**
+ * The optional "why are you leaving?" choices on the cancel confirmation (19.8), in the press's own words. The ids are
+ * services/billing/leaving.js LEAVING_REASONS (a test keeps the two lists the same).
+ */
+export const LEAVING_CHOICES = Object.freeze([
+  ["price", "It costs too much"],
+  ["missing-feature", "Something I need is missing"],
+  ["closed-press", "My press is closing"],
+  ["moving", "I'm moving to something else"],
+  ["other", "Something else"],
+]);
+
+/**
+ * The optional "why are you dropping it?" choices when a plan change closes an app, in the press's own words. The ids
+ * are services/billing/closedApps.js DROP_REASONS (a test keeps the two lists the same).
+ */
+export const DROP_CHOICES = Object.freeze([
+  ["not-using", "We weren't using it"],
+  ["price", "To pay less"],
+  ["other-tool", "We use something else for it"],
+  ["too-hard", "It was hard to use"],
+  ["other", "Something else"],
+]);
 
 /** What a plan change does, in a few lines, before the press confirms it. */
 export function planChangeWords(preview, billing) {
@@ -67,4 +95,30 @@ export function planChangeWords(preview, billing) {
   else if (preview.prorated) lines.push(`For the rest of this month you pay ${preview.prorated.text}${tax}, added to your next bill.`);
   else lines.push("Your new price starts with your next payment.");
   return lines;
+}
+
+const ADMIN_APP_WORDS = { shop: "website", stockroom: "stockroom" };
+const adminApps = (apps) => apps.map((app) => ADMIN_APP_WORDS[app] ?? app).join(" and ");
+
+/** The account page's shop card: a plan change in progress, a line each (an app being set up; one closing; one closed). */
+export function changingLines(shop) {
+  const lines = [];
+  if (shop?.adding?.length) lines.push(`Your ${adminApps(shop.adding)} ${shop.adding.length > 1 ? "are" : "is"} being set up. We'll email you a link when it's ready.`);
+  if (shop?.closing?.apps?.length && shop.closing.at) lines.push(`Your ${adminApps(shop.closing.apps)} ${shop.closing.apps.length > 1 ? "close" : "closes"} on ${day(shop.closing.at)}. Changed your mind? Keep it under Plan & billing.`);
+  // A dropped app that has closed: its 90 days to download, with the button right under this card.
+  for (const { app, downloadUntil, holds } of shop?.closed ?? []) lines.push(`Your ${adminApps([app])} is closed. You can download everything that was in it until ${day(downloadUntil)}, with Download all your data${holds ? ` (${holds})` : ""}.`);
+  return lines;
+}
+
+/**
+ * What the email language choice means, in words (billing status `emailLanguage`: { choice, sends }). "auto" says what
+ * it comes to for this account: French then English for a Quebec billing address, otherwise English.
+ */
+export function emailLanguageWords(emailLanguage) {
+  const choice = emailLanguage?.choice ?? "auto";
+  if (choice === "fr") return "Our emails to you and your team come in French.";
+  if (choice === "en") return "Our emails to you and your team come in English.";
+  return emailLanguage?.sends === "fr+en"
+    ? "Automatic: your billing address is in Quebec, so our emails come in French with the English below."
+    : "Automatic: our emails come in English, or in French and English if your billing address is in Quebec.";
 }

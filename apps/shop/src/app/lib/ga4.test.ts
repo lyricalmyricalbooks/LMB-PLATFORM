@@ -57,7 +57,7 @@ describe("ga4 navigation events", () => {
     (globalThis as any).window = {
       location: { pathname: "/books/nope", href: "https://shop.test/books/nope?e=a%40b.c" },
       addEventListener: vi.fn(),
-      localStorage: { getItem: () => null },
+      localStorage: { getItem: () => JSON.stringify({ necessary: true, analytics: true, marketing: true }) },
       sessionStorage: { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => store.set(k, v) },
     };
     (globalThis as any).document = { head: { appendChild: vi.fn() }, createElement: () => ({}), title: "Shop" };
@@ -94,7 +94,7 @@ describe("ga4 navigation events", () => {
 describe("ga4 loading", () => {
   beforeEach(() => {
     __resetGa4ForTests();
-    (globalThis as any).window = { location: { pathname: "/", href: "https://shop.test/" }, addEventListener: vi.fn(), localStorage: { getItem: () => null } };
+    (globalThis as any).window = { location: { pathname: "/", href: "https://shop.test/" }, addEventListener: vi.fn(), localStorage: { getItem: () => JSON.stringify({ necessary: true, analytics: true, marketing: true }) } };
     (globalThis as any).document = { head: { appendChild: vi.fn() }, createElement: () => ({}), title: "Shop" };
   });
 

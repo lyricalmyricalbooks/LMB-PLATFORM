@@ -38,10 +38,12 @@ makes a new Stripe price; presses on the old one stay there until moved on purpo
 - **Invoices** (6.12): `invoices(shopId)`, newest first, with Stripe's own PDF and page links (https only), fetched fresh
   each time because Stripe's links don't last forever.
 - **Card on file**: when a card is added, its brand, last four digits and expiry are kept (never the number). The daily
-  `cardExpiryReminders` sweep emails `card-expiring` a month before the end of its expiry month, once per card.
+  `cardExpiryReminders` sweep emails `card-expiring` a month before the end of its expiry month, once per card and
+  expiry (see "Failed plan payments, recovered" below).
 - **Tax** (6.12): `BILLING_TAX=on` turns on Stripe Tax. Prices are made "plus tax" (`tax_behavior: exclusive`; an older
   price is marked once), and the subscription gets `automatic_tax` once a card is added, from the card's billing
-  address copied onto the customer (the trial needs no card, so it needs no address). Off by default: nothing about
+  address copied onto the customer (the trial needs no card, so it needs no address). A plan change asks for tax only
+  when the customer has an address (a card added while tax was off has none, and Stripe would refuse the change). Off by default: nothing about
   tax is sent to Stripe. The Plan & billing page says "plus tax" while it is on.
 
 What each Stripe status means for the shop (`ACCESS`): trialing, active and past_due (Stripe retrying a declined
@@ -65,6 +67,17 @@ The billing record keeps `paymentWay`, `paymentWayFrom` and the terms; the regis
 capMinor, currency, from, until }` (what services/payments reads), fixed when the press chooses. A shop that pays as it
 sells stays open with no subscription (`paymentWayState.js`, used by `save()`), and its subscription ending sends no
 ending, trial or card email. `status()` adds `paymentWay` (the way in force now).
+
+Stripe's cancel of a pay-as-you-sell press's subscription is the switch, not the press leaving: `status()`, the
+registry's `billing` copy and the shop's own copy say "cancelled" only from the press's own cancel (`planEnding`), and
+`keep()` refuses (409) rather than undo Stripe's cancel, which would bill monthly on top of the fees. **Cancelling while
+paying as they sell** sets `payAsYouSell.until` to the end of the current billing month (or the day fees start, if they
+haven't), on the billing record and the registry; the shop stays open until then and `keep()` takes the date away. The
+daily `closeDroppedApps` sweep then closes the shop (`access: "closed"`), and the closing sweep (closing.js) takes over.
+`status().cancelEndsAt` is the day a cancel (asked for, or asked for now) closes the shop.
+
+The card and billing details are on the paying account's Stripe customer, shared by every shop it pays for, so only that
+account's holder may change them (`paidBy`, checked by both billing doors); a co-owner is refused.
 
 Settings: `liveSettings().payAsYouSell.basisPoints` (200 = 2%; 0 closes the option to new choices) and the founding
 offer (`foundingOffer.percentOff`, 25), which takes its share off both the percentage and the cap for a founding press
@@ -141,12 +154,14 @@ so Stripe sends it again.
 | `customer.subscription.created/updated/resumed` | state kept | none |
 | `invoice.payment_failed` | logged, shop stays open | `payment-failed`, with the amount and the next try |
 | `checkout.session.completed` (setup) | card attached, plan resumed or paid | none |
+| `payment_method.automatically_updated` | the card's new expiry (or number) kept (19.9) | none |
 
 Cancelling sends `subscription-cancelled`; changing plan sends `plan-changed` (with what closes and when); the card sweep sends `card-expiring`; the closing sweep sends `shop-closed`, `shop-deletion-warning` and `shop-deleted`. Emails link to the platform's account
 page (`<PLATFORM_URL>/account/billing?shop=<id>`), never to a Stripe page, since those expire.
 
 Every change is kept in the billing store, copied to the shop's registry row (`billing: { plan, status, access, trialEnd,
-currentPeriodEnd, cancelAtPeriodEnd, hasCard }`) and logged in the registry and the shop's audit log.
+currentPeriodEnd, cancelAtPeriodEnd, hasCard, percentOff, appsClosing, appDrops, leaving, troubleSince, language, province }`;
+`language` and `province` choose the language of the closing emails, services/email/templatesFr.js) and logged in the registry and the shop's audit log.
 
 ### Each event exactly once (`eventClaims.js`, plan 19.4)
 
@@ -172,6 +187,39 @@ through `addEvent`, which already adds an event id only if it isn't there. So no
 
 The Plan & billing page and its calls (`/api/billing/*`, owner only) live in `accounts/` (code plan 6.4, 6.5).
 
+## Why presses leave (19.8)
+
+`leaving.js`: cancelling takes an optional answer, `cancel({ shopId, reason, words })`. `reason` is one of
+`LEAVING_REASONS` (`price`, `missing-feature`, `closed-press`, `moving`, `other`); `words` is plain text, trimmed, at most
+500 characters (words alone count as `other`). The answer is checked before anything reaches Stripe: a reason off the list
+is refused with "Choose one of the reasons on the list, or leave the question blank." (400). It is kept on the billing
+row and the registry's copy as `leaving: { reason, words, at }` and in the `cancel-requested` log entry; `keep` marks it
+`keptAt`. No answer cancels exactly as before. The Plan & billing page asks the question on its cancel confirmation
+(`accounts/`); the control room reads the answers (`control-room/leaving.js`).
+
+## Failed plan payments, recovered (19.9)
+
+- **Card-expiry warning** (`cardExpiry.js`): `cardExpiryReminders()` emails `card-expiring` (to the person who pays, with
+  the Plan & billing link) a month before the card runs out, once per card id and expiry (`cardWarned:
+  "pm_…@2027-02"`), and logs `card-expiring-sent`. Only for a plan still running (trial, paid month or a payment being
+  retried) and not cancelled. When Stripe's card updater gives the same card a new expiry
+  (`payment_method.automatically_updated`), the kept card follows, so the next warning is for the new date. Run nightly
+  by `control-room/nightly.js`.
+- **When the trouble began**: every save keeps `troubleSince` while the plan is past due, unpaid, waiting for a first
+  payment or paused (cleared once it's fixed), copied to the registry row. The control room's failed-payments list
+  (`control-room/paymentTrouble.js`) counts days from it, and the days left from the closing sweep's own `PAUSED_DAYS`
+  and `DOWNLOAD_DAYS` (`closing.js`).
+- **Julian's own step, in the Stripe platform account** (not done in code; Dashboard › Settings › Billing):
+  1. **Subscriptions and emails › Manage failed payments**: turn on **Smart Retries** (Stripe picks the best times to try
+     a failed card again; the recommended 8 tries within 2 weeks), and choose what happens after the last try: **mark
+     the subscription as unpaid**, so the shop pauses and the 60 days of the closing sweep start (cancelling straight
+     away would skip them).
+  2. **Card account updater**: check that Stripe's automatic card updates are on for the platform account (Stripe
+     usually turns them on itself for the card networks that offer them; its support can confirm), so renewed cards
+     keep working and the expiry warning follows the new date.
+  3. Add `payment_method.automatically_updated` to the platform account's events address, next to the subscription,
+     invoice and checkout events.
+
 ## Not yet
 
 - Hosting (one function in the platform project) and the Stripe endpoint for the platform account's events.
@@ -182,3 +230,18 @@ The Plan & billing page and its calls (`/api/billing/*`, owner only) live in `ac
 - The scheduled function that runs `closeDroppedApps` and `cardExpiryReminders` daily, and a real `closeApp`.
 - The scheduled function that runs the closing sweep daily, the real `projects` client, and the shop maker calling
   `publishPlan` once a new shop's database exists.
+
+## The billing hub in the shop admin (22.1-22.5)
+
+- **Founding offer** (`founding.js`): the first `foundingOffer.presses` paying presses (first card saved, or pay as you
+  sell chosen) each take a place (`foundingSeats.claim`, one transaction) and get the coupon `colophon_founding_<percent>`
+  (duration forever) on their subscription. `status()` answers `founding: { percentOff, price }`.
+- **Hub calls** (`hub.js`, composed into `createBilling`): `paymentMethods`, `makePrimary`, `removeCard` (never the
+  card paying a running plan, here or on another shop of the account), `billingDetails`, `saveBillingDetails` (name,
+  email for bills, address, GST/HST `ca_gst_hst` or QST `ca_qst`), `upcomingBill`, `payNow`.
+- **Retries** (`stripeRetry.js`): see the file; a POST without an idempotency key is never sent twice.
+- **Events**: `invoice.payment_action_required` keeps `paymentProblem: { kind: "confirm", pageUrl }`; `invoice.payment_failed`
+  keeps `{ kind: "declined", amount, nextTry }`; `invoice.paid` clears the one it settles and emails `payment-received`.
+- **Doors**: `/api/billing/*` (platform account page) and `/api/shop-billing/*` (the shop admin, accounts/shopBillingDoor.js)
+  serve the same list, `billingCalls()` in accounts/billingRoutes.js. The card page may come back to the shop's own
+  `/admin` at its main address. The shop's `platform/plan` carries `hub`, `shopId` and `founding`.

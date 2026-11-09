@@ -2,6 +2,7 @@
 // (ready-made zones, a copy of another profile, or empty), the quick per-zone prices typed
 // in the dialog, and the copy made by a profile's Duplicate button.
 import { countryName } from "./shippingCountries";
+import { kindStarterPrices } from "./kindShippingStarters";
 
 export type ProfileStarterId = "world" | "north-america" | "canada" | "copy" | "blank";
 
@@ -32,10 +33,11 @@ const row = (key: string, zone: string, countries: string[], rateName: string, f
   ({ key, zone, countries, restOfWorld, rateName, first: first.toFixed(2), extra: extra.toFixed(2), days: "" });
 
 /** The zones (with suggested prices the owner edits) a template starts with; none for copy/blank. */
-export function starterPrices(starter: ProfileStarterId): QuickZonePrice[] {
-  const canada = row("ca", "Canada", ["CA"], "Standard shipping", 8, 3);
-  const us = row("us", "United States", ["US"], "Standard shipping", 12, 4);
-  const world = row("world", "Rest of world", [], "International shipping", 20, 6, true);
+export function starterPrices(starter: ProfileStarterId, sells?: string | null): QuickZonePrice[] {
+  const p = kindStarterPrices(sells);
+  const canada = row("ca", "Canada", ["CA"], "Standard shipping", p.ca[0], p.ca[1]);
+  const us = row("us", "United States", ["US"], "Standard shipping", p.us[0], p.us[1]);
+  const world = row("world", "Rest of world", [], "International shipping", p.world[0], p.world[1], true);
   if (starter === "world") return [canada, us, world];
   if (starter === "north-america") return [canada, us];
   if (starter === "canada") return [canada];

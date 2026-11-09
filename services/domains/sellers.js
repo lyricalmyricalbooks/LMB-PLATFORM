@@ -78,7 +78,8 @@ export const zoneGuess = (domain) => String(domain).split(".").slice(-2).join(".
 /**
  * The public lookup: `lookup(domain) -> { zone, registrar: { name } | null, domainConnect }`, where `domainConnect`
  * is the seller's settings plus `hasTemplate` (Colophon's template is registered there) or null. Any failure reads as
- * "not known", so the press gets the generic guide rather than an error.
+ * "not known", so the press gets the generic guide rather than an error. `expiry(domain)` reads when the domain is paid up
+ * until from the same public answer (the daily watch in domains.js checkAll).
  */
 export function sellerLookupClient({ fetch, resolveTxt, config = null, rdapBase = "https://rdap.org", timeoutMs = 8000 }) {
   const get = async (url) => {
@@ -95,17 +96,28 @@ export function sellerLookupClient({ fetch, resolveTxt, config = null, rdapBase 
     }
     return null;
   };
+  // The registry's answer for the domain as bought: the longest name RDAP knows, from the address up.
+  const rdapOf = async (domain) => {
+    const labels = String(domain).toLowerCase().split(".");
+    for (let i = 0; i < labels.length - 1; i += 1) {
+      const candidate = labels.slice(i).join(".");
+      const rdap = await get(`${rdapBase}/domain/${encodeURIComponent(candidate)}`);
+      if (rdap) return { zone: candidate, rdap };
+    }
+    return { zone: null, rdap: null };
+  };
   return {
+    /** When the domain is paid up until (RDAP's "expiration" event), as an ISO date, or null when not known. */
+    async expiry(domain) {
+      const { rdap } = await rdapOf(domain);
+      const event = (rdap?.events ?? []).find((e) => e?.eventAction === "expiration");
+      const at = Date.parse(event?.eventDate ?? "");
+      return Number.isFinite(at) ? new Date(at).toISOString() : null;
+    },
     async lookup(domain) {
-      const labels = String(domain).toLowerCase().split(".");
-      let zone = null;
-      let registrar = null;
-      for (let i = 0; i < labels.length - 1 && !zone; i += 1) {
-        const candidate = labels.slice(i).join(".");
-        const rdap = await get(`${rdapBase}/domain/${encodeURIComponent(candidate)}`);
-        if (rdap) { zone = candidate; registrar = registrarOf(rdap); }
-      }
-      zone ??= zoneGuess(domain);
+      const found = await rdapOf(domain);
+      const registrar = registrarOf(found.rdap);
+      const zone = found.zone ?? zoneGuess(domain);
       let domainConnect = null;
       try {
         const host = String((await resolveTxt(`_domainconnect.${zone}`))?.[0]?.join("") ?? "").trim();

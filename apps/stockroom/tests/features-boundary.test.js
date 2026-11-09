@@ -78,8 +78,12 @@ const MAIN_IMPORT_BUDGET = {
   'receipt-finder.js': 0,
   // The bookkeeper's read-only screen (plan 7.17) needs nothing from main.js.
   'bookkeeper-view.js': 0,
+  // The fair helper's till needs nothing from main.js either.
+  'fair-helper-view.js': 0,
   // The read-only lock while the shop's plan is paused (platform plan 6.7) needs nothing from main.js.
   'plan-pause.js': 0,
+  // The Google Sheet on a Colophon shop (plan stockroom-google-sheet.md): main.js hands it everything it needs.
+  'google-sheet.js': 0,
   // The review inbox is a window over receipts.js and shipping.js, which hold its
   // data. From main.js it needs only the DOM lookup, the role check, the toast,
   // and the call that repaints the landing page after something is filed.
@@ -179,6 +183,13 @@ const MAIN_IMPORT_BUDGET = {
   // states, isTestBook, activeBook) and opens them (showHistoryOrder, or
   // switchBook + switchTab for the Website orders card).
   'app-switch.js': 7,
+  // Stock in more than one place: the shared $, the role check, the save, the toast, today's date and the overview repaint.
+  'stock-places.js': 6,
+  // Written as a feature module from the start: the History repaint after it brings a helper's sale in, and the
+  // to-do list's repaint when one can't be.
+  'fair-helpers.js': 2,
+  // The shared $ and the toast.
+  'book-cover.js': 2,
 };
 
 const featureFiles = fs.existsSync(featureDir)
@@ -341,10 +352,20 @@ const MIN_EXPORTS = {
   // Written as a feature module from the start: start it (button, shortcuts)
   // and open it (from a #search= link or the book deep link's fallback).
   'app-search.js': 2,
+  // Written as a feature module from the start: start it, bring helpers' sales in, and build their price list.
+  'fair-helpers.js': 4,
   // The bookkeeper's read-only screen: its markup and the call that shows it.
   'bookkeeper-view.js': 2,
+  // Show the helper's till, and its four parts' markup for the tests.
+  'fair-helper-view.js': 5,
   // The read-only lock: the call that locks the stockroom and shows the banner.
   'plan-pause.js': 1,
+  // Open the tab, refresh at start-up, send, and the tests' reset.
+  'google-sheet.js': 4,
+  // The places pop-up: open, preview, step, submit and close a place.
+  'stock-places.js': 6,
+  // The book form's cover photo: pick, remove, and fill the field when the form opens.
+  'book-cover.js': 3,
 };
 
 describe('feature modules are the only home of what they own', () => {

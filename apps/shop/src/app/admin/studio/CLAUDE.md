@@ -542,7 +542,7 @@ preset `press-riso-noir`). `RISO_STOREFRONT_CSS` in `themeTokens.ts` must stay t
 (no literal hex — `themeTokens.test.ts` enforces it). Colour triplet variables (`--fg-rgb`, `--accent-rgb`,
 …) are **comma-separated** (`255, 255, 255`) so `rgba(var(--x-rgb), a)` is valid. Every shopper-facing
 string goes through `getCopy(design, key)` with a `COPY_SCHEMA` entry (`storeCopy.coverage.test.ts`
-guards this); print-treatment knobs live in Colors › **Printed-paper look (Riso)**, element toggles in
+guards this); print-treatment knobs live in **Print style & template details** (group id `riso`), element toggles in
 Additional › **Show or hide whole features**.
 
 **Section contract:** the storefront looks up renderers by the registry `type`
@@ -670,6 +670,46 @@ text group or field stops being reachable — place new STYLE_GROUPS / COPY_SCHE
 ## Public designer coverage (2 October 2026)
 
 Wishlist, Customer account and Order tracking have Studio canvases and section stacks. `features/site/storefrontRegions.ts` owns the public region manifest, responsive styling and click-to-edit hooks; its categories are generated in `studio/styleSchema.ts`. Attach `regionProps` in every supported renderer layout when adding optional public elements. Required commerce/consent regions support presentation controls without hide toggles. Merge page-only regions with root settings, preserve product overrides over catalog defaults, and keep phone overrides in `autoFitRegions`. `docs/THEME_EDITOR.md` records the page-by-page ownership and authenticated/live verification limits. Local validation reasons and public order statuses use Text & labels; provider diagnostics must not bypass editable recovery copy.
+
+## Template designer coverage (4 November 2026)
+
+Every storefront template (Print style: Marquee, Shelf, Atlas, Mosaic, Arch, Market stall, Index) must stay fully
+editable in Studio. `features/site/templateStyles.ts` holds the list (`TEMPLATE_STYLES`, which also builds the Print
+style options), each stylesheet (`TEMPLATE_CSS`) and `TEMPLATE_KNOBS`: one CSS variable per Studio control a template
+shape answers to (button corners/case/shadow, photo corners from Image outline › Corner set, card
+title case, panel and card corners, outlines, hard shadows, ruled lines, photo frames, card tilt, footer curve, price
+tag, heading capitals). Templates read `var(--tpl-…, <their own look>)`; `templateKnobCss` writes a variable only for a
+control the press set, after the template, so an untouched shop is pixel-identical and a changed control wins. A knob
+with `rule` brings its shape to templates that don't draw it by default. Outline, shadow and heading capitals use
+their own `template*` keys, never the Riso Press ones (every look's palette writes `risoOutlineColor` /
+`risoShadowColor`, and Riso Noir's widths and capitals carry over), so stale Riso values never restyle a template.
+Shop photo corners on a template follow Image outline, then Corner set, never Card corner radius (every shop stores
+one, and it would flatten Arch's arches and Shelf's book corners in shops that never asked). `features/site/templateCoverage.test.ts` fails a template that is
+missing from Print style, the theme library or the home layouts, whose home layout uses settings with no Studio field,
+that writes a colour, font or words of its own, writes an owned shape as a literal, or ignores a knob; and fails a
+knob that is not a Studio control or does not change the page. To add a template: TEMPLATE_STYLES + TEMPLATE_CSS, a
+THEME_LIBRARY look, a home layout, then run that test. `a11y-fixture.html?theme=<id>&design={…}` lays settings over
+a look, to watch a control work in the browser.
+Buttons that draw their own border inline (the header bag button `.fm-hdr-cart`, the book page's Add to bag and retry
+buttons, whose `--btn-border` rule is important) used to hide the outline controls. Each template's button rule now
+writes its border into `--template-btn-border`, and the outline knobs' shared `rule` sets
+`border:var(--template-btn-border) !important` on `.custom-btn` / `.store-btn-primary` once either control is set
+(untouched, those buttons keep their old border). The coverage test reads a same-rule variable as its value.
+Shadows work the same way: `--template-btn-shadow` (base, hover and pressed), and the three shadow knobs share an
+important rule that skips Add to bag's Glow animation (`.fm-cta-glow`). Template button selectors come from
+`BUTTON_CLASSES` (`BTN`, `BTN_HOVER`, `BTN_ACTIVE`), which includes the page newsletter button `.fm-newsletter-btn`
+(MainSite). `scripts/template-buttons-check.mjs` (`pnpm run test:template-buttons`, CI job `shop-accessibility`)
+checks the bag, Add to bag and newsletter buttons on every template in Chromium. Studio shows one note above the
+template-only controls while Print style isn't a template (`templateNote.ts`). Choose your look draws each look over
+the press's own design (`lookPreview(theme, design)` = what Use this look leaves). Studio › Themes cards draw the press's own covers
+and first product name (`ThemeThumb products`, `ownBooks(books, 2)`). Print style & template details shows **Reset template
+details** once any template-only control is set (`templateDetailsSet`; one undo step). Section newsletter forms (home and
+pop-up) carry `fm-newsletter-btn` unless the section sets its own button style or corners.
+`ThemeThumb` also draws a phone frame (`.studio-theme-thumb-phone`). The reset line names what it clears
+(`templateDetailsLine`, short names in `TEMPLATE_DETAIL_NAMES`) and shows on the Themes draft card too. Look previews use
+real prices (`previewPrice` in `ownBooks`). The template button check covers the home newsletter and pop-up sections.
+Thumbs show the press's name (`pressNameOf`) and `design.logoUrl` in place of "Aa"; the drawing is a button that
+previews that design on a phone (`onPreview(entry, "mobile")`). Preview prices use the storefront's format (`CA$ 22.00`).
 
 ## Responsive public element editing (4 October 2026)
 

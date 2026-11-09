@@ -10,6 +10,7 @@ import { buildCustomers, customersToCsv } from "./customerInsights";
 import { exportOrdersCsv } from "./orderCsv";
 import { bookkeepingDaysCsv, bookkeepingMonths, bookkeepingOrdersCsv, bookkeepingPayoutsCsv } from "./bookkeepingCsv";
 import { customersForAnotherShop, productsForAnotherShop } from "./shopExport";
+import { optedOutBy } from "./shopMove";
 import { emailHash } from "./Customers";
 import { shopNameFromSettings } from "../features/site/shopIdentity";
 import { describeBackup, describeBackupDay, type BackupDay, type BackupRecord } from "./backupStatus";
@@ -116,7 +117,7 @@ export function BackupsExportCard() {
     const [orders, consent, notes] = await Promise.all([realOrders(), adminApi.getMarketingConsent(), adminApi.listCustomerNotes().catch(() => [])]);
     const emails = new Set<string>([...consent.subscribed, ...orders.map((o: any) => String(o.customer?.email || "").trim().toLowerCase()).filter(Boolean)]);
     const hashes = new Map(await Promise.all([...emails].map(async (e) => [e, await emailHash(e)] as const)));
-    const optedOut = (email: string) => !!consent.optedOutHashes?.has(hashes.get(email) || "");
+    const optedOut = optedOutBy(consent.optedOutHashes, (email) => hashes.get(email));
     const byEmail = new Map(notes.filter((n) => n.email).map((n) => [String(n.email).trim().toLowerCase(), { note: n.note || "", tags: n.tags || [] }]));
     return customersForAnotherShop(orders, { subscribed: consent.subscribed, optedOut }, byEmail);
   };

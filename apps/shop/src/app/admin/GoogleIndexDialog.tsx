@@ -36,7 +36,7 @@ export function GoogleIndexDialog({ open, onClose, books }: { open: boolean; onC
   };
 
   return (
-    <Dialog open={open} onClose={onClose} size="lg" title="Google indexing"
+    <Dialog open={open} onClose={onClose} size="lg" title="Google indexing" logo="google"
       description={w("Which of your book pages Google has added to its search results. Only indexed pages can show up when people search a book or an artist's name.")}
       footer={<><SecondaryButton onClick={onClose}>Close</SecondaryButton><PrimaryButton onClick={() => void check()} disabled={busy || !pages.length}>{busy ? "Asking Google…" : answer ? "Check again" : "Check with Google"}</PrimaryButton></>}>
       <div className="rp-stack">

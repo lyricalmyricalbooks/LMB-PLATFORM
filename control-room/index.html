@@ -10,6 +10,7 @@
 <!-- The admin look (Pressroom), copied from shared/admin-look/ by its sync.mjs: never edit these copies here. -->
 <link rel="stylesheet" href="./look/adminThemes.css">
 <link rel="stylesheet" href="./look/pressroom.css">
+<link rel="stylesheet" href="./look/brand-logos.css">
 <style>
   /* Layout only: every colour, line and type size comes from the admin's tokens above. */
   body { margin: 0; }
@@ -45,6 +46,12 @@
   .cr-facts dt { font: 400 11px/1.7 var(--rp-font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--rp-text-subtle); }
   .cr-facts dd { margin: 0; overflow-wrap: anywhere; }
   .cr-section { margin: 24px 0 8px; font: 400 11px/1.3 var(--rp-font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--rp-text-subtle); }
+  .cr-bars { margin: 16px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; max-width: 560px; font-size: 14px; }
+  .cr-bars li { display: grid; grid-template-columns: minmax(120px, 14em) 1fr 3ch; align-items: center; gap: 12px; }
+  .cr-bars .cr-bar-track { height: 10px; background: var(--rp-hair); }
+  .cr-bars .cr-bar { display: block; height: 100%; min-width: 2px; background: var(--rp-primary); }
+  .cr-bars .cr-bar[data-none] { min-width: 0; }
+  .cr-bars .cr-bar-n { font: 400 12px/1 var(--rp-font-mono); text-align: right; }
   .cr-steps { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 14px; }
   .cr-switches { display: flex; flex-wrap: wrap; gap: 0 20px; }
   .cr-form { display: grid; gap: 16px; }
@@ -75,6 +82,15 @@
   .cr-status { position: fixed; left: 50%; bottom: 24px; z-index: 500; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); }
   .cr-status:empty { display: none; }
   .cr-status { padding: 12px 16px; background: var(--rp-inverse); color: var(--rp-on-inverse); font-size: 14px; font-weight: 600; box-shadow: var(--rp-shadow-float); }
+  /* Income over time (plan 19.7): one line, drawn in the theme's own colours. */
+  .cr-chart { display: block; width: 100%; height: auto; overflow: visible; }
+  .cr-chart .cr-chart-grid { stroke: var(--rp-border); stroke-width: 1; }
+  .cr-chart .cr-chart-axis { fill: var(--rp-text-subtle); font: 400 11px var(--rp-font-mono); }
+  .cr-chart .cr-chart-line { fill: none; stroke: var(--rp-primary); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .cr-chart .cr-chart-dot { fill: var(--rp-surface); stroke: var(--rp-primary); stroke-width: 2; }
+  .cr-chart .cr-chart-last { fill: var(--rp-primary); stroke: var(--rp-surface); stroke-width: 2; }
+  .cr-chart .cr-chart-label { fill: var(--rp-text); font: 600 12px var(--rp-font-body); }
+  .cr-chart .cr-chart-hit { fill: transparent; }
   @media (max-width: 767px) {
     .cr-facts { grid-template-columns: 1fr; gap: 2px; }
     .cr-facts dd { margin-bottom: 8px; }
@@ -84,6 +100,9 @@
     .rp .rp-table .cr-actions { flex-wrap: wrap; justify-content: flex-start; }
     .rp .rp-table td.cr-end { text-align: left; }
   }
+  /* Tags on a shop (19.13) and the timeline's filters (19.10). */
+  .cr-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .cr-timeline-more { margin-top: 12px; }
 </style>
 </head>
 <body>
@@ -99,7 +118,7 @@
       </div>
       <section id="view-signin">
         <p class="rp-card-desc rp-login-lede">For platform admins only. After Google you'll need the code from your authenticator app too.</p>
-        <button type="button" id="google" class="rp-btn rp-btn-primary rp-btn-lg" style="width: 100%">Sign in with Google</button>
+        <button type="button" id="google" class="gsi-button" style="width: 100%"><span class="gsi-button-g"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg></span><span class="gsi-button-text">Sign in with Google</span></button>
       </section>
       <section id="view-code" hidden>
         <form id="code-form" class="cr-form">
@@ -147,8 +166,10 @@
           <li data-admin><a class="rp-nav-item" href="#today" data-nav="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>Today</a></li>
           <li data-admin><a class="rp-nav-item" href="#shops" data-nav="shops"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9 5 4h14l2 5"/><path d="M4 9v11h16V9"/><path d="M3 9h18"/><path d="M9 20v-6h6v6"/></svg>Shops<span class="rp-nav-badge" data-badge="shops" hidden></span></a></li>
           <li data-admin><a class="rp-nav-item" href="#signups" data-nav="signups"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6"/><path d="M19 8v6M16 11h6"/></svg>Sign-ups<span class="rp-nav-badge" data-badge="signups" hidden></span></a></li>
+          <li data-admin><a class="rp-nav-item" href="#setting-up" data-nav="setting-up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h16"/><path d="M6 20V10l6-5 6 5v10"/><path d="M10 20v-5h4v5"/></svg>Setting up<span class="rp-nav-badge" data-badge="setting-up" hidden></span></a></li>
           <li class="rp-nav-section-row" aria-hidden="true" data-admin><div class="rp-nav-section">Help presses</div></li>
           <li data-admin><a class="rp-nav-item" href="#support" data-nav="support"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Support<span class="rp-nav-badge" data-badge="support" hidden></span></a></li>
+          <li data-admin><a class="rp-nav-item" href="#apps" data-nav="apps"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M17.5 14v7M14 17.5h7"/></svg>App store<span class="rp-nav-badge" data-badge="apps" hidden></span></a></li>
           <li data-admin><a class="rp-nav-item" href="#repairs" data-nav="repairs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></svg>Repairs<span class="rp-nav-badge" data-badge="repairs" hidden></span></a></li>
           <li data-admin><a class="rp-nav-item" href="#recovery" data-nav="recovery"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3M15 8l2 2"/></svg>Account recovery<span class="rp-nav-badge" data-badge="recovery" hidden></span></a></li>
           <li class="rp-nav-section-row" aria-hidden="true" data-admin><div class="rp-nav-section">Run the platform</div></li>
@@ -156,9 +177,13 @@
           <li data-admin><a class="rp-nav-item" href="#settings" data-nav="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Prices and sign-up</a></li>
           <li data-admin><a class="rp-nav-item" href="#payments" data-nav="payments"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14"/><path d="M2 10h20M6 15h4"/></svg>Emergency payments</a></li>
           <li><a class="rp-nav-item" href="#runbook" data-nav="runbook"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h12l4 4v12H4z"/><path d="M8 12h8M8 16h5"/></svg>Run book</a></li>
+          <li data-admin><a class="rp-nav-item" href="#jobs" data-nav="jobs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>Jobs<span class="rp-nav-badge" data-badge="jobs" hidden></span></a></li>
           <li class="rp-nav-section-row" aria-hidden="true" data-admin><div class="rp-nav-section">Records</div></li>
           <li data-admin><a class="rp-nav-item" href="#breaches" data-nav="breaches"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="M12 9v4M12 16h0"/></svg>Breach register</a></li>
           <li data-admin><a class="rp-nav-item" href="#activity" data-nav="activity"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Activity log</a></li>
+          <li class="rp-nav-section-row" aria-hidden="true" data-admin><div class="rp-nav-section">Presses and costs</div></li>
+          <li data-admin><a class="rp-nav-item" href="#messages" data-nav="messages"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11v3l12 5V6L3 11z"/><path d="M15 9h2a3 3 0 0 1 0 6h-2"/><path d="M7 15v4h3"/></svg>Messages to presses</a></li>
+          <li data-admin><a class="rp-nav-item" href="#costs" data-nav="costs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Costs</a></li>
         </ul>
       </nav>
       <div class="rp-sidebar-foot">
@@ -198,6 +223,27 @@
               <div id="tax-watch" class="cr-grid"></div>
               <div class="cr-head"><h2>Your test shop</h2></div>
               <div id="test-shop" class="rp-card"></div>
+              <!-- The business side (plan 19.7-19.9): income over 12 months, failed plan payments, why presses leave. -->
+              <div class="cr-head"><h2 id="h-income">Income over time</h2></div>
+              <div id="income-figures" class="rp-kpi-grid" aria-label="Money kept and lost this month"></div>
+              <div id="income-chart" class="rp-card"></div>
+              <div class="cr-head"><h2>Presses at risk</h2></div>
+              <p class="rp-hint">Paying presses whose orders have dropped or whose team stopped signing in, checked every morning, with what they pay each month. Snooze one you've already spoken to: it leaves Today and gets no check-in email until the snooze ends.</p>
+              <div id="at-risk"></div>
+              <div class="cr-head"><h2>Fair till by month</h2></div>
+              <p class="rp-hint">Sales rung up on the stockroom's fair till across every press, the last 12 months, newest first. One checkout of several books counts as one sale.</p>
+              <div id="fair-months"></div>
+              <div class="cr-head"><h2>Failed plan payments</h2></div>
+              <p class="rp-hint">Shops whose plan payment is failing or paused for a card. A paused shop closes 60 days after the pause began; the press can then download everything for 90 days.</p>
+              <div id="payment-trouble"></div>
+              <div class="cr-head"><h2>Why presses leave</h2></div>
+              <div id="leaving" class="cr-grid"></div>
+              <div class="cr-head"><h2>Still time to talk</h2></div>
+              <p class="rp-hint">Shops whose plan is set to end, or paused for a missing card, soonest first. A word from you may keep them.</p>
+              <div id="save-list"></div>
+              <div class="cr-head"><h2>Apps closing</h2></div>
+              <p class="rp-hint">Shops that dropped the website or the stockroom from their plan. It closes at the end of the month they paid for; they can keep it until then, and download everything in it for 90 days after, with a last email 3 days before its records are deleted.</p>
+              <div id="apps-closing"></div>
             </section>
 
             <section data-page="shops" aria-labelledby="h-shops" hidden>
@@ -205,11 +251,14 @@
                 <div><h1 class="rp-page-title" id="h-shops">Shops</h1><p class="rp-page-desc">Every press's shop with its plan, billing and health. Open one for its record and everything you can do for it.</p></div>
               </div>
               <form id="shop-filters" class="cr-toolbar" role="search">
-                <div class="rp-field cr-grow"><label class="rp-label" for="shop-q">Search</label><input id="shop-q" class="rp-input" type="search" name="q" autocomplete="off" placeholder="Press, shop id or owner email"></div>
+                <div class="rp-field cr-grow"><label class="rp-label" for="shop-q">Search</label><input id="shop-q" class="rp-input" type="search" name="q" autocomplete="off" placeholder="Press, shop id, owner email, web address or tag"></div>
                 <div class="rp-field"><label class="rp-label" for="shop-health">Health</label><select id="shop-health" class="rp-select" name="health"><option value="">All</option><option value="problem">Problem</option><option value="watch">Look</option><option value="ok">OK</option></select></div>
                 <div class="rp-field"><label class="rp-label" for="shop-plan">Plan</label><select id="shop-plan" class="rp-select" name="plan"><option value="">All</option><option value="shop">Shop</option><option value="stockroom">Stockroom</option><option value="both">Both</option></select></div>
                 <div class="rp-field"><label class="rp-label" for="shop-billing">Billing</label><select id="shop-billing" class="rp-select" name="billing"><option value="">All</option><option value="trialing">Free trial</option><option value="active">Paying</option><option value="past_due">Payment failing</option><option value="paused">Paused</option><option value="canceled">Ended</option></select></div>
+                <div class="rp-field"><label class="rp-label" for="shop-sells">Sells</label><select id="shop-sells" class="rp-select" name="sells"><option value="">All</option><option value="books">Books, zines or comics</option><option value="goods">Not books</option><option value="prints">Art and prints</option><option value="mixed">Books and other things</option><option value="clothing">Clothing</option><option value="shoes">Shoes</option><option value="jewelry">Jewelry</option><option value="music">Music</option><option value="other">Something else</option><option value="mismatch">Stripe category doesn't match</option></select></div>
+                <div class="rp-field"><label class="rp-label" for="shop-risk">Risk</label><select id="shop-risk" class="rp-select" name="risk"><option value="">All</option><option value="at-risk">Drifting or to watch</option><option value="drifting">Drifting</option><option value="watch">To watch</option><option value="snoozed">Snoozed</option><option value="moving">Move left part-way</option></select></div>
               </form>
+              <div id="social-lost"></div>
               <p class="rp-hint" id="summary"></p>
               <div id="shops"></div>
             </section>
@@ -229,6 +278,19 @@
               </form>
             </section>
 
+            <section data-page="setting-up" aria-labelledby="h-setting-up" hidden>
+              <div class="rp-page-header">
+                <div><h1 class="rp-page-title" id="h-setting-up">Setting up</h1><p class="rp-page-desc">Presses that signed up and are getting their shop ready in setup mode, or have pressed Open my shop. Nothing here changes anything. A setup record not visited for 60 days is removed.</p></div>
+                <div class="rp-page-actions"><button type="button" id="setup-refresh" class="rp-btn rp-btn-secondary">Refresh</button></div>
+              </div>
+              <div id="setup-numbers" class="rp-kpi-grid" aria-label="Presses setting up in numbers"></div>
+              <div id="setup-needs"></div>
+              <div class="cr-head"><h2 id="h-setup-presses">Every press setting up</h2></div>
+              <div id="setup-presses"></div>
+              <div class="cr-head"><h2 id="h-setup-looks">Looks presses picked</h2></div>
+              <div id="setup-looks" class="cr-grid"></div>
+            </section>
+
             <section data-page="support" aria-labelledby="h-support" hidden>
               <div class="rp-page-header">
                 <div><h1 class="rp-page-title" id="h-support">Support</h1><p class="rp-page-desc">Questions from presses. Your answer is emailed to them; close a request when it's done.</p></div>
@@ -239,6 +301,20 @@
                 <button type="button" class="rp-tab" data-status="closed" aria-pressed="false" aria-selected="false">Closed</button>
               </div>
               <div id="tickets" class="cr-list"></div>
+            </section>
+
+            <section data-page="apps" aria-labelledby="h-apps" hidden>
+              <div class="rp-page-header">
+                <div><h1 class="rp-page-title" id="h-apps">App store</h1><p class="rp-page-desc">Outside apps waiting for your review, and the ones presses can install.</p></div>
+              </div>
+              <div class="rp-tabs cr-toolbar" id="app-filters" role="group" aria-label="Which apps">
+                <button type="button" class="rp-tab" data-status="in-review" aria-pressed="true" aria-selected="true">Waiting for review</button>
+                <button type="button" class="rp-tab" data-status="on-store" aria-pressed="false" aria-selected="false">On the store</button>
+                <button type="button" class="rp-tab" data-status="unlisted" aria-pressed="false" aria-selected="false">Taken off</button>
+                <button type="button" class="rp-tab" data-status="draft" aria-pressed="false" aria-selected="false">Being made</button>
+              </div>
+              <div id="app-failing"></div>
+              <div id="apps" class="cr-list"></div>
             </section>
 
             <section data-page="repairs" aria-labelledby="h-repairs" hidden>
@@ -327,6 +403,48 @@
                 <button type="submit" class="rp-btn rp-btn-secondary">Show</button>
               </form>
               <div id="activity"></div>
+            </section>
+
+            <section data-page="jobs" aria-labelledby="h-jobs" hidden>
+              <div class="rp-page-header">
+                <div><h1 class="rp-page-title" id="h-jobs">Jobs</h1><p class="rp-page-desc">Everything the platform does on a schedule: how often, when it last ran, how long it took and how it went. A job that stops running on time is emailed to the alert address once.</p></div>
+                <div class="rp-page-actions"><button type="button" id="jobs-refresh" class="rp-btn rp-btn-secondary">Refresh</button></div>
+              </div>
+              <div id="jobs"></div>
+            </section>
+
+            <section data-page="messages" aria-labelledby="h-messages" hidden>
+              <div class="rp-page-header">
+                <div><h1 class="rp-page-title" id="h-messages">Messages to presses</h1><p class="rp-page-desc">A note at the top of every shop admin it reaches, until its end date. Shoppers never see it. An important one is also emailed once to each press's owner. For outages, use the status page note in the run book.</p></div>
+              </div>
+              <form id="message-form" class="rp-card">
+                <div class="rp-card-body cr-form" style="padding-top: 20px">
+                  <div class="rp-field"><label class="rp-label" for="message-words">The message (plain words)</label><textarea id="message-words" class="rp-textarea" name="words" required maxlength="400"></textarea><span class="rp-hint" id="message-count">400 characters left.</span></div>
+                  <div class="cr-form-grid">
+                    <div class="rp-field"><label class="rp-label" for="message-level">How important</label><select id="message-level" class="rp-select" name="level"><option value="info">Info: a note in the admin</option><option value="important">Important: also emailed to each owner</option></select></div>
+                    <div class="rp-field"><label class="rp-label" for="message-audience">Who sees it</label><select id="message-audience" class="rp-select" name="audience"><option value="all">Every shop</option><option value="plan:shop">Shops on the Shop plan</option><option value="plan:stockroom">Shops on the Stockroom plan</option><option value="plan:both">Shops on Shop and stockroom</option><option value="shop">One shop</option></select></div>
+                    <div class="rp-field" id="message-shop-field" hidden><label class="rp-label" for="message-shop">Shop id</label><input id="message-shop" class="rp-input" name="shopId" autocomplete="off"></div>
+                    <div class="rp-field"><label class="rp-label" for="message-start">Starts (empty: now)</label><input id="message-start" class="rp-input" type="datetime-local" name="startsAt"></div>
+                    <div class="rp-field"><label class="rp-label" for="message-end">Ends (at most 60 days away)</label><input id="message-end" class="rp-input" type="datetime-local" name="endsAt" required></div>
+                    <div class="rp-field"><label class="rp-label" for="message-notice">Is this a notice the terms promise?</label><select id="message-notice" class="rp-select" name="notice"><option value="">No</option><option value="price-rise">Yes: a price rise</option><option value="new-helper">Yes: a new helper company</option><option value="terms-change">Yes: a change to the terms</option></select><span class="rp-hint">The terms promise presses 30 days' notice by email for these. A notice is always emailed.</span></div>
+                    <div class="rp-field" id="message-effect-field" hidden><label class="rp-label" for="message-effect">The change takes effect on (at least 30 days from the start)</label><input id="message-effect" class="rp-input" type="date" name="takesEffect"></div>
+                  </div>
+                  <div class="rp-field"><label class="rp-label" for="message-reason">Why are you sending this? (goes in the activity log)</label><input id="message-reason" class="rp-input" name="reason" required minlength="10" maxlength="500"></div>
+                  <div><button type="submit" class="rp-btn rp-btn-primary">Send the message</button></div>
+                </div>
+              </form>
+              <div class="cr-head"><h2>Sent</h2></div>
+              <div id="messages"></div>
+              <div class="cr-head"><h2>Promised notices sent</h2></div>
+              <p class="rp-hint">Your proof of the 30 days' notice the terms promise: what changed, when each press was told and how many owners were emailed.</p>
+              <div id="notices"></div>
+            </section>
+
+            <section data-page="costs" aria-labelledby="h-costs" hidden>
+              <div class="rp-page-header">
+                <div><h1 class="rp-page-title" id="h-costs">Costs</h1><p class="rp-page-desc">This month's Google bill for each shop next to what the shop pays, the shops costing more than they bring in first. Credits are taken off.</p></div>
+              </div>
+              <div id="costs"></div>
             </section>
           </div>
 

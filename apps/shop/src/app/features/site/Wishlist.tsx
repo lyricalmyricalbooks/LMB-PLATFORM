@@ -22,6 +22,7 @@ import { framingStyle } from "./photoFraming";
 import { PhotoToneDefs } from "./PhotoToneDefs";
 import { layerDesign } from "./designModel";
 import { idsToMerge, sharedWishlistIds, wishlistShareUrl } from "./wishlistShare";
+import { productHref } from "../../lib/productHref";
 
 /** The wishlist, inside the one shop header and footer (Studio 2.0 · 2.1). */
 export default function WishlistPage() {
@@ -168,7 +169,7 @@ function WishlistContent() {
             const out = !choice.inStock;
             return (
               <article key={book.id} className="fm-card group min-w-0">
-                <Link to={`/books/${slug}`} className="block">
+                <Link to={productHref(slug)} className="block">
                   <div {...regionProps("wishlistPhoto")} className="relative aspect-[3/4] fm-surface rounded-2xl overflow-hidden mb-3 border border-white/[0.05]">
                     <img loading="lazy" decoding="async"
                       src={(book as any).photos?.[0]?.url || placeholderImage(settings?.design)}

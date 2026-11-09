@@ -2,17 +2,20 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { sitemapArtifacts } from './sitemapData.mjs';
 import { readPublicStorefront, publishedFingerprint, effectivePublishedSettings } from './publicStorefrontData.mjs';
 import { llmsTxt } from './llmsTxt.mjs';
 import { shopSiteUrl } from './shopProfile.mjs';
-import { FEED_FILE, feedShopName, merchantFeedItems, merchantFeedXml } from '../src/app/features/site/merchantFeed.mjs';
+import { FEED_FILE, SOCIAL_FEED_FILE, feedShopName, merchantFeedItems, merchantFeedXml, socialFeedCsv } from '../src/app/features/site/merchantFeed.mjs';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const siteUrl = await shopSiteUrl();
 const { books, pages, settings, reviews } = await readPublicStorefront();
-const indexed = sitemapArtifacts(siteUrl, books, pages, [], settings);
+// Product pages live under /products/ in a shop that doesn't sell books (the server's copy of src/shared/shopSells.ts).
+const productBase = createRequire(import.meta.url)('../functions/shared/shopSells.js').productBase(settings?.sells);
+const indexed = sitemapArtifacts(siteUrl, books, pages, [], settings, { productBase });
 // Keep noindex public listings crawlable so Google can read their robots tags.
-const rendered = sitemapArtifacts(siteUrl, books.map(book => ({ ...book, seoNoindex: false })), pages, [], settings, { includeEmptyCollections: true });
+const rendered = sitemapArtifacts(siteUrl, books.map(book => ({ ...book, seoNoindex: false })), pages, [], settings, { includeEmptyCollections: true, productBase });
 for (const directory of ['dist', 'public']) {
   mkdirSync(resolve(root, directory), { recursive: true });
   writeFileSync(resolve(root, directory, 'sitemap.xml'), indexed.xml);
@@ -23,10 +26,12 @@ writeFileSync(resolve(root, 'dist/seo-published-fingerprint.txt'), publishedFing
 // Google Merchant Center fetches this file (Books › Google Shopping feed shows its address).
 // The press's own name (Text & labels › Site name, plan 5.8), never the placeholder for a named shop.
 const shopName = feedShopName(effectivePublishedSettings(settings));
-const feed = merchantFeedItems(siteUrl, books, { shopName });
+const feed = merchantFeedItems(siteUrl, books, { shopName, productBase });
 mkdirSync(resolve(root, 'dist'), { recursive: true });
 writeFileSync(resolve(root, 'dist', FEED_FILE), merchantFeedXml(siteUrl, feed.items, { shopName }));
+// Meta (Facebook and Instagram) and Pinterest fetch the same items as CSV (Books › Instagram, Facebook and Pinterest).
+writeFileSync(resolve(root, 'dist', SOCIAL_FEED_FILE), socialFeedCsv(feed.items));
 // AI assistants and AI search read /llms.txt for a plain summary of the shop and its books.
-writeFileSync(resolve(root, 'dist', 'llms.txt'), llmsTxt(siteUrl, books, pages, settings, { shopName }));
+writeFileSync(resolve(root, 'dist', 'llms.txt'), llmsTxt(siteUrl, books, pages, settings, { shopName, productBase }));
 console.log(`Google Shopping feed: ${feed.items.length} items, ${feed.skipped.length} published books left out.`);
 console.log(`Generated ${indexed.count} indexable URLs and ${rendered.count} public HTML routes.`);

@@ -21,6 +21,8 @@ const PAGES = {
   "sign-up": { html: "signup/index.html", scripts: ["signup/app.js"] },
   "account": { html: "accounts/index.html", scripts: ["accounts/app.js"] },
   "Plan & billing": { html: "accounts/billing.html", scripts: ["accounts/billing.js"] },
+  "Keep your app": { html: "accounts/keep.html", scripts: ["accounts/keep.js"] },
+  "Add an app": { html: "accounts/install.html", scripts: ["accounts/install.js"] },
   "help": { html: "help/index.html", scripts: ["help/page.js"] },
   "experts": { html: "experts/index.html", scripts: ["experts/page.js"] },
 };

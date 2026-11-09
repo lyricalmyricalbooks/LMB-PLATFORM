@@ -220,6 +220,22 @@ describe('Fair Mode with patchy signal', () => {
     expect(document.getElementById('fm-today-sum').textContent).toMatch(/^1 sale · /);
   });
 
+  it('voids nothing when one book of the checkout is in an author settlement', async () => {
+    cart({ [HARBOUR]: 1, [FABLE]: 1 });
+    await win.fairCharge('Card');
+    await app.settle();
+    const num = state(FABLE).hist[0].num;
+    state(FABLE).hist[0].artistSettlementId = 'settle-1';
+    const voiding = win.fairVoidSale(num);
+    await app.answerConfirm(true);
+    await voiding;
+    await app.settle();
+    expect(state(HARBOUR).hist.find((h) => h.num === num).voided).toBeFalsy();
+    expect(state(FABLE).hist[0].voided).toBeFalsy();
+    expect(state(HARBOUR).stock).toBe(99);
+    expect(app.toast()).toMatch(/nothing was voided/);
+  });
+
   it('the upload pill reads the real queue', () => {
     offline(true);
     win.dispatchEvent(new win.Event('offline'));
@@ -254,7 +270,7 @@ describe('Fair Mode, a whole fair day', () => {
     const body = document.getElementById('fm-summary-body').textContent;
     expect(document.getElementById('fm-summary-title').textContent).toBe('End of day · Toronto Art Book Fair');
     expect(body).toMatch(/Card reader/);
-    expect(body).toMatch(/QR \/ Stripe/);
+    expect(body).toMatch(/QR code/);
     expect(body).toMatch(/Harbour Lights.*2 sold · 98 left/);
     expect(body).toMatch(/3 books in 2 sales/);
   });

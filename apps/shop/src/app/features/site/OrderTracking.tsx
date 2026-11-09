@@ -1,4 +1,4 @@
-import { orderChargedTotal } from "./orderMoney";
+import { orderChargedTotal, orderGiftCardRows } from "./orderMoney";
 import { digitalEntries, downloadBookIds, UNREADABLE_BOOK, type DigitalEntry } from "./digitalLine";
 import { publicApi } from "../../lib/publicApi";
 import { orderLineNotes } from "./orderLineNotes";
@@ -22,6 +22,9 @@ import { getCopy, CopyError, copyErrorText } from "./storeCopy";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
 import { orderStage, orderStep, shippingDays, stepDates } from "./orderStatus";
 import { OrderRequestBox, PrivacyRequestBox } from "./OrderRequests";
+import { AddToOrderBox } from "./AddToOrderBox";
+import { PaymentLinkPay } from "./PaymentLinkPay";
+import { payLinkState } from "./payLinkState";
 import { waitingPreorderLines, shipDateOf, formatReleaseDate, linePreorderNote } from "./preorder";
 
 /** Order tracking, inside the one shop header and footer (Studio 2.0 · 2.1). */
@@ -181,8 +184,9 @@ function OrderTrackingContent() {
   const [recheckError, setRecheckError] = useState("");
   const orderKey = order ? (order.id || order.orderId) : "";
   const ended = ["refunded", "cancelled"].includes(String(order?.paymentStatus || "").toLowerCase()) || ["refunded", "cancelled"].includes(String(order?.status || "").toLowerCase());
+  // A payment link (the shop made this order to pay) is checked too, so Pay now hides while a payment is confirming.
   const canRecheck = Boolean(order && order.paymentStatus !== "paid" && order.paymentStatus !== "pending" && !ended
-    && /stripe/i.test(String(order.paymentMethod || "")));
+    && (/stripe/i.test(String(order.paymentMethod || "")) || payLinkState(order) === "pay"));
   const recheckPayment = async () => {
     if (!orderKey || rechecking) return;
     setRechecking(true);
@@ -344,7 +348,11 @@ function OrderTrackingContent() {
                 </div>
               </SlipHeader>
 
-              {stage !== "active" && (
+              {payLinkState(order) && (
+                <PaymentLinkPay order={order} design={settings?.design} accessKey={access.key} hidePay={rechecking || awaitingWebhook} />
+              )}
+
+              {stage !== "active" && !(payLinkState(order) && !awaitingWebhook) && (
                 <div {...regionProps("trackingStatusBanner")} role="status" className="fm-track-notice" data-tone={stage === "awaiting_payment" ? "warning" : "danger"}>
                   <p>
                     <strong aria-hidden="true">{stage === "awaiting_payment" ? "! " : "✕ "}</strong>
@@ -430,6 +438,29 @@ function OrderTrackingContent() {
                 );
               })()}
 
+              {/* Parcels sent ahead of the rest of the order (code plan 24.5); the last parcel shows above as the shipment. */}
+              {Array.isArray(order.partShipments) && order.partShipments.length > 0 && (
+                <section {...regionProps("trackingParts")} className="fm-track-card p-6 sm:p-8 space-y-3">
+                  <p className="fm-track-display text-2xl">{getCopy(settings?.design, "trackPartsTitle")}</p>
+                  {!order.trackingNumber && <p className="text-sm fm-muted">{getCopy(settings?.design, "trackPartsText")}</p>}
+                  <ul className="list-none p-0 m-0">
+                    {order.partShipments.map((part: any) => (
+                      <li key={part.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 border-b fm-track-rule">
+                        <div className="min-w-0">
+                          <p className="text-sm">{(part.lines || []).map((l: any) => `${l.quantity} × ${l.title}`).join(", ")}</p>
+                          <p className="text-sm fm-muted mt-1">{part.trackingCarrier} · <code className="font-mono">{part.trackingNumber}</code></p>
+                        </div>
+                        {part.trackingNumber && (
+                          <a href={getTrackingUrl(part.trackingCarrier || "", part.trackingNumber, part.trackingUrl)} target="_blank" rel="noopener noreferrer" className="fm-track-btn shrink-0">
+                            {getCopy(settings?.design, "trackPartTrack")} <ExternalLink size={14} aria-hidden="true" />
+                          </a>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
               {digitalItems.length > 0 && order.paymentStatus === "paid" && (
                 <section {...regionProps("trackingDownloads")} className="fm-track-card p-6 sm:p-8 space-y-5">
                   <div>
@@ -484,10 +515,12 @@ function OrderTrackingContent() {
                   {order.discount > 0 && <div className="fm-track-row fm-success-text"><span className="fm-track-mono">{getCopy(settings?.design, "summaryDiscount")}</span><span className="font-mono">−{orderFormatPrice(order.discount)}</span></div>}
                   <div className="fm-track-row"><span className="fm-track-mono">{getCopy(settings?.design, "summaryShipping")}</span><span className="font-mono">{order.shipping > 0 ? orderFormatPrice(order.shipping) : getCopy(settings?.design, "coFree")}</span></div>
                   {order.tax > 0 && <div className="fm-track-row"><span className="fm-track-mono">{getCopy(settings?.design, "summaryTax")}</span><span className="font-mono">{orderFormatPrice(order.tax)}</span></div>}
+                  {orderGiftCardRows(order).map((card, n) => <div key={`gc-${n}`} className="fm-track-row"><span className="fm-track-mono">{getCopy(settings?.design, "coGiftCardSummary", { last4: card.last4 })}</span><span className="font-mono">−{orderFormatPrice(card.cad)}</span></div>)}
                   <div className="fm-track-total"><span className="fm-track-mono">{getCopy(settings?.design, "summaryTotal")}</span><span className="fm-track-display text-3xl sm:text-4xl">{orderChargedTotal(order, formatPrice)}</span></div>
                 </div>
               </section>
 
+              <AddToOrderBox design={settings?.design} order={order} access={access} books={books || []} />
               <OrderRequestBox design={settings?.design} order={order} access={access} onUpdated={setOrder} returns={settings?.returns} />
 
               <p {...regionProps("trackingHelp")} className="text-center text-sm leading-6 fm-muted">{getCopy(settings?.design, "trackHelp")}</p>
