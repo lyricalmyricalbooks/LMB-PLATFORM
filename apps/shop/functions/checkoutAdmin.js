@@ -300,7 +300,7 @@ function checkoutAdminActions({
     const step = req.body?.step;
     // The account's status (payouts on or paused, the fee) is also the bookkeeper's to read (roles.js booksReader);
     // connecting the account stays admin-only.
-    if (!await (step === "status" ? requireBooksReader : requireAdmin)(req, res)) return;
+    if (!await (step === "status" || step === "nextStatus" ? requireBooksReader : requireAdmin)(req, res)) return;
     if (!payments.account) {
       res.status(409).json({ error: "This shop takes card payments with its own keys, not through the platform.", code: "own_keys" }); // Own-account shops only: a refusal for a call the Colophon shop never makes
       return;
@@ -310,17 +310,28 @@ function checkoutAdminActions({
         res.json({ provider: payments.provider, ...await payments.account.status() });
         return;
       }
-      if (step === "connect") {
+      // Switching to the other provider (code plan 27.6c): the account being connected, and Switch.
+      if (step === "nextStatus") {
+        res.json(await payments.account.nextStatus());
+        return;
+      }
+      if (step === "switch") {
+        res.json(await payments.account.switchNow());
+        return;
+      }
+      if (step === "connect" || step === "connectNext") {
         const origin = ALLOWED_ORIGINS.find(o => o === req.body?.origin && /^https:\/\//.test(o));
         if (!origin) {
           res.status(400).json({ error: "Open the admin from the shop's own address to connect your account." });
           return;
         }
         const back = (flag) => `${origin}/admin${flag ? `?${flag}` : ""}#settings/payments/methods`;
-        const link = payments.provider === "square"
+        // connectNext connects the other provider's account: Square's sign-in from a Stripe shop, and the reverse.
+        const square = (payments.provider === "square") === (step === "connect");
+        const link = square
           ? await payments.account.connectLink(back(""))
           : await payments.account.onboardingLink(back("stripe=return"), back("stripe=refresh"));
-        res.json({ provider: payments.provider, url: link.url, expiresAt: link.expiresAt ?? null });
+        res.json({ provider: square ? "square" : "stripe", url: link.url, expiresAt: link.expiresAt ?? null });
         return;
       }
       res.status(400).json({ error: "Unknown step.", code: "bad_request" });

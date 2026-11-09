@@ -6,11 +6,13 @@
 //   next           { provider, accountId, mode, ... }: the account being connected for a switch. It takes no sales yet.
 //   otherAccounts  ["stripe:acct_…", "square:MLR…"]: the keys of `earlier` and `next`, so the registry can find a shop
 //                  by any of its accounts (Firestore can't search inside a list of objects).
+//   switching      { to, accountId, at }: the press pressed Switch. Until the shop's server runs the new provider and
+//                  the platform finishes the switch (control-room/providerSwitch.js), both accounts take sales.
 // Pure functions; service.js and square.js do the reading and writing.
 
 export const accountKey = (provider, accountId) => `${provider}:${accountId}`;
 
-const SLOT_FIELDS = ["earlier", "next", "otherAccounts"];
+const SLOT_FIELDS = ["earlier", "next", "otherAccounts", "switching"];
 
 /** The account itself, without the switch fields (what a view of one account carries as its `payments`). */
 export function accountOnly(payments) {
@@ -26,7 +28,8 @@ const nextOf = (payments) => (payments?.next && payments.next.provider && paymen
 export function withOtherAccounts(payments) {
   const earlier = earlierOf(payments);
   const next = nextOf(payments);
-  const out = { ...accountOnly(payments), ...(earlier.length ? { earlier } : {}), ...(next ? { next } : {}) };
+  const switching = next && payments?.switching?.accountId === next.accountId ? payments.switching : null;
+  const out = { ...accountOnly(payments), ...(earlier.length ? { earlier } : {}), ...(next ? { next } : {}), ...(switching ? { switching } : {}) };
   const keys = [...new Set([...(next ? [next] : []), ...earlier].map((a) => accountKey(a.provider, a.accountId)))];
   if (keys.length) out.otherAccounts = keys;
   return out;
@@ -60,9 +63,33 @@ export function accountFor(payments, provider) {
   return index >= 0 ? { slot: "earlier", index, account: earlierOf(payments)[index] } : null;
 }
 
+/** The next account while a switch to it is under way (it takes sales too until the switch is finished), or null. */
+export function switchingTo(payments, provider) {
+  const next = nextOf(payments);
+  return next && next.provider === provider && payments?.switching?.accountId === next.accountId ? { slot: "next", account: next } : null;
+}
+
+/** Whether the next account is ready to take sales: Square connected, or Stripe's checks passed. */
+export function nextReady(payments) {
+  const next = nextOf(payments);
+  if (!next || next.disconnectedAt) return false;
+  return next.provider === "square" ? Boolean(next.locationId) : next.chargesEnabled === true;
+}
+
+/**
+ * The switch, finished: the next account takes sales alone, and the current one joins `earlier` (newest first), so
+ * the orders it took keep their refunds. An earlier entry for the account switched to is dropped.
+ */
+export function switched(payments, until) {
+  const next = nextOf(payments);
+  if (!next) return payments;
+  const earlier = [{ ...accountOnly(payments), until }, ...earlierOf(payments).filter((a) => !(a.provider === next.provider && a.accountId === next.accountId))];
+  return withOtherAccounts({ ...accountOnly(next), earlier });
+}
+
 /** `payments` with the account at `found` (from findSlot / accountFor) replaced by `account`. */
 export function replaceSlot(payments, found, account) {
-  if (found.slot === "current") return withOtherAccounts({ ...accountOnly(account), earlier: payments?.earlier, next: payments?.next });
+  if (found.slot === "current") return withOtherAccounts({ ...accountOnly(account), earlier: payments?.earlier, next: payments?.next, switching: payments?.switching });
   if (found.slot === "next") return withOtherAccounts({ ...(payments ?? {}), next: accountOnly(account) });
   const earlier = earlierOf(payments).slice();
   earlier[found.index] = accountOnly(account);

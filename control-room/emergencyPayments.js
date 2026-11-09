@@ -31,22 +31,53 @@ const MOVES = Object.freeze({
 
 const quoted = (line) => /^"(.*)"$/.exec(line?.trim() ?? "")?.[1] ?? line?.trim() ?? "";
 
-/** The provider and mode a shop's server settings file names (empty when a line is missing). */
+/**
+ * The provider and mode a shop's server settings file names (empty when a line is missing), and a switch's earlier
+ * provider (SHOP_PAYMENT_EARLIER) when it names one.
+ */
 export function envPayments(text) {
   const value = (name) => quoted(String(text ?? "").split("\n").find((line) => line.startsWith(`${name}=`))?.slice(name.length + 1));
-  return { provider: value("SHOP_PAYMENT_PROVIDER"), mode: value("SHOP_PAYMENT_MODE") };
+  const earlier = value("SHOP_PAYMENT_EARLIER");
+  return { provider: value("SHOP_PAYMENT_PROVIDER"), mode: value("SHOP_PAYMENT_MODE"), ...(earlier ? { earlier } : {}) };
 }
 
-/** The server settings file with these payments; every other line is kept as it is. */
-export function envWithPayments(text, { provider, mode }) {
+/** The server settings file with these lines set (added before the last line when missing); the rest kept as is. */
+export function envWithLines(text, entries) {
   const lines = String(text ?? "").split("\n");
-  for (const [name, value] of [["SHOP_PAYMENT_PROVIDER", provider], ["SHOP_PAYMENT_MODE", mode]]) {
+  for (const [name, value] of Object.entries(entries)) {
     const at = lines.findIndex((line) => line.startsWith(`${name}=`));
     const line = `${name}="${value}"`;
     if (at >= 0) lines[at] = line;
     else lines.splice(Math.max(0, lines.length - 1), 0, line);
   }
   return lines.join("\n");
+}
+
+/**
+ * The server settings file with these payments; every other line is kept as it is. A switch's earlier provider stays
+ * only while it still makes sense (through the platform, and not the provider now in use); the shop's server refuses
+ * to start otherwise (shopConfig.js).
+ */
+export function envWithPayments(text, { provider, mode, earlier }) {
+  const kept = earlier ?? envPayments(text).earlier;
+  const valid = kept && mode === "platform" && kept !== provider ? kept : "";
+  const lines = { SHOP_PAYMENT_PROVIDER: provider, SHOP_PAYMENT_MODE: mode };
+  if (valid || envPayments(text).earlier) lines.SHOP_PAYMENT_EARLIER = valid;
+  return envWithLines(text, lines);
+}
+
+/**
+ * Puts a shop's server code live again with a new settings file, at the release it is already on. false when it isn't
+ * deployed yet (setup deploys it with that file).
+ */
+export async function redeployShopServer({ deploy, build = async () => {} }, shopId, row, envFile) {
+  const live = await deploy.deployed(shopId, "functions");
+  if (!live) return false;
+  if (!usable(live.version)) throw new Error(`its server code is on "${live.version}", so a person deploys it by hand`);
+  await build(live.version);
+  const region = live.region && !live.region.includes("+") ? live.region : row.region ?? REGION;
+  await deploy.functions(shopId, { version: live.version, region, envFile });
+  return true;
 }
 
 const usable = (version) => typeof version === "string" && version && version !== "unknown" && !version.includes("+");
@@ -64,17 +95,7 @@ export function emergencyPayments({ registry, envFiles, profileFiles, deploy, bu
     return true;
   }
 
-  // Puts the server code live again with the new settings file, at the release it is already on.
-  async function redeployServer(shopId, row, envFile) {
-    const live = await deploy.deployed(shopId, "functions");
-    // Not deployed yet: setup step 8 deploys it with this file.
-    if (!live) return false;
-    if (!usable(live.version)) throw new Error(`its server code is on "${live.version}", so a person deploys it by hand`);
-    await build(live.version);
-    const region = live.region && !live.region.includes("+") ? live.region : row.region ?? REGION;
-    await deploy.functions(shopId, { version: live.version, region, envFile });
-    return true;
-  }
+  const redeployServer = (shopId, row, envFile) => redeployShopServer({ deploy, build }, shopId, row, envFile);
 
   /** Moves one shop. Resolves to its line in the answer: { shopId, to, changed, ready?, skipped?, error? }. */
   async function moveShop(row, to, { by, reason }) {

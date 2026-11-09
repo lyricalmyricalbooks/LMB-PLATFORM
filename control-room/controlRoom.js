@@ -19,7 +19,9 @@
 //   shopData      optional: a shop's own database, get(shopId, path) / set(shopId, path, data) (clients/shop.js);
 //                 needed to close a shop (closure.js)
 //   envFiles, deploy, build, email, squareAccount   optional: the emergency payments switch (emergencyPayments.js);
-//                 without envFiles, deploy and email it refuses
+//                 without envFiles, deploy and email it refuses. envFiles and deploy also finish a press's switch
+//                 between Stripe and Square (providerSwitch.js); without them it waits, shown on the shop
+//   stripePublishableKeys optional: the platform's Stripe publishable keys, for a shop switching to Stripe
 //   breaches      optional: the breach register (breaches.js createBreachRegister)
 //   people        optional: controlRoomPeople() (people.js): the privacy contact shown with the register
 //   newsletters   optional: the newsletter pause (services/email/reputation.js): resume(shopId, { by, reason })
@@ -43,6 +45,7 @@ import { PLANS, SWITCHES, shopSwitches } from "../setup/steps.js";
 import { profileProblems, profileScript } from "../profile/profile.js";
 import { SETTINGS_DOC, isPaused, pausedSettings, restoredSettings } from "./closure.js";
 import { PAYMENT_ROUTES, emergencyPayments } from "./emergencyPayments.js";
+import { providerSwitch, switchWaiting } from "./providerSwitch.js";
 import { activityEntry } from "./activity.js";
 import { todaySummary } from "./today.js";
 import { MAX_BASIS_POINTS, NO_FEE, feeForShop } from "../services/payments/fees.js";
@@ -152,6 +155,8 @@ export function shopHealth({ row, profile, checks = [], repairs = [], delivery =
   if (!last && row.testShop) watch.push("the test shop has never passed a release check");
   if (row.billing?.access === "paused") watch.push("the plan is paused until a card is added");
   if (row.billing?.access === "closed") watch.push("the plan has ended");
+  const waiting = switchWaiting(row);
+  if (waiting) watch.push(`switching card payments to ${waiting.to === "square" ? "Square" : "Stripe"} since ${String(waiting.since).slice(0, 10)}${waiting.problem ? `: ${waiting.problem.message}` : ""}`);
   if (row.paymentsEmergency) watch.push(`card payments moved to ${row.paymentsEmergency.to === "own" ? "the press's own Stripe keys" : "Square"} by the emergency switch`);
   if (row.closure) watch.push(`closed by the platform on ${String(row.closure.at).slice(0, 10)}: ${row.closure.reason}`);
   // Spending limits (services/health/spending.js): past its budget, a shop's costly jobs slow down or wait.
@@ -200,7 +205,7 @@ export async function eachInTurn(items, limit, work) {
 }
 
 export function createControlRoom({
-  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, settings, supportStore, recoveryStore, signups, platformState, googleSteps, googleReady, taxWatch, feeDefaults = NO_FEE, accessRequests, admins, now = () => new Date(), delivery, presses = null,
+  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, settings, supportStore, recoveryStore, signups, platformState, stripePublishableKeys = {}, googleSteps, googleReady, taxWatch, feeDefaults = NO_FEE, accessRequests, admins, now = () => new Date(), delivery, presses = null,
 }) {
   const at = () => now().toISOString();
 
@@ -217,6 +222,10 @@ export function createControlRoom({
 
   const paymentsSwitch = envFiles && deploy && email
     ? emergencyPayments({ registry, envFiles, profileFiles, deploy, build, publish, shopData, squareAccount, email, log, now })
+    : null;
+
+  const switches = envFiles && deploy
+    ? providerSwitch({ registry, envFiles, profileFiles, deploy, build, publish, log, now, publishableKeys: stripePublishableKeys })
     : null;
 
   const reasonOf = (reason) => {
@@ -305,6 +314,10 @@ export function createControlRoom({
           closed: row.closure ? { by: row.closure.by, reason: row.closure.reason, at: row.closure.at } : null,
           costThisMonth: costOf(row.spending),
           paymentsMoved: row.paymentsEmergency ? { to: row.paymentsEmergency.to, by: row.paymentsEmergency.by, at: row.paymentsEmergency.at } : null,
+          // A press's switch between Stripe and Square (providerSwitch.js) and the accounts it sold through before.
+          paymentsSwitch: switchWaiting(row),
+          cardProvider: row.payments?.provider ?? null,
+          earlierPayments: (row.payments?.earlier ?? []).map((a) => ({ provider: a.provider, until: a.until ?? null })),
           // The daily drift watch (driftWatch.js): its level and reasons, and the owner's snooze while it lasts.
           drift: row.drift?.level ? {
             level: row.drift.level, reasons: row.drift.reasons ?? [], at: row.drift.at ?? null, checkedInAt: row.drift.checkedInAt ?? null,
@@ -666,6 +679,17 @@ export function createControlRoom({
       if (all !== true) await shopOr404(shopId);
       if (!paymentsSwitch) throw new ControlError(503, "The emergency payments switch isn't set up here, so nothing was moved.");
       return paymentsSwitch.move({ by, reason: why, to, shopId, all: all === true });
+    },
+
+    /**
+     * Finishes a press's switch between Stripe and Square (providerSwitch.js): the shop's server and pages move to the
+     * new provider, then the old account keeps only its older orders. Safe to run again.
+     */
+    async finishPaymentSwitch(claims, { shopId } = {}) {
+      const by = adminOf(claims, admins, now().getTime());
+      await shopOr404(shopId);
+      if (!switches) throw new ControlError(503, "Deploys aren't connected here, so the switch waits. It still takes sales on both accounts.");
+      return switches.finish(shopId, { by });
     },
 
     /** The breach register (plan 8.6): every entry, newest first, and who the privacy contact is. */

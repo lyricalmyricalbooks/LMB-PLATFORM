@@ -380,6 +380,37 @@ test("emergency payments: a shop moves to the press's own Stripe keys and back, 
   assert.deepEqual([...w.email.sent.values()].map((m) => m.data.to), ["own", "platform"]);
 });
 
+test("a press's switch from Stripe to Square: shown while it waits, then finished: server, pages and registry moved", async () => {
+  const w = await world();
+  const before = (await w.registry.getShop(ID)).payments;
+  const next = { provider: "square", accountId: "MERCHANT1", mode: before.mode ?? "test", locationId: "LOC1" };
+  await w.registry.updateShop(ID, { payments: { ...before, next, otherAccounts: ["square:MERCHANT1"], switching: { to: "square", accountId: "MERCHANT1", at: "2026-11-09T12:00:00.000Z" } } });
+  const listed = (await w.ask(ADMIN, "GET", "/api/control/shops")).body.shops.find((s) => s.shopId === ID);
+  assert.deepEqual([listed.paymentsSwitch.from, listed.paymentsSwitch.to], [before.provider, "square"]);
+  assert.ok(listed.health.reasons.some((r) => /switching card payments to Square/.test(r)));
+
+  assert.equal((await w.ask(PRESS, "POST", "/api/control/payments/finish-switch", { shopId: ID })).status, 403);
+  const deploysBefore = w.services.calls.length;
+  const done = await w.ask(ADMIN, "POST", "/api/control/payments/finish-switch", { shopId: ID });
+  assert.equal(done.status, 200);
+  assert.deepEqual([done.body.finished, done.body.server], [true, true]);
+  const config = readShopConfig({ ...envOf(await w.services.envFiles.read(ID)), GCLOUD_PROJECT: ID });
+  assert.deepEqual([config.paymentProvider, config.earlierPaymentProvider], ["square", before.provider], "older orders keep their provider");
+  assert.ok(w.services.calls.slice(deploysBefore).some(([name]) => name === "deploy.functions"));
+  assert.deepEqual((await w.registry.getProfile(ID)).payments, { provider: "square", mode: "platform" });
+  const after = (await w.registry.getShop(ID)).payments;
+  assert.deepEqual([after.provider, after.accountId, after.next, after.switching], ["square", "MERCHANT1", undefined, undefined]);
+  assert.deepEqual([after.earlier[0].provider, after.earlier[0].accountId], [before.provider, before.accountId]);
+  assert.deepEqual(after.otherAccounts, [`${before.provider}:${before.accountId}`]);
+  assert.equal(w.events().at(-1).what, "payments-switched");
+  assert.equal((await w.ask(ADMIN, "GET", "/api/control/shops")).body.shops.find((s) => s.shopId === ID).paymentsSwitch, null);
+
+  // Again: nothing waits, nothing is deployed.
+  const calls = w.services.calls.length;
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/payments/finish-switch", { shopId: ID })).body.skipped, "no switch is waiting");
+  assert.equal(w.services.calls.length, calls);
+});
+
 test("emergency payments: every live shop to Square at once; refused when the switch isn't set up", async () => {
   const w = await world();
   w.square.add(ID);
