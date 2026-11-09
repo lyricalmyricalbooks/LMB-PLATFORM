@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { SECRETS, deploy, deployPlan, envYaml, readEnvFile, serviceEnv } from "./deploy.js";
+import { OPTIONAL_SECRETS, SECRETS, deploy, deployPlan, envYaml, readEnvFile, serviceEnv } from "./deploy.js";
 
 const VERSION = "0123456789ab";
 const SETTINGS = 'PLATFORM_ADMIN_EMAILS: "admin@example.com,second@example.com"\nHEALTH_ALERT_TO: alerts@example.com\n# a note\nPLATFORM_URL: \'https://platform.example\'\n';
@@ -55,7 +55,7 @@ test("without --apply it prints the plan and runs nothing", async () => {
   assert.deepEqual(ran, []);
   const text = lines.join("\n");
   assert.match(text, /gcloud run deploy platform-api /);
-  assert.match(text, /gcloud builds submit .*--config=server\/cloudbuild\.yaml --ignore-file=server\/\.gcloudignore/);
+  assert.match(text, /gcloud builds submit .*--config=server\/cloudbuild\.yaml --ignore-file=server\/\.gcloudignore --suppress-logs/);
   assert.match(text, /\(cd site\/out && npx --yes firebase-tools@15\.32\.1 deploy --only hosting --project lmb-platform-prod\)/);
   assert.match(lines.at(-1), /Nothing was changed/);
   await assert.rejects(deploy({ version: VERSION, settingsText: "HEALTH_ALERT_TO: a@example.com\nPLATFORM_URL: https://platform.example", writeEnv, print: () => {} }), /needs PLATFORM_ADMIN_EMAILS/);
@@ -81,4 +81,28 @@ test("with --apply it runs each step in order, skips what is there already, and 
   assert.ok(!ran.some((line) => line.includes("add-iam-policy-binding platform-jobs")), "nothing after the failure ran");
   assert.ok(!ran.some((line) => line.startsWith("npx")));
   assert.match(lines.join("\n"), /permission denied/);
+});
+
+test("the server goes live before Stripe and email are connected: a missing optional key is left out", async () => {
+  assert.deepEqual([...OPTIONAL_SECRETS].sort(), ["resend-api-key", "stripe-billing-webhook-secret", "stripe-connect-webhook-secret-test", "stripe-platform-test-key"]);
+  const ran = [];
+  const run = async (command, args) => {
+    ran.push([command, ...args].join(" "));
+    if (args[0] === "secrets" && args[1] === "describe") return { ok: !OPTIONAL_SECRETS.has(args[2]), output: "" };
+    return { ok: true, output: "" };
+  };
+  const lines = [];
+  const result = await deploy({ version: VERSION, settingsText: SETTINGS, apply: true, run, print: (l) => lines.push(l), writeEnv });
+  assert.equal(result.ok, true);
+  const deployed = ran.filter((line) => line.startsWith("gcloud run deploy "));
+  assert.equal(deployed.length, 2);
+  for (const line of deployed) {
+    assert.match(line, /--set-secrets=TRIAL_TIPS_SECRET=trial-tips-secret:latest,CHECKUP_SECRET=checkup-secret:latest/);
+    assert.doesNotMatch(line, /RESEND|STRIPE/);
+  }
+  assert.match(lines.join("\n"), /Not connected yet \(no secret\): resend-api-key/);
+  // The two link phrases are still checked, so a server never starts without them.
+  assert.ok(ran.includes("gcloud secrets describe trial-tips-secret --project=lmb-platform-prod"));
+  const required = deployPlan({ version: VERSION, envFiles: files }).steps.filter((s) => s.args[0] === "secrets").map((s) => s.args[2]);
+  assert.deepEqual(required, ["trial-tips-secret", "checkup-secret"]);
 });

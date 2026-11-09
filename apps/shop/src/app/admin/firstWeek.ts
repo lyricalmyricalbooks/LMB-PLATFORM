@@ -230,9 +230,24 @@ export function firstWeekSteps(doc: FirstWeekDoc, facts: FirstWeekFacts): FirstW
   });
 }
 
-/** Shown while the shop has the document, the owner hasn't hidden it, and a step it needs is left (optional ones never hold it). */
-export function showFirstWeek(doc: FirstWeekDoc | null, steps: FirstWeekStep[]): boolean {
-  return !!doc && !doc.hiddenAt && steps.some(s => !s.done && !s.optional);
+/**
+ * Steps the guide has gained since it last saved its progress, in order: a press who started before sales tax and store
+ * policies were steps (plan 28) meets them as new. None for a guide that never saved (every step is new to it).
+ */
+export function addedSince(doc: FirstWeekDoc, steps: FirstWeekStep[]): StepId[] {
+  const before = doc.progress?.steps;
+  if (!before?.length) return [];
+  return steps.filter(s => !before.includes(s.id)).map(s => s.id);
+}
+
+/**
+ * Shown while the shop has the document, the owner hasn't hidden it, and a step it needs is left (optional ones never
+ * hold it). A hidden guide comes back for a needed step added since it was hidden (`added`, from `addedSince`).
+ */
+export function showFirstWeek(doc: FirstWeekDoc | null, steps: FirstWeekStep[], added: readonly StepId[] = []): boolean {
+  if (!doc) return false;
+  const needed = steps.filter(s => !s.done && !s.optional);
+  return doc.hiddenAt ? needed.some(s => added.includes(s.id)) : needed.length > 0;
 }
 
 /** The step to do next: the first open step that isn't optional, else the first open one. */
