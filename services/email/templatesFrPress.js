@@ -782,7 +782,7 @@ export const PRESS_TEMPLATES_FR = {
         problemCount ? `Préparez ${problemCount === 1 ? "ce colis" : "ces colis"} vous-même dans Chit Chats, ou ${problemCount === 1 ? "envoyez-le" : "envoyez-les"} autrement.` : null,
       ].filter(Boolean),
       buttons: link ? [["Voir vos commandes", safeLink(link)]] : [],
-      footer: signOff(settings),
+      footer: `${signOff(settings)} Pour ne plus recevoir ces courriels, ouvrez Chit Chats dans Settings › Apps, dans l'administration de votre boutique.`,
     });
   },
 

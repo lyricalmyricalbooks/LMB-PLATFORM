@@ -76,6 +76,17 @@ test("each press hears about its own orders, once a day, in its own words", asyn
   assert.equal(kestrel.subject, "1 order Chit Chats couldn't take");
   assert.match(kestrel.text, /Chit Chats couldn't take order 77: The order has no full shipping address\./);
   assert.ok(!/See your orders/.test(kestrel.text), "no link without the shop's address");
+  assert.match(kestrel.text, /To stop these emails, open Chit Chats in Settings › Apps\./);
+});
+
+test("a press that turned the email off isn't emailed, but the owner's note still names it", async () => {
+  const email = fakePlatformEmail();
+  const s = await stores();
+  await s.connections.put("kestrel", { shopId: "kestrel", emailsOff: true });
+  assert.equal((await chitChatsNote({ stores: s, registry, email, to: "owner@example.com", now: () => NOW })).pressesTold, 1);
+  assert.deepEqual(presses(email).map((m) => m.shopId), ["moth-press"]);
+  assert.deepEqual(owners(email)[0].data.shops.map((x) => x.shopId).sort(), ["kestrel", "moth-press"]);
+  assert.ok(!("emailsOff" in owners(email)[0].data.shops[0]));
 });
 
 test("a press with no owner or a closed shop isn't emailed, and one failed email stops nothing", async () => {

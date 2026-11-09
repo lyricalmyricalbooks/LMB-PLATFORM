@@ -72,6 +72,7 @@ function showConnected(answer) {
   $("#waiting").textContent = answer.waiting === 1 ? "1 order is waiting for postage." : `${answer.waiting} orders are waiting for postage.`;
   $("#last-problem").hidden = !answer.lastProblem;
   $("#last-problem").textContent = answer.lastProblem?.words ?? "";
+  $("#emails").checked = answer.emails !== false;
   show("connected");
 }
 
@@ -119,6 +120,21 @@ $("#view-connect").addEventListener("submit", async (event) => {
     problem.hidden = false;
   } finally {
     button.disabled = false;
+  }
+});
+
+$("#emails").addEventListener("change", async (event) => {
+  const box = event.target;
+  box.disabled = true;
+  try {
+    const { emails } = await api("/chitchats/emails", { shopId, on: box.checked });
+    current = { ...current, emails };
+    status.textContent = emails ? "We'll email you when an order needs you." : "No more emails about waiting orders.";
+  } catch (failure) {
+    box.checked = !box.checked;
+    fail(failure.message);
+  } finally {
+    box.disabled = false;
   }
 });
 

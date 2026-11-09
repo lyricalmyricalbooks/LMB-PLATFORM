@@ -63,7 +63,7 @@ async function world() {
   let chitchats;
   const api = createApi({
     signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}),
-    routes: { ...appMakerRoutes(makers), ...appInstallRoutes(installs), ...chitChatsRoutes({ connect: (...a) => chitchats.connect(...a), status: (...a) => chitchats.status(...a), disconnect: (...a) => chitchats.disconnect(...a) }) },
+    routes: { ...appMakerRoutes(makers), ...appInstallRoutes(installs), ...chitChatsRoutes({ connect: (...a) => chitchats.connect(...a), status: (...a) => chitchats.status(...a), disconnect: (...a) => chitchats.disconnect(...a), setEmails: (...a) => chitchats.setEmails(...a) }) },
     publicRoutes: chitChatsPublicRoutes({ alert: (r) => chitchats.alert(r) }),
   });
   const ask = async (claims, method, path, body, headers = {}) => api({ method, path, body, rawBody: typeof body === "string" ? body : undefined, headers: { ...(claims ? { Authorization: `Bearer ${JSON.stringify(claims)}` } : {}), ...headers } });
@@ -118,6 +118,21 @@ test("the owner connects with the install code; the details are checked and kept
   const again = await w.ask(OWNER, "POST", "/api/chitchats/connect", { ...DETAILS, parcel: { weightGrams: 900, lengthCm: 30 } });
   assert.equal(again.status, 200, JSON.stringify(again.body));
   assert.equal(again.body.parcel.weightGrams, 900);
+});
+
+test("the owner turns the morning email about waiting orders off and on, and changing details keeps the choice", async () => {
+  const w = await world();
+  assert.equal((await w.ask(OWNER, "POST", "/api/chitchats/emails", { shopId: "moth-press", on: false })).status, 409, "connect first");
+  await w.ask(OWNER, "POST", "/api/chitchats/connect", { ...DETAILS, code: await w.codeFor() });
+  assert.equal((await w.ask(OWNER, "POST", "/api/chitchats/status", { shopId: "moth-press" })).body.emails, true, "on by default");
+  assert.equal((await w.ask(STAFF, "POST", "/api/chitchats/emails", { shopId: "moth-press", on: false })).status, 403, "only the owner");
+  assert.equal((await w.ask(OWNER, "POST", "/api/chitchats/emails", { shopId: "moth-press", on: "no" })).status, 400);
+  assert.equal((await w.ask(OWNER, "POST", "/api/chitchats/emails", { shopId: "moth-press", on: false })).body.emails, false);
+  assert.equal(w.saved.shops.get("moth-press").emailsOff, true);
+  await w.ask(OWNER, "POST", "/api/chitchats/connect", { ...DETAILS, parcel: { weightGrams: 900 } });
+  assert.equal((await w.ask(OWNER, "POST", "/api/chitchats/status", { shopId: "moth-press" })).body.emails, false, "kept through a change of details");
+  await w.ask(OWNER, "POST", "/api/chitchats/emails", { shopId: "moth-press", on: true });
+  assert.equal("emailsOff" in w.saved.shops.get("moth-press"), false);
 });
 
 test("a paid order becomes one Chit Chats shipment, and its tracking number marks the order sent", async () => {
