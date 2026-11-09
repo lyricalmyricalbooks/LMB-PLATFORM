@@ -87,6 +87,18 @@ export async function seedRoom(world) {
   await world.chitchatsStores.shipments.put("kestrel~walk-order-2", { id: "kestrel~walk-order-2", shopId: "kestrel", orderId: "walk-order-2", orderNumber: "1043", shipmentId: "CC1043", status: "open", createdAt: ago(1) });
   await world.chitchatsStores.shipments.put("kestrel~walk-order-3", { id: "kestrel~walk-order-3", shopId: "kestrel", orderId: "walk-order-3", orderNumber: "1044", status: "problem", problem: "The order has no full shipping address.", createdAt: ago(2) });
 
+  // Ready to sell (28.2/28.3): every live shop has its policies and tax set, except Lantern Zines (no returns or terms
+  // policy) and Paper Wasp (no tax rates, collection on).
+  const policies = { shipping: "We post within two days.", returns: "Returns within 30 days.", privacy: "We keep only what an order needs.", terms: "Prices in Canadian dollars." };
+  for (const shopId of ["kestrel", "moth-press", "fieldnote", "lantern-zines", "paper-wasp"]) {
+    const before = world.doc(shopId, "settings/website") ?? {};
+    await world.shopData.set(shopId, "settings/website", {
+      ...before,
+      taxes: shopId === "paper-wasp" ? { rates: [] } : { rates: [{ country: "CA", region: "ON", rate: 13 }] },
+      policies: shopId === "lantern-zines" ? { ...policies, returns: "", terms: "" } : policies,
+    });
+  }
+
   // Web addresses (#381): Lantern Zines has its free address and its own domain, which stopped opening the shop.
   await world.registry.updateShop("lantern-zines", {
     freeAddress: "lantern-zines.shops.example",
@@ -164,7 +176,7 @@ export async function seedRoom(world) {
   await world.shopData.set("kestrel", "newsletterIssues/n1", { subject: "Autumn books are here", status: "sent", createdAt: daysAgo(20), finishedAt: daysAgo(20), sent: 212, skipped: 4, failed: 0 });
   await world.shopData.set("kestrel", "newsletterIssues/n2", { subject: "Fair weekend", status: "paused", createdAt: daysAgo(2), sent: 80, skipped: 1, failed: 26, lastError: "Too many emails bounced, so sending stopped." });
   // Its website wears Marquee, picked in Choose your look, with Atlas being tried in Studio's draft.
-  await world.shopData.set("kestrel", "settings/website", { design: { themeStyle: "marquee", themeBase: { id: "marquee", name: "Marquee", look: {}, sig: "seed" } }, designPublishedAt: daysAgo(30) });
+  await world.shopData.set("kestrel", "settings/website", { ...(world.doc("kestrel", "settings/website") ?? {}), design: { themeStyle: "marquee", themeBase: { id: "marquee", name: "Marquee", look: {}, sig: "seed" } }, designPublishedAt: daysAgo(30) });
   await world.shopData.set("kestrel", "themes/workspace", { draft: { themeBase: { id: "atlas", name: "Atlas", look: {}, sig: "seed" } }, rev: 4 });
   await world.shopData.set("kestrel", "settings/notifications", { shopAlerts: { dailyOrderDigest: true, lowStock: true } });
   await world.shopData.set("kestrel", "systemStatus/lowStockAlerts", { items: { birdsong: "low", "wren-songs": "low", "old-zine": "out" } });
