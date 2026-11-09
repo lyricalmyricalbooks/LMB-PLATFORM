@@ -244,3 +244,28 @@ test("only Colophon's own apps carry a company logo, and only one from the kit",
   const store = await ask(null, "GET", "/api/apps/store");
   assert.equal(store.body.apps.find((a) => a.appId === made.body.app.appId).brand, "mailchimp");
 });
+
+test("an admin sets or takes off a kit logo from the review card, only on Colophon's own apps", async () => {
+  const { ask } = world();
+  const outside = (await ask(MAKER, "POST", "/api/apps/maker/create", APP)).body.app;
+  const ours = (await ask(ADMIN, "POST", "/api/apps/maker/create", APP)).body.app;
+  await ask(ADMIN, "POST", "/api/apps/maker/submit", { appId: ours.appId });
+  await ask(ADMIN, "POST", "/api/control/apps/approve", { appId: ours.appId });
+
+  const queue = (await ask(ADMIN, "POST", "/api/control/apps", { status: "listed" })).body.apps;
+  assert.equal(queue.find((a) => a.appId === ours.appId).ours, true);
+  assert.equal((await ask(MAKER, "POST", "/api/control/apps/brand", { appId: ours.appId, brand: "zapier" })).status, 403, "admins only");
+  assert.equal((await ask(ADMIN, "POST", "/api/control/apps/brand", { appId: outside.appId, brand: "zapier" })).status, 403, "never on an outside maker's app");
+  for (const brand of ["nosuchco", "BRAND_LOGOS", "toString"]) assert.equal((await ask(ADMIN, "POST", "/api/control/apps/brand", { appId: ours.appId, brand })).status, 400, brand);
+
+  const set = await ask(ADMIN, "POST", "/api/control/apps/brand", { appId: ours.appId, brand: "zapier" });
+  assert.equal(set.status, 200, JSON.stringify(set.body));
+  assert.equal(set.body.app.draftDiffers, false, "the draft and the store copy change together");
+  assert.equal((await ask(null, "GET", "/api/apps/store")).body.apps[0].brand, "zapier", "presses see it at once");
+  await ask(ADMIN, "POST", "/api/control/apps/brand", { appId: ours.appId, brand: "zapier" });
+
+  assert.equal((await ask(ADMIN, "POST", "/api/control/apps/brand", { appId: ours.appId, brand: "" })).status, 200);
+  assert.ok(!("brand" in (await ask(null, "GET", "/api/apps/store")).body.apps[0]));
+  const history = (await ask(ADMIN, "POST", "/api/control/apps", { status: "listed" })).body.apps[0].history.map((h) => h.what);
+  assert.deepEqual(history.slice(-2), ["logo set to Zapier", "logo taken off"], "a second identical pick writes nothing");
+});

@@ -58,6 +58,10 @@ export async function seedRoom(world) {
   const { app: counts } = await world.appMakers.create(maker, appDetails("Stock Counter", "Count your stock with a phone camera", ["write_inventory"]));
   await world.appMakers.submit(maker, { appId: counts.appId });
   await world.appMakers.approve(admin(), { appId: counts.appId });
+  // One of Colophon's own apps, with the company's logo from the kit (picked on its review card).
+  const { app: zaps } = await world.appMakers.create(admin(), { ...appDetails("Zapier link", "Send new orders to your other tools", ["read_orders"]), brand: "zapier" });
+  await world.appMakers.submit(admin(), { appId: zaps.appId });
+  await world.appMakers.approve(admin(), { appId: zaps.appId });
   // Stock Counter is on two shops, and its alerts address has been failing (26.4): what the App store page shows.
   const at = world.clock.date().toISOString();
   for (const shopId of ["kestrel", "driftwood"]) {
