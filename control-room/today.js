@@ -11,6 +11,13 @@ import { switchWaiting } from "./providerSwitch.js";
 const DAY = 86_400_000;
 export const PAYING = new Set(["active", "past_due"]);
 export const PAYMENT_PROBLEM = new Set(["past_due", "unpaid", "incomplete"]);
+/** The lines about one shop the owner can snooze from Today (a drifting press has its own snooze, driftWatch.js). */
+export const SNOOZABLE = Object.freeze(["shop", "payment", "move", "newsletter", "domain", "switch", "parcels"]);
+export const SNOOZE_DAYS = 7;
+export const MAX_SNOOZE_DAYS = 30;
+/** Whether the owner snoozed this kind of line for this shop (`todaySnoozes` on the registry row) and it hasn't ended. */
+export const needSnoozed = (row, kind, nowMs) => Date.parse(row?.todaySnoozes?.[kind]?.until ?? "") > nowMs;
+
 /** A web address that runs out this soon shows on Today. */
 export const DOMAIN_SOON_DAYS = 14;
 
@@ -96,7 +103,16 @@ export function todaySummary({ rows, settings, profiles = {}, checks = {}, open 
   }
   if (stuck.length) needs.push({ kind: "signup", count: stuck.length, words: `${stuck.length} new shop${stuck.length === 1 ? "" : "s"} stuck while being made`, go: "#making" });
 
-  return { counts, monthlyIncome, currency: settings.currency, needs };
+  // Lines the owner snoozed leave the list until the snooze ends, and are listed apart so they can be woken early.
+  const byShop = new Map(rows.map((row) => [row.shopId, row]));
+  const snoozed = [];
+  const shown = needs.filter((need) => {
+    const row = need.shopId ? byShop.get(need.shopId) : null;
+    if (!row || !SNOOZABLE.includes(need.kind) || !needSnoozed(row, need.kind, now.getTime())) return true;
+    snoozed.push({ ...need, until: row.todaySnoozes[need.kind].until });
+    return false;
+  });
+  return { counts, monthlyIncome, currency: settings.currency, needs: shown, snoozed };
 }
 
 /**

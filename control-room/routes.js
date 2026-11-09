@@ -1,6 +1,7 @@
 // The control room's calls on the platform's one web door (signup/api.js `routes`). Platform admins only.
 //
 //   GET  /api/control/today    the numbers, monthly income and what needs a person (plan 9.2)
+//   POST /api/control/today-snooze { shopId, kind, days }   leave one shop's line off Today for a while (0 wakes it)
 //   POST /api/control/shop     { shopId }: one shop's record (9.3)
 //   POST /api/control/fee      { shopId, basisPoints, refunded, reason }: the shop's per-order fee, 30 days' notice (9.6)
 //   POST /api/control/switch-all  { name, on, reason }: one switch for every live shop (9.7)
@@ -31,6 +32,7 @@ export function controlRoutes(room) {
   const body = (request) => (request.body && typeof request.body === "object" ? request.body : {});
   return {
     "GET /api/control/today": (claims) => room.today(claims),
+    "POST /api/control/today-snooze": (claims, request) => room.snoozeNeed(claims, body(request)),
     "POST /api/control/shop": (claims, request) => room.shop(claims, body(request)),
     "POST /api/control/fee": (claims, request) => room.setFee(claims, body(request)),
     "POST /api/control/switch-all": (claims, request) => room.switchAll(claims, body(request)),

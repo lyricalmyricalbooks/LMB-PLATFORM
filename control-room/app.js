@@ -517,7 +517,7 @@ async function loadTaxWatch() {
 }
 
 async function loadToday() {
-  const { counts, monthlyIncome, currency, needs } = await api("GET", "/control/today");
+  const { counts, monthlyIncome, currency, needs, snoozed = [] } = await api("GET", "/control/today");
   const figure = (label, value, foot, tone) => el("div", { className: "rp-card rp-metric" },
     el("div", { className: "rp-metric-label", textContent: label }),
     el("div", { className: "rp-metric-value", textContent: String(value), dataset: tone ? { tone } : {} }),
@@ -539,10 +539,22 @@ async function loadToday() {
         return el("div", { className: "rp-alert", dataset: { tone } }, glyph, text,
           el("span", { className: "rp-alert-actions" }, el("a", { className: "rp-btn rp-btn-sm", href: need.go, textContent: "Open" }), snoozeButton(need.shopId, need.words.split(" may be")[0], 30)));
       }
+      // A line about one shop can be snoozed for a week; it comes back by itself.
+      if (need.shopId && TODAY_SNOOZABLE.has(need.kind)) {
+        return el("div", { className: "rp-alert", dataset: { tone } }, glyph, text,
+          el("span", { className: "rp-alert-actions" }, el("a", { className: "rp-btn rp-btn-sm", href: need.go, textContent: "Open" }), needSnoozeButton(need, 7)));
+      }
       return el("a", { className: "rp-alert", href: need.go, dataset: { tone } }, glyph, text,
         el("span", { className: "rp-alert-actions" }, el("span", { className: "rp-btn rp-btn-sm", textContent: "Open" })));
     }))
     : emptyState("Nothing needs you right now.", "Shops, payments, repairs, support and sign-ups are all in order."));
+  $("#needs").append(...(snoozed.length ? [el("details", {},
+    el("summary", { textContent: `Snoozed (${snoozed.length})`, style: "min-height: 44px; padding: 11px 0; cursor: pointer" }),
+    el("div", { className: "rp-alerts" }, ...snoozed.map((need) => el("div", { className: "rp-alert", dataset: { tone: "neutral" } },
+      el("span", { className: "rp-alert-text" },
+        el("strong", { className: "rp-alert-title", textContent: need.words }),
+        el("span", { className: "rp-alert-detail", textContent: `Back on ${dateOnly(need.until)}` })),
+      el("span", { className: "rp-alert-actions" }, needSnoozeButton(need, 0))))))] : []));
   // The side menu's counts come from the same list.
   const count = (kinds) => needs.filter((n) => kinds.includes(n.kind)).reduce((sum, n) => sum + (n.count ?? 1), 0);
   const shopsNeeding = new Set(needs.filter((n) => n.shopId).map((n) => n.shopId)).size;
@@ -551,6 +563,26 @@ async function loadToday() {
   setBadge("support", count(["support"]));
   setBadge("repairs", count(["repairs"]));
   setBadge("recovery", count(["recovery"]));
+}
+
+// The kinds of line Today lets the owner snooze (today.js SNOOZABLE).
+const TODAY_SNOOZABLE = new Set(["shop", "payment", "move", "newsletter", "domain", "switch", "parcels"]);
+
+/** Snooze one Today line for `days`, or put it back with 0. */
+function needSnoozeButton(need, days) {
+  const b = button(days ? `Snooze ${days} days` : "Put back", "secondary");
+  b.addEventListener("click", async () => {
+    b.disabled = true;
+    try {
+      await api("POST", "/control/today-snooze", { shopId: need.shopId, kind: need.kind, days });
+      status.textContent = days ? `Snoozed for ${days} days: it comes back by itself.` : "Back on Today.";
+      await loadToday();
+    } catch (failure) {
+      status.textContent = failure.message;
+      b.disabled = false;
+    }
+  });
+  return b;
 }
 
 function setBadge(page, n) {
@@ -1385,6 +1417,7 @@ const ACTIVITY_WORDS = {
 
   "note-added": "added a private note", "note-deleted": "deleted a private note", "tags-set": "changed the shop's tags", "job-run": "ran a job by hand",
   "drift-snoozed": "snoozed a drifting press", "drift-woken": "ended a drifting press's snooze",
+  "today-snoozed": "snoozed a line on Today", "today-woken": "put a line back on Today",
 };
 
 async function loadActivity() {

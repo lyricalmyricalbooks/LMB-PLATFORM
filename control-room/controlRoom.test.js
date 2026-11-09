@@ -520,6 +520,31 @@ test("Today reads every shop through the control room, admins only (plan 9.2)", 
   assert.equal((await w.ask(PRESS, "GET", "/api/control/today")).status, 403);
 });
 
+test("a line about one shop can be snoozed off Today for a while and put back, logged", async () => {
+  const w = await world();
+  const ID = "press-two";
+  await w.registry.updateShop(ID, { billing: { plan: "both", status: "past_due", access: "open" } });
+  const kinds = async () => {
+    const { needs, snoozed } = (await w.ask(ADMIN, "GET", "/api/control/today")).body;
+    return [needs.filter((n) => n.shopId === ID).map((n) => n.kind), snoozed.map((n) => n.kind)];
+  };
+  assert.deepEqual((await kinds())[0].includes("payment"), true);
+  assert.equal((await w.ask(PRESS, "POST", "/api/control/today-snooze", { shopId: ID, kind: "payment" })).status, 403);
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/today-snooze", { shopId: ID, kind: "repairs" })).status, 400, "only lines about one shop");
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/today-snooze", { shopId: ID, kind: "payment", days: 31 })).status, 400);
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/today-snooze", { shopId: "nope", kind: "payment" })).status, 404);
+
+  const snooze = await w.ask(ADMIN, "POST", "/api/control/today-snooze", { shopId: ID, kind: "payment" });
+  assert.equal(snooze.status, 200);
+  assert.equal(Date.parse(snooze.body.until) - Date.parse("2026-10-28T12:00:00Z") > 6.9 * 86_400_000, true, "a week by default");
+  const [shown, snoozed] = await kinds();
+  assert.ok(!shown.includes("payment") && snoozed.includes("payment"), "off the list, listed apart");
+
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/today-snooze", { shopId: ID, kind: "payment", days: 0 })).status, 200);
+  assert.ok((await kinds())[0].includes("payment"), "back on Today");
+  assert.deepEqual(w.events(ID).filter((e) => e.what.startsWith("today-")).map((e) => [e.what, e.kind, e.days]), [["today-snoozed", "payment", 7], ["today-woken", "payment", 0]]);
+});
+
 test("one shop's record: owner, billing, setup, fee and its history, admins only (plan 9.3)", async () => {
   const w = await world();
   await w.registry.updateShop(ID, { billing: { plan: "both", status: "trialing", access: "open", trialEnd: "2026-11-11T00:00:00Z", hasCard: false } });
