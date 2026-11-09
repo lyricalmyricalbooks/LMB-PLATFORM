@@ -30,13 +30,14 @@ const ORDER = {
 function chitChats() {
   const shipments = new Map();
   const calls = [];
+  const state = { refuse: false };
   let n = 0;
   const fetch = async (url, init = {}) => {
     const { pathname, searchParams } = new URL(url);
     calls.push({ method: init.method, path: pathname, body: init.body ? JSON.parse(init.body) : null });
     const reply = (status, body) => new Response(body ? JSON.stringify(body) : "", { status, headers: { "content-type": "application/json" } });
     if (!pathname.startsWith("/api/v1/clients/12345/")) return reply(404, { error: { message: "Not found" } });
-    if (init.headers?.Authorization !== "tok-good-123") return reply(401, { error: { message: "Unauthorized" } });
+    if (init.headers?.Authorization !== "tok-good-123" || state.refuse) return reply(401, { error: { message: "Unauthorized" } });
     if (init.method === "GET" && pathname.endsWith("/shipments") && searchParams.get("limit") === "1") return reply(200, []);
     if (init.method === "POST" && pathname.endsWith("/shipments")) {
       const id = `R4Q286T8${(n += 1)}`;
@@ -47,7 +48,7 @@ function chitChats() {
     if (init.method === "GET" && one) return shipments.has(one[1]) ? reply(200, { shipment: shipments.get(one[1]) }) : reply(404, null);
     return reply(400, { error: { message: "Unexpected" } });
   };
-  return { fetch, shipments, calls };
+  return { fetch, shipments, calls, state };
 }
 
 async function world() {
@@ -163,6 +164,21 @@ test("a paid order becomes one Chit Chats shipment, and its tracking number mark
   assert.match(call.headers.authorization, /^Bearer cak_/);
   assert.deepEqual(call.body, { trackingCarrier: "Canada Post", trackingNumber: "7023210039414604", trackingUrl: "https://chitchats.com/tracking/x", shipped: true });
   assert.equal((await w.chitchats.sweep()).checked, 0, "a sent order isn't looked at again");
+});
+
+test("when Chit Chats refuses the details, the shop notes since when, and that date holds while it goes on", async () => {
+  const w = await world();
+  await w.ask(OWNER, "POST", "/api/chitchats/connect", { ...DETAILS, code: await w.codeFor() });
+  w.courier.state.refuse = true;
+  const order = (id) => ({ order: { ...ORDER, id, orderNumber: id } });
+  assert.equal((await w.sendAlert("orders/paid", order("o2"))).body.skipped, "refused");
+  const first = (await w.saved.connections.get("moth-press")).lastProblem;
+  assert.equal(first.since, first.at);
+  await new Promise((r) => setTimeout(r, 5));
+  await w.sendAlert("orders/paid", order("o3"));
+  const again = (await w.saved.connections.get("moth-press")).lastProblem;
+  assert.equal(again.since, first.since, "still the day it started");
+  assert.ok(again.at >= first.at);
 });
 
 test("alerts must be signed with the app's secret; other alerts and orders are left alone", async () => {

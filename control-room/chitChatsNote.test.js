@@ -126,3 +126,21 @@ test("a daily job in the morning that goes to PLATFORM_ADMIN_EMAIL, else the ale
     assert.equal(owners(email)[0].to, to);
   }
 });
+
+test("a shop whose details Chit Chats started refusing in the last day: named once to the owner, and its press told to enter them again", async () => {
+  const s = fakeChitChatsStores();
+  await s.connections.put("moth-press", { shopId: "moth-press", lastProblem: { at: ago(1), since: ago(5), words: "The access token was refused." } });
+  await s.connections.put("kestrel", { shopId: "kestrel", lastProblem: { at: ago(1), since: ago(60), words: "The access token was refused." } }); // told yesterday
+  const email = fakePlatformEmail();
+  const result = await chitChatsNote({ stores: s, registry, email, to: "owner@example.com", now: () => NOW });
+  assert.deepEqual([result.shops, result.pressesTold], [1, 1]);
+  const [owner] = owners(email);
+  assert.deepEqual(owner.data.shops.map((x) => [x.shopId, x.refused]), [["moth-press", "The access token was refused."]]);
+  const ownerParts = TEMPLATES[CHITCHATS_NOTE](owner.data, { settings: platformSettings({}) });
+  assert.match(ownerParts.subject, /1 shop refused/);
+  const [press] = presses(email);
+  assert.equal(press.data.link, "https://moth-press.web.app/admin#settings/apps");
+  const parts = TEMPLATES[PRESS_NOTE](press.data, { settings: platformSettings({}) });
+  assert.equal(parts.subject, "Chit Chats stopped taking your orders");
+  assert.match(parts.text, /Until you enter them again in Settings › Apps › Chit Chats/);
+});

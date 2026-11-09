@@ -9,6 +9,13 @@ import { shopHealth } from "./controlRoom.js";
 import { switchWaiting } from "./providerSwitch.js";
 
 const DAY = 86_400_000;
+/** " today", " since yesterday", " for 4 days": how long something has been wrong, or "" without a date. */
+function sinceWords(iso, now) {
+  const t = Date.parse(iso ?? "");
+  if (!Number.isFinite(t)) return "";
+  const days = Math.floor((now.getTime() - t) / DAY);
+  return days < 1 ? " today" : days === 1 ? " since yesterday" : ` for ${days} days`;
+}
 export const PAYING = new Set(["active", "past_due"]);
 export const PAYMENT_PROBLEM = new Set(["past_due", "unpaid", "incomplete"]);
 /** The lines about one shop the owner can snooze from Today (a drifting press has its own snooze, driftWatch.js). */
@@ -90,7 +97,7 @@ export function todaySummary({ rows, settings, profiles = {}, checks = {}, open 
   // Chit Chats orders (chitChats.js shops): one line per shop whose details Chit Chats refused (nothing reaches it until
   // the press fixes them), with a problem order, or with an order late for tracking.
   for (const p of parcels.filter((x) => x.lastProblem || x.problems || x.late)) {
-    const parts = [p.lastProblem ? `Chit Chats refused the shop's details${p.lastProblem.words ? ` (${String(p.lastProblem.words).replace(/\.$/, "")})` : ""}, so no order reaches it` : null, p.problems ? `${p.problems} ${p.lastProblem ? "" : "Chit Chats "}order${p.problems === 1 ? "" : "s"} with a problem` : null, p.late ? `${p.lateCount ?? 1} order${(p.lateCount ?? 1) === 1 ? "" : "s"} waiting over 3 days for tracking` : null].filter(Boolean);
+    const parts = [p.lastProblem ? `Chit Chats refused the shop's details${p.lastProblem.words ? ` (${String(p.lastProblem.words).replace(/\.$/, "")})` : ""}${sinceWords(p.lastProblem.at, now)}, so no order reaches it` : null, p.problems ? `${p.problems} ${p.lastProblem ? "" : "Chit Chats "}order${p.problems === 1 ? "" : "s"} with a problem` : null, p.late ? `${p.lateCount ?? 1} order${(p.lateCount ?? 1) === 1 ? "" : "s"} waiting over 3 days for tracking` : null].filter(Boolean);
     needs.push({ kind: "parcels", shopId: p.shopId, words: `${p.pressName ?? p.shopId}: ${parts.join(", and ")}`, go: "#apps" });
   }
   const repairCount = Object.values(open).reduce((n, list) => n + list.length, 0);

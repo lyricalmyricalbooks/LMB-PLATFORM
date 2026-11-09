@@ -1,7 +1,7 @@
 // The Chit Chats morning note (control room, follow-up to the Chit Chats page): once a day, an email to the platform
 // owner (PLATFORM_ADMIN_EMAIL, else the alert address HEALTH_ALERT_TO; server/jobs.js) naming the paid orders that
 // passed three days without a tracking number in the last day, and the orders Chit Chats ran into a problem with in the
-// last day. Each order is named once, on the day it goes wrong, so a stuck parcel never nags every morning; the
+// last day, and the shops whose details Chit Chats started refusing in the last day. Each is named once, on the day it goes wrong, so a stuck parcel never nags every morning; the
 // control room's Chit Chats table keeps showing it until it is sorted.
 //
 // Each press hears too, the same morning, about its own orders in that note ("chitchats-waiting", to the shop's owner,
@@ -42,15 +42,19 @@ export async function chitChatsNote({ stores, registry, email, to, now = () => n
     const late = open.filter((s) => typeof s.createdAt === "string" && crossedToday(s.createdAt));
     stillLate += open.filter((s) => typeof s.createdAt === "string" && Date.parse(s.createdAt) <= lateBefore - DAY).length;
     const fresh = problems.filter((s) => today(s.updatedAt ?? s.createdAt));
-    if (!late.length && !fresh.length) return;
+    // Chit Chats refused the shop's details in the last day, for the first time since they last worked.
+    const refusedAt = row.lastProblem?.since ?? row.lastProblem?.at;
+    const refused = row.lastProblem && today(refusedAt) ? String(row.lastProblem.words ?? "").slice(0, 200) || "no reason given" : null;
+    if (!late.length && !fresh.length && !refused) return;
     shops.push({
       shop, emailsOff: row.emailsOff === true,
       shopId: row.shopId, pressName: shop?.pressName ?? row.shopId,
       late: late.map(orderOf).sort().slice(0, SHOWN), lateCount: late.length,
       problems: fresh.slice(0, SHOWN).map((s) => ({ order: orderOf(s), words: String(s.problem ?? "").slice(0, 200) || null })), problemCount: fresh.length,
+      refused,
     });
   });
-  if (!shops.length) return { sent: false, shops: 0, pressesTold: 0, why: "no order went late or ran into a problem in the last day" };
+  if (!shops.length) return { sent: false, shops: 0, pressesTold: 0, why: "no order went late or ran into a problem, and Chit Chats refused no shop's details, in the last day" };
   const day = at.toISOString().slice(0, 10);
   let pressesTold = 0;
   for (const row of shops) {
@@ -62,7 +66,7 @@ export async function chitChatsNote({ stores, registry, email, to, now = () => n
       const profile = registry.getProfile ? await registry.getProfile(row.shopId).catch(() => null) : null;
       await email.sendPlatform({
         kind: PRESS_NOTE, to: shop.ownerEmail, shopId: row.shopId, idempotencyKey: `${PRESS_NOTE}-${row.shopId}-${day}`,
-        data: { pressName: row.pressName, late: row.late, lateCount: row.lateCount, problems: row.problems, problemCount: row.problemCount, days: WAITING_DAYS, link: profile?.siteUrl ? `${profile.siteUrl}/admin#orders` : null },
+        data: { pressName: row.pressName, late: row.late, lateCount: row.lateCount, problems: row.problems, problemCount: row.problemCount, refused: row.refused, days: WAITING_DAYS, link: profile?.siteUrl ? `${profile.siteUrl}/admin#${row.refused && !row.lateCount && !row.problemCount ? "settings/apps" : "orders"}` : null },
       });
       pressesTold += 1;
     } catch (error) {
@@ -71,7 +75,7 @@ export async function chitChatsNote({ stores, registry, email, to, now = () => n
   }
   // A run with nobody to tell fails, so the jobs page and the late-job alert show it.
   if (!to) throw new Error("neither PLATFORM_ADMIN_EMAIL nor HEALTH_ALERT_TO is set, so the Chit Chats note has nobody to go to");
-  shops.sort((a, b) => b.problemCount - a.problemCount || a.pressName.localeCompare(b.pressName));
+  shops.sort((a, b) => Number(Boolean(b.refused)) - Number(Boolean(a.refused)) || b.problemCount - a.problemCount || a.pressName.localeCompare(b.pressName));
   await email.sendPlatform({ kind: CHITCHATS_NOTE, to, idempotencyKey: `${CHITCHATS_NOTE}-${day}`, data: { shops, stillLate, days: WAITING_DAYS } });
   return { sent: true, shops: shops.length, pressesTold };
 }

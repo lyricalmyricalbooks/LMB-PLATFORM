@@ -80,6 +80,9 @@ export function createChitChatsApp({
   returnAddress,
 }) {
   const at = () => now().toISOString();
+  // Chit Chats refused the shop's details: when it last did (`at`), and since when (`since`, kept while it goes on), so
+  // the morning note tells the press once (control-room/chitChatsNote.js).
+  const refusal = (row, error) => ({ at: at(), since: row.lastProblem?.since ?? row.lastProblem?.at ?? at(), words: error.message });
   const ready = () => Boolean(appId && appSecret && sealKey);
   const bound = (shopId) => `chitchats:${shopId}`;
   const open = (row) => unseal(sealKey, bound(row.shopId), row.sealed);
@@ -134,7 +137,7 @@ export function createChitChatsApp({
       // Wrong details or a refused shipment: noted so the press sees it; anything else is tried again by the next alert retry.
       if ([400, 401, 403, 404, 422].includes(error.status)) {
         await shipments.put(id, { id, shopId: row.shopId, orderId: order.id, orderNumber: order.orderNumber ?? order.id, status: "problem", problem: error.message, createdAt: at() });
-        await connections.put(row.shopId, { ...row, lastProblem: { at: at(), words: error.message } });
+        await connections.put(row.shopId, { ...row, lastProblem: refusal(row, error) });
         return { skipped: "refused" };
       }
       throw error;
@@ -257,7 +260,7 @@ export function createChitChatsApp({
             }
           } catch (error) {
             if (error instanceof ChitChatsError && (error.status === 401 || error.status === 403)) {
-              await connections.put(row.shopId, { ...row, lastProblem: { at: at(), words: error.message } });
+              await connections.put(row.shopId, { ...row, lastProblem: refusal(row, error) });
               summary.problems += 1;
               break;
             }

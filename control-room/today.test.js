@@ -83,13 +83,13 @@ test("needs you: a shop whose Chit Chats details were refused, or whose orders h
     { shopId: "kestrel", pressName: "Kestrel Books", problems: 1, late: true, lateCount: 2 },
     { shopId: "moth", pressName: "Moth Press", problems: 0, late: true, lateCount: 1 },
     { shopId: "fine", pressName: "Fine Press", problems: 0, late: false, lateCount: 0 },
-    { shopId: "wren", pressName: "Wren Press", problems: 0, late: false, lateCount: 0, lastProblem: { at: NOW.toISOString(), words: "The access token was refused." } },
+    { shopId: "wren", pressName: "Wren Press", problems: 0, late: false, lateCount: 0, lastProblem: { at: new Date(NOW.getTime() - 4 * 86_400_000).toISOString(), words: "The access token was refused." } },
   ];
   const { needs } = todaySummary({ rows: [], settings, parcels, now: NOW });
   assert.deepEqual(needs.filter((n) => n.kind === "parcels").map((n) => [n.words, n.go]), [
     ["Kestrel Books: 1 Chit Chats order with a problem, and 2 orders waiting over 3 days for tracking", "#apps"],
     ["Moth Press: 1 order waiting over 3 days for tracking", "#apps"],
-    ["Wren Press: Chit Chats refused the shop's details (The access token was refused), so no order reaches it", "#apps"],
+    ["Wren Press: Chit Chats refused the shop's details (The access token was refused) for 4 days, so no order reaches it", "#apps"],
   ]);
 });
 

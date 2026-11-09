@@ -777,24 +777,26 @@ export const TEMPLATES = {
 
   /**
    * The Chit Chats morning note to the platform owner (control-room/chitChatsNote.js). `data`: { shops: [{ shopId,
-   * pressName, late: [order], lateCount, problems: [{ order, words }], problemCount }], stillLate, days }.
+   * pressName, late: [order], lateCount, problems: [{ order, words }], problemCount, refused }], stillLate, days }.
    */
   "chitchats-late": ({ shops, stillLate, days }, { settings }) => {
     if (!Array.isArray(shops) || !shops.length) throw new Error("the Chit Chats note names no shop");
     const orders = (n) => `${n} order${n === 1 ? "" : "s"}`;
     const more = (shown, n) => (n > shown.length ? ` and ${n - shown.length} more` : "");
     const lines = shops.flatMap((s) => [
+      ...(s.refused ? [`${s.pressName} (${s.shopId}): Chit Chats stopped accepting their account details (${s.refused.replace(/\.$/, "")}), so no new order reaches it until they enter them again.`] : []),
       ...(s.lateCount ? [`${s.pressName} (${s.shopId}): ${orders(s.lateCount)} passed ${days} days without a tracking number: ${s.late.join(", ")}${more(s.late, s.lateCount)}.`] : []),
       ...s.problems.map((p) => `${s.pressName} (${s.shopId}): order ${p.order} ran into a problem${p.words ? `: ${p.words}` : "."}`),
       ...(s.problemCount > s.problems.length ? [`${s.pressName}: ${s.problemCount - s.problems.length} more orders ran into a problem.`] : []),
     ]);
     const late = shops.reduce((n, s) => n + s.lateCount, 0);
     const problems = shops.reduce((n, s) => n + s.problemCount, 0);
+    const refused = shops.filter((s) => s.refused).length;
     return layout({
-      subject: `Chit Chats: ${[late ? `${orders(late)} waiting for tracking` : "", problems ? `${orders(problems)} with a problem` : ""].filter(Boolean).join(", ")}`,
+      subject: `Chit Chats: ${[refused ? `${refused} shop${refused === 1 ? "" : "s"} refused` : "", late ? `${orders(late)} waiting for tracking` : "", problems ? `${orders(problems)} with a problem` : ""].filter(Boolean).join(", ")}`,
       greeting: "",
       paragraphs: [
-        "These paid orders went wrong in Chit Chats in the last day. The press may not know yet, and their customers are waiting.",
+        "This went wrong in Chit Chats in the last day. The press has been emailed too, unless they turned those emails off.",
         ...lines,
         ...(stillLate ? [`${orders(stillLate)} from before ${stillLate === 1 ? "is" : "are"} still waiting too.`] : []),
         "Open App store in the control room for the Chit Chats table. Each order is in this note once, on the day it goes wrong.",

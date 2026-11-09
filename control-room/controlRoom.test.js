@@ -409,6 +409,8 @@ test("a press's switch from Stripe to Square: shown while it waits, then finishe
   const calls = w.services.calls.length;
   assert.equal((await w.ask(ADMIN, "POST", "/api/control/payments/finish-switch", { shopId: ID })).body.skipped, "no switch is waiting");
   assert.equal(w.services.calls.length, calls);
+  assert.equal((await w.ask(PRESS, "POST", "/api/control/payments/finish-switches", {})).status, 403);
+  assert.deepEqual((await w.ask(ADMIN, "POST", "/api/control/payments/finish-switches", {})).body.shops, [], "nothing waits");
 });
 
 test("emergency payments: every live shop to Square at once; refused when the switch isn't set up", async () => {

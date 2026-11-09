@@ -768,20 +768,21 @@ export const PRESS_TEMPLATES_FR = {
   },
 
   /** French twin of "chitchats-waiting". The app's own reason is turned French; Chit Chats's come through as they are. */
-  "chitchats-waiting": ({ late = [], lateCount = late.length, problems = [], problemCount = problems.length, days, link }, { settings }) => {
-    if (!lateCount && !problemCount) throw new Error("nothing is waiting");
+  "chitchats-waiting": ({ late = [], lateCount = late.length, problems = [], problemCount = problems.length, refused = null, days, link }, { settings }) => {
+    if (!lateCount && !problemCount && !refused) throw new Error("nothing is waiting");
     const orders = (n) => `${n} commande${n === 1 ? "" : "s"}`;
     const more = (shown, n) => (n > shown ? ` et ${n - shown} autre${n - shown === 1 ? "" : "s"}` : "");
     return layout({
-      subject: [lateCount ? `${orders(lateCount)} toujours en attente d'envoi` : null, problemCount ? `${orders(problemCount)} refusée${problemCount === 1 ? "" : "s"} par Chit Chats` : null].filter(Boolean).join(", "),
+      subject: [refused ? "Chit Chats ne reçoit plus vos commandes" : null, lateCount ? `${orders(lateCount)} toujours en attente d'envoi` : null, problemCount ? `${orders(problemCount)} refusée${problemCount === 1 ? "" : "s"} par Chit Chats` : null].filter(Boolean).join(", "),
       greeting: "Bonjour,",
       paragraphs: [
+        refused ? `Chit Chats n'accepte plus les informations de votre compte (${(CHITCHATS_WORDS_FR[refused] ?? refused).replace(/\.$/, "")}). Tant que vous ne les entrez pas de nouveau dans Settings › Apps › Chit Chats, les nouvelles commandes payées n'arrivent pas dans Chit Chats.` : null,
         lateCount ? `${lateCount === 1 ? "Une commande payée attend" : `${lateCount} commandes payées attendent`} depuis ${days} jours sans numéro de suivi : ${late.join(", ")}${more(late.length, lateCount)}. ${lateCount === 1 ? "Elle est" : "Elles sont"} dans votre compte Chit Chats, prête${lateCount === 1 ? "" : "s"} pour une étiquette. Dès qu'un colis part, sa commande est marquée envoyée et le client reçoit le suivi.` : null,
         ...problems.map((p) => `Chit Chats n'a pas pu prendre la commande ${p.order}${p.words ? ` : ${CHITCHATS_WORDS_FR[p.words] ?? p.words}` : "."}`),
         problemCount > problems.length ? `Chit Chats en a aussi refusé ${problemCount - problems.length} autre${problemCount - problems.length === 1 ? "" : "s"}.` : null,
         problemCount ? `Préparez ${problemCount === 1 ? "ce colis" : "ces colis"} vous-même dans Chit Chats, ou ${problemCount === 1 ? "envoyez-le" : "envoyez-les"} autrement.` : null,
       ].filter(Boolean),
-      buttons: link ? [["Voir vos commandes", safeLink(link)]] : [],
+      buttons: link ? [[refused && !lateCount && !problemCount ? "Ouvrir Settings › Apps" : "Voir vos commandes", safeLink(link)]] : [],
       footer: `${signOff(settings)} Pour ne plus recevoir ces courriels, ouvrez Chit Chats dans Settings › Apps, dans l'administration de votre boutique.`,
     });
   },
