@@ -1,7 +1,7 @@
 // Today (code plan 9.2): counts by billing state, monthly income with the founding discount, and the needs-you list.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { monthlyCents, todaySummary } from "./today.js";
+import { monthlyCents, needSnoozed, todaySummary } from "./today.js";
 import { platformSettings } from "../services/settings.js";
 
 const NOW = new Date("2026-10-28T12:00:00Z");
@@ -99,4 +99,16 @@ test("needs you: a press waiting for its switch between Stripe and Square to be 
   assert.deepEqual(needs.filter((n) => n.kind === "switch").map((n) => [n.words, n.go]), [
     ["Wren Press pressed Switch to move card payments to Square 2 days ago and it isn't finished (Deploys aren't connected on this server yet): finish it from their record", "#shops"],
   ]);
+});
+
+test("a snoozed line leaves the list until its snooze ends, and only that kind for that shop", () => {
+  const until = "2026-11-01T00:00:00Z";
+  const row = shop("late-card", { status: "past_due", access: "open", plan: "shop" }, { domains: [{ name: "late.example", brokeAt: "2026-10-27" }], todaySnoozes: { payment: { until, by: "a" } } });
+  const now = todaySummary({ rows: [row], settings, now: NOW });
+  assert.deepEqual(now.needs.map((n) => n.kind).filter((k) => k !== "shop"), ["domain"]);
+  assert.deepEqual(now.snoozed.map((n) => [n.kind, n.until]), [["payment", until]]);
+  const later = todaySummary({ rows: [row], settings, now: new Date("2026-11-02T00:00:00Z") });
+  assert.deepEqual(later.needs.map((n) => n.kind).filter((k) => k !== "shop").sort(), ["domain", "payment"]);
+  assert.equal(later.snoozed.length, 0);
+  assert.equal(needSnoozed(row, "payment", Date.parse("2026-11-01T00:00:00Z")), false, "ends on the dot");
 });

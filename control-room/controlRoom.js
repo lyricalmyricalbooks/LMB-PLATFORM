@@ -47,7 +47,7 @@ import { SETTINGS_DOC, isPaused, pausedSettings, restoredSettings } from "./clos
 import { PAYMENT_ROUTES, emergencyPayments } from "./emergencyPayments.js";
 import { providerSwitch, switchWaiting } from "./providerSwitch.js";
 import { activityEntry } from "./activity.js";
-import { todaySummary } from "./today.js";
+import { MAX_SNOOZE_DAYS, SNOOZABLE, SNOOZE_DAYS, todaySummary } from "./today.js";
 import { MAX_BASIS_POINTS, NO_FEE, feeForShop } from "../services/payments/fees.js";
 import { dateText } from "../services/billing/billing.js";
 import { shopMailLanguage } from "../services/email/templatesFr.js";
@@ -589,6 +589,24 @@ export function createControlRoom({
         parcels: parcels ? await parcels().catch(() => []) : [],
         opening: presses?.list ? setupSummary({ records: await presses.list(), rows, now: now().getTime() }).presses.filter((p) => p.flag === "stuck") : [],
       });
+    },
+
+    /**
+     * Leave one shop's line of a kind off Today for `days` (7 by default, 0 wakes it now). It comes back by itself when
+     * the snooze ends; logged like every other control-room action.
+     */
+    async snoozeNeed(claims, { shopId, kind, days = SNOOZE_DAYS } = {}) {
+      const by = adminOf(claims, admins, now().getTime());
+      if (!SNOOZABLE.includes(kind)) throw new ControlError(400, "That line can't be snoozed.");
+      const length = Number(days);
+      if (!Number.isInteger(length) || length < 0 || length > MAX_SNOOZE_DAYS) throw new ControlError(400, `Snooze for 0 to ${MAX_SNOOZE_DAYS} whole days.`);
+      const row = typeof shopId === "string" && shopId ? await registry.getShop(shopId) : null;
+      if (!row) throw new ControlError(404, "There's no shop with that id.");
+      const { [kind]: _old, ...others } = row.todaySnoozes ?? {};
+      const until = length ? new Date(now().getTime() + length * 86_400_000).toISOString() : null;
+      await registry.updateShop(shopId, { todaySnoozes: { ...others, ...(until ? { [kind]: { until, by } } : {}) } });
+      await log(shopId, length ? "today-snoozed" : "today-woken", { by, kind, days: length, until });
+      return { shopId, kind, until };
     },
 
     /** The repair queue: open items (or fixed ones), newest first. */
