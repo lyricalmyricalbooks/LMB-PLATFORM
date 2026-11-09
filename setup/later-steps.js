@@ -43,6 +43,7 @@ import { upkeepStep } from "./upkeep.js";
 import { spendGuardsStep } from "./spend.js";
 import { twoStepSignInStep } from "./twoStep.js";
 import { botCheckStep } from "./botCheck.js";
+import { handoverStep } from "./handover.js";
 import { domainOrigins, siteUrlOf } from "../services/domains/names.js";
 
 export const OWNER_WELCOME = "owner-welcome";
@@ -144,7 +145,7 @@ export const linkActive = (state) => Boolean(state) && (
 export const needsTestCatalogue = (shop) => shop.testShop === true && needsStockroomLink(shop);
 
 /** Steps 7–16. */
-export function laterSteps({ deploy, envFiles, google, shopData, providers, email, siteCheck, inventoryLink, stockroom, registry, profileFiles, config, now = () => new Date() }) {
+export function laterSteps({ deploy, envFiles, google, shopData, providers, email, siteCheck, inventoryLink, stockroom, registry, profileFiles, presses = null, stagedFiles = null, config, now = () => new Date() }) {
   // A short fingerprint of the profile file the pages are built with (step 6 writes it).
   const profileStamp = async (shopId) => createHash("sha256").update((await profileFiles.read(shopId)) ?? "").digest("hex").slice(0, 16);
   // Deploys each app's pages that are missing or were built from an older profile, and notes the profile they now carry.
@@ -408,6 +409,8 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
     twoStepSignInStep({ number: 19, google }),
     // Plan 15.18: a longer bot check token lifetime, to stay inside the free assessments (setup/botCheck.js).
     botCheckStep({ number: 20, google, config }),
+    // Plan 18.9: the look and the product file a press chose in setup mode, for the shop's admin to apply (setup/handover.js).
+    handoverStep({ number: 21, presses, stagedFiles, shopData, now }),
   ];
 }
 
@@ -429,7 +432,7 @@ function shopOnly(step) {
   };
 }
 
-/** All twenty steps, in order. One `config` holds the platform settings both halves read (see each for its keys). */
+/** All twenty-one steps, in order. One `config` holds the platform settings both halves read (see each for its keys). */
 export function shopSteps({ config, ...clients }) {
   return [...firstSteps({ ...clients, config }), ...laterSteps({ ...clients, config })];
 }

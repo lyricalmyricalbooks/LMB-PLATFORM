@@ -20,6 +20,8 @@ import { GoogleStage } from "./GoogleStage";
 import { FinalCheckStage } from "./FinalCheckStage";
 import { ShopOpenedCard, publicAddress } from "./ShopOpenedCard";
 import { MoveProgressCard } from "./MoveProgressCard";
+import { chosenLook, keptFile, type SetupHandover } from "../setupHandover";
+import { KeptFileCard } from "./KeptFileCard";
 
 // The welcome pulls in Studio's theme library and switcher, so it loads only for a shop that will show it.
 const ChooseLookWelcome = lazy(() => import("./ChooseLookWelcome").then(m => ({ default: m.ChooseLookWelcome })));
@@ -40,6 +42,8 @@ export function SetupStart({ books, orders, readiness, settings, onOpen, onSetWa
   onRetrySettings?: () => void;
 }) {
   const [doc, setDoc] = useState<FirstWeekDoc | null>(null);
+  // What the press set up before its shop existed (code plan 18.9); null for a shop made without setup.
+  const [handover, setHandover] = useState<SetupHandover | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   // Set once Open your shop took the wall down here, so the step ticks before the Overview reads the settings again.
   const [opened, setOpened] = useState(false);
@@ -50,8 +54,9 @@ export function SetupStart({ books, orders, readiness, settings, onOpen, onSetWa
   const load = useCallback(() => {
     let live = true;
     setState("loading");
-    Promise.resolve().then(() => adminApi.getFirstWeek())
-      .then(d => { if (live) { setDoc(d); setState("ready"); } })
+    // The hand-over only adds to the steps: when it can't be read, they work as they do for any shop.
+    Promise.resolve().then(() => Promise.all([adminApi.getFirstWeek(), Promise.resolve().then(() => adminApi.getSetupHandover()).catch(() => null)]))
+      .then(([d, h]) => { if (live) { setDoc(d); setHandover(h); setState("ready"); } })
       .catch(() => { if (live) setState("error"); });
     return () => { live = false; };
   }, []);
@@ -75,85 +80,103 @@ export function SetupStart({ books, orders, readiness, settings, onOpen, onSetWa
   }
   if (!doc) return null;
 
-  // Get started's steps in order (startRun.ts): your press, bring your shop, the look, Google, Get paid, shipping, the final check.
-  const step = nextRunStep(doc, settings, platform);
-  if (step === "details") {
-    const detailsDone = async (at: string) => {
-      await adminApi.updateFirstWeek({ details: { at } });
-      setDoc({ ...doc, details: { at } });
-    };
-    return <PressDetailsStage settings={settings} onDone={detailsDone} onRetrySettings={onRetrySettings} />;
-  }
-  if (step === "bring") {
-    // Step 2 (plan 17.3): where the press sells now, and its products brought over (or started fresh).
-    const bringDone = async (bring: BringMarker) => {
-      await adminApi.updateFirstWeek({ bring });
-      setDoc({ ...doc, bring });
-    };
-    return <BringShopStage books={books} onDone={bringDone} />;
-  }
-  if (step === "look") {
-    const done = async (welcome: WelcomeDone) => {
-      await adminApi.updateFirstWeek({ welcome });
-      setDoc({ ...doc, welcome });
-    };
-    return (
-      <Suspense fallback={<SectionCard title="Choose your look"><LoadingState label="Opening the looks…" /></SectionCard>}>
-        <ChooseLookWelcome publishes={doc.publishes} books={ownBooks(books)} settings={settings} onDone={done} onRetrySettings={onRetrySettings} />
-      </Suspense>
-    );
-  }
-  // The steps after this read the shop's settings, so they wait for them rather than show an empty address or a wrong open state.
-  if (step && settings === undefined) return <SectionCard title="Get started" collapsible={false}><LoadingState label="Opening your shop…" /></SectionCard>;
-  if (step === "google") {
-    // Step 4 (plan 17.9): Google in one sign-in; coming soon until Google approves it, and never a blocker.
-    const googleDone = async (google: GoogleMarker) => {
-      await adminApi.updateFirstWeek({ google });
-      setDoc({ ...doc, google });
-    };
-    return <GoogleStage onDone={googleDone} />;
-  }
-  if (step === "payments" && platform) {
-    // Step 5 (plan 17.10): Get paid, through the press's own card account the platform connects.
-    const paymentsDone = async (payments: PaymentsMarker) => {
-      await adminApi.updateFirstWeek({ payments });
-      setDoc({ ...doc, payments });
-    };
-    return <PaymentsStage provider={platform} onDone={paymentsDone} />;
-  }
-  if (step === "shipping") {
-    // Step 6 (plan 17.11): shipping and the address.
-    const shippingDone = async (shipping: ShippingMarker) => {
-      await adminApi.updateFirstWeek({ shipping });
-      setDoc({ ...doc, shipping });
-    };
-    return <ShippingStage settings={settings} onDone={shippingDone} onOpen={onOpen} />;
-  }
-  // Step 8 (plan 17.13): the final check and open. "Finish later" shows the setup guide for now, without recording anything.
-  if (step === "final" && !finalLater) {
-    const finalDone = async (finalCheck: FinalCheckMarker) => {
-      await adminApi.updateFirstWeek({ finalCheck });
-      setDoc({ ...doc, finalCheck });
-    };
-    const openNow = async () => {
-      if (!onSetWall) return false;
-      const ok = await onSetWall(false);
-      if (ok) { setOpened(true); setCelebrate(true); }
-      return ok;
-    };
-    return <FinalCheckStage readiness={readiness} onOpen={onOpen} onOpenShop={openNow} onDone={finalDone} onFinishLater={() => setFinalLater(true)} />;
-  }
+  // The file kept in setup, for a press that got past the bring step before it reached the shop (code plan 18.9).
+  const lateFile = keptFile(handover);
+  const showLateFile = !!lateFile && !!doc.bring && !doc.done?.setupFile && !!books;
+  const lateFileDone = async () => {
+    const at = new Date().toISOString();
+    await adminApi.updateFirstWeek({ done: { setupFile: at } });
+    setDoc({ ...doc, done: { ...doc.done, setupFile: at } });
+  };
+  const stage = () => {
+    // Get started's steps in order (startRun.ts): your press, bring your shop, the look, Google, Get paid, shipping, the final check.
+    const step = nextRunStep(doc, settings, platform);
+    if (step === "details") {
+      const detailsDone = async (at: string) => {
+        await adminApi.updateFirstWeek({ details: { at } });
+        setDoc({ ...doc, details: { at } });
+      };
+      return <PressDetailsStage settings={settings} onDone={detailsDone} onRetrySettings={onRetrySettings} />;
+    }
+    if (step === "bring") {
+      // Step 2 (plan 17.3): where the press sells now, and its products brought over (or started fresh).
+      // A press offered its file from setup has made its choice here, so the later card never shows.
+      const bringDone = async (bring: BringMarker) => {
+        const offered = lateFile ? { done: { setupFile: bring.at } } : {};
+        await adminApi.updateFirstWeek({ bring, ...offered });
+        setDoc({ ...doc, bring, ...(lateFile ? { done: { ...doc.done, setupFile: bring.at } } : {}) });
+      };
+      return <BringShopStage books={books} onDone={bringDone} kept={keptFile(handover)} />;
+    }
+    if (step === "look") {
+      const done = async (welcome: WelcomeDone) => {
+        await adminApi.updateFirstWeek({ welcome });
+        setDoc({ ...doc, welcome });
+      };
+      return (
+        <Suspense fallback={<SectionCard title="Choose your look"><LoadingState label="Opening the looks…" /></SectionCard>}>
+          <ChooseLookWelcome publishes={doc.publishes} books={ownBooks(books)} settings={settings} onDone={done} onRetrySettings={onRetrySettings} chosen={chosenLook(handover)} />
+        </Suspense>
+      );
+    }
+    // The steps after this read the shop's settings, so they wait for them rather than show an empty address or a wrong open state.
+    if (step && settings === undefined) return <SectionCard title="Get started" collapsible={false}><LoadingState label="Opening your shop…" /></SectionCard>;
+    if (step === "google") {
+      // Step 4 (plan 17.9): Google in one sign-in; coming soon until Google approves it, and never a blocker.
+      const googleDone = async (google: GoogleMarker) => {
+        await adminApi.updateFirstWeek({ google });
+        setDoc({ ...doc, google });
+      };
+      return <GoogleStage onDone={googleDone} />;
+    }
+    if (step === "payments" && platform) {
+      // Step 5 (plan 17.10): Get paid, through the press's own card account the platform connects.
+      const paymentsDone = async (payments: PaymentsMarker) => {
+        await adminApi.updateFirstWeek({ payments });
+        setDoc({ ...doc, payments });
+      };
+      return <PaymentsStage provider={platform} onDone={paymentsDone} />;
+    }
+    if (step === "shipping") {
+      // Step 6 (plan 17.11): shipping and the address.
+      const shippingDone = async (shipping: ShippingMarker) => {
+        await adminApi.updateFirstWeek({ shipping });
+        setDoc({ ...doc, shipping });
+      };
+      return <ShippingStage settings={settings} onDone={shippingDone} onOpen={onOpen} />;
+    }
+    // Step 8 (plan 17.13): the final check and open. "Finish later" shows the setup guide for now, without recording anything.
+    if (step === "final" && !finalLater) {
+      const finalDone = async (finalCheck: FinalCheckMarker) => {
+        await adminApi.updateFirstWeek({ finalCheck });
+        setDoc({ ...doc, finalCheck });
+      };
+      const openNow = async () => {
+        if (!onSetWall) return false;
+        const ok = await onSetWall(false);
+        if (ok) { setOpened(true); setCelebrate(true); }
+        return ok;
+      };
+      return <FinalCheckStage readiness={readiness} onOpen={onOpen} onOpenShop={openNow} onDone={finalDone} onFinishLater={() => setFinalLater(true)} />;
+    }
 
-  const setWall = onSetWall && (async (on: boolean) => {
-    const ok = await onSetWall(on);
-    if (ok && !on) { setOpened(true); setCelebrate(true); }
-    return ok;
-  });
+    const setWall = onSetWall && (async (on: boolean) => {
+      const ok = await onSetWall(on);
+      if (ok && !on) { setOpened(true); setCelebrate(true); }
+      return ok;
+    });
+    return (
+      <>
+        {celebrate && <ShopOpenedCard address={publicAddress(settings)} onClose={() => setCelebrate(false)} />}
+        <SetupGuideCard doc={doc} setDoc={setDoc} facts={facts} onOpen={onOpen} onSetWall={setWall} />
+        <MoveProgressCard doc={doc} setDoc={setDoc} onOpen={onOpen} />
+      </>
+    );
+  };
   return (
     <>
-      {celebrate && <ShopOpenedCard address={publicAddress(settings)} onClose={() => setCelebrate(false)} />}
-      <SetupGuideCard doc={doc} setDoc={setDoc} facts={facts} onOpen={onOpen} onSetWall={setWall} />
-      <MoveProgressCard doc={doc} setDoc={setDoc} onOpen={onOpen} />
+      {showLateFile && <KeptFileCard books={books!} kept={lateFile!} onDone={lateFileDone} />}
+      {stage()}
     </>
   );
 }

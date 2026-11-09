@@ -12,17 +12,20 @@
 //   is the folder the release was built in (services/release-runner).
 // - `paymentService` and `emailService` are the platform's own services (services/payments, services/email): they
 //   already answer `findAccount`/`createAccount` and `wasSent`/`send`, the shapes steps 13 and 14 call.
+// - `stagedFiles` is the store of product files kept in setup (signup/frontDoor.js). Without it, step 20 stops for a
+//   person on any shop whose press kept a file, so the file is never left behind by a step marked done.
 // - `serviceAccount` signs the test owner in for the test shop's link steps (12 and 16); no other shop needs it.
 import { deployClient } from "../clients/deploy.js";
 import { firestoreClient } from "../clients/firestore.js";
 import { googleClients } from "../clients/google.js";
 import { identityClient, testOwnerSession } from "../clients/identity.js";
 import { firestoreAuditLog, firestoreRegistry } from "../clients/registry.js";
+import { firestoreFrontDoorStores } from "../clients/platformStores.js";
 import { STOCKROOM_DATABASE, inventoryLinkClient, registryFiles, shopDataClient, siteCheckClient, stockroomClient } from "../clients/shop.js";
 
 export const PLATFORM_PROJECT = "lmb-platform-prod";
 
-export function realSetupClients({ fetch, token, run, buildDir, registryFirestore, paymentService, emailService, serviceAccount, sleep, stockroomDatabase = STOCKROOM_DATABASE }) {
+export function realSetupClients({ fetch, token, run, buildDir, registryFirestore, paymentService, emailService, serviceAccount, sleep, stockroomDatabase = STOCKROOM_DATABASE, stagedFiles = null }) {
   const platform = registryFirestore ?? firestoreClient({ fetch, token, projectId: PLATFORM_PROJECT });
   const registry = firestoreRegistry(platform);
   const shopDb = (projectId) => firestoreClient({ fetch, token, projectId });
@@ -58,5 +61,8 @@ export function realSetupClients({ fetch, token, run, buildDir, registryFirestor
     siteCheck: siteCheckClient({ fetch }),
     providers: paymentService ? { stripe: paymentService } : {},
     email: emailService,
+    // Step 20 (setup/handover.js): the press's setup record, and the kept product files once their store is connected.
+    presses: firestoreFrontDoorStores(platform).presses,
+    stagedFiles,
   };
 }

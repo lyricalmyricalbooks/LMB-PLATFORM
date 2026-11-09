@@ -33,6 +33,8 @@ describe("admin-only customer data rules", () => {
     expect(b).toMatch(/request\.resource\.data\.get\("sellingToday", null\) == resource\.data\.get\("sellingToday", null\)/);
     expect(b).not.toMatch(/if true/);
     expect(b).not.toMatch(/delete/);
+    // The file kept in setup (code plan 18.9): the platform writes its pieces, the admin only reads them.
+    expect(b).toMatch(/match \/parts\/\{part\} \{\s*allow read: if isAdminReader\(\);\s*allow write: if false;/);
   });
   it("marketing opt-outs are readable by the admin and never writable from a browser", () => {
     const b = block("marketing-optout");

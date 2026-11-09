@@ -111,4 +111,36 @@ describe("the admin's card account card", () => {
     expect(res.statusCode).toBe(502);
     expect(res.body).toEqual({ error: "The platform's Square connection isn't set up yet.", code: "square_not_ready" });
   });
+
+  test("switching: a Stripe shop connects Square as its next account, reads it, and presses Switch", async () => {
+    const { run, service } = make({
+      provider: "stripe",
+      answers: {
+        "account.status": (body, reply) => reply(200, body.args?.which === "next" ? { provider: "square", connected: true, chargesEnabled: true, switching: null } : { detailsSubmitted: true }),
+        "account.switch": (_body, reply) => reply(200, { switching: { to: "square", accountId: "MLR1", at: "2026-11-09T12:00:00.000Z" } }),
+      },
+    });
+    const link = await run({ step: "connectNext", origin: ORIGIN });
+    expect(link.body).toMatchObject({ provider: "square", url: "https://connect.squareupsandbox.com/oauth2/authorize?state=abc" });
+    expect(service.calls[0]).toMatchObject({ op: "account.connectLink", args: { returnUrl: `${ORIGIN}/admin#settings/payments/methods` } });
+    expect((await run({ step: "nextStatus" }, { admin: false, bookkeeper: true })).body).toMatchObject({ provider: "square", connected: true });
+    expect(service.calls[1]).toMatchObject({ op: "account.status", args: { which: "next" } });
+    expect((await run({ step: "switch" }, { admin: false, bookkeeper: true })).statusCode).toBe(403);
+    expect((await run({ step: "switch" })).body).toEqual({ switching: { to: "square", accountId: "MLR1", at: "2026-11-09T12:00:00.000Z" } });
+    expect(service.calls.map((c) => c.op)).toEqual(["account.connectLink", "account.status", "account.switch"]);
+  });
+
+  test("switching: a Square shop's next account is Stripe's onboarding", async () => {
+    const { run, service } = make();
+    const res = await run({ step: "connectNext", origin: ORIGIN });
+    expect(res.body).toMatchObject({ provider: "stripe", url: "https://connect.stripe.example/setup/abc" });
+    expect(service.calls[0]).toMatchObject({ op: "account.onboardingLink", args: { returnUrl: `${ORIGIN}/admin?stripe=return#settings/payments/methods` } });
+  });
+
+  test("the platform's refusal to switch keeps its code", async () => {
+    const { run } = make({ answers: { "account.switch": (_body, reply) => reply(409, { error: { code: "next_not_ready", message: "The account to switch to can't take payments yet." } }) } });
+    const res = await run({ step: "switch" });
+    expect(res.statusCode).toBe(409);
+    expect(res.body.code).toBe("next_not_ready");
+  });
 });

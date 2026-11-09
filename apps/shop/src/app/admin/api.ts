@@ -23,7 +23,7 @@ import { toCountryCodes } from "./shippingCountries";
 import { keepPhotoCopies, removedPhotos, shownUrls, unusedBookFiles } from "./bookFileCleanup";
 import { mediaApi } from "./mediaApi";
 import { auditLog } from "./auditLog";
-import type { PlatformPaymentsAnswer } from "./platformPayments";
+import type { SwitchAnswer } from "./platformPayments";
 import type { DomainCheck, DomainList, DomainStep } from "./customDomains";
 import type { BookkeepingOptions, BookkeepingSave, BookkeepingStatus } from "./quickbooksLink";
 import type { SocialPost, SocialStatus } from "./socialChannels";
@@ -88,6 +88,7 @@ import { returnSettingsProblem, type ReturnSettings } from "../../shared/returnR
 import type { LocalFulfillmentConfig } from "../features/site/types";
 import { dailyTrafficBetween } from "./dailyTrafficCache";
 import { exampleProducts } from "./exampleProducts";
+import { joinParts } from "./setupHandover";
 
 /** books/{id}/private/admin: cost prices, shelf codes and other fields shoppers must not read (bookPrivate.ts). */
 const privateBookRef = (bookId: string) => doc(db, "books", bookId, "private", "admin");
@@ -1311,7 +1312,8 @@ export const adminApi = {
 
   // The press's card account on the platform (plan 2.2b / 2.10): "status" (connected? the platform's fee) or "connect"
   // (the address of Square's sign-in or Stripe's onboarding, coming back to Settings › Payments). Platform shops only.
-  platformPayments: async (step: "status" | "connect") => {
+  // Switching to the other provider (code plan 27.6c): "nextStatus", "connectNext" and "switch".
+  platformPayments: async (step: "status" | "connect" | "nextStatus" | "connectNext" | "switch") => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin.");
     const response = await functionFetch("createStripeCheckoutSession", {
@@ -1321,7 +1323,7 @@ export const adminApi = {
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || "Couldn't reach your card account.");
-    return result as PlatformPaymentsAnswer;
+    return result as SwitchAnswer;
   },
 
   // The press's own web address (plan 2.9), through the platform's domain service. A shop without that service answers
@@ -2081,6 +2083,19 @@ export const adminApi = {
   getFirstWeek: async () => {
     const snap = await getDoc(doc(db, "firstWeek", "start"));
     return snap.exists() ? (snap.data() as import("./firstWeek").FirstWeekDoc) : null;
+  },
+  /**
+   * What the press set up before its shop existed (code plan 18.9): `firstWeek/handover`, written once by the platform's
+   * setup step 20 (setup/handover.js) with the look it chose and the product file it kept. Null when there is none.
+   */
+  getSetupHandover: async () => {
+    const snap = await getDoc(doc(db, "firstWeek", "handover"));
+    return snap.exists() ? (snap.data() as import("./setupHandover").SetupHandover) : null;
+  },
+  /** The kept product file's text, put back together from its `parts` pieces. Throws when a piece is missing. */
+  getSetupHandoverFile: async (parts: number) => {
+    const snaps = await Promise.all(Array.from({ length: parts }, (_, n) => getDoc(doc(db, "firstWeek", "handover", "parts", String(n)))));
+    return joinParts(snaps.map(s => (s.exists() ? (s.data() as { text?: unknown }).text : undefined)));
   },
   /**
    * Ticks a step by hand (`done.<id>`), hides the guide (`hiddenAt`), records Choose your look (`welcome`, plan 6.3) or

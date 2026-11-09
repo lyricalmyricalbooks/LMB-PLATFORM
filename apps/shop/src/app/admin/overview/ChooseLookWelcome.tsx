@@ -1,4 +1,4 @@
-import { useMemo, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { ADMIN_LOOKS, applyAdminLook, readAdminLook, type AdminLookId } from "../riso/adminLook";
 import { ChevronLeft, ChevronRight, Monitor, Smartphone } from "lucide-react";
 import {
@@ -19,7 +19,7 @@ import { LookStage, ScaledStage, STAGE_WIDTH, type StageDevice, type StagePage }
  * `settings` is settings/website as the Overview read it: undefined while it loads, null when it couldn't be read.
  * `onDone` gets what to record once the look is in the draft; the parent saves it (and puts the welcome away).
  */
-export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onRetrySettings, apply, intro: introWords, keep }: {
+export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onRetrySettings, apply, intro: introWords, keep, chosen }: {
   publishes?: string | null;
   /** The press's own books (ownBooks), shown with their covers, titles and prices in each look's preview (plan 17.8). */
   books?: { title: string; photo: string; price?: string }[];
@@ -34,6 +34,8 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
   intro?: string;
   /** When a look is already chosen: the way back that keeps it (in place of Skip, which would replace it). */
   keep?: { label: string; onKeep: () => void };
+  /** The look (and admin look) the press chose in setup (code plan 18.9): shown on its own first, with every look a tap away. */
+  chosen?: { theme: string; adminLook?: AdminLookId } | null;
 }) {
   const { suggested, others } = useMemo(() => galleryThemes(publishes), [publishes]);
   const [busy, setBusy] = useState("");
@@ -47,7 +49,11 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
   // The press's own products by default, once there are any (they can arrive after the picker opens).
   const [ownChoice, setOwn] = useState<boolean | null>(null);
   const own = ownChoice ?? books.length > 0;
-  const [adminLook, setAdminLook] = useState<AdminLookId>(() => readAdminLook());
+  const [adminLook, setAdminLook] = useState<AdminLookId>(() => chosen?.adminLook ?? readAdminLook());
+  // The admin look chosen in setup is put on at once, as it was in setup.
+  useEffect(() => { if (chosen?.adminLook) applyAdminLook(chosen.adminLook); }, [chosen?.adminLook]);
+  const [browsing, setBrowsing] = useState(false);
+  const picked = useMemo(() => (chosen && !browsing ? [...suggested, ...others].find(t => t.id === chosen.theme) ?? null : null), [chosen, browsing, suggested, others]);
   const press = pressNameOf(settings);
   const bookShop = sellsBooks(publishes);
   const samples = useMemo(() => sampleProducts(publishes), [publishes]);
@@ -97,17 +103,18 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
     </>
   );
 
-  const card = (theme: LibraryTheme, suggestion: boolean) => {
+  // `big`: the large picture with a phone beside it, for the suggestions and the look chosen in setup.
+  const card = (theme: LibraryTheme, suggestion: boolean, big = suggestion) => {
     const look = lookPreview(theme, settings?.design);
     return (
       <li key={theme.id} data-look-card={theme.id} style={{ display: "grid", gap: 10, alignContent: "start", minWidth: 0 }}>
         <button type="button" onClick={() => { setPage("home"); setTrying(theme.id); }} disabled={!!busy} aria-label={`Try on ${theme.name}`}
-          style={{ position: "relative", display: "block", width: "100%", padding: 0, aspectRatio: suggestion ? "4 / 3" : "16 / 11", overflow: "hidden",
+          style={{ position: "relative", display: "block", width: "100%", padding: 0, aspectRatio: big ? "4 / 3" : "16 / 11", overflow: "hidden",
             border: "var(--rp-hair, 1px) solid var(--rp-border-strong)", background: look.bg, cursor: "zoom-in" }}>
           <ScaledStage width={STAGE_WIDTH.desktop} label={`${press} in this look, desktop width`}>
             <LookStage look={look} press={press} device="desktop" products={products} books={bookShop} />
           </ScaledStage>
-          {suggestion && (
+          {big && (
             <span style={{ position: "absolute", right: "4%", top: "16%", width: "24%", aspectRatio: "390 / 800", border: "3px solid var(--rp-border-strong)", borderRadius: 14, overflow: "hidden", background: look.bg }}>
               <ScaledStage width={STAGE_WIDTH.phone}><LookStage look={look} press={press} device="phone" products={products} books={bookShop} /></ScaledStage>
             </span>
@@ -141,11 +148,21 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
   const toggle = (on: boolean) => ({ "aria-pressed": on, style: on ? { background: "var(--rp-primary-tint)", color: "var(--rp-text)", borderColor: "var(--rp-primary)" } : undefined });
 
   return (
-    <SectionCard title={`Welcome to ${press}. Choose your look`} description={intro} collapsible={false}
-      actions={keep
+    <SectionCard title={picked ? `Welcome to ${press}. Here's the look you chose` : `Welcome to ${press}. Choose your look`} description={intro} collapsible={false}
+      actions={picked
+        ? <GhostButton size="sm" disabled={!!busy} onClick={() => setBrowsing(true)}>See every look</GhostButton>
+        : keep
         ? <GhostButton size="sm" disabled={!!busy} onClick={keep.onKeep}>{keep.label}</GhostButton>
         : first && <GhostButton size="sm" disabled={!!busy} onClick={() => void choose(first, true)}>Skip for now</GhostButton>}>
       {error && <p role="alert" className="rp-hint" style={{ marginTop: 0, color: "var(--rp-danger)" }}>{error}</p>}
+      {picked ? (
+        <>
+          <p className="rp-hint" style={{ marginTop: 0 }}>
+            You chose “{picked.name}” in setup. Use it, try it on, or see every look. You can change it any time in Design.
+          </p>
+          <ul aria-label="The look you chose" style={{ ...grid(320), maxWidth: 720 }}>{card(picked, false, true)}</ul>
+        </>
+      ) : (<>
       <p className="rp-hint" style={{ marginTop: 0 }}>
         Try any look on before you choose. You can change it any time.
         {first && !keep && ` Skip uses “${first.name}”.`}
@@ -178,6 +195,7 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
           </button>
         ))}
       </div>
+      </>)}
 
       <Dialog open={!!current} onClose={() => setTrying(null)} size="full"
         title={current ? `Try on: ${current.name}` : "Try on"}

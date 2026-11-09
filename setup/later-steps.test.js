@@ -29,10 +29,10 @@ function setup({ failOnce = [], googleFailOnce = [], shop = TEST_SHOP, config = 
 
 const called = (services, name) => services.calls.filter(([n]) => n === name);
 
-test("all twenty steps are numbered and complete", () => {
+test("all twenty-one steps are numbered and complete", () => {
   const { steps } = setup();
   assert.deepEqual(stepProblems(steps), []);
-  assert.equal(steps.length, 20);
+  assert.equal(steps.length, 21);
 });
 
 test("a full run makes the test shop live: rules, server code in Montréal, pages, backup, private files, starter content, Stripe, email", async () => {
@@ -65,7 +65,7 @@ test("a full run makes the test shop live: rules, server code in Montréal, page
   assert.equal(welcome.idempotencyKey, `${ID}-${OWNER_WELCOME}`);
 
   assert.equal(row.status, "live");
-  assert.deepEqual([...auditLog.entries.get(ID).values()].map((e) => e.step).sort((a, b) => a - b), Array.from({ length: 20 }, (_, i) => i + 1));
+  assert.deepEqual([...auditLog.entries.get(ID).values()].map((e) => e.step).sort((a, b) => a - b), Array.from({ length: 21 }, (_, i) => i + 1));
   assert.equal(registry.locks.size, 0, "the lock is given back");
 });
 
@@ -76,7 +76,7 @@ test("running again changes nothing anywhere", async () => {
   const forgetful = { ...registry, readSteps: async () => [], recordStep: async () => {} };
   const second = await runSteps({ shop: TEST_SHOP, steps, registry: forgetful, auditLog });
   assert.equal(second.ok, true, second.error);
-  assert.deepEqual(second.ran.map((r) => r.status), Array(20).fill("already-done"));
+  assert.deepEqual(second.ran.map((r) => r.status), Array(21).fill("already-done"));
   assert.equal(changes(), before);
 });
 
@@ -255,7 +255,7 @@ test("a failed shop check leaves the shop not live, and the retry marks it live"
   broken = false;
   const second = await run();
   assert.equal(second.ok, true, second.error);
-  assert.deepEqual(second.ran.map((r) => r.status), [...Array(14).fill("done-before"), "done", "done", "done", "already-done", "done", "already-done"]);
+  assert.deepEqual(second.ran.map((r) => r.status), [...Array(14).fill("done-before"), "done", "done", "done", "already-done", "done", "already-done", "already-done"]);
   assert.equal((await registry.getShop(ID)).status, "live");
 });
 
@@ -428,12 +428,12 @@ test("a deploy that failed is retried at its step without redoing earlier work",
   assert.equal(google.calls.filter(([n]) => n === "projects.create").length, 1);
 });
 
-test("the dry run prints all twenty steps and changes nothing", async () => {
+test("the dry run prints all twenty-one steps and changes nothing", async () => {
   const { registry, run, changes } = setup();
   const lines = [];
   const result = await run({ dryRun: true, print: (line) => lines.push(line) });
   assert.equal(result.ok, true);
-  assert.equal(lines.length, 21);
+  assert.equal(lines.length, 22);
   assert.equal(lines[13], "13. Connect the press's payments: would run");
   assert.equal(changes(), 0);
   assert.equal(registry.shops.size + registry.locks.size, 0);

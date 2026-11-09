@@ -25,7 +25,7 @@ import { verifySquareSignature, SQUARE_SIGNATURE_HEADER } from "./squareSignatur
 import { seal, unseal } from "./tokenSeal.js";
 import { feeFor, feeSummary, takesFee } from "./fees.js";
 import { squareBooksMinor } from "./payAsYouSell.js";
-import { findSlot, replaceSlot, withNext } from "./accountSlots.js";
+import { findSlot, replaceSlot, switchingTo, withNext } from "./accountSlots.js";
 
 /** What the platform asks a press to allow (the minimum Square lists for app fees, plus locations and disputes). */
 export const SQUARE_SCOPES = Object.freeze([
@@ -523,8 +523,8 @@ export function createSquareService({ square, registry, tokens, states, deliver,
       }
       // Only payments, refunds, disputes and payouts (each order's fees and payout, 7.10) mean anything to a shop; the
       // rest would be refused there and sent again.
-      // The account being connected for a switch has taken no sales: nothing for the shop yet.
-      if (found.slot === "next") return { status: 200, body: { ignored: "account not in use yet" } };
+      // The account being connected for a switch has taken no sales before the switch starts: nothing for the shop yet.
+      if (found.slot === "next" && !switchingTo(row.payments, "square")) return { status: 200, body: { ignored: "account not in use yet" } };
       const wanted = ["payment", "refund", "dispute"].includes(event.data?.type) || (event.data?.type === "payout" && event.type === "payout.paid");
       if (!wanted) return { status: 200, body: { ignored: "not a payment, refund, dispute or paid payout" } };
       try {

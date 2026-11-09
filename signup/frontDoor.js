@@ -50,7 +50,9 @@ const shownRecord = (record, shopDomain = "") => ({
   freeNameNeeded: Boolean(shopDomain && record.pressName && !record.freeName && baseHandle(record.pressName) === FALLBACK_HANDLE),
   pressId: record.pressId, status: record.status, plan: record.plan ?? "", shopId: record.shopId ?? "",
   // How the shop is starting once opened (18.8): "queued", or "in-line" with the words saying why it waits.
-  shopStatus: record.shopStatus ?? "", shopMessage: record.shopMessage ?? "", pressName: record.pressName, sells: record.sells, country: record.country,
+  shopStatus: record.shopStatus ?? "", shopMessage: record.shopMessage ?? "",
+  // Once the shop is ready (18.9): the way into its admin.
+  openUrl: record.openUrl ?? "", pressName: record.pressName, sells: record.sells, country: record.country,
   look: record.look ?? "", adminLook: record.adminLook ?? "", moving: record.moving ?? "", language: record.language ?? "",
   cardProvider: record.cardProvider ?? "",
   // "Your web address" (setup guide): the answer, the press's own domain and where it was bought.
@@ -91,8 +93,12 @@ const UPLOAD_MINUTES = 15;
  * `signup` is sign-up's own start (signup.js createSignup): Open my shop (18.8) hands the press's answers to it, so the
  * daily cap, the countries that are open, invites, the free trial (billing.startTrial) and the shop maker's queue work
  * exactly as they do for every shop.
+ *
+ * `making` is the shop maker's progress (shopMaker.js `progress`): (shopId) -> { status, done, total, now, message,
+ * canRetry, openUrl } | null. Listing the presses (setup mode follows it while the shop is made) adds it to each opening press,
+ * and moves the record to `open` the first time it reads `ready` (18.9), keeping the way into the admin.
  */
-export function createFrontDoor({ presses, codes, email, auth, settings, stagedFiles, signup = null, now = () => new Date(), suffix = randomSuffix, random = null, readOldShop = readPublicShop, domainLookup = null, freeNameTaken = null }) {
+export function createFrontDoor({ presses, codes, email, auth, settings, stagedFiles, signup = null, making = null, now = () => new Date(), suffix = randomSuffix, random = null, readOldShop = readPublicShop, domainLookup = null, freeNameTaken = null }) {
   const shown = (record) => shownRecord(record, settings?.shopAddressDomain ?? "");
   // A name for the free address held by another press still setting up (or opening), or a shop that has it already.
   /** Endings tried, in order, to suggest a free name close to a taken one. */
@@ -133,6 +139,23 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
     return record;
   }
 
+  /** An opening press as its owner sees it, with how far its shop has got; a shop found ready opens the record. */
+  async function withProgress(record, claims) {
+    if (record.status !== "opening" || !record.shopId || !making) return shown(record);
+    const progress = await Promise.resolve().then(() => making(record.shopId)).catch(() => null);
+    if (!progress) return shown(record);
+    const live = { status: progress.status, done: progress.done, total: progress.total, now: progress.now ?? "", message: progress.message ?? "", canRetry: !!progress.canRetry };
+    if (progress.status !== "ready") return { ...shown(record), making: live };
+    const opened = await presses.update(record.pressId, (current) => {
+      if (!current || current.ownerUid !== claims.uid || current.status !== "opening" || current.shopId !== record.shopId) return { row: null, result: current };
+      const moved = advanceStatus(current, "open");
+      if (!moved.ok) return { row: null, result: current };
+      const row = { ...current, status: moved.status, shopStatus: "ready", shopMessage: "", openUrl: progress.openUrl ?? "", readyAt: now().toISOString() };
+      return { row, result: row };
+    });
+    return { ...shown(opened ?? record), making: live };
+  }
+
   return {
     async sendCode(body = {}) {
       const to = addressOf(body.email);
@@ -165,7 +188,9 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
         await presses.update(record.pressId, (current) => (current?.status === "setup" && current.ownerUid === claims.uid
           ? { row: { ...current, lastSeenAt: at.toISOString() }, result: null } : { row: null, result: null }));
       }
-      return { presses: mine.sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1)).map(shown) };
+      const listed = [];
+      for (const record of mine.sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1))) listed.push(await withProgress(record, claims));
+      return { presses: listed };
     },
 
     async saveSetup(claims, body = {}) {

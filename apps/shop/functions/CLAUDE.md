@@ -831,6 +831,16 @@ Card orders keep `paymentMethod: "Stripe"` (the rules and the server know cards 
 treats "square" as a provider. The admin's **Card payments** card (`PlatformPaymentsCard.tsx`, action
 `platformPayments` with `step: "status" | "connect"` in `checkoutAdmin.js`) replaces the Stripe keys card on every
 platform shop: connect Square (or finish Stripe onboarding), the account's state and Colophon's fee next to payouts.
+**Switched providers (9 November 2026, code plan 27.6b).** A platform shop that moved from Stripe to Square or back is
+deployed with the new `SHOP_PAYMENT_PROVIDER` and `SHOP_PAYMENT_EARLIER` naming the old one (platform mode only, never
+the current provider; `shopConfig.earlierPaymentProvider`). `createPayments({ earlier })` then builds both
+(`bothProviders` in `payments/index.js`): new sales and everything else go to the current one, and each call about an
+existing order goes to the provider its saved id belongs to (`findOrderPayment`, `readAttempt`, `stopAttempt`,
+`checkReversal`, `refund`, `paymentMoney`). `stripeWebhook` passes `X-Platform-Event` to `verifyWebhookEvent`, which
+picks the provider the platform names and stamps `event.provider`; `payout.paid` hands it on to `payoutMoney`
+(`recordPayout({ provider })`), since Stripe and Square payout ids look alike. `paymentPageSweep` also runs after a
+switch away from Square, for the pages opened before it. Test: `switchProviders.test.js` (both directions, through the
+real payment service).
 **Your web address (28 October 2026, code plan 2.9).** `customDomains.js` (action `customDomains`, `step: "list" |
 "add" | "check"`) passes the admin's request to the platform's domain service (`PLATFORM_DOMAINS_URL`, https; unset: 409
 `not_available` and the admin shows the older "for your records" field) with the service key, which `withPlatformKey`

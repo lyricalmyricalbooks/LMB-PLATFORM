@@ -203,3 +203,30 @@ test("a Square shop moving to Stripe: the Stripe account is made once and waits 
   assert.equal(await w.connect("MERCHANT1"), "connected");
   assert.equal((await w.payments()).next.accountId, "MERCHANT1");
 });
+
+test("pressing Switch: refused until the new account can take payments; then both accounts sell until the switch is finished", async () => {
+  const w = await world(STRIPE_SHOP);
+  assert.deepEqual(codeOf(await w.call("account.switch")), [409, "no_next_account"]);
+  w.sq.world.addMerchant("MERCHANT1", "test");
+  assert.equal(await w.connect("MERCHANT1"), "connected");
+  const started = await w.call("account.switch");
+  assert.equal(started.status, 200);
+  assert.deepEqual([started.body.switching.to, started.body.switching.accountId], ["square", "MERCHANT1"]);
+  assert.deepEqual((await w.call("account.switch")).body, started.body, "pressing twice changes nothing");
+  assert.equal((await w.call("account.status", { which: "next" })).body.switching.to, "square");
+
+  // The shop's server may still run Stripe, or already run Square: either sale goes through.
+  assert.equal((await w.call("paymentIntents.create", intent("order1"))).status, 200);
+  assert.equal((await w.call("square.checkout.create", checkout("order2"))).status, 200);
+  const event = await w.squareEvent({ merchant_id: "MERCHANT1", type: "payment.updated", data: { type: "payment", id: "P1", object: { payment: { id: "P1" } } } });
+  assert.deepEqual(event.body, { forwarded: SHOP });
+});
+
+test("pressing Switch to a Stripe account Stripe hasn't checked yet is refused, and so is a shop the platform moved in an emergency", async () => {
+  const w = await world(SQUARE_SHOP);
+  assert.equal(await w.connect("MERCHANT1"), "connected");
+  await w.call("account.onboardingLink", { returnUrl: `https://${SHOP}.web.app/admin`, refreshUrl: `https://${SHOP}.web.app/admin` });
+  assert.deepEqual(codeOf(await w.call("account.switch")), [409, "next_not_ready"]);
+  await w.registry.updateShop(SHOP, { paymentsEmergency: { to: "own" } });
+  assert.deepEqual(codeOf(await w.call("account.switch")), [409, "emergency_move"]);
+});
