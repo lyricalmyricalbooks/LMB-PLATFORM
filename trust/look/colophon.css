@@ -1,0 +1,167 @@
+/* GENERATED from shared/admin-look/colophon.css by shared/admin-look/sync.mjs. Edit the source, never this copy. */
+/*
+ * Colophon look — the platform's own pages and the control room (design handoff "Colophon platform — Bento redesign",
+ * 9 November 2026). Warm paper, white tiles with big round corners, pastel accent tiles, ink pill buttons, Archivo and
+ * DM Mono. Only the platform loads this file (the page folders' look/ copies and control-room/look/), after
+ * adminThemes.css and pressroom.css, on a `.rp.cl` root: the shop's and the stockroom's admin looks never see it.
+ *
+ * Every colour the platform pages and the control room use is here. The --rp-… tokens keep the admin's names so the
+ * Pressroom pieces still read them; the --cl-… tokens are the design's accent tiles, status dots and chart stripes.
+ * platform-pages.css and the control room's room.css name no colour.
+ */
+
+/* ── Day ─────────────────────────────────────────────────────────────────────────────────────────────────────── */
+.rp.cl {
+  --rp-canvas: #efede8;
+  --rp-surface: #ffffff;
+  --rp-surface-2: #efede8;
+  --rp-surface-sunken: #efede8;
+  --rp-surface-inset: #e4e1da;
+  --rp-inverse: #1f1e1b;
+  --rp-inverse-2: #2b2a26;
+  --rp-on-inverse: #efede8;
+  --rp-on-inverse-2: rgba(239, 237, 232, 0.72);
+  --rp-overlay: rgba(31, 30, 27, 0.4);
+  --rp-input-bg: #efede8;
+  --rp-paper-dot: rgba(0, 0, 0, 0);
+  --rp-border: rgba(31, 30, 27, 0.12);
+  --rp-border-strong: #cfcbc2;
+  --rp-divider: #efede8;
+  --rp-scrollbar: #cfcbc2;
+  --rp-rule: #efede8;
+  --rp-text: #1f1e1b;
+  --rp-text-muted: #55524b;
+  --rp-text-subtle: #67635b;
+  --rp-text-faint: #8a857a;
+  --rp-primary: #1f1e1b;
+  --rp-primary-hover: #3a3833;
+  --rp-primary-tint: rgba(31, 30, 27, 0.06);
+  --rp-primary-glow: rgba(31, 30, 27, 0.12);
+  --rp-primary-ring: rgba(31, 30, 27, 0.4);
+  --rp-primary-text: #1f1e1b;
+  --rp-on-primary: #ffffff;
+  --rp-info: #23588a;
+  --rp-info-tint: #b0dcff;
+  --rp-info-ring: rgba(35, 88, 138, 0.45);
+  --rp-on-info: #ffffff;
+  --rp-success: #17653c;
+  --rp-success-tint: #a9e8c6;
+  --rp-warning: #834b14;
+  --rp-warning-tint: #ffcca2;
+  --rp-danger: #a8372a;
+  --rp-danger-hover: #8d1c11;
+  --rp-danger-tint: #ffe8e3;
+  --rp-on-danger: #ffffff;
+  --rp-focus: #23588a;
+  --rp-shadow-ink-faint: rgba(0, 0, 0, 0);
+  --rp-shadow-ink-soft: rgba(0, 0, 0, 0);
+  --rp-shadow-sm: none;
+  --rp-shadow: none;
+  --rp-shadow-hover: none;
+  --rp-shadow-kpi: none;
+  --rp-shadow-lg: 0 12px 30px rgba(0, 0, 0, 0.2);
+  --rp-shadow-float: 0 12px 30px rgba(0, 0, 0, 0.2);
+  --rp-rail: #1f1e1b;
+  --rp-rail-text: rgba(239, 237, 232, 0.78);
+  --rp-rail-faint: rgba(239, 237, 232, 0.55);
+  --rp-rail-line: rgba(239, 237, 232, 0.12);
+  --rp-rail-hover: rgba(239, 237, 232, 0.08);
+  --rp-rail-hover-strong: #efede8;
+  --rp-tab-hover: rgba(31, 30, 27, 0.06);
+  --rp-tab-active-text: #1f1e1b;
+
+  /* The design's accent tiles: words on them are always the ink. */
+  --cl-mint: #a9e8c6;      /* trial, success, selected */
+  --cl-apricot: #ffcca2;   /* needs attention, paused */
+  --cl-sky: #b0dcff;       /* info, release, plan-change preview */
+  --cl-lilac: #f0c7f9;     /* help topics only */
+  --cl-alert: #ffd9d1;     /* something is wrong */
+  --cl-on-tile: #1f1e1b;
+  --cl-track: rgba(31, 30, 27, 0.1);
+  --cl-hover: #f5f4ef;
+  --cl-dashed: #cfcbc2;
+  --cl-dot-good: #33a868;
+  --cl-dot-warn: #f8a052;
+  --cl-dot-bad: #d64938;
+  --cl-stripe-a: #f3f1ec;
+  --cl-stripe-b: #ebe8e1;
+  --cl-dark-tile: #1f1e1b;
+  --cl-on-dark-tile: #efede8;
+  --cl-on-dark-tile-2: rgba(239, 237, 232, 0.7);
+  --cl-dark-chip: rgba(239, 237, 232, 0.08);
+
+  /* Type and shape (pressroom.css reads these) */
+  --rp-font-display: "Archivo", "Helvetica Neue", system-ui, sans-serif;
+  --rp-font-body: "Archivo", "Helvetica Neue", system-ui, sans-serif;
+  --rp-font-mono: "DM Mono", ui-monospace, monospace;
+  --rp-masthead: 36px; --rp-title-case: none; --rp-title-weight: 600; --rp-title-weight-sm: 600; --rp-title-tracking: -0.03em;
+  --rp-btn-case: none; --rp-btn-tracking: 0; --rp-btn-weight: 600; --rp-btn-radius: 999px;
+  --rp-label-case: none; --rp-label-tracking: 0;
+  --rp-radius-sm: 12px;
+  --rp-radius: 14px;
+  --rp-radius-lg: 22px;
+  --rp-stroke: 0px;
+  --cl-radius-tile: 22px;
+  --cl-radius-card: 16px;
+}
+
+/* ── Night: the same paper in warm graphite; accent tiles turn deep and carry light words ───────────────────── */
+.rp.cl[data-rp-appearance="dark"] {
+  --rp-canvas: #171614;
+  --rp-surface: #22211e;
+  --rp-surface-2: #2c2b27;
+  --rp-surface-sunken: #2c2b27;
+  --rp-surface-inset: #34322e;
+  --rp-inverse: #0f0e0d;
+  --rp-inverse-2: #1a1917;
+  --rp-on-inverse: #efede8;
+  --rp-overlay: rgba(0, 0, 0, 0.55);
+  --rp-input-bg: #2c2b27;
+  --rp-border: rgba(239, 237, 232, 0.12);
+  --rp-border-strong: #4a4741;
+  --rp-divider: #2c2b27;
+  --rp-scrollbar: #4a4741;
+  --rp-rule: #2c2b27;
+  --rp-text: #efede8;
+  --rp-text-muted: #c9c5bb;
+  --rp-text-subtle: #a9a498;
+  --rp-text-faint: #8a857a;
+  --rp-primary: #efede8;
+  --rp-primary-hover: #ffffff;
+  --rp-primary-tint: rgba(239, 237, 232, 0.08);
+  --rp-primary-glow: rgba(239, 237, 232, 0.14);
+  --rp-primary-ring: rgba(239, 237, 232, 0.4);
+  --rp-primary-text: #efede8;
+  --rp-on-primary: #1f1e1b;
+  --rp-info: #9dc9f7;
+  --rp-info-tint: #233a51;
+  --rp-on-info: #1f1e1b;
+  --rp-success: #80dba2;
+  --rp-success-tint: #1e402f;
+  --rp-warning: #f9be78;
+  --rp-warning-tint: #54351a;
+  --rp-danger: #fb9989;
+  --rp-danger-hover: #ffb3a6;
+  --rp-danger-tint: #462621;
+  --rp-on-danger: #1f1e1b;
+  --rp-focus: #9dc9f7;
+  --rp-shadow-lg: 0 12px 30px rgba(0, 0, 0, 0.5);
+  --rp-shadow-float: 0 12px 30px rgba(0, 0, 0, 0.5);
+  --rp-rail: #0f0e0d;
+  --rp-rail-hover-strong: #efede8;
+  --rp-tab-hover: rgba(239, 237, 232, 0.08);
+  --rp-tab-active-text: #efede8;
+  --cl-mint: #1e402f;
+  --cl-apricot: #54351a;
+  --cl-sky: #233a51;
+  --cl-lilac: #432f48;
+  --cl-alert: #5c2e26;
+  --cl-on-tile: #efede8;
+  --cl-track: rgba(239, 237, 232, 0.16);
+  --cl-hover: #2c2b27;
+  --cl-dashed: #4a4741;
+  --cl-stripe-a: #2a2925;
+  --cl-stripe-b: #24231f;
+  --cl-dark-tile: #0f0e0d;
+}
+

@@ -118,16 +118,17 @@ function ledger(presses, waitlist) {
 /** The start page's HTML. `presses` and `waitlist` are the sample world it starts with (server.js). */
 export function startPage({ presses = [], waitlist = [] } = {}) {
   return `<!doctype html>
-<html lang="en" class="rp cp-page">
+<html lang="en" class="rp cp-page cl">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Walkthrough · Colophon</title>
 <meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700&family=DM+Mono&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="/look/adminThemes.css">
 <link rel="stylesheet" href="/look/pressroom.css">
+<link rel="stylesheet" href="/look/colophon.css">
 <link rel="stylesheet" href="/look/platform-pages.css">
 <script src="/look/platform-look.js"></script>
 </head>

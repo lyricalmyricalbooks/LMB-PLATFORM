@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="rp cp-page">
+<html lang="en" class="rp cp-page cl">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,33 +7,21 @@
 <meta name="description" content="Your shop's Colophon plan: price, trial, card, invoices, changing plan and cancelling.">
 <meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700&family=DM+Mono&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="./look/adminThemes.css">
 <link rel="stylesheet" href="./look/pressroom.css">
+<link rel="stylesheet" href="./look/colophon.css">
 <link rel="stylesheet" href="./look/platform-pages.css">
 <link rel="stylesheet" href="./look/brand-logos.css">
 <script src="./look/platform-look.js"></script>
 </head>
 <body class="cp">
 <a class="rp-skip-link" href="#main">Skip to content</a>
-<div class="rp-app">
-  <aside class="rp-sidebar" aria-label="Your account">
-    <div class="rp-sidebar-brand"><a class="rp-brand-link" href="/account/"><span class="rp-wordmark">Colophon<span class="rp-wordmark-sub">Your account</span></span></a></div>
-    <nav class="rp-nav" aria-label="Your account"><ul class="rp-nav-list">
-      <li><a class="rp-nav-item" href="/account/">Your shops</a></li>
-      <li><a class="rp-nav-item" aria-current="page" href="">Plan &amp; billing</a></li>
-      <li><a class="rp-nav-item" href="/account/#get-help">Get help</a></li>
-      <li class="rp-nav-section-row"><div class="rp-nav-section">Colophon</div></li>
-      <li><a class="rp-nav-item" href="/help/">Help centre</a></li>
-      <li><a class="rp-nav-item" href="/status/">Service status</a></li>
-      <li><a class="rp-nav-item" href="/terms/">Terms &amp; privacy</a></li>
-    </ul></nav>
-  </aside>
-  <div class="rp-app-body">
-    <header class="rp-topbar"><a class="cp-kicker" href="/account/">← All your shops</a><div class="rp-topbar-actions"><a class="rp-status-pill" href="/status/"><span class="rp-status-dot"></span>Service status</a></div></header>
-    <div class="rp-workspace"><div class="rp-workspace-inner">
-<main id="main" tabindex="-1">
-  <div class="rp-page-header"><div><div class="cp-kicker" id="press" style="margin-bottom:10px">Your shop</div><h1 class="rp-page-title">Plan &amp; billing</h1></div></div>
+<header class="cp-mast"><div class="cp-wrap"><a class="cp-word" href="/account/">Colophon<small>plan and billing</small></a>
+  <nav aria-label="Colophon"><a href="/account/">Your shops</a><a aria-current="page" href="">Plan &amp; billing</a><a href="/help/">Help</a><a href="/status/">Status</a></nav></div></header>
+<div class="cp-wrap">
+<main id="main" tabindex="-1" class="cp-main">
+  <div class="cp-page-head"><p class="cp-kicker" id="press">Your shop</p><h1 class="cp-title">Plan &amp; billing</h1></div>
 
   <section id="view-loading" aria-live="polite">
     <p class="loading">Loading your plan…</p>
@@ -138,7 +126,7 @@
             <textarea id="leaving-words" name="words" rows="3" maxlength="500"></textarea>
             <p class="error" id="cancel-error" role="alert" hidden></p>
             <div class="cp-actions cp-start">
-              <button type="submit" class="danger" id="cancel-confirm">Cancel my plan</button>
+              <button type="submit" class="danger cp-final" id="cancel-confirm">Cancel my plan</button>
               <button type="button" id="cancel-back">Go back</button>
             </div>
           </form>
@@ -154,8 +142,6 @@
 
   <p id="status" role="status" aria-live="polite"></p>
 </main>
-    </div></div>
-  </div>
 </div>
 <script type="module" src="/accounts/billing.js"></script>
 </body>
