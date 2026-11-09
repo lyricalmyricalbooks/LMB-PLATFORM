@@ -1,4 +1,5 @@
 import { missingDatabase } from "./firestore.js";
+import { accountKey } from "../services/payments/accountSlots.js";
 
 // The shop registry and a shop's audit log, in Firestore, with the same shape as the in-memory ones in setup/fakes.js.
 //
@@ -51,8 +52,12 @@ export function firestoreRegistry(firestore, { now = () => new Date() } = {}) {
       if (held?.runId === runId) tx.remove(`shopLocks/${shopId}`);
     }),
     // The payment service: the shop whose registry row names this account, and its own logged changes.
+    // Also an account the shop sold through before switching providers, or is connecting for a switch
+    // (payments.otherAccounts, services/payments/accountSlots.js).
     async findShopByPaymentAccount(provider, accountId) {
-      const rows = await firestore.query("shops", { where: [["payments.provider", "==", provider], ["payments.accountId", "==", accountId]], limit: 2 });
+      const current = await firestore.query("shops", { where: [["payments.provider", "==", provider], ["payments.accountId", "==", accountId]], limit: 2 });
+      const other = await firestore.query("shops", { where: [["payments.otherAccounts", "array-contains", accountKey(provider, accountId)]], limit: 2 });
+      const rows = [...new Map([...current, ...other].map((row) => [row.data.shopId ?? row.id, row])).values()];
       if (rows.length > 1) throw new Error(`two shops name the ${provider} account ${accountId}; a person checks the registry`);
       return rows[0]?.data ?? null;
     },

@@ -48,6 +48,23 @@ Square's API reference, version `2026-09-16` (`squareApi.js` lists every path).
   refund setting is off.
 - **Idempotency keys** are hashed with the shop id into 40 characters (Square allows 45 on refunds).
 
+## Switching between Stripe and Square
+
+A shop can move from one provider to the other after it opens (`accountSlots.js`). The registry's `payments` stays the account that takes new sales, and two fields
+sit inside it:
+
+- **`next`**: the account it is moving to. Connect Square on a Stripe shop, or `account.onboardingLink` on a Square
+  shop (which makes the Stripe account, or takes back the shop's earlier one), puts it there. It takes no sales and
+  its events change only its own state. `account.status` with `{ which: "next" }` says whether it is ready.
+- **`earlier`**: accounts the shop sold through before, newest first. `square.*` calls use the shop's Square account
+  and the other money calls its Stripe account, current or earlier, so older orders still sync and refund. Only the
+  current account starts a sale; anything else is refused with `switched_provider`. Their events still reach the shop.
+- **`otherAccounts`**: `provider:accountId` keys of both, so `findShopByPaymentAccount` finds the shop by any of them
+  (and one account still belongs to one shop).
+
+A shop keeps one Square sign-in per mode, so a switch back to Square must use the Square account that holds the older
+orders (`other_account` otherwise). The switch itself (moving `next` to `payments`) comes next, with the shop side.
+
 ## New accounts (7.8)
 
 `createAccount` makes each press's account with Standard's behaviour written as Stripe's controller settings
@@ -129,6 +146,7 @@ again; the email's idempotency key holds `pastDueSince`, so a retry never sends 
 - `square.js`: the Square part (Connect Square, `square.*` calls, Square events). `squareApi.js`: the Square REST client.
   `squareSignature.js`: Square's webhook signature. `tokenSeal.js`: sealing the presses' tokens. `squareFakes.js`:
   pretend Square, token store and states, for `square.test.js`.
+- `accountSlots.js`: a shop's current, next and earlier accounts (switching providers). `switch.test.js` tests it.
 
 ## Settings
 

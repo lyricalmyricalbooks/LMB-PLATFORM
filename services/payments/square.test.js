@@ -433,8 +433,10 @@ test("a shop on Square can't make Stripe calls, and a Stripe shop can't make Squ
   const stripeRow = squareRow({ shopId: OTHER, projectId: OTHER, serviceKeyHash: hashServiceKey(`${KEY}-lark`) }, { provider: "stripe", accountId: "acct_lark", mode: "test" });
   const w = await world({ rows: [squareRow(), stripeRow] });
   await w.connect("MERCHANT1");
-  assert.equal((await w.call("paymentIntents.create", { params: { amount: 100, currency: "cad" }, idempotencyKey: "k" })).status, 400);
-  assert.equal((await w.call("square.payments.retrieve", { id: "P1" }, "test", OTHER, `${KEY}-lark`)).status, 400);
+  const stripeCall = await w.call("paymentIntents.create", { params: { amount: 100, currency: "cad" }, idempotencyKey: "k" });
+  assert.deepEqual([stripeCall.status, stripeCall.body.error.code], [409, "no_account"]);
+  const squareCall = await w.call("square.payments.retrieve", { id: "P1" }, "test", OTHER, `${KEY}-lark`);
+  assert.deepEqual([squareCall.status, squareCall.body.error.code], [409, "not_connected"]);
   assert.equal((await w.call("account.status", {}, "test", SHOP, "wrong-key")).status, 401);
 });
 
