@@ -59,6 +59,11 @@ await check("the same email again is fine and keeps the first record", async () 
   assert.equal((await saved.json()).fields.name.stringValue, "Ada Lane");
 });
 
+await check("an email alone is enough (the front page asks for nothing else)", async () => {
+  const result = await handleSignup({ email: "cy@moth.example", source: "direct" }, { store });
+  assert.equal(result.status, 200);
+});
+
 await check("nobody can read sign-ups from the web", async () => {
   const one = await fetch(`${docs}/waitlist/${await signupId("ada@moth.example")}`);
   assert.equal(one.status, 403);
@@ -93,7 +98,7 @@ await check("extra fields, bad plans, long text and a doctored count are refused
     { ...base, today: str("x".repeat(501)) },
     { ...base, signups: { integerValue: "500" } },
     { ...base, email: str("Bea@Moth.example") },
-    { ...base, name: str("") },
+    { ...base, name: str("x".repeat(121)) },
   ]) {
     assert.equal((await post(id, fields)).status, 403, JSON.stringify(Object.keys(fields)));
   }

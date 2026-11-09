@@ -4,6 +4,7 @@
 // page makes, the server makes again (signup/frontDoor.js).
 import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE, SETUP_ADMIN_URL } from "../signup/config.js";
 import { COUNTRIES, PUBLISHES, countryFromTimeZone, isEmail } from "../signup/form.js";
+import { takeHandOff } from "../waitlist/frontPage.js";
 
 const { initializeApp } = await import(`${FIREBASE_SDK}/firebase-app.js`);
 const { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signInWithEmailLink, signOut } = await import(`${FIREBASE_SDK}/firebase-auth.js`);
@@ -102,6 +103,14 @@ async function sendCode() {
   $("#code-email").textContent = email;
   $("#code-form").code.value = "";
   holdResend();
+}
+
+// The email typed on the front page (waitlist/frontPage.js) is filled in, so the person only presses Continue.
+{
+  let storage = null;
+  try { storage = sessionStorage; } catch { /* blocked: the box starts empty */ }
+  const handed = takeHandOff(storage);
+  if (handed) $("#email-form").email.value = handed;
 }
 
 $("#email-form").addEventListener("submit", (event) => {

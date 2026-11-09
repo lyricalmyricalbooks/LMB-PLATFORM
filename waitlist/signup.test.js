@@ -34,13 +34,23 @@ test("the same email twice keeps one record and the first date", async () => {
   assert.equal(row.signups, 2);
 });
 
-test("missing name or a bad email is refused, nothing stored", async () => {
+test("a bad or missing email is refused, nothing stored", async () => {
   const store = fakeStore();
-  for (const input of [{ email: "a@b.co" }, { name: "Ada", email: "not-an-email" }, null, "text"]) {
+  for (const input of [{ name: "Ada" }, { name: "Ada", email: "not-an-email" }, null, "text"]) {
     const result = await handleSignup(input, { store });
     assert.equal(result.status, 400);
   }
   assert.equal(store.rows.size, 0);
+});
+
+test("an email alone is enough: the front page asks for nothing else", async () => {
+  const store = fakeStore();
+  const result = await handleSignup({ email: " Cy@Moth.example " }, { store });
+  assert.equal(result.status, 200);
+  const [row] = store.rows.values();
+  assert.equal(row.email, "cy@moth.example");
+  assert.equal(row.name, "");
+  assert.equal(row.plan, "unsure");
 });
 
 test("a bot filling the hidden field gets ok but nothing is stored", async () => {

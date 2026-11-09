@@ -5,7 +5,7 @@
 
 /** One line about each plan, in the order the page shows them. */
 export const PLAN_LINES = Object.freeze({
-  shop: "Your own website for your books, zines, prints, clothing or jewellery, with checkout, sizes and shipping.",
+  shop: "Your own website, with checkout, sizes, colours and shipping.",
   stockroom: "One count of every item, online and at markets, even offline at a table.",
   both: "The shop and the stockroom, selling from the same count of every item.",
 });
@@ -36,9 +36,10 @@ export function pricingView(answer) {
   if (!plans.length) return null;
   const trialDays = Number.isInteger(answer.trialDays) && answer.trialDays > 0 ? answer.trialDays : null;
   const founding = Number.isInteger(answer.foundingOffer?.percentOff) && answer.foundingOffer.percentOff > 0 && plans.some((p) => p.foundingPriceText)
-    ? `Founding presses: ${answer.foundingOffer.percentOff}% off for as long as you stay${Number.isInteger(answer.foundingOffer.presses) && answer.foundingOffer.presses > 0 ? `, for the first ${answer.foundingOffer.presses} presses` : ""}.`
+    ? `Founding shops: ${answer.foundingOffer.percentOff}% off for as long as you stay${Number.isInteger(answer.foundingOffer.presses) && answer.foundingOffer.presses > 0 ? `, for the first ${answer.foundingOffer.presses} shops` : ""}.`
     : null;
   return {
+    trialDays,
     trial: trialDays ? `Free for ${trialDays} days from the day your shop opens. Setup costs nothing and needs no card.` : "Free to try. Setup costs nothing and needs no card.",
     founding,
     plans,
@@ -80,6 +81,5 @@ export function renderPricing(doc, view, { signupUrl }) {
   }));
   doc.getElementById("start-trial").href = signupUrl;
   doc.getElementById("pricing").hidden = false;
-  doc.getElementById("not-ready").hidden = false;
   return true;
 }
