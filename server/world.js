@@ -231,6 +231,8 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const shopAccess = { ...notConnectedClient(NOT_CONNECTED.supportSignIn, ["supportSignIn"]), ...notConnectedClient(NOT_CONNECTED.twoStepReset, ["removeTwoStep"]),
     ...notConnectedClient(NOT_CONNECTED.signInSafety, ["signInSafety"]) };
   const room = createControlRoom({
+    // Today lists shops with stuck Chit Chats orders; the desk is made further down, and only called once a request comes.
+    parcels: () => chitChatsDesk.shops(),
     registry, auditLog, profileFiles, shopAccess, repairs, signups: stores.signups, shopData,
     publish: profilePublisher({ deploy, registry }), settings: live, email, breaches: createBreachRegister({ store: firestoreBreaches(platform), registry, auditLog, now }), people,
     activity, supportStore, recoveryStore, platformState, accessRequests, admins, now, presses: firestoreFrontDoorStores(platform).presses,

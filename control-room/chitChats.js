@@ -17,7 +17,11 @@ export function createChitChatsDesk({ admins, chitchats, stores, registry, now =
   return {
     async overview(claims) {
       adminOf(claims, admins, now().getTime());
-      const ready = Boolean(chitchats?.ready?.());
+      return { ready: Boolean(chitchats?.ready?.()), shops: await this.shops(), waitingDays: WAITING_DAYS };
+    },
+
+    /** Each connected shop's waiting and problem orders, worst first (no door: overview and Today call it). */
+    async shops() {
       const rows = await stores.connections.list();
       const late = new Date(now().getTime() - WAITING_DAYS * DAY_MS).toISOString();
       const shops = [];
@@ -31,7 +35,7 @@ export function createChitChatsDesk({ admins, chitchats, stores, registry, now =
         problems.sort((a, b) => (String(a.updatedAt ?? a.createdAt) < String(b.updatedAt ?? b.createdAt) ? 1 : -1));
         shops.push({
           shopId: row.shopId, pressName: shop?.pressName ?? row.shopId, connectedAt: row.connectedAt ?? null,
-          waiting: open.length, oldestWaitingAt: oldest, late: Boolean(oldest && oldest < late),
+          waiting: open.length, oldestWaitingAt: oldest, late: Boolean(oldest && oldest < late), lateCount: open.filter((s) => typeof s.createdAt === "string" && s.createdAt < late).length,
           problems: problems.length,
           problemOrders: problems.slice(0, PROBLEMS_SHOWN).map((s) => ({ orderNumber: s.orderNumber ?? s.orderId, words: String(s.problem ?? "").slice(0, 200) || null, at: s.updatedAt ?? s.createdAt ?? null })),
           lastProblem: row.lastProblem ? { at: row.lastProblem.at ?? null, words: String(row.lastProblem.words ?? "").slice(0, 200) } : null,
@@ -39,7 +43,7 @@ export function createChitChatsDesk({ admins, chitchats, stores, registry, now =
       });
       const needs = (s) => (s.lastProblem ? 4 : 0) + (s.problems ? 2 : 0) + (s.late ? 1 : 0);
       shops.sort((a, b) => needs(b) - needs(a) || a.pressName.localeCompare(b.pressName));
-      return { ready, shops, waitingDays: WAITING_DAYS };
+      return shops;
     },
 
     /** One shop's Chit Chats orders, for its record: those waiting for tracking (oldest first) and those with a problem. */

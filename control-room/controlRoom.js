@@ -205,7 +205,7 @@ export async function eachInTurn(items, limit, work) {
 }
 
 export function createControlRoom({
-  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, settings, supportStore, recoveryStore, signups, platformState, stripePublishableKeys = {}, googleSteps, googleReady, taxWatch, feeDefaults = NO_FEE, accessRequests, admins, now = () => new Date(), delivery, presses = null,
+  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, settings, supportStore, recoveryStore, signups, platformState, stripePublishableKeys = {}, googleSteps, googleReady, taxWatch, feeDefaults = NO_FEE, accessRequests, admins, now = () => new Date(), delivery, presses = null, parcels = null,
 }) {
   const at = () => now().toISOString();
 
@@ -585,6 +585,8 @@ export function createControlRoom({
         recoveries: recoveryStore ? await recoveryStore.list({ status: "waiting" }) : [],
         making: signups ? (await signups.list()).filter((s) => s.status !== "ready") : [],
         // Presses that pressed Open my shop over a day ago with no live shop yet (setupPresses.js "stuck").
+        // Chit Chats orders late for tracking or with a problem (chitChats.js shops); a failed read leaves Today as it was.
+        parcels: parcels ? await parcels().catch(() => []) : [],
         opening: presses?.list ? setupSummary({ records: await presses.list(), rows, now: now().getTime() }).presses.filter((p) => p.flag === "stuck") : [],
       });
     },

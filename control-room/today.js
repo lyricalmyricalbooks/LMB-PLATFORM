@@ -27,7 +27,7 @@ export function monthlyCents(row, settings) {
  * The numbers and the "needs you" list. `rows` are registry rows; `open` gives a shop's open repairs; the rest are
  * lists already read: waiting support requests, recoveries to check, shops being made.
  */
-export function todaySummary({ rows, settings, profiles = {}, checks = {}, open = {}, support = [], recoveries = [], making = [], opening = [], now = new Date() }) {
+export function todaySummary({ rows, settings, profiles = {}, checks = {}, open = {}, support = [], recoveries = [], making = [], opening = [], parcels = [], now = new Date() }) {
   const shops = rows.filter((row) => row.testShop !== true);
   const counts = {
     shops: shops.length,
@@ -69,6 +69,11 @@ export function todaySummary({ rows, settings, profiles = {}, checks = {}, open 
       if (d.brokeAt) needs.push({ kind: "domain", shopId: row.shopId, words: `${name} stopped opening the shop${d.brokenEmailedAt ? " (the press was emailed)" : ""}`, go: "#shops" });
       else if (left > 0 && left <= DOMAIN_SOON_DAYS * DAY) needs.push({ kind: "domain", shopId: row.shopId, words: `${name} runs out in ${Math.ceil(left / DAY)} day${Math.ceil(left / DAY) === 1 ? "" : "s"} unless renewed`, go: "#shops" });
     }
+  }
+  // Chit Chats orders (chitChats.js shops): one line per shop with a problem order or an order late for tracking.
+  for (const p of parcels.filter((x) => x.problems || x.late)) {
+    const parts = [p.problems ? `${p.problems} Chit Chats order${p.problems === 1 ? "" : "s"} with a problem` : null, p.late ? `${p.lateCount ?? 1} order${(p.lateCount ?? 1) === 1 ? "" : "s"} waiting over 3 days for tracking` : null].filter(Boolean);
+    needs.push({ kind: "parcels", shopId: p.shopId, words: `${p.pressName ?? p.shopId}: ${parts.join(", and ")}`, go: "#apps" });
   }
   const repairCount = Object.values(open).reduce((n, list) => n + list.length, 0);
   if (repairCount) needs.push({ kind: "repairs", count: repairCount, words: `${repairCount} item${repairCount === 1 ? "" : "s"} in the repair queue`, go: "#repairs" });
