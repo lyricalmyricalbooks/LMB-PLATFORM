@@ -1,7 +1,7 @@
 // Today (code plan 9.2): counts by billing state, monthly income with the founding discount, and the needs-you list.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { monthlyCents, needSnoozed, todaySummary } from "./today.js";
+import { monthlyCents, needSnoozed, SNOOZABLE, todaySummary } from "./today.js";
 import { platformSettings } from "../services/settings.js";
 
 const NOW = new Date("2026-10-28T12:00:00Z");
@@ -101,6 +101,25 @@ test("needs you: a press waiting for its switch between Stripe and Square to be 
   assert.deepEqual(needs.filter((n) => n.kind === "switch").map((n) => [n.words, n.go]), [
     ["Wren Press pressed Switch to move card payments to Square 2 days ago and it isn't finished (Deploys aren't connected on this server yet): finish it from their record", "#shops"],
   ]);
+});
+
+test("needs you: a live Stripe press whose payouts Stripe paused, never one still setting up or on Square", () => {
+  const since = new Date(NOW.getTime() - 3 * 86_400_000).toISOString();
+  const stripe = (extra) => ({ provider: "stripe", accountId: "acct_1", detailsSubmitted: true, chargesEnabled: true, payoutsEnabled: false, stateAt: since, ...extra });
+  const rows = [
+    shop("wren", { status: "active" }, { pressName: "Wren Press", payments: stripe({ pastDue: true }) }),
+    shop("moth", { status: "active" }, { pressName: "Moth Books", payments: stripe({}) }),
+    shop("new", { status: "trialing" }, { payments: stripe({ detailsSubmitted: false }) }),
+    shop("fine", { status: "active" }, { payments: stripe({ payoutsEnabled: true }) }),
+    shop("sq", { status: "active" }, { payments: { provider: "square", accountId: "MLR1", payoutsEnabled: false, detailsSubmitted: true } }),
+    shop("closing", { status: "active" }, { status: "setting-up", payments: stripe({}) }),
+  ];
+  const { needs } = todaySummary({ rows, settings, now: NOW });
+  assert.deepEqual(needs.filter((n) => n.kind === "payouts").map((n) => [n.shopId, n.words, n.go]), [
+    ["wren", "Wren Press: Stripe paused their payouts for 3 days, because details are past due (the press was emailed)", "#shops"],
+    ["moth", "Moth Books: Stripe paused their payouts for 3 days", "#shops"],
+  ]);
+  assert.ok(SNOOZABLE.includes("payouts"), "the owner can snooze it while Stripe sorts it out");
 });
 
 test("a snoozed line leaves the list until its snooze ends, and only that kind for that shop", () => {

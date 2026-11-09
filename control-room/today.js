@@ -19,7 +19,7 @@ function sinceWords(iso, now) {
 export const PAYING = new Set(["active", "past_due"]);
 export const PAYMENT_PROBLEM = new Set(["past_due", "unpaid", "incomplete"]);
 /** The lines about one shop the owner can snooze from Today (a drifting press has its own snooze, driftWatch.js). */
-export const SNOOZABLE = Object.freeze(["shop", "payment", "move", "newsletter", "domain", "switch", "parcels"]);
+export const SNOOZABLE = Object.freeze(["shop", "payment", "move", "newsletter", "domain", "switch", "parcels", "payouts"]);
 export const SNOOZE_DAYS = 7;
 export const MAX_SNOOZE_DAYS = 30;
 /** Whether the owner snoozed this kind of line for this shop (`todaySnoozes` on the registry row) and it hasn't ended. */
@@ -93,6 +93,11 @@ export function todaySummary({ rows, settings, profiles = {}, checks = {}, open 
     const to = waiting.to === "square" ? "Square" : "Stripe";
     const days = Math.floor((now.getTime() - Date.parse(waiting.since)) / DAY);
     needs.push({ kind: "switch", shopId: row.shopId, words: `${row.pressName ?? row.shopId} pressed Switch to move card payments to ${to} ${days < 1 ? "today" : days === 1 ? "yesterday" : `${days} days ago`} and it isn't finished${waiting.problem?.message ? ` (${String(waiting.problem.message).replace(/\.$/, "")})` : ""}: finish it from their record`, go: "#shops" });
+  }
+  // A live Stripe press whose payouts Stripe paused (kept from account.updated): their money stops reaching their bank,
+  // which they notice before anything else. Square pays out by itself; a press still setting up isn't paused yet.
+  for (const row of shops.filter((r) => r.status === "live" && !r.closure && r.payments?.provider !== "square" && r.payments?.detailsSubmitted === true && r.payments?.payoutsEnabled === false)) {
+    needs.push({ kind: "payouts", shopId: row.shopId, words: `${row.pressName ?? row.shopId}: Stripe paused their payouts${sinceWords(row.payments.stateAt, now)}${row.payments.pastDue ? ", because details are past due (the press was emailed)" : ""}`, go: "#shops" });
   }
   // Chit Chats orders (chitChats.js shops): one line per shop whose details Chit Chats refused (nothing reaches it until
   // the press fixes them), with a problem order, or with an order late for tracking.

@@ -572,7 +572,7 @@ async function loadToday() {
   );
   $("#needs").replaceChildren(needs.length
     ? el("div", { className: "rp-alerts" }, ...needs.map((need) => {
-      const tone = need.kind === "shop" || need.kind === "payment" ? "danger" : "warning";
+      const tone = need.kind === "shop" || need.kind === "payment" || need.kind === "payouts" ? "danger" : "warning";
       const glyph = el("span", { className: "rp-alert-glyph", ariaHidden: "true", textContent: tone === "danger" ? "✕" : "!" });
       const text = el("span", { className: "rp-alert-text" }, el("strong", { className: "rp-alert-title", textContent: need.words }));
       // A drifting press can be snoozed from here (a button can't sit inside the alert's link, so this one is a box).
@@ -628,7 +628,7 @@ function finishSwitchesButton(n) {
 }
 
 // The kinds of line Today lets the owner snooze (today.js SNOOZABLE).
-const TODAY_SNOOZABLE = new Set(["shop", "payment", "move", "newsletter", "domain", "switch", "parcels"]);
+const TODAY_SNOOZABLE = new Set(["shop", "payment", "move", "newsletter", "domain", "switch", "parcels", "payouts"]);
 
 /** Snooze one Today line for a day, a week or a month: picked from a small menu, saved at once. */
 function needSnoozeMenu(need) {
