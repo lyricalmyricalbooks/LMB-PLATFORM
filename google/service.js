@@ -306,6 +306,12 @@ export function createGoogleService({ config, google, tokens, states, registry, 
         return backTo(saved.returnUrl, "other_account");
       }
       await tokens.save(saved.shopId, granted, { accountEmail, extras: saved.extras ?? [] });
+      // The right account got through, so the control room's "turned away a sign-in" note is answered: take it off.
+      if (row.google?.refusedSignIn) {
+        const { refusedSignIn: _done, ...rest } = (await registry.getShop(saved.shopId))?.google ?? {};
+        await registry.updateShop(saved.shopId, { google: rest })
+          .catch((err) => console.error(`Clearing the refused Google sign-in for ${saved.shopId} failed:`, err?.message || err));
+      }
       if (tokens.live(before)) await stopDropped(saved.shopId, before.extras ?? [], saved.extras ?? []);
       try {
         await connect.run(saved.shopId);

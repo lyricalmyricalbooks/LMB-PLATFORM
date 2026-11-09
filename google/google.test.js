@@ -974,4 +974,8 @@ test("one Google account runs the whole shop: a sign-in with another account cha
   assert.equal(status.body.accountEmail, "owner@example.com");
   assert.deepEqual(status.body.extrasChosen, ["drive"]);
   assert.ok(t.google.world.revoked.size >= 1, "the other account's new access is given straight back");
+  // Once the press signs in with the right account, the note is answered and leaves the control room.
+  await t.signIn({ extras: ["drive"] });
+  assert.equal((await t.shopRow()).google.refusedSignIn, undefined);
+  assert.equal((await t.link.status.googleStatus(SHOP)).refusedSignIn, null);
 });

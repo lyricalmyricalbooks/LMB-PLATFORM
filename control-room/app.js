@@ -256,7 +256,17 @@ const CARD_WORDS = { stripe: "Stripe", square: "Square" };
 function cardsCount(shops) {
   const presses = shops.filter((shop) => !shop.testShop && shop.cards);
   const parts = Object.entries(CARD_WORDS).map(([key, words]) => [presses.filter((shop) => shop.cards === key).length, words]).filter(([n]) => n);
-  return parts.length ? ` · cards: ${parts.map(([n, words]) => `${n} ${words}`).join(", ")}` : "";
+  // Presses that pressed Switch between Stripe and Square and haven't finished (providerSwitch.js).
+  const switching = shops.filter((shop) => !shop.testShop && shop.paymentsSwitch).length;
+  return `${parts.length ? ` · cards: ${parts.map(([n, words]) => `${n} ${words}`).join(", ")}` : ""}${switching ? ` · ${switching} switch${switching === 1 ? "" : "es"} not finished` : ""}`;
+}
+
+// The Shops list's Cards filter: who takes the cards, none yet, or a switch between them left unfinished.
+function cardsMatches(shop, wanted) {
+  if (!wanted) return true;
+  if (wanted === "none") return !shop.cards;
+  if (wanted === "switching") return Boolean(shop.paymentsSwitch);
+  return shop.cards === wanted;
 }
 
 // The Shops list's Risk filter: the drift watch's level, the owner's snooze, and a move left part-way.
@@ -296,7 +306,7 @@ function showShops() {
     && (!form.billing.value || shop.billingStatus === form.billing.value)
     && riskMatches(shop, form.risk.value)
     && sellsMatches(shop, form.sells.value)
-    && (!form.cards.value || (form.cards.value === "none" ? !shop.cards : shop.cards === form.cards.value)));
+    && cardsMatches(shop, form.cards.value));
   const problems = allShops.filter((s) => s.health.level === "problem").length;
   $("#summary").textContent = `${allShops.length} shop${allShops.length === 1 ? "" : "s"} · ${problems} with a problem${cardsCount(allShops)}${languageCount(allShops)}${shown.length !== allShops.length ? ` · showing ${shown.length}` : ""}`;
   if (!shown.length) {
