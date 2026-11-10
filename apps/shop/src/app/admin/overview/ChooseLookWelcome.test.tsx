@@ -103,4 +103,30 @@ describe("Choose your look as a theme store", () => {
     expect(dialog()!.textContent).toContain("Gift wrapped");
     expect(dialog()!.textContent).not.toContain("Paperback");
   });
+
+  it("the full view is clickable: a product opens its page, Bag opens the bag, and the shop name goes home", async () => {
+    await mount({ publishes: "clothing" });
+    await click(button(`Try on ${builtLooks()[0].name}`));
+    const stage = () => dialog()!.querySelector("[data-look-stage]") as HTMLElement;
+    expect(stage().hasAttribute("data-live")).toBe(true);
+    await click(stage().querySelector("[data-go='product:1']") as HTMLElement);
+    expect(button("Product page", dialog()!).getAttribute("aria-pressed")).toBe("true");
+    expect(dialog()!.textContent).toContain("Canvas Tote");
+    await click(stage().querySelector("[data-go='bag']") as HTMLElement);
+    expect(button("Bag", dialog()!).getAttribute("aria-pressed")).toBe("true");
+    expect(dialog()!.textContent).toContain("Your bag");
+    expect(dialog()!.textContent).toContain("Subtotal");
+    await click(stage().querySelector("[data-go='home']") as HTMLElement);
+    expect(button("Home page", dialog()!).getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("Use and customize records the look, then opens the designer", async () => {
+    const { onDone, apply } = await mount();
+    const look = builtLooks()[2];
+    await click(button(`Try on ${look.name}`));
+    await click(button("Use and customize", dialog()!));
+    expect(apply).toHaveBeenCalledWith(expect.objectContaining({ id: look.id }), expect.anything(), "books");
+    expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ theme: look.id }));
+    expect(window.location.hash).toBe("#settings/designer");
+  });
 });
