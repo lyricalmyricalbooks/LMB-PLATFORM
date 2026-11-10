@@ -1906,3 +1906,13 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .admin-reso .rp-trial-pill { display: inline-flex; align-items: center; min-height: 32px; padding: 0 12px; border-radius: 999px; background: var(--rp-surface); border: 1px solid var(--rp-hair); color: var(--rp-text); font-size: var(--rp-text-sm); font-weight: 600; white-space: nowrap; text-decoration: none; }
 .admin-reso .rp-trial-pill:hover { text-decoration: underline; }
 @media (max-width: 640px) { .admin-reso .rp-trial-pill { display: none; } }
+
+/* Store switcher in the rail brand (platform shops): name + chevron, a mono "Free trial" tag, a white menu. */
+.rp-store-switcher { position: relative; flex: 1; width: 100%; min-width: 0; }
+.rp-store-switch { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; margin: 0; border: 0; border-radius: 14px; background: transparent; color: var(--rp-rail-text, var(--rp-text)); text-align: left; cursor: pointer; font: inherit; }
+.rp-store-switch:hover, .rp-store-switch[aria-expanded="true"] { background: var(--rp-rail-hover, var(--rp-surface-2)); }
+.rp-store-switch .rp-brand-text { flex: 1; min-width: 0; }
+.rp-store-switch .rp-wordmark { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.1rem; color: var(--rp-rail-hover-strong, var(--rp-text)); }
+.rp-store-tag { display: block; margin-top: 2px; font-family: var(--rp-font-mono, monospace); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--rp-rail-text-faint, var(--rp-text-muted)); }
+.rp-store-menu { left: 0; right: 0; min-width: 0; width: auto; border-radius: 18px; }
+.rp-store-menu a.rp-menu-item { text-decoration: none; }

@@ -193,6 +193,12 @@ export function trialPill(plan: PlatformPlan | null, now = Date.now()): string |
   return `Free trial · ${left <= 1 ? "last day" : `${left} days left`}`;
 }
 
+/** The platform's sign-up questions for another store (same address as the plan's link), or null. */
+export function addStorePage(plan: PlatformPlan | null | undefined): string | null {
+  if (!plan?.link) return null;
+  try { return new URL("/join/", plan.link).href; } catch { return null; }
+}
+
 /** The platform's list of the person's stores (its account page, on the same address as the plan's link), or null. */
 export function storesPage(plan: PlatformPlan | null | undefined): string | null {
   if (!plan?.link) return null;

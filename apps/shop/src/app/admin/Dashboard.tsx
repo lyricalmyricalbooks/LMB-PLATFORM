@@ -29,14 +29,14 @@ import {
   AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, PrimaryButton, SecondaryButton,
   IconButton, Dialog, ToastProvider, SyncChip, useOnline, LoadingState, PageSkeleton, useConfirm, PageAlertsSlot, PageActionsSlot,
 } from "./riso/components";
-import { GlobalSearch, ActivityLogDialog, ShopStatusMenu, DrawerAccount } from "./riso/shellParts";
+import { GlobalSearch, ActivityLogDialog, ShopStatusMenu, DrawerAccount, StoreSwitcher } from "./riso/shellParts";
 import { blockedMessage, blockersBeforeOpening } from "./launchCheck";
 import { WhatsNew } from "./WhatsNew";
 import { ADMIN_LOOK, applyAdminLook } from "./riso/adminLook";
 import { SupportBanner } from "./SupportBanner";
 import { PlanBannerBar, PlanDesk } from "./PlanParts";
 import { TwoStepReminder } from "./TwoStepReminder";
-import { planLocked, storesPage, trialPill } from "./platformPlan";
+import { addStorePage, planLocked, storesPage, trialPill } from "./platformPlan";
 import { usePlatformPlan } from "./platformPlanApi";
 import { PlatformMessagesBar } from "./PlatformMessagesBar";
 import type { SupportVisit } from "./supportSession";
@@ -805,7 +805,11 @@ export function Dashboard() {
             onSelect={openMenuPage}
             onSelectChild={(_item, page) => openMenuPage(page)}
             top={hasStockroom() && !COMBINED ? <AppSwitcher onSwitch={() => setSidebarOpen(false)} /> : undefined}
-            brand={
+            brand={storesPage(platformPlan) ? (
+              <StoreSwitcher name={shopNameFromSettings(settings)} tag={platformPlan?.state === "trial" ? "Free trial" : null}
+                storesUrl={storesPage(platformPlan)!} addUrl={addStorePage(platformPlan)}
+                onOverview={() => { setSidebarOpen(false); void goTo("overview"); }} />
+            ) : (
               <a className="rp-brand-link" href="#overview" aria-label={COMBINED ? "Admin: go to Overview" : "Website admin: go to Overview"}
                 onClick={(e) => { e.preventDefault(); setSidebarOpen(false); void goTo("overview"); }}>
                 <span className="rp-brand-text">
@@ -813,7 +817,7 @@ export function Dashboard() {
                   <span className="rp-wordmark-sub">{COMBINED ? "Admin" : "Website admin"}</span>
                 </span>
               </a>
-            }
+            )}
             footer={
               <>
               <WhatsNew appearance={appearance} onHistoryOpen={() => setSidebarOpen(false)} onNavigate={async (link) => { if (link.studio) { window.location.hash = link.studio; return; } if (!(await goTo(link.tab))) return; if (link.settingsTab) setSettingsTab(link.settingsTab); }} />
