@@ -372,3 +372,41 @@ export function DrawerAccount({ avatar, name, email, onViewSite, menuItems }: {
     </div>
   );
 }
+
+/** The rail's store switcher (platform shops): the store's name opens a menu of the person's stores. */
+export function StoreSwitcher({ name, tag, storesUrl, addUrl, onOverview }: {
+  name: ReactNode; tag: string | null; storesUrl: string; addUrl: string | null; onOverview: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+  const menuId = useId();
+  useEffect(() => {
+    if (!open) return;
+    wrap.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    const away = (e: MouseEvent) => { if (!wrap.current?.contains(e.target as Node)) setOpen(false); };
+    const node = wrap.current;
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); setOpen(false); node?.querySelector<HTMLElement>(".rp-store-switch")?.focus(); } };
+    document.addEventListener("mousedown", away);
+    node?.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", away); node?.removeEventListener("keydown", esc); };
+  }, [open]);
+  return (
+    <div className="rp-store-switcher" ref={wrap}>
+      <button type="button" className="rp-store-switch" aria-haspopup="menu" aria-expanded={open}
+        aria-controls={open ? menuId : undefined} onClick={() => setOpen((v) => !v)}>
+        <span className="rp-brand-text">
+          <span className="rp-wordmark">{name}</span>
+          {tag ? <span className="rp-store-tag">{tag}</span> : null}
+        </span>
+        <ChevronDown size={16} aria-hidden />
+      </button>
+      {open && (
+        <div className="rp-menu rp-store-menu" role="menu" id={menuId}>
+          <button type="button" role="menuitem" className="rp-menu-item" onClick={() => { setOpen(false); onOverview(); }}>Overview</button>
+          {addUrl ? <a role="menuitem" className="rp-menu-item" href={addUrl}>+ Add another store</a> : null}
+          <a role="menuitem" className="rp-menu-item" href={storesUrl}>All stores &amp; account</a>
+        </div>
+      )}
+    </div>
+  );
+}

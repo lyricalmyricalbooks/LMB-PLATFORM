@@ -1,7 +1,7 @@
 // The shop's plan in the admin (plan 6.6, 6.7): the banner per state, Settings › Plan's facts, and which plans lock the
 // admin to Plan & billing.
 import { describe, expect, it } from "vitest";
-import { daysLeft, parsePlatformPlan, planBanner, planFacts, planLocked, storesPage, trialPill, type PlatformPlan } from "./platformPlan";
+import { addStorePage, daysLeft, parsePlatformPlan, planBanner, planFacts, planLocked, storesPage, trialPill, type PlatformPlan } from "./platformPlan";
 
 const NOW = Date.parse("2026-11-05T15:00:00.000Z");
 const DAY = 86400_000;
@@ -103,4 +103,9 @@ describe("storesPage", () => {
     expect(storesPage(parsePlatformPlan({ state: "trial" }))).toBeNull();
     expect(storesPage(null)).toBeNull();
   });
+});
+
+it("another store starts at the platform's sign-up questions", () => {
+  expect(addStorePage({ link: "https://platform.example/account/billing/" } as never)).toBe("https://platform.example/join/");
+  expect(addStorePage(null)).toBeNull();
 });
