@@ -75,3 +75,35 @@
   :root[data-admin-look="colophon"] body.rp .pub-shell .tab-panel h1 { text-transform: none; letter-spacing: -0.02em; }
   :root[data-admin-look="colophon"] body.rp .mnav-btn.active { background: var(--rp-primary); color: var(--rp-on-primary) !important; }
 }
+
+/* Figures that need attention sit on an apricot tile. */
+:root[data-admin-look="colophon"] body.rp .kpi:has(.kpi-value.warn) { background: var(--rp-tile-apricot); color: var(--rp-on-tile); border-color: transparent; }
+:root[data-admin-look="colophon"] body.rp .kpi:has(.kpi-value.warn) :is(.kpi-label, .kpi-sub, .kpi-value) { color: var(--rp-on-tile); }
+
+/* Phone menu: simple line icons instead of emoji. */
+:root[data-admin-look="colophon"] body.rp .mnav-ic { font-size: 0; width: 22px; height: 22px; display: inline-block; background: currentColor;
+  -webkit-mask: var(--mnav-icon) center / contain no-repeat; mask: var(--mnav-icon) center / contain no-repeat; }
+:root[data-admin-look="colophon"] body.rp .mnav-btn:nth-child(1) { --mnav-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linejoin='round'%3E%3Cpath d='M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z'/%3E%3C/svg%3E"); }
+:root[data-admin-look="colophon"] body.rp .mnav-btn:nth-child(2) { --mnav-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linejoin='round'%3E%3Cpath d='M5 8h14l-1 12H6z'/%3E%3Cpath d='M9 8a3 3 0 0 1 6 0'/%3E%3C/svg%3E"); }
+:root[data-admin-look="colophon"] body.rp .mnav-btn:nth-child(3) { --mnav-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linejoin='round'%3E%3Cpath d='M4 20h4L19 9l-4-4L4 16z'/%3E%3C/svg%3E"); }
+:root[data-admin-look="colophon"] body.rp .mnav-btn:nth-child(4) { --mnav-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round'%3E%3Cpath d='M4 7h16M4 12h16M4 17h16'/%3E%3C/svg%3E"); }
+
+/* Phone, round 2: cream top bar, sentence-case headings and tabs, sans figures, rounded rows. */
+@media (max-width: 768px) {
+  :root[data-admin-look="colophon"] body.rp .pub-shell .app-header { background: var(--rp-bg); border-bottom: 1px solid var(--rp-divider); }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .app-header :is(.header-wordmark, .header-brand-text *, button, .phone-sync-mark, .phone-sync-mark *:not(.sync-dot)) { color: var(--rp-text) !important; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell :is(#tab-pos, #tab-today, .tab-panel) :is(h1, .phone-eyebrow, [role="tab"], .pos-subtab-btn, .mnav-label) { text-transform: none; letter-spacing: -0.01em; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell :is(#tab-pos, .tab-panel) h1 { font-family: var(--rp-font-display, inherit); font-weight: 600; font-size: 40px; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .mnav :is(.mnav-label) { text-transform: none; letter-spacing: 0; font-weight: 600; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .mnav .mnav-ic { display: inline-block; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .mnav .mnav-btn { border-radius: 999px; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .mnav .mnav-btn:nth-child(2).active { background: var(--rp-primary); }
+}
+:root[data-admin-look="colophon"] body.rp { --font-mono: var(--font-ui); }
+@media (max-width: 768px) {
+  /* The Sell button is always the black pill, so its words are always light. */
+  :root[data-admin-look="colophon"] body.rp .pub-shell .mnav .mnav-btn:nth-child(2) { background: var(--rp-primary); color: var(--rp-on-primary) !important; }
+  /* No shouted capitals or wide tracking anywhere on a stockroom page. */
+  :root[data-admin-look="colophon"] body.rp .pub-shell .tab-panel :is(h1, h2, h3, h4, [class*="label"], [class*="head"], [class*="eyebrow"], [class*="kicker"], [class*="date"], [class*="count"], [class*="badge"], [class*="tab"], .btn) { text-transform: none !important; letter-spacing: 0 !important; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .tab-panel :is([class*="chip"], [class*="card"]:not([class*="head"]):not([class*="row"]), [class*="pill"]) { border-radius: var(--rp-radius-md, 14px); }
+}

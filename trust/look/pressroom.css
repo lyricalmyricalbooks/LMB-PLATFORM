@@ -2012,3 +2012,7 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .od-switch { border: 0; border-radius: 999px; padding: 3px; gap: 3px; background: var(--rp-surface); }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .od-switch > button { border: 0; border-radius: 999px; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .od-switch > button[aria-pressed="true"] { background: var(--rp-primary); color: var(--rp-on-primary); }
+
+/* Colophon: a figure that needs attention sits on an apricot tile. */
+:root[data-admin-look="colophon"] .rp-ov-figure[data-tone="warn"] { background: var(--rp-tile-apricot); color: var(--rp-on-tile); border-color: transparent; }
+:root[data-admin-look="colophon"] .rp-ov-figure[data-tone="warn"] :is(.rp-ov-figure-value, .rp-ov-figure-label, *) { color: var(--rp-on-tile); }

@@ -17,12 +17,12 @@ export function safeLink(url) {
 export function layout({ subject, greeting, paragraphs, buttons = [], footer }) {
   const text = [greeting, ...paragraphs, ...buttons.map(([label, url]) => `${label}: ${safeLink(url)}`), footer].filter(Boolean).join("\n\n");
   const html = [
-    '<div style="font-family:Helvetica,Arial,sans-serif;font-size:16px;line-height:1.5;color:#1a1a1a;max-width:560px">',
+    '<div style="background:#f4f1ea;padding:24px"><div style="font-family:Helvetica,Arial,sans-serif;font-size:16px;line-height:1.5;color:#1f1e1b;max-width:560px;margin:0 auto;background:#ffffff;border-radius:20px;padding:28px">',
     greeting ? `<p>${escapeHtml(greeting)}</p>` : "",
     ...paragraphs.map((p) => `<p>${escapeHtml(p)}</p>`),
-    ...buttons.map(([label, url]) => `<p><a href="${escapeHtml(safeLink(url))}" style="display:inline-block;padding:10px 16px;border:2px solid #1a1a1a;color:#1a1a1a;text-decoration:none;font-weight:bold">${escapeHtml(label)}</a></p>`),
+    ...buttons.map(([label, url]) => `<p><a href="${escapeHtml(safeLink(url))}" style="display:inline-block;padding:12px 22px;border-radius:999px;background:#1f1e1b;color:#ffffff;text-decoration:none;font-weight:600">${escapeHtml(label)}</a></p>`),
     footer ? `<p style="font-size:13px;color:#555">${escapeHtml(footer)}</p>` : "",
-    "</div>",
+    "</div></div>",
   ].join("");
   return { subject, text, html };
 }
@@ -39,8 +39,9 @@ export const identityLine = (settings) =>
 export function withIdentity(parts, settings) {
   const line = identityLine(settings);
   if (parts.text.includes(line)) return parts;
-  const html = parts.html.endsWith("</div>")
-    ? `${parts.html.slice(0, -6)}<p style="font-size:12px;color:#777">${escapeHtml(line)}</p></div>`
+  const close = parts.html.endsWith("</div></div>") ? "</div></div>" : "</div>";
+  const html = parts.html.endsWith(close)
+    ? `${parts.html.slice(0, -close.length)}<p style="font-size:12px;color:#777">${escapeHtml(line)}</p>${close}`
     : `${parts.html}<p style="font-size:12px;color:#777">${escapeHtml(line)}</p>`;
   return { ...parts, text: `${parts.text}\n\n${line}`, html };
 }
