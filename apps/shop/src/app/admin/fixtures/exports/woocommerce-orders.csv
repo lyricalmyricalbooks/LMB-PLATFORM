@@ -1,0 +1,5 @@
+Date,Order #,Status,Customer,Customer type,Product(s),Items sold,Coupon(s),Net Sales,Attribution
+2025-06-01 15:30:00,1201,Completed,Ada Reader,returning,"Poems in Blue, Zine Two",3,summer10,50.00,Direct
+2025-07-10 09:00:00,1202,Refunded,Ben Pages,new,Big Book,1,,30.00,Organic: Google
+2025-08-05 11:00:00,1203,Cancelled,Ben Pages,returning,Card,1,,12.00,Direct
+2025-08-06 11:00:00,1204,Pending payment,Ben Pages,returning,Card,1,,12.00,Direct
