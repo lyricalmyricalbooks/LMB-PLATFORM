@@ -1,9 +1,9 @@
 import type { AppUpdate } from "../appUpdates";
 
 export default {
-  id: "photo-look-previews",
+  id: "drawn-look-previews",
   date: "2026-11-10",
-  title: "Real photos in look previews",
-  summary: "Choosing a look now shows studio photos of sample clothing, jewellery and books instead of flat drawings.",
+  title: "Look previews back to drawn products",
+  summary: "Choosing a look shows drawn sample products again; the studio photos were taken out.",
   links: [{ label: "Open Themes", tab: "settings", settingsTab: "designer", studio: "designer?tab=themes" }],
 } satisfies AppUpdate;
