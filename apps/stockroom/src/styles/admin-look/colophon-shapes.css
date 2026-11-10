@@ -25,7 +25,7 @@
 :root[data-admin-look="colophon"] body.rp .lead-emoji { display: none; }
 /* Figure tiles: soft rounded, money in on the mint tile. */
 :root[data-admin-look="colophon"] body.rp .cf-stat { border: 0 !important; border-radius: var(--r2); }
-:root[data-admin-look="colophon"] body.rp .cf-stat.cf-income { background: var(--rp-success-tint); }
+:root[data-admin-look="colophon"] body.rp .cf-stat.cf-income { background: var(--rp-tile-mint); color: var(--rp-on-tile); }
 /* Small figures: quiet cream chips inside the white tile. */
 :root[data-admin-look="colophon"] body.rp .cf-kpi { border: 0; background: var(--rp-surface-2); }
 /* Section headings and the alert line speak in sentence case, like the admin around them. */
@@ -37,6 +37,41 @@
 :root[data-admin-look="colophon"] body.rp .publisher-action-banner .btn { background: var(--rp-primary) !important; color: var(--rp-on-primary) !important; border: 0; box-shadow: none; }
 /* The header sits on the cream page, so its quiet buttons use the page's text colour (they were drawn for a dark bar). */
 :root[data-admin-look="colophon"] body.rp :is(.profile-tab:not(.active), #role-toggle-btn) { color: var(--rp-text-muted) !important; border-color: var(--rp-border) !important; text-transform: none; letter-spacing: 0; }
+/* Buttons speak in sentence case, like the admin's black pills. */
+:root[data-admin-look="colophon"] body.rp .btn { text-transform: none; letter-spacing: 0; font-weight: 600; }
+/* Pop-ups: a white tile with the big corner and no ink outline; emoji badges in their titles go. */
+:root[data-admin-look="colophon"] body.rp .modal { background: var(--rp-surface); border: 0; }
+:root[data-admin-look="colophon"] body.rp .modal-title-badge { display: none; }
+:root[data-admin-look="colophon"] body.rp .modal :is(.modal-title, .modal-footer) { background: var(--rp-surface); }
+/* The book strip at the top of a page: a quiet tile with the book's colour as a dot only. */
+:root[data-admin-look="colophon"] body.rp .book-context { border-left: 0; background: var(--rp-surface); border-radius: var(--r2); }
+/* Table heads: quiet labels on the tile, not a black bar. */
+:root[data-admin-look="colophon"] body.rp .tbl thead { background: var(--rp-surface-2); }
+:root[data-admin-look="colophon"] body.rp .tbl th { background: var(--rp-surface-2) !important; color: var(--rp-text-muted) !important; letter-spacing: 0.04em; }
+/* The menu, like the admin's: words only, no emoji icons; the shop's name as written, not in capitals. */
+:root[data-admin-look="colophon"] body.rp :is(.snav-ic, .pub-side-ico) { display: none; }
+:root[data-admin-look="colophon"] body.rp :is(.header-brand-text *, .pub-wordmark) { text-transform: none; letter-spacing: -0.01em; }
+/* Stockist cards and their figure chips: white tiles, cream chips, no ink outlines or offset shadows. */
+:root[data-admin-look="colophon"] body.rp .store-card { border: 0; box-shadow: none; border-radius: var(--r3); background: var(--rp-surface); }
+:root[data-admin-look="colophon"] body.rp .store-row { border-color: var(--rp-divider); }
+:root[data-admin-look="colophon"] body.rp .store-card .sk { border: 0; background: var(--rp-surface-2); border-radius: var(--r); }
+:root[data-admin-look="colophon"] body.rp .kpi.is-lead { background: var(--rp-tile-mint) !important; color: var(--rp-on-tile) !important; border: 0; }
+:root[data-admin-look="colophon"] body.rp .kpi.is-lead * { color: var(--rp-on-tile) !important; }
 }
 /* Inside the admin, its page header already names the page: the stockroom's own grey title strip goes. */
 .inside-admin #tab-taxcenter > .book-context { display: none; }
+
+/* Phones (phone-riso.css draws the stockroom's phone layout in the old Riso voice): the same layout in the Colophon
+   look, with no offset ink shadows, no ink outlines on tiles and buttons, and sentence-case titles and buttons. */
+@media screen and (max-width: 768px) {
+  :root[data-admin-look="colophon"] body.rp .pub-shell { --riso-off: none; --riso-off-sm: none; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell :is(h1, h2, h3, .btn, button, .card-title, .section-hed, .more-sheet-title, .mnav-label, [class$="-title"], [class*="-title "]) { text-transform: none; letter-spacing: -0.01em; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell :is(.card, .store-card, .kpi, .phone-record, .btn:not(.gold)) { border-color: var(--rp-border) !important; box-shadow: none !important; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell :is(.card, .store-card, .kpi) { border-width: 0 !important; border-radius: var(--r3); }
+}
+
+/* Phone: page titles in sentence case; active bottom-nav label readable. */
+@media (max-width: 768px) {
+  :root[data-admin-look="colophon"] body.rp .pub-shell .tab-panel h1 { text-transform: none; letter-spacing: -0.02em; }
+  :root[data-admin-look="colophon"] body.rp .mnav-btn.active { background: var(--rp-primary); color: var(--rp-on-primary) !important; }
+}
