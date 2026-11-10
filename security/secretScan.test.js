@@ -10,11 +10,15 @@ const fake = {
   github: "ghp_" + "a".repeat(36),
   pem: "-----BEGIN " + "RSA PRIVATE KEY-----",
   slack: "xoxb-" + "1234567890-abcdefghij",
+  stripeTest: "sk_" + "test_" + "a1B2c3D4e5F6g7H8i9J0k1L2m3",
+  shippo: "shippo_" + "live_" + "a1".repeat(20),
+  npm: "npm_" + "a1B2".repeat(9),
+  carrier: "DEFAULT_CP_API_" + "SECRET = '" + "9f8e7d6c5b4a" + "'",
 };
 
 test("each kind of planted fake key is found, with its line and never its text", () => {
   for (const [kind, value] of Object.entries(fake)) {
-    const hits = findSecrets(`line one\nconst key = "${value}";\n`);
+    const hits = findSecrets(`line one\nconst key = ${JSON.stringify(value)};\n`);
     assert.equal(hits.length, 1, kind);
     assert.equal(hits[0].line, 2, kind);
     assert.ok(!JSON.stringify(hits).includes(value.slice(6)), `${kind}: the result must not hold the key`);

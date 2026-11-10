@@ -16,6 +16,12 @@ export const RULES = [
   { name: "Slack token", pattern: /\bxox[abprs]-[0-9A-Za-z-]{20,}/ },
   { name: "Resend API key", pattern: /\bre_[0-9A-Za-z]{8,}_[0-9A-Za-z]{16,}/ },
   { name: "Square access token", pattern: /\bEAAA[0-9A-Za-z_-]{40,}/ },
+  { name: "Stripe test secret key", pattern: /\b(?:sk|rk)_test_[0-9A-Za-z]{24,}/ },
+  { name: "Shippo live token", pattern: /\bshippo_live_[0-9a-f]{40}\b/ },
+  { name: "npm token", pattern: /\bnpm_[0-9A-Za-z]{36}\b/ },
+  { name: "Google OAuth refresh token", pattern: /\b1\/\/0[0-9A-Za-z_-]{40,}/ },
+  // A carrier key written into the code as a default (the stockroom once shipped one this way).
+  { name: "built-in carrier key", pattern: /\bDEFAULT_CP_API_(?:KEY|SECRET)\s*=\s*['"][^'"\s]{8,}['"]/ },
   { name: "service account file", pattern: /"type"\s*:\s*"service_account"[\s\S]{0,400}"private_key"/ },
 ];
 
@@ -32,7 +38,9 @@ export function findSecrets(text) {
   for (const { name, pattern } of RULES) {
     const all = new RegExp(pattern.source, "g");
     for (let m = all.exec(text); m; m = all.exec(text)) {
-      if (MADE_UP.test(m[0])) continue;
+      // "test" in a Stripe test key is its prefix, not a sign the value is made up.
+      const body = m[0].replace(/^(?:sk|rk)_test_/, "");
+      if (MADE_UP.test(body) || (body !== m[0] && body.startsWith("abcdef"))) continue;
       found.push({ rule: name, line: text.slice(0, m.index).split("\n").length });
       break;
     }

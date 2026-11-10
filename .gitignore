@@ -9,3 +9,11 @@ node_modules/
 server/env.yaml
 # The built platform site (site/build.js)
 site/out/
+# Never commit keys or a tool's working files (security/secretScan.js checks the rest)
+*.pem
+*.p12
+*.key
+*service-account*.json
+*credentials*.json
+.codex/
+.superpowers/
