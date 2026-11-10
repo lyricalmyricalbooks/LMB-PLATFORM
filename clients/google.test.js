@@ -100,9 +100,13 @@ test("firestore: seven-day recovery is switched on for an existing database, and
     { method: "PATCH", url: `${D}/(default)?updateMask=pointInTimeRecoveryEnablement`, body: { pointInTimeRecoveryEnablement: "POINT_IN_TIME_RECOVERY_ENABLED" }, json: { name: `projects/${P}/databases/(default)/operations/op2`, done: false } },
     { method: "GET", url: `https://firestore.googleapis.com/v1/projects/${P}/databases/(default)/operations/op2`, json: { done: true, response: {} } },
     { method: "POST", url: `${D}/drill-2026-01-02/documents:runAggregationQuery`, body: { structuredAggregationQuery: { structuredQuery: { from: [{ collectionId: "orders" }] }, aggregations: [{ alias: "n", count: {} }] } }, json: [{ result: { aggregateFields: { n: { integerValue: "41" } } } }] },
+    // In the shared system a shop's collection sits under its folder, so the count names that folder as the parent.
+    { method: "POST", url: `${D}/(default)/documents/shops/moth-press:runAggregationQuery`, body: { structuredAggregationQuery: { structuredQuery: { from: [{ collectionId: "orders" }] }, aggregations: [{ alias: "n", count: {} }] } }, json: [{ result: { aggregateFields: { n: { integerValue: "7" } } } }] },
   ]);
   await google.firestore.enablePointInTimeRecovery(P);
   assert.equal(await google.firestore.count(P, "drill-2026-01-02", "orders"), 41);
+  assert.equal(await google.firestore.count(P, "(default)", "orders", { parent: "shops/moth-press" }), 7);
+  await assert.rejects(google.firestore.count(P, "(default)", "orders", { parent: "addresses/x" }), /shop's folder/);
   fetch.done();
 });
 

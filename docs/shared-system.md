@@ -94,7 +94,8 @@ needed a Google organization before any shop could be made ("In the queue") and 
   Stripe and Square events there; the health checks call the checkout there). `ownAddress` (services/domains/names.js)
   is the free address for a shared shop. A shared shop is live for health, backups and team sync
   (`rings.js` `notLive`), but gets no per-project release (`leftOut`). The nightly backup exports the shared project's
-  two databases once for all its shops; the monthly restore drill still covers only shops with a project of their own.
+  two databases once for all its shops. The monthly restore drill restores that export into a scratch database and counts
+  one shop's own folder there and in the live database (`restoreDrill.js` `placeOf`), a different shop each month.
 - **Staged updates.** A release goes to a project, not a shop (`services/release-runner/shared.js`,
   `node services/release-runner/run-shared.js <version>`): the shared test project first, then the live one
   (`SHARED_SHOPS_PROJECT`). Each gets the stamped rules of both apps, the shared server's code with its own settings
@@ -156,11 +157,10 @@ app off. The per-shop cost meters (phase 7) are what the plan charges by.
 | 4 | Per-shop sign-in (Identity Platform tenants) for customers, staff, helpers, support | built |
 | 5 | Front door: one site for every address, profile by address, crawlable pages, own domains | built |
 | 6 | Shop maker in seconds (record + tenant + starter content); ends "In the queue" | built |
-| 7 | Platform services: control room, health, per-shop costs, export, closing, backups, staged updates | built, restore drill next |
+| 7 | Platform services: control room, health, per-shop costs, export, closing, backups, staged updates | built |
 | 8 | Test shop rebuilt in the shared test project (`lmb-test-shop`) with a test purchase | |
 
-Left for later in phase 7: a restore drill
-of the shared project. A Shippo or PayPal webhook set up by hand needs `?shop=<id>` on its address. The tick runs every
+Left for later: a Shippo or PayPal webhook set up by hand needs `?shop=<id>` on its address. The tick runs every
 shop in one five-minute run; it is spread out once there are many shops. Nothing is deployed from these copies to a
 live shop until phase 8 (the per-project test shop build is on hold).
 

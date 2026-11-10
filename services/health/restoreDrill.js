@@ -10,8 +10,10 @@
 //   the health check `drill` (so the control room's list of shops with a problem shows it, and a failure sends the same
 //   `health-alert` email as any other check). It runs once per calendar month in Toronto, not on every call.
 // - Only a shop with a backup is picked. The shop whose last drill is oldest goes first, so every shop is tried in turn.
+// - A shop in the shared system (docs/shared-system.md) has no project of its own: the shared project's nightly export
+//   (nightly.js) is restored, and the shop's own folder (`shops/<id>/…`) is counted there and in the live database.
 // - Nothing in the live shop is written: the scratch database is the only thing created, and it is always removed.
-import { leftOut } from "../release-runner/rings.js";
+import { notLive } from "../release-runner/rings.js";
 import { HEALTH_ALERT, nextState } from "./runner.js";
 
 export const DRILL_COLLECTIONS = ["books", "orders", "reviews"];
@@ -27,30 +29,34 @@ export function countsMatch(restored, live) {
   return Math.abs(live - restored) <= Math.max(5, Math.ceil(live * 0.1));
 }
 
+/** Where a shop's backup and data are: its own project, or its folder in the shared project. */
+export const placeOf = (row) => (row.shared === true ? { project: row.projectId, parent: `shops/${row.shopId}` } : { project: row.shopId, parent: null });
+
 export async function runRestoreDrill({ registry, backups, firestore, notify, config = {}, now = () => new Date(), print = () => {}, collections = DRILL_COLLECTIONS }) {
   if (!config.alertTo) throw new Error("the restore drill needs an address to send alerts to (HEALTH_ALERT_TO)");
-  // Shops with a project of their own; a shop in the shared system is covered by the shared project's export (nightly.js).
-  const rows = (await registry.listShops()).filter((row) => !leftOut(row));
+  const rows = (await registry.listShops()).filter((row) => !notLive(row));
   const last = Math.max(0, ...rows.map((row) => Date.parse(row.restoreDrill?.at ?? 0) || 0));
   // A calendar month, not a count of days: 1 March comes 28 days after 1 February, a few seconds short in a run's time.
   if (last && drillMonth(new Date(last)) === drillMonth(now())) return { ran: false, reason: "the last drill was less than a month ago" };
 
   const candidates = [];
   for (const row of [...rows].sort((a, b) => (Date.parse(a.restoreDrill?.at ?? 0) || 0) - (Date.parse(b.restoreDrill?.at ?? 0) || 0))) {
-    const latest = await backups.latest(row.shopId).catch(() => null);
+    const latest = await backups.latest(placeOf(row).project).catch(() => null);
     if (latest) { candidates.push({ row, folder: latest.name }); break; }
   }
   if (!candidates.length) return { ran: false, reason: "no live shop has a backup to test yet" };
 
   const { row, folder } = candidates[0];
+  const { project, parent } = placeOf(row);
   const at = now().toISOString();
   const counts = {};
   let detail = "";
   let scratch = null;
   try {
-    scratch = (await backups.restoreScratch(row.shopId, { folder })).database;
+    scratch = (await backups.restoreScratch(project, { folder })).database;
+    const where = parent ? { parent } : {};
     for (const collection of collections) {
-      counts[collection] = { restored: await firestore.count(row.shopId, scratch, collection), live: await firestore.count(row.shopId, "(default)", collection) };
+      counts[collection] = { restored: await firestore.count(project, scratch, collection, where), live: await firestore.count(project, "(default)", collection, where) };
     }
     const wrong = Object.entries(counts).filter(([, c]) => !countsMatch(c.restored, c.live));
     if (wrong.length) detail = wrong.map(([name, c]) => `${name}: ${c.restored} restored, ${c.live} live`).join("; ");
@@ -58,7 +64,7 @@ export async function runRestoreDrill({ registry, backups, firestore, notify, co
     detail = `couldn't restore: ${message(error)}`;
   } finally {
     if (scratch) {
-      try { await backups.removeScratch(row.shopId, scratch); } catch (error) { detail = `${detail ? `${detail}; ` : ""}the scratch copy ${scratch} was not removed: ${message(error)}`; }
+      try { await backups.removeScratch(project, scratch); } catch (error) { detail = `${detail ? `${detail}; ` : ""}the scratch copy ${scratch} was not removed: ${message(error)}`; }
     }
   }
   const ok = detail === "";
