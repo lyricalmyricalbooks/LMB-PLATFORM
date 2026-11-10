@@ -11,7 +11,7 @@ import { ControlError, adminOf, eachInTurn } from "./controlRoom.js";
 import { PLANS } from "../setup/steps.js";
 
 /** The full storefront templates (apps/shop features/site/templateStyles.ts TEMPLATE_STYLE_IDS; a test keeps them in step). */
-export const TEMPLATES = Object.freeze(["marquee", "shelf", "atlas", "mosaic", "arch", "market", "index"]);
+export const TEMPLATES = Object.freeze(["marquee", "shelf", "atlas", "mosaic", "arch", "market", "index", "folio", "lantern", "gutter", "signal", "kiln", "almanac", "console", "picnic", "cutout", "reel"]);
 const templateOf = (design) => (TEMPLATES.includes(design?.themeStyle) ? design.themeStyle : null);
 
 /**

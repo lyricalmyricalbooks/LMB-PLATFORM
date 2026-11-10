@@ -10,6 +10,7 @@ import { withRisoNoirDefault } from "../../features/site/risoNoir";
 import { PRESET_SECTION_TEMPLATES, hasPresetContent, presetSections, presetStarterPages, type PresetContent } from "./presetContent";
 import type { SavedTheme } from "./savedThemes";
 import { themedDesign } from "./themeLook";
+import { filterLooks, LOOK_FILTERS, type LookFilter } from "../lookGallery";
 import { switchSummary, type SwitchItem, type ThemeSwitchReport } from "./themeSwitch";
 
 const COLOR = /^(#[0-9a-f]{3,8}|rgba?\(.*\))$/i;
@@ -212,6 +213,7 @@ export function StudioThemes(p: Props) {
   const [created, setCreated] = useState<PreviewLink | null>(null);
   const [links, setLinks] = useState<PreviewLink[] | null>(null);
   const [busy, setBusy] = useState(false);
+  const [feel, setFeel] = useState<LookFilter>("all");
   const [unavailable, setUnavailable] = useState(false);
   // The list couldn't be read (not a rules problem): say so with Retry instead of showing no links.
   const [linksFailed, setLinksFailed] = useState(false);
@@ -332,8 +334,15 @@ export function StudioThemes(p: Props) {
       <section>
         <h3>Start from a ready-made look</h3>
         <p className="studio-hint">A look sets colours, fonts and print details; your sections, words and menus stay. Some looks also come with a layout and starter pages: Studio offers those after the look, and you can skip them.</p>
+        <div role="group" aria-label="Show looks that feel" style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "0 0 12px" }}>
+          {LOOK_FILTERS.map(f => (
+            <SecondaryButton key={f.id} size="sm" aria-pressed={feel === f.id} data-look-filter={f.id}
+              style={feel === f.id ? { fontWeight: 700, boxShadow: "inset 0 -3px 0 currentColor" } : undefined}
+              onClick={() => setFeel(f.id)}>{f.label}</SecondaryButton>
+          ))}
+        </div>
         <div className="studio-theme-grid">
-          {p.presets.map(preset => {
+          {filterLooks(p.presets as any[], feel).map((preset: any) => {
             // Exactly what Use this look would write (palette colours included), so the drawing and Preview match it.
             const look = themedDesign(preset, p.design);
             return (

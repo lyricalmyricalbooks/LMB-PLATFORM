@@ -96,7 +96,7 @@ const pill = (look: LookPreview, filled: boolean): CSSProperties => ({
 /** The product card each template draws: tilted stalls, arched tops, ruled rows, a bare wall of covers… */
 function Card({ look, product, index, phone }: { look: LookPreview; product: PreviewProduct; index: number; phone: boolean }) {
   const s = look.style;
-  const radius = s === "arch" ? "999px 999px 0 0" : look.radius;
+  const radius = s === "arch" ? "999px 999px 0 0" : s === "kiln" ? "50%" : look.radius;
   const tall = s === "mosaic" && index % 3 === 0;
   const cover = <Cover look={look} product={product} index={index} ratio={tall ? look.ratio * 0.62 : look.ratio} radius={radius} />;
   const badge = index === 0 ? <span style={{ position: "absolute", top: 8, right: 8, padding: "3px 8px", fontSize: 11, fontWeight: 800, background: look.badgeBg, color: look.badgeText, borderRadius: s === "marquee" ? 999 : look.radius, textTransform: "uppercase" }}>New</span> : null;
@@ -111,6 +111,22 @@ function Card({ look, product, index, phone }: { look: LookPreview; product: Pre
     return (
       <div style={{ position: "relative", transform: `rotate(${index % 2 ? 1.6 : -1.6}deg)`, background: look.surface, border: `3px solid ${look.border}`, boxShadow: `6px 6px 0 ${look.border}`, padding: 10 }}>
         {cover}{badge}{words}
+      </div>
+    );
+  }
+  const boxes: Record<string, CSSProperties> = {
+    gutter: { background: look.surface, border: `4px solid ${look.border}`, boxShadow: `5px 5px 0 ${look.border}`, padding: 8 },
+    cutout: { padding: 6, transform: `rotate(${index % 2 ? 1.5 : -1.5}deg)`, background: look.surface },
+    lantern: { background: look.surface, border: `1px solid ${look.border}`, borderRadius: 18, padding: 10 },
+    picnic: { background: look.surface, borderRadius: 24, padding: 12, textAlign: "center" },
+    console: { background: look.surface, border: `1px solid ${look.border}`, padding: 10 },
+    kiln: { textAlign: "center" },
+    folio: { paddingRight: 8, paddingBottom: 8 },
+  };
+  if (boxes[s]) {
+    return (
+      <div style={{ position: "relative", ...boxes[s] }}>
+        {s === "folio" ? <div style={{ boxShadow: `8px 8px 0 ${look.border}33` }}>{cover}</div> : cover}{badge}{words}
       </div>
     );
   }
@@ -129,12 +145,14 @@ function Card({ look, product, index, phone }: { look: LookPreview; product: Pre
 }
 
 /** Index rows: the catalogue as a ruled list, a small cover at the start of each row. */
+const ROWS_STYLES = new Set(["index", "signal", "almanac"]);
 function Rows({ look, products, phone }: { look: LookPreview; products: PreviewProduct[]; phone: boolean }) {
+  const dotted = look.style === "almanac";
   return (
     <div style={{ borderTop: `2px solid ${look.border}` }}>
       {products.map((p, i) => (
-        <div key={i} style={{ display: "grid", gridTemplateColumns: phone ? "56px 1fr auto" : "40px 72px 2fr 1fr auto", alignItems: "center", gap: 16, padding: "12px 0", borderBottom: `1px solid ${look.border}` }}>
-          {!phone && <span style={{ fontFamily: look.headingFont, fontSize: 13, color: look.muted }}>{String(i + 1).padStart(2, "0")}</span>}
+        <div key={i} style={{ display: "grid", gridTemplateColumns: phone ? "56px 1fr auto" : "40px 72px 2fr 1fr auto", alignItems: "center", gap: 16, padding: "12px 0", borderBottom: `1px ${dotted ? "dotted" : "solid"} ${look.border}` }}>
+          {!phone && <span style={{ fontFamily: look.headingFont, fontSize: 13, color: look.style === "signal" ? look.accent : look.muted }}>{String(i + 1).padStart(2, "0")}</span>}
           <Cover look={look} product={p} index={i} ratio={look.ratio} radius={look.radius} style={{ width: phone ? 56 : 72 }} />
           <strong style={{ fontSize: 16, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.title || "Untitled"}</strong>
           {!phone && <span style={{ color: look.muted, fontSize: 14 }}>{p.maker}</span>}
@@ -169,6 +187,72 @@ function Hero({ look, press, heading, phone, lead }: { look: LookPreview; press:
           <span><span style={pill(look, true)}>Shop now</span></span>
         </div>
         {!phone && <Cover look={look} product={lead} index={0} ratio={1.25} radius={look.radius} />}
+      </div>
+    );
+  }
+  if (s === "folio") {
+    return (
+      <div style={{ display: "grid", gridTemplateColumns: phone ? "1fr" : "5fr 7fr", gap: phone ? 16 : 40, alignItems: "center", padding: phone ? "8px 0" : "24px 0" }}>
+        <div style={{ paddingRight: 10, paddingBottom: 10 }}><div style={{ boxShadow: `8px 8px 0 ${look.border}33` }}><Cover look={look} product={lead} index={0} ratio={0.7} radius={0} /></div></div>
+        <div style={{ display: "grid", gap: 14 }}>
+          <span style={{ fontSize: 12, letterSpacing: "0.2em", textTransform: "uppercase", color: look.accent }}>Featured</span>
+          <h2 style={{ ...title, fontSize: big * 0.8 }}>{lead.title || heading}</h2>
+          <p style={{ margin: 0, color: look.muted, fontSize: phone ? 14 : 16, maxWidth: 440 }}>A new release from {press}. Sewn binding, small run.</p>
+          <span><span style={pill(look, true)}>Add to bag</span></span>
+        </div>
+      </div>
+    );
+  }
+  if (s === "lantern" || s === "kiln" || s === "picnic") {
+    const glow = s === "lantern" ? `radial-gradient(60% 90% at 50% 0%, ${look.accent}55, transparent 70%)` : undefined;
+    return (
+      <div style={{ textAlign: "center", padding: phone ? "28px 8px" : "64px 0", display: "grid", gap: 14, justifyItems: "center", backgroundImage: glow, background: s === "kiln" ? look.secondary : s === "picnic" ? look.badgeBg : undefined, borderRadius: s === "picnic" ? 24 : undefined }}>
+        <span style={{ fontSize: 12, letterSpacing: "0.2em", textTransform: "uppercase", color: s === "lantern" ? look.accent : look.text }}>{s === "lantern" ? "Night reading" : s === "kiln" ? "Hand-thrown" : "Ages 3+"}</span>
+        <h2 style={{ ...title, fontSize: big * 0.75, maxWidth: 760 }}>{s === "kiln" ? "Made by hand, read by heart." : heading}</h2>
+        <span style={pill(look, true)}>Browse the list</span>
+      </div>
+    );
+  }
+  if (s === "gutter" || s === "cutout") {
+    return (
+      <div style={{ background: s === "gutter" ? look.accent : look.secondary, color: s === "gutter" ? look.buttonText : look.bg, border: s === "gutter" ? `4px solid ${look.border}` : undefined, transform: s === "cutout" ? "rotate(-1deg)" : undefined, padding: phone ? 20 : 40, display: "grid", gap: 12, backgroundImage: s === "gutter" ? "radial-gradient(rgba(0,0,0,.2) 1.5px, transparent 1.6px)" : undefined, backgroundSize: "14px 14px" }}>
+        <h2 style={{ ...title, fontSize: big * 0.6, textTransform: "uppercase" }}>{s === "gutter" ? "New drop!" : "Cut. Paste. Print."}</h2>
+        <span><span style={{ ...pill(look, true), background: look.text, color: look.bg }}>Shop new</span></span>
+      </div>
+    );
+  }
+  if (s === "signal") {
+    return (
+      <div style={{ padding: phone ? "8px 0" : "24px 0", display: "grid", gap: 14 }}>
+        <h2 style={{ ...title, fontSize: phone ? 56 : 150, letterSpacing: "-0.04em", lineHeight: 0.86 }}>Printed matter<span style={{ color: look.accent }}>.</span></h2>
+        <p style={{ margin: 0, color: look.muted, fontSize: phone ? 14 : 18, maxWidth: 480 }}>Essays, artist editions and prints. Every run small.</p>
+      </div>
+    );
+  }
+  if (s === "almanac") {
+    return (
+      <div style={{ border: `2px solid ${look.border}`, textAlign: "center", padding: phone ? 16 : 28, display: "grid", gap: 6 }}>
+        <span style={{ fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: look.muted }}>Vol. XII · No. 3</span>
+        <h2 style={{ ...title, fontSize: big * 0.6, textTransform: "uppercase" }}>The {press}</h2>
+        <span style={{ fontSize: 13, color: look.muted }}>worth keeping</span>
+      </div>
+    );
+  }
+  if (s === "console") {
+    return (
+      <div style={{ display: "grid", gap: 8, padding: phone ? "8px 0" : "24px 0", fontFamily: look.headingFont }}>
+        <span style={{ color: look.accent }}>$ hello</span>
+        <h2 style={{ ...title, fontSize: big * 0.55 }}>Speculative fiction, compiled weekly.</h2>
+        <span style={{ color: look.accent }}>[ browse --all ]</span>
+      </div>
+    );
+  }
+  if (s === "reel") {
+    return (
+      <div style={{ minHeight: phone ? 220 : 380, display: "grid", alignContent: "end", gap: 10, padding: phone ? 16 : 40, backgroundImage: `linear-gradient(90deg, #000c, transparent 70%), linear-gradient(0deg, #000d, transparent 60%)` }}>
+        <span style={{ fontSize: 12, letterSpacing: "0.2em", textTransform: "uppercase", color: look.accent }}>New release</span>
+        <h2 style={{ ...title, fontSize: big, textTransform: "uppercase" }}>Small Hours</h2>
+        <span><span style={pill(look, true)}>Order</span></span>
       </div>
     );
   }
@@ -294,7 +378,7 @@ export function LookStage({ look, press, device, page = "home", products, books 
                 ))}
               </div>
             )}
-            {look.style === "index"
+            {ROWS_STYLES.has(look.style)
               ? <Rows look={look} products={list.slice(0, phone ? 5 : 6)} phone={phone} />
               : (
                 <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: phone ? 14 : look.style === "marquee" ? 12 : 28, alignItems: "start" }}>

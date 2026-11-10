@@ -1,7 +1,7 @@
 import { useMemo, useState, type KeyboardEvent } from "react";
 import { ChevronLeft, ChevronRight, Monitor, Smartphone } from "lucide-react";
 import {
-  filterLooks, galleryThemes, isDarkLook, isTemplate, LOOK_FILTERS, lookPreview, pressNameOf, sampleProducts,
+  feelLabel, filterLooks, galleryThemes, LOOK_FILTERS, lookPreview, pressNameOf, sampleProducts,
   type LibraryTheme, type LookFilter, type PreviewProduct,
 } from "../lookGallery";
 import type { WelcomeDone } from "../firstWeek";
@@ -94,8 +94,7 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
   const badges = (theme: LibraryTheme, suggestion: boolean) => (
     <>
       {suggestion && <StatusBadge tone="info" glyph={false}>Suggested</StatusBadge>}
-      {isTemplate(theme) && <StatusBadge tone="primary" glyph={false}>Full template</StatusBadge>}
-      {isDarkLook(theme) && <StatusBadge glyph={false}>Dark</StatusBadge>}
+      <StatusBadge glyph={false}>{feelLabel(theme)}</StatusBadge>
     </>
   );
 
@@ -168,7 +167,7 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
       <ul aria-label="Suggested looks" style={grid(320)}>{suggested.map(t => card(t, true))}</ul>
 
       {showAll ? <>
-        <h3 className="rp-card-title" style={{ fontSize: "var(--rp-text-base)", margin: "40px 0 12px" }}>Every look</h3>
+        <h3 className="rp-card-title" style={{ fontSize: "var(--rp-text-base)", margin: "40px 0 12px" }}>Every look, by feel</h3>
         <Tabs label="Show looks" idPrefix="looks-" value={filter} onChange={setFilter}
           tabs={LOOK_FILTERS.map(f => ({ id: f.id, label: f.label, count: counts[f.id] }))} />
         <ul aria-label="Every look" style={{ ...grid(240), marginTop: 16 }}>{shown.map(t => card(t, false))}</ul>

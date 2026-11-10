@@ -132,6 +132,149 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
     ],
   },
   {
+    id: "press-folio",
+    name: "Folio",
+    description: "A literary front page: one featured book beside its description, then the list and a letter from the press.",
+    sections: [
+      { type: "HeroSection", settings: {
+        eyebrow: "FEATURED", title: "Salt Season", subtitle: "Forty poems from a year on the tidal flats. Letterpress cover, sewn binding.",
+        ctaText: "Add to bag", secondaryCtaText: "Read an excerpt", height: "medium", align: "left", bgColor: "#e4dccb", overlayOpacity: 0,
+        textTransform: "none", headingWeight: 500,
+      } },
+      { type: "ProductShowcaseGridSection", settings: { title: "The list" } },
+      { type: "NewsletterSection", settings: { title: "Letters from the press", description: "New books and readings, a few times a year." } },
+    ],
+  },
+  {
+    id: "press-lantern",
+    name: "Lantern",
+    description: "Night-blue home with an amber glow behind a centred headline, then the books on rounded cards.",
+    sections: [
+      { type: "HeroSection", settings: {
+        eyebrow: "NIGHT READING", title: "Stories for the small hours", subtitle: "Short fiction and quiet essays, printed in small runs and posted to your door.",
+        ctaText: "Browse the list", height: "medium", align: "center", bgColor: "#101a2c", overlayOpacity: 0,
+        textTransform: "none", headingWeight: 400,
+        customCss: "& { background-image: radial-gradient(60% 90% at 50% 0%, color-mix(in srgb, var(--accent) 38%, transparent), transparent 70%); }",
+      } },
+      { type: "ProductShowcaseGridSection", settings: { title: "On the nightstand" } },
+      { type: "NewsletterSection", settings: { title: "A letter at dusk", description: "New stories and restocks, once in a while." } },
+    ],
+  },
+  {
+    id: "press-gutter",
+    name: "Gutter",
+    description: "Comic-panel home: a loud scrolling strip, a halftone headline tile and heavy-outlined product panels.",
+    sections: [
+      { type: "MarqueeSection", settings: { text: "NEW DROP  /  LIMITED RUN  /  FREE STICKER INSIDE", separator: "★", speed: 24, fontSize: 13, bold: true, fontWeight: 800, letterSpacing: 0.08, uppercase: true, background: "#111111", color: "#f7f4ea" } },
+      { type: "HeroSection", settings: {
+        eyebrow: "ISSUE #12 OUT NOW", title: "New drop!", subtitle: "Risograph zines and comics, stapled by hand.",
+        ctaText: "Shop #12", accentColor: "#111111", height: "medium", align: "left", bgColor: "#e6007e", overlayOpacity: 0,
+        textTransform: "uppercase", headingWeight: 400,
+        customCss: "& { background-image: radial-gradient(rgba(0,0,0,.2) 1.6px, transparent 1.7px); background-size: 14px 14px; border: 4px solid var(--fg, #111); margin: 1rem; }",
+      } },
+      { type: "ProductShowcaseGridSection", settings: { title: "Fresh off the press" } },
+      { type: "NewsletterSection", settings: { title: "Get the drops first", description: "New issues and restocks, straight to your inbox." } },
+    ],
+  },
+  {
+    id: "press-signal",
+    name: "Signal",
+    description: "Swiss and loud: one huge headline, then the whole catalogue as numbered rows.",
+    sections: [
+      { type: "HeroSection", settings: {
+        title: "Printed matter.", subtitle: "Essays, artist editions and prints. Every run small.",
+        ctaText: "Browse the catalogue", height: "medium", align: "left", bgColor: "#ffffff", overlayOpacity: 0,
+        textTransform: "none", headingWeight: 700,
+        customCss: "& h1, & h2 { font-size: clamp(3.4rem, 13vw, 9.4rem); line-height: .86; letter-spacing: -.045em; }",
+      } },
+      { type: "ProductShowcaseGridSection", settings: { title: "Catalogue" } },
+      { type: "NewsletterSection", settings: { title: "Catalogue updates", description: "New titles and restocks, by email." } },
+    ],
+  },
+  {
+    id: "press-kiln",
+    name: "Kiln",
+    description: "Warm and handmade: a clay-coloured welcome, then round covers and pill buttons.",
+    sections: [
+      { type: "HeroSection", settings: {
+        eyebrow: "HAND-THROWN  /  SMALL BATCH", title: "Made by hand, read by heart.", subtitle: "Books and objects from our studio.",
+        ctaText: "Shop the collection", accentColor: "#3b2418", height: "medium", align: "center", bgColor: "#e3b778", overlayOpacity: 0,
+        textTransform: "none", headingWeight: 800,
+      } },
+      { type: "ProductShowcaseGridSection", settings: { title: "From the kiln" } },
+      { type: "NewsletterSection", settings: { title: "Letters from the studio", description: "New pieces and restocks, once in a while." } },
+    ],
+  },
+  {
+    id: "press-almanac",
+    name: "Almanac",
+    description: "A reference book: a boxed masthead, the book of the month and the full contents list with prices.",
+    sections: [
+      { type: "TextContentSection", settings: {
+        title: "{{shop.name}}", content: "<p>Books worth keeping.</p>", align: "center", headingWeight: 700,
+        customCss: "& { border: 2px solid var(--accent-2, currentColor); margin: 1.5rem auto; max-width: 1100px; }",
+      } },
+      { type: "BookSpotlightSection", settings: { eyebrow: "BOOK OF THE MONTH" } },
+      { type: "ProductShowcaseGridSection", settings: { title: "Contents" } },
+      { type: "NewsletterSection", settings: { title: "The next edition", description: "New titles, once a season." } },
+    ],
+  },
+  {
+    id: "press-console",
+    name: "Console",
+    description: "A terminal: green text on near-black, a welcome file and the books listed like a directory.",
+    sections: [
+      { type: "TextContentSection", settings: {
+        title: "$ hello", content: "<p>Speculative fiction, compiled weekly. Novellas and zines from the edge of the solar system.</p>", align: "left",
+      } },
+      { type: "ProductShowcaseGridSection", settings: { title: "$ ls books/ --sort=new" } },
+      { type: "NewsletterSection", settings: { title: "$ subscribe", description: "One email per new release." } },
+    ],
+  },
+  {
+    id: "press-picnic",
+    name: "Picnic",
+    description: "Bubbly and kind: a gingham welcome, then rounded cards with pastel stickers. Made for children's books.",
+    sections: [
+      { type: "HeroSection", settings: {
+        eyebrow: "AGES 0 TO 8", title: "Bedtime stories with big feelings", subtitle: "Picture books for little readers and the grown-ups who read to them.",
+        ctaText: "Start reading!", accentColor: "#3d2b5a", height: "medium", align: "center", bgColor: "#ffd9e1", overlayOpacity: 0,
+        textTransform: "none", headingWeight: 600,
+        customCss: "& { background-image: repeating-linear-gradient(0deg, rgba(255,255,255,.55) 0 24px, transparent 24px 48px), repeating-linear-gradient(90deg, rgba(255,255,255,.55) 0 24px, transparent 24px 48px); }",
+      } },
+      { type: "ProductShowcaseGridSection", settings: { title: "Pick a story" } },
+      { type: "NewsletterSection", settings: { title: "Story time, by email", description: "New books and reading ideas, once a month." } },
+    ],
+  },
+  {
+    id: "press-cutout",
+    name: "Cutout",
+    description: "Paper collage: a yellow strip, a three-word headline in coloured blocks, and tilted product cards.",
+    sections: [
+      { type: "HeroSection", settings: {
+        title: "Cut. Paste. Print.", subtitle: "Zines and prints, made on a kitchen table.",
+        ctaText: "Shop new zines", height: "medium", align: "left", bgColor: "#ff5a36", overlayOpacity: 0,
+        textTransform: "uppercase", headingWeight: 400,
+        customCss: "& { transform: rotate(-1deg); margin: 1.5rem 0; }",
+      } },
+      { type: "ProductShowcaseGridSection", settings: { title: "Fresh cuts" } },
+      { type: "NewsletterSection", settings: { title: "Get the drops first", description: "New zines and fair dates, straight to your inbox." } },
+    ],
+  },
+  {
+    id: "press-reel",
+    name: "Reel",
+    description: "Cinematic: a dark full-width feature, then a numbered strip of covers with condensed titles.",
+    sections: [
+      { type: "HeroSection", settings: {
+        eyebrow: "NEW RELEASE", title: "Small Hours", subtitle: "Vinyl and book, out now.",
+        ctaText: "Order", height: "", align: "left", overlayOpacity: 0.5, textTransform: "uppercase", headingWeight: 700,
+      } },
+      { type: "ProductShowcaseGridSection", settings: { title: "Now showing" } },
+      { type: "NewsletterSection", settings: { title: "First to hear", description: "New releases and restocks, by email." } },
+    ],
+  },
+  {
     id: "press-punk",
     name: "Punk",
     description: "Book-cover carousel hero, scrolling marquee, releases grid, staff notes table and a featured release banner.",

@@ -12,17 +12,17 @@ export type Publishes = Sells;
 
 /** Two or three themes to start from for each answer; no answer gets the general three. */
 const SUGGESTED: Record<Publishes | "general", string[]> = {
-  books: ["press-imprint", "press-letterpress", "press-arch"],
-  zines: ["press-zine", "press-market", "press-punk"],
-  comics: ["press-market", "press-mosaic", "press-riso-noir"],
-  prints: ["press-index", "press-atlas", "press-market"],
+  books: ["press-imprint", "press-folio", "press-letterpress"],
+  zines: ["press-zine", "press-gutter", "press-cutout"],
+  comics: ["press-gutter", "press-market", "press-mosaic"],
+  prints: ["press-signal", "press-index", "press-atlas"],
   mix: ["press-rows", "press-atlas", "press-market"],
   mixed: ["press-rows", "press-atlas", "press-shelf"],
-  clothing: ["press-market", "press-atlas", "press-marquee"],
+  clothing: ["press-cutout", "press-atlas", "press-marquee"],
   shoes: ["press-atlas", "urban-streetwear", "press-marquee"],
-  jewelry: ["press-arch", "press-shelf", "golden-noir"],
-  music: ["night-neon", "press-poster", "press-punk"],
-  other: ["press-arch", "press-atlas", "press-shelf"],
+  jewelry: ["press-kiln", "press-arch", "golden-noir"],
+  music: ["press-reel", "night-neon", "press-console"],
+  other: ["press-kiln", "press-atlas", "press-shelf"],
   general: ["press-riso-noir", "press-riso", "press-imprint"],
 };
 
@@ -152,20 +152,26 @@ export function lightness(hex: string): number | null {
 export const isTemplate = (theme: LibraryTheme) => { const s = lookPreview(theme).style; return !!s && s !== "default"; };
 export const isDarkLook = (theme: LibraryTheme) => (lightness(lookPreview(theme).bg) ?? 1) < 0.35;
 
-export type LookFilter = "all" | "templates" | "light" | "dark";
-export const LOOK_FILTERS: { id: LookFilter; label: string }[] = [
-  { id: "all", label: "All looks" },
-  { id: "templates", label: "Full templates" },
-  { id: "light", label: "Light" },
-  { id: "dark", label: "Dark" },
+/** How a look feels, the way a press would say it. Every look has exactly one, so the filters never overlap. */
+export type LookFeel = "quiet" | "bold" | "warm" | "dark";
+export const LOOK_FEELS: { id: LookFeel; label: string }[] = [
+  { id: "quiet", label: "Quiet & classic" },
+  { id: "bold", label: "Bold & loud" },
+  { id: "warm", label: "Warm & friendly" },
+  { id: "dark", label: "Dark & moody" },
 ];
+const BOLD = new Set(["press-riso", "press-riso-noir", "press-marquee", "press-mosaic", "press-market", "press-zine", "press-punk", "press-poster", "press-gutter", "press-cutout", "urban-streetwear", "conversion-engine"]);
+const WARM = new Set(["press-shelf", "press-kiln", "press-picnic", "press-arch", "artisan-market", "earthy-studio", "botanical-boutique", "coastal-breeze", "coastal-living", "velvet-rose", "forest-cabin"]);
+/** Dark looks are told by their page colour; the rest are bold, warm or (by default) quiet. */
+export const lookFeel = (theme: LibraryTheme): LookFeel => (isDarkLook(theme) ? "dark" : BOLD.has(theme.id) ? "bold" : WARM.has(theme.id) ? "warm" : "quiet");
+export const feelLabel = (theme: LibraryTheme) => LOOK_FEELS.find(f => f.id === lookFeel(theme))!.label;
+
+export type LookFilter = "all" | LookFeel;
+export const LOOK_FILTERS: { id: LookFilter; label: string }[] = [{ id: "all", label: "All looks" }, ...LOOK_FEELS];
 
 /** The looks a filter keeps, in the library's order. */
 export function filterLooks(themes: LibraryTheme[], filter: LookFilter): LibraryTheme[] {
-  if (filter === "templates") return themes.filter(isTemplate);
-  if (filter === "light") return themes.filter(t => !isDarkLook(t));
-  if (filter === "dark") return themes.filter(isDarkLook);
-  return themes;
+  return filter === "all" ? themes : themes.filter(t => lookFeel(t) === filter);
 }
 
 /** The faces a look draws with, for loading them before it is shown. */
