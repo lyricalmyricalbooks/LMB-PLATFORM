@@ -7,7 +7,7 @@
 //            query    the query as an object ({ shopId: "…" })
 //            headers  Node's, names in lower case
 //            body     the parsed JSON when the request says it is JSON, else null
-//            rawBody  the exact text that came in, for signature checks (Stripe's, Square's, Resend's)
+//            rawBody  the exact text that came in, for signature checks (Stripe's, Square's)
 //            ip       the address the connection came from (fair-use limits read x-forwarded-for first)
 //   answer   { status, body?, html?, headers? }: `body` is sent as JSON, `html` as a page; `headers` adds headers
 //            (a redirect's Location)

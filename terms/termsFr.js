@@ -15,9 +15,8 @@ export const GOVERNING_LAW_FR = "la province de l'Ontario et les lois du Canada 
 
 /** Les entreprises qui nous aident, dans le même ordre que HELPERS. */
 export const HELPERS_FR = Object.freeze([
-  "Google Cloud : garde chaque boutique en ligne, conserve ses renseignements, gère la connexion et fait fonctionner l'aide à la rédaction. Travaille depuis le Canada (Montréal), avec certains services aux États-Unis.",
+  "Google Cloud et Google Workspace : gardent chaque boutique en ligne, conservent ses renseignements, gèrent la connexion, font fonctionner l'aide à la rédaction et envoient les courriels de votre boutique et les nôtres. Travaillent depuis le Canada (Montréal), avec certains services, dont le courriel, aux États-Unis.",
   "Stripe : reçoit les paiements par carte pour votre boutique et pour votre forfait Colophon. Travaille depuis les États-Unis et le Canada.",
-  "Resend : envoie les courriels de votre boutique et les nôtres. Travaille depuis les États-Unis.",
   "Shippo et Postes Canada : tarifs et étiquettes d'expédition, seulement si vous les activez. Travaillent depuis les États-Unis et le Canada.",
 ]);
 

@@ -1,17 +1,16 @@
-// The platform email service (code plan 2.3) against a pretend Resend: who an email is from, where replies go, that
-// the key only comes from the environment, retries never send twice, and the shop door checks who is asking.
+// The platform email service (code plan 2.3) against a pretend Google: who an email is from, where replies go, how it
+// signs in as the mailbox, retries never send twice, and the shop door checks who is asking.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { createEmailService, cleanName, fromLine } from "./index.js";
-import { resendClient, RESEND_EMAILS_URL } from "./resend.js";
+import { GMAIL_SEND_SCOPE, GMAIL_SEND_URL, encodeAddress, gmailClient } from "./gmail.js";
 import { handleShopEmail, hashServiceKey, serviceKeyMatches } from "./http.js";
 import { TEMPLATES } from "./templates.js";
-import { fakeResendFetch, fakeSentLog } from "./fakes.js";
+import { fakeGmailFetch, fakeSentLog , pretendEmailEnv } from "./fakes.js";
 import { fakeRegistry } from "../../setup/fakes.js";
 import { OWNER_WELCOME } from "../../setup/later-steps.js";
 
-const KEY = "re_test_not_a_real_key";
 const SHOP_KEY = "shop-service-key-0123456789abcdef0123456789";
 
 async function make({ answers, env = {}, shop = {}, shopStart } = {}) {
@@ -19,20 +18,23 @@ async function make({ answers, env = {}, shop = {}, shopStart } = {}) {
   await registry.createShop("moth-press", {
     shopId: "moth-press", pressName: "Moth Press", ownerEmail: "Owner@Example.com", status: "live", serviceKeyHash: hashServiceKey(SHOP_KEY), ...shop,
   });
-  const resend = fakeResendFetch(answers);
+  const mail = fakeGmailFetch(answers);
   const sentLog = fakeSentLog();
-  const service = createEmailService({ env: { RESEND_API_KEY: KEY, ...env }, fetch: resend.fetch, registry, sentLog, shopStart, sleep: async () => {} });
-  return { registry, resend, sentLog, service };
+  const service = createEmailService({ env: { ...pretendEmailEnv(), ...env }, fetch: mail.fetch, registry, sentLog, shopStart, sleep: async () => {} });
+  return { registry, mail, sentLog, service };
 }
 
 const welcome = { kind: OWNER_WELCOME, to: "owner@example.com", pressName: "Moth Press", links: { shopAdmin: "https://moth-press.web.app/admin" }, idempotencyKey: "moth-press-owner-welcome" };
 
 test("a shop's email comes from the platform address with the press's name, and replies go to the press", async () => {
-  const { resend, service } = await make();
+  const { mail, service } = await make();
   await service.send("moth-press", welcome);
-  const [request] = resend.requests;
-  assert.equal(request.url, RESEND_EMAILS_URL);
-  assert.equal(request.headers.Authorization, `Bearer ${KEY}`);
+  const [request] = mail.requests;
+  assert.equal(request.url, GMAIL_SEND_URL);
+  assert.equal(request.headers.Authorization, "Bearer mail-token");
+  // Signed by the mail account, as the mailbox, for sending only.
+  assert.deepEqual([mail.auth[0].payload.iss, mail.auth[0].payload.sub, mail.auth[0].payload.scope],
+    ["platform-mail@lmb-platform-prod.iam.gserviceaccount.com", "notifications@platform.example", GMAIL_SEND_SCOPE]);
   assert.equal(request.headers["Idempotency-Key"], "moth-press-owner-welcome");
   assert.equal(request.body.from, '"Moth Press" <notifications@platform.example>');
   assert.deepEqual(request.body.reply_to, ["owner@example.com"]);
@@ -43,19 +45,19 @@ test("a shop's email comes from the platform address with the press's name, and 
 });
 
 test("the press's own reply-to wins, and the name and reply-to come from the registry, not the message", async () => {
-  const { resend, service } = await make({ shop: { replyTo: "hello@moth.example" } });
+  const { mail, service } = await make({ shop: { replyTo: "hello@moth.example" } });
   await service.send("moth-press", { ...welcome, pressName: "Someone Else", replyTo: "thief@x.com", from: "boss@x.com" });
-  assert.equal(resend.requests[0].body.from, '"Moth Press" <notifications@platform.example>');
-  assert.deepEqual(resend.requests[0].body.reply_to, ["hello@moth.example"]);
+  assert.equal(mail.requests[0].body.from, '"Moth Press" <notifications@platform.example>');
+  assert.deepEqual(mail.requests[0].body.reply_to, ["hello@moth.example"]);
 });
 
 test("the domain and addresses are settings", async () => {
-  const { resend, service } = await make({ env: { PLATFORM_DOMAIN: "colophon.example" } });
+  const { mail, service } = await make({ env: { PLATFORM_DOMAIN: "colophon.example" } });
   await service.send("moth-press", welcome);
   await service.sendPlatform({ kind: OWNER_WELCOME, to: "owner@example.com", data: { links: { shopAdmin: "https://moth-press.web.app/admin" } }, idempotencyKey: "p1" });
-  assert.equal(resend.requests[0].body.from, '"Moth Press" <notifications@colophon.example>');
-  assert.equal(resend.requests[1].body.from, '"Colophon" <notifications@colophon.example>');
-  assert.deepEqual(resend.requests[1].body.reply_to, ["support@colophon.example"]);
+  assert.equal(mail.requests[0].body.from, '"Moth Press" <notifications@colophon.example>');
+  assert.equal(mail.requests[1].body.from, '"Colophon" <notifications@colophon.example>');
+  assert.deepEqual(mail.requests[1].body.reply_to, ["support@colophon.example"]);
 });
 
 test("a press name can't break the From line", () => {
@@ -63,50 +65,71 @@ test("a press name can't break the From line", () => {
   assert.equal(fromLine("", "notifications@platform.example"), '"Shop" <notifications@platform.example>');
 });
 
-test("an email already sent is never sent again, even with Resend's memory gone", async () => {
-  const { resend, service } = await make();
+test("an email already sent is never sent again", async () => {
+  const { mail, service } = await make();
   const first = await service.send("moth-press", welcome);
   const second = await service.send("moth-press", welcome);
-  assert.equal(resend.requests.length, 1);
+  assert.equal(mail.requests.length, 1);
+  assert.equal(mail.auth.length, 1, "the mail token is kept");
   assert.deepEqual(second, { id: first.id, alreadySent: true });
   assert.equal(await service.wasSent("moth-press", OWNER_WELCOME), true);
   assert.equal(await service.wasSent("moth-press", "other-kind"), false);
 });
 
-test("a dropped connection or a busy Resend is retried with the same key; one email goes out", async () => {
-  const { resend, service } = await make({ answers: ["network", { status: 429, body: { name: "rate_limit_exceeded", message: "slow down" } }] });
+test("Gmail's slow-down answers are retried; one email goes out", async () => {
+  const { mail, service } = await make({ answers: [{ status: 429, body: { error: { message: "slow down" } } }, { status: 403, body: { error: { message: "rate", errors: [{ reason: "userRateLimitExceeded" }] } } }] });
   await service.send("moth-press", welcome);
-  assert.equal(resend.requests.length, 3);
-  assert.equal(new Set(resend.requests.map((r) => r.headers["Idempotency-Key"])).size, 1);
-  assert.equal(resend.delivered.length, 1);
+  assert.equal(mail.requests.length, 3);
+  assert.equal(mail.delivered.length, 1);
+});
+
+test("a dropped connection is never retried at once (Gmail has no idempotency key), and is logged as retryable", async () => {
+  const { mail, sentLog, service } = await make({ answers: ["network"] });
+  await assert.rejects(service.send("moth-press", welcome), (error) => error.retryable === true && /could not be reached/.test(error.message));
+  assert.equal(mail.requests.length, 1);
+  assert.equal(sentLog.entries.get("moth-press-owner-welcome").retryable, true);
 });
 
 test("a refusal that a retry can't fix stops at once and is logged as failed", async () => {
-  const { resend, sentLog, service } = await make({ answers: [{ status: 403, body: { name: "validation_error", message: "domain not verified" } }] });
-  await assert.rejects(service.send("moth-press", welcome), (error) => error.retryable === false && /403 validation_error: domain not verified/.test(error.message));
-  assert.equal(resend.requests.length, 1);
+  const { mail, sentLog, service } = await make({ answers: [{ status: 400, body: { error: { message: "Invalid To header", errors: [{ reason: "invalidArgument" }] } } }] });
+  await assert.rejects(service.send("moth-press", welcome), (error) => error.retryable === false && /400 invalidArgument: Invalid To header/.test(error.message));
+  assert.equal(mail.requests.length, 1);
   assert.equal(sentLog.entries.get("moth-press-owner-welcome").status, "failed");
   assert.equal(await service.wasSent("moth-press", OWNER_WELCOME), false);
 });
 
-test("nothing is sent without the key, and the key must be a Resend key from the environment", async () => {
+test("a mailbox the Workspace admin hasn't allowed yet says so and sends nothing", async () => {
   const registry = fakeRegistry();
   await registry.createShop("moth-press", { pressName: "Moth Press", ownerEmail: "owner@example.com" });
-  const resend = fakeResendFetch();
-  const service = createEmailService({ env: {}, fetch: resend.fetch, registry, sentLog: fakeSentLog() });
-  await assert.rejects(service.send("moth-press", welcome), /email key is missing/);
-  assert.equal(resend.requests.length, 0);
-  assert.throws(() => resendClient({ apiKey: "sk_live_x", fetch: resend.fetch }), /not a Resend key/);
+  const google = fakeGmailFetch([], { tokenAnswer: { status: 401, body: { error: "unauthorized_client", error_description: "Client is unauthorized to retrieve access tokens using this method" } } });
+  const service = createEmailService({ env: pretendEmailEnv(), fetch: google.fetch, registry, sentLog: fakeSentLog() });
+  await assert.rejects(service.send("moth-press", welcome), /unauthorized_client/);
+  assert.equal(google.requests.length, 0);
 });
 
-test("no file outside services/email reads the email key", () => {
+test("nothing is sent until Google sending is switched on, and the mail account must be a service account", async () => {
+  const registry = fakeRegistry();
+  await registry.createShop("moth-press", { pressName: "Moth Press", ownerEmail: "owner@example.com" });
+  const google = fakeGmailFetch();
+  const service = createEmailService({ env: {}, fetch: google.fetch, registry, sentLog: fakeSentLog() });
+  await assert.rejects(service.send("moth-press", welcome), /Email sending is off/);
+  assert.equal(google.requests.length, 0);
+  assert.throws(() => gmailClient({ fetch: google.fetch, token: async () => "t", account: "someone@example.com", mailbox: "a@b.example" }), /service account/);
+});
+
+test("names beyond plain letters are written the email way, and line breaks can't add headers", () => {
+  assert.equal(encodeAddress('"Éditions Lune" <a@b.example>'), `=?UTF-8?B?${Buffer.from("Éditions Lune").toString("base64")}?= <a@b.example>`);
+  assert.equal(encodeAddress('"Moth Press" <a@b.example>'), '"Moth Press" <a@b.example>');
+});
+
+test("no platform file uses Resend any more (only the shop copies keep it for a press's own key)", () => {
   const offenders = [];
   const walk = (dir) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const path = `${dir}/${entry.name}`;
       if (entry.isDirectory()) {
         // apps/ are the shop copies, which keep their own Resend fallback for presses that bring their own key.
-        if (!["node_modules", ".git", ".claude"].includes(entry.name) && path !== "./apps" && path !== "./services/email") walk(path);
+        if (!["node_modules", ".git", ".claude"].includes(entry.name) && path !== "./apps") walk(path);
       } else if (/\.(m?js)$/.test(entry.name) && !path.endsWith(".test.js") && readFileSync(path, "utf8").includes("RESEND_API_KEY")) offenders.push(path);
     }
   };
@@ -115,48 +138,48 @@ test("no file outside services/email reads the email key", () => {
 });
 
 test("abandoned or unknown shops, bad addresses and missing keys are refused", async () => {
-  const { service, resend } = await make({ shop: { status: "abandoned" } });
+  const { service, mail } = await make({ shop: { status: "abandoned" } });
   await assert.rejects(service.send("moth-press", welcome), /abandoned/);
   await assert.rejects(service.send("nobody-press", welcome), /no shop nobody-press/);
   const ok = await make();
   await assert.rejects(ok.service.send("moth-press", { ...welcome, to: "a@x.com, b@x.com" }), /one email address/);
   await assert.rejects(ok.service.send("moth-press", { ...welcome, idempotencyKey: "" }), /idempotency key/);
   await assert.rejects(ok.service.send("moth-press", { ...welcome, links: { shopAdmin: "javascript:alert(1)" } }), /https/);
-  assert.equal(resend.requests.length + ok.resend.requests.length, 0);
+  assert.equal(mail.requests.length + ok.mail.requests.length, 0);
 });
 
 test("a shop's own email (no template) needs a subject and words, and its HTML is passed as the shop wrote it", async () => {
-  const { resend, service } = await make();
+  const { mail, service } = await make();
   await assert.rejects(service.send("moth-press", { kind: "order-confirmed", to: "reader@example.com", idempotencyKey: "o1" }), /no subject/);
   await service.send("moth-press", { kind: "order-confirmed", to: "reader@example.com", subject: "Your order", html: "<p>Thanks</p>", idempotencyKey: "o1" });
-  assert.equal(resend.requests[0].body.html, "<p>Thanks</p>");
-  assert.equal(resend.requests[0].body.subject, "Your order");
+  assert.equal(mail.requests[0].body.html, "<p>Thanks</p>");
+  assert.equal(mail.requests[0].body.subject, "Your order");
 });
 
 test("the shop door: the right key sends, scoped to the shop; a wrong key or unknown shop gets one answer", async () => {
-  const { service, registry, sentLog, resend } = await make();
+  const { service, registry, sentLog, mail } = await make();
   const ask = (headers, body = { kind: "order-confirmed", to: "reader@example.com", subject: "Your order", text: "Thanks", idempotencyKey: "order-1" }) =>
     handleShopEmail({ method: "POST", headers, body }, { service, registry, sentLog });
   const good = await ask({ "X-Shop-Id": "moth-press", Authorization: `Bearer ${SHOP_KEY}` });
   assert.equal(good.status, 200);
-  assert.equal(resend.requests[0].headers["Idempotency-Key"], "moth-press/order-1");
+  assert.equal(mail.requests[0].headers["Idempotency-Key"], "moth-press/order-1");
   const wrong = await ask({ "X-Shop-Id": "moth-press", Authorization: "Bearer not-the-key-0123456789abcdef0123456789" });
   const unknown = await ask({ "X-Shop-Id": "nobody-press", Authorization: `Bearer ${SHOP_KEY}` });
   assert.deepEqual(wrong, unknown);
   assert.equal(wrong.status, 401);
   assert.equal((await handleShopEmail({ method: "GET" }, { service, registry, sentLog })).status, 405);
-  assert.equal(resend.requests.length, 1);
+  assert.equal(mail.requests.length, 1);
 });
 
 test("the shop door never swaps a shop's words for a platform template of the same name", async () => {
-  const { service, registry, sentLog, resend } = await make();
+  const { service, registry, sentLog, mail } = await make();
   const answer = await handleShopEmail(
     { method: "POST", headers: { "x-shop-id": "moth-press", authorization: `Bearer ${SHOP_KEY}` }, body: { kind: OWNER_WELCOME, to: "reader@example.com", subject: "Our news", html: "<p>News</p>", idempotencyKey: "n1" } },
     { service, registry, sentLog },
   );
   assert.equal(answer.status, 200);
-  assert.equal(resend.requests[0].body.subject, "Our news");
-  assert.equal(resend.requests[0].body.html, "<p>News</p>");
+  assert.equal(mail.requests[0].body.subject, "Our news");
+  assert.equal(mail.requests[0].body.html, "<p>News</p>");
 });
 
 test("the shop door stops a shop at its daily limit and says a retry is fine later", async () => {
@@ -205,85 +228,85 @@ test("the past-due email says what the card provider needs in plain words and li
 
 test("every platform email ends with Colophon's name, mailing address and a contact; shop emails are left alone (15.8)", async () => {
   const env = { PLATFORM_DOMAIN: "colophon.example", PLATFORM_MAILING_ADDRESS: "PO Box 12, Example City ON A1A 1A1" };
-  const { resend, service } = await make({ env });
+  const { mail, service } = await make({ env });
   const data = { links: { shopAdmin: "https://moth-press.web.app/admin" } };
   await service.sendPlatform({ kind: OWNER_WELCOME, to: "owner@example.com", data, idempotencyKey: "p1" });
   await service.sendPlatform({ kind: OWNER_WELCOME, to: "owner@example.com", data, idempotencyKey: "p2" });
   const line = "Colophon, PO Box 12, Example City ON A1A 1A1. Contact: support@colophon.example.";
-  for (const request of resend.requests) {
+  for (const request of mail.requests) {
     assert.ok(request.body.text.endsWith(line), "the text ends with the identity line, once");
     assert.equal(request.body.text.split(line).length, 2);
     assert.ok(request.body.html.includes("PO Box 12, Example City ON A1A 1A1"));
   }
   await service.send("moth-press", { ...welcome, idempotencyKey: "s1" });
-  assert.ok(!resend.requests.at(-1).body.text.includes("PO Box 12"), "a press's own emails carry the press's words, not Colophon's address");
+  assert.ok(!mail.requests.at(-1).body.text.includes("PO Box 12"), "a press's own emails carry the press's words, not Colophon's address");
   // Without an address the line still names the product and the contact.
   const bare = await make({});
   await bare.service.sendPlatform({ kind: OWNER_WELCOME, to: "owner@example.com", data, idempotencyKey: "p3" });
-  assert.ok(bare.resend.requests[0].body.text.endsWith("Colophon. Contact: support@platform.example."));
+  assert.ok(bare.mail.requests[0].body.text.endsWith("Colophon. Contact: support@platform.example."));
 });
 
 test("a launch or waitlist email is refused until Colophon has a mailing address, and says how to stop (15.8)", async () => {
   const invite = { kind: "waitlist-invite", to: "newcomer@example.com", data: { link: "https://colophon.example/signup/" }, idempotencyKey: "w1" };
   const bare = await make({});
   await assert.rejects(bare.service.sendPlatform(invite), /PLATFORM_MAILING_ADDRESS is needed/);
-  assert.equal(bare.resend.requests.length, 0);
-  const { resend, service } = await make({ env: { PLATFORM_MAILING_ADDRESS: "PO Box 12, Example City ON A1A 1A1" } });
+  assert.equal(bare.mail.requests.length, 0);
+  const { mail, service } = await make({ env: { PLATFORM_MAILING_ADDRESS: "PO Box 12, Example City ON A1A 1A1" } });
   await service.sendPlatform(invite);
-  assert.match(resend.requests[0].body.text, /Reply STOP and we'll take you off the list at once/);
-  assert.match(resend.requests[0].body.text, /PO Box 12, Example City/);
+  assert.match(mail.requests[0].body.text, /Reply STOP and we'll take you off the list at once/);
+  assert.match(mail.requests[0].body.text, /PO Box 12, Example City/);
 });
 
 test("a shop's own platform emails speak of what it sells; a books shop's are unchanged (plan 12.18)", async () => {
-  const { registry, resend, service } = await make();
+  const { registry, mail, service } = await make();
   const send = (key) => service.sendPlatform({ kind: "shop-closed", to: "owner@example.com", shopId: "moth-press", data: { pressName: "Moth Press", date: "1 March", link: "https://platform.example/account" }, idempotencyKey: key });
   await send("c1");
-  assert.match(resend.requests.at(-1).body.text, /your books, orders, customers and stock/);
+  assert.match(mail.requests.at(-1).body.text, /your books, orders, customers and stock/);
   await registry.saveProfile("moth-press", { sells: "clothing" });
   await send("c2");
-  assert.match(resend.requests.at(-1).body.text, /your products, orders, customers and stock/);
+  assert.match(mail.requests.at(-1).body.text, /your products, orders, customers and stock/);
   // The shop's own name is never changed.
-  assert.match(resend.requests.at(-1).body.subject, /^Moth Press is closed/);
+  assert.match(mail.requests.at(-1).body.subject, /^Moth Press is closed/);
 });
 
 test("a later Settings change of what the shop sells reaches its platform emails, before the sign-up answer (plan 12.18)", async () => {
   let start = { sells: "music" };
-  const { registry, resend, service } = await make({ shopStart: async (shopId) => (shopId === "moth-press" ? start : null) });
+  const { registry, mail, service } = await make({ shopStart: async (shopId) => (shopId === "moth-press" ? start : null) });
   await registry.saveProfile("moth-press", { sells: "books" });
   const send = (key) => service.sendPlatform({ kind: "shop-closed", to: "owner@example.com", shopId: "moth-press", data: { pressName: "Moth Press", date: "1 March", link: "https://platform.example/account" }, idempotencyKey: key });
   await send("s1");
-  assert.match(resend.requests.at(-1).body.text, /your products, orders, customers and stock/);
+  assert.match(mail.requests.at(-1).body.text, /your products, orders, customers and stock/);
   // Changed back to books in Settings: the books words return.
   start = { sells: "books" };
   await send("s2");
-  assert.match(resend.requests.at(-1).body.text, /your books, orders, customers and stock/);
+  assert.match(mail.requests.at(-1).body.text, /your books, orders, customers and stock/);
   // The shop's own records can't be read: the profile's answer is used, and the email still goes.
   start = null;
   await registry.saveProfile("moth-press", { sells: "clothing" });
   const failing = await make({ shopStart: async () => { throw new Error("shop database unreachable"); } });
   await failing.registry.saveProfile("moth-press", { sells: "clothing" });
   await failing.service.sendPlatform({ kind: "shop-closed", to: "owner@example.com", shopId: "moth-press", data: { pressName: "Moth Press", date: "1 March", link: "https://platform.example/account" }, idempotencyKey: "s3" });
-  assert.match(failing.resend.requests.at(-1).body.text, /your products, orders, customers and stock/);
+  assert.match(failing.mail.requests.at(-1).body.text, /your products, orders, customers and stock/);
 });
 
 test("a French shop that doesn't sell books gets its French platform emails in its words too (plan 12.18)", async () => {
-  const { registry, resend, service } = await make();
+  const { registry, mail, service } = await make();
   const send = (kind, data, key) => service.sendPlatform({ kind, to: "owner@example.com", shopId: "moth-press", language: "fr", data: { pressName: "Moth Press", ...data }, idempotencyKey: key });
   const closed = { date: "1 March", on: "2027-03-01", link: "https://platform.example/account" };
   await send("shop-closed", closed, "fr1");
-  assert.match(resend.requests.at(-1).body.text, /vos livres, commandes/);
+  assert.match(mail.requests.at(-1).body.text, /vos livres, commandes/);
   await registry.saveProfile("moth-press", { sells: "clothing" });
   await send("shop-closed", closed, "fr2");
-  assert.match(resend.requests.at(-1).body.text, /vos produits, commandes/);
+  assert.match(mail.requests.at(-1).body.text, /vos produits, commandes/);
   await send("shop-deletion-warning", { ...closed, days: 30 }, "fr3");
-  assert.match(resend.requests.at(-1).body.text, /supprimés : produits, commandes/);
+  assert.match(mail.requests.at(-1).body.text, /supprimés : produits, commandes/);
   await send("quiet-shop", { link: "https://shop.example/admin", helpLink: "https://platform.example/help/" }, "fr4");
-  assert.match(resend.requests.at(-1).body.text, /ajoutez un nouveau produit/);
+  assert.match(mail.requests.at(-1).body.text, /ajoutez un nouveau produit/);
   await send("payments-moved", { to: "platform" }, "fr5");
-  assert.match(resend.requests.at(-1).body.text, /Vos produits, vos commandes/);
+  assert.match(mail.requests.at(-1).body.text, /Vos produits, vos commandes/);
   await send("data-export-ready", { link: "https://platform.example/export", until: "2027-03-01", asked: "owner" }, "fr6");
-  assert.match(resend.requests.at(-1).body.text, /contient vos produits, commandes/);
-  for (const r of resend.requests.slice(1)) assert.doesNotMatch(r.body.text, /\blivres?\b|maison d'édition/, r.body.subject);
+  assert.match(mail.requests.at(-1).body.text, /contient vos produits, commandes/);
+  for (const r of mail.requests.slice(1)) assert.doesNotMatch(r.body.text, /\blivres?\b|maison d'édition/, r.body.subject);
   // The shop's own name is never changed.
-  assert.match(resend.requests.at(-1).body.subject, /Moth Press/);
+  assert.match(mail.requests.at(-1).body.subject, /Moth Press/);
 });

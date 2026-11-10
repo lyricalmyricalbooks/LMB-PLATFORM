@@ -1,5 +1,5 @@
 // The Google link (code plan 6.17 and 6.20) against a pretend Google, a pretend shop project, a pretend domain service
-// and a pretend Resend: one sign-in connects every part once, re-runs change nothing, a "no" leaves the shop as it was,
+// and pretend Google mail: one sign-in connects every part once, re-runs change nothing, a "no" leaves the shop as it was,
 // the teardown follows the closing timeline, and the press's own Google accounts are never deleted.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -14,9 +14,8 @@ import { AUTHORIZE_URL, SCOPES, TOKEN_URL } from "./endpoints.js";
 import { fakeConnections, fakeDomainsCall, fakeGoogle, fakeShopFirebase, fakeStates } from "./fakes.js";
 import { fakeAuditLog, fakeRegistry } from "../setup/fakes.js";
 import { hashServiceKey } from "../services/email/http.js";
-import { createOwnDomainSender } from "../services/email/ownDomain.js";
 import { createEmailService } from "../services/email/index.js";
-import { fakeResendDomains, fakeResendFetch, fakeSentLog } from "../services/email/fakes.js";
+import { fakeGmailFetch, fakeSentLog , pretendEmailEnv } from "../services/email/fakes.js";
 import { unseal } from "../services/payments/tokenSeal.js";
 import { createClosingSweep, DOWNLOAD_DAYS } from "../services/billing/closing.js";
 import { googleClosing } from "./closing.js";
@@ -54,15 +53,9 @@ async function setup({ env = ENV, shop = {}, google: googleOptions = {}, domains
   const auditLog = fakeAuditLog();
   const shopFirebase = fakeShopFirebase();
   const domains = fakeDomainsCall({ waiting: domainsWaiting });
-  const resendDomains = fakeResendDomains();
-  const notices = [];
-  const ownDomain = createOwnDomainSender({
-    resendDomains, registry, auditLog, domainsCall: domains.domainsCall, now,
-    email: { sendPlatform: async (message) => { if (!notices.some((n) => n.idempotencyKey === message.idempotencyKey)) notices.push(message); } },
-  });
   const connections = fakeConnections();
   const states = fakeStates();
-  const link = createGoogleLink({ config, google, connections, states, registry, auditLog, shopFirebase, domainsCall: domains.domainsCall, ownDomain, now });
+  const link = createGoogleLink({ config, google, connections, states, registry, auditLog, shopFirebase, domainsCall: domains.domainsCall, now });
   const call = (op, args = {}, key = KEY) =>
     handleGoogle({ method: "POST", path: "/shop", headers: { "X-Shop-Id": SHOP, Authorization: `Bearer ${key}` }, body: { op, args } }, { service: link.service });
   /** Connect Google from the shop: the link, Google's Allow page (pretend), the answer back. */
@@ -77,7 +70,7 @@ async function setup({ env = ENV, shop = {}, google: googleOptions = {}, domains
   const step = async (name) => (await shopRow()).google?.steps?.find((s) => s.step === name);
   const audit = () => [...(auditLog.entries.get(SHOP)?.values() ?? [])];
   const tick = (ms) => { clock += ms; };
-  return { config, google, registry, auditLog, shopFirebase, domains, resendDomains, notices, ownDomain, connections, states, link, call, signIn, shopRow, step, audit, tick, now };
+  return { config, google, registry, auditLog, shopFirebase, domains, connections, states, link, call, signIn, shopRow, step, audit, tick, now };
 }
 
 const changeNames = (t) => t.google.calls.map((c) => c[0]);
@@ -183,21 +176,16 @@ test("a press with no Analytics account yet is told what to do, in plain words",
   assert.match(analytics.detail, /accept its Analytics terms once/);
 });
 
-test("the shop's own address joins Search Console through the domain's Allow step, and email moves to it once ready", async () => {
+test("the shop's own address joins Search Console through the domain's Allow step; email stays on Colophon's mailbox", async () => {
   const t = await setup({ shop: { domains: [{ name: "shop.mothpress.example", state: "live" }] } });
   await t.signIn();
   assert.deepEqual((await t.step("domain")).state, "done");
   assert.ok(t.domains.calls.some(([op, , args]) => op === "addRecords" && args.purpose === "google" && args.records[0].type === "TXT"));
   assert.ok(t.google.world.scSites.has("sc-domain:shop.mothpress.example"));
   assert.equal(t.shopFirebase.docs.get(SHOP).secrets.searchConsoleSite, "sc-domain:shop.mothpress.example");
-  // The sending records were asked for; until Resend sees them, Colophon's sender stays.
-  assert.ok(t.domains.calls.some(([op, , args]) => op === "addRecords" && args.purpose === "email"));
-  assert.equal((await t.step("email")).state, "waiting");
-  assert.equal((await t.shopRow()).emailSender.state, "checking");
-  t.resendDomains.setStatus("shop.mothpress.example", "verified");
-  assert.equal((await t.link.status.runAgain(SHOP, "email")).state, "done");
-  assert.equal((await t.shopRow()).google.email.address, "orders@shop.mothpress.example");
-  assert.equal((await t.shopRow()).emailSender.state, "on");
+  // No sending records: every email leaves through Google, from Colophon's mailbox with the press's name.
+  assert.ok(!t.domains.calls.some(([op, , args]) => op === "addRecords" && args.purpose === "email"));
+  assert.equal((await t.step("email")).state, "done");
 });
 
 test("while the domain's Allow step isn't built, the own address waits and nothing fails", async () => {
@@ -303,17 +291,17 @@ test("with Gmail sending switched on, the shop's emails go from the press's Gmai
   await t.signIn();
   assert.equal((await t.shopRow()).gmailSender.on, true);
   assert.equal((await t.step("email")).detail, "Your shop's emails go from owner@example.com.");
-  const resend = fakeResendFetch();
-  const email = createEmailService({ env: { RESEND_API_KEY: "re_test_not_real" }, fetch: resend.fetch, registry: t.registry, sentLog: fakeSentLog(), gmailSend: t.link.gmailSend });
+  const mail = fakeGmailFetch();
+  const email = createEmailService({ env: pretendEmailEnv(), fetch: mail.fetch, registry: t.registry, sentLog: fakeSentLog(), gmailSend: t.link.gmailSend });
   await email.send(SHOP, { kind: "order-note", to: "reader@example.com", idempotencyKey: "note-1", subject: "Your order", text: "Thank you" });
-  assert.equal(resend.requests.length, 0);
+  assert.equal(mail.requests.length, 0);
   const sent = Buffer.from(t.google.world.gmail[0], "base64url").toString("utf8");
   assert.match(sent, /From: "Moth Press" <owner@example.com>/);
   assert.match(sent, /Reply-To: owner@example.com/);
   // Gmail refusing falls back to the usual sender, so nothing is lost.
   t.google.world.revoked.add([...t.google.world.refreshTokens.keys()][0]);
   await email.send(SHOP, { kind: "order-note", to: "reader@example.com", idempotencyKey: "note-2", subject: "Your order", text: "Thank you" });
-  assert.equal(resend.requests.length, 1);
+  assert.equal(mail.requests.length, 1);
 });
 
 test("Google ending the grant becomes 'needs reconnect': emails fall back at once, the control room lists it, signing in clears it (15.15)", async () => {
@@ -332,10 +320,10 @@ test("Google ending the grant becomes 'needs reconnect': emails fall back at onc
   const answer = (await t.call("google.status")).body;
   assert.equal(answer.connected, true);
   assert.equal(answer.needsReconnect, true);
-  const resend = fakeResendFetch();
-  const email = createEmailService({ env: { RESEND_API_KEY: "re_test_not_real" }, fetch: resend.fetch, registry: t.registry, sentLog: fakeSentLog(), gmailSend: t.link.gmailSend });
+  const mail = fakeGmailFetch();
+  const email = createEmailService({ env: pretendEmailEnv(), fetch: mail.fetch, registry: t.registry, sentLog: fakeSentLog(), gmailSend: t.link.gmailSend });
   await email.send(SHOP, { kind: "order-note", to: "reader@example.com", idempotencyKey: "note-r", subject: "Your order", text: "Thank you" });
-  assert.equal(resend.requests.length, 1, "the order email went from Colophon's sender");
+  assert.equal(mail.requests.length, 1, "the order email went from Colophon's sender");
   const control = await t.link.status.googleStatus(SHOP);
   assert.equal(control.stage, "needs reconnect");
   assert.ok(control.reconnectSince);
@@ -410,11 +398,6 @@ test("the shop's status lists each part in plain words, with no technical terms"
 async function connected(options) {
   const t = await setup({ shop: { domains: [{ name: "shop.mothpress.example", state: "live" }] }, ...options });
   await t.signIn({ extras: ["drive", "youtube", "calendar"] });
-  // With Gmail sending switched on, email goes from Gmail and the own address isn't added for sending.
-  if (t.resendDomains.domains.has("shop.mothpress.example")) {
-    t.resendDomains.setStatus("shop.mothpress.example", "verified");
-    await t.link.status.runAgain(SHOP, "email");
-  }
   return t;
 }
 
@@ -496,8 +479,6 @@ test("deletion waits for the closing dates and both emails, then takes the addre
   assert.deepEqual(done.steps.map((s) => s.step), ["stopFeed", "stopTag", "stopGmail", "stopExtras", "giveBackAccess", "removeDomain", "deleteFirebase"]);
   assert.ok(done.steps.every((s) => s.state === "done"), JSON.stringify(done.steps));
   assert.ok(t.domains.calls.some(([op, , args]) => op === "removeDomain" && args.domain === "shop.mothpress.example" && args.deleting === true));
-  assert.equal(t.resendDomains.domains.size, 0);
-  assert.equal((await t.shopRow()).emailSender, null);
   assert.equal(t.shopFirebase.docs.get(SHOP).deleted, true);
   assert.ok((await t.shopRow()).google.deletedAt);
   await t.link.teardown.teardownBeforeDelete(SHOP);
@@ -897,25 +878,25 @@ test("Gmail sending stops at 80% of the daily limit, the email goes the usual wa
   assert.equal(gmailDailyLimit("OWNER@GMAIL.COM"), 500);
   assert.equal(gmailDailyLimit("orders@moth-press.example"), 2000);
 
-  const resend = fakeResendFetch();
-  const email = createEmailService({ env: { RESEND_API_KEY: "re_test_not_real" }, fetch: resend.fetch, registry: t.registry, sentLog: fakeSentLog(), gmailSend: t.link.gmailSend });
+  const mail = fakeGmailFetch();
+  const email = createEmailService({ env: pretendEmailEnv(), fetch: mail.fetch, registry: t.registry, sentLog: fakeSentLog(), gmailSend: t.link.gmailSend });
   const send = (n) => email.send(SHOP, { kind: "order-note", to: "reader@example.com", idempotencyKey: `n-${n}`, subject: "Your order", text: "Thank you" });
   // A Workspace address (owner@example.com isn't gmail.com): 2,000 a day, so 1,600 is the stopping point.
   const day = new Date(t.now()).toISOString().slice(0, 10);
   await t.registry.updateShop(SHOP, { gmailSends: { day, count: 1598 } });
   await send(1);
   await send(2);
-  assert.equal(resend.requests.length, 0, "both went through Gmail");
+  assert.equal(mail.requests.length, 0, "both went through Gmail");
   assert.equal((await t.shopRow()).gmailSends.count, 1600);
   await send(3);
-  assert.equal(resend.requests.length, 1, "at 1,600 the email went from the usual sender");
+  assert.equal(mail.requests.length, 1, "at 1,600 the email went from the usual sender");
   assert.equal(t.google.world.gmail.length, 2);
   assert.equal((await t.shopRow()).gmailSends.count, 1600, "a fallback isn't counted");
 
   // The next day the count starts again.
   t.tick(DAY);
   await send(4);
-  assert.equal(resend.requests.length, 1);
+  assert.equal(mail.requests.length, 1);
   assert.equal(t.google.world.gmail.length, 3);
   assert.equal((await t.shopRow()).gmailSends.count, 1);
 });

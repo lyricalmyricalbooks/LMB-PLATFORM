@@ -1,6 +1,6 @@
 // Pretend outside world for the server's tests: one `fetch` that sends Firestore calls to a pretend Firestore
 // (clients/fake-firestore.js), answers Google's sign-in keys from a key made here, and refuses everything else (Stripe,
-// Resend, Google's other APIs) by recording it and failing, so a test sees any call it didn't expect. A sign-in made
+// Gmail, Google's other APIs) by recording it and failing, so a test sees any call it didn't expect. A sign-in made
 // with `signIn(claims)` passes the real check (server/verifyIdToken.js). Nothing reaches the network.
 import { createSign, generateKeyPairSync } from "node:crypto";
 import { fakeFirestore } from "../clients/fake-firestore.js";

@@ -1,5 +1,5 @@
 // The platform put together for real: the same pieces and the same web door as walkthrough/world.js, route for route,
-// with the platform project's Firestore, Google's sign-in check, Stripe in test mode and Resend in place of the
+// with the platform project's Firestore, Google's sign-in check, Stripe in test mode and Gmail in place of the
 // pretend ones. `server/world.test.js` fails when a route of the practice door is missing here, so the two can't drift.
 //
 //   const world = hostedWorld({ env: process.env, fetch, token });
@@ -14,9 +14,10 @@
 //   PLATFORM_ADMIN_EMAILS       who may open the control room (controlRoom.js); PLATFORM_ADMIN_EMAIL,
 //                               PLATFORM_BACKUP_PERSON, PLATFORM_PRIVACY_CONTACT as control-room/people.js reads them
 //   HEALTH_ALERT_TO             where a late job or a failed health check is emailed
-//   the keys                    the email sender's key, the platform's Stripe test key and the two Stripe events
-//                               addresses' signing secrets: each read only by its own service (services/email,
-//                               services/payments, services/billing), which also names it for the deploy
+//   GMAIL_SENDING               "on": email goes through Google as the platform's Workspace mailbox (services/email)
+//   the keys                    the platform's Stripe test key and the two Stripe events addresses' signing secrets:
+//                               each read only by its own service (services/payments, services/billing), which also
+//                               names it for the deploy
 //   TRIAL_TIPS_SECRET, CHECKUP_SECRET   signing phrases for the emails' "turn off" links (16+ characters each)
 //   LIMIT_PROXY_HOPS            how many of our own proxies add to x-forwarded-for (signup/limits.js proxyHops)
 //   BILLING_MODE                "test" (the default). The hosted server refuses "live", and live Stripe settings
@@ -174,10 +175,10 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const stockroomData = stockroomDataClient(stockroomDb);
   const deploy = notConnectedClient(NOT_CONNECTED.deploys, ["deployed", "pages", "rules", "functions", "hosting"]);
 
-  // The platform's emails, through Resend, from their real templates.
+  // The platform's emails, through Google (the platform's Workspace mailbox), from their real templates.
   const sentLog = firestoreSentLog(platform);
   // shopStart: the shop's own Settings answer to "What do you sell?", so platform emails follow a later change (plan 12.18).
-  const email = createEmailService({ env, fetch, registry, sentLog, shopStart: (shopId) => shopData.get(shopId, "firstWeek/start"), now });
+  const email = createEmailService({ env, fetch, token, registry, sentLog, shopStart: (shopId) => shopData.get(shopId, "firstWeek/start"), now });
 
   // Billing on Stripe's test mode (services/payments alone reads the key).
   const billingStores = firestoreBillingStores(platform);

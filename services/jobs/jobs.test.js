@@ -59,10 +59,10 @@ test("a run is recorded with its time, result and summary; a failure is a run, n
 
 test("a sweep that answers one line per shop is a failed run when any shop failed, and says how many", async () => {
   const w = world();
-  // The own-address and web-address sweeps answer a list, one entry per shop, with "failed" where a check threw.
-  const fine = await w.jobs.runJob("own-email-addresses", async () => [{ shopId: "a", state: "verified" }, { shopId: "b", state: "pending" }]);
+  // The web-address sweep answers a list, one entry per shop, with "failed" where a check threw.
+  const fine = await w.jobs.runJob("web-addresses", async () => [{ shopId: "a", state: "verified" }, { shopId: "b", state: "pending" }]);
   assert.deepEqual([fine.ok, fine.summary], [true, "checked 2"]);
-  const broke = await w.jobs.runJob("own-email-addresses", async () => [
+  const broke = await w.jobs.runJob("web-addresses", async () => [
     { shopId: "a", state: "failed", detail: "the email company refused the key" }, { shopId: "b", state: "verified" },
   ]);
   assert.equal(broke.ok, false);

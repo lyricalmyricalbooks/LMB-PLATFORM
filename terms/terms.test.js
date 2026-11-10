@@ -14,9 +14,9 @@ import { DEFAULT_SETTINGS } from "../services/settings.js";
 // version's line (never change an old one) so a stored acceptance always names the words the press saw.
 const FINGERPRINTS = { "2026-10-28-draft": "646ebc6599507d9f", "2026-10-28-draft.2": "55b1600cfb4bed2d", "2026-11-03-draft": "d24470c450ff75b7", "2026-11-03-draft.2": "7bb1fcbcadafff47",
   "2026-11-03-draft.3": "04dcb865d6843efc", "2026-11-10-draft": "1ce24128fb9616a5", "2026-11-10-draft.2": "493114853d48e35a", "2026-11-10-draft.3": "cc73b9bb17e01e02",
-  "2026-11-10-draft.4": "274b05d1325f8052" };
+  "2026-11-10-draft.4": "274b05d1325f8052", "2026-11-10-draft.5": "e970c3a93440e3bd" };
 // The French words (termsFr.js), from the version that first had them. Same rule: new words, new version.
-const FINGERPRINTS_FR = { "2026-11-03-draft.2": "4744335b4ee3a2ca", "2026-11-03-draft.3": "574ba843f7eba85d", "2026-11-10-draft": "af16ec68088f677e", "2026-11-10-draft.2": "fa32499e0449ddc2", "2026-11-10-draft.3": "c9a414ff8210f469", "2026-11-10-draft.4": "77f60696305326f6" };
+const FINGERPRINTS_FR = { "2026-11-03-draft.2": "4744335b4ee3a2ca", "2026-11-03-draft.3": "574ba843f7eba85d", "2026-11-10-draft": "af16ec68088f677e", "2026-11-10-draft.2": "fa32499e0449ddc2", "2026-11-10-draft.3": "c9a414ff8210f469", "2026-11-10-draft.4": "77f60696305326f6", "2026-11-10-draft.5": "068f6bef1ff56db4" };
 
 const text = SECTIONS.flatMap((s) => [s.title, ...s.paragraphs]).join(" ");
 
@@ -112,8 +112,9 @@ test("renewal, cancelling online and price notice are spelled out before anyone 
 test("the data agreement names every helper company, where it works, and the notice before a new one", () => {
   assert.ok(HELPERS.length >= 3);
   const helpers = part("helpers");
-  for (const h of HELPERS) assert.ok(helpers.includes(h) && /^[A-Z][^:]+: .+ Works from .+\.$/.test(h), h);
-  for (const name of ["Google Cloud", "Stripe", "Resend"]) assert.ok(helpers.includes(`${name}:`), name);
+  for (const h of HELPERS) assert.ok(helpers.includes(h) && /^[A-Z][^:]+: .+ Works? from .+\.$/.test(h), h);
+  for (const name of ["Google Cloud and Google Workspace", "Stripe"]) assert.ok(helpers.includes(`${name}:`), name);
+  assert.ok(!/Resend/.test(helpers), "email goes through Google now");
   assert.match(part("data"), new RegExp(`at least ${CHANGE_NOTICE_DAYS} days before adding one`));
   assert.match(part("data"), /within 72 hours/);
   assert.match(part("privacy"), /stored in Canada/);

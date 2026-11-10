@@ -19,6 +19,8 @@ import { createSign, createVerify } from "node:crypto";
 export const TEMPLATE_GROUPS = Object.freeze({
   hosting: [{ type: "A", host: "@", variable: "ip" }],
   "hosting-owner": [{ type: "TXT", host: "@", variable: "hostingsite", prefix: "hosting-site=" }],
+  // Unused since email moved to Google (10 November 2026): Gmail sends only from Colophon's mailbox. Kept because the
+  // template may already be registered with a registrar; drop it with the next template version.
   email: [
     { type: "MX", host: "send", variable: "emailmx", priority: 10 },
     { type: "TXT", host: "send", variable: "emailspf", prefix: "v=spf1" },

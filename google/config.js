@@ -11,8 +11,8 @@
 //   GOOGLE_GMAIL_SENDING        "on": a shop's emails may go from the press's own Gmail through the same sign-in.
 //                               Sending is a "sensitive" permission (not "restricted"), so it goes through Google's
 //                               ordinary review of the sign-in screen with the rest; switched on by Julian once that
-//                               review is passed. Until then the shop's own domain (services/email/ownDomain.js) or
-//                               Colophon's sender
+//                               review is passed. Until then Colophon's Google mailbox, with the
+//                               press's name
 //   GOOGLE_MERCHANT_PROVIDER_ID the number of Colophon's own Merchant Center account. Google links every Shopping
 //                               account made through the API to it (plan 15.14); without it Google Shopping waits
 //   GOOGLE_LATER_EXTRAS         "on": offer the extras that join Google's review in a second round (YouTube, Calendar,

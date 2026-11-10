@@ -39,7 +39,7 @@ import { TEST_PROJECT, TEST_SHOP_ADDRESS, TEST_SHOP_ID } from "./testShopPlace.j
 import { firestoreClient } from "../clients/firestore.js";
 import { firestoreAuditLog, firestoreRegistry } from "../clients/registry.js";
 import { firestoreAccounts, firestoreSentLog } from "../clients/stores.js";
-import { createEmailService, hasEmailKey } from "../services/email/index.js";
+import { createEmailService, hasEmailSending } from "../services/email/index.js";
 import { createPaymentsFromEnv, hasTestKey, refuseLiveKeys, setupClient } from "../services/payments/index.js";
 
 // The shared test project, and the test shop: a folder in it, at the project's own address.
@@ -180,7 +180,7 @@ const runCommand = async (command, args, { cwd, env } = {}) => {
 export function platformServices({ env, fetch, token, platform = firestoreClient({ fetch, token, projectId: PLATFORM_PROJECT }) }) {
   refuseLiveKeys(env);
   const registry = firestoreRegistry(platform);
-  const email = hasEmailKey(env) ? createEmailService({ env, fetch, registry, sentLog: firestoreSentLog(platform) }) : null;
+  const email = hasEmailSending(env) ? createEmailService({ env, fetch, token, registry, sentLog: firestoreSentLog(platform) }) : null;
   const payments = hasTestKey(env)
     ? setupClient(createPaymentsFromEnv({ env, fetch, registry, auditLog: firestoreAuditLog(() => platform), accounts: firestoreAccounts(platform), email }))
     : null;

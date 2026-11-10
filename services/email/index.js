@@ -1,5 +1,5 @@
-// The platform's email service (code plan 2.3). It sends two kinds of email through Resend, from the platform's one
-// sending address (settings.senderEmail, notifications@ the platform domain):
+// The platform's email service (code plan 2.3). It sends two kinds of email through Google (gmail.js), from the
+// platform's one Google Workspace mailbox (settings.senderEmail, notifications@ the platform domain):
 //
 // - For a shop (`send`): the press's name on the From line and the press's own address as reply-to, so a customer's
 //   reply reaches the press, never the platform. Used by the shop maker (the owner's welcome) and by shops that have not
@@ -8,11 +8,11 @@
 // - For the platform itself (`sendPlatform`): billing, sign-up and invites, signed with the product's name, replies to
 //   settings.supportEmail.
 //
-// The Resend key is read only from this service's environment (RESEND_API_KEY). It never comes from a shop, a request
-// or a file in the repository, and no shop project ever holds it.
+// There is no sending key: with GMAIL_SENDING=on, the server's own Google account signs in as the mailbox through
+// the mail account (GMAIL_ACCOUNT, default platform-mail@<project>), which the Workspace admin allows to send as it.
 //
 // Every email has an idempotency key. The sent log remembers each one, so a retry (a setup step re-run, a webhook sent
-// twice) never sends a second copy, even after Resend's own 24-hour memory of the key has passed.
+// twice) never sends a second copy. Gmail has no key memory of its own.
 //
 // Clients passed in:
 //   registry   getShop(shopId) -> { pressName, ownerEmail, replyTo?, status } | null   (setup/fakes.js has the shape)
@@ -24,23 +24,20 @@
 //   shopStart  optional: (shopId) -> the shop's own firstWeek/start record (clients/shop.js shopData), where the shop's
 //              admin keeps a later Settings answer to "What do you sell?" (`sells`)
 //
-// Streams (streams.js, plan 8.3): every email is tagged with its stream, "orders" or "newsletter", and with
-// SHOP_SENDER_ADDRESSES on, a shop's email comes from its own address on that stream's subdomain.
+// Streams (streams.js, plan 8.3): every email is tagged with its stream, "orders" or "newsletter".
 //
-// The press's own domain (ownDomain.js, plan 6.18): once a shop's own address passes the sending-records check, its
-// emails come from orders@<their domain> instead (registry `emailSender.state` "on"); replies still go to the press.
 // The press's own Gmail (plan 6.20, switched on by Julian): with `gmailSend` passed in and the registry's
 // `gmailSender.on`, the shop's emails go from the press's Gmail through the Google link; if Gmail refuses one, it goes
 // the usual way instead, so nothing is lost.
 import { platformSettings } from "../settings.js";
 import { sellsBooks, sellsOf, wordsFor } from "../../shared/sells/sells.js";
 import { goodsWordsFr } from "./templatesFrPress.js";
-import { resendClient } from "./resend.js";
+import { gmailClient } from "./gmail.js";
+import { metadataToken } from "../../server/metadata.js";
 import { COMMERCIAL_KINDS, TEMPLATES, customProblems, withIdentity } from "./templates.js";
 import { TEMPLATES_FR, bilingual, shopMailLanguage } from "./templatesFr.js";
-import { shopSenderAddress, streamOf, streamSettings } from "./streams.js";
+import { streamOf } from "./streams.js";
 import { NewsletterPausedError } from "./reputation.js";
-import { ownDomainSender } from "./ownDomain.js";
 
 const EMAIL = /^[^@\s<>"',;]+@[^@\s<>"',;]+\.[^@\s<>"',;]+$/;
 const KIND = /^[a-z][a-z0-9-]{1,40}$/;
@@ -53,12 +50,12 @@ export function cleanName(name) {
 /** The From line: the press's (or the product's) name on the platform's address. */
 export const fromLine = (name, address) => `"${cleanName(name) || "Shop"}" <${address}>`;
 
-/** Resend tags allow letters, digits, underscores and dashes only. */
+/** Tags (kind, shop, stream) travel in one email header: letters, digits, underscores and dashes only. */
 const tag = (name, value) => ({ name, value: String(value).replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 256) });
 
 /**
- * The email service. `env` holds RESEND_API_KEY and the platform settings (services/settings.js); nothing is sent
- * without the key.
+ * The email service. `env` holds GMAIL_SENDING and the platform settings (services/settings.js); nothing is sent
+ * until GMAIL_SENDING is "on". `token` is the server's own Google token (default: Cloud Run's, server/metadata.js).
  */
 /**
  * A platform template's words in `language` (templatesFr.js mailLanguage): its French twin, French then English, or
@@ -71,13 +68,15 @@ export function platformWords(kind, data, context, language) {
   return language === "fr" ? french(data, context) : bilingual(french(data, context), english());
 }
 
-export function createEmailService({ env = process.env, fetch = globalThis.fetch, registry, sentLog, reputation = null, gmailSend = null, shopStart = null, now = () => new Date(), sleep } = {}) {
+export function createEmailService({ env = process.env, fetch = globalThis.fetch, token = null, registry, sentLog, reputation = null, gmailSend = null, shopStart = null, now = () => new Date(), sleep } = {}) {
   if (!registry?.getShop) throw new Error("The email service needs the shop registry");
   if (!sentLog?.get || !sentLog?.put || !sentLog?.findSent) throw new Error("The email service needs its sent log");
   const settings = platformSettings(env);
-  const streams = streamSettings(env, settings);
   let client;
-  const resend = () => (client ??= resendClient({ apiKey: env.RESEND_API_KEY, fetch, ...(sleep ? { sleep } : {}) }));
+  const mailer = () => {
+    if (!hasEmailSending(env)) throw new Error("Email sending is off: Google sending isn't set up yet (GMAIL_SENDING)");
+    return (client ??= gmailClient({ fetch, token: token ?? metadataToken({ fetch }), account: mailAccount(env), mailbox: settings.senderEmail, ...(sleep ? { sleep } : {}) }));
+  };
 
   /**
    * The language of the platform's emails for a shop (templatesFr.js mailLanguage): its billing row's choice and
@@ -101,7 +100,7 @@ export function createEmailService({ env = process.env, fetch = globalThis.fetch
     if (done?.status === "sent") return { id: done.id, alreadySent: true };
     const at = now().toISOString();
     try {
-      const { id } = await resend().send({
+      const { id } = await mailer().send({
         from, to, replyTo, idempotencyKey, ...parts,
         tags: [tag("kind", kind), ...(shopId ? [tag("shop", shopId)] : []), tag("stream", stream)],
       });
@@ -121,7 +120,6 @@ export function createEmailService({ env = process.env, fetch = globalThis.fetch
 
   return {
     settings,
-    streams,
 
     /** Has this shop's email of this kind been sent? (setup step 14 checks before it sends) */
     async wasSent(shopId, kind) {
@@ -155,11 +153,9 @@ export function createEmailService({ env = process.env, fetch = globalThis.fetch
           console.error(`Gmail sending for ${shopId} failed; sending the usual way:`, error?.message || error);
         }
       }
-      // The press's own domain once its records check out (newsletters too: the reputation pause still applies).
-      const address = ownDomainSender(shop) ?? shopSenderAddress({ shopId, stream, streams, settings });
       return deliver({
         shopId, kind: message.kind, stream, to: message.to.trim(), idempotencyKey: message.idempotencyKey,
-        from: fromLine(shop.pressName || shopId, address), replyTo, parts,
+        from: fromLine(shop.pressName || shopId, settings.senderEmail), replyTo, parts,
       });
     },
 
@@ -196,11 +192,17 @@ export function createEmailService({ env = process.env, fetch = globalThis.fetch
   };
 }
 
-/**
- * The email service's key as the hosted server gets it (server/deploy.js): the environment name this service reads and
- * the Secret Manager secret Cloud Run fills it from. The name stays in this folder.
- */
-/** Whether this environment holds the email key (the shop maker's welcome email waits without it). */
-export const hasEmailKey = (env = {}) => Boolean(String(env.RESEND_API_KEY ?? "").trim());
+/** Whether this environment sends email through Google (the shop maker's welcome email waits without it). */
+export const hasEmailSending = (env = {}) => String(env.GMAIL_SENDING ?? "").trim().toLowerCase() === "on";
 
-export const EMAIL_SECRETS = Object.freeze([Object.freeze({ env: "RESEND_API_KEY", secret: "resend-api-key", api: true, jobs: true })]);
+/** The service account allowed to send as the mailbox: GMAIL_ACCOUNT, else platform-mail@<platform project>. */
+export const MAIL_ACCOUNT_NAME = "platform-mail";
+export function mailAccount(env = {}) {
+  const named = String(env.GMAIL_ACCOUNT ?? "").trim();
+  if (named) return named;
+  const project = String(env.PLATFORM_PROJECT ?? "").trim();
+  return project ? `${MAIL_ACCOUNT_NAME}@${project}.iam.gserviceaccount.com` : "";
+}
+
+/** The Launch page's email line: a setting, not a secret (there is no sending key). */
+export const EMAIL_SETTING = Object.freeze({ env: "GMAIL_SENDING", value: "on" });

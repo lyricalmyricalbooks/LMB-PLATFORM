@@ -483,7 +483,7 @@ export function createDomainService({
     await release(row, name);
     if (entry.free && platformZone && entry.zoneLines?.length) await platformZone.apply(entry.zoneLines.map((l) => ({ ...l, action: "remove" })));
     // The shop's emails stop coming from orders@<this address> too (its email lines went with the entry), so the
-    // address is free for whoever owns it next. The Resend domain is reused if this shop or another connects it again.
+    // address is free for whoever owns it next.
     const fields = { domains: domainsOf(row).filter((d) => d.name !== name) };
     if (row.emailSender?.domain === name) fields.emailSender = null;
     await registry.updateShop(shopId, fields);

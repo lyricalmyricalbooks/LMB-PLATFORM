@@ -44,7 +44,7 @@ async function quietly(run) {
   try { return await run(); } catch (err) { if (!gone(err)) throw err; return null; }
 }
 
-export function createGoogleTeardown({ google, tokens, shopFirebase, domainsCall, ownDomain, registry, auditLog, now = () => Date.now() }) {
+export function createGoogleTeardown({ google, tokens, shopFirebase, domainsCall, registry, auditLog, now = () => Date.now() }) {
   const recorder = createRecorder({ registry, auditLog, now });
   const iso = recorder.iso;
   const record = (shopId, step, outcome) => recorder.recordStep(shopId, step, outcome, { source: "google-teardown" });
@@ -133,7 +133,6 @@ export function createGoogleTeardown({ google, tokens, shopFirebase, domainsCall
 
     async removeDomain(ctx) {
       const names = (Array.isArray(ctx.row.domains) ? ctx.row.domains : []).map((d) => (typeof d === "string" ? d : d?.name)).filter(Boolean);
-      if (ctx.row.emailSender?.resendDomainId) await ownDomain.disconnect(ctx.shopId);
       let waiting = false;
       for (const domain of names) {
         // `deleting`: the shop is being deleted, so even its main address comes off (services/domains removeDomain).

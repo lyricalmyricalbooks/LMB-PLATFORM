@@ -207,7 +207,7 @@ transaction for the take-over). Tests: `eventClaims.test.js`.
 The same check on the other event doors: `services/payments` `stripeEvent` / `squareEvent` keep no event list, and
 need none: every step they take is already keyed (the account's state is written as it is, its log entry by the event
 id, the past-due email by an idempotency key the email service sends once, pay-as-you-sell fees by payment id inside a
-transaction), and the shop itself handles each event once. Resend's events (`services/email/webhook.js`) are counted
+transaction), and the shop itself handles each event once. Email delivery problems (`services/email/reputation.js`, not fed since email moved to Google) are counted
 through `addEvent`, which already adds an event id only if it isn't there. So no claim was added to either.
 
 ## Settings

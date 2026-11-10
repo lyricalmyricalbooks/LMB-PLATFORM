@@ -33,8 +33,7 @@ const ALLOWED = [
   "README.txt",
   // The terms' list of companies that help run Colophon (terms/terms.js HELPERS): privacy law asks for each one by its
   // real name, so these are names of companies there, not technical words.
-  "Google Cloud: keeps each shop online",
-  "Resend: sends your shop's emails and ours",
+  "Google Cloud and Google Workspace: keep each shop online",
 ];
 const isRouteLabel = (text) => /^(GET|POST|PUT|PATCH|DELETE) \//.test(text);
 
@@ -62,7 +61,7 @@ const PRESS_FACING_CODE = [
   "waitlist/pricing.js", "waitlist/signup.js", "waitlist/domain-check.js",
   "services/billing/billing.js", "services/billing/closing.js", "services/billing/paymentWay.js", "services/billing/plans.js",
   "services/support/inbox.js", "services/support/routes.js", "services/payments/requirements.js",
-  "services/email/templates.js", "services/email/closingTemplates.js", "services/email/reputation.js", "services/email/streams.js",
+  "services/email/templates.js", "services/email/closingTemplates.js", "services/email/reputation.js",
   // The steps of Connect Google, shown on the shop's Overview (6.17).
   "google/status.js", "google/service.js", "google/teardown.js", "google/gmail.js",
   // Support asks before making changes (19.6), and the fair-use limits' words (19.5).

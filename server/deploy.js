@@ -17,7 +17,7 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { API_SERVICE, JOBS_SERVICE, REGION, schedulerAccount } from "./schedules.js";
 import { DEFAULT_PROJECT } from "./world.js";
-import { EMAIL_SECRETS } from "../services/email/index.js";
+import { MAIL_ACCOUNT_NAME } from "../services/email/index.js";
 import { PAYMENTS_SECRETS } from "../services/payments/index.js";
 import { BILLING_SECRETS } from "../services/billing/index.js";
 
@@ -27,11 +27,11 @@ export const IMAGE_STORE = "platform";
 export const accountOf = (name, project) => `${name}@${project}.iam.gserviceaccount.com`;
 
 /**
- * Each key the services read, the Secret Manager secret it comes from, and which service needs it. The email and Stripe
- * keys' names come from their own services, the only places that may name them.
+ * Each key the services read, the Secret Manager secret it comes from, and which service needs it. The Stripe keys'
+ * names come from their own services, the only places that may name them. Email has no key: it goes through Google
+ * (services/email/gmail.js) as the platform-mail account below.
  */
 export const SECRETS = Object.freeze([
-  ...EMAIL_SECRETS,
   ...PAYMENTS_SECRETS,
   ...BILLING_SECRETS,
   { env: "TRIAL_TIPS_SECRET", secret: "trial-tips-secret", api: true, jobs: true },
@@ -43,14 +43,20 @@ export const SECRETS = Object.freeze([
  * connected). Without them sign-in by Google, the control room and every page work; email and Stripe answer "not
  * connected" until their secret is added and the deploy runs again. The two link phrases are always needed.
  */
-export const OPTIONAL_SECRETS = Object.freeze(new Set([...EMAIL_SECRETS, ...PAYMENTS_SECRETS, ...BILLING_SECRETS].map((s) => s.secret)));
+export const OPTIONAL_SECRETS = Object.freeze(new Set([...PAYMENTS_SECRETS, ...BILLING_SECRETS].map((s) => s.secret)));
 
 /** The services' own accounts and the roles each holds in the platform project. */
 export const ACCOUNTS = Object.freeze([
   { name: API_SERVICE, words: "The platform's web door", roles: ["roles/datastore.user", "roles/firebaseauth.admin", "roles/secretmanager.secretAccessor"] },
   { name: JOBS_SERVICE, words: "The platform's scheduled jobs", roles: ["roles/datastore.user", "roles/secretmanager.secretAccessor"] },
   { name: "platform-scheduler", words: "Calls the platform's scheduled jobs", roles: [] },
+  // Holds no project roles: the Workspace admin lets it send as the platform's mailbox (domain-wide delegation, scope
+  // gmail.send), and the two services may sign as it (MAIL_SENDERS below).
+  { name: MAIL_ACCOUNT_NAME, words: "Sends the platform's emails through Google", roles: [] },
 ]);
+
+/** The services that send email as the mail account. */
+export const MAIL_SENDERS = Object.freeze([API_SERVICE, JOBS_SERVICE]);
 
 /** Set by this script for each service; server/env.yaml may not set them. */
 const SET_HERE = new Set(["PLATFORM_ROLE", "PLATFORM_PROJECT", "BILLING_MODE", "PORT"]);
@@ -103,6 +109,13 @@ export function deployPlan({ project = DEFAULT_PROJECT, region = REGION, version
       steps.push({ title: `Give ${account.name} ${role}`, command: "gcloud", args: ["projects", "add-iam-policy-binding", project, `--member=serviceAccount:${accountOf(account.name, project)}`, `--role=${role}`, "--condition=None", "--quiet"] });
     }
   }
+  // Email: both services may sign as the mail account, and the log shows its client id for the Workspace admin's
+  // domain-wide delegation (server/README.md, "Email through Google").
+  const mail = accountOf(MAIL_ACCOUNT_NAME, project);
+  for (const sender of MAIL_SENDERS) {
+    steps.push({ title: `Let ${sender} send email as ${MAIL_ACCOUNT_NAME}`, command: "gcloud", args: ["iam", "service-accounts", "add-iam-policy-binding", mail, `--member=serviceAccount:${accountOf(sender, project)}`, "--role=roles/iam.serviceAccountTokenCreator", "--condition=None", "--quiet", ...at] });
+  }
+  steps.push({ title: `Show ${MAIL_ACCOUNT_NAME}'s client id (for Google Workspace's domain-wide delegation)`, command: "gcloud", args: ["iam", "service-accounts", "describe", mail, "--format=value(oauth2ClientId)", ...at], show: true });
   for (const { secret } of SECRETS.filter((s) => !OPTIONAL_SECRETS.has(s.secret))) {
     // Never made here: a secret's value is typed by a person (README.md). This only checks it is there.
     steps.push({ title: `Check the ${secret} secret is there`, command: "gcloud", args: ["secrets", "describe", secret, ...at] });
@@ -199,6 +212,7 @@ export async function deploy({ project = DEFAULT_PROJECT, region = REGION, versi
       print(`   This step didn't work, so nothing after it ran:\n${result.output.trim()}`);
       return { ok: false, image, done, failed: step.title };
     }
+    if (step.show) print(`   ${result.output.trim()}`);
     done.push({ title: step.title });
   }
   print(apply

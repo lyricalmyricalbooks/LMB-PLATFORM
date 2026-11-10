@@ -103,15 +103,6 @@ jobs:
           export RELEASE_INBOX="$PLATFORM_ADMIN_EMAIL" RELEASE_BUILD_ROOT="$RUNNER_TEMP/builds"
           if [ "$APPLY" = "true" ]; then node services/release-runner/run-shared.js "$VERSION"; else node services/release-runner/run-shared.js "$VERSION" --dry-run; fi
 
-      - name: The email key, for the drill's report
-        if: inputs.job == 'restore-drill'
-        run: |
-          if value=$(gcloud secrets versions access latest --secret=resend-api-key --project=lmb-platform-prod 2>/dev/null); then
-            echo "::add-mask::$value"
-            { echo "RESEND_API_KEY<<KEY_END"; echo "$value"; echo "KEY_END"; } >> "$GITHUB_ENV"
-          else
-            echo "resend-api-key can't be read, so the drill's report isn't emailed (it is in the log)." >> "$GITHUB_STEP_SUMMARY"
-          fi
       - name: The restore drill
         if: inputs.job == 'restore-drill'
         run: node services/health/run.js drill

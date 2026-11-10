@@ -1,21 +1,17 @@
-// Email reputation (code plan 8.3) with a pretend Resend and fake complaint events: two streams, each shop's own
-// sub-address behind a setting, the newsletter pausing itself at the limit, receipts still going, and only signed
-// events counting.
+// Email reputation (code plan 8.3) with pretend Google and fake complaint events: two streams, the newsletter pausing
+// itself at the limit and receipts still going.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createEmailService } from "./index.js";
-import { shopSenderAddress, streamOf, streamSettings } from "./streams.js";
+import { streamOf } from "./streams.js";
 import { LIMITS, PAUSE_CHECK, createReputationGuard, overLimit } from "./reputation.js";
-import { handleResendEvent, signEvent, verifyEvent } from "./webhook.js";
 import { handleShopEmail, hashServiceKey } from "./http.js";
 import { TEMPLATES } from "./templates.js";
-import { fakeReputationStore, fakeResendFetch, fakeSentLog } from "./fakes.js";
+import { fakeReputationStore, fakeGmailFetch, fakeSentLog , pretendEmailEnv } from "./fakes.js";
 import { fakeRegistry } from "../../setup/fakes.js";
 import { platformSettings } from "../settings.js";
 
-const KEY = "re_test_not_a_real_key";
 const SHOP_KEY = "shop-service-key-0123456789abcdef0123456789";
-const SECRET = `whsec_${Buffer.from("a pretend signing secret, 32 bytes").toString("base64")}`;
 const NOW = Date.parse("2026-10-28T12:00:00Z");
 
 async function make({ env = {} } = {}) {
@@ -25,7 +21,7 @@ async function make({ env = {} } = {}) {
   for (const [shopId, pressName] of [["moth-press", "Moth Press"], ["owl-books", "Owl Books"]]) {
     await registry.createShop(shopId, { shopId, pressName, ownerEmail: `${shopId}@example.com`, status: "live", serviceKeyHash: hashServiceKey(SHOP_KEY) });
   }
-  const resend = fakeResendFetch();
+  const mail = fakeGmailFetch();
   const sentLog = fakeSentLog();
   const store = fakeReputationStore();
   const reported = [];
@@ -33,14 +29,14 @@ async function make({ env = {} } = {}) {
   let service;
   const email = { sendPlatform: (message) => service.sendPlatform(message) };
   const guard = createReputationGuard({ store, sentLog, registry, email, repairs, now });
-  service = createEmailService({ env: { RESEND_API_KEY: KEY, ...env }, fetch: resend.fetch, registry, sentLog, reputation: guard, now, sleep: async () => {} });
-  return { registry, resend, sentLog, store, reported, guard, service, tick: (ms) => (clock += ms), now };
+  service = createEmailService({ env: { ...pretendEmailEnv(), ...env }, fetch: mail.fetch, registry, sentLog, reputation: guard, now, sleep: async () => {} });
+  return { registry, mail, sentLog, store, reported, guard, service, tick: (ms) => (clock += ms), now };
 }
 
 const newsletter = (n, shopId = "moth-press") => ({ kind: "newsletter", to: `reader${n}@example.com`, subject: "Autumn books", html: "<p>New books</p>", custom: true, idempotencyKey: `${shopId}/news/${n}` });
 const receipt = (n) => ({ kind: "order-confirmed", to: `buyer${n}@example.com`, subject: "Your order", html: "<p>Thanks</p>", custom: true, idempotencyKey: `moth-press/order/${n}` });
 
-/** A fake Resend event for one email, tagged the way the service tags it. */
+/** A fake delivery-problem event for one email, tagged the way the service tags it. */
 const event = (type, n, { shopId = "moth-press", stream = "newsletter", bounce = "Permanent" } = {}) => ({
   type,
   created_at: new Date(NOW).toISOString(),
@@ -55,34 +51,6 @@ const event = (type, n, { shopId = "moth-press", stream = "newsletter", bounce =
 test("each email kind has a stream: newsletters apart from receipts and notices", () => {
   for (const kind of ["newsletter", "campaign-autumn", "back-in-stock", "review-request", "abandoned-cart", "marketing"]) assert.equal(streamOf(kind), "newsletter", kind);
   for (const kind of ["order-confirmed", "newsletter-confirm", "owner-welcome", "sign-in-link", "shop-email", "gift-card", undefined]) assert.equal(streamOf(kind), "orders", kind);
-});
-
-test("each shop's own sub-address, per stream, only when the setting is on", async () => {
-  const settings = platformSettings({ PLATFORM_DOMAIN: "colophon.example" });
-  const off = streamSettings({}, settings);
-  assert.equal(off.shopSenders, false);
-  assert.deepEqual(off.domains, { orders: "mail.colophon.example", newsletter: "news.colophon.example" });
-  assert.equal(shopSenderAddress({ shopId: "moth-press", stream: "newsletter", streams: off, settings }), "notifications@colophon.example");
-  const on = streamSettings({ SHOP_SENDER_ADDRESSES: "on" }, settings);
-  assert.equal(shopSenderAddress({ shopId: "moth-press", stream: "orders", streams: on, settings }), "moth-press@mail.colophon.example");
-  assert.equal(shopSenderAddress({ shopId: "moth-press", stream: "newsletter", streams: on, settings }), "moth-press@news.colophon.example");
-  assert.throws(() => streamSettings({ SHOP_SENDER_ADDRESSES: "yes" }, settings), /on or off/);
-  assert.throws(() => streamSettings({ PLATFORM_ORDERS_EMAIL_DOMAIN: "same.example", PLATFORM_NEWSLETTER_EMAIL_DOMAIN: "same.example" }, settings), /two different/);
-  assert.throws(() => shopSenderAddress({ shopId: "Bad Id", stream: "orders", streams: on, settings }), /can't be an email address/);
-
-  const w = await make({ env: { SHOP_SENDER_ADDRESSES: "on" } });
-  await w.service.send("moth-press", receipt(1));
-  await w.service.send("moth-press", newsletter(1));
-  await w.service.sendPlatform({ kind: "sign-in-link", to: "someone@example.com", data: { link: "https://platform.example/signup/?finish=1" }, idempotencyKey: "p1" });
-  const [order, news, platform] = w.resend.requests.map((r) => r.body);
-  assert.equal(order.from, '"Moth Press" <moth-press@mail.platform.example>');
-  assert.deepEqual(order.tags.at(-1), { name: "stream", value: "orders" });
-  assert.equal(news.from, '"Moth Press" <moth-press@news.platform.example>');
-  assert.deepEqual(news.tags.at(-1), { name: "stream", value: "newsletter" });
-  assert.equal(platform.from, '"Colophon" <notifications@platform.example>', "the platform's own email keeps its address");
-  assert.equal((await w.service.send("moth-press", newsletter(2))).alreadySent, false);
-  assert.equal(await w.sentLog.countSince("moth-press", new Date(0).toISOString(), "newsletter"), 2);
-  assert.equal(await w.sentLog.countSince("moth-press", new Date(0).toISOString(), "orders"), 1);
 });
 
 test("the limits: more than 0.3% complaints (at least 2), more than 4% hard bounces (at least 5)", () => {
@@ -107,10 +75,10 @@ test("complaints past the limit pause the newsletter; receipts still go; the own
   assert.equal(await w.guard.isPaused("moth-press"), true);
 
   await assert.rejects(w.service.send("moth-press", newsletter(501)), { code: "newsletter-paused", retryable: false });
-  const before = w.resend.delivered.length;
+  const before = w.mail.delivered.length;
   await w.service.send("moth-press", receipt(1));
-  assert.equal(w.resend.delivered.length, before + 1, "the receipt still went");
-  assert.equal(w.resend.delivered.at(-1).to[0], "buyer1@example.com");
+  assert.equal(w.mail.delivered.length, before + 1, "the receipt still went");
+  assert.equal(w.mail.delivered.at(-1).to[0], "buyer1@example.com");
   // Another shop's newsletter is untouched.
   await w.service.send("owl-books", newsletter(1, "owl-books"));
 
@@ -118,7 +86,7 @@ test("complaints past the limit pause the newsletter; receipts still go; the own
   assert.equal(w.reported[0].check, PAUSE_CHECK);
   assert.equal(w.reported[0].shopId, "moth-press");
   assert.match(w.reported[0].detail, /2 people marked it as spam \(0\.4%\)/);
-  const note = w.resend.delivered.find((d) => d.to[0] === "moth-press@example.com");
+  const note = w.mail.delivered.find((d) => d.to[0] === "moth-press@example.com");
   assert.match(note.subject, /Moth Press's newsletter is paused for now/);
   assert.match(note.text, /receipts, order emails and shipping notices still go out/);
   assert.match(note.text, /2 people marked it as spam/);
@@ -126,7 +94,7 @@ test("complaints past the limit pause the newsletter; receipts still go; the own
 
   // More complaints while paused don't send the owner a second note.
   await w.guard.record(event("email.complained", 3));
-  assert.equal(w.resend.delivered.filter((d) => d.to[0] === "moth-press@example.com").length, 1);
+  assert.equal(w.mail.delivered.filter((d) => d.to[0] === "moth-press@example.com").length, 1);
 });
 
 test("hard bounces pause it too; a full inbox (a temporary bounce) and orders-stream problems never do", async () => {
@@ -192,48 +160,9 @@ test("the shop door answers a paused newsletter plainly, without a retry", async
   assert.equal((await ask({ kind: "order-confirmed", to: "buyer@example.com", subject: "Your order", html: "<p>x</p>", idempotencyKey: "o1" })).status, 200);
 });
 
-test("only events signed by Resend, within five minutes, are counted", async () => {
-  const w = await make();
-  for (let n = 1; n <= 10; n += 1) await w.service.send("moth-press", newsletter(n));
-  const body = JSON.stringify(event("email.complained", 1));
-  const timestamp = String(Math.floor(NOW / 1000));
-  const headers = { "svix-id": "msg_1", "svix-timestamp": timestamp, "svix-signature": `v1,bm90IGl0 ${signEvent({ secret: SECRET, id: "msg_1", timestamp, body })}` };
-  const call = (request) => handleResendEvent({ method: "POST", ...request }, { secret: SECRET, guard: w.guard, now: w.now });
-
-  assert.equal((await call({ headers, rawBody: body })).status, 200);
-  assert.equal((await call({ headers, rawBody: body.replace("reader1", "reader2") })).status, 401, "a changed body");
-  assert.equal((await call({ headers: { ...headers, "svix-signature": "v1,AAAA" }, rawBody: body })).status, 401);
-  assert.equal((await call({ headers: {}, rawBody: body })).status, 401);
-  const old = String(Math.floor(NOW / 1000) - 301);
-  assert.equal((await call({ headers: { ...headers, "svix-timestamp": old, "svix-signature": signEvent({ secret: SECRET, id: "msg_1", timestamp: old, body }) }, rawBody: body })).status, 401);
-  assert.equal((await handleResendEvent({ method: "GET" }, { secret: SECRET, guard: w.guard })).status, 405);
-  assert.equal(verifyEvent({ secret: "not-a-secret", headers, rawBody: body, now: w.now }), false);
-  // The same event delivered twice counts once (Svix retries until it gets a 2xx).
-  assert.equal((await call({ headers, rawBody: body })).body.counted, false);
-});
-
 test("the owner's note is in plain words and names no rival", () => {
   const parts = TEMPLATES["newsletter-paused"]({ problems: ["3 people marked it as spam (0.5%)"], days: 7 }, { settings: platformSettings({}), pressName: "Moth Press" });
   assert.doesNotMatch(parts.text, /resend|webhook|api|bounce rate|complaint rate|shopify|big cartel/i);
   assert.match(parts.text, /reply to this email and we'll turn it back on/);
 });
 
-test("a platform closing email that bounced for good is marked for the control room; other bounces and soft ones aren't", async () => {
-  const w = await make();
-  const { closingBounceRecorder } = await import("../billing/closedApps.js");
-  const heard = [];
-  const record = closingBounceRecorder({ registry: w.registry });
-  const onBounce = async (bounce) => heard.push([bounce.kind, await record(bounce)]);
-  const send = async (id, body) => {
-    const rawBody = JSON.stringify(body);
-    const timestamp = String(Math.floor(NOW / 1000));
-    return handleResendEvent({ method: "POST", headers: { "svix-id": id, "svix-timestamp": timestamp, "svix-signature": signEvent({ secret: SECRET, id, timestamp, body: rawBody }) }, rawBody }, { secret: SECRET, guard: w.guard, onBounce, now: w.now });
-  };
-  const bounce = (kind, type = "Permanent") => ({ type: "email.bounced", created_at: new Date(NOW).toISOString(), data: { email_id: `e-${kind}-${type}`, bounce: { type }, tags: { kind, shop: "moth-press", stream: "orders" } } });
-  await send("b1", bounce("app-closing-soon", "Transient"));
-  await send("b2", bounce("order-confirmed"));
-  assert.equal((await w.registry.getShop("moth-press")).closingEmailBounce, undefined);
-  await send("b3", bounce("app-closing-soon"));
-  assert.deepEqual((await w.registry.getShop("moth-press")).closingEmailBounce, { kind: "app-closing-soon", at: new Date(NOW).toISOString() });
-  assert.deepEqual(heard, [["order-confirmed", false], ["app-closing-soon", true]]);
-});

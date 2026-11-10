@@ -16,7 +16,7 @@
 import { EDITABLE, SETTINGS_RECORD, editableValues, liveSettings, platformSettings, savedSettingsProblems } from "../services/settings.js";
 import { ControlError, MIN_REASON, adminOf } from "./controlRoom.js";
 import { activityEntry } from "./activity.js";
-import { EMAIL_SECRETS } from "../services/email/index.js";
+import { EMAIL_SETTING } from "../services/email/index.js";
 import { PAYMENTS_SECRETS } from "../services/payments/index.js";
 import { BILLING_SECRETS } from "../services/billing/index.js";
 import { WAIT_FOR_A_PERSON_MS } from "../signup/shopMaker.js";
@@ -32,8 +32,8 @@ const LAUNCH_KEYS = Object.freeze([
     gives: "Tells the platform when a press's Stripe account or payment changes." },
   { id: "billing-events", label: "Stripe events secret (plans)", key: BILLING_SECRETS[0], events: "/api/billing/events",
     gives: "Tells the platform when a plan is paid, fails or ends." },
-  { id: "email", label: "Email sending key", key: EMAIL_SECRETS[0], getIt: "https://resend.com/api-keys",
-    gives: "Sign-in codes, receipts and every email to presses." },
+  { id: "email", label: "Email through Google", setting: EMAIL_SETTING, getIt: "https://admin.google.com/ac/owl/domainwidedelegation",
+    gives: "Sign-in codes, receipts and every email to presses, from your Google Workspace mailbox." },
 ]);
 
 const reasonOf = (reason) => {
@@ -103,8 +103,11 @@ export function createPlatformControls({ admins, settingsStore, env = process.en
         signupOpen: current.signupOpen === true,
         invites: Boolean(invites),
         shopMaking: shopMaking === true,
-        keys: LAUNCH_KEYS.map(({ id, label, key, getIt, events, gives }) => ({
-          id, label, gives, secret: key.secret, ready: String(keyEnv[key.env] ?? "").trim() !== "",
+        keys: LAUNCH_KEYS.map(({ id, label, key, setting, getIt, events, gives }) => ({
+          id, label, gives,
+          ...(setting
+            ? { secret: null, setting: `${setting.env}: "${setting.value}"`, ready: String(keyEnv[setting.env] ?? "").trim().toLowerCase() === setting.value }
+            : { secret: key.secret, ready: String(keyEnv[key.env] ?? "").trim() !== "" }),
           getIt: getIt ?? null, events: events ? `${platformUrl}${events}` : null,
         })),
       };
