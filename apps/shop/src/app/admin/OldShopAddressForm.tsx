@@ -8,12 +8,14 @@ import { useShopWords } from "./shopWords";
 
 export interface OldShopFile { host: string; csv: string; notes: string[] }
 
-export function OldShopAddressForm({ read, onRead, disabled = false, primary = true }: {
+export function OldShopAddressForm({ read, onRead, disabled = false, primary = true, label }: {
   read: (address: string) => Promise<OldShopFile>;
   onRead: (file: File, notes: string[]) => void | Promise<void>;
   disabled?: boolean;
   /** The main action on its page (setup) or beside a file button (Books › Import). */
   primary?: boolean;
+  /** The button's words; "Bring my books over" (in the shop's words) unless given. */
+  label?: string;
 }) {
   const w = useShopWords();
   const [address, setAddress] = useState("");
@@ -40,7 +42,7 @@ export function OldShopAddressForm({ read, onRead, disabled = false, primary = t
       <TextField label="Your old shop's web address" placeholder="yourshop.com" inputMode="url" autoComplete="url" value={address}
         hint={w("We read the books your old shop shows the public. You'll see them all before anything is kept.")}
         error={error || undefined} onChange={(e) => setAddress(e.target.value)} />
-      <div><Button type="submit" icon={<Globe size={16} aria-hidden />} busy={reading} disabled={reading || disabled || !address.trim()}>{w("Bring my books over")}</Button></div>
+      <div><Button type="submit" icon={<Globe size={16} aria-hidden />} busy={reading} disabled={reading || disabled || !address.trim()}>{label ?? w("Bring my books over")}</Button></div>
     </form>
   );
 }

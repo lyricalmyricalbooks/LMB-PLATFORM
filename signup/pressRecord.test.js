@@ -78,3 +78,10 @@ test("the moving answer (23.0): yes, fresh or not said; nothing else", () => {
   assert.equal(setupChange(record(), { moving: "maybe" }).ok, false);
   assert.equal(setupChange(record(), { moving: 3 }).ok, false);
 });
+
+test("where the press sells today is one of the front door's answers, or skipped", () => {
+  assert.equal(record().sellingToday, "");
+  assert.deepEqual(setupChange(record(), { sellingToday: "spreadsheet" }), { ok: true, fields: { sellingToday: "spreadsheet" } });
+  assert.deepEqual(setupChange(record(), { sellingToday: "" }), { ok: true, fields: { sellingToday: "" } });
+  assert.equal(setupChange(record(), { sellingToday: "somewhere" }).ok, false);
+});

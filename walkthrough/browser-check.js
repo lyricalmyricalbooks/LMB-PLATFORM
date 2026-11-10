@@ -81,21 +81,36 @@ async function checkFrontDoor(browser, walk, log) {
       await page.fill("#code", code);
       await visible("#view-plan");
     });
-    await step("the four questions", async () => {
+    await step("the two setup screens", async () => {
       // Both is picked to start with, and each plan shows its price from the platform.
       if (!(await page.locator("#plan-choices input[value=both]").isChecked())) throw new Error("both isn't picked to start with");
       if ((await page.locator("#plan-choices .fd-price").count()) !== 3) throw new Error("the plans show no prices");
       await page.click("#plan-choices label.choice:has(input[value=shop])");
+      if (process.env.WALKTHROUGH_SHOTS) {
+        await page.screenshot({ path: join(process.env.WALKTHROUGH_SHOTS, "join-plan-phone.png"), fullPage: true });
+        const phone = page.viewportSize();
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await page.screenshot({ path: join(process.env.WALKTHROUGH_SHOTS, "join-plan.png"), fullPage: true });
+        if (phone) await page.setViewportSize(phone);
+      }
       await page.click("#view-plan button[type=submit]");
-      await visible("#view-name");
-      await page.fill("#view-name input[name=pressName]", "Front Door Press");
-      await page.click("#view-name button[type=submit]");
-      await visible("#view-sells");
-      await page.click("#view-sells label.choice:has-text('Zines')");
-      await page.click("#view-sells button[type=submit]");
-      await visible("#view-country");
-      await page.click("#view-country [data-skip]");
+      await visible("#view-business");
+      await page.fill("#business-form input[name=pressName]", "Front Door Press");
+      await page.click("#sells-choices label.choice:has-text('Zines')");
+      await page.click("#today-choices label.choice:has(input[value=online])");
+      // The country is left blank; setup mode's General page answers it below.
+      await page.selectOption("#country", "");
+      if (process.env.WALKTHROUGH_SHOTS) {
+        await page.screenshot({ path: join(process.env.WALKTHROUGH_SHOTS, "join-business-phone.png"), fullPage: true });
+        const phone = page.viewportSize();
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await page.screenshot({ path: join(process.env.WALKTHROUGH_SHOTS, "join-business.png"), fullPage: true });
+        if (phone) await page.setViewportSize(phone);
+      }
+      await page.click("#business-form button[type=submit]");
       await visible("#view-done");
+      if ((await page.locator("#done-today").textContent()) !== "Another online shop") throw new Error("the done screen doesn't show where the press sells today");
+      if (process.env.WALKTHROUGH_SHOTS) await page.screenshot({ path: join(process.env.WALKTHROUGH_SHOTS, "join-done-phone.png"), fullPage: true });
     });
     await step("setup mode, the admin before the shop opens (code plan 18.6)", async () => {
       const built = existsSync(join(ROOT, SETUP_ADMIN_FOLDER, "setup.html"));
@@ -158,6 +173,13 @@ async function checkFrontDoor(browser, walk, log) {
       if (process.env.WALKTHROUGH_SHOTS) await page.screenshot({ path: join(process.env.WALKTHROUGH_SHOTS, "setup-card-payments-phone.png"), fullPage: true });
       // Books previews a product file and keeps it for the shop, sent through the upload link (18.7).
       await page.evaluate(() => { location.hash = "catalog"; });
+      if (process.env.WALKTHROUGH_SHOTS) {
+        await page.locator("#found-title").waitFor({ state: "visible", timeout: 10_000 });
+        const phone = page.viewportSize();
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await page.screenshot({ path: join(process.env.WALKTHROUGH_SHOTS, "setup-bring-shop.png"), fullPage: true });
+        if (phone) await page.setViewportSize(phone);
+      }
       await page.locator("input[type=file]").setInputFiles({ name: "my-zines.csv", mimeType: "text/csv", buffer: Buffer.from("Title,Price,Stock\nMoth Zine,8,20\nNight Zine,6,12\n") });
       await page.locator("ol[aria-label='Import preview'] li").nth(1).waitFor({ state: "visible", timeout: 10_000 });
       if (!(await fits())) throw new Error("the Books preview scrolls sideways on a phone");
@@ -172,7 +194,7 @@ async function checkFrontDoor(browser, walk, log) {
       await page.reload();
       await visible("#view-done");
       const saved = (await walk.world.frontDoorStores.presses.listByOwner(`uid-${address}`))[0];
-      if (saved?.plan !== "shop" || saved?.pressName !== "Front Door Press" || saved?.sells !== "zines" || saved?.country !== country) throw new Error(`saved ${JSON.stringify(saved)}`);
+      if (saved?.plan !== "shop" || saved?.pressName !== "Front Door Press" || saved?.sells !== "zines" || saved?.sellingToday !== "online" || saved?.country !== country) throw new Error(`saved ${JSON.stringify(saved)}`);
     });
     await step("the picker for a second press, and an open shop going to the account page", async () => {
       const presses = walk.world.frontDoorStores.presses;

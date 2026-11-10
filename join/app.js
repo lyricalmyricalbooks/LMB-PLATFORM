@@ -1,5 +1,5 @@
-// The front door (code plan 18.4, the plan question added in 18.6, docs/plans/1-front-door-v2.md "A simpler flow"): email, the six-digit code, four
-// questions, then the admin. New and returning presses come in the same way. Plain browser JavaScript with no
+// The front door (code plan 18.4, the plan question added in 18.6, docs/plans/1-front-door-v2.md "A simpler flow"): email, the six-digit code, two
+// screens (what to set up, then the business; design "Shop setup (bento)"), then the admin. New and returning presses come in the same way. Plain browser JavaScript with no
 // framework (docs/decisions.md); Firebase's own browser library is loaded from Google for sign-in only. Every check the
 // page makes, the server makes again (signup/frontDoor.js).
 import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE, SETUP_ADMIN_URL } from "../signup/config.js";
@@ -12,8 +12,7 @@ const { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signIn
 const auth = getAuth(initializeApp(PLATFORM_FIREBASE));
 const $ = (selector) => document.querySelector(selector);
 const status = $("#status");
-const QUESTIONS = ["plan", "name", "sells", "country"];
-const STEP_OF = { email: "email", code: "code", pick: "press", plan: "press", name: "press", sells: "press", country: "press", done: "press" };
+const STEP_OF = { email: "email", code: "code", pick: "press", plan: "press", business: "press", done: "press" };
 // A press whose shop is opening or open is run from its admin, reached from the account page.
 const ACCOUNT_PAGE = "../account/";
 const STATUS_WORDS = { setup: "Setting up", opening: "Opening", open: "Open", expired: "Setup ran out" };
@@ -201,60 +200,76 @@ function planTiles(plans) {
     const founding = plans.foundingOffer;
     const offer = founding ? ` The first ${founding.presses} presses to pay keep ${founding.percentOff}% off for as long as they stay.` : "";
     const tax = plans.plusTax ? ", plus tax" : "";
-    $("#plan-terms").textContent = `Free for ${plans.trialDays} days once your shop opens, then monthly${tax}. Nothing is charged before then, and no card is needed for the trial. Once you add a card, the plan renews each month until you cancel, which you can do online at any time.${offer}`;
+    $("#plan-terms").textContent = `Free for ${plans.trialDays} days once your shop is made, then monthly${tax}. Nothing is charged before then, and no card is needed for the trial. Once you add a card, the plan renews each month until you cancel, which you can do online at any time.${offer}`;
   }
 }
 planTiles(null);
 api("GET", "/plans").then(planTiles, () => {});
 
 $("#sells-choices").replaceChildren(...PUBLISHES.options.map((o) => choice("sells", o.id, o.label)));
-$("#country").replaceChildren(new Option("Choose your country", ""), ...Object.entries(COUNTRIES).map(([code, c]) => new Option(c.name, code)));
+// "Where do you sell today?", in the design's four answers (ids from form.js QUESTION, which the server checks). It
+// picks the setup guide's first steps: bring a shop over, import a spreadsheet, or add the first product.
+const SELLING_TODAY = [
+  { id: "online", label: "Another online shop", line: "Bring your products and old links over" },
+  { id: "spreadsheet", label: "A spreadsheet", line: "Import it in one go" },
+  { id: "fairs", label: "Markets and in person", line: "Add what you sell as you go" },
+  { id: "starting", label: "Nowhere yet", line: "Start fresh" },
+];
+$("#today-choices").replaceChildren(...SELLING_TODAY.map((o) => {
+  const label = choice("sellingToday", o.id, o.label);
+  label.append(Object.assign(document.createElement("span"), { textContent: o.line }));
+  return label;
+}));
+$("#country").replaceChildren(new Option("Choose a country", ""), ...Object.entries(COUNTRIES).map(([code, c]) => new Option(c.name, code)));
 
 function fillAnswers() {
-  const [planForm, nameForm, sellsForm, countryForm] = QUESTIONS.map((q) => $(`#view-${q} form`));
+  const planForm = $("#view-plan form");
+  const business = $("#business-form");
   // Nothing picked yet: start on both, the one most presses need.
   for (const input of planForm.querySelectorAll("input[name=plan]")) input.checked = input.value === (press.plan || "both");
-  nameForm.pressName.value = press.pressName ?? "";
-  for (const input of sellsForm.querySelectorAll("input[name=sells]")) input.checked = input.value === press.sells;
+  business.pressName.value = press.pressName ?? "";
+  for (const input of business.querySelectorAll("input[name=sells]")) input.checked = input.value === press.sells;
+  for (const input of business.querySelectorAll("input[name=sellingToday]")) input.checked = input.value === press.sellingToday;
   // Not answered yet: start from the country the computer's clock is set to, when we can tell and serve it.
-  countryForm.country.value = press.country in COUNTRIES ? press.country : countryFromTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  business.country.value = press.country in COUNTRIES ? press.country : countryFromTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const welcome = $("#plan-welcome");
+  welcome.textContent = press.pressName ? `Welcome, ${press.pressName}` : "Welcome";
 }
 
-const valueOf = (form) => {
-  const key = form.dataset.question;
-  if (key === "sells" || key === "plan") return form.querySelector(`input[name=${key}]:checked`)?.value ?? "";
-  return form.elements[key].value.trim();
-};
-
-async function save(form, value) {
-  const { press: saved } = await api("POST", "/press/setup", { pressId: press.pressId, [form.dataset.question]: value });
+async function save(change) {
+  const { press: saved } = await api("POST", "/press/setup", { pressId: press.pressId, ...change });
   press = saved;
 }
 
-function next(form) {
-  const at = QUESTIONS.indexOf(form.closest("section").id.replace("view-", ""));
-  if (at < QUESTIONS.length - 1) show(QUESTIONS[at + 1]);
-  else done();
-}
-
-for (const form of document.querySelectorAll("form[data-question]")) {
-  const error = form.querySelector(".error");
-  form.addEventListener("submit", (event) => {
-    event.preventDefault();
-    busy(form, error, async () => {
-      await save(form, valueOf(form));
-      next(form);
-    });
+const planForm = $("#view-plan form");
+planForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  busy(planForm, planForm.querySelector(".error"), async () => {
+    await save({ plan: planForm.querySelector("input[name=plan]:checked")?.value ?? "" });
+    show("business");
   });
-  // Skipping keeps whatever was saved before and moves on.
-  form.querySelector("[data-skip]")?.addEventListener("click", () => next(form));
-}
+});
+
+// The business screen saves its answers together. Anything left blank is a skipped question, kept as it was.
+const businessForm = $("#business-form");
+businessForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const picked = (name) => businessForm.querySelector(`input[name=${name}]:checked`)?.value ?? "";
+  const change = { pressName: businessForm.pressName.value.trim(), country: businessForm.country.value, sells: picked("sells"), sellingToday: picked("sellingToday") };
+  for (const key of Object.keys(change)) if (!change[key]) delete change[key];
+  busy(businessForm, businessForm.querySelector(".error"), async () => {
+    if (Object.keys(change).length) await save(change);
+    done();
+  });
+});
+businessForm.querySelector("[data-skip]").addEventListener("click", () => done());
 for (const back of document.querySelectorAll("[data-back]")) back.addEventListener("click", () => show(back.dataset.back));
 
 // ── 4. Saved, then the admin ──
 function done({ focus = true } = {}) {
   const sells = PUBLISHES.options.find((o) => o.id === press.sells)?.label;
-  $("#done-name").textContent = press.pressName || "your press";
+  $("#done-name").textContent = press.pressName || "your shop";
+  $("#done-today").textContent = SELLING_TODAY.find((o) => o.id === press.sellingToday)?.label || "Not said yet";
   $("#done-plan").textContent = planNames[press.plan] || "Not picked yet";
   $("#done-press").textContent = press.pressName || "Not named yet";
   $("#done-sells").textContent = sells || "Not said yet";

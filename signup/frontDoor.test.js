@@ -743,3 +743,19 @@ test("while Open my shop is running, the press's answers can't change under it",
   release();
   assert.equal((await opening).body.press.pressName, "Moth Press");
 });
+
+test("\"Where do you sell today?\" from the front door is the shop's answer, so its setup guide starts in the right place", async () => {
+  const w = world();
+  const pressId = await readyPress(w);
+  const saved = await w.ask("POST", "/api/press/setup", { pressId, sellingToday: "online" }, ADA);
+  assert.equal(saved.body.press.sellingToday, "online");
+  const bad = await w.ask("POST", "/api/press/setup", { pressId, sellingToday: "everywhere" }, ADA);
+  assert.match(bad.body.message, /Pick one of the choices/);
+  const opened = await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA);
+  assert.equal(w.signupStores.signups.rows.get(opened.body.press.shopId).answer, "online");
+  // Skipped: no answer, and the guide falls back to its general steps.
+  const other = world();
+  const plain = await other.ask("POST", "/api/press/open", { pressId: await readyPress(other), ...OPEN }, ADA);
+  assert.equal(plain.body.press.sellingToday, "");
+  assert.equal(other.signupStores.signups.rows.get(plain.body.press.shopId).answer, null);
+});

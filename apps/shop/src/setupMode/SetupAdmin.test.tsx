@@ -476,6 +476,39 @@ describe("bringing books over from the old shop's address (code plan 23.2)", () 
     expect(el.textContent).toContain("moth.example products.csv");
     expect(el.textContent).toContain("1 book ready");
     expect(el.textContent).toContain("Stock counts aren't shown publicly");
+    // The found tile: four counts, and the one Keep button.
+    const found = el.querySelector('section[aria-labelledby="found-title"]')!;
+    expect(found.textContent).toContain("Found · moth.example");
+    expect([...found.querySelectorAll("dd")].map((d) => d.textContent)).toEqual(["1", "1", "0", "1"]);
+    expect([...el.querySelectorAll("main button")].filter((b) => /^Keep 1 book for my shop$/.test(b.textContent ?? "")).length).toBe(1);
+  });
+
+  it("waits with an empty tile before any shop is read", async () => {
+    const el = await mount(door(), "#catalog");
+    const found = el.querySelector('section[aria-labelledby="found-title"]')!;
+    expect(found.textContent).toContain("What we find");
+    expect([...found.querySelectorAll("dd")].map((d) => d.textContent)).toEqual(["–", "–", "–", "–"]);
+    expect([...el.querySelectorAll("main button")].some((b) => b.textContent === "Look at my shop")).toBe(true);
+  });
+});
+
+describe("the front door's \"Where do you sell today?\" shapes Home", () => {
+  it("another online shop: the bring-over step comes first and the card stays", async () => {
+    const el = await mount(door(), "", { ...PRESS, country: "CA", sellingToday: "online" });
+    expect(el.textContent).toContain("Bring your shop with you");
+    expect(el.querySelector('li[aria-current="step"]')?.textContent).toContain("Bring your books over");
+  });
+
+  it("nowhere yet: no bring-over card, and that step goes last", async () => {
+    const el = await mount(door(), "", { ...PRESS, sellingToday: "starting" });
+    expect(el.textContent).not.toContain("Selling somewhere already?");
+    const steps = [...el.querySelectorAll("main ol[data-setup-steps] > li")].map((li) => li.textContent ?? "");
+    expect(steps.findIndex((t) => t.includes("Bring your books over"))).toBeGreaterThan(steps.findIndex((t) => t.includes("Choose your website's look")));
+  });
+
+  it("the press's own answer on Home wins over the front door's", async () => {
+    const el = await mount(door(), "", { ...PRESS, sellingToday: "starting", moving: "yes" });
+    expect(el.textContent).toContain("Selling somewhere already?");
   });
 });
 

@@ -41,21 +41,43 @@
   .fd-meter { height: 8px; border-radius: 999px; background: var(--rp-surface-2); overflow: hidden; }
   .fd-meter > span { display: block; height: 100%; border-radius: 999px; background: var(--rp-inverse); transition: width .25s ease; }
   @media (prefers-reduced-motion: reduce) { .fd-meter > span { transition: none; } }
-  /* The plan tiles: three option cards, name and what it is on top, the price at the bottom. */
-  .fd-plans { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); }
-  .cp .fd-plans label.choice { grid-template-rows: auto auto 1fr auto; align-content: start; min-height: 168px; padding: 16px 18px; }
-  .cp .fd-plans .fd-price { align-self: end; margin-top: 18px; font: 600 20px/1.2 var(--rp-font-body); color: inherit; white-space: nowrap; }
-  .cp .fd-plans .fd-price s { display: block; font-weight: 400; font-size: 12px; color: var(--rp-text-subtle); }
-  .cp .fd-plans .fd-price small { display: block; font: 400 11px/1.4 var(--rp-font-mono); color: var(--rp-text-subtle); white-space: normal; }
-  .cp .fd-plans label.choice:has(input:checked) .fd-price :is(s, small) { color: var(--cl-on-tile); }
-  .fd-plans .fd-tag { justify-self: start; font: 500 10px/1 var(--rp-font-mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 999px; padding: 4px 8px; margin-top: 6px; }
+  /* The plan tiles (design "Shop setup (bento)", screen 1): one row each, a radio dot, the name and what it is, the
+     price in mono on the right. Picked: the mint tile with an ink border (platform-pages.css label.choice). */
+  .cp #plan-choices.fd-plans { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr); }
+  .cp #plan-choices.fd-plans label.choice { grid-template-columns: 22px minmax(0, 1fr) auto; grid-template-areas: "dot name price" "dot line price" "dot tag price"; column-gap: 14px; row-gap: 2px; align-items: center; min-height: 84px; padding: 16px 20px; border-radius: 16px; }
+  .cp #plan-choices.fd-plans label.choice::before { content: ""; grid-area: dot; align-self: center; width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 2px currentColor; }
+  .cp #plan-choices.fd-plans label.choice:has(input:checked)::before { background: radial-gradient(circle, currentColor 0 4px, transparent 5px); }
+  .cp #plan-choices.fd-plans label.choice strong { grid-area: name; font-size: 18px; }
+  .cp #plan-choices.fd-plans label.choice > span:not(.fd-price) { grid-area: line; }
+  .cp #plan-choices.fd-plans .fd-price { grid-area: price; text-align: right; font: 500 15px/1.3 var(--rp-font-mono); color: inherit; white-space: nowrap; }
+  .cp #plan-choices.fd-plans .fd-price s { display: block; font-weight: 400; font-size: 12px; color: var(--rp-text-subtle); }
+  .cp #plan-choices.fd-plans .fd-price small { display: block; max-width: 130px; margin-left: auto; white-space: normal; font: 400 11px/1.4 var(--rp-font-mono); color: var(--rp-text-subtle); }
+  .cp #plan-choices.fd-plans label.choice:has(input:checked) .fd-price :is(s, small) { color: var(--cl-on-tile); }
+  .cp #plan-choices.fd-plans .fd-tag { grid-area: tag; justify-self: start; font: 500 10px/1 var(--rp-font-mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 999px; padding: 4px 8px; margin-top: 4px; }
+  /* Your business (screen 2): chips for what you sell, option cards for where you sell today. */
+  .fd-part { display: grid; gap: 14px; padding: 0; margin: 0; border: 0; min-width: 0; }
+  .fd-part + .fd-part { padding-top: 20px; border-top: 1px solid var(--rp-divider); }
+  .fd-part > legend { padding: 0; margin-bottom: 4px; font: 500 12px/1.2 var(--rp-font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--rp-text-muted); }
+  .fd-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .cp .fd-chips label.choice { min-height: 44px; padding: 0 16px; border-radius: 999px; display: inline-flex; align-items: center; font-size: 14px; }
+  .cp .fd-chips label.choice strong { font-size: 14px; font-weight: 500; }
+  .cp .fd-chips label.choice:has(input:checked) { background: var(--cl-dark-tile); color: var(--cl-on-dark-tile); border-color: var(--cl-dark-tile); }
+  .fd-sub { margin: 0; font: 600 13px/1.3 var(--rp-font-body); }
+  .fd-today { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); }
+  .cp .fd-today label.choice { border-radius: 16px; }
   .fd-code::placeholder { color: var(--rp-text-faint); }
   .fd-done .cp-dl { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .fd-done .cp-dl > div { padding: 14px 16px; border-radius: 14px; background: var(--rp-surface-2); }
   .fd-done .cp-dl dt { font-size: 13px; }
   .fd-done .cp-dl dd { padding: 4px 0 0; text-align: left; overflow-wrap: anywhere; }
-  @media (max-width: 900px) { .fd { grid-template-columns: minmax(0, 1fr); } .cp .fd-story { gap: 20px; } .cp .fd-plans label.choice { min-height: 0; } }
-  @media (max-width: 480px) { .fd-done .cp-dl { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 900px) { .fd { grid-template-columns: minmax(0, 1fr); } .cp .fd-story { gap: 20px; } .cp #plan-choices.fd-plans label.choice { min-height: 0; } }
+  @media (max-width: 480px) {
+    .fd-done .cp-dl { grid-template-columns: minmax(0, 1fr); }
+    .cp #plan-choices.fd-plans label.choice { grid-template-columns: 22px minmax(0, 1fr); grid-template-areas: "dot name" "dot line" "dot price" "dot tag"; }
+    .cp #plan-choices.fd-plans .fd-price { text-align: left; margin-top: 6px; }
+    .cp #plan-choices.fd-plans .fd-price s { display: inline; margin-right: 6px; }
+    .cp #plan-choices.fd-plans .fd-price small { display: inline; margin-left: 6px; max-width: none; }
+  }
 </style>
 </head>
 <body class="cp">
@@ -66,11 +88,11 @@
 <main id="main" tabindex="-1" class="cp-main fd">
   <aside class="card cp-dark fd-story">
     <div><h1>Start your shop.</h1>
-    <p class="cp-lede">Setup is free and needs no card. Your free trial starts the day your shop opens.</p></div>
+    <p class="cp-lede">Setup is free and needs no card. Your free days start when you create your shop.</p></div>
     <ol class="cp-steps" aria-label="Steps">
       <li data-step="email"><b>01</b> Your email</li>
       <li data-step="code"><b>02</b> Your code</li>
-      <li data-step="press"><b>03</b> Your press</li>
+      <li data-step="press"><b>03</b> Your business</li>
     </ol>
   </aside>
   <div class="card fd-step">
@@ -110,63 +132,50 @@
     <div class="fd-pick" id="pick-list"></div>
   </section>
 
-  <!-- 3. Four questions, one at a time. Each can be changed later. The plan starts on both and has no Skip; the others can be skipped. -->
+  <!-- 3. Two screens (design "Shop setup (bento)"): what to set up, then the business. Each can be changed later. The plan
+       starts on both and has no Skip; the business screen can be skipped. -->
   <section id="view-plan" class="stack" hidden aria-labelledby="plan-title">
-    <div class="fd-meter" aria-hidden="true"><span style="width:25%"></span></div>
-    <div class="fd-top"><span></span><p class="fd-count">Question 1 of 4</p></div>
+    <div class="fd-meter" aria-hidden="true"><span style="width:50%"></span></div>
+    <div class="fd-top"><p class="fd-count fd-welcome" id="plan-welcome">Welcome</p><p class="fd-count">Step 1 of 2</p></div>
     <h2 id="plan-title" tabindex="-1" class="cp-title">What do you want to set up?</h2>
     <form class="stack" data-question="plan" novalidate>
-      <fieldset><legend class="hint">Pick one now. You can change it any time before your shop opens.</legend>
+      <fieldset><legend class="hint">Nothing is charged, and your free days don't start, until you create your shop.</legend>
         <div class="fd-plans" id="plan-choices"></div></fieldset>
-      <p class="hint" id="plan-terms">Nothing is charged until your shop opens.</p>
+      <p class="hint" id="plan-terms"></p>
       <p class="error" role="alert" hidden></p>
-      <div class="fd-row"><button type="submit" class="primary">Continue</button></div>
+      <div class="fd-row"><button type="submit" class="primary">Continue &rarr;</button></div>
     </form>
   </section>
 
-  <section id="view-name" class="stack" hidden aria-labelledby="name-title">
-    <div class="fd-meter" aria-hidden="true"><span style="width:50%"></span></div>
-    <div class="fd-top"><button type="button" class="ghost" data-back="plan">Back</button><p class="fd-count">Question 2 of 4</p></div>
-    <h2 id="name-title" tabindex="-1" class="cp-title">What's your press called?</h2>
-    <form class="stack" data-question="pressName" novalidate>
-      <label>Press name<input name="pressName" autocomplete="organization" maxlength="120"></label>
-      <p class="error" role="alert" hidden></p>
-      <div class="fd-row"><button type="submit" class="primary">Continue</button><button type="button" class="ghost" data-skip>Skip</button></div>
-    </form>
-  </section>
-
-  <section id="view-sells" class="stack" hidden aria-labelledby="sells-title">
-    <div class="fd-meter" aria-hidden="true"><span style="width:75%"></span></div>
-    <div class="fd-top"><button type="button" class="ghost" data-back="name">Back</button><p class="fd-count">Question 3 of 4</p></div>
-    <h2 id="sells-title" tabindex="-1" class="cp-title">What do you sell?</h2>
-    <form class="stack" data-question="sells" novalidate>
-      <fieldset><legend class="hint">Pick the closest. We'll suggest a look and set your shop up for it.</legend>
-        <div class="choices" id="sells-choices"></div></fieldset>
-      <p class="error" role="alert" hidden></p>
-      <div class="fd-row"><button type="submit" class="primary">Continue</button><button type="button" class="ghost" data-skip>Skip</button></div>
-    </form>
-  </section>
-
-  <section id="view-country" class="stack" hidden aria-labelledby="country-title">
+  <section id="view-business" class="stack" hidden aria-labelledby="business-title">
     <div class="fd-meter" aria-hidden="true"><span style="width:100%"></span></div>
-    <div class="fd-top"><button type="button" class="ghost" data-back="sells">Back</button><p class="fd-count">Question 4 of 4</p></div>
-    <h2 id="country-title" tabindex="-1" class="cp-title">Where is your press?</h2>
-    <form class="stack" data-question="country" novalidate>
-      <label>Country<select name="country" id="country"></select></label>
-      <p class="hint">It sets your shop's money and taxes. Colophon opens in Canada first.</p>
+    <div class="fd-top"><button type="button" class="ghost" data-back="plan">Back</button><p class="fd-count">Step 2 of 2</p></div>
+    <h2 id="business-title" tabindex="-1" class="cp-title">Tell us about your business</h2>
+    <form class="stack" id="business-form" novalidate>
+      <fieldset class="fd-part"><legend>Your business</legend>
+        <label>Business name<input name="pressName" autocomplete="organization" maxlength="120"></label>
+        <label>Where you ship from<select name="country" id="country"></select></label>
+        <div role="group" aria-labelledby="sells-label" class="stack" style="gap:8px"><p class="fd-sub" id="sells-label">What you sell</p>
+          <div class="fd-chips" id="sells-choices"></div></div>
+      </fieldset>
+      <fieldset class="fd-part"><legend>Where do you sell today?</legend>
+        <div class="fd-today" id="today-choices"></div>
+      </fieldset>
+      <p class="hint">It sets your shop's money, taxes and first steps. Colophon opens in Canada first.</p>
       <p class="error" role="alert" hidden></p>
-      <div class="fd-row"><button type="submit" class="primary">Continue</button><button type="button" class="ghost" data-skip>Skip</button></div>
+      <div class="fd-row"><button type="submit" class="primary">Save and see my setup &rarr;</button><button type="button" class="ghost" data-skip>Skip for now</button></div>
     </form>
   </section>
 
   <!-- 4. Saved: what the press told us, then on to the admin and its setup guide. -->
   <section id="view-done" class="stack fd-done" hidden aria-labelledby="done-title">
-    <h2 id="done-title" tabindex="-1" class="cp-title">Setting up <span id="done-name">your press</span></h2>
+    <h2 id="done-title" tabindex="-1" class="cp-title">Setting up <span id="done-name">your shop</span></h2>
     <dl class="cp-dl">
       <div><dt>Setting up</dt><dd id="done-plan"></dd></div>
-      <div><dt>Press</dt><dd id="done-press"></dd></div>
+      <div><dt>Business</dt><dd id="done-press"></dd></div>
       <div><dt>You sell</dt><dd id="done-sells"></dd></div>
-      <div><dt>Country</dt><dd id="done-country"></dd></div>
+      <div><dt>Ships from</dt><dd id="done-country"></dd></div>
+      <div><dt>Sells today</dt><dd id="done-today"></dd></div>
     </dl>
     <p id="done-next">Everything is saved. Your setup guide walks you through the rest, and nothing is charged until you open your shop.</p>
     <div class="fd-row"><a class="button primary" id="done-go" hidden href="">Go to your setup guide</a><button type="button" class="ghost" id="done-change">Change an answer</button></div>
