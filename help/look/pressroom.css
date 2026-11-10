@@ -1907,3 +1907,10 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .admin-reso .rp-trial-pill { display: inline-flex; align-items: center; min-height: 32px; padding: 0 12px; border-radius: 999px; background: var(--rp-surface); border: 1px solid var(--rp-hair); color: var(--rp-text); font-size: var(--rp-text-sm); font-weight: 600; white-space: nowrap; text-decoration: none; }
 .admin-reso .rp-trial-pill:hover { text-decoration: underline; }
 @media (max-width: 640px) { .admin-reso .rp-trial-pill { display: none; } }
+/* Top bar "Open to shoppers · N steps" while the shop is private: a word on a phone, where other top-bar buttons are icons. */
+.rp-open-shop-short { display: none; }
+@media (max-width: 640px) {
+  .rp-topbar-actions .rp-open-shop .rp-btn-primary { width: auto; padding: 0 14px; }
+  .rp-open-shop-long { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .rp-open-shop-short { display: inline; }
+}

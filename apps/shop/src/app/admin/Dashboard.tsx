@@ -30,7 +30,7 @@ import {
   IconButton, Dialog, ToastProvider, SyncChip, useOnline, LoadingState, PageSkeleton, useConfirm, PageAlertsSlot, PageActionsSlot,
 } from "./riso/components";
 import { GlobalSearch, ActivityLogDialog, ShopStatusMenu, DrawerAccount } from "./riso/shellParts";
-import { blockedMessage, blockersBeforeOpening } from "./launchCheck";
+import { blockedMessage, blockersBeforeOpening, openButtonLabel } from "./launchCheck";
 import { WhatsNew } from "./WhatsNew";
 import { ADMIN_LOOK, applyAdminLook } from "./riso/adminLook";
 import { SupportBanner } from "./SupportBanner";
@@ -425,6 +425,15 @@ export function Dashboard() {
   }, []);
 
   const [ucSaving, setUcSaving] = useState(false);
+  // While the shop is private the top bar offers "Open to shoppers · N steps" (design handoff "Colophon platform").
+  const wallUp = !!settings?.design?.showUnderConstruction;
+  const [openSteps, setOpenSteps] = useState<number | null>(null);
+  useEffect(() => {
+    if (!user || !wallUp) return;
+    let live = true;
+    void blockersBeforeOpening().then((b) => { if (live) setOpenSteps(b ? b.length : null); });
+    return () => { live = false; };
+  }, [user, wallUp, activeTab]);
   const [loggingOut, setLoggingOut] = useState(false);
   const [confirm, confirmNode] = useConfirm();
   // Settings sections register their unsaved edits (settingsDirty.ts); the tab can't close on them silently.
@@ -836,6 +845,13 @@ export function Dashboard() {
               onOpenCustomer={(q) => { setSearchCustomerQuery(q); goTo("customers"); }} />
             <div className="rp-topbar-actions">
               {hasStockroom() && !COMBINED && <AppSwitchPill />}
+              {wallUp && (
+                <span className="rp-open-shop">
+                  <PrimaryButton size="sm" busy={ucSaving} onClick={() => { void toggleUnderConstruction(false); }}>
+                    <span className="rp-open-shop-long">{openButtonLabel(openSteps)}</span><span className="rp-open-shop-short" aria-hidden>Open</span>
+                  </PrimaryButton>
+                </span>
+              )}
               {trialPill(platformPlan ?? null) && <a className="rp-trial-pill" href="#settings/billing">{trialPill(platformPlan ?? null)}</a>}
               <ShopStatusMenu
                 wallOn={!!settings?.design?.showUnderConstruction}
