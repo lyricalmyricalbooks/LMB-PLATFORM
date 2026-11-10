@@ -316,7 +316,7 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
     async mine(claims) {
       const person = personOf(claims);
       const rows = await signups.listByAccount(person.accountId);
-      return rows.map(({ shopId, pressName, plan, status, trialEnd, message, canRetry, siteUrl, openUrl }) => ({ shopId, pressName, plan, status, trialEnd, message: status === "in-line" ? IN_LINE_WORDS : status === "later" ? LATER_WORDS : message, canRetry, siteUrl, openUrl: openUrl ?? (status !== "ready" ? null : plan === "stockroom" ? `https://${shopId}-stockroom.web.app` : siteUrl ? `${siteUrl}/admin` : null) }));
+      return rows.map(({ shopId, pressId, pressName, plan, status, trialEnd, message, canRetry, siteUrl, openUrl }) => ({ shopId, ...(pressId ? { pressId } : {}), pressName, plan, status, trialEnd, message: status === "in-line" ? IN_LINE_WORDS : status === "later" ? LATER_WORDS : message, canRetry, siteUrl, openUrl: openUrl ?? (status !== "ready" ? null : plan === "stockroom" ? `https://${shopId}-stockroom.web.app` : siteUrl ? `${siteUrl}/admin` : null) }));
     },
   };
 }
