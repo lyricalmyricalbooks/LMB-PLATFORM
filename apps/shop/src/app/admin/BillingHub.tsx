@@ -4,6 +4,7 @@ import {
   DataTable, DestructiveButton, Dialog, EmptyState, ErrorState, LoadingState, PrimaryButton, SecondaryButton, SectionCard, SelectField,
   StatusBadge, TextArea, TextField, useConfirm,
 } from "./riso/components";
+import { DownloadShopButton } from "./DownloadShopCard";
 import { hubReady, planDate, type PlatformPlan } from "./platformPlan";
 import {
   BillingCallError, DROP_CHOICES, EMAIL_LANGUAGES, LEAVING_CHOICES, downloadableClosedApps, emailLanguageWords, planAddingBack, PROVINCES, appsInWords, billState, billingCall, previewWords, statusBadge,
@@ -243,7 +244,7 @@ export function PlanPage({ plan }: Hub) {
       </Dialog>
 
       <Dialog open={cancelOpen} onClose={() => setCancelOpen(false)} title="Cancel your plan?"
-        description="Nothing is deleted when you cancel. You can download everything for 90 days after your shop closes."
+        description="Nothing is deleted when you cancel. Download your shop first if you are moving."
         footer={<>
           <SecondaryButton onClick={() => setCancelOpen(false)}>Keep my plan</SecondaryButton>
           <DestructiveButton busy={change.busy === "cancel"} onClick={() => void cancel()}>Cancel plan</DestructiveButton>
@@ -253,6 +254,8 @@ export function PlanPage({ plan }: Hub) {
             {LEAVING_CHOICES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
           </SelectField>
           <TextArea label="Anything we could do better? (optional)" maxLength={500} value={words} onChange={(e) => setWords(e.target.value)} rows={3} />
+          <DownloadShopButton />
+          <p className="rp-hint" style={{ margin: 0 }}>You can still download for 90 days after your shop closes.</p>
           <Problem error={change.error} />
         </div>
       </Dialog>

@@ -731,6 +731,18 @@ the newer headings only together with shopMove. Gift cards stay out. Customers: 
 sign-ups; "Accepts Email Marketing" is yes only for a current subscriber who has not opted out. Words on screen never
 name another system. The stockroom's matching stock file is `apps/stockroom/src/lib/stock-locations.js` (7.19).
 
+## Download your shop (10 November 2026)
+
+Settings › General › Tools › **Download your shop** (`DownloadShopCard.tsx`; also in the cancel step and on the paused/closed
+`PlanDesk`). One click builds a zip in the browser from this shop's own admin reads (`takeoutRun.ts`, nothing leaves the
+page): `products/` in four layouts (Shopify = `shopExport.ts`, WooCommerce, Squarespace, Big Cartel = `shopTakeout.ts`, each
+read back by `shopMove.ts`; `shopTakeout.test.ts` round-trips them), `customers/`, `orders/`, `pages/`, `settings/` (private
+keys stripped), `backup/books.json` and `images/` (`takeoutPhotos.ts`, best effort, 400 MB cap; `images.csv` lists any left at
+their web address). Screen words say "another shop system"; only the files inside the zip name a system. It writes one
+`export` audit-log line ("Downloaded the whole shop…") that the control room reads. The emailed server copy
+(`services/export`) stays for closed shops' 90 days and privacy requests. A new layout = a writer in `shopTakeout.ts`, an entry
+in `takeoutFiles`, a round-trip test.
+
 ## Import keeps sizes and colours (plan 10.6, 29 October 2026)
 `shopMove.ts` reads each version's choices by the old shop's option names (`picksOf`) and gives the product
 `options` only when every version picks one value of the same options and no two versions match (`optionsOf`).

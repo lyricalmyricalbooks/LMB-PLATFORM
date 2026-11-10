@@ -74,6 +74,7 @@ import { createShopNotes, notesRoutes } from "../control-room/notes.js";
 import { createSetupDesk, setupRoutes } from "../control-room/setupPresses.js";
 import { createSignInSafety, signInSafetyRoutes } from "../control-room/signInSafety.js";
 import { broughtOverRoutes, createBroughtOver } from "../control-room/broughtOver.js";
+import { createTookData, tookDataRoutes } from "../control-room/tookData.js";
 import { createSalesChannels, salesChannelsRoutes } from "../control-room/salesChannels.js";
 import { createShopFeatures, shopFeaturesRoutes } from "../control-room/shopFeatures.js";
 import { createShopLooks, shopLooksRoutes } from "../control-room/shopLooks.js";
@@ -290,8 +291,10 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const listDocs = async (projectId, collection) => [...services.world.docs.entries()]
     .filter(([k]) => k.startsWith(`${projectId} ${collection}/`) && !k.slice(`${projectId} ${collection}/`.length).includes("/"))
     .map(([k, data]) => ({ id: k.slice(`${projectId} ${collection}/`.length), data: structuredClone(data) }));
+  const exportStore = fakeExportStore();
+  const tookData = createTookData({ admins, registry, shopData, exports: exportStore, now: clock.date });
   const dataExports = createDataExports({
-    shopData: { ...shopData, list: listDocs }, stockroomData, storage: exportStorage, store: fakeExportStore(), registry, auditLog, activity, email,
+    shopData: { ...shopData, list: listDocs }, stockroomData, storage: exportStorage, store: exportStore, registry, auditLog, activity, email,
     roleIn: (who, shopId) => accounts.roleIn(who, shopId), admins, now: clock.date,
   });
 
@@ -319,6 +322,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...setupRoutes(setupDesk),
     ...signInSafetyRoutes(signInSafety),
     ...broughtOverRoutes(broughtOver),
+    ...tookDataRoutes(tookData),
     ...salesChannelsRoutes(salesChannels),
     ...shopFeaturesRoutes(shopFeatures),
     ...shopLooksRoutes(shopLooks),

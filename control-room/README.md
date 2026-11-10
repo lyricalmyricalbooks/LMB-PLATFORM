@@ -442,6 +442,14 @@ spreadsheet files, emailed to the owner as a link that works 7 days. It asks why
 audit log and the activity log before anything is built. `POST /api/control/export { shopId, reason }`
 (`services/export/README.md`).
 
+## Took their data (`tookData.js`)
+
+In a shop's drawer, **Took their data**: whether the press has taken a copy of everything, and how. Read only.
+`POST /api/control/took-data { shopId }` lists the press's own browser downloads (the shop's `audit-log` lines of type
+`export`, "Downloaded the whole shop: …", written by the admin's **Download your shop**) and the emailed copies
+(`dataExports` rows: asked by the press, the platform or the closing sweep; status; who it went to; when the link ends).
+The link itself is never shown. A shop that isn't live shows only the emailed copies.
+
 ## Setting up (`setupPresses.js`)
 
 Presses that signed up at the front door and are still in setup mode, or have pressed Open my shop (code plan 18.2 to

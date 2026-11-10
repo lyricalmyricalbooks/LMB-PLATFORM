@@ -3,6 +3,11 @@
 Code plan 19.16. One button builds a press's whole export and emails its owner a link that works 7 days. Used when a
 press leaves, for a privacy request, and in the 90 days after a shop closes.
 
+> The press's one-click **Download your shop** (shop admin Settings › General and the cancel step) is a different, faster
+> door: the admin builds a zip in the browser (import-ready product files for four shop systems, customers, orders, pages,
+> settings, photos; `apps/shop/src/app/admin/shopTakeout.ts`). This service is the emailed copy for closed shops, privacy
+> requests and the control room.
+
 ## What is in it (`export.js` `buildExport`)
 
 Under `exports/{shopId}/{stamp}/` in storage, one file per collection plus a README.txt, and one zip holding them all

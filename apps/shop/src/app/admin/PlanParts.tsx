@@ -1,6 +1,7 @@
 import { LogOut } from "lucide-react";
 import { adminApi } from "./api";
 import { BackupsExportCard } from "./BackupsExportCard";
+import { DownloadShopCard } from "./DownloadShopCard";
 import { bannerPage, hubReady, planBanner, planFacts, type PlatformPlan } from "./platformPlan";
 import { BillingPage, HubNotReady, PlanPage } from "./BillingHub";
 import { usePlatformPlan } from "./platformPlanApi";
@@ -121,6 +122,7 @@ export function PlanDesk({ plan, email, appearance }: { plan: PlatformPlan; emai
         <div className="rp-stack" style={{ gap: 16 }}>
           <PlanBannerBar plan={plan} />
           {hubReady(plan) ? <><PlanPage plan={plan} /><BillingPage plan={plan} /></> : <PlanCard plan={plan} />}
+          <DownloadShopCard />
           <BackupsExportCard />
           {email && <p className="rp-hint" style={{ margin: 0 }}>Signed in as {email}.</p>}
         </div>

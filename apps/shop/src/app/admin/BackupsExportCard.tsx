@@ -9,9 +9,8 @@ import { catalogToCsv } from "./bulkPricing";
 import { buildCustomers, customersToCsv } from "./customerInsights";
 import { exportOrdersCsv } from "./orderCsv";
 import { bookkeepingDaysCsv, bookkeepingMonths, bookkeepingOrdersCsv, bookkeepingPayoutsCsv } from "./bookkeepingCsv";
-import { customersForAnotherShop, productsForAnotherShop } from "./shopExport";
-import { optedOutBy } from "./shopMove";
-import { emailHash } from "./Customers";
+import { productsForAnotherShop } from "./shopExport";
+import { customerFileFor } from "./takeoutRun";
 import { shopNameFromSettings } from "../features/site/shopIdentity";
 import { describeBackup, describeBackupDay, type BackupDay, type BackupRecord } from "./backupStatus";
 import { friendlyError } from "./settingsLayout";
@@ -112,15 +111,7 @@ export function BackupsExportCard() {
     const text = make(await adminApi.getAllOrders(), { month, currency: "CAD", timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" });
     return text.trim().includes("\n") ? [`bookkeeping-${month}-${kind}.csv`, text, "text/csv;charset=utf-8"] : null;
   });
-  // Plan 7.18: the customer file says "yes" to email marketing only for people on the newsletter now (not opted out).
-  const customersElsewhere = async () => {
-    const [orders, consent, notes] = await Promise.all([realOrders(), adminApi.getMarketingConsent(), adminApi.listCustomerNotes().catch(() => [])]);
-    const emails = new Set<string>([...consent.subscribed, ...orders.map((o: any) => String(o.customer?.email || "").trim().toLowerCase()).filter(Boolean)]);
-    const hashes = new Map(await Promise.all([...emails].map(async (e) => [e, await emailHash(e)] as const)));
-    const optedOut = optedOutBy(consent.optedOutHashes, (email) => hashes.get(email));
-    const byEmail = new Map(notes.filter((n) => n.email).map((n) => [String(n.email).trim().toLowerCase(), { note: n.note || "", tags: n.tags || [] }]));
-    return customersForAnotherShop(orders, { subscribed: consent.subscribed, optedOut }, byEmail);
-  };
+  const customersElsewhere = async () => customerFileFor(await realOrders());
 
   const view = record === undefined ? null : describeBackup(record);
   return (
