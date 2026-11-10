@@ -8,8 +8,12 @@
 // Four public lists are tried, in order, each page by page: a `products` list at /products.json, a list of products
 // with permalinks and options at the same address, the store list under /wp-json/wc/store/v1/products, and a store
 // page read with ?format=json (the page the press typed, else /shop, /store, /products or /shop-1; plan 23.10). Only
-// that last one shows stock counts; the others only say "sold out" (0). Press-facing words never name another shop system.
-import { getPublicJson } from "./safeFetch.mjs";
+// that last one shows stock counts; the others only say "sold out" (0). When none answers, the old shop's site map is
+// read for its product pages: a store page found there is read as above, else each product page's own description of
+// the product (productPages.js). Press-facing words never name another shop system.
+import { getPublicJson, getPublicPage, getPublicText } from "./safeFetch.mjs";
+import { readOldLinks } from "./oldLinks.mjs";
+import { MAX_PAGE_PRODUCTS, readProductPages } from "./productPages.mjs";
 
 export const MAX_PRODUCTS = 2000;
 const PAGE_SIZE = 100;
@@ -18,6 +22,9 @@ const MAX_PAGES = MAX_PRODUCTS / PAGE_SIZE;
 export const NOT_AN_ADDRESS = "Type your old shop's web address, like yourshop.com.";
 export const NOTHING_FOUND = "We couldn't read the products at that address. Download the product file from your old shop instead, and choose it here.";
 export const UNREACHABLE = "We couldn't reach that address. Check it and try again, or choose your old shop's product file instead.";
+export const MARKETPLACE = "Big marketplaces don't let other sites read your shop. Download your listings file there and choose it here instead.";
+/** Marketplaces that refuse every outside read: the press is sent to their file straight away. */
+const MARKETPLACES = /(^|\.)(etsy\.com|ebay\.[a-z.]+|amazon\.[a-z.]+|faire\.com|redbubble\.com|society6\.com|depop\.com|vinted\.[a-z.]+)$/i;
 
 /** The old shop's address as an https origin, from whatever the press typed ("yourshop.com", "http://…/shop"). */
 export function shopOrigin(input) {
@@ -168,8 +175,8 @@ const STORE_PAGES = ["/shop", "/store", "/products", "/shop-1"];
 const isStorePage = (j) => j?.collection?.typeName === "products" && Array.isArray(j?.items);
 
 /** A store page's items, following its next-page links on the same site. Null when no page is a store page. */
-async function storePageItems(origin, typedPath, getJson) {
-  for (const path of [...new Set([typedPath, ...STORE_PAGES].filter(Boolean))]) {
+async function storePageItems(origin, typedPath, getJson, usual = STORE_PAGES) {
+  for (const path of [...new Set([typedPath, ...usual].filter(Boolean))]) {
     let page = await getJson(`${origin}${path}?format=json`);
     if (!isStorePage(page)) continue;
     const items = [];
@@ -187,6 +194,24 @@ async function storePageItems(origin, typedPath, getJson) {
     return items.slice(0, MAX_PRODUCTS);
   }
   return null;
+}
+
+/**
+ * The last way in: the old shop's public site map. A store page it lists (an address like /books/p/fern-atlas lives on
+ * the store page /books) is read like the store pages above; else its product pages are read one by one.
+ */
+async function fromSiteMap(origin, input, { getJson, getText, getPage, notes, shown }) {
+  let links;
+  try { links = await readOldLinks(input, { getText }); } catch { return null; }
+  if (!links?.ok) return null;
+  const stores = [...new Set(links.paths.map((p) => /^((?:\/[^/]+){1,2})\/p\/[^/]+$/.exec(p)?.[1]).filter(Boolean))];
+  for (const store of stores.slice(0, 3)) {
+    const items = await storePageItems(origin, store, getJson, []);
+    if (items?.length) { shown(); return fromStorePage(items, origin); }
+  }
+  const read = await readProductPages(origin, links.paths, getPage);
+  if (read.more || read.products.length >= MAX_PAGE_PRODUCTS) notes.push(`We read your first ${read.products.length} products from their pages. Bring your old shop's product file for the rest.`);
+  return read.products;
 }
 
 /** The products as a product file in the one-line-per-edition layout. */
@@ -211,14 +236,19 @@ async function pages(first, next, read, keyOf) {
   return items.slice(0, MAX_PRODUCTS);
 }
 
+const publicJson = (url) => getPublicJson(url);
+const none = async () => null;
+
 /**
  * Reads the old shop at `input` (whatever the press typed). Answers { ok: true, host, csv, products, notes } or
- * { ok: false, message } in plain words. `getJson(url)` is getPublicJson, injectable for tests.
+ * { ok: false, message } in plain words. `getJson`, `getText` (site maps) and `getPage` (product pages) are the careful
+ * fetch, injectable for tests; a test that gives `getJson` alone reads no site map or page.
  */
-export async function readOldShop(input, { getJson = (url) => getPublicJson(url) } = {}) {
+export async function readOldShop(input, { getJson = publicJson, getText = getJson === publicJson ? (url) => getPublicText(url) : none, getPage = getJson === publicJson ? (url) => getPublicPage(url) : none } = {}) {
   const origin = shopOrigin(input);
   if (!origin) return { ok: false, message: NOT_AN_ADDRESS };
   const host = new URL(origin).hostname;
+  if (MARKETPLACES.test(host)) return { ok: false, message: MARKETPLACE };
   const notes = [];
   let stockShown = false;
   const listUrl = (page) => `${origin}/products.json?limit=${PAGE_SIZE}&page=${page}`;
@@ -236,6 +266,7 @@ export async function readOldShop(input, { getJson = (url) => getPublicJson(url)
       else {
         const page = await storePageItems(origin, shopPath(input), getJson);
         if (page) { products = fromStorePage(page, origin); stockShown = true; }
+        else products = await fromSiteMap(origin, input, { getJson, getText, getPage, notes, shown: () => { stockShown = true; } });
       }
     }
     if (!products?.length) return { ok: false, message: NOTHING_FOUND };
