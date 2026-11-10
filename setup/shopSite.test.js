@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { BUILD_SCRIPTS, buildAndPublish, buildShopSite, publishShopSite, publishedProfile, siteFolder } from "./shopSite.js";
 import { googleClients } from "../clients/google.js";
 import { parseProfileScript } from "../apps/shop/scripts/shopProfile.mjs";
@@ -24,7 +24,7 @@ async function builtApp() {
 function fakeScripts({ books = ["night-buses"], fail } = {}) {
   const runs = [];
   const run = async (script, { env }) => {
-    const name = script.split("/").pop();
+    const name = basename(script);
     runs.push({ name, env });
     if (name === fail) throw new Error(`${name} stopped with code 1.`);
     const dir = env.SHOP_BUILD_DIR;
