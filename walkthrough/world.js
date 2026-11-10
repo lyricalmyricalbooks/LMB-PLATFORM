@@ -263,7 +263,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const driftWatch = createDriftWatch({ registry, shopData, stockroomData, shopAccess, memberships: accountStores.memberships, email, settings, now: clock.date });
   const jobsPage = createJobsPage({
     admins, runner: jobs, activity, now: clock.date,
-    jobs: { "shop-maker": () => shopMaker.sweep(), "dropped-apps": () => billing.closeDroppedApps(), "income-record": () => runBusinessNightly({ registry, settings, incomeHistory, billing, now: clock.date }), "press-messages": () => pressMessages.sweep(), "drift-watch": () => driftWatch.sweep() },
+    jobs: { "shop-maker": () => shopMaker.sweep(), "dropped-apps": () => billing.closeDroppedApps(), "every-app": () => billing.giveEveryApp(), "income-record": () => runBusinessNightly({ registry, settings, incomeHistory, billing, now: clock.date }), "press-messages": () => pressMessages.sweep(), "drift-watch": () => driftWatch.sweep() },
   });
   const notes = createShopNotes({ admins, store: fakeShopNotes(), registry, activity, now: clock.date });
   // Presses still in setup mode or opening (the Setting up page): read only.

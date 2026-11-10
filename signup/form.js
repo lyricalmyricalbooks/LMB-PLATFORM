@@ -99,7 +99,8 @@ export function countryFromTimeZone(zone) {
   return ZONE_COUNTRY.find(([pattern]) => pattern.test(zone))?.[1] ?? "";
 }
 
-export const PLAN_CHOICES = Object.freeze(["both", "shop", "stockroom"]);
+// One product since 10 November 2026: every shop gets the website and the stockroom, so there is no plan to choose.
+export const PLAN_CHOICES = Object.freeze(["both"]);
 
 const EMAIL = /^[^\s@<>"',;]+@[^\s@<>"',;]+\.[^\s@<>"',;]+$/;
 export const isEmail = (value) => typeof value === "string" && value.length <= 254 && EMAIL.test(value.trim());
@@ -143,8 +144,7 @@ export function checkSignup(input) {
   const problems = {};
   const pressName = clean(input?.pressName, 80);
   if (pressName.length < 2) problems.pressName = "Add your press's name.";
-  const plan = PLAN_CHOICES.includes(input?.plan) ? input.plan : "";
-  if (!plan) problems.plan = "Choose what you need: the shop, the stockroom or both.";
+  const plan = "both";
   const country = Object.hasOwn(COUNTRIES, input?.country ?? "") ? input.country : "";
   if (!country) problems.country = "Choose where your press is.";
   const rawAnswer = input?.[QUESTION.id];

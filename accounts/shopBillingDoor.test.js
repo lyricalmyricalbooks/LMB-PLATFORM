@@ -107,7 +107,7 @@ test("on a paid plan, changes need the second step: the hub is told and given th
   assert.equal(stores.subscriptions.rows.get(SHOP).cancelAtPeriodEnd, false, "nothing changed");
   // Looking stays free; a pass with the second step goes through.
   assert.equal((await ask(OWNER, "invoices")).status, 200);
-  assert.equal((await ask(OWNER, "change-plan", { plan: "shop", preview: true })).status, 200);
+  assert.equal((await ask(OWNER, "change-plan", { plan: "both", preview: true })).status, 200);
   const done = await ask({ ...OWNER, firebase: { sign_in_second_factor: "totp" } }, "cancel");
   assert.equal(done.status, 200);
   assert.ok(logged().some((e) => e.what === "billing-cancel" && e.outcome === "refused: needs two-step sign-in"));

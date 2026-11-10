@@ -1,17 +1,16 @@
 // The pricing page (code plan 6.1; pay what you use since 10 November 2026). A shop pays what it cost to run that
 // month, at cost, plus a flat platform fee. The page shows the fee, three example shops priced by the platform itself
-// (`/api/plans` › `usage`, from services/billing/runningCost.js), what each plan opens, and "free for 14 days, no card
+// (`/api/plans` › `usage`, from services/billing/runningCost.js), what every shop gets, and "free for 14 days, no card
 // needed". It shows only when the platform says sign-up is open (`signupOpen`, the control room's live setting, off by
 // default); closed, unreachable or empty, the page stays today's waitlist. Plain ES module with no imports, so the page
 // loads it as is. Words here are customer-facing: never a rival.
 
-/** One line about each plan, in the order the page shows them. */
-export const PLAN_LINES = Object.freeze({
-  shop: "Your website, to sell online",
-  stockroom: "Track stock, sales and payouts from fairs and stores",
-  both: "Your website and your stock, kept in step",
-});
-const ORDER = Object.freeze(["shop", "both", "stockroom"]);
+/** What every shop gets (one product since 10 November 2026: no plan to choose). */
+export const INCLUDED = Object.freeze([
+  ["Your website", "Sell online, with your own look and address"],
+  ["Your stockroom", "Track stock, sales and payouts from fairs and stores"],
+  ["Kept in step", "Every sale, online or in person, counts down the same stock"],
+]);
 const EXAMPLES = Object.freeze(["quiet", "typical", "busy"]);
 
 const text = (value, max = 80) => (typeof value === "string" ? value.slice(0, max) : "");
@@ -25,9 +24,6 @@ export function pricingView(answer) {
   const usage = answer.usage;
   const feeText = text(usage?.feeText);
   if (!feeText) return null;
-  const plans = ORDER.map((id) => answer.plans.find((p) => p?.plan === id)).filter(Boolean)
-    .map((p) => ({ plan: p.plan, name: text(p.name) || p.plan, line: PLAN_LINES[p.plan], feeText: text(p.priceText) || feeText }));
-  if (!plans.length) return null;
   const examples = (Array.isArray(usage.examples) ? usage.examples : [])
     .filter((e) => EXAMPLES.includes(e?.id) && text(e.totalText) && text(e.runningText))
     .map((e) => ({ id: e.id, name: text(e.name), line: text(e.line), runningText: text(e.runningText), totalText: text(e.totalText) }));
@@ -44,7 +40,6 @@ export function pricingView(answer) {
     trialDays,
     founding,
     examples,
-    plans,
     note: `Prices in ${text(answer.currency, 3) || "CAD"}${answer.plusTax ? ", plus tax" : ""}. Running cost covers storage, web traffic, background jobs and emails. You choose an amount, and we email you if a month looks set to pass it${text(usage.alertText) ? ` (${text(usage.alertText)} unless you change it)` : ""}.`,
   };
 }
@@ -82,10 +77,10 @@ export function renderPricing(doc, view, { signupUrl }) {
       el("p", { className: "or-pay", textContent: `${e.runningText} running cost + ${view.feeText} Colophon` }),
       el("a", { className: typical ? "button primary" : "button", href: signupUrl, textContent: "Start free trial" }));
   }));
-  // What each plan opens; one fee whichever you choose (the shop alone costs less to run, nothing more).
-  doc.getElementById("pricing-plans-title").textContent = view.sameFee ? `Shop, stockroom or both: the same ${view.feeText}` : "Choose what you need";
-  doc.getElementById("pricing-plans").replaceChildren(...view.plans.map((p) => el("li", {},
-    el("b", { textContent: p.name }), el("span", { textContent: view.sameFee ? p.line : `${p.line} · ${p.feeText} a month` }))));
+  // What every shop gets: one product, nothing to choose.
+  doc.getElementById("pricing-plans-title").textContent = "Everything included";
+  doc.getElementById("pricing-plans").replaceChildren(...INCLUDED.map(([name, line]) => el("li", {},
+    el("b", { textContent: name }), el("span", { textContent: line }))));
   doc.getElementById("pricing-note").textContent = view.note;
   doc.getElementById("start-trial").href = signupUrl;
   doc.getElementById("pricing").hidden = false;

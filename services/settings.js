@@ -13,9 +13,9 @@
 //   PLATFORM_MAILING_ADDRESS   Colophon's mailing address (a PO box is fine), at the foot of every email; Canadian
 //                              anti-spam law asks for it in commercial emails (15.8)     default none
 //   PLATFORM_CURRENCY          the currency plans are charged in                     default CAD
-//   PLAN_PRICE_SHOP            monthly platform fee for the shop alone, in cents     default 500 ($5)
-//   PLAN_PRICE_STOCKROOM       monthly platform fee for the stockroom alone, cents   default 500 ($5)
-//   PLAN_PRICE_BOTH            monthly platform fee for the shop and stockroom       default 500 ($5)
+//   PLAN_PRICE_BOTH            the monthly platform fee, in cents: every shop has the website and the stockroom
+//                              (one plan since 10 November 2026)                    default 500 ($5)
+//   PLAN_PRICE_SHOP, PLAN_PRICE_STOCKROOM  older plans' fees, read only; billing prices every shop at PLAN_PRICE_BOTH
 //                              (the running cost comes on top, at cost: services/billing/runningCost.js)
 //   TRIAL_DAYS                 free days before the first charge (no card needed)    default 14
 //   START_NUDGES               Get started nudges on days 2 and 4 (plan 17.14): hold (none sent), beside (sent with the
@@ -173,9 +173,11 @@ export function priceText(cents, currency = DEFAULT_SETTINGS.currency) {
 export const EDITABLE = Object.freeze({
   signupOpen: { kind: "yesNo", label: "Anyone can sign up (off: waitlist invites only)" },
   signupDailyCap: { kind: "whole", ...LIMITS.signupDailyCap, label: "New shops a day (an invite skips the line)" },
-  "prices.shop": { kind: "cents", ...LIMITS["prices.shop"], label: "Platform fee, shop plan, a month (running cost comes on top)" },
-  "prices.stockroom": { kind: "cents", ...LIMITS["prices.stockroom"], label: "Platform fee, stockroom plan, a month (running cost comes on top)" },
-  "prices.both": { kind: "cents", ...LIMITS["prices.both"], label: "Platform fee, shop and stockroom plan, a month (running cost comes on top)" },
+  // One plan for every shop since 10 November 2026: "prices.both" is the only fee the page shows. The older plans'
+  // fees stay accepted (hidden) so a value saved before still loads, for shops waiting to move overnight.
+  "prices.both": { kind: "cents", ...LIMITS["prices.both"], label: "Platform fee, a month (running cost comes on top)" },
+  "prices.shop": { kind: "cents", ...LIMITS["prices.shop"], label: "Older shop-only plan's fee", hidden: true },
+  "prices.stockroom": { kind: "cents", ...LIMITS["prices.stockroom"], label: "Older stockroom-only plan's fee", hidden: true },
   trialDays: { kind: "whole", ...LIMITS.trialDays, label: "Free trial days" },
   "foundingOffer.percentOff": { kind: "whole", ...LIMITS["foundingOffer.percentOff"], label: "Founding offer: percent off, for as long as they stay" },
   "foundingOffer.presses": { kind: "whole", ...LIMITS["foundingOffer.presses"], label: "Founding offer: how many paying presses get it" },

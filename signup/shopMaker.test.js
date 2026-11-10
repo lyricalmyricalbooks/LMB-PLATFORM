@@ -37,6 +37,11 @@ async function make({ failOnce = [], google = fakeGoogle({ failOnce }), selfChec
   const api = createApi({ signup, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), routes: { "POST /api/signup/retry": (claims, request) => maker.retry(claims, request.body?.shopId) } });
   const ask = (method, path, body, claims = ADA) => api({ method, path, body, headers: { Authorization: `Bearer ${JSON.stringify(claims)}` } });
   const { shopId } = await signup.start(ADA, { pressName: "Moth Press", plan, country: "CA", termsAccepted: true, termsVersion: TERMS_VERSION });
+  // Sign-up makes every shop on "both" (10 November 2026); an older shop on one app is made by writing its rows as they were.
+  if (plan !== "both") {
+    stores.signups.rows.set(shopId, { ...stores.signups.rows.get(shopId), plan });
+    if (await registry.getShop(shopId)) await registry.updateShop(shopId, { plan });
+  }
   return { stores, registry, services, google, maker, ask, shopId, reported, tick: (minutes) => { clock += minutes * 60_000; } };
 }
 

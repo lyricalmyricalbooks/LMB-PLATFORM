@@ -68,7 +68,12 @@ export function setupChange(current, change) {
     if ((key === "look" || key === "adminLook") && text !== "" && !LOOK_ID.test(text)) {
       return { ok: false, message: "Pick a look from the choices." };
     }
-    if (key === "plan" && text !== "" && !PLAN_CHOICES.includes(text)) return { ok: false, message: "Pick the shop, the stockroom or both." };
+    // One plan for every shop (10 November 2026): any known plan an older page sends is saved as "both".
+    if (key === "plan") {
+      if (text !== "" && !["shop", "stockroom", ...PLAN_CHOICES].includes(text)) return { ok: false, message: "Every shop has the website and the stockroom now." };
+      fields.plan = text === "" ? "" : "both";
+      continue;
+    }
     if (key === "moving" && !MOVING_CHOICES.includes(text)) return { ok: false, message: "Pick one of the choices." };
     if (key === "language" && !LANGUAGE_CHOICES.includes(text)) return { ok: false, message: "Pick automatic, French or English." };
     if (key === "cardProvider" && !CARD_PROVIDER_CHOICES.includes(text)) return { ok: false, message: "Pick Stripe or Square." };

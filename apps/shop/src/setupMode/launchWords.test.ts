@@ -3,11 +3,10 @@ import type { PlanList, SetupPress } from "./door";
 import { canCreate, createChecklist, freeUntil, makingSteps, openAdminLabel, planLine, priceWords, whatHappensNext } from "./launchWords";
 
 const press = (over: Partial<SetupPress> = {}): SetupPress => ({
-  pressId: "press-moth", status: "setup", plan: "shop", pressName: "Moth Press", sells: "zines", country: "CA", look: "press-riso", adminLook: "", stagedImport: null, ...over,
+  pressId: "press-moth", status: "setup", plan: "both", pressName: "Moth Press", sells: "zines", country: "CA", look: "press-riso", adminLook: "", stagedImport: null, ...over,
 });
 const plans: PlanList = { trialDays: 14, plusTax: true, termsVersion: "v1", plans: [
-  { plan: "shop", name: "Shop", priceText: "$29.00", foundingPriceText: "$21.75" },
-  { plan: "stockroom", name: "Stockroom", priceText: "$19.00" },
+  { plan: "both", name: "Shop and stockroom", priceText: "$5.00", foundingPriceText: "$3.75" },
 ] };
 const names = { countries: { CA: { name: "Canada" } }, sells: [{ id: "zines", label: "Zines" }], lookName: "Riso" };
 
@@ -21,7 +20,7 @@ describe("Create my shop's review", () => {
   it("lists the plan with its founding price, the press, the look and the books", () => {
     const rows = createChecklist(press(), plans, names);
     expect(rows.map((r) => [r.id, r.state, r.value])).toEqual([
-      ["plan", "done", "Shop · $21.75 a month"],
+      ["plan", "done", "Shop and stockroom · $3.75 a month + running cost"],
       ["details", "done", "Moth Press · Zines · Canada"],
       ["look", "done", "Riso"],
       ["cards", "later", "Stripe (default)"],
@@ -31,19 +30,19 @@ describe("Create my shop's review", () => {
     expect(canCreate(rows)).toBe(true);
   });
 
-  it("needs only what the platform needs: a plan, the press's name and its country", () => {
+  it("needs only what the platform needs: the press's name and its country (the plan is always set)", () => {
     const rows = createChecklist(press({ plan: "", pressName: "", country: "", look: "", sells: "" }), plans, names);
-    expect(rows.filter((r) => r.state === "needed").map((r) => r.id)).toEqual(["plan", "details"]);
+    expect(rows.filter((r) => r.state === "needed").map((r) => r.id)).toEqual(["details"]);
     expect(rows.find((r) => r.id === "details")!.value).toBe("Add your press's name and your country.");
     expect(rows.find((r) => r.id === "look")!.state).toBe("later");
     expect(canCreate(rows)).toBe(false);
     expect(canCreate(createChecklist(press({ look: "", sells: "" }), plans, names))).toBe(true);
   });
 
-  it("has no website look for a stockroom on its own, and says one book in the singular", () => {
+  it("gives an older stockroom-only record the website's rows too, and says one book in the singular", () => {
     const rows = createChecklist(press({ plan: "stockroom", stagedImport: { name: "a.csv", size: 1, rows: 1, at: "" } }), plans, names);
-    expect(rows.map((r) => r.id)).not.toContain("look");
-    expect(rows.map((r) => r.id)).not.toContain("cards");
+    expect(rows.map((r) => r.id)).toContain("look");
+    expect(rows.map((r) => r.id)).toContain("cards");
     expect(rows.find((r) => r.id === "books")!.value).toMatch(/^1 book from a.csv/);
   });
 
@@ -52,7 +51,7 @@ describe("Create my shop's review", () => {
     expect(own).toMatchObject({ state: "done", value: "mothpress.example" });
     const free = createChecklist(press({ freeAddress: "moth-press.shops.example" }), plans, names).find((r) => r.id === "domain")!;
     expect(free.value).toBe("moth-press.shops.example");
-    expect(createChecklist(press({ plan: "stockroom" }), plans, names).map((r) => r.id)).not.toContain("domain");
+    expect(createChecklist(press({ plan: "stockroom" }), plans, names).map((r) => r.id)).toContain("domain");
   });
 
   it("names the plan even before the prices load", () => {
@@ -62,8 +61,8 @@ describe("Create my shop's review", () => {
 
 describe("the price beside the button", () => {
   it("says nothing is charged today, the free days and the monthly price", () => {
-    expect(priceWords(press(), plans)).toBe("Nothing is charged today. Your first shop is free for 14 days, then $21.75 a month plus tax.");
-    expect(priceWords(press({ plan: "stockroom" }), { ...plans, trialDays: 0, plusTax: false })).toBe("Nothing is charged today. Then $19.00 a month.");
+    expect(priceWords(press(), plans)).toBe("Nothing is charged today. Your first shop is free for 14 days, then $3.75 a month plus running cost plus tax.");
+    expect(priceWords(press({ plan: "stockroom" }), { ...plans, trialDays: 0, plusTax: false })).toBe("Nothing is charged today. Then $3.75 a month plus running cost.");
     expect(priceWords(press(), null)).toBe("Nothing is charged today.");
   });
 });

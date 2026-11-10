@@ -11,7 +11,7 @@ import {
 } from "./platformBilling";
 
 // The billing hub inside the shop admin (code plan 22.3), where Shopify keeps it:
-//   Settings › Plan     the plan, comparing and changing plans, how you pay, cancelling or keeping it
+//   Settings › Plan     the plan and what it includes, how you pay, cancelling or keeping it
 //   Settings › Billing  a payment problem with Pay now, the next bill, saved cards, billing details, past bills
 // Every call goes to the platform (platformBilling.ts), which checks this is the shop's owner. On a paid plan the
 // changes need two-step sign-in, which this admin's sign-in doesn't offer yet: those answers carry the account page,
@@ -222,19 +222,12 @@ export function PlanPage({ plan }: Hub) {
       <Problem error={change.error} />
 
       {!ended && (
-        <SectionCard title="Change plan" description="Switch at any time. Adding an app starts right away; dropping one keeps it open to the end of the month you've paid for." collapsible={false}>
-          <div className="rp-choices" role="radiogroup" aria-label="Plans">
-            {billing.plans.map((option) => (
-              <label key={option.plan} className="rp-choice" data-plan-option={option.plan}>
-                <input type="radio" name="colophon-plan" value={option.plan} checked={billing.plan === option.plan} disabled={change.busy !== null}
-                  onChange={() => { if (option.plan !== billing.plan) void askPreview(option.plan); }} />
-                <span>
-                  <span className="rp-choice-label">{option.name}{billing.plan === option.plan ? " (your plan)" : ""}</span>
-                  <span className="rp-hint" style={{ display: "block" }}>{option.price} a month{billing.plusTax ? " plus tax" : ""}. Opens {appsInWords(option.apps)}.</span>
-                </span>
-              </label>
-            ))}
-          </div>
+        // One plan for every shop (10 November 2026): what it includes, and, for a shop still on an older plan, the move.
+        <SectionCard title="What's included" description="Every shop gets your website and your stockroom, kept in step." collapsible={false}>
+          {billing.plan === "both"
+            ? <p className="rp-hint" style={{ margin: 0 }}>{`${billing.price} a month${billing.plusTax ? " plus tax" : ""}, plus what your shop costs to run.`}</p>
+            : <div><PrimaryButton busy={change.busy === "preview"} onClick={() => void askPreview("both")}>Get the website and stockroom</PrimaryButton>
+              <p className="rp-hint" style={{ margin: "8px 0 0" }}>Same fee. Happens on its own overnight if you'd rather wait.</p></div>}
         </SectionCard>
       )}
 

@@ -8,7 +8,7 @@
 // words they agreed to. Words here are customer-facing: plain words, never a rival's name.
 
 /** The id of these words. Sign-up stores it with the date the press ticked the box. */
-export const TERMS_VERSION = "2026-11-10-draft.2";
+export const TERMS_VERSION = "2026-11-10-draft.3";
 
 /** True until a lawyer has read the words. The page shows the draft notice while it is. */
 export const DRAFT = true;
@@ -77,7 +77,7 @@ export const SECTIONS = Object.freeze([
     title: "Terms of service",
     paragraphs: [
       `These terms are between your press and ${OPERATOR_NAME}, the company that runs Colophon, at ${OPERATOR_ADDRESS}. The person who ticks the box at sign-up agrees for the press, and confirms they may.`,
-      "Colophon gives your press a shop, a stockroom, or both. It is made for businesses, not for people buying for themselves.",
+      "Colophon gives your press a website and a stockroom. It is made for businesses, not for people buying for themselves.",
       "Your shop is your own business. Your press is the seller to your shoppers, sets its own prices and policies, and follows the shopping, privacy and tax laws of the places it sells to.",
       "You are responsible for what you sell and for the words and pictures you put in your shop. Don't use Colophon to sell anything that is against the law where you or your buyers are.",
       "Your books, words and pictures stay yours. You let us copy and show them only to run your shop, and that ends when your shop is deleted.",
@@ -112,7 +112,7 @@ export const SECTIONS = Object.freeze([
     paragraphs: [
       "This part is about you, the person who runs a press on Colophon. Your shoppers are covered by your own shop's privacy policy.",
       `${OPERATOR_NAME} is responsible for what we keep about you. Our privacy officer answers for it, at ${PRIVACY_CONTACT}.`,
-      "We keep your name, your email address, your press's name, the plan you chose, and your answers when you signed up. We use them to run your shop, bill your plan and write to you about your account.",
+      "We keep your name, your email address, your press's name, your plan, and your answers when you signed up. We use them to run your shop, bill your plan and write to you about your account.",
       "Card numbers are held by our payment company. We see only the card's brand, its last four numbers and when it runs out.",
       "We also keep a record of sign-ins, new devices and what our team does in your shop, to keep accounts safe.",
       "We use your details because we need them to give you the service you signed up for, because the law makes us keep some records, and to protect Colophon from fraud.",

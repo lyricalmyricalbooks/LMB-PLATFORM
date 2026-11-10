@@ -102,7 +102,7 @@ test("missing details come back field by field in plain words", async () => {
   const { ask } = make();
   const answer = await ask("POST", "/api/signup", { pressName: " ", plan: "gold", country: "ZZ" }, ADA);
   assert.equal(answer.status, 400);
-  assert.deepEqual(Object.keys(answer.body.problems).sort(), ["country", "plan", "pressName", "terms"]);
+  assert.deepEqual(Object.keys(answer.body.problems).sort(), ["country", "pressName", "terms"]);
 });
 
 test("a shop id taken in the registry is skipped, and an account has a limit on new shops", async () => {
@@ -210,7 +210,7 @@ test("the sign-in link comes from the platform, says the same whoever asks, and 
 test("the plans route lists the three plans with their fee, what shops pay to run, and the trial; unknown routes are 404", async () => {
   const { ask } = make();
   const { body } = await ask("GET", "/api/plans");
-  assert.deepEqual(body.plans.map((p) => [p.plan, p.priceText]), [["shop", "$5.00"], ["stockroom", "$5.00"], ["both", "$5.00"]]);
+  assert.deepEqual(body.plans.map((p) => [p.plan, p.priceText]), [["both", "$5.00"]]);
   assert.deepEqual([body.usage.feeText, body.usage.sameFee, body.usage.examples.map((e) => e.totalText)], ["$5.00", true, ["$5.51", "$7.53", "$19.95"]]);
   assert.equal(body.trialDays, 14);
   assert.equal(body.productName, "Colophon");

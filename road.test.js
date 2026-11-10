@@ -1,7 +1,7 @@
 // The whole road a press travels (code plan 6.14, which takes in 5.13), with the real modules joined by their fakes
 // (walkthrough/world.js): sign up → the shop maker's setup steps (a dry run first, then for real against a pretend
 // Google) → the account page and the control room see the new shop → the owner picks a look → the free trial → a card →
-// a failed payment → the plan pauses → a card opens it again → a downgrade. Each step asserts what the next one reads, so
+// a failed payment → the plan pauses → a card opens it again → no downgrade, and an older one-app shop given both. Each step asserts what the next one reads, so
 // two services that disagree about a field fail here and not in front of a press.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -32,14 +32,14 @@ async function addCard(w, shopId) {
   assert.equal(answer.status, 200);
 }
 
-test("the whole road: sign up, a shop made, a look picked, a trial, a card, a failed payment, a pause, a card, a downgrade", async () => {
+test("the whole road: sign up, a shop made, a look picked, a trial, a card, a failed payment, a pause, a card, no downgrade, every app", async () => {
   const w = platformWorld({ suffix: () => "k3f9q" });
   const START = w.clock.ms();
 
   // ── Sign up ──
   const plans = (await w.ask(null, "GET", "/api/plans")).body;
   assert.equal(plans.signupOpen, true);
-  assert.deepEqual(plans.plans.map((p) => p.plan), ["shop", "stockroom", "both"]);
+  assert.deepEqual(plans.plans.map((p) => p.plan), ["both"]);
   assert.equal((await w.ask(null, "POST", "/api/signup", signUpDetails)).status, 401, "signed in first");
 
   const signed = await w.ask(ADA, "POST", "/api/signup", signUpDetails);
@@ -166,26 +166,23 @@ test("the whole road: sign up, a shop made, a look picked, a trial, a card, a fa
   numbers = await today(w);
   assert.deepEqual([numbers.counts.paused, numbers.counts.paying], [0, 1]);
 
-  // ── Downgrade: the dropped app stays open to the end of the paid month, then closes ──
-  const preview = await w.ask(ADA, "POST", "/api/billing/change-plan", { shopId, plan: "shop", preview: true });
-  assert.deepEqual([preview.body.preview.closes, preview.body.preview.adds, preview.body.preview.immediate], [["stockroom"], [], false]);
-  const periodEnd = (await w.billing.status(shopId)).currentPeriodEnd ?? preview.body.preview.closesAt;
-  assert.equal(preview.body.preview.closesAt, periodEnd);
-  assert.equal((await w.ask(STRANGER, "POST", "/api/billing/change-plan", { shopId, plan: "shop" })).status, 403);
-  // The plan is paid now, so the change needs the owner's second step (plan 14.1).
-  assert.equal((await w.ask(ADA, "POST", "/api/billing/change-plan", { shopId, plan: "shop" })).status, 403);
-  const changed = await w.ask({ ...ADA, firebase: { sign_in_second_factor: "totp" } }, "POST", "/api/billing/change-plan", { shopId, plan: "shop" });
-  assert.deepEqual([changed.body.plan, changed.body.changed], ["shop", true]);
-  assert.equal(sent(w, "plan-changed")[0].data.closing, "the stockroom");
-  assert.equal((await w.registry.getShop(shopId)).plan, "both", "the stockroom is paid for to the month's end");
-  assert.deepEqual(await w.billing.closeDroppedApps(), []);
+  // ── No downgrade any more: every shop keeps the website and the stockroom (10 November 2026) ──
+  const refused = await w.ask({ ...ADA, firebase: { sign_in_second_factor: "totp" } }, "POST", "/api/billing/change-plan", { shopId, plan: "shop" });
+  assert.equal(refused.status, 400);
+  assert.equal((await w.registry.getShop(shopId)).plan, "both");
+
+  // ── An older shop on one app gets the other overnight, at the same fee ──
+  await w.billing.changePlan({ shopId, plan: "shop" });
   w.clock.days(31);
-  assert.deepEqual(await w.billing.closeDroppedApps(), [{ shopId, apps: ["stockroom"] }]);
-  assert.equal((await w.registry.getShop(shopId)).plan, "shop");
-  assert.equal(planDoc(w, shopId).plan, "shop", "the shop's own copy follows");
-  assert.equal(w.closed[0].app, "stockroom");
-  assert.equal((await shopOf(w, shopId)).plan, "shop");
-  assert.deepEqual(await w.billing.closeDroppedApps(), [], "safe to run twice");
+  await w.billing.closeDroppedApps();
+  assert.equal((await w.registry.getShop(shopId)).plan, "shop", "the older shop had only the website");
+  assert.deepEqual(await w.billing.giveEveryApp(), [shopId]);
+  assert.equal((await w.registry.getShop(shopId)).plan, "both");
+  assert.equal(planDoc(w, shopId).plan, "both", "the shop's own copy follows");
+  const told = sent(w, "plan-changed").at(-1).data;
+  assert.equal(told.everything, true);
+  assert.deepEqual(told.adds, ["stockroom"]);
+  assert.deepEqual(await w.billing.giveEveryApp(), [], "safe to run twice");
 
   // Everything since the shop's database existed is in the shop's own log.
   const what = [...w.auditLog.entries.get(shopId).values()].map((e) => e.what);

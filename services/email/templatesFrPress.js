@@ -548,7 +548,19 @@ export const PRESS_TEMPLATES_FR = {
   },
 
   /** French twin of "plan-changed". `closing` ("the stockroom") is turned French; `apps` is used when it is given. */
-  "plan-changed": ({ planName, price, link, prorated = true, closing, apps, date, now }, { settings, pressName }) => {
+  "plan-changed": ({ planName, price, link, prorated = true, closing, apps, date, now, everything, adds }, { settings, pressName }) => {
+    if (everything) {
+      return layout({
+        subject: `${pressName} a maintenant le site web et la réserve`,
+        greeting: "Bonjour,",
+        paragraphs: [
+          `Chaque boutique ${settings.platformName} comprend maintenant le site web et la réserve, pour les mêmes ${frenchMoney(price)} par mois, plus ce que coûte le fonctionnement de la boutique.`,
+          Array.isArray(adds) && adds.length ? `Nous préparons votre ${adds.includes("shop") ? "site web" : "réserve"}. ${adds.includes("shop") ? "Il apparaît" : "Elle apparaît"} dans votre administration d'ici une heure, sans rien à faire de votre part.` : "",
+        ].filter(Boolean),
+        buttons: [["Ouvrir l'administration", safeLink(link)]],
+        footer: signOff(settings),
+      });
+    }
     const known = Array.isArray(apps) ? ["shop", "stockroom"].filter((a) => apps.includes(a)) : [];
     const what = known.length ? listed(known.map((a) => ({ shop: "la boutique", stockroom: "la réserve" })[a])) : CLOSING_FR[closing] ?? closing;
     const many = known.length > 1 || / et | and /.test(what ?? "");

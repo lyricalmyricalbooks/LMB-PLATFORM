@@ -330,6 +330,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const parts = { chitchats, chitchatsStores, env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups };
   const runNow = {
     "dropped-apps": () => billing.closeDroppedApps(),
+    "every-app": () => billing.giveEveryApp(),
     "press-messages": () => pressMessages.sweep(),
     "setup-clock": () => setupClock.sweep(),
     "drift-watch": () => driftWatch.sweep(),

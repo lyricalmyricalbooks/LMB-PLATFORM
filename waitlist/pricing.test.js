@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { createApi } from "../signup/api.js";
 import { platformSettings } from "../services/settings.js";
 import { liveSettings } from "../signup/live.js";
-import { loadPricing, pricingView, renderPricing, PLAN_LINES } from "./pricing.js";
+import { loadPricing, pricingView, renderPricing, INCLUDED } from "./pricing.js";
 
 const page = readFileSync(new URL("./pricing.html", import.meta.url), "utf8");
 const frontPage = readFileSync(new URL("./index.html", import.meta.url), "utf8");
@@ -48,13 +48,12 @@ test("switched off (the default), the page asks nothing of the plans and stays t
   assert.equal(renderPricing(fakeDocument(), null, { signupUrl: "/signup/" }), false);
 });
 
-test("switched on: what you pay is the running cost plus the fee, three example shops, every plan, free for 14 days", async () => {
+test("switched on: what you pay is the running cost plus the fee, three example shops, everything included, free for 14 days", async () => {
   const answer = await plansAnswer({ SIGNUP_OPEN: "true", TRIAL_DAYS: "14", FOUNDING_PERCENT_OFF: "0" });
   const view = pricingView(answer);
   assert.equal(view.feeText, "$5.00");
   assert.equal(view.lede, "Each month you pay what your shop cost to run, at cost, plus $5.00 for Colophon. Free for 14 days, no card needed.");
   assert.deepEqual(view.examples.map((e) => [e.id, e.runningText, e.totalText]), [["quiet", "$0.51", "$5.51"], ["typical", "$2.53", "$7.53"], ["busy", "$14.95", "$19.95"]]);
-  assert.deepEqual(view.plans.map((p) => p.plan), ["shop", "both", "stockroom"]);
   assert.equal(view.founding, null, "no founding price unless the offer is set");
   assert.match(view.note, /^Prices in CAD\. Running cost covers storage, web traffic, background jobs and emails\. .*\(\$25\.00 unless you change it\)\.$/);
 
@@ -65,13 +64,14 @@ test("switched on: what you pay is the running cost plus the fee, three example 
   assert.equal(doc.ids.get("pricing-founding").hidden, true);
   assert.match(doc.ids.get("plan-cards").text, /^A quiet shopAbout 500 visits a month\$5\.51 a month\$0\.51 running cost \+ \$5\.00 ColophonStart free trialA typical shop/);
   assert.equal(doc.ids.get("plan-cards").children[1].className, "card plan cp-pick cp-typical", "the typical shop is the one drawn as most shops");
-  assert.equal(doc.ids.get("pricing-plans-title").textContent, "Shop, stockroom or both: the same $5.00");
-  assert.match(doc.ids.get("pricing-plans").text, /^ShopYour website, to sell onlineShop and stockroom/);
+  // One product (10 November 2026): no plan to choose, every shop gets the website and the stockroom.
+  assert.equal(doc.ids.get("pricing-plans-title").textContent, "Everything included");
+  assert.match(doc.ids.get("pricing-plans").text, /^Your websiteSell online.*Your stockroomTrack stock/);
   assert.match(page, /id="start-trial"[^>]*>Start free trial</);
   assert.match(page, /Pay for what your shop uses\./);
 });
 
-test("the founding fee shows only when the offer is set, and plans with different fees say each one", async () => {
+test("the founding fee shows only when the offer is set, and the fee follows the settings", async () => {
   const view = pricingView(await plansAnswer({ SIGNUP_OPEN: "true", FOUNDING_PERCENT_OFF: "25", FOUNDING_PRESSES: "25" }));
   assert.equal(view.founding, "Founding shops pay $3.75 instead of $5.00, for as long as they stay (first 25 shops).");
   const doc = fakeDocument();
@@ -79,11 +79,8 @@ test("the founding fee shows only when the offer is set, and plans with differen
   assert.equal(doc.ids.get("pricing-founding").hidden, false);
 
   const tiered = pricingView(await plansAnswer({ SIGNUP_OPEN: "true", PLAN_PRICE_BOTH: "700", FOUNDING_PERCENT_OFF: "0" }));
-  assert.equal(tiered.sameFee, false);
-  const other = fakeDocument();
-  renderPricing(other, tiered, { signupUrl: "/signup/" });
-  assert.equal(other.ids.get("pricing-plans-title").textContent, "Choose what you need");
-  assert.match(other.ids.get("pricing-plans").text, /Your website and your stock, kept in step · \$7\.00 a month/);
+  assert.equal(tiered.feeText, "$7.00");
+  assert.match(tiered.lede, /plus \$7\.00 for Colophon/);
 });
 
 test("an answer without the pay-what-you-use words reads as closed", () => {
@@ -98,6 +95,6 @@ test("a live-settings failure reads as closed, never as an error", async () => {
 });
 
 test("no rival is named on the page or in the pricing words", () => {
-  const words = (page + readFileSync(new URL("./pricing.js", import.meta.url), "utf8") + Object.values(PLAN_LINES).join(" ")).toLowerCase();
+  const words = (page + readFileSync(new URL("./pricing.js", import.meta.url), "utf8") + INCLUDED.flat().join(" ")).toLowerCase();
   for (const rival of ["big cartel", "bigcartel", "shopify", "squarespace", "etsy", "wix", "woocommerce"]) assert.ok(!words.includes(rival), rival);
 });

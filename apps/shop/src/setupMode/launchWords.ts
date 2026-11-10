@@ -35,19 +35,20 @@ export function planLine(press: SetupPress, plans: PlanList | null): string {
   const offer = plans?.plans.find((p) => p.plan === press.plan);
   const name = offer?.name ?? PLAN_NAMES[press.plan] ?? "";
   const price = offer ? offer.foundingPriceText ?? offer.priceText : "";
-  return price ? `${name} · ${price} a month` : name;
+  return price ? `${name} · ${price} a month + running cost` : name;
 }
 
 /** The review's lines, in the order the setup guide asks for them. Written in book words; the page shows the shop's own. */
-export function createChecklist(press: SetupPress, plans: PlanList | null, names: CreateNames): CreateRow[] {
+export function createChecklist(given: SetupPress, plans: PlanList | null, names: CreateNames): CreateRow[] {
+  // Every shop gets the website and the stockroom (10 November 2026), whatever an older record names.
+  const press: SetupPress = { ...given, plan: "both" };
   const sells = names.sells.find((s) => s.id === press.sells)?.label ?? "";
   const country = names.countries[press.country]?.name ?? "";
   const details = [press.pressName, sells, country].filter(Boolean).join(" · ");
   const missing = [!press.pressName && "your press's name", !press.country && "your country"].filter(Boolean) as string[];
   const rows: CreateRow[] = [
-    press.plan
-      ? { id: "plan", label: "Plan", value: planLine(press, plans), state: "done", page: PLAN_PAGE, change: "Change" }
-      : { id: "plan", label: "Plan", value: "Pick a plan above.", state: "needed", page: PLAN_PAGE, change: "Choose" },
+    // One plan for every shop (10 November 2026): always set, nothing to choose.
+    { id: "plan", label: "Plan", value: planLine(press, plans), state: "done", page: PLAN_PAGE, change: "See plan" },
     missing.length
       ? { id: "details", label: "Your brand", value: `Add ${missing.join(" and ")}.`, state: "needed", page: GENERAL_PAGE, change: "Add details" }
       : { id: "details", label: "Your brand", value: details, state: "done", page: GENERAL_PAGE, change: "Change" },
@@ -80,14 +81,15 @@ export const canCreate = (rows: CreateRow[]): boolean => rows.every((r) => r.sta
 
 /** The price and free days, beside the button. No days are promised when the platform didn't say how many. */
 export function priceWords(press: SetupPress, plans: PlanList | null): string {
-  const offer = plans?.plans.find((p) => p.plan === press.plan);
+  // One plan for every shop (10 November 2026): its fee, plus what the shop costs to run.
+  const offer = plans?.plans.find((p) => p.plan === "both");
   if (!plans || !offer) return "Nothing is charged today.";
   const price = offer.foundingPriceText ?? offer.priceText;
   const tax = plans.plusTax ? " plus tax" : "";
   // Billing gives one free trial per account, so a second press may get none: "your first shop".
   return plans.trialDays > 0
-    ? `Nothing is charged today. Your first shop is free for ${plans.trialDays} days, then ${price} a month${tax}.`
-    : `Nothing is charged today. Then ${price} a month${tax}.`;
+    ? `Nothing is charged today. Your first shop is free for ${plans.trialDays} days, then ${price} a month plus running cost${tax}.`
+    : `Nothing is charged today. Then ${price} a month plus running cost${tax}.`;
 }
 
 /** What happens after pressing Create my shop, in order. A stockroom on its own has no website to open to shoppers. */

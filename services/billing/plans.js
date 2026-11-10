@@ -4,7 +4,12 @@
 // settings makes a new Stripe price and leaves presses already on the old one where they are until moved on purpose.
 import { PLAN_NAMES, priceText } from "../settings.js";
 
-export const PLAN_IDS = Object.freeze(["shop", "stockroom", "both"]);
+// One product since 10 November 2026 (Julian): every shop gets the website and the stockroom, so "both" is the only plan
+// a press can be on. "shop" and "stockroom" are kept only to read older rows; billing's daily sweep moves those shops to
+// "both" (billing.js giveEveryApp) and the shop maker builds the app they were missing (signup/shopMaker.js syncPlan).
+export const PLAN = "both";
+export const PLAN_IDS = Object.freeze([PLAN]);
+export const OLD_PLANS = Object.freeze(["shop", "stockroom"]);
 
 /** Which apps a plan opens (the same as setup/steps.js PLANS). */
 export const PLAN_APPS = Object.freeze({
@@ -13,7 +18,8 @@ export const PLAN_APPS = Object.freeze({
   both: Object.freeze({ shop: true, stockroom: true }),
 });
 
-export const isPlan = (plan) => PLAN_IDS.includes(plan);
+/** A plan a row can hold: the one plan, or an older one still being moved to it. */
+export const isPlan = (plan) => plan === PLAN || OLD_PLANS.includes(plan);
 
 /** One plan's price: amount in cents, currency, Stripe lookup key, product id and words for people. */
 export function planPrice(plan, settings) {
@@ -31,5 +37,5 @@ export function planPrice(plan, settings) {
   };
 }
 
-/** Every plan, for the sign-up page's plan choice. */
+/** The one plan, as a list (the pricing page and the Plan page read a list). */
 export const planList = (settings) => PLAN_IDS.map((plan) => planPrice(plan, settings));

@@ -94,21 +94,18 @@ describe("Settings › Plan", () => {
     expect(text()).toContain("Switch to pay as you sell");
   });
 
-  it("changes plan through its preview: what closes and when, then the switch", async () => {
+  it("shows what every shop gets, with no plan to pick", async () => {
     await mount(PlanPage);
-    const shop = document.querySelector('[data-plan-option="shop"] input') as HTMLInputElement;
-    await click(shop);
-    expect(text()).toContain("Switch to Shop?");
-    expect(text()).toContain("The stockroom closes now.");
-    expect(text()).toContain("Why are you dropping the stockroom? (optional)");
-    const why = document.querySelector(".rp-dialog select") as HTMLSelectElement;
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!.call(why, "not-using");
-      why.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-    await click(button("Switch plan"));
-    expect(world.calls.filter(([c]) => c === "change-plan").map(([, b]) => [b.plan, b.preview ?? false, b.reason])).toEqual([["shop", true, undefined], ["shop", false, "not-using"]]);
-    expect(text()).not.toContain("Switch to Shop?");
+    expect(text()).toContain("What's included");
+    expect(text()).toContain("$39.00 a month plus tax, plus what your shop costs to run.");
+    expect(document.querySelector("[data-plan-option]")).toBeNull();
+  });
+
+  it("a shop still on an older plan can get the website and stockroom now, through the usual preview", async () => {
+    world.status = status({ plan: "shop", planName: "Shop" });
+    await mount(PlanPage);
+    await click(button("Get the website and stockroom"));
+    expect(world.calls.filter(([c]) => c === "change-plan").map(([, b]) => [b.plan, b.preview ?? false])).toEqual([["both", true]]);
   });
 
   it("cancels with the press's reason, then keeps the plan", async () => {
@@ -196,7 +193,10 @@ describe("Settings › Plan", () => {
     world.refuse = { "change-plan": { message: "Your plan is paid, so this change needs your two-step sign-in. Finish it on your account page.", twoStep: true, accountPage: PLAN.link } };
     await mount(PlanPage);
     expect(document.querySelector("[data-two-step-note]")).not.toBeNull();
-    await click(document.querySelector('[data-plan-option="shop"] input')!);
+    world.status = status({ plan: "shop", planName: "Shop" });
+    act(() => root?.unmount()); root = null; document.body.innerHTML = "";
+    await mount(PlanPage);
+    await click(button("Get the website and stockroom"));
     const link = [...document.querySelectorAll("a")].find((a) => a.textContent?.includes("Or use your account page")) as HTMLAnchorElement;
     expect(link.href).toBe(PLAN.link);
   });

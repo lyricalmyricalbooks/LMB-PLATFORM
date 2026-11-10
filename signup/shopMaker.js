@@ -117,6 +117,8 @@ export function createShopMaker({ signups, run, registry, repairs = null, selfCh
   const later = (minutes) => new Date(now().getTime() + minutes * 60_000).toISOString();
 
   /** The plan the shop's apps follow: the registry's (billing keeps it current) once the shop has one, else sign-up's. */
+  // Every shop gets the website and the stockroom (10 November 2026): billing's every-app job moves an older shop's
+  // plan to "both" in the registry, and the next sweep here builds the app it was missing (syncPlan).
   async function planFor(row) {
     const plan = (await registry.getShop?.(row.shopId))?.plan;
     return plan in PLANS ? plan : row.plan;

@@ -369,10 +369,11 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
       const record = await ownPress(claims, body.pressId);
       // Already opening: the same shop, whatever the second press of the button says.
       if (record.status !== "setup") return { press: shown(record) };
-      const plan = typeof body.plan === "string" && body.plan ? body.plan : record.plan;
+      // One plan for every shop (10 November 2026): whatever an older page sends, the shop opens with both apps.
+      const plan = "both";
       for (const [field, words] of Object.entries(OPEN_NEEDS)) if (!record[field]) throw new SignupError(400, words, { [field]: words });
       // Square only where it works with the shop's checkout (form.js SQUARE_COUNTRIES): a country changed after picking it.
-      const cardProvider = plan === "stockroom" ? "" : record.cardProvider;
+      const cardProvider = record.cardProvider;
       if (cardProvider === "square" && !SQUARE_COUNTRIES.includes(record.country)) throw new SignupError(400, squareWords(record.country), { cardProvider: squareWords(record.country) });
       const hold = now().toISOString();
       const held = await presses.update(record.pressId, (current) => {

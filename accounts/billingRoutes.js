@@ -73,6 +73,8 @@ export function billingCalls({ billing, paymentWay = null, settings, exports = n
     keep: { run: async (shopId) => ({ cancelAtPeriodEnd: planEnding(await billing.keep({ shopId })).cancelling }) },
     "change-plan": {
       run: async (shopId, { plan, preview, reason }) => {
+        // One plan for every shop (10 November 2026): the only move a press can make is an older plan's move to it.
+        if (plan !== "both") throw new BillingError(400, "Every shop has the website and the stockroom now, so there's no plan to choose.");
         if (preview === true) return { preview: await billing.changePlan({ shopId, plan, preview: true }) };
         const row = await billing.changePlan({ shopId, plan, reason: reason ?? null });
         return { plan: row.plan, changed: row.changed };

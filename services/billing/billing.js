@@ -54,7 +54,7 @@
 // after a short wait when Stripe can't be reached, is busy (429) or fails on its side (5xx): stripeRetry.js (22.4).
 import { createHash } from "node:crypto";
 import { verifySignature } from "../payments/stripeSignature.js";
-import { isPlan, planPrice, PLAN_APPS, PLAN_IDS } from "./plans.js";
+import { isPlan, planPrice, PLAN, PLAN_APPS, PLAN_IDS, OLD_PLANS } from "./plans.js";
 import { taxWatch as watchTaxLines, WATCH_WINDOW_DAYS } from "./taxWatch.js";
 import { cancelEndsAt, currentPaymentWay, payAsYouSellAccess, payAsYouSellEnds, planEnding } from "./paymentWayState.js";
 import { claimEvent, releaseEvent, IN_PROGRESS_STATUS } from "./eventClaims.js";
@@ -161,7 +161,7 @@ export function noteDrops(drops, { dropped = [], kept = [], closed = [], reason 
 
 /** The plan that opens exactly these apps (the registry's `plan` says what is open). */
 export function planOpening(apps) {
-  return PLAN_IDS.find((plan) => APPS.every((app) => PLAN_APPS[plan][app] === apps.includes(app))) ?? null;
+  return [...OLD_PLANS, PLAN].find((plan) => APPS.every((app) => PLAN_APPS[plan][app] === apps.includes(app))) ?? null;
 }
 
 const moneyText = (cents, currency) =>
@@ -659,7 +659,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
      * ended (or for a second shop of an account that already had a trial) starts unpaid until a card is added.
      * Safe to repeat: a shop with a plan that hasn't ended gets that plan back.
      */
-    async startTrial({ account, shopId, pressName, plan, language = null }) {
+    async startTrial({ account, shopId, pressName, plan = PLAN, language = null }) {
       if (!isPlan(plan)) throw new BillingError(400, "Choose a plan: shop, stockroom or both.");
       if (!account?.accountId || !account?.email) throw new BillingError(400, "The account is missing.");
       const existing = await subscriptions.get(shopId);
@@ -794,7 +794,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
      * `preview: true` changes nothing and answers what would change: the apps added and closed, when, and the
      * prorated amount Stripe would charge now.
      */
-    async changePlan({ shopId, plan, preview = false, reason = null }) {
+    async changePlan({ shopId, plan, preview = false, reason = null, everything = false }) {
       if (!isPlan(plan)) throw new BillingError(400, "Choose a plan: shop, stockroom or both.");
       // The optional answer to "why are you dropping it?", checked before anything changes.
       const why = dropReason(reason, (message) => new BillingError(400, message));
@@ -841,7 +841,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       let saved = await save(shopId, { ...(sub ? fromSubscription(sub) : {}), plan, planChanges: changes, appsClosing, closedApps, appDrops, keepLink: null, ...(terms ? { payAsYouSell: terms } : {}) }, "plan-changed");
       if (move.immediate && move.closes.length) saved = await closeApps(shopId, move.closes);
       const closing = move.closes.length ? { closing: move.closes.map((app) => APP_NAMES[app]).join(" and "), date: dateText(move.closesAt), now: move.immediate } : {};
-      await notify(shopId, "plan-changed", { prorated: move.prorate, ...closing }, `${shopId}/plan/${changes}`);
+      await notify(shopId, "plan-changed", { prorated: move.prorate, ...closing, ...(everything ? { everything: true, adds: move.adds } : {}) }, `${shopId}/plan/${changes}`);
       return { ...saved, changed: true };
     },
 
@@ -964,6 +964,29 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
      * The daily sweep for 6.11: an app a plan dropped closes once the month already paid for ends. Safe to repeat: a
      * closed app is not closed again.
      */
+    /**
+     * Every shop gets the website and the stockroom (10 November 2026). The daily job moves a shop still on the shop or
+     * stockroom plan to the one plan, at the same fee and with nothing prorated; any app it was closing stays open, and
+     * a closed one comes back. The shop maker's sweep then builds the app it didn't have (signup/shopMaker.js syncPlan).
+     * Safe to repeat: a shop on the one plan, or whose plan has ended, is left alone.
+     */
+    async giveEveryApp() {
+      const moved = [];
+      const failed = [];
+      for (const row of await subscriptions.list()) {
+        if (!row?.plan || row.plan === PLAN) continue;
+        if (ENDED.has(row.status) && row.paymentWay !== "payAsYouSell") continue;
+        try {
+          await api.changePlan({ shopId: row.shopId, plan: PLAN, everything: true });
+          moved.push(row.shopId);
+        } catch (failure) {
+          failed.push(`${row.shopId}: ${failure.message}`);
+        }
+      }
+      if (failed.length) throw new Error(`Moving shops to every app finished, but ${failed.length} had trouble: ${failed.join("; ")}`);
+      return moved;
+    },
+
     async closeDroppedApps() {
       const closed = [];
       const failed = [];

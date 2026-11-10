@@ -465,7 +465,17 @@ export const TEMPLATES = {
    * `closing`, `date`, `now`: an app the new plan drops ("the stockroom"), closing at the end of the paid month or, in
    * the trial, at once; its download is kept 90 days (code plan 6.11).
    */
-  "plan-changed": ({ planName, price, link, prorated = true, closing, date, now }, { settings, pressName }) => layout({
+  "plan-changed": ({ planName, price, link, prorated = true, closing, date, now, everything, adds }, { settings, pressName }) => everything ? layout({
+    // An older shop or stockroom plan moved to the one plan (billing.js giveEveryApp, 10 November 2026).
+    subject: `${pressName} now has the website and the stockroom`,
+    greeting: "Hello,",
+    paragraphs: [
+      `Every ${settings.platformName} shop now comes with both the website and the stockroom, for the same ${price} a month plus what your shop costs to run.`,
+      Array.isArray(adds) && adds.length ? `We're setting up your ${adds.includes("shop") ? "website" : "stockroom"} now. It shows in your admin within the hour, with nothing for you to do.` : "",
+    ].filter(Boolean),
+    buttons: [["Open your admin", safeLink(link)]],
+    footer: signOff(settings),
+  }) : layout({
     subject: `${pressName} is now on the ${planName} plan`,
     greeting: "Hello,",
     paragraphs: [
