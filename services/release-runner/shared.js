@@ -76,20 +76,24 @@ export function sharedProjectProfile(projectId, { region = REGION } = {}) {
 
 /**
  * `runSharedRelease({ version, projects, registry, auditLog, builder, deploy, siteCheck, releaseCheck, publishShop,
- *                     migrations, platformUrl, region, dryRun, print, paused })`
+ *                     migrations, platformUrl, region, dryRun, print, paused, keepOnFailedCheck })`
  * - `projects`: the shared projects in order, `[{ projectId, test: true }, { projectId }]`; the first must be the test one.
  * - `deploy`: clients/deploy.js (its profile for a shared project is `sharedProjectProfile`).
  * - `publishShop(row, version)`: draws one shop's pages from the release's build and uploads them (setup/shopSite.js).
  * - `migrations`: the number of data changes in the release (apps/shop/functions/migrations/list.js).
+ * - `keepOnFailedCheck`: a merge's update of the test shop alone. When only the release check fails (every part is on
+ *   the version and answers), the test shop keeps it to be looked at (status "kept-check-failed") and the run fails;
+ *   a broken deploy still goes back. Never with the live project: real shops only get a version that passed.
  */
 export async function runSharedRelease({
   version, projects = [], registry, auditLog, builder, deploy, siteCheck, releaseCheck, publishShop, migrations = 0,
   platformUrl, region = REGION, dryRun = false, print = () => {}, now = () => new Date(), runId = randomUUID(),
-  lockMinutes = LOCK_MINUTES, paused = async () => null,
+  lockMinutes = LOCK_MINUTES, paused = async () => null, keepOnFailedCheck = false,
 }) {
   if (!VERSION.test(version ?? "")) throw new Error(`"${version}" isn't a release version (like 1.4.0)`);
   if (!projects.length || projects[0].test !== true) throw new Error("a shared release starts with the shared test project");
   if (new Set(projects.map((p) => p.projectId)).size !== projects.length) throw new Error("a shared project is named twice");
+  if (keepOnFailedCheck && projects.length !== 1) throw new Error("only a release to the shared test project alone may keep a version whose release check failed");
   for (const { projectId } of projects) if (!PROJECT.test(projectId ?? "")) throw new Error(`"${projectId}" isn't a Firebase project id`);
   if (migrations > 0) {
     const error = `the release has ${migrations} data change(s), which still run per project; teach them to run in each shop's folder first`;
@@ -132,7 +136,7 @@ export async function runSharedRelease({
       print(`${error}. Nothing was deployed.`);
       return { ok: false, version, error, projects: results };
     }
-    const ctx = { deploy, siteCheck, releaseCheck, builder, envFile, region, print, now, runId, registry, auditLog, publishShop, drawn: new Set() };
+    const ctx = { deploy, siteCheck, releaseCheck, builder, envFile, region, print, now, runId, registry, auditLog, publishShop, keepOnFailedCheck, drawn: new Set() };
     for (const [index, project] of projects.entries()) {
       if (!(await registry.takeLock(SHARED_RELEASE_LOCK, lockFor())).taken) {
         error = "the release lock was taken over by another run";
@@ -145,7 +149,7 @@ export async function runSharedRelease({
       }
       const sample = project.test ? testShop : shopsOf(project.projectId)[0] ?? null;
       const result = await releaseProject(ctx, project, sample, version);
-      if (result.status === "shipped" || result.status === "already-on") {
+      if (result.status === "shipped" || result.status === "already-on" || result.status === "kept-check-failed") {
         result.pages = await publishAll(ctx, shopsOf(project.projectId), version);
       }
       Object.assign(results[index], result);
@@ -222,12 +226,20 @@ async function releaseProject(ctx, project, sample, version) {
   try {
     await ship(ctx, projectId, version);
     await drawSample(ctx, project, sample, version);
-    const problems = await checkProject(ctx, project, sample, version);
-    if (!problems.length) {
+    const broken = await checkParts(ctx, project, sample, version);
+    if (broken.length) return rollBack(ctx, project, sample, version, previous, broken.join("; "));
+    const refused = await checkPurchase(ctx, project, sample, version);
+    if (!refused.length) {
       print(`${projectId}: ${version} sent and checked.`);
       return { status: "shipped", previous: previous ?? null };
     }
-    return rollBack(ctx, project, sample, version, previous, problems.join("; "));
+    // A merge's own update of the test shop: the parts answer, only the release check failed. The test shop keeps the
+    // new version so it can be seen and fixed; the failed check is what keeps it from any real shop.
+    if (project.test === true && ctx.keepOnFailedCheck === true) {
+      print(`${projectId}: ${version} stays on the test shop to look at, but ${refused.join("; ")}, so it can't go to real shops.`);
+      return { status: "kept-check-failed", previous: previous ?? null, error: refused.join("; ") };
+    }
+    return rollBack(ctx, project, sample, version, previous, refused.join("; "));
   } catch (deployError) {
     return rollBack(ctx, project, sample, version, previous, `the deploy failed: ${message(deployError)}`);
   }
@@ -282,7 +294,13 @@ async function ship({ deploy, envFile, region, sleep = (ms) => new Promise((r) =
 }
 
 /** What is wrong with the project on `version`, in plain words; empty when it passes. */
-export async function checkProject({ deploy, siteCheck, releaseCheck }, project, sample, version) {
+export async function checkProject(ctx, project, sample, version) {
+  const problems = await checkParts(ctx, project, sample, version);
+  return problems.length ? problems : checkPurchase(ctx, project, sample, version);
+}
+
+/** Every part on `version`, and one shop answering at its addresses. */
+async function checkParts({ deploy, siteCheck }, project, sample, version) {
   const problems = [];
   for (const part of ["rules", "functions", "pages:shop"]) {
     const live = await deploy.deployed(project.projectId, part);
@@ -296,12 +314,14 @@ export async function checkProject({ deploy, siteCheck, releaseCheck }, project,
       if (status !== 200 || found.length) problems.push(`${url} answered ${status}${found.length ? ` (${found.join("; ")})` : ""}`);
     }
   }
-  if (problems.length) return problems;
-  if (project.test === true) {
-    const result = await releaseCheck(sample.shopId, version);
-    if (!result?.ok) problems.push(`the release check failed: ${result?.error ?? "no result"}`);
-  }
   return problems;
+}
+
+/** In the test project, the full release check on the test shop (a purchase, the stockroom, the admin, a refund). */
+async function checkPurchase({ releaseCheck }, project, sample, version) {
+  if (project.test !== true) return [];
+  const result = await releaseCheck(sample.shopId, version);
+  return result?.ok ? [] : [`the release check failed: ${result?.error ?? "no result"}`];
 }
 
 /** Every shop's own pages, one at a time. A failure keeps the shop's last good pages and is listed, never fatal. */

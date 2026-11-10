@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { fakeAuditLog, fakeRegistry } from "../../setup/fakes.js";
-import { releaseBuilder, tagOf } from "./builder.js";
+import { refOf, releaseBuilder, tagOf } from "./builder.js";
 import { fakeFiles, fakeWorld } from "./fakes.js";
 import { planRings } from "./rings.js";
 import { RELEASE_LOCK, rollBackShop, runRelease } from "./runner.js";
@@ -222,6 +222,17 @@ test("the builder builds a release's tag once and reuses it", async () => {
     `npm ci ${at("1.1.0/apps/stockroom")}`,
     `npm run build ${at("1.1.0/apps/stockroom")}`,
   ]);
+});
+
+test("a merge's version names its commit, so it builds (and can be gone back to) with no tag made by hand", async () => {
+  assert.equal(refOf("1.2.31-g9644c9f"), "9644c9f");
+  assert.equal(refOf("1.2.31-g9644c9fe047edbe3d0c2021bbd27c18e25c1fb1b"), "9644c9fe047edbe3d0c2021bbd27c18e25c1fb1b");
+  assert.equal(refOf("1.4.0"), "release-1.4.0");
+  assert.equal(refOf("1.4.0-beta.1"), "release-1.4.0-beta.1");
+  const runs = [];
+  const builder = releaseBuilder({ root: "/builds", source: "/repo", run: async (command, args) => void runs.push([command, ...args].join(" ")), exists: () => false, writeText: async () => {} });
+  await builder.build("1.2.31-g9644c9f");
+  assert.equal(runs[0], `git worktree add --detach ${join("/builds", "1.2.31-g9644c9f")} 9644c9f`);
 });
 
 test("a release pause: a paused release doesn't start, and a running one stops before its next shop", async () => {

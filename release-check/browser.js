@@ -61,24 +61,31 @@ export async function playwrightBrowser({ chromium, launchOptions = {}, timeoutM
   return {
     crashes,
 
-    /** Check 1: home, a book page and a collection page load with prices and no errors. */
+    /**
+     * Check 1: home, a book page and a collection page load with prices and no errors; then the home and book page
+     * again at phone size (390 wide), where nothing may scroll sideways.
+     */
     async pagesLoad({ siteUrl, bookSlug, collection }) {
       const page = await newPage();
       const problems = [];
       try {
-        for (const [what, path, selector] of [
+        for (const [what, path, selector, phone] of [
           ["home page", "/", ".fm-card-title"],
           ["book page", `/books/${bookSlug}`, ".fm-pdp-title"],
           ["collection page", `/collections/${collection}`, ".fm-card-title"],
+          ["home page on a phone", "/", ".fm-card-title", true],
+          ["book page on a phone", `/books/${bookSlug}`, ".fm-pdp-title", true],
         ]) {
           const before = crashes.length;
           try {
+            if (phone) await page.setViewportSize({ width: 390, height: 844 });
             await page.goto(`${siteUrl}${path}`);
             await page.waitForSelector(selector);
             if (path === "/") await rejectCookies(page);
             // A price is a digit next to a currency sign somewhere on the page.
             if (!/[$€£]\s?\d|\d\s?[$€£]/.test(await page.locator("main, body").first().innerText())) problems.push(`the ${what} shows no price`);
             if (await errorPanel(page)) problems.push(`the ${what} shows its error panel`);
+            if (phone && await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)) problems.push(`the ${what} scrolls sideways`);
           } catch (error) {
             problems.push(`the ${what} didn't load (${String(error.message).split("\n")[0]})`);
           }
