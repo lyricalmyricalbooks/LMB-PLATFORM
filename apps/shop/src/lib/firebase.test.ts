@@ -6,7 +6,7 @@ vi.mock("firebase/app-check", () => ({
   ReCaptchaEnterpriseProvider: class {}, ReCaptchaV3Provider: class {},
   initializeAppCheck: () => { if (events.includes("check")) throw new Error("duplicate app check"); events.push("check"); return {}; },
 }));
-vi.mock("firebase/firestore", () => ({ getFirestore: () => { events.push("firestore"); return {}; } }));
+vi.mock("firebase/firestore", () => ({ getFirestore: () => { events.push("firestore"); return {}; }, doc: () => ({}) }));
 vi.mock("firebase/auth", () => ({ getAuth: () => { events.push("auth"); return {}; }, GoogleAuthProvider: class {} }));
 afterEach(() => { vi.unstubAllEnvs(); events.length = 0; vi.resetModules(); });
 describe("Firebase App Check startup", () => {

@@ -4,7 +4,7 @@
 // fetched on demand when the owner asks to see it.
 import {
   collection, getCountFromServer, getDocs, limit, orderBy, query, startAfter, where,
-  type DocumentData, type Firestore, type QueryDocumentSnapshot,
+  type DocumentData, type DocumentReference, type QueryDocumentSnapshot,
 } from "firebase/firestore";
 
 export const PENDING_PAGE = 50;
@@ -23,9 +23,9 @@ export type QueuePage = {
   cursor: QueueDoc | null;
 };
 
-const pendingBase = (db: Firestore) => [collection(db, "reviews"), where("status", "==", "pending"), orderBy("createdAt", "desc")] as const;
+const pendingBase = (db: DocumentReference) => [collection(db, "reviews"), where("status", "==", "pending"), orderBy("createdAt", "desc")] as const;
 
-export async function loadReviewQueue(db: Firestore): Promise<QueuePage> {
+export async function loadReviewQueue(db: DocumentReference): Promise<QueuePage> {
   const [recent, pending, pendingTotal] = await Promise.all([
     getDocs(query(collection(db, "reviews"), orderBy("createdAt", "desc"), limit(BROWSE_LIMIT))),
     getDocs(query(...pendingBase(db), limit(PENDING_PAGE))),
@@ -40,7 +40,7 @@ export async function loadReviewQueue(db: Firestore): Promise<QueuePage> {
 }
 
 /** The page of pending reviews after `cursor`. */
-export async function loadMorePending(db: Firestore, cursor: QueueDoc): Promise<{ docs: QueueDoc[]; cursor: QueueDoc | null }> {
+export async function loadMorePending(db: DocumentReference, cursor: QueueDoc): Promise<{ docs: QueueDoc[]; cursor: QueueDoc | null }> {
   const snap = await getDocs(query(...pendingBase(db), startAfter(cursor), limit(PENDING_PAGE)));
   return { docs: snap.docs, cursor: snap.docs.length >= PENDING_PAGE ? snap.docs[snap.docs.length - 1] : null };
 }

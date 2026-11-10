@@ -55,6 +55,20 @@ test("set with fields sends an update mask; remove asks for an existing document
   fetch.done();
 });
 
+test("a client given a shop's folder reads, writes and queries only inside it (the shared system)", async () => {
+  const fetch = scriptedFetch([
+    { method: "GET", url: `${DOCS}/shops/s1/books/b1`, json: { name: "x", fields: { title: { stringValue: "One" } } } },
+    { method: "POST", url: `${DOCS}/shops/s1/books?documentId=b2`, body: { fields: { title: { stringValue: "Two" } } }, json: {} },
+    { method: "POST", url: `${DOCS}/shops/s1:runQuery`, json: [{ document: { name: "projects/lmb-test-shop/databases/(default)/documents/shops/s1/books/b1", fields: {} } }] },
+  ]);
+  const db = firestoreClient({ fetch, token, projectId: "lmb-test-shop", folder: "shops/s1" });
+  assert.deepEqual(await db.get("books/b1"), { title: "One" });
+  assert.equal(await db.create("books/b2", { title: "Two" }), true);
+  assert.deepEqual((await db.query("books")).map(({ id, path }) => ({ id, path })), [{ id: "b1", path: "books/b1" }]);
+  fetch.done();
+  assert.throws(() => firestoreClient({ fetch, token, projectId: "lmb-test-shop", folder: "shops" }), /document path/);
+});
+
 test("query sends a structured query and reads the documents back", async () => {
   const fetch = scriptedFetch([{
     method: "POST",

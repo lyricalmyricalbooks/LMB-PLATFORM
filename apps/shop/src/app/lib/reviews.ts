@@ -137,11 +137,11 @@ export const reviewsApi = {
     const payload = { ...publicFields, title: publicFields.title || "", status: "pending" as const, createdAt };
     // The Studio preview runs the real storefront: it shows the success state but never saves a review.
     if (inEditorPreview()) return { id: "preview", ...payload };
-    const { collection, doc, writeBatch, liteDb } = await lite();
+    const { collection, doc, writeBatch, liteDb, liteFirestore } = await lite();
     // The review is public once approved; the reviewer's email goes to admin-only
     // reviewContacts under the same id, written together.
     const ref = doc(collection(liteDb, "reviews"));
-    const batch = writeBatch(liteDb);
+    const batch = writeBatch(liteFirestore);
     batch.set(ref, payload);
     const cleanEmail = String(email || "").trim().toLowerCase().slice(0, 254);
     if (cleanEmail) batch.set(doc(liteDb, "reviewContacts", ref.id), { email: cleanEmail, createdAt });
@@ -155,14 +155,14 @@ export const reviewsApi = {
    * session also moves every older review's public email there, across the whole collection.
    */
   contactsFor: async (reviews: Review[]): Promise<Record<string, string>> => {
-    const { collection, deleteField, doc, documentId, getDocs, query, where, writeBatch, liteDb } = await lite();
+    const { collection, deleteField, doc, documentId, getDocs, query, where, writeBatch, liteDb, liteFirestore } = await lite();
     const out: Record<string, string> = {};
     if (!legacyEmailsMoved) {
       // Only reviews that still hold a public email (a string compares above ""), not the whole collection.
       const all = await getDocs(query(collection(liteDb, "reviews"), where("email", ">", "")));
       const legacy = all.docs.filter(d => d.data().email);
       for (let i = 0; i < legacy.length; i += 200) {
-        const batch = writeBatch(liteDb);
+        const batch = writeBatch(liteFirestore);
         for (const d of legacy.slice(i, i + 200)) {
           batch.set(doc(liteDb, "reviewContacts", d.id), { email: String(d.data().email), createdAt: d.data().createdAt || new Date().toISOString() });
           batch.update(d.ref, { email: deleteField() });
@@ -204,8 +204,8 @@ export const reviewsApi = {
 
   /** Deletes the review and its admin-only reviewer email together, so no orphaned address is left. */
   remove: async (id: string) => {
-    const { doc, writeBatch, liteDb } = await lite();
-    const batch = writeBatch(liteDb);
+    const { doc, writeBatch, liteDb, liteFirestore } = await lite();
+    const batch = writeBatch(liteFirestore);
     batch.delete(doc(liteDb, "reviews", id));
     batch.delete(doc(liteDb, "reviewContacts", id));
     await batch.commit();

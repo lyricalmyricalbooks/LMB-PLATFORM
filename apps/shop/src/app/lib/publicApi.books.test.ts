@@ -17,7 +17,7 @@ vi.mock("firebase/firestore/lite", () => ({
   getDoc: async () => { if (getDocError) throw getDocError; return { exists: () => true, id: "a", data: () => ({ title: "A" }) }; },
   setDoc: vi.fn(), increment: vi.fn(),
 }));
-vi.mock("../../lib/firestoreLite", () => ({ liteDb: {} }));
+vi.mock("../../lib/firestoreLite", () => ({ liteDb: {}, liteFirestore: {} }));
 
 import { publicApi } from "./publicApi";
 

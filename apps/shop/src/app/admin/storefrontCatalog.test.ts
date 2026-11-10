@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ query: vi.fn((...args) => args), getDocs: vi.fn() }));
-vi.mock("../../lib/firebase", () => ({ db: {}, auth: {}, googleProvider: {} }));
+vi.mock("../../lib/firebase", () => ({ firestore: {}, db: {}, auth: {}, googleProvider: {} }));
 vi.mock("../../lib/firebaseApp", () => ({ app: {}, db: {}, appCheck: null, authState: { loaded: true } }));
-vi.mock("../../lib/firestoreLite", () => ({ liteDb: {} }));
+vi.mock("../../lib/firestoreLite", () => ({ liteDb: {}, liteFirestore: {} }));
 vi.mock("firebase/firestore/lite", () => import("firebase/firestore"));
 vi.mock("firebase/firestore", async importOriginal => ({
   ...await importOriginal<typeof import("firebase/firestore")>(),

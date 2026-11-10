@@ -7,7 +7,7 @@ vi.mock("firebase/firestore/lite", () => ({
   collection: vi.fn(), doc: vi.fn((_db: unknown, ...path: string[]) => path.join("/")), documentId: vi.fn(), getDoc: vi.fn(), getDocs: vi.fn(),
   increment: vi.fn((n: number) => ({ inc: n })), limit: vi.fn(), orderBy: vi.fn(), query: vi.fn(), setDoc, startAfter: vi.fn(), where: vi.fn(),
 }));
-vi.mock("../../lib/firestoreLite", () => ({ liteDb: {} }));
+vi.mock("../../lib/firestoreLite", () => ({ liteDb: {}, liteFirestore: {} }));
 vi.mock("./trackingGuard", () => ({ trackingAllowed: async () => allowed.value }));
 vi.mock("./functionsBase", () => ({ functionFetch: vi.fn() }));
 

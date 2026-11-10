@@ -8,9 +8,9 @@
 // Only run the first time the sample press is added (seed.js). Everything goes to the local emulators and the
 // practice services; the people and addresses are made up.
 import { randomBytes } from "node:crypto";
-import { DEMO_OWNER, DEMO_PROJECT, PORTS, url } from "./config.js";
+import { DEMO_OWNER, DEMO_PROJECT, PORTS, SHOP_FOLDER, url } from "./config.js";
 
-const FIRESTORE = url(PORTS.firestore, `/v1/projects/${DEMO_PROJECT}/databases/(default)/documents`);
+const FIRESTORE = url(PORTS.firestore, `/v1/projects/${DEMO_PROJECT}/databases/(default)/documents/${SHOP_FOLDER}`);
 const FUNCTION = (name) => url(PORTS.functions, `/${DEMO_PROJECT}/us-central1/${name}`);
 const ORIGIN = url(PORTS.shop);
 const IDENTITY = url(PORTS.auth, "/identitytoolkit.googleapis.com/v1");

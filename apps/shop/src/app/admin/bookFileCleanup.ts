@@ -8,6 +8,7 @@
 // Saves also keep copies the server added (functions/imageCopies.js) after the editor opened, so a save
 // never strips a photo's `srcset` back to the original.
 import type { MediaVariantRef } from "../features/site/mediaRef";
+import { SHOP_FOLDER } from "../../lib/shopFolder";
 
 type Photo = { url?: unknown; originalUrl?: unknown; videoUrl?: unknown; srcset?: unknown; width?: unknown; height?: unknown } & Record<string, unknown>;
 
@@ -57,15 +58,18 @@ export function keepPhotoCopies(next: unknown, live: unknown): unknown {
   return changed ? out : next;
 }
 
-/** Book-upload files of `gone` photos that nothing in `stillShown` (URLs of other photos, order lines…) uses. */
-export function unusedBookFiles(gone: unknown[], stillShown: Iterable<string>, bucket: string): string[] {
+/**
+ * Book-upload files of `gone` photos that nothing in `stillShown` (URLs of other photos, order lines…) uses. Only files in
+ * this shop's own folder (`shops/<id>/products/`): the bucket is shared by every shop (docs/shared-system.md).
+ */
+export function unusedBookFiles(gone: unknown[], stillShown: Iterable<string>, bucket: string, folder: string = SHOP_FOLDER): string[] {
   const used = new Set<string>();
   for (const url of stillShown) { const path = storagePathOfUrl(url, bucket); if (path) used.add(path); }
   const out = new Set<string>();
   for (const photo of gone) {
     for (const url of photoUrls(photo)) {
       const path = storagePathOfUrl(url, bucket);
-      if (path && path.startsWith(BOOK_FILE_PREFIX) && !used.has(path)) out.add(path);
+      if (path && path.startsWith(`${folder}/${BOOK_FILE_PREFIX}`) && !used.has(path)) out.add(path);
     }
   }
   return [...out];

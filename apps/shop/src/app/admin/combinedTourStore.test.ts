@@ -1,7 +1,7 @@
 // The tour's mark on the shop's account (combinedTourStore.ts): read and written in the shape the rules allow, and
 // never a failure the admin has to deal with.
 import { describe, expect, it, vi } from "vitest";
-vi.mock("../../lib/firebase", () => ({ db: {} }));
+vi.mock("../../lib/firebase", () => ({ firestore: {}, db: {} }));
 import { markTourSeenOnAccount, tourSeenOnAccount } from "./combinedTourStore";
 
 const snap = (data: unknown, exists = true) => async () => ({ exists: () => exists, data: () => data });
