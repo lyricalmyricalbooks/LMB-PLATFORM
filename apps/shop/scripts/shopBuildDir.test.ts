@@ -3,6 +3,9 @@
 // the database root, would mix one shop's files or data into another's.
 import { describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
 
 const read = (name: string) => readFileSync(new URL(`./${name}`, import.meta.url), 'utf8').replace(/^\s*\/\/.*$/gm, '');
 
@@ -22,12 +25,14 @@ describe('build scripts follow the publish run', () => {
     });
   }
   it('the profile file and build folder come from the environment when set', async () => {
-    process.env.SHOP_BUILD_DIR = '/tmp/shop-site-x';
-    process.env.SHOP_PROFILE_FILE = '/tmp/shop-site-x/shop-profile.js';
+    // Paths as the system writes them (a drive letter and back-slashes on Windows).
+    const dir = join(tmpdir(), 'shop-site-x');
+    process.env.SHOP_BUILD_DIR = dir;
+    process.env.SHOP_PROFILE_FILE = join(dir, 'shop-profile.js');
     vi.resetModules();
     const mod = await import('./shopProfile.mjs');
-    expect(mod.SHOP_BUILD_DIR).toBe('/tmp/shop-site-x');
-    expect(mod.SHOP_PROFILE_FILE.pathname).toBe('/tmp/shop-site-x/shop-profile.js');
+    expect(mod.SHOP_BUILD_DIR).toBe(resolve(dir));
+    expect(mod.SHOP_PROFILE_FILE.href).toBe(pathToFileURL(resolve(dir, 'shop-profile.js')).href);
     delete process.env.SHOP_BUILD_DIR;
     delete process.env.SHOP_PROFILE_FILE;
   });
