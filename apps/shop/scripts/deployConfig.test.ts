@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { cpSync, mkdtempSync, readFileSync, rmSync, existsSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CONFIG_FILE, OUT_DIR, buildFirebaseConfig, checkRules, writeDeployFiles } from "./deployConfig.mjs";
+import { CONFIG_FILE, FRONT_DOOR, OUT_DIR, PER_SHOP_FILES, buildFirebaseConfig, checkRules, frontDoorHosting, writeDeployFiles } from "./deployConfig.mjs";
 
 const ROOT = join(__dirname, "..");
 const read = (p: string) => readFileSync(join(ROOT, p), "utf8");
@@ -36,9 +36,26 @@ describe("firebase.deploy.json", () => {
     expect(config.hosting.site).toBe("press-two-shop");
     expect(config.firestore.rules).toBe(`${OUT_DIR}/firestore.rules`);
     expect(config.storage.rules).toBe(`${OUT_DIR}/storage.rules`);
-    expect({ ...config, hosting: { ...config.hosting, site: template.hosting.site }, firestore: { ...config.firestore, rules: template.firestore.rules }, storage: template.storage })
-      .toEqual(template);
+    expect({ ...config, hosting: frontDoorHosting({ ...template.hosting, site: "press-two-shop" }, "us-central1"), firestore: { ...config.firestore, rules: template.firestore.rules }, storage: template.storage })
+      .toEqual({ ...config, firestore: template.firestore, storage: template.storage });
+    expect({ ...config, hosting: template.hosting, firestore: template.firestore, storage: template.storage }).toEqual(template);
     expect(template.firestore.rules).toBe("firestore.rules");
+  });
+
+  // The shared system, step 5 (functions/frontDoor.js): one site for every shop.
+  it("leaves every shop's own files out of the site and sends their addresses to the front door", () => {
+    const hosting = buildFirebaseConfig(template, "press-two-shop", { region: "us-central1" }).hosting;
+    for (const file of ["shop-profile.js", "stockroom/shop-profile.js", "index.html", "books/**", "sitemap.xml", "robots.txt", "storefront-data.json"]) {
+      expect(hosting.ignore, file).toContain(file);
+    }
+    expect(PER_SHOP_FILES).not.toContain("spa.html");
+    const door = (path: string) => hosting.rewrites.find((r: any) => (r.source ? r.source === path : new RegExp(r.regex).test(path)));
+    for (const path of ["/shop-profile.js", "/stockroom/shop-profile.js", "/sitemap.xml", "/robots.txt", "/", "/books/night-buses", "/collections/new"]) {
+      expect(door(path)?.function, path).toEqual({ functionId: FRONT_DOOR, region: "us-central1" });
+    }
+    // The app's own pages still go to the blank app, before the front door ever sees them.
+    for (const path of ["/admin", "/checkout", "/account/orders", "/stockroom/app"]) expect(door(path)?.function, path).toBeUndefined();
+    expect(() => buildFirebaseConfig(template, "press-two-shop", { region: "nowhere" })).toThrow(/region/);
   });
 
   it("refuses a project id Firebase wouldn't accept", () => {

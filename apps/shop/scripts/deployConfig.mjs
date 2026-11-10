@@ -28,15 +28,47 @@ export function checkRules(text) {
   return text;
 }
 
+// The front door (the shared system, step 5; functions/frontDoor.js): one Hosting site answers for every shop. What
+// differs per shop (its profile, its pages as first drawn, its sitemap, robots, catalogue file and feeds) is never
+// uploaded with the site: Hosting sends those addresses to the frontDoor function, which answers with the shop the
+// address belongs to. The build still makes them (for the test shop's data); they are left out here.
+export const FRONT_DOOR = "frontDoor";
+export const PER_SHOP_FILES = [
+  "shop-profile.js", "stockroom/shop-profile.js", "index.html", "books/**", "products/**", "page/**", "collections/**",
+  "sitemap.xml", "robots.txt", "storefront-data.json", "llms.txt", "google-merchant-feed.xml", "social-product-feed.csv",
+  "seo-published-fingerprint.txt", "prerender-routes.xml",
+];
+const FRONT_DOOR_PATHS = [
+  "/shop-profile.js", "/stockroom/shop-profile.js", "/sitemap.xml", "/robots.txt", "/storefront-data.json", "/llms.txt",
+  "/google-merchant-feed.xml", "/social-product-feed.csv", "/seo-published-fingerprint.txt",
+];
+// The storefront pages a shop draws ahead (scripts/prerenderHtml.mjs routeOutputPath): home, books, products, pages, collections.
+const FRONT_DOOR_PAGES = "^/(?:|(?:books|products|page|collections)/[^/]+/?)$";
+
+/** The Hosting part of the shared site: the per-shop files left out, and their addresses sent to the front door. */
+export function frontDoorHosting(hosting, region) {
+  if (!/^[a-z]+-[a-z]+[0-9]$/.test(region || "")) throw new Error(`"${region}" isn't a functions region.`);
+  const to = { function: { functionId: FRONT_DOOR, region } };
+  return {
+    ...hosting,
+    ignore: [...new Set([...(hosting.ignore ?? []), ...PER_SHOP_FILES])],
+    rewrites: [
+      ...FRONT_DOOR_PATHS.map(source => ({ source, ...to })),
+      { regex: FRONT_DOOR_PAGES, ...to },
+      ...(hosting.rewrites ?? []),
+    ],
+  };
+}
+
 /** firebase.json for one project: its own Hosting site and the checked rules. Everything else as the template. */
-export function buildFirebaseConfig(template, projectId) {
+export function buildFirebaseConfig(template, projectId, { region = "us-central1" } = {}) {
   if (!PROJECT.test(projectId || "")) throw new Error(`"${projectId}" isn't a Firebase project id.`);
   const config = JSON.parse(JSON.stringify(template));
   if (!config.firestore || !config.storage || !config.hosting) throw new Error("firebase.json needs firestore, storage and hosting.");
   config.firestore.rules = `${OUT_DIR}/firestore.rules`;
   config.storage.rules = `${OUT_DIR}/storage.rules`;
-  // A project's default Hosting site has the project's id as its name.
-  config.hosting.site = projectId;
+  // A project's default Hosting site has the project's id as its name; it is the front door for every shop in it.
+  config.hosting = frontDoorHosting({ ...config.hosting, site: projectId }, region);
   return config;
 }
 

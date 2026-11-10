@@ -61,10 +61,12 @@ async function post(fetchImpl, url, body) {
 
 /**
  * Reads settings/website, every published book and every published page at one Firestore snapshot and returns
- * the file's contents. `base` is `https://firestore.googleapis.com/v1/projects/<id>/databases/(default)/documents`.
+ * the file's contents. `base` is the shop's folder, `https://firestore.googleapis.com/v1/projects/<id>/databases/(default)/documents/shops/<shopId>`
+ * (scripts/shopProfile.mjs shopDocumentsBase), or the database root for a project with one shop of its own.
  */
 export async function readStorefrontData(base, project, fetchImpl = fetch, pageSize = 300) {
-  const settingsName = `projects/${project}/databases/(default)/documents/settings/website`;
+  const settingsName = `${base.replace(/^https:\/\/[^/]+\/v1\//, '').replace(/\/$/, '')}/settings/website`;
+  if (!settingsName.startsWith(`projects/${project}/databases/`)) throw new Error('The read address is for another project');
   const [first] = await post(fetchImpl, `${base}:batchGet`, { documents: [settingsName] });
   const readTime = first?.readTime;
   if (!readTime) throw new Error('Firestore gave no read time');

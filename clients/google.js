@@ -11,6 +11,7 @@
 //   Realtime Database Mgmt v1beta  projects.locations.instances.list (location "-"), projects.locations.instances.create
 //                         (databaseId, type DEFAULT_DATABASE); the stockroom's database (plan 1.20)
 //   Cloud Storage JSON v1 objects.get, objects.list (prefix, delimiter), objects.insert (simple media upload),
+//                         objects.delete (a shop's own published files only, shops/<id>/site/),
 //                         buckets.get, buckets.insert (project) for the stockroom's own bucket (plan 1.20)
 //   Secret Manager v1     projects.secrets.versions.access ("latest"), projects.secrets.create (secretId, automatic
 //                         replication), projects.secrets.addVersion: the shop's service key (setup/serviceKey.js)
@@ -77,6 +78,17 @@ const orNull = async (promise) => {
     throw error;
   }
 };
+
+/** A shop's published-files folder, `shops/<id>/site/`; anything else is refused. */
+function siteFolder(folder) {
+  if (!/^shops\/[a-z0-9][a-z0-9-]{0,62}\/site\/$/.test(String(folder))) throw new Error(`"${String(folder).slice(0, 80)}" isn't a shop's site folder`);
+  return folder;
+}
+function inFolder(folder, name) {
+  const full = String(name).startsWith(siteFolder(folder)) ? String(name) : folder + name;
+  if (!full.startsWith(folder) || full.slice(folder.length).split("/").some((part) => !part || part === "." || part === "..")) throw new Error(`"${String(name).slice(0, 80)}" isn't a file in ${folder}`);
+  return full;
+}
 
 /**
  * `googleClients({ fetch, token, sleep, today })`. `today()` gives the backup's folder day (YYYY-MM-DD). The backup's
@@ -478,6 +490,29 @@ export function googleClients({ fetch, token, sleep, today = () => new Date().to
           query: { updateMask: "cleanupPolicies,cleanupPolicyDryRun" },
           body: { cleanupPolicies: { ...(repo.cleanupPolicies ?? {}), [BUILD_CLEANUP_POLICY.id]: { ...BUILD_CLEANUP_POLICY } }, cleanupPolicyDryRun: false },
         });
+      },
+    },
+    // A shop's published files in the shared bucket (shops/<id>/site/, docs/shared-system.md step 5). Every call
+    // names the folder, and refuses a name outside it.
+    siteFiles: {
+      async list(projectId, folder) {
+        const bucket = await needBucket(projectId);
+        const names = [];
+        let pageToken;
+        do {
+          const page = await call("GET", `${GCS}/b/${bucket}/o`, { query: { prefix: siteFolder(folder), fields: "items(name),nextPageToken", pageToken } });
+          names.push(...(page.items ?? []).map((item) => item.name));
+          pageToken = page.nextPageToken;
+        } while (pageToken);
+        return names;
+      },
+      async upload(projectId, folder, name, body, contentType) {
+        const bucket = await needBucket(projectId);
+        await call("POST", `${GCS_UPLOAD}/b/${bucket}/o`, { query: { uploadType: "media", name: inFolder(folder, name) }, raw: body, contentType });
+      },
+      async remove(projectId, folder, name) {
+        const bucket = await needBucket(projectId);
+        await orNull(call("DELETE", `${GCS}/b/${bucket}/o/${encodeURIComponent(inFolder(folder, name))}`));
       },
     },
     storageProbe: {

@@ -5091,3 +5091,16 @@ exports.tick = onScheduleReal(
     const failed = results.filter(r => !r.ok);
     if (failed.length) console.error(`tick failed for ${failed.length} shop(s):`, failed.map(f => f.id).join(", "));
   });
+
+// The front door (the shared system, step 5; frontDoor.js): one Hosting site for every shop's address. Hosting sends it
+// the profile, each shop's published files and the storefront pages; it finds the shop by the address typed (the
+// platform's addresses/{host}) and answers with that shop's own. It reads only: addresses, records and shops/<id>/site/.
+exports.frontDoor = require("firebase-functions/v2/https").onRequest(
+  { memory: "256MiB", concurrency: 80, timeoutSeconds: 30 },
+  require("./frontDoor").frontDoor({
+    rootDb: () => sdk.firestore(),
+    bucket: () => sdk.storage().bucket(),
+    loadShop: shopEntry.loadShop,
+    shellUrl: () => process.env.SHOP_FRONT_DOOR_SHELL_URL || `https://${process.env.GCLOUD_PROJECT}.web.app/spa.html`,
+  }),
+);
