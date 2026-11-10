@@ -68,7 +68,7 @@ export const START_SECTIONS = Object.freeze([
     intro: "A press finding the platform, signing up and paying for its plan. Nothing is charged: payments are pretend.",
     links: [
       { name: "Waitlist", href: "/waitlist/", who: null, try: "The plans and Start your free trial. Joining the waitlist keeps your email only in this walkthrough." },
-      { name: "Start your shop (the new front door)", href: "/join/", who: null, try: "Type any made-up email: the six-digit code lands in the platform's practice inbox. Then three questions, each one skippable. Nothing is charged and no shop is made until the press opens it." },
+      { name: "Start your free trial (the front door)", href: "/join/", who: null, try: "Type any made-up email: the six-digit code lands in the practice inbox. Then three questions and the terms, and the store is made with a free trial of both apps." },
       { name: "Sign up", href: "/signup/?as=newcomer@example.com", who: "newcomer@example.com", try: "Continue with Google, answer the questions and pick a plan. The new shop is made in about a minute, then shows on the account page." },
       { name: "Your shops (the account page)", href: "/account/?as=owner@example.com", who: "owner@example.com", try: "Three made-up presses: one on its trial, one paused, one paying. Invite someone to help with a shop, or open its Plan & billing." },
       { name: "Plan & billing on a free trial", href: "/account/billing?shop=moth-press&as=owner@example.com", who: "owner@example.com", try: "Moth Press, on its trial with no card yet. Change the plan, or press Add a card." },
