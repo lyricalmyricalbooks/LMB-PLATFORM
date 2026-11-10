@@ -13,7 +13,7 @@
 <link rel="stylesheet" href="/waitlist/look/platform-pages.css">
 <script src="/waitlist/look/platform-look.js"></script>
 </head>
-<body class="cp cp-front">
+<body class="cp cp-front cp-pricing">
 <a class="rp-skip-link" href="#main">Skip to content</a>
 <header class="cp-mast"><div class="cp-wrap"><a class="cp-word" href="/">Colophon<small>shop and stockroom for independent brands</small></a>
   <nav aria-label="Colophon"><a href="/pricing" aria-current="page">Pricing</a><a href="/help/">Help</a><a href="/account/">Sign in</a><a class="cp-nav-cta" id="cta" href="/join/">Start free trial</a></nav></div></header>
@@ -28,7 +28,8 @@
       <p id="pricing-trial" class="rp-sr-only"></p>
       <p id="pricing-founding" class="founding" hidden></p>
       <div class="cp-grid3 plans" id="plan-cards"></div>
-      <div class="cp-hero-actions"><a class="button primary" id="start-trial" href="/join/">Start free trial</a><span class="note">Prices in CAD, plus tax. Founding shops keep a lower price for as long as they stay.</span></div>
+      <a class="rp-sr-only" id="start-trial" href="/join/">Start free trial</a>
+      <p class="note cp-plans-note">Prices in CAD, plus tax. Founding shops keep a lower price for as long as they stay.</p>
     </section>
     <section id="pricing-closed" class="cp-fp-sec"><div class="card"><h3>Plans and prices are shown here when sign-up opens.</h3><p>Join the waitlist on the <a href="/">front page</a> and we'll email you.</p></div></section>
   </div>
@@ -44,7 +45,6 @@
     loadPricing({ fetch, url: PLANS_URL }).then((view) => {
       if (!renderPricing(document, view, { signupUrl: SIGNUP_URL })) return;
       document.getElementById("pricing-closed").hidden = true;
-      document.getElementById("pricing-lede").textContent = view.trial;
     });
   }
 </script>

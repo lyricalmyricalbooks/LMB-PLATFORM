@@ -454,6 +454,14 @@ body.cp:has(> footer) > main { flex: 1 0 auto; }
 /* A mock-up inside a white tile sits on the paper colour so its edge shows. */
 .cp .card .cp-mock { background: var(--rp-surface-2); }
 
+/* Pricing cards (design handoff "Colophon platform"): name, line, price, three ticks, a button per card. */
+.cp .plan h3 { margin: 0; font-size: 18px; }
+.cp .plan .cp-ticks { list-style: none; margin: 4px 0 8px; padding: 0; display: grid; gap: 8px; }
+.cp .plan .cp-ticks li::before { content: "✓ "; }
+.cp .plan > .button { margin-top: auto; justify-content: center; width: 100%; }
+.cp .plans { align-items: stretch; }
+.cp .cp-plans-note { margin: 18px 0 0; font: 400 12px/1.5 var(--rp-font-mono); color: var(--rp-text-subtle); }
+
 /* ── Front page (waitlist/index.html, design handoff "Colophon front page", 9 November 2026) ─────────────────────
    A dark hero tile with the email pill and two product tiles, three steps, four feature tiles with small drawings,
    the founding card. Everything sits under .cp-front so no other page changes. */
@@ -566,7 +574,7 @@ body.cp:has(> footer) > main { flex: 1 0 auto; }
   .cp-front .cp-fp-steps .card { padding: 22px; border-radius: 20px; }
   .cp-front .cp-fp-steps h3 { font-size: 20px; margin: 10px 0 6px; }
   .cp-front .cp-fp-sec { padding-top: 48px; }
-  .cp-fp-h2 { font-size: 30px; margin: 0 8px 16px; }
+  .cp-fp-h2 { font-size: 30px; margin: 0 0 16px; }
   .cp-front .cp-fp-feats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .cp-front .cp-fp-feats .card > div:last-child { padding: 14px; }
   .cp-front .cp-fp-feats h3 { font-size: 15px; }
@@ -589,3 +597,11 @@ body.cp:has(> footer) > main { flex: 1 0 auto; }
 
 /* Phone (design handoff "Colophon platform", phone view): the most popular plan comes first once plans stack. */
 @media (max-width: 900px) { .cp-front .plans .cp-pick { order: -1; } }
+
+/* Pricing page on a phone (design handoff): the wordmark on its own line, the menu below it, Shop first. */
+@media (max-width: 640px) {
+  .cp-front.cp-pricing .cp-mast .cp-wrap { flex-wrap: wrap; padding: 16px; }
+  .cp-front.cp-pricing .cp-mast nav { width: 100%; margin-left: 0; }
+  .cp-front.cp-pricing .cp-mast nav a { white-space: nowrap; }
+  .cp-front.cp-pricing .plans .cp-pick { order: 0; }
+}

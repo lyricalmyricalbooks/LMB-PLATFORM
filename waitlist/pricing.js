@@ -5,10 +5,18 @@
 
 /** One line about each plan, in the order the page shows them. */
 export const PLAN_LINES = Object.freeze({
-  shop: "Your own website, with checkout, sizes, colours and shipping.",
-  stockroom: "One count of every item, online and at markets, even offline at a table.",
-  both: "The shop and the stockroom, selling from the same count of every item.",
+  shop: "Your website, to sell online",
+  stockroom: "Track stock, sales and payouts from fairs and stores",
+  both: "Your website and your stock, kept in step",
 });
+/** Three short points per plan, as in the pricing mockup. */
+export const PLAN_FEATURES = Object.freeze({
+  shop: ["Online checkout, taxes and labels", "Themes you can make your own", "Your own web address"],
+  stockroom: ["Every size and colour counted", "Market and pop-up till", "Sales by week and channel"],
+  both: ["Everything in Shop", "In-person sales, even offline", "One count of stock everywhere"],
+});
+/** Cards read Shop, Shop and stockroom (the pick, in the middle), Stockroom. */
+const SHOWN = Object.freeze(["shop", "both", "stockroom"]);
 const ORDER = Object.freeze(["shop", "stockroom", "both"]);
 
 const text = (value, max = 80) => (typeof value === "string" ? value.slice(0, max) : "");
@@ -70,13 +78,18 @@ export function renderPricing(doc, view, { signupUrl }) {
   const founding = doc.getElementById("pricing-founding");
   founding.textContent = view.founding ?? "";
   founding.hidden = !view.founding;
-  doc.getElementById("plan-cards").replaceChildren(...view.plans.map((p) => {
+  const cards = SHOWN.map((id) => view.plans.find((p) => p.plan === id)).filter(Boolean);
+  doc.getElementById("plan-cards").replaceChildren(...cards.map((p) => {
     const price = view.founding && p.foundingPriceText
       ? el("p", { className: "price" }, el("s", { textContent: p.priceText }), " ", el("strong", { textContent: p.foundingPriceText }), " a month")
       : el("p", { className: "price" }, el("strong", { textContent: p.priceText }), " a month");
-    // "Shop and stockroom" is drawn as the one most presses pick (platform-pages.css).
-    const card = el("div", { className: p.plan === "both" ? "card plan cp-pick" : "card plan" }, el("div", { className: "cp-kicker", textContent: p.name }), price, el("p", { className: "hint", textContent: p.line }));
+    const pick = p.plan === "both";
+    // "Shop and stockroom" is drawn as the one most shops pick (platform-pages.css).
+    const card = el("div", { className: pick ? "card plan cp-pick" : "card plan" },
+      el("h3", { textContent: p.name }), el("p", { className: "hint", textContent: p.line }), price,
+      el("ul", { className: "cp-ticks" }, ...(PLAN_FEATURES[p.plan] || []).map((f) => el("li", { textContent: f }))));
     if (p.payAsYouSell) card.append(el("p", { className: "or-pay", textContent: p.payAsYouSell }));
+    card.append(el("a", { className: pick ? "button primary" : "button", href: signupUrl, textContent: "Start free trial" }));
     return card;
   }));
   doc.getElementById("start-trial").href = signupUrl;
