@@ -4,7 +4,7 @@ import { isShopOwner, markOwnerDeviceOnSignIn } from "../lib/ownerDevice";
 // `m` + the app-wide LazyMotion (domAnimation): the full `motion` component would pull layout/drag code into the shop's first load.
 import { m, AnimatePresence } from "motion/react";
 import {
-  BookOpen, LogOut, History, Globe, Menu, HelpCircle, Compass, Sun, Moon, ChevronDown,
+  BookOpen, LogOut, History, Globe, Menu, HelpCircle, Compass, Sun, Moon, ChevronDown, Store,
 } from "lucide-react";
 
 import { Login } from "./Login";
@@ -36,7 +36,7 @@ import { ADMIN_LOOK, applyAdminLook } from "./riso/adminLook";
 import { SupportBanner } from "./SupportBanner";
 import { PlanBannerBar, PlanDesk } from "./PlanParts";
 import { TwoStepReminder } from "./TwoStepReminder";
-import { planLocked, trialPill } from "./platformPlan";
+import { planLocked, storesPage, trialPill } from "./platformPlan";
 import { usePlatformPlan } from "./platformPlanApi";
 import { PlatformMessagesBar } from "./PlatformMessagesBar";
 import type { SupportVisit } from "./supportSession";
@@ -670,6 +670,7 @@ export function Dashboard() {
 
   // The administrator's own actions: the avatar menu in the top bar, and the account row at the foot of the phone drawer.
   const accountActions = [
+    ...(storesPage(platformPlan) ? [{ key: "stores", label: "Switch store", icon: <Store size={16} aria-hidden />, run: () => { window.location.href = storesPage(platformPlan)!; } }] : []),
     { key: "logs", label: "Activity logs", icon: <History size={16} aria-hidden />, run: () => setShowLogs(true) },
     { key: "site", label: "View site", icon: <Globe size={16} aria-hidden />, run: openSite },
     ...(COMBINED ? [{ key: "tour", label: "Take the tour", icon: <Compass size={16} aria-hidden />, run: () => setTourOpen(true) }] : []),

@@ -1,7 +1,7 @@
 // The shop's plan in the admin (plan 6.6, 6.7): the banner per state, Settings › Plan's facts, and which plans lock the
 // admin to Plan & billing.
 import { describe, expect, it } from "vitest";
-import { daysLeft, parsePlatformPlan, planBanner, planFacts, planLocked, trialPill, type PlatformPlan } from "./platformPlan";
+import { daysLeft, parsePlatformPlan, planBanner, planFacts, planLocked, storesPage, trialPill, type PlatformPlan } from "./platformPlan";
 
 const NOW = Date.parse("2026-11-05T15:00:00.000Z");
 const DAY = 86400_000;
@@ -94,5 +94,13 @@ describe("reading the plan document", () => {
     expect(paid).toContainEqual({ label: "Plan", value: "Shop and stockroom" });
     expect(daysLeft(null, NOW)).toBe(0);
     expect(daysLeft(new Date(NOW - DAY).toISOString(), NOW)).toBe(0);
+  });
+});
+
+describe("storesPage", () => {
+  it("is the platform's account page, on the plan link's address", () => {
+    expect(storesPage(parsePlatformPlan({ state: "trial", link: "https://colophon.example/account/billing.html?press=p1" }))).toBe("https://colophon.example/account/");
+    expect(storesPage(parsePlatformPlan({ state: "trial" }))).toBeNull();
+    expect(storesPage(null)).toBeNull();
   });
 });

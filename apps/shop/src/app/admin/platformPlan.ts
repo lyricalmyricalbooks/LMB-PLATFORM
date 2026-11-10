@@ -192,3 +192,9 @@ export function trialPill(plan: PlatformPlan | null, now = Date.now()): string |
   const left = daysLeft(plan.trialEnd, now);
   return `Free trial · ${left <= 1 ? "last day" : `${left} days left`}`;
 }
+
+/** The platform's list of the person's stores (its account page, on the same address as the plan's link), or null. */
+export function storesPage(plan: PlatformPlan | null | undefined): string | null {
+  if (!plan?.link) return null;
+  try { return new URL("/account/", plan.link).href; } catch { return null; }
+}
