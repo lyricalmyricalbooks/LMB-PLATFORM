@@ -1,7 +1,7 @@
 // The sign-up page (signup/index.html): sign in with an email link or Google, tell us about the press, start the free
 // trial, then follow the shop being made. Plain browser JavaScript with no framework (docs/decisions.md); Firebase's
 // own browser library is loaded from Google for sign-in only. Every check the page makes, the server makes again.
-import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE, SAMPLE_PRESS_URL } from "./config.js";
+import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE, SAMPLE_PRESS_URL, SETUP_ADMIN_URL } from "./config.js";
 import { ADDRESS_SUFFIX, COUNTRIES, PLAN_CHOICES, PUBLISHES, QUESTION, checkAddress, checkSignup, isEmail } from "./form.js";
 import { deviceId } from "./device.js";
 
@@ -272,6 +272,9 @@ function renderShops(shops) {
       const stockroomOnly = /-stockroom\.web\.app$/.test(shop.openUrl);
       const link = Object.assign(document.createElement("a"), { className: "button primary", href: shop.openUrl, textContent: stockroomOnly ? "Open your stockroom" : "Open your shop's admin" });
       card.append(link);
+    } else if (SETUP_ADMIN_URL && shop.pressId && shop.status !== "later") {
+      // While the shop is being made, its admin already opens in setup mode: the brand can add products and pick a look.
+      card.append(Object.assign(document.createElement("a"), { className: "button primary", href: `${SETUP_ADMIN_URL}?press=${encodeURIComponent(shop.pressId)}`, textContent: "Enter your store" }));
     }
     if (shop.canRetry) {
       const retry = Object.assign(document.createElement("button"), { type: "button", className: "primary", textContent: "Try again" });

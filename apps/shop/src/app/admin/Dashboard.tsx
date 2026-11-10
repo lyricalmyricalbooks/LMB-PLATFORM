@@ -38,7 +38,7 @@ import { PlanBannerBar, PlanDesk } from "./PlanParts";
 import { TwoStepReminder } from "./TwoStepReminder";
 import type { ReadinessItem } from "./launchReadiness";
 import { LaunchChecklist } from "./LaunchChecklist";
-import { addStorePage, planLocked, storesPage, trialPill } from "./platformPlan";
+import { addStorePage, askPersonPage, helpCentrePage, planLocked, storesPage, trialPill } from "./platformPlan";
 import { usePlatformPlan } from "./platformPlanApi";
 import { PlatformMessagesBar } from "./PlatformMessagesBar";
 import type { SupportVisit } from "./supportSession";
@@ -905,6 +905,7 @@ export function Dashboard() {
         {!ownMasthead && <PageHeader
           breadcrumbs={trail.length > 2 ? <Breadcrumbs trail={trail} /> : undefined}
           title={selectedOrder && activeTab !== "orders" ? "Order detail" : navActive === "settings" && childLabel ? childLabel : copy.title}
+          description={selectedOrder ? undefined : navActive === "settings" && childLabel ? (navChild && PAGE_COPY[navChild]?.description) || undefined : copy.description || undefined}
           actions={<div ref={setPageActionsEl} className="rp-page-actions-slot" />}
         />}
         {!ownMasthead && pageAlerts}
@@ -931,6 +932,14 @@ export function Dashboard() {
       <Dialog open={helpOpen} onClose={() => setHelpOpen(false)} title="Help & shortcuts" appearance={appearance}
         footer={<PrimaryButton onClick={() => setHelpOpen(false)}>Got it</PrimaryButton>}>
         <div className="rp-help">
+          {askPersonPage(platformPlan) && <>
+            <h3 className="rp-help-head">Ask a person</h3>
+            <p>A person answers in writing, by email. Most questions have a quick answer in the help centre.</p>
+            <div className="rp-card-actions">
+              <a className="rp-btn rp-btn-primary" href={askPersonPage(platformPlan)!}>Ask a person</a>
+              {helpCentrePage(platformPlan) && <a className="rp-btn" href={helpCentrePage(platformPlan)!} target="_blank" rel="noreferrer">Open the help centre</a>}
+            </div>
+          </>}
           <h3 className="rp-help-head">Keyboard shortcuts</h3>
           <dl className="rp-help-keys">
             <dt><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>K</kbd></dt><dd>{w("Search: jump to any admin page, or open a book (title, author, ISBN, SKU), an order (number with or without #, customer email or name) or a customer.")}</dd>
