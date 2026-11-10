@@ -21,7 +21,7 @@ import { sellsBooks, wordsFor } from "./sells.js";
  * shop that doesn't sell books, used as written.
  */
 
-export const TOPICS = Object.freeze(["Getting started", "Moving your shop", "Selling", "Orders", "Your stockroom", "Your account"]);
+export const TOPICS = Object.freeze(["Getting started", "Bringing your shop over", "Selling", "Orders", "Stockroom", "Your account"]);
 
 /** @type {readonly Article[]} */
 export const ARTICLES = Object.freeze([
@@ -92,7 +92,7 @@ export const ARTICLES = Object.freeze([
   },
   {
     id: "stock-places",
-    topic: "Your stockroom",
+    topic: "Stockroom",
     question: "Some of my copies are at a market stall. Can the stockroom track that?",
     answer: [
       "Yes. Open a product in the stockroom and choose the Move between places button on its dashboard. Pick where the copies are now, where they are going and how many. Type a new place name the first time, such as Studio or Market stall.",
@@ -191,7 +191,7 @@ export const ARTICLES = Object.freeze([
   },
   {
     id: "bring-books",
-    topic: "Moving your shop",
+    topic: "Bringing your shop over",
     question: "How do I bring my books over from my old shop?",
     answer: [
       "Bring your shop with you. In your old shop, export your products as a file. Don't change the file.",
@@ -203,7 +203,7 @@ export const ARTICLES = Object.freeze([
   },
   {
     id: "bring-customers",
-    topic: "Moving your shop",
+    topic: "Bringing your shop over",
     question: "How do I bring my customers over?",
     answer: [
       "Export your customer list from your old shop. Here, open Customers and press Bring customers over.",
@@ -215,7 +215,7 @@ export const ARTICLES = Object.freeze([
   },
   {
     id: "old-links",
-    topic: "Moving your shop",
+    topic: "Bringing your shop over",
     question: "Will links to my old shop still work?",
     answer: [
       "Yes, for your books. When you bring books over from your old shop's export, each book's old address is saved as a redirect to the same book here.",
@@ -227,7 +227,7 @@ export const ARTICLES = Object.freeze([
   },
   {
     id: "moving-checklist",
-    topic: "Moving your shop",
+    topic: "Bringing your shop over",
     question: "What can I bring over from my old shop, and in what order?",
     answer: [
       "Everything below is optional, and each step is safe to repeat: bringing the same file twice adds nothing twice. Most old shops let you export each list as a CSV file from their settings or reports.",
@@ -246,7 +246,7 @@ export const ARTICLES = Object.freeze([
   },
   {
     id: "switch-day",
-    topic: "Moving your shop",
+    topic: "Bringing your shop over",
     question: "What do I do on the day I move from my old shop?",
     answer: [
       "Move once your new shop is open and you have placed a practice order. Doing it in this order means shoppers are never left without a shop.",
@@ -262,7 +262,7 @@ export const ARTICLES = Object.freeze([
   },
   {
     id: "own-address",
-    topic: "Moving your shop",
+    topic: "Bringing your shop over",
     question: "Can my shop use my own web address?",
     answer: [
       "Yes. While you set up, open Settings › General and choose I already have a domain under Your web address. Type it, like yourpress.com, and we find where you bought it. Nothing changes for your old site yet.",
@@ -439,7 +439,7 @@ export const ARTICLES = Object.freeze([
   },
   {
     id: "fairs",
-    topic: "Your stockroom",
+    topic: "Stockroom",
     question: "How do I sell at a fair or a market?",
     answer: [
       "Open the stockroom on your phone and go to Event POS. Add each sale as you make it.",
@@ -449,7 +449,7 @@ export const ARTICLES = Object.freeze([
   },
   {
     id: "stock-everywhere",
-    topic: "Your stockroom",
+    topic: "Stockroom",
     question: "How do I keep my stock right on the website and in the stockroom?",
     answer: [
       "Link them once in Inventory › Inventory app link. Press Check connection, then match each book on the website to the same book in the stockroom.",
