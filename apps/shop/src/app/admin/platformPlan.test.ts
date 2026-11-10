@@ -1,7 +1,7 @@
 // The shop's plan in the admin (plan 6.6, 6.7): the banner per state, Settings › Plan's facts, and which plans lock the
 // admin to Plan & billing.
 import { describe, expect, it } from "vitest";
-import { daysLeft, parsePlatformPlan, planBanner, planFacts, planLocked, type PlatformPlan } from "./platformPlan";
+import { daysLeft, parsePlatformPlan, planBanner, planFacts, planLocked, trialPill, type PlatformPlan } from "./platformPlan";
 
 const NOW = Date.parse("2026-11-05T15:00:00.000Z");
 const DAY = 86400_000;
@@ -25,13 +25,16 @@ describe("the plan banner, per state", () => {
     expect(planBanner(plan({ state: "paused", access: "paused", changing: { adding: ["stockroom"], closing: null } }), NOW)?.title).toBe("Your shop is paused.");
   });
   it("trial with no card: days left and Add a card", () => {
-    expect(planBanner(plan(), NOW)).toMatchObject({ tone: "info", title: "Free trial: 9 days left.", action: "Add a card" });
-    expect(planBanner(plan({ trialEnd: new Date(NOW + 2.5 * DAY).toISOString() }), NOW)).toMatchObject({ tone: "warning", title: "Free trial: 3 days left." });
-    expect(planBanner(plan({ trialEnd: new Date(NOW + 3 * 3600_000).toISOString() }), NOW)?.title).toBe("Free trial: last day.");
+    expect(planBanner(plan(), NOW)).toMatchObject({ tone: "info", title: "Your free trial ends 14 November 2026 (9 days).", action: "Add a card" });
+    expect(planBanner(plan({ trialEnd: new Date(NOW + 5 * DAY).toISOString() }), NOW)?.tone).toBe("warning");
+    expect(planBanner(plan({ trialEnd: new Date(NOW + 2.5 * DAY).toISOString() }), NOW)).toMatchObject({ tone: "danger" });
+    expect(planBanner(plan({ trialEnd: new Date(NOW + 3 * 3600_000).toISOString() }), NOW)?.title).toMatch(/\(last day\)\.$/);
+    expect(trialPill(plan(), NOW)).toBe("Free trial · 9 days left");
+    expect(trialPill(plan({ state: "active", hasCard: true }), NOW)).toBeNull();
   });
   it("trial with a card: the first payment, and no request for a card", () => {
     const b = planBanner(plan({ hasCard: true, nextPaymentAt: new Date(NOW + 9 * DAY).toISOString() }), NOW);
-    expect(b).toMatchObject({ tone: "info", title: "Free trial: 9 days left.", action: "See your plan" });
+    expect(b).toMatchObject({ tone: "info", title: "Your free trial ends 14 November 2026 (9 days).", action: "See your plan" });
     expect(b?.detail).toMatch(/first payment is on 14 November 2026/);
   });
   it("a declined payment", () => {
