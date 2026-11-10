@@ -6,11 +6,15 @@ import { Globe } from "lucide-react";
 import { PrimaryButton, SecondaryButton, TextField } from "./riso/components";
 import { useShopWords } from "./shopWords";
 
-export interface OldShopFile { host: string; csv: string; notes: string[] }
+export interface OldShopFile {
+  host: string; csv: string; notes: string[];
+  /** Products not sold out, and whether the old shop showed how many it has of each (setup's tile uses these). */
+  forSale?: number; stockShown?: boolean;
+}
 
 export function OldShopAddressForm({ read, onRead, disabled = false, primary = true, label }: {
   read: (address: string) => Promise<OldShopFile>;
-  onRead: (file: File, notes: string[]) => void | Promise<void>;
+  onRead: (file: File, notes: string[], answer: OldShopFile) => void | Promise<void>;
   disabled?: boolean;
   /** The main action on its page (setup) or beside a file button (Books › Import). */
   primary?: boolean;
@@ -28,7 +32,7 @@ export function OldShopAddressForm({ read, onRead, disabled = false, primary = t
     setReading(true); setError("");
     try {
       const answer = await read(address.trim());
-      await onRead(new File([answer.csv], `${answer.host} products.csv`, { type: "text/csv" }), answer.notes);
+      await onRead(new File([answer.csv], `${answer.host} products.csv`, { type: "text/csv" }), answer.notes, answer);
     } catch (err) {
       setError(err instanceof Error ? err.message : "That didn't work. Try again.");
     } finally {
@@ -42,6 +46,7 @@ export function OldShopAddressForm({ read, onRead, disabled = false, primary = t
       <TextField label="Your old shop's web address" placeholder="yourshop.com" inputMode="url" autoComplete="url" value={address}
         hint={w("We read the books your old shop shows the public. You'll see them all before anything is kept.")}
         error={error || undefined} onChange={(e) => setAddress(e.target.value)} />
+      {reading && <p className="rp-hint" role="status" style={{ margin: 0 }}>Reading your shop. A big one can take up to a minute.</p>}
       <div><Button type="submit" icon={<Globe size={16} aria-hidden />} busy={reading} disabled={reading || disabled || !address.trim()}>{label ?? w("Bring my books over")}</Button></div>
     </form>
   );

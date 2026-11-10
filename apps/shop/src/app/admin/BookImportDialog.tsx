@@ -203,7 +203,7 @@ export function BookImportDialog({ books, onClose, onDone, initialFile }: {
           {/* Plan 23.11: the same address box as setup's Books page, for products found after the shop opened. */}
           {!fileName && <div className="rp-stack" style={{ borderTop: "var(--rp-hair) solid var(--rp-border)", paddingTop: 12 }}>
             <p className="rp-hint" style={{ margin: 0 }}>{w("Or bring your books straight from your old shop's web address: no file needed.")}</p>
-            <OldShopAddressForm read={readOldShopAddress} onRead={choose} disabled={busy} primary={false} />
+            <OldShopAddressForm read={readOldShopAddress} onRead={(file, notes) => choose(file, notes)} disabled={busy} primary={false} />
           </div>}
         </>}
 

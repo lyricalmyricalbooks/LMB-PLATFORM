@@ -9,6 +9,12 @@ import { request as httpsRequest } from "node:https";
 export const MAX_BYTES = 5 * 1024 * 1024;
 export const TIMEOUT_MS = 15_000;
 const MAX_REDIRECTS = 3;
+const RETRIES = 2;
+const BUSY = [429, 502, 503, 504];
+const wait = (ms, signal) => new Promise((resolve, reject) => {
+  const timer = setTimeout(resolve, ms);
+  signal?.addEventListener("abort", () => { clearTimeout(timer); reject(new Error("aborted")); }, { once: true });
+});
 
 /** True for an https address on a public host name. */
 export function publicHttps(url) {
@@ -67,7 +73,7 @@ function pinnedGet(url, { address, signal, accept = "application/json", request 
       const header = (name) => { const v = res.headers?.[name]; return Array.isArray(v) ? v.join(", ") : v ? String(v) : ""; };
       if ([301, 302, 303, 307, 308].includes(status) || status < 200 || status >= 300) {
         res.destroy();
-        resolve({ status, location: header("location"), type: "", body: Buffer.alloc(0) });
+        resolve({ status, location: header("location"), retryAfter: header("retry-after"), type: "", body: Buffer.alloc(0) });
         return;
       }
       const parts = [];
@@ -90,14 +96,19 @@ function pinnedGet(url, { address, signal, accept = "application/json", request 
  * One careful read of `url`: the final answer { status, type, body } after following up to three checked moves. Throws
  * only when the site can't be reached safely or in time.
  */
-async function getPublic(url, { get = pinnedGet, lookup = defaultLookup, timeoutMs = TIMEOUT_MS, accept } = {}) {
+async function getPublic(url, { get = pinnedGet, lookup = defaultLookup, timeoutMs = TIMEOUT_MS, accept, waitScale = 1 } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     let current = url;
     for (let hop = 0; ; hop += 1) {
       const address = await checkAddress(current, lookup);
-      const res = await get(current, { address, signal: controller.signal, ...(accept ? { accept } : {}) });
+      let res = await get(current, { address, signal: controller.signal, ...(accept ? { accept } : {}) });
+      // A busy site that asks us to slow down is asked again, at most twice, after a short wait.
+      for (let again = 1; again <= RETRIES && BUSY.includes(res.status); again++) {
+        await wait(Math.min(Number(res.retryAfter) || again, 3) * 1000 * waitScale, controller.signal);
+        res = await get(current, { address, signal: controller.signal, ...(accept ? { accept } : {}) });
+      }
       if (![301, 302, 303, 307, 308].includes(res.status)) return res;
       if (!res.location || hop >= MAX_REDIRECTS) throw new Error("too many moves");
       current = new URL(res.location, current).href;

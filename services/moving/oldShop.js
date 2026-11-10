@@ -120,6 +120,18 @@ export function fromPermalinkList(items, origin) {
   });
 }
 
+/**
+ * A store-list product's stock: "0" when sold out; the count when the shop keeps one (it shows as how many can go in
+ * one basket, or as "only N left"); else "" (not public).
+ */
+function storeStock(p) {
+  if (p.is_in_stock === false) return "0";
+  const low = Number(p.low_stock_remaining);
+  if (Number.isInteger(low) && low >= 0) return String(low);
+  const most = Number(p.add_to_cart?.maximum);
+  return p.sold_individually !== true && Number.isInteger(most) && most > 1 && most < 9999 ? String(most) : "";
+}
+
 /** Products from the store list (prices in minor units; choices whose prices aren't public stay one version, with a note). */
 export function fromStoreList(items, origin, notes) {
   let withChoices = 0;
@@ -133,7 +145,7 @@ export function fromStoreList(items, origin, notes) {
       handle: text(p.slug).toLowerCase(), title: text(p.name), html: text(p.description) || text(p.short_description),
       type: (Array.isArray(p.categories) ? p.categories : []).map((c) => text(c?.name)).filter(Boolean)[0] || "",
       tags: (Array.isArray(p.tags) ? p.tags : []).map((t) => text(t?.name)).filter(Boolean), options: [],
-      versions: [{ picks: [], sku: text(p.sku), grams: "", stock: p.is_in_stock === false ? "0" : "", price: now, was: Number(regular) > Number(now) ? regular : "" }],
+      versions: [{ picks: [], sku: text(p.sku), grams: "", stock: storeStock(p), price: now, was: Number(regular) > Number(now) ? regular : "" }],
       photos: (Array.isArray(p.images) ? p.images : []).map((i) => https(i?.src, origin)).filter(Boolean),
       oldPath: pathOf(p.permalink, origin),
     };
@@ -215,18 +227,35 @@ async function fromSiteMap(origin, input, { getJson, getText, getPage, notes, sh
 
 /** The products as a product file in the one-line-per-edition layout. */
 export function productsCsv(products) {
-  return [HEADINGS.join(","), ...products.flatMap(rowsOf)].join("\n") + "\n";
+  // An old shop can give two products the same stock code; the shop needs each code once, so a repeat is left blank
+  // (the product still comes over) rather than leaving the second product out.
+  const codes = new Set();
+  const once = products.map((p) => ({ ...p, versions: p.versions.map((v) => {
+    const code = text(v.sku).trim().toLowerCase();
+    if (!code) return v;
+    if (codes.has(code)) return { ...v, sku: "" };
+    codes.add(code);
+    return v;
+  }) }));
+  return [HEADINGS.join(","), ...once.flatMap(rowsOf)].join("\n") + "\n";
 }
 
 /**
  * Every item of a paged list, each once (by `keyOf`): a site that ignores the page number answers the same page again,
- * so a page that brings nothing new ends the list rather than repeating every product up to the cap.
+ * so a page that brings nothing new ends the list rather than repeating every product up to the cap. A later page that
+ * can't be read (the site stopped answering, or asked us to slow down) keeps what was read and calls `onCut`.
  */
-async function pages(first, next, read, keyOf) {
+async function pages(first, next, read, keyOf, onCut = () => {}) {
   const items = [];
   const seen = new Set();
   for (let page = 1; page <= MAX_PAGES; page++) {
-    const batch = read(await (page === 1 ? first : next(page)));
+    let raw;
+    if (page === 1) raw = await first;
+    else {
+      try { raw = await next(page); } catch { raw = null; }
+      if (raw == null) { onCut(items.length); break; }
+    }
+    const batch = read(raw);
     if (!batch) return page === 1 ? null : items;
     const fresh = batch.filter((item) => { const key = text(keyOf(item)).toLowerCase(); if (key && seen.has(key)) return false; seen.add(key); return true; });
     items.push(...fresh);
@@ -252,15 +281,16 @@ export async function readOldShop(input, { getJson = publicJson, getText = getJs
   let stockShown = false;
   const listUrl = (page) => `${origin}/products.json?limit=${PAGE_SIZE}&page=${page}`;
   const storeUrl = (page) => `${origin}/wp-json/wc/store/v1/products?per_page=${PAGE_SIZE}&page=${page}`;
+  const cut = (n) => notes.push(`Your old shop stopped answering after ${n} products. Try again in a few minutes, or bring its product file for the rest.`);
   try {
     const first = await getJson(listUrl(1));
     let products = null;
     if (Array.isArray(first?.products)) {
-      products = fromProductsList(await pages(first, (n) => getJson(listUrl(n)), (j) => (Array.isArray(j?.products) && j.products.length ? j.products : null), (p) => p?.handle) ?? [], origin);
+      products = fromProductsList(await pages(first, (n) => getJson(listUrl(n)), (j) => (Array.isArray(j?.products) && j.products.length ? j.products : null), (p) => p?.handle, cut) ?? [], origin);
     } else if (Array.isArray(first) && first.some((p) => p && "permalink" in p)) {
-      products = fromPermalinkList(await pages(first, (n) => getJson(listUrl(n)), (j) => (Array.isArray(j) && j.length ? j : null), (p) => p?.permalink) ?? [], origin);
+      products = fromPermalinkList(await pages(first, (n) => getJson(listUrl(n)), (j) => (Array.isArray(j) && j.length ? j : null), (p) => p?.permalink, cut) ?? [], origin);
     } else {
-      const store = await pages(getJson(storeUrl(1)), (n) => getJson(storeUrl(n)), (j) => (Array.isArray(j) && j.length && j.some((p) => p && "slug" in p) ? j : null), (p) => p?.slug);
+      const store = await pages(getJson(storeUrl(1)), (n) => getJson(storeUrl(n)), (j) => (Array.isArray(j) && j.length && j.some((p) => p && "slug" in p) ? j : null), (p) => p?.slug, cut);
       if (store) products = fromStoreList(store, origin, notes);
       else {
         const page = await storePageItems(origin, shopPath(input), getJson);
@@ -269,8 +299,11 @@ export async function readOldShop(input, { getJson = publicJson, getText = getJs
       }
     }
     if (!products?.length) return { ok: false, message: NOTHING_FOUND };
+    if (products.every((p) => p.versions.every((v) => v.stock !== ""))) stockShown = true;
     notes.push(stockShown ? "Stock counts came from your old shop's pages. Check them before you open." : "Stock counts aren't shown publicly, so check how many you have of each before you open.");
-    return { ok: true, host, csv: productsCsv(products), products: products.length, notes };
+    // Products not sold out: the tile shows these when the old shop doesn't show how many it has.
+    const forSale = products.filter((p) => !p.versions.length || p.versions.some((v) => v.stock !== "0")).length;
+    return { ok: true, host, csv: productsCsv(products), products: products.length, forSale, stockShown, notes };
   } catch {
     return { ok: false, message: UNREACHABLE };
   }
