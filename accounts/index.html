@@ -14,11 +14,19 @@
 <link rel="stylesheet" href="./look/platform-pages.css">
 <link rel="stylesheet" href="./look/brand-logos.css">
 <script src="./look/platform-look.js"></script>
+<style>
+  /* Signed out (design handoff "Colophon platform", sign in): the signed-out menu, and the story tile's line at its foot. */
+  #nav-out, body:has(#view-signin:not([hidden])) #nav-in { display: none; }
+  body:has(#view-signin:not([hidden])) #nav-out { display: flex; }
+  .cp #view-signin .cp-story { display: grid; align-content: space-between; gap: 24px; }
+  .cp #view-signin .gsi-button { min-height: 48px; border-radius: 999px; }
+</style>
 </head>
 <body class="cp">
 <a class="rp-skip-link" href="#main">Skip to content</a>
 <header class="cp-mast"><div class="cp-wrap"><a class="cp-word" href="/account/">Colophon<small>your account</small></a>
-  <nav aria-label="Colophon"><a href="/account/" aria-current="page">Your shops</a><a href="/help/">Help</a><span class="cp-avatar" id="topbar-who" role="img"></span></nav></div></header>
+  <nav aria-label="Colophon" id="nav-in"><a href="/account/" aria-current="page">Your shops</a><a href="/help/">Help</a><span class="cp-avatar" id="topbar-who" role="img"></span></nav>
+  <nav aria-label="Colophon" id="nav-out"><a href="/pricing">Pricing</a><a href="/help/">Help</a><a href="/account/" aria-current="page">Sign in</a><a class="cp-nav-cta" href="/join/">Start free trial</a></nav></div></header>
 <div class="cp-wrap">
 <main id="main" tabindex="-1" class="cp-main">
   <h1 class="rp-sr-only">Your shops</h1>
