@@ -252,3 +252,35 @@ test("each shop carries the shared server's key, so the platform's services take
   assert.equal(row.serviceKeyHash, hash);
   assert.equal(row.status, "live");
 });
+
+test("step 9 puts the free address on the shared site, waits while Google secures it, then checks and opens the shop", async () => {
+  const services = fakeServices();
+  const registry = fakeRegistry();
+  const auditLog = fakeAuditLog();
+  let state = "securing";
+  const asked = [];
+  const addresses = { async connectFreeAddress(shopId) { asked.push(shopId); return { name: `${shopId}.shops.example`, state }; } };
+  const steps = sharedShopSteps({ ...services, google: fakeTenants(), shared: fakeShared(), registry, addresses, config: CONFIG });
+  const run = () => runSteps({ shop: PRESS, steps, registry, auditLog });
+
+  const first = await run();
+  assert.equal(first.ok, false);
+  assert.equal(first.waiting, true);
+  assert.equal(first.failedStep, 9);
+  assert.match(first.error, /still being secured/);
+  assert.equal((await registry.getShop(PRESS.shopId)).status, "creating", "not live before its address works");
+
+  state = "live";
+  assert.equal((await run()).ok, true);
+  assert.deepEqual(asked, [PRESS.shopId, PRESS.shopId]);
+  assert.equal((await registry.getShop(PRESS.shopId)).status, "live");
+});
+
+test("an address another Firebase project holds stops step 9 for a person", async () => {
+  const registry = fakeRegistry();
+  const addresses = { connectFreeAddress: async (shopId) => ({ name: `${shopId}.shops.example`, state: "conflict" }) };
+  const steps = sharedShopSteps({ ...fakeServices(), google: fakeTenants(), shared: fakeShared(), registry, addresses, config: CONFIG });
+  const result = await runSteps({ shop: PRESS, steps, registry, auditLog: fakeAuditLog() });
+  assert.equal(result.waiting, undefined);
+  assert.match(result.error, /a person looks at it/);
+});

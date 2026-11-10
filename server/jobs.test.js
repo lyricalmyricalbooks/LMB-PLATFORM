@@ -82,5 +82,7 @@ test("with the shared system's two settings, the shop-maker job runs and its sch
   assert.equal(answer.body.run.ok, true);
   assert.ok(waitingJobs(TEST_ENV)["shop-maker"]);
   assert.equal(waitingJobs(shared)["shop-maker"], undefined);
-  assert.ok(waitingJobs(shared)["web-addresses"], "the others still wait");
+  assert.equal(waitingJobs(shared)["web-addresses"], undefined, "web addresses need no deploy there");
+  assert.ok(waitingJobs(TEST_ENV)["web-addresses"]);
+  assert.ok(waitingJobs(shared)["self-checks"], "the others still wait");
 });

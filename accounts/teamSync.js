@@ -30,7 +30,7 @@
 //   auditLog      ready(shopId); write(shopId, id, entry)
 import { createHash } from "node:crypto";
 import { ROLES } from "./roles.js";
-import { leftOut } from "../services/release-runner/rings.js";
+import { notLive } from "../services/release-runner/rings.js";
 import { serviceKeyMatches } from "../services/email/http.js";
 
 const EMAIL = /^[^\s@<>"',;/]+@[^\s@<>"',;/]+\.[^\s@<>"',;/]+$/;
@@ -93,7 +93,7 @@ export function createTeamSync({ memberships, registry, shopData, auditLog, role
   /** Every live shop, one at a time; one shop's failure never stops the others. */
   async function syncAll() {
     const results = [];
-    for (const row of (await registry.listShops()).filter((r) => !leftOut(r))) {
+    for (const row of (await registry.listShops()).filter((r) => !notLive(r))) {
       try {
         results.push(await syncShop(row.shopId));
       } catch (error) {

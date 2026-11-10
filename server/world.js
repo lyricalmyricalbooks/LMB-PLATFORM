@@ -28,6 +28,7 @@
 //   POST /api/billing/events     Stripe's events for the platform's own account (billing.handleEvent; raw body)
 //   *    /api/payments/...       the payment service's doors (services/payments/http.js: /shop, /stripe/events, Square)
 //   POST /api/email/shop         a shop sending an email through the platform (services/email/http.js)
+//   *    /api/domains/...        a shop's web addresses (services/domains/http.js: POST /shop, GET /allowed), in the shared system
 //   GET  /tips/off, /checkup/off the emails' "turn off" pages
 //
 // What can't be real yet answers plainly that it isn't switched on (server/notConnected.js; listed in README.md).
@@ -66,6 +67,9 @@ import { createRepairQueue } from "../control-room/repairs.js";
 import { createApi } from "../signup/api.js";
 import { createShopMaker } from "../signup/shopMaker.js";
 import { SHARED_STEP_PLAN, sharedShopRun } from "../setup/real.js";
+import { sharedBuckets, shopStores } from "../clients/shared.js";
+import { firestoreUsageMeters, runUsageMeters } from "../services/usage/meters.js";
+import { monitoringUsage, storageUsage, usageSources } from "../services/usage/sources.js";
 import { createSignup } from "../signup/signup.js";
 import { createBillingFromEnv, readBillingConfig } from "../services/billing/index.js";
 import { createPaymentWay } from "../services/billing/paymentWay.js";
@@ -109,7 +113,7 @@ import { createTrialTips } from "../services/trial-tips/index.js";
 import { createCheckups, makeInspector } from "../services/checkup/index.js";
 import { firestoreClient } from "../clients/firestore.js";
 import { firestoreAuditLog, firestoreRegistry } from "../clients/registry.js";
-import { STOCKROOM_DATABASE, registryFiles, shopDataClient, stockroomDataClient } from "../clients/shop.js";
+import { registryFiles, shopDataClient, stockroomDataClient } from "../clients/shop.js";
 import {
   firestoreAccounts, firestoreActivity, firestoreBreaches, firestoreDeliveryStats, firestoreDevices, firestoreIncomeHistory, firestoreInvites,
   firestoreJobRuns, firestorePlatformState, firestoreRecoveries, firestoreRepairs, firestoreSentLog, firestoreShopNotes, firestoreSupport, firestoreWaitlist,
@@ -125,6 +129,8 @@ import { createIdTokenVerifier } from "./verifyIdToken.js";
 import { NOT_CONNECTED, notConnectedClient, notConnectedFn, notConnectedPage } from "./notConnected.js";
 import { resolveTxt } from "node:dns/promises";
 import { sellerLookupClient } from "../services/domains/sellers.js";
+import { sharedDomainService } from "../services/domains/hosted.js";
+import { handleDomains } from "../services/domains/http.js";
 
 export const DEFAULT_PROJECT = "lmb-platform-prod";
 
@@ -152,10 +158,10 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const nowMs = () => now().getTime();
   const settings = platformSettings(env);
 
-  // The platform project's database, and each shop's own (its default database and its stockroom's named one).
+  // The platform project's database, and each shop's (its folder in the shared project once SHARED_SHOPS_PROJECT is set,
+  // clients/shared.js shopStores; else its own project's default database and its stockroom's named one).
   const platform = firestoreClient({ fetch, token, projectId });
-  const shopDb = (shopProject) => firestoreClient({ fetch, token, projectId: shopProject });
-  const stockroomDb = (shopProject) => firestoreClient({ fetch, token, projectId: shopProject, database: STOCKROOM_DATABASE });
+  const { shared, shopDb, stockroomDb } = shopStores({ env, fetch, token });
   const platformState = firestorePlatformState(platform);
   const live = () => liveSettings({ env, store: platformState });
 
@@ -216,9 +222,14 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   // setup is connected when its shop is ready (shopMaker.js connectAddresses; the free address too, with freeAddress and platformZone on the domain service).
   // The shared system (docs/shared-system.md, step 6): with SHARED_SHOPS_PROJECT and SHARED_SHOPS_DOMAIN set, a shop is a
   // few writes in the shared project, made in seconds; without them, making shops stays not switched on.
-  const sharedRun = sharedShopRun({ env, fetch, token, payments: setupClient(payments), email, settings, registryFirestore: platform });
+  // Web addresses (services/domains/hosted.js): on with the shared system, where nothing is deployed per shop. The shop
+  // maker puts a new shop's free address on the shared site (step 9) and connects the domain it brought in setup once
+  // it is ready (shopMaker.js connectAddresses).
+  const presses = firestoreFrontDoorStores(platform).presses;
+  const domains = sharedDomainService({ env, fetch, token, shared, registry, auditLog, payments, email, presses, sellers: domainLookup, settings, now });
+  const sharedRun = sharedShopRun({ env, fetch, token, payments: setupClient(payments), email, settings, registryFirestore: platform, addresses: domains });
   const shopMaker = sharedRun
-    ? createShopMaker({ signups: stores.signups, run: sharedRun, registry, repairs, line: signup, billing, steps: SHARED_STEP_PLAN, now })
+    ? createShopMaker({ signups: stores.signups, run: sharedRun, registry, repairs, line: signup, billing, steps: SHARED_STEP_PLAN, presses, domains, now })
     : createShopMaker({ signups: stores.signups, run: notConnectedFn(NOT_CONNECTED.shopMaking), registry, repairs, line: signup, billing, now });
 
   // Accounts, and the control room.
@@ -318,7 +329,17 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const shopSocial = createShopSocial({ admins, registry, social: null, now });
   const salesChannels = createSalesChannels({ admins, registry, shopData, stockroomData, now });
   // The billing export to BigQuery isn't on yet (19.15): the Costs page shows its "not on yet" state.
-  const costsDesk = createCostsDesk({ registry, reader: createCostReader({}), settings: live, admins, now });
+  const costReader = createCostReader({});
+  const costsDesk = createCostsDesk({ registry, reader: costReader, settings: live, admins, now });
+  // Each shop's use in the shared system (services/usage): the daily usage-meters job writes it, running costs bill by it.
+  const sharedProject = String(env.SHARED_SHOPS_PROJECT ?? "").trim();
+  const usageMeters = sharedRun ? firestoreUsageMeters(platform) : null;
+  const usage = sharedRun ? {
+    run: () => runUsageMeters({
+      registry, meters: usageMeters, costs: costReader, sharedProject, now,
+      sources: usageSources({ monitoring: monitoringUsage({ fetch, token, projectId: sharedProject }), storage: storageUsage({ fetch, token, buckets: sharedBuckets(env) }), sentLog }),
+    }),
+  } : null;
   const dataExports = createDataExports({
     shopData, stockroomData, storage: notConnectedClient(NOT_CONNECTED.exportFiles, ["write", "signedUrl"]), store: dataExportStore, registry, auditLog, activity, email,
     roleIn: (who, shopId) => accounts.roleIn(who, shopId), admins, now,
@@ -336,7 +357,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const closing = createClosingSweep({ registry, auditLog, billing, email, projects: notConnectedClient(NOT_CONNECTED.projectDeletion, ["deleteProject"]), settings, now: nowMs });
 
   // What the jobs can run (server/jobs.js reads these); the jobs page's "Run now" runs the ones that need nothing more.
-  const parts = { sharedShops: Boolean(sharedRun), chitchats, chitchatsStores, env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups };
+  const parts = { sharedShops: Boolean(sharedRun), domains, usage, usageMeters, costReader, chitchats, chitchatsStores, env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups };
   const runNow = {
     "dropped-apps": () => billing.closeDroppedApps(),
     "every-app": () => billing.giveEveryApp(),
@@ -423,6 +444,10 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     if (path === "/api/payments" || path.startsWith("/api/payments/")) return handlePayments({ ...request, path: path.slice("/api/payments".length) || "/" }, { service: payments });
     if (path === "/api/apps/v1" || path.startsWith("/api/apps/v1/")) return appConnection(request);
     if (path === "/api/email/shop") return handleShopEmail(request, { service: email, registry, sentLog });
+    if (path === "/api/domains" || path.startsWith("/api/domains/")) {
+      if (!domains) return { status: 503, body: { error: { code: "not_connected", message: NOT_CONNECTED.domains.words } } };
+      return handleDomains({ ...request, path: path.slice("/api/domains".length) || "/" }, { service: domains });
+    }
     if (path === "/tips/off" || path === "/checkup/off") {
       if (request.method !== "GET") return { status: 405, body: { ok: false, message: "Open the link from the email." } };
       return path === "/tips/off" ? offPage(trialTips, NOT_CONNECTED.trialTips, request) : offPage(checkups, NOT_CONNECTED.checkups, request);

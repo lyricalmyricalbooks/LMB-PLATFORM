@@ -4,14 +4,16 @@
 // The rules name no owner: every shop lives in its own folder, shops/<id>, and the rules read the owner's address and the
 // shop's sign-in list from that shop's record, which only the platform writes. So one set of rules serves every shop and
 // nothing is filled in per shop. This step copies them to `.deploy/`, refusing any that still name an address, and writes a
-// `firebase.deploy.json` that points at them and at the project's Hosting site. Deploy with
-//   node scripts/deployConfig.mjs --project <project id>
+// `firebase.deploy.json` that points at them and at the project's Hosting site, whose front door addresses go to the
+// functions' own region. Deploy with
+//   node scripts/deployConfig.mjs --project <project id> [--region <functions region>]
 //   npx firebase-tools deploy --config firebase.deploy.json --project <project id> --only …
 // Generated files are git-ignored. firebase.json stays the template (the test shop's values), which the emulators,
 // scripts/hosting-smoke.mjs and scripts/hostingConfig.test.ts read.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { profileValue } from "./shopProfile.mjs";
 
 export const OUT_DIR = ".deploy";
 export const CONFIG_FILE = "firebase.deploy.json";
@@ -60,8 +62,11 @@ export function frontDoorHosting(hosting, region) {
   };
 }
 
-/** firebase.json for one project: its own Hosting site and the checked rules. Everything else as the template. */
-export function buildFirebaseConfig(template, projectId, { region = "us-central1" } = {}) {
+/**
+ * firebase.json for one project: its own Hosting site and the checked rules. Everything else as the template. `region`
+ * is where the functions run; it has no default, because a front door pointed at another region answers nothing.
+ */
+export function buildFirebaseConfig(template, projectId, { region } = {}) {
   if (!PROJECT.test(projectId || "")) throw new Error(`"${projectId}" isn't a Firebase project id.`);
   const config = JSON.parse(JSON.stringify(template));
   if (!config.firestore || !config.storage || !config.hosting) throw new Error("firebase.json needs firestore, storage and hosting.");
@@ -73,8 +78,8 @@ export function buildFirebaseConfig(template, projectId, { region = "us-central1
 }
 
 /** Writes .deploy/*.rules and firebase.deploy.json under `root`. Returns the paths written. */
-export function writeDeployFiles({ root, projectId }) {
-  const config = buildFirebaseConfig(JSON.parse(readFileSync(join(root, "firebase.json"), "utf8")), projectId);
+export function writeDeployFiles({ root, projectId, region }) {
+  const config = buildFirebaseConfig(JSON.parse(readFileSync(join(root, "firebase.json"), "utf8")), projectId, { region });
   const rules = RULE_FILES.map(file => [file, checkRules(readFileSync(join(root, file), "utf8"))]);
   mkdirSync(join(root, OUT_DIR), { recursive: true });
   const written = [];
@@ -87,13 +92,23 @@ export function writeDeployFiles({ root, projectId }) {
   return written;
 }
 
+/**
+ * Where the functions run, read as they read it: `--region`, else SHOP_FUNCTIONS_REGION, else the shop profile's
+ * functionsRegion (the deploy writes SHOP_FUNCTIONS_REGION from it; functions/shopConfig.js).
+ */
+export function functionsRegion(argv = [], env = process.env, fromProfile = () => profileValue("functionsRegion")) {
+  const at = argv.indexOf("--region");
+  return (at >= 0 ? argv[at + 1] : "") || String(env.SHOP_FUNCTIONS_REGION ?? "").trim() || fromProfile();
+}
+
 function main(argv) {
   const at = argv.indexOf("--project");
   const projectId = at >= 0 ? argv[at + 1] : "";
   const root = join(dirname(fileURLToPath(import.meta.url)), "..");
   try {
-    const written = writeDeployFiles({ root, projectId });
-    console.log(`Deploy files for ${projectId}: ${written.join(", ")}`);
+    const region = functionsRegion(argv);
+    const written = writeDeployFiles({ root, projectId, region });
+    console.log(`Deploy files for ${projectId} (functions in ${region}): ${written.join(", ")}`);
     return 0;
   } catch (err) {
     console.error(`${err.message} Nothing usable was written; don't deploy.`);

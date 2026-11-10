@@ -19,6 +19,18 @@ import { randomUUID } from "node:crypto";
 
 export const LOCK_MINUTES = 60;
 
+/**
+ * A step that can't finish yet for a reason that passes on its own (Google still securing a new web address) throws
+ * this: the run stops there as `waiting`, not failed, and the shop maker tries again later without counting a failure.
+ */
+export class StepWaiting extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "StepWaiting";
+    this.waiting = true;
+  }
+}
+
 /** Checks a list of steps: numbered 1, 2, 3… with no gaps or repeats, each with a name, check and act. */
 export function stepProblems(steps) {
   const problems = [];
@@ -41,6 +53,7 @@ export function stepProblems(steps) {
  * - `already-done`: its check passed before it acted, so it did nothing.
  * - `done-before`: the registry records it as done in an earlier run, so it was not run again.
  * - `failed`: its check, its act, or the check after acting failed. The run stops here.
+ * - `waiting`: the step threw a StepWaiting (something that passes on its own). The run stops here with `waiting: true`.
  * `again` lists step numbers to look at anew even when an earlier run did them: the run resumes at the first of them.
  * Dry runs use `would-run` instead of acting and write nothing. `locked: true` means another run held the shop, so this
  * one stopped without acting or recording anything.
@@ -146,11 +159,12 @@ async function runLocked({ shop, steps, registry, auditLog, dryRun, print, now, 
         status = "done";
       }
     } catch (error) {
-      const entry = { step: step.number, name: step.name, status: "failed", startedAt, finishedAt: now().toISOString(), error: message(error) };
+      const waiting = error?.waiting === true;
+      const entry = { step: step.number, name: step.name, status: waiting ? "waiting" : "failed", startedAt, finishedAt: now().toISOString(), error: message(error) };
       await record(entry);
-      print(`${label}: failed: ${entry.error}`);
-      ran.push({ step: step.number, name: step.name, status: "failed" });
-      return { ok: false, ran, failedStep: step.number, error: entry.error };
+      print(`${label}: ${waiting ? "waiting" : "failed"}: ${entry.error}`);
+      ran.push({ step: step.number, name: step.name, status: entry.status });
+      return { ok: false, ran, failedStep: step.number, error: entry.error, ...(waiting ? { waiting: true } : {}) };
     }
 
     // The registry only knows "done": whether the step acted this time is kept in the audit detail.

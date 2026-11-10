@@ -47,6 +47,10 @@ import { latestByStep } from "../setup/runner.js";
 export const AUTO_TRIES = 3;
 export const BACKOFF_MINUTES = Object.freeze([1, 5, 15]);
 export const RETRY_GAP_SECONDS = 30;
+/** A step that is waiting on something that passes on its own (setup/runner.js StepWaiting) is looked at this often. */
+export const WAIT_MINUTES = 5;
+/** And a person is told once it has waited this long. */
+export const WAIT_FOR_A_PERSON_MS = 24 * 60 * 60_000;
 
 /** What each setup step is doing, in the press's words (setup/steps.js, later-steps.js, payments.js). */
 export const STEP_WORDS = Object.freeze({
@@ -150,7 +154,7 @@ export function createShopMaker({ signups, run, registry, repairs = null, selfCh
 
     if (result.ok) {
       const profile = await registry.getProfile(shopId);
-      row = { ...row, status: "ready", readyAt: at(), siteUrl: profile?.siteUrl ?? `https://${shopId}.web.app`, openUrl: openUrlOf(profile, shopId), builtPlan: plan, failedStep: null, error: null };
+      row = { ...row, status: "ready", readyAt: at(), siteUrl: profile?.siteUrl ?? `https://${shopId}.web.app`, openUrl: openUrlOf(profile, shopId), builtPlan: plan, failedStep: null, error: null, waitingSince: null, waitReportedAt: null };
       // Earlier trouble is over; then the self-checks look at the new shop (2.11). Their problems go to the repair
       // queue, never to the press's page, so they can't hold the press up.
       if (repairs?.passed) await repairs.passed(shopId, "shop-maker");
@@ -175,6 +179,20 @@ export function createShopMaker({ signups, run, registry, repairs = null, selfCh
     } else if (result.locked) {
       // Another run holds the shop (only after a crash, until its lock lapses): look again shortly.
       row = { ...row, status: "waiting", attempts: attempts - 1, nextTryAt: later(BACKOFF_MINUTES[0]), message: "Still working on it. We'll carry on in a minute.", canRetry: false };
+    } else if (result.waiting) {
+      // Something that passes on its own (Google securing the shop's new web address): no failure is counted, the
+      // press is told plainly, and the sweep looks again in a few minutes. A person hears only if it lasts past a day.
+      const waitingSince = row.waitingSince ?? at();
+      const tooLong = now().getTime() - Date.parse(waitingSince) >= WAIT_FOR_A_PERSON_MS;
+      row = {
+        ...row, status: "waiting", attempts: attempts - 1, waitingSince, failedStep: result.failedStep ?? null, error: result.error ?? null, canRetry: false,
+        nextTryAt: later(WAIT_MINUTES),
+        message: "Your shop is made. Google is now securing its web address, which usually takes a few minutes and at most a few hours. It opens by itself, and we'll email you when it does.",
+      };
+      if (tooLong && !row.waitReportedAt && repairs) {
+        await repairs.report({ shopId, check: "shop-maker", problem: `step ${result.failedStep} has waited over a day`, detail: result.error });
+        row.waitReportedAt = at();
+      }
     } else if (retryable(result.error)) {
       const doing = words[result.failedStep] ?? "setting up your shop";
       const auto = attempts < AUTO_TRIES;

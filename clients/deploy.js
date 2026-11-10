@@ -55,6 +55,17 @@ export function bothAppsIn(script) {
   }
 }
 
+/** The profile's functions region (functionsRegion), or "" when the script has none or can't be read. */
+export function functionsRegionIn(script) {
+  const json = /window\.__SHOP_PROFILE__\s*=\s*([\s\S]*?);?\s*$/.exec(String(script ?? ""))?.[1];
+  try {
+    const region = JSON.parse(json ?? "null")?.functionsRegion;
+    return typeof region === "string" && /^[a-z]+-[a-z]+[0-9]{1,2}$/.test(region) ? region : "";
+  } catch {
+    return "";
+  }
+}
+
 /** Replace `to` with a copy of the folder `from`. */
 async function copyFolder(from, to) {
   await rm(to, { recursive: true, force: true });
@@ -85,8 +96,11 @@ export function deployClient({ fetch, token, run, buildDir, ownerEmailOf, profil
     const cwd = join(buildDir(version), "apps", app);
     const projectId = args[args.indexOf("--project") + 1];
     if (typeof ownerEmailOf !== "function") throw new Error("the deploy client needs ownerEmailOf to fill in the shop's rules");
-    if (app === "stockroom") await writeText(join(cwd, "public", "shop-profile.js"), await profileFor(projectId));
-    await run("node", ["scripts/deployConfig.mjs", "--project", projectId], { cwd, env: { SHOP_OWNER_EMAIL: await ownerEmailOf(projectId) } });
+    const profile = await profileFor(projectId);
+    if (app === "stockroom") await writeText(join(cwd, "public", "shop-profile.js"), profile);
+    // The shop's deployConfig points the front door at the functions' region; the build's own profile is the template's.
+    const region = functionsRegionIn(profile);
+    await run("node", ["scripts/deployConfig.mjs", "--project", projectId], { cwd, env: { SHOP_OWNER_EMAIL: await ownerEmailOf(projectId), ...(region ? { SHOP_FUNCTIONS_REGION: region } : {}) } });
     if (prepare) await prepare(cwd);
     await run("firebase", [...args, "--config", "firebase.deploy.json", "--non-interactive", "--force"], { cwd });
   };

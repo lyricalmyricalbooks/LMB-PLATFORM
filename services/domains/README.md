@@ -1,5 +1,10 @@
 # Domain service
 
+**In the shared system** (`docs/shared-system.md`) the service runs on the hosted server (`hosted.js`, `/api/domains`)
+for shops with `shared: true` only. Their addresses also go in the front door's address book (`addresses/{host}`, before
+Hosting serves them, out after), and steps 3 and 7 below write the shop's record (`server`, `profile`) instead of a
+settings file and a deploy (`domains.js` `syncRecord`). Everything else below is the same.
+
 A press puts their shop on their own web address from the shop's settings (code plan 2.9). Plain Node 22 ES modules,
 no packages; tests use a pretend Firebase Hosting and a pretend deploy (`domains.test.js`, `fakes.js`).
 

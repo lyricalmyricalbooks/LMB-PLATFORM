@@ -5,19 +5,29 @@
 // Exports go to backups/<day>/ in the shop's bucket (clients/google.js `backups.run`), next to the shop's own. Each one
 // is written on the registry row (`platformBackup: { shopAt?, stockroomAt? }`, read by the backup check in checks.js)
 // and as a registry event. A failed export is an event too; the five-minute run's backup check then alerts on it.
+// In the shared system (docs/shared-system.md) the export is of the shared project, made once for all its shops.
 //
 //   runNightlyBackups({ registry, backups, shopDb, now, print })
 import { STOCKROOM_DATABASE } from "../../clients/shop.js";
 import { appsOf } from "../../setup/later-steps.js";
-import { leftOut } from "../release-runner/rings.js";
+import { notLive } from "../release-runner/rings.js";
 
 export const STAND_IN_HOURS = 22;
 
 const message = (error) => (error instanceof Error ? error.message : String(error));
 
 export async function runNightlyBackups({ registry, backups, shopDb, now = () => new Date(), print = () => {}, stockroomDatabase = STOCKROOM_DATABASE }) {
-  const rows = (await registry.listShops()).filter((row) => !leftOut(row));
+  const rows = (await registry.listShops()).filter((row) => !notLive(row));
   const results = [];
+  // A shop in the shared system has no project of its own: one export of the shared project's database covers every
+  // shop in it, so it runs once a night and each shop's row records it (a failure is each one's failure too).
+  const exports = new Map();
+  const exportOnce = (row, database) => {
+    const project = row.shared === true ? row.projectId : row.shopId;
+    const key = `${project} ${database}`;
+    if (!exports.has(key)) exports.set(key, backups.run(project, { database }));
+    return exports.get(key);
+  };
   for (const row of rows) {
     const apps = appsOf(row);
     const done = {};
@@ -32,7 +42,7 @@ export async function runNightlyBackups({ registry, backups, shopDb, now = () =>
     for (const [field, database] of jobs) {
       const at = now().toISOString();
       try {
-        const { name } = await backups.run(row.shopId, { database });
+        const { name } = await exportOnce(row, database);
         done[field] = at;
         await registry.recordEvent(row.shopId, { id: `backup-${at}-${field}`, kind: "backup", database, ok: true, folder: name, at });
       } catch (error) {

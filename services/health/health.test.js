@@ -231,3 +231,26 @@ test("a checkout error burst raises one alert and is remembered between runs", a
   await run();
   assert.deepEqual(sent.map((m) => [m.data.check, m.data.state]), [["errors", "failing"], ["errors", "recovered"]]);
 });
+
+test("in the shared system, the checks reach each shop at its own address and through the shared server", async () => {
+  const shared = row("press-alpha", { projectId: "lmb-test-shop", shared: true, freeAddress: "press-alpha.shops.example", region: "northamerica-northeast1" });
+  const pages = [];
+  const asked = [];
+  const w = world({ pages: (url) => { pages.push(url); return 200; }, checkout: (url) => { asked.push(url); return { status: 204, allow: "same" }; }, docs: { "press-alpha": goodBackup() } });
+  const result = await checkShop(shared, healthChecks(w), { now: () => new Date(NOW) });
+  assert.deepEqual(result.pages, { ok: true });
+  assert.deepEqual(pages, ["https://press-alpha.shops.example", "https://press-alpha.shops.example/admin", "https://press-alpha.shops.example/shop-profile.js", "https://press-alpha.shops.example/stockroom"]);
+  assert.deepEqual(asked, ["https://northamerica-northeast1-lmb-test-shop.cloudfunctions.net/createStripeCheckoutSession?shop=press-alpha"]);
+});
+
+test("in the shared system, one export of the shared project's databases a night covers every shop in it", async () => {
+  const registry = fakeRegistry();
+  const shared = (id) => row(id, { projectId: "lmb-test-shop", shared: true });
+  for (const r of [shared("press-alpha"), shared("press-bravo")]) await registry.createShop(r.shopId, r);
+  const runs = [];
+  const backups = { run: async (projectId, { database }) => { runs.push([projectId, database]); return { name: "backups/2026-10-28/" }; } };
+  const result = await runNightlyBackups({ registry, backups, shopDb: world({ docs: { "press-alpha": goodBackup() } }).shopDb, now: () => new Date(NOW) });
+  // Bravo's own copy missed a night: the shared database is exported once, and the stockroom's once, for both shops.
+  assert.deepEqual(runs, [["lmb-test-shop", "stockroom"], ["lmb-test-shop", "(default)"]]);
+  assert.deepEqual(result.shops, [{ shopId: "press-alpha", backedUp: ["stockroomAt"], failed: [] }, { shopId: "press-bravo", backedUp: ["shopAt", "stockroomAt"], failed: [] }]);
+});

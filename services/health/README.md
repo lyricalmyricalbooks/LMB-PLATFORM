@@ -46,7 +46,8 @@ an event too. The next five-minute run's backup check then alerts on it.
 `node services/health/run.js drill` restores the latest backup of one live shop into a scratch database (`drill-<day>`, in
 the shop's own project), counts its books, orders and reviews there and in the live shop, writes `restoreDrill` on the
 row and the check `drill` (so a failure shows as a shop with a problem and sends the usual `health-alert` email), and
-removes the scratch database. Counts match when within 10% (at least 5 documents); an empty restore of a shop with
+removes the scratch database. A shop in the shared system is drilled from the shared project's nightly export, and only
+its own folder (`shops/<id>/…`) is counted, in the scratch copy and in the live database. Counts match when within 10% (at least 5 documents); an empty restore of a shop with
 documents always fails. It does nothing when the last drill, of any shop, was under 28 days ago; the shop drilled longest
 ago goes next. Nothing in the live shop is written, and only a database named `drill-<day>` is ever removed.
 

@@ -301,3 +301,38 @@ test("the press's own domain from setup is connected once the shop is ready, as 
   assert.equal(stores.signups.rows.get("moth-press").freeAddress.name, "moth-press.shops.example");
   assert.ok(stores.signups.rows.get("ink-press").ownDomain.doneAt, "no domain brought: nothing more to do");
 });
+
+test("a step waiting on Google to secure the address: no failure counted, plain words, looked at again, a person after a day", async () => {
+  const { WAIT_MINUTES } = await import("./shopMaker.js");
+  let clock = Date.parse("2026-11-10T12:00:00Z");
+  const stores = fakeSignupStores();
+  const registry = fakeRegistry();
+  const reported = [];
+  let waits = 2;
+  const run = async () => (waits-- > 0
+    ? { ok: false, waiting: true, failedStep: 9, error: "the shop's address moth-press.shops.example is still being secured (securing)" }
+    : { ok: true, ran: [] });
+  const maker = createShopMaker({ signups: stores.signups, run, registry, repairs: { report: async (r) => void reported.push(r) }, now: () => new Date(clock) });
+  stores.signups.rows.set("moth-press", { shopId: "moth-press", accountId: "uid-ada", status: "queued", pressName: "Moth Press", plan: "both" });
+  await registry.createShop("moth-press", { shopId: "moth-press", status: "creating" });
+
+  let row = await maker.make("moth-press");
+  assert.equal(row.status, "waiting");
+  assert.equal(row.attempts, 0, "waiting isn't a failed try");
+  assert.equal(row.canRetry, false);
+  assert.equal(row.nextTryAt, new Date(clock + WAIT_MINUTES * 60_000).toISOString());
+  assert.match(row.message, /Your shop is made\. Google is now securing its web address/);
+  assert.doesNotMatch(row.message, /step|securing \(/, "no machine words for the press");
+
+  // A day later it is still waiting: a person is told, once.
+  clock += 25 * 60 * 60_000;
+  row = await maker.make("moth-press");
+  assert.equal(row.status, "waiting");
+  assert.equal(reported.length, 1);
+  assert.match(reported[0].problem, /waited over a day/);
+
+  row = await maker.make("moth-press");
+  assert.equal(row.status, "ready");
+  assert.equal(row.waitingSince, null);
+  assert.equal(reported.length, 1);
+});

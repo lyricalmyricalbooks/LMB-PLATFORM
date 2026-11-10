@@ -19,7 +19,12 @@ async function setup({ rows = [row("press-a"), row("press-b")], restored = {}, l
       restoreScratch: async (id) => { calls.push(["restore", id]); if (failRestore) throw new Error("PERMISSION_DENIED"); return { database: "drill-2026-11-03" }; },
       removeScratch: async (id, db) => { calls.push(["remove", id, db]); if (failRemove) throw new Error("busy"); },
     },
-    firestore: { count: async (id, db, collection) => (db === "(default)" ? live[id]?.[collection] ?? 50 : restored[id]?.[collection] ?? 50) },
+    firestore: {
+      count: async (id, db, collection, { parent } = {}) => {
+        calls.push(["count", id, db, collection, parent ?? null]);
+        return db === "(default)" ? live[id]?.[collection] ?? 50 : restored[id]?.[collection] ?? 50;
+      },
+    },
     notify: { sendPlatform: async (message) => { if (failSend) throw new Error("mail down"); alerts.push(message); } },
     config: { alertTo: "alerts@example.com" },
     now: () => NOW,
@@ -41,7 +46,7 @@ test("a good backup passes: one shop is restored, counted and cleaned up, and th
   const w = await setup();
   const result = await w.run();
   assert.deepEqual([result.ran, result.ok, result.shopId], [true, true, "press-a"]);
-  assert.deepEqual(w.calls, [["restore", "press-a"], ["remove", "press-a", "drill-2026-11-03"]]);
+  assert.deepEqual(w.calls.filter(([k]) => k !== "count"), [["restore", "press-a"], ["remove", "press-a", "drill-2026-11-03"]]);
   const saved = (await w.registry.getShop("press-a")).restoreDrill;
   assert.equal(saved.ok, true);
   assert.deepEqual(Object.keys(saved.counts), DRILL_COLLECTIONS);
@@ -110,4 +115,17 @@ test("an alert that can't be sent is left to try again, not lost", async () => {
   const w = await setup({ restored: { "press-a": { orders: 10 } }, failSend: true });
   await w.run();
   assert.equal((await w.registry.getShop("press-a")).health.checks.drill.alertedAt, undefined);
+});
+
+// The shared system (docs/shared-system.md): the shared project's export is restored, and the shop's own folder counted.
+test("a shop in the shared system is drilled from the shared project's export, counting only its own folder", async () => {
+  const shared = (shopId) => row(shopId, { shared: true, projectId: "press-two" });
+  const w = await setup({ rows: [shared("moth-press"), shared("other")], backups: ["press-two"] });
+  const result = await w.run();
+  assert.deepEqual([result.ran, result.ok, result.shopId], [true, true, "moth-press"]);
+  assert.deepEqual(w.calls.filter(([k]) => k !== "count"), [["restore", "press-two"], ["remove", "press-two", "drill-2026-11-03"]]);
+  const counts = w.calls.filter(([k]) => k === "count");
+  assert.equal(counts.length, 6);
+  assert.ok(counts.every(([, project, , , parent]) => project === "press-two" && parent === "shops/moth-press"), "never another shop's folder, never the root");
+  assert.equal((await w.registry.getShop("moth-press")).restoreDrill.ok, true);
 });

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import { join } from "node:path";
 import assert from "node:assert/strict";
-import { bothAppsIn, deployClient, rulesStamp, siteOf, stampedRules } from "./deploy.js";
+import { bothAppsIn, deployClient, functionsRegionIn, rulesStamp, siteOf, stampedRules } from "./deploy.js";
 import { scriptedFetch, token } from "./fake-fetch.js";
 
 const P = "lmb-test-shop";
@@ -72,6 +72,16 @@ test("the live pages' release comes from the latest Hosting release message", as
   assert.equal(await deploy.deployed(P, "pages:shop"), null);
   await assert.rejects(deploy.deployed(P, "pages:other"), /unknown deploy part/);
   fetch.done();
+});
+
+// The shared system's front door sends each shop's addresses to the functions (apps/shop/scripts/deployConfig.mjs); the
+// build's own profile is the template's, so the region comes from the profile this deploy is for.
+test("each app's deploy config gets the functions' region from the profile being deployed", async () => {
+  const { deploy, configs } = setup([], { profile: 'window.__SHOP_PROFILE__={"functionsRegion":"northamerica-northeast1","apps":{"shop":true,"stockroom":true}};' });
+  await deploy.rules(P, { version: "1.2.3", apps: ["shop", "stockroom"] });
+  assert.deepEqual(configs.map((c) => c.env), [0, 1].map(() => ({ SHOP_OWNER_EMAIL: "owner@example.com", SHOP_FUNCTIONS_REGION: "northamerica-northeast1" })));
+  assert.equal(functionsRegionIn('window.__SHOP_PROFILE__={"functionsRegion":"nowhere"}'), "");
+  assert.equal(functionsRegionIn("not a profile"), "");
 });
 
 test("rules deploy each plan app's rules from the release's build folder, with the owner filled in and the release stamped", async () => {

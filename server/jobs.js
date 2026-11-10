@@ -31,7 +31,7 @@ export const RUNNERS = Object.freeze({
   "health-checks": ({ parts }) => () => health(parts, "checks"),
   // The shared system makes shops once its two settings are there (server/world.js sharedShopRun).
   "shop-maker": ({ shopMaker, parts }) => (parts?.sharedShops ? () => shopMaker.sweep() : notConnectedFn(NOT_CONNECTED.shopMaking)),
-  "web-addresses": () => notConnectedFn(NOT_CONNECTED.domains),
+  "web-addresses": ({ parts }) => (parts?.domains ? () => parts.domains.checkAll() : notConnectedFn(NOT_CONNECTED.domains)),
   "own-email-addresses": ({ parts }) => () => createOwnDomainSender({
     resendDomains: resendDomainsFromEnv({ env: parts.env, fetch: parts.fetch }), registry: parts.registry, auditLog: parts.auditLog,
     // Only a shop that started its own address has anything to check, and starting one needs the domain service.
@@ -45,6 +45,8 @@ export const RUNNERS = Object.freeze({
   // Every shop gets the website and the stockroom (10 November 2026): shops on an older plan move to it.
   "every-app": ({ billing }) => () => billing.giveEveryApp(),
   // Pay what you use: needs a way to read each shop's cost (the billing export or the shared system's meters).
+  // The shared system's per-shop meters (services/usage), written before the running costs read them.
+  "usage-meters": ({ parts }) => (parts?.usage ? () => parts.usage.run() : notConnectedFn(NOT_CONNECTED.usageMeters)),
   "running-costs": ({ billing, parts }) => (parts?.costReader?.configured || parts?.usageMeters
     ? () => runRunningCosts({ billing, registry: parts.registry, meters: parts.usageMeters ?? null, reader: parts.costReader ?? null, now: parts.now })
     : notConnectedFn(NOT_CONNECTED.runningCosts)),
@@ -74,12 +76,15 @@ export const WAITING_JOBS = Object.freeze({
   "self-checks": NOT_CONNECTED.selfChecks,
   bookkeeping: NOT_CONNECTED.bookkeeping,
   "running-costs": NOT_CONNECTED.runningCosts,
+  "usage-meters": NOT_CONNECTED.usageMeters,
 });
 
-/** The jobs still waiting with the server's settings (server/env.yaml): the shared system makes shops (sharedShopRun). */
+/** The jobs still waiting with the server's settings (server/env.yaml). */
 export function waitingJobs(env = {}) {
   const shared = Boolean(String(env.SHARED_SHOPS_PROJECT ?? "").trim() && String(env.SHARED_SHOPS_DOMAIN ?? "").trim());
-  return Object.fromEntries(Object.entries(WAITING_JOBS).filter(([name]) => !(shared && name === "shop-maker")));
+  // With the shared system on, it makes shops, meters each one's use and bills running costs by those meters.
+  const on = new Set(shared ? ["shop-maker", "usage-meters", "running-costs", "web-addresses"] : []);
+  return Object.fromEntries(Object.entries(WAITING_JOBS).filter(([name]) => !on.has(name)));
 }
 
 /** The run function for one job in this world. */

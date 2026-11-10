@@ -44,6 +44,13 @@ fix. `--dry-run` prints the rings and changes nothing.
 Data changes (plan 4.2) run before the new server code and must keep working with the previous release's code,
 because a rollback only puts code back. Each is recorded in the shop, so a re-run or a rollback never repeats one.
 
+## The shared system
+
+Shops in the shared system (`shared: true`, `docs/shared-system.md`) are left out of the rings above: they all live in
+one project, so `shared.js` sends a release to the shared test project, then to the live shared project, and then draws
+each shop's pages again. `run-shared.js` runs it for real (`SHARED_SHOPS_TEST_PROJECT`, `SHARED_SHOPS_PROJECT`,
+`PLATFORM_URL`, `RELEASE_BUILD_ROOT`; `--dry-run` lists the projects and their shops and changes nothing).
+
 ## Running it for real
 
 Needs Julian's go-ahead and the platform project and shops folder (`docs/test-shop.md`, steps 1–2):

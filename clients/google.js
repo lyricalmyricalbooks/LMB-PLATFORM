@@ -193,9 +193,14 @@ export function googleClients({ fetch, token, sleep, today = () => new Date().to
           query: { updateMask: "pointInTimeRecoveryEnablement" }, body: { pointInTimeRecoveryEnablement: "POINT_IN_TIME_RECOVERY_ENABLED" },
         }), FIRESTORE_ADMIN);
       },
-      /** How many documents a collection holds (an aggregation count), for the restore drill (plan 13.5). */
-      async count(projectId, databaseId, collection) {
-        const answer = await call("POST", `${FIRESTORE_ADMIN}/projects/${projectId}/databases/${databaseId}/documents:runAggregationQuery`, {
+      /**
+       * How many documents a collection holds (an aggregation count), for the restore drill (plan 13.5). `parent` is
+       * the document the collection sits under: a shop's folder `shops/<id>` in the shared system; none at the root.
+       */
+      async count(projectId, databaseId, collection, { parent } = {}) {
+        if (parent !== undefined && !/^shops\/[a-z0-9][a-z0-9-]{0,62}$/.test(parent)) throw new Error(`"${parent}" isn't a shop's folder`);
+        const at = parent ? `documents/${parent}` : "documents";
+        const answer = await call("POST", `${FIRESTORE_ADMIN}/projects/${projectId}/databases/${databaseId}/${at}:runAggregationQuery`, {
           body: { structuredAggregationQuery: { structuredQuery: { from: [{ collectionId: collection }] }, aggregations: [{ alias: "n", count: {} }] } },
         });
         return Number(answer?.[0]?.result?.aggregateFields?.n?.integerValue ?? 0);

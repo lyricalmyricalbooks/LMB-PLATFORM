@@ -5,17 +5,29 @@
 // on the platform and has no registry row. The runner checks each shop's project is in the platform's shops folder
 // before it deploys anything to it, too.
 
-/** Why a registry row is left out of the release, in plain words, or null when it is in. */
-export function leftOut(row, { exclude = [] } = {}) {
+/**
+ * Why a registry row isn't a live shop the platform looks after (health checks, backups, team sync), in plain words, or
+ * null when it is one. A shop in the shared system (`shared: true`, docs/shared-system.md) lives in the shared
+ * project, so its project id is that project's, not its shop id.
+ */
+export function notLive(row, { exclude = [] } = {}) {
   if (!row?.shopId) return "the row has no shop id";
   if (exclude.includes(row.shopId)) return "held back for this release";
   if (row.status !== "live") return `not live (${row.status ?? "no status"}); the shop maker finishes it first`;
   // Its row stays "live" after the closing sweep deletes the project (services/billing/closing.js): a deploy there
   // fails, and would stop the release for every shop after it. A closed shop still gets releases: it can open again.
   if (row.closing?.stage === "deleted") return "deleted when its plan ended; there is nothing left to send to";
-  if (row.projectId && row.projectId !== row.shopId) return `its project ${row.projectId} isn't the shop id; a person looks at it`;
+  if (row.shared !== true && row.projectId && row.projectId !== row.shopId) return `its project ${row.projectId} isn't the shop id; a person looks at it`;
   if (row.testShop === true && row.testMode !== true) return "a test shop that isn't in test mode; a person looks at it";
   return null;
+}
+
+/**
+ * Why a registry row is left out of a per-project release, in plain words, or null when it is in. A shop in the shared
+ * system has no project of its own to deploy to: it gets the shared project's release.
+ */
+export function leftOut(row, options = {}) {
+  return notLive(row, options) ?? (row.shared === true ? "in the shared system: it gets the shared project's release" : null);
 }
 
 /**

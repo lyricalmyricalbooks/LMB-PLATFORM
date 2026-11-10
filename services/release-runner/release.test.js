@@ -259,3 +259,12 @@ test("rolling one shop back by hand: built, deployed, checked and recorded with 
   assert.deepEqual([busy.ok, busy.status], [false, "busy"]);
   assert.equal(world.live.get("press-alpha")["pages:shop"], "1.1.0");
 });
+
+test("a shop in the shared system is a live shop the platform looks after, but gets no per-project release", async () => {
+  const { leftOut, notLive, planRings } = await import("./rings.js");
+  const shared = { shopId: "press-a", projectId: "lmb-test-shop", shared: true, status: "live" };
+  assert.equal(notLive(shared), null);
+  assert.match(leftOut(shared), /shared project's release/);
+  assert.match(notLive({ shopId: "press-b", projectId: "other", status: "live" }), /isn't the shop id/);
+  assert.deepEqual(planRings([shared]).skipped, [{ shopId: "press-a", reason: "in the shared system: it gets the shared project's release" }]);
+});

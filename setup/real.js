@@ -22,7 +22,7 @@ import { identityClient, testOwnerSession } from "../clients/identity.js";
 import { firestoreAuditLog, firestoreRegistry } from "../clients/registry.js";
 import { firestoreFrontDoorStores } from "../clients/platformStores.js";
 import { STOCKROOM_DATABASE, inventoryLinkClient, registryFiles, shopDataClient, siteCheckClient, stockroomClient } from "../clients/shop.js";
-import { sharedStores } from "../clients/shared.js";
+import { liveDatabaseUrl, sharedStores } from "../clients/shared.js";
 import { REGION } from "./steps.js";
 import { TEST_STARTER_CONTENT } from "./test-shop.js";
 import { LINK_DOC } from "./later-steps.js";
@@ -79,10 +79,10 @@ export function realSetupClients({ fetch, token, run, buildDir, registryFirestor
  * project (`projectId`), reached through its folder (clients/shared.js); the registry in the platform project as above.
  * The shop's own server calls go to the shared server with `?shop=<id>`.
  */
-export function realSharedClients({ fetch, token, projectId, region = REGION, registryFirestore, paymentService, emailService, serviceAccount, sleep, stagedFiles = null }) {
+export function realSharedClients({ fetch, token, projectId, env = {}, region = REGION, registryFirestore, paymentService, emailService, serviceAccount, sleep, stagedFiles = null }) {
   const platform = registryFirestore ?? firestoreClient({ fetch, token, projectId: PLATFORM_PROJECT });
   const registry = firestoreRegistry(platform);
-  const shared = sharedStores({ fetch, token, projectId, databaseUrl: `https://${projectId}-default-rtdb.firebaseio.com` });
+  const shared = sharedStores({ fetch, token, projectId, databaseUrl: liveDatabaseUrl(projectId, env) });
   const identity = identityClient({ fetch, token });
   const sessions = new Map();
   const session = async (shopId) => {
@@ -175,12 +175,12 @@ export function folderInventoryLink({ shopData, stockroomRecords, now = () => ne
  * while `SHARED_SHOPS_PROJECT` and `SHARED_SHOPS_DOMAIN` aren't set (making shops then stays "not switched on").
  * The maker's settings (the shared project's web app) are read once, on the first shop, and again after a failure.
  */
-export function sharedShopRun({ env = {}, fetch, token, payments = null, email = null, settings = {}, registryFirestore, stagedFiles = null, sleep, version = "1.0.0" }) {
+export function sharedShopRun({ env = {}, fetch, token, payments = null, email = null, settings = {}, registryFirestore, stagedFiles = null, addresses = null, sleep, version = "1.0.0" }) {
   const projectId = String(env.SHARED_SHOPS_PROJECT ?? "").trim();
   const shopDomain = String(env.SHARED_SHOPS_DOMAIN ?? "").trim();
   if (!projectId || !shopDomain) return null;
   const clients = realSharedClients({
-    fetch, token, projectId, registryFirestore, sleep, stagedFiles,
+    fetch, token, projectId, env, registryFirestore, sleep, stagedFiles,
     paymentService: payments, emailService: email, serviceAccount: env.PLATFORM_SERVICE_ACCOUNT || undefined,
   });
   let config = null;
@@ -190,7 +190,7 @@ export function sharedShopRun({ env = {}, fetch, token, payments = null, email =
     return config;
   };
   return async (shop, options = {}) => runSteps({
-    shop, steps: sharedShopSteps({ ...clients, config: await configNow() }), registry: clients.registry, auditLog: clients.auditLog, ...options,
+    shop, steps: sharedShopSteps({ ...clients, addresses, config: await configNow() }), registry: clients.registry, auditLog: clients.auditLog, ...options,
   });
 }
 

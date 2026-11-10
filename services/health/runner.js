@@ -3,7 +3,7 @@
 //
 //   runHealth({ registry, checks, notify, config: { alertTo }, now, print })
 //
-// - Shops come only from the registry (live rows; services/release-runner/rings.js `leftOut`), so the owner's own
+// - Shops come only from the registry (live rows; services/release-runner/rings.js `notLive`), so the owner's own
 //   original shop, which has no row, is never checked.
 // - The row's `health` is { checkedAt, ok, checks: { <name>: { ok, detail?, since, failures, alertedAt?,
 //   recoveryUnsent? } } }; the
@@ -11,7 +11,7 @@
 // - Alerts: pages and checkout must fail CONFIRM_RUNS runs in a row before an alert (one slow answer is not an
 //   outage); webhook and backup alert at once, since their records already span hours. A failing check is reminded
 //   every REMIND_HOURS, and its recovery is announced once. An alert that couldn't be sent is tried again next run.
-import { leftOut } from "../release-runner/rings.js";
+import { notLive } from "../release-runner/rings.js";
 import { checkShop } from "./checks.js";
 
 export const CONFIRM_RUNS = { pages: 2, checkout: 2, webhook: 1, errors: 1, backup: 1 };
@@ -37,7 +37,7 @@ export function nextState(name, previous, result, at) {
 
 export async function runHealth({ registry, checks, notify, config = {}, now = () => new Date(), print = () => {} }) {
   if (!config.alertTo) throw new Error("the health run needs an address to send alerts to (HEALTH_ALERT_TO)");
-  const rows = (await registry.listShops()).filter((row) => !leftOut(row));
+  const rows = (await registry.listShops()).filter((row) => !notLive(row));
   const summary = [];
   for (const row of rows) {
     const at = now().toISOString();

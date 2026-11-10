@@ -77,7 +77,7 @@ needed a Google organization before any shop could be made ("In the queue") and 
   project), make the sign-in list, write the profile (the shared web app, both apps), write the record and its copies
   in the stockroom's database and the Realtime Database, claim the free address `<id>.<shop domain>` in `addresses/`
   (an address another shop holds stops for a person), then the old maker's starter content, payments, welcome email,
-  a check that the shop and stockroom answer at the address (then live), the stockroom link and the setup hand-over.
+  the free address put on the shared site and a check that the shop and stockroom answer there (then live; it waits while Google secures the address, see Web addresses), the stockroom link and the setup hand-over.
   One server runs every shop, so it has one key for the platform's services: the secret `PLATFORM_SERVICE_KEY` in the
   shared project, made once by the shop maker when missing (`setup/serviceKey.js` `sharedServiceKeyHash`). Step 1 writes
   its hash on each shop's registry row, so the payment, email and domain services take the shared server's calls for
@@ -86,6 +86,49 @@ needed a Google organization before any shop could be made ("In the queue") and 
   never over one there); the test shop's goes through its own admin. The hosted server runs it once
   `SHARED_SHOPS_PROJECT` and `SHARED_SHOPS_DOMAIN` are in its settings (`server/world.js`, `sharedShopRun`); sign-up's
   progress screen follows these steps (`SHARED_STEP_PLAN`). Until then making shops stays "not switched on".
+- **The platform reaches each shop in its folder.** One setting, `SHARED_SHOPS_PROJECT` on the hosted server
+  (`clients/shared.js` `shopStores`), points every platform reader and writer into a shop at its folder in the shared
+  project: billing's plan copies, control-room messages, the closing sweep, accounts, health and backups. Where a shop
+  answers comes from its registry row (`shopPlaces`): its free address or own domain on the front door, the stockroom
+  under `/stockroom`, and its server functions on the shared server with `?shop=<id>` (the payment service forwards
+  Stripe and Square events there; the health checks call the checkout there). `ownAddress` (services/domains/names.js)
+  is the free address for a shared shop. A shared shop is live for health, backups and team sync
+  (`rings.js` `notLive`), but gets no per-project release (`leftOut`). The nightly backup exports the shared project's
+  two databases once for all its shops. The monthly restore drill restores that export into a scratch database and counts
+  one shop's own folder there and in the live database (`restoreDrill.js` `placeOf`), a different shop each month.
+- **Staged updates.** A release goes to a project, not a shop (`services/release-runner/shared.js`,
+  `node services/release-runner/run-shared.js <version>`): the shared test project first, then the live one
+  (`SHARED_SHOPS_PROJECT`). Each gets the stamped rules of both apps, the shared server's code with its own settings
+  (`sharedServerEnv`: the platform's doors and the region; each shop's settings stay in its record) and the one site,
+  whose front door points at the functions' own region. Then one shop answers at its own address (home, `/admin`, its
+  profile, the stockroom), and in the test project the release check passes on the test shop. A failed check puts the
+  project back on its release before and stops, so the live project never gets what the test project refused. After a
+  project passes, each of its shops' pages are drawn again from its own books (`setup/shopSite.js`); a shop whose
+  pages fail keeps its last good ones and is listed, and the release goes on. Data changes still run per project, so
+  the shared release refuses to start while the release has any. The per-project runner leaves shared shops out.
+- **Web addresses.** The domain service runs on the hosted server once the shared system is on
+  (`services/domains/hosted.js`, `/api/domains`, the `web-addresses` job). A shop's address goes in `addresses/{host}`
+  first (refused when another shop holds it), then on the shared Hosting site; letting one go takes it off the site,
+  then out of `addresses/` (only an entry that names this shop). Its server settings (`SHOP_EXTRA_ORIGINS`,
+  `SHOP_SITE_URL`) and profile (`siteUrl`) are fields of its record, which the shared server reads within 30 seconds:
+  nothing is deployed. A shop with a project of its own is refused there in plain words. The shared server calls it at
+  `PLATFORM_DOMAINS_URL` (`<platform>/api/domains`) with the shared server's key.
+  **Limit:** Firebase Hosting takes no wildcard address and only a few dozen own addresses per project, and each one
+  waits minutes to hours for its certificate. One per shop runs out at about 40 shops. A Google load balancer with a
+  wildcard certificate in front of the front door removes both limits. Julian, 10 November 2026: stay on Hosting for
+  now and switch to the load balancer at about 40 shops. Until then a new shop opens once Google has secured its free
+  address: the shop maker's step 9 puts it on the shared site and waits (`setup/runner.js` `StepWaiting`: no failure
+  counted, the press told in plain words, a look every five minutes, a person told after a day), and the owner gets
+  the "your address works" email when it does.
+- **What each shop uses (the meters).** The shared server writes one usage line per request, change and tick
+  (`functions/usageLog.js`: the shop and its time) and the front door one per page answered (the shop and its size).
+  Two log-based metrics in the shared project count them by shop (`server/setup-usage-metrics.js`, run once with `--apply`).
+  Each night `services/usage/meters.js` writes every shop's month so far to `usage/{shopId}_{YYYY-MM}` in the
+  platform's database: server time, memory time, web traffic, files kept (the bucket under `shops/<id>/`) and emails
+  sent. From the 3rd it splits last month's bill for the shared project across the shops by their use at list prices,
+  in whole cents that add up to the bill exactly, and marks the month `reconciled` (never rewritten). Until the billing
+  export is set up, the meters run and nothing is split. Database reads and writes are not counted per shop yet: their
+  cost is spread with the rest by use.
 - **Backups.** The managed Firestore export would copy every shop, so inside a shop only the server's own document copy
   runs. Its paths carry no shop folder (`books/a`), and `scripts/restore-json-backup.mjs --shop <id>` puts them back
   into that shop's folder only.
@@ -114,16 +157,12 @@ app off. The per-shop cost meters (phase 7) are what the plan charges by.
 | 4 | Per-shop sign-in (Identity Platform tenants) for customers, staff, helpers, support | built |
 | 5 | Front door: one site for every address, profile by address, crawlable pages, own domains | built |
 | 6 | Shop maker in seconds (record + tenant + starter content); ends "In the queue" | built |
-| 7 | Platform services: control room, health, per-shop costs, export, closing, backups, staged updates | next |
+| 7 | Platform services: control room, health, per-shop costs, export, closing, backups, staged updates | built |
 | 8 | Test shop rebuilt in the shared test project (`lmb-test-shop`) with a test purchase | |
 
-Left for later phases: the domain service adds an own domain to the shared Hosting site and to `addresses/` (phase 7). The platform's services still call each shop's server code at its own project's address
-(`services/payments` forwarding events, `services/health`), which phase 7 moves to the shared server with `?shop=`. A
-Shippo or PayPal webhook set up by hand needs `?shop=<id>` on its address. The tick runs every shop in one five-minute
-run; phase 7 spreads it out once there are many shops. The platform's writers into a shop (billing's `platform/plan`
-and `platform/status`, control-room messages, the closing sweep, setup's stockroom books) still address each shop's own
-project (the shop maker's own writes already reach the folder); phase 7 points them at the shop's folder in the shared project. Nothing is deployed from these copies to a live shop until
-phase 8 (the per-project test shop build is on hold).
+Left for later: a Shippo or PayPal webhook set up by hand needs `?shop=<id>` on its address. The tick runs every
+shop in one five-minute run; it is spread out once there are many shops. Nothing is deployed from these copies to a
+live shop until phase 8 (the per-project test shop build is on hold).
 
 ## Projects
 

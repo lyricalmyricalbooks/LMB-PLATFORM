@@ -29,6 +29,15 @@ function timeOf(value) {
 }
 
 /**
+ * Each shop with a project of its own, by that project. A shop in the shared system (`shared: true`) shares its
+ * project with every other shop, so the project's cost is never one shop's: its share comes from the usage meters
+ * (services/usage), and the shared project shows on its own.
+ */
+function projectsOfOwn(rows) {
+  return new Map(rows.filter((row) => row.shared !== true).map((row) => [row.projectId ?? row.shopId, row]));
+}
+
+/**
  * One month of the billing export, summed per project and currency: [{ projectId, currency, costCents, creditCents,
  * netCents }], biggest net first. `projectId` is null for a charge that belongs to no project.
  */
@@ -65,7 +74,7 @@ export function readCosts({ rows = [], period }) {
  */
 export function costReport({ rows = [], costs, settings, fees = {} }) {
   const planCurrency = settings?.currency ?? null;
-  const byProject = new Map(rows.map((row) => [row.projectId ?? row.shopId, row]));
+  const byProject = projectsOfOwn(rows);
   const shops = new Map();
   const notShops = [];
   for (const project of costs?.projects ?? []) {
@@ -120,7 +129,7 @@ export function costReport({ rows = [], costs, settings, fees = {} }) {
  * shops; a shop billed in two currencies keeps the larger.
  */
 export function costPerShop({ rows = [], costs }) {
-  const byProject = new Map(rows.map((row) => [row.projectId ?? row.shopId, row]));
+  const byProject = projectsOfOwn(rows);
   const sums = {};
   for (const project of costs?.projects ?? []) {
     const row = project.projectId ? byProject.get(project.projectId) : null;

@@ -14,12 +14,16 @@
 //    6  Starter content and the owner's admin place     (later-steps.js step 12, inside the shop's folder)
 //    7  Connect payments                                (step 13; the profile it writes goes into the record)
 //    8  Email the owner their sign-in link              (step 14)
-//    9  Check the shop answers at its address and mark it live.
+//    9  Put the free address on the shared Hosting site (`addresses`, the domain service), wait while Google secures
+//       it (the run stops as waiting and the shop maker looks again in five minutes), then check the shop answers
+//       there and mark it live.
 //   10  Turn on the stockroom link                      (step 16)
 //   11  Hand over what the press set up before opening  (step 21)
 //
 // Clients, as for shopSteps, plus `shared` (clients/shared.js sharedStores: records, stockroomRecords, liveRecords,
-// addresses) and `google` with only `authConfig` and `tenants` (clients/google.js). `shopData`, `stockroom` and
+// addresses) and `google` with only `authConfig` and `tenants` (clients/google.js), and optionally `addresses`: the
+// domain service (services/domains/hosted.js), which puts the free address on the shared Hosting site in step 9.
+// `shopData`, `stockroom` and
 // `inventoryLink` reach the shop's folder in the shared project (the caller builds them so). Config, as for shopSteps
 // (`release`, `senderEmail`, `paymentsServiceUrl`, `stripePublishableKeys`, `switchDefaults`), plus:
 //   sharedProject    the shared project's id
@@ -31,6 +35,7 @@ import { profileProblems, profileScript } from "../profile/profile.js";
 import { REGION, STOCKROOM_DATABASE, shopProblems, shopProfile } from "./steps.js";
 import { envFileText, laterSteps } from "./later-steps.js";
 import { ensureShopTenant, tenantIdOf } from "./shopTenant.js";
+import { StepWaiting } from "./runner.js";
 import { domainOrigins, normalDomain } from "../services/domains/names.js";
 
 /**
@@ -118,7 +123,7 @@ export function recordProfileFiles(records) {
   };
 }
 
-export function sharedShopSteps({ google, shared, registry, shopData, stockroom, inventoryLink, providers, email, siteCheck, presses = null, stagedFiles = null, config, now = () => new Date() }) {
+export function sharedShopSteps({ google, shared, registry, shopData, stockroom, inventoryLink, providers, email, siteCheck, presses = null, stagedFiles = null, addresses = null, config, now = () => new Date() }) {
   const { sharedProject, webApp, shopDomain, stockroomBucket, serviceKeyHash } = config ?? {};
   if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(sharedProject ?? "")) throw new Error("config.sharedProject must be the shared project's id");
   if (webApp?.projectId !== sharedProject) throw new Error("config.webApp must be the shared project's web app settings");
@@ -271,6 +276,15 @@ export function sharedShopSteps({ google, shared, registry, shopData, stockroom,
         return row?.status === "live";
       },
       async act({ shop }) {
+        // The free address goes on the shared Hosting site (and its lines in the platform's zone); Google then secures
+        // it, which takes minutes to hours: the run waits for that instead of failing (setup/runner.js StepWaiting).
+        if (addresses) {
+          const free = await addresses.connectFreeAddress(shop.shopId);
+          if (!free?.skipped && free?.state !== "live") {
+            if (free?.state === "conflict") throw new Error(`the address ${free.name} is held by another Firebase project; a person looks at it`);
+            throw new StepWaiting(`the shop's address ${free?.name ?? ""} is still being secured (${free?.state ?? "unknown"})`);
+          }
+        }
         const url = await siteUrlFor(shop);
         const failures = [];
         for (const page of [url, `${url}/admin`, `${url}/shop-profile.js`, `${url}/stockroom/`, `${url}/stockroom/shop-profile.js`]) {

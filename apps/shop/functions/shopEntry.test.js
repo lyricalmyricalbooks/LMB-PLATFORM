@@ -118,3 +118,20 @@ describe("the five-minute tick", () => {
     expect(results.filter(r => r.ok)).toHaveLength(206);
   });
 });
+
+describe("usage", () => {
+  it("writes one timed line per piece of work, by shop, even when the work throws", async () => {
+    const lines = [];
+    let t = 1000;
+    const entry = shopEntries({ rootDb: rootWith(records).rootDb, env: {}, log: quiet, now: () => t, usage: line => lines.push(line) });
+    await entry.forEvent(async () => { t += 40; })({ params: { shopId: "press-a" } });
+    const r = res();
+    await entry.forRequest(async (_req, out) => { t += 5; out.status(200).json({}); })({ query: { shop: "press-b" } }, r);
+    await expect(entry.forEvent(async () => { t += 2; throw new Error("broke"); })({ params: { shopId: "press-b" } })).rejects.toThrow("broke");
+    expect(lines).toEqual([
+      { shop: "press-a", kind: "event", ms: 40 },
+      { shop: "press-b", kind: "request", ms: 5 },
+      { shop: "press-b", kind: "event", ms: 2 },
+    ]);
+  });
+});

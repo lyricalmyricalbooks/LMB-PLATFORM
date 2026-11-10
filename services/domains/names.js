@@ -41,8 +41,13 @@ export function withExtraOrigins(text, origins) {
   return `${text.replace(/\n?$/, "\n")}${line}\n`;
 }
 
-/** The address Firebase gives every shop (`<project id>.web.app`). It always works and is never removed. */
+/**
+ * The address a shop came with, which always works and is never removed: in the shared system its free address
+ * (`<shop id>.<shops' domain>`, registry `freeAddress`, docs/shared-system.md), else the one Firebase gives its own
+ * project (`<project id>.web.app`).
+ */
 export function ownAddress(row) {
+  if (row?.shared === true && typeof row.freeAddress === "string" && row.freeAddress) return row.freeAddress;
   return `${row?.projectId ?? row?.shopId}.web.app`;
 }
 

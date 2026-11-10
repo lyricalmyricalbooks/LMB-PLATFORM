@@ -46,6 +46,7 @@
 //   deliveryStats  optional: add(shopId, kind, atIso), the control room's per-shop counts (plan 19.12): every Stripe
 //              event for a shop is counted as "payment-event", and one the service answers with a failure as
 //              "payment-event-failed" too. A counter that fails never stops the event.
+import { shopPlaces } from "../../clients/shared.js";
 import { isDeepStrictEqual } from "node:util";
 import { merchantProfile } from "../../shared/sells/sells.js";
 import { StripeApiError } from "./stripeApi.js";
@@ -207,17 +208,24 @@ function businessKind(sells) {
   return { mcc, product_description: description };
 }
 
-/** The shop's public web address for Stripe's business profile: its own site, or the Firebase address it starts on. */
+/** The shop's public web address for Stripe's business profile: its own site, or the address it starts on. */
 function shopAddress(row) {
   if (typeof row.siteUrl === "string" && /^https:\/\/[^/\s]+/.test(row.siteUrl)) return row.siteUrl;
+  if (row.shared === true) return row.freeAddress ? `https://${row.freeAddress}` : undefined;
   return /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(row.projectId ?? "") ? `https://${row.projectId}.web.app` : undefined;
 }
 
-/** Where a shop's server code receives Stripe events (the shop's `stripeWebhook` function, apps/shop functionLink). */
+/**
+ * Where a shop's server code receives Stripe events (the shop's `stripeWebhook` function, apps/shop functionLink): in
+ * the shared system the one shared server, told the shop by `?shop=` (clients/shared.js shopPlaces).
+ */
 export function shopWebhookUrl(row) {
-  const region = row?.functionsRegion || row?.region;
-  if (!/^[a-z]+-[a-z]+[0-9]{1,2}$/.test(region ?? "") || !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(row?.projectId ?? "")) return null;
-  return `https://${region}-${row.projectId}.cloudfunctions.net/stripeWebhook`;
+  if (!row?.projectId) return null;
+  try {
+    return shopPlaces(row).fn?.("stripeWebhook") ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** The default `deliver`: posts the event to the shop's webhook with an injected fetch. */
