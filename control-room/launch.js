@@ -27,29 +27,26 @@ export function walkSteps(launch) {
   const base = launch.platformUrl;
   const missing = (...ids) => ids.map((id) => launch.keys.find((k) => k.id === id)).filter((k) => k && !k.ready).map((k) => k.label);
   const signUp = launch.signupOpen ? [] : launch.invites ? ["an invite for your test address (Sign-ups)"] : ["sign-up open to anyone"];
+  // Since 10 November 2026 sign-up makes the store and stockroom at once, on a trial of both apps (#470).
   return [
     { id: "front", title: "The front page", href: `${base}/`, try: "What a press sees first. Press Start your free trial.", needs: [] },
     {
       id: "join", title: "Start a shop", href: `${base}/join/`,
-      try: "Use an address you read with +test added (you+test1@…), so it is a new press each time. The six-digit code comes by email, then four quick questions.",
-      needs: [...missing("email"), ...signUp],
-    },
-    { id: "setup", title: "The setup guide", href: `${base}/app/`, try: "Choose a look, pick Stripe or Square, and bring a product file over if you like.", needs: [] },
-    {
-      id: "billing", title: "Plan and billing", href: `${base}/account/`,
-      try: "Add a card: 4242 4242 4242 4242, any future date, any three digits. 4000 0025 0000 3155 asks the bank to confirm first.",
-      needs: missing("stripe", "billing-events"),
+      try: "Use an address you read with +test added (you+test1@…), so each try is a new press. The code comes by email, then one screen of questions and Start my free trial. The store and stockroom are made while you wait.",
+      needs: [...missing("email"), ...signUp, ...(launch.shopMaking ? [] : ["the platform's Google access, so it can make a store"])],
     },
     {
-      id: "create", title: "Create my shop", href: `${base}/app/`, try: "From the setup guide's Home. The shop is made privately; follow it on Setting up.",
-      needs: launch.shopMaking ? [] : ["the platform's Google access, so it can make a shop"],
-    },
-    {
-      id: "cards", title: "Take card payments", href: null, try: "In the new shop's admin, Settings › Payments. Connect Stripe with its test details.",
+      id: "cards", title: "Set up the store", href: null,
+      try: "Press Go to my store. Choose a look, then Settings › Payments: connect Stripe with its test details.",
       needs: missing("stripe", "connect-events"),
     },
-    { id: "open", title: "Open my shop", href: null, try: "The final check on the shop's Home, then Open my shop. Buy something with the test card.", needs: [] },
-    { id: "see", title: "See it here", href: "#setting-up", try: "The new press shows in Setting up, then in Shops. Check its emails in its record.", needs: [] },
+    {
+      id: "billing", title: "Plan and billing", href: `${base}/account/`,
+      try: "The trial covers both apps. Change the plan, or add a card: 4242 4242 4242 4242, any future date, any three digits. 4000 0025 0000 3155 asks the bank to confirm first.",
+      needs: missing("stripe", "billing-events"),
+    },
+    { id: "open", title: "Open my shop", href: null, try: "The final check on the store's Home, then Open my shop. Buy something with the test card.", needs: [] },
+    { id: "see", title: "See it here", href: "#setting-up", try: "The press shows in Setting up as Not open yet, then Open to shoppers. Its emails are in its record.", needs: [] },
   ];
 }
 

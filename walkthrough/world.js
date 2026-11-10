@@ -267,7 +267,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   });
   const notes = createShopNotes({ admins, store: fakeShopNotes(), registry, activity, now: clock.date });
   // Presses still in setup mode or opening (the Setting up page): read only.
-  const setupDesk = createSetupDesk({ admins, presses: frontDoorStores.presses, registry, now: clock.date });
+  const setupDesk = createSetupDesk({ admins, presses: frontDoorStores.presses, registry, shopData, now: clock.date });
   const signInSafety = createSignInSafety({ admins, registry, memberships: accountStores.memberships, shopAccess, now: clock.date });
   const broughtOver = createBroughtOver({ admins, registry, shopData, now: clock.date });
   const driftDesk = createDriftDesk({ admins, registry, settings, activity, now: clock.date });

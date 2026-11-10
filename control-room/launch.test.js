@@ -16,10 +16,9 @@ test("the summary counts the keys, the test shop and a way in", () => {
 test("each walkthrough step names only what it still waits for", () => {
   const needs = (l) => Object.fromEntries(walkSteps(l).map((s) => [s.id, s.needs]));
   const bare = needs(launch({ shopMaking: false }));
-  assert.deepEqual(bare.join, ["email", "an invite for your test address (Sign-ups)"]);
+  assert.deepEqual(bare.join, ["email", "an invite for your test address (Sign-ups)", "the platform's Google access, so it can make a store"]);
   assert.deepEqual(bare.billing, ["stripe", "billing-events"]);
   assert.deepEqual(bare.cards, ["stripe", "connect-events"]);
-  assert.equal(bare.create.length, 1);
   const ready = needs(launch({ signupOpen: true, keys: keys(["stripe", "connect-events", "billing-events", "email"]) }));
   assert.ok(Object.values(ready).every((n) => n.length === 0));
   const steps = walkSteps(launch());

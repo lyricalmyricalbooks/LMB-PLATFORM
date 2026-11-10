@@ -1,5 +1,7 @@
 // Presses setting up (the control room's "Setting up" page): every press that signed up at the front door (code plan
-// 18.2 to 18.8) and is still in setup mode, or has pressed Open my shop. Before this page the control room only saw a
+// 18.2 to 18.8). Since 10 November 2026 (#470) a press's store is made at sign-up with a trial of both apps, so a new
+// press is either having its store made, or has it made but not yet open to shoppers (its under-construction wall is
+// still up, setup/later-steps.js privateStart). Older records may still be in setup mode. Before this page the control room only saw a
 // press once its shop was being made, so a press that signed up and stopped at setup was invisible.
 //
 // It reads the setup records (`presses/<pressId>`, signup/pressRecord.js) and the shop registry, and changes nothing.
@@ -9,6 +11,7 @@
 // Clients passed in:
 //   presses   the front door's store (clients/platformStores.js firestoreFrontDoorStores): list() -> every record
 //   registry  the shop registry: listShops()
+//   shopData  optional: each shop's own database, to read whether the under-construction wall is still up
 import { adminOf, ControlError } from "./controlRoom.js";
 import { SETUP_EXPIRY_DAYS } from "../signup/pressRecord.js";
 import { PUBLISHES } from "../signup/form.js";
@@ -64,7 +67,18 @@ export function guideOf(record) {
  *   "stuck"       pressed Open my shop over a day ago and its shop isn't live
  *   "going-soon"  idle in setup long enough that its record is removed within 15 days
  */
-export function setupPress(record, { shop, now }) {
+/**
+ * Where the press is, in the new sign-up's words: "setup" (an older press still in setup mode), "making" (its store is
+ * being made), "not-open" (made, not open to shoppers yet), "open" (open to shoppers), or "expired".
+ */
+export function stageOf(record, shop, wallUp) {
+  if (record.status === "expired") return "expired";
+  if (shop?.status === "live") return wallUp === false ? "open" : "not-open";
+  if (record.status === "opening" || record.status === "open") return "making";
+  return "setup";
+}
+
+export function setupPress(record, { shop, now, wallUp = null }) {
   const idle = idleDays(record, now);
   const seen = Date.parse(record.lastSeenAt ?? record.createdAt ?? "");
   const removesOn = record.status === "setup" && Number.isFinite(seen) ? new Date(seen + SETUP_EXPIRY_DAYS * DAY).toISOString() : null;
@@ -78,6 +92,7 @@ export function setupPress(record, { shop, now }) {
     pressName: record.pressName || "",
     ownerEmail: record.ownerEmail ?? null,
     status: record.status,
+    stage: stageOf(record, shop, wallUp),
     plan: record.plan || "",
     sells: record.sells ? sellsWords(record.sells) : "",
     country: record.country || "",
@@ -120,14 +135,14 @@ function tally(records, field) {
 }
 
 const ORDER = { stuck: 0, "going-soon": 1 };
-const STATUS_ORDER = { setup: 0, opening: 1, open: 2, expired: 3 };
+const STAGE_ORDER = { making: 0, "not-open": 1, setup: 2, open: 3, expired: 4 };
 
 /** The page: the counts, the looks presses picked, and every press, the ones needing a look first. */
-export function setupSummary({ records, rows = [], now = Date.now() }) {
+export function setupSummary({ records, rows = [], walls = new Map(), now = Date.now() }) {
   const shops = new Map(rows.map((row) => [row.shopId, row]));
-  const presses = records.map((record) => setupPress(record, { shop: record.shopId ? shops.get(record.shopId) : null, now }));
+  const presses = records.map((record) => setupPress(record, { shop: record.shopId ? shops.get(record.shopId) : null, now, wallUp: record.shopId ? walls.get(record.shopId) ?? null : null }));
   presses.sort((a, b) => (ORDER[a.flag] ?? 9) - (ORDER[b.flag] ?? 9)
-    || (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9)
+    || (STAGE_ORDER[a.stage] ?? 9) - (STAGE_ORDER[b.stage] ?? 9)
     || String(b.lastSeenAt ?? "").localeCompare(String(a.lastSeenAt ?? "")));
   const weekAgo = now - 7 * DAY;
   const inSetup = presses.filter((p) => p.status === "setup");
@@ -137,6 +152,9 @@ export function setupSummary({ records, rows = [], now = Date.now() }) {
     signedUpThisWeek: presses.filter((p) => Date.parse(p.createdAt ?? "") >= weekAgo).length,
     opening: presses.filter((p) => p.status === "opening" && p.shopStatus !== "live").length,
     opened: presses.filter((p) => p.shopStatus === "live").length,
+    making: presses.filter((p) => p.stage === "making").length,
+    notOpenYet: presses.filter((p) => p.stage === "not-open").length,
+    openToShoppers: presses.filter((p) => p.stage === "open").length,
     stuck: presses.filter((p) => p.flag === "stuck").length,
     goingSoon: presses.filter((p) => p.flag === "going-soon").length,
     bringingShopOver: inSetup.filter((p) => p.moving === "yes").length,
@@ -146,14 +164,26 @@ export function setupSummary({ records, rows = [], now = Date.now() }) {
 }
 
 /** The page's door. Platform admins only; nothing here changes anything, so nothing asks for a reason. */
-export function createSetupDesk({ admins, presses, registry, now = () => new Date() }) {
+/** Whether each live shop's under-construction wall is up (true), down (false), or couldn't be read (null). */
+async function readWalls(records, rows, shopData) {
+  const walls = new Map();
+  if (!shopData?.get) return walls;
+  const live = new Set(rows.filter((row) => row.status === "live").map((row) => row.shopId));
+  await Promise.all(records.filter((r) => r.shopId && live.has(r.shopId)).map(async ({ shopId }) => {
+    const settings = await shopData.get(shopId, "settings/website").catch(() => undefined);
+    walls.set(shopId, settings === undefined ? null : settings?.design?.showUnderConstruction === true);
+  }));
+  return walls;
+}
+
+export function createSetupDesk({ admins, presses, registry, shopData = null, now = () => new Date() }) {
   return {
     async list(claims) {
       adminOf(claims, admins, now().getTime());
       if (!presses?.list) throw new ControlError(503, "The control room can't read the presses setting up right now.");
       const records = await presses.list();
       const rows = registry ? await registry.listShops() : [];
-      return setupSummary({ records, rows, now: now().getTime() });
+      return setupSummary({ records, rows, walls: await readWalls(records, rows, shopData), now: now().getTime() });
     },
   };
 }

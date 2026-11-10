@@ -293,7 +293,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const pressMessages = createPressMessages({ store: firestorePressMessages(platform), registry, auditLog, shopData, email, activity, admins, now });
   const notes = createShopNotes({ admins, store: firestoreShopNotes(platform), registry, activity, now });
   // Presses still in setup mode or opening (the Setting up page): read only.
-  const setupDesk = createSetupDesk({ admins, presses: firestoreFrontDoorStores(platform).presses, registry, now });
+  const setupDesk = createSetupDesk({ admins, presses: firestoreFrontDoorStores(platform).presses, registry, shopData, now });
   const signInSafety = createSignInSafety({ admins, registry, memberships: accountStores.memberships, shopAccess, now });
   const driftWatch = createDriftWatch({ registry, shopData, stockroomData, shopAccess, memberships: accountStores.memberships, email, settings, now });
   const broughtOver = createBroughtOver({ admins, registry, shopData, now });
