@@ -50,3 +50,9 @@ export function blockedMessage(blockers: ReadinessItem[]): string {
 export async function blockersBeforeOpening(read: () => Promise<ReadinessItem[]> = readLaunchReadiness): Promise<ReadinessItem[] | null> {
   try { return openBlockers(await read()); } catch { return null; }
 }
+
+/** The top bar's button while the shop is private (design handoff "Colophon platform"): how many steps are left, if known. */
+export function openButtonLabel(stepsLeft: number | null): string {
+  if (!stepsLeft) return "Open to shoppers";
+  return `Open to shoppers · ${stepsLeft} ${stepsLeft === 1 ? "step" : "steps"}`;
+}
