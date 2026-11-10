@@ -36,6 +36,8 @@ import { ADMIN_LOOK, applyAdminLook } from "./riso/adminLook";
 import { SupportBanner } from "./SupportBanner";
 import { PlanBannerBar, PlanDesk } from "./PlanParts";
 import { TwoStepReminder } from "./TwoStepReminder";
+import type { ReadinessItem } from "./launchReadiness";
+import { LaunchChecklist } from "./LaunchChecklist";
 import { planLocked, storesPage, trialPill } from "./platformPlan";
 import { usePlatformPlan } from "./platformPlanApi";
 import { PlatformMessagesBar } from "./PlatformMessagesBar";
@@ -427,11 +429,13 @@ export function Dashboard() {
   const [ucSaving, setUcSaving] = useState(false);
   // While the shop is private the top bar offers "Open to shoppers · N steps" (design handoff "Colophon platform").
   const wallUp = !!settings?.design?.showUnderConstruction;
-  const [openSteps, setOpenSteps] = useState<number | null>(null);
+  const [openBlockersList, setOpenBlockersList] = useState<ReadinessItem[] | null>(null);
+  const openSteps = openBlockersList ? openBlockersList.length : null;
+  const [launchOpen, setLaunchOpen] = useState(false);
   useEffect(() => {
     if (!user || !wallUp) return;
     let live = true;
-    void blockersBeforeOpening().then((b) => { if (live) setOpenSteps(b ? b.length : null); });
+    void blockersBeforeOpening().then((b) => { if (live) setOpenBlockersList(b); });
     return () => { live = false; };
   }, [user, wallUp, activeTab]);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -847,7 +851,7 @@ export function Dashboard() {
               {hasStockroom() && !COMBINED && <AppSwitchPill />}
               {wallUp && (
                 <span className="rp-open-shop">
-                  <PrimaryButton size="sm" busy={ucSaving} onClick={() => { void toggleUnderConstruction(false); }}>
+                  <PrimaryButton size="sm" busy={ucSaving} onClick={() => { if (openSteps) setLaunchOpen(true); else void toggleUnderConstruction(false); }}>
                     <span className="rp-open-shop-long">{openButtonLabel(openSteps)}</span><span className="rp-open-shop-short" aria-hidden>Open</span>
                   </PrimaryButton>
                 </span>
@@ -942,6 +946,9 @@ export function Dashboard() {
       </Dialog>
 
       {confirmNode}
+      <LaunchChecklist appearance={appearance} open={launchOpen} blockers={openBlockersList || []} busy={ucSaving} onClose={() => setLaunchOpen(false)}
+        onGo={(tab) => { setLaunchOpen(false); void goTo(tab); }}
+        onOpenShop={() => { void toggleUnderConstruction(false).then((ok) => { if (ok) setLaunchOpen(false); }); }} />
       <ActivityLogDialog open={showLogs} onClose={() => setShowLogs(false)} appearance={appearance} />
 
       {/* Book Editor Takeover */}
