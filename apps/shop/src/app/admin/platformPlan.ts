@@ -199,6 +199,18 @@ export function addStorePage(plan: PlatformPlan | null | undefined): string | nu
   try { return new URL("/join/", plan.link).href; } catch { return null; }
 }
 
+/** The platform's "Ask a person" form (its account page's Get help), or null off the platform. */
+export function askPersonPage(plan: PlatformPlan | null | undefined): string | null {
+  if (!plan?.link) return null;
+  try { return new URL("/account/#get-help", plan.link).href; } catch { return null; }
+}
+
+/** The platform's help centre, or null off the platform. */
+export function helpCentrePage(plan: PlatformPlan | null | undefined): string | null {
+  if (!plan?.link) return null;
+  try { return new URL("/help/", plan.link).href; } catch { return null; }
+}
+
 /** The platform's list of the person's stores (its account page, on the same address as the plan's link), or null. */
 export function storesPage(plan: PlatformPlan | null | undefined): string | null {
   if (!plan?.link) return null;
