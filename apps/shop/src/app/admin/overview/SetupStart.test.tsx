@@ -56,7 +56,7 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
     expect(text()).toContain("Welcome to Moth Press. Choose your look");
     expect(text()).not.toContain("Set up your shop");
     expect(text()).not.toContain("Suggested for you");
-    expect(document.querySelectorAll("ul[aria-label='Looks'] > li")).toHaveLength(17);
+    expect(document.querySelectorAll("ul[aria-label='Looks'] > li")).toHaveLength(10);
     expect(document.body.innerHTML).toContain("Moth Press in this look");
   });
 

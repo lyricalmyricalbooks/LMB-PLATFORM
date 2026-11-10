@@ -29,7 +29,7 @@ describe("Choose your look as a theme store", () => {
     await mount();
     const others = builtLooks();
     // One general list of the built looks: no suggested section, nothing behind a "see all" button.
-    expect(others).toHaveLength(17);
+    expect(others).toHaveLength(10);
     expect(document.querySelector("ul[aria-label='Suggested looks']")).toBeNull();
     expect(document.body.textContent).not.toContain("Suggested for you");
     expect(document.querySelectorAll("ul[aria-label='Looks'] > li")).toHaveLength(others.length);

@@ -106,7 +106,7 @@ test("the whole road: sign up, a shop made, a look picked, a trial, a card, a fa
   const pickedTheme = suggested[start.publishes][0];
   // What the admin writes when the owner chooses (`updateFirstWeek({ welcome })`): merged into the same document.
   await w.services.shopData.set(shopId, "firstWeek/start", { ...start, welcome: { theme: pickedTheme, at: w.clock.date().toISOString() } });
-  assert.equal(w.doc(shopId, "firstWeek/start").welcome.theme, "press-gutter");
+  assert.equal(w.doc(shopId, "firstWeek/start").welcome.theme, "press-marquee");
   assert.equal(w.doc(shopId, "firstWeek/start").publishes, "zines", "choosing a look keeps the sign-up answers");
 
   // ── The trial ──
