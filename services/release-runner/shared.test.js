@@ -100,7 +100,7 @@ test("the test project first, then the live one: rules, server code, site, a che
   assert.deepEqual(result.projects.map((p) => [p.projectId, p.status]), [[TEST_PROJECT, "shipped"], [LIVE_PROJECT, "shipped"]]);
   const order = w.calls.filter(([k]) => ["rules", "functions", "pages", "release-check", "publish"].includes(k)).map(([k, id]) => `${k} ${id}`);
   assert.deepEqual(order, [
-    `rules ${TEST_PROJECT}`, `functions ${TEST_PROJECT}`, `pages ${TEST_PROJECT}`, "release-check lmb-test-shop", "publish lmb-test-shop",
+    `rules ${TEST_PROJECT}`, `functions ${TEST_PROJECT}`, `pages ${TEST_PROJECT}`, "publish lmb-test-shop", "release-check lmb-test-shop",
     `rules ${LIVE_PROJECT}`, `functions ${LIVE_PROJECT}`, `pages ${LIVE_PROJECT}`, "publish moth-press", "publish other",
   ]);
   assert.deepEqual(kinds(w, "rules")[0], [TEST_PROJECT, "1.1.0", "shop+stockroom"]);
@@ -129,7 +129,8 @@ test("a failed test-project check puts it back and the live project is never tou
   assert.match(result.error, /release check failed/);
   assert.equal(w.live.get(TEST_PROJECT).rules, "1.0.0", "back on the release before");
   assert.ok(!w.calls.some(([k, id]) => k === "rules" && id === LIVE_PROJECT));
-  assert.equal(kinds(w, "publish").length, 0, "no shop's pages are drawn from a refused release");
+  // Only the checked test shop is drawn, from each build just before its check, and it ends on the release before.
+  assert.deepEqual(kinds(w, "publish"), [["lmb-test-shop", "1.1.0"], ["lmb-test-shop", "1.0.0"]]);
 });
 
 test("a failed live deploy rolls that project back; a project with no earlier release stops for a person", async () => {
