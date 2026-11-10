@@ -1903,3 +1903,7 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
   :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-card { padding: 20px; }
   :root[data-admin-look="colophon"] .rp:not(.studio-editor) :is(.rp-kpi-grid, .rp-ov-figures) { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 }
+/* Top bar trial pill (Colophon handoff): "Free trial · N days left", opens Billing. */
+.admin-reso .rp-trial-pill { display: inline-flex; align-items: center; min-height: 32px; padding: 0 12px; border-radius: 999px; background: var(--rp-surface); border: 1px solid var(--rp-hair); color: var(--rp-text); font-size: var(--rp-text-sm); font-weight: 600; white-space: nowrap; text-decoration: none; }
+.admin-reso .rp-trial-pill:hover { text-decoration: underline; }
+@media (max-width: 640px) { .admin-reso .rp-trial-pill { display: none; } }
