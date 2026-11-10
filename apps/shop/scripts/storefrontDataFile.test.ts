@@ -31,6 +31,8 @@ describe("storefront data file (build side)", () => {
     };
     const data = await readStorefrontData(base, "p", fetchImpl as any, 2);
     expect(data.readTime).toBe("2026-10-15T03:49:48.748909Z");
+    // batchGet is a database-root call; a shop's folder answers 400.
+    expect(calls[0].url).toMatch(/\/databases\/\(default\)\/documents:batchGet$/);
     expect(data.settings).toEqual({ info: { name: "Shop" } });
     expect(data.books).toEqual([{ id: "a", title: "A" }, { id: "b", title: "B" }, { id: "c", title: "C" }]);
     // Pages keep a stored `id` field over the document id, exactly like getPublishedPages' { id, ...data }.
@@ -85,5 +87,21 @@ describe("storefront data file (build side)", () => {
     for (const t of ["2026-10-15T04:10:16.353519Z", "2026-10-15T04:10:16Z", "2026-10-15T04:10:16.1Z", "2026-10-15T04:10:16.123456789Z", "nope", "2026-10-15T04:10:16+01:00"]) {
       expect(nanoTime(t)).toBe(browserNanoTime(t));
     }
+  });
+
+  it("asks for a shop folder's settings at the database root, where batchGet lives", async () => {
+    const urls: string[] = [];
+    const fetchImpl = async (url: string, init: any) => {
+      urls.push(url);
+      const body = JSON.parse(init.body);
+      if (url.endsWith(":batchGet")) {
+        expect(body.documents).toEqual(["projects/p/databases/(default)/documents/shops/moth/settings/website"]);
+        return { ok: true, json: async () => [{ missing: body.documents[0], readTime: "2026-11-10T00:00:00Z" }] } as any;
+      }
+      return { ok: true, json: async () => [{ readTime: body.readTime }] } as any;
+    };
+    await readStorefrontData(`${base}/shops/moth`, "p", fetchImpl as any);
+    expect(urls[0]).toBe(`${base}:batchGet`);
+    expect(urls[1]).toBe(`${base}/shops/moth:runQuery`);
   });
 });
