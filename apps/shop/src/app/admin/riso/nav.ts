@@ -1,7 +1,7 @@
 import {
   BookOpen, Settings, Inbox, LayoutDashboard, BadgePercent, Star, ShoppingCart, Users, Boxes, Gift,
   SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail, UserPlus, Calculator, Wallet, FileText, Store, Megaphone, PiggyBank, ShieldCheck, Plug, Blocks,
-  Share2, Send,
+  Share2, Send, ListChecks,
 } from "lucide-react";
 import type { NavEntry } from "./components";
 import { COMBINED_PAGES, SALES_TAB, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES } from "../combined";
@@ -68,19 +68,37 @@ export const MENU: Menu = [
 const S = (id: string) => STOCKROOM_ITEM_PREFIX + id;
 
 /**
- * The combined admin's menu (shop + stockroom plan, admin/combined.ts; design in docs/combined-admin.md): the website's
- * pages and the stockroom's in one menu, grouped by the job (Shopify-style), never by which app a page came from.
+ * The combined admin's menu (shop + stockroom plan, admin/combined.ts; design in docs/combined-admin.md), in two sides
+ * (Julian, 10 November 2026): running the website, and the stockroom (stock, sales off the website, money). A switch
+ * at the top of the rail picks the side; the rail shows only that side's items. Home stays on the website side and
+ * shows both (stockroom to-dos, the fair today).
  */
-export const COMBINED_MENU: Menu = [
-  { label: "Home", icon: LayoutDashboard, pages: ["overview", S("todo")] },
-  { label: "Orders", icon: ShoppingCart, pages: ["orders", SALES_TAB, S("history"), S("manual"), S("shipping"), "customers", S("customers"), "messages"] },
-  { label: "Books", icon: BookOpen, pages: ["catalog", "inventory", S("dashboard"), "reviews", "channels"] },
-  { label: "Sell in person", icon: Store, pages: [S("pos"), S("consignment"), S("qrcodes")] },
-  { label: "Marketing", icon: Megaphone, pages: ["discounts", "giftCards", "socialPosts", S("opencall")] },
-  { label: "Money", icon: PiggyBank, pages: [S("reconcile"), S("expenses"), S("taxcenter"), S("intel")] },
+export type AdminSide = "website" | "stockroom";
+export const WEBSITE_SIDE: Menu = [
+  { label: "Home", icon: LayoutDashboard, pages: ["overview"] },
+  { label: "Orders", icon: ShoppingCart, pages: ["orders", SALES_TAB, "customers", "messages"] },
+  { label: "Books", icon: BookOpen, pages: ["catalog", "reviews", "channels"] },
+  { label: "Marketing", icon: Megaphone, pages: ["discounts", "giftCards", "socialPosts"] },
   { label: "Online store", icon: Palette, pages: [SETTINGS_ITEM_PREFIX + "designer"] },
-  { label: "Settings", icon: Settings, pages: [...SETTINGS_PAGES, S("sheets"), S("backups")] },
+  { label: "Settings", icon: Settings, pages: SETTINGS_PAGES },
 ];
+export const STOCKROOM_SIDE: Menu = [
+  { label: "To-do", icon: ListChecks, pages: [S("todo")] },
+  { label: "Stock", icon: Boxes, pages: [S("dashboard"), "inventory"] },
+  { label: "Sales", icon: Receipt, pages: [S("history"), S("manual"), S("customers"), S("shipping")] },
+  { label: "Sell in person", icon: Store, pages: [S("pos"), S("consignment"), S("qrcodes")] },
+  { label: "Money", icon: PiggyBank, pages: [S("taxcenter"), S("reconcile"), S("expenses"), S("intel")] },
+  { label: "Open call", icon: Inbox, pages: [S("opencall")] },
+  { label: "Stockroom settings", icon: SlidersHorizontal, pages: [S("sheets"), S("backups")] },
+];
+/** Both sides as one list: what search, routes and "which item holds this page" read. */
+export const COMBINED_MENU: Menu = [...WEBSITE_SIDE, ...STOCKROOM_SIDE];
+
+/** The side a page belongs to. */
+export function sideOf(page: string): AdminSide {
+  return STOCKROOM_SIDE.some((g) => g.pages.includes(page)) ? "stockroom" : "website";
+}
+export const sideMenu = (side: AdminSide): Menu => (side === "stockroom" ? STOCKROOM_SIDE : WEBSITE_SIDE);
 
 /** Every page with its menu id and label, in NAV order. */
 export function navPages(nav: NavEntry[]): { id: string; label: string }[] {

@@ -11,6 +11,7 @@ import './styles/theme-dark.css';
 import './styles/admin-look/adminThemes.css';
 import './styles/admin-look/stockroom-bridge.css';
 import './styles/admin-look/stockroom-shell.css';
+import './styles/admin-look/colophon-shapes.css';
 import './styles/phone.css';
 // The Riso phone redesign sits on top of the phone layer above.
 import './styles/phone-riso.css';

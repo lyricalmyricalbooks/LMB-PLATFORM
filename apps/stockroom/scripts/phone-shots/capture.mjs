@@ -10,6 +10,7 @@
 //   --slices=N  screenfuls per screen (default 6)   --full  also one tall picture
 //   --storage=key=value,…  extra device settings, e.g. --storage=allConGrouped=1
 //   --session=key=value,…  per-visit choices, e.g. --session=lm-con-section=ledger
+//   --inside-admin  shoot the pages as the combined admin frames them
 //
 // Output (gitignored): <out>/<theme>-<width>/<screen>-NN.png (one per screenful)
 // and <out>/report.json.
@@ -186,6 +187,8 @@ for (const theme of themes) {
     await page.goto(storage ? `${base}?${storage}` : base, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => window.__shotsReady === true, null, { timeout: 30000 });
     await page.evaluate(() => document.fonts.ready);
+    // --inside-admin: the page as the combined admin shows it (its own menu and header hidden, lib/inside-admin.js).
+    if (args['inside-admin']) await page.evaluate(() => document.documentElement.classList.add('inside-admin'));
     const dir = path.join(outDir, `${theme}-${width}`);
     fs.mkdirSync(dir, { recursive: true });
 

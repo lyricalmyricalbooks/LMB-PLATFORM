@@ -1,0 +1,42 @@
+/* The Colophon look's shapes for the stockroom (Julian, 10 November 2026: one admin look, the Colophon bento).
+   stockroom-bridge.css already points the stockroom's colours at the shared look; this file does the same for its
+   shape tokens, so the whole app follows at once: rounded tiles, pill buttons, no offset ink shadows, a hairline
+   border, Archivo for headings. Colours stay in shared/admin-look/adminThemes.css. Screen only, like the bridge. */
+@media screen {
+:root[data-admin-look="colophon"] body.rp {
+  --r: 12px; --r2: 16px; --r3: 22px;
+  --stroke: 1px;
+  --elev-1: none; --elev-2: none;
+  --elev-3: 0 1px 2px rgba(31, 30, 27, .06), 0 8px 24px rgba(31, 30, 27, .08);
+  --elev-4: 0 2px 4px rgba(31, 30, 27, .08), 0 16px 40px rgba(31, 30, 27, .12);
+  --font-display: 'Archivo', 'Helvetica Neue', system-ui, sans-serif;
+  --tracking-label: 0.06em;
+  --tracking-caps: 0.04em;
+}
+/* Buttons, tabs and chips are pills; display headings are sentence-weight, not poster capitals. */
+:root[data-admin-look="colophon"] body.rp :is(.btn, button.btn, .tc-subnav-btn, .tc-tab, .sub-tab, .seg-btn, .chip) { border-radius: 999px; }
+:root[data-admin-look="colophon"] body.rp :is(h1, h2, h3, .section-title, .card-title, .panel-title) { text-transform: none; letter-spacing: -0.01em; }
+/* Tiles: white on the cream page, no ink outline (the bento's tiles have none). */
+:root[data-admin-look="colophon"] body.rp .card { border: 0 !important; border-radius: var(--r3); background: var(--rp-surface); box-shadow: none; }
+/* Sub-page tabs (Tax centre, Settings): a row of pills, the one you're on in ink. */
+:root[data-admin-look="colophon"] body.rp .settings-sub-tab { border: 0; border-radius: 999px; text-transform: none; letter-spacing: 0; font-weight: 600; min-height: 40px; padding: 0 16px; }
+:root[data-admin-look="colophon"] body.rp .settings-sub-tab[aria-selected="true"] { background: var(--rp-primary); color: var(--rp-on-primary); box-shadow: none; }
+/* Emoji in front of labels belong to the old look; the words carry the meaning. */
+:root[data-admin-look="colophon"] body.rp .lead-emoji { display: none; }
+/* Figure tiles: soft rounded, money in on the mint tile. */
+:root[data-admin-look="colophon"] body.rp .cf-stat { border: 0 !important; border-radius: var(--r2); }
+:root[data-admin-look="colophon"] body.rp .cf-stat.cf-income { background: var(--rp-success-tint); }
+/* Small figures: quiet cream chips inside the white tile. */
+:root[data-admin-look="colophon"] body.rp .cf-kpi { border: 0; background: var(--rp-surface-2); }
+/* Section headings and the alert line speak in sentence case, like the admin around them. */
+:root[data-admin-look="colophon"] body.rp :is(.section-hed, .pab-title) { text-transform: none; letter-spacing: -0.01em; font-weight: 600; }
+/* The "action required" strip: a rounded alert tile in the danger tint, not a full-bleed red band. */
+:root[data-admin-look="colophon"] body.rp .publisher-action-banner { margin: 12px 16px; border: 0 !important; border-radius: var(--r3); background: var(--rp-danger-tint) !important; color: var(--rp-text) !important; box-shadow: none; }
+:root[data-admin-look="colophon"] body.rp .publisher-action-banner :is(.pab-title, .pab-sub, .pab-icon) { color: var(--rp-text) !important; }
+:root[data-admin-look="colophon"] body.rp .publisher-action-banner .pab-pulse { display: none; }
+:root[data-admin-look="colophon"] body.rp .publisher-action-banner .btn { background: var(--rp-primary) !important; color: var(--rp-on-primary) !important; border: 0; box-shadow: none; }
+/* The header sits on the cream page, so its quiet buttons use the page's text colour (they were drawn for a dark bar). */
+:root[data-admin-look="colophon"] body.rp :is(.profile-tab:not(.active), #role-toggle-btn) { color: var(--rp-text-muted) !important; border-color: var(--rp-border) !important; text-transform: none; letter-spacing: 0; }
+}
+/* Inside the admin, its page header already names the page: the stockroom's own grey title strip goes. */
+.inside-admin #tab-taxcenter > .book-context { display: none; }

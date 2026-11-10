@@ -48,7 +48,9 @@ import { useAdminAppManifest } from "./adminApp";
 import { shopNameFromSettings, wordmarkWords } from "../features/site/shopIdentity";
 import { adminWordsFor, currentSells } from "./sells";
 import { SELLS_CHANGED_EVENT, ShopSellsContext, ShopWordsContext } from "./shopWords";
-import { COMBINED_MENU, MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, sidebarItems, withoutPages } from "./riso/nav";
+import { COMBINED_MENU, MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, sideMenu, sideOf, sidebarItems, withoutPages } from "./riso/nav";
+import { SideSwitch, rememberSide, rememberedSide } from "./SideSwitch";
+import { useStockroomTodos } from "./overview/StockroomTodos";
 import { COMBINED_PAGES, DEFAULT_STOCKROOM_PAGE, SALES_TAB, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
 import { AllSales } from "./AllSales";
 import { keepAdminOffline } from "./adminOffline";
@@ -104,6 +106,8 @@ function readBootRoute() {
 // One admin for a press with both apps (combined.ts): one menu, the stockroom's pages inside, no app switcher.
 const COMBINED = combinedAdmin();
 const ADMIN_MENU = COMBINED ? COMBINED_MENU : MENU;
+// Whether the admin was opened with no page in its address (read once, before the admin writes one).
+const OPENED_WITHOUT_PAGE = typeof window !== "undefined" && !window.location.hash.replace(/^#/, "");
 
 export function Dashboard() {
   const online = useOnline();
@@ -251,6 +255,18 @@ export function Dashboard() {
     // older Analytics and Search Console cards in Visitors & Google.
     googleConnectApi.status().then((g) => setGoogleOn(g !== "not_available" || runsOnColophon())).catch(() => setGoogleOn(runsOnColophon()));
   }, [activeTab]);
+  // The Stockroom side's count on the switch: the stockroom's to-dos, as Home counts them (overview/StockroomTodos.tsx).
+  const stockroomTodos = useStockroomTodos(COMBINED);
+  // The side you were last on (SideSwitch.tsx): kept on this device, and the admin reopens there when it is opened
+  // with no page in its address (a press at a fair lands on the stockroom, not the website's Home).
+  const sideNow = activeTab === STOCKROOM_TAB || activeTab === "inventory" ? "stockroom" : "website";
+  useEffect(() => { if (COMBINED && user) rememberSide(sideNow); }, [sideNow, user]);
+  const reopenedSide = useRef(false);
+  useEffect(() => {
+    if (!COMBINED || !user || reopenedSide.current) return;
+    reopenedSide.current = true;
+    if (OPENED_WITHOUT_PAGE && rememberedSide() === "stockroom") window.location.hash = hashForRoute({ tab: STOCKROOM_TAB, subTab: DEFAULT_STOCKROOM_PAGE });
+  }, [user]);
   const hiddenPages = new Set([...(bookkeepingOn ? [] : [SETTINGS_ITEM_PREFIX + "bookkeeping"]), ...(googleOn ? [] : [SETTINGS_ITEM_PREFIX + "google"]), ...(runsOnColophon() ? [] : [SETTINGS_ITEM_PREFIX + "apps"])]);
   // What the shop sells (plan 10.23): sign-up's answer in `firstWeek/start`. A shop that doesn't sell books reads
   // "Products" for "Books" across the admin (sells.ts `adminWordsFor`); with no answer every word stays as it is.
@@ -787,6 +803,8 @@ export function Dashboard() {
     </>
   );
 
+  // Which side of the combined admin the page is on (Website or Stockroom, Julian 10 Nov 2026); Home is the website's.
+  const currentSide = sideOf(navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive);
   return (
     <ShopWordsContext.Provider value={w}>
     <ShopSellsContext.Provider value={sellsAnswer}>
@@ -804,7 +822,7 @@ export function Dashboard() {
           <Sidebar
             open={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
-            items={withoutPages(sidebarItems(nav, ADMIN_MENU), hiddenPages).map((n) => {
+            items={withoutPages(sidebarItems(nav, COMBINED ? sideMenu(currentSide) : ADMIN_MENU), hiddenPages).map((n) => {
               // Orders counts open cancel/return requests too (they sit in Needs attention).
               // Privacy requests are handled in Settings › General.
               const badgeFor = (id: string) => id === "orders" ? ordersBadge : id === "reviews" ? otherBadges.pendingReviews
@@ -818,7 +836,8 @@ export function Dashboard() {
             activeChildId={navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive}
             onSelect={openMenuPage}
             onSelectChild={(_item, page) => openMenuPage(page)}
-            top={hasStockroom() && !COMBINED ? <AppSwitcher onSwitch={() => setSidebarOpen(false)} /> : undefined}
+            top={COMBINED ? <SideSwitch side={currentSide} stockroomCount={stockroomTodos.items?.length || 0} onPick={(side) => { setSidebarOpen(false); void openMenuPage(sideMenu(side)[0].pages[0]); }} />
+              : hasStockroom() ? <AppSwitcher onSwitch={() => setSidebarOpen(false)} /> : undefined}
             brand={storesPage(platformPlan) ? (
               <StoreSwitcher name={shopNameFromSettings(settings)} tag={platformPlan?.state === "trial" ? "Free trial" : null}
                 storesUrl={storesPage(platformPlan)!} addUrl={addStorePage(platformPlan)}

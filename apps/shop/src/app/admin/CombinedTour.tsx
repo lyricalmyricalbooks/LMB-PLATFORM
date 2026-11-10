@@ -11,18 +11,18 @@ export type TourStop = { page: string } | { stockroom: string };
 export type TourStep = { title: string; text: string; go?: TourStop; show?: string };
 
 export const TOUR_STEPS: TourStep[] = [
-  { title: "One admin for your shop and stockroom",
-    text: "Everything you used to switch between is now in one menu. Your website and your stockroom still keep their own records, and the stockroom still keeps the count of your stock." },
+  { title: "One admin, two sides",
+    text: "The switch at the top of the menu picks a side. Website runs your shop online. Stockroom holds your stock, sales away from the website, fairs and money. One sign-in for both." },
   { title: "Home: what needs you", go: { page: "overview" }, show: "Show me Home",
-    text: "Needs you lists what's waiting from both: orders to ship, payments to chase, stock counts to check. Each line opens the thing itself." },
-  { title: "Orders: every sale in one list", go: { page: "sales" }, show: "Show me All sales",
-    text: "Orders › All sales puts website orders beside fairs, stockists, invoices and sales entered by hand, with a button for each channel." },
-  { title: "Books: stock and sales on each book", go: { page: "catalog" }, show: "Show me Books",
+    text: "Needs you lists what's waiting from both sides: orders to ship, payments to chase, stock counts to check. Each line opens the thing itself." },
+  { title: "Website › Orders: every sale in one list", go: { page: "sales" }, show: "Show me All sales",
+    text: "All sales puts website orders beside fairs, stockists, invoices and sales entered by hand, with a button for each channel." },
+  { title: "Website › Books: stock and sales on each book", go: { page: "catalog" }, show: "Show me Books",
     text: "Open any book and pick Stock and sales: how many you have, at stockists and with the author, and what sold everywhere." },
-  { title: "Sell in person: the fair till", go: { stockroom: "pos" }, show: "Show me the Fair till",
+  { title: "Stockroom › Sell in person: the fair till", go: { stockroom: "pos" }, show: "Show me the Fair till",
     text: "Open the Fair till once before a fair, while you have a connection. After that it opens with no signal, and your sales catch up later." },
-  { title: "Money and Settings", go: { stockroom: "reconcile" }, show: "Show me Money",
-    text: "Payments, expenses and tax are under Money. Your plan, billing and the shop's details are under Settings. That's the tour: you can take it again from your account menu." },
+  { title: "Stockroom › Money: tax, payments, expenses", go: { stockroom: "taxcenter" }, show: "Show me the Tax centre",
+    text: "The Tax centre, payments and expenses are on the Stockroom side. Your plan, billing and the shop's details are under Website › Settings. You can take this tour again from your account menu." },
 ];
 
 const KEY = "lm:combined-tour";
