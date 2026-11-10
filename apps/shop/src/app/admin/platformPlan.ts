@@ -164,7 +164,7 @@ export function planBanner(plan: PlatformPlan | null, now = Date.now()): PlanBan
     const title = `Your free trial ends ${when}.`;
     return plan.hasCard
       ? { tone: "info", kicker: "Free trial", title, detail: plan.nextPaymentAt ? `Your first payment is on ${planDate(plan.nextPaymentAt)}.` : "Your card is saved.", action: "See your plan" }
-      : { tone: left <= 3 ? "danger" : left <= 7 ? "warning" : "info", kicker: "Free trial", title, detail: "Add a card by then to keep selling. We'll email you on day 7, day 12 and the day before.", action: "Add a card" };
+      : { tone: left <= 3 ? "danger" : left <= 7 ? "warning" : "info", kicker: "Free trial", title, detail: "Add a card by then to keep selling. We'll email you 3 days before.", action: "Add a card" };
   }
   return null;
 }
