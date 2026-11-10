@@ -4,8 +4,10 @@
 import { describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const here = path.dirname(new URL(import.meta.url).pathname);
+// fileURLToPath, not .pathname: on Windows the pathname is "/D:/..." and the child fails to start.
+const here = path.dirname(fileURLToPath(import.meta.url));
 
 describe("index.js in the shared system", () => {
   it("loads with the folders on, and every trigger listens on shops/{shopId}/...", () => {
