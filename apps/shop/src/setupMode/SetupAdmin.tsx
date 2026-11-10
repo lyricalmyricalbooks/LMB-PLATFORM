@@ -4,7 +4,7 @@
 // it comes with the shop. Everything saves to the press's setup record through the platform's door (door.ts); nothing
 // here reads or writes a shop database, because there is none until the press opens its shop.
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { ArrowRight, Check, ChevronDown, Circle, ExternalLink, HelpCircle, Lock, LogOut, Menu, MessageCircle, Store, Truck } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ExternalLink, HelpCircle, Lock, LogOut, Menu, MessageCircle, Store } from "lucide-react";
 import {
   AppShell, EmptyState, GhostButton, IconButton, PageHeader, PrimaryButton, SectionCard, SelectField, Sidebar,
   TextField, ToastProvider, Topbar, useRisoToast,
@@ -22,6 +22,7 @@ import { AskForm, HelpAnswer, HelpQuestions, type HelpAnswers } from "./SetupHel
 import type { PlanList, SetupChange, SetupDoor, SetupPress } from "./door";
 import { CreateShopCard, type CreateShop } from "./CreateShop";
 import type { CreateNames } from "./launchWords";
+import "../app/admin/overview/setupBoard.css";
 import {
   DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, IMPORT_PAGE, PAYMENTS_PAGE, PLAN_PAGE, SETUP_QUESTIONS, STEP_HELP, guideProgress, guideSteps, setupGroups, helpFor, lockedPageLine, nextGuideStep,
   pageFromHash, readyToCreate, setupLocked, showMoveIn, setupMenu, setupMenuItemFor, setupPageLabel,
@@ -254,52 +255,62 @@ function SetupGuide({ press, plans, helpUrl, answers, onOpen, onAsk, onCreate, s
   const go = (step: { id: string; page: string }) => (step.id === "open" ? onCreate() : onOpen(step.page, step.id === "domain" ? WEB_ADDRESS_ANCHOR : undefined));
   // A step's help answer, opened in place under its button.
   const [howOpen, setHowOpen] = useState("");
+  const moveIn = showMoveIn(press);
   return (
     <div className="rp-setup-home">
       <PageHeader title={press.pressName ? `Welcome, ${press.pressName}` : "Welcome"}
         description="Nothing is charged, and your free days don't start, until you create your shop." />
-      {ready && <ReadyCard onCreate={onCreate} />}
-      {showMoveIn(press) && <MoveInCard onBring={() => onOpen(IMPORT_PAGE)} save={save} />}
-      <SectionCard title="Setup guide" collapsible={false}
-        description={ready ? "All set. Create your shop when you're ready." : `${done} of ${total} done`}>
-        <div role="progressbar" aria-label="Setup guide" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done}
-          style={{ height: 6, background: "var(--rp-divider)", marginBottom: 8 }}>
-          <div style={{ width: `${(done / total) * 100}%`, height: "100%", background: "var(--rp-primary)" }} />
+      <div className="rp-sb">
+      {(ready || moveIn) && (
+        <div className="rp-sb-row" style={ready && moveIn ? undefined : { gridTemplateColumns: "minmax(0, 1fr)" }}>
+          {ready && <ReadyCard onCreate={onCreate} />}
+          {moveIn && <MoveInCard onBring={() => onOpen(IMPORT_PAGE)} save={save} />}
         </div>
+      )}
+      <section className="rp-sb" aria-labelledby="setup-guide-title" style={{ marginBottom: 0 }}>
+        <div className="rp-sb-head">
+          <div>
+            <p className="rp-sb-eyebrow">Private · only you can see it</p>
+            <h2 id="setup-guide-title" className="rp-sb-title" style={{ fontSize: "clamp(26px, 3vw, 34px)" }}>Setup guide</h2>
+            <p className="rp-sb-lede">{ready ? "All set. Create your shop when you're ready." : "Each step saves as you go. Come back any time."}</p>
+          </div>
+          <p className="rp-sb-count" style={{ margin: 0 }}><span aria-hidden>{done} / {total}</span><span className="rp-sr-only">{done} of {total} done</span></p>
+        </div>
+        <div className="rp-sb-bar" role="progressbar" aria-label="Setup guide" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done}>
+          <span style={{ width: `${(done / total) * 100}%` }} />
+        </div>
+        <div className="rp-sb-groups">
         {setupGroups(steps).map((g) => (
-        <section key={g.id} aria-labelledby={`setup-part-${g.id}`} style={{ marginTop: 16 }}>
-          <h3 id={`setup-part-${g.id}`} className="rp-mono"
-            style={{ display: "flex", justifyContent: "space-between", gap: 8, margin: "0 0 4px", fontSize: 12, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--rp-text-muted)" }}>
+        <section key={g.id} className="rp-sb-tile rp-sb-group" aria-labelledby={`setup-part-${g.id}`}>
+          <h3 id={`setup-part-${g.id}`} className="rp-sb-group-head">
             <span>{g.title}</span><span>{g.done}/{g.total}<span className="rp-sr-only"> done</span></span>
           </h3>
-        <ol aria-label={g.title} data-setup-steps="" style={{ listStyle: "none", margin: 0, padding: 0, display: "grid" }}>
+        <ol aria-label={g.title} data-setup-steps="" className="rp-sb-steps">
           {g.steps.map((step) => {
             const isNext = step.id === next?.id;
             const isOpen = step.id === shown && !step.locked;
             const help = STEP_HELP[step.id];
             const panel = `guide-step-${step.id}`;
             return (
-              <li key={step.id} aria-current={isNext ? "step" : undefined}
-                style={{ borderTop: "1px solid var(--rp-divider)", margin: "0 -12px", padding: "0 12px", background: isOpen ? "var(--rp-primary-tint)" : undefined }}>
+              <li key={step.id} className="rp-sb-step" aria-current={isNext ? "step" : undefined}
+                data-open={isOpen ? "true" : undefined} data-done={step.done ? "true" : undefined} data-next={isNext && !step.done ? "true" : undefined}>
                 <button type="button" aria-expanded={isOpen} aria-controls={panel} disabled={step.locked}
-                  onClick={() => setPicked(isOpen ? "" : step.id)}
-                  style={{ display: "grid", gridTemplateColumns: "20px minmax(0, 1fr) auto", alignItems: "center", gap: 12, width: "100%", minHeight: 48,
-                    padding: "12px 0", background: "none", border: 0, color: "inherit", font: "inherit", textAlign: "left", cursor: step.locked ? "default" : "pointer" }}>
-                  <span aria-hidden style={{ display: "inline-flex", color: step.done ? "var(--rp-success)" : isNext ? "var(--rp-text)" : "var(--rp-text-subtle)" }}>
-                    {step.done ? <Check size={20} /> : step.locked ? <Lock size={18} /> : <Circle size={18} />}
+                  onClick={() => setPicked(isOpen ? "" : step.id)}>
+                  <span aria-hidden className="rp-sb-dot">
+                    {step.done ? <Check size={12} strokeWidth={3} /> : step.locked ? <Lock size={10} /> : null}
                   </span>
                   <span style={{ minWidth: 0 }}>
-                    <strong style={{ color: step.done ? "var(--rp-text-muted)" : undefined }}>{w(step.title)}</strong>
-                    {step.optional && !step.done && <span className="rp-hint"> · optional</span>}
+                    <strong className="rp-sb-step-title">{w(step.title)}</strong>
+                    {step.optional && !step.done && <span className="rp-sb-tag"> · optional</span>}
                     <span className="rp-sr-only">{step.done ? " (done)" : step.locked ? " (comes with your shop)" : isNext ? " (next)" : ""}</span>
                   </span>
                   {step.locked
                     ? <span className="rp-hint" style={{ textAlign: "right", maxWidth: 120 }}>{step.action}</span>
-                    : <ChevronDown size={18} aria-hidden style={{ transform: isOpen ? "rotate(180deg)" : undefined, color: "var(--rp-text-subtle)" }} />}
+                    : <ChevronDown size={16} aria-hidden style={{ transform: isOpen ? "rotate(180deg)" : undefined, color: "var(--rp-text-subtle)" }} />}
                 </button>
                 {isOpen && (
-                  <div id={panel} style={{ display: "grid", gap: 10, padding: "0 0 16px 32px" }}>
-                    {STEP_WHY[step.id] && <p className="rp-hint" style={{ margin: 0 }}>{w(STEP_WHY[step.id])}</p>}
+                  <div id={panel} className="rp-sb-panel">
+                    {STEP_WHY[step.id] && <p>{w(STEP_WHY[step.id])}</p>}
                     <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px 16px" }}>
                       {step.done
                         ? <GhostButton size="sm" onClick={() => go(step)}>Change</GhostButton>
@@ -319,7 +330,7 @@ function SetupGuide({ press, plans, helpUrl, answers, onOpen, onAsk, onCreate, s
                       )}
                     </div>
                     {help && howOpen === step.id && answers.get(help) && (
-                      <div id={`${panel}-how`} style={{ padding: 12, background: "var(--rp-surface)", border: "1px solid var(--rp-border)" }}>
+                      <div id={`${panel}-how`} style={{ padding: 12, background: "var(--rp-surface)", border: "1px solid var(--rp-border)", borderRadius: "var(--rp-radius, 0)" }}>
                         <HelpAnswer article={answers.get(help)!} helpUrl={helpUrl} />
                       </div>
                     )}
@@ -331,10 +342,12 @@ function SetupGuide({ press, plans, helpUrl, answers, onOpen, onAsk, onCreate, s
         </ol>
         </section>
         ))}
-      </SectionCard>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))", gap: 16, marginTop: 16 }}>
+        </div>
+      </section>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))", gap: 16 }}>
         <AfterCreating plan={press.plan} plans={plans} />
         <HelpCard helpUrl={helpUrl} answers={answers} onAsk={onAsk} />
+      </div>
       </div>
     </div>
   );
@@ -343,17 +356,11 @@ function SetupGuide({ press, plans, helpUrl, answers, onOpen, onAsk, onCreate, s
 /** Everything the shop needs is in: one clear card at the top of Home, so the last step can't be missed. */
 function ReadyCard({ onCreate }: { onCreate: () => void }) {
   return (
-    <section className="rp-card" aria-labelledby="ready-title" style={{ borderColor: "var(--rp-success)", borderWidth: 2, marginBottom: 16 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", gap: 16, padding: 20, alignItems: "start" }}>
-        <span aria-hidden style={{ display: "inline-flex", color: "var(--rp-success)", paddingTop: 2 }}><Check size={28} /></span>
-        <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
-          <div>
-            <h2 id="ready-title" style={{ margin: 0, fontSize: 20 }}>You're ready to create your shop</h2>
-            <p style={{ margin: "6px 0 0" }}>Everything your shop needs is in. Check it over once more, then create it. It starts private, so only you can see it.</p>
-          </div>
-          <div><PrimaryButton icon={<Store size={16} aria-hidden />} onClick={onCreate}>Create my shop</PrimaryButton></div>
-        </div>
-      </div>
+    <section className="rp-sb-tile rp-sb-big rp-sb-good" aria-labelledby="ready-title">
+      <p className="rp-sb-eyebrow">Ready</p>
+      <h2 id="ready-title">You're ready to create your shop</h2>
+      <p>Everything your shop needs is in. It starts private, so only you can see it.</p>
+      <div className="rp-sb-actions"><PrimaryButton icon={<Store size={16} aria-hidden />} onClick={onCreate}>Create my shop</PrimaryButton></div>
     </section>
   );
 }
@@ -414,19 +421,13 @@ function MoveInCard({ onBring, save }: { onBring: () => void; save: (c: SetupCha
     }
   };
   return (
-    <section className="rp-card" aria-labelledby="move-in-title" style={{ borderColor: "var(--rp-primary)", borderWidth: 2, marginBottom: 16 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", gap: 16, padding: 20, alignItems: "start" }}>
-        <span aria-hidden style={{ display: "inline-flex", color: "var(--rp-primary)", paddingTop: 2 }}><Truck size={28} /></span>
-        <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
-          <div>
-            <h2 id="move-in-title" style={{ margin: 0, fontSize: 20 }}>Selling somewhere already?</h2>
-            <p style={{ margin: "6px 0 0" }}>{w("Bring your shop with you. Your books, prices, photos and stock come across, and old links keep working. You see everything before it's kept.")}</p>
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            <PrimaryButton icon={<ArrowRight size={16} aria-hidden />} onClick={bring}>Bring my shop over</PrimaryButton>
-            <GhostButton busy={busy} disabled={busy} onClick={() => void fresh()}>I'm starting fresh</GhostButton>
-          </div>
-        </div>
+    <section className="rp-sb-tile rp-sb-big" aria-labelledby="move-in-title">
+      <p className="rp-sb-eyebrow">Selling somewhere already?</p>
+      <h2 id="move-in-title">Bring your shop with you</h2>
+      <p>{w("Your books, prices, photos and stock come across, and old links keep working. You see everything before it's kept.")}</p>
+      <div className="rp-sb-actions">
+        <PrimaryButton icon={<ArrowRight size={16} aria-hidden />} onClick={bring}>Bring my shop over</PrimaryButton>
+        <button type="button" className="rp-sb-link" disabled={busy} aria-busy={busy || undefined} onClick={() => void fresh()}>I'm starting fresh</button>
       </div>
     </section>
   );

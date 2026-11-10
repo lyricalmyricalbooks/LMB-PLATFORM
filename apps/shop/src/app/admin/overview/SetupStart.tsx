@@ -167,7 +167,7 @@ export function SetupStart({ books, orders, readiness, settings, onOpen, onSetWa
     });
     return (
       <>
-        {celebrate && <ShopOpenedCard address={publicAddress(settings)} onClose={() => setCelebrate(false)} />}
+        {celebrate && <ShopOpenedCard address={publicAddress(settings)} name={settings?.info?.name} moved={doc.sellingToday === "online"} onOpen={onOpen} onClose={() => setCelebrate(false)} />}
         <SetupGuideCard doc={doc} setDoc={setDoc} facts={facts} onOpen={onOpen} onSetWall={setWall} />
         <MoveProgressCard doc={doc} setDoc={setDoc} onOpen={onOpen} />
       </>
