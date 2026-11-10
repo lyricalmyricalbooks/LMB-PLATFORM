@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CUSTOM_TOKEN_AUDIENCE, identityClient, testOwnerSession } from "./identity.js";
+import { CUSTOM_TOKEN_AUDIENCE, TOKEN_CREATOR, identityClient, projectSigner, testOwnerSession } from "./identity.js";
 import { scriptedFetch, token } from "./fake-fetch.js";
 
 const SA = "release-check@example.com";
@@ -56,9 +56,39 @@ test("only the test shop's owner is ever signed in by the platform", async () =>
   fetch.done();
 });
 
-test("Google's own message comes through when a call is refused", async () => {
-  const fetch = scriptedFetch([{ ...signJwt("u1"), status: 403, json: { error: { code: 403, status: "PERMISSION_DENIED", message: "Permission 'iam.serviceAccounts.signJwt' denied" } } }]);
-  await assert.rejects(identityClient({ fetch, token, now: () => NOW }).customToken(SA, "u1"), /iam.serviceAccounts.signJwt' denied/);
+const refused = { ...signJwt("u1"), status: 403, json: { error: { code: 403, status: "PERMISSION_DENIED", message: "Permission 'iam.serviceAccounts.signJwt' denied" } } };
+
+test("Google's own message comes through when signing stays refused", async () => {
+  const fetch = scriptedFetch([refused, refused, refused]);
+  const waits = [];
+  await assert.rejects(identityClient({ fetch, token, now: () => NOW, signRetries: 2, sleep: async (ms) => waits.push(ms) }).customToken(SA, "u1"), /iam.serviceAccounts.signJwt' denied/);
+  assert.equal(waits.length, 2);
+  fetch.done();
+});
+
+test("a signing permission still on its way is waited for", async () => {
+  const fetch = scriptedFetch([refused, signJwt("u1")]);
+  assert.equal(await identityClient({ fetch, token, now: () => NOW, sleep: async () => {} }).customToken(SA, "u1"), "signed.jwt");
+  fetch.done();
+});
+
+test("the test owner's pass is signed by the project's own Firebase admin account when no signer is named", () => {
+  assert.equal(projectSigner("lmb-test-shop"), "firebase-adminsdk-fbsvc@lmb-test-shop.iam.gserviceaccount.com");
+});
+
+test("allowSigning gives Token Creator on the signer once, and leaves it alone after", async () => {
+  const signer = projectSigner("lmb-test-shop");
+  const base = `https://iam.googleapis.com/v1/projects/-/serviceAccounts/${encodeURIComponent(signer)}`;
+  const member = "serviceAccount:deploy@platform.example";
+  const fetch = scriptedFetch([
+    { method: "POST", url: `${base}:getIamPolicy`, body: {}, json: { etag: "e1", bindings: [{ role: "roles/other", members: ["user:a@example.com"] }] } },
+    { method: "POST", url: `${base}:setIamPolicy`, body: { policy: { etag: "e1", bindings: [{ role: "roles/other", members: ["user:a@example.com"] }, { role: TOKEN_CREATOR, members: [member] }] } }, json: {} },
+    { method: "POST", url: `${base}:getIamPolicy`, body: {}, json: { etag: "e2", bindings: [{ role: TOKEN_CREATOR, members: [member] }] } },
+  ]);
+  const identity = identityClient({ fetch, token });
+  assert.deepEqual(await identity.allowSigning(signer, member), { changed: true });
+  assert.deepEqual(await identity.allowSigning(signer, member), { changed: false });
+  fetch.done();
 });
 
 test("a custom token can carry claims (a support visit) on the person's pass", async () => {

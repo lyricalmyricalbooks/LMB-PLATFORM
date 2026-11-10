@@ -1,7 +1,7 @@
 // Runs the release check against the real test shop. Needs Julian's go-ahead and setup (docs/test-shop.md, "Running
 // it for real"); nothing in the platform's tests runs this file.
 //
-//   RELEASE_INBOX=checks@yourpress.example PLATFORM_SERVICE_ACCOUNT=<the platform's release-check service account> \
+//   RELEASE_INBOX=checks@yourpress.example [PLATFORM_SERVICE_ACCOUNT=<signer; default: the test project's Firebase admin account>] \
 //     node release-check/run.js [shop id, default the test shop: setup/testShopPlace.js]
 //
 // The platform token comes from `gcloud auth print-access-token` (the person or job running it is signed in to
@@ -54,16 +54,16 @@ export function shopWhere({ row, profile, env = {}, fetch, token }) {
   };
 }
 
-/** Builds every real client for one run. `env` holds RELEASE_INBOX, PLATFORM_SERVICE_ACCOUNT and the optional ones. */
+/** Builds every real client for one run. `env` holds RELEASE_INBOX and the optional ones (PLATFORM_SERVICE_ACCOUNT among them). */
 export async function realRun({ shopId, env = process.env, fetch = globalThis.fetch, token = gcloudToken, chromium, print = console.log }) {
-  for (const name of ["RELEASE_INBOX", "PLATFORM_SERVICE_ACCOUNT"]) if (!env[name]) throw new Error(`${name} is not set`);
+  for (const name of ["RELEASE_INBOX"]) if (!env[name]) throw new Error(`${name} is not set`);
   const registry = firestoreRegistry(firestoreClient({ fetch, token, projectId: PLATFORM_PROJECT }));
   const row = await registry.getShop(shopId);
   const profile = await registry.getProfile(shopId);
   if (!row || !profile) throw new Error(`the registry has no ${shopId} with a profile; set it up first (setup/)`);
   // Checked again by the runner; checked here too so no sign-in is made for any other shop.
   if (row.testShop !== true) throw new Error(`${shopId} is not the platform's test shop`);
-  const session = await testOwnerSession({ identity: identityClient({ fetch, token }), shop: row, profile, serviceAccount: env.PLATFORM_SERVICE_ACCOUNT });
+  const session = await testOwnerSession({ identity: identityClient({ fetch, token }), shop: row, profile, serviceAccount: env.PLATFORM_SERVICE_ACCOUNT || undefined });
   const where = shopWhere({ row, profile, env, fetch, token });
   const clients = {
     profile,

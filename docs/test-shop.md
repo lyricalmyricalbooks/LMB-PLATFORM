@@ -68,10 +68,11 @@ These steps need Julian's Google account. Nothing here touches his own shop, sto
 1. **Make the platform project and the shops folder** in Google Cloud under the platform's organisation, with a
    billing account for shops. Send the folder number and billing account id; they go in the shop maker's settings,
    never in code.
-2. **Make one service account in the platform project for the release check**, and give it:
-   - "Service Account Token Creator" on itself, so it can sign the test owner's sign-in;
-   - "Firebase Authentication Admin" and "Cloud Datastore User" on the test shop's project, once it exists.
-   Send its address (it is `PLATFORM_SERVICE_ACCOUNT`).
+2. **Nothing to make for the test owner's sign-in.** Firebase only takes a sign-in pass signed by an account of the
+   shop's own project, so it is signed by the test project's Firebase admin account
+   (`firebase-adminsdk-fbsvc@<test project>`). "Make the test shop" lets the deploy account sign as it (Service Account
+   Token Creator; the deploy account owns the project, so it gives this itself). `PLATFORM_SERVICE_ACCOUNT` can still
+   name another signer.
 3. **Choose the test inbox**, a mailbox the platform owns that receives the test shop's order emails (it is
    `RELEASE_INBOX`). The test shop's owner address is the one the shop maker is given for `platform-test`.
 4. **Create the test shop** with the shop maker once the real setup clients are in (plan item for the real clients):
@@ -83,7 +84,7 @@ These steps need Julian's Google account. Nothing here touches his own shop, sto
    and Playwright:
 
    ```bash
-   RELEASE_INBOX=<the test inbox> PLATFORM_SERVICE_ACCOUNT=<the service account> node release-check/run.js platform-test
+   RELEASE_INBOX=<the test inbox> node release-check/run.js platform-test
    ```
 
    It prints each check as it passes. If one fails, it says which and why, and stops. Send the output either way.
