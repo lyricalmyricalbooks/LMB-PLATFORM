@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { ChevronRight, Sparkles } from "lucide-react";
 import { Dialog } from "./riso/components";
 import { APP_UPDATES, type AppUpdate } from "./appUpdates";
+import { lastUpdated, lastUpdatedLine } from "./lastUpdated";
 
 type UpdateLink = AppUpdate["links"][number];
 const SEEN_KEY = "lm:whats-new-seen";
@@ -21,6 +22,7 @@ function seenId(): string {
 export function WhatsNew({ onNavigate, onHistoryOpen, appearance }: { onNavigate: (link: UpdateLink) => void; onHistoryOpen: () => void; appearance: "light" | "dark" }) {
   const [open, setOpen] = useState(false);
   const latest = APP_UPDATES[0];
+  const stamp = lastUpdated();
   const [unread, setUnread] = useState(() => !!latest && seenId() !== latest.id);
   const navigate = (link: UpdateLink) => { setOpen(false); onNavigate(link); };
   const show = () => {
@@ -42,6 +44,7 @@ export function WhatsNew({ onNavigate, onHistoryOpen, appearance }: { onNavigate
   );
   return <>
     <button type="button" className="rp-whats-new" onClick={show} aria-haspopup="dialog"
+      title={stamp ? lastUpdatedLine(stamp) : undefined}
       aria-label={`What's new${unread ? " (new update)" : ""}${latest ? `: ${latest.title}` : ""}`}>
       <Sparkles size={16} aria-hidden />
       <span className="rp-whats-new-text">
@@ -51,6 +54,7 @@ export function WhatsNew({ onNavigate, onHistoryOpen, appearance }: { onNavigate
       <ChevronRight size={14} aria-hidden />
     </button>
     {createPortal(<Dialog appearance={appearance} open={open} onClose={() => setOpen(false)} title="What's new" description="What changed in your admin, newest first. Each note has a shortcut to try it.">
+      {stamp && <p className="rp-update-stamp" title={`Version ${stamp.version}`}>{lastUpdatedLine(stamp)}</p>}
       {APP_UPDATES.map(entry)}
     </Dialog>, document.body)}
   </>;

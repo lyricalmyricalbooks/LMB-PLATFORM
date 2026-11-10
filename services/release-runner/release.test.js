@@ -230,9 +230,15 @@ test("a merge's version names its commit, so it builds (and can be gone back to)
   assert.equal(refOf("1.4.0"), "release-1.4.0");
   assert.equal(refOf("1.4.0-beta.1"), "release-1.4.0-beta.1");
   const runs = [];
-  const builder = releaseBuilder({ root: "/builds", source: "/repo", run: async (command, args) => void runs.push([command, ...args].join(" ")), exists: () => false, writeText: async () => {} });
+  const envs = [];
+  const builder = releaseBuilder({
+    root: "/builds", source: "/repo", exists: () => false, writeText: async () => {}, now: () => new Date("2026-11-10T23:52:00Z"),
+    run: async (command, args, { env } = {}) => { runs.push([command, ...args].join(" ")); if (env) envs.push(env); },
+  });
   await builder.build("1.2.31-g9644c9f");
   assert.equal(runs[0], `git worktree add --detach ${join("/builds", "1.2.31-g9644c9f")} 9644c9f`);
+  // The shop's pages carry their version and build time, for the admin's "Last updated" line.
+  assert.deepEqual(envs, [{ VITE_SHOP_RELEASE: "1.2.31-g9644c9f", VITE_SHOP_BUILT_AT: "2026-11-10T23:52:00.000Z" }]);
 });
 
 test("a release pause: a paused release doesn't start, and a running one stops before its next shop", async () => {

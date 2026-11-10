@@ -20,7 +20,9 @@ shop now runs and whether it passed the release check: a test purchase, the stoc
 - When only the release check fails, the test shop keeps the new version so it can be looked at, the run is red, and
   that version can't go to real shops.
 
-Each version names its commit (`1.2.<run>-g<commit>`), so any version can be built again or gone back to.
+Each version names its commit (`1.2.<run>-g<commit>`), so any version can be built again or gone back to. The control
+room's Today page shows which version the test shop runs and when it got it, and the shop's own admin says when it was
+last updated (What's new).
 
 ## 3. Send the update to shops
 
@@ -36,7 +38,8 @@ Tick "Only say what it would do" for a look first, which changes nothing.
   itself to the reverted main.
 - **Real shops:** run "Send the update to shops" with an earlier version typed in the box (copy it from that merge's
   "Update the test shop" run). It goes through the same checks, test shop first.
-- **Stop everything:** the control room's Pause releases stops any update before its next step.
+- **Stop everything:** Pause updates, on the control room's Today page (under Your test shop), stops any update before
+  its next step. Resume updates there too.
 
 ## Safeguards
 

@@ -26,7 +26,7 @@ export const COMMIT_IN_VERSION = /-g([0-9a-f]{7,40})$/;
 export const refOf = (version) => COMMIT_IN_VERSION.exec(String(version))?.[1] ?? tagOf(version);
 
 /** `releaseBuilder({ run, root, source })`: `run(command, args, { cwd })` runs a command; `source` is this repo. */
-export function releaseBuilder({ run, root, source, exists = existsSync, writeText = writeFile }) {
+export function releaseBuilder({ run, root, source, exists = existsSync, writeText = writeFile, now = () => new Date() }) {
   const dir = (version) => join(root, version);
   return {
     dir,
@@ -38,7 +38,8 @@ export function releaseBuilder({ run, root, source, exists = existsSync, writeTe
       const shop = join(out, "apps", "shop");
       const stockroom = join(out, "apps", "stockroom");
       await run("pnpm", ["install", "--frozen-lockfile"], { cwd: shop });
-      await run("pnpm", ["exec", "vite", "build"], { cwd: shop });
+      // The admin's What's new window says when the shop was last updated (apps/shop/src/app/admin/lastUpdated.ts).
+      await run("pnpm", ["exec", "vite", "build"], { cwd: shop, env: { VITE_SHOP_RELEASE: version, VITE_SHOP_BUILT_AT: now().toISOString() } });
       await run("npm", ["ci"], { cwd: join(shop, "functions") });
       await run("npm", ["ci"], { cwd: stockroom });
       await run("npm", ["run", "build"], { cwd: stockroom });
