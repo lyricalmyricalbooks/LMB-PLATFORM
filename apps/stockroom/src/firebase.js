@@ -19,6 +19,9 @@ const firebaseConfig = { ...shopProfile.firebase };
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const auth = getAuth(app);
+// Everyone signs in on this shop's own sign-in list (the shared system, LMB-PLATFORM docs/shared-system.md): the rules
+// count a sign-in only in the shop whose list it came from. No list: the project's own (the demo).
+auth.tenantId = shopProfile.tenant ?? null;
 // Inside a shop's project the stockroom has its own bucket and its own named Firestore database (plan 1.20), each
 // with its own rules; the profile names them. Without them it uses the project's defaults.
 const storage = getStorage(app, stockroomBucketUrl(shopProfile));

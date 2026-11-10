@@ -47,6 +47,13 @@ needed a Google organization before any shop could be made ("In the queue") and 
   (`scripts/deployConfig.mjs` refuses one that names an address). The shop's server reaches the stockroom only inside
   its shop's folder (`functions/inventoryLinkStore.js` goes through the same wall). The platform writes each record copy
   when it makes the shop (phase 6); the demo seeds them (`demo/seed.js`).
+- **Each shop's own sign-in list.** A shop's owner, staff, helpers and customers sign in on its own Identity Platform
+  tenant. The profile names it (`tenant`, `profile/shop-profile.schema.json`) and both apps set it on their sign-in
+  (`auth.tenantId`), so every pass carries it; the record names it too, and the rules and the server's `admin.auth()`
+  take a pass only from that list. `setup/shopTenant.js` makes the list (email links, Google sign-in copied from the
+  shared project's own Google settings, authenticator codes allowed) or finds the one already made; the shop maker calls
+  it (phase 6). The platform's own sign-ins into a shop (support visits, the release check's test owner, the two-step
+  tools) name the shop's list too (`clients/identity.js`).
 - **Backups.** The managed Firestore export would copy every shop, so inside a shop only the server's own document copy
   runs. Its paths carry no shop folder (`books/a`), and `scripts/restore-json-backup.mjs --shop <id>` puts them back
   into that shop's folder only.
@@ -58,6 +65,13 @@ needed a Google organization before any shop could be made ("In the queue") and 
   index.js with the folders on and checks every trigger listens inside the shop folders. The older handler tests run
   one shop with the folders off (`SHOP_FOLDERS: "off"` in `apps/shop/vite.config.ts`); nothing else turns them off.
 
+## Every shop gets everything (Julian, 10 November 2026)
+
+There is no longer a shop-only or stockroom-only press: every press gets the shop and the stockroom on one plan, paid
+by use (a small editable monthly fee plus its running cost). So the shared system has no per-app switch: the shop maker
+(phase 6) always makes both (the record copy in every store, `apps` both on in the profile), and nothing here turns an
+app off. The per-shop cost meters (phase 7) are what the plan charges by.
+
 ## Phases
 
 | # | Phase | State |
@@ -65,8 +79,8 @@ needed a Google organization before any shop could be made ("In the queue") and 
 | 1 | Walls: shop rules and pages in shop folders, two-shop rule checks | built |
 | 2 | Shop server code (Cloud Functions) in shop folders: shop from each request, triggers on `shops/{shopId}/…`, nightly jobs per shop | built |
 | 3 | Stockroom in shop folders (its database, live sync, files) | built |
-| 4 | Per-shop sign-in (Identity Platform tenants) for customers, staff, helpers, support | next |
-| 5 | Front door: one site for every address, profile by address, crawlable pages, own domains | |
+| 4 | Per-shop sign-in (Identity Platform tenants) for customers, staff, helpers, support | built |
+| 5 | Front door: one site for every address, profile by address, crawlable pages, own domains | next |
 | 6 | Shop maker in seconds (record + tenant + starter content); ends "In the queue" | |
 | 7 | Platform services: control room, health, per-shop costs, export, closing, backups, staged updates | |
 | 8 | Test shop rebuilt in the shared test project (`lmb-test-shop`) with a test purchase | |

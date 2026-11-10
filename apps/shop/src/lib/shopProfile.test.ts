@@ -38,6 +38,17 @@ describe("shop profile", () => {
     expect(parseShopProfile({ ...other, appCheckSiteKey: 5 })).toBeNull();
   });
 
+  it("keeps the shop's own sign-in list, and refuses a malformed one (the shared system)", () => {
+    expect(parseShopProfile({ ...other, tenant: "mothpress-x7k2q" })?.tenant).toBe("mothpress-x7k2q");
+    expect(parseShopProfile(other)).not.toHaveProperty("tenant");
+    for (const bad of ["", "7a-b", "a b c d", "a/bcd", 5, null]) expect(parseShopProfile({ ...other, tenant: bad }), String(bad)).toBeNull();
+  });
+
+  it("signs everyone in on the shop's own list", () => {
+    const source = readFileSync("src/lib/firebase.ts", "utf8");
+    expect(source).toMatch(/export const auth = getAuth\(app\);\n(?:\/\/.*\n)*auth\.tenantId = shopProfile\.tenant \?\? null;/);
+  });
+
   it("keeps only the profile's own fields", () => {
     const parsed = parseShopProfile({ ...other, stripeAccountId: "acct_1", firebase: { ...other.firebase, extra: 1 } });
     expect(parsed).toEqual(other);
