@@ -177,9 +177,9 @@ for (const [name, page] of Object.entries(PAGES)) {
         assert.ok(contrast(v[ink], v[tint]) >= 4.5, `${scope}: ${ink} on its tint`);
       }
     }
-    // Day or night follows the device: the page loads the switch, and the layer names no colour of its own.
+    // Always the day look (owner, 10 November 2026): the page loads the switch, and the layer names no colour of its own.
     assert.match(html, /<script src="\.\/look\/platform-look\.js"><\/script>/);
-    assert.match(read(`${folderOf(page.html)}look/platform-look.js`), /prefers-color-scheme:\s*dark/);
+    assert.match(read(`${folderOf(page.html)}look/platform-look.js`), /data-rp-appearance", "light"/);
   });
 
   test(`${name} page: the keyboard sees where it is, and changes are spoken`, () => {
