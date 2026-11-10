@@ -115,6 +115,14 @@ test("the served file sets the profile before the app starts", () => {
   assert.deepEqual(JSON.parse(JSON.stringify(window.__SHOP_PROFILE__)), example);
 });
 
+test("the served file's text depends only on what the profile says, not the order of its keys", () => {
+  // Firestore keeps no key order: a profile read back from the shared system's shop record must give the same text.
+  const reversed = (value) => (value && typeof value === "object" && !Array.isArray(value)
+    ? Object.fromEntries(Object.keys(value).reverse().map((key) => [key, reversed(value[key])]))
+    : value);
+  assert.equal(profileScript(reversed(example)), profileScript(example));
+});
+
 test("the served file can't break out of a script tag", () => {
   const text = profileScript({ ...example, appCheckSiteKey: "</script><script>alert(1)" });
   assert.ok(!text.includes("</script>"));
