@@ -27,8 +27,8 @@ export async function customerFileFor(orders: any[]): Promise<string> {
 
 export type TakeoutStep = { label: string; done?: number; of?: number };
 
-/** Builds the zip and saves it. Resolves with a short summary line for the toast. */
-export async function downloadShop(onStep: (step: TakeoutStep) => void = () => {}): Promise<string> {
+/** Reads the shop and makes every file of the download. Both doors (the zip and the folder backup) use this. */
+export async function buildTakeout(onStep: (step: TakeoutStep) => void = () => {}) {
   onStep({ label: "Reading your shop…" });
   const [books, allOrders, settings, pages] = await Promise.all([
     adminApi.getAllBooks(), adminApi.getAllOrders(), adminApi.getPublicSettings().catch(() => null), adminApi.getPages().catch(() => []),
@@ -37,14 +37,21 @@ export async function downloadShop(onStep: (step: TakeoutStep) => void = () => {
   const { consent, notes: noteMap } = await peopleFor(orders);
   const plan = photoPlan(books);
   const saved = await fetchPhotos(plan, { onProgress: (done, of) => onStep({ label: "Copying photos…", done, of }) });
-  onStep({ label: "Packing the download…" });
   const pressName = shopNameFromSettings(settings) || "Your shop";
   const files = takeoutFiles({ pressName, books, orders, consent, notes: noteMap, pages, settings: stripPrivate(settings), photos: { plan, saved } });
+  const summary = `${books.length} products, ${orders.length} orders${saved.size < plan.length ? `, ${saved.size} of ${plan.length} photos` : ""}`;
+  return { files, pressName, summary, detail: `${books.length} products, ${orders.length} orders, ${saved.size} of ${plan.length} photos` };
+}
+
+/** Builds the zip and saves it. Resolves with a short summary line for the toast. */
+export async function downloadShop(onStep: (step: TakeoutStep) => void = () => {}): Promise<string> {
+  const { files, pressName, summary, detail } = await buildTakeout(onStep);
+  onStep({ label: "Packing the download…" });
   const zip = zipStored(files.map((f) => [f.path, typeof f.content === "string" ? new TextEncoder().encode(f.content) : f.content]));
   const day = new Date().toISOString().slice(0, 10);
   saveFile(`${(pressName || "shop").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "shop"}-${day}.zip`, zip, "application/zip");
-  await adminApi.recordAuditLog("export", `Downloaded the whole shop: ${books.length} products, ${orders.length} orders, ${saved.size} of ${plan.length} photos`).catch(() => {});
-  return `${books.length} products, ${orders.length} orders${saved.size < plan.length ? `, ${saved.size} of ${plan.length} photos` : ""}`;
+  await adminApi.recordAuditLog("export", `Downloaded the whole shop: ${detail}`).catch(() => {});
+  return summary;
 }
 
 const PRIVATE = /secret|password|passcode|token|privatekey|apikey|accesskey|signingkey/i;

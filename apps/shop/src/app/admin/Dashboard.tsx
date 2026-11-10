@@ -41,6 +41,7 @@ import { LaunchChecklist } from "./LaunchChecklist";
 import { addStorePage, askPersonPage, helpCentrePage, planLocked, storesPage, trialPill } from "./platformPlan";
 import { usePlatformPlan } from "./platformPlanApi";
 import { PlatformMessagesBar } from "./PlatformMessagesBar";
+import { LocalBackupAuto } from "./LocalBackupCard";
 import type { SupportVisit } from "./supportSession";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
 import { useAdminAppManifest } from "./adminApp";
@@ -899,6 +900,7 @@ export function Dashboard() {
         {!(activeTab === "settings" && (settingsTab === "billing" || settingsTab === "plan")) && <PlanBannerBar plan={platformPlan} />}
         {/* The control room's messages to the press (platform/messages, code plan 19.14): admin only, never the storefront. */}
         <PlatformMessagesBar enabled={!!user} />
+        {!!user && !supportVisit && <LocalBackupAuto />}
         {/* The admin home asks a paid plan's owner to turn on two-step sign-in (TwoStepReminder.tsx, plan 22.10). */}
         {activeTab === "overview" && !supportVisit && <TwoStepReminder plan={platformPlan} />}
         {/* The Overview board draws its own header (title, period, layout and Edit board). */}

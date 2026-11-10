@@ -743,6 +743,14 @@ their web address). Screen words say "another shop system"; only the files insid
 (`services/export`) stays for closed shops' 90 days and privacy requests. A new layout = a writer in `shopTakeout.ts`, an entry
 in `takeoutFiles`, a round-trip test.
 
+**Back up to a folder (10 November 2026):** `LocalBackupCard.tsx` (Settings › General, under Download your shop) and
+`localBackup.ts`. The press picks a folder once (File System Access, Chrome and Edge only; the handle lives in this browser's
+IndexedDB, the plain facts in localStorage `lm:local-backup`); `backUpNow` builds the same files as the zip (`buildTakeout` in
+`takeoutRun.ts`) into a dated sub-folder, replaces a same-day one and keeps the newest 7 of our own `shop-backup-…` folders only.
+`LocalBackupAuto` (mounted in Dashboard) runs it quietly once a day when the toggle is on and the browser still allows the folder;
+otherwise the card asks for a click. Copy always says the shop is also backed up in the cloud. One `export` audit-log line
+("Backed up to a folder on the computer: …") feeds the control room's Took their data.
+
 ## Import keeps sizes and colours (plan 10.6, 29 October 2026)
 `shopMove.ts` reads each version's choices by the old shop's option names (`picksOf`) and gives the product
 `options` only when every version picks one value of the same options and no two versions match (`optionsOf`).
