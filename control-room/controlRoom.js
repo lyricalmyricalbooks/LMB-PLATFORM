@@ -47,7 +47,7 @@ import { SETTINGS_DOC, isPaused, pausedSettings, restoredSettings } from "./clos
 import { PAYMENT_ROUTES, emergencyPayments } from "./emergencyPayments.js";
 import { providerSwitch, switchWaiting } from "./providerSwitch.js";
 import { activityEntry } from "./activity.js";
-import { MAX_SNOOZE_DAYS, SNOOZABLE, SNOOZE_DAYS, todaySummary } from "./today.js";
+import { MAX_SNOOZE_DAYS, SNOOZABLE, SNOOZE_DAYS, payoutsPaused, todaySummary } from "./today.js";
 import { MAX_BASIS_POINTS, NO_FEE, feeForShop } from "../services/payments/fees.js";
 import { dateText } from "../services/billing/billing.js";
 import { shopMailLanguage } from "../services/email/templatesFr.js";
@@ -346,6 +346,8 @@ export function createControlRoom({
           // Every web address the shop answers on (free and own, #381), so the list's search finds a shop by it.
           // Who takes its card payments (Stripe or Square, #386), so an outage at one shows which shops it stops.
           cards: CARD_PROVIDERS.has(row.payments?.provider) ? row.payments.provider : null,
+          // Stripe paused its payouts (the same rule as Today), for the Cards filter.
+          payoutsPaused: payoutsPaused(row),
           addresses: [row.freeAddress, ...(row.domains ?? []).map((d) => d?.name)].filter((a) => typeof a === "string" && a),
         });
       }

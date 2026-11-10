@@ -25,6 +25,13 @@ export const MAX_SNOOZE_DAYS = 30;
 /** Whether the owner snoozed this kind of line for this shop (`todaySnoozes` on the registry row) and it hasn't ended. */
 export const needSnoozed = (row, kind, nowMs) => Date.parse(row?.todaySnoozes?.[kind]?.until ?? "") > nowMs;
 
+/**
+ * A live Stripe press whose payouts Stripe paused (kept from account.updated): their money stops reaching their bank.
+ * Square pays out by itself; a press still setting up isn't paused yet. Today and the Shops filter use the same rule.
+ */
+export const payoutsPaused = (row) => row?.status === "live" && !row.closure && row.payments?.provider !== "square"
+  && row.payments?.detailsSubmitted === true && row.payments?.payoutsEnabled === false;
+
 /** A web address that runs out this soon shows on Today. */
 export const DOMAIN_SOON_DAYS = 14;
 
@@ -96,7 +103,7 @@ export function todaySummary({ rows, settings, profiles = {}, checks = {}, open 
   }
   // A live Stripe press whose payouts Stripe paused (kept from account.updated): their money stops reaching their bank,
   // which they notice before anything else. Square pays out by itself; a press still setting up isn't paused yet.
-  for (const row of shops.filter((r) => r.status === "live" && !r.closure && r.payments?.provider !== "square" && r.payments?.detailsSubmitted === true && r.payments?.payoutsEnabled === false)) {
+  for (const row of shops.filter(payoutsPaused)) {
     needs.push({ kind: "payouts", shopId: row.shopId, words: `${row.pressName ?? row.shopId}: Stripe paused their payouts${sinceWords(row.payments.stateAt, now)}${row.payments.pastDue ? ", because details are past due (the press was emailed)" : ""}`, go: "#shops" });
   }
   // Chit Chats orders (chitChats.js shops): one line per shop whose details Chit Chats refused (nothing reaches it until
