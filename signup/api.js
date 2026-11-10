@@ -19,6 +19,7 @@
 // over one the call answers 429 with `retryAfter`. A path may carry a query (`?shopId=…`); it reaches routes as
 // `request.query`.
 import { planList } from "../services/billing/plans.js";
+import { DEFAULT_ALERT_CENTS, examples } from "../services/billing/runningCost.js";
 import { priceText } from "../services/settings.js";
 import { currentTermsVersion } from "../terms/terms.js";
 import { SignupError } from "./signup.js";
@@ -28,6 +29,20 @@ import { randomBytes } from "node:crypto";
 /** The plans that have a website, so can be paid for as a share of its sales. */
 import { errorHelp } from "../help/errorHelp.js";
 export const PAY_AS_YOU_SELL_PLANS = Object.freeze(["shop", "both"]);
+
+/** The pay-what-you-use words for the pricing page: the fee (with its founding price), example shops, the heads-up. */
+export function usageWords(settings, percentOff = 0) {
+  const fees = planList(settings).map((p) => p.amount);
+  const fee = Math.min(...fees);
+  const money = (cents) => priceText(cents, settings.currency);
+  return {
+    feeText: money(fee),
+    sameFee: fees.every((amount) => amount === fee),
+    ...(percentOff > 0 ? { foundingFeeText: money(Math.round((fee * (100 - percentOff)) / 100)) } : {}),
+    examples: examples(fee).map(({ id, name, line, runningCents, totalCents }) => ({ id, name, line, runningText: money(runningCents), totalText: money(totalCents) })),
+    alertText: money(DEFAULT_ALERT_CENTS),
+  };
+}
 
 /** 200 basis points -> "2%", 250 -> "2.5%". */
 export const percentText = (basisPoints) => `${(basisPoints / 100).toLocaleString("en-CA", { maximumFractionDigits: 2 })}%`;
@@ -90,6 +105,9 @@ export function createApi({ signup, verifyIdToken, settings, routes = {}, public
           // The stockroom alone has no website, so it has none.
           ...(basisPoints > 0 && PAY_AS_YOU_SELL_PLANS.includes(plan) ? { payAsYouSell: { percentText: percentText(basisPoints), capText: price } } : {}),
         })),
+        // Pay what you use (10 November 2026): a flat fee (every plan's price, the same by default) plus the month's
+        // running cost at cost; three example shops priced the same way, so the page never promises a made-up number.
+        usage: usageWords(settings, percentOff),
         trialDays: settings.trialDays,
         plusTax: plusTax === true,
         currency: settings.currency,

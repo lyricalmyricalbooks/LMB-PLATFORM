@@ -51,6 +51,7 @@ function platform() {
       case "details/save": return send(200, { ok: true, saved: true });
       case "email-language": world.status = { ...world.status, emailLanguage: { choice: body.language, sends: body.language === "auto" ? "en" : body.language } }; return send(200, { ok: true, changed: true });
       case "download": return send(200, { ok: true, emailedTo: "owner@example.com", expiresAt: "2026-11-10T12:00:00Z" });
+      case "cost-alert": return send(200, { ok: true, changed: true });
       case "pay-now": world.status = { ...world.status, status: "active", paymentProblem: null, canPayNow: false }; return send(200, { ok: true, paid: true });
       default: return send(404, { ok: false, message: "There's nothing here." });
     }
@@ -87,7 +88,7 @@ describe("Settings › Plan", () => {
     await mount(PlanPage);
     expect(text()).toContain("Shop and stockroom");
     expect(text()).toContain("$29.25 a month plus tax");
-    expect(text()).toContain("Founding: 25% off for good");
+    expect(text()).toContain("Founding: 25% off the fee for good");
     expect(text()).toContain("14 days left");
     expect(text()).toContain("Visa ending 4242");
     expect(text()).toContain("Switch to pay as you sell");
@@ -202,6 +203,27 @@ describe("Settings › Plan", () => {
 });
 
 describe("Settings › Billing", () => {
+  it("pay what you use: the price says running cost comes on top, last month's cost shows, and the email amount saves", async () => {
+    world.status = status({ price: "$5.00", founding: null, usage: { fee: "$5.00", lastMonth: { month: "2026-10", monthWords: "October 2026", cents: 253, text: "$2.53" }, alert: { cents: 2500, text: "$25.00" } } });
+    await mount(PlanPage);
+    expect(text()).toContain("$5.00 a month + running cost plus tax");
+    act(() => root?.unmount()); root = null; document.body.innerHTML = "";
+    await mount(BillingPage);
+    const card = document.querySelector("[data-running-cost]")!;
+    expect(card.textContent).toContain("$2.53 for October 2026");
+    expect(button("Save").disabled).toBe(true);
+    await type("Email me if a month's bill may pass", "abc");
+    expect(text()).toContain("Type an amount, like 25 or 25.50");
+    await type("Email me if a month's bill may pass", "40");
+    await click(button("Save"));
+    expect(world.calls.filter(([c]) => c === "cost-alert").map(([, b]) => b.cents)).toEqual([4000]);
+  });
+
+  it("without pay what you use there is no running-cost card", async () => {
+    await mount(BillingPage);
+    expect(document.querySelector("[data-running-cost]")).toBeNull();
+  });
+
   it("shows the next bill with the founding discount and tax, saved cards and past bills", async () => {
     await mount(BillingPage);
     expect(text()).toContain("−$9.75");

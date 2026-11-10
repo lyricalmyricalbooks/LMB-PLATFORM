@@ -230,8 +230,8 @@ export const TEMPLATES = {
     subject: hasCard ? `Your ${settings.platformName} trial ends on ${date}` : `Add a card to keep ${pressName} open after ${date}`,
     greeting: "Hello,",
     paragraphs: hasCard
-      ? [`Your free trial for ${pressName} ends on ${date}. After that, your card is charged ${price} a month for the ${planName} plan.`, "You can change plan or cancel at any time before then."]
-      : [`Your free trial for ${pressName} ends on ${date}.`, `To keep it open, add a card. The ${planName} plan is ${price} a month, and you can cancel at any time.`, "If there is no card by then, your shop pauses. Everything is kept for 60 days, and adding a card opens it again."],
+      ? [`Your free trial for ${pressName} ends on ${date}. After that, your card is charged ${price} a month for the ${planName} plan, plus what your shop costs to run.`, "You can change plan or cancel at any time before then."]
+      : [`Your free trial for ${pressName} ends on ${date}.`, `To keep it open, add a card. The ${planName} plan is ${price} a month plus what your shop costs to run, and you can cancel at any time.`, "If there is no card by then, your shop pauses. Everything is kept for 60 days, and adding a card opens it again."],
     buttons: [[hasCard ? "Manage your plan" : "Add a card", safeLink(link)]],
     footer: signOff(settings),
   }),
@@ -469,7 +469,7 @@ export const TEMPLATES = {
     subject: `${pressName} is now on the ${planName} plan`,
     greeting: "Hello,",
     paragraphs: [
-      `${pressName} is now on the ${planName} plan, ${price} a month.${prorated ? " Your next bill is adjusted for the part of the month on each plan." : ""}`,
+      `${pressName} is now on the ${planName} plan, ${price} a month plus what your shop costs to run.${prorated ? " Your next bill is adjusted for the part of the month on each plan." : ""}`,
       closing ? (now ? `Your plan no longer has ${closing}, so it is closed now.` : `Your plan no longer has ${closing}. It stays open until ${date}, the end of the month you've paid for, then closes.`) : "",
       closing ? "You can download everything in it for 90 days after it closes. Change plan again before then to keep it." : "",
     ].filter(Boolean),
@@ -539,6 +539,15 @@ export const TEMPLATES = {
     greeting: "Hello,",
     paragraphs: [`The ${card || "card"} you pay for ${pressName} with runs out ${month ? `at the end of ${month}` : `on ${date}`}.`, "Add your new card before then so your shop stays open without a break."],
     buttons: [["Update your card", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /** Pay what you use: this month's bill looks set to pass the amount the press chose. `data`: { month, projected, limit, link }. */
+  "bill-heads-up": ({ month, projected, limit, link }, { settings, pressName }) => layout({
+    subject: `${pressName}'s bill for ${month} may pass ${limit}`,
+    greeting: "Hello,",
+    paragraphs: [`At this pace, ${pressName}'s bill for ${month} comes to about ${projected}: the platform fee plus what the shop costs to run. You asked us to tell you when it may pass ${limit}.`, "A busy month (a sale, a mention, lots of visitors) is the usual reason. You can see the month so far, or change this amount, under Billing."],
+    buttons: [["See your bill", safeLink(link)]],
     footer: signOff(settings),
   }),
 

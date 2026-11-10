@@ -131,7 +131,7 @@ test("the whole road: sign up, a shop made, a look picked, a trial, a card, a fa
   await w.stripeEvent("customer.subscription.updated", w.stripe.payMonth(sub));
   assert.equal(planDoc(w, shopId).state, "active");
   numbers = await today(w);
-  assert.deepEqual([numbers.counts.trial, numbers.counts.paying, numbers.monthlyIncome], [0, 1, 3900]);
+  assert.deepEqual([numbers.counts.trial, numbers.counts.paying, numbers.monthlyIncome], [0, 1, 500]);
 
   // ── A failed payment: the shop stays open, the press is told, the control room hears ──
   w.clock.days(30);

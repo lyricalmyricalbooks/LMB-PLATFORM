@@ -25,6 +25,8 @@ export type BillingStatus = {
   canPayNow: boolean;
   /** The paying card runs out within a month, or already has (the platform's cardRunningOut). */
   cardRunsOut?: { ends: string; expired: boolean } | null;
+  /** Pay what you use: the flat fee, last month's running cost (added to the next bill) and the heads-up amount. */
+  usage?: { fee: string; lastMonth: { month: string; monthWords: string; cents: number; text: string } | null; alert: { cents: number; text: string } };
   /** The language of the platform's emails: the choice, and what "auto" comes to ("fr+en" for a Quebec address). */
   emailLanguage?: { choice: "auto" | "fr" | "en"; sends: "fr" | "en" | "fr+en" };
 };
@@ -180,4 +182,17 @@ export function emailLanguageWords(emailLanguage: BillingStatus["emailLanguage"]
   return emailLanguage?.sends === "fr+en"
     ? "Automatic: your billing address is in Quebec, so our emails come in French with the English below."
     : "Automatic: our emails come in English, or in French and English if your billing address is in Quebec.";
+}
+
+/** "25" or "25.50" from a typed amount ("$25", "25,50 $"), in cents, or null when it isn't an amount from $0 to $10,000. */
+export function alertCents(typed: string): number | null {
+  const clean = typed.replace(/[\s$]/g, "").replace(",", ".");
+  if (!/^\d{1,5}(\.\d{1,2})?$/.test(clean)) return null;
+  const cents = Math.round(Number(clean) * 100);
+  return cents <= 1_000_000 ? cents : null;
+}
+
+/** The plan's price in words: the fee, and under pay what you use the running cost on top. */
+export function priceWords(billing: Pick<BillingStatus, "price" | "plusTax" | "usage">, fee = billing.price): string {
+  return `${fee} a month${billing.usage ? " + running cost" : ""}${billing.plusTax ? " plus tax" : ""}`;
 }

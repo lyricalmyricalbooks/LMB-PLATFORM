@@ -55,10 +55,10 @@ export const SECTIONS_FR = Object.freeze([
     title: "Votre forfait et le paiement",
     paragraphs: [
       `Votre forfait commence par un essai gratuit de ${TRIAL_DAYS} jours, et nous ne demandons jamais de carte pour le commencer. Si l'essai se termine sans carte, votre boutique est mise en pause et rien n'est facturé.`,
-      "Une fois votre carte ajoutée, votre forfait se renouvelle chaque mois et nous débitons cette carte chaque mois jusqu'à ce que vous annuliez.",
+      "Une fois votre carte ajoutée, votre forfait se renouvelle chaque mois jusqu'à ce que vous annuliez. Chaque mois, nous débitons cette carte des frais du forfait et de ce qu'a coûté le fonctionnement de votre boutique le mois précédent (stockage, trafic web, tâches de fond et courriels), à ce qu'il nous coûte. Votre page de facturation montre le coût à ce jour.",
       "Les prix sont affichés avant taxes. Nous ajoutons les taxes de vente qui s'appliquent là où se trouve votre maison, et votre reçu les indique.",
-      "Au lieu d'un prix mensuel, vous pouvez choisir de payer une part des ventes de votre site chaque mois, jusqu'à une limite mensuelle. Nous montrons la part et la limite avant que vous choisissiez.",
-      "L'offre fondatrice donne aux premières maisons un prix réduit tant qu'elles gardent leur forfait. Si une maison fondatrice annule avant son premier paiement, sa place passe à la maison suivante.",
+      "Une maison qui paie déjà une part des ventes de son site au lieu d'un prix mensuel continue de payer ainsi jusqu'à ce qu'elle change. Ce choix n'est pas offert aux nouvelles maisons.",
+      "L'offre fondatrice donne aux premières maisons des frais réduits tant qu'elles gardent leur forfait. Si une maison fondatrice annule avant son premier paiement, sa place passe à la maison suivante.",
       `Si nous augmentons un prix, nous vous écrivons au moins ${CHANGE_NOTICE_DAYS} jours avant votre premier paiement au nouveau prix, et vous pouvez annuler avant.`,
       "Vous pouvez annuler en tout temps depuis Forfait et facturation dans votre compte, sans appel ni courriel. Nous vous écrivons pour le confirmer.",
       "Quand vous annulez, votre forfait continue jusqu'à la fin du mois déjà payé, et nous ne remboursons pas une partie de mois. Vous pouvez changer d'avis d'ici là.",

@@ -68,6 +68,7 @@ import { withRetries } from "./stripeRetry.js";
 import { ensureFoundingCoupon, foundingAmount, foundingOfferOf } from "./founding.js";
 import { createBillingHub, invoiceTax } from "./hub.js";
 import { siteUrlOf } from "../domains/names.js";
+import { DEFAULT_ALERT_CENTS, monthBounds, monthWords, paidShare, projectedCents } from "./runningCost.js";
 import { PAY_AS_YOU_SELL_PLANS } from "../payments/payAsYouSell.js";
 
 export { CARD_WARNING_DAYS, cardEnds, cardWords };
@@ -209,13 +210,19 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     const { plan, status, access, trialEnd, currentPeriodEnd, hasCard } = row;
     // "Cancelled" is the press's own choice: Stripe's cancel of a pay-as-you-sell plan is the switch (paymentWayState.js).
     const { cancelling: cancelAtPeriodEnd, endsAt } = planEnding(row);
-    await registry.updateShop(shopId, { billing: { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, endsAt, hasCard, percentOff: row.founding === true ? row.foundingPercentOff ?? null : null, appsClosing: row.appsClosing ?? null, appDrops: row.appDrops ?? [], updatedAt: row.updatedAt, leaving: row.leaving ?? null, troubleSince: row.troubleSince ?? null, language: row.language ?? null, province: row.province ?? null } });
+    await registry.updateShop(shopId, { billing: { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, endsAt, hasCard, percentOff: row.founding === true ? row.foundingPercentOff ?? null : null, appsClosing: row.appsClosing ?? null, appDrops: row.appDrops ?? [], updatedAt: row.updatedAt, leaving: row.leaving ?? null, troubleSince: row.troubleSince ?? null, language: row.language ?? null, province: row.province ?? null, lastRunningCost: row.lastRunningCost ?? null } });
   }
 
   // The shop's own platform/plan and platform/status (shopPlan.js), once its database exists.
   async function copyToShop(shopId, row) {
     if (!shopPlan || !(await auditLog.ready(shopId))) return null;
     return shopPlan.write(shopId, row, { link: accountLink(shopId), hub: `${settings.platformUrl}/api/shop-billing/`, at: at() });
+  }
+
+  /** The monthly platform fee this shop pays, its founding share taken off. */
+  function feeAfterOffer(row) {
+    const amount = planPrice(row.plan, settings).amount;
+    return row.founding === true && row.foundingPercentOff ? foundingAmount(amount, row.foundingPercentOff) : amount;
   }
 
   async function rowFor(shopId) {
@@ -894,6 +901,12 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         appsClosing: row.appsClosing ?? null, closedApps: row.closedApps ?? {},
         plans: PLAN_IDS.map((id) => { const p = planPrice(id, settings); return { plan: id, name: p.name, price: p.priceText, apps: APPS.filter((app) => PLAN_APPS[id][app]) }; }),
         paymentWay: currentPaymentWay(row, now()),
+        // Pay what you use: the flat fee plus last month's running cost, and the "tell me if it may pass" amount.
+        usage: {
+          fee: price?.priceText ?? "",
+          lastMonth: row.lastRunningCost ? { month: row.lastRunningCost.month, monthWords: monthWords(row.lastRunningCost.month), cents: row.lastRunningCost.cents, text: moneyText(row.lastRunningCost.cents, settings.currency) } : null,
+          alert: { cents: Number.isInteger(row.costAlert?.cents) ? row.costAlert.cents : DEFAULT_ALERT_CENTS, text: moneyText(Number.isInteger(row.costAlert?.cents) ? row.costAlert.cents : DEFAULT_ALERT_CENTS, settings.currency) },
+        },
         founding: row.founding === true ? { percentOff: row.foundingPercentOff ?? null, price: price && row.foundingPercentOff ? moneyText(foundingAmount(price.amount, row.foundingPercentOff), price.currency) : "" } : null,
         // Only while something is owed: a problem left over from a bill voided or settled some other way doesn't linger.
         paymentProblem: OWING.has(row.status) && row.paymentProblem ? { kind: row.paymentProblem.kind, at: row.paymentProblem.at, amount: row.paymentProblem.amount ?? "", nextTry: row.paymentProblem.nextTry ?? null, pageUrl: httpsOrNull(row.paymentProblem.pageUrl) } : null,
@@ -966,6 +979,78 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       return closed;
     },
 
+
+    /**
+     * Pay what you use (runningCost.js): last month's running cost goes on each paying shop's next bill as its own line,
+     * "Running cost, October 2026". `costs` is { [shopId]: cents } for the whole of `month` (meters or the billing
+     * export, read by the job). Only the part of the month the plan was paid for is charged (a trial month costs
+     * nothing), never the platform fee's founding share (the line isn't discountable). Safe to run every day: a month
+     * once billed is kept on the billing record and Stripe's idempotency key stops a second line.
+     */
+    async billRunningCosts({ month, costs = {} }) {
+      monthBounds(month);
+      const billed = [], skipped = [], missing = [], failed = [];
+      for (const row of await subscriptions.list()) {
+        if (!row.subscriptionId || row.runningCosts?.[month]) continue;
+        if (ENDED.has(row.status) || row.testShop === true || currentPaymentWay(row, now()) === "payAsYouSell") { skipped.push(row.shopId); continue; }
+        const full = costs[row.shopId];
+        if (!Number.isInteger(full)) { missing.push(row.shopId); continue; }
+        try {
+          const share = paidShare({ month, paidFrom: row.trialEnd });
+          const cents = Math.round(Math.max(0, full) * share);
+          let invoiceItemId = null;
+          if (cents > 0) {
+            const item = await call("POST", "/v1/invoiceitems", {
+              params: {
+                customer: row.customerId, subscription: row.subscriptionId, amount: cents, currency: settings.currency.toLowerCase(),
+                description: `Running cost, ${monthWords(month)} / Coût de fonctionnement`, discountable: false,
+                metadata: { lmb_shop_id: row.shopId, lmb_month: month, lmb_kind: "running-cost" },
+              },
+              idempotencyKey: `running-cost-${row.shopId}-${month}`,
+            });
+            invoiceItemId = item?.id ?? null;
+          }
+          const entry = { cents, fullCents: full, share, invoiceItemId, at: at() };
+          await save(row.shopId, { runningCosts: { ...(row.runningCosts ?? {}), [month]: entry }, lastRunningCost: { month, cents } }, null);
+          await logChange(row.shopId, "running-cost-billed", { month, cents });
+          billed.push({ shopId: row.shopId, cents });
+        } catch (failure) {
+          failed.push(`${row.shopId}: ${failure.message}`);
+        }
+      }
+      if (failed.length) throw new Error(`Running costs billed, but ${failed.length} shop${failed.length > 1 ? "s" : ""} had trouble: ${failed.join("; ")}`);
+      return { month, billed, skipped, missing };
+    },
+
+    /**
+     * The daily heads-up: when this month's bill (fee plus running cost so far, carried on to the month's end) looks set
+     * to pass the amount the press chose (DEFAULT_ALERT_CENTS unless they set one), they're emailed once that month.
+     * `soFar` is { [shopId]: cents } for the month so far.
+     */
+    async runningCostAlerts({ month, soFar = {} }) {
+      const sent = [];
+      for (const row of await subscriptions.list()) {
+        if (!row.subscriptionId || ENDED.has(row.status) || row.status === "trialing" || row.costAlert?.sentFor === month) continue;
+        if (!Number.isInteger(soFar[row.shopId])) continue;
+        const limit = Number.isInteger(row.costAlert?.cents) ? row.costAlert.cents : DEFAULT_ALERT_CENTS;
+        if (limit <= 0) continue;
+        const fee = row.plan ? feeAfterOffer(row) : 0;
+        const projected = fee + projectedCents({ soFarCents: soFar[row.shopId], now: now(), month });
+        if (projected <= limit) continue;
+        await notify(row.shopId, "bill-heads-up", { month: monthWords(month), projected: moneyText(projected, settings.currency), limit: moneyText(limit, settings.currency) }, `${row.shopId}/bill-heads-up/${month}`);
+        await save(row.shopId, { costAlert: { ...(row.costAlert ?? {}), sentFor: month } }, "bill-heads-up-sent");
+        sent.push(row.shopId);
+      }
+      return sent;
+    },
+
+    /** The press's "tell me if my bill may pass" amount, in cents (0 turns the email off). */
+    async setCostAlert({ shopId, cents }) {
+      if (!Number.isInteger(cents) || cents < 0 || cents > 1_000_000) throw new BillingError(400, "Choose an amount from $0 to $10,000. $0 turns the email off.");
+      const row = await rowFor(shopId);
+      await save(shopId, { costAlert: { ...(row.costAlert ?? {}), cents } }, "cost-alert-changed");
+      return { costAlert: { cents, text: moneyText(cents, settings.currency) } };
+    },
 
     /**
      * The daily sweep for 6.12 (cardExpiry.js, run nightly since 19.9): a month before the card on file runs out, the

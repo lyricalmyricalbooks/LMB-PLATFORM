@@ -1,6 +1,7 @@
 // The billing door (code plan 6.4) and the Plan & billing page (6.5), against the real billing service and the pretend
 // Stripe: only the shop's owner (from the shop's own team) gets in, every call is logged, each reaches the billing
 // service once, card pages come back only to /account/billing; and the page's words for each state, with pretend data.
+import { TIERED_PRICES_ENV } from "../services/billing/fakes.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -27,7 +28,7 @@ const SHOP = "moth-press";
 const NOW = Date.parse("2026-10-28T12:00:00Z");
 
 async function world() {
-  const settings = platformSettings({});
+  const settings = platformSettings(TIERED_PRICES_ENV);
   const registry = fakeRegistry();
   await registry.createShop(SHOP, { shopId: SHOP, pressName: "Moth Press", plan: "both", status: "live", ownerEmail: OWNER.email });
   const auditLog = fakeAuditLog();
@@ -241,7 +242,7 @@ test("the email's keep link is the one call with no sign-in: it reaches billing 
   const seen = [];
   const billing = { keepClosingAppsByLink: async (asked) => { seen.push(asked); return { plan: "both", changed: true }; } };
   const { billingPublicRoutes } = await import("./billingRoutes.js");
-  const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), publicRoutes: billingPublicRoutes({ billing }) });
+  const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings(TIERED_PRICES_ENV), publicRoutes: billingPublicRoutes({ billing }) });
   const call = (body) => api({ method: "POST", path: "/api/billing/keep-by-link", body, headers: {} });
   assert.equal((await call({ shopId: SHOP })).status, 400);
   assert.equal((await call({ token: "t" })).status, 400);

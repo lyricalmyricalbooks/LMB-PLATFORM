@@ -1,7 +1,8 @@
 // The platform's own settings: prices, trial length, the platform's name, domain and email addresses. Each one is read
-// from the environment of the service that runs. Defaults are Julian's answers of 28 October 2026 (Colophon; $29 shop,
-// $19 stockroom, $39 both, CAD; 14-day trial; notifications@ and support@ the platform domain); the domain itself is a
-// placeholder until he has one.
+// from the environment of the service that runs. Defaults are Julian's answers of 28 October 2026 (Colophon, CAD; 14-day
+// trial; notifications@ and support@ the platform domain), with pay what you use since 10 November 2026: every plan's
+// price is a flat $5 platform fee, and each month's running cost is added to the next bill at cost
+// (services/billing/runningCost.js). The domain itself is a placeholder until he has one.
 // Keys are never settings here: the email key and the Stripe key are read only where they are used
 // (services/email, services/payments).
 //
@@ -12,9 +13,10 @@
 //   PLATFORM_MAILING_ADDRESS   Colophon's mailing address (a PO box is fine), at the foot of every email; Canadian
 //                              anti-spam law asks for it in commercial emails (15.8)     default none
 //   PLATFORM_CURRENCY          the currency plans are charged in                     default CAD
-//   PLAN_PRICE_SHOP            monthly price of the shop alone, in cents             default 2900 ($29)
-//   PLAN_PRICE_STOCKROOM       monthly price of the stockroom alone, in cents        default 1900 ($19)
-//   PLAN_PRICE_BOTH            monthly price of the shop and the stockroom, cents    default 3900 ($39)
+//   PLAN_PRICE_SHOP            monthly platform fee for the shop alone, in cents     default 500 ($5)
+//   PLAN_PRICE_STOCKROOM       monthly platform fee for the stockroom alone, cents   default 500 ($5)
+//   PLAN_PRICE_BOTH            monthly platform fee for the shop and stockroom       default 500 ($5)
+//                              (the running cost comes on top, at cost: services/billing/runningCost.js)
 //   TRIAL_DAYS                 free days before the first charge (no card needed)    default 14
 //   START_NUDGES               Get started nudges on days 2 and 4 (plan 17.14): hold (none sent), beside (sent with the
 //                              setup tips) or instead (sent in place of that day's setup tip)   default hold
@@ -28,7 +30,8 @@
 //   FOUNDING_PERCENT_OFF       the founding offer's discount, for as long as they stay  default 25
 //   FOUNDING_PRESSES           how many paying presses get the founding offer        default 25
 //   PAY_AS_YOU_SELL_BASIS_POINTS  "pay as you sell" instead of a monthly fee: share of each website sale, in
-//                              hundredths of a percent (200 = 2%); 0 turns the option off (6.19)   default 200
+//                              hundredths of a percent (200 = 2%); 0 turns the option off (6.19)   default 0: closed
+//                              to new presses since pay what you use replaced it (10 November 2026)
 //
 // The control room can change the settings in EDITABLE without a release (plan 9.4): they are saved in the platform
 // project and `liveSettings` puts them on top of these. The rest (name, domain, addresses, currency) stay here.
@@ -40,7 +43,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   supportEmail: "support@platform.example",
   mailingAddress: "",
   currency: "CAD",
-  prices: Object.freeze({ shop: 2900, stockroom: 1900, both: 3900 }),
+  prices: Object.freeze({ shop: 500, stockroom: 500, both: 500 }),
   trialDays: 14,
   platformUrl: "https://platform.example",
   signupOpen: false,
@@ -48,7 +51,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   signupDailyCap: 10,
   openCountries: Object.freeze(["CA"]),
   foundingOffer: Object.freeze({ percentOff: 25, presses: 25, giveBackUnpaid: true }),
-  payAsYouSell: Object.freeze({ basisPoints: 200 }),
+  payAsYouSell: Object.freeze({ basisPoints: 0 }),
 });
 
 export const PLAN_NAMES = Object.freeze({ shop: "Shop", stockroom: "Stockroom", both: "Shop and stockroom" });
@@ -170,9 +173,9 @@ export function priceText(cents, currency = DEFAULT_SETTINGS.currency) {
 export const EDITABLE = Object.freeze({
   signupOpen: { kind: "yesNo", label: "Anyone can sign up (off: waitlist invites only)" },
   signupDailyCap: { kind: "whole", ...LIMITS.signupDailyCap, label: "New shops a day (an invite skips the line)" },
-  "prices.shop": { kind: "cents", ...LIMITS["prices.shop"], label: "Shop plan, a month" },
-  "prices.stockroom": { kind: "cents", ...LIMITS["prices.stockroom"], label: "Stockroom plan, a month" },
-  "prices.both": { kind: "cents", ...LIMITS["prices.both"], label: "Shop and stockroom plan, a month" },
+  "prices.shop": { kind: "cents", ...LIMITS["prices.shop"], label: "Platform fee, shop plan, a month (running cost comes on top)" },
+  "prices.stockroom": { kind: "cents", ...LIMITS["prices.stockroom"], label: "Platform fee, stockroom plan, a month (running cost comes on top)" },
+  "prices.both": { kind: "cents", ...LIMITS["prices.both"], label: "Platform fee, shop and stockroom plan, a month (running cost comes on top)" },
   trialDays: { kind: "whole", ...LIMITS.trialDays, label: "Free trial days" },
   "foundingOffer.percentOff": { kind: "whole", ...LIMITS["foundingOffer.percentOff"], label: "Founding offer: percent off, for as long as they stay" },
   "foundingOffer.presses": { kind: "whole", ...LIMITS["foundingOffer.presses"], label: "Founding offer: how many paying presses get it" },

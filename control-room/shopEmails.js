@@ -24,7 +24,7 @@ export const KIND_WORDS = Object.freeze({
   "shop-reopened": "Shop reopened", "cancel-undone": "Cancelling undone", "subscription-cancelled": "Plan cancelled",
   "subscription-ended": "Plan ended", "payments-past-due": "Stripe needs details", "plan-changed": "Plan changed",
   "app-closing-soon": "App closing soon", "app-closed": "App closed", "app-download-ending": "Download ending",
-  "app-records-deleted": "App records deleted", "card-expiring": "Card expiring", "payments-moved": "Card payments moved",
+  "app-records-deleted": "App records deleted", "card-expiring": "Card expiring", "bill-heads-up": "Bill may pass their amount", "payments-moved": "Card payments moved",
   "payments-switched": "Card switch done", "payout-schedule-changed": "Payout timing changed", "chitchats-waiting": "Chit Chats needs a look", "sign-in-link": "Sign-in link",
   "sign-in-code": "Sign-in code", "waitlist-invite": "Waitlist invitation", "new-device": "New sign-in", "account-deleted": "Account deleted",
   "recovery-asked": "Account move asked", "recovery-received": "Account move request received", "recovery-stopped": "Account move stopped",

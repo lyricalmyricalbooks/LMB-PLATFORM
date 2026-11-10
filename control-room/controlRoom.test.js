@@ -1,6 +1,7 @@
 // The control room (code plan 2.8), against a test shop made by the real setup steps with pretend Google and services:
 // only platform admins get in; the list shows plan, version, health and switches; "act as this shop" is logged before
 // any sign-in is made; and a switch changes the saved profile, its file and the live pages, with a log entry.
+import { TIERED_PRICES_ENV } from "../services/billing/fakes.js";
 import { test } from "node:test";
 import { PRIVACY_CONTACT } from "../terms/terms.js";
 import { readFileSync } from "node:fs";
@@ -71,7 +72,7 @@ async function world({ repairs, newsletters, googleSteps, googleReady, taxWatch 
     admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: " Admin@Example.com ,not-an-email" }),
     now: () => new Date((clock += 1000)),
   });
-  const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), routes: controlRoutes(room) });
+  const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings(TIERED_PRICES_ENV), routes: controlRoutes(room) });
   const ask = (claims, method, path, body) => api({ method, path, body, headers: { Authorization: `Bearer ${JSON.stringify(claims)}` } });
   const events = (shopId = ID) => [...(registry.events.get(shopId)?.values() ?? [])].filter((e) => e.source === "control-room");
   return { google, services, registry, profileFiles, auditLog, shopAccess, room, ask, events, built, email, square, breachStore, activity, platformState };
@@ -578,7 +579,7 @@ test("one shop's record: owner, billing, setup, fee and its history, admins only
   const quebec = (await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: ID })).body;
   assert.equal(quebec.emailLanguage, "fr+en", "the same rule the emails use");
   assert.match(quebec.emailSample.text, /^Bonjour,.*----- English -----.*Hello,/s, "French first, then the English");
-  assert.match(quebec.emailSample.text, /39,00\u00a0\$/, "the price the French way");
+  assert.match(quebec.emailSample.text, /5,00\u00a0\$/, "the price the French way");
   assert.match(quebec.emailSample.text, /Boutique et réserve/, "the plan's French name");
   assert.match(quebec.emailSample.subject, /^Votre essai .* \/ Your .* trial/);
   await w.registry.updateShop(ID, { billing: { plan: "both", status: "trialing", province: "QC", language: null, hasCard: false } });

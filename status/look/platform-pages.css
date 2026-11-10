@@ -1,4 +1,5 @@
 /* GENERATED from shared/admin-look/platform-pages.css by shared/admin-look/sync.mjs. Edit the source, never this copy. */
+/* GENERATED from shared/admin-look/platform-pages.css by shared/admin-look/sync.mjs. Edit the source, never this copy. */
 /*
  * Platform pages — the Colophon pages around the shop (waitlist, sign-up, start your shop, your shops, plan & billing,
  * help, status, terms, trust, the walkthrough start page), in the Colophon bento look (colophon.css, 9 November 2026):
@@ -462,6 +463,15 @@ body.cp:has(> footer) > main { flex: 1 0 auto; }
 .cp .plans { align-items: stretch; }
 .cp .cp-plans-note { margin: 18px 0 0; font: 400 12px/1.5 var(--rp-font-mono); color: var(--rp-text-subtle); }
 
+/* Pricing, pay what you use (10 November 2026): three example shops (the typical one in mint), then what each plan opens. */
+.cp .plan.cp-typical::before { content: "Most shops"; }
+.cp .cp-plan-apps { margin-top: 16px; display: grid; gap: 12px; }
+.cp .cp-plan-apps-title { margin: 0; font-size: 18px; }
+.cp .cp-plan-apps-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 24px; }
+.cp .cp-plan-apps-list li { display: grid; gap: 2px; }
+.cp .cp-plan-apps-list span { color: var(--rp-text-subtle); font-size: 14px; }
+@media (max-width: 900px) { .cp .cp-plan-apps-list { grid-template-columns: minmax(0, 1fr); } }
+
 /* ── Front page (waitlist/index.html, design handoff "Colophon front page", 9 November 2026) ─────────────────────
    A dark hero tile with the email pill and two product tiles, three steps, four feature tiles with small drawings,
    the founding card. Everything sits under .cp-front so no other page changes. */
@@ -605,3 +615,4 @@ body.cp:has(> footer) > main { flex: 1 0 auto; }
   .cp-front.cp-pricing .cp-mast nav a { white-space: nowrap; }
   .cp-front.cp-pricing .plans .cp-pick { order: 0; }
 }
+

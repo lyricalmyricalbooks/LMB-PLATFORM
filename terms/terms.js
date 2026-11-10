@@ -8,7 +8,7 @@
 // words they agreed to. Words here are customer-facing: plain words, never a rival's name.
 
 /** The id of these words. Sign-up stores it with the date the press ticked the box. */
-export const TERMS_VERSION = "2026-11-10-draft";
+export const TERMS_VERSION = "2026-11-10-draft.2";
 
 /** True until a lawyer has read the words. The page shows the draft notice while it is. */
 export const DRAFT = true;
@@ -94,10 +94,10 @@ export const SECTIONS = Object.freeze([
     title: "Your plan and paying",
     paragraphs: [
       `Your plan starts with a free trial of ${TRIAL_DAYS} days, and we never ask for a card to start it. If the trial ends with no card, your shop pauses and nothing is charged.`,
-      "Once you add a card, your plan renews every month and we charge that card each month until you cancel.",
+      "Once you add a card, your plan renews every month until you cancel. Each month we charge that card the plan's fee plus what your shop cost to run the month before (storage, web traffic, background jobs and emails), at what it costs us. Your billing page shows the cost so far.",
       "Prices are shown before tax. We add the sales tax that applies where your press is, and your receipt shows it.",
-      "Instead of a monthly price, you can choose to pay a share of your website's sales each month, up to a monthly limit. We show the share and the limit before you choose.",
-      "The founding offer gives the first presses a lower price for as long as they keep their plan. If a founding press cancels before its first payment, its place goes to the next press.",
+      "A press that already pays a share of its website's sales instead of a monthly price keeps paying that way until it switches. It isn't offered to new presses.",
+      "The founding offer gives the first presses a lower fee for as long as they keep their plan. If a founding press cancels before its first payment, its place goes to the next press.",
       `If we raise a price, we email you at least ${CHANGE_NOTICE_DAYS} days before your first payment at the new price, and you can cancel before then.`,
       "You can cancel at any time from Plan & billing in your account, with no call or email needed. We email you to confirm.",
       "When you cancel, your plan runs to the end of the month already paid for, and we don't refund part of a month. You can change your mind until then.",

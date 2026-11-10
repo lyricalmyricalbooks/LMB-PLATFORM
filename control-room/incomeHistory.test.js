@@ -1,6 +1,7 @@
 // Income over time (code plan 19.7): one record a night, counted as Today counts (test shop never), safe to run twice
 // the same day, with each night's movements; the 12-month line at month ends, money kept and lost this month, the
 // trial-to-paying rate; the nightly run; and the control room's admin-only door with its chart on the Today page.
+import { TIERED_PRICES_ENV } from "../services/billing/fakes.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -14,7 +15,7 @@ import { fakeVerifyIdToken } from "../signup/fakes.js";
 import { fakeRegistry } from "../setup/fakes.js";
 import { platformSettings } from "../services/settings.js";
 
-const settings = platformSettings({});
+const settings = platformSettings(TIERED_PRICES_ENV);
 const DAY = 86_400_000;
 const ADMIN = "admin@example.com";
 const adminAt = (now) => ({ uid: "uid-admin", email: ADMIN, email_verified: true, firebase: { sign_in_second_factor: "totp" }, auth_time: Math.floor(now.getTime() / 1000) });
@@ -175,7 +176,7 @@ test("the nightly record keeps the money at risk, and the line shows it per mont
   await registry.createShop("wasp", { shopId: "wasp", plan: "shop", status: "live", billing: { status: "active" } });
   const records = new Map();
   const store = { get: async (d) => records.get(d) ?? null, set: async (d, r) => void records.set(d, r), list: async ({ since }) => [...records.values()].filter((r) => r.day >= since).sort((a, b) => (a.day < b.day ? -1 : 1)) };
-  const settings = platformSettings({});
+  const settings = platformSettings(TIERED_PRICES_ENV);
   const now = new Date("2026-11-03T12:00:00Z");
   const record = await snapshotIncome({ registry, settings, store, now });
   assert.deepEqual(record.atRisk, { count: 1, cents: settings.prices.both });
