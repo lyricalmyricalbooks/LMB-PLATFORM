@@ -1,37 +1,55 @@
-// Makes the platform's own test shop for real (plan 9.10, owner 10 November 2026): the shop maker's steps
-// (later-steps.js shopSteps) with the real clients (real.js), run against the Firebase project `lmb-test-shop`, which
-// the owner made once by hand. GitHub runs it (.github/workflows/test-shop.yml), signed in as the deploy account.
+// Makes the platform's own test shop for real, in the shared system (docs/shared-system.md, phase 8): the test shop is
+// one folder in the shared test project `lmb-test-shop`, which every release reaches first. GitHub runs it
+// (.github/workflows/test-shop.yml), signed in as the deploy account.
 //
 //   TEST_SHOP_OWNER_EMAIL=<owner> node setup/make-test-shop.js            # the plan: prints each step, changes nothing
 //   TEST_SHOP_OWNER_EMAIL=<owner> node setup/make-test-shop.js --apply    # does it (safe to run again; it resumes)
 //
-// Run from the repository's root after building the apps there: the deploys read apps/shop/dist,
-// apps/shop/functions (its packages installed) and apps/stockroom/dist (clients/deploy.js).
+// Run from the repository's root after building the apps there: the deploy reads apps/shop/dist, apps/shop/functions
+// (its packages installed) and apps/stockroom/dist (clients/deploy.js).
 //
-// It only ever touches `lmb-test-shop`: the shop is the test shop (`testShop: true`, test mode), and its Google project
-// is the one the owner made, whatever folder and billing account it sits in. Every other shop waits for the real shop
-// maker and the shops folder (code plan 15.5).
+// In order, each part safe to run again:
+//   1. The project, readied for shops once (setup/sharedProject.js). Google sign-in for the project is turned on by a
+//      person in the Firebase console; the run says so and stops there until it is.
+//   2. The test shop from before the shared system (`lmb-test-shop`, the project to itself) is marked abandoned, so
+//      the per-project release runner never sends its old rules over the shared ones. Its data is left where it is.
+//   3. The project's first release (services/release-runner/shared.js firstSharedRelease): the rules, the shared server
+//      and the one site, while it has no live shop. Every later release goes through run-shared.js, this project first.
+//   4. The test shop, made by the shared shop maker's steps (setup/sharedSteps.js) as `test-press`, answering at the
+//      project's own address (lmb-test-shop.web.app). Steps 7 (payments) and 8 (the owner's welcome email) wait for
+//      the platform's services to be handed to this script; they are looked at again on every run.
+//   5. Its pages drawn from its books (setup/shopSite.js), as every release does for every shop.
 //
-// Not connected yet, so done later without redoing the rest:
-// - step 13 (payments) waits for the platform payment service;
-// - step 14 (the owner's welcome email) waits for the platform email service.
-// Both are looked at again on every run, so they happen on the first run after their key is there.
+// It only ever touches `lmb-test-shop`. The release check (release-check/run.js) then buys from the test shop in test
+// mode; the staged update runs it on every release.
 import { execFile } from "node:child_process";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import { pathToFileURL } from "node:url";
 import { runSteps } from "./runner.js";
-import { shopSteps } from "./later-steps.js";
-import { realSetupClients } from "./real.js";
-import { TEST_STARTER_CONTENT } from "./test-shop.js";
+import { sharedShopSteps } from "./sharedSteps.js";
+import { realSharedClients, sharedMakerConfig } from "./real.js";
+import { runProjectSteps, sharedProjectSteps } from "./sharedProject.js";
+import { REGION } from "./steps.js";
+import { buildAndPublish } from "./shopSite.js";
+import { deployClient } from "../clients/deploy.js";
+import { firstSharedRelease, sharedProjectProfile } from "../services/release-runner/shared.js";
+import { TEST_PROJECT, TEST_SHOP_ADDRESS, TEST_SHOP_ID } from "./testShopPlace.js";
 
-export const TEST_SHOP_ID = "lmb-test-shop";
+// The shared test project, and the test shop: a folder in it, at the project's own address.
+export { TEST_PROJECT, TEST_SHOP_ADDRESS, TEST_SHOP_ID };
+/** The test shop's id when it had the project to itself (before the shared system). */
+export const OLD_TEST_SHOP_ID = TEST_PROJECT;
 export const PLATFORM_URL = "https://lmb-platform-prod.web.app";
-// The release the test shop is first made with. Later updates go out with the release runner (services/release-runner).
+export const SENDER_EMAIL = "notifications@colophon.example";
+// The release the project is first sent. Later updates go out with the staged update (services/release-runner).
 export const FIRST_RELEASE = "1.0.0";
 // Steps whose part may only be connected after the first run.
-export const LATER_STEPS = Object.freeze({ 13: "payments (the Stripe test key)", 14: "the owner's welcome email (the email key)" });
+export const LATER_STEPS = Object.freeze({ 7: "payments (the platform payment service)", 8: "the owner's welcome email (the platform email service)" });
 
-/** The test shop's registry row as the shop maker gets it. */
+const message = (error) => (error instanceof Error ? error.message : String(error));
+
+/** The test shop as the shop maker gets it. */
 export function testShop(ownerEmail) {
   const email = String(ownerEmail ?? "").trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("TEST_SHOP_OWNER_EMAIL must be the owner's Google address");
@@ -45,42 +63,88 @@ export function testShop(ownerEmail) {
     paymentProvider: "stripe",
     testMode: true,
     testShop: true,
+    freeAddress: TEST_SHOP_ADDRESS,
   };
 }
 
 /**
- * The steps, with any step whose part isn't connected yet standing in as "waiting" (checked as done, so the run goes
- * on; `again` makes the next run look at it anew). `connected` is { 13: bool, 14: bool }.
+ * The shared shop maker's steps, with any step whose part isn't connected yet standing in as "waiting" (checked as
+ * done, so the run goes on; `again` makes the next run look at it anew). `connected` is { 7: bool, 8: bool }. The free
+ * address is the project's own, so no web address is put on the site (no domain service).
  */
 export function testShopSteps({ clients, config, connected }) {
-  return shopSteps({ ...clients, config }).map((step) => {
+  return sharedShopSteps({ ...clients, addresses: null, config }).map((step) => {
     if (!(step.number in LATER_STEPS) || connected[step.number]) return step;
-    return {
-      number: step.number,
-      name: `${step.name} (waits for ${LATER_STEPS[step.number]})`,
-      check: async () => true,
-      act: async () => {},
-    };
+    return { number: step.number, name: `${step.name} (waits for ${LATER_STEPS[step.number]})`, check: async () => true, act: async () => {} };
   });
 }
 
-/** The shop maker's config for the test shop: the folder and billing account its project already has. */
-export async function testShopConfig({ google, version = FIRST_RELEASE }) {
-  const project = await google.projects.get(TEST_SHOP_ID);
-  if (!project) throw new Error(`The Google project ${TEST_SHOP_ID} doesn't exist. Make it once in the Firebase console (site/README.md).`);
-  const billing = await google.billing.get(TEST_SHOP_ID);
-  if (!billing?.billingEnabled) {
-    throw new Error(`${TEST_SHOP_ID} has no billing account. Link one: https://console.cloud.google.com/billing/linkedaccount?project=${TEST_SHOP_ID}`);
+/**
+ * Marks the test shop from before the shared system abandoned (registry only; its data stays). Without this the
+ * per-project release runner would still count it as the test shop and send its old rules to the shared project.
+ */
+export async function retireOldTestShop({ registry, apply, print = () => {}, now = () => new Date() }) {
+  const row = await registry.getShop(OLD_TEST_SHOP_ID);
+  if (!row || row.shared === true || row.status === "abandoned") return { changed: false };
+  if (!apply) {
+    print(`The old test shop ${OLD_TEST_SHOP_ID} (${row.status ?? "no status"}) would be marked abandoned; its data stays.`);
+    return { changed: false, would: true };
   }
-  return {
-    folder: project.parent,
-    billingAccount: billing.billingAccountName,
-    senderEmail: "notifications@colophon.example",
-    paymentsServiceUrl: `${PLATFORM_URL}/api/payments`,
-    platformEmailUrl: `${PLATFORM_URL}/api/email/shop`,
-    stripePublishableKeys: { live: "", test: "" },
-    release: { version, starterContent: TEST_STARTER_CONTENT },
-  };
+  await registry.updateShop(OLD_TEST_SHOP_ID, { status: "abandoned", abandonedAt: now().toISOString(), abandonedWhy: `moved into the shared system as ${TEST_SHOP_ID}` });
+  print(`The old test shop ${OLD_TEST_SHOP_ID} is marked abandoned (it is ${TEST_SHOP_ID} in the shared system now); its data stays.`);
+  return { changed: true };
+}
+
+/**
+ * The whole run, with its clients passed in (tests use fakes): `google`, `registry`, `auditLog`, `stepClients` (what
+ * sharedShopSteps takes), `deploy` and `builder` (the first release), `makerConfig()` (sharedMakerConfig) and
+ * `publishPages(shopId)`. Returns `{ ok, stage, ready?, dryRun?, error? }`: `stage` is where it ended.
+ */
+export async function makeTestShopWith({
+  apply, ownerEmail, version = FIRST_RELEASE, google, registry, auditLog, stepClients, deploy, builder, makerConfig, publishPages,
+  connected = {}, platformUrl = PLATFORM_URL, region = REGION, print = () => {}, now = () => new Date(),
+}) {
+  const shop = testShop(ownerEmail);
+  print(`The shared test project ${TEST_PROJECT}:`);
+  const project = await runProjectSteps({ projectId: TEST_PROJECT, steps: sharedProjectSteps({ google, region }), apply, print });
+  if (!project.ok) return { ok: false, stage: "project", error: project.error };
+  if (!project.ready) {
+    print("The rest waits until the project is ready.");
+    return { ok: true, stage: "project", dryRun: true };
+  }
+
+  await retireOldTestShop({ registry, apply, print, now });
+
+  const first = await firstSharedRelease({ version, projectId: TEST_PROJECT, registry, builder, deploy, platformUrl, region, dryRun: !apply, print, now });
+  if (!first.ok) return { ok: false, stage: "first-release", error: first.error ?? "another release is running" };
+  if (!apply && !first.skipped) {
+    print(`The test shop ${TEST_SHOP_ID} is made once the project has its first release.`);
+    return { ok: true, stage: "first-release", dryRun: true };
+  }
+
+  for (const [number, words] of Object.entries(LATER_STEPS)) if (!connected[number]) print(`Step ${number} waits for ${words}.`);
+  print(`The test shop ${TEST_SHOP_ID}, at ${TEST_SHOP_ADDRESS}:`);
+  const made = await runSteps({
+    shop,
+    steps: testShopSteps({ clients: stepClients, config: await makerConfig(), connected }),
+    registry,
+    auditLog,
+    dryRun: !apply,
+    print,
+    again: Object.keys(LATER_STEPS).map(Number).filter((n) => connected[n]),
+  });
+  if (!made.ok) return { ok: false, stage: "shop", error: made.error, ...(made.waiting ? { waiting: true } : {}) };
+  if (!apply) return { ok: true, stage: "shop", dryRun: true };
+
+  // Its own pages, as every release draws them. A failure keeps the app's own pages and is said, not fatal.
+  try {
+    await publishPages(TEST_SHOP_ID);
+    print(`${TEST_SHOP_ID}: its pages were drawn from its books.`);
+  } catch (error) {
+    print(`${TEST_SHOP_ID}: its pages weren't drawn (${message(error)}); the next release draws them.`);
+  }
+  print(`The test shop is ready at https://${TEST_SHOP_ADDRESS}. Run the release check (node release-check/run.js) for a test purchase.`);
+  return { ok: true, stage: "done" };
 }
 
 const exec = promisify(execFile);
@@ -102,28 +166,33 @@ const runCommand = async (command, args, { cwd, env } = {}) => {
   return `${stdout}${stderr}`;
 };
 
+/** The real clients for `makeTestShopWith`: Google, the platform's registry and the shared test project. */
 export async function makeTestShop({ apply, ownerEmail, serviceAccount, root = process.cwd(), print = console.log, env = process.env }) {
-  const shop = testShop(ownerEmail);
-  const clients = realSetupClients({
-    fetch,
-    token: gcloudToken(),
-    run: runCommand,
-    buildDir: () => root,
-    serviceAccount,
+  const token = gcloudToken();
+  const region = String(env.SHOP_FUNCTIONS_REGION ?? "").trim() || REGION;
+  const clients = realSharedClients({
+    fetch, token, projectId: TEST_PROJECT, env, region, serviceAccount,
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   });
-  // Payments and email join once their services are handed to the shop maker here (a later change).
-  const connected = { 13: Boolean(clients.providers.stripe), 14: Boolean(clients.email) };
-  const config = await testShopConfig({ google: clients.google, version: env.TEST_SHOP_RELEASE || FIRST_RELEASE });
-  for (const [number, words] of Object.entries(LATER_STEPS)) if (!connected[number]) print(`Step ${number} waits for ${words}.`);
-  return runSteps({
-    shop,
-    steps: testShopSteps({ clients, config, connected }),
-    registry: clients.registry,
-    auditLog: clients.auditLog,
-    dryRun: !apply,
-    print,
-    again: Object.keys(LATER_STEPS).map(Number).filter((n) => connected[n]),
+  const version = env.TEST_SHOP_RELEASE || FIRST_RELEASE;
+  return makeTestShopWith({
+    apply, ownerEmail, version, region, print,
+    google: clients.google, registry: clients.registry, auditLog: clients.auditLog, stepClients: clients,
+    // The workflow builds the apps in the checkout before this runs, so the build is the checkout itself.
+    builder: { build: async () => {}, dir: () => root },
+    deploy: deployClient({
+      fetch, token, run: runCommand, buildDir: () => root,
+      // The rules name no owner (each shop's record does), and the project's own profile is never served.
+      ownerEmailOf: async () => "", profileScriptOf: async (projectId) => sharedProjectProfile(projectId, { region }),
+    }),
+    makerConfig: () => sharedMakerConfig({ google: clients.google, projectId: TEST_PROJECT, shopDomain: "", platformUrl: PLATFORM_URL, senderEmail: SENDER_EMAIL, version }),
+    async publishPages(shopId) {
+      const record = await clients.shared.records.get(shopId);
+      if (!record) throw new Error("its record is missing from the shared project");
+      await buildAndPublish({ shop: { id: shopId, record, tenant: record.tenant }, siteFiles: clients.google.siteFiles, projectId: TEST_PROJECT, appDir: join(root, "apps", "shop"), print });
+    },
+    // Payments and email join once their services are handed to the shop maker here (a later change).
+    connected: { 7: Boolean(clients.providers.stripe), 8: Boolean(clients.email) },
   });
 }
 
@@ -134,6 +203,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       ownerEmail: process.env.TEST_SHOP_OWNER_EMAIL,
       serviceAccount: process.env.PLATFORM_SERVICE_ACCOUNT,
     });
+    if (!result.ok) console.error(`Stopped at ${result.stage}: ${result.error}`);
     process.exitCode = result.ok ? 0 : 1;
   } catch (error) {
     console.error(error.message);

@@ -45,8 +45,12 @@ console: Authentication, Sign-in method, Google, Enable.
 
 ## The test shop
 
-The platform's own test shop lives in the Firebase project `lmb-test-shop` (made once by hand). After the script above
-has run with that project there (section 7), press **Run workflow** on the "Make the test shop" workflow
-(`.github/workflows/test-shop.yml`). It runs the shop maker's steps (`setup/make-test-shop.js`): database, rules,
-server code, shop and stockroom pages, five sample books, and the platform admin as the shop's owner. Run it again
-any time: it resumes where it stopped. Payments and the welcome email wait until those services are connected.
+The platform's own test shop lives in the shared test project `lmb-test-shop` (made once by hand), as the folder
+`test-press`, at lmb-test-shop.web.app (docs/shared-system.md, phase 8). After the script above has run with that
+project there (section 7), turn on Google sign-in once in that project's Firebase console (Authentication, Sign-in
+method, Google, Enable), then press **Run workflow** on the "Make the test shop" workflow
+(`.github/workflows/test-shop.yml`). It runs `setup/make-test-shop.js`: it readies the project for shops, sends it its
+first release (rules, the shared server, the one site), then makes the test shop with the shared shop maker's steps:
+its sign-in list, record, address, five sample books and the platform admin as its owner. Run it again any time: it
+resumes where it stopped. Payments and the welcome email wait until those services are connected. The test shop from
+before the shared system (`lmb-test-shop`, with the project to itself) is marked abandoned; its data stays.

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { runSteps, stepProblems } from "./runner.js";
-import { fakeAuditLog, fakeRegistry, fakeServices } from "./fakes.js";
+import { fakeAuditLog, fakeRegistry, fakeServices, fakeShared, fakeTenants } from "./fakes.js";
 import { TEST_CONFIG, TEST_SHOP } from "./test-shop.js";
 import { createRequire } from "node:module";
 import { SHARED_STEP_PLAN, SHARED_STEP_WORDS, SHOP_KEYS, freeHost, recordProfileFiles, serverSettings, sharedShopSteps, sharedSiteUrl } from "./sharedSteps.js";
@@ -12,47 +12,6 @@ const SHARED = "lmb-test-shop";
 const WEB_APP = Object.freeze({ apiKey: "made-up-key", authDomain: `${SHARED}.firebaseapp.com`, projectId: SHARED, storageBucket: `${SHARED}.firebasestorage.app`, messagingSenderId: "123", appId: "1:123:web:abc" });
 const CONFIG = Object.freeze({ ...TEST_CONFIG, sharedProject: SHARED, webApp: WEB_APP, shopDomain: "shops.example", stockroomBucket: `${SHARED}-stockroom` });
 const PRESS = Object.freeze({ shopId: "moth-press", pressName: "Moth Press", ownerEmail: "Owner@Example.com", plan: "shop", country: "CA", currency: "CAD", paymentProvider: "stripe", testMode: true });
-
-/** Google's sign-in lists, in memory (as in shopTenant.test.js). */
-function fakeTenants() {
-  const lists = [];
-  const signIns = new Map();
-  return {
-    lists,
-    authConfig: { googleSignIn: async () => ({ enabled: true, clientId: "client.example", clientSecret: "made-up-secret" }) },
-    tenants: {
-      list: async () => lists.map((t) => ({ ...t })),
-      async create(projectId, fields) { const list = { name: `projects/${projectId}/tenants/${fields.displayName}-x`, ...fields }; lists.push(list); return list; },
-      async patch(_p, id, fields) { Object.assign(lists.find((t) => tenantIdOf(t) === id), fields); },
-      googleSignIn: async (_p, id) => signIns.get(id) ?? null,
-      async addGoogleSignIn(_p, id, c) { signIns.set(id, c); },
-      async patchGoogleSignIn(_p, id, c) { signIns.set(id, c); },
-    },
-  };
-}
-
-/** The shared project's records, their copies and the addresses, in memory (clients/shared.js shape). */
-function fakeShared() {
-  const store = () => {
-    const docs = new Map();
-    return {
-      docs,
-      get: async (id) => structuredClone(docs.get(id) ?? null),
-      async set(id, data, { fields } = {}) {
-        const kept = fields ? { ...(docs.get(id) ?? {}) } : {};
-        docs.set(id, structuredClone({ ...kept, ...(fields ? Object.fromEntries(fields.map((f) => [f, data[f]])) : data) }));
-      },
-    };
-  };
-  const addresses = new Map();
-  return {
-    records: store(), stockroomRecords: store(), liveRecords: store(), addresses: {
-      map: addresses,
-      get: async (host) => structuredClone(addresses.get(host) ?? null),
-      async create(host, data) { if (addresses.has(host)) return false; addresses.set(host, structuredClone(data)); return true; },
-    },
-  };
-}
 
 function world({ pageStatus } = {}) {
   const services = fakeServices({ pageStatus });
@@ -163,6 +122,18 @@ test("the test shop: its free address is the one the platform gave it, and its s
   assert.equal((await registry.getProfile(TEST_SHOP.shopId)).siteUrl, "https://lmb-test-shop.web.app");
   assert.equal((await shared.records.get(TEST_SHOP.shopId)).server.SHOP_TEST_SHOP, "true");
   assert.equal(shared.addresses.map.get("lmb-test-shop.web.app").shopId, TEST_SHOP.shopId);
+});
+
+test("the platform gives the test shop its address at step 1; a press can't name its own", async () => {
+  const { run, registry, shared } = world();
+  const result = await run({ ...TEST_SHOP, shopId: "test-press", freeAddress: "Lmb-Test-Shop.web.app" });
+  assert.equal(result.ok, true, result.error);
+  assert.equal((await registry.getShop("test-press")).freeAddress, "lmb-test-shop.web.app");
+  assert.equal(shared.addresses.map.get("lmb-test-shop.web.app").shopId, "test-press");
+
+  const press = world();
+  assert.equal((await press.run({ ...PRESS, freeAddress: "lmb-test-shop.web.app" })).ok, true);
+  assert.equal((await press.registry.getShop("moth-press")).freeAddress, "moth-press.shops.example");
 });
 
 test("addresses, server settings and the record's profile file", async () => {

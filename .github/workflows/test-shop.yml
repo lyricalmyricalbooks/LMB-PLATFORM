@@ -1,8 +1,9 @@
 name: Make the test shop
 
-# Makes (or brings up to date) the platform's own test shop in the Firebase project lmb-test-shop: its database, rules,
-# server code, shop and stockroom pages, sample books and the owner as its owner (setup/make-test-shop.js, the shop
-# maker's steps). Safe to run again: it resumes where it stopped. Only lmb-test-shop, only from main, only by hand.
+# Makes (or brings up to date) the platform's own test shop in the shared test project lmb-test-shop
+# (setup/make-test-shop.js, docs/shared-system.md phase 8): the project readied for shops, its first release (rules,
+# the shared server, the one site), then the test shop as a folder in it, with sample books and the owner as its owner.
+# Safe to run again: it resumes where it stopped. Only lmb-test-shop, only from main, only by hand.
 on:
   workflow_dispatch:
 

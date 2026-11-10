@@ -191,6 +191,9 @@ export function sharedShopSteps({ google, shared, registry, shopData, stockroom,
           shopId, projectId: sharedProject, shared: true, pressName, ownerEmail, plan: "both", country, currency, region,
           testMode: shop.testMode === true, testShop: shop.testShop === true, status: "creating", createdAt: now().toISOString(),
           ...(language === "fr" ? { language } : {}), ...key,
+          // The test shop answers at the shared test project's own Firebase address (setup/make-test-shop.js), which
+          // the platform gives it here; every other shop's free address is <id>.<shops' domain> (step 5).
+          ...(shop.testShop === true && normalDomain(shop.freeAddress ?? "") ? { freeAddress: normalDomain(shop.freeAddress) } : {}),
         });
       },
     },

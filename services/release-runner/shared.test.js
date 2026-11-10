@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { fakeAuditLog, fakeRegistry } from "../../setup/fakes.js";
-import { SHARED_RELEASE_LOCK, runSharedRelease, sharedProjectProfile, sharedServerEnv } from "./shared.js";
+import { SHARED_RELEASE_LOCK, firstSharedRelease, runSharedRelease, sharedProjectProfile, sharedServerEnv } from "./shared.js";
 
 const TEST_PROJECT = "lmb-test-shop";
 const LIVE_PROJECT = "press-two";
@@ -182,4 +182,48 @@ test("the real run releases to the test project first, and to the live one only 
   assert.deepEqual(sharedProjects({}), [{ projectId: TEST_PROJECT, test: true }]);
   assert.deepEqual(sharedProjects({ SHARED_SHOPS_PROJECT: ` ${LIVE_PROJECT} ` }), [{ projectId: TEST_PROJECT, test: true }, { projectId: LIVE_PROJECT }]);
   assert.deepEqual(sharedProjects({ SHARED_SHOPS_TEST_PROJECT: "x", SHARED_SHOPS_PROJECT: "x" }), [{ projectId: "x", test: true }]);
+});
+
+test("a shared project's first release goes out once, before it has a shop, and never past one", async () => {
+  const registry = fakeRegistry();
+  const w = world();
+  w.live.set("moth-press", {});
+  const lines = [];
+  const first = (extra = {}) => firstSharedRelease({
+    version: "1.0.0", projectId: "moth-press", registry, builder: w.builder, deploy: w.deploy, platformUrl: PLATFORM,
+    print: (line) => lines.push(line), runId: "first-1", now: () => new Date("2026-11-10T15:00:00Z"), ...extra,
+  });
+
+  // A dry run builds and sends nothing.
+  assert.deepEqual(await first({ dryRun: true }), { ok: true, dryRun: true, version: "1.0.0", projectId: "moth-press" });
+  assert.deepEqual(w.calls, []);
+
+  const result = await first();
+  assert.equal(result.ok, true, result.error);
+  assert.deepEqual(w.calls.map(([kind, ...rest]) => [kind, ...rest.slice(0, 2)]), [
+    ["build", "1.0.0"], ["rules", "moth-press", "1.0.0"], ["functions", "moth-press", "1.0.0"], ["pages", "moth-press", "1.0.0"],
+  ]);
+  assert.equal(kinds(w, "functions")[0][3], sharedServerEnv({ platformUrl: PLATFORM }));
+  assert.equal(kinds(w, "site").length, 0);
+  const [recorded] = [...registry.releases.values()];
+  assert.equal(recorded.kind, "shared-first-release");
+  assert.equal(recorded.ok, true);
+  assert.equal(await registry.readLock(SHARED_RELEASE_LOCK), null);
+
+  // Once a shop there is live, its releases are the staged update's.
+  await registry.createShop("other", row("other", "moth-press"));
+  w.calls.length = 0;
+  assert.equal((await first()).skipped, true);
+  assert.deepEqual(w.calls, []);
+});
+
+test("a first release whose stamps don't come back says so", async () => {
+  const registry = fakeRegistry();
+  const w = world();
+  w.live.set("moth-press", {});
+  w.deploy.pages = async () => {};
+  const result = await firstSharedRelease({ version: "1.0.0", projectId: "moth-press", registry, builder: w.builder, deploy: w.deploy, platformUrl: PLATFORM });
+  assert.equal(result.ok, false);
+  assert.match(result.error, /pages:shop are on nothing, not 1\.0\.0/);
+  assert.equal(await registry.readLock(SHARED_RELEASE_LOCK), null);
 });

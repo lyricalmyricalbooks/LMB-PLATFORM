@@ -452,6 +452,8 @@ export function googleClients({ fetch, token, sleep, today = () => new Date().to
           if (!isAlreadyExists(error)) throw error;
         }
       },
+      /** Lets the project hold sign-in lists (projects.updateConfig, updateMask multiTenant.allowTenants). */
+      allowTenants: (projectId) => call("PATCH", `${IDENTITY}/projects/${projectId}/config`, { query: { updateMask: "multiTenant.allowTenants" }, body: { multiTenant: { allowTenants: true } } }),
       /** Replaces the second-step settings (projects.updateConfig, updateMask mfa). */
       setMfa: (projectId, mfa) => call("PATCH", `${IDENTITY}/projects/${projectId}/config`, { query: { updateMask: "mfa" }, body: { mfa } }),
       /** The project's own Google sign-in settings (projects.defaultSupportedIdpConfigs.get), or null when it has none. */

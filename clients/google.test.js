@@ -339,3 +339,11 @@ test("monitoring: the month's assessments are summed from the metric (plan 15.18
   assert.equal(await google.monitoring.assessments(P, range), 0);
   fetch.done();
 });
+
+test("authConfig: a shared project is allowed sign-in lists, leaving its other settings alone", async () => {
+  const { fetch, google } = clients([
+    { method: "PATCH", url: `https://identitytoolkit.googleapis.com/v2/projects/${P}/config?updateMask=multiTenant.allowTenants`, body: { multiTenant: { allowTenants: true } }, json: { name: `projects/${P}/config`, multiTenant: { allowTenants: true } } },
+  ]);
+  await google.authConfig.allowTenants(P);
+  fetch.done();
+});
