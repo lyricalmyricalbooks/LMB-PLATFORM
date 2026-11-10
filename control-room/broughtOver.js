@@ -7,7 +7,8 @@
 // photos are still waiting to be copied off the old shop before it closes. For a press that brought its shop over in Get
 // started, it also shows which parts of "Your move so far" are done (`firstWeek/start` `done`, plan 23.17), and past
 // orders taken out again (the undo, plan 23.15) are counted off. Also: past orders re-rated later, the files they came
-// from (`importedFile` on each past order), and discount codes from Discounts › Bring codes over.
+// from (`importedFile` on each past order), and discount codes from Discounts › Bring codes over. And the reads of the
+// old shop's address (`systemStatus/oldShopScans`): which old shops read, how many products, and which failed and why.
 //
 // Clients passed in:
 //   registry  getShop(shopId)
@@ -94,6 +95,16 @@ export function moveOf(start) {
   return { steps, done: steps.filter((s) => s.done).length, of: steps.length, putAway: Boolean(start.done?.["move-list"]) };
 }
 
+/**
+ * The product reads from the old shop's address (Books › Import › From your old shop's address, kept by the shop in
+ * `systemStatus/oldShopScans`, apps/shop functions/oldShopRead.js), newest first: what each found, or why it didn't.
+ */
+export function scansOf(record) {
+  const scans = Array.isArray(record?.scans) ? record.scans.filter((s) => s && typeof s.host === "string") : [];
+  return scans.length ? scans.map((s) => ({ at: s.at ?? null, host: s.host, ok: s.ok === true, products: Number(s.products) || 0,
+    forSale: typeof s.forSale === "number" ? s.forSale : null, stockShown: s.stockShown === true, partial: s.partial === true, message: s.ok ? null : String(s.message ?? "") })) : null;
+}
+
 export function createBroughtOver({ admins, registry, shopData, now = () => new Date() }) {
   return {
     async forShop(claims, { shopId } = {}) {
@@ -112,7 +123,8 @@ export function createBroughtOver({ admins, registry, shopData, now = () => new 
           ? filesOf((await shopData.find(shopId, "orders", { where: [["source", "==", "import"]], limit: MAX_PAST })).map((doc) => doc.data))
           : [];
         const brought = broughtOverSummary(lines, photos, await shopData.get(shopId, "firstWeek/start"), codes, files);
-        return { shopId, brought, nothing: Object.values(brought).every((kind) => kind === null) };
+        const scans = scansOf(await shopData.get(shopId, "systemStatus/oldShopScans"));
+        return { shopId, brought, scans, nothing: Object.values(brought).every((kind) => kind === null) };
       } catch (failure) {
         if (failure.status === 503) throw new ControlError(503, failure.message);
         throw new ControlError(502, `Couldn't read the shop's records: ${failure.message}`);

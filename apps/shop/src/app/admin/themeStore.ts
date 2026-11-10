@@ -8,7 +8,7 @@
 // My themes) across once, then removes the public copies. If the private documents can't be
 // read, Studio says so instead of saving drafts where shoppers can download them.
 import { deleteField, doc, getDoc, collection, getDocs, onSnapshot, runTransaction, setDoc, writeBatch } from "firebase/firestore";
-import { db } from "../../lib/firebase";
+import { db, firestore } from "../../lib/firebase";
 import { auditLog } from "./auditLog";
 import { sameDesign } from "./studio/studioModel";
 
@@ -83,12 +83,12 @@ async function openFirestore(settings: any): Promise<Workspace> {
   try {
     let snap: any = await getDoc(WORKSPACE());
     if (!snap.exists()) {
-      await runTransaction(db, async tx => {
+      await runTransaction(firestore, async tx => {
         const current = await tx.get(WORKSPACE());
         if (!current.exists()) tx.set(WORKSPACE(), { draft: clone(olderDraft), rev: 1, updatedAt: now(), tabId: studioTabId(), migratedAt: now() });
       });
       if (olderThemes.length) {
-        const batch = writeBatch(db);
+        const batch = writeBatch(firestore);
         for (const theme of olderThemes) if (theme?.id) batch.set(doc(db, "savedThemes", String(theme.id)), clone(theme));
         await batch.commit();
       }
@@ -118,7 +118,7 @@ const firestoreBackend: ThemeBackend = {
   async write(expectedRev, draft, live) {
     let next = expectedRev;
     try {
-      await runTransaction(db, async tx => {
+      await runTransaction(firestore, async tx => {
         const current: any = (await tx.get(WORKSPACE())).data() || {};
         const rev = Number(current.rev) || 0;
         if (rev !== expectedRev) throw new ThemeConflictError({ draft: current.draft, rev });
@@ -130,7 +130,7 @@ const firestoreBackend: ThemeBackend = {
     return next;
   },
   async saveThemes(previous, next) {
-    const batch = writeBatch(db);
+    const batch = writeBatch(firestore);
     const before = new Map(previous.map(t => [t.id, JSON.stringify(t)]));
     for (const theme of next) if (before.get(theme.id) !== JSON.stringify(theme)) batch.set(doc(db, "savedThemes", String(theme.id)), clone(theme));
     for (const theme of previous) if (!next.some(t => t.id === theme.id)) batch.delete(doc(db, "savedThemes", String(theme.id)));
@@ -141,7 +141,7 @@ const firestoreBackend: ThemeBackend = {
       await ensureWorkspace();
       // One transaction: the field and a new revision land together, so another open Studio is told (its live sync
       // sees a newer revision) and its next Save / Publish can't silently put the old value back.
-      await runTransaction(db, async tx => {
+      await runTransaction(firestore, async tx => {
         const current: any = (await tx.get(WORKSPACE())).data() || {};
         const nested: any = { draft: {}, rev: (Number(current.rev) || 0) + 1, updatedAt: now(), tabId: studioTabId(), action: "field" };
         for (const [k, v] of Object.entries(fields)) nested.draft[k] = v;

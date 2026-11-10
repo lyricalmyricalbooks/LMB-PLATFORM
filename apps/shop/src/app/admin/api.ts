@@ -38,7 +38,6 @@ const nonNegativeOrNull = (v: any) => {
 };
 import { 
   collection, 
-  collectionGroup,
   getDocs, 
   addDoc, 
   updateDoc, 
@@ -70,7 +69,7 @@ import {
   signInWithCredential,
   type OAuthCredential,
 } from "firebase/auth";
-import { db, auth, googleProvider } from "../../lib/firebase";
+import { db, firestore, auth, googleProvider } from "../../lib/firebase";
 import { BackupCodeError, backupCall, cleanBackupCode, finishTwoStep, firebaseTwoStep, twoStepNeeded, type TwoStepNeeded } from "./adminTwoStep";
 import { functionFetch } from "../lib/functionsBase";
 import { currentAdminRole, ensureShopOwnerKnown, isBookkeeperPass, refreshAdminRole } from "./adminAccess";
@@ -89,16 +88,21 @@ import type { LocalFulfillmentConfig } from "../features/site/types";
 import { dailyTrafficBetween } from "./dailyTrafficCache";
 import { exampleProducts } from "./exampleProducts";
 import { joinParts } from "./setupHandover";
+import { shopFilePath } from "../../lib/shopFolder";
 
 /** books/{id}/private/admin: cost prices, shelf codes and other fields shoppers must not read (bookPrivate.ts). */
 const privateBookRef = (bookId: string) => doc(db, "books", bookId, "private", "admin");
 
-/** Every book's private document, by book id. Empty (never an error) when the rules are not deployed yet or nothing has moved. */
-async function readAllPrivateBookFields(): Promise<Map<string, any>> {
+/**
+ * These books' private documents, by book id. Empty (never an error) when the rules are not deployed yet or nothing has
+ * moved. One read per book, the same as the collection-group read it replaces: a collection-group read would cross every
+ * shop's folder in the shared database, which the rules can't allow (docs/shared-system.md).
+ */
+async function readAllPrivateBookFields(bookIds: string[]): Promise<Map<string, any>> {
   const out = new Map<string, any>();
   try {
-    const snap = await getDocs(collectionGroup(db, "private"));
-    snap.docs.forEach(d => { if (d.id === "admin" && d.ref.parent.parent) out.set(d.ref.parent.parent.id, d.data()); });
+    const snaps = await Promise.all(bookIds.map(id => getDoc(privateBookRef(id))));
+    snaps.forEach((d, i) => { if (d.exists()) out.set(bookIds[i], d.data()); });
   } catch (err) {
     console.warn("Private book fields could not be read:", err);
   }
@@ -212,7 +216,7 @@ export const adminApi = {
     if (!["add", "remove", "move"].includes(action)) throw new Error("Choose a valid category action.");
     // Read fresh tag fields and commit atomically. Concurrent catalog edits are
     // retried, and inventory/prices/other book fields are never included in the patch.
-    return runTransaction(db, async transaction => {
+    return runTransaction(firestore, async transaction => {
       const settings = await transaction.get(doc(db, "settings", "website"));
       const live = normalizeCategories(settings.data()?.design?.categories ?? [...CATEGORIES]);
       const liveSource = live.find(c => c.id === source.id);
@@ -251,7 +255,7 @@ export const adminApi = {
   getAllBooks: async (opts: { includePrivate?: boolean } = {}) => {
     const snap = await getDocs(collection(db, "books"));
     // Cost prices, shelf codes and other private fields live in books/{id}/private/admin; merged back for the admin.
-    const priv = opts.includePrivate === false ? new Map<string, any>() : await readAllPrivateBookFields();
+    const priv = opts.includePrivate === false ? new Map<string, any>() : await readAllPrivateBookFields(snap.docs.map(d => d.id));
     return snap.docs.map(d => mergeBookPrivate({ id: d.id, ...d.data() }, priv.get(d.id)));
   },
 
@@ -329,7 +333,7 @@ export const adminApi = {
     };
     let photosBefore: unknown = undefined;
     if (loaded) {
-      dataToSave = await runTransaction(db, async tx => {
+      dataToSave = await runTransaction(firestore, async tx => {
         const snap = await tx.get(docRef);
         const privSnap = await tx.get(privRef);
         // Matched to the inventory app (Inventory › Inventory app link): its stock is set from there.
@@ -383,7 +387,7 @@ export const adminApi = {
   saveBookOrder: async (writes: { id: string; sortOrder: number }[]) => {
     const updatedAt = new Date().toISOString();
     for (let i = 0; i < writes.length; i += 400) {
-      const batch = writeBatch(db);
+      const batch = writeBatch(firestore);
       for (const w of writes.slice(i, i + 400)) batch.update(doc(db, "books", w.id), { sortOrder: w.sortOrder, updatedAt });
       await batch.commit();
     }
@@ -484,7 +488,7 @@ export const adminApi = {
       import("firebase/storage"),
       import("firebase/app"),
     ]);
-    const storageRef = ref(getStorage(getApp()), path);
+    const storageRef = ref(getStorage(getApp()), shopFilePath(path));
     // Every public upload path is unique (timestamp/id in the name, never overwritten), so browsers may keep
     // the file for a year instead of Storage's default "private, max-age=0" re-download on every visit.
     const snapshot = await uploadBytes(storageRef, file, { cacheControl: PUBLIC_FILE_CACHE });
@@ -498,8 +502,8 @@ export const adminApi = {
       import("firebase/storage"),
       import("firebase/app"),
     ]);
-    const snapshot = await uploadBytes(ref(getStorage(getApp()), path), file);
-    return snapshot.ref.fullPath || path;
+    const snapshot = await uploadBytes(ref(getStorage(getApp()), shopFilePath(path)), file);
+    return snapshot.ref.fullPath || shopFilePath(path);
   },
 
   uploadBrandAsset: async (file: File, type: 'logo' | 'favicon') => {
@@ -588,7 +592,7 @@ export const adminApi = {
       await setDoc(genRef, generalProfile);
 
       const booksSnap = await getDocs(collection(db, "books"));
-      const batch = writeBatch(db);
+      const batch = writeBatch(firestore);
       booksSnap.docs.forEach(b => {
         batch.update(b.ref, {
           shippingProfileId: "general-profile",
@@ -597,7 +601,7 @@ export const adminApi = {
       });
       await batch.commit();
 
-      const deleteBatch = writeBatch(db);
+      const deleteBatch = writeBatch(firestore);
       legacyDocs.forEach(d => {
         if (d.id !== "general-profile") {
           deleteBatch.delete(doc(db, "shipping-profiles", d.id));
@@ -649,7 +653,7 @@ export const adminApi = {
     }
     
     const booksSnap = await getDocs(collection(db, "books"));
-    const batch = writeBatch(db);
+    const batch = writeBatch(firestore);
     let count = 0;
     booksSnap.docs.forEach(b => {
       if (b.data().shippingProfileId === id) {
@@ -669,7 +673,7 @@ export const adminApi = {
   // removeIds (and only those) go back to General. Books the editor never showed
   // are left alone.
   assignProductsToShippingProfile: async (profileId: string, productIds: string[], removeIds: string[] = []) => {
-    const batch = writeBatch(db);
+    const batch = writeBatch(firestore);
     const booksSnap = await getDocs(collection(db, "books"));
     const add = new Set(productIds);
     const remove = new Set(removeIds);
@@ -726,7 +730,7 @@ export const adminApi = {
     const pages = redirectsToPages(items);
     const clean = pages.flatMap(p => p.items);
     const updatedAt = new Date().toISOString();
-    const batch = writeBatch(db);
+    const batch = writeBatch(firestore);
     for (const id of redirectPageIds()) {
       const page = pages.find(p => p.id === id);
       if (page) batch.set(doc(db, REDIRECTS_COLLECTION, id), { items: page.items, page: Number(id), updatedAt });
@@ -829,7 +833,7 @@ export const adminApi = {
     const docRef = doc(db, "settings", "website");
     const added = JSON.parse(JSON.stringify(category));
     let draftBase: any;
-    await runTransaction(db, async tx => {
+    await runTransaction(firestore, async tx => {
       const data: any = (await tx.get(docRef)).data() || {};
       const live = appendCategory(data.design?.categories, added, CATEGORIES);
       tx.set(docRef, { design: { categories: live } }, { mergeFields: ["design.categories"] });
@@ -1026,7 +1030,7 @@ export const adminApi = {
   },
   /** Cancels an entry that hasn't started. */
   cancelThemeSchedule: async (id: string) => {
-    await runTransaction(db, async (tx: any) => {
+    await runTransaction(firestore, async (tx: any) => {
       const ref = doc(db, "themeSchedule", id);
       const snap = await tx.get(ref);
       if (!snap.exists() || snap.data().status !== "scheduled") throw new Error("It has already started or finished.");
@@ -1083,7 +1087,7 @@ export const adminApi = {
   },
 
   correctOrderAddress: async (id: string, address: any, originalKey: string) => {
-    await runTransaction(db, async tx => {
+    await runTransaction(firestore, async tx => {
       const ref = doc(db, "orders", id);
       const privateRef = doc(db, "order-operations", id);
       const snap = await tx.get(ref);
@@ -1111,7 +1115,7 @@ export const adminApi = {
   },
 
   fulfillmentAction: async (id: string, action: "review" | "pack" | "hold" | "release" | "release_preorder" | "dispatch" | "ship_part" | "local_transition" | "edit_tracking" | "delivery_status" | "resend_shipping_email" | "resend_confirmation_email" | "clear_app_label" | "clear_review", payload: any = {}) => {
-    await runTransaction(db, async tx => {
+    await runTransaction(firestore, async tx => {
       const ref = doc(db, "orders", id);
       const privateRef = doc(db, "order-operations", id);
       const snap = await tx.get(ref);
@@ -1579,7 +1583,7 @@ export const adminApi = {
   },
 
   addOrderNote: async (id: string, message: string) => {
-    await runTransaction(db, async tx => {
+    await runTransaction(firestore, async tx => {
       const ref = doc(db, "order-operations", id);
       const snap = await tx.get(ref);
       const data = snap.data() || {};
@@ -1588,7 +1592,7 @@ export const adminApi = {
   },
 
   addOrderEvent: async (id: string, message: string) => {
-    await runTransaction(db, async tx => {
+    await runTransaction(firestore, async tx => {
       const ref = doc(db, "order-operations", id);
       const snap = await tx.get(ref);
       const data = snap.data() || {};
@@ -1732,7 +1736,7 @@ export const adminApi = {
   },
   clearClientErrors: async (ids: string[]) => {
     for (let i = 0; i < ids.length; i += 400) {
-      const batch = writeBatch(db);
+      const batch = writeBatch(firestore);
       ids.slice(i, i + 400).forEach(id => batch.delete(doc(db, "clientErrors", id)));
       await batch.commit();
     }
@@ -2150,7 +2154,7 @@ export const adminApi = {
    */
   addImportedSubscriber: async (email: string, consentText: string) => {
     const id = String(email || "").trim().toLowerCase();
-    return runTransaction(db, async tx => {
+    return runTransaction(firestore, async tx => {
       const ref = doc(db, "newsletter", id);
       if ((await tx.get(ref)).exists()) return false;
       const now = new Date().toISOString();

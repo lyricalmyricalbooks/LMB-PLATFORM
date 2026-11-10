@@ -38,9 +38,9 @@ vi.mock("firebase/storage", () => ({
   getDownloadURL: (...a: unknown[]) => (getDownloadURL as any)(...a),
 }));
 vi.mock("firebase/database", () => ({ ref: vi.fn(), get: vi.fn() }));
-vi.mock("../../lib/firebase", () => ({ db: {}, auth: { currentUser: null }, storage: {}, googleProvider: {} }));
+vi.mock("../../lib/firebase", () => ({ firestore: {}, db: {}, auth: { currentUser: null }, storage: {}, googleProvider: {} }));
 vi.mock("../../lib/firebaseApp", () => ({ app: {}, db: {}, appCheck: null, authState: { loaded: true } }));
-vi.mock("../../lib/firestoreLite", () => ({ liteDb: {} }));
+vi.mock("../../lib/firestoreLite", () => ({ liteDb: {}, liteFirestore: {} }));
 vi.mock("firebase/firestore/lite", () => import("firebase/firestore"));
 vi.mock("../../lib/legacyFirebase", () => ({ legacyDb: {}, legacyAuth: {} }));
 
@@ -82,10 +82,9 @@ describe("private book fields", () => {
     expect(Object.keys(tx.update.mock.calls[0][1]).sort()).toEqual(["title", "updatedAt"]);
   });
 
-  it("getAllBooks merges each book's private document (collection group read) and tolerates both locations", async () => {
-    getDocs.mockImplementation(async (q: any) => q.group === "private"
-      ? { docs: [{ id: "admin", data: () => ({ costPrice: 7 }), ref: { parent: { parent: { id: "a" } } } }] }
-      : { docs: [{ id: "a", data: () => ({ title: "A" }) }, { id: "b", data: () => ({ title: "B", costPrice: 3 }) }] });
+  it("getAllBooks merges each book's private document (one read per book) and tolerates both locations", async () => {
+    records.set("books/a/private/admin", { costPrice: 7 });
+    getDocs.mockImplementation(async () => ({ docs: [{ id: "a", data: () => ({ title: "A" }) }, { id: "b", data: () => ({ title: "B", costPrice: 3 }) }] }));
     const books = await adminApi.getAllBooks();
     expect(books.find((b: any) => b.id === "a").costPrice).toBe(7);
     expect(books.find((b: any) => b.id === "b").costPrice).toBe(3); // legacy public value still readable
@@ -110,7 +109,8 @@ describe("digital file upload (#4)", () => {
   it("returns the Storage path and never asks for a download URL on a read-denied folder", async () => {
     const file = new File(["x"], "book.epub");
     const path = await adminApi.uploadStoragePath(file, "digital-assets/1-book.epub");
-    expect(path).toBe("digital-assets/1-book.epub");
+    // In the shop's own folder of the shared bucket (lib/shopFolder.ts).
+    expect(path).toBe("shops/lmb-test-shop/digital-assets/1-book.epub");
     expect(getDownloadURL).not.toHaveBeenCalled();
   });
 

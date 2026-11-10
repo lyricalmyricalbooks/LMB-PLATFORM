@@ -11,9 +11,9 @@ export const DRAFT = true;
 export const PROMISES = Object.freeze([
   {
     id: "own-copy",
-    title: "Your shop lives in its own copy",
-    words: "Every press gets its own separate copy of the shop and everything in it. Your books, orders and customers are never mixed with another press's.",
-    proof: { file: "CLAUDE.md", pattern: "One copy per shop" },
+    title: "Your shop is walled off from every other",
+    words: "Every press's books, orders and customers sit in their own walled-off space. They are never mixed with another press's, and nobody signed in to another shop can reach them.",
+    proof: { file: "apps/shop/firestore.rules", pattern: "match /shops/{shopId}" },
   },
   {
     id: "canada",

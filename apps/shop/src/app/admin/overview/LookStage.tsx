@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { googleFontHref } from "../../features/site/fonts";
-import { lookFonts, type LookPreview, type PreviewProduct } from "../lookGallery";
+import { lookFonts, type LookPreview, type PreviewProduct, type ProductKind } from "../lookGallery";
 import { useShopWords } from "../shopWords";
 
 // The try-on (Choose your look): a whole shop page drawn in a look's own colours, type, picture shape, buttons and
@@ -66,6 +66,21 @@ export function ScaledStage({ width, height, children, label }: { width: number;
   );
 }
 
+
+/** Flat drawings of what a press sells, set on the cover's colour, so a preview reads as a shop and not blank tiles. */
+const ART: Record<ProductKind, (ink: string, bg: string) => ReactNode> = {
+  tee: (ink) => <><path d="M30 18 42 13Q50 23 58 13L70 18 91 35 80 47 70 40V87H30V40L20 47 9 35Z" fill={ink} /><path d="M42 13Q50 23 58 13" fill="none" stroke="#fff" strokeOpacity=".35" strokeWidth="2" /></>,
+  sweatshirt: (ink, bg) => <><path d="M32 16 44 11Q50 20 56 11L68 16 93 72 81 78 70 50V88H30V50L19 78 7 72Z" fill={ink} /><path d="M30 80H70" stroke={bg} strokeOpacity=".4" strokeWidth="2" /><path d="M44 11Q50 20 56 11" fill="none" stroke={bg} strokeOpacity=".4" strokeWidth="2" /></>,
+  tote: (ink, bg) => <><path d="M36 38C36 8 64 8 64 38" fill="none" stroke={ink} strokeWidth="4" /><path d="M22 36H78L82 92H18Z" fill={ink} /><rect x="38" y="56" width="24" height="16" fill="none" stroke={bg} strokeOpacity=".45" strokeWidth="2" /></>,
+  cap: (ink, bg) => <><path d="M14 64Q14 26 52 26 86 26 88 64Z" fill={ink} /><path d="M58 62 98 67Q98 77 58 72Z" fill={ink} /><path d="M52 26V62" stroke={bg} strokeOpacity=".35" strokeWidth="2" /></>,
+  book: (ink, bg) => <><rect x="24" y="10" width="52" height="80" fill={ink} /><rect x="24" y="10" width="7" height="80" fill={bg} fillOpacity=".25" /><rect x="38" y="24" width="30" height="5" fill={bg} fillOpacity=".85" /><rect x="38" y="34" width="22" height="3" fill={bg} fillOpacity=".6" /><circle cx="53" cy="68" r="8" fill="none" stroke={bg} strokeOpacity=".7" strokeWidth="2" /></>,
+  print: (ink, bg) => <><rect x="18" y="12" width="64" height="76" fill={bg} stroke={ink} strokeWidth="4" /><circle cx="60" cy="36" r="8" fill={ink} /><path d="M24 80 42 50 54 66 64 56 76 80Z" fill={ink} /></>,
+  ring: (ink, bg) => <><circle cx="50" cy="60" r="24" fill="none" stroke={ink} strokeWidth="7" /><path d="M42 30 50 20 58 30 50 40Z" fill={ink} /><path d="M50 20V40M42 30H58" stroke={bg} strokeOpacity=".5" strokeWidth="1.5" /></>,
+  vinyl: (ink, bg) => <><circle cx="50" cy="50" r="40" fill={ink} /><circle cx="50" cy="50" r="28" fill="none" stroke={bg} strokeOpacity=".25" strokeWidth="1.5" /><circle cx="50" cy="50" r="13" fill={bg} fillOpacity=".8" /><circle cx="50" cy="50" r="3" fill={ink} /></>,
+  mug: (ink, bg) => <><path d="M26 28H68V74Q68 88 54 88H40Q26 88 26 74Z" fill={ink} /><path d="M68 38H78Q88 38 88 50 88 62 76 62H68" fill="none" stroke={ink} strokeWidth="6" /><path d="M26 40H68" stroke={bg} strokeOpacity=".3" strokeWidth="2" /></>,
+  tape: (ink, bg) => <><rect x="12" y="26" width="76" height="48" fill={ink} /><rect x="22" y="34" width="56" height="18" fill={bg} fillOpacity=".8" /><circle cx="36" cy="44" r="5" fill={ink} /><circle cx="64" cy="44" r="5" fill={ink} /><path d="M28 74 34 62H66L72 74" fill={bg} fillOpacity=".3" /></>,
+};
+
 /** A drawn cover for a product without a photo: a block in the look's colours with its title set in the look's type. */
 function Cover({ look, product, index, ratio, radius, style }: { look: LookPreview; product: PreviewProduct; index: number; ratio: number; radius: CSSProperties["borderRadius"]; style?: CSSProperties }) {
   const fills = [look.accent, look.surface, look.secondary, look.text];
@@ -77,6 +92,14 @@ function Cover({ look, product, index, ratio, radius, style }: { look: LookPrevi
     boxShadow: look.shadow ? `${look.shadow}px ${look.shadow}px 0 ${look.shadowColor}` : undefined, ...style,
   };
   if (product.photo) return <img src={product.photo} alt="" loading="lazy" style={{ ...frame, objectFit: "cover" }} />;
+  if (product.kind) {
+    // The product itself drawn on the colour: ink for the object, the colour showing through for its details.
+    return (
+      <div style={{ ...frame, background: fill, display: "flex", alignItems: "center", justifyContent: "center" }} role="img" aria-label={product.title || product.kind}>
+        <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" style={{ width: "78%", height: "78%" }} aria-hidden>{ART[product.kind](ink, fill)}</svg>
+      </div>
+    );
+  }
   return (
     <div style={{ ...frame, background: fill, color: ink, display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "10%", boxSizing: "border-box" }}>
       <span style={{ fontFamily: look.headingFont, fontWeight: look.headingWeight, fontSize: 22, lineHeight: 1.05, textTransform: look.uppercase ? "uppercase" : "none", overflowWrap: "anywhere" }}>{product.title}</span>

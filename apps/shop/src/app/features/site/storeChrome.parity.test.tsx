@@ -19,7 +19,7 @@ import { describe, expect, it, vi } from "vitest";
 const site = vi.hoisted(() => ({ data: {} as any }));
 vi.mock("./useSiteData", () => ({ useSiteData: () => site.data, useLiveDesign: () => site.data.settings?.design || {} }));
 vi.mock("../../CartContext", () => ({ useCart: () => ({ cartCount: 2, cartTotal: 31.5, setIsCartOpen: () => {}, addToCart: () => true, cart: [] }), catalogUnitPrice: () => 0 }));
-vi.mock("../../../lib/firebase", () => ({ db: {}, auth: {} }));
+vi.mock("../../../lib/firebase", () => ({ firestore: {}, db: {}, auth: {} }));
 vi.mock("../../components/sectionRender", () => ({ SectionList: () => h("i", null, "sections"), GlobalSections: () => null, GroupSections: () => null, TemplateSections: () => null }));
 vi.mock("./RecentlyViewedRow", () => ({ default: () => null }));
 vi.mock("../../lib/seo", () => ({ useSEO: () => {} }));

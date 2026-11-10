@@ -9,7 +9,7 @@ import { expect, it, vi } from "vitest";
 const site = vi.hoisted(() => ({ data: {} as any, cart: [] as any[], opened: 0 }));
 vi.mock("../../useSiteData", () => ({ useSiteData: () => site.data, useLiveDesign: () => site.data.settings?.design || {} }));
 vi.mock("../../../../CartContext", async (orig) => ({ ...(await orig() as any), useCart: () => ({ addToCart: () => true, setIsCartOpen: () => { site.opened++; }, cartCount: site.cart.length, cart: site.cart }) }));
-vi.mock("../../../../../lib/firebase", () => ({ db: {}, auth: {} }));
+vi.mock("../../../../../lib/firebase", () => ({ firestore: {}, db: {}, auth: {} }));
 vi.mock("../../shippingProfilesLoad", () => ({ loadShippingProfiles: async () => [{ id: "p", freeShippingOver: 75, zones: [] }] }));
 vi.mock("../../../../lib/seo", () => ({ useSEO: () => {} }));
 vi.mock("../../../../lib/reviews", () => ({ reviewsApi: { listApproved: async () => [], summary: async () => null } }));

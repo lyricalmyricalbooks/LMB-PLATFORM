@@ -9,7 +9,7 @@ const { handleBigQueryJourneys, SCOPE: BIGQUERY_SCOPE } = require("./bigQueryJou
 const { handleTrafficReset } = require("./trafficReset");
 const { handlePastOrdersImport, handlePastOrdersRemove, handlePastOrderRate } = require("./orderImport");
 const { handleExchangeRates, getBankJson } = require("./pastOrderRates");
-const { handleOldLinksRead, handleOldPagesRead, handleOldShopRead, readOldLinks, readOldPages, readOldShop } = require("./oldShopRead");
+const { handleOldLinksRead, handleOldPagesRead, handleOldShopRead, readOldLinks, readOldPages, readOldShop, recordScan } = require("./oldShopRead");
 
 function adminReportActions({ db, admin, requireAdmin, readAdminSecret, hitLimit, LIMITS }) {
   /** Settings › General › Backups & export › the daily list (op "list") and Download (op "download", body.day). */
@@ -137,7 +137,8 @@ function adminReportActions({ db, admin, requireAdmin, readAdminSecret, hitLimit
     const adminUser = await requireAdmin(req, res);
     if (!adminUser) return;
     try {
-      const { status, body } = await handleOldShopRead(req.body || {}, { allow: () => hitLimit(db, "old-shop", req, LIMITS.oldShop), read: readOldShop });
+      // Each product read is kept for the platform's control room (systemStatus/oldShopScans), never the products.
+      const { status, body } = await handleOldShopRead(req.body || {}, { allow: () => hitLimit(db, "old-shop", req, LIMITS.oldShop), read: readOldShop, record: (entry) => recordScan(db, entry) });
       res.status(status).json(body);
     } catch (err) {
       console.error("readOldShop failed:", err?.message || err);

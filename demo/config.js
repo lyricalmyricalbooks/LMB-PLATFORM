@@ -2,7 +2,6 @@
 // ports each piece listens on, the two apps' shop profiles and the emulator config. Nothing here reaches Google: the
 // emulators never contact Google for a project id that starts with "demo-", and the apps only switch to the emulators
 // when they are started with the demo flag (apps/shop/src/lib/emulators.ts, apps/stockroom/src/lib/emulators.js).
-import { fillRules as fillShopRules } from "../apps/shop/scripts/deployConfig.mjs";
 import { fillRules as fillStockroomRules } from "../apps/stockroom/scripts/deployConfig.mjs";
 
 export const DEMO_PROJECT = "demo-colophon-test";
@@ -11,6 +10,14 @@ export const HOST = "127.0.0.1";
 // The firebase-tools release the repo's CI already uses.
 export const FIREBASE_TOOLS = "firebase-tools@15.32.1";
 export const SHOP_BUCKET = `${DEMO_PROJECT}.appspot.com`;
+// The shared system (docs/shared-system.md): the demo shop is one folder of the database and the bucket, `shops/<id>`.
+export const DEMO_SHOP_ID = DEMO_PROJECT;
+export const SHOP_FOLDER = `shops/${DEMO_SHOP_ID}`;
+/**
+ * The demo shop's record, as the platform writes it: its owner, and an empty sign-in list name (`tenant: ""`), which the
+ * rules read as "the project's own sign-in list". Only a project holding one shop (the demo) may do that.
+ */
+export const DEMO_SHOP_RECORD = Object.freeze({ tenant: "", ownerEmail: "owner@example.com" });
 export const STOCKROOM_DATABASE = "stockroom";
 export const STOCKROOM_BUCKET = `${DEMO_PROJECT}-stockroom`;
 export const RTDB_NAMESPACE = `${DEMO_PROJECT}-default-rtdb`;
@@ -48,7 +55,7 @@ const firebaseWeb = {
 export function shopProfile() {
   return {
     version: 1,
-    shopId: DEMO_PROJECT,
+    shopId: DEMO_SHOP_ID,
     firebase: { ...firebaseWeb },
     functionsRegion: "us-central1",
     siteUrl: `https://${DEMO_PROJECT}.web.app`,
@@ -92,7 +99,8 @@ export function joinFirestoreRules(shopRules, stockroomRules) {
     "// Written by LMB-PLATFORM demo/ for the local emulators only: the shop's and the stockroom's rules, joined.",
     "service cloud.firestore {",
     "  match /databases/(default)/documents {",
-    body(shopRules, "shop"),
+    // The shop's rules read each shop's record in their own database ($(database)); here that database is named.
+    body(shopRules, "shop").replaceAll("$(database)", "(default)"),
     "  }",
     `  match /databases/${STOCKROOM_DATABASE}/documents {`,
     body(stockroomRules, "stockroom"),
@@ -107,8 +115,8 @@ export function demoRules(read) {
   const owner = DEMO_OWNER.email;
   const stockroom = (file) => fillStockroomRules(file, read(`apps/stockroom/${file}`), { owner, database: STOCKROOM_DATABASE });
   return [
-    { file: "firestore.rules", text: joinFirestoreRules(fillShopRules(read("apps/shop/firestore.rules"), owner), stockroom("firestore.rules")) },
-    { file: "shop.storage.rules", text: fillShopRules(read("apps/shop/storage.rules"), owner) },
+    { file: "firestore.rules", text: joinFirestoreRules(read("apps/shop/firestore.rules"), stockroom("firestore.rules")) },
+    { file: "shop.storage.rules", text: read("apps/shop/storage.rules") },
     { file: "stockroom.storage.rules", text: stockroom("storage.rules") },
     { file: "database.rules.json", text: stockroom("database.rules.json") },
   ];

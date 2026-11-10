@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-vi.mock("../../lib/firebase", () => ({ db: {} }));
+vi.mock("../../lib/firebase", () => ({ firestore: {}, db: {} }));
 vi.mock("../../lib/firebaseApp", () => ({ app: {}, db: {}, appCheck: null, authState: { loaded: true } }));
-vi.mock("../../lib/firestoreLite", () => ({ liteDb: {} }));
+vi.mock("../../lib/firestoreLite", () => ({ liteDb: {}, liteFirestore: {} }));
 import { filterMessages, restoredStatus, type ContactMessage } from "./Messages";
 
 const m = (id: string, status: ContactMessage["status"], extra: Partial<ContactMessage> = {}): ContactMessage =>

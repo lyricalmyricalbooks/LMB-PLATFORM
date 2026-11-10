@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { handleOldLinksRead, handleOldPagesRead, handleOldShopRead, readOldLinks, readOldPages, readOldShop } = require("./oldShopRead.js");
+const { KEPT_SCANS, handleOldLinksRead, handleOldPagesRead, handleOldShopRead, readOldLinks, readOldPages, readOldShop, recordScan, scanEntry } = require("./oldShopRead.js");
 
 describe("reading an old shop's address from Books › Import (plan 23.11)", () => {
   const read = async (address) => (address === "moth.example"
@@ -43,5 +43,34 @@ describe("reading an old shop's address from Books › Import (plan 23.11)", () 
     for (const paths of [undefined, [], ["/a", 3], Array(51).fill("/a")]) expect((await handleOldPagesRead({ address: "moth.example", paths }, { allow: async () => true, read: pages })).status).toBe(400);
     expect(seen).toHaveLength(1);
     expect(await readOldPages("not an address", { paths: ["/about"] })).toEqual({ ok: false, message: "Type your old shop's web address, like yourshop.com." });
+  });
+});
+
+describe("each product read is kept for the platform's control room, never the products", () => {
+  const at = "2026-11-10T13:00:00.000Z";
+  it("keeps the address, the count and a part read, and a failed read's words", () => {
+    expect(scanEntry("https://Moth.example/shop", { ok: true, host: "moth.example", csv: "x", products: 40, forSale: 38, stockShown: false, notes: ["Your old shop stopped answering after 40 products. Try again."] }, at))
+      .toEqual({ at, host: "moth.example", ok: true, products: 40, forSale: 38, stockShown: false, partial: true });
+    expect(scanEntry(" https://Busy.example/a/b ", { ok: false, message: "We couldn't reach that shop." }, at)).toEqual({ at, host: "busy.example", ok: false, message: "We couldn't reach that shop." });
+    expect(JSON.stringify(scanEntry("m.example", { ok: true, host: "m.example", csv: "Handle,Title\nsecret,Secret\n", products: 1, notes: [] }, at))).not.toMatch(/Secret/);
+  });
+
+  it("records after the read and keeps the newest few; a failed record never fails the read", async () => {
+    const kept = [];
+    const read = async () => ({ ok: true, host: "moth.example", csv: "c", products: 2, notes: [] });
+    const ok = await handleOldShopRead({ address: "moth.example" }, { allow: async () => true, read, record: async (e) => kept.push(e), now: () => new Date(at) });
+    expect(ok.status).toBe(200);
+    expect(kept).toEqual([{ at, host: "moth.example", ok: true, products: 2, stockShown: false, partial: false }]);
+    const failing = await handleOldShopRead({ address: "moth.example" }, { allow: async () => true, read, record: async () => { throw new Error("down"); } });
+    expect(failing.status).toBe(200);
+    await handleOldShopRead({ address: "moth.example" }, { allow: async () => false, read, record: async (e) => kept.push(e) });
+    expect(kept).toHaveLength(1);
+
+    let doc = { scans: Array.from({ length: KEPT_SCANS }, (_, i) => ({ host: `old-${i}.example` })) };
+    const db = { doc: () => "ref", runTransaction: async (fn) => fn({ get: async () => ({ data: () => doc }), set: (_ref, next) => { doc = next; } }) };
+    await recordScan(db, { at, host: "new.example" });
+    expect(doc.scans).toHaveLength(KEPT_SCANS);
+    expect(doc.scans[0].host).toBe("new.example");
+    expect(doc.at).toBe(at);
   });
 });

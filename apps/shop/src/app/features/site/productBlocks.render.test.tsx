@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 const site = vi.hoisted(() => ({ data: {} as any }));
 vi.mock("./useSiteData", () => ({ useSiteData: () => site.data, useLiveDesign: () => site.data.settings?.design || {} }));
 vi.mock("../../CartContext", async (orig) => ({ ...(await orig() as any), useCart: () => ({ addToCart: () => true, setIsCartOpen: () => {}, cartCount: 0, cart: [] }) }));
-vi.mock("../../../lib/firebase", () => ({ db: {}, auth: {} }));
+vi.mock("../../../lib/firebase", () => ({ firestore: {}, db: {}, auth: {} }));
 vi.mock("../../lib/seo", () => ({ useSEO: () => {} }));
 vi.mock("../../lib/reviews", () => ({ reviewsApi: { listApproved: async () => [], summary: async () => null } }));
 vi.mock("../../lib/commerce", () => ({ funnelApi: new Proxy({}, { get: () => () => {} }) }));

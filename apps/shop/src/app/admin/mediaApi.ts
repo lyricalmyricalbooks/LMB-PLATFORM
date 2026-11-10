@@ -4,6 +4,7 @@
 // permission-denied and Studio shows the library as "not switched on" (isMediaDenied).
 import { collection, deleteDoc, doc, getDocs, setDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import { shopFilePath } from "../../lib/shopFolder";
 import type { MediaItem } from "./studio/mediaLibrary";
 
 export const isMediaDenied = (error: any) =>
@@ -32,7 +33,7 @@ export const mediaApi = {
     const [{ getStorage, ref, deleteObject }, { getApp }] = await Promise.all([import("firebase/storage"), import("firebase/app")]);
     const storage = getStorage(getApp());
     const failed: string[] = [];
-    await Promise.all(paths.map(path => deleteObject(ref(storage, path)).catch((error: any) => {
+    await Promise.all(paths.map(path => deleteObject(ref(storage, shopFilePath(path))).catch((error: any) => {
       if (error?.code === "storage/object-not-found") return;
       console.warn("Could not delete media file", path, error?.code || error);
       failed.push(path);

@@ -8,7 +8,7 @@
 // words they agreed to. Words here are customer-facing: plain words, never a rival's name.
 
 /** The id of these words. Sign-up stores it with the date the press ticked the box. */
-export const TERMS_VERSION = "2026-11-10-draft";
+export const TERMS_VERSION = "2026-11-10-draft.2";
 
 /** True until a lawyer has read the words. The page shows the draft notice while it is. */
 export const DRAFT = true;
@@ -118,7 +118,7 @@ export const SECTIONS = Object.freeze([
       "We use your details because we need them to give you the service you signed up for, because the law makes us keep some records, and to protect Colophon from fraud.",
       "We email you about your account, your plan and your shop. Anything else, such as news about Colophon, only if you ask for it, and each of those emails has a way to stop them.",
       "We never sell your details, and we never show you or your shoppers advertising. Colophon's own pages use no advertising or tracking cookies.",
-      "Your shop's information is kept in its own copy, separate from every other press, and stored in Canada. Some of the companies listed below work in the United States, where its laws may let officials see it.",
+      "Your shop's information is kept apart from every other press's, behind its own wall, and stored in Canada. Some of the companies listed below work in the United States, where its laws may let officials see it.",
       `Each backup is kept for ${BACKUP_KEEP_DAYS} days, then deleted. If your shop is deleted, its backups are kept ${BACKUP_KEEP_DAYS} days more and then they are gone too.`,
       "Records of what happened in your shop are deleted after two years. Invoices and tax records are kept at least six years, as tax law asks.",
       "You can ask us for a copy of what we hold about you, or ask us to correct it or delete it. Write to us from your account page, and we answer within 30 days.",
@@ -133,7 +133,7 @@ export const SECTIONS = Object.freeze([
       "When a shopper buys from you, your press decides what is kept about them. We keep it on your behalf and follow your instructions, given through your settings and your requests.",
       "If a law ever makes us do something else with it, we tell you first, unless that law forbids it.",
       "Everyone on our team who can see your data has promised to keep it private. Our team looks inside your shop only when you ask for help, and only for as long as it takes. Every look is recorded.",
-      "We protect your data with two-step sign-in, encryption, a separate copy for each shop, nightly backups and a record of every look.",
+      "We protect your data with two-step sign-in, encryption, a wall between each shop's data, nightly backups and a record of every look.",
       "When a shopper asks to see or delete their details, your shop has the tools to do it, and we help if you ask.",
       `The companies that help us are listed below. We email you at least ${CHANGE_NOTICE_DAYS} days before adding one, and if you object you can leave without paying for the rest of the month.`,
       "If something goes wrong with your data, we tell you as soon as we know, and within 72 hours, in plain words, with what we are doing about it.",
@@ -164,7 +164,7 @@ export const SECTIONS = Object.freeze([
     paragraphs: [
       `We will tell you at least ${SHUTDOWN_NOTICE_DAYS} days before Colophon stops, by email and on your account page. Your shop keeps working during those ${SHUTDOWN_NOTICE_DAYS} days.`,
       "You can download all of your books, orders and customers as spreadsheet files at any time, and during those days too.",
-      "Your shop runs in its own copy. If you want to keep it running, we hand that copy over to your press, with its books, orders, customers and settings, at no charge.",
+      "Your shop's data is kept apart from every other press's. If you want to keep it running, we make a full copy of your shop and hand that copy over to your press, with its books, orders, customers and settings, at no charge.",
       `The same holds if you leave us: during the ${DOWNLOAD_DAYS} days after your shop closes, you keep your files and you can ask for your own copy.`,
     ],
   },
