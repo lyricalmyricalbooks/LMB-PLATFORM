@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { cpSync, mkdtempSync, readFileSync, rmSync, existsSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CONFIG_FILE, FRONT_DOOR, OUT_DIR, PER_SHOP_FILES, buildFirebaseConfig, checkRules, frontDoorHosting, writeDeployFiles } from "./deployConfig.mjs";
+import { CONFIG_FILE, FRONT_DOOR, OUT_DIR, PER_SHOP_FILES, buildFirebaseConfig, checkRules, frontDoorHosting, functionsRegion, writeDeployFiles } from "./deployConfig.mjs";
 
 const ROOT = join(__dirname, "..");
 const read = (p: string) => readFileSync(join(ROOT, p), "utf8");
@@ -32,7 +32,7 @@ describe("rules templates", () => {
 
 describe("firebase.deploy.json", () => {
   it("is the template with the project's own Hosting site and the checked rules", () => {
-    const config = buildFirebaseConfig(template, "press-two-shop");
+    const config = buildFirebaseConfig(template, "press-two-shop", { region: "us-central1" });
     expect(config.hosting.site).toBe("press-two-shop");
     expect(config.firestore.rules).toBe(`${OUT_DIR}/firestore.rules`);
     expect(config.storage.rules).toBe(`${OUT_DIR}/storage.rules`);
@@ -58,15 +58,28 @@ describe("firebase.deploy.json", () => {
     expect(() => buildFirebaseConfig(template, "press-two-shop", { region: "nowhere" })).toThrow(/region/);
   });
 
+  // The functions run where the shop profile says (northamerica-northeast1 for the shared project): a front door that
+  // pointed anywhere else would answer nothing, so there is no default region.
+  it("sends the front door to the functions' own region, and refuses to guess one", () => {
+    const hosting = buildFirebaseConfig(template, "press-two-shop", { region: "northamerica-northeast1" }).hosting;
+    expect(hosting.rewrites.find((r: any) => r.source === "/shop-profile.js")?.function.region).toBe("northamerica-northeast1");
+    expect(() => buildFirebaseConfig(template, "press-two-shop")).toThrow(/region/);
+    const profile = () => "europe-west2";
+    expect(functionsRegion(["--project", "p", "--region", "us-east1"], { SHOP_FUNCTIONS_REGION: "us-west1" }, profile)).toBe("us-east1");
+    expect(functionsRegion(["--project", "p"], { SHOP_FUNCTIONS_REGION: " us-west1 " }, profile)).toBe("us-west1");
+    expect(functionsRegion(["--project", "p"], {}, profile)).toBe("europe-west2");
+    expect(() => functionsRegion([], {}, () => { throw new Error("functionsRegion missing from public/shop-profile.js"); })).toThrow(/functionsRegion/);
+  });
+
   it("refuses a project id Firebase wouldn't accept", () => {
-    for (const bad of ["", "Shop", "a", "has_underscore", "-starts-with-dash"]) expect(() => buildFirebaseConfig(template, bad)).toThrow(/project id/);
+    for (const bad of ["", "Shop", "a", "has_underscore", "-starts-with-dash"]) expect(() => buildFirebaseConfig(template, bad, { region: "us-central1" })).toThrow(/project id/);
   });
 
   it("writes the deploy files next to the templates, the rules unchanged", () => {
     const dir = mkdtempSync(join(tmpdir(), "deploy-config-"));
     try {
       for (const file of ["firebase.json", "firestore.rules", "storage.rules"]) cpSync(join(ROOT, file), join(dir, file));
-      const written = writeDeployFiles({ root: dir, projectId: "press-two-shop" });
+      const written = writeDeployFiles({ root: dir, projectId: "press-two-shop", region: "northamerica-northeast1" });
       expect(written).toEqual([join(OUT_DIR, "firestore.rules"), join(OUT_DIR, "storage.rules"), CONFIG_FILE]);
       const config = JSON.parse(readFileSync(join(dir, CONFIG_FILE), "utf8"));
       expect(readFileSync(join(dir, config.firestore.rules), "utf8")).toBe(firestoreRules);
@@ -81,7 +94,7 @@ describe("firebase.deploy.json", () => {
     try {
       for (const file of ["firebase.json", "storage.rules"]) cpSync(join(ROOT, file), join(dir, file));
       writeFileSync(join(dir, "firestore.rules"), 'allow read: if request.auth.token.email == "a@b.co";');
-      expect(() => writeDeployFiles({ root: dir, projectId: "press-two-shop" })).toThrow(/address/);
+      expect(() => writeDeployFiles({ root: dir, projectId: "press-two-shop", region: "northamerica-northeast1" })).toThrow(/address/);
       expect(existsSync(join(dir, OUT_DIR))).toBe(false);
       expect(existsSync(join(dir, CONFIG_FILE))).toBe(false);
     } finally {
