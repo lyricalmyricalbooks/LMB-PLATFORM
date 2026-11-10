@@ -13,16 +13,16 @@ export type Publishes = Sells;
 
 /** Two or three themes to start from for each answer; no answer gets the general three. */
 const SUGGESTED: Record<Publishes | "general", string[]> = {
-  books: ["press-folio", "press-almanac", "press-shelf"],
-  zines: ["press-gutter", "press-cutout", "press-market"],
-  comics: ["press-gutter", "press-market", "press-mosaic"],
-  prints: ["press-signal", "press-rows", "press-atlas"],
-  mix: ["press-rows", "press-atlas", "press-market"],
+  books: ["press-folio", "press-rows", "press-shelf"],
+  zines: ["press-marquee", "press-mosaic", "press-rows"],
+  comics: ["press-marquee", "press-mosaic", "press-shelf"],
+  prints: ["press-rows", "press-atlas", "press-folio"],
+  mix: ["press-rows", "press-atlas", "press-mosaic"],
   mixed: ["press-rows", "press-atlas", "press-shelf"],
-  clothing: ["press-cutout", "press-atlas", "press-marquee"],
-  shoes: ["press-atlas", "press-signal", "press-marquee"],
+  clothing: ["press-mosaic", "press-atlas", "press-marquee"],
+  shoes: ["press-atlas", "press-rows", "press-marquee"],
   jewelry: ["press-kiln", "press-arch", "press-lantern"],
-  music: ["press-reel", "press-console", "press-lantern"],
+  music: ["press-console", "press-lantern", "press-marquee"],
   other: ["press-kiln", "press-atlas", "press-shelf"],
   general: ["press-folio", "press-atlas", "press-shelf"],
 };
@@ -30,11 +30,13 @@ const SUGGESTED: Record<Publishes | "general", string[]> = {
 export type LibraryTheme = { id: string; name: string; mood: string } & Record<string, any>;
 
 /**
- * The looks a press can pick from: the seventeen built shop templates. The library keeps its older colour variants so a
- * shop already on one still opens, switches and keeps its settings (themeSwitch.ts finds them by id), but they are
- * not offered again: each was a recolour of a template, so the picker showed repeats.
+ * The looks a press can pick from: ten built shop templates, the most distinct of the seventeen (three quiet, three
+ * warm, two bold, two dark). The library keeps every other look, and every template stays in the code, so a shop
+ * already on one (Market, Gutter, Cutout, Picnic, Signal, Almanac, Reel, or an older colour variant) still opens,
+ * switches and keeps its settings (themeSwitch.ts finds them by id); they are just not offered to new choosers.
  */
-export const isBuiltLook = (t: any) => (TEMPLATE_STYLE_IDS as readonly string[]).includes(String(t.global?.themeStyle || ""));
+const PICKER_LOOKS = ["press-atlas", "press-folio", "press-rows", "press-arch", "press-shelf", "press-kiln", "press-marquee", "press-mosaic", "press-lantern", "press-console"];
+export const isBuiltLook = (t: any) => PICKER_LOOKS.includes(t.id) && (TEMPLATE_STYLE_IDS as readonly string[]).includes(String(t.global?.themeStyle || ""));
 export const builtLooks = () => (THEME_LIBRARY as unknown as LibraryTheme[]).filter(isBuiltLook);
 /** Any look in the library by id, including the older variants that are no longer offered. */
 export const libraryLook = (id: string) => (THEME_LIBRARY as unknown as LibraryTheme[]).find(t => t.id === id);
