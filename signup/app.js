@@ -250,7 +250,7 @@ const WORDS = {
   "in-line": "We're making a few shops a day. You're next in line, and we'll email you when yours starts.",
   // Colophon starts in Canada (plan 15.23): the same words as signup.js LATER_WORDS.
   later: "Colophon starts in Canada. We've saved your place and we'll email you as soon as presses in your country can start.",
-  queued: "Waiting for its turn. This takes a few minutes.",
+  queued: "In the queue. We'll email you when it's ready; meanwhile you can enter your store and set it up.",
   making: "Being made now. This takes a few minutes; you can close this page and we'll email you when it's ready.",
   ready: "Ready. We've emailed you the way in.",
   waiting: "We hit a snag making it. Nothing is lost.",
