@@ -95,6 +95,16 @@ needed a Google organization before any shop could be made ("In the queue") and 
   is the free address for a shared shop. A shared shop is live for health, backups and team sync
   (`rings.js` `notLive`), but gets no per-project release (`leftOut`). The nightly backup exports the shared project's
   two databases once for all its shops; the monthly restore drill still covers only shops with a project of their own.
+- **Staged updates.** A release goes to a project, not a shop (`services/release-runner/shared.js`,
+  `node services/release-runner/run-shared.js <version>`): the shared test project first, then the live one
+  (`SHARED_SHOPS_PROJECT`). Each gets the stamped rules of both apps, the shared server's code with its own settings
+  (`sharedServerEnv`: the platform's doors and the region; each shop's settings stay in its record) and the one site,
+  whose front door points at the functions' own region. Then one shop answers at its own address (home, `/admin`, its
+  profile, the stockroom), and in the test project the release check passes on the test shop. A failed check puts the
+  project back on its release before and stops, so the live project never gets what the test project refused. After a
+  project passes, each of its shops' pages are drawn again from its own books (`setup/shopSite.js`); a shop whose
+  pages fail keeps its last good ones and is listed, and the release goes on. Data changes still run per project, so
+  the shared release refuses to start while the release has any. The per-project runner leaves shared shops out.
 - **Web addresses.** The domain service runs on the hosted server once the shared system is on
   (`services/domains/hosted.js`, `/api/domains`, the `web-addresses` job). A shop's address goes in `addresses/{host}`
   first (refused when another shop holds it), then on the shared Hosting site; letting one go takes it off the site,
@@ -146,11 +156,10 @@ app off. The per-shop cost meters (phase 7) are what the plan charges by.
 | 4 | Per-shop sign-in (Identity Platform tenants) for customers, staff, helpers, support | built |
 | 5 | Front door: one site for every address, profile by address, crawlable pages, own domains | built |
 | 6 | Shop maker in seconds (record + tenant + starter content); ends "In the queue" | built |
-| 7 | Platform services: control room, health, per-shop costs, export, closing, backups, staged updates | next |
+| 7 | Platform services: control room, health, per-shop costs, export, closing, backups, staged updates | built, restore drill next |
 | 8 | Test shop rebuilt in the shared test project (`lmb-test-shop`) with a test purchase | |
 
-Left for later in phase 7: the
-staged updates (one release of the shared project, then each shop's pages); a restore drill
+Left for later in phase 7: a restore drill
 of the shared project. A Shippo or PayPal webhook set up by hand needs `?shop=<id>` on its address. The tick runs every
 shop in one five-minute run; it is spread out once there are many shops. Nothing is deployed from these copies to a
 live shop until phase 8 (the per-project test shop build is on hold).
