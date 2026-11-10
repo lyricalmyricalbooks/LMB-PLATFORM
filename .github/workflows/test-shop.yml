@@ -57,6 +57,20 @@ jobs:
       - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
       - name: The Firebase command line
         run: npm install --global "$FIREBASE_TOOLS"
+      # Steps 7 (test-mode payments) and 8 (the welcome email) run when the platform's test keys are in Secret Manager;
+      # only the payment and email services inside setup/make-test-shop.js read them. A live key is refused there.
+      - name: The platform's test keys, when they are there
+        run: |
+          for pair in STRIPE_PLATFORM_TEST_KEY:stripe-platform-test-key RESEND_API_KEY:resend-api-key; do
+            name="${pair%%:*}"
+            secret="${pair#*:}"
+            if value=$(gcloud secrets versions access latest --secret="$secret" --project=lmb-platform-prod 2>/dev/null); then
+              echo "::add-mask::$value"
+              { echo "$name<<KEY_END"; echo "$value"; echo "KEY_END"; } >> "$GITHUB_ENV"
+            else
+              echo "$secret can't be read yet, so its step waits." >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
       - name: Make the test shop
         env:
           SERVER_SETTINGS: ${{ vars.SERVER_SETTINGS }}

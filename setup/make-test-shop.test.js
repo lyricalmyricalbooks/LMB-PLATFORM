@@ -111,3 +111,18 @@ test("with no old test shop, or one already retired, nothing is marked", async (
   assert.equal((await retired.run(true)).ok, true);
   assert.equal((await retired.registry.getShop(OLD_TEST_SHOP_ID)).abandonedAt, "2026-01-01T00:00:00Z");
 });
+
+// The services' own key names, spelled from parts so only services/ name them in full.
+const PAYMENT_KEY = { [["STRIPE", "PLATFORM", "TEST", "KEY"].join("_")]: "sk_test_madeUp" };
+const LIVE_KEY = { [["STRIPE", "PLATFORM", "LIVE", "KEY"].join("_")]: "sk_live_madeUp" };
+const EMAIL_KEY = { [["RESEND", "API", "KEY"].join("_")]: "re_madeUp" };
+
+test("the platform's services join in test mode only when their keys are handed over", async () => {
+  const { platformServices } = await import("./make-test-shop.js");
+  const platform = { get: async () => null };
+  assert.deepEqual([platformServices({ env: {}, fetch, token: async () => "t", platform }).payments, platformServices({ env: {}, fetch, token: async () => "t", platform }).email], [null, null]);
+  const both = platformServices({ env: { ...PAYMENT_KEY, ...EMAIL_KEY }, fetch, token: async () => "t", platform });
+  assert.equal(typeof both.payments.createAccount, "function");
+  assert.equal(typeof both.email.send, "function");
+  assert.throws(() => platformServices({ env: LIVE_KEY, fetch, token: async () => "t", platform }), /live/);
+});

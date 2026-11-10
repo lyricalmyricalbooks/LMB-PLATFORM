@@ -82,3 +82,15 @@ test("the old builds' cleanup rule waits for the first deploy, then is set", asy
   assert.equal(later.ran.at(-1).status, "done");
   assert.ok(google.world.buildCleanup.has(P));
 });
+
+test("readying a named project refuses the platform's own, a missing one and one without billing", async () => {
+  const { readySharedProject } = await import("./ready-shared-project.js");
+  const google = fakeGoogle();
+  await assert.rejects(readySharedProject({ projectId: "lmb-platform-prod", google, print: () => {} }), /never holds shops/);
+  await assert.rejects(readySharedProject({ projectId: "moth-press", google, print: () => {} }), /doesn't exist yet/);
+  google.world.projects.set("moth-press", { projectId: "moth-press", state: "ACTIVE", parent: "folders/1" });
+  await assert.rejects(readySharedProject({ projectId: "moth-press", google, print: () => {} }), /no billing account/);
+  google.world.billing.set("moth-press", { billingEnabled: true, billingAccountName: "billingAccounts/x" });
+  const result = await readySharedProject({ projectId: "moth-press", google, print: () => {} });
+  assert.deepEqual([result.ok, result.ready, google.calls.length], [true, false, 0]);
+});

@@ -1,0 +1,117 @@
+name: Shared system
+
+# The shared system's by-hand jobs (docs/shared-system.md), run from main by someone pressing Run workflow:
+#   ready-project    readies a shared project for shops once a person has made it (setup/ready-shared-project.js)
+#   release          the staged update: the shared test project first, then the live one (run-shared.js); "dry run"
+#                    only says what it would do
+#   restore-drill    the monthly restore drill once, now (services/health/run.js drill)
+on:
+  workflow_dispatch:
+    inputs:
+      job:
+        description: What to run
+        required: true
+        type: choice
+        options: [ready-project, release, restore-drill]
+      project:
+        description: "ready-project: the shared project's id"
+        required: false
+        type: string
+      version:
+        description: "release: the version (the git tag release-<version>)"
+        required: false
+        type: string
+      apply:
+        description: "Really do it (off: only say what it would do; the restore drill always runs)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shared-system
+  cancel-in-progress: false
+
+env:
+  WIF_PROVIDER: projects/1038369055304/locations/global/workloadIdentityPools/github/providers/lmb-platform
+  DEPLOY_ACCOUNT: github-deploy@lmb-platform-prod.iam.gserviceaccount.com
+  FIREBASE_TOOLS: firebase-tools@15.32.1
+
+jobs:
+  run:
+    if: github.repository == 'lyricalmyricalbooks/LMB-PLATFORM' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      id-token: write
+    environment:
+      name: shared-system
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 10
+      - name: Sign in to Google as the deploy account
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOY_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+      - name: The server's settings this job reads
+        env:
+          SERVER_SETTINGS: ${{ vars.SERVER_SETTINGS }}
+        run: |
+          # Only plain settings (addresses and project names), never a key: they are in the repository variable.
+          for name in SHARED_SHOPS_PROJECT SHARED_SHOPS_DOMAIN HEALTH_ALERT_TO PLATFORM_ADMIN_EMAIL SHOP_FUNCTIONS_REGION; do
+            value=$(printf '%s\n' "$SERVER_SETTINGS" | sed -n "s/^$name: *\"\{0,1\}\([^\"]*\)\"\{0,1\} *$/\1/p" | head -n 1)
+            [ -n "$value" ] && echo "$name=$value" >> "$GITHUB_ENV"
+          done
+          echo "PLATFORM_URL=https://lmb-platform-prod.web.app" >> "$GITHUB_ENV"
+          echo "PLATFORM_SERVICE_ACCOUNT=$DEPLOY_ACCOUNT" >> "$GITHUB_ENV"
+
+      - name: Ready a shared project
+        if: inputs.job == 'ready-project'
+        env:
+          PROJECT: ${{ inputs.project }}
+          APPLY: ${{ inputs.apply }}
+        run: |
+          if [ "$APPLY" = "true" ]; then node setup/ready-shared-project.js "$PROJECT" --apply; else node setup/ready-shared-project.js "$PROJECT"; fi
+
+      - name: The release's tools
+        if: inputs.job == 'release'
+        run: |
+          npm install --global "$FIREBASE_TOOLS"
+          # The release check's browser (run-shared.js loads playwright), the version the shop copy pins.
+          npm install --no-save playwright@1.64.1
+          npx playwright install --with-deps chromium
+      - name: The staged update
+        if: inputs.job == 'release'
+        env:
+          VERSION: ${{ inputs.version }}
+          APPLY: ${{ inputs.apply }}
+        run: |
+          # The release check's purchase emails go to the platform admin's inbox; builds go in the runner's temp folder.
+          export RELEASE_INBOX="$PLATFORM_ADMIN_EMAIL" RELEASE_BUILD_ROOT="$RUNNER_TEMP/builds"
+          if [ "$APPLY" = "true" ]; then node services/release-runner/run-shared.js "$VERSION"; else node services/release-runner/run-shared.js "$VERSION" --dry-run; fi
+
+      - name: The email key, for the drill's report
+        if: inputs.job == 'restore-drill'
+        run: |
+          if value=$(gcloud secrets versions access latest --secret=resend-api-key --project=lmb-platform-prod 2>/dev/null); then
+            echo "::add-mask::$value"
+            { echo "RESEND_API_KEY<<KEY_END"; echo "$value"; echo "KEY_END"; } >> "$GITHUB_ENV"
+          else
+            echo "resend-api-key can't be read, so the drill's report isn't emailed (it is in the log)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: The restore drill
+        if: inputs.job == 'restore-drill'
+        run: node services/health/run.js drill
