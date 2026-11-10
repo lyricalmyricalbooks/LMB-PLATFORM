@@ -777,30 +777,36 @@ export interface MovedCustomer {
 export interface CustomerMove { customers: MovedCustomer[]; skipped: { line: number; reason: string }[]; problems: string[] }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/** The email column under the names shop systems and contact lists give it. */
+const EMAIL_HEADINGS = ["Email", "Email Address", "E-mail", "Email 1", "Customer Email", "Buyer Email"];
 
 /** Reads a customer list: another shop's customer export or any spreadsheet with an Email column. */
 export function readCustomerExport(text: string): CustomerMove {
   const table = parseCsv(text);
   if (table.length < 2) return { customers: [], skipped: [], problems: ["The file has no customers in it. The first line must be the column headings (Email, First Name…), with one customer per line under it."] };
   const c = columns(table[0]);
-  if (!c.has("Email") && !c.has("Email Address") && !c.has("E-mail")) return { customers: [], skipped: [], problems: ["There is no Email column, so the customers can't be matched. Export your customers again, or add an Email column."] };
-  const consentHeading = ["Accepts Email Marketing", "Accepts Marketing", "Email Marketing", "Subscribed", "Newsletter", "Marketing Opt In", "Accepts Email"].find(h => c.has(h));
+  if (!EMAIL_HEADINGS.some(h => c.has(h))) return { customers: [], skipped: [], problems: ["There is no Email column, so the customers can't be matched. Export your customers again, or add an Email column."] };
+  const consentHeading = ["Accepts Email Marketing", "Accepts Marketing", "Email Marketing", "Subscribed", "Newsletter", "Marketing Opt In", "Accepts Email", "Buyer opt in"].find(h => c.has(h));
   // A mailing list from an email-list tool (plan 23.4): a Status column says who is still subscribed, or the file is a
   // list of sign-ups (an opt-in or confirm time per line), where being on it is the agreement, unless that line was
   // unsubscribed or cleaned off. The owner still confirms the permission before anyone joins.
-  const statusHeading = ["Status", "Member Status", "Subscriber Status", "Subscription Status"].find(h => c.has(h));
+  const statusHeading = ["Status", "Member Status", "Subscriber Status", "Subscription Status", "Email Subscriber Status", "Email Subscription Status"].find(h => c.has(h));
   const signUps = !consentHeading && !statusHeading && ["OPTIN_TIME", "CONFIRM_TIME", "Opt-in Time", "Signup Date", "Subscribed At"].some(h => c.has(h));
   const seen = new Set<string>();
   const customers: MovedCustomer[] = [];
   const skipped: CustomerMove["skipped"] = [];
   table.slice(1).forEach((row, i) => {
     const line = i + 2;
-    const email = c.get(row, "Email", "Email Address", "E-mail").toLowerCase();
+    const email = c.get(row, ...EMAIL_HEADINGS).toLowerCase();
     if (!EMAIL.test(email) || email.length > 254) { skipped.push({ line, reason: email ? `“${email}” isn't an email address.` : "No email address." }); return; }
     if (seen.has(email)) { skipped.push({ line, reason: `${email} is already on an earlier line.` }); return; }
     seen.add(email);
-    const name = c.get(row, "Name", "Full Name") || [c.get(row, "First Name", "Billing First Name"), c.get(row, "Last Name", "Billing Last Name")].filter(Boolean).join(" ");
-    const place = [c.get(row, "Default Address City", "City", "Billing City"), c.get(row, "Default Address Province Code", "Province Code", "Province", "State", "Billing State"), c.get(row, "Default Address Country Code", "Country Code", "Country", "Billing Country")].filter(Boolean).join(", ");
+    const name = c.get(row, "Name", "Full Name") || [c.get(row, "First Name", "Billing First Name"), c.get(row, "Last Name", "Surname", "Billing Last Name")].filter(Boolean).join(" ");
+    const place = [
+      c.get(row, "Default Address City", "City", "Billing City", "Billing Address City", "Address 1 - City"),
+      c.get(row, "Default Address Province Code", "Province Code", "Province", "State", "Region", "Billing State", "Billing Address State/Province", "Address 1 - State/Region"),
+      c.get(row, "Default Address Country Code", "Country Code", "Country", "Country / Region", "Billing Country", "Billing Address Country", "Address 1 - Country"),
+    ].filter(Boolean).join(", ");
     const consent = consentHeading ? c.get(row, consentHeading).toLowerCase() : "";
     const status = statusHeading ? c.get(row, statusHeading).toLowerCase() : "";
     const leftList = !!c.get(row, "UNSUB_TIME", "CLEAN_TIME", "Unsubscribed At");
@@ -808,10 +814,10 @@ export function readCustomerExport(text: string): CustomerMove {
       : statusHeading && status ? /^(subscribed|active|confirmed|opted in)$/.test(status)
       : signUps ? !leftList
       : null;
-    const orders = count(c.get(row, "Total Orders", "Orders", "Order Count"));
+    const orders = count(c.get(row, "Total Orders", "Orders", "Order Count", "Transaction Count"));
     const spentRaw = c.get(row, "Total Spent", "Total Spend", "Money Spent", "Spent");
     const spent = spentRaw ? money(spentRaw) : NaN;
-    customers.push({ line, email, name, place, tags: parseTags(c.get(row, "Tags")), note: c.get(row, "Note", "Notes"), acceptsEmail, orders, spent: Number.isNaN(spent) ? null : spent });
+    customers.push({ line, email, name, place, tags: parseTags(c.get(row, "Tags", "Labels", "Groups").replace(/;/g, ",")), note: c.get(row, "Note", "Notes", "Memo"), acceptsEmail, orders, spent: Number.isNaN(spent) ? null : spent });
   });
   return { customers, skipped, problems: customers.length ? [] : ["None of the lines had a usable email address."] };
 }

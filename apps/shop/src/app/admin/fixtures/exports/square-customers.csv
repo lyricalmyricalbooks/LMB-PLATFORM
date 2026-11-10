@@ -1,0 +1,3 @@
+Reference ID,First Name,Surname,Email Address,Phone Number,Nickname,Company Name,Street Address 1,Street Address 2,City,State,Postal Code,Birthday,Memo,Square Customer ID,Creation Source,First Visit,Last Visit,Transaction Count,Total Spend,Email Subscription Status,Instant Profile,Groups
+,Ada,Reader,ada@example.com,+15555550100,,,1 Example St,,Toronto,ON,M5V 1A1,,Met at the book fair,CUST1EXAMPLE,Directory,2024-01-05,2025-08-01,3,$84.50,subscribed,No,"Regulars, Fair"
+,Ben,Pages,ben@example.com,,,,,,Montreal,QC,,,,CUST2EXAMPLE,Directory,2025-07-10,2025-07-10,1,$30.00,unsubscribed,Yes,
