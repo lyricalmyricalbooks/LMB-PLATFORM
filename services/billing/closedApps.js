@@ -93,7 +93,7 @@ export function downloadHolds(apps) {
 export const CLOSING_EMAILS = Object.freeze(["app-closing-soon", "app-closed", "app-download-ending", "app-records-deleted"]);
 
 /**
- * For the email webhook (services/email/webhook.js `onBounce`): a closing email that bounced for good is marked on the
+ * For when bounces are read (Gmail has no delivery events yet, services/email/reputation.js): a closing email that bounced for good is marked on the
  * shop's registry row as `closingEmailBounce`, for the control room's Apps closing list. Other emails are left alone.
  */
 export const closingBounceRecorder = ({ registry }) => async ({ shopId, kind, at }) => {

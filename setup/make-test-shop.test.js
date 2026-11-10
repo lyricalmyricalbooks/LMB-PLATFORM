@@ -115,7 +115,7 @@ test("with no old test shop, or one already retired, nothing is marked", async (
 // The services' own key names, spelled from parts so only services/ name them in full.
 const PAYMENT_KEY = { [["STRIPE", "PLATFORM", "TEST", "KEY"].join("_")]: "sk_test_madeUp" };
 const LIVE_KEY = { [["STRIPE", "PLATFORM", "LIVE", "KEY"].join("_")]: "sk_live_madeUp" };
-const EMAIL_KEY = { [["RESEND", "API", "KEY"].join("_")]: "re_madeUp" };
+const EMAIL_KEY = { GMAIL_SENDING: "on" };
 
 test("the platform's services join in test mode only when their keys are handed over", async () => {
   const { platformServices } = await import("./make-test-shop.js");

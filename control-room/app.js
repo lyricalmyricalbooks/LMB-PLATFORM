@@ -579,7 +579,7 @@ async function loadLaunch() {
     });
     return sheet({
       title: key.label, tone: key.ready ? "success" : "warning", pillWords: key.ready ? "In place" : "Not added",
-      metaParts: [`secret: ${key.secret}`],
+      metaParts: [key.secret ? `secret: ${key.secret}` : `setting: ${key.setting}`],
       body: [el("p", { className: "rp-hint", textContent: key.gives }), key.events ? meta(`events address: ${key.events}`) : null],
       actions: key.ready ? null : el("div", { className: "cr-actions" },
         key.getIt ? outLink(key.getIt, "Get the key", "primary") : null,

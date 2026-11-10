@@ -8,7 +8,7 @@
 // words they agreed to. Words here are customer-facing: plain words, never a rival's name.
 
 /** The id of these words. Sign-up stores it with the date the press ticked the box. */
-export const TERMS_VERSION = "2026-11-10-draft.4";
+export const TERMS_VERSION = "2026-11-10-draft.5";
 
 /** True until a lawyer has read the words. The page shows the draft notice while it is. */
 export const DRAFT = true;
@@ -60,9 +60,8 @@ export const CHANGE_NOTICE_DAYS = 30;
  * CHANGE_NOTICE_DAYS ahead.
  */
 export const HELPERS = Object.freeze([
-  "Google Cloud: keeps each shop online, stores its information, handles sign-in and runs the writing helper. Works from Canada (Montréal), with some services in the United States.",
+  "Google Cloud and Google Workspace: keep each shop online, store its information, handle sign-in, run the writing helper and send your shop's emails and ours. Work from Canada (Montréal), with some services, including email, in the United States.",
   "Stripe: takes card payments for your shop and for your Colophon plan. Works from the United States and Canada.",
-  "Resend: sends your shop's emails and ours. Works from the United States.",
   "Shippo and Canada Post: shipping rates and labels, only when you turn them on. Works from the United States and Canada.",
 ]);
 
@@ -78,6 +77,7 @@ export const CHANGES = Object.freeze({
     "Shops now run on one shared system in Canada, each behind its own wall. We count each shop's use from our cloud provider's records only to work out its running cost.",
     "You can download your whole shop at any time from Settings, under Download your shop.",
     "A shop design you make before your shop exists is kept with your sign-up.",
+    "Your shop's emails and ours are now sent by Google, which already runs Colophon. The email company we listed before no longer handles any of your information.",
   ]),
   fr: Object.freeze([
     "Votre forfait comprend maintenant des frais de plateforme et ce qu'a coûté le fonctionnement de votre boutique le mois précédent, au prix coûtant. Les mois d'essai ne coûtent rien, et nous vous écrivons avant qu'un mois dépasse le montant que vous choisissez (25 $ si vous ne le changez pas).",
@@ -85,6 +85,7 @@ export const CHANGES = Object.freeze({
     "Les boutiques fonctionnent maintenant sur un seul système partagé au Canada, chacune derrière son propre mur. Nous comptons l'usage de chaque boutique à partir des relevés de notre fournisseur infonuagique, seulement pour calculer son coût de fonctionnement.",
     "Vous pouvez télécharger toute votre boutique en tout temps depuis Réglages, sous Télécharger votre boutique.",
     "Un design de boutique fait avant la création de votre boutique est gardé avec votre inscription.",
+    "Les courriels de votre boutique et les nôtres sont maintenant envoyés par Google, qui fait déjà fonctionner Colophon. L'entreprise de courriel nommée avant ne traite plus aucun de vos renseignements.",
   ]),
 });
 

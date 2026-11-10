@@ -18,7 +18,6 @@ import { weeklyDeletionNote } from "../control-room/deletionNote.js";
 import { switchNote } from "../control-room/switchNote.js";
 import { chitChatsNote } from "../control-room/chitChatsNote.js";
 import { controlRoomPeople } from "../control-room/people.js";
-import { createOwnDomainSender, resendDomainsFromEnv } from "../services/email/ownDomain.js";
 import { NOT_CONNECTED, NotConnected, notConnectedFn } from "./notConnected.js";
 
 const quiet = () => {};
@@ -32,11 +31,6 @@ export const RUNNERS = Object.freeze({
   // The shared system makes shops once its two settings are there (server/world.js sharedShopRun).
   "shop-maker": ({ shopMaker, parts }) => (parts?.sharedShops ? () => shopMaker.sweep() : notConnectedFn(NOT_CONNECTED.shopMaking)),
   "web-addresses": ({ parts }) => (parts?.domains ? () => parts.domains.checkAll() : notConnectedFn(NOT_CONNECTED.domains)),
-  "own-email-addresses": ({ parts }) => () => createOwnDomainSender({
-    resendDomains: resendDomainsFromEnv({ env: parts.env, fetch: parts.fetch }), registry: parts.registry, auditLog: parts.auditLog,
-    // Only a shop that started its own address has anything to check, and starting one needs the domain service.
-    domainsCall: notConnectedFn(NOT_CONNECTED.domains), email: parts.email, now: () => parts.now().getTime(),
-  }).checkAll(),
   "nightly-backups": ({ parts }) => () => health(parts, "nightly"),
   "keep-times": ({ parts }) => () => realRetention({ fetch: parts.fetch, token: parts.token, projectId: parts.projectId, print: quiet }),
   "self-checks": () => notConnectedFn(NOT_CONNECTED.selfChecks),

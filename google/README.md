@@ -15,7 +15,7 @@ its older Google Analytics card.
 | `domain` | The press's own address, once one opens the shop (`services/domains`) | `google.domain` |
 | `searchConsole` | The shop's address, verified through a file on its own pages. The own address too, verified through a record that the domain's Allow step adds (plan 6.15). The shop's reporting account becomes an owner, so the existing Search Console code in the shop (`apps/shop/functions/searchConsole.js`) reads it. The sitemap is sent | `google.searchConsole`; the shop's `adminSecrets/googleAnalytics.searchConsoleSite` |
 | `merchantCenter` | The press's Merchant Center account (made in their name when they have none), the shop's book feed (`/google-merchant-feed.xml`) as its daily product source, and free listings | `google.merchantCenter` |
-| `email` | The press's Gmail, once Julian switches that on. Otherwise orders@ their own domain (`services/email/ownDomain.js`). Otherwise Colophon's sender with the press's name | `google.email`, `gmailSender`, `emailSender` |
+| `email` | The press's Gmail, once Julian switches that on. Otherwise Colophon's Google mailbox with the press's name | `google.email`, `gmailSender`, `emailSender` |
 | `drive`, `youtube`, `calendar`, `businessProfile`, `ads` | The extras, each one tick box on the same Allow page: nightly backups to a folder the press owns, trailers from their channel, an events calendar, their Maps listing, a link from the book feed to Google Ads (never spends) | `google.<extra>` |
 
 The registry row's `google` also holds `accountEmail`, `connectedAt`, `closedAt`, `deletedAt` and

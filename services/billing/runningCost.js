@@ -15,7 +15,8 @@
 // - projectedCents(...): where a month is heading from its use so far, for the "your bill may pass" email.
 //
 // Prices are in millionths of a dollar in the plan currency (CAD) per unit: Google's list prices for the region the
-// shops run in (US dollars at 1.38), and the email sender's per-email price. Check them against Google's current
+// shops run in (US dollars at 1.38), and a per-email share of the Google Workspace mailbox that sends
+// the platform's email (services/email/gmail.js). Check them against Google's current
 // price list before going live (docs/start-real-accounts.md).
 
 const DAY = 86_400_000;

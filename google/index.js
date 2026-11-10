@@ -2,7 +2,7 @@
 // pretend ones from fakes.js.
 //
 //   const link = createGoogleLink({ config: readGoogleConfig(env), google: createGoogleApi({ fetch, app, redirectUrl }),
-//     connections, states, registry, auditLog, shopFirebase, domainsCall: domainsBridge(domainService), ownDomain });
+//     connections, states, registry, auditLog, shopFirebase, domainsCall: domainsBridge(domainService) });
 //   link.service      the doors (http.js handleGoogle)
 //   link.teardown     teardownOnClose / teardownBeforeDelete for the closing sweep's hooks
 //   link.status       googleStatus / runAgain for the control room
@@ -14,10 +14,10 @@ import { createGoogleService } from "./service.js";
 import { createTokens } from "./tokens.js";
 import { createGmailSend } from "./gmail.js";
 
-export function createGoogleLink({ config, google, connections, states, registry, auditLog, shopFirebase, domainsCall, ownDomain, now = () => Date.now() }) {
+export function createGoogleLink({ config, google, connections, states, registry, auditLog, shopFirebase, domainsCall, now = () => Date.now() }) {
   const tokens = createTokens({ google, connections, config, now });
-  const connect = createGoogleConnect({ google, tokens, shopFirebase, domainsCall, ownDomain, registry, auditLog, config, now });
-  const teardown = createGoogleTeardown({ google, tokens, shopFirebase, domainsCall, ownDomain, registry, auditLog, now });
+  const connect = createGoogleConnect({ google, tokens, shopFirebase, domainsCall, registry, auditLog, config, now });
+  const teardown = createGoogleTeardown({ google, tokens, shopFirebase, domainsCall, registry, auditLog, now });
   const status = createGoogleStatus({ registry, connect, teardown, tokens, now });
   const service = createGoogleService({ config, google, tokens, states, registry, connect, teardown, now });
   const gmailSend = createGmailSend({ google, tokens, registry, config, now });

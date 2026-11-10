@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { JOBS } from "../services/jobs/index.js";
 import { scriptedFetch, token } from "../clients/fake-fetch.js";
 import { FIXED_TIMES, TIME_ZONE, cronFor, schedulePlan, schedulerJob, schedulerAccount } from "./schedules.js";
-import { CLOUD_RUN, SCHEDULER, changedFields, setupSchedules } from "./setup-schedules.js";
+import { CLOUD_RUN, RETIRED_JOBS, SCHEDULER, changedFields, setupSchedules } from "./setup-schedules.js";
 import { WAITING_JOBS } from "./jobs.js";
 
 const PROJECT = "lmb-platform-prod";
@@ -31,7 +31,6 @@ test("every job has a schedule whose beat matches how often it is meant to run",
   assert.equal(cronFor(JOBS.find((j) => j.name === "health-checks")), "*/5 * * * *");
   assert.equal(cronFor(JOBS.find((j) => j.name === "shop-maker")), "* * * * *");
   assert.equal(cronFor(JOBS.find((j) => j.name === "press-messages")), "7 * * * *");
-  assert.equal(cronFor(JOBS.find((j) => j.name === "own-email-addresses")), "20 */6 * * *");
   assert.equal(schedulePlan().length, JOBS.length);
   assert.deepEqual(Object.keys(FIXED_TIMES).filter((name) => !JOBS.some((j) => j.name === name)), [], "a time for a job that doesn't exist");
 });
@@ -73,7 +72,7 @@ test("only the fields we set count as a change: Google's own defaults don't", ()
 });
 
 /** Google's answers for a project that has some schedules already. */
-function plan({ existing = {}, apply = false }) {
+function plan({ existing = {}, apply = false, retired = {} }) {
   const script = [{ method: "GET", url: `${CLOUD_RUN}/projects/${PROJECT}/locations/${REGION}/services/platform-jobs`, json: { uri: JOBS_URL } }];
   for (const job of JOBS) {
     const want = schedulerJob({ project: PROJECT, job, jobsUrl: JOBS_URL });
@@ -86,8 +85,21 @@ function plan({ existing = {}, apply = false }) {
       if (waiting) script.push({ method: "POST", url: `${SCHEDULER}/${want.name}:pause`, body: {}, json: {} });
     }
   }
+  // A job the code no longer has: read, and removed when it is still there.
+  for (const name of RETIRED_JOBS) {
+    const url = `${SCHEDULER}/${jobName(name)}`;
+    script.push(retired[name] ? { method: "GET", url, json: { name: jobName(name) } } : { method: "GET", url, status: 404, json: { error: { status: "NOT_FOUND", message: "Job not found" } } });
+    if (retired[name] && apply) script.push({ method: "DELETE", url, json: {} });
+  }
   return script;
 }
+
+test("a schedule for a job the code no longer has is removed", async () => {
+  const fetch = scriptedFetch(plan({ apply: true, retired: { "own-email-addresses": true } }));
+  const { actions } = await setupSchedules({ fetch, token, apply: true, print: () => {} });
+  fetch.done();
+  assert.deepEqual(actions.find((a) => a.job === "own-email-addresses").does, ["delete"]);
+});
 
 test("the first run, with --apply, makes every schedule and pauses the ones that can't run yet", async () => {
   const fetch = scriptedFetch(plan({ apply: true }));

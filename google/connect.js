@@ -14,7 +14,7 @@
 //   merchantCenter  the press's Merchant Center account (made when they have none), the shop's book feed as its
 //                   product source (Google Shopping), and free listings switched on
 //   email           the shop's sender: the press's Gmail once Julian switches that on (GOOGLE_GMAIL_SENDING), else
-//                   orders@<their domain> (services/email/ownDomain.js), else Colophon's with the press's name
+//                   Colophon's Google mailbox with the press's name
 //   drive, youtube, calendar, businessProfile, ads
 //                   the extras, each only when the press ticked it
 //
@@ -30,7 +30,6 @@
 //                 propertyId }), writeSearchConsoleSite(projectId, site), publishVerificationFile(projectId,
 //                 { name, content }), clearTag(projectId), deleteProject(projectId)
 //   domainsCall   domainBridge.js
-//   ownDomain     services/email/ownDomain.js
 //   registry, auditLog
 import { SCOPES, ANALYTICS_VIEWER_ROLE } from "./endpoints.js";
 import { GoogleError } from "./googleApi.js";
@@ -58,7 +57,7 @@ export function plainProblem(err) {
   return "Google didn't answer. Press Try again in a minute.";
 }
 
-export function createGoogleConnect({ google, tokens, shopFirebase, domainsCall, ownDomain, registry, auditLog, config, now = () => Date.now() }) {
+export function createGoogleConnect({ google, tokens, shopFirebase, domainsCall, registry, auditLog, config, now = () => Date.now() }) {
   const recorder = createRecorder({ registry, auditLog, now });
   const iso = recorder.iso;
   const notAllowed = (what) => ({ state: "waiting", detail: `You didn't allow ${what}. Connect Google again and leave it ticked.` });
@@ -198,12 +197,6 @@ export function createGoogleConnect({ google, tokens, shopFirebase, domainsCall,
           await registry.updateShop(ctx.shopId, { gmailSender: { on: true, address: ctx.accountEmail, since: iso() } });
         }
         return { state: "done", detail: `Your shop's emails go from ${ctx.accountEmail}.`, record: { via: "gmail", address: ctx.accountEmail } };
-      }
-      const domain = liveDomainOf(ctx.row);
-      if (domain) {
-        const sender = await ownDomain.connect(ctx.shopId, domain);
-        if (sender.state === "on") return { state: "done", detail: `Your shop's emails come from orders@${domain}. Replies reach you.`, record: { via: "own-domain", address: `orders@${domain}` } };
-        return { state: "waiting", detail: `Your shop's emails will come from orders@${domain} once that address is ready. Until then they come from Colophon with your press's name.`, record: { via: "colophon", address: null } };
       }
       return { state: "done", detail: "Your shop's emails come from Colophon with your press's name. Replies reach you.", record: { via: "colophon", address: null } };
     },

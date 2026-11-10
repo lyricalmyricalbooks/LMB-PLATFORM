@@ -36,15 +36,15 @@ export async function realHealth({ job, env = process.env, fetch = globalThis.fe
   if (job === "nightly") return runNightlyBackups({ registry, backups: googleClients({ fetch, token }).backups, shopDb, print });
   if (job === "drill") {
     const google = googleClients({ fetch, token });
-    const notify = createEmailService({ env, fetch, registry, sentLog: firestoreSentLog(platform) });
+    const notify = createEmailService({ env, fetch, token, registry, sentLog: firestoreSentLog(platform) });
     return runRestoreDrill({ registry, backups: google.backups, firestore: google.firestore, notify, config: { alertTo: env.HEALTH_ALERT_TO }, print });
   }
   if (job === "botcheck") {
-    const notify = createEmailService({ env, fetch, registry, sentLog: firestoreSentLog(platform) });
+    const notify = createEmailService({ env, fetch, token, registry, sentLog: firestoreSentLog(platform) });
     await runBotCheckWatch({ registry, google: googleClients({ fetch, token }), platformState: firestorePlatformState(platform), notify, config: { alertTo: env.HEALTH_ALERT_TO }, print });
     return { ok: true };
   }
-  const notify = createEmailService({ env, fetch, registry, sentLog: firestoreSentLog(platform) });
+  const notify = createEmailService({ env, fetch, token, registry, sentLog: firestoreSentLog(platform) });
   const result = await runHealth({ registry, checks: healthChecks({ siteCheck: siteCheckClient({ fetch }), fetch, shopDb }), notify, config: { alertTo: env.HEALTH_ALERT_TO }, print });
   // The public status page's summary, from the rows this run just updated (status/).
   await publishStatus({ registry, platform });

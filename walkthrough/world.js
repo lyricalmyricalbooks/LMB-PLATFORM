@@ -49,7 +49,7 @@ import { fakeAuditLog, fakeGoogle, fakeProfileFiles, fakeRegistry, fakeServices 
 import { TEST_CONFIG } from "../setup/test-shop.js";
 import { createBilling } from "../services/billing/billing.js";
 import { BILLING_SECRETS } from "../services/billing/index.js";
-import { EMAIL_SECRETS } from "../services/email/index.js";
+import { EMAIL_SETTING } from "../services/email/index.js";
 import { PAYMENTS_SECRETS } from "../services/payments/index.js";
 import { createPaymentWay } from "../services/billing/paymentWay.js";
 import { fakeBillingStores, fakeBillingStripe } from "../services/billing/fakes.js";
@@ -220,7 +220,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const controls = createPlatformControls({
     admins, settingsStore: platformState, env: settingsEnv, activity, waitlist, signups: stores.signups, now: clock.date,
     // Every key is pretend here, so the Launch page shows them all in place.
-    keyEnv: Object.fromEntries([...EMAIL_SECRETS, ...PAYMENTS_SECRETS, ...BILLING_SECRETS].map((key) => [key.env, "practice"])),
+    keyEnv: { ...Object.fromEntries([...PAYMENTS_SECRETS, ...BILLING_SECRETS].map((key) => [key.env, "practice"])), [EMAIL_SETTING.env]: EMAIL_SETTING.value },
     invites: createInvites({ invites: fakeInviteStore(), email, settings, now: clock.date }),
   });
   const backup = createBackupAccess({

@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { createEmailService } from "./index.js";
 import { TEMPLATES } from "./templates.js";
 import { APP_NAMES_FR, TEMPLATES_FR, bilingual, dateFr, downloadHoldsFr, mailLanguage } from "./templatesFr.js";
-import { fakeResendFetch, fakeSentLog } from "./fakes.js";
+import { fakeGmailFetch, fakeSentLog , pretendEmailEnv } from "./fakes.js";
 import { PRESS_TEMPLATES_FR } from "./templatesFrPress.js";
 import { fakeRegistry } from "../../setup/fakes.js";
 import { CLOSING_EMAILS, DOWNLOAD_HOLDS, downloadHolds } from "../billing/closedApps.js";
@@ -88,19 +88,19 @@ test("the two-language email puts French first and keeps both whole", () => {
 });
 
 async function service() {
-  const resend = fakeResendFetch();
-  const email = createEmailService({ env: { RESEND_API_KEY: "re_test_not_a_real_key" }, fetch: resend.fetch, registry: fakeRegistry(), sentLog: fakeSentLog(), sleep: async () => {} });
-  return { resend, email };
+  const mail = fakeGmailFetch();
+  const email = createEmailService({ env: pretendEmailEnv(), fetch: mail.fetch, registry: fakeRegistry(), sentLog: fakeSentLog(), sleep: async () => {} });
+  return { mail, email };
 }
 
 test("sendPlatform sends the French twin, both languages, or English by `language`", async () => {
-  const { resend, email } = await service();
+  const { mail, email } = await service();
   const data = { pressName: "Moth Press", ...SAMPLES["app-records-deleted"][0] };
   await email.sendPlatform({ kind: "app-records-deleted", to: "owner@example.com", data, language: "fr", idempotencyKey: "fr" });
   await email.sendPlatform({ kind: "app-records-deleted", to: "owner@example.com", data, language: "fr+en", idempotencyKey: "both" });
   await email.sendPlatform({ kind: "app-records-deleted", to: "owner@example.com", data, language: "en", idempotencyKey: "en" });
   await email.sendPlatform({ kind: "app-records-deleted", to: "owner@example.com", data, idempotencyKey: "none" });
-  const [fr, both, en, none] = resend.requests.map((r) => r.body);
+  const [fr, both, en, none] = mail.requests.map((r) => r.body);
   assert.match(fr.subject, /^Tout le contenu de la réserve/);
   assert.doesNotMatch(fr.text, /Hello/);
   assert.match(fr.text, /Colophon.*Contact: support@/s, "the identity line still ends it");
@@ -110,10 +110,10 @@ test("sendPlatform sends the French twin, both languages, or English by `languag
 });
 
 test("a kind with no French twin (the platform's own alerts) goes in English even for a French press", async () => {
-  const { resend, email } = await service();
+  const { mail, email } = await service();
   assert.equal(TEMPLATES_FR["health-alert"], undefined);
   await email.sendPlatform({ kind: "health-alert", to: "alerts@example.com", data: { pressName: "Moth Press", shopId: "moth-press", check: "pages", state: "failing", since: "noon" }, language: "fr", idempotencyKey: "alert" });
-  assert.match(resend.requests[0].body.subject, /pages failing/);
+  assert.match(mail.requests[0].body.subject, /pages failing/);
 });
 
 test("every email to a press has a French twin; only the platform's own alerts don't", () => {
@@ -122,17 +122,17 @@ test("every email to a press has a French twin; only the platform's own alerts d
 });
 
 test("with no language given, a shop's email takes the shop's own from its registry row", async () => {
-  const resend = fakeResendFetch();
+  const mail = fakeGmailFetch();
   const registry = fakeRegistry();
   await registry.createShop("moth-press", { shopId: "moth-press", pressName: "Moth Press", status: "live", billing: { language: null, province: "QC" } });
   await registry.createShop("owl-press", { shopId: "owl-press", pressName: "Owl Press", status: "live", billing: { language: "fr" } });
-  const email = createEmailService({ env: { RESEND_API_KEY: "re_test_not_a_real_key" }, fetch: resend.fetch, registry, sentLog: fakeSentLog(), sleep: async () => {} });
+  const email = createEmailService({ env: pretendEmailEnv(), fetch: mail.fetch, registry, sentLog: fakeSentLog(), sleep: async () => {} });
   const data = { pressName: "Moth Press", ...SAMPLES["app-records-deleted"][0] };
   await email.sendPlatform({ kind: "app-records-deleted", to: "owner@example.com", shopId: "moth-press", data, idempotencyKey: "q" });
   await email.sendPlatform({ kind: "app-records-deleted", to: "owner@example.com", shopId: "owl-press", data, idempotencyKey: "f" });
   await email.sendPlatform({ kind: "app-records-deleted", to: "owner@example.com", shopId: "owl-press", data, language: "en", idempotencyKey: "e" });
   await email.sendPlatform({ kind: "app-records-deleted", to: "owner@example.com", shopId: "nobody", data, idempotencyKey: "n" });
-  const [quebec, french, english, unknown] = resend.requests.map((r) => r.body.subject);
+  const [quebec, french, english, unknown] = mail.requests.map((r) => r.body.subject);
   assert.match(quebec, /^Tout le contenu .* \/ Everything/);
   assert.match(french, /^Tout le contenu/);
   assert.doesNotMatch(french, /Everything/);
@@ -141,15 +141,15 @@ test("with no language given, a shop's email takes the shop's own from its regis
 });
 
 test("the welcome email goes in the language the press signed up in, before any plan email; a failed lookup means English", async () => {
-  const resend = fakeResendFetch();
+  const mail = fakeGmailFetch();
   const registry = fakeRegistry();
   await registry.createShop("moth-press", { shopId: "moth-press", pressName: "Moth Press", ownerEmail: "owner@example.com", status: "live", language: "fr" });
-  const email = createEmailService({ env: { RESEND_API_KEY: "re_test_not_a_real_key" }, fetch: resend.fetch, registry, sentLog: fakeSentLog(), sleep: async () => {} });
+  const email = createEmailService({ env: pretendEmailEnv(), fetch: mail.fetch, registry, sentLog: fakeSentLog(), sleep: async () => {} });
   await email.send("moth-press", { kind: "owner-welcome", to: "owner@example.com", links: { shopAdmin: "https://moth-press.web.app/admin" }, idempotencyKey: "w" });
-  assert.match(resend.requests[0].body.text, /^Bonjour,/);
+  assert.match(mail.requests[0].body.text, /^Bonjour,/);
   registry.getShop = async () => { throw new Error("Firestore is down"); };
   await email.sendPlatform({ kind: "app-records-deleted", to: "owner@example.com", shopId: "moth-press", data: { pressName: "Moth Press", ...SAMPLES["app-records-deleted"][0] }, idempotencyKey: "down" });
-  assert.match(resend.requests[1].body.subject, /^Everything/);
+  assert.match(mail.requests[1].body.subject, /^Everything/);
 });
 
 test("card-expiring's month as billing writes it reads in French", () => {

@@ -57,11 +57,12 @@ jobs:
       - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
       - name: The Firebase command line
         run: npm install --global "$FIREBASE_TOOLS"
-      # Steps 7 (test-mode payments) and 8 (the welcome email) run when the platform's test keys are in Secret Manager;
-      # only the payment and email services inside setup/make-test-shop.js read them. A live key is refused there.
+      # Step 7 (test-mode payments) runs when the platform's Stripe test key is in Secret Manager; only the payment
+      # service inside setup/make-test-shop.js reads it. A live key is refused there. Step 8 (the welcome email) waits
+      # here: email goes through Google from the hosted server only.
       - name: The platform's test keys, when they are there
         run: |
-          for pair in STRIPE_PLATFORM_TEST_KEY:stripe-platform-test-key RESEND_API_KEY:resend-api-key; do
+          for pair in STRIPE_PLATFORM_TEST_KEY:stripe-platform-test-key; do
             name="${pair%%:*}"
             secret="${pair#*:}"
             if value=$(gcloud secrets versions access latest --secret="$secret" --project=lmb-platform-prod 2>/dev/null); then

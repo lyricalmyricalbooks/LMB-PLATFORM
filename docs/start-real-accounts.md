@@ -18,6 +18,11 @@ so a stage that is added to the build also needs a line here.
 
 ## Stage by stage
 
+- **Email through Google** (10 November 2026): Workspace on the platform domain with a `notifications@` user, DKIM,
+  SPF and DMARC published, domain-wide delegation for `platform-mail`'s client id (scope `gmail.send`), then
+  `GMAIL_SENDING: "on"` in `SERVER_SETTINGS` (`server/README.md`, "Email through Google"). Check: sign in on the live
+  sign-up page and the link arrives in an inbox (not spam), "Show original" says SPF, DKIM and DMARC PASS. Status: built,
+  tested with pretend Google.
 - **Sign-up** (plan 6.2, built): Julian signs up once on the live sign-up page with his own Google account, and
   checks that the welcome email arrives. Nothing else is needed until the first press.
 - **Your press** (plan 17.2): no real account is needed. Julian checks the name, contact email and address that go on
@@ -39,7 +44,7 @@ so a stage that is added to the build also needs a line here.
   Status: built behind the switch that is still off.
 - **Pay what you use** (10 November 2026): Julian (or his accountant) checks the unit prices in
   `services/billing/runningCost.js` against Google's current price list for the region the shops run in, in CAD, and the
-  email sender's price. Then, on the test shop with test-mode Stripe and a paid month behind it, he runs the
+  Google Workspace mailbox's monthly price. Then, on the test shop with test-mode Stripe and a paid month behind it, he runs the
   `running-costs` job from the control room and checks the next bill in Stripe shows one "Running cost" line, not
   discounted by the founding offer, and that Settings › Billing shows the same amount. Status: built, tested with a
   pretend Stripe.
@@ -131,8 +136,8 @@ side is built; these steps need Julian, a lawyer or an accountant.
   "Shop and stockroom / Boutique et réserve").
 - **French invoice in Stripe's test mode (Julian):** set a test press's email language to French on its Plan page,
   then open its invoice from Settings › Plan and check it reads in French.
-- **Data agreements with the helpers (Julian, in each console):** accept Google Cloud's, Stripe's and Resend's
-  standard data processing terms, and confirm Shippo's.
+- **Data agreements with the helpers (Julian, in each console):** accept Google Cloud's and Google Workspace's
+  data processing terms (Workspace admin › Account › Legal and compliance) and Stripe's, and confirm Shippo's.
 - **The accountant:** when Colophon registers for GST/HST, QST and BC PST (plan 15.9), and which US states tax a
   software plan.
 - **Promised notices:** the terms promise 30 days' email notice before a price rise or a new helper company. The

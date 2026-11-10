@@ -2,9 +2,10 @@
 // Only the newsletter stream pauses: receipts, order notices and every other orders-stream email keep going, because
 // a shopper waiting for a receipt never chose the newsletter.
 //
-// Resend reports each delivery problem as an event (`email.complained`: delivered, then marked as spam;
-// `email.bounced`: the receiving server refused it for good). webhook.js checks the event is really from Resend and
-// passes it here; the shop and stream come back in the event's tags (index.js tags every email with both).
+// Each delivery problem is an event (`email.complained`: delivered, then marked as spam; `email.bounced`: the receiving
+// server refused it for good), with the shop and stream in its tags (index.js tags every email with both). Gmail has
+// no delivery events, so nothing feeds `record` yet: bounces land in the sending mailbox as returned mail. The pause and
+// the control room's resume stay ready for when those are read.
 //
 // The limits, counted over the last 7 days of the shop's newsletter stream:
 //   complaints  more than 0.3% of emails sent, and at least 2 (the large inbox providers ask bulk senders to stay
@@ -47,7 +48,7 @@ export function problemOf(event) {
   return null;
 }
 
-/** Tags come back from Resend as { name: value }; accept the [{ name, value }] shape too. */
+/** Tags come back as { name: value }; accept the [{ name, value }] shape too. */
 export function tagsOf(event) {
   const tags = event?.data?.tags;
   if (Array.isArray(tags)) return Object.fromEntries(tags.filter((t) => t && typeof t.name === "string").map((t) => [t.name, String(t.value)]));
@@ -91,7 +92,7 @@ export function createReputationGuard({ store, sentLog, registry, email, repairs
       const id = String(eventId || event.data?.email_id || "").slice(0, 200);
       if (!id) return { counted: false, paused: false };
       // A complaint can arrive days after the email went out. One about an email sent before a resume belongs to the
-      // problem that was already dealt with, so it doesn't count again (Resend's data.created_at is when it was sent).
+      // problem that was already dealt with, so it doesn't count again (data.created_at is when it was sent).
       const before = await store.getState(shopId);
       const sentAt = Date.parse(event.data?.created_at ?? "");
       if (!before?.paused && before?.resumedAt && sentAt < Date.parse(before.resumedAt)) return { counted: false, paused: false };

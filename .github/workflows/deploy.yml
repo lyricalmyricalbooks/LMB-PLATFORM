@@ -61,8 +61,9 @@ jobs:
       - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
       # The server goes live once its two link phrases are in Secret Manager (site/github-access.sh makes them) and its
-      # settings are saved in the repository variable SERVER_SETTINGS (server/env.example.yaml's lines). The email and
-      # Stripe keys are optional: until they are added, those parts say "not connected" and everything else works.
+      # settings are saved in the repository variable SERVER_SETTINGS (server/env.example.yaml's lines). The Stripe keys
+      # are optional: until they are added, those parts say "not connected" and everything else works. Email has no key:
+      # GMAIL_SENDING: "on" in SERVER_SETTINGS sends it through Google (server/README.md, "Email through Google").
       - name: Is the server ready?
         id: server
         env:
@@ -74,12 +75,12 @@ jobs:
           done
           [ -n "$SERVER_SETTINGS" ] || missing="$missing (repository variable SERVER_SETTINGS)"
           later=""
-          for secret in resend-api-key stripe-platform-test-key stripe-billing-webhook-secret stripe-connect-webhook-secret-test; do
+          for secret in stripe-platform-test-key stripe-billing-webhook-secret stripe-connect-webhook-secret-test; do
             gcloud secrets describe "$secret" --project="$PROJECT" > /dev/null 2>&1 || later="$later $secret"
           done
           if [ -z "$missing" ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
-            [ -z "$later" ] || echo "Server live without:$later (email and Stripe say \"not connected\" until added)." >> "$GITHUB_STEP_SUMMARY"
+            [ -z "$later" ] || echo "Server live without:$later (Stripe says \"not connected\" until added)." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "ready=false" >> "$GITHUB_OUTPUT"
             echo "### The server isn't put live yet" >> "$GITHUB_STEP_SUMMARY"

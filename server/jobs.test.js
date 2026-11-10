@@ -28,7 +28,7 @@ test("a job runs once per call and is recorded; a good run answers 200", async (
   assert.equal(answer.body.run.name, "press-messages");
   assert.equal(answer.body.run.ok, true);
   assert.equal(outside.firestore.paths(TEST_PROJECT, "jobRuns/").length, 1);
-  for (const name of ["trial-tips", "shop-checkup", "dropped-apps", "own-email-addresses"]) {
+  for (const name of ["trial-tips", "shop-checkup", "dropped-apps"]) {
     const done = await handle({ method: "POST", path: `/jobs/${name}`, headers: {} });
     assert.equal(done.status, 200, `${name}: ${JSON.stringify(done.body)}`);
   }

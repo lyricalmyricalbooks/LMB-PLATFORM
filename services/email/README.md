@@ -1,7 +1,8 @@
 # Email service
 
-The only place the platform's email sender key lives (code plan 2.3). Plain Node 22 ES modules, no packages: Resend is
-called over its REST API with an injected `fetch`, and tests use a pretend Resend (`fakes.js`).
+The platform's one door for email (code plan 2.3). Plain Node 22 ES modules, no packages: every email goes out through
+Google's Gmail API (`gmail.js`) from the platform's Google Workspace mailbox, with an injected `fetch`, and tests use
+pretend Google (`fakes.js`). There is no sending key anywhere (decided 10 November 2026, replacing Resend).
 
 ## Who sends what
 
@@ -10,17 +11,22 @@ called over its REST API with an injected `fetch`, and tests use a pretend Resen
 | A press's receipts and customer notices, when the press **has connected its own Gmail** | the press's own Gmail address, by the shop itself (`apps/shop/functions/email`); never reaches this service | the press's choice |
 | The same, when the press **hasn't connected Gmail** (or Gmail refused a send) | `"<Press name>" <notifications@<platform domain>>`, through this service's shop door (`apps/shop/functions/email/platformSender.js`, when the shop's env has `PLATFORM_EMAIL_URL`) | the press's reply-to address, else the owner's |
 | The shop maker's welcome to a new owner (setup step 14) | the same, with the press's name | the press |
-| The platform's own email: billing, sign-up, invites, health alerts (services/health) | `"Colophon" <notifications@<platform domain>>` | `support@<platform domain>` |
+| The platform's own email: billing, sign-up, invites, terms notice, health alerts (services/health) | `"Colophon" <notifications@<platform domain>>` | `support@<platform domain>` |
 
 The press's name and reply-to always come from the shop registry, never from the request, so one shop can't sign as
 another.
 
 ## Files
 
-- `index.js`: `createEmailService({ env, fetch, registry, sentLog })` → `send(shopId, message)`, `sendPlatform(message)`,
-  `wasSent(shopId, kind)` (the shape setup step 14 already uses).
-- `resend.js`: the Resend client. One recipient per email, an `Idempotency-Key` on every call, retries only on network
-  drops, 429 and 5xx (with the same key), never on 4xx.
+- `index.js`: `createEmailService({ env, fetch, token, registry, sentLog })` → `send(shopId, message)`,
+  `sendPlatform(message)`, `wasSent(shopId, kind)` (the shape setup step 14 already uses). `hasEmailSending(env)`,
+  `mailAccount(env)`, `EMAIL_SETTING` (the Launch page's line).
+- `gmail.js`: the Gmail sender. The server's own Google token asks IAM to sign a token for the `platform-mail` service
+  account with the mailbox as its subject (domain-wide delegation, scope `gmail.send`), swaps it for a mail token
+  (kept for its hour) and posts the email as an RFC 2822 message with a plain-words and an HTML part. Tags (kind, shop,
+  stream) and the idempotency key travel as `X-Colophon-Tags` and `X-Colophon-Key` headers. Gmail has no idempotency
+  key, so only its slow-down answers (429, 403 rate limits, 503) are retried; a dropped connection is not, because the
+  email may have gone. The sent log stops a second send of the same key.
 - `templates.js`: the words of each email kind, HTML-escaped, https links only.
 - `templatesFr.js` (closing emails) and `templatesFrPress.js` (every other email to a press or its people): French
   twins of the templates. `sendPlatform({ language })` sends the twin for "fr" and French then English for "fr+en";
@@ -31,70 +37,37 @@ another.
 - `http.js`: the shop door. `X-Shop-Id` plus `Authorization: Bearer <shop service key>`; the registry keeps only the
   key's SHA-256 (`serviceKeyHash`). At most 2,000 emails per shop a day. Setup step 8 gives each shop its key
   (`setup/serviceKey.js`: the Functions secret `PLATFORM_SERVICE_KEY` in the shop's project).
-- `streams.js`: the two streams and each shop's own sender address (below).
+- `streams.js`: the two streams, orders and newsletter (below).
 - `reputation.js`: the newsletter pause (below).
-- `webhook.js`: the door for Resend's delivery events, signed the Svix way (`svix-id`, `svix-timestamp`,
-  `svix-signature`; HMAC-SHA256 of `<id>.<timestamp>.<raw body>` with the base64 part of `whsec_…`), refused when
-  unsigned, wrongly signed or over five minutes old. The secret is `RESEND_WEBHOOK_SECRET`.
-- `fakes.js`: in-memory sent log, pretend Resend and the reputation store for tests.
+- `fakes.js`: in-memory sent log, pretend Google (`fakeGmailFetch`) and the reputation store for tests.
 
-## The press's own domain (plan 6.18)
+With Gmail sending switched on (`GOOGLE_GMAIL_SENDING`, after Google's security review), `createEmailService({ gmailSend
+})` sends a shop's emails from the press's own Gmail while the registry's `gmailSender.on` is true. When Gmail refuses
+one, it goes the usual way.
 
-Once a press's own web address opens their shop, their emails can come from it too (`ownDomain.js`):
+## Limits
 
-1. `connect(shopId, domain)` adds the domain to the platform's Resend account (once). It sends the sending records
-   Resend asks for to the domain service through `domainsCall` (`google/domainBridge.js`; the registrar's Allow window
-   is plan 6.15). Until then the answer is "waiting", and Colophon's sender carries on.
-2. `check(shopId)` reads Resend. Once the records check out, the registry's `emailSender.state` is `on`, and
-   `send` puts `orders@<their domain>` on the From line. The reply-to stays the press's, so replies reach them.
-3. If the records break, the shop goes straight back to Colophon's sender. The owner gets one plain email
-   (`own-email-paused`, one per time it was on). When the records come back, so does the own address.
-   `checkAll()` is the sweep, every few hours.
-4. `disconnect(shopId)` removes the records and Resend's domain when the shop is deleted (`google/teardown.js`).
-
-The Google link's email step runs `connect` for the shop. With Gmail sending switched on (`GOOGLE_GMAIL_SENDING`, after
-Google's security review), `createEmailService({ gmailSend })` sends a shop's emails from the press's own Gmail while
-the registry's `gmailSender.on` is true. When Gmail refuses one, it goes the usual way.
+A Google Workspace mailbox sends about 2,000 emails a day, to at most 10,000 recipients. Over that, Gmail refuses sends
+for up to 24 hours: each is logged as failed and retryable. Shops with their own Gmail connected don't count against it.
+Google's rules don't allow bulk marketing from Workspace, so a shop's newsletter should go from the press's own Gmail.
+When the platform outgrows one mailbox: more mailboxes, or Google's SMTP relay (10,000 a day per user).
 
 ## Email reputation (plan 8.3)
 
-One shop's newsletter must never put the other shops' receipts in spam.
-
-- **Two streams.** Every email is tagged `stream: orders` (receipts, order and shipping notices, sign-in, billing:
-  what a person is waiting for) or `stream: newsletter` (newsletters, campaigns, back in stock, review requests,
-  abandoned-cart reminders), by its kind (`streamOf`). Resend's advice is a subdomain per purpose, so a bad reputation
-  stays on that subdomain, and one tag per sender on a shared account, because tags come back in its events.
-- **Each shop's own address.** With `SHOP_SENDER_ADDRESSES=on`, a shop's email comes from `<shop id>@mail.<domain>`
-  (orders) or `<shop id>@news.<domain>` (newsletter); `PLATFORM_ORDERS_EMAIL_DOMAIN` and
-  `PLATFORM_NEWSLETTER_EMAIL_DOMAIN` change the subdomains. Off by default: everything comes from
-  `notifications@<domain>`, as before. The platform's own email always does.
-- **The pause.** `email.complained` and permanent `email.bounced` events for a shop's newsletter stream are counted over
-  7 days. More than 0.3% complaints (and at least 2), or more than 4% hard bounces (and at least 5), pauses that shop's
-  newsletter: further newsletter emails are refused (the shop door answers 422, no retry), the owner gets one plain
-  email (`newsletter-paused`), and the repair queue gets a `newsletter-reputation` item. Receipts and every other
-  orders-stream email keep going. A platform admin presses **Turn the newsletter back on** on that item in the control
-  room (logged, with a reason); only problems after that count.
-
-### Switched on by Julian
-
-1. Choose the sending domain, then add `mail.<domain>` and `news.<domain>` in Resend and publish their DNS records.
-2. Add a webhook in Resend for `email.bounced` and `email.complained`, pointing at this service's event door; put its
-   signing secret in `RESEND_WEBHOOK_SECRET`.
-3. Set `SHOP_SENDER_ADDRESSES=on`.
+Every email is tagged `stream: orders` (receipts, order and shipping notices, sign-in, billing: what a person is
+waiting for) or `stream: newsletter` (newsletters, campaigns, back in stock, review requests, abandoned-cart
+reminders), by its kind (`streamOf`). A shop's newsletter can be paused while its receipts keep going: `reputation.js`
+counts complaints and hard bounces over 7 days and pauses at more than 0.3% complaints (at least 2) or 4% hard bounces
+(at least 5); the owner gets one plain email and the control room a repair item with **Turn the newsletter back on**.
+Gmail has no delivery events, so nothing feeds the count yet: bounces arrive as returned mail in the mailbox.
 
 ## Settings
 
-The key is `RESEND_API_KEY` in this service's environment and nowhere else. Names, domain and addresses are in
-`services/settings.js`: `PLATFORM_NAME` (Colophon), `PLATFORM_DOMAIN` (placeholder `platform.example` until there is a
-real one), `PLATFORM_SENDER_EMAIL` (default `notifications@<domain>`), `PLATFORM_SUPPORT_EMAIL` (default
-`support@<domain>`). The platform domain must be verified in Resend before anything real is sent.
-
-## Not yet
-
-- Hosting: the handler and service run nowhere yet. They become one function in the platform project.
-- The sent log's Firestore store (`emailSent/<key>` in the platform project), and the reputation store
-  (`emailReputation/<shop id>` with its events).
-- Hosting the event door (`webhook.js`).
+No key. `GMAIL_SENDING` ("on" sends; anything else and nothing is sent), `GMAIL_ACCOUNT` (default
+`platform-mail@<PLATFORM_PROJECT>.iam.gserviceaccount.com`). Names, domain and addresses are in `services/settings.js`:
+`PLATFORM_NAME` (Colophon), `PLATFORM_DOMAIN`, `PLATFORM_SENDER_EMAIL` (the mailbox, default
+`notifications@<domain>`), `PLATFORM_SUPPORT_EMAIL` (default `support@<domain>`). Setting up the mailbox, DKIM, SPF,
+DMARC and the delegation: `server/README.md`, "Email through Google".
 
 ## The mailing address (plan 15.8)
 

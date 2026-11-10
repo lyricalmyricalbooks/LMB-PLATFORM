@@ -12,7 +12,7 @@ import { fakePlatformEmail } from "../services/billing/fakes.js";
 import { fakeSignupStores, fakeVerifyIdToken } from "../signup/fakes.js";
 import { createApi } from "../signup/api.js";
 import { TEMPLATES } from "../services/email/templates.js";
-import { EMAIL_SECRETS } from "../services/email/index.js";
+import { EMAIL_SETTING } from "../services/email/index.js";
 import { PAYMENTS_SECRETS } from "../services/payments/index.js";
 
 const ADMIN = { uid: "uid-admin", email: "admin@example.com", email_verified: true, firebase: { sign_in_second_factor: "totp" }, auth_time: Math.floor(Date.now() / 1000) };
@@ -166,13 +166,14 @@ test("the Launch page says which keys are in place, never their values, and foll
   const secretValue = "sk_test_never_shown";
   const controls = createPlatformControls({
     admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: "admin@example.com" }), settingsStore: w.settingsStore,
-    env: { PLATFORM_URL: "https://platform.example", [PAYMENTS_SECRETS[0].env]: secretValue, [EMAIL_SECRETS[0].env]: "  " },
+    env: { PLATFORM_URL: "https://platform.example", [PAYMENTS_SECRETS[0].env]: secretValue, [EMAIL_SETTING.env]: "off" },
     project: "lmb-platform-prod", shopMaking: false,
   });
   const launch = await controls.launch(ADMIN);
   assert.ok(!JSON.stringify(launch).includes(secretValue));
   assert.deepEqual(launch.keys.map((k) => [k.id, k.ready]), [["stripe", true], ["connect-events", false], ["billing-events", false], ["email", false]]);
-  assert.deepEqual(launch.keys.map((k) => k.secret), ["stripe-platform-test-key", "stripe-connect-webhook-secret-test", "stripe-billing-webhook-secret", "resend-api-key"]);
+  assert.deepEqual(launch.keys.map((k) => k.secret), ["stripe-platform-test-key", "stripe-connect-webhook-secret-test", "stripe-billing-webhook-secret", null]);
+  assert.equal(launch.keys.find((k) => k.id === "email").setting, 'GMAIL_SENDING: "on"');
   assert.equal(launch.keys.find((k) => k.id === "billing-events").events, "https://platform.example/api/billing/events");
   assert.equal(launch.keys.find((k) => k.id === "connect-events").events, "https://platform.example/api/payments/stripe/events");
   assert.deepEqual({ project: launch.project, signupOpen: launch.signupOpen, invites: launch.invites, shopMaking: launch.shopMaking },

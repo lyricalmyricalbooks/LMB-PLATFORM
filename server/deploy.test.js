@@ -65,7 +65,7 @@ test("with --apply it runs each step in order, skips what is there already, and 
   const ran = [];
   const run = async (command, args, options) => {
     ran.push([command, ...args].join(" "));
-    if (args[0] === "iam" && args[2] === "describe") return { ok: args[3].startsWith("platform-api@"), output: "" };
+    if (args[0] === "iam" && args[2] === "describe") return { ok: args[3].startsWith("platform-api@") || args.includes("--format=value(oauth2ClientId)"), output: "" };
     if (args[0] === "artifacts" && args[2] === "describe") return { ok: true, output: "" };
     if (args[0] === "run" && args[1] === "deploy" && args[2] === "platform-jobs") return { ok: false, output: "ERROR: permission denied" };
     void options;
@@ -84,7 +84,7 @@ test("with --apply it runs each step in order, skips what is there already, and 
 });
 
 test("the server goes live before Stripe and email are connected: a missing optional key is left out", async () => {
-  assert.deepEqual([...OPTIONAL_SECRETS].sort(), ["resend-api-key", "stripe-billing-webhook-secret", "stripe-connect-webhook-secret-test", "stripe-platform-test-key"]);
+  assert.deepEqual([...OPTIONAL_SECRETS].sort(), ["stripe-billing-webhook-secret", "stripe-connect-webhook-secret-test", "stripe-platform-test-key"]);
   const ran = [];
   const run = async (command, args) => {
     ran.push([command, ...args].join(" "));
@@ -100,7 +100,7 @@ test("the server goes live before Stripe and email are connected: a missing opti
     assert.match(line, /--set-secrets=TRIAL_TIPS_SECRET=trial-tips-secret:latest,CHECKUP_SECRET=checkup-secret:latest/);
     assert.doesNotMatch(line, /RESEND|STRIPE/);
   }
-  assert.match(lines.join("\n"), /Not connected yet \(no secret\): resend-api-key/);
+  assert.match(lines.join("\n"), /Not connected yet \(no secret\): stripe-platform-test-key/);
   // The two link phrases are still checked, so a server never starts without them.
   assert.ok(ran.includes("gcloud secrets describe trial-tips-secret --project=lmb-platform-prod"));
   const required = deployPlan({ version: VERSION, envFiles: files }).steps.filter((s) => s.args[0] === "secrets").map((s) => s.args[2]);

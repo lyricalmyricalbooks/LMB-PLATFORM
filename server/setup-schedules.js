@@ -16,11 +16,12 @@
 //   projects.locations.jobs.patch     PATCH https://cloudscheduler.googleapis.com/v1/{name}?updateMask=a,b      body: Job
 //   projects.locations.jobs.pause     POST  https://cloudscheduler.googleapis.com/v1/{name}:pause
 //   projects.locations.jobs.resume    POST  https://cloudscheduler.googleapis.com/v1/{name}:resume
+//   projects.locations.jobs.delete    DELETE https://cloudscheduler.googleapis.com/v1/{name}
 import { pathToFileURL } from "node:url";
 import { googleHttp, isNotFound } from "../clients/http.js";
 import { JOBS } from "../services/jobs/index.js";
 import { waitingJobs } from "./jobs.js";
-import { JOBS_SERVICE, REGION, schedulerJob } from "./schedules.js";
+import { JOBS_SERVICE, REGION, schedulerJob, schedulerJobId } from "./schedules.js";
 import { DEFAULT_PROJECT } from "./world.js";
 
 export const SCHEDULER = "https://cloudscheduler.googleapis.com/v1";
@@ -45,6 +46,12 @@ export async function jobsServerUrl({ call, project, region = REGION }) {
   }
   throw new Error(`There's no ${JOBS_SERVICE} server in ${project} yet. Run node server/deploy.js --apply first.`);
 }
+
+/** Jobs the code no longer has: their schedules are removed, so nothing calls an address that is gone. */
+export const RETIRED_JOBS = Object.freeze([
+  // Presses' own sending addresses went with Resend (10 November 2026): every email now leaves through Google.
+  "own-email-addresses",
+]);
 
 /**
  * Reads every job's schedule and makes it match. Returns { actions: [{ job, does: [...] }] }, where `does` lists
@@ -84,6 +91,19 @@ export async function setupSchedules({ fetch, token, project = DEFAULT_PROJECT, 
       else if (step.startsWith("update ")) await call("PATCH", `${SCHEDULER}/${want.name}`, { query: { updateMask: step.slice(7) }, body: want });
       else await call("POST", `${SCHEDULER}/${want.name}:${step}`, { body: {} });
     }
+  }
+  for (const name of RETIRED_JOBS) {
+    const jobName = `projects/${project}/locations/${region}/jobs/${schedulerJobId(name)}`;
+    let have = null;
+    try {
+      have = await call("GET", `${SCHEDULER}/${jobName}`);
+    } catch (error) {
+      if (!isNotFound(error)) throw error;
+    }
+    if (!have) continue;
+    actions.push({ job: name, does: ["delete"] });
+    print(`  ${name.padEnd(20)} ${"".padEnd(14)} delete (no longer in the code)`);
+    if (apply) await call("DELETE", `${SCHEDULER}/${jobName}`);
   }
   const changes = actions.filter((a) => a.does.length).length;
   print(apply ? `Done: ${changes} schedule${changes === 1 ? "" : "s"} changed.` : `${changes} schedule${changes === 1 ? "" : "s"} would change. Run again with --apply to do it.`);

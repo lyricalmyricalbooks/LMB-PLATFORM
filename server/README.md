@@ -35,7 +35,7 @@ counters, the waitlist and its invites, plans, subscriptions and billing events,
 per-order fee ledger, memberships and team invites (`teamInvites`, kept apart from the waitlist's `invites`), access
 requests, support, repairs, recoveries, devices, activity, income history, job runs, delivery numbers, notes, messages
 to presses, data-export requests, trial-tips and check-up records, and each shop's and stockroom's own data read with the
-platform's token. Real outside services: Google sign-in links, the sign-in check, Resend email and Stripe (test mode).
+platform's token. Real outside services: Google sign-in links, the sign-in check, email through Google (Gmail, once `GMAIL_SENDING` is on) and Stripe (test mode).
 
 Not connected yet (`notConnected.js`). Each answers in plain words, never with made-up data:
 
@@ -48,7 +48,7 @@ Not connected yet (`notConnected.js`). Each answers in plain words, never with m
 | Keeping a press's product file until its shop opens | The platform's import bucket and its signed upload links (18.7): `stagedFiles` in `world.js` needs `uploadUrl`, `stat`, `read` and `remove` on a private bucket |
 | Deleting a closed shop's project | Your go, once the organization exists |
 | Deleting a closed app's records after its 90 days | Server access to each shop's project, after 15.5 (until then the Apps closing list shows each one waiting) |
-| Marking a closing email that bounced | Resend's delivery events reaching the platform (`services/email/webhook.js` with `onBounce`) |
+| Marking a closing email that bounced | Reading returned mail in the platform's Google mailbox (Gmail has no delivery events) |
 | Web addresses for shops | The shared system (`SHARED_SHOPS_PROJECT` and `SHARED_SHOPS_DOMAIN`): then `/api/domains` and the `web-addresses` job run (`services/domains/hosted.js`); a free address's lines are written once `SHOP_ADDRESS_ZONE` and `SHOP_ADDRESS_ZONE_PROJECT` name its Cloud DNS zone |
 | QuickBooks | The platform's QuickBooks app keys (`docs/accounting.md`) |
 | What each shop costs | Google's billing export to BigQuery (the Costs page shows its empty state) |
@@ -63,7 +63,6 @@ Not connected yet (`notConnected.js`). Each answers in plain words, never with m
 | health-checks | every 5 minutes | on |
 | shop-maker | every minute | paused |
 | web-addresses | every 10 minutes | paused until the shared system is on |
-| own-email-addresses | every 6 hours, at 20 past | on |
 | press-messages | every hour, at 7 past | on |
 | nightly-backups | 01:00 | on |
 | keep-times | 01:30 | on |
@@ -89,15 +88,14 @@ Google for the tests is `fakes.js` and `clients/fake-firestore.js`.
 
 ## Your steps, once
 
-GitHub now does steps 3 and 4 on every merge to main, as soon as the six secrets exist and the repository variable
+GitHub now does steps 3 and 4 on every merge to main, as soon as the five secrets exist and the repository variable
 `SERVER_SETTINGS` holds step 2's lines (`site/README.md`). The steps below are the same thing by hand.
 
 Each command prints what it would do and changes nothing. Add `--apply` to do it. Every step is safe to run twice.
 Run them from the repo's top folder, signed in with `gcloud auth login` as an owner of `lmb-platform-prod`.
 
-1. **Store the six passwords the server needs in Google's safe.** In the Google Cloud console for `lmb-platform-prod`,
+1. **Store the five passwords the server needs in Google's safe.** In the Google Cloud console for `lmb-platform-prod`,
    open Secret Manager and create these secrets, each with its value as the first version:
-   - `resend-api-key`: the Resend sending key.
    - `stripe-platform-test-key`: the platform Stripe account's test secret key (`sk_test_...`). Never the live one.
    - `stripe-billing-webhook-secret`: the signing secret of the plan-events address (step 6).
    - `stripe-connect-webhook-secret-test`: the signing secret of the Connect events address (step 6).
@@ -109,7 +107,7 @@ Run them from the repo's top folder, signed in with `gcloud auth login` as an ow
    in your addresses: who may open the control room, where alerts go, and the platform's web address. No passwords go
    in this file; the deploy refuses one that looks like a key.
 3. **Put the server online.** Run `node server/deploy.js` and read the plan, then `node server/deploy.js --apply`. It
-   makes the three service accounts and their roles, checks the six secrets exist, builds the program, starts both
+   makes the three service accounts and their roles, checks the secrets exist, lets both servers send email as `platform-mail` and prints its client id, builds the program, starts both
    servers and sends the platform site's `/api` addresses to the web server (`site/build.js --api`).
 4. **Switch on the schedules.** Run `node server/setup-schedules.js`, then `node server/setup-schedules.js --apply`.
 5. **Check every door.** Run `node server/smoke.js --jobs-url <the platform-jobs address>`. The address is on the
@@ -130,3 +128,26 @@ If the build in step 3 stops with a permissions error, give the project's Cloud 
 "Artifact Registry Writer" and "Storage Object Viewer" roles once, then run step 3 again.
 
 Live payments need your go: that is a later change to `BILLING_MODE`, the live keys and the live event addresses.
+
+## Email through Google
+
+Every email (sign-in links, billing, receipts, the terms notice, alerts) goes out through the Gmail API from one Google
+Workspace mailbox, `PLATFORM_SENDER_EMAIL` (notifications@ the platform domain). There is no sending key: the servers
+sign in as that mailbox through the `platform-mail` service account (`services/email/gmail.js`). Julian, once:
+
+1. **Google Workspace on the platform domain**, with a real (licensed) user `notifications@<domain>`. Make
+   `support@<domain>` a group or an alias of yours so replies reach you.
+2. **Prove the domain sends its own mail.** Workspace admin: Apps › Google Workspace › Gmail › Authenticate email:
+   generate the DKIM key and add its TXT line at the domain's DNS, then press Start authentication. Add SPF
+   (`v=spf1 include:_spf.google.com ~all`) and DMARC (`_dmarc` TXT `v=DMARC1; p=quarantine; rua=mailto:<you>`).
+3. **Allow the mail account to send as the mailbox.** The deploy prints `platform-mail`'s client id. Workspace admin:
+   Security › Access and data control › API controls › Manage domain-wide delegation › Add new: that client id, scope
+   `https://www.googleapis.com/auth/gmail.send` only.
+4. **Switch it on.** Add `GMAIL_SENDING: "on"` to the repository variable `SERVER_SETTINGS`; the next deploy carries it.
+   The control room's Launch page shows "Email through Google" ready.
+
+Limits to know: a Workspace mailbox sends about **2,000 emails a day** (10,000 recipients). Over that, Gmail refuses for up
+to 24 hours and the email is logged as failed (retryable). Shops whose own Gmail is connected send from it and don't
+count. Google's rules forbid bulk marketing from Workspace, so shop newsletters should go from the press's own Gmail.
+When the platform outgrows one mailbox, the next step is more mailboxes or Google's SMTP relay (10,000 a day each).
+
