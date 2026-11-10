@@ -145,8 +145,12 @@ test("the deploy account is let sign the test owner's pass before the shop's ste
 test("with Connect off in the platform's Stripe account, step 7 waits and the test shop is still made", async () => {
   const connectOff = { number: 7, name: "Connect the press's payments", check: async () => false, act: async () => { throw new Error("You can only create new accounts if you've signed up for Connect, which you can do at https://dashboard.stripe.com/connect."); } };
   const lines = [];
-  const waited = await paymentsOrWait(connectOff, (line) => lines.push(line)).act({});
+  const wrapped = paymentsOrWait(connectOff, (line) => lines.push(line));
+  assert.equal(await wrapped.check({}), false);
+  const waited = await wrapped.act({});
   assert.equal(waited.detail.waiting, "Stripe Connect is off for the platform's Stripe account");
+  // The runner checks again after the step: a step that waited passes for this run.
+  assert.equal(await wrapped.check({}), true);
   assert.match(lines.at(-1), /dashboard\.stripe\.com\/connect/);
   // Stripe asking for its newer accounts API waits too.
   const v2Only = { ...connectOff, act: async () => { throw new Error("Stripe no longer recommends Accounts v1 for new Connect integrations. Create connected accounts with POST /v2/core/accounts instead."); } };
@@ -158,4 +162,17 @@ test("with Connect off in the platform's Stripe account, step 7 waits and the te
   const steps = testShopSteps({ clients: stepClients, config: CONFIG, connected: { 7: true } });
   assert.equal(steps[6].number, 7);
   assert.doesNotMatch(steps[6].name, /waits for/);
+});
+
+test("a payments step that waits lets the run go on to the next step", async () => {
+  const { runSteps } = await import("./runner.js");
+  const registry = fakeRegistry();
+  const v2Only = { number: 1, name: "Connect the press's payments", check: async () => false, act: async () => { throw new Error("Stripe no longer recommends Accounts v1 for new Connect integrations. Create connected accounts with POST /v2/core/accounts instead."); } };
+  let next = 0;
+  const after = { number: 2, name: "The next step", check: async () => next > 0, act: async () => { next += 1; } };
+  const shop = testShop("owner@example.com");
+  await registry.createShop(shop.shopId, shop);
+  const result = await runSteps({ shop, steps: [paymentsOrWait(v2Only), after], registry, auditLog: fakeAuditLog() });
+  assert.equal(result.ok, true, result.error);
+  assert.equal(next, 1);
 });
