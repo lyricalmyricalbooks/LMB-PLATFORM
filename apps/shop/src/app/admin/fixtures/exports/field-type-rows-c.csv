@@ -1,0 +1,26 @@
+handleId,fieldType,name,description,productImageUrl,collection,sku,ribbon,price,surcharge,visible,discountMode,discountValue,inventory,weight,cost,productOptionName1,productOptionType1,productOptionDescription1,productOptionName2,productOptionType2,productOptionDescription2,productOptionName3,productOptionType3,productOptionDescription3,productOptionName4,productOptionType4,productOptionDescription4,productOptionName5,productOptionType5,productOptionDescription5,productOptionName6,productOptionType6,productOptionDescription6,additionalInfoTitle1,additionalInfoDescription1,additionalInfoTitle2,additionalInfoDescription2,additionalInfoTitle3,additionalInfoDescription3,additionalInfoTitle4,additionalInfoDescription4,additionalInfoTitle5,additionalInfoDescription5,additionalInfoTitle6,additionalInfoDescription6,customTextField1,customTextCharLimit1,customTextMandatory1,customTextField2,customTextCharLimit2,customTextMandatory2,brand
+product_45fb191c-32d2-90d6-9166-febac4549d63,Product,Phim Gay 3,<p>This is a Gay movie</p>,90913e_a4394cc4b9af4ae2a81ef6e436dc50f7~mv2.jpg;90913e_610cf24d00114f3d929c4ca426e8c29f~mv2.jpg,,,New Arrival,500000.0,,true,PERCENT,0.0,InStock,,,Chất lượng,DROP_DOWN,720p;FullHD;FullHD HDR;4K HDR;Gốc,Định dạng,DROP_DOWN,Digital;Digital + Disc,,,,,,,,,,,,,Đạo diễn,"<p>Đạo diễn</p>
+",Diễn viên chính,"<p>Diễn diên 1, diễn diên 2, ...</p>
+
+<p>&nbsp;</p>
+",Sound Track,"<p>Sound Track1 by Artist</p>
+
+<p>Sound Track2 by Artist</p>
+
+<p>Sound Track3&nbsp;by Artist</p>
+",Thể loại,"<p>Ghi thể loại theo phân công.</p>
+
+<p>VD: Phân công tìm Anime thì ghi Anime bỏ hết mấy thể loại khác</p>
+",IMDb Rating,"<p>3.5</p>
+",Quốc gia,"<p>Anh/Mỹ/Nhật/...</p>
+",Đánh giá của bạn,499,false,,,,
+product_45fb191c-32d2-90d6-9166-febac4549d63,Variant,,,,,,,,600000.0,true,,,InStock,,,,,Gốc,,,Digital + Disc,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+product_45fb191c-32d2-90d6-9166-febac4549d63,Variant,,,,,,,,150000.0,true,,,InStock,,,,,4K HDR,,,Digital,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+product_45fb191c-32d2-90d6-9166-febac4549d63,Variant,,,,,,,,50000.0,true,,,InStock,,,,,FullHD HDR,,,Digital,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+product_45fb191c-32d2-90d6-9166-febac4549d63,Variant,,,,,,,,-50000.0,true,,,InStock,,,,,FullHD,,,Digital + Disc,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+product_45fb191c-32d2-90d6-9166-febac4549d63,Variant,,,,,,,,-200000.0,true,,,InStock,,,,,720p,,,Digital,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+product_45fb191c-32d2-90d6-9166-febac4549d63,Variant,,,,,,,,-150000.0,true,,,InStock,,,,,720p,,,Digital + Disc,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+product_45fb191c-32d2-90d6-9166-febac4549d63,Variant,,,,,,,,500000.0,true,,,InStock,,,,,Gốc,,,Digital,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+product_45fb191c-32d2-90d6-9166-febac4549d63,Variant,,,,,,,,50000.0,true,,,InStock,,,,,FullHD HDR,,,Digital + Disc,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+product_45fb191c-32d2-90d6-9166-febac4549d63,Variant,,,,,,,,200000.0,true,,,InStock,,,,,4K HDR,,,Digital + Disc,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+product_45fb191c-32d2-90d6-9166-febac4549d63,Variant,,,,,,,,-100000.0,true,,,InStock,,,,,FullHD,,,Digital,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
