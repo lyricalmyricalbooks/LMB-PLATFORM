@@ -90,7 +90,7 @@
 
 /* Phone, round 2: cream top bar, sentence-case headings and tabs, sans figures, rounded rows. */
 @media (max-width: 768px) {
-  :root[data-admin-look="colophon"] body.rp .pub-shell .app-header { background: var(--rp-bg); border-bottom: 1px solid var(--rp-divider); }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .app-header { background: var(--rp-canvas); border-bottom: 1px solid var(--rp-divider); }
   :root[data-admin-look="colophon"] body.rp .pub-shell .app-header :is(.header-wordmark, .header-brand-text *, button, .phone-sync-mark, .phone-sync-mark *:not(.sync-dot)) { color: var(--rp-text) !important; }
   :root[data-admin-look="colophon"] body.rp .pub-shell :is(#tab-pos, #tab-today, .tab-panel) :is(h1, .phone-eyebrow, [role="tab"], .pos-subtab-btn, .mnav-label) { text-transform: none; letter-spacing: -0.01em; }
   :root[data-admin-look="colophon"] body.rp .pub-shell :is(#tab-pos, .tab-panel) h1 { font-family: var(--rp-font-display, inherit); font-weight: 600; font-size: 40px; }
@@ -121,3 +121,26 @@
 :root[data-admin-look="colophon"] body.rp .ledger-fig:first-child:not(.is-owed) { background: var(--rp-tile-mint); color: var(--rp-on-tile); }
 :root[data-admin-look="colophon"] body.rp .ledger-fig:first-child:not(.is-owed) * { color: inherit; }
 :root[data-admin-look="colophon"] body.rp .ledger-fig.is-owed { border: 0 !important; }
+
+/* Sweep: the phone's More menu is a cream drawer with rounded edge. */
+@media (max-width: 768px) {
+  :root[data-admin-look="colophon"] body.rp .pub-shell .more-sheet[open] { background: var(--rp-canvas); color: var(--rp-text); border-right: 0; box-shadow: 0 0 40px rgb(0 0 0 / .18); border-radius: 0 24px 24px 0; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .more-sheet[open] :is(*, *::before):not(.sync-dot):not(.book-chip-sw):not(.nav-badge):not(.mnav-dot) { color: var(--rp-text); border-color: var(--rp-divider); text-transform: none; letter-spacing: 0; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .more-sheet[open] :is(.o3-grouplabel, .o3-subgrouplabel, .more-sheet-title-sub) { color: var(--rp-text-muted, var(--rp-text)); }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .more-sheet[open] :is(.snav, .pub-nav button, .book-chip, .app-switch-seg) { border-radius: 999px; background: transparent; box-shadow: none; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .more-sheet[open] :is(.snav.active, .book-chip.is-on, .app-switch-seg.is-current) { background: var(--rp-primary); }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .more-sheet[open] :is(.snav.active, .book-chip.is-on, .app-switch-seg.is-current) :is(*, *::before) { color: var(--rp-on-primary); }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .more-sheet[open] :is(.snav.active, .book-chip.is-on, .app-switch-seg.is-current) { color: var(--rp-on-primary); }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .more-sheet[open] .app-switch { border-radius: 999px; background: var(--rp-surface); border: 0; }
+}
+/* Colour marks next to book names and section names are dots, not squares. */
+:root[data-admin-look="colophon"] body.rp :is(.sync-dot, .sec-kicker-dot, .book-chip-sw, .book-context-dot, .chip-dot, [class$="-dot"]) { border-radius: 999px !important; }
+:root[data-admin-look="colophon"] body.rp :is(.phone-eyebrow, .today-date, [class*="kicker"])::before { border-radius: 999px; }
+@media (max-width: 768px) {
+  :root[data-admin-look="colophon"] body.rp .pub-shell .more-sheet[open] :is(.snav.active, .book-chip.is-on, .app-switch-seg.is-current) :is(*, *::before):not(.book-chip-sw) { color: var(--rp-on-primary) !important; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .more-sheet[open] .nav-badge { border-radius: 999px; background: var(--rp-primary); color: var(--rp-on-primary) !important; min-width: 22px; height: 22px; width: auto; padding: 0 7px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .more-sheet-close { border-radius: 999px; width: 44px; height: 44px; border: 1px solid var(--rp-divider); background: var(--rp-surface); box-shadow: none; }
+}
+@media (max-width: 768px) {
+  :root[data-admin-look="colophon"] body.rp .pub-shell .more-sheet[open] :is(.snav.active, .book-chip.is-on, .app-switch-seg.is-current) { color: var(--rp-on-primary) !important; border-color: transparent; }
+}
