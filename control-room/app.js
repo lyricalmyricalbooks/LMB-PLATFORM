@@ -176,8 +176,10 @@ async function load() {
 
     await loadTags();
     await loadJobs();
+    await loadSharedReleases();
     await loadMessages();
     await loadCosts();
+    await loadUsage();
     await loadSetup();
   } catch (failure) {
     status.textContent = failure.message;
@@ -1536,9 +1538,9 @@ async function loadWaitlist() {
       });
       return sheet({
         title: shop.pressName,
-        tone: shop.canRetry ? "danger" : MAKING_TONE[shop.status] ?? "warning",
-        pillWords: shop.status === "plan-change-stopped" ? "plan change stopped" : shop.status,
-        metaParts: [shop.shopId, shop.ownerEmail, `started ${when(shop.createdAt)}`],
+        tone: shop.canRetry ? "danger" : shop.waitingSince ? (shop.waitedTooLong ? "warning" : "info") : MAKING_TONE[shop.status] ?? "warning",
+        pillWords: shop.status === "plan-change-stopped" ? "plan change stopped" : shop.waitingSince ? "waiting on its web address" : shop.status,
+        metaParts: [shop.shopId, shop.ownerEmail, `started ${when(shop.createdAt)}`, shop.waitingSince ? `waiting since ${when(shop.waitingSince)}${shop.waitedTooLong ? ", over a day" : ""}` : null].filter(Boolean),
         body: shop.message ? [el("p", { className: "cr-body", textContent: shop.message })] : [],
         actions: el("div", { className: "cr-actions" }, retry.hidden ? null : retry),
       });
@@ -2448,7 +2450,39 @@ async function loadJobs() {
     $("#jobs").replaceChildren(emptyState(failure.message));
   }
 }
-$("#jobs-refresh").addEventListener("click", loadJobs);
+$("#jobs-refresh").addEventListener("click", () => { loadJobs(); loadSharedReleases(); });
+
+// ── Shared releases (services/release-runner/shared.js): each run, project by project, and the shops' own pages. ──
+const PROJECT_RESULT = {
+  shipped: ["success", "Shipped"], "already-on": ["success", "Already on it"], "rolled-back": ["warning", "Went back"],
+  "rollback-failed": ["danger", "Couldn't go back"], failed: ["danger", "Failed"], "not-run": ["neutral", "Not run"],
+};
+async function loadSharedReleases() {
+  const target = $("#shared-releases");
+  try {
+    const { runs } = await api("GET", "/control/shared-releases");
+    if (!runs.length) return target.replaceChildren();
+    target.replaceChildren(el("div", { className: "cr-head" }, el("h2", { textContent: "Shared releases" })),
+      ...runs.map((run) => sheet({
+        title: `Release ${run.version ?? "?"}${run.kind === "shared-first-release" ? " (first)" : ""}`,
+        tone: run.ok ? "success" : "danger",
+        pillWords: run.ok ? "reached every project" : "stopped",
+        metaParts: [when(run.startedAt), plural(run.projects.length, "project")],
+        body: [
+          run.error ? el("p", { className: "cr-body", textContent: run.error }) : null,
+          el("ul", { className: "cr-history" }, ...run.projects.map((p) => {
+            const [tone, words] = PROJECT_RESULT[p.status] ?? ["neutral", p.status];
+            return el("li", {}, pill(tone, words), el("span", { className: "rp-mono", textContent: ` ${p.projectId}` }),
+              meta(p.pagesDone ? `pages out for ${plural(p.pagesDone, "shop")}` : null,
+                p.pagesFailed.length ? `pages failed for ${p.pagesFailed.map((f) => `${f.shopId} (${f.error})`).join(", ")}` : null,
+                p.error && p.error !== run.error ? p.error : null));
+          })),
+        ].filter(Boolean),
+      })));
+  } catch (failure) {
+    target.replaceChildren(el("p", { className: "rp-hint", textContent: `Couldn't read the shared releases: ${failure.message}` }));
+  }
+}
 
 // ── Messages to presses (plan 19.14): a note at the top of shop admins, until its end date. ──
 Object.assign(ACTIVITY_WORDS, {
@@ -2585,6 +2619,38 @@ async function loadCosts() {
       ...(others ? [el("div", { className: "cr-head" }, el("h2", { textContent: "Not a shop" })), others] : []));
   } catch (failure) {
     target.replaceChildren(emptyState("Couldn't load the costs.", failure.message));
+  }
+}
+
+// ── Each shop's use in the shared system (services/usage/meters.js): what each shop used of the one Google bill. ──
+const gbWords = (n) => (n == null ? "" : n < 0.01 && n > 0 ? "under 0.01 GB" : `${Number(n.toFixed(2))} GB`);
+async function loadUsage(month) {
+  const target = $("#usage");
+  try {
+    const report = await api("POST", "/control/usage", month ? { month } : {});
+    if (!report.connected) return target.replaceChildren();
+    const picker = el("input", { className: "rp-input", type: "month", value: report.month });
+    picker.setAttribute("aria-label", "Month");
+    picker.addEventListener("change", () => picker.value && loadUsage(picker.value));
+    const num = (n, words) => el("span", { className: "rp-mono", textContent: n == null ? "" : words ? words(n) : String(n) });
+    target.replaceChildren(
+      el("div", { className: "cr-head" }, el("h2", { textContent: "Each shop's use" }), el("div", { className: "rp-field" }, picker)),
+      el("p", { className: "rp-hint", textContent: report.reconciled ? `${report.month}'s bill is split: ${money(report.totals.costCents, "CAD")} across ${plural(report.shops.length, "shop")}.` : `${report.month} so far. Each shop's share of the bill is worked out once Google's bill for the month is in (from the 3rd of the next month).` }),
+      report.shops.length ? table({
+        caption: `Each shop's use, ${report.month}`,
+        rows: report.shops,
+        open: (row) => { const shop = allShops.find((s) => s.shopId === row.shopId); if (shop) openShop(shop); },
+        columns: [
+          { header: "Shop", lead: true, render: (row) => el("div", {}, el("p", { className: "cr-title", textContent: row.pressName }), meta(row.shopId, row.measured ? null : "nothing measured yet")) },
+          { header: "Server work", end: true, render: (row) => el("div", {}, num(row.computeGbSeconds, (n) => `${Number(n.toFixed(1))} GB-s`), meta(row.invocations == null ? null : plural(row.invocations, "request"))) },
+          { header: "Pages served", end: true, render: (row) => num(row.egressGb, gbWords) },
+          { header: "Files kept", end: true, render: (row) => num(row.storageGb, gbWords) },
+          { header: "Emails", end: true, render: (row) => num(row.emails) },
+          { header: "Share of the bill", end: true, render: (row) => (row.costCents == null ? el("span", { className: "rp-hint", textContent: "not split yet" }) : num(row.costCents, (n) => money(n, "CAD"))) },
+        ],
+      }) : emptyState("No shops in the shared system yet."));
+  } catch (failure) {
+    target.replaceChildren(el("p", { className: "rp-hint", textContent: `Couldn't read each shop's use: ${failure.message}` }));
   }
 }
 

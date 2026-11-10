@@ -84,6 +84,7 @@ import { createAccessRequests } from "../control-room/accessRequests.js";
 import { accessRequestRoutes } from "../accounts/accessRequestRoutes.js";
 import { businessRoutes, createBusinessRoom } from "../control-room/business.js";
 import { createTimeline, timelineRoutes } from "../control-room/timeline.js";
+import { createSharedSystemDesk, sharedSystemRoutes } from "../control-room/sharedSystem.js";
 import { createJobsPage, jobsRoutes } from "../control-room/jobs.js";
 import { createShopNotes, notesRoutes } from "../control-room/notes.js";
 import { createSetupDesk, setupRoutes } from "../control-room/setupPresses.js";
@@ -390,6 +391,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...accessRequestRoutes({ requests: accessRequests, accounts, activity, registry, auditLog, now }),
     ...businessRoutes(business),
     ...timelineRoutes(timeline),
+    ...sharedSystemRoutes(createSharedSystemDesk({ admins, registry, meters: usageMeters, now })),
     ...jobsRoutes(jobsPage),
     ...notesRoutes(notes),
     ...setupRoutes(setupDesk),
