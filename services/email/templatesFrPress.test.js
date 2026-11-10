@@ -34,6 +34,7 @@ const SAMPLES = {
   "shop-starting": [{ pressName: "Moth Press", link: LINK }],
   "waitlist-invite": [{ link: LINK }],
   "setup-ending": [{ pressName: "Moth Press", daysLeft: 30, date: "December 3, 2026", link: LINK }, { pressName: "", daysLeft: 7, date: "December 3, 2026", link: LINK }],
+  "terms-changed": [{ changes: ["Every plan now has both the website and the stockroom."], changesFr: ["Chaque forfait comprend maintenant le site web et la réserve."], appliesOn: "December 10, 2026", link: LINK, billing: LINK }],
   "platform-fee-changing": [{ fromPercent: 0, toPercent: 2, startsOn: "1 January 2027", refunded: true, link: LINK }, { fromPercent: 2, toPercent: 0, startsOn: "1 January 2027", refunded: false, link: LINK }],
   invite: [{ pressName: "Moth Press", invitedBy: "owner@example.com", roleWords: "a manager", link: LINK, days: 7 }, ...Object.values(ROLE_WORDS).map((roleWords) => ({ pressName: "Moth Press", invitedBy: "owner@example.com", roleWords, link: LINK, days: 7 }))],
   "support-received": [{ ticketId: "T-1", subject: "A question", body: "How do I add a book?" }],

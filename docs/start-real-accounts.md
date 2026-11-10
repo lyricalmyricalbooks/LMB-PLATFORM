@@ -137,3 +137,16 @@ side is built; these steps need Julian, a lawyer or an accountant.
   software plan.
 - **Promised notices:** the terms promise 30 days' email notice before a price rise or a new helper company. The
   control room's Messages to presses form has "Is this a notice the terms promise?": it emails every press and refuses a date less than 30 days away. Julian uses it before changing a price or adding a helper.
+- **New terms for presses already signed up (10 November 2026, `2026-11-10-draft.4`):** the daily job "terms-notice"
+  (`terms/notice.js`) emails each press on older words what changed (`CHANGES` in `terms/terms.js`, English and
+  French) and the date the new words apply, 30 days later; from then its record shows the new version, agreed by
+  notice. Changing the words means writing new `CHANGES` lines too.
+- **Lawyer questions from the 10 November changes:** is "agreed by notice after 30 days" enough for a price-model
+  change, or must existing presses tick to agree again; does billing "last month's running cost at cost" need a
+  maximum or an estimate up front (Ontario and Quebec consumer rules don't apply to businesses, but check Quebec's
+  rules on contracts of adhesion); does counting each shop's use from the cloud provider's logs need its own line in
+  the privacy impact assessment (Law 25); is the shared system (all shops in one Canadian project) still covered by
+  "behind its own wall" and the take-over-your-copy promise.
+- **Accountant questions from the 10 November changes:** is the passed-through running cost a taxable supply at the
+  same GST/HST/QST rate as the platform fee; how to show it on the invoice; and how to treat a month where Google's
+  bill and our meters differ after we charged.

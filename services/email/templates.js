@@ -147,6 +147,22 @@ export const TEMPLATES = {
   }),
 
   /** A change to the press's per-order fee (plan 9.6), sent 30 days before it starts. */
+  /**
+   * The terms changed (terms/notice.js). `changes`: what changed, in plain lines (terms.js CHANGES); `appliesOn`: the
+   * day the new words apply, CHANGE_NOTICE_DAYS after this email.
+   */
+  "terms-changed": ({ changes = [], appliesOn, link, billing }, { settings, pressName }) => layout({
+    subject: `${settings.platformName}'s terms are changing on ${appliesOn}`,
+    greeting: "Hello,",
+    paragraphs: [
+      `We've updated ${settings.platformName}'s terms. The new words apply to ${pressName} from ${appliesOn}. What changed:`,
+      ...changes.map((line) => `• ${line}`),
+      `If you keep using ${settings.platformName} after ${appliesOn}, you agree to the new terms. If you don't agree, you can cancel before then from your billing page and pay nothing more.`,
+    ],
+    buttons: [["Read the terms", safeLink(link)], ["Your plan and billing", safeLink(billing)]],
+    footer: signOff(settings),
+  }),
+
   "platform-fee-changing": ({ fromPercent, toPercent, startsOn, refunded, link }, { settings, pressName }) => layout({
     subject: `A change to ${pressName}'s fee on each order`,
     greeting: "Hello,",

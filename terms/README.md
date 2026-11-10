@@ -25,7 +25,9 @@ record on the sign-up row once; `GET /api/plans` gives the page the version to s
 - The company's legal name, mailing address and governing law (`OPERATOR_NAME`, `OPERATOR_ADDRESS`, `GOVERNING_LAW`),
   and real privacy and reports addresses: placeholders until Julian's company exists. A test refuses a final version
   while they are placeholders.
-- The 30-day notices the terms promise (a price rise, a new helper company) are a manual step for now.
+- New words for presses already signed up: the daily job "terms-notice" (`notice.js`) emails each one `CHANGES` and
+  the date the new words apply, 30 days later, then records the new version as agreed by notice. A price rise or a new
+  helper company on its own still goes out from the control room's Messages to presses.
 - Quebec: a French version before Quebec presses sign up (Charter of the French Language).
 
 - A lawyer reads the words (Julian). Then set `DRAFT` to false and give a new version.

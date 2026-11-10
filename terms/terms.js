@@ -8,7 +8,7 @@
 // words they agreed to. Words here are customer-facing: plain words, never a rival's name.
 
 /** The id of these words. Sign-up stores it with the date the press ticked the box. */
-export const TERMS_VERSION = "2026-11-10-draft.3";
+export const TERMS_VERSION = "2026-11-10-draft.4";
 
 /** True until a lawyer has read the words. The page shows the draft notice while it is. */
 export const DRAFT = true;
@@ -67,6 +67,28 @@ export const HELPERS = Object.freeze([
 ]);
 
 /**
+ * What changed in this version, in a few plain lines, for the email that tells presses already on Colophon
+ * (terms/notice.js). Write new lines whenever TERMS_VERSION changes; terms.test.js checks they belong to it.
+ */
+export const CHANGES = Object.freeze({
+  version: TERMS_VERSION,
+  en: Object.freeze([
+    "Your plan is now a platform fee plus what your shop cost to run last month, at cost. Trial months cost nothing, and we email you before a month passes the amount you choose ($25 unless you change it).",
+    "Every plan now has both the website and the stockroom.",
+    "Shops now run on one shared system in Canada, each behind its own wall. We count each shop's use from our cloud provider's records only to work out its running cost.",
+    "You can download your whole shop at any time from Settings, under Download your shop.",
+    "A shop design you make before your shop exists is kept with your sign-up.",
+  ]),
+  fr: Object.freeze([
+    "Votre forfait comprend maintenant des frais de plateforme et ce qu'a coûté le fonctionnement de votre boutique le mois précédent, au prix coûtant. Les mois d'essai ne coûtent rien, et nous vous écrivons avant qu'un mois dépasse le montant que vous choisissez (25 $ si vous ne le changez pas).",
+    "Chaque forfait comprend maintenant le site web et la réserve.",
+    "Les boutiques fonctionnent maintenant sur un seul système partagé au Canada, chacune derrière son propre mur. Nous comptons l'usage de chaque boutique à partir des relevés de notre fournisseur infonuagique, seulement pour calculer son coût de fonctionnement.",
+    "Vous pouvez télécharger toute votre boutique en tout temps depuis Réglages, sous Télécharger votre boutique.",
+    "Un design de boutique fait avant la création de votre boutique est gardé avec votre inscription.",
+  ]),
+});
+
+/**
  * @typedef {{ id: string, title: string, paragraphs: string[] }} Section
  */
 
@@ -77,7 +99,7 @@ export const SECTIONS = Object.freeze([
     title: "Terms of service",
     paragraphs: [
       `These terms are between your press and ${OPERATOR_NAME}, the company that runs Colophon, at ${OPERATOR_ADDRESS}. The person who ticks the box at sign-up agrees for the press, and confirms they may.`,
-      "Colophon gives your press a website and a stockroom. It is made for businesses, not for people buying for themselves.",
+      "Colophon gives your press one plan with everything in it: a website and a stockroom. It is made for businesses, not for people buying for themselves.",
       "Your shop is your own business. Your press is the seller to your shoppers, sets its own prices and policies, and follows the shopping, privacy and tax laws of the places it sells to.",
       "You are responsible for what you sell and for the words and pictures you put in your shop. Don't use Colophon to sell anything that is against the law where you or your buyers are.",
       "Your books, words and pictures stay yours. You let us copy and show them only to run your shop, and that ends when your shop is deleted.",
@@ -94,11 +116,11 @@ export const SECTIONS = Object.freeze([
     title: "Your plan and paying",
     paragraphs: [
       `Your plan starts with a free trial of ${TRIAL_DAYS} days, and we never ask for a card to start it. If the trial ends with no card, your shop pauses and nothing is charged.`,
-      "Once you add a card, your plan renews every month until you cancel. Each month we charge that card the plan's fee plus what your shop cost to run the month before (storage, web traffic, background jobs and emails), at what it costs us. Your billing page shows the cost so far.",
+      "Once you add a card, your plan renews every month until you cancel. Each month we charge that card the plan's fee plus what your shop cost to run the month before (storage, web traffic, background jobs and emails), at what it costs us, with nothing added. We work it out from our cloud provider's record of each shop's use, and check it against that provider's bill before we charge. Trial months cost nothing. Your billing page shows the cost so far, and we email you when a month looks set to pass the amount you choose there ($25 unless you change it).",
       "Prices are shown before tax. We add the sales tax that applies where your press is, and your receipt shows it.",
       "A press that already pays a share of its website's sales instead of a monthly price keeps paying that way until it switches. It isn't offered to new presses.",
-      "The founding offer gives the first presses a lower fee for as long as they keep their plan. If a founding press cancels before its first payment, its place goes to the next press.",
-      `If we raise a price, we email you at least ${CHANGE_NOTICE_DAYS} days before your first payment at the new price, and you can cancel before then.`,
+      "The founding offer gives the first presses a lower platform fee for as long as they keep their plan. It doesn't lower the running cost. If a founding press cancels before its first payment, its place goes to the next press.",
+      `If we raise a price or change how it is worked out, we email you at least ${CHANGE_NOTICE_DAYS} days before your first payment at the new price. You can cancel before then and pay nothing more.`,
       "You can cancel at any time from Plan & billing in your account, with no call or email needed. We email you to confirm.",
       "When you cancel, your plan runs to the end of the month already paid for, and we don't refund part of a month. You can change your mind until then.",
       `If a payment fails, we tell you and keep your shop open while you fix it. A shop that still can't be paid pauses, and everything in it is kept for ${PAUSED_DAYS} days.`,
@@ -112,13 +134,13 @@ export const SECTIONS = Object.freeze([
     paragraphs: [
       "This part is about you, the person who runs a press on Colophon. Your shoppers are covered by your own shop's privacy policy.",
       `${OPERATOR_NAME} is responsible for what we keep about you. Our privacy officer answers for it, at ${PRIVACY_CONTACT}.`,
-      "We keep your name, your email address, your press's name, your plan, and your answers when you signed up. We use them to run your shop, bill your plan and write to you about your account.",
+      "We keep your name, your email address, your press's name, your plan, your answers when you signed up, and any shop design you make before your shop exists. We use them to run your shop, bill your plan and write to you about your account.",
       "Card numbers are held by our payment company. We see only the card's brand, its last four numbers and when it runs out.",
       "We also keep a record of sign-ins, new devices and what our team does in your shop, to keep accounts safe.",
       "We use your details because we need them to give you the service you signed up for, because the law makes us keep some records, and to protect Colophon from fraud.",
       "We email you about your account, your plan and your shop. Anything else, such as news about Colophon, only if you ask for it, and each of those emails has a way to stop them.",
       "We never sell your details, and we never show you or your shoppers advertising. Colophon's own pages use no advertising or tracking cookies.",
-      "Your shop's information is kept apart from every other press's, behind its own wall, and stored in Canada. Some of the companies listed below work in the United States, where its laws may let officials see it.",
+      "Every shop runs on one shared Colophon system, stored in Canada. Each shop's information sits behind its own wall that no other press can get through. To work out each shop's running cost, we count its use (pages served, files stored, jobs and emails) from our cloud provider's records, and nothing more. Some of the companies listed below work in the United States, where its laws may let officials see it.",
       `Each backup is kept for ${BACKUP_KEEP_DAYS} days, then deleted. If your shop is deleted, its backups are kept ${BACKUP_KEEP_DAYS} days more and then they are gone too.`,
       "Records of what happened in your shop are deleted after two years. Invoices and tax records are kept at least six years, as tax law asks.",
       "You can ask us for a copy of what we hold about you, or ask us to correct it or delete it. Write to us from your account page, and we answer within 30 days.",
@@ -129,7 +151,7 @@ export const SECTIONS = Object.freeze([
     id: "data",
     title: "Your data and your shoppers' data",
     paragraphs: [
-      "Your books, orders, customers and newsletter list belong to your press. We look after them for you and use them only to run your shop.",
+      "Your books, orders, customers and newsletter list belong to your press. We look after them for you and use them only to run your shop. You can download all of it at any time from Settings, under Download your shop.",
       "When a shopper buys from you, your press decides what is kept about them. We keep it on your behalf and follow your instructions, given through your settings and your requests.",
       "If a law ever makes us do something else with it, we tell you first, unless that law forbids it.",
       "Everyone on our team who can see your data has promised to keep it private. Our team looks inside your shop only when you ask for help, and only for as long as it takes. Every look is recorded.",
@@ -163,8 +185,8 @@ export const SECTIONS = Object.freeze([
     title: "If Colophon ever closes",
     paragraphs: [
       `We will tell you at least ${SHUTDOWN_NOTICE_DAYS} days before Colophon stops, by email and on your account page. Your shop keeps working during those ${SHUTDOWN_NOTICE_DAYS} days.`,
-      "You can download all of your books, orders and customers as spreadsheet files at any time, and during those days too.",
-      "Your shop's data is kept apart from every other press's. If you want to keep it running, we make a full copy of your shop and hand that copy over to your press, with its books, orders, customers and settings, at no charge.",
+      "You can download your whole shop at any time from Settings, with its books, orders, customers, pictures and settings, and during those days too.",
+      "Your shop's data is kept apart from every other press's. If you want to keep it running, we make a full copy of your shop's data and files and hand that copy over to your press, with its books, orders, customers and settings, at no charge.",
       `The same holds if you leave us: during the ${DOWNLOAD_DAYS} days after your shop closes, you keep your files and you can ask for your own copy.`,
     ],
   },

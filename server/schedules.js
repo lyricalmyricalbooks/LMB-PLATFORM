@@ -24,6 +24,7 @@ export const FIXED_TIMES = Object.freeze({
   closing: "0 2 * * *",
   "dropped-apps": "15 2 * * *",
   "every-app": "5 2 * * *",
+  "terms-notice": "10 2 * * *",
   // Before the running costs, which bill by the meters it writes.
   "usage-meters": "35 2 * * *",
   "running-costs": "45 2 * * *",

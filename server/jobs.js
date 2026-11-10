@@ -44,6 +44,8 @@ export const RUNNERS = Object.freeze({
   "dropped-apps": ({ billing }) => () => billing.closeDroppedApps(),
   // Every shop gets the website and the stockroom (10 November 2026): shops on an older plan move to it.
   "every-app": ({ billing }) => () => billing.giveEveryApp(),
+  // The terms changed: presses on older words are emailed 30 days ahead (terms/notice.js).
+  "terms-notice": ({ termsNotice }) => () => termsNotice.sweep(),
   // Pay what you use: needs a way to read each shop's cost (the billing export or the shared system's meters).
   // The shared system's per-shop meters (services/usage), written before the running costs read them.
   "usage-meters": ({ parts }) => (parts?.usage ? () => parts.usage.run() : notConnectedFn(NOT_CONNECTED.usageMeters)),

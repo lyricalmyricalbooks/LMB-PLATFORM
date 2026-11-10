@@ -252,6 +252,19 @@ export const PRESS_TEMPLATES_FR = {
   }),
 
   /** French twin of "platform-fee-changing". */
+  /** French twin of "terms-changed": the French lines come in `changesFr`. */
+  "terms-changed": ({ changes = [], changesFr, appliesOn, link, billing }, { settings, pressName }) => layout({
+    subject: `Les conditions de ${settings.platformName} changent le ${frenchDay(appliesOn)}`,
+    greeting: "Bonjour,",
+    paragraphs: [
+      `Nous avons mis à jour les conditions de ${settings.platformName}. Le nouveau texte s'applique à ${pressName} à partir du ${frenchDay(appliesOn)}. Ce qui change :`,
+      ...(Array.isArray(changesFr) && changesFr.length ? changesFr : changes).map((line) => `• ${line}`),
+      `Si vous continuez d'utiliser ${settings.platformName} après le ${frenchDay(appliesOn)}, vous acceptez les nouvelles conditions. Sinon, vous pouvez annuler d'ici là depuis votre page de facturation, sans rien payer de plus.`,
+    ],
+    buttons: [["Lire les conditions", safeLink(link)], ["Votre forfait et la facturation", safeLink(billing)]],
+    footer: signOff(settings),
+  }),
+
   "platform-fee-changing": ({ fromPercent, toPercent, startsOn, refunded, link }, { settings, pressName }) => layout({
     subject: `Un changement aux frais de ${pressName} sur chaque commande`,
     greeting: "Bonjour,",

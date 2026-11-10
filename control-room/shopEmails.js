@@ -15,7 +15,7 @@ const READ = 500;
 /** Plain names for the platform's email kinds (services/email/templates.js); any other is its kind in words. */
 export const KIND_WORDS = Object.freeze({
   "owner-welcome": "Welcome", "app-added": "App added", "shop-starting": "Shop being made", "setup-ending": "Setup ending soon",
-  "platform-fee-changing": "Order fee changing", "health-alert": "Shop health alert", "invite": "Team invitation",
+  "platform-fee-changing": "Order fee changing", "terms-changed": "Terms changing", "health-alert": "Shop health alert", "invite": "Team invitation",
   "support-received": "Help request received", "support-new": "Help request (to the platform team)", "support-reply": "Help request answered", "trial-ending": "Trial ending",
   "card-needed": "Card needed", "newsletter-paused": "Newsletter paused", "domain-live": "Web address live", "free-address-live": "Free web address live",
   "quiet-shop": "Quiet shop nudge", "domain-expiring": "Web address expiring", "domain-not-pointing": "Web address not pointing at the shop",
