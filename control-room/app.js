@@ -2668,7 +2668,7 @@ async function loadSetup() {
       columns: [
         { header: "Brand", lead: true, render: (p) => el("div", {}, el("p", { className: "cr-title", textContent: p.pressName || "No name yet" }), meta(p.ownerEmail, p.sells ? `sells ${p.sells.toLowerCase()}` : null, p.country || null)) },
         { header: "Plan", render: (p) => (p.plan ? PLAN_WORDS[p.plan] ?? p.plan : el("span", { className: "rp-hint", textContent: "not picked" })) },
-        { header: "Looks", render: (p) => el("div", {}, el("span", { textContent: `Website: ${lookWords(p.look)}` }), meta(`Admin: ${lookWords(p.adminLook)}`)) },
+        { header: "Looks", render: (p) => el("span", { textContent: lookWords(p.look) }) },
         { header: "Cards", render: (p) => (p.plan === "stockroom" ? el("span", { className: "rp-hint", textContent: "no website" })
           : p.cardProvider ? el("span", { textContent: p.cardProvider === "square" ? "Square" : "Stripe" }) : el("span", { className: "rp-hint", textContent: "Stripe (not picked)" })) },
         { header: "Moving in", render: (p) => el("div", {}, el("span", { textContent: MOVING_WORDS[p.moving] ?? "not answered" }),
@@ -2688,7 +2688,7 @@ async function loadSetup() {
       metaParts: [`${rows.reduce((n, r) => n + r.count, 0)} presses`],
       body: [rows.length ? el("ul", { className: "cr-history" }, ...rows.map((r) => el("li", { textContent: `${lookWords(r.id)}: ${r.count}` }))) : emptyState("None yet.")],
     });
-    $("#setup-looks").replaceChildren(lookSheet("Website looks", looks.website), lookSheet("Admin looks", looks.admin));
+    $("#setup-looks").replaceChildren(lookSheet("Website looks", looks.website)); // One admin look (Colophon) now, so no admin-look counts.
     // The looks live shops wear now (control-room/shopLooks.js), read from each shop: after the setup looks, not before.
     api("GET", "/control/live-looks").then(({ looks: worn, templates, shops, waiting, welcome, unread }) => {
       $("#setup-looks").append(sheet({
@@ -2791,7 +2791,7 @@ function shopLookSection(shop) {
         : look.publishedAt ? `Shoppers see the press's own design (not from a ready-made look), published ${dateOnly(look.publishedAt)}.` : "Nothing published from Studio yet." }),
       look.templateDetails?.length ? el("p", { className: "rp-hint", textContent: `Changed the template's ${look.templateDetails.join(", ")} in Studio (Reset template details on the Themes page puts them back).` }) : null,
       look.draft ? el("p", { className: "rp-hint", textContent: `Trying ${look.draft.name} in Studio, not published.` }) : null,
-      look.welcome ? el("p", { className: "rp-hint", textContent: `Choose your look: ${look.welcome.skipped ? "skipped, so it took" : "picked"} ${lookWords(look.welcome.theme)}${look.welcome.at ? ` on ${dateOnly(look.welcome.at)}` : ""}${look.welcome.adminLook ? `; admin look ${lookWords(look.welcome.adminLook)}` : ""}.` }) : null);
+      look.welcome ? el("p", { className: "rp-hint", textContent: `Choose your look: ${look.welcome.skipped ? "skipped, so it took" : "picked"} ${lookWords(look.welcome.theme)}${look.welcome.at ? ` on ${dateOnly(look.welcome.at)}` : ""}.` }) : null);
   }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
   return slot;
 }

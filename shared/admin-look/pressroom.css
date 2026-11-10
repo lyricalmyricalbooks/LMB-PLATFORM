@@ -1971,3 +1971,8 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
   :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-drawer-account-menu { position: absolute; left: 0; bottom: calc(100% + 6px); top: auto; min-width: 220px; }
   :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-topbar .rp-avatar-menu { display: none; }
 }
+
+/* Colophon empty state: a dashed box, plain bold title, no icon (mockup "Empty state"). */
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-state:not([data-inline]) { border: 1.5px dashed var(--rp-border-strong); border-radius: 22px; padding: 56px 24px; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-state:not([data-inline]) .rp-state-icon { display: none; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-state:not([data-inline]) .rp-state-title { font-family: var(--rp-font-body); font-style: normal; font-weight: 700; font-size: var(--rp-text-lg); }
