@@ -27,7 +27,7 @@ const registry = (rows = ROWS) => ({ listShops: async () => rows });
 test("names each switch once, on the day it passes two days, with its last problem", async () => {
   const email = fakePlatformEmail();
   const result = await switchNote({ registry: registry(), email, to: "owner@example.com", now: () => NOW });
-  assert.deepEqual(result, { sent: true, shops: 1 });
+  assert.deepEqual(result, { sent: true, shops: 1, paused: 0 });
   const [sent] = email.list();
   assert.equal(sent.kind, SWITCH_NOTE);
   assert.equal(sent.to, "owner@example.com");
@@ -41,6 +41,29 @@ test("names each switch once, on the day it passes two days, with its last probl
 
   await switchNote({ registry: registry(), email, to: "owner@example.com", now: () => NOW });
   assert.equal(new Set(email.list().map((m) => m.idempotencyKey)).size, 1, "a second run the same day reuses the day's key");
+});
+
+test("names each live Stripe press once, on the day its payouts have been paused two days", async () => {
+  const stripe = (stateAt, extra = {}) => ({ provider: "stripe", accountId: "acct_9", detailsSubmitted: true, payoutsEnabled: false, stateAt, ...extra });
+  const rows = [
+    { shopId: "heron", pressName: "Heron Books", status: "live", payments: stripe(ago(50), { pastDue: true }) },
+    { shopId: "finch", pressName: "Finch Press", status: "live", payments: stripe(ago(20)) }, // not two days yet
+    { shopId: "owl", pressName: "Owl Press", status: "live", payments: stripe(ago(90)) }, // named on an earlier day
+    { shopId: "setup", pressName: "Setup Press", status: "setting-up", payments: stripe(ago(50)) },
+    { shopId: "sq", pressName: "Square Press", status: "live", payments: { ...stripe(ago(50)), provider: "square" } },
+    { shopId: "lmb-test-shop", pressName: "Test Press", status: "live", testShop: true, payments: stripe(ago(50)) },
+  ];
+  const email = fakePlatformEmail();
+  assert.deepEqual(await switchNote({ registry: registry(rows), email, to: "owner@example.com", now: () => NOW }), { sent: true, shops: 0, paused: 1 });
+  const [sent] = email.list();
+  assert.deepEqual(sent.data.paused.map((s) => [s.shopId, s.pastDue]), [["heron", true]]);
+  const parts = TEMPLATES[SWITCH_NOTE](sent.data, { settings: platformSettings({}) });
+  assert.equal(parts.subject, "Payouts paused 2 days: Heron Books");
+  assert.match(parts.text, /Heron Books \(heron\): payouts paused since November 18, 2026, because Stripe is waiting on overdue details/);
+  assert.doesNotMatch(parts.text, /Finish the switch/, "no switch lines when only payouts are named");
+  // Both at once: one email, both parts, in one subject.
+  const both = TEMPLATES[SWITCH_NOTE]({ ...sent.data, shops: [{ shopId: "wren", pressName: "Wren Press", from: "stripe", to: "square", since: "November 17, 2026", problem: null }] }, { settings: platformSettings({}) });
+  assert.equal(both.subject, "Card switch waiting 2 days: Wren Press; Payouts paused 2 days: Heron Books");
 });
 
 test("nothing passed two days: no email, and no address is needed", async () => {
