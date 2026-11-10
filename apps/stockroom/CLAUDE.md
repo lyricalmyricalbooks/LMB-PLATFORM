@@ -112,8 +112,15 @@ turns that on only when the build has `VITE_FIREBASE_EMULATORS=true` **and** the
 Every download starts with `fileStem()` from `src/lib/shop-profile.js`: the press's name from the shop profile's
 optional `name` ("Moth_Press_Tax_Report_2026.csv", or `fileStem({ lower: true })` for "moth-press-customers-….csv"),
 or "Stockroom" when the profile names none. Never type one press's name into a file name or label: the platform's
-`apps-isolation.test.js` fails on it. The stockroom's own ids keep their old word on purpose (the `DATA_ROOT` database
-folder, the Apps Script `service` ids, browser-storage keys): renaming them would orphan saved data and deployed scripts.
+`apps-isolation.test.js` fails on it. The stockroom's own ids keep their old word on purpose (the `lyrical` data folder
+inside `DATA_ROOT`, the Apps Script `service` ids, browser-storage keys): renaming them would orphan saved data and deployed scripts.
+
+## One folder per shop (the shared system)
+All shops share one Firebase project (LMB-PLATFORM `docs/shared-system.md`). Every read and write stays inside the
+shop's folder `shops/<shopId>`: `DATA_ROOT` (`shops/<id>/lyrical`) in the Realtime Database, `home` (the folder's
+document) for every `doc(...)`/`collection(...)` in `src/firebase.js`, and `shopFilePath(...)` for every file. Never call
+`doc(fs, …)` or `collection(fs, …)` directly. The rules take the owner and the sign-in list from the shop's record and
+name no one; add a two-shop check to `scripts/rules-emulator.mjs` for every new rule.
 
 ## Products sold in sizes (plan 10.5, 28 October 2026)
 A product in sizes or colours is one stock item per size, each with its own ledger, so counting, sales and payouts work

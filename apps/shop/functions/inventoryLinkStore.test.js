@@ -20,10 +20,23 @@ describe("the link's database", () => {
   });
 
   test("follows the shop's setting, and never opens the shop's own (default) database", () => {
-    const open = (database) => store.inventoryDb({ app: () => ({}), firestoreFor: (_app, id) => id, database });
-    expect(open("stockroom-two")).toBe("stockroom-two");
+    const open = (database) => store.inventoryDb({ app: () => ({}), firestoreFor: (_app, id) => ({ id, collection: (path) => `${id}:${path}` }), database });
+    expect(open("stockroom-two").id).toBe("stockroom-two");
     expect(() => open("(default)")).toThrow(/missing/);
     expect(() => open("")).toThrow(/missing/);
+  });
+
+  test("inside a shop, reaches only that shop's folder of the stockroom database (the shared system)", () => {
+    const { runInShop } = require("./shopScope");
+    const before = process.env.SHOP_FOLDERS;
+    process.env.SHOP_FOLDERS = "on";
+    try {
+      const db = store.inventoryDb({ app: () => ({}), firestoreFor: (_app, id) => ({ collection: (path) => `${id}:${path}` }), database: "stockroom" });
+      expect(runInShop({ id: "press-a", tenant: "t-a" }, () => db.collection("websiteOrders"))).toBe("stockroom:shops/press-a/websiteOrders");
+      expect(() => db.collection("websiteOrders")).toThrow(/outside any shop/);
+    } finally {
+      if (before === undefined) delete process.env.SHOP_FOLDERS; else process.env.SHOP_FOLDERS = before;
+    }
   });
 
   test("no second project, second app or project id is left in the link's code", () => {

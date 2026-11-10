@@ -103,17 +103,17 @@ export function joinFirestoreRules(shopRules, stockroomRules) {
     body(shopRules, "shop").replaceAll("$(database)", "(default)"),
     "  }",
     `  match /databases/${STOCKROOM_DATABASE}/documents {`,
-    body(stockroomRules, "stockroom"),
+    // So do the stockroom's, in theirs.
+    body(stockroomRules, "stockroom").replaceAll("$(database)", STOCKROOM_DATABASE),
     "  }",
     "}",
     "",
   ].join("\n");
 }
 
-/** Every rules file the emulators load, filled in for the demo owner: [{ file, text }]. */
+/** Every rules file the emulators load, as deployed (the owner comes from the shop's record): [{ file, text }]. */
 export function demoRules(read) {
-  const owner = DEMO_OWNER.email;
-  const stockroom = (file) => fillStockroomRules(file, read(`apps/stockroom/${file}`), { owner, database: STOCKROOM_DATABASE });
+  const stockroom = (file) => fillStockroomRules(file, read(`apps/stockroom/${file}`), { database: STOCKROOM_DATABASE });
   return [
     { file: "firestore.rules", text: joinFirestoreRules(read("apps/shop/firestore.rules"), stockroom("firestore.rules")) },
     { file: "shop.storage.rules", text: read("apps/shop/storage.rules") },

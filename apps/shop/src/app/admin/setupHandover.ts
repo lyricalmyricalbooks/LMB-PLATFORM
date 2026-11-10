@@ -10,6 +10,8 @@ export interface SetupHandover {
   look?: string;
   /** The product file kept in setup, its text in `parts` pieces under firstWeek/handover/parts; null when none. */
   file?: KeptFile | null;
+  /** The whole website design made in the designer before the store existed (signup/pressRecord.js `design`); null when none. */
+  design?: Record<string, any> | null;
   at?: string;
 }
 
@@ -25,6 +27,19 @@ export function chosenLook(handover: SetupHandover | null | undefined): { theme:
   const theme = typeof handover?.look === "string" ? handover.look.trim() : "";
   if (!theme) return null;
   return { theme };
+}
+
+/** The design made before the store existed, when there is one worth putting on (a plain object with something in it). */
+export function chosenDesign(handover: SetupHandover | null | undefined): Record<string, any> | null {
+  const design = handover?.design;
+  if (!design || typeof design !== "object" || Array.isArray(design) || !Object.keys(design).length) return null;
+  return design;
+}
+
+/** The look id the design was started from, for `welcome.theme` ("custom" when it names none). */
+export function designWelcomeTheme(design: Record<string, any>): string {
+  const id = typeof design?.themeBase?.id === "string" ? design.themeBase.id.trim() : "";
+  return /^[a-z0-9-]{1,40}$/i.test(id) ? id : "custom";
 }
 
 /** The kept file, when the hand-over names one the admin can read back (at least one piece, a whole number of them). */

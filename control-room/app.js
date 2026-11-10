@@ -2636,6 +2636,7 @@ async function loadSetup() {
       figure("Not open yet", counts.notOpenYet, "made, not open to shoppers"),
       figure("Open to shoppers", counts.openToShoppers, "since signing up"),
       counts.inSetup ? figure("Still in setup mode", counts.inSetup, "signed up before stores were made at once") : null,
+      counts.designed ? figure("Designed early", counts.designed, "saved a shop design before the store was made") : null,
       counts.goingSoon ? figure("Removed soon", counts.goingSoon, "not visited in 45 days", "warn") : null,
     );
     const needs = [];
@@ -2654,7 +2655,8 @@ async function loadSetup() {
       columns: [
         { header: "Brand", lead: true, render: (p) => el("div", {}, el("p", { className: "cr-title", textContent: p.pressName || "No name yet" }), meta(p.ownerEmail, p.sells ? `sells ${p.sells.toLowerCase()}` : null, p.country || null)) },
         { header: "Plan", render: (p) => (p.plan ? PLAN_WORDS[p.plan] ?? p.plan : el("span", { className: "rp-hint", textContent: "not picked" })) },
-        { header: "Looks", render: (p) => el("span", { textContent: lookWords(p.look) }) },
+        { header: "Looks", render: (p) => el("div", {}, el("span", { textContent: lookWords(p.look) }),
+          meta(p.design ? `designed their shop${p.design.look ? `, from ${p.design.lookName || lookWords(p.design.look)}` : ""}` : null)) },
         { header: "Cards", render: (p) => (p.plan === "stockroom" ? el("span", { className: "rp-hint", textContent: "no website" })
           : p.cardProvider ? el("span", { textContent: p.cardProvider === "square" ? "Square" : "Stripe" }) : el("span", { className: "rp-hint", textContent: "Stripe (not picked)" })) },
         { header: "Moving in", render: (p) => el("div", {}, el("span", { textContent: MOVING_WORDS[p.moving] ?? "not answered" }),

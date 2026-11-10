@@ -98,6 +98,9 @@ export function setupPress(record, { shop, now, wallUp = null }) {
     country: record.country || "",
     look: record.look || "",
     adminLook: record.adminLook || "",
+    // The shop website designed before the store was made (#510): saved or not, and the ready-made look it started from
+    // (Studio's themeBase, else the look picked in setup). Never the design itself.
+    design: designOf(record),
     moving: record.moving || "",
     language: record.language || "",
     // Stripe or Square for the website's cards ("" = not picked: the shop starts on Stripe).
@@ -137,6 +140,13 @@ function tally(records, field) {
 const ORDER = { stuck: 0, "going-soon": 1 };
 const STAGE_ORDER = { making: 0, "not-open": 1, setup: 2, open: 3, expired: 4 };
 
+function designOf(record) {
+  const design = record.design;
+  if (!design || typeof design !== "object") return null;
+  const base = design.themeBase && typeof design.themeBase === "object" ? design.themeBase : null;
+  return { look: String(base?.id || record.look || ""), lookName: String(base?.name || "") };
+}
+
 /** The page: the counts, the looks presses picked, and every press, the ones needing a look first. */
 export function setupSummary({ records, rows = [], walls = new Map(), now = Date.now() }) {
   const shops = new Map(rows.map((row) => [row.shopId, row]));
@@ -159,6 +169,7 @@ export function setupSummary({ records, rows = [], walls = new Map(), now = Date
     goingSoon: presses.filter((p) => p.flag === "going-soon").length,
     bringingShopOver: inSetup.filter((p) => p.moving === "yes").length,
     withProductFile: inSetup.filter((p) => p.import).length,
+    designed: presses.filter((p) => p.design).length,
   };
   return { counts, looks: { website: tally(records, "look"), admin: tally(records, "adminLook") }, cards: tally(records, "cardProvider"), presses };
 }

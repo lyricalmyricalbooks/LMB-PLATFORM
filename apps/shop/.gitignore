@@ -16,3 +16,4 @@ studio-shots/
 .deploy/
 firebase.deploy.json
 dist-setup/
+dist-design/

@@ -37,12 +37,23 @@ needed a Google organization before any shop could be made ("In the queue") and 
   database). `configForShop` (`functions/shopConfig.js`) joins them with the server's shared settings; `shopConfig` is a
   live view of the current shop's. Services built from them (card payments, email, the settlement code) are made once
   per shop (`perShop`).
+- **The stockroom lives in the same folder.** Its data sits under `shops/<id>/` in each of its stores: the Realtime
+  Database (`shops/<id>/lyrical/…`, with a copy of the record at `shops/<id>/record`), its own Firestore database
+  `stockroom` (`shops/<id>/books/…`, the record copy at `shops/<id>`) and its file bucket (`shops/<id>/receipts/…`).
+  `apps/stockroom/src/lib/shop-profile.js` turns the profile's `shopId` into `SHOP_FOLDER` and `DATA_ROOT`;
+  `src/firebase.js` reads and writes Firestore through `home`, the folder's document, and every file path through
+  `shopFilePath`. Its three rules files (`firestore.rules`, `storage.rules`, `database.rules.json`) sit inside the shop
+  folder, take the owner and the sign-in list from the record and name no one, so one deploy serves every shop
+  (`scripts/deployConfig.mjs` refuses one that names an address). The shop's server reaches the stockroom only inside
+  its shop's folder (`functions/inventoryLinkStore.js` goes through the same wall). The platform writes each record copy
+  when it makes the shop (phase 6); the demo seeds them (`demo/seed.js`).
 - **Backups.** The managed Firestore export would copy every shop, so inside a shop only the server's own document copy
   runs. Its paths carry no shop folder (`books/a`), and `scripts/restore-json-backup.mjs --shop <id>` puts them back
   into that shop's folder only.
 - **Proof.** `apps/shop/scripts/firestore-rules-emulator.mjs` runs every check inside shop `s1` and ends with the walls:
   owners, staff, owner roles, customers and support visits of shop `s2`, and a sign-in with no tenant, are all refused in
-  `s1`, and the other way round. On the server, `functions/shopScope.test.js` runs two shops at once and checks each
+  `s1`, and the other way round. `apps/stockroom/scripts/rules-emulator.mjs` does the same for the stockroom's three
+  stores, plus a shop with an empty sign-in list name, and checks that no record can be read or written from a browser. On the server, `functions/shopScope.test.js` runs two shops at once and checks each
   stays in its folder, `shopEntry.test.js` checks triggers, `?shop=` and the tick, and `sharedLoad.test.js` loads
   index.js with the folders on and checks every trigger listens inside the shop folders. The older handler tests run
   one shop with the folders off (`SHOP_FOLDERS: "off"` in `apps/shop/vite.config.ts`); nothing else turns them off.
@@ -53,8 +64,8 @@ needed a Google organization before any shop could be made ("In the queue") and 
 | --- | --- | --- |
 | 1 | Walls: shop rules and pages in shop folders, two-shop rule checks | built |
 | 2 | Shop server code (Cloud Functions) in shop folders: shop from each request, triggers on `shops/{shopId}/…`, nightly jobs per shop | built |
-| 3 | Stockroom in shop folders (its database, live sync, files) | next |
-| 4 | Per-shop sign-in (Identity Platform tenants) for customers, staff, helpers, support | |
+| 3 | Stockroom in shop folders (its database, live sync, files) | built |
+| 4 | Per-shop sign-in (Identity Platform tenants) for customers, staff, helpers, support | next |
 | 5 | Front door: one site for every address, profile by address, crawlable pages, own domains | |
 | 6 | Shop maker in seconds (record + tenant + starter content); ends "In the queue" | |
 | 7 | Platform services: control room, health, per-shop costs, export, closing, backups, staged updates | |
@@ -63,7 +74,9 @@ needed a Google organization before any shop could be made ("In the queue") and 
 Left for later phases: the platform's services still call each shop's server code at its own project's address
 (`services/payments` forwarding events, `services/health`), which phase 7 moves to the shared server with `?shop=`. A
 Shippo or PayPal webhook set up by hand needs `?shop=<id>` on its address. The tick runs every shop in one five-minute
-run; phase 7 spreads it out once there are many shops. Nothing is deployed from these copies to a live shop until
+run; phase 7 spreads it out once there are many shops. The platform's writers into a shop (billing's `platform/plan`
+and `platform/status`, control-room messages, the closing sweep, setup's stockroom books) still address each shop's own
+project; phases 6 and 7 point them at the shop's folder in the shared project. Nothing is deployed from these copies to a live shop until
 phase 8 (the per-project test shop build is on hold).
 
 ## Projects

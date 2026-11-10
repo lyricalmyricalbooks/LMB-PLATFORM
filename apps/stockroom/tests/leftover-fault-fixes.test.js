@@ -56,7 +56,7 @@ describe('leftover fault fixes', () => {
   it('deleting a Firestore book lists its submissions from Firestore, not the Realtime Database', () => {
     const start = firebaseJs.indexOf('if (window._useFirestoreForBook(bookId)) {\n      // Atomic');
     const block = firebaseJs.slice(start, firebaseJs.indexOf('// Always wipe RTDB copies'));
-    expect(block).toMatch(/getDocs\(collection\(fs, 'submissions', bookId, type\)\)/);
+    expect(block).toMatch(/getDocs\(collection\(home, 'submissions', bookId, type\)\)/);
     expect(block).not.toMatch(/get\(ref\(db/);
   });
 

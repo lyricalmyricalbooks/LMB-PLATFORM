@@ -5,6 +5,8 @@
 //   /join/       the front door: email, code, three questions
 //   /signup/ /account/ /help/ /terms/ /trust/ /status/ /control/
 //   /app/        setup mode, the shop admin before a shop exists (apps/shop, `pnpm run build:setup`), when it is built
+//   /design/     the designer before a store exists (apps/shop vite.design.config.ts, built by the same command):
+//                /design/studio is Studio, every other /design/ address the shop's pages it previews
 //   /api/**      the platform's server (Cloud Run platform-api), only with --api
 //
 // Only what a page actually loads is copied: each page's index.html (or other .html) and every file it reaches through
@@ -23,6 +25,8 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 /** Where setup mode's build lands (apps/shop/vite.setup.config.ts). */
 export const SETUP_ADMIN_FOLDER = "apps/shop/dist-setup";
+/** Where the designer before a store exists lands (apps/shop/vite.design.config.ts). */
+export const DESIGNER_FOLDER = "apps/shop/dist-design";
 export const REGION = "northamerica-northeast1";
 export const API_SERVICE = "platform-api";
 
@@ -55,6 +59,25 @@ export const HEADERS = Object.freeze([
   { key: "Content-Security-Policy", value: "object-src 'none'; base-uri 'self'; frame-ancestors 'none'" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), usb=()" },
 ]);
+
+/**
+ * The designer's pages (/design/) show the shop's pages inside a frame on the same site, so they may be framed by the
+ * platform's own pages and nobody else's. Every other header is the same as everywhere.
+ */
+export const DESIGNER_HEADERS = Object.freeze(HEADERS.map((h) => (
+  h.key === "X-Frame-Options" ? { ...h, value: "SAMEORIGIN" }
+    : h.key === "Content-Security-Policy" ? { ...h, value: h.value.replace("frame-ancestors 'none'", "frame-ancestors 'self'") } : h)));
+
+/**
+ * A Hosting regex (RE2: no look-ahead) matching every address outside /<folder>/ and /<folder> itself: the root, a
+ * proper start of the name, a path that leaves the name at some letter, or a longer first segment (/designs).
+ */
+export function outsideFolder(folder) {
+  const alternatives = [`/(${[...folder].map((_, i) => folder.slice(0, i)).join("|")})`];
+  for (let i = 0; i < folder.length; i++) alternatives.push(`/${folder.slice(0, i)}[^${folder[i]}].*`);
+  alternatives.push(`/${folder}[^/].*`);
+  return `^(${alternatives.join("|")})$`;
+}
 
 /** Relative references a file makes: html src/href, js import/export from, import(), css url(). */
 export function referencesIn(text, kind) {
@@ -129,12 +152,13 @@ export function liveConfig(file, text, { api, app }) {
 }
 
 /** firebase.json for the built site. The /api addresses go to the server only when it is live (`api`). */
-export function firebaseJson({ api, app }) {
+export function firebaseJson({ api, app, designer = false }) {
   const run = (source) => ({ source, run: { serviceId: API_SERVICE, region: REGION } });
   const rewrites = [
     ...(api ? ["/api/**", "/tips/off", "/checkup/off"].map(run) : []),
     ...Object.entries(EXTRA_PAGES).map(([source, destination]) => ({ source, destination })),
     ...(app ? [{ source: "/app/**", destination: "/app/setup.html" }] : []),
+    ...(designer ? [{ source: "/design/studio", destination: "/design/design.html" }, { source: "/design/**", destination: "/design/design-shop.html" }] : []),
   ];
   return {
     firestore: { rules: "firestore.rules" },
@@ -143,13 +167,16 @@ export function firebaseJson({ api, app }) {
       ignore: ["**/.*", "**/node_modules/**"],
       rewrites,
       headers: [
-        { source: "**", headers: HEADERS },
+        // Everything but the designer can never be framed; the designer frames its own shop pages (DESIGNER_HEADERS).
+        designer ? { regex: outsideFolder("design"), headers: HEADERS } : { source: "**", headers: HEADERS },
+        ...(designer ? [{ regex: "^/design(/.*)?$", headers: DESIGNER_HEADERS }] : []),
         // Pages and their scripts change with every release: always check for a new copy. Setup mode's built files carry
         // their own content hash, so they can be kept.
         { source: "**/*.@(html|js|css)", headers: [{ key: "Cache-Control", value: "no-cache" }] },
         // Pictures and fonts change rarely: browsers keep them a day, which saves the site's download bill.
         { source: "**/*.@(svg|png|ico|webp|jpg|jpeg|gif|woff|woff2)", headers: [{ key: "Cache-Control", value: "public, max-age=86400" }] },
         ...(app ? [{ source: "/app/assets/**", headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }] }] : []),
+        ...(designer ? [{ source: "/design/assets/**", headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }] }] : []),
       ],
     },
   };
@@ -160,6 +187,9 @@ export function buildSite({ root = ROOT, out = join(ROOT, "site", "out"), api = 
   const appDir = join(root, SETUP_ADMIN_FOLDER);
   const app = existsSync(join(appDir, "setup.html"));
   if (requireApp && !app) throw new Error("Setup mode isn't built: run `pnpm install && pnpm run build:setup` in apps/shop first");
+  const designerDir = join(root, DESIGNER_FOLDER);
+  const designer = existsSync(join(designerDir, "design.html"));
+  if (requireApp && !designer) throw new Error("The designer isn't built: run `pnpm install && pnpm run build:setup` in apps/shop first");
   rmSync(out, { recursive: true, force: true });
   const publicDir = join(out, "public");
   mkdirSync(publicDir, { recursive: true });
@@ -180,9 +210,13 @@ export function buildSite({ root = ROOT, out = join(ROOT, "site", "out"), api = 
     cpSync(appDir, join(publicDir, "app"), { recursive: true });
     for (const path of listFiles(appDir)) files.push(`/app/${relative(appDir, path).split(sep).join("/")}`);
   }
-  writeFileSync(join(out, "firebase.json"), `${JSON.stringify(firebaseJson({ api, app }), null, 2)}\n`);
+  if (designer) {
+    cpSync(designerDir, join(publicDir, "design"), { recursive: true });
+    for (const path of listFiles(designerDir)) files.push(`/design/${relative(designerDir, path).split(sep).join("/")}`);
+  }
+  writeFileSync(join(out, "firebase.json"), `${JSON.stringify(firebaseJson({ api, app, designer }), null, 2)}\n`);
   cpSync(join(root, "waitlist", "firestore.rules"), join(out, "firestore.rules"));
-  return { files: files.sort(), api, app };
+  return { files: files.sort(), api, app, designer };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

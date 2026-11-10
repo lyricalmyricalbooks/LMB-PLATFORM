@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MOUNTS } from "../walkthrough/server.js";
-import { buildSite, firebaseJson, liveConfig, neededFiles, referencesIn, SITE_MOUNTS } from "./build.js";
+import { buildSite, firebaseJson, liveConfig, neededFiles, outsideFolder, referencesIn, SITE_MOUNTS } from "./build.js";
 
 test("the live site publishes every page the walkthrough has, at the same address", () => {
   for (const [address, folder] of Object.entries(MOUNTS)) {
@@ -47,6 +47,26 @@ test("the server's addresses are sent to it only once it is live", () => {
   assert.equal(on.hosting.rewrites.find((r) => r.source === "/app/**").destination, "/app/setup.html");
   assert.equal(on.firestore.rules, "firestore.rules");
   assert.ok(on.hosting.headers[0].headers.some((h) => h.key === "X-Frame-Options" && h.value === "DENY"));
+});
+
+test("the designer before a store exists: Studio at /design/studio, its shop pages framed only by the platform itself", () => {
+  const json = firebaseJson({ api: false, app: true, designer: true });
+  const rewrite = (source) => json.hosting.rewrites.find((r) => r.source === source)?.destination;
+  assert.equal(rewrite("/design/studio"), "/design/design.html");
+  assert.equal(rewrite("/design/**"), "/design/design-shop.html");
+  assert.ok(json.hosting.rewrites.findIndex((r) => r.source === "/design/studio") < json.hosting.rewrites.findIndex((r) => r.source === "/design/**"));
+  const [everywhere, designer] = json.hosting.headers;
+  const value = (set, key) => set.headers.find((h) => h.key === key)?.value;
+  assert.equal(value(everywhere, "X-Frame-Options"), "DENY");
+  assert.equal(value(designer, "X-Frame-Options"), "SAMEORIGIN");
+  assert.match(value(designer, "Content-Security-Policy"), /frame-ancestors 'self'/);
+  // Every other address keeps "never framed": the two regexes split the site with no gap and no overlap.
+  const outside = new RegExp(everywhere.regex), inside = new RegExp(designer.regex);
+  for (const path of ["/", "/join/", "/d", "/d/x", "/desig/", "/designs", "/app/", "/control/", "/dx"]) assert.ok(outside.test(path) && !inside.test(path), path);
+  for (const path of ["/design", "/design/", "/design/studio", "/design/books/salt-hours"]) assert.ok(inside.test(path) && !outside.test(path), path);
+  assert.equal(everywhere.regex, outsideFolder("design"));
+  // Without a built designer nothing changes.
+  assert.deepEqual(firebaseJson({ api: false, app: true }).hosting.headers[0].source, "**");
 });
 
 test("a build writes the pages, firebase.json and the platform's rules", () => {

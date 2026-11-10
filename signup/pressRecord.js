@@ -20,7 +20,12 @@ export const PRESS_STATUSES = Object.freeze(["setup", "opening", "open", "expire
 // itself is saved through frontDoor.js saveDomain, which looks up where it was bought), "buy" (gone to buy one),
 // "free" (the free address for now) or "" (not answered). `freeName` is the name the press picked for its free address
 // (moth-press in moth-press.<shop domain>), cleaned and checked; "" means its press name.
-export const SETUP_FIELDS = Object.freeze(["plan", "pressName", "sells", "country", "look", "adminLook", "moving", "language", "cardProvider", "domainChoice", "freeName", "sellingToday"]);
+// `design` is the shop website the press designed before its store was made (the designer at /design/studio, 10 November
+// 2026): Studio's whole design, kept as it is and handed to the new shop (setup/handover.js), whose admin puts it on. null
+// clears it. Only its size and shape are checked here: the shop's own designer owns what a design may hold.
+export const SETUP_FIELDS = Object.freeze(["plan", "pressName", "sells", "country", "look", "adminLook", "moving", "language", "cardProvider", "domainChoice", "freeName", "sellingToday", "design"]);
+/** The largest design kept, as JSON in UTF-8 bytes: well under a document's 1 MiB with the rest of the record. */
+export const MAX_DESIGN_BYTES = 400_000;
 const TEXT_LIMITS = Object.freeze({ plan: 9, pressName: 120, sells: 300, country: 2, look: 40, adminLook: 40, moving: 5, language: 2, cardProvider: 6, domainChoice: 4, freeName: 60, sellingToday: 20 });
 export const DOMAIN_CHOICES = Object.freeze(["", "own", "buy", "free"]);
 export const MOVING_CHOICES = Object.freeze(["", "yes", "fresh"]);
@@ -50,7 +55,7 @@ export function newPressRecord({ pressId, ownerUid, email, now }) {
   if (!ownerUid || !email) throw new Error("A press needs an owner.");
   const at = now.toISOString();
   return { pressId, ownerUid, ownerEmail: email.toLowerCase(), status: "setup", plan: "", pressName: "", sells: "", country: "",
-    look: "", adminLook: "", moving: "", language: "", cardProvider: "", domainChoice: "", freeName: "", sellingToday: "", domain: "", domainSeller: "", domainEasy: false, stagedImportPath: "", stagedImport: null, pendingImportPath: "", shopId: "", shopStatus: "", shopMessage: "", openingSince: "", createdAt: at, lastSeenAt: at };
+    look: "", adminLook: "", design: null, moving: "", language: "", cardProvider: "", domainChoice: "", freeName: "", sellingToday: "", domain: "", domainSeller: "", domainEasy: false, stagedImportPath: "", stagedImport: null, pendingImportPath: "", shopId: "", shopStatus: "", shopMessage: "", openingSince: "", createdAt: at, lastSeenAt: at };
 }
 
 // Checks a change a press makes through the platform's door. Returns the fields to write, or a plain-words refusal.
@@ -59,6 +64,12 @@ export function setupChange(current, change) {
   const fields = {};
   for (const [key, value] of Object.entries(change ?? {})) {
     if (!SETUP_FIELDS.includes(key)) return { ok: false, message: `"${key}" can't be set here.` };
+    if (key === "design") {
+      const problem = designProblem(value);
+      if (problem) return { ok: false, message: problem };
+      fields.design = value;
+      continue;
+    }
     if (key in TEXT_LIMITS) {
       if (typeof value !== "string" || value.length > TEXT_LIMITS[key]) {
         return { ok: false, message: `${key} is too long. Keep it under ${TEXT_LIMITS[key]} characters.` };
@@ -93,6 +104,16 @@ export function setupChange(current, change) {
     fields[key] = text;
   }
   return { ok: true, fields };
+}
+
+/** Why a design can't be kept (plain words), or "" when it can: null, or a plain object of a size that fits. */
+export function designProblem(value) {
+  if (value === null) return "";
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "That design couldn't be read. Try saving it again.";
+  let text;
+  try { text = JSON.stringify(value); } catch { return "That design couldn't be read. Try saving it again."; }
+  if (Buffer.byteLength(text, "utf8") > MAX_DESIGN_BYTES) return "Your design is too large to keep. Remove a few sections or pictures, then save again.";
+  return "";
 }
 
 // The only status changes: the platform's own launch steps call this, never the press.
