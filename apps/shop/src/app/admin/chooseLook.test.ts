@@ -91,22 +91,24 @@ describe("browsing the looks (theme store)", () => {
     expect(pictureRatio("tall")).toBe(0.75);
     expect(pictureRatio(undefined)).toBe(0.75);
   });
-  it("tells light from dark and finds the full templates", async () => {
-    const { filterLooks, isTemplate, lightness, LOOK_FILTERS } = await import("./lookGallery");
+  it("tells light from dark and sorts every look into one feel", async () => {
+    const { filterLooks, lightness, lookFeel, LOOK_FILTERS } = await import("./lookGallery");
     expect(lightness("#000")).toBe(0);
     expect(lightness("#ffffff")).toBe(1);
     expect(lightness("rgb(0,0,0)")).toBeNull();
     const all = THEME_LIBRARY as any[];
-    const templates = filterLooks(all, "templates").map(t => t.id);
-    for (const id of ["press-marquee", "press-shelf", "press-atlas", "press-mosaic", "press-market", "press-rows", "press-arch"]) expect(templates).toContain(id);
-    expect(templates).not.toContain("press-zine");
-    expect(isTemplate(all.find(t => t.id === "press-zine"))).toBe(false);
-    const dark = filterLooks(all, "dark").map(t => t.id);
-    expect(dark).toContain("night-neon");
-    expect(dark).not.toContain("press-shelf");
-    expect(filterLooks(all, "light").length + dark.length).toBe(all.length);
+    const ids = (f: any) => filterLooks(all, f).map(t => t.id);
+    expect(ids("dark")).toEqual(expect.arrayContaining(["night-neon", "press-lantern", "press-console", "press-reel"]));
+    expect(ids("dark")).not.toContain("press-shelf");
+    expect(ids("bold")).toEqual(expect.arrayContaining(["press-gutter", "press-cutout", "press-market"]));
+    expect(ids("warm")).toEqual(expect.arrayContaining(["press-kiln", "press-picnic", "press-shelf"]));
+    expect(ids("quiet")).toEqual(expect.arrayContaining(["press-folio", "press-almanac", "press-signal"]));
+    // The four feels share the library out with nothing left over and nothing twice.
+    const feels = ["quiet", "bold", "warm", "dark"] as const;
+    expect(feels.reduce((n, f) => n + ids(f).length, 0)).toBe(all.length);
+    for (const t of all) expect(feels).toContain(lookFeel(t));
     expect(filterLooks(all, "all")).toHaveLength(all.length);
-    expect(LOOK_FILTERS.map(f => f.id)).toEqual(["all", "templates", "light", "dark"]);
+    expect(LOOK_FILTERS.map(f => f.id)).toEqual(["all", "quiet", "bold", "warm", "dark"]);
   });
   it("every look gives the try-on what it draws", () => {
     for (const theme of THEME_LIBRARY as any[]) {

@@ -35,8 +35,8 @@ describe("Choose your look as a theme store", () => {
     expect(document.querySelectorAll("ul[aria-label='Every look'] > li")).toHaveLength(others.length);
     expect(document.querySelectorAll("[data-look-stage]").length).toBeGreaterThanOrEqual(suggested.length + others.length);
     expect(document.body.innerHTML).toContain("Moth Press in this look, desktop width");
-    await click(document.getElementById("rp-tab-looks-templates") as HTMLElement);
-    expect(document.querySelectorAll("ul[aria-label='Every look'] > li")).toHaveLength(filterLooks(others, "templates").length);
+    await click(document.getElementById("rp-tab-looks-bold") as HTMLElement);
+    expect(document.querySelectorAll("ul[aria-label='Every look'] > li")).toHaveLength(filterLooks(others, "bold").length);
     await click(document.getElementById("rp-tab-looks-dark") as HTMLElement);
     expect(document.querySelectorAll("ul[aria-label='Every look'] > li")).toHaveLength(filterLooks(others, "dark").length);
   });

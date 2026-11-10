@@ -11,6 +11,7 @@
 //   arch:    arch-topped photos, centred serif titles, thin pill buttons and a footer that rises in an arch.
 //   market:  tilted sticker cards with hard shadows, black price tags and chunky buttons that press down.
 //   index:   the catalogue as ruled rows: a small cover, a bold title and the price at the right edge.
+//   folio, lantern, gutter, signal, kiln, almanac, console, picnic, cutout, reel: ten looks added 10 November 2026 (lookCss).
 //
 // Designer coverage (4 November 2026): everything a template draws must stay editable in Studio. A template never
 // writes a value a press could want to change as a literal: colours and fonts come from the theme tokens
@@ -35,6 +36,16 @@ export const TEMPLATE_STYLES = [
   { id: "arch", label: "Arch (arched photos, thin pill buttons)" },
   { id: "market", label: "Market stall (tilted sticker cards, hard shadows)" },
   { id: "index", label: "Index (the catalogue as ruled rows)" },
+  { id: "folio", label: "Folio (split hero, offset covers)" },
+  { id: "lantern", label: "Lantern (dark, warm glow, pill buttons)" },
+  { id: "gutter", label: "Gutter (comic panels, hard shadows)" },
+  { id: "signal", label: "Signal (numbered rows, huge type)" },
+  { id: "kiln", label: "Kiln (round covers, pill buttons)" },
+  { id: "almanac", label: "Almanac (boxed contents list)" },
+  { id: "console", label: "Console (terminal, bracket buttons)" },
+  { id: "picnic", label: "Picnic (bubbly, rounded cards)" },
+  { id: "cutout", label: "Cutout (paper collage, tilted blocks)" },
+  { id: "reel", label: "Reel (cinematic, condensed titles)" },
 ] as const;
 export const TEMPLATE_STYLE_IDS = TEMPLATE_STYLES.map((t) => t.id);
 export type TemplateStyleId = (typeof TEMPLATE_STYLES)[number]["id"];
@@ -409,9 +420,158 @@ ${S} .fm-footer-heading{font-weight:700;letter-spacing:.1em;font-size:.72rem;}
 ${S} .fm-announce{text-transform:uppercase;letter-spacing:.08em;}
 `;
 
+
+/**
+ * The ten looks added on 10 November 2026 (Folio, Lantern, Gutter, Signal, Kiln, Almanac, Console, Picnic, Cutout,
+ * Reel). They share one builder so every shape a Studio control owns reads its knob the same way; each look passes only
+ * its own defaults. `rows` turns the shop's product list into numbered ruled rows (Signal, Almanac).
+ */
+type LookDefaults = {
+  hLine?: string; hSpace?: string; hWeight?: string; hCase?: string;
+  navRule?: string; navLine?: string;
+  photoRadius?: string; frameW?: string; frameLine?: string; photoShadow?: string; hoverPhoto?: string;
+  cardBox?: string; cardPad?: string; cardRadius?: string; cardShadow?: string; cardBorder?: string; cardHover?: string; tilt?: string;
+  titleCase?: string; titleCss?: string; priceCss?: string; centred?: boolean;
+  btnRadius: string; btnCase: string; btnCss?: string; btnW?: string; btnLine?: string; btnShadow?: "hard" | "drop" | "none"; btnX?: string; btnY?: string; btnShadowColour?: string; btnHover?: string;
+  glassRadius?: string; glassW?: string; glassLine?: string; glassShadow?: string; glassBg?: string;
+  corner: string; inputRadius?: string;
+  footRule?: string; footLine?: string; footCurve?: string;
+  rows?: { columns: string; gap?: string; hover?: string; line?: string };
+  extra?: string;
+};
+const lookCss = (o: LookDefaults) => {
+  const hair = "rgba(var(--fg-rgb),.2)";
+  const line = o.navLine ?? hair, rule = o.navRule ?? "1px";
+  const sh = v("shadow", o.btnShadowColour ?? "rgb(var(--fg-rgb))");
+  const x = v("shadow-x", o.btnX ?? "4px"), y = v("shadow-x", o.btnY ?? o.btnX ?? "4px");
+  const shadow = o.btnShadow === "hard" ? BTN_SHADOW(x, y, sh) : o.btnShadow === "drop" ? BTN_SHADOW("0px", y, sh) : NO_BTN_SHADOW(sh);
+  const press = o.btnShadow === "hard" ? `${BTN_HOVER}{translate:2px 2px;--template-btn-shadow:${BTN_SHADOW(`calc(${x} / 2)`, `calc(${y} / 2)`, sh)};box-shadow:var(--template-btn-shadow);}
+${BTN_ACTIVE}{translate:4px 4px;--template-btn-shadow:${BTN_SHADOW("0px", "0px", sh)};box-shadow:var(--template-btn-shadow);}`
+    : o.btnShadow === "drop" ? `${BTN_HOVER}{translate:0 2px;--template-btn-shadow:${BTN_SHADOW("0px", `calc(${y} - 2px)`, sh)};box-shadow:var(--template-btn-shadow);}
+${BTN_ACTIVE}{translate:0 ${y};--template-btn-shadow:${BTN_SHADOW("0px", "0px", sh)};box-shadow:var(--template-btn-shadow);}`
+    : `${BTN_HOVER}{translate:0 -1px;}`;
+  const R = o.rows;
+  const grid = '[data-studio-label="Product grid"]';
+  return `
+${S} h1,${S} h2,${S} h3{text-transform:${v("heading-case", o.hCase ?? "none")};line-height:${o.hLine ?? "1.02"};letter-spacing:${o.hSpace ?? "-.01em"};font-weight:var(--rp-heading-weight,${o.hWeight ?? "600"});}
+${S} header[data-section="navigation"] [class*="opacity-"],${S} a[class*="hover:!opacity-100"]{opacity:1 !important;}
+${S} [data-store-region^="catalog"] :is(button,select),${S} button[data-store-region^="catalog"],${S} select[data-store-region^="catalog"]{color:rgba(var(--fg-rgb),.86);}
+${S} header[data-section="navigation"]{background-color:var(--bg-color);border-bottom:${v("rule-w", rule)} solid ${line};}
+${S} .fm-ref-catbar{text-transform:uppercase;letter-spacing:.1em;font-size:.74rem;font-weight:600;}
+${S} .fm-ref-catbar a[aria-current]{box-shadow:inset 0 calc(-2 * ${v("rule-w", "1px")}) 0 var(--accent);padding-bottom:3px;}
+${S} .fm-card{${o.cardBox ? `background:${o.cardBox};` : ""}border:${o.cardBorder ?? "0"};border-radius:${v("corner", o.cardRadius ?? "0px")};${o.cardShadow ? `box-shadow:${o.cardShadow};` : ""}${o.cardPad ? `padding:${o.cardPad};` : ""}${o.centred ? "text-align:center;" : ""}${o.tilt ? `rotate:calc(${v("tilt", o.tilt)} * -1);` : ""}transition:translate .2s ease,rotate .15s ease,box-shadow .2s ease;}
+${o.tilt ? `${S} .fm-card:nth-child(even){rotate:calc(${v("tilt", o.tilt)} * 5 / 6);}` : ""}
+${S} .fm-card:hover{${o.tilt ? "rotate:0deg;" : ""}${o.cardHover ?? "translate:0 -4px;"}}
+${S} .fm-card .fm-photo-frame{border:${v("frame-w", o.frameW ?? "0px")} solid ${o.frameLine ?? v("outline", hair)};border-radius:${v("photo-radius", o.photoRadius ?? "0px")} !important;${o.photoShadow ? `box-shadow:${o.photoShadow};` : "box-shadow:none;"}transition:scale .3s ease,translate .25s ease;}
+${o.hoverPhoto ? `${S} .fm-card:hover .fm-photo-frame{${o.hoverPhoto}}` : ""}
+${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3{top:.5rem;left:.5rem;}
+${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3 > span{border-radius:${v("corner", "999px")} !important;border:0 !important;padding:.18rem .6rem;font-size:.62rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;}
+${S} .fm-card-title{font-family:var(--heading-font);font-size:1.05rem;line-height:1.15;text-transform:${v("title-case", o.titleCase ?? "none")} !important;${o.titleCss ?? ""}}
+${S} .fm-card-price-tag{border:0 !important;padding:0 !important;font-size:.85rem;font-variant-numeric:tabular-nums;${o.priceCss ?? ""}}
+${BTN}{--template-btn-border:${v("outline-w", o.btnW ?? "1px")} solid ${v("outline", o.btnLine ?? "transparent")};border:var(--template-btn-border);border-radius:${v("btn-radius", o.btnRadius)} !important;text-transform:${v("btn-case", o.btnCase)};font-weight:700;letter-spacing:.06em;${o.btnCss ?? ""}--template-btn-shadow:${shadow};box-shadow:var(--template-btn-shadow);transition:translate .12s ease,box-shadow .12s ease,background-color .15s ease;}
+${press}
+${S} input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file]),${S} select{border-radius:${v("btn-radius", o.inputRadius ?? o.btnRadius)} !important;}
+${S} textarea{border-radius:min(${v("btn-radius", o.inputRadius ?? o.btnRadius)}, 20px) !important;}
+${S} [class*="rounded-"]:not([class*="rounded-full"]):not([style*="border-radius"]){border-radius:${v("corner", o.corner)} !important;}
+${S} :is(button,a).rounded-full:not([style*="border-radius"]){border-radius:${v("btn-radius", o.btnRadius)} !important;}
+${S} .glass-card{backdrop-filter:none;border:${v("outline-w", o.glassW ?? "1px")} solid ${v("outline", o.glassLine ?? hair)};border-radius:${v("corner", o.glassRadius ?? o.corner)};background:${o.glassBg ?? "var(--surface)"};${o.glassShadow ? `box-shadow:${o.glassShadow};` : ""}}
+${S} [data-store-region="newsletterPanel"]{border-top:${v("rule-w", o.footRule ?? rule)} solid ${o.footLine ?? line};}
+${S} footer[data-fm-footer]{border-top:${v("rule-w", o.footRule ?? "0px")} solid ${o.footLine ?? line};border-radius:${v("footer-curve", o.footCurve ?? "0px")} ${v("footer-curve", o.footCurve ?? "0px")} 0 0;}
+${S} .fm-footer-brand span{font-family:var(--heading-font);font-weight:var(--rp-heading-weight,${o.hWeight ?? "600"});}
+${S} .fm-footer-heading{font-weight:700;letter-spacing:.12em;font-size:.72rem;}
+${S} .fm-announce{text-transform:uppercase;letter-spacing:.08em;}
+${R ? `${S} ${grid}{counter-reset:row;display:block !important;border-top:${v("rule-w", "2px")} solid ${v("outline", "rgb(var(--fg-rgb))")};}
+${S} ${grid} > .fm-card{counter-increment:row;display:grid;grid-template-columns:${R.columns};gap:${R.gap ?? "1rem"};align-items:center;border:0;border-bottom:calc(${v("rule-w", "2px")} / 2) ${R.line ?? "solid"} ${v("outline", "rgb(var(--fg-rgb))")};padding:.7rem .25rem;background:transparent;}
+${S} ${grid} > .fm-card::before{content:counter(row, decimal-leading-zero);font-family:var(--heading-font);font-size:.85rem;font-variant-numeric:tabular-nums;color:var(--accent);}
+${S} ${grid} > .fm-card:hover{background:${R.hover ?? "var(--surface)"};translate:0 0;}
+${S} ${grid} > .fm-card > a{display:grid;grid-template-columns:3.6rem minmax(0,1fr);gap:1rem;align-items:center;}
+${S} ${grid} > .fm-card .fm-photo-frame{width:3.6rem;margin:0 !important;}
+${S} ${grid} > .fm-card .fm-photo-frame > div.absolute{display:none;}
+${S} ${grid} > .fm-card [data-studio-label="Card title & price"]{border-top:0 !important;padding:0;}
+${S} ${grid} > .fm-card .fm-card-meta{align-items:center;}` : ""}
+${o.extra ?? ""}
+@media (prefers-reduced-motion:reduce){${S} .fm-card,${S} .fm-card:hover,${S} .fm-card .fm-photo-frame{rotate:0deg;translate:0 0;scale:1;}}
+`;
+};
+const HAIR_N = "rgba(var(--fg-rgb),.2)";
+const K = (n: string, f: string) => v(n, f);
+const SOFT = `0 ${K("shadow-x", "14px")} 24px -16px rgba(var(--fg-rgb),.55)`;
+export const FOLIO_CSS = lookCss({
+  hLine: "1.0", hWeight: "500", cardPad: "0", photoRadius: "0px",
+  photoShadow: `${K("shadow-x", "8px")} ${K("shadow-x", "8px")} 0 ${K("shadow", "rgba(var(--fg-rgb),.15)")}`,
+  titleCss: "font-weight:500;font-size:1.2rem;letter-spacing:0;", btnRadius: "0px", btnCase: "uppercase", btnCss: "letter-spacing:.14em;font-size:.78rem;", corner: "0px",
+  footLine: HAIR_N,
+});
+export const LANTERN_CSS = lookCss({
+  hWeight: "400", hLine: "1.05", hSpace: "0",
+  cardBox: "var(--surface)", cardPad: ".7rem", cardRadius: "18px", cardBorder: `${K("outline-w", "1px")} solid ${K("outline", HAIR_N)}`, cardShadow: SOFT,
+  photoRadius: "12px", titleCss: "font-weight:400;font-size:1.1rem;letter-spacing:0;",
+  btnRadius: "999px", btnCase: "none", btnCss: "letter-spacing:.02em;", corner: "18px", glassRadius: "18px", footLine: HAIR_N,
+});
+export const GUTTER_CSS = lookCss({
+  hWeight: "400", hCase: "uppercase", hLine: ".95", hSpace: "-.005em",
+  navRule: "4px", navLine: K("outline", "rgb(var(--fg-rgb))"),
+  cardBox: "var(--surface)", cardPad: ".6rem", cardRadius: "0px", cardBorder: `${K("outline-w", "4px")} solid ${K("outline", "rgb(var(--fg-rgb))")}`,
+  cardShadow: `${K("shadow-x", "5px")} ${K("shadow-x", "5px")} 0 ${K("shadow", "rgb(var(--fg-rgb))")}`,
+  cardHover: `translate:-2px -3px;box-shadow:calc(${K("shadow-x", "5px")} + 3px) calc(${K("shadow-x", "5px")} + 3px) 0 ${K("shadow", "rgb(var(--fg-rgb))")};`,
+  frameW: "3px", frameLine: K("outline", "rgb(var(--fg-rgb))"),
+  titleCase: "uppercase", titleCss: "font-weight:400;font-size:1rem;line-height:1;",
+  priceCss: "background:rgb(var(--fg-rgb));color:var(--bg-color);padding:.12rem .5rem !important;font-weight:800;display:inline-block;",
+  btnRadius: "0px", btnCase: "uppercase", btnW: "3px", btnLine: K("outline", "rgb(var(--fg-rgb))"), btnShadow: "hard", btnX: "5px", btnCss: "font-weight:800;letter-spacing:.04em;",
+  corner: "0px", glassW: "4px", glassLine: K("outline", "rgb(var(--fg-rgb))"), glassShadow: `${K("shadow-x", "5px")} ${K("shadow-x", "5px")} 0 ${K("shadow", "rgb(var(--fg-rgb))")}`,
+  footRule: "4px", footLine: K("outline", "rgb(var(--fg-rgb))"),
+});
+export const SIGNAL_CSS = lookCss({
+  hWeight: "700", hLine: ".95", hSpace: "-.03em", navRule: "2px", navLine: K("outline", "rgb(var(--fg-rgb))"),
+  titleCss: "font-size:1.3rem !important;font-weight:700;letter-spacing:-.02em;", priceCss: "font-weight:700;",
+  btnRadius: "0px", btnCase: "uppercase", btnCss: "letter-spacing:.08em;", corner: "0px", footRule: "2px", footLine: K("outline", "rgb(var(--fg-rgb))"),
+  rows: { columns: "2.6rem minmax(0,1fr)", hover: "rgba(var(--fg-rgb),.05)" },
+});
+export const KILN_CSS = lookCss({
+  hWeight: "800", hLine: "1", hSpace: "-.02em", centred: true,
+  photoRadius: "50%", photoShadow: `${K("shadow-x", "0px")} ${K("shadow-x", "0px")} 0 ${K("shadow", "rgba(var(--fg-rgb),.12)")}`,
+  titleCss: "font-weight:800;font-size:1.05rem;", btnRadius: "999px", btnCase: "none", btnCss: "letter-spacing:.02em;", corner: "20px", glassRadius: "24px",
+  footLine: HAIR_N, footCurve: "0px",
+});
+export const ALMANAC_CSS = lookCss({
+  hWeight: "600", hLine: "1.1", hSpace: "0", navRule: "2px", navLine: K("outline", "rgb(var(--fg-rgb))"),
+  titleCss: "font-size:1.05rem;font-weight:700;", priceCss: "font-family:var(--heading-font);font-weight:600;",
+  btnRadius: "0px", btnCase: "uppercase", btnW: "2px", btnLine: K("outline", "rgb(var(--fg-rgb))"), btnCss: "font-family:var(--heading-font);letter-spacing:.1em;font-size:.74rem;",
+  corner: "0px", glassW: "2px", glassLine: K("outline", "rgb(var(--fg-rgb))"), footRule: "2px", footLine: K("outline", "rgb(var(--fg-rgb))"),
+  rows: { columns: "2.4rem minmax(0,1fr)", line: "dotted", hover: "var(--surface)" },
+});
+export const CONSOLE_CSS = lookCss({
+  hWeight: "700", hLine: "1.15", hSpace: "0", navLine: HAIR_N,
+  cardBorder: `${K("outline-w", "1px")} solid ${K("outline", HAIR_N)}`, cardPad: ".6rem", cardBox: "var(--surface)", cardHover: "translate:0 0;",
+  titleCss: "font-size:.95rem;font-weight:700;", btnRadius: "0px", btnCase: "none", btnW: "1px", btnLine: K("outline", "var(--accent)"), btnCss: "letter-spacing:0;font-weight:400;",
+  corner: "0px", footLine: HAIR_N,
+});
+export const PICNIC_CSS = lookCss({
+  hWeight: "600", hLine: "1.05", hSpace: "0", centred: true,
+  cardBox: "var(--surface)", cardPad: ".8rem", cardRadius: "24px", cardBorder: `${K("outline-w", "0px")} solid ${K("outline", HAIR_N)}`, cardShadow: SOFT,
+  photoRadius: "18px", titleCss: "font-weight:700;font-size:1.05rem;", btnRadius: "999px", btnCase: "none", btnShadow: "drop", btnY: "5px",
+  btnShadowColour: "rgba(var(--fg-rgb),.25)", btnCss: "font-weight:800;letter-spacing:.01em;", corner: "24px", glassRadius: "24px", footLine: HAIR_N, footCurve: "32px",
+});
+export const CUTOUT_CSS = lookCss({
+  hWeight: "400", hCase: "uppercase", hLine: ".92", hSpace: "-.01em",
+  navRule: "3px", navLine: K("outline", "rgb(var(--fg-rgb))"), tilt: "1.5deg",
+  cardPad: ".4rem", photoRadius: "0px", photoShadow: `0 ${K("shadow-x", "6px")} ${K("shadow-x", "6px")} -2px ${K("shadow", "rgba(var(--fg-rgb),.3)")}`,
+  titleCase: "uppercase", titleCss: "font-weight:400;font-size:1rem;line-height:1;",
+  priceCss: "background:rgb(var(--fg-rgb));color:var(--bg-color);padding:.12rem .5rem !important;font-weight:700;display:inline-block;",
+  btnRadius: "0px", btnCase: "uppercase", btnCss: "letter-spacing:.06em;font-weight:800;", corner: "0px", footRule: "3px", footLine: K("outline", "rgb(var(--fg-rgb))"),
+});
+export const REEL_CSS = lookCss({
+  hWeight: "700", hCase: "uppercase", hLine: ".95", hSpace: ".01em", navLine: HAIR_N,
+  hoverPhoto: "scale:1.04;", cardHover: "translate:0 0;",
+  titleCase: "uppercase", titleCss: "font-size:1rem;font-weight:700;letter-spacing:.04em;",
+  btnRadius: "0px", btnCase: "uppercase", btnCss: "letter-spacing:.12em;", corner: "0px", footLine: HAIR_N,
+});
+
 /** Each template's own stylesheet, by id. A template missing here fails the coverage test. */
 export const TEMPLATE_CSS: Record<TemplateStyleId, string> = {
   marquee: MARQUEE_CSS, shelf: SHELF_CSS, atlas: ATLAS_CSS, mosaic: MOSAIC_CSS, arch: ARCH_CSS, market: MARKET_CSS, index: INDEX_CSS,
+  folio: FOLIO_CSS, lantern: LANTERN_CSS, gutter: GUTTER_CSS, signal: SIGNAL_CSS, kiln: KILN_CSS, almanac: ALMANAC_CSS, console: CONSOLE_CSS,
+  picnic: PICNIC_CSS, cutout: CUTOUT_CSS, reel: REEL_CSS,
 };
 
 /** Which template a design draws, or "" for any other look. */

@@ -673,7 +673,7 @@ Wishlist, Customer account and Order tracking have Studio canvases and section s
 
 ## Template designer coverage (4 November 2026)
 
-Every storefront template (Print style: Marquee, Shelf, Atlas, Mosaic, Arch, Market stall, Index) must stay fully
+Every storefront template (Print style: Marquee, Shelf, Atlas, Mosaic, Arch, Market stall, Index, and since 10 November 2026 Folio, Lantern, Gutter, Signal, Kiln, Almanac, Console, Picnic, Cutout, Reel) must stay fully
 editable in Studio. `features/site/templateStyles.ts` holds the list (`TEMPLATE_STYLES`, which also builds the Print
 style options), each stylesheet (`TEMPLATE_CSS`) and `TEMPLATE_KNOBS`: one CSS variable per Studio control a template
 shape answers to (button corners/case/shadow, photo corners from Image outline › Corner set, card
@@ -710,6 +710,17 @@ pop-up) carry `fm-newsletter-btn` unless the section sets its own button style o
 real prices (`previewPrice` in `ownBooks`). The template button check covers the home newsletter and pop-up sections.
 Thumbs show the press's name (`pressNameOf`) and `design.logoUrl` in place of "Aa"; the drawing is a button that
 previews that design on a phone (`onPreview(entry, "mobile")`). Preview prices use the storefront's format (`CA$ 22.00`).
+
+**Ten more looks and the feel filter (10 November 2026).** Folio, Lantern, Gutter, Signal, Kiln, Almanac, Console, Picnic,
+Cutout and Reel come from Julian's "Public website UI mockups". Their CSS is built by `lookCss` in `templateStyles.ts`, which
+reads every knob the same way, so a new look passes only its own defaults (add it there, then to `TEMPLATE_STYLES`,
+`TEMPLATE_CSS`, `PALETTES`, `THEME_LIBRARY` and `HOME_LAYOUT_TEMPLATES`). Template CSS may not hold words, so Console's
+brackets live in its Add button words (`[ ADD ]`) and Signal/Almanac's row numbers use a CSS counter. Accents must read on the
+page and on button text (`themeReadability.test.tsx`: Picnic and Cutout use darker accents than the mockup); a hero whose
+colour equals the accent sets `accentColor`. Pickers sort looks by **feel** (`lookFeel` in `admin/lookGallery.ts`: quiet,
+bold, warm, dark; every look has exactly one) in Choose your look and Studio › Themes, and `SUGGESTED` there picks the first
+three by what the press sells. The try-on (`LookStage`) draws a hero and card for each new look. New looks go in `BOLD` or
+`WARM` there, else they count as quiet (or dark by page colour).
 
 ## Responsive public element editing (4 October 2026)
 

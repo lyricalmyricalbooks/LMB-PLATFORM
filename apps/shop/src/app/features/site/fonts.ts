@@ -22,6 +22,11 @@ export const FONT_CHOICES: FontChoice[] = [
   { name: "Cormorant Garamond", weights: [400, 500, 600, 700] },
   { name: "Playfair Display", weights: [400, 500, 600, 700, 800] },
   { name: "Libre Baskerville", weights: [400, 700] },
+  { name: "DM Serif Display", weights: [400] },
+  { name: "DM Sans", weights: [400, 500, 600, 700] },
+  { name: "Familjen Grotesk", weights: [400, 500, 600, 700] },
+  { name: "Fredoka", weights: [400, 500, 600, 700] },
+  { name: "Nunito", weights: [400, 600, 700, 800] },
 ];
 
 export const FONT_SELECT_OPTIONS = FONT_CHOICES.map(f => ({ value: f.name, label: f.note ? `${f.name} — ${f.note}` : f.name }));
