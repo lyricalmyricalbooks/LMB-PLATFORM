@@ -62,7 +62,8 @@ test("switched on, the three plans and prices come from the settings, free for 1
   assert.equal(view.trialDays, 14);
   assert.equal(doc.ids.get("start-trial").href, "https://platform.example/signup/");
   assert.equal(doc.ids.get("pricing-founding").hidden, true);
-  assert.match(doc.ids.get("plan-cards").text, /Shop\$31\.00 a month/);
+  assert.match(doc.ids.get("plan-cards").text, /^ShopYour website, to sell online\$31\.00 a monthOnline checkout/);
+  assert.match(doc.ids.get("plan-cards").text, /Start free trialShop and stockroom.*Start free trialStockroom/, "the pick sits in the middle");
   assert.match(page, /id="start-trial"[^>]*>Start free trial</);
   assert.match(page, /Simple plans\. Free for 14 days\./);
 });
