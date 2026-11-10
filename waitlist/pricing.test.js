@@ -9,7 +9,8 @@ import { platformSettings } from "../services/settings.js";
 import { liveSettings } from "../signup/live.js";
 import { loadPricing, pricingView, renderPricing, PLAN_LINES } from "./pricing.js";
 
-const page = readFileSync(new URL("./index.html", import.meta.url), "utf8");
+const page = readFileSync(new URL("./pricing.html", import.meta.url), "utf8");
+const frontPage = readFileSync(new URL("./index.html", import.meta.url), "utf8");
 
 async function plansAnswer(env = {}) {
   const api = createApi({ signup: {}, verifyIdToken: async () => ({}), settings: platformSettings(env), live: () => liveSettings({ env }) });
@@ -37,7 +38,8 @@ test("switched off (the default), the page asks nothing of the plans and stays t
   const config = readFileSync(new URL("./config.js", import.meta.url), "utf8");
   assert.match(config, /export const PLANS_URL = "";/);
   assert.match(config, /export const SIGNUP_URL = "";/);
-  assert.match(page, />Join the waitlist</);
+  assert.match(frontPage, />Join the waitlist</);
+  assert.doesNotMatch(frontPage, /id="pricing"/, "the plans have their own page");
   // Unreachable, refused or odd answers also leave the waitlist alone.
   assert.equal(await loadPricing({ fetch: async () => { throw new Error("offline"); }, url: "/api/plans" }), null);
   assert.equal(await loadPricing({ fetch: async () => ({ ok: false }), url: "/api/plans" }), null);
@@ -61,8 +63,8 @@ test("switched on, the three plans and prices come from the settings, free for 1
   assert.equal(doc.ids.get("start-trial").href, "https://platform.example/signup/");
   assert.equal(doc.ids.get("pricing-founding").hidden, true);
   assert.match(doc.ids.get("plan-cards").text, /Shop\$31\.00 a month/);
-  assert.match(page, /id="start-trial"[^>]*>Start your free trial</);
-  assert.match(page, /Free for 14 days from the day you sign up,/);
+  assert.match(page, /id="start-trial"[^>]*>Start free trial</);
+  assert.match(page, /Simple plans\. Free for 14 days\./);
 });
 
 test("the founding price shows only when the offer is set", async () => {

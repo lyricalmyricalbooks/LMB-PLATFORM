@@ -26,7 +26,7 @@ export function frontPageWords({ open = false, trialDays = null } = {}) {
     submit: "Start free trial",
     note: Number.isInteger(trialDays) && trialDays > 0 ? `Free setup · no card · ${trialDays} days free once you open` : "Free setup · no card",
     consent: false,
-    founding: { label: "See plans", href: "#pricing" },
+    founding: { label: "See plans", href: "/pricing" },
   };
 }
 
