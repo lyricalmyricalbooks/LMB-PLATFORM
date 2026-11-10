@@ -124,4 +124,9 @@ export const PAGE_COPY: Record<string, { title: string; description: string }> =
   settings: { title: "Settings", description: "Store identity, shipping, payments, design, and notifications." },
   shipping: { title: "Shipping", description: "Shipping profiles, zones, and rates." },
   payments: { title: "Payments", description: "Payment methods and currency configuration." },
+  general: { title: "General", description: "Your brand's details, your web address and how the shop runs." },
+  taxes: { title: "Taxes", description: "The tax rates your checkout charges." },
+  team: { title: "Team", description: "People who help run your store, and what each can do." },
+  plan: { title: "Plan", description: "Your plan and what it includes." },
+  billing: { title: "Billing", description: "Your card, invoices and the next bill." },
 };

@@ -905,6 +905,7 @@ export function Dashboard() {
         {!ownMasthead && <PageHeader
           breadcrumbs={trail.length > 2 ? <Breadcrumbs trail={trail} /> : undefined}
           title={selectedOrder && activeTab !== "orders" ? "Order detail" : navActive === "settings" && childLabel ? childLabel : copy.title}
+          description={selectedOrder ? undefined : navActive === "settings" && childLabel ? (navChild && PAGE_COPY[navChild]?.description) || undefined : copy.description || undefined}
           actions={<div ref={setPageActionsEl} className="rp-page-actions-slot" />}
         />}
         {!ownMasthead && pageAlerts}
