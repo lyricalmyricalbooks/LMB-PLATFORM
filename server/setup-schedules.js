@@ -19,7 +19,7 @@
 import { pathToFileURL } from "node:url";
 import { googleHttp, isNotFound } from "../clients/http.js";
 import { JOBS } from "../services/jobs/index.js";
-import { WAITING_JOBS } from "./jobs.js";
+import { waitingJobs } from "./jobs.js";
 import { JOBS_SERVICE, REGION, schedulerJob } from "./schedules.js";
 import { DEFAULT_PROJECT } from "./world.js";
 
@@ -50,7 +50,8 @@ export async function jobsServerUrl({ call, project, region = REGION }) {
  * Reads every job's schedule and makes it match. Returns { actions: [{ job, does: [...] }] }, where `does` lists
  * "create", "update <fields>", "pause", "resume" or is empty ("unchanged").
  */
-export async function setupSchedules({ fetch, token, project = DEFAULT_PROJECT, region = REGION, jobsUrl = null, apply = false, print = console.log }) {
+export async function setupSchedules({ fetch, token, project = DEFAULT_PROJECT, region = REGION, jobsUrl = null, apply = false, env = {}, print = console.log }) {
+  const WAITING_JOBS = waitingJobs(env);
   const call = googleHttp({ fetch, token });
   const base = jobsUrl ?? (await jobsServerUrl({ call, project, region }));
   print(`${apply ? "Making" : "Plan for"} the schedules in ${project} (${region}), calling ${base}`);
@@ -94,7 +95,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const at = args.indexOf("--jobs-url");
   const { gcloudToken } = await import("../release-check/run.js");
   try {
-    await setupSchedules({ fetch: globalThis.fetch, token: gcloudToken, project: process.env.PLATFORM_PROJECT || DEFAULT_PROJECT, apply: args.includes("--apply"), jobsUrl: at >= 0 ? args[at + 1] : null });
+    // The server's settings, when there (the deploy writes server/env.yaml first): they say which jobs can run.
+    const { existsSync, readFileSync } = await import("node:fs");
+    const { readEnvFile } = await import("./deploy.js");
+    const envFile = new URL("./env.yaml", import.meta.url);
+    const env = existsSync(envFile) ? readEnvFile(readFileSync(envFile, "utf8")) : {};
+    await setupSchedules({ fetch: globalThis.fetch, token: gcloudToken, project: process.env.PLATFORM_PROJECT || DEFAULT_PROJECT, apply: args.includes("--apply"), jobsUrl: at >= 0 ? args[at + 1] : null, env });
   } catch (error) {
     console.error(error.message);
     process.exitCode = 1;

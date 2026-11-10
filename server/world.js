@@ -65,12 +65,13 @@ import { deviceWatch } from "../accounts/devices.js";
 import { createRepairQueue } from "../control-room/repairs.js";
 import { createApi } from "../signup/api.js";
 import { createShopMaker } from "../signup/shopMaker.js";
+import { SHARED_STEP_PLAN, sharedShopRun } from "../setup/real.js";
 import { createSignup } from "../signup/signup.js";
 import { createBillingFromEnv, readBillingConfig } from "../services/billing/index.js";
 import { createPaymentWay } from "../services/billing/paymentWay.js";
 import { shopPlanCopies } from "../services/billing/shopPlan.js";
 import { createClosingSweep } from "../services/billing/closing.js";
-import { createPaymentsFromEnv, handlePayments, platformBillingStripe, refuseLiveKeys } from "../services/payments/index.js";
+import { createPaymentsFromEnv, handlePayments, platformBillingStripe, refuseLiveKeys, setupClient } from "../services/payments/index.js";
 import { createEmailService } from "../services/email/index.js";
 import { handleShopEmail } from "../services/email/http.js";
 import { liveSettings, platformSettings } from "../services/settings.js";
@@ -213,7 +214,12 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const repairs = createRepairQueue({ store: repairStore, registry, auditLog, now });
   // Once making shops is connected, pass `presses` here and to the domain service, and the domain service as `domains`, so a domain brought in
   // setup is connected when its shop is ready (shopMaker.js connectAddresses; the free address too, with freeAddress and platformZone on the domain service).
-  const shopMaker = createShopMaker({ signups: stores.signups, run: notConnectedFn(NOT_CONNECTED.shopMaking), registry, repairs, line: signup, billing, now });
+  // The shared system (docs/shared-system.md, step 6): with SHARED_SHOPS_PROJECT and SHARED_SHOPS_DOMAIN set, a shop is a
+  // few writes in the shared project, made in seconds; without them, making shops stays not switched on.
+  const sharedRun = sharedShopRun({ env, fetch, token, payments: setupClient(payments), email, settings, registryFirestore: platform });
+  const shopMaker = sharedRun
+    ? createShopMaker({ signups: stores.signups, run: sharedRun, registry, repairs, line: signup, billing, steps: SHARED_STEP_PLAN, now })
+    : createShopMaker({ signups: stores.signups, run: notConnectedFn(NOT_CONNECTED.shopMaking), registry, repairs, line: signup, billing, now });
 
   // Accounts, and the control room.
   const accountStores = firestoreAccountStores(platform);
@@ -243,8 +249,8 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     // Bounces and spam reports come from the newsletter guard's store (services/email/reputation.js), not hosted yet.
     delivery: deliveryReader({ deliveryStats, sentLog, now }),
   });
-  // The Launch page (control room): shopMaking is off here until the server's Google access is connected (shopMaker above).
-  const controls = createPlatformControls({ admins, settingsStore: platformState, env, activity, waitlist, signups: stores.signups, now, invites, project: projectId, shopMaking: false });
+  // The Launch page (control room): shopMaking is on once the shared system makes shops here (shopMaker above).
+  const controls = createPlatformControls({ admins, settingsStore: platformState, env, activity, waitlist, signups: stores.signups, now, invites, project: projectId, shopMaking: Boolean(sharedRun) });
   const backup = createBackupAccess({
     people, admins, state: platformState, email, registry, auditLog, now,
     runBook: runBook({ state: platformState, registry, platform, rollBack: notConnectedFn(NOT_CONNECTED.rollBack), now }),
@@ -330,7 +336,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const closing = createClosingSweep({ registry, auditLog, billing, email, projects: notConnectedClient(NOT_CONNECTED.projectDeletion, ["deleteProject"]), settings, now: nowMs });
 
   // What the jobs can run (server/jobs.js reads these); the jobs page's "Run now" runs the ones that need nothing more.
-  const parts = { chitchats, chitchatsStores, env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups };
+  const parts = { sharedShops: Boolean(sharedRun), chitchats, chitchatsStores, env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups };
   const runNow = {
     "dropped-apps": () => billing.closeDroppedApps(),
     "every-app": () => billing.giveEveryApp(),

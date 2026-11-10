@@ -22,6 +22,13 @@ import { identityClient, testOwnerSession } from "../clients/identity.js";
 import { firestoreAuditLog, firestoreRegistry } from "../clients/registry.js";
 import { firestoreFrontDoorStores } from "../clients/platformStores.js";
 import { STOCKROOM_DATABASE, inventoryLinkClient, registryFiles, shopDataClient, siteCheckClient, stockroomClient } from "../clients/shop.js";
+import { sharedStores } from "../clients/shared.js";
+import { REGION } from "./steps.js";
+import { TEST_STARTER_CONTENT } from "./test-shop.js";
+import { LINK_DOC } from "./later-steps.js";
+import { runSteps } from "./runner.js";
+import { SHARED_STEP_PLAN, sharedShopSteps } from "./sharedSteps.js";
+import { sharedServiceKeyHash } from "./serviceKey.js";
 
 export const PLATFORM_PROJECT = "lmb-platform-prod";
 
@@ -66,3 +73,125 @@ export function realSetupClients({ fetch, token, run, buildDir, registryFirestor
     stagedFiles,
   };
 }
+
+/**
+ * The shared system's shop maker clients (setup/sharedSteps.js): every shop's data, record and address in one shared
+ * project (`projectId`), reached through its folder (clients/shared.js); the registry in the platform project as above.
+ * The shop's own server calls go to the shared server with `?shop=<id>`.
+ */
+export function realSharedClients({ fetch, token, projectId, region = REGION, registryFirestore, paymentService, emailService, serviceAccount, sleep, stagedFiles = null }) {
+  const platform = registryFirestore ?? firestoreClient({ fetch, token, projectId: PLATFORM_PROJECT });
+  const registry = firestoreRegistry(platform);
+  const shared = sharedStores({ fetch, token, projectId, databaseUrl: `https://${projectId}-default-rtdb.firebaseio.com` });
+  const identity = identityClient({ fetch, token });
+  const sessions = new Map();
+  const session = async (shopId) => {
+    if (!sessions.has(shopId)) {
+      if (!serviceAccount) throw new Error("the test shop's link steps need the platform's service account");
+      sessions.set(shopId, testOwnerSession({ identity, shop: await registry.getShop(shopId), profile: await registry.getProfile(shopId), serviceAccount }));
+    }
+    return sessions.get(shopId);
+  };
+  return {
+    registry,
+    shared,
+    auditLog: firestoreAuditLog(shared.shopDb),
+    google: googleClients({ fetch, token, sleep }),
+    shopData: shopDataClient(shared.shopDb),
+    stockroom: stockroomClient(shared.stockroomDb),
+    inventoryLink: sharedInventoryLink({
+      registry,
+      throughShop: inventoryLinkClient({
+        fetch, idToken: async (shopId) => (await session(shopId)).idToken,
+        functionUrl: async (shopId, name) => `https://${region}-${projectId}.cloudfunctions.net/${name}?shop=${encodeURIComponent(shopId)}`,
+      }),
+      inFolder: folderInventoryLink({ shopData: shopDataClient(shared.shopDb), stockroomRecords: shared.stockroomRecords }),
+    }),
+    siteCheck: siteCheckClient({ fetch }),
+    providers: paymentService ? { stripe: paymentService } : {},
+    email: emailService,
+    presses: firestoreFrontDoorStores(platform).presses,
+    stagedFiles,
+  };
+}
+
+/**
+ * The shared shop maker's config: the shared project's web app (made once, named like every shop's was) and the
+ * platform's own addresses. `shopDomain` is the shops' domain (free addresses are <id>.<shopDomain>).
+ */
+export async function sharedMakerConfig({ google, projectId, shopDomain, platformUrl, senderEmail, stripePublishableKeys = { live: "", test: "" }, version }) {
+  const app = (await google.firebase.listWebApps(projectId)).find((a) => a.displayName === "Shop");
+  if (!app) throw new Error(`${projectId} has no web app called Shop yet; make it once in the Firebase console`);
+  return {
+    sharedProject: projectId,
+    webApp: await google.firebase.getWebAppConfig(projectId, app.appId),
+    serviceKeyHash: await sharedServiceKeyHash(google, projectId),
+    shopDomain,
+    stockroomBucket: `${projectId}-stockroom`,
+    senderEmail,
+    paymentsServiceUrl: `${platformUrl}/api/payments`,
+    platformEmailUrl: `${platformUrl}/api/email/shop`,
+    stripePublishableKeys,
+    release: { version, starterContent: TEST_STARTER_CONTENT },
+  };
+}
+
+/**
+ * The stockroom link for a shop the shared shop maker makes. The test shop's goes through its own admin calls, signed
+ * in as its test owner (its starter catalogue is linked book by book and checked by the shop). Any other shop has no
+ * one signed in yet, and its shop and stockroom sit in the same project, so the platform turns the link on in the
+ * shop's folder: `folderInventoryLink`.
+ */
+export function sharedInventoryLink({ registry, throughShop, inFolder }) {
+  const pick = async (shopId) => ((await registry.getShop(shopId))?.testShop === true ? throughShop : inFolder);
+  return Object.fromEntries(["state", "check", "saveLinks", "startSales"].map((name) => [name, async (shopId, ...args) => (await pick(shopId))[name](shopId, ...args)]));
+}
+
+/**
+ * The link written straight into a new shop's folder (`shops/<id>/systemStatus/inventoryLink`), as the shop's own
+ * `startSales` writes it. `check` asks whether the stockroom knows the shop (its record copy, step 4); the shop's own
+ * scheduled link job checks the connection itself and shows the owner any problem. Only a start day is ever written,
+ * and never over one already there: links between books are the press's to make.
+ */
+export function folderInventoryLink({ shopData, stockroomRecords, now = () => new Date() }) {
+  return {
+    state: (shopId) => shopData.get(shopId, LINK_DOC),
+    async check(shopId) {
+      return (await stockroomRecords.get(shopId)) ? { ok: true } : { ok: false, problem: "the stockroom has no record of this shop yet" };
+    },
+    async saveLinks() {
+      throw new Error("a new shop's book links are made by the press in its admin");
+    },
+    async startSales(shopId, { startDay }) {
+      if ((await shopData.get(shopId, LINK_DOC))?.startDay) return;
+      const data = { startDay, backfill: { from: startDay, done: false, cursor: null, sent: 0 }, salesStartedAt: now().toISOString(), salesStartedBy: "Colophon (shop made)" };
+      await shopData.set(shopId, LINK_DOC, data, { fields: Object.keys(data) });
+    },
+  };
+}
+
+/**
+ * The hosted server's shop maker for the shared system (server/world.js): the `run` createShopMaker calls, or null
+ * while `SHARED_SHOPS_PROJECT` and `SHARED_SHOPS_DOMAIN` aren't set (making shops then stays "not switched on").
+ * The maker's settings (the shared project's web app) are read once, on the first shop, and again after a failure.
+ */
+export function sharedShopRun({ env = {}, fetch, token, payments = null, email = null, settings = {}, registryFirestore, stagedFiles = null, sleep, version = "1.0.0" }) {
+  const projectId = String(env.SHARED_SHOPS_PROJECT ?? "").trim();
+  const shopDomain = String(env.SHARED_SHOPS_DOMAIN ?? "").trim();
+  if (!projectId || !shopDomain) return null;
+  const clients = realSharedClients({
+    fetch, token, projectId, registryFirestore, sleep, stagedFiles,
+    paymentService: payments, emailService: email, serviceAccount: env.PLATFORM_SERVICE_ACCOUNT || undefined,
+  });
+  let config = null;
+  const configNow = () => {
+    config ??= sharedMakerConfig({ google: clients.google, projectId, shopDomain, platformUrl: settings.platformUrl, senderEmail: settings.senderEmail, version })
+      .catch((error) => { config = null; throw error; });
+    return config;
+  };
+  return async (shop, options = {}) => runSteps({
+    shop, steps: sharedShopSteps({ ...clients, config: await configNow() }), registry: clients.registry, auditLog: clients.auditLog, ...options,
+  });
+}
+
+export { SHARED_STEP_PLAN };

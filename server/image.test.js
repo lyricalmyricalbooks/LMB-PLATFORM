@@ -7,7 +7,8 @@ import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const IMPORT = /(?:import|export)\s[^'"`]*?from\s*["']([^"']+)["']|import\(\s*["']([^"']+)["']\s*\)/g;
+// Static imports, import("…") and createRequire(import.meta.url)("…"): each one the image must hold.
+const IMPORT = /(?:import|export)\s[^'"`]*?from\s*["']([^"']+)["']|import\(\s*["']([^"']+)["']\s*\)|createRequire\([^)]*\)\(\s*["']([^"']+)["']\s*\)/g;
 
 function closure(entry) {
   const files = new Set();
@@ -16,15 +17,17 @@ function closure(entry) {
     if (files.has(file)) return;
     files.add(file);
     for (const m of readFileSync(file, "utf8").matchAll(IMPORT)) {
-      const spec = m[1] ?? m[2];
+      const spec = m[1] ?? m[2] ?? m[3];
       if (spec.startsWith("node:")) continue;
+      // A package asked for through createRequire is loaded only where it is installed (the release check's browser).
+      if (m[3] && !spec.startsWith(".")) continue;
       if (!spec.startsWith(".")) {
         packages.add(`${relative(ROOT, file)}: ${spec}`);
         continue;
       }
       const target = resolve(dirname(file), spec);
       assert.ok(existsSync(target), `${relative(ROOT, file)} imports ${spec}, which isn't there`);
-      if (/\.m?js$/.test(target)) walk(target);
+      if (/\.[mc]?js$/.test(target)) walk(target);
     }
   };
   walk(resolve(ROOT, entry));

@@ -3,6 +3,10 @@
 Creates one press's Firebase copy in numbered steps (`docs/shop-setup.md`). Each step is safe to re-run and resumes after
 a failure. Each step is logged to the shop registry and the shop's audit log.
 
+**The shared system (`docs/shared-system.md`).** New shops are made by `sharedSteps.js`: eleven steps of writes in the
+one shared Firebase project, done in seconds, run by the same runner. `real.js` `realSharedClients` and `sharedShopRun`
+wire it for the hosted server. The per-project steps below stay for the shops made before it.
+
 Plain Node 22 ES modules with no packages; tests use Node's own test runner (`npm test` at the repo root).
 
 ## The runner (`runner.js`)

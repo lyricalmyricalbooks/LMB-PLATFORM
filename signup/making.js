@@ -26,7 +26,8 @@ export function makingView(press) {
   let working = false;
   const rows = MAKING_ROWS.map((row) => {
     let state = "waiting";
-    if (ready || done >= row.doneAt) state = "done";
+    // The shop maker says after which of its steps each row is done (`marks`); these are the per-project steps'.
+    if (ready || done >= (making?.marks?.[row.id] ?? row.doneAt)) state = "done";
     else if (moving && !working) { state = "working"; working = true; }
     return { id: row.id, label: row.label, state };
   });

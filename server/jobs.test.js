@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { JOBS } from "../services/jobs/index.js";
-import { RUNNERS, WAITING_JOBS, jobsHandler, runnerFor } from "./jobs.js";
+import { RUNNERS, WAITING_JOBS, jobsHandler, runnerFor, waitingJobs } from "./jobs.js";
 import { hostedWorld } from "./world.js";
 import { TEST_ENV, TEST_PROJECT, fakeOutside } from "./fakes.js";
 
@@ -72,4 +72,15 @@ test("an unknown job is 404 and anything but a POST is 405", async () => {
   assert.equal((await handle({ method: "POST", path: "/api/plans", headers: {} })).status, 404);
   assert.equal((await handle({ method: "GET", path: "/jobs/press-messages", headers: {} })).status, 405);
   assert.equal(outside.firestore.paths(TEST_PROJECT, "jobRuns/").length, 0, "nothing ran");
+});
+
+test("with the shared system's two settings, the shop-maker job runs and its schedule isn't paused", async () => {
+  const shared = { ...TEST_ENV, SHARED_SHOPS_PROJECT: "lmb-test-shop", SHARED_SHOPS_DOMAIN: "shops.example" };
+  const { handle } = build(shared);
+  const answer = await handle({ method: "POST", path: "/jobs/shop-maker", headers: {} });
+  assert.equal(answer.status, 200, JSON.stringify(answer.body));
+  assert.equal(answer.body.run.ok, true);
+  assert.ok(waitingJobs(TEST_ENV)["shop-maker"]);
+  assert.equal(waitingJobs(shared)["shop-maker"], undefined);
+  assert.ok(waitingJobs(shared)["web-addresses"], "the others still wait");
 });

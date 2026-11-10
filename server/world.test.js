@@ -139,6 +139,19 @@ test("making a shop answers plainly that it isn't switched on yet, and the press
   assert.deepEqual(outside.other, []);
 });
 
+test("with the shared project named, making a shop runs the shared shop maker (docs/shared-system.md, step 6)", async () => {
+  const env = { ...TEST_ENV, SHARED_SHOPS_PROJECT: "lmb-test-shop", SHARED_SHOPS_DOMAIN: "shops.example" };
+  let calls = 0;
+  hostedWorld({ env, fetch: async () => { calls += 1; throw new Error("no network"); }, token: async () => "t", log: () => {} });
+  assert.equal(calls, 0, "building it still calls nothing outside");
+  const { world, outside } = build(env);
+  await world.platform.set("signups/moth-press", { shopId: "moth-press", accountId: "uid-owner", status: "queued", pressName: "Moth Press", plan: "both", ownerEmail: "owner@example.com" });
+  const row = await world.shopMaker.make("moth-press");
+  assert.doesNotMatch(row.error ?? "", /isn't switched on yet/);
+  // The first thing it asks Google for is the shared project's web app, for the shop's profile.
+  assert.match(String(outside.other[0]?.url ?? outside.other[0] ?? ""), /lmb-test-shop\/webApps/);
+});
+
 test("a shop's Stripe events and sent emails reach its control-room record (the delivery counts, plan 19.12)", async () => {
   const secret = "whsec_test_connect_pretend";
   const { world } = build({ ...TEST_ENV, STRIPE_CONNECT_WEBHOOK_SECRET_TEST: secret });

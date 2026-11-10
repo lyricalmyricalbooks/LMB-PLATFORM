@@ -149,7 +149,7 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
     if (record.status !== "opening" || !record.shopId || !making) return shown(record);
     const progress = await Promise.resolve().then(() => making(record.shopId)).catch(() => null);
     if (!progress) return shown(record);
-    const live = { status: progress.status, done: progress.done, total: progress.total, now: progress.now ?? "", message: progress.message ?? "", canRetry: !!progress.canRetry };
+    const live = { status: progress.status, done: progress.done, total: progress.total, now: progress.now ?? "", message: progress.message ?? "", canRetry: !!progress.canRetry, ...(progress.marks ? { marks: progress.marks } : {}) };
     if (progress.status !== "ready") return { ...shown(record), making: live };
     const opened = await presses.update(record.pressId, (current) => {
       if (!current || current.ownerUid !== claims.uid || current.status !== "opening" || current.shopId !== record.shopId) return { row: null, result: current };

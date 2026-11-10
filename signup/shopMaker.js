@@ -112,7 +112,15 @@ export function openUrlOf(profile, shopId) {
 /** How long a plan change waits before trying again after a failure: 15 minutes, then an hour, then four. */
 export const PLAN_SYNC_BACKOFF_MINUTES = Object.freeze([15, 60, 240]);
 
-export function createShopMaker({ signups, run, registry, repairs = null, selfCheck = null, line = null, billing = null, presses = null, domains = null, testMode = true, now = () => new Date() }) {
+/**
+ * The steps' words, the steps a plan change runs again, and after which step each "Setting up your store" row is done
+ * (signup/making.js), for the per-project steps (setup/later-steps.js). The shared system passes its own
+ * (setup/sharedSteps.js SHARED_STEP_PLAN) as `steps`.
+ */
+export const OWN_STEP_PLAN = Object.freeze({ words: STEP_WORDS, planSteps: PLAN_STEPS, marks: Object.freeze({ address: 9, store: 15 }) });
+
+export function createShopMaker({ signups, run, registry, repairs = null, selfCheck = null, line = null, billing = null, presses = null, domains = null, testMode = true, steps = OWN_STEP_PLAN, now = () => new Date() }) {
+  const words = steps.words;
   const at = () => now().toISOString();
   const later = (minutes) => new Date(now().getTime() + minutes * 60_000).toISOString();
 
@@ -168,7 +176,7 @@ export function createShopMaker({ signups, run, registry, repairs = null, selfCh
       // Another run holds the shop (only after a crash, until its lock lapses): look again shortly.
       row = { ...row, status: "waiting", attempts: attempts - 1, nextTryAt: later(BACKOFF_MINUTES[0]), message: "Still working on it. We'll carry on in a minute.", canRetry: false };
     } else if (retryable(result.error)) {
-      const doing = STEP_WORDS[result.failedStep] ?? "setting up your shop";
+      const doing = words[result.failedStep] ?? "setting up your shop";
       const auto = attempts < AUTO_TRIES;
       row = {
         ...row, status: "waiting", failedStep: result.failedStep ?? null, error: result.error ?? null, canRetry: true,
@@ -179,7 +187,7 @@ export function createShopMaker({ signups, run, registry, repairs = null, selfCh
     } else {
       row = {
         ...row, status: "needs-help", failedStep: result.failedStep ?? null, error: result.error ?? null, canRetry: false, nextTryAt: null,
-        message: `We couldn't finish ${STEP_WORDS[result.failedStep] ?? "setting up your shop"}, and it needs a hand from us. We've been told, and we'll email you when it's done. You don't need to do anything.`,
+        message: `We couldn't finish ${words[result.failedStep] ?? "setting up your shop"}, and it needs a hand from us. We've been told, and we'll email you when it's done. You don't need to do anything.`,
       };
       if (repairs) await repairs.report({ shopId, check: "shop-maker", problem: `step ${result.failedStep} stopped for a person`, detail: result.error });
     }
@@ -255,7 +263,7 @@ export function createShopMaker({ signups, run, registry, repairs = null, selfCh
     const tries = (row.planSync?.plan === plan ? row.planSync.tries ?? 0 : 0) + 1;
     let result;
     try {
-      result = await run(shopFromSignup({ ...row, plan }, { testMode }), { again: [...PLAN_STEPS] });
+      result = await run(shopFromSignup({ ...row, plan }, { testMode }), { again: [...steps.planSteps] });
     } catch (error) {
       result = { ok: false, error: error?.message ?? String(error) };
     }
@@ -291,7 +299,7 @@ export function createShopMaker({ signups, run, registry, repairs = null, selfCh
   async function progress(shopId) {
     const row = typeof shopId === "string" && shopId ? await signups.get(shopId) : null;
     if (!row) return null;
-    const numbers = Object.keys(STEP_WORDS).map(Number);
+    const numbers = Object.keys(words).map(Number);
     const latest = latestByStep(await Promise.resolve().then(() => registry.readSteps(shopId)).catch(() => []) ?? []);
     const ready = row.status === "ready";
     const next = numbers.find((n) => latest[n]?.status !== "done");
@@ -299,11 +307,13 @@ export function createShopMaker({ signups, run, registry, repairs = null, selfCh
       status: row.status,
       done: ready ? numbers.length : numbers.filter((n) => latest[n]?.status === "done").length,
       total: numbers.length,
-      now: ready || !next || row.status !== "making" ? "" : STEP_WORDS[next],
+      now: ready || !next || row.status !== "making" ? "" : words[next],
       message: row.status === "waiting" || row.status === "needs-help" ? row.message ?? "" : "",
       // A retryable stop whose automatic tries are used up: the press's Try again (`retry`) carries on.
       canRetry: row.status === "waiting" && !!row.canRetry,
       openUrl: ready ? row.openUrl ?? null : null,
+      // After which step each row of "Setting up your store" is done (signup/making.js).
+      marks: steps.marks,
     };
   }
 
