@@ -48,7 +48,16 @@ function checkValue(rule, value, where, problems) {
 export function profileScript(profile) {
   const problems = profileProblems(profile);
   if (problems.length) throw new Error(`Shop profile has problems: ${problems.join("; ")}`);
-  // JSON is valid JavaScript; escaping "<" keeps the text safe if a page ever inlines it.
-  const json = JSON.stringify(profile, null, 2).replace(/</g, "\\u003c");
+  // JSON is valid JavaScript; escaping "<" keeps the text safe if a page ever inlines it. Keys are written in sorted
+  // order, so the text depends only on what the profile says: a profile read back from Firestore (which keeps no key
+  // order) gives the same text as the one written, and the steps that compare texts see it as already written.
+  const json = JSON.stringify(sortedKeys(profile), null, 2).replace(/</g, "\\u003c");
   return `// Written by the platform. Do not edit by hand.\nwindow.__SHOP_PROFILE__ = ${json};\n`;
+}
+
+/** A copy with every object's keys in sorted order (arrays keep their order). */
+function sortedKeys(value) {
+  if (Array.isArray(value)) return value.map(sortedKeys);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.keys(value).sort().map((key) => [key, sortedKeys(value[key])]));
 }
