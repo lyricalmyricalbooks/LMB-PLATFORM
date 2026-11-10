@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en" class="rp cp-page cl">
 <head>
+<style>.cp-promises{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:28px}.cp-promises .card{display:block;color:inherit;text-decoration:none}.cp-promises h3{margin:6px 0 8px}.cp-promises p{margin:0}@media (max-width:640px){.cp-promises{grid-template-columns:1fr}}</style>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Colophon terms</title>
@@ -21,7 +22,13 @@
   <div class="cp-wrap" style="padding-block:44px 64px">
     <div class="mark">Colophon · terms &amp; privacy</div>
     <h1 class="cp-title">Our promises</h1>
-    <p class="cp-lede">What we promise your press, what we do with your data, and what happens to your shop if Colophon ever closes. All on one page, in plain words.</p>
+    <p class="cp-lede">What we promise your brand, what we do with your data, and what happens to your shop if Colophon ever closes. All on one page, in plain words.</p>
+    <div class="cp-promises" id="promises">
+      <a class="card" href="#terms"><div class="mark">01 · Terms</div><h3>The terms</h3><p>You own your shop, your products and your customers. We keep it running and tell you before anything changes.</p></a>
+      <a class="card" href="#privacy"><div class="mark">02 · Privacy</div><h3>Privacy policy</h3><p>We keep only what the shop needs, never sell it, and tell you and the people affected if something goes wrong.</p></a>
+      <a class="card" href="#data"><div class="mark">03 · Data</div><h3>Data agreement</h3><p>Your data stays yours. You can download all of it, as spreadsheet files, whenever you ask.</p></a>
+      <a class="card" href="#shutdown"><div class="mark">04 · Shutdown</div><h3>If Colophon ever closes</h3><p>You get plenty of notice, a full download of everything, and help moving your shop somewhere else.</p></a>
+    </div>
     <div id="terms-page" style="margin-top:28px"></div>
   </div>
 </main>
@@ -39,6 +46,7 @@
     document.title = "Conditions de Colophon";
     document.querySelector(".cp-title").textContent = PAGE_FR.title;
     document.querySelector(".cp-lede").textContent = PAGE_FR.lede;
+    document.getElementById("promises").hidden = true;
   }
   document.getElementById("terms-page").innerHTML = renderTerms(lang);
 </script>
