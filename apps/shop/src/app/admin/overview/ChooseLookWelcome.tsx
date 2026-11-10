@@ -1,12 +1,12 @@
 import { useMemo, useState, type KeyboardEvent } from "react";
 import { ChevronLeft, ChevronRight, Monitor, Smartphone } from "lucide-react";
 import {
-  feelLabel, filterLooks, builtLooks, libraryLook, suggestedThemes, LOOK_FILTERS, lookPreview, pressNameOf, sampleProducts,
+  feelLabel, lookFeel, filterLooks, builtLooks, libraryLook, suggestedThemes, LOOK_FILTERS, lookPreview, pressNameOf, sampleProducts,
   type LibraryTheme, type LookFilter, type PreviewProduct,
 } from "../lookGallery";
 import type { WelcomeDone } from "../firstWeek";
 import { friendlyError } from "../studio/friendlyError";
-import { Dialog, GhostButton, LoadingState, PrimaryButton, SecondaryButton, SectionCard, StatusBadge, Tabs } from "../riso/components";
+import { Dialog, GhostButton, LoadingState, PrimaryButton, SecondaryButton, SectionCard, Tabs } from "../riso/components";
 import { sellsBooks } from "../sells";
 import { LookStage, ScaledStage, STAGE_WIDTH, type StageDevice, type StagePage } from "./LookStage";
 
@@ -97,41 +97,50 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
     );
   }
 
-  const badges = (theme: LibraryTheme) => <StatusBadge glyph={false}>{feelLabel(theme)}</StatusBadge>;
+  // The feel as a small coloured pill, in the Colophon tile colours.
+  const FEEL_TILE = { quiet: "var(--rp-info-tint)", warm: "var(--rp-success-tint)", bold: "var(--rp-warning-tint)", dark: "var(--rp-surface-inset)" } as const;
+  const badges = (theme: LibraryTheme) => (
+    <span style={{ fontSize: 12, fontWeight: 500, padding: "4px 10px", borderRadius: 999, background: FEEL_TILE[lookFeel(theme)], color: "var(--rp-text)" }}>{feelLabel(theme)}</span>
+  );
+  const dots = (colours: string[], size: number, label: string) => (
+    <span aria-label={label} role="img" style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
+      {colours.map((c, i) => <i key={i} style={{ display: "block", width: size, height: size, borderRadius: "50%", background: c, boxShadow: "inset 0 0 0 1px var(--rp-border-strong)" }} />)}
+    </span>
+  );
 
   // `big`: the large picture with a phone beside it, for the look chosen in setup.
   const card = (theme: LibraryTheme, big = false) => {
     const look = lookPreview(theme, settings?.design);
     return (
-      <li key={theme.id} data-look-card={theme.id} style={{ display: "grid", gap: 10, alignContent: "start", minWidth: 0 }}>
+      <li key={theme.id} data-look-card={theme.id} style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0, padding: 12, background: "var(--rp-surface-sunken)", borderRadius: "var(--rp-radius-lg)" }}>
         <button type="button" onClick={() => { setPage("home"); setPick(0); setTrying(theme.id); }} disabled={!!busy} aria-label={`Try on ${theme.name}`}
-          style={{ position: "relative", display: "block", width: "100%", padding: 0, aspectRatio: big ? "4 / 3" : "16 / 11", overflow: "hidden",
-            border: "var(--rp-hair, 1px) solid var(--rp-border-strong)", background: look.bg, cursor: "zoom-in" }}>
+          style={{ position: "relative", display: "block", width: "100%", padding: 0, aspectRatio: big ? "4 / 3" : "8 / 5", overflow: "hidden",
+            border: 0, borderRadius: 16, background: look.bg, cursor: "zoom-in" }}>
           <ScaledStage width={STAGE_WIDTH.desktop} label={`${press} in this look, desktop width`}>
             <LookStage look={look} press={press} device="desktop" products={products} books={bookShop} />
           </ScaledStage>
           {big && (
-            <span style={{ position: "absolute", right: "4%", top: "16%", width: "24%", aspectRatio: "390 / 800", border: "3px solid var(--rp-border-strong)", borderRadius: 14, overflow: "hidden", background: look.bg }}>
+            <span style={{ position: "absolute", right: "4%", top: "16%", width: "24%", aspectRatio: "390 / 800", border: "3px solid var(--rp-text)", borderRadius: 14, overflow: "hidden", background: look.bg }}>
               <ScaledStage width={STAGE_WIDTH.phone}><LookStage look={look} press={press} device="phone" products={products} books={bookShop} /></ScaledStage>
             </span>
           )}
         </button>
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
-          <strong>{theme.name}</strong>
-          {badges(theme)}
+        <div style={{ display: "grid", gap: 8, padding: "0 6px" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <strong style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.03em" }}>{theme.name}</strong>
+            {badges(theme)}
+          </div>
+          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: "var(--rp-text-muted)", textWrap: "pretty", minHeight: 63 }}>{theme.mood}</p>
         </div>
-        <p className="rp-hint" style={{ margin: 0 }}>{theme.mood}</p>
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, padding: "0 6px 6px", marginTop: "auto" }}>
           {!(settled && picked?.id === theme.id) && <PrimaryButton size="sm" busy={busy === theme.id} disabled={!!busy && busy !== theme.id} onClick={() => void choose(theme)}>Use this look</PrimaryButton>}
           <GhostButton size="sm" disabled={!!busy} onClick={() => { setPage("home"); setTrying(theme.id); }}>Try it on</GhostButton>
-          <span aria-label={`${theme.name} colours`} role="img" style={{ display: "flex", gap: 4, marginLeft: "auto" }}>
-            {look.swatches.map((c, i) => <span key={i} style={{ width: 18, height: 18, background: c, border: "1px solid var(--rp-border-strong)" }} />)}
-          </span>
+          {dots(look.swatches, 18, `${theme.name} colours`)}
         </div>
       </li>
     );
   };
-  const grid = (min: number) => ({ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 24, gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${min}px), 1fr))` }) as const;
+  const grid = (min: number) => ({ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 20, gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${min}px), 1fr))` }) as const;
   const counts = Object.fromEntries(LOOK_FILTERS.map(f => [f.id, filterLooks(others, f.id).length]));
 
   const onStageKey = (e: KeyboardEvent) => {
@@ -165,7 +174,8 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
 
       <Tabs label="Show looks" idPrefix="looks-" value={filter} onChange={setFilter}
         tabs={LOOK_FILTERS.map(f => ({ id: f.id, label: f.label, count: counts[f.id] }))} />
-      <ul aria-label="Looks" style={{ ...grid(280), marginTop: 16 }}>{shown.map(t => card(t))}</ul>
+      <p data-look-count style={{ margin: "12px 0 0", textAlign: "right", fontFamily: "var(--rp-font-mono)", fontSize: 13, color: "var(--rp-text-subtle)" }}>{shown.length} {shown.length === 1 ? "look" : "looks"} · change any time</p>
+      <ul aria-label="Looks" style={{ ...grid(300), marginTop: 12 }}>{shown.map(t => card(t))}</ul>
 
       </>)}
 
@@ -219,7 +229,7 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
                 </div>
                 <div style={{ display: "grid", gap: 8 }}>
                   <span aria-label={`${current.name} colours`} role="img" style={{ display: "flex", gap: 6 }}>
-                    {look.swatches.map((c, i) => <span key={i} style={{ width: 28, height: 28, background: c, border: "1px solid var(--rp-border-strong)" }} />)}
+                    {look.swatches.map((c, i) => <i key={i} style={{ display: "block", width: 28, height: 28, borderRadius: "50%", background: c, boxShadow: "inset 0 0 0 1px var(--rp-border-strong)" }} />)}
                   </span>
                   <p className="rp-hint" style={{ margin: 0 }}>{look.bodyFont === "inherit" ? "Set in the shop's standard type." : `Headings in ${look.headingFont}, text in ${look.bodyFont}.`} Tip: the arrow keys flip between looks.</p>
                 </div>

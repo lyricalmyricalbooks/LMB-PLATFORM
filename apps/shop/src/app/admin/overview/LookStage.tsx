@@ -67,18 +67,26 @@ export function ScaledStage({ width, height, children, label, interactive }: { w
 }
 
 
-/** Flat drawings of what a press sells, set on the cover's colour, so a preview reads as a shop and not blank tiles. */
+/**
+ * Flat drawings of what a press sells, set on the cover's colour so a preview reads as a shop and not blank tiles.
+ * Each is outlined in the admin's ink with round joins and filled with the tile's text colour, its small details
+ * (chest print, tote label, cap button) showing the tile colour through. Swap for real product photos when they exist.
+ */
+const LINE = "#1f1e1b";
+const line = { stroke: LINE, strokeWidth: 2.4, strokeLinejoin: "round", strokeLinecap: "round" } as const;
+const faint = { ...line, opacity: 0.5 } as const;
 const ART: Record<ProductKind, (ink: string, bg: string) => ReactNode> = {
-  tee: (ink) => <><path d="M30 18 42 13Q50 23 58 13L70 18 91 35 80 47 70 40V87H30V40L20 47 9 35Z" fill={ink} /><path d="M42 13Q50 23 58 13" fill="none" stroke="#fff" strokeOpacity=".35" strokeWidth="2" /></>,
-  sweatshirt: (ink, bg) => <><path d="M32 16 44 11Q50 20 56 11L68 16 93 72 81 78 70 50V88H30V50L19 78 7 72Z" fill={ink} /><path d="M30 80H70" stroke={bg} strokeOpacity=".4" strokeWidth="2" /><path d="M44 11Q50 20 56 11" fill="none" stroke={bg} strokeOpacity=".4" strokeWidth="2" /></>,
-  tote: (ink, bg) => <><path d="M36 38C36 8 64 8 64 38" fill="none" stroke={ink} strokeWidth="4" /><path d="M22 36H78L82 92H18Z" fill={ink} /><rect x="38" y="56" width="24" height="16" fill="none" stroke={bg} strokeOpacity=".45" strokeWidth="2" /></>,
-  cap: (ink, bg) => <><path d="M14 64Q14 26 52 26 86 26 88 64Z" fill={ink} /><path d="M58 62 98 67Q98 77 58 72Z" fill={ink} /><path d="M52 26V62" stroke={bg} strokeOpacity=".35" strokeWidth="2" /></>,
-  book: (ink, bg) => <><rect x="24" y="10" width="52" height="80" fill={ink} /><rect x="24" y="10" width="7" height="80" fill={bg} fillOpacity=".25" /><rect x="38" y="24" width="30" height="5" fill={bg} fillOpacity=".85" /><rect x="38" y="34" width="22" height="3" fill={bg} fillOpacity=".6" /><circle cx="53" cy="68" r="8" fill="none" stroke={bg} strokeOpacity=".7" strokeWidth="2" /></>,
-  print: (ink, bg) => <><rect x="18" y="12" width="64" height="76" fill={bg} stroke={ink} strokeWidth="4" /><circle cx="60" cy="36" r="8" fill={ink} /><path d="M24 80 42 50 54 66 64 56 76 80Z" fill={ink} /></>,
-  ring: (ink, bg) => <><circle cx="50" cy="60" r="24" fill="none" stroke={ink} strokeWidth="7" /><path d="M42 30 50 20 58 30 50 40Z" fill={ink} /><path d="M50 20V40M42 30H58" stroke={bg} strokeOpacity=".5" strokeWidth="1.5" /></>,
-  vinyl: (ink, bg) => <><circle cx="50" cy="50" r="40" fill={ink} /><circle cx="50" cy="50" r="28" fill="none" stroke={bg} strokeOpacity=".25" strokeWidth="1.5" /><circle cx="50" cy="50" r="13" fill={bg} fillOpacity=".8" /><circle cx="50" cy="50" r="3" fill={ink} /></>,
-  mug: (ink, bg) => <><path d="M26 28H68V74Q68 88 54 88H40Q26 88 26 74Z" fill={ink} /><path d="M68 38H78Q88 38 88 50 88 62 76 62H68" fill="none" stroke={ink} strokeWidth="6" /><path d="M26 40H68" stroke={bg} strokeOpacity=".3" strokeWidth="2" /></>,
-  tape: (ink, bg) => <><rect x="12" y="26" width="76" height="48" fill={ink} /><rect x="22" y="34" width="56" height="18" fill={bg} fillOpacity=".8" /><circle cx="36" cy="44" r="5" fill={ink} /><circle cx="64" cy="44" r="5" fill={ink} /><path d="M28 74 34 62H66L72 74" fill={bg} fillOpacity=".3" /></>,
+  tee: (ink, bg) => <><path d="M33 14 14 24 6 44l14 6 6-8v46h48V42l6 8 14-6-8-20-19-10C62 22 38 22 33 14Z" fill={ink} {...line} /><path d="M33 14C38 26 62 26 67 14" fill="none" {...line} /><path d="M26 80H74" fill="none" {...faint} /><circle cx="58" cy="42" r="5" fill={bg} {...line} /></>,
+  sweatshirt: (ink, bg) => <><path d="M34 12 16 20 6 72l15 4 6-32v44h46V44l6 32 15-4-10-52-18-8C62 20 38 20 34 12Z" fill={ink} {...line} /><path d="M34 12C38 24 62 24 66 12" fill="none" {...line} /><path d="M27 80H73M8 66l14 4M92 66l-14 4" fill="none" {...faint} /><path d="M42 50H58M42 56H52" fill="none" stroke={bg} strokeWidth={3} strokeLinecap="round" /></>,
+  tote: (ink, bg) => <><path d="M36 40C36 8 64 8 64 40" fill="none" stroke={LINE} strokeWidth={4} strokeLinecap="round" /><path d="M20 38H80L85 92H15Z" fill={ink} {...line} /><rect x="36" y="56" width="28" height="18" rx="2" fill={bg} {...line} /></>,
+  cap: (ink, bg) => <><path d="M16 64C16 32 32 20 52 20 72 20 86 36 86 64Z" fill={ink} {...line} /><path d="M10 64H88C98 64 100 74 88 75H10Z" fill={ink} {...line} /><path d="M52 20V64M34 26C30 38 28 50 28 64M70 26C74 38 76 50 76 64" fill="none" {...faint} /><circle cx="52" cy="19" r="3.5" fill={bg} {...line} /></>,
+  book: (ink, bg) => <><rect x="24" y="12" width="52" height="76" rx="2" fill={ink} {...line} /><path d="M32 12V88" fill="none" {...faint} /><rect x="40" y="26" width="26" height="22" fill={bg} {...line} /><path d="M40 62H66M40 70H58" fill="none" {...line} /></>,
+  print: (ink, bg) => <><rect x="18" y="12" width="64" height="76" fill={bg} {...line} /><circle cx="60" cy="36" r="8" fill={ink} {...line} /><path d="M24 80 42 50 54 66 64 56 76 80Z" fill={ink} {...line} /></>,
+  ring: (ink, bg) => <><circle cx="50" cy="62" r="24" fill="none" stroke={LINE} strokeWidth={11} /><circle cx="50" cy="62" r="24" fill="none" stroke={ink} strokeWidth={6} /><path d="M42 30 50 18 58 30 50 42Z" fill={bg} {...line} /></>,
+  vinyl: (ink, bg) => <><circle cx="50" cy="50" r="40" fill={ink} {...line} /><circle cx="50" cy="50" r="28" fill="none" {...faint} /><circle cx="50" cy="50" r="13" fill={bg} {...line} /><circle cx="50" cy="50" r="2.5" fill={ink} /></>,
+  mug: (ink, bg) => <><path d="M68 38H78Q88 38 88 50 88 62 76 62H68" fill="none" stroke={LINE} strokeWidth={9} strokeLinecap="round" /><path d="M68 38H78Q88 38 88 50 88 62 76 62H68" fill="none" stroke={ink} strokeWidth={4} strokeLinecap="round" /><path d="M26 28H68V74Q68 88 54 88H40Q26 88 26 74Z" fill={ink} {...line} /><path d="M26 42H68" stroke={bg} strokeWidth={3} fill="none" /></>,
+  tape: (ink, bg) => <><rect x="12" y="26" width="76" height="48" rx="3" fill={ink} {...line} /><rect x="22" y="34" width="56" height="18" fill={bg} {...line} /><circle cx="36" cy="43" r="5" fill={ink} {...line} /><circle cx="64" cy="43" r="5" fill={ink} {...line} /><path d="M28 74 34 62H66L72 74" fill="none" {...line} /></>,
+  towel: (ink, bg) => <><rect x="22" y="12" width="56" height="76" rx="2" fill={ink} {...line} /><path d="M22 28H78M22 34H78M22 66H78M22 72H78" fill="none" stroke={bg} strokeWidth={2.4} /></>,
 };
 
 /** A drawn cover for a product without a photo: a block in the look's colours with its title set in the look's type. */
