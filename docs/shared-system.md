@@ -95,6 +95,16 @@ needed a Google organization before any shop could be made ("In the queue") and 
   is the free address for a shared shop. A shared shop is live for health, backups and team sync
   (`rings.js` `notLive`), but gets no per-project release (`leftOut`). The nightly backup exports the shared project's
   two databases once for all its shops; the monthly restore drill still covers only shops with a project of their own.
+- **Web addresses.** The domain service runs on the hosted server once the shared system is on
+  (`services/domains/hosted.js`, `/api/domains`, the `web-addresses` job). A shop's address goes in `addresses/{host}`
+  first (refused when another shop holds it), then on the shared Hosting site; letting one go takes it off the site,
+  then out of `addresses/` (only an entry that names this shop). Its server settings (`SHOP_EXTRA_ORIGINS`,
+  `SHOP_SITE_URL`) and profile (`siteUrl`) are fields of its record, which the shared server reads within 30 seconds:
+  nothing is deployed. A shop with a project of its own is refused there in plain words. The shared server calls it at
+  `PLATFORM_DOMAINS_URL` (`<platform>/api/domains`) with the shared server's key.
+  **Limit:** Firebase Hosting takes no wildcard address and only a few dozen own addresses per project, and each one
+  waits minutes to hours for its certificate. One per shop runs out at about 40 shops. A Google load balancer with a
+  wildcard certificate in front of the front door removes both limits (put to Julian, 10 November 2026).
 - **What each shop uses (the meters).** The shared server writes one usage line per request, change and tick
   (`functions/usageLog.js`: the shop and its time) and the front door one per page answered (the shop and its size).
   Two log-based metrics in the shared project count them by shop (`server/setup-usage-metrics.js`, run once with `--apply`).
@@ -135,7 +145,7 @@ app off. The per-shop cost meters (phase 7) are what the plan charges by.
 | 7 | Platform services: control room, health, per-shop costs, export, closing, backups, staged updates | next |
 | 8 | Test shop rebuilt in the shared test project (`lmb-test-shop`) with a test purchase | |
 
-Left for later in phase 7: the domain service adds an own domain to the shared Hosting site and to `addresses/`; the
+Left for later in phase 7: the
 staged updates (one release of the shared project, then each shop's pages); a restore drill
 of the shared project. A Shippo or PayPal webhook set up by hand needs `?shop=<id>` on its address. The tick runs every
 shop in one five-minute run; it is spread out once there are many shops. Nothing is deployed from these copies to a

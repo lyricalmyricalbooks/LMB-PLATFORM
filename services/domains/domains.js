@@ -64,6 +64,15 @@
 //   platformZone apply(records) (platformZone.js): the free addresses' lines in the platform's own zone; optional
 //   presses      listByFreeName(name) (clients/platformStores.js), optional: a name a press in setup picked is never
 //                given to another shop (freeAddress.js pickedByAnotherPress)
+//   shared       the shared system's stores (clients/shared.js sharedStores: `records`, `addresses`), optional
+//   publishSite(shopId)  draws a shared shop's pages again after its main address changes (setup/shopSite.js), optional
+//   sharedOnly   true on the hosted server: a shop with a project of its own is refused (its settings file and deploy
+//                are looked after by hand), so nothing is half done for it
+//
+// A shop in the shared system (`shared: true`, docs/shared-system.md) has no project, settings file or deploy of its
+// own. Its addresses are entries in `addresses/{host}` (the front door finds the shop by them: written before Hosting
+// serves the address, taken off after), and its server settings (SHOP_EXTRA_ORIGINS, SHOP_SITE_URL) and profile
+// (`siteUrl`) are fields of its record, which the shared server reads within 30 seconds: nothing is deployed.
 //
 // Free addresses (freeAddress.js): connectFreeAddress(shopId) gives the shop <press name>.<shop domain> (the next number
 // when the name is taken), saved as the registry row's `freeAddress`, as a domain entry with `free: true` that doesn't
@@ -71,6 +80,7 @@
 // every check until it is live, and it becomes the main address once live, unless the press's own domain is main. A
 // press's own domain brought in setup (`mainWhenLive`) takes over from the free address when it goes live.
 import { randomBytes } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import { serviceKeyMatches } from "../email/http.js";
 import { allowLink, fitTemplate, hostInZone, normalRecord, PURPOSES } from "./domainConnect.js";
 import { guideFor, sellerName, zoneGuess } from "./sellers.js";
@@ -137,6 +147,7 @@ const sameLines = (a = [], b = []) => JSON.stringify(a) === JSON.stringify(b);
 export function createDomainService({
   registry, auditLog, hosting, envFiles, profileFiles, deploy, payments = null, platformDomain,
   sellers = null, publicLines = null, domainConnect = null, email = null, freeAddress = null, platformZone = null, presses = null,
+  shared = null, publishSite = null, sharedOnly = false,
   newState = () => randomBytes(12).toString("hex"), now = () => Date.now(),
 }) {
   const iso = () => new Date(now()).toISOString();
@@ -152,7 +163,22 @@ export function createDomainService({
   async function rowOf(shopId) {
     const row = await registry.getShop(shopId);
     if (!row) throw new DomainError(404, "unknown_shop", `${shopId} isn't in the registry`);
+    if (sharedOnly && row.shared !== true) throw new DomainError(409, "not_shared", "This shop's web addresses are looked after by the Colophon team for now. Write to support and we'll connect it.");
     return row;
+  }
+  const inShared = (row) => row.shared === true && Boolean(shared);
+
+  // The front door's address book (shared system): an address opens only the shop it names, and never two shops.
+  async function claim(row, name, kind) {
+    if (!inShared(row)) return;
+    if (await shared.addresses.create(name, { shopId: row.shopId, kind, createdAt: iso() })) return;
+    const holder = await shared.addresses.get(name);
+    if (holder?.shopId !== row.shopId) throw new DomainError(409, "in_use", "That address is already connected to another shop.");
+  }
+  async function release(row, name) {
+    if (!inShared(row)) return;
+    const holder = await shared.addresses.get(name);
+    if (holder?.shopId === row.shopId) await shared.addresses.remove(name);
   }
   const domainsOf = (row) => (Array.isArray(row.domains) ? row.domains.filter((d) => d && typeof d.name === "string") : []);
   const projectOf = (row) => row.projectId ?? row.shopId;
@@ -166,6 +192,7 @@ export function createDomainService({
   // The shop's server code accepts calls from every address the shop has (shopConfig.js allowedOrigins) and links to
   // its main address (SHOP_SITE_URL: emails, order links). Redeployed at the version the shop runs when either changes.
   async function syncServer(row) {
+    if (row.shared === true) return syncRecord(row, "server", (server) => ({ ...server, SHOP_EXTRA_ORIGINS: domainOrigins(domainsOf(row)).join(","), SHOP_SITE_URL: siteUrlOf(row) }));
     const text = await envFiles.read(row.shopId);
     if (!text) return false; // setup step 8 writes it, with the registry's addresses
     const next = withSiteUrl(withExtraOrigins(text, domainOrigins(domainsOf(row))), siteUrlOf(row));
@@ -181,6 +208,19 @@ export function createDomainService({
   // The shop's pages link to the main address (profile `siteUrl`: canonical links, the sitemap, the Google feed). The
   // profile is shipped with the pages, so they are deployed again at the version the shop runs.
   async function syncProfile(row) {
+    if (row.shared === true) {
+      const changed = await syncRecord(row, "profile", (profile) => ({ ...profile, siteUrl: siteUrlOf(row) }));
+      if (changed) {
+        const saved = await registry.getProfile(row.shopId);
+        if (saved) await registry.saveProfile(row.shopId, { ...saved, siteUrl: siteUrlOf(row) });
+        // The pages drawn for search engines name the main address too; until they are drawn again they keep the old
+        // one, which still opens the shop. The staged updates draw them after each release as well.
+        if (publishSite) {
+          try { await publishSite(row.shopId); } catch (err) { console.error(`Drawing ${row.shopId}'s pages again failed:`, err?.message || err); }
+        }
+      }
+      return changed;
+    }
     const saved = await registry.getProfile(row.shopId);
     if (!saved) return false; // setup step 6 writes it, with the registry's main address
     const siteUrl = siteUrlOf(row);
@@ -193,6 +233,18 @@ export function createDomainService({
     const live = await deploy.deployed(row.shopId, "pages:shop");
     if (live?.version) await deploy.pages(row.shopId, { version: live.version, app: "shop" });
     await registry.saveProfile(row.shopId, profile);
+    return true;
+  }
+
+  // One field of a shared shop's record (`server` or `profile`), brought up to date; false when it already was, or the
+  // shop maker hasn't written it yet (it writes it from the registry, so nothing is lost).
+  async function syncRecord(row, field, next) {
+    if (!shared) return false;
+    const have = (await shared.records.get(row.shopId))?.[field];
+    if (!have || typeof have !== "object") return false;
+    const want = next(have);
+    if (isDeepStrictEqual(want, have)) return false;
+    await shared.records.set(row.shopId, { [field]: want }, { fields: [field] });
     return true;
   }
 
@@ -371,9 +423,12 @@ export function createDomainService({
       const holder = (await registry.listShops()).find((other) => other?.shopId !== shopId
         && (domainsOf(other).some((d) => d.name === name) || other?.emailSender?.domain === name));
       if (holder) throw new DomainError(409, "in_use", "That address is already connected to another shop.");
+      await claim(row, name, "own");
       await registry.updateShop(shopId, { domains: [...domains, { name, state: "connecting", addedAt: iso(), ...(redirectTo ? { redirectTo } : {}) }] });
       await logChange(shopId, `domain-added-${name}`, { kind: "domains.added", domain: name, ...(redirectTo ? { redirectTo } : {}) });
     }
+    // Again on a repeat, so an add that stopped halfway still ends with the address the shop's.
+    await claim(row, name, "own");
     if (await syncServer(await rowOf(shopId))) {
       await logChange(shopId, `domain-origins-${name}`, { kind: "domains.server-allowed", domain: name });
     }
@@ -425,6 +480,7 @@ export function createDomainService({
     if (entry.free && !entry.former) throw new DomainError(400, "own_address", "This is your shop's free address. It always works and can't be removed.");
     if (mainAddress(row) === name) throw new DomainError(409, "is_main", "This is your shop's main address. Make another address main first, then remove this one.");
     await hosting.removeDomain(projectOf(row), name);
+    await release(row, name);
     if (entry.free && platformZone && entry.zoneLines?.length) await platformZone.apply(entry.zoneLines.map((l) => ({ ...l, action: "remove" })));
     // The shop's emails stop coming from orders@<this address> too (its email lines went with the entry), so the
     // address is free for whoever owns it next. The Resend domain is reused if this shop or another connects it again.
@@ -510,6 +566,7 @@ export function createDomainService({
       await registry.updateShop(shopId, { domains: [...domainsOf(row), { name, free: true, state: "connecting", addedAt: iso(), mainWhenLive: true }] });
       await logChange(shopId, `domain-added-${name}`, { kind: "domains.added", domain: name, free: true });
     }
+    await claim(row, name, "free");
     if (await syncServer(await rowOf(shopId))) await logChange(shopId, `domain-origins-${name}`, { kind: "domains.server-allowed", domain: name });
     await hosting.addDomain(projectOf(row), name);
     return check(shopId, name);
@@ -538,8 +595,11 @@ export function createDomainService({
     if (name === before) return list(shopId);
     if (await taken(name)) throw new DomainError(409, "taken", `Another shop already has ${name}. Try another name.`);
     // Only one address before the current one keeps working: an older one is taken off (never the main one).
+    // The new name is this shop's in the front door's address book before anything else changes.
+    await claim(row, name, "free");
     for (const old of domainsOf(row).filter((d) => d.free && d.former && d.name !== name && d.name !== mainAddress(row))) {
       await hosting.removeDomain(projectOf(row), old.name);
+      await release(row, old.name);
       if (old.zoneLines?.length) await platformZone.apply(old.zoneLines.map((l) => ({ ...l, action: "remove" })));
       row = await rowOf(shopId);
       await registry.updateShop(shopId, { domains: domainsOf(row).filter((d) => d.name !== old.name) });
@@ -637,6 +697,7 @@ export function createDomainService({
     if (!domainsOf(row).some((d) => d.name === name)) return { done: true, removed: null };
     if (deleting !== true) return { done: true, ...(await remove(shopId, name)) };
     await hosting.removeDomain(projectOf(row), name);
+    await release(row, name);
     const entry = domainsOf(row).find((d) => d.name === name);
     if (entry?.free && platformZone && entry.zoneLines?.length) await platformZone.apply(entry.zoneLines.map((l) => ({ ...l, action: "remove" })));
     const fields = { domains: domainsOf(row).filter((d) => d.name !== name) };
@@ -703,7 +764,7 @@ export function createDomainService({
   async function checkAll() {
     const results = [];
     for (const row of await registry.listShops()) {
-      if (!row?.shopId || row.status === "abandoned") continue;
+      if (!row?.shopId || row.status === "abandoned" || (sharedOnly && row.shared !== true)) continue;
       for (const d of domainsOf(row)) {
         const waiting = d.state !== "live" || (email && (d.connect || (d.free && !d.former)) && !d.liveEmailedAt) || EXTRA_PURPOSES.some((p) => d.extraRecords?.[p] && !d.extraRecords[p].appliedAt);
         const watchDue = !waiting && !(now() - Date.parse(d.watchedAt ?? "") < WATCH_EVERY_MS);

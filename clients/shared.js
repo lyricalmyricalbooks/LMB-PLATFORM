@@ -8,7 +8,8 @@
 //   stockroomRecords      the record's copy in the stockroom's database (the stockroom's rules read it): get / set
 //   liveRecords           the record's copy in the Realtime Database, `shops/<id>/record`: get / set (replaces it)
 //   addresses             `addresses/{host}` -> { shopId }, which shop a web address belongs to (the front door reads
-//                         it): get(host); create(host, data) -> true, or false when the address was already there
+//                         it): get(host); create(host, data) -> true, or false when the address was already there;
+//                         remove(host) (the domain service, when a shop lets an address go)
 //
 // Only the platform writes the record, its copies and the addresses; no browser can read or write them (the rules sit
 // inside `match /shops/{shopId}` and refuse the record itself).
@@ -68,6 +69,7 @@ export function sharedStores({ fetch, token, projectId, databaseUrl = "" }) {
     addresses: {
       get: (host) => root.get(`addresses/${hostOf(host)}`),
       create: (host, data) => root.create(`addresses/${hostOf(host)}`, data),
+      remove: (host) => root.remove(`addresses/${hostOf(host)}`),
     },
   };
 }

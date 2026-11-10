@@ -1,3 +1,4 @@
+import { hashServiceKey } from "../services/email/http.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { platformWorld } from "../walkthrough/world.js";
@@ -150,6 +151,25 @@ test("with the shared project named, making a shop runs the shared shop maker (d
   assert.doesNotMatch(row.error ?? "", /isn't switched on yet/);
   // The first thing it asks Google for is the shared project's web app, for the shop's profile.
   assert.match(String(outside.other[0]?.url ?? outside.other[0] ?? ""), /lmb-test-shop\/webApps/);
+});
+
+test("a shop's web addresses answer through the platform once the shared system is on, and plainly not before", async () => {
+  const off = build();
+  const before = await off.world.handle({ method: "POST", path: "/api/domains/shop", headers: {}, body: { op: "domains.list" } });
+  assert.equal(before.status, 503);
+  assert.match(before.body.error.message, /aren't switched on yet/);
+
+  const env = { ...TEST_ENV, SHARED_SHOPS_PROJECT: "lmb-test-shop", SHARED_SHOPS_DOMAIN: "shops.example" };
+  const { world } = build(env);
+  assert.ok(world.parts.domains, "the domain service is built");
+  // A call without the shop's key is refused, the same way as an unknown shop.
+  const refused = await world.handle({ method: "POST", path: "/api/domains/shop", headers: { "X-Shop-Id": "moth-press" }, body: { op: "domains.list" } });
+  assert.equal(refused.status, 401);
+  const key = "shared-server-key-0123456789abcdef0123456789";
+  await world.registry.createShop("moth-press", { shopId: "moth-press", projectId: "lmb-test-shop", shared: true, status: "live", freeAddress: "moth-press.shops.example", serviceKeyHash: hashServiceKey(key) });
+  const listed = await world.handle({ method: "POST", path: "/api/domains/shop", headers: { "X-Shop-Id": "moth-press", Authorization: `Bearer ${key}` }, body: { op: "domains.list" } });
+  assert.equal(listed.status, 200, JSON.stringify(listed.body));
+  assert.equal(listed.body.own, "moth-press.shops.example");
 });
 
 test("a shop's Stripe events and sent emails reach its control-room record (the delivery counts, plan 19.12)", async () => {

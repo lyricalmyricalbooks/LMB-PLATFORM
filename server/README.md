@@ -49,7 +49,7 @@ Not connected yet (`notConnected.js`). Each answers in plain words, never with m
 | Deleting a closed shop's project | Your go, once the organization exists |
 | Deleting a closed app's records after its 90 days | Server access to each shop's project, after 15.5 (until then the Apps closing list shows each one waiting) |
 | Marking a closing email that bounced | Resend's delivery events reaching the platform (`services/email/webhook.js` with `onBounce`) |
-| Web addresses for shops | The domain service's hosted home (2.9) |
+| Web addresses for shops | The shared system (`SHARED_SHOPS_PROJECT` and `SHARED_SHOPS_DOMAIN`): then `/api/domains` and the `web-addresses` job run (`services/domains/hosted.js`); a free address's lines are written once `SHOP_ADDRESS_ZONE` and `SHOP_ADDRESS_ZONE_PROJECT` name its Cloud DNS zone |
 | QuickBooks | The platform's QuickBooks app keys (`docs/accounting.md`) |
 | What each shop costs | Google's billing export to BigQuery (the Costs page shows its empty state) |
 
@@ -62,7 +62,7 @@ Not connected yet (`notConnected.js`). Each answers in plain words, never with m
 | --- | --- | --- |
 | health-checks | every 5 minutes | on |
 | shop-maker | every minute | paused |
-| web-addresses | every 10 minutes | paused |
+| web-addresses | every 10 minutes | paused until the shared system is on |
 | own-email-addresses | every 6 hours, at 20 past | on |
 | press-messages | every hour, at 7 past | on |
 | nightly-backups | 01:00 | on |

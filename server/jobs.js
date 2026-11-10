@@ -31,7 +31,7 @@ export const RUNNERS = Object.freeze({
   "health-checks": ({ parts }) => () => health(parts, "checks"),
   // The shared system makes shops once its two settings are there (server/world.js sharedShopRun).
   "shop-maker": ({ shopMaker, parts }) => (parts?.sharedShops ? () => shopMaker.sweep() : notConnectedFn(NOT_CONNECTED.shopMaking)),
-  "web-addresses": () => notConnectedFn(NOT_CONNECTED.domains),
+  "web-addresses": ({ parts }) => (parts?.domains ? () => parts.domains.checkAll() : notConnectedFn(NOT_CONNECTED.domains)),
   "own-email-addresses": ({ parts }) => () => createOwnDomainSender({
     resendDomains: resendDomainsFromEnv({ env: parts.env, fetch: parts.fetch }), registry: parts.registry, auditLog: parts.auditLog,
     // Only a shop that started its own address has anything to check, and starting one needs the domain service.
@@ -83,7 +83,7 @@ export const WAITING_JOBS = Object.freeze({
 export function waitingJobs(env = {}) {
   const shared = Boolean(String(env.SHARED_SHOPS_PROJECT ?? "").trim() && String(env.SHARED_SHOPS_DOMAIN ?? "").trim());
   // With the shared system on, it makes shops, meters each one's use and bills running costs by those meters.
-  const on = new Set(shared ? ["shop-maker", "usage-meters", "running-costs"] : []);
+  const on = new Set(shared ? ["shop-maker", "usage-meters", "running-costs", "web-addresses"] : []);
   return Object.fromEntries(Object.entries(WAITING_JOBS).filter(([name]) => !on.has(name)));
 }
 
