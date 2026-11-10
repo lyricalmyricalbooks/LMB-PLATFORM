@@ -108,7 +108,9 @@ export function identityClient({ fetch, token, now = () => new Date() }) {
 export async function testOwnerSession({ identity, shop, profile, serviceAccount, now = () => new Date() }) {
   if (shop?.testShop !== true) throw new Error(`${shop?.shopId ?? "this shop"} is not the platform's test shop; only the test owner is ever signed in by the platform`);
   const { apiKey, projectId } = profile.firebase;
-  const list = { tenantId: profile.tenant ?? null };
+  // The shop's own sign-in list: a shop in the shared system names it on its registry row (setup/sharedSteps.js step 2);
+  // its served profile carries it too, but the registry's copy of the profile doesn't.
+  const list = { tenantId: profile.tenant ?? (shop.shared === true ? shop.tenant : null) ?? null };
   const { uid, email } = await identity.ensureUser(projectId, shop.ownerEmail, list);
   const signed = await identity.signIn(apiKey, await identity.customToken(serviceAccount, uid, undefined, list), list);
   const at = now().getTime();

@@ -34,11 +34,14 @@ export function stockroomReads(firestore) {
   };
 }
 
-/** The shop's refund, as the test owner. `functionsBase` is like https://<region>-<project>.cloudfunctions.net. */
-export function shopAdmin({ fetch, functionsBase, session }) {
+/**
+ * The shop's refund, as the test owner. `functionUrl(name)` is the address of one of the shop's server functions
+ * (clients/shared.js shopPlaces `fn`: in the shared system it carries `?shop=<id>`).
+ */
+export function shopAdmin({ fetch, functionUrl, session }) {
   return {
     async refund(orderId) {
-      const response = await fetch(`${functionsBase}/refundOrder`, {
+      const response = await fetch(functionUrl("refundOrder"), {
         method: "POST",
         headers: { Authorization: `Bearer ${session.idToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({ orderId, reason: "Release check", restock: true }),

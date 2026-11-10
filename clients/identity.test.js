@@ -107,3 +107,16 @@ test("a shop with its own sign-in list (the shared system): every call names the
   assert.equal(session.user.tenantId, tenantId);
   fetch.done();
 });
+
+test("a shared shop's test owner signs in on the shop's own list, named on its registry row", async () => {
+  const tenantId = "test-press-x1y2z3";
+  const fetch = scriptedFetch([
+    { method: "POST", url: "https://identitytoolkit.googleapis.com/v1/projects/lmb-test-shop/accounts:lookup", body: { email: ["owner@example.com"], tenantId }, json: { users: [{ localId: "u1", email: "owner@example.com", emailVerified: true }] } },
+    { ...signJwt("u1"), body: { payload: JSON.stringify({ iss: SA, sub: SA, aud: CUSTOM_TOKEN_AUDIENCE, iat: IAT, exp: IAT + 3600, uid: "u1", tenant_id: tenantId }) } },
+    { ...signIn, body: { token: "signed.jwt", returnSecureToken: true, tenantId } },
+  ]);
+  const row = { ...shop, shopId: "test-press", shared: true, projectId: "lmb-test-shop", tenant: tenantId };
+  const session = await testOwnerSession({ identity: identityClient({ fetch, token, now: () => NOW }), shop: row, profile, serviceAccount: SA, now: () => NOW });
+  assert.equal(session.user.tenantId, tenantId);
+  fetch.done();
+});

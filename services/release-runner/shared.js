@@ -162,6 +162,51 @@ export async function runSharedRelease({
   }
 }
 
+/**
+ * A shared project's first release (setup/make-test-shop.js): before it holds a live shop there is nothing to try a
+ * release on, so `runSharedRelease` can't start there. This sends the build once (rules, the shared server, the site)
+ * and checks only the stamps. It refuses a project that already has a live shop: from then on every release goes
+ * through `runSharedRelease`, test project first. Takes the same lock, and records the run (kind
+ * "shared-first-release").
+ */
+export async function firstSharedRelease({
+  version, projectId, registry, builder, deploy, platformUrl, region = REGION, dryRun = false, print = () => {},
+  now = () => new Date(), runId = randomUUID(), lockMinutes = LOCK_MINUTES,
+}) {
+  if (!VERSION.test(version ?? "")) throw new Error(`"${version}" isn't a release version (like 1.4.0)`);
+  if (!PROJECT.test(projectId ?? "")) throw new Error(`"${projectId}" isn't a Firebase project id`);
+  const envFile = sharedServerEnv({ platformUrl, region });
+  const live = (await registry.listShops()).filter((row) => row?.shared === true && row.projectId === projectId && row.status === "live");
+  if (live.length) {
+    print(`${projectId} already has ${live.length} live shop(s): its releases go through the staged update (run-shared.js).`);
+    return { ok: true, skipped: true, version, projectId };
+  }
+  if (dryRun) {
+    print(`${projectId}: would build ${version} and send it (rules, the shared server, the site).`);
+    return { ok: true, dryRun: true, version, projectId };
+  }
+  const lock = await registry.takeLock(SHARED_RELEASE_LOCK, { runId, takenAt: now().toISOString(), expiresAt: new Date(now().getTime() + lockMinutes * 60_000).toISOString() });
+  if (!lock.taken) {
+    print(`Another shared release (${lock.runId}) is running until ${lock.expiresAt}; this one stops.`);
+    return { ok: false, locked: true, version, projectId };
+  }
+  const startedAt = now().toISOString();
+  let error = null;
+  try {
+    await builder.build(version);
+    await ship({ deploy, envFile, region }, projectId, version);
+    const problems = await checkProject({ deploy }, { projectId }, null, version);
+    if (problems.length) error = problems.join("; ");
+  } catch (shipError) {
+    error = `the first release failed: ${message(shipError)}`;
+  } finally {
+    await registry.recordRelease({ kind: "shared-first-release", version, runId, startedAt, finishedAt: now().toISOString(), ok: !error, ...(error ? { error } : {}), projects: [{ projectId, status: error ? "failed" : "shipped" }] });
+    await registry.releaseLock(SHARED_RELEASE_LOCK, runId);
+  }
+  print(error ? `${projectId}: ${error}.` : `${projectId}: ${version} sent and its stamps checked.`);
+  return { ok: !error, version, projectId, ...(error ? { error } : {}) };
+}
+
 /** One project: deploy, check, and go back to the release before on a failed check. */
 async function releaseProject(ctx, project, sample, version) {
   const { deploy, print } = ctx;

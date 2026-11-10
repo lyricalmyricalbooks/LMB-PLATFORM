@@ -16,6 +16,7 @@ import { accountKey } from "../services/payments/accountSlots.js";
 // whether the shop's database exists yet; `write(shopId, id, entry)` stores the entry under `id`, replacing any entry
 // with that id.
 import { childrenOf } from "../accounts/fakes.js";
+import { tenantIdOf } from "./shopTenant.js";
 
 export function fakeRegistry(seed = {}) {
   const steps = new Map(Object.entries(seed).map(([shopId, list]) => [shopId, [...list]]));
@@ -150,7 +151,7 @@ export function fakeGoogle({ failOnce = [] } = {}) {
     // Scheduled jobs by project (a set of job ids) and the projects whose build repository has the cleanup rule (plan 15.16).
     schedulerJobs: new Map(), buildCleanup: new Set(),
     // Each project's sign-in settings (plan 22.6): { subtype, mfa }. A new Firebase project starts as plain Firebase Auth.
-    authConfigs: new Map(),
+    authConfigs: new Map(), googleSignIns: new Map(),
     // Budgets on the billing account (plan 15.17): { id, displayName, body }.
     budgets: [],
     // Each project's bot check token lifetime in minutes (absent: no reCAPTCHA configuration yet), and its assessments this month (plan 15.18).
@@ -322,6 +323,14 @@ export function fakeGoogle({ failOnce = [] } = {}) {
         if (config.subtype !== "IDENTITY_PLATFORM") throw new Error(`a second step needs Identity Platform on ${projectId}`);
         world.authConfigs.set(projectId, { ...config, mfa: structuredClone(mfa) });
       },
+      async allowTenants(projectId) {
+        change("authConfig.allowTenants", projectId);
+        const config = world.authConfigs.get(projectId) ?? { subtype: "FIREBASE_AUTH" };
+        if (config.subtype !== "IDENTITY_PLATFORM") throw new Error(`sign-in lists need Identity Platform on ${projectId}`);
+        world.authConfigs.set(projectId, { ...config, multiTenant: { allowTenants: true } });
+      },
+      // The project's own Google sign-in, which only a person turns on (in the Firebase console).
+      googleSignIn: async (projectId) => structuredClone(world.googleSignIns.get(projectId) ?? null),
     },
     buildCleanup: {
       has: async (projectId) => (world.firebase.has(projectId) ? world.buildCleanup.has(projectId) : null),
@@ -488,6 +497,47 @@ export function fakeServices({ failOnce = [], pageStatus = () => 200 } = {}) {
         if (link.startDay) throw new Error(`Website sales are already being sent from ${link.startDay}.`);
         world.links.set(projectId, { ...link, startDay });
       },
+    },
+  };
+}
+
+/** Google's sign-in lists, in memory (as in shopTenant.test.js). */
+export function fakeTenants() {
+  const lists = [];
+  const signIns = new Map();
+  return {
+    lists,
+    authConfig: { googleSignIn: async () => ({ enabled: true, clientId: "client.example", clientSecret: "made-up-secret" }) },
+    tenants: {
+      list: async () => lists.map((t) => ({ ...t })),
+      async create(projectId, fields) { const list = { name: `projects/${projectId}/tenants/${fields.displayName}-x`, ...fields }; lists.push(list); return list; },
+      async patch(_p, id, fields) { Object.assign(lists.find((t) => tenantIdOf(t) === id), fields); },
+      googleSignIn: async (_p, id) => signIns.get(id) ?? null,
+      async addGoogleSignIn(_p, id, c) { signIns.set(id, c); },
+      async patchGoogleSignIn(_p, id, c) { signIns.set(id, c); },
+    },
+  };
+}
+
+/** The shared project's records, their copies and the addresses, in memory (clients/shared.js shape). */
+export function fakeShared() {
+  const store = () => {
+    const docs = new Map();
+    return {
+      docs,
+      get: async (id) => structuredClone(docs.get(id) ?? null),
+      async set(id, data, { fields } = {}) {
+        const kept = fields ? { ...(docs.get(id) ?? {}) } : {};
+        docs.set(id, structuredClone({ ...kept, ...(fields ? Object.fromEntries(fields.map((f) => [f, data[f]])) : data) }));
+      },
+    };
+  };
+  const addresses = new Map();
+  return {
+    records: store(), stockroomRecords: store(), liveRecords: store(), addresses: {
+      map: addresses,
+      get: async (host) => structuredClone(addresses.get(host) ?? null),
+      async create(host, data) { if (addresses.has(host)) return false; addresses.set(host, structuredClone(data)); return true; },
     },
   };
 }

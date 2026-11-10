@@ -158,7 +158,7 @@ app off. The per-shop cost meters (phase 7) are what the plan charges by.
 | 5 | Front door: one site for every address, profile by address, crawlable pages, own domains | built |
 | 6 | Shop maker in seconds (record + tenant + starter content); ends "In the queue" | built |
 | 7 | Platform services: control room, health, per-shop costs, export, closing, backups, staged updates | built |
-| 8 | Test shop rebuilt in the shared test project (`lmb-test-shop`) with a test purchase | |
+| 8 | Test shop rebuilt in the shared test project (`lmb-test-shop`) with a test purchase | built; runs when the "Make the test shop" workflow is pressed |
 
 Left for later: a Shippo or PayPal webhook set up by hand needs `?shop=<id>` on its address. The tick runs every
 shop in one five-minute run; it is spread out once there are many shops. Nothing is deployed from these copies to a
@@ -167,6 +167,13 @@ live shop until phase 8 (the per-project test shop build is on hold).
 ## Projects
 
 - `lmb-test-shop` becomes the shared **test** project: the test shop is one folder in it, and every update lands there
-  first.
+  first. `setup/make-test-shop.js` (the "Make the test shop" workflow) readies it once (`setup/sharedProject.js`:
+  Firebase, the services, the databases and buckets, the web app called Shop, sign-in lists allowed, the shared
+  server's key, the nightly copy's permission, the old builds' cleanup), sends its first release while it has no shop
+  (`firstSharedRelease`), and makes the test shop `test-press` with the shared shop maker's steps, at the project's
+  own address `lmb-test-shop.web.app`. The test shop from before (`lmb-test-shop`, the project to itself) is marked
+  abandoned in the registry, so the per-project runner never sends its old rules here; its data stays. The release
+  check reads the test shop in its folder and calls the shared server with `?shop=` (`release-check/run.js`
+  `shopWhere`), so the staged update's test purchase runs on it.
 - Live shops go in one shared project for real shops (working name `lmb-shops`), made once.
 - The platform's own project (`lmb-platform-prod`) keeps the platform's data and the four platform secrets.

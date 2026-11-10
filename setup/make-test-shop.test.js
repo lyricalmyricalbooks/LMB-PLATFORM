@@ -1,36 +1,113 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LATER_STEPS, TEST_SHOP_ID, testShop, testShopConfig, testShopSteps } from "./make-test-shop.js";
-import { runSteps } from "./runner.js";
-import { fakeAuditLog, fakeGoogle, fakeProfileFiles, fakeRegistry, fakeServices } from "./fakes.js";
+import { LATER_STEPS, OLD_TEST_SHOP_ID, TEST_PROJECT, TEST_SHOP_ADDRESS, TEST_SHOP_ID, makeTestShopWith, testShop, testShopSteps } from "./make-test-shop.js";
+import { fakeAuditLog, fakeGoogle, fakeRegistry, fakeServices, fakeShared, fakeTenants } from "./fakes.js";
+import { TEST_CONFIG } from "./test-shop.js";
+import { SHARED_RELEASE_LOCK } from "../services/release-runner/shared.js";
 
-test("the test shop is only ever lmb-test-shop, in test mode, with the owner's address", () => {
+const WEB_APP = Object.freeze({ apiKey: "made-up-key", authDomain: `${TEST_PROJECT}.firebaseapp.com`, projectId: TEST_PROJECT, storageBucket: `${TEST_PROJECT}.firebasestorage.app`, messagingSenderId: "123", appId: "1:123:web:abc" });
+const CONFIG = Object.freeze({ ...TEST_CONFIG, sharedProject: TEST_PROJECT, webApp: WEB_APP, shopDomain: "", stockroomBucket: `${TEST_PROJECT}-stockroom` });
+
+/** The shared test project as Google, the registry and the deploys would have it. */
+function setup({ signInOn = true, oldRow = { status: "live", projectId: OLD_TEST_SHOP_ID } } = {}) {
+  const google = fakeGoogle();
+  google.world.projects.set(TEST_PROJECT, { projectId: TEST_PROJECT, state: "ACTIVE", parent: "folders/1" });
+  if (signInOn) google.world.googleSignIns.set(TEST_PROJECT, { enabled: true, clientId: "client.example", clientSecret: "made-up-secret" });
+  const registry = fakeRegistry();
+  const services = fakeServices();
+  const stepClients = { ...services, google: fakeTenants(), shared: fakeShared(), registry };
+  const stamps = new Map();
+  const calls = [];
+  const deploy = {
+    deployed: async (projectId, part) => (stamps.has(`${projectId} ${part}`) ? { version: stamps.get(`${projectId} ${part}`) } : null),
+    async rules(projectId, { version }) { calls.push(["rules", projectId, version]); stamps.set(`${projectId} rules`, version); },
+    async functions(projectId, { version }) { calls.push(["functions", projectId, version]); stamps.set(`${projectId} functions`, version); },
+    async pages(projectId, { version, app }) { calls.push(["pages", projectId, version, app]); stamps.set(`${projectId} pages:${app}`, version); },
+  };
+  const published = [];
+  const lines = [];
+  const run = (apply, extra = {}) => makeTestShopWith({
+    apply, ownerEmail: "Owner@Example.com", google, registry, auditLog: fakeAuditLog(), stepClients, deploy,
+    builder: { build: async (v) => calls.push(["build", v]) }, makerConfig: async () => CONFIG,
+    publishPages: async (shopId) => published.push(shopId), print: (line) => lines.push(line),
+    now: () => new Date("2026-11-10T18:00:00Z"), ...extra,
+  });
+  const ready = (async () => { if (oldRow) await registry.createShop(OLD_TEST_SHOP_ID, { shopId: OLD_TEST_SHOP_ID, ownerEmail: "owner@example.com", testShop: true, testMode: true, ...oldRow }); })();
+  return { google, registry, services, stepClients, calls, published, lines, run: async (...args) => { await ready; return run(...args); } };
+}
+
+test("the test shop is test-press, in test mode, at the shared test project's own address", () => {
   const shop = testShop(" Owner@Example.com ");
-  assert.deepEqual([shop.shopId, shop.ownerEmail, shop.testShop, shop.testMode, shop.plan], [TEST_SHOP_ID, "owner@example.com", true, true, "both"]);
+  assert.deepEqual([shop.shopId, shop.ownerEmail, shop.testShop, shop.testMode, shop.plan, shop.freeAddress], [TEST_SHOP_ID, "owner@example.com", true, true, "both", "lmb-test-shop.web.app"]);
+  assert.equal(TEST_SHOP_ADDRESS, `${TEST_PROJECT}.web.app`);
   assert.throws(() => testShop(""), /TEST_SHOP_OWNER_EMAIL/);
 });
 
-test("steps 13 and 14 wait for their keys, and the rest of the shop is still made", async () => {
-  const google = fakeGoogle();
-  const registry = fakeRegistry();
-  const services = fakeServices();
-  const config = { folder: "folders/000000000000", billingAccount: "billingAccounts/000000-000000-000000", senderEmail: "shops@example.com", paymentsServiceUrl: "https://payments.platform.example", stripePublishableKeys: {}, release: { version: "1.0.0", starterContent: () => [] } };
-  const steps = testShopSteps({ clients: { ...services, google, registry, profileFiles: fakeProfileFiles() }, config, connected: {} });
+test("steps 7 and 8 wait until their services are connected", () => {
+  const { stepClients } = setup();
+  const steps = testShopSteps({ clients: stepClients, config: CONFIG, connected: {} });
   for (const number of Object.keys(LATER_STEPS).map(Number)) assert.match(steps[number - 1].name, /waits for/);
-  const result = await runSteps({ shop: testShop("owner@example.com"), steps, registry, auditLog: fakeAuditLog(), print: () => {} });
-  assert.equal(result.ok, true, JSON.stringify(result.ran?.filter((r) => r.status === "failed")));
-  const connected = testShopSteps({ clients: { ...services, google, registry, profileFiles: fakeProfileFiles() }, config, connected: { 13: true, 14: true } });
-  assert.doesNotMatch(connected[12].name, /waits for/);
+  const connected = testShopSteps({ clients: stepClients, config: CONFIG, connected: { 7: true, 8: true } });
+  assert.doesNotMatch(connected[6].name, /waits for/);
 });
 
-test("the config takes the project's own folder and billing, and says what to do when either is missing", async () => {
-  const google = {
-    projects: { get: async () => ({ projectId: TEST_SHOP_ID, parent: "organizations/1", state: "ACTIVE" }) },
-    billing: { get: async () => ({ billingEnabled: true, billingAccountName: "billingAccounts/AAA" }) },
-  };
-  const config = await testShopConfig({ google });
-  assert.deepEqual([config.folder, config.billingAccount, config.release.version], ["organizations/1", "billingAccounts/AAA", "1.0.0"]);
-  assert.match(config.paymentsServiceUrl, /^https:\/\/lmb-platform-prod\.web\.app\/api\/payments$/);
-  await assert.rejects(testShopConfig({ google: { ...google, projects: { get: async () => null } } }), /doesn't exist/);
-  await assert.rejects(testShopConfig({ google: { ...google, billing: { get: async () => ({ billingEnabled: false }) } } }), /Link one/);
+test("a dry run changes nothing anywhere", async () => {
+  const { google, registry, calls, run, lines } = setup();
+  const result = await run(false);
+  assert.deepEqual(result, { ok: true, stage: "project", dryRun: true });
+  assert.deepEqual(google.calls, []);
+  assert.deepEqual(calls, []);
+  assert.equal((await registry.getShop(OLD_TEST_SHOP_ID)).status, "live");
+  assert.ok(lines.includes("The rest waits until the project is ready."));
+});
+
+test("a real run readies the project, retires the old test shop, sends the first release and makes the test shop", async () => {
+  const { registry, stepClients, calls, published, run } = setup();
+  const result = await run(true);
+  assert.deepEqual(result, { ok: true, stage: "done" });
+
+  // The old test shop is out of the per-project releases; its data was never touched.
+  const old = await registry.getShop(OLD_TEST_SHOP_ID);
+  assert.deepEqual([old.status, old.abandonedWhy], ["abandoned", "moved into the shared system as test-press"]);
+
+  // The first release: rules, the shared server, the site, once.
+  assert.deepEqual(calls, [["build", "1.0.0"], ["rules", TEST_PROJECT, "1.0.0"], ["functions", TEST_PROJECT, "1.0.0"], ["pages", TEST_PROJECT, "1.0.0", "shop"]]);
+  assert.equal([...registry.releases.values()][0].kind, "shared-first-release");
+  assert.equal(await registry.readLock(SHARED_RELEASE_LOCK), null);
+
+  // The test shop: a live folder in the shared test project, at the project's address, with its pages drawn.
+  const row = await registry.getShop(TEST_SHOP_ID);
+  assert.deepEqual([row.shared, row.projectId, row.status, row.testShop, row.testMode, row.freeAddress], [true, TEST_PROJECT, "live", true, true, TEST_SHOP_ADDRESS]);
+  assert.equal(stepClients.shared.addresses.map.get(TEST_SHOP_ADDRESS).shopId, TEST_SHOP_ID);
+  assert.equal((await registry.getProfile(TEST_SHOP_ID)).siteUrl, `https://${TEST_SHOP_ADDRESS}`);
+  assert.deepEqual(published, [TEST_SHOP_ID]);
+  const steps = await registry.readSteps(TEST_SHOP_ID);
+  assert.ok(steps.some((e) => /waits for payments/.test(e.name)));
+
+  // Run again: the release goes through the staged update now, and the shop is left as it is.
+  calls.length = 0;
+  const again = await run(true);
+  assert.equal(again.ok, true);
+  assert.deepEqual(calls, []);
+  assert.equal((await registry.getShop(TEST_SHOP_ID)).status, "live");
+});
+
+test("the run stops in plain words while Google sign-in is off, and sends nothing", async () => {
+  const { calls, run, registry } = setup({ signInOn: false });
+  const result = await run(true);
+  assert.equal(result.ok, false);
+  assert.equal(result.stage, "project");
+  assert.match(result.error, /Google sign-in isn't on in lmb-test-shop yet/);
+  assert.deepEqual(calls, []);
+  assert.equal(await registry.getShop(TEST_SHOP_ID), null);
+});
+
+test("with no old test shop, or one already retired, nothing is marked", async () => {
+  const fresh = setup({ oldRow: null });
+  assert.equal((await fresh.run(true)).ok, true);
+  assert.equal(await fresh.registry.getShop(OLD_TEST_SHOP_ID), null);
+
+  const retired = setup({ oldRow: { status: "abandoned", abandonedAt: "2026-01-01T00:00:00Z" } });
+  assert.equal((await retired.run(true)).ok, true);
+  assert.equal((await retired.registry.getShop(OLD_TEST_SHOP_ID)).abandonedAt, "2026-01-01T00:00:00Z");
 });

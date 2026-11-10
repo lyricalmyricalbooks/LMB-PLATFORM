@@ -81,7 +81,7 @@ test("the test shop workflow reaches lmb-test-shop only, from main only, by hand
   assert.match(text, /github\.ref == 'refs\/heads\/main'/);
   assert.doesNotMatch(text, /pull_request|push:|schedule:/, "only someone pressing Run workflow starts it");
   assert.doesNotMatch(text, /secrets\./, "it signs in with GitHub's identity, never a stored key");
-  assert.match(readFileSync(join("setup", "make-test-shop.js"), "utf8"), /export const TEST_SHOP_ID = "lmb-test-shop";/);
+  assert.match(readFileSync(join("setup", "testShopPlace.js"), "utf8"), /export const TEST_PROJECT = "lmb-test-shop";/);
 });
 
 // The copies are a general shop and stockroom for any press: nothing in them may name Lyricalmyrical, send people to

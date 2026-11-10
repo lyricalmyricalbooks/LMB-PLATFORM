@@ -147,20 +147,10 @@ export function shopProfile(shop, webAppConfig, region = REGION, savedSwitches =
 }
 
 /**
- * Steps 1–6. `config.folder` is the `shops` folder (`folders/…`) and `config.billingAccount` the platform's billing
- * account (`billingAccounts/…`); both are passed in, never written here. `config.switchDefaults` (optional) are the
- * switches a new shop starts with, from the control room (plan 9.7).
+ * Steps 3–5: Firebase, the services, and the databases and buckets, in the project named `shop.shopId`. They make a
+ * project ready for shops, so the shared system runs them once on its shared project too (setup/sharedProject.js).
  */
-export function firstSteps({ google, registry, profileFiles, config, now = () => new Date() }) {
-  if (!config?.folder?.startsWith("folders/")) throw new Error("config.folder must be the shops folder, like folders/123");
-  if (!config?.billingAccount?.startsWith("billingAccounts/")) throw new Error("config.billingAccount must be like billingAccounts/…");
-  const region = config.region ?? REGION;
-  const valid = (shop) => {
-    const problems = shopProblems(shop);
-    if (problems.length) throw new Error(`The shop details have problems: ${problems.join("; ")}`);
-    return shop;
-  };
-
+export function projectSteps({ google, region = REGION }) {
   // The stockroom's own database, bucket and Realtime Database as they are now. One in the wrong place, or a bucket name
   // another project holds, stops the run for a person: none can be moved, and nothing is ever deleted here.
   const stockroomPieces = async (shop) => {
@@ -175,59 +165,7 @@ export function firstSteps({ google, registry, profileFiles, config, now = () =>
     return { database, bucket, realtime };
   };
 
-  // The press's main address from the registry (services/domains makeMain), so a re-run keeps it.
-  const mainSiteUrl = async (shop) => siteUrlOf({ shopId: shop.shopId, ...(await registry.getShop(shop.shopId)) });
-
-  // The web app's settings, or null when the web app isn't there yet.
-  const webAppConfig = async (projectId) => {
-    const app = (await google.firebase.listWebApps(projectId)).find((a) => a.displayName === WEB_APP_NAME);
-    return app ? google.firebase.getWebAppConfig(projectId, app.appId) : null;
-  };
-
   return [
-    {
-      number: 1,
-      name: "Reserve the shop id in the registry",
-      async check({ shop }) {
-        const row = await registry.getShop(valid(shop).shopId);
-        if (!row) return false;
-        if (row.ownerEmail !== shop.ownerEmail) throw new Error(`the shop id ${shop.shopId} already belongs to another press`);
-        return true;
-      },
-      async act({ shop }) {
-        const { shopId, pressName, ownerEmail, plan, country, currency, language } = shop;
-        // The test marks live in the registry, where only the platform can change them (docs/test-shop.md).
-        await registry.createShop(shopId, {
-          shopId, projectId: shopId, pressName, ownerEmail, plan, country, currency, region,
-          testMode: shop.testMode === true, testShop: shop.testShop === true, status: "creating", createdAt: now().toISOString(),
-          ...(language === "fr" ? { language } : {}),
-        });
-      },
-    },
-    {
-      number: 2,
-      name: "Create the Google Cloud project in the shops folder and link billing",
-      async check({ shop }) {
-        const project = await google.projects.get(shop.shopId);
-        if (!project) return false;
-        if (project.parent !== config.folder) throw new Error(`a project called ${shop.shopId} exists outside the shops folder; choose another shop id`);
-        if (project.state === "DELETE_REQUESTED") {
-          throw new Error(`the project ${shop.shopId} is marked for deletion; restore it in the Google Cloud console, or mark the shop abandoned and use another id`);
-        }
-        if (project.state !== "ACTIVE") return false;
-        const billing = await google.billing.get(shop.shopId);
-        return Boolean(billing?.billingEnabled && billing.billingAccountName === config.billingAccount);
-      },
-      async act({ shop }) {
-        if (!(await google.projects.get(shop.shopId))) {
-          await google.projects.create({ projectId: shop.shopId, displayName: projectDisplayName(shop), parent: config.folder, labels: { "lmb-shop": shop.shopId } });
-        }
-        const billing = await google.billing.get(shop.shopId);
-        if (!(billing?.billingEnabled && billing.billingAccountName === config.billingAccount)) {
-          await google.billing.link(shop.shopId, config.billingAccount);
-        }
-      },
-    },
     {
       number: 3,
       name: "Add Firebase to the project",
@@ -284,6 +222,78 @@ export function firstSteps({ google, registry, profileFiles, config, now = () =>
         if (!pieces.realtime) await google.realtimeDatabase.createInstance(shop.shopId, { location: RTDB_LOCATION });
       },
     },
+  ];
+}
+
+/**
+ * Steps 1–6. `config.folder` is the `shops` folder (`folders/…`) and `config.billingAccount` the platform's billing
+ * account (`billingAccounts/…`); both are passed in, never written here. `config.switchDefaults` (optional) are the
+ * switches a new shop starts with, from the control room (plan 9.7).
+ */
+export function firstSteps({ google, registry, profileFiles, config, now = () => new Date() }) {
+  if (!config?.folder?.startsWith("folders/")) throw new Error("config.folder must be the shops folder, like folders/123");
+  if (!config?.billingAccount?.startsWith("billingAccounts/")) throw new Error("config.billingAccount must be like billingAccounts/…");
+  const region = config.region ?? REGION;
+  const valid = (shop) => {
+    const problems = shopProblems(shop);
+    if (problems.length) throw new Error(`The shop details have problems: ${problems.join("; ")}`);
+    return shop;
+  };
+
+  // The press's main address from the registry (services/domains makeMain), so a re-run keeps it.
+  const mainSiteUrl = async (shop) => siteUrlOf({ shopId: shop.shopId, ...(await registry.getShop(shop.shopId)) });
+
+  // The web app's settings, or null when the web app isn't there yet.
+  const webAppConfig = async (projectId) => {
+    const app = (await google.firebase.listWebApps(projectId)).find((a) => a.displayName === WEB_APP_NAME);
+    return app ? google.firebase.getWebAppConfig(projectId, app.appId) : null;
+  };
+
+  return [
+    {
+      number: 1,
+      name: "Reserve the shop id in the registry",
+      async check({ shop }) {
+        const row = await registry.getShop(valid(shop).shopId);
+        if (!row) return false;
+        if (row.ownerEmail !== shop.ownerEmail) throw new Error(`the shop id ${shop.shopId} already belongs to another press`);
+        return true;
+      },
+      async act({ shop }) {
+        const { shopId, pressName, ownerEmail, plan, country, currency, language } = shop;
+        // The test marks live in the registry, where only the platform can change them (docs/test-shop.md).
+        await registry.createShop(shopId, {
+          shopId, projectId: shopId, pressName, ownerEmail, plan, country, currency, region,
+          testMode: shop.testMode === true, testShop: shop.testShop === true, status: "creating", createdAt: now().toISOString(),
+          ...(language === "fr" ? { language } : {}),
+        });
+      },
+    },
+    {
+      number: 2,
+      name: "Create the Google Cloud project in the shops folder and link billing",
+      async check({ shop }) {
+        const project = await google.projects.get(shop.shopId);
+        if (!project) return false;
+        if (project.parent !== config.folder) throw new Error(`a project called ${shop.shopId} exists outside the shops folder; choose another shop id`);
+        if (project.state === "DELETE_REQUESTED") {
+          throw new Error(`the project ${shop.shopId} is marked for deletion; restore it in the Google Cloud console, or mark the shop abandoned and use another id`);
+        }
+        if (project.state !== "ACTIVE") return false;
+        const billing = await google.billing.get(shop.shopId);
+        return Boolean(billing?.billingEnabled && billing.billingAccountName === config.billingAccount);
+      },
+      async act({ shop }) {
+        if (!(await google.projects.get(shop.shopId))) {
+          await google.projects.create({ projectId: shop.shopId, displayName: projectDisplayName(shop), parent: config.folder, labels: { "lmb-shop": shop.shopId } });
+        }
+        const billing = await google.billing.get(shop.shopId);
+        if (!(billing?.billingEnabled && billing.billingAccountName === config.billingAccount)) {
+          await google.billing.link(shop.shopId, config.billingAccount);
+        }
+      },
+    },
+    ...projectSteps({ google, region }),
     {
       number: 6,
       name: "Create the web app and write the shop profile",
