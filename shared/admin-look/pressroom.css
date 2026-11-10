@@ -1943,6 +1943,15 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
   .rp-launch-list li > div { flex-basis: 100%; }
 }
 
+/* Figures as white tiles and filter rows as pills, as on the mockup's pages (10 November 2026). */
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-kpi-grid { gap: 12px; border: 0; overflow: visible; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-kpi-grid > .rp-metric,
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-kpi-grid > .rp-metric:first-child,
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-kpi-grid > .rp-metric:nth-child(odd) { padding: 20px 22px; border-radius: 22px; background: var(--rp-surface); box-shadow: none; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-kpi-grid .rp-metric-value { font: 600 36px/1 var(--rp-font-body); letter-spacing: -0.03em; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-tabs:not([data-variant="page"]) { gap: 8px; border: 0; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-tabs:not([data-variant="page"]) .rp-tab { min-height: 36px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--rp-surface); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-tabs:not([data-variant="page"]) .rp-tab[aria-selected="true"] { background: var(--rp-text); color: var(--rp-surface); }
 /* Page title as a white tile with its one-line lede, as on every page of the Colophon mockup (10 November 2026). */
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-workspace .rp-page-header { padding: 28px 28px 26px; margin: 8px 0 16px; border-radius: 22px; background: var(--rp-surface); align-items: center; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-workspace .rp-page-title { font-size: 40px; font-style: normal; letter-spacing: -0.03em; }
