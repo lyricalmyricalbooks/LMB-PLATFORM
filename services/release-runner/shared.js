@@ -171,7 +171,7 @@ export async function runSharedRelease({
  */
 export async function firstSharedRelease({
   version, projectId, registry, builder, deploy, platformUrl, region = REGION, dryRun = false, print = () => {},
-  now = () => new Date(), runId = randomUUID(), lockMinutes = LOCK_MINUTES,
+  now = () => new Date(), runId = randomUUID(), lockMinutes = LOCK_MINUTES, sleep = undefined,
 }) {
   if (!VERSION.test(version ?? "")) throw new Error(`"${version}" isn't a release version (like 1.4.0)`);
   if (!PROJECT.test(projectId ?? "")) throw new Error(`"${projectId}" isn't a Firebase project id`);
@@ -194,7 +194,7 @@ export async function firstSharedRelease({
   let error = null;
   try {
     await builder.build(version);
-    await ship({ deploy, envFile, region }, projectId, version);
+    await ship({ deploy, envFile, region, ...(sleep ? { sleep } : {}) }, projectId, version);
     const problems = await checkProject({ deploy }, { projectId }, null, version);
     if (problems.length) error = problems.join("; ");
   } catch (shipError) {
@@ -250,9 +250,17 @@ async function rollBack(ctx, project, sample, version, previous, error) {
 }
 
 /** Rules, then the server code, then the site: the order the shop's own deploy uses, so new pages never meet old rules. */
-async function ship({ deploy, envFile, region }, projectId, version) {
+async function ship({ deploy, envFile, region, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }, projectId, version) {
   await deploy.rules(projectId, { version, apps: [...SHARED_APPS] });
-  await deploy.functions(projectId, { version, region, envFile });
+  try {
+    await deploy.functions(projectId, { version, region, envFile });
+  } catch (error) {
+    // A project's first database triggers often fail while Google still sets up their event delivery ("Failed to
+    // create function …"); Firebase's own advice is to deploy again a little later. Once, and only for that.
+    if (!/Failed to create function/.test(String(error?.message))) throw error;
+    await sleep(90_000);
+    await deploy.functions(projectId, { version, region, envFile });
+  }
   await deploy.pages(projectId, { version, app: "shop" });
 }
 

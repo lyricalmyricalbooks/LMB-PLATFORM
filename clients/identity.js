@@ -16,8 +16,9 @@
 //                       accounts.signInWithCustomToken POST https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key={web key}
 //                       body { token, returnSecureToken: true } -> { idToken, refreshToken, expiresIn }
 // The custom token's claims (iss, sub, aud, iat, exp, uid) follow Firebase's "create custom tokens using a third-party
-// JWT library" guide; it is signed by the platform's service account, which needs "Service Account Token Creator" on
-// itself and must be allowed to manage the test shop's users.
+// JWT library" guide. Firebase takes it only when it is signed by a service account of the sign-in's own project, so
+// the test owner's pass is signed by that project's Firebase admin account (`projectSigner`); the caller needs
+// "Service Account Token Creator" on it, which `allowSigning` gives (IAM v1 serviceAccounts getIamPolicy/setIamPolicy).
 //
 // Only the test shop's owner is ever signed in this way: `testOwnerSession` refuses any shop not marked as the test shop.
 //
@@ -29,9 +30,13 @@ import { googleHttp } from "./http.js";
 
 export const IDENTITY = "https://identitytoolkit.googleapis.com/v1";
 export const IAM_CREDENTIALS = "https://iamcredentials.googleapis.com/v1";
+export const IAM = "https://iam.googleapis.com/v1";
+export const TOKEN_CREATOR = "roles/iam.serviceAccountTokenCreator";
+/** The Firebase admin account every Firebase project has: the one whose signature that project's sign-in accepts. */
+export const projectSigner = (projectId) => `firebase-adminsdk-fbsvc@${projectId}.iam.gserviceaccount.com`;
 export const CUSTOM_TOKEN_AUDIENCE = "https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit";
 
-export function identityClient({ fetch, token, now = () => new Date() }) {
+export function identityClient({ fetch, token, now = () => new Date(), sleep = (ms) => new Promise((r) => setTimeout(r, ms)), signRetries = 8 }) {
   const call = googleHttp({ fetch, token });
 
   /** `tenantId` in a request body, when the shop has its own sign-in list. */
@@ -57,9 +62,35 @@ export function identityClient({ fetch, token, now = () => new Date() }) {
   async function customToken(serviceAccount, uid, claims = undefined, { tenantId = null } = {}) {
     const iat = Math.floor(now().getTime() / 1000);
     const payload = { iss: serviceAccount, sub: serviceAccount, aud: CUSTOM_TOKEN_AUDIENCE, iat, exp: iat + 3600, uid, ...(tenantId ? { tenant_id: tenantId } : {}), ...(claims ? { claims } : {}) };
-    const { signedJwt } = await call("POST", `${IAM_CREDENTIALS}/projects/-/serviceAccounts/${encodeURIComponent(serviceAccount)}:signJwt`, { body: { payload: JSON.stringify(payload) } });
+    // A signing permission just given takes a minute or two to reach IAM: a refusal is asked again for a while.
+    let signedJwt;
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        ({ signedJwt } = await call("POST", `${IAM_CREDENTIALS}/projects/-/serviceAccounts/${encodeURIComponent(serviceAccount)}:signJwt`, { body: { payload: JSON.stringify(payload) } }));
+        break;
+      } catch (error) {
+        if (error?.status !== 403 || attempt >= signRetries) throw error;
+        await sleep(15_000);
+      }
+    }
     if (!signedJwt) throw new Error("IAM gave no signed token");
     return signedJwt;
+  }
+
+  /**
+   * Lets `member` (e.g. "serviceAccount:deploy@…") sign as `signer`: Service Account Token Creator on that one account.
+   * Safe to run again: { changed: false } when it is already there.
+   */
+  async function allowSigning(signer, member) {
+    const resource = `${IAM}/projects/-/serviceAccounts/${encodeURIComponent(signer)}`;
+    const policy = await call("POST", `${resource}:getIamPolicy`, { body: {} });
+    const bindings = structuredClone(policy.bindings ?? []);
+    const binding = bindings.find((b) => b.role === TOKEN_CREATOR && !b.condition);
+    if (binding?.members?.includes(member)) return { changed: false };
+    if (binding) binding.members = [...(binding.members ?? []), member];
+    else bindings.push({ role: TOKEN_CREATOR, members: [member] });
+    await call("POST", `${resource}:setIamPolicy`, { body: { policy: { ...policy, bindings } } });
+    return { changed: true };
   }
 
   /** Signs in with the custom token through the shop's public web key, as the apps' own sign-in would. */
@@ -98,7 +129,7 @@ export function identityClient({ fetch, token, now = () => new Date() }) {
     });
   }
 
-  return { ensureUser, customToken, signIn, removeSecondSteps, secondStepsOf };
+  return { ensureUser, customToken, allowSigning, signIn, removeSecondSteps, secondStepsOf };
 }
 
 /**
@@ -112,7 +143,8 @@ export async function testOwnerSession({ identity, shop, profile, serviceAccount
   // its served profile carries it too, but the registry's copy of the profile doesn't.
   const list = { tenantId: profile.tenant ?? (shop.shared === true ? shop.tenant : null) ?? null };
   const { uid, email } = await identity.ensureUser(projectId, shop.ownerEmail, list);
-  const signed = await identity.signIn(apiKey, await identity.customToken(serviceAccount, uid, undefined, list), list);
+  const signer = serviceAccount || projectSigner(projectId);
+  const signed = await identity.signIn(apiKey, await identity.customToken(signer, uid, undefined, list), list);
   const at = now().getTime();
   return {
     apiKey,

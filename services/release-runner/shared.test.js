@@ -227,3 +227,29 @@ test("a first release whose stamps don't come back says so", async () => {
   assert.match(result.error, /pages:shop are on nothing, not 1\.0\.0/);
   assert.equal(await registry.readLock(SHARED_RELEASE_LOCK), null);
 });
+
+test("a first release whose new database triggers aren't ready yet deploys the server once more", async () => {
+  const registry = fakeRegistry();
+  const w = world();
+  w.live.set("moth-press", {});
+  const real = w.deploy.functions;
+  let tries = 0;
+  w.deploy.functions = async (...args) => {
+    tries += 1;
+    if (tries === 1) throw new Error("Command failed: firebase deploy\n- Error Failed to create function onOrderCreated in region northamerica-northeast1");
+    return real(...args);
+  };
+  const waits = [];
+  const result = await firstSharedRelease({ version: "1.0.0", projectId: "moth-press", registry, builder: w.builder, deploy: w.deploy, platformUrl: PLATFORM, sleep: async (ms) => waits.push(ms) });
+  assert.equal(result.ok, true, result.error);
+  assert.equal(tries, 2);
+  assert.equal(waits.length, 1);
+
+  // Any other failure, or a second one, stops the release as before.
+  const again = world();
+  again.live.set("moth-press", {});
+  again.deploy.functions = async () => { throw new Error("Failed to create function onOrderCreated"); };
+  const failed = await firstSharedRelease({ version: "1.0.0", projectId: "moth-press", registry: fakeRegistry(), builder: again.builder, deploy: again.deploy, platformUrl: PLATFORM, sleep: async () => {} });
+  assert.equal(failed.ok, false);
+  assert.match(failed.error, /Failed to create function/);
+});

@@ -76,7 +76,6 @@ jobs:
             [ -n "$value" ] && echo "$name=$value" >> "$GITHUB_ENV"
           done
           echo "PLATFORM_URL=https://lmb-platform-prod.web.app" >> "$GITHUB_ENV"
-          echo "PLATFORM_SERVICE_ACCOUNT=$DEPLOY_ACCOUNT" >> "$GITHUB_ENV"
 
       - name: Ready a shared project
         if: inputs.job == 'ready-project'

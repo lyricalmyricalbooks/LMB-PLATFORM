@@ -14,7 +14,8 @@
 //   already answer `findAccount`/`createAccount` and `wasSent`/`send`, the shapes steps 13 and 14 call.
 // - `stagedFiles` is the store of product files kept in setup (signup/frontDoor.js). Without it, step 20 stops for a
 //   person on any shop whose press kept a file, so the file is never left behind by a step marked done.
-// - `serviceAccount` signs the test owner in for the test shop's link steps (12 and 16); no other shop needs it.
+// - `serviceAccount` signs the test owner in for the test shop's link steps (12 and 16); no other shop needs it. Unset:
+//   the test project's own Firebase admin account (clients/identity.js projectSigner), the only signer it accepts.
 import { deployClient } from "../clients/deploy.js";
 import { firestoreClient } from "../clients/firestore.js";
 import { googleClients } from "../clients/google.js";
@@ -44,7 +45,6 @@ export function realSetupClients({ fetch, token, run, buildDir, registryFirestor
   const sessions = new Map();
   const session = async (projectId) => {
     if (!sessions.has(projectId)) {
-      if (!serviceAccount) throw new Error("the test shop's link steps need the platform's service account");
       sessions.set(projectId, testOwnerSession({ identity, shop: await registry.getShop(projectId), profile: await registry.getProfile(projectId), serviceAccount }));
     }
     return sessions.get(projectId);
@@ -87,7 +87,6 @@ export function realSharedClients({ fetch, token, projectId, env = {}, region = 
   const sessions = new Map();
   const session = async (shopId) => {
     if (!sessions.has(shopId)) {
-      if (!serviceAccount) throw new Error("the test shop's link steps need the platform's service account");
       sessions.set(shopId, testOwnerSession({ identity, shop: await registry.getShop(shopId), profile: await registry.getProfile(shopId), serviceAccount }));
     }
     return sessions.get(shopId);

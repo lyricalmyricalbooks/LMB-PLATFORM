@@ -38,6 +38,7 @@ import { firstSharedRelease, sharedProjectProfile } from "../services/release-ru
 import { commandTail } from "../services/release-runner/run.js";
 import { TEST_PROJECT, TEST_SHOP_ADDRESS, TEST_SHOP_ID } from "./testShopPlace.js";
 import { firestoreClient } from "../clients/firestore.js";
+import { identityClient, projectSigner } from "../clients/identity.js";
 import { firestoreAuditLog, firestoreRegistry } from "../clients/registry.js";
 import { firestoreAccounts, firestoreSentLog } from "../clients/stores.js";
 import { createEmailService, hasEmailSending } from "../services/email/index.js";
@@ -109,7 +110,7 @@ export async function retireOldTestShop({ registry, apply, print = () => {}, now
  */
 export async function makeTestShopWith({
   apply, ownerEmail, version = FIRST_RELEASE, google, registry, auditLog, stepClients, deploy, builder, makerConfig, publishPages,
-  connected = {}, platformUrl = PLATFORM_URL, region = REGION, print = () => {}, now = () => new Date(),
+  allowOwnerSigning = null, connected = {}, platformUrl = PLATFORM_URL, region = REGION, print = () => {}, now = () => new Date(),
 }) {
   const shop = testShop(ownerEmail);
   print(`The shared test project ${TEST_PROJECT}:`);
@@ -127,6 +128,17 @@ export async function makeTestShopWith({
   if (!apply && !first.skipped) {
     print(`The test shop ${TEST_SHOP_ID} is made once the project has its first release.`);
     return { ok: true, stage: "first-release", dryRun: true };
+  }
+
+  // Steps 6 and 10 reach the shop's server as the test owner, whose pass only the project's own Firebase admin account
+  // may sign: the deploy account is let sign as it (it owns the project, so it can grant this itself).
+  if (allowOwnerSigning && apply) {
+    try {
+      const { changed } = await allowOwnerSigning();
+      print(changed ? "The deploy account may now sign the test owner's sign-in." : "The deploy account may sign the test owner's sign-in.");
+    } catch (error) {
+      return { ok: false, stage: "owner-signing", error: `the deploy account couldn't be let sign the test owner's sign-in (${message(error)}); give it Service Account Token Creator on ${projectSigner(TEST_PROJECT)}` };
+    }
   }
 
   for (const [number, words] of Object.entries(LATER_STEPS)) if (!connected[number]) print(`Step ${number} waits for ${words}.`);
@@ -168,6 +180,14 @@ function gcloudToken() {
   };
 }
 
+/** The account this run is signed in as (the workflow names it; else gcloud's). */
+async function deployAccount(env) {
+  const named = String(env.DEPLOY_ACCOUNT ?? "").trim();
+  if (named) return named;
+  const { stdout } = await exec("gcloud", ["config", "get-value", "account"]);
+  return stdout.trim();
+}
+
 const runCommand = async (command, args, { cwd, env } = {}) => {
   try {
     const { stdout, stderr } = await exec(command, args, { cwd, env: { ...process.env, ...env }, maxBuffer: 64 * 1024 * 1024 });
@@ -200,6 +220,7 @@ export async function makeTestShop({ apply, ownerEmail, serviceAccount, root = p
   const token = gcloudToken();
   const region = String(env.SHOP_FUNCTIONS_REGION ?? "").trim() || REGION;
   const services = platformServices({ env, fetch, token });
+  serviceAccount ||= projectSigner(TEST_PROJECT);
   const clients = realSharedClients({
     fetch, token, projectId: TEST_PROJECT, env, region, serviceAccount, registryFirestore: services.platform,
     paymentService: services.payments, emailService: services.email,
@@ -221,6 +242,12 @@ export async function makeTestShop({ apply, ownerEmail, serviceAccount, root = p
       const record = await clients.shared.records.get(shopId);
       if (!record) throw new Error("its record is missing from the shared project");
       await buildAndPublish({ shop: { id: shopId, record, tenant: record.tenant }, siteFiles: clients.google.siteFiles, projectId: TEST_PROJECT, appDir: join(root, "apps", "shop"), print });
+    },
+    async allowOwnerSigning() {
+      const account = await deployAccount(env);
+      if (!account) throw new Error("this run's own account isn't known (DEPLOY_ACCOUNT)");
+      const member = `${account.endsWith(".gserviceaccount.com") ? "serviceAccount" : "user"}:${account}`;
+      return identityClient({ fetch, token }).allowSigning(serviceAccount, member);
     },
     // Payments and email join when the workflow hands this script their keys (platformServices).
     connected: { 7: Boolean(clients.providers.stripe), 8: Boolean(clients.email) },

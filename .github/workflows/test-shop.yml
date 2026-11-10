@@ -79,7 +79,8 @@ jobs:
       - name: Make the test shop
         env:
           SERVER_SETTINGS: ${{ vars.SERVER_SETTINGS }}
-          PLATFORM_SERVICE_ACCOUNT: ${{ env.DEPLOY_ACCOUNT }}
+          # Firebase takes sign-in passes only when signed by an account of the shop project itself (lmb-test-shop).
+          PLATFORM_SERVICE_ACCOUNT: firebase-adminsdk-fbsvc@${{ env.TEST_SHOP }}.iam.gserviceaccount.com
         run: |
           # The owner is the platform's admin (PLATFORM_ADMIN_EMAIL in the server's settings), never written in code.
           TEST_SHOP_OWNER_EMAIL=$(printf '%s\n' "$SERVER_SETTINGS" | sed -n 's/^PLATFORM_ADMIN_EMAIL: *"\{0,1\}\([^"]*\)"\{0,1\} *$/\1/p' | head -n 1)

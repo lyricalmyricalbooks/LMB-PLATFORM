@@ -126,3 +126,18 @@ test("the platform's services join in test mode only when their keys are handed 
   assert.equal(typeof both.email.send, "function");
   assert.throws(() => platformServices({ env: LIVE_KEY, fetch, token: async () => "t", platform }), /live/);
 });
+
+test("the deploy account is let sign the test owner's pass before the shop's steps, and a refusal stops the run plainly", async () => {
+  const { run } = setup();
+  let asked = 0;
+  const ok = await run(true, { allowOwnerSigning: async () => { asked += 1; return { changed: true }; } });
+  assert.equal(ok.ok, true);
+  assert.equal(asked, 1);
+
+  const second = setup();
+  const refused = await second.run(true, { allowOwnerSigning: async () => { throw new Error("no setIamPolicy"); } });
+  assert.equal(refused.ok, false);
+  assert.equal(refused.stage, "owner-signing");
+  assert.match(refused.error, /Service Account Token Creator on firebase-adminsdk-fbsvc@lmb-test-shop/);
+  assert.deepEqual(second.published, []);
+});
