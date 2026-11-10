@@ -57,9 +57,8 @@
       else root.setAttribute('data-theme', pref);
       root.classList.toggle('theme-dark', dark);
       root.classList.toggle('theme-light', !dark);
-      // The look (Riso Press, Paper, Ledger or Pop, src/lib/admin-look.js) and the day/night mark <body> reads: the body script below.
-      var look = localStorage.getItem('lm-admin-look');
-      if (look === 'paper' || look === 'ledger' || look === 'pop' || look === 'desk' || look === 'bento') root.setAttribute('data-admin-look', look);
+      // The look (Colophon, src/lib/admin-look.js) and the day/night mark <body> reads: the body script below.
+      root.setAttribute('data-admin-look', 'colophon');
       root.setAttribute('data-boot-appearance', dark ? 'dark' : 'light');
       if (dark) {
         var meta = document.querySelector('meta[name="theme-color"]');
@@ -478,13 +477,6 @@
         </span>
         <div class="theme-seg" role="radiogroup" aria-label="Appearance" data-theme-seg></div>
       </div>
-      <div class="theme-seg-row">
-        <span class="tsr-label">
-          <span class="tsr-title">Look</span>
-          <span class="tsr-sub" data-look-sub>Ink outlines on cream paper</span>
-        </span>
-        <div class="theme-seg look-seg" role="radiogroup" aria-label="Look" data-look-seg></div>
-      </div>
       <!-- A display preference, so it lives with Appearance rather than in the
            nav list: it quiets the red menu badges without clearing the work. -->
       <button type="button" class="pub-side-item" id="sidebar-alert-toggle" role="menuitemcheckbox"
@@ -641,13 +633,6 @@
             <span class="tsr-sub" id="theme-sub-header">Following your device</span>
           </span>
           <div class="theme-seg" role="radiogroup" aria-label="Appearance" data-theme-seg></div>
-        </div>
-        <div class="theme-seg-row">
-          <span class="tsr-label">
-            <span class="tsr-title">Look</span>
-            <span class="tsr-sub" data-look-sub>Ink outlines on cream paper</span>
-          </span>
-          <div class="theme-seg look-seg" role="radiogroup" aria-label="Look" data-look-seg></div>
         </div>
         <div class="header-menu-sep"></div>
         <button class="header-menu-item" onclick="forceSync()"><span class="hmi-ico">↺</span><span class="hmi-txt"><span class="hmi-label">Refresh sync</span><span class="hmi-sub">Pull the latest from Firestore</span></span></button>

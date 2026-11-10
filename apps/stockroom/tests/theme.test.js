@@ -8,7 +8,7 @@ import {
   resolveTheme, systemPrefersDark, applyThemeToDocument, nextThemePreference,
   oppositeThemePreference,
 } from '../src/lib/theme.js';
-import { normalizeAdminLook, applyAdminLook, readAdminLook, writeAdminLook } from '../src/lib/admin-look.js';
+import { applyAdminLook } from '../src/lib/admin-look.js';
 import {
   parseRootVars, makeColorResolver, contrastRatio, findSurfaceTokenTextMisuse, paletteFor,
 } from '../scripts/check-contrast.mjs';
@@ -634,29 +634,12 @@ describe('the stockroom follows the shared admin look', () => {
   });
 });
 
-describe('the look choice', () => {
-  const store = () => { const m = new Map(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => m.set(k, v) }; };
-  it('defaults to Riso Press and only accepts the two looks', () => {
-    expect(normalizeAdminLook('paper')).toBe('paper');
-    expect(normalizeAdminLook('anything')).toBe('riso');
-    expect(readAdminLook(store())).toBe('riso');
-  });
-  it('accepts Desk and Bento', () => {
-    expect(normalizeAdminLook('desk')).toBe('desk');
-    expect(normalizeAdminLook('bento')).toBe('bento');
-  });
-  it('is remembered', () => {
-    const s = store();
-    writeAdminLook('paper', s);
-    expect(readAdminLook(s)).toBe('paper');
-  });
-  it('is written on <html>, absent for Riso Press', () => {
+describe('the look', () => {
+  it('is written on <html> as Colophon', () => {
     const attrs = {};
-    const doc = { documentElement: { setAttribute: (k, v) => { attrs[k] = v; }, removeAttribute: (k) => { delete attrs[k]; } } };
-    applyAdminLook('paper', { document: doc });
-    expect(attrs['data-admin-look']).toBe('paper');
-    applyAdminLook('riso', { document: doc });
-    expect(attrs['data-admin-look']).toBeUndefined();
+    const doc = { documentElement: { setAttribute: (k, v) => { attrs[k] = v; } } };
+    expect(applyAdminLook({ document: doc })).toBe('colophon');
+    expect(attrs['data-admin-look']).toBe('colophon');
   });
   it('day or night is written on <body> with the .rp class', () => {
     const body = { classes: new Set(), attrs: {}, classList: { add(c) { body.classes.add(c); } }, setAttribute(k, v) { body.attrs[k] = v; } };

@@ -73,21 +73,16 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
     expect(draft.themeLibraryPreset).toBe("press-imprint");
     expect(draft.themeBase.id).toBe("press-imprint");
     expect(draft.copy).toEqual({ heroTitle: "Kept" });
-    expect(api.updateFirstWeek).toHaveBeenCalledWith({ welcome: { theme: "press-imprint", at: expect.any(String), adminLook: "riso" } });
+    expect(api.updateFirstWeek).toHaveBeenCalledWith({ welcome: { theme: "press-imprint", at: expect.any(String) } });
     expect(text()).toContain("Set up your shop");
     expect(text()).not.toContain("Choose your look.");
   });
 
-  it("picking an admin look applies it at once and records it with the welcome", async () => {
+  it("offers no admin look to pick: the admin has one look", async () => {
     api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, google: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     await mount({});
-    const radios = [...document.querySelectorAll("[role=radiogroup][aria-label='Admin look'] [role=radio]")] as HTMLButtonElement[];
-    expect(radios.map(r => r.textContent)).toHaveLength(6);
-    await act(async () => { radios[1].click(); });
-    expect(document.documentElement.getAttribute("data-admin-look")).toBe("paper");
-    await act(async () => { button("Use this look")!.click(); });
-    await flush();
-    expect(api.updateFirstWeek).toHaveBeenCalledWith({ welcome: expect.objectContaining({ adminLook: "paper" }) });
+    expect(document.querySelector("[role=radiogroup][aria-label='Admin look']")).toBeNull();
+    expect(text()).not.toContain("Your admin");
   });
 
   it("Skip takes the first suggestion and says so", async () => {
@@ -419,7 +414,5 @@ describe("What the press set up before its shop existed (code plan 18.9)", () =>
     await act(async () => { button("See every look")!.click(); });
     expect(text()).toContain("Welcome to Moth Press. Choose your look");
     expect(document.querySelector("ul[aria-label='Suggested looks']")).not.toBeNull();
-    // The admin look chosen in setup is the one picked here.
-    expect(document.querySelector("[role=radio][aria-checked=true]")?.textContent).toContain("Paper");
   });
 });

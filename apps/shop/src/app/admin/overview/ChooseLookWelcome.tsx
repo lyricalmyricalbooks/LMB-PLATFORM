@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
-import { ADMIN_LOOKS, applyAdminLook, readAdminLook, type AdminLookId } from "../riso/adminLook";
+import { useMemo, useState, type KeyboardEvent } from "react";
 import { ChevronLeft, ChevronRight, Monitor, Smartphone } from "lucide-react";
 import {
   filterLooks, galleryThemes, isDarkLook, isTemplate, LOOK_FILTERS, lookPreview, pressNameOf, sampleProducts,
@@ -35,7 +34,7 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
   /** When a look is already chosen: the way back that keeps it (in place of Skip, which would replace it). */
   keep?: { label: string; onKeep: () => void };
   /** The look (and admin look) the press chose in setup (code plan 18.9): shown on its own first, with every look a tap away. */
-  chosen?: { theme: string; adminLook?: AdminLookId } | null;
+  chosen?: { theme: string } | null;
 }) {
   const { suggested, others } = useMemo(() => galleryThemes(publishes), [publishes]);
   const [busy, setBusy] = useState("");
@@ -49,9 +48,6 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
   // The press's own products by default, once there are any (they can arrive after the picker opens).
   const [ownChoice, setOwn] = useState<boolean | null>(null);
   const own = ownChoice ?? books.length > 0;
-  const [adminLook, setAdminLook] = useState<AdminLookId>(() => chosen?.adminLook ?? readAdminLook());
-  // The admin look chosen in setup is put on at once, as it was in setup.
-  useEffect(() => { if (chosen?.adminLook) applyAdminLook(chosen.adminLook); }, [chosen?.adminLook]);
   const [browsing, setBrowsing] = useState(false);
   const picked = useMemo(() => (chosen && !browsing ? [...suggested, ...others].find(t => t.id === chosen.theme) ?? null : null), [chosen, browsing, suggested, others]);
   const press = pressNameOf(settings);
@@ -77,7 +73,7 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
         await shop.applyChosenLook(theme, settings, publishes);
         await shop.followEmailTheme(theme.id);
       }
-      await onDone({ theme: theme.id, at: new Date().toISOString(), adminLook, ...(skipped ? { skipped: true } : {}) });
+      await onDone({ theme: theme.id, at: new Date().toISOString(), ...(skipped ? { skipped: true } : {}) });
     } catch (err) {
       setError(friendlyError(err, `use “${theme.name}”`));
       setBusy("");
@@ -182,19 +178,6 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
         </div>
       )}
 
-      <h3 className="rp-card-title" style={{ fontSize: "var(--rp-text-base)", margin: "40px 0 4px" }}>Your admin</h3>
-      <p className="rp-hint" style={{ marginTop: 0 }}>How this admin looks to you, not to your customers. Tap one to see it now; change it any time from the top bar.</p>
-      <div role="radiogroup" aria-label="Admin look" style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 180px), 1fr))" }}>
-        {ADMIN_LOOKS.map(l => (
-          <button key={l.id} type="button" role="radio" aria-checked={adminLook === l.id} disabled={!!busy}
-            onClick={() => { setAdminLook(l.id); applyAdminLook(l.id); }}
-            style={{ textAlign: "left", minHeight: 44, padding: 12, display: "grid", gap: 4, background: adminLook === l.id ? "var(--rp-primary-tint)" : "var(--rp-surface)", color: "var(--rp-text)",
-              border: adminLook === l.id ? "3px solid var(--rp-primary)" : "1px solid var(--rp-border-strong)", cursor: "pointer" }}>
-            <strong>{l.name}{adminLook === l.id ? " ✓" : ""}</strong>
-            <span className="rp-hint">{l.description}</span>
-          </button>
-        ))}
-      </div>
       </>)}
 
       <Dialog open={!!current} onClose={() => setTrying(null)} size="full"

@@ -9,7 +9,6 @@ import {
   AppShell, EmptyState, GhostButton, IconButton, PageHeader, PrimaryButton, SectionCard, SelectField, Sidebar,
   TextField, ToastProvider, Topbar, useRisoToast,
 } from "../app/admin/riso/components";
-import { ADMIN_LOOKS, applyAdminLook, type AdminLookId } from "../app/admin/riso/adminLook";
 import { ChooseLookWelcome } from "../app/admin/overview/ChooseLookWelcome";
 import { THEME_LIBRARY } from "../app/admin/studio/themeLibrary";
 import { ShopWordsContext, useShopWords } from "../app/admin/shopWords";
@@ -45,7 +44,6 @@ const PLAN_NAMES: Record<string, string> = { both: "Shop and stockroom", shop: "
 
 const NO_ANSWERS: HelpAnswers = new Map();
 
-const isAdminLook = (value: string): value is AdminLookId => ADMIN_LOOKS.some((l) => l.id === value);
 const themeName = (id: string) => (THEME_LIBRARY as Array<{ id: string; name: string }>).find((t) => t.id === id)?.name ?? "";
 
 function readAppearance(): "light" | "dark" {
@@ -80,8 +78,6 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
   const [plansFailed, setPlansFailed] = useState(false);
   const loadPlans = () => { setPlansFailed(false); door.plans().then(setPlans, () => setPlansFailed(true)); };
   useEffect(loadPlans, [door]);
-  // The admin look chosen in the welcome applies here at once, as it will in the shop's own admin.
-  useEffect(() => { if (isAdminLook(press.adminLook)) applyAdminLook(press.adminLook); }, [press.adminLook]);
   useEffect(() => {
     // An address that names no page (the skip link's #rp-main) leaves the page as it is, so nothing typed is lost.
     const onHash = () => { const next = pageFromHash(location.hash, menu); if (next) setPage(next); };
@@ -520,7 +516,7 @@ function DesignPage({ press, save }: { press: SetupPress; save: (c: SetupChange)
         intro="It goes on your website when your shop is made."
         keep={press.look ? { label: `Keep ${themeName(press.look) || "my look"}`, onKeep: () => setChoosing(false) } : undefined}
         onDone={async (welcome) => {
-          await save({ look: welcome.theme, ...(welcome.adminLook ? { adminLook: welcome.adminLook } : {}) });
+          await save({ look: welcome.theme });
           setChoosing(false);
         }}
       />

@@ -2,15 +2,12 @@
 // (setup/handover.js) in the admin-only `firstWeek/handover`. Get started applies it with the shop's own tools: the
 // look step opens on the look the press chose (ChooseLookWelcome `chosen`), and the bring step offers the kept product
 // file to the Books importer, which previews every row before anything saves (BringShopStage `kept`).
-import { ADMIN_LOOKS, type AdminLookId } from "./riso/adminLook";
 
 /** `firstWeek/handover` as the platform writes it. */
 export interface SetupHandover {
   pressId?: string;
   /** The shop look (THEME_LIBRARY id) chosen in setup; "" when none. */
   look?: string;
-  /** The admin look (riso/adminLook.ts id) chosen in setup; "" when none. */
-  adminLook?: string;
   /** The product file kept in setup, its text in `parts` pieces under firstWeek/handover/parts; null when none. */
   file?: KeptFile | null;
   at?: string;
@@ -24,11 +21,10 @@ export interface KeptFile {
 }
 
 /** The look chosen in setup, for the look step; null when none was chosen. */
-export function chosenLook(handover: SetupHandover | null | undefined): { theme: string; adminLook?: AdminLookId } | null {
+export function chosenLook(handover: SetupHandover | null | undefined): { theme: string } | null {
   const theme = typeof handover?.look === "string" ? handover.look.trim() : "";
   if (!theme) return null;
-  const adminLook = ADMIN_LOOKS.find(l => l.id === handover?.adminLook)?.id;
-  return adminLook ? { theme, adminLook } : { theme };
+  return { theme };
 }
 
 /** The kept file, when the hand-over names one the admin can read back (at least one piece, a whole number of them). */

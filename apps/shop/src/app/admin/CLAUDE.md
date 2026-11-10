@@ -90,15 +90,17 @@ square corners, 2px ink outlines on objects and hairlines inside lists, flat off
 shadows by day, warm-grey night mode, Anton / Archivo / DM Mono, status = glyph + word.
 If tokens change there, update `riso.css` to match.
 
-**Admin themes and colours (28 October 2026, plan 1.26):** every admin colour is a `--rp-*` token in
-`riso/adminThemes.css`, once per admin look × appearance: **Riso Press** (default, the values above) and **Paper** (white
-paper, graphite ink, calm blue primary, 4–8px corners, soft shadows only in Studio). The look is a per-browser choice in
-the avatar menu ("Paper look" / "Riso Press look", `riso/adminLook.ts`, `localStorage.adminLook`) and sits on
-`<html data-admin-look="paper">`, so portalled dialogs follow it; appearance stays on each `.rp` root. `riso.css`,
-`adminCompat.css`, `studio.css` and every other admin stylesheet name no colour: `riso/adminThemes.test.ts` fails on one
-and checks words against their backgrounds (4.5:1) in all four combinations. A new colour is a new token with a value
-for every look. `--rp-legacy-*` are the old day-only utility remaps in `adminCompat.css`; inline colours in admin TSX
-(email previews, photo crop) are not covered yet.
+**One admin look (10 November 2026, Julian):** the admin has a single look, **Colophon** (warm cream page, white tiles with
+22px corners, ink pill buttons, a light `#e6e3dc` rail whose open item is a white pill, Archivo + DM Mono). There is no
+look choice: no avatar-menu switch, no picker in Choose your look or setup mode, nothing in `localStorage`. Every admin
+colour is a `--rp-*` token in `riso/adminThemes.css`: the base block, then `:root[data-admin-look="colophon"]` by day and
+night (set by `riso/adminLook.ts` `applyAdminLook`, by `setup.html` and by the stockroom's `index.html`, so dialogs outside the shell follow
+it). Chrome rules are the last layer of `pressroom.css` (`:root[data-admin-look="colophon"]`); the stockroom uses the same shared copies. Old
+`adminLook` values on press records are kept in the data and ignored. `riso.css`, `adminCompat.css`, `studio.css` and
+every other admin stylesheet name no colour: `riso/adminThemes.test.ts` fails on one and checks words against their
+backgrounds (4.5:1) by day and night. A new colour is a new token with a day and a night value. `--rp-legacy-*` are the
+old day-only utility remaps in `adminCompat.css`; inline colours in admin TSX (email previews, photo crop) are not covered yet.
+Shop website templates are separate and stay customizable in Studio.
 
 **Five-item menu (28 October 2026, plan 1.27):** the rail shows `MENU` from `riso/nav.ts`: Home, Orders (orders,
 customers, discounts, gift cards, messages), Books (books, inventory, reviews), Design, Settings (the Settings pages).
