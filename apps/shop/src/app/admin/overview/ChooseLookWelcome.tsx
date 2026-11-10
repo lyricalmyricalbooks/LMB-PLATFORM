@@ -18,7 +18,7 @@ import { LookStage, ScaledStage, STAGE_WIDTH, type StageDevice, type StagePage }
  * `settings` is settings/website as the Overview read it: undefined while it loads, null when it couldn't be read.
  * `onDone` gets what to record once the look is in the draft; the parent saves it (and puts the welcome away).
  */
-export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onRetrySettings, apply, intro: introWords, keep, chosen }: {
+export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onRetrySettings, apply, intro: introWords, keep, chosen, settled = false }: {
   publishes?: string | null;
   /** The press's own books (ownBooks), shown with their covers, titles and prices in each look's preview (plan 17.8). */
   books?: { title: string; photo: string; price?: string }[];
@@ -35,6 +35,8 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
   keep?: { label: string; onKeep: () => void };
   /** The look (and admin look) the press chose in setup (code plan 18.9): shown on its own first, with every look a tap away. */
   chosen?: { theme: string } | null;
+  /** The chosen look is already saved (setup mode's Design page): show it as "Your look", with no Use button on it. */
+  settled?: boolean;
 }) {
   const others = useMemo(() => builtLooks(), []);
   // One general list. The sign-up answer only decides which look "Skip for now" uses.
@@ -76,6 +78,7 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
       }
       await onDone({ theme: theme.id, at: new Date().toISOString(), ...(skipped ? { skipped: true } : {}) });
       // The look is in the draft: open the shop designer on it.
+      setBrowsing(false);
       if (toDesigner && typeof window !== "undefined") window.location.hash = "settings/designer";
     } catch (err) {
       setError(friendlyError(err, `use “${theme.name}”`));
@@ -119,7 +122,7 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
         </div>
         <p className="rp-hint" style={{ margin: 0 }}>{theme.mood}</p>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
-          <PrimaryButton size="sm" busy={busy === theme.id} disabled={!!busy && busy !== theme.id} onClick={() => void choose(theme)}>Use this look</PrimaryButton>
+          {!(settled && picked?.id === theme.id) && <PrimaryButton size="sm" busy={busy === theme.id} disabled={!!busy && busy !== theme.id} onClick={() => void choose(theme)}>Use this look</PrimaryButton>}
           <GhostButton size="sm" disabled={!!busy} onClick={() => { setPage("home"); setTrying(theme.id); }}>Try it on</GhostButton>
           <span aria-label={`${theme.name} colours`} role="img" style={{ display: "flex", gap: 4, marginLeft: "auto" }}>
             {look.swatches.map((c, i) => <span key={i} style={{ width: 18, height: 18, background: c, border: "1px solid var(--rp-border-strong)" }} />)}
@@ -140,19 +143,19 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
   const toggle = (on: boolean) => ({ "aria-pressed": on, style: on ? { background: "var(--rp-primary-tint)", color: "var(--rp-text)", borderColor: "var(--rp-primary)" } : undefined });
 
   return (
-    <SectionCard title={picked ? `Welcome to ${press}. Here's the look you chose` : `Welcome to ${press}. Choose your look`} description={intro} collapsible={false}
+    <SectionCard title={picked ? (settled ? `Your look: ${picked.name}` : `Welcome to ${press}. Here's the look you chose`) : `Welcome to ${press}. Choose your look`} description={intro} collapsible={false}
       actions={picked
-        ? <GhostButton size="sm" disabled={!!busy} onClick={() => setBrowsing(true)}>See every look</GhostButton>
+        ? <GhostButton size="sm" disabled={!!busy} onClick={() => setBrowsing(true)}>{settled ? "Choose another look" : "See every look"}</GhostButton>
         : keep
-        ? <GhostButton size="sm" disabled={!!busy} onClick={keep.onKeep}>{keep.label}</GhostButton>
+        ? <GhostButton size="sm" disabled={!!busy} onClick={() => { setBrowsing(false); keep.onKeep(); }}>{keep.label}</GhostButton>
         : first && <GhostButton size="sm" disabled={!!busy} onClick={() => void choose(first, true)}>Skip for now</GhostButton>}>
       {error && <p role="alert" className="rp-hint" style={{ marginTop: 0, color: "var(--rp-danger)" }}>{error}</p>}
       {picked ? (
         <>
           <p className="rp-hint" style={{ marginTop: 0 }}>
-            You chose “{picked.name}” in setup. Use it, try it on, or see every look. You can change it any time in Design.
+            {settled ? "This goes on your website when your shop is made. Try it on to click around, and change anything in the designer later." : `You chose “${picked.name}” in setup. Use it, try it on, or see every look. You can change it any time in Design.`}
           </p>
-          <ul aria-label="The look you chose" style={{ ...grid(320), maxWidth: 720 }}>{card(picked, true)}</ul>
+          <ul aria-label="The look you chose" style={{ ...grid(320), maxWidth: settled ? 960 : 720, gridTemplateColumns: settled ? "1fr" : undefined }}>{card(picked, true)}</ul>
         </>
       ) : (<>
       <p className="rp-hint" style={{ marginTop: 0 }}>

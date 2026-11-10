@@ -422,23 +422,11 @@ function PressDetails({ press, lists, save }: { press: SetupPress; lists: SetupL
 }
 
 function DesignPage({ press, save }: { press: SetupPress; save: (c: SetupChange) => Promise<SetupPress> }) {
-  const [choosing, setChoosing] = useState(!press.look);
   if (press.plan === "stockroom") {
     return (
       <>
         <PageHeader title="Design" />
         <EmptyState title="No website on your plan" description="You picked the stockroom on its own, so there's no website to design. Add the shop in Settings › Plan any time." />
-      </>
-    );
-  }
-  if (!choosing) {
-    return (
-      <>
-        <PageHeader title="Design" description="Your website's look. It's put in place when your shop opens, and you can change everything in Design after that." />
-        <SectionCard title={themeName(press.look) || "Your look"} description="Chosen" collapsible={false}
-          actions={<GhostButton size="sm" onClick={() => setChoosing(true)}>Choose another look</GhostButton>}>
-          <p className="rp-hint" style={{ margin: 0 }}>Every look keeps your words, products and pages.</p>
-        </SectionCard>
       </>
     );
   }
@@ -450,10 +438,11 @@ function DesignPage({ press, save }: { press: SetupPress; save: (c: SetupChange)
         settings={{ info: { name: press.pressName } }}
         apply={async () => {}}
         intro="It goes on your website when your shop is made."
-        keep={press.look ? { label: `Keep ${themeName(press.look) || "my look"}`, onKeep: () => setChoosing(false) } : undefined}
+        keep={press.look ? { label: `Keep ${themeName(press.look) || "my look"}`, onKeep: () => {} } : undefined}
+        chosen={press.look ? { theme: press.look } : null}
+        settled
         onDone={async (welcome) => {
           await save({ look: welcome.theme });
-          setChoosing(false);
         }}
       />
     </>
