@@ -2997,7 +2997,7 @@ function tookDataSection(shop) {
   const slot = el("div", {}, el("p", { className: "rp-hint", textContent: "Reading the records…" }));
   api("POST", "/control/took-data", { shopId: shop.shopId }).then(({ downloads, emailed, unreadable }) => {
     const rows = [
-      ...downloads.map((d) => ({ at: d.at, how: "Downloaded it themselves", state: ["success", "saved"], more: [d.words] })),
+      ...downloads.map((d) => ({ at: d.at, how: d.kind === "folder" ? "Backed up to a folder on their computer" : "Downloaded it themselves", state: ["success", "saved"], more: [d.words] })),
       ...emailed.map((e) => ({ at: e.at, how: `Emailed a link, asked by ${e.asked}`, state: e.status === "ready" ? ["success", "sent"] : e.status === "failed" ? ["warning", "failed"] : ["info", "being made"], more: [e.emailedTo ? `to ${e.emailedTo}` : null, e.expiresAt ? `link works until ${when(e.expiresAt)}` : null, e.problem] })),
     ].sort((a, b) => String(b.at ?? "").localeCompare(String(a.at ?? "")));
     fill(slot,

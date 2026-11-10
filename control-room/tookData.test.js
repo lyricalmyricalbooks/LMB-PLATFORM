@@ -24,6 +24,7 @@ async function world() {
   await shopData.set(SHOP, "audit-log/a", { type: "export", message: "Downloaded the whole shop: 12 products, 40 orders, 30 of 30 photos", createdAt: "2026-11-09T10:00:00Z" });
   await shopData.set(SHOP, "audit-log/b", { type: "orders", message: "Refunded order #12", createdAt: "2026-11-09T11:00:00Z" });
   await shopData.set(SHOP, "audit-log/c", { type: "export", message: "Downloaded the whole shop: 12 products, 41 orders", createdAt: "2026-11-10T10:00:00Z" });
+  await shopData.set(SHOP, "audit-log/d", { type: "export", message: "Backed up to a folder on the computer: 12 products, 42 orders, 30 of 30 photos", createdAt: "2026-11-10T11:00:00Z" });
   const exports = fakeExportStore();
   await exports.set("e1", { id: "e1", shopId: SHOP, asked: "owner", by: "owner@example.com", status: "ready", at: "2026-11-08T09:00:00Z", emailedTo: "owner@example.com", expiresAt: "2026-11-15T09:00:00Z", zip: "exports/x.zip" });
   await exports.set("e2", { id: "e2", shopId: SHOP, asked: "platform", by: "admin@example.com", status: "failed", problem: "email: down", at: "2026-11-07T09:00:00Z" });
@@ -45,11 +46,11 @@ test("only platform admins see it", async () => {
 
 test("the press's own downloads and the emailed copies, newest first, no links", async () => {
   const r = await (await world()).desk.forShop(ADMIN, { shopId: SHOP });
-  assert.deepEqual(r.downloads.map((d) => d.words), ["12 products, 41 orders", "12 products, 40 orders, 30 of 30 photos"]);
+  assert.deepEqual(r.downloads.map((d) => [d.kind, d.words]), [["folder", "12 products, 42 orders, 30 of 30 photos"], ["zip", "12 products, 41 orders"], ["zip", "12 products, 40 orders, 30 of 30 photos"]]);
   assert.deepEqual(r.emailed.map((e) => [e.status, e.asked, e.emailedTo]), [["ready", "the press", "owner@example.com"], ["failed", "the platform", null], ["ready", "closing", "owner@example.com"]]);
   assert.equal(r.emailed[1].problem, "email: down");
   assert.equal(r.took, true);
-  assert.doesNotMatch(JSON.stringify(r), /zip|https?:/);
+  assert.doesNotMatch(JSON.stringify(r), /\.zip|exports\/|https?:/);
 });
 
 test("a shop that never took its data says so", async () => {

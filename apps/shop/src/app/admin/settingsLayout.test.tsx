@@ -48,7 +48,7 @@ it("turns provider errors into plain sentences and keeps the shop's own words", 
 });
 
 it("Settings pages never show a raw error message", () => {
-  const files = ["ShopSettings.tsx", "TaxesSettings.tsx", "AddressFinderCard.tsx", "AiWriterCard.tsx", "BackupsExportCard.tsx", "DownloadShopCard.tsx", "ClarityCard.tsx", "GoogleAnalyticsCard.tsx",
+  const files = ["ShopSettings.tsx", "TaxesSettings.tsx", "AddressFinderCard.tsx", "AiWriterCard.tsx", "BackupsExportCard.tsx", "DownloadShopCard.tsx", "LocalBackupCard.tsx", "ClarityCard.tsx", "GoogleAnalyticsCard.tsx",
     "OwnVisitsCard.tsx", "PrivacyRequestsCard.tsx", "RedirectsCard.tsx", "SearchConsoleCard.tsx", "StripeWebhookHealth.tsx", "LocalFulfillmentSettings.tsx"];
   for (const f of files) {
     const src = readFileSync(resolve(process.cwd(), "src/app/admin", f), "utf8");

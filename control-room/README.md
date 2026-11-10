@@ -446,7 +446,7 @@ audit log and the activity log before anything is built. `POST /api/control/expo
 
 In a shop's drawer, **Took their data**: whether the press has taken a copy of everything, and how. Read only.
 `POST /api/control/took-data { shopId }` lists the press's own browser downloads (the shop's `audit-log` lines of type
-`export`, "Downloaded the whole shop: …", written by the admin's **Download your shop**) and the emailed copies
+`export`: "Downloaded the whole shop: …" from **Download your shop**, and "Backed up to a folder on the computer: …" from **Back up to a folder**) and the emailed copies
 (`dataExports` rows: asked by the press, the platform or the closing sweep; status; who it went to; when the link ends).
 The link itself is never shown. A shop that isn't live shows only the emailed copies.
 

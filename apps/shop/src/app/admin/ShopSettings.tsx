@@ -47,6 +47,7 @@ import { BillingSettings, PlanSettings } from "./PlanParts";
 import { TaxesSettings } from "./TaxesSettings";
 import { BackupsExportCard } from "./BackupsExportCard";
 import { DownloadShopCard } from "./DownloadShopCard";
+import { LocalBackupCard } from "./LocalBackupCard";
 import { ShopErrorsCard } from "./ShopErrorsCard";
 import { useSettingsDirty } from "./settingsDirty";
 import { SettingsAnchor, SettingsGroup, SettingsTabs, friendlyError, useSubTab, type SettingsTab } from "./settingsLayout";
@@ -329,6 +330,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
         <SettingsAnchor id="gs-ai"><OwnAccountOnly><AiWriterCard /></OwnAccountOnly></SettingsAnchor>
         <SettingsAnchor id="gs-privacy"><PrivacyRequestsCard /></SettingsAnchor>
         <SettingsAnchor id="gs-download-shop"><DownloadShopCard /></SettingsAnchor>
+        <SettingsAnchor id="gs-local-backup"><LocalBackupCard /></SettingsAnchor>
         <SettingsAnchor id="gs-backups"><BackupsExportCard /></SettingsAnchor>
         <SettingsAnchor id="gs-shop-errors"><ShopErrorsCard /></SettingsAnchor>
       </SettingsGroup>

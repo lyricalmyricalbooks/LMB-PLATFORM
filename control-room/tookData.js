@@ -1,6 +1,7 @@
 // Who took their data with them (control room, a shop's record; code plan 29). Two kinds, both read only:
 //   - the press's own "Download your shop" zip, made in its browser: the shop writes one audit-log line of type `export`
-//     ("Downloaded the whole shop: …", apps/shop admin/takeoutRun.ts);
+//     ("Downloaded the whole shop: …", apps/shop admin/takeoutRun.ts), and one for each backup to a folder on its own
+//     computer ("Backed up to a folder on the computer: …", admin/localBackup.ts; kind "folder");
 //   - the emailed copies (services/export): the press's account-page button, the control room's own button and the one
 //     sent when a shop closes, kept as `dataExports` rows (status, who asked, when, who it went to).
 // So when a press says "I never got my data", the record says whether it downloaded it itself or was emailed a link.
@@ -12,14 +13,18 @@
 import { ControlError, adminOf } from "./controlRoom.js";
 
 export const DOWNLOAD_START = "Downloaded the whole shop";
+/** The admin's Back up to a folder (apps/shop admin/localBackup.ts): a copy written to a folder on the press's own computer. */
+export const FOLDER_START = "Backed up to a folder on the computer";
 const MAX = 20;
 const startsWith = (start) => [["message", ">=", start], ["message", "<", start.slice(0, -1) + String.fromCharCode(start.at(-1).charCodeAt(0) + 1)]];
 
 /** One audit-log line as a download, or null. */
 export function downloadOf(line) {
   const message = String(line?.message ?? "");
-  if (line?.type !== "export" || !message.startsWith(DOWNLOAD_START)) return null;
-  return { at: line.createdAt ?? null, words: message.slice(DOWNLOAD_START.length).replace(/^:\s*/, "") };
+  if (line?.type !== "export") return null;
+  const start = [DOWNLOAD_START, FOLDER_START].find((s) => message.startsWith(s));
+  if (!start) return null;
+  return { at: line.createdAt ?? null, kind: start === FOLDER_START ? "folder" : "zip", words: message.slice(start.length).replace(/^:\s*/, "") };
 }
 
 /** An emailed copy as a row for the room. The link itself is never kept or shown. */
@@ -42,7 +47,9 @@ export function createTookData({ admins, registry, shopData, exports, now = () =
       let unreadable = false;
       if (row.status === "live" && shopData?.find) {
         try {
-          downloads = (await shopData.find(shopId, "audit-log", { where: startsWith(DOWNLOAD_START), limit: MAX })).map((d) => downloadOf(d.data)).filter(Boolean).sort(newest);
+          const lines = [];
+          for (const start of [DOWNLOAD_START, FOLDER_START]) lines.push(...(await shopData.find(shopId, "audit-log", { where: startsWith(start), limit: MAX })));
+          downloads = lines.map((d) => downloadOf(d.data)).filter(Boolean).sort(newest).slice(0, MAX);
         } catch {
           unreadable = true;
         }
