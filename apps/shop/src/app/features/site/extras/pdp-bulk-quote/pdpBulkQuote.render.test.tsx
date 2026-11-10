@@ -10,7 +10,7 @@ const site = vi.hoisted(() => ({ data: {} as any }));
 const sent = vi.hoisted(() => [] as any[]);
 vi.mock("../../useSiteData", () => ({ useSiteData: () => site.data, useLiveDesign: () => site.data.settings?.design || {} }));
 vi.mock("../../../../CartContext", async (orig) => ({ ...(await orig() as any), useCart: () => ({ addToCart: () => true, setIsCartOpen: () => {}, cartCount: 0, cart: [] }) }));
-vi.mock("../../../../../lib/firebase", () => ({ db: {}, auth: {} }));
+vi.mock("../../../../../lib/firebase", () => ({ firestore: {}, db: {}, auth: {} }));
 vi.mock("../../shippingProfilesLoad", () => ({ loadShippingProfiles: async () => [] }));
 vi.mock("../../contactMessages", () => ({ submitContactMessage: async (m: any) => { sent.push(m); } }));
 vi.mock("../../../../lib/seo", () => ({ useSEO: () => {} }));

@@ -13,9 +13,9 @@ import { DEFAULT_SETTINGS } from "../services/settings.js";
 // Each version's words, fingerprinted. Changing the words without a new TERMS_VERSION fails here: add the new
 // version's line (never change an old one) so a stored acceptance always names the words the press saw.
 const FINGERPRINTS = { "2026-10-28-draft": "646ebc6599507d9f", "2026-10-28-draft.2": "55b1600cfb4bed2d", "2026-11-03-draft": "d24470c450ff75b7", "2026-11-03-draft.2": "7bb1fcbcadafff47",
-  "2026-11-03-draft.3": "04dcb865d6843efc" };
+  "2026-11-03-draft.3": "04dcb865d6843efc", "2026-11-10-draft": "1ce24128fb9616a5" };
 // The French words (termsFr.js), from the version that first had them. Same rule: new words, new version.
-const FINGERPRINTS_FR = { "2026-11-03-draft.2": "4744335b4ee3a2ca", "2026-11-03-draft.3": "574ba843f7eba85d" };
+const FINGERPRINTS_FR = { "2026-11-03-draft.2": "4744335b4ee3a2ca", "2026-11-03-draft.3": "574ba843f7eba85d", "2026-11-10-draft": "af16ec68088f677e" };
 
 const text = SECTIONS.flatMap((s) => [s.title, ...s.paragraphs]).join(" ");
 

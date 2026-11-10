@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 const rules = readFileSync(new URL("../../../firestore.rules", import.meta.url), "utf8");
 const block = (name: string) => {
   const start = rules.indexOf(`match /${name}/`);
-  return start < 0 ? "" : rules.slice(start, rules.indexOf("\n    match /", start + 1));
+  return start < 0 ? "" : rules.slice(start, rules.indexOf("\n      match /", start + 1));
 };
 
 describe("admin-only customer data rules", () => {

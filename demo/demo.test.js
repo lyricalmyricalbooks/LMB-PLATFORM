@@ -53,8 +53,11 @@ test("the rules are filled in for the demo owner, the shop's and the stockroom's
   assert.deepEqual(Object.keys(rules).sort(), ["database.rules.json", "firestore.rules", "shop.storage.rules", "stockroom.storage.rules"]);
   for (const [file, text] of Object.entries(rules)) {
     assert.ok(!text.includes("__SHOP_OWNER_EMAIL__"), `${file} still has the owner slot`);
-    assert.ok(text.includes(DEMO_OWNER.email), `${file} doesn't name the demo owner`);
+    // The shop's rules name no owner: the shared system reads it from the shop's record (docs/shared-system.md).
+    if (!file.startsWith("shop.")) assert.ok(text.includes(DEMO_OWNER.email), `${file} (the stockroom's rules) names the demo owner`);
   }
+  assert.ok(rules["firestore.rules"].includes("match /shops/{shopId}"), "the shop's rules sit in the shop folders");
+  assert.ok(!rules["firestore.rules"].includes("$(database)/documents/shops"), "the shop's record is read from the named default database");
   const firestore = rules["firestore.rules"];
   assert.equal(firestore.match(/match \/databases\/\(default\)\/documents \{/g).length, 1);
   assert.equal(firestore.match(/match \/databases\/stockroom\/documents \{/g).length, 1);
@@ -129,9 +132,9 @@ test("the demo books are the test shop's, each with a cover", () => {
 test("Google's Firestore address goes to the emulator", async () => {
   const seen = [];
   const fetch = emulatorFetch(async (url) => { seen.push(url); return new Response("{}"); });
-  await fetch("https://firestore.googleapis.com/v1/projects/demo-colophon-test/databases/(default)/documents/books/a");
+  await fetch("https://firestore.googleapis.com/v1/projects/demo-colophon-test/databases/(default)/documents/shops/demo-colophon-test/books/a");
   await fetch("http://127.0.0.1:9099/x");
-  assert.deepEqual(seen, ["http://127.0.0.1:8080/v1/projects/demo-colophon-test/databases/(default)/documents/books/a", "http://127.0.0.1:9099/x"]);
+  assert.deepEqual(seen, ["http://127.0.0.1:8080/v1/projects/demo-colophon-test/databases/(default)/documents/shops/demo-colophon-test/books/a", "http://127.0.0.1:9099/x"]);
 });
 
 test("seeding fills the shop, the stockroom, the photos and the owner, all on the emulators", async () => {
@@ -150,7 +153,7 @@ test("seeding fills the shop, the stockroom, the photos and the owner, all on th
   // The stockroom's books are in its own database, switched to the newer storage.
   assert.ok(emulators.docs.has("stockroom/documents/settings/catalog"));
   assert.deepEqual(emulators.docs.get("stockroom/documents/settings/modeFlags").fs_mode_global, { booleanValue: true });
-  assert.ok(emulators.docs.has("(default)/documents/books/test-book-one"));
+  assert.ok(emulators.docs.has("(default)/documents/shops/demo-colophon-test/books/test-book-one"));
 });
 
 test("seeding twice changes nothing the second time", async () => {
@@ -173,22 +176,22 @@ test("--new-press starts the shop as a press that has just signed up, and only t
 
   const plain = fakeEmulators();
   assert.equal((await seedDemo({ fetch: plain.fetch, now })).newPress, false);
-  assert.ok(!plain.docs.has("(default)/documents/firstWeek/start"), "a plain demo leaves the setup guide as it was");
+  assert.ok(!plain.docs.has("(default)/documents/shops/demo-colophon-test/firstWeek/start"), "a plain demo leaves the setup guide as it was");
 
   const emulators = fakeEmulators();
   const first = await seedDemo({ fetch: emulators.fetch, now, newPress: true });
   assert.equal(first.newPress, true);
-  const written = emulators.docs.get("(default)/documents/firstWeek/start");
+  const written = emulators.docs.get("(default)/documents/shops/demo-colophon-test/firstWeek/start");
   assert.equal(written.sellingToday.stringValue, "starting");
   assert.equal(written.publishes.stringValue, "books");
   assert.equal(written.plan.stringValue, "both");
   assert.equal(written.welcome, undefined);
 
   // The owner picked a look and ticked a step; adding --new-press again starts that story over, and a plain run keeps it.
-  emulators.docs.set("(default)/documents/firstWeek/start", { ...written, welcome: { mapValue: { fields: { theme: { stringValue: "press-riso" } } } } });
+  emulators.docs.set("(default)/documents/shops/demo-colophon-test/firstWeek/start", { ...written, welcome: { mapValue: { fields: { theme: { stringValue: "press-riso" } } } } });
   await seedDemo({ fetch: emulators.fetch, now });
-  assert.ok(emulators.docs.get("(default)/documents/firstWeek/start").welcome, "a run without the option leaves it");
+  assert.ok(emulators.docs.get("(default)/documents/shops/demo-colophon-test/firstWeek/start").welcome, "a run without the option leaves it");
   await seedDemo({ fetch: emulators.fetch, now, newPress: true });
-  assert.equal(emulators.docs.get("(default)/documents/firstWeek/start").welcome, undefined);
+  assert.equal(emulators.docs.get("(default)/documents/shops/demo-colophon-test/firstWeek/start").welcome, undefined);
   for (const { url } of emulators.requests) assert.match(url, /^http:\/\/127\.0\.0\.1:(9099|9199|8080)\//);
 });

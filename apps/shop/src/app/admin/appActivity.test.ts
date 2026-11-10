@@ -1,6 +1,6 @@
 // Settings › Apps: each app request in plain words.
 import { describe, expect, it, vi } from "vitest";
-vi.mock("../../lib/firebase", () => ({ db: {} }));
+vi.mock("../../lib/firebase", () => ({ firestore: {}, db: {} }));
 const { activityRow } = await import("./appActivity");
 
 describe("app activity rows", () => {

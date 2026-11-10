@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const setDoc = vi.fn(async () => undefined);
 vi.mock("firebase/firestore/lite", () => ({ doc: (_db: unknown, ...path: string[]) => ({ path: path.join("/") }), setDoc: (...a: unknown[]) => (setDoc as any)(...a) }));
-vi.mock("../../../lib/firestoreLite", () => ({ liteDb: {} }));
+vi.mock("../../../lib/firestoreLite", () => ({ liteDb: {}, liteFirestore: {} }));
 vi.mock("../../../lib/authSession", () => ({ restoredUser: async () => null }));
 const functionFetch = vi.fn(async () => ({ ok: true, status: 200 }));
 vi.mock("../../lib/functionsBase", () => ({ functionFetch: (...a: unknown[]) => (functionFetch as any)(...a) }));

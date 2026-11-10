@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 const fs = vi.hoisted(() => ({ setDoc: vi.fn(async () => {}), getDoc: vi.fn(), doc: vi.fn((_db: unknown, ...path: string[]) => path.join("/")) }));
 vi.mock("firebase/firestore", () => fs);
-vi.mock("../../../lib/firebase", () => ({ db: {}, auth: { currentUser: null }, storage: {}, googleProvider: {} }));
+vi.mock("../../../lib/firebase", () => ({ firestore: {}, db: {}, auth: { currentUser: null }, storage: {}, googleProvider: {} }));
 vi.mock("./overviewVisitors.css", () => ({}));
 
 import { OverviewClarity } from "./OverviewClarity";

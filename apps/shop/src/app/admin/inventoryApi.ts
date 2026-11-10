@@ -5,7 +5,7 @@
 import {
   collection, doc, getDoc, getDocs, limit, orderBy, query, runTransaction, setDoc, where,
 } from "firebase/firestore";
-import { auth, db } from "../../lib/firebase";
+import { auth, db, firestore } from "../../lib/firebase";
 import { planStockChange, type AdjustReason, type StockChange, type StockPlan } from "./inventoryInsights";
 import { isStockLinked } from "./inventoryLink";
 import { hasStockroom } from "../../lib/shopProfile";
@@ -25,7 +25,7 @@ export const inventoryApi = {
     meta: { reason: AdjustReason; note?: string; title?: string; edition?: string; force?: boolean },
   ): Promise<StockResult> => {
     const ref = doc(db, "books", bookId);
-    return runTransaction(db, async (tx) => {
+    return runTransaction(firestore, async (tx) => {
       const snap = await tx.get(ref);
       // A book matched to the inventory app is counted there; the link sets its stock (docs/INVENTORY_LINK.md).
       const link = await tx.get(doc(db, "systemStatus", "inventoryLink"));

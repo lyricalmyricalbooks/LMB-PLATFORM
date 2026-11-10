@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const calls: any[] = [];
 const bookLists: Record<string, any[]> = {};
-vi.mock("../../lib/firestoreLite", () => ({ liteDb: {} }));
+vi.mock("../../lib/firestoreLite", () => ({ liteDb: {}, liteFirestore: {} }));
 vi.mock("firebase/firestore/lite", () => ({
   collection: (_db: any, name: string) => ({ name }),
   doc: (_db: any, name: string, id?: string) => ({ name, id: id || "new" }),

@@ -75,12 +75,14 @@ function checkPath(path, kind) {
  *   set(path, data, { fields? })          replaces the document, or only `fields` (an update mask) when given
  *   remove(path) -> true | false          query(collection, { where, orderBy, limit }) -> [{ id, path, data }]
  *   transaction(async (tx) => …)          tx.get(path); tx.create/set/update/remove queue writes, committed together
+ * `folder` (a document path, e.g. "shops/<shopId>") puts every path inside that document: the shared system keeps each
+ * shop in its own folder of one database (docs/shared-system.md), and a client given a folder can't reach outside it.
  */
-export function firestoreClient({ fetch, token, projectId, database = "(default)" }) {
+export function firestoreClient({ fetch, token, projectId, database = "(default)", folder = "" }) {
   if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(projectId ?? "")) throw new Error("firestoreClient needs a project id");
   const call = googleHttp({ fetch, token });
   const databaseName = `projects/${projectId}/databases/${database}`;
-  const root = `${databaseName}/documents`;
+  const root = `${databaseName}/documents${folder ? `/${checkPath(folder, "document").map(encodeURIComponent).join("/")}` : ""}`;
   const nameOf = (path) => `${root}/${checkPath(path, "document").map(encodeURIComponent).join("/")}`;
   const url = (name) => `${FIRESTORE}/${name}`;
 
@@ -163,5 +165,5 @@ export function firestoreClient({ fetch, token, projectId, database = "(default)
     }
   }
 
-  return { projectId, database, get, create, set, remove, query, transaction };
+  return { projectId, database, folder, get, create, set, remove, query, transaction };
 }

@@ -6,6 +6,7 @@
 // project's monthly download allowance, so files are capped (MAX_BOOK_VIDEO_BYTES) and shoppers only
 // fetch the first few kilobytes until they press play (`preload="metadata"`).
 import { mediaApi } from "./mediaApi";
+import { shopFilePath } from "../../lib/shopFolder";
 import { bookPhotoPath, uploadBookPhoto, type BookPhotoFile } from "./bookPhotoUpload";
 import type { BookVideoFields } from "../features/site/bookVideo";
 
@@ -108,7 +109,7 @@ export function captureVideoPoster(file: File, timeoutMs = 20000): Promise<Poste
 /** Uploads one file with progress (0–1), so a 50 MB video doesn't look stuck. Returns its download URL. */
 export async function uploadWithProgress(file: File, path: string, contentType: string, onProgress?: (share: number) => void): Promise<string> {
   const [{ getStorage, ref, uploadBytesResumable, getDownloadURL }, { getApp }] = await Promise.all([import("firebase/storage"), import("firebase/app")]);
-  const task = uploadBytesResumable(ref(getStorage(getApp()), path), file, {
+  const task = uploadBytesResumable(ref(getStorage(getApp()), shopFilePath(path)), file, {
     contentType,
     // The file never changes at this address, so browsers may keep it: a second play costs no download.
     cacheControl: "public, max-age=31536000, immutable",

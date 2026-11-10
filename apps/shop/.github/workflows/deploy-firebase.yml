@@ -110,8 +110,8 @@ jobs:
           echo "SHOP_URL=$url" >> "$GITHUB_ENV"
           echo "Email links will open $url"
 
-      # The rules hold a slot for the owner's sign-in address (plan 1.14b). Fill it, and give the Cloud Functions the same
-      # address, from the repository variable SHOP_OWNER_EMAIL. Without it nothing deploys (scripts/deployConfig.mjs).
+      # The rules name no owner (the shared system: each shop's record does), so deployConfig.mjs only checks and copies
+      # them. The Cloud Functions still read the owner's address from SHOP_OWNER_EMAIL until they move to the shop record.
       - name: Shop owner and deploy files
         env:
           SHOP_OWNER_EMAIL: ${{ vars.SHOP_OWNER_EMAIL }}
