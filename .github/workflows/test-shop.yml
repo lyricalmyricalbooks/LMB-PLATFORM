@@ -1,0 +1,67 @@
+name: Make the test shop
+
+# Makes (or brings up to date) the platform's own test shop in the Firebase project lmb-test-shop: its database, rules,
+# server code, shop and stockroom pages, sample books and the owner as its owner (setup/make-test-shop.js, the shop
+# maker's steps). Safe to run again: it resumes where it stopped. Only lmb-test-shop, only from main, only by hand.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: make-test-shop
+  cancel-in-progress: false
+
+env:
+  TEST_SHOP: lmb-test-shop
+  WIF_PROVIDER: projects/1038369055304/locations/global/workloadIdentityPools/github/providers/lmb-platform
+  DEPLOY_ACCOUNT: github-deploy@lmb-platform-prod.iam.gserviceaccount.com
+  FIREBASE_TOOLS: firebase-tools@15.32.1
+
+jobs:
+  make:
+    if: github.repository == 'lyricalmyricalbooks/LMB-PLATFORM' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    environment:
+      name: test-shop
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 10
+      - name: Build the shop's pages and server code
+        working-directory: apps/shop
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec vite build
+          (cd functions && npm ci)
+      - name: Build the stockroom's pages
+        working-directory: apps/stockroom
+        run: npm ci && npm run build
+      - name: Sign in to Google as the deploy account
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOY_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+      - name: The Firebase command line
+        run: npm install --global "$FIREBASE_TOOLS"
+      - name: Make the test shop
+        env:
+          SERVER_SETTINGS: ${{ vars.SERVER_SETTINGS }}
+          PLATFORM_SERVICE_ACCOUNT: ${{ env.DEPLOY_ACCOUNT }}
+        run: |
+          # The owner is the platform's admin (PLATFORM_ADMIN_EMAIL in the server's settings), never written in code.
+          TEST_SHOP_OWNER_EMAIL=$(printf '%s\n' "$SERVER_SETTINGS" | sed -n 's/^PLATFORM_ADMIN_EMAIL: *"\{0,1\}\([^"]*\)"\{0,1\} *$/\1/p' | head -n 1)
+          export TEST_SHOP_OWNER_EMAIL
+          node setup/make-test-shop.js --apply
