@@ -15,18 +15,16 @@
 <link rel="stylesheet" href="../signup/look/brand-logos.css">
 <script src="../signup/look/platform-look.js"></script>
 <style>
-  /* The front door: the story and the two steps on a dark tile, one question at a time on a white one. */
-  .fd { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 16px; align-items: stretch; }
-  .cp .fd-story { padding: clamp(24px, 4vw, 36px); align-content: space-between; gap: 32px; }
-  .fd-story h1 { font: 600 clamp(36px, 4.5vw, 48px)/1.02 var(--rp-font-display); letter-spacing: -0.04em; margin: 0 0 16px; }
-  .cp .fd-story .cp-steps { display: grid; gap: 8px; margin: 0; }
-  .cp .fd-story .cp-steps li { min-height: 44px; padding: 0 16px; border-radius: 14px; background: var(--cl-dark-chip); color: var(--cl-on-dark-tile); box-shadow: none; }
-  .cp .fd-story .cp-steps li b { color: var(--cl-on-dark-tile-2); }
-  .cp .fd-story .cp-steps li[data-done]::after { margin-left: auto; color: var(--cl-mint); }
-  .cp .fd-story .cp-steps li[aria-current="step"] { background: var(--cl-on-dark-tile); color: var(--cl-dark-tile); }
-  .cp .fd-story .cp-steps li[aria-current="step"] b { color: var(--cl-dark-tile); }
-  .cp .fd-step { padding: clamp(24px, 4vw, 36px); align-content: start; }
-  .fd-step .cp-title { font-size: clamp(28px, 3.4vw, 34px); margin: 0; }
+  /* The front door (design handoff "Colophon platform", sign-up): steps, title and the form on the left, "Your new
+     store" on a white tile on the right while the brand questions show. */
+  .fd { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; max-width: 720px; }
+  .fd[data-at="brand"] { grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); max-width: none; }
+  .fd-left { display: grid; gap: 0; min-width: 0; }
+  .fd-left h1 { font: 600 clamp(36px, 4.5vw, 52px)/1.02 var(--rp-font-display); letter-spacing: -0.04em; margin: 0 0 8px; }
+  .fd-left > .cp-lede { margin: 0 0 24px; max-width: 560px; }
+  .cp .fd-left .cp-steps { margin: 0 0 10px; }
+  .cp .fd-step { padding: clamp(24px, 3vw, 28px); align-content: start; }
+  .fd-step .cp-title { font-size: clamp(24px, 3vw, 28px); margin: 0; }
   .fd-code { font-family: var(--rp-font-mono); font-size: 28px !important; letter-spacing: .35em; text-align: center; }
   .fd-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
   .fd-row > .primary { flex: 1 1 auto; }
@@ -36,43 +34,43 @@
   /* About your brand: chips for what you sell, option cards for where you sell today. */
   .fd-part { display: grid; gap: 14px; padding: 0; margin: 0; border: 0; min-width: 0; }
   .fd-part + .fd-part { padding-top: 20px; border-top: 1px solid var(--rp-divider); }
-  .fd-part > legend { padding: 0; margin-bottom: 4px; font: 500 12px/1.2 var(--rp-font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--rp-text-muted); }
-  .fd-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-  .cp .fd-chips label.choice { min-height: 44px; padding: 0 16px; border-radius: 999px; display: inline-flex; align-items: center; font-size: 14px; }
-  .cp .fd-chips label.choice strong { font-size: 14px; font-weight: 500; }
-  .cp .fd-chips label.choice:has(input:checked) { background: var(--cl-dark-tile); color: var(--cl-on-dark-tile); border-color: var(--cl-dark-tile); }
+  .fd-part > legend { padding: 0; margin-bottom: 4px; font: 600 13px/1.3 var(--rp-font-body); color: var(--rp-text); }
+  .fd-chips, .fd-today { display: grid; gap: 8px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cp :is(.fd-chips, .fd-today) label.choice { min-height: 50px; padding: 0 18px; border-radius: 14px; display: flex; align-items: center; }
+  .cp :is(.fd-chips, .fd-today) label.choice strong { font-size: 14px; font-weight: 600; }
+  @media (max-width: 640px) { .fd-chips, .fd-today { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   .fd-sub { margin: 0; font: 600 13px/1.3 var(--rp-font-body); }
-  .fd-today { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); }
-  .cp .fd-today label.choice { border-radius: 16px; }
   .fd-code::placeholder { color: var(--rp-text-faint); }
-  .fd-optional { text-transform: none; letter-spacing: 0; font-family: var(--rp-font-body); color: var(--rp-text-subtle); margin-left: 4px; }
+  .fd-optional { font-weight: 400; color: var(--rp-text-subtle); margin-left: 2px; }
   .cp label.fd-terms { align-items: center; min-height: 44px; font-weight: 500; }
-  /* "Your new store" (sign-up's summary), on the dark tile while the brand questions show. */
-  .fd-new { display: none; gap: 14px; padding: 18px; border-radius: 18px; background: var(--cl-dark-chip); }
-  .fd[data-at="brand"] .fd-new { display: grid; }
-  .fd[data-at="brand"] .fd-story .cp-steps { display: none; }
-  .cp .fd[data-at="brand"] .fd-story { align-content: start; }
-  .fd[data-at="brand"] { align-items: start; }
-  .fd-new-top { display: flex; justify-content: space-between; align-items: center; margin: 0; font: 500 12px/1 var(--rp-font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--cl-on-dark-tile-2); }
-  .fd-browser { display: flex; align-items: center; gap: 6px; padding: 12px 14px; border-radius: 14px; background: var(--cl-on-dark-tile); color: var(--cl-dark-tile); min-width: 0; }
-  .fd-browser i { width: 8px; height: 8px; border-radius: 50%; background: var(--cl-dashed); flex: none; }
-  .cp .cp-dark .fd-browser b { color: var(--cl-dark-tile); margin-left: 8px; font: 600 16px/1.2 var(--rp-font-display); letter-spacing: -0.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .fd-new-dl { display: grid; gap: 8px; margin: 0; }
-  .fd-new-dl > div { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
-  .fd-new-dl dt { color: var(--cl-on-dark-tile-2); }
+  /* "Your new store": the address, the brand and what it sells, then the trial's facts. */
+  .cp .fd-new { display: none; gap: 14px; padding: 24px; }
+  .fd[data-at="brand"] .fd-new { display: grid; position: sticky; top: 16px; margin-top: 50px; }
+  .fd-new-top { display: flex; justify-content: space-between; align-items: center; margin: 0; font: 600 18px/1.2 var(--rp-font-display); }
+  .fd-browser { display: grid; gap: 6px; padding: 14px 18px 20px; border-radius: 18px; background: var(--rp-surface-2); min-width: 0; }
+  .fd-browser-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 18px; font: 400 11px/1 var(--rp-font-mono); color: var(--rp-text-subtle); }
+  .fd-browser-bar i { width: 8px; height: 8px; border-radius: 50%; background: var(--rp-border); flex: none; }
+  .fd-browser-bar span { margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fd-browser small { font-size: 13px; color: var(--rp-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fd-browser b { font: 600 clamp(22px, 2.4vw, 30px)/1.1 var(--rp-font-display); letter-spacing: -0.03em; }
+  .fd-new-dl { display: grid; gap: 12px; margin: 0; }
+  .fd-new-dl > div { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; }
+  .fd-new-dl dt { color: var(--rp-text-muted); }
   .fd-new-dl dd { margin: 0; font-weight: 600; text-align: right; }
-  .fd-new-note { margin: 0; font-size: 13px; color: var(--cl-on-dark-tile-2); }
+  .fd-new-dl > div.fd-after { padding-top: 12px; border-top: 1px solid var(--rp-divider); }
+  .fd-new-dl > div.fd-after dt { color: var(--rp-text); font-weight: 600; }
+  .fd-new-note { margin: 0; font: 400 12px/1.6 var(--rp-font-mono); color: var(--rp-text-subtle); }
   /* Setting up your store: a card over the page. */
   .fd-scrim { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; background: rgba(31, 30, 27, .45); }
   .fd-scrim[hidden] { display: none; }
   .cp .fd-overlay { width: min(460px, 92vw); padding: 32px; border-radius: var(--cl-radius-tile); display: grid; gap: 16px; box-shadow: 0 12px 30px rgba(0, 0, 0, .2); }
   .fd-overlay h2 { margin: 0; font: 600 26px/1.1 var(--rp-font-display); letter-spacing: -0.03em; }
-  .fd-making { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-  .fd-making li { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 48px; padding: 0 16px; border-radius: 14px; background: var(--rp-surface-2); font-weight: 600; }
+  .fd-making { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 4px; }
+  .fd-making li { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 34px; font: 600 16px/1.2 var(--rp-font-body); }
   .fd-overlay .cp-bar { margin-top: 0; }
   .fd-overlay .cp-bar i { background: var(--rp-inverse); }
   .fd-overlay a.primary[aria-disabled="true"] { opacity: .45; pointer-events: none; }
-  @media (max-width: 900px) { .fd { grid-template-columns: minmax(0, 1fr); } .cp .fd-story { gap: 20px; } .fd[data-at="brand"] .fd-story { order: 2; } }
+  @media (max-width: 900px) { .fd[data-at="brand"] { grid-template-columns: minmax(0, 1fr); } .fd[data-at="brand"] .fd-new { position: static; margin-top: 0; } }
   @media (max-width: 480px) { .cp .fd-overlay { padding: 24px 20px; } }
 </style>
 </head>
@@ -82,24 +80,13 @@
   <nav aria-label="Colophon"><a href="/pricing">Pricing</a><a href="/help/">Help</a></nav></div></header>
 <div class="cp-wrap">
 <main id="main" tabindex="-1" class="cp-main fd">
-  <aside class="card cp-dark fd-story">
-    <div><h1>Your store, free for 14 days.</h1>
-    <p class="cp-lede" id="story-lede">Everything is included while you try it: your shop and your stockroom. No card needed.</p></div>
-    <div class="fd-new" aria-label="Your new store">
-      <p class="fd-new-top"><span>Your new store</span><span class="pill" data-tone="success">Free trial</span></p>
-      <div class="fd-browser" aria-hidden="true"><i></i><i></i><i></i><b id="new-name">Your brand</b></div>
-      <dl class="fd-new-dl">
-        <div><dt>Free trial</dt><dd id="new-days">14 days</dd></div>
-        <div><dt>Includes</dt><dd>Shop and stockroom</dd></div>
-        <div><dt>After the trial</dt><dd id="new-after">Pick a plan</dd></div>
-      </dl>
-      <p class="fd-new-note">Pick a plan any time in your store. Your web address is free; connect your own later.</p>
-    </div>
+  <div class="fd-left">
     <ol class="cp-steps" aria-label="Steps">
       <li data-step="signin"><b>01</b> Sign in</li>
       <li data-step="brand"><b>02</b> About your brand</li>
     </ol>
-  </aside>
+    <h1>Start your free trial</h1>
+    <p class="cp-lede" id="story-lede">Three quick questions, then you're in your store. Everything is included for 14 days. No card needed.</p>
   <div class="card fd-step">
 
   <!-- 1. Email, or Google. New and returning presses come in the same way. -->
@@ -140,8 +127,7 @@
   <!-- 3. About your brand (design "Colophon platform", sign-up): three questions and an optional fourth, then the store is
        made at once with a free trial of everything. The plan is picked later, in the store's Billing. -->
   <section id="view-start" class="stack" hidden aria-labelledby="start-title">
-    <h2 id="start-title" tabindex="-1" class="cp-title">Start your free trial</h2>
-    <p class="hint" id="start-lede">Three quick questions, then you're in your store. No card needed.</p>
+    <h2 id="start-title" tabindex="-1" class="rp-sr-only">About your brand</h2>
     <form class="stack" id="start-form" novalidate>
       <label>Brand name<input name="pressName" autocomplete="organization" maxlength="120" required></label>
       <p class="error" id="pressName-error" role="alert" hidden></p>
@@ -151,10 +137,11 @@
       <label>Where is your brand based?<select name="country" id="country"></select></label>
       <p class="hint">Sets your currency and taxes. Colophon starts in Canada; elsewhere we'll save your place.</p>
       <p class="error" id="country-error" role="alert" hidden></p>
-      <fieldset class="fd-part"><legend>Selling somewhere already? <span class="fd-optional">Optional</span></legend>
+      <fieldset class="fd-part"><legend>Selling somewhere already? <span class="fd-optional">(optional)</span></legend>
+        <p class="hint" style="margin:0">We'll start you on bringing your products over.</p>
         <div class="fd-today" id="today-choices"></div>
       </fieldset>
-      <label class="tick fd-terms"><input type="checkbox" name="termsAccepted"> <span>I agree to the <a href="../terms/" target="_blank" rel="noopener">terms</a>.</span></label>
+      <label class="tick fd-terms"><input type="checkbox" name="termsAccepted"> <span>I agree to Colophon's <a href="../terms/" target="_blank" rel="noopener">terms, privacy policy and data agreement</a>.</span></label>
       <p class="error" id="terms-error" role="alert" hidden></p>
       <p class="error" id="start-error" role="alert" hidden></p>
       <div class="fd-row"><button type="submit" class="primary">Start my free trial</button></div>
@@ -165,6 +152,18 @@
   </section>
 
   </div>
+  </div>
+  <aside class="card fd-new" aria-label="Your new store">
+    <p class="fd-new-top"><span>Your new store</span><span class="pill" data-tone="info">Free trial</span></p>
+    <div class="fd-browser" aria-hidden="true"><span class="fd-browser-bar"><i></i><i></i><i></i><span id="new-address">yourbrand.web.app</span></span>
+      <small id="new-name">Your brand</small><b id="new-kind">Your store</b></div>
+    <dl class="fd-new-dl">
+      <div><dt>Free trial</dt><dd id="new-days">14 days</dd></div>
+      <div><dt>Includes</dt><dd>Shop and stockroom</dd></div>
+      <div class="fd-after"><dt>After the trial</dt><dd id="new-after">Pick a plan</dd></div>
+    </dl>
+    <p class="fd-new-note">Pick a plan any time in the store. Your web address is free; connect your own later.</p>
+  </aside>
   <p id="status" role="status" aria-live="polite"></p>
 </main>
 </div>

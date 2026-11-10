@@ -177,15 +177,24 @@ api("GET", "/plans").then((plans) => {
   termsVersion = plans?.termsVersion ?? "";
   if (plans?.trialDays) {
     $("#new-days").textContent = `${plans.trialDays} days`;
-    $("#story-lede").textContent = `Everything is included for ${plans.trialDays} days: your shop and your stockroom. No card needed.`;
-    $("#story-lede").previousElementSibling.textContent = `Your store, free for ${plans.trialDays} days.`;
+    $("#story-lede").textContent = `Three quick questions, then you're in your store. Everything is included for ${plans.trialDays} days. No card needed.`;
   }
   const amount = (text) => Number(String(text).replace(/[^0-9.]/g, "")) || 0;
   const cheapest = (plans?.plans ?? []).map((p) => p.foundingPriceText || p.priceText).filter(Boolean).sort((a, b) => amount(a) - amount(b))[0];
   if (cheapest) $("#new-after").textContent = `From ${cheapest} a month`;
 }, () => {});
 
-$("#sells-choices").replaceChildren(...PUBLISHES.options.map((o) => choice("sells", o.id, o.label)));
+// The mockup's six answers, each saved as one of sign-up's ids (signup/form.js PUBLISHES); home and beauty count as
+// "other" until the shop knows them by name.
+const SIGNUP_SELLS = [
+  { id: "clothing", label: "Clothing & accessories" },
+  { id: "other", label: "Home & kitchen" },
+  { id: "prints", label: "Art & prints" },
+  { id: "books", label: "Books & media" },
+  { id: "other", label: "Beauty & care" },
+  { id: "other", label: "Something else" },
+].filter((o) => PUBLISHES.options.some((p) => p.id === o.id));
+$("#sells-choices").replaceChildren(...SIGNUP_SELLS.map((o) => choice("sells", o.id, o.label)));
 // "Selling somewhere already?", optional (ids from form.js QUESTION, which the server checks). It picks the setup
 // guide's first step: bring a shop over, import a spreadsheet, or add the first product.
 const SELLING_TODAY = [
@@ -195,15 +204,24 @@ const SELLING_TODAY = [
   { id: "starting", label: "Not yet", line: "Start fresh" },
 ];
 $("#today-choices").replaceChildren(...SELLING_TODAY.map((o) => {
-  const label = choice("sellingToday", o.id, o.label);
-  label.append(Object.assign(document.createElement("span"), { textContent: o.line }));
-  return label;
+  return choice("sellingToday", o.id, o.label);
 }));
 $("#country").replaceChildren(new Option("Choose a country", ""), ...Object.entries(COUNTRIES).map(([code, c]) => new Option(c.name, code)));
 
 const startForm = $("#start-form");
-const showName = () => { $("#new-name").textContent = startForm.pressName.value.trim() || "Your brand"; };
+/** The web address a brand name would get, as the preview shows it (the server picks the real one). */
+const addressFor = (name) => `${(name.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/&/g, " ").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 30) || "yourbrand")}.web.app`;
+const showName = () => {
+  const name = startForm.pressName.value.trim();
+  $("#new-name").textContent = name || "Your brand";
+  $("#new-address").textContent = addressFor(name);
+};
+const showKind = () => {
+  const picked = startForm.querySelector("input[name=sells]:checked");
+  $("#new-kind").textContent = picked ? picked.parentElement.textContent : "Your store";
+};
 startForm.pressName.addEventListener("input", showName);
+startForm.addEventListener("change", (event) => { if (event.target.name === "sells") showKind(); });
 // An answer given clears its own error line.
 startForm.addEventListener("change", (event) => {
   const field = event.target.name === "termsAccepted" ? "terms" : event.target.name;
@@ -213,7 +231,10 @@ startForm.addEventListener("change", (event) => {
 
 function fillAnswers() {
   startForm.pressName.value = press.pressName ?? "";
-  for (const input of startForm.querySelectorAll("input[name=sells]")) input.checked = input.value === press.sells;
+  // One answer can sit behind several tiles ("other"): the last one, Something else, is shown picked.
+  const matches = [...startForm.querySelectorAll("input[name=sells]")].filter((input) => input.value === press.sells);
+  for (const input of startForm.querySelectorAll("input[name=sells]")) input.checked = input === matches.at(-1);
+  showKind();
   for (const input of startForm.querySelectorAll("input[name=sellingToday]")) input.checked = input.value === press.sellingToday;
   // Not answered yet: start from the country the computer's clock is set to, when we can tell and serve it.
   startForm.country.value = press.country in COUNTRIES ? press.country : countryFromTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
