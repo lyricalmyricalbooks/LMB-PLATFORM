@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { broughtOverRoutes, broughtOverSummary, createBroughtOver, runOf } from "./broughtOver.js";
+import { broughtOverRoutes, broughtOverSummary, createBroughtOver, runOf, scansOf } from "./broughtOver.js";
 import { controlRoomAdmins } from "./controlRoom.js";
 import { fakeShopData } from "../accounts/fakes.js";
 import { fakeRegistry } from "../setup/fakes.js";
@@ -45,6 +45,10 @@ async function world() {
   const shopData = fakeShopData();
   for (const [i, line] of LINES.entries()) await shopData.set(SHOP, `audit-log/l${i}`, line);
   await shopData.set(SHOP, "systemStatus/photoImport", PHOTOS);
+  await shopData.set(SHOP, "systemStatus/oldShopScans", { scans: [
+    { at: "2026-11-10T12:00:00Z", host: "mothpress.example", ok: true, products: 120, forSale: 110, stockShown: false, partial: true },
+    { at: "2026-11-09T12:00:00Z", host: "market.example", ok: false, message: "Download your listings file instead." },
+  ] });
   await shopData.set(SHOP, "orders/p1", { source: "import", importedFile: "orders-2025.csv" });
   await shopData.set(SHOP, "orders/p2", { source: "import", importedFile: "orders-2025.csv" });
   await shopData.set(SHOP, "orders/p3", { source: "import", importedFile: "orders-2024.csv" });
@@ -105,4 +109,15 @@ test("the shop drawer shows the section, and both web doors serve the route", ()
   assert.match(app, /"\/control\/brought-over"/);
   assert.match(app, /"Brought over from the old shop"/);
   for (const door of ["../server/world.js", "../walkthrough/world.js"]) assert.match(readFileSync(new URL(door, import.meta.url), "utf8"), /broughtOverRoutes\(broughtOver\)/, door);
+});
+
+test("the reads of the old shop's address show what each found, or why not", async () => {
+  const w = await world();
+  const { scans } = await w.desk.forShop(ADMIN, { shopId: SHOP });
+  assert.deepEqual(scans, [
+    { at: "2026-11-10T12:00:00Z", host: "mothpress.example", ok: true, products: 120, forSale: 110, stockShown: false, partial: true, message: null },
+    { at: "2026-11-09T12:00:00Z", host: "market.example", ok: false, products: 0, forSale: null, stockShown: false, partial: false, message: "Download your listings file instead." },
+  ]);
+  assert.equal((await w.desk.forShop(ADMIN, { shopId: "fresh-press" })).scans, null, "no reads, nothing shown");
+  assert.equal(scansOf({ scans: [null, { host: 3 }] }), null);
 });

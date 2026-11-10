@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { TEMPLATES, TEMPLATE_DETAIL_NAMES, createShopLooks, lookOf, lookTally, shopLooksRoutes } from "./shopLooks.js";
+import { SUGGESTED, TEMPLATES, TEMPLATE_DETAIL_NAMES, suggestedFor, createShopLooks, lookOf, lookTally, shopLooksRoutes } from "./shopLooks.js";
 import { controlRoomAdmins } from "./controlRoom.js";
 import { fakeShopData } from "../accounts/fakes.js";
 import { fakeRegistry } from "../setup/fakes.js";
@@ -51,14 +51,14 @@ test("a shop's look: what shoppers see, a different look in the draft, and the w
   const w = await world();
   assert.deepEqual((await w.desk.forShop(ADMIN, { shopId: "moth" })).look, {
     live: { id: "marquee", name: "Marquee" }, template: "marquee", templateDetails: [], publishedAt: "2026-11-01T10:00:00Z", draft: { id: "atlas", name: "Atlas" },
-    welcome: { theme: "marquee", at: "2026-10-30T09:00:00Z", skipped: false, adminLook: "paper" }, waiting: false,
+    welcome: { theme: "marquee", at: "2026-10-30T09:00:00Z", skipped: false, adminLook: "paper" }, waiting: false, suggested: false,
   });
   const newt = (await w.desk.forShop(ADMIN, { shopId: "newt" })).look;
   assert.equal(newt.waiting, true, "picked in the welcome, never published");
   assert.equal(newt.welcome.skipped, true);
   assert.match((await w.desk.forShop(ADMIN, { shopId: "stock" })).words, /no website/);
   assert.equal((await w.desk.forShop(ADMIN, { shopId: "new-press" })).look, null);
-  assert.deepEqual(lookOf(null, null, null), { live: null, template: null, templateDetails: [], publishedAt: null, draft: null, welcome: null, waiting: false });
+  assert.deepEqual(lookOf(null, null, null), { live: null, template: null, templateDetails: [], publishedAt: null, draft: null, welcome: null, waiting: false, suggested: null });
   assert.equal(lookOf({ design: marquee }, { draft: marquee }, null).draft, null, "the same look in the draft isn't news");
 });
 
@@ -108,4 +108,21 @@ test("the template details match the shop's Reset template details, and the reco
   assert.deepEqual({ ...TEMPLATE_DETAIL_NAMES }, shop);
   assert.deepEqual(lookOf({ design: { themeStyle: "shelf", templateCardTilt: 2, templateFrameWidth: 0, templateRuleWidth: "" } }, null, null).templateDetails, ["photo frames", "card tilt"]);
   assert.deepEqual(lookOf({ design: {} }, null, null).templateDetails, []);
+});
+
+test("the suggested looks match Choose your look's, and the record says whether the live look is one of them", async () => {
+  const ts = readFileSync(new URL("../apps/shop/src/app/admin/lookGallery.ts", import.meta.url), "utf8");
+  const block = /const SUGGESTED[^=]*=\s*\{([\s\S]*?)\};/.exec(ts)?.[1] ?? "";
+  const shop = Object.fromEntries([...block.matchAll(/(\w+): \[([^\]]*)\]/g)].map((m) => [m[1], [...m[2].matchAll(/"([^"]+)"/g)].map((x) => x[1])]));
+  assert.deepEqual(JSON.parse(JSON.stringify(SUGGESTED)), shop);
+  assert.deepEqual(suggestedFor("nonsense"), SUGGESTED.general);
+  assert.deepEqual(suggestedFor("toString"), SUGGESTED.general, "only its own answers");
+  const zine = { design: { themeBase: { id: "press-zine", name: "Zine" } } };
+  assert.equal(lookOf(zine, null, { publishes: "zines" }).suggested, true);
+  assert.equal(lookOf(zine, null, { publishes: "books" }).suggested, false);
+  assert.equal(lookOf({ design: { themeBase: { id: "press-riso", name: "Riso" } } }, null, null).suggested, true, "no answer: the general suggestions");
+  const w = await world();
+  await w.shopData.set("wasp", "settings/website", { design: zine.design });
+  await w.shopData.set("wasp", "firstWeek/start", { publishes: "zines" });
+  assert.deepEqual((await w.desk.acrossPresses(ADMIN)).suggested, { took: 1, of: 2 }, "newt wears no ready-made look");
 });
