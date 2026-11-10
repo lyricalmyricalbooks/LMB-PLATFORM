@@ -2937,11 +2937,26 @@ function salesChannelsSection(shop) {
   return slot;
 }
 
+/** The reads of the press's old shop address (Books › Import), newest first: what each found, or why not. */
+function oldShopReads(scans) {
+  if (!scans?.length) return null;
+  return el("div", {}, el("h4", { className: "cr-section", textContent: "Old shop reads" }), table({
+    caption: "Reads of the old shop's address",
+    rows: scans,
+    columns: [
+      { header: "Old shop", lead: true, render: (r) => el("div", {}, el("p", { className: "cr-title", textContent: r.host }), meta(r.at ? when(r.at) : null)) },
+      { header: "Result", render: (r) => (!r.ok ? pill("danger", "Didn't read") : r.partial ? pill("warning", "Part read") : pill("success", "Read")) },
+      { header: "Details", render: (r) => meta(...(r.ok ? [plural(r.products, "product"), r.forSale != null && !r.stockShown ? `${r.forSale} for sale` : null, r.stockShown ? "stock counts shown" : "no public stock", r.partial ? "stopped answering part way" : null] : [r.message])) },
+    ],
+  }));
+}
+
 function broughtOverSection(shop) {
   const slot = el("div", {}, el("p", { className: "rp-hint", textContent: "Reading the shop's records…" }));
-  api("POST", "/control/brought-over", { shopId: shop.shopId }).then(({ brought, nothing, words }) => {
+  api("POST", "/control/brought-over", { shopId: shop.shopId }).then(({ brought, nothing, words, scans }) => {
     if (!brought) return slot.replaceChildren(el("p", { className: "rp-hint", textContent: words }));
-    if (nothing && !brought.move) return slot.replaceChildren(el("p", { className: "rp-hint", textContent: "Nothing brought over yet: no past orders, customers, gift cards, discount codes or old shop links." }));
+    const reads = oldShopReads(scans);
+    if (nothing && !brought.move) return fill(slot, el("p", { className: "rp-hint", textContent: "Nothing brought over yet: no past orders, customers, gift cards, discount codes or old shop links." }), reads);
     const cad = (n) => money(Math.round(n * 100), "CAD");
     const rows = [
       brought.orders && { what: "Past orders", amount: plural(brought.orders.count, "order"), more: [`${cad(brought.orders.amount)} in sales, history only`, plural(brought.orders.runs, "file"), brought.orders.removed ? `${brought.orders.removed} taken out again` : null, brought.orders.rerated ? `rate changed on ${plural(brought.orders.rerated, "order")}` : null, brought.orders.files?.length ? `from ${brought.orders.files.map((f) => `${f.file} (${f.orders})`).join(", ")}` : null, lastOn(brought.orders)] },
@@ -2963,7 +2978,8 @@ function broughtOverSection(shop) {
           { header: "How many", render: (r) => el("span", { className: "rp-mono", textContent: r.amount }) },
           { header: "Details", render: (r) => meta(...r.more) },
         ],
-      }) : el("p", { className: "rp-hint", textContent: "Nothing brought over yet." }));
+      }) : el("p", { className: "rp-hint", textContent: "Nothing brought over yet." }),
+      reads);
   }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
   return slot;
 }
