@@ -38,7 +38,7 @@ function createPlatformSender({ url, shopId, serviceKey, fetch }) {
       try {
         response = await fetch(url, {
           method: "POST",
-          headers: { "Content-Type": "application/json", "X-Shop-Id": shopId, Authorization: `Bearer ${key}` },
+          headers: { "Content-Type": "application/json", "X-Shop-Id": typeof shopId === "function" ? shopId() : shopId, Authorization: `Bearer ${key}` },
           body: JSON.stringify({ kind: platformKind(kind), to, subject, html, idempotencyKey }),
         });
       } catch (err) {

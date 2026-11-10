@@ -110,7 +110,7 @@ function socialActions({ url, shopId, serviceKey, requireAdmin, db, siteUrl, sel
     try {
       response = await fetch(`${url}/shop`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Shop-Id": shopId, Authorization: `Bearer ${key}` },
+        headers: { "Content-Type": "application/json", "X-Shop-Id": typeof shopId === "function" ? shopId() : shopId, Authorization: `Bearer ${key}` },
         body: JSON.stringify({ op, args }),
         signal: AbortSignal.timeout(timeoutMs),
       });
@@ -142,7 +142,7 @@ function socialActions({ url, shopId, serviceKey, requireAdmin, db, siteUrl, sel
       try {
         const done = await platform("social.publish", {
           postId: ref.id, placeId: place.id, imageUrl: post.imageUrl, caption: post.caption,
-          link: productLink(siteUrl, book, place.id, base), title: post.title, altText: post.title, retailerId: post.retailerId, tagProduct: post.tagProduct,
+          link: productLink(typeof siteUrl === "function" ? siteUrl() : siteUrl, book, place.id, base), title: post.title, altText: post.title, retailerId: post.retailerId, tagProduct: post.tagProduct,
         });
         results[place.id] = done.state === "posted"
           ? { state: "posted", at: done.at || iso(), ...(done.tagged ? { tagged: true } : {}), ...(done.privateOnly ? { privateOnly: true } : {}) }
@@ -269,7 +269,7 @@ function socialActions({ url, shopId, serviceKey, requireAdmin, db, siteUrl, sel
       if (step === "retryPost") { res.json(await retryPost(body)); return; }
       const network = typeof body.network === "string" ? body.network.slice(0, 20) : "";
       const args = step === "connect" ? { network, returnUrl: typeof body.returnUrl === "string" ? body.returnUrl.slice(0, 500) : "" }
-        : step === "sendCatalog" ? { network, feedUrl: `${siteUrl.replace(/\/+$/, "")}/${FEED_FILE}`, currency: SHOP_CURRENCY }
+        : step === "sendCatalog" ? { network, feedUrl: `${(typeof siteUrl === "function" ? siteUrl() : siteUrl).replace(/\/+$/, "")}/${FEED_FILE}`, currency: SHOP_CURRENCY }
           : step === "disconnect" ? { network } : {};
       res.json(await platform(NETWORK_STEPS[step], args));
     } catch (err) {

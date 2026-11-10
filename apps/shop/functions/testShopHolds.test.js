@@ -117,9 +117,9 @@ describe('sandbox stock holds on the platform test shop', () => {
     expect(shop.holds).toEqual([]);
   });
 
-  test('index.js passes the platform flag from shopConfig, not from shop settings the owner can change', () => {
+  test('index.js passes the platform flag from the current shop\'s shopConfig, not from shop settings the owner can change', () => {
     const source = fs.readFileSync(path.join(here, 'index.js'), 'utf8');
     const call = source.slice(source.indexOf('= checkoutPaymentActions({'));
-    expect(call.slice(0, call.indexOf('});'))).toContain('testShop: shopConfig.testShop');
+    expect(call.slice(0, call.indexOf('});'))).toContain('testShop: () => shopConfig.testShop');
   });
 });

@@ -21,11 +21,14 @@ function fakeDb(data, { failOn = "" } = {}) {
       } };
     return q;
   };
-  const docsOf = (prefix, obj) => Object.entries(obj).map(([id, d]) => ({ ref: { path: `${prefix}/${id}` }, data: () => d }));
+  const docsOf = (prefix, obj) => Object.entries(obj || {}).map(([id, d]) => {
+    const path = `${prefix}/${id}`;
+    return { ref: { path, collection: sub => query(docsOf(`${path}/${sub}`, data[`${path}/${sub}`]), `${path}/${sub}`) }, data: () => d };
+  });
   return {
     async listCollections() { return Object.keys(data).filter(k => !k.includes("/")).map(id => ({ id })); },
     collection: id => query(docsOf(id, data[id]), id),
-    collectionGroup: name => query(Object.keys(data).filter(k => k.endsWith(`/${name}`)).flatMap(k => docsOf(k, data[k])), `group:${name}`),
+    collectionGroup: () => { throw new Error("A collection-group read would cross shops."); },
   };
 }
 function fakeBucket() {

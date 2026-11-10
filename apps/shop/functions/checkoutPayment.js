@@ -345,7 +345,7 @@ function checkoutPaymentActions({
       // platform marks as a test shop (shopConfig.testShop), a sandbox session holds the stock like a live one, so the
       // release check exercises the hold; its gift cards are still not held, and payment still takes no stock. A practice
       // order holds stock the same way.
-      if (!testMode || testShop || practice) {
+      if (!testMode || (typeof testShop === "function" ? testShop() : testShop) || practice) {
         try {
           await reserveCheckout(orderId, items, order, testMode ? [] : giftCardRedemptions, testMode, req);
         } catch (holdErr) {

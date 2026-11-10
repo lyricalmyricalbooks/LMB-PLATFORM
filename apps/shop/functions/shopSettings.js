@@ -8,7 +8,6 @@ const { pressName } = require("./shared/shopIdentity");
 // once another shop's real street and phone, which a new shop would have shipped under; the launch checklist now
 // blocks until the press saves its own address.
 const ORIGIN_FALLBACK = { street: "", city: "", state: "", zip: "", country: "", phone: "" };
-const SHOP_EMAIL = shopConfig.ownerEmail;
 
 const text = value => (typeof value === "string" ? value.trim() : "");
 
@@ -31,7 +30,7 @@ function shopOrigin(settings) {
     zip: text(location.zip).replace(/\s+/g, "").toUpperCase() || ORIGIN_FALLBACK.zip,
     country: pick("country"),
     phone,
-    email: SHOP_EMAIL,
+    email: shopConfig.ownerEmail,
   };
 }
 

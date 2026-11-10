@@ -108,7 +108,7 @@ function privacyActions({
       await sendEmail({
         queue: "privacyRequest",
         secret: RESEND_API_KEY.value(),
-        to: ADMIN_TO,
+        to: (typeof ADMIN_TO === "function" ? ADMIN_TO() : ADMIN_TO),
         subject: `Privacy request (${record.type === "delete" ? "delete data" : "copy of data"}) · ${record.email}`,
         html: `<p><strong>${escapeHtml(record.email)}</strong> asked for ${record.type === "delete" ? "their personal data to be deleted" : "a copy of their personal data"}.</p>${record.message ? `<blockquote>${escapeHtml(record.message)}</blockquote>` : ""}<p>Confirm the request by email with that address first, then open Admin › Settings › General › Privacy requests.</p>`,
       }).catch(err => console.warn("privacy request email failed:", err.message));
@@ -193,7 +193,7 @@ function privacyActions({
         await sendEmail({
           queue: "privacyRequest",
           secret: RESEND_API_KEY.value(),
-          to: ADMIN_TO,
+          to: (typeof ADMIN_TO === "function" ? ADMIN_TO() : ADMIN_TO),
           subject: `Privacy request (delete data, signed in) · ${email}`,
           html: `<p><strong>${escapeHtml(email)}</strong> asked, from their signed-in account, for their personal data to be deleted. Their sign-in already proves the address is theirs.</p><p>Approve it with one tap in Admin › Settings › General › Privacy requests.</p>`,
         }).catch(err => console.warn("privacy request email failed:", err.message));

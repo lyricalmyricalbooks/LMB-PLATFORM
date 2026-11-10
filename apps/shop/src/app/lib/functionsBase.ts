@@ -8,7 +8,7 @@ import { shopProfile } from "../../lib/shopProfile";
 const PROJECT_ID = shopProfile.firebase.projectId;
 const REGION = shopProfile.functionsRegion;
 
-export function functionUrl(name: string): string {
+function functionBase(name: string): string {
   // The demo shop (lib/emulators): the server code runs in the local Functions emulator.
   if (emulators) return `${emulatorUrl(emulators, "functions")}/${PROJECT_ID}/${REGION}/${name}`;
   const override = import.meta.env.VITE_FUNCTIONS_BASE as string | undefined;
@@ -20,6 +20,16 @@ export function functionUrl(name: string): string {
     return `http://127.0.0.1:5001/${PROJECT_ID}/${REGION}/${name}`;
   }
   return `https://${REGION}-${PROJECT_ID}.cloudfunctions.net/${name}`;
+}
+
+/**
+ * The address of one server function, for this shop. Every shop shares the same server code (the shared system,
+ * LMB-PLATFORM docs/shared-system.md), so the address always says which shop it is for: `?shop=<id>`, then `params`.
+ */
+export function functionUrl(name: string, params: Record<string, string | undefined> = {}): string {
+  const query = new URLSearchParams({ shop: shopProfile.shopId });
+  for (const [key, value] of Object.entries(params)) if (value !== undefined && value !== "") query.set(key, value);
+  return `${functionBase(name)}?${query}`;
 }
 
 const loadAppCheck = () => import("../../lib/firebaseApp").then(m => m.appCheck);

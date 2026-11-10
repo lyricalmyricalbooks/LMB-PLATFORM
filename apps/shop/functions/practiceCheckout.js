@@ -51,7 +51,7 @@ function practiceCheckoutActions({ db, platform, requireAdmin, orderRequestIdent
     const step = req.body?.step;
     try {
       const [settings, record] = await Promise.all([readSettings(), readFlag()]);
-      const refusal = practiceRefusal({ platform, settings, token });
+      const refusal = practiceRefusal({ platform: typeof platform === "function" ? platform() : platform, settings, token });
       const until = refusal ? "" : practiceUntil(record, token, now());
       if (step === "status") {
         res.json({ active: !!until, until, ...(refusal ? { refusal } : {}) });
@@ -85,11 +85,11 @@ function practiceCheckoutActions({ db, platform, requireAdmin, orderRequestIdent
    * are the shop's own with checkout open and test mode on, for this one request (nothing is saved).
    */
   async function practiceFor(req) {
-    if (!platform) return null;
+    if (!(typeof platform === "function" ? platform() : platform)) return null;
     const token = await orderRequestIdentity(req);
     if (!token) return null;
     const [settings, record] = await Promise.all([readSettings(), readFlag()]);
-    if (practiceRefusal({ platform, settings, token }) || !practiceUntil(record, token, now())) return null;
+    if (practiceRefusal({ platform: typeof platform === "function" ? platform() : platform, settings, token }) || !practiceUntil(record, token, now())) return null;
     return {
       settings: {
         ...settings,
