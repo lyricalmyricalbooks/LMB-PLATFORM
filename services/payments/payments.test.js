@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { formEncode, createStripeApi, StripeApiError, DEFAULT_STRIPE_API_VERSION } from "./stripeApi.js";
+import { formEncode, createStripeApi, StripeApiError, DEFAULT_STRIPE_API_VERSION, STRIPE_V2_API_VERSION } from "./stripeApi.js";
 import { signatureHeader, verifySignature } from "./stripeSignature.js";
 import { feeFor, feeForShop, readFeeSettings } from "./fees.js";
 import { readServiceConfig } from "./config.js";
@@ -615,22 +615,23 @@ test("setup's step 13 makes one Standard account through the service, saved with
   // The category it was filed under is kept, for the control room's check against what the shop sells.
   assert.deepEqual(payments, { provider: "stripe", accountId: "acct_fake1", mode: "live", mcc: "5942" });
   assert.deepEqual((await registry.getProfile(SHOP)).payments, { provider: "stripe", mode: "platform", stripe: { accountId: "acct_fake1", publishableKey: "pk_live_platformExample" } });
-  const create = stripe.requests.find((r) => r.path === "/v1/accounts");
-  // Standard's behaviour, written as Stripe's controller settings, not the deprecated account type.
-  assert.equal(create.params.type, undefined);
-  assert.equal(create.params["controller[losses][payments]"], "stripe");
-  assert.equal(create.params["controller[fees][payer]"], "account");
-  assert.equal(create.params["controller[requirement_collection]"], "stripe");
-  assert.equal(create.params["controller[stripe_dashboard][type]"], "full");
+  const create = stripe.requests.find((r) => r.path === "/v2/core/accounts");
+  // Stripe's newer account call (Stripe takes new connected accounts on a new Connect platform only there), as JSON.
+  assert.equal(stripe.requests.some((r) => r.path === "/v1/accounts"), false);
+  assert.equal(create.headers["Content-Type"], "application/json");
+  assert.equal(create.headers["Stripe-Version"], STRIPE_V2_API_VERSION);
+  // Standard's behaviour: the full Dashboard, Stripe collects fees from the press and covers losses.
+  assert.equal(create.params.dashboard, "full");
+  assert.deepEqual(create.params.defaults.responsibilities, { fees_collector: "stripe", losses_collector: "stripe" });
+  assert.deepEqual(create.params.configuration.merchant, { mcc: "5942", capabilities: { card_payments: { requested: true } } });
   // Filled in so Stripe asks the press less.
-  assert.equal(create.params.country, "CA");
-  assert.equal(create.params["business_profile[url]"], `https://${SHOP}.web.app`);
-  assert.equal(create.params["business_profile[mcc]"], "5942");
-  assert.equal(create.params["business_profile[product_description]"], "Books and printed matter");
-  assert.equal(create.params["business_profile[name]"], "Moth Press");
-  assert.equal(create.params.default_currency, "cad");
-  assert.equal(create.params["metadata[lmb_shop_id]"], SHOP);
-  assert.equal(create.headers["Idempotency-Key"], `lmb-account-${SHOP}-live`);
+  assert.equal(create.params.identity.country, "ca");
+  assert.equal(create.params.display_name, "Moth Press");
+  assert.equal(create.params.contact_email, "owner@example.com");
+  assert.deepEqual(create.params.defaults.profile, { business_url: `https://${SHOP}.web.app`, doing_business_as: "Moth Press", product_description: "Books and printed matter" });
+  assert.equal(create.params.defaults.currency, "cad");
+  assert.deepEqual(create.params.metadata, { lmb_shop_id: SHOP });
+  assert.equal(create.headers["Idempotency-Key"], `lmb-account-v2-${SHOP}-live`);
   assert.equal(create.headers["Stripe-Account"], undefined);
   assert.ok(auditLog.entries.get(SHOP).has("payments-account-created-acct_fake1"));
   // A lost answer and a retry: the same idempotency key gets the same account back.
@@ -649,9 +650,9 @@ test("the account says what the shop sells: a book shop stays Book Stores, a clo
   for (const [sells, mcc, description] of [[undefined, "5942", "Books and printed matter"], ["zines", "5942", "Books and printed matter"], ["clothing", "5651", "Clothing"], ["jewelry", "5944", "Jewellery"], ["other", "5999", "Handmade and specialty goods"]]) {
     const { service, stripe } = await world({ row: shopRow({ payments: undefined }) });
     await service.createAccount(SHOP, { pressName: "M", ownerEmail: "owner@example.com", country: "CA", currency: "CAD", sells });
-    const create = stripe.requests.find((r) => r.path === "/v1/accounts");
-    assert.equal(create.params["business_profile[mcc]"], mcc, String(sells));
-    assert.equal(create.params["business_profile[product_description]"], description);
+    const create = stripe.requests.find((r) => r.path === "/v2/core/accounts");
+    assert.equal(create.params.configuration.merchant.mcc, mcc, String(sells));
+    assert.equal(create.params.defaults.profile.product_description, description);
   }
 });
 
@@ -692,4 +693,19 @@ test("no code outside services/payments reads the Stripe platform key", () => {
   };
   walk(".");
   assert.deepEqual(hits, []);
+});
+
+test("Stripe's newer calls send JSON with their own version, and keep Stripe's refusal", async () => {
+  const requests = [];
+  const fetch = async (url, init) => {
+    requests.push({ url, ...init });
+    return { ok: false, status: 400, json: async () => ({ error: { type: "invalid_request_error", code: "mcc_invalid", message: "MCC is invalid" } }) };
+  };
+  const api = createStripeApi({ fetch, keys: { test: "sk_test_x" } });
+  await assert.rejects(api.callV2("test", "POST", "/v2/core/accounts", { body: { display_name: "M" }, idempotencyKey: "k" }), (err) => err instanceof StripeApiError && err.code === "mcc_invalid" && err.statusCode === 400);
+  assert.equal(requests[0].url, "https://api.stripe.com/v2/core/accounts");
+  assert.deepEqual(requests[0].headers, { Authorization: "Bearer sk_test_x", "Stripe-Version": STRIPE_V2_API_VERSION, "Idempotency-Key": "k", "Content-Type": "application/json" });
+  assert.equal(requests[0].body, JSON.stringify({ display_name: "M" }));
+  await assert.rejects(api.callV2("test", "POST", "/v1/accounts", {}), /v2 addresses/);
+  await assert.rejects(api.callV2("live", "POST", "/v2/core/accounts", {}), /no Stripe live key/);
 });

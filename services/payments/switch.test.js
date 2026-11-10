@@ -173,7 +173,7 @@ test("a Square shop moving to Stripe: the Stripe account is made once and waits 
   assert.equal(first.status, 200, JSON.stringify(first.body));
   const again = await w.call("account.onboardingLink", urls);
   assert.equal(again.body.url, first.body.url);
-  assert.equal(w.stripe.requests.filter((r) => r.method === "POST" && r.path === "/v1/accounts").length, 1);
+  assert.equal(w.stripe.requests.filter((r) => r.method === "POST" && r.path === "/v2/core/accounts").length, 1);
   let payments = await w.payments();
   assert.deepEqual([payments.provider, payments.accountId], ["square", "MERCHANT1"]);
   const stripeId = payments.next.accountId;

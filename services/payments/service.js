@@ -191,16 +191,30 @@ const SHOP_OPS = Object.freeze({
 
 export const SHOP_OP_NAMES = Object.freeze([...Object.keys(SHOP_OPS), "account.status", "account.onboardingLink", "account.connectLink", "account.paymentDomain", "account.switch", ...SQUARE_OP_NAMES]);
 
-/** Stripe's controller settings that match a Standard account (the deprecated `type: "standard"`). */
-export const STANDARD_CONTROLLER = Object.freeze({
-  losses: Object.freeze({ payments: "stripe" }),
-  fees: Object.freeze({ payer: "account" }),
-  requirement_collection: "stripe",
-  stripe_dashboard: Object.freeze({ type: "full" }),
-});
-
 /** The merchant category for a press selling its books to readers: "Book Stores". */
 export const BOOK_STORES_MCC = "5942";
+
+/**
+ * The body of Stripe's newer account call (POST /v2/core/accounts) for a press's account with Standard's behaviour:
+ * the full Stripe Dashboard, Stripe collects what it needs and covers losses, and the press pays its own Stripe fees
+ * (`fees_collector: "stripe"`). The merchant configuration lets it take card payments. Undefined values are left out.
+ */
+export function standardAccount({ pressName, ownerEmail, country, currency, url, kind, shopId }) {
+  return {
+    display_name: pressName,
+    contact_email: ownerEmail,
+    dashboard: "full",
+    identity: { country: String(country).toLowerCase() },
+    configuration: { merchant: { mcc: kind.mcc, capabilities: { card_payments: { requested: true } } } },
+    defaults: {
+      currency: String(currency).toLowerCase(),
+      responsibilities: { fees_collector: "stripe", losses_collector: "stripe" },
+      profile: { business_url: url, doing_business_as: pressName, product_description: kind.product_description },
+    },
+    metadata: { lmb_shop_id: shopId },
+    include: ["configuration.merchant"],
+  };
+}
 
 /** Stripe's business_profile category and description for what the shop sells (sign-up's answer). */
 function businessKind(sells) {
@@ -784,10 +798,11 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
      * Makes the press's account, with Standard's behaviour. Safe to repeat: the shop id is in the idempotency key, so a
      * retry after a lost answer gets the same account back. The shop must be in the registry, with the same owner.
      *
-     * Stripe calls the account types deprecated and describes accounts by their controller settings instead
-     * (https://docs.stripe.com/connect/migrate-to-controller-properties). These four are what Standard means: Stripe
-     * covers losses and collects what it needs, the press pays its own Stripe fees and has the full Stripe Dashboard.
-     * Accounts made earlier with `type: "standard"` already carry the same settings and are left as they are.
+     * Made through Stripe's newer accounts call (/v2/core/accounts, `standardAccount`): Stripe takes new connected
+     * accounts on a new Connect platform only there. Its settings are what Standard means: Stripe covers losses and
+     * collects what it needs, the press pays its own Stripe fees and has the full Stripe Dashboard. Everything else
+     * (status, onboarding links, payments) still uses the older calls, which take these accounts' ids as they are.
+     * Accounts made earlier through /v1/accounts are left as they are.
      *
      * What the platform knows is filled in, so Stripe's sign-up asks less (and on these accounts it can only be filled
      * in now, before the press's first visit): the country from sign-up, the shop's web address and what it sells: "Book
@@ -805,19 +820,13 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
   async function createStripeAccount(row, { pressName, ownerEmail, country, currency, testMode, sells }) {
     const shopId = row.shopId;
     const mode = testMode === true ? "test" : "live";
-    const account = await stripe.call(mode, "POST", "/v1/accounts", {
-      params: {
-        controller: STANDARD_CONTROLLER,
-        country,
-        email: ownerEmail,
-        default_currency: String(currency).toLowerCase(),
-        business_profile: { name: pressName, url: shopAddress(row), ...businessKind(sells) },
-        metadata: { lmb_shop_id: shopId },
-      },
-      idempotencyKey: `lmb-account-${shopId}-${mode}`,
+    const kind = businessKind(sells);
+    const account = await stripe.callV2(mode, "POST", "/v2/core/accounts", {
+      body: standardAccount({ pressName, ownerEmail, country, currency, url: shopAddress(row), kind, shopId }),
+      idempotencyKey: `lmb-account-v2-${shopId}-${mode}`,
     });
     if (!ACCOUNT_ID.test(account?.id ?? "")) throw new Error("Stripe gave no account id");
-    const mcc = account.business_profile?.mcc || businessKind(sells).mcc;
+    const mcc = account.configuration?.merchant?.mcc || kind.mcc;
     await accounts.set(shopId, { provider: "stripe", accountId: account.id, mode, mcc, createdAt: iso() });
     await logChange(shopId, `payments-account-created-${account.id}`, { kind: "payments.account-created", accountId: account.id, mode, mcc });
     return { accountId: account.id, mode, mcc };

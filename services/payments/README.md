@@ -67,13 +67,16 @@ orders (`other_account` otherwise). The switch itself (moving `next` to `payment
 
 ## New accounts (7.8)
 
-`createAccount` makes each press's account with Standard's behaviour written as Stripe's controller settings
-(`controller`: losses `stripe`, fees paid by the `account`, requirements collected by `stripe`, the `full` Dashboard),
-not the deprecated `type: "standard"` ([Stripe's guide](https://docs.stripe.com/connect/migrate-to-controller-properties)).
+`createAccount` makes each press's account through Stripe's newer accounts call, `POST /v2/core/accounts` (JSON,
+`Stripe-Version` `STRIPE_V2_API_VERSION`), because Stripe takes new connected accounts on a new Connect platform only
+there (the first test-shop run, 10 November 2026). Its settings keep Standard's behaviour: the `full` Dashboard,
+`fees_collector` and `losses_collector` both `stripe` (the press pays its own Stripe fees, Stripe covers losses and
+collects what it needs), and the `merchant` configuration with `card_payments` requested.
 It fills in what the platform knows, because on these accounts that can only happen before the press's first visit:
-the country from sign-up, the shop's web address (`siteUrl`, else `https://<projectId>.web.app`), merchant category
-5942 "Book Stores" and "Books and printed matter". Accounts made earlier keep working untouched: Stripe gave them the
-same controller settings.
+the country from sign-up, the shop's web address (`defaults.profile.business_url`), the merchant category
+(`configuration.merchant.mcc`, 5942 "Book Stores" for books) and what it sells. Everything else (status, onboarding
+links, payments) still uses the older calls, which take these accounts' ids as they are. Accounts made earlier through
+`/v1/accounts` keep working untouched.
 
 ## Modes
 
