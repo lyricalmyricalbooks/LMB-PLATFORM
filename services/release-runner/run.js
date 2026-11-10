@@ -25,8 +25,20 @@ const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 export function commandRunner({ print = console.log } = {}) {
   return async (command, args, { cwd, env } = {}) => {
     print(`$ ${command} ${args.join(" ")}  (in ${cwd})`);
-    await promisify(execFile)(command, args, { cwd, env: { ...process.env, ...env }, maxBuffer: 64 * 1024 * 1024 });
+    try {
+      await promisify(execFile)(command, args, { cwd, env: { ...process.env, ...env }, maxBuffer: 64 * 1024 * 1024 });
+    } catch (error) {
+      // execFile's message is only "Command failed: …": keep the command's last words so the cause is in the log.
+      const said = commandTail(`${error.stdout ?? ""}\n${error.stderr ?? ""}`);
+      if (said) error.message = `${error.message}\n${said}`;
+      throw error;
+    }
   };
+}
+
+/** The last lines a failed command printed (at most `lines`), without blank lines. */
+export function commandTail(output, lines = 25) {
+  return String(output ?? "").split(/\r?\n/).filter((line) => line.trim()).slice(-lines).join("\n");
 }
 
 export async function realRelease({ version, dryRun = false, securityFix = false, env = process.env, fetch = globalThis.fetch, token = gcloudToken, run = commandRunner(), chromium, print = console.log }) {
