@@ -625,8 +625,8 @@ async function loadLaunch() {
     actions: el("div", { className: "cr-actions" }, outLink(DEPLOY_WORKFLOW, "Open Deploy the platform")),
   });
   const makingSheet = launch.shopMaking ? null : sheet({
-    title: "Making a press's shop", tone: "warning", pillWords: "Not switched on",
-    body: [el("p", { className: "rp-hint", textContent: "Create my shop waits on Setting up until the platform's Google access is connected." })],
+    title: "Making a press's store", tone: "warning", pillWords: "Not switched on",
+    body: [el("p", { className: "rp-hint", textContent: "A new press's store waits on Setting up until the platform's Google access is connected." })],
   });
   fill(checks, ...keySheets, deploySheet, signupSheet, testSheet, makingSheet);
   showWalk(launch);
@@ -2619,7 +2619,10 @@ function exportButton(shop) {
 }
 
 // ── Setting up (front door, plan 18.2-18.8): presses in setup mode or opening, before they are shops. Read only. ──
-const SETUP_STATUS = { setup: ["info", "In setup"], opening: ["warning", "Opening"], open: ["success", "Open"], expired: ["neutral", "Removed"] };
+const SETUP_STAGE = {
+  making: ["info", "Store being made"], "not-open": ["warning", "Not open yet"], open: ["success", "Open to shoppers"],
+  setup: ["neutral", "In setup mode"], expired: ["neutral", "Removed"],
+};
 const MOVING_WORDS = { yes: "bringing a shop over", fresh: "starting fresh" };
 const LANGUAGE_CHOICE_WORDS = { fr: "emails in French", en: "emails in English" };
 /** "riso-press" -> "Riso press"; "" -> "Not chosen yet". */
@@ -2627,9 +2630,9 @@ const lookWords = (id) => (id ? id.replace(/-/g, " ").replace(/^./, (c) => c.toU
 const daysWords = (n) => (n === 0 ? "today" : n === 1 ? "yesterday" : `${n} days ago`);
 
 function setupStatusCell(press) {
-  const [tone, words] = SETUP_STATUS[press.status] ?? ["neutral", press.status];
-  const shown = press.shopStatus === "live" ? pill("success", "Shop live") : pill(tone, words);
-  const flag = press.flag === "stuck" ? pill("danger", "Stuck opening") : press.flag === "going-soon" ? pill("warning", `Removed ${dateOnly(press.removesOn)}`) : null;
+  const [tone, words] = SETUP_STAGE[press.stage] ?? ["neutral", press.stage ?? press.status];
+  const shown = pill(tone, words);
+  const flag = press.flag === "stuck" ? pill("danger", "Stuck being made") : press.flag === "going-soon" ? pill("warning", `Removed ${dateOnly(press.removesOn)}`) : null;
   return el("div", { className: "cr-row" }, shown, flag);
 }
 
@@ -2641,15 +2644,16 @@ async function loadSetup() {
       el("div", { className: "rp-metric-label", textContent: label }),
       el("div", { className: "rp-metric-value", textContent: String(value), dataset: tone ? { tone } : {} }),
       foot ? el("div", { className: "rp-metric-foot", textContent: foot }) : null);
-    $("#setup-numbers").replaceChildren(
-      figure("In setup", counts.inSetup, `${counts.signedUpThisWeek} signed up this week`),
-      figure("Ready to open", counts.readyToOpen, "name and country filled in"),
-      figure("Opening", counts.opening, `${counts.opened} now live`, counts.stuck ? "danger" : null),
-      figure("Bringing a shop over", counts.bringingShopOver, `${counts.withProductFile} with a product file kept`),
-      figure("Removed soon", counts.goingSoon, "not visited in 45 days", counts.goingSoon ? "warn" : null),
+    // Since sign-up makes the store (10 Nov 2026), setup mode only holds older presses: its figures show while any remain.
+    fill($("#setup-numbers"),
+      figure("Being made", counts.making, `${counts.signedUpThisWeek} signed up this week`, counts.stuck ? "danger" : null),
+      figure("Not open yet", counts.notOpenYet, "made, not open to shoppers"),
+      figure("Open to shoppers", counts.openToShoppers, "since signing up"),
+      counts.inSetup ? figure("Still in setup mode", counts.inSetup, "signed up before stores were made at once") : null,
+      counts.goingSoon ? figure("Removed soon", counts.goingSoon, "not visited in 45 days", "warn") : null,
     );
     const needs = [];
-    if (counts.stuck) needs.push(["danger", `${counts.stuck} press${counts.stuck === 1 ? "" : "es"} pressed Open my shop over a day ago and the shop isn't live. Check Sign-ups › Shops being made.`, "#making"]);
+    if (counts.stuck) needs.push(["danger", `${counts.stuck} press${counts.stuck === 1 ? "'s store has" : "es' stores have"} been in the making for over a day. Check Sign-ups › Shops being made.`, "#making"]);
     if (counts.goingSoon) needs.push(["warning", `${counts.goingSoon} press${counts.goingSoon === 1 ? " hasn't" : "es haven't"} been back to setup in 45 days; their setup is removed at 60.`, "#setup-presses"]);
     $("#setup-needs").replaceChildren(needs.length ? el("div", { className: "rp-alerts" }, ...needs.map(([tone, words, go]) => el("a", { className: "rp-alert", href: go, dataset: { tone } },
       el("span", { className: "rp-alert-glyph", ariaHidden: "true", textContent: tone === "danger" ? "✕" : "!" }),

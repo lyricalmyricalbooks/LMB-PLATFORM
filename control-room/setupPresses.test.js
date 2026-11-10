@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { GOING_SOON_DAYS, STUCK_OPENING_HOURS, createSetupDesk, guideOf, setupRoutes, setupSummary } from "./setupPresses.js";
+import { GOING_SOON_DAYS, STUCK_OPENING_HOURS, createSetupDesk, guideOf, setupRoutes, setupSummary, stageOf } from "./setupPresses.js";
 import { controlRoomAdmins } from "./controlRoom.js";
 import { SETUP_EXPIRY_DAYS, newPressRecord } from "../signup/pressRecord.js";
 import { fakeFrontDoorStores, fakeVerifyIdToken } from "../signup/fakes.js";
@@ -68,7 +68,7 @@ test("a press stuck opening and one about to be removed come first, with counts"
   const live = presses.find((p) => p.pressId === "press-now-live");
   assert.equal(live.flag, null, "a shop that went live isn't stuck");
   assert.equal(live.shopStatus, "live");
-  assert.deepEqual(counts, { inSetup: 3, readyToOpen: 2, signedUpThisWeek: 4, opening: 1, opened: 1, stuck: 1, goingSoon: 1, bringingShopOver: 1, withProductFile: 1 });
+  assert.deepEqual(counts, { inSetup: 3, readyToOpen: 2, signedUpThisWeek: 4, opening: 1, opened: 1, making: 1, notOpenYet: 1, openToShoppers: 0, stuck: 1, goingSoon: 1, bringingShopOver: 1, withProductFile: 1 });
 });
 
 test("opening is only stuck after a day, and going soon only after 45 idle days", () => {
@@ -127,4 +127,25 @@ test("how far through the setup guide: the shop's own steps, counted the same wa
   assert.deepEqual([guideOf({ ...halfway, domainChoice: "free" }).done, guideOf({ ...halfway, domainChoice: "free" }).total], [3, 7]);
   assert.equal(guideOf({ ...halfway, domainChoice: "own" }).done, 2, "own, but no domain yet");
   assert.equal(guideOf({ ...halfway, domainChoice: "own", domain: "mothpress.example" }).done, 3);
+});
+
+test("a store made at sign-up is being made, then not open yet until its wall comes down (#470)", async () => {
+  const docs = new Map([["live-press settings/website", { design: { showUnderConstruction: true } }]]);
+  const shopData = { get: async (shopId, path) => docs.get(`${shopId} ${path}`) ?? null };
+  const { presses: store } = fakeFrontDoorStores();
+  const registry = fakeRegistry();
+  await store.create("press-making", record("press-making", { pressName: "Making Press", country: "CA", plan: "both", status: "opening", shopId: "making-press", openedAt: ago(0) }));
+  await store.create("press-now-live", record("press-now-live", { pressName: "Live Press", country: "CA", plan: "both", status: "opening", shopId: "live-press", openedAt: ago(1) }));
+  await registry.createShop("making-press", { shopId: "making-press", status: "making" });
+  await registry.createShop("live-press", { shopId: "live-press", status: "live" });
+  const desk = createSetupDesk({ admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: "admin@example.com" }), presses: store, registry, shopData, now: () => new Date(NOW) });
+  const stages = async () => Object.fromEntries((await desk.list(ADMIN)).presses.map((p) => [p.pressId, p.stage]));
+  assert.deepEqual(await stages(), { "press-making": "making", "press-now-live": "not-open" });
+  docs.set("live-press settings/website", { design: { showUnderConstruction: false } });
+  assert.deepEqual(await stages(), { "press-making": "making", "press-now-live": "open" });
+  assert.equal((await desk.list(ADMIN)).counts.openToShoppers, 1);
+  // A wall that can't be read is never shown as open, and older presses still in setup mode keep their own stage.
+  assert.equal(stageOf({ status: "opening" }, { status: "live" }, null), "not-open");
+  assert.equal(stageOf({ status: "setup" }, null, null), "setup");
+  assert.equal(stageOf({ status: "expired" }, null, null), "expired");
 });

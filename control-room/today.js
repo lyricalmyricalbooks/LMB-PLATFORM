@@ -119,7 +119,7 @@ export function todaySummary({ rows, settings, profiles = {}, checks = {}, open 
   const stuck = making.filter((s) => s.status === "failed" || s.status === "stopped" || s.canRetry);
   for (const press of opening) {
     const hours = Math.floor((now.getTime() - Date.parse(press.openedAt)) / 3_600_000);
-    needs.push({ kind: "opening", pressId: press.pressId, words: `${press.pressName || press.ownerEmail}: pressed Open my shop ${hours < 48 ? `${hours} hours` : `${Math.floor(hours / 24)} days`} ago and the shop isn't live yet`, go: "#setting-up" });
+    needs.push({ kind: "opening", pressId: press.pressId, words: `${press.pressName || press.ownerEmail}: signed up ${hours < 48 ? `${hours} hours` : `${Math.floor(hours / 24)} days`} ago and the store still isn't made`, go: "#setting-up" });
   }
   if (stuck.length) needs.push({ kind: "signup", count: stuck.length, words: `${stuck.length} new shop${stuck.length === 1 ? "" : "s"} stuck while being made`, go: "#making" });
 
