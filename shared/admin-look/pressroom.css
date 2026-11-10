@@ -1896,3 +1896,9 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-topbar { border-bottom: 0; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-tabs[data-variant="page"] { border-bottom: 0; gap: 6px; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) :is(.rp-metric-label, .rp-ov-figure-label, .rp-label) { font-family: var(--rp-font-mono); }
+/* Phone (design handoff "Colophon platform", phone view): admin page titles 28px, tiles 20px in, figures in two columns. */
+@media (max-width: 767px) {
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) :is(.rp-page-title, .rp-wb-h1) { font-size: 28px; }
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-card { padding: 20px; }
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) :is(.rp-kpi-grid, .rp-ov-figures) { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+}
