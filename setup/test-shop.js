@@ -15,7 +15,7 @@ export const TEST_SHOP = Object.freeze({
 
 // The starter documents a release would bring. The real list comes with each release of the shop copy, which owns their
 // shape; these only prove the step writes what it is given, once.
-const testStarterContent = (shop) => [
+export const TEST_STARTER_CONTENT = (shop) => [
   { path: "settings/website", data: { shopName: shop.pressName, currency: shop.currency, country: shop.country } },
   { path: "settings/setupChecklist", data: { open: true } },
 ];
@@ -27,5 +27,5 @@ export const TEST_CONFIG = Object.freeze({
   // The platform payment service's made-up address, and made-up publishable keys (public by design, never real ones).
   paymentsServiceUrl: "https://payments.platform.example",
   stripePublishableKeys: Object.freeze({ live: "pk_live_platformExample", test: "pk_test_platformExample" }),
-  release: Object.freeze({ version: "0.0.0-test", starterContent: testStarterContent }),
+  release: Object.freeze({ version: "0.0.0-test", starterContent: TEST_STARTER_CONTENT }),
 });

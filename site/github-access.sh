@@ -6,7 +6,8 @@
 #     (lyricalmyricalbooks/LMB-PLATFORM, by its fixed id) and its main branch only, so no key or password exists anywhere
 #   - the two server phrases a person never needs to type (trial-tips-secret, checkup-secret), as random values
 #   - Identity Platform with authenticator-app two-step sign-in, which the control room needs
-# Safe to run twice. Changes nothing outside lmb-platform-prod.
+#   - when the project lmb-test-shop is there: the deploy account runs it (owner there), for .github/workflows/test-shop.yml
+# Safe to run twice. Changes nothing outside lmb-platform-prod and lmb-test-shop.
 set -euo pipefail
 
 PROJECT=lmb-platform-prod
@@ -80,6 +81,30 @@ curl -fsS -X PATCH "$AUTH_API/config?updateMask=mfa" -H "Authorization: Bearer $
   -d '{"mfa":{"state":"ENABLED","providerConfigs":[{"state":"ENABLED","totpProviderConfig":{"adjacentIntervals":5}}]}}' > /dev/null
 else
 echo "4-6. Skipped until the project has billing (the server's phrases, Cloud Build's roles, authenticator-app sign-in)."
+fi
+
+echo "7. The test shop (lmb-test-shop), when that project is there"
+TEST_SHOP=lmb-test-shop
+if gcloud projects describe "$TEST_SHOP" > /dev/null 2>&1; then
+  # The shop maker reads and writes the shop registry in the platform project, and signs the test owner in for the
+  # stockroom-link steps (it signs as itself).
+  gcloud projects add-iam-policy-binding "$PROJECT" --member="serviceAccount:$EMAIL" --role=roles/datastore.user --condition=None --quiet > /dev/null
+  gcloud iam service-accounts add-iam-policy-binding "$EMAIL" --project="$PROJECT" --member="serviceAccount:$EMAIL" \
+    --role=roles/iam.serviceAccountTokenCreator > /dev/null
+  # The test shop is the platform's own throwaway project: the deploy account runs all of it.
+  gcloud projects add-iam-policy-binding "$TEST_SHOP" --member="serviceAccount:$EMAIL" --role=roles/owner --condition=None --quiet > /dev/null
+  if gcloud services enable --project="$TEST_SHOP" compute.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
+    cloudfunctions.googleapis.com run.googleapis.com 2> /dev/null; then
+    TEST_NUMBER=$(gcloud projects describe "$TEST_SHOP" --format='value(projectNumber)')
+    for role in artifactregistry.writer storage.objectViewer logging.logWriter; do
+      gcloud projects add-iam-policy-binding "$TEST_SHOP" --member="serviceAccount:$TEST_NUMBER-compute@developer.gserviceaccount.com" \
+        --role="roles/$role" --condition=None --quiet > /dev/null
+    done
+  else
+    echo "   lmb-test-shop needs billing first: https://console.cloud.google.com/billing/linkedaccount?project=$TEST_SHOP"
+  fi
+else
+  echo "   No lmb-test-shop project, so nothing to do here."
 fi
 
 echo

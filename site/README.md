@@ -42,3 +42,11 @@ Safe to run again. With billing it also makes the server's two link phrases (`tr
 random values, gives Cloud Build the roles `server/README.md` mentions, and turns on Identity Platform with
 authenticator-app two-step sign-in (the control room asks for it). Google sign-in itself is one switch in the Firebase
 console: Authentication, Sign-in method, Google, Enable.
+
+## The test shop
+
+The platform's own test shop lives in the Firebase project `lmb-test-shop` (made once by hand). After the script above
+has run with that project there (section 7), press **Run workflow** on the "Make the test shop" workflow
+(`.github/workflows/test-shop.yml`). It runs the shop maker's steps (`setup/make-test-shop.js`): database, rules,
+server code, shop and stockroom pages, five sample books, and the platform admin as the shop's owner. Run it again
+any time: it resumes where it stopped. Payments and the welcome email wait until those services are connected.
