@@ -183,6 +183,7 @@ const PRESS_EMAILS = {
   "setup-ending": [{ pressName: "Moth Press", daysLeft: 30, date: "December 3, 2026", link: LINK }],
   "waitlist-invite": [{ link: LINK }],
   "platform-fee-changing": [{ fromPercent: 0, toPercent: 2, startsOn: "1 January 2027", refunded: true, link: LINK }, { fromPercent: 2, toPercent: 0, startsOn: "1 January 2027", refunded: false, link: LINK }],
+  "terms-changed": [{ changes: ["Every plan now has both the website and the stockroom."], changesFr: ["Chaque forfait comprend maintenant le site web et la réserve."], appliesOn: "10 December 2026", link: "https://platform.example/terms/", billing: LINK }],
   invite: [{ pressName: "Moth Press", invitedBy: "owner@example.com", roleWords: "a manager", link: LINK, days: 7 }],
   "support-received": [{ ticketId: "T-1", subject: "A question", body: "How do I add a book?" }],
   "support-reply": [{ ticketId: "T-1", subject: "A question", body: "Open Books and press Add book." }],

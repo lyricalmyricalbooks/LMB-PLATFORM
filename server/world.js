@@ -66,6 +66,7 @@ import { deviceWatch } from "../accounts/devices.js";
 import { createRepairQueue } from "../control-room/repairs.js";
 import { createApi } from "../signup/api.js";
 import { createShopMaker } from "../signup/shopMaker.js";
+import { createTermsNotice } from "../terms/notice.js";
 import { SHARED_STEP_PLAN, sharedShopRun } from "../setup/real.js";
 import { sharedBuckets, shopStores } from "../clients/shared.js";
 import { firestoreUsageMeters, runUsageMeters } from "../services/usage/meters.js";
@@ -357,11 +358,15 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     : null;
   const closing = createClosingSweep({ registry, auditLog, billing, email, projects: notConnectedClient(NOT_CONNECTED.projectDeletion, ["deleteProject"]), settings, now: nowMs });
 
+  // The terms promise 30 days' email before new words apply (terms/notice.js).
+  const termsNotice = createTermsNotice({ signups: stores.signups, email, settings: live, now });
+
   // What the jobs can run (server/jobs.js reads these); the jobs page's "Run now" runs the ones that need nothing more.
-  const parts = { sharedShops: Boolean(sharedRun), domains, usage, usageMeters, costReader, chitchats, chitchatsStores, env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups };
+  const parts = { sharedShops: Boolean(sharedRun), domains, usage, usageMeters, costReader, chitchats, chitchatsStores, env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups, termsNotice };
   const runNow = {
     "dropped-apps": () => billing.closeDroppedApps(),
     "every-app": () => billing.giveEveryApp(),
+    "terms-notice": () => termsNotice.sweep(),
     "press-messages": () => pressMessages.sweep(),
     "setup-clock": () => setupClock.sweep(),
     "drift-watch": () => driftWatch.sweep(),
@@ -460,6 +465,6 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   return {
     projectId, settings, live, platform, registry, auditLog, shopData, stockroomData, email, billing, paymentWay, payments, signup, frontDoor, shopMaker, accounts, room, controls,
     appAlerts, chitchats, backup, support, recovery, business, timeline, jobs, jobRuns, jobsPage, notes, pressMessages, costsDesk, dataExports, trialTips, checkups, closing, setupClock, driftWatch,
-    routes, door, shopBilling, handle, parts,
+    routes, door, shopBilling, handle, parts, termsNotice,
   };
 }
