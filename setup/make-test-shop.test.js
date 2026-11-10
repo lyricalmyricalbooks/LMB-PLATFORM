@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LATER_STEPS, OLD_TEST_SHOP_ID, TEST_PROJECT, TEST_SHOP_ADDRESS, TEST_SHOP_ID, makeTestShopWith, testShop, testShopSteps } from "./make-test-shop.js";
+import { LATER_STEPS, OLD_TEST_SHOP_ID, TEST_PROJECT, TEST_SHOP_ADDRESS, TEST_SHOP_ID, makeTestShopWith, paymentsOrWait, testShop, testShopSteps } from "./make-test-shop.js";
 import { fakeAuditLog, fakeGoogle, fakeRegistry, fakeServices, fakeShared, fakeTenants } from "./fakes.js";
 import { TEST_CONFIG } from "./test-shop.js";
 import { SHARED_RELEASE_LOCK } from "../services/release-runner/shared.js";
@@ -140,4 +140,19 @@ test("the deploy account is let sign the test owner's pass before the shop's ste
   assert.equal(refused.stage, "owner-signing");
   assert.match(refused.error, /Service Account Token Creator on firebase-adminsdk-fbsvc@lmb-test-shop/);
   assert.deepEqual(second.published, []);
+});
+
+test("with Connect off in the platform's Stripe account, step 7 waits and the test shop is still made", async () => {
+  const connectOff = { number: 7, name: "Connect the press's payments", check: async () => false, act: async () => { throw new Error("You can only create new accounts if you've signed up for Connect, which you can do at https://dashboard.stripe.com/connect."); } };
+  const lines = [];
+  const waited = await paymentsOrWait(connectOff, (line) => lines.push(line)).act({});
+  assert.equal(waited.detail.waiting, "Stripe Connect is off for the platform's Stripe account");
+  assert.match(lines.at(-1), /dashboard\.stripe\.com\/connect/);
+  // Any other refusal still stops the run.
+  await assert.rejects(paymentsOrWait({ ...connectOff, act: async () => { throw new Error("card declined"); } }).act({}), /card declined/);
+  // The test shop's own step 7 is wrapped once payments are connected.
+  const { stepClients } = setup();
+  const steps = testShopSteps({ clients: stepClients, config: CONFIG, connected: { 7: true } });
+  assert.equal(steps[6].number, 7);
+  assert.doesNotMatch(steps[6].name, /waits for/);
 });
