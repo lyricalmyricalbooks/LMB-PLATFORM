@@ -35,6 +35,7 @@ import { REGION } from "./steps.js";
 import { buildAndPublish } from "./shopSite.js";
 import { deployClient } from "../clients/deploy.js";
 import { firstSharedRelease, sharedProjectProfile } from "../services/release-runner/shared.js";
+import { commandTail } from "../services/release-runner/run.js";
 import { TEST_PROJECT, TEST_SHOP_ADDRESS, TEST_SHOP_ID } from "./testShopPlace.js";
 import { firestoreClient } from "../clients/firestore.js";
 import { firestoreAuditLog, firestoreRegistry } from "../clients/registry.js";
@@ -168,8 +169,15 @@ function gcloudToken() {
 }
 
 const runCommand = async (command, args, { cwd, env } = {}) => {
-  const { stdout, stderr } = await exec(command, args, { cwd, env: { ...process.env, ...env }, maxBuffer: 64 * 1024 * 1024 });
-  return `${stdout}${stderr}`;
+  try {
+    const { stdout, stderr } = await exec(command, args, { cwd, env: { ...process.env, ...env }, maxBuffer: 64 * 1024 * 1024 });
+    return `${stdout}${stderr}`;
+  } catch (error) {
+    // execFile says only "Command failed: …": keep what the command printed, so the run log names the cause.
+    const said = commandTail(`${error.stdout ?? ""}\n${error.stderr ?? ""}`);
+    if (said) error.message = `${error.message}\n${said}`;
+    throw error;
+  }
 };
 
 /**
