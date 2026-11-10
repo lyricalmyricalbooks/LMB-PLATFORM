@@ -52,14 +52,14 @@ npm run build          # production build + service worker
 
 - **The app:** merge to `main`. The Pages workflow does the rest.
 - **Into a shop's project (rules and pages together):** run `deploy-firebase.yml` by hand with the project id, or
-  locally: `SHOP_OWNER_EMAIL=… node scripts/deployConfig.mjs --project <id>`, then
+  locally: `node scripts/deployConfig.mjs --project <id>`, then
   `firebase deploy --config firebase.deploy.json --only firestore:rules,database,storage` and `--only hosting`.
-  The three rules files hold the slot `__SHOP_OWNER_EMAIL__` for the owner's address; the step fills it, names the
-  stockroom's own database (`stockroom`) and bucket (`<project id>-stockroom`) from `public/shop-profile.js`, and
-  refuses to write anything without them. Deployed unfilled, the rules let in only the shop's Team owner role.
+  The shared system (LMB-PLATFORM `docs/shared-system.md`): every shop's data lives under `shops/<shopId>/`, and the
+  rules read the owner's address and the shop's sign-in list from the shop's record, which only the platform writes,
+  so one rules deploy serves every shop and a new owner address needs no deploy. The step names the stockroom's own
+  database (`stockroom`) and bucket from `public/shop-profile.js`, and refuses to write anything without them.
   The sign-in screen never holds the owner's address: when the pass carries no owner role (always so for a shop
   without the shop app), it asks the rules by reading `publisherCheck/me`, which they allow only to the publisher.
-  A new owner address therefore needs this rules deploy again.
 - **Apps Script:** when `apps-script/Code.gs` changes, the build copies it to
   `public/gas-code.txt`. Paste it into your Apps Script project and redeploy.
   See `CLAUDE.md` for the version-bump rule.

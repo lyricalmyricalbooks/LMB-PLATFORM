@@ -7,7 +7,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, cpSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  CONFIG_FILE, OUT_DIR, OWNER_PLACEHOLDER, RULE_FILES, buildFirebaseConfig, fillRules, ownerAddress, readServedProfile,
+  CONFIG_FILE, OUT_DIR, OWNER_PLACEHOLDER, RULE_FILES, buildFirebaseConfig, fillRules, readServedProfile,
   stockroomPlace, stockroomSite, writeDeployFiles,
 } from '../scripts/deployConfig.mjs';
 
@@ -18,38 +18,43 @@ const place = { firestoreDatabase: 'stockroom', storageBucket: 'moth-press-stock
 const profile = (projectId = 'moth-press', stockroom = place) => ({ firebase: { projectId }, ...(stockroom ? { stockroom } : {}) });
 
 describe('rules templates', () => {
-  it('name the owner only through the slot, never a real address', () => {
+  // The shared system (LMB-PLATFORM docs/shared-system.md): the owner and the sign-in list come from each shop's
+  // record, so the rules name no one and one deploy serves every shop.
+  it('name no owner at all, and keep every rule inside a shop folder', () => {
     for (const file of RULE_FILES) {
       const text = read(file);
-      expect(text, file).toContain(OWNER_PLACEHOLDER);
+      expect(text, file).not.toContain(OWNER_PLACEHOLDER);
       expect(text.replace(/\/\/.*$/gm, ''), file).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.-]+/);
+      expect(text, file).toContain('ownerEmail');
     }
+    const code = (file) => read(file).replace(/\/\/.*$/gm, '');
+    expect(code('firestore.rules')).toMatch(/match \/databases\/\{database\}\/documents \{\s*match \/shops\/\{shopId\} \{/);
+    expect(code('storage.rules')).toMatch(/match \/b\/\{bucket\}\/o \{\s*match \/shops\/\{shopId\} \{/);
   });
 
-  it('fill every slot with the owner, and point Storage at the stockroom database', () => {
+  it('pass the rules through, and point Storage at the stockroom database for the author list only', () => {
     for (const file of RULE_FILES) {
-      const filled = fillRules(file, read(file), { owner: ' Owner@Press.Test ', database: 'stockroom' });
-      expect(filled).not.toContain(OWNER_PLACEHOLDER);
-      expect(filled).not.toContain('(default)');
-      expect(filled.split('owner@press.test').length).toBe(read(file).split(OWNER_PLACEHOLDER).length);
+      if (file === 'storage.rules') continue;
+      expect(fillRules(file, read(file), { database: 'stockroom' })).toBe(read(file));
     }
-    const storage = fillRules('storage.rules', read('storage.rules'), { owner: 'owner@press.test', database: 'stockroom' });
-    expect(storage).toContain('firestore.get(/databases/stockroom/documents/settings/bookOwners)');
-    expect(storage).toContain('firestore.exists(/databases/stockroom/documents/settings/bookOwners)');
-    // The database rules stay valid JSON once filled.
-    const db = fillRules('database.rules.json', read('database.rules.json'), { owner: 'owner@press.test', database: 'stockroom' });
+    const storage = fillRules('storage.rules', read('storage.rules'), { database: 'stockroom' });
+    expect(storage).toContain('firestore.get(/databases/stockroom/documents/shops/$(shopId)/settings/bookOwners)');
+    expect(storage).toContain('firestore.exists(/databases/stockroom/documents/shops/$(shopId)/settings/bookOwners)');
+    // The shop's record is read from the default database, where the platform keeps it.
+    expect(storage).toContain('firestore.get(/databases/(default)/documents/shops/$(shopId))');
+    expect(storage).not.toContain('/databases/(default)/documents/shops/$(shopId)/settings');
+    // The database rules stay valid JSON.
+    const db = fillRules('database.rules.json', read('database.rules.json'), { database: 'stockroom' });
     expect(() => JSON.parse(db.split('\n').map((l) => l.replace(/^\s*\/\/.*$/, '')).join('\n'))).not.toThrow();
   });
 
-  it('refuse a missing or unsafe owner, or a bad database id, rather than write broken rules', () => {
-    for (const bad of ['', 'owner', "a'@b.co", 'a"@b.co', 'a b@c.co', OWNER_PLACEHOLDER, undefined]) {
-      expect(ownerAddress(bad), String(bad)).toBe('');
-      expect(() => fillRules('firestore.rules', read('firestore.rules'), { owner: bad, database: 'stockroom' }), String(bad)).toThrow(/owner/);
-    }
+  it('refuse a bad database id, the old owner slot or a named address rather than write wrong rules', () => {
     for (const bad of ['(default)', '', 'Stock room', undefined]) {
-      expect(() => fillRules('storage.rules', read('storage.rules'), { owner: 'o@press.test', database: bad }), String(bad)).toThrow(/database id/);
+      expect(() => fillRules('storage.rules', read('storage.rules'), { database: bad }), String(bad)).toThrow(/database id/);
     }
-    expect(() => fillRules('firestore.rules', 'allow read: if true;', { owner: 'o@press.test', database: 'stockroom' })).toThrow(/doesn't name/);
+    expect(() => fillRules('firestore.rules', `x == '${OWNER_PLACEHOLDER}'`, { database: 'stockroom' })).toThrow(/owner slot/);
+    expect(() => fillRules('firestore.rules', "x == 'someone@press.test'", { database: 'stockroom' })).toThrow(/email address/);
+    expect(() => fillRules('storage.rules', 'allow read: if true;', { database: 'stockroom' })).toThrow(/author list/);
   });
 });
 
@@ -85,15 +90,14 @@ describe('firebase.deploy.json', () => {
     const root = mkdtempSync(join(tmpdir(), 'stockroom-deploy-'));
     try {
       for (const file of ['firebase.json', ...RULE_FILES]) cpSync(join(ROOT, file), join(root, file));
-      expect(() => writeDeployFiles({ root, projectId: 'moth-press', owner: '', profile: profile() })).toThrow(/owner/);
-      expect(() => writeDeployFiles({ root, projectId: 'moth-press', owner: 'o@press.test', profile: profile('other-press') })).toThrow();
+      expect(() => writeDeployFiles({ root, projectId: 'moth-press', profile: profile('other-press') })).toThrow();
       expect(existsSync(join(root, CONFIG_FILE))).toBe(false);
       expect(existsSync(join(root, OUT_DIR))).toBe(false);
-      const written = writeDeployFiles({ root, projectId: 'moth-press', owner: 'o@press.test', profile: profile() });
+      const written = writeDeployFiles({ root, projectId: 'moth-press', profile: profile() });
       expect(written.sort()).toEqual([CONFIG_FILE, ...RULE_FILES.map((f) => join(OUT_DIR, f))].sort());
       const config = JSON.parse(readFileSync(join(root, CONFIG_FILE), 'utf8'));
       for (const path of [config.firestore[0].rules, config.storage[0].rules, config.database.rules]) {
-        expect(readFileSync(join(root, path), 'utf8')).toContain('o@press.test');
+        expect(readFileSync(join(root, path), 'utf8')).toContain('ownerEmail');
       }
     } finally {
       rmSync(root, { recursive: true, force: true });

@@ -152,11 +152,13 @@ test("no code outside apps/ and shops/ names Lyricalmyrical", () => {
 // Plan 7.3: the short forms too. A file name, label or wordmark starting "Lyrical" or "Myrical" fails outside shops/:
 // in apps/ everywhere (prose included, apps/README.md aside), elsewhere in code. Only the stockroom's wire and storage
 // ids keep the old word, because renaming them would orphan saved data and every script already deployed, and nobody
-// sees them: the Realtime Database folder ('lyrical', lyrical/…, rules.lyrical), the Apps Script service ids
+// sees them: the Realtime Database folder ('lyrical', lyrical/…, rules.lyrical, and inside a shop's folder in the shared
+// system, shops/<id>/lyrical), the Apps Script service ids
 // (lyrical-sheets-webhook-vNN, lyrical-receipt-finder) and quoted browser-storage keys ('lyrical_…').
 const SHORT_NAME = /\b(?:lyrical|myrical|lyricamyrical)/i;
 const KEPT_IDS = [
   /\blyrical(?=\\?\/)/g,
+  /(?<=\/)lyrical\b(?![-_])/g,
   /(["'`])lyrical\1/g,
   /\.lyrical\b(?![-_])/g,
   /\blyrical-(?:sheets-webhook|receipt-finder)\b/g,
@@ -185,6 +187,7 @@ test("the short-name check catches a leftover file name and label, and lets the 
     "export const DATA_ROOT = 'lyrical';", '"lyrical": {', "ref(db, 'lyrical/settings/catalog')", "rtdbRules.rules.lyrical.settings",
     "service: 'lyrical-sheets-webhook-v59'", "indexedDB.open('lyrical-receipt-finder', 1)", "const KEY = 'lyrical_sync_conflicts_v1';",
     "/lyrical\\/settings\\/(\\w+)/g", "github.com/lyricalmyricalbooks/LMB-PLATFORM", "a lyric poem",
+    "DATA_ROOT is `shops/<shopId>/lyrical`.", "// shops/$shopId/lyrical. A sign-in",
   ]) {
     assert.equal(shortNameHit(kept), null, kept);
   }
