@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { GOING_SOON_DAYS, STUCK_OPENING_HOURS, createSetupDesk, guideOf, setupRoutes, setupSummary, stageOf } from "./setupPresses.js";
+import { GOING_SOON_DAYS, STUCK_OPENING_HOURS, createSetupDesk, guideOf, setupPress, setupRoutes, setupSummary, stageOf } from "./setupPresses.js";
 import { controlRoomAdmins } from "./controlRoom.js";
 import { SETUP_EXPIRY_DAYS, newPressRecord } from "../signup/pressRecord.js";
 import { fakeFrontDoorStores, fakeVerifyIdToken } from "../signup/fakes.js";
@@ -68,7 +68,7 @@ test("a press stuck opening and one about to be removed come first, with counts"
   const live = presses.find((p) => p.pressId === "press-now-live");
   assert.equal(live.flag, null, "a shop that went live isn't stuck");
   assert.equal(live.shopStatus, "live");
-  assert.deepEqual(counts, { inSetup: 3, readyToOpen: 2, signedUpThisWeek: 4, opening: 1, opened: 1, making: 1, notOpenYet: 1, openToShoppers: 0, stuck: 1, goingSoon: 1, bringingShopOver: 1, withProductFile: 1 });
+  assert.deepEqual(counts, { inSetup: 3, readyToOpen: 2, signedUpThisWeek: 4, opening: 1, opened: 1, making: 1, notOpenYet: 1, openToShoppers: 0, stuck: 1, goingSoon: 1, bringingShopOver: 1, withProductFile: 1, designed: 0 });
 });
 
 test("opening is only stuck after a day, and going soon only after 45 idle days", () => {
@@ -148,4 +148,14 @@ test("a store made at sign-up is being made, then not open yet until its wall co
   assert.equal(stageOf({ status: "opening" }, { status: "live" }, null), "not-open");
   assert.equal(stageOf({ status: "setup" }, null, null), "setup");
   assert.equal(stageOf({ status: "expired" }, null, null), "expired");
+});
+
+test("a press's saved design shows as saved, with the look it started from, never the design itself", () => {
+  const now = Date.parse("2026-11-10T12:00:00Z");
+  const base = { pressId: "p1", status: "setup", look: "press-riso", createdAt: "2026-11-09T12:00:00Z", lastSeenAt: "2026-11-09T12:00:00Z" };
+  assert.equal(setupPress(base, { now }).design, null);
+  const designed = setupPress({ ...base, design: { themeBase: { id: "press-zine", name: "Zine" }, primaryColor: "#000" } }, { now });
+  assert.deepEqual(designed.design, { look: "press-zine", lookName: "Zine" });
+  assert.deepEqual(setupPress({ ...base, design: { primaryColor: "#000" } }, { now }).design, { look: "press-riso", lookName: "" }, "no themeBase: the look picked in setup");
+  assert.equal(setupSummary({ records: [base, { ...base, pressId: "p2", design: {} }], now }).counts.designed, 1);
 });
