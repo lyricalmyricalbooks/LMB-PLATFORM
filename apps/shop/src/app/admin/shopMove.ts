@@ -52,6 +52,11 @@ export interface ProductMove {
   shape: ExportShape;
   books: MovedBook[];
   problems: string[];
+  /**
+   * A blank stock cell means the old shop didn't count that product. False only for one-line-per-edition files with no
+   * stock-counting column: a file read from an old shop's address leaves counts blank because they aren't public.
+   */
+  blankIsUncounted: boolean;
   /** Lines of the file that were left out, in plain words (shown above the preview). */
   notices: string[];
 }
@@ -203,11 +208,14 @@ const STOCK = ["Variant Inventory Qty", "Inventory quantity"];
 const GRAMS = ["Variant Grams", "Weight value (grams)"];
 const PHOTO = ["Image Src", "Product image URL"];
 const EDITION_PHOTO = ["Variant Image", "Variant image URL"];
+// Which system counts an edition's stock; blank means nobody does (digital files, services, untracked goods).
+const TRACKER = ["Variant Inventory Tracker", "Inventory tracker"];
 
 function fromHandleRows(table: string[][]): MovedBook[] {
   const c = columns(table[0]);
   // "Barcode" became "Barcodes"; a file that has both is read from Barcodes.
   const BARCODE = c.has("Barcodes") ? ["Barcodes"] : ["Variant Barcode", "Barcode"];
+  const tracked = TRACKER.some(n => c.has(n)) ? (r: string[]) => !!c.get(r, ...TRACKER) : () => true;
   const groups = new Map<string, { line: number; rows: string[][] }>();
   table.slice(1).forEach((row, i) => {
     const handle = c.get(row, ...HANDLE).toLowerCase();
@@ -228,7 +236,7 @@ function fromHandleRows(table: string[][]): MovedBook[] {
       const picks = picksOf([1, 2, 3].map(n => [c.get(head, `Option${n} Name`), c.get(r, `Option${n} Value`)]));
       const p = prices(c.get(r, ...PRICE), c.get(r, ...WAS_PRICE), true);
       const variantImage = c.get(r, ...EDITION_PHOTO);
-      editions.push({ name, ...p, stock: count(c.get(r, ...STOCK)), sku: c.get(r, ...SKU), weight: grams(c.get(r, ...GRAMS)), photoUrl: https(variantImage), ...(picks ? { picks } : {}) });
+      editions.push({ name, ...p, stock: tracked(r) ? count(c.get(r, ...STOCK)) : null, sku: c.get(r, ...SKU), weight: grams(c.get(r, ...GRAMS)), photoUrl: https(variantImage), ...(picks ? { picks } : {}) });
       if (variantImage) photos.push({ at: 2000 + i, url: variantImage });
     });
     const cells: Record<string, string> = { Title: c.get(head, "Title") };
@@ -389,7 +397,8 @@ function fromFieldTypeRows(table: string[][], notices: string[]): MovedBook[] {
     };
     const editions = variants.length
       ? variants.map(v => {
-        const values = optionNumbers.map(n => c.get(v, `productOptionDescription${n}`));
+        // A colour choice is written "#ffc0cb:Pink" or "rgb(255,121,0):Orange"; the shopper sees the name.
+        const values = optionNumbers.map(n => c.get(v, `productOptionDescription${n}`).replace(/^\s*(#[0-9a-f]{3,8}|rgba?\([^)]*\))\s*:\s*(?=\S)/i, ""));
         return edition(v, values.filter(Boolean).join(" / "), picksOf(names.map((n, i) => [n, values[i]])));
       })
       : [edition(head, "")];
@@ -463,9 +472,12 @@ const no = (v: string) => /^(n|no|false|0)$/i.test(v.trim());
 const named = (values: string[]) => values.filter(v => v && !/^\d+$/.test(v));
 const hiddenNote = "This product was hidden in your old shop.";
 
-/** Choices written as "Type=Dropdown|Name=Size|Value=M" pairs, any separator between them. */
+/**
+ * Choices written as "Type=Dropdown|Name=Size|Value=M" pairs, with any separator between them or none
+ * ("…|Value=MType=Swatch|Name=Colour|Value=Silver[#cccccc]"); a swatch's colour code is dropped.
+ */
 function namedPairs(value: string): [string, string][] {
-  return [...value.matchAll(/Name=([^|;\n]*)\|Value=([^|;\n]*)/g)].map(m => [m[1].trim(), m[2].trim()]);
+  return [...value.matchAll(/Name=([^|;\n]*)\|Value=((?:(?!Type=)[^|;\n])*)/g)].map(m => [m[1].trim(), m[2].replace(/\[#[0-9a-f]{3,8}\]\s*$/i, "").trim()]);
 }
 
 /** Choices written in a version's name: "[S]Size=Small,[CS]Colour=Blue:#0000FF". */
@@ -614,7 +626,8 @@ function fromTypedRows(table: string[][], notices: string[]): MovedBook[] {
     if (seoDescription) cells["SEO description"] = seoDescription;
     const photos = [c.get(head, "product_media_main_image_url"), ...galleryAt.map(i => unguard(head[i] ?? ""))];
     let path = "";
-    try { const url = c.get(head, "url"); path = url ? new URL(url, "https://old.example").pathname : ""; } catch { path = ""; }
+    // A product address after "#" (shop.php#!/Mug/p/123) is the same page for every product, so it can't be kept.
+    try { const url = c.get(head, "url"); path = url && !url.includes("#") ? new URL(url, "https://old.example").pathname : ""; } catch { path = ""; }
     return book(line, cells, editions, photos, path && path !== "/" ? [path] : [], no(c.get(head, "product_is_available")) ? [hiddenNote] : []);
   });
 }
@@ -637,7 +650,8 @@ export function readProductExport(text: string): ProductMove | null {
     : fromListingRows(table);
   const problems = books.length ? [] : ["This export has no products in it. Export your products again from your old shop, including every product, and choose that file."];
   if (books.length > MAX_IMPORT_ROWS) problems.push(`The export has ${books.length} products; bring over up to ${MAX_IMPORT_ROWS} at a time.`);
-  return { shape, books, problems, notices };
+  const { has } = columns(table[0]);
+  return { shape, books, problems, notices, blankIsUncounted: shape !== "handle-rows" || TRACKER.some(n => has(n)) };
 }
 
 const LABELS = ["Title", "Description", "ISBN", "SKU", "Price", "Sale price", "Stock", "Categories", "Tags", "Weight", "Image URL", "Extra image URLs", "SEO title", "SEO description"];
@@ -683,7 +697,7 @@ export function planShopMove(text: string, books: any[], shopCategories: string[
     // with 0 copies and counting on, it would show as sold out here, so it comes over without stock counting. Not for
     // one-line-per-edition files: a file read from an old shop's address has that layout and leaves a stock count blank
     // because it isn't shown publicly, not because the old shop didn't count it (services/moving/oldShop.js).
-    const blankMeansUncounted = moved.shape !== "handle-rows";
+    const blankMeansUncounted = moved.blankIsUncounted;
     if (blankMeansUncounted && row.action === "create" && !m.cells.Stock) {
       next.patch = { ...next.patch, trackInventory: false };
       next.warnings.push("Your old shop didn't count this product's stock, so it comes over without stock counting and never shows as sold out. To count copies, turn on stock counting in the book editor and type how many you have.");

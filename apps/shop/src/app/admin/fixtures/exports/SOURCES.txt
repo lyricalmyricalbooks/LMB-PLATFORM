@@ -1,0 +1,18 @@
+Product export files used by realExports.test.ts, trimmed to a few products (whole product groups kept). Product
+rows only; no customer data. Fetched 10 November 2026.
+
+handle-rows-template.csv   help.shopify.com/csv/product_template.csv (the vendor's own template, today's headings)
+parent-rows-sample.csv     woocommerce/woocommerce plugins/woocommerce/sample-data/sample_products.csv (whole file)
+listing-rows-a.csv         eghan/gatsby-storefront data/EtsyListingsDownload.csv (a real shop's listings download)
+listing-rows-b.csv         Kiyoshiakira/Bonnie-Lass-Florals EtsyListingsDownload.csv (real, with the SKU column)
+field-type-rows-a.csv      persiusW/miss-tokyo-site catalog_products.csv (real catalog export, colour options)
+field-type-rows-b.csv      TymorIbrahim/ShulaWebApp2 backend/catalog_products.csv (real, Hebrew titles, hidden products)
+field-type-rows-c.csv      thng292/DoAnNhapMonCNTT catalog_products.csv (two options, surcharges)
+product-id-rows-a.csv      walkidni/shelfshift csv_examples/squarespace.csv
+product-id-rows-b.csv      dylancaponi/product-csv-to-shopify-woocommerce fixtures/squarespace-export.csv
+variation-name-rows-a.csv  dylancaponi/product-csv-to-shopify-woocommerce fixtures/square-export.csv
+variation-name-rows-a.xlsx the same rows saved as Excel (the item library also downloads as .xlsx)
+variation-name-rows-b.csv  smartscott-LLC/cheeky-app ITEM_LIBRARY.csv (real item library export)
+item-rows.csv              walkidni/shelfshift csv_examples/bigcommerce-modern.csv (vendor sample products, Bulk Edit layout)
+sku-rows.csv               walkidni/shelfshift csv_examples/bigcommerce-legacy.csv
+typed-rows.csv             rms68/commodoreblue.com catalog_2024-12-15_02-51.csv (a real catalog export)
