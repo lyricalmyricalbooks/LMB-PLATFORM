@@ -10,16 +10,26 @@
  */
 
 const { httpStatus, refundRefused } = require("./refundRefusal");
-const { onDocumentUpdated, onDocumentCreated, onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { onSchedule: onScheduleReal } = require("firebase-functions/v2/scheduler");
 // Code plan 15.16: sweeps register with the tick (tick.js) instead of each owning a Cloud Scheduler job.
 const { TICK_EVERY_MINUTES, TICK_TIMEOUT_SECONDS, createTickRegistry, runTick } = require("./tick");
 const tickRegistry = createTickRegistry();
 const onSchedule = tickRegistry.register;
-const { onRequest } = require("firebase-functions/v2/https");
 const { setGlobalOptions } = require("firebase-functions/v2/options");
 const { defineSecret } = require("firebase-functions/params");
-const admin = require("./adminSdk")(require("firebase-admin"));
+// The shared system (LMB-PLATFORM docs/shared-system.md): one copy of this code runs every shop, each in its own folder
+// shops/<shopId>. `admin` is the Admin SDK as the current shop sees it (shopScope.js): its database, files and sign-ins
+// only. Every way in finds its shop first (shopEntry.js): triggers from the document path, web requests from ?shop=,
+// the tick once per shop. `sdk` (the whole database) is used only to read shop records.
+const sdk = require("./adminSdk")(require("firebase-admin"));
+const { scopedAdmin, perShop, currentShop } = require("./shopScope");
+const admin = scopedAdmin(sdk);
+const shopEntry = require("./shopEntry").shopEntries({ rootDb: () => sdk.firestore() });
+const firestoreTriggers = require("firebase-functions/v2/firestore");
+const onDocumentUpdated = shopEntry.trigger(firestoreTriggers.onDocumentUpdated);
+const onDocumentCreated = shopEntry.trigger(firestoreTriggers.onDocumentCreated);
+const onDocumentWritten = shopEntry.trigger(firestoreTriggers.onDocumentWritten);
+const onRequest = shopEntry.request(require("firebase-functions/v2/https").onRequest);
 const crypto = require("crypto");
 const { browserRequestHandler } = require("./appCheck");
 const { risoButton, risoLayout, placeItemsTable } = require("./emailTheme");
@@ -123,14 +133,16 @@ const { MAX_ATTEMPTS, LEASE_MS, LOG_RETENTION_DAYS, GAVE_UP_RETENTION_DAYS, clea
 const { usesPlatformServices, withPlatformKey, platformServiceKey } = require("./platformKey");
 setGlobalOptions({ maxInstances: 10, region: require("./shopConfig").shopConfig.region, ...(usesPlatformServices() ? { secrets: withPlatformKey([]) } : {}) });
 
-admin.initializeApp();
+sdk.initializeApp();
 const db = admin.firestore();
 // On the platform's test shop (shopConfig.testShop) and for practice orders (plan 7.6), sandbox payments take stock and
 // their refunds put it back.
 const { createSettlement, sandboxStockTaken, sandboxTakesStock } = require("./settlePayment");
 const { recordOrderMoney, recordPayout } = require("./orderMoney");
 const { giftCardHold } = require("./orderReview");
-const { settlePayment } = createSettlement({ db, increment: n => admin.firestore.FieldValue.increment(n), testShop: require("./shopConfig").shopConfig.testShop });
+// One per shop: whether sandbox payments take stock is the shop's own setting.
+const settlement = perShop(() => createSettlement({ db, increment: n => admin.firestore.FieldValue.increment(n), testShop: require("./shopConfig").shopConfig.testShop }));
+const settlePayment = (...args) => settlement.settlePayment(...args);
 
 const IS_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
 
@@ -142,9 +154,12 @@ const { adminRole, booksReader, removeExpiredMembers, supportOf, syncMemberRole 
 const { becameFairHelper, fairHelperInviteEmail } = require("./teamInvite");
 const fairHelperPay = require("./fairHelperPay");
 const { shopConfig, functionLink } = require("./shopConfig");
+// The shop's id with the platform's services (X-Shop-Id): its record id in the shared system, else its own project.
+const platformShopId = () => shopConfig.shopId || shopConfig.project;
 
 // Who may call the functions from a browser: local dev, this shop's Hosting address and its own domain (shopConfig.js).
-const ALLOWED_ORIGINS = shopConfig.allowedOrigins;
+// A live list: the current shop's addresses each time it is read.
+const ALLOWED_ORIGINS = new Proxy([], { get: (_, prop) => { const list = shopConfig.allowedOrigins; const v = list[prop]; return typeof v === "function" ? v.bind(list) : v; } });
 
 // Returns true when the request was an OPTIONS preflight (already answered).
 function applyCors(req, res) {
@@ -292,12 +307,12 @@ exports.deleteTestOrders = onBrowserRequest(async (req, res) => {
 const RESEND_API_KEY = defineSecret("RESEND_API_KEY");
 const STRIPE_SECRET_KEY = defineSecret("STRIPE_SECRET_KEY");
 const STRIPE_WEBHOOK_SECRET = defineSecret("STRIPE_WEBHOOK_SECRET");
-const STRIPE_WEBHOOK_URL = functionLink(shopConfig, "stripeWebhook");
+const STRIPE_WEBHOOK_URL = () => functionLink(shopConfig, "stripeWebhook");
 const PAYPAL_CLIENT_ID = defineSecret("PAYPAL_CLIENT_ID");
 const PAYPAL_CLIENT_SECRET = defineSecret("PAYPAL_CLIENT_SECRET");
 const PAYPAL_WEBHOOK_ID = defineSecret("PAYPAL_WEBHOOK_ID");
 const SHIPPO_API_TOKEN = defineSecret("SHIPPO_API_TOKEN");
-const SHIPPO_CONFIG_DOC = db.collection("private-integrations").doc("shippo");
+const SHIPPO_CONFIG_DOC = () => db.collection("private-integrations").doc("shippo");
 
 // Team (functions/roles.js). Adding, changing or removing someone in Settings › Team updates their sign-in pass at once.
 // On a platform shop (PLATFORM_ACCOUNTS_URL), the platform is then told, so the person sees the shop in its account
@@ -319,13 +334,13 @@ exports.syncMemberRole = onDocumentWritten({ document: "members/{email}", secret
     }
   }
   if (shopConfig.platformAccountsUrl) {
-    const notice = await tellPlatformTeamChanged({ url: shopConfig.platformAccountsUrl, shopId: shopConfig.project, serviceKey: platformServiceKey });
+    const notice = await tellPlatformTeamChanged({ url: shopConfig.platformAccountsUrl, shopId: platformShopId, serviceKey: platformServiceKey });
     if (!notice.ok) console.warn("The platform wasn't told about the Team change:", notice.reason);
   }
 });
 
 async function getShippoToken() {
-  const configDoc = await SHIPPO_CONFIG_DOC.get();
+  const configDoc = await SHIPPO_CONFIG_DOC().get();
   const savedToken = configDoc.exists ? configDoc.data()?.apiToken : null;
   if (typeof savedToken === "string" && savedToken.trim()) {
     const trimmed = savedToken.trim();
@@ -357,17 +372,18 @@ async function readAdminSecret(id) {
 // The shop's card payment provider (Stripe unless its shopConfig names another) is reached only through
 // functions/payments (code plans 1.11-1.12; the provider interface is listed there). In platform mode (plan 2.2) every
 // call goes through the platform's payment service instead, as this shop (its project id is its registry id).
-const payments = createPayments({
+// One per shop (shopScope.js perShop): each shop has its own provider and mode.
+const payments = perShop(() => createPayments({
   provider: shopConfig.paymentProvider, mode: shopConfig.paymentMode, earlier: shopConfig.earlierPaymentProvider,
-  service: { url: shopConfig.paymentsServiceUrl, shopId: shopConfig.project, serviceKey: platformServiceKey },
+  service: { url: shopConfig.paymentsServiceUrl, shopId: platformShopId, serviceKey: platformServiceKey },
   db, Stripe, liveSecretKey: STRIPE_SECRET_KEY, readAdminSecret,
-});
-const { testMode: shopTestMode } = payments;
+}));
+const shopTestMode = (...args) => payments.testMode(...args);
 // The company that takes this shop's card payments, in every press- and shopper-facing word the server writes (order
 // activity, refund and alert messages, admin emails): "Square" on a Square shop, "Stripe" otherwise (code plan 5.2).
-const CARD = providerName(payments.provider);
+const CARD = () => providerName(payments.provider);
 // Card orders keep paymentMethod "Stripe" (the rules and the server know cards by that name); shown, it is the provider.
-const paymentMethodLabel = (method) => (!method || method === "Stripe" ? CARD : method);
+const paymentMethodLabel = (method) => (!method || method === "Stripe" ? CARD() : method);
 // Square payment pages close when their stock hold ends, and a payment made after that is refunded in full (code plan
 // 5.1, paymentPages.js). The email is the press's own "Order refunded" one (sendLateRefundEmail, below).
 const paymentPages = createPaymentPages({ db, payments, releaseStock, sendLateRefundEmail: (...args) => sendLateRefundEmail(...args) });
@@ -379,7 +395,8 @@ async function retrieveOrderPayment(orderId, order, ids = {}, keys = null) {
   return payments.findOrderPayment(orderId, order, ids, keys);
 }
 
-const ADMIN_TO = shopConfig.ownerEmail;
+// The current shop's owner, read when it is used (one server runs every shop).
+const ADMIN_TO = () => shopConfig.ownerEmail;
 
 function moneyFmt(n) {
   return `$${Number(n || 0).toFixed(2)}`;
@@ -436,15 +453,16 @@ function orderRowsHtml(items = [], order = null, say = text => text) {
 // Every email the server sends goes through functions/email (code plan 1.13). `sendEmail` stays index.js's own name for
 // it (handler tests swap it out). resendSecretValue is a const further down, so it is read at send time.
 // On a platform shop (PLATFORM_EMAIL_URL set), the backup after the press's own Gmail is the platform's shared sender.
-const mailer = createEmail({
-  db, crypto, Resend, nodemailer, ownerEmail: ADMIN_TO, senderName: shopConfig.senderName, senderEmail: shopConfig.senderEmail,
+// One per shop: the owner's Gmail and the sender name are the shop's own.
+const mailer = perShop(() => createEmail({
+  db, crypto, Resend, nodemailer, ownerEmail: ADMIN_TO(), senderName: shopConfig.senderName, senderEmail: shopConfig.senderEmail,
   readAdminSecret, resendSecretValue: () => resendSecretValue(), escapeHtml,
   platformSender: shopConfig.platformEmailUrl
-    ? createPlatformSender({ url: shopConfig.platformEmailUrl, shopId: shopConfig.project, serviceKey: platformServiceKey,
+    ? createPlatformSender({ url: shopConfig.platformEmailUrl, shopId: platformShopId, serviceKey: platformServiceKey,
       fetch: (url, options) => fetchWithTimeout(url, options, 20000) })
     : null,
-});
-const { logEmailAttempt } = mailer;
+}));
+const logEmailAttempt = (...args) => mailer.logEmailAttempt(...args);
 
 // One order email of each kind, even when Firestore re-runs the trigger: the send is claimed
 // first in the server-only `email-claims` collection (firestore.rules deny every client) and
@@ -592,7 +610,7 @@ exports.twoStepBackup = onBrowserRequest({ secrets: withPlatformKey([RESEND_API_
       const notify = async ({ email, left }) => {
         const language = await adminEmailLanguage();
         const when = new Intl.DateTimeFormat(language === "fr" ? "fr-CA" : "en-CA", { timeZone: "America/Toronto", dateStyle: "long", timeStyle: "short" }).format(new Date(nowIso));
-        const message = twoStepBackup.backupUsedEmail({ language,  email, ownerEmail: ADMIN_TO, left, shopName: shopConfig.senderName, when, adminLink: siteLink("/admin#settings/security") });
+        const message = twoStepBackup.backupUsedEmail({ language,  email, ownerEmail: ADMIN_TO(), left, shopName: shopConfig.senderName, when, adminLink: siteLink("/admin#settings/security") });
         if (message.to.length) await sendEmail({ queue: "twoStepBackupUsed", ...message, secret: resendSecretValue() });
       };
       res.json(await twoStepBackup.spendBackup({ db, auth: admin.auth(), google, code: String(req.body?.code || ""), nowIso, notify }));
@@ -614,7 +632,7 @@ exports.twoStepBackup = onBrowserRequest({ secrets: withPlatformKey([RESEND_API_
       const notify = async ({ email, on }) => {
         const language = await adminEmailLanguage();
         const when = new Intl.DateTimeFormat(language === "fr" ? "fr-CA" : "en-CA", { timeZone: "America/Toronto", dateStyle: "long", timeStyle: "short" }).format(new Date(nowIso));
-        const message = twoStepBackup.twoStepChangedEmail({ language,  email, ownerEmail: ADMIN_TO, on, shopName: shopConfig.senderName, when, adminLink: siteLink("/admin#settings/security") });
+        const message = twoStepBackup.twoStepChangedEmail({ language,  email, ownerEmail: ADMIN_TO(), on, shopName: shopConfig.senderName, when, adminLink: siteLink("/admin#settings/security") });
         if (message.to.length) await sendEmail({ queue: "twoStepChanged", ...message, secret: resendSecretValue() });
       };
       res.json(await twoStepBackup.noteTwoStepChange({ db, auth: admin.auth(), uid: decoded.uid, nowIso, notify }));
@@ -1006,7 +1024,7 @@ async function resolveShipping(items, order, profiles, freeShipping, settings, d
   if (selection && (selection.method !== 'shipping' || /^(pickup|local_delivery):/.test(String(selection.optionId || '')))) throw new Error('Choose an available fulfillment option.');
   let liveRatesTried = false;
   if (address) {
-    const configDoc = await SHIPPO_CONFIG_DOC.get();
+    const configDoc = await SHIPPO_CONFIG_DOC().get();
     const config = configDoc.exists ? configDoc.data() || {} : {};
     const destinationCountry = getCountryCode(address.country);
     const enabledCountries = Array.isArray(config.dynamicRateCountries) ? config.dynamicRateCountries : [];
@@ -1776,24 +1794,24 @@ const { handleVerifyStripeKeys, handleInventoryLinkAdmin, handleGiftCardAdmin, h
 });
 
 // The press's own web address, through the platform's domain service (customDomains.js, plan 2.9).
-const { handleCustomDomains } = customDomainActions({ url: shopConfig.platformDomainsUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin });
+const { handleCustomDomains } = customDomainActions({ url: shopConfig.platformDomainsUrl, shopId: platformShopId, serviceKey: platformServiceKey, requireAdmin });
 
 // Connect Google: one sign-in, through the platform's Google link (googleConnect.js, plan 6.17).
-const { handleGoogleConnect } = googleConnectActions({ url: shopConfig.platformGoogleUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin,
+const { handleGoogleConnect } = googleConnectActions({ url: shopConfig.platformGoogleUrl, shopId: platformShopId, serviceKey: platformServiceKey, requireAdmin,
   readStock: () => require("./inventoryLinkStore").readCatalog() });
 
 // Settings › Apps: installed apps, the store and Remove, through the platform's app store door (appsLink.js, plan 26.5).
-const { handleApps } = appsLinkActions({ url: shopConfig.platformAppsUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin });
+const { handleApps } = appsLinkActions({ url: shopConfig.platformAppsUrl, shopId: platformShopId, serviceKey: platformServiceKey, requireAdmin });
 
 // Settings › Bookkeeping: the QuickBooks link, through the platform's bookkeeping service (quickbooksLink.js, plan 7.16).
 // Send again builds the day from every order with the shared daily bookkeeping rules (dayFromOrders, Toronto days).
 const { handleBookkeeping } = bookkeepingActions({
-  url: shopConfig.platformAccountingUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin,
+  url: shopConfig.platformAccountingUrl, shopId: platformShopId, serviceKey: platformServiceKey, requireAdmin,
   buildDay: async (date) => dayFromOrders((await db.collection("orders").get()).docs.map((d) => ({ id: d.id, ...d.data() })), date),
 });
 // Sales channels and Social posts: the press's social accounts, through the platform's social service (socialLink.js, plan 27.4).
 const social = socialActions({
-  url: shopConfig.platformSocialUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin, db, siteUrl: shopConfig.siteUrl, sellsAnswer: shopSellsAnswer,
+  url: shopConfig.platformSocialUrl, shopId: platformShopId, serviceKey: platformServiceKey, requireAdmin, db, siteUrl: () => shopConfig.siteUrl, sellsAnswer: shopSellsAnswer,
   // The post's square picture (socialPicture.js), made in this shop's bucket.
   makeSquare: async (imageUrl, postId) => {
     const sharp = require("sharp");
@@ -1806,13 +1824,13 @@ const social = socialActions({
     const saved = (await db.collection("settings").doc("notifications").get()).data() || {};
     if (saved.shopAlerts?.socialPostFailed === false) return;
     const { failedPostEmail } = require("./socialLink");
-    const message = failedPostEmail({ post, ownerEmail: ADMIN_TO, shopName: shopConfig.senderName, adminLink: siteLink("/admin#social-posts"), language: await adminEmailLanguage() });
+    const message = failedPostEmail({ post, ownerEmail: ADMIN_TO(), shopName: shopConfig.senderName, adminLink: siteLink("/admin#social-posts"), language: await adminEmailLanguage() });
     if (message.to.length && message.failed) await sendEmail({ queue: "socialPostFailed", to: message.to, subject: message.subject, html: message.html, secret: resendSecretValue() });
   },
 });
 const handleSocial = social.handleSocial;
 // Practice orders on a platform shop while it is private, for the owner only (practiceCheckout.js, plan 7.6).
-const { handlePracticeCheckout, practiceFor } = practiceCheckoutActions({ db, platform: payments.mode === "platform", requireAdmin, orderRequestIdentity });
+const { handlePracticeCheckout, practiceFor } = practiceCheckoutActions({ db, platform: () => payments.mode === "platform", requireAdmin, orderRequestIdentity });
 
 // Handler tests replace sendEmail after loading index.js; this keeps the moved handlers on the current one.
 const lateSendEmail = (...args) => sendEmail(...args);
@@ -1906,7 +1924,7 @@ const { handleManualLocalOrder, handleUnsubscribe, handleCompleteFreeOrder, hand
   loadHoldLimits, normMarketingEmail, optOutId, orderRequestIdentity, orderRequestKey, priceOrder,
   PricingError, publicErrorMessage, readAdminSecret, recalculateOrder, refusePreviousAttemptPaid, releaseStock,
   releaseSupersededAttempt, reserveCheckout, reserveStock, serverGeoCountry, StockHoldError, payments,
-  stripeIntentKey, testShop: shopConfig.testShop, tokenMatches, practiceFor,
+  stripeIntentKey, testShop: () => shopConfig.testShop, tokenMatches, practiceFor,
 });
 
 // ──────────────────────────────────────────────────────────────
@@ -2002,7 +2020,7 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
       // Sandbox payments skip the stock check, except on the test shop and for practice orders (see reserveForConfirmedPayment).
       if (amountCheck.ok && ((session.livemode !== false && initial.stripeMode !== "test") || sandboxTakesStock(initial, shopConfig.testShop))
           && initial.paymentStatus !== "paid" && initial.status !== "cancelled"
-          && !await reserveForConfirmedPayment(orderId, CARD, typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id)) return false;
+          && !await reserveForConfirmedPayment(orderId, CARD(), typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id)) return false;
     }
 
     const paymentIntentId = typeof session.payment_intent === "string"
@@ -2018,7 +2036,7 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
       updatedAt: at,
     });
     const result = await settlePayment(orderId, {
-      provider: CARD,
+      provider: CARD(),
       message: opts.message,
       receipt: receipt(new Date().toISOString()),
       // A sandbox (test-mode) payment is a rehearsal: flag the order as a test order
@@ -2038,7 +2056,7 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
             duplicatePayments: [...(order.duplicatePayments || []), { provider: "stripe", paymentIntentId, sessionId: session.id, amountMinor: session.amount_total, currency: session.currency, at: now }],
             paymentMismatch: { duplicate: true, provider: "stripe", paymentIntentId, at: now },
             updatedAt: now,
-            activity: [...(order.activity || []), { type: "event", message: `A second ${CARD} payment (${paymentIntentId || session.id}) arrived for this already-paid order. Refund it in the ${CARD} Dashboard.`, createdAt: now }],
+            activity: [...(order.activity || []), { type: "event", message: `A second ${CARD()} payment (${paymentIntentId || session.id}) arrived for this already-paid order. Refund it in the ${CARD()} Dashboard.`, createdAt: now }],
           } };
         }
         // Money arrived for an order the shop had already cancelled: don't revive it (stock, emails,
@@ -2048,7 +2066,7 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
           return { reason: "cancelled", update: {
             ...receipt(now),
             paymentMismatch: { paidAfterCancel: true, provider: "stripe", paymentIntentId, at: now },
-            activity: [...(order.activity || []), { type: "event", message: `${CARD} payment ${paymentIntentId || session.id} arrived after this order was cancelled. Not marked paid — refund it in the ${CARD} Dashboard or reopen the order with the customer.`, createdAt: now }],
+            activity: [...(order.activity || []), { type: "event", message: `${CARD()} payment ${paymentIntentId || session.id} arrived after this order was cancelled. Not marked paid — refund it in the ${CARD()} Dashboard or reopen the order with the customer.`, createdAt: now }],
           } };
         }
         const amountCheck = paidAmountCheck(order, session.amount_total, session.currency);
@@ -2057,7 +2075,7 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
           return { reason: "amount-mismatch", update: {
             ...receipt(now),
             paymentMismatch: { ...amountCheck, provider: "stripe", paymentIntentId, at: now },
-            activity: [...(order.activity || []), { type: "event", message: `${CARD} payment did not match the order total (expected ${amountCheck.expected.minor} ${amountCheck.expected.currency}, got ${amountCheck.paid.minor} ${amountCheck.paid.currency}). Not marked paid — refund or review in ${CARD}.`, createdAt: now }],
+            activity: [...(order.activity || []), { type: "event", message: `${CARD()} payment did not match the order total (expected ${amountCheck.expected.minor} ${amountCheck.expected.currency}, got ${amountCheck.paid.minor} ${amountCheck.paid.currency}). Not marked paid — refund or review in ${CARD()}.`, createdAt: now }],
           } };
         }
         return null;
@@ -2068,9 +2086,9 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
       await sendEmail({
         queue: "paidTwiceAlert",
         secret: RESEND_API_KEY.value(),
-        to: ADMIN_TO,
+        to: ADMIN_TO(),
         subject: `⚠ Order ${duplicateAlert.orderId} was paid twice`,
-        html: `<p>${CARD} took a second payment (${escapeHtml(duplicateAlert.paymentIntentId || "")}, ${(Number(duplicateAlert.amount) / 100).toFixed(2)} ${escapeHtml(String(duplicateAlert.currency || "").toUpperCase())}) for order <strong>${escapeHtml(duplicateAlert.orderId)}</strong>, which was already paid.</p><p>Refund the second payment in the ${CARD} Dashboard. The order keeps its first payment.</p>`,
+        html: `<p>${CARD()} took a second payment (${escapeHtml(duplicateAlert.paymentIntentId || "")}, ${(Number(duplicateAlert.amount) / 100).toFixed(2)} ${escapeHtml(String(duplicateAlert.currency || "").toUpperCase())}) for order <strong>${escapeHtml(duplicateAlert.orderId)}</strong>, which was already paid.</p><p>Refund the second payment in the ${CARD()} Dashboard. The order keeps its first payment.</p>`,
       }).catch(err => console.warn("duplicate payment alert failed:", err.message));
     }
   return result.paid;
@@ -2092,7 +2110,7 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
     const order = snap.data();
     const now = new Date().toISOString();
     const done = status === "succeeded";
-    const label = provider === "stripe" ? CARD : provider === "paypal" ? "PayPal" : provider === "dispute" ? "Lost dispute" : "Manual";
+    const label = provider === "stripe" ? CARD() : provider === "paypal" ? "PayPal" : provider === "dispute" ? "Lost dispute" : "Manual";
     const amountText = amountMinor != null ? ` for ${(amountMinor / 100).toFixed(2)} ${String(currency || "").toUpperCase()}` : "";
 
     if (order.paymentStatus === "refunded") { alreadyRecorded = true; return; }
@@ -2216,7 +2234,7 @@ async function applyPartialRefund(orderId, { provider, refundId = null, amountMi
     const lines = order.sandboxPayment === true && !sandboxStockTaken(order, shopConfig.testShop) ? [] : restockLines;
     const books = lines.length ? await readBooks(transaction, db, lines) : new Map();
     if (lines.length) writeStock(transaction, db, lines, books, 1, now);
-    const label = provider === "stripe" ? CARD : provider === "paypal" ? "PayPal" : "Manual";
+    const label = provider === "stripe" ? CARD() : provider === "paypal" ? "PayPal" : "Manual";
     const cur = String(currency || order.expectedCurrency || "CAD").toUpperCase();
     // Stripe/PayPal may already have reported this refund (webhook first): never count it twice.
     const total = Math.max(refundedSoFar(order), already + amountMinor);
@@ -2313,7 +2331,7 @@ async function revertFailedRefund(orderId, { refundId = null, source = "", charg
       updatedAt: now,
       activity: [...(order.activity || []), {
         type: "event",
-        message: `${CARD} refund failed${source ? ` (${source})` : ""}: the customer was not refunded. The order is paid again${restocked.length ? "; restocked copies taken back out of stock" : ""}${notes.length ? `; ${notes.join("; ")}` : ""}. Refund again or contact the customer.`,
+        message: `${CARD()} refund failed${source ? ` (${source})` : ""}: the customer was not refunded. The order is paid again${restocked.length ? "; restocked copies taken back out of stock" : ""}${notes.length ? `; ${notes.join("; ")}` : ""}. Refund again or contact the customer.`,
         createdAt: now,
       }],
     });
@@ -2357,7 +2375,7 @@ async function syncStripeReversal(orderId, { charge, dispute = null, source }) {
     if (r.disputeStatus && r.disputeStatus !== order.disputeStatus) {
       update.disputeStatus = r.disputeStatus;
       if (dispute?.id) update.disputeId = dispute.id;
-      notes.push(`${CARD} dispute ${r.disputeStatus.replace(/_/g, " ")} (${source}).`);
+      notes.push(`${CARD()} dispute ${r.disputeStatus.replace(/_/g, " ")} (${source}).`);
     }
 
     // Money taken after the order was cancelled (or for the wrong amount), now fully refunded:
@@ -2365,7 +2383,7 @@ async function syncStripeReversal(orderId, { charge, dispute = null, source }) {
     if (r.fullyRefunded && order.paymentMismatch && !mismatchResolved(order) && order.paymentStatus !== "paid") {
       update["paymentMismatch.resolvedAt"] = now;
       update["paymentMismatch.resolvedBy"] = "stripe-refund";
-      notes.push(`The unexpected ${CARD} payment was refunded (${source}).`);
+      notes.push(`The unexpected ${CARD()} payment was refunded (${source}).`);
     }
 
     // The card payment for an order whose gift card fell short, now refunded: nothing left to settle.
@@ -2380,7 +2398,7 @@ async function syncStripeReversal(orderId, { charge, dispute = null, source }) {
     } else if (r.partiallyRefunded && order.paymentStatus === "paid" && (order.refundedAmountMinor || 0) !== r.refundedMinor) {
       update.refundedAmountMinor = r.refundedMinor;
       update.partiallyRefunded = true;
-      notes.push(`Partial refund in ${CARD}: ${(r.refundedMinor / 100).toFixed(2)} ${r.currency} of ${(r.amountMinor / 100).toFixed(2)}. Order stays paid — adjust what you ship (${source}).`);
+      notes.push(`Partial refund in ${CARD()}: ${(r.refundedMinor / 100).toFixed(2)} ${r.currency} of ${(r.amountMinor / 100).toFixed(2)}. Order stays paid — adjust what you ship (${source}).`);
     }
 
     if (!notes.length) return;
@@ -2506,15 +2524,15 @@ exports.stripeWebhook = onRequest(
 
     try {
       if (event.type === "checkout.session.expired") {
-        await noteOnOrder(event.data.object.client_reference_id, `${CARD} Checkout session expired without payment.`);
+        await noteOnOrder(event.data.object.client_reference_id, `${CARD()} Checkout session expired without payment.`);
       } else if (event.type === "checkout.session.async_payment_failed") {
         const failedSession = event.data.object;
         // A late failure from an old session must never undo a paid order or one paid through another session.
-        await noteOnOrder(failedSession.client_reference_id, `Delayed payment failed (${CARD}).`, current =>
+        await noteOnOrder(failedSession.client_reference_id, `Delayed payment failed (${CARD()}).`, current =>
           lateFailureMayMarkFailed(current, failedSession.id) ? { paymentStatus: "failed" } : {});
       } else if (event.type === "payment_intent.payment_failed" && event.data.object?.metadata?.checkout === "payment_element") {
         const reason = event.data.object.last_payment_error?.message || "unknown reason";
-        await noteOnOrder(event.data.object.metadata.order_id, `Card payment attempt failed (${CARD}): ${reason}`);
+        await noteOnOrder(event.data.object.metadata.order_id, `Card payment attempt failed (${CARD()}): ${reason}`);
       } else if (event.type.startsWith("charge.dispute.")) {
         const dispute = event.data.object;
         const piId = typeof dispute.payment_intent === "string" ? dispute.payment_intent : dispute.payment_intent?.id;
@@ -2523,8 +2541,8 @@ exports.stripeWebhook = onRequest(
           if (!snap.empty) {
             await noteOnOrder(snap.docs[0].id,
               event.type === "charge.dispute.created"
-                ? `${CARD} dispute opened (${(dispute.amount / 100).toFixed(2)} ${(dispute.currency || "").toUpperCase()}, reason: ${dispute.reason || "unknown"}). Respond in the ${CARD} Dashboard before the evidence deadline.`
-                : `${CARD} dispute is now ${String(dispute.status || "updated").replace(/_/g, " ")}.`,
+                ? `${CARD()} dispute opened (${(dispute.amount / 100).toFixed(2)} ${(dispute.currency || "").toUpperCase()}, reason: ${dispute.reason || "unknown"}). Respond in the ${CARD()} Dashboard before the evidence deadline.`
+                : `${CARD()} dispute is now ${String(dispute.status || "updated").replace(/_/g, " ")}.`,
               { disputeStatus: dispute.status || "needs_response", disputeId: dispute.id });
             if (event.type === "charge.dispute.closed" && dispute.status === "lost") {
               await applyOrderRefund(snap.docs[0].id, { provider: "dispute", amountMinor: dispute.amount, currency: dispute.currency, status: "succeeded", restock: false, actor: "stripe-dispute", note: "chargeback lost" });
@@ -2551,7 +2569,7 @@ exports.stripeWebhook = onRequest(
 
       if (orderId && settled) {
         try {
-          await markStripeOrderPaid(orderId, session, { authority: STRIPE_WEBHOOK_AUTHORITY, account: event.account || null, message: isElementPayment ? `Payment completed (${CARD} card form)` : `Payment completed (${CARD} confirmed it)` });
+          await markStripeOrderPaid(orderId, session, { authority: STRIPE_WEBHOOK_AUTHORITY, account: event.account || null, message: isElementPayment ? `Payment completed (${CARD()} card form)` : `Payment completed (${CARD()} confirmed it)` });
           console.log(`Order ${orderId} successfully processed via webhook.`);
           // The real card fee, once the provider has it (code plan 7.10). Best effort: the payout fills it in later.
           await recordOrderMoney({ db, payments, orderId }).catch(err => console.warn(`Order ${orderId}: the card fee wasn't read yet (${err?.message || err}).`));
@@ -2572,7 +2590,7 @@ exports.stripeWebhook = onRequest(
         try {
           const snap = await db.collection("orders")
             .where("stripePaymentIntentId", "==", paymentIntentId).limit(1).get();
-          if (!snap.empty) await revertFailedRefund(snap.docs[0].id, { refundId: refund.id || null, source: `${CARD} webhook${refund.failure_reason ? `: ${String(refund.failure_reason).replace(/_/g, " ")}` : ""}` });
+          if (!snap.empty) await revertFailedRefund(snap.docs[0].id, { refundId: refund.id || null, source: `${CARD()} webhook${refund.failure_reason ? `: ${String(refund.failure_reason).replace(/_/g, " ")}` : ""}` });
         } catch (err) {
           console.error("Failed to sync charge.refund.updated:", err);
           await recordWebhookProcessingFailure(event, err);
@@ -2595,7 +2613,7 @@ exports.stripeWebhook = onRequest(
           const snap = await db.collection("orders")
             .where("stripePaymentIntentId", "==", paymentIntentId).limit(1).get();
           if (!snap.empty) {
-            await syncStripeReversal(snap.docs[0].id, { charge, source: `${CARD} webhook` });
+            await syncStripeReversal(snap.docs[0].id, { charge, source: `${CARD()} webhook` });
             // The refund's own fee (any fee given back), on the order's money (code plan 7.10). Best effort.
             await recordOrderMoney({ db, payments, orderId: snap.docs[0].id }).catch(err => console.warn(`Order ${snap.docs[0].id}: the refund's fee wasn't read yet (${err?.message || err}).`));
           }
@@ -2802,7 +2820,7 @@ exports.refundOrder = onBrowserRequest(
             return card ? sum + Math.max(0, Math.floor(Number(card.initialMinor) || 0) - Math.floor(Number(card.balanceMinor) || 0)) : sum;
           }, 0);
           if (spentMinor > 0) {
-            const error = new Error(`CA$${(spentMinor / 100).toFixed(2)} of the gift cards this order bought has already been spent. A full refund would give that money back twice. Refund only the unused part in ${CARD} or PayPal directly, then disable the card in Gift cards.`);
+            const error = new Error(`CA$${(spentMinor / 100).toFixed(2)} of the gift cards this order bought has already been spent. A full refund would give that money back twice. Refund only the unused part in ${CARD()} or PayPal directly, then disable the card in Gift cards.`);
             error.status = 409; throw error;
           }
         }
@@ -2816,7 +2834,7 @@ exports.refundOrder = onBrowserRequest(
       const provider = refundProviderOf(order);
       if (!provider) {
         await releaseClaim();
-        res.status(409).json({ error: `This order has no saved card or PayPal payment to refund. Refund it in ${CARD} or PayPal directly; the order updates itself.` });
+        res.status(409).json({ error: `This order has no saved card or PayPal payment to refund. Refund it in ${CARD()} or PayPal directly; the order updates itself.` });
         return;
       }
       let outcome;
@@ -3063,7 +3081,7 @@ exports.onMoveFinished = onDocumentUpdated("firstWeek/start", async event => {
   if (!justFinished(before, after)) return;
   const message = moveDoneEmail({
     before, after, counts: await moveCounts(db),
-    ownerEmail: ADMIN_TO, shopName: shopConfig.senderName, adminLink: siteLink("/admin"),
+    ownerEmail: ADMIN_TO(), shopName: shopConfig.senderName, adminLink: siteLink("/admin"),
   });
   if (!message) return;
   try {
@@ -3083,7 +3101,7 @@ exports.moveReminder = onSchedule(
     if (!week.exists) return;
     const stall = require("./moveDone").moveStallEmail({
       doc: week.data(), mark: mark.exists ? mark.data() : null, now: new Date(),
-      ownerEmail: ADMIN_TO, shopName: shopConfig.senderName, adminLink: siteLink("/admin#overview"),
+      ownerEmail: ADMIN_TO(), shopName: shopConfig.senderName, adminLink: siteLink("/admin#overview"),
     });
     if (!stall) return;
     await markRef.set(stall.mark);
@@ -3182,8 +3200,7 @@ const isPhysicalAny = order => (order?.items || []).some(item => item && isPhysi
 // Public storefront address for links in emails (Firebase Hosting). When the shop gets its own domain, set the
 // repository variable SITE_URL: deploy-firebase.yml writes it into the Functions env (functions/.env.<project>),
 // which shopConfig.js reads (else the project's own web.app address).
-const SITE_URL = shopConfig.siteUrl;
-function siteLink(path) { return `${SITE_URL}${path}`; }
+function siteLink(path) { return `${shopConfig.siteUrl}${path}`; }
 
 // One-click order link for emails: /track opens the order straight away when the
 // key matches, instead of asking the customer to type the order number and email.
@@ -3368,7 +3385,7 @@ async function issueGiftCardsForOrder(orderId) {
   const sends = testOrder ? created.slice(0, 1) : created;
   for (const card of sends) {
     try {
-      await emailGiftCard(card.id, card.data, testOrder ? { notificationSettings, to: ADMIN_TO, test: true } : { notificationSettings, queue: "giftCard" });
+      await emailGiftCard(card.id, card.data, testOrder ? { notificationSettings, to: ADMIN_TO(), test: true } : { notificationSettings, queue: "giftCard" });
     } catch (err) {
       console.error(`Gift card email failed for order ${orderId}:`, err.message);
     }
@@ -3429,7 +3446,7 @@ async function handleOrderUpdated(event) {
     if (after.refundFailedAt && before.refundFailedAt !== after.refundFailedAt && after.paymentStatus === "paid") {
       try {
         await sendEmail({
-          to: ADMIN_TO,
+          to: ADMIN_TO(),
           subject: `Refund failed: order ${orderId} needs a new refund`,
           html: `<p>The refund for order <strong>${escapeHtml(orderId)}</strong> was rejected after it was accepted, so the customer was <strong>not</strong> refunded and the order is paid again.</p><p>Open the order in <a href="${siteLink(`/admin#orders/${encodeURIComponent(orderId)}`)}">Orders</a> to refund again or contact the customer. Do not pack it unless they still want it.</p>`,
           secret: RESEND_API_KEY.value(),
@@ -3507,7 +3524,7 @@ async function handleOrderUpdated(event) {
       const say = emailFrench.sayer(emailFrench.emailLanguage(order));
       let downloadSection = "";
       if (digitalItems.length > 0) {
-        const linkFor = item => `${functionLink(shopConfig, "downloadDigitalAsset")}?orderId=${encodeURIComponent(orderId)}&itemId=${encodeURIComponent(item.itemId)}${item.variantId ? `&variantId=${encodeURIComponent(item.variantId)}` : ""}&token=${encodeURIComponent(order.downloadToken || "")}`;
+        const linkFor = item => functionLink(shopConfig, "downloadDigitalAsset", { orderId, itemId: item.itemId, variantId: item.variantId || "", token: order.downloadToken || "" });
         const note = String(notificationSettings.order_confirmation?.downloadNote
           || (sellsBooks(notificationSettings.sells) ? digitalDelivery.DEFAULT_DOWNLOAD_NOTE : goodsDownloadNote(digitalDelivery.DOWNLOAD_LIMIT)));
         downloadSection = `
@@ -3608,7 +3625,7 @@ async function handleOrderUpdated(event) {
       // It goes out even when the customer's address is rejected.
       if (shopPaidOn) try {
         await sendOrderEmailOnce(orderId, "shopNewOrder", {
-          to: ADMIN_TO,
+          to: ADMIN_TO(),
           subject: `${order.sandboxPayment ? "[TEST] " : ""}[NEW ${preorderLines.length ? "PRE-ORDER" : "ORDER"}] ${order.orderId || orderId} · paid · ${chargedTotalFmt(order)} · ${order.customer.name}`,
           html: adminPaidHtml,
           secret: RESEND_API_KEY.value(),
@@ -3667,7 +3684,7 @@ async function handleOrderUpdated(event) {
       // The shop's own copy goes out even when the customer's address is rejected (first dispatch only).
       if (shopShippedOn) try {
         await sendOrderEmailOnce(orderId, "shopShipped", {
-          to: ADMIN_TO,
+          to: ADMIN_TO(),
           subject: `[SHIPPED] ${after.orderId || orderId} · ${after.customer?.name}`,
           html: shippedAdminHtml,
           secret: RESEND_API_KEY.value(),
@@ -3998,7 +4015,7 @@ async function sendWeeklySummary(nowMs = Date.now()) {
   } catch (err) {
     console.error("Weekly summary PDF failed; sending the email without it:", err);
   }
-  await sendEmail({ to: ADMIN_TO, subject, html: attachments.length ? html : html.replace(pdfLine, ""), secret: RESEND_API_KEY.value(), attachments });
+  await sendEmail({ to: ADMIN_TO(), subject, html: attachments.length ? html : html.replace(pdfLine, ""), secret: RESEND_API_KEY.value(), attachments });
   return { subject };
 }
 
@@ -4021,7 +4038,7 @@ async function sendFairDaySummary(nowMs = Date.now(), { force = false } = {}) {
   const words = wordsFor(await shopSellsAnswer());
   const email = buildFairDayEmail(fairDaySummary(books, day), { link: siteLink, words });
   if (!email) return { sent: false, reason: "no-sales" };
-  await sendEmail({ to: ADMIN_TO, subject: email.subject, html: email.html, secret: RESEND_API_KEY.value() });
+  await sendEmail({ to: ADMIN_TO(), subject: email.subject, html: email.html, secret: RESEND_API_KEY.value() });
   await markRef.set({ lastDay: day, at: new Date(nowMs).toISOString() }, { merge: true });
   return { sent: true, subject: email.subject };
 }
@@ -4263,7 +4280,7 @@ exports.onOrderCreated = onDocumentCreated(
         await sendEmail({
           queue: "shopPendingOrder",
           about: { orderId },
-          to: ADMIN_TO,
+          to: ADMIN_TO(),
           subject: `[NEW ORDER] ${order.orderId || orderId}`,
           html: adminHtml,
           secret: RESEND_API_KEY.value(),
@@ -4608,7 +4625,7 @@ exports.onBookUpdated = onDocumentUpdated(
       try {
         await sendEmail({
           queue: "inventoryAlert",
-          to: ADMIN_TO,
+          to: ADMIN_TO(),
           subject: `[INVENTORY ALERT] ${after.title}`,
           html: alertHtml,
           secret: RESEND_API_KEY.value(),
@@ -4664,7 +4681,7 @@ exports.markOrderPaid = onBrowserRequest(
       const refusal = manualPaidRefusal(snap.exists ? snap.data() : null);
       if (refusal === "missing") { res.status(404).json({ error: "Order not found" }); return; }
       if (refusal === "closed") { res.status(409).json({ error: "This order is cancelled or refunded, so it can't be marked paid." }); return; }
-      if (refusal === "provider") { res.status(409).json({ error: `Card and PayPal orders are marked paid only when the payment provider confirms the payment. Use Check payment with ${CARD}, or check PayPal.` }); return; }
+      if (refusal === "provider") { res.status(409).json({ error: `Card and PayPal orders are marked paid only when the payment provider confirms the payment. Use Check payment with ${CARD()}, or check PayPal.` }); return; }
       await completeOrderWithoutCard(orderId, `Payment confirmed manually by ${adminUser.email}.`, { reserve: false });
       res.status(200).json({ success: true });
     } catch (err) {
@@ -4811,9 +4828,9 @@ exports.unpaidPaymentSweep = onSchedule(
     if (found.length) {
       try {
         await sendEmail({
-          to: ADMIN_TO,
-          subject: `⚠ ${CARD} missed ${found.length} paid order${found.length === 1 ? "" : "s"}`,
-          html: alertHtml(found, CARD),
+          to: ADMIN_TO(),
+          subject: `⚠ ${CARD()} missed ${found.length} paid order${found.length === 1 ? "" : "s"}`,
+          html: alertHtml(found, CARD()),
           secret: RESEND_API_KEY.value(),
         });
         const at = new Date().toISOString();
@@ -4943,10 +4960,13 @@ async function runFirestoreBackup({ trigger, budgetMs }) {
   const { backupOutcome } = require("./shopSettings");
   const extra = { trigger, serviceAccount: await serviceAccountEmail().catch(() => ""), bucket: bucketName };
   try {
-    const client = new admin.firestore.v1.FirestoreAdminClient();
+    // In the shared system a shop's backup is the copy of its own folder below. Google's managed export takes the whole
+    // database (every shop), so it is the platform's nightly job, never a shop's (docs/shared-system.md).
+    const ownProject = !currentShop();
+    const client = ownProject ? new admin.firestore.v1.FirestoreAdminClient() : null;
 
     // Did the previous export actually finish? (It runs after the function returns.)
-    if (previous?.export?.operation) {
+    if (ownProject && previous?.export?.operation) {
       try {
         const op = await client.checkExportDocumentsProgress(previous.export.operation);
         extra.previousExport = { operation: previous.export.operation, done: !!op.done, error: op.error ? String(op.error.message || op.error).slice(0, 300) : "" };
@@ -4956,7 +4976,8 @@ async function runFirestoreBackup({ trigger, budgetMs }) {
     }
 
     let exportResult;
-    try {
+    if (!ownProject) exportResult = { ok: false, skipped: true, operation: "", error: "", permission: false };
+    else try {
       const [operation] = await client.exportDocuments({
         name: client.databasePath(projectId, "(default)"),
         outputUriPrefix: `gs://${bucketName}/backups/${day}/export`,
@@ -5060,6 +5081,13 @@ async function handleBackupNow(req, res) {
 exports.tick = onScheduleReal(
   { schedule: `every ${TICK_EVERY_MINUTES} minutes`, timeoutSeconds: TICK_TIMEOUT_SECONDS, memory: "1GiB", secrets: tickRegistry.secrets() },
   async () => {
-    const { ran } = await runTick({ jobs: tickRegistry.jobs, db });
-    if (ran.length) console.log("tick ran:", ran.join(", "));
+    // Once for every shop that isn't closed, each in its own folder (shopEntry.js eachShop): a shop's sweeps read and
+    // write only that shop, and one shop's failure never stops the others.
+    const results = await shopEntry.eachShop(async shop => {
+      const { ran } = await runTick({ jobs: tickRegistry.jobs, db });
+      if (ran.length) console.log(`tick ran${shop ? ` for ${shop.id}` : ""}:`, ran.join(", "));
+      return ran;
+    });
+    const failed = results.filter(r => !r.ok);
+    if (failed.length) console.error(`tick failed for ${failed.length} shop(s):`, failed.map(f => f.id).join(", "));
   });

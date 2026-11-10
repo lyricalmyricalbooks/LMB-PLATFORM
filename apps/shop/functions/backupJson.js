@@ -5,12 +5,21 @@
 // Layout in the bucket: <folder>/<collection>.ndjson.gz (one {"path","data"} line per document),
 // <folder>/_group_<name>.ndjson.gz for sub-collections (books/{id}/private/...), <folder>/backup.json (every document
 // in one JSON file, stored gzip-compressed; this is what Settings › Backups & export downloads) and manifest.json last.
+//
+// Shared system (LMB-PLATFORM docs/shared-system.md): run inside a shop, every path is written without the shop's
+// folder in front (`books/a`, not `shops/<id>/books/a`), so a copy restores into any shop's folder.
 const zlib = require("zlib");
+const { shopRelative } = require("./shopScope");
 
 /** Collections that are only short-lived counters; restoring them would be wrong, so they are left out. */
 const SKIP_COLLECTIONS = ["rate-limits"];
-/** Sub-collection names, copied with collection-group reads (firestore.rules lists books/{id}/private only). */
+/** Sub-collection names (firestore.rules lists books/{id}/private only). */
 const SUBCOLLECTION_GROUPS = ["private"];
+/**
+ * The collections whose documents hold each sub-collection. A collection-group read would cross every shop, so each
+ * parent's sub-collection is read on its own. A new sub-collection name goes in both lists.
+ */
+const SUBCOLLECTION_PARENTS = { private: ["books"] };
 const BACKUP_FORMAT = "press-firestore-json/1";
 /** The one-file copy of a backup folder, offered as a download (backupAdmin.js). */
 const DOWNLOAD_FILE = "backup.json";
@@ -26,7 +35,7 @@ function encodeValue(v) {
   if (typeof v !== "object") return String(v);
   if (typeof v.toMillis === "function" && "seconds" in v && "nanoseconds" in v) return { __fs: "timestamp", s: Number(v.seconds), n: Number(v.nanoseconds) };
   if (typeof v.latitude === "number" && typeof v.longitude === "number" && !isPlainObject(v)) return { __fs: "geo", lat: v.latitude, lng: v.longitude };
-  if (typeof v.path === "string" && typeof v.collection === "function") return { __fs: "ref", path: v.path };
+  if (typeof v.path === "string" && typeof v.collection === "function") return { __fs: "ref", path: shopRelative(v.path) };
   if (v instanceof Uint8Array) return { __fs: "bytes", b64: Buffer.from(v).toString("base64") };
   if (typeof v.toUint8Array === "function") return { __fs: "bytes", b64: Buffer.from(v.toUint8Array()).toString("base64") };
   const out = {};
@@ -64,10 +73,33 @@ async function dumpQuery(base, { idField, pageSize, deadline, now }) {
     let q = base.orderBy(idField).limit(pageSize);
     if (last) q = q.startAfter(last);
     const snap = await q.get();
-    for (const d of snap.docs) lines.push(JSON.stringify({ path: d.ref.path, data: encodeValue(d.data()) }));
+    for (const d of snap.docs) lines.push(docLine(d));
     if (snap.docs.length < pageSize) return { lines, complete: true };
     last = snap.docs[snap.docs.length - 1];
   }
+}
+const docLine = d => JSON.stringify({ path: shopRelative(d.ref.path), data: encodeValue(d.data()) });
+
+/** Reads sub-collection `name` under every document of each parent collection, a few parents at a time. */
+async function dumpSubcollection(db, name, { idField, pageSize, deadline, now }) {
+  const lines = [];
+  for (const parent of SUBCOLLECTION_PARENTS[name] || []) {
+    let last = null;
+    for (;;) {
+      if (now() >= deadline) return { lines, complete: false };
+      let q = db.collection(parent).orderBy(idField).limit(pageSize);
+      if (last) q = q.startAfter(last);
+      const snap = await q.get();
+      for (let i = 0; i < snap.docs.length; i += 10) {
+        if (now() >= deadline) return { lines, complete: false };
+        const subs = await Promise.all(snap.docs.slice(i, i + 10).map(d => d.ref.collection(name).get()));
+        for (const sub of subs) for (const d of sub.docs) lines.push(docLine(d));
+      }
+      if (snap.docs.length < pageSize) break;
+      last = snap.docs[snap.docs.length - 1];
+    }
+  }
+  return { lines, complete: true };
 }
 
 async function saveGzip(bucket, name, lines) {
@@ -86,8 +118,8 @@ async function runJsonBackup({ db, bucket, folder, idField, deadline = Infinity,
   const refs = await db.listCollections();
   const ids = refs.map(r => r.id).filter(id => !SKIP_COLLECTIONS.includes(id)).sort();
   const parts = [
-    ...ids.map(id => ({ id, file: `${folder}/${id}.ndjson.gz`, query: () => db.collection(id) })),
-    ...SUBCOLLECTION_GROUPS.map(name => ({ id: `group:${name}`, file: `${folder}/_group_${name}.ndjson.gz`, query: () => db.collectionGroup(name) })),
+    ...ids.map(id => ({ id, file: `${folder}/${id}.ndjson.gz`, dump: opts => dumpQuery(db.collection(id), opts) })),
+    ...SUBCOLLECTION_GROUPS.map(name => ({ id: `group:${name}`, file: `${folder}/_group_${name}.ndjson.gz`, dump: opts => dumpSubcollection(db, name, opts) })),
   ];
   const collections = [];
   const allLines = [];
@@ -96,7 +128,7 @@ async function runJsonBackup({ db, bucket, folder, idField, deadline = Infinity,
   for (const part of parts) {
     if (now() >= deadline) { collections.push({ id: part.id, file: part.file, documents: 0, complete: false, error: "Ran out of time" }); continue; }
     try {
-      const { lines, complete } = await dumpQuery(part.query(), { idField, pageSize, deadline, now });
+      const { lines, complete } = await part.dump({ idField, pageSize, deadline, now });
       bytes += await saveGzip(bucket, part.file, lines);
       documents += lines.length;
       allLines.push(...lines);
@@ -130,4 +162,4 @@ function exportRefusedForPermission(err) {
   return !!err && (err.code === 7 || /PERMISSION_DENIED|does not have permission/i.test(String(err.message)));
 }
 
-module.exports = { SKIP_COLLECTIONS, SUBCOLLECTION_GROUPS, BACKUP_FORMAT, DOWNLOAD_FILE, encodeValue, decodeValue, runJsonBackup, exportRefusedForPermission };
+module.exports = { SKIP_COLLECTIONS, SUBCOLLECTION_GROUPS, SUBCOLLECTION_PARENTS, BACKUP_FORMAT, DOWNLOAD_FILE, encodeValue, decodeValue, runJsonBackup, exportRefusedForPermission };

@@ -15,6 +15,7 @@
 "use strict";
 
 const crypto = require("crypto");
+const { shopRelative } = require("./shopScope");
 
 /** Copy widths for book photos — the same ladder as the browser upload (admin/prepareImage.ts BOOK_PHOTO_WIDTHS). */
 const BOOK_PHOTO_WIDTHS = [480, 640, 960, 1600, 2400, 3200];
@@ -197,7 +198,9 @@ async function runImageCopies({ db, bucket, sharp, deadline, now = Date.now(), l
 
 /** Whether a Storage object is a picture or video that should carry the year-long cache header. */
 function wantsLongCache(file) {
-  const name = file.name || "";
+  // Inside a shop, file names carry the shop's folder in front (shops/<id>/backups/...); the skip list names the
+  // shop's own folders.
+  const name = shopRelative(file.name || "");
   if (CACHE_SKIP_PREFIXES.some(p => name.startsWith(p)) || name.endsWith("/")) return false;
   const type = file.metadata?.contentType || "";
   if (!/^(image|video)\//.test(type)) return false;

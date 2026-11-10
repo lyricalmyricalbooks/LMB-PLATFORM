@@ -2,6 +2,25 @@
 
 Server side: Stripe/PayPal, webhooks, refunds, stock holds, gift cards, discounts, email, privacy and the anonymous-abuse limits. Never weaken payment, inventory or webhook authority. The repo-wide rules are in the root `CLAUDE.md`.
 
+## One server for every shop (10 November 2026, the shared system)
+
+One deploy of this code runs every shop (LMB-PLATFORM `docs/shared-system.md`). `shopScope.js` is the wall: index.js's
+`admin` is `scopedAdmin(sdk)`, so `admin.firestore()` / `db` reach only `shops/<id>/…` of the shop the code runs for,
+`admin.storage()` only its file folder, and `admin.auth()` its own sign-in list. `shopEntry.js` finds the shop: triggers
+are made with `onDocument*` from `shopEntry.trigger` (the path you write, e.g. `"orders/{orderId}"`, is moved under
+`shops/{shopId}/`), `onRequest` from `shopEntry.request` reads `?shop=<id>`, and the tick runs once per shop.
+- **Never read the database, a file or a sign-in at load time** (a module-level `db.collection(...)`): outside a shop it
+  throws `outside_shop`. Make it a function (`SHIPPO_CONFIG_DOC()`). `sharedLoad.test.js` loads index.js with the folders on.
+- **Never keep a shop setting in a module constant.** Read `shopConfig.<key>` when the code runs (it is a live view of
+  the current shop's settings); a value passed into a module factory is a function (`ADMIN_TO`, `CARD`, `platformShopId`,
+  `testShop`, `siteUrl`) that the module calls. A service built from settings is `perShop(() => create…())`.
+- **Every address the server writes** (emails, webhooks, payment pages) comes from `functionLink(shopConfig, name,
+  params)`, which adds `?shop=`. The shop's pages use `functionUrl(name, params)`.
+- No collection-group reads (the scoped Firestore refuses them). A sub-collection read across parents is one read per
+  parent (`backupJson.js` `SUBCOLLECTION_PARENTS`). Paths saved or shown go through `shopRelative`.
+- The older handler tests run one shop with the folders off (`SHOP_FOLDERS: "off"`, `vite.config.ts`). New tests of
+  shop-crossing behaviour turn them on (`shopScope.test.js`, `shopEntry.test.js`).
+
 ## Cloud Functions (`functions/index.js`)
 
 - `createStripeCheckoutSession` — secure Stripe session creation.

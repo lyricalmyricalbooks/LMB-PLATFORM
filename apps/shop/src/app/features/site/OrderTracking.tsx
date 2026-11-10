@@ -170,7 +170,7 @@ function OrderTrackingContent() {
     // The download endpoint authorizes via the secret token issued at
     // payment time, not the (guessable) customer email.
     window.open(
-      `${functionUrl("downloadDigitalAsset")}?orderId=${encodeURIComponent(order.id || order.orderId)}&itemId=${encodeURIComponent(itemId)}${variantId ? `&variantId=${encodeURIComponent(variantId)}` : ""}&token=${encodeURIComponent(order.downloadToken)}`,
+      functionUrl("downloadDigitalAsset", { orderId: order.id || order.orderId, itemId, variantId: variantId || undefined, token: order.downloadToken }),
       "_blank"
     );
   };
