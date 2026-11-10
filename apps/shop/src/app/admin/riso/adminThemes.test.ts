@@ -1,11 +1,11 @@
-// Plan 1.26: every admin colour lives in adminThemes.css, and both admin looks (Riso Press, Paper) read well by day
+// Plan 1.26: every admin colour lives in adminThemes.css, and the admin look reads well by day
 // and by night. A colour written anywhere else in the admin's stylesheets fails here, so a new colour becomes a token
 // with a value for every look.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 import { contrastRatio } from "../../features/site/colorSchemes";
-import { ADMIN_LOOKS } from "./adminLook";
+import { ADMIN_LOOK } from "./adminLook";
 
 const SRC = join(__dirname, "../../..");
 const THEMES = join(__dirname, "adminThemes.css");
@@ -29,8 +29,8 @@ function themeRules(): { selector: string; tokens: Record<string, string> }[] {
   }));
 }
 
-/** The tokens an admin page sees under one look and appearance, applying the rules the way the cascade does. */
-function resolved(look: "riso" | "paper" | "ledger" | "pop" | "desk" | "bento", appearance: "day" | "night"): Record<string, string> {
+/** The tokens an admin page sees by day or night, applying the rules the way the cascade does. */
+function resolved(appearance: "day" | "night"): Record<string, string> {
   const rules = themeRules();
   const pick = (selector: string) => {
     const rule = rules.find((r) => r.selector === selector);
@@ -38,17 +38,14 @@ function resolved(look: "riso" | "paper" | "ledger" | "pop" | "desk" | "bento", 
     return rule!.tokens;
   };
   const night = appearance === "night";
-  const other = look !== "riso";
-  const at = `:root[data-admin-look="${look}"]`;
+  const at = `:root[data-admin-look="colophon"]`;
   return {
     ...pick(".rp, .admin-reso"),
     ...pick(".rp:not(.studio-editor)"),
     ...(night ? pick('.rp[data-rp-appearance="dark"], .admin-reso[data-admin-theme="dark"]') : {}),
     ...(night ? pick('.rp:not(.studio-editor)[data-rp-appearance="dark"]') : {}),
-    ...(other && !night ? pick(`${at} .rp:not([data-rp-appearance="dark"]), ${at} .admin-reso:not([data-admin-theme="dark"])`) : {}),
-    ...(other && !night ? pick(`${at} .rp:not(.studio-editor):not([data-rp-appearance="dark"])`) : {}),
-    ...(other && night ? pick(`${at} .rp[data-rp-appearance="dark"], ${at} .admin-reso[data-admin-theme="dark"]`) : {}),
-    ...(other && night ? pick(`${at} .rp:not(.studio-editor)[data-rp-appearance="dark"]`) : {}),
+    ...(night ? pick(`${at} .rp[data-rp-appearance="dark"], ${at} .admin-reso[data-admin-theme="dark"]`) : pick(`${at} .rp:not([data-rp-appearance="dark"]), ${at} .admin-reso:not([data-admin-theme="dark"])`)),
+    ...(night ? pick(`${at} .rp:not(.studio-editor)[data-rp-appearance="dark"]`) : pick(`${at} .rp:not(.studio-editor):not([data-rp-appearance="dark"])`)),
   };
 }
 
@@ -85,35 +82,25 @@ describe("admin themes (plan 1.26)", () => {
     expect(found).toEqual([]);
   });
 
-  it("offers six looks", () => {
-    expect(ADMIN_LOOKS.map((l) => l.id)).toEqual(["riso", "paper", "ledger", "pop", "desk", "bento"]);
-  });
-
-  it("makes the looks differ in more than colour: the rail, the face and the corners", () => {
-    const day = (look: "riso" | "paper" | "ledger" | "pop" | "desk" | "bento") => resolved(look, "day");
-    const rails = new Set(["riso", "paper", "ledger", "pop", "desk", "bento"].map((l) => day(l as any)["--rp-rail"]));
-    expect(rails.size).toBeGreaterThanOrEqual(5);
+  it("has one look, Colophon, with a light rail by day and a dark one by night", () => {
+    expect(ADMIN_LOOK).toBe("colophon");
+    expect(resolved("day")["--rp-rail"]).toBe("#e6e3dc");
+    expect(resolved("night")["--rp-rail"]).toBe("#0f0e0d");
     const css = readFileSync(join(__dirname, "riso.css"), "utf8");
-    for (const look of ["paper", "ledger", "pop", "desk", "bento"]) {
-      expect(css).toContain(`--rp-font-display`);
-      expect(css).toContain(`:root[data-admin-look="${look}"] .rp {`);
-    }
-    const radius = new Set(["riso", "paper", "ledger", "pop", "desk", "bento"].map((l) => day(l as any)["--rp-radius"] ?? "0"));
-    expect(radius.size).toBeGreaterThanOrEqual(3);
+    expect(css).toContain(':root[data-admin-look="colophon"] .rp {');
+    for (const old of ["paper", "ledger", "pop", "desk", "bento"]) expect(css).not.toContain(`data-admin-look="${old}"`);
   });
 
-  describe.each(["riso", "paper", "ledger", "pop", "desk", "bento"] as const)("%s", (look) => {
-    it.each(["day", "night"] as const)("keeps words readable by %s", (appearance) => {
-      const t = resolved(look, appearance);
-      const problems: string[] = [];
-      for (const [fg, bgs] of PAIRS) {
-        for (const bg of bgs) {
-          const ratio = contrastRatio(t[fg], t[bg]);
-          if (ratio === null) problems.push(`${fg} or ${bg} is missing`);
-          else if (ratio < 4.5) problems.push(`${fg} ${t[fg]} on ${bg} ${t[bg]}: ${ratio.toFixed(2)}:1`);
-        }
+  it.each(["day", "night"] as const)("keeps words readable by %s", (appearance) => {
+    const t = resolved(appearance);
+    const problems: string[] = [];
+    for (const [fg, bgs] of PAIRS) {
+      for (const bg of bgs) {
+        const ratio = contrastRatio(t[fg], t[bg]);
+        if (ratio === null) problems.push(`${fg} or ${bg} is missing`);
+        else if (ratio < 4.5) problems.push(`${fg} ${t[fg]} on ${bg} ${t[bg]}: ${ratio.toFixed(2)}:1`);
       }
-      expect(problems).toEqual([]);
-    });
+    }
+    expect(problems).toEqual([]);
   });
 });

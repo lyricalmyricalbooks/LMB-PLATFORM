@@ -3,9 +3,9 @@ import { chosenLook, joinParts, keptFile, keptFileLine } from "./setupHandover";
 
 describe("what the press set up before its shop existed (code plan 18.9)", () => {
   it("the chosen look, with the admin look only when it is one the admin has", () => {
-    expect(chosenLook({ look: "press-riso", adminLook: "paper" })).toEqual({ theme: "press-riso", adminLook: "paper" });
-    expect(chosenLook({ look: "press-riso", adminLook: "neon" })).toEqual({ theme: "press-riso" });
-    expect(chosenLook({ look: "", adminLook: "paper" })).toBeNull();
+    expect(chosenLook({ look: "press-riso" })).toEqual({ theme: "press-riso" });
+    expect(chosenLook({ look: "press-riso", adminLook: "neon" } as any)).toEqual({ theme: "press-riso" });
+    expect(chosenLook({ look: "" })).toBeNull();
     expect(chosenLook(null)).toBeNull();
   });
 
