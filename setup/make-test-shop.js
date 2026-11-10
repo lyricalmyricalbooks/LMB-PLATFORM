@@ -90,11 +90,14 @@ export function testShopSteps({ clients, config, connected, print = () => {} }) 
 
 /** Stripe's answer when the platform's Stripe account hasn't turned on Connect (connected accounts) yet. */
 export const CONNECT_OFF = /signed up for Connect|dashboard\.stripe\.com\/connect/i;
+/** Stripe's answer when it takes new connected accounts only through its newer accounts API (/v2/core/accounts). */
+export const ACCOUNTS_V2_ONLY = /Accounts v1|\/v2\/core\/accounts/i;
 
 /**
- * Step 7 on the test shop: payments can't be connected until the platform's Stripe account has Connect turned on, a
- * one-time choice in Stripe's dashboard. Until then the step waits (the shop is made without payments) instead of
- * stopping the run; it is looked at again on every run, so it connects once Connect is on.
+ * Step 7 on the test shop: payments can't be connected while the platform's Stripe account has Connect off (a one-time
+ * choice in Stripe's dashboard), or while Stripe takes new connected accounts only through its newer accounts API, which
+ * the payments service doesn't use yet. Until then the step waits (the shop is made without payments) instead of
+ * stopping the run; it is looked at again on every run, so it connects once the cause is gone.
  */
 export function paymentsOrWait(step, print = () => {}) {
   return {
@@ -103,9 +106,16 @@ export function paymentsOrWait(step, print = () => {}) {
       try {
         return await step.act(ctx);
       } catch (error) {
-        if (!CONNECT_OFF.test(String(error?.message))) throw error;
-        print("Step 7 waits: the platform's Stripe account has Connect off. Turn it on at https://dashboard.stripe.com/connect (test mode) and run again.");
-        return { detail: { waiting: "Stripe Connect is off for the platform's Stripe account" } };
+        const said = String(error?.message);
+        if (CONNECT_OFF.test(said)) {
+          print("Step 7 waits: the platform's Stripe account has Connect off. Turn it on at https://dashboard.stripe.com/connect (test mode) and run again.");
+          return { detail: { waiting: "Stripe Connect is off for the platform's Stripe account" } };
+        }
+        if (ACCOUNTS_V2_ONLY.test(said)) {
+          print("Step 7 waits: Stripe makes new connected accounts only through its newer accounts API, which the payments service doesn't use yet.");
+          return { detail: { waiting: "Stripe asks for its newer accounts API to make the shop's payments account" } };
+        }
+        throw error;
       }
     },
   };

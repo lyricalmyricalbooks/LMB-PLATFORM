@@ -148,6 +148,9 @@ test("with Connect off in the platform's Stripe account, step 7 waits and the te
   const waited = await paymentsOrWait(connectOff, (line) => lines.push(line)).act({});
   assert.equal(waited.detail.waiting, "Stripe Connect is off for the platform's Stripe account");
   assert.match(lines.at(-1), /dashboard\.stripe\.com\/connect/);
+  // Stripe asking for its newer accounts API waits too.
+  const v2Only = { ...connectOff, act: async () => { throw new Error("Stripe no longer recommends Accounts v1 for new Connect integrations. Create connected accounts with POST /v2/core/accounts instead."); } };
+  assert.match((await paymentsOrWait(v2Only).act({})).detail.waiting, /newer accounts API/);
   // Any other refusal still stops the run.
   await assert.rejects(paymentsOrWait({ ...connectOff, act: async () => { throw new Error("card declined"); } }).act({}), /card declined/);
   // The test shop's own step 7 is wrapped once payments are connected.
