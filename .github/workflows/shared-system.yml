@@ -5,7 +5,11 @@ name: Shared system
 #   release          the staged update: the shared test project first, then the live one (run-shared.js); "dry run"
 #                    only says what it would do
 #   restore-drill    the monthly restore drill once, now (services/health/run.js drill)
+# Every merge to main also sends a new version to the test shop only (Julian's choice, 10 November 2026), so it always
+# shows main. Real shops still get a release only through the by-hand release job.
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       job:
@@ -86,7 +90,7 @@ jobs:
           if [ "$APPLY" = "true" ]; then node setup/ready-shared-project.js "$PROJECT" --apply; else node setup/ready-shared-project.js "$PROJECT"; fi
 
       - name: The release's tools
-        if: inputs.job == 'release'
+        if: inputs.job == 'release' || github.event_name == 'push'
         run: |
           npm install --global "$FIREBASE_TOOLS"
           # The release check's browser (run-shared.js loads playwright), the version the shop copy pins.
@@ -105,3 +109,14 @@ jobs:
       - name: The restore drill
         if: inputs.job == 'restore-drill'
         run: node services/health/run.js drill
+
+      - name: Update the test shop to this merge
+        if: github.event_name == 'push'
+        env:
+          VERSION: 1.1.${{ github.run_number }}
+        run: |
+          # A local tag is enough: the builder makes its worktree from this checkout. The live shared project is left
+          # out on purpose, so a merge only ever reaches the test shop.
+          git tag "release-$VERSION" "$GITHUB_SHA"
+          export SHARED_SHOPS_PROJECT="" RELEASE_INBOX="$PLATFORM_ADMIN_EMAIL" RELEASE_BUILD_ROOT="$RUNNER_TEMP/builds"
+          node services/release-runner/run-shared.js "$VERSION"
