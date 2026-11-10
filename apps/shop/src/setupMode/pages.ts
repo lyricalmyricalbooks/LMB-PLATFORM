@@ -64,7 +64,7 @@ export interface GuideStep {
  */
 export type SetupGroup = "press" | "shop" | "create";
 export const SETUP_GROUPS: ReadonlyArray<{ id: SetupGroup; title: string }> = Object.freeze([
-  { id: "press", title: "Your press" },
+  { id: "press", title: "Your brand" },
   { id: "shop", title: "Your shop" },
   { id: "create", title: "Create" },
 ]);

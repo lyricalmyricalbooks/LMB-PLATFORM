@@ -112,7 +112,7 @@ function FreeAddressLine({ press, save, check, inSetup }: FreeLineProps) {
             onClick={() => { setEditing(true); setDraft(press.freeName ?? ""); setError(""); }}>Change name</button>
         )}
       </p>
-      {press.freeNameNeeded && <p className="rp-hint" style={{ margin: 0 }}>Your press's name can't be used here. Pick a name.</p>}
+      {press.freeNameNeeded && <p className="rp-hint" style={{ margin: 0 }}>Your brand name can't be used here. Pick a name.</p>}
       {editing && (
         <form onSubmit={(e) => { e.preventDefault(); if (name && !busy) void keep(draft.trim(), "name"); }} style={{ display: "grid", gap: 12, maxWidth: 520 }}>
           <TextField label="New name" value={draft} placeholder="moth-books" autoCapitalize="none" autoCorrect="off" spellCheck={false}
@@ -126,7 +126,7 @@ function FreeAddressLine({ press, save, check, inSetup }: FreeLineProps) {
           )}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             <PrimaryButton type="submit" size="sm" busy={busy === "name"} disabled={!name || !!busy || !!refusal}>Use this name</PrimaryButton>
-            {press.freeName && <GhostButton size="sm" busy={busy === "press"} disabled={!!busy} onClick={() => void keep("", "press")}>Use my press's name</GhostButton>}
+            {press.freeName && <GhostButton size="sm" busy={busy === "press"} disabled={!!busy} onClick={() => void keep("", "press")}>Use my brand name</GhostButton>}
             {!press.freeNameNeeded && <GhostButton size="sm" disabled={!!busy} onClick={() => { setEditing(false); setError(""); }}>Cancel</GhostButton>}
           </div>
         </form>

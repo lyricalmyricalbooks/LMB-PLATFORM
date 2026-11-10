@@ -53,7 +53,7 @@ describe("the setup guide", () => {
     expect(steps.map((s) => s.id)).toEqual(["plan", "details", "books", "look", "cards", "domain", "open"]);
     expect(guideProgress(steps)).toEqual({ done: 0, total: 7 });
     expect(setupGroups(steps).map((g) => [g.title, g.steps.map((s) => s.id), g.total])).toEqual([
-      ["Your press", ["plan", "details"], 2], ["Your shop", ["books", "look", "cards", "domain"], 4], ["Create", ["open"], 1],
+      ["Your brand", ["plan", "details"], 2], ["Your shop", ["books", "look", "cards", "domain"], 4], ["Create", ["open"], 1],
     ]);
   });
 

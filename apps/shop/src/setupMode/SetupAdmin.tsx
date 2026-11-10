@@ -213,7 +213,7 @@ export function OpensWithShop({ page, line = "", onOpenShop, onBack }: { page: s
 /** Why each step matters, shown when its row is open. Written in book words; the guide shows the shop's own. */
 const STEP_WHY: Record<string, string> = {
   plan: "Your website, your stockroom or both. You can change it until your shop is made.",
-  details: "Your press's name, what you sell and your country set your shop's words, money and taxes.",
+  details: "Your brand's name, what you sell and your country set your shop's words, money and taxes.",
   look: "Your words and books stay the same in every look. Change any part later in Design.",
   books: "Your old shop's product file brings your books in as drafts to check.",
   domain: "Use a domain you have, or buy one.",
@@ -395,10 +395,10 @@ function PressDetails({ press, lists, save }: { press: SetupPress; lists: SetupL
   };
   return (
     <>
-      <PageHeader title="General" description="Your press's details. They go into your shop when it opens, and you can change them any time." />
-      <SectionCard title="Your press" collapsible={false}>
+      <PageHeader title="General" description="Your brand's details. They go into your shop when it opens, and you can change them any time." />
+      <SectionCard title="Your brand" collapsible={false}>
         <form onSubmit={submit} style={{ display: "grid", gap: 16, maxWidth: 520 }}>
-          <TextField label="Press name" value={name} maxLength={120} autoComplete="organization" onChange={(e) => setName(e.target.value)} />
+          <TextField label="Brand name" value={name} maxLength={120} autoComplete="organization" onChange={(e) => setName(e.target.value)} />
           <SelectField label="What you sell" value={sells} onChange={(e) => setSells(e.target.value)}>
             <option value="">Not said yet</option>
             {lists.sells.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}

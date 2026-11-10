@@ -212,7 +212,7 @@ describe("Get started, step 1: the press's details (plan 17.2)", () => {
     await mount({ waitForWelcome: false });
     expect(text()).toContain("Get started · Step 1 of 8");
     expect(text()).not.toContain("Choose your look");
-    expect((field("Press name") as HTMLInputElement).value).toBe("Moth Press");
+    expect((field("Brand name") as HTMLInputElement).value).toBe("Moth Press");
     expect((field("Country") as HTMLSelectElement).value).toBe("Canada");
   });
 

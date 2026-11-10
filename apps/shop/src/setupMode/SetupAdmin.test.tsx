@@ -284,7 +284,7 @@ describe("the admin in setup mode (code plan 18.6)", () => {
       const el = await mount(door(), "#settings/plan");
       act(() => terms(el).click());
       expect(openButton(el).disabled).toBe(true);
-      expect(el.textContent).toContain("Your press · needed");
+      expect(el.textContent).toContain("Your brand · needed");
       expect(el.textContent).toContain("Add your country.");
       expect(el.textContent).toContain("Fill in what's marked above first.");
       const go = [...el.querySelectorAll("main button")].find((b) => b.textContent === "Add details") as HTMLButtonElement;
@@ -585,7 +585,7 @@ describe("your web address in setup", () => {
     (d as any).checkFreeName = vi.fn(async (_id: string, name: string) => ({ name, address: `${name}.shops.example`, problem: "", available: name !== "moth-press",
       suggestions: name === "moth-press" ? ["moth-press-shop", "moth-press-studio"] : [] }));
     const el = await mount(d, "#settings/general", pressed);
-    expect(el.textContent).toContain("Your press's name can't be used here. Pick a name.");
+    expect(el.textContent).toContain("Your brand name can't be used here. Pick a name.");
     const input = [...el.querySelectorAll("main input")].find((i) => i.getAttribute("placeholder") === "moth-books") as HTMLInputElement;
     expect(input).toBeTruthy();
     await act(async () => { typeInto(input, "Moth Press"); });

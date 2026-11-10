@@ -40,8 +40,8 @@ export function pressDetailsProblems(d: PressDetails): Partial<Record<PressDetai
   const out: Partial<Record<PressDetailsField, string>> = {};
   const name = d.name.trim();
   const email = d.email.trim();
-  if (!name) out.name = "Add your press name.";
-  else if (name.length > NAME_MAX) out.name = `Keep the press name to ${NAME_MAX} characters.`;
+  if (!name) out.name = "Add your brand name.";
+  else if (name.length > NAME_MAX) out.name = `Keep the brand name to ${NAME_MAX} characters.`;
   if (!email) out.email = "Add an email address customers can write to.";
   else if (!EMAIL.test(email)) out.email = "That email doesn't look right. Check it has an @ and a domain.";
   if (!d.street.trim()) out.street = "Add the street address your orders ship from.";
