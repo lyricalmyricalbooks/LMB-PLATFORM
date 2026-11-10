@@ -73,6 +73,17 @@ export function sharedStores({ fetch, token, projectId, databaseUrl = "" }) {
 }
 
 /**
+ * The shared project's file buckets, where each shop's files sit under shops/<id>/: `SHARED_SHOPS_BUCKETS` (comma
+ * separated) when set, else the project's default bucket and the stockroom's.
+ */
+export function sharedBuckets(env = {}) {
+  const listed = String(env.SHARED_SHOPS_BUCKETS ?? "").split(",").map((b) => b.trim()).filter(Boolean);
+  if (listed.length) return listed;
+  const projectId = String(env.SHARED_SHOPS_PROJECT ?? "").trim();
+  return projectId ? [`${projectId}.firebasestorage.app`, `${projectId}-stockroom`] : [];
+}
+
+/**
  * Where the platform reads and writes each shop's data: `{ shared, shopDb(shopId), stockroomDb(shopId) }`. With
  * `SHARED_SHOPS_PROJECT` set, every shop is a folder in that project (`shared` is its sharedStores); without it, each
  * shop's own project, as before the shared system. The hosted server and its jobs build theirs here, so every platform

@@ -28,6 +28,7 @@ export const NOT_CONNECTED = Object.freeze({
   domains: { words: "Web addresses for shops aren't switched on yet.", waitsOn: "the domain service's hosted home, which deploys the shop's pages (code plan 2.9)" },
   bookkeeping: { words: "The QuickBooks link isn't switched on yet.", waitsOn: "the platform's QuickBooks app keys and its connection records (docs/accounting.md)" },
   selfChecks: { words: "The daily self-checks aren't switched on here yet.", waitsOn: "the deploy tool and release builds on the server, like the release runner" },
+  usageMeters: { words: "Each shop's use isn't metered yet.", waitsOn: "the shared system (SHARED_SHOPS_PROJECT and SHARED_SHOPS_DOMAIN in the server's settings)" },
   runningCosts: { words: "Running costs can't be read yet, so nothing is added to bills.", waitsOn: "Google's billing export switched on (services/costs/README.md), or the shared system's per-shop meters" },
   trialTips: { words: "Setup tips aren't switched on yet.", waitsOn: "the TRIAL_TIPS_SECRET secret (at least 16 characters) in Secret Manager" },
   checkups: { words: "The monthly shop check-up isn't switched on yet.", waitsOn: "the CHECKUP_SECRET secret (at least 16 characters) in Secret Manager" },

@@ -66,7 +66,9 @@ import { createRepairQueue } from "../control-room/repairs.js";
 import { createApi } from "../signup/api.js";
 import { createShopMaker } from "../signup/shopMaker.js";
 import { SHARED_STEP_PLAN, sharedShopRun } from "../setup/real.js";
-import { shopStores } from "../clients/shared.js";
+import { sharedBuckets, shopStores } from "../clients/shared.js";
+import { firestoreUsageMeters, runUsageMeters } from "../services/usage/meters.js";
+import { monitoringUsage, storageUsage, usageSources } from "../services/usage/sources.js";
 import { createSignup } from "../signup/signup.js";
 import { createBillingFromEnv, readBillingConfig } from "../services/billing/index.js";
 import { createPaymentWay } from "../services/billing/paymentWay.js";
@@ -319,7 +321,17 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const shopSocial = createShopSocial({ admins, registry, social: null, now });
   const salesChannels = createSalesChannels({ admins, registry, shopData, stockroomData, now });
   // The billing export to BigQuery isn't on yet (19.15): the Costs page shows its "not on yet" state.
-  const costsDesk = createCostsDesk({ registry, reader: createCostReader({}), settings: live, admins, now });
+  const costReader = createCostReader({});
+  const costsDesk = createCostsDesk({ registry, reader: costReader, settings: live, admins, now });
+  // Each shop's use in the shared system (services/usage): the daily usage-meters job writes it, running costs bill by it.
+  const sharedProject = String(env.SHARED_SHOPS_PROJECT ?? "").trim();
+  const usageMeters = sharedRun ? firestoreUsageMeters(platform) : null;
+  const usage = sharedRun ? {
+    run: () => runUsageMeters({
+      registry, meters: usageMeters, costs: costReader, sharedProject, now,
+      sources: usageSources({ monitoring: monitoringUsage({ fetch, token, projectId: sharedProject }), storage: storageUsage({ fetch, token, buckets: sharedBuckets(env) }), sentLog }),
+    }),
+  } : null;
   const dataExports = createDataExports({
     shopData, stockroomData, storage: notConnectedClient(NOT_CONNECTED.exportFiles, ["write", "signedUrl"]), store: dataExportStore, registry, auditLog, activity, email,
     roleIn: (who, shopId) => accounts.roleIn(who, shopId), admins, now,
@@ -337,7 +349,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const closing = createClosingSweep({ registry, auditLog, billing, email, projects: notConnectedClient(NOT_CONNECTED.projectDeletion, ["deleteProject"]), settings, now: nowMs });
 
   // What the jobs can run (server/jobs.js reads these); the jobs page's "Run now" runs the ones that need nothing more.
-  const parts = { sharedShops: Boolean(sharedRun), chitchats, chitchatsStores, env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups };
+  const parts = { sharedShops: Boolean(sharedRun), usage, usageMeters, costReader, chitchats, chitchatsStores, env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups };
   const runNow = {
     "dropped-apps": () => billing.closeDroppedApps(),
     "every-app": () => billing.giveEveryApp(),

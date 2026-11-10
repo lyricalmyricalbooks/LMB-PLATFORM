@@ -14,6 +14,7 @@
 //   a storefront page (/, /books/x, …)             the shop's page as first drawn, or the app's blank page (spa.html)
 // An address that names no shop, or a closed shop, gets a short page saying so. Nothing here writes.
 
+const { usageLine } = require("./usageLog");
 const { isShopId } = require("./shopScope");
 
 /** Files every shop publishes for itself, served from its own site folder. */
@@ -72,7 +73,7 @@ const page = (title, words) => `<!doctype html><html lang="en"><head><meta chars
  * @param {(id: string) => Promise<object|null>} deps.loadShop  shopEntry's record reader (cached)
  * @param {() => string} deps.shellUrl  where the app's blank page is (the shared site's /spa.html)
  */
-function frontDoor({ rootDb, bucket, loadShop, shellUrl, fetch = globalThis.fetch, now = () => Date.now(), log = console }) {
+function frontDoor({ rootDb, bucket, loadShop, shellUrl, fetch = globalThis.fetch, now = () => Date.now(), log = console, usage = usageLine }) {
   const addresses = new Map();
   let shell = null;
 
@@ -107,12 +108,20 @@ function frontDoor({ rootDb, bucket, loadShop, shellUrl, fetch = globalThis.fetc
   }
 
   return async function answer(req, res) {
-    const send = (status, type, body, cache = "no-cache") => res.status(status).set("Content-Type", type).set("Cache-Control", cache).send(body);
+    let metered = null;
+    const send = (status, type, body, cache = "no-cache") => {
+      // The shop's web traffic, by size (usageLog.js): what each shop's meter counts for the pages it serves.
+      if (metered) {
+        try { usage({ shop: metered, kind: "page", bytes: req.method === "HEAD" ? 0 : Buffer.byteLength(body ?? "") }); } catch { /* never breaks the answer */ }
+      }
+      return res.status(status).set("Content-Type", type).set("Cache-Control", cache).send(body);
+    };
     if (req.method !== "GET" && req.method !== "HEAD") return send(405, TYPES[".txt"], "Only reading is possible here.");
     const host = hostOf(req);
     const shopId = host ? await shopIdFor(host) : null;
     const shop = shopId ? await loadShop(shopId) : null;
     if (!shop) return send(404, TYPES[".html"], page("There is no shop here", "This address isn't linked to a shop. Check the address, or ask the shop for its current one."));
+    metered = shop.id;
     if (shop.status === "closed") return send(410, TYPES[".html"], page("This shop has closed", "Thank you for visiting. This shop is no longer open."));
 
     const pathname = String(req.path || "/");

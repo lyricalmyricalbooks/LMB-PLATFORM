@@ -95,6 +95,15 @@ needed a Google organization before any shop could be made ("In the queue") and 
   is the free address for a shared shop. A shared shop is live for health, backups and team sync
   (`rings.js` `notLive`), but gets no per-project release (`leftOut`). The nightly backup exports the shared project's
   two databases once for all its shops; the monthly restore drill still covers only shops with a project of their own.
+- **What each shop uses (the meters).** The shared server writes one usage line per request, change and tick
+  (`functions/usageLog.js`: the shop and its time) and the front door one per page answered (the shop and its size).
+  Two log-based metrics in the shared project count them by shop (`server/setup-usage-metrics.js`, run once with `--apply`).
+  Each night `services/usage/meters.js` writes every shop's month so far to `usage/{shopId}_{YYYY-MM}` in the
+  platform's database: server time, memory time, web traffic, files kept (the bucket under `shops/<id>/`) and emails
+  sent. From the 3rd it splits last month's bill for the shared project across the shops by their use at list prices,
+  in whole cents that add up to the bill exactly, and marks the month `reconciled` (never rewritten). Until the billing
+  export is set up, the meters run and nothing is split. Database reads and writes are not counted per shop yet: their
+  cost is spread with the rest by use.
 - **Backups.** The managed Firestore export would copy every shop, so inside a shop only the server's own document copy
   runs. Its paths carry no shop folder (`books/a`), and `scripts/restore-json-backup.mjs --shop <id>` puts them back
   into that shop's folder only.
@@ -127,7 +136,7 @@ app off. The per-shop cost meters (phase 7) are what the plan charges by.
 | 8 | Test shop rebuilt in the shared test project (`lmb-test-shop`) with a test purchase | |
 
 Left for later in phase 7: the domain service adds an own domain to the shared Hosting site and to `addresses/`; the
-per-shop cost meters; the staged updates (one release of the shared project, then each shop's pages); a restore drill
+staged updates (one release of the shared project, then each shop's pages); a restore drill
 of the shared project. A Shippo or PayPal webhook set up by hand needs `?shop=<id>` on its address. The tick runs every
 shop in one five-minute run; it is spread out once there are many shops. Nothing is deployed from these copies to a
 live shop until phase 8 (the per-project test shop build is on hold).

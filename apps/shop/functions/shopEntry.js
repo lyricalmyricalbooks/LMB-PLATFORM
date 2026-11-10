@@ -10,6 +10,7 @@
 
 const { currentShop, foldersOn, isShopId, runInShop } = require("./shopScope");
 const { configForShop } = require("./shopConfig");
+const { timed, usageLine } = require("./usageLog");
 
 const RECORD_TTL_MS = 30 * 1000;
 
@@ -17,9 +18,12 @@ const RECORD_TTL_MS = 30 * 1000;
  * @param {object} deps
  * @param {() => any} deps.rootDb Firestore at the database root (unscoped), read only for shop records
  * @param {object} [deps.env] process.env
+ * @param {(entry: object) => void} [deps.usage] the usage line writer (usageLog.js)
  */
-function shopEntries({ rootDb, env = process.env, now = () => Date.now(), log = console } = {}) {
+function shopEntries({ rootDb, env = process.env, now = () => Date.now(), log = console, usage = usageLine } = {}) {
   const cache = new Map();
+  /** Runs work in its shop and writes the shop's usage line (usageLog.js): the server time each shop's meter counts. */
+  const inShop = (shop, kind, fn) => timed(shop.id, kind, () => runInShop(shop, fn), { usage, now });
 
   /** The shop for an id, with its config; null when there is no such shop. Cached for half a minute. */
   async function loadShop(id) {
@@ -65,7 +69,7 @@ function shopEntries({ rootDb, env = process.env, now = () => Date.now(), log = 
     }
     const shop = await loadShop(id);
     if (!shop) { log.warn?.(`A change in shops/${id} has no shop record; skipped.`); return undefined; }
-    return runInShop(shop, () => handler(event));
+    return inShop(shop, "event", () => handler(event));
   };
 
   /** The shop a web request is for: ?shop=<id>. */
@@ -84,7 +88,7 @@ function shopEntries({ rootDb, env = process.env, now = () => Date.now(), log = 
     }
     const shop = isShopId(id) ? await loadShop(id) : null;
     if (!shop) return res.status(404).json({ error: "There is no shop at this address.", code: "no_shop" });
-    return runInShop(shop, () => handler(req, res));
+    return inShop(shop, "request", () => handler(req, res));
   };
 
   /** Runs fn once for every shop that isn't closed, a few at a time; one shop's failure never stops the others. */
@@ -97,7 +101,7 @@ function shopEntries({ rootDb, env = process.env, now = () => Date.now(), log = 
       while (next < shops.length) {
         const shop = shops[next++];
         try {
-          results.push({ id: shop.id, ok: true, value: await runInShop(shop, () => fn(currentShop())) });
+          results.push({ id: shop.id, ok: true, value: await inShop(shop, "tick", () => fn(currentShop())) });
         } catch (err) {
           log.error?.(`shop ${shop.id}:`, err?.message || err);
           results.push({ id: shop.id, ok: false, error: String(err?.message || err).slice(0, 300) });

@@ -85,6 +85,11 @@ test("the per-shop totals row 15.17's spend guards read: shops only", () => {
     "moth-press": { cents: 1000, currency: "CAD" },
     "fern-press": { cents: 300, currency: "USD" },
   });
+  // Two shops in the shared system share their project: its cost is no one shop's (the usage meters split it).
+  const shared = SHOPS.map((row) => (row.shopId === "owl-press" || row.shopId === "moth-press" ? { ...row, projectId: "lmb-test-shop", shared: true } : row));
+  const sharedCosts = { projects: [{ projectId: "lmb-test-shop", currency: "CAD", netCents: 9000 }, ...costs.projects] };
+  assert.equal(costPerShop({ rows: shared, costs: sharedCosts })["owl-press"], undefined);
+  assert.equal(costPerShop({ rows: shared, costs: sharedCosts })["moth-press"], undefined);
 });
 
 test("the control room's Costs: admins only, this month, and a plain empty state until the export is on", async () => {

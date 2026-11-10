@@ -20,7 +20,7 @@ const FILES = {
   "shops/press-b/site/index.html": "<html>B home</html>",
 };
 
-function door({ files = FILES } = {}) {
+function door({ files = FILES, usage = () => {} } = {}) {
   const reads = { addresses: 0, files: [], shell: 0 };
   const rootDb = () => ({
     collection: name => ({
@@ -43,7 +43,7 @@ function door({ files = FILES } = {}) {
     }),
   });
   const fetch = async url => { reads.shell++; expect(url).toBe("https://lmb-test-shop.web.app/spa.html"); return { ok: true, text: async () => "<html>blank app</html>" }; };
-  const answer = frontDoor({ rootDb, bucket, loadShop: async id => SHOPS[id] ?? null, shellUrl: () => "https://lmb-test-shop.web.app/spa.html", fetch, log: { error() {} } });
+  const answer = frontDoor({ rootDb, bucket, loadShop: async id => SHOPS[id] ?? null, shellUrl: () => "https://lmb-test-shop.web.app/spa.html", fetch, log: { error() {} }, usage });
   const ask = async (host, path, method = "GET") => {
     const out = { headers: {} };
     const res = {
@@ -139,5 +139,16 @@ describe("one site, every shop", () => {
     await ask("press-a.example", "/");
     await ask("press-a.example", "/sitemap.xml");
     expect(reads.addresses).toBe(1);
+  });
+});
+
+describe("usage", () => {
+  it("writes each shop's web traffic by size, and nothing for an address with no shop", async () => {
+    const lines = [];
+    const { ask } = door({ usage: entry => lines.push(entry) });
+    const home = await ask("www.press-b.example", "/");
+    await ask("press-a.example", "/shop-profile.js", "HEAD");
+    await ask("nobody.example", "/");
+    expect(lines).toEqual([{ shop: "press-b", kind: "page", bytes: Buffer.byteLength(home.body) }, { shop: "press-a", kind: "page", bytes: 0 }]);
   });
 });
