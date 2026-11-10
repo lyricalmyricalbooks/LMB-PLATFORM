@@ -65,9 +65,13 @@ jobs:
           for pair in STRIPE_PLATFORM_TEST_KEY:stripe-platform-test-key; do
             name="${pair%%:*}"
             secret="${pair#*:}"
-            if value=$(gcloud secrets versions access latest --secret="$secret" --project=lmb-platform-prod 2>/dev/null); then
+            if value=$(gcloud secrets versions access latest --secret="$secret" --project=lmb-platform-prod 2>"$RUNNER_TEMP/secret-error"); then
               echo "::add-mask::$value"
               { echo "$name<<KEY_END"; echo "$value"; echo "KEY_END"; } >> "$GITHUB_ENV"
+            elif grep -qiE "NOT_FOUND|not found" "$RUNNER_TEMP/secret-error"; then
+              echo "$secret isn't in lmb-platform-prod's Secret Manager yet (or has no version), so its step waits." >> "$GITHUB_STEP_SUMMARY"
+            elif grep -qiE "PERMISSION_DENIED|permission" "$RUNNER_TEMP/secret-error"; then
+              echo "$secret is there, but $DEPLOY_ACCOUNT may not read it: give it Secret Manager Secret Accessor on that secret. Its step waits." >> "$GITHUB_STEP_SUMMARY"
             else
               echo "$secret can't be read yet, so its step waits." >> "$GITHUB_STEP_SUMMARY"
             fi
