@@ -48,6 +48,7 @@ const USAGE = "https://serviceusage.googleapis.com/v1";
 const FIRESTORE_ADMIN = "https://firestore.googleapis.com/v1";
 const FIREBASE_STORAGE = "https://firebasestorage.googleapis.com/v1beta";
 const GCS = "https://storage.googleapis.com/storage/v1";
+const PHOTO_CORS = ["GET", "HEAD"];
 const GCS_UPLOAD = "https://storage.googleapis.com/upload/storage/v1";
 const FILES = "https://firebasestorage.googleapis.com/v0";
 const RTDB = "https://firebasedatabase.googleapis.com/v1beta";
@@ -497,6 +498,19 @@ export function googleClients({ fetch, token, sleep, today = () => new Date().to
           query: { updateMask: "cleanupPolicies,cleanupPolicyDryRun" },
           body: { cleanupPolicies: { ...(repo.cleanupPolicies ?? {}), [BUILD_CLEANUP_POLICY.id]: { ...BUILD_CLEANUP_POLICY } }, cleanupPolicyDryRun: false },
         });
+      },
+    },
+    // Lets a shop's admin copy its own public photos into the "Download your shop" zip: the bucket answers browsers
+    // from any address for reads only. Photos are public already; writes and private files are untouched.
+    photoAccess: {
+      async has(projectId) {
+        const bucket = await needBucket(projectId);
+        const { cors = [] } = await call("GET", `${GCS}/b/${bucket}`, { query: { fields: "cors" } });
+        return cors.some((rule) => PHOTO_CORS.every((want) => (rule.method ?? []).includes(want)) && (rule.origin ?? []).includes("*"));
+      },
+      async set(projectId) {
+        const bucket = await needBucket(projectId);
+        await call("PATCH", `${GCS}/b/${bucket}`, { body: { cors: [{ origin: ["*"], method: [...PHOTO_CORS], responseHeader: ["Content-Type"], maxAgeSeconds: 3600 }] } });
       },
     },
     // A shop's published files in the shared bucket (shops/<id>/site/, docs/shared-system.md step 5). Every call

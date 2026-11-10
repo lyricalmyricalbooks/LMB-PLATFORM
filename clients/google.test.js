@@ -347,3 +347,17 @@ test("authConfig: a shared project is allowed sign-in lists, leaving its other s
   await google.authConfig.allowTenants(P);
   fetch.done();
 });
+
+test("photo access: the bucket answers browsers for reads only, and says whether it already does", async () => {
+  const bucket = `https://storage.googleapis.com/storage/v1/b/${BUCKET}`;
+  const rule = { origin: ["*"], method: ["GET", "HEAD"], responseHeader: ["Content-Type"], maxAgeSeconds: 3600 };
+  const { fetch, google } = clients([
+    defaultBucket, { method: "GET", url: `${bucket}?fields=cors`, json: {} },
+    defaultBucket, { method: "PATCH", url: bucket, body: { cors: [rule] }, json: {} },
+    defaultBucket, { method: "GET", url: `${bucket}?fields=cors`, json: { cors: [rule] } },
+  ]);
+  assert.equal(await google.photoAccess.has(P), false);
+  await google.photoAccess.set(P);
+  assert.equal(await google.photoAccess.has(P), true);
+  fetch.done();
+});

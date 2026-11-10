@@ -95,7 +95,7 @@ function dataStrings(value, out = []) {
 
 // English the platform itself writes; the admin's own button labels are allowed in brackets, after the French.
 const ENGLISH = /\b(Hello|Thanks|your|Your|Sign in|Sign up|Open your|the shop|the stockroom|Download|Keep my|Add a card|Update your|is ready|ending|people marked|addresses bounced|owner|the person)\b/;
-const ADMIN_LABELS = ["(Settings)", "(Payments)", "(Continue with Stripe)", "(Connect Square)", "(Stop this request)"];
+const ADMIN_LABELS = ["(Settings)", "(Payments)", "(Continue with Stripe)", "(Connect Square)", "(Stop this request)", "(Download your shop)"];
 
 test("every email a press receives has a French twin here or in templatesFr.js, and every twin is an English kind", () => {
   for (const kind of Object.keys(PRESS_TEMPLATES_FR)) assert.ok(TEMPLATES[kind], `${kind} has no English email`);

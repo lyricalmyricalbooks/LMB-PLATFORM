@@ -538,7 +538,7 @@ export const PRESS_TEMPLATES_FR = {
     subject: `${pressName} est fermée`,
     greeting: "Bonjour,",
     paragraphs: [
-      `Votre forfait ${settings.platformName} pour ${pressName} est terminé, la boutique est donc fermée. Vous pouvez tout télécharger pendant 90 jours; ensuite, tout est supprimé, et nous vous écrivons 30 jours et 7 jours avant.`,
+      `Votre forfait ${settings.platformName} pour ${pressName} est terminé, la boutique est donc fermée. Pendant 90 jours, connectez-vous, ouvrez les réglages (Settings), puis le forfait, et appuyez sur Télécharger votre boutique (Download your shop) pour tout obtenir dans un seul zip; ensuite, tout est supprimé, et nous vous écrivons 30 jours et 7 jours avant.`,
       "Vous pouvez reprendre un forfait d'ici là et continuer là où vous étiez.",
     ],
     buttons: [["Reprendre un forfait", safeLink(link)]],

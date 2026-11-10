@@ -23,7 +23,7 @@ const turnOnGoogleSignIn = (google) => google.world.googleSignIns.set(P, { enabl
 test("the shared project's steps are numbered and complete", () => {
   const { steps } = setup();
   assert.deepEqual(stepProblems(steps), []);
-  assert.equal(steps.length, 8);
+  assert.equal(steps.length, 9);
 });
 
 test("a dry run only looks, and says what a real run would do", async () => {
@@ -32,7 +32,7 @@ test("a dry run only looks, and says what a real run would do", async () => {
   assert.equal(result.ok, true);
   assert.equal(result.ready, false);
   assert.deepEqual(google.calls, []);
-  assert.deepEqual(result.ran.map((r) => r.status), ["would-run", ...Array(7).fill("would-run")]);
+  assert.deepEqual(result.ran.map((r) => r.status), Array(9).fill("would-run"));
   assert.match(lines[0], /1\. Add Firebase to the project: would run/);
 });
 
@@ -54,7 +54,7 @@ test("a real run readies the project for shops, and stops in plain words for the
   const second = await run(true);
   assert.equal(second.ok, true, second.error);
   assert.equal(second.ready, true);
-  assert.deepEqual(second.ran.map((r) => r.status), ["already-done", "already-done", "already-done", "already-done", "already-done", "done", "done", "done"]);
+  assert.deepEqual(second.ran.map((r) => r.status), ["already-done", "already-done", "already-done", "already-done", "already-done", "done", "done", "done", "done"]);
   assert.ok(google.world.backupPermission.has(P));
   const key = google.world.secrets.get(`${P} ${SERVICE_KEY_SECRET}`);
   assert.equal(key.length, 1);
@@ -63,7 +63,7 @@ test("a real run readies the project for shops, and stops in plain words for the
   const before = google.calls.length;
   const third = await run(true);
   assert.equal(third.ready, true);
-  assert.deepEqual(third.ran.map((r) => r.status), Array(8).fill("already-done"));
+  assert.deepEqual(third.ran.map((r) => r.status), Array(9).fill("already-done"));
   assert.equal(google.calls.length, before);
   assert.equal(google.world.secrets.get(`${P} ${SERVICE_KEY_SECRET}`).length, 1);
 });

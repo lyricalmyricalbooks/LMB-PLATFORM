@@ -91,7 +91,7 @@ export const TEMPLATES_FR = {
       greeting: "Bonjour,",
       paragraphs: [
         `${pressName} est en pause depuis un moment, elle est donc maintenant fermée. Les clients voient une page de fermeture et aucune commande n'arrive.`,
-        wFr(`Tout est conservé jusqu'au ${day} : vos livres, commandes, clients et stocks. Ouvrez l'administration de votre boutique pour tout télécharger sous forme de fichiers.`),
+        wFr(`Tout est conservé jusqu'au ${day} : vos livres, commandes, clients et stocks. Connectez-vous, ouvrez les réglages (Settings), puis le forfait, et appuyez sur Télécharger votre boutique (Download your shop) : vous obtenez un seul fichier zip, prêt pour un autre système de boutique.`),
         `Après le ${day}, la boutique et tout son contenu seront supprimés pour de bon. Reprenez un forfait d'ici là et elle rouvrira telle que vous l'avez laissée.`,
       ],
       buttons: [["Voir votre forfait", safeLink(link)]],
@@ -108,7 +108,7 @@ export const TEMPLATES_FR = {
       greeting: "Bonjour,",
       paragraphs: [
         `Dans ${days} jours, le ${day}, ${pressName} et tout son contenu seront supprimés : ${wFr("livres")}, commandes, clients et stocks. C'est irréversible.`,
-        "Si ce n'est pas déjà fait, ouvrez l'administration de votre boutique et téléchargez tout sous forme de fichiers.",
+        "Si ce n'est pas déjà fait, connectez-vous, ouvrez les réglages (Settings), puis le forfait, et appuyez sur Télécharger votre boutique (Download your shop).",
         `Pour garder la boutique, reprenez un forfait avant le ${day}.`,
       ],
       buttons: [["Voir votre forfait", safeLink(link)]],
