@@ -46,6 +46,9 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm exec vite build
           (cd functions && npm ci)
+          # The browser that draws the shop's pages ahead of time (scripts/prerender-storefront.mjs), the version the
+          # shop copy pins. Without it the run still passes but leaves the pages for the next release to draw.
+          pnpm exec playwright install --with-deps chromium
       - name: Build the stockroom's pages
         working-directory: apps/stockroom
         run: npm ci && npm run build
