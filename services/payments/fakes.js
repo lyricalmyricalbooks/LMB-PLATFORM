@@ -36,6 +36,12 @@ export function fakeStripeFetch(answers = []) {
       world.accounts.set(id, created);
       return { status: 200, body: created };
     }
+    if (method === "POST" && path === "/v2/core/accounts") {
+      // Stripe's newer call (JSON). The account is kept in its older shape too, as Stripe answers the older calls.
+      const id = `acct_fake${next++}`;
+      world.accounts.set(id, { id, object: "account", charges_enabled: false, payouts_enabled: false, details_submitted: false, metadata: { ...(params.metadata ?? {}) }, requirements: { currently_due: ["external_account"] } });
+      return { status: 200, body: { id, object: "v2.core.account", dashboard: params.dashboard, metadata: params.metadata ?? {}, configuration: { merchant: { mcc: params.configuration?.merchant?.mcc ?? null } } } };
+    }
     if ((m = path.match(/^\/v1\/accounts\/(acct_\w+)$/)) && method === "GET") {
       return world.accounts.has(m[1]) ? { status: 200, body: world.accounts.get(m[1]) } : missing("account");
     }
@@ -105,8 +111,9 @@ export function fakeStripeFetch(answers = []) {
   const fetch = async (url, init = {}) => {
     const parsed = new URL(url);
     const method = init.method ?? "GET";
-    const params = formPairs(method === "GET" ? parsed.search.slice(1) : init.body);
     const headers = { ...(init.headers ?? {}) };
+    const json = headers["Content-Type"] === "application/json";
+    const params = json ? JSON.parse(init.body) : formPairs(method === "GET" ? parsed.search.slice(1) : init.body);
     requests.push({ method, path: parsed.pathname, headers, params });
     const queued = queue.shift();
     if (queued === "network") throw new Error("socket hang up");

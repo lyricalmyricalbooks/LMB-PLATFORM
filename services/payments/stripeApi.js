@@ -17,6 +17,13 @@ export const STRIPE_API = "https://api.stripe.com";
  */
 export const DEFAULT_STRIPE_API_VERSION = "2026-09-30.endive";
 
+/**
+ * The version asked for on Stripe's newer (v2) calls, which take JSON. Only connected accounts are made through them:
+ * Stripe takes new connected accounts on a new Connect platform only at /v2/core/accounts (its answer to the first
+ * test-shop run, 10 November 2026). This is the version Stripe's own reference for that call names.
+ */
+export const STRIPE_V2_API_VERSION = "2026-10-28.endive";
+
 /** Stripe's version names: a date, then (from 2024) a release name, like 2026-09-30.endive. */
 export const isStripeApiVersion = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}(\.[a-z]+)?$/.test(value);
 
@@ -84,6 +91,33 @@ export function createStripeApi({ fetch, keys, apiVersion = DEFAULT_STRIPE_API_V
       let response;
       try {
         response = await fetch(url, { method, headers, ...(method !== "GET" ? { body } : {}) });
+      } catch (err) {
+        throw new StripeApiError({ message: `Stripe could not be reached: ${err?.message || err}`, type: "api_connection_error", statusCode: 502 });
+      }
+      let data = null;
+      try { data = await response.json(); } catch { data = null; }
+      if (!response.ok) {
+        const error = data?.error ?? {};
+        throw new StripeApiError({ message: error.message, type: error.type, code: error.code, param: error.param, statusCode: response.status });
+      }
+      return data;
+    },
+    /**
+     * One of Stripe's newer (v2) calls: a JSON body, and STRIPE_V2_API_VERSION. Answers and refusals as `call`.
+     * @param {"live"|"test"} mode
+     * @param {string} path like /v2/core/accounts
+     */
+    async callV2(mode, method, path, { body = null, idempotencyKey = null } = {}) {
+      if (mode !== "live" && mode !== "test") throw new StripeApiError({ message: `unknown mode ${mode}`, type: "invalid_request_error", statusCode: 400 });
+      if (!path.startsWith("/v2/")) throw new StripeApiError({ message: `${path} isn't one of Stripe's v2 addresses`, type: "invalid_request_error", statusCode: 400 });
+      const key = keys?.[mode];
+      if (!key) throw new StripeApiError({ message: `The platform has no Stripe ${mode} key.`, type: "api_error", code: "platform_key_missing", statusCode: 503 });
+      const headers = { Authorization: `Bearer ${key}`, "Stripe-Version": STRIPE_V2_API_VERSION };
+      if (idempotencyKey && method === "POST") headers["Idempotency-Key"] = idempotencyKey;
+      if (body) headers["Content-Type"] = "application/json";
+      let response;
+      try {
+        response = await fetch(`${STRIPE_API}${path}`, { method, headers, ...(body ? { body: JSON.stringify(body) } : {}) });
       } catch (err) {
         throw new StripeApiError({ message: `Stripe could not be reached: ${err?.message || err}`, type: "api_connection_error", statusCode: 502 });
       }
