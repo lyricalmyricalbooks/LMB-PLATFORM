@@ -25,7 +25,7 @@
 :root[data-admin-look="colophon"] body.rp .lead-emoji { display: none; }
 /* Figure tiles: soft rounded, money in on the mint tile. */
 :root[data-admin-look="colophon"] body.rp .cf-stat { border: 0 !important; border-radius: var(--r2); }
-:root[data-admin-look="colophon"] body.rp .cf-stat.cf-income { background: var(--rp-success-tint); }
+:root[data-admin-look="colophon"] body.rp .cf-stat.cf-income { background: var(--rp-tile-mint); color: var(--rp-on-tile); }
 /* Small figures: quiet cream chips inside the white tile. */
 :root[data-admin-look="colophon"] body.rp .cf-kpi { border: 0; background: var(--rp-surface-2); }
 /* Section headings and the alert line speak in sentence case, like the admin around them. */
@@ -37,6 +37,120 @@
 :root[data-admin-look="colophon"] body.rp .publisher-action-banner .btn { background: var(--rp-primary) !important; color: var(--rp-on-primary) !important; border: 0; box-shadow: none; }
 /* The header sits on the cream page, so its quiet buttons use the page's text colour (they were drawn for a dark bar). */
 :root[data-admin-look="colophon"] body.rp :is(.profile-tab:not(.active), #role-toggle-btn) { color: var(--rp-text-muted) !important; border-color: var(--rp-border) !important; text-transform: none; letter-spacing: 0; }
+/* Buttons speak in sentence case, like the admin's black pills. */
+:root[data-admin-look="colophon"] body.rp .btn { text-transform: none; letter-spacing: 0; font-weight: 600; }
+/* Pop-ups: a white tile with the big corner and no ink outline; emoji badges in their titles go. */
+:root[data-admin-look="colophon"] body.rp .modal { background: var(--rp-surface); border: 0; }
+:root[data-admin-look="colophon"] body.rp .modal-title-badge { display: none; }
+:root[data-admin-look="colophon"] body.rp .modal :is(.modal-title, .modal-footer) { background: var(--rp-surface); }
+/* The book strip at the top of a page: a quiet tile with the book's colour as a dot only. */
+:root[data-admin-look="colophon"] body.rp .book-context { border-left: 0; background: var(--rp-surface); border-radius: var(--r2); }
+/* Table heads: quiet labels on the tile, not a black bar. */
+:root[data-admin-look="colophon"] body.rp .tbl thead { background: var(--rp-surface-2); }
+:root[data-admin-look="colophon"] body.rp .tbl th { background: var(--rp-surface-2) !important; color: var(--rp-text-muted) !important; letter-spacing: 0.04em; }
+/* The menu, like the admin's: words only, no emoji icons; the shop's name as written, not in capitals. */
+:root[data-admin-look="colophon"] body.rp :is(.snav-ic, .pub-side-ico) { display: none; }
+:root[data-admin-look="colophon"] body.rp :is(.header-brand-text *, .pub-wordmark) { text-transform: none; letter-spacing: -0.01em; }
+/* Stockist cards and their figure chips: white tiles, cream chips, no ink outlines or offset shadows. */
+:root[data-admin-look="colophon"] body.rp .store-card { border: 0; box-shadow: none; border-radius: var(--r3); background: var(--rp-surface); }
+:root[data-admin-look="colophon"] body.rp .store-row { border-color: var(--rp-divider); }
+:root[data-admin-look="colophon"] body.rp .store-card .sk { border: 0; background: var(--rp-surface-2); border-radius: var(--r); }
+:root[data-admin-look="colophon"] body.rp .kpi.is-lead { background: var(--rp-tile-mint) !important; color: var(--rp-on-tile) !important; border: 0; }
+:root[data-admin-look="colophon"] body.rp .kpi.is-lead * { color: var(--rp-on-tile) !important; }
 }
 /* Inside the admin, its page header already names the page: the stockroom's own grey title strip goes. */
 .inside-admin #tab-taxcenter > .book-context { display: none; }
+
+/* Phones (phone-riso.css draws the stockroom's phone layout in the old Riso voice): the same layout in the Colophon
+   look, with no offset ink shadows, no ink outlines on tiles and buttons, and sentence-case titles and buttons. */
+@media screen and (max-width: 768px) {
+  :root[data-admin-look="colophon"] body.rp .pub-shell { --riso-off: none; --riso-off-sm: none; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell :is(h1, h2, h3, .btn, button, .card-title, .section-hed, .more-sheet-title, .mnav-label, [class$="-title"], [class*="-title "]) { text-transform: none; letter-spacing: -0.01em; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell :is(.card, .store-card, .kpi, .phone-record, .btn:not(.gold)) { border-color: var(--rp-border) !important; box-shadow: none !important; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell :is(.card, .store-card, .kpi) { border-width: 0 !important; border-radius: var(--r3); }
+}
+
+/* Phone: page titles in sentence case; active bottom-nav label readable. */
+@media (max-width: 768px) {
+  :root[data-admin-look="colophon"] body.rp .pub-shell .tab-panel h1 { text-transform: none; letter-spacing: -0.02em; }
+  :root[data-admin-look="colophon"] body.rp .mnav-btn.active { background: var(--rp-primary); color: var(--rp-on-primary) !important; }
+}
+
+/* Figures that need attention sit on an apricot tile. */
+:root[data-admin-look="colophon"] body.rp .kpi:has(.kpi-value.warn) { background: var(--rp-tile-apricot); color: var(--rp-on-tile); border-color: transparent; }
+:root[data-admin-look="colophon"] body.rp .kpi:has(.kpi-value.warn) :is(.kpi-label, .kpi-sub, .kpi-value) { color: var(--rp-on-tile); }
+
+/* Phone menu: simple line icons instead of emoji. */
+:root[data-admin-look="colophon"] body.rp .mnav-ic { font-size: 0; width: 22px; height: 22px; display: inline-block; background: currentColor;
+  -webkit-mask: var(--mnav-icon) center / contain no-repeat; mask: var(--mnav-icon) center / contain no-repeat; }
+:root[data-admin-look="colophon"] body.rp .mnav-btn:nth-child(1) { --mnav-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linejoin='round'%3E%3Cpath d='M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z'/%3E%3C/svg%3E"); }
+:root[data-admin-look="colophon"] body.rp .mnav-btn:nth-child(2) { --mnav-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linejoin='round'%3E%3Cpath d='M5 8h14l-1 12H6z'/%3E%3Cpath d='M9 8a3 3 0 0 1 6 0'/%3E%3C/svg%3E"); }
+:root[data-admin-look="colophon"] body.rp .mnav-btn:nth-child(3) { --mnav-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linejoin='round'%3E%3Cpath d='M4 20h4L19 9l-4-4L4 16z'/%3E%3C/svg%3E"); }
+:root[data-admin-look="colophon"] body.rp .mnav-btn:nth-child(4) { --mnav-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round'%3E%3Cpath d='M4 7h16M4 12h16M4 17h16'/%3E%3C/svg%3E"); }
+
+/* Phone, round 2: cream top bar, sentence-case headings and tabs, sans figures, rounded rows. */
+@media (max-width: 768px) {
+  :root[data-admin-look="colophon"] body.rp .pub-shell .app-header { background: var(--rp-canvas); border-bottom: 1px solid var(--rp-divider); }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .app-header :is(.header-wordmark, .header-brand-text *, button, .phone-sync-mark, .phone-sync-mark *:not(.sync-dot)) { color: var(--rp-text) !important; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell :is(#tab-pos, #tab-today, .tab-panel) :is(h1, .phone-eyebrow, [role="tab"], .pos-subtab-btn, .mnav-label) { text-transform: none; letter-spacing: -0.01em; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell :is(#tab-pos, .tab-panel) h1 { font-family: var(--rp-font-display, inherit); font-weight: 600; font-size: 40px; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .mnav :is(.mnav-label) { text-transform: none; letter-spacing: 0; font-weight: 600; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .mnav .mnav-ic { display: inline-block; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .mnav .mnav-btn { border-radius: 999px; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .mnav .mnav-btn:nth-child(2).active { background: var(--rp-primary); }
+}
+:root[data-admin-look="colophon"] body.rp { --font-mono: var(--font-ui); }
+@media (max-width: 768px) {
+  /* The Sell button is always the black pill, so its words are always light. */
+  :root[data-admin-look="colophon"] body.rp .pub-shell .mnav .mnav-btn:nth-child(2) { background: var(--rp-primary); color: var(--rp-on-primary) !important; }
+  /* No shouted capitals or wide tracking anywhere on a stockroom page. */
+  :root[data-admin-look="colophon"] body.rp .pub-shell .tab-panel :is(h1, h2, h3, h4, [class*="label"], [class*="head"], [class*="eyebrow"], [class*="kicker"], [class*="date"], [class*="count"], [class*="badge"], [class*="tab"], .btn) { text-transform: none !important; letter-spacing: 0 !important; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .tab-panel :is([class*="chip"], [class*="card"]:not([class*="head"]):not([class*="row"]), [class*="pill"]) { border-radius: var(--rp-radius-md, 14px); }
+}
+
+/* Round 3: grouped lists become rounded white tiles; money owed to you sits on a sky tile. */
+:root[data-admin-look="colophon"] body.rp :is(.today-grid, .today-rows, .fm-tiles, .today-next) { border-radius: var(--rp-radius-lg, 20px); overflow: hidden; border-color: var(--rp-divider); }
+:root[data-admin-look="colophon"] body.rp :is(.today-row-ic, .fm-tile-cover) { border-radius: 10px; }
+:root[data-admin-look="colophon"] body.rp :is(.today-card, .today-row, .fm-tile, .today-next-head) { border-radius: 0; }
+:root[data-admin-look="colophon"] body.rp .ledger-fig { border-radius: var(--rp-radius-md, 14px); padding: 12px 14px; }
+:root[data-admin-look="colophon"] body.rp .ledger-fig.is-owed { background: var(--rp-tile-sky); color: var(--rp-on-tile); border-color: transparent; }
+:root[data-admin-look="colophon"] body.rp .ledger-fig.is-owed * { color: inherit; }
+:root[data-admin-look="colophon"] body.rp .pub-shell #tab-today .today-next-head { border-radius: 20px 20px 0 0 !important; }
+:root[data-admin-look="colophon"] body.rp .pub-shell #tab-today .today-next-head + .today-grid { border-radius: 0 0 20px 20px; border-top: 0; }
+:root[data-admin-look="colophon"] body.rp .ledger-fig:not(.is-owed) { background: var(--rp-surface); border: 0 !important; }
+:root[data-admin-look="colophon"] body.rp .ledger-fig:first-child:not(.is-owed) { background: var(--rp-tile-mint); color: var(--rp-on-tile); }
+:root[data-admin-look="colophon"] body.rp .ledger-fig:first-child:not(.is-owed) * { color: inherit; }
+:root[data-admin-look="colophon"] body.rp .ledger-fig.is-owed { border: 0 !important; }
+
+/* Sweep: the phone's More menu is a cream drawer with rounded edge. */
+@media (max-width: 768px) {
+  :root[data-admin-look="colophon"] body.rp .pub-shell .more-sheet[open] { background: var(--rp-canvas); color: var(--rp-text); border-right: 0; box-shadow: 0 0 40px rgb(0 0 0 / .18); border-radius: 0 24px 24px 0; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .more-sheet[open] :is(*, *::before):not(.sync-dot):not(.book-chip-sw):not(.nav-badge):not(.mnav-dot) { color: var(--rp-text); border-color: var(--rp-divider); text-transform: none; letter-spacing: 0; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .more-sheet[open] :is(.o3-grouplabel, .o3-subgrouplabel, .more-sheet-title-sub) { color: var(--rp-text-muted, var(--rp-text)); }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .more-sheet[open] :is(.snav, .pub-nav button, .book-chip, .app-switch-seg) { border-radius: 999px; background: transparent; box-shadow: none; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .more-sheet[open] :is(.snav.active, .book-chip.is-on, .app-switch-seg.is-current) { background: var(--rp-primary); }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .more-sheet[open] :is(.snav.active, .book-chip.is-on, .app-switch-seg.is-current) :is(*, *::before) { color: var(--rp-on-primary); }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .more-sheet[open] :is(.snav.active, .book-chip.is-on, .app-switch-seg.is-current) { color: var(--rp-on-primary); }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .more-sheet[open] .app-switch { border-radius: 999px; background: var(--rp-surface); border: 0; }
+}
+/* Colour marks next to book names and section names are dots, not squares. */
+:root[data-admin-look="colophon"] body.rp :is(.sync-dot, .sec-kicker-dot, .book-chip-sw, .book-context-dot, .chip-dot, [class$="-dot"]) { border-radius: 999px !important; }
+:root[data-admin-look="colophon"] body.rp :is(.phone-eyebrow, .today-date, [class*="kicker"])::before { border-radius: 999px; }
+@media (max-width: 768px) {
+  :root[data-admin-look="colophon"] body.rp .pub-shell .more-sheet[open] :is(.snav.active, .book-chip.is-on, .app-switch-seg.is-current) :is(*, *::before):not(.book-chip-sw) { color: var(--rp-on-primary) !important; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .more-sheet[open] .nav-badge { border-radius: 999px; background: var(--rp-primary); color: var(--rp-on-primary) !important; min-width: 22px; height: 22px; width: auto; padding: 0 7px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
+  :root[data-admin-look="colophon"] body.rp .pub-shell .more-sheet-close { border-radius: 999px; width: 44px; height: 44px; border: 1px solid var(--rp-divider); background: var(--rp-surface); box-shadow: none; }
+}
+@media (max-width: 768px) {
+  :root[data-admin-look="colophon"] body.rp .pub-shell .more-sheet[open] :is(.snav.active, .book-chip.is-on, .app-switch-seg.is-current) { color: var(--rp-on-primary) !important; border-color: transparent; }
+}
+
+/* Sweep, laptop: soft tiles and sentence case on every stockroom page. */
+:root[data-admin-look="colophon"] body.rp .tab-panel :is([class*="kpi-label"], [class*="-label"], th, .eyebrow, [class*="kicker"], [class*="overline"], .btn-hist-action, [class*="approve"]) { text-transform: none !important; letter-spacing: 0 !important; }
+:root[data-admin-look="colophon"] body.rp :is(.hist-kpi, [class*="hist-kpi-card"], .ps-stat-card, .tc-trip-stat-card, .analytics-kpi-card, .shipping-pnl-kpi) { border: 0 !important; border-radius: var(--rp-radius-lg, 20px); box-shadow: none !important; background: var(--rp-surface); }
+:root[data-admin-look="colophon"] body.rp .hist-kpi-icon { display: none; }
+:root[data-admin-look="colophon"] body.rp :is(.tbl-wrap, .table-wrap, [class*="table-card"]):not(.sys-sticky-head) { border: 1px solid var(--rp-divider) !important; border-radius: var(--rp-radius-lg, 20px); box-shadow: none !important; overflow: hidden; }
+:root[data-admin-look="colophon"] body.rp .tab-panel * { text-transform: none !important; }
+:root[data-admin-look="colophon"] body.rp .tab-panel :is([class*="label"], [class*="stat"] > :first-child, [class*="lbl"], small) { letter-spacing: 0 !important; }
+:root[data-admin-look="colophon"] body.rp .tab-panel [class*="stat"] { border-left-color: transparent !important; }
+:root[data-admin-look="colophon"] body.rp .tbl-wrap.sys-sticky-head { border-color: var(--rp-divider) !important; border-width: 1px !important; box-shadow: none !important; }

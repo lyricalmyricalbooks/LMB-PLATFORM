@@ -205,6 +205,8 @@
 /* ── Colophon · the admin's one look (Julian, 10 November 2026): warm paper, white tiles, ink pill buttons, a light rail ── */
 :root[data-admin-look="colophon"] .rp:not([data-rp-appearance="dark"]),
 :root[data-admin-look="colophon"] .admin-reso:not([data-admin-theme="dark"]) {  --rp-canvas: #efede8;
+  /* The bento's coloured tiles (Colophon mockup): one headline tile per screen at most. */
+  --rp-tile-mint: #a9e8c6; --rp-tile-apricot: #ffcca2; --rp-tile-sky: #b0dcff; --rp-tile-lilac: #f0c7f9; --rp-on-tile: #1f1e1b;
   --rp-surface: #ffffff;
   --rp-surface-2: #efede8;
   --rp-surface-sunken: #efede8;
@@ -283,6 +285,7 @@
 /* Colophon · night */
 :root[data-admin-look="colophon"] .rp[data-rp-appearance="dark"],
 :root[data-admin-look="colophon"] .admin-reso[data-admin-theme="dark"] {  --rp-canvas: #171614;
+  --rp-tile-mint: #1e402f; --rp-tile-apricot: #54351a; --rp-tile-sky: #233a51; --rp-tile-lilac: #432f48; --rp-on-tile: #efede8;
   --rp-surface: #22211e;
   --rp-surface-2: #2c2b27;
   --rp-surface-sunken: #2c2b27;
