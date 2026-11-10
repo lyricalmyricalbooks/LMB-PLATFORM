@@ -83,7 +83,8 @@ async function checkFrontDoor(browser, walk, log) {
     await step("three questions, the terms, and the store made at once", async () => {
       await page.fill("#start-form input[name=pressName]", "Front Door Press");
       if ((await page.locator("#new-name").textContent()) !== "Front Door Press") throw new Error("Your new store doesn't show the brand's name");
-      await page.click("#sells-choices label.choice:has-text('Zines')");
+      if (!/^front-door-[a-z]+\.web\.app$/.test(await page.locator("#new-address").textContent())) throw new Error("Your new store doesn't show its address");
+      await page.click("#sells-choices label.choice:has-text('Clothing & accessories')");
       await page.click("#today-choices label.choice:has(input[value=online])");
       await page.selectOption("#country", "CA");
       // Without the terms ticked, nothing is made.
@@ -112,7 +113,7 @@ async function checkFrontDoor(browser, walk, log) {
         if (phone) await page.setViewportSize(phone);
       }
       const [saved] = await walk.world.frontDoorStores.presses.listByOwner(`uid-${address}`);
-      if (saved?.status !== "open" || saved?.plan !== "both" || saved?.pressName !== "Front Door Press" || saved?.sells !== "zines" || saved?.sellingToday !== "online" || saved?.country !== "CA") throw new Error(`saved ${JSON.stringify(saved)}`);
+      if (saved?.status !== "open" || saved?.plan !== "both" || saved?.pressName !== "Front Door Press" || saved?.sells !== "clothing" || saved?.sellingToday !== "online" || saved?.country !== "CA") throw new Error(`saved ${JSON.stringify(saved)}`);
       const row = await walk.world.stores.signups.get(saved.shopId);
       if (!row?.trialStartedAt || row?.plan !== "both") throw new Error(`the trial didn't start with both apps: ${JSON.stringify(row)}`);
     });
