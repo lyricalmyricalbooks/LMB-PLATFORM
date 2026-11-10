@@ -16,12 +16,22 @@ const PLATFORM_SERVICE_KEY = defineSecret("PLATFORM_SERVICE_KEY");
 /** Does this shop call the platform's services (payments through the platform, or the platform's email sender)? */
 const usesPlatformServices = (config = shopConfig) => config.paymentMode === "platform" || Boolean(config.platformEmailUrl) || Boolean(config.platformDomainsUrl) || Boolean(config.platformAccountingUrl) || Boolean(config.platformSocialUrl) || Boolean(config.platformAccountsUrl) || Boolean(config.platformAppsUrl);
 
-/** A function's `secrets`, with the platform key added on a shop that uses the platform's services. */
+// A shop's own provider keys. A shop on the platform's services has none of them as Functions secrets: the shared server
+// is one deploy for every shop, its payments and email go through the platform, and a press's own Shippo or PayPal
+// keys are kept in its own admin-only settings (adminSecrets). Declaring them would make the deploy stop for a secret
+// that doesn't exist; undeclared, `.value()` reads "" and the code falls back to the shop's saved keys.
+const OWN_KEYS = new Set(["RESEND_API_KEY", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "PAYPAL_CLIENT_ID", "PAYPAL_CLIENT_SECRET", "PAYPAL_WEBHOOK_ID", "SHIPPO_API_TOKEN"]);
+
+/**
+ * A function's `secrets`. On a shop that uses the platform's services: the platform key added, the shop's own provider
+ * keys left out. Otherwise the list as given.
+ */
 function withPlatformKey(secrets = [], config = shopConfig) {
-  return usesPlatformServices(config) ? [...secrets, PLATFORM_SERVICE_KEY] : secrets;
+  if (!usesPlatformServices(config)) return secrets;
+  return [...secrets.filter((secret) => !OWN_KEYS.has(secret?.name)), PLATFORM_SERVICE_KEY];
 }
 
 /** The key, read when a call is made ("" when the function has none). */
 const platformServiceKey = () => process.env.PLATFORM_SERVICE_KEY || "";
 
-module.exports = { PLATFORM_SERVICE_KEY, usesPlatformServices, withPlatformKey, platformServiceKey };
+module.exports = { OWN_KEYS, PLATFORM_SERVICE_KEY, usesPlatformServices, withPlatformKey, platformServiceKey };
