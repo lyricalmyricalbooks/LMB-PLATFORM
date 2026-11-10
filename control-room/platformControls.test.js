@@ -12,6 +12,8 @@ import { fakePlatformEmail } from "../services/billing/fakes.js";
 import { fakeSignupStores, fakeVerifyIdToken } from "../signup/fakes.js";
 import { createApi } from "../signup/api.js";
 import { TEMPLATES } from "../services/email/templates.js";
+import { EMAIL_SECRETS } from "../services/email/index.js";
+import { PAYMENTS_SECRETS } from "../services/payments/index.js";
 
 const ADMIN = { uid: "uid-admin", email: "admin@example.com", email_verified: true, firebase: { sign_in_second_factor: "totp" }, auth_time: Math.floor(Date.now() / 1000) };
 const STRANGER = { uid: "uid-x", email: "someone@example.com", email_verified: true, firebase: { sign_in_second_factor: "totp" }, auth_time: Math.floor(Date.now() / 1000) };
@@ -156,4 +158,26 @@ test("a ready shop whose plan change stopped is listed with the reason, and Try 
   assert.equal((await w.signups.get("moth-press-a1b2c")).planSync, null);
   assert.equal((await w.activity.list()).filter((e) => e.what === "plan-change-retry").length, 1);
   assert.equal((await w.controls.retry(ADMIN, { shopId: "moth-press-a1b2c", reason: "restored the database" })).changed, false);
+});
+
+test("the Launch page says which keys are in place, never their values, and follows the sign-up switch", async () => {
+  const w = world();
+  assert.equal((await w.ask(STRANGER, "GET", "/api/control/launch")).status, 403);
+  const secretValue = "sk_test_never_shown";
+  const controls = createPlatformControls({
+    admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: "admin@example.com" }), settingsStore: w.settingsStore,
+    env: { PLATFORM_URL: "https://platform.example", [PAYMENTS_SECRETS[0].env]: secretValue, [EMAIL_SECRETS[0].env]: "  " },
+    project: "lmb-platform-prod", shopMaking: false,
+  });
+  const launch = await controls.launch(ADMIN);
+  assert.ok(!JSON.stringify(launch).includes(secretValue));
+  assert.deepEqual(launch.keys.map((k) => [k.id, k.ready]), [["stripe", true], ["connect-events", false], ["billing-events", false], ["email", false]]);
+  assert.deepEqual(launch.keys.map((k) => k.secret), ["stripe-platform-test-key", "stripe-connect-webhook-secret-test", "stripe-billing-webhook-secret", "resend-api-key"]);
+  assert.equal(launch.keys.find((k) => k.id === "billing-events").events, "https://platform.example/api/billing/events");
+  assert.equal(launch.keys.find((k) => k.id === "connect-events").events, "https://platform.example/api/payments/stripe/events");
+  assert.deepEqual({ project: launch.project, signupOpen: launch.signupOpen, invites: launch.invites, shopMaking: launch.shopMaking },
+    { project: "lmb-platform-prod", signupOpen: false, invites: false, shopMaking: false });
+
+  await w.controls.saveSettings(ADMIN, { values: { signupOpen: true }, reason: "opening sign-up for launch" });
+  assert.equal((await controls.launch(ADMIN)).signupOpen, true);
 });

@@ -56,6 +56,14 @@
   .cr-bars .cr-bar[data-none] { min-width: 0; }
   .cr-bars .cr-bar-n { font: 400 12px/1 var(--rp-font-mono); text-align: right; }
   .cr-steps { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 14px; }
+  /* Launch walkthrough: numbered steps, each ticked off as it's tried. */
+  .cr-walk { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; counter-reset: walk; }
+  .cr-walk > li { counter-increment: walk; display: grid; grid-template-columns: 32px 1fr; gap: 4px 16px; padding: 16px 20px; }
+  .cr-walk > li::before { content: counter(walk); display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid var(--rp-border); border-radius: 50%; font: 400 13px/1 var(--rp-font-mono); color: var(--rp-text-subtle); }
+  .cr-walk > li[data-done="true"]::before { content: "✓"; background: var(--rp-text); border-color: var(--rp-text); color: var(--rp-surface); }
+  .cr-walk > li[data-done="true"] .cr-title { color: var(--rp-text-muted); }
+  .cr-walk > li > div { min-width: 0; }
+  .cr-walk .rp-hint { margin: 6px 0 0; }
   .cr-switches { display: flex; flex-wrap: wrap; gap: 0 20px; }
   .cr-form { display: grid; gap: 16px; }
   .cr-form-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); }
@@ -164,6 +172,7 @@
       <nav class="rp-nav" aria-label="Control room pages">
         <ul class="rp-nav-list" id="nav">
           <li data-admin><a class="rp-nav-item" href="#today" data-nav="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>Today</a></li>
+          <li data-admin><a class="rp-nav-item" href="#launch" data-nav="launch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4"/><path d="M5 4h12l-2 4 2 4H5"/></svg>Launch<span class="rp-nav-badge" data-badge="launch" hidden></span></a></li>
           <li data-admin><a class="rp-nav-item" href="#shops" data-nav="shops"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9 5 4h14l2 5"/><path d="M4 9v11h16V9"/><path d="M3 9h18"/><path d="M9 20v-6h6v6"/></svg>Shops<span class="rp-nav-badge" data-badge="shops" hidden></span></a></li>
           <li data-admin><a class="rp-nav-item" href="#signups" data-nav="signups"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6"/><path d="M19 8v6M16 11h6"/></svg>Sign-ups<span class="rp-nav-badge" data-badge="signups" hidden></span></a></li>
           <li data-admin><a class="rp-nav-item" href="#setting-up" data-nav="setting-up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h16"/><path d="M6 20V10l6-5 6 5v10"/><path d="M10 20v-5h4v5"/></svg>Setting up<span class="rp-nav-badge" data-badge="setting-up" hidden></span></a></li>
@@ -240,6 +249,17 @@
               <div class="cr-head"><h2>Apps closing</h2></div>
               <p class="rp-hint">Shops that dropped the website or the stockroom from their plan. It closes at the end of the month they paid for; they can keep it until then, and download everything in it for 90 days after, with a last email 3 days before its records are deleted.</p>
               <div id="apps-closing"></div>
+            </section>
+
+            <section data-page="launch" aria-labelledby="h-launch" hidden>
+              <div class="rp-page-header">
+                <div><h1 class="rp-page-title" id="h-launch">Launch</h1><p class="rp-page-desc">What the platform needs before presses sign up, then the whole sign-up, tried as a press.</p></div>
+                <div class="rp-page-actions"><span id="launch-summary"></span></div>
+              </div>
+              <div class="cr-head"><h2>Ready to open?</h2></div>
+              <div id="launch-checks" class="cr-grid"></div>
+              <div class="cr-head"><h2 id="launch-walk-title">Try it as a press</h2><button type="button" id="launch-walk-reset" class="rp-btn rp-btn-ghost rp-btn-sm">Start over</button></div>
+              <ol id="launch-walk" class="cr-walk" aria-labelledby="launch-walk-title"></ol>
             </section>
 
             <section data-page="shops" aria-labelledby="h-shops" hidden>

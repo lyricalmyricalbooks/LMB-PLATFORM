@@ -9,6 +9,7 @@
 import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE } from "../signup/config.js";
 import { deviceId } from "../signup/device.js";
 import { shopMatches } from "./shopSearch.js";
+import { launchSummary, readTicks, saveTicks, walkSteps } from "./launch.js";
 import * as BRAND_LOGOS from "./look/brand-logos.js";
 
 const { initializeApp } = await import(`${FIREBASE_SDK}/firebase-app.js`);
@@ -158,6 +159,7 @@ async function load() {
     await loadTaxWatch();
     await loadTestShop();
     await loadShops();
+    await loadLaunch();
     status.textContent = "";
     showShell("admin");
     await loadRepairs();
@@ -543,6 +545,128 @@ async function loadTestShop() {
     meta(shop.shopId, "only you can open it", check),
     el("div", { className: "cr-actions" }, link(shop.storefrontUrl, "Open the storefront", "primary"), link(shop.adminUrl, "Open its admin", "secondary"), reset)));
 }
+
+// ── Launch: the keys and switches presses need, then the whole sign-up tried as a press. ──
+const DEPLOY_WORKFLOW = "https://github.com/lyricalmyricalbooks/LMB-PLATFORM/actions/workflows/deploy.yml";
+const outLink = (href, words, variant = "secondary") => el("a", { href, target: "_blank", rel: "noopener", className: `rp-btn rp-btn-${variant} rp-btn-sm`, textContent: words });
+
+async function loadLaunch() {
+  const checks = $("#launch-checks");
+  let launch;
+  let testShop = null;
+  try {
+    launch = await api("GET", "/control/launch");
+    testShop = (await api("GET", "/control/test-shop").catch(() => ({ testShop: null }))).testShop;
+  } catch (failure) {
+    checks.replaceChildren(emptyState("The launch list didn't load", failure.message));
+    return;
+  }
+  const { ready, total, missing } = launchSummary(launch, testShop);
+  setBadge("launch", missing);
+  fill($("#launch-summary"), pill(missing ? "warning" : "success", missing ? `${ready} of ${total} ready` : "Ready to open"));
+
+  const secrets = launch.project ? `https://console.cloud.google.com/security/secret-manager?project=${encodeURIComponent(launch.project)}` : null;
+  const keySheets = launch.keys.map((key) => {
+    const copy = key.events ? button("Copy the address", "ghost") : null;
+    copy?.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(key.events);
+        status.textContent = "Copied. Paste it as the endpoint in Stripe's Webhooks page, then copy its signing secret.";
+      } catch {
+        status.textContent = key.events;
+      }
+    });
+    return sheet({
+      title: key.label, tone: key.ready ? "success" : "warning", pillWords: key.ready ? "In place" : "Not added",
+      metaParts: [`secret: ${key.secret}`],
+      body: [el("p", { className: "rp-hint", textContent: key.gives }), key.events ? meta(`events address: ${key.events}`) : null],
+      actions: key.ready ? null : el("div", { className: "cr-actions" },
+        key.getIt ? outLink(key.getIt, "Get the key", "primary") : null,
+        key.events ? outLink("https://dashboard.stripe.com/test/webhooks", "Open Stripe webhooks", "primary") : null,
+        copy, secrets ? outLink(secrets, "Add it in Google") : null),
+    });
+  });
+
+  const switchButton = button(launch.signupOpen ? "Back to invites only" : "Open sign-up to anyone", launch.signupOpen ? "ghost" : "primary");
+  switchButton.addEventListener("click", async () => {
+    const reason = askWhy(launch.signupOpen ? "New presses will need an invite from the waitlist." : "Anyone with the address can start a shop.");
+    if (!reason) return;
+    switchButton.disabled = true;
+    try {
+      await api("POST", "/control/settings", { values: { signupOpen: !launch.signupOpen }, reason });
+      status.textContent = launch.signupOpen ? "Sign-up is back to invites only." : "Sign-up is open to anyone.";
+      await loadSettings();
+      await loadActivity();
+      await loadLaunch();
+    } catch (failure) {
+      status.textContent = failure.message;
+      switchButton.disabled = false;
+    }
+  });
+  const signupSheet = sheet({
+    title: "Who can sign up", tone: launch.signupOpen ? "success" : "info", pillWords: launch.signupOpen ? "Anyone" : "Invites only",
+    body: [el("p", { className: "rp-hint", textContent: launch.signupOpen ? "Anyone with the address can start a shop." : "Only addresses you invite from the waitlist can start a shop." })],
+    actions: el("div", { className: "cr-actions" }, switchButton, launch.invites ? el("a", { href: "#signups", className: "rp-btn rp-btn-secondary rp-btn-sm", textContent: "Invite someone" }) : null),
+  });
+
+  const shopLive = testShop && testShop.status === "live";
+  const testSheet = sheet({
+    title: "Your test shop", tone: shopLive ? "success" : "warning", pillWords: shopLive ? "Live" : testShop ? "Not live yet" : "Not made yet",
+    metaParts: testShop ? [testShop.shopId] : [],
+    body: [el("p", { className: "rp-hint", textContent: testShop ? "Try changes here before a press sees them." : "It shows here once it's made." })],
+    actions: testShop ? el("div", { className: "cr-actions" },
+      testShop.storefrontUrl ? outLink(testShop.storefrontUrl, "Open the storefront", "primary") : null,
+      testShop.adminUrl ? outLink(testShop.adminUrl, "Open its admin") : null) : null,
+  });
+
+  const deploySheet = launch.keys.every((key) => key.ready) ? null : sheet({
+    title: "After adding a key", tone: "neutral",
+    body: [el("p", { className: "rp-hint", textContent: "Run Deploy the platform once, so the server picks the new key up." })],
+    actions: el("div", { className: "cr-actions" }, outLink(DEPLOY_WORKFLOW, "Open Deploy the platform")),
+  });
+  const makingSheet = launch.shopMaking ? null : sheet({
+    title: "Making a press's shop", tone: "warning", pillWords: "Not switched on",
+    body: [el("p", { className: "rp-hint", textContent: "Create my shop waits on Setting up until the platform's Google access is connected." })],
+  });
+  fill(checks, ...keySheets, deploySheet, signupSheet, testSheet, makingSheet);
+  showWalk(launch);
+}
+
+// Reading localStorage itself throws when the browser blocks it: the ticks then last only until the page closes.
+const walkStore = () => { try { return globalThis.localStorage; } catch { return null; } };
+
+function showWalk(launch) {
+  const ticks = readTicks(walkStore());
+  const list = $("#launch-walk");
+  list.replaceChildren(...walkSteps(launch).map((step) => {
+    const done = ticks.has(step.id);
+    const box = el("input", { type: "checkbox", checked: done });
+    box.addEventListener("change", () => {
+      if (box.checked) ticks.add(step.id);
+      else ticks.delete(step.id);
+      saveTicks(walkStore(), ticks);
+      item.dataset.done = String(box.checked);
+    });
+    const external = step.href && !step.href.startsWith("#");
+    const item = el("li", { className: "rp-card", dataset: { done: String(done) } }, el("div", {},
+      el("div", { className: "cr-row" }, el("h3", { className: "cr-title cr-grow", textContent: step.title }),
+        step.needs.length ? pill("warning", "Waiting") : null),
+      el("p", { className: "rp-hint", textContent: step.try }),
+      step.needs.length ? meta(`Needs ${step.needs.join(", ")}`) : null,
+      el("div", { className: "cr-actions" },
+        step.href ? el("a", { href: step.href, ...(external ? { target: "_blank", rel: "noopener" } : {}), className: "rp-btn rp-btn-secondary rp-btn-sm", textContent: external ? "Open" : "Go there" }) : null,
+        el("label", { className: "rp-check" }, box, "Done"))));
+    return item;
+  }));
+}
+
+$("#launch-walk-reset").addEventListener("click", () => {
+  saveTicks(walkStore(), new Set());
+  for (const item of document.querySelectorAll("#launch-walk > li")) {
+    item.dataset.done = "false";
+    item.querySelector("input").checked = false;
+  }
+});
 
 // ── Tax lines (plan 15.20): amber at 70% of each registration line, "over" at 100%. ──
 async function loadTaxWatch() {
