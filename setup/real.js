@@ -28,6 +28,7 @@ import { TEST_STARTER_CONTENT } from "./test-shop.js";
 import { LINK_DOC } from "./later-steps.js";
 import { runSteps } from "./runner.js";
 import { SHARED_STEP_PLAN, sharedShopSteps } from "./sharedSteps.js";
+import { sharedServiceKeyHash } from "./serviceKey.js";
 
 export const PLATFORM_PROJECT = "lmb-platform-prod";
 
@@ -124,6 +125,7 @@ export async function sharedMakerConfig({ google, projectId, shopDomain, platfor
   return {
     sharedProject: projectId,
     webApp: await google.firebase.getWebAppConfig(projectId, app.appId),
+    serviceKeyHash: await sharedServiceKeyHash(google, projectId),
     shopDomain,
     stockroomBucket: `${projectId}-stockroom`,
     senderEmail,

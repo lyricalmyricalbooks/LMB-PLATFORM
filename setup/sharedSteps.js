@@ -119,7 +119,7 @@ export function recordProfileFiles(records) {
 }
 
 export function sharedShopSteps({ google, shared, registry, shopData, stockroom, inventoryLink, providers, email, siteCheck, presses = null, stagedFiles = null, config, now = () => new Date() }) {
-  const { sharedProject, webApp, shopDomain, stockroomBucket } = config ?? {};
+  const { sharedProject, webApp, shopDomain, stockroomBucket, serviceKeyHash } = config ?? {};
   if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(sharedProject ?? "")) throw new Error("config.sharedProject must be the shared project's id");
   if (webApp?.projectId !== sharedProject) throw new Error("config.webApp must be the shared project's web app settings");
   if (!/^[a-z0-9][a-z0-9._-]{1,220}[a-z0-9]$/.test(stockroomBucket ?? "")) throw new Error("config.stockroomBucket must name the shared stockroom bucket");
@@ -174,14 +174,18 @@ export function sharedShopSteps({ google, shared, registry, shopData, stockroom,
         if (!row) return false;
         if (row.ownerEmail !== shop.ownerEmail) throw new Error(`the shop id ${shop.shopId} already belongs to another press`);
         if (row.projectId !== sharedProject) throw new Error(`the shop id ${shop.shopId} has a project of its own (${row.projectId}); a person moves it into the shared system`);
-        return true;
+        return !serviceKeyHash || row.serviceKeyHash === serviceKeyHash;
       },
       async act({ shop }) {
         const { shopId, pressName, ownerEmail, country, currency, language } = valid(shop);
+        // The shared server's key (setup/serviceKey.js sharedServiceKeyHash): the platform's payment, email and domain
+        // services take its calls for this shop.
+        const key = serviceKeyHash ? { serviceKeyHash } : {};
+        if (await registry.getShop(shopId)) return registry.updateShop(shopId, key);
         await registry.createShop(shopId, {
           shopId, projectId: sharedProject, shared: true, pressName, ownerEmail, plan: "both", country, currency, region,
           testMode: shop.testMode === true, testShop: shop.testShop === true, status: "creating", createdAt: now().toISOString(),
-          ...(language === "fr" ? { language } : {}),
+          ...(language === "fr" ? { language } : {}), ...key,
         });
       },
     },

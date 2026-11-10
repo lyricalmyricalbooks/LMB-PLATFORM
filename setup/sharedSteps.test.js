@@ -221,3 +221,34 @@ test("sign-up makes a shop in the shared system: no queue for a project, the pre
 test("the per-shop server settings a record carries are the ones the shop's server reads", () => {
   assert.deepEqual(SHOP_KEYS, createRequire(import.meta.url)("../apps/shop/functions/shopConfig.js").SHOP_KEYS);
 });
+
+test("each shop carries the shared server's key, so the platform's services take that server's calls for it", async () => {
+  const { sharedServiceKeyHash } = await import("./serviceKey.js");
+  const { hashServiceKey } = await import("../services/email/http.js");
+  const versions = [];
+  const google = {
+    secrets: {
+      latest: async (projectId, name) => (projectId === SHARED && name === "PLATFORM_SERVICE_KEY" ? versions.at(-1) ?? null : null),
+      add: async (_projectId, _name, value) => void versions.push(value),
+    },
+  };
+  const hash = await sharedServiceKeyHash(google, SHARED);
+  assert.equal(versions.length, 1, "made once when missing");
+  assert.equal(hash, hashServiceKey(versions[0]));
+  assert.equal(await sharedServiceKeyHash(google, SHARED), hash, "never rotated");
+  assert.equal(versions.length, 1);
+
+  const services = fakeServices();
+  const registry = fakeRegistry();
+  const steps = sharedShopSteps({ ...services, google: fakeTenants(), shared: fakeShared(), registry, config: { ...CONFIG, serviceKeyHash: hash } });
+  assert.equal((await runSteps({ shop: PRESS, steps, registry, auditLog: fakeAuditLog() })).ok, true);
+  assert.equal((await registry.getShop(PRESS.shopId)).serviceKeyHash, hash);
+
+  // A shop made before the key was kept: a re-run fills it in and changes nothing else.
+  await registry.updateShop(PRESS.shopId, { serviceKeyHash: null });
+  assert.equal(await steps[0].check({ shop: PRESS }), false);
+  await steps[0].act({ shop: PRESS });
+  const row = await registry.getShop(PRESS.shopId);
+  assert.equal(row.serviceKeyHash, hash);
+  assert.equal(row.status, "live");
+});

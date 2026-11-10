@@ -40,3 +40,18 @@ export async function ensureServiceKey({ google, registry }, shopId) {
   await registry.updateShop(shopId, { serviceKeyHash: hashServiceKey(key) });
   return outcome;
 }
+
+/**
+ * The shared system's one key (docs/shared-system.md): one server runs every shop, so it has one PLATFORM_SERVICE_KEY,
+ * the secret in the shared project. Made once when missing, never rotated here. Returns its hash, which the shared shop
+ * maker writes on each shop's registry row (step 1), so the platform's services take that server's calls for the shop.
+ */
+export async function sharedServiceKeyHash(google, projectId) {
+  let key = await google.secrets.latest(projectId, SERVICE_KEY_SECRET);
+  if (typeof key !== "string" || key.length < 32) {
+    await google.secrets.add(projectId, SERVICE_KEY_SECRET, randomBytes(32).toString("hex"));
+    // Read back, so two first runs at once both take the version that ended up newest.
+    key = await google.secrets.latest(projectId, SERVICE_KEY_SECRET);
+  }
+  return hashServiceKey(key);
+}

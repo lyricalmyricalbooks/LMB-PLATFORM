@@ -78,6 +78,10 @@ needed a Google organization before any shop could be made ("In the queue") and 
   in the stockroom's database and the Realtime Database, claim the free address `<id>.<shop domain>` in `addresses/`
   (an address another shop holds stops for a person), then the old maker's starter content, payments, welcome email,
   a check that the shop and stockroom answer at the address (then live), the stockroom link and the setup hand-over.
+  One server runs every shop, so it has one key for the platform's services: the secret `PLATFORM_SERVICE_KEY` in the
+  shared project, made once by the shop maker when missing (`setup/serviceKey.js` `sharedServiceKeyHash`). Step 1 writes
+  its hash on each shop's registry row, so the payment, email and domain services take the shared server's calls for
+  that shop, and a re-run fills it in on a shop made before.
   The stockroom link of a new shop is turned on in its folder (`setup/real.js` `folderInventoryLink`: a start day,
   never over one there); the test shop's goes through its own admin. The hosted server runs it once
   `SHARED_SHOPS_PROJECT` and `SHARED_SHOPS_DOMAIN` are in its settings (`server/world.js`, `sharedShopRun`); sign-up's
