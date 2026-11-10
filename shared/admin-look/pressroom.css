@@ -1951,3 +1951,14 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
   :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-workspace .rp-page-header { padding: 20px; }
   :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-workspace .rp-page-title { font-size: 30px; }
 }
+
+/* The account sits at the foot of the rail on a computer too, as in the mockup; the top bar loses its avatar (10 November 2026). */
+@media (min-width: 1024px) {
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-drawer-account { position: relative; display: flex; align-items: center; gap: 12px; margin: 12px 0 0; padding: 12px; border-radius: 16px; background: var(--rp-rail-line); }
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-drawer-account .rp-avatar { flex: none; width: 32px; height: 32px; background: var(--rp-on-inverse); color: var(--rp-text); font-size: 14px; font-weight: 700; }
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-drawer-account-name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: 400 12px var(--rp-font-mono); color: var(--rp-on-inverse); }
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-drawer-account-site { min-height: 32px; padding: 0 4px; border: 0; background: none; color: var(--rp-on-inverse); font: 400 13px var(--rp-font-body); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-drawer-account .rp-icon-btn { color: var(--rp-on-inverse); background: transparent; border: 0; }
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-drawer-account-menu { position: absolute; left: 0; bottom: calc(100% + 6px); top: auto; min-width: 220px; }
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-topbar .rp-avatar-menu { display: none; }
+}
