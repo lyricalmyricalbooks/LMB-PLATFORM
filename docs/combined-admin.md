@@ -12,6 +12,15 @@ picks the side). Website: Home · Orders (orders, All sales, customers, messages
 Settings. Stockroom: To-do · Stock (stock and sales, the website's Inventory page) · Sales (records, record a sale,
 buyers in person, parcels) · Sell in person · Money (Tax centre first) · Open call · Stockroom settings. Home stays on the
 website side and still shows the stockroom's to-dos and the fair today. Picking a side opens its first page.
+The Stockroom button shows the stockroom's to-do count while you're on the website side (`useStockroomTodos`, as Home
+counts them). The side is kept on the device (`lm:admin-side`); an admin opened with no page in its address reopens on
+the stockroom's To-do when that was the last side. The tour (`CombinedTour.tsx`) starts with the two sides.
+
+**Stockroom pages in the Colophon look:** `apps/stockroom/src/styles/admin-look/colophon-shapes.css` points the
+stockroom's shape tokens (corners, borders, shadows, display font) at the Colophon bento, and turns its tabs and
+buttons into pills, its alert band into a rounded alert tile and its cards into white tiles, standalone and inside the
+admin. Screenshots of real stockroom pages as the admin shows them: in `apps/stockroom`, `npm run shots --
+--widths=1100,390 --only=taxcenter --inside-admin`.
 
 ## What it is (step 1, built)
 
