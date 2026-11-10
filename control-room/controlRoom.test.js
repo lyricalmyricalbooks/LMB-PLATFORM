@@ -222,7 +222,7 @@ test("the page: admins sign in with Google, every route is used, names are shown
 test("the real support sign-in: a token for the support account with who, why and until, opened at the shop's admin", async () => {
   const w = await world();
   const made = [];
-  const identity = { customToken: async (sa, uid, claims) => { made.push({ sa, uid, claims }); return "signed.jwt"; } };
+  const identity = { customToken: async (sa, uid, claims, list) => { made.push({ sa, uid, claims, list }); return "signed.jwt"; } };
   const now = () => new Date("2026-10-28T12:00:00Z");
   const access = supportAccess({ identity, registry: w.registry, serviceAccount: "platform@example.com", now });
   const { url, until } = await access.supportSignIn(ID, { by: ADMIN.email, reason: "x".repeat(500), minutes: 30 });
@@ -234,6 +234,8 @@ test("the real support sign-in: a token for the support account with who, why an
   await access.supportSignIn(ID, { by: ADMIN.email, reason: "fix a price", mode: "edit" });
   assert.equal(made[1].claims.support.mode, "edit");
   assert.ok(JSON.stringify(made[0].claims).length < 1000, "a token's claims stay under Firebase's limit");
+  // On the shop's own sign-in list (the shared system); a shop without one uses the project's own.
+  assert.deepEqual(made[0].list, { tenantId: profile.tenant ?? null });
   // Never longer than the sign-in token itself lasts.
   assert.equal((await access.supportSignIn(ID, { by: ADMIN.email, reason: "long one", minutes: 600 })).until, now().getTime() / 1000 + MAX_MINUTES * 60);
   await assert.rejects(supportAccess({ identity, registry: w.registry }).supportSignIn(ID, { by: ADMIN.email, reason: "r" }), /service account/);
@@ -773,4 +775,19 @@ test("the shop list and Today read shops a few at a time, not one after another,
     if (n === 2) throw new Error("the registry didn't answer");
   }), /didn't answer/);
   await eachInTurn([], 8, async () => assert.fail("nothing to do"));
+});
+
+test("a support visit and the two-step tools use the shop's own sign-in list (the shared system)", async () => {
+  const calls = [];
+  const identity = {
+    customToken: async (...args) => { calls.push(["token", args[3]]); return "signed.jwt"; },
+    removeSecondSteps: async (...args) => { calls.push(["remove", args[2]]); return { found: true, removed: 1 }; },
+    secondStepsOf: async (...args) => { calls.push(["steps", args[2]]); return []; },
+  };
+  const registry = { getProfile: async () => ({ siteUrl: "https://press.example", apps: { shop: true }, firebase: { projectId: "lmb-test-shop" }, tenant: "press-a1b2c3" }) };
+  const access = supportAccess({ identity, registry, serviceAccount: "platform@example.com" });
+  await access.supportSignIn("press", { by: "a@example.com", reason: "r" });
+  await access.removeTwoStep("press", "owner@example.com");
+  await access.signInSafety("press", ["owner@example.com"]);
+  assert.deepEqual(calls, [["token", { tenantId: "press-a1b2c3" }], ["remove", { tenantId: "press-a1b2c3" }], ["steps", { tenantId: "press-a1b2c3" }]]);
 });

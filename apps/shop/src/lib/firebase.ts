@@ -4,6 +4,7 @@ import { connectFirestoreEmulator, doc, getFirestore } from "firebase/firestore"
 import { emulators, emulatorUrl } from "./emulators";
 import { app, appCheck, authState } from "./firebaseApp";
 import { SHOP_FOLDER } from "./shopFolder";
+import { shopProfile } from "./shopProfile";
 
 // App Check is initialized in ./firebaseApp before Firestore and Auth, as it must be.
 export { app, appCheck };
@@ -15,6 +16,9 @@ export const firestore = getFirestore(app);
  */
 export const db = doc(firestore, SHOP_FOLDER);
 export const auth = getAuth(app);
+// Everyone signs in on this shop's own sign-in list (the shared system, LMB-PLATFORM docs/shared-system.md): the rules
+// and the server count a sign-in only in the shop whose list it came from. No list: the project's own (the demo).
+auth.tenantId = shopProfile.tenant ?? null;
 // The demo shop only (./emulators): data, sign-in and stored files come from the local emulators.
 if (emulators) {
   connectFirestoreEmulator(firestore, emulators.host, emulators.ports.firestore);

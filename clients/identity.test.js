@@ -94,3 +94,16 @@ test("each person's second steps and last sign-in come from one lookup", async (
   ]);
   fetch.done();
 });
+
+test("a shop with its own sign-in list (the shared system): every call names the list, and the pass belongs to it", async () => {
+  const tenantId = "test-shop-a1b2c3";
+  const fetch = scriptedFetch([
+    { method: "POST", url: "https://identitytoolkit.googleapis.com/v1/projects/lmb-test-shop/accounts:lookup", body: { email: ["owner@example.com"], tenantId }, json: { users: [{ localId: "u1", email: "owner@example.com", emailVerified: false }] } },
+    { method: "POST", url: "https://identitytoolkit.googleapis.com/v1/projects/lmb-test-shop/accounts:update", body: { localId: "u1", emailVerified: true, tenantId }, json: {} },
+    { ...signJwt("u1"), body: { payload: JSON.stringify({ iss: SA, sub: SA, aud: CUSTOM_TOKEN_AUDIENCE, iat: IAT, exp: IAT + 3600, uid: "u1", tenant_id: tenantId }) } },
+    { ...signIn, body: { token: "signed.jwt", returnSecureToken: true, tenantId } },
+  ]);
+  const session = await testOwnerSession({ identity: identityClient({ fetch, token, now: () => NOW }), shop, profile: { ...profile, tenant: tenantId }, serviceAccount: SA, now: () => NOW });
+  assert.equal(session.user.tenantId, tenantId);
+  fetch.done();
+});

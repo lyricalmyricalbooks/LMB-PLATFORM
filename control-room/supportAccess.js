@@ -18,7 +18,8 @@ export function supportAccess({ identity, registry, serviceAccount, shopData = n
       const until = Math.floor(now().getTime() / 1000) + Math.min(MAX_MINUTES, Math.max(1, minutes)) * 60;
       // Kept short: a sign-in token's own claims must stay under 1,000 characters.
       const support = { by: String(by).slice(0, 120), reason: String(reason).slice(0, 200), until, mode: mode === "edit" ? "edit" : "view" };
-      const token = await identity.customToken(serviceAccount, SUPPORT_UID, { support });
+      // On the shop's own sign-in list (the shared system), so the visit counts in that shop only.
+      const token = await identity.customToken(serviceAccount, SUPPORT_UID, { support }, { tenantId: profile.tenant ?? null });
       return { url: `${profile.siteUrl}/admin/#support=${token}`, until };
     },
 
@@ -27,7 +28,7 @@ export function supportAccess({ identity, registry, serviceAccount, shopData = n
       const profile = await registry.getProfile(shopId);
       const projectId = profile?.firebase?.projectId;
       if (!projectId) throw new Error(`${shopId} has no sign-in project yet`);
-      return identity.removeSecondSteps(projectId, email);
+      return identity.removeSecondSteps(projectId, email, { tenantId: profile.tenant ?? null });
     },
 
     /**
@@ -39,7 +40,7 @@ export function supportAccess({ identity, registry, serviceAccount, shopData = n
       const profile = await registry.getProfile(shopId);
       const projectId = profile?.firebase?.projectId;
       if (!projectId) throw new Error(`${shopId} has no sign-in project yet`);
-      const people = await identity.secondStepsOf(projectId, emails);
+      const people = await identity.secondStepsOf(projectId, emails, { tenantId: profile.tenant ?? null });
       const out = [];
       for (const person of people) {
         const backup = person.uid && shopData ? await shopData.get(shopId, `twoStepBackup/${person.uid}`).catch(() => null) : null;

@@ -66,6 +66,8 @@ function paymentMode(value) {
   return value && (value.mode === 'own' || value.mode === 'platform') ? value.mode : '';
 }
 
+const TENANT = /^[a-zA-Z][a-zA-Z0-9-]{3,62}$/;
+
 /**
  * Checks a profile the page was handed. All or nothing: a profile with any problem is ignored as a whole.
  * `firebase.databaseURL` is optional; without it the project's default database address is used.
@@ -85,6 +87,8 @@ export function parseShopProfile(value) {
   const switches = value.switches && typeof value.switches === 'object' ? value.switches : {};
   const on = SHOP_SWITCHES.filter((name) => switches[name] === true);
   if (value.name !== undefined && (typeof value.name !== 'string' || !value.name.length || value.name.length > 80)) return null;
+  // The shop's own sign-in list (the shared system), as profile/shop-profile.schema.json `tenant`.
+  if (value.tenant !== undefined && !(typeof value.tenant === 'string' && TENANT.test(value.tenant))) return null;
   return {
     version: 1,
     shopId: value.shopId,
@@ -95,6 +99,7 @@ export function parseShopProfile(value) {
       ...Object.fromEntries(FIREBASE_KEYS.map((key) => [key, firebase[key]])),
       databaseURL: firebase.databaseURL || `https://${firebase.projectId}-default-rtdb.firebaseio.com`,
     },
+    ...(value.tenant !== undefined ? { tenant: value.tenant } : {}),
     functionsRegion: value.functionsRegion,
     siteUrl: value.siteUrl,
     apps: { shop: apps.shop, stockroom: apps.stockroom },
