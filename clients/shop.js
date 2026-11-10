@@ -84,9 +84,11 @@ export function stockroomClient(firestoreFor, { now = () => new Date() } = {}) {
  * `functionsBase(projectId)` is like https://<region>-<project>.cloudfunctions.net; `idToken(projectId)` an admin's
  * sign-in for that shop (the test owner's).
  */
-export function inventoryLinkClient({ fetch, functionsBase, idToken }) {
+export function inventoryLinkClient({ fetch, functionsBase, idToken, functionUrl = null }) {
+  // `functionUrl(projectId, name)`, when given, is the whole address: the shared server's carries `?shop=<id>`.
+  const addressOf = async (projectId) => (functionUrl ? functionUrl(projectId, "createStripeCheckoutSession") : `${await functionsBase(projectId)}/createStripeCheckoutSession`);
   const ask = async (projectId, body) => {
-    const response = await fetch(`${await functionsBase(projectId)}/createStripeCheckoutSession`, {
+    const response = await fetch(await addressOf(projectId), {
       method: "POST",
       headers: { Authorization: `Bearer ${await idToken(projectId)}`, "Content-Type": "application/json" },
       body: JSON.stringify({ action: "inventoryLink", ...body }),

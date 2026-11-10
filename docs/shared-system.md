@@ -69,8 +69,19 @@ needed a Google organization before any shop could be made ("In the queue") and 
   writes the shop's profile beside it and runs the shop's own build scripts against that copy (`SHOP_PROFILE_FILE`,
   `SHOP_BUILD_DIR`; they read the shop's folder in the database through `shopDocumentsBase`), then uploads exactly the
   files the front door serves to `shops/<id>/site/` and removes the shop's older ones (a page whose book was taken
-  down). A failed build uploads nothing, so the last good files stay. The shop maker runs it when a shop is made
-  (phase 6), and the staged updates after each release and catalogue change (phase 7).
+  down). A failed build uploads nothing, so the last good files stay. A new shop has no books to draw, so the front
+  door answers it with the blank app until its first catalogue change: the staged updates run this after each release
+  and catalogue change (phase 7).
+- **A shop made in seconds.** `setup/sharedSteps.js` is the shop maker for the shared system, run by the same runner
+  (`runner.js`: a re-run resumes, nothing is deleted). Eleven steps: reserve the id (the registry row names the shared
+  project), make the sign-in list, write the profile (the shared web app, both apps), write the record and its copies
+  in the stockroom's database and the Realtime Database, claim the free address `<id>.<shop domain>` in `addresses/`
+  (an address another shop holds stops for a person), then the old maker's starter content, payments, welcome email,
+  a check that the shop and stockroom answer at the address (then live), the stockroom link and the setup hand-over.
+  The stockroom link of a new shop is turned on in its folder (`setup/real.js` `folderInventoryLink`: a start day,
+  never over one there); the test shop's goes through its own admin. The hosted server runs it once
+  `SHARED_SHOPS_PROJECT` and `SHARED_SHOPS_DOMAIN` are in its settings (`server/world.js`, `sharedShopRun`); sign-up's
+  progress screen follows these steps (`SHARED_STEP_PLAN`). Until then making shops stays "not switched on".
 - **Backups.** The managed Firestore export would copy every shop, so inside a shop only the server's own document copy
   runs. Its paths carry no shop folder (`books/a`), and `scripts/restore-json-backup.mjs --shop <id>` puts them back
   into that shop's folder only.
@@ -98,17 +109,16 @@ app off. The per-shop cost meters (phase 7) are what the plan charges by.
 | 3 | Stockroom in shop folders (its database, live sync, files) | built |
 | 4 | Per-shop sign-in (Identity Platform tenants) for customers, staff, helpers, support | built |
 | 5 | Front door: one site for every address, profile by address, crawlable pages, own domains | built |
-| 6 | Shop maker in seconds (record + tenant + starter content); ends "In the queue" | next |
-| 7 | Platform services: control room, health, per-shop costs, export, closing, backups, staged updates | |
+| 6 | Shop maker in seconds (record + tenant + starter content); ends "In the queue" | built |
+| 7 | Platform services: control room, health, per-shop costs, export, closing, backups, staged updates | next |
 | 8 | Test shop rebuilt in the shared test project (`lmb-test-shop`) with a test purchase | |
 
-Left for later phases: the shop maker writes `addresses/{host}` for the free address (phase 6), and the domain
-service adds an own domain to the shared Hosting site and to `addresses/` (phase 7). The platform's services still call each shop's server code at its own project's address
+Left for later phases: the domain service adds an own domain to the shared Hosting site and to `addresses/` (phase 7). The platform's services still call each shop's server code at its own project's address
 (`services/payments` forwarding events, `services/health`), which phase 7 moves to the shared server with `?shop=`. A
 Shippo or PayPal webhook set up by hand needs `?shop=<id>` on its address. The tick runs every shop in one five-minute
 run; phase 7 spreads it out once there are many shops. The platform's writers into a shop (billing's `platform/plan`
 and `platform/status`, control-room messages, the closing sweep, setup's stockroom books) still address each shop's own
-project; phases 6 and 7 point them at the shop's folder in the shared project. Nothing is deployed from these copies to a live shop until
+project (the shop maker's own writes already reach the folder); phase 7 points them at the shop's folder in the shared project. Nothing is deployed from these copies to a live shop until
 phase 8 (the per-project test shop build is on hold).
 
 ## Projects

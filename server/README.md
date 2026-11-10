@@ -41,7 +41,7 @@ Not connected yet (`notConnected.js`). Each answers in plain words, never with m
 
 | Piece | Waits on |
 | --- | --- |
-| Making new shops | The Google organization and its shops folder (15.5) |
+| Making new shops | `SHARED_SHOPS_PROJECT` and `SHARED_SHOPS_DOMAIN` in `env.yaml` (the shared system, `docs/shared-system.md`): with both set, a shop is made in seconds in the shared project and the Launch page shows making shops on |
 | Putting a shop's pages live again, rolling back, self-checks | The release runner's hosted home (4.1) |
 | Opening a shop's admin from the control room | A support sign-in per shop, after 15.5 and 15.7 |
 | Downloading all of a shop's data | The export bucket and its download links (19.16) |

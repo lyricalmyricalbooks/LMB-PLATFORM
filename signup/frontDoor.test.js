@@ -520,7 +520,9 @@ test("while the shop is made, the press sees how far it has got; once it is read
   await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA);
   const listed = async () => (await w.ask("GET", "/api/press", undefined, ADA)).body.presses.find((p) => p.pressId === pressId);
   const total = Object.keys(STEP_WORDS).length;
-  assert.deepEqual((await listed()).making, { status: "queued", done: 0, total, now: "", message: "", canRetry: false });
+  // After which step each "Setting up your store" row is done (the per-project steps here).
+  const marks = { address: 9, store: 15 };
+  assert.deepEqual((await listed()).making, { status: "queued", done: 0, total, now: "", message: "", canRetry: false, marks });
 
   const rows = w.signupStores.signups.rows;
   rows.set("moth-press-abcde", { ...rows.get("moth-press-abcde"), status: "making" });
@@ -528,13 +530,13 @@ test("while the shop is made, the press sees how far it has got; once it is read
   await w.registry.recordStep("moth-press-abcde", { step: 6, status: "failed" });
   const making = await listed();
   assert.equal(making.status, "opening");
-  assert.deepEqual(making.making, { status: "making", done: 5, total, now: STEP_WORDS[6], message: "", canRetry: false });
+  assert.deepEqual(making.making, { status: "making", done: 5, total, now: STEP_WORDS[6], message: "", canRetry: false, marks });
 
   rows.set("moth-press-abcde", { ...rows.get("moth-press-abcde"), status: "ready", openUrl: "https://moth-press-abcde.shops.example/admin" });
   const ready = await listed();
   assert.equal(ready.status, "open");
   assert.equal(ready.openUrl, "https://moth-press-abcde.shops.example/admin");
-  assert.deepEqual(ready.making, { status: "ready", done: total, total, now: "", message: "", canRetry: false });
+  assert.deepEqual(ready.making, { status: "ready", done: total, total, now: "", message: "", canRetry: false, marks });
   const record = await w.stores.presses.get(pressId);
   assert.deepEqual([record.status, record.shopStatus, record.openUrl], ["open", "ready", "https://moth-press-abcde.shops.example/admin"]);
   // Read again, it stays open and is not followed any more.

@@ -29,7 +29,8 @@ const health = (parts, job) => realHealth({ job, env: parts.env, fetch: parts.fe
 
 export const RUNNERS = Object.freeze({
   "health-checks": ({ parts }) => () => health(parts, "checks"),
-  "shop-maker": () => notConnectedFn(NOT_CONNECTED.shopMaking),
+  // The shared system makes shops once its two settings are there (server/world.js sharedShopRun).
+  "shop-maker": ({ shopMaker, parts }) => (parts?.sharedShops ? () => shopMaker.sweep() : notConnectedFn(NOT_CONNECTED.shopMaking)),
   "web-addresses": () => notConnectedFn(NOT_CONNECTED.domains),
   "own-email-addresses": ({ parts }) => () => createOwnDomainSender({
     resendDomains: resendDomainsFromEnv({ env: parts.env, fetch: parts.fetch }), registry: parts.registry, auditLog: parts.auditLog,
@@ -74,6 +75,12 @@ export const WAITING_JOBS = Object.freeze({
   bookkeeping: NOT_CONNECTED.bookkeeping,
   "running-costs": NOT_CONNECTED.runningCosts,
 });
+
+/** The jobs still waiting with the server's settings (server/env.yaml): the shared system makes shops (sharedShopRun). */
+export function waitingJobs(env = {}) {
+  const shared = Boolean(String(env.SHARED_SHOPS_PROJECT ?? "").trim() && String(env.SHARED_SHOPS_DOMAIN ?? "").trim());
+  return Object.fromEntries(Object.entries(WAITING_JOBS).filter(([name]) => !(shared && name === "shop-maker")));
+}
 
 /** The run function for one job in this world. */
 export function runnerFor(world, name) {
