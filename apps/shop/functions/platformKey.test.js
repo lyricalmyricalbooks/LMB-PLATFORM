@@ -7,7 +7,7 @@ import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 
 const require = createRequire(import.meta.url);
-const { usesPlatformServices, withPlatformKey, PLATFORM_SERVICE_KEY } = require("./platformKey.js");
+const { OWN_KEYS, usesPlatformServices, withPlatformKey, PLATFORM_SERVICE_KEY } = require("./platformKey.js");
 const dir = fileURLToPath(new URL(".", import.meta.url));
 
 // Loads the functions as the deploy does and lists, per function, the secrets it declares.
@@ -31,6 +31,7 @@ describe("the shop's platform key", () => {
     expect(usesPlatformServices({ paymentMode: "own", platformEmailUrl: "https://email.platform.example/shop" })).toBe(true);
     expect(withPlatformKey(["A"], { paymentMode: "own" })).toEqual(["A"]);
     expect(withPlatformKey(["A"], { paymentMode: "platform" })).toEqual(["A", PLATFORM_SERVICE_KEY]);
+    expect(withPlatformKey([{ name: "RESEND_API_KEY" }, { name: "A" }], { paymentMode: "platform" })).toEqual([{ name: "A" }, PLATFORM_SERVICE_KEY]);
   });
 
   test("every function's own secrets list goes through withPlatformKey", () => {
@@ -44,10 +45,12 @@ describe("the shop's platform key", () => {
     const names = Object.keys(platform);
     expect(names.length).toBeGreaterThan(20);
     expect(names.filter(name => !platform[name].includes("PLATFORM_SERVICE_KEY"))).toEqual([]);
-    // A function with its own list keeps its other secrets too.
-    expect(platform.stripeWebhook).toEqual(expect.arrayContaining(["STRIPE_WEBHOOK_SECRET", "PLATFORM_SERVICE_KEY"]));
+    // The shared server asks for no key a press would own: the deploy would stop for a secret no shop has.
+    expect(Object.values(platform).flat().filter(name => OWN_KEYS.has(name))).toEqual([]);
 
     const own = secretsByFunction({ SHOP_PAYMENT_MODE: "", PLATFORM_EMAIL_URL: "" });
     expect(Object.values(own).flat()).not.toContain("PLATFORM_SERVICE_KEY");
+    // A shop on its own keys keeps them.
+    expect(own.stripeWebhook).toEqual(expect.arrayContaining(["STRIPE_WEBHOOK_SECRET"]));
   }, 60000);
 });
