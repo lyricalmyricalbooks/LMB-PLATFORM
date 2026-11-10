@@ -34,14 +34,7 @@ export interface SetupLists {
   sells: Array<{ id: string; label: string }>;
 }
 
-const PLAN_LINES: Record<string, string> = {
-  both: "Your website and your stock, kept in step",
-  shop: "Your website, to sell online",
-  stockroom: "Track stock, sales and payouts from fairs and stores",
-};
-const PLAN_ORDER = ["both", "shop", "stockroom"] as const;
-/** The plans' names while the platform's prices load (or if they can't). */
-const PLAN_NAMES: Record<string, string> = { both: "Shop and stockroom", shop: "Shop", stockroom: "Stockroom" };
+const PLAN_LINES: Record<string, string> = { both: "Your website and your stockroom, kept in step" };
 
 const NO_ANSWERS: HelpAnswers = new Map();
 
@@ -121,7 +114,7 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
   else if (page === GENERAL_PAGE) content = (
     <>
       <PressDetails press={press} lists={lists} save={save} />
-      {press.plan !== "stockroom" && <WebAddressCard press={press} door={door} save={save} onSaved={setPress} />}
+      <WebAddressCard press={press} door={door} save={save} onSaved={setPress} />
     </>
   );
   else if (page === IMPORT_PAGE) content = <ImportPage press={press} door={door} onSaved={setPress} />;
@@ -212,7 +205,7 @@ export function OpensWithShop({ page, line = "", onOpenShop, onBack }: { page: s
 
 /** Why each step matters, shown when its row is open. Written in book words; the guide shows the shop's own. */
 const STEP_WHY: Record<string, string> = {
-  plan: "Your website, your stockroom or both. You can change it until your shop is made.",
+  plan: "Every shop gets your website and your stockroom: a small monthly fee plus what it costs to run.",
   details: "Your brand's name, what you sell and your country set your shop's words, money and taxes.",
   look: "Your words and books stay the same in every look. Change any part later in Design.",
   books: "Your old shop's product file brings your books in as drafts to check.",
@@ -422,14 +415,6 @@ function PressDetails({ press, lists, save }: { press: SetupPress; lists: SetupL
 }
 
 function DesignPage({ press, save }: { press: SetupPress; save: (c: SetupChange) => Promise<SetupPress> }) {
-  if (press.plan === "stockroom") {
-    return (
-      <>
-        <PageHeader title="Design" />
-        <EmptyState title="No website on your plan" description="You picked the stockroom on its own, so there's no website to design. Add the shop in Settings › Plan any time." />
-      </>
-    );
-  }
   return (
     <>
       <PageHeader title="Design" />
@@ -458,14 +443,6 @@ function CardPaymentsPage({ press, save }: { press: SetupPress; save: (c: SetupC
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const inSetup = press.status === "setup";
-  if (press.plan === "stockroom") {
-    return (
-      <>
-        <PageHeader title="Payments" />
-        <EmptyState title="No website on your plan" description="The stockroom on its own has no website checkout." />
-      </>
-    );
-  }
   const chosen = chosenCardProvider(press);
   const choose = async (provider: CardProviderId) => {
     if (busy || (press.cardProvider === provider)) return;
@@ -510,11 +487,12 @@ function PlanPage({ press, plans, failed, onRetry, save, termsUrl, names, email,
   const [error, setError] = useState("");
   const inSetup = press.status === "setup";
   const byId = Object.fromEntries((plans?.plans ?? []).map((p) => [p.plan, p]));
-  const choose = async (plan: SetupPress["plan"]) => {
-    if (busy || plan === press.plan) return;
-    setBusy(plan); setError("");
-    try { await save({ plan }); } catch (err) { setError(err instanceof Error ? err.message : "That didn't save. Try again."); } finally { setBusy(""); }
-  };
+  // An older setup record that named another plan (or none) is moved to the one plan, once.
+  useEffect(() => {
+    if (!inSetup || press.plan === "both" || busy) return;
+    setBusy("both"); setError("");
+    save({ plan: "both" }).catch((err) => setError(err instanceof Error ? err.message : "That didn't save. Try again.")).finally(() => setBusy(""));
+  }, [inSetup, press.plan]);
   // The trial's length comes only from the platform; with none (prices didn't load, or no trial) no days are promised.
   // "Your first shop": billing gives one trial per account, so a second press gets none.
   const trial = plans?.trialDays ?? 0;
@@ -523,29 +501,20 @@ function PlanPage({ press, plans, failed, onRetry, save, termsUrl, names, email,
     <>
       <PageHeader title="Plan" />
       <SectionCard title="Your plan" collapsible={false}>
-        <div id="plan-choice" role="radiogroup" aria-label="Your plan" style={{ display: "grid", gap: 8 }}>
-          {PLAN_ORDER.map((id) => {
-            const offer = byId[id];
-            const on = press.plan === id;
-            return (
-              <button key={id} type="button" role="radio" aria-checked={on} disabled={!!busy || !inSetup} onClick={() => void choose(id)}
-                style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "4px 16px", alignItems: "center", textAlign: "left", minHeight: 56, padding: 14,
-                  background: on ? "var(--rp-primary-tint)" : "var(--rp-surface)", color: "var(--rp-text)", cursor: "pointer",
-                  border: on ? "2px solid var(--rp-text)" : "1px solid var(--rp-border)" }}>
-                <span style={{ display: "grid", gap: 2 }}>
-                  <strong>{offer?.name ?? PLAN_NAMES[id]}</strong>
-                  <span className="rp-hint">{PLAN_LINES[id]}</span>
-                </span>
-                {offer && (
-                  <span style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                    {offer.foundingPriceText && <s className="rp-hint" style={{ display: "block" }}>{offer.priceText}</s>}
-                    <strong>{offer.foundingPriceText ?? offer.priceText}</strong>
-                    <span className="rp-hint" style={{ display: "block" }}>a month</span>
-                  </span>
-                )}
-              </button>
-            );
-          })}
+        {/* One product (10 November 2026): every shop gets the website and the stockroom, so there is nothing to pick. */}
+        <div id="plan-choice" style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "4px 16px", alignItems: "center", padding: 14,
+          background: "var(--rp-primary-tint)", border: "2px solid var(--rp-text)" }}>
+          <span style={{ display: "grid", gap: 2 }}>
+            <strong>Everything included</strong>
+            <span className="rp-hint">{PLAN_LINES.both}</span>
+          </span>
+          {byId.both && (
+            <span style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+              {byId.both.foundingPriceText && <s className="rp-hint" style={{ display: "block" }}>{byId.both.priceText}</s>}
+              <strong>{byId.both.foundingPriceText ?? byId.both.priceText}</strong>
+              <span className="rp-hint" style={{ display: "block" }}>a month + running cost</span>
+            </span>
+          )}
         </div>
         {error && <p role="alert" className="rp-hint" style={{ color: "var(--rp-danger)" }}>{error}</p>}
         {failed ? (

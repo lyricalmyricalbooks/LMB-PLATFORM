@@ -2,7 +2,7 @@
 // trial, then follow the shop being made. Plain browser JavaScript with no framework (docs/decisions.md); Firebase's
 // own browser library is loaded from Google for sign-in only. Every check the page makes, the server makes again.
 import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE, SAMPLE_PRESS_URL, SETUP_ADMIN_URL } from "./config.js";
-import { ADDRESS_SUFFIX, COUNTRIES, PLAN_CHOICES, PUBLISHES, QUESTION, checkAddress, checkSignup, isEmail } from "./form.js";
+import { ADDRESS_SUFFIX, COUNTRIES, PUBLISHES, QUESTION, checkAddress, checkSignup, isEmail } from "./form.js";
 import { deviceId } from "./device.js";
 
 // Before Firebase loads, so the link shows even when it can't.
@@ -98,7 +98,6 @@ if (isSignInWithEmailLink(auth, location.href)) {
 function fillDetails(info) {
   document.querySelectorAll("[data-trial-days]").forEach((el) => { el.textContent = String(info.trialDays); });
   const byPlan = Object.fromEntries(info.plans.map((p) => [p.plan, p]));
-  $("#plans").replaceChildren(...PLAN_CHOICES.filter((id) => byPlan[id]).map((id, index) => choice("plan", id, byPlan[id].name, `${byPlan[id].priceText} a month`, index === 0)));
   $("#country").replaceChildren(...Object.entries(COUNTRIES).map(([code, c]) => new Option(c.name, code, code === "CA", code === "CA")));
   $("#question-label").textContent = QUESTION.label;
   $("#question-hint").textContent = QUESTION.hint;
@@ -120,11 +119,9 @@ function updateSummary() {
   $("#summary-press").textContent = name || "Your press";
   const address = $("#address-text").textContent;
   $("#summary-address").textContent = address.endsWith(ADDRESS_SUFFIX) && !address.startsWith("…") ? address : `yourpress${ADDRESS_SUFFIX}`;
-  const plan = planInfo.byPlan?.[form.plan?.value];
-  if (plan) {
-    $("#summary-plan").textContent = plan.name;
-    $("#summary-price").textContent = `${plan.foundingPriceText && planInfo.founding ? plan.foundingPriceText : plan.priceText} a month${planInfo.plusTax ? " + tax" : ""}`;
-  }
+  // One plan for every shop: its fee, plus what the shop costs to run (pay what you use).
+  const plan = planInfo.byPlan?.both;
+  if (plan) $("#summary-price").textContent = `${plan.foundingPriceText && planInfo.founding ? plan.foundingPriceText : plan.priceText} a month + running cost${planInfo.plusTax ? " + tax" : ""}`;
   const sells = [...form.querySelectorAll(`input[name="${PUBLISHES.id}"]:checked`)].map((input) => input.closest("label").textContent.trim());
   $("#summary-sells").textContent = sells.length ? sells.join(" & ") : "Your shop";
 }
@@ -198,7 +195,7 @@ $("#details-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = new FormData(event.target);
   const input = {
-    pressName: form.get("pressName"), plan: form.get("plan"), country: form.get("country"),
+    pressName: form.get("pressName"), plan: "both", country: form.get("country"),
     [QUESTION.id]: form.get(QUESTION.id), [PUBLISHES.id]: form.get(PUBLISHES.id),
     address: addressInput.value, termsAccepted: event.target.termsAccepted.checked, termsVersion,
     // A browser set to French: the platform's emails to this press go in French (only French is sent; form.js).

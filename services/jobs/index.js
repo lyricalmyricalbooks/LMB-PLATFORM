@@ -39,6 +39,7 @@ export const JOBS = Object.freeze([
   { name: "keep-times", words: "Remove records past the time they are kept", every: DAY, code: "services/retention/run.js" },
   { name: "self-checks", words: "Self-checks of every live shop", every: DAY, code: "control-room/self-check.js" },
   { name: "closing", words: "Close unpaid or ended shops on their dates", every: DAY, code: "services/billing/closing.js sweep" },
+  { name: "every-app", words: "Give a shop still on the shop or stockroom plan both apps, at the same fee", every: DAY, code: "services/billing/billing.js giveEveryApp" },
   { name: "dropped-apps", words: "Close an app a plan dropped once its month ends", every: DAY, code: "services/billing/billing.js closeDroppedApps" },
   { name: "drift-watch", words: "Spot paying presses whose shop has gone quiet (and send one gentle check-in), moves from an old shop left part-way, and newsletters that stopped", every: DAY, code: "control-room/driftWatch.js sweep" },
   { name: "setup-clock", words: "Warn presses whose setup hasn't been visited, then clear it after 60 days", every: DAY, code: "signup/setupClock.js sweep" },

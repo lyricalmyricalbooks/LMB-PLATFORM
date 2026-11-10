@@ -41,6 +41,8 @@ export const RUNNERS = Object.freeze({
   "self-checks": () => notConnectedFn(NOT_CONNECTED.selfChecks),
   closing: ({ closing }) => () => closing.sweep(),
   "dropped-apps": ({ billing }) => () => billing.closeDroppedApps(),
+  // Every shop gets the website and the stockroom (10 November 2026): shops on an older plan move to it.
+  "every-app": ({ billing }) => () => billing.giveEveryApp(),
   // Pay what you use: needs a way to read each shop's cost (the billing export or the shared system's meters).
   "running-costs": ({ billing, parts }) => (parts?.costReader?.configured || parts?.usageMeters
     ? () => runRunningCosts({ billing, registry: parts.registry, meters: parts.usageMeters ?? null, reader: parts.costReader ?? null, now: parts.now })

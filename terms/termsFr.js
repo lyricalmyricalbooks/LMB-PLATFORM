@@ -38,7 +38,7 @@ export const SECTIONS_FR = Object.freeze([
     title: "Conditions d'utilisation",
     paragraphs: [
       `Ces conditions lient votre maison d'édition et ${OPERATOR_NAME}, l'entreprise qui exploite Colophon, au ${OPERATOR_ADDRESS_FR}. La personne qui coche la case à l'inscription accepte au nom de la maison et confirme qu'elle en a le droit.`,
-      "Colophon donne à votre maison une boutique, une réserve, ou les deux. Le service est fait pour les entreprises, pas pour des personnes qui achètent pour elles-mêmes.",
+      "Colophon donne à votre maison un site web et une réserve. Le service est fait pour les entreprises, pas pour des personnes qui achètent pour elles-mêmes.",
       "Votre boutique est votre propre entreprise. Votre maison est le vendeur auprès de vos clients, fixe ses prix et ses politiques, et respecte les lois sur la vente, la vie privée et les taxes des endroits où elle vend.",
       "Vous êtes responsable de ce que vous vendez et des textes et images de votre boutique. N'utilisez pas Colophon pour vendre quoi que ce soit d'illégal là où vous êtes ou là où sont vos acheteurs.",
       "Vos livres, vos textes et vos images restent à vous. Vous nous permettez de les copier et de les montrer seulement pour faire fonctionner votre boutique, et cela prend fin quand elle est supprimée.",
@@ -73,7 +73,7 @@ export const SECTIONS_FR = Object.freeze([
     paragraphs: [
       "Cette partie vous concerne, vous qui dirigez une maison sur Colophon. Vos clients sont couverts par la politique de confidentialité de votre propre boutique.",
       `${OPERATOR_NAME} est responsable des renseignements que nous gardons sur vous. Notre responsable de la protection des renseignements personnels en répond, à ${PRIVACY_CONTACT}.`,
-      "Nous gardons votre nom, votre adresse courriel, le nom de votre maison, le forfait choisi et vos réponses à l'inscription. Nous les utilisons pour faire fonctionner votre boutique, facturer votre forfait et vous écrire au sujet de votre compte.",
+      "Nous gardons votre nom, votre adresse courriel, le nom de votre maison, votre forfait et vos réponses à l'inscription. Nous les utilisons pour faire fonctionner votre boutique, facturer votre forfait et vous écrire au sujet de votre compte.",
       "Les numéros de carte sont gardés par notre entreprise de paiement. Nous ne voyons que la marque de la carte, ses quatre derniers chiffres et sa date d'expiration.",
       "Nous gardons aussi une trace des connexions, des nouveaux appareils et de ce que notre équipe fait dans votre boutique, pour protéger les comptes.",
       "Nous utilisons vos renseignements parce que nous en avons besoin pour vous offrir le service choisi, parce que la loi nous oblige à garder certains documents, et pour protéger Colophon contre la fraude.",

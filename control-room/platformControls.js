@@ -52,7 +52,7 @@ export function createPlatformControls({ admins, settingsStore, env = process.en
       const saved = await settingsStore.get(SETTINGS_RECORD);
       const current = await liveSettings({ env, store: settingsStore });
       return {
-        fields: Object.entries(EDITABLE).map(([path, field]) => ({ path, ...field })),
+        fields: Object.entries(EDITABLE).filter(([, field]) => !field.hidden).map(([path, field]) => ({ path, ...field })),
         values: editableValues(current),
         defaults: editableValues(platformSettings(env)),
         changed: Object.keys(saved?.values ?? {}),

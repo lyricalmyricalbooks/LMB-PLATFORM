@@ -34,7 +34,9 @@ function make({ env = {} } = {}) {
 
 test("every plan's fee is $5 (CAD) a month by default (pay what you use), each from the settings", () => {
   const plans = planList(platformSettings({}));
-  assert.deepEqual(plans.map((p) => [p.plan, p.amount, p.currency, p.priceText]), [["shop", 500, "cad", "$5.00"], ["stockroom", 500, "cad", "$5.00"], ["both", 500, "cad", "$5.00"]]);
+  // One plan for every shop since 10 November 2026; the older two are still priced for rows waiting to move.
+  assert.deepEqual(plans.map((p) => [p.plan, p.amount, p.currency, p.priceText]), [["both", 500, "cad", "$5.00"]]);
+  assert.equal(planPrice("shop", platformSettings({})).amount, 500);
   assert.equal(planPrice("both", platformSettings({ PLAN_PRICE_BOTH: "4500" })).lookupKey, "colophon_both_cad_4500_monthly");
   assert.throws(() => planPrice("gold", platformSettings({})), /shop, stockroom or both/);
 });

@@ -154,14 +154,16 @@ describe("the admin in setup mode (code plan 18.6)", () => {
     expect(d.saved).toEqual([{ language: "fr" }]);
   });
 
-  it("changes the plan from Settings › Plan, with each plan's price", async () => {
+  it("shows the one plan in Settings › Plan, with nothing to pick, and moves an older record to it", async () => {
     const d = door();
     const el = await mount(d, "#settings/plan");
-    expect(el.textContent).toContain("$29.00");
-    const shop = [...el.querySelectorAll('[role="radio"]')].find((b) => b.textContent?.startsWith("Shop") && !b.textContent.includes("stockroom")) as HTMLButtonElement;
-    await act(async () => { shop.click(); });
-    await flush();
-    expect(d.saved).toEqual([{ plan: "shop" }]);
+    expect(el.textContent).toContain("Everything included");
+    expect(el.textContent).toContain("$39.00a month + running cost");
+    expect(el.querySelectorAll('[role="radio"]').length).toBe(0);
+    expect(d.saved).toEqual([]);
+    const older = door();
+    await mount(older, "#settings/plan", { ...PRESS, plan: "shop" });
+    expect(older.saved).toEqual([{ plan: "both" }]);
   });
 
   it("keeps the page when the address names no page, as the skip link's #rp-main does", async () => {
@@ -180,12 +182,12 @@ describe("the admin in setup mode (code plan 18.6)", () => {
     const el = await mount(d, "#settings/plan");
     expect(el.textContent).toContain("Prices couldn't load");
     expect(el.textContent).not.toMatch(/\d+ days/);
-    expect(el.textContent).toContain("Shop and stockroom");
+    expect(el.textContent).toContain("Everything included");
     good.mockImplementation(first);
     const retry = [...el.querySelectorAll("button")].find((b) => b.textContent === "Try again") as HTMLButtonElement;
     await act(async () => { retry.click(); });
     await flush();
-    expect(el.textContent).toContain("$29.00");
+    expect(el.textContent).toContain("$39.00");
     expect(el.textContent).toContain("Your first shop is free for 14 days");
   });
 
@@ -380,7 +382,7 @@ describe("the admin in setup mode (code plan 18.6)", () => {
       expect(text).toContain("Moth Press · Books · Canada");
       expect(text).toContain("Not chosen yet");
       expect(text).toContain("42 books from old-shop.csv");
-      expect(text).toContain("Nothing is charged today. Your first shop is free for 14 days, then $39.00 a month.");
+      expect(text).toContain("Nothing is charged today. Your first shop is free for 14 days, then $39.00 a month plus running cost.");
       expect(text).toContain("It stays private until you open it.");
       expect(text).toContain("Tick the terms to create your shop.");
     });
@@ -485,9 +487,9 @@ describe("Stripe or Square in setup's Settings › Payments", () => {
     expect(after).toEqual(["false", "true"]);
   });
 
-  it("a stockroom on its own has no website checkout to choose for", async () => {
+  it("an older stockroom-only record still chooses its website's card payments: every shop has the website", async () => {
     const el = await mount(door(), "#settings/payments", { ...PRESS, plan: "stockroom" });
-    expect(el.textContent).toContain("no website checkout");
+    expect(el.textContent).toContain("Card payments");
   });
 
   it("Square can't be picked from a country where it doesn't work with checkout", async () => {
@@ -613,9 +615,9 @@ describe("your web address in setup", () => {
     expect([...el.querySelectorAll("main button")].some((b) => b.textContent === "moth-press-shop")).toBe(true);
   });
 
-  it("a stockroom-only press has no website, so no web address to choose", async () => {
+  it("an older stockroom-only record still picks a web address: every shop has the website", async () => {
     const el = await mount(door(), "#settings/general", { ...PRESS, plan: "stockroom" });
-    expect(el.textContent).not.toContain("Your web address");
+    expect(el.textContent).toContain("Your web address");
   });
 });
 

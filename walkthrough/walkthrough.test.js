@@ -112,7 +112,7 @@ test("only the pages' files are served: no tests, notes or files outside their f
 test("the web door answers: plans open, the owner's three presses, and the newcomer has none", async () => {
   const plans = await call(null, "GET", "/api/plans");
   assert.equal(plans.body.signupOpen, true);
-  assert.equal(plans.body.plans.length, 3);
+  assert.equal(plans.body.plans.length, 1, "one plan: every shop gets everything");
 
   const order = ["Moth Press", "Paper Wasp Press", "Fieldnote Editions"];
   const shops = (await call(OWNER, "GET", "/api/accounts/shops")).body.shops.sort((a, b) => order.indexOf(a.pressName) - order.indexOf(b.pressName));

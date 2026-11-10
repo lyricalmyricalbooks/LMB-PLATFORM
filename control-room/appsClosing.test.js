@@ -46,11 +46,10 @@ test("GET /api/control/apps-closing is for platform admins only, and the page ha
   assert.deepEqual(answer.body.shops.map((s) => s.shopId), ["soon", "later"]);
   const page = await readFile(new URL("./index.html", import.meta.url), "utf8");
   assert.match(page, /id="apps-closing"/);
-  // Why presses dropped an app shows as bars (control-room/app.js dropReasonBars), with every reason the page knows.
-  assert.match(page, /\.cr-bars li \{/);
+  // Every shop gets everything (10 November 2026): the section lists the shops still being moved, first.
+  assert.match(page, /Everything for every shop/);
   const app = await readFile(new URL("./app.js", import.meta.url), "utf8");
-  assert.match(app, /const reasons = dropReasonBars\(drops, reasonWords\);/);
-  assert.match(app, /"Didn't say"/);
+  assert.match(app, /Shops getting the rest/);
 });
 
 test("closed apps still holding records, stuck deletions first; why presses dropped apps; a bounced closing email", () => {
@@ -67,4 +66,14 @@ test("closed apps still holding records, stuck deletions first; why presses drop
   assert.equal(list.shops[0].bounced, null, "a bounce from two months ago is old news");
   assert.deepEqual(list.drops.reasons, { price: 2, "not-using": 1 });
   assert.equal(list.reasonWords.price, "To pay less");
+});
+
+test("shops on an older plan, or still having their missing app built, are listed as getting the rest", () => {
+  const list = appsClosing([
+    shop("on-shop", {}, { plan: "shop" }),
+    shop("building", {}, { plan: "both", builtPlan: "stockroom" }),
+    shop("done", {}, { plan: "both", builtPlan: "both" }),
+    shop("gone", {}, { plan: "shop", closing: { stage: "closed" } }),
+  ], new Date(NOW));
+  assert.deepEqual(list.moving.map((s) => [s.shopId, s.gets, s.step]), [["building", "Website", "Being built"], ["on-shop", "Stockroom", "Plan moves tonight"]]);
 });
