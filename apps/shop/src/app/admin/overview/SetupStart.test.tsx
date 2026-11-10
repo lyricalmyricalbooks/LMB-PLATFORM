@@ -171,13 +171,13 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
     const onOpen = vi.fn();
     const blockers = [{ id: "books", label: "No published books", detail: "", status: "block", tab: "catalog", action: "Open Books" }];
     await mount({ readiness: blockers, onSetWall: vi.fn(async () => true), onOpen });
-    expect(document.querySelector("#setup-open-title")?.textContent).toBe("1 thing to do before a sale");
+    expect(document.querySelector("#setup-progress-title")?.textContent).toBe("1 step to open");
     expect(button("Open my shop")!.disabled).toBe(true);
     act(() => button("No published books")!.click());
     expect(onOpen).toHaveBeenCalledWith("catalog");
     act(() => root?.unmount()); document.body.innerHTML = "";
     await mount({ readiness: [], onSetWall: vi.fn(async () => true) });
-    expect(document.querySelector("#setup-open-title")?.textContent).toBe("Ready to open");
+    expect(document.querySelector("#setup-progress-title")?.textContent).toBe("Ready to open");
     expect(button("Open my shop")!.disabled).toBe(false);
   });
 

@@ -42,7 +42,7 @@ export const SITE_MOUNTS = Object.freeze({
 });
 
 /** Pages that aren't a folder's index.html: address -> file under a mount. */
-export const EXTRA_PAGES = Object.freeze({ "/account/billing": "/account/billing.html" });
+export const EXTRA_PAGES = Object.freeze({ "/account/billing": "/account/billing.html", "/pricing": "/waitlist/pricing.html", "/pricing/": "/waitlist/pricing.html" });
 
 const STATIC = /\.(html|js|mjs|css|svg|png|ico|webp|jpg|jpeg|gif|woff2?|json|txt|webmanifest)$/i;
 
