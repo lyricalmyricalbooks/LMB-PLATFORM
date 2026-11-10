@@ -392,6 +392,7 @@ export function createControlRoom({
           pressName: row.pressName ?? row.shopId,
           status: row.status ?? null,
           version: row.release?.version ?? null,
+          updatedAt: row.release?.at ?? null,
           storefrontUrl: siteUrl,
           adminUrl: siteUrl ? `${siteUrl}/admin/` : null,
           lastCheck: last ? { ok: last.ok, at: last.finishedAt ?? null, version: last.version ?? null, failedCheck: last.failedCheck ?? null } : null,

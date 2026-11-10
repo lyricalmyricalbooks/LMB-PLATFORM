@@ -679,6 +679,10 @@ test("your test shop: the card finds it, and Reset the sample books is admin onl
   const profile = await w.registry.getProfile(ID);
   assert.deepEqual([shop.shopId, shop.storefrontUrl, shop.adminUrl], [ID, profile.siteUrl, `${profile.siteUrl}/admin/`]);
   assert.deepEqual([shop.lastCheck.ok, shop.lastCheck.at], [true, "2026-10-28T11:00:00Z"]);
+  // Which update it runs and when it got it (each merge's update writes the row's release, docs/updating.md).
+  await w.registry.updateShop(ID, { release: { version: "1.2.9-g9644c9fe047e", at: "2026-11-10T23:52:00Z", runId: "r" } });
+  const updated = (await w.ask(ADMIN, "GET", "/api/control/test-shop")).body.testShop;
+  assert.deepEqual([updated.version, updated.updatedAt], ["1.2.9-g9644c9fe047e", "2026-11-10T23:52:00Z"]);
   assert.equal((await w.ask(PRESS, "GET", "/api/control/test-shop")).status, 403);
 
   // A sample book sold out in a test, then reset to 5 copies.

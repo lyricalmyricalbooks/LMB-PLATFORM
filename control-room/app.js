@@ -541,10 +541,44 @@ async function loadTestShop() {
     }
     reset.disabled = false;
   });
+  const when = (iso) => new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  const on = shop.version ? `On ${shop.version}${shop.updatedAt ? `, updated ${when(shop.updatedAt)}` : ""}.` : null;
   box.replaceChildren(el("div", { className: "rp-card-body", style: "padding-top: 16px" },
     el("div", { className: "cr-row" }, el("h3", { className: "cr-title cr-grow", textContent: shop.pressName }), pill(TONE[shop.health.level], LEVEL[shop.health.level])),
-    meta(shop.shopId, "only you can open it", check),
-    el("div", { className: "cr-actions" }, link(shop.storefrontUrl, "Open the storefront", "primary"), link(shop.adminUrl, "Open its admin", "secondary"), reset)));
+    meta(shop.shopId, "only you can open it", check, on),
+    el("div", { className: "cr-actions" }, link(shop.storefrontUrl, "Open the storefront", "primary"), link(shop.adminUrl, "Open its admin", "secondary"), reset)),
+  await updatesRow());
+}
+
+// Updates to shops (docs/updating.md), on Today: running or paused, the pause button, and the one button on GitHub that
+// sends what the test shop runs on to real shops. The run book page keeps the same switch.
+const SEND_TO_SHOPS = "https://github.com/lyricalmyricalbooks/LMB-PLATFORM/actions/workflows/send-to-shops.yml";
+async function updatesRow() {
+  let state;
+  try {
+    state = await api("GET", "/control/emergency");
+  } catch {
+    return null;
+  }
+  const paused = state.releasesPaused;
+  const flip = button(paused ? "Resume updates" : "Pause updates", paused ? "primary" : "danger");
+  flip.addEventListener("click", async () => {
+    const why = (window.prompt(`${paused ? "Let updates go out to shops again." : "Stop every update to shops; one already running stops before its next step."}\n\nWhy? (at least 10 characters)`) ?? "").trim();
+    if (!why) return;
+    flip.disabled = true;
+    try {
+      await api("POST", paused ? "/control/emergency/resume-releases" : "/control/emergency/pause-releases", { reason: why });
+      status.textContent = paused ? "Updates can go out again." : "Updates are paused.";
+      await loadTestShop();
+    } catch (failure) {
+      status.textContent = failure.message;
+      flip.disabled = false;
+    }
+  });
+  return el("div", { className: "rp-card-body", style: "border-top: 1px solid var(--rp-divider); padding-top: 16px" },
+    el("div", { className: "cr-row" }, el("h3", { className: "cr-title cr-grow", textContent: "Updates to shops" }), paused ? pill("warning", "Paused") : pill("success", "Running")),
+    el("p", { className: "rp-hint", textContent: paused ? `Paused by ${paused.by}: ${paused.reason}` : "Every merge reaches this test shop by itself. Real shops get it when you send it." }),
+    el("div", { className: "cr-actions" }, paused ? null : outLink(SEND_TO_SHOPS, "Send the update to shops", "secondary"), flip));
 }
 
 // ── Launch: the keys and switches presses need, then the whole sign-up tried as a press. ──

@@ -844,6 +844,7 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-whats-new-label { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; }
 .rp-whats-new-dot { width: 8px; height: 8px; background: var(--rp-primary); border-radius: 50%; }
 .rp-whats-new-title { font-size: 12px; color: var(--rp-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rp-update-stamp { margin: 0 0 16px; font-size: 12px; color: var(--rp-text-muted); }
 .rp-update-entry { padding-bottom: 16px; }
 .rp-update-entry + .rp-update-entry { padding-top: 16px; border-top: var(--rp-hair) solid var(--rp-divider); }
 .rp-update-entry time { font-size: 11px; color: var(--rp-text-subtle); }
