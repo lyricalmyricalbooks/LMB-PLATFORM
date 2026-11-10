@@ -107,3 +107,17 @@
   :root[data-admin-look="colophon"] body.rp .pub-shell .tab-panel :is(h1, h2, h3, h4, [class*="label"], [class*="head"], [class*="eyebrow"], [class*="kicker"], [class*="date"], [class*="count"], [class*="badge"], [class*="tab"], .btn) { text-transform: none !important; letter-spacing: 0 !important; }
   :root[data-admin-look="colophon"] body.rp .pub-shell .tab-panel :is([class*="chip"], [class*="card"]:not([class*="head"]):not([class*="row"]), [class*="pill"]) { border-radius: var(--rp-radius-md, 14px); }
 }
+
+/* Round 3: grouped lists become rounded white tiles; money owed to you sits on a sky tile. */
+:root[data-admin-look="colophon"] body.rp :is(.today-grid, .today-rows, .fm-tiles, .today-next) { border-radius: var(--rp-radius-lg, 20px); overflow: hidden; border-color: var(--rp-divider); }
+:root[data-admin-look="colophon"] body.rp :is(.today-row-ic, .fm-tile-cover) { border-radius: 10px; }
+:root[data-admin-look="colophon"] body.rp :is(.today-card, .today-row, .fm-tile, .today-next-head) { border-radius: 0; }
+:root[data-admin-look="colophon"] body.rp .ledger-fig { border-radius: var(--rp-radius-md, 14px); padding: 12px 14px; }
+:root[data-admin-look="colophon"] body.rp .ledger-fig.is-owed { background: var(--rp-tile-sky); color: var(--rp-on-tile); border-color: transparent; }
+:root[data-admin-look="colophon"] body.rp .ledger-fig.is-owed * { color: inherit; }
+:root[data-admin-look="colophon"] body.rp .pub-shell #tab-today .today-next-head { border-radius: 20px 20px 0 0 !important; }
+:root[data-admin-look="colophon"] body.rp .pub-shell #tab-today .today-next-head + .today-grid { border-radius: 0 0 20px 20px; border-top: 0; }
+:root[data-admin-look="colophon"] body.rp .ledger-fig:not(.is-owed) { background: var(--rp-surface); border: 0 !important; }
+:root[data-admin-look="colophon"] body.rp .ledger-fig:first-child:not(.is-owed) { background: var(--rp-tile-mint); color: var(--rp-on-tile); }
+:root[data-admin-look="colophon"] body.rp .ledger-fig:first-child:not(.is-owed) * { color: inherit; }
+:root[data-admin-look="colophon"] body.rp .ledger-fig.is-owed { border: 0 !important; }

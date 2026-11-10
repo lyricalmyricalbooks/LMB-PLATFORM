@@ -2016,3 +2016,7 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 /* Colophon: a figure that needs attention sits on an apricot tile. */
 :root[data-admin-look="colophon"] .rp-ov-figure[data-tone="warn"] { background: var(--rp-tile-apricot); color: var(--rp-on-tile); border-color: transparent; }
 :root[data-admin-look="colophon"] .rp-ov-figure[data-tone="warn"] :is(.rp-ov-figure-value, .rp-ov-figure-label, *) { color: var(--rp-on-tile); }
+/* Colophon bento: the figures strip reads mint, sky, lilac, white, like the mockup's tiles. */
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-ov-figures > :nth-child(2):not([data-tone="warn"]) { background: var(--rp-tile-sky); color: var(--rp-on-tile); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-ov-figures > :nth-child(3):not([data-tone="warn"]) { background: var(--rp-tile-lilac); color: var(--rp-on-tile); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-ov-figures > :is(:nth-child(2), :nth-child(3)) * { color: inherit; }
