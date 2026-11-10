@@ -207,10 +207,11 @@ test("the sign-in link comes from the platform, says the same whoever asks, and 
   assert.equal((await ask("POST", "/api/signin-link", { email: "not an email" })).status, 400);
 });
 
-test("the plans route lists the three plans with prices and the trial, and unknown routes are 404", async () => {
+test("the plans route lists the three plans with their fee, what shops pay to run, and the trial; unknown routes are 404", async () => {
   const { ask } = make();
   const { body } = await ask("GET", "/api/plans");
-  assert.deepEqual(body.plans.map((p) => [p.plan, p.priceText]), [["shop", "$29.00"], ["stockroom", "$19.00"], ["both", "$39.00"]]);
+  assert.deepEqual(body.plans.map((p) => [p.plan, p.priceText]), [["shop", "$5.00"], ["stockroom", "$5.00"], ["both", "$5.00"]]);
+  assert.deepEqual([body.usage.feeText, body.usage.sameFee, body.usage.examples.map((e) => e.totalText)], ["$5.00", true, ["$5.51", "$7.53", "$19.95"]]);
   assert.equal(body.trialDays, 14);
   assert.equal(body.productName, "Colophon");
   assert.equal((await ask("GET", "/api/nothing")).status, 404);

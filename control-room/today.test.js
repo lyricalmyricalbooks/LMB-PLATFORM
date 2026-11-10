@@ -1,11 +1,12 @@
 // Today (code plan 9.2): counts by billing state, monthly income with the founding discount, and the needs-you list.
+import { TIERED_PRICES_ENV } from "../services/billing/fakes.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { monthlyCents, needSnoozed, SNOOZABLE, todaySummary } from "./today.js";
 import { platformSettings } from "../services/settings.js";
 
 const NOW = new Date("2026-10-28T12:00:00Z");
-const settings = platformSettings({});
+const settings = platformSettings(TIERED_PRICES_ENV);
 const shop = (shopId, billing, extra = {}) => ({ shopId, pressName: shopId, plan: billing?.plan ?? "both", status: "live", createdAt: "2026-09-01T00:00:00Z", billing, ...extra });
 
 const rows = [
@@ -132,4 +133,11 @@ test("a snoozed line leaves the list until its snooze ends, and only that kind f
   assert.deepEqual(later.needs.map((n) => n.kind).filter((k) => k !== "shop").sort(), ["domain", "payment"]);
   assert.equal(later.snoozed.length, 0);
   assert.equal(needSnoozed(row, "payment", Date.parse("2026-11-01T00:00:00Z")), false, "ends on the dot");
+});
+
+test("pay what you use: a paying shop counts its fee plus the running cost last billed, at cost", () => {
+  const five = platformSettings({});
+  assert.equal(monthlyCents(shop("owl", { plan: "both", status: "active", lastRunningCost: { month: "2026-10", cents: 253 } }), five), 753);
+  assert.equal(monthlyCents(shop("owl", { plan: "both", status: "active", percentOff: 25, lastRunningCost: { month: "2026-10", cents: 253 } }), five), 375 + 253, "the founding share comes off the fee only");
+  assert.equal(monthlyCents(shop("owl", { plan: "both", status: "trialing", lastRunningCost: { month: "2026-10", cents: 253 } }), five), 0);
 });

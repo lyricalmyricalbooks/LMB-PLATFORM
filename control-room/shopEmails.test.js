@@ -1,3 +1,4 @@
+import { TIERED_PRICES_ENV } from "../services/billing/fakes.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { KIND_WORDS, createShopEmails, emailsSummary, kindWords, shopEmailsRoutes, SHOWN } from "./shopEmails.js";
@@ -44,7 +45,7 @@ test("the door: platform admins only, a real shop; the shop's shopper emails are
   await emailLog.put("k1", { shopId: SHOP, kind: "bill-paid", status: "sent", at: "2026-11-15T10:00:00Z", platform: true });
   await emailLog.put("k2", { shopId: SHOP, kind: "order-receipt", status: "sent", at: "2026-11-16T10:00:00Z" });
   const desk = createShopEmails({ admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: "admin@example.com" }), registry, emailLog, now: () => NOW });
-  const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), routes: shopEmailsRoutes(desk), log: () => {} });
+  const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings(TIERED_PRICES_ENV), routes: shopEmailsRoutes(desk), log: () => {} });
   const ask = (claims, body) => api({ method: "POST", path: "/api/control/shop-emails", body, headers: { Authorization: `Bearer ${JSON.stringify(claims)}` } });
   assert.equal((await ask(PRESS, { shopId: SHOP })).status, 403);
   assert.equal((await ask(ADMIN, { shopId: "nope" })).status, 404);

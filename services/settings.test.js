@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EDITABLE, editableValues, liveSettings, platformSettings, priceText, savedSettingsProblems, withSaved } from "./settings.js";
 
-test("defaults: Colophon, $29 / $19 / $39 CAD a month, 14-day trial, notifications@ and support@ the placeholder domain", () => {
+test("defaults: Colophon, a $5 CAD platform fee a month on every plan, 14-day trial, notifications@ and support@ the placeholder domain", () => {
   assert.deepEqual(platformSettings({}), {
     platformName: "Colophon",
     domain: "platform.example",
@@ -11,7 +11,7 @@ test("defaults: Colophon, $29 / $19 / $39 CAD a month, 14-day trial, notificatio
     supportEmail: "support@platform.example",
     mailingAddress: "",
     currency: "CAD",
-    prices: { shop: 2900, stockroom: 1900, both: 3900 },
+    prices: { shop: 500, stockroom: 500, both: 500 },
     trialDays: 14,
     platformUrl: "https://platform.example",
     shopAddressDomain: "",
@@ -20,7 +20,7 @@ test("defaults: Colophon, $29 / $19 / $39 CAD a month, 14-day trial, notificatio
     signupDailyCap: 10,
     openCountries: ["CA"],
     foundingOffer: { percentOff: 25, presses: 25, giveBackUnpaid: true },
-    payAsYouSell: { basisPoints: 200 },
+    payAsYouSell: { basisPoints: 0 },
   });
 });
 
@@ -60,7 +60,7 @@ test("saved control-room changes sit on top of the environment; bad ones are ref
   const saved = { "prices.shop": 3400, signupOpen: true, "foundingOffer.presses": 30 };
   const settings = withSaved(platformSettings({ PLAN_PRICE_SHOP: "3100" }), saved);
   assert.equal(settings.prices.shop, 3400);
-  assert.equal(settings.prices.both, 3900);
+  assert.equal(settings.prices.both, 500);
   assert.equal(settings.signupOpen, true);
   assert.deepEqual(settings.foundingOffer, { percentOff: 25, presses: 30, giveBackUnpaid: true });
   assert.deepEqual(savedSettingsProblems({ "prices.shop": 0, signupOpen: "yes", platformName: "X" }).length, 3);

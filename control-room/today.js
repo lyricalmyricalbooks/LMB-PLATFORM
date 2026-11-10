@@ -3,7 +3,8 @@
 // server.
 //
 // Monthly income counts each paying shop at its plan's price (the row's `billing.amount` when billing keeps one, else
-// today's price from the settings), less its own discount (`billing.percentOff`, the founding offer). A trial, a paused
+// today's price from the settings), less its own discount (`billing.percentOff`, the founding offer), plus the running
+// cost last billed (`billing.lastRunningCost`, pay what you use). A trial, a paused
 // or a closed plan counts nothing; a shop whose card is being retried still counts, and shows under failed payments.
 import { shopHealth } from "./controlRoom.js";
 import { switchWaiting } from "./providerSwitch.js";
@@ -42,7 +43,9 @@ export function monthlyCents(row, settings) {
   const plan = billing.plan ?? row.plan;
   const price = Number.isInteger(billing.amount) ? billing.amount : settings.prices?.[plan] ?? 0;
   const off = Number.isFinite(billing.percentOff) ? Math.min(Math.max(billing.percentOff, 0), 100) : 0;
-  return Math.round(price * (1 - off / 100));
+  // Pay what you use: last month's running cost rides on this month's bill, at cost (never discounted).
+  const running = Number.isInteger(billing.lastRunningCost?.cents) ? Math.max(0, billing.lastRunningCost.cents) : 0;
+  return Math.round(price * (1 - off / 100)) + running;
 }
 
 /**

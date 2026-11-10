@@ -1,6 +1,6 @@
-// The waitlist page's pricing (code plan 6.1): the plans come from the platform's settings through `/api/plans`, no
-// rival is named, the founding price and the second way to pay show only when set, and with sign-up switched off (or
-// unreachable) the page is today's waitlist.
+// The pricing page (code plan 6.1, pay what you use since 10 November 2026): the fee and three example shops come from
+// the platform through `/api/plans`, no rival is named, the founding fee shows only when set, and with sign-up switched
+// off (or unreachable) the page is today's waitlist.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -25,7 +25,7 @@ function fakeDocument() {
     replaceChildren(...kids) { this.children = kids; },
     get text() { return [this.textContent, ...this.children.map((c) => (typeof c === "string" ? c : c.text))].join(""); },
   });
-  const ids = new Map(["pricing", "pricing-trial", "pricing-founding", "plan-cards", "start-trial"].map((id) => [id, node("div")]));
+  const ids = new Map(["pricing", "pricing-lede", "pricing-founding", "plan-cards", "pricing-plans-title", "pricing-plans", "pricing-note", "start-trial"].map((id) => [id, node("div")]));
   return { ids, getElementById: (id) => ids.get(id), createElement: node };
 }
 
@@ -48,45 +48,46 @@ test("switched off (the default), the page asks nothing of the plans and stays t
   assert.equal(renderPricing(fakeDocument(), null, { signupUrl: "/signup/" }), false);
 });
 
-test("switched on, the three plans and prices come from the settings, free for 14 days, with Start your free trial", async () => {
-  const answer = await plansAnswer({ SIGNUP_OPEN: "true", PLAN_PRICE_SHOP: "3100", TRIAL_DAYS: "14", FOUNDING_PERCENT_OFF: "0", PAY_AS_YOU_SELL_BASIS_POINTS: "0" });
+test("switched on: what you pay is the running cost plus the fee, three example shops, every plan, free for 14 days", async () => {
+  const answer = await plansAnswer({ SIGNUP_OPEN: "true", TRIAL_DAYS: "14", FOUNDING_PERCENT_OFF: "0" });
   const view = pricingView(answer);
-  assert.deepEqual(view.plans.map((p) => [p.plan, p.name, p.priceText]), [["shop", "Shop", "$31.00"], ["stockroom", "Stockroom", "$19.00"], ["both", "Shop and stockroom", "$39.00"]]);
-  assert.equal(view.trial, "Free for 14 days from the day you sign up, with your shop and stockroom both included. No card needed.");
+  assert.equal(view.feeText, "$5.00");
+  assert.equal(view.lede, "Each month you pay what your shop cost to run, at cost, plus $5.00 for Colophon. Free for 14 days, no card needed.");
+  assert.deepEqual(view.examples.map((e) => [e.id, e.runningText, e.totalText]), [["quiet", "$0.51", "$5.51"], ["typical", "$2.53", "$7.53"], ["busy", "$14.95", "$19.95"]]);
+  assert.deepEqual(view.plans.map((p) => p.plan), ["shop", "both", "stockroom"]);
   assert.equal(view.founding, null, "no founding price unless the offer is set");
-  assert.ok(view.plans.every((p) => !p.foundingPriceText && !p.payAsYouSell));
+  assert.match(view.note, /^Prices in CAD\. Running cost covers storage, web traffic, background jobs and emails\. .*\(\$25\.00 unless you change it\)\.$/);
 
   const doc = fakeDocument();
   assert.equal(renderPricing(doc, view, { signupUrl: "https://platform.example/signup/" }), true);
   assert.equal(doc.ids.get("pricing").hidden, false);
-  assert.equal(view.trialDays, 14);
   assert.equal(doc.ids.get("start-trial").href, "https://platform.example/signup/");
   assert.equal(doc.ids.get("pricing-founding").hidden, true);
-  assert.match(doc.ids.get("plan-cards").text, /^ShopYour website, to sell online\$31\.00 a monthOnline checkout/);
-  assert.match(doc.ids.get("plan-cards").text, /Start free trialShop and stockroom.*Start free trialStockroom/, "the pick sits in the middle");
+  assert.match(doc.ids.get("plan-cards").text, /^A quiet shopAbout 500 visits a month\$5\.51 a month\$0\.51 running cost \+ \$5\.00 ColophonStart free trialA typical shop/);
+  assert.equal(doc.ids.get("plan-cards").children[1].className, "card plan cp-pick cp-typical", "the typical shop is the one drawn as most shops");
+  assert.equal(doc.ids.get("pricing-plans-title").textContent, "Shop, stockroom or both: the same $5.00");
+  assert.match(doc.ids.get("pricing-plans").text, /^ShopYour website, to sell onlineShop and stockroom/);
   assert.match(page, /id="start-trial"[^>]*>Start free trial</);
-  assert.match(page, /Simple plans\. Free for 14 days\./);
+  assert.match(page, /Pay for what your shop uses\./);
 });
 
-test("the founding price shows only when the offer is set", async () => {
-  const view = pricingView(await plansAnswer({ SIGNUP_OPEN: "true", FOUNDING_PERCENT_OFF: "25", FOUNDING_PRESSES: "25", PAY_AS_YOU_SELL_BASIS_POINTS: "0" }));
-  assert.equal(view.founding, "Founding shops: 25% off for as long as you stay, for the first 25 shops.");
-  assert.deepEqual(view.plans.map((p) => p.foundingPriceText), ["$21.75", "$14.25", "$29.25"]);
+test("the founding fee shows only when the offer is set, and plans with different fees say each one", async () => {
+  const view = pricingView(await plansAnswer({ SIGNUP_OPEN: "true", FOUNDING_PERCENT_OFF: "25", FOUNDING_PRESSES: "25" }));
+  assert.equal(view.founding, "Founding shops pay $3.75 instead of $5.00, for as long as they stay (first 25 shops).");
   const doc = fakeDocument();
   renderPricing(doc, view, { signupUrl: "/signup/" });
   assert.equal(doc.ids.get("pricing-founding").hidden, false);
-  assert.match(doc.ids.get("plan-cards").text, /\$29\.00 \$21\.75 a month/);
+
+  const tiered = pricingView(await plansAnswer({ SIGNUP_OPEN: "true", PLAN_PRICE_BOTH: "700", FOUNDING_PERCENT_OFF: "0" }));
+  assert.equal(tiered.sameFee, false);
+  const other = fakeDocument();
+  renderPricing(other, tiered, { signupUrl: "/signup/" });
+  assert.equal(other.ids.get("pricing-plans-title").textContent, "Choose what you need");
+  assert.match(other.ids.get("pricing-plans").text, /Your website and your stock, kept in step · \$7\.00 a month/);
 });
 
-test("pay as you sell shows under the plans with a website, capped at the plan's price, and hides at 0", async () => {
-  const view = pricingView(await plansAnswer({ SIGNUP_OPEN: "true", PAY_AS_YOU_SELL_BASIS_POINTS: "200" }));
-  assert.deepEqual(view.plans.map((p) => p.payAsYouSell), [
-    "or 2% of your website sales, never more than $29.00 a month",
-    null,
-    "or 2% of your website sales, never more than $39.00 a month",
-  ]);
-  assert.equal(pricingView(await plansAnswer({ SIGNUP_OPEN: "true", PAY_AS_YOU_SELL_BASIS_POINTS: "250" })).plans[0].payAsYouSell, "or 2.5% of your website sales, never more than $29.00 a month");
-  assert.ok(pricingView(await plansAnswer({ SIGNUP_OPEN: "true", PAY_AS_YOU_SELL_BASIS_POINTS: "0" })).plans.every((p) => p.payAsYouSell === null));
+test("an answer without the pay-what-you-use words reads as closed", () => {
+  assert.equal(pricingView({ signupOpen: true, plans: [{ plan: "shop", name: "Shop", priceText: "$5.00" }] }), null);
 });
 
 test("a live-settings failure reads as closed, never as an error", async () => {

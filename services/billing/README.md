@@ -6,16 +6,44 @@ use a pretend Stripe (`fakes.js`).
 
 ## Plans
 
-| Plan | Opens | Price (default) |
+| Plan | Opens | Fee (default) |
 | --- | --- | --- |
-| `shop` | the shop | $29 CAD a month |
-| `stockroom` | the stockroom | $19 CAD a month |
-| `both` | the shop and the stockroom | $39 CAD a month |
+| `shop` | the shop | $5 CAD a month |
+| `stockroom` | the stockroom | $5 CAD a month |
+| `both` | the shop and the stockroom | $5 CAD a month |
 
-Prices, currency and the trial (14 days) are settings (`services/settings.js`: `PLAN_PRICE_SHOP`, `PLAN_PRICE_STOCKROOM`,
-`PLAN_PRICE_BOTH`, `PLATFORM_CURRENCY`, `TRIAL_DAYS`). Each price lives in Stripe under a lookup key naming the plan,
-currency and amount (`colophon_both_cad_3900_monthly`), made the first time it is needed. A new price in the settings
-makes a new Stripe price; presses on the old one stay there until moved on purpose.
+Fees, currency and the trial (14 days) are settings (`services/settings.js`: `PLAN_PRICE_SHOP`, `PLAN_PRICE_STOCKROOM`,
+`PLAN_PRICE_BOTH`, `PLATFORM_CURRENCY`, `TRIAL_DAYS`). Each fee lives in Stripe under a lookup key naming the plan,
+currency and amount (`colophon_both_cad_500_monthly`), made the first time it is needed. A new fee in the settings
+makes a new Stripe price; presses on the old one stay there until moved on purpose. Before 10 November 2026 the
+defaults were $29 / $19 / $39 (tests that need plans at different prices use `TIERED_PRICES_ENV` from `fakes.js`).
+
+## Pay what you use (10 November 2026)
+
+Each month a press pays the plan fee plus what its shop cost to run the month before, at cost, with no markup
+(Julian's choice). The maths is in `runningCost.js` and is pure:
+
+- **Where the cost comes from.** The shared system's meter record for the shop and month
+  (`usage/{shopId}_{YYYY-MM}` in the platform project: reads, writes, deletes, firestoreGb, storageGb, egressGb,
+  invocations, computeGbSeconds, emails), priced line by line at `UNIT_PRICES` (Google's list prices in CAD, and the
+  email sender's per-email price). Until the shared system writes meters, the shop's own project's net cost in Google's
+  billing export (`services/costs` `costPerShop`, CAD only). A shop with neither is left for a later day, never billed $0
+  by mistake.
+- **How it is billed.** The daily job `running-costs` (`runningCostJob.js`, 02:45 Toronto) bills last month from the
+  3rd (the export settles by then): `billing.billRunningCosts` adds one Stripe invoice item to the shop's subscription
+  (idempotency key `running-cost-<shop>-<month>`, `discountable: false`, so the founding coupon takes off the fee only),
+  and it lands on the next monthly bill. Only the part of the month the plan was paid for counts (`paidShare`), so a
+  trial month costs nothing. Test shops, ended plans and pay-as-you-sell presses are skipped. Each month is written on
+  the subscription (`runningCosts[month]`, `lastRunningCost`) so a re-run adds nothing.
+- **No surprises.** Every day the job projects this month's bill (fee after any founding offer, plus the running cost
+  so far drawn as a straight line to the month's end). If it passes the press's amount ($25 unless they choose another
+  in Settings › Billing; 0 turns it off), they get one `bill-heads-up` email that month.
+- **What presses see.** The pricing page shows the fee and three example shops priced by `EXAMPLE_SHOPS` (quiet $5.51,
+  typical $7.53, busy $19.95), so its numbers move with the prices. Settings › Billing shows last month's running cost and
+  the heads-up amount (`status().usage`, hub call `cost-alert`). The control room's Costs table shows the running cost
+  billed next to Google's cost, and Today's monthly income adds it.
+- **Pay as you sell** is off by default for new presses (`PAY_AS_YOU_SELL_BASIS_POINTS` 0); a press already on it keeps
+  it and is not billed running costs.
 
 ## How a plan runs
 

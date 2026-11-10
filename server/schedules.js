@@ -23,6 +23,7 @@ export const FIXED_TIMES = Object.freeze({
   "keep-times": "30 1 * * *",
   closing: "0 2 * * *",
   "dropped-apps": "15 2 * * *",
+  "running-costs": "45 2 * * *",
   "income-record": "30 2 * * *",
   "self-checks": "0 3 * * *",
   bookkeeping: "30 3 * * *",

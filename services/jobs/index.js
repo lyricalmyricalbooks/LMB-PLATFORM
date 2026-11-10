@@ -45,6 +45,7 @@ export const JOBS = Object.freeze([
   { name: "trial-tips", words: "Setup tips during the free trial", every: DAY, code: "services/trial-tips/index.js run" },
   { name: "shop-checkup", words: "The monthly check-up email to each live shop (it runs daily and sends each shop one a month)", every: DAY, code: "services/checkup/index.js run" },
   { name: "bookkeeping", words: "Send the day's sales to each press's bookkeeping", every: DAY, code: "services/accounting/index.js nightly" },
+  { name: "running-costs", words: "Put last month's running cost on each shop's next bill (from the 3rd), and email presses whose month looks set to pass their amount", every: DAY, code: "services/billing/runningCostJob.js runRunningCosts" },
   { name: "income-record", words: "Write down the night's income, and remind presses a month before their card runs out", every: DAY, code: "control-room/nightly.js runBusinessNightly" },
   { name: "app-alerts", words: "Tell installed apps about new orders, sent orders, refunds, product and stock changes", every: 1, code: "services/apps/alerts.js sweep" },
   { name: "chitchats-tracking", words: "Mark orders sent once Chit Chats has their tracking numbers", every: 10, code: "services/chitchats/app.js sweep" },

@@ -37,6 +37,12 @@ so a stage that is added to the build also needs a line here.
   disconnects at the end. With Drive on, he opens the stockroom's Settings › Google Sheet, presses **Make my sheet**, and
   checks the Stock, Sales and Expenses tabs in Drive. He voids a test sale, sends again, and checks that it is gone.
   Status: built behind the switch that is still off.
+- **Pay what you use** (10 November 2026): Julian (or his accountant) checks the unit prices in
+  `services/billing/runningCost.js` against Google's current price list for the region the shops run in, in CAD, and the
+  email sender's price. Then, on the test shop with test-mode Stripe and a paid month behind it, he runs the
+  `running-costs` job from the control room and checks the next bill in Stripe shows one "Running cost" line, not
+  discounted by the founding offer, and that Settings › Billing shows the same amount. Status: built, tested with a
+  pretend Stripe.
 - **Get paid** (plan 17.10, 15.2, 15.10, 15.22): Stripe's platform profile is due 13 November. Then Julian connects
   the test shop to Stripe's test mode and buys one practice book, with no money moving. The lawyer's written answer
   (plan 15.22) comes before any real card is taken. Status: built on pretend Stripe states; the real connection is

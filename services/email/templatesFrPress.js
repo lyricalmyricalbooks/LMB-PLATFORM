@@ -305,12 +305,12 @@ export const PRESS_TEMPLATES_FR = {
       greeting: "Bonjour,",
       paragraphs: hasCard
         ? [
-          `Votre essai gratuit pour ${pressName} se termine le ${day}. Ensuite, votre carte sera débitée de ${frenchMoney(price)} par mois pour le forfait ${planNameFr(planName)}.`,
+          `Votre essai gratuit pour ${pressName} se termine le ${day}. Ensuite, votre carte sera débitée de ${frenchMoney(price)} par mois pour le forfait ${planNameFr(planName)}, plus ce que coûte le fonctionnement de votre boutique.`,
           "Vous pouvez changer de forfait ou annuler en tout temps d'ici là.",
         ]
         : [
           `Votre essai gratuit pour ${pressName} se termine le ${day}.`,
-          `Pour la garder ouverte, ajoutez une carte. Le forfait ${planNameFr(planName)} coûte ${frenchMoney(price)} par mois, et vous pouvez annuler en tout temps.`,
+          `Pour la garder ouverte, ajoutez une carte. Le forfait ${planNameFr(planName)} coûte ${frenchMoney(price)} par mois plus ce que coûte le fonctionnement de votre boutique, et vous pouvez annuler en tout temps.`,
           "Sans carte d'ici là, votre boutique sera mise en pause. Tout est conservé pendant 60 jours, et l'ajout d'une carte la rouvre.",
         ],
       buttons: [[hasCard ? "Gérer votre forfait" : "Ajouter une carte", safeLink(link)]],
@@ -557,7 +557,7 @@ export const PRESS_TEMPLATES_FR = {
       subject: `${pressName} est maintenant au forfait ${planNameFr(planName)}`,
       greeting: "Bonjour,",
       paragraphs: [
-        `${pressName} est maintenant au forfait ${planNameFr(planName)}, à ${frenchMoney(price)} par mois.${prorated ? " Votre prochaine facture est ajustée selon la partie du mois passée sur chaque forfait." : ""}`,
+        `${pressName} est maintenant au forfait ${planNameFr(planName)}, à ${frenchMoney(price)} par mois, plus ce que coûte le fonctionnement de la boutique.${prorated ? " Votre prochaine facture est ajustée selon la partie du mois passée sur chaque forfait." : ""}`,
         closing
           ? (now
             ? `Votre forfait ne comprend plus ${what} : ${many ? "elles sont donc fermées" : "elle est donc fermée"} dès maintenant.`
@@ -579,6 +579,18 @@ export const PRESS_TEMPLATES_FR = {
       "Ajoutez votre nouvelle carte d'ici là pour que votre boutique reste ouverte sans interruption.",
     ],
     buttons: [["Mettre votre carte à jour", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /** French twin of "bill-heads-up". */
+  "bill-heads-up": ({ month, projected, limit, link }, { settings, pressName }) => layout({
+    subject: `La facture de ${pressName} pour ${frenchDay(month)} pourrait dépasser ${frenchMoney(limit)}`,
+    greeting: "Bonjour,",
+    paragraphs: [
+      `À ce rythme, la facture de ${pressName} pour ${frenchDay(month)} sera d'environ ${frenchMoney(projected)} : les frais de la plateforme et ce que coûte le fonctionnement de la boutique. Vous nous avez demandé de vous prévenir si elle pouvait dépasser ${frenchMoney(limit)}.`,
+      "Un mois achalandé (une vente, une mention, beaucoup de visites) en est la cause habituelle. Vous pouvez voir le mois en cours, ou changer ce montant, sous Facturation.",
+    ],
+    buttons: [["Voir votre facture", safeLink(link)]],
     footer: signOff(settings),
   }),
 

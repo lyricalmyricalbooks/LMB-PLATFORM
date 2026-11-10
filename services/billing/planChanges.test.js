@@ -1,6 +1,7 @@
 // Code plan 6.11 and 6.12 against the pretend Stripe: a plan that drops an app closes it at the end of the paid month
 // (download kept 90 days), a change during the trial is at once, an upgrade is prorated and previewed; invoices with
 // Stripe's PDF links; the card-expiring email once per card; and BILLING_TAX turning Stripe Tax on (off by default).
+import { TIERED_PRICES_ENV } from "./fakes.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cardEnds, createBilling, noteDrops, planOpening } from "./billing.js";
@@ -29,7 +30,7 @@ function make({ tax = false, plan = "both", deleteApp = null } = {}) {
   const closed = [];
   const billing = createBilling({
     stripe: createStripeApi({ fetch: stripe.fetch, keys: { test: "sk_test_fake", live: null } }),
-    mode: "test", settings: platformSettings({}), ...stores, registry, auditLog, email, webhookSecrets: [SECRET], tax,
+    mode: "test", settings: platformSettings(TIERED_PRICES_ENV), ...stores, registry, auditLog, email, webhookSecrets: [SECRET], tax,
     closeApp: async (entry) => void closed.push(entry), deleteApp, now: () => clock,
   });
   const event = (type, object, id = `evt_${Math.random().toString(36).slice(2)}`) => {
@@ -70,7 +71,7 @@ test("a downgrade on a paid month keeps the dropped app open to the month's end,
   const note = w.email.list().find((m) => m.kind === "plan-changed");
   assert.equal(note.data.closing, "the stockroom");
   assert.equal(note.data.prorated, false);
-  assert.match(TEMPLATES["plan-changed"](note.data, { settings: platformSettings({}), pressName: "Moth Press" }).text, /stays open until .* then closes/);
+  assert.match(TEMPLATES["plan-changed"](note.data, { settings: platformSettings(TIERED_PRICES_ENV), pressName: "Moth Press" }).text, /stays open until .* then closes/);
 
   // The sweep before the month ends does nothing; after, it closes the stockroom once.
   assert.deepEqual(await w.billing.closeDroppedApps(), []);
@@ -172,7 +173,7 @@ test("the card-expiring email goes a month ahead, once per card; a new card gets
   const sent = w.email.list().filter((m) => m.kind === "card-expiring");
   assert.equal(sent.length, 1);
   assert.equal(sent[0].data.card, "Visa ending 4242");
-  assert.match(TEMPLATES["card-expiring"](sent[0].data, { settings: platformSettings({}), pressName: "Moth Press" }).text, /end of February 2027/);
+  assert.match(TEMPLATES["card-expiring"](sent[0].data, { settings: platformSettings(TIERED_PRICES_ENV), pressName: "Moth Press" }).text, /end of February 2027/);
 
   // A new card that also runs out soon gets one email of its own.
   w.stripe.world.paymentMethods.set("pm_card_new", { id: "pm_card_new", card: { brand: "mastercard", last4: "4444", exp_month: 2, exp_year: 2027 }, billing_details: { address: { country: "CA" } } });
@@ -213,7 +214,7 @@ test("a price made before tax was turned on is marked 'plus tax' once", async ()
   await off.start();
   const tax = createBilling({
     stripe: createStripeApi({ fetch: off.stripe.fetch, keys: { test: "sk_test_fake", live: null } }),
-    mode: "test", settings: platformSettings({}), ...off.stores, registry: off.registry, auditLog: off.auditLog, email: off.email, tax: true,
+    mode: "test", settings: platformSettings(TIERED_PRICES_ENV), ...off.stores, registry: off.registry, auditLog: off.auditLog, email: off.email, tax: true,
   });
   await tax.ensurePrice("both");
   assert.equal([...off.stripe.world.prices.values()][0].tax_behavior, "exclusive");
@@ -227,7 +228,7 @@ test("tax turned on later: a press whose card came while it was off can still ch
   assert.equal([...off.stripe.world.customers.values()][0].address, undefined, "tax off: no address went on the customer");
   const taxed = createBilling({
     stripe: createStripeApi({ fetch: off.stripe.fetch, keys: { test: "sk_test_fake", live: null } }),
-    mode: "test", settings: platformSettings({}), ...off.stores, registry: off.registry, auditLog: off.auditLog, email: off.email, tax: true,
+    mode: "test", settings: platformSettings(TIERED_PRICES_ENV), ...off.stores, registry: off.registry, auditLog: off.auditLog, email: off.email, tax: true,
   });
   const changed = await taxed.changePlan({ shopId: SHOP, plan: "shop" });
   assert.equal(changed.changed, true, "Stripe isn't asked for tax it can't place");
@@ -274,7 +275,7 @@ test("a week before a dropped app closes, the press gets one reminder with the w
   const sent = w.email.list().filter((m) => m.kind === "app-closing-soon");
   assert.equal(sent.length, 1, "once");
   assert.equal(sent[0].data.closing, "the stockroom");
-  assert.match(TEMPLATES["app-closing-soon"](sent[0].data, { settings: platformSettings({}), pressName: "Moth Press" }).subject, /^The stockroom for Moth Press closes on /);
+  assert.match(TEMPLATES["app-closing-soon"](sent[0].data, { settings: platformSettings(TIERED_PRICES_ENV), pressName: "Moth Press" }).subject, /^The stockroom for Moth Press closes on /);
   // The button keeps it with no sign-in: a one-time link; only its hash is stored.
   assert.match(sent[0].data.link, /\/account\/keep\.html\?shop=moth-press&t=[A-Za-z0-9_-]{32}$/);
   const stored = (await w.stores.subscriptions.get(SHOP)).keepLink;
@@ -296,7 +297,7 @@ test("the day a dropped app closes, the press is emailed where to download it an
   const { downloadUntil } = (await w.stores.subscriptions.get(SHOP)).closedApps.stockroom;
   assert.equal(sent[0].data.closing, "the stockroom");
   assert.match(sent[0].data.link, /\/accounts\/$/);
-  const mail = TEMPLATES["app-closed"](sent[0].data, { settings: platformSettings({}), pressName: "Moth Press" });
+  const mail = TEMPLATES["app-closed"](sent[0].data, { settings: platformSettings(TIERED_PRICES_ENV), pressName: "Moth Press" });
   assert.match(mail.subject, /^The stockroom for Moth Press is closed\. Download it by /);
   assert.ok(mail.subject.endsWith(sent[0].data.date) && sent[0].data.date.length > 0, "the last day to download");
   assert.match(mail.text, /a link to every file, with a spreadsheet each of the books in your stockroom, the stock ledger, /, "says which files the press gets");
@@ -402,7 +403,7 @@ test("three days before a closed app's download ends, one last email; then its r
   const told = w.email.list().filter((m) => m.kind === "app-records-deleted");
   assert.equal(told.length, 1, "the press hears once that it's done");
   assert.equal(told[0].data.closing, "the stockroom");
-  const mail = TEMPLATES["app-records-deleted"](told[0].data, { settings: platformSettings({}), pressName: "Moth Press" });
+  const mail = TEMPLATES["app-records-deleted"](told[0].data, { settings: platformSettings(TIERED_PRICES_ENV), pressName: "Moth Press" });
   assert.equal(mail.subject, "Everything that was in the stockroom for Moth Press is now deleted");
   assert.ok((await w.stores.subscriptions.get(SHOP)).closedApps.stockroom.toldAt);
 });
@@ -552,7 +553,7 @@ test("when the one-time link can't be shown again, the reminder sends the plan p
   const sent = w.email.list().find((m) => m.kind === "app-closing-soon");
   assert.match(sent.data.link, /&keep=closing$/);
   assert.equal(sent.data.signIn, true);
-  const mail = TEMPLATES["app-closing-soon"](sent.data, { settings: platformSettings({}), pressName: "Moth Press" });
+  const mail = TEMPLATES["app-closing-soon"](sent.data, { settings: platformSettings(TIERED_PRICES_ENV), pressName: "Moth Press" });
   assert.doesNotMatch(mail.text, /no need to sign in/);
 });
 
@@ -569,7 +570,7 @@ test("the closing emails go in French for a press that chose it, and in French t
   assert.equal(closedMail.language, "fr");
   assert.deepEqual(closedMail.data.apps, ["stockroom"], "the apps, for the French names");
   assert.equal(closedMail.data.on, (await w.stores.subscriptions.get(SHOP)).closedApps.stockroom.downloadUntil, "the day, for the French date");
-  assert.match(TEMPLATES_FR["app-closed"](closedMail.data, { settings: platformSettings({}), pressName: "Moth Press" }).subject, /^La réserve de Moth Press est fermée/);
+  assert.match(TEMPLATES_FR["app-closed"](closedMail.data, { settings: platformSettings(TIERED_PRICES_ENV), pressName: "Moth Press" }).subject, /^La réserve de Moth Press est fermée/);
   assert.equal((await w.registry.getShop(SHOP)).billing.language, "fr", "on the registry too, for closing.js");
 
   // No choice made: a Quebec billing address means French first; any other address, English.
@@ -670,7 +671,7 @@ test("the plan's name on Stripe's invoices is in English and French, and an olde
   assert.equal(w.stripe.world.products.get("colophon_both").name, "Colophon Shop and stockroom / Colophon Boutique et réserve");
   // A product named before this change, met by a fresh start of the service (no prices remembered yet).
   w.stripe.world.products.get("colophon_both").name = "Colophon Shop and stockroom";
-  const again = createBilling({ stripe: createStripeApi({ fetch: w.stripe.fetch, keys: { test: "sk_test_fake", live: null } }), mode: "test", settings: platformSettings({}), ...w.stores, registry: w.registry, auditLog: fakeAuditLog(), email: fakePlatformEmail(), webhookSecrets: [SECRET], closeApp: async () => {} });
+  const again = createBilling({ stripe: createStripeApi({ fetch: w.stripe.fetch, keys: { test: "sk_test_fake", live: null } }), mode: "test", settings: platformSettings(TIERED_PRICES_ENV), ...w.stores, registry: w.registry, auditLog: fakeAuditLog(), email: fakePlatformEmail(), webhookSecrets: [SECRET], closeApp: async () => {} });
   await again.ensurePrice("both");
   assert.equal(w.stripe.world.products.get("colophon_both").name, "Colophon Shop and stockroom / Colophon Boutique et réserve");
 });

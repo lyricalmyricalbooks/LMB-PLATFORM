@@ -2578,6 +2578,7 @@ async function loadCosts() {
       columns: [
         { header: "Shop", lead: true, render: (row) => el("div", {}, el("p", { className: "cr-title", textContent: row.pressName }), meta(row.shopId, row.testShop ? "test shop" : null, row.otherCurrencies ? `also ${Object.entries(row.otherCurrencies).map(([c, n]) => money(n, c)).join(", ")}` : null)) },
         { header: "Google this month", end: true, render: (row) => el("span", { className: "rp-mono", textContent: inPlans(row.googleCents) }) },
+        { header: "Running cost billed", end: true, render: (row) => el("span", { className: "rp-mono", textContent: row.runningMonth ? `${inPlans(row.runningCents)} (${row.runningMonth})` : "none yet" }) },
         { header: "Pays this month", end: true, render: (row) => el("span", { className: "rp-mono", textContent: `${inPlans(row.paidCents)}${row.feeCents ? ` (${inPlans(row.feeCents)} in sales fees)` : ""}` }) },
         { header: "Margin", end: true, render: (row) => el("span", { className: "rp-mono", textContent: row.marginCents === null ? "another currency" : inPlans(row.marginCents) }) },
         { header: "State", render: (row) => (row.losing ? pill("danger", "Losing") : row.losing === false ? pill("success", "Covered") : pill("neutral", "Can't compare")) },
