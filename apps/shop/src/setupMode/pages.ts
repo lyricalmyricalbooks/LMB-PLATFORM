@@ -88,7 +88,7 @@ export function guideSteps(press: SetupPress): GuideStep[] {
   const cards: GuideStep[] = website ? [{ id: "cards", title: "Choose Stripe or Square for card payments", done: !!press.cardProvider, page: PAYMENTS_PAGE, action: "Choose", optional: true }] : [];
   // A press that may be moving brings its books before picking a look, so the look previews can show them (23.0);
   // one starting fresh has it last, as an optional step.
-  const fresh = press.moving === "fresh";
+  const fresh = movingAnswer(press) === "fresh";
   const steps: GuideStep[] = [
     { id: "plan", title: "Pick what you want to set up", done: !!press.plan, page: PLAN_PAGE, action: "Choose" },
     { id: "details", title: "Tell us about your press", done: !!(press.pressName && press.sells && press.country), page: GENERAL_PAGE, action: "Add details" },
@@ -107,15 +107,25 @@ export function guideSteps(press: SetupPress): GuideStep[] {
  * Home's "Selling somewhere already?" card (23.0): shown above the setup guide while the press is in setup, has kept no
  * product file and hasn't said it is starting fresh.
  */
-export const showMoveIn = (press: SetupPress): boolean => press.status === "setup" && !press.stagedImport && press.moving !== "fresh";
+export const showMoveIn = (press: SetupPress): boolean => press.status === "setup" && !press.stagedImport && movingAnswer(press) !== "fresh";
+
+/**
+ * Whether the press is bringing a shop over: its own answer on Home's card first, else what it said at the front door's
+ * "Where do you sell today?" (another online shop or a spreadsheet: yes; nowhere yet: fresh; fairs, shops or skipped: "").
+ */
+export function movingAnswer(press: Pick<SetupPress, "moving" | "sellingToday">): "" | "yes" | "fresh" {
+  if (press.moving) return press.moving;
+  if (press.sellingToday === "online" || press.sellingToday === "spreadsheet") return "yes";
+  return press.sellingToday === "starting" ? "fresh" : "";
+}
 
 /**
  * The step to do next: the first one not done that isn't optional, else the first one not done at all. A press bringing
  * its shop over (`moving: "yes"`, 23.0) is pointed at its books too, since they come before the look for it.
  */
-export function nextGuideStep(steps: GuideStep[], press?: Pick<SetupPress, "moving">): GuideStep | null {
+export function nextGuideStep(steps: GuideStep[], press?: Pick<SetupPress, "moving" | "sellingToday">): GuideStep | null {
   const open = steps.filter((s) => !s.done && !s.locked);
-  if (press?.moving === "yes") return open[0] ?? null;
+  if (press && movingAnswer(press) === "yes") return open[0] ?? null;
   return open.find((s) => !s.optional) ?? open[0] ?? null;
 }
 

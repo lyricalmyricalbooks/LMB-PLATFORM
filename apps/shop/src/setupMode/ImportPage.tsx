@@ -2,7 +2,7 @@
 // previewed here in the browser with the shop's own importer (shopMove.ts `planShopMove`, with no books yet, so every
 // row is new), then kept on the platform for the shop maker (18.9) to bring in when the shop opens. Nothing is written
 // to a shop: there isn't one yet.
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { FileUp, Trash2 } from "lucide-react";
 import { EmptyState, GhostButton, PageHeader, PrimaryButton, SecondaryButton, SectionCard, SelectField, StatusBadge } from "../app/admin/riso/components";
 import { OldShopAddressForm } from "../app/admin/OldShopAddressForm";
@@ -13,6 +13,8 @@ import { fileWithoutPhotos, photoCheckLine, useBrokenPhotos, withoutBrokenPhotos
 import { sellsBooks } from "../app/admin/sells";
 import { useShopWords } from "../app/admin/shopWords";
 import type { SetupDoor, SetupPress } from "./door";
+import { foundCounts, type FoundCounts } from "./foundCounts";
+import "../app/admin/overview/setupBoard.css";
 import { SPREADSHEET_ACCEPT, readProblem, readSpreadsheet, type SpreadsheetRead } from "../app/admin/spreadsheetFile";
 import { FirstRows, SheetChoice } from "../app/admin/SheetChoice";
 
@@ -36,12 +38,15 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
   const [from, setFrom] = useState<BringAnswer | "">("");
   /** What reading the old shop's address had to say (stock counts aren't public, choices without prices). */
   const [readNotes, setReadNotes] = useState<string[]>([]);
+  /** The old shop read from its address, while its products are on screen ("" for a chosen file). */
+  const [foundHost, setFoundHost] = useState("");
 
   const kept = press.stagedImport;
   // Plan 23.3: photos that can't be loaded from the old shop are left out of the preview and of the kept file.
   const photoCheck = useBrokenPhotos(preview?.plan);
   const plan = useMemo(() => (preview?.plan ? withoutBrokenPhotos(preview.plan, photoCheck.broken) : undefined), [preview, photoCheck.broken]);
   const ready = plan && !plan.problems.length ? plan.counts.create : 0;
+  const found = foundHost && plan && preview ? foundCounts(plan, preview.oldPaths) : null;
 
   const [book, setBook] = useState<{ file: File } & SpreadsheetRead | null>(null);
   // Only the newest file (or sheet) chosen may fill the preview: an earlier read that finishes later is dropped.
@@ -93,13 +98,13 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
   }
 
   const pick = () => fileRef.current?.click();
-  const cancel = () => { setFile(null); setPreview(null); setReplacing(false); setError(""); };
+  const cancel = () => { setFile(null); setPreview(null); setReplacing(false); setError(""); setFoundHost(""); };
   const errorLine = error && <p role="alert" className="rp-hint" style={{ margin: 0, color: "var(--rp-danger)" }}>{error}</p>;
 
   return (
     <>
       <input ref={fileRef} type="file" accept={SPREADSHEET_ACCEPT} hidden aria-label="Product file"
-        onChange={(e) => { void choose(e.target.files?.[0]); e.target.value = ""; }} />
+        onChange={(e) => { setFoundHost(""); void choose(e.target.files?.[0]); e.target.value = ""; }} />
       <PageHeader title={w("Books")} description={w("Bring your books over from your old shop or a spreadsheet. They come in when your shop opens, as drafts for you to check.")} />
 
       {kept && !replacing && !file && (
@@ -118,10 +123,16 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
 
       {(!kept || replacing || file) && !preview && (
         <div style={{ display: "grid", gap: 16 }}>
-        <SectionCard title="From your old shop's address" collapsible={false}>
-          {/* Bring it over from the old shop's address (23.2): the platform answers a product file, previewed like a chosen one. */}
-          <OldShopAddressForm read={(address) => door.readOldShop(press.pressId, address)} onRead={choose} disabled={!!busy} />
-        </SectionCard>
+        {/* Bring it over from the old shop's address (23.2): the platform answers a product file, previewed like a chosen one. */}
+        <div className="rp-sb-row" style={{ marginBottom: 0 }}>
+          <section className="rp-sb-tile rp-sb-big" aria-labelledby="bring-title">
+            <p className="rp-sb-eyebrow">From its web address</p>
+            <h2 id="bring-title">Bring your shop with you</h2>
+            <OldShopAddressForm read={(address) => door.readOldShop(press.pressId, address)} label="Look at my shop" disabled={!!busy}
+              onRead={(f, notes) => { setFoundHost(f.name.replace(/ products\.csv$/, "")); return choose(f, notes); }} />
+          </section>
+          <FoundTile counts={null} />
+        </div>
         <SectionCard title="Or bring a file" collapsible={false}>
           <div style={{ display: "grid", gap: 12, maxWidth: 560 }}>
             <EmptyState icon={<FileUp size={28} aria-hidden />} title={w("Your books, in one file")}
@@ -144,6 +155,15 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
             )}
           </div>
         </SectionCard>
+        </div>
+      )}
+
+      {found && file && (
+        <div className="rp-sb-row" style={{ gridTemplateColumns: "minmax(0, 1fr)", marginBottom: 16 }}>
+          <FoundTile counts={found} host={foundHost}
+            action={<PrimaryButton busy={busy === "keep"} disabled={!ready || !!busy} onClick={() => void keep()}>
+              {ready ? w(`Keep ${ready} ${ready === 1 ? "book" : "books"} for my shop`) : "Nothing to keep"}
+            </PrimaryButton>} />
         </div>
       )}
 
@@ -171,9 +191,9 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
             )}
             {errorLine}
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              <PrimaryButton busy={busy === "keep"} disabled={!ready || !!busy} onClick={() => void keep()}>
+              {!found && <PrimaryButton busy={busy === "keep"} disabled={!ready || !!busy} onClick={() => void keep()}>
                 {ready ? w(`Keep ${ready} ${ready === 1 ? "book" : "books"} for my shop`) : "Nothing to keep"}
-              </PrimaryButton>
+              </PrimaryButton>}
               <SecondaryButton disabled={!!busy} onClick={pick}>Choose another file</SecondaryButton>
               <GhostButton disabled={!!busy} onClick={cancel}>Cancel</GhostButton>
             </div>
@@ -181,5 +201,28 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
         </SectionCard>
       )}
     </>
+  );
+}
+
+/**
+ * What reading the old shop found (design "Shop setup (bento)", screen 4): empty until a shop is read, then the success
+ * tint with its four counts. Nothing is kept until the press presses Keep.
+ */
+function FoundTile({ counts, host = "", action }: { counts: FoundCounts | null; host?: string; action?: ReactNode }) {
+  const w = useShopWords();
+  const shown = (n: number | undefined) => (counts ? n!.toLocaleString("en-CA") : "–");
+  return (
+    <section className={`rp-sb-tile ${counts ? "rp-sb-good" : "rp-sb-big rp-sb-empty"}`} aria-labelledby="found-title" aria-live="polite">
+      <p className="rp-sb-eyebrow">{counts ? `Found · ${host}` : "What we find"}</p>
+      <h2 id="found-title">{counts ? "Here's your shop" : "Shows up here"}</h2>
+      <dl className="rp-sb-counts" style={counts ? { gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 140px), 1fr))" } : undefined}>
+        <div><dt>{w("Books")}</dt><dd>{shown(counts?.products)}</dd></div>
+        <div><dt>Photos</dt><dd>{shown(counts?.photos)}</dd></div>
+        <div><dt>In stock</dt><dd>{shown(counts?.inStock)}</dd></div>
+        <div><dt>Old links kept</dt><dd>{shown(counts?.oldLinks)}</dd></div>
+      </dl>
+      <p>{counts ? "Check them below. Nothing is kept until you say so." : "Nothing is kept until you say so."}</p>
+      {action && <div className="rp-sb-actions">{action}</div>}
+    </section>
   );
 }

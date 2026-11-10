@@ -7,7 +7,7 @@
 //                                              (signInWithEmailLink). The link is never emailed: the code was the proof.
 //   POST /api/press       {}                   makes the press's setup record, or gives back the one still in setup
 //   GET  /api/press                            the signed-in person's presses
-//   POST /api/press/setup { pressId, plan?, pressName?, sells?, country?, look?, adminLook?, moving?, language?, cardProvider? }
+//   POST /api/press/setup { pressId, plan?, pressName?, sells?, sellingToday?, country?, look?, adminLook?, moving?, language?, cardProvider? }
 //                                              saves answers while the press is in setup
 //   POST /api/press/old-shop { pressId, address }
 //   POST /api/press/domain { pressId, domain }   the press's own domain for its shop ("" takes it off)
@@ -52,7 +52,7 @@ const shownRecord = (record, shopDomain = "") => ({
   // How the shop is starting once opened (18.8): "queued", or "in-line" with the words saying why it waits.
   shopStatus: record.shopStatus ?? "", shopMessage: record.shopMessage ?? "",
   // Once the shop is ready (18.9): the way into its admin.
-  openUrl: record.openUrl ?? "", pressName: record.pressName, sells: record.sells, country: record.country,
+  openUrl: record.openUrl ?? "", pressName: record.pressName, sells: record.sells, sellingToday: record.sellingToday ?? "", country: record.country,
   look: record.look ?? "", adminLook: record.adminLook ?? "", moving: record.moving ?? "", language: record.language ?? "",
   cardProvider: record.cardProvider ?? "",
   // "Your web address" (setup guide): the answer, the press's own domain and where it was bought.
@@ -386,6 +386,8 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
       try {
         started = await signup.start(claims, {
           pressName: record.pressName, plan, country: record.country, publishes: record.sells || null,
+          // "Where do you sell today?" (front door): the setup guide's first steps follow it.
+          ...(record.sellingToday ? { sellingToday: record.sellingToday } : {}),
           // The language chosen for the platform's emails, if any (pressRecord.js LANGUAGE_CHOICES).
           ...(record.language ? { language: record.language } : {}),
           // Stripe or Square for the website's cards (pressRecord.js CARD_PROVIDER_CHOICES); Stripe when not chosen.

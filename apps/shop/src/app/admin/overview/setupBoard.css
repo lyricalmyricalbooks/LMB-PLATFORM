@@ -75,3 +75,12 @@
   .rp:not(.studio-editor) .rp-sb-tile { padding: 20px; }
   .rp:not(.studio-editor) .rp-sb-panel { padding-left: 12px; }
 }
+
+/* Bring your shop with you (setup mode's Books): what reading the old shop found, four counts on a tile that waits
+   empty (the inset surface) until something is found, then takes the success tint. */
+.rp:not(.studio-editor) .rp-sb-empty { background: var(--rp-surface-2); border-color: var(--rp-surface-2); }
+.rp:not(.studio-editor) .rp-sb-counts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; }
+.rp:not(.studio-editor) .rp-sb-counts > div { display: grid; gap: 6px; padding: 14px 16px; border-radius: 14px; background: var(--rp-surface); color: var(--rp-text); }
+.rp:not(.studio-editor) .rp-sb-counts dt { order: 2; font: 500 11px/1.2 var(--rp-font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--rp-text-muted); }
+.rp:not(.studio-editor) .rp-sb-counts dd { order: 1; margin: 0; font: 600 28px/1 var(--rp-font-display); letter-spacing: -0.02em; }
+.rp:not(.studio-editor) .rp-sb-empty .rp-sb-counts dd { color: var(--rp-text-muted); }
