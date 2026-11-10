@@ -298,3 +298,17 @@ test("`again` looks at steps done in an earlier run anew, from the first of them
   assert.deepEqual(plain.checks, []);
   assert.ok(rerun.ran.every((r) => r.status === "done-before"));
 });
+
+test("a step that waits on something passing on its own stops the run as waiting, not failed", async () => {
+  const { StepWaiting } = await import("./runner.js");
+  const registry = fakeRegistry();
+  const steps = [
+    { number: 1, name: "one", check: async () => true, act: async () => {} },
+    { number: 2, name: "two", check: async () => false, act: async () => { throw new StepWaiting("the address is still being secured"); } },
+  ];
+  const result = await runSteps({ shop: { shopId: "moth-press" }, steps, registry, auditLog: fakeAuditLog() });
+  assert.equal(result.ok, false);
+  assert.equal(result.waiting, true);
+  assert.equal(result.failedStep, 2);
+  assert.deepEqual(result.ran.map((r) => r.status), ["already-done", "waiting"]);
+});

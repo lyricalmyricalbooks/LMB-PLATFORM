@@ -222,11 +222,12 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   // setup is connected when its shop is ready (shopMaker.js connectAddresses; the free address too, with freeAddress and platformZone on the domain service).
   // The shared system (docs/shared-system.md, step 6): with SHARED_SHOPS_PROJECT and SHARED_SHOPS_DOMAIN set, a shop is a
   // few writes in the shared project, made in seconds; without them, making shops stays not switched on.
-  const sharedRun = sharedShopRun({ env, fetch, token, payments: setupClient(payments), email, settings, registryFirestore: platform });
-  // Web addresses (services/domains/hosted.js): on with the shared system, where nothing is deployed per shop. A shop's
-  // free address and the domain it brought in setup are connected once it is ready (shopMaker.js connectAddresses).
+  // Web addresses (services/domains/hosted.js): on with the shared system, where nothing is deployed per shop. The shop
+  // maker puts a new shop's free address on the shared site (step 9) and connects the domain it brought in setup once
+  // it is ready (shopMaker.js connectAddresses).
   const presses = firestoreFrontDoorStores(platform).presses;
   const domains = sharedDomainService({ env, fetch, token, shared, registry, auditLog, payments, email, presses, sellers: domainLookup, settings, now });
+  const sharedRun = sharedShopRun({ env, fetch, token, payments: setupClient(payments), email, settings, registryFirestore: platform, addresses: domains });
   const shopMaker = sharedRun
     ? createShopMaker({ signups: stores.signups, run: sharedRun, registry, repairs, line: signup, billing, steps: SHARED_STEP_PLAN, presses, domains, now })
     : createShopMaker({ signups: stores.signups, run: notConnectedFn(NOT_CONNECTED.shopMaking), registry, repairs, line: signup, billing, now });

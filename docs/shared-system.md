@@ -77,7 +77,7 @@ needed a Google organization before any shop could be made ("In the queue") and 
   project), make the sign-in list, write the profile (the shared web app, both apps), write the record and its copies
   in the stockroom's database and the Realtime Database, claim the free address `<id>.<shop domain>` in `addresses/`
   (an address another shop holds stops for a person), then the old maker's starter content, payments, welcome email,
-  a check that the shop and stockroom answer at the address (then live), the stockroom link and the setup hand-over.
+  the free address put on the shared site and a check that the shop and stockroom answer there (then live; it waits while Google secures the address, see Web addresses), the stockroom link and the setup hand-over.
   One server runs every shop, so it has one key for the platform's services: the secret `PLATFORM_SERVICE_KEY` in the
   shared project, made once by the shop maker when missing (`setup/serviceKey.js` `sharedServiceKeyHash`). Step 1 writes
   its hash on each shop's registry row, so the payment, email and domain services take the shared server's calls for
@@ -104,7 +104,11 @@ needed a Google organization before any shop could be made ("In the queue") and 
   `PLATFORM_DOMAINS_URL` (`<platform>/api/domains`) with the shared server's key.
   **Limit:** Firebase Hosting takes no wildcard address and only a few dozen own addresses per project, and each one
   waits minutes to hours for its certificate. One per shop runs out at about 40 shops. A Google load balancer with a
-  wildcard certificate in front of the front door removes both limits (put to Julian, 10 November 2026).
+  wildcard certificate in front of the front door removes both limits. Julian, 10 November 2026: stay on Hosting for
+  now and switch to the load balancer at about 40 shops. Until then a new shop opens once Google has secured its free
+  address: the shop maker's step 9 puts it on the shared site and waits (`setup/runner.js` `StepWaiting`: no failure
+  counted, the press told in plain words, a look every five minutes, a person told after a day), and the owner gets
+  the "your address works" email when it does.
 - **What each shop uses (the meters).** The shared server writes one usage line per request, change and tick
   (`functions/usageLog.js`: the shop and its time) and the front door one per page answered (the shop and its size).
   Two log-based metrics in the shared project count them by shop (`server/setup-usage-metrics.js`, run once with `--apply`).

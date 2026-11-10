@@ -175,7 +175,7 @@ export function folderInventoryLink({ shopData, stockroomRecords, now = () => ne
  * while `SHARED_SHOPS_PROJECT` and `SHARED_SHOPS_DOMAIN` aren't set (making shops then stays "not switched on").
  * The maker's settings (the shared project's web app) are read once, on the first shop, and again after a failure.
  */
-export function sharedShopRun({ env = {}, fetch, token, payments = null, email = null, settings = {}, registryFirestore, stagedFiles = null, sleep, version = "1.0.0" }) {
+export function sharedShopRun({ env = {}, fetch, token, payments = null, email = null, settings = {}, registryFirestore, stagedFiles = null, addresses = null, sleep, version = "1.0.0" }) {
   const projectId = String(env.SHARED_SHOPS_PROJECT ?? "").trim();
   const shopDomain = String(env.SHARED_SHOPS_DOMAIN ?? "").trim();
   if (!projectId || !shopDomain) return null;
@@ -190,7 +190,7 @@ export function sharedShopRun({ env = {}, fetch, token, payments = null, email =
     return config;
   };
   return async (shop, options = {}) => runSteps({
-    shop, steps: sharedShopSteps({ ...clients, config: await configNow() }), registry: clients.registry, auditLog: clients.auditLog, ...options,
+    shop, steps: sharedShopSteps({ ...clients, addresses, config: await configNow() }), registry: clients.registry, auditLog: clients.auditLog, ...options,
   });
 }
 
