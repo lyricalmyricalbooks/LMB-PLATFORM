@@ -43,8 +43,7 @@ import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
 import { applyPresetSections, hasPresetContent, presetContentSummary, presetPagesToAdd, presetSections, wordedSettings } from "./presetContent";
 import { useShopWords } from "../shopWords";
 import { applyThemeKeysToSurfaces } from "../themeScope";
-import { THEME_LIBRARY } from "./themeLibrary";
-import { ownBooks, pressNameOf } from "../lookGallery";
+import { builtLooks, ownBooks, pressNameOf } from "../lookGallery";
 import { applyLook, bringBack, ownEdits, resetToLook, switchSummary, themeSwitchReport, updateLookKeepingEdits, updatedTheme, type SwitchItem, type ThemeSwitchReport } from "./themeSwitch";
 import { importedThemeProblems } from "./themeCheck";
 import { ESSENTIALS, essentialCopyField, essentialStyleField } from "./essentials";
@@ -2389,7 +2388,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 </div>
                 <div className="pt-2 border-t border-neutral-200 space-y-2">
                   <p className="text-[10px] font-black tracking-widest uppercase text-neutral-500">Theme library</p>
-                  {THEME_LIBRARY.map((t: any) => (
+                  {builtLooks().map((t: any) => (
                     <button key={t.id} type="button" onClick={() => applyLibraryTheme(t)}
                       className="w-full text-left border border-neutral-200 rounded-lg px-3 py-2 hover:bg-neutral-50">
                       <span className="block text-xs font-bold">{t.name}{design.themeLibraryPreset === t.id ? "  ✓ current" : ""}</span>
@@ -2595,7 +2594,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
             {leftTab === "themes" && (
               <StudioThemes design={design} published={published} unpublished={unpublished || dirtyDraft} savedThemes={savedThemes}
-                presets={THEME_LIBRARY as any[]} currentPresetId={design.themeLibraryPreset} products={themeProducts} pressName={pressNameOf(settings)}
+                presets={builtLooks() as any[]} currentPresetId={design.themeLibraryPreset} products={themeProducts} pressName={pressNameOf(settings)}
                 templateDetails={templateDetailsLine(design)} onResetTemplateDetails={resetTemplateDetails}
                 previewingId={themePreview?.id || null} onPreview={(entry, onPhone) => { setThemePreview(entry); if (entry && onPhone) setDevice(onPhone); }}
                 onSaveCurrent={saveCurrentAsTheme} onImport={file => importTheme(file)}

@@ -1,7 +1,7 @@
 import { useMemo, useState, type KeyboardEvent } from "react";
 import { ChevronLeft, ChevronRight, Monitor, Smartphone } from "lucide-react";
 import {
-  feelLabel, filterLooks, galleryThemes, LOOK_FILTERS, lookPreview, pressNameOf, sampleProducts,
+  feelLabel, filterLooks, builtLooks, libraryLook, suggestedThemes, LOOK_FILTERS, lookPreview, pressNameOf, sampleProducts,
   type LibraryTheme, type LookFilter, type PreviewProduct,
 } from "../lookGallery";
 import type { WelcomeDone } from "../firstWeek";
@@ -12,7 +12,7 @@ import { LookStage, ScaledStage, STAGE_WIDTH, type StageDevice, type StagePage }
 
 /**
  * Choose your look (plan 6.3): the welcome before the setup guide, shown once, and setup mode's Design page. Laid out
- * like a theme store: the suggested looks large, then every look with filters, each card a picture of a whole shop
+ * like a theme store: every look with filters, each card a picture of a whole shop
  * page in that look. Try it on opens the look full screen (LookStage) on a desktop or a phone, on the home page or a
  * product page, with the press's own products or sample ones, and flips through the looks with the arrows.
  * `settings` is settings/website as the Overview read it: undefined while it loads, null when it couldn't be read.
@@ -36,12 +36,12 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
   /** The look (and admin look) the press chose in setup (code plan 18.9): shown on its own first, with every look a tap away. */
   chosen?: { theme: string } | null;
 }) {
-  const { suggested, others } = useMemo(() => galleryThemes(publishes), [publishes]);
+  const others = useMemo(() => builtLooks(), []);
+  // One general list. The sign-up answer only decides which look "Skip for now" uses.
+  const first = useMemo(() => suggestedThemes(publishes)[0], [publishes]);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<LookFilter>("all");
-  // The suggested looks show first; the whole gallery opens on "See all looks" (a long list buries the three picked for you).
-  const [showAll, setShowAll] = useState(false);
   const [trying, setTrying] = useState<string | null>(null);
   const [device, setDevice] = useState<StageDevice>(() => (typeof window !== "undefined" && window.innerWidth < 720 ? "phone" : "desktop"));
   const [page, setPage] = useState<StagePage>("home");
@@ -49,15 +49,15 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
   const [ownChoice, setOwn] = useState<boolean | null>(null);
   const own = ownChoice ?? books.length > 0;
   const [browsing, setBrowsing] = useState(false);
-  const picked = useMemo(() => (chosen && !browsing ? [...suggested, ...others].find(t => t.id === chosen.theme) ?? null : null), [chosen, browsing, suggested, others]);
+  const picked = useMemo(() => (chosen && !browsing ? libraryLook(chosen.theme) ?? null : null), [chosen, browsing]);
   const press = pressNameOf(settings);
   const bookShop = sellsBooks(publishes);
   const samples = useMemo(() => sampleProducts(publishes), [publishes]);
   // The press's own products show their own prices; one without a price borrows a sample price so the cards read as a shop.
   const products: PreviewProduct[] = own && books.length ? books.map((b, i) => ({ ...b, price: b.price || samples[i % samples.length].price })) : samples;
   const shown = useMemo(() => filterLooks(others, filter), [others, filter]);
-  // The try-on flips through what the press is looking at: the suggestions, then the filtered list.
-  const order = useMemo(() => [...suggested, ...shown], [suggested, shown]);
+  // The try-on flips through what the press is looking at: the filtered list.
+  const order = shown;
   const tryIndex = trying ? order.findIndex(t => t.id === trying) : -1;
   const current = tryIndex >= 0 ? order[tryIndex] : null;
   const step = (by: number) => { if (order.length && tryIndex >= 0) setTrying(order[(tryIndex + by + order.length) % order.length].id); };
@@ -91,15 +91,10 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
     );
   }
 
-  const badges = (theme: LibraryTheme, suggestion: boolean) => (
-    <>
-      {suggestion && <StatusBadge tone="info" glyph={false}>Suggested</StatusBadge>}
-      <StatusBadge glyph={false}>{feelLabel(theme)}</StatusBadge>
-    </>
-  );
+  const badges = (theme: LibraryTheme) => <StatusBadge glyph={false}>{feelLabel(theme)}</StatusBadge>;
 
-  // `big`: the large picture with a phone beside it, for the suggestions and the look chosen in setup.
-  const card = (theme: LibraryTheme, suggestion: boolean, big = suggestion) => {
+  // `big`: the large picture with a phone beside it, for the look chosen in setup.
+  const card = (theme: LibraryTheme, big = false) => {
     const look = lookPreview(theme, settings?.design);
     return (
       <li key={theme.id} data-look-card={theme.id} style={{ display: "grid", gap: 10, alignContent: "start", minWidth: 0 }}>
@@ -117,7 +112,7 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
         </button>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
           <strong>{theme.name}</strong>
-          {badges(theme, suggestion)}
+          {badges(theme)}
         </div>
         <p className="rp-hint" style={{ margin: 0 }}>{theme.mood}</p>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
@@ -131,7 +126,6 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
     );
   };
   const grid = (min: number) => ({ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 24, gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${min}px), 1fr))` }) as const;
-  const first = suggested[0];
   const counts = Object.fromEntries(LOOK_FILTERS.map(f => [f.id, filterLooks(others, f.id).length]));
 
   const onStageKey = (e: KeyboardEvent) => {
@@ -155,27 +149,17 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
           <p className="rp-hint" style={{ marginTop: 0 }}>
             You chose “{picked.name}” in setup. Use it, try it on, or see every look. You can change it any time in Design.
           </p>
-          <ul aria-label="The look you chose" style={{ ...grid(320), maxWidth: 720 }}>{card(picked, false, true)}</ul>
+          <ul aria-label="The look you chose" style={{ ...grid(320), maxWidth: 720 }}>{card(picked, true)}</ul>
         </>
       ) : (<>
       <p className="rp-hint" style={{ marginTop: 0 }}>
-        Try any look on before you choose. You can change it any time.
+        Try any look on before you choose. Every look is a starting point: change anything in the shop designer.
         {first && !keep && ` Skip uses “${first.name}”.`}
       </p>
 
-      <h3 className="rp-card-title" style={{ fontSize: "var(--rp-text-base)", margin: "16px 0 12px" }}>Suggested for you</h3>
-      <ul aria-label="Suggested looks" style={grid(320)}>{suggested.map(t => card(t, true))}</ul>
-
-      {showAll ? <>
-        <h3 className="rp-card-title" style={{ fontSize: "var(--rp-text-base)", margin: "40px 0 12px" }}>Every look, by feel</h3>
-        <Tabs label="Show looks" idPrefix="looks-" value={filter} onChange={setFilter}
-          tabs={LOOK_FILTERS.map(f => ({ id: f.id, label: f.label, count: counts[f.id] }))} />
-        <ul aria-label="Every look" style={{ ...grid(240), marginTop: 16 }}>{shown.map(t => card(t, false))}</ul>
-      </> : others.length > 0 && (
-        <div style={{ marginTop: 24 }}>
-          <SecondaryButton onClick={() => setShowAll(true)}>See all {others.length + suggested.length} looks</SecondaryButton>
-        </div>
-      )}
+      <Tabs label="Show looks" idPrefix="looks-" value={filter} onChange={setFilter}
+        tabs={LOOK_FILTERS.map(f => ({ id: f.id, label: f.label, count: counts[f.id] }))} />
+      <ul aria-label="Looks" style={{ ...grid(280), marginTop: 16 }}>{shown.map(t => card(t))}</ul>
 
       </>)}
 
@@ -221,7 +205,7 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
                   </div>
                 </div>
                 <div style={{ display: "grid", gap: 8 }}>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{badges(current, suggested.some(t => t.id === current.id))}</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{badges(current)}</div>
                   <p className="rp-hint" style={{ margin: 0 }}>{own && books.length ? "Your own products, shown in this look." : "Sample products. Your own products, words and logo take their places."} Every look keeps your words, products and pages.</p>
                 </div>
                 <div style={{ display: "grid", gap: 8 }}>

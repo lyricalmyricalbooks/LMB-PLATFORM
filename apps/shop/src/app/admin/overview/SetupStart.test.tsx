@@ -35,7 +35,7 @@ const mount = async (props: any) => {
   await flush();
   // The welcome loads lazily (it brings Studio's theme library): wait for it when the shop shows it.
   if (props.waitForWelcome !== false) {
-    for (let i = 0; i < 200 && !document.querySelector("ul[aria-label='Suggested looks']") && /Opening the looks/.test(document.body.textContent || ""); i++) {
+    for (let i = 0; i < 200 && !document.querySelector("ul[aria-label='Looks']") && /Opening the looks/.test(document.body.textContent || ""); i++) {
       await act(async () => { await new Promise(r => setTimeout(r, 25)); });
     }
   }
@@ -55,10 +55,8 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
     await mount({});
     expect(text()).toContain("Welcome to Moth Press. Choose your look");
     expect(text()).not.toContain("Set up your shop");
-    const suggested = [...document.querySelectorAll("ul[aria-label='Suggested looks'] > li > div > strong")].map(s => s.textContent);
-    expect(suggested[0]).toBe("Zine");
-    await act(async () => { [...document.querySelectorAll("button")].find(b => /^See all \d+ looks$/.test(b.textContent?.trim() || ""))!.click(); });
-    expect(document.querySelectorAll("ul[aria-label='Every look'] li").length).toBeGreaterThan(5);
+    expect(text()).not.toContain("Suggested for you");
+    expect(document.querySelectorAll("ul[aria-label='Looks'] > li")).toHaveLength(17);
     expect(document.body.innerHTML).toContain("Moth Press in this look");
   });
 
@@ -70,10 +68,10 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
     expect(store.saveDraft).toHaveBeenCalledTimes(1);
     const [, draft, rev] = store.saveDraft.mock.calls[0] as any[];
     expect(rev).toBe(3);
-    expect(draft.themeLibraryPreset).toBe("press-imprint");
-    expect(draft.themeBase.id).toBe("press-imprint");
+    expect(draft.themeLibraryPreset).toBe("press-marquee");
+    expect(draft.themeBase.id).toBe("press-marquee");
     expect(draft.copy).toEqual({ heroTitle: "Kept" });
-    expect(api.updateFirstWeek).toHaveBeenCalledWith({ welcome: { theme: "press-imprint", at: expect.any(String) } });
+    expect(api.updateFirstWeek).toHaveBeenCalledWith({ welcome: { theme: "press-marquee", at: expect.any(String) } });
     expect(text()).toContain("Set up your shop");
     expect(text()).not.toContain("Choose your look.");
   });
@@ -90,7 +88,7 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
     await mount({});
     await act(async () => { button("Skip for now")!.click(); });
     await flush();
-    expect(api.updateFirstWeek).toHaveBeenCalledWith({ welcome: expect.objectContaining({ theme: "press-riso-noir", skipped: true }) });
+    expect(api.updateFirstWeek).toHaveBeenCalledWith({ welcome: expect.objectContaining({ theme: "press-folio", skipped: true }) });
   });
 
   it("a failed save keeps the welcome up with a plain message", async () => {
@@ -413,6 +411,6 @@ describe("What the press set up before its shop existed (code plan 18.9)", () =>
     expect(document.querySelector("[role=radio][aria-checked=true]")).toBeNull();
     await act(async () => { button("See every look")!.click(); });
     expect(text()).toContain("Welcome to Moth Press. Choose your look");
-    expect(document.querySelector("ul[aria-label='Suggested looks']")).not.toBeNull();
+    expect(document.querySelector("ul[aria-label='Looks']")).not.toBeNull();
   });
 });

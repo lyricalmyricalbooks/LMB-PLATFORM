@@ -156,7 +156,7 @@ async function checkFrontDoor(browser, walk, log) {
       if (!(await fits())) throw new Error("Your web address scrolls sideways on a phone");
       // Design shows the look gallery, and picking a look saves it.
       await page.evaluate(() => { location.hash = "settings/designer"; });
-      await page.locator("ul[aria-label='Suggested looks'] button", { hasText: "Use this look" }).first().click();
+      await page.locator("ul[aria-label='Looks'] button", { hasText: "Use this look" }).first().click();
       await page.locator("text=Choose another look").waitFor({ state: "visible", timeout: 10_000 });
       if (!(await record())?.look) throw new Error("the chosen look wasn't saved");
       if (!(await fits())) throw new Error("Design scrolls sideways on a phone");
