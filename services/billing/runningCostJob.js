@@ -12,12 +12,21 @@ import { previousMonth, runningCostCents } from "./runningCost.js";
 /** The day of the month from which last month is billed (the export settles by then). */
 export const BILL_FROM_DAY = 3;
 
-/** Each shop's running cost for a month, { [shopId]: cents }, from its meters or the export; unknown shops left out. */
-export async function costsFor({ rows, month, meters = null, reader = null }) {
+/**
+ * Each shop's running cost for a month, { [shopId]: cents }, from its meters or the export; unknown shops left out.
+ * `final` (billing): a meter record counts only once the shared system has reconciled it with Google's invoice
+ * (`reconciled: true`, then its `costCents`); before that the shop waits for a later day. Heads-ups use the meters as
+ * they stand.
+ */
+export async function costsFor({ rows, month, meters = null, reader = null, final = false }) {
   const fromExport = reader?.configured ? costPerShop({ rows, costs: await reader.read(month) }) : {};
   const costs = {};
   for (const row of rows) {
     const record = meters ? await meters.get(row.shopId, month) : null;
+    if (final && record) {
+      if (record.reconciled === true && Number.isInteger(record.costCents)) costs[row.shopId] = Math.max(0, record.costCents);
+      continue;
+    }
     const exported = fromExport[row.shopId];
     const cents = runningCostCents({ meters: record, exportCents: exported && exported.currency === "CAD" ? exported.cents : undefined });
     if (cents !== null) costs[row.shopId] = cents;
@@ -32,7 +41,7 @@ export async function runRunningCosts({ billing, registry, meters = null, reader
   let billed = null;
   if (today.getUTCDate() >= BILL_FROM_DAY) {
     const month = previousMonth(today.getTime());
-    billed = await billing.billRunningCosts({ month, costs: await costsFor({ rows, month, meters, reader }) });
+    billed = await billing.billRunningCosts({ month, costs: await costsFor({ rows, month, meters, reader, final: true }) });
   }
   const thisMonth = monthOf(today);
   const told = await billing.runningCostAlerts({ month: thisMonth, soFar: await costsFor({ rows, month: thisMonth, meters, reader }) });

@@ -36,6 +36,13 @@ test("before the 3rd only the heads-ups run; from the 3rd last month is billed t
   const later = fakeBilling();
   const run = await runRunningCosts({ billing: later, registry, meters, now: () => new Date("2026-12-03T03:00:00Z") });
   assert.deepEqual(later.calls.map(([kind, args]) => [kind, args.month]), [["bill", "2026-11"], ["alerts", "2026-12"]]);
-  assert.deepEqual(later.calls[0][1].costs, { "moth-press": 207 });
-  assert.equal(run.summary, "2026-11: billed 1, waiting for costs 0; heads-ups sent 0");
+  assert.deepEqual(later.calls[0][1].costs, {}, "meters not reconciled yet: wait");
+  assert.equal(run.summary, "2026-11: billed 0, waiting for costs 0; heads-ups sent 0");
+});
+
+test("a bill waits for the shared system's reconciled total; heads-ups use the meters as they stand", async () => {
+  const records = { "moth-press": { egressGb: 10 }, "late-press": { egressGb: 10, reconciled: true, costCents: 250 } };
+  const m = { get: async (shopId) => records[shopId] ?? null };
+  assert.deepEqual(await costsFor({ rows, month: "2026-11", meters: m, final: true }), { "late-press": 250 });
+  assert.deepEqual(await costsFor({ rows, month: "2026-11", meters: m }), { "moth-press": 207, "late-press": 207 });
 });

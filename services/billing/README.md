@@ -27,7 +27,9 @@ Each month a press pays the plan fee plus what its shop cost to run the month be
   (`usage/{shopId}_{YYYY-MM}` in the platform project: reads, writes, deletes, firestoreGb, storageGb, egressGb,
   invocations, computeGbSeconds, emails), priced line by line at `UNIT_PRICES` (Google's list prices in CAD, and the
   email sender's per-email price). Until the shared system writes meters, the shop's own project's net cost in Google's
-  billing export (`services/costs` `costPerShop`, CAD only). A shop with neither is left for a later day, never billed $0
+  billing export (`services/costs` `costPerShop`, CAD only). A bill uses a meter record only once the shared system has
+  reconciled it with Google's invoice (`reconciled: true`, then its `costCents`, the shop's share of shared cost included);
+  until then the shop waits. A shop with neither is left for a later day, never billed $0
   by mistake.
 - **How it is billed.** The daily job `running-costs` (`runningCostJob.js`, 02:45 Toronto) bills last month from the
   3rd (the export settles by then): `billing.billRunningCosts` adds one Stripe invoice item to the shop's subscription
