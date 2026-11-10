@@ -54,6 +54,23 @@ needed a Google organization before any shop could be made ("In the queue") and 
   shared project's own Google settings, authenticator codes allowed) or finds the one already made; the shop maker calls
   it (phase 6). The platform's own sign-ins into a shop (support visits, the release check's test owner, the two-step
   tools) name the shop's list too (`clients/identity.js`).
+- **One front door for every address.** One Hosting site serves the app (the same files for every shop). Hosting
+  sends a shop's own paths to the `frontDoor` function (`apps/shop/functions/frontDoor.js`; the rewrites are added by
+  `scripts/deployConfig.mjs` `frontDoorHosting`, and those files are left out of the upload): `/shop-profile.js` and
+  `/stockroom/shop-profile.js`, the shop's published files (`sitemap.xml`, `robots.txt`, `storefront-data.json`,
+  `llms.txt`, the two product feeds, the change marker) and its storefront pages (`/`, `/books/x`, `/products/x`,
+  `/page/x`, `/collections/x`). It reads the address the visitor typed, looks it up in `addresses/{host}` (`{ shopId }`,
+  written only by the platform: the free address and any own domain, cached a minute), and answers from that shop
+  only: the profile from its record (with its sign-in list), the files and pages from the bucket at
+  `shops/<id>/site/`, a page not drawn yet with the app's blank page. An address that names no shop gets a plain "There
+  is no shop here" page, a closed shop a "This shop has closed" one, never another shop. An own domain is one more
+  `addresses/` entry plus that domain on the shared Hosting site.
+- **Each shop's pages, drawn for search engines.** `setup/shopSite.js` publishes one shop: it copies the built app,
+  writes the shop's profile beside it and runs the shop's own build scripts against that copy (`SHOP_PROFILE_FILE`,
+  `SHOP_BUILD_DIR`; they read the shop's folder in the database through `shopDocumentsBase`), then uploads exactly the
+  files the front door serves to `shops/<id>/site/` and removes the shop's older ones (a page whose book was taken
+  down). A failed build uploads nothing, so the last good files stay. The shop maker runs it when a shop is made
+  (phase 6), and the staged updates after each release and catalogue change (phase 7).
 - **Backups.** The managed Firestore export would copy every shop, so inside a shop only the server's own document copy
   runs. Its paths carry no shop folder (`books/a`), and `scripts/restore-json-backup.mjs --shop <id>` puts them back
   into that shop's folder only.
@@ -80,12 +97,13 @@ app off. The per-shop cost meters (phase 7) are what the plan charges by.
 | 2 | Shop server code (Cloud Functions) in shop folders: shop from each request, triggers on `shops/{shopId}/…`, nightly jobs per shop | built |
 | 3 | Stockroom in shop folders (its database, live sync, files) | built |
 | 4 | Per-shop sign-in (Identity Platform tenants) for customers, staff, helpers, support | built |
-| 5 | Front door: one site for every address, profile by address, crawlable pages, own domains | next |
-| 6 | Shop maker in seconds (record + tenant + starter content); ends "In the queue" | |
+| 5 | Front door: one site for every address, profile by address, crawlable pages, own domains | built |
+| 6 | Shop maker in seconds (record + tenant + starter content); ends "In the queue" | next |
 | 7 | Platform services: control room, health, per-shop costs, export, closing, backups, staged updates | |
 | 8 | Test shop rebuilt in the shared test project (`lmb-test-shop`) with a test purchase | |
 
-Left for later phases: the platform's services still call each shop's server code at its own project's address
+Left for later phases: the shop maker writes `addresses/{host}` for the free address (phase 6), and the domain
+service adds an own domain to the shared Hosting site and to `addresses/` (phase 7). The platform's services still call each shop's server code at its own project's address
 (`services/payments` forwarding events, `services/health`), which phase 7 moves to the shared server with `?shop=`. A
 Shippo or PayPal webhook set up by hand needs `?shop=<id>` on its address. The tick runs every shop in one five-minute
 run; phase 7 spreads it out once there are many shops. The platform's writers into a shop (billing's `platform/plan`

@@ -18,6 +18,11 @@ are made with `onDocument*` from `shopEntry.trigger` (the path you write, e.g. `
   params)`, which adds `?shop=`. The shop's pages use `functionUrl(name, params)`.
 - No collection-group reads (the scoped Firestore refuses them). A sub-collection read across parents is one read per
   parent (`backupJson.js` `SUBCOLLECTION_PARENTS`). Paths saved or shown go through `shopRelative`.
+- **The front door** (`frontDoor.js`, export `frontDoor`): the one Hosting site sends each shop's profile, published
+  files and storefront pages here; it finds the shop by the typed address (`addresses/{host}`, read at the database
+  root, never written here) and answers only from that shop (record profile, bucket `shops/<id>/site/`). Its slug rule
+  is the prerender's (`safeSlug`, parity-tested); a new published file goes in `SITE_FILES` and in
+  `scripts/deployConfig.mjs` `PER_SHOP_FILES`.
 - The older handler tests run one shop with the folders off (`SHOP_FOLDERS: "off"`, `vite.config.ts`). New tests of
   shop-crossing behaviour turn them on (`shopScope.test.js`, `shopEntry.test.js`).
 

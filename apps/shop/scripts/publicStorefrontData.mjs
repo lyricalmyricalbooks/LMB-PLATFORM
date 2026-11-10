@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { shopProjectId } from './shopProfile.mjs';
+import { shopDocumentsBase } from './shopProfile.mjs';
 import { saleActive, preorderDate } from '../src/app/features/site/merchantFeed.mjs';
 
 export function decodeValue(value = {}) {
@@ -15,8 +15,8 @@ async function publicRead(url) {
   return response.json();
 }
 export async function readPublicStorefront() {
-  const project = await shopProjectId();
-  const endpoint = `https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents/`;
+  // The shop's own folder (the shared system): shops/<shopId>/books, …/settings/website.
+  const endpoint = `${await shopDocumentsBase()}/`;
   const [books, pages, settings, reviews] = await Promise.all([readPublishedBooks(endpoint), readPublishedPages(endpoint), publicRead(endpoint + 'settings/website').then(decodeDocument), readApprovedReviews(endpoint)]);
   return { books, pages, settings, reviews };
 }

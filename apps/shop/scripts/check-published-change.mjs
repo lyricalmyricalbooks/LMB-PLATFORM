@@ -1,5 +1,5 @@
 import { appendFile } from 'node:fs/promises';
-import { shopProjectId, shopSiteUrl } from './shopProfile.mjs';
+import { shopDocumentsBase, shopSiteUrl } from './shopProfile.mjs';
 import { readPublicStorefront, publishedFingerprint } from './publicStorefrontData.mjs';
 import { isFingerprint } from './assetManifest.mjs';
 import { STOREFRONT_DATA_FILE, markerNewerThanFile, readShippingProfiles, shippingProfilesDiffer } from './storefrontDataFile.mjs';
@@ -16,10 +16,11 @@ let changed = fingerprint !== previous;
 // changes nothing published still marks it out of date, so rebuild then too, or shoppers keep reading Firestore.
 if (!changed) {
   try {
-    const project = await shopProjectId();
+    // The shop's own folder (the shared system).
+    const base = await shopDocumentsBase();
     const [fileResponse, markerResponse] = await Promise.all([
       fetch(`${siteUrl}/${STOREFRONT_DATA_FILE}?check=${Date.now()}`, { signal: AbortSignal.timeout(30000), cache: 'no-store' }),
-      fetch(`https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents/settings/catalogVersion`, { signal: AbortSignal.timeout(30000) }),
+      fetch(`${base}/settings/catalogVersion`, { signal: AbortSignal.timeout(30000) }),
     ]);
     const file = fileResponse.ok && /json/.test(fileResponse.headers.get('content-type') || '') ? await fileResponse.json() : null;
     const marker = markerResponse.ok ? await markerResponse.json() : null;
@@ -28,7 +29,6 @@ if (!changed) {
       console.log('The catalog file is older than the last catalog change; rebuilding it.');
     } else if (file?.shippingProfiles) {
       // Shipping profiles aren't in the published fingerprint; compare them directly in case a marker write failed.
-      const base = `https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents`;
       if (shippingProfilesDiffer(file, await readShippingProfiles(base))) {
         changed = true;
         console.log("The catalog file's shipping profiles differ from Firestore's; rebuilding it.");
