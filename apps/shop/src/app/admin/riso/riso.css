@@ -1905,6 +1905,6 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 }
 
 /* Top bar trial pill (Colophon handoff): "Free trial · N days left", opens Billing. */
-.admin-reso .rp-trial-pill { display: inline-flex; align-items: center; min-height: 32px; padding: 0 12px; border-radius: 999px; background: var(--rp-paper-2, rgba(0,0,0,.06)); color: inherit; font-size: 13px; font-weight: 600; white-space: nowrap; text-decoration: none; }
+.admin-reso .rp-trial-pill { display: inline-flex; align-items: center; min-height: 32px; padding: 0 12px; border-radius: 999px; background: var(--rp-surface); border: 1px solid var(--rp-hair); color: var(--rp-text); font-size: var(--rp-text-sm); font-weight: 600; white-space: nowrap; text-decoration: none; }
 .admin-reso .rp-trial-pill:hover { text-decoration: underline; }
 @media (max-width: 640px) { .admin-reso .rp-trial-pill { display: none; } }
