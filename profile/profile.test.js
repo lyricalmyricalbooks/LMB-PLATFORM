@@ -123,3 +123,12 @@ test("the served file can't break out of a script tag", () => {
 test("a bad profile is never written", () => {
   assert.throws(() => profileScript({ ...example, shopId: "" }), /problems/);
 });
+
+test("the shop's sign-in list is an optional tenant id (the shared system, docs/shared-system.md)", () => {
+  assert.deepEqual(profileProblems({ ...example, tenant: "moth-press-x7k2q" }), []);
+  assert.deepEqual(profileProblems({ ...example, tenant: "Test-shop-1a2b3" }), []);
+  for (const bad of ["", "7press", "has space", "a/b", "abc", 7]) {
+    assert.ok(profileProblems({ ...example, tenant: bad }).length, String(bad));
+  }
+  assert.equal(schema.required.includes("tenant"), false);
+});

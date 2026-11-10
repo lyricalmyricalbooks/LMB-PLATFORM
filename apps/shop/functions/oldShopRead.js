@@ -5,12 +5,41 @@
 // checked hop by hop, 15 seconds and 5 MB at most. Admin only, and a few reads per ten minutes.
 "use strict";
 
+/** How many product reads `systemStatus/oldShopScans` keeps, newest first. */
+const KEPT_SCANS = 20;
+
+/**
+ * One product read as the platform's control room shows it (a live shop's record, Brought over): the old shop's address,
+ * whether it read, how many products, and whether the old shop stopped answering part way. Never the products themselves.
+ */
+function scanEntry(address, answer, at) {
+  const host = String(answer?.host || address).trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").slice(0, 200);
+  if (!answer?.ok) return { at, host, ok: false, message: String(answer?.message ?? "").slice(0, 300) };
+  const notes = Array.isArray(answer.notes) ? answer.notes : [];
+  return {
+    at, host, ok: true, products: Number(answer.products) || 0,
+    ...(typeof answer.forSale === "number" ? { forSale: answer.forSale } : {}),
+    stockShown: answer.stockShown === true,
+    partial: notes.some((n) => /stopped answering/.test(String(n))),
+  };
+}
+
+/** Keeps the scan in `systemStatus/oldShopScans` (the newest KEPT_SCANS). A failure here never fails the read. */
+async function recordScan(db, entry) {
+  const ref = db.doc("systemStatus/oldShopScans");
+  await db.runTransaction(async (tx) => {
+    const kept = (await tx.get(ref)).data()?.scans;
+    tx.set(ref, { scans: [entry, ...(Array.isArray(kept) ? kept : [])].slice(0, KEPT_SCANS), at: entry.at });
+  });
+}
+
 /** { status, body } for one read: the address checked, the rate limit, then `read(address)` and the answer's `fields`. */
-async function oneRead(body, { allow, read }, fields, fallback) {
+async function oneRead(body, { allow, read, record = null, now = () => new Date() }, fields, fallback) {
   const address = typeof body?.address === "string" ? body.address.trim() : "";
   if (!address) return { status: 400, body: { error: "Type your old shop's web address, like yourshop.com." } };
   if (!(await allow())) return { status: 429, body: { error: "That's a lot of reads in a short time. Wait a few minutes and try again." } };
   const answer = await read(address, body);
+  if (record) await Promise.resolve().then(() => record(scanEntry(address, answer, now().toISOString()))).catch((err) => console.error("oldShopScans not kept:", err?.message || err));
   if (!answer?.ok) return { status: 400, body: { error: answer?.message || fallback } };
   return { status: 200, body: Object.fromEntries(fields.map((f) => [f, answer[f]])) };
 }
@@ -41,4 +70,4 @@ const readOldShop = async (address) => (await import("./moving/oldShop.mjs")).re
 const readOldLinks = async (address) => (await import("./moving/oldLinks.mjs")).readOldLinks(address);
 const readOldPages = async (address, body) => (await import("./moving/oldPages.mjs")).readOldPages(address, body?.paths);
 
-module.exports = { handleOldShopRead, handleOldLinksRead, handleOldPagesRead, readOldShop, readOldLinks, readOldPages };
+module.exports = { scanEntry, recordScan, KEPT_SCANS, handleOldShopRead, handleOldLinksRead, handleOldPagesRead, readOldShop, readOldLinks, readOldPages };

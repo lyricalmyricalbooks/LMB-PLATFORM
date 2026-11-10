@@ -17,7 +17,7 @@ import { demoShopDocs } from "./seed.js";
 import { fakeEmulators } from "./fakeEmulators.js";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
-const SETTINGS = "(default)/documents/settings/website";
+const SETTINGS = "(default)/documents/shops/demo-colophon-test/settings/website";
 
 test("a change disappears after the nightly reset", async () => {
   const emulators = fakeEmulators(INTERNAL_PORTS);
@@ -28,17 +28,18 @@ test("a change disappears after the nightly reset", async () => {
   // What a visitor's change would leave behind (were the rules ever to let one through): a renamed shop, a new
   // document, a stockroom change, live data and a new sign-in account.
   emulators.docs.set(SETTINGS, { info: { mapValue: { fields: { name: { stringValue: "Changed by a visitor" } } } } });
-  emulators.docs.set("(default)/documents/books/visitor-book", { title: { stringValue: "Not ours" } });
-  emulators.docs.set("stockroom/documents/settings/catalog", { data: { stringValue: "{}" } });
+  emulators.docs.set("(default)/documents/shops/demo-colophon-test/books/visitor-book", { title: { stringValue: "Not ours" } });
+  emulators.docs.set("stockroom/documents/shops/demo-colophon-test/settings/catalog", { data: { stringValue: "{}" } });
   emulators.accounts.add("visitor");
   await internalFetch(emulators.fetch)(`http://127.0.0.1:${PORTS.database}/.json`, { method: "PUT", headers: { Authorization: "Bearer owner" }, body: JSON.stringify({ sales: 1 }) });
 
   await resetSamplePress({ fetch: emulators.fetch });
   assert.deepEqual([...emulators.docs.keys()].sort(), [...seeded.keys()].sort());
   for (const [key, value] of seeded) {
-    if (key.endsWith("settings/website") || key.startsWith("(default)/documents/books/")) assert.deepEqual(emulators.docs.get(key).info ?? emulators.docs.get(key).title, value.info ?? value.title, key);
+    if (key.endsWith("settings/website") || key.startsWith("(default)/documents/shops/demo-colophon-test/books/")) assert.deepEqual(emulators.docs.get(key).info ?? emulators.docs.get(key).title, value.info ?? value.title, key);
   }
-  assert.equal(emulators.live(), null);
+  // The live data is cleared; only the shop's record comes back.
+  assert.deepEqual(emulators.live(), { shops: { "demo-colophon-test": { record: { tenant: "", ownerEmail: "owner@example.com" } } } });
   assert.deepEqual([...emulators.accounts], ["uid-1"]);
   // The reset only ever talks to the emulators on this computer, on their internal ports.
   const internal = new Set(Object.values(INTERNAL_PORTS).map(String));

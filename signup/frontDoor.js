@@ -7,7 +7,7 @@
 //                                              (signInWithEmailLink). The link is never emailed: the code was the proof.
 //   POST /api/press       {}                   makes the press's setup record, or gives back the one still in setup
 //   GET  /api/press                            the signed-in person's presses
-//   POST /api/press/setup { pressId, plan?, pressName?, sells?, sellingToday?, country?, look?, adminLook?, moving?, language?, cardProvider? }
+//   POST /api/press/setup { pressId, plan?, pressName?, sells?, sellingToday?, country?, look?, adminLook?, design?, moving?, language?, cardProvider? }
 //                                              saves answers while the press is in setup
 //   POST /api/press/old-shop { pressId, address }
 //   POST /api/press/domain { pressId, domain }   the press's own domain for its shop ("" takes it off)
@@ -56,7 +56,9 @@ const shownRecord = (record, shopDomain = "") => ({
   shopStatus: record.shopStatus ?? "", shopMessage: record.shopMessage ?? "",
   // Once the shop is ready (18.9): the way into its admin.
   openUrl: record.openUrl ?? "", pressName: record.pressName, sells: record.sells, sellingToday: record.sellingToday ?? "", country: record.country,
-  look: record.look ?? "", adminLook: record.adminLook ?? "", moving: record.moving ?? "", language: record.language ?? "",
+  look: record.look ?? "", adminLook: record.adminLook ?? "",
+  // The website designed before the store was made (/design/studio), or null.
+  design: record.design ?? null, moving: record.moving ?? "", language: record.language ?? "",
   cardProvider: record.cardProvider ?? "",
   // "Your web address" (setup guide): the answer, the press's own domain and where it was bought.
   domainChoice: record.domainChoice ?? "", domain: record.domain ?? "", domainSeller: record.domainSeller ?? "", domainEasy: record.domainEasy === true,
@@ -369,10 +371,11 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
       const record = await ownPress(claims, body.pressId);
       // Already opening: the same shop, whatever the second press of the button says.
       if (record.status !== "setup") return { press: shown(record) };
-      const plan = typeof body.plan === "string" && body.plan ? body.plan : record.plan;
+      // One plan for every shop (10 November 2026): whatever an older page sends, the shop opens with both apps.
+      const plan = "both";
       for (const [field, words] of Object.entries(OPEN_NEEDS)) if (!record[field]) throw new SignupError(400, words, { [field]: words });
       // Square only where it works with the shop's checkout (form.js SQUARE_COUNTRIES): a country changed after picking it.
-      const cardProvider = plan === "stockroom" ? "" : record.cardProvider;
+      const cardProvider = record.cardProvider;
       if (cardProvider === "square" && !SQUARE_COUNTRIES.includes(record.country)) throw new SignupError(400, squareWords(record.country), { cardProvider: squareWords(record.country) });
       const hold = now().toISOString();
       const held = await presses.update(record.pressId, (current) => {

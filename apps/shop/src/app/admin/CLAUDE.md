@@ -832,3 +832,14 @@ default; `functions/socialPicture.js`) and the Shop alerts switch `socialPostFai
 ## Partner company logos (4 November 2026)
 
 A card or dialog about one outside company passes `logo` (`SectionCard logo="quickbooks"`, `Dialog logo={["instagram", "facebook"]}`); the logo sits on a white tile before the title in every look, day and night. Google sign-in uses `GoogleSignInButton` (Google's own style and words). Logos come only from `shared/brand-logos` (README there: sources, owners, rules); never redraw or recolour one, and never show a rival shop builder's.
+
+## Design before the store (10 November 2026)
+
+Sign-up's **Design my shop first** (join/) saves the answers (no terms, no store) and opens `/design/studio?press=<id>`:
+the real Studio (`StudioEditor beforeShop`) with sample products, built by `vite.design.config.ts` into `dist-design/`
+(site/build.js copies it to `/design/`; `/design/**` is the storefront the preview frames). `src/designFirst/beforeShop.ts`
+is its draft store: every save goes to the press record's `design` (signup/pressRecord.js, ≤400 KB) through
+`POST /api/press/setup`; parts that need a real store say `WITH_YOUR_STORE`. Studio autosaves there, hides Publish,
+Save draft, Discard, Schedule and View website, and Done saves then goes back to join/. Setup step 20 hands `design` over
+in `firstWeek/handover`; Get started's look step (`SignupDesignStage`) publishes it (the shop is still private) and
+records `welcome { theme: themeBase id or "custom" }`, with Try again or **Pick a look instead** on a failure.

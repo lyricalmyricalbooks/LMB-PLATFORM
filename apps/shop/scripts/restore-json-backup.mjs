@@ -9,6 +9,9 @@
 //     GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json node scripts/restore-json-backup.mjs ./restore --apply
 //   Optional: --only books,orders   (collection ids; "group:private" for book private fields)
 //             --project <id>        (default: the project in .firebaserc / GCLOUD_PROJECT)
+//   Required: --shop <id>           (the shop whose folder, shops/<id>/, the documents go back into; LMB-PLATFORM
+//                                    docs/shared-system.md). A backup's paths never carry a shop folder, so a copy
+//                                    from one shop can only land where --shop says.
 //
 // The file downloaded from Settings › General › Backups & export (press-backup-YYYY-MM-DD.json) works too:
 //     node scripts/restore-json-backup.mjs ./press-backup-2026-10-11.json   (then --apply)
@@ -21,8 +24,9 @@ import { gunzipSync } from "node:zlib";
 import path from "node:path";
 
 const args = process.argv.slice(2);
-const folder = args.find(a => !a.startsWith("--") && args[args.indexOf(a) - 1] !== "--only" && args[args.indexOf(a) - 1] !== "--project");
-if (!folder) { console.error("Usage: node scripts/restore-json-backup.mjs <downloaded json folder> [--apply] [--only a,b] [--project id]"); process.exit(1); }
+const VALUE_FLAGS = ["--only", "--project", "--shop"];
+const folder = args.find(a => !a.startsWith("--") && !VALUE_FLAGS.includes(args[args.indexOf(a) - 1]));
+if (!folder) { console.error("Usage: node scripts/restore-json-backup.mjs <downloaded json folder> --shop <id> [--apply] [--only a,b] [--project id]"); process.exit(1); }
 const apply = args.includes("--apply");
 const flag = name => { const i = args.indexOf(name); return i > -1 ? args[i + 1] : ""; };
 const only = flag("--only") ? flag("--only").split(",").map(s => s.trim()).filter(Boolean) : null;
@@ -30,12 +34,17 @@ const only = flag("--only") ? flag("--only").split(",").map(s => s.trim()).filte
 const require = createRequire(new URL("../functions/package.json", import.meta.url));
 const admin = require("./adminSdk.js")(require("firebase-admin"));
 const { decodeValue, BACKUP_FORMAT } = require("./backupJson.js");
+const { inFolder, shopFolderOf } = require("./shopScope.js");
+if (!flag("--shop")) { console.error("Pass --shop <id>: the shop whose folder the documents go back into."); process.exit(1); }
+const shopFolder = shopFolderOf(flag("--shop"));
 let firebaserc = null;
 try { firebaserc = JSON.parse(readFileSync(new URL("../.firebaserc", import.meta.url), "utf8")); } catch { /* optional */ }
 const projectId = flag("--project") || process.env.GCLOUD_PROJECT || firebaserc?.projects?.default;
 if (!projectId) throw new Error("No project id: pass --project <id>.");
 admin.initializeApp({ credential: admin.credential.applicationDefault(), projectId });
-const db = admin.firestore();
+const rootDb = admin.firestore();
+// Every document goes into the shop's folder, never the database root.
+const db = { doc: p => rootDb.doc(inFolder(shopFolder, p)), batch: () => rootDb.batch() };
 const types = { Timestamp: admin.firestore.Timestamp, GeoPoint: admin.firestore.GeoPoint, ref: p => db.doc(p) };
 
 async function writeRows(rows) {

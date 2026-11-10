@@ -331,7 +331,6 @@ function showShops() {
   const words = form.q.value.trim().toLowerCase();
   const shown = allShops.filter((shop) => shopMatches(shop, words, shopTags[shop.shopId])
     && (!form.health.value || shop.health.level === form.health.value)
-    && (!form.plan.value || shop.plan === form.plan.value)
     && (!form.billing.value || shop.billingStatus === form.billing.value)
     && riskMatches(shop, form.risk.value)
     && sellsMatches(shop, form.sells.value)
@@ -2168,42 +2167,28 @@ async function loadPaymentTrouble() {
   }
 }
 
-/**
- * Why presses dropped an app over the last six months, as bars: every reason on the list (none given as well), the
- * most given first. Nothing when nobody answered. Each line reads as its words and its number; the bar itself is hidden from screen readers.
- */
-function dropReasonBars(drops, reasonWords = {}) {
-  const counts = drops?.reasons ?? {};
-  const answered = Object.values(counts).reduce((sum, n) => sum + n, 0);
-  if (!answered) return null;
-  const rows = Object.entries(reasonWords).map(([id, label]) => [label, counts[id] ?? 0]);
-  const unanswered = Math.max(0, (drops.dropped ?? 0) - answered);
-  if (unanswered) rows.push(["Didn't say", unanswered]);
-  rows.sort((a, b) => b[1] - a[1]);
-  const most = Math.max(...rows.map(([, n]) => n));
-  return el("figure", { style: "margin: 16px 0 0" },
-    el("figcaption", { className: "cr-section", style: "margin: 0", textContent: "Why presses dropped an app, last 6 months" }),
-    el("ul", { className: "cr-bars", dataset: { dropReasons: "" } }, ...rows.map(([label, n]) => el("li", {},
-      el("span", { textContent: label }),
-      el("span", { className: "cr-bar-track", ariaHidden: "true" }, el("span", { className: "cr-bar", style: `width: ${(n / most) * 100}%`, dataset: n ? {} : { none: "" } })),
-      el("span", { className: "cr-bar-n", textContent: String(n) }),
-    ))));
-}
-
 async function loadAppsClosing() {
   const target = $("#apps-closing");
   try {
-    const { shops, closed, drops, reasonWords } = await api("GET", "/control/apps-closing");
+    const { moving = [], shops, closed } = await api("GET", "/control/apps-closing");
     const days = (n) => `${n} day${n === 1 ? "" : "s"}`;
     const shopCell = (s) => el("div", {}, el("p", { className: "cr-title", textContent: s.pressName }), meta(s.shopId, s.ownerEmail));
     const bounced = (s) => (s.bounced ? pill("danger", "Email bounced") : null);
     const openRow = (s) => { const shop = allShops.find((x) => x.shopId === s.shopId); if (shop) openShop(shop); };
-    // How often a press dropped an app and then kept it, and why they dropped it: many keeps would mean the plan page's
-    // drop confuses people.
-    const kept = drops.dropped
-      ? el("p", { className: "rp-hint", textContent: `Last 6 months: ${drops.dropped} app${drops.dropped === 1 ? "" : "s"} dropped, ${drops.kept} kept after all, ${drops.closed} closed, ${drops.waiting} still to close.` })
-      : null;
-    const reasons = dropReasonBars(drops, reasonWords);
+    // Every shop gets everything (10 November 2026): the shops still being moved, then anything an older plan change
+    // left closing (the move keeps it open, so this empties on the first nightly run).
+    const movingList = moving.length
+      ? table({
+        caption: "Shops getting the rest, alphabetical",
+        columns: [
+          { header: "Shop", lead: true, render: shopCell },
+          { header: "Gets", render: (s) => el("div", { className: "cr-tags" }, pill("info", s.gets)) },
+          { header: "Where it's at", render: (s) => s.step },
+        ],
+        rows: moving,
+        open: openRow,
+      })
+      : emptyState("Every shop has everything.", "All shops have the website and the stockroom.");
     const closing = shops.length
       ? table({
         caption: "Apps closing, soonest first",
@@ -2216,7 +2201,7 @@ async function loadAppsClosing() {
         rows: shops,
         open: openRow,
       })
-      : emptyState("No app is closing.", "Nobody has dropped the website or the stockroom from their plan.");
+      : null;
     const records = closed.length
       ? table({
         caption: "Closed apps still holding records, stuck ones first",
@@ -2230,7 +2215,7 @@ async function loadAppsClosing() {
         open: openRow,
       })
       : null;
-    target.replaceChildren(closing, ...(kept ? [kept] : []), ...(reasons ? [reasons] : []), ...(records ? [records] : []));
+    target.replaceChildren(movingList, ...(closing ? [closing] : []), ...(records ? [records] : []));
   } catch (failure) {
     target.replaceChildren(emptyState(failure.message));
   }
@@ -2580,6 +2565,7 @@ async function loadCosts() {
       columns: [
         { header: "Shop", lead: true, render: (row) => el("div", {}, el("p", { className: "cr-title", textContent: row.pressName }), meta(row.shopId, row.testShop ? "test shop" : null, row.otherCurrencies ? `also ${Object.entries(row.otherCurrencies).map(([c, n]) => money(n, c)).join(", ")}` : null)) },
         { header: "Google this month", end: true, render: (row) => el("span", { className: "rp-mono", textContent: inPlans(row.googleCents) }) },
+        { header: "Running cost billed", end: true, render: (row) => el("span", { className: "rp-mono", textContent: row.runningMonth ? `${inPlans(row.runningCents)} (${row.runningMonth})` : "none yet" }) },
         { header: "Pays this month", end: true, render: (row) => el("span", { className: "rp-mono", textContent: `${inPlans(row.paidCents)}${row.feeCents ? ` (${inPlans(row.feeCents)} in sales fees)` : ""}` }) },
         { header: "Margin", end: true, render: (row) => el("span", { className: "rp-mono", textContent: row.marginCents === null ? "another currency" : inPlans(row.marginCents) }) },
         { header: "State", render: (row) => (row.losing ? pill("danger", "Losing") : row.losing === false ? pill("success", "Covered") : pill("neutral", "Can't compare")) },
@@ -2652,6 +2638,7 @@ async function loadSetup() {
       figure("Not open yet", counts.notOpenYet, "made, not open to shoppers"),
       figure("Open to shoppers", counts.openToShoppers, "since signing up"),
       counts.inSetup ? figure("Still in setup mode", counts.inSetup, "signed up before stores were made at once") : null,
+      counts.designed ? figure("Designed early", counts.designed, "saved a shop design before the store was made") : null,
       counts.goingSoon ? figure("Removed soon", counts.goingSoon, "not visited in 45 days", "warn") : null,
     );
     const needs = [];
@@ -2670,7 +2657,8 @@ async function loadSetup() {
       columns: [
         { header: "Brand", lead: true, render: (p) => el("div", {}, el("p", { className: "cr-title", textContent: p.pressName || "No name yet" }), meta(p.ownerEmail, p.sells ? `sells ${p.sells.toLowerCase()}` : null, p.country || null)) },
         { header: "Plan", render: (p) => (p.plan ? PLAN_WORDS[p.plan] ?? p.plan : el("span", { className: "rp-hint", textContent: "not picked" })) },
-        { header: "Looks", render: (p) => el("span", { textContent: lookWords(p.look) }) },
+        { header: "Looks", render: (p) => el("div", {}, el("span", { textContent: lookWords(p.look) }),
+          meta(p.design ? `designed their shop${p.design.look ? `, from ${p.design.lookName || lookWords(p.design.look)}` : ""}` : null)) },
         { header: "Cards", render: (p) => (p.plan === "stockroom" ? el("span", { className: "rp-hint", textContent: "no website" })
           : p.cardProvider ? el("span", { textContent: p.cardProvider === "square" ? "Square" : "Stripe" }) : el("span", { className: "rp-hint", textContent: "Stripe (not picked)" })) },
         { header: "Moving in", render: (p) => el("div", {}, el("span", { textContent: MOVING_WORDS[p.moving] ?? "not answered" }),
@@ -2961,11 +2949,26 @@ function tookDataSection(shop) {
   return slot;
 }
 
+/** The reads of the press's old shop address (Books › Import), newest first: what each found, or why not. */
+function oldShopReads(scans) {
+  if (!scans?.length) return null;
+  return el("div", {}, el("h4", { className: "cr-section", textContent: "Old shop reads" }), table({
+    caption: "Reads of the old shop's address",
+    rows: scans,
+    columns: [
+      { header: "Old shop", lead: true, render: (r) => el("div", {}, el("p", { className: "cr-title", textContent: r.host }), meta(r.at ? when(r.at) : null)) },
+      { header: "Result", render: (r) => (!r.ok ? pill("danger", "Didn't read") : r.partial ? pill("warning", "Part read") : pill("success", "Read")) },
+      { header: "Details", render: (r) => meta(...(r.ok ? [plural(r.products, "product"), r.forSale != null && !r.stockShown ? `${r.forSale} for sale` : null, r.stockShown ? "stock counts shown" : "no public stock", r.partial ? "stopped answering part way" : null] : [r.message])) },
+    ],
+  }));
+}
+
 function broughtOverSection(shop) {
   const slot = el("div", {}, el("p", { className: "rp-hint", textContent: "Reading the shop's records…" }));
-  api("POST", "/control/brought-over", { shopId: shop.shopId }).then(({ brought, nothing, words }) => {
+  api("POST", "/control/brought-over", { shopId: shop.shopId }).then(({ brought, nothing, words, scans }) => {
     if (!brought) return slot.replaceChildren(el("p", { className: "rp-hint", textContent: words }));
-    if (nothing && !brought.move) return slot.replaceChildren(el("p", { className: "rp-hint", textContent: "Nothing brought over yet: no past orders, customers, gift cards, discount codes or old shop links." }));
+    const reads = oldShopReads(scans);
+    if (nothing && !brought.move) return fill(slot, el("p", { className: "rp-hint", textContent: "Nothing brought over yet: no past orders, customers, gift cards, discount codes or old shop links." }), reads);
     const cad = (n) => money(Math.round(n * 100), "CAD");
     const rows = [
       brought.orders && { what: "Past orders", amount: plural(brought.orders.count, "order"), more: [`${cad(brought.orders.amount)} in sales, history only`, plural(brought.orders.runs, "file"), brought.orders.removed ? `${brought.orders.removed} taken out again` : null, brought.orders.rerated ? `rate changed on ${plural(brought.orders.rerated, "order")}` : null, brought.orders.files?.length ? `from ${brought.orders.files.map((f) => `${f.file} (${f.orders})`).join(", ")}` : null, lastOn(brought.orders)] },
@@ -2987,7 +2990,8 @@ function broughtOverSection(shop) {
           { header: "How many", render: (r) => el("span", { className: "rp-mono", textContent: r.amount }) },
           { header: "Details", render: (r) => meta(...r.more) },
         ],
-      }) : el("p", { className: "rp-hint", textContent: "Nothing brought over yet." }));
+      }) : el("p", { className: "rp-hint", textContent: "Nothing brought over yet." }),
+      reads);
   }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
   return slot;
 }

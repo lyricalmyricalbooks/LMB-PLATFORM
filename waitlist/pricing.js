@@ -1,56 +1,46 @@
-// The waitlist page's pricing (code plan 6.1): the three plans from the platform's `/api/plans` (signup/api.js), "free
-// for 14 days, no card needed" and **Start setting up**. The 14 days start when the shop opens. It shows only when the platform says sign-up is open
-// (`signupOpen`, the control room's live setting, off by default); closed, unreachable or empty, the page stays today's
-// waitlist. Plain ES module with no imports, so the page loads it as is. Words here are customer-facing: never a rival.
+// The pricing page (code plan 6.1; pay what you use since 10 November 2026). A shop pays what it cost to run that
+// month, at cost, plus a flat platform fee. The page shows the fee, three example shops priced by the platform itself
+// (`/api/plans` › `usage`, from services/billing/runningCost.js), what every shop gets, and "free for 14 days, no card
+// needed". It shows only when the platform says sign-up is open (`signupOpen`, the control room's live setting, off by
+// default); closed, unreachable or empty, the page stays today's waitlist. Plain ES module with no imports, so the page
+// loads it as is. Words here are customer-facing: never a rival.
 
-/** One line about each plan, in the order the page shows them. */
-export const PLAN_LINES = Object.freeze({
-  shop: "Your website, to sell online",
-  stockroom: "Track stock, sales and payouts from fairs and stores",
-  both: "Your website and your stock, kept in step",
-});
-/** Three short points per plan, as in the pricing mockup. */
-export const PLAN_FEATURES = Object.freeze({
-  shop: ["Online checkout, taxes and labels", "Themes you can make your own", "Your own web address"],
-  stockroom: ["Every size and colour counted", "Market and pop-up till", "Sales by week and channel"],
-  both: ["Everything in Shop", "In-person sales, even offline", "One count of stock everywhere"],
-});
-/** Cards read Shop, Shop and stockroom (the pick, in the middle), Stockroom. */
-const SHOWN = Object.freeze(["shop", "both", "stockroom"]);
-const ORDER = Object.freeze(["shop", "stockroom", "both"]);
+/** What every shop gets (one product since 10 November 2026: no plan to choose). */
+export const INCLUDED = Object.freeze([
+  ["Your website", "Sell online, with your own look and address"],
+  ["Your stockroom", "Track stock, sales and payouts from fairs and stores"],
+  ["Kept in step", "Every sale, online or in person, counts down the same stock"],
+]);
+const EXAMPLES = Object.freeze(["quiet", "typical", "busy"]);
 
 const text = (value, max = 80) => (typeof value === "string" ? value.slice(0, max) : "");
 
 /**
  * What the pricing shows, from the `/api/plans` answer, or null when it shouldn't show (sign-up closed, a failed
- * answer, no plans). Only known plans and plain text go through.
+ * answer, no fee). Only known plans, known example shops and plain text go through.
  */
 export function pricingView(answer) {
   if (!answer || answer.ok === false || answer.signupOpen !== true || !Array.isArray(answer.plans)) return null;
-  const byPlan = new Map(answer.plans.filter((p) => ORDER.includes(p?.plan) && text(p.priceText)).map((p) => [p.plan, p]));
-  const plans = ORDER.filter((id) => byPlan.has(id)).map((id) => {
-    const p = byPlan.get(id);
-    return {
-      plan: id,
-      name: text(p.name) || id,
-      line: PLAN_LINES[id],
-      priceText: text(p.priceText),
-      foundingPriceText: text(p.foundingPriceText) || null,
-      payAsYouSell: p.payAsYouSell && text(p.payAsYouSell.percentText) && text(p.payAsYouSell.capText)
-        ? `or ${text(p.payAsYouSell.percentText)} of your website sales, never more than ${text(p.payAsYouSell.capText)} a month`
-        : null,
-    };
-  });
-  if (!plans.length) return null;
+  const usage = answer.usage;
+  const feeText = text(usage?.feeText);
+  if (!feeText) return null;
+  const examples = (Array.isArray(usage.examples) ? usage.examples : [])
+    .filter((e) => EXAMPLES.includes(e?.id) && text(e.totalText) && text(e.runningText))
+    .map((e) => ({ id: e.id, name: text(e.name), line: text(e.line), runningText: text(e.runningText), totalText: text(e.totalText) }));
   const trialDays = Number.isInteger(answer.trialDays) && answer.trialDays > 0 ? answer.trialDays : null;
-  const founding = Number.isInteger(answer.foundingOffer?.percentOff) && answer.foundingOffer.percentOff > 0 && plans.some((p) => p.foundingPriceText)
-    ? `Founding shops: ${answer.foundingOffer.percentOff}% off for as long as you stay${Number.isInteger(answer.foundingOffer.presses) && answer.foundingOffer.presses > 0 ? `, for the first ${answer.foundingOffer.presses} shops` : ""}.`
+  const foundingFeeText = text(usage.foundingFeeText) || null;
+  const percentOff = answer.foundingOffer?.percentOff;
+  const founding = foundingFeeText && Number.isInteger(percentOff) && percentOff > 0
+    ? `Founding shops pay ${foundingFeeText} instead of ${feeText}, for as long as they stay${Number.isInteger(answer.foundingOffer.presses) && answer.foundingOffer.presses > 0 ? ` (first ${answer.foundingOffer.presses} shops)` : ""}.`
     : null;
   return {
+    feeText,
+    sameFee: usage.sameFee !== false,
+    lede: `Each month you pay what your shop cost to run, at cost, plus ${feeText} for Colophon.${trialDays ? ` Free for ${trialDays} days, no card needed.` : " Free to try, no card needed."}`,
     trialDays,
-    trial: trialDays ? `Free for ${trialDays} days from the day you sign up, with your shop and stockroom both included. No card needed.` : "Free to try. No card needed.",
     founding,
-    plans,
+    examples,
+    note: `Prices in ${text(answer.currency, 3) || "CAD"}${answer.plusTax ? ", plus tax" : ""}. Running cost covers storage, web traffic, background jobs and emails. You choose an amount, and we email you if a month looks set to pass it${text(usage.alertText) ? ` (${text(usage.alertText)} unless you change it)` : ""}.`,
   };
 }
 
@@ -74,24 +64,24 @@ export function renderPricing(doc, view, { signupUrl }) {
     node.append(...children);
     return node;
   };
-  doc.getElementById("pricing-trial").textContent = view.trial;
+  doc.getElementById("pricing-lede").textContent = view.lede;
   const founding = doc.getElementById("pricing-founding");
   founding.textContent = view.founding ?? "";
   founding.hidden = !view.founding;
-  const cards = SHOWN.map((id) => view.plans.find((p) => p.plan === id)).filter(Boolean);
-  doc.getElementById("plan-cards").replaceChildren(...cards.map((p) => {
-    const price = view.founding && p.foundingPriceText
-      ? el("p", { className: "price" }, el("s", { textContent: p.priceText }), " ", el("strong", { textContent: p.foundingPriceText }), " a month")
-      : el("p", { className: "price" }, el("strong", { textContent: p.priceText }), " a month");
-    const pick = p.plan === "both";
-    // "Shop and stockroom" is drawn as the one most shops pick (platform-pages.css).
-    const card = el("div", { className: pick ? "card plan cp-pick" : "card plan" },
-      el("h3", { textContent: p.name }), el("p", { className: "hint", textContent: p.line }), price,
-      el("ul", { className: "cp-ticks" }, ...(PLAN_FEATURES[p.plan] || []).map((f) => el("li", { textContent: f }))));
-    if (p.payAsYouSell) card.append(el("p", { className: "or-pay", textContent: p.payAsYouSell }));
-    card.append(el("a", { className: pick ? "button primary" : "button", href: signupUrl, textContent: "Start free trial" }));
-    return card;
+  // What three shops pay: the typical one (in the middle) drawn as the one most shops are like.
+  doc.getElementById("plan-cards").replaceChildren(...view.examples.map((e) => {
+    const typical = e.id === "typical";
+    return el("div", { className: typical ? "card plan cp-pick cp-typical" : "card plan" },
+      el("h3", { textContent: e.name }), el("p", { className: "hint", textContent: e.line }),
+      el("p", { className: "price" }, el("strong", { textContent: e.totalText }), " a month"),
+      el("p", { className: "or-pay", textContent: `${e.runningText} running cost + ${view.feeText} Colophon` }),
+      el("a", { className: typical ? "button primary" : "button", href: signupUrl, textContent: "Start free trial" }));
   }));
+  // What every shop gets: one product, nothing to choose.
+  doc.getElementById("pricing-plans-title").textContent = "Everything included";
+  doc.getElementById("pricing-plans").replaceChildren(...INCLUDED.map(([name, line]) => el("li", {},
+    el("b", { textContent: name }), el("span", { textContent: line }))));
+  doc.getElementById("pricing-note").textContent = view.note;
   doc.getElementById("start-trial").href = signupUrl;
   doc.getElementById("pricing").hidden = false;
   return true;

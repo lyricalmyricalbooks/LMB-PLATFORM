@@ -9,7 +9,7 @@ The platform that creates and runs one Firebase copy per press shop. `apps/` hol
   live Lyricalmyrical project id or key, on "lyricalmyrical" in code, on a real email address and on a Firebase project
   that isn't the test shop's, the platform's or a made-up one. Use placeholders (`owner@example.com`, `*.example`,
   `lmb-test-shop`, `yourpress.*`); extend its lists only for a company's sender address or a made-up test fixture.
-- **One copy per shop.** Never put two presses' data in one Firebase project or database.
+- **One folder per shop (the shared system, `docs/shared-system.md`).** All shops share one Firebase project; each shop's data and files live only under `shops/<shopId>/`, and every rule sits inside `match /shops/{shopId}` and trusts a sign-in only through `signedInHere()`. Never write a path outside the shop's folder, never use a collection-group query or `{path=**}` rule, and add a two-shop check to the rules emulator script for every new rule.
 - **Platform keys stay here.** The Stripe platform key and the email sender key live only in `services/payments` and `services/email`. Never copy them into a shop project or into client code.
 - **Every step can be re-run.** Setup steps and data changes must be safe to run twice and must record what they did, per shop, in that shop's `audit-log` and in the shop registry.
 - **Prefer retry over delete.** Never delete a half-made Google Cloud project to start over: deleted projects linger 30 days and their names can't be reused.

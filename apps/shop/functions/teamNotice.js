@@ -14,7 +14,7 @@ async function tellPlatformTeamChanged({ url, shopId, serviceKey, fetch = global
   try {
     const response = await fetch(`${String(url).replace(/\/+$/, "")}/team-changed`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Shop-Id": shopId, Authorization: `Bearer ${key}` },
+      headers: { "Content-Type": "application/json", "X-Shop-Id": typeof shopId === "function" ? shopId() : shopId, Authorization: `Bearer ${key}` },
       body: "{}",
       signal: AbortSignal.timeout(timeoutMs),
     });

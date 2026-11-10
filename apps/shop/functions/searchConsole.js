@@ -11,7 +11,6 @@ const API = "https://searchconsole.googleapis.com/webmasters/v3/";
 const INSPECT_API = "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect";
 const MAX_INSPECT = 30;
 const SCOPE = "https://www.googleapis.com/auth/webmasters.readonly";
-const SHOP_HOST = shopConfig.siteHost;
 
 /** A Search Console property name as Google writes it, or "" when it isn't one. */
 function cleanSite(value) {
@@ -29,6 +28,7 @@ function pickSite(saved, sites) {
   const names = sites.map(s => s.siteUrl);
   const clean = cleanSite(saved);
   if (clean && names.includes(clean)) return clean;
+  const SHOP_HOST = shopConfig.siteHost;
   const own = [`sc-domain:${SHOP_HOST}`, `https://${SHOP_HOST}/`, `https://www.${SHOP_HOST}/`].find(n => names.includes(n));
   if (own) return own;
   return names.length === 1 ? names[0] : null;

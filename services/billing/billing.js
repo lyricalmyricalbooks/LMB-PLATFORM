@@ -54,7 +54,7 @@
 // after a short wait when Stripe can't be reached, is busy (429) or fails on its side (5xx): stripeRetry.js (22.4).
 import { createHash } from "node:crypto";
 import { verifySignature } from "../payments/stripeSignature.js";
-import { isPlan, planPrice, PLAN_APPS, PLAN_IDS } from "./plans.js";
+import { isPlan, planPrice, PLAN, PLAN_APPS, PLAN_IDS, OLD_PLANS } from "./plans.js";
 import { taxWatch as watchTaxLines, WATCH_WINDOW_DAYS } from "./taxWatch.js";
 import { cancelEndsAt, currentPaymentWay, payAsYouSellAccess, payAsYouSellEnds, planEnding } from "./paymentWayState.js";
 import { claimEvent, releaseEvent, IN_PROGRESS_STATUS } from "./eventClaims.js";
@@ -68,6 +68,7 @@ import { withRetries } from "./stripeRetry.js";
 import { ensureFoundingCoupon, foundingAmount, foundingOfferOf } from "./founding.js";
 import { createBillingHub, invoiceTax } from "./hub.js";
 import { siteUrlOf } from "../domains/names.js";
+import { DEFAULT_ALERT_CENTS, monthBounds, monthWords, paidShare, projectedCents } from "./runningCost.js";
 import { PAY_AS_YOU_SELL_PLANS } from "../payments/payAsYouSell.js";
 
 export { CARD_WARNING_DAYS, cardEnds, cardWords };
@@ -160,7 +161,7 @@ export function noteDrops(drops, { dropped = [], kept = [], closed = [], reason 
 
 /** The plan that opens exactly these apps (the registry's `plan` says what is open). */
 export function planOpening(apps) {
-  return PLAN_IDS.find((plan) => APPS.every((app) => PLAN_APPS[plan][app] === apps.includes(app))) ?? null;
+  return [...OLD_PLANS, PLAN].find((plan) => APPS.every((app) => PLAN_APPS[plan][app] === apps.includes(app))) ?? null;
 }
 
 const moneyText = (cents, currency) =>
@@ -209,13 +210,19 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     const { plan, status, access, trialEnd, currentPeriodEnd, hasCard } = row;
     // "Cancelled" is the press's own choice: Stripe's cancel of a pay-as-you-sell plan is the switch (paymentWayState.js).
     const { cancelling: cancelAtPeriodEnd, endsAt } = planEnding(row);
-    await registry.updateShop(shopId, { billing: { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, endsAt, hasCard, percentOff: row.founding === true ? row.foundingPercentOff ?? null : null, appsClosing: row.appsClosing ?? null, appDrops: row.appDrops ?? [], updatedAt: row.updatedAt, leaving: row.leaving ?? null, troubleSince: row.troubleSince ?? null, language: row.language ?? null, province: row.province ?? null } });
+    await registry.updateShop(shopId, { billing: { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, endsAt, hasCard, percentOff: row.founding === true ? row.foundingPercentOff ?? null : null, appsClosing: row.appsClosing ?? null, appDrops: row.appDrops ?? [], updatedAt: row.updatedAt, leaving: row.leaving ?? null, troubleSince: row.troubleSince ?? null, language: row.language ?? null, province: row.province ?? null, lastRunningCost: row.lastRunningCost ?? null } });
   }
 
   // The shop's own platform/plan and platform/status (shopPlan.js), once its database exists.
   async function copyToShop(shopId, row) {
     if (!shopPlan || !(await auditLog.ready(shopId))) return null;
     return shopPlan.write(shopId, row, { link: accountLink(shopId), hub: `${settings.platformUrl}/api/shop-billing/`, at: at() });
+  }
+
+  /** The monthly platform fee this shop pays, its founding share taken off. */
+  function feeAfterOffer(row) {
+    const amount = planPrice(row.plan, settings).amount;
+    return row.founding === true && row.foundingPercentOff ? foundingAmount(amount, row.foundingPercentOff) : amount;
   }
 
   async function rowFor(shopId) {
@@ -652,7 +659,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
      * ended (or for a second shop of an account that already had a trial) starts unpaid until a card is added.
      * Safe to repeat: a shop with a plan that hasn't ended gets that plan back.
      */
-    async startTrial({ account, shopId, pressName, plan, language = null }) {
+    async startTrial({ account, shopId, pressName, plan = PLAN, language = null }) {
       if (!isPlan(plan)) throw new BillingError(400, "Choose a plan: shop, stockroom or both.");
       if (!account?.accountId || !account?.email) throw new BillingError(400, "The account is missing.");
       const existing = await subscriptions.get(shopId);
@@ -787,7 +794,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
      * `preview: true` changes nothing and answers what would change: the apps added and closed, when, and the
      * prorated amount Stripe would charge now.
      */
-    async changePlan({ shopId, plan, preview = false, reason = null }) {
+    async changePlan({ shopId, plan, preview = false, reason = null, everything = false }) {
       if (!isPlan(plan)) throw new BillingError(400, "Choose a plan: shop, stockroom or both.");
       // The optional answer to "why are you dropping it?", checked before anything changes.
       const why = dropReason(reason, (message) => new BillingError(400, message));
@@ -834,7 +841,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       let saved = await save(shopId, { ...(sub ? fromSubscription(sub) : {}), plan, planChanges: changes, appsClosing, closedApps, appDrops, keepLink: null, ...(terms ? { payAsYouSell: terms } : {}) }, "plan-changed");
       if (move.immediate && move.closes.length) saved = await closeApps(shopId, move.closes);
       const closing = move.closes.length ? { closing: move.closes.map((app) => APP_NAMES[app]).join(" and "), date: dateText(move.closesAt), now: move.immediate } : {};
-      await notify(shopId, "plan-changed", { prorated: move.prorate, ...closing }, `${shopId}/plan/${changes}`);
+      await notify(shopId, "plan-changed", { prorated: move.prorate, ...closing, ...(everything ? { everything: true, adds: move.adds } : {}) }, `${shopId}/plan/${changes}`);
       return { ...saved, changed: true };
     },
 
@@ -894,6 +901,12 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         appsClosing: row.appsClosing ?? null, closedApps: row.closedApps ?? {},
         plans: PLAN_IDS.map((id) => { const p = planPrice(id, settings); return { plan: id, name: p.name, price: p.priceText, apps: APPS.filter((app) => PLAN_APPS[id][app]) }; }),
         paymentWay: currentPaymentWay(row, now()),
+        // Pay what you use: the flat fee plus last month's running cost, and the "tell me if it may pass" amount.
+        usage: {
+          fee: price?.priceText ?? "",
+          lastMonth: row.lastRunningCost ? { month: row.lastRunningCost.month, monthWords: monthWords(row.lastRunningCost.month), cents: row.lastRunningCost.cents, text: moneyText(row.lastRunningCost.cents, settings.currency) } : null,
+          alert: { cents: Number.isInteger(row.costAlert?.cents) ? row.costAlert.cents : DEFAULT_ALERT_CENTS, text: moneyText(Number.isInteger(row.costAlert?.cents) ? row.costAlert.cents : DEFAULT_ALERT_CENTS, settings.currency) },
+        },
         founding: row.founding === true ? { percentOff: row.foundingPercentOff ?? null, price: price && row.foundingPercentOff ? moneyText(foundingAmount(price.amount, row.foundingPercentOff), price.currency) : "" } : null,
         // Only while something is owed: a problem left over from a bill voided or settled some other way doesn't linger.
         paymentProblem: OWING.has(row.status) && row.paymentProblem ? { kind: row.paymentProblem.kind, at: row.paymentProblem.at, amount: row.paymentProblem.amount ?? "", nextTry: row.paymentProblem.nextTry ?? null, pageUrl: httpsOrNull(row.paymentProblem.pageUrl) } : null,
@@ -951,6 +964,29 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
      * The daily sweep for 6.11: an app a plan dropped closes once the month already paid for ends. Safe to repeat: a
      * closed app is not closed again.
      */
+    /**
+     * Every shop gets the website and the stockroom (10 November 2026). The daily job moves a shop still on the shop or
+     * stockroom plan to the one plan, at the same fee and with nothing prorated; any app it was closing stays open, and
+     * a closed one comes back. The shop maker's sweep then builds the app it didn't have (signup/shopMaker.js syncPlan).
+     * Safe to repeat: a shop on the one plan, or whose plan has ended, is left alone.
+     */
+    async giveEveryApp() {
+      const moved = [];
+      const failed = [];
+      for (const row of await subscriptions.list()) {
+        if (!row?.plan || row.plan === PLAN) continue;
+        if (ENDED.has(row.status) && row.paymentWay !== "payAsYouSell") continue;
+        try {
+          await api.changePlan({ shopId: row.shopId, plan: PLAN, everything: true });
+          moved.push(row.shopId);
+        } catch (failure) {
+          failed.push(`${row.shopId}: ${failure.message}`);
+        }
+      }
+      if (failed.length) throw new Error(`Moving shops to every app finished, but ${failed.length} had trouble: ${failed.join("; ")}`);
+      return moved;
+    },
+
     async closeDroppedApps() {
       const closed = [];
       const failed = [];
@@ -966,6 +1002,78 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       return closed;
     },
 
+
+    /**
+     * Pay what you use (runningCost.js): last month's running cost goes on each paying shop's next bill as its own line,
+     * "Running cost, October 2026". `costs` is { [shopId]: cents } for the whole of `month` (meters or the billing
+     * export, read by the job). Only the part of the month the plan was paid for is charged (a trial month costs
+     * nothing), never the platform fee's founding share (the line isn't discountable). Safe to run every day: a month
+     * once billed is kept on the billing record and Stripe's idempotency key stops a second line.
+     */
+    async billRunningCosts({ month, costs = {} }) {
+      monthBounds(month);
+      const billed = [], skipped = [], missing = [], failed = [];
+      for (const row of await subscriptions.list()) {
+        if (!row.subscriptionId || row.runningCosts?.[month]) continue;
+        if (ENDED.has(row.status) || row.testShop === true || currentPaymentWay(row, now()) === "payAsYouSell") { skipped.push(row.shopId); continue; }
+        const full = costs[row.shopId];
+        if (!Number.isInteger(full)) { missing.push(row.shopId); continue; }
+        try {
+          const share = paidShare({ month, paidFrom: row.trialEnd });
+          const cents = Math.round(Math.max(0, full) * share);
+          let invoiceItemId = null;
+          if (cents > 0) {
+            const item = await call("POST", "/v1/invoiceitems", {
+              params: {
+                customer: row.customerId, subscription: row.subscriptionId, amount: cents, currency: settings.currency.toLowerCase(),
+                description: `Running cost, ${monthWords(month)} / Coût de fonctionnement`, discountable: false,
+                metadata: { lmb_shop_id: row.shopId, lmb_month: month, lmb_kind: "running-cost" },
+              },
+              idempotencyKey: `running-cost-${row.shopId}-${month}`,
+            });
+            invoiceItemId = item?.id ?? null;
+          }
+          const entry = { cents, fullCents: full, share, invoiceItemId, at: at() };
+          await save(row.shopId, { runningCosts: { ...(row.runningCosts ?? {}), [month]: entry }, lastRunningCost: { month, cents } }, null);
+          await logChange(row.shopId, "running-cost-billed", { month, cents });
+          billed.push({ shopId: row.shopId, cents });
+        } catch (failure) {
+          failed.push(`${row.shopId}: ${failure.message}`);
+        }
+      }
+      if (failed.length) throw new Error(`Running costs billed, but ${failed.length} shop${failed.length > 1 ? "s" : ""} had trouble: ${failed.join("; ")}`);
+      return { month, billed, skipped, missing };
+    },
+
+    /**
+     * The daily heads-up: when this month's bill (fee plus running cost so far, carried on to the month's end) looks set
+     * to pass the amount the press chose (DEFAULT_ALERT_CENTS unless they set one), they're emailed once that month.
+     * `soFar` is { [shopId]: cents } for the month so far.
+     */
+    async runningCostAlerts({ month, soFar = {} }) {
+      const sent = [];
+      for (const row of await subscriptions.list()) {
+        if (!row.subscriptionId || ENDED.has(row.status) || row.status === "trialing" || row.costAlert?.sentFor === month) continue;
+        if (!Number.isInteger(soFar[row.shopId])) continue;
+        const limit = Number.isInteger(row.costAlert?.cents) ? row.costAlert.cents : DEFAULT_ALERT_CENTS;
+        if (limit <= 0) continue;
+        const fee = row.plan ? feeAfterOffer(row) : 0;
+        const projected = fee + projectedCents({ soFarCents: soFar[row.shopId], now: now(), month });
+        if (projected <= limit) continue;
+        await notify(row.shopId, "bill-heads-up", { month: monthWords(month), projected: moneyText(projected, settings.currency), limit: moneyText(limit, settings.currency) }, `${row.shopId}/bill-heads-up/${month}`);
+        await save(row.shopId, { costAlert: { ...(row.costAlert ?? {}), sentFor: month } }, "bill-heads-up-sent");
+        sent.push(row.shopId);
+      }
+      return sent;
+    },
+
+    /** The press's "tell me if my bill may pass" amount, in cents (0 turns the email off). */
+    async setCostAlert({ shopId, cents }) {
+      if (!Number.isInteger(cents) || cents < 0 || cents > 1_000_000) throw new BillingError(400, "Choose an amount from $0 to $10,000. $0 turns the email off.");
+      const row = await rowFor(shopId);
+      await save(shopId, { costAlert: { ...(row.costAlert ?? {}), cents } }, "cost-alert-changed");
+      return { costAlert: { cents, text: moneyText(cents, settings.currency) } };
+    },
 
     /**
      * The daily sweep for 6.12 (cardExpiry.js, run nightly since 19.9): a month before the card on file runs out, the

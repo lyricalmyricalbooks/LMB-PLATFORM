@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const site = vi.hoisted(() => ({ data: {} as any }));
 vi.mock("../features/site/useSiteData", () => ({ useSiteData: () => site.data, useLiveDesign: () => site.data.settings?.design || {} }));
 vi.mock("../CartContext", () => ({ useCart: () => ({ cartCount: 0, cartTotal: 0, setIsCartOpen: () => {}, addToCart: () => true, cart: [] }), catalogUnitPrice: () => 0 }));
-vi.mock("../../lib/firebase", () => ({ db: {}, auth: {} }));
+vi.mock("../../lib/firebase", () => ({ firestore: {}, db: {}, auth: {} }));
 vi.mock("./sectionRender", () => ({ SectionList: () => null, GlobalSections: () => null, GroupSections: () => null, TemplateSections: () => null }));
 vi.mock("../features/site/RecentlyViewedRow", () => ({ default: () => null }));
 vi.mock("../lib/seo", () => ({ useSEO: () => {} }));

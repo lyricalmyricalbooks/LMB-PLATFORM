@@ -1,6 +1,7 @@
 // The billing hub's server side (code plan 22.1-22.5) against a pretend Stripe: the founding offer given for real, saved
 // cards, billing details with a GST/HST number, the next bill, paying a declined bill now, the bank asking to confirm a
 // payment, a payment recovered, and Stripe calls tried again when Stripe is briefly out of reach.
+import { TIERED_PRICES_ENV } from "./fakes.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createBilling } from "./billing.js";
@@ -26,11 +27,11 @@ function make({ presses = 25, percentOff = 25, tax = false } = {}) {
   const auditLog = fakeAuditLog();
   const email = fakePlatformEmail();
   const seats = fakeFoundingSeats();
-  const live = async () => ({ ...DEFAULT_SETTINGS, foundingOffer: { percentOff, presses } });
+  const live = async () => ({ ...DEFAULT_SETTINGS, payAsYouSell: { basisPoints: 200 }, foundingOffer: { percentOff, presses } });
   const waits = [];
   const billing = createBilling({
     stripe: createStripeApi({ fetch: stripe.fetch, keys: { test: "sk_test_fake", live: null } }),
-    mode: "test", settings: platformSettings({}), ...stores, registry, auditLog, email, webhookSecrets: [SECRET], tax, live, foundingSeats: seats,
+    mode: "test", settings: platformSettings(TIERED_PRICES_ENV), ...stores, registry, auditLog, email, webhookSecrets: [SECRET], tax, live, foundingSeats: seats,
     sleep: async (ms) => void waits.push(ms), now: () => NOW,
   });
   let n = 0;
@@ -94,7 +95,7 @@ test("the founding offer turned off in the settings gives no place", async () =>
 test("choosing pay as you sell makes a press paying too: a founding place, with 25% off the share and the cap", async () => {
   const { billing, stores, registry, auditLog, seats, start, live, stripe } = make();
   await start();
-  const paymentWay = createPaymentWay({ stripe: createStripeApi({ fetch: stripe.fetch, keys: { test: "sk_test_fake" } }), mode: "test", settings: platformSettings({}), ...stores, registry, auditLog, billing, live, now: () => NOW });
+  const paymentWay = createPaymentWay({ stripe: createStripeApi({ fetch: stripe.fetch, keys: { test: "sk_test_fake" } }), mode: "test", settings: platformSettings(TIERED_PRICES_ENV), ...stores, registry, auditLog, billing, live, now: () => NOW });
   await paymentWay.switchPaymentWay({ shopId: "moth-press", to: "payAsYouSell" });
   assert.equal(seats.rows.size, 1);
   assert.equal(stores.subscriptions.rows.get("moth-press").founding, true);
@@ -106,7 +107,7 @@ test("a stockroom-only press asking for pay as you sell is refused without takin
   const { billing, stores, registry, auditLog, seats, live, stripe } = make();
   await registry.createShop("store-only", { shopId: "store-only", plan: "stockroom", ownerEmail: ACCOUNT.email });
   await billing.startTrial({ account: ACCOUNT, shopId: "store-only", pressName: "Store", plan: "stockroom" });
-  const paymentWay = createPaymentWay({ stripe: createStripeApi({ fetch: stripe.fetch, keys: { test: "sk_test_fake" } }), mode: "test", settings: platformSettings({}), ...stores, registry, auditLog, billing, live, now: () => NOW });
+  const paymentWay = createPaymentWay({ stripe: createStripeApi({ fetch: stripe.fetch, keys: { test: "sk_test_fake" } }), mode: "test", settings: platformSettings(TIERED_PRICES_ENV), ...stores, registry, auditLog, billing, live, now: () => NOW });
   await assert.rejects(paymentWay.switchPaymentWay({ shopId: "store-only", to: "payAsYouSell" }), /stockroom on its own/);
   assert.equal(seats.rows.size, 0);
 });
@@ -438,7 +439,7 @@ test("the control room counts a founding press at its founding price", async () 
 test("a switch to pay as you sell that Stripe refuses takes no founding place", async () => {
   const { billing, stores, registry, auditLog, seats, start, live, stripe } = make();
   await start();
-  const paymentWay = createPaymentWay({ stripe: createStripeApi({ fetch: stripe.fetch, keys: { test: "sk_test_fake" } }), mode: "test", settings: platformSettings({}), ...stores, registry, auditLog, billing, live, now: () => NOW });
+  const paymentWay = createPaymentWay({ stripe: createStripeApi({ fetch: stripe.fetch, keys: { test: "sk_test_fake" } }), mode: "test", settings: platformSettings(TIERED_PRICES_ENV), ...stores, registry, auditLog, billing, live, now: () => NOW });
   stripe.world.failOnce = /^POST \/v1\/subscriptions\//;
   await assert.rejects(paymentWay.switchPaymentWay({ shopId: "moth-press", to: "payAsYouSell" }));
   assert.equal(seats.rows.size, 0);
@@ -484,7 +485,7 @@ test("with 'give a place back' turned off in the control room, a place once give
   const live = async () => ({ ...DEFAULT_SETTINGS, foundingOffer: { percentOff: 25, presses: 25, giveBackUnpaid: false } });
   const billing = createBilling({
     stripe: createStripeApi({ fetch: t.stripe.fetch, keys: { test: "sk_test_fake", live: null } }),
-    mode: "test", settings: platformSettings({}), ...t.stores, registry: t.registry, auditLog: t.auditLog, email: t.email, webhookSecrets: [SECRET], live, foundingSeats: t.seats, sleep: async () => {}, now: () => NOW,
+    mode: "test", settings: platformSettings(TIERED_PRICES_ENV), ...t.stores, registry: t.registry, auditLog: t.auditLog, email: t.email, webhookSecrets: [SECRET], live, foundingSeats: t.seats, sleep: async () => {}, now: () => NOW,
   });
   await t.registry.createShop("moth-press", { shopId: "moth-press", projectId: "moth-press", plan: "both", ownerEmail: ACCOUNT.email });
   await billing.startTrial({ account: ACCOUNT, shopId: "moth-press", pressName: "Moth Press", plan: "both" });

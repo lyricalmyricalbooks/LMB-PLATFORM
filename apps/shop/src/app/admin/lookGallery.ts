@@ -4,6 +4,7 @@
 
 import type { FirstWeekDoc } from "./firstWeek";
 import { THEME_LIBRARY } from "./studio/themeLibrary";
+import { TEMPLATE_STYLE_IDS } from "../features/site/templateStyles";
 import { themedDesign } from "./studio/themeLook";
 import type { Sells } from "./sells";
 
@@ -12,35 +13,37 @@ export type Publishes = Sells;
 
 /** Two or three themes to start from for each answer; no answer gets the general three. */
 const SUGGESTED: Record<Publishes | "general", string[]> = {
-  books: ["press-imprint", "press-folio", "press-letterpress"],
-  zines: ["press-zine", "press-gutter", "press-cutout"],
+  books: ["press-folio", "press-almanac", "press-shelf"],
+  zines: ["press-gutter", "press-cutout", "press-market"],
   comics: ["press-gutter", "press-market", "press-mosaic"],
-  prints: ["press-signal", "press-index", "press-atlas"],
+  prints: ["press-signal", "press-rows", "press-atlas"],
   mix: ["press-rows", "press-atlas", "press-market"],
   mixed: ["press-rows", "press-atlas", "press-shelf"],
   clothing: ["press-cutout", "press-atlas", "press-marquee"],
-  shoes: ["press-atlas", "urban-streetwear", "press-marquee"],
-  jewelry: ["press-kiln", "press-arch", "golden-noir"],
-  music: ["press-reel", "night-neon", "press-console"],
+  shoes: ["press-atlas", "press-signal", "press-marquee"],
+  jewelry: ["press-kiln", "press-arch", "press-lantern"],
+  music: ["press-reel", "press-console", "press-lantern"],
   other: ["press-kiln", "press-atlas", "press-shelf"],
-  general: ["press-riso-noir", "press-riso", "press-imprint"],
+  general: ["press-folio", "press-atlas", "press-shelf"],
 };
 
 export type LibraryTheme = { id: string; name: string; mood: string } & Record<string, any>;
 
-const library = () => THEME_LIBRARY as unknown as LibraryTheme[];
+/**
+ * The looks a press can pick from: the seventeen built shop templates. The library keeps its older colour variants so a
+ * shop already on one still opens, switches and keeps its settings (themeSwitch.ts finds them by id), but they are
+ * not offered again: each was a recolour of a template, so the picker showed repeats.
+ */
+export const isBuiltLook = (t: any) => (TEMPLATE_STYLE_IDS as readonly string[]).includes(String(t.global?.themeStyle || ""));
+export const builtLooks = () => (THEME_LIBRARY as unknown as LibraryTheme[]).filter(isBuiltLook);
+/** Any look in the library by id, including the older variants that are no longer offered. */
+export const libraryLook = (id: string) => (THEME_LIBRARY as unknown as LibraryTheme[]).find(t => t.id === id);
+const library = builtLooks;
 
 /** The suggested themes for a sign-up answer, as they are in the library (unknown ids are left out). */
 export function suggestedThemes(publishes?: string | null): LibraryTheme[] {
   const ids = SUGGESTED[(publishes && publishes in SUGGESTED ? publishes : "general") as Publishes | "general"];
   return ids.map(id => library().find(t => t.id === id)).filter((t): t is LibraryTheme => !!t);
-}
-
-/** Every theme, the suggested ones first. */
-export function galleryThemes(publishes?: string | null): { suggested: LibraryTheme[]; others: LibraryTheme[] } {
-  const suggested = suggestedThemes(publishes);
-  const picked = new Set(suggested.map(t => t.id));
-  return { suggested, others: library().filter(t => !picked.has(t.id)) };
 }
 
 /** The welcome shows once, for a shop whose setup wrote `firstWeek/start`, unless its plan has no shop. */
@@ -160,8 +163,8 @@ export const LOOK_FEELS: { id: LookFeel; label: string }[] = [
   { id: "warm", label: "Warm & friendly" },
   { id: "dark", label: "Dark & moody" },
 ];
-const BOLD = new Set(["press-riso", "press-riso-noir", "press-marquee", "press-mosaic", "press-market", "press-zine", "press-punk", "press-poster", "press-gutter", "press-cutout", "urban-streetwear", "conversion-engine"]);
-const WARM = new Set(["press-shelf", "press-kiln", "press-picnic", "press-arch", "artisan-market", "earthy-studio", "botanical-boutique", "coastal-breeze", "coastal-living", "velvet-rose", "forest-cabin"]);
+const BOLD = new Set(["press-marquee", "press-mosaic", "press-market", "press-gutter", "press-cutout"]);
+const WARM = new Set(["press-shelf", "press-kiln", "press-picnic", "press-arch"]);
 /** Dark looks are told by their page colour; the rest are bold, warm or (by default) quiet. */
 export const lookFeel = (theme: LibraryTheme): LookFeel => (isDarkLook(theme) ? "dark" : BOLD.has(theme.id) ? "bold" : WARM.has(theme.id) ? "warm" : "quiet");
 export const feelLabel = (theme: LibraryTheme) => LOOK_FEELS.find(f => f.id === lookFeel(theme))!.label;
@@ -177,74 +180,85 @@ export function filterLooks(themes: LibraryTheme[], filter: LookFilter): Library
 /** The faces a look draws with, for loading them before it is shown. */
 export const lookFonts = (look: LookPreview) => [...new Set([look.headingFont, look.bodyFont])].filter(f => f && f !== "inherit");
 
-export type PreviewProduct = { title: string; photo: string; maker?: string; price?: string };
+/** What a sample product is, so the try-on draws it (a tee, a tote, a cover…) instead of a blank block. */
+export type ProductKind = "book" | "print" | "tee" | "tote" | "sweatshirt" | "cap" | "ring" | "vinyl" | "mug" | "tape";
+export type PreviewProduct = { title: string; photo: string; maker?: string; price?: string; kind?: ProductKind };
 
 /**
  * Made-up products for the try-on when the press has none yet, worded for what they sell (the sign-up answer). Prices
  * are examples only; the covers are drawn in each look's own colours.
  */
-const SAMPLES: Record<"books" | "general" | "clothing" | "jewelry" | "music" | "prints", PreviewProduct[]> = {
+const RAW_SAMPLES: Record<"books" | "general" | "clothing" | "jewelry" | "music" | "prints", PreviewProduct[]> = {
   books: [
-    { title: "Salt Hours", maker: "Zoe Moss", photo: "", price: "CA$ 22.00" },
-    { title: "Night Songs", maker: "A. Poet", photo: "", price: "CA$ 18.00" },
-    { title: "Paper Weather", maker: "R. Lane", photo: "", price: "CA$ 30.00" },
-    { title: "The Long Field", maker: "M. Okafor", photo: "", price: "CA$ 26.00" },
-    { title: "Small Rooms", maker: "J. Tran", photo: "", price: "CA$ 15.00" },
-    { title: "Blue Hour", maker: "S. Ferris", photo: "", price: "CA$ 24.00" },
-    { title: "Field Notes", maker: "L. Haddad", photo: "", price: "CA$ 12.00" },
-    { title: "Ink & Bone", maker: "P. Ruiz", photo: "", price: "CA$ 28.00" },
+    { title: "Salt Hours", maker: "Zoe Moss", photo: "", kind: "book", price: "CA$ 22.00" },
+    { title: "Night Songs", maker: "A. Poet", photo: "", kind: "book", price: "CA$ 18.00" },
+    { title: "Paper Weather", maker: "R. Lane", photo: "", kind: "book", price: "CA$ 30.00" },
+    { title: "The Long Field", maker: "M. Okafor", photo: "", kind: "book", price: "CA$ 26.00" },
+    { title: "Small Rooms", maker: "J. Tran", photo: "", kind: "book", price: "CA$ 15.00" },
+    { title: "Blue Hour", maker: "S. Ferris", photo: "", kind: "book", price: "CA$ 24.00" },
+    { title: "Field Notes", maker: "L. Haddad", photo: "", kind: "book", price: "CA$ 12.00" },
+    { title: "Ink & Bone", maker: "P. Ruiz", photo: "", kind: "book", price: "CA$ 28.00" },
   ],
   prints: [
-    { title: "Harbour at Dusk", maker: "Riso print", photo: "", price: "CA$ 40.00" },
-    { title: "Two Moons", maker: "Screen print", photo: "", price: "CA$ 55.00" },
-    { title: "Fern Study", maker: "Risograph", photo: "", price: "CA$ 30.00" },
-    { title: "Night Market", maker: "Giclée", photo: "", price: "CA$ 65.00" },
-    { title: "Paper Birds", maker: "Linocut", photo: "", price: "CA$ 45.00" },
-    { title: "Tide Chart", maker: "Riso print", photo: "", price: "CA$ 35.00" },
-    { title: "City Grid", maker: "Screen print", photo: "", price: "CA$ 50.00" },
-    { title: "Wild Garden", maker: "Risograph", photo: "", price: "CA$ 30.00" },
+    { title: "Harbour at Dusk", maker: "Riso print", photo: "", kind: "print", price: "CA$ 40.00" },
+    { title: "Two Moons", maker: "Screen print", photo: "", kind: "print", price: "CA$ 55.00" },
+    { title: "Fern Study", maker: "Risograph", photo: "", kind: "print", price: "CA$ 30.00" },
+    { title: "Night Market", maker: "Giclée", photo: "", kind: "print", price: "CA$ 65.00" },
+    { title: "Paper Birds", maker: "Linocut", photo: "", kind: "print", price: "CA$ 45.00" },
+    { title: "Tide Chart", maker: "Riso print", photo: "", kind: "print", price: "CA$ 35.00" },
+    { title: "City Grid", maker: "Screen print", photo: "", kind: "print", price: "CA$ 50.00" },
+    { title: "Wild Garden", maker: "Risograph", photo: "", kind: "print", price: "CA$ 30.00" },
   ],
   clothing: [
-    { title: "Heavy Tee", maker: "Organic cotton", photo: "", price: "CA$ 38.00" },
-    { title: "Canvas Tote", maker: "Natural", photo: "", price: "CA$ 24.00" },
-    { title: "Crew Sweatshirt", maker: "Brushed fleece", photo: "", price: "CA$ 72.00" },
-    { title: "Work Cap", maker: "Washed twill", photo: "", price: "CA$ 30.00" },
-    { title: "Field Jacket", maker: "Waxed cotton", photo: "", price: "CA$ 140.00" },
-    { title: "Rib Socks", maker: "Merino", photo: "", price: "CA$ 16.00" },
-    { title: "Long Sleeve", maker: "Garment dyed", photo: "", price: "CA$ 46.00" },
-    { title: "Wool Beanie", maker: "Hand knit", photo: "", price: "CA$ 34.00" },
+    { title: "Heavy Tee", maker: "Organic cotton", photo: "", kind: "tee", price: "CA$ 38.00" },
+    { title: "Canvas Tote", maker: "Natural", photo: "", kind: "tote", price: "CA$ 24.00" },
+    { title: "Crew Sweatshirt", maker: "Brushed fleece", photo: "", kind: "sweatshirt", price: "CA$ 72.00" },
+    { title: "Work Cap", maker: "Washed twill", photo: "", kind: "cap", price: "CA$ 30.00" },
+    { title: "Field Jacket", maker: "Waxed cotton", photo: "", kind: "sweatshirt", price: "CA$ 140.00" },
+    { title: "Rib Socks", maker: "Merino", photo: "", kind: "tee", price: "CA$ 16.00" },
+    { title: "Long Sleeve", maker: "Garment dyed", photo: "", kind: "sweatshirt", price: "CA$ 46.00" },
+    { title: "Wool Beanie", maker: "Hand knit", photo: "", kind: "cap", price: "CA$ 34.00" },
   ],
   jewelry: [
-    { title: "Moon Hoops", maker: "Gold vermeil", photo: "", price: "CA$ 85.00" },
-    { title: "Seed Ring", maker: "Sterling silver", photo: "", price: "CA$ 60.00" },
-    { title: "Pearl Drop", maker: "Freshwater pearl", photo: "", price: "CA$ 95.00" },
-    { title: "Chain Bracelet", maker: "Recycled silver", photo: "", price: "CA$ 70.00" },
-    { title: "Signet", maker: "Brass", photo: "", price: "CA$ 55.00" },
-    { title: "Star Studs", maker: "Gold fill", photo: "", price: "CA$ 40.00" },
-    { title: "Pebble Pendant", maker: "Sterling silver", photo: "", price: "CA$ 75.00" },
-    { title: "Twist Cuff", maker: "Bronze", photo: "", price: "CA$ 65.00" },
+    { title: "Moon Hoops", maker: "Gold vermeil", photo: "", kind: "ring", price: "CA$ 85.00" },
+    { title: "Seed Ring", maker: "Sterling silver", photo: "", kind: "ring", price: "CA$ 60.00" },
+    { title: "Pearl Drop", maker: "Freshwater pearl", photo: "", kind: "ring", price: "CA$ 95.00" },
+    { title: "Chain Bracelet", maker: "Recycled silver", photo: "", kind: "ring", price: "CA$ 70.00" },
+    { title: "Signet", maker: "Brass", photo: "", kind: "ring", price: "CA$ 55.00" },
+    { title: "Star Studs", maker: "Gold fill", photo: "", kind: "ring", price: "CA$ 40.00" },
+    { title: "Pebble Pendant", maker: "Sterling silver", photo: "", kind: "ring", price: "CA$ 75.00" },
+    { title: "Twist Cuff", maker: "Bronze", photo: "", kind: "ring", price: "CA$ 65.00" },
   ],
   music: [
-    { title: "Low Tide", maker: "LP", photo: "", price: "CA$ 32.00" },
-    { title: "Night Drive", maker: "Cassette", photo: "", price: "CA$ 12.00" },
-    { title: "Glass Garden", maker: "LP", photo: "", price: "CA$ 30.00" },
-    { title: "Static Hearts", maker: "7-inch", photo: "", price: "CA$ 10.00" },
-    { title: "Northern Lines", maker: "CD", photo: "", price: "CA$ 15.00" },
-    { title: "Slow Rooms", maker: "LP", photo: "", price: "CA$ 28.00" },
-    { title: "Paper Planes", maker: "Cassette", photo: "", price: "CA$ 12.00" },
-    { title: "Heat Wave", maker: "LP", photo: "", price: "CA$ 34.00" },
+    { title: "Low Tide", maker: "LP", photo: "", kind: "vinyl", price: "CA$ 32.00" },
+    { title: "Night Drive", maker: "Cassette", photo: "", kind: "tape", price: "CA$ 12.00" },
+    { title: "Glass Garden", maker: "LP", photo: "", kind: "vinyl", price: "CA$ 30.00" },
+    { title: "Static Hearts", maker: "7-inch", photo: "", kind: "vinyl", price: "CA$ 10.00" },
+    { title: "Northern Lines", maker: "CD", photo: "", kind: "vinyl", price: "CA$ 15.00" },
+    { title: "Slow Rooms", maker: "LP", photo: "", kind: "vinyl", price: "CA$ 28.00" },
+    { title: "Paper Planes", maker: "Cassette", photo: "", kind: "tape", price: "CA$ 12.00" },
+    { title: "Heat Wave", maker: "LP", photo: "", kind: "vinyl", price: "CA$ 34.00" },
   ],
   general: [
-    { title: "Linen Napkins", maker: "Set of four", photo: "", price: "CA$ 32.00" },
-    { title: "Stoneware Mug", maker: "Handmade", photo: "", price: "CA$ 28.00" },
-    { title: "Beeswax Candle", maker: "Hand poured", photo: "", price: "CA$ 22.00" },
-    { title: "Wool Throw", maker: "Woven", photo: "", price: "CA$ 120.00" },
-    { title: "Field Notebook", maker: "Recycled paper", photo: "", price: "CA$ 14.00" },
-    { title: "Ceramic Vase", maker: "Glazed", photo: "", price: "CA$ 48.00" },
-    { title: "Tea Towel", maker: "Printed cotton", photo: "", price: "CA$ 18.00" },
-    { title: "Wooden Spoon", maker: "Cherry wood", photo: "", price: "CA$ 20.00" },
+    { title: "Linen Napkins", maker: "Set of four", photo: "", kind: "tote", price: "CA$ 32.00" },
+    { title: "Stoneware Mug", maker: "Handmade", photo: "", kind: "mug", price: "CA$ 28.00" },
+    { title: "Beeswax Candle", maker: "Hand poured", photo: "", kind: "mug", price: "CA$ 22.00" },
+    { title: "Wool Throw", maker: "Woven", photo: "", kind: "tote", price: "CA$ 120.00" },
+    { title: "Field Notebook", maker: "Recycled paper", photo: "", kind: "book", price: "CA$ 14.00" },
+    { title: "Ceramic Vase", maker: "Glazed", photo: "", kind: "mug", price: "CA$ 48.00" },
+    { title: "Tea Towel", maker: "Printed cotton", photo: "", kind: "tote", price: "CA$ 18.00" },
+    { title: "Wooden Spoon", maker: "Cherry wood", photo: "", kind: "mug", price: "CA$ 20.00" },
   ],
 };
+
+/** Studio photos of the sample products, named after the product ("Heavy Tee" -> heavy-tee.webp), bundled and hashed by the build. */
+const SAMPLE_PHOTOS = import.meta.glob<string>("../../assets/look-photos/*.webp", { eager: true, query: "?url", import: "default" });
+const slug = (title: string) => title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const photoFor = (title: string) => SAMPLE_PHOTOS[`../../assets/look-photos/${slug(title)}.webp`] || "";
+// A product with no photo yet keeps its drawing (`kind`).
+const SAMPLES = Object.fromEntries(
+  Object.entries(RAW_SAMPLES).map(([key, list]) => [key, list.map((p) => ({ ...p, photo: p.photo || photoFor(p.title) }))]),
+) as typeof RAW_SAMPLES;
 
 export function sampleProducts(publishes?: string | null): PreviewProduct[] {
   const p = String(publishes || "");

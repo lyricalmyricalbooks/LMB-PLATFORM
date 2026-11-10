@@ -7,8 +7,8 @@
 // When the file is missing or broken (local dev, tests), the stockroom falls back to the test project below, so it
 // never mixes one project's settings with another's.
 
-/** The Realtime Database folder every shop's stockroom data lives under. database.rules.json names it too. */
-export const DATA_ROOT = 'lyrical';
+/** The stockroom's own folder inside a shop's folder in the Realtime Database. database.rules.json names it too. */
+export const DATA_FOLDER = 'lyrical';
 
 export const DEFAULT_SHOP_PROFILE = Object.freeze({
   version: 1,
@@ -66,6 +66,8 @@ function paymentMode(value) {
   return value && (value.mode === 'own' || value.mode === 'platform') ? value.mode : '';
 }
 
+const TENANT = /^[a-zA-Z][a-zA-Z0-9-]{3,62}$/;
+
 /**
  * Checks a profile the page was handed. All or nothing: a profile with any problem is ignored as a whole.
  * `firebase.databaseURL` is optional; without it the project's default database address is used.
@@ -85,6 +87,8 @@ export function parseShopProfile(value) {
   const switches = value.switches && typeof value.switches === 'object' ? value.switches : {};
   const on = SHOP_SWITCHES.filter((name) => switches[name] === true);
   if (value.name !== undefined && (typeof value.name !== 'string' || !value.name.length || value.name.length > 80)) return null;
+  // The shop's own sign-in list (the shared system), as profile/shop-profile.schema.json `tenant`.
+  if (value.tenant !== undefined && !(typeof value.tenant === 'string' && TENANT.test(value.tenant))) return null;
   return {
     version: 1,
     shopId: value.shopId,
@@ -95,6 +99,7 @@ export function parseShopProfile(value) {
       ...Object.fromEntries(FIREBASE_KEYS.map((key) => [key, firebase[key]])),
       databaseURL: firebase.databaseURL || `https://${firebase.projectId}-default-rtdb.firebaseio.com`,
     },
+    ...(value.tenant !== undefined ? { tenant: value.tenant } : {}),
     functionsRegion: value.functionsRegion,
     siteUrl: value.siteUrl,
     apps: { shop: apps.shop, stockroom: apps.stockroom },
@@ -150,6 +155,29 @@ export function readShopProfile(source = typeof window === 'undefined' ? undefin
 }
 
 export const shopProfile = readShopProfile();
+
+// The shared system (LMB-PLATFORM docs/shared-system.md): every shop lives in one Firebase project, each in its own
+// folder `shops/<shopId>`, in the Realtime Database, the stockroom's Firestore database and its file bucket. The shop id
+// comes from the profile the page opened with; the rules let a sign-in into one folder only.
+const SHOP_ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
+
+/** The folder for a shop id. Throws on an id that isn't one, so a broken profile can never point at the root. */
+export function shopFolderOf(shopId) {
+  if (typeof shopId !== 'string' || !SHOP_ID.test(shopId)) throw new Error(`"${String(shopId).slice(0, 80)}" isn't a shop id.`);
+  return `shops/${shopId}`;
+}
+
+/** This shop's folder: `shops/<shopId>`. */
+export const SHOP_FOLDER = shopFolderOf(shopProfile.shopId);
+
+/** Where this shop's stockroom data lives in the Realtime Database: `shops/<shopId>/lyrical`. */
+export const DATA_ROOT = `${SHOP_FOLDER}/${DATA_FOLDER}`;
+
+/** A file path in this shop's folder; a path already in it is returned as it is. */
+export function shopFilePath(path, folder = SHOP_FOLDER) {
+  const clean = String(path ?? '').replace(/^\/+/, '');
+  return clean.startsWith(`${folder}/`) ? clean : `${folder}/${clean}`;
+}
 
 /**
  * Is this a shop the platform made and runs (code plan 6.16)? Its press sets up no keys or accounts of its own: every

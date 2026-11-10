@@ -41,7 +41,7 @@ test("the plans answer from the live settings in the platform's database", async
   const answer = await world.handle({ method: "GET", path: "/api/plans", headers: { "x-forwarded-for": "203.0.113.9" }, ip: "10.0.0.1" });
   assert.equal(answer.status, 200);
   assert.equal(answer.body.ok, true);
-  assert.deepEqual(answer.body.plans.map((p) => p.plan).sort(), ["both", "shop", "stockroom"]);
+  assert.deepEqual(answer.body.plans.map((p) => p.plan).sort(), ["both"]);
   assert.equal(answer.body.signupOpen, true);
   // The fair-use counter is the real one, in the platform project, keyed by a hash.
   assert.equal(outside.firestore.paths(TEST_PROJECT, "throttle/").length, 1);

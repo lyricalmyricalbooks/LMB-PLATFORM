@@ -19,7 +19,10 @@ more than it brings in shows in the control room. It also feeds row 15.17's spen
   Most losing first. Projects that aren't a shop (the platform's own, a charge with no project) are listed apart in
   `notShops`, never dropped. A cost in another currency is kept (`otherCurrencies`) and has no margin.
 - `costPerShop({ rows, costs })`: `{ [shopId]: { cents, currency } }`, the per-shop totals row 15.17's spend guards read.
-  Nothing here sets budgets or caps; that is 15.17.
+  Nothing here sets budgets or caps; that is 15.17. Since pay what you use (10 November 2026) it is also the fallback
+  source of each shop's running cost until the shared system writes per-shop meters (`services/billing/README.md`).
+- Each report row also carries `runningCents` / `runningMonth`: the running cost last billed to the press, so the
+  Costs table shows Google's cost and what the press paid for it side by side.
 
 ## The control room
 

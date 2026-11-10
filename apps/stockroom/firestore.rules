@@ -2,6 +2,20 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+  // The shared system (LMB-PLATFORM docs/shared-system.md): every shop's stockroom lives in its own folder of this
+  // database, shops/{shopId}. A sign-in counts only in the shop whose sign-in list (Identity Platform tenant) it came
+  // from, and the owner's address comes from the shop's record, shops/{shopId}: a copy of the shop's record in the
+  // shop database, written only by the platform. No rule here may reach outside the folder.
+  match /shops/{shopId} {
+
+    function shopRecord() {
+      return get(/databases/$(database)/documents/shops/$(shopId)).data;
+    }
+    function signedInHere() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/shops/$(shopId))
+        && request.auth.token.firebase.get('tenant', '') == shopRecord().get('tenant', '-');
+    }
 
     // Publisher account — full read/write everywhere.
     //
@@ -17,9 +31,9 @@ service cloud.firestore {
     // sign-in always verifies a Gmail address, so the publisher's own sign-in
     // is unaffected.
     function isPublisher() {
-      return request.auth != null
+      return signedInHere()
         && request.auth.token.email_verified == true
-        && (request.auth.token.email == '__SHOP_OWNER_EMAIL__'
+        && (request.auth.token.email == shopRecord().get('ownerEmail', '-')
             || request.auth.token.get('role', '') == 'owner');
     }
 
@@ -28,8 +42,8 @@ service cloud.firestore {
     // everyone: every write below also needs planOpen(). No plan document: not on a plan, open. The app reads the
     // same document and refuses changes before trying them (src/lib/plan-pause.js).
     function planOpen() {
-      return !exists(/databases/$(database)/documents/platform/plan)
-        || get(/databases/$(database)/documents/platform/plan).data.get('access', 'open') == 'open';
+      return !exists(/databases/$(database)/documents/shops/$(shopId)/platform/plan)
+        || get(/databases/$(database)/documents/shops/$(shopId)/platform/plan).data.get('access', 'open') == 'open';
     }
     // The plan holds the press's billing (trial end, next payment, card on file, the Plan & billing link), so only
     // the stockroom's own people read it: a shop customer's sign-in lands in the same project and must not.
@@ -44,15 +58,15 @@ service cloud.firestore {
     // can't parse, hence this companion map. A missing map or entry means the
     // caller is not an author for that book, so write is denied.
     function bookOwnerEmail(bookId) {
-      return exists(/databases/$(database)/documents/settings/bookOwners)
-        ? get(/databases/$(database)/documents/settings/bookOwners).data.get(bookId, '')
+      return exists(/databases/$(database)/documents/shops/$(shopId)/settings/bookOwners)
+        ? get(/databases/$(database)/documents/shops/$(shopId)/settings/bookOwners).data.get(bookId, '')
         : '';
     }
     // email_verified as for the publisher: the stockroom shares its sign-in with the shop, whose email-link sign-in
     // keeps the Email/Password provider on, so anyone can make an unverified password account under an author's
     // address with the public web key. Only a verified address is that author.
     function isBookAuthor(bookId) {
-      return request.auth != null
+      return signedInHere()
         && request.auth.token.email_verified == true
         && request.auth.token.email != null
         && request.auth.token.email.lower() == bookOwnerEmail(bookId);
@@ -71,18 +85,18 @@ service cloud.firestore {
     // can't say which book, so per-book access stays with isBookAuthor() and
     // the bookOwners map, and an author is never a publisher.
     function hasAuthorRole() {
-      return request.auth != null
+      return signedInHere()
         && request.auth.token.email_verified == true
         && request.auth.token.get('role', '') == 'author';
     }
     function isAnyAuthor() {
       return hasAuthorRole()
-        || (request.auth != null
+        || (signedInHere()
           && request.auth.token.email_verified == true
           && request.auth.token.email != null
-          && exists(/databases/$(database)/documents/settings/bookOwners)
+          && exists(/databases/$(database)/documents/shops/$(shopId)/settings/bookOwners)
           && request.auth.token.email.lower().replace('\\.', ',')
-             in get(/databases/$(database)/documents/settings/bookOwners).data.get('authorEmails', {}));
+             in get(/databases/$(database)/documents/shops/$(shopId)/settings/bookOwners).data.get('authorEmails', {}));
     }
 
     // Per-book data — readable ONLY by the publisher and the book's own author.
@@ -152,7 +166,7 @@ service cloud.firestore {
     // and the mode flags that say which database holds it. Nothing else, and
     // never a write.
     function isBookkeeper() {
-      return request.auth != null
+      return signedInHere()
         && request.auth.token.email_verified == true
         && request.auth.token.get('role', '') == 'bookkeeper';
     }
@@ -177,7 +191,7 @@ service cloud.firestore {
     // reads or writes a book, a setting or another helper's sales. Rules can't check each line of a sale, so the
     // stockroom checks the lines when it brings a sale in (src/lib/fair-helper.js) and these rules bound the rest.
     function isFairHelper() {
-      return request.auth != null
+      return signedInHere()
         && request.auth.token.email_verified == true
         && request.auth.token.email != null
         && request.auth.token.get('role', '') == 'fairHelper';
@@ -250,7 +264,7 @@ service cloud.firestore {
     match /clientErrors/{id} {
       allow read, delete: if isPublisher();
       allow update: if false;
-      allow create: if request.auth != null
+      allow create: if signedInHere()
         && request.resource.data.keys().hasOnly([
              'kind', 'message', 'stack', 'source', 'line',
              'tab', 'role', 'book', 'online', 'build', 'ua', 'ts', 'email'
@@ -333,5 +347,6 @@ service cloud.firestore {
         && linkMapOk(request.resource.data, 'dismissedShopBooks');
       allow delete: if false;
     }
+  }
   }
 }

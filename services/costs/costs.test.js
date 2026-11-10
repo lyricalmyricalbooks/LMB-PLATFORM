@@ -1,5 +1,6 @@
 // What each shop costs us (code plan 19.15), from a pretend billing export: credits come off, projects that aren't a
 // shop are listed apart, the currency is kept, and a shop that costs more than it pays is marked losing.
+import { TIERED_PRICES_ENV } from "../billing/fakes.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { costPerShop, costReport, createCostReader, monthOf, readCosts } from "./costs.js";
@@ -11,7 +12,7 @@ import { createApi } from "../../signup/api.js";
 import { fakeVerifyIdToken } from "../../signup/fakes.js";
 
 const NOW = Date.parse("2026-11-20T12:00:00Z");
-const settings = platformSettings({});
+const settings = platformSettings(TIERED_PRICES_ENV);
 const admin = { uid: "uid-admin", email: "admin@example.com", email_verified: true, firebase: { sign_in_second_factor: "totp" }, auth_time: Math.floor(NOW / 1000) };
 // Made-up presses; their project ids are their shop ids (named once, so apps-isolation.test.js sees no real project).
 const OWL = "owl-press";
@@ -110,4 +111,12 @@ test("the control room's Costs: admins only, this month, and a plain empty state
   exportFake.fail = true;
   assert.equal((await ask(admin)).status, 502);
   assert.equal(monthOf(Date.parse("2026-12-31T23:59:59Z")), "2026-12");
+});
+
+test("pay what you use: the running cost billed sits next to Google's, so a shop covers its cost plus the fee", () => {
+  const five = platformSettings({});
+  const costs = readCosts({ period: "2026-11", rows: [exportRow({ projectId: OWL, cost: 2.4, at: "2026-11-03T00:00:00Z" })] });
+  const report = costReport({ rows: [{ shopId: OWL, status: "live", plan: "both", billing: { plan: "both", status: "active", lastRunningCost: { month: "2026-10", cents: 230 } } }], costs, settings: five });
+  const [owl] = report.shops;
+  assert.deepEqual([owl.googleCents, owl.runningCents, owl.runningMonth, owl.paidCents, owl.marginCents, owl.losing], [240, 230, "2026-10", 730, 490, false]);
 });

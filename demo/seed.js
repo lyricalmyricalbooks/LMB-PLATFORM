@@ -8,7 +8,7 @@ import { firestoreClient, FIRESTORE } from "../clients/firestore.js";
 import { stockroomClient } from "../clients/shop.js";
 import { testShopDocs, testStockroomBooks } from "../setup/test-catalogue.js";
 import { TEST_SHOP } from "../setup/test-shop.js";
-import { DEMO_OWNER, DEMO_PROJECT, PORTS, SHOP_BUCKET, STOCKROOM_DATABASE, url } from "./config.js";
+import { DEMO_OWNER, DEMO_PROJECT, DEMO_SHOP_RECORD, PORTS, RTDB_NAMESPACE, SHOP_BUCKET, SHOP_FOLDER, STOCKROOM_DATABASE, url } from "./config.js";
 import { coverSvg } from "./photos.js";
 import { PRACTICE_KEYS } from "./practicePay.js";
 import { PRACTICE_MAIL_KEY } from "./practiceMail.js";
@@ -55,7 +55,7 @@ export async function ensureOwner(fetch) {
 
 /** Uploads one placeholder cover to the shop's bucket (when missing) and returns its address. */
 export async function ensurePhoto(fetch, { id, title, index }) {
-  return ensureArt(fetch, `products/demo/${id}.svg`, coverSvg(title, index));
+  return ensureArt(fetch, `${SHOP_FOLDER}/products/demo/${id}.svg`, coverSvg(title, index));
 }
 
 /** Uploads one SVG picture to the shop's bucket as `name` (when missing) and returns its address. */
@@ -132,7 +132,7 @@ export async function seedSamplePress(fetch, shop, now = () => new Date()) {
   for (const product of sampleProducts()) {
     if (await shop.get(`books/${product.id}`)) continue;
     const urls = [];
-    for (const art of product.art) urls.push(await ensureArt(fetch, `products/sample/${product.id}-${art.name}.svg`, art.svg));
+    for (const art of product.art) urls.push(await ensureArt(fetch, `${SHOP_FOLDER}/products/sample/${product.id}-${art.name}.svg`, art.svg));
     const data = { ...product.data, slug: product.id, photos: urls.map((url) => ({ url, altText: `${product.data.title}` })), createdAt: now().toISOString() };
     if (product.variantPhotos && data.variants) data.variants = data.variants.map((v) => ({ ...v, photoUrl: urls[product.variantPhotos[v.id] ?? 0] }));
     if (await shop.create(`books/${product.id}`, data)) added.push(product.id);
@@ -182,7 +182,10 @@ export async function seedDemo({ fetch, now = () => new Date(), newPress = false
     photos[id] = await ensurePhoto(fetch, { id, title: data.title, index });
   }
 
-  const shop = firestoreClient({ fetch: emulatorFetch(fetch), token: async () => "owner", projectId: DEMO_PROJECT });
+  // The shop's record (the platform's), then everything else inside the shop's folder (docs/shared-system.md).
+  const database = firestoreClient({ fetch: emulatorFetch(fetch), token: async () => "owner", projectId: DEMO_PROJECT });
+  await database.set(SHOP_FOLDER, { ...DEMO_SHOP_RECORD, ownerEmail: DEMO_OWNER.email });
+  const shop = firestoreClient({ fetch: emulatorFetch(fetch), token: async () => "owner", projectId: DEMO_PROJECT, folder: SHOP_FOLDER });
   const created = [];
   for (const { path, data } of demoShopDocs((id) => photos[id])) {
     if (await shop.create(path, { ...data, createdAt: now().toISOString() })) created.push(path);
@@ -195,8 +198,15 @@ export async function seedDemo({ fetch, now = () => new Date(), newPress = false
 
   // The stockroom's books, in its own database, laid out as setup step 12 adds them (clients/shop.js addBooks). Not
   // through addBooks itself: the emulator never answers a read inside a REST transaction, and nothing else writes here
-  // while the demo starts.
-  const stockroomDb = firestoreClient({ fetch: emulatorFetch(fetch), token: async () => "owner", projectId: DEMO_PROJECT, database: STOCKROOM_DATABASE });
+  // while the demo starts. Like the shop's, the stockroom's database and its Realtime Database each hold a copy of the
+  // shop's record next to its folder (docs/shared-system.md): shops/<id> and shops/<id>/record.
+  const record = { ...DEMO_SHOP_RECORD, ownerEmail: DEMO_OWNER.email };
+  await json(await fetch(url(PORTS.database, `/${SHOP_FOLDER}/record.json?ns=${RTDB_NAMESPACE}`), {
+    method: "PUT", headers: { ...ADMIN, "Content-Type": "application/json" }, body: JSON.stringify(record),
+  }), "The stockroom's Realtime Database");
+  const stockroomRoot = firestoreClient({ fetch: emulatorFetch(fetch), token: async () => "owner", projectId: DEMO_PROJECT, database: STOCKROOM_DATABASE });
+  await stockroomRoot.set(SHOP_FOLDER, record);
+  const stockroomDb = firestoreClient({ fetch: emulatorFetch(fetch), token: async () => "owner", projectId: DEMO_PROJECT, database: STOCKROOM_DATABASE, folder: SHOP_FOLDER });
   const have = await stockroomClient(() => stockroomDb).books(DEMO_PROJECT);
   const stockroomAdded = [...testStockroomBooks(TEST_SHOP), ...sampleStockroomBooks()].filter((book) => !have[book.id]);
   if (stockroomAdded.length) {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { googleFontHref } from "../../features/site/fonts";
-import { lookFonts, type LookPreview, type PreviewProduct } from "../lookGallery";
+import { lookFonts, type LookPreview, type PreviewProduct, type ProductKind } from "../lookGallery";
 import { useShopWords } from "../shopWords";
 
 // The try-on (Choose your look): a whole shop page drawn in a look's own colours, type, picture shape, buttons and
@@ -9,7 +9,7 @@ import { useShopWords } from "../shopWords";
 // shown). Studio › Themes › Preview shows a look on the press's real shop once it is open.
 
 export type StageDevice = "desktop" | "phone";
-export type StagePage = "home" | "product";
+export type StagePage = "home" | "product" | "bag";
 
 /** The widths the page is drawn at before scaling: a laptop and a phone. */
 export const STAGE_WIDTH: Record<StageDevice, number> = { desktop: 1200, phone: 390 };
@@ -35,7 +35,7 @@ export function useLookFonts(look: LookPreview) {
  * Holds content drawn at `width` and scales it down to the space it is given (never up). `height` crops it (a card's
  * thumbnail); without it the whole page shows and the box grows to fit.
  */
-export function ScaledStage({ width, height, children, label }: { width: number; height?: number; children: ReactNode; label?: string }) {
+export function ScaledStage({ width, height, children, label, interactive }: { width: number; height?: number; children: ReactNode; label?: string; interactive?: boolean }) {
   const box = useRef<HTMLDivElement>(null);
   const inner = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0);
@@ -59,12 +59,27 @@ export function ScaledStage({ width, height, children, label }: { width: number;
   const shown = height ?? (innerHeight ? innerHeight * s : undefined);
   return (
     <div ref={box} role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : true} style={{ width: "100%", height: shown, overflow: "hidden", position: "relative" }}>
-      <div ref={inner} aria-hidden style={{ width, transform: `scale(${s})`, transformOrigin: "top left", visibility: scale ? "visible" : "hidden", pointerEvents: "none" }}>
+      <div ref={inner} aria-hidden style={{ width, transform: `scale(${s})`, transformOrigin: "top left", visibility: scale ? "visible" : "hidden", pointerEvents: interactive ? "auto" : "none" }}>
         {children}
       </div>
     </div>
   );
 }
+
+
+/** Flat drawings of what a press sells, set on the cover's colour, so a preview reads as a shop and not blank tiles. */
+const ART: Record<ProductKind, (ink: string, bg: string) => ReactNode> = {
+  tee: (ink) => <><path d="M30 18 42 13Q50 23 58 13L70 18 91 35 80 47 70 40V87H30V40L20 47 9 35Z" fill={ink} /><path d="M42 13Q50 23 58 13" fill="none" stroke="#fff" strokeOpacity=".35" strokeWidth="2" /></>,
+  sweatshirt: (ink, bg) => <><path d="M32 16 44 11Q50 20 56 11L68 16 93 72 81 78 70 50V88H30V50L19 78 7 72Z" fill={ink} /><path d="M30 80H70" stroke={bg} strokeOpacity=".4" strokeWidth="2" /><path d="M44 11Q50 20 56 11" fill="none" stroke={bg} strokeOpacity=".4" strokeWidth="2" /></>,
+  tote: (ink, bg) => <><path d="M36 38C36 8 64 8 64 38" fill="none" stroke={ink} strokeWidth="4" /><path d="M22 36H78L82 92H18Z" fill={ink} /><rect x="38" y="56" width="24" height="16" fill="none" stroke={bg} strokeOpacity=".45" strokeWidth="2" /></>,
+  cap: (ink, bg) => <><path d="M14 64Q14 26 52 26 86 26 88 64Z" fill={ink} /><path d="M58 62 98 67Q98 77 58 72Z" fill={ink} /><path d="M52 26V62" stroke={bg} strokeOpacity=".35" strokeWidth="2" /></>,
+  book: (ink, bg) => <><rect x="24" y="10" width="52" height="80" fill={ink} /><rect x="24" y="10" width="7" height="80" fill={bg} fillOpacity=".25" /><rect x="38" y="24" width="30" height="5" fill={bg} fillOpacity=".85" /><rect x="38" y="34" width="22" height="3" fill={bg} fillOpacity=".6" /><circle cx="53" cy="68" r="8" fill="none" stroke={bg} strokeOpacity=".7" strokeWidth="2" /></>,
+  print: (ink, bg) => <><rect x="18" y="12" width="64" height="76" fill={bg} stroke={ink} strokeWidth="4" /><circle cx="60" cy="36" r="8" fill={ink} /><path d="M24 80 42 50 54 66 64 56 76 80Z" fill={ink} /></>,
+  ring: (ink, bg) => <><circle cx="50" cy="60" r="24" fill="none" stroke={ink} strokeWidth="7" /><path d="M42 30 50 20 58 30 50 40Z" fill={ink} /><path d="M50 20V40M42 30H58" stroke={bg} strokeOpacity=".5" strokeWidth="1.5" /></>,
+  vinyl: (ink, bg) => <><circle cx="50" cy="50" r="40" fill={ink} /><circle cx="50" cy="50" r="28" fill="none" stroke={bg} strokeOpacity=".25" strokeWidth="1.5" /><circle cx="50" cy="50" r="13" fill={bg} fillOpacity=".8" /><circle cx="50" cy="50" r="3" fill={ink} /></>,
+  mug: (ink, bg) => <><path d="M26 28H68V74Q68 88 54 88H40Q26 88 26 74Z" fill={ink} /><path d="M68 38H78Q88 38 88 50 88 62 76 62H68" fill="none" stroke={ink} strokeWidth="6" /><path d="M26 40H68" stroke={bg} strokeOpacity=".3" strokeWidth="2" /></>,
+  tape: (ink, bg) => <><rect x="12" y="26" width="76" height="48" fill={ink} /><rect x="22" y="34" width="56" height="18" fill={bg} fillOpacity=".8" /><circle cx="36" cy="44" r="5" fill={ink} /><circle cx="64" cy="44" r="5" fill={ink} /><path d="M28 74 34 62H66L72 74" fill={bg} fillOpacity=".3" /></>,
+};
 
 /** A drawn cover for a product without a photo: a block in the look's colours with its title set in the look's type. */
 function Cover({ look, product, index, ratio, radius, style }: { look: LookPreview; product: PreviewProduct; index: number; ratio: number; radius: CSSProperties["borderRadius"]; style?: CSSProperties }) {
@@ -77,6 +92,14 @@ function Cover({ look, product, index, ratio, radius, style }: { look: LookPrevi
     boxShadow: look.shadow ? `${look.shadow}px ${look.shadow}px 0 ${look.shadowColor}` : undefined, ...style,
   };
   if (product.photo) return <img src={product.photo} alt="" loading="lazy" style={{ ...frame, objectFit: "cover" }} />;
+  if (product.kind) {
+    // The product itself drawn on the colour: ink for the object, the colour showing through for its details.
+    return (
+      <div style={{ ...frame, background: fill, display: "flex", alignItems: "center", justifyContent: "center" }} role="img" aria-label={product.title || product.kind}>
+        <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" style={{ width: "78%", height: "78%" }} aria-hidden>{ART[product.kind](ink, fill)}</svg>
+      </div>
+    );
+  }
   return (
     <div style={{ ...frame, background: fill, color: ink, display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "10%", boxSizing: "border-box" }}>
       <span style={{ fontFamily: look.headingFont, fontWeight: look.headingWeight, fontSize: 22, lineHeight: 1.05, textTransform: look.uppercase ? "uppercase" : "none", overflowWrap: "anywhere" }}>{product.title}</span>
@@ -151,7 +174,7 @@ function Rows({ look, products, phone }: { look: LookPreview; products: PreviewP
   return (
     <div style={{ borderTop: `2px solid ${look.border}` }}>
       {products.map((p, i) => (
-        <div key={i} style={{ display: "grid", gridTemplateColumns: phone ? "56px 1fr auto" : "40px 72px 2fr 1fr auto", alignItems: "center", gap: 16, padding: "12px 0", borderBottom: `1px ${dotted ? "dotted" : "solid"} ${look.border}` }}>
+        <div key={i} data-go={`product:${i}`} style={{ display: "grid", gridTemplateColumns: phone ? "56px 1fr auto" : "40px 72px 2fr 1fr auto", alignItems: "center", gap: 16, padding: "12px 0", borderBottom: `1px ${dotted ? "dotted" : "solid"} ${look.border}` }}>
           {!phone && <span style={{ fontFamily: look.headingFont, fontSize: 13, color: look.style === "signal" ? look.accent : look.muted }}>{String(i + 1).padStart(2, "0")}</span>}
           <Cover look={look} product={p} index={i} ratio={look.ratio} radius={look.radius} style={{ width: phone ? 56 : 72 }} />
           <strong style={{ fontSize: 16, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.title || "Untitled"}</strong>
@@ -290,10 +313,10 @@ function Header({ look, press, phone }: { look: LookPreview; press: string; phon
         </div>
       )}
       <div style={{ background: look.headerBg, color: look.headerText, borderBottom: `${look.style === "marquee" ? 3 : 1}px solid ${look.border}`, padding: phone ? "14px 16px" : "18px 40px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-        <span style={{ fontFamily: look.headingFont, fontWeight: look.headingWeight, fontSize: phone ? 20 : 26, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textTransform: look.uppercase ? "uppercase" : "none" }}>{press}</span>
+        <span style={{ fontFamily: look.headingFont, fontWeight: look.headingWeight, fontSize: phone ? 20 : 26, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textTransform: look.uppercase ? "uppercase" : "none" }} data-go="home">{press}</span>
         {phone
-          ? <span style={{ display: "flex", gap: 14, fontSize: 14, fontWeight: 700 }}><span>Bag (1)</span><span style={{ fontSize: 18, lineHeight: 1 }}>☰</span></span>
-          : <span style={{ display: "flex", gap: 28, fontSize: 15 }}><span>Shop</span><span>About</span><span>Contact</span><span style={{ fontWeight: 700 }}>Bag (1)</span></span>}
+          ? <span style={{ display: "flex", gap: 14, fontSize: 14, fontWeight: 700 }}><span data-go="bag">Bag (1)</span><span style={{ fontSize: 18, lineHeight: 1 }}>☰</span></span>
+          : <span style={{ display: "flex", gap: 28, fontSize: 15 }}><span>Shop</span><span>About</span><span>Contact</span><span style={{ fontWeight: 700 }} data-go="bag">Bag (1)</span></span>}
       </div>
     </>
   );
@@ -337,7 +360,7 @@ function ProductPage({ look, product, phone, books }: { look: LookPreview; produ
           <span style={{ ...pill(look, false), borderWidth: 2, borderColor: look.text }}>{books ? "Paperback" : "Standard"}</span>
           <span style={pill(look, false)}>{books ? "Signed copy" : "Gift wrapped"}</span>
         </div>
-        <span style={{ ...pill(look, true), width: "100%", boxSizing: "border-box", padding: "14px 18px" }}>{look.cta}</span>
+        <span data-go="bag" style={{ ...pill(look, true), width: "100%", boxSizing: "border-box", padding: "14px 18px" }}>{look.cta}</span>
         <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, color: look.text }}>{books ? "A small-run edition, printed and bound by hand. Every copy is checked before it ships, and packed in recycled paper." : "Made in small batches and checked by hand before it ships, packed in recycled paper."}</p>
         <div style={{ borderTop: `1px solid ${look.border}`, paddingTop: 12, display: "grid", gap: 8, fontSize: 14 }}>
           <span>Shipping & returns</span><span style={{ color: look.muted }}>Ships in two days. Free over $50.</span>
@@ -347,12 +370,44 @@ function ProductPage({ look, product, phone, books }: { look: LookPreview; produ
   );
 }
 
+/** The bag: what a shopper sees after Add to bag, drawn in the look (a few lines, a total, a checkout button). */
+function BagPage({ look, products, phone, press }: { look: LookPreview; products: PreviewProduct[]; phone: boolean; press: string }) {
+  const lines = products.slice(0, 2);
+  const num = (p?: string) => Number(String(p || "").replace(/[^0-9.]/g, "")) || 0;
+  const total = lines.reduce((n, p) => n + num(p.price), 0);
+  return (
+    <div style={{ display: "grid", gap: 20, maxWidth: 720 }}>
+      <h2 style={{ margin: 0, fontFamily: look.headingFont, fontWeight: look.headingWeight, fontSize: phone ? 28 : 40, textTransform: look.uppercase ? "uppercase" : "none" }}>Your bag</h2>
+      <div style={{ borderTop: `${Math.max(1, look.outline)}px solid ${look.border}` }}>
+        {lines.map((p, i) => (
+          <div key={i} style={{ display: "grid", gridTemplateColumns: "72px 1fr auto", gap: 16, alignItems: "center", padding: "14px 0", borderBottom: `1px solid ${look.border}` }}>
+            <Cover look={look} product={p} index={i} ratio={look.ratio} radius={look.radius} />
+            <div style={{ display: "grid", gap: 2 }}>
+              <strong style={{ fontSize: 15 }}>{p.title || "Untitled"}</strong>
+              {p.maker && <span style={{ fontSize: 13, color: look.muted }}>{p.maker}</span>}
+              <span style={{ fontSize: 13, color: look.muted }}>Qty 1</span>
+            </div>
+            <span style={{ fontWeight: 700 }}>{p.price}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 18, fontWeight: 800 }}><span>Subtotal</span><span>{total ? `CA$ ${total.toFixed(2)}` : ""}</span></div>
+      <span style={{ fontSize: 13, color: look.muted }}>Shipping and tax are worked out at checkout. {press} ships in two days.</span>
+      <span style={{ ...pill(look, true), width: "100%", boxSizing: "border-box", padding: "14px 18px" }}>Check out</span>
+    </div>
+  );
+}
+
 /**
  * The page itself, drawn at the device's width. `products` are the press's own (title and photo) or made-up ones;
  * the first eight show.
  */
-export function LookStage({ look, press, device, page = "home", products, books = true }: {
+export function LookStage({ look, press, device, page = "home", products, books = true, productIndex = 0, onNavigate }: {
   look: LookPreview; press: string; device: StageDevice; page?: StagePage; products: PreviewProduct[];
+  /** Which product the product page shows. */
+  productIndex?: number;
+  /** Makes the stage clickable (the full-size view): the bag, the shop name, a product or its buy button go to that page. */
+  onNavigate?: (page: StagePage, productIndex?: number) => void;
   /** A shop that sells books (sellsBooks): book words on the chips and the product page; any other shop gets plain ones. */
   books?: boolean;
 }) {
@@ -364,13 +419,21 @@ export function LookStage({ look, press, device, page = "home", products, books 
   const heading = look.heading || w("New books");
   const pad = phone ? 16 : 40;
   return (
-    <div data-look-stage={look.style || "default"} style={{ width: STAGE_WIDTH[device], background: look.bg, color: look.text, fontFamily: look.bodyFont, lineHeight: 1.4 }}>
+    <div data-look-stage={look.style || "default"} data-live={onNavigate ? "" : undefined} style={{ width: STAGE_WIDTH[device], background: look.bg, color: look.text, fontFamily: look.bodyFont, lineHeight: 1.4 }}
+      onClick={onNavigate ? (e) => {
+        const go = (e.target as HTMLElement).closest("[data-go]")?.getAttribute("data-go");
+        if (!go) return;
+        if (go.startsWith("product:")) onNavigate("product", Number(go.slice(8)) || 0); else onNavigate(go as StagePage);
+      } : undefined}>
+      {onNavigate && <style>{"[data-look-stage][data-live] [data-go]{cursor:pointer}"}</style>}
       <Header look={look} press={press} phone={phone} />
       <div style={{ padding: `${phone ? 20 : 32}px ${pad}px ${phone ? 32 : 56}px`, display: "grid", gap: phone ? 20 : 28 }}>
-        {page === "product"
-          ? <ProductPage look={look} product={list[0] || { title: "", photo: "" }} phone={phone} books={books} />
+        {page === "bag"
+          ? <BagPage look={look} products={list.length ? [list[productIndex] || list[0], ...list.filter((_, i) => i !== productIndex)] : []} phone={phone} press={press} />
+          : page === "product"
+          ? <ProductPage look={look} product={list[productIndex] || list[0] || { title: "", photo: "" }} phone={phone} books={books} />
           : <>
-            <Hero look={look} press={press} heading={heading} phone={phone} lead={list[0] || { title: "", photo: "" }} />
+            <div data-go="product:0" style={{ display: "contents" }}><Hero look={look} press={press} heading={heading} phone={phone} lead={list[0] || { title: "", photo: "" }} /></div>
             {look.chips && (
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {(books ? ["All", "Books", "Zines", "Prints", "Sale"] : ["All", "New", "Bestsellers", "Gifts", "Sale"]).map((c, i) => (
@@ -382,7 +445,7 @@ export function LookStage({ look, press, device, page = "home", products, books 
               ? <Rows look={look} products={list.slice(0, phone ? 5 : 6)} phone={phone} />
               : (
                 <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: phone ? 14 : look.style === "marquee" ? 12 : 28, alignItems: "start" }}>
-                  {list.slice(0, cols * 2).map((p, i) => <Card key={i} look={look} product={p} index={i} phone={phone} />)}
+                  {list.slice(0, cols * 2).map((p, i) => <div key={i} data-go={`product:${i}`} style={{ display: "contents" }}><Card look={look} product={p} index={i} phone={phone} /></div>)}
                 </div>
               )}
             <div style={{ display: "flex", justifyContent: "center" }}><span style={pill(look, false)}>See everything</span></div>

@@ -1,6 +1,7 @@
 // The control room (code plan 2.8), against a test shop made by the real setup steps with pretend Google and services:
 // only platform admins get in; the list shows plan, version, health and switches; "act as this shop" is logged before
 // any sign-in is made; and a switch changes the saved profile, its file and the live pages, with a log entry.
+import { TIERED_PRICES_ENV } from "../services/billing/fakes.js";
 import { test } from "node:test";
 import { PRIVACY_CONTACT } from "../terms/terms.js";
 import { readFileSync } from "node:fs";
@@ -71,7 +72,7 @@ async function world({ repairs, newsletters, googleSteps, googleReady, taxWatch 
     admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: " Admin@Example.com ,not-an-email" }),
     now: () => new Date((clock += 1000)),
   });
-  const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), routes: controlRoutes(room) });
+  const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings(TIERED_PRICES_ENV), routes: controlRoutes(room) });
   const ask = (claims, method, path, body) => api({ method, path, body, headers: { Authorization: `Bearer ${JSON.stringify(claims)}` } });
   const events = (shopId = ID) => [...(registry.events.get(shopId)?.values() ?? [])].filter((e) => e.source === "control-room");
   return { google, services, registry, profileFiles, auditLog, shopAccess, room, ask, events, built, email, square, breachStore, activity, platformState };
@@ -221,7 +222,7 @@ test("the page: admins sign in with Google, every route is used, names are shown
 test("the real support sign-in: a token for the support account with who, why and until, opened at the shop's admin", async () => {
   const w = await world();
   const made = [];
-  const identity = { customToken: async (sa, uid, claims) => { made.push({ sa, uid, claims }); return "signed.jwt"; } };
+  const identity = { customToken: async (sa, uid, claims, list) => { made.push({ sa, uid, claims, list }); return "signed.jwt"; } };
   const now = () => new Date("2026-10-28T12:00:00Z");
   const access = supportAccess({ identity, registry: w.registry, serviceAccount: "platform@example.com", now });
   const { url, until } = await access.supportSignIn(ID, { by: ADMIN.email, reason: "x".repeat(500), minutes: 30 });
@@ -233,6 +234,8 @@ test("the real support sign-in: a token for the support account with who, why an
   await access.supportSignIn(ID, { by: ADMIN.email, reason: "fix a price", mode: "edit" });
   assert.equal(made[1].claims.support.mode, "edit");
   assert.ok(JSON.stringify(made[0].claims).length < 1000, "a token's claims stay under Firebase's limit");
+  // On the shop's own sign-in list (the shared system); a shop without one uses the project's own.
+  assert.deepEqual(made[0].list, { tenantId: profile.tenant ?? null });
   // Never longer than the sign-in token itself lasts.
   assert.equal((await access.supportSignIn(ID, { by: ADMIN.email, reason: "long one", minutes: 600 })).until, now().getTime() / 1000 + MAX_MINUTES * 60);
   await assert.rejects(supportAccess({ identity, registry: w.registry }).supportSignIn(ID, { by: ADMIN.email, reason: "r" }), /service account/);
@@ -578,7 +581,7 @@ test("one shop's record: owner, billing, setup, fee and its history, admins only
   const quebec = (await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: ID })).body;
   assert.equal(quebec.emailLanguage, "fr+en", "the same rule the emails use");
   assert.match(quebec.emailSample.text, /^Bonjour,.*----- English -----.*Hello,/s, "French first, then the English");
-  assert.match(quebec.emailSample.text, /39,00\u00a0\$/, "the price the French way");
+  assert.match(quebec.emailSample.text, /5,00\u00a0\$/, "the price the French way");
   assert.match(quebec.emailSample.text, /Boutique et réserve/, "the plan's French name");
   assert.match(quebec.emailSample.subject, /^Votre essai .* \/ Your .* trial/);
   await w.registry.updateShop(ID, { billing: { plan: "both", status: "trialing", province: "QC", language: null, hasCard: false } });
@@ -772,4 +775,19 @@ test("the shop list and Today read shops a few at a time, not one after another,
     if (n === 2) throw new Error("the registry didn't answer");
   }), /didn't answer/);
   await eachInTurn([], 8, async () => assert.fail("nothing to do"));
+});
+
+test("a support visit and the two-step tools use the shop's own sign-in list (the shared system)", async () => {
+  const calls = [];
+  const identity = {
+    customToken: async (...args) => { calls.push(["token", args[3]]); return "signed.jwt"; },
+    removeSecondSteps: async (...args) => { calls.push(["remove", args[2]]); return { found: true, removed: 1 }; },
+    secondStepsOf: async (...args) => { calls.push(["steps", args[2]]); return []; },
+  };
+  const registry = { getProfile: async () => ({ siteUrl: "https://press.example", apps: { shop: true }, firebase: { projectId: "lmb-test-shop" }, tenant: "press-a1b2c3" }) };
+  const access = supportAccess({ identity, registry, serviceAccount: "platform@example.com" });
+  await access.supportSignIn("press", { by: "a@example.com", reason: "r" });
+  await access.removeTwoStep("press", "owner@example.com");
+  await access.signInSafety("press", ["owner@example.com"]);
+  assert.deepEqual(calls, [["token", { tenantId: "press-a1b2c3" }], ["remove", { tenantId: "press-a1b2c3" }], ["steps", { tenantId: "press-a1b2c3" }]]);
 });

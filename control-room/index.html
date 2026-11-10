@@ -246,8 +246,8 @@
               <div class="cr-head"><h2>Still time to talk</h2></div>
               <p class="rp-hint">Shops whose plan is set to end, or paused for a missing card, soonest first. A word from you may keep them.</p>
               <div id="save-list"></div>
-              <div class="cr-head"><h2>Apps closing</h2></div>
-              <p class="rp-hint">Shops that dropped the website or the stockroom from their plan. It closes at the end of the month they paid for; they can keep it until then, and download everything in it for 90 days after, with a last email 3 days before its records are deleted.</p>
+              <div class="cr-head"><h2>Everything for every shop</h2></div>
+              <p class="rp-hint">Every shop gets the website and the stockroom. Shops on an older plan move overnight at the same fee and get an email; the part they were missing is built within the hour after. Older closed apps keep their 90-day download.</p>
               <div id="apps-closing"></div>
             </section>
 
@@ -269,7 +269,7 @@
               <form id="shop-filters" class="cr-toolbar" role="search">
                 <div class="rp-field cr-grow"><label class="rp-label" for="shop-q">Search</label><input id="shop-q" class="rp-input" type="search" name="q" autocomplete="off" placeholder="Brand, shop id, owner email, web address or tag"></div>
                 <div class="rp-field"><label class="rp-label" for="shop-health">Health</label><select id="shop-health" class="rp-select" name="health"><option value="">All</option><option value="problem">Problem</option><option value="watch">Look</option><option value="ok">OK</option></select></div>
-                <div class="rp-field"><label class="rp-label" for="shop-plan">Plan</label><select id="shop-plan" class="rp-select" name="plan"><option value="">All</option><option value="shop">Shop</option><option value="stockroom">Stockroom</option><option value="both">Both</option></select></div>
+                
                 <div class="rp-field"><label class="rp-label" for="shop-billing">Billing</label><select id="shop-billing" class="rp-select" name="billing"><option value="">All</option><option value="trialing">Free trial</option><option value="active">Paying</option><option value="past_due">Payment failing</option><option value="paused">Paused</option><option value="canceled">Ended</option></select></div>
                 <div class="rp-field"><label class="rp-label" for="shop-sells">Sells</label><select id="shop-sells" class="rp-select" name="sells"><option value="">All</option><option value="books">Books, zines or comics</option><option value="goods">Not books</option><option value="prints">Art and prints</option><option value="mixed">Books and other things</option><option value="clothing">Clothing</option><option value="shoes">Shoes</option><option value="jewelry">Jewelry</option><option value="music">Music</option><option value="other">Something else</option><option value="mismatch">Stripe category doesn't match</option></select></div>
                 <div class="rp-field"><label class="rp-label" for="shop-risk">Risk</label><select id="shop-risk" class="rp-select" name="risk"><option value="">All</option><option value="at-risk">Drifting or to watch</option><option value="drifting">Drifting</option><option value="watch">To watch</option><option value="snoozed">Snoozed</option><option value="moving">Move left part-way</option></select></div>
@@ -442,7 +442,7 @@
                   <div class="rp-field"><label class="rp-label" for="message-words">The message (plain words)</label><textarea id="message-words" class="rp-textarea" name="words" required maxlength="400"></textarea><span class="rp-hint" id="message-count">400 characters left.</span></div>
                   <div class="cr-form-grid">
                     <div class="rp-field"><label class="rp-label" for="message-level">How important</label><select id="message-level" class="rp-select" name="level"><option value="info">Info: a note in the admin</option><option value="important">Important: also emailed to each owner</option></select></div>
-                    <div class="rp-field"><label class="rp-label" for="message-audience">Who sees it</label><select id="message-audience" class="rp-select" name="audience"><option value="all">Every shop</option><option value="plan:shop">Shops on the Shop plan</option><option value="plan:stockroom">Shops on the Stockroom plan</option><option value="plan:both">Shops on Shop and stockroom</option><option value="shop">One shop</option></select></div>
+                    <div class="rp-field"><label class="rp-label" for="message-audience">Who sees it</label><select id="message-audience" class="rp-select" name="audience"><option value="all">Every shop</option><option value="shop">One shop</option></select></div>
                     <div class="rp-field" id="message-shop-field" hidden><label class="rp-label" for="message-shop">Shop id</label><input id="message-shop" class="rp-input" name="shopId" autocomplete="off"></div>
                     <div class="rp-field"><label class="rp-label" for="message-start">Starts (empty: now)</label><input id="message-start" class="rp-input" type="datetime-local" name="startsAt"></div>
                     <div class="rp-field"><label class="rp-label" for="message-end">Ends (at most 60 days away)</label><input id="message-end" class="rp-input" type="datetime-local" name="endsAt" required></div>

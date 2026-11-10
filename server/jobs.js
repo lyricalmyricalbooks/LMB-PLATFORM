@@ -13,6 +13,7 @@ import { JOBS, jobNamed } from "../services/jobs/index.js";
 import { realHealth } from "../services/health/run.js";
 import { realRetention } from "../services/retention/run.js";
 import { runBusinessNightly } from "../control-room/nightly.js";
+import { runRunningCosts } from "../services/billing/runningCostJob.js";
 import { weeklyDeletionNote } from "../control-room/deletionNote.js";
 import { switchNote } from "../control-room/switchNote.js";
 import { chitChatsNote } from "../control-room/chitChatsNote.js";
@@ -40,6 +41,12 @@ export const RUNNERS = Object.freeze({
   "self-checks": () => notConnectedFn(NOT_CONNECTED.selfChecks),
   closing: ({ closing }) => () => closing.sweep(),
   "dropped-apps": ({ billing }) => () => billing.closeDroppedApps(),
+  // Every shop gets the website and the stockroom (10 November 2026): shops on an older plan move to it.
+  "every-app": ({ billing }) => () => billing.giveEveryApp(),
+  // Pay what you use: needs a way to read each shop's cost (the billing export or the shared system's meters).
+  "running-costs": ({ billing, parts }) => (parts?.costReader?.configured || parts?.usageMeters
+    ? () => runRunningCosts({ billing, registry: parts.registry, meters: parts.usageMeters ?? null, reader: parts.costReader ?? null, now: parts.now })
+    : notConnectedFn(NOT_CONNECTED.runningCosts)),
   "trial-tips": ({ trialTips }) => (trialTips ? () => trialTips.run() : notConnectedFn(NOT_CONNECTED.trialTips)),
   "shop-checkup": ({ checkups }) => (checkups ? () => checkups.run() : notConnectedFn(NOT_CONNECTED.checkups)),
   bookkeeping: () => notConnectedFn(NOT_CONNECTED.bookkeeping),
@@ -65,6 +72,7 @@ export const WAITING_JOBS = Object.freeze({
   "web-addresses": NOT_CONNECTED.domains,
   "self-checks": NOT_CONNECTED.selfChecks,
   bookkeeping: NOT_CONNECTED.bookkeeping,
+  "running-costs": NOT_CONNECTED.runningCosts,
 });
 
 /** The run function for one job in this world. */

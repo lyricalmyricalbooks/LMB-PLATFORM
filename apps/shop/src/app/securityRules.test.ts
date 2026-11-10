@@ -73,11 +73,11 @@ describe("firestore.rules anonymous-abuse guards", () => {
 
   it("accepts a reviewer email only alongside the new pending review it belongs to", () => {
     const contacts = block("reviewContacts/{reviewId}");
-    expect(contacts).toMatch(/!exists\(\/databases\/\$\(database\)\/documents\/reviews\/\$\(reviewId\)\)/);
-    expect(contacts).toMatch(/getAfter\(\/databases\/\$\(database\)\/documents\/reviews\/\$\(reviewId\)\)\.data\.status == "pending"/);
+    expect(contacts).toMatch(/!exists\(\/databases\/\$\(database\)\/documents\/shops\/\$\(shopId\)\/reviews\/\$\(reviewId\)\)/);
+    expect(contacts).toMatch(/getAfter\(\/databases\/\$\(database\)\/documents\/shops\/\$\(shopId\)\/reviews\/\$\(reviewId\)\)\.data\.status == "pending"/);
     // reviews.ts writes both in one batch with the same createdAt.
     const reviews = read("src/app/lib/reviews.ts");
-    expect(reviews).toMatch(/const batch = writeBatch\(liteDb\);\s*batch\.set\(ref, payload\);/);
+    expect(reviews).toMatch(/const batch = writeBatch\(liteFirestore\);\s*batch\.set\(ref, payload\);/);
     expect(reviews).toMatch(/batch\.set\(doc\(liteDb, "reviewContacts", ref\.id\), \{ email: cleanEmail, createdAt \}\)/);
   });
 
@@ -94,8 +94,8 @@ describe("firestore.rules round-2 security (#18, #111, #112)", () => {
     expect(books).not.toMatch(/allow read: if true/);
     expect(books).toMatch(/allow read: if isAdminReader\(\) \|\| resource\.data\.status == "published"/);
     expect(books).toMatch(/match \/private\/\{docId\} \{\s*allow read: if isAdminReader\(\);\s*allow write: if isAdmin\(\);/);
-    // The admin's one-query read of every private document.
-    expect(rules).toMatch(/match \/\{path=\*\*\}\/private\/\{docId\} \{\s*allow read: if isAdminReader\(\);/);
+    // No collection-group rule: in the shared database it would cross every shop's folder (docs/shared-system.md).
+    expect(rules).not.toMatch(/\{path=\*\*\}/);
   });
 
   it("every shopper read of books asks for published ones only", () => {

@@ -24,9 +24,17 @@ export function appsClosing(rows, now = new Date()) {
   const shops = [];
   const closed = [];
   const drops = { dropped: 0, kept: 0, closed: 0, waiting: 0, reasons: {} };
+  // Every shop gets the website and the stockroom (10 November 2026): shops still on an older plan, or whose missing app
+  // is still being built, until billing's daily sweep and the shop maker have moved them.
+  const moving = [];
   for (const row of rows) {
     if (row.testShop === true) continue;
     const who = { shopId: row.shopId, pressName: row.pressName ?? row.shopId, ownerEmail: row.ownerEmail ?? null, bounced: bounceOf(row, nowMs) };
+    const gone = row.status === "abandoned" || ["closed", "deleted"].includes(row.closing?.stage);
+    if (!gone && PLAN_APPS[row.plan] && (row.plan !== "both" || (row.builtPlan && row.builtPlan !== "both"))) {
+      const has = PLAN_APPS[row.builtPlan ?? row.plan] ?? PLAN_APPS[row.plan];
+      moving.push({ ...who, gets: Object.keys(APP_WORDS).filter((app) => !has[app]).map((app) => APP_WORDS[app]).join(" and ") || "Nothing", step: row.plan === "both" ? "Being built" : "Plan moves tonight" });
+    }
     const closing = row.billing?.appsClosing;
     if (closing?.apps?.length && closing.at) {
       shops.push({
@@ -54,5 +62,6 @@ export function appsClosing(rows, now = new Date()) {
   shops.sort((a, b) => a.daysLeft - b.daysLeft || a.pressName.localeCompare(b.pressName));
   // The ones waiting to be deleted first (something is stuck), then the downloads ending soonest.
   closed.sort((a, b) => Number(b.overdue) - Number(a.overdue) || a.daysLeft - b.daysLeft || a.pressName.localeCompare(b.pressName));
-  return { shops, closed, drops, reasonWords: DROP_REASONS };
+  moving.sort((a, b) => a.pressName.localeCompare(b.pressName));
+  return { moving, shops, closed, drops, reasonWords: DROP_REASONS };
 }

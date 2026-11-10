@@ -9,7 +9,7 @@ import { readOldCopyCached, oldCopyCache } from './lib/old-copy-cache.js';
 import { planWebsitePublish } from './lib/website-link.js';
 import { adoptDecision, compareCopies, movedElsewhere } from './lib/storage-mode.js';
 import { isTestProfileActive, installSandboxBackend } from './lib/test-profile.js';
-import { DATA_ROOT, shopProfile, stockroomBucketUrl, stockroomDatabaseId } from './lib/shop-profile.js';
+import { DATA_ROOT, SHOP_FOLDER, shopFilePath, shopProfile, stockroomBucketUrl, stockroomDatabaseId } from './lib/shop-profile.js';
 import { emulatorSettings } from './lib/emulators.js';
 import { BOOKKEEPER_COPY_KEY, bookkeeperCopyKey, bookkeeperTaxCopy } from './lib/bookkeeper-copy.js';
 import { lockWrites } from './lib/plan-pause.js';
@@ -19,6 +19,9 @@ const firebaseConfig = { ...shopProfile.firebase };
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const auth = getAuth(app);
+// Everyone signs in on this shop's own sign-in list (the shared system, LMB-PLATFORM docs/shared-system.md): the rules
+// count a sign-in only in the shop whose list it came from. No list: the project's own (the demo).
+auth.tenantId = shopProfile.tenant ?? null;
 // Inside a shop's project the stockroom has its own bucket and its own named Firestore database (plan 1.20), each
 // with its own rules; the profile names them. Without them it uses the project's defaults.
 const storage = getStorage(app, stockroomBucketUrl(shopProfile));
@@ -47,6 +50,10 @@ if (emulators) {
   connectFirestoreEmulator(fs, host, ports.firestore);
 }
 const googleProvider = new GoogleAuthProvider();
+// The shared system (LMB-PLATFORM docs/shared-system.md): this shop's folder in the stockroom's Firestore database.
+// Every document the stockroom reads or writes is under it (`doc(home, 'settings', …)` is shops/<id>/settings/…);
+// batches and transactions still take `fs`, the whole database, and get refs made from `home`.
+const home = doc(fs, ...SHOP_FOLDER.split('/'));
 
 window._fbAuth = auth;
 window._fbStorage = storage;
@@ -76,7 +83,7 @@ window._fbLoadModeFlags = () => {
 
 async function loadModeFlags() {
   try {
-    const snap = await getDoc(doc(fs, 'settings', 'modeFlags'));
+    const snap = await getDoc(doc(home, 'settings', 'modeFlags'));
     if (snap.exists()) {
       _modeFlags = snap.data() || {};
       // Write back to localStorage so the cache is warm for next startup
@@ -87,7 +94,7 @@ async function loadModeFlags() {
       keys.forEach(k => { _modeFlags[k] = localStorage.getItem(k) === 'true'; });
       if (keys.length > 0) {
         // Persist the local state to Firestore so other devices pick it up
-        await setDoc(doc(fs, 'settings', 'modeFlags'), _modeFlags);
+        await setDoc(doc(home, 'settings', 'modeFlags'), _modeFlags);
       }
     }
   } catch (e) {
@@ -100,7 +107,7 @@ async function loadModeFlags() {
 
 window._fbSaveModeFlags = async () => {
   try {
-    await setDoc(doc(fs, 'settings', 'modeFlags'), _modeFlags);
+    await setDoc(doc(home, 'settings', 'modeFlags'), _modeFlags);
   } catch (e) { console.error('[FB] Failed to save mode flags', e); }
 };
 
@@ -151,14 +158,14 @@ window._fbAdoptBook = async (bookId) => {
   if (adoptDecision({ ...base, hasFirestoreData: false }) === 'skip') return { decision: 'skip' };
   let hasFirestoreData = null;
   try {
-    const snap = await getDocsFromServer(collection(fs, 'books', bookId, 'data'));
+    const snap = await getDocsFromServer(collection(home, 'books', bookId, 'data'));
     hasFirestoreData = !snap.empty;
   } catch (e) {
     console.warn(`[FB] could not check the new storage for ${bookId}; trying next time`, e);
   }
   const decision = adoptDecision({ ...base, hasFirestoreData });
   if (decision !== 'adopt') return { decision };
-  const partRefs = ALL_PARTS.map(p => doc(fs, 'books', bookId, 'data', p));
+  const partRefs = ALL_PARTS.map(p => doc(home, 'books', bookId, 'data', p));
   let wrote = false;
   try {
     const old = await get(ref(db, `${DATA_ROOT}/books/${bookId}`));
@@ -178,7 +185,7 @@ window._fbAdoptBook = async (bookId) => {
       return true;
     });
     if (!wrote) return { decision: 'unknown' };
-    const back = await getDocsFromServer(collection(fs, 'books', bookId, 'data'));
+    const back = await getDocsFromServer(collection(home, 'books', bookId, 'data'));
     const raw = {};
     back.forEach(d => { raw[d.id] = (d.data() || {}).data; });
     const copy = stitchState(assembleParts(raw).parts);
@@ -187,7 +194,7 @@ window._fbAdoptBook = async (bookId) => {
     window._fsHashes[bookId] = Object.fromEntries(ALL_PARTS.map(p => [p, raw[p]]));
     // Switch over durably (throws if the flag can't be saved, so the unflagged
     // copy is removed below), and only then switch this device.
-    await setDoc(doc(fs, 'settings', 'modeFlags'), { ['fs_mode_' + bookId]: true }, { merge: true });
+    await setDoc(doc(home, 'settings', 'modeFlags'), { ['fs_mode_' + bookId]: true }, { merge: true });
     _modeFlags['fs_mode_' + bookId] = true;
     try { localStorage.setItem('fs_mode_' + bookId, 'true'); } catch (_) { /* the server flag is what counts */ }
     // Another device that read the flags before the switch may have saved a
@@ -220,7 +227,7 @@ window._fbAdoptBook = async (bookId) => {
 // it has none. Read-only: the storage check must not trust this device's cache
 // or a save still waiting to upload.
 window._fbReadNewBookCopy = async (bookId) => {
-  const snap = await getDocsFromServer(collection(fs, 'books', bookId, 'data'));
+  const snap = await getDocsFromServer(collection(home, 'books', bookId, 'data'));
   if (snap.empty) return null;
   const raw = {};
   snap.forEach(d => { raw[d.id] = (d.data() || {}).data; });
@@ -232,7 +239,7 @@ window._fbReadNewBookCopy = async (bookId) => {
 // overwrite it. Returns the day that is on record.
 window._fbMarkLinkSwitchedOn = async (at) => {
   if (!auth.currentUser || !window.IS_PUBLISHER) throw new Error('Publisher access required');
-  const r = doc(fs, 'websiteLink', 'app');
+  const r = doc(home, 'websiteLink', 'app');
   return runTransaction(fs, async (tx) => {
     const snap = await tx.get(r);
     const existing = snap.exists() ? (snap.data() || {}).importConsentAt : '';
@@ -282,7 +289,7 @@ const safeParse = (str) => {
 // FILE STORAGE (Receipts)
 // ─────────────────────────────────────────────
 window._fbUploadReceipt = async (file, path) => {
-  const storageRef = sRef(storage, `receipts/${path}`);
+  const storageRef = sRef(storage, shopFilePath(`receipts/${path}`));
   return new Promise((resolve, reject) => {
     const uploadTask = uploadBytesResumable(storageRef, file);
     uploadTask.on('state_changed',
@@ -299,7 +306,7 @@ window._fbUploadReceipt = async (file, path) => {
 // A book's cover photo for the Fair till (features/book-cover.js): already shrunk to a small JPEG on this device.
 window._fbUploadCover = async (blob, bookId) => {
   const safeId = String(bookId || '').replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 120);
-  const storageRef = sRef(storage, `covers/${safeId}/cover-${Date.now()}.jpg`);
+  const storageRef = sRef(storage, shopFilePath(`covers/${safeId}/cover-${Date.now()}.jpg`));
   return new Promise((resolve, reject) => {
     const uploadTask = uploadBytesResumable(storageRef, blob, { contentType: 'image/jpeg', cacheControl: 'public, max-age=31536000' });
     uploadTask.on('state_changed', null, (err) => reject(err), async () => resolve(await getDownloadURL(uploadTask.snapshot.ref)));
@@ -330,7 +337,7 @@ window._fbSignInWithGoogle = () => signInWithPopup(auth, googleProvider);
 window._fbAskRulesIfPublisher = async (waitMs = 6000) => {
   let timer;
   const late = new Promise(resolve => { timer = setTimeout(() => resolve(null), waitMs); });
-  const ask = getDocFromServer(doc(fs, 'publisherCheck', 'me')).then(() => true, err => (err?.code === 'permission-denied' ? false : null));
+  const ask = getDocFromServer(doc(home, 'publisherCheck', 'me')).then(() => true, err => (err?.code === 'permission-denied' ? false : null));
   try {
     return await Promise.race([ask, late]);
   } finally {
@@ -373,7 +380,7 @@ window._fbCommitFoundReceipt = async (expense, draft) => {
   if (!auth.currentUser || !window.IS_PUBLISHER) throw new Error('Publisher access required');
   if (!window._useFirestoreGlobal()) throw new Error('Enable global Firestore storage before importing receipts');
   return runTransaction(fs, async transaction => {
-    const target = doc(fs, 'settings', 'taxCenter');
+    const target = doc(home, 'settings', 'taxCenter');
     const snapshot = await transaction.get(target);
     if (!snapshot.exists()) throw new Error('Save Tax Centre settings to Firestore before importing receipts');
     const current = JSON.parse(snapshot.data().data);
@@ -436,7 +443,7 @@ window._fbSave = async (bookId, json, opts = {}) => {
       // against our own stale copy and defeat the whole check.
       let snaps;
       try {
-        snaps = await Promise.all(dirty.map(p => getDocFromServer(doc(fs, 'books', bookId, 'data', p))));
+        snaps = await Promise.all(dirty.map(p => getDocFromServer(doc(home, 'books', bookId, 'data', p))));
       } catch (readErr) {
         // Can't see the server, so we can't know what we'd be overwriting.
         // Leave the write unmade; saveState queues it and retries with backoff.
@@ -508,7 +515,7 @@ window._fbSave = async (bookId, json, opts = {}) => {
         const batch = writeBatch(fs);
         const ts = Date.now();
         pending.forEach(({ part, partJson }) => {
-          batch.set(doc(fs, 'books', bookId, 'data', part), { data: partJson, ts });
+          batch.set(doc(home, 'books', bookId, 'data', part), { data: partJson, ts });
         });
         await batch.commit();
       }
@@ -528,7 +535,7 @@ window._fbSave = async (bookId, json, opts = {}) => {
     // Firestore instead (an ok:false save is kept and retried, never dropped).
     if (window._useFirestoreGlobal()) {
       let serverFlags = null;
-      try { serverFlags = (await getDocFromServer(doc(fs, 'settings', 'modeFlags'))).data() || {}; } catch (_) { /* offline: the old path as before */ }
+      try { serverFlags = (await getDocFromServer(doc(home, 'settings', 'modeFlags'))).data() || {}; } catch (_) { /* offline: the old path as before */ }
       if (movedElsewhere({ global: true, flaggedHere: false, serverFlags, bookId })) {
         _modeFlags['fs_mode_' + bookId] = true;
         try { localStorage.setItem('fs_mode_' + bookId, 'true'); } catch (_) { /* the server flag is what counts */ }
@@ -556,7 +563,7 @@ window._fbLoad = async (bookId) => {
       // on every load, so this bills the same number of document reads but
       // costs one round trip instead of eight — and loadAllBooks() fires this
       // for every book at once, so the saving multiplies by the catalog size.
-      const snaps = await getDocs(collection(fs, 'books', bookId, 'data'));
+      const snaps = await getDocs(collection(home, 'books', bookId, 'data'));
 
       const raw = {};
       snaps.forEach(d => { raw[d.id] = (d.data() || {}).data; });
@@ -649,7 +656,7 @@ window._fbWatch = (bookId, cb) => {
       // first one can be handed straight to the callback. Deleted parts simply
       // stop appearing in the snapshot and assembleParts restores their empty
       // default, which is what the old per-document !exists() branch did.
-      const collRef = collection(fs, 'books', bookId, 'data');
+      const collRef = collection(home, 'books', bookId, 'data');
       const unsub = onSnapshot(collRef, (snap) => {
         try {
           const raw = {};
@@ -695,7 +702,7 @@ window._fbWatch = (bookId, cb) => {
 window._fbLogClientError = async (entry) => {
   try {
     if (!entry || !window._useFirestoreGlobal()) return;
-    await setDoc(doc(collection(fs, 'clientErrors')), {
+    await setDoc(doc(collection(home, 'clientErrors')), {
       ...entry,
       email: (auth.currentUser && auth.currentUser.email) || '',
       ts: entry.ts || Date.now(),
@@ -721,7 +728,7 @@ window._fbLogClientError = async (entry) => {
 window._fbSubmitActivity = async (bookId, type, data) => {
   try {
     if (window._useFirestoreForBook(bookId)) {
-      const collRef = collection(fs, 'submissions', bookId, type);
+      const collRef = collection(home, 'submissions', bookId, type);
       await setDoc(doc(collRef), { data: JSON.stringify(data), ts: Date.now() });
       return;
     }
@@ -746,7 +753,7 @@ window._fbWatchSubmissions = (bookId, cb) => {
       const TYPES = ['expenses', 'sales'];
       const notify = () => cb((combinedData.expenses || combinedData.sales) ? combinedData : null);
       TYPES.forEach(type => {
-        const collRef = collection(fs, 'submissions', bookId, type);
+        const collRef = collection(home, 'submissions', bookId, type);
         const unsub = onSnapshot(collRef, (snapshot) => {
           if (!combinedData[type]) combinedData[type] = {};
           snapshot.docChanges().forEach(change => {
@@ -792,11 +799,11 @@ window._fbDeleteBook = async (bookId) => {
       // and no sales to explain them. Deleting a missing document is a no-op in
       // Firestore, so parts that were never written don't need tolerating.
       const batch = writeBatch(fs);
-      ALL_PARTS.forEach(name => batch.delete(doc(fs, 'books', bookId, 'data', name)));
+      ALL_PARTS.forEach(name => batch.delete(doc(home, 'books', bookId, 'data', name)));
       await batch.commit().catch(e => console.error('fbDeleteBook parts failed', e));
       for (const type of subTypes) {
         // A Firestore book's submissions live in Firestore, so list them there.
-        const snap = await getDocs(collection(fs, 'submissions', bookId, type)).catch(() => null);
+        const snap = await getDocs(collection(home, 'submissions', bookId, type)).catch(() => null);
         if (snap && !snap.empty) {
           await Promise.all(snap.docs.map(d => deleteDoc(d.ref).catch(() => {})));
         }
@@ -813,7 +820,7 @@ window._fbDeleteBook = async (bookId) => {
 window._fbDeleteSubmission = async (bookId, type, subId) => {
   try {
     if (window._useFirestoreForBook(bookId)) {
-      await deleteDoc(doc(fs, 'submissions', bookId, type, subId));
+      await deleteDoc(doc(home, 'submissions', bookId, type, subId));
       return true;
     }
     await remove(ref(db, `${DATA_ROOT}/submissions/${bookId}/${type}/${subId}`));
@@ -843,7 +850,7 @@ function noteSettingsBase(key, json) {
 }
 
 async function writeMergedSetting(key, data) {
-  const target = doc(fs, 'settings', key);
+  const target = doc(home, 'settings', key);
   const localJson = JSON.stringify(data);
   // Unchanged since this device loaded it or last saved it: the merge below
   // would keep whatever the cloud holds now and write it straight back, so
@@ -882,7 +889,7 @@ async function saveBookkeeperCopy(taxCenter) {
     const same = bookkeeperCopyKey(copy);
     if (same === _bookkeeperCopySaved) return;
     const row = { data: JSON.stringify(copy), ts: Date.now() };
-    if (window._useFirestoreGlobal()) await setDoc(doc(fs, 'settings', BOOKKEEPER_COPY_KEY), row);
+    if (window._useFirestoreGlobal()) await setDoc(doc(home, 'settings', BOOKKEEPER_COPY_KEY), row);
     else await set(ref(db, `${DATA_ROOT}/settings/${BOOKKEEPER_COPY_KEY}`), row);
     _bookkeeperCopySaved = same;
   } catch (e) {
@@ -905,7 +912,7 @@ window._fbSaveSettings = async (key, data) => {
         if (key === 'taxCenter') void saveBookkeeperCopy(saved);
         return true;
       }
-      await setDoc(doc(fs, 'settings', key), { data: JSON.stringify(data), ts: Date.now() });
+      await setDoc(doc(home, 'settings', key), { data: JSON.stringify(data), ts: Date.now() });
       return true;
     }
     await set(ref(db, `${DATA_ROOT}/settings/${key}`), { data: JSON.stringify(data), ts: Date.now() });
@@ -928,7 +935,7 @@ const useGlobalStore = (opts) => (opts && typeof opts.global === 'boolean' ? opt
 // read straight from the named document whichever store the mode flags name. null when there is none or it can't be read.
 window._fbLoadSells = async () => {
   try {
-    const s = await getDoc(doc(fs, 'settings', 'sells'));
+    const s = await getDoc(doc(home, 'settings', 'sells'));
     return s.exists() ? safeParse(s.data().data) : null;
   } catch (e) { return null; }
 };
@@ -938,7 +945,7 @@ window._fbLoadSells = async () => {
 window._fbNoteWords = async (answer) => {
   if (!auth.currentUser || !window.IS_PUBLISHER) return false;
   try {
-    await setDoc(doc(fs, 'websiteLink', 'app'), { wordsSells: String(answer), wordsAt: new Date().toISOString() }, { merge: true });
+    await setDoc(doc(home, 'websiteLink', 'app'), { wordsSells: String(answer), wordsAt: new Date().toISOString() }, { merge: true });
     return true;
   } catch (e) { return false; }
 };
@@ -946,7 +953,7 @@ window._fbNoteWords = async (answer) => {
 window._fbLoadSettings = async (key, opts) => {
   try {
     if (useGlobalStore(opts)) {
-      const s = await getDoc(doc(fs, 'settings', key));
+      const s = await getDoc(doc(home, 'settings', key));
       if (s.exists()) { noteSettingsBase(key, s.data().data); return safeParse(s.data().data); }
       // Transparent fallback: Firestore doc missing — read from RTDB
       console.warn(`[FB] settings/${key} not in Firestore, reading from RTDB`);
@@ -968,7 +975,7 @@ let _inboxUnsub = null;
 window._fbWatchEmailInbox = (cb) => {
   try {
     if (_inboxUnsub) { try { _inboxUnsub(); } catch (_) {} _inboxUnsub = null; }
-    const collRef = collection(fs, 'emailReceiptInbox');
+    const collRef = collection(home, 'emailReceiptInbox');
     _inboxUnsub = onSnapshot(collRef, (snap) => {
       const items = [];
       snap.forEach(d => {
@@ -983,7 +990,7 @@ window._fbWatchEmailInbox = (cb) => {
 };
 
 window._fbDeleteInboxItem = async (id) => {
-  try { await deleteDoc(doc(fs, 'emailReceiptInbox', id)); }
+  try { await deleteDoc(doc(home, 'emailReceiptInbox', id)); }
   catch (e) { console.error('fbDeleteInboxItem failed', e); }
 };
 
@@ -999,7 +1006,7 @@ let _webOrdersUnsub = null;
 window._fbWatchWebsiteOrders = (cb, onErr) => {
   try {
     if (_webOrdersUnsub) { try { _webOrdersUnsub(); } catch (_) {} _webOrdersUnsub = null; }
-    const pendingOrders = query(collection(fs, 'websiteOrders'), where('pending', '==', true));
+    const pendingOrders = query(collection(home, 'websiteOrders'), where('pending', '==', true));
     _webOrdersUnsub = onSnapshot(pendingOrders, (snap) => {
       const docs = [];
       snap.forEach(d => docs.push({ id: d.id, ...(d.data() || {}) }));
@@ -1022,7 +1029,7 @@ let _tradeOrdersUnsub = null;
 window._fbWatchTradeOrders = (cb, onErr) => {
   try {
     if (_tradeOrdersUnsub) { try { _tradeOrdersUnsub(); } catch (_) {} _tradeOrdersUnsub = null; }
-    const owed = query(collection(fs, 'websiteOrders'), where('web.invoice.paidAt', '==', null));
+    const owed = query(collection(home, 'websiteOrders'), where('web.invoice.paidAt', '==', null));
     _tradeOrdersUnsub = onSnapshot(owed, (snap) => {
       const docs = [];
       snap.forEach(d => docs.push({ id: d.id, ...(d.data() || {}) }));
@@ -1046,7 +1053,7 @@ window._fbWatchWebsiteLinkStatus = (cb, onErr) => {
     if (_webLinkUnsub) { try { _webLinkUnsub(); } catch (_) {} _webLinkUnsub = null; }
     // With metadata changes, so the caller also hears when this device's saved copy is confirmed by
     // the server (the website's heartbeat in a saved copy can be hours old).
-    _webLinkUnsub = onSnapshot(collection(fs, 'websiteLink'), { includeMetadataChanges: true }, (snap) => {
+    _webLinkUnsub = onSnapshot(collection(home, 'websiteLink'), { includeMetadataChanges: true }, (snap) => {
       const out = { website: null, app: null, catalog: null };
       snap.forEach(d => { if (d.id === 'website' || d.id === 'app' || d.id === 'catalog') out[d.id] = d.data() || {}; });
       cb(out, { fromCache: !!(snap.metadata && snap.metadata.fromCache) });
@@ -1067,7 +1074,7 @@ window._fbWatchWebsiteLinkStatus = (cb, onErr) => {
 // when the connection is back; the promise settles once the server answers.
 window._fbWriteAppTodo = async (todo) => {
   if (!auth.currentUser || !window.IS_PUBLISHER) throw new Error('Publisher access required');
-  await setDoc(doc(fs, 'websiteLink', 'app'), { todo }, { mergeFields: ['todo'] });
+  await setDoc(doc(home, 'websiteLink', 'app'), { todo }, { mergeFields: ['todo'] });
   return true;
 };
 
@@ -1078,7 +1085,7 @@ window._fbRequestWebsiteLink = async (key, value, drop = []) => {
   if (!auth.currentUser || !window.IS_PUBLISHER) throw new Error('Publisher access required');
   const linkRequests = { [String(key)]: { inventoryBookId: String(value.inventoryBookId), at: String(value.at) } };
   (drop || []).forEach(k => { if (k !== key) linkRequests[String(k)] = deleteField(); });
-  await setDoc(doc(fs, 'websiteLink', 'app'), { linkRequests }, { merge: true });
+  await setDoc(doc(home, 'websiteLink', 'app'), { linkRequests }, { merge: true });
   return true;
 };
 
@@ -1087,7 +1094,7 @@ window._fbSetShopBookDismissed = async (key, at, drop = []) => {
   if (!auth.currentUser || !window.IS_PUBLISHER) throw new Error('Publisher access required');
   const dismissedShopBooks = { [String(key)]: at ? String(at) : deleteField() };
   (drop || []).forEach(k => { if (k !== key) dismissedShopBooks[String(k)] = deleteField(); });
-  await setDoc(doc(fs, 'websiteLink', 'app'), { dismissedShopBooks }, { merge: true });
+  await setDoc(doc(home, 'websiteLink', 'app'), { dismissedShopBooks }, { merge: true });
   return true;
 };
 
@@ -1101,7 +1108,7 @@ let _fairSalesUnsub = null;
 window._fbWatchFairSales = (cb, onErr, { sinceMs = Date.now() - 14 * 86400000 } = {}) => {
   try {
     if (_fairSalesUnsub) { try { _fairSalesUnsub(); } catch (_) {} _fairSalesUnsub = null; }
-    const recent = query(collection(fs, 'fairSales'), where('at', '>=', new Date(sinceMs)));
+    const recent = query(collection(home, 'fairSales'), where('at', '>=', new Date(sinceMs)));
     _fairSalesUnsub = onSnapshot(recent, (snap) => {
       const docs = [];
       snap.forEach(d => docs.push({ id: d.id, ...(d.data() || {}) }));
@@ -1122,7 +1129,7 @@ window._fbWatchFairSales = (cb, onErr, { sinceMs = Date.now() - 14 * 86400000 } 
 // was already brought in (by this or another of the owner's devices). Two devices can't both claim it.
 window._fbClaimFairSale = async (saleId, device = '') => {
   if (!auth.currentUser || !window.IS_PUBLISHER) throw new Error('Publisher access required');
-  const ref = doc(fs, 'fairSales', String(saleId));
+  const ref = doc(home, 'fairSales', String(saleId));
   return runTransaction(fs, async (tx) => {
     const snap = await tx.get(ref);
     const data = snap.exists() ? (snap.data() || {}) : null;
@@ -1137,7 +1144,7 @@ window._fbClaimFairSale = async (saleId, device = '') => {
 // device answers while offline.
 window._fbWatchFairMenu = (cb, onErr) => {
   try {
-    return onSnapshot(doc(fs, 'fairTill', 'menu'), (snap) => cb(snap.exists() ? (snap.data() || null) : null), (err) => {
+    return onSnapshot(doc(home, 'fairTill', 'menu'), (snap) => cb(snap.exists() ? (snap.data() || null) : null), (err) => {
       console.error('fair menu watch failed', err);
       if (typeof onErr === 'function') onErr(err);
     });
@@ -1146,7 +1153,7 @@ window._fbWatchFairMenu = (cb, onErr) => {
 // Each sale carries `pending` while it is only on this device (no signal yet).
 window._fbWatchMyFairSales = (email, cb, onErr) => {
   try {
-    const mine = query(collection(fs, 'fairSales'), where('by', '==', String(email || '').toLowerCase()));
+    const mine = query(collection(home, 'fairSales'), where('by', '==', String(email || '').toLowerCase()));
     return onSnapshot(mine, { includeMetadataChanges: true }, (snap) => {
       const docs = [];
       snap.forEach(d => docs.push({ id: d.id, ...(d.data({ serverTimestamps: 'estimate' }) || {}), pending: d.metadata.hasPendingWrites }));
@@ -1159,14 +1166,14 @@ window._fbWatchMyFairSales = (email, cb, onErr) => {
 };
 // One sale into the inbox, stamped by the server's clock. Offline it waits on this device and goes when the signal
 // is back; the returned promise settles only then, so callers don't wait on it.
-window._fbAddFairSale = (id, sale) => setDoc(doc(fs, 'fairSales', String(id)), { ...sale, at: serverTimestamp() });
+window._fbAddFairSale = (id, sale) => setDoc(doc(home, 'fairSales', String(id)), { ...sale, at: serverTimestamp() });
 // The helper's Undo: marks their own sale cancelled (the rules allow it within the hour, until it is in the books).
-window._fbCancelFairSale = (id) => setDoc(doc(fs, 'fairSales', String(id)), { cancelled: true }, { merge: true });
+window._fbCancelFairSale = (id) => setDoc(doc(home, 'fairSales', String(id)), { cancelled: true }, { merge: true });
 
 // The till's menu for helpers, replaced whole (lib/fair-helper.js fairMenu).
 window._fbWriteFairMenu = async (menu) => {
   if (!auth.currentUser || !window.IS_PUBLISHER) throw new Error('Publisher access required');
-  await setDoc(doc(fs, 'fairTill', 'menu'), { books: menu.books, at: String(menu.at) });
+  await setDoc(doc(home, 'fairTill', 'menu'), { books: menu.books, at: String(menu.at) });
   return true;
 };
 
@@ -1195,7 +1202,7 @@ window._fbPublishWebsiteLink = async ({ bookIds = [], marks = [], shipments = []
 
   return runTransaction(fs, async (tx) => {
     const now = new Date().toISOString();
-    const orderSnaps = await Promise.all(orderIds.map(id => tx.get(doc(fs, 'websiteOrders', id))));
+    const orderSnaps = await Promise.all(orderIds.map(id => tx.get(doc(home, 'websiteOrders', id))));
     const orderDocs = {};
     orderIds.forEach((id, i) => { orderDocs[id] = orderSnaps[i].exists() ? orderSnaps[i].data() : null; });
 
@@ -1207,8 +1214,8 @@ window._fbPublishWebsiteLink = async ({ bookIds = [], marks = [], shipments = []
     const blocked = [...involved].filter(id => !window._useFirestoreForBook(id));
     const readable = [...involved].filter(id => window._useFirestoreForBook(id));
 
-    const catalogSnap = await tx.get(doc(fs, 'settings', 'catalog'));
-    const partSnaps = await Promise.all(readable.flatMap(id => WEB_LINK_PARTS.map(p => tx.get(doc(fs, 'books', id, 'data', p)))));
+    const catalogSnap = await tx.get(doc(home, 'settings', 'catalog'));
+    const partSnaps = await Promise.all(readable.flatMap(id => WEB_LINK_PARTS.map(p => tx.get(doc(home, 'books', id, 'data', p)))));
     const books = {};
     readable.forEach((id, i) => {
       const snaps = partSnaps.slice(i * WEB_LINK_PARTS.length, (i + 1) * WEB_LINK_PARTS.length);
@@ -1228,12 +1235,12 @@ window._fbPublishWebsiteLink = async ({ bookIds = [], marks = [], shipments = []
     const catalog = catalogSnap.exists() ? (safeParse((catalogSnap.data() || {}).data) || {}) : {};
 
     const plan = planWebsitePublish({ bookIds: requested, books, catalog, orderDocs, marks, shipments, testShipments, heldOrders, now, build, device });
-    plan.feeds.forEach(f => tx.set(doc(fs, 'websiteStockFeed', f.bookId), f.doc));
-    plan.orderUpdates.forEach(u => tx.update(doc(fs, 'websiteOrders', u.orderId), u.data));
+    plan.feeds.forEach(f => tx.set(doc(home, 'websiteStockFeed', f.bookId), f.doc));
+    plan.orderUpdates.forEach(u => tx.update(doc(home, 'websiteOrders', u.orderId), u.data));
     const app = { build: String(build || '') };
     if (plan.feeds.length) app.lastFeedAt = now;
     if (plan.accepted.length) app.lastImportAt = now;
-    tx.set(doc(fs, 'websiteLink', 'app'), app, { merge: true });
+    tx.set(doc(home, 'websiteLink', 'app'), app, { merge: true });
     return {
       ok: true,
       at: now,
@@ -1292,10 +1299,10 @@ window._fbSaveBookOwners = async (owners) => {
   try {
     let same = false;
     try {
-      const current = await getDocFromServer(doc(fs, 'settings', 'bookOwners'));
+      const current = await getDocFromServer(doc(home, 'settings', 'bookOwners'));
       same = current.exists() && stableStringify(current.data()) === stableStringify(clean);
     } catch (_) { /* can't see the server copy */ }
-    if (!same) await setDoc(doc(fs, 'settings', 'bookOwners'), clean);
+    if (!same) await setDoc(doc(home, 'settings', 'bookOwners'), clean);
   }
   catch (e) { console.error('fbSaveBookOwners (Firestore) failed', e); }
 };
@@ -1312,7 +1319,7 @@ window._fbSaveBackupSnapshot = async (id, snapshot) => {
   const payload = { data: JSON.stringify(snapshot), ts: Date.now() };
   await modeFlagsSettled();
   if (window._useFirestoreGlobal()) {
-    await setDoc(doc(fs, 'backups', id), payload);
+    await setDoc(doc(home, 'backups', id), payload);
   } else {
     await set(ref(db, `${DATA_ROOT}/backups/${id}`), payload);
   }
@@ -1321,7 +1328,7 @@ window._fbSaveBackupSnapshot = async (id, snapshot) => {
 window._fbLoadBackupSnapshot = async (id) => {
   try {
     if (window._useFirestoreGlobal()) {
-      const s = await getDoc(doc(fs, 'backups', id));
+      const s = await getDoc(doc(home, 'backups', id));
       if (s.exists()) return safeParse(s.data().data);
       // Fallback in case the snapshot predates a Firestore mode switch.
       const rt = await get(ref(db, `${DATA_ROOT}/backups/${id}`));
@@ -1334,14 +1341,14 @@ window._fbLoadBackupSnapshot = async (id) => {
 
 window._fbDeleteBackupSnapshot = async (id) => {
   // Best-effort delete from both stores so a pruned/old snapshot never orphans.
-  try { await deleteDoc(doc(fs, 'backups', id)); } catch (e) { /* missing / RTDB-only */ }
+  try { await deleteDoc(doc(home, 'backups', id)); } catch (e) { /* missing / RTDB-only */ }
   try { await remove(ref(db, `${DATA_ROOT}/backups/${id}`)); } catch (e) { /* ignore */ }
 };
 
 window._fbLoadCatalog = async (opts) => {
   try {
     if (useGlobalStore(opts)) {
-      const s = await getDoc(doc(fs, 'settings', 'catalog'));
+      const s = await getDoc(doc(home, 'settings', 'catalog'));
       if (s.exists()) { noteSettingsBase('catalog', s.data().data); return safeParse(s.data().data); }
       // Transparent fallback: Firestore doc missing — read from RTDB
       console.warn('[FB] catalog not in Firestore, reading from RTDB');
@@ -1363,21 +1370,21 @@ window._fbLoadCatalog = async (opts) => {
 // saves it.
 window._fbPeekCachedCatalog = async () => {
   try {
-    const s = await getDocFromCache(doc(fs, 'settings', 'catalog'));
+    const s = await getDocFromCache(doc(home, 'settings', 'catalog'));
     return s.exists() ? safeParse(s.data().data) : null;
   } catch (_) { return null; } // not cached on this device
 };
 
 window._fbPeekCachedSetting = async (key) => {
   try {
-    const s = await getDocFromCache(doc(fs, 'settings', key));
+    const s = await getDocFromCache(doc(home, 'settings', key));
     return s.exists() ? safeParse(s.data().data) : null;
   } catch (_) { return null; }
 };
 
 window._fbPeekCachedBook = async (bookId) => {
   try {
-    const snap = await getDocsFromCache(collection(fs, 'books', bookId, 'data'));
+    const snap = await getDocsFromCache(collection(home, 'books', bookId, 'data'));
     if (snap.empty) return null;
     const raw = {};
     snap.forEach(d => { raw[d.id] = (d.data() || {}).data; });
@@ -1411,7 +1418,7 @@ window._fbMassMigrate = async (BOOKS) => {
           parts.metadata = s;
 
           Object.keys(parts).forEach(partName => {
-            const dRef = doc(fs, 'books', bookId, 'data', partName);
+            const dRef = doc(home, 'books', bookId, 'data', partName);
             promises.push(setDoc(dRef, { data: JSON.stringify(parts[partName]), ts: Date.now() }));
           });
         }
@@ -1429,7 +1436,7 @@ window._fbMassMigrate = async (BOOKS) => {
         const subData = typeSnap.val();
         Object.keys(subData).forEach(subId => {
            const subObj = subData[subId];
-           const dRef = doc(fs, 'submissions', bookId, type, subId);
+           const dRef = doc(home, 'submissions', bookId, type, subId);
            promises.push(setDoc(dRef, { data: subObj.data, ts: subObj.ts || Date.now() }));
         });
       }
@@ -1444,7 +1451,7 @@ window._fbMassMigrate = async (BOOKS) => {
     const setSnap = await get(ref(db, `${DATA_ROOT}/settings/${key}`));
     if (setSnap.exists()) {
        const settingObj = setSnap.val();
-       const dRef = doc(fs, 'settings', key);
+       const dRef = doc(home, 'settings', key);
        promises.push(setDoc(dRef, { data: settingObj.data, ts: settingObj.ts || Date.now() }));
     }
   }));
@@ -1458,7 +1465,7 @@ window._fbMassMigrate = async (BOOKS) => {
 // changes on a paused plan, so a slow read never opens one.
 window._fbLoadPlan = async (waitMs = 4000) => {
   try {
-    const read = getDoc(doc(fs, 'platform', 'plan')).then(snap => (snap.exists() ? snap.data() : null));
+    const read = getDoc(doc(home, 'platform', 'plan')).then(snap => (snap.exists() ? snap.data() : null));
     return await Promise.race([read, new Promise(resolve => setTimeout(() => resolve(null), waitMs))]);
   } catch (e) {
     console.warn('[FB] plan not read', e);

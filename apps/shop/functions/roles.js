@@ -11,7 +11,8 @@
 // plan): the stockroom's rules open only the till's menu and the helper's own sales. It never opens this admin.
 const { shopConfig } = require("./shopConfig");
 
-const OWNER_EMAILS = [shopConfig.ownerEmail];
+// The current shop's owner (shopConfig is per shop in the shared system); an array so older callers keep `.includes`.
+const OWNER_EMAILS = new Proxy([], { get: (_, prop) => { const list = [shopConfig.ownerEmail].filter(Boolean); const v = list[prop]; return typeof v === "function" ? v.bind(list) : v; } });
 const ROLES = ["owner", "staff", "author", "bookkeeper", "fairHelper"];
 const ADMIN_ROLES = ["owner", "staff"];
 

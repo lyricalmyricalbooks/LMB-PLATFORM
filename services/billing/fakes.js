@@ -83,7 +83,7 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
   const requests = [];
   const byKey = new Map();
   let next = 1;
-  const world = { products: new Map(), prices: new Map(), customers: new Map(), subscriptions: new Map(), sessions: new Map(), setupIntents: new Map(), invoices: new Map(), paymentMethods: new Map(), coupons: new Map(), taxIds: new Map(), payFails: null, down: 0, failOnce: null };
+  const world = { products: new Map(), prices: new Map(), customers: new Map(), subscriptions: new Map(), sessions: new Map(), setupIntents: new Map(), invoices: new Map(), paymentMethods: new Map(), coupons: new Map(), taxIds: new Map(), invoiceItems: new Map(), payFails: null, down: 0, failOnce: null };
   const MONTH = 30 * 86400;
   const missing = (what) => ({ status: 404, body: { error: { type: "invalid_request_error", code: "resource_missing", message: `No such ${what}` } } });
   const ok = (body) => ({ status: 200, body: structuredClone(body) });
@@ -271,6 +271,12 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
       const size = Number(p.limit ?? 10);
       return ok({ object: "list", data: list.slice(0, size), has_more: list.length > size });
     }
+    // A pending line for the subscription's next bill (pay what you use, billRunningCosts).
+    if (method === "POST" && path === "/v1/invoiceitems") {
+      const item = { id: `ii_${next++}`, object: "invoiceitem", customer: p.customer, subscription: p.subscription, amount: Number(p.amount), currency: p.currency, description: p.description, discountable: p.discountable, metadata: { lmb_shop_id: p["metadata[lmb_shop_id]"], lmb_month: p["metadata[lmb_month]"], lmb_kind: p["metadata[lmb_kind]"] } };
+      world.invoiceItems.set(item.id, item);
+      return ok(item);
+    }
     if (method === "POST" && path === "/v1/invoices/create_preview") {
       // The prorated part of a move: the rest of the month at the new price, less the rest at the old one.
       const sub = world.subscriptions.get(p.subscription);
@@ -371,3 +377,10 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
   };
   return { fetch, requests, world, endTrial, completeSetup, subscription, payMonth, addInvoice, attach, pastDue };
 }
+
+/**
+ * The fixed plans of before pay what you use ($29 / $19 / $39, and pay as you sell at 2%), still possible through the
+ * settings. Tests of plan-change mechanics (proration, a cheaper plan, pay as you sell) need plans with different
+ * prices, which the $5 default no longer gives: they read `platformSettings(TIERED_PRICES_ENV)`.
+ */
+export const TIERED_PRICES_ENV = Object.freeze({ PLAN_PRICE_SHOP: "2900", PLAN_PRICE_STOCKROOM: "1900", PLAN_PRICE_BOTH: "3900", PAY_AS_YOU_SELL_BASIS_POINTS: "200" });

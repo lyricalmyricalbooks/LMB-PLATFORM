@@ -2,7 +2,7 @@
 // not seen for 60 days is marked for removal.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { advanceStatus, newPressRecord, setupChange, setupExpired } from "./pressRecord.js";
+import { MAX_DESIGN_BYTES, advanceStatus, newPressRecord, setupChange, setupExpired } from "./pressRecord.js";
 
 const NOW = new Date("2026-11-02T12:00:00Z");
 const record = () => newPressRecord({ pressId: "moth-press", ownerUid: "uid-ada", email: "Owner@Example.com", now: NOW });
@@ -84,4 +84,15 @@ test("where the press sells today is one of the front door's answers, or skipped
   assert.deepEqual(setupChange(record(), { sellingToday: "spreadsheet" }), { ok: true, fields: { sellingToday: "spreadsheet" } });
   assert.deepEqual(setupChange(record(), { sellingToday: "" }), { ok: true, fields: { sellingToday: "" } });
   assert.equal(setupChange(record(), { sellingToday: "somewhere" }).ok, false);
+});
+
+test("a website designed before the store is made is kept whole, within a size", () => {
+  const design = { themeBase: { id: "press-folio" }, copy: { siteName: "Moth Press" }, heroPage: { sections: [] } };
+  assert.deepEqual(setupChange(record(), { design }), { ok: true, fields: { design } });
+  assert.deepEqual(setupChange(record(), { design: null }), { ok: true, fields: { design: null } });
+  for (const bad of ["a design", [1, 2], 7]) assert.equal(setupChange(record(), { design: bad }).ok, false, String(bad));
+  const big = setupChange(record(), { design: { text: "x".repeat(MAX_DESIGN_BYTES) } });
+  assert.equal(big.ok, false);
+  assert.match(big.message, /too large/);
+  assert.equal(record().design, null);
 });

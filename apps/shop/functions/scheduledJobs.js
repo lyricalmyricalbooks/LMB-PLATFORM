@@ -85,7 +85,7 @@ function scheduledJobs({
         ? `[TO DO] ${digest.total} order${digest.total === 1 ? "" : "s"} need attention${low.fresh.length ? ` · ${low.fresh.length} running low` : ""}`
         : `[STOCK] ${low.fresh.length} item${low.fresh.length === 1 ? "" : "s"} running low`;
       try {
-        await sendEmail({ to: ADMIN_TO, subject, html, secret: RESEND_API_KEY.value() });
+        await sendEmail({ to: (typeof ADMIN_TO === "function" ? ADMIN_TO() : ADMIN_TO), subject, html, secret: RESEND_API_KEY.value() });
         // Marks are saved only once the email went out, so a failed send reports the same items tomorrow.
         if (low.marks) await lowRef.set({ items: low.marks, updatedAt: admin.firestore.FieldValue.serverTimestamp() }).catch(() => {});
       } catch (err) {

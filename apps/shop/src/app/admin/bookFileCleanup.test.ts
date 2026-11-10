@@ -22,10 +22,20 @@ describe("bookFileCleanup", () => {
   });
 
   it("deletes every file of a removed photo, but never library pictures or files still shown", () => {
-    const paths = unusedBookFiles([cover, library, video], [u("products/1-c-480w.webp")], B);
+    // Every file sits in the shop's own folder of the shared bucket (here the test shop's, lib/shopFolder.ts).
+    const inShop = (photo: Record<string, any>): Record<string, any> => JSON.parse(JSON.stringify(photo).replaceAll("/o/products", "/o/shops%2Flmb-test-shop%2Fproducts").replaceAll("/o/assets", "/o/shops%2Flmb-test-shop%2Fassets"));
+    const paths = unusedBookFiles([cover, library, video].map(inShop), [u("shops/lmb-test-shop/products/1-c-480w.webp")], B);
     expect(paths.sort()).toEqual([
       "products/1-c-3200w.webp", "products/1-c-original.jpg", "products/3-still-480w.webp", "products/videos/3-clip.mp4",
-    ]);
+    ].map(p => `shops/lmb-test-shop/${p}`));
+  });
+
+  it("deletes only files in this shop's own folder of the shared bucket (docs/shared-system.md)", () => {
+    const mine = { url: u("shops/s1/products/9-a.webp") };
+    const theirs = { url: u("shops/s2/products/9-a.webp") };
+    const rootFile = { url: u("products/9-a.webp") };
+    expect(unusedBookFiles([mine, theirs, rootFile], [], B, "shops/s1")).toEqual(["shops/s1/products/9-a.webp"]);
+    expect(unusedBookFiles([mine, theirs], [u("shops/s1/products/9-a.webp")], B, "shops/s1")).toEqual([]);
   });
 
   it("counts other books, editions, sharing images and order lines as still shown", () => {

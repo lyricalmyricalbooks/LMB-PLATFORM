@@ -22,6 +22,12 @@ export type ShopProfile = {
     messagingSenderId: string;
     appId: string;
   };
+  /**
+   * The shop's own sign-in list (an Identity Platform tenant id) in the shared project (LMB-PLATFORM
+   * docs/shared-system.md). Everyone signs in on it, and the rules count a sign-in only in the shop whose list it came
+   * from. Missing: the project's own list (a project that holds one shop, such as the demo).
+   */
+  tenant?: string;
   functionsRegion: string;
   siteUrl: string;
   appCheckSiteKey?: string;
@@ -81,6 +87,8 @@ export const DEFAULT_SHOP_PROFILE: ShopProfile = {
 const FIREBASE_KEYS = ["apiKey", "authDomain", "projectId", "storageBucket", "messagingSenderId", "appId"] as const;
 const text = (value: unknown): value is string => typeof value === "string" && value.trim() !== "";
 const matches = (value: unknown, pattern: RegExp) => typeof value === "string" && pattern.test(value);
+/** As profile/shop-profile.schema.json `tenant`. */
+const TENANT = /^[a-zA-Z][a-zA-Z0-9-]{3,62}$/;
 
 /** The profile's `payments`, checked like the platform's format: undefined when missing, null when it is wrong. */
 export function parseShopPayments(value: unknown): ShopPayments | undefined | null {
@@ -122,11 +130,13 @@ export function parseShopProfile(value: unknown): ShopProfile | null {
   const payments = parseShopPayments(profile.payments);
   if (payments === null) return null;
   if (profile.name !== undefined && (typeof profile.name !== "string" || !profile.name.length || profile.name.length > 80)) return null;
+  if (profile.tenant !== undefined && !matches(profile.tenant, TENANT)) return null;
   return {
     version: 1,
     shopId: profile.shopId,
     ...(profile.name !== undefined ? { name: profile.name } : {}),
     firebase: Object.fromEntries(FIREBASE_KEYS.map(key => [key, firebase[key]])) as ShopProfile["firebase"],
+    ...(profile.tenant !== undefined ? { tenant: profile.tenant } : {}),
     functionsRegion: profile.functionsRegion,
     siteUrl: profile.siteUrl,
     ...(profile.appCheckSiteKey ? { appCheckSiteKey: profile.appCheckSiteKey } : {}),

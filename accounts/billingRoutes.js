@@ -13,6 +13,7 @@
 //   POST /api/billing/change-plan  { shopId, plan, preview?, reason? } -> { preview } or { plan, changed }: what changes
 //                                  and the prorated amount (preview: true, nothing changes), or the change itself, with
 //                                  the optional answer to "why are you dropping it?" (closedApps.js DROP_REASONS)
+//   POST /api/billing/cost-alert  { shopId, cents } -> { costAlert }: email me when a month's bill may pass this amount
 //   POST /api/billing/email-language  { shopId, language: "fr" | "en" | "auto" } -> { changed, emailLanguage }: the
 //                                  language of the platform's emails, for every shop the account pays for
 //   POST /api/billing/invoices     { shopId } -> { invoices }: newest first, each with Stripe's PDF link
@@ -62,6 +63,8 @@ export function billingCalls({ billing, paymentWay = null, settings, exports = n
   const calls = {
     status: { run: async (shopId) => ({ billing: await billing.status(shopId) }) },
     "email-language": { run: async (shopId, { language }) => billing.setEmailLanguage({ shopId, language }) },
+    // Pay what you use: the amount a month's bill may pass before the press is emailed (0 turns the email off).
+    "cost-alert": { run: async (shopId, { cents }) => billing.setCostAlert({ shopId, cents }) },
     card: { run: payerOnly(async (shopId, _body, { returnUrl }) => billing.cardLink({ shopId, returnUrl })), secondStep: true },
     cancel: {
       run: async (shopId, { reason, words }) => ({ cancelAtPeriodEnd: planEnding(await billing.cancel({ shopId, reason, words })).cancelling }),
@@ -70,6 +73,8 @@ export function billingCalls({ billing, paymentWay = null, settings, exports = n
     keep: { run: async (shopId) => ({ cancelAtPeriodEnd: planEnding(await billing.keep({ shopId })).cancelling }) },
     "change-plan": {
       run: async (shopId, { plan, preview, reason }) => {
+        // One plan for every shop (10 November 2026): the only move a press can make is an older plan's move to it.
+        if (plan !== "both") throw new BillingError(400, "Every shop has the website and the stockroom now, so there's no plan to choose.");
         if (preview === true) return { preview: await billing.changePlan({ shopId, plan, preview: true }) };
         const row = await billing.changePlan({ shopId, plan, reason: reason ?? null });
         return { plan: row.plan, changed: row.changed };

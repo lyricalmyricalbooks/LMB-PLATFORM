@@ -25,8 +25,15 @@ const rtdbRules = JSON.parse(
   read('database.rules.json').split('\n').map(l => l.replace(/^\s*\/\/.*$/, '')).join('\n')
 );
 
-// The rules never name the owner: deployConfig.mjs fills this slot per shop at deploy (plan 1.20).
-const PUBLISHER = '__SHOP_OWNER_EMAIL__';
+// The rules never name the owner: they read it from the shop's record, which only the platform writes (the shared
+// system, LMB-PLATFORM docs/shared-system.md). Firestore and Storage: shops/<shopId>; the Realtime Database:
+// shops/<shopId>/record.
+const OWNER_FROM_RECORD = "shopRecord().get('ownerEmail', '-')";
+const RTDB_RECORD = "root.child('shops').child($shopId).child('record')";
+const RTDB_OWNER = `${RTDB_RECORD}.child('ownerEmail').val()`;
+// The stockroom's data inside the shop's folder in the Realtime Database.
+const RTDB = rtdbRules.rules.shops.$shopId.lyrical;
+const RTDB_BOOK_OWNERS = "root.child('shops').child($shopId).child('lyrical/settings/bookOwners')";
 
 // Loaded by an author session to render its own book (see firestore.rules).
 const AUTHOR_READS = [
@@ -48,7 +55,7 @@ function firestoreAllowlist() {
 }
 
 function rtdbAllowlist() {
-  const expr = rtdbRules.rules.lyrical.settings.$key['.read'];
+  const expr = RTDB.settings.$key['.read'];
   return [...expr.matchAll(/\$key === '([^']+)'/g)].map(x => x[1]).sort();
 }
 
@@ -67,8 +74,8 @@ function settingsKeysUsedByApp() {
   for (const f of srcFiles) {
     const text = read(f);
     for (const m of text.matchAll(/_fb(?:Save|Load)Settings\(\s*'([A-Za-z0-9_]+)'/g)) keys.add(m[1]);
-    for (const m of text.matchAll(/doc\(fs,\s*'settings',\s*'([A-Za-z0-9_]+)'\)/g)) keys.add(m[1]);
-    for (const m of text.matchAll(/lyrical\/settings\/([A-Za-z0-9_]+)/g)) keys.add(m[1]);
+    for (const m of text.matchAll(/doc\((?:fs|home),\s*'settings',\s*'([A-Za-z0-9_]+)'\)/g)) keys.add(m[1]);
+    for (const m of text.matchAll(/(?:lyrical\/|DATA_ROOT\}\/)settings\/([A-Za-z0-9_]+)/g)) keys.add(m[1]);
   }
   // Written through a constant rather than a literal.
   if (/SYSTEM_BACKUP_KEY = 'systemBackups'/.test(read('src/main.js'))) keys.add('systemBackups');
@@ -115,7 +122,7 @@ describe('bookkeeper settings reads (plan 7.17)', () => {
     const fn = firestoreRules.match(/function isBookkeeper\(\)\s*\{([\s\S]*?)\}/)[1];
     expect(fn).toContain('request.auth.token.email_verified == true');
     expect(fn).toContain("request.auth.token.get('role', '') == 'bookkeeper'");
-    const expr = rtdbRules.rules.lyrical.settings.$key['.read'];
+    const expr = RTDB.settings.$key['.read'];
     expect(expr).toContain("auth.token.email_verified === true && auth.token.role === 'bookkeeper' && $key.matches(/^(modeFlags|taxCentreForBookkeeper)$/)");
     for (const key of PUBLISHER_ONLY) expect(BOOKKEEPER_READS.includes(key), key).toBe(false);
   });
@@ -155,7 +162,9 @@ describe('publisher identity', () => {
       expect(fn).not.toBeNull();
       const body = fn[1].replace(/\s+/g, ' ');
       expect(body).toContain('request.auth.token.email_verified == true');
-      expect(body).toContain(`(request.auth.token.email == '${PUBLISHER}' || request.auth.token.get('role', '') == 'owner')`);
+      expect(body).toContain(`(request.auth.token.email == ${OWNER_FROM_RECORD} || request.auth.token.get('role', '') == 'owner')`);
+      // Only a sign-in from this shop's own list counts.
+      expect(body).toMatch(/^ return signedInHere\(\) && /);
       // Staff are not publishers in the stockroom.
       expect(body).not.toContain('staff');
     }
@@ -170,13 +179,18 @@ describe('publisher identity', () => {
       }
     };
     collect(rtdbRules.rules);
-    const naming = exprs.filter(e => e.includes(PUBLISHER));
+    const naming = exprs.filter(e => e.includes(RTDB_OWNER));
     expect(naming.length).toBe(8);
-    const check = `(auth.token.email_verified === true && (auth.token.email === '${PUBLISHER}' || auth.token.role === 'owner'))`;
+    const check = `(auth.token.email_verified === true && (auth.token.email === ${RTDB_OWNER} || auth.token.role === 'owner'))`;
+    // A sign-in counts only in the shop whose list it came from, and only when the shop has a record.
+    const here = `auth != null && (${RTDB_RECORD}.exists() && (${RTDB_RECORD}.child('tenant').val() === '' ? auth.token.firebase.tenant == null : auth.token.firebase.tenant === ${RTDB_RECORD}.child('tenant').val())) && `;
     for (const e of naming) {
-      expect(e.split(`auth.token.email === '${PUBLISHER}'`).length - 1, e).toBe(e.split(check).length - 1);
+      expect(e.split(`auth.token.email === ${RTDB_OWNER}`).length - 1, e).toBe(e.split(check).length - 1);
+      expect(e.startsWith(here), e).toBe(true);
       expect(e, e).not.toContain('staff');
     }
+    // Every grant in the Realtime Database starts with the same check.
+    for (const e of exprs.filter(x => !x.startsWith('newData'))) expect(e.startsWith(here), e).toBe(true);
   });
 });
 
@@ -187,7 +201,7 @@ describe('author-only settings reads', () => {
     expect(firestoreRules).toContain("'authorEmails'");
   });
   it('the Realtime Database checks the same authorEmails map before the allowlist', () => {
-    const expr = rtdbRules.rules.lyrical.settings.$key['.read'];
+    const expr = RTDB.settings.$key['.read'];
     expect(expr).toContain('lyrical/settings/bookOwners/authorEmails');
     expect(expr.slice(expr.indexOf('authorEmails'))).toContain("$key === 'catalog'");
     expect(expr.slice(0, expr.indexOf('authorEmails'))).not.toMatch(/\$key ===/);
@@ -208,14 +222,15 @@ describe('author role', () => {
   it('Firestore: a verified author role counts as an author for settings reads', () => {
     expect(fn(firestoreRules, 'hasAuthorRole')).toContain("request.auth.token.email_verified == true && request.auth.token.get('role', '') == 'author'");
     expect(fn(firestoreRules, 'isAnyAuthor')).toMatch(/^ return hasAuthorRole\(\) \|\| \(/);
+    expect(fn(firestoreRules, 'hasAuthorRole')).toMatch(/^ return signedInHere\(\) && /);
   });
 
   it('the Realtime Database accepts the same role, verified, before the allowlist only', () => {
-    const expr = rtdbRules.rules.lyrical.settings.$key['.read'];
+    const expr = RTDB.settings.$key['.read'];
     const role = "(auth.token.email_verified === true && auth.token.role === 'author')";
     expect(expr.split(role).length - 1).toBe(1);
     const after = expr.slice(expr.indexOf(role));
-    expect(after).toMatch(/^\(auth\.token\.email_verified === true && auth\.token\.role === 'author'\) \|\| \(auth\.token\.email_verified === true && root\.child\('lyrical\/settings\/bookOwners\/authorEmails'\)[^&]*\.exists\(\)\)\) && \(\$key === /);
+    expect(after).toMatch(/^\(auth\.token\.email_verified === true && auth\.token\.role === 'author'\) \|\| \(auth\.token\.email_verified === true && root\.child\('shops'\)\.child\(\$shopId\)\.child\('lyrical\/settings\/bookOwners\/authorEmails'\)[^&]*\.exists\(\)\)\) && \(\$key === /);
   });
 
   // The shop's email-link sign-in keeps the Email/Password provider on in the shared project, so an unverified
@@ -223,10 +238,10 @@ describe('author role', () => {
   it('counts an address as an author only when it is verified', () => {
     expect(fn(firestoreRules, 'isBookAuthor')).toContain('request.auth.token.email_verified == true');
     expect(fn(storageRules, 'isBookAuthor')).toContain('request.auth.token.email_verified == true');
-    expect(fn(firestoreRules, 'isAnyAuthor')).toMatch(/\|\| \(request\.auth != null && request\.auth\.token\.email_verified == true && /);
-    const { books, submissions } = rtdbRules.rules.lyrical;
+    expect(fn(firestoreRules, 'isAnyAuthor')).toMatch(/\|\| \(signedInHere\(\) && request\.auth\.token\.email_verified == true && /);
+    const { books, submissions } = RTDB;
     for (const e of [books.$bookId['.read'], books.$bookId['.write'], submissions.$bookId['.read'], submissions.$bookId['.write']]) {
-      expect(e).toContain("(auth.token.email_verified === true && root.child('lyrical/settings/bookOwners').child($bookId).val() === auth.token.email.toLowerCase())");
+      expect(e).toContain(`(auth.token.email_verified === true && ${RTDB_BOOK_OWNERS}.child($bookId).val() === auth.token.email.toLowerCase())`);
     }
   });
 
@@ -234,14 +249,14 @@ describe('author role', () => {
     // Per-book access: Firestore and Storage isBookAuthor(), RTDB books and submissions.
     expect(fn(firestoreRules, 'isBookAuthor')).not.toContain('role');
     expect(fn(storageRules, 'isBookAuthor')).not.toContain('role');
-    const { books, submissions } = rtdbRules.rules.lyrical;
+    const { books, submissions } = RTDB;
     for (const e of [books.$bookId['.read'], books.$bookId['.write'], submissions.$bookId['.read'], submissions.$bookId['.write']]) {
       expect(e).not.toContain("'author'");
     }
     for (const rules of [firestoreRules, storageRules]) expect(fn(rules, 'isPublisher')).not.toContain('author');
     // Settings writes and backups stay publisher-only.
-    expect(rtdbRules.rules.lyrical.settings['.write']).not.toContain("'author'");
-    expect(JSON.stringify(rtdbRules.rules.lyrical.backups)).not.toContain("'author'");
+    expect(RTDB.settings['.write']).not.toContain("'author'");
+    expect(JSON.stringify(RTDB.backups)).not.toContain("'author'");
     expect(firestoreRules.match(/function hasAuthorRole/g)).toHaveLength(1);
     // Defined once and used once (inside isAnyAuthor).
     expect(firestoreRules.match(/hasAuthorRole\(\)/g)).toHaveLength(2);
@@ -313,9 +328,9 @@ describe('website link rules', () => {
     // Orders: only imported, pending and dotted app.* paths.
     expect(lib).toMatch(/imported: \{/);
     expect(lib).toContain("'app.shipment': shipment, 'app.shipmentWaiting': true");
-    expect(fb).toContain("tx.update(doc(fs, 'websiteOrders', u.orderId), u.data)");
+    expect(fb).toContain("tx.update(doc(home, 'websiteOrders', u.orderId), u.data)");
     // websiteLink/app is the only websiteLink doc the app writes.
-    const linkDocs = [...fb.matchAll(/doc\(fs, 'websiteLink', '([a-z]+)'\)/g)].map(m => m[1]);
+    const linkDocs = [...fb.matchAll(/doc\(home, 'websiteLink', '([a-z]+)'\)/g)].map(m => m[1]);
     expect(linkDocs.length).toBeGreaterThanOrEqual(2);
     expect(linkDocs.every(d => d === 'app')).toBe(true);
     // The to-do list and the two maps go only into the fields the rule allows.

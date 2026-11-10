@@ -29,6 +29,8 @@ export function useStudioPersistence(props: {
   normalize?: (design: any) => any;
   /** Read the live design fresh (a scheduled go-live can change it behind Studio's back). Discard goes back to it. */
   readPublished?: () => Promise<any>;
+  /** Draft saves say nothing when they work (the designer before a store exists saves by itself as the press edits). */
+  quietDrafts?: boolean;
 }) {
   const current = useRef(props); current.current = props;
   const writer = useRef(createSnapshotWriter());
@@ -116,7 +118,7 @@ export function useStudioPersistence(props: {
       if (kind === "discard") { p.reset(source); dismissRecovery(); }
       p.onPersisted?.(snapshot, kind === "publish");
       if (kind !== "discard") setLastSaved({ at: Date.now(), kind });
-      p.say("ok", kind === "publish" ? "Published. Newer edits remain in your draft." : kind === "discard" ? "Draft discarded." : "Draft saved. Publish when you’re ready to go live.");
+      if (!(kind === "draft" && p.quietDrafts)) p.say("ok", kind === "publish" ? "Published. Newer edits remain in your draft." : kind === "discard" ? "Draft discarded." : "Draft saved. Publish when you’re ready to go live.");
       if (kind !== "discard") {
         try { await adminApiVersion(kind, snapshot); }
         catch { p.say("err", "Your design was saved, but its history snapshot could not be saved."); }

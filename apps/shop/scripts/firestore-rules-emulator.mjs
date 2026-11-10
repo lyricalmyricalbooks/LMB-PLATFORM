@@ -11,15 +11,29 @@ import { doc, setDoc, getDoc, getDocs, deleteDoc, collection, collectionGroup, q
 
 const [host, port] = (process.env.FIRESTORE_EMULATOR_HOST || "127.0.0.1:8080").split(":");
 const rulesPath = process.env.RULES_FILE || new URL("../firestore.rules", import.meta.url);
-// The rules name the owner as a template slot that scripts/deployConfig.mjs fills in at deploy (OWNER_PLACEHOLDER there);
-// these checks fill it with the test owner, as a deploy would. This file is copied on its own in CI, so it can't import it.
-const rules = readFileSync(rulesPath, "utf8").replaceAll("__SHOP_OWNER_EMAIL__", "owner@example.com");
+const rules = readFileSync(rulesPath, "utf8");
 const env = await initializeTestEnvironment({ projectId: "demo-rules", firestore: { rules, host, port: Number(port) } });
 let failures = 0;
 async function check(name, p) { try { await p; console.log("ok  ", name); } catch (e) { failures++; console.log("FAIL", name, e.message); } }
 
+// The shared system (LMB-PLATFORM docs/shared-system.md): every shop is a folder, shops/<id>, in one database, and a
+// sign-in belongs to one shop's sign-in list (its tenant). The checks below run in shop "s1"; the last block proves that
+// nothing from shop "s2" (or a sign-in with no tenant) gets into it. Each shop's record names its tenant and owner.
+const SHOP = "s1";
+const TENANT = "tenant-s1";
+const folder = (fs, shop = SHOP) => doc(fs, "shops", shop);
+/** A signed-in person of `tenant`'s shop, reading and writing inside `shop`'s folder. */
+function signedIn(uid, claims = {}, { tenant = TENANT, shop = SHOP } = {}) {
+  const firebase = { sign_in_provider: "password", ...(claims.firebase || {}), ...(tenant ? { tenant } : {}) };
+  return folder(env.authenticatedContext(uid, { ...claims, firebase }).firestore(), shop);
+}
 await env.withSecurityRulesDisabled(async ctx => {
-  const db = ctx.firestore();
+  await setDoc(doc(ctx.firestore(), "shops/s1"), { tenant: TENANT, ownerEmail: "owner@example.com" });
+  await setDoc(doc(ctx.firestore(), "shops/s2"), { tenant: "tenant-s2", ownerEmail: "owner2@example.com" });
+});
+
+await env.withSecurityRulesDisabled(async ctx => {
+  const db = folder(ctx.firestore());
   await setDoc(doc(db, "pages/pub"), { status: "published", title: "About" });
   await setDoc(doc(db, "pages/draft"), { status: "draft", title: "Secret" });
   await setDoc(doc(db, "reviews/existing"), { status: "approved", createdAt: "x" });
@@ -30,7 +44,7 @@ await env.withSecurityRulesDisabled(async ctx => {
   await setDoc(doc(db, "books/pub/private/admin"), { costPrice: 6.5, shelfLocation: "B2" });
   await setDoc(doc(db, "analytics/seeded"), { date: "seeded", visits: 5 });
 });
-const anon = env.unauthenticatedContext().firestore();
+const anon = folder(env.unauthenticatedContext().firestore());
 const today = new Date().toISOString().split("T")[0];
 
 // pages
@@ -79,7 +93,7 @@ await check("page speed +1 ok", assertSucceeds(setDoc(doc(anon, "analytics", tod
   const busy = today;
   const many = (prefix, n) => Object.fromEntries(Array.from({ length: n }, (_, i) => [`${prefix}${i}`, 3]));
   await env.withSecurityRulesDisabled(async (ctx) => {
-    await setDoc(doc(ctx.firestore(), "analytics", busy), {
+    await setDoc(doc(folder(ctx.firestore()), "analytics", busy), {
       date: busy, visits: 500, funnel: { view: 40, add_to_cart: 9, checkout_start: 5, purchase: 2 }, devices: { mobile: 9, tablet: 1, desktop: 4 },
       sources: many("s", 59), searches: many("q", 149), noResults: many("n", 149), bookViews: many("b", 299), categoryViews: many("c", 99),
       bookAdds: many("b", 299), wishlistAdds: many("b", 299), unbuyableViews: many("b", 299),
@@ -108,7 +122,7 @@ await check("combined: two visits in one write refused (planner splits them)", a
   const busy2 = new Date(Date.now() - 86400000).toISOString().split("T")[0];
   const many = (prefix, n) => Object.fromEntries(Array.from({ length: n }, (_, i) => [`${prefix}${i}`, 3]));
   await env.withSecurityRulesDisabled(async (ctx) => {
-    await setDoc(doc(ctx.firestore(), "analytics", busy2), {
+    await setDoc(doc(folder(ctx.firestore()), "analytics", busy2), {
       date: busy2, visits: 500, funnel: { view: 40, add_to_cart: 9, checkout_start: 5, purchase: 2 }, devices: { mobile: 9, tablet: 1, desktop: 4 },
       sources: many("s", 50), searches: many("q", 140), noResults: many("n", 140), bookViews: many("b", 290), categoryViews: many("c", 90),
       bookAdds: many("b", 290), wishlistAdds: many("b", 290), unbuyableViews: many("b", 290),
@@ -138,7 +152,7 @@ await check("unknown analytics field refused", assertFails(setDoc(doc(anon, "ana
 // reviews + contacts
 {
   const createdAt = new Date().toISOString();
-  const b = writeBatch(anon);
+  const b = writeBatch(anon.firestore);
   b.set(doc(anon, "reviews/r1"), { bookId: "b", authorName: "A", rating: 5, title: "", body: "Nice", status: "pending", createdAt });
   b.set(doc(anon, "reviewContacts/r1"), { email: "a@b.co", createdAt });
   await check("review + contact batch", assertSucceeds(b.commit()));
@@ -147,19 +161,19 @@ await check("contact alone refused", assertFails(setDoc(doc(anon, "reviewContact
 await check("contact on existing review refused", assertFails(setDoc(doc(anon, "reviewContacts/existing"), { email: "a@b.co", createdAt: "x" })));
 {
   const createdAt = new Date().toISOString();
-  const b = writeBatch(anon);
+  const b = writeBatch(anon.firestore);
   b.set(doc(anon, "reviews/r3"), { bookId: "b", rating: 5, body: "Nice", status: "pending", createdAt });
   await check("review without email", assertSucceeds(b.commit()));
 }
 
 // customers
-const user = env.authenticatedContext("u1", { email: "reader@example.com", email_verified: true }).firestore();
+const user = signedIn("u1", { email: "reader@example.com", email_verified: true });
 await check("own profile create", assertSucceeds(setDoc(doc(user, "customers/u1"), { uid: "u1", email: "reader@example.com", name: "Reader" })));
 await check("own profile address update", assertSucceeds(setDoc(doc(user, "customers/u1"), { uid: "u1", email: "reader@example.com", name: "Reader", phone: "555", defaultAddress: { street: "1 Main", city: "Toronto", state: "ON", zip: "M1M1M1", country: "Canada" } })));
 await check("other email refused", assertFails(setDoc(doc(user, "customers/u1"), { uid: "u1", email: "victim@example.com", name: "x" })));
 await check("huge name refused", assertFails(setDoc(doc(user, "customers/u1"), { uid: "u1", email: "reader@example.com", name: "x".repeat(500) })));
 await check("extra key refused", assertFails(setDoc(doc(user, "customers/u1"), { uid: "u1", email: "reader@example.com", name: "x", junk: "y" })));
-const noEmail = env.authenticatedContext("u2", {}).firestore();
+const noEmail = signedIn("u2", {});
 await check("no-email account with blank email", assertSucceeds(setDoc(doc(noEmail, "customers/u2"), { uid: "u2", email: "", name: "" })));
 await check("no-email account naming an email refused", assertFails(setDoc(doc(noEmail, "customers/u2"), { uid: "u2", email: "victim@example.com", name: "" })));
 
@@ -208,16 +222,17 @@ await check("anon can't read a book with no status", assertFails(getDoc(doc(anon
 await check("anon published list query", assertSucceeds(getDocs(query(collection(anon, "books"), where("status", "==", "published"), orderBy(documentId())))));
 await check("anon unfiltered list refused", assertFails(getDocs(collection(anon, "books"))));
 await check("anon can't read the private document", assertFails(getDoc(doc(anon, "books/pub/private/admin"))));
-await check("anon can't list the private documents", assertFails(getDocs(collectionGroup(anon, "private"))));
+await check("anon can't list the private documents", assertFails(getDocs(collectionGroup(anon.firestore, "private"))));
 await check("signed-in customer can't read the private document", assertFails(getDoc(doc(user, "books/pub/private/admin"))));
 await check("anon can't write a book", assertFails(setDoc(doc(anon, "books/new"), { status: "published", title: "x" })));
 await check("anon can't write the private document", assertFails(setDoc(doc(anon, "books/pub/private/admin"), { costPrice: 0 })));
 {
-  const admin = env.authenticatedContext("admin", { email: "owner@example.com", email_verified: true }).firestore();
+  const admin = signedIn("admin", { email: "owner@example.com", email_verified: true });
   await check("admin reads a draft book", assertSucceeds(getDoc(doc(admin, "books/draft"))));
   await check("admin lists every book", assertSucceeds(getDocs(collection(admin, "books"))));
   await check("admin reads the private document", assertSucceeds(getDoc(doc(admin, "books/pub/private/admin"))));
-  await check("admin reads every private document (collection group)", assertSucceeds(getDocs(collectionGroup(admin, "private"))));
+  // The admin reads private documents one book at a time: a collection-group read would cross every shop's folder.
+  await check("admin can't read every shop's private documents (collection group)", assertFails(getDocs(collectionGroup(admin.firestore, "private"))));
   await check("admin writes the private document", assertSucceeds(setDoc(doc(admin, "books/pub/private/admin"), { costPrice: 7 }, { merge: true })));
   // Overview sales notes (admin/overview/overviewNotesStore.ts): admin-only, same shape as the boards.
   await check("admin saves the Overview notes", assertSucceeds(setDoc(doc(admin, "adminPrefs/overviewNotes"), { data: "[]", updatedAt: Date.now() })));
@@ -232,7 +247,7 @@ await check("anon can't write the private document", assertFails(setDoc(doc(anon
   await check("signed-in customer can't read the tour mark", assertFails(getDoc(doc(user, "adminPrefs/combinedTour"))));
   await check("anon can't write the tour mark", assertFails(setDoc(doc(anon, "adminPrefs/combinedTour"), { data: "done", updatedAt: 1 })));
   await check("other adminPrefs documents stay closed", assertFails(setDoc(doc(admin, "adminPrefs/somethingElse"), { data: "x", updatedAt: 1 })));
-  const unverified = env.authenticatedContext("imposter", { email: "owner@example.com", email_verified: false }).firestore();
+  const unverified = signedIn("imposter", { email: "owner@example.com", email_verified: false });
   await check("unverified admin email can't read the private document", assertFails(getDoc(doc(unverified, "books/pub/private/admin"))));
 }
 
@@ -245,7 +260,7 @@ await check("anon can't read customer notes", assertFails(getDoc(doc(anon, "cust
 await check("anon can't write customer notes", assertFails(setDoc(doc(anon, "customerNotes/x"), { email: "a@b.co", note: "", tags: [], updatedAt: "now" })));
 await check("anon can't read opt-outs", assertFails(getDoc(doc(anon, "marketing-optout/x"))));
 {
-  const admin = env.authenticatedContext("admin", { email: "owner@example.com", email_verified: true }).firestore();
+  const admin = signedIn("admin", { email: "owner@example.com", email_verified: true });
   await check("admin writes a customer note", assertSucceeds(setDoc(doc(admin, "customerNotes/x"), { email: "a@b.co", note: "Likes poetry", tags: ["wholesale"], updatedAt: "now" })));
   await check("admin keeps a brought-over customer's name and place", assertSucceeds(setDoc(doc(admin, "customerNotes/z"), { email: "b@b.co", note: "Brought over from your old shop", tags: [], name: "Ben", place: "Toronto, ON", updatedAt: "now" })));
   await check("admin note name too long refused", assertFails(setDoc(doc(admin, "customerNotes/z2"), { email: "b@b.co", note: "", tags: [], name: "x".repeat(101), updatedAt: "now" })));
@@ -272,7 +287,7 @@ await check("anon can't write the first week", assertFails(setDoc(doc(anon, "fir
 
 // Inventory app link: per-order records are server-only; the admin reads the link's status document.
 {
-  const admin = env.authenticatedContext("admin", { email: "owner@example.com", email_verified: true }).firestore();
+  const admin = signedIn("admin", { email: "owner@example.com", email_verified: true });
   await check("anon can't read inventory pushes", assertFails(getDoc(doc(anon, "inventoryPushes/x"))));
   await check("admin can't read inventory pushes", assertFails(getDoc(doc(admin, "inventoryPushes/x"))));
   await check("admin can't write inventory pushes", assertFails(setDoc(doc(admin, "inventoryPushes/x"), { net: { a: 1 } })));
@@ -296,11 +311,11 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
 
 // Team roles (functions/roles.js): the owner address or a role on the pass opens the admin; only owners manage the Team
 {
-  const owner = env.authenticatedContext("o1", { email: "owner@example.com", email_verified: true }).firestore();
-  const ownerRole = env.authenticatedContext("o2", { email: "co@press.test", email_verified: true, role: "owner" }).firestore();
-  const staff = env.authenticatedContext("s1", { email: "sam@press.test", email_verified: true, role: "staff" }).firestore();
-  const unverifiedStaff = env.authenticatedContext("s2", { email: "kim@press.test", email_verified: false, role: "staff" }).firestore();
-  const stranger = env.authenticatedContext("r1", { email: "reader@press.test", email_verified: true, role: "boss" }).firestore();
+  const owner = signedIn("o1", { email: "owner@example.com", email_verified: true });
+  const ownerRole = signedIn("o2", { email: "co@press.test", email_verified: true, role: "owner" });
+  const staff = signedIn("s1", { email: "sam@press.test", email_verified: true, role: "staff" });
+  const unverifiedStaff = signedIn("s2", { email: "kim@press.test", email_verified: false, role: "staff" });
+  const stranger = signedIn("r1", { email: "reader@press.test", email_verified: true, role: "boss" });
   await check("staff reads a draft book", assertSucceeds(getDoc(doc(staff, "books/draft"))));
   await check("unverified staff can't", assertFails(getDoc(doc(unverifiedStaff, "books/draft"))));
   await check("unknown role can't", assertFails(getDoc(doc(stranger, "books/draft"))));
@@ -322,7 +337,7 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("staff reads webhook status", assertSucceeds(getDoc(doc(staff, "adminSecrets/stripeWebhookStatus"))));
   await check("owner writes keys", assertSucceeds(setDoc(doc(owner, "adminSecrets/stripe"), { secretKey: "x" })));
   // The author role is for the stockroom only: the owner may give it, but it opens nothing in the shop's admin.
-  const author = env.authenticatedContext("a1", { email: "ana@press.test", email_verified: true, role: "author" }).firestore();
+  const author = signedIn("a1", { email: "ana@press.test", email_verified: true, role: "author" });
   await check("owner adds an author", assertSucceeds(setDoc(doc(owner, "members/ana@press.test"), { role: "author" })));
   await check("staff can't add an author", assertFails(setDoc(doc(staff, "members/new@press.test"), { role: "author" })));
   await check("author can't read a draft book", assertFails(getDoc(doc(author, "books/draft"))));
@@ -333,7 +348,7 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("author can't read webhook status", assertFails(getDoc(doc(author, "adminSecrets/stripeWebhookStatus"))));
   // The fair helper role (docs/combined-admin.md › Fair helpers plan) is for the stockroom's Fair till: the owner can
   // add one, and it opens nothing of the shop's.
-  const helper = env.authenticatedContext("h1", { email: "hal@press.test", email_verified: true, role: "fairHelper" }).firestore();
+  const helper = signedIn("h1", { email: "hal@press.test", email_verified: true, role: "fairHelper" });
   await check("owner adds a fair helper", assertSucceeds(setDoc(doc(owner, "members/hal@press.test"), { role: "fairHelper" })));
   await check("fair helper reads no order", assertFails(getDoc(doc(helper, "orders/o1"))));
   await check("fair helper reads no secret keys", assertFails(getDoc(doc(helper, "adminSecrets/stripe"))));
@@ -343,14 +358,14 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   // The bookkeeper role (plan 7.17): reads orders, gift cards and the daily figures; never books, customers, settings,
   // keys or the Team, and never writes anything.
   await env.withSecurityRulesDisabled(async ctx => {
-    const db = ctx.firestore();
+    const db = folder(ctx.firestore());
     await setDoc(doc(db, "orders/BK-1"), { orderId: "BK-1", paymentStatus: "paid", total: 20, tax: 2, customer: { name: "Rae", email: "rae@press.test" }, createdAt: "2026-02-01" });
     await setDoc(doc(db, "giftCards/g1"), { last4: "AB12", balanceMinor: 2500 });
     await setDoc(doc(db, "customers/c1"), { email: "rae@press.test" });
     await setDoc(doc(db, "settings/website"), { storeName: "Press" });
   });
-  const bookkeeper = env.authenticatedContext("k1", { email: "kit@press.test", email_verified: true, role: "bookkeeper" }).firestore();
-  const unverifiedBookkeeper = env.authenticatedContext("k2", { email: "kit@press.test", email_verified: false, role: "bookkeeper" }).firestore();
+  const bookkeeper = signedIn("k1", { email: "kit@press.test", email_verified: true, role: "bookkeeper" });
+  const unverifiedBookkeeper = signedIn("k2", { email: "kit@press.test", email_verified: false, role: "bookkeeper" });
   await check("owner adds a bookkeeper", assertSucceeds(setDoc(doc(owner, "members/kit@press.test"), { role: "bookkeeper" })));
   await check("bookkeeper reads an order", assertSucceeds(getDoc(doc(bookkeeper, "orders/BK-1"))));
   await check("bookkeeper lists orders", assertSucceeds(getDocs(query(collection(bookkeeper, "orders"), orderBy("createdAt", "desc")))));
@@ -361,8 +376,8 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("bookkeeper can't delete an order", assertFails(deleteDoc(doc(bookkeeper, "orders/BK-1"))));
   // Past orders brought over from the old shop (plan 23.7) are history only: the owner may delete one to undo an import.
   await env.withSecurityRulesDisabled((ctx) => Promise.all([
-    setDoc(doc(ctx.firestore(), "orders/PAST-1"), { orderId: "PAST-1", source: "import", paymentStatus: "paid", paidAt: "2025-06-01T00:00:00Z", fulfillmentStatus: "delivered", total: 20 }),
-    setDoc(doc(ctx.firestore(), "orders/PAID-1"), { orderId: "PAID-1", paymentStatus: "paid", paidAt: "2025-06-01T00:00:00Z", total: 20 }),
+    setDoc(doc(folder(ctx.firestore()), "orders/PAST-1"), { orderId: "PAST-1", source: "import", paymentStatus: "paid", paidAt: "2025-06-01T00:00:00Z", fulfillmentStatus: "delivered", total: 20 }),
+    setDoc(doc(folder(ctx.firestore()), "orders/PAID-1"), { orderId: "PAID-1", paymentStatus: "paid", paidAt: "2025-06-01T00:00:00Z", total: 20 }),
   ]));
   await check("bookkeeper can't delete a brought-over order", assertFails(deleteDoc(doc(bookkeeper, "orders/PAST-1"))));
   await check("owner deletes a brought-over past order", assertSucceeds(deleteDoc(doc(owner, "orders/PAST-1"))));
@@ -381,10 +396,10 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   // Platform support ("act as this shop", functions/roles.js supportOf): staff access for an "edit" visit until its time,
   // custom sign-in only. A "view" visit (the default, plan 9.8) reads what staff read and changes nothing.
   const inTen = Math.floor(Date.now() / 1000) + 600;
-  const support = env.authenticatedContext("colophon-support", { firebase: { sign_in_provider: "custom" }, support: { by: "admin@platform.example", reason: "help", until: inTen, mode: "edit" } }).firestore();
-  const viewer = env.authenticatedContext("colophon-viewer", { firebase: { sign_in_provider: "custom" }, support: { by: "admin@platform.example", reason: "look", until: inTen } }).firestore();
-  const lateSupport = env.authenticatedContext("colophon-support", { firebase: { sign_in_provider: "custom" }, support: { by: "a", until: inTen - 1200 } }).firestore();
-  const fakeSupport = env.authenticatedContext("g1", { email: "x@press.test", email_verified: true, firebase: { sign_in_provider: "google.com" }, support: { until: inTen } }).firestore();
+  const support = signedIn("colophon-support", { firebase: { sign_in_provider: "custom" }, support: { by: "admin@platform.example", reason: "help", until: inTen, mode: "edit" } });
+  const viewer = signedIn("colophon-viewer", { firebase: { sign_in_provider: "custom" }, support: { by: "admin@platform.example", reason: "look", until: inTen } });
+  const lateSupport = signedIn("colophon-support", { firebase: { sign_in_provider: "custom" }, support: { by: "a", until: inTen - 1200 } });
+  const fakeSupport = signedIn("g1", { email: "x@press.test", email_verified: true, firebase: { sign_in_provider: "google.com" }, support: { until: inTen } });
   await check("support reads a draft book", assertSucceeds(getDoc(doc(support, "books/draft"))));
   await check("support can't read the Team", assertFails(getDocs(collection(support, "members"))));
   await check("support can't read keys", assertFails(getDoc(doc(support, "adminSecrets/stripe"))));
@@ -396,9 +411,9 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   // The audit log is the shop's record of what was done, support visits included (the platform writes each "act as
   // this shop" there before the sign-in exists), so the admin only adds lines (admin/auditLog.ts): never changes or
   // removes one, the record of its own visit least of all.
-  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), "audit-log/support-visit"), { type: "support", message: "Support visit: help", createdAt: "2026-11-04T08:00:00.000Z" }));
-  const auditStaff = env.authenticatedContext("s1", { email: "sam@press.test", email_verified: true, role: "staff" }).firestore();
-  const auditOwner = env.authenticatedContext("o1", { email: "owner@example.com", email_verified: true }).firestore();
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(folder(ctx.firestore()), "audit-log/support-visit"), { type: "support", message: "Support visit: help", createdAt: "2026-11-04T08:00:00.000Z" }));
+  const auditStaff = signedIn("s1", { email: "sam@press.test", email_verified: true, role: "staff" });
+  const auditOwner = signedIn("o1", { email: "owner@example.com", email_verified: true });
   const line = { type: "settings", message: "Updated settings: storeName", createdAt: new Date().toISOString() };
   await check("staff adds an audit line", assertSucceeds(setDoc(doc(collection(auditStaff, "audit-log")), line)));
   await check("an edit visit adds an audit line", assertSucceeds(setDoc(doc(collection(support, "audit-log")), line)));
@@ -433,13 +448,13 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
 // public, and no browser writes either (the owner included). New orders on a paused plan are refused by the server
 // (functions/planPause.test.js): the guest order rule is at the 1000-expression limit and doesn't read the status.
 {
-  const owner = env.authenticatedContext("o1", { email: "owner@example.com", email_verified: true }).firestore();
-  const staff = env.authenticatedContext("s1", { email: "sam@press.test", email_verified: true, role: "staff" }).firestore();
-  const bookkeeper = env.authenticatedContext("k1", { email: "kit@press.test", email_verified: true, role: "bookkeeper" }).firestore();
-  const reader = env.authenticatedContext("u1", { email: "reader@example.com", email_verified: true }).firestore();
+  const owner = signedIn("o1", { email: "owner@example.com", email_verified: true });
+  const staff = signedIn("s1", { email: "sam@press.test", email_verified: true, role: "staff" });
+  const bookkeeper = signedIn("k1", { email: "kit@press.test", email_verified: true, role: "bookkeeper" });
+  const reader = signedIn("u1", { email: "reader@example.com", email_verified: true });
   const setStatus = (access) => env.withSecurityRulesDisabled((ctx) => Promise.all([
-    setDoc(doc(ctx.firestore(), "platform/status"), { access, updatedAt: "2027-01-01T00:00:00.000Z" }),
-    setDoc(doc(ctx.firestore(), "platform/plan"), { state: access === "open" ? "trial" : access, access, hasCard: false, link: "https://platform.example/account/billing?shop=x" }),
+    setDoc(doc(folder(ctx.firestore()), "platform/status"), { access, updatedAt: "2027-01-01T00:00:00.000Z" }),
+    setDoc(doc(folder(ctx.firestore()), "platform/plan"), { state: access === "open" ? "trial" : access, access, hasCard: false, link: "https://platform.example/account/billing?shop=x" }),
   ]));
   await setStatus("paused");
   await check("owner reads the plan", assertSucceeds(getDoc(doc(owner, "platform/plan"))));
@@ -460,21 +475,58 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await setStatus("open");
   await check("owner reads an open plan", assertSucceeds(getDoc(doc(owner, "platform/plan"))));
   // The control room's messages (code plan 19.14): the admins' to read, like the plan; nobody else reads or writes them.
-  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "platform/messages"), { messages: [{ id: "m1", words: "Hello", level: "info", startsAt: "2026-11-01T00:00:00.000Z", endsAt: "2026-11-09T00:00:00.000Z" }] }));
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(folder(ctx.firestore()), "platform/messages"), { messages: [{ id: "m1", words: "Hello", level: "info", startsAt: "2026-11-01T00:00:00.000Z", endsAt: "2026-11-09T00:00:00.000Z" }] }));
   await check("owner reads the platform's messages", assertSucceeds(getDoc(doc(owner, "platform/messages"))));
   await check("staff reads the platform's messages", assertSucceeds(getDoc(doc(staff, "platform/messages"))));
   await check("a shopper can't read the platform's messages", assertFails(getDoc(doc(reader, "platform/messages"))));
   await check("anon can't read the platform's messages", assertFails(getDoc(doc(anon, "platform/messages"))));
   await check("owner can't write the platform's messages", assertFails(setDoc(doc(owner, "platform/messages"), { messages: [] })));
-  await env.withSecurityRulesDisabled((ctx) => deleteDoc(doc(ctx.firestore(), "platform/messages")));
-  await env.withSecurityRulesDisabled((ctx) => Promise.all([deleteDoc(doc(ctx.firestore(), "platform/status")), deleteDoc(doc(ctx.firestore(), "platform/plan"))]));
+  await env.withSecurityRulesDisabled((ctx) => deleteDoc(doc(folder(ctx.firestore()), "platform/messages")));
+  await env.withSecurityRulesDisabled((ctx) => Promise.all([deleteDoc(doc(folder(ctx.firestore()), "platform/status")), deleteDoc(doc(folder(ctx.firestore()), "platform/plan"))]));
   // Changes asked for by installed apps (functions/appRequests.js): admins read them in Settings › Apps; only the server writes.
-  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "appRequests/r1"), { op: "order.dispatch", appName: "Parcel Pal", createdAt: "2026-11-04T15:00:00Z", status: "done" }));
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(folder(ctx.firestore()), "appRequests/r1"), { op: "order.dispatch", appName: "Parcel Pal", createdAt: "2026-11-04T15:00:00Z", status: "done" }));
   await check("owner reads app activity", assertSucceeds(getDocs(query(collection(owner, "appRequests"), orderBy("createdAt", "desc")))));
   await check("a shopper can't read app activity", assertFails(getDoc(doc(reader, "appRequests/r1"))));
   await check("anon can't read app activity", assertFails(getDoc(doc(anon, "appRequests/r1"))));
   await check("owner can't write an app request", assertFails(setDoc(doc(owner, "appRequests/r2"), { op: "order.dispatch" })));
   await check("owner can't answer an app request", assertFails(setDoc(doc(owner, "appRequests/r1"), { status: "refused" }, { merge: true })));
+}
+
+// Walls between shops (docs/shared-system.md). Shop s2 has its own records; nobody from s1's sign-in list may touch
+// them, and nobody from s2's (or from no list at all) may touch s1's, whatever role or address the pass carries.
+{
+  await env.withSecurityRulesDisabled(ctx => Promise.all([
+    setDoc(doc(ctx.firestore(), "shops/s2/books/draft2"), { status: "draft", title: "Their unannounced book" }),
+    setDoc(doc(ctx.firestore(), "shops/s2/orders/o2"), { orderId: "o2", paymentStatus: "paid", customer: { email: "reader@example.com" }, total: 9 }),
+    setDoc(doc(ctx.firestore(), "shops/s1/orders/o1"), { orderId: "o1", paymentStatus: "paid", customer: { email: "reader@example.com" }, total: 5 }),
+  ]));
+  const ownerHere = signedIn("o1", { email: "owner@example.com", email_verified: true });
+  const ownerThere = signedIn("o9", { email: "owner2@example.com", email_verified: true }, { tenant: "tenant-s2", shop: "s2" });
+  // The same people, pointed at the other shop's folder.
+  const ownerHereInS2 = signedIn("o1", { email: "owner@example.com", email_verified: true }, { shop: "s2" });
+  const ownerThereInS1 = signedIn("o9", { email: "owner2@example.com", email_verified: true }, { tenant: "tenant-s2" });
+  const staffThereInS1 = signedIn("s9", { email: "sam@press.test", email_verified: true, role: "staff" }, { tenant: "tenant-s2" });
+  const ownerRoleThereInS1 = signedIn("s8", { email: "x@press.test", email_verified: true, role: "owner" }, { tenant: "tenant-s2" });
+  const noTenantOwner = signedIn("o7", { email: "owner@example.com", email_verified: true }, { tenant: "" });
+  const customerThere = signedIn("u9", { email: "reader@example.com", email_verified: true }, { tenant: "tenant-s2" });
+  const supportThere = signedIn("colophon-support", { firebase: { sign_in_provider: "custom" }, support: { by: "a", until: Math.floor(Date.now() / 1000) + 600, mode: "edit" } }, { tenant: "tenant-s2" });
+
+  await check("owner reads their own shop's orders (control)", assertSucceeds(getDoc(doc(ownerHere, "orders/o1"))));
+  await check("owner of the other shop reads their own orders (control)", assertSucceeds(getDoc(doc(ownerThere, "orders/o2"))));
+  await check("owner can't read another shop's order", assertFails(getDoc(doc(ownerHereInS2, "orders/o2"))));
+  await check("owner can't read another shop's draft book", assertFails(getDoc(doc(ownerHereInS2, "books/draft2"))));
+  await check("owner can't write another shop's settings", assertFails(setDoc(doc(ownerHereInS2, "settings/website"), { info: { name: "Mine now" } })));
+  await check("owner can't list another shop's orders", assertFails(getDocs(collection(ownerHereInS2, "orders"))));
+  await check("the other shop's owner can't read this shop's orders", assertFails(getDoc(doc(ownerThereInS1, "orders/o1"))));
+  await check("the other shop's staff can't write this shop's books", assertFails(setDoc(doc(staffThereInS1, "books/new"), { status: "draft", title: "x" })));
+  await check("an owner role from another shop opens nothing here", assertFails(getDoc(doc(ownerRoleThereInS1, "members/sam@press.test"))));
+  await check("the owner's own address from no shop's sign-in list opens nothing", assertFails(getDoc(doc(noTenantOwner, "orders/o1"))));
+  await check("a customer of another shop can't read this shop's orders by email", assertFails(getDocs(query(collection(customerThere.firestore, "shops/s1/orders"), where("customer.email", "==", "reader@example.com")))));
+  await check("a support visit to another shop opens nothing here", assertFails(getDoc(doc(supportThere, "orders/o1"))));
+  await check("nobody reads a shop's record", assertFails(getDoc(doc(ownerHere.firestore, "shops/s1"))));
+  await check("nobody writes a shop's record", assertFails(setDoc(doc(ownerHere.firestore, "shops/s1"), { tenant: "tenant-s2" })));
+  await check("nothing outside the shop folders", assertFails(setDoc(doc(ownerHere.firestore, "books/root"), { status: "published", title: "x" })));
+  await check("anon still reads another shop's published book only", assertFails(getDoc(doc(anon.firestore, "shops/s2/books/draft2"))));
 }
 
 await env.cleanup();

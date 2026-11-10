@@ -51,6 +51,7 @@ function platform() {
       case "details/save": return send(200, { ok: true, saved: true });
       case "email-language": world.status = { ...world.status, emailLanguage: { choice: body.language, sends: body.language === "auto" ? "en" : body.language } }; return send(200, { ok: true, changed: true });
       case "download": return send(200, { ok: true, emailedTo: "owner@example.com", expiresAt: "2026-11-10T12:00:00Z" });
+      case "cost-alert": return send(200, { ok: true, changed: true });
       case "pay-now": world.status = { ...world.status, status: "active", paymentProblem: null, canPayNow: false }; return send(200, { ok: true, paid: true });
       default: return send(404, { ok: false, message: "There's nothing here." });
     }
@@ -87,27 +88,24 @@ describe("Settings › Plan", () => {
     await mount(PlanPage);
     expect(text()).toContain("Shop and stockroom");
     expect(text()).toContain("$29.25 a month plus tax");
-    expect(text()).toContain("Founding: 25% off for good");
+    expect(text()).toContain("Founding: 25% off the fee for good");
     expect(text()).toContain("14 days left");
     expect(text()).toContain("Visa ending 4242");
     expect(text()).toContain("Switch to pay as you sell");
   });
 
-  it("changes plan through its preview: what closes and when, then the switch", async () => {
+  it("shows what every shop gets, with no plan to pick", async () => {
     await mount(PlanPage);
-    const shop = document.querySelector('[data-plan-option="shop"] input') as HTMLInputElement;
-    await click(shop);
-    expect(text()).toContain("Switch to Shop?");
-    expect(text()).toContain("The stockroom closes now.");
-    expect(text()).toContain("Why are you dropping the stockroom? (optional)");
-    const why = document.querySelector(".rp-dialog select") as HTMLSelectElement;
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!.call(why, "not-using");
-      why.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-    await click(button("Switch plan"));
-    expect(world.calls.filter(([c]) => c === "change-plan").map(([, b]) => [b.plan, b.preview ?? false, b.reason])).toEqual([["shop", true, undefined], ["shop", false, "not-using"]]);
-    expect(text()).not.toContain("Switch to Shop?");
+    expect(text()).toContain("What's included");
+    expect(text()).toContain("$39.00 a month plus tax, plus what your shop costs to run.");
+    expect(document.querySelector("[data-plan-option]")).toBeNull();
+  });
+
+  it("a shop still on an older plan can get the website and stockroom now, through the usual preview", async () => {
+    world.status = status({ plan: "shop", planName: "Shop" });
+    await mount(PlanPage);
+    await click(button("Get the website and stockroom"));
+    expect(world.calls.filter(([c]) => c === "change-plan").map(([, b]) => [b.plan, b.preview ?? false])).toEqual([["both", true]]);
   });
 
   it("cancels with the press's reason, then keeps the plan", async () => {
@@ -195,13 +193,37 @@ describe("Settings › Plan", () => {
     world.refuse = { "change-plan": { message: "Your plan is paid, so this change needs your two-step sign-in. Finish it on your account page.", twoStep: true, accountPage: PLAN.link } };
     await mount(PlanPage);
     expect(document.querySelector("[data-two-step-note]")).not.toBeNull();
-    await click(document.querySelector('[data-plan-option="shop"] input')!);
+    world.status = status({ plan: "shop", planName: "Shop" });
+    act(() => root?.unmount()); root = null; document.body.innerHTML = "";
+    await mount(PlanPage);
+    await click(button("Get the website and stockroom"));
     const link = [...document.querySelectorAll("a")].find((a) => a.textContent?.includes("Or use your account page")) as HTMLAnchorElement;
     expect(link.href).toBe(PLAN.link);
   });
 });
 
 describe("Settings › Billing", () => {
+  it("pay what you use: the price says running cost comes on top, last month's cost shows, and the email amount saves", async () => {
+    world.status = status({ price: "$5.00", founding: null, usage: { fee: "$5.00", lastMonth: { month: "2026-10", monthWords: "October 2026", cents: 253, text: "$2.53" }, alert: { cents: 2500, text: "$25.00" } } });
+    await mount(PlanPage);
+    expect(text()).toContain("$5.00 a month + running cost plus tax");
+    act(() => root?.unmount()); root = null; document.body.innerHTML = "";
+    await mount(BillingPage);
+    const card = document.querySelector("[data-running-cost]")!;
+    expect(card.textContent).toContain("$2.53 for October 2026");
+    expect(button("Save").disabled).toBe(true);
+    await type("Email me if a month's bill may pass", "abc");
+    expect(text()).toContain("Type an amount, like 25 or 25.50");
+    await type("Email me if a month's bill may pass", "40");
+    await click(button("Save"));
+    expect(world.calls.filter(([c]) => c === "cost-alert").map(([, b]) => b.cents)).toEqual([4000]);
+  });
+
+  it("without pay what you use there is no running-cost card", async () => {
+    await mount(BillingPage);
+    expect(document.querySelector("[data-running-cost]")).toBeNull();
+  });
+
   it("shows the next bill with the founding discount and tax, saved cards and past bills", async () => {
     await mount(BillingPage);
     expect(text()).toContain("−$9.75");

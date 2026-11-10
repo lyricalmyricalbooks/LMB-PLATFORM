@@ -4,7 +4,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../../lib/firebase", () => ({ auth: { currentUser: null } }));
-const { BillingCallError, billState, billingCall, callAddress, previewWords, statusBadge } = await import("./platformBilling");
+const { BillingCallError, alertCents, billState, billingCall, callAddress, previewWords, priceWords, statusBadge } = await import("./platformBilling");
 
 const PLAN = { hub: "https://platform.example/api/shop-billing/", shopId: "moth-press" };
 const answer = (status: number, body: unknown) => ({ ok: status < 300, status, json: async () => body }) as Response;
@@ -62,5 +62,19 @@ describe("words", () => {
     expect(statusBadge({ status: "canceled", access: "closed", cancelAtPeriodEnd: true, paymentWay: "payAsYouSell" }).word).toBe("Closed");
     expect(billState("open").word).toBe("Waiting for payment");
     expect(billState("paid").tone).toBe("success");
+  });
+});
+
+describe("pay what you use", () => {
+  it("the amount a press types for the heads-up email: dollars and cents, 0 turns it off, nothing odd", () => {
+    expect([alertCents("25"), alertCents("$25.50"), alertCents("25,5"), alertCents("0"), alertCents("10000")]).toEqual([2500, 2550, 2550, 0, 1_000_000]);
+    expect([alertCents(""), alertCents("abc"), alertCents("-5"), alertCents("10000.01"), alertCents("1.234")]).toEqual([null, null, null, null, null]);
+  });
+
+  it("the price says the running cost comes on top only under pay what you use", () => {
+    const usage = { fee: "$5.00", lastMonth: null, alert: { cents: 2500, text: "$25.00" } };
+    expect(priceWords({ price: "$5.00", plusTax: true, usage })).toBe("$5.00 a month + running cost plus tax");
+    expect(priceWords({ price: "$39.00", plusTax: true, usage: undefined })).toBe("$39.00 a month plus tax");
+    expect(priceWords({ price: "$5.00", plusTax: false, usage }, "$3.75")).toBe("$3.75 a month + running cost");
   });
 });

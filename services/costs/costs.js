@@ -98,6 +98,9 @@ export function costReport({ rows = [], costs, settings, fees = {} }) {
       currency: planCurrency,
       googleCents,
       planCents,
+      // Pay what you use: the running cost last put on the shop's bill (in planCents too), to set against Google's.
+      runningCents: Number.isInteger(row.billing?.lastRunningCost?.cents) ? row.billing.lastRunningCost.cents : 0,
+      runningMonth: row.billing?.lastRunningCost?.month ?? null,
       feeCents,
       paidCents,
       marginCents: comparable ? paidCents - googleCents : null,

@@ -1,6 +1,7 @@
 // The billing door (code plan 6.4) and the Plan & billing page (6.5), against the real billing service and the pretend
 // Stripe: only the shop's owner (from the shop's own team) gets in, every call is logged, each reaches the billing
 // service once, card pages come back only to /account/billing; and the page's words for each state, with pretend data.
+import { TIERED_PRICES_ENV } from "../services/billing/fakes.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -27,7 +28,7 @@ const SHOP = "moth-press";
 const NOW = Date.parse("2026-10-28T12:00:00Z");
 
 async function world() {
-  const settings = platformSettings({});
+  const settings = platformSettings(TIERED_PRICES_ENV);
   const registry = fakeRegistry();
   await registry.createShop(SHOP, { shopId: SHOP, pressName: "Moth Press", plan: "both", status: "live", ownerEmail: OWNER.email });
   const auditLog = fakeAuditLog();
@@ -86,7 +87,7 @@ test("the owner's calls each reach billing once and are logged, a second owner f
   const expect = { status: "status", card: "cardLink", cancel: "cancel", keep: "keep", "change-plan": "changePlan", invoices: "invoices" };
   for (const route of ROUTES) {
     const before = w.calls.length;
-    const answer = await w.ask(OWNER, route, { plan: "shop" });
+    const answer = await w.ask(OWNER, route, { plan: "both" });
     assert.equal(answer.status, 200, `${route}: ${answer.body.message}`);
     assert.deepEqual(w.calls.slice(before), [expect[route]], route);
   }
@@ -114,10 +115,12 @@ test("the answers: status, a preview that changes nothing, then the change; canc
   assert.deepEqual([billing.plan, billing.planName, billing.price, billing.status, billing.trialDaysLeft, billing.hasCard], ["both", "Shop and stockroom", "$39.00", "trialing", 14, false]);
   assert.equal(JSON.stringify(billing).includes("cus_"), false, "no Stripe ids reach the page");
 
-  const { preview } = (await w.ask(OWNER, "change-plan", { plan: "shop", preview: true })).body;
-  assert.deepEqual([preview.closes, preview.immediate], [["stockroom"], true]);
-  assert.equal((await w.real.status(SHOP)).plan, "both", "the preview changed nothing");
-  assert.deepEqual((await w.ask(OWNER, "change-plan", { plan: "shop" })).body, { ok: true, plan: "shop", changed: true });
+  // One plan for every shop (10 November 2026): no app can be dropped, and "both" is already this shop's plan.
+  const refused = await w.ask(OWNER, "change-plan", { plan: "shop", preview: true });
+  assert.equal(refused.status, 400);
+  assert.match(refused.body.message, /website and the stockroom/);
+  assert.equal((await w.real.status(SHOP)).plan, "both", "nothing changed");
+  assert.deepEqual((await w.ask(OWNER, "change-plan", { plan: "both" })).body, { ok: true, plan: "both", changed: false });
   assert.equal((await w.ask(OWNER, "change-plan", { plan: "gold" })).status, 400);
 
   assert.equal((await w.ask(OWNER, "cancel")).body.cancelAtPeriodEnd, true);
@@ -218,8 +221,8 @@ test("a paid plan's changes need the second step from the owner; looking, previe
   // Make the plan a paid one.
   await w.registry.updateShop(SHOP, { billing: { status: "active", plan: "both", access: "open" } });
   assert.equal((await w.ask(OWNER, "status")).status, 200);
-  assert.equal((await w.ask(OWNER, "change-plan", { plan: "shop", preview: true })).status, 200);
-  for (const [route, extra] of [["card", {}], ["cancel", {}], ["change-plan", { plan: "shop" }]]) {
+  assert.equal((await w.ask(OWNER, "change-plan", { plan: "both", preview: true })).status, 200);
+  for (const [route, extra] of [["card", {}], ["cancel", {}], ["change-plan", { plan: "both" }]]) {
     const refused = await w.ask(OWNER, route, extra);
     assert.equal(refused.status, 403, route);
     assert.match(refused.body.message, /two-step/);
@@ -241,7 +244,7 @@ test("the email's keep link is the one call with no sign-in: it reaches billing 
   const seen = [];
   const billing = { keepClosingAppsByLink: async (asked) => { seen.push(asked); return { plan: "both", changed: true }; } };
   const { billingPublicRoutes } = await import("./billingRoutes.js");
-  const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), publicRoutes: billingPublicRoutes({ billing }) });
+  const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings(TIERED_PRICES_ENV), publicRoutes: billingPublicRoutes({ billing }) });
   const call = (body) => api({ method: "POST", path: "/api/billing/keep-by-link", body, headers: {} });
   assert.equal((await call({ shopId: SHOP })).status, 400);
   assert.equal((await call({ token: "t" })).status, 400);
@@ -261,12 +264,11 @@ test("the keep page acts only on a press, never on opening, and keeps the link o
   assert.ok(script.indexOf("keep-by-link") > script.indexOf('$("#keep").addEventListener("click"'));
 });
 
-test("changing plan passes the optional answer to why an app is dropped; the page's choices match the service's", async () => {
+test("no press can drop an app any more; the older drop answers still match between the pages and the service", async () => {
   const w = await world();
-  const answer = await w.ask(OWNER, "change-plan", { plan: "shop", reason: "price" });
-  assert.equal(answer.status, 200);
-  assert.equal((await w.registry.getShop(SHOP)).billing.plan, "shop");
-  assert.equal((await w.ask(OWNER, "change-plan", { plan: "stockroom", reason: "made-up" })).status, 400);
+  assert.equal((await w.ask(OWNER, "change-plan", { plan: "shop", reason: "price" })).status, 400);
+  assert.equal((await w.ask(OWNER, "change-plan", { plan: "stockroom" })).status, 400);
+  assert.equal((await w.registry.getShop(SHOP)).billing.plan, "both");
   const { DROP_CHOICES } = await import("./billingWords.js");
   const { DROP_REASONS } = await import("../services/billing/closedApps.js");
   assert.deepEqual(DROP_CHOICES.map(([id]) => id), Object.keys(DROP_REASONS));

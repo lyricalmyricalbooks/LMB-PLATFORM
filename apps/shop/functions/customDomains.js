@@ -32,7 +32,7 @@ function customDomainActions({ url, shopId, serviceKey, requireAdmin, fetch = gl
     try {
       response = await fetch(`${url}/shop`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Shop-Id": shopId, Authorization: `Bearer ${key}` },
+        headers: { "Content-Type": "application/json", "X-Shop-Id": typeof shopId === "function" ? shopId() : shopId, Authorization: `Bearer ${key}` },
         body: JSON.stringify({ op: STEPS[step], args: domain === undefined ? {} : step === "renameFree" ? { name: domain } : { domain } }),
         signal: AbortSignal.timeout(timeoutMs),
       });

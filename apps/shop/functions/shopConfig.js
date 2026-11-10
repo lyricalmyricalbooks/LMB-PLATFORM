@@ -171,15 +171,53 @@ function readShopConfig(env = {}) {
     platformAccountsUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_ACCOUNTS_URL)) ? text(env.PLATFORM_ACCOUNTS_URL).replace(/\/+$/, "") : "",
     allowedOrigins: Object.freeze([...new Set([...LOCAL_ORIGINS, ...extraOrigins, ...(hosted ? [hosted] : []), siteUrl, ...www])]),
     project: functionsProject,
+    // The shop's id in the shared system (shops/<id>, docs/shared-system.md); null for a server that runs no shop record.
+    shopId: SHOP_ID.test(text(env.SHOP_ID)) ? text(env.SHOP_ID) : null,
     region,
     // The public address of one of this shop's functions, the same form the shop's pages call (src/app/lib/functionsBase.ts).
     functionsBase: `https://${region}-${functionsProject}.cloudfunctions.net`,
   });
 }
 
-/** The address of one of this shop's Cloud Functions. */
-const functionLink = (config, name) => `${config.functionsBase}/${name}`;
+/** The address of one of this shop's Cloud Functions, naming the shop (?shop=) so the shared server knows whose it is. */
+function functionLink(config, name, params = {}) {
+  const url = new URL(`${config.functionsBase}/${name}`);
+  if (config.shopId) url.searchParams.set("shop", config.shopId);
+  for (const [key, value] of Object.entries(params)) if (value !== undefined && value !== null && value !== "") url.searchParams.set(key, String(value));
+  return url.toString();
+}
 
-const shopConfig = readShopConfig(process.env);
+// The settings each shop keeps in its record (shops/<id>.server, written by the platform), in place of the
+// functions/.env.<project> file a shop had when it had its own project. Everything else (the platform's service
+// addresses, the region) is the same for every shop and comes from the server's own environment.
+const SHOP_KEYS = Object.freeze([
+  "SHOP_SENDER_NAME", "SHOP_SENDER_EMAIL", "SHOP_SITE_URL", "SHOP_EXTRA_ORIGINS", "SHOP_PAYMENT_PROVIDER",
+  "SHOP_PAYMENT_MODE", "SHOP_PAYMENT_EARLIER", "SHOP_TEST_SHOP", "SHOP_STOCKROOM_DATABASE",
+]);
+const SHOP_ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
 
-module.exports = { PLACEHOLDER, readShopConfig, shopConfig, paymentProviderOf, paymentModeOf, functionLink };
+/** One shop's server settings from its record ({ ownerEmail, server: { SHOP_…: "…" } }) and the server's environment. */
+function configForShop(shopId, record = {}, env = process.env) {
+  const shared = Object.fromEntries(Object.entries(env).filter(([key]) => !SHOP_KEYS.includes(key) && key !== "SHOP_OWNER_EMAIL" && key !== "SHOP_ID"));
+  const own = {};
+  for (const key of SHOP_KEYS) if (typeof record.server?.[key] === "string") own[key] = record.server[key];
+  // A shop with no extra addresses has none: the placeholder test addresses are for a server with no record at all.
+  if (own.SHOP_EXTRA_ORIGINS === undefined) own.SHOP_EXTRA_ORIGINS = "";
+  const config = readShopConfig({ ...shared, ...own, SHOP_OWNER_EMAIL: typeof record.ownerEmail === "string" ? record.ownerEmail : "", SHOP_ID: shopId });
+  // A record with no owner address has no owner: never the placeholder address.
+  return Object.freeze({ ...config, ownerEmail: email(record.ownerEmail) });
+}
+
+const baseConfig = readShopConfig(process.env);
+// The settings of the shop this code is running for (shopScope.js runInShop), or the server's own outside any shop.
+// A live view, so code that reads shopConfig.ownerEmail when it runs always gets the current shop's owner.
+const currentConfig = () => require("./shopScope").currentShop()?.config || baseConfig;
+const shopConfig = new Proxy({}, {
+  get: (_, prop) => currentConfig()[prop],
+  has: (_, prop) => prop in currentConfig(),
+  ownKeys: () => Reflect.ownKeys(currentConfig()),
+  getOwnPropertyDescriptor: (_, prop) => (prop in currentConfig() ? { value: currentConfig()[prop], enumerable: true, configurable: true, writable: false } : undefined),
+  set: () => false,
+});
+
+module.exports = { PLACEHOLDER, SHOP_KEYS, readShopConfig, configForShop, shopConfig, baseConfig, paymentProviderOf, paymentModeOf, functionLink };

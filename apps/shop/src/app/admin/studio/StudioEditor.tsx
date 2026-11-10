@@ -43,8 +43,7 @@ import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
 import { applyPresetSections, hasPresetContent, presetContentSummary, presetPagesToAdd, presetSections, wordedSettings } from "./presetContent";
 import { useShopWords } from "../shopWords";
 import { applyThemeKeysToSurfaces } from "../themeScope";
-import { THEME_LIBRARY } from "./themeLibrary";
-import { ownBooks, pressNameOf } from "../lookGallery";
+import { builtLooks, ownBooks, pressNameOf } from "../lookGallery";
 import { applyLook, bringBack, ownEdits, resetToLook, switchSummary, themeSwitchReport, updateLookKeepingEdits, updatedTheme, type SwitchItem, type ThemeSwitchReport } from "./themeSwitch";
 import { importedThemeProblems } from "./themeCheck";
 import { ESSENTIALS, essentialCopyField, essentialStyleField } from "./essentials";
@@ -393,8 +392,13 @@ const PANEL_STORAGE: LayoutStorage = {
   setItem: (key, value) => { try { window.localStorage.setItem(key, value); } catch { /* not remembered */ } },
 };
 
-export function StudioEditor({ settings, onExit, onPersisted, appearance = "light", workspace: openedWorkspace, initialLocation }: {
+export function StudioEditor({ settings, onExit, onPersisted, appearance = "light", workspace: openedWorkspace, initialLocation, beforeShop = false }: {
   appearance?: "light" | "dark";
+  /**
+   * The designer a press uses before its store exists (/design/studio, src/designFirst): there is no live shop, so there
+   * is one design, saved by itself as the press edits; Publish and scheduling go away and Exit saves, then leaves.
+   */
+  beforeShop?: boolean;
   /** Opened from a Studio link (#designer?…): start on that page/tool instead of where you left off. */
   initialLocation?: StudioLocation;
   settings: any;
@@ -1550,15 +1554,26 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     return () => window.removeEventListener("message", h);
   }, [templates, selectedId, sendPreviewState, sendCopyMap, highlight, change, mode]);
 
+  // Done before a store exists: set while its save runs, so the design is kept before the designer closes.
+  const exitAfterSave = useRef(false);
   const { busy, lastSaved, liveSyncPaused, saveDraft, publish, discard, recovery, recover, dismissRecovery, conflict, resolveConflict, incoming, resolveIncoming } = useStudioPersistence({
-    design, savedDraft, published, setSavedDraft, setPublished, onPersisted, workspace,
+    design, savedDraft, published, setSavedDraft, setPublished, workspace,
+    onPersisted: (saved, live) => { onPersisted?.(saved, live); if (exitAfterSave.current) { exitAfterSave.current = false; onExit(); } },
     reset: (next) => { setHist(initHistory(next)); setSelectedId(null); setBlockId(null); },
     restore: next => change(() => normalizeDesign(next, defaults)), say,
     normalize: next => normalizeDesign(next, defaults),
     readPublished,
+    quietDrafts: beforeShop,
   });
+  // Before a store exists every edit is kept by itself, a moment after the press stops, so nothing is lost and there is
+  // no Save to remember. Exit (Done) saves what is left first.
+  useEffect(() => {
+    if (!beforeShop || !dirtyDraft || busy !== null || inlineEditing || draftPage) return;
+    const timer = setTimeout(() => { void saveDraft(); }, 1200);
+    return () => clearTimeout(timer);
+  }, [beforeShop, design, dirtyDraft, busy, inlineEditing, draftPage]); // eslint-disable-line react-hooks/exhaustive-deps
   // The status pill's hover text: what it means for the shop, and when this tab last saved.
-  const statusTitle = [
+  const statusTitle = beforeShop ? (dirtyDraft ? "Saving your design in a moment." : "Saved. Your store starts with this design.") : [
     dirtyDraft ? "Your edits are only in this browser tab until you press Save draft. The shop is unchanged."
       : unpublished ? "Your draft is saved, but shoppers still see the older design until you press Publish."
       : "Shoppers see exactly this design.",
@@ -1585,6 +1600,13 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const exit = () => {
     if (inlineEditingRef.current) { say("err", "Finish or cancel the preview text edit before leaving Studio."); return; }
     if (pageBusy) { say("err", "Wait for the page save to finish before leaving Studio."); return; }
+    // Before a store exists, Done saves first and leaves only once the design is kept.
+    if (beforeShop && dirtyDraft && !draftPage) {
+      if (busy !== null) { say("err", "Still saving — press Done again in a moment."); return; }
+      exitAfterSave.current = true;
+      void saveDraft().finally(() => { exitAfterSave.current = false; });
+      return;
+    }
     if (dirtyDraft || draftPage) {
       void askConfirm({ title: "Leave without saving?", message: "You have unsaved edits. They stay recoverable on this device, but they are not saved as your draft.", confirmLabel: "Leave Studio" })
         .then(ok => { if (ok) onExit(); });
@@ -2389,7 +2411,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 </div>
                 <div className="pt-2 border-t border-neutral-200 space-y-2">
                   <p className="text-[10px] font-black tracking-widest uppercase text-neutral-500">Theme library</p>
-                  {THEME_LIBRARY.map((t: any) => (
+                  {builtLooks().map((t: any) => (
                     <button key={t.id} type="button" onClick={() => applyLibraryTheme(t)}
                       className="w-full text-left border border-neutral-200 rounded-lg px-3 py-2 hover:bg-neutral-50">
                       <span className="block text-xs font-bold">{t.name}{design.themeLibraryPreset === t.id ? "  ✓ current" : ""}</span>
@@ -2595,7 +2617,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
             {leftTab === "themes" && (
               <StudioThemes design={design} published={published} unpublished={unpublished || dirtyDraft} savedThemes={savedThemes}
-                presets={THEME_LIBRARY as any[]} currentPresetId={design.themeLibraryPreset} products={themeProducts} pressName={pressNameOf(settings)}
+                presets={builtLooks() as any[]} currentPresetId={design.themeLibraryPreset} products={themeProducts} pressName={pressNameOf(settings)}
                 templateDetails={templateDetailsLine(design)} onResetTemplateDetails={resetTemplateDetails}
                 previewingId={themePreview?.id || null} onPreview={(entry, onPhone) => { setThemePreview(entry); if (entry && onPhone) setDevice(onPhone); }}
                 onSaveCurrent={saveCurrentAsTheme} onImport={file => importTheme(file)}
@@ -2732,7 +2754,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     <div className="rp studio-editor" data-rp-appearance={appearance} data-studio-editor data-mobile-panel={mobilePanel}>
       {/* top bar */}
       <header className="studio-topbar">
-        <button className={btn} disabled={Boolean(inlineEditing)} onClick={exit}><ArrowLeft size={14} /> Exit</button>
+        <button className={btn} disabled={Boolean(inlineEditing)} onClick={exit}><ArrowLeft size={14} /> {beforeShop ? "Done" : "Exit"}</button>
         <strong className="studio-title">Design studio</strong>
         <button className={btn} onClick={() => setFindOpen(true)} aria-label="Find anything (Ctrl+K)" title="Find any setting, word, page, section or action"><Search size={14} /> Find <kbd aria-hidden="true">Ctrl K</kbd></button>
         <TemplatePicker options={pickerList} current={pickerCurrent} onPick={pickPage} />
@@ -2752,24 +2774,28 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         {/* Two short lines keep the bar on one row; the text still reads "Not saved yet · shop unchanged". */}
         <span className="studio-status text-xs px-2 py-1 rounded-full bg-neutral-100" role="status" data-studio-status={dirtyDraft ? "unsaved" : unpublished ? "draft" : "live"}
           title={statusTitle}>
-          <strong>{dirtyDraft ? "Not saved yet" : unpublished ? "Saved as draft" : "Live"}</strong><span className="studio-status-sep"> · </span><span>{dirtyDraft || unpublished ? "shop unchanged" : "the shop shows this"}</span>
+          {beforeShop
+            ? <strong>{dirtyDraft || busy === "draft" ? "Saving…" : "Saved"}</strong>
+            : <><strong>{dirtyDraft ? "Not saved yet" : unpublished ? "Saved as draft" : "Live"}</strong><span className="studio-status-sep"> · </span><span>{dirtyDraft || unpublished ? "shop unchanged" : "the shop shows this"}</span></>}
         </span>
         <div className="studio-tools-menu"><span>Theme actions</span><ActionMenu label="Theme actions" actions={[
           { label: "Version history", icon: <History size={14} />, onSelect: () => { setHistoryOpen(true); loadVersions(); } },
           { label: "Brand kit…", icon: <Sparkles size={14} />, onSelect: openBrandKit },
-          { label: "Schedule publishing…", icon: <Clock size={14} />, onSelect: () => setSchedule({ themeId: null }) },
+          ...(beforeShop ? [] : [{ label: "Schedule publishing…", icon: <Clock size={14} />, onSelect: () => setSchedule({ themeId: null }) }]),
           { label: "Studio Health", icon: <ShieldCheck size={14} />, onSelect: openHealth },
           ...(!narrow ? [{ label: workbench.open ? "Close the Workbench" : "Open the Workbench", icon: <ListChecks size={14} />, onSelect: () => (workbench.open ? setWorkbench(w => ({ ...w, open: false })) : openWorkbench(workbench.tab)) }] : []),
           { label: "Show Studio tips", onSelect: () => setTipsNonce(n => n + 1) },
-          ...(unpublished && busy === null && !inlineEditing ? [{ label: "Discard saved draft…", tone: "danger" as const, onSelect: () => setConfirmAction("discard") }] : []),
+          ...(!beforeShop && unpublished && busy === null && !inlineEditing ? [{ label: "Discard saved draft…", tone: "danger" as const, onSelect: () => setConfirmAction("discard") }] : []),
         ]} /></div>
-        <button className={btn} onClick={openPreviewTab} data-studio-view-website
+        {!beforeShop && <button className={btn} onClick={openPreviewTab} data-studio-view-website
           title={dirtyDraft ? "Open your shop in a new tab with all your changes, including ones not saved yet. Shoppers still see the live shop until you Publish." : unpublished ? "Open your shop in a new tab with your saved draft. Shoppers still see the live shop until you Publish." : "Open your shop in a new tab. It matches the live shop: nothing is waiting to be published."}>
-          <Eye size={14} aria-hidden="true" /> View website</button>
+          <Eye size={14} aria-hidden="true" /> View website</button>}
+        {!beforeShop && <>
         <button className={btn} disabled={Boolean(inlineEditing) || !dirtyDraft || busy !== null} onClick={saveDraft}
           title={inlineEditing ? "Finish the text edit first" : !dirtyDraft ? "Nothing new to save" : "Save your changes without putting them on the shop"}>{busy === "draft" ? "Saving…" : "Save draft"}</button>
         <button className={btnPrimary} disabled={Boolean(inlineEditing) || (!unpublished && !dirtyDraft) || busy !== null} onClick={() => setConfirmAction("publish")}
           title={inlineEditing ? "Finish the text edit first" : !unpublished && !dirtyDraft ? "No changes to publish yet: the shop already shows this design" : "Review and put your changes on the live shop"}>{busy === "publish" ? "Publishing…" : "Publish"}</button>
+        </>}
       </header>
 
       <StudioBreadcrumb

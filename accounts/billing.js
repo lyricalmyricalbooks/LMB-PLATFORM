@@ -160,7 +160,8 @@ function render(billing) {
   if (billing.cancelAtPeriodEnd || ended) $("#cancel-form").hidden = true;
   $("#cancel-button").hidden = billing.cancelAtPeriodEnd || ended || !$("#cancel-form").hidden;
   $("#keep-button").hidden = !billing.cancelAtPeriodEnd || ended;
-  $("#change-form").hidden = ended;
+  // One plan for every shop (10 November 2026): the form shows only for a shop still on an older plan, to move now.
+  $("#change-form").hidden = ended || billing.plan === "both";
   $("#plan-choices").replaceChildren(el("legend", { className: "rp-sr-only", textContent: "Choose a plan" }), ...billing.plans.map((plan) => {
     const input = el("input", { type: "radio", name: "plan", value: plan.plan, checked: plan.plan === billing.plan });
     return el("label", { className: "choice" }, input, el("strong", { textContent: plan.name }), el("strong", { textContent: `${plan.price}${billing.plusTax ? " + tax" : ""}` }));

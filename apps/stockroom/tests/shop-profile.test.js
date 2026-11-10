@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import vm from 'vm';
+import firebaseSource from '../src/firebase.js?raw';
 import served from '../public/shop-profile.js?raw';
 import databaseRules from '../database.rules.json?raw';
 import { DATA_ROOT, DEFAULT_SHOP_PROFILE, fileStem, parseShopProfile, readShopProfile, stockroomBucketUrl, stockroomDatabaseId } from '../src/lib/shop-profile.js';
@@ -83,9 +84,18 @@ describe('shop profile', () => {
     expect(parseShopProfile(sandbox.window.__SHOP_PROFILE__)).toEqual(DEFAULT_SHOP_PROFILE);
   });
 
-  it('the data folder is the one the database rules guard', () => {
-    expect(DATA_ROOT).toBe('lyrical');
-    expect(databaseRules).toMatch(new RegExp(`"rules":\\s*\\{\\s*"${DATA_ROOT}":`));
+  it("keeps the shop's own sign-in list, refuses a malformed one, and signs everyone in on it", () => {
+    const good = { ...DEFAULT_SHOP_PROFILE };
+    expect(parseShopProfile({ ...good, tenant: 'moth-press-x7k2q' }).tenant).toBe('moth-press-x7k2q');
+    expect(parseShopProfile(good)).not.toHaveProperty('tenant');
+    for (const bad of ['', '7a-b', 'a b c d', 5, null]) expect(parseShopProfile({ ...good, tenant: bad }), String(bad)).toBeNull();
+    expect(firebaseSource).toMatch(/const auth = getAuth\(app\);\n(?:\/\/.*\n)*auth\.tenantId = shopProfile\.tenant \?\? null;/);
+  });
+
+  it('the data folder is the one the database rules guard, inside the shop folder', () => {
+    // The shared system (LMB-PLATFORM docs/shared-system.md): shops/<shopId>/lyrical.
+    expect(DATA_ROOT).toBe(`shops/${DEFAULT_SHOP_PROFILE.shopId}/lyrical`);
+    expect(databaseRules).toMatch(/"rules":\s*\{[\s\S]*?"shops":\s*\{\s*"\$shopId":\s*\{\s*"lyrical":/);
   });
 });
 

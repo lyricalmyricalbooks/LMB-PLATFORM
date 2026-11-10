@@ -11,6 +11,8 @@ function checkoutAdminActions({
   webhookEndpointReport, emailGiftCard, expiryChange, giftCardId, last4, newGiftCardCode, withHistory, readAdminSecret,
   readBody, requireAdmin, requireBooksReader = requireAdmin, inventoryLinkDeps,
 }) {
+  // The shop's webhook address, worked out per request (one server runs every shop: docs/shared-system.md).
+  const webhookUrl = () => (typeof STRIPE_WEBHOOK_URL === "function" ? STRIPE_WEBHOOK_URL() : STRIPE_WEBHOOK_URL);
   // The press's own name (Text & labels › Site name; plan 5.8) for a gift card's "from" and the webhook's label.
   async function pressNameNow() {
     try {
@@ -202,19 +204,19 @@ function checkoutAdminActions({
       const { mode, endpoints } = await payments.webhookEndpoints();
       if (!endpoints) { res.status(400).json({ error: `Add your Stripe ${mode} secret key first.` }); return; } // Own-account shops only: Stripe keys are not asked on Colophon shops
       const listed = await endpoints.list();
-      let report = webhookEndpointReport(listed.data, STRIPE_WEBHOOK_URL);
+      let report = webhookEndpointReport(listed.data, webhookUrl());
       const actions = [];
       // Stripe only reveals an endpoint's signing secret when it is created. If the
       // signatures keep failing, replace the endpoint so a known secret is saved.
       if (req.body?.recreate === true && report.found) {
         await endpoints.remove(report.endpointId);
-        report = webhookEndpointReport([], STRIPE_WEBHOOK_URL);
+        report = webhookEndpointReport([], webhookUrl());
         actions.push("Removed the old webhook endpoint (its signing secret didn't match).");
       }
       if (req.body?.fix === true || req.body?.recreate === true) {
         if (!report.found) {
           const created = await endpoints.create({
-            url: STRIPE_WEBHOOK_URL,
+            url: webhookUrl(),
             enabled_events: REQUIRED_WEBHOOK_EVENTS,
             description: `${(await pressNameNow()).slice(0, 80)} shop orders (created by Admin › Payments)`,
           });
@@ -230,11 +232,11 @@ function checkoutAdminActions({
             actions.push(`Turned on ${report.missingEvents.length} missing event${report.missingEvents.length === 1 ? "" : "s"}: ${report.missingEvents.join(", ")}.`);
           }
           if (!report.enabled) { update.disabled = false; actions.push("Re-enabled the endpoint."); }
-          if (report.wrongUrl) { update.url = STRIPE_WEBHOOK_URL; actions.push("Pointed the endpoint at the shop's webhook address."); }
+          if (report.wrongUrl) { update.url = webhookUrl(); actions.push("Pointed the endpoint at the shop's webhook address."); }
           if (Object.keys(update).length) await endpoints.update(report.endpointId, update);
         }
         const relisted = await endpoints.list();
-        report = webhookEndpointReport(relisted.data, STRIPE_WEBHOOK_URL);
+        report = webhookEndpointReport(relisted.data, webhookUrl());
       }
       const status = (await db.collection("adminSecrets").doc("stripeWebhookStatus").get()).data() || {};
       const saved = await readAdminSecret("stripeWebhook");
@@ -243,7 +245,7 @@ function checkoutAdminActions({
       const forMode = status[mode] || {};
       res.status(200).json({
         mode,
-        url: STRIPE_WEBHOOK_URL,
+        url: webhookUrl(),
         ...report,
         savedSecret: !!saved[mode],
         deployedSecret,

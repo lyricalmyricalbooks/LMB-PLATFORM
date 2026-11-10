@@ -213,12 +213,12 @@ test("the welcome's two looks are saved and shown back; a badly formed look is r
   assert.deepEqual([row.look, row.adminLook], ["", "bento"]);
 });
 
-test("what the press wants to set up is saved as billing's plan id, and nothing else is taken", async () => {
+test("every press is saved on the one plan, whatever an older page sends, and nothing else is taken", async () => {
   const w = world();
   const { pressId, plan } = (await w.ask("POST", "/api/press", {}, ADA)).body.press;
   assert.equal(plan, "", "nothing is picked for the press");
   for (const choice of ["shop", "stockroom", "both"]) {
-    assert.equal((await w.ask("POST", "/api/press/setup", { pressId, plan: choice }, ADA)).body.press.plan, choice);
+    assert.equal((await w.ask("POST", "/api/press/setup", { pressId, plan: choice }, ADA)).body.press.plan, "both");
   }
   for (const bad of ["gold", "Both", "apps", 3]) {
     assert.equal((await w.ask("POST", "/api/press/setup", { pressId, plan: bad }, ADA)).status, 409, String(bad));
@@ -559,12 +559,12 @@ test("a shop that stopped for a person says so in plain words, and the press sta
   assert.deepEqual((await w.ask("GET", "/api/press", undefined, BEN)).body.presses, []);
 });
 
-test("a plan chosen on the Open my shop page is the one started", async () => {
+test("an older Open my shop page that sends one app still opens the shop with both", async () => {
   const w = world();
   const pressId = await readyPress(w);
   const opened = await w.ask("POST", "/api/press/open", { pressId, ...OPEN, plan: "shop" }, ADA);
-  assert.equal(opened.body.press.plan, "shop");
-  assert.equal(w.trials[0].plan, "shop");
+  assert.equal(opened.body.press.plan, "both");
+  assert.equal(w.trials[0].plan, "both");
 });
 
 test("the email language chosen in setup is the one the plan starts with; none chosen means automatic", async () => {
@@ -692,15 +692,15 @@ test("after the plan fails to start, the retry opens with the answers the press 
   const w = world({ billing: { startTrial: async (args) => { if (fail) throw new Error("The payment service is busy."); trials.push(args); return { status: "trialing" }; } } });
   const pressId = await readyPress(w);
   assert.equal((await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA)).status, 500);
-  // The press changes its mind while back in setup: a new plan and a new name.
+  // The press changes its mind while back in setup: a new name.
   await w.ask("POST", "/api/press/setup", { pressId, pressName: "Leaf Books" }, ADA);
   fail = false;
   const opened = await w.ask("POST", "/api/press/open", { pressId, ...OPEN, plan: "shop" }, ADA);
   assert.equal(opened.body.press.status, "opening");
-  assert.deepEqual(trials.map((t) => [t.plan, t.pressName]), [["shop", "Leaf Books"]]);
+  assert.deepEqual(trials.map((t) => [t.plan, t.pressName]), [["both", "Leaf Books"]]);
   const rows = [...w.signupStores.signups.rows.values()].filter((row) => row.pressId === pressId);
   assert.equal(rows.length, 1);
-  assert.deepEqual([rows[0].shopId, rows[0].plan, rows[0].pressName], [opened.body.press.shopId, "shop", "Leaf Books"]);
+  assert.deepEqual([rows[0].shopId, rows[0].plan, rows[0].pressName], [opened.body.press.shopId, "both", "Leaf Books"]);
 });
 
 test("two presses with the same name on one account open two shops", async () => {
@@ -712,7 +712,7 @@ test("two presses with the same name on one account open two shops", async () =>
   const a = await w.ask("POST", "/api/press/open", { pressId: first, ...OPEN }, ADA);
   const b = await w.ask("POST", "/api/press/open", { pressId: second, ...OPEN }, ADA);
   assert.notEqual(a.body.press.shopId, b.body.press.shopId);
-  assert.deepEqual(w.trials.map((t) => t.plan), ["both", "stockroom"]);
+  assert.deepEqual(w.trials.map((t) => t.plan), ["both", "both"], "every shop opens with both apps");
 });
 
 test("a press whose country hasn't opened yet is told so and stays in setup, and can open once it has", async () => {

@@ -32,9 +32,11 @@ function make({ env = {} } = {}) {
   return { stripe, stores, registry, auditLog, email, billing, event };
 }
 
-test("the plans are $29 shop, $19 stockroom and $39 both (CAD) a month, each from the settings", () => {
+test("every plan's fee is $5 (CAD) a month by default (pay what you use), each from the settings", () => {
   const plans = planList(platformSettings({}));
-  assert.deepEqual(plans.map((p) => [p.plan, p.amount, p.currency, p.priceText]), [["shop", 2900, "cad", "$29.00"], ["stockroom", 1900, "cad", "$19.00"], ["both", 3900, "cad", "$39.00"]]);
+  // One plan for every shop since 10 November 2026; the older two are still priced for rows waiting to move.
+  assert.deepEqual(plans.map((p) => [p.plan, p.amount, p.currency, p.priceText]), [["both", 500, "cad", "$5.00"]]);
+  assert.equal(planPrice("shop", platformSettings({})).amount, 500);
   assert.equal(planPrice("both", platformSettings({ PLAN_PRICE_BOTH: "4500" })).lookupKey, "colophon_both_cad_4500_monthly");
   assert.throws(() => planPrice("gold", platformSettings({})), /shop, stockroom or both/);
 });
@@ -52,7 +54,7 @@ test("a trial starts with no card: 14 days, pauses if no card arrives, and the p
   assert.equal(create.params.payment_method, undefined);
   assert.equal(create.headers["Idempotency-Key"], "subscription-moth-press-1");
   const [price] = [...stripe.world.prices.values()];
-  assert.deepEqual([price.unit_amount, price.currency, price.interval, price.lookup_key], [3900, "cad", "month", "colophon_both_cad_3900_monthly"]);
+  assert.deepEqual([price.unit_amount, price.currency, price.interval, price.lookup_key], [500, "cad", "month", "colophon_both_cad_500_monthly"]);
   assert.equal(stores.customers.rows.get(ACCOUNT.accountId).customerId, create.params.customer);
   assert.equal(email.list().length, 0);
 
@@ -151,7 +153,7 @@ test("changing plan moves the subscription item, records the new plan for the sh
   assert.equal(changed.changed, true);
   assert.equal(changed.plan, "both");
   assert.equal((await registry.getShop("moth-press")).plan, "both");
-  const bothPrice = [...stripe.world.prices.values()].find((p) => p.lookup_key === "colophon_both_cad_3900_monthly");
+  const bothPrice = [...stripe.world.prices.values()].find((p) => p.lookup_key === "colophon_both_cad_500_monthly");
   assert.equal(stripe.world.subscriptions.get(row.subscriptionId).price, bothPrice.id);
   assert.equal(email.list().filter((m) => m.kind === "plan-changed").length, 1);
   assert.equal((await billing.changePlan({ shopId: "moth-press", plan: "both" })).changed, false);

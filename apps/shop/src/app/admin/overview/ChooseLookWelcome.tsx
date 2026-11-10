@@ -1,7 +1,7 @@
 import { useMemo, useState, type KeyboardEvent } from "react";
 import { ChevronLeft, ChevronRight, Monitor, Smartphone } from "lucide-react";
 import {
-  feelLabel, filterLooks, galleryThemes, LOOK_FILTERS, lookPreview, pressNameOf, sampleProducts,
+  feelLabel, filterLooks, builtLooks, libraryLook, suggestedThemes, LOOK_FILTERS, lookPreview, pressNameOf, sampleProducts,
   type LibraryTheme, type LookFilter, type PreviewProduct,
 } from "../lookGallery";
 import type { WelcomeDone } from "../firstWeek";
@@ -12,13 +12,13 @@ import { LookStage, ScaledStage, STAGE_WIDTH, type StageDevice, type StagePage }
 
 /**
  * Choose your look (plan 6.3): the welcome before the setup guide, shown once, and setup mode's Design page. Laid out
- * like a theme store: the suggested looks large, then every look with filters, each card a picture of a whole shop
+ * like a theme store: every look with filters, each card a picture of a whole shop
  * page in that look. Try it on opens the look full screen (LookStage) on a desktop or a phone, on the home page or a
  * product page, with the press's own products or sample ones, and flips through the looks with the arrows.
  * `settings` is settings/website as the Overview read it: undefined while it loads, null when it couldn't be read.
  * `onDone` gets what to record once the look is in the draft; the parent saves it (and puts the welcome away).
  */
-export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onRetrySettings, apply, intro: introWords, keep, chosen }: {
+export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onRetrySettings, apply, intro: introWords, keep, chosen, settled = false }: {
   publishes?: string | null;
   /** The press's own books (ownBooks), shown with their covers, titles and prices in each look's preview (plan 17.8). */
   books?: { title: string; photo: string; price?: string }[];
@@ -35,34 +35,37 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
   keep?: { label: string; onKeep: () => void };
   /** The look (and admin look) the press chose in setup (code plan 18.9): shown on its own first, with every look a tap away. */
   chosen?: { theme: string } | null;
+  /** The chosen look is already saved (setup mode's Design page): show it as "Your look", with no Use button on it. */
+  settled?: boolean;
 }) {
-  const { suggested, others } = useMemo(() => galleryThemes(publishes), [publishes]);
+  const others = useMemo(() => builtLooks(), []);
+  // One general list. The sign-up answer only decides which look "Skip for now" uses.
+  const first = useMemo(() => suggestedThemes(publishes)[0], [publishes]);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<LookFilter>("all");
-  // The suggested looks show first; the whole gallery opens on "See all looks" (a long list buries the three picked for you).
-  const [showAll, setShowAll] = useState(false);
   const [trying, setTrying] = useState<string | null>(null);
   const [device, setDevice] = useState<StageDevice>(() => (typeof window !== "undefined" && window.innerWidth < 720 ? "phone" : "desktop"));
   const [page, setPage] = useState<StagePage>("home");
+  const [pick, setPick] = useState(0);
   // The press's own products by default, once there are any (they can arrive after the picker opens).
   const [ownChoice, setOwn] = useState<boolean | null>(null);
   const own = ownChoice ?? books.length > 0;
   const [browsing, setBrowsing] = useState(false);
-  const picked = useMemo(() => (chosen && !browsing ? [...suggested, ...others].find(t => t.id === chosen.theme) ?? null : null), [chosen, browsing, suggested, others]);
+  const picked = useMemo(() => (chosen && !browsing ? libraryLook(chosen.theme) ?? null : null), [chosen, browsing]);
   const press = pressNameOf(settings);
   const bookShop = sellsBooks(publishes);
   const samples = useMemo(() => sampleProducts(publishes), [publishes]);
   // The press's own products show their own prices; one without a price borrows a sample price so the cards read as a shop.
   const products: PreviewProduct[] = own && books.length ? books.map((b, i) => ({ ...b, price: b.price || samples[i % samples.length].price })) : samples;
   const shown = useMemo(() => filterLooks(others, filter), [others, filter]);
-  // The try-on flips through what the press is looking at: the suggestions, then the filtered list.
-  const order = useMemo(() => [...suggested, ...shown], [suggested, shown]);
+  // The try-on flips through what the press is looking at: the filtered list.
+  const order = shown;
   const tryIndex = trying ? order.findIndex(t => t.id === trying) : -1;
   const current = tryIndex >= 0 ? order[tryIndex] : null;
   const step = (by: number) => { if (order.length && tryIndex >= 0) setTrying(order[(tryIndex + by + order.length) % order.length].id); };
 
-  const choose = async (theme: LibraryTheme, skipped = false) => {
+  const choose = async (theme: LibraryTheme, skipped = false, toDesigner = false) => {
     if (busy) return;
     setBusy(theme.id); setError("");
     try {
@@ -74,6 +77,9 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
         await shop.followEmailTheme(theme.id);
       }
       await onDone({ theme: theme.id, at: new Date().toISOString(), ...(skipped ? { skipped: true } : {}) });
+      // The look is in the draft: open the shop designer on it.
+      setBrowsing(false);
+      if (toDesigner && typeof window !== "undefined") window.location.hash = "settings/designer";
     } catch (err) {
       setError(friendlyError(err, `use “${theme.name}”`));
       setBusy("");
@@ -91,19 +97,14 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
     );
   }
 
-  const badges = (theme: LibraryTheme, suggestion: boolean) => (
-    <>
-      {suggestion && <StatusBadge tone="info" glyph={false}>Suggested</StatusBadge>}
-      <StatusBadge glyph={false}>{feelLabel(theme)}</StatusBadge>
-    </>
-  );
+  const badges = (theme: LibraryTheme) => <StatusBadge glyph={false}>{feelLabel(theme)}</StatusBadge>;
 
-  // `big`: the large picture with a phone beside it, for the suggestions and the look chosen in setup.
-  const card = (theme: LibraryTheme, suggestion: boolean, big = suggestion) => {
+  // `big`: the large picture with a phone beside it, for the look chosen in setup.
+  const card = (theme: LibraryTheme, big = false) => {
     const look = lookPreview(theme, settings?.design);
     return (
       <li key={theme.id} data-look-card={theme.id} style={{ display: "grid", gap: 10, alignContent: "start", minWidth: 0 }}>
-        <button type="button" onClick={() => { setPage("home"); setTrying(theme.id); }} disabled={!!busy} aria-label={`Try on ${theme.name}`}
+        <button type="button" onClick={() => { setPage("home"); setPick(0); setTrying(theme.id); }} disabled={!!busy} aria-label={`Try on ${theme.name}`}
           style={{ position: "relative", display: "block", width: "100%", padding: 0, aspectRatio: big ? "4 / 3" : "16 / 11", overflow: "hidden",
             border: "var(--rp-hair, 1px) solid var(--rp-border-strong)", background: look.bg, cursor: "zoom-in" }}>
           <ScaledStage width={STAGE_WIDTH.desktop} label={`${press} in this look, desktop width`}>
@@ -117,11 +118,11 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
         </button>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
           <strong>{theme.name}</strong>
-          {badges(theme, suggestion)}
+          {badges(theme)}
         </div>
         <p className="rp-hint" style={{ margin: 0 }}>{theme.mood}</p>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
-          <PrimaryButton size="sm" busy={busy === theme.id} disabled={!!busy && busy !== theme.id} onClick={() => void choose(theme)}>Use this look</PrimaryButton>
+          {!(settled && picked?.id === theme.id) && <PrimaryButton size="sm" busy={busy === theme.id} disabled={!!busy && busy !== theme.id} onClick={() => void choose(theme)}>Use this look</PrimaryButton>}
           <GhostButton size="sm" disabled={!!busy} onClick={() => { setPage("home"); setTrying(theme.id); }}>Try it on</GhostButton>
           <span aria-label={`${theme.name} colours`} role="img" style={{ display: "flex", gap: 4, marginLeft: "auto" }}>
             {look.swatches.map((c, i) => <span key={i} style={{ width: 18, height: 18, background: c, border: "1px solid var(--rp-border-strong)" }} />)}
@@ -131,7 +132,6 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
     );
   };
   const grid = (min: number) => ({ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 24, gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${min}px), 1fr))` }) as const;
-  const first = suggested[0];
   const counts = Object.fromEntries(LOOK_FILTERS.map(f => [f.id, filterLooks(others, f.id).length]));
 
   const onStageKey = (e: KeyboardEvent) => {
@@ -143,39 +143,29 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
   const toggle = (on: boolean) => ({ "aria-pressed": on, style: on ? { background: "var(--rp-primary-tint)", color: "var(--rp-text)", borderColor: "var(--rp-primary)" } : undefined });
 
   return (
-    <SectionCard title={picked ? `Welcome to ${press}. Here's the look you chose` : `Welcome to ${press}. Choose your look`} description={intro} collapsible={false}
+    <SectionCard title={picked ? (settled ? `Your look: ${picked.name}` : `Welcome to ${press}. Here's the look you chose`) : `Welcome to ${press}. Choose your look`} description={intro} collapsible={false}
       actions={picked
-        ? <GhostButton size="sm" disabled={!!busy} onClick={() => setBrowsing(true)}>See every look</GhostButton>
+        ? <GhostButton size="sm" disabled={!!busy} onClick={() => setBrowsing(true)}>{settled ? "Choose another look" : "See every look"}</GhostButton>
         : keep
-        ? <GhostButton size="sm" disabled={!!busy} onClick={keep.onKeep}>{keep.label}</GhostButton>
+        ? <GhostButton size="sm" disabled={!!busy} onClick={() => { setBrowsing(false); keep.onKeep(); }}>{keep.label}</GhostButton>
         : first && <GhostButton size="sm" disabled={!!busy} onClick={() => void choose(first, true)}>Skip for now</GhostButton>}>
       {error && <p role="alert" className="rp-hint" style={{ marginTop: 0, color: "var(--rp-danger)" }}>{error}</p>}
       {picked ? (
         <>
           <p className="rp-hint" style={{ marginTop: 0 }}>
-            You chose “{picked.name}” in setup. Use it, try it on, or see every look. You can change it any time in Design.
+            {settled ? "This goes on your website when your shop is made. Try it on to click around, and change anything in the designer later." : `You chose “${picked.name}” in setup. Use it, try it on, or see every look. You can change it any time in Design.`}
           </p>
-          <ul aria-label="The look you chose" style={{ ...grid(320), maxWidth: 720 }}>{card(picked, false, true)}</ul>
+          <ul aria-label="The look you chose" style={{ ...grid(320), maxWidth: settled ? 960 : 720, gridTemplateColumns: settled ? "1fr" : undefined }}>{card(picked, true)}</ul>
         </>
       ) : (<>
       <p className="rp-hint" style={{ marginTop: 0 }}>
-        Try any look on before you choose. You can change it any time.
+        Try any look on before you choose. Every look is a starting point: change anything in the shop designer.
         {first && !keep && ` Skip uses “${first.name}”.`}
       </p>
 
-      <h3 className="rp-card-title" style={{ fontSize: "var(--rp-text-base)", margin: "16px 0 12px" }}>Suggested for you</h3>
-      <ul aria-label="Suggested looks" style={grid(320)}>{suggested.map(t => card(t, true))}</ul>
-
-      {showAll ? <>
-        <h3 className="rp-card-title" style={{ fontSize: "var(--rp-text-base)", margin: "40px 0 12px" }}>Every look, by feel</h3>
-        <Tabs label="Show looks" idPrefix="looks-" value={filter} onChange={setFilter}
-          tabs={LOOK_FILTERS.map(f => ({ id: f.id, label: f.label, count: counts[f.id] }))} />
-        <ul aria-label="Every look" style={{ ...grid(240), marginTop: 16 }}>{shown.map(t => card(t, false))}</ul>
-      </> : others.length > 0 && (
-        <div style={{ marginTop: 24 }}>
-          <SecondaryButton onClick={() => setShowAll(true)}>See all {others.length + suggested.length} looks</SecondaryButton>
-        </div>
-      )}
+      <Tabs label="Show looks" idPrefix="looks-" value={filter} onChange={setFilter}
+        tabs={LOOK_FILTERS.map(f => ({ id: f.id, label: f.label, count: counts[f.id] }))} />
+      <ul aria-label="Looks" style={{ ...grid(280), marginTop: 16 }}>{shown.map(t => card(t))}</ul>
 
       </>)}
 
@@ -184,6 +174,7 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
         description={current ? `${tryIndex + 1} of ${order.length}. ${current.mood}` : undefined}
         footer={current && <>
           <GhostButton onClick={() => setTrying(null)}>Back to the looks</GhostButton>
+          <SecondaryButton disabled={!!busy} onClick={() => void choose(current, false, true)}>Use and customize</SecondaryButton>
           <PrimaryButton busy={busy === current.id} disabled={!!busy && busy !== current.id} onClick={() => void choose(current)}>Use {current.name}</PrimaryButton>
         </>}>
         {current && (() => {
@@ -202,6 +193,7 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
                 <span role="group" aria-label="Page" style={{ display: "flex", gap: 8 }}>
                   <SecondaryButton size="sm" {...toggle(page === "home")} onClick={() => setPage("home")}>Home page</SecondaryButton>
                   <SecondaryButton size="sm" {...toggle(page === "product")} onClick={() => setPage("product")}>Product page</SecondaryButton>
+                  <SecondaryButton size="sm" {...toggle(page === "bag")} onClick={() => setPage("bag")}>Bag</SecondaryButton>
                 </span>
                 {books.length > 0 && (
                   <span role="group" aria-label="Products shown" style={{ display: "flex", gap: 8 }}>
@@ -215,14 +207,15 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
                   <div style={device === "phone"
                     ? { width: "min(100%, 390px)", border: "10px solid var(--rp-text)", borderRadius: 36, overflow: "hidden", background: look.bg }
                     : { width: "100%", maxWidth: STAGE_WIDTH.desktop, border: "1px solid var(--rp-border-strong)", background: look.bg }}>
-                    <ScaledStage width={STAGE_WIDTH[device]} label={`${press} in ${current.name}, ${device === "phone" ? "phone" : "computer"} screen, ${page === "home" ? "home page" : "product page"}`}>
-                      <LookStage look={look} press={press} device={device} page={page} products={products} books={bookShop} />
+                    <ScaledStage interactive width={STAGE_WIDTH[device]} label={`${press} in ${current.name}, ${device === "phone" ? "phone" : "computer"} screen, ${page === "home" ? "home page" : page === "bag" ? "bag" : "product page"}`}>
+                      <LookStage look={look} press={press} device={device} page={page} products={products} books={bookShop} productIndex={pick}
+                        onNavigate={(to, i) => { setPage(to); if (i !== undefined) setPick(i); }} />
                     </ScaledStage>
                   </div>
                 </div>
                 <div style={{ display: "grid", gap: 8 }}>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{badges(current, suggested.some(t => t.id === current.id))}</div>
-                  <p className="rp-hint" style={{ margin: 0 }}>{own && books.length ? "Your own products, shown in this look." : "Sample products. Your own products, words and logo take their places."} Every look keeps your words, products and pages.</p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{badges(current)}</div>
+                  <p className="rp-hint" style={{ margin: 0 }}>{own && books.length ? "Your own products, shown in this look." : "Sample products. Your own products, words and logo take their places."} Click around to see the shop. Everything can be changed in the designer afterwards.</p>
                 </div>
                 <div style={{ display: "grid", gap: 8 }}>
                   <span aria-label={`${current.name} colours`} role="img" style={{ display: "flex", gap: 6 }}>

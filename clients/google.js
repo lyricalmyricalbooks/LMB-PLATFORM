@@ -29,6 +29,10 @@
 //                         functions' build repository `gcf-artifacts` keeps only a day of old images (plan 15.16).
 //   Identity Toolkit v2   projects.getConfig, projects.updateConfig (updateMask mfa), projects.identityPlatform.initializeAuth:
 //                         the shop's own sign-in allows authenticator codes (plan 22.6, setup/twoStep.js)
+//                         projects.tenants.list (pageSize, pageToken), projects.tenants.create, projects.tenants.patch
+//                         (updateMask), projects.defaultSupportedIdpConfigs.get, projects.tenants.defaultSupportedIdpConfigs
+//                         .get/.create (idpId)/.patch (updateMask): each shop's own sign-in list in the shared project
+//                         (docs/shared-system.md, setup/shopTenant.js)
 //   Firebase Storage (the address the shop's pages read files through, where storage rules apply):
 //                         GET https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{name}?alt=media, with no sign-in.
 //                         Not in a discovery document; it is the address Firebase's web SDK reads files from.
@@ -433,6 +437,31 @@ export function googleClients({ fetch, token, sleep, today = () => new Date().to
       },
       /** Replaces the second-step settings (projects.updateConfig, updateMask mfa). */
       setMfa: (projectId, mfa) => call("PATCH", `${IDENTITY}/projects/${projectId}/config`, { query: { updateMask: "mfa" }, body: { mfa } }),
+      /** The project's own Google sign-in settings (projects.defaultSupportedIdpConfigs.get), or null when it has none. */
+      googleSignIn: (projectId) => orNull(call("GET", `${IDENTITY}/projects/${projectId}/defaultSupportedIdpConfigs/google.com`)),
+    },
+    tenants: {
+      /** Every sign-in list in the project (projects.tenants.list, every page): [{ name, displayName, ... }]. */
+      async list(projectId) {
+        const all = [];
+        let pageToken;
+        do {
+          const page = await call("GET", `${IDENTITY}/projects/${projectId}/tenants`, { query: { pageSize: 1000, ...(pageToken ? { pageToken } : {}) } });
+          all.push(...(page.tenants ?? []));
+          pageToken = page.nextPageToken;
+        } while (pageToken);
+        return all;
+      },
+      /** A new sign-in list (projects.tenants.create). Google picks its id; the answer's `name` ends with it. */
+      create: (projectId, tenant) => call("POST", `${IDENTITY}/projects/${projectId}/tenants`, { body: tenant }),
+      /** Changes the named fields of a list (projects.tenants.patch). */
+      patch: (projectId, tenantId, fields) => call("PATCH", `${IDENTITY}/projects/${projectId}/tenants/${tenantId}`, { query: { updateMask: Object.keys(fields).join(",") }, body: fields }),
+      /** A list's Google sign-in settings, or null when it has none yet. */
+      googleSignIn: (projectId, tenantId) => orNull(call("GET", `${IDENTITY}/projects/${projectId}/tenants/${tenantId}/defaultSupportedIdpConfigs/google.com`)),
+      /** Turns Google sign-in on for a list (…defaultSupportedIdpConfigs.create, idpId google.com). */
+      addGoogleSignIn: (projectId, tenantId, config) => call("POST", `${IDENTITY}/projects/${projectId}/tenants/${tenantId}/defaultSupportedIdpConfigs`, { query: { idpId: "google.com" }, body: config }),
+      /** Changes a list's Google sign-in settings (…defaultSupportedIdpConfigs.patch). */
+      patchGoogleSignIn: (projectId, tenantId, config) => call("PATCH", `${IDENTITY}/projects/${projectId}/tenants/${tenantId}/defaultSupportedIdpConfigs/google.com`, { query: { updateMask: Object.keys(config).join(",") }, body: config }),
     },
     buildCleanup: {
       /** Is Colophon's cleanup rule on the functions' build repository? Null when the repository doesn't exist yet. */

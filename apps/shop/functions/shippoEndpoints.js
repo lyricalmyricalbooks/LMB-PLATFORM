@@ -29,7 +29,7 @@ function shippoEndpoints({
     if (!adminUser) return;
 
     try {
-      const configDoc = await SHIPPO_CONFIG_DOC.get();
+      const configDoc = await SHIPPO_CONFIG_DOC().get();
       const config = configDoc.exists ? configDoc.data() : {};
       const fallbackToken = await getShippoToken();
       res.status(200).json({
@@ -73,9 +73,9 @@ function shippoEndpoints({
     }
 
     try {
-      const configDoc = await SHIPPO_CONFIG_DOC.get();
+      const configDoc = await SHIPPO_CONFIG_DOC().get();
       const current = configDoc.exists ? configDoc.data() : {};
-      await SHIPPO_CONFIG_DOC.set({
+      await SHIPPO_CONFIG_DOC().set({
         ...current,
         dynamicRatesEnabled: enabled,
         ...(dynamicRateCountries ? { dynamicRateCountries } : {}),
@@ -119,7 +119,7 @@ function shippoEndpoints({
       }
 
       try {
-        const configDoc = await SHIPPO_CONFIG_DOC.get();
+        const configDoc = await SHIPPO_CONFIG_DOC().get();
         const config = configDoc.exists ? configDoc.data() : {};
         if (config.dynamicRatesEnabled !== true) {
           res.status(400).json({ error: "Dynamic rates are disabled" });
@@ -256,7 +256,7 @@ function shippoEndpoints({
 
     try {
       const updatedAt = new Date().toISOString();
-      await SHIPPO_CONFIG_DOC.set({
+      await SHIPPO_CONFIG_DOC().set({
         apiToken,
         lastFour: apiToken.slice(-4),
         mode,
@@ -264,7 +264,7 @@ function shippoEndpoints({
         updatedAt,
         updatedBy: adminUser.email,
       }, { merge: true });
-      const saved = (await SHIPPO_CONFIG_DOC.get()).data() || {};
+      const saved = (await SHIPPO_CONFIG_DOC().get()).data() || {};
       res.status(200).json({
         configured: true,
         source: "firebase",

@@ -1,5 +1,6 @@
 // Two ways to pay (code plan 6.19) against a pretend Stripe: switching to pay as you sell and back, the trial, a plan
 // paused for want of a card, the founding offer, the stockroom alone refused, and the words the Plan & billing page shows.
+import { TIERED_PRICES_ENV } from "./fakes.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createBilling, dateText } from "./billing.js";
@@ -27,7 +28,7 @@ async function make({ plan = "shop", live = { payAsYouSell: { basisPoints: 200 }
   const auditLog = fakeAuditLog();
   const email = fakePlatformEmail();
   const feeLedger = fakeFeeLedgerStore();
-  const settings = platformSettings({});
+  const settings = platformSettings(TIERED_PRICES_ENV);
   const api = createStripeApi({ fetch: stripe.fetch, keys: { test: "sk_test_fake", live: null } });
   const deps = { stripe: api, mode: "test", settings, ...stores, registry, auditLog, email, now: () => clock };
   const billing = createBilling({ ...deps, webhookSecrets: [SECRET] });
@@ -44,8 +45,8 @@ async function make({ plan = "shop", live = { payAsYouSell: { basisPoints: 200 }
 const charged = (w) => w.stripe.requests.filter((r) => /\/v1\/invoices\/.+\/pay$/.test(r.path));
 
 test("the terms: 2% and the plan's price as the cap; the founding offer takes 25% off both; the stockroom alone is refused", async () => {
-  const settings = platformSettings({});
-  const live = await liveSettings({ env: {} });
+  const settings = platformSettings(TIERED_PRICES_ENV);
+  const live = await liveSettings({ env: TIERED_PRICES_ENV });
   assert.deepEqual(live.payAsYouSell, { basisPoints: 200 });
   assert.deepEqual(payAsYouSellTerms({ plan: "shop", settings, live }), { basisPoints: 200, capMinor: 2900, currency: "CAD" });
   assert.deepEqual(payAsYouSellTerms({ plan: "both", settings, live }), { basisPoints: 200, capMinor: 3900, currency: "CAD" });

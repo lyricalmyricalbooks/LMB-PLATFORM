@@ -8,7 +8,7 @@
 // words they agreed to. Words here are customer-facing: plain words, never a rival's name.
 
 /** The id of these words. Sign-up stores it with the date the press ticked the box. */
-export const TERMS_VERSION = "2026-11-03-draft.3";
+export const TERMS_VERSION = "2026-11-10-draft.3";
 
 /** True until a lawyer has read the words. The page shows the draft notice while it is. */
 export const DRAFT = true;
@@ -77,7 +77,7 @@ export const SECTIONS = Object.freeze([
     title: "Terms of service",
     paragraphs: [
       `These terms are between your press and ${OPERATOR_NAME}, the company that runs Colophon, at ${OPERATOR_ADDRESS}. The person who ticks the box at sign-up agrees for the press, and confirms they may.`,
-      "Colophon gives your press a shop, a stockroom, or both. It is made for businesses, not for people buying for themselves.",
+      "Colophon gives your press a website and a stockroom. It is made for businesses, not for people buying for themselves.",
       "Your shop is your own business. Your press is the seller to your shoppers, sets its own prices and policies, and follows the shopping, privacy and tax laws of the places it sells to.",
       "You are responsible for what you sell and for the words and pictures you put in your shop. Don't use Colophon to sell anything that is against the law where you or your buyers are.",
       "Your books, words and pictures stay yours. You let us copy and show them only to run your shop, and that ends when your shop is deleted.",
@@ -94,10 +94,10 @@ export const SECTIONS = Object.freeze([
     title: "Your plan and paying",
     paragraphs: [
       `Your plan starts with a free trial of ${TRIAL_DAYS} days, and we never ask for a card to start it. If the trial ends with no card, your shop pauses and nothing is charged.`,
-      "Once you add a card, your plan renews every month and we charge that card each month until you cancel.",
+      "Once you add a card, your plan renews every month until you cancel. Each month we charge that card the plan's fee plus what your shop cost to run the month before (storage, web traffic, background jobs and emails), at what it costs us. Your billing page shows the cost so far.",
       "Prices are shown before tax. We add the sales tax that applies where your press is, and your receipt shows it.",
-      "Instead of a monthly price, you can choose to pay a share of your website's sales each month, up to a monthly limit. We show the share and the limit before you choose.",
-      "The founding offer gives the first presses a lower price for as long as they keep their plan. If a founding press cancels before its first payment, its place goes to the next press.",
+      "A press that already pays a share of its website's sales instead of a monthly price keeps paying that way until it switches. It isn't offered to new presses.",
+      "The founding offer gives the first presses a lower fee for as long as they keep their plan. If a founding press cancels before its first payment, its place goes to the next press.",
       `If we raise a price, we email you at least ${CHANGE_NOTICE_DAYS} days before your first payment at the new price, and you can cancel before then.`,
       "You can cancel at any time from Plan & billing in your account, with no call or email needed. We email you to confirm.",
       "When you cancel, your plan runs to the end of the month already paid for, and we don't refund part of a month. You can change your mind until then.",
@@ -112,13 +112,13 @@ export const SECTIONS = Object.freeze([
     paragraphs: [
       "This part is about you, the person who runs a press on Colophon. Your shoppers are covered by your own shop's privacy policy.",
       `${OPERATOR_NAME} is responsible for what we keep about you. Our privacy officer answers for it, at ${PRIVACY_CONTACT}.`,
-      "We keep your name, your email address, your press's name, the plan you chose, and your answers when you signed up. We use them to run your shop, bill your plan and write to you about your account.",
+      "We keep your name, your email address, your press's name, your plan, and your answers when you signed up. We use them to run your shop, bill your plan and write to you about your account.",
       "Card numbers are held by our payment company. We see only the card's brand, its last four numbers and when it runs out.",
       "We also keep a record of sign-ins, new devices and what our team does in your shop, to keep accounts safe.",
       "We use your details because we need them to give you the service you signed up for, because the law makes us keep some records, and to protect Colophon from fraud.",
       "We email you about your account, your plan and your shop. Anything else, such as news about Colophon, only if you ask for it, and each of those emails has a way to stop them.",
       "We never sell your details, and we never show you or your shoppers advertising. Colophon's own pages use no advertising or tracking cookies.",
-      "Your shop's information is kept in its own copy, separate from every other press, and stored in Canada. Some of the companies listed below work in the United States, where its laws may let officials see it.",
+      "Your shop's information is kept apart from every other press's, behind its own wall, and stored in Canada. Some of the companies listed below work in the United States, where its laws may let officials see it.",
       `Each backup is kept for ${BACKUP_KEEP_DAYS} days, then deleted. If your shop is deleted, its backups are kept ${BACKUP_KEEP_DAYS} days more and then they are gone too.`,
       "Records of what happened in your shop are deleted after two years. Invoices and tax records are kept at least six years, as tax law asks.",
       "You can ask us for a copy of what we hold about you, or ask us to correct it or delete it. Write to us from your account page, and we answer within 30 days.",
@@ -133,7 +133,7 @@ export const SECTIONS = Object.freeze([
       "When a shopper buys from you, your press decides what is kept about them. We keep it on your behalf and follow your instructions, given through your settings and your requests.",
       "If a law ever makes us do something else with it, we tell you first, unless that law forbids it.",
       "Everyone on our team who can see your data has promised to keep it private. Our team looks inside your shop only when you ask for help, and only for as long as it takes. Every look is recorded.",
-      "We protect your data with two-step sign-in, encryption, a separate copy for each shop, nightly backups and a record of every look.",
+      "We protect your data with two-step sign-in, encryption, a wall between each shop's data, nightly backups and a record of every look.",
       "When a shopper asks to see or delete their details, your shop has the tools to do it, and we help if you ask.",
       `The companies that help us are listed below. We email you at least ${CHANGE_NOTICE_DAYS} days before adding one, and if you object you can leave without paying for the rest of the month.`,
       "If something goes wrong with your data, we tell you as soon as we know, and within 72 hours, in plain words, with what we are doing about it.",
@@ -164,7 +164,7 @@ export const SECTIONS = Object.freeze([
     paragraphs: [
       `We will tell you at least ${SHUTDOWN_NOTICE_DAYS} days before Colophon stops, by email and on your account page. Your shop keeps working during those ${SHUTDOWN_NOTICE_DAYS} days.`,
       "You can download all of your books, orders and customers as spreadsheet files at any time, and during those days too.",
-      "Your shop runs in its own copy. If you want to keep it running, we hand that copy over to your press, with its books, orders, customers and settings, at no charge.",
+      "Your shop's data is kept apart from every other press's. If you want to keep it running, we make a full copy of your shop and hand that copy over to your press, with its books, orders, customers and settings, at no charge.",
       `The same holds if you leave us: during the ${DOWNLOAD_DAYS} days after your shop closes, you keep your files and you can ask for your own copy.`,
     ],
   },

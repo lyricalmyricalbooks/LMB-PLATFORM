@@ -56,7 +56,7 @@ function shopEmails({
       if (notifyOwner) try {
         await sendEmail({
           queue: "contactNotify",
-          to: ADMIN_TO,
+          to: (typeof ADMIN_TO === "function" ? ADMIN_TO() : ADMIN_TO),
           subject: `[CONTACT] ${String(m.subject || m.name || "New message").slice(0, 120)}`,
           html,
           secret: RESEND_API_KEY.value(),

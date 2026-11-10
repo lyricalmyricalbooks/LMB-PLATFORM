@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./useSiteData", () => ({ useSiteData: () => ({ settings: {}, pages: [], books: [], loading: false, fresh: true }), useLiveDesign: () => ({}) }));
 vi.mock("../../CartContext", () => ({ useCart: () => ({ cartCount: 0, cartTotal: 0, setIsCartOpen: () => {}, addToCart: () => true, cart: [] }), catalogUnitPrice: () => 0 }));
-vi.mock("../../../lib/firebase", () => ({ db: {}, auth: {} }));
+vi.mock("../../../lib/firebase", () => ({ firestore: {}, db: {}, auth: {} }));
 vi.mock("../../components/sectionRender", () => ({ SectionList: () => null, GlobalSections: () => null, GroupSections: () => null, TemplateSections: () => null }));
 vi.mock("../../lib/seo", () => ({ useSEO: () => {} }));
 // The currency provider's rate and country look-ups run on their own clock; under a busy test run they finished after

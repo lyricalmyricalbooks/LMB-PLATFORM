@@ -179,7 +179,7 @@ if (isSignInWithEmailLink(auth, location.href)) {
 
 // ── The shop switcher ──
 const ACCESS_WORDS = { paused: "Paused until a card is added", closed: "Closed" };
-const PLAN_NAMES = { shop: "Shop", stockroom: "Stockroom", both: "Shop and stockroom" };
+const PLAN_NAMES = { shop: "Shop", stockroom: "Stockroom", both: "Website and stockroom" };
 const DAY = 86_400_000;
 const shortDay = (iso) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "long" });
 const daysLeft = (iso) => Math.max(0, Math.ceil((Date.parse(iso) - Date.now()) / DAY));
