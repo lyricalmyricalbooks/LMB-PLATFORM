@@ -83,9 +83,10 @@ describe('shop profile', () => {
     expect(parseShopProfile(sandbox.window.__SHOP_PROFILE__)).toEqual(DEFAULT_SHOP_PROFILE);
   });
 
-  it('the data folder is the one the database rules guard', () => {
-    expect(DATA_ROOT).toBe('lyrical');
-    expect(databaseRules).toMatch(new RegExp(`"rules":\\s*\\{\\s*"${DATA_ROOT}":`));
+  it('the data folder is the one the database rules guard, inside the shop folder', () => {
+    // The shared system (LMB-PLATFORM docs/shared-system.md): shops/<shopId>/lyrical.
+    expect(DATA_ROOT).toBe(`shops/${DEFAULT_SHOP_PROFILE.shopId}/lyrical`);
+    expect(databaseRules).toMatch(/"rules":\s*\{[\s\S]*?"shops":\s*\{\s*"\$shopId":\s*\{\s*"lyrical":/);
   });
 });
 

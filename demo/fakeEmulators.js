@@ -33,6 +33,16 @@ export function fakeEmulators(ports = PORTS) {
         live = JSON.parse(init.body);
         return ok(live);
       }
+      // A PUT at a path (the shop's record): sets that branch only.
+      const branch = /^\/(.+)\.json$/.exec(target.pathname);
+      if (method === "PUT" && branch && auth === "Bearer owner") {
+        const keys = branch[1].split("/");
+        live = live && typeof live === "object" ? live : {};
+        let node = live;
+        for (const key of keys.slice(0, -1)) node = node[key] = node[key] && typeof node[key] === "object" ? node[key] : {};
+        node[keys.at(-1)] = JSON.parse(init.body);
+        return ok(JSON.parse(init.body));
+      }
       if (method === "GET") return ok(live);
     }
     if (port === ports.storage) {

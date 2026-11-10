@@ -83,8 +83,8 @@ describe('writes skipped when nothing changed', () => {
   it('the book-owner map is only written when the server copy differs', () => {
     const start = src.indexOf('window._fbSaveBookOwners = async');
     const body = src.slice(start, src.indexOf('\n};', start));
-    expect(body).toMatch(/getDocFromServer\(doc\(fs, 'settings', 'bookOwners'\)\)/);
-    expect(body).toMatch(/if \(!same\) await setDoc\(doc\(fs, 'settings', 'bookOwners'\), clean\)/);
+    expect(body).toMatch(/getDocFromServer\(doc\(home, 'settings', 'bookOwners'\)\)/);
+    expect(body).toMatch(/if \(!same\) await setDoc\(doc\(home, 'settings', 'bookOwners'\), clean\)/);
   });
 });
 

@@ -1,13 +1,25 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+  // The shared system (LMB-PLATFORM docs/shared-system.md): each shop's stockroom files live in its own folder,
+  // shops/{shopId}/, and a sign-in only counts in the shop whose sign-in list (tenant) it came from. The shop's record
+  // (tenant, owner address) is read from the shop database's shops/{shopId}, written only by the platform.
+  match /shops/{shopId} {
+
+    function shopRecord() {
+      return firestore.get(/databases/(default)/documents/shops/$(shopId)).data;
+    }
+    function signedInHere() {
+      return request.auth != null
+        && request.auth.token.firebase.get('tenant', '') == shopRecord().get('tenant', '-');
+    }
 
     // Same check as isPublisher() in firestore.rules: the owner address or the
     // owner role, with email_verified (see the reasons there).
     function isPublisher() {
-      return request.auth != null
+      return signedInHere()
         && request.auth.token.email_verified == true
-        && (request.auth.token.email == '__SHOP_OWNER_EMAIL__'
+        && (request.auth.token.email == shopRecord().get('ownerEmail', '-')
             || request.auth.token.get('role', '') == 'owner');
     }
 
@@ -16,12 +28,12 @@ service firebase.storage {
     // publisher client maintains on every catalog save. Guarded by exists() so
     // a missing map denies rather than erroring.
     function isBookAuthor(bookId) {
-      return request.auth != null
+      return signedInHere()
         && request.auth.token.email_verified == true
         && request.auth.token.email != null
-        && firestore.exists(/databases/(default)/documents/settings/bookOwners)
+        && firestore.exists(/databases/(default)/documents/shops/$(shopId)/settings/bookOwners)
         && request.auth.token.email.lower() ==
-             firestore.get(/databases/(default)/documents/settings/bookOwners)
+             firestore.get(/databases/(default)/documents/shops/$(shopId)/settings/bookOwners)
                .data.get(bookId, '');
     }
 
@@ -43,7 +55,7 @@ service firebase.storage {
     // A book's cover for the Fair till (features/book-cover.js): a small JPEG the publisher uploads. Anyone signed in
     // may read it (a fair helper's till shows it; the address is a tokenised link anyway).
     match /covers/{bookId}/{file} {
-      allow read: if request.auth != null;
+      allow read: if signedInHere();
       allow write: if isPublisher()
         && request.resource.size < 2 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
@@ -72,5 +84,6 @@ service firebase.storage {
       allow delete: if bookId != 'email-imports'
         && (isPublisher() || isBookAuthor(bookId));
     }
+  }
   }
 }

@@ -150,7 +150,7 @@ describe('clientErrors security rule', () => {
     const body = block[1];
     expect(body).toContain('allow read, delete: if isPublisher();');
     expect(body).toContain('allow update: if false;');
-    expect(body).toContain('allow create: if request.auth != null');
+    expect(body).toContain('allow create: if signedInHere()');
     // A create rule without a size cap would make this collection free storage.
     expect(body).toMatch(/message\.size\(\) <= 500/);
     expect(body).toMatch(/stack\.size\(\) <= 2000/);

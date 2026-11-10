@@ -12,6 +12,7 @@ const admin = require("./adminSdk")(require("firebase-admin"));
 const { getFirestore } = require("firebase-admin/firestore");
 const { projectInventoryCatalog } = require("./inventoryLink");
 const { shopConfig } = require("./shopConfig");
+const { scopedFirestore } = require("./shopScope");
 
 const STOCKROOM_DATABASE = shopConfig.stockroomDatabase;
 const LINK_VERSION = "website-link-1";
@@ -27,7 +28,9 @@ function inventoryDb(deps = {}) {
   if (cachedDb && !custom) return cachedDb;
   // Never the shop's own database: an empty or "(default)" name would point the link at the shop's orders.
   if (!database || database === "(default)") throw new Error("The stockroom database name is missing.");
-  const db = firestoreFor(app(), database);
+  // The shared system (LMB-PLATFORM docs/shared-system.md): like the shop's, the stockroom's data lives in the shop's
+  // folder, shops/<shopId>, so every read and write here goes through the same wall (shopScope.js).
+  const db = scopedFirestore(firestoreFor(app(), database));
   if (!custom) cachedDb = db;
   return db;
 }

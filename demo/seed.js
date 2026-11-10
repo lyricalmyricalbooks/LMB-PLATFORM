@@ -8,7 +8,7 @@ import { firestoreClient, FIRESTORE } from "../clients/firestore.js";
 import { stockroomClient } from "../clients/shop.js";
 import { testShopDocs, testStockroomBooks } from "../setup/test-catalogue.js";
 import { TEST_SHOP } from "../setup/test-shop.js";
-import { DEMO_OWNER, DEMO_PROJECT, DEMO_SHOP_RECORD, PORTS, SHOP_BUCKET, SHOP_FOLDER, STOCKROOM_DATABASE, url } from "./config.js";
+import { DEMO_OWNER, DEMO_PROJECT, DEMO_SHOP_RECORD, PORTS, RTDB_NAMESPACE, SHOP_BUCKET, SHOP_FOLDER, STOCKROOM_DATABASE, url } from "./config.js";
 import { coverSvg } from "./photos.js";
 import { PRACTICE_KEYS } from "./practicePay.js";
 import { PRACTICE_MAIL_KEY } from "./practiceMail.js";
@@ -198,8 +198,15 @@ export async function seedDemo({ fetch, now = () => new Date(), newPress = false
 
   // The stockroom's books, in its own database, laid out as setup step 12 adds them (clients/shop.js addBooks). Not
   // through addBooks itself: the emulator never answers a read inside a REST transaction, and nothing else writes here
-  // while the demo starts.
-  const stockroomDb = firestoreClient({ fetch: emulatorFetch(fetch), token: async () => "owner", projectId: DEMO_PROJECT, database: STOCKROOM_DATABASE });
+  // while the demo starts. Like the shop's, the stockroom's database and its Realtime Database each hold a copy of the
+  // shop's record next to its folder (docs/shared-system.md): shops/<id> and shops/<id>/record.
+  const record = { ...DEMO_SHOP_RECORD, ownerEmail: DEMO_OWNER.email };
+  await json(await fetch(url(PORTS.database, `/${SHOP_FOLDER}/record.json?ns=${RTDB_NAMESPACE}`), {
+    method: "PUT", headers: { ...ADMIN, "Content-Type": "application/json" }, body: JSON.stringify(record),
+  }), "The stockroom's Realtime Database");
+  const stockroomRoot = firestoreClient({ fetch: emulatorFetch(fetch), token: async () => "owner", projectId: DEMO_PROJECT, database: STOCKROOM_DATABASE });
+  await stockroomRoot.set(SHOP_FOLDER, record);
+  const stockroomDb = firestoreClient({ fetch: emulatorFetch(fetch), token: async () => "owner", projectId: DEMO_PROJECT, database: STOCKROOM_DATABASE, folder: SHOP_FOLDER });
   const have = await stockroomClient(() => stockroomDb).books(DEMO_PROJECT);
   const stockroomAdded = [...testStockroomBooks(TEST_SHOP), ...sampleStockroomBooks()].filter((book) => !have[book.id]);
   if (stockroomAdded.length) {
