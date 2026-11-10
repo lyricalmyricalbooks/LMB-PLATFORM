@@ -63,6 +63,9 @@ export const PAYMENTS_SECRETS = Object.freeze([
   Object.freeze({ env: "STRIPE_CONNECT_WEBHOOK_SECRET_TEST", secret: "stripe-connect-webhook-secret-test", api: true, jobs: false }),
 ]);
 
+/** Whether this environment holds the platform's Stripe test key (the shop maker's step waits without it). */
+export const hasTestKey = (env = {}) => Boolean(String(env.STRIPE_PLATFORM_TEST_KEY ?? "").trim());
+
 /** Refuses live Stripe settings in this environment: the hosted server runs in test mode only for now (15.6). */
 export function refuseLiveKeys(env = {}) {
   if (String(env.STRIPE_PLATFORM_LIVE_KEY ?? "").trim() || String(env.STRIPE_CONNECT_WEBHOOK_SECRET_LIVE ?? "").trim()) {

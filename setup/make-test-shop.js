@@ -16,8 +16,9 @@
 //   3. The project's first release (services/release-runner/shared.js firstSharedRelease): the rules, the shared server
 //      and the one site, while it has no live shop. Every later release goes through run-shared.js, this project first.
 //   4. The test shop, made by the shared shop maker's steps (setup/sharedSteps.js) as `test-press`, answering at the
-//      project's own address (lmb-test-shop.web.app). Steps 7 (payments) and 8 (the owner's welcome email) wait for
-//      the platform's services to be handed to this script; they are looked at again on every run.
+//      project's own address (lmb-test-shop.web.app). Steps 7 (payments, in Stripe's test mode) and 8 (the owner's
+//      welcome email) run when the workflow hands this script the platform's test keys, and wait otherwise; they are
+//      looked at again on every run.
 //   5. Its pages drawn from its books (setup/shopSite.js), as every release does for every shop.
 //
 // It only ever touches `lmb-test-shop`. The release check (release-check/run.js) then buys from the test shop in test
@@ -28,13 +29,18 @@ import { promisify } from "node:util";
 import { pathToFileURL } from "node:url";
 import { runSteps } from "./runner.js";
 import { sharedShopSteps } from "./sharedSteps.js";
-import { realSharedClients, sharedMakerConfig } from "./real.js";
+import { PLATFORM_PROJECT, realSharedClients, sharedMakerConfig } from "./real.js";
 import { runProjectSteps, sharedProjectSteps } from "./sharedProject.js";
 import { REGION } from "./steps.js";
 import { buildAndPublish } from "./shopSite.js";
 import { deployClient } from "../clients/deploy.js";
 import { firstSharedRelease, sharedProjectProfile } from "../services/release-runner/shared.js";
 import { TEST_PROJECT, TEST_SHOP_ADDRESS, TEST_SHOP_ID } from "./testShopPlace.js";
+import { firestoreClient } from "../clients/firestore.js";
+import { firestoreAuditLog, firestoreRegistry } from "../clients/registry.js";
+import { firestoreAccounts, firestoreSentLog } from "../clients/stores.js";
+import { createEmailService, hasEmailKey } from "../services/email/index.js";
+import { createPaymentsFromEnv, hasTestKey, refuseLiveKeys, setupClient } from "../services/payments/index.js";
 
 // The shared test project, and the test shop: a folder in it, at the project's own address.
 export { TEST_PROJECT, TEST_SHOP_ADDRESS, TEST_SHOP_ID };
@@ -166,12 +172,29 @@ const runCommand = async (command, args, { cwd, env } = {}) => {
   return `${stdout}${stderr}`;
 };
 
+/**
+ * The platform's payment and email services for steps 7 and 8, built here in test mode when the workflow hands this
+ * script their keys (from Secret Manager). Only the services read the keys;
+ * a live Stripe key is refused. Without a key the step waits, as before.
+ */
+export function platformServices({ env, fetch, token, platform = firestoreClient({ fetch, token, projectId: PLATFORM_PROJECT }) }) {
+  refuseLiveKeys(env);
+  const registry = firestoreRegistry(platform);
+  const email = hasEmailKey(env) ? createEmailService({ env, fetch, registry, sentLog: firestoreSentLog(platform) }) : null;
+  const payments = hasTestKey(env)
+    ? setupClient(createPaymentsFromEnv({ env, fetch, registry, auditLog: firestoreAuditLog(() => platform), accounts: firestoreAccounts(platform), email }))
+    : null;
+  return { platform, payments, email };
+}
+
 /** The real clients for `makeTestShopWith`: Google, the platform's registry and the shared test project. */
 export async function makeTestShop({ apply, ownerEmail, serviceAccount, root = process.cwd(), print = console.log, env = process.env }) {
   const token = gcloudToken();
   const region = String(env.SHOP_FUNCTIONS_REGION ?? "").trim() || REGION;
+  const services = platformServices({ env, fetch, token });
   const clients = realSharedClients({
-    fetch, token, projectId: TEST_PROJECT, env, region, serviceAccount,
+    fetch, token, projectId: TEST_PROJECT, env, region, serviceAccount, registryFirestore: services.platform,
+    paymentService: services.payments, emailService: services.email,
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   });
   const version = env.TEST_SHOP_RELEASE || FIRST_RELEASE;
@@ -191,7 +214,7 @@ export async function makeTestShop({ apply, ownerEmail, serviceAccount, root = p
       if (!record) throw new Error("its record is missing from the shared project");
       await buildAndPublish({ shop: { id: shopId, record, tenant: record.tenant }, siteFiles: clients.google.siteFiles, projectId: TEST_PROJECT, appDir: join(root, "apps", "shop"), print });
     },
-    // Payments and email join once their services are handed to the shop maker here (a later change).
+    // Payments and email join when the workflow hands this script their keys (platformServices).
     connected: { 7: Boolean(clients.providers.stripe), 8: Boolean(clients.email) },
   });
 }
