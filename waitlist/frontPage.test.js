@@ -45,7 +45,7 @@ test("open: Start free trial everywhere, the trial length only from the plans an
   assert.equal(doc.ids.get("start-submit").textContent, "Start free trial");
   assert.equal(doc.ids.get("start-consent").hidden, true, "no waitlist emails once the trial starts at the front door");
   assert.equal(doc.ids.get("founding-go").textContent, "See plans");
-  assert.equal(doc.ids.get("founding-go").href, "#pricing");
+  assert.equal(doc.ids.get("founding-go").href, "/pricing");
   assert.doesNotMatch(page, /\b\d+ days free\b/, "no trial length typed into the page");
 });
 
