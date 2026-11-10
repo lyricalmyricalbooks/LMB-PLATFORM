@@ -283,7 +283,7 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
       if (record.status !== "setup") throw new SignupError(409, "Your shop is already opening, so setup is locked.");
       const read = await readOldShop(String(body.address ?? ""));
       if (!read.ok) throw new SignupError(400, read.message, { address: read.message });
-      return { host: read.host, csv: read.csv, products: read.products, notes: read.notes };
+      return { host: read.host, csv: read.csv, products: read.products, ...(typeof read.forSale === "number" ? { forSale: read.forSale } : {}), ...(typeof read.stockShown === "boolean" ? { stockShown: read.stockShown } : {}), notes: read.notes };
     },
 
     // "Your web address" (setup guide): the press's own domain, kept until the shop is made, when the shop maker

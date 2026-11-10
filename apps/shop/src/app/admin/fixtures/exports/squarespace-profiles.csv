@@ -1,0 +1,3 @@
+First Name,Last Name,Email,Subscriber Source,Subscriber Since,Last Order Date,Order Count,Total Spent,Created On,Accepts Marketing,Mailing Lists,Billing Address Line 1,Billing Address Line 2,Billing Address City,Billing Address State/Province,Billing Address Zip/Postal Code,Billing Address Country,Billing Address Phone Number,Tags
+Ada,Reader,ada@example.com,Checkout,2024-01-05,2025-08-01,3,84.50,2024-01-05,true,Newsletter,1 Example St,,Toronto,ON,M5V 1A1,CA,,vip
+Ben,Pages,ben@example.com,,,2025-07-10,1,30.00,2025-07-10,false,,2 Example Ave,,Montreal,QC,H2X 1Y4,CA,,

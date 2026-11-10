@@ -34,7 +34,10 @@ const notesOf = (data: any): string[] => (Array.isArray(data?.notes) ? data.note
 export async function readOldShopAddress(address: string): Promise<OldShopFile> {
   const data = await ask("readOldShop", { address });
   if (typeof data?.csv !== "string") throw new Error("The shop's server answered without a product list. Try again in a moment.");
-  return { host: String(data.host || "old shop"), csv: data.csv, notes: notesOf(data) };
+  return {
+    host: String(data.host || "old shop"), csv: data.csv, notes: notesOf(data),
+    ...(typeof data.forSale === "number" ? { forSale: data.forSale } : {}), ...(typeof data.stockShown === "boolean" ? { stockShown: data.stockShown } : {}),
+  };
 }
 
 export interface OldLinksAnswer { host: string; paths: string[]; notes: string[] }

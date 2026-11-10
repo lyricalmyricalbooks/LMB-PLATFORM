@@ -1,0 +1,7 @@
+Product ID [Non Editable],Variant ID [Non Editable],Product Type [Non Editable],Product Page,Product URL,Title,Description,SKU,GTIN,MPN,Option Name 1,Option Value 1,Option Name 2,Option Value 2,Option Name 3,Option Value 3,Option Name 4,Option Value 4,Option Name 5,Option Value 5,Option Name 6,Option Value 6,Price,Sale Price,On Sale,Stock,Categories,Tags,Weight,Length,Width,Height,Visible,Hosted Image URLs
+aaaaaaaaaaaaaaaaaaaaaaa1,v1,PHYSICAL,shop,tote-bag,Canvas Tote Bag,"<p style=""white-space:pre-wrap;"">Heavy canvas, 15"" x 16"", with an inside pocket.</p>",TOTE-NAT,,,Color,Natural,,,,,,,,,,,30.00,24.00,Yes,12,/bags/totes,"tote, canvas",1.5,0.0,0.0,0.0,Yes,https://images.squarespace-cdn.com/content/v1/000000000000000000000000/1/photo-1.jpg https://images.squarespace-cdn.com/content/v1/000000000000000000000000/2/photo-2.jpg
+,v2,,,,,,TOTE-BLK,,,Color,Black,,,,,,,,,,,30.00,0.00,No,Unlimited,,,1.5,0.0,0.0,0.0,,
+,v3,,,,,,TOTE-BLK,,,Color,Olive,,,,,,,,,,,$32.00,0.00,No,0,,,1.5,0.0,0.0,0.0,,
+aaaaaaaaaaaaaaaaaaaaaaa2,v4,SERVICE,shop,portrait-session,Portrait Session,One hour session.,SESSION,,,,,,,,,,,,,,,150.00,0.00,No,Unlimited,,,0.0,,,,No,https://images.squarespace-cdn.com/content/v1/000000000000000000000000/3/photo-3.jpg
+aaaaaaaaaaaaaaaaaaaaaaa3,v5,PHYSICAL,shop,custom-sneaker,Custom Sneaker,Four options.,SNK-1,,,Size,9,Color,Red,Lace,Flat,Sole,Gum,,,,,120.00,0.00,No,2,,,2.0,,,,Yes,https://images.squarespace-cdn.com/content/v1/000000000000000000000000/4/photo-4.jpg
+,v6,,,,,,SNK-2,,,Size,10,Color,Red,Lace,Flat,Sole,Gum,,,,,120.00,0.00,No,1,,,2.0,,,,,

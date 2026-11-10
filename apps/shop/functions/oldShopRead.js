@@ -16,7 +16,7 @@ async function oneRead(body, { allow, read }, fields, fallback) {
 }
 
 /** Books › Import: `read(address)` is the copied readOldShop; `allow()` the rate limit. */
-const handleOldShopRead = (body, deps) => oneRead(body, deps, ["host", "csv", "products", "notes"], "We couldn't read the products at that address.");
+const handleOldShopRead = (body, deps) => oneRead(body, deps, ["host", "csv", "products", "forSale", "stockShown", "notes"], "We couldn't read the products at that address.");
 
 /**
  * Settings › General › Check your old links (plan 23.8): the old shop's page addresses from its public site map

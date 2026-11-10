@@ -175,3 +175,22 @@ test("a store page whose next-page link leads back to itself brings its products
   assert.equal(read.products, 2);
   assert.equal(asked.filter((u) => u.includes("/shop?")).length, 2);
 });
+
+test("a list whose later page can't be read keeps what was read and says so", async () => {
+  const full = { products: Array.from({ length: 100 }, (_, i) => product(i)) };
+  const read = await readOldShop("mothpress.example", { getJson: async (url) => {
+    if (url.endsWith("page=1")) return full;
+    throw new Error("busy");
+  } });
+  assert.equal(read.ok, true);
+  assert.equal(read.products, 100);
+  assert.match(read.notes[0], /stopped answering after 100 products/);
+});
+
+test("a busy site is asked again after a short wait", async () => {
+  const lookup = async () => [{ address: "93.184.216.34", family: 4 }];
+  let calls = 0;
+  const get = async () => (++calls < 3 ? { status: 429, location: "", retryAfter: "1", type: "", body: Buffer.alloc(0) } : { status: 200, location: "", type: "application/json", body: Buffer.from('{"ok":1}') });
+  assert.deepEqual(await getPublicJson("https://busy.example/p.json", { lookup, get, waitScale: 0 }), { ok: 1 });
+  assert.equal(calls, 3);
+});

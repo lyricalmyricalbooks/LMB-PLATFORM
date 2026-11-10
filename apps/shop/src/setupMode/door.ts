@@ -51,7 +51,7 @@ export interface SetupPress {
 export interface Making { status: string; done: number; total: number; now: string; message: string; canRetry?: boolean }
 
 /** An old shop read from its address (23.2): a product file in the one-line-per-edition layout, and plain notes. */
-export interface OldShopRead { host: string; csv: string; products: number; notes: string[] }
+export interface OldShopRead { host: string; csv: string; products: number; notes: string[]; forSale?: number; stockShown?: boolean }
 
 /** A kept product file as its owner sees it: never where it is kept. */
 export interface StagedImport { name: string; size: number; rows: number; at: string }
@@ -143,8 +143,8 @@ export function platformDoor(apiBase: string, token: () => Promise<string>, fetc
     },
     removeImport: async (pressId) => (await call("POST", "/press/import/remove", { pressId })).press as SetupPress,
     readOldShop: async (pressId, address) => {
-      const { host, csv, products, notes } = await call("POST", "/press/old-shop", { pressId, address });
-      return { host, csv, products, notes } as OldShopRead;
+      const { host, csv, products, notes, forSale, stockShown } = await call("POST", "/press/old-shop", { pressId, address });
+      return { host, csv, products, notes, ...(typeof forSale === "number" ? { forSale } : {}), ...(typeof stockShown === "boolean" ? { stockShown } : {}) } as OldShopRead;
     },
     openShop: async (pressId, { plan, termsVersion }) => {
       const answer = await call("POST", "/press/open", { pressId, plan, termsAccepted: true, termsVersion });

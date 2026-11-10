@@ -1,0 +1,3 @@
+First Name,Last Name,Email 1,Email 2,Phone 1,Phone 2,Address 1 - Type,Address 1 - Street,Address 1 - City,Address 1 - State/Region,Address 1 - Zip,Address 1 - Country,Company,Position,Labels,Email subscriber status,Language,Created At (UTC+0)
+Ada,Reader,ada@example.com,,+15555550100,,Home,1 Example St,Toronto,ON,M5V 1A1,CA,,,"Customers; VIP",Subscribed,en,2024-01-05 10:00
+Ben,Pages,ben@example.com,,,,,,Montreal,QC,,CA,,,Customers,Never subscribed,en,2025-07-10 09:00

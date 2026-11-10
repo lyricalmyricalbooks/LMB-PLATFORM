@@ -40,6 +40,8 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
   const [readNotes, setReadNotes] = useState<string[]>([]);
   /** The old shop read from its address, while its products are on screen ("" for a chosen file). */
   const [foundHost, setFoundHost] = useState("");
+  /** What the read said about stock: products not sold out, and whether it saw how many of each. */
+  const [stockSeen, setStockSeen] = useState<{ forSale?: number; stockShown?: boolean }>({});
 
   const kept = press.stagedImport;
   // Plan 23.3: photos that can't be loaded from the old shop are left out of the preview and of the kept file.
@@ -129,7 +131,7 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
             <p className="rp-sb-eyebrow">From its web address</p>
             <h2 id="bring-title">Bring your shop with you</h2>
             <OldShopAddressForm read={(address) => door.readOldShop(press.pressId, address)} label="Look at my shop" disabled={!!busy}
-              onRead={(f, notes) => { setFoundHost(f.name.replace(/ products\.csv$/, "")); return choose(f, notes); }} />
+              onRead={(f, notes, answer) => { setFoundHost(f.name.replace(/ products\.csv$/, "")); setStockSeen({ forSale: answer.forSale, stockShown: answer.stockShown }); return choose(f, notes); }} />
           </section>
           <FoundTile counts={null} />
         </div>
@@ -160,7 +162,7 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
 
       {found && file && (
         <div className="rp-sb-row" style={{ gridTemplateColumns: "minmax(0, 1fr)", marginBottom: 16 }}>
-          <FoundTile counts={found} host={foundHost}
+          <FoundTile counts={found} host={foundHost} forSale={stockSeen.stockShown === false && typeof stockSeen.forSale === "number" ? Math.min(stockSeen.forSale, found.products) : undefined}
             action={<PrimaryButton busy={busy === "keep"} disabled={!ready || !!busy} onClick={() => void keep()}>
               {ready ? w(`Keep ${ready} ${ready === 1 ? "book" : "books"} for my shop`) : "Nothing to keep"}
             </PrimaryButton>} />
@@ -208,7 +210,7 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
  * What reading the old shop found (design "Shop setup (bento)", screen 4): empty until a shop is read, then the success
  * tint with its four counts. Nothing is kept until the press presses Keep.
  */
-function FoundTile({ counts, host = "", action }: { counts: FoundCounts | null; host?: string; action?: ReactNode }) {
+function FoundTile({ counts, host = "", forSale, action }: { counts: FoundCounts | null; host?: string; forSale?: number; action?: ReactNode }) {
   const w = useShopWords();
   const shown = (n: number | undefined) => (counts ? n!.toLocaleString("en-CA") : "–");
   return (
@@ -218,7 +220,8 @@ function FoundTile({ counts, host = "", action }: { counts: FoundCounts | null; 
       <dl className="rp-sb-counts" style={counts ? { gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 140px), 1fr))" } : undefined}>
         <div><dt>{w("Books")}</dt><dd>{shown(counts?.products)}</dd></div>
         <div><dt>Photos</dt><dd>{shown(counts?.photos)}</dd></div>
-        <div><dt>In stock</dt><dd>{shown(counts?.inStock)}</dd></div>
+        {/* An old shop that doesn't show how many it has: the products not sold out, rather than a misleading 0 in stock. */}
+        {forSale === undefined ? <div><dt>In stock</dt><dd>{shown(counts?.inStock)}</dd></div> : <div><dt>For sale</dt><dd>{forSale.toLocaleString("en-CA")}</dd></div>}
         <div><dt>Old links kept</dt><dd>{shown(counts?.oldLinks)}</dd></div>
       </dl>
       <p>{counts ? "Check them below. Nothing is kept until you say so." : "Nothing is kept until you say so."}</p>
