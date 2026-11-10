@@ -16,7 +16,10 @@
 //                                              reads the old shop's public product list (23.2) and answers it as a
 //                                              product file { host, csv, products, notes } for the browser to preview
 //
-// Nothing here starts a trial, takes a card or makes a shop: those wait for Open my shop (18.8).
+// Only Open my shop (18.8, POST /api/press/open) starts a trial and makes a shop. Since 10 November 2026 (design
+// handoff "Colophon platform") the front door (join/) calls it straight after the three sign-up questions, with the
+// whole trial ("both"), so the store exists from sign-up; the plan is picked later in the store's Billing. Setup mode's
+// Create my shop still calls it for a press that set up before that.
 //
 // Clients passed in:
 //   presses   get(pressId); create(pressId, record) -> bool; listByOwner(ownerUid); listByFreeName(name) (optional);

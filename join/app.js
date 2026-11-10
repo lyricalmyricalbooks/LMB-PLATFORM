@@ -1,9 +1,11 @@
-// The front door (code plan 18.4, the plan question added in 18.6, docs/plans/1-front-door-v2.md "A simpler flow"): email, the six-digit code, two
-// screens (what to set up, then the business; design "Shop setup (bento)"), then the admin. New and returning presses come in the same way. Plain browser JavaScript with no
+// The front door (code plan 18.4; design handoff "Colophon platform", 10 November 2026): email, the six-digit code, then
+// three questions about the brand and the terms, and the store is made at once with a free trial of everything (shop
+// and stockroom). "Setting up your store…" follows the shop maker until the way into the store's admin is ready. New and returning presses come in the same way. Plain browser JavaScript with no
 // framework (docs/decisions.md); Firebase's own browser library is loaded from Google for sign-in only. Every check the
 // page makes, the server makes again (signup/frontDoor.js).
 import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE, SETUP_ADMIN_URL } from "../signup/config.js";
 import { COUNTRIES, PUBLISHES, countryFromTimeZone, isEmail } from "../signup/form.js";
+import { ROW_WORDS, makingView } from "../signup/making.js";
 import { takeHandOff } from "../waitlist/frontPage.js";
 
 const { initializeApp } = await import(`${FIREBASE_SDK}/firebase-app.js`);
@@ -12,11 +14,11 @@ const { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signIn
 const auth = getAuth(initializeApp(PLATFORM_FIREBASE));
 const $ = (selector) => document.querySelector(selector);
 const status = $("#status");
-const STEP_OF = { email: "email", code: "code", pick: "press", plan: "press", business: "press", done: "press" };
+const STEP_OF = { email: "signin", code: "signin", pick: "brand", start: "brand" };
 // A press whose shop is opening or open is run from its admin, reached from the account page.
 const ACCOUNT_PAGE = "../account/";
-const STATUS_WORDS = { setup: "Setting up", opening: "Opening", open: "Open", expired: "Setup ran out" };
-const STEPS = ["email", "code", "press"];
+const STATUS_WORDS = { setup: "Not started", opening: "Being set up", open: "Open", expired: "Setup ran out" };
+const STEPS = ["signin", "brand"];
 
 let email = "";
 let press = null;
@@ -33,6 +35,7 @@ function show(view, { focus = true } = {}) {
     step.toggleAttribute("data-done", index < at);
   }
   status.textContent = "";
+  $("#main").dataset.at = STEP_OF[view];
   if (focus) $(`#view-${view} [tabindex="-1"]`)?.focus?.();
 }
 
@@ -159,61 +162,37 @@ $("#code-again").addEventListener("click", () => busy(codeForm, $("#code-error")
 }));
 $("#code-other").addEventListener("click", () => show("email"));
 
-// ── 3. The four questions ──
+// ── 3. About your brand: three questions, an optional fourth, the terms, then the store is made ──
 function choice(name, value, title) {
   const label = document.createElement("label");
   label.className = "choice";
   label.append(Object.assign(document.createElement("input"), { type: "radio", name, value }), Object.assign(document.createElement("strong"), { textContent: title }));
   return label;
 }
-// What each plan is, in a line. The names and prices come from the platform (GET /api/plans), so a price change there
-// shows here; until they load, or if they can't, the tiles show these names with no price.
-const PLAN_WORDS = {
-  shop: { name: "Shop", line: "Your website, to sell online" },
-  stockroom: { name: "Stockroom", line: "Track stock, sales and payouts from fairs and stores" },
-  both: { name: "Shop and stockroom", line: "Your website and your stock, kept in step", tag: "Recommended" },
-};
-const PLAN_ORDER = ["both", "shop", "stockroom"];
-let planNames = Object.fromEntries(PLAN_ORDER.map((id) => [id, PLAN_WORDS[id].name]));
 
-function planTiles(plans) {
-  const byId = Object.fromEntries((plans?.plans ?? []).map((p) => [p.plan, p]));
-  planNames = Object.fromEntries(PLAN_ORDER.map((id) => [id, byId[id]?.name || PLAN_WORDS[id].name]));
-  const checked = $("#plan-choices input:checked")?.value;
-  $("#plan-choices").replaceChildren(...PLAN_ORDER.map((id) => {
-    const label = choice("plan", id, planNames[id]);
-    label.append(Object.assign(document.createElement("span"), { textContent: PLAN_WORDS[id].line }));
-    if (PLAN_WORDS[id].tag) label.append(Object.assign(document.createElement("b"), { className: "fd-tag", textContent: PLAN_WORDS[id].tag }));
-    const plan = byId[id];
-    if (plan?.priceText) {
-      // With the founding offer, the usual price is shown struck through above the offer price.
-      const shown = Object.assign(document.createElement("span"), { className: "fd-price" });
-      if (plan.foundingPriceText) shown.append(Object.assign(document.createElement("s"), { textContent: plan.priceText }), plan.foundingPriceText);
-      else shown.append(plan.priceText);
-      shown.append(Object.assign(document.createElement("small"), { textContent: plan.foundingPriceText ? "a month, as long as you stay" : "a month" }));
-      label.append(shown);
-    }
-    return label;
-  }));
-  if (checked) $(`#plan-choices input[value="${checked}"]`).checked = true;
+// Every new store starts with the whole trial, shop and stockroom; the plan is picked later in the store's Billing.
+const TRIAL_PLAN = "both";
+let termsVersion = "";
+api("GET", "/plans").then((plans) => {
+  termsVersion = plans?.termsVersion ?? "";
   if (plans?.trialDays) {
-    const founding = plans.foundingOffer;
-    const offer = founding ? ` The first ${founding.presses} presses to pay keep ${founding.percentOff}% off for as long as they stay.` : "";
-    const tax = plans.plusTax ? ", plus tax" : "";
-    $("#plan-terms").textContent = `Free for ${plans.trialDays} days once your shop is made, then monthly${tax}. Nothing is charged before then, and no card is needed for the trial. Once you add a card, the plan renews each month until you cancel, which you can do online at any time.${offer}`;
+    $("#new-days").textContent = `${plans.trialDays} days`;
+    $("#story-lede").textContent = `Everything is included for ${plans.trialDays} days: your shop and your stockroom. No card needed.`;
+    $("#story-lede").previousElementSibling.textContent = `Your store, free for ${plans.trialDays} days.`;
   }
-}
-planTiles(null);
-api("GET", "/plans").then(planTiles, () => {});
+  const amount = (text) => Number(String(text).replace(/[^0-9.]/g, "")) || 0;
+  const cheapest = (plans?.plans ?? []).map((p) => p.foundingPriceText || p.priceText).filter(Boolean).sort((a, b) => amount(a) - amount(b))[0];
+  if (cheapest) $("#new-after").textContent = `From ${cheapest} a month`;
+}, () => {});
 
 $("#sells-choices").replaceChildren(...PUBLISHES.options.map((o) => choice("sells", o.id, o.label)));
-// "Where do you sell today?", in the design's four answers (ids from form.js QUESTION, which the server checks). It
-// picks the setup guide's first steps: bring a shop over, import a spreadsheet, or add the first product.
+// "Selling somewhere already?", optional (ids from form.js QUESTION, which the server checks). It picks the setup
+// guide's first step: bring a shop over, import a spreadsheet, or add the first product.
 const SELLING_TODAY = [
   { id: "online", label: "Another online shop", line: "Bring your products and old links over" },
   { id: "spreadsheet", label: "A spreadsheet", line: "Import it in one go" },
-  { id: "fairs", label: "Markets and in person", line: "Add what you sell as you go" },
-  { id: "starting", label: "Nowhere yet", line: "Start fresh" },
+  { id: "fairs", label: "Fairs and markets", line: "Add what you sell as you go" },
+  { id: "starting", label: "Not yet", line: "Start fresh" },
 ];
 $("#today-choices").replaceChildren(...SELLING_TODAY.map((o) => {
   const label = choice("sellingToday", o.id, o.label);
@@ -222,68 +201,125 @@ $("#today-choices").replaceChildren(...SELLING_TODAY.map((o) => {
 }));
 $("#country").replaceChildren(new Option("Choose a country", ""), ...Object.entries(COUNTRIES).map(([code, c]) => new Option(c.name, code)));
 
+const startForm = $("#start-form");
+const showName = () => { $("#new-name").textContent = startForm.pressName.value.trim() || "Your brand"; };
+startForm.pressName.addEventListener("input", showName);
+// An answer given clears its own error line.
+startForm.addEventListener("change", (event) => {
+  const field = event.target.name === "termsAccepted" ? "terms" : event.target.name;
+  const line = $(`#${field}-error`);
+  if (line && (event.target.type === "checkbox" ? event.target.checked : event.target.value)) line.hidden = true;
+});
+
 function fillAnswers() {
-  const planForm = $("#view-plan form");
-  const business = $("#business-form");
-  // Nothing picked yet: start on both, the one most presses need.
-  for (const input of planForm.querySelectorAll("input[name=plan]")) input.checked = input.value === (press.plan || "both");
-  business.pressName.value = press.pressName ?? "";
-  for (const input of business.querySelectorAll("input[name=sells]")) input.checked = input.value === press.sells;
-  for (const input of business.querySelectorAll("input[name=sellingToday]")) input.checked = input.value === press.sellingToday;
+  startForm.pressName.value = press.pressName ?? "";
+  for (const input of startForm.querySelectorAll("input[name=sells]")) input.checked = input.value === press.sells;
+  for (const input of startForm.querySelectorAll("input[name=sellingToday]")) input.checked = input.value === press.sellingToday;
   // Not answered yet: start from the country the computer's clock is set to, when we can tell and serve it.
-  business.country.value = press.country in COUNTRIES ? press.country : countryFromTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
-  const welcome = $("#plan-welcome");
-  welcome.textContent = press.pressName ? `Welcome, ${press.pressName}` : "Welcome";
+  startForm.country.value = press.country in COUNTRIES ? press.country : countryFromTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  showName();
+  // A press that set up before stores were made at sign-up can carry on in its setup guide instead.
+  const keep = $("#keep-setup");
+  keep.hidden = !(SETUP_ADMIN_URL && press.pressName);
+  if (!keep.hidden) keep.querySelector("a").href = setupGuideUrl();
 }
 
-async function save(change) {
-  const { press: saved } = await api("POST", "/press/setup", { pressId: press.pressId, ...change });
-  press = saved;
-}
+const setupGuideUrl = () => `${SETUP_ADMIN_URL}?press=${encodeURIComponent(press.pressId)}`;
 
-const planForm = $("#view-plan form");
-planForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  busy(planForm, planForm.querySelector(".error"), async () => {
-    await save({ plan: planForm.querySelector("input[name=plan]:checked")?.value ?? "" });
-    show("business");
-  });
-});
-
-// The business screen saves its answers together. Anything left blank is a skipped question, kept as it was.
-const businessForm = $("#business-form");
-businessForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  const picked = (name) => businessForm.querySelector(`input[name=${name}]:checked`)?.value ?? "";
-  const change = { pressName: businessForm.pressName.value.trim(), country: businessForm.country.value, sells: picked("sells"), sellingToday: picked("sellingToday") };
-  for (const key of Object.keys(change)) if (!change[key]) delete change[key];
-  busy(businessForm, businessForm.querySelector(".error"), async () => {
-    if (Object.keys(change).length) await save(change);
-    done();
-  });
-});
-businessForm.querySelector("[data-skip]").addEventListener("click", () => done());
-for (const back of document.querySelectorAll("[data-back]")) back.addEventListener("click", () => show(back.dataset.back));
-
-// ── 4. Saved, then the admin ──
-function done({ focus = true } = {}) {
-  const sells = PUBLISHES.options.find((o) => o.id === press.sells)?.label;
-  $("#done-name").textContent = press.pressName || "your shop";
-  $("#done-today").textContent = SELLING_TODAY.find((o) => o.id === press.sellingToday)?.label || "Not said yet";
-  $("#done-plan").textContent = planNames[press.plan] || "Not picked yet";
-  $("#done-press").textContent = press.pressName || "Not named yet";
-  $("#done-sells").textContent = sells || "Not said yet";
-  $("#done-country").textContent = COUNTRIES[press.country]?.name || "Not said yet";
-  $("#done-change").hidden = press.status !== "setup";
-  if (SETUP_ADMIN_URL) {
-    const go = $("#done-go");
-    go.href = `${SETUP_ADMIN_URL}?press=${encodeURIComponent(press.pressId)}`;
-    go.hidden = false;
+/** The questions' own checks (the server checks again); returns true when every required answer is there. */
+function checkAnswers(answers) {
+  const problems = {
+    pressName: answers.pressName ? "" : "Enter your brand's name.",
+    sells: answers.sells ? "" : "Pick what you sell.",
+    country: answers.country ? "" : "Choose where your brand is based.",
+    terms: answers.termsAccepted ? "" : "Tick the box to agree to the terms.",
+  };
+  for (const [field, words] of Object.entries(problems)) {
+    const line = $(`#${field}-error`);
+    line.textContent = words;
+    line.hidden = !words;
   }
-  show("done", { focus });
+  const first = Object.entries(problems).find(([, words]) => words)?.[0];
+  if (first) startForm.querySelector(first === "terms" ? "[name=termsAccepted]" : first === "sells" ? "input[name=sells]" : `[name=${first}]`)?.focus();
+  return !first;
 }
-$("#done-change").addEventListener("click", () => { fillAnswers(); show("plan"); });
-$("#sign-out").addEventListener("click", async () => {
+
+startForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const picked = (name) => startForm.querySelector(`input[name=${name}]:checked`)?.value ?? "";
+  const answers = { pressName: startForm.pressName.value.trim(), sells: picked("sells"), country: startForm.country.value, sellingToday: picked("sellingToday"), termsAccepted: startForm.termsAccepted.checked };
+  if (!checkAnswers(answers)) return;
+  busy(startForm, $("#start-error"), async () => {
+    const { termsAccepted, ...change } = answers;
+    if (!change.sellingToday) delete change.sellingToday;
+    const { press: saved } = await api("POST", "/press/setup", { pressId: press.pressId, plan: TRIAL_PLAN, ...change });
+    press = saved;
+    try {
+      const opened = await api("POST", "/press/open", { pressId: press.pressId, plan: TRIAL_PLAN, termsAccepted, termsVersion });
+      press = opened.press;
+      // Its country hasn't opened yet: nothing is made, the place is kept, and the setup guide is the way on.
+      if (opened.shop?.status === "later") throw new Error(opened.shop.message || "Colophon hasn't opened where you are yet. We've saved your place.");
+    } catch (failure) {
+      // The answers are saved either way, so the setup guide can carry on from them.
+      const keep = $("#keep-setup");
+      if (SETUP_ADMIN_URL) { keep.querySelector("a").href = setupGuideUrl(); keep.hidden = false; }
+      throw failure;
+    }
+    making();
+  });
+});
+
+// ── 4. Setting up your store: the shop maker's progress, until the way in is ready ──
+const overlay = $("#making");
+let following = 0;
+
+function drawMaking(view) {
+  $("#making-rows").replaceChildren(...view.rows.map((row) => {
+    const item = document.createElement("li");
+    const tone = { done: "success", working: "info", waiting: "" }[row.state];
+    const pill = Object.assign(document.createElement("span"), { className: "pill", textContent: ROW_WORDS[row.state] });
+    if (tone) pill.dataset.tone = tone;
+    item.append(Object.assign(document.createElement("span"), { textContent: row.label }), pill);
+    return item;
+  }));
+  $("#making-bar").style.width = `${view.percent}%`;
+  const go = $("#making-go");
+  if (view.openUrl) { go.href = view.openUrl; go.removeAttribute("aria-disabled"); } else { go.removeAttribute("href"); go.setAttribute("aria-disabled", "true"); }
+  $("#making-title").textContent = view.phase === "ready" ? "Your store is ready." : "Setting up your store…";
+  $("#making-hint").textContent = view.phase === "ready" ? "Your setup guide is waiting inside."
+    : view.phase === "queued" ? (view.message || "Your store is next in line. You can close this page: we'll email you the way in.")
+      : "About a minute. You'll land in your store's setup guide. We'll email you the way in too.";
+  const error = $("#making-error");
+  error.textContent = view.phase === "stuck" ? view.message : "";
+  error.hidden = view.phase !== "stuck" || !view.message;
+  $("#making-retry").hidden = !view.canRetry;
+}
+
+/** Shows the overlay and follows the press's store until it is ready (or the person leaves). */
+function making() {
+  overlay.hidden = false;
+  drawMaking(makingView(press));
+  $("#making-title").focus();
+  clearTimeout(following);
+  const check = async () => {
+    try {
+      const { presses } = await api("GET", "/press");
+      press = presses.find((p) => p.pressId === press.pressId) ?? press;
+    } catch {
+      // A missed check is tried again on the next tick.
+    }
+    const view = makingView(press);
+    drawMaking(view);
+    if (view.phase !== "ready") following = setTimeout(check, 2000);
+  };
+  following = setTimeout(check, 1000);
+}
+$("#making-retry").addEventListener("click", async () => {
+  $("#making-retry").hidden = true;
+  try { await api("POST", "/signup/retry", { shopId: press.shopId }); } catch (failure) { status.textContent = failure.message; }
+});
+
+$("#sign-out")?.addEventListener("click", async () => {
   await signOut(auth);
   press = null;
   show("email");
@@ -300,20 +336,29 @@ async function arrive() {
 
 function carryOn(chosen) {
   press = chosen;
-  if (press.status === "opening" || press.status === "open") {
+  // An open store is run from its admin; one being made shows how far it has got.
+  if (press.status === "open") {
+    location.assign(press.openUrl || ACCOUNT_PAGE);
+    return;
+  }
+  if (press.status === "opening") {
+    fillAnswers();
+    show("start", { focus: false });
+    making();
+    return;
+  }
+  if (press.status !== "setup") {
     location.assign(ACCOUNT_PAGE);
     return;
   }
   fillAnswers();
-  // A press already named, or whose setup ran out, shows where it stands; the questions are only for a new one.
-  if (press.pressName || press.status !== "setup") done({ focus: signedInHere });
-  else show("plan", { focus: signedInHere });
+  show("start", { focus: signedInHere });
 }
 
 function pick(presses) {
   $("#pick-list").replaceChildren(...presses.map((p) => {
     const button = Object.assign(document.createElement("button"), { type: "button", className: "choice" });
-    button.append(Object.assign(document.createElement("strong"), { textContent: p.pressName || "Press not named yet" }),
+    button.append(Object.assign(document.createElement("strong"), { textContent: p.pressName || "Brand not named yet" }),
       Object.assign(document.createElement("span"), { textContent: STATUS_WORDS[p.status] ?? "" }));
     button.addEventListener("click", () => { signedInHere = true; carryOn(p); });
     return button;
