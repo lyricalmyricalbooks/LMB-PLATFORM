@@ -115,8 +115,10 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
     expect(text()).not.toContain("Choose your look.");
     expect([...document.querySelectorAll("section h3")].map(h => h.firstElementChild?.textContent)).toEqual(["Your shop", "Ready to sell", "Launch", "Reach more shoppers"]);
     expect(document.querySelectorAll("ol[aria-label='Your shop'] > li").length).toBe(3);
-    expect(document.querySelectorAll("button[aria-expanded='true']").length).toBe(1);
+    // Rows open on a click: the next step has its own tile, with its button.
+    expect(document.querySelectorAll("button[aria-expanded='true']").length).toBe(0);
     expect(document.querySelector("li[aria-current='step']")?.textContent).toContain("Add your first book");
+    expect(document.querySelector("#setup-next-title")?.textContent).toBe("Add your first book");
     expect(text()).toContain("0 of 12 done");
     expect(api.updateFirstWeek).toHaveBeenCalledWith({ progress: { steps: expect.any(Array), done: [], at: expect.any(String) } });
   });
@@ -163,10 +165,25 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
     await flush();
     expect(onSetWall).toHaveBeenCalledWith(false);
     // The moment it opens: one card says so, with the shop's address to visit and share.
-    expect(text()).toContain("Your shop is open");
+    expect(text()).toContain("Moth Press is open.");
     expect(button("View your shop")).toBeDefined();
     act(() => button("Done")!.click());
-    expect(text()).not.toContain("Your shop is open");
+    expect(text()).not.toContain("Moth Press is open.");
+  });
+
+  it("the Open your shop tile names what stops a sale and keeps Open my shop off until nothing does", async () => {
+    api.getFirstWeek.mockResolvedValue({ plan: "both", welcome: { theme: "press-zine", at: "now" } });
+    const onOpen = vi.fn();
+    const blockers = [{ id: "books", label: "No published books", detail: "", status: "block", tab: "catalog", action: "Open Books" }];
+    await mount({ readiness: blockers, onSetWall: vi.fn(async () => true), onOpen });
+    expect(document.querySelector("#setup-open-title")?.textContent).toBe("1 thing to do before a sale");
+    expect(button("Open my shop")!.disabled).toBe(true);
+    act(() => button("No published books")!.click());
+    expect(onOpen).toHaveBeenCalledWith("catalog");
+    act(() => root?.unmount()); document.body.innerHTML = "";
+    await mount({ readiness: [], onSetWall: vi.fn(async () => true) });
+    expect(document.querySelector("#setup-open-title")?.textContent).toBe("Ready to open");
+    expect(button("Open my shop")!.disabled).toBe(false);
   });
 
   it("a read that fails offers Try again", async () => {

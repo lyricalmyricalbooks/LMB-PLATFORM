@@ -110,6 +110,13 @@ async function checkFrontDoor(browser, walk, log) {
       const fits = () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
       if (!(await page.locator(".rp-page-title").textContent())?.includes("Front Door Press")) throw new Error("the setup guide doesn't greet the press by name");
       if (!(await fits())) throw new Error("the setup guide scrolls sideways on a phone");
+      if (process.env.WALKTHROUGH_SHOTS) {
+        await page.screenshot({ path: join(process.env.WALKTHROUGH_SHOTS, "setup-home-phone.png"), fullPage: true });
+        const phone = page.viewportSize();
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await page.screenshot({ path: join(process.env.WALKTHROUGH_SHOTS, "setup-home.png"), fullPage: true });
+        if (phone) await page.setViewportSize(phone);
+      }
       // A page that needs the shop is locked and offers Create my shop.
       await page.evaluate(() => { location.hash = "orders"; });
       await page.locator("text=Comes with your shop").first().waitFor({ state: "visible", timeout: 10_000 });

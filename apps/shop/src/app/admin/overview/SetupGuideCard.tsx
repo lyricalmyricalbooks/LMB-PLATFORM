@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Circle } from "lucide-react";
+import { Check } from "lucide-react";
 import toast from "react-hot-toast";
 import { adminApi } from "../api";
-import { addedSince, firstWeekIntro, firstWeekSteps, guideGroups, nextStep, openBlockers, progressToSave, showFirstWeek, type FirstWeekDoc, type FirstWeekFacts, type FirstWeekStep } from "../firstWeek";
-import { GhostButton, LoadingState, PrimaryButton, SectionCard, StatusBadge } from "../riso/components";
+import { GROUPS, addedSince, firstWeekIntro, firstWeekSteps, guideGroups, nextStep, openBlockers, progressToSave, showFirstWeek, type FirstWeekDoc, type FirstWeekFacts, type FirstWeekStep } from "../firstWeek";
+import { GhostButton, LoadingState, PrimaryButton, StatusBadge } from "../riso/components";
+import "./setupBoard.css";
 import { jumpWhenShown } from "../settingsLayout";
 
 /**
- * Overview › Set up your shop (plan 6.9, regrouped as code plan 28). The steps in three parts (Your shop, Ready to sell,
- * Launch), one row each, Shopify-style: the next step opens with why it matters and its button, any other opens on a
- * click, and done steps tick themselves from the shop. Open your shop runs Ready to sell first and takes the
+ * Overview › Set up your shop (plan 6.9, regrouped as code plan 28; laid out as a board of tiles from the design
+ * handoff "Shop setup (bento)", 10 November 2026). The next step has its own ink tile with why it matters and its
+ * button; beside it, what still stops a sale and Open my shop. Under them the parts (Your shop, Ready to sell, Launch,
+ * Reach more shoppers) as tiles, one row per step that opens on a click, and done steps tick themselves from the shop. Open your shop runs Ready to sell first and takes the
  * under-construction wall down (`onSetWall`, Dashboard's own switch with its confirm). The progress is saved for the
  * platform's trial emails (plan 6.10). Hidden for good with "Hide this guide". Same rows as setup mode's guide
  * (setupMode/SetupAdmin.tsx), so the guide a press met before its shop existed carries on the same way.
@@ -24,7 +26,7 @@ export function SetupGuideCard({ doc, setDoc, facts, onOpen, onSetWall }: {
 }) {
   const [saving, setSaving] = useState("");
   const [blocked, setBlocked] = useState<ReturnType<typeof openBlockers> | null>(null);
-  // The row the press opened itself; null follows the next step, "" closes every row. `pickedDone`: it was done
+  // The row the press opened itself (rows open only on a click: the next step has its own tile). `pickedDone`: it was done
   // already when opened (to Change it), so it stays open; a row that gets done while open gives way to the next.
   const [picked, setPicked] = useState<string | null>(null);
   const [pickedDone, setPickedDone] = useState(false);
@@ -86,36 +88,35 @@ export function SetupGuideCard({ doc, setDoc, facts, onOpen, onSetWall }: {
   const fresh = new Set(added.filter(id => steps.some(s => s.id === id && !s.done)));
   const freshTitles = steps.filter(s => fresh.has(s.id)).map(s => s.title);
   const pickedStep = steps.find(s => s.id === picked);
-  // A picked step that got done gives way to the next one, so finishing a step moves the guide on.
-  const shown = picked === "" ? "" : pickedStep && (!pickedStep.done || pickedDone) ? pickedStep.id : next?.id ?? "";
+  // A picked step that got done closes, so finishing a step moves the guide on.
+  const shown = pickedStep && (!pickedStep.done || pickedDone) ? pickedStep.id : "";
+
+  const groupOf = (s: FirstWeekStep) => GROUPS.find(g => g.id === s.group)?.title ?? "";
+  // What stops a sale, shown before the press asks, so Open my shop never surprises (Ready to sell's blocks).
+  const blockers = loading ? [] : openBlockers(facts.readiness);
+  const openStep = steps.find(s => s.id === "open");
 
   const row = (s: FirstWeekStep) => {
     const isOpen = s.id === shown;
     const isNext = s.id === next?.id;
     const panel = `setup-step-${s.id}`;
     return (
-      <li key={s.id} aria-current={isNext ? "step" : undefined}
-        style={{ borderTop: "1px solid var(--rp-divider)", margin: "0 -12px", padding: "0 12px", background: isOpen ? "var(--rp-primary-tint)" : undefined }}>
-        <button type="button" aria-expanded={isOpen} aria-controls={panel} onClick={() => { setPicked(isOpen ? "" : s.id); setPickedDone(s.done); }}
-          style={{ display: "grid", gridTemplateColumns: "20px minmax(0, 1fr) auto", alignItems: "center", gap: 12, width: "100%", minHeight: 48,
-            padding: "12px 0", background: "none", border: 0, color: "inherit", font: "inherit", textAlign: "left", cursor: "pointer" }}>
-          <span aria-hidden style={{ display: "inline-flex", color: s.done ? "var(--rp-success)" : isNext ? "var(--rp-text)" : "var(--rp-text-subtle)" }}>
-            {s.done ? <Check size={20} /> : <Circle size={18} />}
-          </span>
+      <li key={s.id} className="rp-sb-step" aria-current={isNext ? "step" : undefined} data-open={isOpen} data-done={s.done} data-next={isNext && !s.done}>
+        <button type="button" aria-expanded={isOpen} aria-controls={panel} onClick={() => { setPicked(isOpen ? "" : s.id); setPickedDone(s.done); }}>
+          <span className="rp-sb-dot" aria-hidden>{s.done && <Check size={12} strokeWidth={3} />}</span>
           <span style={{ minWidth: 0 }}>
-            <strong style={{ color: s.done ? "var(--rp-text-muted)" : undefined }}>{s.title}</strong>
-            {s.optional && !s.done && <span className="rp-hint"> · optional</span>}
+            <strong className="rp-sb-step-title" style={{ fontWeight: "inherit" }}>{s.title}</strong>
             {fresh.has(s.id) && <>{" "}<StatusBadge tone="info" glyph={false}>New</StatusBadge></>}
             <span className="rp-sr-only">{s.done ? " (done)" : isNext ? " (next)" : ""}</span>
           </span>
-          <ChevronDown size={18} aria-hidden style={{ transform: isOpen ? "rotate(180deg)" : undefined, color: "var(--rp-text-subtle)" }} />
+          {s.optional && !s.done ? <span className="rp-sb-tag">Optional</span> : <span />}
         </button>
         {isOpen && (
-          <div id={panel} style={{ display: "grid", gap: 10, padding: "0 0 16px 32px" }}>
-            {!s.done && <p className="rp-hint" style={{ margin: 0 }}>{s.why}</p>}
+          <div id={panel} className="rp-sb-panel">
+            {!s.done && <p>{s.why}</p>}
             {s.id === "open" && !s.done && blocked && blocked.length > 0 && (
               <div role="alert">
-                <p className="rp-hint" style={{ margin: 0, color: "var(--rp-danger)" }}>Not yet: {blocked.length === 1 ? "one thing needs" : `${blocked.length} things need`} fixing before shoppers can buy.</p>
+                <p style={{ color: "var(--rp-danger)" }}>Not yet: {blocked.length === 1 ? "one thing needs" : `${blocked.length} things need`} fixing before shoppers can buy.</p>
                 <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
                   {blocked.map(b => (
                     <li key={b.id} className="rp-hint" style={{ marginTop: 4 }}>
@@ -140,31 +141,68 @@ export function SetupGuideCard({ doc, setDoc, facts, onOpen, onSetWall }: {
     );
   };
 
+  // The next step's own tile: the open step names its blockers there instead of a page to go to.
+  const nextTile = next && (
+    <section className="rp-sb-tile rp-sb-big rp-sb-next" aria-labelledby="setup-next-title">
+      <p className="rp-sb-eyebrow">Next · {groupOf(next)}</p>
+      <h2 id="setup-next-title">{next.title}</h2>
+      <p>{next.why}</p>
+      <div className="rp-sb-actions">
+        {next.id === "open"
+          ? <button type="button" className="rp-sb-go" disabled={!!saving || !onSetWall} onClick={() => void openShop()}>{next.action}</button>
+          : (next.hash || (next.tab && onOpen)) && <button type="button" className="rp-sb-go" onClick={() => go(next)}>{next.action}</button>}
+        {next.kind === "manual" && <button type="button" className="rp-sb-link" disabled={saving === next.id} onClick={() => tick(next.id)}>{next.tickLabel || "Mark done"}</button>}
+      </div>
+    </section>
+  );
+  const openTile = openStep && !openStep.done && (
+    <section className="rp-sb-tile rp-sb-big" aria-labelledby="setup-open-title">
+      <p className="rp-sb-eyebrow">Open your shop</p>
+      <h2 id="setup-open-title">{blockers.length === 0 ? "Ready to open" : blockers.length === 1 ? "1 thing to do before a sale" : `${blockers.length} things to do before a sale`}</h2>
+      {blockers.length > 0
+        ? <ul className="rp-sb-blockers">{blockers.map(b => <li key={b.id}>{onOpen && b.tab ? <button type="button" onClick={() => onOpen(b.tab)}>{b.label}</button> : b.label}</li>)}</ul>
+        : <p style={{ color: "var(--rp-text-muted)" }}>Shoppers can buy as soon as you open it.</p>}
+      <div className="rp-sb-actions">
+        <PrimaryButton busy={saving === "open"} disabled={blockers.length > 0 || !!saving || !onSetWall} onClick={() => void openShop()}>Open my shop</PrimaryButton>
+      </div>
+    </section>
+  );
+
   return (
-    <SectionCard title="Set up your shop" collapsible={false}
-      description={loading ? firstWeekIntro(doc) : `${firstWeekIntro(doc)} ${doneCount} of ${total} done.`}
-      actions={<GhostButton size="sm" disabled={!!saving} onClick={hide}>Hide this guide</GhostButton>}>
+    <div className="rp-sb" role="region" aria-labelledby="setup-title">
+      <header className="rp-sb-head">
+        <div>
+          <p className="rp-sb-eyebrow">Private · only you can see it</p>
+          <h2 id="setup-title" className="rp-sb-title">Set up your shop</h2>
+          <p className="rp-sb-lede">{firstWeekIntro(doc)}</p>
+        </div>
+        <div className="rp-sb-count">
+          {!loading && <span><span aria-hidden>{doneCount} / {total}</span><span className="rp-sr-only">{doneCount} of {total} done.</span></span>}
+          <GhostButton size="sm" disabled={!!saving} onClick={hide}>Hide this guide</GhostButton>
+        </div>
+      </header>
       {loading ? <LoadingState label="Checking your shop…" /> : <>
-        <div role="progressbar" aria-label="Set up your shop" aria-valuemin={0} aria-valuemax={total} aria-valuenow={doneCount}
-          style={{ height: 6, background: "var(--rp-divider)", marginBottom: 4 }}>
-          <div style={{ width: `${(doneCount / total) * 100}%`, height: "100%", background: "var(--rp-primary)" }} />
+        <div className="rp-sb-bar" role="progressbar" aria-label="Set up your shop" aria-valuemin={0} aria-valuemax={total} aria-valuenow={doneCount}>
+          <span style={{ width: `${(doneCount / total) * 100}%` }} />
         </div>
         {freshTitles.length > 0 && (
-          <p className="rp-hint" style={{ margin: "12px 0 0" }}>
+          <p className="rp-hint" style={{ margin: 0 }}>
             <strong>{freshTitles.length === 1 ? "A new step" : `${freshTitles.length} new steps`}:</strong> {listWords(freshTitles)}.
           </p>
         )}
-        {guideGroups(steps).map(g => (
-          <section key={g.id} aria-labelledby={`setup-group-${g.id}`} style={{ marginTop: 16 }}>
-            <h3 id={`setup-group-${g.id}`} className="rp-mono"
-              style={{ display: "flex", justifyContent: "space-between", gap: 8, margin: "0 0 4px", fontSize: 12, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--rp-text-muted)" }}>
-              <span>{g.title}</span><span>{g.done}/{g.total}<span className="rp-sr-only"> done</span></span>
-            </h3>
-            <ol aria-label={g.title} style={{ listStyle: "none", margin: 0, padding: 0, display: "grid" }}>{g.steps.map(row)}</ol>
-          </section>
-        ))}
+        {(nextTile || openTile) && <div className="rp-sb-row" style={nextTile && openTile ? undefined : { gridTemplateColumns: "minmax(0, 1fr)" }}>{nextTile}{openTile}</div>}
+        <div className="rp-sb-groups">
+          {guideGroups(steps).map(g => (
+            <section key={g.id} className="rp-sb-tile rp-sb-group" aria-labelledby={`setup-group-${g.id}`}>
+              <h3 id={`setup-group-${g.id}`} className="rp-sb-group-head">
+                <span>{g.title}</span><span>{g.done}/{g.total}<span className="rp-sr-only"> done</span></span>
+              </h3>
+              <ol aria-label={g.title} className="rp-sb-steps">{g.steps.map(row)}</ol>
+            </section>
+          ))}
+        </div>
       </>}
-    </SectionCard>
+    </div>
   );
 }
 

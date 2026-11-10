@@ -590,6 +590,11 @@ see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `A
   are new to that press (`addedSince`, fixed when the card mounts, since saving progress makes them old): they get a
   New tag and one "N new steps" line, and a hidden guide comes back for a needed one (`showFirstWeek`'s `added`).
   A done row opens on a click (to Change it); a row that gets done while open gives way to the next step.
+- **Board look (10 November 2026, design handoff "Shop setup (bento)"):** the guide, `ShopOpenedCard` and setup mode's
+  Home draw with `overview/setupBoard.css` (`.rp-sb-*`, tokens only, so every admin look keeps its own corners and type):
+  the next step on the ink tile (`rp-sb-next`), an **Open your shop** tile listing `openBlockers` (Open my shop stays off
+  while any remain), one tile per part. Rows here no longer open by themselves (the Next tile carries the action);
+  setup mode's rows still do. Shop-open card says "<name> is open." and, for `sellingToday: "online"`, Check your old links.
 - `SELLING_TODAY` must list the sign-up form's answers and `StepId` must match `help/articles.js` `CHECKLIST_ANSWERS`
   (root tests check both). Firestore rule `firstWeek`: admin only, `hasOnly([... "publishes", "country", "welcome",
   "progress" ...])`, the four sign-up fields never change from the admin, `welcome`/`progress` shapes checked. The
