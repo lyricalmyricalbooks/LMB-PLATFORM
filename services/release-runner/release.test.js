@@ -268,3 +268,10 @@ test("a shop in the shared system is a live shop the platform looks after, but g
   assert.match(notLive({ shopId: "press-b", projectId: "other", status: "live" }), /isn't the shop id/);
   assert.deepEqual(planRings([shared]).skipped, [{ shopId: "press-a", reason: "in the shared system: it gets the shared project's release" }]);
 });
+
+test("a failed command keeps what it printed, so the log says why", async () => {
+  const { commandRunner, commandTail } = await import("./run.js");
+  assert.equal(commandTail("a\n\nb\nc\n", 2), "b\nc");
+  const run = commandRunner({ print: () => {} });
+  await assert.rejects(run(process.execPath, ["-e", "console.error('Error: quota exceeded'); process.exit(2)"], { cwd: process.cwd() }), /Command failed[\s\S]*quota exceeded/);
+});
