@@ -119,6 +119,14 @@
     "nodes": 205,
     "images": 0
   },
+  "press-almanac book": {
+    "nodes": 275,
+    "images": 0
+  },
+  "press-almanac home": {
+    "nodes": 244,
+    "images": 0
+  },
   "press-arch book": {
     "nodes": 263,
     "images": 0
@@ -159,6 +167,38 @@
     "nodes": 273,
     "images": 0
   },
+  "press-console book": {
+    "nodes": 275,
+    "images": 0
+  },
+  "press-console home": {
+    "nodes": 242,
+    "images": 0
+  },
+  "press-cutout book": {
+    "nodes": 277,
+    "images": 0
+  },
+  "press-cutout home": {
+    "nodes": 276,
+    "images": 0
+  },
+  "press-folio book": {
+    "nodes": 266,
+    "images": 0
+  },
+  "press-folio home": {
+    "nodes": 277,
+    "images": 0
+  },
+  "press-gutter book": {
+    "nodes": 266,
+    "images": 0
+  },
+  "press-gutter home": {
+    "nodes": 285,
+    "images": 0
+  },
   "press-imprint book": {
     "nodes": 261,
     "images": 0
@@ -173,6 +213,22 @@
   },
   "press-index home": {
     "nodes": 247,
+    "images": 0
+  },
+  "press-kiln book": {
+    "nodes": 264,
+    "images": 0
+  },
+  "press-kiln home": {
+    "nodes": 272,
+    "images": 0
+  },
+  "press-lantern book": {
+    "nodes": 264,
+    "images": 0
+  },
+  "press-lantern home": {
+    "nodes": 281,
     "images": 0
   },
   "press-letterpress book": {
@@ -207,6 +263,14 @@
     "nodes": 284,
     "images": 0
   },
+  "press-picnic book": {
+    "nodes": 275,
+    "images": 0
+  },
+  "press-picnic home": {
+    "nodes": 272,
+    "images": 0
+  },
   "press-poster book": {
     "nodes": 263,
     "images": 0
@@ -221,6 +285,14 @@
   },
   "press-punk home": {
     "nodes": 284,
+    "images": 0
+  },
+  "press-reel book": {
+    "nodes": 275,
+    "images": 0
+  },
+  "press-reel home": {
+    "nodes": 272,
     "images": 0
   },
   "press-riso book": {
@@ -253,6 +325,14 @@
   },
   "press-shelf home": {
     "nodes": 282,
+    "images": 0
+  },
+  "press-signal book": {
+    "nodes": 264,
+    "images": 0
+  },
+  "press-signal home": {
+    "nodes": 281,
     "images": 0
   },
   "press-zine book": {
