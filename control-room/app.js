@@ -943,6 +943,8 @@ function card(shop) {
     shop.status === "live" ? signInSafetySection(shop) : null,
     shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Brought over from the old shop" }) : null,
     shop.status === "live" ? broughtOverSection(shop) : null,
+    el("h3", { className: "cr-section", textContent: "Took their data" }),
+    tookDataSection(shop),
     shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Payment links and fair till" }) : null,
     shop.status === "live" ? salesChannelsSection(shop) : null,
     // Social channels post the website's products, so a stockroom-only shop has none.
@@ -2921,6 +2923,28 @@ function salesChannelsSection(shop) {
         { header: "Details", render: (r) => meta(...r.more) },
       ],
     }) : el("p", { className: "rp-hint", textContent: "This plan has neither payment links nor a fair till." }));
+  }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
+  return slot;
+}
+
+function tookDataSection(shop) {
+  const slot = el("div", {}, el("p", { className: "rp-hint", textContent: "Reading the records…" }));
+  api("POST", "/control/took-data", { shopId: shop.shopId }).then(({ downloads, emailed, unreadable }) => {
+    const rows = [
+      ...downloads.map((d) => ({ at: d.at, how: "Downloaded it themselves", state: ["success", "saved"], more: [d.words] })),
+      ...emailed.map((e) => ({ at: e.at, how: `Emailed a link, asked by ${e.asked}`, state: e.status === "ready" ? ["success", "sent"] : e.status === "failed" ? ["warning", "failed"] : ["info", "being made"], more: [e.emailedTo ? `to ${e.emailedTo}` : null, e.expiresAt ? `link works until ${when(e.expiresAt)}` : null, e.problem] })),
+    ].sort((a, b) => String(b.at ?? "").localeCompare(String(a.at ?? "")));
+    fill(slot,
+      unreadable ? el("p", { className: "rp-hint", textContent: "Couldn't read the shop's own records, so downloads they made themselves may be missing." }) : null,
+      rows.length ? table({
+        caption: "Took their data",
+        rows,
+        columns: [
+          { header: "How", lead: true, render: (r) => el("div", {}, el("p", { className: "cr-title", textContent: r.how }), pill(r.state[0], r.state[1])) },
+          { header: "When", render: (r) => el("span", { className: "rp-mono", textContent: r.at ? when(r.at) : "" }) },
+          { header: "Details", render: (r) => meta(...r.more) },
+        ],
+      }) : el("p", { className: "rp-hint", textContent: "Hasn't taken a copy of its data yet." }));
   }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
   return slot;
 }

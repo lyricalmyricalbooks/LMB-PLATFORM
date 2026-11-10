@@ -86,6 +86,7 @@ import { createSetupClock } from "../signup/setupClock.js";
 import { createDriftDesk, createDriftWatch, driftRoutes } from "../control-room/driftWatch.js";
 import { createSignInSafety, signInSafetyRoutes } from "../control-room/signInSafety.js";
 import { broughtOverRoutes, createBroughtOver } from "../control-room/broughtOver.js";
+import { createTookData, tookDataRoutes } from "../control-room/tookData.js";
 import { createSalesChannels, salesChannelsRoutes } from "../control-room/salesChannels.js";
 import { createShopFeatures, shopFeaturesRoutes } from "../control-room/shopFeatures.js";
 import { createShopLooks, shopLooksRoutes } from "../control-room/shopLooks.js";
@@ -297,6 +298,8 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const signInSafety = createSignInSafety({ admins, registry, memberships: accountStores.memberships, shopAccess, now });
   const driftWatch = createDriftWatch({ registry, shopData, stockroomData, shopAccess, memberships: accountStores.memberships, email, settings, now });
   const broughtOver = createBroughtOver({ admins, registry, shopData, now });
+  const dataExportStore = firestoreDataExports(platform);
+  const tookData = createTookData({ admins, registry, shopData, exports: dataExportStore, now });
   const driftDesk = createDriftDesk({ admins, registry, settings, activity, now });
   const shopFeatures = createShopFeatures({ admins, registry, shopData, now });
   const shopLooks = createShopLooks({ admins, registry, shopData, now });
@@ -311,7 +314,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   // The billing export to BigQuery isn't on yet (19.15): the Costs page shows its "not on yet" state.
   const costsDesk = createCostsDesk({ registry, reader: createCostReader({}), settings: live, admins, now });
   const dataExports = createDataExports({
-    shopData, stockroomData, storage: notConnectedClient(NOT_CONNECTED.exportFiles, ["write", "signedUrl"]), store: firestoreDataExports(platform), registry, auditLog, activity, email,
+    shopData, stockroomData, storage: notConnectedClient(NOT_CONNECTED.exportFiles, ["write", "signedUrl"]), store: dataExportStore, registry, auditLog, activity, email,
     roleIn: (who, shopId) => accounts.roleIn(who, shopId), admins, now,
   });
 
@@ -365,6 +368,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...setupRoutes(setupDesk),
     ...signInSafetyRoutes(signInSafety),
     ...broughtOverRoutes(broughtOver),
+    ...tookDataRoutes(tookData),
     ...salesChannelsRoutes(salesChannels),
     ...shopFeaturesRoutes(shopFeatures),
     ...shopLooksRoutes(shopLooks),

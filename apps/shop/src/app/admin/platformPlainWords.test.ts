@@ -152,6 +152,8 @@ const OWN_ACCOUNT_COMPONENTS: Record<string, string> = {
   "src/app/admin/GoogleIndexDialog.tsx": "GoogleIndexDialog",
   // Only Stripe's own-keys card (StripeWebhookHealth) reads these.
   "src/app/admin/stripeChecks.ts": "",
+  // The names of the files inside the Download your shop zip (README.txt, .csv, .json): a file needs its extension.
+  "src/app/admin/shopTakeout.ts": "",
 };
 const ADMIN_FILES = walk(join(SHOP, "src/app/admin")).map((f) => relative(SHOP, f).split(sep).join("/")).filter((f) => /\.tsx?$/.test(f) && !SKIP.test(f) && !NOT_READ.has(f));
 

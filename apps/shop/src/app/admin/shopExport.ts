@@ -43,7 +43,7 @@ const cell = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""').replace(/^(
 const table = <H extends readonly string[]>(headings: H, lines: Partial<Record<H[number], string>>[]) =>
   [headings.map(cell).join(","), ...lines.map((line) => headings.map((h) => cell(line[h as H[number]])).join(","))].join("\n") + "\n";
 
-const money = (v: unknown) => (v === undefined || v === null || v === "" || !Number.isFinite(Number(v)) ? "" : Number(v).toFixed(2));
+export const money = (v: unknown) => (v === undefined || v === null || v === "" || !Number.isFinite(Number(v)) ? "" : Number(v).toFixed(2));
 const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 /** One line of this shop's description text with bold, italic and links as HTML. */
@@ -71,18 +71,18 @@ export function descriptionToHtml(text: string): string {
   }).join("");
 }
 
-const slugOf = (book: any) => String(book?.slug || book?.title || book?.id || "book").toLowerCase().normalize("NFKD")
+export const slugOf = (book: any) => String(book?.slug || book?.title || book?.id || "book").toLowerCase().normalize("NFKD")
   .replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "book";
 
-const photosOf = (book: any): { url: string; alt: string }[] => {
+export const photosOf = (book: any): { url: string; alt: string }[] => {
   const list = Array.isArray(book?.photos) ? book.photos.filter((p: any) => p?.url).map((p: any) => ({ url: String(p.url), alt: String(p.altText || "") })) : [];
   if (!list.length && book?.photoUrl) list.push({ url: String(book.photoUrl), alt: "" });
   return list;
 };
 
-const isDigital = (book: any) => book?.digital === true || /e-?book|audiobook/i.test(String(book?.format || ""));
-const grams = (weight: unknown) => { const g = parseWeightGrams(weight); return g && g > 0 ? String(Math.round(g)) : ""; };
-const STATUS: Record<string, string> = { published: "active", draft: "draft", archived: "archived" };
+export const isDigital = (book: any) => book?.digital === true || /e-?book|audiobook/i.test(String(book?.format || ""));
+export const grams = (weight: unknown) => { const g = parseWeightGrams(weight); return g && g > 0 ? String(Math.round(g)) : ""; };
+export const STATUS: Record<string, string> = { published: "active", draft: "draft", archived: "archived" };
 
 /** Every book as product lines: one per edition, extra photos on lines of their own. Gift cards stay out. */
 export function productsForAnotherShop(books: any[], { vendor = "", now = new Date() }: { vendor?: string; now?: Date } = {}): string {
