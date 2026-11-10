@@ -749,3 +749,7 @@ wrong breakpoint while the owner edits a different device.
 not build its contents: guard children with the open flag (the Keyboard shortcuts list) or return early once the hooks
 have run (`StudioSchedule`, which otherwise measured the whole design on every keystroke). Measured with the
 StudioEditor tests: about a fifth less time per click in development React.
+
+**`beforeShop` (10 November 2026):** Studio for a press with no store yet (`src/designFirst/`, admin CLAUDE.md › Design
+before the store): saves 1.2 s after each edit to the press's setup record, Done saves first, and no publish, draft,
+discard, schedule or View website controls. Keep new top-bar actions that need a real shop behind `!beforeShop`.

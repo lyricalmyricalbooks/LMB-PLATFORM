@@ -20,7 +20,8 @@ import { GoogleStage } from "./GoogleStage";
 import { FinalCheckStage } from "./FinalCheckStage";
 import { ShopOpenedCard, publicAddress } from "./ShopOpenedCard";
 import { MoveProgressCard } from "./MoveProgressCard";
-import { chosenLook, keptFile, type SetupHandover } from "../setupHandover";
+import { chosenDesign, chosenLook, keptFile, type SetupHandover } from "../setupHandover";
+import { SignupDesignStage } from "./SignupDesignStage";
 import { KeptFileCard } from "./KeptFileCard";
 
 // The welcome pulls in Studio's theme library and switcher, so it loads only for a shop that will show it.
@@ -47,6 +48,7 @@ export function SetupStart({ books, orders, readiness, settings, onOpen, onSetWa
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   // Set once Open your shop took the wall down here, so the step ticks before the Overview reads the settings again.
   const [opened, setOpened] = useState(false);
+  const [pickLook, setPickLook] = useState(false);
   // "Your shop is open", shown from the moment it opens here until the press puts it away.
   const [celebrate, setCelebrate] = useState(false);
   // Set when the press chooses Finish later on the final check (plan 17.13): the setup guide shows until the next visit.
@@ -113,6 +115,12 @@ export function SetupStart({ books, orders, readiness, settings, onOpen, onSetWa
         await adminApi.updateFirstWeek({ welcome });
         setDoc({ ...doc, welcome });
       };
+      // Designed before the store was made: that design goes on, unless the press chose the gallery instead.
+      const designed = chosenDesign(handover);
+      if (designed && !pickLook) {
+        if (settings === undefined) return <SectionCard title="Your design" collapsible={false}><LoadingState label="Opening your shop…" /></SectionCard>;
+        return <SignupDesignStage design={designed} settings={settings} onDone={done} onPickLook={() => setPickLook(true)} />;
+      }
       return (
         <Suspense fallback={<SectionCard title="Choose your look"><LoadingState label="Opening the looks…" /></SectionCard>}>
           <ChooseLookWelcome publishes={doc.publishes} books={ownBooks(books)} settings={settings} onDone={done} onRetrySettings={onRetrySettings} chosen={chosenLook(handover)} />

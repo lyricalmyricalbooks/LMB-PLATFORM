@@ -6,7 +6,7 @@
   "scripts": {
     "build": "vite build && node scripts/generate-sitemap.mjs && node scripts/build-storefront-data.mjs && node scripts/prerender-storefront.mjs",
     "build:shared": "node scripts/build-shared.mjs",
-    "build:setup": "vite build --config vite.setup.config.ts",
+    "build:setup": "vite build --config vite.setup.config.ts && vite build --config vite.design.config.ts",
     "build:sitemap": "node scripts/generate-sitemap.mjs",
     "dev": "vite",
     "preview": "vite preview",

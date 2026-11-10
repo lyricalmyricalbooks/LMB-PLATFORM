@@ -243,17 +243,24 @@ function fillAnswers() {
   const keep = $("#keep-setup");
   keep.hidden = !(SETUP_ADMIN_URL && press.pressName);
   if (!keep.hidden) keep.querySelector("a").href = setupGuideUrl();
+  // A shop designed before the store was made: the tile says so and leads back to the designer.
+  const designed = $("#new-design");
+  designed.hidden = !press.design;
+  designed.querySelector("a").href = designerUrl();
 }
+
+/** The designer that runs before the store exists (built from apps/shop, served at /design/). */
+const designerUrl = () => `/design/studio?press=${encodeURIComponent(press.pressId)}`;
 
 const setupGuideUrl = () => `${SETUP_ADMIN_URL}?press=${encodeURIComponent(press.pressId)}`;
 
 /** The questions' own checks (the server checks again); returns true when every required answer is there. */
-function checkAnswers(answers) {
+function checkAnswers(answers, { terms = true } = {}) {
   const problems = {
     pressName: answers.pressName ? "" : "Enter your brand's name.",
     sells: answers.sells ? "" : "Pick what you sell.",
     country: answers.country ? "" : "Choose where your brand is based.",
-    terms: answers.termsAccepted ? "" : "Tick the box to agree to the terms.",
+    terms: !terms || answers.termsAccepted ? "" : "Tick the box to agree to the terms.",
   };
   for (const [field, words] of Object.entries(problems)) {
     const line = $(`#${field}-error`);
@@ -265,10 +272,27 @@ function checkAnswers(answers) {
   return !first;
 }
 
+const readAnswers = () => {
+  const picked = (name) => startForm.querySelector(`input[name=${name}]:checked`)?.value ?? "";
+  return { pressName: startForm.pressName.value.trim(), sells: picked("sells"), country: startForm.country.value, sellingToday: picked("sellingToday"), termsAccepted: startForm.termsAccepted.checked };
+};
+
+// Design my shop first: the answers are saved (no store is made, no terms needed yet), then the real designer opens
+// with a sample shop. Its Done comes back here, and Start my free trial makes the store with that design on.
+$("#design-first").addEventListener("click", () => {
+  const answers = readAnswers();
+  if (!checkAnswers(answers, { terms: false })) return;
+  busy(startForm, $("#start-error"), async () => {
+    const { termsAccepted: _terms, ...change } = answers;
+    if (!change.sellingToday) delete change.sellingToday;
+    press = (await api("POST", "/press/setup", { pressId: press.pressId, plan: TRIAL_PLAN, ...change })).press;
+    location.assign(designerUrl());
+  });
+});
+
 startForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  const picked = (name) => startForm.querySelector(`input[name=${name}]:checked`)?.value ?? "";
-  const answers = { pressName: startForm.pressName.value.trim(), sells: picked("sells"), country: startForm.country.value, sellingToday: picked("sellingToday"), termsAccepted: startForm.termsAccepted.checked };
+  const answers = readAnswers();
   if (!checkAnswers(answers)) return;
   busy(startForm, $("#start-error"), async () => {
     const { termsAccepted, ...change } = answers;

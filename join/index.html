@@ -60,6 +60,8 @@
   .fd-new-dl > div.fd-after { padding-top: 12px; border-top: 1px solid var(--rp-divider); }
   .fd-new-dl > div.fd-after dt { color: var(--rp-text); font-weight: 600; }
   .fd-new-note { margin: 0; font: 400 12px/1.6 var(--rp-font-mono); color: var(--rp-text-subtle); }
+  .fd-new-design { margin: 0; display: flex; justify-content: space-between; font: 500 13px/1.4 var(--rp-font-body, inherit); }
+  .fd-new-design span::before { content: "✓ "; }
   /* Setting up your store: a card over the page. */
   .fd-scrim { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; background: rgba(31, 30, 27, .45); }
   .fd-scrim[hidden] { display: none; }
@@ -144,7 +146,7 @@
       <label class="tick fd-terms"><input type="checkbox" name="termsAccepted"> <span>I agree to Colophon's <a href="../terms/" target="_blank" rel="noopener">terms, privacy policy and data agreement</a>.</span></label>
       <p class="error" id="terms-error" role="alert" hidden></p>
       <p class="error" id="start-error" role="alert" hidden></p>
-      <div class="fd-row"><button type="submit" class="primary">Start my free trial</button></div>
+      <div class="fd-row"><button type="submit" class="primary">Start my free trial</button><button type="button" class="ghost" id="design-first">Design my shop first</button></div>
       <p class="hint" id="start-note">No card needed. We'll remind you before the trial ends, and you can cancel at any time.</p>
       <p class="hint" id="keep-setup" hidden><a href="">Keep setting up first</a> and start the trial later.</p>
     </form>
@@ -157,6 +159,7 @@
     <p class="fd-new-top"><span>Your new store</span><span class="pill" data-tone="info">Free trial</span></p>
     <div class="fd-browser" aria-hidden="true"><span class="fd-browser-bar"><i></i><i></i><i></i><span id="new-address">yourbrand.web.app</span></span>
       <small id="new-name">Your brand</small><b id="new-kind">Your store</b></div>
+    <p class="fd-new-design" id="new-design" hidden><span>Your design is saved</span> <a href="">Edit</a></p>
     <dl class="fd-new-dl">
       <div><dt>Free trial</dt><dd id="new-days">14 days</dd></div>
       <div><dt>Includes</dt><dd>Shop and stockroom</dd></div>
