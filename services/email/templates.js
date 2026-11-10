@@ -451,7 +451,7 @@ export const TEMPLATES = {
   "subscription-ended": ({ link }, { settings, pressName }) => layout({
     subject: `${pressName} is closed`,
     greeting: "Hello,",
-    paragraphs: [`Your ${settings.platformName} plan for ${pressName} has ended, so the shop is closed. You can download everything in it for 90 days; after that it is deleted, and we email you 30 and 7 days before.`, "You can start a plan again before then and pick up where you left off."],
+    paragraphs: [`Your ${settings.platformName} plan for ${pressName} has ended, so the shop is closed. For 90 days you can sign in and press Download your shop (Settings, then Plan) to get everything in one zip; after that it is deleted, and we email you 30 and 7 days before.`, "You can start a plan again before then and pick up where you left off."],
     buttons: [["Start a plan again", safeLink(link)]],
     footer: signOff(settings),
   }),

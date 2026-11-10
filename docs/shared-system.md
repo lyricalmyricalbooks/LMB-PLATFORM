@@ -169,7 +169,7 @@ live shop until phase 8 (the per-project test shop build is on hold).
 - `lmb-test-shop` becomes the shared **test** project: the test shop is one folder in it, and every update lands there
   first. `setup/make-test-shop.js` (the "Make the test shop" workflow) readies it once (`setup/sharedProject.js`:
   Firebase, the services, the databases and buckets, the web app called Shop, sign-in lists allowed, the shared
-  server's key, the nightly copy's permission, the old builds' cleanup), sends its first release while it has no shop
+  server's key, the nightly copy's permission, photos readable from the admin for Download your shop, the old builds' cleanup), sends its first release while it has no shop
   (`firstSharedRelease`), and makes the test shop `test-press` with the shared shop maker's steps, at the project's
   own address `lmb-test-shop.web.app`. The test shop from before (`lmb-test-shop`, the project to itself) is marked
   abandoned in the registry, so the per-project runner never sends its old rules here; its data stays. The release

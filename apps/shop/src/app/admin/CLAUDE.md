@@ -738,7 +738,7 @@ Settings › General › Tools › **Download your shop** (`DownloadShopCard.tsx
 page): `products/` in four layouts (Shopify = `shopExport.ts`, WooCommerce, Squarespace, Big Cartel = `shopTakeout.ts`, each
 read back by `shopMove.ts`; `shopTakeout.test.ts` round-trips them), `customers/`, `orders/`, `pages/`, `settings/` (private
 keys stripped), `backup/books.json` and `images/` (`takeoutPhotos.ts`, best effort, 400 MB cap; `images.csv` lists any left at
-their web address). Screen words say "another shop system"; only the files inside the zip name a system. It writes one
+their web address). The browser can read the photos only because the shared bucket answers reads from any address (readying step 8, `setup/sharedProject.js`, `photoAccess` in `clients/google.js`); a project readied before that needs the readying run again. Screen words say "another shop system"; only the files inside the zip name a system. It writes one
 `export` audit-log line ("Downloaded the whole shop…") that the control room reads. The emailed server copy
 (`services/export`) stays for closed shops' 90 days and privacy requests. A new layout = a writer in `shopTakeout.ts`, an entry
 in `takeoutFiles`, a round-trip test.

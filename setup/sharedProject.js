@@ -10,7 +10,8 @@
 //        in the Firebase console; the step says so in plain words and the next run goes on.
 //   6    The shared server's key (setup/serviceKey.js sharedServiceKeyHash): one PLATFORM_SERVICE_KEY for every shop
 //   7    The nightly copy's permission (Google's Firestore service agent may write exports to the project's bucket)
-//   8    A one-day cleanup rule on the server code's old builds (setup/upkeep.js), once the first deploy made them
+//   8    Photos readable from the admin (bucket CORS, GET/HEAD only), so "Download your shop" can copy a shop's pictures
+//   9    A one-day cleanup rule on the server code's old builds (setup/upkeep.js), once the first deploy made them
 //
 // `google` is clients/google.js (fakes.js has the shape). The project is passed to the steps as `{ shopId, plan }`, the
 // shape projectSteps reads: a shared project holds both apps for every shop.
@@ -72,6 +73,12 @@ export function sharedProjectSteps({ google, region = REGION }) {
     },
     {
       number: 8,
+      name: "Let the admin copy a shop's photos for its download",
+      check: ({ shop }) => google.photoAccess.has(shop.shopId),
+      act: ({ shop }) => google.photoAccess.set(shop.shopId),
+    },
+    {
+      number: 9,
       name: "Keep only a day of the server's old builds",
       // No build repository yet (before the first deploy) counts as done: the next run after it sets the rule.
       check: async ({ shop }) => (await google.buildCleanup.has(shop.shopId, region)) !== false,

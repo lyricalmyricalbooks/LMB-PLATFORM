@@ -149,7 +149,7 @@ export function fakeGoogle({ failOnce = [] } = {}) {
     // What an unsigned read of the storage test file gets; 403 is private, as the shop's storage rules make it.
     unsignedReadStatus: 403,
     // Scheduled jobs by project (a set of job ids) and the projects whose build repository has the cleanup rule (plan 15.16).
-    schedulerJobs: new Map(), buildCleanup: new Set(),
+    schedulerJobs: new Map(), buildCleanup: new Set(), photoAccess: new Set(),
     // Each project's sign-in settings (plan 22.6): { subtype, mfa }. A new Firebase project starts as plain Firebase Auth.
     authConfigs: new Map(), googleSignIns: new Map(),
     // Budgets on the billing account (plan 15.17): { id, displayName, body }.
@@ -337,6 +337,13 @@ export function fakeGoogle({ failOnce = [] } = {}) {
       async set(projectId) {
         change("buildCleanup.set", projectId);
         world.buildCleanup.add(projectId);
+      },
+    },
+    photoAccess: {
+      has: async (projectId) => world.photoAccess.has(projectId),
+      async set(projectId) {
+        change("photoAccess.set", projectId);
+        world.photoAccess.add(projectId);
       },
     },
     storageProbe: {

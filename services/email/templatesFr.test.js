@@ -40,7 +40,7 @@ test("a French email carries the same link, press name and day as the English on
       for (const part of ["subject", "text", "html"]) {
         assert.doesNotMatch(fr[part], /undefined|null|NaN|\[object/, `${kind} ${part}`);
         // The one English left on purpose: the button's own label on the account page, quoted, with the French after it.
-        assert.doesNotMatch(fr[part].replaceAll("« Download all your data »", ""), /\b(the stockroom|the shop|your|Download|Hello)\b/, `${kind} ${part} has English words`);
+        assert.doesNotMatch(fr[part].replaceAll("« Download all your data »", "").replaceAll("(Download your shop)", ""), /\b(the stockroom|the shop|your|Download|Hello)\b/, `${kind} ${part} has English words`);
       }
       assert.match(fr.subject + fr.text, /Moth Press/, kind);
       assert.match(fr.text, /^Bonjour,/, kind);
