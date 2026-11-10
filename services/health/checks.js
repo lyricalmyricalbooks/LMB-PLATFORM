@@ -12,7 +12,8 @@
 //             platform's backup of the stockroom (the row's platformBackup, nightly.js): each under BACKUP_MAX_HOURS old
 //
 // Only reads. The shop's data is read with the platform's token (clients/firestore.js).
-import { siteOf } from "../../clients/deploy.js";
+import { shopPlaces } from "../../clients/shared.js";
+import { ownAddress } from "../domains/names.js";
 import { appsOf } from "../../setup/later-steps.js";
 import { REGION } from "../../setup/steps.js";
 
@@ -37,7 +38,8 @@ export function checksFor(row) {
   return names;
 }
 
-export const shopUrl = (row) => `https://${siteOf(row.shopId, "shop")}.web.app`;
+/** The shop's own address (its free address in the shared system, else its project's web.app one). */
+export const shopUrl = (row) => `https://${ownAddress(row)}`;
 
 export function healthChecks({ siteCheck, fetch, shopDb }) {
   return {
@@ -45,7 +47,7 @@ export function healthChecks({ siteCheck, fetch, shopDb }) {
       const apps = appsOf(row);
       const urls = [];
       if (apps.includes("shop")) urls.push(shopUrl(row), `${shopUrl(row)}/admin`, `${shopUrl(row)}/shop-profile.js`);
-      if (apps.includes("stockroom")) urls.push(`https://${siteOf(row.shopId, "stockroom")}.web.app`);
+      if (apps.includes("stockroom")) urls.push(shopPlaces(row).stockroom);
       const bad = [];
       for (const url of urls) {
         const { status, problems = [] } = await siteCheck.get(url);
@@ -56,7 +58,8 @@ export function healthChecks({ siteCheck, fetch, shopDb }) {
 
     async checkout(row) {
       const origin = shopUrl(row);
-      const url = `https://${row.region ?? REGION}-${row.shopId}.cloudfunctions.net/createStripeCheckoutSession`;
+      const url = shopPlaces({ region: REGION, ...row }).fn?.("createStripeCheckoutSession");
+      if (!url) return { ok: false, detail: "couldn't check: the registry has no region for this shop" };
       const response = await fetch(url, {
         method: "OPTIONS",
         headers: { Origin: origin, "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type" },

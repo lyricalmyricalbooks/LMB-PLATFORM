@@ -66,6 +66,7 @@ import { createRepairQueue } from "../control-room/repairs.js";
 import { createApi } from "../signup/api.js";
 import { createShopMaker } from "../signup/shopMaker.js";
 import { SHARED_STEP_PLAN, sharedShopRun } from "../setup/real.js";
+import { shopStores } from "../clients/shared.js";
 import { createSignup } from "../signup/signup.js";
 import { createBillingFromEnv, readBillingConfig } from "../services/billing/index.js";
 import { createPaymentWay } from "../services/billing/paymentWay.js";
@@ -109,7 +110,7 @@ import { createTrialTips } from "../services/trial-tips/index.js";
 import { createCheckups, makeInspector } from "../services/checkup/index.js";
 import { firestoreClient } from "../clients/firestore.js";
 import { firestoreAuditLog, firestoreRegistry } from "../clients/registry.js";
-import { STOCKROOM_DATABASE, registryFiles, shopDataClient, stockroomDataClient } from "../clients/shop.js";
+import { registryFiles, shopDataClient, stockroomDataClient } from "../clients/shop.js";
 import {
   firestoreAccounts, firestoreActivity, firestoreBreaches, firestoreDeliveryStats, firestoreDevices, firestoreIncomeHistory, firestoreInvites,
   firestoreJobRuns, firestorePlatformState, firestoreRecoveries, firestoreRepairs, firestoreSentLog, firestoreShopNotes, firestoreSupport, firestoreWaitlist,
@@ -152,10 +153,10 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const nowMs = () => now().getTime();
   const settings = platformSettings(env);
 
-  // The platform project's database, and each shop's own (its default database and its stockroom's named one).
+  // The platform project's database, and each shop's (its folder in the shared project once SHARED_SHOPS_PROJECT is set,
+  // clients/shared.js shopStores; else its own project's default database and its stockroom's named one).
   const platform = firestoreClient({ fetch, token, projectId });
-  const shopDb = (shopProject) => firestoreClient({ fetch, token, projectId: shopProject });
-  const stockroomDb = (shopProject) => firestoreClient({ fetch, token, projectId: shopProject, database: STOCKROOM_DATABASE });
+  const { shopDb, stockroomDb } = shopStores({ env, fetch, token });
   const platformState = firestorePlatformState(platform);
   const live = () => liveSettings({ env, store: platformState });
 

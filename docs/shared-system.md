@@ -86,6 +86,15 @@ needed a Google organization before any shop could be made ("In the queue") and 
   never over one there); the test shop's goes through its own admin. The hosted server runs it once
   `SHARED_SHOPS_PROJECT` and `SHARED_SHOPS_DOMAIN` are in its settings (`server/world.js`, `sharedShopRun`); sign-up's
   progress screen follows these steps (`SHARED_STEP_PLAN`). Until then making shops stays "not switched on".
+- **The platform reaches each shop in its folder.** One setting, `SHARED_SHOPS_PROJECT` on the hosted server
+  (`clients/shared.js` `shopStores`), points every platform reader and writer into a shop at its folder in the shared
+  project: billing's plan copies, control-room messages, the closing sweep, accounts, health and backups. Where a shop
+  answers comes from its registry row (`shopPlaces`): its free address or own domain on the front door, the stockroom
+  under `/stockroom`, and its server functions on the shared server with `?shop=<id>` (the payment service forwards
+  Stripe and Square events there; the health checks call the checkout there). `ownAddress` (services/domains/names.js)
+  is the free address for a shared shop. A shared shop is live for health, backups and team sync
+  (`rings.js` `notLive`), but gets no per-project release (`leftOut`). The nightly backup exports the shared project's
+  two databases once for all its shops; the monthly restore drill still covers only shops with a project of their own.
 - **Backups.** The managed Firestore export would copy every shop, so inside a shop only the server's own document copy
   runs. Its paths carry no shop folder (`books/a`), and `scripts/restore-json-backup.mjs --shop <id>` puts them back
   into that shop's folder only.
@@ -117,13 +126,11 @@ app off. The per-shop cost meters (phase 7) are what the plan charges by.
 | 7 | Platform services: control room, health, per-shop costs, export, closing, backups, staged updates | next |
 | 8 | Test shop rebuilt in the shared test project (`lmb-test-shop`) with a test purchase | |
 
-Left for later phases: the domain service adds an own domain to the shared Hosting site and to `addresses/` (phase 7). The platform's services still call each shop's server code at its own project's address
-(`services/payments` forwarding events, `services/health`), which phase 7 moves to the shared server with `?shop=`. A
-Shippo or PayPal webhook set up by hand needs `?shop=<id>` on its address. The tick runs every shop in one five-minute
-run; phase 7 spreads it out once there are many shops. The platform's writers into a shop (billing's `platform/plan`
-and `platform/status`, control-room messages, the closing sweep, setup's stockroom books) still address each shop's own
-project (the shop maker's own writes already reach the folder); phase 7 points them at the shop's folder in the shared project. Nothing is deployed from these copies to a live shop until
-phase 8 (the per-project test shop build is on hold).
+Left for later in phase 7: the domain service adds an own domain to the shared Hosting site and to `addresses/`; the
+per-shop cost meters; the staged updates (one release of the shared project, then each shop's pages); a restore drill
+of the shared project. A Shippo or PayPal webhook set up by hand needs `?shop=<id>` on its address. The tick runs every
+shop in one five-minute run; it is spread out once there are many shops. Nothing is deployed from these copies to a
+live shop until phase 8 (the per-project test shop build is on hold).
 
 ## Projects
 

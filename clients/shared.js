@@ -15,6 +15,11 @@
 import { firestoreClient } from "./firestore.js";
 import { googleHttp } from "./http.js";
 import { STOCKROOM_DATABASE } from "./shop.js";
+import { siteOf } from "./deploy.js";
+import { siteUrlOf } from "../services/domains/names.js";
+
+/** The shared project's Realtime Database (the stockroom's live data); `SHARED_SHOPS_DATABASE_URL` when it isn't the default. */
+export const liveDatabaseUrl = (projectId, env = {}) => String(env.SHARED_SHOPS_DATABASE_URL ?? "").trim() || `https://${projectId}-default-rtdb.firebaseio.com`;
 
 const SHOP_ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
 const shopIdOf = (shopId) => {
@@ -65,4 +70,45 @@ export function sharedStores({ fetch, token, projectId, databaseUrl = "" }) {
       create: (host, data) => root.create(`addresses/${hostOf(host)}`, data),
     },
   };
+}
+
+/**
+ * Where the platform reads and writes each shop's data: `{ shared, shopDb(shopId), stockroomDb(shopId) }`. With
+ * `SHARED_SHOPS_PROJECT` set, every shop is a folder in that project (`shared` is its sharedStores); without it, each
+ * shop's own project, as before the shared system. The hosted server and its jobs build theirs here, so every platform
+ * writer into a shop (plan copies, messages, closing, health, backups) follows one setting.
+ */
+export function shopStores({ env = {}, fetch, token }) {
+  const projectId = String(env.SHARED_SHOPS_PROJECT ?? "").trim();
+  if (projectId) {
+    const shared = sharedStores({ fetch, token, projectId, databaseUrl: liveDatabaseUrl(projectId, env) });
+    return { shared, shopDb: shared.shopDb, stockroomDb: shared.stockroomDb };
+  }
+  return {
+    shared: null,
+    shopDb: (shopProject) => firestoreClient({ fetch, token, projectId: shopProject }),
+    stockroomDb: (shopProject) => firestoreClient({ fetch, token, projectId: shopProject, database: STOCKROOM_DATABASE }),
+  };
+}
+
+const REGION_NAME = /^[a-z]+-[a-z]+[0-9]{1,2}$/;
+const PROJECT_ID = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
+
+/**
+ * Where one shop answers, from its registry row: `site` (its main address), `stockroom` and `fn(name)`, the address of
+ * one of its server functions. A shop in the shared system (`shared: true`) answers at its own addresses on the one
+ * front door (the stockroom under /stockroom) and through the shared server, which learns the shop from `?shop=`. A
+ * shop with a project of its own answers at that project's addresses. `fn` is null when the row has no usable region or
+ * project.
+ */
+export function shopPlaces(row) {
+  const shopId = shopIdOf(row?.shopId);
+  const region = row.functionsRegion || row.region;
+  const project = row.projectId ?? shopId;
+  const site = siteUrlOf(row);
+  const usable = REGION_NAME.test(region ?? "") && PROJECT_ID.test(project);
+  if (row.shared === true) {
+    return { site, stockroom: `${site}/stockroom`, fn: usable ? (name) => `https://${region}-${project}.cloudfunctions.net/${name}?shop=${shopId}` : null };
+  }
+  return { site, stockroom: `https://${siteOf(shopId, "stockroom")}.web.app`, fn: usable ? (name) => `https://${region}-${project}.cloudfunctions.net/${name}` : null };
 }

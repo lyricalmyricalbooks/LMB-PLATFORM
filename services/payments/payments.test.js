@@ -595,6 +595,9 @@ test("a press disconnecting their Stripe account is recorded", async () => {
 test("events go to the shop's own webhook address", () => {
   assert.equal(shopWebhookUrl(shopRow()), `https://northamerica-northeast1-${SHOP}.cloudfunctions.net/stripeWebhook`);
   assert.equal(shopWebhookUrl({ projectId: "x" }), null);
+  // In the shared system the events go to the one shared server, which learns the shop from ?shop=.
+  assert.equal(shopWebhookUrl({ shopId: "press-a", projectId: "lmb-test-shop", shared: true, region: "northamerica-northeast1" }),
+    "https://northamerica-northeast1-lmb-test-shop.cloudfunctions.net/stripeWebhook?shop=press-a");
 });
 
 // ── The shop maker's step 13 ──────────────────────────────────────────────────────────────────────────────────────

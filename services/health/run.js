@@ -9,6 +9,7 @@
 // The token comes from `gcloud auth print-access-token`. Alerts go through the platform's email service, which reads its own
 // settings; this file never reads a key.
 import { pathToFileURL } from "node:url";
+import { shopStores } from "../../clients/shared.js";
 import { firestoreClient } from "../../clients/firestore.js";
 import { googleClients } from "../../clients/google.js";
 import { firestoreRegistry } from "../../clients/registry.js";
@@ -30,7 +31,8 @@ export async function realHealth({ job, env = process.env, fetch = globalThis.fe
   if (job !== "nightly" && !env.HEALTH_ALERT_TO) throw new Error("HEALTH_ALERT_TO is not set");
   const platform = firestoreClient({ fetch, token, projectId });
   const registry = firestoreRegistry(platform);
-  const shopDb = (projectId) => firestoreClient({ fetch, token, projectId });
+  // Each shop's data: its folder in the shared project once SHARED_SHOPS_PROJECT is set (clients/shared.js).
+  const { shopDb } = shopStores({ env, fetch, token });
   if (job === "nightly") return runNightlyBackups({ registry, backups: googleClients({ fetch, token }).backups, shopDb, print });
   if (job === "drill") {
     const google = googleClients({ fetch, token });

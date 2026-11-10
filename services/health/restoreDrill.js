@@ -29,6 +29,7 @@ export function countsMatch(restored, live) {
 
 export async function runRestoreDrill({ registry, backups, firestore, notify, config = {}, now = () => new Date(), print = () => {}, collections = DRILL_COLLECTIONS }) {
   if (!config.alertTo) throw new Error("the restore drill needs an address to send alerts to (HEALTH_ALERT_TO)");
+  // Shops with a project of their own; a shop in the shared system is covered by the shared project's export (nightly.js).
   const rows = (await registry.listShops()).filter((row) => !leftOut(row));
   const last = Math.max(0, ...rows.map((row) => Date.parse(row.restoreDrill?.at ?? 0) || 0));
   // A calendar month, not a count of days: 1 March comes 28 days after 1 February, a few seconds short in a run's time.
