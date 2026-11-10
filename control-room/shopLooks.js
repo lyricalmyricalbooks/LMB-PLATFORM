@@ -12,25 +12,6 @@ import { PLANS } from "../setup/steps.js";
 
 /** The full storefront templates (apps/shop features/site/templateStyles.ts TEMPLATE_STYLE_IDS; a test keeps them in step). */
 export const TEMPLATES = Object.freeze(["marquee", "shelf", "atlas", "mosaic", "arch", "market", "index", "folio", "lantern", "gutter", "signal", "kiln", "almanac", "console", "picnic", "cutout", "reel"]);
-/**
- * The looks Choose your look suggests for each sign-up answer to "What do you sell?" (apps/shop admin/lookGallery.ts
- * SUGGESTED; a test keeps them in step), to count how many live shops wear one of theirs.
- */
-export const SUGGESTED = Object.freeze({
-  books: ["press-imprint", "press-folio", "press-letterpress"],
-  zines: ["press-zine", "press-gutter", "press-cutout"],
-  comics: ["press-gutter", "press-market", "press-mosaic"],
-  prints: ["press-signal", "press-index", "press-atlas"],
-  mix: ["press-rows", "press-atlas", "press-market"],
-  mixed: ["press-rows", "press-atlas", "press-shelf"],
-  clothing: ["press-cutout", "press-atlas", "press-marquee"],
-  shoes: ["press-atlas", "urban-streetwear", "press-marquee"],
-  jewelry: ["press-kiln", "press-arch", "golden-noir"],
-  music: ["press-reel", "night-neon", "press-console"],
-  other: ["press-kiln", "press-atlas", "press-shelf"],
-  general: ["press-riso-noir", "press-riso", "press-imprint"],
-});
-export const suggestedFor = (publishes) => SUGGESTED[typeof publishes === "string" && Object.hasOwn(SUGGESTED, publishes) ? publishes : "general"];
 const templateOf = (design) => (TEMPLATES.includes(design?.themeStyle) ? design.themeStyle : null);
 
 /**
@@ -64,8 +45,6 @@ export function lookOf(settings, workspace, start) {
     draft: draft && draft.id !== live?.id ? draft : null,
     welcome,
     waiting: Boolean(welcome && !live),
-    // Whether the look shoppers see is one suggested for what the press sells (null with no ready-made look).
-    suggested: live ? suggestedFor(start?.publishes).includes(live.id) : null,
   };
 }
 
@@ -124,9 +103,7 @@ export function createShopLooks({ admins, registry, shopData, now = () => new Da
       });
       return { looks: lookTally(looks), templates: templateTally(looks), shops: looks.length, waiting: looks.filter((l) => l.waiting).length,
         // Choose your look on the admin's first visit: picked one, or pressed Skip (which takes the first suggestion).
-        welcome: { picked: looks.filter((l) => l.welcome && !l.welcome.skipped).length, skipped: looks.filter((l) => l.welcome?.skipped).length },
-        // Of the shops wearing a ready-made look, how many wear one suggested for what they sell.
-        suggested: { took: looks.filter((l) => l.suggested === true).length, of: looks.filter((l) => l.suggested !== null).length }, unread };
+        welcome: { picked: looks.filter((l) => l.welcome && !l.welcome.skipped).length, skipped: looks.filter((l) => l.welcome?.skipped).length }, unread };
     },
   };
 }

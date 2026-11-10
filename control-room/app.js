@@ -2690,10 +2690,10 @@ async function loadSetup() {
     });
     $("#setup-looks").replaceChildren(lookSheet("Website looks", looks.website)); // One admin look (Colophon) now, so no admin-look counts.
     // The looks live shops wear now (control-room/shopLooks.js), read from each shop: after the setup looks, not before.
-    api("GET", "/control/live-looks").then(({ looks: worn, templates, shops, waiting, welcome, suggested, unread }) => {
+    api("GET", "/control/live-looks").then(({ looks: worn, templates, shops, waiting, welcome, unread }) => {
       $("#setup-looks").append(sheet({
         title: "Looks live shops wear",
-        metaParts: [plural(shops, "live shop"), welcome.picked || welcome.skipped ? `Choose your look: ${welcome.picked} picked, ${welcome.skipped} skipped` : null, waiting ? `${waiting} picked a look but haven't published it` : null, suggested?.of ? `${suggested.took} of ${suggested.of} wear a look suggested for what they sell` : null, unread.length ? `${unread.length} couldn't be read` : null].filter(Boolean),
+        metaParts: [plural(shops, "live shop"), welcome.picked || welcome.skipped ? `Choose your look: ${welcome.picked} picked, ${welcome.skipped} skipped` : null, waiting ? `${waiting} picked a look but haven't published it` : null, unread.length ? `${unread.length} couldn't be read` : null].filter(Boolean),
         body: [worn.length ? el("ul", { className: "cr-history" }, ...worn.map((r) => el("li", { textContent: `${r.id ? r.name : "Their own design"}: ${r.count}` }))) : emptyState("No live shops yet.")],
       }), sheet({
         title: "Templates live shops show",
