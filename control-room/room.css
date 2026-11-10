@@ -15,8 +15,6 @@
 @media (min-width: 1024px) {
   .rp.cl .rp-app { padding: 16px 0 16px 16px; }
   .rp.cl .rp-sidebar { border-radius: var(--cl-radius-tile); }
-  /* The rail already carries the wordmark; the top bar repeats it only when the rail is a drawer. */
-  .rp.cl .rp-topbar .cr-brand { display: none; }
 }
 .rp.cl .rp-sidebar-brand { padding: 6px 10px 14px; border: 0; }
 .rp.cl .rp-wordmark { font: 700 20px/1 var(--rp-font-body); font-style: normal; letter-spacing: -0.02em; text-transform: lowercase; color: var(--cl-on-dark-tile); }
@@ -68,11 +66,13 @@
 
 /* What needs you: rows that link to their page. */
 .rp.cl .rp-alerts { gap: 8px; }
-.rp.cl .rp-alert { min-height: 56px; padding: 10px 12px 10px 18px; border: 0; border-radius: 16px; background: var(--rp-surface); color: var(--rp-text); }
+.rp.cl .rp-alert, .rp.cl .rp-alert[data-tone] { min-height: 56px; padding: 10px 12px 10px 18px; border: 0; border-radius: 16px; background: var(--rp-surface); color: var(--rp-text); }
 .rp.cl a.rp-alert:hover { background: var(--cl-hover); }
 .rp.cl .rp-alert[data-tone="danger"] .rp-alert-glyph { color: var(--cl-dot-bad); }
 .rp.cl .rp-alert[data-tone="warning"] .rp-alert-glyph { color: var(--rp-warning); }
 .rp.cl .rp-alert-title { font-weight: 600; }
+.rp.cl .rp-alert-glyph { font-size: 10px; }
+@media (min-width: 1100px) { .rp.cl #today-numbers.rp-kpi-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
 
 /* Tables sit in a tile and scroll sideways inside it on a phone. */
 .rp.cl .rp-table-wrap { border: 0; border-radius: var(--cl-radius-tile); background: var(--rp-surface); box-shadow: none; padding: 8px 12px; }

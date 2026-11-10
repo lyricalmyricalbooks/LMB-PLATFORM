@@ -689,16 +689,16 @@ async function loadToday() {
     el("div", { className: "rp-metric-value", textContent: String(value), dataset: tone ? { tone } : {} }),
     foot ? el("div", { className: "rp-metric-foot", textContent: foot }) : null);
   $("#today-numbers").replaceChildren(
-    figure("Monthly income", money(monthlyIncome, currency), `${counts.paying} paying`),
-    figure("Shops live", counts.live, `${counts.shops} in all`),
-    figure("On a free trial", counts.trial, `${counts.signupsThisWeek} signed up this week`),
-    figure("Failed payments", counts.failedPayments, "being retried", counts.failedPayments ? "danger" : null),
-    figure("Paused", counts.paused, `${counts.closed} closed`, counts.paused ? "warn" : null),
+    figure("Paying shops", counts.paying, `of ${counts.shops} shops`),
+    figure("Monthly income", money(monthlyIncome, currency).replace(/\.00$/, ""), `${counts.live} shops live`),
+    figure("On free trial", counts.trial, `${counts.signupsThisWeek} signed up this week`),
+    figure("Failing payments", counts.failedPayments, "being retried", counts.failedPayments ? "warn" : null),
+    figure("Paused", counts.paused, `${counts.closed} closed`, counts.paused ? "danger" : null),
   );
   $("#needs").replaceChildren(needs.length
     ? el("div", { className: "rp-alerts" }, ...needs.map((need) => {
       const tone = need.kind === "shop" || need.kind === "payment" || need.kind === "payouts" ? "danger" : "warning";
-      const glyph = el("span", { className: "rp-alert-glyph", ariaHidden: "true", textContent: tone === "danger" ? "✕" : "!" });
+      const glyph = el("span", { className: "rp-alert-glyph", ariaHidden: "true", textContent: "●" });
       const text = el("span", { className: "rp-alert-text" }, el("strong", { className: "rp-alert-title", textContent: need.words }));
       // A drifting press can be snoozed from here (a button can't sit inside the alert's link, so this one is a box).
       if (need.kind === "drift") {
