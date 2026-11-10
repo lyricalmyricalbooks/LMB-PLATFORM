@@ -144,3 +144,13 @@
 @media (max-width: 768px) {
   :root[data-admin-look="colophon"] body.rp .pub-shell .more-sheet[open] :is(.snav.active, .book-chip.is-on, .app-switch-seg.is-current) { color: var(--rp-on-primary) !important; border-color: transparent; }
 }
+
+/* Sweep, laptop: soft tiles and sentence case on every stockroom page. */
+:root[data-admin-look="colophon"] body.rp .tab-panel :is([class*="kpi-label"], [class*="-label"], th, .eyebrow, [class*="kicker"], [class*="overline"], .btn-hist-action, [class*="approve"]) { text-transform: none !important; letter-spacing: 0 !important; }
+:root[data-admin-look="colophon"] body.rp :is(.hist-kpi, [class*="hist-kpi-card"], .ps-stat-card, .tc-trip-stat-card, .analytics-kpi-card, .shipping-pnl-kpi) { border: 0 !important; border-radius: var(--rp-radius-lg, 20px); box-shadow: none !important; background: var(--rp-surface); }
+:root[data-admin-look="colophon"] body.rp .hist-kpi-icon { display: none; }
+:root[data-admin-look="colophon"] body.rp :is(.tbl-wrap, .table-wrap, [class*="table-card"]):not(.sys-sticky-head) { border: 1px solid var(--rp-divider) !important; border-radius: var(--rp-radius-lg, 20px); box-shadow: none !important; overflow: hidden; }
+:root[data-admin-look="colophon"] body.rp .tab-panel * { text-transform: none !important; }
+:root[data-admin-look="colophon"] body.rp .tab-panel :is([class*="label"], [class*="stat"] > :first-child, [class*="lbl"], small) { letter-spacing: 0 !important; }
+:root[data-admin-look="colophon"] body.rp .tab-panel [class*="stat"] { border-left-color: transparent !important; }
+:root[data-admin-look="colophon"] body.rp .tbl-wrap.sys-sticky-head { border-color: var(--rp-divider) !important; border-width: 1px !important; box-shadow: none !important; }
