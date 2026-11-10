@@ -40,7 +40,7 @@ export function pricingView(answer) {
     : null;
   return {
     trialDays,
-    trial: trialDays ? `Free for ${trialDays} days from the day your shop opens. Setup costs nothing and needs no card.` : "Free to try. Setup costs nothing and needs no card.",
+    trial: trialDays ? `Free for ${trialDays} days from the day you sign up, with your shop and stockroom both included. No card needed.` : "Free to try. No card needed.",
     founding,
     plans,
   };
