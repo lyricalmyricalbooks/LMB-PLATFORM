@@ -9,7 +9,7 @@ import { useShopWords } from "../shopWords";
 // shown). Studio › Themes › Preview shows a look on the press's real shop once it is open.
 
 export type StageDevice = "desktop" | "phone";
-export type StagePage = "home" | "product";
+export type StagePage = "home" | "product" | "bag";
 
 /** The widths the page is drawn at before scaling: a laptop and a phone. */
 export const STAGE_WIDTH: Record<StageDevice, number> = { desktop: 1200, phone: 390 };
@@ -35,7 +35,7 @@ export function useLookFonts(look: LookPreview) {
  * Holds content drawn at `width` and scales it down to the space it is given (never up). `height` crops it (a card's
  * thumbnail); without it the whole page shows and the box grows to fit.
  */
-export function ScaledStage({ width, height, children, label }: { width: number; height?: number; children: ReactNode; label?: string }) {
+export function ScaledStage({ width, height, children, label, interactive }: { width: number; height?: number; children: ReactNode; label?: string; interactive?: boolean }) {
   const box = useRef<HTMLDivElement>(null);
   const inner = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0);
@@ -59,7 +59,7 @@ export function ScaledStage({ width, height, children, label }: { width: number;
   const shown = height ?? (innerHeight ? innerHeight * s : undefined);
   return (
     <div ref={box} role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : true} style={{ width: "100%", height: shown, overflow: "hidden", position: "relative" }}>
-      <div ref={inner} aria-hidden style={{ width, transform: `scale(${s})`, transformOrigin: "top left", visibility: scale ? "visible" : "hidden", pointerEvents: "none" }}>
+      <div ref={inner} aria-hidden style={{ width, transform: `scale(${s})`, transformOrigin: "top left", visibility: scale ? "visible" : "hidden", pointerEvents: interactive ? "auto" : "none" }}>
         {children}
       </div>
     </div>
@@ -174,7 +174,7 @@ function Rows({ look, products, phone }: { look: LookPreview; products: PreviewP
   return (
     <div style={{ borderTop: `2px solid ${look.border}` }}>
       {products.map((p, i) => (
-        <div key={i} style={{ display: "grid", gridTemplateColumns: phone ? "56px 1fr auto" : "40px 72px 2fr 1fr auto", alignItems: "center", gap: 16, padding: "12px 0", borderBottom: `1px ${dotted ? "dotted" : "solid"} ${look.border}` }}>
+        <div key={i} data-go={`product:${i}`} style={{ display: "grid", gridTemplateColumns: phone ? "56px 1fr auto" : "40px 72px 2fr 1fr auto", alignItems: "center", gap: 16, padding: "12px 0", borderBottom: `1px ${dotted ? "dotted" : "solid"} ${look.border}` }}>
           {!phone && <span style={{ fontFamily: look.headingFont, fontSize: 13, color: look.style === "signal" ? look.accent : look.muted }}>{String(i + 1).padStart(2, "0")}</span>}
           <Cover look={look} product={p} index={i} ratio={look.ratio} radius={look.radius} style={{ width: phone ? 56 : 72 }} />
           <strong style={{ fontSize: 16, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.title || "Untitled"}</strong>
@@ -313,10 +313,10 @@ function Header({ look, press, phone }: { look: LookPreview; press: string; phon
         </div>
       )}
       <div style={{ background: look.headerBg, color: look.headerText, borderBottom: `${look.style === "marquee" ? 3 : 1}px solid ${look.border}`, padding: phone ? "14px 16px" : "18px 40px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-        <span style={{ fontFamily: look.headingFont, fontWeight: look.headingWeight, fontSize: phone ? 20 : 26, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textTransform: look.uppercase ? "uppercase" : "none" }}>{press}</span>
+        <span style={{ fontFamily: look.headingFont, fontWeight: look.headingWeight, fontSize: phone ? 20 : 26, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textTransform: look.uppercase ? "uppercase" : "none" }} data-go="home">{press}</span>
         {phone
-          ? <span style={{ display: "flex", gap: 14, fontSize: 14, fontWeight: 700 }}><span>Bag (1)</span><span style={{ fontSize: 18, lineHeight: 1 }}>☰</span></span>
-          : <span style={{ display: "flex", gap: 28, fontSize: 15 }}><span>Shop</span><span>About</span><span>Contact</span><span style={{ fontWeight: 700 }}>Bag (1)</span></span>}
+          ? <span style={{ display: "flex", gap: 14, fontSize: 14, fontWeight: 700 }}><span data-go="bag">Bag (1)</span><span style={{ fontSize: 18, lineHeight: 1 }}>☰</span></span>
+          : <span style={{ display: "flex", gap: 28, fontSize: 15 }}><span>Shop</span><span>About</span><span>Contact</span><span style={{ fontWeight: 700 }} data-go="bag">Bag (1)</span></span>}
       </div>
     </>
   );
@@ -360,7 +360,7 @@ function ProductPage({ look, product, phone, books }: { look: LookPreview; produ
           <span style={{ ...pill(look, false), borderWidth: 2, borderColor: look.text }}>{books ? "Paperback" : "Standard"}</span>
           <span style={pill(look, false)}>{books ? "Signed copy" : "Gift wrapped"}</span>
         </div>
-        <span style={{ ...pill(look, true), width: "100%", boxSizing: "border-box", padding: "14px 18px" }}>{look.cta}</span>
+        <span data-go="bag" style={{ ...pill(look, true), width: "100%", boxSizing: "border-box", padding: "14px 18px" }}>{look.cta}</span>
         <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, color: look.text }}>{books ? "A small-run edition, printed and bound by hand. Every copy is checked before it ships, and packed in recycled paper." : "Made in small batches and checked by hand before it ships, packed in recycled paper."}</p>
         <div style={{ borderTop: `1px solid ${look.border}`, paddingTop: 12, display: "grid", gap: 8, fontSize: 14 }}>
           <span>Shipping & returns</span><span style={{ color: look.muted }}>Ships in two days. Free over $50.</span>
@@ -370,12 +370,44 @@ function ProductPage({ look, product, phone, books }: { look: LookPreview; produ
   );
 }
 
+/** The bag: what a shopper sees after Add to bag, drawn in the look (a few lines, a total, a checkout button). */
+function BagPage({ look, products, phone, press }: { look: LookPreview; products: PreviewProduct[]; phone: boolean; press: string }) {
+  const lines = products.slice(0, 2);
+  const num = (p?: string) => Number(String(p || "").replace(/[^0-9.]/g, "")) || 0;
+  const total = lines.reduce((n, p) => n + num(p.price), 0);
+  return (
+    <div style={{ display: "grid", gap: 20, maxWidth: 720 }}>
+      <h2 style={{ margin: 0, fontFamily: look.headingFont, fontWeight: look.headingWeight, fontSize: phone ? 28 : 40, textTransform: look.uppercase ? "uppercase" : "none" }}>Your bag</h2>
+      <div style={{ borderTop: `${Math.max(1, look.outline)}px solid ${look.border}` }}>
+        {lines.map((p, i) => (
+          <div key={i} style={{ display: "grid", gridTemplateColumns: "72px 1fr auto", gap: 16, alignItems: "center", padding: "14px 0", borderBottom: `1px solid ${look.border}` }}>
+            <Cover look={look} product={p} index={i} ratio={look.ratio} radius={look.radius} />
+            <div style={{ display: "grid", gap: 2 }}>
+              <strong style={{ fontSize: 15 }}>{p.title || "Untitled"}</strong>
+              {p.maker && <span style={{ fontSize: 13, color: look.muted }}>{p.maker}</span>}
+              <span style={{ fontSize: 13, color: look.muted }}>Qty 1</span>
+            </div>
+            <span style={{ fontWeight: 700 }}>{p.price}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 18, fontWeight: 800 }}><span>Subtotal</span><span>{total ? `CA$ ${total.toFixed(2)}` : ""}</span></div>
+      <span style={{ fontSize: 13, color: look.muted }}>Shipping and tax are worked out at checkout. {press} ships in two days.</span>
+      <span style={{ ...pill(look, true), width: "100%", boxSizing: "border-box", padding: "14px 18px" }}>Check out</span>
+    </div>
+  );
+}
+
 /**
  * The page itself, drawn at the device's width. `products` are the press's own (title and photo) or made-up ones;
  * the first eight show.
  */
-export function LookStage({ look, press, device, page = "home", products, books = true }: {
+export function LookStage({ look, press, device, page = "home", products, books = true, productIndex = 0, onNavigate }: {
   look: LookPreview; press: string; device: StageDevice; page?: StagePage; products: PreviewProduct[];
+  /** Which product the product page shows. */
+  productIndex?: number;
+  /** Makes the stage clickable (the full-size view): the bag, the shop name, a product or its buy button go to that page. */
+  onNavigate?: (page: StagePage, productIndex?: number) => void;
   /** A shop that sells books (sellsBooks): book words on the chips and the product page; any other shop gets plain ones. */
   books?: boolean;
 }) {
@@ -387,13 +419,21 @@ export function LookStage({ look, press, device, page = "home", products, books 
   const heading = look.heading || w("New books");
   const pad = phone ? 16 : 40;
   return (
-    <div data-look-stage={look.style || "default"} style={{ width: STAGE_WIDTH[device], background: look.bg, color: look.text, fontFamily: look.bodyFont, lineHeight: 1.4 }}>
+    <div data-look-stage={look.style || "default"} data-live={onNavigate ? "" : undefined} style={{ width: STAGE_WIDTH[device], background: look.bg, color: look.text, fontFamily: look.bodyFont, lineHeight: 1.4 }}
+      onClick={onNavigate ? (e) => {
+        const go = (e.target as HTMLElement).closest("[data-go]")?.getAttribute("data-go");
+        if (!go) return;
+        if (go.startsWith("product:")) onNavigate("product", Number(go.slice(8)) || 0); else onNavigate(go as StagePage);
+      } : undefined}>
+      {onNavigate && <style>{"[data-look-stage][data-live] [data-go]{cursor:pointer}"}</style>}
       <Header look={look} press={press} phone={phone} />
       <div style={{ padding: `${phone ? 20 : 32}px ${pad}px ${phone ? 32 : 56}px`, display: "grid", gap: phone ? 20 : 28 }}>
-        {page === "product"
-          ? <ProductPage look={look} product={list[0] || { title: "", photo: "" }} phone={phone} books={books} />
+        {page === "bag"
+          ? <BagPage look={look} products={list.length ? [list[productIndex] || list[0], ...list.filter((_, i) => i !== productIndex)] : []} phone={phone} press={press} />
+          : page === "product"
+          ? <ProductPage look={look} product={list[productIndex] || list[0] || { title: "", photo: "" }} phone={phone} books={books} />
           : <>
-            <Hero look={look} press={press} heading={heading} phone={phone} lead={list[0] || { title: "", photo: "" }} />
+            <div data-go="product:0" style={{ display: "contents" }}><Hero look={look} press={press} heading={heading} phone={phone} lead={list[0] || { title: "", photo: "" }} /></div>
             {look.chips && (
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {(books ? ["All", "Books", "Zines", "Prints", "Sale"] : ["All", "New", "Bestsellers", "Gifts", "Sale"]).map((c, i) => (
@@ -405,7 +445,7 @@ export function LookStage({ look, press, device, page = "home", products, books 
               ? <Rows look={look} products={list.slice(0, phone ? 5 : 6)} phone={phone} />
               : (
                 <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: phone ? 14 : look.style === "marquee" ? 12 : 28, alignItems: "start" }}>
-                  {list.slice(0, cols * 2).map((p, i) => <Card key={i} look={look} product={p} index={i} phone={phone} />)}
+                  {list.slice(0, cols * 2).map((p, i) => <div key={i} data-go={`product:${i}`} style={{ display: "contents" }}><Card look={look} product={p} index={i} phone={phone} /></div>)}
                 </div>
               )}
             <div style={{ display: "flex", justifyContent: "center" }}><span style={pill(look, false)}>See everything</span></div>

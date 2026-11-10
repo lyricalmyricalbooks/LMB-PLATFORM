@@ -45,6 +45,7 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
   const [trying, setTrying] = useState<string | null>(null);
   const [device, setDevice] = useState<StageDevice>(() => (typeof window !== "undefined" && window.innerWidth < 720 ? "phone" : "desktop"));
   const [page, setPage] = useState<StagePage>("home");
+  const [pick, setPick] = useState(0);
   // The press's own products by default, once there are any (they can arrive after the picker opens).
   const [ownChoice, setOwn] = useState<boolean | null>(null);
   const own = ownChoice ?? books.length > 0;
@@ -62,7 +63,7 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
   const current = tryIndex >= 0 ? order[tryIndex] : null;
   const step = (by: number) => { if (order.length && tryIndex >= 0) setTrying(order[(tryIndex + by + order.length) % order.length].id); };
 
-  const choose = async (theme: LibraryTheme, skipped = false) => {
+  const choose = async (theme: LibraryTheme, skipped = false, toDesigner = false) => {
     if (busy) return;
     setBusy(theme.id); setError("");
     try {
@@ -74,6 +75,8 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
         await shop.followEmailTheme(theme.id);
       }
       await onDone({ theme: theme.id, at: new Date().toISOString(), ...(skipped ? { skipped: true } : {}) });
+      // The look is in the draft: open the shop designer on it.
+      if (toDesigner && typeof window !== "undefined") window.location.hash = "settings/designer";
     } catch (err) {
       setError(friendlyError(err, `use “${theme.name}”`));
       setBusy("");
@@ -98,7 +101,7 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
     const look = lookPreview(theme, settings?.design);
     return (
       <li key={theme.id} data-look-card={theme.id} style={{ display: "grid", gap: 10, alignContent: "start", minWidth: 0 }}>
-        <button type="button" onClick={() => { setPage("home"); setTrying(theme.id); }} disabled={!!busy} aria-label={`Try on ${theme.name}`}
+        <button type="button" onClick={() => { setPage("home"); setPick(0); setTrying(theme.id); }} disabled={!!busy} aria-label={`Try on ${theme.name}`}
           style={{ position: "relative", display: "block", width: "100%", padding: 0, aspectRatio: big ? "4 / 3" : "16 / 11", overflow: "hidden",
             border: "var(--rp-hair, 1px) solid var(--rp-border-strong)", background: look.bg, cursor: "zoom-in" }}>
           <ScaledStage width={STAGE_WIDTH.desktop} label={`${press} in this look, desktop width`}>
@@ -168,6 +171,7 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
         description={current ? `${tryIndex + 1} of ${order.length}. ${current.mood}` : undefined}
         footer={current && <>
           <GhostButton onClick={() => setTrying(null)}>Back to the looks</GhostButton>
+          <SecondaryButton disabled={!!busy} onClick={() => void choose(current, false, true)}>Use and customize</SecondaryButton>
           <PrimaryButton busy={busy === current.id} disabled={!!busy && busy !== current.id} onClick={() => void choose(current)}>Use {current.name}</PrimaryButton>
         </>}>
         {current && (() => {
@@ -186,6 +190,7 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
                 <span role="group" aria-label="Page" style={{ display: "flex", gap: 8 }}>
                   <SecondaryButton size="sm" {...toggle(page === "home")} onClick={() => setPage("home")}>Home page</SecondaryButton>
                   <SecondaryButton size="sm" {...toggle(page === "product")} onClick={() => setPage("product")}>Product page</SecondaryButton>
+                  <SecondaryButton size="sm" {...toggle(page === "bag")} onClick={() => setPage("bag")}>Bag</SecondaryButton>
                 </span>
                 {books.length > 0 && (
                   <span role="group" aria-label="Products shown" style={{ display: "flex", gap: 8 }}>
@@ -199,14 +204,15 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
                   <div style={device === "phone"
                     ? { width: "min(100%, 390px)", border: "10px solid var(--rp-text)", borderRadius: 36, overflow: "hidden", background: look.bg }
                     : { width: "100%", maxWidth: STAGE_WIDTH.desktop, border: "1px solid var(--rp-border-strong)", background: look.bg }}>
-                    <ScaledStage width={STAGE_WIDTH[device]} label={`${press} in ${current.name}, ${device === "phone" ? "phone" : "computer"} screen, ${page === "home" ? "home page" : "product page"}`}>
-                      <LookStage look={look} press={press} device={device} page={page} products={products} books={bookShop} />
+                    <ScaledStage interactive width={STAGE_WIDTH[device]} label={`${press} in ${current.name}, ${device === "phone" ? "phone" : "computer"} screen, ${page === "home" ? "home page" : page === "bag" ? "bag" : "product page"}`}>
+                      <LookStage look={look} press={press} device={device} page={page} products={products} books={bookShop} productIndex={pick}
+                        onNavigate={(to, i) => { setPage(to); if (i !== undefined) setPick(i); }} />
                     </ScaledStage>
                   </div>
                 </div>
                 <div style={{ display: "grid", gap: 8 }}>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{badges(current)}</div>
-                  <p className="rp-hint" style={{ margin: 0 }}>{own && books.length ? "Your own products, shown in this look." : "Sample products. Your own products, words and logo take their places."} Every look keeps your words, products and pages.</p>
+                  <p className="rp-hint" style={{ margin: 0 }}>{own && books.length ? "Your own products, shown in this look." : "Sample products. Your own products, words and logo take their places."} Click around to see the shop. Everything can be changed in the designer afterwards.</p>
                 </div>
                 <div style={{ display: "grid", gap: 8 }}>
                   <span aria-label={`${current.name} colours`} role="img" style={{ display: "flex", gap: 6 }}>
