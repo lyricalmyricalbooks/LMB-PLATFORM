@@ -5,7 +5,7 @@ The platform's live web site, https://lmb-platform-prod.web.app, put live by Git
 
 - `build.js` builds it from the pages' own folders into `site/out`: the front page (`waitlist/`, at `/` and `/waitlist/`),
   the front door (`/join/`), sign-up, account and Plan & billing, help, terms, trust, status, the control room
-  (`/control/`) and setup mode (`/app/`, `pnpm run build:setup` in `apps/shop`). Only files a page loads are copied;
+  (`/control/`) and setup mode (`/app/`) and the designer before a store (`/design/`), both from `pnpm run build:setup` in `apps/shop`. Only files a page loads are copied;
   a page that reaches a server file stops the build. `--api` sends `/api/**` to the server and turns on the pages'
   plans and sign-up links; the deploy adds it only once the server (`server/`) is live.
 - `check-live.js` opens every page on the live site after a deploy and fails the run if one is missing.

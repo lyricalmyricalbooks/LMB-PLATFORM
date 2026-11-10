@@ -8,7 +8,7 @@ import { fakeFrontDoorStores, fakeStagedFiles } from "../signup/fakes.js";
 const SHOP = { shopId: "moth-press-k3f9q", pressId: "press-moth" };
 const PATH = "press-imports/press-moth/abc.csv";
 
-function world({ file = "Title,Price,Stock\nMoth Zine,8,20\n", path = PATH, filesConnected = true } = {}) {
+function world({ file = "Title,Price,Stock\nMoth Zine,8,20\n", path = PATH, filesConnected = true, design = undefined } = {}) {
   const { presses } = fakeFrontDoorStores();
   const stagedFiles = fakeStagedFiles();
   const docs = new Map();
@@ -16,7 +16,7 @@ function world({ file = "Title,Price,Stock\nMoth Zine,8,20\n", path = PATH, file
     get: async (_project, docPath) => structuredClone(docs.get(docPath) ?? null),
     set: async (_project, docPath, data) => { docs.set(docPath, structuredClone(data)); },
   };
-  presses.create("press-moth", { pressId: "press-moth", look: "press-riso", adminLook: "paper", stagedImportPath: file === null ? "" : path, stagedImport: file === null ? null : { name: "my zines.csv", size: file.length, rows: 1, at: "2026-11-03T09:00:00.000Z" } });
+  presses.create("press-moth", { pressId: "press-moth", look: "press-riso", adminLook: "paper", ...(design === undefined ? {} : { design }), stagedImportPath: file === null ? "" : path, stagedImport: file === null ? null : { name: "my zines.csv", size: file.length, rows: 1, at: "2026-11-03T09:00:00.000Z" } });
   if (file !== null) stagedFiles.files.set(path, Buffer.from(file));
   const step = handoverStep({ presses, stagedFiles: filesConnected ? stagedFiles : null, shopData, now: () => new Date("2026-11-04T10:00:00Z") });
   return { presses, stagedFiles, docs, step };
@@ -27,7 +27,7 @@ test("the look and the kept file are handed to the shop, then the platform lets 
   assert.equal(await w.step.check({ shop: SHOP }), false);
   await w.step.act({ shop: SHOP });
   assert.deepEqual(w.docs.get(HANDOVER_DOC), {
-    pressId: "press-moth", look: "press-riso", adminLook: "paper", at: "2026-11-04T10:00:00.000Z",
+    pressId: "press-moth", look: "press-riso", adminLook: "paper", design: null, at: "2026-11-04T10:00:00.000Z",
     file: { name: "my zines.csv", rows: 1, at: "2026-11-03T09:00:00.000Z", parts: 1 },
   });
   assert.equal(w.docs.get(`${HANDOVER_DOC}/parts/0`).text, "Title,Price,Stock\nMoth Zine,8,20\n");
@@ -92,4 +92,12 @@ test("a big file is kept in pieces that each fit in one document, counted in byt
     assert.ok(Buffer.byteLength(part, "utf8") <= 900_000);
     assert.doesNotMatch(part, /^[\uDC00-\uDFFF]|[\uD800-\uDBFF]$/);
   }
+});
+
+test("the website designed before the store was made goes to the shop whole", async () => {
+  const design = { themeBase: { id: "press-folio" }, accentColor: "#123456", heroPage: { sections: [{ id: "s1", type: "Hero Banner" }] } };
+  const w = world({ file: null, design });
+  const done = await w.step.act({ shop: SHOP });
+  assert.deepEqual(w.docs.get(HANDOVER_DOC).design, design);
+  assert.equal(done.detail.design, true);
 });

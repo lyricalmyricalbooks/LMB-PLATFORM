@@ -12,6 +12,8 @@ export interface SetupPress {
   country: string;
   look: string;
   adminLook: string;
+  /** The website designed before the store was made (the designer at /design/studio): Studio's whole design, or null. */
+  design?: Record<string, any> | null;
   /** Home's "Selling somewhere already?" card (23.0): bringing a shop over, starting fresh, or not answered (""; older records). */
   moving?: "" | "yes" | "fresh";
   /** The front door's "Where do you sell today?" (signup/form.js QUESTION ids: online, spreadsheet, fairs, starting, shops), or "". */
@@ -59,7 +61,7 @@ export interface StagedImport { name: string; size: number; rows: number; at: st
 /** A name for the free address checked as the press types it: cleaned, why it can't be used (""), and whether it's free. */
 export interface FreeNameCheck { name: string; address: string; problem: string; available: boolean; suggestions?: string[] }
 
-export type SetupChange = Partial<Pick<SetupPress, "plan" | "pressName" | "sells" | "country" | "look" | "adminLook" | "moving" | "language" | "cardProvider" | "domainChoice" | "freeName" | "sellingToday">>;
+export type SetupChange = Partial<Pick<SetupPress, "plan" | "pressName" | "sells" | "country" | "look" | "adminLook" | "design" | "moving" | "language" | "cardProvider" | "domainChoice" | "freeName" | "sellingToday">>;
 
 /** A plan as GET /api/plans lists it. */
 export interface PlanOffer { plan: "shop" | "stockroom" | "both"; name: string; priceText: string; foundingPriceText?: string }

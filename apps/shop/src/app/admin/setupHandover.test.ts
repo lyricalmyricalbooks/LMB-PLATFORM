@@ -30,3 +30,18 @@ describe("what the press set up before its shop existed (code plan 18.9)", () =>
     expect(keptFileLine({ ...file, rows: 0, at: "" })).toBe("my zines.csv");
   });
 });
+
+describe("chosenDesign", () => {
+  it("hands back a design made before the store, and nothing for an empty or odd one", async () => {
+    const { chosenDesign, designWelcomeTheme } = await import("./setupHandover");
+    const design = { themeBase: { id: "folio" }, primaryColor: "#123456" };
+    expect(chosenDesign({ design })).toBe(design);
+    expect(chosenDesign({ design: {} })).toBeNull();
+    expect(chosenDesign({ design: null })).toBeNull();
+    expect(chosenDesign({ design: [] as any })).toBeNull();
+    expect(chosenDesign(null)).toBeNull();
+    expect(designWelcomeTheme(design)).toBe("folio");
+    expect(designWelcomeTheme({ themeBase: { id: "<bad>" } })).toBe("custom");
+    expect(designWelcomeTheme({})).toBe("custom");
+  });
+});
