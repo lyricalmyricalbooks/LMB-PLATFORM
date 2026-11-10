@@ -37,3 +37,13 @@ describe("the last check wherever the shop is opened from", () => {
     expect(await readSignIn(null)).toBeNull();
   });
 });
+
+describe("openButtonLabel", () => {
+  it("counts the steps left, and says nothing extra when none or unknown", async () => {
+    const { openButtonLabel } = await import("./launchCheck");
+    expect(openButtonLabel(4)).toBe("Open to shoppers · 4 steps");
+    expect(openButtonLabel(1)).toBe("Open to shoppers · 1 step");
+    expect(openButtonLabel(0)).toBe("Open to shoppers");
+    expect(openButtonLabel(null)).toBe("Open to shoppers");
+  });
+});
