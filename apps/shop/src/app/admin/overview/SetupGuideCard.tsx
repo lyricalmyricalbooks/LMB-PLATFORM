@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
+import { ProgressTile } from "./ProgressTile";
 import toast from "react-hot-toast";
 import { adminApi } from "../api";
 import { GROUPS, addedSince, firstWeekIntro, firstWeekSteps, guideGroups, nextStep, openBlockers, progressToSave, showFirstWeek, type FirstWeekDoc, type FirstWeekFacts, type FirstWeekStep } from "../firstWeek";
@@ -25,6 +26,7 @@ export function SetupGuideCard({ doc, setDoc, facts, onOpen, onSetWall }: {
   onSetWall?: (on: boolean) => Promise<boolean>;
 }) {
   const [saving, setSaving] = useState("");
+  const [showAll, setShowAll] = useState(false);
   const [blocked, setBlocked] = useState<ReturnType<typeof openBlockers> | null>(null);
   // The row the press opened itself (rows open only on a click: the next step has its own tile). `pickedDone`: it was done
   // already when opened (to Change it), so it stays open; a row that gets done while open gives way to the next.
@@ -155,19 +157,15 @@ export function SetupGuideCard({ doc, setDoc, facts, onOpen, onSetWall }: {
       </div>
     </section>
   );
+  const left = steps.filter(s => !s.done && !s.optional).length;
   const openTile = openStep && !openStep.done && (
-    <section className="rp-sb-tile rp-sb-big" aria-labelledby="setup-open-title">
-      <p className="rp-sb-eyebrow">Open your shop</p>
-      <h2 id="setup-open-title">{blockers.length === 0 ? "Ready to open" : blockers.length === 1 ? "1 thing to do before a sale" : `${blockers.length} things to do before a sale`}</h2>
-      {blockers.length > 0
-        ? <ul className="rp-sb-blockers">{blockers.map(b => <li key={b.id}>{onOpen && b.tab ? <button type="button" onClick={() => onOpen(b.tab)}>{b.label}</button> : b.label}</li>)}</ul>
-        : <p style={{ color: "var(--rp-text-muted)" }}>Shoppers can buy as soon as you open it.</p>}
-      <div className="rp-sb-actions">
-        <PrimaryButton busy={saving === "open"} disabled={blockers.length > 0 || !!saving || !onSetWall} onClick={() => void openShop()}>Open my shop</PrimaryButton>
-      </div>
-    </section>
+    <ProgressTile done={doneCount} total={total}
+      title={blockers.length === 0 ? "Ready to open" : blockers.length === 1 ? "1 step to open" : `${blockers.length} steps to open`}
+      lede={left > blockers.length ? `${left} steps left in all.` : undefined}>
+      {blockers.length > 0 && <ul className="rp-sb-blockers" style={{ width: "100%" }}>{blockers.map(b => <li key={b.id}>{onOpen && b.tab ? <button type="button" onClick={() => onOpen(b.tab)}>{b.label}</button> : b.label}</li>)}</ul>}
+      <PrimaryButton busy={saving === "open"} disabled={blockers.length > 0 || !!saving || !onSetWall} onClick={() => void openShop()}>Open my shop</PrimaryButton>
+    </ProgressTile>
   );
-
   return (
     <div className="rp-sb" role="region" aria-labelledby="setup-title">
       <header className="rp-sb-head">
@@ -191,7 +189,10 @@ export function SetupGuideCard({ doc, setDoc, facts, onOpen, onSetWall }: {
           </p>
         )}
         {(nextTile || openTile) && <div className="rp-sb-row" style={nextTile && openTile ? undefined : { gridTemplateColumns: "minmax(0, 1fr)" }}>{nextTile}{openTile}</div>}
-        <div className="rp-sb-groups">
+        <button type="button" className="rp-sb-toggle" aria-expanded={showAll} aria-controls="setup-all-steps" onClick={() => setShowAll(v => !v)}>
+          {showAll ? "Hide the list" : `See all ${total} steps`}<ChevronDown size={14} aria-hidden style={{ transform: showAll ? "rotate(180deg)" : undefined }} />
+        </button>
+        <div className="rp-sb-groups" id="setup-all-steps" hidden={!showAll}>
           {guideGroups(steps).map(g => (
             <section key={g.id} className="rp-sb-tile rp-sb-group" aria-labelledby={`setup-group-${g.id}`}>
               <h3 id={`setup-group-${g.id}`} className="rp-sb-group-head">

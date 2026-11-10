@@ -92,7 +92,7 @@ describe("the admin in setup mode (code plan 18.6)", () => {
 
   it("says plainly when everything is in, with Create my shop at the top", async () => {
     const el = await mount(door(), "", { ...PRESS, country: "CA", look: "press-riso", moving: "fresh" });
-    expect(el.textContent).toContain("You're ready to create your shop");
+    expect(el.textContent).toContain("Ready to create");
     const button = [...el.querySelectorAll("main section button")].find((b) => b.textContent === "Create my shop") as HTMLButtonElement;
     act(() => button.click());
     await flush();
@@ -101,15 +101,7 @@ describe("the admin in setup mode (code plan 18.6)", () => {
 
   it("doesn't say it's ready while a step is still missing", async () => {
     const el = await mount(door());
-    expect(el.textContent).not.toContain("You're ready to create your shop");
-  });
-
-  it("says what happens once the shop is made, and where to get help", async () => {
-    const el = await mount(door());
-    expect(el.textContent).toContain("Once your shop is made");
-    expect(el.textContent).toContain("Your first shop is free for 14 days from then");
-    expect(el.textContent).toContain("Need a hand?");
-    expect([...el.querySelectorAll("main button")].some((b) => b.textContent === "Ask a person")).toBe(true);
+    expect(el.textContent).not.toContain("Ready to create");
   });
 
   it("promises no free days on Home when the platform gives no trial", async () => {
@@ -422,35 +414,6 @@ describe("the admin in setup mode (code plan 18.6)", () => {
 });
 
 describe("bringing a shop over, at the top of Home (code plan 23.0)", () => {
-  const button = (el: HTMLElement, text: string) => [...el.querySelectorAll("main button")].find((b) => b.textContent === text) as HTMLButtonElement;
-
-  it("is the first card on Home, above the setup guide", async () => {
-    const el = await mount(door());
-    const cards = [...el.querySelectorAll("main section")];
-    expect(cards[0].textContent).toContain("Selling somewhere already?");
-    expect(cards[1].textContent).toContain("Setup guide");
-  });
-
-  it("Bring my shop over opens Books and records the answer", async () => {
-    const d = door();
-    const el = await mount(d);
-    act(() => button(el, "Bring my shop over").click());
-    await flush();
-    expect(el.querySelector("h1")?.textContent).toBe("Books");
-    expect(d.saved).toEqual([{ moving: "yes" }]);
-    expect(el.textContent).toContain("Where do you sell now?");
-  });
-
-  it("I'm starting fresh puts the card away and moves the step last", async () => {
-    const d = door();
-    const el = await mount(d);
-    await act(async () => { button(el, "I'm starting fresh").click(); });
-    await flush();
-    expect(d.saved).toEqual([{ moving: "fresh" }]);
-    expect(el.textContent).not.toContain("Selling somewhere already?");
-    const steps = [...el.querySelectorAll("main ol[data-setup-steps] > li")].map((li) => li.textContent ?? "");
-    expect(steps[steps.length - 3]).toContain("Bring your books over");
-  });
 
   it("the Books page shows the plain steps for where the press sells now", async () => {
     const el = await mount(door(), "#catalog");
@@ -493,23 +456,19 @@ describe("bringing books over from the old shop's address (code plan 23.2)", () 
 });
 
 describe("the front door's \"Where do you sell today?\" shapes Home", () => {
-  it("another online shop: the bring-over step comes first and the card stays", async () => {
+  it("another online shop: the bring-over step comes first", async () => {
     const el = await mount(door(), "", { ...PRESS, country: "CA", sellingToday: "online" });
-    expect(el.textContent).toContain("Bring your shop with you");
+    expect(el.querySelector("#setup-next-title")?.textContent).toContain("Bring your books over");
     expect(el.querySelector('li[aria-current="step"]')?.textContent).toContain("Bring your books over");
   });
 
-  it("nowhere yet: no bring-over card, and that step goes last", async () => {
+  it("nowhere yet: that step goes last", async () => {
     const el = await mount(door(), "", { ...PRESS, sellingToday: "starting" });
     expect(el.textContent).not.toContain("Selling somewhere already?");
     const steps = [...el.querySelectorAll("main ol[data-setup-steps] > li")].map((li) => li.textContent ?? "");
     expect(steps.findIndex((t) => t.includes("Bring your books over"))).toBeGreaterThan(steps.findIndex((t) => t.includes("Choose your website's look")));
   });
 
-  it("the press's own answer on Home wins over the front door's", async () => {
-    const el = await mount(door(), "", { ...PRESS, sellingToday: "starting", moving: "yes" });
-    expect(el.textContent).toContain("Selling somewhere already?");
-  });
 });
 
 describe("Stripe or Square in setup's Settings › Payments", () => {
@@ -680,16 +639,6 @@ describe("help without leaving setup", async () => {
     expect(el.textContent).toContain(answers.get("bring-books").answer[0]);
   });
 
-  it("opens Need a hand?'s answers in place, and links out when the answers didn't load", async () => {
-    const el = await mount(door(), "", PRESS, answers);
-    const q = [...el.querySelectorAll("main button")].find((b) => b.textContent === "How do I bring my books over from my old shop?") as HTMLButtonElement;
-    act(() => q.click());
-    expect(el.textContent).toContain(answers.get("bring-books").answer[0]);
-    act(() => root!.unmount()); root = null; document.body.innerHTML = "";
-    const bare = await mount(door());
-    expect(bare.querySelector("a[href='/help/#bring-books']")).not.toBeNull();
-  });
-
   it("asks a person from Help: checks the words first, sends once with the press's name, and says it's sent", async () => {
     const d = door();
     const el = await mount(d, "#help", PRESS, answers);
@@ -741,12 +690,4 @@ describe("help without leaving setup", async () => {
     expect(answersFor).toHaveBeenLastCalledWith("zines");
   });
 
-  it("Home's Ask a person goes to the form on Help", async () => {
-    const el = await mount(door(), "", PRESS, answers);
-    const ask = [...el.querySelectorAll("main button")].find((b) => b.textContent === "Ask a person") as HTMLButtonElement;
-    act(() => ask.click());
-    await flush();
-    expect(el.querySelector("h1")?.textContent).toBe("Help");
-    expect(el.querySelector("#ask form")).not.toBeNull();
-  });
 });

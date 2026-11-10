@@ -67,6 +67,22 @@
 .rp:not(.studio-editor) .rp-sb-panel { display: grid; gap: 10px; padding: 0 12px 14px 40px; }
 .rp:not(.studio-editor) .rp-sb-panel p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--rp-text-muted); }
 
+/* Progress tile: a ring, what is left, and Private / Live. */
+.rp:not(.studio-editor) .rp-sb-ring-row { display: flex; align-items: center; gap: 20px; }
+.rp:not(.studio-editor) .rp-sb-ring { flex: none; display: grid; place-items: center; width: 96px; height: 96px; border-radius: 50%;
+  background: conic-gradient(var(--rp-text) var(--rp-sb-percent, 0%), var(--rp-divider) 0); position: relative; font: 500 15px/1 var(--rp-font-mono); color: var(--rp-text); }
+.rp:not(.studio-editor) .rp-sb-ring::before { content: ""; position: absolute; inset: 11px; border-radius: 50%; background: var(--rp-surface); }
+.rp:not(.studio-editor) .rp-sb-ring > span { position: relative; }
+.rp:not(.studio-editor) .rp-sb-states { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.rp:not(.studio-editor) .rp-sb-states li { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 14px; border-radius: 14px; font-size: 14px; color: var(--rp-text-muted); background: var(--rp-surface-2); }
+.rp:not(.studio-editor) .rp-sb-states li[data-on="true"] { background: var(--rp-success-tint); color: var(--rp-text); }
+.rp:not(.studio-editor) .rp-sb-state-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; border: 2px solid currentColor; }
+.rp:not(.studio-editor) .rp-sb-states li[data-on="true"] .rp-sb-state-dot { background: var(--rp-success); border-color: var(--rp-success); }
+.rp:not(.studio-editor) .rp-sb-pill { margin-left: auto; padding: 2px 10px; border-radius: 999px; background: var(--rp-surface); font: 500 11px/1.4 var(--rp-font-mono); }
+.rp:not(.studio-editor) .rp-sb-toggle { align-self: start; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 18px; border: 1px solid var(--rp-text); border-radius: 999px;
+  background: none; color: var(--rp-text); font: 600 14px/1 var(--rp-font-body); cursor: pointer; }
+.rp:not(.studio-editor) .rp-sb-toggle:hover { background: var(--rp-surface); }
+
 @media (max-width: 900px) {
   .rp:not(.studio-editor) .rp-sb-row { grid-template-columns: minmax(0, 1fr); }
   .rp:not(.studio-editor) .rp-sb-tile.rp-sb-big { min-height: 0; }
