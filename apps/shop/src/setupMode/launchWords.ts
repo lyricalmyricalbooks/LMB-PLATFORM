@@ -49,8 +49,8 @@ export function createChecklist(press: SetupPress, plans: PlanList | null, names
       ? { id: "plan", label: "Plan", value: planLine(press, plans), state: "done", page: PLAN_PAGE, change: "Change" }
       : { id: "plan", label: "Plan", value: "Pick a plan above.", state: "needed", page: PLAN_PAGE, change: "Choose" },
     missing.length
-      ? { id: "details", label: "Your press", value: `Add ${missing.join(" and ")}.`, state: "needed", page: GENERAL_PAGE, change: "Add details" }
-      : { id: "details", label: "Your press", value: details, state: "done", page: GENERAL_PAGE, change: "Change" },
+      ? { id: "details", label: "Your brand", value: `Add ${missing.join(" and ")}.`, state: "needed", page: GENERAL_PAGE, change: "Add details" }
+      : { id: "details", label: "Your brand", value: details, state: "done", page: GENERAL_PAGE, change: "Change" },
   ];
   if (press.plan !== "stockroom") {
     rows.push(press.look

@@ -56,9 +56,9 @@ export function PressDetailsStage({ settings, onDone, onRetrySettings }: {
   };
 
   return (
-    <SectionCard title="Get started · Step 1 of 8: your press" description="These go on receipts, labels and your contact page. You can change them later in Settings." collapsible={false}>
+    <SectionCard title="Get started · Step 1 of 8: your brand" description="These go on receipts, labels and your contact page. You can change them later in Settings." collapsible={false}>
       <div style={{ display: "grid", gap: 14 }}>
-        <TextField label="Press name" value={current.name} maxLength={100} error={errors.name} placeholder="Moth Press"
+        <TextField label="Brand name" value={current.name} maxLength={100} error={errors.name} placeholder="Moth Press"
           onChange={(e) => set("name", e.target.value)} />
         <TextField label="Contact email" type="email" value={current.email} error={errors.email} placeholder="hello@yourpress.example"
           autoComplete="email" onChange={(e) => set("email", e.target.value)} />
