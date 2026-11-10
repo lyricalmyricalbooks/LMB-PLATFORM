@@ -1976,3 +1976,19 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-state:not([data-inline]) { border: 1.5px dashed var(--rp-border-strong); border-radius: 22px; padding: 56px 24px; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-state:not([data-inline]) .rp-state-icon { display: none; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-state:not([data-inline]) .rp-state-title { font-family: var(--rp-font-body); font-style: normal; font-weight: 700; font-size: var(--rp-text-lg); }
+
+/* Colophon Home (overview board): period pills, figures as white tiles, widgets as white cards. */
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-wb-seg { gap: 6px; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-wb-seg button { min-height: 34px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--rp-surface); color: var(--rp-text); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-wb-seg button:is([aria-pressed="true"], [aria-checked="true"]) { background: var(--rp-text); color: var(--rp-surface); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-wb-select { border-radius: 999px; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-ov-figures { gap: 12px; border: 0; background: transparent; box-shadow: none; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-ov-figure { padding: 20px 22px; border: 0; border-radius: 22px; background: var(--rp-surface); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-ov-figure-value { font: 600 36px/1 var(--rp-font-body); letter-spacing: -0.03em; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-wb-widget { border: 0; border-radius: 22px; box-shadow: none; overflow: hidden; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-wb[data-editing] .rp-wb-widget { border: 1.5px dashed var(--rp-border-strong); }
+@media (min-width: 1100px) { :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-ov-figures { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 640px) {
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-ov-figure { padding: 16px; }
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) :is(.rp-ov-figure-value, .rp-kpi-grid .rp-metric-value) { font-size: 26px; }
+}
