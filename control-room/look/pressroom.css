@@ -1883,12 +1883,12 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-fair-today-cols small { display: block; color: var(--rp-text-muted); font-size: var(--rp-text-xs); }
 .rp-fair-today-cols strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-/* Light rail: dark words, the open item a white pill; tiles are white on the cream page with no outline. */
-:root[data-admin-look="colophon"] .rp:not(.studio-editor):not([data-rp-appearance="dark"]) .rp-sidebar { border-right: 0; }
-:root[data-admin-look="colophon"] .rp:not(.studio-editor):not([data-rp-appearance="dark"]) :is(.rp-brand-link, .rp-brand-link .rp-wordmark, .rp-whats-new) { color: var(--rp-text); }
-:root[data-admin-look="colophon"] .rp:not(.studio-editor):not([data-rp-appearance="dark"]) :is(.rp-nav-item, .rp-nav-subitem):hover { color: var(--rp-text); }
-:root[data-admin-look="colophon"] .rp:not(.studio-editor):not([data-rp-appearance="dark"]) .rp-nav-item[aria-current="page"] { background: var(--rp-surface); color: var(--rp-text); }
-:root[data-admin-look="colophon"] .rp:not(.studio-editor):not([data-rp-appearance="dark"]) .rp-nav-subitem[aria-current="page"] { color: var(--rp-text); font-weight: 600; }
+/* The rail (design handoff "Colophon platform"): a dark tile on the cream page, the open page a light pill with ink words;
+   tiles are white on the cream page with no outline. */
+@media (min-width: 1024px) {
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-sidebar { margin: 12px 0 12px 12px; height: calc(100vh - 24px); border-radius: var(--rp-radius-lg); border-right: 0; }
+}
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-nav-item[aria-current="page"] { background: var(--rp-rail-hover-strong); color: var(--rp-rail); }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-nav-item { border-radius: 999px; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-card { border: 0; border-radius: var(--rp-radius-lg); box-shadow: none; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-card .rp-card { border-radius: var(--rp-radius); background: var(--rp-surface-2); }

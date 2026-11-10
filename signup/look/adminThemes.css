@@ -273,12 +273,12 @@
   --rp-radius-lg: 22px;
 }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor):not([data-rp-appearance="dark"]) {
-  --rp-rail: #e6e3dc;
-  --rp-rail-text: #3a3833;
-  --rp-rail-faint: #67635b;
-  --rp-rail-line: rgba(31, 30, 27, 0.12);
-  --rp-rail-hover: rgba(31, 30, 27, 0.06);
-  --rp-rail-hover-strong: #ffffff;
+  --rp-rail: #1f1e1b;
+  --rp-rail-text: rgba(239, 237, 232, 0.78);
+  --rp-rail-faint: rgba(239, 237, 232, 0.6);
+  --rp-rail-line: rgba(239, 237, 232, 0.12);
+  --rp-rail-hover: rgba(239, 237, 232, 0.08);
+  --rp-rail-hover-strong: #efede8;
   --rp-shadow-float: 0 12px 30px rgba(0, 0, 0, 0.2);
 }
 /* Colophon · night */
