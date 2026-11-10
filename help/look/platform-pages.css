@@ -588,4 +588,4 @@ body.cp:has(> footer) > main { flex: 1 0 auto; }
 }
 
 /* Phone (design handoff "Colophon platform", phone view): the most popular plan comes first once plans stack. */
-@media (max-width: 900px) { .cp .plans .cp-pick { order: -1; } }
+@media (max-width: 900px) { .cp-front .plans .cp-pick { order: -1; } }
