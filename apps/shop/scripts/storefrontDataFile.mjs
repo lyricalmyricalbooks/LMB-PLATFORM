@@ -67,7 +67,9 @@ async function post(fetchImpl, url, body) {
 export async function readStorefrontData(base, project, fetchImpl = fetch, pageSize = 300) {
   const settingsName = `${base.replace(/^https:\/\/[^/]+\/v1\//, '').replace(/\/$/, '')}/settings/website`;
   if (!settingsName.startsWith(`projects/${project}/databases/`)) throw new Error('The read address is for another project');
-  const [first] = await post(fetchImpl, `${base}:batchGet`, { documents: [settingsName] });
+  // batchGet lives only at the database root; under a shop's folder Firestore answers 400 (10 November 2026).
+  const root = base.replace(/(\/databases\/[^/]+\/documents)(?:\/.*)?$/, '$1');
+  const [first] = await post(fetchImpl, `${root}:batchGet`, { documents: [settingsName] });
   const readTime = first?.readTime;
   if (!readTime) throw new Error('Firestore gave no read time');
   const settings = first.found ? fieldsOf(first.found) : null;

@@ -136,7 +136,7 @@ export async function runSharedRelease({
       print(`${error}. Nothing was deployed.`);
       return { ok: false, version, error, projects: results };
     }
-    const ctx = { deploy, siteCheck, releaseCheck, builder, envFile, region, print, now, runId, registry, auditLog, publishShop, keepOnFailedCheck };
+    const ctx = { deploy, siteCheck, releaseCheck, builder, envFile, region, print, now, runId, registry, auditLog, publishShop, keepOnFailedCheck, drawn: new Set() };
     for (const [index, project] of projects.entries()) {
       if (!(await registry.takeLock(SHARED_RELEASE_LOCK, lockFor())).taken) {
         error = "the release lock was taken over by another run";
@@ -225,6 +225,7 @@ async function releaseProject(ctx, project, sample, version) {
   }
   try {
     await ship(ctx, projectId, version);
+    await drawSample(ctx, project, sample, version);
     const broken = await checkParts(ctx, project, sample, version);
     if (broken.length) return rollBack(ctx, project, sample, version, previous, broken.join("; "));
     const refused = await checkPurchase(ctx, project, sample, version);
@@ -252,12 +253,28 @@ async function rollBack(ctx, project, sample, version, previous, error) {
   try {
     await ctx.builder.build(previous);
     await ship(ctx, project.projectId, previous);
+    await drawSample(ctx, project, sample, previous);
     const problems = await checkProject(ctx, project, sample, previous);
     if (problems.length) throw new Error(problems.join("; "));
     ctx.print(`${project.projectId}: back on ${previous}.`);
     return { status: "rolled-back", previous, error };
   } catch (rollbackError) {
     return { status: "rollback-failed", previous, error: `${error}; going back to ${previous} failed too: ${message(rollbackError)}` };
+  }
+}
+
+/**
+ * The checked shop's own pages, drawn from the same build before it is checked. Sending the site replaces its script
+ * files, so pages drawn from the build before point at files that are gone: checked like that the shop can't load,
+ * the purchase times out and a good release is rolled back (10 November 2026). Every other shop is drawn after.
+ */
+async function drawSample({ publishShop, print, drawn }, project, sample, version) {
+  if (!project.test || !sample || !publishShop) return;
+  try {
+    await publishShop(sample, version);
+    drawn?.add(`${sample.shopId}@${version}`);
+  } catch (error) {
+    print(`${sample.shopId}: its pages weren't drawn before the check (${message(error)}).`);
   }
 }
 
@@ -308,13 +325,13 @@ async function checkPurchase({ releaseCheck }, project, sample, version) {
 }
 
 /** Every shop's own pages, one at a time. A failure keeps the shop's last good pages and is listed, never fatal. */
-async function publishAll({ publishShop, registry, auditLog, print, now, runId }, rows, version) {
+async function publishAll({ publishShop, registry, auditLog, print, now, runId, drawn }, rows, version) {
   const done = [];
   const failed = [];
   for (const row of rows) {
     const at = now().toISOString();
     try {
-      await publishShop(row, version);
+      if (!drawn?.has(`${row.shopId}@${version}`)) await publishShop(row, version);
       await registry.updateShop(row.shopId, { release: { version, at, runId } });
       await auditLog.write(row.shopId, `${at}-release-${runId}`, { kind: "release", version, runId, at, status: "pages-published" });
       done.push(row.shopId);
