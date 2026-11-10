@@ -80,11 +80,35 @@ export function testShop(ownerEmail) {
  * done, so the run goes on; `again` makes the next run look at it anew). `connected` is { 7: bool, 8: bool }. The free
  * address is the project's own, so no web address is put on the site (no domain service).
  */
-export function testShopSteps({ clients, config, connected }) {
+export function testShopSteps({ clients, config, connected, print = () => {} }) {
   return sharedShopSteps({ ...clients, addresses: null, config }).map((step) => {
+    if (step.number === 7 && connected[7]) return paymentsOrWait(step, print);
     if (!(step.number in LATER_STEPS) || connected[step.number]) return step;
     return { number: step.number, name: `${step.name} (waits for ${LATER_STEPS[step.number]})`, check: async () => true, act: async () => {} };
   });
+}
+
+/** Stripe's answer when the platform's Stripe account hasn't turned on Connect (connected accounts) yet. */
+export const CONNECT_OFF = /signed up for Connect|dashboard\.stripe\.com\/connect/i;
+
+/**
+ * Step 7 on the test shop: payments can't be connected until the platform's Stripe account has Connect turned on, a
+ * one-time choice in Stripe's dashboard. Until then the step waits (the shop is made without payments) instead of
+ * stopping the run; it is looked at again on every run, so it connects once Connect is on.
+ */
+export function paymentsOrWait(step, print = () => {}) {
+  return {
+    ...step,
+    async act(ctx) {
+      try {
+        return await step.act(ctx);
+      } catch (error) {
+        if (!CONNECT_OFF.test(String(error?.message))) throw error;
+        print("Step 7 waits: the platform's Stripe account has Connect off. Turn it on at https://dashboard.stripe.com/connect (test mode) and run again.");
+        return { detail: { waiting: "Stripe Connect is off for the platform's Stripe account" } };
+      }
+    },
+  };
 }
 
 /**
@@ -145,7 +169,7 @@ export async function makeTestShopWith({
   print(`The test shop ${TEST_SHOP_ID}, at ${TEST_SHOP_ADDRESS}:`);
   const made = await runSteps({
     shop,
-    steps: testShopSteps({ clients: stepClients, config: await makerConfig(), connected }),
+    steps: testShopSteps({ clients: stepClients, config: await makerConfig(), connected, print }),
     registry,
     auditLog,
     dryRun: !apply,
