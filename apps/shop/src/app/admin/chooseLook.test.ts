@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { firstBookPhoto, emailThemeFor, galleryThemes, ownBooks, lookPreview, pressNameOf, suggestedThemes, welcomeShows } from "./chooseLook";
+import { firstBookPhoto, emailThemeFor, builtLooks, ownBooks, lookPreview, pressNameOf, suggestedThemes, welcomeShows } from "./chooseLook";
 import { THEME_LIBRARY } from "./studio/themeLibrary";
 
 const HEX = /^#[0-9a-f]{3,8}$/i;
@@ -16,17 +16,19 @@ describe("Choose your look (plan 6.3)", () => {
       expect(typeof theme.name === "string" && typeof theme.mood === "string", theme.id).toBe(true);
     }
   });
-  it("each sign-up answer suggests two or three themes that are in the library, and the gallery lists every theme once", () => {
-    for (const answer of ["books", "zines", "comics", "prints", "mix", null, "unknown"]) {
+  it("the picker lists the 17 built looks once; each sign-up answer's default is one of them", () => {
+    const ids = builtLooks().map(t => t.id);
+    expect(ids).toHaveLength(17);
+    expect(new Set(ids).size).toBe(17);
+    for (const answer of ["books", "zines", "comics", "prints", "mix", "mixed", "clothing", "shoes", "jewelry", "music", "other", null, "unknown"]) {
       const suggested = suggestedThemes(answer);
-      expect(suggested.length, String(answer)).toBeGreaterThanOrEqual(2);
-      expect(suggested.length).toBeLessThanOrEqual(3);
-      const { others } = galleryThemes(answer);
-      expect(suggested.length + others.length).toBe(THEME_LIBRARY.length);
-      expect(new Set([...suggested, ...others].map(t => t.id)).size).toBe(THEME_LIBRARY.length);
+      expect(suggested.length, String(answer)).toBe(3);
+      for (const t of suggested) expect(ids, `${answer} ${t.id}`).toContain(t.id);
     }
-    expect(suggestedThemes("zines")[0].id).toBe("press-zine");
-    expect(suggestedThemes("books")[0].id).toBe("press-imprint");
+    expect(suggestedThemes("zines")[0].id).toBe("press-gutter");
+    expect(suggestedThemes("books")[0].id).toBe("press-folio");
+    // Older colour variants stay in the library so a shop already on one keeps working.
+    expect(THEME_LIBRARY.length).toBeGreaterThan(17);
   });
   it("shows once, for a new shop only, never for a stockroom-only plan", () => {
     expect(welcomeShows(null)).toBe(false);
@@ -92,13 +94,13 @@ describe("browsing the looks (theme store)", () => {
     expect(pictureRatio(undefined)).toBe(0.75);
   });
   it("tells light from dark and sorts every look into one feel", async () => {
-    const { filterLooks, lightness, lookFeel, LOOK_FILTERS } = await import("./lookGallery");
+    const { builtLooks, filterLooks, lightness, lookFeel, LOOK_FILTERS } = await import("./lookGallery");
     expect(lightness("#000")).toBe(0);
     expect(lightness("#ffffff")).toBe(1);
     expect(lightness("rgb(0,0,0)")).toBeNull();
-    const all = THEME_LIBRARY as any[];
+    const all = builtLooks();
     const ids = (f: any) => filterLooks(all, f).map(t => t.id);
-    expect(ids("dark")).toEqual(expect.arrayContaining(["night-neon", "press-lantern", "press-console", "press-reel"]));
+    expect(ids("dark")).toEqual(expect.arrayContaining(["press-lantern", "press-console", "press-reel"]));
     expect(ids("dark")).not.toContain("press-shelf");
     expect(ids("bold")).toEqual(expect.arrayContaining(["press-gutter", "press-cutout", "press-market"]));
     expect(ids("warm")).toEqual(expect.arrayContaining(["press-kiln", "press-picnic", "press-shelf"]));

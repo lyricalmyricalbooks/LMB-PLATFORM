@@ -11,6 +11,7 @@ import { PRESET_SECTION_TEMPLATES, hasPresetContent, presetSections, presetStart
 import type { SavedTheme } from "./savedThemes";
 import { themedDesign } from "./themeLook";
 import { filterLooks, LOOK_FILTERS, type LookFilter } from "../lookGallery";
+import { THEME_LIBRARY } from "./themeLibrary";
 import { switchSummary, type SwitchItem, type ThemeSwitchReport } from "./themeSwitch";
 
 const COLOR = /^(#[0-9a-f]{3,8}|rgba?\(.*\))$/i;
@@ -246,7 +247,7 @@ export function StudioThemes(p: Props) {
 
   // The look the draft started from: its stored base, else the ready-made look it names.
   const lookName: string | undefined = p.design?.themeBase?.id === p.currentPresetId && p.design?.themeBase?.name
-    ? p.design.themeBase.name : p.presets.find(x => x.id === p.currentPresetId)?.name;
+    ? p.design.themeBase.name : (p.presets.find(x => x.id === p.currentPresetId) || (THEME_LIBRARY as any[]).find(x => x.id === p.currentPresetId))?.name;
   const previewButton = (id: string, label: string, design: any) => (
     <SecondaryButton size="sm" aria-pressed={p.previewingId === id} onClick={() => p.onPreview(p.previewingId === id ? null : { id, label, design })}>
       <Eye size={13} aria-hidden /> {p.previewingId === id ? "Stop preview" : "Preview"}
