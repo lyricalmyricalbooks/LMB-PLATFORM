@@ -100,20 +100,26 @@ export const ACCOUNTS_V2_ONLY = /Accounts v1|\/v2\/core\/accounts/i;
  * stopping the run; it is looked at again on every run, so it connects once the cause is gone.
  */
 export function paymentsOrWait(step, print = () => {}) {
+  // The runner checks again after `act`: a step that waited counts as passed for this run (every run looks at it anew).
+  let waited = false;
+  const wait = (line, waiting) => {
+    print(line);
+    waited = true;
+    return { detail: { waiting } };
+  };
   return {
     ...step,
+    check: async (ctx) => waited || step.check(ctx),
     async act(ctx) {
       try {
         return await step.act(ctx);
       } catch (error) {
         const said = String(error?.message);
         if (CONNECT_OFF.test(said)) {
-          print("Step 7 waits: the platform's Stripe account has Connect off. Turn it on at https://dashboard.stripe.com/connect (test mode) and run again.");
-          return { detail: { waiting: "Stripe Connect is off for the platform's Stripe account" } };
+          return wait("Step 7 waits: the platform's Stripe account has Connect off. Turn it on at https://dashboard.stripe.com/connect (test mode) and run again.", "Stripe Connect is off for the platform's Stripe account");
         }
         if (ACCOUNTS_V2_ONLY.test(said)) {
-          print("Step 7 waits: Stripe makes new connected accounts only through its newer accounts API, which the payments service doesn't use yet.");
-          return { detail: { waiting: "Stripe asks for its newer accounts API to make the shop's payments account" } };
+          return wait("Step 7 waits: Stripe makes new connected accounts only through its newer accounts API, which the payments service doesn't use yet.", "Stripe asks for its newer accounts API to make the shop's payments account");
         }
         throw error;
       }
