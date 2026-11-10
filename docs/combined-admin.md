@@ -3,6 +3,16 @@
 Decided 3 November 2026 (Julian): a press on the shop + stockroom plan gets one admin, not two apps it switches between.
 Shop-only and stockroom-only presses keep their own designs. Design page: https://claude.ai/artifact/6nCbJjmqSMfEE41W7L4CFd
 
+## Two sides: Website and Stockroom (10 November 2026)
+
+Julian chose (decision card) to keep one admin but separate the stockroom from running the website. A **Website ·
+Stockroom** switch sits at the top of the rail (`SideSwitch.tsx`); the rail lists only the side you're on
+(`WEBSITE_SIDE` / `STOCKROOM_SIDE` in `riso/nav.ts`; `COMBINED_MENU` is both, for search and routes; `sideOf(page)`
+picks the side). Website: Home · Orders (orders, All sales, customers, messages) · Books · Marketing · Online store ·
+Settings. Stockroom: To-do · Stock (stock and sales, the website's Inventory page) · Sales (records, record a sale,
+buyers in person, parcels) · Sell in person · Money (Tax centre first) · Open call · Stockroom settings. Home stays on the
+website side and still shows the stockroom's to-dos and the fair today. Picking a side opens its first page.
+
 ## What it is (step 1, built)
 
 - **When:** the shop profile has `apps.shop` and `apps.stockroom` both `true` (`combinedAdmin()` in

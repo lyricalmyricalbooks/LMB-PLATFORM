@@ -20,8 +20,9 @@ describe("hasStockroom", () => {
 describe("the admin of a website-only press", () => {
   it("shows no switcher to the stockroom and doesn't read the stockroom link", () => {
     const src = read("Dashboard.tsx");
-    // The combined admin (both apps, combined.ts) has no switcher either: the stockroom is inside it.
-    expect(src).toMatch(/top=\{hasStockroom\(\) && !COMBINED \? <AppSwitcher /);
+    // The combined admin (both apps, combined.ts) has no app switcher either: the stockroom is inside it, behind the
+    // Website · Stockroom side switch.
+    expect(src).toMatch(/top=\{COMBINED \? <SideSwitch [\s\S]*?: hasStockroom\(\) \? <AppSwitcher /);
     expect(src).toMatch(/\{hasStockroom\(\) && !COMBINED && <AppSwitchPill \/>\}/);
     expect(src).toMatch(/hasStockroom\(\) \? inventoryLinkApi\.state\(\)/);
     // Every other use of the switcher is behind the same check.

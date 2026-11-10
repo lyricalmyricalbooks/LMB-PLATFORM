@@ -61,7 +61,7 @@ describe("one list of every sale", () => {
     expect(routeFromHash("#sales", false)).toBeNull();
     expect(hashForRoute({ tab: "sales" })).toBe("#sales");
     const orders = sidebarItems(NAV, COMBINED_MENU).find((i) => i.label === "Orders")!;
-    expect(orders.children!.slice(0, 3).map((c) => c.label)).toEqual(["Orders", "All sales", "Sales records"]);
+    expect(orders.children!.slice(0, 2).map((c) => c.label)).toEqual(["Orders", "All sales"]);
     expect(MENU.flatMap((g) => g.pages)).not.toContain("sales");
   });
 });

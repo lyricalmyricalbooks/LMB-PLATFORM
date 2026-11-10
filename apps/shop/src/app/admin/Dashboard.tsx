@@ -48,7 +48,8 @@ import { useAdminAppManifest } from "./adminApp";
 import { shopNameFromSettings, wordmarkWords } from "../features/site/shopIdentity";
 import { adminWordsFor, currentSells } from "./sells";
 import { SELLS_CHANGED_EVENT, ShopSellsContext, ShopWordsContext } from "./shopWords";
-import { COMBINED_MENU, MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, sidebarItems, withoutPages } from "./riso/nav";
+import { COMBINED_MENU, MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, sideMenu, sideOf, sidebarItems, withoutPages } from "./riso/nav";
+import { SideSwitch } from "./SideSwitch";
 import { COMBINED_PAGES, DEFAULT_STOCKROOM_PAGE, SALES_TAB, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
 import { AllSales } from "./AllSales";
 import { keepAdminOffline } from "./adminOffline";
@@ -787,6 +788,8 @@ export function Dashboard() {
     </>
   );
 
+  // Which side of the combined admin the page is on (Website or Stockroom, Julian 10 Nov 2026); Home is the website's.
+  const currentSide = sideOf(navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive);
   return (
     <ShopWordsContext.Provider value={w}>
     <ShopSellsContext.Provider value={sellsAnswer}>
@@ -804,7 +807,7 @@ export function Dashboard() {
           <Sidebar
             open={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
-            items={withoutPages(sidebarItems(nav, ADMIN_MENU), hiddenPages).map((n) => {
+            items={withoutPages(sidebarItems(nav, COMBINED ? sideMenu(currentSide) : ADMIN_MENU), hiddenPages).map((n) => {
               // Orders counts open cancel/return requests too (they sit in Needs attention).
               // Privacy requests are handled in Settings › General.
               const badgeFor = (id: string) => id === "orders" ? ordersBadge : id === "reviews" ? otherBadges.pendingReviews
@@ -818,7 +821,8 @@ export function Dashboard() {
             activeChildId={navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive}
             onSelect={openMenuPage}
             onSelectChild={(_item, page) => openMenuPage(page)}
-            top={hasStockroom() && !COMBINED ? <AppSwitcher onSwitch={() => setSidebarOpen(false)} /> : undefined}
+            top={COMBINED ? <SideSwitch side={currentSide} onPick={(side) => { setSidebarOpen(false); void openMenuPage(sideMenu(side)[0].pages[0]); }} />
+              : hasStockroom() ? <AppSwitcher onSwitch={() => setSidebarOpen(false)} /> : undefined}
             brand={storesPage(platformPlan) ? (
               <StoreSwitcher name={shopNameFromSettings(settings)} tag={platformPlan?.state === "trial" ? "Free trial" : null}
                 storesUrl={storesPage(platformPlan)!} addUrl={addStorePage(platformPlan)}

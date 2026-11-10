@@ -5,7 +5,7 @@ import {
   DEFAULT_STOCKROOM_PAGE, FROM_ADMIN, FROM_STOCKROOM, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES, STOCKROOM_TAB,
   combinedAdmin, lookMessage, openMessage, stockroomFrameMessage, stockroomPage,
 } from "./combined";
-import { COMBINED_MENU, MENU, NAV, menuItemFor, sidebarItems } from "./riso/nav";
+import { COMBINED_MENU, MENU, NAV, STOCKROOM_SIDE, WEBSITE_SIDE, menuItemFor, sideMenu, sideOf, sidebarItems } from "./riso/nav";
 import { hashForRoute, routeFromHash, sameSection } from "./adminRoute";
 import { DEFAULT_SHOP_PROFILE } from "../../lib/shopProfile";
 import { adminWordsFor } from "./sells";
@@ -31,12 +31,22 @@ describe("the combined admin (shop + stockroom plan)", () => {
     for (const p of STOCKROOM_PAGES) expect(pages.filter((id) => id === STOCKROOM_ITEM_PREFIX + p.id), p.id).toHaveLength(1);
   });
 
-  it("has eight menu items, named by the job, each page with a label", () => {
-    expect(COMBINED_MENU.map((g) => g.label)).toEqual(["Home", "Orders", "Books", "Sell in person", "Marketing", "Money", "Online store", "Settings"]);
+  it("splits the menu in two sides, website and stockroom, each named by the job", () => {
+    expect(WEBSITE_SIDE.map((g) => g.label)).toEqual(["Home", "Orders", "Books", "Marketing", "Online store", "Settings"]);
+    expect(STOCKROOM_SIDE.map((g) => g.label)).toEqual(["To-do", "Stock", "Sales", "Sell in person", "Money", "Open call", "Stockroom settings"]);
+    for (const p of STOCKROOM_PAGES) expect(sideOf(STOCKROOM_ITEM_PREFIX + p.id), p.id).toBe("stockroom");
+    expect(sideOf("overview")).toBe("website");
+    expect(sideOf("orders")).toBe("website");
+    expect(sideOf("inventory")).toBe("stockroom");
+    expect(sideMenu("stockroom")[0].pages[0]).toBe(STOCKROOM_ITEM_PREFIX + "todo");
+  });
+
+  it("gives each page a label", () => {
     for (const item of sidebarItems(NAV, COMBINED_MENU)) {
       for (const child of item.children || []) expect(child.label, child.id).not.toBe(child.id);
     }
     expect(menuItemFor(STOCKROOM_ITEM_PREFIX + "pos", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "pos");
+    expect(menuItemFor(STOCKROOM_ITEM_PREFIX + "taxcenter", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "taxcenter");
     expect(menuItemFor(STOCKROOM_ITEM_PREFIX + "consignment", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "pos");
     expect(menuItemFor("customers", COMBINED_MENU)).toBe("orders");
   });
