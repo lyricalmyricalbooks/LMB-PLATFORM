@@ -242,7 +242,8 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     // Bounces and spam reports come from the newsletter guard's store (services/email/reputation.js), not hosted yet.
     delivery: deliveryReader({ deliveryStats, sentLog, now }),
   });
-  const controls = createPlatformControls({ admins, settingsStore: platformState, env, activity, waitlist, signups: stores.signups, now, invites });
+  // The Launch page (control room): shopMaking is off here until the server's Google access is connected (shopMaker above).
+  const controls = createPlatformControls({ admins, settingsStore: platformState, env, activity, waitlist, signups: stores.signups, now, invites, project: projectId, shopMaking: false });
   const backup = createBackupAccess({
     people, admins, state: platformState, email, registry, auditLog, now,
     runBook: runBook({ state: platformState, registry, platform, rollBack: notConnectedFn(NOT_CONNECTED.rollBack), now }),

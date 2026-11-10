@@ -9,9 +9,31 @@
 //   waitlist       optional: the waitlist (clients/stores.js firestoreWaitlist): list() -> rows
 //   invites        optional: waitlist/invites.js createInvites(...)
 //   signups        optional: shops in the making (signup stores): list() -> rows
+//   project        optional: the platform's Google project, for the Secret Manager link on the Launch page
+//   keyEnv         optional: where the keys are read (the walkthrough passes pretend ones); default env
+//   shopMaking     optional: whether Create my shop can make a press's Google project here (false on the hosted server
+//                  until its Google access is connected)
 import { EDITABLE, SETTINGS_RECORD, editableValues, liveSettings, platformSettings, savedSettingsProblems } from "../services/settings.js";
 import { ControlError, MIN_REASON, adminOf } from "./controlRoom.js";
 import { activityEntry } from "./activity.js";
+import { EMAIL_SECRETS } from "../services/email/index.js";
+import { PAYMENTS_SECRETS } from "../services/payments/index.js";
+import { BILLING_SECRETS } from "../services/billing/index.js";
+
+/**
+ * The keys the Launch page checks, in the order to add them. Their names come from their own services; the page gets
+ * only whether each is there, never a value.
+ */
+const LAUNCH_KEYS = Object.freeze([
+  { id: "stripe", label: "Stripe test key", key: PAYMENTS_SECRETS[0], getIt: "https://dashboard.stripe.com/test/apikeys",
+    gives: "Plans, cards on file and presses connecting Stripe." },
+  { id: "connect-events", label: "Stripe events secret (presses' payments)", key: PAYMENTS_SECRETS[1], events: "/api/payments/stripe/events",
+    gives: "Tells the platform when a press's Stripe account or payment changes." },
+  { id: "billing-events", label: "Stripe events secret (plans)", key: BILLING_SECRETS[0], events: "/api/billing/events",
+    gives: "Tells the platform when a plan is paid, fails or ends." },
+  { id: "email", label: "Email sending key", key: EMAIL_SECRETS[0], getIt: "https://resend.com/api-keys",
+    gives: "Sign-in codes, receipts and every email to presses." },
+]);
 
 const reasonOf = (reason) => {
   const text = typeof reason === "string" ? reason.trim() : "";
@@ -19,7 +41,7 @@ const reasonOf = (reason) => {
   return text.slice(0, 500);
 };
 
-export function createPlatformControls({ admins, settingsStore, env = process.env, activity, waitlist, invites, signups, now = () => new Date() }) {
+export function createPlatformControls({ admins, settingsStore, env = process.env, activity, waitlist, invites, signups, project = null, shopMaking = true, keyEnv = env, now = () => new Date() }) {
   const at = () => now().toISOString();
   const record = async (entry) => (activity ? activity.record(activityEntry({ at: at(), ...entry })) : null);
 
@@ -64,6 +86,27 @@ export function createPlatformControls({ admins, settingsStore, env = process.en
       await settingsStore.set(SETTINGS_RECORD, { values: next, updatedAt: at(), updatedBy: by });
       await record({ by, what: "settings-changed", detail: { changes, reason: why } });
       return { changed: changes, values: after };
+    },
+
+    /**
+     * The Launch page: what the platform needs before a press can sign up, each key there or not (never its value), the
+     * sign-up switch, and the addresses the walkthrough opens.
+     */
+    async launch(claims) {
+      adminOf(claims, admins, now().getTime());
+      const current = await liveSettings({ env, store: settingsStore });
+      const platformUrl = current.platformUrl;
+      return {
+        project,
+        platformUrl,
+        signupOpen: current.signupOpen === true,
+        invites: Boolean(invites),
+        shopMaking: shopMaking === true,
+        keys: LAUNCH_KEYS.map(({ id, label, key, getIt, events, gives }) => ({
+          id, label, gives, secret: key.secret, ready: String(keyEnv[key.env] ?? "").trim() !== "",
+          getIt: getIt ?? null, events: events ? `${platformUrl}${events}` : null,
+        })),
+      };
     },
 
     /** The waitlist, newest first, each marked invited or not, with the shops in the making. */
@@ -144,6 +187,7 @@ export function platformRoutes(controls) {
   const body = (request) => (request.body && typeof request.body === "object" ? request.body : {});
   return {
     "GET /api/control/settings": (claims) => controls.settings(claims),
+    "GET /api/control/launch": (claims) => controls.launch(claims),
     "POST /api/control/settings": (claims, request) => controls.saveSettings(claims, body(request)),
     "GET /api/control/waitlist": (claims) => controls.waitlist(claims),
     "POST /api/control/invite": (claims, request) => controls.invite(claims, body(request)),
