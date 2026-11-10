@@ -183,7 +183,7 @@ export function filterLooks(themes: LibraryTheme[], filter: LookFilter): Library
 export const lookFonts = (look: LookPreview) => [...new Set([look.headingFont, look.bodyFont])].filter(f => f && f !== "inherit");
 
 /** What a sample product is, so the try-on draws it (a tee, a tote, a cover…) instead of a blank block. */
-export type ProductKind = "book" | "print" | "tee" | "tote" | "sweatshirt" | "cap" | "ring" | "vinyl" | "mug" | "tape";
+export type ProductKind = "book" | "print" | "tee" | "tote" | "sweatshirt" | "cap" | "ring" | "vinyl" | "mug" | "tape" | "towel";
 export type PreviewProduct = { title: string; photo: string; maker?: string; price?: string; kind?: ProductKind };
 
 /**
@@ -242,13 +242,13 @@ const SAMPLES: Record<"books" | "general" | "clothing" | "jewelry" | "music" | "
     { title: "Heat Wave", maker: "LP", photo: "", kind: "vinyl", price: "CA$ 34.00" },
   ],
   general: [
-    { title: "Linen Napkins", maker: "Set of four", photo: "", kind: "tote", price: "CA$ 32.00" },
+    { title: "Linen Napkins", maker: "Set of four", photo: "", kind: "towel", price: "CA$ 32.00" },
     { title: "Stoneware Mug", maker: "Handmade", photo: "", kind: "mug", price: "CA$ 28.00" },
     { title: "Beeswax Candle", maker: "Hand poured", photo: "", kind: "mug", price: "CA$ 22.00" },
-    { title: "Wool Throw", maker: "Woven", photo: "", kind: "tote", price: "CA$ 120.00" },
+    { title: "Wool Throw", maker: "Woven", photo: "", kind: "towel", price: "CA$ 120.00" },
     { title: "Field Notebook", maker: "Recycled paper", photo: "", kind: "book", price: "CA$ 14.00" },
     { title: "Ceramic Vase", maker: "Glazed", photo: "", kind: "mug", price: "CA$ 48.00" },
-    { title: "Tea Towel", maker: "Printed cotton", photo: "", kind: "tote", price: "CA$ 18.00" },
+    { title: "Tea Towel", maker: "Printed cotton", photo: "", kind: "towel", price: "CA$ 18.00" },
     { title: "Wooden Spoon", maker: "Cherry wood", photo: "", kind: "mug", price: "CA$ 20.00" },
   ],
 };
