@@ -1,4 +1,5 @@
-// Builds one release once, for every shop (plan 4.1). The release is the git tag `release-<version>` of this repo;
+// Builds one release once, for every shop (plan 4.1). The release is the git tag `release-<version>` of this repo, or
+// the commit a merge's version names (`refOf`);
 // its build lives in `<root>/<version>`, a git worktree of that tag, which clients/deploy.js deploys from.
 //
 // Only what is the same for every shop is built here: the shop's pages (`vite build`), the shop's server code
@@ -16,6 +17,14 @@ import { join } from "node:path";
 export const BUILT_MARK = ".lmb-built";
 export const tagOf = (version) => `release-${version}`;
 
+/**
+ * What a version is built from. A version made by a merge carries its commit, like `1.2.31-g9644c9f` (the
+ * "Update the test shop" workflow), so it can be built, or gone back to, with no tag to make by hand; any other version
+ * is the git tag `release-<version>`.
+ */
+export const COMMIT_IN_VERSION = /-g([0-9a-f]{7,40})$/;
+export const refOf = (version) => COMMIT_IN_VERSION.exec(String(version))?.[1] ?? tagOf(version);
+
 /** `releaseBuilder({ run, root, source })`: `run(command, args, { cwd })` runs a command; `source` is this repo. */
 export function releaseBuilder({ run, root, source, exists = existsSync, writeText = writeFile }) {
   const dir = (version) => join(root, version);
@@ -24,8 +33,8 @@ export function releaseBuilder({ run, root, source, exists = existsSync, writeTe
     async build(version) {
       const out = dir(version);
       if (exists(join(out, BUILT_MARK))) return out;
-      if (exists(out)) await run("git", ["checkout", "--detach", tagOf(version)], { cwd: out });
-      else await run("git", ["worktree", "add", "--detach", out, tagOf(version)], { cwd: source });
+      if (exists(out)) await run("git", ["checkout", "--detach", refOf(version)], { cwd: out });
+      else await run("git", ["worktree", "add", "--detach", out, refOf(version)], { cwd: source });
       const shop = join(out, "apps", "shop");
       const stockroom = join(out, "apps", "stockroom");
       await run("pnpm", ["install", "--frozen-lockfile"], { cwd: shop });

@@ -132,6 +132,25 @@ test("a failed test-project check puts it back and the live project is never tou
   assert.equal(kinds(w, "publish").length, 0, "no shop's pages are drawn from a refused release");
 });
 
+test("a merge's update of the test shop alone keeps a version whose release check failed, and says it can't go further", async () => {
+  const { w, run, lines } = await setup({ broken: { "1.1.0": { [TEST_PROJECT]: "check" } } });
+  const alone = [{ projectId: TEST_PROJECT, test: true }];
+  const result = await run("1.1.0", { projects: alone, keepOnFailedCheck: true });
+  assert.equal(result.ok, false, "the run is still red");
+  assert.equal(result.projects[0].status, "kept-check-failed");
+  assert.equal(w.live.get(TEST_PROJECT).rules, "1.1.0", "the test shop shows the new version, to be looked at");
+  assert.deepEqual(kinds(w, "publish").map(([id]) => id), ["lmb-test-shop"]);
+  assert.ok(lines.some((line) => /can't go to real shops/.test(line)));
+
+  // A broken deploy still goes back, even on a merge.
+  const broken = await setup({ broken: { "1.1.0": { [TEST_PROJECT]: "pages" } } });
+  assert.equal((await broken.run("1.1.0", { projects: alone, keepOnFailedCheck: true })).projects[0].status, "rolled-back");
+  assert.equal(broken.w.live.get(TEST_PROJECT).rules, "1.0.0");
+
+  // Never with the live project in the run: real shops only get a version that passed.
+  await assert.rejects((await setup()).run("1.1.0", { keepOnFailedCheck: true }), /test project alone/);
+});
+
 test("a failed live deploy rolls that project back; a project with no earlier release stops for a person", async () => {
   const one = await setup({ broken: { "1.1.0": { [LIVE_PROJECT]: "deploy" } } });
   const result = await one.run("1.1.0");
@@ -252,4 +271,25 @@ test("a first release whose new database triggers aren't ready yet deploys the s
   const failed = await firstSharedRelease({ version: "1.0.0", projectId: "moth-press", registry: fakeRegistry(), builder: again.builder, deploy: again.deploy, platformUrl: PLATFORM, sleep: async () => {} });
   assert.equal(failed.ok, false);
   assert.match(failed.error, /Failed to create function/);
+});
+
+test("the release's outcome reads in plain words, the version to send on comes from the test shop, and a busy lock is waited for", async () => {
+  const { releaseSummary, retryWhileLocked, testShopVersion } = await import("./run-shared.js");
+  const alone = [{ projectId: TEST_PROJECT, test: true }];
+  assert.match(releaseSummary({ ok: true, version: "1.2.3-gabc1234" }, { testShopOnly: true }), /test shop is on 1\.2\.3-gabc1234[\s\S]*can send it to real shops/);
+  assert.match(releaseSummary({ ok: true, version: "1.2.3" }), /reached every shop/);
+  assert.match(releaseSummary({ ok: false, version: "1.2.3", projects: [{ projectId: TEST_PROJECT, status: "kept-check-failed", error: "the release check failed: 2. Buy" }] }, { testShopOnly: true }), /can't go to real shops[\s\S]*2\. Buy/);
+  const stopped = releaseSummary({ ok: false, version: "1.2.3", error: "lmb-test-shop: the release check failed", projects: [{ projectId: TEST_PROJECT, status: "rolled-back", previous: "1.2.2" }, { projectId: LIVE_PROJECT, status: "not-run" }] });
+  assert.match(stopped, /went back to 1\.2\.2[\s\S]*Real shops weren't touched/);
+  assert.match(releaseSummary({ ok: true, dryRun: true, version: "1.2.3", projects: [{ projectId: TEST_PROJECT, shops: ["lmb-test-shop"] }] }), /Check only[\s\S]*1 shop/);
+
+  const deployOn = (version) => ({ deployed: async () => (version ? { version } : null) });
+  assert.equal(await testShopVersion(deployOn("1.2.3-gabc1234"), alone), "1.2.3-gabc1234");
+  for (const nothing of [null, "unknown", "1.2.3+1.2.4"]) assert.equal(await testShopVersion(deployOn(nothing), alone), null);
+
+  const answers = [{ locked: true }, { locked: true }, { ok: true }];
+  const waits = [];
+  assert.deepEqual(await retryWhileLocked(async () => answers.shift(), { sleep: async (ms) => void waits.push(ms) }), { ok: true });
+  assert.deepEqual(waits, [60_000, 60_000]);
+  assert.deepEqual(await retryWhileLocked(async () => ({ locked: true }), { tries: 2, sleep: async () => {} }), { locked: true }, "gives up in the end");
 });

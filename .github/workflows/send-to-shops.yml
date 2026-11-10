@@ -1,0 +1,97 @@
+name: Send the update to shops
+
+# One button to send the platform's newest work to real shops (docs/updating.md). Press Run workflow and leave the box
+# empty: it sends the version the test shop runs now. The test shop gets every merge by itself (update-test-shop.yml).
+#
+# Safe by design (services/release-runner/shared.js): the test shop goes first and must pass the full release check
+# again (a test purchase, the stockroom, the admin, a refund). Only then does the live shared project get it; a failed
+# check there puts it back on the version it had before, by itself. Each shop's pages are drawn again at the end.
+#
+# To go back: type an earlier version in the box (each merge's version is in its "Update the test shop" run). It goes
+# through the same checks.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to send. Leave empty for what the test shop runs now; type an earlier one to go back."
+        required: false
+        type: string
+      check_only:
+        description: "Only say what it would do, change nothing"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: send-to-shops
+  cancel-in-progress: false
+
+env:
+  WIF_PROVIDER: projects/1038369055304/locations/global/workloadIdentityPools/github/providers/lmb-platform
+  DEPLOY_ACCOUNT: github-deploy@lmb-platform-prod.iam.gserviceaccount.com
+  FIREBASE_TOOLS: firebase-tools@15.32.1
+  PLAYWRIGHT: playwright@1.64.1
+
+jobs:
+  send:
+    if: github.repository == 'lyricalmyricalbooks/LMB-PLATFORM' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      id-token: write
+    environment:
+      name: shared-system
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Every commit, so any merge's version can be built (or gone back to); older versions are git tags.
+          fetch-depth: 0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 10
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/shop/pnpm-lock.yaml
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/ms-playwright
+          key: release-tools-${{ runner.os }}-${{ env.PLAYWRIGHT }}-${{ env.FIREBASE_TOOLS }}-${{ hashFiles('apps/shop/functions/package-lock.json', 'apps/stockroom/package-lock.json') }}
+          restore-keys: release-tools-${{ runner.os }}-
+      - name: The release's tools
+        run: |
+          npm install --global "$FIREBASE_TOOLS"
+          npm install --no-save "$PLAYWRIGHT"
+          npx playwright install --with-deps chromium
+      - name: Sign in to Google as the deploy account
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOY_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+      - name: Send it, test shop first
+        env:
+          SERVER_SETTINGS: ${{ vars.SERVER_SETTINGS }}
+          VERSION: ${{ inputs.version }}
+          CHECK_ONLY: ${{ inputs.check_only }}
+        run: |
+          # Only plain settings (project names, addresses), never a key: they are in the repository variable.
+          for name in SHARED_SHOPS_PROJECT SHARED_SHOPS_DOMAIN PLATFORM_ADMIN_EMAIL SHOP_FUNCTIONS_REGION; do
+            value=$(printf '%s\n' "$SERVER_SETTINGS" | sed -n "s/^$name: *\"\{0,1\}\([^\"]*\)\"\{0,1\} *$/\1/p" | head -n 1)
+            [ -n "$value" ] && export "$name=$value"
+          done
+          export RELEASE_INBOX="${PLATFORM_ADMIN_EMAIL:-}" PLATFORM_URL=https://lmb-platform-prod.web.app RELEASE_BUILD_ROOT="$RUNNER_TEMP/builds"
+          version=$(printf '%s' "${VERSION:-current}" | tr -d '[:space:]')
+          if [ "$CHECK_ONLY" = "true" ]; then
+            node services/release-runner/run-shared.js "${version:-current}" --dry-run
+          else
+            node services/release-runner/run-shared.js "${version:-current}" --wait-for-lock
+          fi

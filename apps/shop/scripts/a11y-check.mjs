@@ -6,6 +6,8 @@
 //   node scripts/a11y-check.mjs                 check every theme against scripts/a11y-baseline.json
 //   node scripts/a11y-check.mjs --update        after fixing problems, lower the baseline (it never goes up)
 //   A11Y_THEMES=press-riso,night-neon …         only these themes (for a quick look; --update needs them all)
+//   A11Y_SHARD=2/3 …                            every third theme, starting at the second (CI splits the check
+//                                               across machines this way; --update needs them all)
 //   CHROMIUM_PATH=/path/to/chrome …             use an installed Chromium
 //
 // The baseline holds the problems the themes had when the check started, as "<theme> <page> <rule>": nodes. It can
@@ -20,7 +22,10 @@ const AXE = createRequire(import.meta.url).resolve("axe-core/axe.min.js");
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
 const update = process.argv.includes("--update");
 const only = (process.env.A11Y_THEMES || "").split(",").map(s => s.trim()).filter(Boolean);
-if (update && only.length) throw new Error("--update checks every theme: leave A11Y_THEMES unset");
+const shard = /^(\d+)\/(\d+)$/.exec(process.env.A11Y_SHARD || "");
+if (process.env.A11Y_SHARD && (!shard || +shard[1] < 1 || +shard[1] > +shard[2])) throw new Error(`A11Y_SHARD "${process.env.A11Y_SHARD}" isn't like 1/3`);
+const partial = only.length > 0 || !!shard;
+if (update && partial) throw new Error("--update checks every theme: leave A11Y_THEMES and A11Y_SHARD unset");
 
 const server = await createServer({ server: { port: 0, strictPort: false }, logLevel: "error" });
 await server.listen();
@@ -71,7 +76,8 @@ const themes = await (async () => {
   await page.waitForFunction(() => Array.isArray(window.__a11yThemes), null, { timeout: 60000 });
   const all = await page.evaluate(() => window.__a11yThemes);
   await context.close();
-  return only.length ? all.filter((id) => only.includes(id)) : all;
+  const chosen = only.length ? all.filter((id) => only.includes(id)) : all;
+  return shard ? chosen.filter((_, i) => i % +shard[2] === +shard[1] - 1) : chosen;
 })();
 if (!themes.length) throw new Error("no themes to check");
 
@@ -114,7 +120,7 @@ await browser.close();
 await server.close();
 
 const baseline = existsSync(BASELINE) ? JSON.parse(readFileSync(BASELINE, "utf8")) : null;
-const inScope = (key) => !only.length || only.includes(key.split(" ")[0]);
+const inScope = (key) => !partial || themes.includes(key.split(" ")[0]);
 const worse = Object.entries(found).filter(([key, n]) => n > (baseline?.[key] || 0));
 const better = Object.entries(baseline || {}).filter(([key, n]) => inScope(key) && (found[key] || 0) < n);
 const total = Object.values(found).reduce((sum, n) => sum + n, 0);

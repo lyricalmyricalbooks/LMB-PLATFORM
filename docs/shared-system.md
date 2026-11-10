@@ -179,7 +179,8 @@ live shop until phase 8 (the per-project test shop build is on hold).
   Cloud console (shops folder, billing linked), then readied by the "Shared system" workflow's `ready-project` job
   (`setup/ready-shared-project.js`, the same steps as the test project). Its id then goes in the server's settings
   as `SHARED_SHOPS_PROJECT`, with `SHARED_SHOPS_DOMAIN`.
-- The same workflow runs the staged update (`release`, dry run unless "apply" is ticked) and the restore drill once
-  (`restore-drill`). The "Make the test shop" workflow hands the test shop's payment and email steps the platform's
+- The same workflow runs the restore drill once (`restore-drill`). Updates have their own workflows
+  (`docs/updating.md`): every merge goes to the test shop by itself ("Update the test shop"), and "Send the update to
+  shops" sends the version the test shop runs on to the live project, test project first. The "Make the test shop" workflow hands the test shop's payment and email steps the platform's
   test keys from Secret Manager when they are there, so the test shop takes test-mode payments.
 - The platform's own project (`lmb-platform-prod`) keeps the platform's data and the four platform secrets.

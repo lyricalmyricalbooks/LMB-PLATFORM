@@ -1,0 +1,91 @@
+name: Update the test shop
+
+# Every merge to main goes to the test shop (https://lmb-test-shop.web.app) by itself, so it always shows main
+# (Julian's choice, 10 November 2026). Nothing to press. Real shops are never touched here: they get a version only
+# through "Send the update to shops" (send-to-shops.yml), and only one that passed the release check here.
+#
+# The version is 1.2.<run>-g<commit>: it names its own commit, so it builds with no tag to make by hand and any earlier
+# one can be gone back to (services/release-runner/builder.js). Each merge's version is in its run's summary.
+#
+# A broken deploy (a part not updated, a page not answering) puts the test shop back on the version before. When only the
+# release check fails (a test purchase, the stockroom, the admin, a refund), the test shop keeps the new version to be
+# looked at, the run goes red, and that version can't go to real shops (run-shared.js --test-shop-only).
+#
+# A merge that changes only words for people (docs, *.md) is skipped. Merges close together: GitHub keeps only the
+# newest waiting run, so the test shop jumps straight to the latest main.
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: update-test-shop
+  cancel-in-progress: false
+
+env:
+  WIF_PROVIDER: projects/1038369055304/locations/global/workloadIdentityPools/github/providers/lmb-platform
+  DEPLOY_ACCOUNT: github-deploy@lmb-platform-prod.iam.gserviceaccount.com
+  FIREBASE_TOOLS: firebase-tools@15.32.1
+  PLAYWRIGHT: playwright@1.64.1
+
+jobs:
+  update:
+    if: github.repository == 'lyricalmyricalbooks/LMB-PLATFORM' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    environment:
+      name: shared-system
+      url: https://lmb-test-shop.web.app
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Every commit, so a broken deploy can go back to the version before (it names its own commit).
+          fetch-depth: 0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 10
+      # Packages are kept between runs: the shop's (pnpm) and the server code's and stockroom's (npm).
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/shop/pnpm-lock.yaml
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/ms-playwright
+          key: release-tools-${{ runner.os }}-${{ env.PLAYWRIGHT }}-${{ env.FIREBASE_TOOLS }}-${{ hashFiles('apps/shop/functions/package-lock.json', 'apps/stockroom/package-lock.json') }}
+          restore-keys: release-tools-${{ runner.os }}-
+      - name: The release's tools
+        run: |
+          npm install --global "$FIREBASE_TOOLS"
+          # The release check's browser (run-shared.js loads playwright), the version the shop copy pins.
+          npm install --no-save "$PLAYWRIGHT"
+          npx playwright install --with-deps chromium
+      - name: Sign in to Google as the deploy account
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOY_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+      - name: Send this merge to the test shop
+        env:
+          SERVER_SETTINGS: ${{ vars.SERVER_SETTINGS }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          # The release check's purchase emails go to the platform admin's inbox (a plain setting, never a key).
+          RELEASE_INBOX=$(printf '%s\n' "$SERVER_SETTINGS" | sed -n 's/^PLATFORM_ADMIN_EMAIL: *"\{0,1\}\([^"]*\)"\{0,1\} *$/\1/p' | head -n 1)
+          SHOP_FUNCTIONS_REGION=$(printf '%s\n' "$SERVER_SETTINGS" | sed -n 's/^SHOP_FUNCTIONS_REGION: *"\{0,1\}\([^"]*\)"\{0,1\} *$/\1/p' | head -n 1)
+          export RELEASE_INBOX SHOP_FUNCTIONS_REGION PLATFORM_URL=https://lmb-platform-prod.web.app RELEASE_BUILD_ROOT="$RUNNER_TEMP/builds"
+          node services/release-runner/run-shared.js "1.2.$RUN_NUMBER-g${GITHUB_SHA:0:12}" --test-shop-only --wait-for-lock

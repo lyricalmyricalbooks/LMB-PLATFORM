@@ -108,9 +108,14 @@ jobs:
   # Accessibility as a release rule (plan 8.8): axe-core over every theme in the shop's library and the starting look,
   # on the home page, a book page and checkout (apps/shop/scripts/a11y-check.mjs). A new problem fails; known ones are
   # in apps/shop/scripts/a11y-baseline.json, which only goes down. Sample books only: no shop data, payments or email.
+  # Split across three machines (every third theme each, A11Y_SHARD), so it takes about a third of the time.
   shop-accessibility:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     defaults:
       run:
         working-directory: apps/shop
@@ -129,8 +134,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm run test:a11y
+        env:
+          A11Y_SHARD: ${{ matrix.shard }}/3
       # Template buttons with their own border or shadow (bag, Add to bag, newsletter) follow the press's settings.
       - run: pnpm run test:template-buttons
+        if: matrix.shard == 1
 
   # Plan 13.11: the shop admin's busiest pages at phone width in a real browser (apps/shop/scripts/admin-phone-check.mjs):
   # each opens with content, does not scroll sideways and does not crash. Sample orders and books only; nothing real is read.
@@ -231,35 +239,47 @@ jobs:
   windows:
     runs-on: windows-latest
     timeout-minutes: 40
+    # Three machines at once (the platform, the shop, the stockroom) instead of one after the other.
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [platform, shop, stockroom]
     steps:
       - run: git config --global core.autocrlf false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        if: matrix.part == 'shop'
         with:
           version: 10
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
       - name: Platform tests
+        if: matrix.part == 'platform'
         run: npm test
         env:
           # Lists the failing tests again at the end, so they can be found in a long log.
           NODE_OPTIONS: --test-reporter=spec
       - name: Shop packages
+        if: matrix.part == 'shop'
         working-directory: apps/shop
         run: pnpm install --frozen-lockfile
       - name: Shop server code packages
+        if: matrix.part == 'shop'
         working-directory: apps/shop/functions
         run: npm ci
       - name: Shop tests
+        if: matrix.part == 'shop'
         working-directory: apps/shop
         run: pnpm test
       - name: Stockroom packages
+        if: matrix.part == 'stockroom'
         working-directory: apps/stockroom
         run: npm ci
       - name: Stockroom tests
+        if: matrix.part == 'stockroom'
         working-directory: apps/stockroom
         run: npm test
 
