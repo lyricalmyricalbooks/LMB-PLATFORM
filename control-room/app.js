@@ -352,7 +352,7 @@ function showShops() {
     rows: shown,
     open: (shop) => openShop(shop),
     columns: [
-      { header: "Press", lead: true, render: (shop) => el("div", {}, el("p", { className: "cr-title", textContent: shop.pressName ?? shop.shopId }), meta(shop.shopId, shop.ownerEmail, shop.testShop ? "test shop" : null, shop.sells?.answer ? `sells ${shop.sells.words.toLowerCase()}` : null), tagPills(shopTags[shop.shopId]), riskPill(shop), shop.sells?.mismatch ? pill("warning", "Stripe category doesn't match") : null) },
+      { header: "Brand", lead: true, render: (shop) => el("div", {}, el("p", { className: "cr-title", textContent: shop.pressName ?? shop.shopId }), meta(shop.shopId, shop.ownerEmail, shop.testShop ? "test shop" : null, shop.sells?.answer ? `sells ${shop.sells.words.toLowerCase()}` : null), tagPills(shopTags[shop.shopId]), riskPill(shop), shop.sells?.mismatch ? pill("warning", "Stripe category doesn't match") : null) },
       { header: "Plan", render: (shop) => el("div", {}, el("span", { textContent: PLAN_WORDS[shop.plan] ?? shop.plan ?? "?" }), shop.cards ? meta(`cards by ${CARD_WORDS[shop.cards]}`) : null) },
       { header: "Billing", render: (shop) => (shop.billingStatus ? pill(BILLING_TONE[shop.billingStatus] ?? "neutral", BILLING_WORDS[shop.billingStatus] ?? shop.billingStatus) : el("span", { className: "rp-hint", textContent: shop.access ?? "none" })) },
       { header: "Cost this month", render: (shop) => costCell(shop.costThisMonth) },
@@ -1146,7 +1146,7 @@ function loadChitChats() {
         rows: shops,
         open: (s) => { const shop = allShops.find((x) => x.shopId === s.shopId); if (shop) openShop(shop); },
         columns: [
-          { header: "Press", lead: true, render: (s) => el("div", {}, el("p", { className: "cr-title", textContent: s.pressName }), meta(s.connectedAt ? `since ${dateOnly(s.connectedAt)}` : null, s.emailsOff ? "emails off" : null)) },
+          { header: "Brand", lead: true, render: (s) => el("div", {}, el("p", { className: "cr-title", textContent: s.pressName }), meta(s.connectedAt ? `since ${dateOnly(s.connectedAt)}` : null, s.emailsOff ? "emails off" : null)) },
           { header: "Waiting for tracking", render: (s) => (s.waiting ? el("div", {}, el("p", { textContent: plural(s.waiting, "order") }), s.late ? pill("warning", `oldest over ${waitingDays} days`) : null) : "none") },
           { header: "", end: true, render: state },
         ],
@@ -1546,7 +1546,7 @@ async function loadWaitlist() {
       caption: "The waitlist",
       rows: people,
       columns: [
-        { header: "Press", lead: true, render: (person) => el("div", {}, el("p", { className: "cr-title", textContent: person.press || person.name || person.email }), person.press && person.name ? meta(person.name) : null) },
+        { header: "Brand", lead: true, render: (person) => el("div", {}, el("p", { className: "cr-title", textContent: person.press || person.name || person.email }), person.press && person.name ? meta(person.name) : null) },
         { header: "Email", render: (person) => person.email },
         { header: "Wants", render: (person) => PLAN_WORDS[person.plan] ?? person.plan ?? "?" },
         { header: "Joined", render: (person) => el("span", { className: "rp-mono", textContent: when(person.joinedAt) }) },
@@ -2128,7 +2128,7 @@ async function loadAtRisk() {
     fill(target, numbers, trend, presses.length ? table({
       caption: "Presses at risk, most at risk first",
       columns: [
-        { header: "Press", lead: true, render: (p) => el("div", {}, el("p", { className: "cr-title", textContent: p.pressName }), meta(p.shopId, p.ownerEmail)) },
+        { header: "Brand", lead: true, render: (p) => el("div", {}, el("p", { className: "cr-title", textContent: p.pressName }), meta(p.shopId, p.ownerEmail)) },
         { header: "Risk", render: (p) => el("div", {}, pill(p.level === "drifting" ? "danger" : "warning", p.level === "drifting" ? "drifting" : "to watch"), p.snoozedUntil ? meta(`snoozed until ${dateOnly(p.snoozedUntil)}`) : null) },
         { header: "Why", render: (p) => meta(...p.reasons, p.checkedInAt ? `check-in email ${dateOnly(p.checkedInAt)}` : null) },
         { header: "A month", render: (p) => el("span", { className: "rp-mono", textContent: money(p.monthlyCents, currency) }) },
@@ -2666,7 +2666,7 @@ async function loadSetup() {
         if (shop) openShop(shop);
       },
       columns: [
-        { header: "Press", lead: true, render: (p) => el("div", {}, el("p", { className: "cr-title", textContent: p.pressName || "No name yet" }), meta(p.ownerEmail, p.sells ? `sells ${p.sells.toLowerCase()}` : null, p.country || null)) },
+        { header: "Brand", lead: true, render: (p) => el("div", {}, el("p", { className: "cr-title", textContent: p.pressName || "No name yet" }), meta(p.ownerEmail, p.sells ? `sells ${p.sells.toLowerCase()}` : null, p.country || null)) },
         { header: "Plan", render: (p) => (p.plan ? PLAN_WORDS[p.plan] ?? p.plan : el("span", { className: "rp-hint", textContent: "not picked" })) },
         { header: "Looks", render: (p) => el("div", {}, el("span", { textContent: `Website: ${lookWords(p.look)}` }), meta(`Admin: ${lookWords(p.adminLook)}`)) },
         { header: "Cards", render: (p) => (p.plan === "stockroom" ? el("span", { className: "rp-hint", textContent: "no website" })
