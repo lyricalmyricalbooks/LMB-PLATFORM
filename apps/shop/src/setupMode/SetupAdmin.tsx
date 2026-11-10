@@ -4,7 +4,7 @@
 // it comes with the shop. Everything saves to the press's setup record through the platform's door (door.ts); nothing
 // here reads or writes a shop database, because there is none until the press opens its shop.
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { ArrowRight, Check, ChevronDown, ExternalLink, HelpCircle, Lock, LogOut, Menu, Store } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ExternalLink, HelpCircle, Inbox, Lock, LogOut, Menu, Store } from "lucide-react";
 import {
   AppShell, EmptyState, GhostButton, IconButton, PageHeader, PrimaryButton, SectionCard, SelectField, Sidebar,
   TextField, ToastProvider, Topbar, useRisoToast,
@@ -196,13 +196,13 @@ export function OpensWithShop({ page, line = "", onOpenShop, onBack }: { page: s
     <>
       <PageHeader title={page} />
       <EmptyState
-        icon={<Lock size={28} aria-hidden />}
-        title="Comes with your shop"
-        description={`${line ? `${line} ` : ""}Ready once your shop is made.`}
+        icon={<Inbox size={28} aria-hidden />}
+        title="Nothing here yet"
+        description={`${line ? `${line} ` : ""}It fills up once your shop is made.`}
         action={
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
-            {onBack && <PrimaryButton icon={<ArrowRight size={16} aria-hidden />} onClick={onBack}>Back to the setup guide</PrimaryButton>}
-            <GhostButton onClick={onOpenShop}>Create my shop</GhostButton>
+            <PrimaryButton icon={<Store size={16} aria-hidden />} onClick={onOpenShop}>Create my shop</PrimaryButton>
+            {onBack && <GhostButton icon={<ArrowRight size={16} aria-hidden />} onClick={onBack}>Back to the setup guide</GhostButton>}
           </div>
         }
       />

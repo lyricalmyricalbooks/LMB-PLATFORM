@@ -111,11 +111,11 @@ describe("the admin in setup mode (code plan 18.6)", () => {
     expect(el.textContent).not.toMatch(/free for \d+ days/);
   });
 
-  it("a locked page says it comes with the shop, offers Create my shop, and writes nothing", async () => {
+  it("an empty page says what it will hold, offers Create my shop, and writes nothing", async () => {
     const d = door();
     const el = await mount(d, "#orders");
     expect(el.querySelector("h1")?.textContent).toBe("Orders");
-    expect(el.textContent).toContain("Comes with your shop");
+    expect(el.textContent).toContain("Nothing here yet");
     expect(el.textContent).toContain("Every order in one list");
     expect([...el.querySelectorAll("main button")].some((b) => b.textContent === "Back to the setup guide")).toBe(true);
     const button = [...el.querySelectorAll("main button")].find((b) => b.textContent === "Create my shop") as HTMLButtonElement;
