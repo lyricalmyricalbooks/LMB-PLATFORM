@@ -160,10 +160,11 @@ export function planBanner(plan: PlatformPlan | null, now = Date.now()): PlanBan
   }
   if (plan.state === "trial") {
     const left = daysLeft(plan.trialEnd, now);
-    const title = left <= 1 ? "Free trial: last day." : `Free trial: ${left} days left.`;
+    const when = plan.trialEnd ? `${planDate(plan.trialEnd)} (${left <= 1 ? "last day" : `${left} days`})` : "soon";
+    const title = `Your free trial ends ${when}.`;
     return plan.hasCard
-      ? { tone: "info", kicker: "Plan", title, detail: plan.nextPaymentAt ? `Your first payment is on ${planDate(plan.nextPaymentAt)}.` : "Your card is saved.", action: "See your plan" }
-      : { tone: left <= 3 ? "warning" : "info", kicker: "Plan", title, detail: "Add a card to keep your shop open when the trial ends. You won't be charged until then.", action: "Add a card" };
+      ? { tone: "info", kicker: "Free trial", title, detail: plan.nextPaymentAt ? `Your first payment is on ${planDate(plan.nextPaymentAt)}.` : "Your card is saved.", action: "See your plan" }
+      : { tone: left <= 3 ? "danger" : left <= 7 ? "warning" : "info", kicker: "Free trial", title, detail: "Add a card by then to keep selling. We'll email you on day 7, day 12 and the day before.", action: "Add a card" };
   }
   return null;
 }
@@ -183,4 +184,11 @@ export function planFacts(plan: PlatformPlan, now = Date.now()): Array<{ label: 
   facts.push({ label: "Card on file", value: plan.hasCard ? "Yes" : "No card yet" });
   facts.push({ label: "How you pay", value: plan.paymentWay === "payAsYouSell" ? "As you sell" : "Monthly" });
   return facts;
+}
+
+/** The top bar's trial pill: "Free trial · N days left", or null when not in a trial. */
+export function trialPill(plan: PlatformPlan | null, now = Date.now()): string | null {
+  if (!plan || plan.state !== "trial") return null;
+  const left = daysLeft(plan.trialEnd, now);
+  return `Free trial · ${left <= 1 ? "last day" : `${left} days left`}`;
 }

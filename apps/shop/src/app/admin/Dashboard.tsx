@@ -36,7 +36,7 @@ import { ADMIN_LOOK, applyAdminLook } from "./riso/adminLook";
 import { SupportBanner } from "./SupportBanner";
 import { PlanBannerBar, PlanDesk } from "./PlanParts";
 import { TwoStepReminder } from "./TwoStepReminder";
-import { planLocked } from "./platformPlan";
+import { planLocked, trialPill } from "./platformPlan";
 import { usePlatformPlan } from "./platformPlanApi";
 import { PlatformMessagesBar } from "./PlatformMessagesBar";
 import type { SupportVisit } from "./supportSession";
@@ -835,6 +835,7 @@ export function Dashboard() {
               onOpenCustomer={(q) => { setSearchCustomerQuery(q); goTo("customers"); }} />
             <div className="rp-topbar-actions">
               {hasStockroom() && !COMBINED && <AppSwitchPill />}
+              {trialPill(platformPlan ?? null) && <a className="rp-trial-pill" href="#settings/billing">{trialPill(platformPlan ?? null)}</a>}
               <ShopStatusMenu
                 wallOn={!!settings?.design?.showUnderConstruction}
                 checkoutPaused={maintenanceOn}
@@ -870,7 +871,7 @@ export function Dashboard() {
         }
       >
         <SupportBanner visit={supportVisit} onSignOut={() => { void adminApi.logout(); }} />
-        <PlanBannerBar plan={platformPlan} />
+        {!(activeTab === "settings" && (settingsTab === "billing" || settingsTab === "plan")) && <PlanBannerBar plan={platformPlan} />}
         {/* The control room's messages to the press (platform/messages, code plan 19.14): admin only, never the storefront. */}
         <PlatformMessagesBar enabled={!!user} />
         {/* The admin home asks a paid plan's owner to turn on two-step sign-in (TwoStepReminder.tsx, plan 22.10). */}
