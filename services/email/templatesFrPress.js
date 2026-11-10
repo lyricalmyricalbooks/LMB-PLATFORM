@@ -787,6 +787,32 @@ export const PRESS_TEMPLATES_FR = {
     });
   },
 
+  /** French twin of "payout-schedule-changed". */
+  "payout-schedule-changed": ({ before, after, link }, { settings }) => {
+    const days = { monday: "lundi", tuesday: "mardi", wednesday: "mercredi", thursday: "jeudi", friday: "vendredi", saturday: "samedi", sunday: "dimanche" };
+    const when = (s) => {
+      if (!s || typeof s !== "object") return null;
+      if (s.interval === "manual") return "seulement quand un versement est lancé à la main";
+      if (s.interval === "daily") return `chaque jour${s.delayDays ? `, environ ${s.delayDays} jour${s.delayDays === 1 ? "" : "s"} après chaque vente` : ""}`;
+      if (s.interval === "weekly" && days[s.weeklyAnchor]) return `chaque ${days[s.weeklyAnchor]}`;
+      if (s.interval === "monthly" && s.monthlyAnchor) return `le ${s.monthlyAnchor === 1 ? "1er" : s.monthlyAnchor} de chaque mois`;
+      return null;
+    };
+    const now = when(after);
+    if (!now) throw new Error("the new payout timing has no words");
+    const was = when(before);
+    return layout({
+      subject: "Stripe a changé le moment où il vous paie",
+      greeting: "Bonjour,",
+      paragraphs: [
+        `Stripe verse maintenant vos ventes par carte à votre banque ${now}${was ? `, au lieu de ${was}` : ""}.`,
+        "Rien d'autre ne change : vos ventes et vos remboursements fonctionnent comme avant.",
+      ],
+      buttons: link ? [["Ouvrir Paiements", safeLink(link)]] : [],
+      footer: signOff(settings),
+    });
+  },
+
   /** French twin of "payments-switched". */
   "payments-switched": ({ from, to, link }, { settings }) => {
     const name = (p) => ({ stripe: "Stripe", square: "Square" })[p];

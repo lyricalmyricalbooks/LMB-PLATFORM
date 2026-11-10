@@ -13,6 +13,8 @@ import { fakeAccounts, fakeDeliver, fakeStripeFetch } from "./fakes.js";
 import { fakeAuditLog, fakeProfileFiles, fakeRegistry } from "../../setup/fakes.js";
 import { connectPaymentsStep } from "../../setup/payments.js";
 import { hashServiceKey } from "../email/http.js";
+import { TEMPLATES } from "../email/templates.js";
+import { platformSettings } from "../settings.js";
 
 const SHOP = "moth-press";
 const KEY = "shop-service-key-moth-press-0123456789abcdef";
@@ -481,6 +483,27 @@ test("account.updated keeps when Stripe pays the press, and an unchanged schedul
   await send("evt_pay3", {});
   assert.deepEqual([...registry.events.get(SHOP).keys()], ["payments-account-evt_pay1"], "the same schedule, or none, changes nothing");
   assert.equal((await registry.getShop(SHOP)).payments.payoutSchedule.weeklyAnchor, "friday");
+});
+
+test("the press hears once when Stripe changes when it pays them, never for the first schedule", async () => {
+  const email = fakeEmail();
+  const { service } = await world({ email });
+  const send = async (id, schedule) => {
+    const event = { id, livemode: true, account: "acct_moth", type: "account.updated", data: { object: { id: "acct_moth", charges_enabled: true, payouts_enabled: true, details_submitted: true, settings: { payouts: { schedule } } } } };
+    await service.stripeEvent(signed(event).headers, signed(event).raw);
+  };
+  await send("evt_s1", { interval: "daily", delay_days: 2 });
+  assert.equal(email.sent.size, 0, "the first schedule Stripe tells us about isn't a change");
+  await send("evt_s2", { interval: "daily", delay_days: 2 });
+  assert.equal(email.sent.size, 0, "the same schedule again sends nothing");
+  await send("evt_s3", { interval: "weekly", delay_days: 7, weekly_anchor: "friday" });
+  const [sent] = email.sent.values();
+  assert.equal(sent.kind, "payout-schedule-changed");
+  assert.equal(sent.idempotencyKey, `payout-schedule-changed/${SHOP}/evt_s3`);
+  assert.deepEqual([sent.data.before.interval, sent.data.after.weeklyAnchor], ["daily", "friday"]);
+  assert.match(sent.data.link, /#settings\/payments/);
+  const parts = TEMPLATES["payout-schedule-changed"](sent.data, { settings: platformSettings({}) });
+  assert.match(parts.text, /Stripe now sends your card sales to your bank every Friday, instead of every day, about 2 days after each sale\./);
 });
 
 test("an older account.updated arriving late never turns cards back on after Stripe paused them", async () => {

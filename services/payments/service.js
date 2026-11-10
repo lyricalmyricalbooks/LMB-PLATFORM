@@ -680,6 +680,20 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
           payments = { ...saved, accountEventCreated: created };
           await registry.updateShop(row.shopId, { payments: replaceSlot(row.payments, found, payments) });
         }
+        // Stripe changed when it pays the press (it had a schedule before, and this one differs): the press hears once per
+        // event, so a press counting on daily money isn't caught short. A failed email is only logged: Stripe resending
+        // the event would find the schedule already saved and send nothing.
+        const before = saved.payoutSchedule;
+        if (!stale && found.slot === "current" && email && row.ownerEmail && before && state.payoutSchedule && !isDeepStrictEqual(before, state.payoutSchedule)) {
+          try {
+            await email.sendPlatform({
+              kind: "payout-schedule-changed", to: row.ownerEmail, shopId: row.shopId, idempotencyKey: `payout-schedule-changed/${row.shopId}/${event.id}`,
+              data: { pressName: row.pressName || row.shopId, before, after: state.payoutSchedule, link: paymentsPage(row) },
+            });
+          } catch (err) {
+            console.error(`The payout-timing email for ${row.shopId} wasn't sent: ${err?.message || err}`);
+          }
+        }
         // Past due: Stripe has paused cards or payouts. The owner is emailed once (the admin shows a banner as well).
         // Only for the account that takes sales: an earlier one's cards don't matter to the shop any more.
         if (!stale && found.slot === "current" && needs.pastDue && !payments.pastDueEmailedAt && email) {

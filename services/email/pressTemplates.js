@@ -1,8 +1,38 @@
 // Emails to a press from the control room (code plan 19.14, 19.16), sent to the shop's owner. Kept in their own file
 // and spread into TEMPLATES (templates.js), which hands in its own layout helpers, like closingTemplates.js.
 
+/** When Stripe pays, in a few words (the admin's Settings › Payments line says the same): "every Friday". */
+export function whenPaid(s) {
+  if (!s || typeof s !== "object") return null;
+  if (s.interval === "manual") return "only when a payout is started by hand";
+  if (s.interval === "daily") return `every day${s.delayDays ? `, about ${s.delayDays} ${s.delayDays === 1 ? "day" : "days"} after each sale` : ""}`;
+  if (s.interval === "weekly" && s.weeklyAnchor) return `every ${s.weeklyAnchor[0].toUpperCase()}${s.weeklyAnchor.slice(1)}`;
+  if (s.interval === "monthly" && s.monthlyAnchor) return `on day ${s.monthlyAnchor} of each month`;
+  return null;
+}
+
 export function pressTemplates({ layout, safeLink, signOff }) {
   return {
+    /**
+     * Stripe changed when it pays the press (services/payments: account.updated). `data`: { pressName, before, after
+     * (payout schedules: { interval, delayDays, weeklyAnchor, monthlyAnchor }), link (Settings › Payments) }.
+     */
+    "payout-schedule-changed": ({ before, after, link }, { settings }) => {
+      const now = whenPaid(after);
+      if (!now) throw new Error("the new payout timing has no words");
+      const was = whenPaid(before);
+      return layout({
+        subject: "Stripe changed when it pays you",
+        greeting: "Hello,",
+        paragraphs: [
+          `Stripe now sends your card sales to your bank ${now}${was ? `, instead of ${was}` : ""}.`,
+          "Nothing else changes: your sales and refunds work as before.",
+        ],
+        buttons: link ? [["Open Payments", safeLink(link)]] : [],
+        footer: signOff(settings),
+      });
+    },
+
     /**
      * An important message to presses (control-room/messages.js), sent once per message and shop. `data`: { pressName,
      * words (the message, plain text), endsOn (the day it leaves the admin, in words), link (the shop's admin, or null
