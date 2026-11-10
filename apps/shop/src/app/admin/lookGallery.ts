@@ -188,7 +188,7 @@ export type PreviewProduct = { title: string; photo: string; maker?: string; pri
  * Made-up products for the try-on when the press has none yet, worded for what they sell (the sign-up answer). Prices
  * are examples only; the covers are drawn in each look's own colours.
  */
-const SAMPLES: Record<"books" | "general" | "clothing" | "jewelry" | "music" | "prints", PreviewProduct[]> = {
+const RAW_SAMPLES: Record<"books" | "general" | "clothing" | "jewelry" | "music" | "prints", PreviewProduct[]> = {
   books: [
     { title: "Salt Hours", maker: "Zoe Moss", photo: "", kind: "book", price: "CA$ 22.00" },
     { title: "Night Songs", maker: "A. Poet", photo: "", kind: "book", price: "CA$ 18.00" },
@@ -250,6 +250,15 @@ const SAMPLES: Record<"books" | "general" | "clothing" | "jewelry" | "music" | "
     { title: "Wooden Spoon", maker: "Cherry wood", photo: "", kind: "mug", price: "CA$ 20.00" },
   ],
 };
+
+/** Studio photos of the sample products, named after the product ("Heavy Tee" -> heavy-tee.webp), bundled and hashed by the build. */
+const SAMPLE_PHOTOS = import.meta.glob<string>("../../assets/look-photos/*.webp", { eager: true, query: "?url", import: "default" });
+const slug = (title: string) => title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const photoFor = (title: string) => SAMPLE_PHOTOS[`../../assets/look-photos/${slug(title)}.webp`] || "";
+// A product with no photo yet keeps its drawing (`kind`).
+const SAMPLES = Object.fromEntries(
+  Object.entries(RAW_SAMPLES).map(([key, list]) => [key, list.map((p) => ({ ...p, photo: p.photo || photoFor(p.title) }))]),
+) as typeof RAW_SAMPLES;
 
 export function sampleProducts(publishes?: string | null): PreviewProduct[] {
   const p = String(publishes || "");
