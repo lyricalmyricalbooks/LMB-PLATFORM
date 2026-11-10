@@ -82,9 +82,9 @@ describe("admin themes (plan 1.26)", () => {
     expect(found).toEqual([]);
   });
 
-  it("has one look, Colophon, with a light rail by day and a dark one by night", () => {
+  it("has one look, Colophon, with a dark rail tile by day (the mockup) and a darker one by night", () => {
     expect(ADMIN_LOOK).toBe("colophon");
-    expect(resolved("day")["--rp-rail"]).toBe("#e6e3dc");
+    expect(resolved("day")["--rp-rail"]).toBe("#1f1e1b");
     expect(resolved("night")["--rp-rail"]).toBe("#0f0e0d");
     const css = readFileSync(join(__dirname, "riso.css"), "utf8");
     expect(css).toContain(':root[data-admin-look="colophon"] .rp {');
