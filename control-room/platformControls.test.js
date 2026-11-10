@@ -181,3 +181,15 @@ test("the Launch page says which keys are in place, never their values, and foll
   await w.controls.saveSettings(ADMIN, { values: { signupOpen: true }, reason: "opening sign-up for launch" });
   assert.equal((await controls.launch(ADMIN)).signupOpen, true);
 });
+
+test("a shop waiting on its web address says since when, and whether it has waited over a day", async () => {
+  const w = world();
+  const since = new Date(Date.parse("2026-10-28T12:00:00Z") - 25 * 3_600_000).toISOString();
+  await w.signups.set("wait-press", { shopId: "wait-press", pressName: "Wait Press", status: "waiting", waitingSince: since, canRetry: false, createdAt: since });
+  await w.signups.set("slow-press", { shopId: "slow-press", pressName: "Slow Press", status: "waiting", canRetry: true, createdAt: since });
+  const making = (await w.controls.waitlist(ADMIN)).inTheMaking;
+  const wait = making.find((s) => s.shopId === "wait-press");
+  assert.deepEqual([wait.waitingSince, wait.waitedTooLong], [since, true]);
+  const slow = making.find((s) => s.shopId === "slow-press");
+  assert.deepEqual([slow.waitingSince, slow.waitedTooLong], [null, false], "a step to try again isn't waiting on its address");
+});

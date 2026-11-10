@@ -69,6 +69,7 @@ import { businessRoutes, createBusinessRoom } from "../control-room/business.js"
 import { fakeIncomeHistory } from "../control-room/fakes.js";
 import { runBusinessNightly } from "../control-room/nightly.js";
 import { createTimeline, timelineRoutes } from "../control-room/timeline.js";
+import { createSharedSystemDesk, sharedSystemRoutes } from "../control-room/sharedSystem.js";
 import { createJobsPage, jobsRoutes } from "../control-room/jobs.js";
 import { createShopNotes, notesRoutes } from "../control-room/notes.js";
 import { createSetupDesk, setupRoutes } from "../control-room/setupPresses.js";
@@ -317,6 +318,8 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...accessRequestRoutes({ requests: accessRequests, accounts, activity, registry, auditLog, now: clock.date }),
     ...businessRoutes(business),
     ...timelineRoutes(timeline),
+    // The shared system (no shared project here): release runs from the registry, use not metered.
+    ...sharedSystemRoutes(createSharedSystemDesk({ admins, registry, now: clock.date })),
     ...jobsRoutes(jobsPage),
     ...notesRoutes(notes),
     ...setupRoutes(setupDesk),

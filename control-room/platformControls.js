@@ -19,6 +19,7 @@ import { activityEntry } from "./activity.js";
 import { EMAIL_SECRETS } from "../services/email/index.js";
 import { PAYMENTS_SECRETS } from "../services/payments/index.js";
 import { BILLING_SECRETS } from "../services/billing/index.js";
+import { WAIT_FOR_A_PERSON_MS } from "../signup/shopMaker.js";
 
 /**
  * The keys the Launch page checks, in the order to add them. Their names come from their own services; the page gets
@@ -124,7 +125,12 @@ export function createPlatformControls({ admins, settingsStore, env = process.en
       people.sort((a, b) => String(b.joinedAt ?? "").localeCompare(String(a.joinedAt ?? "")));
       // Shops being made, and ready shops whose plan change (an app added or dropped) has stopped (signup/shopMaker.js).
       const signupRows = signups ? await signups.list() : [];
-      const making = signupRows.filter((row) => row.status !== "ready").map(({ shopId, pressName, ownerEmail, status, message, canRetry, createdAt }) => ({ shopId, pressName, ownerEmail, status, message: message ?? null, canRetry: canRetry === true, createdAt }));
+      // A shop whose new web address Google is still securing waits calmly (`waitingSince`); a person is told after a day.
+      const making = signupRows.filter((row) => row.status !== "ready").map(({ shopId, pressName, ownerEmail, status, message, canRetry, createdAt, waitingSince }) => ({
+        shopId, pressName, ownerEmail, status, message: message ?? null, canRetry: canRetry === true, createdAt,
+        waitingSince: status === "waiting" && waitingSince ? waitingSince : null,
+        waitedTooLong: status === "waiting" && Boolean(waitingSince) && now().getTime() - Date.parse(waitingSince) >= WAIT_FOR_A_PERSON_MS,
+      }));
       const planStops = signupRows.filter((row) => row.status === "ready" && row.planSync).map(({ shopId, pressName, ownerEmail, planSync, createdAt }) => ({
         shopId, pressName, ownerEmail, status: "plan-change-stopped", createdAt, canRetry: planSync.needsHelp === true,
         message: `Moving to the ${planSync.plan} plan stopped at step ${planSync.failedStep ?? "?"}${planSync.needsHelp ? " and needs you" : `, tried ${planSync.tries} time${planSync.tries === 1 ? "" : "s"}`}: ${planSync.error ?? "no reason given"}`,
