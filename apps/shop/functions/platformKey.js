@@ -31,7 +31,17 @@ function withPlatformKey(secrets = [], config = shopConfig) {
   return [...secrets.filter((secret) => !OWN_KEYS.has(secret?.name)), PLATFORM_SERVICE_KEY];
 }
 
+/**
+ * One of the shop's own provider keys. Firebase asks the deploy for every secret that is merely defined, used or not,
+ * so on a shop that uses the platform's services the key is a stand-in that is never defined: `.value()` reads "".
+ */
+function ownSecret(name, define = defineSecret, config = shopConfig) {
+  if (!OWN_KEYS.has(name)) throw new Error(`${name} isn't one of the shop's own keys`);
+  if (!usesPlatformServices(config)) return define(name);
+  return Object.freeze({ name, value: () => "" });
+}
+
 /** The key, read when a call is made ("" when the function has none). */
 const platformServiceKey = () => process.env.PLATFORM_SERVICE_KEY || "";
 
-module.exports = { OWN_KEYS, PLATFORM_SERVICE_KEY, usesPlatformServices, withPlatformKey, platformServiceKey };
+module.exports = { OWN_KEYS, ownSecret, PLATFORM_SERVICE_KEY, usesPlatformServices, withPlatformKey, platformServiceKey };

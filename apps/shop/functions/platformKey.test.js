@@ -19,6 +19,9 @@ function secretsByFunction(env) {
       const endpoint = fn && fn.__endpoint;
       if (endpoint) out[name] = (endpoint.secretEnvironmentVariables || []).map(s => s.key);
     }
+    // Every secret the deploy will ask for: Firebase asks for each one defined, used or not.
+    const declared = globalThis[Symbol.for("firebase-functions:params:declaredParams")] || [];
+    out.__declared = declared.filter(p => p && p.constructor && p.constructor.name === "SecretParam").map(p => p.name);
     process.stdout.write(JSON.stringify(out));`;
   const text = execFileSync(process.execPath, ["-e", script], { cwd: dir, env: { ...process.env, ...env }, stdio: ["ignore", "pipe", "pipe"] });
   return JSON.parse(String(text));
@@ -42,6 +45,10 @@ describe("the shop's platform key", () => {
 
   test("on a platform shop every function has the key; on a shop with its own keys none does", () => {
     const platform = secretsByFunction({ SHOP_PAYMENT_MODE: "platform", SHOP_PAYMENTS_SERVICE_URL: "https://payments.platform.example" });
+    const declared = platform.__declared;
+    delete platform.__declared;
+    // The deploy stops for any defined secret it can't find, so a platform shop defines only the platform key.
+    expect(declared).toEqual(["PLATFORM_SERVICE_KEY"]);
     const names = Object.keys(platform);
     expect(names.length).toBeGreaterThan(20);
     expect(names.filter(name => !platform[name].includes("PLATFORM_SERVICE_KEY"))).toEqual([]);
@@ -49,6 +56,8 @@ describe("the shop's platform key", () => {
     expect(Object.values(platform).flat().filter(name => OWN_KEYS.has(name))).toEqual([]);
 
     const own = secretsByFunction({ SHOP_PAYMENT_MODE: "", PLATFORM_EMAIL_URL: "" });
+    expect(own.__declared).toEqual(expect.arrayContaining(["RESEND_API_KEY", "STRIPE_SECRET_KEY"]));
+    delete own.__declared;
     expect(Object.values(own).flat()).not.toContain("PLATFORM_SERVICE_KEY");
     // A shop on its own keys keeps them.
     expect(own.stripeWebhook).toEqual(expect.arrayContaining(["STRIPE_WEBHOOK_SECRET"]));

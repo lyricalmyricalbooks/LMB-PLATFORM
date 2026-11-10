@@ -130,7 +130,7 @@ const { MAX_ATTEMPTS, LEASE_MS, LOG_RETENTION_DAYS, GAVE_UP_RETENTION_DAYS, clea
 // Every function runs in the shop's own region (shopConfig.js SHOP_FUNCTIONS_REGION; us-central1 when unset).
 // On a shop that uses the platform's services (payments through the platform, its email sender), every function gets
 // the shop's platform key (platformKey.js); a function's own `secrets` list adds it again with withPlatformKey.
-const { usesPlatformServices, withPlatformKey, platformServiceKey } = require("./platformKey");
+const { ownSecret, usesPlatformServices, withPlatformKey, platformServiceKey } = require("./platformKey");
 setGlobalOptions({ maxInstances: 10, region: require("./shopConfig").shopConfig.region, ...(usesPlatformServices() ? { secrets: withPlatformKey([]) } : {}) });
 
 sdk.initializeApp();
@@ -304,14 +304,14 @@ exports.deleteTestOrders = onBrowserRequest(async (req, res) => {
   res.json({ deleted: existing.length });
 });
 
-const RESEND_API_KEY = defineSecret("RESEND_API_KEY");
-const STRIPE_SECRET_KEY = defineSecret("STRIPE_SECRET_KEY");
-const STRIPE_WEBHOOK_SECRET = defineSecret("STRIPE_WEBHOOK_SECRET");
+const RESEND_API_KEY = ownSecret("RESEND_API_KEY", defineSecret);
+const STRIPE_SECRET_KEY = ownSecret("STRIPE_SECRET_KEY", defineSecret);
+const STRIPE_WEBHOOK_SECRET = ownSecret("STRIPE_WEBHOOK_SECRET", defineSecret);
 const STRIPE_WEBHOOK_URL = () => functionLink(shopConfig, "stripeWebhook");
-const PAYPAL_CLIENT_ID = defineSecret("PAYPAL_CLIENT_ID");
-const PAYPAL_CLIENT_SECRET = defineSecret("PAYPAL_CLIENT_SECRET");
-const PAYPAL_WEBHOOK_ID = defineSecret("PAYPAL_WEBHOOK_ID");
-const SHIPPO_API_TOKEN = defineSecret("SHIPPO_API_TOKEN");
+const PAYPAL_CLIENT_ID = ownSecret("PAYPAL_CLIENT_ID", defineSecret);
+const PAYPAL_CLIENT_SECRET = ownSecret("PAYPAL_CLIENT_SECRET", defineSecret);
+const PAYPAL_WEBHOOK_ID = ownSecret("PAYPAL_WEBHOOK_ID", defineSecret);
+const SHIPPO_API_TOKEN = ownSecret("SHIPPO_API_TOKEN", defineSecret);
 const SHIPPO_CONFIG_DOC = () => db.collection("private-integrations").doc("shippo");
 
 // Team (functions/roles.js). Adding, changing or removing someone in Settings › Team updates their sign-in pass at once.
