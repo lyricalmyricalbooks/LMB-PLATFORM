@@ -20,6 +20,13 @@ const button = (label: string) => [...document.querySelectorAll("button")].find(
 const click = async (label: string) => { const b = button(label); if (!b) throw new Error(`no button ${label}: ${text()}`); await act(async () => { b.click(); }); await flush(); };
 const text = () => document.body.textContent || "";
 const card = (network: string) => document.querySelector(`[data-channel="${network}"]`) as HTMLElement;
+/** Opens a channel's ⋯ menu, then picks one of its items. */
+const pick = async (channel: string, item: string) => {
+  const menu = document.querySelector(`[aria-label="Actions for ${channel}"]`) as HTMLButtonElement;
+  if (!menu) throw new Error(`no menu for ${channel}: ${text()}`);
+  await act(async () => { menu.click(); });
+  await click(item);
+};
 
 const network = (id: string, fields: any = {}) => ({
   network: id, name: { meta: "Facebook & Instagram", pinterest: "Pinterest", tiktok: "TikTok" }[id], available: true, connected: false,
@@ -112,8 +119,7 @@ describe("Sales channels", () => {
     expect(document.querySelectorAll(".rp-badge").length).toBeGreaterThan(3);
     expect(text().match(/Coming soon/g)?.length).toBe(3);
     expect(card("tiktok").querySelector("button")).toBeNull();
-    await act(async () => { (card("pinterest").querySelector("button") as HTMLButtonElement).click(); });
-    await flush();
+    await pick("Pinterest", "Set up by hand");
     expect(text()).toContain("Feed address");
     expect(api.getAllBooks).toHaveBeenCalled();
   });
@@ -122,7 +128,8 @@ describe("Sales channels", () => {
     fakeService({ status: { enabled: true, networks: [network("meta"), network("pinterest"), network("tiktok")] } });
     const openSignIn = vi.fn();
     await mount(h(SalesChannels, { onOpen: vi.fn(), openSignIn }));
-    await click("Connect Pinterest");
+    await act(async () => { (card("pinterest").querySelector('[aria-label="Connect Pinterest"]') as HTMLButtonElement).click(); });
+    await flush();
     expect(api.social).toHaveBeenCalledWith("connect", { network: "pinterest", returnUrl: expect.stringMatching(/#channels$/) });
     expect(openSignIn).toHaveBeenCalledWith("https://signin.example/?network=pinterest");
   });
@@ -134,13 +141,14 @@ describe("Sales channels", () => {
     await mount(h(SalesChannels, { onOpen }));
     expect(card("meta").textContent).toContain("Connected as Jo Moth");
     expect(card("meta").textContent).toContain("@mothpress");
-    await click("Send my products");
+    await pick("Facebook & Instagram", "Send my products");
     expect(api.social).toHaveBeenCalledWith("sendCatalog", { network: "meta" });
     expect(text()).toContain("Products sent to Facebook & Instagram");
+    await act(async () => { (document.querySelector('[aria-label="Actions for Facebook & Instagram"]') as HTMLButtonElement).click(); });
     expect(button("Send products again")).toBeTruthy();
     await click("Create a post");
     expect(onOpen).toHaveBeenCalledWith("socialPosts");
-    await click("Disconnect");
+    await pick("Facebook & Instagram", "Disconnect");
     expect(text()).toContain("Disconnect Facebook & Instagram?");
     const yes = [...document.querySelectorAll('[role="dialog"] button, [role="alertdialog"] button')].find((b) => b.textContent?.trim() === "Disconnect") as HTMLButtonElement;
     await act(async () => { yes.click(); });
@@ -180,7 +188,7 @@ describe("Social posts", () => {
     const world = { status: { enabled: true, networks: [META_ON, network("pinterest"), network("tiktok")] } };
     fakeService(world);
     await mount(h(SocialPosts, { onOpen: vi.fn(), startWithBook: "nm" }));
-    expect(text()).toContain("Create post");
+    expect(text()).toContain("New post");
     const product = document.querySelector("select") as HTMLSelectElement;
     expect([...product.options].map((o) => o.textContent)).toEqual(["Choose a product…", "Night Moths"]);
     const words = document.querySelector("textarea") as HTMLTextAreaElement;
@@ -210,6 +218,7 @@ describe("Social posts", () => {
     expect(typeof call[1].sendAt).toBe("string");
     expect(text()).toContain("Scheduled for");
     expect(text()).toContain("Goes out");
+    await act(async () => { (document.querySelector('[aria-label="Actions for the Night Moths post"]') as HTMLButtonElement).click(); });
     await click("Cancel");
     const yes = [...document.querySelectorAll('[role="dialog"] button, [role="alertdialog"] button')].find((b) => b.textContent?.trim() === "Cancel post") as HTMLButtonElement;
     await act(async () => { yes.click(); });
@@ -217,16 +226,15 @@ describe("Social posts", () => {
     expect(api.social).toHaveBeenCalledWith("cancelPost", { id: "p1" });
   });
 
-  it("a post a place didn't take shows the reason under Needs attention, with Try again", async () => {
+  it("a post a place didn't take comes first with the reason, and Try again in its menu", async () => {
     fakeService({
       status: { enabled: true, networks: [META_ON, network("pinterest"), network("tiktok")] },
       posts: [{ id: "p9", bookId: "nm", bookTitle: "Night Moths", imageUrl: "https://img.example/a.jpg", caption: "Out now", sendAt: "2026-11-04T12:00:00Z", createdAt: "2026-11-04T12:00:00Z",
         status: "failed", places: [{ id: "fb:111", kind: "facebookPage", name: "Moth Press" }], results: { "fb:111": { state: "failed", message: "Facebook & Instagram turned that down." } } }],
     });
     await mount(h(SocialPosts, { onOpen: vi.fn() }));
-    const tab = [...document.querySelectorAll('[role="tab"]')].find((t) => t.textContent?.includes("Needs attention")) as HTMLButtonElement;
-    await act(async () => { tab.click(); });
     expect(text()).toContain("turned that down");
+    await act(async () => { (document.querySelector('[aria-label="Actions for the Night Moths post"]') as HTMLButtonElement).click(); });
     await click("Try again");
     expect(api.social).toHaveBeenCalledWith("retryPost", { id: "p9" });
     expect(text()).toContain("Posted.");
