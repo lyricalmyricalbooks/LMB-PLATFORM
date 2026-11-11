@@ -1,0 +1,25 @@
+/* Sales records and Customers (admin/stockroom/), on the shared admin look: --rp-* tokens only. */
+.rp-sr { display: grid; gap: var(--rp-space-4); min-width: 0; }
+.rp-sr-money { font-size: var(--rp-text-lg); overflow-wrap: anywhere; }
+.rp-sr-status { margin: 0; font-size: var(--rp-text-sm); color: var(--rp-text-muted); overflow-wrap: anywhere; }
+.rp-sr-more { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--rp-space-3); font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+.rp-sr-open { all: unset; cursor: pointer; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; min-height: 24px; overflow-wrap: anywhere; }
+.rp-sr-open:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.rp-sr-voided td { text-decoration: line-through; color: var(--rp-text-muted); }
+.rp-sr-voided td .rp-sr-open, .rp-sr-voided td .rp-badge { text-decoration: none; }
+.rp-sr-detail { display: grid; gap: var(--rp-space-4); }
+.rp-sr-note { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--rp-space-2); font-size: var(--rp-text-sm); }
+.rp-sr-facts { margin: 0; display: grid; gap: var(--rp-space-3); }
+.rp-sr-facts > div { display: grid; grid-template-columns: minmax(110px, 38%) 1fr; gap: var(--rp-space-3); border-top: 1px solid var(--rp-border); padding-top: var(--rp-space-3); }
+.rp-sr-facts > div:first-child { border-top: 0; padding-top: 0; }
+.rp-sr-facts dt { color: var(--rp-text-muted); font-size: var(--rp-text-sm); }
+.rp-sr-facts dd { margin: 0; overflow-wrap: anywhere; }
+.rp-sr-sub { margin: 0; font-size: var(--rp-text-base); }
+.rp-sr-lines { list-style: none; margin: 0; padding: 0; display: grid; }
+.rp-sr-lines li { display: grid; grid-template-columns: 1fr auto; gap: var(--rp-space-1) var(--rp-space-3); padding: var(--rp-space-3) 0; border-top: 1px solid var(--rp-border); }
+.rp-sr-line-meta { grid-column: 1; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+.rp-sr-line-amount { grid-row: 1 / span 2; grid-column: 2; align-self: center; font-family: var(--rp-font-mono); }
+@media (max-width: 640px) {
+  .rp-sr-facts > div { grid-template-columns: 1fr; gap: var(--rp-space-1); }
+  .rp-sr .rp-filter-bar > * { flex: 1 1 100%; }
+}
