@@ -22,12 +22,12 @@ const WORD: Record<string, string> = { danger: "Urgent", warning: "Needs attenti
 
 const ACTION_LABEL: Record<string, string> = {
   retry: "Try again", inventory: "Open Inventory app link", general: "Open Backups", notifications: "Open email deliveries",
-  payments: "Open Payments", cardAccount: "Open Payments", webhook: "Open payment checks", order: "Open order", inventoryApp: "Open the inventory app",
+  payments: "Open Payments", invoices: "Open invoices", cardAccount: "Open Payments", webhook: "Open payment checks", order: "Open order", inventoryApp: "Open the inventory app",
 };
 
 // Alerts shown above every admin page. Dismissing hides an alert in this browser until
 // a new order (or new change) joins it. Urgent ones come first; past two the rest fold away.
-export function AdminAlerts({ alerts, onOpenOrder, onOpenOrders, onOpenWebhook, onOpenNotifications, onOpenGeneral, onOpenBackups, onOpenInventory, onOpenRoute, onRetry }: {
+export function AdminAlerts({ alerts, onOpenOrder, onOpenOrders, onOpenWebhook, onOpenNotifications, onOpenGeneral, onOpenBackups, onOpenInventory, onOpenInvoices, onOpenRoute, onRetry }: {
   alerts: AdminAlert[];
   onOpenOrder: (id: string) => void;
   onOpenOrders: () => void;
@@ -37,6 +37,8 @@ export function AdminAlerts({ alerts, onOpenOrder, onOpenOrders, onOpenWebhook, 
   /** The combined admin's one place for backups (Stockroom › Backups); without it a backup alert opens Settings › General. */
   onOpenBackups?: () => void;
   onOpenInventory?: () => void;
+  /** Stockroom › Invoices (the automatic reminders' alert). */
+  onOpenInvoices?: () => void;
   /** Opens the exact page and sub tab an alert names (`alertRoute`); without it the per-page callbacks above are used. */
   onOpenRoute?: (route: AlertRoute) => void;
   onRetry?: () => void;
@@ -62,6 +64,7 @@ export function AdminAlerts({ alerts, onOpenOrder, onOpenOrders, onOpenWebhook, 
   };
   const run = (a: AdminAlert) => {
     if (a.action === "backups" && onOpenBackups) return onOpenBackups();
+    if (a.action === "invoices") return onOpenInvoices?.();
     const route = onOpenRoute && alertRoute(a);
     if (route) onOpenRoute(route);
     else runAction(a);
