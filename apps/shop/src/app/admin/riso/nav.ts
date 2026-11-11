@@ -76,9 +76,8 @@ const S = (id: string) => STOCKROOM_ITEM_PREFIX + id;
 export type AdminSide = "website" | "stockroom";
 export const WEBSITE_SIDE: Menu = [
   { label: "Home", icon: LayoutDashboard, pages: ["overview"] },
-  { label: "Orders", icon: ShoppingCart, pages: ["orders", SALES_TAB, "messages"] },
-  // Customers is its own item (redesign, 11 November 2026); Sales channels sit with Marketing.
-  { label: "Customers", icon: Users, pages: ["customers"] },
+  // Customers sits under Orders, as in the mockup (redesign, 11 November 2026); Sales channels sit with Marketing.
+  { label: "Orders", icon: ShoppingCart, pages: ["orders", SALES_TAB, "customers", "messages"] },
   { label: "Books", icon: BookOpen, pages: ["catalog", "reviews"] },
   { label: "Marketing", icon: Megaphone, pages: ["discounts", "giftCards", "socialPosts", "channels"] },
   { label: "Online store", icon: Palette, pages: [SETTINGS_ITEM_PREFIX + "designer"] },

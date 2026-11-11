@@ -34,7 +34,7 @@ describe("the combined admin (shop + stockroom plan)", () => {
   });
 
   it("splits the menu in two sides, website and stockroom, each named by the job", () => {
-    expect(WEBSITE_SIDE.map((g) => g.label)).toEqual(["Home", "Orders", "Customers", "Books", "Marketing", "Online store", "Settings"]);
+    expect(WEBSITE_SIDE.map((g) => g.label)).toEqual(["Home", "Orders", "Books", "Marketing", "Online store", "Settings"]);
     expect(STOCKROOM_SIDE.map((g) => g.label)).toEqual(["Stock", "Sales", "Sell in person", "Money", "Stockroom settings"]);
     for (const p of STOCKROOM_PAGES) expect(sideOf(STOCKROOM_ITEM_PREFIX + p.id), p.id).toBe("stockroom");
     expect(sideOf("overview")).toBe("website");
@@ -50,7 +50,7 @@ describe("the combined admin (shop + stockroom plan)", () => {
     expect(menuItemFor(STOCKROOM_ITEM_PREFIX + "pos", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "pos");
     expect(menuItemFor(STOCKROOM_ITEM_PREFIX + "taxcenter", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "taxcenter");
     expect(menuItemFor(STOCKROOM_ITEM_PREFIX + "consignment", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "pos");
-    expect(menuItemFor("customers", COMBINED_MENU)).toBe("customers");
+    expect(menuItemFor("customers", COMBINED_MENU)).toBe("orders");
     expect(menuItemFor("channels", COMBINED_MENU)).toBe("discounts");
   });
 
