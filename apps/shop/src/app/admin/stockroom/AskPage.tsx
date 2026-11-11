@@ -4,7 +4,10 @@
 import { useMemo, useState } from "react";
 import { fmt } from "@stockroom/money.js";
 
-import { DataTable, EmptyState, MetricCard, SectionCard, SelectField, StatusBadge, Tabs } from "../riso/components";
+import { DataTable, Drawer, EmptyState, MetricCard, PageActions, SecondaryButton, SectionCard, SelectField, StatusBadge, Tabs } from "../riso/components";
+import { lowStockThreshold } from "../inventoryInsights";
+import { buildReorder } from "../reorderList";
+import { buildSalesRows } from "./sales";
 import { useShopWords } from "../shopWords";
 import { RecordsGate } from "./RecordsGate";
 import { ASK_QUESTIONS, askModel, sourcesOf, type AskId } from "./moneyReports";
@@ -141,6 +144,65 @@ export function AskView({ records, now }: { records: StockroomRecords; now?: Dat
   );
 }
 
+const DAY = 24 * 60 * 60 * 1000;
+
+/** Money › Insights (redesign): the best seller and best channel of the last 90 days, then what is worth knowing. */
+export function InsightsView({ records, now = new Date() }: { records: StockroomRecords; now?: Date }) {
+  const w = useShopWords();
+  const [asking, setAsking] = useState(false);
+  const { seller, channel, notes } = useMemo(() => {
+    const from = new Date(now.getTime() - 90 * DAY).toISOString().slice(0, 10);
+    const sold = buildSalesRows(records).filter((r) => r.kind === "sale" && !r.voided && !r.gift && r.date >= from);
+    const top = (key: (r: (typeof sold)[number]) => string) => {
+      const by = new Map<string, number>();
+      sold.forEach((r) => by.set(key(r), (by.get(key(r)) || 0) + r.qty));
+      return [...by.entries()].sort((a, b) => b[1] - a[1])[0] || null;
+    };
+    const copies = sold.reduce((n, r) => n + r.qty, 0);
+    const ch = top((r) => r.channel);
+    const reorder = buildReorder({ stockroom: records, shopBooks: [], paidOrders: [], shopThreshold: lowStockThreshold(null), now: now.getTime() });
+    return {
+      seller: top((r) => r.bookTitle),
+      channel: ch ? { name: ch[0], share: copies ? Math.round((ch[1] / copies) * 100) : 0 } : null,
+      notes: reorder.map((r) => ({
+        key: r.key,
+        text: r.onHand <= 0 ? `${r.title} is sold out` : r.weeksLeft !== null ? `${r.title} sells out in about ${Math.max(1, Math.round(r.weeksLeft))} ${Math.max(1, Math.round(r.weeksLeft)) === 1 ? "week" : "weeks"}` : `${r.title} is running low`,
+        urgent: r.onHand <= 0 || (r.weeksLeft !== null && r.weeksLeft < 2),
+      })),
+    };
+  }, [records, now]);
+  return (
+    <div className="rp-money">
+      <PageActions><SecondaryButton onClick={() => setAsking(true)}>Ask about your sales</SecondaryButton></PageActions>
+      <div className="rp-tiles">
+        <div className="rp-tile" data-tone="mint">
+          <span className="rp-tile-label">{w("Best seller")}, 90 days</span>
+          <span className="rp-tile-value">{seller ? seller[0] : "–"}</span>
+          <span className="rp-tile-sub">{seller ? `${seller[1]} ${seller[1] === 1 ? w("copy") : w("copies")}` : "No sales yet"}</span>
+        </div>
+        <div className="rp-tile" data-tone="sky">
+          <span className="rp-tile-label">Best channel</span>
+          <span className="rp-tile-value">{channel ? channel.name : "–"}</span>
+          <span className="rp-tile-sub">{channel ? `${channel.share}% of sales` : "No sales yet"}</span>
+        </div>
+      </div>
+      <section className="rp-card rp-worth" aria-labelledby="rp-worth-title">
+        <h2 className="rp-card-title" id="rp-worth-title">Worth knowing</h2>
+        {notes.length ? (
+          <ul className="rp-worth-list">
+            {notes.map((n) => (
+              <li key={n.key}><span>{n.text}</span><StatusBadge glyph={false} tone={n.urgent ? "danger" : "warning"}>{n.urgent ? "Reprint now" : "Reprint"}</StatusBadge></li>
+            ))}
+          </ul>
+        ) : <p className="rp-hint">{w("Nothing needs you: every book has stock for a while.")}</p>}
+      </section>
+      <Drawer open={asking} onClose={() => setAsking(false)} title="Ask about your sales" description="Answered from your own records.">
+        {asking && <AskView records={records} now={now} />}
+      </Drawer>
+    </div>
+  );
+}
+
 export function AskPage({ load = stockroomApi.load }: { load?: () => Promise<StockroomRecords>; onOpen?: unknown; isPage?: unknown }) {
-  return <RecordsGate load={load} what="your sales answers">{(records) => <AskView records={records} />}</RecordsGate>;
+  return <RecordsGate load={load} what="your insights">{(records) => <InsightsView records={records} />}</RecordsGate>;
 }

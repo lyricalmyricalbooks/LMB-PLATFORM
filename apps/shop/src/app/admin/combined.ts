@@ -25,7 +25,7 @@ export const REORDER_TAB = "reorder";
 export const isCombinedTab = (tab: string) => tab === SALES_TAB || tab === REORDER_TAB;
 /** Pages only the combined admin has, besides the stockroom's: menu id, label and the line under the title. */
 export const COMBINED_PAGES: StockroomPage[] = [
-  { id: REORDER_TAB, label: "Reorder list", description: "Products about to run out, most urgent first, with how many to order." },
+  { id: REORDER_TAB, label: "Reorder", description: "Products about to run out, most urgent first, with how many to order." },
   { id: SALES_TAB, label: "All sales", description: "Website orders beside the stockroom's own sales, counted once." },
 ];
 
@@ -47,16 +47,16 @@ export const STOCKROOM_PAGES: StockroomPage[] = [
   { id: "history", label: "Sales records", description: "Look up, change or void a sale the stockroom recorded." },
   { id: "manual", label: "Record a sale", description: "Add a sale made somewhere else, so stock and totals stay right." },
   { id: "pos", label: "Till", description: "Sell at a fair, a market or your counter. Keeps selling when the signal drops." },
-  { id: "shipping", label: "Parcels and labels", description: "Shipping costs and labels for parcels that aren't website orders, such as copies for stockists." },
+  { id: "shipping", label: "Parcels", description: "Shipping costs and labels for parcels that aren't website orders, such as copies for stockists." },
   { id: "consignment", label: "Stockists", description: "Shops holding your copies: what they have, what they sold and what they owe you." },
   { id: "qrcodes", label: "QR codes", description: "Codes that open a book's page, for tables, posters and the back of books." },
-  { id: "reconcile", label: "Payments and payouts", description: "Money coming in from every place you sell, matched to your sales." },
+  { id: "reconcile", label: "Reconcile", description: "Money coming in from every place you sell, matched to your sales." },
   { id: "expenses", label: "Expenses", description: "What the press spends, with receipts." },
   { id: "taxcenter", label: "Tax centre", description: "Sales tax collected, fees and what to file." },
-  { id: "intel", label: "Ask about your sales", description: "Questions about your books and sales, answered from your own records." },
+  { id: "intel", label: "Insights", description: "Your best seller, your best channel and what is worth knowing." },
   { id: "customers", label: "Buyers in person", description: "People who bought at fairs, from invoices or by hand." },
-  { id: "sheets", label: "Google Sheet", description: "Keep a copy of your stockroom in a Google Sheet." },
-  { id: "backups", label: "Stockroom backups", description: "Copies of your stockroom you can download or bring back." },
+  { id: "sheets", label: "Sheets", description: "Keep a copy of your stockroom in a Google Sheet." },
+  { id: "backups", label: "Backups", description: "Copies of your stockroom you can download or bring back." },
 ];
 
 const PAGES = new Map(STOCKROOM_PAGES.map((p) => [p.id, p]));

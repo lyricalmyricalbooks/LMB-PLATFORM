@@ -9,7 +9,7 @@ import { computeCashFlowMetrics } from "@stockroom/cashflow.js";
 import { expenseLedgerTotals } from "@stockroom/expense-totals.js";
 import { buildTaxLedger } from "@stockroom/tax-ledger.js";
 
-import { AskView } from "./AskPage";
+import { AskView, InsightsView } from "./AskPage";
 import { ExpensesView } from "./ExpensesPage";
 import { RecordsGate } from "./RecordsGate";
 import { SalesRecords } from "./SalesPage";
@@ -181,6 +181,11 @@ describe("the pages", () => {
     const ask = await draw(<AskView records={records} now={NOW} />);
     expect(ask.container.textContent).toContain("What did we sell?");
     await act(async () => ask.root.unmount());
+    // Money › Insights (redesign): best seller and best channel tiles, then Worth knowing.
+    const insights = await draw(<InsightsView records={records} now={NOW} />);
+    expect(insights.container.textContent).toContain("Best channel");
+    expect(insights.container.textContent).toContain("Worth knowing");
+    await act(async () => insights.root.unmount());
   });
 
   it("show the whole Tax centre with zeros when there is nothing yet", async () => {
