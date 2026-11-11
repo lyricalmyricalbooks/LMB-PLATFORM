@@ -23,3 +23,23 @@ export function removeExpense(tc: Row | null, id: unknown): Row {
   if (!list.some((e) => String(e.id) === String(id))) return tc || {};
   return { ...(tc || {}), businessExpenses: list.filter((e) => String(e.id) !== String(id)) };
 }
+
+/** The receipts a ledger line has (the newer list, else the single older address). */
+export function receiptsOf(line: { receipt?: unknown; receiptFiles?: unknown }): string[] {
+  const files = Array.isArray(line.receiptFiles) ? line.receiptFiles.filter((f): f is string => typeof f === "string" && !!f) : [];
+  if (files.length) return files;
+  return typeof line.receipt === "string" && line.receipt ? [line.receipt] : [];
+}
+
+/** The Tax centre with a receipt address added to one business expense (kept in both the list and the older field). */
+export function attachReceipt(tc: Row | null, id: unknown, url: string): Row {
+  const list = expensesOf(tc);
+  const at = list.findIndex((e) => String(e.id) === String(id));
+  if (at < 0 || !url) return tc || {};
+  const e = list[at];
+  const files = receiptsOf(e);
+  if (files.includes(url)) return tc || {};
+  const next = list.slice();
+  next[at] = { ...e, receipt: e.receipt || url, receiptFiles: [...files, url] };
+  return { ...(tc || {}), businessExpenses: next };
+}

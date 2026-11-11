@@ -77,3 +77,71 @@ describe("ledger line controls", () => {
     await act(async () => root.unmount());
   });
 });
+
+describe("receipts", () => {
+  it("reads either the list or the older single address", async () => {
+    const { receiptsOf } = await import("./taxLedger");
+    expect(receiptsOf({ receiptFiles: ["a", "", 3, "b"] })).toEqual(["a", "b"]);
+    expect(receiptsOf({ receipt: "x" })).toEqual(["x"]);
+    expect(receiptsOf({})).toEqual([]);
+  });
+
+  it("attaches a receipt once, keeping the older field filled", async () => {
+    const { attachReceipt } = await import("./taxLedger");
+    const once = attachReceipt(tc, "a", "https://r/1");
+    expect(once.businessExpenses[0]).toMatchObject({ receipt: "https://r/1", receiptFiles: ["https://r/1"] });
+    const twice = attachReceipt(once, "a", "https://r/2");
+    expect(twice.businessExpenses[0]).toMatchObject({ receipt: "https://r/1", receiptFiles: ["https://r/1", "https://r/2"] });
+    expect(attachReceipt(twice, "a", "https://r/2")).toBe(twice);
+    expect(attachReceipt(tc, "gone", "https://r/1")).toBe(tc);
+  });
+
+  it("checks the file and builds a path inside the shop's folder", async () => {
+    const { receiptProblem, receiptPath } = await import("./receiptUpload");
+    expect(receiptProblem({ type: "image/jpeg", size: 1000 })).toBeNull();
+    expect(receiptProblem({ type: "application/pdf", size: 1000 })).toBeNull();
+    expect(receiptProblem({ type: "text/plain", size: 10 })).toMatch(/photo or a PDF/);
+    expect(receiptProblem({ type: "image/png", size: 15 * 1024 * 1024 })).toMatch(/15 MB/);
+    expect(receiptPath("my receipt (1).jpg", 42)).toMatch(/^shops\/[a-z0-9-]+\/receipts\/General\/42_myreceipt1\.jpg$/);
+  });
+
+  it("uploads a picked file and saves its address on the expense", async () => {
+    vi.mocked(saveTaxCenter).mockReset();
+    vi.mocked(saveTaxCenter).mockResolvedValue({ ok: true, taxCenter: { done: 1 }, note: { tone: "ok", text: "Receipt attached." } });
+    document.body.innerHTML = "";
+    const upload = vi.fn().mockResolvedValue("https://r/9");
+    const onSaved = vi.fn(); const onNote = vi.fn();
+    const { container, root } = await mount(<LedgerLineActions line={{ itemId: "a", desc: "Canva", cat: "Other" }} onSaved={onSaved} onNote={onNote} upload={upload} />);
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(["x"], "r.png", { type: "image/png" });
+    Object.defineProperty(input, "files", { value: [file], configurable: true });
+    await act(async () => { input.dispatchEvent(new Event("change", { bubbles: true })); });
+    await act(async () => {});
+    expect(upload).toHaveBeenCalledWith(file);
+    expect(vi.mocked(saveTaxCenter).mock.calls[0][0](tc).businessExpenses[0].receiptFiles).toEqual(["https://r/9"]);
+    expect(onSaved).toHaveBeenCalledWith({ done: 1 });
+    await act(async () => root.unmount());
+  });
+
+  it("says plainly when the upload fails, and saves nothing", async () => {
+    vi.mocked(saveTaxCenter).mockReset();
+    document.body.innerHTML = "";
+    const onNote = vi.fn();
+    const { container, root } = await mount(<LedgerLineActions line={{ itemId: "a", desc: "Canva" }} onSaved={vi.fn()} onNote={onNote} upload={vi.fn().mockRejectedValue(new Error("network"))} />);
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    Object.defineProperty(input, "files", { value: [new File(["x"], "r.png", { type: "image/png" })], configurable: true });
+    await act(async () => { input.dispatchEvent(new Event("change", { bubbles: true })); });
+    await act(async () => {});
+    expect(saveTaxCenter).not.toHaveBeenCalled();
+    expect(onNote).toHaveBeenLastCalledWith({ tone: "error", text: "The receipt didn't upload. Check your connection and try again." });
+    await act(async () => root.unmount());
+  });
+
+  it("shows a link instead of Attach when the line has a receipt", async () => {
+    document.body.innerHTML = "";
+    const { container, root } = await mount(<LedgerLineActions line={{ itemId: "a", desc: "Canva", receiptFiles: ["https://r/1", "https://r/2"] }} onSaved={vi.fn()} onNote={vi.fn()} />);
+    expect(container.querySelector("a")?.textContent).toBe("Receipts (2)");
+    expect(button("Attach receipt")).toBeUndefined();
+    await act(async () => root.unmount());
+  });
+});
