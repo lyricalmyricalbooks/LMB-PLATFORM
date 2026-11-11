@@ -1,16 +1,18 @@
 // Stockroom › Stockists, drawn by the admin itself (no frame): the shops holding your copies on consignment, what each
-// owes, which invoices are overdue, and a drawer with one stockist's titles, invoices and ledger. Read-only for now:
-// sending copies, recording sales and reminders wait for the safe write layer.
+// owes, which invoices are overdue, and a drawer with one stockist's titles, invoices and ledger. One write so far:
+// Mark paid on an invoice (saved through stockroomWrite.ts, WRITING.md), with an optional emailed receipt.
 import { useMemo, useState } from "react";
 import { LEDGER_TYPE_FILTERS } from "@stockroom/consignment-ledger-filter.js";
 import { fmt, fmtD } from "@stockroom/money.js";
 
-import { Drawer, EmptyState, InkButton, MetricCard, SecondaryButton, StatusBadge, type BadgeTone } from "../riso/components";
+import { Checkbox, Dialog, Drawer, EmptyState, InkButton, MetricCard, SecondaryButton, StatusBadge, type BadgeTone } from "../riso/components";
 import { useShopWords } from "../shopWords";
 import type { NativePageProps } from "./nativePages";
 import { RecordsGate } from "./RecordsGate";
 import type { StockroomRecords } from "./stockroomData";
-import { buildStockists, moneyText, type Stockist, type StockistInvoice, type StockistLedgerRow, type StockistsView } from "./stockists";
+import { stockistReceiptApi } from "./stockistReceipt";
+import { describeResult, stockroomWriteApi } from "./stockroomWrite";
+import { buildStockists, markInvoicePaid, moneyText, type Stockist, type StockistInvoice, type StockistLedgerRow, type StockistsView } from "./stockists";
 import "./stockroom.css";
 import "./stockists.css";
 
@@ -53,7 +55,7 @@ function StockistCard({ s, onOpen }: { s: Stockist; onOpen: (key: string) => voi
   );
 }
 
-function InvoiceRows({ invoices }: { invoices: StockistInvoice[] }) {
+function InvoiceRows({ invoices, onPay }: { invoices: StockistInvoice[]; onPay?: (i: StockistInvoice) => void }) {
   if (!invoices.length) return <p className="rp-sk-none">No invoices for this stockist.</p>;
   return (
     <ul className="rp-sk-list">
@@ -61,7 +63,8 @@ function InvoiceRows({ invoices }: { invoices: StockistInvoice[] }) {
         <li key={i.id} className="rp-sk-row">
           <div className="rp-sk-row-main"><strong>{i.num || "Invoice"}</strong><span className="rp-sk-meta">{i.dueDate ? `Due ${fmtD(i.dueDate)}` : "No due date"}{i.chased ? ` · reminded ${i.chased === 1 ? "once" : `${i.chased} times`}` : ""}{i.promisedUntil ? ` · promised by ${fmtD(i.promisedUntil)}` : ""}{i.reminderFailed ? " · last reminder didn't send" : ""}</span></div>
           <div className="rp-sk-row-end"><span className="rp-sk-amount">{fmt(i.total, i.code)}</span>
-            {i.overdue ? <StatusBadge tone="danger">{i.daysLate ?? 0} days overdue</StatusBadge> : <StatusBadge tone={i.status === "paid" ? "success" : "neutral"} glyph={false}>{i.status[0].toUpperCase() + i.status.slice(1)}</StatusBadge>}</div>
+            {i.overdue ? <StatusBadge tone="danger">{i.daysLate ?? 0} days overdue</StatusBadge> : <StatusBadge tone={i.status === "paid" ? "success" : "neutral"} glyph={false}>{i.status[0].toUpperCase() + i.status.slice(1)}</StatusBadge>}
+            {onPay && i.payable && <SecondaryButton size="sm" onClick={() => onPay(i)} aria-label={`Mark ${i.num || "this invoice"} paid`}>Mark paid</SecondaryButton>}</div>
         </li>
       ))}
     </ul>
@@ -101,7 +104,7 @@ function Ledger({ rows }: { rows: StockistLedgerRow[] }) {
   );
 }
 
-function Detail({ s }: { s: Stockist }) {
+function Detail({ s, onPay, notice }: { s: Stockist; onPay?: (i: StockistInvoice) => void; notice?: Notice | null }) {
   const w = useShopWords();
   const contact = [s.contact, s.email, s.phone, s.website].filter(Boolean);
   return (
@@ -124,17 +127,82 @@ function Detail({ s }: { s: Stockist }) {
       </ul>
       {s.paid.length > 0 && <p className="rp-sk-meta">Already paid: {moneyText(s.paid)}</p>}
       <h3 className="rp-sk-h">Invoices</h3>
-      <InvoiceRows invoices={s.invoices} />
+      {notice && <NoticeLine notice={notice} />}
+      <InvoiceRows invoices={s.invoices} onPay={onPay} />
       <h3 className="rp-sk-h">Ledger</h3>
       {s.ledger.length ? <Ledger rows={s.ledger} /> : <p className="rp-sk-none">Nothing in the ledger for this stockist yet.</p>}
     </div>
   );
 }
 
-export function StockistsList({ view }: { view: StockistsView }) {
+type Notice = { tone: "ok" | "warn" | "error"; lines: string[] };
+
+function NoticeLine({ notice }: { notice: Notice }) {
+  return <div className="rp-sk-notice" data-tone={notice.tone} role={notice.tone === "error" ? "alert" : "status"}>{notice.lines.map((l) => <p key={l}>{l}</p>)}</div>;
+}
+
+const today = () => new Date().toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+
+/** Mark one invoice paid: saved through the stockroom write layer, then (only if ticked) a receipt to the stockist. */
+function PayDialog({ s, inv, onClose, onSaved }: {
+  s: Stockist; inv: StockistInvoice; onClose: () => void; onSaved: (bookId: string, state: Record<string, any>, notice: Notice) => void;
+}) {
+  const w = useShopWords();
+  const email = inv.email || s.email;
+  const [receipt, setReceipt] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<Notice | null>(null);
+  const amount = fmt(inv.total, inv.code);
+  const pay = async () => {
+    if (busy) return;
+    setBusy(true); setProblem(null);
+    let result;
+    try {
+      result = await stockroomWriteApi.saveBookState(inv.bookId, markInvoicePaid(inv.id, Date.now()));
+    } catch (error) {
+      setBusy(false);
+      setProblem({ tone: "error", lines: [error instanceof Error ? error.message : "Nothing was saved. Try again."] });
+      return;
+    }
+    const said = describeResult(result);
+    if (result.status === "refused" || result.status === "failed") {
+      setBusy(false);
+      setProblem({ tone: "error", lines: [said.text, "Nothing was changed."] });
+      return;
+    }
+    const lines = [`${inv.num || "Invoice"} is paid. ${said.text}`];
+    let tone: Notice["tone"] = said.tone;
+    if (receipt && email) {
+      try {
+        const sent = await stockistReceiptApi.send({ to: email, stockistName: s.name, invoiceNum: inv.num, amount, paidOn: today() });
+        lines.push(`Receipt emailed to ${sent.to}.`);
+      } catch (error) {
+        tone = "warn";
+        lines.push(`The receipt wasn't sent: ${error instanceof Error ? error.message : "try again later"}. The payment is still saved.`);
+      }
+    }
+    onSaved(inv.bookId, result.state as Record<string, any>, { tone, lines });
+  };
+  return (
+    <Dialog open onClose={busy ? () => undefined : onClose} title={`Mark ${inv.num || "invoice"} paid`}
+      description={`${amount} from ${s.name}`}
+      footer={<><SecondaryButton onClick={onClose} disabled={busy}>Cancel</SecondaryButton><InkButton onClick={pay} busy={busy} disabled={busy}>{busy ? "Saving…" : "Mark paid"}</InkButton></>}>
+      <div className="rp-sk-detail">
+        <p className="rp-sk-meta">{w("Clears its sales from what they owe. Paid in another currency? Use the stockroom, which asks for the rate.")}</p>
+        {email ? <Checkbox label={`Email ${email} a receipt`} checked={receipt} onChange={(e) => setReceipt(e.target.checked)} disabled={busy} />
+          : <p className="rp-sk-meta">No email on file, so no receipt.</p>}
+        {problem && <NoticeLine notice={problem} />}
+      </div>
+    </Dialog>
+  );
+}
+
+export function StockistsList({ view, onSaved }: { view: StockistsView; onSaved?: (bookId: string, state: Record<string, any>) => void }) {
   const w = useShopWords();
   const [filter, setFilter] = useState<Filter>("all");
   const [open, setOpen] = useState<string | null>(null);
+  const [paying, setPaying] = useState<StockistInvoice | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
   const shown = useMemo(() => view.stockists.filter((s) => filter === "all" || (filter === "owe" ? s.owed.length > 0 : filter === "overdue" ? s.overdue.length > 0 : s.onShelf > 0)), [view, filter]);
   const current = view.stockists.find((s) => s.key === open) || null;
   if (!view.stockists.length) {
@@ -160,13 +228,24 @@ export function StockistsList({ view }: { view: StockistsView }) {
       </div>
       {shown.length ? <ul className="rp-sk-cards">{shown.map((s) => <StockistCard key={s.key} s={s} onOpen={setOpen} />)}</ul>
         : <EmptyState inline title="No stockists match" description="Pick All to see everyone again." />}
-      <Drawer open={!!current} onClose={() => setOpen(null)} title={current?.name || ""} description="Read-only for now: sending copies, recording sales and reminders come next.">
-        {current && <Detail s={current} />}
+      <Drawer open={!!current} onClose={() => { setOpen(null); setNotice(null); }} title={current?.name || ""} description={onSaved ? "Mark invoices paid here. Sending copies and recording sales come next." : "Read-only."}>
+        {current && <Detail s={current} notice={notice} onPay={onSaved ? (i) => { setNotice(null); setPaying(i); } : undefined} />}
       </Drawer>
+      {current && paying && onSaved && (
+        <PayDialog s={current} inv={paying} onClose={() => setPaying(null)}
+          onSaved={(bookId, state, n) => { onSaved(bookId, state); setNotice(n); setPaying(null); }} />
+      )}
     </div>
   );
 }
 
 export function StockistsPage({ load }: Partial<NativePageProps> & { load?: () => Promise<StockroomRecords> }) {
-  return <RecordsGate what="stockists" load={load}>{(records) => <StockistsList view={buildStockists(records)} />}</RecordsGate>;
+  return <RecordsGate what="stockists" load={load}>{(records) => <StockistsBoard initial={records} />}</RecordsGate>;
+}
+
+/** Keeps the records on screen and swaps in a book's saved state (other devices' rows included, WRITING.md rule 5). */
+function StockistsBoard({ initial }: { initial: StockroomRecords }) {
+  const [records, setRecords] = useState(initial);
+  const view = useMemo(() => buildStockists(records), [records]);
+  return <StockistsList view={view} onSaved={(bookId, state) => setRecords((r) => ({ ...r, states: { ...r.states, [bookId]: state } }))} />;
 }

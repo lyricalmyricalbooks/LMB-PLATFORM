@@ -1163,6 +1163,7 @@ import { stockLocationsCsv } from './lib/stock-locations.js';
 import { submissionsInput, openCallWaiting, labelledOrderNums as labelledOrderNumsOf } from './lib/attention-input.js';
 import { deriveOnHand, buildOrderTimeline, inventoryBreakdown, deduplicateDirectConsignmentSales, recalculateBookStatsFromHistory, orderStockPreview, orderStockPreviewCopy, deriveStockBreakdown, transferAuthorStock, isVoidStale } from './lib/inventory.js';
 import { fairForAdmin, fairSyncPill, readCurrentFair } from './lib/fair-mode.js';
+import { ledgerById, settleLedgerSalePaid } from './lib/invoice-settle.js';
 import { histMirrorForLedger, reconcileConsignmentMirrors, syncHistMirrorFromLedger, ledgerSaleIndexForHistMirror, consignmentSyncPayload, collectUniqueConsignmentStores, consignmentLedgerTotals, storeBalanceSlug, storeBalanceComparison } from './lib/consignment.js';
 import { reminderSettings, reminderBlockReason, invoiceReminderState, dueForReminder, dueForReminderTomorrow, buildReminderEmail, canSendNow, daysLate, describeReminderSweep, describeReminderNotice, sampleReminderInvoice } from './lib/payment-reminders.js';
 import { LEDGER_TYPE_FILTERS, emptyLedgerFilter, ledgerFilterIsActive, ledgerStoreOptions, filterLedgerEntries, ledgerTypeCounts, describeLedgerFilter, ledgerTotalsScope } from './lib/consignment-ledger-filter.js';
@@ -12481,21 +12482,8 @@ function confirmReturn() {
 // Looks ledger rows up by id in one pass, so walking an invoice's lines costs
 // one scan of the ledger instead of one scan per line. Keeps the first row for
 // a repeated id, exactly like the `.find` it replaces.
-export function ledgerById(s) {
-  const map = new Map();
-  for (const x of (s.ledger || [])) if (x && !map.has(x.id)) map.set(x.id, x);
-  return map;
-}
-
-export function settleLedgerSalePaid(s, e) {
-  if (!e || e.status !== 'pending' || e.voided) return false;
-  const st = (s.stores || []).find(x => x.id === e.storeId);
-  if (st) st.amountOwed = roundCents(Math.max(0, (st.amountOwed || 0) - (e.amountDue || 0)));
-  e.status = 'paid'; e.paid = 'paid';
-  const h = histMirrorForLedger(s, e);
-  if (h) h.paidState = 'paid';
-  return true;
-}
+// Both live in ./lib/invoice-settle.js (tested there) so the shop admin settles invoices with the same rule.
+export { ledgerById, settleLedgerSalePaid };
 
 // Decision #1: when the last unpaid linked sale of an invoice becomes paid via
 // the ledger, auto-flip the invoice to PAID. Only flips draft/sent invoices; skips
