@@ -4,7 +4,7 @@ import { getAuth, connectAuthEmulator, signInWithPopup, reauthenticateWithPopup,
 import { getStorage, connectStorageEmulator, ref as sRef, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-storage.js";
 import { initializeFirestore, connectFirestoreEmulator, persistentLocalCache, persistentMultipleTabManager, doc, setDoc, getDoc, getDocs, getDocFromServer, getDocsFromServer, getDocFromCache, getDocsFromCache, collection, onSnapshot, deleteDoc, writeBatch, runTransaction, query, where, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 import { receiptDuplicate } from './lib/receipt-finder.js';
-import { ALL_PARTS, LIST_PARTS, assembleParts, emptyPart, splitState, stitchState, mergePart, mergeSettingDoc, stableStringify } from './lib/merge-state.js';
+import { ALL_PARTS, LIST_PARTS, assembleParts, emptyPart, splitState, stitchState, mergePart, mergeSettingDoc, stableStringify, MERGED_SETTING_KEYS } from './lib/merge-state.js';
 import { readOldCopyCached, oldCopyCache } from './lib/old-copy-cache.js';
 import { planWebsitePublish } from './lib/website-link.js';
 import { adoptDecision, compareCopies, movedElsewhere } from './lib/storage-mode.js';
@@ -843,7 +843,7 @@ window._fbDeleteSubmission = async (bookId, type, subId) => {
 // Shared settings that are edited on more than one device and were written
 // back whole: merge them against the copy this device last loaded instead (see
 // mergeSettingDoc). `_settingsBase[key]` is that copy, as stored JSON.
-const MERGED_SETTINGS = new Set(['catalog', 'taxCenter']);
+const MERGED_SETTINGS = MERGED_SETTING_KEYS;
 const _settingsBase = {};
 function noteSettingsBase(key, json) {
   if (MERGED_SETTINGS.has(key) && typeof json === 'string') _settingsBase[key] = json;

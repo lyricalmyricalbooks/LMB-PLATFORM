@@ -7,6 +7,8 @@
 .rp-todo-text { display: grid; gap: var(--rp-space-1); min-width: 0; }
 .rp-todo-label { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rp-space-2); }
 .rp-todo-detail { font-size: var(--rp-text-sm); color: var(--rp-text-muted); overflow-wrap: anywhere; }
+.rp-todo-items { list-style: none; margin: var(--rp-space-1) 0 0; padding: 0; display: grid; gap: var(--rp-space-1); font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+.rp-todo-items li { padding-left: var(--rp-space-3); border-left: 2px solid var(--rp-border); overflow-wrap: anywhere; }
 .rp-todo-actions { display: flex; align-items: center; gap: var(--rp-space-2); flex-shrink: 0; }
 .rp-todo-hidden { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--rp-space-2); font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
 @media (max-width: 640px) {

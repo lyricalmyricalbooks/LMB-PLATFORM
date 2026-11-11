@@ -497,3 +497,10 @@ describe('mergeRows — a website row changed on both devices', () => {
     expect(rows[0].voided).toBe(true);
   });
 });
+
+import { MERGED_SETTING_KEYS } from '../src/lib/merge-state.js';
+describe('MERGED_SETTING_KEYS', () => {
+  it('names the two shared settings blobs that are merged on save, and nothing else', () => {
+    expect([...MERGED_SETTING_KEYS].sort()).toEqual(['catalog', 'taxCenter']);
+  });
+});

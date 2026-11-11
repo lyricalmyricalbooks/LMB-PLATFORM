@@ -72,7 +72,6 @@
 .rp.cl .rp-alert[data-tone="warning"] .rp-alert-glyph { color: var(--rp-warning); }
 .rp.cl .rp-alert-title { font-weight: 600; }
 .rp.cl .rp-alert-glyph { font-size: 10px; }
-@media (min-width: 1100px) { .rp.cl #today-numbers.rp-kpi-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
 
 /* Tables sit in a tile and scroll sideways inside it on a phone. */
 .rp.cl .rp-table-wrap { border: 0; border-radius: var(--cl-radius-tile); background: var(--rp-surface); box-shadow: none; padding: 8px 12px; }
@@ -145,3 +144,287 @@
   .rp.cl .rp-metric-value { font-size: 28px; }
 }
 @media (pointer: coarse), (max-width: 767px) { .rp.cl .rp-topbar .rp-btn { min-height: 44px; } }
+
+/*
+ * ── The redesign (handoff "Control Room Redesign", 11 November 2026) ─────────────────────────────────────────────
+ * Five groups in the rail (Today, Shops, Inbox, Money, Platform), a find bar on top, Today as a verdict and a queue,
+ * tabs inside a group, the inbox as a list beside the one you're reading, a bottom tab bar on a phone.
+ * Still names no colour: every value is a var(--rp-…) or var(--cl-…) token.
+ */
+
+/* The rail: 228px, the brand with CONTROL ROOM below it, active item in paper, counts in apricot pills. */
+.rp.cl .rp-sidebar { width: 228px; padding: 20px 14px 14px; }
+.rp.cl .rp-sidebar-brand { padding: 0 6px 22px; }
+.rp.cl .rp-wordmark { font-size: 20px; letter-spacing: -0.03em; }
+.rp.cl .rp-sidebar .rp-wordmark-sub { margin-top: 4px; padding: 0; background: none; font: 400 11px/1 var(--rp-font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--rp-rail-faint); }
+.rp.cl .rp-nav-item { min-height: 40px; padding: 0 12px; font-weight: 400; }
+@media (pointer: coarse), (max-width: 1023px) { .rp.cl .rp-nav-item { min-height: 44px; } }
+.rp.cl .rp-nav-item .rp-nav-badge, .rp.cl .rp-nav-item[aria-current="page"] .rp-nav-badge { margin-left: auto; background: var(--cl-apricot); color: var(--cl-on-tile); }
+.rp.cl .rp-sidebar-foot { margin-top: auto; padding: 14px 0 0; border-top: 1px solid var(--rp-rail-line); }
+.rp.cl .rp-sidebar-foot .cr-who { display: grid; gap: 4px; padding: 4px 6px; border: 0; background: none; }
+.rp.cl .rp-sidebar-foot .cr-who strong { font-weight: 600; font-size: 13px; }
+.rp.cl .cr-two-step { display: inline-flex; align-items: center; gap: 6px; font: 400 11px/1.4 var(--rp-font-mono); letter-spacing: 0.04em; color: var(--rp-rail-faint); }
+.rp.cl .cr-two-step .rp-status-dot { width: 6px; height: 6px; background: var(--cl-dot-good); }
+.rp.cl .rp-sidebar-foot .cr-signout { justify-self: start; margin-top: 4px; color: var(--rp-rail-text); }
+
+/* The top bar: the find bar, when the numbers were read, Refresh and Night. The wordmark only shows without the rail. */
+.rp.cl .rp-topbar { gap: 12px; min-height: 76px; }
+.rp.cl .cr-find { display: flex; flex: 1 1 auto; max-width: 520px; min-height: 44px; align-items: center; gap: 10px; padding: 0 8px 0 16px; border: 0; border-radius: 999px; background: var(--rp-surface); color: var(--rp-text-subtle); font: 400 14px/1 var(--rp-font-body); text-align: left; cursor: pointer; }
+.rp.cl .cr-find:hover { color: var(--rp-text); }
+.rp.cl .cr-find:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+.rp.cl .cr-find-words { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.rp.cl .cr-kbd { padding: 4px 8px; border-radius: 8px; background: var(--rp-surface-2); color: var(--rp-text-subtle); font: 400 11px/1 var(--rp-font-mono); }
+.rp.cl .rp-topbar-actions { margin-left: auto; gap: 12px; }
+.rp.cl .cr-checked { display: inline-flex; align-items: center; gap: 8px; font: 400 12px/1 var(--rp-font-mono); color: var(--rp-text-muted); white-space: nowrap; }
+.rp.cl .cr-outline, .rp.cl .rp-btn.cr-outline.cr-outline:not(.rp-btn-primary):not(.rp-btn-danger), .rp.cl .cr-need-actions .rp-btn.rp-btn:not(.rp-btn-primary):not(.rp-btn-danger) { background: transparent; box-shadow: inset 0 0 0 1px var(--rp-border-strong); color: var(--rp-text); }
+.rp.cl .rp-btn.cr-outline.cr-outline:not(.rp-btn-primary):not(.rp-btn-danger):hover:not(:disabled) { background: var(--rp-surface); }
+@media (min-width: 1024px) { .rp.cl .rp-topbar .cr-brand { display: none; } }
+
+/* A dot that says how something is: good, a look, a problem. */
+.rp.cl .cr-dot { flex: none; display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--rp-border-strong); }
+.rp.cl .cr-dot[data-tone="good"] { background: var(--cl-dot-good); }
+.rp.cl .cr-dot[data-tone="warn"] { background: var(--cl-dot-warn); }
+.rp.cl .cr-dot[data-tone="bad"] { background: var(--cl-dot-bad); }
+.rp.cl .cr-cap { font: 400 11px/1.3 var(--rp-font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--rp-text-subtle); }
+.rp.cl .cr-mono { font-family: var(--rp-font-mono); font-size: 12px; }
+.rp.cl .cr-link { display: inline-block; margin-top: 12px; color: var(--rp-info); font-size: 14px; text-underline-offset: 3px; }
+
+/* Page headers sit on the paper: a 32px title, a short line under it, the page's own button on the right. */
+.rp.cl .rp-page-header { margin: 0 0 16px; padding: 4px 0 0; background: none; border-radius: 0; align-items: center; }
+.rp.cl .rp-page-title { font-size: 32px; }
+.rp.cl .rp-page-title .cr-cap { margin-left: 8px; vertical-align: middle; letter-spacing: 0.08em; }
+.rp.cl .rp-page-desc { font-size: 14px; }
+.rp.cl .cr-back { display: inline-flex; min-height: 32px; align-items: center; margin-bottom: 4px; color: var(--rp-text-muted); font: 600 13px/1 var(--rp-font-body); text-decoration: none; }
+.rp.cl .cr-back:hover { color: var(--rp-text); }
+.rp.cl .rp-page-header > div:first-child { display: flex; flex-direction: column; align-items: flex-start; }
+
+/* A group's pages as pills on a sunken track (Shops · Sign-ups · Setting up). */
+.rp.cl .cr-tabs { display: flex; width: max-content; max-width: 100%; gap: 2px; margin: 0 0 20px; padding: 4px; border-radius: 999px; background: var(--rp-surface-inset); overflow-x: auto; scrollbar-width: none; }
+.rp.cl .cr-tabs a { display: inline-flex; flex: none; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px; border-radius: 999px; color: var(--rp-text-muted); font: 500 13px/1 var(--rp-font-body); text-decoration: none; white-space: nowrap; }
+.rp.cl .cr-tabs a:hover { color: var(--rp-text); }
+.rp.cl .cr-tabs a[aria-current="page"] { background: var(--rp-surface); color: var(--rp-text); font-weight: 600; }
+.rp.cl .cr-tab-count:empty { display: none; }
+.rp.cl .cr-tab-count { padding: 2px 6px; border-radius: 999px; background: var(--cl-apricot); color: var(--cl-on-tile); font: 500 11px/1 var(--rp-font-mono); }
+/* The old status filters inside an inbox page: the same track, smaller. */
+.rp.cl .rp-tabs.cr-toolbar { display: flex; width: max-content; max-width: 100%; gap: 2px; padding: 4px; border-radius: 999px; background: var(--rp-surface-inset); overflow-x: auto; }
+.rp.cl .rp-tabs.cr-toolbar .rp-tab { min-height: 32px; padding: 0 12px; border: 0; border-radius: 999px; background: none; box-shadow: none; color: var(--rp-text-muted); font: 500 13px/1 var(--rp-font-body); text-transform: none; letter-spacing: 0; white-space: nowrap; }
+.rp.cl .rp-tabs.cr-toolbar .rp-tab[aria-pressed="true"], .rp.cl .rp-tabs.cr-toolbar .rp-tab[aria-selected="true"] { padding: 0 12px; border: 0; background: var(--rp-surface); box-shadow: none; color: var(--rp-text); font-weight: 600; }
+
+/* ── Today ─────────────────────────────────────────────────────────────────────────────────────────────────── */
+.rp.cl .cr-today { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
+.rp.cl .cr-today-main, .rp.cl .cr-today-side { display: grid; gap: 20px; min-width: 0; }
+.rp.cl .cr-tile { padding: 20px; border-radius: var(--cl-radius-tile); background: var(--rp-surface); }
+.rp.cl .cr-tile h2, .rp.cl .cr-card-title { margin: 0 0 14px; font: 600 16px/1.3 var(--rp-font-body); letter-spacing: -0.01em; color: var(--rp-text); }
+.rp.cl .cr-tile-flush { padding: 0; overflow: hidden; }
+.rp.cl .cr-tile-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 18px 20px 14px; border-bottom: 1px solid var(--rp-divider); }
+.rp.cl .cr-tile-head h2 { margin: 0; }
+.rp.cl .cr-verdict { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 24px 28px; border-radius: var(--cl-radius-tile); background: var(--cl-apricot); color: var(--cl-on-tile); }
+.rp.cl .cr-verdict[data-tone="clear"] { background: var(--cl-mint); }
+.rp.cl .cr-verdict .cr-cap { color: var(--cl-on-tile); }
+.rp.cl .cr-verdict-title { margin: 6px 0 0; font: 600 32px/1.1 var(--rp-font-display); letter-spacing: -0.03em; }
+.rp.cl .cr-verdict-sub { margin: 8px 0 0; font-size: 14px; }
+.rp.cl .cr-verdict-n { flex: none; font: 600 64px/1 var(--rp-font-display); letter-spacing: -0.04em; }
+.rp.cl .cr-needs { display: grid; }
+.rp.cl .cr-need { display: flex; align-items: center; gap: 14px; min-height: 64px; padding: 12px 20px; border-top: 1px solid var(--rp-divider); }
+.rp.cl .cr-needs > .cr-need:first-child { border-top: 0; }
+.rp.cl .cr-need-text { flex: 1 1 auto; min-width: 0; }
+.rp.cl .cr-need-title { margin: 0; font: 600 14px/1.35 var(--rp-font-body); overflow-wrap: anywhere; }
+.rp.cl .cr-need-why { margin: 2px 0 0; font-size: 13px; line-height: 1.4; color: var(--rp-text-muted); overflow-wrap: anywhere; }
+.rp.cl .cr-need-actions { display: flex; flex: none; align-items: center; gap: 8px; }
+.rp.cl .cr-need-actions .rp-btn { min-height: 36px; padding: 0 16px; }
+.rp.cl .cr-need-actions .rp-select { width: auto; min-height: 36px; padding-block: 0; border-radius: 999px; background: transparent; box-shadow: inset 0 0 0 1px var(--rp-border-strong); font-size: 13px; font-weight: 600; }
+.rp.cl .cr-needs-empty { margin: 0; padding: 20px; color: var(--rp-text-muted); font-size: 14px; }
+.rp.cl .cr-needs-foot { padding: 0 20px 16px; }
+.rp.cl .cr-snoozed { border-top: 1px solid var(--rp-divider); }
+.rp.cl .cr-snoozed > summary { min-height: 44px; padding: 12px 20px; color: var(--rp-text-muted); font-size: 13px; cursor: pointer; }
+.rp.cl .cr-trio.rp-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }
+.rp.cl .rp-kpi-grid > .rp-metric[data-tile="mint"] { background: var(--cl-mint); }
+.rp.cl .rp-kpi-grid > .rp-metric[data-tile="apricot"] { background: var(--cl-apricot); }
+.rp.cl .rp-kpi-grid > .rp-metric[data-tile] :is(.rp-metric-label, .rp-metric-value, .rp-metric-foot) { color: var(--cl-on-tile); }
+.rp.cl .rp-kpi-grid .rp-metric-label { font: 400 11px/1.3 var(--rp-font-mono); letter-spacing: 0.08em; text-transform: uppercase; }
+.rp.cl .rp-kpi-grid .rp-metric-value { font-size: 32px; }
+.rp.cl .cr-bar-stack { display: flex; gap: 2px; height: 14px; overflow: hidden; border-radius: 999px; background: var(--rp-surface-2); }
+.rp.cl .cr-bar-stack > span { min-width: 6px; }
+.rp.cl .cr-bar-stack > span[data-tone="good"] { background: var(--cl-dot-good); }
+.rp.cl .cr-bar-stack > span[data-tone="warn"] { background: var(--cl-dot-warn); }
+.rp.cl .cr-bar-stack > span[data-tone="bad"] { background: var(--cl-dot-bad); }
+.rp.cl .cr-key { margin: 10px 0 0; padding: 0; list-style: none; }
+.rp.cl .cr-key a { display: flex; align-items: center; gap: 10px; min-height: 32px; color: var(--rp-text); font-size: 14px; text-decoration: none; }
+.rp.cl .cr-key a:hover span:not(.cr-dot) { text-decoration: underline; text-underline-offset: 3px; }
+.rp.cl .cr-key b { margin-left: auto; font: 500 13px/1 var(--rp-font-mono); }
+.rp.cl .cr-quick { display: grid; gap: 8px; }
+.rp.cl .cr-quick .rp-btn { justify-content: flex-start; min-height: 40px; padding: 0 16px; text-decoration: none; }
+.rp.cl .cr-since { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 13px; line-height: 1.45; color: var(--rp-text-muted); }
+.rp.cl .cr-since b { color: var(--rp-text); font-weight: 600; }
+.rp.cl .cr-more { margin-top: 24px; }
+.rp.cl .cr-more > summary { display: flex; align-items: baseline; gap: 12px; min-height: 48px; padding: 14px 20px; border-radius: 16px; background: var(--rp-surface); font: 600 15px/1.3 var(--rp-font-body); cursor: pointer; list-style: none; }
+.rp.cl .cr-more > summary::-webkit-details-marker { display: none; }
+.rp.cl .cr-more > summary::after { content: "▾"; margin-left: auto; color: var(--rp-text-subtle); }
+.rp.cl .cr-more[open] > summary::after { content: "▴"; }
+
+/* ── Shops: a search pill, quick filters, the full filters folded under "More filters" ─────────────────────── */
+.rp.cl #shop-filters { align-items: center; gap: 12px; }
+.rp.cl .cr-search { flex: 1 1 100%; }
+.rp.cl .cr-search .rp-input { min-height: 44px; padding-inline: 18px; border-radius: 999px; background: var(--rp-surface); }
+.rp.cl .cr-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.rp.cl .cr-chip-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--rp-surface); box-shadow: inset 0 0 0 1px var(--rp-border-strong); color: var(--rp-text); font: 500 12px/1 var(--rp-font-mono); cursor: pointer; }
+.rp.cl .cr-chip-btn[data-tone="apricot"] { background: var(--cl-apricot); box-shadow: none; color: var(--cl-on-tile); }
+.rp.cl .cr-chip-btn[aria-pressed="true"] { background: var(--rp-inverse); box-shadow: none; color: var(--rp-on-inverse); }
+.rp.cl .cr-chip-n { opacity: 0.75; }
+.rp.cl .cr-chip-btn:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+.rp.cl .cr-more-filters { display: flex; flex: 1 1 100%; flex-wrap: wrap; gap: 12px 16px; padding: 16px; border-radius: 16px; background: var(--rp-surface); }
+.rp.cl .cr-more-filters[hidden] { display: none; }
+.rp.cl .cr-more-filters .rp-field { flex: 1 1 160px; }
+.rp.cl .cr-more-filters .rp-select { background: var(--rp-input-bg); }
+
+/* One shop's record: a 420px panel beside the list, its trouble in a soft red box, the careful actions last. */
+.rp.cl .rp-dialog-root[data-variant="drawer"] > .rp-dialog { width: min(100%, 440px); border-radius: var(--cl-radius-tile) 0 0 var(--cl-radius-tile); background: var(--rp-surface); }
+.rp.cl .rp-dialog-root[data-variant="drawer"] .rp-dialog-title { font: 600 24px/1.15 var(--rp-font-display); letter-spacing: -0.03em; text-transform: none; }
+.rp.cl .rp-dialog-root[data-variant="drawer"] .rp-dialog-head .cr-cap { margin: 0 0 4px; }
+.rp.cl .rp-dialog-root[data-variant="drawer"] .rp-card-desc.cr-mono { margin-top: 4px; color: var(--rp-text-subtle); overflow-wrap: anywhere; }
+.rp.cl .cr-alert-box { margin: 0 0 16px; padding: 14px 16px; border-radius: 16px; background: var(--cl-alert); color: var(--cl-on-tile); font-size: 14px; }
+.rp.cl .cr-alert-box[data-tone="warn"] { background: var(--cl-apricot); }
+.rp.cl .cr-alert-box p { margin: 0; }
+.rp.cl .cr-alert-box p:first-child::first-letter, .rp.cl .cr-need-why::first-letter { text-transform: uppercase; }
+.rp.cl .cr-alert-box p + p { margin-top: 4px; }
+.rp.cl .rp-dialog .cr-facts dt { align-self: center; }
+.rp.cl .cr-do { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.rp.cl .cr-do .rp-btn { width: 100%; min-height: 40px; white-space: normal; text-align: center; }
+.rp.cl .cr-do .rp-btn.rp-btn:not(.rp-btn-primary):not(.rp-btn-danger):not(.rp-btn-ghost) { background: transparent; box-shadow: inset 0 0 0 1px var(--rp-border-strong); }
+.rp.cl .cr-careful-head { margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--rp-divider); }
+.rp.cl .cr-careful .rp-btn.rp-btn { background: transparent; box-shadow: inset 0 0 0 1px var(--rp-danger); color: var(--rp-danger); }
+.rp.cl .cr-careful .rp-btn.rp-btn:hover:not(:disabled) { background: var(--rp-danger); color: var(--rp-on-danger); }
+
+/* ── Inbox: the list beside the one you're reading ─────────────────────────────────────────────────────────── */
+.rp.cl .cr-inbox { display: grid; grid-template-columns: minmax(280px, 380px) minmax(0, 1fr); gap: 16px; align-items: start; margin-top: 12px; }
+.rp.cl .cr-inbox-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.rp.cl .cr-inbox-row { display: grid; gap: 6px; width: 100%; min-height: 64px; padding: 12px 16px; border: 0; border-radius: 16px; background: var(--rp-surface); color: var(--rp-text); font: inherit; text-align: left; cursor: pointer; }
+.rp.cl .cr-inbox-row:hover { background: var(--cl-hover); }
+.rp.cl .cr-inbox-row[aria-current="true"] { box-shadow: inset 0 0 0 2px var(--rp-text); }
+.rp.cl .cr-inbox-row:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+.rp.cl .cr-inbox-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.rp.cl .cr-inbox-top b { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 14px; }
+.rp.cl .cr-type { flex: none; padding: 3px 8px; border-radius: 999px; background: var(--rp-surface-2); color: var(--cl-on-tile); font: 400 11px/1.2 var(--rp-font-mono); }
+.rp.cl .cr-type[data-tone="sky"] { background: var(--cl-sky); }
+.rp.cl .cr-type[data-tone="apricot"] { background: var(--cl-apricot); }
+.rp.cl .cr-type[data-tone="lilac"] { background: var(--cl-lilac); }
+.rp.cl .cr-ago { flex: none; font: 400 12px/1 var(--rp-font-mono); color: var(--rp-text-subtle); }
+.rp.cl .cr-inbox-line { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: 13px; line-height: 1.4; color: var(--rp-text-muted); }
+.rp.cl .cr-inbox-detail { min-width: 0; scroll-margin-top: 16px; }
+.rp.cl .cr-inbox-detail > .rp-card > .rp-card-body { padding: 24px; }
+.rp.cl .cr-inbox-detail .cr-title { font-size: 20px; letter-spacing: -0.01em; }
+.rp.cl .cr-inbox-detail .rp-textarea { min-height: 120px; }
+.rp.cl .cr-grow-full { flex: 1 1 100%; margin: 8px 0 0; }
+
+/* ── Money ─────────────────────────────────────────────────────────────────────────────────────────────────── */
+.rp.cl #income-figures > .rp-metric:first-child { background: var(--cl-mint); }
+.rp.cl #income-figures > .rp-metric:first-child :is(.rp-metric-label, .rp-metric-value, .rp-metric-foot) { color: var(--cl-on-tile); }
+.rp.cl #income-figures { margin-bottom: 20px; }
+.rp.cl .cr-money { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; }
+.rp.cl .cr-money > .rp-card { padding: 20px; }
+.rp.cl .cr-income #income-chart .rp-card-body { padding: 0; }
+.rp.cl .cr-income #income-chart .rp-state { border: 0; }
+.rp.cl .cr-fair .rp-table-wrap { padding: 0; }
+.rp.cl .cr-chart .cr-chart-line { stroke-width: 2.5; }
+
+/* ── Platform: the tools as cards, the danger zone apart and last ─────────────────────────────────────────── */
+.rp.cl .cr-tools { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 16px; }
+.rp.cl .cr-tool { display: grid; align-content: start; gap: 8px; min-height: 104px; padding: 20px; border-radius: var(--cl-radius-tile); background: var(--rp-surface); color: var(--rp-text-muted); font-size: 13px; line-height: 1.45; text-decoration: none; }
+.rp.cl .cr-tool:hover { background: var(--cl-hover); }
+.rp.cl .cr-tool:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+.rp.cl .cr-tool-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.rp.cl .cr-tool-head b { font: 600 16px/1.3 var(--rp-font-body); color: var(--rp-text); }
+.rp.cl .cr-chip { flex: none; padding: 3px 9px; border-radius: 999px; background: var(--rp-surface-2); color: var(--rp-text-muted); font: 400 11px/1.3 var(--rp-font-mono); white-space: nowrap; }
+.rp.cl .cr-chip:empty { display: none; }
+.rp.cl .cr-chip[data-tone] { color: var(--cl-on-tile); }
+.rp.cl .cr-chip[data-tone="mint"] { background: var(--cl-mint); }
+.rp.cl .cr-chip[data-tone="apricot"] { background: var(--cl-apricot); }
+.rp.cl .cr-chip[data-tone="sky"] { background: var(--cl-sky); }
+.rp.cl .cr-chip[data-tone="alert"] { background: var(--cl-alert); }
+.rp.cl .cr-danger { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-top: 24px; padding: 20px 24px; border: 1px dashed var(--rp-danger); border-radius: var(--cl-radius-tile); }
+.rp.cl .cr-danger .cr-cap { margin: 0; color: var(--rp-danger); }
+.rp.cl .cr-danger h2 { margin: 4px 0 2px; font: 600 16px/1.3 var(--rp-font-body); }
+.rp.cl .cr-danger p { margin: 0; font-size: 13px; color: var(--rp-text-muted); }
+.rp.cl .rp-btn.cr-danger-btn { min-height: 40px; padding: 0 18px; background: var(--rp-danger); color: var(--rp-on-danger); text-decoration: none; }
+.rp.cl .rp-btn.cr-danger-btn:hover { background: var(--rp-danger-hover); color: var(--rp-on-danger); }
+.rp.cl .cr-me { display: none; }
+
+/* ── The find bar ─────────────────────────────────────────────────────────────────────────────────────────── */
+.rp.cl .cr-palette-root { position: fixed; inset: 0; z-index: 600; display: grid; justify-items: center; align-items: start; padding: 12vh 16px 16px; }
+.rp.cl .cr-palette-scrim { position: absolute; inset: 0; background: var(--rp-overlay); }
+.rp.cl .cr-palette { position: relative; display: flex; flex-direction: column; width: min(100%, 600px); max-height: min(70vh, 560px); overflow: hidden; border-radius: var(--cl-radius-tile); background: var(--rp-surface); box-shadow: var(--rp-shadow-float); }
+.rp.cl .cr-palette-field { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--rp-divider); }
+.rp.cl .cr-palette-input { flex: 1; min-width: 0; min-height: 44px; border: 0; background: none; color: var(--rp-text); font: 400 16px/1 var(--rp-font-body); }
+.rp.cl .cr-palette-list { margin: 0; padding: 8px; list-style: none; overflow-y: auto; }
+.rp.cl .cr-palette-item { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 8px 12px; border-radius: 12px; cursor: pointer; }
+.rp.cl .cr-palette-item[aria-selected="true"] { background: var(--rp-surface-2); }
+.rp.cl .cr-palette-kind { flex: none; width: 44px; font: 400 11px/1 var(--rp-font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--rp-text-subtle); }
+.rp.cl .cr-palette-words { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.rp.cl .cr-palette-detail { flex: none; max-width: 45%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: 400 12px/1 var(--rp-font-mono); color: var(--rp-text-subtle); }
+.rp.cl .cr-palette-none { padding: 16px 12px; color: var(--rp-text-muted); font-size: 14px; }
+
+/* The phone's tab bar: hidden until the rail goes. */
+.rp.cl .cr-tabbar { display: none; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .rp.cl :is(.cr-need, .cr-inbox-row, .cr-tool, .cr-chip-btn, .cr-tabs a) { transition: background-color 0.15s ease-out; }
+}
+
+/* ── Below 1100: Today and the inbox stack, the record covers the list ────────────────────────────────────── */
+@media (max-width: 1099px) {
+  .rp.cl .cr-today { grid-template-columns: minmax(0, 1fr); }
+  .rp.cl .cr-today-side { grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); align-items: start; }
+  .rp.cl .cr-inbox { grid-template-columns: minmax(0, 1fr); }
+  .rp.cl .cr-money { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 1199px) { .rp.cl .cr-checked { display: none; } }
+@media (max-width: 1023px) {
+  .rp.cl .rp-topbar .cr-brand { flex: none; }
+  .rp.cl .rp-topbar { gap: 8px; }
+  .rp.cl .rp-topbar-actions { gap: 4px; }
+}
+
+/* ── Phone: the five groups in a tab bar at the bottom, needs as cards with a full-width button ────────────── */
+@media (max-width: 767px) {
+  .rp.cl .rp-topbar { min-height: 64px; padding: 10px 16px; }
+  .rp.cl .rp-topbar .rp-menu-only, .rp.cl .cr-checked, .rp.cl #refresh, .rp.cl .cr-find-words, .rp.cl .cr-find .cr-kbd { display: none; }
+  .rp.cl .cr-find { flex: none; order: 3; width: 44px; height: 44px; padding: 0; justify-content: center; margin-left: 0; }
+  .rp.cl .rp-topbar-actions { margin-left: auto; }
+  .rp.cl .cr-brand b { font-size: 18px; }
+  .rp.cl .rp-workspace { padding: 4px 16px calc(96px + env(safe-area-inset-bottom)); }
+  .rp.cl .cr-tabbar { position: fixed; inset: auto 0 0; z-index: 70; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 6px 6px calc(6px + env(safe-area-inset-bottom)); background: var(--cl-dark-tile); }
+  .rp.cl .cr-tabbar[hidden] { display: none; }
+  .rp.cl .cr-tabbar a { position: relative; display: grid; place-items: center; min-height: 48px; border-radius: 14px; color: var(--rp-rail-text); font: 500 12px/1 var(--rp-font-body); text-decoration: none; }
+  .rp.cl .cr-tabbar a[aria-current="page"] { background: var(--rp-rail-hover); color: var(--cl-on-dark-tile); font-weight: 600; }
+  .rp.cl .cr-tabbar a:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: -2px; }
+  .rp.cl .cr-tabbar-badge { position: absolute; top: 4px; right: calc(50% - 26px); min-width: 18px; padding: 2px 5px; border-radius: 999px; background: var(--cl-apricot); color: var(--cl-on-tile); font: 500 10px/1.2 var(--rp-font-mono); text-align: center; }
+  .rp.cl .cr-tabbar-badge[hidden] { display: none; }
+  .rp.cl .cr-status { bottom: calc(80px + env(safe-area-inset-bottom)); }
+  .rp.cl .rp-page-title { font-size: 28px; }
+  .rp.cl .cr-verdict { padding: 20px; }
+  .rp.cl .cr-verdict-title { font-size: 26px; }
+  .rp.cl .cr-verdict-n { display: none; }
+  .rp.cl .cr-tile-flush { background: none; overflow: visible; }
+  .rp.cl .cr-tile-flush > .cr-tile-head { padding: 4px 4px 10px; border: 0; }
+  .rp.cl .cr-tile-flush > .cr-tile-head .cr-cap { display: none; }
+  .rp.cl .cr-needs { gap: 10px; }
+  .rp.cl .cr-need { flex-wrap: wrap; align-items: flex-start; padding: 16px; border: 0; border-radius: var(--cl-radius-card); background: var(--rp-surface); }
+  .rp.cl .cr-need > .cr-dot { margin-top: 4px; }
+  .rp.cl .cr-need-text { flex: 1 1 calc(100% - 40px); }
+  .rp.cl .cr-need-actions { flex: 1 1 100%; }
+  .rp.cl .cr-need-actions > :first-child { flex: 1 1 auto; justify-content: center; }
+  .rp.cl .cr-need-actions .rp-btn, .rp.cl .cr-need-actions .rp-select { min-height: 44px; }
+  .rp.cl .cr-needs-empty { padding: 16px; border-radius: var(--cl-radius-card); background: var(--rp-surface); }
+  .rp.cl .cr-snoozed { border: 0; }
+  .rp.cl .cr-trio.rp-kpi-grid { grid-template-columns: minmax(0, 1fr); }
+  .rp.cl .cr-key a, .rp.cl .cr-quick .rp-btn, .rp.cl .cr-chip-btn, .rp.cl .cr-tabs a, .rp.cl .rp-tabs.cr-toolbar .rp-tab, .rp.cl .cr-back { min-height: 44px; }
+  .rp.cl .cr-do .rp-btn { min-height: 44px; }
+  .rp.cl .rp-dialog-root[data-variant="drawer"] > .rp-dialog { width: 100%; border-radius: 0; }
+  .rp.cl .cr-link { display: inline-flex; align-items: center; min-height: 44px; margin-top: 4px; }
+  .rp.cl .rp-btn.cr-danger-btn { min-height: 44px; }
+  .rp.cl .cr-me { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 24px; padding: 16px 20px; border-radius: var(--cl-radius-tile); background: var(--rp-surface); }
+  .rp.cl .cr-me > span { display: grid; gap: 4px; min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
+  .rp.cl .cr-me .rp-btn { min-height: 44px; }
+  .rp.cl .cr-palette-root { padding: 8px; }
+  .rp.cl .cr-palette { max-height: calc(100dvh - 16px); }
+}

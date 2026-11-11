@@ -10,6 +10,7 @@ import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import { playwrightBrowser, authKey } from "./browser.js";
 import { runReleaseCheck } from "./runner.js";
+import { READY_PROFILE } from "./fakes.js";
 import { fakeAuditLog, fakeRegistry } from "../setup/fakes.js";
 import { TEST_PRINTED_IDS, TEST_STOCK } from "../setup/test-catalogue.js";
 
@@ -148,7 +149,7 @@ export async function localProof({ chromium, print = console.log, executablePath
     const browser = await playwrightBrowser({ chromium, launchOptions: { executablePath }, timeoutMs: 15_000 });
     const result = await runReleaseCheck({
       shopId: "lmb-test-shop", version: "local", registry, auditLog: fakeAuditLog(), inbox: "checks@example.com", print,
-      clients: { ...clients, browser, session, profile: {}, urls: { site: base, stockroom: `${base}/stockroom/` } },
+      clients: { ...clients, browser, session, profile: READY_PROFILE, urls: { site: base, stockroom: `${base}/stockroom/` } },
       wait: undefined,
     });
     return { result, state };

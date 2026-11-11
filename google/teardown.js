@@ -73,7 +73,7 @@ export function createGoogleTeardown({ google, tokens, shopFirebase, domainsCall
       const analytics = ctx.google.analytics;
       const sc = ctx.google.searchConsole;
       if (analytics?.measurementId && !analytics.tagStoppedAt) {
-        await shopFirebase.clearTag(ctx.row.projectId);
+        await shopFirebase.clearTag(ctx.row);
         if (ctx.token && analytics.viewer) {
           const property = `properties/${analytics.propertyId}`;
           for (const binding of await quietly(() => google.listAccessBindings(ctx.token, property)) ?? []) {
@@ -145,7 +145,7 @@ export function createGoogleTeardown({ google, tokens, shopFirebase, domainsCall
 
     async deleteFirebase(ctx) {
       if (ctx.google.firebaseDeletedAt) return { state: "done", detail: "The shop's project is deleted." };
-      await shopFirebase.deleteProject(ctx.row.projectId);
+      await shopFirebase.deleteProject(ctx.row);
       await recorder.updateGoogle(ctx.shopId, { firebaseDeletedAt: iso() });
       return { state: "done", detail: "The shop's project is deleted." };
     },

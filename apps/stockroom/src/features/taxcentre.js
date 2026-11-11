@@ -75,6 +75,7 @@ import {
   snoozeUntil,
 } from '../lib/deduction-gaps.js';
 import { findCategoryMismatches } from '../lib/category-fit.js';
+import { emptyTripBucket } from '../lib/attention-input.js';
 import { deductibleAmount, deductibleRate } from '../lib/deductibility.js';
 import { receiptOwners, summarizeReceiptStorage, isReceiptExemptExpense, receiptRefsOf, isWebReceiptLink, hasOnlyShippingLabels } from '../lib/receipt-storage.js';
 import { testZonosConnection } from '../lib/zonos.js';
@@ -1199,18 +1200,7 @@ function _tcTripRecordMeta(rec) {
   return bits.join(' &nbsp;·&nbsp; ');
 }
 
-function _tcEmptyTripBucket(rec) {
-  return {
-    total: 0,
-    count: 0,
-    latestDate: (rec && (rec.endDate || rec.startDate)) || '',
-    minDate: (rec && rec.startDate) || '',
-    maxDate: (rec && rec.endDate) || '',
-    items: [],
-    categories: {},
-    record: rec || null,
-  };
-}
+const _tcEmptyTripBucket = emptyTripBucket;
 
 /**
  * An expense's value in the book currency, valued exactly as the ledger does:

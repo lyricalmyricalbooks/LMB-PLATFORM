@@ -45,9 +45,21 @@ describe("asking the stockroom", () => {
     expect(listeners.size).toBe(0);
     stop();
   });
+  it("does not open the frame for a page the admin draws itself", () => {
+    vi.stubGlobal("window", { location: { origin: ORIGIN } });
+    const opened: Array<[string, unknown]> = [];
+    const stop = stockroomBridge.onOpen((page, extra) => opened.push([page, extra]));
+    let needed = 0;
+    const stopNeed = stockroomBridge.onNeed(() => { needed += 1; });
+    stockroomBridge.openPage("todo", { todo: "stock-low:a" });
+    expect(needed).toBe(0);
+    expect(opened).toEqual([["todo", { todo: "stock-low:a" }]]);
+    stop();
+    stopNeed();
+  });
   it("opens the frame for a page that asked before the admin listened", () => {
     vi.stubGlobal("window", { location: { origin: ORIGIN } });
-    stockroomBridge.openPage("todo");
+    stockroomBridge.openPage("history");
     let needed = 0;
     const stop = stockroomBridge.onNeed(() => { needed += 1; });
     expect(needed).toBe(1);

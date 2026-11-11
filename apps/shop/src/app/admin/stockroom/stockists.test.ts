@@ -1,0 +1,116 @@
+import { describe, expect, it } from "vitest";
+
+import { buildOpenCall } from "./openCall";
+import { buildShipping } from "./shipping";
+import type { StockroomRecords } from "./stockroomData";
+import { buildStockists, moneyText } from "./stockists";
+
+const NOW = new Date(2026, 10, 11, 12);
+const day = (ago: number) => new Date(NOW.getTime() - ago * 86_400_000).toISOString().slice(0, 10);
+const book = (id: string, extra: object = {}) => ({ id, title: id, maxPrint: 100, currency: "CAD", ...extra });
+const records = (states: StockroomRecords["states"], books = Object.keys(states).map((id) => book(id)), taxCenter: StockroomRecords["taxCenter"] = null): StockroomRecords => ({ books, states, taxCenter });
+const ship = (id: number, storeId: number, qty: number, extra: object = {}) => ({ id, type: "Shipment", storeId, storeName: "Corner", date: day(30), qty, amountDue: 0, status: "OK", ...extra });
+const sale = (id: number, storeId: number, qty: number, amountDue: number, status = "pending", extra: object = {}) => ({ id, type: "Sale", storeId, storeName: "Corner", date: day(10), qty, rate: 40, amountDue, status, ...extra });
+
+describe("stockists", () => {
+  const states = {
+    a: {
+      stores: [{ id: 1, name: "Corner", sent: 10, sold: 4, returned: 0, outstanding: 6, amountOwed: 48, rate: 40 }],
+      ledger: [ship(1, 1, 10), sale(2, 1, 4, 48)],
+      invoices: [
+        { id: "i1", num: "INV-1", status: "sent", dueDate: day(20), total: 48, currency: "CAD", storeName: "Corner", storeId: 1, reminders: [{ status: "sent", at: 1 }] },
+        { id: "i2", num: "INV-2", status: "paid", dueDate: day(40), total: 10, currency: "CAD", storeName: "corner", storeId: 1 },
+        { id: "i3", num: "INV-3", status: "sent", dueDate: day(5), total: 7, currency: "CAD", billTo: "person", storeName: "A Person" },
+      ],
+    },
+    b: { stores: [{ id: 9, name: "corner ", sent: 2, sold: 0, returned: 0, outstanding: 2, amountOwed: 5 }], ledger: [ship(5, 9, 2)] },
+  };
+  const view = buildStockists(records(states, [book("a"), book("b", { currency: "EUR" })]), NOW);
+
+  it("merges one stockist across titles and keeps each currency apart", () => {
+    expect(view.stockists).toHaveLength(1);
+    const s = view.stockists[0];
+    expect(s.sent).toBe(12);
+    expect(s.onShelf).toBe(8);
+    expect(moneyText(s.owed)).toBe("CA$48.00 + €5.00");
+  });
+
+  it("flags only a sent invoice past its due date, and counts a person's overdue invoice on the page", () => {
+    const s = view.stockists[0];
+    expect(s.overdue.map((i) => i.num)).toEqual(["INV-1"]);
+    expect(s.overdue[0].daysLate).toBe(20);
+    expect(s.overdue[0].chased).toBe(1);
+    expect(s.state).toBe("overdue");
+    expect(view.overdueCount).toBe(2);
+    expect(view.otherOverdue).toBe(1);
+  });
+
+  it("flags a card whose totals disagree with the ledger, and a card that agrees is quiet", () => {
+    const off = buildStockists(records({ a: { ...states.a, stores: [{ ...states.a.stores[0], sold: 3, outstanding: 7 }], invoices: [] } }), NOW).stockists[0];
+    expect(off.mismatch).toBe(true);
+    expect(off.state).toBe("mismatch");
+    const ok = buildStockists(records({ a: { ...states.a, invoices: [] } }), NOW).stockists[0];
+    expect(ok.mismatch).toBe(false);
+    expect(ok.owedMismatch).toBe(false);
+    expect(ok.state).toBe("owes");
+  });
+
+  it("does not count a voided sale as owed by the ledger", () => {
+    const s = buildStockists(records({ a: { stores: states.a.stores, ledger: [ship(1, 1, 10), sale(2, 1, 4, 48, "pending", { voided: true })], invoices: [] } }), NOW).stockists[0];
+    expect(s.titles[0].ledgerOwed).toEqual([]);
+    expect(s.titles[0].owedMismatch).toBe(true);
+  });
+
+  it("is empty with no stores", () => {
+    expect(buildStockists(records({ a: {} }), NOW).stockists).toEqual([]);
+  });
+});
+
+describe("shipping", () => {
+  const web = (num: string, ago: number, extra: object = {}) => ({ id: 1, chan: "Website", num, date: day(ago), qty: 1, shipName: "Ada", shipAddr1: "1 St", shipCity: "Toronto", shipCountry: "Canada", shippingPaid: 8, ...extra });
+  const postage = (num: string, amount: number) => ({ id: `p${num}`, cat: "Shipping & Postage", desc: "Canada Post label", amount, baseAmount: amount, shippingMatchStatus: "matched", shippingOrderNumber: num });
+  const state = { hist: [web("WEB-1", 9), web("WEB-1", 9, { id: 2 }), web("WEB-2", 1), web("WEB-3", 12, { shipped: true }), web("WEB-4", 5), web("WEB-5", 6, { shipAddr1: "", shipCity: "" })] };
+
+  it("lists paid website orders still unsent, oldest first, one line per parcel", () => {
+    const v = buildShipping(records({ a: state }, [book("a")], { businessExpenses: [postage("WEB-4", 14)] }), NOW);
+    expect(v.waiting.map((o) => o.num)).toEqual(["WEB-1"]);
+    expect(v.waiting[0]).toMatchObject({ qty: 2, days: 9, late: true });
+  });
+
+  it("flags a parcel that cost over 50 cents more than the customer paid, not one within the margin", () => {
+    const v = buildShipping(records({ a: { hist: [web("WEB-4", 5), web("WEB-6", 5)] } }, [book("a")], { businessExpenses: [postage("WEB-4", 14.5), postage("WEB-6", 8.4)] }), NOW);
+    expect(v.losses.map((l) => [l.num, l.gap])).toEqual([["WEB-4", 6.5]]);
+    expect(v.lossTotal).toBe(6.5);
+  });
+
+  it("leaves a euro book out of the dollar comparison", () => {
+    const v = buildShipping(records({ a: { hist: [web("WEB-4", 5)] } }, [book("a", { currency: "EUR" })], { businessExpenses: [postage("WEB-4", 30)] }), NOW);
+    expect(v.losses).toEqual([]);
+  });
+});
+
+describe("open call", () => {
+  const list = [
+    { id: "1", name: "A", email: "a@example.com", selectionSent: true, createdAt: new Date(NOW.getTime() - 20 * 86_400_000).toISOString() },
+    { id: "2", name: "B", email: "b@example.com", createdAt: new Date(NOW.getTime() - 2 * 86_400_000).toISOString() },
+    { id: "3", name: "C", email: "", selectionSent: true },
+    { id: "4", name: "D", email: "d@example.com", selectionSent: true, creditReceived: true, cmykSent: true, filesReceived: true, preorderSent: true },
+  ];
+  const v = buildOpenCall(records({ a: { openCall: list }, b: {} }), NOW);
+
+  it("says whose move it is for each contributor", () => {
+    expect(v.counts).toEqual({ you: 1, artist: 1, blocked: 1, done: 1 });
+    expect(v.total).toBe(4);
+  });
+
+  it("offers a reminder to someone who has waited over a week, longest wait first", () => {
+    expect(v.nudge).toBe(1);
+    expect(v.items).toHaveLength(1);
+    expect(v.items[0].contributors[0]).toMatchObject({ name: "A", nudge: true, waitingDays: 20, stageLabel: "Credit name" });
+    expect(v.items[0].contributors.at(-1)?.move).toBe("done");
+  });
+
+  it("flags a contributor with no email", () => {
+    expect(v.problems).toBe(2); // C has no address; A was selected but has no email thread yet
+  });
+});

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildHarness, extractDecl } from './helpers/extract-decl.js';
 import { roundCents } from '../src/lib/money.js';
-import { datedCadRate } from '../src/lib/sale-fx.js';
+import { expenseBaseAmount } from '../src/lib/attention-input.js';
 import { totalsByCurrency } from '../src/lib/expense-totals.js';
 import { uniqueZipPath } from '../src/lib/zip.js';
 import { receiptDuplicate, receiptExpense } from '../src/lib/receipt-finder.js';
