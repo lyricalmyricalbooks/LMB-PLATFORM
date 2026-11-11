@@ -13,6 +13,8 @@ import { activityEntry } from "./activity.js";
 
 const DAY = 86_400_000;
 export const QUIET_DAYS = 14;
+/** After Send tips, a shop leaves the Shops list for this many days, so the same tips aren't sent twice by mistake. */
+export const TIPS_REST_DAYS = 7;
 export const FIRST_SALE_TIPS = "first-sale-tips";
 const LOOK = 50;
 
@@ -21,10 +23,11 @@ const candidate = (row, nowMs) => row.testShop !== true && row.status === "live"
 export const realSale = (data) => data?.paymentStatus === "paid" && !data.isTest && !data.sandboxPayment && data.source !== "import";
 
 /** The live shops open over two weeks with no real sale yet, longest-waiting first, plus any whose orders couldn't be read. */
-export async function notSellingShops({ rows, shopData, nowMs }) {
+export async function notSellingShops({ rows, shopData, nowMs, restDays = 0 }) {
   const shops = [];
   const unread = [];
-  await eachInTurn(rows.filter((r) => candidate(r, nowMs)), 5, async (row) => {
+  const resting = (r) => restDays > 0 && nowMs - Date.parse(r.firstSaleTipsAt ?? "") < restDays * DAY;
+  await eachInTurn(rows.filter((r) => candidate(r, nowMs) && !resting(r)), 5, async (row) => {
     try {
       const docs = await shopData.find(row.shopId, "orders", { where: [["paymentStatus", "==", "paid"]], limit: LOOK });
       if (docs.some(({ data }) => realSale(data))) return;
@@ -42,7 +45,7 @@ export function createNotSelling({ admins, registry, shopData, email, activity =
     async list(claims) {
       const nowMs = now().getTime();
       adminOf(claims, admins, nowMs);
-      return notSellingShops({ rows: await registry.listShops(), shopData, nowMs });
+      return notSellingShops({ rows: await registry.listShops(), shopData, nowMs, restDays: TIPS_REST_DAYS });
     },
 
     async sendTips(claims, { shopId } = {}) {
