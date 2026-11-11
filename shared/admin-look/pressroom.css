@@ -1823,14 +1823,7 @@ div.rp-listcard-main { cursor: default; }
   .rp:not(.studio-editor) .rp-wb-vs, .rp:not(.studio-editor) .rp-wb-compare { display: none; }
 
   /* Inventory: status chips in one scrolling row, the list as a sheet, the low-stock line under it */
-  .rp:not(.studio-editor) .inv-status .rp-tabs { flex-wrap: nowrap; overflow-x: auto; width: auto; max-width: none; margin: 0 calc(-1 * var(--rp-gutter)); padding: 0 var(--rp-gutter); scrollbar-width: none; }
-  .rp:not(.studio-editor) .inv-status .rp-tabs::-webkit-scrollbar { display: none; }
-  .rp:not(.studio-editor) .inv-status .rp-tab { flex: none; }
-  .rp:not(.studio-editor) .inv-figures .rp-metric-foot { display: none; }
   .rp:not(.studio-editor) .inv-export { display: none; }
-  .rp:not(.studio-editor) .inv-threshold { order: 10; }
-  .rp:not(.studio-editor) .inv-list .rp-card-desc { display: none; }
-  .rp:not(.studio-editor) .inv-list .rp-card-head { padding: 12px; }
   .inv-sheet { list-style: none; margin: 0; padding: 0; }
   .inv-sheet-row { display: flex; align-items: center; gap: 12px; min-height: 72px; padding: 10px 12px; }
   .inv-sheet-row + .inv-sheet-row { border-top: 1px solid var(--rp-divider); }
@@ -2164,3 +2157,13 @@ div.rp-listcard-main { cursor: default; }
 /* Status chips (redesign): the tone is the background; the words are the tile ink, 600 (mockup "Status chip"). */
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-badge:is([data-tone="success"], [data-tone="info"], [data-tone="warning"], [data-tone="danger"]) { color: var(--rp-on-tile); font-weight: 600; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-badge[data-tone="neutral"] { color: var(--rp-text); font-weight: 600; }
+
+/* Inventory (redesign): one table card; the low-stock line and drafts switch sit quietly underneath. */
+.rp:not(.studio-editor) .inv-threshold { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin: 0; }
+.rp:not(.studio-editor) .inv-threshold .rp-checkbox, .rp:not(.studio-editor) .inv-threshold label:last-child { margin-left: auto; }
+.rp:not(.studio-editor) .inv-receive-help { margin: 0; padding: 14px 20px 0; }
+.rp:not(.studio-editor) .rp-reorder-card { padding: 20px 20px 8px; }
+.rp:not(.studio-editor) .rp-reorder-card .rp-card-title { margin: 0 0 4px; }
+.rp:not(.studio-editor) .inv-list { overflow: hidden; }
+/* Numbers in tables read in the body face, like the mockup tables; mono stays for codes and dates. */
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) td.rp-num { font-family: var(--rp-font-body); }

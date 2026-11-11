@@ -7,11 +7,14 @@ import { inventoryApi } from "./inventoryApi";
 import { lowStockThreshold } from "./inventoryInsights";
 import { getOrdersCached } from "./ordersCache";
 import { buildReorder, reorderCsv, weeksText, type ReorderRow } from "./reorderList";
-import { DataTable, EmptyState, ErrorState, LoadingState, MetricCard, SecondaryButton, StatusBadge, type Column } from "./riso/components";
+import { DataTable, EmptyState, ErrorState, LoadingState, PageActions, SecondaryButton, StatusBadge, type Column } from "./riso/components";
 import { useShopWords } from "./shopWords";
 import { stockroomApi, type StockroomRecords } from "./stockroom/stockroomData";
 import { saveTable } from "./xlsxWriter";
 import "./stockroom/sales.css";
+
+/** Out, or under two weeks left at the current pace: the mockup's "Reprint now". */
+const urgent = (r: ReorderRow) => r.onHand <= 0 || (r.weeksLeft !== null && r.weeksLeft < 2);
 
 type Loaded = { rows: ReorderRow[]; stockroomMissed: boolean };
 
@@ -36,12 +39,13 @@ export function ReorderList() {
 
   const columns = useMemo<Column<ReorderRow>[]>(() => [
     { key: "title", header: w("Book"), lead: true, render: (r) => r.title },
-    { key: "onHand", header: "On hand", numeric: true, render: (r) => r.onHand <= 0 ? <StatusBadge tone="danger">Out</StatusBadge> : r.onHand },
-    { key: "threshold", header: "Low at", numeric: true, render: (r) => r.threshold },
-    { key: "sold30", header: "Sold 30 days", numeric: true, render: (r) => r.sold30 },
-    { key: "month", header: "Sold last month", numeric: true, render: (r) => r.soldLastMonth },
+    { key: "onHand", header: "On hand", numeric: true, render: (r) => Math.max(0, r.onHand) },
+    { key: "sold30", header: "Sells / month", numeric: true, render: (r) => r.sold30 },
     { key: "weeks", header: "Weeks left", numeric: true, render: (r) => weeksText(r.weeksLeft) },
-    { key: "order", header: "Order", numeric: true, render: (r) => <strong>{r.suggested}</strong> },
+    { key: "order", header: "To order", numeric: true, render: (r) => <strong>{r.suggested}</strong> },
+    { key: "status", header: "", render: (r) => urgent(r)
+      ? <StatusBadge tone="danger">Reprint now</StatusBadge>
+      : <StatusBadge tone="warning">Reprint soon</StatusBadge> },
   ], [w]);
 
   if (failed) return <ErrorState title="The reorder list didn't load" description="Check your connection, then try again." onRetry={load} />;
@@ -51,20 +55,18 @@ export function ReorderList() {
   const save = (format: "xlsx" | "csv") => saveTable(`reorder-${day}`, reorderCsv(rows, w), format, "Reorder");
   return (
     <div className="rp-sr">
-      <div className="rp-grid-metrics">
-        <MetricCard label="Running low" value={rows.length} footer="To reorder" tone={rows.length ? "warn" : undefined} />
-        <MetricCard label="Sold out" value={rows.filter((r) => r.onHand <= 0).length} tone={rows.some((r) => r.onHand <= 0) ? "danger" : undefined} />
-        <MetricCard label="Units to order" value={rows.reduce((n, r) => n + r.suggested, 0)} footer="12 weeks of sales" />
-      </div>
+      {rows.length > 0 && (
+        <PageActions>
+          <SecondaryButton onClick={() => save("csv")}>Download CSV</SecondaryButton>
+          <SecondaryButton onClick={() => save("xlsx")}>Download Excel</SecondaryButton>
+        </PageActions>
+      )}
       {data.stockroomMissed && <p className="rp-sr-status" role="status">Stockroom counts didn't load; showing website stock.</p>}
       {rows.length ? (
-        <>
-          <p className="rp-sr-more">
-            <SecondaryButton onClick={() => save("xlsx")}>Download Excel</SecondaryButton>{" "}
-            <SecondaryButton onClick={() => save("csv")}>Download CSV</SecondaryButton>
-          </p>
-          <DataTable caption="Reorder list" columns={columns} rows={rows} rowKey={(r) => r.key} stackOnPhone />
-        </>
+        <section className="rp-card rp-reorder-card" aria-labelledby="rp-reorder-title">
+          <h2 className="rp-card-title" id="rp-reorder-title">Reprint suggestions</h2>
+          <DataTable caption="Reprint suggestions" columns={columns} rows={rows} rowKey={(r) => r.key} stackOnPhone />
+        </section>
       ) : (
         <EmptyState icon="✓" title="Nothing running low" description={w("Every book is above its low-stock line.")} />
       )}
