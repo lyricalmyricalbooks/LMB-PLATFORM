@@ -109,7 +109,7 @@ export function LogExpenseCard({ taxCenter, onSaved, prefill, onPrefillDone }: {
           </div>
         )}
         <TextField label="Reference (optional)" placeholder="Invoice or receipt number" value={form.ref} onChange={(e) => set({ ref: e.target.value })} />
-        {form.currency !== base && <p className="rp-money-note">Paid in {form.currency}. It is counted in {base} at the saved exchange rate, and the stockroom fills in the day's rate when it is opened.</p>}
+        {form.currency !== base && <p className="rp-money-note">Paid in {form.currency}. It is counted in {base} at the rate for its date.</p>}
         <div className="rp-money-actions">
           <PrimaryButton type="submit" busy={busy}>{busy ? "Saving…" : "Log expense"}</PrimaryButton>
           {note && <p className="rp-sr-save" data-tone={note.tone} role={note.tone === "error" ? "alert" : "status"}>{note.text}</p>}

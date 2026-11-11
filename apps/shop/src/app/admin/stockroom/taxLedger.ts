@@ -83,3 +83,33 @@ export function setNoReceiptNeeded(tc: Row | null, id: unknown, on: boolean): Ro
 export function markedNoReceipt(tc: Row | null): Set<string> {
   return new Set(expensesOf(tc).filter((e) => e?.receiptExempt === true && !e.isRent).map((e) => String(e.id)));
 }
+
+/** The edit form, filled from one business expense as the old Edit expense window did (its own amount and currency). */
+export function expenseToForm(e: Row): { desc: string; cat: string; date: string; amount: string; currency: string; trip: string; ref: string } {
+  return {
+    desc: String(e.desc || ""), cat: String(e.cat || "Other"), date: String(e.date || ""),
+    amount: e.amountUnknown ? "" : String(e.origAmount ?? e.amount ?? ""), currency: String(e.origCurrency || e.currency || "CAD"),
+    trip: String(e.trip || ""), ref: String(e.ref || ""),
+  };
+}
+
+/**
+ * The Tax centre with one business expense changed (features/tax-entries.js saveExpenseEdit): words, category, date,
+ * trip and amount, its value worked out again at the rate for its (new) date. `rate` is that rate, 0 when none could
+ * be found: then the expense is marked as missing a value, filled in later. Unchanged when the expense is gone.
+ */
+export function editExpense(tc: Row | null, id: unknown, form: { desc: string; cat: string; date: string; currency: string; trip: string; ref: string }, amount: number, rate: number): Row {
+  const list = expensesOf(tc);
+  const at = list.findIndex((e) => String(e.id) === String(id));
+  if (at < 0) return tc || {};
+  const cents = (n: number) => Math.round(n * 100) / 100;
+  const amt = cents(amount);
+  const next = list.slice();
+  const { amountUnknown: _unknown, ...rest } = list[at];
+  next[at] = {
+    ...rest, desc: form.desc.trim(), cat: form.cat, currency: form.currency, origCurrency: form.currency, amount: amt, origAmount: amt,
+    fxRate: rate > 0 ? rate : null, baseAmount: rate > 0 ? cents(amt * rate) : null, fxMissing: !(rate > 0),
+    date: form.date, trip: form.trip.trim(), ref: form.ref.trim(),
+  };
+  return { ...(tc || {}), businessExpenses: next };
+}

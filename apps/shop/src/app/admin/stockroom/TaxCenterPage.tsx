@@ -21,6 +21,7 @@ import { RecurringSubscriptionsCard } from "./RecurringSubscriptions";
 import { SortingRulesCard } from "./SortingRules";
 import { LedgerLineActions } from "./LedgerLineActions";
 import { ReceiptsVaultCard } from "./ReceiptsVault";
+import { TaxSeasonCard } from "./TaxSeason";
 import { isEditableLine } from "./taxLedger";
 import type { SaveNote } from "./saveTaxCenter";
 import { filterLedger, ledgerCsvFile, ledgerTotals, LEDGER_PAGE_SIZE, sourcesOf, taxCenterModel, type LedgerFilter } from "./moneyReports";
@@ -105,8 +106,8 @@ export function TaxCenterView({ records, now, onTaxCenter, orders: givenOrders }
       <TaxTop periods={periods} period={period} onPeriod={(id) => { setPeriodId(id); setPage(1); }} orders={loaded}
         ledgerRows={allRows} states={records.states as Record<string, Record<string, any>>} taxCenter={records.taxCenter as Record<string, any> | null}
         currency={cur} now={nowMs} onTaxCenter={onTaxCenter} />
-      {model.notes.missing > 0 && <p className="rp-money-note" role="status">{model.notes.missing} {model.notes.missing === 1 ? "line has" : "lines have"} no exchange rate yet and {model.notes.missing === 1 ? "is" : "are"} counted at 1 to 1, so these totals may be off. The stockroom fills rates in when it is opened.</p>}
-      {!model.notes.missing && model.notes.estimated > 0 && <p className="rp-money-note" role="status">{model.notes.estimated} foreign-currency {model.notes.estimated === 1 ? "line is" : "lines are"} shown at the last saved exchange rate, not the rate of its own day. The stockroom replaces them with day rates when it is opened.</p>}
+      {model.notes.missing > 0 && <p className="rp-money-note" role="status">{model.notes.missing} {model.notes.missing === 1 ? "line has" : "lines have"} no exchange rate yet and {model.notes.missing === 1 ? "is" : "are"} counted at 1 to 1, so these totals may be off. Rates fill in by themselves while you're online.</p>}
+      {!model.notes.missing && model.notes.estimated > 0 && <p className="rp-money-note" role="status">{model.notes.estimated} foreign-currency {model.notes.estimated === 1 ? "line is" : "lines are"} shown at the last saved exchange rate, not the rate of its own day. Day rates fill in by themselves while you're online.</p>}
 
       <SectionCard title={`Money in and out, ${year}`} description="From your stockroom records: every sale, cost and payout." flush>
         <div className="rp-grid-metrics rp-money-pad">
@@ -206,7 +207,7 @@ export function TaxCenterView({ records, now, onTaxCenter, orders: givenOrders }
             { key: "t", header: "Type", render: (r) => <>{r.type}{r.voided && <StatusBadge glyph={false}>Voided</StatusBadge>}</> },
             { key: "e", header: "Description", lead: true, render: (r) => r.desc },
             { key: "c", header: "Category", render: (r) => (onTaxCenter && isEditableLine(r)
-              ? <LedgerLineActions line={r} onSaved={onTaxCenter} onNote={setLedgerNote} />
+              ? <LedgerLineActions line={r} taxCenter={records.taxCenter as Record<string, unknown> | null} onSaved={onTaxCenter} onNote={setLedgerNote} />
               : r.cat || "") },
             { key: "o", header: "Original", numeric: true, render: (r) => `${fmt(Number(r.origAmount || 0), r.origCurrency || cur)}` },
             { key: "b", header: cur, numeric: true, render: (r) => <span className={r.isIncome ? "rp-money-in" : "rp-money-out"}>{r.isIncome ? "+" : "-"}{fmt(Number(r.baseAmount || 0), cur)}</span> },
@@ -219,6 +220,8 @@ export function TaxCenterView({ records, now, onTaxCenter, orders: givenOrders }
         )}
       </SectionCard>
 
+      <TaxSeasonCard input={{ books: records.books as Record<string, any>[], states: records.states as Record<string, Record<string, any>>, taxCenter: records.taxCenter as Record<string, any> | null, fxRateCache: sources.fxRateCache }}
+        year={year} onSaved={onTaxCenter} />
       <ReceiptsVaultCard rows={model.rows} money={money} onSaved={onTaxCenter} taxCenter={records.taxCenter as Record<string, unknown> | null} />
     </div>
   );
