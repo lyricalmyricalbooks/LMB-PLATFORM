@@ -23,3 +23,12 @@
   .rp-sr-facts > div { grid-template-columns: 1fr; gap: var(--rp-space-1); }
   .rp-sr .rp-filter-bar > * { flex: 1 1 100%; }
 }
+.rp-sr-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rp-space-3); }
+.rp-sr-save { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--rp-space-2); font-size: var(--rp-text-sm); overflow-wrap: anywhere; }
+.rp-sr-save[data-tone="busy"] { color: var(--rp-text-muted); }
+.rp-sr-save[data-tone="error"] { color: var(--rp-danger); font-weight: 600; }
+.rp-sr-save[data-tone="warn"] { font-weight: 600; }
+.rp-sr-form { display: grid; gap: var(--rp-space-3); }
+.rp-sr-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--rp-space-3); }
+.rp-sr-void { margin-top: var(--rp-space-5); padding-top: var(--rp-space-4); border-top: 1px solid var(--rp-border); display: grid; gap: var(--rp-space-2); justify-items: start; }
+@media (max-width: 480px) { .rp-sr-form-row { grid-template-columns: 1fr; } }

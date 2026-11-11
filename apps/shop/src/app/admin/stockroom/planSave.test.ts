@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { deriveOnHand } from "@stockroom/inventory.js";
 import { stitchState } from "@stockroom/merge-state.js";
+import { recomputeAfters } from "@stockroom/recompute-afters.js";
 
 import { partTextsOf, planSave, UnreadablePartError, type BookState } from "./planSave";
 
 const book = { id: "b1", title: "B1", maxPrint: 100 };
 const sale = (n: number, extra: object = {}) => ({ num: `O${n}`, chan: "Website", qty: 1, price: 20, date: `2026-11-0${n}`, notes: "", sheetsId: `web-${n}`, ...extra });
-const stateOf = (hist: object[], extra: BookState = {}): BookState => ({ ...stitchState({ metadata: { stock: 100 - hist.length, ...extra } }), hist });
+// Stored the way the old app stores a book: every derived value already worked out by its recomputeAfters.
+const stateOf = (hist: object[], extra: BookState = {}): BookState => {
+  const state: BookState = { ...stitchState({ metadata: { stock: 100 - hist.length, ...extra } }), hist: JSON.parse(JSON.stringify(hist)) };
+  recomputeAfters(state, book);
+  return state;
+};
 const text = (state: BookState) => partTextsOf(state);
 
 describe("planSave", () => {

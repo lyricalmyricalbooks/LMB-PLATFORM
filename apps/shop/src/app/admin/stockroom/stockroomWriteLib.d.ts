@@ -23,3 +23,7 @@ declare module "@stockroom/book-size.js" {
   ): { level: "ok" | "warn" | "over"; part: string | null; bytes: number; limit: number; share: number };
   export function bookSizeMessage(report: unknown, title: string): string;
 }
+declare module "@stockroom/recompute-afters.js" {
+  /** The stockroom's rebuild of everything derived from an item's rows (totals, store counters, stock, running `after`). */
+  export function recomputeAfters(state: Record<string, unknown>, book: Record<string, unknown> | null): void;
+}

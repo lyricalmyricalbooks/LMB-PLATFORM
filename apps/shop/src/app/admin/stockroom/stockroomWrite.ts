@@ -21,7 +21,7 @@ import { get, getDatabase, ref, runTransaction as runRealtimeTransaction } from 
 
 import { app } from "../../../lib/firebase";
 import { SHOP_FOLDER } from "../../../lib/shopFolder";
-import { deriveStock, partTextsOf, planSave, UnreadablePartError, type BookLike, type BookState, type Derive, type PartTexts, type SaveConflict } from "./planSave";
+import { deriveRecords, partTextsOf, planSave, UnreadablePartError, type BookLike, type BookState, type Derive, type PartTexts, type SaveConflict } from "./planSave";
 import { isRefusal, stockroomPlace, type StockroomReads } from "./stockroomData";
 
 // ── What the writer needs from the database (the tests pass an in-memory one) ─────────────────────────────────────
@@ -166,12 +166,12 @@ async function loadBook(io: StockroomIO, bookId: string, store: "parts" | "old")
 // ── The writer ───────────────────────────────────────────────────────────────────────────────────────────────────
 
 export type WriterOptions = {
-  /** Recompute values derived from the rows. The default sets the on-hand count (see `Derive` in planSave.ts). */
+  /** Recompute values derived from the rows. The default is the stockroom's own `recomputeAfters` (see `Derive` in planSave.ts). */
   derive?: Derive;
 };
 
 export function createStockroomWriter(io: StockroomIO, options: WriterOptions = {}) {
-  const derive = options.derive ?? deriveStock;
+  const derive = options.derive ?? deriveRecords;
 
   /** Plan, flags and book lookup: the checks every write starts with, read fresh. */
   async function route(bookId: string): Promise<{ refused: SaveRefused } | { book: BookLike; store: "parts" | "old" }> {

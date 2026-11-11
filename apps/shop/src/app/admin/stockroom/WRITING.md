@@ -37,12 +37,12 @@ quiet.
 9. **Settings that every device shares (`catalog`, `taxCenter`) are merged key by key.** Use `updateSetting`, which reads
    the current text and uses it as the merge base. `saveSetting` for those two refuses without `base` (the exact text
    you read, or `null` if there was none). Everything else is a plain overwrite, as in the old app.
-10. **One writer, one source of truth for derived values.** The layer sets the on-hand count (`stock`) from the rows with the
-    stockroom's `deriveOnHand`, before the write and again after a merge. It does NOT rebuild revenue and channel totals,
-    store tallies or each row's running `after`; those are `recomputeAfters` in the stockroom's `main.js`, which is tied to
-    that page and can't be imported. A page that changes rows those depend on must either pass its own `derive` to
-    `createStockroomWriter` or, better, first move `recomputeAfters` into `apps/stockroom/src/lib` with tests. Until
-    then, do not build pages that rewrite revenue-bearing rows from the admin.
+10. **One writer, one source of truth for derived values.** The layer rebuilds every derived value with the stockroom's
+    own `recomputeAfters` (`apps/stockroom/src/lib/recompute-afters.js`, the function its every save runs): revenue and
+    channel totals, store tallies, the on-hand count and each row's running `after`, before the write and again after a
+    merge. A page never works those out itself. `deriveStock` (on-hand only) is for tests.
+11. **The Google Sheet is not updated from here.** The old app sends each sale and void to the press's Google Sheet from
+    its own device; the admin can't. A row added or voided here reaches the Sheet only through the stockroom's rebuild.
 
 ## What the layer does for you
 
@@ -60,6 +60,7 @@ quiet.
 - **No audit trail.** The old stockroom keeps none per save (its rules have no audit collection), and this layer cannot add
   one without a rules change. `written` (the parts stored) is in every result for a page that wants to show it.
 - **No offline queue.** Designed for (`pending`, `commitBookState`), not built.
+- **Recording and voiding a sale** are built (`recordSale.ts`, `SaleWriter.tsx`); see the Sales records page.
 - **No backups, mode flags, book deletion, receipts or fair sales.** Add them here, behind the same result types, when a
   page needs them.
 - **Not exercised against the live database.** The tests use in-memory fakes with the same commit behaviour; the
