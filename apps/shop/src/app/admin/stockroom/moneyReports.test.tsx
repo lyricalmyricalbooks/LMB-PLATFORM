@@ -179,9 +179,11 @@ describe("the pages", () => {
     await act(async () => ask.root.unmount());
   });
 
-  it("say so when there is nothing yet", async () => {
+  it("show the whole Tax centre with zeros when there is nothing yet", async () => {
     const empty = await draw(<TaxCenterView records={{ books: [], states: {}, taxCenter: null }} />);
-    expect(empty.container.textContent).toContain("Nothing in the Tax centre yet");
+    const text = empty.container.textContent || "";
+    for (const part of ["Money in", "Money out", "Net", "By year", "Where the money went", "Trips and events", "Standing costs", "Costs that may be missing", "Ledger"]) expect(text).toContain(part);
+    expect(text).not.toContain("Nothing in the Tax centre yet");
     await act(async () => empty.root.unmount());
   });
 
