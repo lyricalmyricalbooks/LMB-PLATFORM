@@ -119,6 +119,12 @@ export function HomeToday({ ownerName, orders, ordersFailed, fair, combined, tod
                 ))}
               </div>
             )}
+            {figures && (
+              <div className="rp-home-bars-key" aria-hidden="true">
+                <span>{when(now - (BAR_DAYS - 1) * 864e5, { month: "short", day: "numeric" })}</span>
+                <span>Today</span>
+              </div>
+            )}
           </article>
 
           {combined && (
