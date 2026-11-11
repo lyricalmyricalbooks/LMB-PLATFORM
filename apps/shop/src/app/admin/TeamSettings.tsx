@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useShopWords } from "./shopWords";
-import { Checkbox, DataTable, DestructiveButton, EmptyState, PrimaryButton, SectionCard, SelectField, StatusBadge, TextField, useConfirm, type Column } from "./riso/components";
+import { Checkbox, DestructiveButton, EmptyState, PrimaryButton, SectionCard, SelectField, TextField, useConfirm } from "./riso/components";
 import { shopOwnerEmail } from "../lib/ownerDevice";
 import { adminApi } from "./api";
 import { type AdminRole, type TeamRole } from "./adminAccess";
@@ -35,6 +35,12 @@ function untilWords(iso: string, now = new Date()): string {
   if (Number.isNaN(end.getTime())) return "";
   if (end.toDateString() === now.toDateString()) return "Until tonight";
   return `Until ${end.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+}
+
+/** Two letters for a person's round face, from the start of their email ("ada.lane@…" → "AL"). */
+export function initialsOf(email: string): string {
+  const parts = email.split("@")[0].split(/[._\-+]+/).filter(Boolean);
+  return ((parts[0]?.[0] || "?") + (parts[1]?.[0] || "")).toUpperCase();
 }
 
 const TEAM_ABOUT = STOCKROOM ? "People who can open this admin or the stockroom." : "People who can open this admin.";
@@ -103,18 +109,6 @@ export function TeamSettings() {
     } finally { setBusy(""); }
   };
 
-  const columns: Column<TeamMember>[] = [
-    { key: "email", header: "Email", lead: true, render: m => m.email },
-    { key: "role", header: "Role", render: m => (
-      <span className="inline-flex flex-wrap items-center gap-2">
-        <StatusBadge tone={m.role === "owner" ? "info" : "neutral"} glyph={false}>{roles[m.role].label}</StatusBadge>
-        {m.until && <span className="text-sm">{untilWords(m.until)}</span>}
-      </span>
-    ) },
-    { key: "actions", header: "", render: m => m.email === shopOwnerEmail() ? null : (
-      <DestructiveButton size="sm" disabled={!!busy} onClick={() => void remove(m)} aria-label={`Remove ${m.email}`}>{busy === m.email ? "Removing…" : "Remove"}</DestructiveButton>
-    ) },
-  ];
   const owner = shopOwnerEmail();
   const rows: TeamMember[] = [...(owner ? [{ email: owner, role: "owner" as const }] : []), ...(members || [])];
 
@@ -123,8 +117,21 @@ export function TeamSettings() {
       <SectionCard title="Team" description={`${TEAM_ABOUT} Each person signs in with Google using the email you add here.`}>
         {loadError
           ? <EmptyState inline title="Team not loaded" description={loadError} />
-          : <DataTable caption="Team" columns={columns} rows={members ? rows : []} rowKey={m => m.email} stackOnPhone
-              empty={<EmptyState inline title="Loading the Team…" />} />}
+          : !members ? <EmptyState inline title="Loading the Team…" />
+          : (
+            <ul className="rp-team" aria-label="Team">
+              {rows.map((m, i) => (
+                <li key={m.email} className="rp-team-row">
+                  <span className="rp-team-face" data-tone={i % 4} aria-hidden="true">{initialsOf(m.email)}</span>
+                  <span className="rp-team-who">{m.email}{m.until && <small>{untilWords(m.until)}</small>}</span>
+                  <span className="rp-team-role">{roles[m.role].label}</span>
+                  {m.email !== owner && (
+                    <DestructiveButton size="sm" disabled={!!busy} onClick={() => void remove(m)} aria-label={`Remove ${m.email}`}>{busy === m.email ? "Removing…" : "Remove"}</DestructiveButton>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
       </SectionCard>
       <SectionCard title="Add someone" description={roles[role].detail}>
         <form className="grid gap-4 sm:grid-cols-[2fr_1fr_auto] sm:items-end" onSubmit={e => { e.preventDefault(); void add(); }}>
