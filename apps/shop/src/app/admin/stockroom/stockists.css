@@ -55,3 +55,4 @@
   .rp-inv-line { grid-template-columns: repeat(3, minmax(0, 1fr)) auto; }
   .rp-inv-line > :first-child { grid-column: 1 / -1; }
 }
+.rp-sk-moves { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; margin-top: 6px; }

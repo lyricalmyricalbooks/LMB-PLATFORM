@@ -10,6 +10,7 @@ import { Checkbox, DataTable, Dialog, Drawer, EmptyState, InkButton, SecondaryBu
 import { useShopWords } from "../shopWords";
 import type { NativePageProps } from "./nativePages";
 import { InvoicesCard } from "./InvoiceDialogs";
+import { StockistMoveDialog, type MoveKind } from "./StockistMoveDialog";
 import { RecordsGate } from "./RecordsGate";
 import type { StockroomRecords } from "./stockroomData";
 import { stockistReceiptApi } from "./stockistReceipt";
@@ -79,7 +80,7 @@ function Ledger({ rows }: { rows: StockistLedgerRow[] }) {
   );
 }
 
-function Detail({ s, onPay, notice, onNewInvoice }: { s: Stockist; onPay?: (i: StockistInvoice) => void; notice?: Notice | null; onNewInvoice?: () => void }) {
+function Detail({ s, onPay, notice, onNewInvoice, onMove }: { s: Stockist; onPay?: (i: StockistInvoice) => void; notice?: Notice | null; onNewInvoice?: () => void; onMove?: (bookId: string, kind: MoveKind) => void }) {
   const w = useShopWords();
   const contact = [s.contact, s.email, s.phone, s.website].filter(Boolean);
   return (
@@ -96,7 +97,12 @@ function Detail({ s, onPay, notice, onNewInvoice }: { s: Stockist; onPay?: (i: S
           <li key={t.bookId} className="rp-sk-row">
             <div className="rp-sk-row-main"><strong>{t.bookTitle}</strong><span className="rp-sk-meta">Sent {t.sent} · sold {t.sold} · returned {t.returned} · on their shelf {t.onShelf}</span>
               {t.mismatch && <span className="rp-sk-meta rp-sk-warn">{t.figures.filter((f) => f.off).map((f) => `${f.label}: card ${f.card}, ledger ${f.ledger}`).join(" · ")}</span>}</div>
-            <div className="rp-sk-row-end"><span className="rp-sk-amount">{t.owed > 0 ? fmt(t.owed, t.code) : "—"}</span></div>
+            <div className="rp-sk-row-end"><span className="rp-sk-amount">{t.owed > 0 ? fmt(t.owed, t.code) : "—"}</span>
+              {onMove && <span className="rp-sk-moves">
+                <SecondaryButton size="sm" onClick={() => onMove(t.bookId, "send")}>Send</SecondaryButton>
+                <SecondaryButton size="sm" disabled={!t.onShelf} onClick={() => onMove(t.bookId, "sale")}>Sale</SecondaryButton>
+                <SecondaryButton size="sm" disabled={!t.onShelf} onClick={() => onMove(t.bookId, "return")}>Return</SecondaryButton>
+              </span>}</div>
           </li>
         ))}
       </ul>
@@ -172,11 +178,13 @@ function PayDialog({ s, inv, onClose, onSaved }: {
   );
 }
 
-export function StockistsList({ view, onSaved, onNewInvoice }: { view: StockistsView; onSaved?: (bookId: string, state: Record<string, any>) => void; onNewInvoice?: (stockist: string) => void }) {
+export function StockistsList({ view, onSaved, onNewInvoice, books }: { view: StockistsView; onSaved?: (bookId: string, state: Record<string, any>) => void; onNewInvoice?: (stockist: string) => void; books?: Record<string, any>[] }) {
   const w = useShopWords();
   const [open, setOpen] = useState<string | null>(null);
   const [paying, setPaying] = useState<StockistInvoice | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [move, setMove] = useState<{ bookId: string; kind: MoveKind } | null>(null);
+  const moveBook = move && books ? books.find((b) => b.id === move.bookId) : undefined;
   const current = view.stockists.find((s) => s.key === open) || null;
   // Only states that ask for something get a chip; settled and holding shops read plainly, as in the mockup.
   const flagged = (s: Stockist) => s.state === "overdue" || s.state === "mismatch" || s.state === "owes";
@@ -203,8 +211,13 @@ export function StockistsList({ view, onSaved, onNewInvoice }: { view: Stockists
       )}
       <Drawer open={!!current} onClose={() => { setOpen(null); setNotice(null); }} title={current?.name || ""} description={onSaved ? "Bill them, or mark their invoices paid." : "Read-only."}>
         {current && <Detail s={current} notice={notice} onPay={onSaved ? (i) => { setNotice(null); setPaying(i); } : undefined}
+          onMove={onSaved && books ? (bookId, kind) => { setNotice(null); setMove({ bookId, kind }); } : undefined}
           onNewInvoice={onSaved && onNewInvoice ? () => { const name = current.name; setOpen(null); setNotice(null); onNewInvoice(name); } : undefined} />}
       </Drawer>
+      {current && move && moveBook && onSaved && (
+        <StockistMoveDialog kind={move.kind} shop={current.name} rate={current.rate} bookId={move.bookId} book={moveBook} onClose={() => setMove(null)}
+          onSaved={(bookId, state, text) => { onSaved(bookId, state); setNotice({ tone: "ok", lines: [text] }); setMove(null); }} />
+      )}
       {current && paying && onSaved && (
         <PayDialog s={current} inv={paying} onClose={() => setPaying(null)}
           onSaved={(bookId, state, n) => { onSaved(bookId, state); setNotice(n); setPaying(null); }} />
@@ -225,7 +238,7 @@ function StockistsBoard({ initial }: { initial: StockroomRecords }) {
   const saved = (bookId: string, state: Record<string, any>) => setRecords((r) => ({ ...r, states: { ...r.states, [bookId]: state } }));
   return (
     <div className="rp-sk">
-      <StockistsList view={view} onSaved={saved} onNewInvoice={setNewFor} />
+      <StockistsList view={view} onSaved={saved} onNewInvoice={setNewFor} books={records.books as Record<string, any>[]} />
       <InvoicesCard records={records} onBookSaved={saved} onSettingsSaved={(value) => setRecords((r) => ({ ...r, invoiceSettings: value }))}
         newFor={newFor} onNewDone={() => setNewFor(null)} />
     </div>
