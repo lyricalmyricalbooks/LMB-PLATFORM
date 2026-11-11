@@ -4,6 +4,7 @@ import { collectUniqueConsignmentStores, consignmentLedgerTotals, storeBalanceCo
 import { BILL_TO_PERSON, invoiceBillToMode } from "@stockroom/invoices.js";
 import { fmt, getBookCurrencyCode, normalizeCurrencyCode, roundCents } from "@stockroom/money.js";
 import { daysLate, invoiceReminderState } from "@stockroom/payment-reminders.js";
+import { settleInvoicePaid } from "@stockroom/invoice-settle.js";
 
 import type { StockroomRecords } from "./stockroomData";
 
@@ -13,6 +14,10 @@ export type Owed = { code: string; amount: number };
 export type StockistInvoice = {
   id: string; num: string; status: string; dueDate: string; date: string; total: number; code: string;
   overdue: boolean; daysLate: number | null; chased: number; promisedUntil: string; reminderFailed: boolean;
+  /** The book whose record holds the invoice (where a payment is saved), and the stockist's email on the invoice. */
+  bookId: string; email: string;
+  /** Can be marked paid in one click: sent (or draft), in the book's own currency (else the stockroom asks for a rate). */
+  payable: boolean;
 };
 export type StockistLedgerRow = {
   key: string; bookTitle: string; date: string; type: string; qty: number; rate: number | null; amountDue: number; code: string;
@@ -65,7 +70,7 @@ export function buildStockists(records: StockroomRecords, now: Date = new Date()
   const firstCode = books.length ? getBookCurrencyCode(books[0]) : "CAD";
 
   // Every invoice once (an invoice lives in one book's record but may bill several titles).
-  const invoices: Array<{ inv: Rec; code: string }> = [];
+  const invoices: Array<{ inv: Rec; code: string; bookId: string; bookCode: string }> = [];
   const seen = new Set<string>();
   for (const book of books) {
     const list = records.states[book.id]?.invoices;
@@ -73,10 +78,10 @@ export function buildStockists(records: StockroomRecords, now: Date = new Date()
     for (const inv of list) {
       if (!inv || seen.has(String(inv.id))) continue;
       seen.add(String(inv.id));
-      invoices.push({ inv, code: normalizeCurrencyCode(inv.currency, getBookCurrencyCode(book)) });
+      invoices.push({ inv, code: normalizeCurrencyCode(inv.currency, getBookCurrencyCode(book)), bookId: book.id, bookCode: getBookCurrencyCode(book) });
     }
   }
-  const asInvoice = ({ inv, code }: { inv: Rec; code: string }): StockistInvoice => {
+  const asInvoice = ({ inv, code, bookId, bookCode }: { inv: Rec; code: string; bookId: string; bookCode: string }): StockistInvoice => {
     // The stockroom's rule: only a sent invoice past its due date is overdue (a paid or cancelled one never is).
     const overdue = inv.status === "sent" && !!inv.dueDate && inv.dueDate < today;
     const reminders = invoiceReminderState(inv);
@@ -84,6 +89,7 @@ export function buildStockists(records: StockroomRecords, now: Date = new Date()
       id: String(inv.id), num: String(inv.num || ""), status: String(inv.status || "draft"), dueDate: String(inv.dueDate || ""), date: String(inv.date || ""),
       total: num(inv.total), code, overdue, daysLate: overdue ? daysLate(inv, today) : null, chased: reminders.count,
       promisedUntil: reminders.snoozedUntil && today <= reminders.snoozedUntil ? reminders.snoozedUntil : "", reminderFailed: reminders.lastStatus === "failed",
+      bookId, email: String(inv.storeEmail || ""), payable: (inv.status === "sent" || inv.status === "draft") && code === bookCode,
     };
   };
   const byDue = (a: StockistInvoice, b: StockistInvoice) => (a.dueDate || "9999").localeCompare(b.dueDate || "9999");
@@ -162,5 +168,22 @@ export function buildStockists(records: StockroomRecords, now: Date = new Date()
   return {
     stockists, owed: sorted(owedAll, firstCode), onShelf: stockists.reduce((n, s) => n + s.onShelf, 0),
     overdueCount: overdueAll.length, overdueTotals: sorted(overdueTotals, firstCode), otherOverdue: overdueAll.length - stockistOverdue,
+  };
+}
+
+/**
+ * The change "mark this invoice paid" makes to the book holding it, for `saveBookState`: the stockroom's own rule
+ * (invoice-settle.js: the invoice, its linked pending sales and the stockist's owed balance). Throws to refuse, so
+ * nothing is written (WRITING.md rule 4).
+ */
+export function markInvoicePaid(invoiceId: string, paidAt: number) {
+  return (state: Rec) => {
+    const done = settleInvoicePaid(state, invoiceId, { method: "Other", paidAt });
+    if (!done.ok) {
+      throw new Error(done.reason === "paid" ? "This invoice is already marked paid (perhaps on another device)."
+        : done.reason === "cancelled" ? "This invoice was cancelled, so it can't be marked paid."
+          : "This invoice is no longer in the records. Reload the page.");
+    }
+    return state;
   };
 }
