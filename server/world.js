@@ -55,6 +55,7 @@ import { hostedGoogleLink } from "../google/hosted.js";
 import { createSupportInbox } from "../services/support/inbox.js";
 import { supportRoutes } from "../services/support/routes.js";
 import { createAppMakers } from "../services/apps/makers.js";
+import { createOwnApps } from "../services/apps/ownApps.js";
 import { createAppInstalls } from "../services/apps/installs.js";
 import { createChitChatsApp } from "../services/chitchats/app.js";
 import { chitChatsPublicRoutes, chitChatsRoutes } from "../services/chitchats/routes.js";
@@ -275,7 +276,12 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const support = createSupportInbox({ store: supportStore, email, registry, settings, admins, roleIn: (who, shopId) => accounts.roleIn(who, shopId), now });
   // Outside apps registered by app makers (code plan 26.1).
   const appStore = firestoreApps(platform);
-  const appMakers = createAppMakers({ store: appStore, admins, now });
+  // Colophon's own apps (Chit Chats...) list themselves, with secrets made from the link phrase the server already has.
+  const ownApps = createOwnApps({
+    store: appStore, root: secretOf(env, "OWN_APPS_SECRET") ?? secretOf(env, "CHECKUP_SECRET"),
+    platformUrl: settings.platformUrl, supportEmail: settings.supportEmail, now,
+  });
+  const appMakers = createAppMakers({ store: appStore, admins, now, ensureOwnApps: () => ownApps.ensure() });
   // Installing them on a shop with its owner's permission (26.2).
   const appInstallStore = firestoreAppInstalls(platform);
   const appAlertOutbox = firestoreAppAlerts(platform);
@@ -289,12 +295,14 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   });
   // The app connection: installed apps read their shop through the platform, with their key (26.3).
   const appConnection = createAppConnection({ installs: appInstalls, shopData, registry, outbox: appAlertOutbox, now });
-  // Colophon's own Chit Chats app (26.11): paid orders become Chit Chats shipments, tracking comes back. It needs its
-  // app id and secret from the app store and a sealing key; without them it answers "not connected yet".
+  // Colophon's own Chit Chats app (26.11): paid orders become Chit Chats shipments, tracking comes back. Its app id,
+  // secret and sealing key come from ownApps (CHITCHATS_APP_ID / _APP_SECRET / _SEAL_KEY still win when set).
   const chitchatsStores = firestoreChitChats(platform);
+  const chitchatsOwn = ownApps.appOf("chitchats");
   const chitchats = createChitChatsApp({
-    appId: String(env.CHITCHATS_APP_ID ?? "").trim() || null, appSecret: String(env.CHITCHATS_APP_SECRET ?? "").trim() || null,
-    sealKey: env.CHITCHATS_SEAL_KEY ? sealingKey(env.CHITCHATS_SEAL_KEY, "CHITCHATS_SEAL_KEY") : null,
+    appId: String(env.CHITCHATS_APP_ID ?? "").trim() || chitchatsOwn?.appId || null,
+    appSecret: String(env.CHITCHATS_APP_SECRET ?? "").trim() || chitchatsOwn?.appSecret || null,
+    sealKey: env.CHITCHATS_SEAL_KEY ? sealingKey(env.CHITCHATS_SEAL_KEY, "CHITCHATS_SEAL_KEY") : ownApps.sealKeyOf("chitchats"),
     connections: chitchatsStores.connections, shipments: chitchatsStores.shipments,
     exchange: (args) => appInstalls.exchange(args), appCall: (request) => appConnection(request),
     roleIn: (who, shopId) => accounts.roleIn(who, shopId), fetch, now, returnAddress: `${settings.platformUrl}/account/chitchats.html`,
@@ -371,7 +379,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const termsNotice = createTermsNotice({ signups: stores.signups, email, settings: live, now });
 
   // What the jobs can run (server/jobs.js reads these); the jobs page's "Run now" runs the ones that need nothing more.
-  const parts = { sharedShops: Boolean(sharedRun), domains, usage, usageMeters, costReader, chitchats, chitchatsStores, env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups, termsNotice };
+  const parts = { sharedShops: Boolean(sharedRun), domains, usage, usageMeters, costReader, ownApps, chitchats, chitchatsStores, env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups, termsNotice };
   const runNow = {
     "dropped-apps": () => billing.closeDroppedApps(),
     "every-app": () => billing.giveEveryApp(),

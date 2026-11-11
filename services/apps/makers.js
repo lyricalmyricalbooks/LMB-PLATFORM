@@ -1,7 +1,7 @@
 // App makers register outside apps that can link to presses' shops (code plan 26.1, docs/app-store.md), like a partner
 // account on the big platforms. Approved apps show in the store; installing one comes in 26.2.
 //
-//   createAppMakers({ store, admins, now, newId, newSecret })
+//   createAppMakers({ store, admins, now, ensureOwnApps, newId, newSecret })
 //
 // Who may do what:
 // - Any signed-in person with a confirmed email registers up to MAX_APPS_PER_MAKER apps and changes their own.
@@ -60,7 +60,7 @@ function webAddress(text, { allowLocal = false } = {}) {
 }
 
 /** The maker's details, checked; throws with each problem by field. Fields left out keep `before`'s values. */
-function detailsFrom(input, before = {}, { mayUseBrand = false } = {}) {
+export function detailsFrom(input, before = {}, { mayUseBrand = false } = {}) {
   const pick = (field) => (Object.hasOwn(input, field) ? input[field] : before[field]);
   const problems = {};
   const name = oneLine(pick("name"));
@@ -136,7 +136,7 @@ function forStore(app) {
 }
 
 export function createAppMakers({
-  store, admins, now = () => new Date(),
+  store, admins, now = () => new Date(), ensureOwnApps = async () => {},
   newId = () => `app_${randomBytes(8).toString("hex")}`,
   newSecret = () => `cs_${randomBytes(32).toString("hex")}`,
 }) {
@@ -177,6 +177,8 @@ export function createAppMakers({
 
     /** Approved apps on the store, by name; `category` narrows it. */
     async storeList({ category } = {}) {
+      // Colophon's own apps put themselves on the store first (ownApps.js); a failure there never hides the others.
+      await Promise.resolve().then(ensureOwnApps).catch(() => {});
       const apps = (await store.listOnStore()).filter((app) => app.onStore && app.listing);
       return {
         apps: apps
@@ -272,7 +274,7 @@ export function createAppMakers({
       if (!STATUSES.includes(status) && status !== "on-store") throw new SignupError(400, "Pick draft, in-review, listed, unlisted or on-store.");
       const apps = status === "on-store" ? (await store.listOnStore()).filter((app) => app.onStore) : await store.listByStatus(status);
       // `ours`: made by the platform team, so it may carry a company logo (shared/brand-logos/README.md).
-      return { apps: apps.sort((a, b) => (a.updatedAt < b.updatedAt ? -1 : 1)).map((app) => ({ ...forMaker(app), ours: admins.includes(app.makerEmail), history: app.history ?? [] })) };
+      return { apps: apps.sort((a, b) => (a.updatedAt < b.updatedAt ? -1 : 1)).map((app) => ({ ...forMaker(app), ours: app.ownApp === true || admins.includes(app.makerEmail), history: app.history ?? [] })) };
     },
 
     /** The draft becomes the copy on the store. */
@@ -320,7 +322,7 @@ export function createAppMakers({
       const app = await adminsApp(appId);
       const picked = oneLine(brand);
       if (picked && !Object.hasOwn(BRAND_LOGOS, picked)) throw new SignupError(400, "Pick a logo from the kit.", { brand: "Pick a logo from the kit." });
-      if (picked && !admins.includes(app.makerEmail)) throw new SignupError(403, "Company logos go only on Colophon's own apps.", { brand: "Only on Colophon's own apps." });
+      if (picked && app.ownApp !== true && !admins.includes(app.makerEmail)) throw new SignupError(403, "Company logos go only on Colophon's own apps.", { brand: "Only on Colophon's own apps." });
       const put = (details) => {
         if (!details) return;
         if (picked) details.brand = picked;
