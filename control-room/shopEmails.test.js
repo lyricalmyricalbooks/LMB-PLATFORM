@@ -34,7 +34,7 @@ test("every named kind is a real platform email, and an unknown kind still reads
   for (const kind of Object.keys(KIND_WORDS)) assert.ok(TEMPLATES[kind], kind);
   assert.equal(kindWords("some-new-kind"), "Some new kind");
   // Every email a press can get has a plain name on its record (the platform team's own emails never show there).
-  const teamOnly = new Set(["health-alert", "backup-access-used", "recovery-new", "support-new", "job-late", "apps-deleting-soon", "chitchats-late", "switch-stuck"]);
+  const teamOnly = new Set(["health-alert", "backup-access-used", "recovery-new", "support-new", "job-late", "apps-deleting-soon", "chitchats-late", "switch-stuck", "weekly-summary"]);
   for (const kind of Object.keys(TEMPLATES)) if (!teamOnly.has(kind)) assert.ok(KIND_WORDS[kind], `${kind} has no plain name`);
 });
 
