@@ -3,6 +3,8 @@
 import { useState } from "react";
 import type { NativePageProps } from "./nativePages";
 import { InvoicesCard } from "./InvoiceDialogs";
+import { LetterheadDialog } from "./LetterheadDialog";
+import { PageActions, SecondaryButton } from "../riso/components";
 import { RecordsGate } from "./RecordsGate";
 import type { StockroomRecords } from "./stockroomData";
 import "./money.css";
@@ -16,9 +18,12 @@ export function InvoicesPage({ bookId, load }: Partial<NativePageProps> & { load
 function InvoicesBoard({ initial, newFor: start }: { initial: StockroomRecords; newFor: string | null }) {
   const [records, setRecords] = useState(initial);
   const [newFor, setNewFor] = useState<string | null>(start);
+  const [letter, setLetter] = useState(false);
   const saved = (bookId: string, state: Record<string, any>) => setRecords((r) => ({ ...r, states: { ...r.states, [bookId]: state } }));
   return (
     <div className="rp-sk">
+      <PageActions><SecondaryButton onClick={() => setLetter(true)}>Letterhead</SecondaryButton></PageActions>
+      {letter && <LetterheadDialog invoice={records.invoiceSettings} onClose={() => setLetter(false)} />}
       <InvoicesCard records={records} onBookSaved={saved} onSettingsSaved={(value) => setRecords((r) => ({ ...r, invoiceSettings: value }))}
         newFor={newFor} onNewDone={() => setNewFor(null)} />
     </div>
