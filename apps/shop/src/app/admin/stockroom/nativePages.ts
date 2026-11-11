@@ -13,5 +13,6 @@ export type NativePageProps = {
 };
 
 export const NATIVE_PAGES: Record<string, ComponentType<NativePageProps>> = {
+  dashboard: lazy(() => import("./StockPage").then((m) => ({ default: m.StockPage }))),
   todo: lazy(() => import("./TodoPage").then((m) => ({ default: m.TodoPage }))),
 };
