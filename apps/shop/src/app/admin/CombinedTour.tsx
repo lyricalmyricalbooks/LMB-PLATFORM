@@ -19,8 +19,8 @@ export const TOUR_STEPS: TourStep[] = [
     text: "All sales puts website orders beside fairs, stockists, invoices and sales entered by hand, with a button for each channel." },
   { title: "Website › Books: stock and sales on each book", go: { page: "catalog" }, show: "Show me Books",
     text: "Open any book and pick Stock and sales: how many you have, at stockists and with the author, and what sold everywhere." },
-  { title: "Stockroom › Sell in person: the fair till", go: { stockroom: "pos" }, show: "Show me the Fair till",
-    text: "Open the Fair till once before a fair, while you have a connection. After that it opens with no signal, and your sales catch up later." },
+  { title: "Stockroom › Sell in person: the till", go: { stockroom: "pos" }, show: "Show me the Till",
+    text: "Open the Till once before a fair, while you have a connection. After that it opens with no signal, and your sales catch up later." },
   { title: "Stockroom › Money: tax, payments, expenses", go: { stockroom: "taxcenter" }, show: "Show me the Tax centre",
     text: "The Tax centre, payments and expenses are on the Stockroom side. Your plan, billing and the shop's details are under Website › Settings. You can take this tour again from your account menu." },
 ];

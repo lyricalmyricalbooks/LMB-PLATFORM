@@ -28,17 +28,19 @@ describe("the combined admin (shop + stockroom plan)", () => {
   it("holds every stockroom page once, and lists each page only once", () => {
     const pages = COMBINED_MENU.flatMap((g) => g.pages);
     expect(new Set(pages).size).toBe(pages.length);
-    for (const p of STOCKROOM_PAGES) expect(pages.filter((id) => id === STOCKROOM_ITEM_PREFIX + p.id), p.id).toHaveLength(1);
+    // To-do lives on Home and Open call is off the menu (redesign, 11 November 2026); both still open from links.
+    const offMenu = ["todo", "opencall"];
+    for (const p of STOCKROOM_PAGES) expect(pages.filter((id) => id === STOCKROOM_ITEM_PREFIX + p.id), p.id).toHaveLength(offMenu.includes(p.id) ? 0 : 1);
   });
 
   it("splits the menu in two sides, website and stockroom, each named by the job", () => {
-    expect(WEBSITE_SIDE.map((g) => g.label)).toEqual(["Home", "Orders", "Books", "Marketing", "Online store", "Settings"]);
-    expect(STOCKROOM_SIDE.map((g) => g.label)).toEqual(["To-do", "Stock", "Sales", "Sell in person", "Money", "Open call", "Stockroom settings"]);
+    expect(WEBSITE_SIDE.map((g) => g.label)).toEqual(["Home", "Orders", "Customers", "Books", "Marketing", "Online store", "Settings"]);
+    expect(STOCKROOM_SIDE.map((g) => g.label)).toEqual(["Stock", "Sales", "Sell in person", "Money", "Stockroom settings"]);
     for (const p of STOCKROOM_PAGES) expect(sideOf(STOCKROOM_ITEM_PREFIX + p.id), p.id).toBe("stockroom");
     expect(sideOf("overview")).toBe("website");
     expect(sideOf("orders")).toBe("website");
     expect(sideOf("inventory")).toBe("stockroom");
-    expect(sideMenu("stockroom")[0].pages[0]).toBe(STOCKROOM_ITEM_PREFIX + "todo");
+    expect(sideMenu("stockroom")[0].pages[0]).toBe(STOCKROOM_ITEM_PREFIX + "dashboard");
   });
 
   it("gives each page a label", () => {
@@ -48,7 +50,8 @@ describe("the combined admin (shop + stockroom plan)", () => {
     expect(menuItemFor(STOCKROOM_ITEM_PREFIX + "pos", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "pos");
     expect(menuItemFor(STOCKROOM_ITEM_PREFIX + "taxcenter", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "taxcenter");
     expect(menuItemFor(STOCKROOM_ITEM_PREFIX + "consignment", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "pos");
-    expect(menuItemFor("customers", COMBINED_MENU)).toBe("orders");
+    expect(menuItemFor("customers", COMBINED_MENU)).toBe("customers");
+    expect(menuItemFor("channels", COMBINED_MENU)).toBe("discounts");
   });
 
   it("speaks the shop's words: Products for a shop that sells clothing, Books for a press", () => {
@@ -69,7 +72,7 @@ describe("the combined admin (shop + stockroom plan)", () => {
     const html = readFileSync(join(stockroomRoot, "index.html"), "utf8");
     for (const p of STOCKROOM_PAGES) expect(html, p.id).toContain(`id="tab-${p.id}"`);
     expect(stockroomPage("website")).toBeUndefined();
-    expect(stockroomPage("pos")?.label).toBe("Fair till");
+    expect(stockroomPage("pos")?.label).toBe("Till");
   });
 
   it("gives each stockroom page its own address and Back step", () => {

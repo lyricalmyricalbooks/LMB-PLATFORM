@@ -49,7 +49,7 @@ export function FairToday({ active, onOpen }: { active: boolean; onOpen: () => v
         <span className="rp-fair-today-kicker">Today</span>
         <strong className="rp-fair-today-line">{fairLine(fair, w)}</strong>
         <StatusBadge glyph={false} tone={UPLOAD_TONE[fair.upload.tone as keyof typeof UPLOAD_TONE] || "neutral"}>{fair.upload.text}</StatusBadge>
-        <GhostButton onClick={onOpen}>Open the Fair till</GhostButton>
+        <GhostButton onClick={onOpen}>Open the Till</GhostButton>
       </div>
       {lowText(fair.low) && (
         <p className="rp-fair-today-low"><strong>Running low:</strong> {lowText(fair.low)}</p>

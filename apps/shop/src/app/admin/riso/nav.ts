@@ -1,7 +1,7 @@
 import {
   BookOpen, Settings, Inbox, LayoutDashboard, BadgePercent, Star, ShoppingCart, Users, Boxes, Gift,
   SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail, UserPlus, Calculator, Wallet, FileText, Store, Megaphone, PiggyBank, ShieldCheck, Plug, Blocks,
-  Share2, Send, ListChecks,
+  Share2, Send,
 } from "lucide-react";
 import type { NavEntry } from "./components";
 import { COMBINED_PAGES, REORDER_TAB, SALES_TAB, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES } from "../combined";
@@ -76,27 +76,52 @@ const S = (id: string) => STOCKROOM_ITEM_PREFIX + id;
 export type AdminSide = "website" | "stockroom";
 export const WEBSITE_SIDE: Menu = [
   { label: "Home", icon: LayoutDashboard, pages: ["overview"] },
-  { label: "Orders", icon: ShoppingCart, pages: ["orders", SALES_TAB, "customers", "messages"] },
-  { label: "Books", icon: BookOpen, pages: ["catalog", "reviews", "channels"] },
-  { label: "Marketing", icon: Megaphone, pages: ["discounts", "giftCards", "socialPosts"] },
+  { label: "Orders", icon: ShoppingCart, pages: ["orders", SALES_TAB, "messages"] },
+  // Customers is its own item (redesign, 11 November 2026); Sales channels sit with Marketing.
+  { label: "Customers", icon: Users, pages: ["customers"] },
+  { label: "Books", icon: BookOpen, pages: ["catalog", "reviews"] },
+  { label: "Marketing", icon: Megaphone, pages: ["discounts", "giftCards", "socialPosts", "channels"] },
   { label: "Online store", icon: Palette, pages: [SETTINGS_ITEM_PREFIX + "designer"] },
   { label: "Settings", icon: Settings, pages: SETTINGS_PAGES },
 ];
+// The redesign (11 November 2026): the stockroom's To-do lives on Home, and Open call is off the menu. Both pages
+// still open from their links (Home's to-do row, search), so they are kept in STOCKROOM_PAGES.
 export const STOCKROOM_SIDE: Menu = [
-  { label: "To-do", icon: ListChecks, pages: [S("todo")] },
   { label: "Stock", icon: Boxes, pages: [S("dashboard"), "inventory", REORDER_TAB] },
   { label: "Sales", icon: Receipt, pages: [S("history"), S("manual"), S("customers"), S("shipping")] },
   { label: "Sell in person", icon: Store, pages: [S("pos"), S("consignment"), S("qrcodes")] },
   { label: "Money", icon: PiggyBank, pages: [S("taxcenter"), S("reconcile"), S("expenses"), S("intel")] },
-  { label: "Open call", icon: Inbox, pages: [S("opencall")] },
   { label: "Stockroom settings", icon: SlidersHorizontal, pages: [S("sheets"), S("backups")] },
 ];
+/**
+ * Settings pages in groups (redesign): the Settings page lists them in a left column under these headings. A page
+ * missing here (one added later) is listed under the last group, so nothing goes missing.
+ */
+export const SETTINGS_SECTIONS: { label: string; pages: string[] }[] = [
+  { label: "Shop", pages: ["general", "team", "plan", "billing"] },
+  { label: "Selling", pages: ["shipping", "payments", "taxes"] },
+  { label: "Messages", pages: ["notifications"] },
+  { label: "Connections", pages: ["google", "apps", "bookkeeping"] },
+  { label: "Safety", pages: ["security"] },
+].map((g) => ({ ...g, pages: g.pages.map((id) => SETTINGS_ITEM_PREFIX + id) }));
+
+/** Settings pages grouped by SETTINGS_SECTIONS, keeping only the given pages (and adding any unlisted ones at the end). */
+export function settingsSections(pages: { id: string; label: string; badge?: number }[]) {
+  const byId = new Map(pages.map((p) => [p.id, p]));
+  const listed = new Set(SETTINGS_SECTIONS.flatMap((g) => g.pages));
+  const groups = SETTINGS_SECTIONS.map((g) => ({ label: g.label, pages: g.pages.flatMap((id) => byId.get(id) ?? []) }));
+  const rest = pages.filter((p) => !listed.has(p.id));
+  if (rest.length) groups[groups.length - 1].pages.push(...rest);
+  return groups.filter((g) => g.pages.length);
+}
+
 /** Both sides as one list: what search, routes and "which item holds this page" read. */
 export const COMBINED_MENU: Menu = [...WEBSITE_SIDE, ...STOCKROOM_SIDE];
 
 /** The side a page belongs to. */
 export function sideOf(page: string): AdminSide {
-  return STOCKROOM_SIDE.some((g) => g.pages.includes(page)) ? "stockroom" : "website";
+  // A stockroom page off the menu (To-do, Open call) still opens on the Stockroom side.
+  return page.startsWith(STOCKROOM_ITEM_PREFIX) || STOCKROOM_SIDE.some((g) => g.pages.includes(page)) ? "stockroom" : "website";
 }
 export const sideMenu = (side: AdminSide): Menu => (side === "stockroom" ? STOCKROOM_SIDE : WEBSITE_SIDE);
 
