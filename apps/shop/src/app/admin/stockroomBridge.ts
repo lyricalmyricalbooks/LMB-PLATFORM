@@ -1,10 +1,10 @@
-// The combined admin's line to the stockroom frame (combined.ts, StockroomFrame.tsx) for pages that are not the
-// stockroom's own: the book page asks for one book's stock and sales, and opens that book in the stockroom. The
-// stockroom stays the master count, so its figures come from it, never worked out again here.
-//
-// The frame opens on first need (Dashboard listens through `onNeed`) and is kept; questions wait for it to be ready.
-import { FROM_ADMIN, FROM_STOCKROOM } from "./combined";
-import { NATIVE_PAGES } from "./stockroom/nativePages";
+// The combined admin's line to the stockroom for pages that are not the stockroom's own: the book page asks for one
+// book's stock and sales and opens that book in the stockroom; Home asks for the to-dos and today at the fair; All
+// sales asks for every recorded sale. Answered here from the stockroom's records with the stockroom's own rules
+// (stockroom/stockroomAnswers.ts), so the figures are the stockroom's, never worked out a second way. The old stockroom
+// app no longer runs behind the admin (11 November 2026).
+import { answerFrom, type Ask } from "./stockroom/stockroomAnswers";
+import { isRefusal, stockroomApi, type StockroomRecords } from "./stockroom/stockroomData";
 
 /** One stockroom book, as the stockroom counts it (apps/stockroom/src/lib/book-summary.js `bookSummary`). */
 export interface StockroomBook {
@@ -36,95 +36,50 @@ export interface StockroomFair {
   upload: { tone: string; text: string };
 }
 
-type Ask = { what: "book"; book: string } | { what: "find"; isbn?: string; title?: string } | { what: "todo" } | { what: "sales"; since?: string } | { what: "fair" };
-
-let frame: Window | null = null;
-let seq = 0;
-const readyWaiters = new Set<() => void>();
-const needListeners = new Set<() => void>();
-// A page asked before Dashboard listened (a child's effect runs before its parent's): the next listener hears it.
-let neededEarly = false;
-const need = () => {
-  if (!needListeners.size) neededEarly = true;
-  for (const listener of needListeners) listener();
-};
+/** Records read within this long answer the next question too (Home, the book page and All sales ask together). */
+const FRESH_MS = 15_000;
+let cached: { at: number; read: Promise<StockroomRecords> } | null = null;
 const openListeners = new Set<(page: string, extra?: { book?: string; todo?: string }) => void>();
-let pendingOpen: { tab: string; book?: string; todo?: string } | null = null;
 
-const post = (message: object) => {
-  try { frame?.postMessage(message, window.location.origin); } catch { /* frame gone */ }
-};
-
-/** A checked answer from the stockroom frame to question `id`, else undefined. */
-export function answerFor(event: { source: unknown; origin: string; data: unknown }, from: unknown, origin: string, id: string): { result: unknown } | undefined {
-  if (!event || !from || event.source !== from || event.origin !== origin) return undefined;
-  const data = event.data as Record<string, unknown> | null;
-  if (!data || typeof data !== "object" || data.source !== FROM_STOCKROOM || data.type !== "answer" || data.id !== id) return undefined;
-  return { result: data.failed ? null : data.result ?? null };
+/** The records, read once for questions asked close together; a failed read is never kept. */
+function records(load: () => Promise<StockroomRecords>): Promise<StockroomRecords> {
+  if (cached && Date.now() - cached.at < FRESH_MS) return cached.read;
+  const read = load();
+  cached = { at: Date.now(), read };
+  read.catch(() => { if (cached?.read === read) cached = null; });
+  return read;
 }
 
 export const stockroomBridge = {
-  /** StockroomFrame: the frame said it is ready (again), or went away (null). */
-  attach(win: Window | null) {
-    frame = win;
-    if (!win) return;
-    for (const done of [...readyWaiters]) done();
-    if (pendingOpen) { post({ source: FROM_ADMIN, type: "open", ...pendingOpen }); pendingOpen = null; }
-  },
-  /** Dashboard: open the frame when a page needs it. */
-  onNeed(listener: () => void) {
-    needListeners.add(listener);
-    if (neededEarly) { neededEarly = false; listener(); }
-    return () => { needListeners.delete(listener); };
-  },
   /** Dashboard: show a stockroom page (the book page's "Open in the stockroom"). */
   onOpen(listener: (page: string, extra?: { book?: string; todo?: string }) => void) { openListeners.add(listener); return () => { openListeners.delete(listener); }; },
 
   /** Show stockroom page `tab` in the admin, with `book` picked or on to-do item `todo`. */
   openPage(tab: string, extra: { book?: string; todo?: string } = {}) {
-    // A page the admin draws itself needs no frame (and so no second app loading behind it).
-    if (tab in NATIVE_PAGES) { /* the admin shows it */ }
-    else if (frame) post({ source: FROM_ADMIN, type: "open", tab, ...extra });
-    else { pendingOpen = { tab, ...extra }; need(); }
     for (const open of openListeners) open(tab, extra);
   },
   /** Show stockroom page `tab` with `book` picked, in the admin. */
   openBook(tab: string, book: string) { stockroomBridge.openPage(tab, { book }); },
 
-  /** Ask until the stockroom has an answer: it says nothing (null) while its catalog or records are still loading. */
-  async askUntil<T>(question: Ask, { tries = 5, againMs = 1_500 } = {}): Promise<T | null> {
-    for (let i = 0; i < tries; i += 1) {
-      const answer = await stockroomBridge.ask<T>(question);
-      if (answer) return answer;
-      if (i < tries - 1) await new Promise((r) => setTimeout(r, againMs));
-    }
-    return null;
+  /** Forget the records read, so the next question reads them again (after a change saved here). */
+  forget() { cached = null; },
+
+  /** Kept for the callers that asked the old app again while it loaded: the records answer at once. */
+  async askUntil<T>(question: Ask, opts: { load?: () => Promise<StockroomRecords> } = {}): Promise<T | null> {
+    return stockroomBridge.ask<T>(question, opts);
   },
 
-  /** Ask the stockroom; null when it has no answer (yet), can't be reached in `timeoutMs`, or failed. */
-  async ask<T>(question: Ask, { timeoutMs = 15_000 } = {}): Promise<T | null> {
-    const started = Date.now();
-    if (!frame) {
-      need();
-      const got = await new Promise<boolean>((resolve) => {
-        const done = () => { readyWaiters.delete(done); window.clearTimeout(timer); resolve(true); };
-        const timer = window.setTimeout(() => { readyWaiters.delete(done); resolve(false); }, timeoutMs);
-        readyWaiters.add(done);
-      });
-      if (!got || !frame) return null;
+  /**
+   * Ask the stockroom; `{ refused: true }` when its records are kept from this sign-in (a team member), null when they
+   * couldn't be read (a dropped connection is never an empty answer).
+   */
+  async ask<T>(question: Ask, { load = stockroomApi.load }: { load?: () => Promise<StockroomRecords> } = {}): Promise<T | null> {
+    try {
+      return answerFrom(question, await records(load)) as T | null;
+    } catch (error) {
+      if (isRefusal(error)) return { refused: true } as T;
+      console.error("The stockroom's records could not be read", error);
+      return null;
     }
-    const from = frame;
-    const id = `q${++seq}-${Date.now().toString(36)}`;
-    return new Promise<T | null>((resolve) => {
-      const on = (event: MessageEvent) => {
-        const answer = answerFor(event, from, window.location.origin, id);
-        if (!answer) return;
-        finish(answer.result as T | null);
-      };
-      const finish = (value: T | null) => { window.removeEventListener("message", on); window.clearTimeout(timer); resolve(value); };
-      const timer = window.setTimeout(() => finish(null), Math.max(1_000, timeoutMs - (Date.now() - started)));
-      window.addEventListener("message", on);
-      post({ source: FROM_ADMIN, type: "ask", id, ...question });
-    });
   },
 };

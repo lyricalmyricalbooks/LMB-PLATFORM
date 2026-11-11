@@ -8,6 +8,7 @@ import { shopNameFromSettings } from "../features/site/shopIdentity";
 import { photoPlan, takeoutFiles } from "./shopTakeout";
 import { fetchPhotos } from "./takeoutPhotos";
 import { saveFile, zipStored } from "./xlsxWriter";
+import { combinedAdmin } from "./combined";
 
 /** Plan 7.18: "yes" to email marketing only for people on the newsletter now (not opted out); the owner's notes and tags. */
 async function peopleFor(orders: any[]) {
@@ -39,6 +40,12 @@ export async function buildTakeout(onStep: (step: TakeoutStep) => void = () => {
   const saved = await fetchPhotos(plan, { onProgress: (done, of) => onStep({ label: "Copying photos…", done, of }) });
   const pressName = shopNameFromSettings(settings) || "Your shop";
   const files = takeoutFiles({ pressName, books, orders, consent, notes: noteMap, pages, settings: stripPrivate(settings), photos: { plan, saved } });
+  // The combined admin's stockroom records go in too, as one file in the stockroom's own copy shape (best effort: a team
+  // member can't read them, and the rest of the download still matters).
+  if (combinedAdmin()) {
+    const stockroom = await import("./stockroom/stockroomCopies").then((m) => m.copiesIO.whole().then((w) => m.snapshotOf(w))).catch(() => null);
+    if (stockroom) files.push({ path: "stockroom/stockroom.json", content: JSON.stringify(stockroom, null, 2) });
+  }
   const summary = `${books.length} products, ${orders.length} orders${saved.size < plan.length ? `, ${saved.size} of ${plan.length} photos` : ""}`;
   return { files, pressName, summary, detail: `${books.length} products, ${orders.length} orders, ${saved.size} of ${plan.length} photos` };
 }

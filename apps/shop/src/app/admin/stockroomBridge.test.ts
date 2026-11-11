@@ -1,82 +1,74 @@
-// The combined admin's book page asks the stockroom frame for one book's figures (stockroomBridge.ts) and shows them
-// (StockroomBookPanel.tsx). Only answers from the frame, on this address, to the question asked, count.
+// Other admin pages ask the stockroom (stockroomBridge.ts): answered from the stockroom's records with its own rules
+// (stockroom/stockroomAnswers.ts), never from a hidden copy of the old stockroom app.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { FROM_ADMIN, FROM_STOCKROOM } from "./combined";
-import { answerFor, stockroomBridge } from "./stockroomBridge";
-import { channelWords, linkedStockroomBooks, money } from "./StockroomBookPanel";
 
-const ORIGIN = "https://lmb-test-shop.web.app";
+vi.mock("../../lib/firebase", () => ({ app: {}, auth: { currentUser: null }, db: {} }));
+const { stockroomBridge } = await import("./stockroomBridge");
+const { channelWords, linkedStockroomBooks, money } = await import("./StockroomBookPanel");
+import type { StockroomRecords } from "./stockroom/stockroomData";
 
-describe("answers from the stockroom", () => {
-  const frame = {};
-  const ev = (data: unknown, over: object = {}) => ({ source: frame, origin: ORIGIN, data, ...over });
-  it("takes the answer to the question asked, from the frame, on this address", () => {
-    expect(answerFor(ev({ source: FROM_STOCKROOM, type: "answer", id: "q1", result: { onHand: 3 } }), frame, ORIGIN, "q1")).toEqual({ result: { onHand: 3 } });
-    expect(answerFor(ev({ source: FROM_STOCKROOM, type: "answer", id: "q1", result: 1, failed: true }), frame, ORIGIN, "q1")).toEqual({ result: null });
-  });
-  it("ignores another question's answer, another sender or another address", () => {
-    expect(answerFor(ev({ source: FROM_STOCKROOM, type: "answer", id: "q2", result: 1 }), frame, ORIGIN, "q1")).toBeUndefined();
-    expect(answerFor(ev({ source: FROM_STOCKROOM, type: "answer", id: "q1" }, { source: {} }), frame, ORIGIN, "q1")).toBeUndefined();
-    expect(answerFor(ev({ source: FROM_STOCKROOM, type: "answer", id: "q1" }, { origin: "https://elsewhere.example" }), frame, ORIGIN, "q1")).toBeUndefined();
-    expect(answerFor(ev({ source: "someone", type: "answer", id: "q1" }), frame, ORIGIN, "q1")).toBeUndefined();
-  });
+const TODAY = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })();
+const records = (): StockroomRecords => ({
+  books: [{ id: "salt", title: "Salt Almanac", isbn: "9780000000001", currency: "CAD", maxPrint: 10 }, { id: "moth", title: "Moth Songs", currency: "CAD", maxPrint: 5 }],
+  states: {
+    salt: { stock: 7, hist: [
+      { date: TODAY, qty: 2, price: 20, chan: "Book Fair", num: "F-1", notes: "Harbour Fair", at: Date.now() },
+      { date: "2026-10-01", qty: 1, price: 20, chan: "Website", webOrderId: "W-9" },
+    ] },
+  },
+  taxCenter: null,
 });
 
 describe("asking the stockroom", () => {
-  afterEach(() => { stockroomBridge.attach(null); vi.unstubAllGlobals(); });
-  it("opens the frame when needed, waits for it, then asks and gets the answer", async () => {
-    const listeners = new Set<(e: any) => void>();
-    vi.stubGlobal("window", {
-      location: { origin: ORIGIN },
-      addEventListener: (_t: string, fn: any) => listeners.add(fn),
-      removeEventListener: (_t: string, fn: any) => listeners.delete(fn),
-      setTimeout: globalThis.setTimeout.bind(globalThis), clearTimeout: globalThis.clearTimeout.bind(globalThis),
-    });
-    const posted: any[] = [];
-    const frame = { postMessage: (m: any) => {
-      posted.push(m);
-      if (m.type === "ask") queueMicrotask(() => listeners.forEach((fn) => fn({ source: frame, origin: ORIGIN, data: { source: FROM_STOCKROOM, type: "answer", id: m.id, result: { id: m.book, onHand: 7 } } })));
-    } };
-    let needed = 0;
-    const stop = stockroomBridge.onNeed(() => { needed += 1; queueMicrotask(() => stockroomBridge.attach(frame as any)); });
-    expect(await stockroomBridge.ask({ what: "book", book: "b1" })).toEqual({ id: "b1", onHand: 7 });
-    expect(needed).toBe(1);
-    expect(posted.at(-1)).toMatchObject({ source: FROM_ADMIN, type: "ask", what: "book", book: "b1" });
-    expect(listeners.size).toBe(0);
-    stop();
+  afterEach(() => stockroomBridge.forget());
+
+  it("answers one book's figures, a book with no records yet, and a book it doesn't have", async () => {
+    const load = async () => records();
+    const salt = await stockroomBridge.ask<any>({ what: "book", book: "salt" }, { load });
+    expect(salt).toMatchObject({ id: "salt", title: "Salt Almanac" });
+    expect(await stockroomBridge.ask<any>({ what: "book", book: "moth" }, { load })).toMatchObject({ id: "moth" });
+    expect(await stockroomBridge.ask({ what: "book", book: "nope" }, { load })).toEqual({ missing: true });
   });
-  it("does not open the frame for a page the admin draws itself", () => {
-    vi.stubGlobal("window", { location: { origin: ORIGIN } });
-    const opened: Array<[string, unknown]> = [];
-    const stop = stockroomBridge.onOpen((page, extra) => opened.push([page, extra]));
-    let needed = 0;
-    const stopNeed = stockroomBridge.onNeed(() => { needed += 1; });
-    stockroomBridge.openPage("todo", { todo: "stock-low:a" });
-    expect(needed).toBe(0);
-    expect(opened).toEqual([["todo", { todo: "stock-low:a" }]]);
-    stop();
-    stopNeed();
+
+  it("finds the stockroom book that matches a website book", async () => {
+    const load = async () => records();
+    expect(await stockroomBridge.ask<any>({ what: "find", isbn: "978-0-00-000000-1" }, { load })).toEqual({ match: expect.objectContaining({ id: "salt" }) });
   });
-  it("opens the frame for a page the admin doesn't draw, asked before the admin listened", () => {
-    vi.stubGlobal("window", { location: { origin: ORIGIN } });
-    stockroomBridge.openPage("an-old-page");
-    let needed = 0;
-    const stop = stockroomBridge.onNeed(() => { needed += 1; });
-    expect(needed).toBe(1);
-    stop();
-    const again = stockroomBridge.onNeed(() => { needed += 1; });
-    expect(needed).toBe(1);
-    again();
+
+  it("lists the stockroom's own sales and leaves the website's out", async () => {
+    const answer = await stockroomBridge.ask<any>({ what: "sales" }, { load: async () => records() });
+    expect(answer.rows.map((r: any) => r.chan)).toEqual(["Book Fair"]);
   });
-  it("opens a framed stockroom page for a book once the frame is ready", () => {
-    vi.stubGlobal("window", { location: { origin: ORIGIN } });
-    const posted: any[] = [];
-    const pages: string[] = [];
-    const stop = stockroomBridge.onOpen((page) => pages.push(page));
-    stockroomBridge.openBook("an-old-page", "b1");
-    expect(pages).toEqual(["an-old-page"]);
-    stockroomBridge.attach({ postMessage: (m: any) => posted.push(m) } as any);
-    expect(posted).toEqual([{ source: FROM_ADMIN, type: "open", tab: "an-old-page", book: "b1" }]);
+
+  it("gives today at the fair from the till's sales", async () => {
+    const fair = await stockroomBridge.ask<any>({ what: "fair" }, { load: async () => records() });
+    expect(fair).toMatchObject({ day: TODAY, units: 2 });
+    expect(fair.upload).toEqual({ tone: "ok", text: "" });
+  });
+
+  it("reads the records once for questions asked together, and never keeps a failed read", async () => {
+    const load = vi.fn(async () => records());
+    await stockroomBridge.ask({ what: "sales" }, { load });
+    await stockroomBridge.ask({ what: "fair" }, { load });
+    expect(load).toHaveBeenCalledTimes(1);
+    stockroomBridge.forget();
+    const failing = vi.fn(async () => { throw new Error("offline"); });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await stockroomBridge.ask({ what: "sales" }, { load: failing })).toBeNull();
+    expect(await stockroomBridge.ask({ what: "sales" }, { load: failing })).toBeNull();
+    expect(failing).toHaveBeenCalledTimes(2);
+  });
+
+  it("says refused for a sign-in the records are kept from", async () => {
+    const refused = async () => { throw Object.assign(new Error("Missing or insufficient permissions."), { code: "permission-denied" }); };
+    expect(await stockroomBridge.ask({ what: "todo" }, { load: refused })).toEqual({ refused: true });
+  });
+
+  it("opens a stockroom page in the admin for a book", () => {
+    const pages: Array<[string, unknown]> = [];
+    const stop = stockroomBridge.onOpen((page, extra) => pages.push([page, extra]));
+    stockroomBridge.openBook("dashboard", "salt");
+    expect(pages).toEqual([["dashboard", { book: "salt" }]]);
     stop();
   });
 });

@@ -1,7 +1,7 @@
 // The stockroom pages the admin draws itself. One line per page, so pages built side by side never meet in Dashboard:
 //   <stockroom page id>: lazy(() => import("./XPage").then((m) => ({ default: m.XPage })))
-// A page listed here is drawn from the stockroom's records (stockroomData.ts); every other stockroom page still opens in
-// the old frame (StockroomFrame.tsx) until it is rebuilt. Each page gets `NativePageProps`.
+// Every page is drawn from the stockroom's records (stockroomData.ts); the old stockroom app no longer runs behind the
+// admin, so every menu page must be listed here (combined.test.ts). Each page gets `NativePageProps`.
 import { lazy, type ComponentType } from "react";
 
 /** What every native stockroom page receives from the admin shell. */

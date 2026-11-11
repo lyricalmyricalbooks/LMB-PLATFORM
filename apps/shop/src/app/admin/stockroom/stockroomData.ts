@@ -65,10 +65,16 @@ export type StockroomReads = {
   submissions?(bookId: string, inFirestore: boolean): Promise<Record<string, Record<string, unknown>> | null>;
 };
 
-function liveReads(): StockroomReads {
+/** The shop's folder in the stockroom's own database: every stockroom document lives under it. */
+export function stockroomHome(): DocumentReference {
   const place = stockroomPlace();
   const fs = place.firestoreDatabase ? getFirestore(app, place.firestoreDatabase) : getFirestore(app);
-  const home: DocumentReference = doc(fs, SHOP_FOLDER);
+  return doc(fs, SHOP_FOLDER);
+}
+
+function liveReads(): StockroomReads {
+  const place = stockroomPlace();
+  const home = stockroomHome();
   const rt = getDatabase(app, place.databaseURL);
   const root = `${SHOP_FOLDER}/lyrical`;
   const old = async (path: string) => { const snap = await get(ref(rt, `${root}/${path}`)); return snap.exists() ? snap.val()?.data : null; };
@@ -143,3 +149,33 @@ export async function loadStockroom(reads: StockroomReads = liveReads()): Promis
 
 /** What the pages call, so the admin fixture (adminFixture/main.ts) can answer with sample records. */
 export const stockroomApi = { load: () => loadStockroom() };
+
+/** Everything a stockroom copy holds (stockroomCopies.ts): the catalogue as stored, every item's records (test items
+ * too) and the settings the stockroom keeps in the cloud. Read the same way as the pages read. */
+export type StockroomWhole = {
+  catalog: Record<string, unknown>;
+  states: Record<string, Record<string, unknown>>;
+  settings: Record<string, unknown>;
+};
+export const COPIED_SETTINGS = ["taxCenter", "productionCosts", "paymentLinks", "mailingList", "customerSuppress"] as const;
+
+export async function loadStockroomWhole(reads: StockroomReads = liveReads()): Promise<StockroomWhole> {
+  const flags = await reads.flags();
+  const global = flags.fs_mode_global === true;
+  const raw = await readSetting(reads, "catalog", global);
+  const catalog = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const ids = Object.keys(catalog).filter((key) => !key.startsWith("_") && catalog[key] && typeof catalog[key] === "object");
+  const states: StockroomWhole["states"] = {};
+  const settings: StockroomWhole["settings"] = {};
+  await Promise.all([
+    ...ids.map(async (id) => {
+      const state = await readBook(reads, id, flags[`fs_mode_${id}`] === true || global);
+      if (state) states[id] = state as Record<string, unknown>;
+    }),
+    ...COPIED_SETTINGS.map(async (key) => {
+      const value = await readSetting(reads, key, global);
+      if (value != null) settings[key] = value;
+    }),
+  ]);
+  return { catalog, states, settings };
+}
