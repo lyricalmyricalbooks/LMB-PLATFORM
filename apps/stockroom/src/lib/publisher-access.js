@@ -73,7 +73,9 @@ export function shopFunctionUrl(profile, name, { emulators = false } = {}) {
   const project = profile?.firebase?.projectId;
   const region = profile?.functionsRegion;
   if (!project || !region || !/^[A-Za-z]+$/.test(String(name || ''))) return '';
-  return `https://${region}-${project}.cloudfunctions.net/${name}`;
+  // Every shop shares one server (the shared system), so the address names the shop, as the shop's own pages do.
+  const shop = typeof profile?.shopId === 'string' && profile.shopId ? `?${new URLSearchParams({ shop: profile.shopId })}` : '';
+  return `https://${region}-${project}.cloudfunctions.net/${name}${shop}`;
 }
 
 /** The shop server's "what is my role" address (it keeps the Team and puts each person's role on their pass). */

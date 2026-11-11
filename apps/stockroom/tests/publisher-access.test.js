@@ -97,6 +97,10 @@ describe('askShopForRole: a Team role added before the first sign-in', () => {
     expect(shopRoleUrl(both, { emulators: true })).toBe('');
   });
 
+  it('names the shop on the shared server, as the shop admin does', () => {
+    expect(shopRoleUrl({ ...both, shopId: 'test-press' })).toBe('https://us-central1-lmb-test-shop.cloudfunctions.net/refreshMyRole?shop=test-press');
+  });
+
   it('renews the pass and returns its claims once the server names a role', async () => {
     const user = helper({ role: 'fairHelper' });
     const fetchFn = vi.fn(async () => ({ ok: true, json: async () => ({ role: 'fairHelper', changed: true }) }));
