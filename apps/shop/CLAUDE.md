@@ -29,8 +29,8 @@ originally generated from a Figma design ("Artsy Website for Publisher").
 
 - **React 19 + TypeScript**, built with **Vite 8**.
 - **React Router 7** (`react-router`) — client-side routing in `src/app/App.tsx`.
-- **Tailwind CSS v4** (via `@tailwindcss/vite`) for styling; **shadcn/ui** +
-  **Radix UI** primitives in `src/app/components/ui/`.
+- **Tailwind CSS v4** (via `@tailwindcss/vite`) for styling. The admin's components are `src/app/admin/riso/components.tsx`;
+  the unused shadcn/ui kit (`components/ui/`), its Radix packages and recharts were removed on 11 November 2026.
 - **motion** (Framer Motion successor) for animations (MUI/Emotion were removed in October 2026: nothing imported them).
 - **Firebase 11** client SDK (`src/lib/firebaseApp.ts` app + App Check; `src/lib/firebase.ts` full Firestore + Auth;
   `src/lib/firestoreLite.ts` shopper Firestore Lite — see *Storefront bundle* below, project
@@ -61,7 +61,7 @@ src/
                             `Dashboard.tsx` owns the default Reso admin shell;
                             shared cross-page styling lives under `.admin-reso`
                             in `src/styles/theme.css`.
-    components/             MainSite, CartDrawer, shared components, ui/ (shadcn)
+    components/             MainSite, CartDrawer, shared storefront components
     features/site/          Storefront pages: BookDetail, CollectionPage,
                             Wishlist, Account, OrderTracking, Search, Reviews,
                             plus constants.ts / storeCopy.ts / types.ts
@@ -221,15 +221,13 @@ npm run logs
   `@typescript/typescript6`. react-resizable-panels 4 reads bare-number sizes as pixels (use `"24%"`). lucide-react 1
   has no brand icons (footer ones are in `features/site/socialIcons.ts`). Vitest 5 benchmarks use the test context's
   `bench`. React 19's `renderToStaticMarkup` adds `<link rel="preload">` before images (tests that scan markup strip it).
-- `figma:asset/...` imports resolve to `src/assets/` via a custom Vite plugin;
-  `ImageWithFallback` in `components/figma/` handles broken images.
+- `figma:asset/...` imports resolve to `src/assets/` via a custom Vite plugin.
 - The site lives at the root of its Firebase Hosting address, but builds can still use a sub-path (`SITE_BASE`) — be
   careful with absolute paths/links; prefer router-relative navigation and `import.meta.env.BASE_URL`.
 - Money/checkout logic is security-sensitive: never trust client-computed totals
   for the authoritative charge — the Stripe session/webhook path is the source
   of truth.
-- shadcn/ui components in `src/app/components/ui/` are generated primitives;
-  prefer composing them over hand-rolling new UI.
+- Admin UI composes `admin/riso/components.tsx` (buttons, fields, Dialog, DataTable, states); don't add a second kit.
 - Tests live next to source as `*.test.ts` (e.g. `features/site/*.test.ts`).
 
 ## Your job after every change
