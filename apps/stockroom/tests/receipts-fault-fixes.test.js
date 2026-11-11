@@ -9,17 +9,19 @@ import { uniqueZipPath } from '../src/lib/zip.js';
 import { receiptDuplicate, receiptExpense } from '../src/lib/receipt-finder.js';
 import { flushReceiptOutbox } from '../src/lib/receipt-finder-outbox.js';
 import { toLocalRef } from '../src/lib/receipt-storage.js';
+import { expenseBaseAmount } from '../src/lib/tax-ledger.js';
 
 const read = (p) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
 const receiptsSrc = read('src/features/receipts.js');
 const taxSrc = read('src/features/taxcentre.js');
+const ledgerSrc = read('src/lib/tax-ledger.js'); // the ledger is built here, shared with the shop admin's Tax Centre page
 
 // ── Tax Centre ───────────────────────────────────────────────────────────
 
 describe('trip totals value an expense the way the ledger does', () => {
   const make = (cache) => buildHarness({
     names: ['_tcExpenseBaseAmount'],
-    deps: { datedCadRate, roundCents, _fxRateCache: cache },
+    deps: { expenseBaseAmount, _fxRateCache: cache },
     returns: '_tcExpenseBaseAmount',
   });
 
@@ -41,7 +43,7 @@ describe('trip totals value an expense the way the ledger does', () => {
 
 describe('trip report applies the 50% meals limit', () => {
   it('tracks a deductible figure per trip and prints it as the deductible total', () => {
-    expect(taxSrc).toContain('deductibleAmount(cat, eBase)');
+    expect(ledgerSrc).toContain('deductibleAmount(cat, eBase)');
     expect(taxSrc).toContain('const deductibleTotal = detail.byName[name].deductible ?? total;');
     expect(taxSrc).toContain('${fmt(deductibleTotal, baseCurrency)}</div>\n      <div class="label">Total deductible spend');
     expect(taxSrc).toContain('% limit)');
@@ -50,10 +52,10 @@ describe('trip report applies the 50% meals limit', () => {
 
 describe('the missing-receipt audit ignores rows that can never have a receipt', () => {
   it('artist payout and exempt-flagged expense rows carry the exemption into the ledger', () => {
-    const payout = taxSrc.slice(taxSrc.indexOf("sourceType: 'artistPayout',\n          sourceId: bid,\n          itemId: p.id"));
-    expect(taxSrc).toMatch(/receiptExempt: true,\n\s+sourceType: 'artistPayout'/);
+    const payout = ledgerSrc.slice(ledgerSrc.indexOf("sourceType: 'artistPayout',\n          sourceId: bid,\n          itemId: p.id"));
+    expect(ledgerSrc).toMatch(/receiptExempt: true,\n\s+sourceType: 'artistPayout'/);
     expect(payout).toBeTruthy();
-    expect(taxSrc).toContain('receiptExempt: !!(e.receiptExempt || e.isRent),');
+    expect(ledgerSrc).toContain('receiptExempt: !!(e.receiptExempt || e.isRent),');
   });
 });
 

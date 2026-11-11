@@ -64,10 +64,10 @@ import { csvRow, toCsv } from '../lib/csv.js';
 import { downloadCsv } from '../lib/download.js';
 import { fmt, getSym, getBookCurrencyCode, roundCents, setSelectCurrency } from '../lib/money.js';
 import { sumMoney } from '../lib/cents.js';
-import { payoutNetted, payoutDebtCollected } from '../lib/earnings.js';
 import { reconcileConsignmentMirrors } from '../lib/consignment.js';
-import { buildCashFlowBuckets, cashFlowDelta, computeCashFlowMetrics } from '../lib/cashflow.js';
-import { saleCadAmounts, datedCadRate } from '../lib/sale-fx.js';
+import { buildCashFlowBuckets } from '../lib/cashflow.js';
+import { buildTaxLedger, cashFlowSummary, categorySummary, expenseBaseAmount, ledgerCsvRows, ledgerRowInType, ledgerRowMatchesText, tripsForYear, tripsSummary } from '../lib/tax-ledger.js';
+import { datedCadRate } from '../lib/sale-fx.js';
 import {
   DEFAULT_SNOOZE_DAYS,
   findDeductionGaps,
@@ -75,7 +75,6 @@ import {
   snoozeUntil,
 } from '../lib/deduction-gaps.js';
 import { findCategoryMismatches } from '../lib/category-fit.js';
-import { canonicalExpenseCategory } from '../lib/expense-categories.js';
 import { deductibleAmount, deductibleRate } from '../lib/deductibility.js';
 import { receiptOwners, summarizeReceiptStorage, isReceiptExemptExpense, receiptRefsOf, isWebReceiptLink, hasOnlyShippingLabels } from '../lib/receipt-storage.js';
 import { testZonosConnection } from '../lib/zonos.js';
@@ -507,8 +506,7 @@ function _tcApplyLedgerFilter(rows) {
     const r = rows[i];
 
     // Type filter
-    if (_tcLedgerType === 'sales' && !r.isIncome) continue;
-    if (_tcLedgerType === 'expenses' && r.isIncome) continue;
+    if (!ledgerRowInType(r, _tcLedgerType)) continue;
 
     // Special filter (all special filters apply to expenses only)
     if (_tcLedgerSpecialFilter) {
@@ -543,10 +541,7 @@ function _tcApplyLedgerFilter(rows) {
     }
 
     // Search text filter
-    if (q) {
-      const hay = `${r.date || ''} ${r.type || ''} ${r.desc || ''} ${r.cat || ''} ${r.ref || ''} ${r.origCurrency || ''}`.toLowerCase();
-      if (!hay.includes(q)) continue;
-    }
+    if (!ledgerRowMatchesText(r, q)) continue;
 
     out.push(r);
   }
@@ -1083,27 +1078,10 @@ function _tcRenderCategoryPanel(allLedger, baseCurrency) {
   const catBody = $('tc-category-body');
   const catFoot = $('tc-category-foot');
   if (catBody) {
-    // ⚡ Bolt: Loop Fusion. Combined filter, foreach and reduce into a single pass to eliminate intermediate arrays
-    const catSummary = {};
-    let grandTotal = 0;
-    let totalTxns = 0;
-    for (let i = 0; i < allLedger.length; i++) {
-      const ex = allLedger[i];
-      if (!ex.isIncome) {
-        const c = ex.cat || 'Uncategorized';
-        if (!catSummary[c]) catSummary[c] = { total: 0, spent: 0, rate: deductibleRate(c), count: 0, items: [] };
-        // `total` is what the CRA lets us deduct (Meals & Entertainment is
-        // capped at 50%); `spent` is what actually left the bank account.
-        const deductible = deductibleAmount(c, ex.baseAmount);
-        catSummary[c].total += deductible;
-        catSummary[c].spent += ex.baseAmount;
-        catSummary[c].count++;
-        catSummary[c].items.push(ex);
-        grandTotal += deductible;
-        totalTxns++;
-      }
-    }
-    const catList = Object.keys(catSummary).map(c => ({ name: c, ...catSummary[c] })).sort((a, b) => b.total - a.total);
+    // `total` is what the tax rules let us deduct (Meals & Entertainment is capped at 50%); `spent` is what actually left
+    // the bank account. The sums live in lib/tax-ledger.js.
+    const { list: catList, grandTotal, totalTxns } = categorySummary(allLedger);
+    const catSummary = Object.fromEntries(catList.map((c) => [c.name, c]));
 
     // Stash by index so the detail modal can read transactions without escaping issues.
     window._tcCategoryDetail = {
@@ -1241,39 +1219,12 @@ function _tcEmptyTripBucket(rec) {
  * rate or a silent 1:1.
  */
 function _tcExpenseBaseAmount(e) {
-  if (e.baseAmount != null) return e.baseAmount;
-  const eFx = datedCadRate(e.currency || 'CAD', e.date, _fxRateCache);
-  return (e.fxMissing && eFx.estimated) || eFx.missing
-    ? 0
-    : roundCents((e.amount || 0) * eFx.rate);
+  return expenseBaseAmount(e, _fxRateCache);
 }
 
 function _tcGetTripsSummaryAll() {
-  const tripSummary = {};
-  _tcTripRecords().forEach(rec => {
-    const name = (rec.name || '').trim();
-    if (!name) return;
-    tripSummary[name] = _tcEmptyTripBucket(rec);
-  });
-  (TAX_CENTER.businessExpenses || []).forEach(e => {
-    const t = (e.trip || '').trim();
-    if (!t) return;
-    const eCur = e.currency || 'CAD';
-    const eBase = _tcExpenseBaseAmount(e);
-    const cat = canonicalExpenseCategory(e.cat, 'Other');
-    if (!tripSummary[t]) {
-      tripSummary[t] = { total: 0, count: 0, latestDate: '', items: [], categories: {} };
-    }
-    tripSummary[t].total += eBase;
-    tripSummary[t].count++;
-    if (!tripSummary[t].categories[cat]) tripSummary[t].categories[cat] = 0;
-    tripSummary[t].categories[cat] += eBase;
-    if (e.date && (!tripSummary[t].latestDate || e.date > tripSummary[t].latestDate)) {
-      tripSummary[t].latestDate = e.date;
-    }
-    tripSummary[t].items.push({ ...e, baseAmount: eBase, origCurrency: eCur, origAmount: e.amount || 0 });
-  });
-  return tripSummary;
+  _tcTripRecords(); // makes sure TAX_CENTER.trips exists, as the screens expect
+  return tripsSummary(TAX_CENTER, _fxRateCache);
 }
 
 function tcRenderQuickTripChips() {
@@ -2212,43 +2163,8 @@ function _tcRenderTripsPanel(selectedYear, baseCurrency) {
   const cardsGrid = $('tc-trip-cards-grid');
   const statsBar = $('tc-trip-stats-bar');
 
-  const tripSummary = {};
-  // Declared trips show up even with zero expenses — that is the whole point of
-  // being able to create one before you have spent anything on it. A trip with
-  // dates outside the selected year is filtered out like its expenses would be.
-  _tcTripRecords().forEach(rec => {
-    const name = (rec.name || '').trim();
-    if (!name) return;
-    if (selectedYear !== 'all') {
-      const years = [rec.startDate, rec.endDate, rec.created].filter(Boolean).map(d => String(d).substring(0, 4));
-      if (years.length && !years.includes(selectedYear)) return;
-    }
-    tripSummary[name] = _tcEmptyTripBucket(rec);
-  });
-  (TAX_CENTER.businessExpenses || []).forEach(e => {
-    const eYear = e.date ? e.date.substring(0, 4) : '';
-    if (selectedYear !== 'all' && eYear !== selectedYear) return;
-    const t = (e.trip || '').trim();
-    if (!t) return;
-    const eCur = e.currency || 'CAD';
-    const eBase = _tcExpenseBaseAmount(e);
-    const cat = canonicalExpenseCategory(e.cat, 'Other');
-    if (!tripSummary[t]) tripSummary[t] = { total: 0, count: 0, items: [], categories: {}, minDate: '', maxDate: '' };
-    tripSummary[t].total += eBase;
-    tripSummary[t].count++;
-    if (!tripSummary[t].categories[cat]) tripSummary[t].categories[cat] = 0;
-    tripSummary[t].categories[cat] += eBase;
-    // The CRA limit (50% of meals) applies to the same spend; the report shows
-    // it as the deductible figure while budgets keep tracking what was spent.
-    tripSummary[t].deductible = (tripSummary[t].deductible || 0) + deductibleAmount(cat, eBase);
-
-    if (e.date) {
-      if (!tripSummary[t].minDate || e.date < tripSummary[t].minDate) tripSummary[t].minDate = e.date;
-      if (!tripSummary[t].maxDate || e.date > tripSummary[t].maxDate) tripSummary[t].maxDate = e.date;
-    }
-
-    tripSummary[t].items.push({ ...e, baseAmount: eBase, origCurrency: eCur, origAmount: e.amount || 0 });
-  });
+  _tcTripRecords(); // makes sure TAX_CENTER.trips exists, as the screens expect
+  const tripSummary = tripsForYear(TAX_CENTER, _fxRateCache, selectedYear);
 
   window._tcTripDetail = { baseCurrency, byName: tripSummary };
 
@@ -2380,224 +2296,9 @@ function _tcRenderTripsPanel(selectedYear, baseCurrency) {
   tcUpdateTripSelectedPreview();
 }
 
+// The ledger itself is built by lib/tax-ledger.js, so the admin's Tax Centre page totals the books the same way.
 function _tcBuildLedger(selectedYear) {
-  let totalGrossSales = 0;
-  let totalOperatingExpenses = 0;
-  let allLedger = [];
-
-  Object.keys(BOOKS).forEach(bid => {
-    if (bid.toLowerCase().includes('test') || BOOKS[bid]?.title?.toLowerCase()?.includes('test')) return;
-    const s = states[bid] || defaultState(BOOKS[bid]);
-    const b = BOOKS[bid];
-    const cur = getBookCurrencyCode(b);
-    // Re-derive consignment Sale mirrors from their canonical ledger rows, so a
-    // sale corrected in the Consignment tab reports its NEW amount here (and in
-    // the CSV export built from these rows) rather than the amount it was first
-    // recorded at, and so an invoice rename reaches the Receipt/Ref column.
-    reconcileConsignmentMirrors(s);
-
-    // Each sale is converted at its own date's rate (see lib/sale-fx.js), not
-    // today's, so a past year's totals don't move with the exchange rate.
-
-    // Add sales to ledger
-    // ⚡ Bolt Optimization: Use imperative loop to avoid array allocation from .filter()
-    if (s.hist && s.hist.length > 0) {
-      for (const h of s.hist) {
-        if (h.artistPending && !h.voided) continue;
-
-        const hYear = h.date ? h.date.substring(0, 4) : '';
-        if (selectedYear !== 'all' && hYear !== selectedYear) continue;
-
-        const fx = saleCadAmounts(h, cur, _fxRateCache);
-        const amt = fx.merchandise;
-        const baseAmt = fx.merchandiseCad;
-        totalGrossSales = roundCents(totalGrossSales + baseAmt);
-
-        allLedger.push({
-          date: h.date,
-          type: 'Sale',
-          desc: `${b.title} (Qty: ${h.qty || 1})`,
-          cat: 'Income',
-          ref: h.num,
-          invoiceNum: h.consignmentLink ? (h.invoiceNum || '') : '',
-          origCurrency: cur,
-          origAmount: amt,
-          baseAmount: baseAmt,
-          qty: h.qty || 1,
-          voided: !!h.voided,
-          hasRateError: fx.missing,
-          rateEstimated: fx.estimated && !fx.missing && !h.voided,
-          isIncome: true,
-          sourceType: 'sale',
-          sourceId: bid,
-          itemId: h.id || h.num
-        });
-
-        // Customer shipping is recorded in CAD whatever the book's currency.
-        const shippingIncome = h.voided ? 0 : (Number(h.shippingPaid) || 0);
-        if (shippingIncome > 0) {
-          const shippingBase = fx.shippingCad;
-          totalGrossSales = roundCents(totalGrossSales + shippingBase);
-          allLedger.push({
-            date: h.date,
-            type: 'Shipping income',
-            desc: `Customer shipping paid (${b.title})`,
-            cat: 'Income',
-            ref: h.num,
-            origCurrency: 'CAD',
-            origAmount: shippingIncome,
-            baseAmount: shippingBase,
-            qty: 0,
-            voided: false,
-            hasRateError: false,
-            isIncome: true,
-            sourceType: 'shippingIncome',
-            sourceId: bid,
-            itemId: `${h.id || h.num}-shipping-income`,
-          });
-        }
-      }
-    }
-
-    // Add book specific expenses
-    (s.expenses || []).forEach(e => {
-      const eYear = e.date ? e.date.substring(0, 4) : '';
-      if (selectedYear !== 'all' && eYear !== selectedYear) return;
-
-      // Use stored origCurrency/origAmount for display, and stored baseAmount to avoid double-conversion.
-      // Fallback for legacy entries that don't have baseAmount stored.
-      const displayOrigCur = e.origCurrency || e.currency || 'CAD';
-      const displayOrigAmt = e.origAmount != null ? e.origAmount : (e.amount || 0);
-      const bookCur = e.currency || 'CAD';
-
-      let eBase;
-      let eRateMissing = false;
-      if (e.baseAmount != null) {
-        // Pre-calculated at submission time — no double conversion
-        eBase = e.baseAmount;
-      } else {
-        // No stored CAD value: convert at the expense's own date's rate.
-        const eRate = datedCadRate(bookCur, e.date, _fxRateCache);
-        eBase = roundCents((e.amount || 0) * eRate.rate);
-        eRateMissing = eRate.missing;
-      }
-
-      totalOperatingExpenses += eBase;
-
-      allLedger.push({
-        date: e.date,
-        type: 'Expense',
-        desc: e.desc + ` (${b.title})`,
-        cat: canonicalExpenseCategory(e.cat, 'Project Expense'),
-        ref: e.shippingOrderNumber ? `${e.ref || ''} · ${e.shippingOrderNumber}` : e.ref || '',
-        receipt: e.receipt || '',
-        origCurrency: displayOrigCur,
-        origAmount: displayOrigAmt,
-        baseAmount: eBase,
-        hasRateError: eRateMissing,
-        isIncome: false,
-        sourceType: 'bookExpense',
-        sourceId: bid,
-        itemId: e.id
-      });
-    });
-
-    // Add artist payments.
-    //
-    // Sourced from `artistPayouts` — the payments the publisher actually
-    // recorded. This previously read `artistTransfers` filtered on a `paid`
-    // flag that nothing ever sets (settlement deletes the transfer instead of
-    // marking it), so no artist payout ever reached the ledger, the CSV or the
-    // "Artist Payouts" KPI, and the row edit/delete paths were unreachable.
-    // ⚡ Bolt Optimization: Use imperative loop to avoid array allocation from .filter()
-    if (s.artistPayouts && s.artistPayouts.length > 0) {
-      for (const p of s.artistPayouts) {
-        if (p.voided) continue;
-
-        const tDate = p.date || '';
-        const tYear = tDate ? tDate.substring(0, 4) : '';
-        if (selectedYear !== 'all' && tYear !== selectedYear) continue;
-
-        // `amount` is always in the book's own currency; a payout paid in
-        // another currency keeps that cash in `payment` for the audit trail.
-        const pAmount = Number(p.amount) || 0;
-        const pFx = datedCadRate(cur, tDate, _fxRateCache);
-        const pBase = roundCents(pAmount * pFx.rate);
-        allLedger.push({
-          date: tDate,
-          type: 'Expense',
-          // The ledger counts cash only; say when part of the royalty was
-          // settled by netting a debt, so a small or zero row isn't a mystery.
-          desc: p.settlement
-            ? `Author settlement (${b.title}) — earnings settled, including money retained from sales`
-            : payoutNetted(p) > 0.005
-            ? `Artist Payout (${b.title}) — plus ${fmt(payoutNetted(p), cur)} netted against money owed`
-            : `Artist Payout (${b.title})`,
-          cat: 'Artist Royalties',
-          ref: p.method || p.sourceNum || '',
-          origCurrency: cur,
-          origAmount: pAmount,
-          baseAmount: pBase,
-          hasRateError: pFx.missing,
-          rateEstimated: pFx.estimated && !pFx.missing,
-          isIncome: false,
-          // An artist payout is backed by the payment record, not a till slip.
-          receiptExempt: true,
-          sourceType: 'artistPayout',
-          sourceId: bid,
-          itemId: p.id
-        });
-        const debtCollected = payoutDebtCollected(p);
-        if (debtCollected > 0) allLedger.push({
-          date: tDate, type: 'Transfer', desc: `Author debt settled (${b.title}) — included in the combined payment; not another sale`,
-          cat: 'Debt repayment', ref: p.method || '', origCurrency: cur,
-          origAmount: debtCollected, baseAmount: roundCents(debtCollected * pFx.rate),
-          hasRateError: pFx.missing, isIncome: true, sourceType: 'artistDebtRecovery', sourceId: bid, itemId: p.id,
-        });
-      }
-    }
-  });
-
-  (TAX_CENTER.businessExpenses || []).forEach(e => {
-    const eYear = e.date ? e.date.substring(0, 4) : '';
-    if (selectedYear !== 'all' && eYear !== selectedYear) return;
-
-    const eCur = e.currency || 'CAD';
-    // Use stored baseAmount when available to avoid re-conversion. Without one,
-    // a rate already known for the expense's date gives the value; otherwise it
-    // counts as 0 and is flagged until healExpenseRates fills it in.
-    const eFx = datedCadRate(eCur, e.date, _fxRateCache);
-    const eBase = e.baseAmount != null
-      ? e.baseAmount
-      : (e.fxMissing && eFx.estimated) || eFx.missing
-        ? 0
-        : roundCents((e.amount || 0) * eFx.rate);
-
-    if (e.affectsCashFlow !== false) totalOperatingExpenses += eBase;
-
-    allLedger.push({
-      date: e.date,
-      type: 'Business Exp.',
-      desc: e.desc,
-      cat: canonicalExpenseCategory(e.cat),
-      ref: e.ref || '',
-      receipt: e.receipt || '',
-      receiptFiles: e.receiptFiles || [],
-      origCurrency: eCur,
-      origAmount: e.amount || 0,
-      baseAmount: eBase,
-      hasRateError: e.baseAmount == null && ((!!e.fxMissing && eFx.estimated) || eFx.missing),
-      isIncome: false,
-      // Inventory write-downs and the like carry this flag on the saved expense.
-      receiptExempt: !!(e.receiptExempt || e.isRent),
-      sourceType: 'businessExpense',
-      itemId: e.id,
-      trip: e.trip || '',
-      affectsCashFlow: e.affectsCashFlow !== false
-    });
-  });
-
-  return { totalGrossSales, totalOperatingExpenses, allLedger };
+  return buildTaxLedger({ books: BOOKS, states, taxCenter: TAX_CENTER, fxRateCache: _fxRateCache }, selectedYear);
 }
 
 /* ── Integration connection pills ─────────────────────────────────────────
@@ -3797,23 +3498,19 @@ function _tcRenderCashFlowSummary(ctx) {
 
   // ---- Secondary KPI metrics for the selected period ----------------------
   const sources = { books: BOOKS, states, taxCenter: TAX_CENTER, fxRateCache: _fxRateCache };
-  const cur = computeCashFlowMetrics(sources, selectedYear);
-  const artistPayouts = cur.artistPayouts;
-  const netAfterPayouts = netCashFlow - artistPayouts + (cur.artistDebtRecovered || 0) + (cur.artistSettlementCashAdjustment || 0);
-  const profitMargin = totalGrossSales > 0 ? (netCashFlow / totalGrossSales) * 100 : null;
-  const avgSale = cur.txnCount > 0 ? totalGrossSales / cur.txnCount : null;
+  const summary = cashFlowSummary(sources, selectedYear, { totalGrossSales, totalOperatingExpenses });
+  const { artistPayouts, netAfterPayouts, profitMargin, avgSale } = summary;
+  const cur = { txnCount: summary.txnCount, artistDebtRecovered: summary.artistDebtRecovered };
 
   // ---- Period-over-period deltas (single year only) -----------------------
   const salesDeltaEl = $('tc-sales-delta');
   const expDeltaEl = $('tc-expenses-delta');
   const netDeltaEl = $('tc-net-delta');
-  if (selectedYear !== 'all' && /^\d{4}$/.test(selectedYear)) {
-    const prevYear = String(Number(selectedYear) - 1);
-    const prev = computeCashFlowMetrics(sources, prevYear);
-    const prevNet = prev.grossSales - prev.operatingExpenses;
-    if (salesDeltaEl) salesDeltaEl.innerHTML = _tcDeltaChip(cashFlowDelta(cur.grossSales, prev.grossSales), prevYear, true);
-    if (expDeltaEl) expDeltaEl.innerHTML = _tcDeltaChip(cashFlowDelta(cur.operatingExpenses, prev.operatingExpenses), prevYear, false);
-    if (netDeltaEl) netDeltaEl.innerHTML = _tcDeltaChip(cashFlowDelta(netCashFlow, prevNet), prevYear, true);
+  if (summary.deltas) {
+    const prevYear = summary.prevYear;
+    if (salesDeltaEl) salesDeltaEl.innerHTML = _tcDeltaChip(summary.deltas.sales, prevYear, true);
+    if (expDeltaEl) expDeltaEl.innerHTML = _tcDeltaChip(summary.deltas.expenses, prevYear, false);
+    if (netDeltaEl) netDeltaEl.innerHTML = _tcDeltaChip(summary.deltas.net, prevYear, true);
   } else {
     if (salesDeltaEl) salesDeltaEl.innerHTML = '';
     if (expDeltaEl) expDeltaEl.innerHTML = '';
@@ -4973,21 +4670,7 @@ function downloadTaxLedgerCSV() {
 
   if (!data.length) { showToast('Nothing to export for this filter'); return; }
 
-  const rows = [['Date', 'Type', 'Description', 'Category', 'Receipt/Ref', 'Orig Currency', 'Amount (Orig)', `Amount (${baseCurrency})`]];
-  for (const r of data) {
-    // Sign the base-currency column so totals sum correctly in a spreadsheet.
-    const signedBase = (r.isIncome ? 1 : -1) * Number(r.baseAmount || 0);
-    rows.push([
-      r.date || '',
-      r.type || '',
-      r.desc || '',
-      r.cat || '',
-      [r.ref || '', r.invoiceNum ? `Invoice ${r.invoiceNum}` : ''].filter(Boolean).join(' · '),
-      r.origCurrency || '',
-      Number(r.origAmount || 0).toFixed(2),
-      signedBase.toFixed(2),
-    ]);
-  }
+  const rows = ledgerCsvRows(data, baseCurrency);
 
   // BOM + CRLF preserved: this file is opened directly in Excel, where the BOM
   // is what keeps a `·` or an accented description from arriving as mojibake.
