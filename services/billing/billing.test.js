@@ -248,4 +248,7 @@ test("the control room's payment reminder resends the failed-payment email, once
   assert.equal(failed[1].data.price, "$39.00");
   assert.match(failed[1].data.nextTry, /2027/);
   assert.ok([...registry.events.get("moth-press").values()].some((e) => e.what === "payment-reminder"));
+  assert.equal(sent.remindedAt, new Date(NOW).toISOString(), "the day it went is kept for Today and Failed payments");
+  stores.subscriptions.rows.set("moth-press", { ...stores.subscriptions.rows.get("moth-press"), access: "paused" });
+  assert.equal((await billing.remindPayment({ shopId: "moth-press" })).sent, false, "a paused plan already had its own email");
 });

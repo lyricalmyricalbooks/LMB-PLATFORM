@@ -210,7 +210,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     const { plan, status, access, trialEnd, currentPeriodEnd, hasCard } = row;
     // "Cancelled" is the press's own choice: Stripe's cancel of a pay-as-you-sell plan is the switch (paymentWayState.js).
     const { cancelling: cancelAtPeriodEnd, endsAt } = planEnding(row);
-    await registry.updateShop(shopId, { billing: { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, endsAt, hasCard, percentOff: row.founding === true ? row.foundingPercentOff ?? null : null, appsClosing: row.appsClosing ?? null, appDrops: row.appDrops ?? [], updatedAt: row.updatedAt, leaving: row.leaving ?? null, troubleSince: row.troubleSince ?? null, language: row.language ?? null, province: row.province ?? null, lastRunningCost: row.lastRunningCost ?? null } });
+    await registry.updateShop(shopId, { billing: { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, endsAt, hasCard, percentOff: row.founding === true ? row.foundingPercentOff ?? null : null, appsClosing: row.appsClosing ?? null, appDrops: row.appDrops ?? [], updatedAt: row.updatedAt, leaving: row.leaving ?? null, troubleSince: row.troubleSince ?? null, remindedAt: row.remindedAt ?? null, noBillingEmail: !row.billingEmail, language: row.language ?? null, province: row.province ?? null, lastRunningCost: row.lastRunningCost ?? null } });
   }
 
   // The shop's own platform/plan and platform/status (shopPlan.js), once its database exists.
@@ -1089,12 +1089,15 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     async remindPayment({ shopId }) {
       const row = await subscriptions.get(shopId);
       if (!row || !OWING.has(row.status)) return { sent: false, why: "Nothing is owed on this shop's plan." };
+      if (row.access === "paused") return { sent: false, why: "This shop is paused; the press already has the email to add a card." };
       if (!row.billingEmail) return { sent: false, why: "This shop has no billing email to send to." };
       const problem = row.paymentProblem ?? null;
       const kind = problem?.kind === "confirm" ? "payment-needs-confirming" : "payment-failed";
       await notify(shopId, kind, { ...(problem?.amount ? { price: problem.amount } : {}), nextTry: dateText(problem?.nextTry ?? null) }, `${shopId}/remind/${at().slice(0, 10)}`);
       await logChange(shopId, "payment-reminder", { kind });
-      return { sent: true, to: row.billingEmail, kind };
+      // Kept on the row (and its registry copy) so Today and Failed payments show when the press was last reminded.
+      const { remindedAt } = await save(shopId, { remindedAt: at() }, null);
+      return { sent: true, to: row.billingEmail, kind, remindedAt };
     },
 
     async cardExpiryReminders() {

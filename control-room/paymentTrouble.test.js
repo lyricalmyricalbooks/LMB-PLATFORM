@@ -78,3 +78,17 @@ test("POST /api/control/payment-reminder sends through billing, logs it, and say
   assert.equal(refused.status, 409);
   assert.equal(logged.length, 1);
 });
+
+test("each failed payment says whether a reminder fits, when the last one went, and when there's no billing email", () => {
+  const list = paymentTrouble([
+    shop("reminded", { status: "past_due", access: "open", troubleSince: ago(5), remindedAt: ago(1) }),
+    shop("old-reminder", { status: "past_due", access: "open", troubleSince: ago(2), remindedAt: ago(40) }),
+    shop("no-email", { status: "past_due", access: "open", troubleSince: ago(3), noBillingEmail: true }),
+    shop("paused", { status: "paused", access: "paused", troubleSince: ago(3) }),
+  ], NOW);
+  const by = Object.fromEntries(list.map((s) => [s.shopId, s]));
+  assert.equal(by.reminded.remindedAt, ago(1));
+  assert.equal(by["old-reminder"].remindedAt, null, "a reminder from an earlier problem doesn't count");
+  assert.deepEqual([by["no-email"].noBillingEmail, by["no-email"].canRemind], [true, true]);
+  assert.equal(by.paused.canRemind, false);
+});

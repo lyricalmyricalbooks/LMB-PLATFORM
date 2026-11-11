@@ -798,25 +798,40 @@ function needRow(need) {
   }
   primary.setAttribute("aria-label", `${primary.textContent}: ${title}`);
   // A failed plan payment: the reminder email is one tap away, and the shop's record moves to the second button.
-  const remind = need.kind === "payment" && need.shopId ? reminderButton(need.shopId) : null;
-  if (remind) primary.className = "rp-btn rp-btn-secondary rp-btn-sm";
+  const remind = need.kind === "payment" && need.shopId ? reminderControl(need) : null;
+  if (remind?.tagName === "BUTTON") primary.className = "rp-btn rp-btn-secondary rp-btn-sm";
+  const reminded = need.kind === "payment" && need.remindedAt && !sameDay(need.remindedAt) ? reminderWords(need.remindedAt) : "";
   const second = need.kind === "drift" ? snoozeButton(need.shopId, title, 30)
     : need.shopId && TODAY_SNOOZABLE.has(need.kind) ? needSnoozeMenu(need) : null;
   return el("div", { className: "cr-need" },
     el("span", { className: "cr-dot", dataset: { tone: DANGER_KINDS.has(need.kind) ? "bad" : "warn" }, ariaHidden: "true" }),
-    el("div", { className: "cr-need-text" }, el("p", { className: "cr-need-title", textContent: title }), why ? el("p", { className: "cr-need-why", textContent: why }) : null),
+    el("div", { className: "cr-need-text" }, el("p", { className: "cr-need-title", textContent: title }), why ? el("p", { className: "cr-need-why", textContent: reminded ? `${why} · ${reminded}` : why }) : null),
     el("div", { className: "cr-need-actions" }, remind, primary, second));
 }
 
-/** "Send reminder": emails the press the failed-payment note again (at most once a day), then says who it went to. */
-function reminderButton(shopId) {
-  const remind = button("Send reminder", "primary");
+const sameDay = (iso) => Boolean(iso) && new Date(iso).toDateString() === new Date().toDateString();
+const reminderWords = (iso) => (sameDay(iso) ? "Reminded today" : `Reminded ${dateOnly(iso)}`);
+
+/**
+ * "Send reminder" on a failed plan payment (Today and Failed payments): emails the press the failed-payment note again,
+ * at most once a day. Says when the last reminder went, and says so up front when there is no billing email to use.
+ * `item` is a Today need or a Failed payments row: { shopId, canRemind, remindedAt, noBillingEmail }.
+ */
+function reminderControl(item) {
+  if (!item.canRemind) return null;
+  if (item.noBillingEmail) return pill("warning", "No billing email");
+  const remind = button(item.remindedAt ? "Send again" : "Send reminder", "primary");
+  if (sameDay(item.remindedAt)) {
+    remind.textContent = "Reminded today";
+    remind.disabled = true;
+  }
   remind.addEventListener("click", async () => {
     remind.disabled = true;
     remind.textContent = "Sending…";
     try {
-      const { to } = await api("POST", "/control/payment-reminder", { shopId });
-      remind.textContent = "Reminder sent";
+      const { to, remindedAt } = await api("POST", "/control/payment-reminder", { shopId: item.shopId });
+      item.remindedAt = remindedAt;
+      remind.textContent = "Reminded today";
       remind.title = `Emailed ${to}`;
     } catch (failure) {
       remind.disabled = false;
@@ -2547,6 +2562,7 @@ async function loadPaymentTrouble() {
         { header: "What's wrong", render: (s) => pill(s.open ? "danger" : "warning", s.state) },
         { header: "Since", render: (s) => (s.daysSince === null ? "Not known" : `${days(s.daysSince)} (${dateOnly(s.since)})`) },
         { header: "Time left", render: (s) => (s.daysLeft === null ? "Open while the card is tried again" : `${days(s.daysLeft)}: closes ${dateOnly(s.closesAt)}`) },
+        { header: "Reminder", render: (s) => el("div", { className: "cr-remind" }, s.remindedAt && !sameDay(s.remindedAt) ? el("p", { className: "cr-meta", textContent: reminderWords(s.remindedAt) }) : null, reminderControl(s)) },
       ],
       rows: shops,
       open: (s) => { const shop = allShops.find((x) => x.shopId === s.shopId); if (shop) openShop(shop); },
