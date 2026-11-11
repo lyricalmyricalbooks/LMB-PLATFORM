@@ -26,7 +26,7 @@ async function mount(props: any) {
 describe("Get started, step 8: the final check and open (plan 17.13)", () => {
   it("names what is still missing in plain words, and does not open", async () => {
     await mount({ readiness: [item({ label: "Get paid", detail: "Connect your card account" }), item({ id: "y", label: "Shipping", status: "ok" })] });
-    expect(text()).toContain("Get started · Step 8 of 8: final check and open");
+    expect(text()).toContain("Open your shop");
     expect(text()).toContain("Still to do before you open");
     expect(text()).toContain("Get paid");
     expect(button("Open my shop")!.disabled).toBe(true);

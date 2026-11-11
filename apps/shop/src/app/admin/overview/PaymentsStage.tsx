@@ -6,7 +6,7 @@ import { LoadingState, PrimaryButton, SecondaryButton, SectionCard } from "../ri
 import { paymentsMarker, type PaymentsMarker } from "../paymentsStage";
 
 /**
- * Get started, step 5 (plan 17.10): Get paid. The press's own Stripe or Square account, connected through the platform
+ * Get started: Get paid (plan 17.10): Get paid. The press's own Stripe or Square account, connected through the platform
  * (plan 7.9): one button sends the press to that company's own secure page and back. The step ticks itself on through
  * "Continue" once cards and payouts work. "Set up later" is always there; the final check keeps the card blocker until
  * they work. No key or account ID is ever shown.
@@ -70,7 +70,7 @@ export function PaymentsStage({ provider, onDone }: {
     }
   };
 
-  const title = "Get started · Step 5 of 8: get paid";
+  const title = "Get paid";
   const description = "Shoppers pay by card, and the money goes to your own bank account, not to Colophon. Set this up before your first real order.";
 
   if (loadError) {

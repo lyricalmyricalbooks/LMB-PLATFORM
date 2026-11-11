@@ -265,7 +265,6 @@ test("the start, connected path: every stage of Get started is walked in order, 
   await stage("details", { details: { at: at() } });
   await stage("bring", { bring: { at: at(), skipped: true } }); // the press brings the shop over later
   await stage("look", { welcome: { theme: "press-zine", at: at() } });
-  await stage("google", { google: { at: at(), connected: true } });
   await stage("payments", { payments: { at: at(), ready: true } }); // Stripe says the card account is ready
   await stage("shipping", { shipping: { at: at(), skipped: true } });
   await write({ finalCheck: { at: at(), opened: false } }); // the final check is shown and ticked through

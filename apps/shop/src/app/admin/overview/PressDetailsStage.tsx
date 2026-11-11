@@ -6,7 +6,7 @@ import { friendlyError } from "../studio/friendlyError";
 import { LoadingState, PrimaryButton, SecondaryButton, SectionCard, SelectField, TextField } from "../riso/components";
 
 /**
- * Get started, step 1 of 2 (plan 17.2): the press's own details, asked once before Choose your look. Shows at the top of
+ * Get started, the first step (plan 17.2): the press's own details, asked once before Choose your look. Shows at the top of
  * the Overview for a new shop. `settings` is settings/website as the Overview read it: undefined while it loads, null
  * when it couldn't be read. `onDone` gets the time once the details are saved; the parent records it on `firstWeek`.
  */
@@ -56,7 +56,7 @@ export function PressDetailsStage({ settings, onDone, onRetrySettings }: {
   };
 
   return (
-    <SectionCard title="Get started · Step 1 of 8: your brand" description="These go on receipts, labels and your contact page. You can change them later in Settings." collapsible={false}>
+    <SectionCard title="Your brand" description="These go on receipts, labels and your contact page." collapsible={false}>
       <div style={{ display: "grid", gap: 14 }}>
         <TextField label="Brand name" value={current.name} maxLength={100} error={errors.name} placeholder="Moth Press"
           onChange={(e) => set("name", e.target.value)} />

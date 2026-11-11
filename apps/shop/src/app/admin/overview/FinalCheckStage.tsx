@@ -5,15 +5,17 @@ import type { ReadinessItem } from "../launchReadiness";
 import type { FinalCheckMarker } from "../finalCheckStage";
 
 /**
- * Get started, step 8 (plan 17.13): what is still missing, in plain words, the practice order (recommended, not required),
+ * Get started, the last step (plan 17.13): what is still missing, in plain words, the practice order (recommended, not required),
  * then Open my shop. `onOpenShop` takes the shop out of its private mode and resolves true when it has. "Finish later"
  * goes to the setup guide without recording anything, so the step comes back next time.
  */
 /** Checks the final check suggests doing first, though they never stop the shop opening. */
 const RECOMMENDED_FIRST = new Set(["sign-in"]);
 
-export function FinalCheckStage({ readiness, onOpen, onOpenShop, onDone, onFinishLater }: {
+export function FinalCheckStage({ readiness, address, onOpen, onOpenShop, onDone, onFinishLater }: {
   readiness: ReadinessItem[] | null;
+  /** The shop's web address (its free one, or a name the press connected), shown so the press knows where it opens. */
+  address?: string;
   onOpen?: (tab: string) => void;
   onOpenShop: () => Promise<boolean>;
   onDone: (finalCheck: FinalCheckMarker) => Promise<void>;
@@ -22,7 +24,7 @@ export function FinalCheckStage({ readiness, onOpen, onOpenShop, onDone, onFinis
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [isOpen, setIsOpen] = useState(false);
-  const title = "Get started · Step 8 of 8: final check and open";
+  const title = "Open your shop";
   if (readiness === null) return <SectionCard title={title} collapsible={false}><LoadingState label="Checking your shop…" /></SectionCard>;
 
   const blockers = openBlockers(readiness);
@@ -56,10 +58,10 @@ export function FinalCheckStage({ readiness, onOpen, onOpenShop, onDone, onFinis
       {blockers.length > 0 ? (
         <section aria-label="Still to do">
           <h3 className="rp-card-title" style={{ fontSize: "var(--rp-text-base)", margin: "0 0 8px" }}>Still to do before you open</h3>
-          <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 10 }}>
+          <ul className="rp-run-todo">
             {blockers.map(item => (
-              <li key={item.id} style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
-                <span><strong>{item.label}</strong>{item.detail && <span className="rp-hint"> · {item.detail}</span>}</span>
+              <li key={item.id}>
+                <span><strong>{item.label}</strong>{item.detail && <span className="rp-hint">{item.detail}</span>}</span>
                 <SecondaryButton size="sm" onClick={() => onOpen?.(item.tab)}>{item.action}</SecondaryButton>
               </li>
             ))}
@@ -72,15 +74,22 @@ export function FinalCheckStage({ readiness, onOpen, onOpenShop, onDone, onFinis
       {recommended.length > 0 && (
         <section aria-label="Recommended before you open" style={{ marginTop: 18 }}>
           <h3 className="rp-card-title" style={{ fontSize: "var(--rp-text-base)", margin: "0 0 8px" }}>Recommended before you open</h3>
-          <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 10 }}>
+          <ul className="rp-run-todo">
             {recommended.map(item => (
-              <li key={item.id} style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
-                <span><strong>{item.label}</strong>{item.detail && <span className="rp-hint"> · {item.detail}</span>}</span>
+              <li key={item.id}>
+                <span><strong>{item.label}</strong>{item.detail && <span className="rp-hint">{item.detail}</span>}</span>
                 <SecondaryButton size="sm" onClick={() => onOpen?.(item.tab)}>{item.action}</SecondaryButton>
               </li>
             ))}
           </ul>
         </section>
+      )}
+
+      {address && (
+        <div className="rp-run-fact" style={{ marginTop: 18 }}>
+          <span style={{ minWidth: 0 }}><span className="rp-run-fact-label">Your web address</span><span className="rp-mono" style={{ overflowWrap: "anywhere" }}>{address.replace(/^https?:\/\//, "")}</span></span>
+          <SecondaryButton size="sm" onClick={() => onOpen?.("general")}>Change</SecondaryButton>
+        </div>
       )}
 
       <section aria-label="Practice order" style={{ marginTop: 18 }}>

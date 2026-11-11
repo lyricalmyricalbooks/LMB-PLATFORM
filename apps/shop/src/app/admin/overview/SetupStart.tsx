@@ -12,11 +12,10 @@ import { ownBooks } from "../chooseLook";
 import { ShippingStage } from "./ShippingStage";
 import type { ShippingMarker } from "../shippingStage";
 import type { FinalCheckMarker } from "../finalCheckStage";
-import type { GoogleMarker } from "../googleStage";
 import type { PaymentsMarker } from "../paymentsStage";
 import { PaymentsStage } from "./PaymentsStage";
-import { nextRunStep } from "../startRun";
-import { GoogleStage } from "./GoogleStage";
+import { nextRunStep, runSteps } from "../startRun";
+import { RunProgress } from "./RunProgress";
 import { FinalCheckStage } from "./FinalCheckStage";
 import { ShopOpenedCard, publicAddress } from "./ShopOpenedCard";
 import { MoveProgressCard } from "./MoveProgressCard";
@@ -90,9 +89,9 @@ export function SetupStart({ books, orders, readiness, settings, onOpen, onSetWa
     await adminApi.updateFirstWeek({ done: { setupFile: at } });
     setDoc({ ...doc, done: { ...doc.done, setupFile: at } });
   };
+  // Get started's steps in order (startRun.ts): your brand, your products, the look, Get paid, shipping, open your shop.
+  const step = nextRunStep(doc, settings, platform);
   const stage = () => {
-    // Get started's steps in order (startRun.ts): your press, bring your shop, the look, Google, Get paid, shipping, the final check.
-    const step = nextRunStep(doc, settings, platform);
     if (step === "details") {
       const detailsDone = async (at: string) => {
         await adminApi.updateFirstWeek({ details: { at } });
@@ -129,16 +128,8 @@ export function SetupStart({ books, orders, readiness, settings, onOpen, onSetWa
     }
     // The steps after this read the shop's settings, so they wait for them rather than show an empty address or a wrong open state.
     if (step && settings === undefined) return <SectionCard title="Get started" collapsible={false}><LoadingState label="Opening your shop…" /></SectionCard>;
-    if (step === "google") {
-      // Step 4 (plan 17.9): Google in one sign-in; coming soon until Google approves it, and never a blocker.
-      const googleDone = async (google: GoogleMarker) => {
-        await adminApi.updateFirstWeek({ google });
-        setDoc({ ...doc, google });
-      };
-      return <GoogleStage onDone={googleDone} />;
-    }
     if (step === "payments" && platform) {
-      // Step 5 (plan 17.10): Get paid, through the press's own card account the platform connects.
+      // Plan 17.10: Get paid, through the press's own card account the platform connects.
       const paymentsDone = async (payments: PaymentsMarker) => {
         await adminApi.updateFirstWeek({ payments });
         setDoc({ ...doc, payments });
@@ -146,14 +137,14 @@ export function SetupStart({ books, orders, readiness, settings, onOpen, onSetWa
       return <PaymentsStage provider={platform} onDone={paymentsDone} />;
     }
     if (step === "shipping") {
-      // Step 6 (plan 17.11): shipping and the address.
+      // Plan 17.11: shipping. A shop that already has shipping and a full address passes it by itself.
       const shippingDone = async (shipping: ShippingMarker) => {
         await adminApi.updateFirstWeek({ shipping });
         setDoc({ ...doc, shipping });
       };
       return <ShippingStage settings={settings} onDone={shippingDone} onOpen={onOpen} />;
     }
-    // Step 8 (plan 17.13): the final check and open. "Finish later" shows the setup guide for now, without recording anything.
+    // Plan 17.13: the final check and open. "Finish later" shows the setup guide for now, without recording anything.
     if (step === "final" && !finalLater) {
       const finalDone = async (finalCheck: FinalCheckMarker) => {
         await adminApi.updateFirstWeek({ finalCheck });
@@ -165,7 +156,7 @@ export function SetupStart({ books, orders, readiness, settings, onOpen, onSetWa
         if (ok) { setOpened(true); setCelebrate(true); }
         return ok;
       };
-      return <FinalCheckStage readiness={readiness} onOpen={onOpen} onOpenShop={openNow} onDone={finalDone} onFinishLater={() => setFinalLater(true)} />;
+      return <FinalCheckStage readiness={readiness} address={publicAddress(settings)} onOpen={onOpen} onOpenShop={openNow} onDone={finalDone} onFinishLater={() => setFinalLater(true)} />;
     }
 
     const setWall = onSetWall && (async (on: boolean) => {
@@ -184,6 +175,7 @@ export function SetupStart({ books, orders, readiness, settings, onOpen, onSetWa
   return (
     <>
       {showLateFile && <KeptFileCard books={books!} kept={lateFile!} onDone={lateFileDone} />}
+      {step && !(step === "final" && finalLater) && <RunProgress step={step} steps={runSteps(platform)} />}
       {stage()}
     </>
   );

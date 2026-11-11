@@ -6,20 +6,20 @@ const step = (...ids) => ids.reduce((doc, id) => ({ ...doc, [id]: { at: "t" } })
 const started = { details: { at: "t" } };
 
 test("the run's stages come in order, and each is done by its marker", () => {
-  assert.deepEqual(START_STAGES.map((s) => s.id), ["details", "bring", "look", "google", "payments", "shipping", "final"]);
+  assert.deepEqual(START_STAGES.map((s) => s.id), ["details", "bring", "look", "payments", "shipping", "final"]);
   assert.equal(nextStartStage({ plan: "both" }), null, "no details: an older shop, no run");
   assert.equal(nextStartStage(started, { platformCards: false }), "bring");
-  assert.equal(nextStartStage(step("details", "bring", "welcome"), {}), "google");
+  assert.equal(nextStartStage(step("details", "bring", "welcome"), {}), "shipping");
 });
 
 test("Get paid is a stage only for a press whose cards go through the platform", () => {
-  const doc = step("details", "bring", "welcome", "google", "shipping");
+  const doc = step("details", "bring", "welcome", "shipping");
   assert.equal(nextStartStage(doc, { platformCards: false }), "final");
   assert.equal(nextStartStage(doc, { platformCards: true }), "payments");
 });
 
 test("a finished run, a stockroom-only plan, and an open shop have nothing to nudge", () => {
-  const done = step("details", "bring", "welcome", "google", "shipping", "finalCheck");
+  const done = step("details", "bring", "welcome", "shipping", "finalCheck");
   assert.equal(nextStartStage(done), null);
   assert.equal(nextStartStage({ ...started, plan: "stockroom" }), null);
   assert.equal(nextStartStage(started, { open: true }), null);
@@ -55,7 +55,7 @@ test("tips off, days between, and a finished run send nothing", () => {
   assert.equal(startNudgeDue({ day: 2, doc: started, record: { off: true } }).why, "tips-off");
   assert.equal(startNudgeDue({ day: 3, doc: started, record: { off: true } }).why, "tips-off");
   assert.equal(startNudgeDue({ day: 1, doc: started }).why, "not-a-nudge-day");
-  assert.equal(startNudgeDue({ day: 2, doc: step("details", "bring", "welcome", "google", "shipping", "finalCheck") }).why, "nothing-to-nudge");
+  assert.equal(startNudgeDue({ day: 2, doc: step("details", "bring", "welcome", "shipping", "finalCheck") }).why, "nothing-to-nudge");
 });
 
 test("every stage of the run has its nudge in plain words, naming no rival or technical term", () => {

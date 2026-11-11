@@ -38,7 +38,7 @@ export function BringShopStage({ books, onDone, kept = null }: { books: any[] | 
 
   if (books === null) {
     return (
-      <SectionCard title="Get started · Step 2 of 8: bring your shop with you" collapsible={false}>
+      <SectionCard title="Bring your products" collapsible={false}>
         <LoadingState label="Opening your shop…" />
       </SectionCard>
     );
@@ -46,7 +46,7 @@ export function BringShopStage({ books, onDone, kept = null }: { books: any[] | 
 
   return (
     <>
-      <SectionCard title="Get started · Step 2 of 8: bring your shop with you" description="Optional. If you already sell somewhere, bring your products across so your shop starts full. Starting fresh is fine too." collapsible={false}>
+      <SectionCard title="Bring your products" description="Already selling somewhere? Bring your products across so your shop starts full. Starting fresh is fine too." collapsible={false}>
         {kept && imported === null && (
           <div data-kept-file style={{ display: "grid", gap: 10, padding: 16, marginBottom: 20, background: "var(--rp-primary-tint)", border: "var(--rp-hair, 1px) solid var(--rp-primary)" }}>
             <strong>Your file from setup is here</strong>

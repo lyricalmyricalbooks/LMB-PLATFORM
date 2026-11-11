@@ -26,10 +26,11 @@ async function mount(settings: any, onDone = vi.fn(async () => {})) {
   return onDone;
 }
 
-describe("Get started, step 6: shipping and your address (plan 17.11)", () => {
+describe("Get started: shipping (plan 17.11)", () => {
   it("a Canadian press sees its ship-from address, Canada's starter and the starter's prices", async () => {
     await mount({ location: complete });
-    expect(text()).toContain("Get started · Step 6 of 8: shipping and your address");
+    expect(text()).toContain("Shipping");
+    expect(text()).toContain("Ships from");
     expect(text()).toContain("12 Queen Street, Toronto, ON, M5H 2N2, Canada");
     expect((document.querySelector("select") as HTMLSelectElement).value).toBe("world");
     expect(text()).toContain("Canada: $8.00 for the first one, $3.00 for each extra one");
@@ -62,14 +63,30 @@ describe("Get started, step 6: shipping and your address (plan 17.11)", () => {
     expect(values).not.toContain("blank");
   });
 
-  it("a shop that already has shipping makes nothing new, and the step is recorded as skipped", async () => {
+  it("a shop that already has shipping and its address passes the step by itself, making nothing new", async () => {
     api.getShippingProfiles.mockResolvedValueOnce([{ id: "old", name: "Standard" }]);
     const onDone = await mount({ location: complete });
-    expect(text()).toContain("Your shop already has shipping, so nothing new is added.");
+    expect(text()).not.toContain("nothing new is added");
+    expect(api.createShippingProfile).not.toHaveBeenCalled();
+    expect(onDone).toHaveBeenCalledTimes(1);
+    expect(onDone).toHaveBeenCalledWith({ at: expect.any(String), skipped: true });
+  });
+
+  it("if passing by itself can't be saved, the step shows with Continue and a plain message", async () => {
+    api.getShippingProfiles.mockResolvedValueOnce([{ id: "old", name: "Standard" }]);
+    const onDone = vi.fn().mockRejectedValueOnce(new Error("offline")).mockResolvedValue(undefined);
+    await mount({ location: complete }, onDone);
+    expect(document.querySelector("[role=alert]")).not.toBeNull();
     await act(async () => { button("Continue")!.click(); });
     await flush();
-    expect(api.createShippingProfile).not.toHaveBeenCalled();
-    expect(onDone).toHaveBeenCalledWith({ at: expect.any(String), skipped: true });
+    expect(onDone).toHaveBeenCalledTimes(2);
+  });
+
+  it("a shop with shipping but no full address still asks for the address", async () => {
+    api.getShippingProfiles.mockResolvedValueOnce([{ id: "old", name: "Standard" }]);
+    const onDone = await mount({ location: { ...complete, street: "" } });
+    expect(text()).toContain("Add the street address your orders ship from.");
+    expect(onDone).not.toHaveBeenCalled();
   });
 
   it("a country that needs its shipping by hand makes nothing and says so", async () => {

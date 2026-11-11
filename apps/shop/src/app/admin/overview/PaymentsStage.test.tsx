@@ -29,7 +29,7 @@ async function mount(provider: "stripe" | "square", status: any, onDone = vi.fn(
 describe("Get started, step 5: Get paid (plan 17.10)", () => {
   it("a Stripe press that hasn't connected sees one Continue with Stripe button and can set it up later", async () => {
     const onDone = await mount("stripe", { provider: "stripe", detailsSubmitted: false, chargesEnabled: false, payoutsEnabled: false, platformFee: fee });
-    expect(text()).toContain("Get started · Step 5 of 8: get paid");
+    expect(text()).toContain("Get paid");
     expect(text()).toContain("Stripe isn't connected yet");
     expect(button("Continue with Stripe")).toBeTruthy();
     await act(async () => { button("Set up later")!.click(); });
