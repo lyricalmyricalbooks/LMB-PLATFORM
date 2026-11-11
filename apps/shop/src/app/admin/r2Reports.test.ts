@@ -171,11 +171,9 @@ describe("#33/#81/#85 source guards", () => {
     expect(dash).toContain("const data = peekOrders();");
     expect(read("Orders.tsx")).toContain("noteLoadedOrders(data)");
   });
-  it("Discounts and Reviews read orders through the shared copy", () => {
-    for (const f of ["Discounts.tsx", "ReviewsModeration.tsx"]) {
-      expect(read(f)).toContain("getOrdersCached()");
-      expect(read(f)).not.toContain("adminApi.getAllOrders()");
-    }
+  it("Reviews reads orders through the shared copy, and Discounts (a plain list since the redesign) reads none", () => {
+    expect(read("ReviewsModeration.tsx")).toContain("getOrdersCached()");
+    for (const f of ["Discounts.tsx", "ReviewsModeration.tsx"]) expect(read(f)).not.toContain("adminApi.getAllOrders()");
   });
   it("an order changed on its own page also updates the shared copy", () => {
     expect(read("Orders.tsx")).toContain("patchCachedOrder(order)");
