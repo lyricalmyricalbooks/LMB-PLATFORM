@@ -26,6 +26,7 @@ import { StockValueCard } from "./StockValueCard";
 import { TripsCard, type TripRow } from "./TripsCard";
 import { isEditableLine } from "./taxLedger";
 import type { SaveNote } from "./saveTaxCenter";
+import { GapsCard } from "./GapsCard";
 import { filterLedger, ledgerCsvFile, ledgerTotals, LEDGER_PAGE_SIZE, sourcesOf, taxCenterModel, type LedgerFilter } from "./moneyReports";
 import { stockroomApi, type StockroomRecords } from "./stockroomData";
 import "./stockroom.css";
@@ -168,19 +169,8 @@ export function TaxCenterView({ records, now, onTaxCenter, onState, orders: give
       </SectionCard>
       )}
 
-      <SectionCard title="Costs that may be missing" description="Gaps in your own records, not tax advice." flush={!model.gaps.gaps.length}>
-        {model.gaps.gaps.length === 0
-          ? <EmptyState inline title="Nothing obviously missing" description="Checked again each time you open this page." />
-          : <ul className="rp-money-gaps">
-              {model.gaps.gaps.map((g) => (
-                <li key={g.id}>
-                  <strong>{g.title}</strong> <StatusBadge glyph={false}>{g.category}</StatusBadge>
-                  {g.estimate != null && <span className="rp-money-sub"> about {money(g.estimate)}</span>}
-                  <p>{g.detail}</p>
-                </li>
-              ))}
-            </ul>}
-      </SectionCard>
+      <GapsCard gaps={model.gaps.gaps} hidden={model.gaps.hidden} books={sources.books} states={sources.states}
+        taxCenter={records.taxCenter as Record<string, any> | null} today={new Date(nowMs).toLocaleDateString("en-CA")} money={money} onSaved={onTaxCenter} />
 
       <SectionCard title="Ledger" actions={<SecondaryButton onClick={download} disabled={!shown.length}>Download spreadsheet</SecondaryButton>} flush>
         <div className="rp-money-pad">
