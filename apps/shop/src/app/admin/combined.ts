@@ -19,8 +19,13 @@ export const STOCKROOM_ITEM_PREFIX = "stockroom/";
 export const STOCKROOM_FRAME_PATH = "/stockroom/app";
 /** The combined admin's own page with every sale in one list (Orders › All sales, AllSales.tsx): `#sales`. */
 export const SALES_TAB = "sales";
+/** Stock › Reorder list (ReorderList.tsx): products about to run out, `#reorder`. */
+export const REORDER_TAB = "reorder";
+/** The combined admin's own pages (not stockroom pages, not in the website-only admin). */
+export const isCombinedTab = (tab: string) => tab === SALES_TAB || tab === REORDER_TAB;
 /** Pages only the combined admin has, besides the stockroom's: menu id, label and the line under the title. */
 export const COMBINED_PAGES: StockroomPage[] = [
+  { id: REORDER_TAB, label: "Reorder list", description: "Products about to run out, most urgent first, with how many to order." },
   { id: SALES_TAB, label: "All sales", description: "Every sale in one list: website orders, fairs, stockists, invoices and ones entered by hand." },
 ];
 

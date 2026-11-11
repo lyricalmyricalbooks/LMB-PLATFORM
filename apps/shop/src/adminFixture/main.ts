@@ -21,6 +21,70 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
   submissions: { "night-songs": { sales: { s1: true }, expenses: { e1: true, e2: true } } },
 });
 
+// --- Stockroom money pages (Tax centre, Expenses, Ask about your sales): sample records, only for those pages ---
+if (/page=stockroom(\/|%2F)(taxcenter|expenses|intel)/.test(window.location.search) && !EMPTY_STOCKROOM) {
+  stockroomApi.load = async (): Promise<StockroomRecords> => ({
+    books: [
+      { id: "salt-hours", title: "Salt Hours", author: "Ada Example", currency: "CA$", maxPrint: 200, threshold: 10, listPrice: 20 },
+      { id: "night-songs", title: "Night Songs", author: "Ben Example", currency: "€", maxPrint: 150, threshold: 10, listPrice: 18 },
+    ],
+    states: {
+      "salt-hours": {
+        hist: [
+          { id: 1, date: "2026-03-04", num: "A1", qty: 2, price: 20, chan: "Direct", shippingPaid: 6 },
+          { id: 2, date: "2025-11-02", num: "A0", qty: 1, price: 20, chan: "Website" },
+          { id: 3, date: "2026-05-01", num: "V1", qty: 1, price: 20, chan: "Direct", voided: true },
+          { id: 4, date: "2026-06-12", num: "A2", qty: 4, price: 20, chan: "Book fair" },
+        ],
+        expenses: [
+          { id: 11, date: "2026-02-10", desc: "Print run", cat: "Printing", amount: 300, currency: "CAD", baseAmount: 300, receipt: "cloud://receipts/print-run.pdf" },
+          { id: 12, date: "2026-04-01", desc: "Freight to warehouse", cat: "Shipping & Postage", amount: 64.5, currency: "CAD", baseAmount: 64.5 },
+        ],
+        artistPayouts: [{ id: 21, date: "2026-07-01", amount: 50, method: "e-transfer" }],
+      },
+      "night-songs": {
+        hist: [{ id: 5, date: "2026-03-09", num: "B1", qty: 3, price: 10, chan: "Direct" }],
+        expenses: [{ id: 13, date: "2026-03-15", desc: "Cover design", cat: "Design", amount: 120, currency: "EUR", received: false }],
+      },
+    },
+    taxCenter: {
+      settings: { baseCurrency: "CAD", rates: { EUR_CAD: 1.5, USD_CAD: 1.35 } },
+      trips: [{ name: "Toronto Book Fair", destination: "Toronto", startDate: "2026-06-11", endDate: "2026-06-13" }],
+      businessExpenses: [
+        { id: 31, date: "2026-06-11", desc: "Booth fee", cat: "Booths & Fairs", amount: 250, currency: "CAD", baseAmount: 250, trip: "Toronto Book Fair", receipt: "cloud://receipts/booth.pdf" },
+        { id: 32, date: "2026-06-12", desc: "Team lunch", cat: "Meals & Entertainment", amount: 80, currency: "CAD", baseAmount: 80, trip: "Toronto Book Fair" },
+        { id: 33, date: "2026-08-02", desc: "Mailing supplies", cat: "Supplies", amount: 40, currency: "USD", baseAmount: 54 },
+        { id: 34, date: "2025-09-09", desc: "Website hosting", cat: "Software", amount: 20, currency: "CAD", baseAmount: 20 },
+      ],
+      recurring: [{ id: "r1", desc: "Website hosting", vendor: "Host Example", cat: "Software", amount: 20, currency: "CAD", frequency: "monthly", startDate: "2026-01-01", day: 1 }],
+    },
+  });
+}
+// --- end of the stockroom money pages block ---
+// ── Stockroom › Stock and sales fixture (only for ?page=stockroom/dashboard): four items, one with a stale saved count,
+// a voided sale, a store holding copies, a write-off and a held artist payment; one sold out.
+if (new URLSearchParams(window.location.search).get("page") === "stockroom/dashboard" && !EMPTY_STOCKROOM) {
+  stockroomApi.load = async (): Promise<StockroomRecords> => ({
+    books: [
+      { id: "salt-hours", title: "Salt Hours", author: "Ada Example", maxPrint: 200, threshold: 10, listPrice: 20, currency: "$" },
+      { id: "night-songs", title: "Night Songs", author: "Ben Example", maxPrint: 150, threshold: 10, listPrice: 18, currency: "$" },
+      { id: "tide-tables", title: "Tide Tables", author: "Cleo Example", maxPrint: 60, threshold: 8, listPrice: 12, currency: "€" },
+      { id: "last-light", title: "Last Light", author: "Dev Example", maxPrint: 40, threshold: 5, listPrice: 25, currency: "$" },
+    ],
+    states: {
+      "salt-hours": { stock: 999, hist: [{ id: 1, qty: 120, price: 20, chan: "Website", date: "2026-10-01" }, { id: 2, qty: 5, price: 20, chan: "Fair", date: "2026-10-04" }, { id: 3, qty: 9, price: 20, chan: "Website", voided: true }], ledger: [], stores: [] },
+      "night-songs": {
+        hist: [{ id: 1, qty: 40, price: 18, chan: "Website", date: "2026-10-02" }, { id: 2, qty: 6, price: 18, chan: "Consignment", consignmentLink: true, notes: "Corner Books", date: "2026-10-09" }],
+        ledger: [{ id: "s1", type: "Shipment", storeId: "st1", storeName: "Corner Books", qty: 30, date: "2026-10-05" }, { id: "s2", type: "Sale", storeId: "st1", storeName: "Corner Books", qty: 6, amountDue: 108, date: "2026-10-09" }, { id: "w1", type: "Inventory Disposal", qty: 4, date: "2026-10-11", status: "written off" }],
+        stores: [{ id: "st1", name: "Corner Books", sent: 0, sold: 0, returned: 0, outstanding: 0 }],
+      },
+      "tide-tables": { authorStock: 10, hist: [{ id: 1, qty: 38, price: 12, chan: "Website" }, { id: 2, qty: 2, price: 0, chan: "Gift", gratuity: true }], artistTransfers: [{ chan: "Fair", qty: 4, price: 12, total: 48 }], ledger: [], stores: [] },
+      "last-light": { hist: [{ id: 1, qty: 40, price: 25, chan: "Website" }], ledger: [], stores: [] },
+    },
+    taxCenter: null,
+  });
+}
+
 // ── Stockroom › Sales records + Customers sample (sales worker): a third title with real-shaped sales (order number,
 // channel, price, date, email), a voided one, a gift, one recorded in US dollars, a consignment shipment, repeat buyers,
 // and enough rows to page. Added on top of whatever the block above loaded.
@@ -198,6 +262,39 @@ inventoryLinkApi.linkNewBook = async (bookId: string, inventoryBookId: string) =
 };
 (window as any).__adminFixture = { orders: ORDERS };
 
+// ── Stockroom › Shipping › Buy label (block of the labels-from-shipping page): two waiting rows are website orders here,
+// WEB-1041 ready for a label and WEB-1042 not packed yet. Rates and the purchase are fakes recorded in
+// `window.__adminFixture.labelCalls`; nothing reaches a carrier.
+{
+  const api = adminApi as any;
+  const labelCalls: any[] = ((window as any).__adminFixture.labelCalls = []);
+  const shipOrder = (id: string, name: string, packed: boolean) => {
+    const o: any = {
+      id, orderId: id, status: "paid", paymentStatus: "paid", fulfillmentStatus: "unfulfilled", shippingMethod: "Canada Post Expedited Parcel", shipping: 14,
+      createdAt: new Date(Date.now() - 9 * 86_400_000).toISOString(), currency: "CAD", total: 34, subtotal: 20,
+      customer: { name, email: "buyer@example.com", address: { street: "1 Example St", city: "Toronto", state: "ON", zip: "M5V 1A1", country: "CA" } },
+      items: [{ id: "salt-hours", title: "Salt Hours", quantity: 1, price: 20, weightGrams: 400 }],
+    };
+    o.operations = { addressReviewed: addressKey(o), packed: packed ? JSON.stringify(o.items.map((i: any) => [i.id, "", i.quantity])) : "" };
+    return o;
+  };
+  const shipOrders: Record<string, any> = { "WEB-1041": shipOrder("WEB-1041", "Customer WEB-1041", true), "WEB-1042": shipOrder("WEB-1042", "Customer WEB-1042", false) };
+  const before = api.getOrderById;
+  api.getOrderById = async (id: string) => shipOrders[id] ?? before(id);
+  api.getCanadaPostLabelRates = async (orderId: string, parcel: any) => {
+    labelCalls.push(["rates", orderId, parcel]);
+    return { shipmentId: "shp_fixture", rates: [
+      { id: "rate_exp", name: "Expedited Parcel", carrier: "Canada Post", amount: "12.40", currency: "CAD", estimatedDays: 2 },
+      { id: "rate_reg", name: "Regular Parcel", carrier: "Canada Post", amount: "10.15", currency: "CAD", estimatedDays: 5 },
+    ] };
+  };
+  api.buyCanadaPostLabel = async (orderId: string, shipmentId: string, rateId: string) => {
+    labelCalls.push(["buy", orderId, shipmentId, rateId]);
+    shipOrders[orderId] = { ...shipOrders[orderId], labelUrl: "https://labels.example/fixture.pdf", trackingNumber: "7023110000999" };
+    return {};
+  };
+}
+
 // ?move=1 (scripts/move-check.mjs): a press that brought its shop with it and finished Get started, so the Overview shows
 // Your move so far. Its firstWeek/start lives here in memory, with the calls each bring-over window makes recorded in
 // `window.__adminFixture.calls`; the shop's server (oldShopApi's actions) is answered by the check's own page.route.
@@ -319,6 +416,20 @@ if (gstate) {
     { id: "r1", app: "Mailchimp", what: "Took away 2 of moth-songs", when: "2026-11-04T11:40:00Z", state: "done", reason: "" },
   ];
 }
+
+// ── Stock › Reorder list sample (reorder worker): one title selling fast with copies left (`?page=reorder`).
+{
+  const base = stockroomApi.load;
+  stockroomApi.load = async () => {
+    const r = await base();
+    if (!r.books.length) return r;
+    const ago = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
+    r.books = [...r.books, { id: "ink-maps", title: "Ink Maps", author: "Dee Example", maxPrint: 120, threshold: 8, listPrice: 24, currency: "CAD" }];
+    r.states["ink-maps"] = { hist: [{ num: "R-1", chan: "Website", qty: 60, price: 24, date: ago(40) }, ...[2, 6, 11, 15, 22].map((n, i) => ({ num: `R-${i + 2}`, chan: "Book Fair", qty: 6, price: 24, date: ago(n) }))] };
+    return r;
+  };
+}
+// ── end Reorder list sample
 
 const params = new URLSearchParams(location.search);
 const page = params.get("page") || "";

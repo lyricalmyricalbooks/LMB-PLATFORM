@@ -418,3 +418,66 @@ export function storeBalanceComparison(store, tallies) {
     { key: 'outstanding', label: 'Still on their shelf', card: num(st.outstanding), ledger: num(t.outstanding) },
   ].map(r => ({ ...r, off: r.card !== r.ledger }));
 }
+
+// Keep the "Consignment" line in Sales by channel honest by deriving it from
+// the consignment ledger — the canonical record of each sale — instead of
+// trusting the running chStats counter. That counter can drift out of sync
+// with the per-store tallies (older entries, partial updates, a sale recorded
+// before this channel was tracked), which is exactly how a store can show
+// "Sold 6" while the channel still reads 0. Rebuilding from the ledger makes
+// the figure self-healing on every load and after any void/unvoid.
+export function reconcileConsignmentChannel(s) {
+  if (!s || !Array.isArray(s.hist)) return;
+
+  let txns = 0, units = 0, revenue = 0;
+  for (const h of s.hist) {
+    if (h.consignmentLink && !h.voided) {
+      txns++;
+      units += (h.qty || 0);
+      revenue += (h.qty || 0) * (h.price || 0);
+    }
+  }
+
+  if (txns > 0) {
+    s.chStats = s.chStats || {};
+    s.chStats['Consignment'] = { txns, units, revenue };
+  } else if (s.chStats && s.chStats['Consignment']) {
+    // No live consignment sales on record — drop a stale all-zero line so it
+    // doesn't linger as a confusing "Consignment  0  0  $0.00" row. A non-zero
+    // legacy figure is left alone.
+    const c = s.chStats['Consignment'];
+    if (!(c.txns || c.units || c.revenue)) delete s.chStats['Consignment'];
+  }
+}
+
+export function reconcileStores(s) {
+  if (!s || !Array.isArray(s.stores) || !Array.isArray(s.ledger)) return;
+  // The ledger is the source of truth for consignment movement. Each store's
+  // running counters (sent/sold/returned/outstanding) are nudged per action,
+  // so they can drift out of sync after an offline merge, an interrupted save,
+  // or a void/unvoid that touched one counter but not another. The classic
+  // symptom is a phantom "outstanding" that doesn't match sent − sold − returned
+  // (e.g. 6 sent, 6 sold, but 1 outstanding). Rebuild the unit counters from the
+  // non-voided ledger so they always reconcile. amountOwed is left untouched —
+  // payments are settled separately, not purely from these ledger rows.
+  const tally = new Map(); // storeId -> {sent, sold, returned}
+  for (const e of s.ledger) {
+    if (e.voided || e.storeId == null) continue;
+    let t = tally.get(e.storeId);
+    if (!t) { t = { sent: 0, sold: 0, returned: 0 }; tally.set(e.storeId, t); }
+    const qty = e.qty || 0;
+    if (e.type === 'Shipment') t.sent += qty;
+    else if (e.type === 'Sale') t.sold += qty;
+    else if (e.type === 'Return') t.returned += qty;
+  }
+  for (const st of s.stores) {
+    const t = tally.get(st.id);
+    // Skip stores with no ledger history (e.g. legacy data) so we never wipe
+    // counters we can't rebuild from events.
+    if (!t) continue;
+    st.sent = t.sent;
+    st.sold = t.sold;
+    st.returned = t.returned;
+    st.outstanding = Math.max(0, t.sent - t.sold - t.returned);
+  }
+}
