@@ -221,7 +221,7 @@ if (/page=stockroom(\/|%2F)pos/.test(window.location.search) && !EMPTY_STOCKROOM
     if (EMPTY_STOCKROOM) return base();
     const records = await base();
     const fresh = await loadStockroom((await ready()).device());
-    return { ...records, states: { ...records.states, ...fresh.states } };
+    return { ...records, states: { ...records.states, ...fresh.states }, invoiceSettings: fresh.invoiceSettings ?? records.invoiceSettings ?? null };
   };
   const writer = async () => createStockroomWriter((await ready()).device({ offline }));
   stockroomWriteApi.saveBookState = async (bookId, mutate) => (await writer()).saveBookState(bookId, mutate);
