@@ -1,5 +1,5 @@
 // Books › Google indexing: which public book pages Google has in its index (functions/searchConsole.js op "inspect",
-// Google's URL Inspection API). Pure helpers; the dialog is GoogleIndexDialog.tsx.
+// Google's URL Inspection API). Pure helpers; the Books page no longer draws a dialog for it (redesign, 11 November 2026).
 import { isLiveBook } from "../features/site/liveBook";
 import { resolveProductRoutes } from "../features/site/productRoutes";
 import type { BadgeTone } from "./riso/components";

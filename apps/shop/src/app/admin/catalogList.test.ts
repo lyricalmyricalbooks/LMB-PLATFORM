@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bookAuthor, bookReferences, duplicateBookData, inlineEditable, matchesStatus, matchesStock, priceInfo, publicationBadge, sharedIsbns, stockInfo } from "./catalogList";
+import { bookAuthor, bookTiles, listStatus, bookReferences, duplicateBookData, inlineEditable, matchesStatus, matchesStock, priceInfo, publicationBadge, sharedIsbns, stockInfo } from "./catalogList";
 import { inventoryCsv, planPriceChange } from "./bulkPricing";
 
 describe("catalog list rows", () => {
@@ -64,5 +64,19 @@ describe("bulk price change", () => {
   });
   it("exports an inventory file per edition", () => {
     expect(inventoryCsv([{ id: "b", title: "T", trackInventory: true, variants: [{ name: "HC", stock: 3 }] }])).toContain(`"HC","3"`);
+  });
+});
+
+describe("the Books list (redesign to the mockup)", () => {
+  const live = (extra: any = {}) => ({ status: "published", trackInventory: true, stockLevel: 20, ...extra });
+  it("names each book's status in the mockup's words", () => {
+    expect(listStatus(live(), stockInfo(live())).text).toBe("Live");
+    expect(listStatus(live({ stockLevel: 0 }), stockInfo(live({ stockLevel: 0 }))).text).toBe("Sold out");
+    expect(listStatus({ status: "draft" }, stockInfo({ status: "draft" })).text).toBe("Draft");
+    expect(listStatus({ status: "archived" }, stockInfo({ status: "archived" })).text).toBe("Archived");
+  });
+  it("counts the four tiles from published books only for low and sold out", () => {
+    const books = [live(), live({ stockLevel: 2 }), live({ stockLevel: 0 }), { status: "draft", trackInventory: true, stockLevel: 0 }];
+    expect(bookTiles(books, (b) => stockInfo(b))).toEqual({ books: 4, online: 3, low: 1, soldOut: 1 });
   });
 });
