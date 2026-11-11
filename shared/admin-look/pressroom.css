@@ -2245,3 +2245,21 @@ div.rp-listcard-main { cursor: default; }
 .rp .rp-fair-toggle:hover { opacity: .9; }
 .rp .rp-fair-toggle:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
 @media (pointer: coarse) { .rp .rp-fair-toggle { min-height: 44px; } }
+
+/* Phone bottom menu and More page (v3 mockups, 11 Nov 2026): phones only. */
+.rp .rp-bottom-nav, .rp .rp-more-page { display: none; }
+@media (max-width: 767px) {
+  .rp .rp-bottom-nav { display: flex; gap: 2px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); background: var(--rp-surface); border-top: 1px solid var(--rp-border); }
+  .rp .rp-bottom-pill { flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 0 8px; white-space: nowrap; border: 0; border-radius: 999px; background: transparent; color: var(--rp-text); font: 600 13px/1 var(--rp-font-body); display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; }
+  .rp .rp-bottom-pill[aria-current="page"] { background: var(--rp-text); color: var(--rp-surface); }
+  .rp .rp-bottom-pill:focus-visible, .rp .rp-more-card:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+  .rp .rp-bottom-badge { min-width: 18px; padding: 0 5px; border-radius: 999px; background: var(--rp-tile-mint); color: var(--rp-on-tile); font-size: 11px; line-height: 18px; }
+  .rp .rp-more-page { display: block; position: fixed; inset: 0 0 calc(61px + env(safe-area-inset-bottom)) 0; z-index: 39; overflow-y: auto; padding: 20px 16px; background: var(--rp-canvas); }
+  .rp .rp-more-title { margin: 0 0 14px; font-size: 24px; font-weight: 600; }
+  .rp .rp-more-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .rp .rp-more-card { width: 100%; min-height: 44px; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 16px 18px; border: 1px solid var(--rp-border); border-radius: 18px; background: var(--rp-surface); color: var(--rp-text); text-align: left; cursor: pointer; }
+  .rp .rp-more-card[aria-current="page"] { border-color: var(--rp-text); }
+  .rp .rp-more-label { font-size: 15px; font-weight: 600; }
+  .rp .rp-more-sub { font-size: 13px; color: var(--rp-text-muted); }
+  .rp .rp-workspace { padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
+}

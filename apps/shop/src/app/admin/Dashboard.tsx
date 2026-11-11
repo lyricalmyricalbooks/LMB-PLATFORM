@@ -49,6 +49,7 @@ import { adminWordsFor, currentSells } from "./sells";
 import { SELLS_CHANGED_EVENT, ShopSellsContext, ShopWordsContext } from "./shopWords";
 import { COMBINED_MENU, FAIR_MENU, MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, itemSections, menuItemFor, sideMenu, sideOf, sidebarItems, withoutPages } from "./riso/nav";
 import { FairCard, SideSwitch, rememberFair, rememberSide, rememberedFair, rememberedSide } from "./SideSwitch";
+import { PhoneNav } from "./PhoneNav";
 import { useStockroomTodos } from "./overview/StockroomTodos";
 import { COMBINED_PAGES, DEFAULT_STOCKROOM_PAGE, REORDER_TAB, SALES_TAB, isCombinedTab, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
 import { keepAdminOffline } from "./adminOffline";
@@ -1013,6 +1014,9 @@ export function Dashboard() {
           </div>
           </div>
         </div>
+        {!showEditor && <PhoneNav items={railItems} activeId={activeItemId} onPick={(id) => { const it = railItems.find((n) => n.id === id); void openMenuPage(it?.children?.[0]?.id ?? id); }}
+          fairMode={fairMode} onFair={COMBINED ? () => setFair(!fairMode) : undefined} onHelp={() => setHelpOpen(true)}
+          night={adminTheme === "dark"} onNight={toggleTheme} />}
       </AppShell>
 
       {COMBINED && <CombinedTour open={tourOpen} onClose={() => setTourOpen(false)} onGo={tourGo} appearance={appearance} />}
