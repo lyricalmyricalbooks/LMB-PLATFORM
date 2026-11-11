@@ -8,7 +8,7 @@ import { DEFAULT_STOCKROOM_PAGE, REORDER_TAB, SALES_TAB, STOCKROOM_TAB, combined
 
 export type AdminRoute = { tab: string; settingsTab?: string; orderId?: string; giftCardId?: string; subTab?: string; bookId?: string };
 
-export const ADMIN_TABS = ["overview", "analytics", "orders", "customers", "inventory", "catalog", "discounts", "giftCards", "reviews", "messages", "channels", "socialPosts", "settings"] as const;
+export const ADMIN_TABS = ["overview", "analytics", "orders", "customers", "inventory", "catalog", "discounts", "giftCards", "reviews", "messages", "channels", "socialPosts", "design", "settings"] as const;
 /** Old Settings page ids that now open another page (Email sender was merged into the one email page). */
 export const SETTINGS_TAB_ALIASES: Record<string, string> = { communications: "notifications" };
 /** The Settings page an id really opens (an alias resolves to its page). */

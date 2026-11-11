@@ -20,6 +20,8 @@ export const NAV: NavEntry[] = [
   { id: "channels", label: "Sales channels", icon: Share2 },
   // Posting a product to the connected accounts, now or later (plan 27.6), next to Discounts like Shopify's Marketing.
   { id: "socialPosts", label: "Social posts", icon: Send },
+  // Design (redesign, 11 November 2026): where the look stands and the pages, with Open Studio (DesignHome.tsx).
+  { id: "design", label: "Design", icon: Palette },
   { id: "settings", label: "Settings", icon: Settings, children: [
     { id: "general", label: "General", icon: SlidersHorizontal },
     { id: "shipping", label: "Shipping", icon: Truck },
@@ -61,7 +63,7 @@ export const MENU: Menu = [
   { label: "Orders", icon: ShoppingCart, pages: ["orders", "customers", "discounts", "giftCards", "socialPosts", "messages"] },
   // Sales channels sit with the products: where each one is listed (Studio opens full screen, so not under Design).
   { label: "Books", icon: BookOpen, pages: ["catalog", "inventory", "reviews", "channels"] },
-  { label: "Design", icon: Palette, pages: [SETTINGS_ITEM_PREFIX + "designer"] },
+  { label: "Design", icon: Palette, pages: ["design"] },
   { label: "Settings", icon: Settings, pages: SETTINGS_PAGES },
 ];
 
@@ -80,7 +82,7 @@ export const WEBSITE_SIDE: Menu = [
   { label: "Orders", icon: ShoppingCart, pages: ["orders", SALES_TAB, "customers", "messages"] },
   { label: "Books", icon: BookOpen, pages: ["catalog", "reviews"] },
   { label: "Marketing", icon: Megaphone, pages: ["discounts", "giftCards", "socialPosts", "channels"] },
-  { label: "Online store", icon: Palette, pages: [SETTINGS_ITEM_PREFIX + "designer"] },
+  { label: "Online store", icon: Palette, pages: ["design"] },
   { label: "Settings", icon: Settings, pages: SETTINGS_PAGES },
 ];
 // The redesign (11 November 2026): the stockroom's To-do lives on Home, and Open call is off the menu. Both pages
@@ -161,6 +163,7 @@ export const PAGE_COPY: Record<string, { title: string; description: string }> =
   giftCards: { title: "Gift cards", description: "Gift cards shoppers bought and ones you issued: balances, history and resending codes." },
   reviews: { title: "Reviews", description: "Moderate customer reviews before they appear on the storefront." },
   channels: { title: "Sales channels", description: "Sell where people already look: Facebook, Instagram, Pinterest, TikTok and Google." },
+  design: { title: "Design", description: "Design your website in Studio." },
   socialPosts: { title: "Social posts", description: "Post your products to your connected accounts, now or at a time you pick." },
   messages: { title: "Messages", description: "Messages people send you from the contact form on your website." },
   settings: { title: "Settings", description: "Store identity, shipping, payments, design, and notifications." },
