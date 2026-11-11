@@ -14,9 +14,6 @@ declare module "@stockroom/merge-state.js" {
   export function assembleParts(raw: Record<string, unknown>): { parts: Record<string, unknown>; present: string[] };
   export function stitchState(parts: Record<string, unknown>): Record<string, unknown>;
 }
-declare module "@stockroom/opencall.js" {
-  export const OC_STAGES: Array<{ key: string; label?: string }>;
-}
 declare module "@stockroom/inventory.js" {
   export function deriveOnHand(state: Record<string, unknown>, book: Record<string, unknown>): number;
 }

@@ -2,7 +2,7 @@
 // the list here and the one the stockroom showed can never disagree. Pure: the page is TodoPage.tsx.
 import { buildAttentionSignals, SIGNAL_GROUPS, type AttentionResult, type Signal } from "@stockroom/attention-signals.js";
 
-import { labelledOrderNums, openCallWaiting, submissionsInput, tripsSummaryAll } from "@stockroom/attention-input.js";
+import { labelledOrderNums, submissionsInput, tripsSummaryAll } from "@stockroom/attention-input.js";
 import { deriveOnHand } from "@stockroom/inventory.js";
 
 import type { StockroomRecords } from "./stockroomData";
@@ -37,10 +37,10 @@ export function buildTodo(records: StockroomRecords, opts: { words?: (text: stri
     // A shop here has no spreadsheet script to connect and saves straight to the cloud, so neither can need the owner.
     sheets: { connected: false, colophon: true, google: null },
     sync: { online: true, pending: 0, failed: false },
-    // Author entries waiting come from the submissions the records hold; the open call and the fairs' costs are worked
-    // out by the same functions the stockroom app uses.
+    // Author entries waiting come from the submissions the records hold; the fairs' costs are worked out by the same
+    // functions the stockroom app uses. The open call left the admin (11 November 2026), so it raises no line here.
     submissions: submissionsInput(records.submissions, titleOf),
-    openCall: openCallWaiting(states, titleOf),
+    openCall: [],
     taxCenter,
     tripsSummary: tripsSummaryAll(taxCenter),
     // Only what the records tell: which unsent orders already have a postage label. Card payments to match, refunds

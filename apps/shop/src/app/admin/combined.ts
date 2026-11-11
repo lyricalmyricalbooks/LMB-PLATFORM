@@ -50,7 +50,6 @@ export const STOCKROOM_PAGES: StockroomPage[] = [
   { id: "shipping", label: "Parcels and labels", description: "Shipping costs and labels for parcels that aren't website orders, such as copies for stockists." },
   { id: "consignment", label: "Stockists", description: "Shops holding your copies: what they have, what they sold and what they owe you." },
   { id: "qrcodes", label: "QR codes", description: "Codes that open a book's page, for tables, posters and the back of books." },
-  { id: "opencall", label: "Open call", description: "Submissions from people who want to publish with you." },
   { id: "reconcile", label: "Payments and payouts", description: "Money coming in from every place you sell, matched to your sales." },
   { id: "expenses", label: "Expenses", description: "What the press spends, with receipts." },
   { id: "taxcenter", label: "Tax centre", description: "Sales tax collected, fees and what to file." },

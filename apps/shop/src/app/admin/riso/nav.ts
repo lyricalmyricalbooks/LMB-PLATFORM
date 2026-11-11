@@ -85,8 +85,8 @@ export const WEBSITE_SIDE: Menu = [
   { label: "Online store", icon: Palette, pages: ["design"] },
   { label: "Settings", icon: Settings, pages: SETTINGS_PAGES },
 ];
-// The redesign (11 November 2026): the stockroom's To-do lives on Home, and Open call is off the menu. Both pages
-// still open from their links (Home's to-do row, search), so they are kept in STOCKROOM_PAGES.
+// The redesign (11 November 2026): the stockroom's To-do lives on Home and still opens from its links (Home's to-do
+// row, search), so it is kept in STOCKROOM_PAGES. Open call left the admin altogether (Julian, 11 November 2026).
 export const STOCKROOM_SIDE: Menu = [
   { label: "Stock", icon: Boxes, pages: [S("dashboard"), "inventory", REORDER_TAB] },
   { label: "Sales", icon: Receipt, pages: [S("history"), S("manual"), S("customers"), S("shipping")] },
@@ -121,7 +121,7 @@ export const COMBINED_MENU: Menu = [...WEBSITE_SIDE, ...STOCKROOM_SIDE];
 
 /** The side a page belongs to. */
 export function sideOf(page: string): AdminSide {
-  // A stockroom page off the menu (To-do, Open call) still opens on the Stockroom side.
+  // A stockroom page off the menu (To-do) still opens on the Stockroom side.
   return page.startsWith(STOCKROOM_ITEM_PREFIX) || STOCKROOM_SIDE.some((g) => g.pages.includes(page)) ? "stockroom" : "website";
 }
 export const sideMenu = (side: AdminSide): Menu => (side === "stockroom" ? STOCKROOM_SIDE : WEBSITE_SIDE);
