@@ -3,7 +3,6 @@
 // server's to-do counts. The figures board, Google Analytics and the traffic counters belong to Analytics and are not
 // loaded here, so Home opens without their code or their reads (they used to come with AnalyticsDashboard).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { openFirstActionQueue, openOrdersQueue } from "../Orders";
 import { adminApi } from "../api";
 import { getOrdersCached, peekOrders } from "../ordersCache";
 import { readSignIn } from "../launchCheck";
@@ -127,7 +126,7 @@ export function HomePage({ setActiveTab, onSetWall, ownerName = "" }: {
       <RunTiles>
         <RunRow kind="Orders" label="paid orders waiting to ship" one="paid order waiting to ship" count={todo ? todo.fulfil.length : null} loading={ordersLoading}
           detail={todo && todo.fulfil[0] ? `Oldest has waited ${todo.fulfil[0].ageDays} day${todo.fulfil[0].ageDays === 1 ? "" : "s"}` : ""}
-          onOpen={() => { openFirstActionQueue(); go("orders"); }} openLabel="Ship orders" />
+          onOpen={() => go("orders")} openLabel="Ship orders" />
         <RunRow kind="Reviews" label="reviews to moderate" one="review to moderate" count={counts ? counts.pendingReviews ?? null : null} loading={!counts}
           detail="Readers are waiting to see these" detailOne="A reader is waiting to see it" onOpen={() => go("reviews")} openLabel="Moderate" />
         <RunRow kind="Stock" label="titles to reprint soon" one="title to reprint soon" count={todo ? todo.reprint : null} loading={ordersLoading || stockLoading}
@@ -135,11 +134,11 @@ export function HomePage({ setActiveTab, onSetWall, ownerName = "" }: {
         <RunRow kind="Stock" label="print books or editions sold out" one="print book or edition sold out" count={todo ? todo.soldOut : null} loading={ordersLoading || stockLoading}
           detail="Customers can't buy these right now" detailOne="Customers can't buy it right now" onOpen={() => go("inventory")} openLabel="Open inventory" />
         <RunRow kind="Orders" label="cancel or return requests" one="cancel or return request" count={todo ? todo.requests : null} loading={ordersLoading}
-          detail="Customers asked from their order page" onOpen={() => { openOrdersQueue("Needs attention"); go("orders"); }} openLabel="Answer requests" />
+          detail="Customers asked from their order page" onOpen={() => go("orders")} openLabel="Answer requests" />
         <RunRow kind="Gift cards" label="gift cards not issued" one="gift card not issued" count={todo ? todo.giftCardsMissing : null} loading={ordersLoading}
           detail="Paid, but the buyer has no code yet" onOpen={() => go("giftCards")} openLabel="Open gift cards" />
         <RunRow kind="Pre-orders" label="pre-orders awaiting release" one="pre-order awaiting release" count={todo ? todo.awaitingRelease : null} loading={ordersLoading}
-          detail="Press Ready to ship now on each order when the books arrive" onOpen={() => { openOrdersQueue("Awaiting release"); go("orders"); }} openLabel="Open pre-orders" />
+          detail="Press Ready to ship now on each order when the books arrive" onOpen={() => go("orders")} openLabel="Open pre-orders" />
         <RunRow kind="Messages" label="unread messages" one="unread message" count={counts ? counts.unreadMessages : null} loading={!counts}
           detail="From the contact form on your website" onOpen={() => go("messages")} openLabel="Read messages" />
         <RunRow kind="Privacy" label="privacy requests" one="privacy request" count={counts ? counts.openPrivacyRequests : null} loading={!counts}

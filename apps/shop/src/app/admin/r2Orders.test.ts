@@ -2,7 +2,6 @@
 import { describe, it, expect } from "vitest";
 import { buildAdminAlerts } from "./adminAlerts";
 import { deskOrders, deskCounts, rowStatus } from "./ordersDesk";
-import { tabCountsFor, tabOrders } from "./ordersTable";
 import { deleteRefusal, splitDeletable } from "./orderListHelpers";
 import { addressIssues } from "./fulfillment";
 import { returnStepLabel } from "./orderLines";
@@ -49,30 +48,11 @@ describe("fault 94: Shipped and Done never include refunds or cancellations", ()
   });
 });
 
-describe("fault 95: Orders table tab counts follow the date range and the search", () => {
-  const orders = [order("OLD1", { paidAt: daysAgo(40), createdAt: daysAgo(40) }), order("OLD2", { paidAt: daysAgo(30), createdAt: daysAgo(30) }), order("NEW", { paidAt: daysAgo(1), createdAt: daysAgo(1) })];
-  const filters = (extra: any = {}) => ({ orderType: "production" as const, range: "all", query: "", now, ...extra });
-
-  it("counts every order with no filters", () => {
-    expect(tabCountsFor(orders, filters())["Ready to ship"]).toBe(3);
-  });
-  it("counts only the last 7 days when that range is chosen, matching the rows", () => {
-    const f = filters({ range: "7" });
-    expect(tabCountsFor(orders, f)["Ready to ship"]).toBe(1);
-    expect(tabOrders(orders, f, "Ready to ship")).toHaveLength(1);
-  });
-  it("counts only what the search finds", () => {
-    const f = filters({ query: "OLD2" });
-    expect(tabCountsFor(orders, f)["Ready to ship"]).toBe(1);
-    expect(tabCountsFor(orders, f)["All orders"]).toBe(1);
-  });
-  it("keeps archived orders out of the work tabs but in All orders", () => {
-    const withArchived = [...orders, order("ARCH", { archivedAt: daysAgo(1) })];
-    const counts = tabCountsFor(withArchived, filters());
-    expect(counts["Ready to ship"]).toBe(3);
-    expect(counts["All orders"]).toBe(4);
-    expect(deskOrders(withArchived, "needs").some((o) => o.id === "ARCH")).toBe(false);
-    expect(deskOrders(withArchived, "all").some((o) => o.id === "ARCH")).toBe(true);
+describe("fault 95: archived orders stay out of the work queues", () => {
+  it("keeps archived orders out of Needs you but in All orders", () => {
+    const orders = [order("NEW", { paidAt: daysAgo(1), createdAt: daysAgo(1) }), order("ARCH", { archivedAt: daysAgo(1) })];
+    expect(deskOrders(orders, "needs").some((o) => o.id === "ARCH")).toBe(false);
+    expect(deskOrders(orders, "all").some((o) => o.id === "ARCH")).toBe(true);
   });
 });
 

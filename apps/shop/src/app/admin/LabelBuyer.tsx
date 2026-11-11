@@ -1,3 +1,4 @@
+import "./fulfillment.css";
 import React, { useState } from "react";
 import { matchesCustomerService } from "./fulfillment";
 import { PrimaryButton, SecondaryButton, StatusBadge, TextField } from "./riso/components";

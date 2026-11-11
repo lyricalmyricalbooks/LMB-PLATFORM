@@ -8,9 +8,7 @@ import {
 } from "lucide-react";
 
 import { Login } from "./Login";
-import { BookkeeperDesk } from "./BookkeeperDesk";
-import { BookCatalog } from "./BookCatalog";
-import { ordersNeedingWork, refreshOrdersCache } from "./Orders";
+import { ordersNeedingWork, refreshOrdersCache } from "./ordersStore";
 import { AdminAlerts } from "./AdminAlerts.tsx";
 import { AdminPageBoundary } from "./AdminPageBoundary";
 import { shopErrorAlert, shopErrorRows } from "./shopErrors";
@@ -35,7 +33,7 @@ import { blockedMessage, blockersBeforeOpening, openButtonLabel } from "./launch
 import { WhatsNew } from "./WhatsNew";
 import { ADMIN_LOOK, applyAdminLook } from "./riso/adminLook";
 import { SupportBanner } from "./SupportBanner";
-import { PlanBannerBar, PlanDesk } from "./PlanParts";
+import { PlanBannerBar } from "./PlanBanner";
 import { TwoStepReminder } from "./TwoStepReminder";
 import type { ReadinessItem } from "./launchReadiness";
 import { LaunchChecklist } from "./LaunchChecklist";
@@ -53,8 +51,6 @@ import { COMBINED_MENU, MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor,
 import { SideSwitch, rememberSide, rememberedSide } from "./SideSwitch";
 import { useStockroomTodos } from "./overview/StockroomTodos";
 import { COMBINED_PAGES, DEFAULT_STOCKROOM_PAGE, REORDER_TAB, SALES_TAB, isCombinedTab, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
-import { AllSales } from "./AllSales";
-import { ReorderList } from "./ReorderPanel";
 import { keepAdminOffline } from "./adminOffline";
 import { CombinedTour, CombinedTourInvite, markTourSeen, tourSeen, type TourStop } from "./CombinedTour";
 import { markTourSeenOnAccount, tourSeenOnAccount } from "./combinedTourStore";
@@ -75,6 +71,11 @@ const SalesChannels = lazy(() => import("./SalesChannels").then(m => ({ default:
 const SocialPosts = lazy(() => import("./SocialPosts").then(m => ({ default: m.SocialPosts })));
 const DesignHome = lazy(() => import("./DesignHome").then(m => ({ default: m.DesignHome })));
 const Customers = lazy(() => import("./Customers").then(m => ({ default: m.Customers })));
+const BookCatalog = lazy(() => import("./BookCatalog").then(m => ({ default: m.BookCatalog })));
+const AllSales = lazy(() => import("./AllSales").then(m => ({ default: m.AllSales })));
+const ReorderList = lazy(() => import("./ReorderPanel").then(m => ({ default: m.ReorderList })));
+const BookkeeperDesk = lazy(() => import("./BookkeeperDesk").then(m => ({ default: m.BookkeeperDesk })));
+const PlanDesk = lazy(() => import("./PlanParts").then(m => ({ default: m.PlanDesk })));
 const Inventory = lazy(() => import("./Inventory").then(m => ({ default: m.Inventory })));
 const OrdersDesk = lazy(() => import("./OrdersDesk.tsx").then(m => ({ default: m.OrdersDesk })));
 const AnalyticsPage = lazy(() => import("./analytics/AnalyticsPage").then(m => ({ default: m.AnalyticsPage })));
@@ -576,12 +577,12 @@ export function Dashboard() {
   }
 
   if (bookkeeper) {
-    return <BookkeeperDesk email={bookkeeper.email} appearance={adminTheme === "dark" ? "dark" : "light"} />;
+    return <Suspense fallback={<div className="rp" data-rp-appearance={adminTheme === "dark" ? "dark" : "light"}><PageSkeleton label="Opening your desk…" /></div>}><BookkeeperDesk email={bookkeeper.email} appearance={adminTheme === "dark" ? "dark" : "light"} /></Suspense>;
   }
 
   // A paused or closed plan: Plan & billing and the downloads only, until the plan is open again (plan 6.7).
   if (user && planLocked(platformPlan ?? null)) {
-    return <PlanDesk plan={platformPlan!} email={user.email ?? null} appearance={adminTheme === "dark" ? "dark" : "light"} />;
+    return <Suspense fallback={<div className="rp" data-rp-appearance={adminTheme === "dark" ? "dark" : "light"}><PageSkeleton label="Opening Plan & billing…" /></div>}><PlanDesk plan={platformPlan!} email={user.email ?? null} appearance={adminTheme === "dark" ? "dark" : "light"} /></Suspense>;
   }
 
   if (!user) {
