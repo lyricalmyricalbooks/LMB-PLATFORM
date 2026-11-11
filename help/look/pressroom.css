@@ -2033,3 +2033,17 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-page-tab:hover { background: var(--rp-tab-hover); }
 .rp-page-tab:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
 .rp-page-tab[aria-current="page"] { background: var(--rp-inverse); color: var(--rp-on-inverse); }
+
+/* Settings: its pages in a column on the left under headings, the page on the right (redesign, 11 November 2026).
+   Narrow screens keep the row of pills above the page. */
+.rp-page-body, .rp-page-main { display: contents; }
+@media (min-width: 1024px) {
+  .rp-page-body[data-layout="column"] { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 28px; align-items: start; }
+  .rp-page-body[data-layout="column"] > .rp-page-main { display: block; min-width: 0; }
+  .rp-page-tabs[data-layout="column"] { position: sticky; top: 16px; flex-direction: column; align-items: stretch; gap: 18px; margin: 0; padding: 14px; border-radius: var(--rp-radius-lg); background: var(--rp-surface); }
+  .rp-page-tabs[data-layout="column"] .rp-page-tabs-group { flex-direction: column; align-items: stretch; gap: 2px; }
+  .rp-page-tabs[data-layout="column"] .rp-page-tabs-heading { margin: 0 0 6px 12px; }
+  .rp-page-tabs[data-layout="column"] .rp-page-tab { justify-content: space-between; padding: 9px 12px; background: transparent; }
+  .rp-page-tabs[data-layout="column"] .rp-page-tab:hover { background: var(--rp-tab-hover); }
+  .rp-page-tabs[data-layout="column"] .rp-page-tab[aria-current="page"] { background: var(--rp-inverse); color: var(--rp-on-inverse); }
+}

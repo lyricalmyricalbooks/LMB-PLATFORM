@@ -837,8 +837,9 @@ export function Dashboard() {
   const activePageId = navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive;
   const activeItemId = menuItemFor(activePageId, ADMIN_MENU);
   const activeItem = railItems.find((n) => n.id === activeItemId);
+  const settingsColumn = !showEditor && !selectedOrder && activeItemId.startsWith(SETTINGS_ITEM_PREFIX) && (activeItem?.children?.length ?? 0) > 1;
   const pageTabs = !showEditor && activeItem?.children && activeItem.children.length > 1 ? (
-    <PageTabs label={`${activeItem.label} pages`} current={activePageId} onPick={(page) => { void openMenuPage(page); }}
+    <PageTabs label={`${activeItem.label} pages`} column={activeItemId.startsWith(SETTINGS_ITEM_PREFIX)} current={activePageId} onPick={(page) => { void openMenuPage(page); }}
       groups={activeItemId.startsWith(SETTINGS_ITEM_PREFIX) ? settingsSections(activeItem.children) : [{ pages: activeItem.children }]} />
   ) : null;
   return (
@@ -957,24 +958,29 @@ export function Dashboard() {
           description={selectedOrder ? undefined : navActive === "settings" && childLabel ? (navChild && PAGE_COPY[navChild]?.description) || undefined : copy.description || undefined}
           actions={<div ref={setPageActionsEl} className="rp-page-actions-slot" />}
         />}
-        {!selectedOrder && pageTabs}
-        {!ownMasthead && pageAlerts}
-        {/* Feature pages still use legacy utility classes; scope the compatibility layer to them only. */}
-        <div {...(migrated ? {} : legacyProps)} style={{ background: "transparent", minHeight: 480 }}>
-          <AnimatePresence mode="wait">
-            <m.div
-              key={activeTab + (selectedOrder ? "-detail" : "") + settingsTab}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.18, ease: "easeOut" }}
-            >
-              <PageAlertsSlot.Provider value={ownMasthead ? pageAlerts : null}><PageActionsSlot.Provider value={ownMasthead ? null : pageActionsEl}><Suspense fallback={<PageSkeleton label="Opening page…" />}>{content}</Suspense></PageActionsSlot.Provider></PageAlertsSlot.Provider>
-            </m.div>
-          </AnimatePresence>
-          {COMBINED && stockroomOpened && (
-            <StockroomFrame page={stockroomPageId} visible={onStockroomPage && !selectedOrder && !(stockroomPageId in NATIVE_PAGES)} look={ADMIN_LOOK} appearance={appearance}
-              onPage={(tab) => { if (activeTab === STOCKROOM_TAB && stockroomPage(tab)) openSubTab(tab, STOCKROOM_TAB); }} />
-          )}
+        {/* Settings lists its pages in a column on the left, under headings (redesign); other items show pills above. */}
+        <div className="rp-page-body" data-layout={settingsColumn ? "column" : undefined}>
+          {!selectedOrder && pageTabs}
+          <div className="rp-page-main">
+          {!ownMasthead && pageAlerts}
+          {/* Feature pages still use legacy utility classes; scope the compatibility layer to them only. */}
+          <div {...(migrated ? {} : legacyProps)} style={{ background: "transparent", minHeight: 480 }}>
+            <AnimatePresence mode="wait">
+              <m.div
+                key={activeTab + (selectedOrder ? "-detail" : "") + settingsTab}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.18, ease: "easeOut" }}
+              >
+                <PageAlertsSlot.Provider value={ownMasthead ? pageAlerts : null}><PageActionsSlot.Provider value={ownMasthead ? null : pageActionsEl}><Suspense fallback={<PageSkeleton label="Opening page…" />}>{content}</Suspense></PageActionsSlot.Provider></PageAlertsSlot.Provider>
+              </m.div>
+            </AnimatePresence>
+            {COMBINED && stockroomOpened && (
+              <StockroomFrame page={stockroomPageId} visible={onStockroomPage && !selectedOrder && !(stockroomPageId in NATIVE_PAGES)} look={ADMIN_LOOK} appearance={appearance}
+                onPage={(tab) => { if (activeTab === STOCKROOM_TAB && stockroomPage(tab)) openSubTab(tab, STOCKROOM_TAB); }} />
+            )}
+          </div>
+          </div>
         </div>
       </AppShell>
 

@@ -123,12 +123,13 @@ export function Sidebar({ brand, top, items, activeId, activeChildId, onSelect, 
  * The pages inside one menu item, as a row of pills above the page (redesign, 11 November 2026). They move between
  * pages, so they are links in a nav marked with aria-current, not tabs. Settings passes `groups` for its headings.
  */
-export function PageTabs({ label, groups, current, onPick }: {
+export function PageTabs({ label, groups, current, onPick, column }: {
   label: string; current: string; onPick: (id: string) => void;
+  /** A column of links under their headings, beside the page (Settings), instead of a row of pills. */ column?: boolean;
   groups: Array<{ label?: string; pages: Array<{ id: string; label: string; badge?: number }> }>;
 }) {
   return (
-    <nav className="rp-page-tabs" aria-label={label}>
+    <nav className="rp-page-tabs" data-layout={column ? "column" : undefined} aria-label={label}>
       {groups.map((g, i) => (
         <div className="rp-page-tabs-group" key={g.label ?? i} role={g.label ? "group" : undefined} aria-label={g.label}>
           {g.label && <span className="rp-page-tabs-heading" aria-hidden="true">{g.label}</span>}
