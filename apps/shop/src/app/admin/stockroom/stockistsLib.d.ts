@@ -50,3 +50,7 @@ declare module "@stockroom/opencall.js" {
   export function ocNextAction(contributor: Record<string, any>): string | null;
   export function ocSortContributors<T extends Record<string, any>>(list: T[], sortBy: string, now?: number): T[];
 }
+declare module "@stockroom/invoice-settle.js" {
+  export function settleInvoicePaid(s: Record<string, any>, invoiceId: string, opts?: { method?: string; paidAt?: number }):
+    { ok: true; inv: Record<string, any>; settled: Array<Record<string, any>> } | { ok: false; reason: "missing" | "paid" | "cancelled" };
+}

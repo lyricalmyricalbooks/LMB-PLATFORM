@@ -177,6 +177,19 @@ function shopEmails({
         }
         return;
       }
+      // Admin › Stockists › Mark paid › Email a receipt (functions/stockistReceipt.js), only on the owner's press.
+      if (body.action === "stockistReceipt") {
+        try {
+          const out = await require("./stockistReceipt").handleStockistReceipt(body, {
+            db, sendEmail, secret: RESEND_API_KEY.value(), setupName: require("./shopConfig").shopConfig.senderName,
+          });
+          res.status(out.status).json(out.json);
+        } catch (err) {
+          console.error("stockist receipt failed:", err);
+          res.status(500).json({ error: "The receipt could not be sent. Try again in a moment." });
+        }
+        return;
+      }
       // Settings › Notifications › Waiting to send: the retry queue (never its HTML, which can
       // hold gift-card codes and download links), Retry now and Stop retrying.
       if (body.action === "emailQueue" || body.action === "retryEmail" || body.action === "cancelEmail") {

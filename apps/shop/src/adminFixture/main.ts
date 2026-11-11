@@ -8,6 +8,8 @@ import { addressKey } from "../app/admin/fulfillment";
 import { googleConnectApi, readGoogleStatus } from "../app/admin/googleConnect";
 import { appsApi } from "../app/admin/appActivity";
 import { stockroomApi, type StockroomRecords } from "../app/admin/stockroom/stockroomData";
+import { stockroomWriteApi } from "../app/admin/stockroom/stockroomWrite"; // stockist-pay
+import { stockistReceiptApi } from "../app/admin/stockroom/stockistReceipt"; // stockist-pay
 
 // Stockroom › To-do: two titles, one nearly sold out and one with nothing waiting (`?stock=empty`: nothing at all).
 const EMPTY_STOCKROOM = new URLSearchParams(window.location.search).get("stock") === "empty";
@@ -131,7 +133,7 @@ if (new URLSearchParams(window.location.search).get("page") === "stockroom/dashb
       ],
       ledger: [ship(1, 1, "Corner Books", 90, 10), sale(2, 1, "Corner Books", 40, 4, "pending"), ship(3, 2, "Harbour Gifts", 80, 6), sale(4, 2, "Harbour Gifts", 30, 6, "paid"), ship(5, 3, "Lakeside Co-op", 60, 8), sale(6, 3, "Lakeside Co-op", 20, 2, "pending")],
       invoices: [
-        { id: "i1", num: "INV-2026-001", status: "sent", date: day(60), dueDate: day(20), total: 48, currency: "CAD", storeName: "Corner Books", storeId: 1, storeEmail: "shop@example.com", reminders: [{ status: "sent", at: Date.now() - 5 * 86_400_000, kind: "auto" }] },
+        { id: "i1", num: "INV-2026-001", status: "sent", date: day(60), dueDate: day(20), total: 48, currency: "CAD", storeName: "Corner Books", storeId: 1, storeEmail: "shop@example.com", items: [{ _ledgerId: 2 }], reminders: [{ status: "sent", at: Date.now() - 5 * 86_400_000, kind: "auto" }] },
         { id: "i2", num: "INV-2026-002", status: "paid", date: day(70), dueDate: day(40), total: 72, currency: "CAD", storeName: "Harbour Gifts", storeId: 2 },
         { id: "i3", num: "INV-2026-003", status: "sent", date: day(10), dueDate: day(-20), total: 24, currency: "CAD", storeName: "Lakeside Co-op", storeId: 3 },
       ],
@@ -152,6 +154,26 @@ if (new URLSearchParams(window.location.search).get("page") === "stockroom/dashb
     r.taxCenter = { ...(r.taxCenter || {}), businessExpenses: [postage("WEB-1044", 14.5), postage("WEB-1045", 8.2)] };
     return r;
   };
+}
+
+// ── Stockists › Mark paid (block of the stockist-pay page): saves into memory, receipts are only recorded ──
+{
+  const saved: Record<string, any> = {};
+  const load = stockroomApi.load;
+  stockroomApi.load = async () => { const r = await load(); Object.assign(r.states, saved); return r; };
+  stockroomWriteApi.saveBookState = async (bookId: string, mutate: (s: any) => any) => {
+    const r = await stockroomApi.load();
+    const before = r.states[bookId];
+    if (!before) return { status: "refused", reason: "unknown-book", message: "That book isn't in the stockroom." } as any;
+    try {
+      const state = (await mutate(structuredClone(before))) ?? before;
+      saved[bookId] = state;
+      return { status: "saved", state, merged: false, conflicts: [], written: ["invoices", "ledger", "stores"] } as any;
+    } catch (error) {
+      return { status: "refused", reason: "no-permission", message: (error as Error).message } as any;
+    }
+  };
+  stockistReceiptApi.send = async (receipt) => { ((window as any).__fixtureReceipts ||= []).push(receipt); return { to: receipt.to }; };
 }
 
 const order = (n: number, status: string, name: string) => ({
