@@ -85,3 +85,7 @@ declare module "@stockroom/publisher-intel-tools.js" {
 declare module "@stockroom/category-fit.js" {
   export function findCategoryMismatches(ctx: Row): Array<{ id: string; scope: string; bookId?: string; expenseId?: unknown; currentCategory: string; suggestedCategory: string; title: string; detail: string; amount: number; prompt: string }>;
 }
+declare module "@stockroom/deductibility.js" {
+  export function deductibleRate(cat: string): number;
+  export function deductibleAmount(cat: string, amount: number): number;
+}

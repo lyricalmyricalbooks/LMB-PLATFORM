@@ -5,6 +5,9 @@ import { downloadCsv } from "@stockroom/download.js";
 
 import { ConfirmDialog, DataTable, Dialog, EmptyState, GhostButton, PrimaryButton, SecondaryButton, SectionCard, TextArea, TextField } from "../riso/components";
 import { saveTaxCenter, type SaveNote } from "./saveTaxCenter";
+import { DEFAULT_SHOP_NAME } from "../../../shared/shopIdentity";
+import { shopProfile } from "../../../lib/shopProfile";
+import { tripReportHtml } from "./tripReport";
 import { deleteTrip, findTrip, saveTrip, tripCsv, tripExpenseCount, tripProblem, tripToForm, type TripForm } from "./taxTrips";
 
 type Row = Record<string, any>;
@@ -42,6 +45,18 @@ export function TripsCard({ trips, taxCenter, money, baseCurrency, onSaved }: {
   }
   const setForm = (patch: Partial<TripForm>) => setEditing((e) => (e ? { ...e, form: { ...e.form, ...patch } } : e));
   const rec = shown ? findTrip(taxCenter, shown.name) : null;
+  function printTrip(t: TripRow) {
+    // The window opens in the click itself: one opened after a wait is blocked as a pop-up.
+    const win = window.open("", "_blank", "width=900,height=1000");
+    if (!win) { setNote({ tone: "error", text: "Your browser blocked the report window. Allow pop-ups for this site and try again." }); return; }
+    win.document.write(tripReportHtml({
+      name: t.name, items: t.items || [], total: t.total, deductible: t.deductible, categories: t.categories || {},
+      record: findTrip(taxCenter, t.name), budget: budgets[t.name], baseCurrency,
+      pressName: shopProfile.name || DEFAULT_SHOP_NAME, printedOn: new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }),
+    }));
+    win.document.close(); win.focus();
+    setTimeout(() => { try { win.print(); } catch { /* the window was closed */ } }, 600);
+  }
 
   return (
     <SectionCard title="Trips and events" flush
@@ -63,6 +78,7 @@ export function TripsCard({ trips, taxCenter, money, baseCurrency, onSaved }: {
           description={[rec?.destination, rec?.startDate || rec?.endDate ? [rec?.startDate, rec?.endDate].filter(Boolean).join(" to ") : "", rec?.purpose].filter(Boolean).join(" · ") || undefined}
           footerStart={onSaved ? <GhostButton onClick={() => { setOpen(null); setDeleting(shown.name); }}>Delete trip</GhostButton> : undefined}
           footer={<>
+            <SecondaryButton onClick={() => printTrip(shown)}>Print report</SecondaryButton>
             <SecondaryButton onClick={() => { const f = tripCsv(shown.name, shown.items || [], baseCurrency); downloadCsv(f.text, f.name); }}>Download spreadsheet</SecondaryButton>
             {onSaved && <PrimaryButton onClick={() => { setOpen(null); setEditing({ name: shown.name, form: tripToForm(taxCenter, shown.name) }); }}>Edit trip</PrimaryButton>}
           </>}>
