@@ -12,16 +12,23 @@ export const ADMIN_ROLES: readonly AdminRole[] = ["owner", "staff"];
 // "fairHelper" rings up sales at the stockroom's Fair till only (docs/combined-admin.md › Fair helpers plan).
 export type TeamRole = AdminRole | "author" | "bookkeeper" | "fairHelper";
 export const TEAM_ROLES: readonly TeamRole[] = ["owner", "staff", "author", "bookkeeper", "fairHelper"];
-/** Who may sign in here: the admin roles, or the bookkeeper (who gets the Bookkeeping page instead of the admin). */
-export type SignInRole = AdminRole | "bookkeeper";
+/** Who may sign in here: the admin roles, the bookkeeper (the Bookkeeping page instead of the admin) or a fair
+ *  helper (the Fair till instead of the admin, FairHelperDesk.tsx). */
+export type SignInRole = AdminRole | "bookkeeper" | "fairHelper";
 
 /** True for a verified pass carrying the Team's bookkeeper role (functions/roles.js booksReader). */
 export function isBookkeeperPass(emailVerified: boolean, claims: Record<string, unknown> = {}): boolean {
   return emailVerified && claims.role === "bookkeeper" && !supportOf(claims);
 }
 
+/** True for a verified pass carrying the Team's fair helper role (functions/roles.js; the stockroom's rules isFairHelper). */
+export function isFairHelperPass(emailVerified: boolean, email: string | null | undefined, claims: Record<string, unknown> = {}): boolean {
+  return emailVerified && !!email && claims.role === "fairHelper" && !supportOf(claims);
+}
+
 export function signInRoleOf(email: string | null | undefined, emailVerified: boolean, claims: Record<string, unknown> = {}): SignInRole | null {
-  return adminRoleOf(email, emailVerified, claims) ?? (isBookkeeperPass(emailVerified, claims) ? "bookkeeper" : null);
+  return adminRoleOf(email, emailVerified, claims)
+    ?? (isBookkeeperPass(emailVerified, claims) ? "bookkeeper" : isFairHelperPass(emailVerified, email, claims) ? "fairHelper" : null);
 }
 
 export function adminRoleOf(email: string | null | undefined, emailVerified: boolean, claims: Record<string, unknown> = {}): AdminRole | null {

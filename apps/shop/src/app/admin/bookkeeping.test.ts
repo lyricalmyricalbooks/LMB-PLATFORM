@@ -1,7 +1,7 @@
 // Plan 7.17: the bookkeeper's page. Periods, totals and downloads; no email address leaves in a download.
 import { describe, expect, it } from "vitest";
 import { bookkeeperOrdersCsv, bookkeeperSalesCsv, paidInRange, periodRange, periodTotals, withoutEmails } from "./bookkeeping";
-import { isBookkeeperPass, signInRoleOf, TEAM_ROLES } from "./adminAccess";
+import { isBookkeeperPass, isFairHelperPass, signInRoleOf, TEAM_ROLES } from "./adminAccess";
 
 // 2026-03-10 noon in Toronto.
 const NOW = Date.parse("2026-03-10T16:00:00Z");
@@ -57,5 +57,12 @@ describe("who signs in as the bookkeeper", () => {
     expect(signInRoleOf("kit@press.test", true, { role: "bookkeeper" })).toBe("bookkeeper");
     expect(signInRoleOf("sam@press.test", true, { role: "staff" })).toBe("staff");
     expect(signInRoleOf("ana@press.test", true, { role: "author" })).toBeNull();
+  });
+
+  it("lets a fair helper sign in for the Fair till, never as an admin", () => {
+    expect(isFairHelperPass(true, "sam@press.test", { role: "fairHelper" })).toBe(true);
+    expect(isFairHelperPass(false, "sam@press.test", { role: "fairHelper" })).toBe(false);
+    expect(isFairHelperPass(true, null, { role: "fairHelper" })).toBe(false);
+    expect(signInRoleOf("sam@press.test", true, { role: "fairHelper" })).toBe("fairHelper");
   });
 });

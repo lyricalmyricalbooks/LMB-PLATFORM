@@ -5,6 +5,7 @@
 // app no longer runs behind the admin (11 November 2026).
 import { answerFrom, type Ask } from "./stockroom/stockroomAnswers";
 import { isRefusal, stockroomApi, type StockroomRecords } from "./stockroom/stockroomData";
+import { onStockroomSaved } from "./stockroom/stockroomWrite";
 
 /** One stockroom book, as the stockroom counts it (apps/stockroom/src/lib/book-summary.js `bookSummary`). */
 export interface StockroomBook {
@@ -39,6 +40,8 @@ export interface StockroomFair {
 /** Records read within this long answer the next question too (Home, the book page and All sales ask together). */
 const FRESH_MS = 15_000;
 let cached: { at: number; read: Promise<StockroomRecords> } | null = null;
+// A change saved in the admin shows at once: the next question reads the records again.
+onStockroomSaved(() => { cached = null; });
 const openListeners = new Set<(page: string, extra?: { book?: string; todo?: string }) => void>();
 
 /** The records, read once for questions asked close together; a failed read is never kept. */

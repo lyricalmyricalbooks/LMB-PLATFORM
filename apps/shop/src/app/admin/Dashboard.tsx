@@ -68,6 +68,8 @@ import { setProductSells } from "../lib/productHref";
 const StudioEditor = lazy(() => import("./studio/StudioWorkspace").then(m => ({ default: m.StudioWorkspace })));
 // Heavy admin pages load in their own chunks when first opened.
 const BookEditor = lazy(() => import("./BookEditor").then(m => ({ default: m.BookEditor })));
+const FairHelperDesk = lazy(() => import("./FairHelperDesk").then(m => ({ default: m.FairHelperDesk })));
+const FairHelperInbox = lazy(() => import("./stockroom/FairHelperInbox").then(m => ({ default: m.FairHelperInbox })));
 const StockroomCopyAuto = lazy(() => import("./stockroom/StockroomCopies.tsx").then(m => ({ default: m.StockroomCopyAuto })));
 const Discounts = lazy(() => import("./Discounts").then(m => ({ default: m.Discounts })));
 const GiftCards = lazy(() => import("./GiftCards").then(m => ({ default: m.GiftCards })));
@@ -127,6 +129,8 @@ export function Dashboard() {
   const [user, setUser] = useState<any>(null);
   // Signed in with the Team's bookkeeper role: the Bookkeeping page instead of the admin.
   const [bookkeeper, setBookkeeper] = useState<{ email: string | null } | null>(null);
+  // Signed in with the Team's fair helper role: the Fair till instead of the admin (FairHelperDesk.tsx).
+  const [fairHelper, setFairHelper] = useState<{ email: string } | null>(null);
   // Platform support signed in from the platform's control room (supportSession.ts); null for everyone else.
   const [supportVisit, setSupportVisit] = useState<SupportVisit | null>(null);
   // The shop's plan on the platform (platform/plan, plan 6.6): banners, and a paused or closed plan opens on Plan &
@@ -429,6 +433,13 @@ export function Dashboard() {
         return;
       }
       setBookkeeper(null);
+      const helper = u ? await Promise.resolve(adminApi.fairHelperSignIn?.()).catch(() => null) : null;
+      setFairHelper(helper ?? null);
+      if (helper) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
       setUser(u);
       if (!u) { setLoading(false); return; }
       void adminApi.supportVisit().then(setSupportVisit).catch(() => setSupportVisit(null));
@@ -571,6 +582,10 @@ export function Dashboard() {
     return <BookkeeperDesk email={bookkeeper.email} appearance={adminTheme === "dark" ? "dark" : "light"} />;
   }
 
+  if (fairHelper) {
+    return <Suspense fallback={null}><FairHelperDesk email={fairHelper.email} appearance={adminTheme === "dark" ? "dark" : "light"} /></Suspense>;
+  }
+
   // A paused or closed plan: Plan & billing and the downloads only, until the plan is open again (plan 6.7).
   if (user && planLocked(platformPlan ?? null)) {
     return <PlanDesk plan={platformPlan!} email={user.email ?? null} appearance={adminTheme === "dark" ? "dark" : "light"} />;
@@ -581,6 +596,9 @@ export function Dashboard() {
     return <Login onLogin={() => {
       void Promise.resolve(adminApi.bookkeeperSignIn?.()).catch(() => null).then((books) => {
         if (books) { setBookkeeper(books); setUser(null); }
+      });
+      void Promise.resolve(adminApi.fairHelperSignIn?.()).catch(() => null).then((helper) => {
+        if (helper) { setFairHelper(helper); setUser(null); }
       });
     }} />;
   }
@@ -950,7 +968,7 @@ export function Dashboard() {
         <PlatformMessagesBar enabled={!!user} />
         {!!user && !supportVisit && <LocalBackupAuto />}
         {/* The stockroom's daily online copy (Stockroom › Backups), made by the owner's admin. */}
-        {!!user && !supportVisit && COMBINED && isShopOwner(user.email) && <Suspense fallback={null}><StockroomCopyAuto /></Suspense>}
+        {!!user && !supportVisit && COMBINED && isShopOwner(user.email) && <Suspense fallback={null}><StockroomCopyAuto /><FairHelperInbox /></Suspense>}
         {/* The admin home asks a paid plan's owner to turn on two-step sign-in (TwoStepReminder.tsx, plan 22.10). */}
         {activeTab === "overview" && !supportVisit && <TwoStepReminder plan={platformPlan} />}
         {/* The Overview board draws its own header (title, period, layout and Edit board). */}

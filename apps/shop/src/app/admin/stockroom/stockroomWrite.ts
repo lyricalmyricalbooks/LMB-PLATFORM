@@ -400,10 +400,25 @@ export function liveStockroomIO(): StockroomIO {
 let live: ReturnType<typeof createStockroomWriter> | null = null;
 const liveWriter = () => (live ??= createStockroomWriter(liveStockroomIO()));
 
+// Who wants to know that the stockroom's records changed (the answers' short cache, the fair helpers' menu).
+const savedListeners = new Set<() => void>();
+/** Calls `fn` after every save that changed the stockroom's records; returns the way to stop. */
+export function onStockroomSaved(fn: () => void) {
+  savedListeners.add(fn);
+  return () => { savedListeners.delete(fn); };
+}
+/** Tells the listeners the records changed (every save through `stockroomWriteApi` that stored something). */
+export function noteStockroomSaved() {
+  for (const fn of savedListeners) { try { fn(); } catch { /* a listener never stops a save */ } }
+}
+function told<T extends { status: string }>(result: Promise<T>): Promise<T> {
+  return result.then((r) => { if (r.status === "saved") noteStockroomSaved(); return r; });
+}
+
 /** What the pages call (the admin fixture can swap `stockroomWriteApi` for sample data, as it does for reads). */
 export const stockroomWriteApi = {
-  saveBookState: (bookId: string, mutate: (state: BookState) => BookState | Promise<BookState>) => liveWriter().saveBookState(bookId, mutate),
-  commitBookState: (pending: PendingBookSave) => liveWriter().commitBookState(pending),
-  updateSetting: (key: string, mutate: (current: unknown) => unknown | Promise<unknown>) => liveWriter().updateSetting(key, mutate),
-  saveSetting: (key: string, value: unknown, opts?: { base?: string | null }) => liveWriter().saveSetting(key, value, opts),
+  saveBookState: (bookId: string, mutate: (state: BookState) => BookState | Promise<BookState>) => told(liveWriter().saveBookState(bookId, mutate)),
+  commitBookState: (pending: PendingBookSave) => told(liveWriter().commitBookState(pending)),
+  updateSetting: (key: string, mutate: (current: unknown) => unknown | Promise<unknown>) => told(liveWriter().updateSetting(key, mutate)),
+  saveSetting: (key: string, value: unknown, opts?: { base?: string | null }) => told(liveWriter().saveSetting(key, value, opts)),
 };

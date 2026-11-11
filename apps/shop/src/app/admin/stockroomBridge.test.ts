@@ -59,6 +59,16 @@ describe("asking the stockroom", () => {
     expect(failing).toHaveBeenCalledTimes(2);
   });
 
+  it("reads the records again right after a change is saved in the admin", async () => {
+    const { noteStockroomSaved } = await import("./stockroom/stockroomWrite");
+    stockroomBridge.forget();
+    const load = vi.fn(async () => records());
+    await stockroomBridge.ask({ what: "sales" }, { load });
+    noteStockroomSaved();
+    await stockroomBridge.ask({ what: "sales" }, { load });
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+
   it("says refused for a sign-in the records are kept from", async () => {
     const refused = async () => { throw Object.assign(new Error("Missing or insufficient permissions."), { code: "permission-denied" }); };
     expect(await stockroomBridge.ask({ what: "todo" }, { load: refused })).toEqual({ refused: true });

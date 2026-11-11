@@ -19,7 +19,11 @@ const localToday = (now: Date) => `${now.getFullYear()}-${String(now.getMonth() 
 const blankState = (book: Record<string, unknown>) => ({ stock: book.maxPrint, hist: [], ledger: [], stores: [], expenses: [], openCall: [] });
 
 /** The to-do list for these records, minus what the owner dismissed. */
-export function buildTodo(records: StockroomRecords, opts: { words?: (text: string) => string; booksShop?: boolean; dismissed?: Dismissed; now?: Date } = {}): TodoList {
+export function buildTodo(records: StockroomRecords, opts: {
+  words?: (text: string) => string; booksShop?: boolean; dismissed?: Dismissed; now?: Date;
+  /** Fair helper sales the owner's admin couldn't bring in (fairInbox.ts stuckSummary). */
+  fairHelpers?: { stuck: number; by: string[]; belowPrice: number } | null;
+} = {}): TodoList {
   const states = Object.fromEntries(records.books.map((book) => {
     const state: Record<string, unknown> = { ...blankState(book), ...(records.states[book.id] || {}) };
     // The stockroom counts the shelf again from the records every time it loads (recomputeAfters); the saved count can
@@ -46,7 +50,7 @@ export function buildTodo(records: StockroomRecords, opts: { words?: (text: stri
     // Only what the records tell: which unsent orders already have a postage label. Card payments to match, refunds
     // to reverse, website orders to review, receipts waiting and the website link's state live in the old app's
     // browser (or its live checks) and are left out.
-    automation: { labelledOrderNums: labelledOrderNums(states, taxCenter.businessExpenses as unknown[]) },
+    automation: { labelledOrderNums: labelledOrderNums(states, taxCenter.businessExpenses as unknown[]), fairHelpers: opts.fairHelpers || undefined },
     today: localToday(opts.now || new Date()),
   });
   const dismissed = opts.dismissed || {};
