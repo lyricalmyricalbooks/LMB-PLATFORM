@@ -2,7 +2,7 @@
 // itself on the same app store plumbing any maker uses. They put themselves on the store, so no one has to register,
 // approve or configure them by hand before a press can add one.
 //
-//   createOwnApps({ store, root, platformUrl, supportEmail, available, zapier, now })  ->  { ensure(), appOf(name), sealKeyOf(name), list() }
+//   createOwnApps({ store, root, platformUrl, supportEmail, available, zapier, now })  ->  { ensure(), appOf(name), sealKeyOf(name), needs(name), titleOf(name) }
 //
 // - Each app's id is fixed (`ownAppId(name)`), and its secret and sealing key come from one platform secret (`root`, the
 //   CHECKUP_SECRET link phrase the server already needs, or OWN_APPS_SECRET when set), each through its own HMAC label.
@@ -150,6 +150,17 @@ export function createOwnApps({ store, root, platformUrl, supportEmail, availabl
     /** The app id and secret one app uses to install and to check its alerts, or null without a root secret. */
     appOf(name) {
       return ready && specs[name] ? { appId: ownAppId(name), appSecret: ownAppSecret(root, name) } : null;
+    },
+    /** What one app still needs before it can be on the store: "secret" (no root secret), "company" (its company's
+     *  app sign-up), "zapier" (its two Zapier addresses), or null when nothing. */
+    needs(name) {
+      if (!ready) return "secret";
+      if (canConnect(name)) return null;
+      return name === "zapier" ? "zapier" : "company";
+    },
+    /** Each app's store name. */
+    titleOf(name) {
+      return specs[name]?.name ?? name;
     },
     sealKeyOf(name) {
       return ready && specs[name] ? ownSealKey(root, name) : null;
