@@ -254,7 +254,6 @@ import {
 import { booksInDescription, saleCodes, splitSalePlan } from './lib/sale-codes.js';
 import { describeMarketDay, latestMarketDay, summariseMarketDay } from './lib/market-day.js';
 import { checkMarketCards, describeMarketCards } from './lib/market-card-check.js';
-import { unshippedOrders } from './lib/order-followups.js';
 import {
   clearNotificationLog,
   logNotification,
@@ -673,7 +672,6 @@ import {
   verifyLedgerOrderAddress,
   batchVerifyLedgerAddresses,
   applyLedgerAddressCorrections,
-  ordersWithLabels,
 } from './features/shipping.js';
 import {
   BOOKS, BOOK_LIST, states, activeBook, setBooks, refreshBookList, setActiveBook,
@@ -1165,7 +1163,7 @@ import { csvToObjects, toCsv } from './lib/csv.js';
 import { plainChanges, kindLabel, parseBuildDate, relativeWhen, dayHeading } from './lib/whats-new.js';
 import { downloadText, downloadCsv } from './lib/download.js';
 import { stockLocationsCsv } from './lib/stock-locations.js';
-import { OC_STAGES } from './lib/opencall.js';
+import { submissionsInput, openCallWaiting, labelledOrderNums as labelledOrderNumsOf } from './lib/attention-input.js';
 import { deriveOnHand, buildOrderTimeline, inventoryBreakdown, deduplicateDirectConsignmentSales, recalculateBookStatsFromHistory, orderStockPreview, orderStockPreviewCopy, deriveStockBreakdown, transferAuthorStock, isVoidStale } from './lib/inventory.js';
 import { fairForAdmin, fairSyncPill, readCurrentFair } from './lib/fair-mode.js';
 import { reconcileConsignmentChannel, reconcileStores, histMirrorForLedger, reconcileConsignmentMirrors, syncHistMirrorFromLedger, ledgerSaleIndexForHistMirror, consignmentSyncPayload, collectUniqueConsignmentStores, consignmentLedgerTotals, storeBalanceSlug, storeBalanceComparison } from './lib/consignment.js';
@@ -7250,25 +7248,8 @@ function attentionBooks() {
  * connections, the sync queue, and the author-submission inbox.
  */
 export function attentionInput() {
-  const submissions = Object.keys(window.authorSubmissions || {}).map(bookId => {
-    const subs = window.authorSubmissions[bookId] || {};
-    return {
-      bookId,
-      bookTitle: BOOKS[bookId]?.title || bookId,
-      sales: Object.keys(subs.sales || {}).length,
-      expenses: Object.keys(subs.expenses || {}).length,
-    };
-  });
-
-  const openCall = Object.keys(states || {}).map(bookId => {
-    const list = states[bookId]?.openCall;
-    if (!Array.isArray(list) || !list.length) return null;
-    let waiting = 0;
-    for (const c of list) {
-      if (OC_STAGES.some(st => !c[st.key])) waiting++;
-    }
-    return waiting > 0 ? { bookId, bookTitle: BOOKS[bookId]?.title || bookId, waiting } : null;
-  }).filter(Boolean);
+  const submissions = submissionsInput(window.authorSubmissions, bookId => BOOKS[bookId]?.title);
+  const openCall = openCallWaiting(states, bookId => BOOKS[bookId]?.title);
 
   return {
     books: attentionBooks(),
@@ -7315,11 +7296,7 @@ function automationTodoInput() {
   const refundsToReverse = safe(() => readPendingRefundReversals().filter(stillCounted).length, 0);
   const storeReversals = safe(() => readStoredList(STORE_REVERSAL_PENDING_KEY).filter(item => item.full && stillCounted(item)).length, 0);
   // Only the orders that would otherwise be flagged are checked for labels.
-  const labelledOrderNums = safe(() => {
-    const rows = [];
-    Object.entries(states).forEach(([bookId, st]) => (st?.hist || []).forEach(entry => rows.push({ bookId, entry })));
-    return ordersWithLabels(unshippedOrders(rows).map(o => o.num));
-  }, []);
+  const labelledOrderNums = safe(() => labelledOrderNumsOf(states, TAX_CENTER.businessExpenses), []);
   // The same list the review inbox shows, so a count here and the inbox itself
   // can never disagree about what is waiting.
   const review = safe(() => reviewQueueSnapshot().summary, { receipts: 0, labels: 0, ready: 0 });

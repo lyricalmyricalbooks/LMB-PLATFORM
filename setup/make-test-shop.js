@@ -256,6 +256,17 @@ export function platformServices({ env, fetch, token, platform = firestoreClient
 }
 
 /** The real clients for `makeTestShopWith`: Google, the platform's registry and the shared test project. */
+/**
+ * The platform's Stripe publishable key for test mode (public: it goes in the shop's profile, for the checkout's card
+ * form), from the repository variable STRIPE_TEST_PUBLISHABLE_KEY. Without it the test shop's checkout shows no card
+ * form and the release check's purchase waits (release-check/checks.js cardPaymentsWaiting). A live key is refused.
+ */
+export function testPublishableKeys(env = process.env) {
+  const test = String(env.STRIPE_TEST_PUBLISHABLE_KEY ?? "").trim();
+  if (test && !/^pk_test_\w{10,}$/.test(test)) throw new Error("STRIPE_TEST_PUBLISHABLE_KEY must be a Stripe test publishable key (pk_test_…)");
+  return { live: "", test };
+}
+
 export async function makeTestShop({ apply, ownerEmail, serviceAccount, root = process.cwd(), print = console.log, env = process.env }) {
   const token = gcloudToken();
   const region = String(env.SHOP_FUNCTIONS_REGION ?? "").trim() || REGION;
@@ -277,7 +288,7 @@ export async function makeTestShop({ apply, ownerEmail, serviceAccount, root = p
       // The rules name no owner (each shop's record does), and the project's own profile is never served.
       ownerEmailOf: async () => "", profileScriptOf: async (projectId) => sharedProjectProfile(projectId, { region }),
     }),
-    makerConfig: () => sharedMakerConfig({ google: clients.google, projectId: TEST_PROJECT, shopDomain: "", platformUrl: PLATFORM_URL, senderEmail: SENDER_EMAIL, version }),
+    makerConfig: () => sharedMakerConfig({ google: clients.google, projectId: TEST_PROJECT, shopDomain: "", platformUrl: PLATFORM_URL, senderEmail: SENDER_EMAIL, version, stripePublishableKeys: testPublishableKeys(env) }),
     async publishPages(shopId) {
       const record = await clients.shared.records.get(shopId);
       if (!record) throw new Error("its record is missing from the shared project");

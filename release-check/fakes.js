@@ -4,6 +4,9 @@
 // "admin-hidden", "no-refund-event", "pages-broken", "admin-pages-broken".
 import { TEST_PRINTED_IDS, TEST_STOCK } from "../setup/test-catalogue.js";
 
+/** A test shop whose checkout can take Stripe's test card (checks.js cardPaymentsWaiting). */
+export const READY_PROFILE = Object.freeze({ payments: { provider: "stripe", mode: "platform", stripe: { accountId: "acct_test", testPublishableKey: "pk_test_FakeReleaseCheckKey000000" } } });
+
 export function fakeTestShop({ faults = [], orders = {} } = {}) {
   const has = (fault) => faults.includes(fault);
   const world = {
@@ -93,7 +96,7 @@ export function fakeTestShop({ faults = [], orders = {} } = {}) {
     },
   };
   const session = { apiKey: "AIzaFakeKey", idToken: "id-token", user: { uid: "owner-uid", email: "owner@example.com" } };
-  const clients = { browser, shopData, stockroomData, shopAdmin, session, profile: {}, urls: { site: "https://lmb-test-shop.web.app", stockroom: "https://lmb-test-shop-stockroom.web.app" } };
+  const clients = { browser, shopData, stockroomData, shopAdmin, session, profile: has("no-card-key") ? {} : READY_PROFILE, urls: { site: "https://lmb-test-shop.web.app", stockroom: "https://lmb-test-shop-stockroom.web.app" } };
   return { world, clients };
 }
 

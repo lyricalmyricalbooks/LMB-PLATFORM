@@ -1,9 +1,15 @@
 // Home's "Needs you" lines from the stockroom, in the combined admin only (shop + stockroom plan; docs/combined-admin.md
 // step 3): one line per kind of stockroom to-do, so a press with both apps sees one list of what needs them. The
-// stockroom works out its own to-dos (apps/stockroom/src/lib/book-summary.js `todoItems`); Home only counts them.
-import { useEffect, useState, type ReactElement } from "react";
+// list is the To-do page's (stockroom/todo.ts, built on the stockroom's own `buildAttentionSignals` and `todoItems`), so
+// Home and the page always agree; Home only counts them.
+import { useEffect, useRef, useState, type ReactElement } from "react";
+import { todoItems } from "@stockroom/book-summary.js";
 import { RunRow } from "./OverviewParts";
+import { sellsBooks } from "../sells";
+import { useShopSells, useShopWords } from "../shopWords";
 import { stockroomBridge, type StockroomTodo } from "../stockroomBridge";
+import { isRefusal, stockroomApi, type StockroomRecords } from "../stockroom/stockroomData";
+import { buildTodo, readDismissed } from "../stockroom/todo";
 
 /** How long Home waits before asking, so its own figures load first. */
 const FIRST_ASK_MS = 1_500;
@@ -28,19 +34,44 @@ export const onHomeOnce = (item: StockroomTodo) => !/^stock-(low|getting-low):/.
 
 export type StockroomTodoState = { items: StockroomTodo[] | null; loading: boolean; failed: boolean };
 
-/** The stockroom's to-dos for Home, asked shortly after Home opens and again every five minutes it is on screen. */
+/** Home's list from the stockroom's records: the same list the To-do page draws (todo.ts), minus what the owner dismissed there. */
+export async function nativeTodoItems(words: (text: string) => string, booksShop: boolean, load: () => Promise<StockroomRecords> = stockroomApi.load): Promise<StockroomTodo[]> {
+  const records = await load();
+  return todoItems(buildTodo(records, { words, booksShop, dismissed: readDismissed() })).filter(onHomeOnce);
+}
+
+/**
+ * The stockroom's to-dos for Home, read from the records right after Home opens and again every five minutes it is on
+ * screen. Only a read that fails for a reason other than the owner-only rule falls back to asking the stockroom frame.
+ */
 export function useStockroomTodos(enabled: boolean): StockroomTodoState {
   const [state, setState] = useState<StockroomTodoState>({ items: null, loading: enabled, failed: false });
+  const w = useShopWords();
+  const sells = useShopSells();
+  // The timer below outlives a render, so it reads the latest words from here.
+  const latest = useRef({ w, booksShop: sellsBooks(sells) });
+  latest.current = { w, booksShop: sellsBooks(sells) };
   useEffect(() => {
     if (!enabled) return undefined;
     let alive = true;
-    const ask = async () => {
+    const viaFrame = async () => {
       const answer = await stockroomBridge.askUntil<{ items: StockroomTodo[] } | { refused: true }>({ what: "todo" });
       if (!alive) return;
-      // An author signed in to the stockroom sees no press to-dos here; a quiet stockroom keeps the last answer.
       if (answer && "items" in answer && Array.isArray(answer.items)) setState({ items: answer.items.filter(onHomeOnce), loading: false, failed: false });
       else if (answer && "refused" in answer) setState({ items: [], loading: false, failed: false });
       else setState((s) => ({ items: s.items, loading: false, failed: !s.items }));
+    };
+    const ask = async () => {
+      try {
+        const items = await nativeTodoItems(latest.current.w, latest.current.booksShop);
+        if (alive) setState({ items, loading: false, failed: false });
+      } catch (error) {
+        if (!alive) return;
+        // A team member is refused (owner-only records): no lines, not an error. Anything else could be a dropped connection,
+        // never an empty list, so the frame gets a try and a failure there says so on Home.
+        if (isRefusal(error)) setState({ items: [], loading: false, failed: false });
+        else await viaFrame();
+      }
     };
     const first = window.setTimeout(() => { void ask(); }, FIRST_ASK_MS);
     const timer = window.setInterval(() => { if (document.visibilityState === "visible") void ask(); }, REFRESH_MS);

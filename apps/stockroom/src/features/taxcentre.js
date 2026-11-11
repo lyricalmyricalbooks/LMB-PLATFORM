@@ -75,6 +75,7 @@ import {
   snoozeUntil,
 } from '../lib/deduction-gaps.js';
 import { findCategoryMismatches } from '../lib/category-fit.js';
+import { tripsSummaryAll, emptyTripBucket, expenseBaseAmount } from '../lib/attention-input.js';
 import { canonicalExpenseCategory } from '../lib/expense-categories.js';
 import { deductibleAmount, deductibleRate } from '../lib/deductibility.js';
 import { receiptOwners, summarizeReceiptStorage, isReceiptExemptExpense, receiptRefsOf, isWebReceiptLink, hasOnlyShippingLabels } from '../lib/receipt-storage.js';
@@ -1221,18 +1222,7 @@ function _tcTripRecordMeta(rec) {
   return bits.join(' &nbsp;·&nbsp; ');
 }
 
-function _tcEmptyTripBucket(rec) {
-  return {
-    total: 0,
-    count: 0,
-    latestDate: (rec && (rec.endDate || rec.startDate)) || '',
-    minDate: (rec && rec.startDate) || '',
-    maxDate: (rec && rec.endDate) || '',
-    items: [],
-    categories: {},
-    record: rec || null,
-  };
-}
+const _tcEmptyTripBucket = emptyTripBucket;
 
 /**
  * An expense's value in the book currency, valued exactly as the ledger does:
@@ -1241,39 +1231,12 @@ function _tcEmptyTripBucket(rec) {
  * rate or a silent 1:1.
  */
 function _tcExpenseBaseAmount(e) {
-  if (e.baseAmount != null) return e.baseAmount;
-  const eFx = datedCadRate(e.currency || 'CAD', e.date, _fxRateCache);
-  return (e.fxMissing && eFx.estimated) || eFx.missing
-    ? 0
-    : roundCents((e.amount || 0) * eFx.rate);
+  return expenseBaseAmount(e, _fxRateCache);
 }
 
 function _tcGetTripsSummaryAll() {
-  const tripSummary = {};
-  _tcTripRecords().forEach(rec => {
-    const name = (rec.name || '').trim();
-    if (!name) return;
-    tripSummary[name] = _tcEmptyTripBucket(rec);
-  });
-  (TAX_CENTER.businessExpenses || []).forEach(e => {
-    const t = (e.trip || '').trim();
-    if (!t) return;
-    const eCur = e.currency || 'CAD';
-    const eBase = _tcExpenseBaseAmount(e);
-    const cat = canonicalExpenseCategory(e.cat, 'Other');
-    if (!tripSummary[t]) {
-      tripSummary[t] = { total: 0, count: 0, latestDate: '', items: [], categories: {} };
-    }
-    tripSummary[t].total += eBase;
-    tripSummary[t].count++;
-    if (!tripSummary[t].categories[cat]) tripSummary[t].categories[cat] = 0;
-    tripSummary[t].categories[cat] += eBase;
-    if (e.date && (!tripSummary[t].latestDate || e.date > tripSummary[t].latestDate)) {
-      tripSummary[t].latestDate = e.date;
-    }
-    tripSummary[t].items.push({ ...e, baseAmount: eBase, origCurrency: eCur, origAmount: e.amount || 0 });
-  });
-  return tripSummary;
+  _tcTripRecords();
+  return tripsSummaryAll(TAX_CENTER, _fxRateCache);
 }
 
 function tcRenderQuickTripChips() {

@@ -75,7 +75,9 @@ function sheetCells(rows) {
 }
 
 export function createGoogleService({ config, google, tokens, states, registry, connect, teardown, now = () => Date.now() }) {
-  const isOn = () => config.enabled && Boolean(config.app);
+  // On for every shop once Google approved the sign-in screen (GOOGLE_CONNECT_ENABLED). Before that, with the keys in
+  // place, only the platform's test shop gets it: Google's "testing" sign-in lets its listed test users in (config.js).
+  const isOn = (row) => Boolean(config.app) && (config.enabled || (config.testing === true && row?.testShop === true));
 
   /** The permissions to ask for: the core parts, Gmail sending once switched on, and each extra ticked. */
   function scopesFor(extras) {
@@ -108,7 +110,7 @@ export function createGoogleService({ config, google, tokens, states, registry, 
   }
 
   async function status(row) {
-    if (!isOn()) return { enabled: false };
+    if (!isOn(row)) return { enabled: false };
     const conn = await tokens.get(row.shopId);
     const g = row.google ?? {};
     return {
@@ -263,7 +265,7 @@ export function createGoogleService({ config, google, tokens, states, registry, 
         if (row.status === "abandoned") throw new GoogleLinkError(403, "shop_closed", "This shop is closed.");
         const op = body && typeof body === "object" && Object.hasOwn(OPS, body.op) ? OPS[body.op] : null;
         if (!op) throw bad("Unknown call.");
-        if (body.op !== "google.status" && !isOn()) throw new GoogleLinkError(409, "google_off", "Connect Google isn't turned on yet.");
+        if (body.op !== "google.status" && !isOn(row)) throw new GoogleLinkError(409, "google_off", "Connect Google isn't turned on yet.");
         const args = body.args && typeof body.args === "object" && !Array.isArray(body.args) ? body.args : {};
         return { status: 200, body: await op({ ...row, shopId }, args) };
       } catch (err) {
@@ -283,7 +285,7 @@ export function createGoogleService({ config, google, tokens, states, registry, 
       const saved = /^[0-9a-f]{48}$/.test(state) ? await states.take(state) : null;
       if (!saved || saved.expiresAt < now()) return { status: 400, body: { error: "This sign-in link has expired. Go back to your shop's admin and press Connect Google again." } };
       const row = await registry.getShop(saved.shopId);
-      if (!row || !isOn()) return backTo(saved.returnUrl, "failed");
+      if (!row || !isOn(row)) return backTo(saved.returnUrl, "failed");
       if (query.error || typeof query.code !== "string" || !query.code) return backTo(saved.returnUrl, "denied");
       let granted;
       let accountEmail;

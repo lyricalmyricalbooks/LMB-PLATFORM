@@ -47,7 +47,9 @@ function world({ on = "1.0.0", broken = {}, badPages = [] } = {}) {
     },
     async releaseCheck(shopId, version) {
       calls.push(["release-check", shopId, version]);
-      return fault(version, TEST_PROJECT) === "check" ? { ok: false, error: "5. The order reaches the stockroom: failed" } : { ok: true };
+      const f = fault(version, TEST_PROJECT);
+      if (f === "waiting") return { ok: true, waiting: "the test shop's profile has no Stripe test publishable key" };
+      return f === "check" ? { ok: false, error: "5. The order reaches the stockroom: failed" } : { ok: true };
     },
     async publishShop(r, version) {
       calls.push(["publish", r.shopId, version]);
@@ -76,7 +78,8 @@ test("the shared server's settings are the platform's doors and the region, and 
   const env = sharedServerEnv({ platformUrl: `${PLATFORM}/`, region: "northamerica-northeast1" });
   assert.equal(env, [
     'SHOP_PAYMENT_MODE="platform"', `SHOP_PAYMENTS_SERVICE_URL="${PLATFORM}/api/payments"`, 'SHOP_FUNCTIONS_REGION="northamerica-northeast1"',
-    `PLATFORM_EMAIL_URL="${PLATFORM}/api/email/shop"`, `PLATFORM_DOMAINS_URL="${PLATFORM}/api/domains"`, "",
+    `PLATFORM_EMAIL_URL="${PLATFORM}/api/email/shop"`, `PLATFORM_DOMAINS_URL="${PLATFORM}/api/domains"`,
+    `PLATFORM_GOOGLE_URL="${PLATFORM}/api/google"`, "",
   ].join("\n"));
   const { SHOP_KEYS } = createRequire(import.meta.url)("../../apps/shop/functions/shopConfig.js");
   for (const key of SHOP_KEYS.filter((k) => k !== "SHOP_PAYMENT_MODE")) assert.ok(!env.includes(`${key}=`), `${key} is each shop's own, in its record`);
@@ -293,4 +296,25 @@ test("the release's outcome reads in plain words, the version to send on comes f
   assert.deepEqual(await retryWhileLocked(async () => answers.shift(), { sleep: async (ms) => void waits.push(ms) }), { ok: true });
   assert.deepEqual(waits, [60_000, 60_000]);
   assert.deepEqual(await retryWhileLocked(async () => ({ locked: true }), { tries: 2, sleep: async () => {} }), { locked: true }, "gives up in the end");
+});
+
+test("while the test shop can't take a card, a merge's update passes and says so, but real shops never get that version", async () => {
+  const merge = await setup({ broken: { "1.1.0": { [TEST_PROJECT]: "waiting" } } });
+  const alone = [{ projectId: TEST_PROJECT, test: true }];
+  const result = await merge.run("1.1.0", { projects: alone, keepOnFailedCheck: true });
+  assert.equal(result.ok, true, "the merge's run is green");
+  assert.equal(result.projects[0].status, "shipped");
+  assert.match(result.projects[0].waiting, /publishable key/);
+  assert.ok(merge.lines.some((line) => /Real shops can't get it until a purchase passes/.test(line)));
+  const { releaseSummary } = await import("./run-shared.js");
+  const summary = releaseSummary(result, { testShopOnly: true });
+  assert.match(summary, /test purchase waits/);
+  assert.match(summary, /Real shops can't get this version until a test purchase passes/);
+
+  // Sending to shops: the same check stops it at the test project, and the live project is never touched.
+  const send = await setup({ broken: { "1.1.0": { [TEST_PROJECT]: "waiting" } } });
+  const sent = await send.run("1.1.0");
+  assert.equal(sent.ok, false);
+  assert.match(sent.error, /couldn't make a test purchase/);
+  assert.ok(!send.w.calls.some(([k, id]) => k === "rules" && id === LIVE_PROJECT));
 });

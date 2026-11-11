@@ -16,6 +16,7 @@
 // The cycle with main.js is safe for the reason set out in
 // tests/features-boundary.test.js: nothing here runs at module-evaluation
 // time. eslint's no-undef, an error in CI, keeps the import list below honest.
+import { isLinkablePostageExpense } from '../lib/attention-input.js';
 import { withAutoLocalPickup } from '../lib/local-pickup.js';
 import { notifyDevice } from '../lib/device-notify.js';
 import { buildChitChatsShipment, getChitChatsRates, buyChitChatsLabel, normalizeChitChatsShipment,
@@ -1447,14 +1448,6 @@ function applyShippoRefunds(refunds) {
   return added;
 }
 
-/** How much postage is still waiting on a person. */
-/** Of these order numbers, the ones with a shipping label matched to them. */
-function ordersWithLabels(nums = []) {
-  const wanted = new Set(nums.filter(Boolean));
-  if (!wanted.size) return [];
-  const expenses = postageExpenses();
-  return [...wanted].filter(num => linkedShippingSummary({ num }, expenses, 1).linkedCount > 0);
-}
 
 function reconciliationBacklog() {
   return (TAX_CENTER.businessExpenses || []).filter(isUnresolvedShippoPostage).length;
@@ -2261,17 +2254,6 @@ const UNSHIPPED_ALERT_DAY_KEY = 'lm-unshipped-alert-day';
 const POSTAGE_REPORT_MONTH_KEY = 'lm-postage-report-month';
 const ORDER_FOLLOWUP_INTERVAL_MS = 60 * 60 * 1000;
 let _orderFollowupsStarted = false;
-
-/**
- * Whether an expense is parcel postage that can be linked to an order. The
- * old Shippo / Canada Post prefixes are kept, and labels filed from counter
- * receipts, carrier emails and Chit Chats count too — the same rule the
- * shipping analysis uses — so a linked label always shows in its order's margin.
- */
-function isLinkablePostageExpense(expense) {
-  const ref = String(expense?.ref || '');
-  return /^(shippo:|canadapost:|postage[:-]|chitchats:)/.test(ref) || isPostageExpense(expense || {});
-}
 
 function postageExpenses() {
   return (TAX_CENTER.businessExpenses || []).filter(isLinkablePostageExpense);
@@ -11758,7 +11740,6 @@ export {
   startShippingEmailSweep,
   startDeliveryWatch,
   startOrderFollowups,
-  ordersWithLabels,
   openShippingFromUnshippedAlert,
   openShippingPricesFromAlert,
   checkNewPostageLosses,
