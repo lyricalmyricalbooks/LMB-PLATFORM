@@ -86,6 +86,7 @@ import { appUseRoutes, createAppUse } from "../control-room/appUse.js";
 import { createShopSocial, shopSocialRoutes } from "../control-room/shopSocial.js";
 import { createShopApps, shopAppsRoutes } from "../control-room/shopApps.js";
 import { chitChatsDeskRoutes, createChitChatsDesk } from "../control-room/chitChats.js";
+import { createMailchimpDesk, mailchimpDeskRoutes } from "../control-room/mailchimp.js";
 import { createSellReady, sellReadyRoutes } from "../control-room/sellReady.js";
 import { createNotSelling, notSellingRoutes } from "../control-room/notSelling.js";
 import { createSocialService } from "../services/social/social.js";
@@ -345,6 +346,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...shopSocialRoutes(shopSocial),
     ...shopAppsRoutes(shopApps),
     ...chitChatsDeskRoutes(chitChatsDesk),
+    ...mailchimpDeskRoutes(createMailchimpDesk({ admins, mailchimp, connections: mailchimpStores.connections, registry, now: clock.date })),
     ...sellReadyRoutes(sellReady),
     ...notSellingRoutes(notSelling),
     ...driftRoutes(driftDesk),
