@@ -68,7 +68,7 @@ import { setProductSells } from "../lib/productHref";
 const StudioEditor = lazy(() => import("./studio/StudioWorkspace").then(m => ({ default: m.StudioWorkspace })));
 // Heavy admin pages load in their own chunks when first opened.
 const BookEditor = lazy(() => import("./BookEditor").then(m => ({ default: m.BookEditor })));
-const StockroomCopyAuto = lazy(() => import("./stockroom/StockroomCopies").then(m => ({ default: m.StockroomCopyAuto })));
+const StockroomCopyAuto = lazy(() => import("./stockroom/StockroomCopies.tsx").then(m => ({ default: m.StockroomCopyAuto })));
 const Discounts = lazy(() => import("./Discounts").then(m => ({ default: m.Discounts })));
 const GiftCards = lazy(() => import("./GiftCards").then(m => ({ default: m.GiftCards })));
 const SalesChannels = lazy(() => import("./SalesChannels").then(m => ({ default: m.SalesChannels })));
