@@ -24,7 +24,7 @@ describe("order.dispatch", () => {
     expect(db.docs["order-operations/A-1"].data.activity[0].message).toContain("Parcel Pal");
     const again = await applyAppRequest(db, "r1", new Date("2026-11-04T16:00:00Z"));
     expect(again.answeredAt).toBe(now.toISOString());
-    expect(APP_REQUEST_OPS).toEqual(["order.dispatch", "inventory.adjust"]);
+    expect(APP_REQUEST_OPS).toEqual(["order.dispatch", "inventory.adjust", "newsletter.unsubscribe"]);
   });
 
   test("tracking only, then sent; the same tracking again is fine", async () => {
@@ -108,5 +108,21 @@ describe("inventory.adjust", () => {
     expect((await applyAppRequest(db, "r4", now)).status).toBe("refused");
     expect((await applyAppRequest(db, "r5", now)).reason).toMatch(/no such variant/);
     expect(db.docs["books/b1"].data.stockLevel).toBe(5);
+  });
+});
+
+describe("newsletter.unsubscribe", () => {
+  test("records the opt-out and takes the address off the list, like the shop's own link", async () => {
+    const db = fakeDb({ "newsletter/bea@example.com": { email: "bea@example.com", status: "confirmed" }, "appRequests/u1": request({ email: " Bea@Example.com " }, { op: "newsletter.unsubscribe", appName: "Mailchimp" }) });
+    const answer = await applyAppRequest(db, "u1", now);
+    expect(answer).toMatchObject({ status: "done", result: "unsubscribed" });
+    expect(db.docs["newsletter/bea@example.com"]?.data).toBeUndefined();
+    const optOut = Object.entries(db.docs).find(([k]) => k.startsWith("marketing-optout/"));
+    expect(optOut[1].data).toMatchObject({ source: "app:app_1", at: now.toISOString() });
+  });
+
+  test("refuses a missing address", async () => {
+    const db = fakeDb({ "appRequests/u2": request({ email: "nope" }, { op: "newsletter.unsubscribe" }) });
+    expect(await applyAppRequest(db, "u2", now)).toMatchObject({ status: "refused" });
   });
 });

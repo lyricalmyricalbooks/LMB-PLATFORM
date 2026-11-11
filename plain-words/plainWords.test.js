@@ -43,7 +43,7 @@ function problemsIn(label, text, allowed = ALLOWED) {
 
 // ── The pages, as a press reads them ───────────────────────────────────────────────────────────────────────────────
 
-const PAGES = ["signup/index.html", "accounts/index.html", "accounts/billing.html", "accounts/keep.html", "accounts/install.html", "accounts/chitchats.html", "help/index.html", "experts/index.html", "status/index.html", "terms/index.html", "waitlist/index.html"];
+const PAGES = ["signup/index.html", "accounts/index.html", "accounts/billing.html", "accounts/keep.html", "accounts/install.html", "accounts/chitchats.html", "accounts/mailchimp.html", "help/index.html", "experts/index.html", "status/index.html", "terms/index.html", "waitlist/index.html"];
 
 test("every page a press opens says nothing technical", () => {
   const found = PAGES.flatMap((page) => problemsIn(page, visibleText(read(page))));
@@ -55,7 +55,7 @@ test("every page a press opens says nothing technical", () => {
 // Files whose quoted words reach a press: the page scripts, the replies the services give them, and their words.
 const PRESS_FACING_CODE = [
   "help/errorHelp.js", "services/checkup/index.js", "signup/app.js", "signup/form.js", "signup/signup.js", "signup/shopMaker.js", "signup/api.js",
-  "accounts/accounts.js", "accounts/app.js", "accounts/billing.js", "accounts/chitchats.js", "services/chitchats/app.js", "services/chitchats/client.js", "accounts/billingWords.js", "accounts/billingRoutes.js",
+  "accounts/accounts.js", "accounts/app.js", "accounts/billing.js", "accounts/chitchats.js", "services/chitchats/app.js", "services/chitchats/client.js", "accounts/mailchimp.js", "services/mailchimp/app.js", "services/mailchimp/client.js", "accounts/billingWords.js", "accounts/billingRoutes.js",
   "accounts/devices.js", "accounts/recovery.js", "accounts/recoveryRoutes.js", "accounts/roles.js", "accounts/routes.js", "accounts/teamSync.js",
   "help/articles.js", "help/page.js", "help/support.js", "experts/directory.js", "experts/page.js", "status/page.js", "status/summary.js", "terms/page.js", "terms/terms.js",
   "waitlist/pricing.js", "waitlist/signup.js", "waitlist/domain-check.js",

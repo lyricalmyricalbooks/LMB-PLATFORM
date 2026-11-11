@@ -150,6 +150,32 @@ export function firestoreChitChats(firestore) {
   };
 }
 
+/**
+ * The Mailchimp app's records (services/mailchimp/app.js): mailchimpShops/<shopId>, and per address the shop sent,
+ * mailchimpMembers/<shopId~optOutId> holding only fingerprints (equality filter on shopId, no extra index).
+ */
+export function firestoreMailchimp(firestore) {
+  return {
+    connections: {
+      get: (shopId) => firestore.get(`mailchimpShops/${shopId}`),
+      put: (shopId, row) => firestore.set(`mailchimpShops/${shopId}`, row),
+      remove: (shopId) => firestore.remove(`mailchimpShops/${shopId}`),
+      list: async () => (await firestore.query("mailchimpShops", { limit: 5000 })).map((row) => row.data),
+    },
+    members: {
+      get: (id) => firestore.get(`mailchimpMembers/${encodeURIComponent(id)}`),
+      put: (id, row) => firestore.set(`mailchimpMembers/${encodeURIComponent(id)}`, row),
+      async removeShop(shopId) {
+        for (;;) {
+          const rows = await firestore.query("mailchimpMembers", { where: [["shopId", "==", shopId]], limit: 500 });
+          for (const row of rows) await firestore.remove(row.path);
+          if (rows.length < 500) return;
+        }
+      },
+    },
+  };
+}
+
 /** repairs/<id>: one problem for a person (control-room/repairs.js). Equality filters only, no extra index. */
 export function firestoreRepairs(firestore) {
   return {

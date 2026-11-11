@@ -76,3 +76,23 @@ export function fakeChitChatsStores() {
     },
   };
 }
+
+/** The Mailchimp app's stores in memory (services/mailchimp/app.js). */
+export function fakeMailchimpStores() {
+  const shops = new Map();
+  const people = new Map();
+  return {
+    shops, people,
+    connections: {
+      get: async (shopId) => structuredClone(shops.get(shopId) ?? null),
+      put: async (shopId, row) => { shops.set(shopId, structuredClone(row)); },
+      remove: async (shopId) => shops.delete(shopId),
+      list: async () => [...shops.values()].map((row) => structuredClone(row)),
+    },
+    members: {
+      get: async (id) => structuredClone(people.get(id) ?? null),
+      put: async (id, row) => { people.set(id, structuredClone(row)); },
+      removeShop: async (shopId) => { for (const [id, row] of people) if (row.shopId === shopId) people.delete(id); },
+    },
+  };
+}

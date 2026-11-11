@@ -59,6 +59,8 @@ import { createOwnApps } from "../services/apps/ownApps.js";
 import { createAppInstalls } from "../services/apps/installs.js";
 import { createChitChatsApp } from "../services/chitchats/app.js";
 import { chitChatsPublicRoutes, chitChatsRoutes } from "../services/chitchats/routes.js";
+import { createMailchimpApp } from "../services/mailchimp/app.js";
+import { mailchimpPublicRoutes, mailchimpRoutes } from "../services/mailchimp/routes.js";
 import { sealingKey } from "../services/payments/tokenSeal.js";
 import { createAppConnection } from "../services/apps/connection.js";
 import { createAppAlerts } from "../services/apps/alerts.js";
@@ -124,7 +126,7 @@ import { registryFiles, shopDataClient, stockroomDataClient } from "../clients/s
 import {
   firestoreAccounts, firestoreActivity, firestoreBreaches, firestoreDeliveryStats, firestoreDevices, firestoreIncomeHistory, firestoreInvites,
   firestoreJobRuns, firestorePlatformState, firestoreRecoveries, firestoreRepairs, firestoreSentLog, firestoreShopNotes, firestoreSupport, firestoreWaitlist,
-  firestoreApps, firestoreAppCodes, firestoreAppInstalls, firestoreAppAlerts, firestoreAppAlertState, firestoreChitChats,
+  firestoreApps, firestoreAppCodes, firestoreAppInstalls, firestoreAppAlerts, firestoreAppAlertState, firestoreChitChats, firestoreMailchimp,
 } from "../clients/stores.js";
 import {
   firestoreAccessRequests, firestoreAccountStores, firestoreBillingStores, firestoreFoundingSeats, firestoreDataExports, firestoreFeeLedger, firestorePressMessages,
@@ -280,6 +282,8 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const ownApps = createOwnApps({
     store: appStore, root: secretOf(env, "OWN_APPS_SECRET") ?? secretOf(env, "CHECKUP_SECRET"),
     platformUrl: settings.platformUrl, supportEmail: settings.supportEmail, now,
+    // Mailchimp lists itself once Colophon's own Mailchimp app sign-up is in the server's settings.
+    available: { mailchimp: Boolean(String(env.MAILCHIMP_CLIENT_ID ?? "").trim() && String(env.MAILCHIMP_CLIENT_SECRET ?? "").trim()) },
   });
   const appMakers = createAppMakers({ store: appStore, admins, now, ensureOwnApps: () => ownApps.ensure() });
   // Installing them on a shop with its owner's permission (26.2).
@@ -306,6 +310,16 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     connections: chitchatsStores.connections, shipments: chitchatsStores.shipments,
     exchange: (args) => appInstalls.exchange(args), appCall: (request) => appConnection(request),
     roleIn: (who, shopId) => accounts.roleIn(who, shopId), fetch, now, returnAddress: `${settings.platformUrl}/account/chitchats.html`,
+  });
+  // Colophon's own Mailchimp app (26.12): confirmed newsletter readers into the press's audience, unsubscribes both ways.
+  const mailchimpStores = firestoreMailchimp(platform);
+  const mailchimpOwn = ownApps.appOf("mailchimp");
+  const mailchimp = createMailchimpApp({
+    appId: mailchimpOwn?.appId ?? null, appSecret: mailchimpOwn?.appSecret ?? null, sealKey: ownApps.sealKeyOf("mailchimp"),
+    clientId: String(env.MAILCHIMP_CLIENT_ID ?? "").trim() || null, clientSecret: String(env.MAILCHIMP_CLIENT_SECRET ?? "").trim() || null,
+    connections: mailchimpStores.connections, members: mailchimpStores.members,
+    exchange: (args) => appInstalls.exchange(args), appCall: (request) => appConnection(request),
+    roleIn: (who, shopId) => accounts.roleIn(who, shopId), fetch, now, returnAddress: `${settings.platformUrl}/account/mailchimp.html`,
   });
   const recovery = createRecovery({
     store: recoveryStore, email, registry, auditLog, settings, admins, now,
@@ -379,7 +393,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const termsNotice = createTermsNotice({ signups: stores.signups, email, settings: live, now });
 
   // What the jobs can run (server/jobs.js reads these); the jobs page's "Run now" runs the ones that need nothing more.
-  const parts = { sharedShops: Boolean(sharedRun), domains, usage, usageMeters, costReader, ownApps, chitchats, chitchatsStores, env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups, termsNotice };
+  const parts = { sharedShops: Boolean(sharedRun), domains, usage, usageMeters, costReader, ownApps, chitchats, chitchatsStores, mailchimp, env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups, termsNotice };
   const runNow = {
     "dropped-apps": () => billing.closeDroppedApps(),
     "every-app": () => billing.giveEveryApp(),
@@ -388,6 +402,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     "setup-clock": () => setupClock.sweep(),
     "drift-watch": () => driftWatch.sweep(),
     "chitchats-tracking": () => chitchats.sweep(),
+    "mailchimp-sync": () => mailchimp.sweep(),
     "switch-note": () => switchNote({ registry, email, to: people.adminEmail ?? (String(env.HEALTH_ALERT_TO ?? "").trim() || null), now }),
     "chitchats-note": () => chitChatsNote({ stores: chitchatsStores, registry, email, to: people.adminEmail ?? (String(env.HEALTH_ALERT_TO ?? "").trim() || null), now }),
     ...(trialTips ? { "trial-tips": () => trialTips.run() } : {}),
@@ -409,6 +424,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...appMakerRoutes(appMakers),
     ...appInstallRoutes(appInstalls),
     ...chitChatsRoutes(chitchats),
+    ...mailchimpRoutes(mailchimp),
     ...recoveryRoutes(recovery),
     ...accessRequestRoutes({ requests: accessRequests, accounts, activity, registry, auditLog, now }),
     ...businessRoutes(business),
@@ -436,7 +452,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...exportRoutes(dataExports),
   };
   const door = createApi({
-    signup, verifyIdToken: createIdTokenVerifier({ projectId, fetch, now: nowMs }), settings, live, plusTax: readBillingConfig(env).tax, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls), ...appShopDoorRoutes(createAppShopDoor({ registry, installs: appInstalls, makers: appMakers })), ...chitChatsPublicRoutes(chitchats) },
+    signup, verifyIdToken: createIdTokenVerifier({ projectId, fetch, now: nowMs }), settings, live, plusTax: readBillingConfig(env).tax, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls), ...appShopDoorRoutes(createAppShopDoor({ registry, installs: appInstalls, makers: appMakers })), ...chitChatsPublicRoutes(chitchats), ...mailchimpPublicRoutes(mailchimp) },
     onSignedIn: deviceWatch({ devices: firestoreDevices(platform), email, now }),
     limits: createLimits({ throttle: firestoreThrottle(platform), admins, proxyHops: proxyHopsOf(env), now, log }),
     log,
@@ -489,7 +505,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
 
   return {
     projectId, settings, live, platform, registry, auditLog, shopData, stockroomData, email, billing, paymentWay, payments, signup, frontDoor, shopMaker, accounts, room, controls,
-    appAlerts, chitchats, backup, support, recovery, business, timeline, jobs, jobRuns, jobsPage, notes, pressMessages, costsDesk, dataExports, trialTips, checkups, closing, setupClock, driftWatch,
+    appAlerts, chitchats, mailchimp, backup, support, recovery, business, timeline, jobs, jobRuns, jobsPage, notes, pressMessages, costsDesk, dataExports, trialTips, checkups, closing, setupClock, driftWatch,
     routes, door, shopBilling, handle, parts, termsNotice, googleLink,
   };
 }

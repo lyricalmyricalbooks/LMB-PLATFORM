@@ -51,6 +51,7 @@ export const JOBS = Object.freeze([
   { name: "income-record", words: "Write down the night's income, and remind presses a month before their card runs out", every: DAY, code: "control-room/nightly.js runBusinessNightly" },
   { name: "app-alerts", words: "Tell installed apps about new orders, sent orders, refunds, product and stock changes", every: 1, code: "services/apps/alerts.js sweep" },
   { name: "chitchats-tracking", words: "Mark orders sent once Chit Chats has their tracking numbers", every: 10, code: "services/chitchats/app.js sweep" },
+  { name: "mailchimp-sync", words: "Add confirmed newsletter readers to each press's Mailchimp audience and carry unsubscribes both ways", every: 15, code: "services/mailchimp/app.js sweep" },
   { name: "press-messages", words: "Take ended messages off shop admins, and reach shops opened since", every: 60, code: "control-room/messages.js sweep" },
   { name: "chitchats-note", words: "Morning note to the platform owner (and each press) naming orders that went late or hit a problem in Chit Chats, and shops whose Chit Chats details stopped working", every: DAY, code: "control-room/chitChatsNote.js chitChatsNote" },
   { name: "switch-note", words: "Morning note to the platform owner naming card switches between Stripe and Square left waiting two days, and presses whose Stripe payouts have been paused two days", every: DAY, code: "control-room/switchNote.js switchNote" },
