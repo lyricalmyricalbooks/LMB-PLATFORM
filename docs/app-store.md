@@ -208,9 +208,26 @@ redirect address `https://<platform address>/account/mailchimp.html`. Put its cl
 `mailchimp-client-id` and `mailchimp-client-secret`, then run the deploy. Until both are there, Mailchimp stays off the
 store, so no press can find an app that can't connect.
 
+## 26.13 (built, waiting for Zapier): Zapier
+
+Colophon's own Zapier app (`services/zapier/`, its README has the table). Zapier runs it; it reaches the platform only
+through the app connection with the key a press gives it, so it can do only what the owner allowed.
+
+- Triggers: New Paid Order, New Newsletter Reader, Product Added or Changed (Zapier asks every few minutes).
+- Actions: Add Tracking to an Order (the shop sends its usual shipped email) and Change Stock, both through the shop's
+  own rules (`appRequests`), with an Idempotency-Key so a retry from Zapier never marks an order twice.
+- Sign-in: Zapier opens the permission page without a shop. The page now uses the press's one shop they own, or asks
+  which (`accounts/install.js`), then sends them back to Zapier with the code, swapped at `/api/apps/oauth/token`.
+- It lists itself on the store (`ownApps.js`) once `ZAPIER_INVITE_URL` and `ZAPIER_RETURN_ADDRESS` are in
+  `server/env.yaml`. Add on the store sends the press to the invite link.
+- `services/apps/ownApps.test.js` runs the Zapier app the way Zapier calls it, against the real token exchange and app
+  connection: sign-in, every trigger, both actions, a retry, a refused change, and removal stopping it at once.
+
+Turning it on (Julian): `services/zapier/README.md` › Putting it on Zapier.
+
 ## Colophon's own apps (11 November 2026)
 
-The apps the platform team builds (Chit Chats and Mailchimp now, then Zapier) put themselves on the store
+The apps the platform team builds (Chit Chats, Mailchimp and Zapier) put themselves on the store
 (`services/apps/ownApps.js`), so no one registers, approves or configures them before a press can add one.
 
 - Each has a fixed id (`ownAppId(name)`), and its secret and sealing key are made from one platform secret through their
@@ -230,7 +247,7 @@ Colophon builds these itself, as apps on the same plumbing any app maker uses. T
 
 ## Needs real accounts or people
 
-- A Zapier developer account to publish the Zapier app (26.13); a Klaviyo app registration (26.12, later).
+- A Zapier developer account to push the Zapier app (26.13, `services/zapier/README.md`); a Klaviyo app registration (26.12, later).
 - Mailchimp: register the app and add its two secrets (26.12, "Turning it on" above), then try it with a free Mailchimp
   account on the test shop.
 - A Chit Chats account (sandbox first) to try the Chit Chats app (26.11) on the test shop, and Chit Chats' permission to

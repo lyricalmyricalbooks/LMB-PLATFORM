@@ -3,6 +3,7 @@
 // told about a paid order, answering back through the app connection, and forgetting the shop when it's removed.
 // Only the outside companies (Chit Chats, Mailchimp) and the shop's own database are pretend.
 import { test } from "node:test";
+import { createRequire } from "node:module";
 import assert from "node:assert/strict";
 import { fakeAuditLog, fakeRegistry } from "../../setup/fakes.js";
 import { fakeAppAlertStores, fakeAppInstallStores, fakeAppStore, fakeChitChatsStores, fakeMailchimpStores } from "./fakes.js";
@@ -16,6 +17,7 @@ import { createMailchimpApp } from "../mailchimp/app.js";
 import { memberHash } from "../mailchimp/client.js";
 
 const ROOT = "a-link-phrase-of-plenty-length";
+const ZAPIER = { inviteUrl: "https://zapier.com/developer/public-invite/123/abc/", returnAddress: "https://zapier.com/dashboard/auth/oauth/return/App123CLIAPI/" };
 const URL_ = "https://platform.example";
 const OWNER = { uid: "uid-ada", email: "ada@moth.example", email_verified: true };
 const ADMIN = { uid: "uid-team", email: "team@platform.example", email_verified: true, firebase: { sign_in_second_factor: "totp" }, auth_time: Math.floor(Date.now() / 1000) };
@@ -36,7 +38,7 @@ test("own apps list themselves once, keep their secret, and stay off the store w
 
   // A second process (another server, the next deploy) changes nothing.
   const again = createOwnApps({ store, root: ROOT, platformUrl: URL_, supportEmail: "support@platform.example", available: { mailchimp: false } });
-  assert.deepEqual((await again.ensure()).listed, [{ appId, changed: false }, { appId: ownAppId("mailchimp"), changed: false, waiting: true }]);
+  assert.deepEqual((await again.ensure()).listed, [{ appId, changed: false }, { appId: ownAppId("mailchimp"), changed: false, waiting: true }, { appId: ownAppId("zapier"), changed: false, waiting: true }]);
 
   // Once Mailchimp's sign-up is there it lists itself with its logo, and comes off again if it goes away.
   const withMailchimp = createOwnApps({ store, root: ROOT, platformUrl: URL_, supportEmail: "support@platform.example" });
@@ -157,7 +159,7 @@ function platform() {
   const apps = fakeAppStore();
   const { installs: installStore, codes } = fakeAppInstallStores();
   const alertStores = fakeAppAlertStores();
-  const own = createOwnApps({ store: apps, root: ROOT, platformUrl: URL_, supportEmail: "support@platform.example", now });
+  const own = createOwnApps({ store: apps, root: ROOT, platformUrl: URL_, supportEmail: "support@platform.example", zapier: ZAPIER, now });
   const makers = createAppMakers({ store: apps, admins: [ADMIN.email], now, ensureOwnApps: () => own.ensure() });
   const courier = chitChats();
   const delivered = [];
@@ -203,7 +205,7 @@ function platform() {
     connections: mailchimpSaved.connections, members: mailchimpSaved.members, exchange: (args) => installs.exchange(args),
     appCall: (request) => connection(request), roleIn, fetch: audience.fetch, returnAddress: `${URL_}/account/mailchimp.html`, now,
   });
-  return { docs, makers, installs, alerts, chitchats, chitchatsSaved, mailchimp, mailchimpSaved, audience, courier, delivered, tick: (m) => { clock += m * 60_000; }, iso: () => now().toISOString() };
+  return { docs, own, makers, installs, connection, alerts, chitchats, chitchatsSaved, mailchimp, mailchimpSaved, audience, courier, delivered, tick: (m) => { clock += m * 60_000; }, iso: () => now().toISOString() };
 }
 
 test("Chit Chats from the store to a sent order and back off the shop, through the real plumbing", async () => {
@@ -339,4 +341,124 @@ test("Mailchimp from the store to readers in an audience, unsubscribes both ways
   assert.equal(p.mailchimpSaved.shops.size, 0);
   assert.equal(p.mailchimpSaved.people.size, 0);
   assert.equal((await p.mailchimp.status(OWNER, { shopId: "moth-press" })).stage, "none");
+});
+
+/**
+ * Runs the Zapier app (services/zapier, pushed to Zapier as its own app) the way Zapier does: its requests, with its
+ * own before and after steps, reach the platform's real token exchange and app connection.
+ */
+function zapierRunner(p) {
+  const keys = p.own.appOf("zapier");
+  Object.assign(process.env, { CLIENT_ID: keys.appId, CLIENT_SECRET: keys.appSecret, COLOPHON_URL: URL_ });
+  const app = createRequire(import.meta.url)("../zapier/index.js");
+  class ZapError extends Error {
+    constructor(message, code, status) { super(message); Object.assign(this, { code, status }); }
+  }
+  const run = (bundle) => {
+    const z = {
+      errors: { Error: ZapError, ThrottledError: class extends ZapError {} },
+      async request(options) {
+        let request = { method: "GET", headers: {}, ...options };
+        for (const step of app.beforeRequest) request = step(request, z, bundle);
+        const url = new URL(request.url);
+        for (const [k, v] of Object.entries(request.params ?? {})) url.searchParams.set(k, v);
+        assert.equal(url.origin, URL_, "only the platform is called");
+        let answer;
+        if (url.pathname === "/api/apps/oauth/token") {
+          answer = await p.installs.exchange(request.body).then((body) => ({ status: 200, body }), (error) => ({ status: error.status, body: { ok: false, message: error.message } }));
+        } else {
+          assert.ok(url.pathname.startsWith("/api/apps/v1/"));
+          answer = await p.connection({ method: request.method, path: url.pathname + url.search, headers: request.headers, body: request.body });
+        }
+        let response = { status: answer.status, json: answer.body, data: answer.body };
+        for (const step of app.afterResponse) response = step(response, z, bundle);
+        return response;
+      },
+    };
+    return z;
+  };
+  const fill = (template, bundle) => template.replace(/\{\{(process\.env|bundle\.inputData)\.(\w+)\}\}/g, (_, where, key) => (where === "process.env" ? process.env[key] : bundle.inputData[key]));
+  return {
+    app,
+    authorizeUrl(bundle) {
+      const { url, params } = app.authentication.oauth2Config.authorizeUrl;
+      return `${url}?${new URLSearchParams(Object.fromEntries(Object.entries(params).map(([k, v]) => [k, fill(v, bundle)])))}`;
+    },
+    call: (fn, bundle) => fn(run(bundle), bundle),
+  };
+}
+
+test("Zapier: connect from Zapier, triggers from paid orders, readers and products, and Zaps that add tracking and change stock", async () => {
+  const p = platform();
+  const zap = zapierRunner(p);
+  const listed = (await p.makers.storeList()).apps.find((a) => a.name === "Zapier");
+  assert.ok(listed, "the store shows Zapier once it's on Zapier");
+  assert.equal(listed.brand, "zapier");
+  assert.equal(listed.installAddress, ZAPIER.inviteUrl, "Add sends the press to Colophon's app on Zapier");
+  assert.equal(createOwnApps({ store: fakeAppStore(), root: ROOT, platformUrl: URL_, supportEmail: "s@platform.example" }).names.includes("zapier"), true);
+
+  // In Zapier the press picks Colophon and presses Sign in: Colophon's permission page, with no shop in the link.
+  const redirect_uri = ZAPIER.returnAddress;
+  const allow = new URL(zap.authorizeUrl({ inputData: { redirect_uri, state: "zap-state" } }));
+  assert.equal(allow.pathname, "/account/install.html");
+  assert.equal(allow.searchParams.get("shop"), null, "Zapier can't know the shop; the page picks it");
+  const appId = allow.searchParams.get("app");
+  const preview = await p.installs.preview(OWNER, { appId, shopId: "moth-press", returnAddress: allow.searchParams.get("back") });
+  assert.equal(preview.canApprove, true);
+  const back = new URL((await p.installs.approve(OWNER, { appId, shopId: "moth-press", returnAddress: allow.searchParams.get("back"), state: allow.searchParams.get("state") })).redirect);
+  assert.equal(back.origin + back.pathname, redirect_uri);
+  assert.equal(back.searchParams.get("state"), "zap-state");
+
+  const auth = await zap.call(zap.app.authentication.oauth2Config.getAccessToken, { inputData: { code: back.searchParams.get("code"), redirect_uri } });
+  assert.match(auth.access_token, /^cak_/);
+  assert.equal(auth.shop_id, "moth-press");
+  const shop = await zap.call(zap.app.authentication.test, { authData: auth, inputData: {} });
+  assert.equal(zap.app.authentication.connectionLabel(null, { inputData: shop }), shop.name);
+
+  // Things happen in the shop.
+  p.docs.set("moth-press/orders/o1", { orderId: "1001", paymentStatus: "paid", createdAt: "2026-11-11T10:00:00Z", currency: "CAD", items: [{ bookId: "b1", title: "Moth Songs", quantity: 1, price: 24 }], customer: { name: "Bea", email: "bea@example.com" } });
+  p.docs.set("moth-press/orders/o2", { orderId: "1002", paymentStatus: "paid", createdAt: "2026-11-11T11:00:00Z", currency: "CAD", items: [{ bookId: "b1", title: "Moth Songs", quantity: 2, price: 24 }], customer: { name: "Cal", email: "cal@example.com" } });
+  p.docs.set("moth-press/orders/o3", { orderId: "1003", paymentStatus: "pending", createdAt: "2026-11-11T11:30:00Z", items: [] });
+  p.docs.set("moth-press/newsletter/ann@example.com", { email: "ann@example.com", status: "subscribed", subscribedAt: "2026-11-10T09:00:00Z" });
+  p.docs.set("moth-press/newsletter/dan@example.com", { email: "dan@example.com", status: "subscribed", subscribedAt: "2026-11-11T09:00:00Z" });
+  p.docs.set("moth-press/newsletter/eve@example.com", { email: "eve@example.com", status: "pending", subscribedAt: "2026-11-11T09:30:00Z" });
+  p.docs.set("moth-press/books/b1", { title: "Moth Songs", retailPrice: 24, stockLevel: 12, updatedAt: "2026-11-11T08:00:00Z" });
+  p.docs.set("moth-press/books/b2", { title: "Night Garden", retailPrice: 30, stockLevel: 3, updatedAt: "2026-11-11T09:00:00Z" });
+
+  const signedIn = { authData: auth, inputData: {} };
+  const orders = await zap.call(zap.app.triggers.new_paid_order.operation.perform, signedIn);
+  assert.deepEqual(orders.map((o) => o.orderNumber), ["1002", "1001"], "paid orders only, newest first");
+  assert.equal(orders[0].customer.email, "cal@example.com");
+  const readers = await zap.call(zap.app.triggers.new_newsletter_reader.operation.perform, signedIn);
+  assert.deepEqual(readers.map((r) => r.email), ["dan@example.com", "ann@example.com"], "confirmed readers only, newest first");
+  assert.equal(new Set(readers.map((r) => r.id)).size, 2);
+  const products = await zap.call(zap.app.triggers.product_changed.operation.perform, signedIn);
+  assert.deepEqual(products.map((x) => [x.productId, x.stock]), [["b2", 3], ["b1", 12]]);
+  p.docs.set("moth-press/books/b1", { ...p.docs.get("moth-press/books/b1"), updatedAt: "2026-11-11T12:00:00Z" });
+  const again = await zap.call(zap.app.triggers.product_changed.operation.perform, signedIn);
+  assert.notEqual(again[0].id, products[1].id, "a changed product is new to Zapier");
+  const pick = await zap.call(zap.app.triggers.product_list.operation.perform, signedIn);
+  assert.deepEqual(pick, [{ id: "b1", title: "Moth Songs" }, { id: "b2", title: "Night Garden" }]);
+
+  // Zaps change the shop, through the shop's own rules.
+  const sent = await zap.call(zap.app.creates.add_tracking.operation.perform, { authData: auth, inputData: { orderId: "o2", trackingCarrier: "Canada Post", trackingNumber: "7023210039414604" } });
+  assert.equal(sent.status, "done");
+  const stocked = await zap.call(zap.app.creates.change_stock.operation.perform, { authData: auth, inputData: { productId: "b2", change: "-2" } });
+  assert.equal(stocked.status, "done");
+  const asked = [...p.docs].filter(([k]) => k.startsWith("moth-press/appRequests/")).map(([, d]) => [d.op, d.input]);
+  assert.deepEqual(asked, [
+    ["order.dispatch", { orderId: "o2", trackingCarrier: "Canada Post", trackingNumber: "7023210039414604", trackingUrl: "", shipped: true }],
+    ["inventory.adjust", { productId: "b2", variantId: "", change: -2 }],
+  ]);
+  await zap.call(zap.app.creates.add_tracking.operation.perform, { authData: auth, inputData: { orderId: "o2", trackingCarrier: "Canada Post", trackingNumber: "7023210039414604" } });
+  assert.equal([...p.docs].filter(([k]) => k.startsWith("moth-press/appRequests/")).length, 2, "Zapier trying again doesn't send it twice");
+  await assert.rejects(
+    zap.call(zap.app.creates.change_stock.operation.perform, { authData: auth, inputData: { productId: "b2", change: "0" } }),
+    (error) => error.status === 400 && /whole number/.test(error.message),
+    "Colophon's own words reach the press in Zapier",
+  );
+
+  // The owner removes Zapier in Settings › Apps: every Zap stops at once, with words saying how to fix it.
+  await p.installs.removeForShop("moth-press", appId, OWNER.email);
+  await assert.rejects(zap.call(zap.app.triggers.new_paid_order.operation.perform, signedIn), (error) => error.status === 401 && /Connect Colophon again/.test(error.message));
 });

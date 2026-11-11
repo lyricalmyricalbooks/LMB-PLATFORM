@@ -1,6 +1,7 @@
 // The permission page (accounts/install.html, /account/install.html?app=<id>&shop=<id>&back=<return address>&state=…),
 // code plan 26.2. An outside app sends the press here; the page shows what the app wants in plain words, and the shop's
-// owner adds it or cancels. Adding sends the press back to the app with a one-time code. Plain browser JavaScript with
+// owner adds it or cancels. An app that starts outside Colophon (Zapier) can't know the shop: without `shop`, the page
+// uses the person's one shop they own, or asks which. Adding sends the press back to the app with a one-time code. Plain browser JavaScript with
 // no framework, like the other account pages; the server (services/apps/installs.js) checks everything again.
 import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE } from "../signup/config.js";
 import { deviceId } from "../signup/device.js";
@@ -29,7 +30,7 @@ const LOOK = {
 
 /** Shows one view. Focus moves only when something went wrong, so a press arriving from an app isn't jumped around. */
 function show(view, { focus = false } = {}) {
-  for (const section of document.querySelectorAll("main > section")) section.hidden = section.id !== `view-${view}`;
+  for (const section of document.querySelectorAll("main > section, main > form")) section.hidden = section.id !== `view-${view}`;
   if (focus) $(`#view-${view} h2`)?.focus?.();
 }
 
@@ -41,19 +42,43 @@ function fail(message) {
 async function api(path, body) {
   const token = auth.currentUser ? await auth.currentUser.getIdToken() : "";
   const response = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
+    method: body === undefined ? "GET" : "POST",
     headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}`, "X-Device-Id": deviceId() } : {}) },
-    body: JSON.stringify(body),
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   const answer = await response.json().catch(() => ({ ok: false, message: "We couldn't reach Colophon. Check your connection and try again." }));
   if (!response.ok || answer.ok === false) throw new Error(answer.message || "Something went wrong.");
   return answer;
 }
 
+/** No shop in the link: the one shop this person owns, or a choice between them. Answers false while they choose. */
+async function pickShop() {
+  const { shops } = await api("/accounts/shops");
+  const owned = (shops ?? []).filter((shop) => shop.role === "owner");
+  if (!owned.length) throw new Error("Only a shop's owner can add apps. Ask your shop's owner to connect it.");
+  if (owned.length === 1) {
+    ask.shopId = owned[0].shopId;
+    return true;
+  }
+  const box = $("#shops");
+  box.replaceChildren(box.querySelector("legend"), ...owned.map((shop, i) => {
+    const label = Object.assign(document.createElement("label"), { className: "choice" });
+    label.append(
+      Object.assign(document.createElement("input"), { type: "radio", name: "shopId", value: shop.shopId, checked: i === 0 }),
+      Object.assign(document.createElement("strong"), { textContent: shop.pressName || shop.shopId }),
+      ...(shop.freeAddress || shop.siteUrl ? [Object.assign(document.createElement("span"), { textContent: String(shop.freeAddress || shop.siteUrl).replace(/^https:\/\//, "") })] : []),
+    );
+    return label;
+  }));
+  show("pick", { focus: true });
+  return false;
+}
+
 async function load() {
-  if (!ask.appId || !ask.shopId || !ask.returnAddress) return fail("This link is missing something. Go back to the app and press Install again.");
+  if (!ask.appId || !ask.returnAddress) return fail("This link is missing something. Go back to the app and press Install again.");
   show("loading");
   try {
+    if (!ask.shopId && !(await pickShop())) return;
     const preview = await api("/apps/install/preview", ask);
     const { app } = preview;
     document.title = `Add ${app.name} · Colophon`;
@@ -113,5 +138,10 @@ $("#google").addEventListener("click", async () => {
   }
 });
 $("#retry").addEventListener("click", () => load());
+$("#view-pick").addEventListener("submit", (event) => {
+  event.preventDefault();
+  ask.shopId = String(new FormData(event.target).get("shopId") ?? "");
+  if (ask.shopId) load();
+});
 
 onAuthStateChanged(auth, (user) => (user ? load() : show("signin")));

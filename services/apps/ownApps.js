@@ -2,7 +2,7 @@
 // itself on the same app store plumbing any maker uses. They put themselves on the store, so no one has to register,
 // approve or configure them by hand before a press can add one.
 //
-//   createOwnApps({ store, root, platformUrl, supportEmail, now })  ->  { ensure(), appOf(name), sealKeyOf(name), list() }
+//   createOwnApps({ store, root, platformUrl, supportEmail, available, zapier, now })  ->  { ensure(), appOf(name), sealKeyOf(name), list() }
 //
 // - Each app's id is fixed (`ownAppId(name)`), and its secret and sealing key come from one platform secret (`root`, the
 //   CHECKUP_SECRET link phrase the server already needs, or OWN_APPS_SECRET when set), each through its own HMAC label.
@@ -27,8 +27,12 @@ export const ownAppSecret = (root, name) => `cs_${hmac(root, `own app secret ${n
 /** The 32-byte key it seals presses' details with (services/payments/tokenSeal.js). */
 export const ownSealKey = (root, name) => hmac(root, `own app seal ${name}`);
 
-/** What each app asks for and says on the store. `url` is the platform's address. */
-export function ownAppSpecs(url, supportEmail) {
+/**
+ * What each app asks for and says on the store. `url` is the platform's address. `zapier` is where Colophon's app lives
+ * on Zapier once it's pushed there: its invite link (where Add sends the press) and the address Zapier gets presses
+ * back at (services/zapier/README.md).
+ */
+export function ownAppSpecs(url, supportEmail, { zapier = {} } = {}) {
   return {
     chitchats: {
       name: "Chit Chats",
@@ -65,15 +69,34 @@ export function ownAppSpecs(url, supportEmail) {
       alertTopics: ["orders/paid", "app/uninstalled"],
       supportEmail,
     },
+    zapier: {
+      name: "Zapier",
+      tagline: "Link your shop to thousands of other apps, with no code.",
+      description: [
+        "New paid orders, newsletter readers and product changes can start a Zap: add a row to a spreadsheet, send a message to your team, make an invoice, and more.",
+        "Zaps can also mark an order sent with its tracking, or add and take copies of a product.",
+        "You need a Zapier account. Pick Colophon when you make a Zap, and sign in here to connect your shop.",
+      ].join("\n\n"),
+      category: "other",
+      website: "https://zapier.com/",
+      brand: "zapier",
+      // Until the app is on Zapier these stay on the platform; Zapier stays off the store until then (createOwnApps).
+      installAddress: zapier.inviteUrl || `${url}/account/`,
+      returnAddresses: [zapier.returnAddress || `${url}/account/`],
+      scopes: ["read_shop", "read_orders", "write_orders", "read_customers", "read_products", "write_inventory"],
+      alertTopics: [],
+      supportEmail,
+    },
   };
 }
 
-export function createOwnApps({ store, root, platformUrl, supportEmail, available = {}, now = () => new Date() }) {
+export function createOwnApps({ store, root, platformUrl, supportEmail, available = {}, zapier = {}, now = () => new Date() }) {
   const ready = typeof root === "string" && root.length >= 16;
-  const specs = ownAppSpecs(platformUrl, supportEmail);
+  const specs = ownAppSpecs(platformUrl, supportEmail, { zapier });
   // An app that still needs something from its company (Mailchimp's own app sign-up) stays off the store until it has
   // it, so every app a press can find can really connect. Missing from `available` means ready.
-  const canConnect = (name) => available[name] !== false;
+  // Zapier also needs to be on Zapier first (its two addresses).
+  const canConnect = (name) => available[name] !== false && (name !== "zapier" || Boolean(zapier.inviteUrl && zapier.returnAddress));
   let running = null;
 
   async function ensureOne(name) {

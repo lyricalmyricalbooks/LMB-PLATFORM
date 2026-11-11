@@ -1,0 +1,12 @@
+{
+  "name": "colophon-zapier",
+  "version": "1.0.0",
+  "description": "Colophon on Zapier: paid orders, newsletter readers and product changes start Zaps; Zaps add tracking and change stock.",
+  "private": true,
+  "type": "commonjs",
+  "main": "index.js",
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "zapier-platform-core": "19.2.1"
+  }
+}
