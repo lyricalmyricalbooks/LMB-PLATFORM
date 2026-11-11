@@ -1,16 +1,13 @@
-// Today at the fair, on Home in the combined admin (docs/combined-admin.md, step 4a): the till's own
-// end-of-day figures and upload state, asked of the stockroom (`{ what: "fair" }`, its `fairForAdmin`). Read-only: the
-// stockroom stays the only place a sale is recorded. Quiet on a day with no sales and no fair named.
+// Today at the fair (docs/combined-admin.md, step 4a): the till's own end-of-day figures and upload state, asked of the
+// stockroom (`{ what: "fair" }`, its `fairForAdmin`). Home's "Selling today" tile shows them (overview/HomeToday.tsx).
+// Read-only: the stockroom stays the only place a sale is recorded.
 import { useEffect, useState } from "react";
-import { GhostButton, StatusBadge } from "./riso/components";
 import { stockroomBridge, type StockroomFair } from "./stockroomBridge";
-import { useShopWords } from "./shopWords";
 import { money } from "./StockroomBookPanel";
 
 const REFRESH_MS = 15_000;
 type Totals = StockroomFair["totals"];
 export const totalsText = (totals: Totals) => (totals.length ? totals.map((t) => money(t.amount, t.cur)).join(" + ") : money(0, "CAD"));
-const UPLOAD_TONE = { ok: "success", pending: "info", offline: "warning", failed: "danger" } as const;
 
 /** The one line above the till: "Harbour Fair · 4 sales · 9 books · CA$180.00 + US$20.00". */
 export function fairLine(fair: StockroomFair, words: (text: string) => string): string {
@@ -25,8 +22,8 @@ export const lowText = (low: StockroomFair["low"]) =>
 /** Whether there's anything to show: a sale today, or a fair named on the till. */
 export const fairWorthShowing = (fair: StockroomFair | null): fair is StockroomFair => !!fair && (fair.sales > 0 || !!fair.fair);
 
-export function FairToday({ active, onOpen }: { active: boolean; onOpen: () => void }) {
-  const w = useShopWords();
+/** The till's day, asked of the stockroom while `active` and every 15 seconds after; null until it answers (or for an author). */
+export function useFairToday(active: boolean): StockroomFair | null {
   const [fair, setFair] = useState<StockroomFair | null>(null);
   useEffect(() => {
     if (!active) return undefined;
@@ -41,36 +38,5 @@ export function FairToday({ active, onOpen }: { active: boolean; onOpen: () => v
     const timer = window.setInterval(() => { if (document.visibilityState === "visible") void ask(); }, REFRESH_MS);
     return () => { alive = false; window.clearInterval(timer); };
   }, [active]);
-
-  if (!active || !fairWorthShowing(fair)) return null;
-  return (
-    <section className="rp-fair-today" aria-label="Today at the fair">
-      <div className="rp-fair-today-head">
-        <span className="rp-fair-today-kicker">Today</span>
-        <strong className="rp-fair-today-line">{fairLine(fair, w)}</strong>
-        <StatusBadge glyph={false} tone={UPLOAD_TONE[fair.upload.tone as keyof typeof UPLOAD_TONE] || "neutral"}>{fair.upload.text}</StatusBadge>
-        <GhostButton onClick={onOpen}>Open the Till</GhostButton>
-      </div>
-      {lowText(fair.low) && (
-        <p className="rp-fair-today-low"><strong>Running low:</strong> {lowText(fair.low)}</p>
-      )}
-      {fair.sales > 0 && (
-        <details className="rp-fair-today-more">
-          <summary>{w("By book and by way of paying")}</summary>
-          <div className="rp-fair-today-cols">
-            <ul aria-label={w("By book")}>
-              {fair.titles.map((t) => (
-                <li key={t.bookId}><span>{t.title}<small>{t.units} sold{t.left === null ? "" : ` · ${t.left} left`}</small></span><strong>{totalsText(t.totals)}</strong></li>
-              ))}
-            </ul>
-            <ul aria-label="By way of paying">
-              {fair.methods.map((m) => (
-                <li key={m.label}><span>{m.label}<small>{m.sales} {m.sales === 1 ? "sale" : "sales"}</small></span><strong>{totalsText(m.totals)}</strong></li>
-              ))}
-            </ul>
-          </div>
-        </details>
-      )}
-    </section>
-  );
+  return fair;
 }

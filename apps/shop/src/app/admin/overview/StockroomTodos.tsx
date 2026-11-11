@@ -16,14 +16,14 @@ const FIRST_ASK_MS = 1_500;
 const REFRESH_MS = 5 * 60_000;
 
 /** Kinds of stockroom to-do, in Home's order, with the words for many and for one. */
-export const TODO_GROUPS: Array<{ group: string; label: string; one: string }> = [
-  { group: "orders", label: "stockroom sales to sort out", one: "stockroom sale to sort out" },
-  { group: "money", label: "payments to chase or record", one: "payment to chase or record" },
-  { group: "stock", label: "stock counts to check", one: "stock count to check" },
-  { group: "catalogue", label: "book details to fill in", one: "book detail to fill in" },
-  { group: "setup", label: "stockroom things to check", one: "stockroom thing to check" },
+export const TODO_GROUPS: Array<{ group: string; label: string; one: string; kind: string }> = [
+  { group: "orders", label: "sales to sort out", one: "sale to sort out", kind: "Sales" },
+  { group: "money", label: "payments to chase or record", one: "payment to chase or record", kind: "Payments" },
+  { group: "stock", label: "stock counts to check", one: "stock count to check", kind: "Stock" },
+  { group: "catalogue", label: "book details to fill in", one: "book detail to fill in", kind: "Books" },
+  { group: "setup", label: "things to set up", one: "thing to set up", kind: "Setup" },
 ];
-const OTHER = { group: "", label: "other stockroom to-dos", one: "other stockroom to-do" };
+const OTHER = { group: "", label: "other things to do", one: "other thing to do", kind: "To do" };
 
 /**
  * Home already lists books to reprint and sold out from the website's own figures, so the stockroom's "running low" and
@@ -81,7 +81,7 @@ export function useStockroomTodos(enabled: boolean): StockroomTodoState {
 }
 
 /** The to-dos in groups, in Home's order; a kind with nothing to do is still listed, so Home can say it is clear. */
-export function groupTodos(items: StockroomTodo[]): Array<{ group: string; label: string; one: string; items: StockroomTodo[] }> {
+export function groupTodos(items: StockroomTodo[]): Array<{ group: string; label: string; one: string; kind: string; items: StockroomTodo[] }> {
   const known = new Set(TODO_GROUPS.map((g) => g.group));
   const groups = TODO_GROUPS.map((g) => ({ ...g, items: items.filter((i) => i.group === g.group) }));
   const other = items.filter((i) => !known.has(i.group));
@@ -100,7 +100,7 @@ export function stockroomRunRows(state: StockroomTodoState, words: (text: string
     const first = g.items[0];
     const more = g.items.length - 1;
     return (
-      <RunRow key={`stockroom-${g.group || "other"}`} label={words(g.label)} one={words(g.one)} count={g.items.length} loading={false}
+      <RunRow key={`stockroom-${g.group || "other"}`} kind={words(g.kind)} label={words(g.label)} one={words(g.one)} count={g.items.length} loading={false}
         detail={first ? `${words(first.label)}${more > 0 ? ` and ${more} more` : ""}` : ""}
         onOpen={() => (g.items.length === 1 ? stockroomBridge.openPage("todo", { todo: first.id }) : stockroomBridge.openPage("todo"))}
         openLabel={g.items.length === 1 ? "Open it" : "Open the to-do list"} />

@@ -116,6 +116,8 @@ export function DrillList({ items, empty = "Nothing to show for this period.", l
  */
 export function RunRow({ label, one, detail, detailOne, count, loading, onOpen, openLabel }: {
   label: string; one?: string; detail: string; detailOne?: string; count: number | null; loading: boolean; onOpen: () => void; openLabel: string;
+  /** Home's To do tile names the kind of job above it ("Orders", "Sales", "Stock"); the list doesn't show it. */
+  kind?: string;
 }) {
   const clear = count === 0;
   const single = count === 1;
@@ -167,12 +169,12 @@ export function RunTiles({ children, label = "To do" }: { children: ReactNode; l
   return (
     <ul className="rp-todo-tiles" aria-label={label}>
       {ready.map((r) => {
-        const { label: many, one, count, detail, detailOne, onOpen, openLabel } = r.props;
+        const { label: many, one, count, detail, detailOne, onOpen, openLabel, kind } = r.props;
         const single = count === 1;
         return (
           <li key={r.key} className="rp-todo-tile">
-            <span className="rp-todo-kind">{count}</span>
-            <span className="rp-todo-title">{single && one ? one : many}</span>
+            {kind && <span className="rp-todo-kind">{kind}</span>}
+            <span className="rp-todo-title">{count} {single && one ? one : many}</span>
             <span className="rp-todo-body">{single && detailOne ? detailOne : detail}</span>
             <button type="button" className="rp-todo-go" onClick={onOpen}>{openLabel}</button>
           </li>
