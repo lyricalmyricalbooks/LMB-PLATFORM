@@ -1,0 +1,84 @@
+// Stockroom › Shipping, worked out inside the admin from the stockroom's own rules: which paid website orders are still
+// waiting to go out (order-followups.js) and which parcels cost more to post than the customer paid (shipping-price-check.js).
+// Pure and read-only: the page is ShippingPage.tsx.
+import { destinationLabel, unshippedOrders } from "@stockroom/order-followups.js";
+import { isPostageExpense } from "@stockroom/postage-matching.js";
+import { getBookCurrencyCode, roundCents } from "@stockroom/money.js";
+import { LOSS_MARGIN, rateAgainstPaid } from "@stockroom/shipping-price-check.js";
+import { linkedShippingSummary, normalizeShippingOrderNumber } from "@stockroom/shipping-reconciliation.js";
+
+import type { StockroomRecords } from "./stockroomData";
+
+type Rec = Record<string, any>;
+
+export type WaitingOrder = { key: string; num: string; customer: string; titles: string[]; qty: number; days: number; late: boolean; destination: string };
+export type LossOrder = { num: string; date: string; destination: string; paid: number; postage: number; gap: number };
+export type ShippingView = { waiting: WaitingOrder[]; losses: LossOrder[]; lossTotal: number; websiteOrders: number };
+
+/** From this many days waiting, an order is flagged as late (the stockroom's list starts at 3). */
+export const LATE_AFTER_DAYS = 7;
+/** Postage that cost more than the customer paid is shown for orders this recent. */
+export const LOSS_WITHIN_DAYS = 60;
+
+const DAY = 86_400_000;
+
+export function buildShipping(records: StockroomRecords, now: Date = new Date()): ShippingView {
+  const expenses: Rec[] = Array.isArray(records.taxCenter?.businessExpenses) ? (records.taxCenter!.businessExpenses as Rec[]).filter((e) => e && isPostageExpense(e)) : [];
+  const rows: Array<{ bookId: string; entry: Rec; bookTitle: string }> = [];
+  for (const book of records.books) {
+    const hist = records.states[book.id]?.hist;
+    if (!Array.isArray(hist)) continue;
+    for (const entry of hist) if (entry && entry.chan === "Website") rows.push({ bookId: book.id, entry, bookTitle: book.title || book.id });
+  }
+
+  // An order with a label matched to it has been sent, whatever its flag says (the stockroom's rule).
+  const labelled = new Set<string>(rows.filter(({ entry }) => linkedShippingSummary(entry, expenses, 1).linkedCount > 0).map(({ entry }) => entry.num));
+  const entryByNum = new Map<string, Rec>();
+  rows.forEach(({ entry }) => { if (entry.num && !entryByNum.has(entry.num)) entryByNum.set(entry.num, entry); });
+
+  // An order for two titles is two ledger rows sharing one order number: one parcel, one line here.
+  const waiting: WaitingOrder[] = [];
+  const merged = new Map<string, WaitingOrder>();
+  for (const o of unshippedOrders(rows, { now: now.getTime(), labelled })) {
+    const hit = o.num ? merged.get(o.num) : undefined;
+    if (hit) {
+      if (o.bookTitle && !hit.titles.includes(o.bookTitle)) hit.titles.push(o.bookTitle);
+      hit.qty += o.qty;
+      continue;
+    }
+    const item: WaitingOrder = {
+      key: o.num || `${o.bookId}:${waiting.length}`, num: o.num, customer: o.customer, titles: o.bookTitle ? [o.bookTitle] : [], qty: o.qty, days: o.days,
+      late: o.days >= LATE_AFTER_DAYS, destination: destinationLabel(entryByNum.get(o.num) || {}),
+    };
+    waiting.push(item);
+    if (o.num) merged.set(o.num, item);
+  }
+
+  // Orders whose matched postage cost more than the customer paid for shipping (dollars only, so a euro book never invents a loss).
+  const orders = new Map<string, { entry: Rec; paid: number }>();
+  rows.forEach(({ bookId, entry }) => {
+    if (entry.voided || entry.excludeFromShipping) return;
+    if (getBookCurrencyCode(records.books.find((b) => b.id === bookId)) !== "CAD") return;
+    const key = normalizeShippingOrderNumber(entry.num);
+    if (!key) return;
+    const have = orders.get(key);
+    // The shipping charge sits on any row of the order: the largest, never the sum.
+    if (!have) orders.set(key, { entry, paid: Number(entry.shippingPaid) || 0 });
+    else have.paid = Math.max(have.paid, Number(entry.shippingPaid) || 0);
+  });
+  const cutoff = now.getTime() - LOSS_WITHIN_DAYS * DAY;
+  const losses: LossOrder[] = [];
+  orders.forEach(({ entry, paid }) => {
+    const when = Date.parse(`${String(entry.date || "").slice(0, 10)}T12:00:00`);
+    if (!Number.isFinite(when) || when < cutoff) return;
+    const summary = linkedShippingSummary({ ...entry, shippingPaid: paid }, expenses, 1);
+    if (summary.postageBase == null || summary.customerBase == null) return;
+    const verdict = rateAgainstPaid(summary.postageBase, summary.customerBase);
+    if (!verdict || !verdict.losing) return;
+    losses.push({ num: String(entry.num), date: String(entry.date || ""), destination: destinationLabel(entry), paid: summary.customerBase, postage: summary.postageBase, gap: verdict.gap });
+  });
+  losses.sort((a, b) => b.gap - a.gap);
+  return { waiting, losses, lossTotal: roundCents(losses.reduce((n, l) => n + l.gap, 0)), websiteOrders: orders.size };
+}
+
+export { LOSS_MARGIN };

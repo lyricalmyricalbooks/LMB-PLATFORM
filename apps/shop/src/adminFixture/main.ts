@@ -17,6 +17,50 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
   taxCenter: null,
 });
 
+// ── Stockists / Shipping / Open call samples (block of the stockists page; adds to the records above) ──
+{
+  const base = stockroomApi.load;
+  const day = (ago: number) => new Date(Date.now() - ago * 86_400_000).toISOString().slice(0, 10);
+  stockroomApi.load = async () => {
+    const r = await base();
+    if (!r.books.length) return r;
+    r.books = r.books.map((b) => ({ currency: "CAD", ...b }));
+    const [salt, night] = ["salt-hours", "night-songs"];
+    const sale = (id: number, storeId: number, storeName: string, ago: number, qty: number, status: string) => ({ id, type: "Sale", storeId, storeName, date: day(ago), qty, rate: 40, amountDue: qty * 12, status, sheetsId: `s${id}` });
+    const ship = (id: number, storeId: number, storeName: string, ago: number, qty: number) => ({ id, type: "Shipment", storeId, storeName, date: day(ago), qty, amountDue: 0, status: "OK", sheetsId: `s${id}` });
+    const web = (num: string, ago: number, extra: object = {}) => ({ id: Number(num.slice(4)), chan: "Website", num, date: day(ago), qty: 1, shipName: `Customer ${num}`, shipAddr1: "1 Example St", shipCity: "Toronto", shipCountry: "Canada", shippingPaid: 8, ...extra });
+    r.states[salt] = {
+      ...r.states[salt],
+      stores: [
+        { id: 1, name: "Corner Books", city: "Toronto", region: "ON", country: "Canada", rate: 40, sent: 10, sold: 4, returned: 0, outstanding: 6, amountOwed: 48 },
+        { id: 2, name: "Harbour Gifts", city: "Halifax", region: "NS", country: "Canada", rate: 40, sent: 6, sold: 6, returned: 0, outstanding: 0, amountOwed: 0 },
+        { id: 3, name: "Lakeside Co-op", city: "Kingston", region: "ON", country: "Canada", rate: 35, sent: 8, sold: 2, returned: 0, outstanding: 5, amountOwed: 24 },
+      ],
+      ledger: [ship(1, 1, "Corner Books", 90, 10), sale(2, 1, "Corner Books", 40, 4, "pending"), ship(3, 2, "Harbour Gifts", 80, 6), sale(4, 2, "Harbour Gifts", 30, 6, "paid"), ship(5, 3, "Lakeside Co-op", 60, 8), sale(6, 3, "Lakeside Co-op", 20, 2, "pending")],
+      invoices: [
+        { id: "i1", num: "INV-2026-001", status: "sent", date: day(60), dueDate: day(20), total: 48, currency: "CAD", storeName: "Corner Books", storeId: 1, storeEmail: "shop@example.com", reminders: [{ status: "sent", at: Date.now() - 5 * 86_400_000, kind: "auto" }] },
+        { id: "i2", num: "INV-2026-002", status: "paid", date: day(70), dueDate: day(40), total: 72, currency: "CAD", storeName: "Harbour Gifts", storeId: 2 },
+        { id: "i3", num: "INV-2026-003", status: "sent", date: day(10), dueDate: day(-20), total: 24, currency: "CAD", storeName: "Lakeside Co-op", storeId: 3 },
+      ],
+      hist: [...((r.states[salt] as { hist?: unknown[] }).hist || []), web("WEB-1041", 9), web("WEB-1042", 4), web("WEB-1043", 1), web("WEB-1044", 12, { trackingNumber: "7023110000451" }), web("WEB-1045", 6, { shipName: "Ben Example" })],
+    };
+    r.states[night] = {
+      ...r.states[night],
+      stores: [{ id: 11, name: "Corner Books", city: "Toronto", region: "ON", country: "Canada", rate: 40, sent: 5, sold: 1, returned: 0, outstanding: 4, amountOwed: 12 }],
+      ledger: [ship(21, 11, "Corner Books", 50, 5), sale(22, 11, "Corner Books", 15, 1, "pending")],
+      openCall: [
+        { id: "c1", name: "Mira Example", email: "mira@example.com", selectionSent: true, creditReceived: false, createdAt: new Date(Date.now() - 20 * 86_400_000).toISOString() },
+        { id: "c2", name: "Theo Example", email: "theo@example.com", selectionSent: false, createdAt: new Date(Date.now() - 3 * 86_400_000).toISOString() },
+        { id: "c3", name: "Noor Example", email: "", selectionSent: true, creditReceived: true, cmykSent: false, createdAt: new Date(Date.now() - 12 * 86_400_000).toISOString() },
+        { id: "c4", name: "Ana Example", email: "ana@example.com", selectionSent: true, creditReceived: true, cmykSent: true, filesReceived: true, preorderSent: true, createdAt: new Date(Date.now() - 40 * 86_400_000).toISOString() },
+      ],
+    };
+    const postage = (num: string, amount: number) => ({ id: `p${num}`, cat: "Shipping & Postage", desc: "Canada Post label", amount, baseAmount: amount, shippingMatchStatus: "matched", shippingOrderNumber: num });
+    r.taxCenter = { ...(r.taxCenter || {}), businessExpenses: [postage("WEB-1044", 14.5), postage("WEB-1045", 8.2)] };
+    return r;
+  };
+}
+
 const order = (n: number, status: string, name: string) => ({
   id: `o${n}`, orderId: `FIXTURE-${n}`, status, paymentStatus: "paid", createdAt: new Date(Date.now() - n * 3_600_000).toISOString(),
   customer: { name, email: `buyer${n}@example.com` },
