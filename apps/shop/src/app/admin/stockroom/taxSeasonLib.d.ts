@@ -18,3 +18,15 @@ declare module "@stockroom/csv.js" {
   export function csvCell(value: unknown): string;
   export function csvRow(cells: unknown[]): string;
 }
+declare module "@stockroom/inventory-adjustment.js" {
+  export type AdjustmentInput = {
+    id: string; bookId: string; title: string; quantity: number; unitCostNative: number; nrvPerUnitNative?: number; currency: string;
+    fxRate: number; date: string; reason: string; evidence: string; notes: string; priorWriteDownCAD: number;
+  };
+  export function createSection10Adjustment(input: AdjustmentInput): Record<string, any>;
+  export function createInventoryDisposalExpense(input: AdjustmentInput): Record<string, any>;
+  export function inventoryAdjustmentCsvRows(records: unknown): unknown[][];
+}
+declare module "@stockroom/inventory.js" {
+  export function recordInventoryDisposal(state: Record<string, any>, disposal: { id: string; date: string; qty: number; reason?: string; notes?: string; sheetsId?: string }): Record<string, any> | null;
+}

@@ -22,6 +22,7 @@ import { SortingRulesCard } from "./SortingRules";
 import { LedgerLineActions } from "./LedgerLineActions";
 import { ReceiptsVaultCard } from "./ReceiptsVault";
 import { TaxSeasonCard } from "./TaxSeason";
+import { StockValueCard } from "./StockValueCard";
 import { TripsCard, type TripRow } from "./TripsCard";
 import { isEditableLine } from "./taxLedger";
 import type { SaveNote } from "./saveTaxCenter";
@@ -66,8 +67,8 @@ function CashFlowChart({ buckets, cur }: { buckets: Array<{ key: string; label: 
   );
 }
 
-export function TaxCenterView({ records, now, onTaxCenter, orders: givenOrders }: {
-  records: StockroomRecords; now?: Date; onTaxCenter?: (taxCenter: Record<string, unknown>) => void;
+export function TaxCenterView({ records, now, onTaxCenter, onState, orders: givenOrders }: {
+  records: StockroomRecords; now?: Date; onTaxCenter?: (taxCenter: Record<string, unknown>) => void; onState?: (bookId: string, state: Record<string, unknown>) => void;
   /** The shop's orders (tests and the fixture pass them; otherwise read through the shared copy). */
   orders?: Record<string, any>[];
 }) {
@@ -211,6 +212,8 @@ export function TaxCenterView({ records, now, onTaxCenter, orders: givenOrders }
         )}
       </SectionCard>
 
+      <StockValueCard books={records.books as Record<string, any>[]} states={records.states as Record<string, Record<string, any>>} taxCenter={records.taxCenter as Record<string, any> | null}
+        fxRateCache={sources.fxRateCache} onTaxCenter={onTaxCenter} onState={onState} />
       <TaxSeasonCard input={{ books: records.books as Record<string, any>[], states: records.states as Record<string, Record<string, any>>, taxCenter: records.taxCenter as Record<string, any> | null, fxRateCache: sources.fxRateCache }}
         year={year} onSaved={onTaxCenter} />
       <ReceiptsVaultCard rows={model.rows} money={money} onSaved={onTaxCenter} taxCenter={records.taxCenter as Record<string, unknown> | null} />
@@ -225,5 +228,6 @@ export function TaxCenterPage({ load = stockroomApi.load }: { load?: () => Promi
 /** Keeps the records on screen and swaps in the Tax centre as the save returned it (other devices' rows included). */
 function TaxCenterLive({ initial }: { initial: StockroomRecords }) {
   const [records, setRecords] = useRatedRecords(initial);
-  return <TaxCenterView records={records} onTaxCenter={(taxCenter) => setRecords((r) => ({ ...r, taxCenter }))} />;
+  return <TaxCenterView records={records} onTaxCenter={(taxCenter) => setRecords((r) => ({ ...r, taxCenter }))}
+    onState={(id, state) => setRecords((r) => ({ ...r, states: { ...r.states, [id]: state } }))} />;
 }
