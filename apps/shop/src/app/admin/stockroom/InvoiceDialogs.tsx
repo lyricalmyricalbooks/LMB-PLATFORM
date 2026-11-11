@@ -338,6 +338,7 @@ export function InvoiceView({ row, settings, onClose, onEdit, onCopy, onSaved }:
         {(row.status === "sent" || row.status === "draft") && (cardLink
           ? <SecondaryButton onClick={() => { navigator.clipboard?.writeText(cardLink.url).then(() => setNote({ tone: "ok", lines: ["Card pay link copied."] }), () => setNote({ tone: "ok", lines: [cardLink.url] })); }} disabled={busy}>Copy card link</SecondaryButton>
           : <SecondaryButton onClick={makeCardLink} disabled={busy}>Card pay link</SecondaryButton>)}
+        {row.status === "sent" && row.inv.dueDate && String(row.inv.dueDate) < today && <SecondaryButton onClick={() => printInvoice(row.inv, settings, today, { reminder: true })} disabled={busy}>Reminder PDF</SecondaryButton>}
         <PrimaryButton onClick={() => printInvoice(row.inv, settings, today)} disabled={busy}>Print or save PDF</PrimaryButton>
       </>}>
       {note && <Note notice={note} />}

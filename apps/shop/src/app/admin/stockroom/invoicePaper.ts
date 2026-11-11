@@ -13,7 +13,7 @@ const lines = (...parts: unknown[]) => parts.map((p) => String(p ?? "").trim()).
 const block = (title: string, body: string) => (body.trim() ? `<div style="margin-top:14px;break-inside:avoid"><strong>${escape(title)}</strong><div style="white-space:pre-wrap">${escape(body.trim())}</div></div>` : "");
 
 /** One invoice as a document (no page around it). `today` decides whether a sent invoice reads as overdue. */
-export function invoicePaperHtml(inv: Rec, settings: InvoiceSettings, today: string): string {
+export function invoicePaperHtml(inv: Rec, settings: InvoiceSettings, today: string, opts: { reminder?: boolean } = {}): string {
   const code = String(inv.currencyCode || inv.currency || "CAD");
   const money = (n: unknown) => fmt(Number(n) || 0, code);
   const items = (Array.isArray(inv.items) ? inv.items : []) as Rec[];
@@ -40,9 +40,14 @@ export function invoicePaperHtml(inv: Rec, settings: InvoiceSettings, today: str
       : /^[^\s@]+@[^\s@]+$/.test(link) ? `<p style="margin-top:14px"><strong>Send ${escape(money(inv.total))} by Interac e-Transfer to</strong> ${escape(link)}</p>`
         : `<p style="margin-top:14px"><strong>How to pay:</strong> ${escape(link)}</p>`;
 
+  const daysLate = overdue ? Math.round((Date.parse(today) - Date.parse(String(inv.dueDate))) / 86_400_000) : 0;
+  const lead = opts.reminder && overdue
+    ? `<p style="margin-bottom:14px">A friendly reminder: this invoice was due on ${escape(fmtD(inv.dueDate))}${daysLate > 0 ? `, ${daysLate} day${daysLate === 1 ? "" : "s"} ago` : ""}. If you've already paid, thank you, and please ignore this note.</p>`
+    : "";
+
   return documentFrame({
     press: { name: settings.name, lines: [...lines(...settings.addr.split("\n")), ...lines(settings.email, settings.web), ...(settings.vat ? [`Tax number: ${settings.vat}`] : [])] },
-    title: "Invoice",
+    title: opts.reminder ? "Payment reminder" : "Invoice",
     reference: [inv.num, status].filter(Boolean).join(" · "),
     details: [
       { label: "Billed to", value: docRaw(billed.map(escape).join("<br>")) },
@@ -50,20 +55,21 @@ export function invoicePaperHtml(inv: Rec, settings: InvoiceSettings, today: str
       ...(inv.dueDate ? [{ label: "Due", value: fmtD(inv.dueDate) }] : []),
       { label: "Amount due", value: inv.status === "paid" ? `${money(inv.total)} (paid)` : money(inv.total) },
     ],
-    body: documentTable(columns, rows) + documentTotals(totals) + pay
+    body: lead + documentTable(columns, rows) + documentTotals(totals) + pay
       + block("Notes", String(inv.notes || "")) + block("Terms", String(inv.terms || "")) + block("Bank transfer", settings.bank),
     footer: settings.footer,
   });
 }
 
 /** A whole printable page for one invoice. */
-export const invoicePage = (inv: Rec, settings: InvoiceSettings, today: string) => documentPage(`Invoice ${inv.num || ""}`.trim(), invoicePaperHtml(inv, settings, today));
+export const invoicePage = (inv: Rec, settings: InvoiceSettings, today: string, opts: { reminder?: boolean } = {}) =>
+  documentPage(`${opts.reminder ? "Reminder" : "Invoice"} ${inv.num || ""}`.trim(), invoicePaperHtml(inv, settings, today, opts));
 
 /** Opens the print dialog (Print or Save as PDF) for one invoice, the hidden-frame way the line sheet prints. */
-export function printInvoice(inv: Rec, settings: InvoiceSettings, today: string) {
+export function printInvoice(inv: Rec, settings: InvoiceSettings, today: string, opts: { reminder?: boolean } = {}) {
   const frame = document.createElement("iframe");
   frame.title = `Invoice ${inv.num || ""}`; frame.style.cssText = "position:fixed;width:1px;height:1px;left:-9999px";
   frame.onload = () => { frame.contentWindow?.addEventListener("afterprint", () => frame.remove(), { once: true }); frame.contentWindow?.focus(); frame.contentWindow?.print(); };
-  frame.srcdoc = invoicePage(inv, settings, today);
+  frame.srcdoc = invoicePage(inv, settings, today, opts);
   document.body.appendChild(frame);
 }
