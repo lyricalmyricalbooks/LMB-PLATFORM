@@ -147,5 +147,8 @@ export function StockPage({ bookId, load = stockroomApi.load }: { bookId?: strin
       {(publisher || item.authorHeld > 0) && <AuthorCopiesCard bookId={item.id} book={book} state={state} onSaved={read} />}
     </>} />;
   }
-  return <div className="rp-stock"><WebsiteOrdersCard /><StockList records={records} onPick={setPicked} /></div>;
+  const currency = String((records.books[0] as Record<string, any> | undefined)?.currency || "CAD");
+  return <div className="rp-stock"><WebsiteOrdersCard />
+    <div className="rp-stock-add"><EditDetailsButton book={{ currency, maxPrint: 100, listPrice: 40, threshold: 10, productionCost: 0 }} onSaved={read} /></div>
+    <StockList records={records} onPick={setPicked} /></div>;
 }

@@ -13,3 +13,13 @@ describe("edit details", () => {
     expect(() => withDetails("b1", { ...detailsFormOf(catalog.b1), title: "ferns" })(structuredClone(catalog))).toThrow("already has");
   });
 });
+
+import { withNewItem } from "./catalogEdit";
+describe("add an item", () => {
+  it("adds one with a free id and the old defaults", () => {
+    const f = { title: "Moths", author: "", maxPrint: "", listPrice: "15", threshold: "", productionCost: "" };
+    expect(() => withNewItem(f, "CAD")(structuredClone(catalog))).toThrow("already has");
+    const next = withNewItem({ ...f, title: "Moths II" }, "CAD")(structuredClone(catalog)) as any;
+    expect(next["moths-ii"]).toMatchObject({ id: "moths-ii", title: "Moths II", maxPrint: 100, listPrice: 15, threshold: 10, currency: "CAD" });
+  });
+});
