@@ -44,6 +44,7 @@ export function fakeDb(seed = {}) {
       get: async () => snapOf(path),
       set: async (data, opts) => ops.set(path, data, opts),
       update: async data => ops.update(path, data),
+      delete: async () => { delete docs[path]; },
     };
   };
   const query = (col, filters = [], order = [], max = Infinity, after = null) => ({

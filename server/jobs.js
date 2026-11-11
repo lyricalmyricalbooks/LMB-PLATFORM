@@ -58,6 +58,7 @@ export const RUNNERS = Object.freeze({
     return appAlerts.sweep();
   },
   "chitchats-tracking": ({ chitchats }) => () => chitchats.sweep(),
+  "mailchimp-sync": ({ parts }) => () => parts.mailchimp.sweep(),
   "setup-clock": ({ setupClock }) => () => setupClock.sweep(),
   "drift-watch": ({ driftWatch }) => () => driftWatch.sweep(),
   "deletion-note": ({ parts }) => () => weeklyDeletionNote({ registry: parts.registry, email: parts.email, to: ownerOf(parts.env), now: parts.now }),

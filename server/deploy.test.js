@@ -84,7 +84,7 @@ test("with --apply it runs each step in order, skips what is there already, and 
 });
 
 test("the server goes live before Stripe and email are connected: a missing optional key is left out", async () => {
-  assert.deepEqual([...OPTIONAL_SECRETS].sort(), ["google-client-id", "google-client-secret", "google-token-key", "stripe-billing-webhook-secret", "stripe-connect-webhook-secret-test", "stripe-platform-test-key"]);
+  assert.deepEqual([...OPTIONAL_SECRETS].sort(), ["google-client-id", "google-client-secret", "google-token-key", "mailchimp-client-id", "mailchimp-client-secret", "stripe-billing-webhook-secret", "stripe-connect-webhook-secret-test", "stripe-platform-test-key"]);
   const ran = [];
   const run = async (command, args) => {
     ran.push([command, ...args].join(" "));

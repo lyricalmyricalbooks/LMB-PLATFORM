@@ -24,6 +24,7 @@ const PAGES = {
   "Keep your app": { html: "accounts/keep.html", scripts: ["accounts/keep.js"] },
   "Add an app": { html: "accounts/install.html", scripts: ["accounts/install.js"] },
   "Chit Chats": { html: "accounts/chitchats.html", scripts: ["accounts/chitchats.js"] },
+  Mailchimp: { html: "accounts/mailchimp.html", scripts: ["accounts/mailchimp.js"] },
   "help": { html: "help/index.html", scripts: ["help/page.js"] },
   "experts": { html: "experts/index.html", scripts: ["experts/page.js"] },
 };

@@ -179,9 +179,38 @@ Company logos on store cards: an app listing may carry `brand` (an id from `shar
 platform team's own apps, so an outside maker can't borrow a company's logo. The shop shows that logo in place of the
 category picture.
 
+## 26.12 (first part built): Mailchimp, the email marketing app
+
+Colophon's own Mailchimp app (`services/mailchimp/`), on the same plumbing as any app. It asks for `read_orders` and
+`write_customers` and the alerts `orders/paid` and `app/uninstalled`.
+
+1. Settings › Apps › Add opens `/account/mailchimp.html?shop=<id>`. The page sends the owner through the permission
+   page; back with a code, `POST /api/mailchimp/begin` swaps it for the app's key and answers Mailchimp's own "allow"
+   address. Mailchimp sends the owner back to the same page with its code; `POST /api/mailchimp/finish` keeps the press's
+   Mailchimp token sealed (`mailchimpShops/<shopId>`) and, when the account has more than one audience, the owner picks
+   one (`/api/mailchimp/audience`; `/api/mailchimp/lists` to change it later).
+2. Every 15 minutes the `mailchimp-sync` job, per connected shop:
+   - reads `GET /api/apps/v1/subscribers` (confirmed readers who never unsubscribed) and adds new ones to the audience,
+     tagged "Shop newsletter" (`status_if_new`, so someone who left in Mailchimp stays out);
+   - reads `GET /api/apps/v1/unsubscribes` (opt-out fingerprints only) and unsubscribes the matching people it sent;
+   - reads Mailchimp's unsubscribed members since the last run and, for people it sent, asks the shop to record the
+     opt-out (`POST /api/apps/v1/subscribers/unsubscribe`, applied by the shop's `newsletter.unsubscribe` request).
+3. A paid order's alert tags a buyer who is on the list "Customer" and "Bought: <title>". A buyer who never joined the
+   newsletter is never sent or looked up.
+4. The app keeps no addresses: per person, the shop's opt-out fingerprint and Mailchimp's member id. Disconnecting or
+   removing the app forgets the shop and every fingerprint.
+
+Only calls Mailchimp documents are used (`services/mailchimp/client.js` lists them). `services/apps/ownApps.test.js`
+runs it end to end against a pretend Mailchimp.
+
+Turning it on (Julian, about 5 minutes): on Mailchimp's Registered Apps page (https://admin.mailchimp.com/account/oauth2/), Register an app with the
+redirect address `https://<platform address>/account/mailchimp.html`. Put its client ID and secret in Secret Manager as
+`mailchimp-client-id` and `mailchimp-client-secret`, then run the deploy. Until both are there, Mailchimp stays off the
+store, so no press can find an app that can't connect.
+
 ## Colophon's own apps (11 November 2026)
 
-The apps the platform team builds (Chit Chats now, then Mailchimp and Zapier) put themselves on the store
+The apps the platform team builds (Chit Chats and Mailchimp now, then Zapier) put themselves on the store
 (`services/apps/ownApps.js`), so no one registers, approves or configures them before a press can add one.
 
 - Each has a fixed id (`ownAppId(name)`), and its secret and sealing key are made from one platform secret through their
@@ -201,7 +230,9 @@ Colophon builds these itself, as apps on the same plumbing any app maker uses. T
 
 ## Needs real accounts or people
 
-- A Zapier developer account to publish the Zapier app (26.13); Mailchimp and Klaviyo app registrations (26.12).
+- A Zapier developer account to publish the Zapier app (26.13); a Klaviyo app registration (26.12, later).
+- Mailchimp: register the app and add its two secrets (26.12, "Turning it on" above), then try it with a free Mailchimp
+  account on the test shop.
 - A Chit Chats account (sandbox first) to try the Chit Chats app (26.11) on the test shop, and Chit Chats' permission to
   show its logo.
 

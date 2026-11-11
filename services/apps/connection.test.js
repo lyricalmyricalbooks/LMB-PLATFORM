@@ -219,3 +219,31 @@ test("an app catches up on its own alerts, oldest first", async () => {
   const later = await handle({ method: "GET", path: "/api/apps/v1/alerts", query: { since: "2026-11-04T10:30:00Z" }, headers: { authorization: "Bearer cak_a" } });
   assert.deepEqual(later.body.alerts.map((a) => a.id), ["a2"]);
 });
+
+test("newsletter readers: only confirmed and not unsubscribed, with the customers permission; opt-outs as fingerprints", async () => {
+  const { createHash } = await import("node:crypto");
+  const fp = (email) => createHash("sha256").update(email).digest("hex");
+  const data = {
+    newsletter: {
+      "bea@example.com": { email: "bea@example.com", status: "confirmed", subscribedAt: "2026-11-02T10:00:00Z", source: "website" },
+      "old@example.com": { email: "old@example.com", subscribedAt: "2026-10-01T10:00:00Z" },
+      "new@example.com": { email: "new@example.com", status: "pending", subscribedAt: "2026-11-03T10:00:00Z" },
+      "gone@example.com": { email: "gone@example.com", status: "confirmed", subscribedAt: "2026-11-01T10:00:00Z" },
+    },
+    "marketing-optout": { [fp("gone@example.com")]: { at: "2026-11-03T12:00:00Z", source: "email-link" } },
+  };
+  const shopData = {
+    list: async (_shop, c) => Object.entries(data[c] ?? {}).map(([id, d]) => ({ id, data: structuredClone(d) })),
+    find: async (_shop, c, { where: [[field, , value]] }) => Object.entries(data[c] ?? {}).filter(([, d]) => String(d[field] ?? "") >= value).map(([id, d]) => ({ id, data: structuredClone(d) })),
+  };
+  const make = (granted) => createAppConnection({ installs: { authenticate: async () => ({ installId: "moth-press~app_1", shopId: "moth-press", appId: "app_1", granted }) }, shopData, registry: fakeRegistry() });
+  const get = (granted, path) => make(granted)({ method: "GET", path, headers: { authorization: "Bearer cak_x" } });
+
+  assert.equal((await get(["read_orders"], "/api/apps/v1/subscribers")).status, 403);
+  const all = await get(["read_customers"], "/api/apps/v1/subscribers");
+  assert.deepEqual(all.body.subscribers.map((s) => s.email), ["old@example.com", "bea@example.com"], "oldest first; pending and unsubscribed left out");
+  const since = await get(["read_customers"], "/api/apps/v1/subscribers?since=2026-11-01T00:00:00Z");
+  assert.deepEqual(since.body.subscribers.map((s) => s.email), ["bea@example.com"]);
+  const out = await get(["read_customers"], "/api/apps/v1/unsubscribes?since=2026-11-03T00:00:00Z");
+  assert.deepEqual(out.body.unsubscribes, [{ id: fp("gone@example.com"), at: "2026-11-03T12:00:00Z" }]);
+});

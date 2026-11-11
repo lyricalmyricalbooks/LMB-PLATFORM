@@ -47,12 +47,33 @@ export function ownAppSpecs(url, supportEmail) {
       alertTopics: ["orders/paid", "app/uninstalled"],
       supportEmail,
     },
+    mailchimp: {
+      name: "Mailchimp",
+      tagline: "Your newsletter readers in your Mailchimp audience, and back out when they unsubscribe.",
+      description: [
+        "People who confirm your shop's newsletter join your Mailchimp audience, tagged \"Shop newsletter\". When one of them buys, they're tagged \"Customer\" and with what they bought, so you can send to them in Mailchimp.",
+        "Unsubscribes go both ways: leave in Mailchimp and you stop emailing them from your shop too, and the other way round.",
+        "Only people who said yes to your newsletter are ever sent. You need a Mailchimp account.",
+      ].join("\n\n"),
+      category: "marketing",
+      website: "https://mailchimp.com/",
+      brand: "mailchimp",
+      installAddress: `${url}/account/mailchimp.html`,
+      returnAddresses: [`${url}/account/mailchimp.html`],
+      alertsAddress: `${url}/api/mailchimp/alerts`,
+      scopes: ["read_orders", "write_customers"],
+      alertTopics: ["orders/paid", "app/uninstalled"],
+      supportEmail,
+    },
   };
 }
 
-export function createOwnApps({ store, root, platformUrl, supportEmail, now = () => new Date() }) {
+export function createOwnApps({ store, root, platformUrl, supportEmail, available = {}, now = () => new Date() }) {
   const ready = typeof root === "string" && root.length >= 16;
   const specs = ownAppSpecs(platformUrl, supportEmail);
+  // An app that still needs something from its company (Mailchimp's own app sign-up) stays off the store until it has
+  // it, so every app a press can find can really connect. Missing from `available` means ready.
+  const canConnect = (name) => available[name] !== false;
   let running = null;
 
   async function ensureOne(name) {
@@ -61,12 +82,19 @@ export function createOwnApps({ store, root, platformUrl, supportEmail, now = ()
     const secretHash = sha256(ownAppSecret(root, name));
     const at = now().toISOString();
     const before = await store.get(appId);
-    const same = before && JSON.stringify(before.listing?.details ?? null) === JSON.stringify(details) && before.secretHash === secretHash;
+    // Taken off by us while it can't connect; it comes back once it can.
+    if (!canConnect(name)) {
+      if (!before || !before.onStore) return { appId, changed: false, waiting: true };
+      await store.put(appId, { ...before, status: "unlisted", onStore: false, unlisted: { by: "colophon", at, reason: "Waiting for its company to finish setting up." }, updatedAt: at });
+      return { appId, changed: true, waiting: true };
+    }
+    const same = before && before.onStore && JSON.stringify(before.listing?.details ?? null) === JSON.stringify(details) && before.secretHash === secretHash;
     if (same) return { appId, changed: false };
     // A logo the team set from the control room (makers.setBrand) stays.
     const brand = before?.listing?.details?.brand;
     if (brand && !details.brand) details.brand = brand;
-    const takenOff = before?.status === "unlisted";
+    // Taken off by the team stays off; taken off by us because it couldn't connect comes back once it can.
+    const takenOff = before?.status === "unlisted" && before.unlisted?.by !== "colophon";
     const app = {
       ...(before ?? { createdAt: at, history: [] }),
       appId, ownApp: true, makerEmail: supportEmail, makerName: "Colophon", makerAccountId: null,
@@ -74,6 +102,7 @@ export function createOwnApps({ store, root, platformUrl, supportEmail, now = ()
       listing: { details, approvedAt: at, approvedBy: "colophon", firstApprovedAt: before?.listing?.firstApprovedAt ?? at },
       status: takenOff ? "unlisted" : "listed", onStore: !takenOff, updatedAt: at,
     };
+    if (!takenOff) delete app.unlisted;
     app.history = [...(app.history ?? []), { at, by: "colophon", what: before ? "updated Colophon's own app" : "listed Colophon's own app" }].slice(-50);
     await store.put(appId, app);
     return { appId, changed: true };

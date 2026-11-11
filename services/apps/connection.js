@@ -14,6 +14,10 @@
 //   /api/apps/v1/orders?limit&after&since&status   read_orders   paid orders, newest first; email and phone only
 //                                                                 with read_customers
 //   /api/apps/v1/orders/<id>              read_orders
+//   /api/apps/v1/subscribers?since&limit&after   read_customers   people on the newsletter who confirmed it and haven't
+//                                                                  unsubscribed, oldest first by when they joined
+//   /api/apps/v1/unsubscribes?since&limit&after  read_customers   opt-outs as { id: sha256 of the lower-case email, at }:
+//                                                                  an app checks the addresses it holds, never sees others
 //   /api/apps/v1/alerts?since&limit&after any             the alerts queued for this app, oldest first, whether or not
 //                                                         they reached it: a way to catch up after its server was down
 //
@@ -24,6 +28,8 @@
 //   POST /api/apps/v1/orders/<id>/fulfillment   write_orders   { trackingCarrier, trackingNumber, trackingUrl?, shipped? }
 //   POST /api/apps/v1/inventory/<productId>     write_inventory  { change, variantId?, expected? }: add or take copies;
 //                                                                with `expected`, only if the stock is still that
+//   POST /api/apps/v1/subscribers/unsubscribe   write_customers  { email }: unsubscribed in the app (an email marketing
+//                                                                app), so the shop records the opt-out too
 //   GET  /api/apps/v1/requests/<id>             any            the answer: { status: waiting|done|refused, result, reason }
 //
 // An `Idempotency-Key` header makes a retried POST return the first request instead of making a second one.
@@ -36,6 +42,9 @@ export const PER_MINUTE = 120;
 export const MAX_PAGE = 250;
 const ID = /^[A-Za-z0-9_-]{1,128}$/;
 export const WAIT_MS = 5000;
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/** The shop's opt-out id for an address (apps/shop/functions/marketingOptOut.js optOutId). */
+export const optOutId = (email) => createHash("sha256").update(String(email ?? "").trim().toLowerCase()).digest("hex");
 const short = (value, max) => (typeof value === "string" ? value.trim().slice(0, max) : "");
 /** A request as the app sees it. */
 const requestView = (id, data) => ({ id, op: data.op, status: data.status ?? "waiting", result: data.result ?? null, reason: data.reason ?? "", createdAt: data.createdAt, answeredAt: data.answeredAt ?? null });
@@ -188,6 +197,12 @@ export function createAppConnection({
       if (variantId && !ID.test(variantId)) throw new SignupError(400, "That isn't a variant id.");
       return ask(install, "inventory.adjust", { productId: id, variantId, change, ...(expected === undefined ? {} : { expected }) }, headers);
     }
+    if (what === "subscribers" && id === "unsubscribe" && action === undefined && !rest.length) {
+      need(install, "write_customers");
+      const email = short(body?.email, 254).toLowerCase();
+      if (!EMAIL.test(email)) throw new SignupError(400, "Give the email address.");
+      return ask(install, "newsletter.unsubscribe", { email }, headers);
+    }
     throw new SignupError(404, "There's nothing here.");
   }
 
@@ -231,6 +246,30 @@ export function createAppConnection({
         .sort((a, b) => (a.createdAt === b.createdAt ? (a.id < b.id ? -1 : 1) : a.createdAt < b.createdAt ? -1 : 1));
       const { slice, next } = page(rows, query);
       return { alerts: slice.map((alert) => ({ id: alert.id, topic: alert.topic, createdAt: alert.createdAt, data: alert.data, delivered: alert.status === "sent" })), next };
+    }
+
+    if (what === "subscribers" && id === undefined) {
+      need(install, "read_customers");
+      const since = typeof query.since === "string" ? query.since : "";
+      const rows = since ? await shopData.find(shopId, "newsletter", { where: [["subscribedAt", ">=", since]], limit: 5000 }) : await shopData.list(shopId, "newsletter");
+      const optedOut = new Set((await shopData.list(shopId, "marketing-optout")).map((row) => row.id));
+      const when = (row) => String(row.data.subscribedAt ?? row.data.confirmedAt ?? "");
+      const list = rows
+        .map((row) => ({ ...row, email: String(row.data?.email ?? row.id).trim().toLowerCase() }))
+        // Only people who confirmed (newsletter.js mayMail: older rows with no status count) and never unsubscribed.
+        .filter((row) => row.data && row.data.status !== "pending" && EMAIL.test(row.email) && !optedOut.has(optOutId(row.email)))
+        .sort((a, b) => (when(a) === when(b) ? (a.id < b.id ? -1 : 1) : when(a) < when(b) ? -1 : 1));
+      const { slice, next } = page(list, query);
+      return { subscribers: slice.map((row) => ({ email: row.email, subscribedAt: when(row) || null, source: text(row.data.source) })), next };
+    }
+
+    if (what === "unsubscribes" && id === undefined) {
+      need(install, "read_customers");
+      const since = typeof query.since === "string" ? query.since : "";
+      const rows = (since ? await shopData.find(shopId, "marketing-optout", { where: [["at", ">=", since]], limit: 5000 }) : await shopData.list(shopId, "marketing-optout"))
+        .sort((a, b) => (String(a.data?.at ?? "") === String(b.data?.at ?? "") ? (a.id < b.id ? -1 : 1) : String(a.data?.at ?? "") < String(b.data?.at ?? "") ? -1 : 1));
+      const { slice, next } = page(rows, query);
+      return { unsubscribes: slice.map((row) => ({ id: row.id, at: text(row.data?.at) })), next };
     }
 
     if (what === "requests" && id) {

@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en" class="rp cp-page cl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mailchimp · Colophon</title>
+<meta name="description" content="Send your newsletter readers to your Mailchimp audience, and keep unsubscribes in step.">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="./look/adminThemes.css">
+<link rel="stylesheet" href="./look/pressroom.css">
+<link rel="stylesheet" href="./look/colophon.css">
+<link rel="stylesheet" href="./look/platform-pages.css">
+<link rel="stylesheet" href="./look/brand-logos.css">
+<script src="./look/platform-look.js"></script>
+</head>
+<body class="cp">
+<a class="rp-skip-link" href="#main">Skip to content</a>
+<div class="rp-app">
+  <div class="rp-app-body">
+    <header class="rp-topbar"><a class="cp-kicker" href="/account/">Colophon · Your account</a></header>
+    <div class="rp-workspace"><div class="rp-workspace-inner">
+<!-- Colophon's Mailchimp app (code plan 26.12, accounts/mailchimp.js, services/mailchimp/app.js): the app store's Add
+     sends the press here; it goes through the permission page, then Mailchimp's own "allow" page, and comes back to pick
+     an audience. Confirmed newsletter readers then go to Mailchimp, and unsubscribes go both ways. -->
+<main id="main" tabindex="-1" class="ins">
+  <style>
+    .cp .rp-workspace > .rp-workspace-inner > main.ins { max-width: 560px; margin: 0 auto; padding-block: 40px 64px; display: grid; gap: 24px; align-content: start; }
+    .ins-head { display: flex; align-items: flex-start; gap: 16px; min-width: 0; }
+    .ins-head > div { min-width: 0; display: grid; gap: 8px; }
+    .ins-head .brand-logo { width: 56px; height: 56px; border-radius: var(--rp-radius); }
+    .ins-title { margin: 0; font: var(--rp-title-weight, 400) clamp(32px, 6vw, 44px)/1.02 var(--rp-font-display); text-transform: var(--rp-title-case, uppercase); letter-spacing: var(--rp-title-tracking, 0.01em); color: var(--rp-text); overflow-wrap: anywhere; }
+    .ins-tagline { margin: 0; font-size: 16px; line-height: 1.45; color: var(--rp-text-muted); }
+    .ins .card { gap: 16px; }
+    .ins-subtitle { margin: 0; font: 600 16px/1.3 var(--rp-font-body); color: var(--rp-text); }
+    .ins-done { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 16px; }
+    .ins-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+    .ins-lists { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; min-width: 0; }
+    .ins-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; }
+    .ins-stats > div { display: grid; gap: 4px; padding: 12px 14px; border-radius: var(--rp-radius); background: color-mix(in srgb, var(--rp-text) 5%, var(--rp-surface)); min-width: 0; }
+    .ins-stats dt { font-size: 13px; color: var(--rp-text-subtle); }
+    .ins-stats dd { margin: 0; font: 600 20px/1.2 var(--rp-font-body); color: var(--rp-text); overflow-wrap: anywhere; }
+    .ins-foot { margin: 0; font-size: 14px; color: var(--rp-text-subtle); }
+    @media (max-width: 480px) { .ins-head .brand-logo { width: 48px; height: 48px; } .ins .cp-actions > * { flex: 1 1 auto; } }
+  </style>
+
+  <header class="ins-head">
+    <span class="brand-logo" id="logo" aria-hidden="true"></span>
+    <div>
+      <div class="cp-kicker">Email marketing app</div>
+      <h1 class="ins-title">Mailchimp</h1>
+      <p class="ins-tagline">Your newsletter readers in your Mailchimp audience. Unsubscribes stay in step both ways.</p>
+    </div>
+  </header>
+
+  <section id="view-loading" aria-live="polite">
+    <p class="loading">Loading…</p>
+  </section>
+
+  <section id="view-signin" class="stack" hidden aria-labelledby="signin-title">
+    <h2 id="signin-title" tabindex="-1" class="cp-view-title">Sign in</h2>
+    <div class="cp-actions cp-start"><button type="button" id="google" class="gsi-button"><span class="gsi-button-g"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg></span><span class="gsi-button-text">Continue with Google</span></button></div>
+    <a href="/account/">Or get an email sign-in link on your shops page</a>
+  </section>
+
+  <section id="view-error" class="stack" hidden aria-labelledby="error-title">
+    <h2 id="error-title" tabindex="-1" class="cp-view-title">Something's not right</h2>
+    <p class="error" id="error-words" role="alert"></p>
+    <div class="cp-actions cp-start"><button type="button" id="retry">Try again</button><a class="button" href="/account/">Your shops</a></div>
+  </section>
+
+  <section id="view-soon" class="stack" hidden aria-labelledby="soon-title">
+    <h2 id="soon-title" tabindex="-1" class="cp-view-title">Opens soon</h2>
+    <p class="empty">Mailchimp isn't ready on Colophon yet. Check back soon.</p>
+  </section>
+
+  <section id="view-away" class="stack" hidden aria-labelledby="away-title">
+    <h2 id="away-title" tabindex="-1" class="cp-view-title">Off to Mailchimp</h2>
+    <p class="loading">Sign in to Mailchimp and press Allow. You'll come straight back here.</p>
+  </section>
+
+  <section id="view-connect" class="stack" hidden aria-labelledby="connect-title">
+    <div class="card">
+      <h2 class="ins-subtitle" id="connect-title" tabindex="-1">One more step</h2>
+      <p>Sign in to Mailchimp and press Allow, so Colophon can add your readers to your audience.</p>
+      <p class="hint"><a href="https://mailchimp.com/" target="_blank" rel="noopener noreferrer">No Mailchimp account yet?</a> It's free to start.</p>
+    </div>
+    <p class="error" id="connect-problem" role="alert" hidden></p>
+    <div class="cp-actions cp-start">
+      <button type="button" class="primary" id="connect">Connect Mailchimp</button>
+      <a class="button" href="/account/">Cancel</a>
+    </div>
+  </section>
+
+  <form id="view-choose" class="stack" hidden aria-labelledby="choose-title" novalidate>
+    <div class="card">
+      <h2 class="ins-subtitle" id="choose-title" tabindex="-1">Which audience?</h2>
+      <fieldset class="ins-lists" id="lists"><legend class="rp-sr-only">Your Mailchimp audiences</legend></fieldset>
+      <p class="hint" id="choose-hint">Readers are added here from now on.</p>
+    </div>
+    <p class="error" id="choose-problem" role="alert" hidden></p>
+    <div class="cp-actions cp-start">
+      <button type="submit" class="primary" id="choose">Use this audience</button>
+      <button type="button" id="choose-cancel" hidden>Cancel</button>
+    </div>
+  </form>
+
+  <section id="view-connected" class="stack" hidden aria-labelledby="connected-title">
+    <div class="card">
+      <div class="ins-row">
+        <h2 class="ins-subtitle" id="connected-title" tabindex="-1">Connected</h2>
+        <span class="pill" data-tone="success" id="audience-pill"></span>
+      </div>
+      <dl class="ins-stats">
+        <div><dt>Readers added</dt><dd id="added">0</dd></div>
+        <div><dt>Last updated</dt><dd id="last-sync">Soon</dd></div>
+      </dl>
+      <ul class="ins-done">
+        <li>New readers are added every 15 minutes, tagged "Shop newsletter".</li>
+        <li>Buyers on your list are tagged "Customer" and with what they bought.</li>
+        <li>Unsubscribe in either place and it counts in both.</li>
+      </ul>
+    </div>
+    <p class="error" id="last-problem" role="alert" hidden></p>
+    <div class="cp-actions cp-start">
+      <button type="button" class="primary" id="reconnect" hidden>Connect Mailchimp again</button>
+      <a class="button primary" id="open" href="https://login.mailchimp.com/" target="_blank" rel="noopener noreferrer">Open Mailchimp</a>
+      <button type="button" id="change">Change audience</button>
+      <button type="button" id="disconnect" class="ghost">Disconnect</button>
+    </div>
+  </section>
+
+  <section id="view-off" class="stack" hidden aria-labelledby="off-title">
+    <h2 id="off-title" tabindex="-1" class="ins-subtitle">Disconnected</h2>
+    <p class="empty">New readers no longer go to Mailchimp. Everyone already there stays.</p>
+    <div class="cp-actions cp-start"><button type="button" class="primary" id="again">Connect again</button><a class="button" href="/account/">Your shops</a></div>
+  </section>
+
+  <p class="ins-foot" id="foot">Only people who said yes to your newsletter are sent. Remove it any time in Settings › Apps.</p>
+  <p id="status" role="status" aria-live="polite"></p>
+</main>
+    </div></div>
+  </div>
+</div>
+<script type="module" src="/accounts/mailchimp.js"></script>
+</body>
+</html>

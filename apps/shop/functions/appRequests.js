@@ -19,7 +19,12 @@
 //     stockroom link (the stockroom would undo it; editions sharing one pile are always linked), and for an item that
 //     doesn't track stock. Stock never goes below 0. Checkout holds are kept apart and are untouched.
 //     Result: { available, title }.
+//   newsletter.unsubscribe  { email }   (permission write_customers)
+//     Someone unsubscribed in the app (an email marketing app such as Mailchimp): the same as the unsubscribe link in
+//     the shop's own emails. The opt-out is recorded (`marketing-optout`, source `app:<appId>`) and the address leaves
+//     the newsletter list. Safe to repeat.
 const { externalDispatchProblem } = require("./fulfillmentGuard");
+const { optOutId, normEmail } = require("./marketingOptOut");
 
 const text = (value, max) => String(value ?? "").trim().slice(0, max);
 const cleanUrl = (value) => {
@@ -111,7 +116,15 @@ async function adjustStock(db, request, now) {
   });
 }
 
-const OPS = { "order.dispatch": dispatchOrder, "inventory.adjust": adjustStock };
+async function unsubscribe(db, request, now) {
+  const email = normEmail((request.input || {}).email).slice(0, 254);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { status: "refused", reason: "Give the email address." };
+  await db.collection("marketing-optout").doc(optOutId(email)).set({ at: now.toISOString(), source: `app:${text(request.appId, 64)}` });
+  await db.collection("newsletter").doc(email).delete().catch(() => {});
+  return { status: "done", result: "unsubscribed", reason: `Unsubscribed in ${text(request.appName, 80) || "an app"}; off the newsletter list.` };
+}
+
+const OPS = { "order.dispatch": dispatchOrder, "inventory.adjust": adjustStock, "newsletter.unsubscribe": unsubscribe };
 
 /** Applies one request and writes the answer on its document. Answers once: a request already answered is left alone. */
 async function applyAppRequest(db, id, now = new Date()) {

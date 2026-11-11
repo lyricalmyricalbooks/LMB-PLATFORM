@@ -31,9 +31,11 @@ import { createAppMakers } from "../services/apps/makers.js";
 import { createAppInstalls } from "../services/apps/installs.js";
 import { createChitChatsApp } from "../services/chitchats/app.js";
 import { chitChatsPublicRoutes, chitChatsRoutes } from "../services/chitchats/routes.js";
+import { createMailchimpApp } from "../services/mailchimp/app.js";
+import { mailchimpPublicRoutes, mailchimpRoutes } from "../services/mailchimp/routes.js";
 import { appInstallPublicRoutes, appInstallRoutes, appMakerRoutes, appShopDoorRoutes, appStorePublicRoutes } from "../services/apps/routes.js";
 import { createAppShopDoor } from "../services/apps/shopDoor.js";
-import { fakeAppAlertStores, fakeAppInstallStores, fakeAppStore, fakeChitChatsStores } from "../services/apps/fakes.js";
+import { fakeAppAlertStores, fakeAppInstallStores, fakeAppStore, fakeChitChatsStores, fakeMailchimpStores } from "../services/apps/fakes.js";
 import { createRecovery, recoveryByHand } from "../accounts/recovery.js";
 import { recoveryRoutes } from "../accounts/recoveryRoutes.js";
 import { fakeRecoveryStore } from "../accounts/fakes.js";
@@ -279,6 +281,12 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const shopEmails = createShopEmails({ admins, registry, emailLog: email.emailLog, now: clock.date });
   const appUse = createAppUse({ admins, installs: appInstallStores.installs, outbox: appAlertStores.outbox, now: clock.date });
   const shopApps = createShopApps({ admins, registry, installs: appInstallStores.installs, outbox: appAlertStores.outbox, shopData: { ...shopData, list: (...args) => listDocs(...args) }, now: clock.date });
+  const mailchimpStores = fakeMailchimpStores();
+  const mailchimp = createMailchimpApp({
+    appId: null, appSecret: null, sealKey: null, clientId: null, clientSecret: null, connections: mailchimpStores.connections, members: mailchimpStores.members,
+    exchange: async () => { throw new Error("not in the walkthrough"); }, appCall: async () => ({ status: 503, body: {} }),
+    roleIn: (person, shopId) => accounts.roleIn(person, shopId), now: clock.date, returnAddress: `${settings.platformUrl}/account/mailchimp.html`,
+  });
   const chitChatsDesk = createChitChatsDesk({ admins, chitchats, stores: chitchatsStores, registry, now: clock.date });
   const sellReady = createSellReady({ admins, registry, shopData, now: clock.date });
   const notSelling = createNotSelling({ admins, registry, shopData, email, activity, now: clock.date });
@@ -316,6 +324,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...appMakerRoutes(appMakers),
     ...appInstallRoutes(appInstalls),
     ...chitChatsRoutes(chitchats),
+    ...mailchimpRoutes(mailchimp),
     ...recoveryRoutes(recovery),
     ...accessRequestRoutes({ requests: accessRequests, accounts, activity, registry, auditLog, now: clock.date }),
     ...businessRoutes(business),
@@ -344,7 +353,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...exportRoutes(dataExports),
   };
   const door = createApi({
-    signup, verifyIdToken: fakeVerifyIdToken, settings, live, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls), ...appShopDoorRoutes(createAppShopDoor({ registry, installs: appInstalls, makers: appMakers })), ...chitChatsPublicRoutes(chitchats) },
+    signup, verifyIdToken: fakeVerifyIdToken, settings, live, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls), ...appShopDoorRoutes(createAppShopDoor({ registry, installs: appInstalls, makers: appMakers })), ...chitChatsPublicRoutes(chitchats), ...mailchimpPublicRoutes(mailchimp) },
     // Fair-use limits (19.5) on an in-memory counter, a hundred times the real ones so a person clicking never meets them.
     limits: createLimits({ throttle: fakeThrottle(), admins, limits: generousLimits(), now: clock.date, log: () => {} }),
     log: () => {},
