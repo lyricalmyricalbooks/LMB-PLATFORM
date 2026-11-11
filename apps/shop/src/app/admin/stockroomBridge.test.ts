@@ -59,7 +59,7 @@ describe("asking the stockroom", () => {
   });
   it("opens the frame for a page that asked before the admin listened", () => {
     vi.stubGlobal("window", { location: { origin: ORIGIN } });
-    stockroomBridge.openPage("reconcile");
+    stockroomBridge.openPage("backups");
     let needed = 0;
     const stop = stockroomBridge.onNeed(() => { needed += 1; });
     expect(needed).toBe(1);
@@ -73,10 +73,10 @@ describe("asking the stockroom", () => {
     const posted: any[] = [];
     const pages: string[] = [];
     const stop = stockroomBridge.onOpen((page) => pages.push(page));
-    stockroomBridge.openBook("reconcile", "b1");
-    expect(pages).toEqual(["reconcile"]);
+    stockroomBridge.openBook("backups", "b1");
+    expect(pages).toEqual(["backups"]);
     stockroomBridge.attach({ postMessage: (m: any) => posted.push(m) } as any);
-    expect(posted).toEqual([{ source: FROM_ADMIN, type: "open", tab: "reconcile", book: "b1" }]);
+    expect(posted).toEqual([{ source: FROM_ADMIN, type: "open", tab: "backups", book: "b1" }]);
     stop();
   });
 });
