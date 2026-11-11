@@ -172,7 +172,7 @@ async function draw(node: React.ReactNode) {
 
 describe("the pages", () => {
   it("draw their figures", async () => {
-    const tax = await draw(<TaxCenterView records={records} now={NOW} />);
+    const tax = await draw(<TaxCenterView records={records} now={NOW} orders={[]} />);
     expect(tax.container.textContent).toContain("Money in");
     expect(tax.container.textContent).toContain("Booth fee");
     await act(async () => tax.root.unmount());
@@ -185,9 +185,9 @@ describe("the pages", () => {
   });
 
   it("show the whole Tax centre with zeros when there is nothing yet", async () => {
-    const empty = await draw(<TaxCenterView records={{ books: [], states: {}, taxCenter: null }} />);
+    const empty = await draw(<TaxCenterView records={{ books: [], states: {}, taxCenter: null }} orders={[]} />);
     const text = empty.container.textContent || "";
-    for (const part of ["Money in", "Money out", "Net", "By year", "Where the money went", "Trips and events", "Standing costs", "Costs that may be missing", "Ledger"]) expect(text).toContain(part);
+    for (const part of ["Money in", "Money out", "Net", "By month in", "Tax to remit", "Before you file", "Past filings", "Where the money went", "Trips and events", "Standing costs", "Costs that may be missing", "Ledger"]) expect(text).toContain(part);
     expect(text).not.toContain("Nothing in the Tax centre yet");
     await act(async () => empty.root.unmount());
   });

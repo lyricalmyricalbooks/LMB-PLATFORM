@@ -1,0 +1,36 @@
+/* Tax centre top (11 November 2026): period pills, figure tiles, rate table, channel bars, past filings. Tokens only. */
+.rp-tax-period { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rp-space-3); }
+.rp-tax-period-label { font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+.rp-tax-period { min-width: 0; }
+.rp-tax-period .rp-tabs { margin: 0; flex: 1 1 auto; min-width: 0; max-width: 100%; overflow-x: auto; flex-wrap: nowrap; }
+.rp-tax-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--rp-space-4); }
+.rp-tax-tile { display: flex; flex-direction: column; gap: var(--rp-space-2); min-width: 0; padding: var(--rp-space-5); background: var(--rp-surface); color: var(--rp-text); border-radius: var(--rp-radius-lg, 22px); }
+.rp-tax-tile[data-tone="sky"] { background: var(--rp-tile-sky, var(--rp-info-tint)); color: var(--rp-on-tile, var(--rp-text)); }
+.rp-tax-tile[data-tone="apricot"] { background: var(--rp-tile-apricot, var(--rp-warning-tint)); color: var(--rp-on-tile, var(--rp-text)); }
+.rp-tax-tile p { margin: 0; }
+.rp-tax-tile-label { font-size: var(--rp-text-sm); }
+.rp-tax-tile-title { font-size: var(--rp-text-lg, 20px); font-weight: 600; }
+.rp-tax-tile-value { font-family: var(--rp-font-body); font-weight: 600; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; font-size: clamp(24px, 2.6vw, 42px); line-height: 1.1; overflow-wrap: anywhere; }
+.rp-tax-tile-due { font-size: var(--rp-text-sm); }
+.rp-tax-tile-foot { font-size: var(--rp-text-sm); opacity: .8; }
+.rp-tax-progress { display: grid; gap: var(--rp-space-2); margin-top: auto; }
+.rp-tax-bar { height: 8px; border-radius: 999px; background: var(--rp-border, currentColor); overflow: hidden; }
+.rp-tax-tile .rp-tax-bar { background: color-mix(in srgb, currentColor 18%, transparent); }
+.rp-tax-bar > span { display: block; height: 100%; border-radius: inherit; background: currentColor; }
+.rp-tax-checks { list-style: none; margin: 0; padding: 0; display: grid; }
+.rp-tax-checks li { display: flex; justify-content: space-between; gap: var(--rp-space-3); padding: var(--rp-space-2) 0; border-top: 1px solid color-mix(in srgb, currentColor 18%, transparent); font-size: var(--rp-text-sm); }
+.rp-tax-checks strong { white-space: nowrap; }
+.rp-tax-split { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: var(--rp-space-4); align-items: start; }
+.rp-tax-side { display: grid; gap: var(--rp-space-4); min-width: 0; }
+.rp-tax-sub { display: block; font-size: var(--rp-text-xs); color: var(--rp-text-muted); font-weight: 400; }
+.rp-tax-total { display: flex; justify-content: space-between; margin: 0; padding: var(--rp-space-3) var(--rp-space-4); border-top: 2px solid var(--rp-text); }
+.rp-tax-bars { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--rp-space-3); }
+.rp-tax-bars li { display: grid; grid-template-columns: minmax(90px, 1fr) minmax(0, 2fr) auto; align-items: center; gap: var(--rp-space-3); font-size: var(--rp-text-sm); }
+.rp-tax-bars .rp-tax-bar > span { background: var(--rp-text); }
+.rp-tax-bars strong { text-align: right; font-variant-numeric: tabular-nums; }
+.rp-tax-filings { list-style: none; margin: 0; padding: 0; display: grid; }
+.rp-tax-filings li { display: flex; justify-content: space-between; align-items: center; gap: var(--rp-space-3); padding: var(--rp-space-3) 0; border-top: 1px solid var(--rp-border, currentColor); }
+.rp-tax-filings li:first-child { border-top: 0; }
+.rp-tax-filed { display: inline-flex; align-items: center; gap: var(--rp-space-2); }
+@media (max-width: 1100px) { .rp-tax-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .rp-tax-split { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .rp-tax-tiles { grid-template-columns: 1fr; } .rp-tax-bars li { grid-template-columns: 1fr auto; } .rp-tax-bars .rp-tax-bar { grid-column: 1 / -1; grid-row: 2; } }

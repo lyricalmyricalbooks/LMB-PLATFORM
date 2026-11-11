@@ -37,6 +37,8 @@ if (/page=stockroom(\/|%2F)(taxcenter|expenses|intel)/.test(window.location.sear
           { id: 2, date: "2025-11-02", num: "A0", qty: 1, price: 20, chan: "Website" },
           { id: 3, date: "2026-05-01", num: "V1", qty: 1, price: 20, chan: "Direct", voided: true },
           { id: 4, date: "2026-06-12", num: "A2", qty: 4, price: 20, chan: "Book fair" },
+          { id: 6, date: "2026-10-18", num: "P1", qty: 5, price: 20, chan: "Book Fair" },
+          { id: 7, date: "2026-11-02", num: "C1", qty: 3, price: 12, chan: "Consignment" },
         ],
         expenses: [
           { id: 11, date: "2026-02-10", desc: "Print run", cat: "Printing", amount: 300, currency: "CAD", baseAmount: 300, receipt: "cloud://receipts/print-run.pdf" },
@@ -232,6 +234,8 @@ const order = (n: number, status: string, name: string) => ({
   id: `o${n}`, orderId: `FIXTURE-${n}`, status, paymentStatus: "paid", createdAt: new Date(Date.now() - n * 3_600_000).toISOString(),
   customer: { name, email: `buyer${n}@example.com` },
   items: [{ id: "b1", title: "Salt Hours", quantity: n, price: 20 }], total: 20 * n, subtotal: 20 * n, currency: "CAD",
+  // Sales tax and the card fee as the server records them (Stockroom › Tax centre reads these).
+  tax: 2.6 * n, taxLines: [{ name: "HST ON", cents: 260 * n }], fee: 88 * n, payoutId: n < 3 ? "po_fixture" : null,
   shippingAddress: { street: "1 Example St", city: "Toronto", state: "ON", zip: "M5V 1A1", country: "Canada" },
   trackingKey: `key${n}`, fulfillmentStatus: status === "shipped" ? "shipped" : "unfulfilled",
 });
