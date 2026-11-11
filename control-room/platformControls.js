@@ -36,6 +36,10 @@ const LAUNCH_KEYS = Object.freeze([
     gives: "Sign-in codes, receipts and every email to presses, from your Google Workspace mailbox." },
 ]);
 
+/** Where Support's saved replies live in the platform's records, and how many are kept. */
+export const SAVED_REPLIES = "savedReplies";
+const MAX_SAVED_REPLIES = 40;
+
 const reasonOf = (reason) => {
   const text = typeof reason === "string" ? reason.trim() : "";
   if (text.length < MIN_REASON) throw new ControlError(400, `Say why, in at least ${MIN_REASON} characters. It goes in the activity log.`);
@@ -182,6 +186,28 @@ export function createPlatformControls({ admins, settingsStore, env = process.en
       return { shopId, status: "queued", changed: true };
     },
 
+    /** Saved replies for Support (Inbox): a short name and the words, kept in the platform's own records. */
+    async savedReplies(claims) {
+      adminOf(claims, admins, now().getTime());
+      return { replies: (await settingsStore.get(SAVED_REPLIES))?.replies ?? [] };
+    },
+
+    /**
+     * Replaces the saved replies with `replies` (the page sends the whole list after an add or a delete). Each keeps a
+     * name of at most 60 characters and words of at most 5,000; empty ones are dropped, and at most 40 are kept. Logged.
+     */
+    async saveReplies(claims, { replies } = {}) {
+      const by = adminOf(claims, admins, now().getTime());
+      if (!Array.isArray(replies)) throw new ControlError(400, "Send the list of saved replies.");
+      const clean = replies
+        .map((r) => ({ name: String(r?.name ?? "").trim().slice(0, 60), body: String(r?.body ?? "").trim().slice(0, 5000) }))
+        .filter((r) => r.name && r.body)
+        .slice(0, MAX_SAVED_REPLIES);
+      await settingsStore.set(SAVED_REPLIES, { replies: clean, updatedAt: at(), updatedBy: by });
+      await record({ by, what: "saved-replies", detail: { count: clean.length } });
+      return { replies: clean };
+    },
+
     /** The activity log, newest first; one shop's only with `shopId`. Read only. */
     async activity(claims, { shopId, limit = 200 } = {}) {
       adminOf(claims, admins, now().getTime());
@@ -202,5 +228,7 @@ export function platformRoutes(controls) {
     "POST /api/control/invite": (claims, request) => controls.invite(claims, body(request)),
     "POST /api/control/retry": (claims, request) => controls.retry(claims, body(request)),
     "POST /api/control/activity": (claims, request) => controls.activity(claims, body(request)),
+    "GET /api/control/saved-replies": (claims) => controls.savedReplies(claims),
+    "POST /api/control/saved-replies": (claims, request) => controls.saveReplies(claims, body(request)),
   };
 }

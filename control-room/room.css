@@ -433,3 +433,10 @@
   .rp.cl .cr-palette-root { padding: 8px; }
   .rp.cl .cr-palette { max-height: calc(100dvh - 16px); }
 }
+/* Saved replies (Support): the list with Delete, the add form, and the picker above an answer. */
+.rp.cl .cr-saved { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; padding: 16px 20px; border-radius: 16px; background: var(--rp-surface); }
+.rp.cl .cr-saved-item { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--rp-divider); }
+.rp.cl .cr-saved-item .cr-meta { white-space: pre-line; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.rp.cl .cr-saved-form { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.rp.cl .cr-saved-form .rp-field { align-self: stretch; }
+.rp.cl .cr-use-saved { flex: 1 1 100%; width: auto; }
