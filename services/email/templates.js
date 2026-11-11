@@ -741,6 +741,21 @@ export const TEMPLATES = {
    * A setup tip during the trial (services/trial-tips, plan 6.10): the next step of the shop's setup guide. `data`:
    * { pressName, subject, paragraphs, action, link, offLink }. Always carries the link that turns the tips off.
    */
+  /** Tips for a first sale (control-room/notSelling.js): sent by the platform owner to a live shop with no sale yet. */
+  "first-sale-tips": (_data, { settings, pressName }) => layout({
+    subject: `${pressName}: a few ways to get your first order`,
+    greeting: "Hello,",
+    paragraphs: [
+      "Your shop has been open a couple of weeks. Here are the things that most often bring a first order.",
+      "Share your shop's address everywhere: your social pages, your email signature, your cards and your newsletter.",
+      "Put up one item you know people want, with a clear photo and a short description.",
+      "Tell your friends and regulars it's open, and ask them to pass it on.",
+      "Turn on Google in your admin so your items show up when people search.",
+      "Reply to this email if anything is in the way. We read every one.",
+    ],
+    footer: signOff(settings),
+  }),
+
   "trial-tip": ({ subject, paragraphs = [], action, link, offLink }, { settings, pressName }) => {
     if (!subject || !paragraphs.length || !action) throw new Error("the setup tip has no words");
     return layout({
@@ -810,6 +825,28 @@ export const TEMPLATES = {
         "These closed apps' records are deleted within the next week. A press that asks in time can still add the app back to its plan, or download everything first.",
         ...apps.map(line),
         "Open Apps closing in the control room for the whole list. You get this note once a week, and only when something is due.",
+      ],
+      footer: `${settings.platformName} control room`,
+    });
+  },
+
+  /**
+   * The Monday summary to the platform owner (control-room/weeklySummary.js). `data`: { income (cents), currency, live,
+   * started: [name], leaving: [name], waiting, lines: [words] }.
+   */
+  "weekly-summary": ({ income, currency, live, started = [], leaving = [], waiting = 0, lines = [] }, { settings }) => {
+    const money = new Intl.NumberFormat("en-CA", { style: "currency", currency: currency || "CAD" }).format((Number(income) || 0) / 100);
+    const names = (list) => list.join(", ");
+    return layout({
+      subject: `Your week: ${money} a month, ${started.length} new, ${waiting} waiting`,
+      greeting: "",
+      paragraphs: [
+        `Plan income this month: ${money}, from ${live} live shop${live === 1 ? "" : "s"}.`,
+        started.length ? `New this week (${started.length}): ${names(started)}.` : "No new shops this week.",
+        leaving.length ? `Said they're leaving (${leaving.length}): ${names(leaving)}.` : "Nobody said they're leaving this week.",
+        waiting ? `Waiting on you (${waiting}):` : "Nothing is waiting on you.",
+        ...lines.map((l) => `• ${l}`),
+        ...(waiting > lines.length ? [`and ${waiting - lines.length} more on Today.`] : []),
       ],
       footer: `${settings.platformName} control room`,
     });

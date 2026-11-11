@@ -218,6 +218,7 @@ const PRESS_EMAILS = {
   "recovery-approved": [{ oldEmail: "old@example.com", newEmail: "new@example.com", holdUntil: "4 November 2026" }],
   "recovery-denied": [{ oldEmail: "old@example.com", reason: "We couldn't check who you are." }],
   "recovery-applied": [{ oldEmail: "old@example.com", newEmail: "new@example.com" }],
+  "first-sale-tips": [{}],
   "trial-tip": [...Object.values(TIPS), ...Object.values(START_NUDGE_WORDS)].map((tip) => ({ subject: tip.subject, paragraphs: tip.paragraphs, action: tip.action, link: LINK, offLink: LINK })),
   "shop-checkup": [
     { lines: [{ state: "ok", words: "Every link we tried on your shop works." }], offLink: LINK },
@@ -237,7 +238,7 @@ const PRESS_EMAILS = {
   "data-export-ready": [{ link: LINK, until: "9 November 2026", asked: "owner" }, { link: LINK, until: "9 November 2026", asked: "platform", reason: "your privacy request" }],
 };
 // Emails that go to Julian or to the support address, never to a press.
-const PLATFORM_ONLY = ["health-alert", "backup-access-used", "recovery-new", "support-new", "job-late", "apps-deleting-soon", "chitchats-late", "switch-stuck"];
+const PLATFORM_ONLY = ["health-alert", "backup-access-used", "recovery-new", "support-new", "job-late", "apps-deleting-soon", "chitchats-late", "switch-stuck", "weekly-summary"];
 
 test("every kind of email is either read here or goes only to the platform's own people", () => {
   const kinds = Object.keys(TEMPLATES).sort();
