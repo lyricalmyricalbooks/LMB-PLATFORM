@@ -173,7 +173,7 @@ http(s) only, ≤10, cleaned by `creatorLinks` in `lib/bookSeo.ts`). `creatorPeo
 The Details tab lists them as followed links (Style › Book page · photos & layout › `showPdpArtistLinks`, label Text & labels ›
 Product page › `specArtistLinks`). `seoChecks` adds `creator` (listing names the artist) and `creatorLink` for books with a named creator.
 
-**Google indexing + feed artists (18 October 2026):** Books › More catalog actions › **Google indexing** (`admin/GoogleIndexDialog.tsx`,
+**Google indexing + feed artists (18 October 2026; the Books dialog left with the 11 November 2026 redesign, Colophon shops connect Google instead):** Google indexing (
 pure `admin/googleIndex.ts`) sends the home page and every sitemap-eligible book URL (≤30) to `searchConsole` `op: "inspect"` (URL
 Inspection API, same metadata token; URLs must sit inside the property, `inSite`) and links each to Google's `inspectionResultLink`
 (Request indexing exists only in Search Console's own UI). The Merchant feed titles add "by <artists>" and `g:product_detail` Author rows

@@ -148,8 +148,6 @@ const OWN_ACCOUNT_COMPONENTS: Record<string, string> = {
   "src/app/admin/SearchConsoleCard.tsx": "SearchConsoleCard",
   "src/app/admin/StripeWebhookHealth.tsx": "StripeWebhookHealth",
   "src/app/admin/GmailSendingCard.tsx": "GmailSendingCard",
-  "src/app/admin/MerchantFeedDialog.tsx": "MerchantFeedDialog",
-  "src/app/admin/GoogleIndexDialog.tsx": "GoogleIndexDialog",
   // Only Stripe's own-keys card (StripeWebhookHealth) reads these.
   "src/app/admin/stripeChecks.ts": "",
   // The names of the files inside the Download your shop zip (README.txt, .csv, .json): a file needs its extension.

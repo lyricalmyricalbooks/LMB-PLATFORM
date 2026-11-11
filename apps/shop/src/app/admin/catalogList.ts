@@ -32,6 +32,26 @@ const STATE_BADGE: Record<PublicationState, { tone: BadgeTone; text: string }> =
 };
 export const publicationBadge = (book: any, nowISO?: string) => STATE_BADGE[publicationState(book, nowISO)];
 
+/** The Books list's status pill, in the mockup's words: Live, Sold out, Pre-order, Scheduled, Draft, Archived. */
+export function listStatus(book: any, stock: StockInfo, nowISO?: string): { tone: BadgeTone; text: string } {
+  const state = publicationState(book, nowISO);
+  if (state !== "published") return STATE_BADGE[state];
+  if (preorderActive(book)) return { tone: "info", text: "Pre-order" };
+  if (stock.kind === "soldout") return { tone: "danger", text: "Sold out" };
+  return { tone: "success", text: "Live" };
+}
+
+/** The Books page's four tiles: every product, live in the shop, running low, sold out (published only). */
+export function bookTiles(books: any[], stockOf: (b: any) => StockInfo, nowISO?: string) {
+  const live = books.filter((b) => publicationState(b, nowISO) === "published");
+  return {
+    books: books.length,
+    online: live.length,
+    low: live.filter((b) => stockOf(b).kind === "low").length,
+    soldOut: live.filter((b) => stockOf(b).kind === "soldout").length,
+  };
+}
+
 export function matchesStatus(book: any, filter: string, nowISO?: string): boolean {
   if (filter === "All") return true;
   if (filter === "Pre-order") return preorderActive(book);
