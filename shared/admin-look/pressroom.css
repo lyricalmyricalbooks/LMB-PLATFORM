@@ -1887,10 +1887,12 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 /* The rail (design handoff "Colophon platform"): a dark tile on the cream page, the open page a light pill with ink words;
    tiles are white on the cream page with no outline. */
 @media (min-width: 1024px) {
-  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-sidebar { margin: 12px 0 12px 12px; height: calc(100vh - 24px); border-radius: var(--rp-radius-lg); border-right: 0; }
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-sidebar { width: 236px; margin: 0; height: 100vh; padding: 18px 14px; border-radius: 0; border-right: 0; }
 }
-:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-nav-item[aria-current="page"] { background: var(--rp-rail-hover-strong); color: var(--rp-rail); }
-:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-nav-item { border-radius: 999px; }
+/* Shop admin redesign (11 November 2026): the rail runs edge to edge; the open page is a soft light band in bold. */
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-nav-item[aria-current="page"] { background: var(--rp-rail-line); color: var(--rp-on-inverse); font-weight: 600; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-nav-item[aria-current="page"] svg { color: var(--rp-on-inverse); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-nav-item { border-radius: 12px; font-weight: 500; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-card { border: 0; border-radius: var(--rp-radius-lg); box-shadow: none; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-card .rp-card { border-radius: var(--rp-radius); background: var(--rp-surface-2); }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-btn { border-width: 0; }
