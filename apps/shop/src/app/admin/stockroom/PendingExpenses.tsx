@@ -82,7 +82,7 @@ export function PendingExpensesCard({ taxCenter, onSaved, onConfirm, today = tod
         footer={<><SecondaryButton onClick={() => setEditing(null)} disabled={busy}>Cancel</SecondaryButton><PrimaryButton onClick={submit} busy={busy}>{busy ? "Saving…" : "Save note"}</PrimaryButton></>}>
         {editing && (
           <form className="rp-money-form" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
-            <TextField label="What is it?" placeholder="e.g. Flights to the book fair" value={editing.form.desc} error={errors.desc} onChange={(e) => set({ desc: e.target.value })} />
+            <TextField label="What is it?" placeholder="e.g. Flights to the fair" value={editing.form.desc} error={errors.desc} onChange={(e) => set({ desc: e.target.value })} />
             <div className="rp-money-form-row">
               <SelectField label="Tax category" value={editing.form.cat} onChange={(e) => set({ cat: e.target.value })}>{EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}</SelectField>
               <TextField label="Trip or project (optional)" value={editing.form.trip} onChange={(e) => set({ trip: e.target.value })} />
