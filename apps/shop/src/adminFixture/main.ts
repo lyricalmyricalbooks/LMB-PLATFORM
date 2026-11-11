@@ -240,6 +240,39 @@ inventoryLinkApi.linkNewBook = async (bookId: string, inventoryBookId: string) =
 };
 (window as any).__adminFixture = { orders: ORDERS };
 
+// ── Stockroom › Shipping › Buy label (block of the labels-from-shipping page): two waiting rows are website orders here,
+// WEB-1041 ready for a label and WEB-1042 not packed yet. Rates and the purchase are fakes recorded in
+// `window.__adminFixture.labelCalls`; nothing reaches a carrier.
+{
+  const api = adminApi as any;
+  const labelCalls: any[] = ((window as any).__adminFixture.labelCalls = []);
+  const shipOrder = (id: string, name: string, packed: boolean) => {
+    const o: any = {
+      id, orderId: id, status: "paid", paymentStatus: "paid", fulfillmentStatus: "unfulfilled", shippingMethod: "Canada Post Expedited Parcel", shipping: 14,
+      createdAt: new Date(Date.now() - 9 * 86_400_000).toISOString(), currency: "CAD", total: 34, subtotal: 20,
+      customer: { name, email: "buyer@example.com", address: { street: "1 Example St", city: "Toronto", state: "ON", zip: "M5V 1A1", country: "CA" } },
+      items: [{ id: "salt-hours", title: "Salt Hours", quantity: 1, price: 20, weightGrams: 400 }],
+    };
+    o.operations = { addressReviewed: addressKey(o), packed: packed ? JSON.stringify(o.items.map((i: any) => [i.id, "", i.quantity])) : "" };
+    return o;
+  };
+  const shipOrders: Record<string, any> = { "WEB-1041": shipOrder("WEB-1041", "Customer WEB-1041", true), "WEB-1042": shipOrder("WEB-1042", "Customer WEB-1042", false) };
+  const before = api.getOrderById;
+  api.getOrderById = async (id: string) => shipOrders[id] ?? before(id);
+  api.getCanadaPostLabelRates = async (orderId: string, parcel: any) => {
+    labelCalls.push(["rates", orderId, parcel]);
+    return { shipmentId: "shp_fixture", rates: [
+      { id: "rate_exp", name: "Expedited Parcel", carrier: "Canada Post", amount: "12.40", currency: "CAD", estimatedDays: 2 },
+      { id: "rate_reg", name: "Regular Parcel", carrier: "Canada Post", amount: "10.15", currency: "CAD", estimatedDays: 5 },
+    ] };
+  };
+  api.buyCanadaPostLabel = async (orderId: string, shipmentId: string, rateId: string) => {
+    labelCalls.push(["buy", orderId, shipmentId, rateId]);
+    shipOrders[orderId] = { ...shipOrders[orderId], labelUrl: "https://labels.example/fixture.pdf", trackingNumber: "7023110000999" };
+    return {};
+  };
+}
+
 // ?move=1 (scripts/move-check.mjs): a press that brought its shop with it and finished Get started, so the Overview shows
 // Your move so far. Its firstWeek/start lives here in memory, with the calls each bring-over window makes recorded in
 // `window.__adminFixture.calls`; the shop's server (oldShopApi's actions) is answered by the check's own page.route.

@@ -15,3 +15,5 @@
   .rp-todo-row { flex-direction: column; align-items: stretch; }
   .rp-todo-actions { justify-content: flex-start; flex-wrap: wrap; }
 }
+/* Stockroom › Shipping › Buy label: the confirm step before money is spent (ShipLabelDialog.tsx). */
+.sk-label-confirm { display: flex; flex-direction: column; gap: var(--rp-space-2); }

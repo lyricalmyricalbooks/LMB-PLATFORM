@@ -205,6 +205,11 @@ Private document ID reads and collection listing need no composite indexes. Depl
 Deploy updated Functions with the frontend: label requests recheck preparation and claim money-spending purchases
 transactionally; uncertain purchase failures stay locked for Shippo reconciliation to prevent duplicate charges.
 Address correction is disabled after label purchase. Stripe totals, inventory and refund authority are unchanged.
+**Labels from Stockroom › Shipping (11 November 2026):** the label step's state lives in `useLabelPurchase.ts`, used by
+OrderDetail and by `stockroom/ShipLabelDialog.tsx` (LabelBuyer without "Ship without a label", plus a confirm before
+`buyCanadaPostLabel`). A waiting row whose number is a website order (`shopOrderId`, `getOrderById`) gets **Buy label**;
+`joinShopOrders` drops rows whose order has a label or left, since the stockroom hears of it later. No new server path,
+rule or stockroom write. Fixture: `admin-fixture.html?page=stockroom/shipping` (WEB-1041 ready, WEB-1042 not packed).
 
 ## Fulfillment workspace UX repair (2 October 2026)
 
