@@ -66,6 +66,18 @@ describe("the form", () => {
     await act(async () => root.unmount());
     spy.mockRestore();
   });
+  it("files the category from a sorting rule until one is picked by hand", async () => {
+    const withRule = { ...tc, expenseRules: [{ id: "a", match: "Canva", cat: "Marketing & Advertising" }] };
+    const { container, root } = await draw(<LogExpenseCard taxCenter={withRule} onSaved={() => {}} />);
+    const select = () => container.querySelector("select") as HTMLSelectElement;
+    await type(container.querySelector('input[placeholder="e.g. Squarespace or Shopify"]')!, "Canva Pro");
+    expect(select().value).toBe("Marketing & Advertising");
+    expect(container.textContent).toContain("Filed here by one of your sorting rules.");
+    await act(async () => { const set = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!; set.call(select(), "Travel"); select().dispatchEvent(new Event("change", { bubbles: true })); });
+    await type(container.querySelector('input[placeholder="e.g. Squarespace or Shopify"]')!, "Canva Pro yearly");
+    expect(select().value).toBe("Travel");
+    await act(async () => root.unmount());
+  });
   it("says so when the save is refused and keeps what was typed", async () => {
     const spy = vi.spyOn(stockroomWriteApi, "updateSetting").mockResolvedValue({ status: "refused", reason: "no-permission", message: "Only the owner can change this." } as any);
     const saved = vi.fn();

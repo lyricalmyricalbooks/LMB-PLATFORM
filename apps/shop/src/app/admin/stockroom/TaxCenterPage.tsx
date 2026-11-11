@@ -11,6 +11,8 @@ import { useShopWords } from "../shopWords";
 import { RecordsGate } from "./RecordsGate";
 import { LogExpenseCard, type Prefill } from "./LogExpense";
 import { PendingExpensesCard } from "./PendingExpenses";
+import { RecurringSubscriptionsCard } from "./RecurringSubscriptions";
+import { SortingRulesCard } from "./SortingRules";
 import { filterLedger, ledgerCsvFile, ledgerTotals, LEDGER_PAGE_SIZE, sourcesOf, taxCenterModel, type LedgerFilter } from "./moneyReports";
 import { stockroomApi, type StockroomRecords } from "./stockroomData";
 import "./stockroom.css";
@@ -101,6 +103,8 @@ export function TaxCenterView({ records, now, onTaxCenter }: { records: Stockroo
 
       {onTaxCenter && <LogExpenseCard taxCenter={records.taxCenter} onSaved={onTaxCenter} prefill={confirming} onPrefillDone={() => setConfirming(null)} />}
       {onTaxCenter && <PendingExpensesCard taxCenter={records.taxCenter} onSaved={onTaxCenter} onConfirm={setConfirming} />}
+      {onTaxCenter && <RecurringSubscriptionsCard taxCenter={records.taxCenter} onSaved={onTaxCenter} now={now} />}
+      {onTaxCenter && <SortingRulesCard taxCenter={records.taxCenter} onSaved={onTaxCenter} />}
 
       <SectionCard title={year === "all" ? "By year" : `By month in ${year}`} flush>
         <DataTable stackOnPhone caption="Money in and out by period" rowKey={(b) => b.key}
@@ -137,6 +141,7 @@ export function TaxCenterView({ records, now, onTaxCenter }: { records: Stockroo
           ]} />
       </SectionCard>
 
+      {!onTaxCenter && (
       <SectionCard title="Standing costs" description={model.recurring.length ? `About ${money(model.recurringSummary.monthlyBase)} a month, ${money(model.recurringSummary.annualBase)} a year.` : undefined} flush>
         <DataTable stackOnPhone caption="Standing costs" rowKey={(r) => r.id} rows={model.recurring}
           empty={<EmptyState inline title="No standing costs tracked" description="Hosting, software or rent that repeats shows up here." />}
@@ -147,6 +152,7 @@ export function TaxCenterView({ records, now, onTaxCenter }: { records: Stockroo
             { key: "x", header: "Next charge", render: (r) => r.next || "-" },
           ]} />
       </SectionCard>
+      )}
 
       <SectionCard title="Costs that may be missing" description="Gaps in your own records, not tax advice." flush={!model.gaps.gaps.length}>
         {model.gaps.gaps.length === 0

@@ -29,6 +29,10 @@ declare module "@stockroom/cashflow.js" {
   export function buildCashFlowBuckets(ledger: Row[], yearFilter: string): Array<{ key: string; label: string; income: number; expense: number }>;
 }
 declare module "@stockroom/recurring.js" {
+  export const RECURRING_FREQUENCIES: Array<{ id: string; months: number; label: string; short: string; per: string }>;
+  export function recurringDueCharges(sub: Row, now?: Date): Array<{ date: string; monthKey: string; amount: number }>;
+  export function newRecurringId(): string;
+  export function localYmd(date?: Date): string;
   export function normalizeRecurring(sub: Row): Row;
   export function recurringStatus(sub: Row, now?: Date): "active" | "paused" | "ended" | "scheduled" | "invalid";
   export function nextRecurringDate(sub: Row, now?: Date): string | null;
