@@ -1823,14 +1823,7 @@ div.rp-listcard-main { cursor: default; }
   .rp:not(.studio-editor) .rp-wb-vs, .rp:not(.studio-editor) .rp-wb-compare { display: none; }
 
   /* Inventory: status chips in one scrolling row, the list as a sheet, the low-stock line under it */
-  .rp:not(.studio-editor) .inv-status .rp-tabs { flex-wrap: nowrap; overflow-x: auto; width: auto; max-width: none; margin: 0 calc(-1 * var(--rp-gutter)); padding: 0 var(--rp-gutter); scrollbar-width: none; }
-  .rp:not(.studio-editor) .inv-status .rp-tabs::-webkit-scrollbar { display: none; }
-  .rp:not(.studio-editor) .inv-status .rp-tab { flex: none; }
-  .rp:not(.studio-editor) .inv-figures .rp-metric-foot { display: none; }
   .rp:not(.studio-editor) .inv-export { display: none; }
-  .rp:not(.studio-editor) .inv-threshold { order: 10; }
-  .rp:not(.studio-editor) .inv-list .rp-card-desc { display: none; }
-  .rp:not(.studio-editor) .inv-list .rp-card-head { padding: 12px; }
   .inv-sheet { list-style: none; margin: 0; padding: 0; }
   .inv-sheet-row { display: flex; align-items: center; gap: 12px; min-height: 72px; padding: 10px 12px; }
   .inv-sheet-row + .inv-sheet-row { border-top: 1px solid var(--rp-divider); }
@@ -2006,9 +1999,9 @@ div.rp-listcard-main { cursor: default; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-kpi-grid > .rp-metric:first-child,
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-kpi-grid > .rp-metric:nth-child(odd) { padding: 20px 22px; border-radius: 22px; background: var(--rp-surface); box-shadow: none; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-kpi-grid .rp-metric-value { font: 600 36px/1 var(--rp-font-body); letter-spacing: -0.03em; }
-:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-tabs:not([data-variant="page"]) { gap: 8px; border: 0; }
-:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-tabs:not([data-variant="page"]) .rp-tab { min-height: 36px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--rp-surface); }
-:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-tabs:not([data-variant="page"]) .rp-tab[aria-selected="true"] { background: var(--rp-text); color: var(--rp-surface); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-tabs { gap: 8px; border: 0; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-tabs .rp-tab { min-height: 36px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--rp-surface); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-tabs .rp-tab[aria-selected="true"] { background: var(--rp-text); color: var(--rp-surface); }
 /* Page title on the canvas with its one-line lede and the page's buttons on the right (redesign, 11 November 2026). */
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-workspace .rp-page-header { padding: 12px 0 0; margin: 8px 0 20px; background: transparent; align-items: flex-end; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-workspace .rp-page-title { font-size: 36px; font-weight: 600; font-style: normal; letter-spacing: -0.03em; }
@@ -2094,12 +2087,12 @@ div.rp-listcard-main { cursor: default; }
 @media (min-width: 1024px) {
   .rp-page-body[data-layout="column"] { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 28px; align-items: start; }
   .rp-page-body[data-layout="column"] > .rp-page-main { display: block; min-width: 0; }
-  .rp-page-tabs[data-layout="column"] { position: sticky; top: 16px; flex-direction: column; align-items: stretch; gap: 18px; margin: 0; padding: 14px; border-radius: var(--rp-radius-lg); background: var(--rp-surface); }
+  .rp-page-tabs[data-layout="column"] { position: sticky; top: 16px; flex-direction: column; align-items: stretch; gap: 14px; margin: 0; padding: 18px 10px; border-radius: var(--rp-radius-lg); background: var(--rp-surface); }
   .rp-page-tabs[data-layout="column"] .rp-page-tabs-group { flex-direction: column; align-items: stretch; gap: 2px; }
   .rp-page-tabs[data-layout="column"] .rp-page-tabs-heading { margin: 0 0 6px 12px; }
-  .rp-page-tabs[data-layout="column"] .rp-page-tab { justify-content: space-between; padding: 9px 12px; background: transparent; }
+  .rp-page-tabs[data-layout="column"] .rp-page-tab { justify-content: space-between; padding: 10px 12px; background: transparent; font-size: 15px; font-weight: 400; border-radius: var(--rp-radius); }
   .rp-page-tabs[data-layout="column"] .rp-page-tab:hover { background: var(--rp-tab-hover); }
-  .rp-page-tabs[data-layout="column"] .rp-page-tab[aria-current="page"] { background: var(--rp-inverse); color: var(--rp-on-inverse); }
+  .rp-page-tabs[data-layout="column"] .rp-page-tab[aria-current="page"] { background: var(--rp-surface-2); color: var(--rp-text); font-weight: 600; }
 }
 
 /* Shop admin redesign (11 November 2026): order covers are rounded tiles, and a table inside a card lets the card's
@@ -2149,5 +2142,28 @@ div.rp-listcard-main { cursor: default; }
   :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-table-wrap[data-stack="phone"] { background: transparent; padding: 0; border-radius: 0; }
   :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-table-wrap[data-stack="phone"] tr { border: 0; border-radius: var(--rp-radius-lg); background: var(--rp-surface); }
 }
+/* Figures (redesign "Tile"): the label is plain 14px body type; a warning or danger figure tints its tile apricot or
+   alert, as Books' Running low and Sold out do in the mockup. An empty or error state inside a card has no dashed box. */
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) :is(.rp-metric-label, .rp-ov-figure-label) { font: 400 var(--rp-text-sm)/1.3 var(--rp-font-body); letter-spacing: 0; text-transform: none; color: var(--rp-text-muted); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-metric:has(> .rp-metric-value[data-tone="warn"]) { background: var(--rp-warning-tint); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-metric:has(> .rp-metric-value[data-tone="danger"]) { background: var(--rp-danger-tint); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-metric:has(> .rp-metric-value[data-tone]) :is(.rp-metric-label, .rp-metric-value, .rp-metric-foot) { color: var(--rp-on-tile); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-card .rp-state:not([data-inline]) { border: 0; }
+/* Figures are Archivo 600 like the mockup's tiles, and chips are words on colour with no tick or cross before them. */
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-metric-value { font-family: var(--rp-font-body); font-weight: 600; letter-spacing: -0.03em; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-badge > span[aria-hidden="true"]:first-child { display: none; }
+/* Card titles are 18px, as the mockup's list, table and form cards. */
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-card-title { font-size: 18px; letter-spacing: -0.01em; }
 /* Status chips (redesign): the tone is the background; the words are the tile ink, 600 (mockup "Status chip"). */
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-badge:is([data-tone="success"], [data-tone="info"], [data-tone="warning"], [data-tone="danger"]) { color: var(--rp-on-tile); font-weight: 600; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-badge[data-tone="neutral"] { color: var(--rp-text); font-weight: 600; }
+
+/* Inventory (redesign): one table card; the low-stock line and drafts switch sit quietly underneath. */
+.rp:not(.studio-editor) .inv-threshold { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin: 0; }
+.rp:not(.studio-editor) .inv-threshold .rp-checkbox, .rp:not(.studio-editor) .inv-threshold label:last-child { margin-left: auto; }
+.rp:not(.studio-editor) .inv-receive-help { margin: 0; padding: 14px 20px 0; }
+.rp:not(.studio-editor) .rp-reorder-card { padding: 20px 20px 8px; }
+.rp:not(.studio-editor) .rp-reorder-card .rp-card-title { margin: 0 0 4px; }
+.rp:not(.studio-editor) .inv-list { overflow: hidden; }
+/* Numbers in tables read in the body face, like the mockup tables; mono stays for codes and dates. */
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) td.rp-num { font-family: var(--rp-font-body); }

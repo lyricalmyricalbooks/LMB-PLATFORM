@@ -11,13 +11,13 @@ import { isStockLinked, type InventoryLinks } from "./inventoryLink";
 import { smallPhotoUrl } from "../features/site/photoSources";
 import { hasStockroom } from "../../lib/shopProfile";
 import {
-  buildInventory, inventorySummary, inventoryToCsv, lowStockThreshold, parseCost, parseReceive, parseStock,
+  buildInventory, inventoryToCsv, lowStockThreshold, parseCost, parseReceive, parseStock,
   waitingReaders, wakesRestockEmails, ADJUST_REASONS, STATUS_LABELS,
   type AdjustReason, type InventoryRow, type StockChange, type StockStatus,
 } from "./inventoryInsights";
 import {
-  Checkbox, DataTable, Dialog, Drawer, EmptyState, ErrorState, FilterBar, GhostButton, IconButton, LoadingState, MetricCard,
-  Pagination, PrimaryButton, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TabPanel, Tabs,
+  Checkbox, DataTable, Dialog, Drawer, EmptyState, ErrorState, FilterBar, GhostButton, IconButton, LoadingState,
+  PageActions, Pagination, PrimaryButton, SearchField, SecondaryButton, SelectField, StatusBadge, TabPanel, Tabs,
   ToastProvider, useRisoToast, type BadgeTone, type Column,
 } from "./riso/components";
 
@@ -28,6 +28,10 @@ const TONE: Record<StockStatus, BadgeTone> = {
 const GLYPH: Partial<Record<BadgeTone, string>> = { danger: "✕", warning: "⚠", success: "✓", info: "◷" };
 const PAGE_SIZE = 25;
 type Tab = "all" | "out" | "low" | "reprint" | "ok" | "digital" | "untracked" | "other";
+const TAB_LABELS: [Tab, string][] = [
+  ["all", "Everything"], ["out", "Out of stock"], ["low", "Low stock"], ["reprint", "Reprint soon"], ["ok", "In stock"],
+  ["digital", "Digital"], ["untracked", "Not tracked"], ["other", "Box sets & gift cards"],
+];
 const inTab = (r: InventoryRow, t: Tab) => t === "all" || (t === "other" ? r.status === "bundle" || r.status === "giftCard" : r.status === t);
 const money = (n: number) => `CA$${n.toFixed(2)}`;
 
@@ -129,7 +133,6 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
   const everything = useMemo(() => buildInventory(books, orders, threshold), [books, orders, threshold]);
   const all = useMemo(() => everything.filter((r) => showHidden || (!r.archived && !r.draft)), [everything, showHidden]);
   const hiddenCount = everything.length - everything.filter((r) => !r.archived && !r.draft).length;
-  const sum = useMemo(() => inventorySummary(all, costs), [all, costs]);
   const counts = useMemo(() => {
     const c: Record<Tab, number> = { all: all.length, out: 0, low: 0, reprint: 0, ok: 0, digital: 0, untracked: 0, other: 0 };
     all.forEach((r) => (["out", "low", "reprint", "ok", "digital", "untracked", "other"] as Tab[]).forEach((t) => { if (inTab(r, t)) c[t]++; }));
@@ -405,54 +408,43 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
       ]} />}
       <TabPanel tabId="inv-stock" active={view === "inv-stock"} alone={!stockroom}>
       <div className="rp-stack">
-      <div className="rp-kpi-grid inv-figures">
-        <MetricCard label="Units on hand" value={sum.units} footer="Counted print editions" />
-        <MetricCard label="Stock value" value={`CA$${sum.value.toFixed(0)}`}
-          footer={sum.costedRows ? `At retail · CA$${sum.costValue.toFixed(0)} at cost (${sum.costedRows} of ${sum.countedRows} costed)` : "At retail price"} />
-        <MetricCard label="Out of stock" value={sum.out} tone={sum.out ? "danger" : undefined} footer="Cannot be bought" />
-        <MetricCard label="Low / reprint soon" value={sum.low + sum.reprint} tone={sum.low + sum.reprint ? "warn" : undefined} footer={`${sum.low} low · ${sum.reprint} selling fast`} />
-      </div>
-      <div className="inv-status"><Tabs<Tab> label="Stock status" value={tab} onChange={setTab}
-        tabs={[
-          { id: "all", label: "All", count: counts.all }, { id: "out", label: "Out of stock", count: counts.out },
-          { id: "low", label: "Low stock", count: counts.low }, { id: "reprint", label: "Reprint soon", count: counts.reprint },
-          { id: "ok", label: "In stock", count: counts.ok }, { id: "digital", label: "Digital", count: counts.digital },
-          { id: "untracked", label: "Not tracked", count: counts.untracked }, { id: "other", label: "Box sets & gift cards", count: counts.other },
-        ]} /></div>
-      <div className="rp-hint inv-threshold" style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", margin: 0 }}>
-        <label htmlFor="inv-low-stock-line">Show “Low stock” at or below</label>
-        <input id="inv-low-stock-line" className="rp-input rp-mono" type="number" min={0} inputMode="numeric" style={{ width: 72, textAlign: "right" }}
-          value={thresholdDraft} aria-describedby="inv-low-stock-help"
-          onChange={(e) => setThresholdDraft(e.target.value)} onBlur={saveThreshold} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
-        <span id="inv-low-stock-help">copies. Saved for the whole shop.</span>
-      </div>
+      {view === "inv-stock" && (
+        <PageActions>
+          {receiving ? (
+            <>
+              <GhostButton disabled={bulkSaving} onClick={() => { setReceiving(false); setReceive({}); setCostDrafts({}); setResults({}); }}>Leave receive mode</GhostButton>
+              <PrimaryButton disabled={bulkSaving || (!pendingReceive.length && !pendingCosts.length)} onClick={saveReceiving}>
+                {bulkSaving ? "Saving…" : `Save all (${pendingReceive.length + pendingCosts.length})`}</PrimaryButton>
+            </>
+          ) : (
+            <>
+              <SecondaryButton className="inv-export" icon={<Download size={16} aria-hidden />} onClick={exportCsv}>Export CSV</SecondaryButton>
+              <PrimaryButton icon={<PackagePlus size={16} aria-hidden />} onClick={() => { setReceiving(true); setResults({}); }}>Receive stock</PrimaryButton>
+            </>
+          )}
+        </PageActions>
+      )}
       <FilterBar>
         <div className="rp-grow"><SearchField label={w("Search titles")} placeholder={w("Search titles, SKU or shelf…")} value={q} onChange={(e) => setQ(e.target.value)} /></div>
-        <Checkbox label={`Show drafts & archived (${hiddenCount})`} checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} />
-        <SecondaryButton className="inv-export" icon={<Download size={16} aria-hidden />} onClick={exportCsv}>Export CSV</SecondaryButton>
+        <SelectField label="Show" value={tab} onChange={(e) => setTab(e.target.value as Tab)}>
+          {TAB_LABELS.map(([id, label]) => <option key={id} value={id}>{label} ({counts[id]})</option>)}
+        </SelectField>
+        <SelectField label="Reason for changes" value={reason} onChange={(e) => setReason(e.target.value as AdjustReason)}>
+          {ADJUST_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+        </SelectField>
       </FilterBar>
-      <div className="inv-list">
-      <SectionCard flush collapsible={false} title={receiving ? "Receive stock" : "Inventory"}
-        description={receiving
-          ? "+12 adds, -3 removes, =40 sets. Then Save all."
-          : "Type a count and press Enter, or use − / +. Sales count themselves."}
-        actions={
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
-            <SelectField label="Reason for changes" value={reason} onChange={(e) => setReason(e.target.value as AdjustReason)}>
-              {ADJUST_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
-            </SelectField>
-            {receiving ? (
-              <>
-                <GhostButton disabled={bulkSaving} onClick={() => { setReceiving(false); setReceive({}); setCostDrafts({}); setResults({}); }}>Leave receive mode</GhostButton>
-                <PrimaryButton disabled={bulkSaving || (!pendingReceive.length && !pendingCosts.length)} onClick={saveReceiving}>
-                  {bulkSaving ? "Saving…" : `Save all (${pendingReceive.length + pendingCosts.length})`}</PrimaryButton>
-              </>
-            ) : <PrimaryButton icon={<PackagePlus size={16} aria-hidden />} onClick={() => { setReceiving(true); setResults({}); }}>Receive stock</PrimaryButton>}
-          </div>
-        }>
+      <div className="rp-card inv-list">
+        {receiving && <p className="rp-hint inv-receive-help">+12 adds, -3 removes, =40 sets. Then Save all.</p>}
         {phone && !receiving ? phoneSheet : <DataTable caption="Inventory" columns={columns} rows={pageRows} rowKey={(r) => r.id} empty={emptyList} />}
         {!receiving && rows.length > PAGE_SIZE && <Pagination page={Math.min(page, pageCount)} pageCount={pageCount} onPage={setPage} />}
-      </SectionCard>
+      </div>
+      <div className="rp-hint inv-threshold">
+        <label htmlFor="inv-low-stock-line">Low stock at</label>
+        <input id="inv-low-stock-line" className="rp-input rp-mono" type="number" min={0} inputMode="numeric" style={{ width: 64, textAlign: "right" }}
+          value={thresholdDraft} aria-describedby="inv-low-stock-help"
+          onChange={(e) => setThresholdDraft(e.target.value)} onBlur={saveThreshold} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
+        <span id="inv-low-stock-help">copies, for the whole shop.</span>
+        <Checkbox label={`Show drafts & archived (${hiddenCount})`} checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} />
       </div>
       </div>
       </TabPanel>

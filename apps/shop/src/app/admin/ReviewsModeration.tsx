@@ -9,7 +9,7 @@ import { reviewsApi, type Review } from "../lib/reviews";
 import { loadMorePending, loadReviewQueue, PENDING_PAGE, type QueueDoc } from "./reviewQueue";
 import { useShopWords } from "./shopWords";
 import {
-  ActionMenu, Checkbox, ConfirmButton, ConfirmDialog, Dialog, EmptyState, ErrorState, FilterBar, IconButton, LoadingState, MetricCard, PrimaryButton,
+  ActionMenu, Checkbox, ConfirmButton, ConfirmDialog, Dialog, EmptyState, ErrorState, FilterBar, IconButton, LoadingState, PrimaryButton,
   SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, Tabs, TextArea, ToastProvider, useRisoToast, type BadgeTone,
 } from "./riso/components";
 import { productSegment } from "../lib/productHref";
@@ -172,14 +172,25 @@ function Queue() {
 
   return (
     <div className="rp-stack">
-      <div className="rp-kpi-grid">
-        <MetricCard label="Average rating" value={stats.average ? `${stats.average.toFixed(1)} ★` : "—"} footer={`${stats.total} review${stats.total === 1 ? "" : "s"} · ${stats.approvedAverage ? stats.approvedAverage.toFixed(1) : "—"} approved only`} />
-        <MetricCard label="Low-rated pending" value={stats.lowPending} tone={stats.lowPending ? "warn" : undefined} footer="1–2 stars awaiting a decision" />
-        <MetricCard label="Awaiting a reply" value={stats.unanswered} footer="Approved with no owner reply" />
+      <div className="rp-tiles">
+        <div className="rp-tile" data-tone={counts.pending ? "apricot" : undefined}>
+          <span className="rp-tile-label">Waiting</span>
+          <span className="rp-tile-value">{counts.pending}</span>
+          <span className="rp-tile-sub">Hidden until approved</span>
+        </div>
+        <div className="rp-tile">
+          <span className="rp-tile-label">Published</span>
+          <span className="rp-tile-value">{counts.approved}{capped ? "+" : ""}</span>
+          <span className="rp-tile-sub">{stats.approvedAverage ? `Average ${stats.approvedAverage.toFixed(1)}` : "No ratings yet"}</span>
+        </div>
+        <div className="rp-tile">
+          <span className="rp-tile-label">Hidden</span>
+          <span className="rp-tile-value">{counts.rejected}{capped ? "+" : ""}</span>
+        </div>
       </div>
       <Tabs<Filter> label="Review status" value={filter} onChange={(f) => { setFilter(f); setSelected(new Set()); }}
         tabs={(["pending", "approved", "rejected", "all"] as const).map((f) => {
-          const label = f[0].toUpperCase() + f.slice(1);
+          const label = ({ pending: "Waiting", approved: "Published", rejected: "Hidden", all: "All" } as const)[f];
           // Only pending is complete once the newest-200 cap is hit; say so instead of a wrong total.
           return capped && f !== "pending" ? { id: f, label: `${label} · ${counts[f]}+` } : { id: f, label, count: counts[f] };
         })} />
