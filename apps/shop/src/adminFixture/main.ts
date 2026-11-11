@@ -13,7 +13,7 @@ import { stockroomApi, type StockroomRecords } from "../app/admin/stockroom/stoc
 const EMPTY_STOCKROOM = new URLSearchParams(window.location.search).get("stock") === "empty";
 stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { books: [], states: {}, taxCenter: null } : {
   books: [{ id: "salt-hours", title: "Salt Hours", author: "Ada Example", maxPrint: 200, threshold: 10, listPrice: 20 }, { id: "night-songs", title: "Night Songs", author: "Ben Example", maxPrint: 150, threshold: 10, listPrice: 18 }],
-  states: { "salt-hours": { stock: 4, hist: [] }, "night-songs": { stock: 150, hist: [] } },
+  states: { "salt-hours": { hist: [{ id: 1, qty: 196, channel: "web", amount: 0 }] }, "night-songs": { hist: [{ id: 2, qty: 12, channel: "web", amount: 0 }] } },
   taxCenter: null,
 });
 

@@ -2,6 +2,7 @@
 // the list here and the one the stockroom showed can never disagree. Pure: the page is TodoPage.tsx.
 import { buildAttentionSignals, SIGNAL_GROUPS, type AttentionResult, type Signal } from "@stockroom/attention-signals.js";
 
+import { deriveOnHand } from "@stockroom/inventory.js";
 import { OC_STAGES } from "@stockroom/opencall.js";
 
 import type { StockroomRecords } from "./stockroomData";
@@ -29,7 +30,13 @@ function openCallWaiting(records: StockroomRecords) {
 
 /** The to-do list for these records, minus what the owner dismissed. */
 export function buildTodo(records: StockroomRecords, opts: { words?: (text: string) => string; booksShop?: boolean; dismissed?: Dismissed; now?: Date } = {}): TodoList {
-  const states = Object.fromEntries(records.books.map((book) => [book.id, { ...blankState(book), ...(records.states[book.id] || {}) }]));
+  const states = Object.fromEntries(records.books.map((book) => {
+    const state: Record<string, unknown> = { ...blankState(book), ...(records.states[book.id] || {}) };
+    // The stockroom counts the shelf again from the records every time it loads (recomputeAfters); the saved count can
+    // be stale after a print run change, which would raise a false "running low" and "doesn't match" here.
+    if (Number.isFinite(book.maxPrint)) state.stock = deriveOnHand(state, book);
+    return [book.id, state];
+  }));
   const raw = buildAttentionSignals({
     books: records.books,
     states,

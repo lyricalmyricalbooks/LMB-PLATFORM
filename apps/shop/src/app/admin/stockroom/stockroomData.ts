@@ -78,8 +78,12 @@ function liveReads(): StockroomReads {
   };
 }
 
-// A store that can't be read (the older one is closed to a shop that never used it) counts as empty for a fallback.
-const quiet = <T,>(read: Promise<T>) => read.catch(() => null);
+/** A refusal by the database's rules, as Firestore ("permission-denied") and the Realtime Database ("PERMISSION_DENIED") say it. */
+export const isRefusal = (error: unknown) => /permission[-_ ]denied/i.test(`${(error as { code?: string })?.code ?? ""} ${(error as { message?: string })?.message ?? ""}`);
+
+// The older store is closed to a shop that never used it: only that refusal counts as empty. Any other failure (offline,
+// a timeout) is not an empty record, so the load fails and the page says it didn't load, never "all caught up".
+const quiet = <T,>(read: Promise<T>) => read.catch((error) => { if (isRefusal(error)) return null; throw error; });
 
 async function readSetting(reads: StockroomReads, key: string, newFirst: boolean) {
   const first = newFirst ? await reads.setting(key) : await quiet(reads.oldSetting(key));

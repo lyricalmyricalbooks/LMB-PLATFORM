@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { GROUP_LABELS, SIGNAL_GROUPS, type Signal } from "@stockroom/attention-signals.js";
 
-import { EmptyState, GhostButton, LoadingState, SecondaryButton, SectionCard, StatusBadge } from "../riso/components";
+import { EmptyState, ErrorState, GhostButton, LoadingState, SectionCard, SecondaryButton, StatusBadge } from "../riso/components";
 import { sellsBooks } from "../sells";
 import { useShopSells, useShopWords } from "../shopWords";
-import { stockroomApi, type StockroomRecords } from "./stockroomData";
+import { isRefusal, stockroomApi, type StockroomRecords } from "./stockroomData";
 import "./stockroom.css";
 import { buildTodo, fixPage, readDismissed, TODO_DISMISSED_KEY, type Dismissed } from "./todo";
 
@@ -60,18 +60,20 @@ export function TodoList({ records, dismissed, onDismiss, onRestore, onOpen, isP
 
 export function TodoPage({ onOpen, isPage, load = stockroomApi.load }: { onOpen: (page: string) => void; isPage: (id: string) => boolean; load?: () => Promise<StockroomRecords> }) {
   const [records, setRecords] = useState<StockroomRecords | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<"" | "refused" | "failed">("");
   const [dismissed, setDismissed] = useState<Dismissed>(readDismissed);
   const read = useCallback(() => {
-    setFailed(false);
-    Promise.resolve().then(load).then(setRecords, (error) => { console.error("Stockroom records could not be read", error); setFailed(true); });
+    setFailed("");
+    Promise.resolve().then(load).then(setRecords, (error) => { console.error("Stockroom records could not be read", error); setFailed(isRefusal(error) ? "refused" : "failed"); });
   }, [load]);
   useEffect(read, [read]);
   const save = (next: Dismissed) => {
     setDismissed(next);
     try { if (Object.keys(next).length) localStorage.setItem(TODO_DISMISSED_KEY, JSON.stringify(next)); else localStorage.removeItem(TODO_DISMISSED_KEY); } catch { /* private window: kept for this visit */ }
   };
-  if (failed) return <EmptyState icon="⚠" title="The to-do list didn't load" description="Check your connection, then try again." action={<SecondaryButton onClick={read}>Try again</SecondaryButton>} />;
+  // The stockroom's records are open to the shop's owner only: a team member is told so, with nothing to retry.
+  if (failed === "refused") return <EmptyState icon="🔒" title="Only the owner can see the to-do list" description="The stockroom's records are kept for the shop's owner. Ask them if you need something from here." />;
+  if (failed) return <ErrorState title="The to-do list didn't load" description="Check your connection, then try again." onRetry={read} />;
   if (!records) return <LoadingState label="Loading your to-do list…" />;
   return <TodoList records={records} dismissed={dismissed} onDismiss={(id) => save({ ...dismissed, [id]: true })} onRestore={() => save({})} onOpen={onOpen} isPage={isPage} />;
 }

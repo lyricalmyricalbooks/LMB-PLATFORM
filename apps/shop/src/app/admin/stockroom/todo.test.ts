@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { catalogBooks, loadStockroom, stockroomPlace, type StockroomReads } from "./stockroomData";
+import { catalogBooks, isRefusal, loadStockroom, stockroomPlace, type StockroomReads } from "./stockroomData";
 import { buildTodo, fixPage, readDismissed, TODO_DISMISSED_KEY } from "./todo";
 
 const book = (id: string, extra: object = {}) => ({ id, title: id, maxPrint: 100, threshold: 10, ...extra });
@@ -43,7 +43,9 @@ describe("the stockroom's records, read by the admin", () => {
 });
 
 describe("the to-do list", () => {
-  const records = { books: [book("low"), book("fine")], states: { low: { stock: 4 }, fine: { stock: 80 } }, taxCenter: null };
+  // 96 of 100 sold leaves 4 (at or below the level of 10); 20 sold leaves 80.
+  const sold = (qty: number) => ({ hist: [{ id: 1, qty, channel: "web", amount: 0 }] });
+  const records = { books: [book("low"), book("fine")], states: { low: sold(96), fine: sold(20) }, taxCenter: null };
 
   it("flags an item at or below its reorder level, and not one with plenty", () => {
     const ids = buildTodo(records).signals.map((s) => s.id);
@@ -80,5 +82,33 @@ describe("the to-do list", () => {
   it("reads dismissals from the stockroom's own key, and nothing from a broken one", () => {
     expect(readDismissed({ getItem: (key) => (key === TODO_DISMISSED_KEY ? '{"a":true}' : null) })).toEqual({ a: true });
     expect(readDismissed({ getItem: () => "{" })).toEqual({});
+  });
+
+  it("counts the shelf from the records, so an old saved count raises no false alarm", () => {
+    // Print run raised to 300 with 95 sold: the saved count of 5 is stale, 205 are on hand.
+    const stale = { books: [book("a", { maxPrint: 300 })], states: { a: { stock: 5, sold: 95, hist: [{ id: 1, qty: 95, channel: "web", amount: 0 }] } }, taxCenter: null };
+    const ids = buildTodo(stale).signals.map((s) => s.id);
+    expect(ids).not.toContain("stock-low:a");
+    expect(ids).not.toContain("stock-drift:a");
+  });
+});
+
+describe("a read that fails is not an empty record", () => {
+  const catalog = async (key: string) => (key === "catalog" ? JSON.stringify({ a: book("a") }) : null);
+
+  it("fails the load when the older store can't be reached (offline), instead of showing a blank item", async () => {
+    await expect(loadStockroom(reads({ setting: catalog, oldBook: async () => { throw new Error("network request failed"); } }))).rejects.toThrow("network");
+  });
+
+  it("still treats the older store's refusal as empty", async () => {
+    const error = Object.assign(new Error("PERMISSION_DENIED: Permission denied"), { code: "PERMISSION_DENIED" });
+    const records = await loadStockroom(reads({ setting: catalog, oldBook: async () => { throw error; } }));
+    expect(records.books).toHaveLength(1);
+  });
+
+  it("tells a refusal from a broken connection", () => {
+    expect(isRefusal({ code: "permission-denied" })).toBe(true);
+    expect(isRefusal(new Error("Missing or insufficient permissions: permission-denied"))).toBe(true);
+    expect(isRefusal(new Error("network request failed"))).toBe(false);
   });
 });
