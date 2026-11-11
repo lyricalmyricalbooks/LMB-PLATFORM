@@ -22,7 +22,7 @@ describe("the admin of a website-only press", () => {
     const src = read("Dashboard.tsx");
     // The combined admin (both apps, combined.ts) has no app switcher either: the stockroom is inside it, behind the
     // Website · Stockroom side switch.
-    expect(src).toMatch(/top=\{COMBINED \? <SideSwitch [\s\S]*?: hasStockroom\(\) \? <AppSwitcher /);
+    expect(src).toMatch(/top=\{COMBINED && fairMode \? <FairCard \/> : COMBINED \? <SideSwitch [\s\S]*?: hasStockroom\(\) \? <AppSwitcher /);
     expect(src).toMatch(/\{hasStockroom\(\) && !COMBINED && <AppSwitchPill \/>\}/);
     expect(src).toMatch(/hasStockroom\(\) \? inventoryLinkApi\.state\(\)/);
     // Every other use of the switcher is behind the same check.

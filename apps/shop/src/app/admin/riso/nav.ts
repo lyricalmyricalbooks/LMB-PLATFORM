@@ -55,7 +55,13 @@ export const SETTINGS_ITEM_PREFIX = "settings/";
  * other pages under it. NAV keeps every page (titles, admin search and routes read it); this only groups them.
  * A page's id here is its module id, or `settings/<page>` for a Settings page.
  */
-export type Menu = { label: string; icon: NavEntry["icon"]; pages: string[] }[];
+export type Menu = {
+  label: string; icon: NavEntry["icon"]; pages: string[];
+  /** Names this menu gives its pages, where they differ from the page's own (v3: Inventory › Overview, Count). */
+  labels?: Record<string, string>;
+  /** Pages in headed groups: the item's pages show as a left column under these headings (phones: pills). */
+  sections?: { label: string; pages: string[] }[];
+}[];
 // Every Settings page, in NAV's order. Both menus' Settings read it, so a page added to Settings (Billing, say) shows
 // in the combined admin too. Design has its own menu item ("Design", or "Online store" in the combined admin).
 const SETTINGS_PAGES = (NAV.find((n) => n.id === "settings")?.children || []).map((c) => SETTINGS_ITEM_PREFIX + c.id).filter((id) => id !== SETTINGS_ITEM_PREFIX + "designer");
@@ -80,23 +86,39 @@ const S = (id: string) => STOCKROOM_ITEM_PREFIX + id;
 export type AdminSide = "website" | "stockroom";
 export const WEBSITE_SIDE: Menu = [
   { label: "Home", icon: LayoutDashboard, pages: ["overview"] },
-  // Customers sits under Orders, as in the mockup (redesign, 11 November 2026); Sales channels sit with Marketing.
-  { label: "Orders", icon: ShoppingCart, pages: ["orders", SALES_TAB, "customers", "messages"] },
+  // The v3 mockups (Julian, 11 November 2026): Messages is its own item; Customers and All sales sit under Orders.
+  { label: "Orders", icon: ShoppingCart, pages: ["orders", SALES_TAB, "customers"] },
+  { label: "Messages", icon: Inbox, pages: ["messages"] },
   { label: "Books", icon: BookOpen, pages: ["catalog", "reviews"] },
-  { label: "Marketing", icon: Megaphone, pages: ["discounts", "giftCards", "socialPosts", "channels"] },
-  // Store traffic: visitors, where they came from, what they looked at (Julian, 11 November 2026).
   { label: "Analytics", icon: ChartLine, pages: ["analytics"] },
+  { label: "Marketing", icon: Megaphone, pages: ["discounts", "giftCards", "socialPosts", "channels"] },
   { label: "Online store", icon: Palette, pages: ["design"] },
-  { label: "Settings", icon: Settings, pages: SETTINGS_PAGES },
+  // QuickBooks moved to the stockroom's Bookkeeping (v3).
+  { label: "Settings", icon: Settings, pages: SETTINGS_PAGES.filter((id) => id !== SETTINGS_ITEM_PREFIX + "bookkeeping") },
 ];
-// The redesign (11 November 2026): the stockroom's To-do lives on Home and still opens from its links (Home's to-do
-// row, search), so it is kept in STOCKROOM_PAGES. Open call left the admin altogether (Julian, 11 November 2026).
+/**
+ * The stockroom side (v3 mockups). The Till, QR codes and the fair shortcuts live in Fair mode (FAIR_MENU), not here.
+ * The stockroom's To-do lives on Home and still opens from its links, so it is kept in STOCKROOM_PAGES.
+ */
 export const STOCKROOM_SIDE: Menu = [
-  { label: "Stock", icon: Boxes, pages: [S("dashboard"), "inventory", REORDER_TAB] },
-  { label: "Sales", icon: Receipt, pages: [S("history"), S("manual"), S("customers"), S("shipping")] },
-  { label: "Sell in person", icon: Store, pages: [S("pos"), S("consignment"), S("qrcodes")] },
-  { label: "Money", icon: PiggyBank, pages: [S("taxcenter"), S("reconcile"), S("expenses"), S("intel")] },
-  { label: "Stockroom settings", icon: SlidersHorizontal, pages: [S("sheets"), S("backups")] },
+  { label: "Inventory", icon: Boxes, pages: [S("dashboard"), "inventory", REORDER_TAB], labels: { [S("dashboard")]: "Overview", inventory: "Count" } },
+  { label: "Sales", icon: Receipt, pages: [S("history"), S("manual"), S("customers"), S("shipping")],
+    sections: [{ label: "Sales", pages: [S("history"), S("manual")] }, { label: "Customers and orders", pages: [S("customers"), S("shipping")] }] },
+  { label: "Consignment", icon: Store, pages: [S("consignment")] },
+  { label: "Invoices", icon: FileText, pages: [S("invoices")] },
+  { label: "Bookkeeping", icon: PiggyBank, pages: [S("taxcenter"), S("reconcile"), S("intel"), S("expenses"), SETTINGS_ITEM_PREFIX + "bookkeeping"],
+    labels: { [SETTINGS_ITEM_PREFIX + "bookkeeping"]: "QuickBooks" },
+    sections: [{ label: "Reporting", pages: [S("taxcenter"), S("reconcile"), S("intel")] }, { label: "Cash", pages: [S("expenses")] }, { label: "Accounts", pages: [SETTINGS_ITEM_PREFIX + "bookkeeping"] }] },
+  // Google Sheets waits for its place on Settings › Google; until then it sits beside Backups.
+  { label: "Backups", icon: SlidersHorizontal, pages: [S("backups"), S("sheets")] },
+];
+/** Fair mode (v3): the rail an in-person sale needs, and nothing else. Not part of either side's menu. */
+export const FAIR_MENU: Menu = [
+  { label: "Till", icon: Store, pages: [S("pos")] },
+  { label: "Record a sale", icon: Receipt, pages: [S("manual")] },
+  { label: "QR codes", icon: Share2, pages: [S("qrcodes")] },
+  { label: "Today's sales", icon: Calculator, pages: [S("history")] },
+  { label: "Stock check", icon: Boxes, pages: [S("dashboard")] },
 ];
 /**
  * Settings pages in groups (redesign): the Settings page lists them in a left column under these headings. A page
@@ -142,7 +164,7 @@ export function sidebarItems(nav: NavEntry[], menu: Menu = MENU): NavEntry[] {
   const labels = new Map([...navPages(nav).map((p) => [p.id, p.label] as const), ...STOCKROOM_PAGES.map((p) => [S(p.id), p.label] as const), ...COMBINED_PAGES.map((p) => [p.id, p.label] as const)]);
   return menu.map((group) => ({
     id: group.pages[0], label: group.label, icon: group.icon,
-    ...(group.pages.length > 1 ? { children: group.pages.map((id) => ({ id, label: labels.get(id) || id })) } : {}),
+    ...(group.pages.length > 1 ? { children: group.pages.map((id) => ({ id, label: group.labels?.[id] || labels.get(id) || id })) } : {}),
   }));
 }
 
@@ -150,6 +172,15 @@ export function sidebarItems(nav: NavEntry[], menu: Menu = MENU): NavEntry[] {
 export function withoutPages(items: NavEntry[], hidden: ReadonlySet<string>): NavEntry[] {
   if (!hidden.size) return items;
   return items.filter((item) => !hidden.has(item.id)).map((item) => (item.children ? { ...item, children: item.children.filter((c) => !hidden.has(c.id)) } : item));
+}
+
+/** A menu item's pages in its headed groups (Settings uses SETTINGS_SECTIONS), or null when it has none. */
+export function itemSections(menu: Menu, itemId: string, pages: { id: string; label: string; badge?: number }[]) {
+  if (itemId.startsWith(SETTINGS_ITEM_PREFIX)) return settingsSections(pages);
+  const group = menu.find((g) => g.pages[0] === itemId);
+  if (!group?.sections) return null;
+  const byId = new Map(pages.map((p) => [p.id, p]));
+  return group.sections.map((s) => ({ label: s.label, pages: s.pages.flatMap((id) => byId.get(id) ?? []) })).filter((s) => s.pages.length);
 }
 
 /** The menu item (its id) that holds a page. */

@@ -9,7 +9,6 @@ import { fmt, fmtD } from "@stockroom/money.js";
 import { Checkbox, DataTable, Dialog, Drawer, EmptyState, InkButton, SecondaryButton, StatusBadge, type BadgeTone, type Column } from "../riso/components";
 import { useShopWords } from "../shopWords";
 import type { NativePageProps } from "./nativePages";
-import { InvoicesCard } from "./InvoiceDialogs";
 import { StockistMoveDialog, type MoveKind } from "./StockistMoveDialog";
 import { StockistDetailsDialog } from "./StockistDetailsDialog";
 import { stockistLedgerRows, storeIn } from "./stockistMoves";
@@ -249,21 +248,19 @@ function firstStore(states: Record<string, any> | undefined, s: Stockist) {
   try { return st ? storeIn(st, s.name) : null; } catch { return null; }
 }
 
-export function StockistsPage({ load }: Partial<NativePageProps> & { load?: () => Promise<StockroomRecords> }) {
-  return <RecordsGate what="stockists" load={load}>{(records) => <StockistsBoard initial={records} />}</RecordsGate>;
+export function StockistsPage({ load, onOpen }: Partial<NativePageProps> & { load?: () => Promise<StockroomRecords> }) {
+  return <RecordsGate what="stockists" load={load}>{(records) => <StockistsBoard initial={records} onOpen={onOpen} />}</RecordsGate>;
 }
 
 /** Keeps the records on screen and swaps in a book's saved state (other devices' rows included, WRITING.md rule 5). */
-function StockistsBoard({ initial }: { initial: StockroomRecords }) {
+// Invoices has its own page (v3): a stockist's "New invoice" opens it with that stockist.
+function StockistsBoard({ initial, onOpen }: { initial: StockroomRecords; onOpen?: NativePageProps["onOpen"] }) {
   const [records, setRecords] = useState(initial);
-  const [newFor, setNewFor] = useState<string | null>(null);
   const view = useMemo(() => buildStockists(records), [records]);
   const saved = (bookId: string, state: Record<string, any>) => setRecords((r) => ({ ...r, states: { ...r.states, [bookId]: state } }));
   return (
     <div className="rp-sk">
-      <StockistsList view={view} onSaved={saved} onNewInvoice={setNewFor} books={records.books as Record<string, any>[]} states={records.states as Record<string, any>} />
-      <InvoicesCard records={records} onBookSaved={saved} onSettingsSaved={(value) => setRecords((r) => ({ ...r, invoiceSettings: value }))}
-        newFor={newFor} onNewDone={() => setNewFor(null)} />
+      <StockistsList view={view} onSaved={saved} onNewInvoice={(id) => onOpen?.("invoices", { bookId: id })} books={records.books as Record<string, any>[]} states={records.states as Record<string, any>} />
     </div>
   );
 }
