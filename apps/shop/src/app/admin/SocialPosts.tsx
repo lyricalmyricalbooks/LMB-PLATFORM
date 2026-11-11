@@ -1,14 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import { useEffect, useState } from "react";
 import { adminApi } from "./api";
 import { unitPrice } from "../features/site/merchantFeed.mjs";
 import {
-  Checkbox, Dialog, EmptyState, ErrorState, GhostButton, LoadingState, PageActions, PrimaryButton, SecondaryButton, SectionCard, SelectField,
-  StatusBadge, Tabs, TextArea, Toggle, useConfirm,
+  ActionMenu, Checkbox, Dialog, EmptyState, ErrorState, LoadingState, PageActions, PrimaryButton, SecondaryButton, SectionCard, SelectField,
+  StatusBadge, TextArea, Toggle, useConfirm,
 } from "./riso/components";
 import {
-  CHANNELS, PLACE_WORDS, POST_FILTERS, fromLocalInput, inFilter, localInputValue, maybeNotJpeg, postPhotos, postState, postablePlaces, socialError,
-  starterCaption, whenText, type PostFilter, type SocialPost, type SocialStatus,
+  CHANNELS, PLACE_WORDS, fromLocalInput, inFilter, localInputValue, maybeNotJpeg, postPhotos, postState, postablePlaces, socialError,
+  starterCaption, whenText, type SocialPost, type SocialStatus,
 } from "./socialChannels";
 
 type Props = {
@@ -21,6 +20,9 @@ type Props = {
 
 const CAPTION_MAX = 2200;
 
+/** A post's first line of words, cut short for the table. */
+const firstLine = (caption: string) => { const line = String(caption || "").split("\n").find((l) => l.trim()) || ""; return line.length > 80 ? `${line.slice(0, 79)}…` : line; };
+
 /**
  * Social posts (code plan 27.6), like Shopify's Marketing posts: post one product to the connected Facebook Pages,
  * Instagram accounts, Pinterest boards and TikTok, now or at a time, and see what went out, what is waiting and what
@@ -30,7 +32,6 @@ export function SocialPosts({ onOpen, startWithBook = null, onStarted }: Props) 
   const [status, setStatus] = useState<SocialStatus | null>(null);
   const [posts, setPosts] = useState<SocialPost[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<PostFilter>("upcoming");
   const [composing, setComposing] = useState<string | null | false>(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ tone: "success" | "warning" | "danger"; text: string } | null>(null);
@@ -50,8 +51,10 @@ export function SocialPosts({ onOpen, startWithBook = null, onStarted }: Props) 
   }, [startWithBook, status]);
 
   const places = postablePlaces(status);
-  const counts = useMemo(() => Object.fromEntries(POST_FILTERS.map((f) => [f.id, (posts || []).filter((p) => inFilter(p, f.id)).length])), [posts]);
-  const shown = (posts || []).filter((p) => inFilter(p, filter));
+  // Needs you, then scheduled (soonest first), then what went out (newest first).
+  const rank = (p: SocialPost) => (inFilter(p, "attention") ? 0 : inFilter(p, "upcoming") ? 1 : 2);
+  const rows = [...(posts || [])].sort((a, b) => rank(a) - rank(b)
+    || (rank(a) === 1 ? Date.parse(a.sendAt) - Date.parse(b.sendAt) : Date.parse(b.sendAt) - Date.parse(a.sendAt)));
 
   const cancel = async (post: SocialPost) => {
     if (!await confirm({ title: "Cancel this post?", message: `It won't go out ${whenText(post.sendAt)}.`, confirmLabel: "Cancel post" })) return;
@@ -84,65 +87,64 @@ export function SocialPosts({ onOpen, startWithBook = null, onStarted }: Props) 
     );
   }
 
+  // The mockup: New post by the title, then one table of every post (what, where, a chip, when), the ones that need
+  // you first, then what is scheduled, then what went out. A place that refused says why under its name.
   return (
     <div className="rp-stack" data-testid="social-posts">
-      <PageActions><PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={() => setComposing(null)}>Create post</PrimaryButton></PageActions>
+      <PageActions><PrimaryButton onClick={() => setComposing(null)}>New post</PrimaryButton></PageActions>
       {notice && (
         <div role={notice.tone === "danger" ? "alert" : "status"} className="rp-alert" data-tone={notice.tone === "success" ? undefined : notice.tone}>
           <span className="rp-alert-glyph" aria-hidden="true">{notice.tone === "success" ? "✓" : "!"}</span>
           <div className="rp-alert-text"><span className="rp-alert-detail">{notice.text}</span></div>
         </div>
       )}
-      <SectionCard collapsible={false} flush>
-        <div className="rp-card-body" style={{ paddingBottom: 0 }}>
-          <Tabs label="Posts" value={filter} onChange={setFilter}
-            tabs={POST_FILTERS.map((f) => ({ id: f.id, label: f.label, count: counts[f.id] || undefined }))} />
+      {rows.length === 0 ? (
+        <SectionCard collapsible={false}>
+          <EmptyState title="No posts yet" description="Share a product with the accounts you connected, now or later."
+            action={<PrimaryButton onClick={() => setComposing(null)}>New post</PrimaryButton>} />
+        </SectionCard>
+      ) : (
+        <div className="rp-tablecard">
+          <table aria-label="Posts">
+            <thead><tr>
+              <th scope="col">Post</th>
+              <th scope="col" className="rp-tc-wide">Accounts</th>
+              <th scope="col">Status</th>
+              <th scope="col" className="rp-tc-end rp-tc-wide">When</th>
+              <th scope="col"><span className="rp-sr-only">Actions</span></th>
+            </tr></thead>
+            <tbody>
+              {rows.map((post) => {
+                const badge = postState(post);
+                const refused = post.places.filter((p) => post.results?.[p.id]?.state === "failed");
+                const actions = [
+                  ...(post.status === "scheduled" ? [{ label: "Cancel", onSelect: () => { if (!busy) void cancel(post); } }] : []),
+                  ...(post.status === "failed" || post.status === "partly" ? [{ label: "Try again", onSelect: () => { if (!busy) void retry(post); } }] : []),
+                ];
+                return (
+                  <tr key={post.id}>
+                    <td>
+                      {post.bookTitle}
+                      <span className="rp-tc-sub">{firstLine(post.caption)}</span>
+                    </td>
+                    <td className="rp-tc-wide">
+                      {[...new Set(post.places.map((p) => PLACE_WORDS[p.kind]))].join(", ")}
+                      {refused.map((p) => <span key={p.id} className="rp-tc-sub" data-tone="danger">{post.results?.[p.id]?.message}</span>)}
+                    </td>
+                    <td><StatusBadge tone={badge.tone} glyph={false}>{busy === post.id ? "Working…" : badge.label}</StatusBadge></td>
+                    <td className="rp-tc-end rp-tc-wide">{post.status === "scheduled" ? `Goes out ${whenText(post.sendAt)}` : whenText(post.sendAt)}</td>
+                    <td className="rp-tc-end">{actions.length > 0 && <ActionMenu label={`Actions for the ${post.bookTitle} post`} actions={actions} />}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-        {shown.length === 0 ? (
-          <EmptyState inline title={filter === "upcoming" ? "Nothing scheduled" : filter === "posted" ? "Nothing posted yet" : "Nothing needs you"}
-            description={filter === "upcoming" ? "Create a post to share a product." : undefined} />
-        ) : (
-          <ul className="rp-list" aria-label="Posts">
-            {shown.map((post) => {
-              const badge = postState(post);
-              return (
-                <li key={post.id} className="rp-post-row">
-                  <img className="rp-post-thumb" src={post.imageUrl} alt="" loading="lazy" />
-                  <div className="rp-post-main">
-                    <div className="rp-row-meta">
-                      <StatusBadge tone={badge.tone}>{badge.label}</StatusBadge>
-                      <span>{post.status === "scheduled" ? `Goes out ${whenText(post.sendAt)}` : whenText(post.sendAt)}</span>
-                    </div>
-                    <strong className="rp-post-title">{post.bookTitle}</strong>
-                    <p className="rp-post-caption">{post.caption}</p>
-                    <ul className="rp-post-places">
-                      {post.places.map((p) => {
-                        const r = post.results?.[p.id];
-                        return (
-                          <li key={p.id}>
-                            <span>{PLACE_WORDS[p.kind]}: {p.name}</span>
-                            {r?.state === "posted" && <span className="rp-hint"> ✓{r.tagged ? " product tagged" : ""}{r.privateOnly ? " (private for now)" : ""}</span>}
-                            {r?.state === "failed" && <span className="rp-post-failed"> {r.message}</span>}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                  <div className="rp-post-actions">
-                    {post.status === "scheduled" && <GhostButton size="sm" disabled={busy === post.id} onClick={() => cancel(post)}>Cancel</GhostButton>}
-                    {(post.status === "failed" || post.status === "partly") && <SecondaryButton size="sm" disabled={busy === post.id} onClick={() => retry(post)}>{busy === post.id ? "Posting…" : "Try again"}</SecondaryButton>}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </SectionCard>
+      )}
       {composing !== false && (
         <Composer places={places} bookId={composing} onClose={() => setComposing(false)}
           onDone={(post) => {
             setComposing(false);
-            setFilter(post.status === "scheduled" ? "upcoming" : post.status === "posted" ? "posted" : "attention");
             setNotice(post.status === "scheduled" ? { tone: "success", text: `Scheduled for ${whenText(post.sendAt)}.` }
               : post.status === "posted" ? { tone: "success", text: "Posted." } : { tone: "warning", text: "Some places didn't take it. The reason is under the post." });
             load();
@@ -202,7 +204,7 @@ function Composer({ places, bookId, onClose, onDone }: {
   };
 
   return (
-    <Dialog open onClose={onClose} size="lg" title="Create post"
+    <Dialog open onClose={onClose} size="lg" title="New post"
       footer={<>
         <SecondaryButton onClick={onClose}>Close</SecondaryButton>
         <PrimaryButton disabled={saving || !book} onClick={save}>{saving ? (later ? "Scheduling…" : "Posting…") : later ? "Schedule post" : "Post now"}</PrimaryButton>

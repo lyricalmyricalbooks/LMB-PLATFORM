@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
-import { Globe } from "lucide-react";
-import { BrandLogo, type BrandId } from "../components/brand/BrandLogo";
 import { adminApi } from "./api";
 import { SocialFeedDialog } from "./SocialFeedDialog";
 import {
-  ErrorState, LoadingState, PrimaryButton, SecondaryButton, GhostButton, SectionCard, StatusBadge, useConfirm,
+  ActionMenu, ErrorState, LoadingState, PrimaryButton, StatusBadge, useConfirm,
 } from "./riso/components";
 import {
   CHANNELS, PLACE_WORDS, connectOutcome, socialError, whenText, type NetworkStatus, type SocialNetwork, type SocialStatus,
@@ -16,10 +14,6 @@ type Props = {
   /** Where a network's sign-in page is opened; the page leaves the admin and comes back with `?social=`. */
   openSignIn?: (url: string) => void;
 };
-
-// Each network's own logo (shared/brand-logos), so the channel reads as the real thing.
-const LOGOS: Record<SocialNetwork, BrandId[]> = { meta: ["facebook", "instagram"], pinterest: ["pinterest"], tiktok: ["tiktok"] };
-const brandLogos = (ids: BrandId[]) => <span className="brand-logo-row" aria-hidden="true">{ids.map((id) => <BrandLogo key={id} id={id} size="md" />)}</span>;
 
 /** Takes `?social=…&network=…` off the address after reading it, so a reload doesn't say it again. */
 function readOutcome() {
@@ -102,7 +96,15 @@ export function SalesChannels({ onOpen, openSignIn = (url) => window.location.as
   if (loadError && !status) return <ErrorState title="Sales channels didn't load" description={loadError} onRetry={load} />;
 
   const enabled = !!status?.enabled;
+  const BUSY_WORDS: Record<string, string> = { connect: "Opening the sign-in page…", catalog: "Sending your products…", disconnect: "Disconnecting…" };
+  const busyLine = (network: string) => {
+    const [step, id] = (busy || "").split("-");
+    return id === network ? BUSY_WORDS[step] : "";
+  };
+  const guard = (job: () => void) => () => { if (!busy) job(); };
 
+  // The mockup: one list card of every place the shop sells, each with a line saying where it stands and a chip;
+  // connecting is the row's own button, everything else sits in its ⋯ menu.
   return (
     <div className="rp-stack" data-testid="sales-channels">
       {notice && (
@@ -112,83 +114,63 @@ export function SalesChannels({ onOpen, openSignIn = (url) => window.location.as
         </div>
       )}
 
-      <SectionCard title="Online store" collapsible={false} actions={<StatusBadge tone="success">On</StatusBadge>}>
-        <div className="rp-channel-row">
-          <span className="rp-channel-icons" aria-hidden="true"><Globe size={18} /></span>
-          <p className="rp-hint" style={{ margin: 0, flex: "1 1 220px" }}>Your website.</p>
-          <SecondaryButton size="sm" onClick={() => onOpen("designer")}>Open Design</SecondaryButton>
-        </div>
-      </SectionCard>
+      <ul className="rp-listcard" aria-label="Where you sell">
+        <li data-channel="website">
+          <button type="button" className="rp-listcard-main" onClick={() => onOpen("designer")}>
+            <span className="rp-listcard-name">Online store</span>
+            <span className="rp-listcard-sub">Your website</span>
+          </button>
+          <StatusBadge tone="success" glyph={false}>On</StatusBadge>
+          <ActionMenu label="Actions for Online store" actions={[{ label: "Open Design", onSelect: () => onOpen("designer") }]} />
+        </li>
 
-      {CHANNELS.map((channel) => {
-        const n = status?.networks.find((x) => x.network === channel.id);
-        const available = enabled && !!n?.available;
-        const lost = n?.problem === "lost";
-        const badge = n?.connected ? <StatusBadge tone="success">Connected</StatusBadge>
-          : lost ? <StatusBadge tone="danger">Needs you</StatusBadge>
-            : available ? <StatusBadge tone="neutral">Not connected</StatusBadge>
-              : <StatusBadge tone="info" glyph={false}>Coming soon</StatusBadge>;
-        return (
-          <SectionCard key={channel.id} title={channel.name} collapsible={false} actions={badge}>
-            <div className="rp-stack" style={{ gap: 12 }} data-channel={channel.id}>
-              <div className="rp-channel-row">
-                {brandLogos(LOGOS[channel.id])}
-                <p className="rp-hint" style={{ margin: 0, flex: "1 1 220px" }}>{channel.does}</p>
+        {CHANNELS.map((channel) => {
+          const n = status?.networks.find((x) => x.network === channel.id);
+          const available = enabled && !!n?.available;
+          const lost = n?.problem === "lost";
+          const places = n?.connected ? n.places.map((p) => `${PLACE_WORDS[p.kind]} ${p.name}`) : [];
+          const sent = n?.connected && n.canSendCatalog ? (n.catalog ? `Products sent ${whenText(n.catalog.sentAt)}` : "Products not sent yet") : "";
+          const line = busyLine(channel.id)
+            || (n?.connected ? [n.accountName ? `Connected as ${n.accountName}` : "", ...places, sent].filter(Boolean).join(" · ")
+              : lost ? "Connection lost. Connect again to keep posting." : channel.does);
+          return (
+            <li key={channel.id} data-channel={channel.id}>
+              <div className="rp-listcard-main">
+                <span className="rp-listcard-name">{channel.name}</span>
+                <span className="rp-listcard-sub" role={lost ? "alert" : undefined}>{line}</span>
               </div>
-
-              {n?.connected && (
-                <div className="rp-stack" style={{ gap: 8 }}>
-                  {n.accountName && <p style={{ margin: 0 }}>Connected as <strong>{n.accountName}</strong></p>}
-                  {n.places.length > 0 && (
-                    <ul className="rp-channel-places" aria-label={`Where you can post on ${channel.name}`}>
-                      {n.places.map((p) => <li key={p.id}><span className="rp-hint">{PLACE_WORDS[p.kind]}</span> {p.name}</li>)}
-                    </ul>
-                  )}
-                  {n.canSendCatalog && (
-                    <p className="rp-hint" style={{ margin: 0 }}>
-                      {n.catalog ? `Products sent ${whenText(n.catalog.sentAt)}, updated daily.` : "Products not sent yet."}
-                    </p>
-                  )}
-                </div>
+              {n?.connected ? (
+                <>
+                  <StatusBadge tone="success" glyph={false}>Connected</StatusBadge>
+                  <ActionMenu label={`Actions for ${channel.name}`} actions={[
+                    { label: "Create a post", onSelect: () => onOpen("socialPosts") },
+                    ...(n.canSendCatalog ? [{ label: n.catalog ? "Send products again" : "Send my products", onSelect: guard(() => sendCatalog(n)) }] : []),
+                    { label: "Disconnect", tone: "danger", onSelect: guard(() => { void disconnect(n); }) },
+                  ]} />
+                </>
+              ) : available ? (
+                <PrimaryButton size="sm" disabled={!!busy} aria-label={`${lost ? "Connect again" : "Connect"} ${channel.name}`} onClick={() => connect(channel.id)}>
+                  {lost ? "Connect again" : "Connect"}
+                </PrimaryButton>
+              ) : (
+                <>
+                  <StatusBadge tone="neutral" glyph={false}>Coming soon</StatusBadge>
+                  {channel.id !== "tiktok" && <ActionMenu label={`Actions for ${channel.name}`} actions={[{ label: "Set up by hand", onSelect: openByHand }]} />}
+                </>
               )}
+            </li>
+          );
+        })}
 
-              {lost && <p role="alert" style={{ margin: 0 }}>Connection lost. Connect again to keep posting.</p>}
-
-              <div className="rp-channel-actions">
-                {available && !n?.connected && (
-                  <PrimaryButton size="sm" disabled={!!busy} onClick={() => connect(channel.id)}>
-                    {busy === `connect-${channel.id}` ? "Opening…" : lost ? "Connect again" : `Connect ${channel.name}`}
-                  </PrimaryButton>
-                )}
-                {n?.connected && (
-                  <>
-                    <PrimaryButton size="sm" onClick={() => onOpen("socialPosts")}>Create a post</PrimaryButton>
-                    {n.canSendCatalog && (
-                      <SecondaryButton size="sm" disabled={!!busy} onClick={() => sendCatalog(n)}>
-                        {busy === `catalog-${n.network}` ? "Sending…" : n.catalog ? "Send products again" : "Send my products"}
-                      </SecondaryButton>
-                    )}
-                    <GhostButton size="sm" disabled={!!busy} onClick={() => disconnect(n)}>{busy === `disconnect-${n.network}` ? "Disconnecting…" : "Disconnect"}</GhostButton>
-                  </>
-                )}
-                {!available && channel.id !== "tiktok" && (
-                  <SecondaryButton size="sm" onClick={openByHand}>Set up by hand</SecondaryButton>
-                )}
-              </div>
-            </div>
-          </SectionCard>
-        );
-      })}
-
-      <SectionCard title="Google & YouTube" collapsible={false} actions={<StatusBadge tone="neutral" glyph={false}>In Settings</StatusBadge>}>
-        <div className="rp-channel-row">
-          {brandLogos(["google", "youtube"])}
-          <p className="rp-hint" style={{ margin: 0, flex: "1 1 220px" }}>
-            Free Shopping listings and YouTube, with your Google sign-in.
-          </p>
-          <SecondaryButton size="sm" onClick={() => onOpen("general")}>Open settings</SecondaryButton>
-        </div>
-      </SectionCard>
+        <li data-channel="google">
+          <button type="button" className="rp-listcard-main" onClick={() => onOpen("general")}>
+            <span className="rp-listcard-name">Google &amp; YouTube</span>
+            <span className="rp-listcard-sub">Free Shopping listings, with your Google sign-in</span>
+          </button>
+          <StatusBadge tone="neutral" glyph={false}>In Settings</StatusBadge>
+          <ActionMenu label="Actions for Google & YouTube" actions={[{ label: "Open settings", onSelect: () => onOpen("general") }]} />
+        </li>
+      </ul>
 
       <SocialFeedDialog open={byHand} onClose={() => setByHand(false)} books={books} />
       {confirmNode}

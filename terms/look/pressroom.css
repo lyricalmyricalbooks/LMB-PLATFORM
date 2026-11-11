@@ -369,7 +369,8 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-listcard-name { font-size: var(--rp-text-md); font-weight: 500; overflow-wrap: anywhere; }
 .rp-listcard-name.is-code { font-family: var(--rp-font-mono); font-weight: 400; letter-spacing: .02em; }
 .rp-listcard-sub { font-size: var(--rp-text-sm); color: var(--rp-text-muted); overflow-wrap: anywhere; }
-.rp-listcard-main:hover .rp-listcard-name { text-decoration: underline; text-underline-offset: 3px; }
+button.rp-listcard-main:hover .rp-listcard-name { text-decoration: underline; text-underline-offset: 3px; }
+div.rp-listcard-main { cursor: default; }
 .rp-listcard-main:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 4px; border-radius: 6px; }
 @media (max-width: 767px) { .rp-listcard { padding: 4px 16px; } .rp-listcard > li { gap: 8px; } }
 /* The mockup's Gift cards card: the same rows on the lilac tile (one accent tile per screen). */
@@ -379,6 +380,18 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-listcard[data-tone="lilac"] .rp-listcard-main, .rp-listcard[data-tone="lilac"] .rp-listcard-sub { color: inherit; }
 .rp-listcard-side { flex-shrink: 0; font-size: var(--rp-text-base); font-variant-numeric: tabular-nums; text-align: right; }
 @media (max-width: 767px) { .rp-listcard-side { flex-shrink: 1; max-width: 60%; } }
+/* Table card (redesign): a white card holding a plain table, mono headings, hairline rows (Social posts; the mockup's
+   other tables reuse it). .rp-tc-end right-aligns a column, .rp-tc-sub is a small second line, .rp-tc-wide hides on phones. */
+.rp-tablecard { background: var(--rp-surface); border-radius: var(--rp-radius-lg); padding: 8px 22px; overflow-x: auto; }
+.rp-tablecard table { width: 100%; border-collapse: collapse; font-size: var(--rp-text-base); }
+.rp-tablecard th { padding: 16px 12px 14px 0; text-align: left; font: 500 var(--rp-text-xs)/1 var(--rp-font-mono); text-transform: uppercase; letter-spacing: .04em; color: var(--rp-text-muted); border-bottom: 1px solid var(--rp-border); white-space: nowrap; }
+.rp-tablecard td { padding: 12px 12px 12px 0; border-bottom: 1px solid var(--rp-border); vertical-align: middle; color: var(--rp-text); }
+.rp-tablecard tbody tr:last-child td { border-bottom: 0; }
+.rp-tablecard :is(th, td):last-child { padding-right: 0; }
+.rp-tablecard .rp-tc-end { text-align: right; white-space: nowrap; }
+.rp-tablecard .rp-tc-sub { display: block; margin-top: 2px; font-size: var(--rp-text-sm); color: var(--rp-text-muted); overflow-wrap: anywhere; }
+.rp-tablecard .rp-tc-sub[data-tone="danger"] { color: var(--rp-danger); }
+@media (max-width: 767px) { .rp-tablecard { padding: 4px 14px; } .rp-tablecard .rp-tc-wide { display: none; } }
 
 /* ── Sales channels and Social posts (plan 27.5, 27.6) ── */
 .rp-channel-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px; }

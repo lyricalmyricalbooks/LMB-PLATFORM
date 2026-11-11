@@ -114,11 +114,6 @@ export function postState(post: Pick<SocialPost, "status">): { tone: "success" |
 }
 
 export type PostFilter = "upcoming" | "posted" | "attention";
-export const POST_FILTERS: { id: PostFilter; label: string }[] = [
-  { id: "upcoming", label: "Scheduled" },
-  { id: "posted", label: "Posted" },
-  { id: "attention", label: "Needs attention" },
-];
 export function inFilter(post: Pick<SocialPost, "status">, filter: PostFilter): boolean {
   if (filter === "upcoming") return post.status === "scheduled" || post.status === "sending";
   if (filter === "posted") return post.status === "posted" || post.status === "cancelled";
