@@ -125,7 +125,7 @@ export function HomePage({ setActiveTab, onSetWall, ownerName = "" }: {
     <section className="rp-todo-row" aria-label="To do">
       <RunTiles>
         <RunRow kind="Orders" label="paid orders waiting to ship" one="paid order waiting to ship" count={todo ? todo.fulfil.length : null} loading={ordersLoading}
-          detail={todo && todo.fulfil[0] ? `Oldest has waited ${todo.fulfil[0].ageDays} day${todo.fulfil[0].ageDays === 1 ? "" : "s"}` : ""}
+          detail={todo && todo.fulfil[0] ? (todo.fulfil[0].ageDays < 1 ? "Oldest was ordered today" : `Oldest has waited ${todo.fulfil[0].ageDays} day${todo.fulfil[0].ageDays === 1 ? "" : "s"}`) : ""}
           onOpen={() => go("orders")} openLabel="Ship orders" />
         <RunRow kind="Reviews" label="reviews to moderate" one="review to moderate" count={counts ? counts.pendingReviews ?? null : null} loading={!counts}
           detail="Readers are waiting to see these" detailOne="A reader is waiting to see it" onOpen={() => go("reviews")} openLabel="Moderate" />
