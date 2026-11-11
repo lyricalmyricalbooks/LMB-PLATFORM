@@ -53,7 +53,7 @@ export const STOCKROOM_PAGES: StockroomPage[] = [
   { id: "opencall", label: "Open call", description: "Submissions from people who want to publish with you." },
   { id: "reconcile", label: "Payments and payouts", description: "Money coming in from every place you sell, matched to your sales." },
   { id: "expenses", label: "Expenses", description: "What the press spends, with receipts." },
-  { id: "taxcenter", label: "Tax centre", description: "Sales tax and year-end totals, ready for your accountant." },
+  { id: "taxcenter", label: "Tax centre", description: "Sales tax collected, fees and what to file." },
   { id: "intel", label: "Ask about your sales", description: "Questions about your books and sales, answered from your own records." },
   { id: "customers", label: "Buyers in person", description: "People who bought at fairs, from invoices or by hand." },
   { id: "sheets", label: "Google Sheet", description: "Keep a copy of your stockroom in a Google Sheet." },

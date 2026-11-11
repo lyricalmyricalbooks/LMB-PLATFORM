@@ -1,13 +1,17 @@
-// Stockroom › Tax centre, drawn by the admin itself (read-only): the period's money in and out, by month and category,
+// Stockroom › Tax centre, drawn by the admin itself. The top (TaxTop.tsx, to the mockup) is sales tax for a quarter
+// from the shop's orders; below it, the stockroom's own cards: the period's money in and out, by month and category,
 // trips, standing costs, costs that may be missing, and the full ledger with a spreadsheet download. Every figure comes
 // from the stockroom's own rules (moneyReports.ts); nothing here is saved.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { fmt } from "@stockroom/money.js";
 import { downloadCsv } from "@stockroom/download.js";
 import type { Delta } from "@stockroom/tax-ledger.js";
 
 import { DataTable, EmptyState, MetricCard, Pagination, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge } from "../riso/components";
 import { useShopWords } from "../shopWords";
+import { getOrdersCached } from "../ordersCache";
+import { TaxTop } from "./TaxTop";
+import { taxPeriods } from "./taxPeriods";
 import { RecordsGate } from "./RecordsGate";
 import { LogExpenseCard, type Prefill } from "./LogExpense";
 import { LogSeveralCard } from "./LogSeveral";
@@ -59,11 +63,27 @@ function CashFlowChart({ buckets, cur }: { buckets: Array<{ key: string; label: 
   );
 }
 
-export function TaxCenterView({ records, now, onTaxCenter }: { records: StockroomRecords; now?: Date; onTaxCenter?: (taxCenter: Record<string, unknown>) => void }) {
+export function TaxCenterView({ records, now, onTaxCenter, orders: givenOrders }: {
+  records: StockroomRecords; now?: Date; onTaxCenter?: (taxCenter: Record<string, unknown>) => void;
+  /** The shop's orders (tests and the fixture pass them; otherwise read through the shared copy). */
+  orders?: Record<string, any>[];
+}) {
   const w = useShopWords();
   const sources = useMemo(() => sourcesOf(records), [records]);
-  const years = useMemo(() => taxCenterModel(sources, "all", now).years, [sources, now]);
-  const [year, setYear] = useState("all");
+  const nowMs = (now || new Date()).getTime();
+  const periods = useMemo(() => taxPeriods(nowMs), [nowMs]);
+  const [periodId, setPeriodId] = useState(periods[0].id);
+  const period = periods.find((p) => p.id === periodId) || periods[0];
+  // The cards below follow the period's year.
+  const year = period.start.slice(0, 4);
+  const [loaded, setLoaded] = useState<Record<string, any>[] | "loading" | "failed">(givenOrders || "loading");
+  useEffect(() => {
+    if (givenOrders) { setLoaded(givenOrders); return; }
+    let alive = true;
+    getOrdersCached().then((o) => { if (alive) setLoaded(o); }).catch(() => { if (alive) setLoaded("failed"); });
+    return () => { alive = false; };
+  }, [givenOrders]);
+  const allRows = useMemo(() => taxCenterModel(sources, "all", now).rows, [sources, now]);
   const [filter, setFilter] = useState<LedgerFilter>({ type: "all", query: "" });
   const [ledgerNote, setLedgerNote] = useState<SaveNote | null>(null);
   const [page, setPage] = useState(1);
@@ -81,30 +101,23 @@ export function TaxCenterView({ records, now, onTaxCenter }: { records: Stockroo
 
   return (
     <div className="rp-money">
-      <div className="rp-filter-bar">
-        <SelectField label="Period" value={year} onChange={(e) => { setYear(e.target.value); setPage(1); }}>
-          <option value="all">All years</option>
-          {years.map((y) => <option key={y} value={y}>{y}</option>)}
-        </SelectField>
-      </div>
+      <TaxTop periods={periods} period={period} onPeriod={(id) => { setPeriodId(id); setPage(1); }} orders={loaded}
+        ledgerRows={allRows} states={records.states as Record<string, Record<string, any>>} taxCenter={records.taxCenter as Record<string, any> | null}
+        currency={cur} now={nowMs} onTaxCenter={onTaxCenter} />
       {model.notes.missing > 0 && <p className="rp-money-note" role="status">{model.notes.missing} {model.notes.missing === 1 ? "line has" : "lines have"} no exchange rate yet and {model.notes.missing === 1 ? "is" : "are"} counted at 1 to 1, so these totals may be off. The stockroom fills rates in when it is opened.</p>}
       {!model.notes.missing && model.notes.estimated > 0 && <p className="rp-money-note" role="status">{model.notes.estimated} foreign-currency {model.notes.estimated === 1 ? "line is" : "lines are"} shown at the last saved exchange rate, not the rate of its own day. The stockroom replaces them with day rates when it is opened.</p>}
 
-      <div className="rp-grid-metrics">
-        <MetricCard label="Money in" value={money(s.sales)} footer={deltaText(s.deltas?.sales ?? null, s.prevYear)} tone="gold" />
-        <MetricCard label="Money out" value={money(s.expenses)} footer={deltaText(s.deltas?.expenses ?? null, s.prevYear)} />
-        <MetricCard label="Net" value={money(s.net)} footer={deltaText(s.deltas?.net ?? null, s.prevYear)} tone={s.net < 0 ? "danger" : undefined} />
-      </div>
-      <div className="rp-grid-metrics">
-        <MetricCard label="Profit margin" value={s.profitMargin == null ? "-" : `${s.profitMargin.toFixed(1)}%`} />
-        <MetricCard label="Sales" value={String(s.txnCount)} footer={`${s.unitsSold} ${s.unitsSold === 1 ? "copy" : "copies"}`} />
-        <MetricCard label="Average sale" value={s.avgSale == null ? "-" : money(s.avgSale)} />
-        <MetricCard label={w("Artist payouts")} value={money(s.artistPayouts)} footer="Not part of money out" />
-        <MetricCard label="Net after payouts" value={money(s.netAfterPayouts)} tone={s.netAfterPayouts < 0 ? "danger" : undefined} />
-      </div>
+      <SectionCard title={`Money in and out, ${year}`} description="From your stockroom records: every sale, cost and payout." flush>
+        <div className="rp-grid-metrics rp-money-pad">
+          <MetricCard label="Money in" value={money(s.sales)} footer={deltaText(s.deltas?.sales ?? null, s.prevYear)} />
+          <MetricCard label="Money out" value={money(s.expenses)} footer={deltaText(s.deltas?.expenses ?? null, s.prevYear)} />
+          <MetricCard label="Net" value={money(s.net)} footer={deltaText(s.deltas?.net ?? null, s.prevYear)} tone={s.net < 0 ? "danger" : undefined} />
+          <MetricCard label={w("Artist payouts")} value={money(s.artistPayouts)} footer={`Net after: ${money(s.netAfterPayouts)}`} />
+        </div>
+      </SectionCard>
 
-      <SectionCard title="Cash flow" description={year === "all" ? "Money in and out, year by year." : `Money in and out, month by month in ${year}.`}>
-        <CashFlowChart buckets={model.buckets.filter((b) => b.income || b.expense || year !== "all")} cur={cur} />
+      <SectionCard title="Cash flow" description={`Money in and out, month by month in ${year}.`}>
+        <CashFlowChart buckets={model.buckets} cur={cur} />
       </SectionCard>
 
       {onTaxCenter && <LogExpenseCard taxCenter={records.taxCenter} onSaved={onTaxCenter} prefill={confirming} onPrefillDone={() => setConfirming(null)} />}
@@ -113,9 +126,9 @@ export function TaxCenterView({ records, now, onTaxCenter }: { records: Stockroo
       {onTaxCenter && <RecurringSubscriptionsCard taxCenter={records.taxCenter} onSaved={onTaxCenter} now={now} />}
       {onTaxCenter && <SortingRulesCard taxCenter={records.taxCenter} onSaved={onTaxCenter} />}
 
-      <SectionCard title={year === "all" ? "By year" : `By month in ${year}`} flush>
+      <SectionCard title={`By month in ${year}`} flush>
         <DataTable stackOnPhone caption="Money in and out by period" rowKey={(b) => b.key}
-          rows={model.buckets.filter((b) => b.income || b.expense || year !== "all")}
+          rows={model.buckets}
           empty={<EmptyState inline title="Nothing recorded yet" />}
           columns={[
             { key: "p", header: "Period", lead: true, render: (b) => b.label },
