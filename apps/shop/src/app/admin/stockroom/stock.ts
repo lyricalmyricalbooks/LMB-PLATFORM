@@ -3,10 +3,9 @@
 //
 // The stockroom does not trust what it saved. Every time it loads an item it runs `recomputeAfters` (main.js): drop
 // duplicate consignment mirrors, re-derive the mirrors from the ledger, rebuild sold / revenue / sales by channel from
-// the sales list, recount the shelf. `settle` below runs the same steps from the same library on a copy of the records
-// (nothing is written). Two small steps are not importable because they live in main.js with the screen code, and are
-// repeated here exactly (marked below): the Consignment line of sales by channel, and each store's tally.
-import { reconcileConsignmentMirrors } from "@stockroom/consignment.js";
+// the sales list, recount the shelf, rebuild each store's tally. `settle` below runs the same steps from the same library
+// on a copy of the records (nothing is written).
+import { reconcileConsignmentChannel, reconcileConsignmentMirrors, reconcileStores } from "@stockroom/consignment.js";
 import {
   deduplicateDirectConsignmentSales, deriveOnHand, deriveStockBreakdown, inventoryBreakdown, recalculateBookStatsFromHistory,
   type InventoryBreakdown,
@@ -49,38 +48,16 @@ export function settle(book: StockBook, saved: Rec | undefined): Rec {
   recalculateBookStatsFromHistory(state);
   if (Number.isFinite(book.maxPrint)) state.stock = deriveOnHand(state, book);
   reconcileConsignmentChannel(state);
+  reconcileStores(state);
   return state;
 }
 
-// main.js reconcileConsignmentChannel: the Consignment line of sales by channel comes from the sales list, not a counter.
-function reconcileConsignmentChannel(s: Rec) {
-  let txns = 0, units = 0, revenue = 0;
-  for (const h of list(s.hist)) {
-    if (h.consignmentLink && !h.voided) { txns++; units += num(h.qty); revenue += num(h.qty) * num(h.price); }
-  }
-  const stats = (s.chStats = s.chStats && typeof s.chStats === "object" ? s.chStats : {}) as Record<string, Rec>;
-  if (txns > 0) stats.Consignment = { txns, units, revenue };
-  else if (stats.Consignment && !(stats.Consignment.txns || stats.Consignment.units || stats.Consignment.revenue)) delete stats.Consignment;
-}
-
-// main.js reconcileStores: a store's sent / sold / returned come from the non-voided ledger; a store with no ledger rows
-// keeps what was saved, because there is nothing to rebuild it from.
+/** Each store's tally, rebuilt by the stockroom's own rule (reconcileStores) on the settled copy. */
 function storeRows(s: Rec): StoreRow[] {
-  const tally = new Map<unknown, { sent: number; sold: number; returned: number }>();
-  for (const e of list(s.ledger)) {
-    if (e.voided || e.storeId == null) continue;
-    let t = tally.get(e.storeId);
-    if (!t) { t = { sent: 0, sold: 0, returned: 0 }; tally.set(e.storeId, t); }
-    const qty = num(e.qty);
-    if (e.type === "Shipment") t.sent += qty;
-    else if (e.type === "Sale") t.sold += qty;
-    else if (e.type === "Return") t.returned += qty;
-  }
-  return list(s.stores).map((store) => {
-    const t = tally.get(store.id);
-    const sent = t ? t.sent : num(store.sent), sold = t ? t.sold : num(store.sold), returned = t ? t.returned : num(store.returned);
-    return { id: String(store.id ?? store.name ?? ""), name: String(store.name || "Store"), sent, sold, returned, outstanding: t ? Math.max(0, sent - sold - returned) : num(store.outstanding) };
-  });
+  return list(s.stores).map((store) => ({
+    id: String(store.id ?? store.name ?? ""), name: String(store.name || "Store"),
+    sent: num(store.sent), sold: num(store.sold), returned: num(store.returned), outstanding: num(store.outstanding),
+  }));
 }
 
 /** Sales by channel with the gross an artist collected directly folded back in (dashboard.js chStatsWithHeld), biggest first. */

@@ -14,6 +14,8 @@ declare module "@stockroom/inventory.js" {
 }
 declare module "@stockroom/consignment.js" {
   export function reconcileConsignmentMirrors(state: Record<string, unknown>): void;
+  export function reconcileConsignmentChannel(state: Record<string, unknown>): void;
+  export function reconcileStores(state: Record<string, unknown>): void;
 }
 declare module "@stockroom/money.js" {
   export function transferAmount(transfer: unknown): number | null;
