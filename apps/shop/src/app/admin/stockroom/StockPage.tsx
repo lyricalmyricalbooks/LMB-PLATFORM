@@ -85,7 +85,6 @@ export function StockList({ records, onPick, initialQuery = "" }: { records: Sto
   const items = useMemo(() => catalogueStock(records), [records]);
   const totals = useMemo(() => totalsOf(items), [items]);
   const shown = useMemo(() => searchItems(items, query), [items, query]);
-  if (!items.length) return <EmptyState icon="📦" title={w("No books yet")} description={w("Books you add to the stockroom show up here with their copies and sales.")} />;
   const columns: Column<ItemStock>[] = [
     { key: "title", header: w("Book"), lead: true, render: (r) => <button type="button" className="rp-stock-open" onClick={() => onPick(r.id)} aria-label={`Open ${r.title}`}>{r.title}</button> },
     { key: "printed", header: w("Printed"), numeric: true, render: (r) => (r.hasPrintRun ? count(r.printed) : "—") },
@@ -110,7 +109,7 @@ export function StockList({ records, onPick, initialQuery = "" }: { records: Sto
       </FilterBar>
       <DataTable columns={columns} rows={shown} rowKey={(r) => r.id} caption={w("Stock and sales for every book")} stackOnPhone
         onRowClick={(r) => onPick(r.id)}
-        empty={<EmptyState inline icon="🔎" title="Nothing matches" description={w("Try a different title or author.")} action={<GhostButton onClick={() => setQuery("")}>Clear search</GhostButton>} />} />
+        empty={items.length ? <EmptyState inline icon="🔎" title="Nothing matches" description={w("Try a different title or author.")} action={<GhostButton onClick={() => setQuery("")}>Clear search</GhostButton>} /> : <EmptyState inline icon="📦" title={w("No books yet")} description={w("Books you add to the stockroom show up here with their copies and sales.")} />} />
     </div>
   );
 }

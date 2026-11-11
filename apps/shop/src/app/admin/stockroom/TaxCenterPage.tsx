@@ -41,12 +41,8 @@ export function TaxCenterView({ records, now }: { records: StockroomRecords; now
   const at = Math.min(page, pageCount);
   const slice = shown.slice((at - 1) * LEDGER_PAGE_SIZE, at * LEDGER_PAGE_SIZE);
   const s = model.summary;
-  const empty = !model.rows.length && year === "all";
   const download = () => { const file = ledgerCsvFile(shown, cur, now); downloadCsv(file.text, file.name); };
 
-  if (empty && !model.recurring.length) {
-    return <EmptyState icon="🧾" title="Nothing in the Tax centre yet" description={w("Sales, expenses and standing costs show up here as the stockroom records them.")} />;
-  }
   return (
     <div className="rp-money">
       <div className="rp-filter-bar">

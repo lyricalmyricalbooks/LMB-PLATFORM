@@ -63,7 +63,6 @@ export function SalesRecords({ records: loaded }: { records: StockroomRecords })
 
   const recordButton = records.books.length > 0 && <PrimaryButton onClick={() => { save.clear(); setRecording(true); }} disabled={save.busy}>Record a sale</PrimaryButton>;
   const dialog = <RecordSaleDialog open={recording} onClose={() => setRecording(false)} records={records} save={save} />;
-  if (!all.length) return <>{dialog}<EmptyState icon="🧾" title="No sales recorded yet" description={w("Sales the stockroom records, at a book fair, from your website or by hand, appear here.")} action={recordButton || undefined} /></>;
 
   const filtered = filter.search.trim() || filter.channel || filter.bookId || filter.from || filter.to || filter.hideVoided;
   const columns: Column<SaleRow>[] = [
@@ -110,6 +109,8 @@ export function SalesRecords({ records: loaded }: { records: StockroomRecords })
             <p className="rp-sr-more"><SecondaryButton onClick={() => setLimit((n) => n + PAGE)}>Show {Math.min(PAGE, rows.length - limit)} more</SecondaryButton> <span>Showing {limit} of {rows.length}</span></p>
           )}
         </>
+      ) : !all.length ? (
+        <EmptyState inline icon="🧾" title="No sales recorded yet" description={w("Sales the stockroom records, at a book fair, from your website or by hand, appear here.")} />
       ) : (
         <EmptyState icon="🔍" title="No sales match" description={`${inScope ? `${inScope} in this view` : "Nothing in this view"}. ${described.active ? described.detail : "Widen the dates or clear the filters."}`}
           action={<SecondaryButton onClick={() => { setFilter(NO_FILTER); setLimit(PAGE); }}>Clear filters</SecondaryButton>} />

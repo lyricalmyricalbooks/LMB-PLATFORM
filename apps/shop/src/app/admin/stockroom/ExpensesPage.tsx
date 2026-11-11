@@ -26,11 +26,12 @@ export function ExpensesView({ records }: { records: StockroomRecords }) {
     && (!q || `${l.date} ${l.desc} ${l.cat} ${l.ref} ${l.itemTitle}`.toLowerCase().includes(q)));
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE));
   const at = Math.min(page, pageCount);
-  if (!model.lines.length) return <EmptyState icon="🧾" title="No expenses logged yet" description={w("Costs for a book, a fair or the press itself show up here, with their receipts.")} />;
   return (
     <div className="rp-money">
       <div className="rp-grid-metrics">
-        {model.totals.map((t) => <MetricCard key={t.code} label={`Spent in ${t.code}`} value={fmt(t.total, t.code)} footer={`${t.count} ${t.count === 1 ? "expense" : "expenses"}`} />)}
+        {model.totals.length
+          ? model.totals.map((t) => <MetricCard key={t.code} label={`Spent in ${t.code}`} value={fmt(t.total, t.code)} footer={`${t.count} ${t.count === 1 ? "expense" : "expenses"}`} />)
+          : <MetricCard label={`Spent in ${model.baseCurrency}`} value={fmt(0, model.baseCurrency)} footer="0 expenses" />}
         <MetricCard label="Receipts attached" value={String(model.receipts.withReceipts)} footer={`${model.receipts.totalFiles} ${model.receipts.totalFiles === 1 ? "file" : "files"} kept`} />
         <MetricCard label="No receipt" value={String(model.missing)} tone={model.missing ? "warn" : undefined} footer={model.missing ? "The ones an accountant will ask for" : "All backed up"} />
       </div>
@@ -55,7 +56,7 @@ export function ExpensesView({ records }: { records: StockroomRecords }) {
           </div>
         </div>
         <DataTable stackOnPhone caption="Expenses" rowKey={(l: ExpenseLine) => l.key} rows={rows.slice((at - 1) * PAGE, at * PAGE)}
-          empty={<EmptyState inline title="No expenses match" />}
+          empty={model.lines.length ? <EmptyState inline title="No expenses match" /> : <EmptyState inline icon="🧾" title="No expenses logged yet" description={w("Costs for a book, a fair or the press itself show up here, with their receipts.")} />}
           columns={[
             { key: "d", header: "Date", render: (l) => l.date || "-" },
             { key: "e", header: "Expense", lead: true, render: (l) => <>{l.desc || "(no description)"}<span className="rp-money-sub"> {l.scope === "item" ? l.itemTitle : "Press"}{l.cat ? ` · ${l.cat}` : ""}</span></> },
