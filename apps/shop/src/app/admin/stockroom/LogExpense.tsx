@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { PrimaryButton, SecondaryButton, SectionCard, SelectField, StatusBadge, TextField } from "../riso/components";
+import { categoryFromRules } from "./taxRules";
 import { addBusinessExpense, baseCurrencyOf, blankExpense, checkExpense, EXPENSE_CATEGORIES, EXPENSE_CURRENCIES, isDuplicate, tripChoices, type ExpenseErrors, type ExpenseForm } from "./taxExpense";
 import { describeResult, stockroomWriteApi } from "./stockroomWrite";
 
@@ -22,11 +23,25 @@ export function LogExpenseCard({ taxCenter, onSaved, prefill, onPrefillDone }: {
   const [dupAsked, setDupAsked] = useState(false);
   // One id per expense being typed, so a second tap or a retry cannot add it twice.
   const id = useRef(Date.now() + Math.floor(Math.random() * 1000));
-  const set = (patch: Partial<ExpenseForm>) => { setForm((f) => ({ ...f, ...patch })); setDupAsked(false); };
+  // A category picked by hand is never replaced by a sorting rule.
+  const catTouched = useRef(false);
+  const [ruled, setRuled] = useState<string | null>(null);
+  const set = (patch: Partial<ExpenseForm>) => {
+    setForm((f) => {
+      const next = { ...f, ...patch };
+      if (patch.cat !== undefined) { catTouched.current = true; setRuled(null); }
+      else if (patch.desc !== undefined && !catTouched.current) {
+        const hit = categoryFromRules(taxCenter, patch.desc, EXPENSE_CATEGORIES);
+        if (hit) { next.cat = hit; setRuled(hit); } else setRuled(null);
+      }
+      return next;
+    });
+    setDupAsked(false);
+  };
   const cardRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!prefill) return;
-    setForm(prefill.form); setErrors({}); setDupAsked(false);
+    setForm(prefill.form); setErrors({}); setDupAsked(false); catTouched.current = true; setRuled(null);
     setNote({ tone: "ok", text: "Confirm the details and log it. The pending note clears itself once saved." });
     id.current = Date.now() + Math.floor(Math.random() * 1000);
     cardRef.current?.scrollIntoView?.({ behavior: "smooth", block: "center" });
@@ -53,6 +68,7 @@ export function LogExpenseCard({ taxCenter, onSaved, prefill, onPrefillDone }: {
         const d = describeResult(result);
         setNote({ tone: d.tone, text: d.tone === "ok" && !result.merged ? `Logged: ${form.desc.trim()}.` : d.text });
         setForm(blankExpense(base, todayText()));
+        catTouched.current = false; setRuled(null);
         if (prefill) onPrefillDone?.();
         id.current = Date.now() + Math.floor(Math.random() * 1000);
         setDupAsked(false);
@@ -69,7 +85,7 @@ export function LogExpenseCard({ taxCenter, onSaved, prefill, onPrefillDone }: {
       <form className="rp-money-form" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
         <TextField label="What was it for?" placeholder="e.g. Squarespace or Shopify" value={form.desc} error={errors.desc} onChange={(e) => set({ desc: e.target.value })} />
         <div className="rp-money-form-row">
-          <SelectField label="Tax category" value={form.cat} error={errors.cat} onChange={(e) => set({ cat: e.target.value })}>
+          <SelectField label="Tax category" hint={ruled ? "Filed here by one of your sorting rules." : undefined} value={form.cat} error={errors.cat} onChange={(e) => set({ cat: e.target.value })}>
             {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
           </SelectField>
           <TextField label="Date" type="date" value={form.date} error={errors.date} onChange={(e) => set({ date: e.target.value })} />
