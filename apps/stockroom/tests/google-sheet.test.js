@@ -96,7 +96,7 @@ describe('the Google Sheet tab', () => {
   it('asks the shop, shows when it was sent and links to the sheet', async () => {
     await openGoogleSheet(deps());
     expect(calls).toHaveLength(1);
-    expect(calls[0]).toMatchObject({ url: 'https://us-central1-moth-press.cloudfunctions.net/createStripeCheckoutSession', body: { action: 'googleConnect', step: 'status' }, auth: 'Bearer tok' });
+    expect(calls[0]).toMatchObject({ url: 'https://us-central1-moth-press.cloudfunctions.net/createStripeCheckoutSession?shop=moth-press', body: { action: 'googleConnect', step: 'status' }, auth: 'Bearer tok' });
     expect(card().dataset.state).toBe('ready');
     expect(card().textContent).toContain('Sent 5 minutes ago · 3 products · 2 sales · 0 costs');
     expect(card().querySelector('a[target=_blank]').getAttribute('href')).toBe(READY.sheet.url);
