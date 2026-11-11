@@ -6,7 +6,7 @@ import { shopOwnerEmail } from "../lib/ownerDevice";
 import { adminApi } from "./api";
 import { type AdminRole, type TeamRole } from "./adminAccess";
 import { hasStockroom } from "../../lib/shopProfile";
-import { STOCKROOM_FRAME_PATH, combinedAdmin } from "./combined";
+import { FAIR_TILL_PATH, combinedAdmin } from "./combined";
 import { endOfToday, teamApi, teamEmail, teamMemberProblem, type TeamMember } from "./teamApi";
 
 // Admin-only words (the Studio rule covers shopper-facing words).
@@ -14,13 +14,13 @@ import { endOfToday, teamApi, teamEmail, teamMemberProblem, type TeamMember } fr
 const STOCKROOM = hasStockroom();
 // Fair helpers ring up sales that the stockroom brings in, so only the plan with both apps offers the role.
 const FAIR_HELPERS = combinedAdmin();
-/** Where a fair helper opens their till: the stockroom at this shop's own address. */
-const fairTillAddress = (origin = typeof window === "undefined" ? "" : window.location.origin) => `${origin}${STOCKROOM_FRAME_PATH}`;
+/** Where a fair helper opens their till: this admin's address, where they see only the Fair till. */
+const fairTillAddress = (origin = typeof window === "undefined" ? "" : window.location.origin) => `${origin}${FAIR_TILL_PATH}`;
 const ROLE_WORDS: Record<TeamRole, { label: string; detail: string; added: string }> = {
   staff: { label: "Staff", detail: "Can do everything in the admin except change the Team or the payment and email connections.", added: "can open the admin" },
   owner: { label: "Owner", detail: STOCKROOM ? "Everything, including the Team, the payment and email connections, and the stockroom." : "Everything, including the Team and the payment and email connections.", added: "can open the admin" },
   author: { label: "Author", detail: "Can't open this admin. In the stockroom, they see and update only the books that name them as the author.", added: "can open their books in the stockroom" },
-  fairHelper: { label: "Fair helper", detail: `Can't open this admin. In the stockroom, they get only the Fair till: they ring up sales and see their own, and never see your money, settings, customers or other pages. Their sales join your records the next time your stockroom is open. Send them this address to open on their phone: ${fairTillAddress()}`, added: `can use the Fair till at ${fairTillAddress()}` },
+  fairHelper: { label: "Fair helper", detail: `Gets only the Fair till: they ring up sales and see their own, and never see your money, settings, customers or other pages. Their sales join your records while your admin is open. Send them this address to open on their phone: ${fairTillAddress()}`, added: `can use the Fair till at ${fairTillAddress()}` },
   bookkeeper: { label: "Bookkeeper", detail: `Reads the orders, sales, tax collected, payouts and bookkeeping downloads${STOCKROOM ? ", and the stockroom's tax centre" : ""}. Can't change anything, and doesn't see books, settings, the customer list or the Team.`, added: "can read the shop's sales and tax" },
 };
 
