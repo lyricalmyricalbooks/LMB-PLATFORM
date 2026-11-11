@@ -73,6 +73,7 @@ import { runBusinessNightly } from "../control-room/nightly.js";
 import { createTimeline, timelineRoutes } from "../control-room/timeline.js";
 import { createSharedSystemDesk, sharedSystemRoutes } from "../control-room/sharedSystem.js";
 import { createJobsPage, jobsRoutes } from "../control-room/jobs.js";
+import { weeklySummary } from "../control-room/weeklySummary.js";
 import { createShopNotes, notesRoutes } from "../control-room/notes.js";
 import { createSetupDesk, setupRoutes } from "../control-room/setupPresses.js";
 import { createSignInSafety, signInSafetyRoutes } from "../control-room/signInSafety.js";
@@ -271,7 +272,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const driftWatch = createDriftWatch({ registry, shopData, stockroomData, shopAccess, memberships: accountStores.memberships, email, settings, now: clock.date });
   const jobsPage = createJobsPage({
     admins, runner: jobs, activity, now: clock.date,
-    jobs: { "shop-maker": () => shopMaker.sweep(), "dropped-apps": () => billing.closeDroppedApps(), "every-app": () => billing.giveEveryApp(), "income-record": () => runBusinessNightly({ registry, settings, incomeHistory, billing, now: clock.date }), "press-messages": () => pressMessages.sweep(), "drift-watch": () => driftWatch.sweep() },
+    jobs: { "shop-maker": () => shopMaker.sweep(), "dropped-apps": () => billing.closeDroppedApps(), "every-app": () => billing.giveEveryApp(), "income-record": () => runBusinessNightly({ registry, settings, incomeHistory, billing, now: clock.date }), "press-messages": () => pressMessages.sweep(), "drift-watch": () => driftWatch.sweep(), "weekly-summary": () => weeklySummary({ registry, email, to: ADMIN_EMAIL, shopData, byHand: true, now: clock.date }) },
   });
   const notes = createShopNotes({ admins, store: fakeShopNotes(), registry, activity, now: clock.date });
   // Presses still in setup mode or opening (the Setting up page): read only.

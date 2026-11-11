@@ -46,3 +46,14 @@ test("the Monday email names shops with no sale after two weeks when orders can 
   const out = TEMPLATES["weekly-summary"](sent[0].data, { settings: { platformName: "Colophon" } });
   assert.match(JSON.stringify(out), /No sale yet after two weeks \(1\): Quiet Press/);
 });
+
+test("sent by hand from the Jobs page, the Monday email goes even after this week's one", async () => {
+  const sent = [];
+  const email = { sendPlatform: async (m) => sent.push(m) };
+  const registry = { listShops: async () => rows };
+  await weeklySummary({ registry, email, to: "owner@example.com", byHand: true, now: () => NOW });
+  await weeklySummary({ registry, email, to: "owner@example.com", byHand: true, now: () => new Date(NOW.getTime() + 60_000) });
+  assert.equal(sent.length, 2);
+  assert.notEqual(sent[0].idempotencyKey, sent[1].idempotencyKey);
+  assert.notEqual(sent[0].idempotencyKey, "weekly-summary-2026-W47");
+});

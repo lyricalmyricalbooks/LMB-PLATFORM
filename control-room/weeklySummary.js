@@ -3,6 +3,7 @@
 // this week, the shops that said they are leaving this week, and what Today still has waiting.
 // Reads the same numbers as Today (today.js todaySummary), so the email and the control room never disagree.
 // Safe to run twice: the email's key is the week, so a retry in the same week never sends a second one.
+// Sent by hand (the Jobs page's "Run now", byHand) it always goes: its key is the moment it was asked for.
 import { todaySummary } from "./today.js";
 import { isoWeek } from "./deletionNote.js";
 import { notSellingShops } from "./notSelling.js";
@@ -24,7 +25,7 @@ export function summaryOf(rows, settings, now = new Date()) {
   };
 }
 
-export async function weeklySummary({ registry, email, to, settings = {}, shopData = null, now = () => new Date() }) {
+export async function weeklySummary({ registry, email, to, settings = {}, shopData = null, byHand = false, now = () => new Date() }) {
   const at = now();
   if (!to) throw new Error("neither PLATFORM_ADMIN_EMAIL nor HEALTH_ALERT_TO is set, so the weekly summary has nobody to go to");
   const rows = await registry.listShops();
@@ -34,6 +35,6 @@ export async function weeklySummary({ registry, email, to, settings = {}, shopDa
     const { shops } = await notSellingShops({ rows, shopData, nowMs: at.getTime() }).catch(() => ({ shops: null }));
     if (shops) data.notSelling = shops.map((s) => `${s.pressName} (${s.days} days)`);
   }
-  await email.sendPlatform({ kind: WEEKLY_SUMMARY, to, idempotencyKey: `${WEEKLY_SUMMARY}-${isoWeek(at)}`, data });
+  await email.sendPlatform({ kind: WEEKLY_SUMMARY, to, idempotencyKey: byHand ? `${WEEKLY_SUMMARY}-by-hand-${at.toISOString()}` : `${WEEKLY_SUMMARY}-${isoWeek(at)}`, data });
   return { sent: true, waiting: data.waiting };
 }
