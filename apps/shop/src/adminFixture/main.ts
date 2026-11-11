@@ -13,6 +13,7 @@ import { createStockroomWriter, stockroomWriteApi } from "../app/admin/stockroom
 import { recomputeAfters } from "@stockroom/recompute-afters.js";
 import { stockistReceiptApi } from "../app/admin/stockroom/stockistReceipt"; // stockist-pay
 import { qrCodesStore } from "../app/admin/stockroom/qrCodesStore";
+import { sheetsStore } from "../app/admin/stockroom/sheetsStore";
 
 // Stockroom › To-do: two titles, one nearly sold out and one with nothing waiting (`?stock=empty`: nothing at all).
 const EMPTY_STOCKROOM = new URLSearchParams(window.location.search).get("stock") === "empty";
@@ -507,6 +508,22 @@ if (gstate) {
     };
   };
 }
+
+// ── Stockroom › Sheets (?page=stockroom/sheets&gstate=connected): a sheet sent eight hours ago, so opening the page sends it
+// again (in memory); the switch is kept in memory too. Without gstate the page shows its "Connect Google" state. ──
+if (/page=stockroom(\/|%2F)sheets/.test(window.location.search)) {
+  let copy = true;
+  sheetsStore.load = async () => copy;
+  sheetsStore.save = async (on) => { copy = on; };
+  const sentAt = new Date(Date.now() - 8 * 36e5).toISOString();
+  const status = googleConnectApi.status;
+  googleConnectApi.status = async () => {
+    const s = await status();
+    return s === "not_available" || !s.connected ? s : { ...s, sheet: { url: "https://docs.google.com/spreadsheets/d/example/edit", writtenAt: sentAt, rows: 2, sales: 14, expenses: 3 } };
+  };
+  googleConnectApi.sendStockSheet = async (tabs = {}) => ({ available: true, url: "https://docs.google.com/spreadsheets/d/example/edit", writtenAt: new Date().toISOString(), rows: 2, sales: tabs.sales?.length ?? 0, expenses: tabs.expenses?.length ?? 0 });
+}
+
 
 // Settings › Apps: a pretend app store, two installed apps and their activity (?apps=none for the empty page).
 {

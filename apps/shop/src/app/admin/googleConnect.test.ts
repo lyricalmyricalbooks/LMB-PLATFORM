@@ -57,6 +57,10 @@ describe("books Google Shopping turned down", () => {
 describe("the stock list in Google Sheets", () => {
   it("only a Google Sheets address is ever offered as a link", () => {
     expect(readStockSheet(null)).toEqual({ available: false });
+    expect(readGoogleStatus({ enabled: true, connected: true, sheet: { url: "https://docs.google.com/spreadsheets/d/abc/edit", writtenAt: "2026-11-11T10:00:00Z", rows: 2, sales: 1, expenses: null } }).sheet)
+      .toEqual({ url: "https://docs.google.com/spreadsheets/d/abc/edit", writtenAt: "2026-11-11T10:00:00Z", rows: 2, sales: 1, expenses: null });
+    expect(readGoogleStatus({ enabled: true, connected: true, sheet: { url: "https://example.com/x" } }).sheet?.url).toBeUndefined();
+    expect(readGoogleStatus({ enabled: true, connected: true }).sheet).toBeNull();
     expect(readStockSheet({ available: true, url: "https://docs.google.com/spreadsheets/d/abc/edit", rows: 3 })).toMatchObject({ available: true, url: "https://docs.google.com/spreadsheets/d/abc/edit", rows: 3 });
     expect(readStockSheet({ available: true, url: "https://example.com/phish" }).url).toBeUndefined();
     expect(readStockSheet({ available: true, url: "javascript:alert(1)" }).url).toBeUndefined();

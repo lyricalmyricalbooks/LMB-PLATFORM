@@ -55,7 +55,7 @@ export const STOCKROOM_PAGES: StockroomPage[] = [
   { id: "taxcenter", label: "Tax centre", description: "Sales tax collected, fees and what to file." },
   { id: "intel", label: "Insights", description: "Your best seller, your best channel and what is worth knowing." },
   { id: "customers", label: "Buyers in person", description: "People who bought at fairs, from invoices or by hand." },
-  { id: "sheets", label: "Sheets", description: "Keep a copy of your stockroom in a Google Sheet." },
+  { id: "sheets", label: "Sheets", description: "Your stock, sales and costs in a Google Sheet in your own Drive." },
   { id: "backups", label: "Backups", description: "Copies of your stockroom you can download or bring back." },
 ];
 

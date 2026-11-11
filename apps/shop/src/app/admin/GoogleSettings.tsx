@@ -3,7 +3,7 @@ import toast from "react-hot-toast";
 import { CalendarDays, ChartColumn, Clapperboard, ExternalLink, Globe, HardDrive, Mail, MapPin, Megaphone, Search, ShieldCheck, ShoppingBag, type LucideIcon } from "lucide-react";
 import { ErrorState, GhostButton, LoadingState, PrimaryButton, SecondaryButton, StatusBadge, Toggle, useConfirm } from "./riso/components";
 import { friendlyError } from "./settingsLayout";
-import { GOOGLE_BUTTON_WORDS, RECONNECT_WORDS, googleConnectApi, takeGoogleOutcome, useGoogleConnect, type GoogleExtra, type GoogleStatus, type ShoppingProblems, type StockSheet } from "./googleConnect";
+import { GOOGLE_BUTTON_WORDS, RECONNECT_WORDS, googleConnectApi, takeGoogleOutcome, useGoogleConnect, type GoogleExtra, type GoogleStatus, type ShoppingProblems } from "./googleConnect";
 import { extrasChanged, googleServices, googleSummary, serviceBadge, type ServiceId, type ServiceView } from "./googleHub";
 import { useShopWords } from "./shopWords";
 import { hasStockroom } from "../../lib/shopProfile";
@@ -306,27 +306,11 @@ export function ShoppingProblemsList() {
   );
 }
 
-/** "Send my stock list to my Google Sheet": the sheet is made in the press's own Drive the first time. */
+/** The sheet itself lives in Stockroom › Sheets (one place to make, send and open it); Drive's card points there. */
 export function StockSheetRow() {
-  const w = useShopWords();
-  const [busy, setBusy] = useState(false);
-  const [sheet, setSheet] = useState<StockSheet | null>(null);
-  const send = async () => {
-    setBusy(true);
-    try {
-      const next = await googleConnectApi.sendStockSheet();
-      setSheet(next);
-      if (!next.available) toast.error("Google didn't allow your Drive. Switch Your Google Drive on and save it with Google.");
-      else if (next.gone) toast("That sheet was deleted in your Drive. Press the button again to make a new one.");
-      else toast.success("Your stock list is in your Google Sheet");
-    } catch (err: any) {
-      toast.error(friendlyError(err, "send your stock list"));
-    } finally { setBusy(false); }
-  };
   return (
     <div className="gg-sheet">
-      <p className="gg-detail"><strong>{w("Stock list in Google Sheets")}</strong>{sheet?.url ? <> · <a href={sheet.url} target="_blank" rel="noreferrer noopener">Open it</a>{sheet.rows !== undefined ? ` (${sheet.rows} products)` : ""}</> : null}</p>
-      <SecondaryButton size="sm" disabled={busy} onClick={send}>{busy ? "Sending…" : sheet?.url ? "Update my sheet" : "Send my stock list"}</SecondaryButton>
+      <p className="gg-detail"><strong>Stock, sales and costs in Google Sheets</strong> · <a href="#stockroom/sheets">Open Sheets</a></p>
     </div>
   );
 }

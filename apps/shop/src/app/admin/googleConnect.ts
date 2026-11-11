@@ -24,7 +24,10 @@ export type GoogleStatus = {
   extrasOffered?: GoogleExtra[];
   extrasChosen?: GoogleExtra[];
   steps?: GoogleStep[];
+  /** The press's Google Sheet (Stockroom › Sheets), once one was made: its address, when it was last sent and its counts. */
+  sheet?: SheetInfo | null;
 };
+export type SheetInfo = { url?: string; writtenAt?: string; rows?: number; sales?: number | null; expenses?: number | null };
 
 /** Every part's name and one line about it, in the press's words. */
 export const GOOGLE_PARTS: Record<string, { label: string; about: string }> = {
@@ -69,6 +72,20 @@ export function readGoogleStatus(answer: unknown): GoogleStatus {
     steps: Array.isArray(a.steps)
       ? a.steps.filter((s: any) => s && typeof s.step === "string" && ["done", "failed", "waiting"].includes(s.state)).map((s: any) => ({ step: s.step, state: s.state, detail: String(s.detail ?? ""), at: s.at }))
       : [],
+    sheet: readSheetInfo(a.sheet),
+  };
+}
+
+const SHEET_URL = /^https:\/\/docs\.google\.com\/spreadsheets\//;
+const count = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
+/** The sheet named in the status, or null; the address must be a Google Sheets one. */
+function readSheetInfo(raw: unknown): SheetInfo | null {
+  if (!raw || typeof raw !== "object") return null;
+  const a = raw as Record<string, unknown>;
+  return {
+    url: typeof a.url === "string" && SHEET_URL.test(a.url) ? a.url : undefined,
+    writtenAt: typeof a.writtenAt === "string" ? a.writtenAt : undefined,
+    rows: count(a.rows), sales: count(a.sales) ?? null, expenses: count(a.expenses) ?? null,
   };
 }
 
@@ -89,14 +106,14 @@ export function readShoppingProblems(answer: unknown): ShoppingProblems {
   };
 }
 
-export type StockSheet = { available: boolean; url?: string; writtenAt?: string; rows?: number; gone?: boolean };
+export type StockSheet = { available: boolean; url?: string; writtenAt?: string; rows?: number; sales?: number | null; expenses?: number | null; gone?: boolean };
 
 /** Reads the platform's answer to "send my stock list"; the address must be a Google Sheets one. */
 export function readStockSheet(answer: unknown): StockSheet {
   const a = (answer && typeof answer === "object" ? answer : {}) as Record<string, any>;
   if (a.available !== true) return { available: false };
-  const url = typeof a.url === "string" && /^https:\/\/docs\.google\.com\/spreadsheets\//.test(a.url) ? a.url : undefined;
-  return { available: true, url, writtenAt: typeof a.writtenAt === "string" ? a.writtenAt : undefined, rows: Number.isFinite(a.rows) ? a.rows : undefined, gone: a.gone === true };
+  const url = typeof a.url === "string" && SHEET_URL.test(a.url) ? a.url : undefined;
+  return { available: true, url, writtenAt: typeof a.writtenAt === "string" ? a.writtenAt : undefined, rows: count(a.rows), sales: count(a.sales) ?? null, expenses: count(a.expenses) ?? null, gone: a.gone === true };
 }
 
 /** What Google sent the press back with (`?google=…`), then removed from the address. */
@@ -159,8 +176,18 @@ export const googleConnectApi = {
   disconnect: async () => { const next = readGoogleStatus(await call({ step: "disconnect" })); changed(next); return next; },
   /** The books Google Shopping turned down, each with what to fix. */
   shoppingProblems: async (): Promise<ShoppingProblems> => readShoppingProblems(await call({ step: "productProblems" })),
-  /** Writes the stockroom's stock list into the press's Google Sheet (made the first time). */
-  sendStockSheet: async (): Promise<StockSheet> => readStockSheet(await call({ step: "sheetSync" })),
+  /**
+   * Writes the press's Google Sheet (made the first time): the Stock tab the server reads itself, and the Sales and
+   * Expenses tabs from the stockroom's records when given (Stockroom › Sheets). The shared status learns the new sheet.
+   */
+  sendStockSheet: async (tabs: { sales?: unknown[][]; expenses?: unknown[][] } = {}): Promise<StockSheet> => {
+    const sheet = readStockSheet(await call({ step: "sheetSync", ...tabs }));
+    if (sheet.available && !sheet.gone && sheet.url && shared) {
+      const info: SheetInfo = { url: sheet.url, writtenAt: sheet.writtenAt, rows: sheet.rows, sales: sheet.sales ?? null, expenses: sheet.expenses ?? null };
+      shared = shared.then((s) => (s === "not_available" ? s : { ...s, sheet: info }));
+    }
+    return sheet;
+  },
   /** One tab of a Google Sheet the owner pasted the link of (plan 23.42); `available: false` until reading is allowed. */
   readSheet: async (args: { spreadsheetId: string; sheet?: string; gid?: number }) => call({ step: "sheetRead", ...args }),
   /** Test hook. */
