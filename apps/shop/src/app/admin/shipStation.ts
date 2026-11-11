@@ -106,3 +106,30 @@ export function paymentChip(o: any): { tone: Tone; text: string } {
   if (o?.paymentStatus === "pending") return { tone: "neutral", text: "Payment due" };
   return { tone: "neutral", text: "Not paid" };
 }
+
+/** The Orders list's pills (redesign to the mockup, 11 November 2026). */
+export type ListFilter = "all" | "unfulfilled" | "unpaid" | "shipped" | "refunded";
+export const LIST_FILTERS: Array<{ id: ListFilter; label: string }> = [
+  { id: "all", label: "All" }, { id: "unfulfilled", label: "Unfulfilled" }, { id: "unpaid", label: "Unpaid" },
+  { id: "shipped", label: "Shipped" }, { id: "refunded", label: "Refunded" },
+];
+const TO_SEND = ["Needs attention", "Ready to pack", "Ready to ship", "Ready for pickup", "Ready for local delivery", "Awaiting release"];
+
+/**
+ * Whether an order belongs under a pill. Unfulfilled: paid and still to send (problems and pre-orders too). Unpaid: an
+ * e-Transfer, cash or payment-link order waiting on its money. Shipped: on its way or done. Refunded: all or part of it.
+ */
+export function inListFilter(o: any, filter: ListFilter): boolean {
+  const q = deskQueue(o);
+  switch (filter) {
+    case "all": return true;
+    case "unfulfilled": return o?.paymentStatus === "paid" && TO_SEND.includes(q) && !isArchived(o);
+    case "unpaid": return q === "Unpaid" && o?.paymentStatus === "pending" && !isArchived(o);
+    case "shipped": return (q === "In transit" || q === "Completed") && o?.paymentStatus !== "refunded";
+    case "refunded": return o?.paymentStatus === "refunded" || o?.paymentStatus === "refund_pending" || !!o?.partiallyRefunded;
+  }
+}
+
+/** The list under a pill, newest first ("All" is the covers page's All orders). */
+export const listOrders = (orders: any[], filter: ListFilter, showTest = false) =>
+  gridOrders(orders, "all", "", "newest", showTest).filter((o) => inListFilter(o, filter));

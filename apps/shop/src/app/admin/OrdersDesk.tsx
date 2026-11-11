@@ -1,10 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OrderDetail } from "./OrderDetail";
 import { PastOrdersDialog } from "./PastOrdersDialog";
-import { Orders, loadOrderBooks, loadOrderSearchCatalog, patchOrdersCache, refreshOrdersCache } from "./Orders";
-import { EmptyState, LoadingState, MetricCard, PrimaryButton, SearchField, SecondaryButton, SelectField, StatusBadge, Tabs, Toggle } from "./riso/components";
+import { PaymentLinkDialog } from "./PaymentLinkDialog";
+import { exportOrdersCsv } from "./orderCsv";
+import { orderApi } from "../lib/commerce";
+import { adminApi } from "./api";
+import toast from "react-hot-toast";
+import { loadOrderBooks, loadOrderSearchCatalog, patchOrdersCache, refreshOrdersCache } from "./Orders";
+import { EmptyState, LoadingState, MetricCard, PageActions, PrimaryButton, SearchField, SecondaryButton, StatusBadge, Tabs, Toggle } from "./riso/components";
 import { NEEDS_ME_QUEUES, nextToOpen, rowBooks, rowCover, rowStatus, refundState, stepOrder, deskQueue } from "./ordersDesk";
-import { badgeText, gridCounts, gridOrders, itemCount, outsideQueue, paymentChip, shipsTo, stationQueue, stationStats, stationStep, type GridSort, type GridTab } from "./shipStation";
+import { LIST_FILTERS, badgeText, gridOrders, itemCount, listOrders, outsideQueue, paymentChip, shipsTo, stationQueue, stationStats, stationStep, type GridSort, type GridTab, type ListFilter } from "./shipStation";
 import { listDate, orderMoney, waitedText } from "./orderListHelpers";
 import { printOrders } from "./orderPrint";
 import { queueOf } from "./fulfillment";
@@ -15,7 +20,7 @@ import { FRENCH_ORDER_HINT, orderInFrench } from "./orderLanguage";
 
 const REFRESH_MS = 60 * 1000;
 const PAGE = 40;
-type Layout = "desk" | "grid" | "table";
+type Layout = "desk" | "grid";
 /** Phones (≤767px) get one list with four tabs: the ship queue, then the covers page's three lists. */
 type PhoneTab = "ship" | GridTab;
 const PHONE_MQ = "(max-width: 767px)";
@@ -45,7 +50,9 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
   const [gridQuery, setGridQuery] = useState("");
   const [tab, setTab] = useState<GridTab>("open");
   const [only, setOnly] = useState<Only>("");
-  const [sort, setSort] = useState<GridSort>("newest");
+  const sort: GridSort = "newest";
+  const [filter, setFilter] = useState<ListFilter>("all");
+  const [makingLink, setMakingLink] = useState(false);
   // Bring past orders over (plan 23.7), on the page a press lands on, not only in the Table layout (plan 23.22).
   const [bringingPast, setBringingPast] = useState(false);
   const [shown, setShown] = useState(PAGE);
@@ -110,8 +117,15 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
     const rows = gridOrders(orders || [], only ? "open" : phone && phoneTab !== "ship" ? phoneTab : tab, gridQuery, sort, showTest, catalog);
     return only ? rows.filter((o) => (only === "Unpaid" ? deskQueue(o) === "Unpaid" : queueOf(o) === only)) : rows;
   }, [orders, tab, phone, phoneTab, only, gridQuery, sort, showTest, catalog]);
-  const counts = useMemo(() => gridCounts(orders || [], showTest), [orders, showTest]);
-  useEffect(() => setShown(PAGE), [tab, phoneTab, only, gridQuery, sort, showTest]);
+  const listed = useMemo(() => listOrders(orders || [], filter, showTest), [orders, filter, showTest]);
+  useEffect(() => setShown(PAGE), [tab, phoneTab, only, gridQuery, sort, showTest, filter]);
+  // Export CSV: the paid and refunded orders under the pill, test orders never.
+  const exportCsv = () => {
+    const rows = listed.filter((o) => o.isTest !== true);
+    if (!rows.length) { toast.error("Nothing to export"); return; }
+    orderApi.downloadCsv(`orders-${new Date().toISOString().split("T")[0]}.csv`, exportOrdersCsv(rows, { paidOnly: true }));
+    toast.success(`Exported ${rows.length} order${rows.length === 1 ? "" : "s"}`);
+  };
 
   // Desktop: have an order open — the oldest one that needs you — unless the owner closed it.
   useEffect(() => {
@@ -149,8 +163,11 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
   }, [layout]);
 
   const pickLayout = (l: Layout) => setLayout(l);
-  const pickTab = (t: GridTab) => { setTab(t); setOnly(""); };
-  const showOnly = (o: Exclude<Only, "">) => { setOnly(o); setGridQuery(""); pickLayout("grid"); };
+  const showOnly = (o: Exclude<Only, "">) => {
+    setOnly(o); setGridQuery("");
+    setFilter(o === "Unpaid" ? "unpaid" : o === "In transit" ? "shipped" : "unfulfilled");
+    pickLayout("grid");
+  };
   // From the covers page: open the order in the station (it stays open even when it isn't in the queue).
   const openInStation = (id: string) => { pickLayout("desk"); open(id); };
   // The pick list covers every order still to pack, whatever the search box holds.
@@ -267,95 +284,71 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
     );
   }
 
-  if (layout === "table") {
+  // All orders, to the mockup (redesign, 11 November 2026): pills, then one table; a row opens the order in the Ship
+  // station, where packing, labels and refunds happen. Export CSV and Create order sit beside the page title.
+  if (layout !== "desk") {
+    const page = listed.slice(0, shown);
     return (
-      <div className="rp-stack" style={{ gap: 12 }}>
+      <div className="rp-stack od-list-page" style={{ gap: 16 }}>
         <style>{DESK_CSS}</style>
-        <header className="od-head">
-          <div role="group" aria-label="Show as" className="od-switch od-switch-inline">
-            <button type="button" aria-pressed="false" onClick={() => pickLayout("grid")}>Covers</button>
-            <button type="button" aria-pressed="true" className="is-on">Table</button>
-          </div>
-          <div className="od-head-actions">
-            <PrimaryButton onClick={() => pickLayout("desk")}>Ship station · {stats.toShip} to ship →</PrimaryButton>
-          </div>
-        </header>
-        <Orders onSelectOrder={(order) => openInStation(order.id)} />
-      </div>
-    );
-  }
-
-  if (layout === "grid") {
-    const page = grid.slice(0, shown);
-    return (
-      <div className="rp-stack od-grid-page" style={{ gap: 18 }}>
-        <style>{DESK_CSS}</style>
-        <div className="od-grid-bar">
-          <Tabs
-            label="Order lists"
-            value={only ? "open" : tab}
-            onChange={pickTab}
-            tabs={[{ id: "open", label: "Open", count: counts.open }, { id: "completed", label: "Completed", count: counts.completed }, { id: "all", label: "All orders", count: counts.all }]}
-          />
-          <div className="od-grid-tools">
-            <SearchField label="Find an order" placeholder={w("Order, name, email, book or ISBN")} value={gridQuery} onChange={(e) => setGridQuery(e.target.value)} />
-            <SelectField label="Sort" hideLabel value={sort} onChange={(e) => setSort(e.target.value === "oldest" ? "oldest" : "newest")}>
-              <option value="newest">Newest first</option>
-              <option value="oldest">Oldest first</option>
-            </SelectField>
-            <div role="group" aria-label="Show as" className="od-switch od-switch-inline">
-              <button type="button" aria-pressed="true" className="is-on">Covers</button>
-              <button type="button" aria-pressed="false" onClick={() => pickLayout("table")}>Table</button>
-            </div>
-            <div className="od-head-actions od-grid-actions">
-              <PrimaryButton onClick={() => pickLayout("desk")}>Ship station · {stats.toShip} to ship →</PrimaryButton>
-              <SecondaryButton onClick={() => pickLayout("table")}>Export orders</SecondaryButton>
-              <SecondaryButton onClick={() => setBringingPast(true)}>Bring past orders over</SecondaryButton>
-            </div>
-          </div>
+        <PageActions>
+          <SecondaryButton onClick={exportCsv}>Export CSV</SecondaryButton>
+          <PrimaryButton onClick={() => setMakingLink(true)}>Create order</PrimaryButton>
+        </PageActions>
+        <div className="od-pills" role="group" aria-label="Show">
+          {LIST_FILTERS.map((f) => (
+            <button key={f.id} type="button" className="od-pill" aria-pressed={filter === f.id} onClick={() => setFilter(f.id)}>{f.label}</button>
+          ))}
         </div>
         {bringingPast && <PastOrdersDialog onClose={() => setBringingPast(false)} onDone={() => void refreshOrdersCache().then((data) => { setOrders(data); setFailed(false); }).catch(() => setFailed(true))} />}
-        {only ? (
-          <p className="od-only" role="status">
-            Showing: <strong>{ONLY_LABEL[only]}</strong> <button type="button" className="od-link" onClick={() => setOnly("")}>Show every open order</button>
-          </p>
-        ) : null}
+        <PaymentLinkDialog open={makingLink} onClose={() => setMakingLink(false)} loadBooks={loadOrderBooks} makeLink={adminApi.makePaymentLink}
+          onMade={async (orderId) => {
+            setMakingLink(false);
+            toast.success("Payment link made. Copy it or email it from the order.");
+            const made = await adminApi.getOrderById(orderId).catch(() => null);
+            if (!made) { toast.error("The link was made, but the order didn't open. Find it under Unpaid."); return; }
+            setOrders(patchOrdersCache(made) || [made]);
+            openInStation(made.id);
+          }} />
         {loadProblem}
-        {notLoaded || (grid.length === 0 ? (
+        {notLoaded || (listed.length === 0 ? (
           <EmptyState
-            title={gridQuery ? "No orders match" : tab === "open" ? "Nothing open" : "No orders here yet"}
-            description={gridQuery ? "Try a different name, email or order number." : tab === "open" ? "Every order has been sent. New paid orders appear here and in the Ship station." : "Orders show up here as soon as customers check out."}
+            title={filter === "all" ? "No orders yet" : "Nothing here"}
+            description={filter === "all" ? "Orders show up here as soon as customers check out." : "No orders under this filter right now."}
+            action={filter === "all" ? <SecondaryButton size="sm" onClick={() => setBringingPast(true)}>Bring past orders over</SecondaryButton> : undefined}
           />
         ) : (
-          <ul className="od-cards" aria-label="Orders">
-            {page.map((o) => {
-              const s = rowStatus(o);
-              const pay = paymentChip(o);
-              const m = orderMoney(o);
-              const cover = rowCover(o, booksById);
-              const refund = refundState(o);
-              const titles = rowBooks(o);
-              return (
-                <li key={o.id}>
-                  <button type="button" className={`od-card${refund ? ` is-refunded is-refunded-${refund}` : ""}`} onClick={() => openInStation(o.id)} aria-label={`Order ${o.orderId || o.id}, ${o.customer?.name || "no name"}, ${badgeText(s.text)}, ${pay.text}`}>
-                    <span className="od-card-cover" aria-hidden="true">{cover ? <img src={cover} alt="" loading="lazy" decoding="async" /> : <span className="od-card-blank">{titles || "No books"}</span>}</span>
-                    <span className="od-card-body">
-                      <span className="od-row-top"><span style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 }}><strong className="rp-mono">{o.orderId || o.id}</strong>{orderInFrench(o) ? <span title={FRENCH_ORDER_HINT}><StatusBadge tone="neutral" glyph={false}><span aria-hidden="true">FR</span><span className="rp-sr-only">Shopped in French</span></StatusBadge></span> : null}</span><span className="rp-hint rp-mono">{listDate(o.paidAt || o.createdAt)}</span></span>
-                      <span className="od-card-who"><span><strong>{o.customer?.name || "—"}</strong> · {itemCount(o)}</span><span className="rp-mono od-row-amount" title={m.paid ? `Paid ${m.paid}` : undefined}>{m.text}</span></span>
-                      {/* Without a cover the titles are already written in the cover box. */}
-                      {titles && cover ? <span className="od-row-title" title={titles}>{titles}</span> : null}
-                      <span className="od-card-chips"><StatusBadge tone={s.tone}>{badgeText(s.text)}</StatusBadge><StatusBadge tone={pay.tone}>{pay.text}</StatusBadge>{o.isTest ? <StatusBadge tone="danger">Test</StatusBadge> : null}</span>
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+          <div className="od-table-card">
+            <table className="od-table">
+              <thead>
+                <tr><th scope="col">Order</th><th scope="col">Customer</th><th scope="col">Date</th><th scope="col">Items</th><th scope="col" className="od-num-col">Total</th><th scope="col">Payment</th><th scope="col">Fulfilment</th></tr>
+              </thead>
+              <tbody>
+                {page.map((o) => {
+                  const s = rowStatus(o);
+                  const pay = paymentChip(o);
+                  const where = shipsTo(o);
+                  return (
+                    <tr key={o.id} onClick={() => openInStation(o.id)}>
+                      <td><button type="button" className="od-table-open rp-mono" onClick={(e) => { e.stopPropagation(); openInStation(o.id); }}>{o.orderId || o.id}</button>{orderInFrench(o) ? <> <span title={FRENCH_ORDER_HINT}><StatusBadge tone="neutral" glyph={false}>FR</StatusBadge></span></> : null}{o.isTest ? <> <StatusBadge tone="danger" glyph={false}>Test</StatusBadge></> : null}</td>
+                      <td><span className="od-table-name">{o.customer?.name || o.customer?.email || "—"}</span>{where ? <span className="od-table-sub">{where}</span> : null}</td>
+                      <td className="od-table-muted">{listDate(o.paidAt || o.createdAt)}</td>
+                      <td className="od-table-muted">{itemCount(o)}</td>
+                      <td className="od-num-col"><strong>{orderMoney(o).text}</strong></td>
+                      <td><StatusBadge tone={pay.tone} glyph={false}>{pay.text}</StatusBadge></td>
+                      <td><StatusBadge tone={s.tone} glyph={false}>{badgeText(s.text)}</StatusBadge></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         ))}
-        {orders && grid.length > 0 && (
+        {orders && (
           <div className="od-grid-foot">
-            <span className="rp-hint">Showing {page.length} of {grid.length} orders · {sort === "oldest" ? "oldest" : "newest"} first</span>
-            {shown < grid.length && <SecondaryButton onClick={() => setShown((n) => n + PAGE)}>Show {Math.min(PAGE, grid.length - shown)} more</SecondaryButton>}
+            {listed.length > 0 && <span className="rp-hint">{page.length} of {listed.length}</span>}
+            {shown < listed.length && <SecondaryButton onClick={() => setShown((n) => n + PAGE)}>Show {Math.min(PAGE, listed.length - shown)} more</SecondaryButton>}
+            {listed.length > 0 && <button type="button" className="od-link" onClick={() => setBringingPast(true)}>Bring past orders over</button>}
             {testToggle}
           </div>
         )}
@@ -542,4 +535,22 @@ const DESK_CSS = `
 .od-phone-bar .rp-btn{min-height:48px}
 .od-phone-bar .rp-btn-primary{flex:1}
 .od-grid-foot{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;border-top:1px solid var(--rp-border);padding-top:14px}
+.od-pills{display:flex;flex-wrap:wrap;gap:8px}
+.od-pill{min-height:36px;padding:0 18px;border:0;border-radius:999px;background:var(--rp-surface);color:var(--rp-text);font:600 var(--rp-text-sm)/1 var(--rp-font-body);cursor:pointer}
+.od-pill[aria-pressed="true"]{background:var(--rp-text);color:var(--rp-canvas)}
+.od-pill:focus-visible,.od-table-open:focus-visible{outline:2px solid var(--rp-focus);outline-offset:2px}
+.od-table-card{background:var(--rp-surface);border-radius:var(--rp-radius-lg);padding:8px 22px;overflow-x:auto}
+.od-table{width:100%;border-collapse:collapse;font-size:var(--rp-text-sm)}
+.od-table th{padding:14px 10px 12px 0;text-align:left;font:500 var(--rp-text-xs)/1 var(--rp-font-mono);text-transform:uppercase;letter-spacing:.04em;color:var(--rp-text-muted);border-bottom:1px solid var(--rp-border)}
+.od-table td{padding:14px 10px 14px 0;border-bottom:1px solid var(--rp-border);vertical-align:middle}
+.od-table tbody tr:last-child td{border-bottom:0}
+.od-table tbody tr{cursor:pointer}
+.od-table tbody tr:hover td{background:var(--rp-surface-sunken)}
+.od-num-col,.od-table th.od-num-col{text-align:right;white-space:nowrap;padding-right:22px}
+.od-list-page .od-grid-foot{border-top:0;padding-top:0}
+.od-table-open{border:0;background:none;padding:0;color:var(--rp-text);font:500 var(--rp-text-sm)/1.2 var(--rp-font-mono);cursor:pointer}
+.od-table-name{display:block;color:var(--rp-text)}
+.od-table-sub{display:block;margin-top:3px;font-size:var(--rp-text-xs);color:var(--rp-text-muted)}
+.od-table-muted{color:var(--rp-text-muted);white-space:nowrap}
+@media (max-width:767px){.od-table-card{padding:4px 14px}.od-table th:nth-child(3),.od-table td:nth-child(3),.od-table th:nth-child(4),.od-table td:nth-child(4){display:none}}
 `;
