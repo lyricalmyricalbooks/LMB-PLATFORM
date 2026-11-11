@@ -2,18 +2,22 @@
 // stockroom's own filters and a drawer for one buyer's orders. Read-only. Grouping is the stockroom's (customers.ts).
 import { useMemo, useState } from "react";
 import { fmt, fmtD } from "@stockroom/money.js";
-import { SEGMENT_CHANNEL_LABELS, SEGMENT_ORDER_LABELS } from "@stockroom/customer-segment.js";
 
-import { DataTable, Drawer, EmptyState, GhostButton, MetricCard, SearchField, SecondaryButton, SelectField, StatusBadge, type Column } from "../riso/components";
+import { DataTable, Drawer, EmptyState, PageActions, SearchField, SecondaryButton, type Column } from "../riso/components";
+import { saveTable } from "../xlsxWriter";
 import { useShopWords } from "../shopWords";
-import { buildCustomers, customerSummary, filterCustomers, NO_CUSTOMER_FILTER, spendLine, type Customer, type CustomerFilters } from "./customers";
+import { buildCustomers, filterCustomers, NO_CUSTOMER_FILTER, spendLine, type Customer, type CustomerFilters } from "./customers";
 import { RecordsGate } from "./RecordsGate";
 import type { StockroomRecords } from "./stockroomData";
 import "./stockroom.css";
 import "./sales.css";
 
 const PAGE = 50;
-const SPEND = ["25", "50", "100", "250"];
+const csvCell = (v: unknown) => {
+  let t = v == null ? "" : String(v);
+  if (/^[=+\-@]/.test(t)) t = `'${t}`;
+  return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+};
 const list = (set: Set<string>) => [...set].sort().join(", ") || "—";
 
 function BuyerDetail({ buyer }: { buyer: Customer }) {
@@ -53,53 +57,33 @@ export function CustomersList({ records }: { records: StockroomRecords }) {
   const [open, setOpen] = useState<Customer | null>(null);
   const set = (patch: Partial<CustomerFilters>) => { setFilter((f) => ({ ...f, ...patch })); setLimit(PAGE); };
   const shown = useMemo(() => filterCustomers(customers, filter), [customers, filter]);
-  const items = useMemo(() => records.books.filter((b) => customers.some((c) => c.bookIds.has(b.id))), [records, customers]);
-
-  const filtered = Object.values(filter).some(Boolean);
-  const repeat = customers.filter((c) => c.orders >= 2).length;
   const columns: Column<Customer>[] = [
-    { key: "name", header: "Customer", lead: true, render: (c) => <button type="button" className="rp-sr-open" onClick={() => setOpen(c)}>{c.name || c.email}</button> },
-    { key: "email", header: "Email", render: (c) => c.name ? c.email : "" },
-    { key: "orders", header: "Orders", numeric: true, render: (c) => <>{c.orders}{c.orders >= 2 && <> <StatusBadge glyph={false} tone="success">Repeat</StatusBadge></>}</> },
+    { key: "name", header: "Name", lead: true, render: (c) => <button type="button" className="rp-sr-open" onClick={() => setOpen(c)}>{c.name || c.email}</button> },
+    { key: "orders", header: "Sales", numeric: true, render: (c) => c.orders },
     { key: "spent", header: "Spent", numeric: true, render: (c) => spendLine(c.spend) },
-    { key: "last", header: "Last purchase", render: (c) => fmtD(c.last) },
+    { key: "last", header: "Last seen", render: (c) => fmtD(c.last) },
   ];
   const clear = () => { setFilter(NO_CUSTOMER_FILTER); setLimit(PAGE); };
+  const download = () => {
+    const head = ["Name", "Email", "Sales", "Spent", "Last seen"];
+    const lines = shown.map((c) => [c.name, c.email, c.orders, spendLine(c.spend), c.last]);
+    saveTable(`buyers-${new Date().toISOString().slice(0, 10)}`, [head, ...lines].map((l) => l.map(csvCell).join(",")).join("\n"), "csv", "Buyers");
+  };
   return (
     <div className="rp-sr">
-      <div className="rp-grid-metrics">
-        <MetricCard label="Customers" value={customers.length} footer="With an email address" />
-        <MetricCard label="Repeat buyers" value={repeat} footer="Two orders or more" />
-        <MetricCard label="Sales without an email" value={noEmail} footer="Not listed here" />
-      </div>
-      <div className="rp-filter-bar">
-        <SearchField className="rp-grow" label="Search customers" placeholder="Name or email" value={filter.search} onChange={(e) => set({ search: e.target.value })} />
-        {items.length > 1 && (
-          <SelectField label={w("Book")} hideLabel value={filter.bookId} onChange={(e) => set({ bookId: e.target.value })}>
-            <option value="">{w("All books")}</option>{items.map((b) => <option key={b.id} value={b.id}>{b.title}</option>)}
-          </SelectField>
-        )}
-        <SelectField label="Channel" hideLabel value={filter.channel} onChange={(e) => set({ channel: e.target.value })}>
-          <option value="">All channels</option>{Object.entries(SEGMENT_CHANNEL_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </SelectField>
-        <SelectField label="Spent" hideLabel value={filter.spend} onChange={(e) => set({ spend: e.target.value })}>
-          <option value="">Any amount</option>{SPEND.map((n) => <option key={n} value={n}>Over {n}</option>)}
-        </SelectField>
-        <SelectField label="Orders" hideLabel value={filter.orders} onChange={(e) => set({ orders: e.target.value })}>
-          <option value="">Any number of orders</option>{Object.entries(SEGMENT_ORDER_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </SelectField>
-        {filtered && <GhostButton onClick={clear}>Clear filters</GhostButton>}
-      </div>
-      <p className="rp-sr-status" role="status">{customerSummary(customers.length, shown.length, noEmail)}</p>
+      {customers.length > 0 && <PageActions><SecondaryButton onClick={download}>Export CSV</SecondaryButton></PageActions>}
+      {customers.length > PAGE && (
+        <SearchField label="Search buyers" placeholder="Name or email" value={filter.search} onChange={(e) => set({ search: e.target.value })} />
+      )}
       {!customers.length ? (
-        <EmptyState inline icon="👥" title="No customers with an email yet" description={w("Everyone who buys from you appears here once a sale is recorded with their email address.") + (noEmail ? ` ${noEmail} recorded ${noEmail === 1 ? "sale has" : "sales have"} no email.` : "")} />
+        <EmptyState inline icon="👥" title="No buyers with an email yet" description={w("Everyone who buys from you appears here once a sale is recorded with their email address.") + (noEmail ? ` ${noEmail} recorded ${noEmail === 1 ? "sale has" : "sales have"} no email.` : "")} />
       ) : shown.length ? (
         <>
-          <DataTable caption="Customers" columns={columns} rows={shown.slice(0, limit)} rowKey={(c) => c.email.toLowerCase()} stackOnPhone onRowClick={setOpen} />
+          <DataTable caption="Buyers in person" columns={columns} rows={shown.slice(0, limit)} rowKey={(c) => c.email.toLowerCase()} stackOnPhone onRowClick={setOpen} />
           {shown.length > limit && <p className="rp-sr-more"><SecondaryButton onClick={() => setLimit((n) => n + PAGE)}>Show {Math.min(PAGE, shown.length - limit)} more</SecondaryButton> <span>Showing {limit} of {shown.length}</span></p>}
         </>
       ) : (
-        <EmptyState icon="🔍" title="No customers match" description={`You have ${customers.length} on record, but none match these filters.`} action={<SecondaryButton onClick={clear}>Show all customers</SecondaryButton>} />
+        <EmptyState icon="🔍" title="No buyers match" description={`You have ${customers.length} on record, but none match “${filter.search.trim()}”.`} action={<SecondaryButton onClick={clear}>Show every buyer</SecondaryButton>} />
       )}
       <Drawer open={!!open} onClose={() => setOpen(null)} title={open ? open.name || open.email : "Customer"} description={open?.name ? open.email : undefined}>
         {open && <BuyerDetail buyer={open} />}
