@@ -9,7 +9,8 @@ import type { Delta } from "@stockroom/tax-ledger.js";
 import { DataTable, EmptyState, MetricCard, Pagination, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge } from "../riso/components";
 import { useShopWords } from "../shopWords";
 import { RecordsGate } from "./RecordsGate";
-import { LogExpenseCard } from "./LogExpense";
+import { LogExpenseCard, type Prefill } from "./LogExpense";
+import { PendingExpensesCard } from "./PendingExpenses";
 import { filterLedger, ledgerCsvFile, ledgerTotals, LEDGER_PAGE_SIZE, sourcesOf, taxCenterModel, type LedgerFilter } from "./moneyReports";
 import { stockroomApi, type StockroomRecords } from "./stockroomData";
 import "./stockroom.css";
@@ -58,6 +59,7 @@ export function TaxCenterView({ records, now, onTaxCenter }: { records: Stockroo
   const [year, setYear] = useState("all");
   const [filter, setFilter] = useState<LedgerFilter>({ type: "all", query: "" });
   const [page, setPage] = useState(1);
+  const [confirming, setConfirming] = useState<Prefill | null>(null);
   const model = useMemo(() => taxCenterModel(sources, year, now), [sources, year, now]);
   const cur = model.baseCurrency;
   const money = (n: number) => fmt(n, cur);
@@ -97,7 +99,8 @@ export function TaxCenterView({ records, now, onTaxCenter }: { records: Stockroo
         <CashFlowChart buckets={model.buckets.filter((b) => b.income || b.expense || year !== "all")} cur={cur} />
       </SectionCard>
 
-      {onTaxCenter && <LogExpenseCard taxCenter={records.taxCenter} onSaved={onTaxCenter} />}
+      {onTaxCenter && <LogExpenseCard taxCenter={records.taxCenter} onSaved={onTaxCenter} prefill={confirming} onPrefillDone={() => setConfirming(null)} />}
+      {onTaxCenter && <PendingExpensesCard taxCenter={records.taxCenter} onSaved={onTaxCenter} onConfirm={setConfirming} />}
 
       <SectionCard title={year === "all" ? "By year" : `By month in ${year}`} flush>
         <DataTable stackOnPhone caption="Money in and out by period" rowKey={(b) => b.key}

@@ -48,8 +48,8 @@ export function isDuplicate(taxCenter: Row | null, form: ExpenseForm, amount: nu
   return rows.some((e) => e.date === form.date && String(e.desc || "").trim().toLowerCase() === want && Math.abs(Number(e.origAmount ?? e.amount) - amount) < 0.005);
 }
 
-/** The Tax centre with the new expense first in its list. `id` keeps a second tap or a retry from adding it twice. */
-export function addBusinessExpense(taxCenter: Row | null, form: ExpenseForm, amount: number, id: number, now: Date = new Date()): Row {
+/** The Tax centre with the new expense first in its list (and, when `confirmedNote` is given, that pending note cleared). `id` keeps a second tap or a retry from adding it twice. */
+export function addBusinessExpense(taxCenter: Row | null, form: ExpenseForm, amount: number, id: number, now: Date = new Date(), confirmedNote?: string | number): Row {
   const tc: Row = taxCenter && typeof taxCenter === "object" ? taxCenter : {};
   const base = baseCurrencyOf(tc);
   const list: Row[] = Array.isArray(tc.businessExpenses) ? tc.businessExpenses : [];
@@ -61,7 +61,9 @@ export function addBusinessExpense(taxCenter: Row | null, form: ExpenseForm, amo
     ...(rate ? {} : { fxMissing: true }), date: form.date, ref: form.ref.trim(), receipt: "",
     ...(form.trip.trim() ? { trip: form.trip.trim() } : {}), loggedAt: now.toISOString(),
   };
-  return { ...tc, businessExpenses: [row, ...list] };
+  // Confirming a pending note logs the expense and clears the note in the same save.
+  const pending = confirmedNote == null ? tc.pendingExpenses : (Array.isArray(tc.pendingExpenses) ? tc.pendingExpenses : []).filter((p: Row) => String(p.id) !== String(confirmedNote));
+  return { ...tc, businessExpenses: [row, ...list], ...(pending !== undefined ? { pendingExpenses: pending } : {}) };
 }
 
 /** Trip names already used, newest first, with how many expenses each holds (the old page's quick chips). */

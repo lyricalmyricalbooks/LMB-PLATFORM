@@ -1,6 +1,6 @@
 // Tax centre › Log a business expense. One save at a time, the result always shown (WRITING.md). A same-day, same-words,
 // same-amount expense asks for a second tap before it is added again.
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { PrimaryButton, SecondaryButton, SectionCard, SelectField, StatusBadge, TextField } from "../riso/components";
 import { addBusinessExpense, baseCurrencyOf, blankExpense, checkExpense, EXPENSE_CATEGORIES, EXPENSE_CURRENCIES, isDuplicate, tripChoices, type ExpenseErrors, type ExpenseForm } from "./taxExpense";
@@ -10,7 +10,10 @@ type Row = Record<string, any>;
 type Note = { tone: "ok" | "warn" | "error" | "busy"; text: string };
 const todayText = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 
-export function LogExpenseCard({ taxCenter, onSaved }: { taxCenter: Row | null; onSaved: (taxCenter: Row) => void }) {
+/** `prefill`: a pending note being confirmed. Saving logs the expense and clears the note in the same save. */
+export type Prefill = { noteId: string | number; form: ExpenseForm };
+
+export function LogExpenseCard({ taxCenter, onSaved, prefill, onPrefillDone }: { taxCenter: Row | null; onSaved: (taxCenter: Row) => void; prefill?: Prefill | null; onPrefillDone?: () => void }) {
   const base = baseCurrencyOf(taxCenter);
   const [form, setForm] = useState<ExpenseForm>(() => blankExpense(base, todayText()));
   const [errors, setErrors] = useState<ExpenseErrors>({});
@@ -20,6 +23,14 @@ export function LogExpenseCard({ taxCenter, onSaved }: { taxCenter: Row | null; 
   // One id per expense being typed, so a second tap or a retry cannot add it twice.
   const id = useRef(Date.now() + Math.floor(Math.random() * 1000));
   const set = (patch: Partial<ExpenseForm>) => { setForm((f) => ({ ...f, ...patch })); setDupAsked(false); };
+  const cardRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!prefill) return;
+    setForm(prefill.form); setErrors({}); setDupAsked(false);
+    setNote({ tone: "ok", text: "Confirm the details and log it. The pending note clears itself once saved." });
+    id.current = Date.now() + Math.floor(Math.random() * 1000);
+    cardRef.current?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+  }, [prefill]);
   const trips = tripChoices(taxCenter);
   const currencies = [...new Set([base, ...EXPENSE_CURRENCIES])];
 
@@ -36,12 +47,13 @@ export function LogExpenseCard({ taxCenter, onSaved }: { taxCenter: Row | null; 
     setBusy(true);
     setNote({ tone: "busy", text: "Saving…" });
     try {
-      const result = await stockroomWriteApi.updateSetting("taxCenter", (current) => addBusinessExpense(current as Row | null, form, checked.amount, id.current));
+      const result = await stockroomWriteApi.updateSetting("taxCenter", (current) => addBusinessExpense(current as Row | null, form, checked.amount, id.current, new Date(), prefill?.noteId));
       if (result.status === "saved" || result.status === "unchanged") {
         onSaved((result.value as Row) || {});
         const d = describeResult(result);
         setNote({ tone: d.tone, text: d.tone === "ok" && !result.merged ? `Logged: ${form.desc.trim()}.` : d.text });
         setForm(blankExpense(base, todayText()));
+        if (prefill) onPrefillDone?.();
         id.current = Date.now() + Math.floor(Math.random() * 1000);
         setDupAsked(false);
       } else setNote({ tone: "error", text: describeResult(result).text });
@@ -53,6 +65,7 @@ export function LogExpenseCard({ taxCenter, onSaved }: { taxCenter: Row | null; 
 
   return (
     <SectionCard title="Log a business expense" description="Anything the press paid for. It joins the ledger below and the totals above.">
+      <div ref={cardRef} />
       <form className="rp-money-form" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
         <TextField label="What was it for?" placeholder="e.g. Squarespace or Shopify" value={form.desc} error={errors.desc} onChange={(e) => set({ desc: e.target.value })} />
         <div className="rp-money-form-row">
