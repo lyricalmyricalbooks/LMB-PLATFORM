@@ -56,7 +56,10 @@ export function shipmentFor(order, parcel) {
   const to = order?.shipTo;
   if (!to?.line1 || !to.city || !to.country) return null;
   const currency = String(order.currency ?? "CAD").toLowerCase();
-  const items = (order.items ?? []).filter((item) => (item.quantity ?? 1) > 0);
+  // What's still to pack: copies sent ahead in a part, or refunded and put back, are left out (connection.js order()).
+  const items = (order.items ?? [])
+    .map((item) => ({ ...item, quantity: Number.isFinite(item.quantityToSend) ? item.quantityToSend : item.quantity ?? 1 }))
+    .filter((item) => item.quantity > 0);
   const value = order.totals?.subtotal ?? items.reduce((sum, item) => sum + (item.price ?? 0) * (item.quantity ?? 1), 0);
   return {
     name: text(to.name, 100) || "Customer", address_1: text(to.line1), address_2: text(to.line2) || undefined, city: text(to.city, 100),
@@ -121,6 +124,8 @@ export function createChitChatsApp({
     if (!order?.id || !ORDER.test(order.id)) return { skipped: "no order" };
     if (order.fulfillmentStatus && order.fulfillmentStatus !== "unfulfilled") return { skipped: "already sent" };
     if (/pickup|local|digital/i.test(order.fulfillmentMethod ?? "")) return { skipped: "not shipped" };
+    const lines = order.items ?? [];
+    if (lines.length && lines.every((item) => Number.isFinite(item.quantityToSend) && item.quantityToSend <= 0)) return { skipped: "nothing left to send" };
     const id = idOf(row.shopId, order.id);
     if (await shipments.get(id)) return { skipped: "already in Chit Chats" };
     const shipment = shipmentFor(order, row.parcel ?? USUAL_PARCEL);

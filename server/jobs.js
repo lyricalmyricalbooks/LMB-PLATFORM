@@ -52,7 +52,11 @@ export const RUNNERS = Object.freeze({
   bookkeeping: () => notConnectedFn(NOT_CONNECTED.bookkeeping),
   "income-record": ({ parts }) => async () => runBusinessNightly({ registry: parts.registry, settings: await parts.live(), incomeHistory: parts.incomeHistory, billing: parts.billing, now: parts.now }),
   "press-messages": ({ pressMessages }) => () => pressMessages.sweep(),
-  "app-alerts": ({ appAlerts }) => () => appAlerts.sweep(),
+  // Colophon's own apps are put (back) on the store first, so their alerts always have a listing to go to.
+  "app-alerts": ({ appAlerts, parts }) => async () => {
+    await parts?.ownApps?.ensure();
+    return appAlerts.sweep();
+  },
   "chitchats-tracking": ({ chitchats }) => () => chitchats.sweep(),
   "setup-clock": ({ setupClock }) => () => setupClock.sweep(),
   "drift-watch": ({ driftWatch }) => () => driftWatch.sweep(),

@@ -171,15 +171,28 @@ through Chit Chats for its cheaper rates.
    order sent through `POST /api/apps/v1/orders/<id>/fulfillment`, and the shop sends the usual shipped email.
 5. Disconnecting, or removing the app (alert `app/uninstalled`, or a key that stops working), forgets the details.
 
-Turning it on (real accounts): register the app in the app store as the platform team (`brand` left empty until Chit
-Chats' own logo is in `shared/brand-logos`), approve it, then set `CHITCHATS_APP_ID` (server/env.yaml) and the secrets
-`CHITCHATS_APP_SECRET` and `CHITCHATS_SEAL_KEY` (add them to `SECRETS` in `server/deploy.js` at the same time). Until
-then the page says "Opens soon" and the job does nothing. Try it first against Chit Chats' sandbox
-(`https://staging.chitchats.com`).
+Turning it on: nothing to do. Chit Chats is one of Colophon's own apps (below), so it lists itself and has its secret
+and sealing key from the start. `CHITCHATS_APP_ID`, `CHITCHATS_APP_SECRET` and `CHITCHATS_SEAL_KEY` still win when
+set. Try it first against Chit Chats' sandbox (`https://staging.chitchats.com`) with a test press.
 
 Company logos on store cards: an app listing may carry `brand` (an id from `shared/brand-logos`), accepted only from the
 platform team's own apps, so an outside maker can't borrow a company's logo. The shop shows that logo in place of the
 category picture.
+
+## Colophon's own apps (11 November 2026)
+
+The apps the platform team builds (Chit Chats now, then Mailchimp and Zapier) put themselves on the store
+(`services/apps/ownApps.js`), so no one registers, approves or configures them before a press can add one.
+
+- Each has a fixed id (`ownAppId(name)`), and its secret and sealing key are made from one platform secret through their
+  own HMAC labels: `OWN_APPS_SECRET` when set, else the `CHECKUP_SECRET` link phrase the server already needs. Nothing
+  new goes in Secret Manager. Changing that secret means presses connect these apps again.
+- `ensure()` runs before the store is read (`makers.storeList`) and before every app-alerts sweep. It writes the app as
+  listed and approved by "Colophon", only when its details changed, keeps a logo the team set, and never puts back an
+  app an admin took off the store. Its details pass the same checks as any maker's (`makers.detailsFrom`).
+- Control room › Apps shows them as "ours", so the team can set a company logo or take one off the store as usual.
+- `services/apps/ownApps.test.js` runs Chit Chats through the real plumbing: the store, the permission page, connect, a
+  paid order's alert, the shipment, the tracking request back to the shop, and removal.
 
 ## The first apps (Julian's picks, 4 November 2026)
 
@@ -189,8 +202,8 @@ Colophon builds these itself, as apps on the same plumbing any app maker uses. T
 ## Needs real accounts or people
 
 - A Zapier developer account to publish the Zapier app (26.13); Mailchimp and Klaviyo app registrations (26.12).
-- A Chit Chats account (sandbox first) to register and try the Chit Chats app (26.11), and Chit Chats' permission to show
-  its logo.
+- A Chit Chats account (sandbox first) to try the Chit Chats app (26.11) on the test shop, and Chit Chats' permission to
+  show its logo.
 
 - A lawyer: the app developer terms (what makers promise about data, Quebec's Law 25), before the store opens (26.9).
 - Stripe test mode for app charges (26.7).

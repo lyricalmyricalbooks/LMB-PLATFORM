@@ -217,3 +217,9 @@ test("the shipment and parcel are checked before anything reaches Chit Chats", (
   assert.equal(usd.country_code, "US");
   assert.equal(usd.value, "48.00");
 });
+
+test("only copies still to pack go to Chit Chats", () => {
+  const order = { ...ORDER, items: [{ title: "Moth Songs", quantity: 3, quantityToSend: 1, price: 24 }, { title: "Sent ahead", quantity: 1, quantityToSend: 0, price: 10 }] };
+  const shipment = shipmentFor(order, USUAL_PARCEL);
+  assert.deepEqual(shipment.line_items.map((l) => [l.description, l.quantity]), [["Moth Songs", 1]]);
+});
