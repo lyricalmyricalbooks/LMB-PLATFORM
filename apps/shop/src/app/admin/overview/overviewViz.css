@@ -259,8 +259,9 @@ button.rp-viz-rank-row:focus-visible { outline: 2px solid var(--rp-focus); outli
   .rp-ov-run .rp-list > .rp-ov-run-row { gap: 12px; }
 }
 
-/* Home's To do row (redesign, 11 November 2026): the Needs you lines as tiles, when the widget is full width. */
-.rp-todo-tiles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+/* Home's To do row (redesign, 11 November 2026): the Needs you lines as tiles, when the widget is full width. auto-fit, as
+   the mockup has it: one or two jobs stretch across the row instead of leaving empty columns. */
+.rp-todo-tiles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
 .rp-todo-tile { display: flex; flex-direction: column; gap: 6px; padding: 18px; border-radius: var(--rp-radius-lg); background: var(--rp-surface-sunken); min-width: 0; }
 .rp-todo-tile[data-quiet] { flex-direction: row; align-items: center; gap: 12px; }
 .rp-todo-kind { font: 500 var(--rp-text-xs)/1 var(--rp-font-mono); color: var(--rp-text-subtle); text-transform: uppercase; letter-spacing: .04em; }

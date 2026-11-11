@@ -66,3 +66,6 @@
   .rp-home-order > .rp-home-money { grid-area: money; text-align: right; }
   .rp-home-order > :last-child { grid-area: badge; justify-self: end; }
 }
+
+/* A button on a tile matches the To do tiles' buttons, so night look gives it the light pill too. */
+.rp-home-tile .rp-todo-go { background: var(--rp-text); color: var(--rp-canvas); }

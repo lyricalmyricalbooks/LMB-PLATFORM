@@ -146,7 +146,7 @@ export function HomeToday({ ownerName, orders, ordersFailed, fair, combined, tod
               <button type="button" className="rp-home-link" onClick={() => onOpen("orders")}>All orders →</button>
             </div>
             {!orders ? <p className="rp-home-empty">{ordersFailed ? "Couldn't load orders." : "Loading…"}</p>
-              : !latest.length ? <p className="rp-home-empty">No orders yet.</p>
+              : !latest.length ? <p className="rp-home-empty">No orders yet. Each new one shows up here as soon as someone checks out.</p>
               : (
                 <ul className="rp-home-rows">
                   {latest.map((o) => {
@@ -167,7 +167,7 @@ export function HomeToday({ ownerName, orders, ordersFailed, fair, combined, tod
           <article className="rp-home-card" aria-labelledby="home-best">
             <h3 className="rp-home-h3" id="home-best">Best sellers this week</h3>
             {!orders ? <p className="rp-home-empty">{ordersFailed ? "Couldn't load orders." : "Loading…"}</p>
-              : !best.length ? <p className="rp-home-empty">No website sales this week yet.</p>
+              : !best.length ? <p className="rp-home-empty">No website sales this week yet. Your best sellers show up here.</p>
               : (
                 <ul className="rp-home-rows">
                   {best.map((b, i) => (
