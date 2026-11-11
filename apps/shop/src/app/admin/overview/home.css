@@ -28,6 +28,7 @@
 .rp-home-bars { margin-top: auto; display: flex; align-items: flex-end; gap: 6px; height: 80px; }
 .rp-home-bars span { flex: 1; border-radius: 4px; background: currentColor; opacity: .45; min-width: 4px; }
 .rp-home-bars span[data-today] { opacity: 1; }
+.rp-home-bars-key { display: flex; justify-content: space-between; margin-top: 6px; font: 500 var(--rp-text-xs)/1 var(--rp-font-mono); opacity: .75; }
 
 .rp-home-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .rp-home-empty { margin: 8px 0 0; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
@@ -45,6 +46,12 @@
 .rp-home-initials[data-tone="2"] { background: var(--rp-tile-sky, var(--rp-info-tint)); }
 .rp-home-initials[data-tone="3"] { background: var(--rp-tile-lilac, var(--rp-surface-sunken)); }
 
+/* Three across with all four Today cards: takings and the till run two rows tall, so Best sellers sits under Latest
+   orders instead of alone on a row of its own. */
+@media (min-width: 1101px) {
+  .rp-home-grid:has(> :nth-child(4):last-child) > :nth-child(-n+2) { grid-row: span 2; }
+  .rp-home-grid:has(> :nth-child(4):last-child) .rp-home-bars { height: 180px; }
+}
 @media (max-width: 1100px) { .rp-home-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px) {
   .rp-home { gap: 22px; }
