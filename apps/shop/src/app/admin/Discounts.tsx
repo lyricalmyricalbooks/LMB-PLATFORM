@@ -446,7 +446,7 @@ export function Discounts() {
 
   return (
     <div className="rp-stack">
-      {discounts.length > 0 && <PageActions><PrimaryButton onClick={() => { setEditing(null); setDialogOpen(true); }}>New discount</PrimaryButton></PageActions>}
+      {discounts.length > 0 && <PageActions><SecondaryButton onClick={() => setMoving(true)}>Bring codes over</SecondaryButton><PrimaryButton onClick={() => { setEditing(null); setDialogOpen(true); }}>New discount</PrimaryButton></PageActions>}
 
       {discounts.length === 0 ? (
         <SectionCard>

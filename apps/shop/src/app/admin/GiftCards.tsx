@@ -462,11 +462,12 @@ export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpen
   const issueButton = <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={() => setIssuing(true)}>Issue gift card</PrimaryButton>;
   const importButton = <SecondaryButton icon={<Upload size={16} aria-hidden />} onClick={() => setImporting(true)}>Bring gift cards over</SecondaryButton>;
 
-  // The mockup: Issue gift card by the title, then one lilac card of codes and what is left on each, newest first.
+  // The mockup: Issue gift card by the title (Bring gift cards over beside it, so a shop that already has a card can
+  // still move the rest in), then one lilac card of codes and what is left on each, newest first.
   // A card that can't be spent says why before its amount; opening one shows its code, history and changes.
   return (
     <div className="rp-stack">
-      {cards.length > 0 && <PageActions><PrimaryButton onClick={() => setIssuing(true)}>Issue gift card</PrimaryButton></PageActions>}
+      {cards.length > 0 && <PageActions><SecondaryButton onClick={() => setImporting(true)}>Bring gift cards over</SecondaryButton><PrimaryButton onClick={() => setIssuing(true)}>Issue gift card</PrimaryButton></PageActions>}
       {cards.length === 0 ? (
         <SectionCard>
           <EmptyState icon="🎁" title="No gift cards yet"
