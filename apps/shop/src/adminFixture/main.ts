@@ -263,6 +263,12 @@ const known: Record<string, (...a: any[]) => any> = {
     { id: "d3", method: "automatic", title: "Two zines for $12", type: "fixed", value: 4, minQuantity: 2, isActive: true },
     { id: "d4", code: "FRIENDS", method: "code", type: "fixed", value: 5, isActive: false },
   ],
+  // Marketing › Gift cards as in the mockup: an unspent card, a part-spent one and one you turned off.
+  getGiftCards: async () => [
+    { id: "g1", last4: "4F2A", balanceMinor: 2500, initialMinor: 2500, source: "order", orderId: "o1", recipientName: "Cleo Example", createdAt: "2026-11-09T10:00:00.000Z" },
+    { id: "g2", last4: "77B1", balanceMinor: 850, initialMinor: 3000, source: "manual", createdAt: "2026-11-02T10:00:00.000Z" },
+    { id: "g3", last4: "0C9D", balanceMinor: 5000, initialMinor: 5000, source: "manual", enabled: false, createdAt: "2026-10-20T10:00:00.000Z" },
+  ],
   // o2's customer added a book after paying (plan 24.6): an open payment-link order that ships with it.
   getOrdersShippingWith: async (id: string) => (id === "o2" ? [{ id: "o2-add", orderId: "ADD-2", shipsWith: "o2", paymentStatus: "unpaid", status: "pending_payment", items: [{ id: "b2", title: "Night Songs", quantity: 1 }], paymentLink: { expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString() } }] : []),
   getOrders: async () => ORDERS,
