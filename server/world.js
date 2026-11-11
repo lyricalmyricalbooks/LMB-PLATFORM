@@ -309,7 +309,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
 
   // The business side, the timeline, the jobs page, notes, messages to presses, costs and a press's data.
   const incomeHistory = firestoreIncomeHistory(platform);
-  const business = createBusinessRoom({ registry, incomeHistory, admins, now });
+  const business = createBusinessRoom({ registry, incomeHistory, admins, billing, activity, now });
   const timeline = createTimeline({ admins, registry, activity, supportStore, emailLog: sentLog, shopData, now });
   const jobRuns = firestoreJobRuns(platform);
   const jobs = createJobs({ store: jobRuns, email, alertTo: String(env.HEALTH_ALERT_TO ?? "").trim() || null, now });

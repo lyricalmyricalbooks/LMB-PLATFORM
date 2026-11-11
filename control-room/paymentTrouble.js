@@ -9,6 +9,7 @@
 //
 // Order: the shops with a closing date first, fewest days left first; then the ones still being tried, longest first.
 import { DOWNLOAD_DAYS, PAUSED_DAYS } from "../services/billing/closing.js";
+import { paymentReminder } from "./today.js";
 
 const DAY = 86_400_000;
 const STATE_WORDS = { past_due: "Payment failing", unpaid: "Unpaid", incomplete: "Waiting for a first payment", paused: "Paused for a card" };
@@ -37,6 +38,7 @@ export function paymentTrouble(rows, now = new Date()) {
       closesAt,
       daysLeft: closesAt ? Math.max(0, Math.ceil((Date.parse(closesAt) - nowMs) / DAY)) : null,
       downloadUntil: closesAt ? new Date(Date.parse(closesAt) + DOWNLOAD_DAYS * DAY).toISOString() : null,
+      ...paymentReminder(billing),
     });
   }
   return list.sort((a, b) => {

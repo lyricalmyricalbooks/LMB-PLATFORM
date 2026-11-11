@@ -38,9 +38,10 @@ import { escapeHtml } from '../lib/html.js';
 import { legacyCopy } from '../lib/clipboard.js';
 import { toCsv } from '../lib/csv.js';
 import { downloadCsv } from '../lib/download.js';
-import { fmtD, getBookCurrencyCode, normalizeCurrencyCode } from '../lib/money.js';
+import { fmtD } from '../lib/money.js';
 import { describeCustomerFilters, joinFilterLabels } from '../lib/customer-segment.js';
 import { fileStem } from '../lib/shop-profile.js';
+import { buildCustomerList as buildCustomerListFrom, applyCustomerFilter, custEmailKey } from '../lib/customer-list.js';
 
 // ── CUSTOMERS / MAILING LIST ────────────────────────────────────────────────
 // Aggregates every buyer we can identify into one de-duplicated contact list
@@ -340,112 +341,20 @@ function _saveCustomerStripeCache(rows) {
   try { localStorage.setItem(CUSTOMER_STRIPE_KEY, JSON.stringify(rows || [])); } catch (_) { }
 }
 
-// Stable dedup key for a buyer — lowercased, trimmed email.
-function _custEmailKey(email) { return String(email || '').trim().toLowerCase(); }
+// Stable dedup key for a buyer: lowercased, trimmed email (lib/customer-list.js).
+const _custEmailKey = custEmailKey;
 
-function _custUpsert(map, email, name) {
-  const key = _custEmailKey(email);
-  if (!key) return null;
-  let rec = map.get(key);
-  if (!rec) {
-    rec = {
-      email: String(email).trim(), name: '', orders: 0, units: 0,
-      books: new Set(), bookIds: new Set(), channels: new Set(), sources: new Set(),
-      spend: {}, first: '', last: ''
-    };
-    map.set(key, rec);
-  }
-  const nm = String(name || '').trim();
-  if (nm && nm.length > rec.name.length) rec.name = nm; // keep the fullest name seen
-  return rec;
-}
-function _custAddSpend(rec, cur, amt) {
-  const c = normalizeCurrencyCode(cur || '', '') || String(cur || '').toUpperCase();
-  const n = Number(amt);
-  if (!c || !isFinite(n) || n === 0) return;
-  rec.spend[c] = (rec.spend[c] || 0) + n;
-}
-function _custTouchDate(rec, date) {
-  const d = String(date || '').slice(0, 10);
-  if (!d) return;
-  if (!rec.first || d < rec.first) rec.first = d;
-  if (!rec.last || d > rec.last) rec.last = d;
-}
-
-// Build the de-duplicated buyer list from every available source.
+// Build the de-duplicated buyer list from every available source. The grouping itself is lib/customer-list.js (pure),
+// shared with the shop admin's Customers page.
 function buildCustomerList() {
-  const map = new Map();
-  let noEmail = 0;
-
-  // 1) Order history across every book (authoritative, works offline).
-  Object.keys(states).forEach(bid => {
-    const bk = BOOKS[bid];
-    const bookCur = bk ? normalizeCurrencyCode(getBookCurrencyCode(bk), 'CAD') : 'CAD';
-    const bookTitle = bk?.title || bid;
-    (states[bid].hist || []).forEach(h => {
-      if (h.voided || h.gratuity || h.chan === 'Gratuity') return;
-      const email = h.shipEmail || h.email || '';
-      if (!_custEmailKey(email)) { noEmail++; return; }
-      const rec = _custUpsert(map, email, h.shipName || h.customer || '');
-      rec.orders++;
-      rec.units += Number(h.qty) || 0;
-      rec.books.add(bookTitle);
-      rec.bookIds.add(bid);
-      if (h.chan) rec.channels.add(h.chan);
-      const isStripe = typeof h.sheetsId === 'string' && h.sheetsId.startsWith('stripe-');
-      rec.sources.add(isStripe ? 'Stripe' : (h.chan === 'Website' ? 'Website' : (h.chan || 'Order')));
-      const payCur = h.payment?.currency ? normalizeCurrencyCode(h.payment.currency, bookCur) : bookCur;
-      const payAmt = h.payment?.amount != null ? h.payment.amount : (Number(h.qty) || 0) * (Number(h.price) || 0);
-      _custAddSpend(rec, payCur, payAmt);
-      _custTouchDate(rec, h.date);
-    });
+  return buildCustomerListFrom({
+    books: BOOKS,
+    states,
+    // Scanned website orders not yet applied, and the Stripe pull cache.
+    orders: (typeof orders !== 'undefined' ? orders : []),
+    appliedIds: (typeof getAllAppliedIds === 'function') ? getAllAppliedIds() : new Set(),
+    stripeRows: _loadCustomerStripeCache(),
   });
-
-  // 2) Scanned website orders not yet applied — still real buyers. Skip any
-  //    whose order number is already in history to avoid double-counting.
-  const applied = (typeof getAllAppliedIds === 'function') ? getAllAppliedIds() : new Set();
-  (typeof orders !== 'undefined' ? orders : []).forEach(o => {
-    if (!_custEmailKey(o.email)) return;
-    if (applied.has(o.orderNum) || applied.has(o.id)) return;
-    const rec = _custUpsert(map, o.email, o.customer || o.shipName || '');
-    rec.orders++;
-    rec.units += Number(o.qty) || 0;
-    const bk = o.bookId && BOOKS[o.bookId] ? BOOKS[o.bookId] : null;
-    if (bk) {
-      rec.books.add(bk.title);
-      rec.bookIds.add(o.bookId);
-      _custAddSpend(rec, normalizeCurrencyCode(getBookCurrencyCode(bk), 'CAD'), (Number(o.qty) || 0) * (Number(o.price) || bk.listPrice || 0));
-    }
-    rec.channels.add('Website');
-    rec.sources.add('Website');
-    _custTouchDate(rec, o.date);
-  });
-
-  // 3) Stripe pull cache — discover/enrich card buyers. Only add counts + spend
-  //    for buyers we don't already know locally, so payments already reconciled
-  //    into history aren't double-counted.
-  const knownBeforeStripe = new Set(map.keys());
-  _loadCustomerStripeCache().forEach(p => {
-    if (p.refunded || !_custEmailKey(p.email)) return;
-    const existed = knownBeforeStripe.has(_custEmailKey(p.email));
-    const rec = _custUpsert(map, p.email, p.customer || '');
-    rec.sources.add('Stripe');
-    _custTouchDate(rec, p.date);
-    if (!existed) {
-      rec.orders++;
-      _custAddSpend(rec, p.currency, p.amount);
-    }
-  });
-
-  const list = Array.from(map.values());
-  // ⚡ Bolt Optimization: Use string comparison instead of localeCompare for sorting ISO "YYYY-MM-DD" dates
-  list.sort((a, b) => {
-    const dA = a.last || '';
-    const dB = b.last || '';
-    return dA > dB ? -1 : (dA < dB ? 1 : 0);
-  }); // most recent first
-  list._noEmail = noEmail;
-  return list;
 }
 
 function _custSpendStr(spend) {
@@ -456,36 +365,10 @@ function _custSpendStr(spend) {
 }
 
 function _custApplyFilter(list) {
-  let out = list;
-  if (_customerBookFilter) out = out.filter(r => r.bookIds.has(_customerBookFilter));
-  if (_customerChannelFilter) {
-    out = out.filter(r => {
-      if (_customerChannelFilter === 'Stripe') return r.sources.has('Stripe');
-      return r.channels.has(_customerChannelFilter);
-    });
-  }
-  if (_customerSpendFilter) {
-    const min = Number(_customerSpendFilter);
-    out = out.filter(r => {
-      let sum = 0;
-      Object.keys(r.spend || {}).forEach(c => {
-        const amt = r.spend[c] || 0;
-        if (c === 'USD') sum += amt * 1.35;
-        else if (c === 'EUR') sum += amt * 1.48;
-        else if (c === 'GBP') sum += amt * 1.75;
-        else sum += amt;
-      });
-      return sum >= min;
-    });
-  }
-  if (_customerOrdersFilter === 'repeat') {
-    out = out.filter(r => r.orders >= 2);
-  } else if (_customerOrdersFilter === 'single') {
-    out = out.filter(r => r.orders === 1);
-  }
-  const q = _customerFilter.trim().toLowerCase();
-  if (q) out = out.filter(r => (r.name || '').toLowerCase().includes(q) || (r.email || '').toLowerCase().includes(q));
-  return out;
+  return applyCustomerFilter(list, {
+    bookId: _customerBookFilter, channel: _customerChannelFilter, spend: _customerSpendFilter,
+    orders: _customerOrdersFilter, search: _customerFilter,
+  });
 }
 
 // The mailing-safe slice: what's on screen, minus anyone who has opted out.
@@ -1577,9 +1460,6 @@ export {
   _loadCustomerStripeCache,
   _saveCustomerStripeCache,
   _custEmailKey,
-  _custUpsert,
-  _custAddSpend,
-  _custTouchDate,
   buildCustomerList,
   _custSpendStr,
   _custApplyFilter,

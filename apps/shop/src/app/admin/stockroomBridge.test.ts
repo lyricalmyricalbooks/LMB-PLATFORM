@@ -59,7 +59,7 @@ describe("asking the stockroom", () => {
   });
   it("opens the frame for a page that asked before the admin listened", () => {
     vi.stubGlobal("window", { location: { origin: ORIGIN } });
-    stockroomBridge.openPage("history");
+    stockroomBridge.openPage("reconcile");
     let needed = 0;
     const stop = stockroomBridge.onNeed(() => { needed += 1; });
     expect(needed).toBe(1);

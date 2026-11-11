@@ -46,8 +46,8 @@ describe('mailing list and segments', () => {
   });
 
   it('Stripe payments are counted per payment for buyers unknown beforehand', () => {
-    expect(customers).toMatch(/const knownBeforeStripe = new Set\(map\.keys\(\)\)/);
-    expect(customers).toMatch(/knownBeforeStripe\.has\(/);
+    expect(read("src/lib/customer-list.js")).toMatch(/const knownBeforeStripe = new Set\(map\.keys\(\)\)/);
+    expect(read("src/lib/customer-list.js")).toMatch(/knownBeforeStripe\.has\(/);
   });
 });
 
