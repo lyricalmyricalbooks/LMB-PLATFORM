@@ -29,6 +29,7 @@ import { isEditableLine } from "./taxLedger";
 import type { SaveNote } from "./saveTaxCenter";
 import { GapsCard } from "./GapsCard";
 import { YearReportCard } from "./YearReportCard";
+import { CardFeesCard } from "./CardFeesCard";
 import { filterLedger, ledgerCsvFile, ledgerTotals, LEDGER_PAGE_SIZE, sourcesOf, taxCenterModel, type LedgerFilter } from "./moneyReports";
 import { stockroomApi, type StockroomRecords } from "./stockroomData";
 import "./stockroom.css";
@@ -222,6 +223,7 @@ export function TaxCenterView({ records, now, onTaxCenter, onState, orders: give
 
       <StockValueCard books={records.books as Record<string, any>[]} states={records.states as Record<string, Record<string, any>>} taxCenter={records.taxCenter as Record<string, any> | null}
         fxRateCache={sources.fxRateCache} onTaxCenter={onTaxCenter} onState={onState} />
+      {Array.isArray(loaded) && <CardFeesCard orders={loaded} year={year} taxCenter={records.taxCenter as Record<string, any> | null} onSaved={onTaxCenter} />}
       <YearReportCard input={{ books: records.books as Record<string, any>[], states: records.states as Record<string, Record<string, any>>, taxCenter: records.taxCenter as Record<string, any> | null, fxRateCache: sources.fxRateCache }} year={year} money={money} />
       <TaxSeasonCard input={{ books: records.books as Record<string, any>[], states: records.states as Record<string, Record<string, any>>, taxCenter: records.taxCenter as Record<string, any> | null, fxRateCache: sources.fxRateCache }}
         year={year} onSaved={onTaxCenter} />
