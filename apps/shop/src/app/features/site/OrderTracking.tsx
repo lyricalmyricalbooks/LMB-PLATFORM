@@ -24,6 +24,7 @@ import { orderStage, orderStep, shippingDays, stepDates } from "./orderStatus";
 import { OrderRequestBox, PrivacyRequestBox } from "./OrderRequests";
 import { AddToOrderBox } from "./AddToOrderBox";
 import { PaymentLinkPay } from "./PaymentLinkPay";
+import { InvoicePay } from "./InvoicePay";
 import { payLinkState } from "./payLinkState";
 import { waitingPreorderLines, shipDateOf, formatReleaseDate, linePreorderNote } from "./preorder";
 
@@ -80,6 +81,8 @@ function OrderTrackingContent() {
   // The newsletter confirmation link does too: ?newsletter_confirm=1&e=…&t=…
   const [unsubscribe, setUnsubscribe] = useState<"" | "working" | "done" | "failed">("");
   const [newsConfirm, setNewsConfirm] = useState<"" | "working" | "done" | "failed">("");
+  // A stockroom invoice's card pay link lands here: ?invoicePay=<link> (functions/invoicePay.js).
+  const [invoicePay] = useState(() => (typeof window === "undefined" ? "" : (new URLSearchParams(window.location.search).get("invoicePay") || "").trim()));
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const run = (action: "confirm" | "unsubscribe", set: (v: "working" | "done" | "failed") => void) => {
@@ -295,6 +298,7 @@ function OrderTrackingContent() {
                   <p>{getCopy(settings?.design, unsubscribe === "working" ? "trackUnsubWorking" : unsubscribe === "done" ? "trackUnsubDone" : "trackUnsubFailed")}</p>
                 </div>
               )}
+              {/^[a-f0-9]{32}$/.test(invoicePay) && <InvoicePay token={invoicePay} design={settings?.design} />}
               {newsConfirm && (
                 <div className="fm-track-notice mb-6" data-tone={newsConfirm === "failed" ? "danger" : undefined} role="status"
                   data-studio-target="copy:Order tracking" data-studio-label="Newsletter confirmation message">

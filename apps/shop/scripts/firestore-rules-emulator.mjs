@@ -500,6 +500,22 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("owner can't answer an app request", assertFails(setDoc(doc(owner, "appRequests/r1"), { status: "refused" }, { merge: true })));
 }
 
+// Card pay links for stockroom invoices (functions/invoicePay.js): the team reads them, only Functions write.
+{
+  await env.withSecurityRulesDisabled(ctx => Promise.all([
+    setDoc(doc(folder(ctx.firestore()), "invoicePayLinks/aaaa"), { ref: "inv1", amountMinor: 5000, currency: "CAD", status: "open" }),
+    setDoc(doc(ctx.firestore(), "shops/s2/invoicePayLinks/bbbb"), { ref: "inv2", amountMinor: 900, currency: "CAD", status: "open" }),
+  ]));
+  const owner = signedIn("o1", { email: "owner@example.com", email_verified: true });
+  const reader = signedIn("u1", { email: "reader@example.com", email_verified: true });
+  const ownerS2 = signedIn("o1", { email: "owner@example.com", email_verified: true }, { shop: "s2" });
+  await check("owner reads an invoice pay link", assertSucceeds(getDoc(doc(owner, "invoicePayLinks/aaaa"))));
+  await check("owner can't write an invoice pay link", assertFails(setDoc(doc(owner, "invoicePayLinks/aaaa"), { amountMinor: 1 }, { merge: true })));
+  await check("a shopper can't read an invoice pay link", assertFails(getDoc(doc(reader, "invoicePayLinks/aaaa"))));
+  await check("anon can't read an invoice pay link", assertFails(getDoc(doc(anon, "invoicePayLinks/aaaa"))));
+  await check("owner can't read another shop's invoice pay link", assertFails(getDoc(doc(ownerS2, "invoicePayLinks/bbbb"))));
+}
+
 // Walls between shops (docs/shared-system.md). Shop s2 has its own records; nobody from s1's sign-in list may touch
 // them, and nobody from s2's (or from no list at all) may touch s1's, whatever role or address the pass carries.
 {

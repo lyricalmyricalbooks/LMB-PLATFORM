@@ -595,6 +595,11 @@ service cloud.firestore {
         allow read: if isAdminReader();
         allow write: if false;
       }
+      // Card pay links for stockroom invoices and settle-ups (functions/invoicePay.js): Functions write them, the team reads.
+      match /invoicePayLinks/{token} {
+        allow read: if isAdminReader();
+        allow write: if false;
+      }
       match /discounts/{docId} {
         // Public code validation happens via the validateDiscountCode function.
         allow read: if isAdminReader();
