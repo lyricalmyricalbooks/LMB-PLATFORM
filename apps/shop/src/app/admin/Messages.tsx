@@ -12,7 +12,7 @@ import { PaymentLinkDialog } from "./PaymentLinkDialog";
 import { quoteRequestOf, type QuoteRequest } from "./paymentLinks";
 import {
   Checkbox, ConfirmDialog, EmptyState, ErrorState, FilterBar, GhostButton, IconButton, LoadingState, PrimaryButton,
-  SearchField, SecondaryButton, SectionCard, StatusBadge, Tabs, TextArea, ToastProvider, useRisoToast,
+  PageActions, SearchField, SecondaryButton, StatusBadge, Tabs, TextArea, ToastProvider, useRisoToast,
 } from "./riso/components";
 
 // Messages sent from the storefront Contact Form section (collection `contactMessages`).
@@ -195,10 +195,6 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
     archived: messages.filter((m) => m.status === "archived").length,
   }), [messages]);
   const list = useMemo(() => filterMessages(messages, filter, q), [messages, filter, q]);
-  const last7 = useMemo(() => {
-    const since = Date.now() - 7 * 86400000;
-    return messages.filter((m) => (toDate(m.createdAt)?.getTime() || 0) >= since).length;
-  }, [messages]);
   const unread = totals?.unread ?? loadedCounts.unread;
   const chosen = list.filter((m) => selected.has(m.id));
   const allChosen = list.length > 0 && chosen.length === list.length;
@@ -215,9 +211,10 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
         <div className="rp-grow"><SearchField label="Search messages" placeholder="Search name, email or text…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
       </FilterBar>
 
-      <SectionCard flush collapsible={false} title="Messages"
-        description={`${list.length} in this view${hasMore ? " (older messages not loaded yet)" : ""} · ${last7} received in the last 7 days · ${totals?.all ?? messages.length} all time`}
-        actions={unread ? <StatusBadge tone="warning">{unread} unread</StatusBadge> : <StatusBadge tone="success">All read</StatusBadge>}>
+      <PageActions>
+        <SecondaryButton disabled={!messages.some(isUnread)} onClick={() => setStatuses(messages.filter(isUnread), (m) => (hasReplied(m) ? "replied" : "read"))}>Mark all read</SecondaryButton>
+      </PageActions>
+      <div className="rp-card rp-msg-card">
         {loading ? <LoadingState label="Loading messages…" />
           : error ? <ErrorState description="Messages could not be loaded." onRetry={load} />
           : list.length === 0 ? (
@@ -335,7 +332,7 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
               )}
             </>
           )}
-      </SectionCard>
+      </div>
 
       <PaymentLinkDialog
         open={!!linkFrom}

@@ -675,8 +675,12 @@ export function ErrorState({ title = "Something went wrong", description, onRetr
 export function SaveBar({ dirty, saving, onSave, onDiscard, message }: {
   dirty: boolean; saving?: boolean; onSave: () => void; onDiscard: () => void; message?: string;
 }) {
+  // The page header's Save (redesign: Save by the title), only in the admin shell and only once something changed.
+  const header = useContext(PageActionsSlot);
   if (!dirty) return null;
   return (
+    <>
+    {header && createPortal(<PrimaryButton onClick={onSave} disabled={saving}>{saving ? "Saving…" : "Save"}</PrimaryButton>, header)}
     <div className="rp-savebar" role="region" aria-label="Unsaved changes">
       <span role="status">{message || "You have unsaved changes."}</span>
       <span style={{ display: "flex", gap: 8 }}>
@@ -684,6 +688,7 @@ export function SaveBar({ dirty, saving, onSave, onDiscard, message }: {
         <PrimaryButton onClick={onSave} disabled={saving}>{saving ? "Saving…" : "Save changes"}</PrimaryButton>
       </span>
     </div>
+    </>
   );
 }
 
