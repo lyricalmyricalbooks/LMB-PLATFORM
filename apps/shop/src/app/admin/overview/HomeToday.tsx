@@ -1,7 +1,7 @@
 // Home, drawn to Julian's "Shop Admin Redesign" mockup (11 November 2026): a greeting with the two till buttons, the
 // To do tiles (website and stockroom together, most urgent first), then Today: the day's takings with a bar per day,
 // what the till is selling, the latest orders and this week's best sellers. The full figures board (periods, widgets)
-// moved to Analytics (the analytics page). Nothing here reads Firestore: the figures come from AnalyticsDashboard.
+// moved to Analytics (the analytics page). Nothing here reads Firestore: the figures come from HomePage.
 import { useContext, type ReactNode } from "react";
 import { PageAlertsSlot, PrimaryButton, SecondaryButton, StatusBadge, type BadgeTone } from "../riso/components";
 import { bestSellers, isRealPaidOrder, newestSales, orderStatusWords, totals, type Order } from "./overviewInsights";
@@ -60,7 +60,7 @@ export function HomeToday({ ownerName, orders, ordersFailed, fair, combined, tod
   fair: StockroomFair | null;
   /** Shop + stockroom: the till buttons and the Selling today tile show. */
   combined: boolean;
-  /** The To do tiles (AnalyticsDashboard's RunTiles). */
+  /** The To do tiles (HomePage's RunTiles). */
   todo: ReactNode;
   onOpen: (tab: string) => void;
   onOpenTill: () => void;

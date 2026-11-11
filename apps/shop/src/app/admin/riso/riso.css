@@ -920,7 +920,7 @@ div.rp-listcard-main { cursor: default; }
 .rp-update-links button { text-align: left; background: none; border: 0; padding: 7px 0; color: var(--rp-primary-text); text-decoration: underline; font: inherit; font-size: 13px; cursor: pointer; }
 .rp-update-links button:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
 
-/* ── Overview front page (AnalyticsDashboard) ──────────────────────────────
+/* ── Overview front page (Home and Analytics) ──────────────────────────────
  * A newspaper front page with print flair: masthead, a flare lead-story tile with the chart,
  * an ink run-sheet tile for live to-dos, and the figures in ruled columns. Token-only. */
 .rp-ov-eyebrow { display: flex; align-items: center; gap: 8px; font-size: var(--rp-text-2xs); font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; }

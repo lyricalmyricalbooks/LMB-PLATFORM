@@ -86,8 +86,8 @@ describe("RunList", () => {
     expect(clear).toContain("No reviews to moderate.");
   });
 
-  it("gives every Needs you line on the Overview a singular wording", () => {
-    const src = readFileSync(new URL("./AnalyticsDashboard.tsx", import.meta.url), "utf8");
+  it("gives every To do line on Home a singular wording", () => {
+    const src = readFileSync(new URL("./HomePage.tsx", import.meta.url), "utf8");
     const rows = src.match(/<RunRow [^>]*?label="[^"]+"[^>]*/g) || [];
     expect(rows.length).toBeGreaterThan(5);
     for (const r of rows) expect(r).toMatch(/ one="[^"]+"/);
