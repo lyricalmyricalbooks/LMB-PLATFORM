@@ -15,6 +15,7 @@ import { stockistReceiptApi } from "../app/admin/stockroom/stockistReceipt"; // 
 import { qrCodesStore } from "../app/admin/stockroom/qrCodesStore";
 import { sheetsStore } from "../app/admin/stockroom/sheetsStore";
 import { nightlyBackupApi } from "../app/admin/BackupsExportCard";
+import { copiesIO, readManifest, snapshotOf } from "../app/admin/stockroom/stockroomCopies";
 
 // Stockroom › To-do: two titles, one nearly sold out and one with nothing waiting (`?stock=empty`: nothing at all).
 const EMPTY_STOCKROOM = new URLSearchParams(window.location.search).get("stock") === "empty";
@@ -535,6 +536,18 @@ if (/page=stockroom(\/|%2F)backups/.test(window.location.search)) {
   nightlyBackupApi.list = async () => ({ backups: [0, 1, 2, 3, 4].map((d) => ({ day: night(d).toISOString().slice(0, 10), createdAt: night(d).toISOString(), documents: 1840 - d * 12, complete: true, downloadable: true, hasExport: true })) });
   nightlyBackupApi.backupNow = async () => { await new Promise((r) => setTimeout(r, 1000)); last = new Date().toISOString(); return { ok: true }; };
   nightlyBackupApi.downloadLink = async () => ({ url: "about:blank" });
+  // The stockroom's own copies, in memory: three daily ones from two sample items.
+  const whole = { catalog: { salt: { title: "Salt Almanac" }, moth: { title: "Moth Songs" } } as Record<string, unknown>, states: { salt: { stock: 4 }, moth: { stock: 2 } } as Record<string, any>, settings: {} };
+  const copies: Record<string, string> = {};
+  let list: any[] = [0, 1, 2].map((d) => { const t = night(d).getTime() + 6 * 36e5; copies[`sb-${t}`] = JSON.stringify(snapshotOf(whole, t)); return { id: `sb-${t}`, type: "auto", createdAt: t, bookCount: 2 }; });
+  copiesIO.list = async () => readManifest(list);
+  copiesIO.whole = async () => whole;
+  copiesIO.writeCopy = async (id, text) => { copies[id] = text; };
+  copiesIO.readCopy = async (id) => (copies[id] ? JSON.parse(copies[id]) : null);
+  copiesIO.deleteCopy = async (id) => { delete copies[id]; };
+  copiesIO.saveList = async (change) => { list = change(readManifest(list)); };
+  copiesIO.saveSetting = async (key, change) => { if (key === "catalog") whole.catalog = change(whole.catalog) as Record<string, unknown>; return { status: "saved", value: null, merged: false, conflicts: [] }; };
+  copiesIO.saveBook = async (id, state) => { whole.states[id] = state; return { status: "saved", state: state as any, merged: false, conflicts: [], written: ["stock"] }; };
 }
 
 // Settings › Apps: a pretend app store, two installed apps and their activity (?apps=none for the empty page).

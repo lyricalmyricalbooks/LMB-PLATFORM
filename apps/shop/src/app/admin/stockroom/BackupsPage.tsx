@@ -1,6 +1,6 @@
 // Stockroom › Backups, as the mockup shows it: "Back up now" by the title and one "Backups" list. It is the one place
 // for backups, downloads and exports in the combined admin (Settings › General points here): the nightly copy of the
-// whole shop, Download all your data (one zip), a second copy in a folder on this computer, and the spreadsheets.
+// whole shop, the stockroom's own daily copies (StockroomCopies.tsx), Download all your data (one zip), a second copy in a folder on this computer, and the spreadsheets.
 // Each row opens a drawer with its details; the parts are the same ones Settings › General shows on a shop-only admin.
 import { useState } from "react";
 
@@ -10,11 +10,12 @@ import { LocalBackupCard } from "../LocalBackupCard";
 import { readMeta, supported } from "../localBackup";
 import { Drawer, PageActions, PrimaryButton, SecondaryButton, StatusBadge } from "../riso/components";
 import { folderRow, nightlyRow } from "./backups";
+import { StockroomCopiesList, copiesLine, useStockroomCopies } from "./StockroomCopies";
 import { isTestBook, stockroomApi } from "./stockroomData";
 import { stockLocationsCsv } from "@stockroom/stock-locations.js";
 import "./stockroom.css";
 
-type Open = "" | "nightly" | "folder" | "sheets";
+type Open = "" | "nightly" | "copies" | "folder" | "sheets";
 
 /** The stock counts for another shop system, from the stockroom's own records (real books only). */
 export async function stockCountsFile(load = stockroomApi.load): Promise<[string, string, string] | null> {
@@ -27,6 +28,7 @@ export async function stockCountsFile(load = stockroomApi.load): Promise<[string
 export function BackupsPage() {
   const nightly = useNightlyBackup();
   const shop = useShopDownload();
+  const copies = useStockroomCopies();
   const [open, setOpen] = useState<Open>("");
   const [, setSeen] = useState(0);
   const close = () => { setOpen(""); setSeen((n) => n + 1); };
@@ -56,6 +58,13 @@ export function BackupsPage() {
               : <span className="rp-hint">Checking…</span>}
           </li>
           <li>
+            <button type="button" className="rp-listcard-main" onClick={() => setOpen("copies")} aria-label="Show the stockroom copies">
+              <span className="rp-listcard-name">Stockroom copies</span>
+              <span className="rp-listcard-sub">{copiesLine(copies.list, copies.failed)}</span>
+            </button>
+            <SecondaryButton size="sm" onClick={() => setOpen("copies")}>Open</SecondaryButton>
+          </li>
+          <li>
             <div className="rp-listcard-main">
               <span className="rp-listcard-name">Download all your data</span>
               <span className="rp-listcard-sub">{shop.summary ? `Saved: ${shop.summary}` : "Spreadsheet files and one zip"}</span>
@@ -82,6 +91,9 @@ export function BackupsPage() {
       <Drawer open={open === "nightly"} onClose={close} title="Nightly backups" description="Every night. Kept 30 days.">
         <NightlyBackupStatus nightly={nightly} />
         <NightlyBackupDays nightly={nightly} />
+      </Drawer>
+      <Drawer open={open === "copies"} onClose={close} title="Stockroom copies" description="Bring back one item, or everything.">
+        <StockroomCopiesList copies={copies} />
       </Drawer>
       <Drawer open={open === "folder"} onClose={close} title="Back up to a folder" description="A second copy on this computer.">
         <LocalBackupCard bare />

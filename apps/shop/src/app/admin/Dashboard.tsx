@@ -69,6 +69,7 @@ import { setProductSells } from "../lib/productHref";
 const StudioEditor = lazy(() => import("./studio/StudioWorkspace").then(m => ({ default: m.StudioWorkspace })));
 // Heavy admin pages load in their own chunks when first opened.
 const BookEditor = lazy(() => import("./BookEditor").then(m => ({ default: m.BookEditor })));
+const StockroomCopyAuto = lazy(() => import("./stockroom/StockroomCopies").then(m => ({ default: m.StockroomCopyAuto })));
 const Discounts = lazy(() => import("./Discounts").then(m => ({ default: m.Discounts })));
 const GiftCards = lazy(() => import("./GiftCards").then(m => ({ default: m.GiftCards })));
 const SalesChannels = lazy(() => import("./SalesChannels").then(m => ({ default: m.SalesChannels })));
@@ -957,6 +958,8 @@ export function Dashboard() {
         {/* The control room's messages to the press (platform/messages, code plan 19.14): admin only, never the storefront. */}
         <PlatformMessagesBar enabled={!!user} />
         {!!user && !supportVisit && <LocalBackupAuto />}
+        {/* The stockroom's daily online copy (Stockroom › Backups), made by the owner's admin. */}
+        {!!user && !supportVisit && COMBINED && isShopOwner(user.email) && <Suspense fallback={null}><StockroomCopyAuto /></Suspense>}
         {/* The admin home asks a paid plan's owner to turn on two-step sign-in (TwoStepReminder.tsx, plan 22.10). */}
         {activeTab === "overview" && !supportVisit && <TwoStepReminder plan={platformPlan} />}
         {/* The Overview board draws its own header (title, period, layout and Edit board). */}
