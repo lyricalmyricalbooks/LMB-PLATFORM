@@ -2,9 +2,8 @@ import { hasStockroom, shopProfile, type ShopProfile } from "../../lib/shopProfi
 
 // The combined admin (shop + stockroom plan, design: docs/combined-admin.md). A press with both apps gets one admin:
 // one menu holding the website's pages and the stockroom's, and no "Website · Inventory" switcher. The stockroom's
-// pages open inside this admin's content area, from the shop's own address (`/stockroom/app`), so one sign-in covers
-// both. Shop-only presses keep the website admin's own menu (riso/nav.ts MENU); stockroom-only presses never open it.
-// Pure; the frame is StockroomFrame.tsx and the stockroom's side is apps/stockroom/src/lib/inside-admin.js.
+// pages are drawn by this admin itself (stockroom/nativePages.ts), so one sign-in covers both. Shop-only presses keep
+// the website admin's own menu (riso/nav.ts MENU); stockroom-only presses never open it. Pure.
 
 /** Both apps on: the website admin becomes the one admin. */
 export function combinedAdmin(profile: ShopProfile = shopProfile): boolean {
@@ -15,8 +14,8 @@ export function combinedAdmin(profile: ShopProfile = shopProfile): boolean {
 export const STOCKROOM_TAB = "stockroom";
 /** Menu id of a stockroom page: `stockroom/<page>`. */
 export const STOCKROOM_ITEM_PREFIX = "stockroom/";
-/** Where the shop's Hosting serves the older stockroom app, still the fair helper's till link (apps/shop/firebase.json rewrite). */
-export const STOCKROOM_FRAME_PATH = "/stockroom/app";
+/** Where a fair helper opens their till: this admin, which shows them the Fair till only (FairHelperDesk.tsx). */
+export const FAIR_TILL_PATH = "/admin";
 /** The combined admin's own page with every sale in one list (Orders › All sales, AllSales.tsx): `#sales`. */
 export const SALES_TAB = "sales";
 /** Stock › Reorder list (ReorderList.tsx): products about to run out, `#reorder`. */

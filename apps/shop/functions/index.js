@@ -323,7 +323,7 @@ exports.syncMemberRole = onDocumentWritten({ document: "members/{email}", secret
   const before = event.data?.before?.exists ? event.data.before.data() : null;
   const after = event.data?.after?.exists ? event.data.after.data() : null;
   if (becameFairHelper(before, after)) {
-    const invite = fairHelperInviteEmail({ email: event.params.email, shopName: shopConfig.senderName, tillLink: siteLink("/stockroom/app") });
+    const invite = fairHelperInviteEmail({ email: event.params.email, shopName: shopConfig.senderName, tillLink: siteLink("/admin") });
     if (invite) {
       try {
         await sendOrderEmailOnce(`team-${invite.to}`, "fairHelperInvite", { ...invite, secret: resendSecretValue() });

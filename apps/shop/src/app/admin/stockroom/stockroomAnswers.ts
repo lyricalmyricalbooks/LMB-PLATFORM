@@ -7,6 +7,7 @@ import { localDay } from "@stockroom/calendar-day.js";
 
 import type { StockroomBook, StockroomFair, StockroomMatch, StockroomSale, StockroomTodo } from "../stockroomBridge";
 import type { StockroomRecords } from "./stockroomData";
+import { stuckSummary } from "./fairInbox";
 import { buildTodo, readDismissed } from "./todo";
 
 export type Ask = { what: "book"; book: string } | { what: "find"; isbn?: string; title?: string } | { what: "todo" } | { what: "sales"; since?: string } | { what: "fair" };
@@ -20,7 +21,7 @@ export function answerFrom(question: Ask, records: StockroomRecords, opts: { now
   switch (question.what) {
     case "find": return { match: findBook(books, { isbn: question.isbn, title: question.title }) };
     case "sales": return salesRows(books, records.states, { since: question.since || "" });
-    case "todo": return { items: todoItems(buildTodo(records, { words: opts.words, booksShop: opts.booksShop, dismissed: readDismissed(), now: opts.now })) };
+    case "todo": return { items: todoItems(buildTodo(records, { words: opts.words, booksShop: opts.booksShop, dismissed: readDismissed(), now: opts.now, fairHelpers: stuckSummary() })) };
     case "fair": {
       const day = localDay(opts.now || new Date());
       const list = records.books.map((b) => ({ id: b.id, title: b.title, currency: String(b.currency || ""), hist: (records.states[b.id]?.hist as unknown[]) || [] }));

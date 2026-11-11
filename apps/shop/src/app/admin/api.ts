@@ -72,7 +72,8 @@ import {
 import { db, firestore, auth, googleProvider } from "../../lib/firebase";
 import { BackupCodeError, backupCall, cleanBackupCode, finishTwoStep, firebaseTwoStep, twoStepNeeded, type TwoStepNeeded } from "./adminTwoStep";
 import { functionFetch } from "../lib/functionsBase";
-import { currentAdminRole, ensureShopOwnerKnown, isBookkeeperPass, refreshAdminRole } from "./adminAccess";
+import { combinedAdmin } from "./combined";
+import { currentAdminRole, ensureShopOwnerKnown, isBookkeeperPass, isFairHelperPass, refreshAdminRole } from "./adminAccess";
 import { startSupportVisit, supportOf } from "./supportSession";
 import { publicApi } from "../lib/publicApi";
 import { defaultSettings } from "./defaultSettings";
@@ -125,7 +126,8 @@ const refreshMyRole = (token: string) => functionFetch("refreshMyRole", { method
 async function afterAdminSignIn(user: import("firebase/auth").User, googleCredential: import("firebase/auth").AuthCredential | null) {
   // Only the owner and the people on the owner's Team list (adminAccess.ts) may open the admin.
   const role = await refreshAdminRole(user, refreshMyRole);
-  if (!role) {
+  // A fair helper sells at the stockroom's till, which only a shop with both the shop and the stockroom has.
+  if (!role || (role === "fairHelper" && !combinedAdmin())) {
     await signOut(auth);
     throw new Error("Unauthorized: this account is not on the shop's Team list");
   }
@@ -143,6 +145,14 @@ export const adminApi = {
     const user = auth.currentUser;
     if (!user) return null;
     return isBookkeeperPass(user.emailVerified, (await user.getIdTokenResult()).claims) ? { email: user.email ?? null } : null;
+  },
+  /** The signed-in fair helper ({ email }) when the pass is the Team's fair helper role, else null: they get the
+   *  Fair till, not the admin. */
+  fairHelperSignIn: async (): Promise<{ email: string } | null> => {
+    const user = auth.currentUser;
+    if (!user) return null;
+    if (!combinedAdmin()) return null;
+    return isFairHelperPass(user.emailVerified, user.email, (await user.getIdTokenResult()).claims) ? { email: user.email! } : null;
   },
   /** Learns the owner's address for a restored session, so the owner's own orders stay out of the figures. */
   learnShopOwner: () => ensureShopOwnerKnown(auth.currentUser, refreshMyRole),

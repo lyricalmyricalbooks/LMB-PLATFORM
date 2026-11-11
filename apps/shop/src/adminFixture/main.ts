@@ -634,7 +634,40 @@ if (new URLSearchParams(location.search).get("page") === "design") {
   } as any);
 }
 
-const params = new URLSearchParams(location.search);
-const page = params.get("page") || "";
-history.replaceState(null, "", `/admin?debug=true${page ? `#${page}` : ""}`);
-await import("../main");
+let helperShown = false;
+// Fair helpers: the owner's admin keeps the menu and the inbox in memory (nothing reaches Firestore). `?helper=1` shows
+// the Fair till a helper sees instead of the admin, with three items and one sale rung up earlier today.
+{
+  const { fairStore } = await import("../app/admin/stockroom/fairStore");
+  let menu: any = { at: new Date().toISOString(), books: [
+    { id: "salt-hours", title: "Salt Hours", price: 20, cur: "CAD", onHand: 14 },
+    { id: "night-songs", title: "Night Songs", price: 18, cur: "CAD", onHand: 3 },
+    { id: "ink-maps", title: "Ink Maps", price: 24, cur: "CAD", onHand: null },
+  ] };
+  const today = new Date().toLocaleDateString("en-CA");
+  let mine: any[] = [{ id: "fs-early-0000000001", by: "sam@example.com", day: today, fair: "Harbour Fair", method: "Cash", imported: { at: "x" },
+    lines: [{ bookId: "salt-hours", title: "Salt Hours", qty: 2, price: 20, cur: "CAD" }] }];
+  const watchers = new Set<(s: any[]) => void>();
+  const tell = () => { for (const w of watchers) w(mine); };
+  fairStore.watchSales = (cb) => { cb([]); return () => {}; };
+  fairStore.writeMenu = async (m) => { menu = m; };
+  fairStore.watchMenu = (cb) => { cb(menu); return () => {}; };
+  fairStore.watchMine = (_email, cb) => { watchers.add(cb); cb(mine); return () => { watchers.delete(cb); }; };
+  fairStore.addSale = async (id, sale) => { mine = [...mine, { ...sale, id }]; tell(); };
+  fairStore.cancelSale = async (id) => { mine = mine.map((x) => (x.id === id ? { ...x, cancelled: true } : x)); tell(); };
+  if (new URLSearchParams(location.search).get("helper") === "1") {
+    localStorage.setItem("colophon-helper-fair", JSON.stringify({ name: "Harbour Fair", day: today }));
+    const { createElement } = await import("react");
+    const { createRoot } = await import("react-dom/client");
+    const { FairHelperDesk } = await import("../app/admin/FairHelperDesk");
+    await import("../styles/index.css");
+    createRoot(document.getElementById("root")!).render(createElement(FairHelperDesk, { email: "sam@example.com", appearance: "light" }));
+    helperShown = true;
+  }
+}
+
+if (!helperShown) {
+  const page = new URLSearchParams(location.search).get("page") || "";
+  history.replaceState(null, "", `/admin?debug=true${page ? `#${page}` : ""}`);
+  await import("../main");
+}
