@@ -101,9 +101,9 @@ describe("Settings › Google", () => {
     expect(calls).toEqual([["connectLink", ["youtube"]]]);
   });
 
-  it("offers the stock list on a saved Drive", async () => {
+  it("points a saved Drive to the one Sheets page", async () => {
     await mount();
-    expect(card("drive").textContent).toContain("Send my stock list");
+    expect(card("drive").querySelector('a[href="#stockroom/sheets"]')?.textContent).toBe("Open Sheets");
   });
 
   it("disconnects only after the press says yes", async () => {
