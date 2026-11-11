@@ -8,7 +8,8 @@ import { downloadCsv } from "@stockroom/download.js";
 import type { Delta } from "@stockroom/tax-ledger.js";
 
 import { DataTable, Dialog, EmptyState, GhostButton, MetricCard, Pagination, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge } from "../riso/components";
-import { useShopWords } from "../shopWords";
+import { useShopSells, useShopWords } from "../shopWords";
+import { hasPublisherTools } from "../../../shared/shopSells";
 import { getOrdersCached } from "../ordersCache";
 import { TaxTop } from "./TaxTop";
 import { taxPeriods } from "./taxPeriods";
@@ -75,6 +76,7 @@ export function TaxCenterView({ records, now, onTaxCenter, onState, orders: give
   orders?: Record<string, any>[];
 }) {
   const w = useShopWords();
+  const sells = useShopSells();
   const sources = useMemo(() => sourcesOf(records), [records]);
   const nowMs = (now || new Date()).getTime();
   const periods = useMemo(() => taxPeriods(nowMs), [nowMs]);
@@ -120,7 +122,7 @@ export function TaxCenterView({ records, now, onTaxCenter, onState, orders: give
           <MetricCard label="Money in" value={money(s.sales)} footer={deltaText(s.deltas?.sales ?? null, s.prevYear)} />
           <MetricCard label="Money out" value={money(s.expenses)} footer={deltaText(s.deltas?.expenses ?? null, s.prevYear)} />
           <MetricCard label="Net" value={money(s.net)} footer={deltaText(s.deltas?.net ?? null, s.prevYear)} tone={s.net < 0 ? "danger" : undefined} />
-          <MetricCard label={w("Artist payouts")} value={money(s.artistPayouts)} footer={`Net after: ${money(s.netAfterPayouts)}`} />
+          {(hasPublisherTools(sells) || s.artistPayouts !== 0) && <MetricCard label={w("Artist payouts")} value={money(s.artistPayouts)} footer={`Net after: ${money(s.netAfterPayouts)}`} />}
         </div>
       </SectionCard>
 

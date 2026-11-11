@@ -47,3 +47,11 @@ describe("what a shop sells", () => {
     expect(server.sellsBooks("mix")).toBe(true);
   });
 });
+
+import { hasPublisherTools } from "./shopSells";
+describe("hasPublisherTools", () => {
+  it("is on for book and mixed shops, off for other goods", () => {
+    for (const a of [null, "books", "zines", "comics", "mix", "mixed"]) expect(hasPublisherTools(a)).toBe(true);
+    for (const a of ["clothing", "jewelry", "prints", "other"]) expect(hasPublisherTools(a)).toBe(false);
+  });
+});

@@ -109,3 +109,8 @@ export type ProductBase = (typeof PRODUCT_BASES)[number];
 export function productBase(answer?: string | null): ProductBase {
   return sellsBooks(answer) ? "books" : "products";
 }
+
+/** Publisher-only stockroom parts (artist shares, copies an author holds, author money): shops that sell books, mixed ones too. */
+export function hasPublisherTools(answer?: string | null): boolean {
+  return sellsBooks(answer) || answer === "mixed";
+}
