@@ -349,10 +349,12 @@ export const TEMPLATES = {
   }),
 
   /** A monthly payment was declined. Stripe tries again; the shop stays open meanwhile. */
-  "payment-failed": ({ price, nextTry, link }, { settings, pressName }) => layout({
+  "payment-failed": ({ price, nextTry, link, note }, { settings, pressName }) => layout({
     subject: `We couldn't take this month's payment for ${pressName}`,
     greeting: "Hello,",
     paragraphs: [
+      // The owner's own line from the control room's reminder, first, so it reads as a person and not the robot.
+      ...(note ? [String(note).slice(0, 300)] : []),
       `Your card was declined for this month's ${price} payment for ${pressName}. Your shop stays open while we sort it out.`,
       nextTry ? `We'll try the card again on ${nextTry}. To avoid another decline, update your card now.` : "Please update your card so your shop stays open.",
     ],
@@ -361,10 +363,12 @@ export const TEMPLATES = {
   }),
 
   /** The bank wants the press to confirm this month's payment (Stripe keeps the bill open meanwhile, code plan 22.5). */
-  "payment-needs-confirming": ({ price, link }, { settings, pressName }) => layout({
+  "payment-needs-confirming": ({ price, link, note }, { settings, pressName }) => layout({
     subject: `Your bank wants you to confirm ${pressName}'s payment`,
     greeting: "Hello,",
     paragraphs: [
+      // The owner's own line from the control room's reminder, first, so it reads as a person and not the robot.
+      ...(note ? [String(note).slice(0, 300)] : []),
       `Your bank asked you to confirm this month's ${price} payment for ${pressName} before it goes through. It's a normal safety step some banks take.`,
       `Use the button below to confirm it with your bank. Your shop stays open meanwhile.`,
     ],

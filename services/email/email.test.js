@@ -213,6 +213,12 @@ test("every billing email renders for the press, links to the account page and e
     }
   }
   assert.throws(() => TEMPLATES["card-needed"]({ link: "http://x.example" }, { settings, pressName: "P" }), /https/);
+  // The control room's reminder can carry the owner's own line: it comes first, after the greeting, and is escaped.
+  for (const kind of ["payment-failed", "payment-needs-confirming"]) {
+    const parts = TEMPLATES[kind]({ ...data, note: "Hi Sam, <i>quick</i> nudge." }, { settings, pressName: "Moth Press" });
+    assert.match(parts.text, /^Hello,\n\nHi Sam, <i>quick<\/i> nudge\.\n\n/, kind);
+    assert.match(parts.html, /Hi Sam, &lt;i&gt;quick&lt;\/i&gt; nudge\./, kind);
+  }
 });
 
 test("the past-due email says what the card provider needs in plain words and links only to the shop's admin", () => {

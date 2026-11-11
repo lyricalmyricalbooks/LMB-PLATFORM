@@ -1084,17 +1084,18 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
      * The control room's "Send reminder" on a failed plan payment: the press gets the email the failure sent (or the
      * bank-confirm one) again, with the link to fix it. Only while a payment is owed; a paused plan already had its own
      * email. At most one a day per shop (the email key carries the day), so a double tap never sends two.
-     * Answers { sent, to, kind } or { sent: false, why }.
+     * `note` is the owner's own short line, put first in the email. Answers { sent, to, kind } or { sent: false, why }.
      */
-    async remindPayment({ shopId }) {
+    async remindPayment({ shopId, note = "" }) {
+      const line = typeof note === "string" ? note.trim().replace(/\s+/g, " ").slice(0, 300) : "";
       const row = await subscriptions.get(shopId);
       if (!row || !OWING.has(row.status)) return { sent: false, why: "Nothing is owed on this shop's plan." };
       if (row.access === "paused") return { sent: false, why: "This shop is paused; the press already has the email to add a card." };
       if (!row.billingEmail) return { sent: false, why: "This shop has no billing email to send to." };
       const problem = row.paymentProblem ?? null;
       const kind = problem?.kind === "confirm" ? "payment-needs-confirming" : "payment-failed";
-      await notify(shopId, kind, { ...(problem?.amount ? { price: problem.amount } : {}), nextTry: dateText(problem?.nextTry ?? null) }, `${shopId}/remind/${at().slice(0, 10)}`);
-      await logChange(shopId, "payment-reminder", { kind });
+      await notify(shopId, kind, { ...(problem?.amount ? { price: problem.amount } : {}), nextTry: dateText(problem?.nextTry ?? null), ...(line ? { note: line } : {}) }, `${shopId}/remind/${at().slice(0, 10)}`);
+      await logChange(shopId, "payment-reminder", { kind, note: line || null });
       // Kept on the row (and its registry copy) so Today and Failed payments show when the press was last reminded.
       const { remindedAt } = await save(shopId, { remindedAt: at() }, null);
       return { sent: true, to: row.billingEmail, kind, remindedAt };

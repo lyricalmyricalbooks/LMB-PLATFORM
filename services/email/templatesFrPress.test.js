@@ -51,7 +51,7 @@ const SAMPLES = {
   "quiet-shop": [{ pressName: "Moth Press", link: SHOP_LINKS.shopAdmin, helpLink: "https://platform.example/help/" }],
   "domain-expiring": [{ domain: "yourpress.example", daysLeft: 30, date: "December 3, 2026", seller: "Example Names", own: "lmb-test-shop.web.app" }, { domain: "yourpress.example", daysLeft: 1, date: "December 3, 2026", seller: null, own: "lmb-test-shop.web.app" }],
   "domain-not-pointing": [{ domain: "yourpress.example", own: "lmb-test-shop.web.app", link: SHOP_LINKS.shopAdmin }],
-  "payment-failed": [{ ...BILLING }, { ...BILLING, nextTry: null }],
+  "payment-failed": [{ ...BILLING }, { ...BILLING, nextTry: null }, { ...BILLING, note: "Bonjour Sam, un petit rappel." }],
   "subscription-cancelled": [{ ...BILLING }],
   "subscription-ended": [{ ...BILLING }],
   "payments-past-due": [{ provider: "Stripe", needs: ["your bank details"], link: SHOP_LINKS.shopAdmin }, { provider: "Stripe", needs: ["your bank details", "your date of birth"], link: SHOP_LINKS.shopAdmin }],
