@@ -6,7 +6,7 @@ import toast from "react-hot-toast";
 import { adminApi } from "./api";
 import { draftProblem, isActiveIssue, NEWSLETTER_STATUS, reachedText, type NewsletterIssue } from "./newsletterIssues";
 import {
-  DataTable, Dialog, EmptyState, GhostButton, PrimaryButton, SecondaryButton, SectionCard, StatusBadge, TextArea, TextField,
+  DataTable, Dialog, EmptyState, GhostButton, PrimaryButton, SecondaryButton, SectionCard, SelectField, StatusBadge, TextArea, TextField,
   useConfirm, type Column,
 } from "./riso/components";
 
@@ -21,12 +21,22 @@ export function NewsletterCard() {
   const [draft, setDraft] = useState(EMPTY);
   const [busy, setBusy] = useState<"" | "test" | "send">("");
   const [loadFailed, setLoadFailed] = useState(false);
+  const [to, setTo] = useState<"list" | "buyers" | "everyone">("list");
+  const [reach, setReach] = useState<number | null>(null);
 
   const load = useCallback(() => {
     adminApi.listNewsletterIssues().then((rows) => { setIssues(rows); setLoadFailed(false); }).catch(() => setLoadFailed(true));
     adminApi.newsletterAdmin("audience").then((r) => setAudience(r.audience ?? 0)).catch(() => setAudience(null));
   }, []);
   useEffect(() => { load(); }, [load]);
+  // How many the chosen group reaches (the list's count is the card's own).
+  useEffect(() => {
+    if (to === "list") { setReach(audience); return; }
+    setReach(null);
+    let live = true;
+    adminApi.newsletterAdmin("audience", { to }).then((r) => { if (live) setReach(r.audience ?? 0); }).catch(() => { if (live) setReach(null); });
+    return () => { live = false; };
+  }, [to, audience]);
 
   // While one is sending, check its progress every 30 seconds.
   const sending = (issues || []).some(isActiveIssue);
@@ -49,7 +59,7 @@ export function NewsletterCard() {
   };
 
   const sendAll = async () => {
-    const people = audience ?? 0;
+    const people = reach ?? 0;
     const yes = await ask({
       title: `Send to ${people} ${people === 1 ? "person" : "people"}?`,
       message: "Once it starts, it can't be taken back from inboxes it has reached. You can cancel the rest while it's sending.",
@@ -58,7 +68,7 @@ export function NewsletterCard() {
     if (!yes) return;
     setBusy("send");
     try {
-      const r = await adminApi.newsletterAdmin("send", draft);
+      const r = await adminApi.newsletterAdmin("send", { ...draft, to });
       await adminApi.recordAuditLog("customers", `Sent newsletter: ${draft.subject}`).catch(() => {});
       toast.success(`Sending to ${r.audience} ${r.audience === 1 ? "person" : "people"}. It starts within 15 minutes.`);
       setOpen(false);
@@ -115,18 +125,24 @@ export function NewsletterCard() {
         footer={<>
           <SecondaryButton onClick={() => setOpen(false)} disabled={!!busy}>Cancel</SecondaryButton>
           <SecondaryButton onClick={sendTest} disabled={!!problem || !!busy}>{busy === "test" ? "Sending test…" : "Send me a test"}</SecondaryButton>
-          <PrimaryButton onClick={sendAll} disabled={!!problem || !!busy || !audience}>
-            {busy === "send" ? "Starting…" : `Send to ${audience ?? 0} ${audience === 1 ? "person" : "people"}`}
+          <PrimaryButton onClick={sendAll} disabled={!!problem || !!busy || !reach}>
+            {busy === "send" ? "Starting…" : `Send to ${reach ?? 0} ${reach === 1 ? "person" : "people"}`}
           </PrimaryButton>
         </>}>
         <div className="rp-stack">
+          <SelectField label="Send to" value={to} onChange={(e) => setTo(e.target.value as typeof to)}
+            hint={to === "list" ? undefined : "People who bought in the last two years. Anyone who unsubscribed is left out."}>
+            <option value="list">Your mailing list</option>
+            <option value="buyers">Past buyers</option>
+            <option value="everyone">Mailing list and past buyers</option>
+          </SelectField>
           <TextField label="Subject" value={draft.subject} onChange={set("subject")} maxLength={150} placeholder="New this month, and where to find us" />
           <TextArea label="Message" value={draft.body} onChange={set("body")} rows={12} maxLength={20000}
             hint="Leave a blank line between paragraphs. {{shop_name}} becomes your shop's name." />
           <TextField label="Button words (optional)" value={draft.buttonText} onChange={set("buttonText")} maxLength={40} placeholder="See what's new" />
           <TextField label="Button opens (optional)" value={draft.buttonUrl} onChange={set("buttonUrl")} placeholder="https://" inputMode="url" />
           {problem && (draft.subject || draft.body || draft.buttonText || draft.buttonUrl) && <p className="rp-hint" role="status">{problem}</p>}
-          {audience === 0 && <p className="rp-hint" role="status">Nobody has confirmed yet, so there is no one to send to. You can still send yourself a test.</p>}
+          {reach === 0 && to === "list" && <p className="rp-hint" role="status">Nobody has confirmed yet, so there is no one to send to. You can still send yourself a test.</p>}
         </div>
       </Dialog>
       {confirmNode}

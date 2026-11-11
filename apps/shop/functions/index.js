@@ -1851,20 +1851,35 @@ const { handleInvoicePay, handleInvoicePayOpen } = require("./invoicePay").invoi
 });
 
 // Customers › Newsletter (newsletterSend.js): who is on the list, and sending to them a page at a time from the sweep.
-const { runNewsletterIssues, newsletterAdminActions, audienceCount } = require("./newsletterSend");
+const { runNewsletterIssues, newsletterAdminActions, audienceCount, pastBuyerEmails, recipientRows } = require("./newsletterSend");
 async function newsletterOptedOutIds() {
   const snap = await db.collection("marketing-optout").select().limit(50000).get();
   return new Set(snap.docs.map(d => d.id));
 }
-async function listNewsletterSubscribers(afterId, limit) {
-  let query = db.collection("newsletter").orderBy("__name__");
-  if (afterId) query = query.startAfter(afterId);
-  const snap = await query.limit(limit).get();
-  return snap.docs.map(d => ({ id: d.id, data: d.data() }));
+async function listNewsletterSubscribers(afterId, limit, to = "list") {
+  if (to === "list") {
+    let query = db.collection("newsletter").orderBy("__name__");
+    if (afterId) query = query.startAfter(afterId);
+    const snap = await query.limit(limit).get();
+    return snap.docs.map(d => ({ id: d.id, data: d.data() }));
+  }
+  return (await newsletterRecipients(to)).filter(r => !afterId || r.id > afterId).slice(0, limit);
 }
-async function newsletterAudience() {
-  const [subscribers, optedOut] = await Promise.all([db.collection("newsletter").limit(20000).get(), newsletterOptedOutIds()]);
-  return audienceCount(subscribers.docs.map(d => d.data()), optedOut, optOutId);
+// Past buyers (newsletterSend.js pastBuyerEmails), merged with the list when asked. Read whole: a shop's two years of orders.
+async function newsletterRecipients(to) {
+  const [list, orders] = await Promise.all([
+    to === "buyers" ? Promise.resolve({ docs: [] }) : db.collection("newsletter").limit(20000).get(),
+    db.collection("orders").select("customer", "paymentStatus", "paidAt", "createdAt", "isTest", "sandboxPayment", "practiceOrder").limit(20000).get(),
+  ]);
+  return recipientRows(list.docs.map(d => ({ id: d.id, data: d.data() })), pastBuyerEmails(orders.docs.map(d => d.data()), Date.now()), to);
+}
+async function newsletterAudience(to = "list") {
+  const optedOut = await newsletterOptedOutIds();
+  if (to === "list") {
+    const subscribers = await db.collection("newsletter").limit(20000).get();
+    return audienceCount(subscribers.docs.map(d => d.data()), optedOut, optOutId);
+  }
+  return audienceCount((await newsletterRecipients(to)).map(r => r.data), optedOut, optOutId);
 }
 async function newsletterUnsubscribeLink() {
   const key = await marketingUnsubscribeKey();
