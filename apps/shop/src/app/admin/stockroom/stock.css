@@ -16,3 +16,5 @@
 .rp-stock-places li { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--rp-border); }
 .rp-stock-places li span { margin-left: auto; font-family: var(--rp-font-mono, monospace); }
 .rp-stock-add { display: flex; justify-content: flex-end; }
+.rp-stock-bar { height: 10px; margin: 12px 0; border-radius: var(--rp-radius-pill); background: var(--rp-surface-sunken); overflow: hidden; }
+.rp-stock-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--rp-primary); }
