@@ -108,6 +108,7 @@ import { appUseRoutes, createAppUse } from "../control-room/appUse.js";
 import { createShopSocial, shopSocialRoutes } from "../control-room/shopSocial.js";
 import { createShopApps, shopAppsRoutes } from "../control-room/shopApps.js";
 import { chitChatsDeskRoutes, createChitChatsDesk } from "../control-room/chitChats.js";
+import { createMailchimpDesk, mailchimpDeskRoutes } from "../control-room/mailchimp.js";
 import { chitChatsNote } from "../control-room/chitChatsNote.js";
 import { switchNote } from "../control-room/switchNote.js";
 import { createSellReady, sellReadyRoutes } from "../control-room/sellReady.js";
@@ -444,6 +445,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...shopSocialRoutes(shopSocial),
     ...shopAppsRoutes(shopApps),
     ...chitChatsDeskRoutes(chitChatsDesk),
+    ...mailchimpDeskRoutes(createMailchimpDesk({ admins, mailchimp, connections: mailchimpStores.connections, registry, now })),
     ...sellReadyRoutes(sellReady),
     ...notSellingRoutes(notSelling),
     ...driftRoutes(driftDesk),

@@ -1498,6 +1498,7 @@ async function loadApps() {
     appUse = use;
     $("#app-failing").replaceChildren(...(use?.failing?.length ? [failingAlerts(use.failing)] : []));
     loadChitChats();
+    loadMailchimp();
     // The menu's count: apps waiting for review, plus apps whose alerts are failing.
     const failingCount = use?.failing?.length ?? 0;
     if (appStatus === "in-review") setBadge("apps", apps.length + failingCount);
@@ -1529,6 +1530,35 @@ function loadChitChats() {
         columns: [
           { header: "Brand", lead: true, render: (s) => el("div", {}, el("p", { className: "cr-title", textContent: s.pressName }), meta(s.connectedAt ? `since ${dateOnly(s.connectedAt)}` : null, s.emailsOff ? "emails off" : null)) },
           { header: "Waiting for tracking", render: (s) => (s.waiting ? el("div", {}, el("p", { textContent: plural(s.waiting, "order") }), s.late ? pill("warning", `oldest over ${waitingDays} days`) : null) : "none") },
+          { header: "", end: true, render: state },
+        ],
+      }));
+  }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
+}
+
+/** Colophon's own Mailchimp app: each shop that added it, where it stands, readers added and Mailchimp's last refusal. */
+function loadMailchimp() {
+  const slot = $("#mailchimp");
+  api("POST", "/control/mailchimp").then(({ ready, shops, counts }) => {
+    const head = el("div", { className: "cr-head", style: "margin-top: 32px" }, el("h2", { textContent: "Mailchimp" }));
+    if (!shops.length) return slot.replaceChildren(head, el("p", { className: "rp-hint", textContent: ready ? "No shop has connected Mailchimp yet." : "Mailchimp isn't switched on yet." }));
+    const state = (s) => {
+      if (s.lastProblem) return el("div", {}, pill("danger", "Mailchimp refused"), meta(s.lastProblem.words, s.lastProblem.at ? `since ${dateOnly(s.lastProblem.at)}` : null));
+      if (s.stage === "choose") return pill("info", "picking an audience");
+      if (s.stage !== "connected") return pill("info", "connecting");
+      return pill("success", "working");
+    };
+    fill(slot, head,
+      el("p", { className: "rp-hint", textContent: [plural(counts.connected, "shop") + " connected", counts.problems ? plural(counts.problems, "problem") : null, ready ? null : "switched off: nothing syncs until it's on"].filter(Boolean).join(" · ") }),
+      table({
+        caption: "Shops using Mailchimp",
+        rows: shops,
+        open: (s) => { const shop = allShops.find((x) => x.shopId === s.shopId); if (shop) openShop(shop); },
+        columns: [
+          { header: "Brand", lead: true, render: (s) => el("div", {}, el("p", { className: "cr-title", textContent: s.pressName }), meta(s.connectedAt ? `since ${dateOnly(s.connectedAt)}` : null)) },
+          { header: "Audience", render: (s) => s.audience ?? "none yet" },
+          { header: "Readers added", render: (s) => String(s.added) },
+          { header: "Last sync", render: (s) => (s.lastSyncAt ? when(s.lastSyncAt) : "not yet") },
           { header: "", end: true, render: state },
         ],
       }));
