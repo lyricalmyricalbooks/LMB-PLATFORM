@@ -3,10 +3,11 @@ import { useState } from "react";
 
 import { Dialog, PrimaryButton, SecondaryButton, TextField } from "../riso/components";
 import { useShopWords } from "../shopWords";
-import { detailsFormOf, type DetailsForm, withDetails } from "./catalogEdit";
+import { detailsFormOf, type DetailsForm, withDetails, withNewItem } from "./catalogEdit";
 import { describeResult, stockroomWriteApi } from "./stockroomWrite";
 
-export function EditDetailsButton({ id, book, onSaved }: { id: string; book: Record<string, any>; onSaved: () => void }) {
+/** Edit an item (`id` + `book`), or add one when `id` is left out. */
+export function EditDetailsButton({ id, book, onSaved }: { id?: string; book: Record<string, any>; onSaved: () => void }) {
   const w = useShopWords();
   const [form, setForm] = useState<DetailsForm | null>(null);
   const [busy, setBusy] = useState(false);
@@ -17,7 +18,7 @@ export function EditDetailsButton({ id, book, onSaved }: { id: string; book: Rec
     if (!form || busy) return;
     setBusy(true); setMsg(null);
     try {
-      const r = await stockroomWriteApi.updateSetting("catalog", withDetails(id, form));
+      const r = await stockroomWriteApi.updateSetting("catalog", id ? withDetails(id, form) : withNewItem(form, book.currency || "CAD"));
       const d = describeResult(r);
       if (r.status === "saved" || r.status === "unchanged") { setForm(null); onSaved(); } else setMsg(d);
     } catch (e) {
@@ -27,10 +28,10 @@ export function EditDetailsButton({ id, book, onSaved }: { id: string; book: Rec
   }
   return (
     <>
-      <SecondaryButton size="sm" onClick={() => { setMsg(null); setForm(detailsFormOf(book)); }}>Edit details</SecondaryButton>
+      <SecondaryButton size="sm" onClick={() => { setMsg(null); setForm(detailsFormOf(book)); }}>{id ? "Edit details" : w("Add book")}</SecondaryButton>
       {form && (
-        <Dialog open onClose={() => setForm(null)} title="Edit details"
-          footer={<><SecondaryButton onClick={() => setForm(null)}>Cancel</SecondaryButton><PrimaryButton busy={busy} onClick={() => void save()}>Save changes</PrimaryButton></>}>
+        <Dialog open onClose={() => setForm(null)} title={id ? "Edit details" : w("Add book")}
+          footer={<><SecondaryButton onClick={() => setForm(null)}>Cancel</SecondaryButton><PrimaryButton busy={busy} onClick={() => void save()}>{id ? "Save changes" : w("Add book")}</PrimaryButton></>}>
           <TextField label="Title" value={form.title} onChange={set("title")} />
           <TextField label={w("Author")} value={form.author} onChange={set("author")} />
           <TextField label={w("Print run")} hint={w("Copies printed")} type="number" min={0} value={form.maxPrint} onChange={set("maxPrint")} />

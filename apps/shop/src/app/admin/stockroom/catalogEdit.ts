@@ -44,3 +44,21 @@ export function withDetails(id: string, f: DetailsForm) {
     return catalog;
   };
 }
+
+/** A safe item id from a title, as the old form made it: lowercase letters, digits and dashes, never one already used. */
+export function newItemId(title: string, catalog: Row): string {
+  const base = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "item";
+  let id = base;
+  for (let n = 2; catalog[id]; n++) id = `${base}-${n}`;
+  return id;
+}
+
+/** A `mutate` for updateSetting("catalog") that adds a new item with the old form's defaults. */
+export function withNewItem(f: DetailsForm, currency: string) {
+  return (current: unknown) => {
+    const catalog = { ...((current as Row) || {}) };
+    const id = newItemId(f.title.trim(), catalog);
+    catalog[id] = { id, urlParam: id, isbn: "—", currency, maxPrint: 100, listPrice: 40, threshold: 10, productionCost: 0, profitTiers: [], acceptedMethods: ["stripe", "paypal", "interac", "cash_card"], useGlobalMethods: true };
+    return withDetails(id, f)(catalog);
+  };
+}
