@@ -152,7 +152,7 @@ export function expensesModel(records: StockroomRecords) {
     const b = byCurrency.get(l.currency) || { code: l.currency, total: 0, count: 0 };
     b.total = Math.round((b.total + l.amount) * 100) / 100; b.count += 1; byCurrency.set(l.currency, b);
   }
-  return { lines, receipts: summarizeReceiptStorage(all), missing: lines.filter((l) => l.receipt === "missing").length, owed, totals: [...byCurrency.values()].sort((a, b) => a.code.localeCompare(b.code)) };
+  return { lines, baseCurrency: baseCur, receipts: summarizeReceiptStorage(all), missing: lines.filter((l) => l.receipt === "missing").length, owed, totals: [...byCurrency.values()].sort((a, b) => a.code.localeCompare(b.code)) };
 }
 
 // ── Ask about your sales ────────────────────────────────────────────────────────────────────────────────────────

@@ -12,6 +12,7 @@ import { buildTaxLedger } from "@stockroom/tax-ledger.js";
 import { AskView } from "./AskPage";
 import { ExpensesView } from "./ExpensesPage";
 import { RecordsGate } from "./RecordsGate";
+import { StockList } from "./StockPage";
 import { TaxCenterView } from "./TaxCenterPage";
 import { askModel, expensesModel, filterLedger, ledgerCsvFile, ledgerTotals, sourcesOf, taxCenterModel } from "./moneyReports";
 import type { StockroomRecords } from "./stockroomData";
@@ -185,6 +186,17 @@ describe("the pages", () => {
     for (const part of ["Money in", "Money out", "Net", "By year", "Where the money went", "Trips and events", "Standing costs", "Costs that may be missing", "Ledger"]) expect(text).toContain(part);
     expect(text).not.toContain("Nothing in the Tax centre yet");
     await act(async () => empty.root.unmount());
+  });
+
+  it("show the Expenses and Stock layout with zeros when there is nothing yet", async () => {
+    const none: StockroomRecords = { books: [], states: {}, taxCenter: null };
+    const exp = await draw(<ExpensesView records={none} />);
+    expect(exp.container.textContent).toContain("0 expenses");
+    expect(exp.container.textContent).toContain("No expenses logged yet");
+    await act(async () => exp.root.unmount());
+    const stock = await draw(<StockList records={none} onPick={() => {}} />);
+    expect(stock.container.textContent).toContain("No books yet");
+    await act(async () => stock.root.unmount());
   });
 
   it("treat a failed read as a failure, and a refusal as 'only the owner'", async () => {
