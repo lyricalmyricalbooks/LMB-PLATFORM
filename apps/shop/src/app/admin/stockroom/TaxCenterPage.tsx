@@ -14,6 +14,7 @@ import { PendingExpensesCard } from "./PendingExpenses";
 import { RecurringSubscriptionsCard } from "./RecurringSubscriptions";
 import { SortingRulesCard } from "./SortingRules";
 import { LedgerLineActions } from "./LedgerLineActions";
+import { ReceiptsVaultCard } from "./ReceiptsVault";
 import { isEditableLine } from "./taxLedger";
 import type { SaveNote } from "./saveTaxCenter";
 import { filterLedger, ledgerCsvFile, ledgerTotals, LEDGER_PAGE_SIZE, sourcesOf, taxCenterModel, type LedgerFilter } from "./moneyReports";
@@ -201,6 +202,8 @@ export function TaxCenterView({ records, now, onTaxCenter }: { records: Stockroo
           </div>
         )}
       </SectionCard>
+
+      <ReceiptsVaultCard rows={model.rows} money={money} onSaved={onTaxCenter} />
     </div>
   );
 }
