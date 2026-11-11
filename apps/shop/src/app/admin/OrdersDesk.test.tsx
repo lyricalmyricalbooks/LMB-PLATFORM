@@ -42,7 +42,8 @@ describe("OrdersDesk", () => {
     const html = renderToStaticMarkup(<OrdersDesk selectedId={null} onSelect={() => {}} />);
     // The page title (Orders) comes from the admin shell; the desk adds no second heading.
     expect(html).not.toContain("All orders</h2>");
-    expect(html).toContain('data-variant="page"');
+    // Open / Completed / All orders are filter pills (redesign), not the underlined page tabs.
+    expect(html).not.toContain('data-variant="page"');
     for (const label of ["Open", "Completed", "All orders", "Export orders", "Covers", "Ship station"]) expect(html).toContain(label);
     expect(html).not.toContain("data-order-detail");
     expect(html).toContain('aria-selected="true" tabindex="0">Open<');

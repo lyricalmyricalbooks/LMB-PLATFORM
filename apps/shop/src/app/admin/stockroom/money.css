@@ -20,7 +20,7 @@
 .rp-money-chips { display: flex; flex-wrap: wrap; gap: var(--rp-space-2); }
 .rp-money-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rp-space-3); }
 .rp-money-actions .rp-sr-save { margin: 0; }
-.rp-money-chart { display: block; width: 100%; height: auto; }
+.rp-money-chart { display: block; width: 100%; height: auto; max-height: 260px; }
 .rp-money-chart .rp-in { fill: var(--rp-success); }
 .rp-money-chart .rp-out { fill: var(--rp-danger); }
 .rp-money-chart text { fill: var(--rp-text-muted); font-size: 11px; }
@@ -39,3 +39,10 @@
 .rp-money-line-actions { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .rp-money-line-actions .rp-field { margin: 0; min-width: 0; flex: 1; }
 .rp-money-receipt { font-size: var(--rp-text-sm); font-weight: 600; color: var(--rp-text); white-space: nowrap; }
+
+/* Shop admin redesign (11 November 2026): money figures in the Colophon figure style (Archivo, tight, never spilling
+   out of their tile), and the first figure (Money in) as the page's one headline tile. */
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-money .rp-grid-metrics .rp-metric-value { font-family: var(--rp-font-body); font-weight: 600; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; font-size: clamp(20px, 2.1vw, 34px); white-space: nowrap; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-money .rp-grid-metrics:has(> :nth-child(5)) .rp-metric-value { font-size: clamp(18px, 1.7vw, 28px); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-money .rp-grid-metrics > * { min-width: 0; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-money .rp-grid-metrics > .rp-card.rp-metric:has(> .rp-metric-value[data-tone="gold"]) { background: var(--rp-tile-sky, var(--rp-info-tint)); color: var(--rp-on-tile, var(--rp-text)); }

@@ -2049,3 +2049,8 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
   .rp-page-tabs[data-layout="column"] .rp-page-tab:hover { background: var(--rp-tab-hover); }
   .rp-page-tabs[data-layout="column"] .rp-page-tab[aria-current="page"] { background: var(--rp-inverse); color: var(--rp-on-inverse); }
 }
+
+/* Shop admin redesign (11 November 2026): order covers are rounded tiles, and a table inside a card lets the card's
+   rounded corners show. */
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .od-card { border: 0; border-radius: var(--rp-radius-lg); overflow: hidden; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-card .rp-table-wrap { background: transparent; }

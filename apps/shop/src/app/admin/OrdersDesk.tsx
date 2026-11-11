@@ -272,10 +272,12 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
       <div className="rp-stack" style={{ gap: 12 }}>
         <style>{DESK_CSS}</style>
         <header className="od-head">
-          <h2 className="od-title">Table</h2>
+          <div role="group" aria-label="Show as" className="od-switch od-switch-inline">
+            <button type="button" aria-pressed="false" onClick={() => pickLayout("grid")}>Covers</button>
+            <button type="button" aria-pressed="true" className="is-on">Table</button>
+          </div>
           <div className="od-head-actions">
-            <SecondaryButton onClick={() => pickLayout("grid")}>← All orders</SecondaryButton>
-            <SecondaryButton onClick={() => pickLayout("desk")}>Ship station</SecondaryButton>
+            <PrimaryButton onClick={() => pickLayout("desk")}>Ship station · {stats.toShip} to ship →</PrimaryButton>
           </div>
         </header>
         <Orders onSelectOrder={(order) => openInStation(order.id)} />
@@ -290,7 +292,6 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
         <style>{DESK_CSS}</style>
         <div className="od-grid-bar">
           <Tabs
-            variant="page"
             label="Order lists"
             value={only ? "open" : tab}
             onChange={pickTab}
