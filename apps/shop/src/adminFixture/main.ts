@@ -17,6 +17,33 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
   taxCenter: null,
 });
 
+// ── Stockroom › Sales records + Customers sample (sales worker): a third title with real-shaped sales (order number,
+// channel, price, date, email), a voided one, a gift, one recorded in US dollars, a consignment shipment, repeat buyers,
+// and enough rows to page. Added on top of whatever the block above loaded.
+{
+  const base = stockroomApi.load;
+  stockroomApi.load = async (): Promise<StockroomRecords> => {
+    const records = await base();
+    if (EMPTY_STOCKROOM) return records;
+    const people = [["Ada Example", "ada@example.com"], ["Ben Example", "ben@example.com"], ["Cleo Example", "cleo@example.com"], ["Dee Example", "dee@example.com"]];
+    const hist: Array<Record<string, unknown>> = Array.from({ length: 64 }, (_, i) => {
+      const [name, email] = people[i % people.length];
+      const day = String(1 + (i % 28)).padStart(2, "0");
+      return { num: `${1100 + i}`, chan: ["Website", "POS", "Direct", "Book Fair"][i % 4], qty: 1 + (i % 3), price: 22, date: `2026-10-${day}`, shipName: name, shipEmail: email, notes: i % 9 === 0 ? "Signed copy" : "", enteredBy: "Publisher" };
+    });
+    hist.push(
+      { num: "1200", chan: "Website", qty: 2, price: 22, date: "2026-10-30", shipName: "Eve Example", shipEmail: "eve@example.com", voided: true, voidedAt: Date.parse("2026-10-31T12:00:00Z") },
+      { num: "1201", chan: "Gratuity", qty: 1, price: 0, date: "2026-10-29", notes: "Gift to a reviewer", gratuity: true },
+      { num: "1202", chan: "Website", qty: 1, price: 25, date: "2026-10-28", cur: "USD", shipName: "Fay Example", shipEmail: "fay@example.com", payment: { currency: "USD", amount: 25, convertedTotal: 25 } },
+    );
+    return {
+      ...records,
+      books: [...records.books, { id: "paper-moons", title: "Paper Moons", author: "Cleo Example", maxPrint: 400, threshold: 20, listPrice: 22, currency: "CAD" }],
+      states: { ...records.states, "paper-moons": { hist, ledger: [{ type: "Shipment", storeName: "Corner Books", qty: 20, date: "2026-10-05", notes: "First delivery" }] } },
+    };
+  };
+}
+
 const order = (n: number, status: string, name: string) => ({
   id: `o${n}`, orderId: `FIXTURE-${n}`, status, paymentStatus: "paid", createdAt: new Date(Date.now() - n * 3_600_000).toISOString(),
   customer: { name, email: `buyer${n}@example.com` },
