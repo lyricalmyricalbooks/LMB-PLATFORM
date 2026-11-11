@@ -270,3 +270,12 @@ button.rp-viz-rank-row:focus-visible { outline: 2px solid var(--rp-focus); outli
 .rp-todo-go { align-self: flex-start; margin-top: 6px; padding: 9px 18px; border: 0; border-radius: 999px; background: var(--rp-inverse); color: var(--rp-on-inverse); font: 600 var(--rp-text-sm)/1 var(--rp-font-body); cursor: pointer; }
 .rp-todo-go:hover { opacity: .85; }
 .rp-todo-go:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+/* Each tile gets its own tone, in the mockup's order: mint, apricot, plain, sky, alert. */
+.rp-todo-tile:not([data-quiet]) { padding: 22px 24px; }
+.rp-todo-tile:not([data-quiet]):nth-child(5n+1) { background: var(--rp-tile-mint, var(--rp-success-tint)); }
+.rp-todo-tile:not([data-quiet]):nth-child(5n+2) { background: var(--rp-tile-apricot, var(--rp-warning-tint)); }
+.rp-todo-tile:not([data-quiet]):nth-child(5n+3) { background: var(--rp-canvas); }
+.rp-todo-tile:not([data-quiet]):nth-child(5n+4) { background: var(--rp-tile-sky, var(--rp-info-tint)); }
+.rp-todo-tile:not([data-quiet]):nth-child(5n+5) { background: var(--rp-danger-tint); }
+.rp-todo-tile:not([data-quiet]):is(:nth-child(5n+1), :nth-child(5n+2), :nth-child(5n+4), :nth-child(5n+5)) :is(.rp-todo-title, .rp-todo-body, .rp-todo-kind) { color: var(--rp-on-tile, var(--rp-text)); }
+.rp-todo-tile:not([data-quiet]) .rp-todo-go { background: var(--rp-text); color: var(--rp-canvas); }
