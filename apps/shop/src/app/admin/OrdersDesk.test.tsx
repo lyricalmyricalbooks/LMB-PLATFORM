@@ -36,18 +36,14 @@ describe("OrdersDesk", () => {
     expect(html).not.toContain('class="od-title">Table</h2>');
   });
 
-  it("opens on All orders › Open, newest first, as covers, whatever was picked last time", () => {
+  it("opens on the mockup's order list with All picked, whatever was picked last time", () => {
     store.set("orders-desk-layout", "desk");
     store.set("orders-grid-tab", "all");
     const html = renderToStaticMarkup(<OrdersDesk selectedId={null} onSelect={() => {}} />);
-    // The page title (Orders) comes from the admin shell; the desk adds no second heading.
+    // The page title (Orders) comes from the admin shell; the list adds no second heading.
     expect(html).not.toContain("All orders</h2>");
-    // Open / Completed / All orders are filter pills (redesign), not the underlined page tabs.
-    expect(html).not.toContain('data-variant="page"');
-    for (const label of ["Open", "Completed", "All orders", "Export orders", "Covers", "Ship station"]) expect(html).toContain(label);
+    for (const label of ["Export CSV", "Create order", "Unfulfilled", "Unpaid", "Shipped", "Refunded"]) expect(html).toContain(label);
+    expect(html).toContain('aria-pressed="true">All<');
     expect(html).not.toContain("data-order-detail");
-    expect(html).toContain('aria-selected="true" tabindex="0">Open<');
-    expect(html).toContain('<option value="newest" selected="">Newest first');
-    expect(html).toContain('aria-pressed="true" class="is-on">Covers<');
   });
 });

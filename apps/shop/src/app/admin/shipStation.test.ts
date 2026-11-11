@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { badgeText, gridCounts, gridOrders, gridTabOf, itemCount, outsideQueue, paymentChip, shipsTo, stationQueue, stationStats, stationStep } from "./shipStation";
+import { badgeText, gridCounts, gridOrders, gridTabOf, itemCount, listFulfilment, listOrders, listPayment, outsideQueue, paymentChip, shipsTo, stationQueue, stationStats, stationStep } from "./shipStation";
 import { packingKey } from "./fulfillment";
 
 const address = { street: "1 Main", city: "Toronto", state: "ON", zip: "M1M1M1", country: "Canada" };
@@ -23,6 +23,30 @@ describe("ship station", () => {
     { id: "ABANDONED", paymentStatus: "unpaid", createdAt: "2026-10-05T00:00:00Z", items: [{ id: "b", quantity: 1 }] },
     paid("TEST", "2026-10-01T10:00:00Z", { isTest: true }),
   ];
+
+  it("sorts the order list into the mockup's pills, newest first", () => {
+    const ids = (f: Parameters<typeof listOrders>[1]) => listOrders(orders, f).map((o) => o.id);
+    expect(ids("unfulfilled")).toEqual(expect.arrayContaining(["NEW", "OLD", "LABELLED"]));
+    expect(ids("unfulfilled")).not.toContain("SHIPPED");
+    expect(ids("unpaid")).toEqual(["ETRANSFER"]);
+    expect(ids("shipped")).toEqual(expect.arrayContaining(["SHIPPED", "DONE"]));
+    expect(ids("refunded")).toEqual(["REFUNDED"]);
+    expect(ids("all")).not.toContain("TEST");
+    expect(listOrders(orders, "all", true).map((o) => o.id)).toContain("TEST");
+  });
+
+  it("names payment and fulfilment in the mockup's words", () => {
+    const byId = (id: string) => orders.find((o: any) => o.id === id);
+    expect(listPayment(byId("NEW")).text).toBe("Paid");
+    expect(listPayment(byId("ETRANSFER")).text).toBe("Unpaid");
+    expect(listPayment(byId("REFUNDED")).text).toBe("Refunded");
+    expect(listFulfilment(byId("OLD")).text).toBe("Unfulfilled");
+    expect(listFulfilment(byId("SHIPPED")).text).toBe("Shipped");
+    expect(listFulfilment(byId("DONE")).text).toBe("Fulfilled");
+    expect(listFulfilment(byId("ETRANSFER")).text).toBe("Draft");
+    expect(listFulfilment(byId("PRE")).text).toBe("Pre-order");
+    expect(listFulfilment(paid("BAD", "2026-10-06T10:00:00Z", { operations: { addressReviewed: "" } })).text).toBe("Needs you");
+  });
 
   it("queues the work to do in order and names the next step", () => {
     // Problems, then packing, then labels; oldest first within each.

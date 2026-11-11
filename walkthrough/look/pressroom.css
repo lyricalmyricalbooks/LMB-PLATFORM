@@ -1950,7 +1950,7 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-workspace .rp-page-title { font-size: 36px; font-weight: 600; font-style: normal; letter-spacing: -0.03em; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-workspace .rp-page-desc { margin: 6px 0 0; max-width: 60ch; color: var(--rp-text-subtle); }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-workspace .rp-page-header .rp-btn { padding: 11px 22px; border-radius: 999px; font-size: 14px; font-weight: 600; }
-:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-workspace .rp-page-header .rp-btn[data-variant="secondary"] { border: 0; background: var(--rp-surface); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-workspace .rp-page-header :is(.rp-btn[data-variant="secondary"], .rp-btn-secondary) { border: 0; background: var(--rp-surface); color: var(--rp-text); }
 @media (max-width: 767px) {
   :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-workspace .rp-page-header { padding: 4px 0 0; }
   :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-workspace .rp-page-title { font-size: 30px; }
