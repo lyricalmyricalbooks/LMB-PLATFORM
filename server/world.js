@@ -159,6 +159,14 @@ export function proxyHopsOf(env) {
   return Number(text);
 }
 
+/** Where Colophon's Zapier app lives, from server/env.yaml; null until both addresses are on zapier.com. */
+function zapierPlace(env) {
+  const onZapier = (value) => /^https:\/\/zapier\.com\/\S+$/.test(String(value ?? "").trim());
+  return onZapier(env.ZAPIER_INVITE_URL) && onZapier(env.ZAPIER_RETURN_ADDRESS)
+    ? { inviteUrl: String(env.ZAPIER_INVITE_URL).trim(), returnAddress: String(env.ZAPIER_RETURN_ADDRESS).trim() }
+    : null;
+}
+
 const secretOf = (env, name) => (String(env[name] ?? "").length >= 16 ? String(env[name]) : null);
 
 export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token, now = () => new Date(), log = console.error } = {}) {
@@ -284,7 +292,12 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     store: appStore, root: secretOf(env, "OWN_APPS_SECRET") ?? secretOf(env, "CHECKUP_SECRET"),
     platformUrl: settings.platformUrl, supportEmail: settings.supportEmail, now,
     // Mailchimp lists itself once Colophon's own Mailchimp app sign-up is in the server's settings.
-    available: { mailchimp: Boolean(String(env.MAILCHIMP_CLIENT_ID ?? "").trim() && String(env.MAILCHIMP_CLIENT_SECRET ?? "").trim()) },
+    // Zapier lists itself once Colophon's app is on Zapier: its invite link and Zapier's return address (server/env.yaml).
+    available: {
+      mailchimp: Boolean(String(env.MAILCHIMP_CLIENT_ID ?? "").trim() && String(env.MAILCHIMP_CLIENT_SECRET ?? "").trim()),
+      zapier: zapierPlace(env) !== null,
+    },
+    zapier: zapierPlace(env) ?? {},
   });
   const appMakers = createAppMakers({ store: appStore, admins, now, ensureOwnApps: () => ownApps.ensure() });
   // Installing them on a shop with its owner's permission (26.2).
