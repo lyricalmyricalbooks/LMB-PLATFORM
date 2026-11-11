@@ -386,6 +386,20 @@ div.rp-listcard-main { cursor: default; }
 .rp-cardbox > .rp-listcard { padding: 0; border-radius: 0; background: none; }
 .rp-cardbox > .rp-listcard > li:first-child { border-top: 1px solid var(--rp-divider); }
 @media (max-width: 767px) { .rp-cardbox { padding: 16px 16px 4px; } }
+/* Settings form card (redesign): one row per field, the label and its hint on the left, the control on the right,
+   hairlines between rows; stacked on phones. Use as a SectionCard's bodyClassName. */
+.rp:not(.studio-editor) .rp-formrows { display: flex; flex-direction: column; }
+.rp:not(.studio-editor) .rp-formrows > .rp-field { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "label control" "hint control"; column-gap: 24px; row-gap: 2px; align-items: center; padding: 12px 0; border-top: 1px solid var(--rp-divider); }
+.rp:not(.studio-editor) .rp-formrows > .rp-field:first-child { border-top: 0; }
+:root .rp:not(.studio-editor) .rp-formrows > .rp-field > :is(.rp-label, .rp-sr-only) { grid-area: label; align-self: end; margin: 0; font: 400 var(--rp-text-base)/1.35 var(--rp-font-body); color: var(--rp-text); text-transform: none; letter-spacing: 0; }
+/* A field with no hint: its label sits in the middle of the row. */
+.rp:not(.studio-editor) .rp-formrows > .rp-field:not(:has(> .rp-hint, > .rp-error-text)) > .rp-label { grid-row: 1 / span 2; align-self: center; }
+.rp:not(.studio-editor) .rp-formrows > .rp-field > :is(input, select, textarea) { grid-area: control; width: 100%; }
+.rp:not(.studio-editor) .rp-formrows > .rp-field > :is(.rp-hint, .rp-error-text) { grid-area: hint; align-self: start; margin: 0; font-size: var(--rp-text-xs); color: var(--rp-text-muted); }
+@media (max-width: 767px) {
+  .rp:not(.studio-editor) .rp-formrows > .rp-field { grid-template-columns: minmax(0, 1fr); grid-template-areas: "label" "control" "hint"; row-gap: 6px; }
+  .rp:not(.studio-editor) .rp-formrows > .rp-field:not(:has(> .rp-hint, > .rp-error-text)) > .rp-label { grid-row: auto; align-self: end; }
+}
 /* Stat tiles (redesign): a label, a big figure or word, and a small line, on a coloured tile (mint, apricot, sky, lilac)
    or white. Two or more sit side by side; one column on phones. */
 .rp-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }

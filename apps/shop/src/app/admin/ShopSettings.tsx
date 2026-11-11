@@ -151,7 +151,7 @@ export function ShopSettings({
 }
 // SaveBar names the cards that have unsaved edits, not the settings keys behind them.
 export const GENERAL_SECTION_TITLES: Record<string, string> = {
-  maintenance: "Store status", stockHolds: "Checkout stock holds", info: "Store identity", domain: "Domain & visibility", location: "Location", policies: "Store policies",
+  maintenance: "Store status", stockHolds: "Checkout stock holds", info: "Your press", domain: "Domain & visibility", location: "Your press", policies: "Store policies",
 };
 
 function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection, onUnderConstruction, subTab, onSubTabChange }: any) {
@@ -176,10 +176,11 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
   const maintenanceOn = !!settings.maintenance?.enabled;
   const name = settings.info?.name || "";
   const desc = settings.info?.description || "";
-  const [view, setView] = useSubTab<string>("gs-store", subTab, onSubTabChange);
+  // Your press first, as in the redesign's General page (11 November 2026).
+  const [view, setView] = useSubTab<string>("gs-details", subTab, onSubTabChange);
   const tabs: SettingsTab[] = [
+    { id: "gs-details", title: "Your press", unsaved: ["info", "location", "policies", "domain"].some((k) => hasChanges(k)) },
     { id: "gs-store", title: "Shop status & checkout", unsaved: hasChanges("maintenance") || hasChanges("stockHolds") },
-    { id: "gs-details", title: "Shop details", unsaved: ["info", "location", "policies", "domain"].some((k) => hasChanges(k)) },
     { id: "gs-visitors", title: "Visitors & Google" },
     { id: "gs-tools", title: "Tools & records" },
   ];
@@ -187,6 +188,60 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
   return (
     <div className="rp-stack">
       <SettingsTabs label="General settings" tabs={tabs} value={view} onChange={setView} />
+
+      <SettingsGroup id="gs-details" active={view === "gs-details"}>
+        <SettingsAnchor id="gs-identity">
+          {/* The redesign's form card: one row per field, the label on the left. Location lives here too (gs-location). */}
+          <SectionCard title="Your press" description="Shown on the site, emails, invoices and receipts." collapsible={false} bodyClassName="rp-formrows">
+            <TextField label="Press name" value={name} maxLength={100} onChange={(e) => set("info", { name: e.target.value })} />
+            <TextField label="Contact email" type="email" value={settings.info?.email || ""} placeholder="hello@example.com" onChange={(e) => set("info", { email: e.target.value })} />
+            <TextArea label="About your press" rows={3} value={desc} maxLength={150} hint={`Search and social previews · ${desc.length} / 150`} onChange={(e) => set("info", { description: e.target.value })} />
+            <span id="gs-location" tabIndex={-1} style={{ scrollMarginTop: 16, outline: "none" }} />
+            <TextField label="Street address" hint="Where parcels ship from" value={settings.location?.street || ""} placeholder="123 Example Street" onChange={(e) => set("location", { street: e.target.value })} />
+            <TextField label="City" value={settings.location?.city || ""} placeholder="Toronto" onChange={(e) => set("location", { city: e.target.value })} />
+            <TextField label="Province or state" value={settings.location?.state || ""} placeholder="Ontario" onChange={(e) => set("location", { state: e.target.value })} />
+            <TextField label="Postal code" value={settings.location?.zip || ""} placeholder="M6G 3H1" autoComplete="postal-code" onChange={(e) => set("location", { zip: e.target.value })} />
+            <SelectField label="Country" value={settings.location?.country || "Canada"} onChange={(e) => set("location", { country: e.target.value })}>
+              {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
+            </SelectField>
+            <TextField label="Phone" type="tel" hint="On labels, for the carrier" value={settings.location?.phone || ""} placeholder="647 409 6863" autoComplete="tel" onChange={(e) => set("location", { phone: e.target.value })} />
+          </SectionCard>
+        </SettingsAnchor>
+        <SettingsAnchor id="gs-domain">
+          <CustomDomainCard fallback={
+          <SectionCard title="Domain & visibility" description="For your records.">
+            <TextField label="Custom domain" value={settings.domain?.custom || ""} placeholder="yourpress.example"
+              hint="Doesn't move the shop. The domain is already live."
+              onChange={(e) => set("domain", { custom: e.target.value })} />
+          </SectionCard>
+          } />
+        </SettingsAnchor>
+        <WhatYouSellCard />
+        <SettingsAnchor id="gs-policies">
+          <SectionCard title="Store policies" description="Footer links. Blank ones hide.">
+            <div className="rp-stack" style={{ gap: 20 }}>
+              {POLICY_KEYS.map((k) => {
+                const text: string = settings.policies?.[k] || "";
+                return (
+                  <div key={k}>
+                    <TextArea label={POLICY_TITLES[k]} rows={5} maxLength={20000} value={text}
+                      hint={text.trim() ? `Live at /page/${policySlug(k)}` : k === "accessibility" ? "Optional. Tells shoppers who use screen readers or keyboards what to expect, and how to ask for help. Hidden until it has text." : "Hidden until it has text."}
+                      onChange={(e) => set("policies", { [k]: e.target.value })} />
+                    {!text.trim() && (
+                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, marginTop: 8 }}>
+                        {/* Reads the latest saved policy again so a click can never replace words typed meanwhile. */}
+                        <SecondaryButton size="sm" onClick={() => setSettings((prev: any) => ({ ...prev, policies: { ...prev?.policies, [k]: withStarter(prev?.policies?.[k], k, starterFacts(prev, sellsAnswer, providerName())) } }))}>Start from our wording</SecondaryButton>
+                        <span className="rp-hint">Filled with your shop name, address and returns window. {STARTER_POLICY_NOTE}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              <p className="rp-hint" style={{ margin: 0 }}>Our wording is {STARTER_POLICY_NOTE.toLowerCase()} Read it through and change anything that isn't true for your shop before you save.</p>
+            </div>
+          </SectionCard>
+        </SettingsAnchor>
+      </SettingsGroup>
 
       <SettingsGroup id="gs-store" active={view === "gs-store"}>
         <SettingsAnchor id="gs-status">
@@ -251,72 +306,6 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
         </SettingsAnchor>
       </SettingsGroup>
 
-      <SettingsGroup id="gs-details" active={view === "gs-details"}>
-        <WhatYouSellCard />
-        <SettingsAnchor id="gs-identity">
-          <SectionCard title="Store identity" description="Name, blurb, contact.">
-            <div className="rp-stack" style={{ gap: 20 }}>
-              <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
-                <TextField label="Publisher name" value={name} maxLength={100} hint={`${name.length} / 100 characters`} onChange={(e) => set("info", { name: e.target.value })} />
-                <TextField label="Contact email" type="email" value={settings.info?.email || ""} placeholder="hello@example.com" onChange={(e) => set("info", { email: e.target.value })} />
-              </div>
-              <TextArea label="Publisher description" rows={4} value={desc} maxLength={150} hint={`${desc.length} / 150 · search and social previews`} onChange={(e) => set("info", { description: e.target.value })} />
-            </div>
-          </SectionCard>
-        </SettingsAnchor>
-        <SettingsAnchor id="gs-location">
-          <SectionCard title="Location" description="Where parcels ship from.">
-            <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
-              <div style={{ gridColumn: "1 / -1" }}>
-                <TextField label="Street address" value={settings.location?.street || ""} placeholder="123 Example Street" onChange={(e) => set("location", { street: e.target.value })} />
-              </div>
-              <TextField label="City" value={settings.location?.city || ""} placeholder="Toronto" onChange={(e) => set("location", { city: e.target.value })} />
-              <TextField label="State / province" value={settings.location?.state || ""} placeholder="Ontario" onChange={(e) => set("location", { state: e.target.value })} />
-              <TextField label="Postal code" value={settings.location?.zip || ""} placeholder="M6G 3H1" autoComplete="postal-code" onChange={(e) => set("location", { zip: e.target.value })} />
-              <SelectField label="Country" value={settings.location?.country || "Canada"} onChange={(e) => set("location", { country: e.target.value })}>
-                {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
-              </SelectField>
-              <TextField label="Phone" type="tel" value={settings.location?.phone || ""} placeholder="647 409 6863" autoComplete="tel"
-                hint="On labels, for the carrier." onChange={(e) => set("location", { phone: e.target.value })} />
-            </div>
-            <p className="rp-hint" style={{ margin: "12px 0 0" }}>The “from” address on labels and live rates.</p>
-          </SectionCard>
-        </SettingsAnchor>
-        <SettingsAnchor id="gs-policies">
-          <SectionCard title="Store policies" description="Footer links. Blank ones hide.">
-            <div className="rp-stack" style={{ gap: 20 }}>
-              {POLICY_KEYS.map((k) => {
-                const text: string = settings.policies?.[k] || "";
-                return (
-                  <div key={k}>
-                    <TextArea label={POLICY_TITLES[k]} rows={5} maxLength={20000} value={text}
-                      hint={text.trim() ? `Live at /page/${policySlug(k)}` : k === "accessibility" ? "Optional. Tells shoppers who use screen readers or keyboards what to expect, and how to ask for help. Hidden until it has text." : "Hidden until it has text."}
-                      onChange={(e) => set("policies", { [k]: e.target.value })} />
-                    {!text.trim() && (
-                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, marginTop: 8 }}>
-                        {/* Reads the latest saved policy again so a click can never replace words typed meanwhile. */}
-                        <SecondaryButton size="sm" onClick={() => setSettings((prev: any) => ({ ...prev, policies: { ...prev?.policies, [k]: withStarter(prev?.policies?.[k], k, starterFacts(prev, sellsAnswer, providerName())) } }))}>Start from our wording</SecondaryButton>
-                        <span className="rp-hint">Filled with your shop name, address and returns window. {STARTER_POLICY_NOTE}</span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-              <p className="rp-hint" style={{ margin: 0 }}>Our wording is {STARTER_POLICY_NOTE.toLowerCase()} Read it through and change anything that isn't true for your shop before you save.</p>
-            </div>
-          </SectionCard>
-        </SettingsAnchor>
-        <SettingsAnchor id="gs-domain">
-          <CustomDomainCard fallback={
-          <SectionCard title="Domain & visibility" description="For your records.">
-            <TextField label="Custom domain" value={settings.domain?.custom || ""} placeholder="yourpress.example"
-              hint="Doesn't move the shop. The domain is already live."
-              onChange={(e) => set("domain", { custom: e.target.value })} />
-          </SectionCard>
-          } />
-        </SettingsAnchor>
-      </SettingsGroup>
-
       <SettingsGroup id="gs-visitors" active={view === "gs-visitors"}>
         <SettingsAnchor id="gs-own-visits"><OwnVisitsCard /></SettingsAnchor>
         {/* Plan 6.17: a shop run by Colophon connects Google with one sign-in; other shops keep the older cards. */}
@@ -336,7 +325,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
       </SettingsGroup>
 
       <SaveBar dirty={dirty.length > 0} saving={!!savingSection} onSave={saveAll} onDiscard={discard}
-        message={`Unsaved changes in ${dirty.map((k) => GENERAL_SECTION_TITLES[k] || k).join(", ")}.`} />
+        message={`Unsaved changes in ${[...new Set(dirty.map((k) => GENERAL_SECTION_TITLES[k] || k))].join(", ")}.`} />
 
       <ConfirmDialog open={confirmMaintenance} title="Turn on maintenance mode?" confirmLabel="Pause checkout"
         message="Shoppers can still browse, but checkout is refused (card, PayPal, e-Transfer and free orders) until you turn it off again. The change applies once you save."

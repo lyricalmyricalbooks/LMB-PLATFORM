@@ -64,7 +64,8 @@ describe("admin route ↔ hash", () => {
 
   it("opens the default sub tab for unknown slugs and pages without sub tabs", () => {
     expect(routeFromHash("#settings/general/nope")).toEqual({ tab: "settings", settingsTab: "general" });
-    expect(routeFromHash("#settings/general/store")).toEqual({ tab: "settings", settingsTab: "general" });
+    expect(routeFromHash("#settings/general/details")).toEqual({ tab: "settings", settingsTab: "general" });
+    expect(routeFromHash("#settings/general/store")).toEqual({ tab: "settings", settingsTab: "general", subTab: "gs-store" });
     expect(routeFromHash("#inventory/nope")).toEqual({ tab: "inventory" });
     expect(routeFromHash("#settings/taxes/visitors")).toEqual({ tab: "settings", settingsTab: "taxes" });
     expect(routeFromHash("#customers/link")).toEqual({ tab: "customers" });
