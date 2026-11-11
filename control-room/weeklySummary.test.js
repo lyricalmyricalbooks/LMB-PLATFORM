@@ -37,3 +37,12 @@ test("the email reads plainly and the job is wired", () => {
   assert.equal(JOBS.find((j) => j.name === "weekly-summary").every, 7 * 24 * 60);
   assert.equal(typeof RUNNERS["weekly-summary"], "function");
 });
+
+test("the Monday email names shops with no sale after two weeks when orders can be read", async () => {
+  const sent = [];
+  const quiet = [{ shopId: "q", pressName: "Quiet Press", status: "live", createdAt: "2026-10-01T00:00:00Z", billing: {} }];
+  await weeklySummary({ registry: { listShops: async () => quiet }, email: { sendPlatform: async (m) => sent.push(m) }, to: "owner@example.com", shopData: { find: async () => [] }, now: () => NOW });
+  assert.deepEqual(sent[0].data.notSelling, ["Quiet Press (46 days)"]);
+  const out = TEMPLATES["weekly-summary"](sent[0].data, { settings: { platformName: "Colophon" } });
+  assert.match(JSON.stringify(out), /No sale yet after two weeks \(1\): Quiet Press/);
+});

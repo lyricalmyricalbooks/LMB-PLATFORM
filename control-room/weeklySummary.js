@@ -5,6 +5,7 @@
 // Safe to run twice: the email's key is the week, so a retry in the same week never sends a second one.
 import { todaySummary } from "./today.js";
 import { isoWeek } from "./deletionNote.js";
+import { notSellingShops } from "./notSelling.js";
 
 const DAY = 86_400_000;
 export const WEEKLY_SUMMARY = "weekly-summary";
@@ -23,10 +24,16 @@ export function summaryOf(rows, settings, now = new Date()) {
   };
 }
 
-export async function weeklySummary({ registry, email, to, settings = {}, now = () => new Date() }) {
+export async function weeklySummary({ registry, email, to, settings = {}, shopData = null, now = () => new Date() }) {
   const at = now();
   if (!to) throw new Error("neither PLATFORM_ADMIN_EMAIL nor HEALTH_ALERT_TO is set, so the weekly summary has nobody to go to");
-  const data = summaryOf(await registry.listShops(), settings, at);
+  const rows = await registry.listShops();
+  const data = summaryOf(rows, settings, at);
+  // Shops open two weeks with no sale yet (notSelling.js); left out when the shops' orders can't be read here.
+  if (shopData) {
+    const { shops } = await notSellingShops({ rows, shopData, nowMs: at.getTime() }).catch(() => ({ shops: null }));
+    if (shops) data.notSelling = shops.map((s) => `${s.pressName} (${s.days} days)`);
+  }
   await email.sendPlatform({ kind: WEEKLY_SUMMARY, to, idempotencyKey: `${WEEKLY_SUMMARY}-${isoWeek(at)}`, data });
   return { sent: true, waiting: data.waiting };
 }
