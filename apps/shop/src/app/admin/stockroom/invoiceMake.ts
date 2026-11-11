@@ -6,10 +6,10 @@
 import { collectUniqueConsignmentStores, stampLedgerInvoiceLink } from "@stockroom/consignment.js";
 import {
   BILL_TO_PERSON, BILL_TO_STORE, billToPayload, billToPersonFrom, buildInvoiceNumber, clampPercent, computeInvoiceTotals,
-  deriveInvoiceBookIds, dueDateFromTerms, invoiceBillToMode, invoiceNumberPrefix, lineItemBookId, neutralInvoicePrefix,
+  daysBetween, deriveInvoiceBookIds, dueDateFromTerms, invoiceBillToMode, invoiceNumberPrefix, lineItemBookId, neutralInvoicePrefix,
   nextInvoiceSeq, parseLooseNumber, type BillToPerson,
 } from "@stockroom/invoices.js";
-import { fmtD, getBookCurrencyCode, getSym, normalizeCurrencyCode } from "@stockroom/money.js";
+import { fmt, fmtD, getBookCurrencyCode, getSym, normalizeCurrencyCode } from "@stockroom/money.js";
 
 import type { StockBook, StockroomRecords } from "./stockroomData";
 
@@ -299,3 +299,34 @@ export function deleteInvoiceChange(id: string) {
 }
 
 export { newId as newInvoiceId };
+
+/**
+ * Duplicate (old duplicateInvoiceFromView + fillInvoiceEditorFromCopy): the same recipient, lines, discount, tax, notes
+ * and terms on a new draft dated today with the next number. The gap to the due date is kept ("Net 15" stays Net 15),
+ * and links to consignment sales are dropped, because those sales stay billed on the original.
+ */
+export function copyForm(records: StockroomRecords, settings: InvoiceSettings, row: Pick<InvoiceRow, "inv" | "ownerBookId">, now: Date = new Date()): InvoiceForm & { linkedDropped: number } {
+  const f = formFromInvoice(records, row);
+  const date = localDay(now);
+  const gap = daysBetween(text(row.inv.date), text(row.inv.dueDate));
+  const num = nextNumber(records, f.ownerBookId, [f.ownerBookId], settings.name, now.getFullYear());
+  const linkedDropped = f.items.filter((it) => it.ledgerId != null).length;
+  return {
+    ...f, editingId: null, num, autoNum: num, date, dueDate: gap != null && gap >= 0 ? dueDateFromTerms(date, gap) : f.dueDate && dueDateFromTerms(date, 30),
+    items: f.items.map((it) => ({ ...it, ledgerId: null })), paymentLink: "", status: "draft", linkedDropped,
+  };
+}
+
+/** Email (old invoiceEmailPlainText and emailInvoice's subject): who it goes to and the plain words, for the mail app. */
+export function invoiceEmail(inv: Rec, settings: InvoiceSettings, code: string) {
+  const sender = settings.name;
+  const pay = text(inv.paymentLink) || text(inv.stripe?.url);
+  const body = [
+    `Hi ${inv.storeContact || inv.storeName || "there"},`, "",
+    `Your invoice ${inv.num} for ${fmt(Number(inv.total) || 0, code)} is below. Issued ${fmtD(inv.date)}${inv.dueDate ? ", due " + fmtD(inv.dueDate) : ""}.`,
+    ...(pay ? ["", `Pay securely online: ${pay}`] : []),
+    ...(inv.notes ? ["", `Notes: ${inv.notes}`] : []),
+    "", "Thank you,", sender,
+  ].join("\n");
+  return { to: text(inv.storeEmail), subject: `Invoice ${inv.num} — ${sender}`, body };
+}

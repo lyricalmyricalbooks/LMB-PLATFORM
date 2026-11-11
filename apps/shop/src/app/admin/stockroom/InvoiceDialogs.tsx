@@ -10,7 +10,7 @@ import { shopProfile } from "../../../lib/shopProfile";
 import { shopNameFromSettings } from "../../../shared/shopIdentity";
 import { adminApi } from "../api";
 import {
-  blankForm, blankLine, cleanInvoiceSettings, deleteInvoiceChange, formBookIds, formFromInvoice, formTotals, INVOICE_SETTINGS_KEY, invoiceList,
+  blankForm, blankLine, cleanInvoiceSettings, copyForm, invoiceEmail, deleteInvoiceChange, formBookIds, formFromInvoice, formTotals, INVOICE_SETTINGS_KEY, invoiceList,
   invoiceProblem, invoiceSettingsChange, currencyFor, markSentChange, newInvoiceId, nextNumber, ownerChoices, pendingSaleLines, saveInvoiceChange,
   stockistNames, todayText, type InvoiceForm, type InvoiceLine, type InvoiceRow, type InvoiceSettings,
 } from "./invoiceMake";
@@ -257,9 +257,11 @@ export function InvoiceEditor({ records, settings, start, onClose, onSaved, onDe
 
 // ── One invoice: the printed page, with its actions ───────────────────────────────────────────────────────────────
 
-export function InvoiceView({ row, settings, onClose, onEdit, onSaved }: {
-  row: InvoiceRow; settings: InvoiceSettings; onClose: () => void; onEdit: () => void; onSaved: BookSaved;
+export function InvoiceView({ row, settings, onClose, onEdit, onCopy, onSaved }: {
+  row: InvoiceRow; settings: InvoiceSettings; onClose: () => void; onEdit: () => void; onCopy?: () => void; onSaved: BookSaved;
 }) {
+  const mail = invoiceEmail(row.inv, settings, row.code);
+  const mailto = `mailto:${encodeURIComponent(mail.to)}?subject=${encodeURIComponent(mail.subject)}&body=${encodeURIComponent(mail.body)}`;
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<InvoiceNotice | null>(null);
   const today = todayText();
@@ -275,6 +277,8 @@ export function InvoiceView({ row, settings, onClose, onEdit, onSaved }: {
     <Dialog open size="lg" onClose={busy ? () => undefined : onClose} title={row.num || "Invoice"} description={`${row.billedTo} · ${fmt(row.total, row.code)}`}
       footer={<>
         <SecondaryButton onClick={onEdit} disabled={busy}>Edit</SecondaryButton>
+        {onCopy && <SecondaryButton onClick={onCopy} disabled={busy}>Duplicate</SecondaryButton>}
+        <SecondaryButton onClick={() => { window.location.href = mailto; }} disabled={busy}>{mail.to ? "Email" : "Email (no address on file)"}</SecondaryButton>
         {row.status === "draft" && <SecondaryButton onClick={send} busy={busy}>{busy ? "Saving…" : "Mark sent"}</SecondaryButton>}
         <PrimaryButton onClick={() => printInvoice(row.inv, settings, today)} disabled={busy}>Print or save PDF</PrimaryButton>
       </>}>
@@ -343,7 +347,8 @@ export function InvoicesCard({ records, onBookSaved, onSettingsSaved, newFor, on
       {open?.kind === "settings" && <InvoiceSettingsDialog settings={settings} onClose={() => setOpen(null)} onSaved={(value, n) => { onSettingsSaved?.(value); setNotice(n); setOpen(null); }} />}
       {open?.kind === "edit" && <InvoiceEditor records={records} settings={settings} start={open.form} onClose={() => setOpen(null)} onSaved={saved} />}
       {current && <InvoiceView row={current} settings={settings} onClose={() => setOpen(null)} onSaved={saved}
-        onEdit={() => setOpen({ kind: "edit", form: formFromInvoice(records, current) })} />}
+        onEdit={() => setOpen({ kind: "edit", form: formFromInvoice(records, current) })}
+        onCopy={() => { const f = copyForm(records, settings, current); setNotice(f.linkedDropped ? { tone: "ok", lines: [`Copied. Its lines are no longer tied to the stockist sales on ${current.num || "the original"}.`] } : null); setOpen({ kind: "edit", form: f }); }} />}
     </section>
   );
 }
