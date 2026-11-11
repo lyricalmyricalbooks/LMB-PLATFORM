@@ -3503,9 +3503,21 @@ function shopLookSection(shop) {
 function emailCopy(m) {
   if (m.withheld) return meta(`${m.subject ? `"${m.subject}". ` : ""}Its words aren't kept: it carries a way in.`);
   if (!m.text) return null;
+  const copy = button("Copy", "ghost");
+  copy.setAttribute("aria-label", `Copy what "${m.subject || m.words}" said`);
+  copy.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(`${m.subject ? `${m.subject}\n\n` : ""}${m.text}`);
+      copy.textContent = "Copied";
+    } catch {
+      copy.textContent = "Couldn't copy";
+    }
+    setTimeout(() => { copy.textContent = "Copy"; }, 2000);
+  });
   return el("details", { className: "cr-email-copy" },
     el("summary", { textContent: m.subject || "What it said" }),
-    el("pre", { className: "cr-email-text", textContent: m.text }));
+    el("pre", { className: "cr-email-text", textContent: m.text }),
+    el("div", { className: "cr-email-actions" }, copy));
 }
 function shopEmailsSection(shop) {
   const slot = el("div", {}, el("p", { className: "rp-hint", textContent: "Reading the email log…" }));
