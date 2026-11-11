@@ -12,6 +12,7 @@ import { buildTaxLedger } from "@stockroom/tax-ledger.js";
 import { AskView } from "./AskPage";
 import { ExpensesView } from "./ExpensesPage";
 import { RecordsGate } from "./RecordsGate";
+import { SalesRecords } from "./SalesPage";
 import { StockList } from "./StockPage";
 import { CustomersList } from "./CustomersPage";
 import { StockistsPage } from "./StockistsPage";
@@ -197,6 +198,10 @@ describe("the pages", () => {
     expect(exp.container.textContent).toContain("0 expenses");
     expect(exp.container.textContent).toContain("No expenses logged yet");
     await act(async () => exp.root.unmount());
+    const sales = await draw(<SalesRecords records={none} />);
+    expect(sales.container.textContent).toContain("Money taken");
+    expect(sales.container.textContent).toContain("No sales recorded yet");
+    await act(async () => sales.root.unmount());
     const stock = await draw(<StockList records={none} onPick={() => {}} />);
     expect(stock.container.textContent).toContain("No books yet");
     await act(async () => stock.root.unmount());
