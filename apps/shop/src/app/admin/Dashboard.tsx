@@ -41,6 +41,8 @@ import { addStorePage, askPersonPage, helpCentrePage, planLocked, storesPage, tr
 import { usePlatformPlan } from "./platformPlanApi";
 import { PlatformMessagesBar } from "./PlatformMessagesBar";
 import { LocalBackupAuto } from "./LocalBackupCard";
+// Automatic invoice reminders run in the owner's open combined admin (stockroom/autoRemind.ts); loaded only there.
+const AutoReminders = lazy(() => import("./stockroom/AutoReminders").then((m) => ({ default: m.AutoReminders })));
 import type { SupportVisit } from "./supportSession";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
 import { useAdminAppManifest } from "./adminApp";
@@ -250,6 +252,7 @@ export function Dashboard() {
   const refreshAlertsRef = useRef<() => void>(() => {});
   // Unpaid/mismatched/disputed orders etc., shown above every admin page.
   const [alerts, setAlerts] = useState<AdminAlert[]>([]);
+  const [reminderAlert, setReminderAlert] = useState<AdminAlert | null>(null);
   // Pending reviews, unread messages and open privacy requests (cheap server counts).
   // Settings › Bookkeeping shows only when the platform's bookkeeping link is on for this shop (plan 7.16). Asked once,
   // the first time Settings opens (its pages are listed there only).
@@ -820,13 +823,14 @@ export function Dashboard() {
     {/* The combined admin's one-time tour invitation, on Home only (CombinedTour.tsx). */}
     {COMBINED && ownMasthead && tourInvite && <CombinedTourInvite onStart={() => { setTourOpen(true); dismissTour(); }} onDismiss={dismissTour} />}
     <AdminAlerts
-      alerts={[...settingsAlerts(originalSettings), ...alerts]}
+      alerts={[...settingsAlerts(originalSettings), ...alerts, ...(reminderAlert ? [reminderAlert] : [])]}
       onOpenNotifications={() => { setActiveTab("settings"); setSettingsTab("notifications"); setShowEditor(false); setSelectedOrder(null); }}
       onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }}
       onOpenOrders={() => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder(null); }}
       onOpenWebhook={() => { setActiveTab("settings"); setSettingsTab("payments"); setShowEditor(false); setSelectedOrder(null); }}
       onOpenGeneral={() => { setActiveTab("settings"); setSettingsTab("general"); setShowEditor(false); setSelectedOrder(null); }}
       onOpenBackups={COMBINED ? () => void openStockroomPage("backups") : undefined}
+      onOpenInvoices={() => void openStockroomPage("invoices")}
       onOpenInventory={() => { setActiveTab("inventory"); setShowEditor(false); setSelectedOrder(null); }}
       onOpenRoute={(r: AlertRoute) => {
         setActiveTab(r.tab);
@@ -983,6 +987,7 @@ export function Dashboard() {
         {/* The control room's messages to the press (platform/messages, code plan 19.14): admin only, never the storefront. */}
         <PlatformMessagesBar enabled={!!user} />
         {!!user && !supportVisit && <LocalBackupAuto />}
+        {!!user && !supportVisit && COMBINED && <Suspense fallback={null}><AutoReminders onAlert={setReminderAlert} /></Suspense>}
         {/* The stockroom's daily online copy (Stockroom › Backups), made by the owner's admin. */}
         {!!user && !supportVisit && COMBINED && isShopOwner(user.email) && <Suspense fallback={null}><StockroomCopyAuto /><FairHelperInbox /><WebsiteOrdersAuto /></Suspense>}
         {/* The admin home asks a paid plan's owner to turn on two-step sign-in (TwoStepReminder.tsx, plan 22.10). */}

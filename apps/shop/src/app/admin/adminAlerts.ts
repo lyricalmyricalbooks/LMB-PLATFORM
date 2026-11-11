@@ -19,7 +19,7 @@ export type AdminAlert = {
   orderIds: string[];
   /** What the alert is about when no order is (held books…): a change brings a hidden alert back. */
   key?: string;
-  action: "order" | "orders" | "webhook" | "notifications" | "payments" | "general" | "retry" | "inventory" | "inventoryApp" | "cardAccount" | "backups";
+  action: "order" | "orders" | "webhook" | "notifications" | "payments" | "general" | "retry" | "inventory" | "inventoryApp" | "cardAccount" | "backups" | "invoices";
   /** action "inventoryApp": where in the inventory app the button opens (a `#…` the app handles). */
   appHash?: string;
 };

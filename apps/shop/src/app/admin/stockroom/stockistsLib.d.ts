@@ -37,6 +37,14 @@ declare module "@stockroom/payment-reminders.js" {
   export function invoiceReminderState(inv: Record<string, any>): { count: number; lastAt: number; lastKind: string; lastStatus: string; snoozedUntil: string };
   export function daysLate(inv: Record<string, any>, today: string): number | null;
   export function reminderSettings(raw: unknown): { auto: boolean; days: number; message: string };
+  export const MIN_REMINDER_DAYS: number;
+  export const MAX_REMINDER_DAYS: number;
+  export const REMINDER_DEFAULTS: { auto: boolean; days: number; message: string };
+  export function reminderBlockReason(inv: Record<string, any>, opts: { today: string; days: number; now?: number }): string | null;
+  export function dueForReminder(invoices: Record<string, any>[], opts: { today: string; days: number; max?: number }): Record<string, any>[];
+  export function canSendNow(date?: Date): boolean;
+  export function describeReminderSweep(r: { sent?: number; failed?: number }): { title: string; detail: string; needsReview: boolean } | null;
+  export function describeReminderArming(r: { count?: number; days?: number }): string;
   export function buildReminderEmail(inv: Record<string, any>, opts: { settings: unknown; payLink?: string; publisher?: string; amountLabel?: string; attached?: boolean }): { subject: string; text: string; html: string };
 }
 declare module "@stockroom/money.js" {
