@@ -89,3 +89,10 @@ declare module "@stockroom/deductibility.js" {
   export function deductibleRate(cat: string): number;
   export function deductibleAmount(cat: string, amount: number): number;
 }
+declare module "@stockroom/stock-places.js" {
+  export const MAIN_PLACE: string;
+  export const MAX_PLACES: number;
+  export function placeCounts(s: Record<string, any>, book: Record<string, any> | null): Array<{ name: string; qty: number }>;
+  export function movePlaceStock(s: Record<string, any>, book: Record<string, any> | null, move: { from: string; to: string; qty: number; note?: string; isoDate?: string; now?: number }): { ok: true; move: Record<string, any> } | { ok: false; error: string };
+  export function removePlace(s: Record<string, any>, book: Record<string, any> | null, name: string): { ok: true } | { ok: false; error: string };
+}
