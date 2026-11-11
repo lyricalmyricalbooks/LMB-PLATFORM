@@ -19,6 +19,22 @@ function sinceWords(iso, now) {
 }
 export const PAYING = new Set(["active", "past_due"]);
 export const PAYMENT_PROBLEM = new Set(["past_due", "unpaid", "incomplete"]);
+
+/**
+ * What the control room needs for "Send reminder" on a failed plan payment: whether it fits, when the press was last
+ * reminded about this problem (a reminder from an older problem doesn't count), and whether there is a billing email.
+ */
+export function paymentReminder(billing = {}) {
+  const since = Date.parse(billing.troubleSince ?? "");
+  const at = Date.parse(billing.remindedAt ?? "");
+  return {
+    // A paused plan already had its own email, and the failed-payment note says the shop is still open.
+    canRemind: billing.access !== "paused",
+    remindedAt: Number.isFinite(at) && !(at < since) ? billing.remindedAt : null,
+    noBillingEmail: billing.noBillingEmail === true,
+  };
+}
+
 /** The lines about one shop the owner can snooze from Today (a drifting press has its own snooze, driftWatch.js). */
 export const SNOOZABLE = Object.freeze(["shop", "payment", "move", "newsletter", "domain", "switch", "parcels", "payouts"]);
 export const SNOOZE_DAYS = 7;
@@ -69,7 +85,7 @@ export function todaySummary({ rows, settings, profiles = {}, checks = {}, open 
     if (health.level === "problem") needs.push({ kind: "shop", shopId: row.shopId, words: `${row.pressName ?? row.shopId}: ${health.reasons[0]}`, go: "#shops" });
   }
   for (const row of shops.filter((r) => PAYMENT_PROBLEM.has(r.billing?.status))) {
-    needs.push({ kind: "payment", shopId: row.shopId, words: `${row.pressName ?? row.shopId}: their plan payment failed`, go: "#shops" });
+    needs.push({ kind: "payment", shopId: row.shopId, words: `${row.pressName ?? row.shopId}: their plan payment failed`, go: "#shops", ...paymentReminder(row.billing) });
   }
   // Paying presses drifting away (driftWatch.js keeps `drift` on the row once a day).
   // A press the owner snoozed stays off until the snooze ends.

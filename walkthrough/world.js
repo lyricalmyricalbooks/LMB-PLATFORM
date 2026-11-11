@@ -255,7 +255,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
 
   // The business side of Today (19.7-19.9): income records written by the nightly run, read with the registry.
   const incomeHistory = fakeIncomeHistory();
-  const business = createBusinessRoom({ registry, incomeHistory, admins, now: clock.date });
+  const business = createBusinessRoom({ registry, incomeHistory, admins, billing, activity, now: clock.date });
   // One timeline per shop, the jobs page and the private notes (19.10, 19.11, 19.13). The jobs this world can run by
   // hand are the ones with nothing outside it; the rest answer "only on the server".
   const timeline = createTimeline({ admins, registry, activity, supportStore, emailLog: email.emailLog, shopData, now: clock.date });

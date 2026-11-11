@@ -58,3 +58,37 @@ test("GET /api/control/payment-trouble is for platform admins only", async () =>
   assert.equal(answer.status, 200);
   assert.deepEqual(answer.body.shops.map((s) => s.shopId), ["paused-long", "unpaid-new", "retrying-old", "retrying-new"]);
 });
+
+test("POST /api/control/payment-reminder sends through billing, logs it, and says why when it can't", async () => {
+  const registry = fakeRegistry();
+  const asked = [];
+  const logged = [];
+  const billing = { remindPayment: async ({ shopId }) => { asked.push(shopId); return shopId === "owing" ? { sent: true, to: "press@example.com", kind: "payment-failed" } : { sent: false, why: "Nothing is owed on this shop's plan." }; } };
+  const room = createBusinessRoom({ registry, admins: ["admin@example.com"], billing, activity: { record: async (e) => logged.push(e) }, now: () => NOW });
+  const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), routes: businessRoutes(room) });
+  const admin = { uid: "a", email: "admin@example.com", email_verified: true, firebase: { sign_in_second_factor: "totp" }, auth_time: Math.floor(NOW.getTime() / 1000) };
+  const ask = (claims, body) => api({ method: "POST", path: "/api/control/payment-reminder", headers: claims ? { Authorization: `Bearer ${JSON.stringify(claims)}` } : {}, body });
+  assert.equal((await ask({ uid: "p", email: "owner@example.com", email_verified: true }, { shopId: "owing" })).status, 403);
+  assert.equal(asked.length, 0);
+  const ok = await ask(admin, { shopId: "owing" });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.body.to, "press@example.com");
+  assert.deepEqual(logged.map((e) => [e.what, e.shopId]), [["payment-reminder", "owing"]]);
+  const refused = await ask(admin, { shopId: "fine" });
+  assert.equal(refused.status, 409);
+  assert.equal(logged.length, 1);
+});
+
+test("each failed payment says whether a reminder fits, when the last one went, and when there's no billing email", () => {
+  const list = paymentTrouble([
+    shop("reminded", { status: "past_due", access: "open", troubleSince: ago(5), remindedAt: ago(1) }),
+    shop("old-reminder", { status: "past_due", access: "open", troubleSince: ago(2), remindedAt: ago(40) }),
+    shop("no-email", { status: "past_due", access: "open", troubleSince: ago(3), noBillingEmail: true }),
+    shop("paused", { status: "paused", access: "paused", troubleSince: ago(3) }),
+  ], NOW);
+  const by = Object.fromEntries(list.map((s) => [s.shopId, s]));
+  assert.equal(by.reminded.remindedAt, ago(1));
+  assert.equal(by["old-reminder"].remindedAt, null, "a reminder from an earlier problem doesn't count");
+  assert.deepEqual([by["no-email"].noBillingEmail, by["no-email"].canRemind], [true, true]);
+  assert.equal(by.paused.canRemind, false);
+});

@@ -232,6 +232,7 @@
 .rp.cl .cr-need-why { margin: 2px 0 0; font-size: 13px; line-height: 1.4; color: var(--rp-text-muted); overflow-wrap: anywhere; }
 .rp.cl .cr-need-actions { display: flex; flex: none; align-items: center; gap: 8px; }
 .rp.cl .cr-need-actions .rp-btn { min-height: 36px; padding: 0 16px; }
+.rp.cl .cr-remind { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .rp.cl .cr-need-actions .rp-select { width: auto; min-height: 36px; padding-block: 0; border-radius: 999px; background: transparent; box-shadow: inset 0 0 0 1px var(--rp-border-strong); font-size: 13px; font-weight: 600; }
 .rp.cl .cr-needs-empty { margin: 0; padding: 20px; color: var(--rp-text-muted); font-size: 14px; }
 .rp.cl .cr-needs-foot { padding: 0 20px 16px; }
