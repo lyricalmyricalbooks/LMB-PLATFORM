@@ -46,6 +46,7 @@ import { BookkeepingSettings } from "./BookkeepingSettings";
 import { BillingSettings, PlanSettings } from "./PlanParts";
 import { TaxesSettings } from "./TaxesSettings";
 import { BackupsExportCard } from "./BackupsExportCard";
+import { combinedAdmin } from "./combined";
 import { DownloadShopCard } from "./DownloadShopCard";
 import { LocalBackupCard } from "./LocalBackupCard";
 import { ShopErrorsCard } from "./ShopErrorsCard";
@@ -318,9 +319,18 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
       <SettingsGroup id="gs-tools" active={view === "gs-tools"}>
         <SettingsAnchor id="gs-ai"><OwnAccountOnly><AiWriterCard /></OwnAccountOnly></SettingsAnchor>
         <SettingsAnchor id="gs-privacy"><PrivacyRequestsCard /></SettingsAnchor>
-        <SettingsAnchor id="gs-download-shop"><DownloadShopCard /></SettingsAnchor>
-        <SettingsAnchor id="gs-local-backup"><LocalBackupCard /></SettingsAnchor>
-        <SettingsAnchor id="gs-backups"><BackupsExportCard /></SettingsAnchor>
+        {/* The combined admin keeps backups, downloads and exports in one place: Stockroom › Backups. */}
+        {combinedAdmin() ? (
+          <SettingsAnchor id="gs-backups">
+            <SectionCard title="Backups & downloads" description="All in one place now: Stockroom › Backups.">
+              <SecondaryButton size="sm" onClick={() => { window.location.hash = "#stockroom/backups"; }}>Open Backups</SecondaryButton>
+            </SectionCard>
+          </SettingsAnchor>
+        ) : <>
+          <SettingsAnchor id="gs-download-shop"><DownloadShopCard /></SettingsAnchor>
+          <SettingsAnchor id="gs-local-backup"><LocalBackupCard /></SettingsAnchor>
+          <SettingsAnchor id="gs-backups"><BackupsExportCard /></SettingsAnchor>
+        </>}
         <SettingsAnchor id="gs-shop-errors"><ShopErrorsCard /></SettingsAnchor>
       </SettingsGroup>
 

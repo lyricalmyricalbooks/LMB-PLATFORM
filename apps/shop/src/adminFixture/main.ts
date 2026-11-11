@@ -14,6 +14,7 @@ import { recomputeAfters } from "@stockroom/recompute-afters.js";
 import { stockistReceiptApi } from "../app/admin/stockroom/stockistReceipt"; // stockist-pay
 import { qrCodesStore } from "../app/admin/stockroom/qrCodesStore";
 import { sheetsStore } from "../app/admin/stockroom/sheetsStore";
+import { nightlyBackupApi } from "../app/admin/BackupsExportCard";
 
 // Stockroom › To-do: two titles, one nearly sold out and one with nothing waiting (`?stock=empty`: nothing at all).
 const EMPTY_STOCKROOM = new URLSearchParams(window.location.search).get("stock") === "empty";
@@ -524,6 +525,17 @@ if (/page=stockroom(\/|%2F)sheets/.test(window.location.search)) {
   googleConnectApi.sendStockSheet = async (tabs = {}) => ({ available: true, url: "https://docs.google.com/spreadsheets/d/example/edit", writtenAt: new Date().toISOString(), rows: 2, sales: tabs.sales?.length ?? 0, expenses: tabs.expenses?.length ?? 0 });
 }
 
+
+// ── Stockroom › Backups (?page=stockroom/backups): last night's backup worked, five daily copies (Download gives an
+// empty page), and Back up now finishes in a second. ──
+if (/page=stockroom(\/|%2F)backups/.test(window.location.search)) {
+  const night = (d: number) => { const t = new Date(); t.setDate(t.getDate() - d); t.setHours(3, 17, 0, 0); return t; };
+  let last = night(0).toISOString();
+  nightlyBackupApi.status = async () => ({ ok: true, lastAttemptAt: last, lastSuccessAt: last, export: { ok: true }, copy: { ok: true, documents: 1840 } });
+  nightlyBackupApi.list = async () => ({ backups: [0, 1, 2, 3, 4].map((d) => ({ day: night(d).toISOString().slice(0, 10), createdAt: night(d).toISOString(), documents: 1840 - d * 12, complete: true, downloadable: true, hasExport: true })) });
+  nightlyBackupApi.backupNow = async () => { await new Promise((r) => setTimeout(r, 1000)); last = new Date().toISOString(); return { ok: true }; };
+  nightlyBackupApi.downloadLink = async () => ({ url: "about:blank" });
+}
 
 // Settings › Apps: a pretend app store, two installed apps and their activity (?apps=none for the empty page).
 {

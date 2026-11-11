@@ -130,7 +130,7 @@ describe("#85/#20 alert refresh and backup", () => {
   });
   it("alerts when the last backup failed or is overdue, not when it is fine or unrecorded", () => {
     const now = Date.parse("2026-10-10T12:00:00Z");
-    expect(backupAlert({ ok: false, lastAttemptAt: "2026-10-10T07:17:00Z", error: "permission denied" }, now)).toMatchObject({ id: "backup", tone: "danger", action: "general" });
+    expect(backupAlert({ ok: false, lastAttemptAt: "2026-10-10T07:17:00Z", error: "permission denied" }, now)).toMatchObject({ id: "backup", tone: "danger", action: "backups" });
     expect(backupAlert({ ok: true, lastAttemptAt: "2026-10-05T07:17:00Z", lastSuccessAt: "2026-10-05T07:17:00Z" }, now)).toMatchObject({ tone: "warning" });
     expect(backupAlert({ ok: true, lastAttemptAt: "2026-10-10T07:17:00Z", lastSuccessAt: "2026-10-10T07:17:00Z" }, now)).toBeNull();
     expect(backupAlert(null, now)).toBeNull();
