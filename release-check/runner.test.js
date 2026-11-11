@@ -137,3 +137,25 @@ test("the walk through every admin page lists what is broken without stopping th
   assert.equal(result.ok, true, "a broken admin page is reported, not a reason to stop");
   assert.deepEqual(result.results[5].detail.adminPagesToFix, ["#settings/google on a laptop: shows an error"]);
 });
+
+test("while the test shop can't take a card, the purchase checks wait and the stockroom, admin walk and clean-up still run", async () => {
+  const { registry, shop, run, lines } = await setup({ faults: ["no-card-key"] });
+  const result = await run();
+  assert.equal(result.ok, true, result.error);
+  assert.match(result.waiting, /no payments connected/);
+  assert.deepEqual(result.results.map((r) => r.status), ["passed", "passed", "waiting", "waiting", "waiting", "passed", "waiting", "passed"]);
+  assert.ok(shop.world.calls.includes("openStockroom:owner@example.com"), "the stockroom still opens as the test owner");
+  assert.ok(!shop.world.calls.includes("buy"), "nothing is bought");
+  assert.ok(lines.some((line) => /test purchase waits/.test(line)));
+  const [entry] = await registry.readReleaseChecks(ID);
+  assert.match(entry.waiting, /no payments connected/);
+});
+
+test("card payments wait until the profile names the platform's Stripe test publishable key", async () => {
+  const { cardPaymentsWaiting } = await import("./checks.js");
+  const stripe = (extra) => ({ payments: { provider: "stripe", mode: "platform", stripe: { accountId: "acct_1", ...extra } } });
+  assert.match(cardPaymentsWaiting({}), /no payments connected/);
+  assert.match(cardPaymentsWaiting(stripe({})), /no Stripe test publishable key/);
+  assert.equal(cardPaymentsWaiting(stripe({ testPublishableKey: "pk_test_abcdefghijklmnop" })), null);
+  assert.equal(cardPaymentsWaiting({ payments: { provider: "square", mode: "platform" } }), null);
+});
