@@ -28,6 +28,8 @@ export const TILE_TONES = ["mint", "apricot", "sky", "lilac"] as const;
 export type TillItem = {
   id: string; title: string; initials: string; tone: typeof TILE_TONES[number];
   price: number; cur: string; onHand: number | null; codes: string[];
+  /** The item's cover photo (the catalogue's `coverUrl`), "" when it has none: the tile shows initials then. */
+  photo: string;
   /** A till-only item: its sales are tallied on the item, never in the stock records. */
   extra?: boolean;
 };
@@ -42,6 +44,12 @@ export function initials(title: string): string {
 
 const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
 
+/** A cover address safe to show on a tile: https, or a picture kept in the record itself. */
+export function tilePhoto(url: unknown): string {
+  const u = String(url ?? "").trim();
+  return /^https:\/\/\S+$/i.test(u) || /^data:image\/(png|jpe?g|webp|gif);base64,/i.test(u) ? u : "";
+}
+
 /** Every item the till can sell, in the catalogue's order, with its copies on hand (null: not counted). */
 export function tillItems(records: StockroomRecords): TillItem[] {
   const extras = (records.extras || []).filter((e) => !records.books.some((b) => b.id === e.id));
@@ -50,7 +58,7 @@ export function tillItems(records: StockroomRecords): TillItem[] {
     const codes = [book.isbn, book.isbn13, book.sku, book.barcode, book.upc].map((c) => String(c ?? "").replace(/[\s-]/g, "")).filter(Boolean);
     return {
       id: book.id, title: book.title || "Untitled", initials: initials(book.title), tone: TILE_TONES[i % TILE_TONES.length],
-      price: Math.max(0, num(book.listPrice) ?? 0), cur: bookCurrencyCode(book), onHand: i >= records.books.length ? null : num(state.stock), codes,
+      price: Math.max(0, num(book.listPrice) ?? 0), cur: bookCurrencyCode(book), photo: tilePhoto(book.coverUrl), onHand: i >= records.books.length ? null : num(state.stock), codes,
       ...(i >= records.books.length ? { extra: true } : {}),
     };
   });
