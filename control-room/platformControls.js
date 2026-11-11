@@ -39,6 +39,9 @@ const LAUNCH_KEYS = Object.freeze([
 /** Where Support's saved replies live in the platform's records, and how many are kept. */
 export const SAVED_REPLIES = "savedReplies";
 const MAX_SAVED_REPLIES = 40;
+export const TODAY_NOTES = "todayNotes";
+const MAX_TODAY_NOTES = 200;
+
 
 const reasonOf = (reason) => {
   const text = typeof reason === "string" ? reason.trim() : "";
@@ -208,6 +211,29 @@ export function createPlatformControls({ admins, settingsStore, env = process.en
       return { replies: clean };
     },
 
+    /** Notes on Today's lines ("called them, waiting"), keyed by the line: { key: { words, at, by } }. */
+    async todayNotes(claims) {
+      adminOf(claims, admins, now().getTime());
+      return { notes: (await settingsStore.get(TODAY_NOTES))?.notes ?? {} };
+    },
+
+    /**
+     * Sets or clears (empty words) the note on one Today line. The key is the line's kind and shop (the page builds it).
+     * Words up to 200 characters; at most 200 notes are kept, the oldest dropped first. Logged without the words.
+     */
+    async setTodayNote(claims, { key, words } = {}) {
+      const by = adminOf(claims, admins, now().getTime());
+      if (typeof key !== "string" || !key.trim() || key.length > 200) throw new ControlError(400, "Say which line the note is for.");
+      const text = String(words ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
+      const notes = { ...((await settingsStore.get(TODAY_NOTES))?.notes ?? {}) };
+      if (text) notes[key] = { words: text, at: at(), by };
+      else delete notes[key];
+      const kept = Object.fromEntries(Object.entries(notes).sort(([, a], [, b]) => (a.at < b.at ? 1 : -1)).slice(0, MAX_TODAY_NOTES));
+      await settingsStore.set(TODAY_NOTES, { notes: kept, updatedAt: at(), updatedBy: by });
+      await record({ by, what: "today-note", detail: { key, cleared: !text } });
+      return { notes: kept };
+    },
+
     /** The activity log, newest first; one shop's only with `shopId`. Read only. */
     async activity(claims, { shopId, limit = 200 } = {}) {
       adminOf(claims, admins, now().getTime());
@@ -230,5 +256,7 @@ export function platformRoutes(controls) {
     "POST /api/control/activity": (claims, request) => controls.activity(claims, body(request)),
     "GET /api/control/saved-replies": (claims) => controls.savedReplies(claims),
     "POST /api/control/saved-replies": (claims, request) => controls.saveReplies(claims, body(request)),
+    "GET /api/control/today-notes": (claims) => controls.todayNotes(claims),
+    "POST /api/control/today-note": (claims, request) => controls.setTodayNote(claims, body(request)),
   };
 }
