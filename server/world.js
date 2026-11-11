@@ -93,6 +93,7 @@ import { businessRoutes, createBusinessRoom } from "../control-room/business.js"
 import { createTimeline, timelineRoutes } from "../control-room/timeline.js";
 import { createSharedSystemDesk, sharedSystemRoutes } from "../control-room/sharedSystem.js";
 import { createJobsPage, jobsRoutes } from "../control-room/jobs.js";
+import { runnerFor } from "./jobs.js";
 import { createShopNotes, notesRoutes } from "../control-room/notes.js";
 import { createSetupDesk, setupRoutes } from "../control-room/setupPresses.js";
 import { createSetupClock } from "../signup/setupClock.js";
@@ -423,6 +424,8 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...(trialTips ? { "trial-tips": () => trialTips.run() } : {}),
     ...(checkups ? { "shop-checkup": () => checkups.run() } : {}),
   };
+  // The Monday email, sent to the owner now (its own key, so it goes even after this week's one).
+  runNow["weekly-summary"] = () => runnerFor({ parts }, "weekly-summary")({ byHand: true });
   const jobsPage = createJobsPage({ admins, runner: jobs, activity, now, jobs: runNow });
 
   // The platform's one web door, with the same routes as the practice one (walkthrough/world.js).
