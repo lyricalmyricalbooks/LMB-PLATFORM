@@ -112,7 +112,7 @@ const bookPrefix = (bookId: string) => (bookId || "BOOK").slice(0, 6).toUpperCas
 
 /** The next free number, as the old app gives it: one title keeps its own code, several get the press's initials. */
 export function nextNumber(records: StockroomRecords, ownerBookId: string, bookIds: string[], pressName: string, year: number): string {
-  const prefix = bookIds.length > 1 ? neutralInvoicePrefix(pressName || "Your Press") : bookPrefix(bookIds[0] || ownerBookId);
+  const prefix = bookIds.length > 1 ? neutralInvoicePrefix(pressName) : bookPrefix(bookIds[0] || ownerBookId);
   const all: Rec[] = [];
   for (const b of records.books) for (const inv of (records.states[b.id]?.invoices as Rec[] | undefined) || []) all.push(inv);
   const floor = prefix === bookPrefix(ownerBookId) ? Number(records.states[ownerBookId]?.invoiceSeq) || 0 : 0;
