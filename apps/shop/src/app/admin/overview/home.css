@@ -54,3 +54,15 @@
   .rp-home-actions .rp-btn { flex: 1; justify-content: center; }
   .rp-home-h2 { flex-wrap: wrap; }
 }
+
+/* Narrow tiles (three across at laptop widths): the big figure follows its tile's own width, and an order row turns into
+   two lines (number and amount, then name and status) so the name never shrinks to a letter per line. */
+.rp-home-tile, .rp-home-card { container-type: inline-size; }
+.rp-home-big { font-size: clamp(30px, 15cqi, 52px); overflow-wrap: anywhere; }
+@container (max-width: 380px) {
+  .rp-home-order { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "num money" "name badge"; row-gap: 4px; }
+  .rp-home-order > a { grid-area: num; }
+  .rp-home-order > .rp-home-name { grid-area: name; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal; color: var(--rp-text-muted); }
+  .rp-home-order > .rp-home-money { grid-area: money; text-align: right; }
+  .rp-home-order > :last-child { grid-area: badge; justify-self: end; }
+}
