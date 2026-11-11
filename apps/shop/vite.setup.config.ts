@@ -8,7 +8,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   base: '/app/',
   plugins: [react(), tailwindcss()],
-  resolve: { alias: { '@': path.resolve(import.meta.dirname, './src') } },
+  resolve: { alias: { '@': path.resolve(import.meta.dirname, './src'), '@stockroom': path.resolve(import.meta.dirname, '../stockroom/src/lib') } },
   build: {
     outDir: 'dist-setup',
     emptyOutDir: true,

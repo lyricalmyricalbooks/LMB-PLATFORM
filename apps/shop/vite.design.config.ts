@@ -10,7 +10,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   base: '/design/',
   plugins: [react(), tailwindcss()],
-  resolve: { alias: { '@': path.resolve(import.meta.dirname, './src') } },
+  resolve: { alias: { '@': path.resolve(import.meta.dirname, './src'), '@stockroom': path.resolve(import.meta.dirname, '../stockroom/src/lib') } },
   assetsInclude: ['**/*.svg', '**/*.csv'],
   // The shop's own public files (its profile, robots, sitemap, admin worker) belong to a real shop, never here.
   publicDir: false,
