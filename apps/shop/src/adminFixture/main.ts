@@ -298,6 +298,20 @@ if (gstate) {
   ];
 }
 
+// ── Stock › Reorder list sample (reorder worker): one title selling fast with copies left (`?page=reorder`).
+{
+  const base = stockroomApi.load;
+  stockroomApi.load = async () => {
+    const r = await base();
+    if (!r.books.length) return r;
+    const ago = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
+    r.books = [...r.books, { id: "ink-maps", title: "Ink Maps", author: "Dee Example", maxPrint: 120, threshold: 8, listPrice: 24, currency: "CAD" }];
+    r.states["ink-maps"] = { hist: [{ num: "R-1", chan: "Website", qty: 60, price: 24, date: ago(40) }, ...[2, 6, 11, 15, 22].map((n, i) => ({ num: `R-${i + 2}`, chan: "Book Fair", qty: 6, price: 24, date: ago(n) }))] };
+    return r;
+  };
+}
+// ── end Reorder list sample
+
 const params = new URLSearchParams(location.search);
 const page = params.get("page") || "";
 history.replaceState(null, "", `/admin?debug=true${page ? `#${page}` : ""}`);

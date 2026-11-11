@@ -51,8 +51,9 @@ import { SELLS_CHANGED_EVENT, ShopSellsContext, ShopWordsContext } from "./shopW
 import { COMBINED_MENU, MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, sideMenu, sideOf, sidebarItems, withoutPages } from "./riso/nav";
 import { SideSwitch, rememberSide, rememberedSide } from "./SideSwitch";
 import { useStockroomTodos } from "./overview/StockroomTodos";
-import { COMBINED_PAGES, DEFAULT_STOCKROOM_PAGE, SALES_TAB, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
+import { COMBINED_PAGES, DEFAULT_STOCKROOM_PAGE, REORDER_TAB, SALES_TAB, isCombinedTab, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
 import { AllSales } from "./AllSales";
+import { ReorderList } from "./ReorderList";
 import { keepAdminOffline } from "./adminOffline";
 import { CombinedTour, CombinedTourInvite, markTourSeen, tourSeen, type TourStop } from "./CombinedTour";
 import { markTourSeenOnAccount, tourSeenOnAccount } from "./combinedTourStore";
@@ -100,7 +101,7 @@ function readBootRoute() {
   if (studio) return { tab: "settings", settingsTab: "designer", studio };
   const route = routeFromHash(hash);
   // `#stockroom/…` belongs to the combined admin only (shop + stockroom plan).
-  const usable = route && ((route.tab !== STOCKROOM_TAB && route.tab !== SALES_TAB) || COMBINED);
+  const usable = route && ((route.tab !== STOCKROOM_TAB && !isCombinedTab(route.tab)) || COMBINED);
   return { ...(usable ? route : { tab: "overview" }), studio: null as StudioLocation | null };
 }
 
@@ -198,7 +199,7 @@ export function Dashboard() {
         return;
       }
       const route = routeFromHash(hash);
-      if (!route || ((route.tab === STOCKROOM_TAB || route.tab === SALES_TAB) && !COMBINED)) return;
+      if (!route || ((route.tab === STOCKROOM_TAB || isCombinedTab(route.tab)) && !COMBINED)) return;
       setShowEditor(false);
       setActiveTab(route.tab);
       if (route.settingsTab) setSettingsTab(route.settingsTab);
@@ -547,6 +548,7 @@ export function Dashboard() {
     ? NAV.find((n) => n.id === "settings")?.children?.find((c) => c.id === settingsChild)?.label || "Settings"
     : activeTab === STOCKROOM_TAB ? stockroomPage(subTab)?.label ?? "Stockroom"
     : activeTab === SALES_TAB ? "All sales"
+    : activeTab === REORDER_TAB ? "Reorder list"
     : w((PAGE_COPY[activeTab] || PAGE_COPY.overview).title);
   useEffect(() => {
     const previous = document.title;
@@ -736,7 +738,7 @@ export function Dashboard() {
   ];
 
   // Pages fully built from Riso components render outside the legacy compatibility layer.
-  const migrated = activeTab === STOCKROOM_TAB || activeTab === SALES_TAB || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "channels" || activeTab === "socialPosts" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "bookkeeping" || settingsTab === "plan" || settingsTab === "billing" || settingsTab === "security" || settingsTab === "google" || settingsTab === "apps"));
+  const migrated = activeTab === STOCKROOM_TAB || isCombinedTab(activeTab) || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "channels" || activeTab === "socialPosts" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "bookkeeping" || settingsTab === "plan" || settingsTab === "billing" || settingsTab === "security" || settingsTab === "google" || settingsTab === "apps"));
   const content = (() => {
     switch (activeTab) {
       case "overview":
@@ -759,6 +761,7 @@ export function Dashboard() {
             isPage={(id) => !!stockroomPage(id)}
             bookId={stockroomFocus?.page === stockroomPageId ? stockroomFocus.bookId : undefined} />
         ) : null;
+      case REORDER_TAB: return COMBINED ? <ReorderList /> : null;
       case SALES_TAB: return COMBINED ? <AllSales onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }} /> : null;
       case "orders":
         // Inbox-style desk: list + the full order page (all Stripe sync/refund/label actions) side by side.
