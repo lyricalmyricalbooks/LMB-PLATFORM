@@ -3,11 +3,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Column, DataTable, EmptyState, ErrorState, FilterBar, GhostButton, LoadingState, MetricCard, SearchField, SectionCard, StatusBadge, type BadgeTone } from "../riso/components";
-import { useShopWords } from "../shopWords";
+import { useShopSells, useShopWords } from "../shopWords";
 import { isRefusal, stockroomApi, type StockroomRecords } from "./stockroomData";
 import "./stock.css";
 import { WebsiteOrdersCard } from "./WebsiteOrders";
 import { PlacesCard } from "./PlacesCard";
+import { AuthorCopiesCard } from "./AuthorCopiesCard";
+import { hasPublisherTools } from "../../../shared/shopSells";
 import { catalogueStock, money, searchItems, totalsOf, type ChannelRow, type ItemStock, type StockLevel, type StoreRow } from "./stock";
 
 const LEVEL: Record<StockLevel, { tone: BadgeTone; word: string }> = {
@@ -129,6 +131,7 @@ export function StockPage({ bookId, load = stockroomApi.load }: { bookId?: strin
   }, [load]);
   useEffect(read, [read]);
   const items = useMemo(() => (records ? catalogueStock(records) : []), [records]);
+  const publisher = hasPublisherTools(useShopSells());
   // The stockroom's records are open to the shop's owner only: a team member is told so, with nothing to retry.
   if (failed === "refused") return <EmptyState icon="🔒" title="Only the owner can see stock and sales" description="The stockroom's records are kept for the shop's owner. Ask them if you need a figure from here." />;
   if (failed) return <ErrorState title="Stock and sales didn't load" description="Check your connection, then try again." onRetry={read} />;
@@ -137,7 +140,10 @@ export function StockPage({ bookId, load = stockroomApi.load }: { bookId?: strin
   if (item) {
     const book = (records.books.find((b) => b.id === item.id) || null) as Record<string, any> | null;
     const state = { hist: [], ...(records.states[item.id] || {}) };
-    return <StockDetail item={item} onBack={() => setPicked(null)} places={<PlacesCard bookId={item.id} book={book} state={state} onSaved={read} />} />;
+    return <StockDetail item={item} onBack={() => setPicked(null)} places={<>
+      <PlacesCard bookId={item.id} book={book} state={state} onSaved={read} />
+      {(publisher || item.authorHeld > 0) && <AuthorCopiesCard bookId={item.id} book={book} state={state} onSaved={read} />}
+    </>} />;
   }
   return <div className="rp-stock"><WebsiteOrdersCard /><StockList records={records} onPick={setPicked} /></div>;
 }

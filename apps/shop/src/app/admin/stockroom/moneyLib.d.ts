@@ -96,3 +96,6 @@ declare module "@stockroom/stock-places.js" {
   export function movePlaceStock(s: Record<string, any>, book: Record<string, any> | null, move: { from: string; to: string; qty: number; note?: string; isoDate?: string; now?: number }): { ok: true; move: Record<string, any> } | { ok: false; error: string };
   export function removePlace(s: Record<string, any>, book: Record<string, any> | null, name: string): { ok: true } | { ok: false; error: string };
 }
+declare module "@stockroom/inventory.js" {
+  export function transferAuthorStock(s: Record<string, any>, book: Record<string, any> | null, delta: number, note?: string, isoDate?: string): { transfer: Record<string, any> | null };
+}
