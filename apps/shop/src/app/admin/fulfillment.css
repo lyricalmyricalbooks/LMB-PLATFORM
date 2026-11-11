@@ -600,3 +600,18 @@ ul.fw-problems {
   font-size: var(--rp-text-xs);
 }
 .fw-return-steps li[aria-current="step"] .fw-return-step-mark { background: var(--rp-text); color: var(--rp-surface); border-color: var(--rp-text); }
+
+/* Colophon look (redesign, 11 November 2026): the order's steps sit inside one white rounded card; the step strip is
+   rounded tiles, the current one ringed, and the step you're on is no longer a grey band that looks like the page. */
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .fw-workbench { overflow: hidden; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .fw-step[data-active="true"] { background: transparent; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .fw-step-icon { border: 0; border-radius: var(--rp-radius-pill); background: var(--rp-surface-2); color: var(--rp-text); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .fw-address { border-radius: var(--rp-radius); }
+@media screen and (min-width: 768px) {
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .fw-strip { border-bottom: 0; padding-bottom: 4px; }
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .fw-strip-step,
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .fw-strip-step[data-state] { border: 0; border-radius: var(--rp-radius); background: var(--rp-surface-2); box-shadow: none; padding: 12px 14px; }
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .fw-strip-step[data-state="now"] { background: var(--rp-surface); box-shadow: inset 0 0 0 2px var(--rp-primary); }
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .fw-strip-step[data-state="done"] strong { color: var(--rp-text-muted); }
+}
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .fw-strip-step .rp-label { font: 400 var(--rp-text-xs) / 1.4 var(--rp-font-body); letter-spacing: 0; text-transform: none; color: var(--rp-text-muted); }
