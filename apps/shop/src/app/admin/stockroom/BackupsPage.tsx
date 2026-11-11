@@ -10,7 +10,7 @@ import { LocalBackupCard } from "../LocalBackupCard";
 import { readMeta, supported } from "../localBackup";
 import { Drawer, PageActions, PrimaryButton, SecondaryButton, StatusBadge } from "../riso/components";
 import { folderRow, nightlyRow } from "./backups";
-import { StockroomCopiesList, copiesLine, useStockroomCopies } from "./StockroomCopies";
+import { StockroomCopiesList, copiesLine, useStockroomCopies } from "./StockroomCopies.tsx";
 import { isTestBook, stockroomApi } from "./stockroomData";
 import { stockLocationsCsv } from "@stockroom/stock-locations.js";
 import "./stockroom.css";
