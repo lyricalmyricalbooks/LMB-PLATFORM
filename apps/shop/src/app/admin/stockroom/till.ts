@@ -28,6 +28,8 @@ export const TILE_TONES = ["mint", "apricot", "sky", "lilac"] as const;
 export type TillItem = {
   id: string; title: string; initials: string; tone: typeof TILE_TONES[number];
   price: number; cur: string; onHand: number | null; codes: string[];
+  /** A till-only item: its sales are tallied on the item, never in the stock records. */
+  extra?: boolean;
 };
 
 /** Up to two letters for a tile: the first letters of the first two words that count ("The Ferry Poems" → "FP"). */
@@ -42,12 +44,14 @@ const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n
 
 /** Every item the till can sell, in the catalogue's order, with its copies on hand (null: not counted). */
 export function tillItems(records: StockroomRecords): TillItem[] {
-  return records.books.map((book, i) => {
+  const extras = (records.extras || []).filter((e) => !records.books.some((b) => b.id === e.id));
+  return [...records.books, ...extras].map((book, i) => {
     const state = records.states[book.id] || {};
     const codes = [book.isbn, book.isbn13, book.sku, book.barcode, book.upc].map((c) => String(c ?? "").replace(/[\s-]/g, "")).filter(Boolean);
     return {
       id: book.id, title: book.title || "Untitled", initials: initials(book.title), tone: TILE_TONES[i % TILE_TONES.length],
-      price: Math.max(0, num(book.listPrice) ?? 0), cur: bookCurrencyCode(book), onHand: num(state.stock), codes,
+      price: Math.max(0, num(book.listPrice) ?? 0), cur: bookCurrencyCode(book), onHand: i >= records.books.length ? null : num(state.stock), codes,
+      ...(i >= records.books.length ? { extra: true } : {}),
     };
   });
 }

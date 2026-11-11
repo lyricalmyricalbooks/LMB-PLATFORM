@@ -58,3 +58,11 @@ describe("write-downs and disposals", () => {
     expect(withDisposal(next, books[1], built.record, form)).toBe(next);
   });
 });
+
+describe("a book with no records yet", () => {
+  it("counts its whole print run on hand, as the old app does", async () => {
+    const { stockValue } = await import("./stockValue");
+    const { items } = stockValue([{ id: "new", title: "New", maxPrint: 200, listPrice: 20, productionCost: 1000, currency: "CAD" }], {}, {});
+    expect(items[0]).toMatchObject({ stockOnHand: 200, totalUnsold: 200, unitCost: 5, totalCostCAD: 1000 });
+  });
+});
