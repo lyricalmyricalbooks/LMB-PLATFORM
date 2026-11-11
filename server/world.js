@@ -108,6 +108,7 @@ import { chitChatsDeskRoutes, createChitChatsDesk } from "../control-room/chitCh
 import { chitChatsNote } from "../control-room/chitChatsNote.js";
 import { switchNote } from "../control-room/switchNote.js";
 import { createSellReady, sellReadyRoutes } from "../control-room/sellReady.js";
+import { createNotSelling, notSellingRoutes } from "../control-room/notSelling.js";
 import { deliveryReader } from "../control-room/delivery.js";
 import { createJobs } from "../services/jobs/index.js";
 import { createPressMessages, messageRoutes } from "../control-room/messages.js";
@@ -330,6 +331,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const shopApps = createShopApps({ admins, registry, installs: appInstallStore, outbox: appAlertOutbox, shopData, now });
   const chitChatsDesk = createChitChatsDesk({ admins, chitchats, stores: chitchatsStores, registry, now: now });
   const sellReady = createSellReady({ admins, registry, shopData, now: now });
+  const notSelling = createNotSelling({ admins, registry, shopData, email, activity, now: now });
   // Social channels (27.8): the social service has no hosted home yet (services/social/index.js), so the room says so.
   const shopSocial = createShopSocial({ admins, registry, social: null, now });
   const salesChannels = createSalesChannels({ admins, registry, shopData, stockroomData, now });
@@ -419,6 +421,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...shopAppsRoutes(shopApps),
     ...chitChatsDeskRoutes(chitChatsDesk),
     ...sellReadyRoutes(sellReady),
+    ...notSellingRoutes(notSelling),
     ...driftRoutes(driftDesk),
     ...messageRoutes(pressMessages),
     ...costRoutes(costsDesk),

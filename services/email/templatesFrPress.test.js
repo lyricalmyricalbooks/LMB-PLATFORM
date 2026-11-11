@@ -67,6 +67,7 @@ const SAMPLES = {
   "recovery-approved": [{ oldEmail: "old@example.com", newEmail: "new@example.com", holdUntil: "4 November 2026" }],
   "recovery-denied": [{ oldEmail: "old@example.com", reason: "We couldn't check who you are." }],
   "recovery-applied": [{ oldEmail: "old@example.com", newEmail: "new@example.com" }],
+  "first-sale-tips": [{}],
   "trial-tip": [...Object.values(TIPS), ...Object.values(START_NUDGE_WORDS)].map((tip) => ({ subject: tip.subject, paragraphs: tip.paragraphs, action: tip.action, link: LINK, offLink: LINK })),
   "shop-checkup": [
     { lines: [{ state: "ok", words: "Every link we tried on your shop works." }], offLink: LINK },

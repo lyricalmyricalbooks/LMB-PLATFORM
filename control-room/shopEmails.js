@@ -29,7 +29,7 @@ export const KIND_WORDS = Object.freeze({
   "sign-in-code": "Sign-in code", "waitlist-invite": "Waitlist invitation", "new-device": "New sign-in", "account-deleted": "Account deleted",
   "recovery-asked": "Account move asked", "recovery-received": "Account move request received", "recovery-stopped": "Account move stopped",
   "recovery-approved": "Account move approved", "recovery-denied": "Account move refused", "recovery-applied": "Account moved",
-  "trial-tip": "Trial tip", "shop-checkup": "Monthly check-up", "shop-closed": "Shop closed", "shop-deletion-warning": "Shop deletion warning",
+  "trial-tip": "Trial tip", "first-sale-tips": "First-sale tips", "shop-checkup": "Monthly check-up", "shop-closed": "Shop closed", "shop-deletion-warning": "Shop deletion warning",
   "shop-deleted": "Shop deleted", "support-access-request": "Support asks to make changes", "press-message": "Message from the platform",
   "data-export-ready": "Data ready to download",
 });
