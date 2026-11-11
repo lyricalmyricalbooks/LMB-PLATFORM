@@ -99,3 +99,8 @@ declare module "@stockroom/stock-places.js" {
 declare module "@stockroom/inventory.js" {
   export function transferAuthorStock(s: Record<string, any>, book: Record<string, any> | null, delta: number, note?: string, isoDate?: string): { transfer: Record<string, any> | null };
 }
+declare module "@stockroom/consignment-fx.js" {
+  export function consignmentSaleAmounts(a: { qty: number; unitPrice: number; commission: number; saleCur?: string; bookCur: string; fxRate?: number }): { gross: number; due: number; sale: Record<string, any> | null } | null;
+  export function expectedConsignmentPayment(entry: Record<string, any>, bookCur: string): { currency: string; amount: number };
+  export function consignmentPaymentRecord(a: { amountDue: number; bookCur: string; payCur: string; payAmount: number; fxRate: number; date: string }): Record<string, any> | null;
+}
