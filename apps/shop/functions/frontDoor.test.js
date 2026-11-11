@@ -18,6 +18,7 @@ const FILES = {
   "shops/press-a/site/books/night-buses.html": "<html>A book</html>",
   "shops/press-a/site/sitemap.xml": "<urlset>A</urlset>",
   "shops/press-b/site/index.html": "<html>B home</html>",
+  "shops/press-a/site/google0123456789abcdef.html": "google-site-verification: google0123456789abcdef.html",
 };
 
 function door({ files = FILES, usage = () => {} } = {}) {
@@ -150,5 +151,18 @@ describe("usage", () => {
     await ask("press-a.example", "/shop-profile.js", "HEAD");
     await ask("nobody.example", "/");
     expect(lines).toEqual([{ shop: "press-b", kind: "page", bytes: Buffer.byteLength(home.body) }, { shop: "press-a", kind: "page", bytes: 0 }]);
+  });
+});
+
+describe("Google's proof file (Connect Google)", () => {
+  it("answers only the shop's own file, and sends its address to the front door", async () => {
+    const { ask } = door();
+    const ok = await ask("press-a.example", "/google0123456789abcdef.html");
+    expect(ok.status).toBe(200);
+    expect(ok.body).toContain("google-site-verification");
+    expect((await ask("www.press-b.example", "/google0123456789abcdef.html")).status).toBe(404);
+    const rewrites = frontDoorHosting({}, "us-central1").rewrites;
+    expect(rewrites.some(r => r.regex && new RegExp(r.regex).test("/google0123456789abcdef.html"))).toBe(true);
+    expect(rewrites.some(r => r.regex && r.regex.includes("google") && new RegExp(r.regex).test("/google/../x.html"))).toBe(false);
   });
 });

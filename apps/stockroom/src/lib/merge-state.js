@@ -483,6 +483,10 @@ export function mergePart(part, base, remote, local, opts = {}) {
 // on the other both survive; the same entry changed on both keeps this device's
 // version (reported in `conflicts`).
 //
+// The settings documents saved through that merge (the others are plain overwrites). firebase.js and the shop admin's
+// write layer both read this one list.
+export const MERGED_SETTING_KEYS = new Set(['catalog', 'taxCenter']);
+
 // baseJson   the document as this device last loaded or wrote it (null if it
 //            never read one — then nothing is merged and local is written)
 // remoteJson the document as the server holds it now (null if none)

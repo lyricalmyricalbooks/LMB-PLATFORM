@@ -176,3 +176,10 @@ test("a payments step that waits lets the run go on to the next step", async () 
   assert.equal(result.ok, true, result.error);
   assert.equal(next, 1);
 });
+
+test("the test shop's card key comes from STRIPE_TEST_PUBLISHABLE_KEY, test mode only", async () => {
+  const { testPublishableKeys } = await import("./make-test-shop.js");
+  assert.deepEqual(testPublishableKeys({}), { live: "", test: "" });
+  assert.deepEqual(testPublishableKeys({ STRIPE_TEST_PUBLISHABLE_KEY: " pk_test_abcdefghijkl0123 " }), { live: "", test: "pk_test_abcdefghijkl0123" });
+  assert.throws(() => testPublishableKeys({ STRIPE_TEST_PUBLISHABLE_KEY: "pk_live_abcdefghijkl0123" }), /test publishable key/);
+});

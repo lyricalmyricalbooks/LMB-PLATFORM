@@ -1,14 +1,13 @@
-// Loads the stockroom's records for a page and draws the three states every stockroom page needs: loading, a team
-// member refused by the rules (owner-only data: no retry), and a failed read (never mistaken for an empty record).
+// Loads the stockroom's records for a page and draws the loading and failure states the pages share (lessons from the
+// To-do page): a failed read is never an empty record, and a team member (refused by the rules) is told, with no retry.
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 import { EmptyState, ErrorState, LoadingState } from "../riso/components";
 import { isRefusal, stockroomApi, type StockroomRecords } from "./stockroomData";
 
 export function RecordsGate({ what, load = stockroomApi.load, children }: {
-  /** What the page shows, for its messages: "the sales records". */ what: string;
-  load?: () => Promise<StockroomRecords>;
-  children: (records: StockroomRecords) => ReactNode;
+  /** What the page shows, for the messages: "stockists", "shipping" … */
+  what: string; load?: () => Promise<StockroomRecords>; children: (records: StockroomRecords) => ReactNode;
 }) {
   const [records, setRecords] = useState<StockroomRecords | null>(null);
   const [failed, setFailed] = useState<"" | "refused" | "failed">("");

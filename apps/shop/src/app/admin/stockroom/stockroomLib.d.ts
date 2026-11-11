@@ -1,7 +1,9 @@
 // Types for the stockroom's plain-JS rules the admin imports through the `@stockroom` alias (vite.config.ts).
 declare module "@stockroom/attention-signals.js" {
   export type SignalFix = { label?: string; kind: "book" | "edit-book" | "tab" | "taxcenter" | string; bookId?: string; tab?: string; section?: string };
-  export type Signal = { id: string; group: string; status: "blocked" | "warn" | "info" | "ok" | string; icon?: string; label: string; detail: string; bookId?: string; fix?: SignalFix };
+  export type Signal = { id: string; group: string; status: "blocked" | "warn" | "info" | "ok" | string; icon?: string; label: string; detail: string; bookId?: string; fix?: SignalFix; items?: SignalItem[] };
+  /** One order or sale under a line (the stockroom's one-tap fix on it is not drawn here: that waits for the safe write layer). */
+  export type SignalItem = { label: string; quick?: { label: string; kind?: string; tab?: string; bookId?: string; num?: string } | null };
   export type AttentionResult = { signals: Signal[]; byGroup: Record<string, Signal[]>; total: number; urgent: number };
   export const SIGNAL_GROUPS: string[];
   export const GROUP_LABELS: Record<string, string>;

@@ -4,6 +4,7 @@
 //
 // The frame opens on first need (Dashboard listens through `onNeed`) and is kept; questions wait for it to be ready.
 import { FROM_ADMIN, FROM_STOCKROOM } from "./combined";
+import { NATIVE_PAGES } from "./stockroom/nativePages";
 
 /** One stockroom book, as the stockroom counts it (apps/stockroom/src/lib/book-summary.js `bookSummary`). */
 export interface StockroomBook {
@@ -47,7 +48,7 @@ const need = () => {
   if (!needListeners.size) neededEarly = true;
   for (const listener of needListeners) listener();
 };
-const openListeners = new Set<(page: string) => void>();
+const openListeners = new Set<(page: string, extra?: { book?: string; todo?: string }) => void>();
 let pendingOpen: { tab: string; book?: string; todo?: string } | null = null;
 
 const post = (message: object) => {
@@ -77,13 +78,15 @@ export const stockroomBridge = {
     return () => { needListeners.delete(listener); };
   },
   /** Dashboard: show a stockroom page (the book page's "Open in the stockroom"). */
-  onOpen(listener: (page: string) => void) { openListeners.add(listener); return () => { openListeners.delete(listener); }; },
+  onOpen(listener: (page: string, extra?: { book?: string; todo?: string }) => void) { openListeners.add(listener); return () => { openListeners.delete(listener); }; },
 
   /** Show stockroom page `tab` in the admin, with `book` picked or on to-do item `todo`. */
   openPage(tab: string, extra: { book?: string; todo?: string } = {}) {
-    if (frame) post({ source: FROM_ADMIN, type: "open", tab, ...extra });
+    // A page the admin draws itself needs no frame (and so no second app loading behind it).
+    if (tab in NATIVE_PAGES) { /* the admin shows it */ }
+    else if (frame) post({ source: FROM_ADMIN, type: "open", tab, ...extra });
     else { pendingOpen = { tab, ...extra }; need(); }
-    for (const open of openListeners) open(tab);
+    for (const open of openListeners) open(tab, extra);
   },
   /** Show stockroom page `tab` with `book` picked, in the admin. */
   openBook(tab: string, book: string) { stockroomBridge.openPage(tab, { book }); },

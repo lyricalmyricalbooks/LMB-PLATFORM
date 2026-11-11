@@ -27,6 +27,24 @@ async function stockroomOpen(ctx) {
   if (!ctx.state.stockroom) ctx.state.stockroom = await ctx.browser.openStockroom({ url: ctx.urls.stockroom, session: ctx.session });
 }
 
+/**
+ * Why the test shop can't take a card yet, in plain words, or null when it can. The checkout's card form needs the
+ * platform's Stripe publishable key for test mode in the shop's profile (apps/shop platformStripe); without it there is
+ * nothing to buy with, so the checks that need a purchase wait instead of failing (runner.js) and the rest still run.
+ */
+export function cardPaymentsWaiting(profile) {
+  const payments = profile?.payments;
+  if (!payments) return "the test shop has no payments connected yet (setup step 7)";
+  if (payments.provider !== "stripe" || payments.mode !== "platform") return null;
+  if (!payments.stripe?.accountId) return "the test shop's Stripe account isn't connected yet (setup step 7)";
+  if (!/^pk_test_\w{10,}$/.test(payments.stripe.testPublishableKey ?? "")) {
+    return "the test shop's profile has no Stripe test publishable key, so its checkout can't show the card form (repository variable STRIPE_TEST_PUBLISHABLE_KEY, then run \"Make the test shop\")";
+  }
+  return null;
+}
+
+// Each check that needs a purchase says so (`needsPayment`); while card payments wait, `whenWaiting` runs instead
+// when the check still has something to prove without one, and the others are marked waiting.
 export const CHECKS = [
   {
     number: 1,
@@ -39,6 +57,12 @@ export const CHECKS = [
   {
     number: 2,
     name: "Buy a book with Stripe's test card",
+    needsPayment: true,
+    // No purchase to follow: the stockroom still has to open as the test owner.
+    async whenWaiting(ctx) {
+      await stockroomOpen(ctx);
+      return { stockroom: "opened as the test owner" };
+    },
     async run(ctx) {
       // The counts before the purchase. The stockroom publishes its count only while open, so it is opened first if
       // it hasn't published one yet.
@@ -59,6 +83,7 @@ export const CHECKS = [
   {
     number: 3,
     name: "The payment arrives and the order shows as paid",
+    needsPayment: true,
     async run(ctx) {
       const order = await ctx.wait("the order showing as paid", async () => {
         const found = await ctx.shopData.order(ctx.state.orderId);
@@ -71,6 +96,7 @@ export const CHECKS = [
   {
     number: 4,
     name: "Stock drops in the shop and in the stockroom",
+    needsPayment: true,
     async run(ctx) {
       const { before, orderId } = ctx.state;
       const shopStock = stockOf(await ctx.shopData.book(BOOK));
@@ -90,6 +116,7 @@ export const CHECKS = [
   {
     number: 5,
     name: "The order email is sent to the test inbox",
+    needsPayment: true,
     async run(ctx) {
       const inbox = ctx.inbox.toLowerCase();
       await ctx.wait("the order email being sent", async () => {
@@ -101,6 +128,12 @@ export const CHECKS = [
   {
     number: 6,
     name: "The test owner signs in to the admin and sees the order",
+    needsPayment: true,
+    // No order to look for: the walk through every admin page still runs.
+    async whenWaiting(ctx) {
+      const { problems } = await ctx.browser.walkAdmin({ siteUrl: ctx.urls.site, session: ctx.session });
+      return { adminPagesToFix: problems };
+    },
     async run(ctx) {
       if (!(await ctx.browser.adminShowsOrder({ siteUrl: ctx.urls.site, session: ctx.session, orderId: ctx.state.orderId }))) {
         throw new Error("the admin didn't list the new order for the test owner");
@@ -113,6 +146,7 @@ export const CHECKS = [
   {
     number: 7,
     name: "Refund the order: Stripe refunds it and stock goes back up",
+    needsPayment: true,
     async run(ctx) {
       const { before, orderId } = ctx.state;
       await ctx.shopAdmin.refund(orderId);

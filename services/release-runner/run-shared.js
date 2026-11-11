@@ -70,7 +70,10 @@ export function releaseSummary(result, { testShopOnly = false } = {}) {
   }
   const status = (projectId) => result?.projects?.find((p) => p.projectId === projectId)?.status;
   const first = result?.projects?.[0];
-  if (result?.ok) {
+  if (result?.ok && first?.waiting) {
+    lines.push(`### The test shop is on ${v}`, "", "Its pages, stockroom and admin passed the release check. The test purchase waits:", "", first.waiting, "",
+      "Real shops can't get this version until a test purchase passes.");
+  } else if (result?.ok) {
     lines.push(testShopOnly ? `### The test shop is on ${v}` : `### ${v} reached every shop`, "",
       testShopOnly
         ? `It passed the release check (a test purchase, the stockroom, the admin and a refund), so "Send the update to shops" can send it to real shops.`

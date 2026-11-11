@@ -9,6 +9,7 @@
 import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE } from "../signup/config.js";
 import { deviceId } from "../signup/device.js";
 import { shopMatches } from "./shopSearch.js";
+import { findResults, GROUPS } from "./palette.js";
 import { launchSummary, readTicks, saveTicks, walkSteps } from "./launch.js";
 import * as BRAND_LOGOS from "./look/brand-logos.js";
 
@@ -112,28 +113,30 @@ function filterChips(selector, onPick) {
 
 // ── The drawer (the website admin's Drawer): one shop's record and everything you can do for it. ──
 let drawer = null;
-function closeDrawer() {
+function closeDrawer(byHand = false) {
   if (!drawer) return;
   const { root, opener } = drawer;
   drawer = null;
   root.remove();
+  // Closing a shop's record takes its address back to the list, without a page change.
+  if (byHand && location.hash.startsWith("#shop/")) window.history.replaceState(null, "", "#shops");
   opener?.focus?.();
 }
-function openDrawer(title, description, body) {
+function openDrawer(title, description, body, caption = null) {
   closeDrawer();
   const titleId = "drawer-title";
   const close = el("button", { type: "button", className: "rp-icon-btn", ariaLabel: "Close", title: "Close", textContent: "✕" });
-  close.addEventListener("click", closeDrawer);
+  close.addEventListener("click", () => closeDrawer(true));
   const panel = el("div", { className: "rp-dialog", role: "dialog", ariaModal: "true", tabIndex: -1 },
     el("div", { className: "rp-dialog-head" },
-      el("div", {}, el("h2", { className: "rp-dialog-title", id: titleId, textContent: title }), description ? el("p", { className: "rp-card-desc", textContent: description }) : null),
+      el("div", {}, caption ? el("p", { className: "cr-cap", textContent: caption }) : null, el("h2", { className: "rp-dialog-title", id: titleId, textContent: title }), description ? el("p", { className: "rp-card-desc cr-mono", textContent: description }) : null),
       close),
     el("div", { className: "rp-dialog-body" }, ...body));
   panel.setAttribute("aria-labelledby", titleId);
   const scrim = el("div", { className: "rp-dialog-scrim", ariaHidden: "true" });
-  scrim.addEventListener("click", closeDrawer);
+  scrim.addEventListener("click", () => closeDrawer(true));
   const root = el("div", { className: "rp-dialog-root", dataset: { variant: "drawer" } }, scrim, panel);
-  root.addEventListener("keydown", (event) => { if (event.key === "Escape") closeDrawer(); });
+  root.addEventListener("keydown", (event) => { if (event.key === "Escape") closeDrawer(true); });
   drawer = { root, opener: document.activeElement };
   $("#room").append(root);
   panel.focus();
@@ -161,6 +164,8 @@ async function load() {
     await loadShops();
     await loadLaunch();
     status.textContent = "";
+    checkedAt = Date.now();
+    showChecked();
     showShell("admin");
     await loadRepairs();
     await loadTickets();
@@ -194,6 +199,7 @@ let allShops = [];
 async function loadShops() {
   allShops = (await api("GET", "/control/shops")).shops;
   showShops();
+  renderToday();
   loadSocialLost();
   loadSellGaps();
   // The Chit Chats count in the summary, and the filter, once the app's overview is in. A failed read leaves both out.
@@ -332,7 +338,7 @@ function showShops() {
   const form = $("#shop-filters");
   const words = form.q.value.trim().toLowerCase();
   const shown = allShops.filter((shop) => shopMatches(shop, words, shopTags[shop.shopId])
-    && (!form.health.value || shop.health.level === form.health.value)
+    && (!form.health.value || (form.health.value === "attention" ? shop.health.level !== "ok" : shop.health.level === form.health.value))
     && (!form.billing.value || shop.billingStatus === form.billing.value)
     && riskMatches(shop, form.risk.value)
     && sellsMatches(shop, form.sells.value)
@@ -343,6 +349,8 @@ function showShops() {
     return;
   }
   const problems = allShops.filter((s) => s.health.level === "problem").length;
+  showShopChips();
+  $("#shop-count").textContent = plural(allShops.length, "shop");
   $("#summary").textContent = `${allShops.length} shop${allShops.length === 1 ? "" : "s"} · ${problems} with a problem${cardsCount(allShops)}${chitChatsCount()}${languageCount(allShops)}${shown.length !== allShops.length ? ` · showing ${shown.length}` : ""}`;
   if (!shown.length) {
     $("#shops").replaceChildren(allShops.length ? emptyState("No shop matches.", "Clear the search or the filters to see every shop.") : emptyState("No shops yet.", "A press's shop shows here as soon as it is made."));
@@ -364,6 +372,40 @@ function showShops() {
   }));
 }
 $("#shop-filters").addEventListener("input", showShops);
+
+// The quick filters above the list: shortcuts that set the full filters under "More filters".
+const SHOP_CHIPS = [
+  { id: "all", words: "All", set: {}, test: () => true },
+  { id: "look", words: "Needs a look", set: { health: "attention" }, test: (s) => s.health.level !== "ok", tone: "apricot" },
+  { id: "trial", words: "Free trial", set: { billing: "trialing" }, test: (s) => s.billingStatus === "trialing" },
+  { id: "paying", words: "Paying", set: { billing: "active" }, test: (s) => s.billingStatus === "active" },
+  { id: "failing", words: "Payment failing", set: { billing: "past_due" }, test: (s) => s.billingStatus === "past_due" },
+  { id: "risk", words: "At risk", set: { risk: "at-risk" }, test: (s) => riskMatches(s, "at-risk") },
+];
+const FILTER_NAMES = ["health", "billing", "sells", "risk", "cards", "chitchats"];
+function showShopChips() {
+  const form = $("#shop-filters");
+  const current = FILTER_NAMES.filter((name) => form[name].value);
+  fill($("#shop-chips"), ...SHOP_CHIPS.map((chip) => {
+    const keys = Object.keys(chip.set);
+    const on = current.length === keys.length && keys.every((k) => form[k].value === chip.set[k]);
+    const b = el("button", { type: "button", className: "cr-chip-btn", dataset: { chip: chip.id, ...(chip.tone ? { tone: chip.tone } : {}) }, ariaPressed: String(on) },
+      chip.words, el("span", { className: "cr-chip-n", textContent: String(allShops.filter(chip.test).length) }));
+    b.addEventListener("click", () => {
+      for (const name of FILTER_NAMES) form[name].value = chip.set[name] ?? "";
+      showShops();
+    });
+    return b;
+  }));
+  const extra = current.filter((name) => !SHOP_CHIPS.some((c) => Object.keys(c.set).includes(name))).length;
+  $("#more-filters-btn").textContent = `More filters${extra ? ` (${extra})` : ""} ${$("#more-filters").hidden ? "▾" : "▴"}`;
+}
+$("#more-filters-btn").addEventListener("click", () => {
+  const box = $("#more-filters");
+  box.hidden = !box.hidden;
+  $("#more-filters-btn").setAttribute("aria-expanded", String(!box.hidden));
+  showShopChips();
+});
 $("#shop-filters").addEventListener("submit", (event) => event.preventDefault());
 
 // ── One shop's record (plan 9.3) and its per-order fee (plan 9.6). ──
@@ -542,6 +584,9 @@ async function loadTestShop() {
     reset.disabled = false;
   });
   const when = (iso) => new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  const failedUpdate = shop.lastUpdate && !shop.lastUpdate.ok;
+  todayExtras.update = failedUpdate ? { kind: "update", words: `Last update to shops failed: ${shop.lastUpdate.version ?? "the newest update"} didn't reach the test shop`, go: "#test-shop" } : null;
+  renderToday();
   const on = shop.version ? `On ${shop.version}${shop.updatedAt ? `, updated ${when(shop.updatedAt)}` : ""}.` : null;
   box.replaceChildren(el("div", { className: "rp-card-body", style: "padding-top: 16px" },
     el("div", { className: "cr-row" }, el("h3", { className: "cr-title cr-grow", textContent: shop.pressName }), pill(TONE[shop.health.level], LEVEL[shop.health.level])),
@@ -606,6 +651,7 @@ async function loadLaunch() {
   const { ready, total, missing } = launchSummary(launch, testShop);
   setBadge("launch", missing);
   fill($("#launch-summary"), pill(missing ? "warning" : "success", missing ? `${ready} of ${total} ready` : "Ready to open"));
+  toolChip("launch", missing ? `${ready} of ${total} ready` : "Ready to open", missing ? "apricot" : "mint");
 
   const secrets = launch.project ? `https://console.cloud.google.com/security/secret-manager?project=${encodeURIComponent(launch.project)}` : null;
   const keySheets = launch.keys.map((key) => {
@@ -724,56 +770,134 @@ async function loadTaxWatch() {
   }
 }
 
+// ── Today: a verdict first, then what needs you with its next step, then the numbers. ──
+let lastToday = null;
+const todayExtras = {};
+const DANGER_KINDS = new Set(["shop", "payment", "payouts", "update"]);
+const NEED_ACTION = { repairs: "Fix", support: "Answer", recovery: "Check", signup: "See sign-ups", opening: "See setting up", parcels: "Open", update: "See the update" };
+
 async function loadToday() {
-  const { counts, monthlyIncome, currency, needs, snoozed = [] } = await api("GET", "/control/today");
-  const figure = (label, value, foot, tone) => el("div", { className: "rp-card rp-metric" },
-    el("div", { className: "rp-metric-label", textContent: label }),
-    el("div", { className: "rp-metric-value", textContent: String(value), dataset: tone ? { tone } : {} }),
-    foot ? el("div", { className: "rp-metric-foot", textContent: foot }) : null);
-  $("#today-numbers").replaceChildren(
-    figure("Paying shops", counts.paying, `of ${counts.shops} shops`),
-    figure("Monthly income", money(monthlyIncome, currency).replace(/\.00$/, ""), `${counts.live} shops live`),
-    figure("On free trial", counts.trial, `${counts.signupsThisWeek} signed up this week`),
-    figure("Failing payments", counts.failedPayments, "being retried", counts.failedPayments ? "warn" : null),
-    figure("Paused", counts.paused, `${counts.closed} closed`, counts.paused ? "danger" : null),
-  );
-  $("#needs").replaceChildren(needs.length
-    ? el("div", { className: "rp-alerts" }, ...needs.map((need) => {
-      const tone = need.kind === "shop" || need.kind === "payment" || need.kind === "payouts" ? "danger" : "warning";
-      const glyph = el("span", { className: "rp-alert-glyph", ariaHidden: "true", textContent: "●" });
-      const text = el("span", { className: "rp-alert-text" }, el("strong", { className: "rp-alert-title", textContent: need.words }));
-      // A drifting press can be snoozed from here (a button can't sit inside the alert's link, so this one is a box).
-      if (need.kind === "drift") {
-        return el("div", { className: "rp-alert", dataset: { tone } }, glyph, text,
-          el("span", { className: "rp-alert-actions" }, el("a", { className: "rp-btn rp-btn-sm", href: need.go, textContent: "Open" }), snoozeButton(need.shopId, need.words.split(" may be")[0], 30)));
-      }
-      // A line about one shop can be snoozed for a week; it comes back by itself.
-      if (need.shopId && TODAY_SNOOZABLE.has(need.kind)) {
-        return el("div", { className: "rp-alert", dataset: { tone } }, glyph, text,
-          el("span", { className: "rp-alert-actions" }, el("a", { className: "rp-btn rp-btn-sm", href: need.go, textContent: "Open" }), needSnoozeMenu(need)));
-      }
-      return el("a", { className: "rp-alert", href: need.go, dataset: { tone } }, glyph, text,
-        el("span", { className: "rp-alert-actions" }, el("span", { className: "rp-btn rp-btn-sm", textContent: "Open" })));
-    }))
-    : emptyState("Nothing needs you right now.", "Shops, payments, repairs, support and sign-ups are all in order."));
+  lastToday = await api("GET", "/control/today");
+  renderToday();
+}
+
+/** One line of Needs you: a dot, the brand or thing, why, and its next step one tap away. */
+function needRow(need) {
+  const cut = need.words.indexOf(": ");
+  const drift = need.kind === "drift" ? need.words.indexOf(" may be") : -1;
+  const at = drift > 0 ? drift : cut;
+  const title = at > 0 ? need.words.slice(0, at) : need.words;
+  const why = at > 0 ? need.words.slice(drift > 0 ? at + 1 : at + 2) : "";
+  const shop = need.shopId ? allShops.find((s) => s.shopId === need.shopId) : null;
+  let primary;
+  if (shop) {
+    primary = button("Open shop", "primary");
+    primary.addEventListener("click", () => openShop(shop));
+  } else {
+    primary = el("a", { className: "rp-btn rp-btn-primary rp-btn-sm", href: need.go, textContent: NEED_ACTION[need.kind] ?? "Open" });
+  }
+  primary.setAttribute("aria-label", `${primary.textContent}: ${title}`);
+  const second = need.kind === "drift" ? snoozeButton(need.shopId, title, 30)
+    : need.shopId && TODAY_SNOOZABLE.has(need.kind) ? needSnoozeMenu(need) : null;
+  return el("div", { className: "cr-need" },
+    el("span", { className: "cr-dot", dataset: { tone: DANGER_KINDS.has(need.kind) ? "bad" : "warn" }, ariaHidden: "true" }),
+    el("div", { className: "cr-need-text" }, el("p", { className: "cr-need-title", textContent: title }), why ? el("p", { className: "cr-need-why", textContent: why }) : null),
+    el("div", { className: "cr-need-actions" }, primary, second));
+}
+
+function renderToday() {
+  if (!lastToday) return;
+  const { counts, monthlyIncome, currency, snoozed = [] } = lastToday;
+  // The test shop's update failing is the platform's own problem: it goes first, so it is never folded away.
+  // Most urgent first: the red lines (a shop or a payment in trouble) above the rest, each kept in its own order.
+  const needs = [...(todayExtras.update ? [todayExtras.update] : []), ...lastToday.needs]
+    .sort((a, b) => Number(DANGER_KINDS.has(b.kind)) - Number(DANGER_KINDS.has(a.kind)));
+  const now = new Date();
+  const hour = now.getHours();
+  const part = hour < 12 ? "morning" : hour < 17 ? "afternoon" : hour < 21 ? "evening" : "night";
+  const day = now.toLocaleDateString(undefined, { weekday: "long" });
+  const health = { ok: 0, watch: 0, problem: 0 };
+  for (const shop of allShops) health[shop.health.level] = (health[shop.health.level] ?? 0) + 1;
+  const late = pageCounts.jobs;
+  const fine = [allShops.length ? `${health.ok} of ${allShops.length} shops OK` : null, late === 0 ? "all jobs on time" : late ? `${plural(late, "job")} late` : null].filter(Boolean).join(", ");
+  fill($("#verdict"),
+    el("div", {},
+      el("p", { className: "cr-cap", textContent: `${day} ${part}` }),
+      el("h2", { className: "cr-verdict-title", textContent: needs.length ? `${needs.length} thing${needs.length === 1 ? " needs" : "s need"} you` : "Nothing needs you" }),
+      fine ? el("p", { className: "cr-verdict-sub", textContent: needs.length ? `Everything else: ${fine}.` : `${fine[0].toUpperCase()}${fine.slice(1)}.` }) : null),
+    el("span", { className: "cr-verdict-n", ariaHidden: "true", textContent: needs.length ? String(needs.length) : "✓" }));
+  $("#verdict").dataset.tone = needs.length ? "warn" : "clear";
+
+  const list = needs.length
+    ? el("div", { className: "cr-needs" }, ...needs.map(needRow))
+    : el("p", { className: "cr-needs-empty", textContent: "Shops, payments, repairs, support and sign-ups are all in order." });
+  fill($("#needs"), list);
   const switchCount = needs.filter((n) => n.kind === "switch").length;
-  if (switchCount > 1) $("#needs").append(el("div", { className: "rp-card-actions", style: "margin-top: 12px" }, finishSwitchesButton(switchCount)));
-  $("#needs").append(...(snoozed.length ? [el("details", {},
-    el("summary", { textContent: `Snoozed (${snoozed.length})`, style: "min-height: 44px; padding: 11px 0; cursor: pointer" }),
-    el("div", { className: "rp-alerts" }, ...snoozed.map((need) => el("div", { className: "rp-alert", dataset: { tone: "neutral" } },
-      el("span", { className: "rp-alert-text" },
-        el("strong", { className: "rp-alert-title", textContent: need.words }),
-        el("span", { className: "rp-alert-detail", textContent: `Back on ${dateOnly(need.until)}` })),
-      el("span", { className: "rp-alert-actions" }, needSnoozeButton(need, 0))))))] : []));
-  // The side menu's counts come from the same list.
+  if (switchCount > 1) $("#needs").append(el("div", { className: "cr-needs-foot" }, finishSwitchesButton(switchCount)));
+  if (snoozed.length) $("#needs").append(el("details", { className: "cr-snoozed" },
+    el("summary", { textContent: `Snoozed (${snoozed.length})` }),
+    el("div", { className: "cr-needs" }, ...snoozed.map((need) => el("div", { className: "cr-need" },
+      el("span", { className: "cr-dot", ariaHidden: "true" }),
+      el("div", { className: "cr-need-text" }, el("p", { className: "cr-need-title", textContent: need.words }), el("p", { className: "cr-need-why", textContent: `Back on ${dateOnly(need.until)}` })),
+      el("div", { className: "cr-need-actions" }, needSnoozeButton(need, 0)))))));
+
+  const figure = (label, value, foot, tone) => el("div", { className: "rp-card rp-metric", dataset: tone ? { tile: tone } : {} },
+    el("div", { className: "rp-metric-label", textContent: label }),
+    el("div", { className: "rp-metric-value", textContent: String(value) }),
+    foot ? el("div", { className: "rp-metric-foot", textContent: foot }) : null);
+  fill($("#today-numbers"),
+    figure("Monthly income", money(monthlyIncome, currency).replace(/\.00$/, ""), `${counts.paying} paying of ${counts.live} live`, "mint"),
+    figure("Shops", counts.shops, `${counts.trial} on free trial, ${counts.signupsThisWeek} new this week`),
+    figure("Failed payments", counts.failedPayments, `${counts.paused} paused, ${counts.closed} closed`, counts.failedPayments ? "apricot" : null));
+
+  // Shop health as one bar; each line of the key opens the shops with that health.
+  const total = allShops.length || 1;
+  const levels = [["ok", "OK", "good"], ["watch", "Take a look", "warn"], ["problem", "Problem", "bad"]];
+  fill($("#health-bar"),
+    el("div", { className: "cr-bar-stack", role: "img", ariaLabel: levels.map(([k, w]) => `${w} ${health[k]}`).join(", ") },
+      ...levels.filter(([k]) => health[k]).map(([k, , tone]) => el("span", { dataset: { tone }, style: `flex-grow: ${health[k] / total}` }))),
+    el("ul", { className: "cr-key" }, ...levels.map(([k, words, tone]) => el("li", {},
+      el("a", { href: "#shops", dataset: { health: k } }, el("span", { className: "cr-dot", dataset: { tone }, ariaHidden: "true" }), el("span", { textContent: words }), el("b", { textContent: String(health[k]) }))))));
+
+  // The menu's counts come from the same list.
   const count = (kinds) => needs.filter((n) => kinds.includes(n.kind)).reduce((sum, n) => sum + (n.count ?? 1), 0);
-  const shopsNeeding = new Set(needs.filter((n) => n.shopId).map((n) => n.shopId)).size;
-  setBadge("shops", shopsNeeding);
+  setBadge("shops", new Set(needs.filter((n) => n.shopId).map((n) => n.shopId)).size);
   setBadge("signups", count(["signup"]));
   setBadge("support", count(["support"]));
   setBadge("repairs", count(["repairs"]));
   setBadge("recovery", count(["recovery"]));
 }
+
+// A health line on Today opens the shop list with that health.
+$("#health-bar").addEventListener("click", (event) => {
+  const link = event.target.closest("[data-health]");
+  if (!link) return;
+  const form = $("#shop-filters");
+  form.reset();
+  form.health.value = link.dataset.health;
+  showShops();
+});
+
+// "Since yesterday": what was done in the control room in the last day, from the activity log.
+function showSince(entries) {
+  const day = Date.now() - 24 * 60 * 60 * 1000;
+  const recent = entries.filter((e) => Date.parse(e.at) >= day);
+  fill($("#since"), recent.length
+    ? el("ul", { className: "cr-since" }, ...recent.slice(0, 4).map((e) => el("li", {},
+      el("b", { textContent: `${e.by ?? "The platform"} ` }), `${ACTIVITY_WORDS[e.what] ?? e.what}${e.shopId ? `, ${e.shopId}` : ""}`)),
+      recent.length > 4 ? el("li", { className: "rp-hint", textContent: `and ${recent.length - 4} more` }) : null)
+    : el("p", { className: "rp-hint", textContent: "Nothing done here since yesterday." }));
+}
+
+// "Last checked": when the numbers were last read.
+let checkedAt = null;
+function showChecked() {
+  if (!checkedAt) return;
+  const minutes = Math.floor((Date.now() - checkedAt) / 60_000);
+  $("#last-checked-words").textContent = `Last checked ${minutes < 1 ? "just now" : minutes < 60 ? `${minutes} min ago` : `${Math.floor(minutes / 60)} h ago`}`;
+  $("#last-checked").hidden = false;
+}
+setInterval(showChecked, 30_000);
 
 /** Today's "Try all N card switches": finishes every waiting switch at once (providerSwitch.js finishAll). */
 function finishSwitchesButton(n) {
@@ -837,17 +961,36 @@ function needSnoozeButton(need, days) {
   return b;
 }
 
-function setBadge(page, n) {
-  const badge = document.querySelector(`[data-badge="${page}"]`);
-  if (!badge) return;
-  badge.hidden = !n;
-  badge.textContent = n > 99 ? "99+" : String(n);
-  badge.setAttribute("aria-label", `${n} need attention`);
+/** The short state on a Platform tool's card (Launch: "5 of 6 ready", Jobs: "All on time"). */
+function toolChip(tool, words, tone) {
+  const chip = document.querySelector(`[data-tool="${tool}"]`);
+  if (!chip) return;
+  chip.textContent = words;
+  if (tone) chip.dataset.tone = tone;
+  else delete chip.dataset.tone;
 }
 
-function openShop(shop) {
-  const panel = openDrawer(shop.pressName ?? shop.shopId, `${shop.shopId} · ${PLAN_WORDS[shop.plan] ?? shop.plan ?? "?"} · version ${shop.version ?? "none yet"}`, card(shop));
+// Counts for each old page roll up into its group in the menu and the phone's tab bar, and show on the group's tabs.
+const pageCounts = {};
+function setBadge(page, n) {
+  pageCounts[page] = n;
+  for (const group of GROUPS) {
+    const total = group.pages.reduce((sum, id) => sum + (pageCounts[id] ?? 0), 0);
+    for (const badge of document.querySelectorAll(`[data-badge="${group.id}"]`)) {
+      badge.hidden = !total;
+      badge.textContent = total > 99 ? "99+" : String(total);
+      badge.setAttribute("aria-label", `${total} need attention`);
+    }
+  }
+  for (const count of document.querySelectorAll(`[data-tab-count="${page}"]`)) count.textContent = n ? String(n) : "";
+}
+
+function openShop(shop, { fromRoute = false } = {}) {
+  const panel = openDrawer(shop.pressName ?? shop.shopId, [shop.ownerEmail, shop.shopId].filter(Boolean).join(" · "), card(shop), "Selected shop");
   panel.dataset.shop = shop.shopId;
+  drawer.shopId = shop.shopId;
+  // On the shop list the address keeps the shop, so it can be shared and the back button closes it.
+  if (!fromRoute && !document.querySelector('[data-page="shops"]').hidden) window.history.replaceState(null, "", `#shop/${encodeURIComponent(shop.shopId)}`);
 }
 
 // Everything you can do for one shop, in its drawer.
@@ -962,14 +1105,20 @@ function card(shop) {
     .then((record) => recordSlot.replaceChildren(recordView(record)))
     .catch((failure) => recordSlot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
 
+  // What's wrong comes first, in a soft red box; then the facts, what you can do, and the careful actions apart.
+  const trouble = shop.health.level !== "ok" && shop.health.reasons.length;
   return [
-    el("div", { className: "cr-row" }, pill(TONE[shop.health.level], LEVEL[shop.health.level]),
-      shop.billingStatus ? pill(BILLING_TONE[shop.billingStatus] ?? "neutral", BILLING_WORDS[shop.billingStatus] ?? shop.billingStatus) : null,
-      shop.testShop ? pill("info", "test shop") : null,
-      shop.closed ? pill("danger", `closed by ${shop.closed.by}`) : null),
-    meta(`status: ${shop.status ?? "?"}`, shop.access ? `billing: ${shop.access}` : null, shop.paymentsMoved ? `cards: ${PAYMENT_WORDS[shop.paymentsMoved.to]}` : null),
-    shop.health.reasons.length ? el("ul", { className: "cr-steps", style: "margin-top: 12px" }, ...shop.health.reasons.map((reason) => el("li", { textContent: reason }))) : null,
-    el("div", { className: "cr-actions" }, act, change, check, twoStep, closing, exportButton(shop)),
+    trouble ? el("div", { className: "cr-alert-box", dataset: { tone: shop.health.level === "problem" ? "bad" : "warn" } },
+      ...shop.health.reasons.map((reason, i) => el("p", {}, i === 0 ? el("strong", { textContent: reason }) : reason))) : null,
+    el("dl", { className: "cr-facts" },
+      el("dt", { textContent: "Plan" }), el("dd", { textContent: PLAN_WORDS[shop.plan] ?? shop.plan ?? "?" }),
+      el("dt", { textContent: "Billing" }), el("dd", {}, shop.billingStatus ? pill(BILLING_TONE[shop.billingStatus] ?? "neutral", BILLING_WORDS[shop.billingStatus] ?? shop.billingStatus) : (shop.access ?? "none")),
+      el("dt", { textContent: "Health" }), el("dd", {}, pill(TONE[shop.health.level], LEVEL[shop.health.level]), shop.testShop ? pill("info", "test shop") : null, shop.closed ? pill("danger", `closed by ${shop.closed.by}`) : null),
+      el("dt", { textContent: "Version" }), el("dd", { className: "rp-mono", textContent: shop.version ?? "none yet" }),
+      el("dt", { textContent: "Status" }), el("dd", { textContent: shop.status ?? "?" }),
+      shop.paymentsMoved ? el("dt", { textContent: "Cards" }) : null, shop.paymentsMoved ? el("dd", { textContent: PAYMENT_WORDS[shop.paymentsMoved.to] }) : null),
+    el("h3", { className: "cr-section", textContent: "Do for this shop" }),
+    el("div", { className: "cr-do" }, act, change, check, exportButton(shop)),
     accessSlot,
     switches ? el("h3", { className: "cr-section", textContent: "Switches for this shop" }) : null,
     switches,
@@ -1003,6 +1152,9 @@ function card(shop) {
     shop.status === "live" && shop.plan !== "stockroom" ? el("h3", { className: "cr-section", textContent: "Sales tax and store policies" }) : null,
     shop.status === "live" && shop.plan !== "stockroom" ? sellReadySection(shop) : null,
     ...privateSections(shop),
+    el("h3", { className: "cr-section cr-careful-head", textContent: "Careful actions" }),
+    el("div", { className: "cr-actions cr-careful" }, twoStep, closing),
+    el("p", { className: "rp-hint", textContent: "Each asks you to confirm and gives a reason for the log." }),
   ].filter(Boolean);
 }
 
@@ -1047,6 +1199,11 @@ function paymentsMenu(current, target, name) {
     const to = choice.value;
     const reason = askWhy(`Move card payments for ${name} to ${PAYMENT_WORDS[to]}. The press is emailed at once, and the shop's server and pages are deployed again.`);
     if (!reason) return;
+    // Every shop at once is the riskiest switch in the room: it needs the words typed, not just a click.
+    if (target.all && (window.prompt(`This moves card payments for EVERY live shop and emails every brand.\n\nType MOVE ALL to go on.`) ?? "").trim().toUpperCase() !== "MOVE ALL") {
+      status.textContent = "Nothing moved.";
+      return;
+    }
     move.disabled = true;
     try {
       const { shops } = await api("POST", "/control/payments", { ...target, to, reason });
@@ -1065,6 +1222,29 @@ function paymentsMenu(current, target, name) {
 
 $("#all-payments").append(paymentsMenu("platform", { all: true }, "every live shop"));
 
+// ── The inbox: support, repairs and recoveries as a list beside the one you're reading (stacked on a phone). ──
+const inboxPick = {};
+const ago = (at) => {
+  const minutes = Math.max(0, Math.floor((Date.now() - Date.parse(at)) / 60_000));
+  return minutes < 60 ? `${minutes}m` : minutes < 1440 ? `${Math.floor(minutes / 60)}h` : `${Math.floor(minutes / 1440)}d`;
+};
+function inboxPane(target, key, items, { type, tone, who, at, line }, detail) {
+  const chosen = items.find((item) => item.id === inboxPick[key]) ?? items[0];
+  const list = el("ul", { className: "cr-inbox-list", ariaLabel: `${type} list` }, ...items.map((item) => {
+    const row = el("button", { type: "button", className: "cr-inbox-row" },
+      el("span", { className: "cr-inbox-top" }, el("span", { className: "cr-type", dataset: { tone }, textContent: type }), el("b", { textContent: who(item) }), at(item) ? el("span", { className: "cr-ago", textContent: ago(at(item)) }) : null),
+      el("span", { className: "cr-inbox-line", textContent: line(item) }));
+    if (item === chosen) row.setAttribute("aria-current", "true");
+    row.addEventListener("click", () => {
+      inboxPick[key] = item.id;
+      inboxPane(target, key, items, { type, tone, who, at, line }, detail);
+      if (window.matchMedia("(max-width: 1099px)").matches) target.querySelector(".cr-inbox-detail")?.scrollIntoView({ block: "start" });
+    });
+    return el("li", {}, row);
+  }));
+  target.replaceChildren(el("div", { className: "cr-inbox" }, list, el("div", { className: "cr-inbox-detail" }, detail(chosen))));
+}
+
 // ── The repair queue (control-room/repairs.js): mark an item fixed once a person has dealt with it. ──
 let repairStatus = "open";
 filterChips(".repair-filters", (picked) => { repairStatus = picked; loadRepairs(); });
@@ -1073,7 +1253,8 @@ async function loadRepairs() {
   try {
     const { repairs } = await api("POST", "/control/repairs", { status: repairStatus });
     const empty = repairStatus === "open" ? emptyState("Nothing to fix.", "When a self-check finds something it can't fix itself, it shows here.") : emptyState("Nothing fixed yet.");
-    $("#repairs").replaceChildren(...(repairs.length ? repairs.map(repairCard) : [empty]));
+    if (!repairs.length) $("#repairs").replaceChildren(empty);
+    else inboxPane($("#repairs"), "repairs", repairs, { type: "Repair", tone: "apricot", who: (r) => r.shopId ?? "Platform", at: (r) => r.lastSeenAt, line: (r) => r.problem }, repairCard);
   } catch (failure) {
     status.textContent = failure.message;
   }
@@ -1128,7 +1309,8 @@ const TICKET_WORDS = { open: ["warning", "Waiting"], answered: ["info", "Answere
 async function loadTickets() {
   try {
     const { tickets } = await api("POST", "/control/support", { status: ticketStatus });
-    $("#tickets").replaceChildren(...(tickets.length ? tickets.map(ticketCard) : [emptyState("Nothing here.", ticketStatus === "open" ? "Every press's question has an answer." : null)]));
+    if (!tickets.length) $("#tickets").replaceChildren(emptyState("Nothing here.", ticketStatus === "open" ? "Every press's question has an answer." : null));
+    else inboxPane($("#tickets"), "tickets", tickets, { type: "Support", tone: "sky", who: (t) => t.pressName ?? setupNote(t) ?? t.email, at: (t) => t.openedAt, line: (t) => t.subject }, ticketCard);
   } catch (failure) {
     status.textContent = failure.message;
   }
@@ -1321,9 +1503,9 @@ function brandTile(brand) {
 }
 
 function ticketCard(ticket) {
-  const answer = el("textarea", { className: "rp-textarea", maxLength: 5000, placeholder: "Your answer, emailed to the press" });
+  const answer = el("textarea", { className: "rp-textarea", maxLength: 5000, placeholder: "Write your answer…" });
   answer.setAttribute("aria-label", `Answer to ${ticket.email}`);
-  const send = button("Send the answer", "primary");
+  const send = button("Send reply", "primary");
   send.addEventListener("click", async () => {
     send.disabled = true;
     try {
@@ -1335,6 +1517,22 @@ function ticketCard(ticket) {
       send.disabled = false;
     }
   });
+  const sendClose = button("Send and close", "secondary");
+  sendClose.addEventListener("click", async () => {
+    sendClose.disabled = true;
+    try {
+      await api("POST", "/control/support/answer", { id: ticket.id, body: answer.value });
+      await api("POST", "/control/support/close", { id: ticket.id });
+      status.textContent = `Answer emailed to ${ticket.email}, and the request is closed.`;
+      await loadTickets();
+    } catch (failure) {
+      status.textContent = failure.message;
+      sendClose.disabled = false;
+    }
+  });
+  const shop = ticket.shopId ? allShops.find((s) => s.shopId === ticket.shopId) : null;
+  const openIt = shop ? button("Open shop", "secondary") : null;
+  openIt?.addEventListener("click", () => openShop(shop));
   const close = button("Close", "ghost", { disabled: ticket.status === "closed" });
   close.addEventListener("click", async () => {
     close.disabled = true;
@@ -1355,7 +1553,7 @@ function ticketCard(ticket) {
     body: ticket.messages.map((m) => el("div", { className: "cr-quote", dataset: { from: m.from } },
       el("p", { className: "cr-meta", textContent: `${m.from === "press" ? ticket.email : m.by} · ${when(m.at)}` }),
       el("div", { textContent: m.body }))),
-    actions: el("div", { className: "cr-actions" }, ticket.status === "closed" ? null : answer, ticket.status === "closed" ? null : send, close),
+    actions: el("div", { className: "cr-actions" }, ticket.status === "closed" ? null : el("p", { className: "cr-cap cr-grow-full", textContent: "Your reply is emailed to them" }), ticket.status === "closed" ? null : answer, ticket.status === "closed" ? null : send, ticket.status === "closed" ? null : sendClose, close, openIt),
   });
 }
 
@@ -1367,7 +1565,8 @@ const RECOVERY_WORDS = { waiting: ["warning", "To check"], approved: ["info", "A
 async function loadRecoveries() {
   try {
     const { requests } = await api("POST", "/control/recovery", { status: recoveryStatus });
-    $("#recoveries").replaceChildren(...(requests.length ? requests.map(recoveryCard) : [emptyState("Nothing here.")]));
+    if (!requests.length) $("#recoveries").replaceChildren(emptyState("Nothing here."));
+    else inboxPane($("#recoveries"), "recoveries", requests, { type: "Recovery", tone: "lilac", who: (r) => r.requesterEmail, at: (r) => r.askedAt, line: (r) => r.details ?? `${r.oldEmail} → ${r.requesterEmail}` }, recoveryCard);
   } catch (failure) {
     status.textContent = failure.message;
   }
@@ -1422,6 +1621,7 @@ async function loadBreaches() {
   try {
     const { breaches, privacyContact } = await api("POST", "/control/breaches");
     $("#privacy-contact").textContent = privacyContact ? `Privacy contact: ${privacyContact}.` : "";
+    toolChip("breaches", breaches.length ? plural(breaches.length, "entry", "entries") : "None written", null);
     $("#breaches").replaceChildren(...(breaches.length ? breaches.map(breachCard) : [emptyState("Nothing in the register.", "Write one down below as soon as a breach is found.")]));
   } catch (failure) {
     status.textContent = failure.message;
@@ -1538,6 +1738,7 @@ async function loadEmergency() {
         run("Take the note down", "/control/emergency/status-note", () => ({ text: "" }), "The note is down.", "ghost"))));
   }
   $("#emergency").replaceChildren(...parts);
+  toolChip("runbook", state.releasesPaused ? "Updates paused" : "Updates running", state.releasesPaused ? "apricot" : null);
   return state;
 }
 
@@ -1678,6 +1879,7 @@ async function loadActivity() {
   try {
     const shopId = $("#activity-form").shopId.value.trim();
     const { entries } = await api("POST", "/control/activity", shopId ? { shopId } : {});
+    if (!shopId) showSince(entries);
     $("#activity").replaceChildren(entries.length ? table({
       caption: "Activity log",
       rows: entries,
@@ -1698,12 +1900,33 @@ $("#activity-form").addEventListener("submit", (event) => {
   loadActivity();
 });
 
-// ── The shell: one page at a time, by the address's #. An element's id opens the page it is on. ──
+// ── The shell: five groups (Today, Shops, Inbox, Money, Platform), one page at a time, by the address's #. ──
+// Every old address still works: a page's own name (#support), or an element's id (#test-shop) opens the page it is on.
+const ALIASES = { inbox: "support" };
+const groupOf = (pageId) => GROUPS.find((g) => g.pages.includes(pageId)) ?? GROUPS[0];
 const PAGES = [...document.querySelectorAll("[data-page]")];
 let shellRole = null;
+
+// The tabs across the top of a grouped page; a Platform tool gets a way back to the tools instead.
+for (const page of PAGES) {
+  const group = groupOf(page.dataset.page);
+  const header = page.querySelector(".rp-page-header");
+  if (group.tabs) {
+    const tabs = el("nav", { className: "cr-tabs", ariaLabel: `${group.name} pages` }, ...group.tabs.map(([id, words]) => el("a", { href: `#${id}`, dataset: { tab: id }, ...(id === page.dataset.page ? { ariaCurrent: "page" } : {}) },
+      words, el("span", { className: "cr-tab-count", dataset: { tabCount: id } }))));
+    if (header) header.after(tabs);
+    else page.prepend(tabs);
+  } else if (group.id === "platform" && page.dataset.page !== "platform") {
+    (header?.querySelector(":scope > div") ?? header)?.prepend(el("a", { className: "cr-back", href: "#platform", dataset: { admin: "" }, textContent: "← Platform" }));
+  }
+}
+for (const [id, n] of Object.entries(pageCounts)) setBadge(id, n);
+
 function pageFor(hash) {
-  const id = decodeURIComponent(hash.slice(1));
+  let id = decodeURIComponent(hash.slice(1));
   if (!id) return null;
+  if (id.startsWith("shop/")) id = "shops";
+  id = ALIASES[id] ?? id;
   const page = PAGES.find((p) => p.dataset.page === id) ?? document.getElementById(id)?.closest("[data-page]");
   return page && (shellRole !== "backup" || page.dataset.page === "runbook") ? page : null;
 }
@@ -1712,18 +1935,28 @@ function route() {
   const fallback = PAGES.find((p) => p.dataset.page === (shellRole === "backup" ? "runbook" : "today"));
   const page = pageFor(location.hash) ?? fallback;
   for (const p of PAGES) p.hidden = p !== page;
-  for (const item of document.querySelectorAll(".rp-nav-item")) {
-    if (item.dataset.nav === page.dataset.page) item.setAttribute("aria-current", "page");
+  const group = groupOf(page.dataset.page);
+  for (const item of document.querySelectorAll("[data-nav]")) {
+    if (item.dataset.nav === group.id) item.setAttribute("aria-current", "page");
     else item.removeAttribute("aria-current");
   }
-  $("#topbar-title").textContent = `Colophon · ${page.querySelector(".rp-page-title")?.textContent ?? "control room"}`;
+  $("#topbar-title").textContent = `Colophon · ${page.querySelector(".rp-page-title")?.textContent ?? group.name}`;
   setMenu(false);
-  closeDrawer();
-  // A link to something on the page (the test shop, the stuck sign-ups) scrolls to it.
+  closePalette();
+  // A shared link to one shop (#shop/<id>) opens its record beside the list.
   const id = decodeURIComponent(location.hash.slice(1));
-  const target = id === page.dataset.page ? null : document.getElementById(id);
-  if (target && target !== page && page.contains(target)) target.scrollIntoView({ block: "start" });
-  else $("#rp-main").scrollTop = 0;
+  if (id.startsWith("shop/")) {
+    const shop = allShops.find((s) => s.shopId === id.slice(5));
+    if (shop && drawer?.shopId !== shop.shopId) openShop(shop, { fromRoute: true });
+  } else closeDrawer();
+  // A link to something on the page (the test shop, the stuck sign-ups) scrolls to it, opening "More on Today" if it is in it.
+  const target = id === page.dataset.page || id.startsWith("shop/") ? null : document.getElementById(id);
+  if (target && target !== page && page.contains(target)) {
+    const fold = target.closest("details");
+    if (fold) fold.open = true;
+    target.scrollIntoView({ block: "start" });
+    if (target.matches("form")) target.querySelector("input, textarea")?.focus({ preventScroll: true });
+  } else $("#rp-main").scrollTop = 0;
 }
 window.addEventListener("hashchange", route);
 
@@ -1733,7 +1966,11 @@ function showShell(role) {
   $("#shell").hidden = false;
   $("#view-shops").hidden = role === "backup";
   for (const item of document.querySelectorAll("[data-admin]")) item.hidden = role === "backup";
+  for (const item of document.querySelectorAll("[data-backup]")) item.hidden = role !== "backup";
+  $("#tabbar").hidden = role === "backup";
+  $("#find").hidden = role === "backup";
   $("#who").textContent = auth.currentUser?.email ?? "";
+  $("#who-phone").textContent = auth.currentUser?.email ?? "";
   route();
 }
 
@@ -1756,6 +1993,93 @@ $("#menu-close").addEventListener("click", () => { setMenu(false); $("#menu-open
 $("#scrim").addEventListener("click", () => setMenu(false));
 $("#sidebar").addEventListener("keydown", (event) => { if (event.key === "Escape" && $("#sidebar").dataset.open === "true") { setMenu(false); $("#menu-open").focus(); } });
 $("#sign-out").addEventListener("click", () => signOut(auth));
+$("#sign-out-phone").addEventListener("click", () => signOut(auth));
+
+// ── The find bar (Ctrl K or ⌘K): shops, pages and actions; arrow keys and Enter; Esc closes. ──
+let palette = null;
+const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+$("#find-key").textContent = isMac ? "⌘K" : "Ctrl K";
+function closePalette() {
+  if (!palette) return;
+  const { root, opener } = palette;
+  palette = null;
+  root.remove();
+  opener?.focus?.();
+}
+function runFound(item) {
+  closePalette();
+  if (item.kind === "shop") location.hash = `shop/${encodeURIComponent(item.shopId)}`;
+  else if (item.run === "act-as") openPalette("shops");
+  else if (item.run === "refresh") load();
+  else if (item.run === "appearance") $("#appearance").click();
+  else if (item.run === "sign-out") signOut(auth);
+  else if (location.hash === `#${item.go}`) route();
+  else location.hash = item.go;
+}
+function openPalette(mode = "all") {
+  if (shellRole !== "admin") return;
+  const opener = palette?.opener ?? document.activeElement;
+  closePalette();
+  const input = el("input", { className: "cr-palette-input", type: "search", autocomplete: "off", spellcheck: false,
+    placeholder: mode === "shops" ? "Which shop? Its record has View this shop…" : "Find a shop, page or action…" });
+  input.setAttribute("role", "combobox");
+  input.setAttribute("aria-expanded", "true");
+  input.setAttribute("aria-controls", "palette-list");
+  input.setAttribute("aria-label", mode === "shops" ? "Find a shop to act as" : "Find a shop, page or action");
+  const list = el("ul", { className: "cr-palette-list", id: "palette-list", role: "listbox" });
+  let found = [];
+  let active = 0;
+  const show = () => {
+    found = findResults(input.value, { shops: allShops, tags: shopTags, mode });
+    active = Math.min(active, Math.max(found.length - 1, 0));
+    fill(list, ...(found.length ? found.map((item, i) => {
+      const option = el("li", { id: `palette-${i}`, role: "option", className: "cr-palette-item", dataset: { kind: item.kind } },
+        el("span", { className: "cr-palette-kind", textContent: item.kind === "shop" ? "Shop" : item.kind === "action" ? "Do" : "Go" }),
+        el("span", { className: "cr-palette-words", textContent: item.words }),
+        item.detail ? el("span", { className: "cr-palette-detail", textContent: item.detail }) : null);
+      option.setAttribute("aria-selected", String(i === active));
+      option.addEventListener("mousedown", (event) => { event.preventDefault(); runFound(item); });
+      option.addEventListener("mousemove", () => { if (active !== i) { active = i; show(); } });
+      return option;
+    }) : [el("li", { className: "cr-palette-none", textContent: "Nothing matches." })]));
+    if (found.length) input.setAttribute("aria-activedescendant", `palette-${active}`);
+    else input.removeAttribute("aria-activedescendant");
+    list.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
+  };
+  input.addEventListener("input", () => { active = 0; show(); });
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown") { event.preventDefault(); active = (active + 1) % Math.max(found.length, 1); show(); }
+    else if (event.key === "ArrowUp") { event.preventDefault(); active = (active - 1 + found.length) % Math.max(found.length, 1); show(); }
+    else if (event.key === "Enter" && found[active]) { event.preventDefault(); runFound(found[active]); }
+  });
+  const box = el("div", { className: "cr-palette", role: "dialog", ariaModal: "true", ariaLabel: "Find" },
+    el("div", { className: "cr-palette-field" }, input, el("kbd", { className: "cr-kbd", textContent: "Esc" })), list);
+  const scrim = el("div", { className: "cr-palette-scrim" });
+  scrim.addEventListener("click", closePalette);
+  const root = el("div", { className: "cr-palette-root" }, scrim, box);
+  root.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") { event.preventDefault(); closePalette(); }
+    // Focus stays in the find bar: Tab goes nowhere else while it is open.
+    if (event.key === "Tab") { event.preventDefault(); input.focus(); }
+  });
+  palette = { root, opener };
+  $("#room").append(root);
+  show();
+  input.focus();
+}
+$("#find").addEventListener("click", () => openPalette());
+document.addEventListener("keydown", (event) => {
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k" && !event.altKey && !event.shiftKey) {
+    event.preventDefault();
+    if (palette) closePalette();
+    else openPalette();
+  }
+});
+// Today's quick actions: invite and message go to their forms; Act as a shop picks the shop first.
+document.addEventListener("click", (event) => {
+  const quick = event.target.closest('[data-quick="act-as"]');
+  if (quick) openPalette("shops");
+});
 
 // Day or night (the Colophon look, colophon.css). Kept in this browser only.
 const remember = (key, value) => { try { if (value === undefined) return localStorage.getItem(key); localStorage.setItem(key, value); } catch { /* storage blocked */ } return null; };
@@ -2058,7 +2382,7 @@ function incomeChart(months, currency, wide = 720) {
 }
 
 let lastIncome = null;
-const chartWidth = () => ($("#income-chart").clientWidth || 768) - 48;
+const chartWidth = () => $("#income-chart").clientWidth || 720;
 let resizing = null;
 window.addEventListener("resize", () => {
   clearTimeout(resizing);
@@ -2456,7 +2780,10 @@ const tookWords = (ms) => (ms == null ? "" : ms < 1000 ? `${ms} ms` : ms < 60_00
 async function loadJobs() {
   try {
     const { jobs } = await api("GET", "/control/jobs");
-    setBadge("jobs", jobs.filter((j) => j.late).length);
+    const lateJobs = jobs.filter((j) => j.late).length;
+    setBadge("jobs", lateJobs);
+    toolChip("jobs", lateJobs ? `${lateJobs} late` : "All on time", lateJobs ? "alert" : "mint");
+    renderToday();
     $("#jobs").replaceChildren(jobs.length ? table({
       caption: "Jobs",
       rows: jobs,
@@ -2535,6 +2862,8 @@ const audienceWords = (audience) => (audience.all ? "every shop" : audience.plan
 async function loadMessages() {
   try {
     const { messages, notices = [] } = await api("GET", "/control/messages");
+    const live = messages.filter((m) => m.state === "showing").length;
+    toolChip("messages", live ? `${live} showing` : "None showing", live ? "sky" : null);
     $("#messages").replaceChildren(messages.length ? table({
       caption: "Messages to presses",
       rows: messages,

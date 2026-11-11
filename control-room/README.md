@@ -29,13 +29,28 @@ counts each paying shop at its plan price (`billing.amount` when billing keeps i
 
 Plain HTML and browser JavaScript, like the sign-up page; sign in with Google.
 
-It wears the website admin's look (Pressroom, `docs/admin-look-plan.md`): the ink side menu, one page at a time
-(`#today`, `#shops`, `#signups`, `#support`, `#repairs`, `#recovery`, `#switches`, `#settings`, `#payments`,
-`#runbook`, `#breaches`, `#activity`; an element's id, like `#test-shop`, opens the page it is on), the ledger figures,
-sheets, tables, pills and a drawer for each shop's record, with the same class names as `admin/riso/components.tsx`.
-The colour tokens and styles in `look/` are copies of `shared/admin-look/`, written by
-`node shared/admin-look/sync.mjs`: change the source there, never the copies. Riso Press or Paper, day or night, is kept in
-the browser. The side menu counts what needs you (from Today's list).
+It wears the Colophon bento look (`look/colophon.css`, `room.css`), laid out by the control room redesign (11 November
+2026): the menu has five groups, and every older page lives in one of them (`palette.js` `GROUPS`; nothing was removed).
+
+- **Today** (`#today`): a verdict tile ("3 things need you", apricot; mint when nothing does), **Needs you** with each
+  line's next step (Open shop opens the record beside the page; Answer, Fix, Check go to the inbox), the income, shops
+  and failed-payment tiles, shop health as one bar (each line opens the shops with that health), quick actions and
+  "Since yesterday" from the activity log. The test shop, brands at risk, still time to talk, tax lines and everything
+  for every shop fold under **More on Today**; a failed update to the test shop is lifted into Needs you.
+- **Shops** (tabs Shops, Sign-ups, Setting up): a search pill, quick filters (All, Needs a look, Free trial, Paying,
+  Payment failing, At risk) and every older filter under **More filters**. A shop's record opens beside the list at
+  `#shop/<shop id>`, with what's wrong first, the facts, "Do for this shop" and the careful actions last.
+- **Inbox** (tabs Support, Repairs, Account recovery, App store): the list beside the one you're reading (stacked on a
+  phone); Support adds **Send and close** and **Open shop**.
+- **Money** (tabs Income, Failed payments, Why brands leave, Costs, Prices and sign-up).
+- **Platform**: a card for each tool (Launch, Switches, Jobs and releases, Messages to brands, Run book, Breach register,
+  Activity log) with its state, and the **Danger zone** (emergency payments, which also asks you to type MOVE ALL).
+- The **find bar** (Ctrl K or ⌘K, `palette.js`) finds shops, pages and actions. Every older address still opens its
+  page (`#support`, `#tickets`, `#test-shop`, `#payments`…). A phone gets a tab bar of the five groups at the bottom.
+- The counts in the menu add up each group's pages (support, repairs, recovery and apps under Inbox, and so on).
+
+The colour tokens and styles in `look/` are copies of `shared/admin-look/`, written by `node shared/admin-look/sync.mjs`:
+change the source there, never the copies. Day or night is kept in the browser.
 
 - **Every shop** with its plan, release version, status, billing, last release check and health. Shops with a problem
   come first.

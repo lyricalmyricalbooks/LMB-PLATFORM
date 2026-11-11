@@ -84,7 +84,7 @@ test("with --apply it runs each step in order, skips what is there already, and 
 });
 
 test("the server goes live before Stripe and email are connected: a missing optional key is left out", async () => {
-  assert.deepEqual([...OPTIONAL_SECRETS].sort(), ["stripe-billing-webhook-secret", "stripe-connect-webhook-secret-test", "stripe-platform-test-key"]);
+  assert.deepEqual([...OPTIONAL_SECRETS].sort(), ["google-client-id", "google-client-secret", "google-token-key", "stripe-billing-webhook-secret", "stripe-connect-webhook-secret-test", "stripe-platform-test-key"]);
   const ran = [];
   const run = async (command, args) => {
     ran.push([command, ...args].join(" "));
@@ -98,7 +98,7 @@ test("the server goes live before Stripe and email are connected: a missing opti
   assert.equal(deployed.length, 2);
   for (const line of deployed) {
     assert.match(line, /--set-secrets=TRIAL_TIPS_SECRET=trial-tips-secret:latest,CHECKUP_SECRET=checkup-secret:latest/);
-    assert.doesNotMatch(line, /RESEND|STRIPE/);
+    assert.doesNotMatch(line, /RESEND|STRIPE|GOOGLE_/);
   }
   assert.match(lines.join("\n"), /Not connected yet \(no secret\): stripe-platform-test-key/);
   // The two link phrases are still checked, so a server never starts without them.

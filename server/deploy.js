@@ -20,6 +20,7 @@ import { DEFAULT_PROJECT } from "./world.js";
 import { MAIL_ACCOUNT_NAME } from "../services/email/index.js";
 import { PAYMENTS_SECRETS } from "../services/payments/index.js";
 import { BILLING_SECRETS } from "../services/billing/index.js";
+import { GOOGLE_SECRETS } from "../google/config.js";
 
 /** The Firebase command line, pinned like the waitlist's README. */
 export const FIREBASE_TOOLS = "firebase-tools@15.32.1";
@@ -34,6 +35,7 @@ export const accountOf = (name, project) => `${name}@${project}.iam.gserviceacco
 export const SECRETS = Object.freeze([
   ...PAYMENTS_SECRETS,
   ...BILLING_SECRETS,
+  ...GOOGLE_SECRETS,
   { env: "TRIAL_TIPS_SECRET", secret: "trial-tips-secret", api: true, jobs: true },
   { env: "CHECKUP_SECRET", secret: "checkup-secret", api: true, jobs: true },
 ]);
@@ -41,9 +43,9 @@ export const SECRETS = Object.freeze([
 /**
  * The keys the server can start without (owner, 9 November 2026: open the platform before Stripe and email are
  * connected). Without them sign-in by Google, the control room and every page work; email and Stripe answer "not
- * connected" until their secret is added and the deploy runs again. The two link phrases are always needed.
+ * connected" until their secret is added and the deploy runs again, and Connect Google says "coming soon". The two link phrases are always needed.
  */
-export const OPTIONAL_SECRETS = Object.freeze(new Set([...PAYMENTS_SECRETS, ...BILLING_SECRETS].map((s) => s.secret)));
+export const OPTIONAL_SECRETS = Object.freeze(new Set([...PAYMENTS_SECRETS, ...BILLING_SECRETS, ...GOOGLE_SECRETS].map((s) => s.secret)));
 
 /** The services' own accounts and the roles each holds in the platform project. */
 export const ACCOUNTS = Object.freeze([

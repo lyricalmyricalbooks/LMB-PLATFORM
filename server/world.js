@@ -30,6 +30,7 @@
 //   *    /api/payments/...       the payment service's doors (services/payments/http.js: /shop, /stripe/events, Square)
 //   POST /api/email/shop         a shop sending an email through the platform (services/email/http.js)
 //   *    /api/domains/...        a shop's web addresses (services/domains/http.js: POST /shop, GET /allowed), in the shared system
+//   *    /api/google/...         Connect Google (google/hosted.js: POST /shop from a shop, GET /oauth from Google)
 //   GET  /tips/off, /checkup/off the emails' "turn off" pages
 //
 // What can't be real yet answers plainly that it isn't switched on (server/notConnected.js; listed in README.md).
@@ -50,6 +51,7 @@ import { controlRoomPeople } from "../control-room/people.js";
 import { createInvites } from "../waitlist/invites.js";
 import { readGoogleConfig } from "../google/config.js";
 import { googleReadiness } from "../google/readiness.js";
+import { hostedGoogleLink } from "../google/hosted.js";
 import { createSupportInbox } from "../services/support/inbox.js";
 import { supportRoutes } from "../services/support/routes.js";
 import { createAppMakers } from "../services/apps/makers.js";
@@ -357,7 +359,11 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const checkups = checkupSecret
     ? createCheckups({ registry, auditLog, email, store: firestoreShopRecords(platform, "checkups"), inspect: makeInspector({ shopData }), settings, secret: checkupSecret, now })
     : null;
-  const closing = createClosingSweep({ registry, auditLog, billing, email, projects: notConnectedClient(NOT_CONNECTED.projectDeletion, ["deleteProject"]), settings, now: nowMs });
+  // Connect Google (google/hosted.js): on once the Google sign-in keys are in Secret Manager. Without them every shop's
+  // Google page says "coming soon" (a status of `enabled: false`), and nothing else is answered.
+  const googleLink = hostedGoogleLink({ env, fetch, token, platform, registry, now: nowMs, log });
+  // A closing shop's Google link is undone with it (google/hosted.js closingHooks).
+  const closing = createClosingSweep({ registry, auditLog, billing, email, projects: notConnectedClient(NOT_CONNECTED.projectDeletion, ["deleteProject"]), hooks: googleLink?.closingHooks ?? {}, settings, now: nowMs });
 
   // The terms promise 30 days' email before new words apply (terms/notice.js).
   const termsNotice = createTermsNotice({ signups: stores.signups, email, settings: live, now });
@@ -436,6 +442,12 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     },
   });
 
+  const googleDoor = (request) => {
+    if (googleLink) return googleLink.handle(request);
+    if (request.path === "/shop" && request.method === "POST" && request.body?.op === "google.status") return { status: 200, body: { enabled: false } };
+    return { status: 409, body: { error: { code: "google_off", message: "Connect Google isn't turned on yet." } } };
+  };
+
   const offPage = (sender, piece, request) => {
     const query = new URLSearchParams(request.query ?? {}).toString();
     return sender ? sender.handleOff(`${request.path}${query ? `?${query}` : ""}`) : notConnectedPage(piece, settings.platformName);
@@ -456,6 +468,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
       if (!domains) return { status: 503, body: { error: { code: "not_connected", message: NOT_CONNECTED.domains.words } } };
       return handleDomains({ ...request, path: path.slice("/api/domains".length) || "/" }, { service: domains });
     }
+    if (path === "/api/google" || path.startsWith("/api/google/")) return googleDoor({ ...request, path: path.slice("/api/google".length) || "/" });
     if (path === "/tips/off" || path === "/checkup/off") {
       if (request.method !== "GET") return { status: 405, body: { ok: false, message: "Open the link from the email." } };
       return path === "/tips/off" ? offPage(trialTips, NOT_CONNECTED.trialTips, request) : offPage(checkups, NOT_CONNECTED.checkups, request);
@@ -466,6 +479,6 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   return {
     projectId, settings, live, platform, registry, auditLog, shopData, stockroomData, email, billing, paymentWay, payments, signup, frontDoor, shopMaker, accounts, room, controls,
     appAlerts, chitchats, backup, support, recovery, business, timeline, jobs, jobRuns, jobsPage, notes, pressMessages, costsDesk, dataExports, trialTips, checkups, closing, setupClock, driftWatch,
-    routes, door, shopBilling, handle, parts, termsNotice,
+    routes, door, shopBilling, handle, parts, termsNotice, googleLink,
   };
 }
