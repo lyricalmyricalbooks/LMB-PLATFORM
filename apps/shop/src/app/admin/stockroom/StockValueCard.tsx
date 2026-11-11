@@ -6,6 +6,7 @@ import { downloadCsv } from "@stockroom/download.js";
 import { fileStem } from "@stockroom/shop-profile.js";
 
 import { DataTable, Dialog, EmptyState, MetricCard, PrimaryButton, SecondaryButton, SectionCard, SelectField, Tabs, TextField } from "../riso/components";
+import { DEFAULT_SHOP_NAME } from "../../../shared/shopIdentity";
 import { shopProfile } from "../../../lib/shopProfile";
 import { describeResult, stockroomWriteApi } from "./stockroomWrite";
 import { saveTaxCenter, type SaveNote } from "./saveTaxCenter";
@@ -37,7 +38,7 @@ export function StockValueCard({ books, states, taxCenter, fxRateCache, onTaxCen
     setForm({ bookId: choices[0].id, qty: "1", nrv: "", date: todayText(), reason: REASON.valuation, evidence: "", notes: "" });
   }
   function download() {
-    const name = shopProfile.name || "Your Press";
+    const name = shopProfile.name || DEFAULT_SHOP_NAME;
     downloadCsv(stockValueCsv(books, states, fxRateCache, expenses, name, todayText()), `${fileStem({}, { name })}_Inventory_Valuation_${todayText()}.csv`);
   }
   async function submit() {

@@ -6,6 +6,7 @@ import { downloadCsv } from "@stockroom/download.js";
 import { inPersonTaxOf, suggestedTaxBookName, TAX_BOOK_NAMES } from "@stockroom/bookkeeping-days.js";
 
 import { Checkbox, PrimaryButton, SecondaryButton, SectionCard, TextField } from "../riso/components";
+import { DEFAULT_SHOP_NAME } from "../../../shared/shopIdentity";
 import { shopProfile } from "../../../lib/shopProfile";
 import { saveTaxCenter, type SaveNote } from "./saveTaxCenter";
 import { taxSeasonExport, type TaxSeasonInput } from "./taxSeason";
@@ -45,7 +46,7 @@ export function TaxSeasonCard({ input, year, onSaved }: { input: TaxSeasonInput;
   }
 
   function download() {
-    const file = taxSeasonExport(input, year, { pressName: shopProfile.name || "Your Press", today: todayText() });
+    const file = taxSeasonExport(input, year, { pressName: shopProfile.name || DEFAULT_SHOP_NAME, today: todayText() });
     downloadCsv(file.text, file.name);
     const warn = [
       file.waiting ? `${file.waiting} ${file.waiting === 1 ? "expense is" : "expenses are"} still waiting for an exchange rate, so the totals are not final.` : "",
