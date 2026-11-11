@@ -2168,3 +2168,12 @@ div.rp-listcard-main { cursor: default; }
 .rp:not(.studio-editor) .inv-list { overflow: hidden; }
 /* Numbers in tables read in the body face, like the mockup tables; mono stays for codes and dates. */
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) td.rp-num { font-family: var(--rp-font-body); }
+/* Lilac chips (the mockup's fair channel): the primary tone wears the lilac tile. */
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-badge[data-tone="primary"] { background: var(--rp-tile-lilac); color: var(--rp-on-tile); font-weight: 600; }
+/* Sales records: the date opens the sale, but reads as a plain muted date like the mockup's first column. */
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) td.rp-lead .rp-sr-date { color: var(--rp-text-muted); font-weight: 400; text-decoration: none; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) td.rp-lead .rp-sr-date:hover { color: var(--rp-text); text-decoration: underline; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) td.rp-lead .rp-sr-open:not(.rp-sr-date) { font-weight: 500; text-decoration: none; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) td.rp-lead .rp-hint { font-weight: 400; }
+/* Number columns: the header lines up with its figures on the right, as in the mockup tables. */
+.rp:not(.studio-editor) .rp-table th.rp-num { text-align: right; }

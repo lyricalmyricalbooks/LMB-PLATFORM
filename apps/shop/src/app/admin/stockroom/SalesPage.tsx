@@ -4,7 +4,8 @@
 import { useMemo, useState } from "react";
 import { fmt, fmtD } from "@stockroom/money.js";
 
-import { Drawer, DataTable, EmptyState, GhostButton, MetricCard, PrimaryButton, SearchField, SecondaryButton, SelectField, StatusBadge, TextField, Checkbox, type Column } from "../riso/components";
+import { Drawer, DataTable, EmptyState, PageActions, PrimaryButton, SearchField, SecondaryButton, StatusBadge, Tabs, type BadgeTone, type Column } from "../riso/components";
+import { saveTable } from "../xlsxWriter";
 import { useShopWords } from "../shopWords";
 import { RecordsGate } from "./RecordsGate";
 import { RecordSaleDialog, SaveNoteLine, useStockroomSave, VoidSaleAction } from "./SaleWriter";
@@ -16,6 +17,16 @@ import "./sales.css";
 const PAGE = 50;
 const money = (n: number | null, code: string) => (n == null ? "—" : fmt(n, code));
 const moneyList = (by: Record<string, number>) => Object.entries(by).map(([code, n]) => fmt(n, code)).join(" · ") || "—";
+/** Channel chips take a tile colour each, as in the mockup: website mint, fairs lilac, stockists sky, the rest apricot. */
+const channelTone = (c: string): BadgeTone => {
+  const k = c.toLowerCase();
+  return k.includes("web") ? "success" : k.includes("fair") ? "primary" : k.includes("stockist") || k.includes("consign") ? "info" : "warning";
+};
+const csvCell = (v: unknown) => {
+  let t = v == null ? "" : String(v);
+  if (/^[=+\-@]/.test(t)) t = `'${t}`;
+  return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+};
 const label = (r: SaleRow) => (r.kind === "consign" ? r.movement : r.num ? `Order ${r.num}` : "Sale");
 
 function Facts({ items }: { items: Array<[string, React.ReactNode]> }) {
@@ -59,47 +70,61 @@ export function SalesRecords({ records: loaded }: { records: StockroomRecords })
   const { rows, inScope, described } = useMemo(() => filterSales(all, filter), [all, filter]);
   const totals = useMemo(() => salesTotals(rows), [rows]);
   const channels = useMemo(() => [...new Set(all.map((r) => r.channel))].sort(), [all]);
-  const items = useMemo(() => records.books.filter((b) => all.some((r) => r.bookId === b.id)), [records, all]);
 
   const recordButton = records.books.length > 0 && <PrimaryButton onClick={() => { save.clear(); setRecording(true); }} disabled={save.busy}>Record a sale</PrimaryButton>;
   const dialog = <RecordSaleDialog open={recording} onClose={() => setRecording(false)} records={records} save={save} />;
 
   const filtered = filter.search.trim() || filter.channel || filter.bookId || filter.from || filter.to || filter.hideVoided;
+  const clear = () => { setFilter(NO_FILTER); setLimit(PAGE); };
+  // The channel that sold the most copies in this view (voided sales left out).
+  const best = useMemo(() => {
+    const by = new Map<string, number>();
+    rows.forEach((r) => { if (r.kind === "sale" && !r.voided) by.set(r.channel, (by.get(r.channel) || 0) + r.qty); });
+    return [...by.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || "–";
+  }, [rows]);
+  const download = () => {
+    const head = ["Date", "Order", w("Book"), "Channel", w("Copies"), "Total", "Currency", "Voided"];
+    const lines = rows.map((r) => [r.date, r.num || "", r.bookTitle, r.channel, r.qty, r.gift ? 0 : r.total ?? "", r.currency, r.voided ? "yes" : ""]);
+    saveTable(`sales-${new Date().toISOString().slice(0, 10)}`, [head, ...lines].map((l) => l.map(csvCell).join(",")).join("\n"), "csv", "Sales");
+  };
   const columns: Column<SaleRow>[] = [
-    { key: "order", header: "Sale", lead: true, render: (r) => <><button type="button" className="rp-sr-open" onClick={() => setOpen(r)}>{label(r)}</button>{r.voided && <> <StatusBadge glyph={false} tone="danger">Voided</StatusBadge></>}{r.pendingArtist && <> <StatusBadge glyph={false} tone="warning">Pending</StatusBadge></>}</> },
-    { key: "book", header: w("Book"), render: (r) => r.bookTitle },
-    { key: "channel", header: "Channel", render: (r) => r.channel },
-    { key: "qty", header: w("Copies"), numeric: true, render: (r) => (r.kind === "consign" ? `${r.movement.startsWith("Sent") ? "-" : ""}${r.qty}` : `-${r.qty}`) },
-    { key: "total", header: "Total", numeric: true, render: (r) => (r.gift ? "Gift" : money(r.total, r.currency)) },
-    { key: "date", header: "Date", render: (r) => fmtD(r.date) },
+    { key: "date", header: "Date", lead: true, render: (r) => <button type="button" className="rp-sr-open rp-sr-date" onClick={() => setOpen(r)} aria-label={`${label(r)}, ${fmtD(r.date)}`}>{fmtD(r.date)}</button> },
+    { key: "book", header: w("Book"), render: (r) => <>{r.bookTitle}{r.voided && <> <StatusBadge glyph={false} tone="danger">Voided</StatusBadge></>}{r.pendingArtist && <> <StatusBadge glyph={false} tone="warning">Pending</StatusBadge></>}</> },
+    { key: "channel", header: "Channel", render: (r) => r.kind === "consign" ? r.movement : <StatusBadge glyph={false} tone={channelTone(r.channel)}>{r.gift ? "Gift" : r.channel}</StatusBadge> },
+    { key: "qty", header: w("Copies"), numeric: true, render: (r) => `× ${r.qty}` },
+    { key: "total", header: "Total", numeric: true, render: (r) => <strong>{r.gift ? "Gift" : money(r.total, r.currency)}</strong> },
   ];
   return (
     <div className="rp-sr">
-      <div className="rp-sr-actions">{recordButton}<SaveNoteLine note={recording ? null : save.note} /></div>
+      <PageActions>
+        <SecondaryButton onClick={download} disabled={!rows.length}>Download CSV</SecondaryButton>
+        {recordButton}
+      </PageActions>
+      <SaveNoteLine note={recording ? null : save.note} />
       {dialog}
-      <div className="rp-grid-metrics">
-        <MetricCard label="Sales" value={totals.sales} footer={filtered ? "Matching your filters" : "All recorded"} />
-        <MetricCard label={w("Copies sold")} value={totals.copies} footer={totals.gifts ? `Plus ${totals.gifts} given away` : undefined} />
-        <MetricCard label="Money taken" value={<span className="rp-sr-money">{moneyList(totals.revenue)}</span>} footer="Each currency kept apart" />
-        <MetricCard label="Voided" value={totals.voided} tone={totals.voided ? "warn" : undefined} footer="Not counted anywhere" />
+      {channels.length > 1 && (
+        <Tabs label="Channel" value={filter.channel || "all"} onChange={(id) => set({ channel: id === "all" ? "" : id })}
+          tabs={[{ id: "all", label: "All channels" }, ...channels.map((c) => ({ id: c, label: c }))]} />
+      )}
+      <div className="rp-tiles">
+        <div className="rp-tile" data-tone="mint">
+          <span className="rp-tile-label">Money taken</span>
+          <span className="rp-tile-value">{moneyList(totals.revenue)}</span>
+          <span className="rp-tile-sub">{totals.sales} sales{totals.voided ? ` · ${totals.voided} voided, not counted` : ""}</span>
+        </div>
+        <div className="rp-tile">
+          <span className="rp-tile-label">{w("Copies sold")}</span>
+          <span className="rp-tile-value">{totals.copies}</span>
+          {totals.gifts ? <span className="rp-tile-sub">Plus {totals.gifts} given away</span> : null}
+        </div>
+        <div className="rp-tile">
+          <span className="rp-tile-label">Best channel</span>
+          <span className="rp-tile-value">{best}</span>
+        </div>
       </div>
-
-      <div className="rp-filter-bar">
-        <SearchField className="rp-grow" label="Search sales" placeholder="Order number, channel, note or who entered it" value={filter.search} onChange={(e) => set({ search: e.target.value })} />
-        <SelectField label="Channel" hideLabel value={filter.channel} onChange={(e) => set({ channel: e.target.value })}>
-          <option value="">All channels</option>{channels.map((c) => <option key={c} value={c}>{c}</option>)}
-        </SelectField>
-        {items.length > 1 && (
-          <SelectField label={w("Book")} hideLabel value={filter.bookId} onChange={(e) => set({ bookId: e.target.value })}>
-            <option value="">{w("All books")}</option>{items.map((b) => <option key={b.id} value={b.id}>{b.title}</option>)}
-          </SelectField>
-        )}
-        <TextField label="From" type="date" value={filter.from} max={filter.to || undefined} onChange={(e) => set({ from: e.target.value })} />
-        <TextField label="To" type="date" value={filter.to} min={filter.from || undefined} onChange={(e) => set({ to: e.target.value })} />
-        <Checkbox label="Hide voided" checked={filter.hideVoided} onChange={(e) => set({ hideVoided: e.target.checked })} />
-        {filtered && <GhostButton onClick={() => { setFilter(NO_FILTER); setLimit(PAGE); }}>Clear filters</GhostButton>}
-      </div>
-      <p className="rp-sr-status" role="status">{described.headline}. {described.active ? described.detail : ""}</p>
+      {all.length > PAGE && (
+        <SearchField label="Search sales" placeholder={w("Order number, book, note or who entered it")} value={filter.search} onChange={(e) => set({ search: e.target.value })} />
+      )}
 
       {rows.length ? (
         <>
@@ -112,8 +137,8 @@ export function SalesRecords({ records: loaded }: { records: StockroomRecords })
       ) : !all.length ? (
         <EmptyState inline icon="🧾" title="No sales recorded yet" description={w("Sales the stockroom records, at a book fair, from your website or by hand, appear here.")} />
       ) : (
-        <EmptyState icon="🔍" title="No sales match" description={`${inScope ? `${inScope} in this view` : "Nothing in this view"}. ${described.active ? described.detail : "Widen the dates or clear the filters."}`}
-          action={<SecondaryButton onClick={() => { setFilter(NO_FILTER); setLimit(PAGE); }}>Clear filters</SecondaryButton>} />
+        <EmptyState icon="🔍" title="No sales match" description={`${inScope ? `${inScope} in this view` : "Nothing in this view"}. ${described.active ? described.detail : ""}`}
+          action={filtered ? <SecondaryButton onClick={clear}>Show every sale</SecondaryButton> : undefined} />
       )}
 
       <Drawer open={!!open} onClose={() => setOpen(null)} title={open ? label(open) : "Sale"} description={open ? `${open.bookTitle} · ${fmtD(open.date)}` : undefined}>

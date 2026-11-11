@@ -194,7 +194,7 @@ describe("the pages", () => {
   it("show the Expenses and Stock layout with zeros when there is nothing yet", async () => {
     const none: StockroomRecords = { books: [], states: {}, taxCenter: null };
     const exp = await draw(<ExpensesView records={none} />);
-    expect(exp.container.textContent).toContain("0 expenses");
+    expect(exp.container.textContent).not.toContain("0 expenses");
     expect(exp.container.textContent).toContain("No expenses logged yet");
     await act(async () => exp.root.unmount());
     const sales = await draw(<SalesRecords records={none} />);
@@ -209,12 +209,13 @@ describe("the pages", () => {
   it("show the Stockists and Customers layout with zeros when there is nothing yet", async () => {
     const none: StockroomRecords = { books: [], states: {}, taxCenter: null };
     const stockists = await draw(<StockistsPage load={async () => none} />);
-    expect(stockists.container.textContent).toContain("Owed to you");
+    expect(stockists.container.textContent).not.toContain("Owed to you");
     expect(stockists.container.textContent).toContain("No stockists yet");
     await act(async () => stockists.root.unmount());
     const customers = await draw(<CustomersList records={none} />);
-    expect(customers.container.textContent).toContain("Repeat buyers");
-    expect(customers.container.textContent).toContain("No customers with an email yet");
+    // Redesign: one table and Export CSV, no figure tiles; with nobody yet the page says so.
+    expect(customers.container.textContent).not.toContain("Repeat buyers");
+    expect(customers.container.textContent).toContain("No buyers with an email yet");
     await act(async () => customers.root.unmount());
   });
 

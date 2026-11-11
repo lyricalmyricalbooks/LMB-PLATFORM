@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { LEDGER_TYPE_FILTERS } from "@stockroom/consignment-ledger-filter.js";
 import { fmt, fmtD } from "@stockroom/money.js";
 
-import { Checkbox, Dialog, Drawer, EmptyState, InkButton, MetricCard, SecondaryButton, StatusBadge, type BadgeTone } from "../riso/components";
+import { Checkbox, DataTable, Dialog, Drawer, EmptyState, InkButton, SecondaryButton, StatusBadge, type BadgeTone, type Column } from "../riso/components";
 import { useShopWords } from "../shopWords";
 import type { NativePageProps } from "./nativePages";
 import { RecordsGate } from "./RecordsGate";
@@ -24,36 +24,8 @@ const STATE_BADGE: Record<Stockist["state"], { tone: BadgeTone; words: string }>
   holding: { tone: "success", words: "Holding copies" },
   new: { tone: "neutral", words: "No copies yet" },
 };
-type Filter = "all" | "owe" | "overdue" | "holding";
 
 const where = (s: Stockist) => [s.city, s.region, s.country].filter(Boolean).join(", ");
-
-function Figure({ label, value, tone }: { label: string; value: string | number; tone?: "warn" | "danger" }) {
-  return <div className="rp-sk-fig"><span className="rp-sk-label">{label}</span><span className="rp-sk-value" data-tone={tone}>{value}</span></div>;
-}
-
-function StockistCard({ s, onOpen }: { s: Stockist; onOpen: (key: string) => void }) {
-  const badge = STATE_BADGE[s.state];
-  return (
-    <li className="rp-sk-card" data-state={s.state}>
-      <div className="rp-sk-head">
-        <div className="rp-sk-name">
-          <strong>{s.name}</strong>
-          <span className="rp-sk-meta">{[where(s), `${s.rate}% commission`].filter(Boolean).join(" · ")}</span>
-        </div>
-        <StatusBadge tone={badge.tone}>{badge.words}</StatusBadge>
-      </div>
-      <div className="rp-sk-figs">
-        <Figure label="Sent" value={s.sent} />
-        <Figure label="Sold" value={s.sold} />
-        <Figure label="On their shelf" value={s.onShelf} />
-        <Figure label="Owes you" value={s.owed.length ? moneyText(s.owed) : "—"} tone={s.owed.length ? "warn" : undefined} />
-      </div>
-      {s.overdue.length > 0 && <p className="rp-sk-alert" role="status">{s.overdue.length === 1 ? "1 invoice is" : `${s.overdue.length} invoices are`} past due: {s.overdue.map((i) => `${i.num || "Invoice"} (${i.daysLate ?? 0} days late)`).join(", ")}</p>}
-      <div className="rp-sk-actions"><SecondaryButton size="sm" onClick={() => onOpen(s.key)} aria-label={`Open ${s.name}: balance, invoices and ledger`}>Open balance and ledger</SecondaryButton></div>
-    </li>
-  );
-}
 
 function InvoiceRows({ invoices, onPay }: { invoices: StockistInvoice[]; onPay?: (i: StockistInvoice) => void }) {
   if (!invoices.length) return <p className="rp-sk-none">No invoices for this stockist.</p>;
@@ -199,34 +171,33 @@ function PayDialog({ s, inv, onClose, onSaved }: {
 
 export function StockistsList({ view, onSaved }: { view: StockistsView; onSaved?: (bookId: string, state: Record<string, any>) => void }) {
   const w = useShopWords();
-  const [filter, setFilter] = useState<Filter>("all");
   const [open, setOpen] = useState<string | null>(null);
   const [paying, setPaying] = useState<StockistInvoice | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
-  const shown = useMemo(() => view.stockists.filter((s) => filter === "all" || (filter === "owe" ? s.owed.length > 0 : filter === "overdue" ? s.overdue.length > 0 : s.onShelf > 0)), [view, filter]);
   const current = view.stockists.find((s) => s.key === open) || null;
-  const chip = (key: Filter, label: string, n: number) => {
-    const Btn = filter === key ? InkButton : SecondaryButton;
-    return <Btn size="sm" aria-pressed={filter === key} onClick={() => setFilter(key)}>{label} {n}</Btn>;
-  };
+  // Only states that ask for something get a chip; settled and holding shops read plainly, as in the mockup.
+  const flagged = (s: Stockist) => s.state === "overdue" || s.state === "mismatch" || s.state === "owes";
+  const columns: Column<Stockist>[] = [
+    { key: "shop", header: "Shop", lead: true, render: (s) => <>
+      <button type="button" className="rp-sr-open" onClick={() => setOpen(s.key)} aria-label={`Open ${s.name}: balance, invoices and ledger`}>{s.name}</button>
+      {flagged(s) && <> <StatusBadge glyph={false} tone={STATE_BADGE[s.state].tone}>{STATE_BADGE[s.state].words}</StatusBadge></>}
+      <div className="rp-hint">{[where(s), `${s.rate}% commission`].filter(Boolean).join(" · ")}</div>
+    </> },
+    { key: "copies", header: w("Copies"), numeric: true, render: (s) => s.onShelf },
+    { key: "sold", header: "Sold", numeric: true, render: (s) => s.sold },
+    { key: "owed", header: "Owed", numeric: true, render: (s) => s.owed.length ? moneyText(s.owed) : "—" },
+  ];
   return (
     <div className="rp-sk">
-      <div className="rp-grid-metrics">
-        <MetricCard label="Owed to you" value={moneyText(view.owed) || "—"} tone={view.owed.length ? "warn" : undefined} />
-        <MetricCard label="Copies out" value={view.onShelf} footer={`across ${view.stockists.length} ${view.stockists.length === 1 ? "stockist" : "stockists"}`} />
-        <MetricCard label="Overdue invoices" value={view.overdueCount} tone={view.overdueCount ? "danger" : undefined}
-          footer={view.overdueCount ? [moneyText(view.overdueTotals), view.otherOverdue ? `${view.otherOverdue} not to a stockist` : ""].filter(Boolean).join(" · ") : "Nothing is late"} />
-      </div>
-      <div className="rp-sk-chips" role="group" aria-label="Show stockists">
-        {chip("all", "All", view.stockists.length)}
-        {chip("owe", "Owe you", view.stockists.filter((s) => s.owed.length).length)}
-        {chip("overdue", "Overdue", view.stockists.filter((s) => s.overdue.length).length)}
-        {chip("holding", "Holding copies", view.stockists.filter((s) => s.onShelf > 0).length)}
-      </div>
-      {shown.length ? <ul className="rp-sk-cards">{shown.map((s) => <StockistCard key={s.key} s={s} onOpen={setOpen} />)}</ul>
-        : view.stockists.length
-          ? <EmptyState inline title="No stockists match" description="Pick All to see everyone again." />
-          : <EmptyState inline icon="🏪" title="No stockists yet" description={w("Shops that hold your books on consignment appear here, with what they owe you. Add them in the stockroom's consignment records.")} />}
+      {view.stockists.length ? (
+        <section className="rp-card rp-reorder-card" aria-labelledby="rp-sk-title">
+          <h2 className="rp-card-title" id="rp-sk-title">Stockists</h2>
+          <DataTable caption="Stockists" columns={columns} rows={view.stockists} rowKey={(s) => s.key} stackOnPhone onRowClick={(s) => setOpen(s.key)} />
+        </section>
+      ) : <EmptyState inline icon="🏪" title="No stockists yet" description={w("Shops that hold your books on consignment appear here, with what they owe you. Add them in the stockroom's consignment records.")} />}
+      {view.overdueCount > 0 && (
+        <p className="rp-sr-status" role="status">{view.overdueCount === 1 ? "1 invoice is" : `${view.overdueCount} invoices are`} overdue: {moneyText(view.overdueTotals)}.</p>
+      )}
       <Drawer open={!!current} onClose={() => { setOpen(null); setNotice(null); }} title={current?.name || ""} description={onSaved ? "Mark invoices paid here. Sending copies and recording sales come next." : "Read-only."}>
         {current && <Detail s={current} notice={notice} onPay={onSaved ? (i) => { setNotice(null); setPaying(i); } : undefined} />}
       </Drawer>
