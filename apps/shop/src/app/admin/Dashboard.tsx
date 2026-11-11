@@ -12,6 +12,7 @@ import { BookkeeperDesk } from "./BookkeeperDesk";
 import { BookCatalog } from "./BookCatalog";
 import { ordersNeedingWork, refreshOrdersCache } from "./Orders";
 import { AdminAlerts } from "./AdminAlerts.tsx";
+import { AdminPageBoundary } from "./AdminPageBoundary";
 import { shopErrorAlert, shopErrorRows } from "./shopErrors";
 import { backupAlert, buildAdminAlerts, cardAccountAlert, checkFailedAlert, inventoryLinkAlerts, settingsAlerts, type AdminAlert, type AlertRoute } from "./adminAlerts";
 import type { PlatformPaymentsAnswer } from "./platformPayments";
@@ -978,7 +979,7 @@ export function Dashboard() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.18, ease: "easeOut" }}
               >
-                <PageAlertsSlot.Provider value={ownMasthead ? pageAlerts : null}><PageActionsSlot.Provider value={ownMasthead ? null : pageActionsEl}><Suspense fallback={<PageSkeleton label="Opening page…" />}>{content}</Suspense></PageActionsSlot.Provider></PageAlertsSlot.Provider>
+                <PageAlertsSlot.Provider value={ownMasthead ? pageAlerts : null}><PageActionsSlot.Provider value={ownMasthead ? null : pageActionsEl}><AdminPageBoundary resetKey={activeTab + "|" + settingsTab + "|" + (subTab || "") + "|" + (selectedOrder?.id || "")}><Suspense fallback={<PageSkeleton label="Opening page…" />}>{content}</Suspense></AdminPageBoundary></PageActionsSlot.Provider></PageAlertsSlot.Provider>
               </m.div>
             </AnimatePresence>
             {COMBINED && stockroomOpened && (
@@ -1039,7 +1040,7 @@ export function Dashboard() {
               className="rp-dialog rp-editor-panel"
               role="dialog" aria-modal="true" aria-label={w(editingBook ? "Edit book" : "New book")}
             >
-              <Suspense fallback={<LoadingState label={w("Opening book editor…")} />}>
+              <AdminPageBoundary resetKey={String(editingBook?.id || "new")}><Suspense fallback={<LoadingState label={w("Opening book editor…")} />}>
               <BookEditor
                 book={editingBook}
                 prefill={editingBook ? null : newBookStart?.prefill}
@@ -1052,7 +1053,7 @@ export function Dashboard() {
                   }
                 }}
               />
-              </Suspense>
+              </Suspense></AdminPageBoundary>
             </m.div>
           </div>
         )}
@@ -1069,7 +1070,7 @@ export function Dashboard() {
               transition={{ duration: 0.4, ease: "circOut" }}
               className="fixed inset-0 z-[200] bg-black"
             >
-              <Suspense fallback={<div className="rp" data-rp-appearance={appearance} style={{ height: "100%", display: "grid", placeItems: "center" }}><LoadingState label="Opening Design studio…" /></div>}>
+              <AdminPageBoundary resetKey={String(studioLocation?.key || "")}><Suspense fallback={<div className="rp" data-rp-appearance={appearance} style={{ height: "100%", display: "grid", placeItems: "center" }}><LoadingState label="Opening Design studio…" /></div>}>
               <StudioEditor
                 key={studioLocation?.key}
                 initialLocation={studioLocation || undefined}
@@ -1080,7 +1081,7 @@ export function Dashboard() {
                   setSettings((prev: any) => ({ ...prev, draftDesign: design, ...(published ? { design } : {}) }))
                 }
               />
-              </Suspense>
+              </Suspense></AdminPageBoundary>
             </m.div>
           </div>
         )}
