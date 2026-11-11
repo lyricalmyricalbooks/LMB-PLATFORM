@@ -282,6 +282,20 @@ const known: Record<string, (...a: any[]) => any> = {
     ? A11Y_BOOKS.map((b: any, i: number) => ({ ...b, photos: (b.photos || []).map((p: any) => ({ ...p, url: `https://photos.example/cover-${i + 1}.jpg` })) }))
     : A11Y_BOOKS),
   getSettings: async () => ({}),
+  // Analytics: the shop's own visit counter for every day asked, with a steady made-up pattern (no Google here).
+  getDailyAnalyticsBetween: async (from: string, to: string) => {
+    const rows: any[] = [];
+    for (let k = from, i = 0; k <= to && i < 900; i++, k = new Date(Date.parse(`${k}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10)) {
+      const visits = 18 + ((i * 7) % 23) + (new Date(`${k}T12:00:00Z`).getUTCDay() === 6 ? 14 : 0);
+      rows.push({ id: k, date: k, visits,
+        sources: { instagram: Math.round(visits * 0.4), direct: Math.round(visits * 0.3), "google com": Math.round(visits * 0.2), newsletter: Math.round(visits * 0.1) },
+        devices: { phone: Math.round(visits * 0.7), computer: Math.round(visits * 0.25), tablet: Math.round(visits * 0.05) },
+        bookViews: { b1: Math.round(visits * 0.3), b2: Math.round(visits * 0.2), b3: Math.round(visits * 0.1) },
+        funnel: { view: Math.round(visits * 0.6), add_to_cart: Math.round(visits * 0.12), checkout_start: Math.round(visits * 0.06), purchase: i % 5 === 0 ? 1 : 0 },
+        searches: { poetry: 2, riso: 1, ...(i % 3 === 0 ? { "night songs": 1 } : {}) }, noResults: i % 4 === 0 ? { "cook book": 1 } : {} });
+    }
+    return rows;
+  },
   // A list, though its name doesn't end like one: the Overview's alerts read it on the way back from an order.
   getRecentEmailLog: async () => [],
   getAdminBadgeCounts: async () => ({ pendingReviews: 0, unreadMessages: 0, openPrivacyRequests: 0 }),

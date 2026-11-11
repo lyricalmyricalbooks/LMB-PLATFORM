@@ -1,7 +1,7 @@
 // Home, drawn to Julian's "Shop Admin Redesign" mockup (11 November 2026): a greeting with the two till buttons, the
 // To do tiles (website and stockroom together, most urgent first), then Today: the day's takings with a bar per day,
 // what the till is selling, the latest orders and this week's best sellers. The full figures board (periods, widgets)
-// moved to "All figures" (the analytics page). Nothing here reads Firestore: the figures come from AnalyticsDashboard.
+// moved to Analytics (the analytics page). Nothing here reads Firestore: the figures come from AnalyticsDashboard.
 import { useContext, type ReactNode } from "react";
 import { PageAlertsSlot, PrimaryButton, SecondaryButton, StatusBadge, type BadgeTone } from "../riso/components";
 import { bestSellers, isRealPaidOrder, newestSales, orderStatusWords, totals, type Order } from "./overviewInsights";
@@ -101,7 +101,7 @@ export function HomeToday({ ownerName, orders, ordersFailed, fair, combined, tod
       </section>
 
       <section aria-labelledby="home-today">
-        <h2 className="rp-home-h2" id="home-today">Today <button type="button" className="rp-home-link" onClick={() => onOpen("analytics")}>All figures →</button></h2>
+        <h2 className="rp-home-h2" id="home-today">Today <button type="button" className="rp-home-link" onClick={() => onOpen("analytics")}>Analytics →</button></h2>
         {ordersFailed && (
           <p className="rp-hint">Orders could not be loaded. <button type="button" className="rp-home-link" onClick={onRetry}>Try again</button></p>
         )}

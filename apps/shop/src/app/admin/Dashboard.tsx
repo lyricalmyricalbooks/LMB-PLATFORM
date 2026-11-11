@@ -76,6 +76,7 @@ const DesignHome = lazy(() => import("./DesignHome").then(m => ({ default: m.Des
 const Customers = lazy(() => import("./Customers").then(m => ({ default: m.Customers })));
 const Inventory = lazy(() => import("./Inventory").then(m => ({ default: m.Inventory })));
 const OrdersDesk = lazy(() => import("./OrdersDesk.tsx").then(m => ({ default: m.OrdersDesk })));
+const AnalyticsPage = lazy(() => import("./analytics/AnalyticsPage").then(m => ({ default: m.AnalyticsPage })));
 const AnalyticsDashboard = lazy(() => import("./overview/AnalyticsDashboard").then(m => ({ default: m.AnalyticsDashboard })));
 const ShopSettings = lazy(() => import("./ShopSettings").then(m => ({ default: m.ShopSettings })));
 const ReviewsModeration = lazy(() => import("./ReviewsModeration"));
@@ -674,7 +675,7 @@ export function Dashboard() {
 
 
   // Shipping/Payments can also be entered as top-level tabs by ShopSettings.
-  const navActive = activeTab === "shipping" || activeTab === "payments" ? "settings" : activeTab === "analytics" ? "overview"
+  const navActive = activeTab === "shipping" || activeTab === "payments" ? "settings"
     : activeTab === STOCKROOM_TAB ? STOCKROOM_ITEM_PREFIX + stockroomPageId : activeTab;
   // An old page id (e.g. Email sender's "communications" from older What's new shortcuts) highlights the page it opens.
   const navChild = activeTab === "shipping" || activeTab === "payments" ? activeTab : settingsPageOf(settingsTab);
@@ -742,8 +743,9 @@ export function Dashboard() {
   const content = (() => {
     switch (activeTab) {
       case "overview":
+        return <AnalyticsDashboard setActiveTab={(tab: string) => { if (tab === "general" || tab === "notifications" || tab === "taxes" || tab === "designer" || tab === "security") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} onEditBook={handleEditBook} ownerName={user.displayName || ""} onSetWall={(on: boolean) => toggleUnderConstruction(on, { checked: true })} />;
       case "analytics":
-        return <AnalyticsDashboard setActiveTab={(tab: string) => { if (tab === "general" || tab === "notifications" || tab === "taxes" || tab === "designer" || tab === "security") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} onEditBook={handleEditBook} ownerName={user.displayName || ""} figures={activeTab === "analytics"} onSetWall={(on: boolean) => toggleUnderConstruction(on, { checked: true })} />;
+        return <AnalyticsPage setActiveTab={(tab: string) => { if (tab === "google" || tab === "general") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} />;
       case "catalog": return <BookCatalog onEdit={handleEditBook} onAdd={handleAddBook} refreshTrigger={catalogRefreshKey} />;
       case "customers": return <Customers initialQuery={searchCustomerQuery} />;
       case "inventory": return <Inventory onEditBook={handleEditBook} onAddBook={handleAddBookFrom} subTab={subTab} onSubTabChange={openSubTab} />;
@@ -796,7 +798,7 @@ export function Dashboard() {
   })();
 
   // The Overview draws its own masthead and shows the alerts under it (PageAlertsSlot); every other page gets them under its PageHeader.
-  const ownMasthead = (activeTab === "overview" || activeTab === "analytics") && !selectedOrder;
+  const ownMasthead = activeTab === "overview" && !selectedOrder;
   const pageAlerts = (
     <>
     {/* The combined admin's one-time tour invitation, on Home only (CombinedTour.tsx). */}

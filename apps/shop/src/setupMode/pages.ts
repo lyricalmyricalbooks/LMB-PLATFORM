@@ -200,6 +200,7 @@ const LOCKED_LINES: Readonly<Record<string, string>> = Object.freeze({
   reviews: "Reviews from your readers, checked by you before they show on your website.",
   channels: "Sell on Facebook, Instagram, Pinterest and TikTok.",
   socialPosts: "Post your books to your social accounts, now or later.",
+  analytics: "See who visits your shop, where they come from and what they look at.",
   [SETTINGS_ITEM_PREFIX + "shipping"]: "What you charge to send a parcel, by country or by weight, and pickup if you offer it.",
   [SETTINGS_ITEM_PREFIX + "taxes"]: "The sales tax your shop adds at checkout, worked out from where your shoppers are.",
   [SETTINGS_ITEM_PREFIX + "notifications"]: "The emails your shoppers get: order received, shipped, and the words in each.",
