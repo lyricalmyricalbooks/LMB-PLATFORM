@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { assembleParts, stitchState } from "@stockroom/merge-state.js";
 
 import {
-  blankForm, cleanInvoiceSettings, DEFAULT_TERMS, deleteInvoiceChange, formFromInvoice, invoiceList, invoiceProblem, invoiceSettingsChange,
+  blankForm, cleanInvoiceSettings, copyForm, DEFAULT_TERMS, invoiceEmail, deleteInvoiceChange, formFromInvoice, invoiceList, invoiceProblem, invoiceSettingsChange,
   markSentChange, nextNumber, pendingSaleLines, saveInvoiceChange, type InvoiceForm,
 } from "./invoiceMake";
 import { invoicePaperHtml } from "./invoicePaper";
@@ -146,5 +146,24 @@ describe("the printed invoice", () => {
     expect(html).toContain("Interac e-Transfer");
     expect(html).toContain("Acct 123");
     expect(html).toContain("Thank you.");
+  });
+});
+
+describe("duplicate and email an invoice (old duplicateInvoiceFromView, invoiceEmailPlainText)", () => {
+  it("copies to a new draft dated today, keeps the due gap and drops sale links", () => {
+    const r = records();
+    const row = invoiceList(r, now).find((x) => x.id === "old")!;
+    const inv = { ...row.inv, dueDate: "2026-11-13" };
+    const f = copyForm(r, cleanInvoiceSettings({}, "Test Press"), { ...row, inv }, new Date(2026, 10, 11));
+    expect(f).toMatchObject({ editingId: null, date: "2026-11-11", dueDate: "2026-11-26", status: "draft", linkedDropped: 1 });
+    expect(f.num).not.toBe(row.num);
+    expect(f.items.every((it) => it.ledgerId === null)).toBe(true);
+  });
+  it("writes the old email words", () => {
+    const m = invoiceEmail({ num: "INV-1", total: 24, date: "2026-10-29", storeName: "Corner Books", storeEmail: "corner@example.com" }, cleanInvoiceSettings({}, "Test Press"), "CAD");
+    expect(m.to).toBe("corner@example.com");
+    expect(m.subject).toBe("Invoice INV-1 — Test Press");
+    expect(m.body.startsWith("Hi Corner Books,\n\nYour invoice INV-1 for")).toBe(true);
+    expect(m.body.endsWith("Thank you,\nTest Press")).toBe(true);
   });
 });

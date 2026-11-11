@@ -30,6 +30,7 @@ declare module "@stockroom/invoices.js" {
   export function computeInvoiceTotals(input: { items: Array<Record<string, any>>; discountType?: string; discountValue?: unknown; taxRate?: unknown }):
     { subtotal: number; discount: number; discountType: "flat" | "percent"; discountRate: number; taxRate: number; tax: number; total: number };
   export function dueDateFromTerms(issueDate: string, days: number): string;
+  export function daysBetween(fromDate: string, toDate: string): number | null;
   export function parseLooseNumber(v: unknown): number;
 }
 declare module "@stockroom/payment-reminders.js" {
