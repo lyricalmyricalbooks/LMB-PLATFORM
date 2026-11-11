@@ -194,3 +194,21 @@ test("a shop waiting on its web address says since when, and whether it has wait
   const slow = making.find((s) => s.shopId === "slow-press");
   assert.deepEqual([slow.waitingSince, slow.waitedTooLong], [null, false], "a step to try again isn't waiting on its address");
 });
+
+test("saved replies for Support: admins only, cleaned and kept in the platform's records, logged", async () => {
+  const w = world();
+  assert.equal((await w.ask(STRANGER, "GET", "/api/control/saved-replies")).status, 403);
+  assert.equal((await w.ask(STRANGER, "POST", "/api/control/saved-replies", { replies: [] })).status, 403);
+  assert.deepEqual((await w.ask(ADMIN, "GET", "/api/control/saved-replies")).body.replies, []);
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/saved-replies", {})).status, 400);
+  const saved = await w.ask(ADMIN, "POST", "/api/control/saved-replies", { replies: [
+    { name: "  Add a card  ", body: " Open Plan & billing, then Add a card. " },
+    { name: "", body: "no name, dropped" },
+    { name: "x".repeat(80), body: "long name" },
+  ] });
+  assert.equal(saved.status, 200);
+  assert.deepEqual(saved.body.replies.map((r) => [r.name.length, r.body]), [[10, "Open Plan & billing, then Add a card."], [60, "long name"]]);
+  assert.deepEqual((await w.ask(ADMIN, "GET", "/api/control/saved-replies")).body.replies, saved.body.replies);
+  const logged = await w.activity.list({ limit: 10 });
+  assert.ok(logged.some((e) => e.what === "saved-replies" && e.detail.count === 2));
+});

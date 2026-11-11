@@ -1380,8 +1380,13 @@ let ticketStatus = "open";
 filterChips("#ticket-filters", (picked) => { ticketStatus = picked; loadTickets(); });
 const TICKET_WORDS = { open: ["warning", "Waiting"], answered: ["info", "Answered"], closed: ["neutral", "Closed"] };
 
+// Support's saved replies (loaded with the first ticket list, kept here for every ticket card).
+let savedReplies = [];
+let savedRepliesLoaded = false;
+
 async function loadTickets() {
   try {
+    if (!savedRepliesLoaded) { savedRepliesLoaded = true; await loadSavedReplies(); }
     const { tickets } = await api("POST", "/control/support", { status: ticketStatus });
     if (!tickets.length) $("#tickets").replaceChildren(emptyState("Nothing here.", ticketStatus === "open" ? "Every press's question has an answer." : null));
     else inboxPane($("#tickets"), "tickets", tickets, { type: "Support", tone: "sky", who: (t) => t.pressName ?? setupNote(t) ?? t.email, at: (t) => t.openedAt, line: (t) => t.subject }, ticketCard);
@@ -1576,9 +1581,73 @@ function brandTile(brand) {
   return el("span", { className: "brand-logo brand-logo--sm" }, el("img", { src: `data:image/svg+xml,${encodeURIComponent(svg)}`, alt: `${logo.name} logo`, style: "width: 62%; height: 62%" }));
 }
 
+// ── Saved replies (Support): ready answers dropped into a reply, then edited before sending. ──
+
+async function loadSavedReplies() {
+  try {
+    ({ replies: savedReplies } = await api("GET", "/control/saved-replies"));
+  } catch (failure) {
+    status.textContent = failure.message;
+  }
+  showSavedReplies();
+}
+
+async function saveReplies(replies) {
+  ({ replies: savedReplies } = await api("POST", "/control/saved-replies", { replies }));
+  showSavedReplies();
+  loadTickets();
+}
+
+/** The Saved replies fold under Support: each reply with Delete, then a form to add one. */
+function showSavedReplies() {
+  $("#saved-replies-count").textContent = savedReplies.length ? String(savedReplies.length) : "";
+  const name = el("input", { className: "rp-input", name: "name", maxLength: 60, required: true, placeholder: "Name, for example: How to add a card" });
+  const words = el("textarea", { className: "rp-textarea", name: "body", maxLength: 5000, required: true, placeholder: "The reply" });
+  const add = button("Save reply", "primary", { type: "submit" });
+  const form = el("form", { className: "cr-saved-form" },
+    el("label", { className: "rp-field" }, el("span", { className: "rp-label", textContent: "Name" }), name),
+    el("label", { className: "rp-field" }, el("span", { className: "rp-label", textContent: "Reply" }), words), add);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    add.disabled = true;
+    try {
+      await saveReplies([...savedReplies, { name: name.value, body: words.value }]);
+      status.textContent = `Saved "${name.value.trim()}".`;
+    } catch (failure) {
+      status.textContent = failure.message;
+      add.disabled = false;
+    }
+  });
+  const list = savedReplies.map((reply, index) => {
+    const remove = button("Delete", "ghost");
+    remove.setAttribute("aria-label", `Delete ${reply.name}`);
+    remove.addEventListener("click", async () => {
+      remove.disabled = true;
+      try {
+        await saveReplies(savedReplies.filter((_, i) => i !== index));
+      } catch (failure) {
+        status.textContent = failure.message;
+        remove.disabled = false;
+      }
+    });
+    return el("div", { className: "cr-saved-item" }, el("div", {}, el("p", { className: "cr-title", textContent: reply.name }), el("p", { className: "cr-meta", textContent: reply.body })), remove);
+  });
+  $("#saved-replies").replaceChildren(...(list.length ? list : [el("p", { className: "rp-hint", textContent: "None yet. Save the answers you give often." })]), form);
+}
+
 function ticketCard(ticket) {
   const answer = el("textarea", { className: "rp-textarea", maxLength: 5000, placeholder: "Write your answer…" });
   answer.setAttribute("aria-label", `Answer to ${ticket.email}`);
+  // A saved reply drops into the answer (after anything already written), ready to edit before sending.
+  const useSaved = savedReplies.length ? el("select", { className: "rp-select cr-use-saved", ariaLabel: "Use a saved reply" },
+    el("option", { value: "", textContent: "Use a saved reply…" }),
+    ...savedReplies.map((reply, index) => el("option", { value: String(index), textContent: reply.name }))) : null;
+  useSaved?.addEventListener("change", () => {
+    const reply = savedReplies[Number(useSaved.value)];
+    if (reply) answer.value = answer.value.trim() ? `${answer.value.trimEnd()}\n\n${reply.body}` : reply.body;
+    useSaved.value = "";
+    answer.focus();
+  });
   const send = button("Send reply", "primary");
   send.addEventListener("click", async () => {
     send.disabled = true;
@@ -1627,7 +1696,7 @@ function ticketCard(ticket) {
     body: ticket.messages.map((m) => el("div", { className: "cr-quote", dataset: { from: m.from } },
       el("p", { className: "cr-meta", textContent: `${m.from === "press" ? ticket.email : m.by} · ${when(m.at)}` }),
       el("div", { textContent: m.body }))),
-    actions: el("div", { className: "cr-actions" }, ticket.status === "closed" ? null : el("p", { className: "cr-cap cr-grow-full", textContent: "Your reply is emailed to them" }), ticket.status === "closed" ? null : answer, ticket.status === "closed" ? null : send, ticket.status === "closed" ? null : sendClose, close, openIt),
+    actions: el("div", { className: "cr-actions" }, ticket.status === "closed" ? null : el("p", { className: "cr-cap cr-grow-full", textContent: "Your reply is emailed to them" }), ticket.status === "closed" ? null : useSaved, ticket.status === "closed" ? null : answer, ticket.status === "closed" ? null : send, ticket.status === "closed" ? null : sendClose, close, openIt),
   });
 }
 
@@ -1938,7 +2007,7 @@ $("#settings-form").addEventListener("submit", async (event) => {
 
 // ── Activity log (plan 9.9): read only. ──
 const ACTIVITY_WORDS = {
-  "settings-changed": "changed the platform settings", "waitlist-invite": "invited someone from the waitlist", "payment-reminder": "sent a payment reminder", "switch-set": "set a switch",
+  "settings-changed": "changed the platform settings", "waitlist-invite": "invited someone from the waitlist", "payment-reminder": "sent a payment reminder", "saved-replies": "changed the saved replies", "switch-set": "set a switch",
   "act-as": "opened the shop's admin as support", "two-step-reset": "turned off two-step sign-in for someone", "test-shop-reset": "reset the test shop's sample books", "google-run-again": "ran a Google step again", "shop-closed": "closed the shop", "shop-reopened": "opened the shop again",
   "newsletter-resumed": "turned the newsletter back on", "fee-change-scheduled": "changed the fee on each order (starts in 30 days)",
   "fee-change-cancelled": "cancelled a waiting fee change", "new-shop-switch": "changed what new shops start with", "signup-retry": "tried making the shop again", "plan-change-retry": "tried the plan change again",
