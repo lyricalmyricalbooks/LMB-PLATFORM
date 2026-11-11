@@ -2,7 +2,9 @@
 // The Google app's keys are read here and nowhere else; no shop project ever holds them. **Off unless
 // GOOGLE_CONNECT_ENABLED is "true"** (plan 6.17 waits on Julian: Google must approve Colophon's sign-in screen first).
 //
-//   GOOGLE_CONNECT_ENABLED      "true" shows Connect Google on every platform shop
+//   GOOGLE_CONNECT_ENABLED      "true" shows Connect Google on every platform shop. Left off with the keys in place,
+//                               Google is in testing: only the platform's test shop (registry `testShop: true`) gets
+//                               it, for the test users listed on Google's sign-in screen (google/README.md)
 //   GOOGLE_CLIENT_ID            the Google app's sign-in keys (Google Cloud console › Credentials, a Web client)
 //   GOOGLE_CLIENT_SECRET
 //   GOOGLE_REDIRECT_URL         the sign-in answer address, exactly as listed on that client
@@ -33,6 +35,17 @@ const onOff = (env, name) => {
   return raw === "on";
 };
 
+/**
+ * The link's keys, each kept in the platform project's Secret Manager and handed to the servers by the deploy
+ * (server/deploy.js). All three are optional: without them Connect Google says "coming soon". Julian pastes the
+ * Google app's two keys; the deploy makes `google-token-key` (random, never seen by anyone) the first time.
+ */
+export const GOOGLE_SECRETS = Object.freeze([
+  { env: "GOOGLE_CLIENT_ID", secret: "google-client-id", api: true, jobs: true },
+  { env: "GOOGLE_CLIENT_SECRET", secret: "google-client-secret", api: true, jobs: true },
+  { env: "GOOGLE_TOKEN_KEY", secret: "google-token-key", api: true, jobs: true },
+]);
+
 export function readGoogleConfig(env = {}, { now = Date.now() } = {}) {
   const enabled = text(env.GOOGLE_CONNECT_ENABLED).toLowerCase() === "true";
   const clientId = text(env.GOOGLE_CLIENT_ID);
@@ -52,6 +65,7 @@ export function readGoogleConfig(env = {}, { now = Date.now() } = {}) {
   const readyChecks = onOff({ ...env, GOOGLE_READY_CHECKS: text(env.GOOGLE_READY_CHECKS) || "on" }, "GOOGLE_READY_CHECKS");
   const config = Object.freeze({
     enabled,
+    testing: Boolean(clientId) && !enabled,
     app: clientId ? Object.freeze({ clientId, clientSecret }) : null,
     redirectUrl: redirectUrl || null,
     tokenKey: keyText ? sealingKey(keyText, "GOOGLE_TOKEN_KEY") : null,

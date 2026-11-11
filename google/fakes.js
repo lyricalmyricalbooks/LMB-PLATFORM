@@ -264,19 +264,21 @@ export function fakeShopFirebase() {
     if (!docs.has(projectId)) docs.set(projectId, { analytics: {}, secrets: {}, files: new Map(), deleted: false });
     return docs.get(projectId);
   };
+  // Called with the shop's registry row; a bare project id still works for the closing sweep's own deleter.
+  const pid = (shop) => (typeof shop === "string" ? shop : shop?.projectId);
   return {
     docs,
     calls,
-    serviceAccount: async (projectId) => `${projectId}@appspot.gserviceaccount.com`,
-    async writeAnalytics(projectId, { measurementId, propertyId }) {
-      calls.push(["writeAnalytics", projectId, measurementId]);
-      of(projectId).analytics.ga4MeasurementId = measurementId;
-      of(projectId).secrets.propertyId = propertyId;
+    serviceAccount: async (shop) => `${pid(shop)}@appspot.gserviceaccount.com`,
+    async writeAnalytics(shop, { measurementId, propertyId }) {
+      calls.push(["writeAnalytics", pid(shop), measurementId]);
+      of(pid(shop)).analytics.ga4MeasurementId = measurementId;
+      of(pid(shop)).secrets.propertyId = propertyId;
     },
-    async writeSearchConsoleSite(projectId, site) { calls.push(["writeSearchConsoleSite", projectId, site]); of(projectId).secrets.searchConsoleSite = site; },
-    async publishVerificationFile(projectId, { name, content }) { calls.push(["publishVerificationFile", projectId, name]); of(projectId).files.set(name, content); },
-    async clearTag(projectId) { calls.push(["clearTag", projectId]); of(projectId).analytics.ga4MeasurementId = ""; },
-    async deleteProject(projectId) { calls.push(["deleteProject", projectId]); of(projectId).deleted = true; },
+    async writeSearchConsoleSite(shop, site) { calls.push(["writeSearchConsoleSite", pid(shop), site]); of(pid(shop)).secrets.searchConsoleSite = site; },
+    async publishVerificationFile(shop, { name, content }) { calls.push(["publishVerificationFile", pid(shop), name]); of(pid(shop)).files.set(name, content); },
+    async clearTag(shop) { calls.push(["clearTag", pid(shop)]); of(pid(shop)).analytics.ga4MeasurementId = ""; },
+    async deleteProject(shop) { calls.push(["deleteProject", pid(shop)]); of(pid(shop)).deleted = true; },
   };
 }
 

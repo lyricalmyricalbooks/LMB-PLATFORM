@@ -26,9 +26,10 @@
 // Clients passed in:
 //   google        googleApi.js (fakes.js has a pretend one)
 //   tokens        tokens.js
-//   shopFirebase  the shop's own project: serviceAccount(projectId), writeAnalytics(projectId, { measurementId,
-//                 propertyId }), writeSearchConsoleSite(projectId, site), publishVerificationFile(projectId,
-//                 { name, content }), clearTag(projectId), deleteProject(projectId)
+//   shopFirebase  the shop's own place, given its registry row (a folder in a shared project, or a project of its
+//                 own): serviceAccount(row), writeAnalytics(row, { measurementId, propertyId }),
+//                 writeSearchConsoleSite(row, site), publishVerificationFile(row, { name, content }), clearTag(row),
+//                 deleteProject(row) (hosted.js has the real one)
 //   domainsCall   domainBridge.js
 //   registry, auditLog
 import { SCOPES, ANALYTICS_VIEWER_ROLE } from "./endpoints.js";
@@ -67,7 +68,7 @@ export function createGoogleConnect({ google, tokens, shopFirebase, domainsCall,
     async firebase(ctx) {
       if (!ctx.row.projectId) return { state: "failed", detail: "Your shop isn't finished being made yet." };
       if (!(await auditLog.ready(ctx.shopId))) return { state: "waiting", detail: "Your shop isn't finished being made yet." };
-      const serviceAccount = await shopFirebase.serviceAccount(ctx.row.projectId);
+      const serviceAccount = await shopFirebase.serviceAccount(ctx.row);
       return { state: "done", detail: "Your shop is ready for Google.", record: { projectId: ctx.row.projectId, serviceAccount } };
     },
 
@@ -102,9 +103,9 @@ export function createGoogleConnect({ google, tokens, shopFirebase, domainsCall,
       const measurementId = stream.webStreamData.measurementId;
       const streamId = stream.name.split("/").pop();
       if (prev.measurementId !== measurementId || prev.propertyId !== propertyId || !prev.writtenAt || prev.tagStoppedAt) {
-        await shopFirebase.writeAnalytics(ctx.row.projectId, { measurementId, propertyId });
+        await shopFirebase.writeAnalytics(ctx.row, { measurementId, propertyId });
       }
-      const viewer = ctx.google.firebase?.serviceAccount ?? (await shopFirebase.serviceAccount(ctx.row.projectId));
+      const viewer = ctx.google.firebase?.serviceAccount ?? (await shopFirebase.serviceAccount(ctx.row));
       if (prev.viewer !== viewer || prev.propertyId !== propertyId || prev.tagStoppedAt) {
         const bindings = await google.listAccessBindings(ctx.token, property);
         if (!bindings.some((b) => b.user === viewer)) await google.createAccessBinding(ctx.token, property, { user: viewer, roles: [ANALYTICS_VIEWER_ROLE] });
@@ -125,7 +126,7 @@ export function createGoogleConnect({ google, tokens, shopFirebase, domainsCall,
       if (!has(ctx, "searchConsole")) return notAllowed("Google search");
       const prev = ctx.google.searchConsole ?? {};
       const sites = { ...(prev.sites ?? {}) };
-      const owner = ctx.google.firebase?.serviceAccount ?? (await shopFirebase.serviceAccount(ctx.row.projectId));
+      const owner = ctx.google.firebase?.serviceAccount ?? (await shopFirebase.serviceAccount(ctx.row));
       const shopSite = `${siteOf(ctx.row)}/`;
 
       const finish = async (siteUrl, { type, identifier, method }, sitemapUrl) => {
@@ -138,7 +139,7 @@ export function createGoogleConnect({ google, tokens, shopFirebase, domainsCall,
 
       if (!sites[shopSite]?.done || sites[shopSite].owner !== owner) {
         const { token: file } = await google.verificationToken(ctx.token, { type: "SITE", identifier: shopSite, method: "FILE" });
-        await shopFirebase.publishVerificationFile(ctx.row.projectId, { name: file, content: `google-site-verification: ${file}` });
+        await shopFirebase.publishVerificationFile(ctx.row, { name: file, content: `google-site-verification: ${file}` });
         sites[shopSite] = await finish(shopSite, { type: "SITE", identifier: shopSite, method: "FILE" }, `${shopSite}sitemap.xml`);
       }
 
@@ -155,7 +156,7 @@ export function createGoogleConnect({ google, tokens, shopFirebase, domainsCall,
       }
       // The Overview reads the own address's figures once it is verified, else the shop's.
       const chosen = domain && sites[`sc-domain:${domain}`]?.done ? `sc-domain:${domain}` : shopSite;
-      if (prev.chosen !== chosen) await shopFirebase.writeSearchConsoleSite(ctx.row.projectId, chosen);
+      if (prev.chosen !== chosen) await shopFirebase.writeSearchConsoleSite(ctx.row, chosen);
       return {
         state: "done",
         detail: waitingOn

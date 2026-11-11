@@ -129,10 +129,29 @@ first real run (plan 15.7).
 7. Ads: Google ended developer tokens on 9 September 2026. Once the platform project has an Ads access level, set
    `GOOGLE_ADS_ACCESS` to `explorer`, `basic` or `standard`.
 
+## Hosted (11 November 2026)
+
+The link runs on the platform's web server (`hosted.js`, mounted by `server/world.js` at `/api/google`): shops call
+`POST /api/google/shop`, Google sends presses back to `GET /api/google/oauth`. Every shared-system shop's server gets
+`PLATFORM_GOOGLE_URL` (`services/release-runner/shared.js`). Tokens are kept in `googleConnections`, sign-in states in
+`googleStates` (platform database). A shop's settings are written into its own folder (`shops/<id>/settings/website`,
+`shops/<id>/adminSecrets/googleAnalytics`), and Search Console's proof file into `shops/<id>/site/` in the project's
+bucket, which the front door serves (`/google<hex>.html`).
+
+**Keys:** three optional secrets in `lmb-platform-prod`'s Secret Manager (`GOOGLE_SECRETS` in `config.js`):
+`google-client-id`, `google-client-secret` (the Google app's Web client) and `google-token-key` (32 random bytes,
+made once by a command, never typed). Without them every shop's Google page says "coming soon". The redirect address
+defaults to `<PLATFORM_URL>/api/google/oauth`.
+
+**Testing mode:** with the keys and without `GOOGLE_CONNECT_ENABLED=true`, only the shop with `testShop: true` gets
+Connect Google, for the test users listed on Google's sign-in screen. Google ends a testing-mode grant after 7 days, so
+the test shop then shows Reconnect. After Google's review, `GOOGLE_CONNECT_ENABLED=true` opens it to every shop.
+
+**Access:** the `platform-api` account needs `roles/datastore.user` and `roles/storage.objectUser` on each shop
+project (`lmb-test-shop`, the live shared project). A person grants them once; the deploy never changes access.
+
 ## Not yet
 
-- Hosting (one function in the platform project) and the Firestore stores `googleConnections` and `googleStates`.
-- The real `shopFirebase` client (Admin SDK writes into the shop's project, the verification file on its Hosting, and
-  project deletion), and the nightly Drive backup and the calendar's events on the website.
+- The deletion-stage hooks on the hosted sweep (the closing stage is wired: `closingHooks` in `hosted.js`), and the nightly Drive backup.
 - Hosting the domain service, so `domainsCall` reaches `applyRecords` / `removeRecords` / `removeDomain` for real (plan
   6.15 built them in `services/domains`; teardown passes `deleting: true`).
