@@ -34,3 +34,7 @@
 .rp-money-pending p { margin: var(--rp-space-1) 0 0; }
 .rp-money-pending-amt { text-align: right; color: var(--rp-text-muted); font-size: var(--rp-text-sm); }
 .rp-money-pending-acts { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: var(--rp-space-2); }
+
+/* Ledger line controls for a business expense: category picker and Remove. */
+.rp-money-line-actions { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.rp-money-line-actions .rp-field { margin: 0; min-width: 0; flex: 1; }

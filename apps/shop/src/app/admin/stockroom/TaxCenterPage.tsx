@@ -13,6 +13,9 @@ import { LogExpenseCard, type Prefill } from "./LogExpense";
 import { PendingExpensesCard } from "./PendingExpenses";
 import { RecurringSubscriptionsCard } from "./RecurringSubscriptions";
 import { SortingRulesCard } from "./SortingRules";
+import { LedgerLineActions } from "./LedgerLineActions";
+import { isEditableLine } from "./taxLedger";
+import type { SaveNote } from "./saveTaxCenter";
 import { filterLedger, ledgerCsvFile, ledgerTotals, LEDGER_PAGE_SIZE, sourcesOf, taxCenterModel, type LedgerFilter } from "./moneyReports";
 import { stockroomApi, type StockroomRecords } from "./stockroomData";
 import "./stockroom.css";
@@ -60,6 +63,7 @@ export function TaxCenterView({ records, now, onTaxCenter }: { records: Stockroo
   const years = useMemo(() => taxCenterModel(sources, "all", now).years, [sources, now]);
   const [year, setYear] = useState("all");
   const [filter, setFilter] = useState<LedgerFilter>({ type: "all", query: "" });
+  const [ledgerNote, setLedgerNote] = useState<SaveNote | null>(null);
   const [page, setPage] = useState(1);
   const [confirming, setConfirming] = useState<Prefill | null>(null);
   const model = useMemo(() => taxCenterModel(sources, year, now), [sources, year, now]);
@@ -177,13 +181,16 @@ export function TaxCenterView({ records, now, onTaxCenter }: { records: Stockroo
             </SelectField>
           </div>
         </div>
+        {ledgerNote && <div className="rp-money-pad"><p className="rp-sr-save" data-tone={ledgerNote.tone} role={ledgerNote.tone === "error" ? "alert" : "status"}>{ledgerNote.text}</p></div>}
         <DataTable stackOnPhone caption="Ledger" rowKey={(r) => `${r.sourceType}:${r.sourceId || ""}:${r.itemId}:${r.date}:${r.desc}`} rows={slice}
           empty={<EmptyState inline title="No entries match" />}
           columns={[
             { key: "d", header: "Date", render: (r) => r.date || "-" },
             { key: "t", header: "Type", render: (r) => <>{r.type}{r.voided && <StatusBadge glyph={false}>Voided</StatusBadge>}</> },
             { key: "e", header: "Description", lead: true, render: (r) => r.desc },
-            { key: "c", header: "Category", render: (r) => r.cat || "" },
+            { key: "c", header: "Category", render: (r) => (onTaxCenter && isEditableLine(r)
+              ? <LedgerLineActions line={r} onSaved={onTaxCenter} onNote={setLedgerNote} />
+              : r.cat || "") },
             { key: "o", header: "Original", numeric: true, render: (r) => `${fmt(Number(r.origAmount || 0), r.origCurrency || cur)}` },
             { key: "b", header: cur, numeric: true, render: (r) => <span className={r.isIncome ? "rp-money-in" : "rp-money-out"}>{r.isIncome ? "+" : "-"}{fmt(Number(r.baseAmount || 0), cur)}</span> },
           ]} />
