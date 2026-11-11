@@ -49,7 +49,7 @@ function CashFlowChart({ buckets, cur }: { buckets: Array<{ key: string; label: 
             <g key={b.key}>
               <rect className="rp-in" x={x - bar - 1} y={y(b.income)} width={bar} height={Math.max(0, H - pad - y(b.income))}><title>{`${b.label}: in ${fmt(b.income, cur)}`}</title></rect>
               <rect className="rp-out" x={x + 1} y={y(b.expense)} width={bar} height={Math.max(0, H - pad - y(b.expense))}><title>{`${b.label}: out ${fmt(b.expense, cur)}`}</title></rect>
-              <text x={x} y={H - 6} textAnchor="middle">{b.label.slice(0, 3)}</text>
+              <text x={x} y={H - 6} textAnchor="middle">{/^\d{4}$/.test(b.label) ? b.label : b.label.slice(0, 3)}</text>
             </g>
           );
         })}
