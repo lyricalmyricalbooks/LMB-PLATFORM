@@ -8,6 +8,7 @@ import { isRefusal, stockroomApi, type StockroomRecords } from "./stockroomData"
 import "./stock.css";
 import { WebsiteOrdersCard } from "./WebsiteOrders";
 import { PlacesCard } from "./PlacesCard";
+import { EditDetailsButton } from "./EditDetailsButton";
 import { AuthorCopiesCard } from "./AuthorCopiesCard";
 import { hasPublisherTools } from "../../../shared/shopSells";
 import { catalogueStock, money, searchItems, totalsOf, type ChannelRow, type ItemStock, type StockLevel, type StoreRow } from "./stock";
@@ -28,7 +29,7 @@ function RevenueLine({ totals }: { totals: ReturnType<typeof totalsOf> }) {
 }
 
 /** One item: its shelf, where every copy is, sales by channel and each store. */
-export function StockDetail({ item, onBack, places }: { item: ItemStock; onBack?: () => void; places?: React.ReactNode }) {
+export function StockDetail({ item, onBack, places, edit }: { item: ItemStock; onBack?: () => void; places?: React.ReactNode; edit?: React.ReactNode }) {
   const w = useShopWords();
   const channels: Column<ChannelRow>[] = [
     { key: "chan", header: "Channel", lead: true, render: (r) => r.chan || "Other" },
@@ -54,6 +55,7 @@ export function StockDetail({ item, onBack, places }: { item: ItemStock; onBack?
         <h2 className="rp-stock-name">{item.title}</h2>
         {item.author && <span className="rp-stock-by">{item.author}</span>}
         <LevelBadge level={item.level} />
+        {edit}
       </div>
       <div className="rp-stock-metrics">
         <MetricCard label="On hand" value={count(item.onHand)} footer={item.hasPrintRun ? `of ${count(item.printed)} ${w("printed")}` : w("No print run set")} tone={item.level === "soldout" ? "danger" : item.level === "low" ? "warn" : undefined} />
@@ -140,7 +142,7 @@ export function StockPage({ bookId, load = stockroomApi.load }: { bookId?: strin
   if (item) {
     const book = (records.books.find((b) => b.id === item.id) || null) as Record<string, any> | null;
     const state = { hist: [], ...(records.states[item.id] || {}) };
-    return <StockDetail item={item} onBack={() => setPicked(null)} places={<>
+    return <StockDetail item={item} onBack={() => setPicked(null)} edit={book ? <EditDetailsButton id={item.id} book={book} onSaved={read} /> : undefined} places={<>
       <PlacesCard bookId={item.id} book={book} state={state} onSaved={read} />
       {(publisher || item.authorHeld > 0) && <AuthorCopiesCard bookId={item.id} book={book} state={state} onSaved={read} />}
     </>} />;
