@@ -6,6 +6,9 @@ import { fmt, fmtD } from "@stockroom/money.js";
 
 import { DataTable, DestructiveButton, Dialog, EmptyState, IconButton, InkButton, PrimaryButton, SecondaryButton, SelectField, StatusBadge, TextArea, TextField, useConfirm, type Column } from "../riso/components";
 import { useShopWords } from "../shopWords";
+import { invoiceReminderState } from "@stockroom/payment-reminders.js";
+import { logReminder, promiseUntil, reminderMail, remindQuestion, remindRefusal } from "./invoiceRemind";
+import { stockistReceiptApi } from "./stockistReceipt";
 import { shopProfile } from "../../../lib/shopProfile";
 import { shopNameFromSettings } from "../../../shared/shopIdentity";
 import { adminApi } from "../api";
@@ -265,6 +268,35 @@ export function InvoiceView({ row, settings, onClose, onEdit, onCopy, onSaved }:
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<InvoiceNotice | null>(null);
   const today = todayText();
+  const [ask, confirmNode] = useConfirm();
+  const chase = invoiceReminderState(row.inv);
+  const [promise, setPromise] = useState(String(row.inv.remindAfter || ""));
+  const remind = async () => {
+    if (busy) return;
+    const refused = remindRefusal(row.inv);
+    if (refused) { setNote({ tone: "warn", lines: [refused] }); return; }
+    if (!(await ask({ title: "Remind this customer", message: remindQuestion(row.inv, today), confirmLabel: "Send reminder" }))) return;
+    setBusy(true);
+    const to = String(row.inv.storeEmail).trim();
+    const m = reminderMail(row.inv, settings, row.code);
+    let sentOk = true, error = "";
+    try { await stockistReceiptApi.sendNote({ to, subject: m.subject, text: m.text }); }
+    catch (e) { sentOk = false; error = e instanceof Error ? e.message : "send failed"; }
+    const r = await saveBook(row.ownerBookId, logReminder(row.id, { at: Date.now(), to, status: sentOk ? "sent" : "failed", error: error.slice(0, 200) }),
+      sentOk ? `Reminder sent to ${to}.` : `The reminder wasn't sent: ${error}`);
+    setBusy(false);
+    if (!r.ok) { setNote(sentOk ? { tone: "warn", lines: [`Reminder sent to ${to}, but it couldn't be noted on the invoice.`, ...r.notice.lines] } : r.notice); return; }
+    if (!sentOk) { setNote({ tone: "error", lines: [`The reminder wasn't sent: ${error}`] }); return; }
+    onSaved(row.ownerBookId, r.state, r.notice);
+  };
+  const savePromise = async () => {
+    if (busy) return;
+    setBusy(true);
+    const r = await saveBook(row.ownerBookId, promiseUntil(row.id, promise), promise ? `No reminder for ${row.num} before ${fmtD(promise)}.` : `${row.num} can be chased again.`);
+    setBusy(false);
+    if (!r.ok) { setNote(r.notice); return; }
+    onSaved(row.ownerBookId, r.state, r.notice);
+  };
   const send = async () => {
     if (busy) return;
     setBusy(true);
@@ -279,10 +311,19 @@ export function InvoiceView({ row, settings, onClose, onEdit, onCopy, onSaved }:
         <SecondaryButton onClick={onEdit} disabled={busy}>Edit</SecondaryButton>
         {onCopy && <SecondaryButton onClick={onCopy} disabled={busy}>Duplicate</SecondaryButton>}
         <SecondaryButton onClick={() => { window.location.href = mailto; }} disabled={busy}>{mail.to ? "Email" : "Email (no address on file)"}</SecondaryButton>
+        {row.status === "sent" && <SecondaryButton onClick={remind} disabled={busy}>{chase.count ? "Remind again" : "Remind"}</SecondaryButton>}
         {row.status === "draft" && <SecondaryButton onClick={send} busy={busy}>{busy ? "Saving…" : "Mark sent"}</SecondaryButton>}
         <PrimaryButton onClick={() => printInvoice(row.inv, settings, today)} disabled={busy}>Print or save PDF</PrimaryButton>
       </>}>
       {note && <Note notice={note} />}
+      {row.status === "sent" && (
+        <div className="rp-inv-head">
+          <p className="rp-hint">{chase.count ? `Reminded ${chase.count === 1 ? "once" : `${chase.count} times`}${chase.lastAt ? `, last ${fmtD(new Date(chase.lastAt).toLocaleDateString("en-CA"))}` : ""}.` : "Not reminded yet."}{chase.lastStatus === "failed" ? " The last reminder didn't go out." : ""}</p>
+          <TextField label="Promised to pay by" hint="No reminder before this date" type="date" value={promise} onChange={(e) => setPromise(e.target.value)} />
+          {promise !== String(row.inv.remindAfter || "") && <SecondaryButton size="sm" onClick={savePromise} disabled={busy}>Save date</SecondaryButton>}
+        </div>
+      )}
+      {confirmNode}
       <iframe className="rp-inv-paper" title={`Invoice ${row.num}`} srcDoc={invoicePage(row.inv, settings, today)} />
     </Dialog>
   );

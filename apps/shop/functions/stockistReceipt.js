@@ -58,4 +58,34 @@ async function handleStockistReceipt(reqBody, { db, sendEmail, secret, setupName
   return { status: 200, json: { sent: true, to: email.to, subject: email.subject } };
 }
 
-module.exports = { buildStockistReceipt, handleStockistReceipt, ReceiptProblem };
+/**
+ * Pure: an owner-written note to one stockist (the invoice reminder, worded in the admin by the stockroom's own
+ * buildReminderEmail). Plain text only: every paragraph is escaped, so nothing but words reaches the email.
+ */
+function buildStockistNote(input) {
+  const to = cleanRecipients(String(input?.to || ""));
+  if (!to || to.length !== 1) throw new ReceiptProblem(400, "This invoice has no valid email address.");
+  const subject = cleanSubject(line(input?.subject, 200));
+  const text = String(input?.text ?? "").replace(/\r\n?/g, "\n").trim().slice(0, 4000);
+  if (!subject || !text) throw new ReceiptProblem(400, "The reminder needs a subject and words.");
+  const paras = text.split(/\n{2,}/).map((p) => `<p style="white-space:pre-wrap;margin:0 0 16px;">${esc(p)}</p>`).join("");
+  return { to: to[0], subject, html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;line-height:1.55;">${paras}</div>` };
+}
+
+async function handleStockistNote(reqBody, { sendEmail, secret }) {
+  let email;
+  try {
+    email = buildStockistNote(reqBody);
+  } catch (err) {
+    if (err instanceof ReceiptProblem) return { status: err.status, json: { error: err.message } };
+    throw err;
+  }
+  try {
+    await sendEmail({ to: email.to, subject: email.subject, html: email.html, secret, queue: "", about: {} });
+  } catch (err) {
+    return { status: 502, json: { error: `The reminder was not sent: ${String(err?.message || "the email service refused it").slice(0, 300)}` } };
+  }
+  return { status: 200, json: { sent: true, to: email.to } };
+}
+
+module.exports = { buildStockistReceipt, handleStockistReceipt, buildStockistNote, handleStockistNote, ReceiptProblem };

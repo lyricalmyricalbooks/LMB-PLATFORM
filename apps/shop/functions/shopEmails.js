@@ -190,6 +190,17 @@ function shopEmails({
         }
         return;
       }
+      // Admin › Stockists › Invoices › Remind (functions/stockistReceipt.js), only on the owner's press.
+      if (body.action === "stockistNote") {
+        try {
+          const out = await require("./stockistReceipt").handleStockistNote(body, { sendEmail, secret: RESEND_API_KEY.value() });
+          res.status(out.status).json(out.json);
+        } catch (err) {
+          console.error("stockist note failed:", err);
+          res.status(500).json({ error: "The reminder could not be sent. Try again in a moment." });
+        }
+        return;
+      }
       // Settings › Notifications › Waiting to send: the retry queue (never its HTML, which can
       // hold gift-card codes and download links), Retry now and Stop retrying.
       if (body.action === "emailQueue" || body.action === "retryEmail" || body.action === "cancelEmail") {
