@@ -28,8 +28,8 @@ describe("the combined admin (shop + stockroom plan)", () => {
   it("holds every stockroom page once, and lists each page only once", () => {
     const pages = COMBINED_MENU.flatMap((g) => g.pages);
     expect(new Set(pages).size).toBe(pages.length);
-    // To-do lives on Home and Open call is off the menu (redesign, 11 November 2026); both still open from links.
-    const offMenu = ["todo", "opencall"];
+    // To-do lives on Home (redesign, 11 November 2026) and still opens from links.
+    const offMenu = ["todo"];
     for (const p of STOCKROOM_PAGES) expect(pages.filter((id) => id === STOCKROOM_ITEM_PREFIX + p.id), p.id).toHaveLength(offMenu.includes(p.id) ? 0 : 1);
   });
 

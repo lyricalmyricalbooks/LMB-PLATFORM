@@ -1,4 +1,4 @@
-// Types for the stockroom rules the Stockists, Shipping and Open call pages import (see stockroomLib.d.ts for the others).
+// Types for the stockroom rules the Stockists and Shipping pages import (see stockroomLib.d.ts for the others).
 declare module "@stockroom/consignment.js" {
   export function collectUniqueConsignmentStores(states: Record<string, any>, books: Array<{ id: string; title?: string }>): Array<Record<string, any>>;
   export function consignmentLedgerTotals(ledger: Array<Record<string, any>>, bookCode: string): Array<{ code: string; outstanding: number; paid: number; outstandingCount: number; paidCount: number }>;
@@ -39,16 +39,6 @@ declare module "@stockroom/shipping-reconciliation.js" {
 }
 declare module "@stockroom/postage-matching.js" {
   export function isPostageExpense(expense: Record<string, any>): boolean;
-}
-declare module "@stockroom/opencall.js" {
-  export function ocCurrentStage(contributor: Record<string, any>): string;
-  export function ocWaitingDays(contributor: Record<string, any>, now?: number): number | null;
-  export function ocWhoseMove(contributor: Record<string, any>, isSuppressed?: (email: string) => boolean): "you" | "artist" | "blocked" | "done";
-  export function ocNudgeDue(contributor: Record<string, any>, now?: number): boolean;
-  export function ocProblems(contributor: Record<string, any>, isSuppressed?: (email: string) => boolean): string[];
-  export function ocStageStates(contributor: Record<string, any>): Array<"done" | "you" | "artist" | "todo">;
-  export function ocNextAction(contributor: Record<string, any>): string | null;
-  export function ocSortContributors<T extends Record<string, any>>(list: T[], sortBy: string, now?: number): T[];
 }
 declare module "@stockroom/invoice-settle.js" {
   export function settleInvoicePaid(s: Record<string, any>, invoiceId: string, opts?: { method?: string; paidAt?: number }):

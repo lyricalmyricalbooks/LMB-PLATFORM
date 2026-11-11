@@ -40,10 +40,9 @@ describe("author submissions waiting", () => {
 });
 
 describe("more of the stockroom's list from the records", () => {
-  it("counts open-call contributors waiting, with the item's own title", () => {
+  it("raises no open-call line: the open call left the admin", () => {
     const records = { books: [book("a")], states: { a: { openCall: [{}, {}] } }, taxCenter: null };
-    const line = buildTodo(records).signals.find((s) => s.id === "setup-opencall:a");
-    expect(line?.detail).toContain("2 contributors on Title a");
+    expect(buildTodo(records).signals.find((s) => s.id.startsWith("setup-opencall"))).toBeUndefined();
   });
 
   it("lists the unsent orders under their line, and drops one that already has a postage label", () => {

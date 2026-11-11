@@ -1,4 +1,4 @@
-/* Stockists, Shipping and Open call (admin/stockroom/), on the shared admin look: tokens only. */
+/* Stockists and Shipping (admin/stockroom/), on the shared admin look: tokens only. */
 .rp-sk { display: grid; gap: var(--rp-space-4); }
 .rp-sk .rp-grid-metrics { grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); }
 .rp-sk-chips { display: flex; flex-wrap: wrap; gap: var(--rp-space-2); }
@@ -27,13 +27,6 @@
 .rp-sk-row-main { display: grid; gap: var(--rp-space-1); min-width: 0; }
 .rp-sk-row-end { display: grid; justify-items: end; gap: var(--rp-space-1); flex-shrink: 0; }
 .rp-sk-amount { font-weight: 600; white-space: nowrap; }
-.rp-oc-row { padding-inline: var(--rp-space-4); }
-.rp-oc-who { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rp-space-2); }
-.rp-oc-track { display: flex; gap: 4px; list-style: none; margin: 2px 0; padding: 0; max-width: 260px; }
-.rp-oc-track li { flex: 1; height: 8px; border-radius: 4px; background: var(--rp-border); }
-.rp-oc-track li[data-state="done"] { background: var(--rp-success); }
-.rp-oc-track li[data-state="you"] { background: var(--rp-warning); }
-.rp-oc-track li[data-state="artist"] { background: var(--rp-primary); }
 @media (max-width: 640px) {
   .rp-sk-row { flex-direction: column; }
   .rp-sk-row-end { justify-items: start; grid-auto-flow: column; align-items: center; }
