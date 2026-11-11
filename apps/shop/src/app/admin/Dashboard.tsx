@@ -124,8 +124,8 @@ export function Dashboard() {
   // Another page needs the stockroom (the book page's Stock and sales): the frame opens hidden, and is kept.
   useEffect(() => (COMBINED ? stockroomBridge.onNeed(() => setStockroomOpened(true)) : undefined), []);
   // "Open in the stockroom" from another page shows that stockroom page (set below, after the page helpers).
-  const openStockroomRef = useRef<(page: string) => void>(() => {});
-  useEffect(() => (COMBINED ? stockroomBridge.onOpen((page) => openStockroomRef.current(page)) : undefined), []);
+  const openStockroomRef = useRef<(page: string, bookId?: string) => void>(() => {});
+  useEffect(() => (COMBINED ? stockroomBridge.onOpen((page, extra) => openStockroomRef.current(page, extra?.book)) : undefined), []);
   const [user, setUser] = useState<any>(null);
   // Signed in with the Team's bookkeeper role: the Bookkeeping page instead of the admin.
   const [bookkeeper, setBookkeeper] = useState<{ email: string | null } | null>(null);
@@ -153,6 +153,9 @@ export function Dashboard() {
   useEffect(() => { if (framedStockroomPage) setStockroomOpened(true); }, [framedStockroomPage]);
   /** Opens a sub tab (`undefined` = the first) on the page on screen, or on `page` when a link opens another page too. */
   const openSubTab = (id: string | undefined, page: string = subPage) => setSubTabState({ page, id });
+  // The book a stockroom page was opened for (a to-do line's fix button): kept with the page it was meant for, so any
+  // other way to a stockroom page (the menu, Back) opens it without one.
+  const [stockroomFocus, setStockroomFocus] = useState<{ page: string; bookId: string } | null>(null);
   useEffect(() => {
     if (subTabState.page !== subPage) setSubTabState({ page: subPage });
   }, [subPage]);
@@ -652,15 +655,16 @@ export function Dashboard() {
   };
   // A stockroom page in the combined admin: the stockroom tab with that page as its sub tab (`#stockroom/<page>`).
   // The tab and its page are set together, so the address gets one Back step and the frame opens on that page.
-  const openStockroomPage = async (page: string) => {
+  const openStockroomPage = async (page: string, bookId?: string) => {
     if (isSettingsPage && anyDirty() && !(await leaveSettings())) return;
+    setStockroomFocus(bookId ? { page: stockroomPage(page)?.id ?? DEFAULT_STOCKROOM_PAGE, bookId } : null);
     setSubTabState({ page: STOCKROOM_TAB, id: stockroomPage(page)?.id ?? DEFAULT_STOCKROOM_PAGE });
     setActiveTab(STOCKROOM_TAB);
     setShowEditor(false);
     setSelectedOrder(null);
     setSidebarOpen(false);
   };
-  openStockroomRef.current = (page) => { void openStockroomPage(page); };
+  openStockroomRef.current = (page, bookId) => { void openStockroomPage(page, bookId); };
   const tourGo = (stop: TourStop) => { if ("stockroom" in stop) void openStockroomPage(stop.stockroom); else void goTo(stop.page); };
   const onStockroomPage = activeTab === STOCKROOM_TAB;
   const stockroomPageId = stockroomPage(onStockroomPage ? subTab : undefined)?.id ?? DEFAULT_STOCKROOM_PAGE;
@@ -749,7 +753,12 @@ export function Dashboard() {
       case "messages": return <Messages onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }} onOpenCustomers={() => goTo("customers")} />;
       // The stockroom's pages show in StockroomFrame below, kept open between visits.
       case STOCKROOM_TAB:
-        return NativeStockroomPage ? <NativeStockroomPage onOpen={(page) => openSubTab(page, STOCKROOM_TAB)} isPage={(id) => !!stockroomPage(id)} /> : null;
+        return NativeStockroomPage ? (
+          <NativeStockroomPage
+            onOpen={(page, opts) => { setStockroomFocus(opts?.bookId ? { page, bookId: opts.bookId } : null); openSubTab(page, STOCKROOM_TAB); }}
+            isPage={(id) => !!stockroomPage(id)}
+            bookId={stockroomFocus?.page === stockroomPageId ? stockroomFocus.bookId : undefined} />
+        ) : null;
       case SALES_TAB: return COMBINED ? <AllSales onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }} /> : null;
       case "orders":
         // Inbox-style desk: list + the full order page (all Stripe sync/refund/label actions) side by side.

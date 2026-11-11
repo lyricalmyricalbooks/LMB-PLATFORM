@@ -13,8 +13,10 @@ import { stockroomApi, type StockroomRecords } from "../app/admin/stockroom/stoc
 const EMPTY_STOCKROOM = new URLSearchParams(window.location.search).get("stock") === "empty";
 stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { books: [], states: {}, taxCenter: null } : {
   books: [{ id: "salt-hours", title: "Salt Hours", author: "Ada Example", maxPrint: 200, threshold: 10, listPrice: 20 }, { id: "night-songs", title: "Night Songs", author: "Ben Example", maxPrint: 150, threshold: 10, listPrice: 18 }],
-  states: { "salt-hours": { hist: [{ id: 1, qty: 196, channel: "web", amount: 0 }] }, "night-songs": { hist: [{ id: 2, qty: 12, channel: "web", amount: 0 }] } },
+  states: { "salt-hours": { hist: [{ id: 1, qty: 196, channel: "web", amount: 0 }] }, "night-songs": { hist: [{ id: 2, qty: 12, channel: "web", amount: 0 }, ...[["W-1041", 9, "Cleo Example"], ["W-1042", 4, "Dev Example"]].map(([num, days, name], i) => ({ id: 10 + i, num, qty: 1, price: 18, chan: "Website", date: new Date(Date.now() - Number(days) * 864e5).toISOString().slice(0, 10), shipName: name, shipAddr1: "1 Example St" }))], openCall: [{}, {}] } },
   taxCenter: null,
+  // Author entries waiting on a title (the old stockroom's author inbox).
+  submissions: { "night-songs": { sales: { s1: true }, expenses: { e1: true, e2: true } } },
 });
 
 const order = (n: number, status: string, name: string) => ({

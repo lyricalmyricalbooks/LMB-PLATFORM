@@ -2,8 +2,8 @@
 // the list here and the one the stockroom showed can never disagree. Pure: the page is TodoPage.tsx.
 import { buildAttentionSignals, SIGNAL_GROUPS, type AttentionResult, type Signal } from "@stockroom/attention-signals.js";
 
+import { labelledOrderNums, openCallWaiting, submissionsInput, tripsSummaryAll } from "@stockroom/attention-input.js";
 import { deriveOnHand } from "@stockroom/inventory.js";
-import { OC_STAGES } from "@stockroom/opencall.js";
 
 import type { StockroomRecords } from "./stockroomData";
 
@@ -18,16 +18,6 @@ const localToday = (now: Date) => `${now.getFullYear()}-${String(now.getMonth() 
 /** An item with no records yet starts as the stockroom starts it: everything printed is on the shelf, nothing sold. */
 const blankState = (book: Record<string, unknown>) => ({ stock: book.maxPrint, hist: [], ledger: [], stores: [], expenses: [], openCall: [] });
 
-function openCallWaiting(records: StockroomRecords) {
-  return records.books.flatMap((book) => {
-    const list = records.states[book.id]?.openCall;
-    if (!Array.isArray(list)) return [];
-    // A contributor waits until each of the stockroom's stages is ticked.
-    const waiting = list.filter((c) => OC_STAGES.some((stage) => !c?.[stage.key])).length;
-    return waiting ? [{ bookId: book.id, bookTitle: book.title || book.id, waiting }] : [];
-  });
-}
-
 /** The to-do list for these records, minus what the owner dismissed. */
 export function buildTodo(records: StockroomRecords, opts: { words?: (text: string) => string; booksShop?: boolean; dismissed?: Dismissed; now?: Date } = {}): TodoList {
   const states = Object.fromEntries(records.books.map((book) => {
@@ -37,6 +27,8 @@ export function buildTodo(records: StockroomRecords, opts: { words?: (text: stri
     if (Number.isFinite(book.maxPrint)) state.stock = deriveOnHand(state, book);
     return [book.id, state];
   }));
+  const taxCenter: Record<string, unknown> = records.taxCenter || { businessExpenses: [], recurring: [], settings: { baseCurrency: "CAD" } };
+  const titleOf = (bookId: string) => String(records.books.find((b) => b.id === bookId)?.title || bookId);
   const raw = buildAttentionSignals({
     books: records.books,
     states,
@@ -45,10 +37,16 @@ export function buildTodo(records: StockroomRecords, opts: { words?: (text: stri
     // A shop here has no spreadsheet script to connect and saves straight to the cloud, so neither can need the owner.
     sheets: { connected: false, colophon: true, google: null },
     sync: { online: true, pending: 0, failed: false },
-    submissions: [],
-    openCall: openCallWaiting(records),
-    taxCenter: records.taxCenter || { businessExpenses: [], recurring: [], settings: { baseCurrency: "CAD" } },
-    tripsSummary: {},
+    // Author entries waiting come from the submissions the records hold; the open call and the fairs' costs are worked
+    // out by the same functions the stockroom app uses.
+    submissions: submissionsInput(records.submissions, titleOf),
+    openCall: openCallWaiting(states, titleOf),
+    taxCenter,
+    tripsSummary: tripsSummaryAll(taxCenter),
+    // Only what the records tell: which unsent orders already have a postage label. Card payments to match, refunds
+    // to reverse, website orders to review, receipts waiting and the website link's state live in the old app's
+    // browser (or its live checks) and are left out.
+    automation: { labelledOrderNums: labelledOrderNums(states, taxCenter.businessExpenses as unknown[]) },
     today: localToday(opts.now || new Date()),
   });
   const dismissed = opts.dismissed || {};
@@ -57,15 +55,21 @@ export function buildTodo(records: StockroomRecords, opts: { words?: (text: stri
   return { signals, byGroup, total: signals.length, urgent: signals.filter((s) => s.status === "blocked" || s.status === "warn").length, hidden: raw.signals.length - signals.length };
 }
 
-/** The stockroom page where an item gets fixed, or null when there is nothing to open. */
-export function fixPage(signal: Signal, isPage: (id: string) => boolean): string | null {
+/** Where a fix button goes: the stockroom page, and the book to open there when the fix names one. */
+export function fixTarget(signal: Signal, isPage: (id: string) => boolean): { page: string; bookId?: string } | null {
   const fix = signal.fix;
   if (!fix) return null;
-  if (fix.kind === "taxcenter") return "taxcenter";
-  if (fix.kind === "tab") return fix.tab && isPage(fix.tab) ? fix.tab : null;
-  if (fix.kind === "book" || fix.kind === "edit-book") return fix.tab && isPage(fix.tab) ? fix.tab : "dashboard";
+  if (fix.kind === "taxcenter") return { page: "taxcenter" };
+  if (fix.kind === "tab") return fix.tab && isPage(fix.tab) ? { page: fix.tab } : null;
+  if (fix.kind === "book" || fix.kind === "edit-book") {
+    const page = fix.tab && isPage(fix.tab) ? fix.tab : "dashboard";
+    return fix.bookId ? { page, bookId: fix.bookId } : { page };
+  }
   return null;
 }
+
+/** The stockroom page where an item gets fixed, or null when there is nothing to open. */
+export const fixPage = (signal: Signal, isPage: (id: string) => boolean): string | null => fixTarget(signal, isPage)?.page ?? null;
 
 export function readDismissed(store: Pick<Storage, "getItem"> | undefined = typeof localStorage === "undefined" ? undefined : localStorage): Dismissed {
   try { const map = JSON.parse(store?.getItem(TODO_DISMISSED_KEY) || "{}"); return map && typeof map === "object" ? map : {}; } catch { return {}; }

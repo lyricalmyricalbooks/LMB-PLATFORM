@@ -8,14 +8,14 @@ import { sellsBooks } from "../sells";
 import { useShopSells, useShopWords } from "../shopWords";
 import { isRefusal, stockroomApi, type StockroomRecords } from "./stockroomData";
 import "./stockroom.css";
-import { buildTodo, fixPage, readDismissed, TODO_DISMISSED_KEY, type Dismissed } from "./todo";
+import { buildTodo, fixTarget, readDismissed, TODO_DISMISSED_KEY, type Dismissed } from "./todo";
 
 const TONE = { blocked: "danger", warn: "warning", info: "neutral" } as const;
 const TONE_WORD = { blocked: "Now", warn: "Soon", info: "When you can" } as const;
 
 export function TodoList({ records, dismissed, onDismiss, onRestore, onOpen, isPage }: {
   records: StockroomRecords; dismissed: Dismissed; onDismiss: (id: string) => void; onRestore: () => void;
-  onOpen: (page: string) => void; isPage: (id: string) => boolean;
+  onOpen: (page: string, opts?: { bookId?: string }) => void; isPage: (id: string) => boolean;
 }) {
   const w = useShopWords();
   const sells = useShopSells();
@@ -27,15 +27,21 @@ export function TodoList({ records, dismissed, onDismiss, onRestore, onOpen, isP
     return <><EmptyState icon="✅" title="You're all caught up" description={w("Nothing in the stockroom needs you. Anything new shows up here on its own.")} />{restore}</>;
   }
   const row = (signal: Signal) => {
-    const page = fixPage(signal, isPage);
+    const target = fixTarget(signal, isPage);
+    const page = target?.page ?? null;
     return (
       <li key={signal.id} className="rp-todo-row" data-status={signal.status}>
         <div className="rp-todo-text">
           <span className="rp-todo-label"><StatusBadge glyph={false} tone={TONE[signal.status as keyof typeof TONE] || "neutral"}>{TONE_WORD[signal.status as keyof typeof TONE_WORD] || "To do"}</StatusBadge><strong>{signal.label}</strong></span>
           <span className="rp-todo-detail">{signal.detail}</span>
+          {!!signal.items?.length && (
+            <ul className="rp-todo-items" aria-label={`Details: ${signal.label}`}>
+              {signal.items.map((item, i) => <li key={`${i}-${item.label}`}>{item.label}</li>)}
+            </ul>
+          )}
         </div>
         <div className="rp-todo-actions">
-          {page && page !== "todo" && <SecondaryButton onClick={() => onOpen(page)}>{signal.fix?.label || "Open"}</SecondaryButton>}
+          {page && page !== "todo" && <SecondaryButton onClick={() => onOpen(page, target?.bookId ? { bookId: target.bookId } : undefined)}>{signal.fix?.label || "Open"}</SecondaryButton>}
           <GhostButton onClick={() => onDismiss(signal.id)} aria-label={`Dismiss: ${signal.label}`}>Dismiss</GhostButton>
         </div>
       </li>
@@ -58,7 +64,7 @@ export function TodoList({ records, dismissed, onDismiss, onRestore, onOpen, isP
   );
 }
 
-export function TodoPage({ onOpen, isPage, load = stockroomApi.load }: { onOpen: (page: string) => void; isPage: (id: string) => boolean; load?: () => Promise<StockroomRecords> }) {
+export function TodoPage({ onOpen, isPage, load = stockroomApi.load }: { onOpen: (page: string, opts?: { bookId?: string }) => void; isPage: (id: string) => boolean; load?: () => Promise<StockroomRecords> }) {
   const [records, setRecords] = useState<StockroomRecords | null>(null);
   const [failed, setFailed] = useState<"" | "refused" | "failed">("");
   const [dismissed, setDismissed] = useState<Dismissed>(readDismissed);
