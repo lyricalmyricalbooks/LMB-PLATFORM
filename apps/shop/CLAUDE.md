@@ -179,6 +179,9 @@ npm run logs
 - `npm test` (vitest, node env): includes the registry/renderer parity test, nav,
   discount-state, order-status/CSV, cart-quantity and the **theme draft/publish
   separation** test (Firestore mocked) — a draft/discard must never write `design`.
+- **Unused files (11 November 2026):** `scripts/unusedFiles.test.ts` fails on any file under `src/` that no page the build
+  serves reaches (entry scripts of the `*.html` files, then imports, `import()` and `import.meta.glob`); tests don't count.
+  Delete it or wire it in; one kept on purpose goes in its `KEPT` list with the reason.
 - `tsconfig.json` (`strict: true` since 25 October 2026, `noEmit`) exists for type-checking only; Vite does not use it.
   The 70 errors strict mode found in older files were all fixed on 27 October 2026, so `scripts/typecheck-baseline.json` is
   empty and any type error now fails CI; keep new code strict-clean.
