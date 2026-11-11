@@ -51,7 +51,7 @@ jobs:
           persist-credentials: false
           # Every commit, so a broken deploy can go back to the version before (it names its own commit).
           fetch-depth: 0
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         with:
           version: 10
       # Packages are kept between runs: the shop's (pnpm) and the server code's and stockroom's (npm).
