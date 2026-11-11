@@ -102,7 +102,7 @@ test("the page has a Setting up page that loads the route, and both web doors se
   const page = readFileSync(new URL("./index.html", import.meta.url), "utf8");
   const app = readFileSync(new URL("./app.js", import.meta.url), "utf8");
   assert.match(page, /data-page="setting-up"/);
-  assert.match(page, /href="#setting-up"/);
+  assert.match(readFileSync(new URL("./palette.js", import.meta.url), "utf8"), /\["setting-up", "Setting up"\]/, "a tab in the Shops group");
   assert.match(app, /"\/control\/presses"/);
   for (const door of ["../server/world.js", "../walkthrough/world.js"]) {
     assert.match(readFileSync(new URL(door, import.meta.url), "utf8"), /setupRoutes\(setupDesk\)/, door);

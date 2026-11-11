@@ -121,7 +121,7 @@ test("the page: the Jobs page is in the side menu, and the new routes are all us
   for (const path of [...Object.keys(timelineRoutes({})), ...Object.keys(jobsRoutes({})), ...Object.keys(notesRoutes({}))]) {
     assert.ok(app.includes(`"${path.split(" ")[1].replace("/api", "")}"`), path);
   }
-  assert.match(page, /href="#jobs" data-nav="jobs"/);
+  assert.match(page, /class="cr-tool" href="#jobs"/, "Jobs is a card on Platform");
   assert.match(page, /<section data-page="jobs"/);
   assert.match(app, /import \{ shopMatches \} from "\.\/shopSearch\.js"/);
   assert.match(app, /"Show older"/);
