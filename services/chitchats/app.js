@@ -85,7 +85,7 @@ export function createChitChatsApp({
   const at = () => now().toISOString();
   // Chit Chats refused the shop's details: when it last did (`at`), and since when (`since`, kept while it goes on), so
   // the morning note tells the press once (control-room/chitChatsNote.js).
-  const refusal = (row, error) => ({ at: at(), since: row.lastProblem?.since ?? row.lastProblem?.at ?? at(), words: error.message });
+  const refusal = (row, error) => { const now = at(); return { at: now, since: row.lastProblem?.since ?? row.lastProblem?.at ?? now, words: error.message }; };
   const ready = () => Boolean(appId && appSecret && sealKey);
   const bound = (shopId) => `chitchats:${shopId}`;
   const open = (row) => unseal(sealKey, bound(row.shopId), row.sealed);
