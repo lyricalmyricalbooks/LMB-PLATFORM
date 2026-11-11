@@ -35,3 +35,23 @@
 .rp-sk-notice[data-tone="warn"] { background: var(--rp-warning-tint); }
 .rp-sk-notice[data-tone="error"] { background: var(--rp-danger-tint); color: var(--rp-danger); }
 .rp-sk-notice p { margin: 0; }
+
+/* Invoices (InvoiceDialogs.tsx): the list's head, the editor's lines and totals, and the printed-page preview. */
+.rp-inv-head { display: flex; align-items: center; justify-content: space-between; gap: var(--rp-space-2); flex-wrap: wrap; }
+.rp-inv-head .rp-card-title, .rp-inv-head .rp-sk-h { margin: 0; }
+.rp-inv-form { max-width: none; }
+.rp-inv-row3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--rp-space-3); }
+.rp-inv-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--rp-space-2); }
+.rp-inv-line { display: grid; grid-template-columns: minmax(0, 1fr) 72px 110px 84px auto; gap: var(--rp-space-2); align-items: end; }
+.rp-inv-discount { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--rp-space-2); align-items: end; }
+.rp-inv-totals { margin: 0; display: grid; gap: var(--rp-space-1); justify-self: end; min-width: min(100%, 260px); }
+.rp-inv-totals div { display: flex; justify-content: space-between; gap: var(--rp-space-4); }
+.rp-inv-totals dt { color: var(--rp-text-muted); }
+.rp-inv-totals dd { margin: 0; font-weight: 600; }
+.rp-inv-totals [data-strong] { border-top: 2px solid var(--rp-border-strong); padding-top: var(--rp-space-2); font-size: var(--rp-text-lg); }
+.rp-inv-paper { width: 100%; height: min(70vh, 900px); border: 1px solid var(--rp-border); border-radius: var(--rp-radius-md); background: var(--rp-surface); }
+@media (max-width: 640px) {
+  .rp-inv-row3 { grid-template-columns: 1fr; }
+  .rp-inv-line { grid-template-columns: repeat(3, minmax(0, 1fr)) auto; }
+  .rp-inv-line > :first-child { grid-column: 1 / -1; }
+}
