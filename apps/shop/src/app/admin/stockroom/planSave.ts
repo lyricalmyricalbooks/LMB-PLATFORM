@@ -12,6 +12,7 @@
 //    would let the next write replace it.
 import { ALL_PARTS, emptyPart, mergePart, splitState, stitchState } from "@stockroom/merge-state.js";
 import { deriveOnHand } from "@stockroom/inventory.js";
+import { recomputeAfters } from "@stockroom/recompute-afters.js";
 
 export type BookState = Record<string, unknown>;
 /** One part's stored text (`JSON.stringify` of the part), `null`/missing when the part has no document. */
@@ -30,14 +31,18 @@ export class UnreadablePartError extends Error {
 }
 
 /**
- * The values the stockroom derives from a book's rows. This write layer sets the on-hand count (`stock`, from the
- * stockroom's `deriveOnHand`) exactly as `recomputeAfters` does for a book with a print run. The rest of
- * `recomputeAfters` (revenue and channel totals, store tallies, each row's running `after`) lives in `main.js`, which
- * cannot be imported; a page that changes rows those depend on passes its own `derive` (see WRITING.md).
+ * The values the stockroom derives from a book's rows. `deriveRecords` (the default) runs the stockroom's own
+ * `recomputeAfters` (`@stockroom/recompute-afters.js`, the same function its every save runs): revenue and channel
+ * totals, the store counters, the on-hand count and each row's running `after`. `deriveStock` only sets the on-hand
+ * count, for tests that want nothing else to move.
  */
 export type Derive = (state: BookState, book: BookLike | null) => void;
 export const deriveStock: Derive = (state, book) => {
   if (book && Number.isFinite(book.maxPrint)) state.stock = deriveOnHand(state, book as Record<string, unknown>);
+};
+
+export const deriveRecords: Derive = (state, book) => {
+  recomputeAfters(state, (book ?? null) as Record<string, unknown> | null);
 };
 
 const emptyText = (part: string) => JSON.stringify(emptyPart(part));
@@ -77,7 +82,7 @@ export type PlanInput = {
   derive?: Derive;
 };
 
-export function planSave({ base, remote, local, book = null, derive = deriveStock }: PlanInput): SavePlan {
+export function planSave({ base, remote, local, book = null, derive = deriveRecords }: PlanInput): SavePlan {
   // Derived values (the on-hand count) are set before anything is compared, so the stored count always agrees with
   // the stored rows; the page's own object is never touched.
   const wanted = clone(local);

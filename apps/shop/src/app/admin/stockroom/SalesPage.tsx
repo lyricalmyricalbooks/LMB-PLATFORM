@@ -1,11 +1,13 @@
 // Stockroom › Sales records, drawn by the admin itself (no frame): every sale the stockroom recorded, across items, with
-// search, filters, totals and a drawer for one sale. Read-only. The rules are the stockroom's own (sales.ts).
+// search, filters, totals and a drawer for one sale. The owner records a sale and voids one here (SaleWriter.tsx,
+// rules in recordSale.ts); the reading rules are the stockroom's own (sales.ts).
 import { useMemo, useState } from "react";
 import { fmt, fmtD } from "@stockroom/money.js";
 
-import { Drawer, DataTable, EmptyState, GhostButton, MetricCard, SearchField, SecondaryButton, SelectField, StatusBadge, TextField, Checkbox, type Column } from "../riso/components";
+import { Drawer, DataTable, EmptyState, GhostButton, MetricCard, PrimaryButton, SearchField, SecondaryButton, SelectField, StatusBadge, TextField, Checkbox, type Column } from "../riso/components";
 import { useShopWords } from "../shopWords";
 import { RecordsGate } from "./RecordsGate";
+import { RecordSaleDialog, SaveNoteLine, useStockroomSave, VoidSaleAction } from "./SaleWriter";
 import { buildSalesRows, filterSales, NO_FILTER, salesTotals, type SaleRow, type SalesFilter } from "./sales";
 import type { StockroomRecords } from "./stockroomData";
 import "./stockroom.css";
@@ -43,8 +45,12 @@ function SaleDetail({ row }: { row: SaleRow }) {
   );
 }
 
-export function SalesRecords({ records }: { records: StockroomRecords }) {
+export function SalesRecords({ records: loaded }: { records: StockroomRecords }) {
   const w = useShopWords();
+  // What the page shows: the records as read, then each saved item's records as the save returned them.
+  const [records, setRecords] = useState(loaded);
+  const save = useStockroomSave((bookId, state) => setRecords((r) => ({ ...r, states: { ...r.states, [bookId]: state } })));
+  const [recording, setRecording] = useState(false);
   const all = useMemo(() => buildSalesRows(records), [records]);
   const [filter, setFilter] = useState<SalesFilter>(NO_FILTER);
   const [limit, setLimit] = useState(PAGE);
@@ -55,7 +61,9 @@ export function SalesRecords({ records }: { records: StockroomRecords }) {
   const channels = useMemo(() => [...new Set(all.map((r) => r.channel))].sort(), [all]);
   const items = useMemo(() => records.books.filter((b) => all.some((r) => r.bookId === b.id)), [records, all]);
 
-  if (!all.length) return <EmptyState icon="🧾" title="No sales recorded yet" description={w("Sales the stockroom records, at a book fair, from your website or by hand, appear here.")} />;
+  const recordButton = records.books.length > 0 && <PrimaryButton onClick={() => { save.clear(); setRecording(true); }} disabled={save.busy}>Record a sale</PrimaryButton>;
+  const dialog = <RecordSaleDialog open={recording} onClose={() => setRecording(false)} records={records} save={save} />;
+  if (!all.length) return <>{dialog}<EmptyState icon="🧾" title="No sales recorded yet" description={w("Sales the stockroom records, at a book fair, from your website or by hand, appear here.")} action={recordButton || undefined} /></>;
 
   const filtered = filter.search.trim() || filter.channel || filter.bookId || filter.from || filter.to || filter.hideVoided;
   const columns: Column<SaleRow>[] = [
@@ -68,6 +76,8 @@ export function SalesRecords({ records }: { records: StockroomRecords }) {
   ];
   return (
     <div className="rp-sr">
+      <div className="rp-sr-actions">{recordButton}<SaveNoteLine note={recording ? null : save.note} /></div>
+      {dialog}
       <div className="rp-grid-metrics">
         <MetricCard label="Sales" value={totals.sales} footer={filtered ? "Matching your filters" : "All recorded"} />
         <MetricCard label={w("Copies sold")} value={totals.copies} footer={totals.gifts ? `Plus ${totals.gifts} given away` : undefined} />
@@ -107,6 +117,11 @@ export function SalesRecords({ records }: { records: StockroomRecords }) {
 
       <Drawer open={!!open} onClose={() => setOpen(null)} title={open ? label(open) : "Sale"} description={open ? `${open.bookTitle} · ${fmtD(open.date)}` : undefined}>
         {open && <SaleDetail row={open} />}
+        {open && open.kind === "sale" && (
+          <div className="rp-sr-void">
+            <VoidSaleAction raw={open.raw} bookId={open.bookId} title={open.bookTitle} save={save} onDone={() => setOpen(null)} />
+          </div>
+        )}
       </Drawer>
     </div>
   );

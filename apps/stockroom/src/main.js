@@ -1161,8 +1161,9 @@ import { plainChanges, kindLabel, parseBuildDate, relativeWhen, dayHeading } fro
 import { downloadText, downloadCsv } from './lib/download.js';
 import { stockLocationsCsv } from './lib/stock-locations.js';
 import { submissionsInput, openCallWaiting, labelledOrderNums as labelledOrderNumsOf } from './lib/attention-input.js';
-import { deriveOnHand, buildOrderTimeline, inventoryBreakdown, deduplicateDirectConsignmentSales, recalculateBookStatsFromHistory, orderStockPreview, orderStockPreviewCopy, deriveStockBreakdown, transferAuthorStock, isVoidStale } from './lib/inventory.js';
+import { deriveOnHand, buildOrderTimeline, inventoryBreakdown, recalculateBookStatsFromHistory, orderStockPreview, orderStockPreviewCopy, deriveStockBreakdown, transferAuthorStock, isVoidStale } from './lib/inventory.js';
 import { fairForAdmin, fairSyncPill, readCurrentFair } from './lib/fair-mode.js';
+import { recomputeAfters as recomputeAftersPure } from './lib/recompute-afters.js';
 import { ledgerById, settleLedgerSalePaid } from './lib/invoice-settle.js';
 import { reconcileConsignmentChannel, reconcileStores, histMirrorForLedger, reconcileConsignmentMirrors, syncHistMirrorFromLedger, ledgerSaleIndexForHistMirror, consignmentSyncPayload, collectUniqueConsignmentStores, consignmentLedgerTotals, storeBalanceSlug, storeBalanceComparison } from './lib/consignment.js';
 import { reminderSettings, reminderBlockReason, invoiceReminderState, dueForReminder, dueForReminderTomorrow, buildReminderEmail, canSendNow, daysLate, describeReminderSweep, describeReminderNotice, sampleReminderInvoice } from './lib/payment-reminders.js';
@@ -13515,29 +13516,7 @@ function syncLedgerVoid(e, isVoided, book = getBook()) {
 }
 
 export function recomputeAfters(s, book) {
-  const bk = book || getBook();
-  deduplicateDirectConsignmentSales(s);
-  // Re-derive consignment mirrors from their canonical ledger rows BEFORE the
-  // stats are rebuilt below — recalculateBookStatsFromHistory reads s.hist, so
-  // a mirror still carrying a sale's pre-edit amount would book that stale
-  // figure as revenue (and the Tax Center would report it) even though the
-  // ledger, the store card and the Google Sheet all show the corrected one.
-  reconcileConsignmentMirrors(s);
-  recalculateBookStatsFromHistory(s);
-  if (bk && Number.isFinite(bk.maxPrint)) {
-    s.stock = deriveOnHand(s, bk);
-  }
-  reconcileConsignmentChannel(s);
-  reconcileStores(s);
-  // Stock After mirrors the History view: a single running balance over the
-  // full timeline (direct sales + consignment movements) from the print run
-  // down to the records-true on-hand. Computing it here too keeps each entry's
-  // stored `after` — the value synced to the Google Sheet — agreeing with the
-  // app instead of anchoring to a header count that may have drifted.
-  const timeline = buildOrderTimeline(s, bk);
-  for (const r of timeline) {
-    if (r.type === 'hist') r.h.after = r._after;
-  }
+  recomputeAftersPure(s, book || getBook());
 }
 
 // User-triggered repair for on-hand drift (e.g. a consignment that didn't

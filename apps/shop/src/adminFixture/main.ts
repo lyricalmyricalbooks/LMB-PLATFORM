@@ -7,8 +7,10 @@ import { inventoryLinkApi } from "../app/admin/inventoryLinkApi";
 import { addressKey } from "../app/admin/fulfillment";
 import { googleConnectApi, readGoogleStatus } from "../app/admin/googleConnect";
 import { appsApi } from "../app/admin/appActivity";
-import { stockroomApi, type StockroomRecords } from "../app/admin/stockroom/stockroomData";
-import { stockroomWriteApi } from "../app/admin/stockroom/stockroomWrite"; // stockist-pay
+import { loadStockroom, stockroomApi, type StockroomRecords } from "../app/admin/stockroom/stockroomData";
+import { MemoryStockroom } from "../app/admin/stockroom/stockroomMemory";
+import { createStockroomWriter, stockroomWriteApi } from "../app/admin/stockroom/stockroomWrite";
+import { recomputeAfters } from "@stockroom/recompute-afters.js";
 import { stockistReceiptApi } from "../app/admin/stockroom/stockistReceipt"; // stockist-pay
 
 // Stockroom › To-do: two titles, one nearly sold out and one with nothing waiting (`?stock=empty`: nothing at all).
@@ -154,6 +156,43 @@ if (new URLSearchParams(window.location.search).get("page") === "stockroom/dashb
     r.taxCenter = { ...(r.taxCenter || {}), businessExpenses: [postage("WEB-1044", 14.5), postage("WEB-1045", 8.2)] };
     return r;
   };
+}
+
+// ── Stockroom writes (record a sale / void, sales worker): the records above go into an in-memory stockroom
+// (stockroomMemory.ts) the first time a page reads them, and every page reads and saves through it from then on, so
+// ?page=stockroom/history can record and void sales with nothing reaching Firestore. `?stocksave=offline` makes every
+// save fail as an unreachable server does; `window.__stockroomMemory` is the stockroom, for checks. ──
+{
+  const base = stockroomApi.load;
+  let memory: MemoryStockroom | null = null;
+  const offline = new URLSearchParams(window.location.search).get("stocksave") === "offline";
+  const ready = async () => {
+    if (memory) return memory;
+    const records = await base();
+    const mem = new MemoryStockroom();
+    mem.putCatalog(records.books);
+    for (const [id, state] of Object.entries(records.states)) {
+      const book = records.books.find((b) => b.id === id) ?? null;
+      const copy = JSON.parse(JSON.stringify(state)) as Record<string, unknown>;
+      // Ids the old app gives every sale (its first load adds any missing), and its totals, as a stored book has them.
+      if (Array.isArray(copy.hist)) (copy.hist as Array<Record<string, unknown>>).forEach((h, i) => { h.sheetsId ??= `fixture-${id}-${i}`; });
+      recomputeAfters(copy, book);
+      mem.putBook(id, copy);
+    }
+    (window as unknown as { __stockroomMemory?: MemoryStockroom }).__stockroomMemory = mem;
+    return (memory = mem);
+  };
+  stockroomApi.load = async () => {
+    if (EMPTY_STOCKROOM) return base();
+    const records = await base();
+    const fresh = await loadStockroom((await ready()).device());
+    return { ...records, states: { ...records.states, ...fresh.states } };
+  };
+  const writer = async () => createStockroomWriter((await ready()).device({ offline }));
+  stockroomWriteApi.saveBookState = async (bookId, mutate) => (await writer()).saveBookState(bookId, mutate);
+  stockroomWriteApi.commitBookState = async (pending) => createStockroomWriter((await ready()).device()).commitBookState(pending);
+  stockroomWriteApi.updateSetting = async (key, mutate) => (await writer()).updateSetting(key, mutate);
+  stockroomWriteApi.saveSetting = async (key, value, opts) => (await writer()).saveSetting(key, value, opts);
 }
 
 // ── Stockists › Mark paid (block of the stockist-pay page): saves into memory, receipts are only recorded ──
