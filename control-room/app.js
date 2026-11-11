@@ -1497,6 +1497,7 @@ async function loadApps() {
     const [{ apps }, use] = await Promise.all([api("POST", "/control/apps", { status: appStatus }), api("POST", "/control/app-use").catch(() => null)]);
     appUse = use;
     $("#app-failing").replaceChildren(...(use?.failing?.length ? [failingAlerts(use.failing)] : []));
+    loadOwnApps();
     loadChitChats();
     loadMailchimp();
     // The menu's count: apps waiting for review, plus apps whose alerts are failing.
@@ -1508,6 +1509,30 @@ async function loadApps() {
   } catch (failure) {
     $("#apps").replaceChildren(emptyState("Couldn't read the app store.", failure.message));
   }
+}
+
+/** Colophon's own apps: on the store or what each still waits for, and how many shops added it. */
+const OWN_APP_NEEDS = { secret: "waiting for the platform's app secret", company: "waiting for its company's app keys", zapier: "waiting to be put on Zapier" };
+function loadOwnApps() {
+  const slot = $("#own-apps");
+  api("POST", "/control/own-apps").then(({ apps }) => {
+    if (!apps.length) return slot.replaceChildren();
+    const state = (a) => {
+      if (a.onStore) return pill("success", "on the store");
+      if (a.takenOff) return pill("warning", "taken off by the team");
+      return pill("info", OWN_APP_NEEDS[a.needs] ?? "not on the store yet");
+    };
+    fill(slot, el("div", { className: "cr-head", style: "margin-top: 32px" }, el("h2", { textContent: "Colophon's apps" })),
+      table({
+        caption: "Colophon's own apps",
+        rows: apps,
+        columns: [
+          { header: "App", lead: true, render: (a) => el("p", { className: "cr-title", textContent: a.title }) },
+          { header: "Shops", render: (a) => (appUse ? plural(appUse.byApp?.[a.appId]?.shops ?? 0, "shop") : "") },
+          { header: "", end: true, render: state },
+        ],
+      }));
+  }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
 }
 
 /** Colophon's own Chit Chats app (26.11): each connected shop's orders waiting for tracking and its problems. */
