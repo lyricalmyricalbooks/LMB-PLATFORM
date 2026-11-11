@@ -235,7 +235,7 @@ const order = (n: number, status: string, name: string) => ({
   customer: { name, email: `buyer${n}@example.com` },
   items: [{ id: "b1", title: "Salt Hours", quantity: n, price: 20 }], total: 20 * n, subtotal: 20 * n, currency: "CAD",
   // Sales tax and the card fee as the server records them (Stockroom › Tax centre reads these).
-  tax: 2.6 * n, taxLines: [{ name: "HST ON", cents: 260 * n }], fee: 88 * n, payoutId: n < 3 ? "po_fixture" : null,
+  tax: 2.6 * n, taxLines: [{ name: "HST ON", cents: 260 * n }], fee: 88 * n, payoutId: n < 3 ? "po_fixture" : "po_fixture_2", payoutDate: new Date(Date.now() - (n < 3 ? 2 : 9) * 86_400_000).toISOString(), ...(n === 3 ? { net: 6000 - 264 - 1500 } : {}),
   shippingAddress: { street: "1 Example St", city: "Toronto", state: "ON", zip: "M5V 1A1", country: "Canada" },
   trackingKey: `key${n}`, fulfillmentStatus: status === "shipped" ? "shipped" : "unfulfilled",
 });
