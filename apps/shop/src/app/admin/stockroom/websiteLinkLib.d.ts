@@ -44,8 +44,14 @@ declare module "@stockroom/website-link.js" {
 }
 declare module "@stockroom/fx-sources.js" {
   export const DATED_RATE_SOURCES: Array<{ name: string; url: (from: string, to: string, date: string) => string; read: (json: unknown, from: string, to: string) => { rate: number; date: string } | null }>;
+  export function frankfurterUrl(path: string, from: string, to: string): string;
 }
 declare module "@stockroom/sale-fx.js" {
   export const FX_HISTORY_KEY: string;
   export function datedRateKey(from: string, to: string, date: string): string;
+  export function datesNeedingRates(
+    books: Record<string, Record<string, any>>, states: Record<string, Record<string, any>>, cache: Record<string, number>,
+    opts: { currencyOf: (book: Record<string, any>) => string; skip?: (bookId: string, book: Record<string, any>) => boolean },
+  ): Map<string, string[]>;
+  export function fillDatedRates(cache: Record<string, number>, from: string, to: string, series: Record<string, number>, wanted: string[]): number;
 }

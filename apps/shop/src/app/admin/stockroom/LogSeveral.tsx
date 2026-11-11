@@ -6,6 +6,7 @@ import { DataTable, PrimaryButton, SectionCard, SelectField, StatusBadge, TextAr
 import { baseCurrencyOf, EXPENSE_CATEGORIES } from "./taxExpense";
 import { addExpenseLines, loggable, MAX_LINES, readExpenseLines, type ExpenseLine } from "./taxExpenseLines";
 import { describeResult, stockroomWriteApi } from "./stockroomWrite";
+import { taxRatesApi } from "./taxRates";
 
 type Row = Record<string, any>;
 type Note = { tone: "ok" | "warn" | "error" | "busy"; text: string };
@@ -27,7 +28,9 @@ export function LogSeveralCard({ taxCenter, onSaved, today = todayText() }: { ta
     if (busy || !ready.length || tooMany) return;
     setBusy(true); setNote({ tone: "busy", text: "Saving…" });
     try {
-      const result = await stockroomWriteApi.updateSetting("taxCenter", (current) => addExpenseLines(current as Row | null, lines, firstId.current));
+      const foreign = ready.filter((l) => l.form.currency !== base).map((l) => ({ currency: l.form.currency, date: l.form.date }));
+      const rates = foreign.length ? await taxRatesApi.expenseRatesFor(foreign, taxCenter as Row | null) : undefined;
+      const result = await stockroomWriteApi.updateSetting("taxCenter", (current) => addExpenseLines(current as Row | null, lines, firstId.current, new Date(), rates));
       if (result.status === "saved" || result.status === "unchanged") {
         onSaved((result.value as Row) || {});
         const d = describeResult(result);

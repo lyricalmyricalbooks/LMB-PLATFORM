@@ -16,21 +16,22 @@ import {
 } from "@stockroom/tax-ledger.js";
 
 import { shopProfile } from "../../../lib/shopProfile";
+import { keptRates, type RateCache } from "./datedRates";
 import type { StockroomRecords } from "./stockroomData";
 
 type Row = Record<string, any>;
 
 /** The records as the stockroom's rules want them. States are copied: the ledger re-derives consignment mirrors in place. */
-export function sourcesOf(records: StockroomRecords): TaxSources {
+export function sourcesOf(records: StockroomRecords, dated: RateCache = keptRates()): TaxSources {
   const taxCenter = (records.taxCenter || {}) as Row;
   const rates = taxCenter.settings?.rates;
   return {
     books: Object.fromEntries(records.books.map((b) => [b.id, b])),
     states: structuredClone(records.states) as Record<string, Row>,
     taxCenter,
-    // Only the rates the Tax centre saved. Rates for a sale's own date live on the stockroom's device; without them a
-    // foreign-currency sale is valued at the saved rate and says so (rateNotes).
-    fxRateCache: { CAD_CAD: 1, ...(rates && typeof rates === "object" ? rates : {}) },
+    // The Tax centre's saved daily rates, then the rates for each sale's own date kept in this browser (taxRates.ts
+    // fetches them). A foreign-currency sale with no dated rate yet is valued at the saved rate and says so (rateNotes).
+    fxRateCache: { CAD_CAD: 1, ...(rates && typeof rates === "object" ? rates : {}), ...dated },
   };
 }
 

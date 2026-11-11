@@ -13,6 +13,7 @@ import { getOrdersCached } from "../ordersCache";
 import { TaxTop } from "./TaxTop";
 import { taxPeriods } from "./taxPeriods";
 import { RecordsGate } from "./RecordsGate";
+import { useRatedRecords } from "./taxRates";
 import { LogExpenseCard, type Prefill } from "./LogExpense";
 import { LogSeveralCard } from "./LogSeveral";
 import { PendingExpensesCard } from "./PendingExpenses";
@@ -229,6 +230,6 @@ export function TaxCenterPage({ load = stockroomApi.load }: { load?: () => Promi
 
 /** Keeps the records on screen and swaps in the Tax centre as the save returned it (other devices' rows included). */
 function TaxCenterLive({ initial }: { initial: StockroomRecords }) {
-  const [records, setRecords] = useState(initial);
+  const [records, setRecords] = useRatedRecords(initial);
   return <TaxCenterView records={records} onTaxCenter={(taxCenter) => setRecords((r) => ({ ...r, taxCenter }))} />;
 }

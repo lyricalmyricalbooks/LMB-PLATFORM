@@ -10,6 +10,7 @@ import { buildReorder } from "../reorderList";
 import { buildSalesRows } from "./sales";
 import { useShopWords } from "../shopWords";
 import { RecordsGate } from "./RecordsGate";
+import { useRatedRecords } from "./taxRates";
 import { ASK_QUESTIONS, askModel, sourcesOf, type AskId } from "./moneyReports";
 import { stockroomApi, type StockroomRecords } from "./stockroomData";
 import "./stockroom.css";
@@ -204,5 +205,10 @@ export function InsightsView({ records, now = new Date() }: { records: Stockroom
 }
 
 export function AskPage({ load = stockroomApi.load }: { load?: () => Promise<StockroomRecords>; onOpen?: unknown; isPage?: unknown }) {
-  return <RecordsGate load={load} what="your insights">{(records) => <InsightsView records={records} />}</RecordsGate>;
+  return <RecordsGate load={load} what="your insights">{(records) => <InsightsLive initial={records} />}</RecordsGate>;
+}
+
+function InsightsLive({ initial }: { initial: StockroomRecords }) {
+  const [records] = useRatedRecords(initial);
+  return <InsightsView records={records} />;
 }
