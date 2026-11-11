@@ -7,6 +7,15 @@ import { inventoryLinkApi } from "../app/admin/inventoryLinkApi";
 import { addressKey } from "../app/admin/fulfillment";
 import { googleConnectApi, readGoogleStatus } from "../app/admin/googleConnect";
 import { appsApi } from "../app/admin/appActivity";
+import { stockroomApi, type StockroomRecords } from "../app/admin/stockroom/stockroomData";
+
+// Stockroom › To-do: two titles, one nearly sold out and one with nothing waiting (`?stock=empty`: nothing at all).
+const EMPTY_STOCKROOM = new URLSearchParams(window.location.search).get("stock") === "empty";
+stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { books: [], states: {}, taxCenter: null } : {
+  books: [{ id: "salt-hours", title: "Salt Hours", author: "Ada Example", maxPrint: 200, threshold: 10, listPrice: 20 }, { id: "night-songs", title: "Night Songs", author: "Ben Example", maxPrint: 150, threshold: 10, listPrice: 18 }],
+  states: { "salt-hours": { hist: [{ id: 1, qty: 196, channel: "web", amount: 0 }] }, "night-songs": { hist: [{ id: 2, qty: 12, channel: "web", amount: 0 }] } },
+  taxCenter: null,
+});
 
 const order = (n: number, status: string, name: string) => ({
   id: `o${n}`, orderId: `FIXTURE-${n}`, status, paymentStatus: "paid", createdAt: new Date(Date.now() - n * 3_600_000).toISOString(),

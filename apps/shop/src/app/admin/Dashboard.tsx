@@ -59,6 +59,7 @@ import { markTourSeenOnAccount, tourSeenOnAccount } from "./combinedTourStore";
 import { FairToday } from "./FairToday";
 import { stockroomBridge } from "./stockroomBridge";
 import { StockroomFrame } from "./StockroomFrame";
+import { NATIVE_PAGES } from "./stockroom/nativePages";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
 import { providerName } from "./providerWords";
 import { setProductSells } from "../lib/productHref";
@@ -119,7 +120,7 @@ export function Dashboard() {
   const [activeTab, setActiveTab] = useState(boot.tab);
   // The combined admin's stockroom frame: opened the first time a stockroom page is picked, then kept (StockroomFrame).
   const [stockroomOpened, setStockroomOpened] = useState(false);
-  useEffect(() => { if (activeTab === STOCKROOM_TAB) setStockroomOpened(true); }, [activeTab]);
+  
   // Another page needs the stockroom (the book page's Stock and sales): the frame opens hidden, and is kept.
   useEffect(() => (COMBINED ? stockroomBridge.onNeed(() => setStockroomOpened(true)) : undefined), []);
   // "Open in the stockroom" from another page shows that stockroom page (set below, after the page helpers).
@@ -147,6 +148,9 @@ export function Dashboard() {
   const [subTabState, setSubTabState] = useState<{ page: string; id?: string }>({ page: subTabPage(boot), id: boot.subTab });
   const subPage = subTabPage({ tab: activeTab, settingsTab });
   const subTab = subTabState.page === subPage ? subTabState.id : undefined;
+  // The frame opens the first time a page it still draws is picked; a page the admin draws itself never needs it.
+  const framedStockroomPage = activeTab === STOCKROOM_TAB && !((stockroomPage(subTab)?.id ?? DEFAULT_STOCKROOM_PAGE) in NATIVE_PAGES);
+  useEffect(() => { if (framedStockroomPage) setStockroomOpened(true); }, [framedStockroomPage]);
   /** Opens a sub tab (`undefined` = the first) on the page on screen, or on `page` when a link opens another page too. */
   const openSubTab = (id: string | undefined, page: string = subPage) => setSubTabState({ page, id });
   useEffect(() => {
@@ -660,6 +664,7 @@ export function Dashboard() {
   const tourGo = (stop: TourStop) => { if ("stockroom" in stop) void openStockroomPage(stop.stockroom); else void goTo(stop.page); };
   const onStockroomPage = activeTab === STOCKROOM_TAB;
   const stockroomPageId = stockroomPage(onStockroomPage ? subTab : undefined)?.id ?? DEFAULT_STOCKROOM_PAGE;
+  const NativeStockroomPage = onStockroomPage ? NATIVE_PAGES[stockroomPageId] : undefined;
 
 
   // Shipping/Payments can also be entered as top-level tabs by ShopSettings.
@@ -743,7 +748,8 @@ export function Dashboard() {
       case "reviews": return <ReviewsModeration />;
       case "messages": return <Messages onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }} onOpenCustomers={() => goTo("customers")} />;
       // The stockroom's pages show in StockroomFrame below, kept open between visits.
-      case STOCKROOM_TAB: return null;
+      case STOCKROOM_TAB:
+        return NativeStockroomPage ? <NativeStockroomPage onOpen={(page) => openSubTab(page, STOCKROOM_TAB)} isPage={(id) => !!stockroomPage(id)} /> : null;
       case SALES_TAB: return COMBINED ? <AllSales onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }} /> : null;
       case "orders":
         // Inbox-style desk: list + the full order page (all Stripe sync/refund/label actions) side by side.
@@ -943,7 +949,7 @@ export function Dashboard() {
             </m.div>
           </AnimatePresence>
           {COMBINED && stockroomOpened && (
-            <StockroomFrame page={stockroomPageId} visible={onStockroomPage && !selectedOrder} look={ADMIN_LOOK} appearance={appearance}
+            <StockroomFrame page={stockroomPageId} visible={onStockroomPage && !selectedOrder && !(stockroomPageId in NATIVE_PAGES)} look={ADMIN_LOOK} appearance={appearance}
               onPage={(tab) => { if (activeTab === STOCKROOM_TAB && stockroomPage(tab)) openSubTab(tab, STOCKROOM_TAB); }} />
           )}
         </div>
