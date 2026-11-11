@@ -1,13 +1,14 @@
 import {
   BookOpen, Settings, Inbox, LayoutDashboard, BadgePercent, Star, ShoppingCart, Users, Boxes, Gift,
   SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail, UserPlus, Calculator, Wallet, FileText, Store, Megaphone, PiggyBank, ShieldCheck, Plug, Blocks,
-  Share2, Send,
+  Share2, Send, ChartLine,
 } from "lucide-react";
 import type { NavEntry } from "./components";
 import { COMBINED_PAGES, REORDER_TAB, SALES_TAB, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES } from "../combined";
 
 export const NAV: NavEntry[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
+  { id: "analytics", label: "Analytics", icon: ChartLine },
   { id: "orders", label: "Orders", icon: ShoppingCart },
   { id: "customers", label: "Customers", icon: Users },
   { id: "inventory", label: "Inventory", icon: Boxes },
@@ -59,7 +60,8 @@ export type Menu = { label: string; icon: NavEntry["icon"]; pages: string[] }[];
 // in the combined admin too. Design has its own menu item ("Design", or "Online store" in the combined admin).
 const SETTINGS_PAGES = (NAV.find((n) => n.id === "settings")?.children || []).map((c) => SETTINGS_ITEM_PREFIX + c.id).filter((id) => id !== SETTINGS_ITEM_PREFIX + "designer");
 export const MENU: Menu = [
-  { label: "Home", icon: LayoutDashboard, pages: ["overview"] },
+  // Analytics sits under Home here, so the shop-only menu keeps its five items (plan 1.27).
+  { label: "Home", icon: LayoutDashboard, pages: ["overview", "analytics"] },
   { label: "Orders", icon: ShoppingCart, pages: ["orders", "customers", "discounts", "giftCards", "socialPosts", "messages"] },
   // Sales channels sit with the products: where each one is listed (Studio opens full screen, so not under Design).
   { label: "Books", icon: BookOpen, pages: ["catalog", "inventory", "reviews", "channels"] },
@@ -82,6 +84,8 @@ export const WEBSITE_SIDE: Menu = [
   { label: "Orders", icon: ShoppingCart, pages: ["orders", SALES_TAB, "customers", "messages"] },
   { label: "Books", icon: BookOpen, pages: ["catalog", "reviews"] },
   { label: "Marketing", icon: Megaphone, pages: ["discounts", "giftCards", "socialPosts", "channels"] },
+  // Store traffic: visitors, where they came from, what they looked at (Julian, 11 November 2026).
+  { label: "Analytics", icon: ChartLine, pages: ["analytics"] },
   { label: "Online store", icon: Palette, pages: ["design"] },
   { label: "Settings", icon: Settings, pages: SETTINGS_PAGES },
 ];
@@ -155,6 +159,7 @@ export function menuItemFor(page: string, menu: Menu = MENU): string {
 
 export const PAGE_COPY: Record<string, { title: string; description: string }> = {
   overview: { title: "Overview", description: "Sales, orders, and catalog health at a glance." },
+  analytics: { title: "Analytics", description: "Who visits your shop, where they come from and what they look at." },
   orders: { title: "Orders", description: "Review payments, fulfillment, and shipping for every order." },
   customers: { title: "Customers", description: "Who buys from you: lifetime value, repeat buyers, and customers to win back." },
   inventory: { title: "Inventory", description: "Stock on hand, low-stock and reprint alerts, and quick count corrections." },

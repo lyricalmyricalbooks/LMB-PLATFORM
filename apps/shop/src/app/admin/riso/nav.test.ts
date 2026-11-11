@@ -3,7 +3,7 @@ import { MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, navPages, side
 
 describe("admin navigation", () => {
   it("lists the primary modules in order", () => {
-    expect(NAV.map((n) => n.id)).toEqual(["overview", "orders", "customers", "inventory", "catalog", "discounts", "giftCards", "reviews", "messages", "channels", "socialPosts", "design", "settings"]);
+    expect(NAV.map((n) => n.id)).toEqual(["overview", "analytics", "orders", "customers", "inventory", "catalog", "discounts", "giftCards", "reviews", "messages", "channels", "socialPosts", "design", "settings"]);
   });
 
   it("has unique ids across modules and settings children", () => {
