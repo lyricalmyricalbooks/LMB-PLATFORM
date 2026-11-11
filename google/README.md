@@ -152,6 +152,6 @@ project (`lmb-test-shop`, the live shared project). A person grants them once; t
 
 ## Not yet
 
-- The closing sweep's Google hooks (`closing.js`) on the hosted sweep, and the nightly Drive backup.
+- The deletion-stage hooks on the hosted sweep (the closing stage is wired: `closingHooks` in `hosted.js`), and the nightly Drive backup.
 - Hosting the domain service, so `domainsCall` reaches `applyRecords` / `removeRecords` / `removeDomain` for real (plan
   6.15 built them in `services/domains`; teardown passes `deleting: true`).

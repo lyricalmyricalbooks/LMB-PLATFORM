@@ -162,5 +162,19 @@ export function hostedGoogleLink({ env = {}, fetch, token, platform, registry, n
     config, google, ...googleStores(platform), registry, auditLog: rowAuditLog({ fetch, token, registry }),
     shopFirebase: hostedShopFirebase({ fetch, token }), domainsCall: domainsBridge(null), now,
   });
-  return { config, link, handle: (request) => handleGoogle(request, { service: link.service }) };
+  return {
+    config, link, handle: (request) => handleGoogle(request, { service: link.service }),
+    /**
+     * For the closing sweep (services/billing/closing.js): when a shop closes, its Google link is undone (the book feed
+     * leaves Shopping, the tag stops, Colophon's access is given back). A shop that never connected Google is left alone.
+     * The press's own Google accounts and their history stay theirs.
+     */
+    closingHooks: {
+      onClose: [async (shop) => {
+        const row = await registry.getShop(shop.shopId);
+        if (!row?.google?.connectedAt && !(await link.tokens.get(shop.shopId))) return;
+        await link.teardown.teardownOnClose(shop.shopId);
+      }],
+    },
+  };
 }

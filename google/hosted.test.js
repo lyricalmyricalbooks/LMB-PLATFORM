@@ -48,3 +48,12 @@ test("without keys there is no link; with keys only the test shop is told Google
   assert.equal((await ask("test-press")).body.enabled, true);
   assert.deepEqual((await ask("other")).body, { enabled: false });
 });
+
+test("closing a shop undoes its Google link only when it was connected", async () => {
+  const runs = [];
+  const rows = { a: { shopId: "a", google: { connectedAt: "2026-11-01" } }, b: { shopId: "b" } };
+  const g = hostedGoogleLink({ env: KEYS, fetch: async () => new Response("{}"), token: async () => "t", platform: { get: async () => null, set: async () => {} }, registry: { getShop: async (id) => rows[id] } });
+  g.link.teardown.teardownOnClose = async (id) => runs.push(id);
+  for (const id of ["a", "b"]) await g.closingHooks.onClose[0]({ shopId: id });
+  assert.deepEqual(runs, ["a"]);
+});

@@ -359,7 +359,11 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const checkups = checkupSecret
     ? createCheckups({ registry, auditLog, email, store: firestoreShopRecords(platform, "checkups"), inspect: makeInspector({ shopData }), settings, secret: checkupSecret, now })
     : null;
-  const closing = createClosingSweep({ registry, auditLog, billing, email, projects: notConnectedClient(NOT_CONNECTED.projectDeletion, ["deleteProject"]), settings, now: nowMs });
+  // Connect Google (google/hosted.js): on once the Google sign-in keys are in Secret Manager. Without them every shop's
+  // Google page says "coming soon" (a status of `enabled: false`), and nothing else is answered.
+  const googleLink = hostedGoogleLink({ env, fetch, token, platform, registry, now: nowMs, log });
+  // A closing shop's Google link is undone with it (google/hosted.js closingHooks).
+  const closing = createClosingSweep({ registry, auditLog, billing, email, projects: notConnectedClient(NOT_CONNECTED.projectDeletion, ["deleteProject"]), hooks: googleLink?.closingHooks ?? {}, settings, now: nowMs });
 
   // The terms promise 30 days' email before new words apply (terms/notice.js).
   const termsNotice = createTermsNotice({ signups: stores.signups, email, settings: live, now });
@@ -438,9 +442,6 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     },
   });
 
-  // Connect Google (google/hosted.js): on once the Google sign-in keys are in Secret Manager. Without them every shop's
-  // Google page says "coming soon" (a status of `enabled: false`), and nothing else is answered.
-  const googleLink = hostedGoogleLink({ env, fetch, token, platform, registry, now: nowMs, log });
   const googleDoor = (request) => {
     if (googleLink) return googleLink.handle(request);
     if (request.path === "/shop" && request.method === "POST" && request.body?.op === "google.status") return { status: 200, body: { enabled: false } };
