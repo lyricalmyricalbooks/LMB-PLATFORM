@@ -12,3 +12,6 @@
 .rp-stock-where > div { padding: var(--rp-space-3) var(--rp-space-4); border-top: 1px solid var(--rp-border); }
 .rp-stock-where dt { font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
 .rp-stock-where dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.rp-stock-places { list-style: none; margin: 0; padding: 0; }
+.rp-stock-places li { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--rp-border); }
+.rp-stock-places li span { margin-left: auto; font-family: var(--rp-font-mono, monospace); }
