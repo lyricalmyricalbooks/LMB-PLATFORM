@@ -239,11 +239,15 @@ export async function playwrightBrowser({ chromium, launchOptions = {}, timeoutM
               const state = await page.evaluate(() => ({
                 text: document.body.innerText.length,
                 sideways: document.documentElement.scrollWidth > window.innerWidth + 1,
-                errorPanel: document.querySelectorAll("[data-store-region='errorPanel'], [role=alert]").length,
+                // Only an error someone can see: the admin keeps an empty, always-present region for problem messages
+                // (role=alert), so a bare count named every page. The first one's words say what went wrong.
+                errors: [...document.querySelectorAll("[data-store-region='errorPanel'], [role=alert]")]
+                  .filter((el) => el.offsetParent !== null && el.innerText.trim())
+                  .map((el) => el.innerText.trim().replace(/\s+/g, " ").slice(0, 120)),
                 loading: /Loading|Reading your|Counting/i.test((document.querySelector("main") || document.body).innerText),
               }));
               if (state.text < 80) failed.push("stays empty");
-              if (state.errorPanel) failed.push("shows an error");
+              if (state.errors.length) failed.push(`shows an error ("${state.errors[0]}")`);
               if (state.loading) failed.push("is still loading after a few seconds");
               if (size === "phone" && state.sideways) failed.push("scrolls sideways");
             } catch (error) {
