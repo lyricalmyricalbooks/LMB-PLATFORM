@@ -39,9 +39,6 @@ function Row({ c }: { c: Contributor }) {
 export function OpenCallBoard({ view }: { view: OpenCallView }) {
   const w = useShopWords();
   const [filter, setFilter] = useState<Filter>("all");
-  if (!view.total) {
-    return <EmptyState icon="📬" title="No contributors yet" description={w("People from your open call appear here once the stockroom has their details, with where each one is up to.")} />;
-  }
   const chip = (key: Filter, label: string, n: number) => {
     const Btn = filter === key ? InkButton : SecondaryButton;
     return <Btn size="sm" aria-pressed={filter === key} onClick={() => setFilter(key)}>{label} {n}</Btn>;
@@ -67,7 +64,9 @@ export function OpenCallBoard({ view }: { view: OpenCallView }) {
           </SectionCard>
         );
       })}
-      {view.items.every((i) => !i.contributors.some((c) => matches(c, filter))) && <EmptyState inline title="Nobody here" description="Pick Everyone to see all contributors again." />}
+      {!view.total
+        ? <EmptyState inline icon="📬" title="No contributors yet" description={w("People from your open call appear here once the stockroom has their details, with where each one is up to.")} />
+        : view.items.every((i) => !i.contributors.some((c) => matches(c, filter))) && <EmptyState inline title="Nobody here" description="Pick Everyone to see all contributors again." />}
     </div>
   );
 }

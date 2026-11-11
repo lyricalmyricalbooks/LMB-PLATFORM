@@ -55,9 +55,6 @@ export function CustomersList({ records }: { records: StockroomRecords }) {
   const shown = useMemo(() => filterCustomers(customers, filter), [customers, filter]);
   const items = useMemo(() => records.books.filter((b) => customers.some((c) => c.bookIds.has(b.id))), [records, customers]);
 
-  if (!customers.length) {
-    return <EmptyState icon="👥" title="No customers with an email yet" description={w("Everyone who buys from you appears here once a sale is recorded with their email address.") + (noEmail ? ` ${noEmail} recorded ${noEmail === 1 ? "sale has" : "sales have"} no email.` : "")} />;
-  }
   const filtered = Object.values(filter).some(Boolean);
   const repeat = customers.filter((c) => c.orders >= 2).length;
   const columns: Column<Customer>[] = [
@@ -94,7 +91,9 @@ export function CustomersList({ records }: { records: StockroomRecords }) {
         {filtered && <GhostButton onClick={clear}>Clear filters</GhostButton>}
       </div>
       <p className="rp-sr-status" role="status">{customerSummary(customers.length, shown.length, noEmail)}</p>
-      {shown.length ? (
+      {!customers.length ? (
+        <EmptyState inline icon="👥" title="No customers with an email yet" description={w("Everyone who buys from you appears here once a sale is recorded with their email address.") + (noEmail ? ` ${noEmail} recorded ${noEmail === 1 ? "sale has" : "sales have"} no email.` : "")} />
+      ) : shown.length ? (
         <>
           <DataTable caption="Customers" columns={columns} rows={shown.slice(0, limit)} rowKey={(c) => c.email.toLowerCase()} stackOnPhone onRowClick={setOpen} />
           {shown.length > limit && <p className="rp-sr-more"><SecondaryButton onClick={() => setLimit((n) => n + PAGE)}>Show {Math.min(PAGE, shown.length - limit)} more</SecondaryButton> <span>Showing {limit} of {shown.length}</span></p>}

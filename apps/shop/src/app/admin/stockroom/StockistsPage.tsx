@@ -205,9 +205,6 @@ export function StockistsList({ view, onSaved }: { view: StockistsView; onSaved?
   const [notice, setNotice] = useState<Notice | null>(null);
   const shown = useMemo(() => view.stockists.filter((s) => filter === "all" || (filter === "owe" ? s.owed.length > 0 : filter === "overdue" ? s.overdue.length > 0 : s.onShelf > 0)), [view, filter]);
   const current = view.stockists.find((s) => s.key === open) || null;
-  if (!view.stockists.length) {
-    return <EmptyState icon="🏪" title="No stockists yet" description={w("Shops that hold your books on consignment appear here, with what they owe you. Add them in the stockroom's consignment records.")} />;
-  }
   const chip = (key: Filter, label: string, n: number) => {
     const Btn = filter === key ? InkButton : SecondaryButton;
     return <Btn size="sm" aria-pressed={filter === key} onClick={() => setFilter(key)}>{label} {n}</Btn>;
@@ -227,7 +224,9 @@ export function StockistsList({ view, onSaved }: { view: StockistsView; onSaved?
         {chip("holding", "Holding copies", view.stockists.filter((s) => s.onShelf > 0).length)}
       </div>
       {shown.length ? <ul className="rp-sk-cards">{shown.map((s) => <StockistCard key={s.key} s={s} onOpen={setOpen} />)}</ul>
-        : <EmptyState inline title="No stockists match" description="Pick All to see everyone again." />}
+        : view.stockists.length
+          ? <EmptyState inline title="No stockists match" description="Pick All to see everyone again." />
+          : <EmptyState inline icon="🏪" title="No stockists yet" description={w("Shops that hold your books on consignment appear here, with what they owe you. Add them in the stockroom's consignment records.")} />}
       <Drawer open={!!current} onClose={() => { setOpen(null); setNotice(null); }} title={current?.name || ""} description={onSaved ? "Mark invoices paid here. Sending copies and recording sales come next." : "Read-only."}>
         {current && <Detail s={current} notice={notice} onPay={onSaved ? (i) => { setNotice(null); setPaying(i); } : undefined} />}
       </Drawer>

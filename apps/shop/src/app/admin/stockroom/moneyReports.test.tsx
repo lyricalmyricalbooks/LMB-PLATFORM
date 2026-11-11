@@ -13,6 +13,9 @@ import { AskView } from "./AskPage";
 import { ExpensesView } from "./ExpensesPage";
 import { RecordsGate } from "./RecordsGate";
 import { StockList } from "./StockPage";
+import { CustomersList } from "./CustomersPage";
+import { StockistsPage } from "./StockistsPage";
+import { OpenCallPage } from "./OpenCallPage";
 import { TaxCenterView } from "./TaxCenterPage";
 import { askModel, expensesModel, filterLedger, ledgerCsvFile, ledgerTotals, sourcesOf, taxCenterModel } from "./moneyReports";
 import type { StockroomRecords } from "./stockroomData";
@@ -197,6 +200,22 @@ describe("the pages", () => {
     const stock = await draw(<StockList records={none} onPick={() => {}} />);
     expect(stock.container.textContent).toContain("No books yet");
     await act(async () => stock.root.unmount());
+  });
+
+  it("show the Stockists, Customers and Open call layout with zeros when there is nothing yet", async () => {
+    const none: StockroomRecords = { books: [], states: {}, taxCenter: null };
+    const stockists = await draw(<StockistsPage load={async () => none} />);
+    expect(stockists.container.textContent).toContain("Owed to you");
+    expect(stockists.container.textContent).toContain("No stockists yet");
+    await act(async () => stockists.root.unmount());
+    const customers = await draw(<CustomersList records={none} />);
+    expect(customers.container.textContent).toContain("Repeat buyers");
+    expect(customers.container.textContent).toContain("No customers with an email yet");
+    await act(async () => customers.root.unmount());
+    const call = await draw(<OpenCallPage load={async () => none} />);
+    expect(call.container.textContent).toContain("Contributors");
+    expect(call.container.textContent).toContain("No contributors yet");
+    await act(async () => call.root.unmount());
   });
 
   it("treat a failed read as a failure, and a refusal as 'only the owner'", async () => {
