@@ -209,7 +209,7 @@ Address correction is disabled after label purchase. Stripe totals, inventory an
 OrderDetail and by `stockroom/ShipLabelDialog.tsx` (LabelBuyer without "Ship without a label", plus a confirm before
 `buyCanadaPostLabel`). A waiting row whose number is a website order (`shopOrderId`, `getOrderById`) gets **Buy label**;
 `joinShopOrders` drops rows whose order has a label or left, since the stockroom hears of it later. No new server path,
-rule or stockroom write. Fixture: `admin-fixture.html?page=stockroom/shipping` (WEB-1041 ready, WEB-1043 not packed).
+rule or stockroom write. Fixture: `admin-fixture.html?page=stockroom/shipping` (WEB-1041 ready, WEB-1042 not packed).
 
 ## Fulfillment workspace UX repair (2 October 2026)
 

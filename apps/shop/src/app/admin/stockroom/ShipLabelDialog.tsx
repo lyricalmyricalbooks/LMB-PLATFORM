@@ -51,7 +51,7 @@ export function ShipLabelDialog({ orderId, title, onClose, onBought }: Props) {
     <>
       {problem && (
         <p className="fw-problems" role="alert">
-          {problem} <a href={`#orders/${encodeURIComponent(orderId)}`}>Open the order</a>
+          {problem} <a style={{ textDecoration: "underline", fontWeight: 600 }} href={`#orders/${encodeURIComponent(orderId)}`}>Open the order</a>
         </p>
       )}
       <LabelBuyer

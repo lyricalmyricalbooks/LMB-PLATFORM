@@ -241,7 +241,7 @@ inventoryLinkApi.linkNewBook = async (bookId: string, inventoryBookId: string) =
 (window as any).__adminFixture = { orders: ORDERS };
 
 // ── Stockroom › Shipping › Buy label (block of the labels-from-shipping page): two waiting rows are website orders here,
-// WEB-1041 ready for a label and WEB-1043 not packed yet. Rates and the purchase are fakes recorded in
+// WEB-1041 ready for a label and WEB-1042 not packed yet. Rates and the purchase are fakes recorded in
 // `window.__adminFixture.labelCalls`; nothing reaches a carrier.
 {
   const api = adminApi as any;
@@ -256,7 +256,7 @@ inventoryLinkApi.linkNewBook = async (bookId: string, inventoryBookId: string) =
     o.operations = { addressReviewed: addressKey(o), packed: packed ? JSON.stringify(o.items.map((i: any) => [i.id, "", i.quantity])) : "" };
     return o;
   };
-  const shipOrders: Record<string, any> = { "WEB-1041": shipOrder("WEB-1041", "Customer WEB-1041", true), "WEB-1043": shipOrder("WEB-1043", "Customer WEB-1043", false) };
+  const shipOrders: Record<string, any> = { "WEB-1041": shipOrder("WEB-1041", "Customer WEB-1041", true), "WEB-1042": shipOrder("WEB-1042", "Customer WEB-1042", false) };
   const before = api.getOrderById;
   api.getOrderById = async (id: string) => shipOrders[id] ?? before(id);
   api.getCanadaPostLabelRates = async (orderId: string, parcel: any) => {
