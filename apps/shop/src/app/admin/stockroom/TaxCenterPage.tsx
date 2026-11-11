@@ -22,6 +22,7 @@ import { SortingRulesCard } from "./SortingRules";
 import { LedgerLineActions } from "./LedgerLineActions";
 import { ReceiptsVaultCard } from "./ReceiptsVault";
 import { TaxSeasonCard } from "./TaxSeason";
+import { TripsCard, type TripRow } from "./TripsCard";
 import { isEditableLine } from "./taxLedger";
 import type { SaveNote } from "./saveTaxCenter";
 import { filterLedger, ledgerCsvFile, ledgerTotals, LEDGER_PAGE_SIZE, sourcesOf, taxCenterModel, type LedgerFilter } from "./moneyReports";
@@ -151,17 +152,7 @@ export function TaxCenterView({ records, now, onTaxCenter, orders: givenOrders }
           ]} />
       </SectionCard>
 
-      <SectionCard title="Trips and events" flush>
-        <DataTable stackOnPhone caption="Trips" rowKey={(t) => t.name} rows={model.trips}
-          empty={<EmptyState inline title="No trips in this period" />}
-          columns={[
-            { key: "t", header: "Trip", lead: true, render: (t) => t.name },
-            { key: "d", header: "Dates", render: (t) => (t.minDate && t.maxDate ? (t.minDate === t.maxDate ? t.minDate : `${t.minDate} to ${t.maxDate}`) : "-") },
-            { key: "n", header: "Expenses", numeric: true, render: (t) => t.count },
-            { key: "s", header: "Spent", numeric: true, render: (t) => money(t.total) },
-            { key: "x", header: "Deductible", numeric: true, render: (t) => money(t.deductible ?? t.total) },
-          ]} />
-      </SectionCard>
+      <TripsCard trips={model.trips as TripRow[]} taxCenter={records.taxCenter as Record<string, any> | null} money={money} baseCurrency={cur} onSaved={onTaxCenter} />
 
       {!onTaxCenter && (
       <SectionCard title="Standing costs" description={model.recurring.length ? `About ${money(model.recurringSummary.monthlyBase)} a month, ${money(model.recurringSummary.annualBase)} a year.` : undefined} flush>
