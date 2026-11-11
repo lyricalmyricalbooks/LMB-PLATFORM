@@ -31,6 +31,9 @@ const GOODS_SWAPS: [RegExp, string][] = [
   // shoppers. "copy" alone stays ("Copy the link"), and so do screen readers and page or SEO titles.
   [/\bcopies\b/g, "items"], [/\bCopies\b/g, "Items"],
   [/(?<!(?:page|SEO|search|tab|meta) )\btitles\b/g, "products"], [/(?<!(?:Page|SEO|Search|Tab|Meta) )\bTitles\b/g, "Products"],
+  // Variants (11 November 2026): a book's "editions" are a product's variants (one per size, colour or both).
+  [/\ban edition\b/g, "a variant"], [/\bAn edition\b/g, "A variant"],
+  [/\beditions\b/g, "variants"], [/\bEditions\b/g, "Variants"], [/\bedition\b/g, "variant"], [/\bEdition\b/g, "Variant"],
   [/(?<![Ss]creen )\breaders\b/g, "shoppers"], [/(?<![Ss]creen )\breader\b/g, "shopper"], [/\bReaders\b/g, "Shoppers"], [/\bReader\b/g, "Shopper"],
 ];
 

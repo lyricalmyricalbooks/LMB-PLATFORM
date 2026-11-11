@@ -78,6 +78,8 @@ import { preorderActive, releaseDateOf, formatReleaseDate } from "../features/si
 import { customsDefaultsFor, validHsCode } from "./customsFields";
 import { AddOnsEditor, BoxSetEditor, ProductTypeCard, SaleWindowFields } from "./BookEditorExtras";
 import { ProductOptionsEditor } from "./ProductOptionsEditor";
+import { VariantGrid } from "./VariantGrid";
+import { ShopWordsContext } from "./shopWords";
 import { currentSells, goodsWords, startingKind } from "./sells";
 import { adoptEditions, isBookKind, productKind, usesOptionPicker, variantsForOptions, type ProductKind, type ProductOption } from "../../shared/productOptions";
 import { MediaLibraryDialog, WeightField, DescriptionLinkDialog } from "./BookEditorFields";
@@ -259,6 +261,9 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   const [liveDesign, setLiveDesign] = useState<any>(null);
   // Inventory's low-stock line (Inventory › Low-stock at or below), the same line Overview and the 8am email use.
   const [lowLine, setLowLine] = useState(LOW_STOCK);
+  // A product sold in options edits its combinations in the Every combination grid; the full card per combination
+  // (weight, shelf, photo, file) opens on request, so a 24-combination shirt is not 24 long cards.
+  const [showEachVariant, setShowEachVariant] = useState(false);
   const uploadingRef = useRef(false);
   const [metadataError, setMetadataError] = useState(false);
   const [photoInput, setPhotoInput] = useState("");
@@ -878,8 +883,8 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
     };
     const { variants, removed } = variantsForOptions(options, adoptEditions(options, formData.variants || []), fresh);
     if (removed.length) {
-      const names = removed.map((v: any) => v.name ? `“${v.name}”` : "an unnamed edition").join(", ");
-      const ok = await askConfirm({ title: removed.length === 1 ? "Remove 1 edition?" : `Remove ${removed.length} editions?`, confirmLabel: "Make the editions",
+      const names = removed.map((v: any) => v.name ? `“${v.name}”` : w("an unnamed edition")).join(", ");
+      const ok = await askConfirm({ title: w(removed.length === 1 ? "Remove 1 edition?" : `Remove ${removed.length} editions?`), confirmLabel: w("Make the editions"),
         message: `${names} ${removed.length === 1 ? "doesn't match" : "don't match"} any combination of these options, so ${removed.length === 1 ? "it" : "they"} will be removed when you save, with ${removed.length === 1 ? "its" : "their"} stock. Shoppers will no longer be able to buy ${removed.length === 1 ? "it" : "them"}.` });
       if (!ok) return;
     }
@@ -887,6 +892,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   };
   const clearOptions = () => setFormData((prev: any) => ({ ...prev, options: [] }));
   const optionsOn = usesOptionPicker(formData);
+  const replaceVariants = (variants: any[]) => setFormData((prev: any) => ({ ...prev, variants }));
 
   const updateVariant = (id: string, field: string, value: any) => {
     setFormData((prev: any) => ({
@@ -1206,7 +1212,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
     { id: "inventory", label: "Inventory & shipping" },
     // The combined admin (shop + stockroom): the book's stock and sales on every channel, from the stockroom.
     ...(COMBINED_ADMIN && book?.id && !giftCard && !boxSetOn ? [{ id: "stock" as BookTab, label: "Stock and sales" }] : []),
-    { id: "editions", label: giftCard ? "Amounts" : "Editions", count: (formData.variants || []).length },
+    { id: "editions", label: giftCard ? "Amounts" : w("Editions"), count: (formData.variants || []).length },
     // Add-ons and the box-set builder share one tab; gift cards have neither.
     ...(!giftCard ? [{ id: "boxset" as BookTab, label: "Add-ons & box set", count: (boxSetOn ? (formData.bundleItems || []).length : (formData.addOns || []).length) || undefined }] : []),
     { id: "organize", label: "Categories & tags", count: tabIssues.organize || undefined },
@@ -1767,11 +1773,21 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
             </>
           )}
 
-          {shownTab === "editions" && !giftCard && <ProductOptionsEditor form={formData} onApply={(o) => void applyOptions(o)} onClear={clearOptions} />}
           {shownTab === "editions" && (
-            <SectionCard title={giftCard ? "Gift card amounts" : "Editions & pricing"}
-              description={giftCard ? "Each edition is an amount, e.g. CA$25. Shoppers pick one; the card is worth what they pay. Every amount must be more than $0." : "Sell multiple formats or special editions of the same book. Base price and stock are replaced by these."}
-              actions={optionsOn && !giftCard ? undefined : <button type="button" onClick={giftCard ? () => set("variants", [...(formData.variants || []), { ...giftAmount(0), name: "", price: "" }]) : addVariant} className="rp-btn rp-btn-primary rp-btn-sm"><Plus size={14} aria-hidden /> {giftCard ? "Add amount" : "Add edition"}</button>}>
+          <ShopWordsContext.Provider value={w}>
+          {!giftCard && <ProductOptionsEditor form={formData} onApply={(o) => void applyOptions(o)} onClear={clearOptions} />}
+          {!giftCard && optionsOn && (
+            <VariantGrid form={formData} lowLine={lowLine} onChange={updateVariant} onReplace={replaceVariants}
+              stockLocked={(id) => stockLocked(id)} stockLockHint={(id) => stockLockHint(id)} />
+          )}
+          {!giftCard && optionsOn && !showEachVariant ? (
+            <div className="be-inline-actions">
+              <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" aria-expanded={false} onClick={() => setShowEachVariant(true)}>{w("Weight, shelf and photo for each edition")}</button>
+            </div>
+          ) : (
+            <SectionCard title={giftCard ? "Gift card amounts" : optionsOn ? w("Each edition in full") : w("Editions & pricing")}
+              description={giftCard ? "Each edition is an amount, e.g. CA$25. Shoppers pick one; the card is worth what they pay. Every amount must be more than $0." : w("Sell multiple formats or special editions of the same book. Base price and stock are replaced by these.")}
+              actions={optionsOn && !giftCard ? <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" aria-expanded onClick={() => setShowEachVariant(false)}>Hide</button> : <button type="button" onClick={giftCard ? () => set("variants", [...(formData.variants || []), { ...giftAmount(0), name: "", price: "" }]) : addVariant} className="rp-btn rp-btn-primary rp-btn-sm"><Plus size={14} aria-hidden /> {giftCard ? "Add amount" : w("Add edition")}</button>}>
               {giftCard && (
                 <div className="be-inline-actions" role="group" aria-label="Quick add amounts">
                   <span className="be-label-xs">Quick add:</span>
@@ -1782,12 +1798,12 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   ))}
                 </div>
               )}
-              {!hasVariants && <p className="be-note">{giftCard ? "No amounts yet. Add at least one." : "No special editions. The base price and stock on the Pricing and Inventory tabs apply."}</p>}
+              {!hasVariants && <p className="be-note">{giftCard ? "No amounts yet. Add at least one." : w("No special editions. The base price and stock on the Pricing and Inventory tabs apply.")}</p>}
               <input type="file" ref={variantFileInputRef} onChange={handleVariantDigitalUpload} accept=".pdf,.epub,.mp3,.m4a,.zip" className="hidden" aria-hidden="true" tabIndex={-1} />
               <div className="be-variants">
                 {(formData.variants || []).map((v: Variant, i: number) => (
                   <fieldset key={v.id} className="be-variant">
-                    <legend>{giftCard ? "Amount" : "Edition"} {i + 1}{v.name ? ` — ${v.name}` : ""}</legend>
+                    <legend>{giftCard ? "Amount" : w("Edition")} {i + 1}{v.name ? ` — ${v.name}` : ""}</legend>
                     <div className="be-variant-tools">
                       {!giftCard && stockBadge(num((v as any).stockLevel ?? v.stock))}
                       {!optionsOn && <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => duplicateVariant(v.id)}><Copy size={13} aria-hidden /> Duplicate</button>}
@@ -1801,7 +1817,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                     </div>
                     ) : (
                     <div className="be-grid be-grid-4">
-                      <div className="be-span-2"><TextField label="Edition name" placeholder="e.g. Signed Collector's Copy" value={v.name} onChange={(e) => updateVariant(v.id, "name", e.target.value)}
+                      <div className="be-span-2"><TextField label={w("Edition name")} placeholder="e.g. Signed Collector's Copy" value={v.name} onChange={(e) => updateVariant(v.id, "name", e.target.value)}
                         readOnly={optionsOn} hint={optionsOn ? "Made from the options above." : undefined} /></div>
                       <TextField label="SKU" value={v.sku || ""} onChange={(e) => updateVariant(v.id, "sku", e.target.value)} />
                       <WeightField label="Weight" value={v.weight || ""} onChange={(w) => updateVariant(v.id, "weight", w)} />
@@ -1834,7 +1850,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                     )}
                     <div className="be-variant-img">
                       {v.photoUrl && <img src={v.photoUrl} alt="" />}
-                      <SelectField label="Edition image" value={v.photoUrl || ""} onChange={(e) => updateVariant(v.id, "photoUrl", e.target.value)}>
+                      <SelectField label={w("Edition image")} value={v.photoUrl || ""} onChange={(e) => updateVariant(v.id, "photoUrl", e.target.value)}>
                         <option value="">— Use the main image —</option>
                         {(formData.photos || []).map((p: any, idx: number) => isVideoItem(p) ? null : <option key={p.id || idx} value={p.url}>Image {idx + 1}{p.altText ? ` (${p.altText})` : ""}</option>)}
                       </SelectField>
@@ -1843,6 +1859,8 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                 ))}
               </div>
             </SectionCard>
+          )}
+          </ShopWordsContext.Provider>
           )}
 
           {shownTab === "boxset" && (
