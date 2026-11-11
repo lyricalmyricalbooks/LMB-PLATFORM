@@ -3,16 +3,28 @@
 import { useState } from "react";
 
 import { ConfirmDialog, DataTable, EmptyState, GhostButton, SectionCard, TabPanel, Tabs } from "../riso/components";
-import { detachReceipt, isEditableLine, receiptsOf, receiptVault } from "./taxLedger";
+import { detachReceipt, isEditableLine, markedNoReceipt, receiptsOf, receiptVault, setNoReceiptNeeded } from "./taxLedger";
 import { AttachReceiptButton, defaultUpload, useLineSave, type Upload } from "./lineSave";
 import type { SaveNote } from "./saveTaxCenter";
 
 type Row = Record<string, any>;
-type View = "kept" | "missing";
+type View = "kept" | "missing" | "notNeeded";
 
-function MissingAttach({ line, onSaved, onNote, upload }: { line: Row; onSaved: (tc: Row) => void; onNote: (n: SaveNote) => void; upload: Upload }) {
-  const { busy, attach } = useLineSave(onSaved, onNote);
-  return <AttachReceiptButton desc={line.desc} busy={busy} onFile={(f) => void attach(line.itemId, f, upload)} />;
+function MissingActions({ line, onSaved, onNote, upload }: { line: Row; onSaved: (tc: Row) => void; onNote: (n: SaveNote) => void; upload: Upload }) {
+  const { busy, run, attach } = useLineSave(onSaved, onNote);
+  return (
+    <span className="rp-money-line-actions">
+      <AttachReceiptButton desc={line.desc} busy={busy} onFile={(f) => void attach(line.itemId, f, upload)} />
+      <GhostButton size="sm" disabled={busy} aria-label={`${line.desc || "This expense"} needs no receipt`}
+        onClick={() => void run((tc) => setNoReceiptNeeded(tc, line.itemId, true), "Marked as needing no receipt.")}>No receipt needed</GhostButton>
+    </span>
+  );
+}
+
+function NeedsOneAgain({ line, onSaved, onNote }: { line: Row; onSaved: (tc: Row) => void; onNote: (n: SaveNote) => void }) {
+  const { busy, run } = useLineSave(onSaved, onNote);
+  return <GhostButton size="sm" disabled={busy} aria-label={`${line.desc || "This expense"} needs a receipt after all`}
+    onClick={() => void run((tc) => setNoReceiptNeeded(tc, line.itemId, false), "Back on the missing list.")}>Needs one after all</GhostButton>;
 }
 
 /** A line's receipt links; on the live page a business expense also offers "Remove" for each one, after a confirm. */
@@ -38,13 +50,16 @@ function KeptReceipts({ line, onSaved, onNote }: { line: Row; onSaved?: (tc: Row
   );
 }
 
-export function ReceiptsVaultCard({ rows, money, onSaved, upload = defaultUpload }: {
+export function ReceiptsVaultCard({ rows, money, onSaved, upload = defaultUpload, taxCenter }: {
   rows: Row[]; money: (n: number) => string;
+  /** The saved Tax centre, to list the expenses marked as needing no receipt. */ taxCenter?: Row | null;
   /** Present when the receipts can be changed here (the live page); the missing list then offers "Attach receipt". */
   onSaved?: (taxCenter: Row) => void;
   /** Uploads one receipt file and returns its address (tests pass a fake). */ upload?: Upload;
 }) {
   const { kept, missing } = receiptVault(rows);
+  const marked = markedNoReceipt(taxCenter || null);
+  const notNeeded = rows.filter((r) => isEditableLine(r) && !r.voided && marked.has(String(r.itemId)) && !receiptsOf(r).length);
   const [view, setView] = useState<View>(missing.length && !kept.length ? "missing" : "kept");
   const [note, setNote] = useState<SaveNote | null>(null);
   const amount = (r: Row) => money(Number(r.baseAmount || 0));
@@ -53,7 +68,8 @@ export function ReceiptsVaultCard({ rows, money, onSaved, upload = defaultUpload
     <SectionCard title="Receipts" description="Every receipt you kept, and the expenses still missing one." flush>
       <div className="rp-money-pad">
         <Tabs label="Receipts" idPrefix="vault-" value={view} onChange={setView}
-          tabs={[{ id: "kept", label: "Kept", count: kept.length }, { id: "missing", label: "Missing", count: missing.length }]} />
+          tabs={[{ id: "kept", label: "Kept", count: kept.length }, { id: "missing", label: "Missing", count: missing.length },
+            ...(notNeeded.length || view === "notNeeded" ? [{ id: "notNeeded" as const, label: "Not needed", count: notNeeded.length }] : [])]} />
       </div>
       {note && <div className="rp-money-pad"><p className="rp-sr-save" data-tone={note.tone} role={note.tone === "error" ? "alert" : "status"}>{note.text}</p></div>}
       <TabPanel tabId="vault-kept" active={view === "kept"}>
@@ -73,7 +89,17 @@ export function ReceiptsVaultCard({ rows, money, onSaved, upload = defaultUpload
             { key: "d", header: "Date", render: (r) => r.date || "-" },
             { key: "e", header: "Expense", lead: true, render: (r) => r.desc },
             { key: "a", header: "Amount", numeric: true, render: amount },
-            ...(onSaved ? [{ key: "r", header: "Receipt", render: (r: Row) => <MissingAttach line={r} onSaved={onSaved} onNote={setNote} upload={upload} /> }] : []),
+            ...(onSaved ? [{ key: "r", header: "Receipt", render: (r: Row) => <MissingActions line={r} onSaved={onSaved} onNote={setNote} upload={upload} /> }] : []),
+          ]} />
+      </TabPanel>
+      <TabPanel tabId="vault-notNeeded" active={view === "notNeeded"}>
+        <DataTable stackOnPhone caption="Expenses that need no receipt" rowKey={(r) => `${r.itemId}`} rows={notNeeded}
+          empty={<EmptyState inline title="Nothing marked" />}
+          columns={[
+            { key: "d", header: "Date", render: (r) => r.date || "-" },
+            { key: "e", header: "Expense", lead: true, render: (r) => r.desc },
+            { key: "a", header: "Amount", numeric: true, render: amount },
+            ...(onSaved ? [{ key: "r", header: "Receipt", render: (r: Row) => <NeedsOneAgain line={r} onSaved={onSaved} onNote={setNote} /> }] : []),
           ]} />
       </TabPanel>
     </SectionCard>

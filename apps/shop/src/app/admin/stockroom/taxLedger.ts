@@ -67,3 +67,19 @@ export function detachReceipt(tc: Row | null, id: unknown, url: string): Row {
   next[at] = { ...e, receipt: e.receipt === url || !e.receipt ? left[0] || "" : e.receipt, receiptFiles: left };
   return { ...(tc || {}), businessExpenses: next };
 }
+
+/** The Tax centre with one business expense marked as needing no receipt, or as needing one again. Rent stays exempt either way. */
+export function setNoReceiptNeeded(tc: Row | null, id: unknown, on: boolean): Row {
+  const list = expensesOf(tc);
+  const at = list.findIndex((e) => String(e.id) === String(id));
+  if (at < 0 || !!list[at].receiptExempt === on) return tc || {};
+  const next = list.slice();
+  const { receiptExempt: _drop, ...rest } = list[at];
+  next[at] = on ? { ...rest, receiptExempt: true } : rest;
+  return { ...(tc || {}), businessExpenses: next };
+}
+
+/** Ids of business expenses the owner marked as needing no receipt (so the mark can be taken back; rent isn't one). */
+export function markedNoReceipt(tc: Row | null): Set<string> {
+  return new Set(expensesOf(tc).filter((e) => e?.receiptExempt === true && !e.isRent).map((e) => String(e.id)));
+}

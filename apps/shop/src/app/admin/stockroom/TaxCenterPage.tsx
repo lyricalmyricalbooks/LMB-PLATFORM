@@ -203,7 +203,7 @@ export function TaxCenterView({ records, now, onTaxCenter }: { records: Stockroo
         )}
       </SectionCard>
 
-      <ReceiptsVaultCard rows={model.rows} money={money} onSaved={onTaxCenter} />
+      <ReceiptsVaultCard rows={model.rows} money={money} onSaved={onTaxCenter} taxCenter={records.taxCenter as Record<string, unknown> | null} />
     </div>
   );
 }
