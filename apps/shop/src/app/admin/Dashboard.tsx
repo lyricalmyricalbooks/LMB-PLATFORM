@@ -70,6 +70,7 @@ const StudioEditor = lazy(() => import("./studio/StudioWorkspace").then(m => ({ 
 const BookEditor = lazy(() => import("./BookEditor").then(m => ({ default: m.BookEditor })));
 const FairHelperDesk = lazy(() => import("./FairHelperDesk").then(m => ({ default: m.FairHelperDesk })));
 const FairHelperInbox = lazy(() => import("./stockroom/FairHelperInbox").then(m => ({ default: m.FairHelperInbox })));
+const WebsiteOrdersAuto = lazy(() => import("./stockroom/WebsiteOrders").then(m => ({ default: m.WebsiteOrdersAuto })));
 const StockroomCopyAuto = lazy(() => import("./stockroom/StockroomCopies.tsx").then(m => ({ default: m.StockroomCopyAuto })));
 const Discounts = lazy(() => import("./Discounts").then(m => ({ default: m.Discounts })));
 const GiftCards = lazy(() => import("./GiftCards").then(m => ({ default: m.GiftCards })));
@@ -968,7 +969,7 @@ export function Dashboard() {
         <PlatformMessagesBar enabled={!!user} />
         {!!user && !supportVisit && <LocalBackupAuto />}
         {/* The stockroom's daily online copy (Stockroom › Backups), made by the owner's admin. */}
-        {!!user && !supportVisit && COMBINED && isShopOwner(user.email) && <Suspense fallback={null}><StockroomCopyAuto /><FairHelperInbox /></Suspense>}
+        {!!user && !supportVisit && COMBINED && isShopOwner(user.email) && <Suspense fallback={null}><StockroomCopyAuto /><FairHelperInbox /><WebsiteOrdersAuto /></Suspense>}
         {/* The admin home asks a paid plan's owner to turn on two-step sign-in (TwoStepReminder.tsx, plan 22.10). */}
         {activeTab === "overview" && !supportVisit && <TwoStepReminder plan={platformPlan} />}
         {/* The Overview board draws its own header (title, period, layout and Edit board). */}

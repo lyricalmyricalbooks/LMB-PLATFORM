@@ -179,3 +179,16 @@ export async function loadStockroomWhole(reads: StockroomReads = liveReads()): P
   ]);
   return { catalog, states, settings };
 }
+
+/** What the website link reads (websiteLinkRun.ts): the whole catalogue as stored, test items too, the mode flags (a
+ * book in the older store can't be checked when its orders are marked) and every item's records. */
+export async function loadLinkBooks(reads: StockroomReads = liveReads()) {
+  const [flags, whole] = await Promise.all([reads.flags(), loadStockroomWhole(reads)]);
+  const catalog: Record<string, Record<string, any>> = {};
+  for (const [key, value] of Object.entries(whole.catalog)) {
+    if (!key.startsWith("_") && value && typeof value === "object") catalog[key] = { ...(value as object), id: String((value as { id?: unknown }).id || key) };
+  }
+  const taxCenter = whole.settings.taxCenter;
+  const records: StockroomRecords = { books: catalogBooks(whole.catalog), states: whole.states, taxCenter: taxCenter && typeof taxCenter === "object" ? (taxCenter as Record<string, unknown>) : null };
+  return { catalog, flags, records };
+}

@@ -6,6 +6,7 @@ import { Column, DataTable, EmptyState, ErrorState, FilterBar, GhostButton, Load
 import { useShopWords } from "../shopWords";
 import { isRefusal, stockroomApi, type StockroomRecords } from "./stockroomData";
 import "./stock.css";
+import { WebsiteOrdersCard } from "./WebsiteOrders";
 import { catalogueStock, money, searchItems, totalsOf, type ChannelRow, type ItemStock, type StockLevel, type StoreRow } from "./stock";
 
 const LEVEL: Record<StockLevel, { tone: BadgeTone; word: string }> = {
@@ -132,5 +133,5 @@ export function StockPage({ bookId, load = stockroomApi.load }: { bookId?: strin
   if (!records) return <LoadingState label={w("Loading your books…")} />;
   const item = picked ? items.find((i) => i.id === picked) : undefined;
   if (item) return <StockDetail item={item} onBack={() => setPicked(null)} />;
-  return <StockList records={records} onPick={setPicked} />;
+  return <div className="rp-stock"><WebsiteOrdersCard /><StockList records={records} onPick={setPicked} /></div>;
 }
