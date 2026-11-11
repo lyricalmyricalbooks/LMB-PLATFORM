@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { buildOpenCall } from "./openCall";
 import { buildShipping } from "./shipping";
 import type { StockroomRecords } from "./stockroomData";
 import { buildStockists, moneyText } from "./stockists";
@@ -89,28 +88,3 @@ describe("shipping", () => {
   });
 });
 
-describe("open call", () => {
-  const list = [
-    { id: "1", name: "A", email: "a@example.com", selectionSent: true, createdAt: new Date(NOW.getTime() - 20 * 86_400_000).toISOString() },
-    { id: "2", name: "B", email: "b@example.com", createdAt: new Date(NOW.getTime() - 2 * 86_400_000).toISOString() },
-    { id: "3", name: "C", email: "", selectionSent: true },
-    { id: "4", name: "D", email: "d@example.com", selectionSent: true, creditReceived: true, cmykSent: true, filesReceived: true, preorderSent: true },
-  ];
-  const v = buildOpenCall(records({ a: { openCall: list }, b: {} }), NOW);
-
-  it("says whose move it is for each contributor", () => {
-    expect(v.counts).toEqual({ you: 1, artist: 1, blocked: 1, done: 1 });
-    expect(v.total).toBe(4);
-  });
-
-  it("offers a reminder to someone who has waited over a week, longest wait first", () => {
-    expect(v.nudge).toBe(1);
-    expect(v.items).toHaveLength(1);
-    expect(v.items[0].contributors[0]).toMatchObject({ name: "A", nudge: true, waitingDays: 20, stageLabel: "Credit name" });
-    expect(v.items[0].contributors.at(-1)?.move).toBe("done");
-  });
-
-  it("flags a contributor with no email", () => {
-    expect(v.problems).toBe(2); // C has no address; A was selected but has no email thread yet
-  });
-});
