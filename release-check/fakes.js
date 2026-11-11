@@ -1,7 +1,7 @@
 // A pretend test shop for the release check's tests: the shop's orders, books and email log, its stockroom (which
 // brings orders in only while open), Stripe's test payments and refunds, and a pretend browser. Nothing here touches
 // the network. `faults` breaks one part on purpose: "no-import", "no-email", "no-payment-event", "live-payment",
-// "admin-hidden", "no-refund-event", "pages-broken".
+// "admin-hidden", "no-refund-event", "pages-broken", "admin-pages-broken".
 import { TEST_PRINTED_IDS, TEST_STOCK } from "../setup/test-catalogue.js";
 
 export function fakeTestShop({ faults = [], orders = {} } = {}) {
@@ -51,6 +51,10 @@ export function fakeTestShop({ faults = [], orders = {} } = {}) {
     async adminShowsOrder({ orderId }) {
       world.calls.push("adminShowsOrder");
       return !has("admin-hidden") && Boolean(world.orders[orderId]);
+    },
+    async walkAdmin() {
+      world.calls.push("walkAdmin");
+      return { problems: has("admin-pages-broken") ? ["#settings/google on a laptop: shows an error"] : [] };
     },
     async close() {
       world.browserClosed = true;
