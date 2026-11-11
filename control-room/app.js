@@ -202,6 +202,7 @@ async function loadShops() {
   renderToday();
   loadSocialLost();
   loadSellGaps();
+  loadNotSelling();
   // The Chit Chats count in the summary, and the filter, once the app's overview is in. A failed read leaves both out.
   readChitChats().then(showShops, () => {});
 }
@@ -248,6 +249,39 @@ async function loadSellGaps() {
     }))] : []));
   } catch {
     $("#sell-gaps").replaceChildren();
+  }
+}
+
+// Live shops open over two weeks with no real sale yet, each with Send tips (notSelling.js).
+async function loadNotSelling() {
+  try {
+    const { shops } = await api("POST", "/control/not-selling");
+    $("#not-selling").replaceChildren(...(shops.length ? [el("div", { className: "rp-alerts" }, ...shops.map((s) => {
+      const open = button("Open", "secondary");
+      open.addEventListener("click", () => { const shop = allShops.find((x) => x.shopId === s.shopId); if (shop) openShop(shop); });
+      const sentToday = s.tipsSentAt && s.tipsSentAt.slice(0, 10) === new Date().toISOString().slice(0, 10);
+      const send = button(sentToday ? "Tips sent today" : s.tipsSentAt ? "Send tips again" : "Send tips", "primary");
+      send.disabled = Boolean(sentToday) || !s.ownerEmail;
+      const detail = el("span", { className: "rp-alert-detail", textContent: s.tipsSentAt ? `Tips sent ${s.tipsSentAt.slice(0, 10)}.` : s.ownerEmail ? "A short email on getting a first order." : "No owner email to send to." });
+      send.addEventListener("click", async () => {
+        send.disabled = true;
+        try {
+          const r = await api("POST", "/control/first-sale-tips", { shopId: s.shopId });
+          send.textContent = "Tips sent today";
+          detail.textContent = `Sent to ${r.to}.`;
+        } catch (e) {
+          send.disabled = false;
+          detail.textContent = e.message || "Couldn't send. Try again.";
+        }
+      });
+      return el("div", { className: "rp-alert", dataset: { tone: "info" } },
+        el("span", { className: "rp-alert-glyph", ariaHidden: "true", textContent: "i" }),
+        el("span", { className: "rp-alert-text" },
+          el("strong", { className: "rp-alert-title", textContent: `${s.pressName} has no sale yet after ${s.days} days` }), detail),
+        el("span", { className: "rp-alert-actions" }, send, open));
+    }))] : []));
+  } catch {
+    $("#not-selling").replaceChildren();
   }
 }
 
@@ -2007,7 +2041,7 @@ $("#settings-form").addEventListener("submit", async (event) => {
 
 // ── Activity log (plan 9.9): read only. ──
 const ACTIVITY_WORDS = {
-  "settings-changed": "changed the platform settings", "waitlist-invite": "invited someone from the waitlist", "payment-reminder": "sent a payment reminder", "saved-replies": "changed the saved replies", "switch-set": "set a switch",
+  "settings-changed": "changed the platform settings", "waitlist-invite": "invited someone from the waitlist", "payment-reminder": "sent a payment reminder", "saved-replies": "changed the saved replies", "first-sale-tips": "sent first-sale tips", "switch-set": "set a switch",
   "act-as": "opened the shop's admin as support", "two-step-reset": "turned off two-step sign-in for someone", "test-shop-reset": "reset the test shop's sample books", "google-run-again": "ran a Google step again", "shop-closed": "closed the shop", "shop-reopened": "opened the shop again",
   "newsletter-resumed": "turned the newsletter back on", "fee-change-scheduled": "changed the fee on each order (starts in 30 days)",
   "fee-change-cancelled": "cancelled a waiting fee change", "new-shop-switch": "changed what new shops start with", "signup-retry": "tried making the shop again", "plan-change-retry": "tried the plan change again",

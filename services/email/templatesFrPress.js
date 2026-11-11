@@ -747,6 +747,21 @@ export const PRESS_TEMPLATES_FR = {
     footer: signOff(settings),
   }),
 
+  /** French twin of "first-sale-tips". */
+  "first-sale-tips": (_data, { settings, pressName }) => layout({
+    subject: `${pressName} : quelques façons d'obtenir votre première commande`,
+    greeting: "Bonjour,",
+    paragraphs: [
+      "Votre boutique est ouverte depuis quelques semaines. Voici ce qui amène le plus souvent une première commande.",
+      "Partagez l'adresse de votre boutique partout : vos réseaux sociaux, votre signature de courriel, vos cartes et votre infolettre.",
+      "Mettez en ligne un article que les gens veulent, avec une photo claire et une courte description.",
+      "Dites à vos amis et à votre clientèle que la boutique est ouverte, et demandez-leur de faire passer le mot.",
+      "Activez Google dans votre administration pour que vos articles apparaissent dans les recherches.",
+      "Répondez à ce courriel si quelque chose vous bloque. Nous lisons chaque message.",
+    ],
+    footer: signOff(settings),
+  }),
+
   /** French twin of "trial-tip". The tip's own subject, paragraphs and button come through as they are. */
   "trial-tip": ({ subject, paragraphs = [], action, link, offLink }, { settings, pressName }) => {
     if (!subject || !paragraphs.length || !action) throw new Error("the setup tip has no words");
