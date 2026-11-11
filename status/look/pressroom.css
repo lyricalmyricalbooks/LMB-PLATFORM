@@ -1,4 +1,5 @@
 /* GENERATED from shared/admin-look/pressroom.css by shared/admin-look/sync.mjs. Edit the source, never this copy. */
+/* GENERATED from shared/admin-look/pressroom.css by shared/admin-look/sync.mjs. Edit the source, never this copy. */
 /*
  * Riso Press — the admin application design system
  * -----------------------------------------------------
@@ -2021,3 +2022,12 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-ov-figures > :nth-child(2):not([data-tone="warn"]) { background: var(--rp-tile-sky); color: var(--rp-on-tile); }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-ov-figures > :nth-child(3):not([data-tone="warn"]) { background: var(--rp-tile-lilac); color: var(--rp-on-tile); }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-ov-figures > :is(:nth-child(2), :nth-child(3)) * { color: inherit; }
+
+/* Page tabs (redesign, 11 November 2026): an item's pages as pills above the page. */
+.rp-page-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; margin: 0 0 20px; }
+.rp-page-tabs-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.rp-page-tabs-heading { font: 500 var(--rp-text-xs)/1 var(--rp-font-mono); color: var(--rp-text-subtle); text-transform: uppercase; letter-spacing: .06em; margin-right: 2px; }
+.rp-page-tab { display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; border-radius: 999px; background: var(--rp-surface); color: var(--rp-text); font: 600 var(--rp-text-sm)/1 var(--rp-font-body); text-decoration: none; }
+.rp-page-tab:hover { background: var(--rp-tab-hover); }
+.rp-page-tab:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+.rp-page-tab[aria-current="page"] { background: var(--rp-inverse); color: var(--rp-on-inverse); }

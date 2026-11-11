@@ -132,7 +132,7 @@ export function AllSales({ onOpenOrder }: { onOpenOrder: (id: string) => void })
       </FilterBar>
       {notes.map((n) => <p key={n} className="rp-hint" role="status">{n}</p>)}
       {fairs.length > 0 && (
-        <SectionCard title="Fair days side by side" description="One line for each fair day in this period. Name the fair on the Fair till and it shows here.">
+        <SectionCard title="Fair days side by side" description="One line for each fair day in this period. Name the fair on the Till and it shows here.">
           <DataTable caption="Fair days" rowKey={(d) => d.key} rows={fairs} columns={fairColumns} stackOnPhone />
         </SectionCard>
       )}

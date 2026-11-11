@@ -67,3 +67,19 @@ describe("the five-item admin menu (plan 1.27)", () => {
     expect(menuItemFor("overview")).toBe("overview");
   });
 });
+
+describe("Settings in groups (redesign)", () => {
+  it("lists every Settings page but Design under exactly one heading", async () => {
+    const { SETTINGS_SECTIONS } = await import("./nav");
+    const listed = SETTINGS_SECTIONS.flatMap((g) => g.pages);
+    const settings = sidebarItems(NAV).find((i) => i.label === "Settings")!;
+    expect([...listed].sort()).toEqual(settings.children!.map((c) => c.id).sort());
+    expect(SETTINGS_SECTIONS.map((g) => g.label)).toEqual(["Shop", "Selling", "Messages", "Connections", "Safety"]);
+  });
+
+  it("keeps a page that has no heading yet, and drops empty groups", async () => {
+    const { settingsSections } = await import("./nav");
+    const groups = settingsSections([{ id: SETTINGS_ITEM_PREFIX + "security", label: "Security" }, { id: SETTINGS_ITEM_PREFIX + "new", label: "New" }]);
+    expect(groups).toEqual([{ label: "Safety", pages: [{ id: SETTINGS_ITEM_PREFIX + "security", label: "Security" }, { id: SETTINGS_ITEM_PREFIX + "new", label: "New" }] }]);
+  });
+});

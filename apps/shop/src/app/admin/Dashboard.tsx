@@ -26,7 +26,7 @@ import { adminApi } from "./api";
 import { scrubSavedSecrets } from "./privateKeys";
 import toast from "react-hot-toast";
 import {
-  AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, PrimaryButton, SecondaryButton,
+  AppShell, Sidebar, Topbar, PageHeader, PageTabs, Breadcrumbs, PrimaryButton, SecondaryButton,
   IconButton, Dialog, ToastProvider, SyncChip, useOnline, LoadingState, PageSkeleton, useConfirm, PageAlertsSlot, PageActionsSlot,
 } from "./riso/components";
 import { GlobalSearch, ActivityLogDialog, ShopStatusMenu, DrawerAccount, StoreSwitcher } from "./riso/shellParts";
@@ -48,7 +48,7 @@ import { useAdminAppManifest } from "./adminApp";
 import { shopNameFromSettings, wordmarkWords } from "../features/site/shopIdentity";
 import { adminWordsFor, currentSells } from "./sells";
 import { SELLS_CHANGED_EVENT, ShopSellsContext, ShopWordsContext } from "./shopWords";
-import { COMBINED_MENU, MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, sideMenu, sideOf, sidebarItems, withoutPages } from "./riso/nav";
+import { COMBINED_MENU, MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, settingsSections, sideMenu, sideOf, sidebarItems, withoutPages } from "./riso/nav";
 import { SideSwitch, rememberSide, rememberedSide } from "./SideSwitch";
 import { useStockroomTodos } from "./overview/StockroomTodos";
 import { COMBINED_PAGES, DEFAULT_STOCKROOM_PAGE, REORDER_TAB, SALES_TAB, isCombinedTab, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
@@ -823,6 +823,24 @@ export function Dashboard() {
 
   // Which side of the combined admin the page is on (Website or Stockroom, Julian 10 Nov 2026); Home is the website's.
   const currentSide = sideOf(navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive);
+  // The rail's items (top level only) and the pills for the pages of the item you are on (redesign, 11 Nov 2026).
+  const railItems = withoutPages(sidebarItems(nav, COMBINED ? sideMenu(currentSide) : ADMIN_MENU), hiddenPages).map((n) => {
+    // Orders counts open cancel/return requests too (they sit in Needs attention).
+    // Privacy requests are handled in Settings › General.
+    const badgeFor = (id: string) => id === "orders" ? ordersBadge : id === "reviews" ? otherBadges.pendingReviews
+      : id === "messages" ? otherBadges.unreadMessages : id === SETTINGS_ITEM_PREFIX + "general" ? otherBadges.openPrivacyRequests : undefined;
+    // Five menu items (plan 1.27): an item shows the sum of its pages' counts, each page its own.
+    const pages = n.children ? n.children.map((c) => ({ ...c, badge: badgeFor(c.id) || 0 })) : undefined;
+    const badge = pages ? pages.reduce((sum, c) => sum + c.badge, 0) : badgeFor(n.id);
+    return { ...n, label: w(n.label), ...(pages ? { children: pages } : {}), ...(badge === undefined ? {} : { badge: badge || 0 }) };
+  });
+  const activePageId = navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive;
+  const activeItemId = menuItemFor(activePageId, ADMIN_MENU);
+  const activeItem = railItems.find((n) => n.id === activeItemId);
+  const pageTabs = !showEditor && activeItem?.children && activeItem.children.length > 1 ? (
+    <PageTabs label={`${activeItem.label} pages`} current={activePageId} onPick={(page) => { void openMenuPage(page); }}
+      groups={activeItemId.startsWith(SETTINGS_ITEM_PREFIX) ? settingsSections(activeItem.children) : [{ pages: activeItem.children }]} />
+  ) : null;
   return (
     <ShopWordsContext.Provider value={w}>
     <ShopSellsContext.Provider value={sellsAnswer}>
@@ -840,18 +858,10 @@ export function Dashboard() {
           <Sidebar
             open={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
-            items={withoutPages(sidebarItems(nav, COMBINED ? sideMenu(currentSide) : ADMIN_MENU), hiddenPages).map((n) => {
-              // Orders counts open cancel/return requests too (they sit in Needs attention).
-              // Privacy requests are handled in Settings › General.
-              const badgeFor = (id: string) => id === "orders" ? ordersBadge : id === "reviews" ? otherBadges.pendingReviews
-                : id === "messages" ? otherBadges.unreadMessages : id === SETTINGS_ITEM_PREFIX + "general" ? otherBadges.openPrivacyRequests : undefined;
-              // Five menu items (plan 1.27): an item shows the sum of its pages' counts, each page its own.
-              const pages = n.children ? n.children.map((c) => ({ ...c, badge: badgeFor(c.id) || 0 })) : undefined;
-              const badge = pages ? pages.reduce((sum, c) => sum + c.badge, 0) : badgeFor(n.id);
-              return { ...n, label: w(n.label), ...(pages ? { children: pages } : {}), ...(badge === undefined ? {} : { badge: badge || 0 }) };
-            })}
-            activeId={showEditor ? null : menuItemFor(navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive, ADMIN_MENU)}
-            activeChildId={navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive}
+            items={railItems}
+            flat
+            activeId={showEditor ? null : activeItemId}
+            activeChildId={activePageId}
             onSelect={openMenuPage}
             onSelectChild={(_item, page) => openMenuPage(page)}
             top={COMBINED ? <SideSwitch side={currentSide} stockroomCount={stockroomTodos.items?.length || 0} onPick={(side) => { setSidebarOpen(false); void openMenuPage(sideMenu(side)[0].pages[0]); }} />
@@ -947,6 +957,7 @@ export function Dashboard() {
           description={selectedOrder ? undefined : navActive === "settings" && childLabel ? (navChild && PAGE_COPY[navChild]?.description) || undefined : copy.description || undefined}
           actions={<div ref={setPageActionsEl} className="rp-page-actions-slot" />}
         />}
+        {!selectedOrder && pageTabs}
         {!ownMasthead && pageAlerts}
         {/* Feature pages still use legacy utility classes; scope the compatibility layer to them only. */}
         <div {...(migrated ? {} : legacyProps)} style={{ background: "transparent", minHeight: 480 }}>

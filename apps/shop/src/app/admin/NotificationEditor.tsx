@@ -871,9 +871,9 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
             <WeeklySummaryNow />
             {combinedAdmin() && (
               <>
-                <Toggle label="Fair day summary — the day's takings at the Fair till and what sold (evenings, 9pm)" checked={shopAlerts.fairDaySummary !== false}
+                <Toggle label="Fair day summary — the day's takings at the Till and what sold (evenings, 9pm)" checked={shopAlerts.fairDaySummary !== false}
                   onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, fairDaySummary: on } })} />
-                <p className="rp-hint" style={{ margin: 0 }}>Only on a day the Fair till sold something.</p>
+                <p className="rp-hint" style={{ margin: 0 }}>Only on a day the Till sold something.</p>
                 <FairDaySummaryNow />
               </>
             )}
@@ -1069,7 +1069,7 @@ function FairDaySummaryNow() {
     try {
       const answer = await emailFunction({ action: "fairDaySummaryNow" }) as { sent?: boolean; reason?: string } | undefined;
       if (answer && answer.sent === false) {
-        toast(answer.reason === "no-stockroom" ? "The stockroom isn't set up in this shop yet, so there's nothing to send." : "The Fair till hasn't uploaded any sales today, so there's nothing to send yet.");
+        toast(answer.reason === "no-stockroom" ? "The stockroom isn't set up in this shop yet, so there's nothing to send." : "The Till hasn't uploaded any sales today, so there's nothing to send yet.");
       } else {
         toast.success("Today's fair summary is on its way to owner@example.com");
       }

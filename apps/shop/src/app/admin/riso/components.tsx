@@ -51,8 +51,10 @@ export type NavEntry = {
   group?: string;
 };
 
-export function Sidebar({ brand, top, items, activeId, activeChildId, onSelect, onSelectChild, open, onClose, footer }: {
+export function Sidebar({ brand, top, items, activeId, activeChildId, onSelect, onSelectChild, open, onClose, footer, flat }: {
   brand: ReactNode; top?: ReactNode; items: NavEntry[]; activeId: string | null; activeChildId?: string;
+  /** Top-level items only (redesign): an item's pages show as PageTabs above the content, not listed under it. */
+  flat?: boolean;
   onSelect: (id: string) => void; onSelectChild: (parentId: string, childId: string) => void;
   open: boolean; onClose: () => void; footer: ReactNode;
 }) {
@@ -80,7 +82,7 @@ export function Sidebar({ brand, top, items, activeId, activeChildId, onSelect, 
                   <button
                     type="button" className="rp-nav-item" data-nav={item.id}
                     aria-current={active ? "page" : undefined}
-                    aria-expanded={item.children ? active : undefined}
+                    aria-expanded={item.children && !flat ? active : undefined}
                     onClick={() => onSelect(item.id)}
                   >
                     <Icon size={18} aria-hidden />
@@ -88,9 +90,9 @@ export function Sidebar({ brand, top, items, activeId, activeChildId, onSelect, 
                     {!!item.badge && (
                       <span className="rp-nav-badge" aria-label={`${item.badge} need attention`}>{item.badge > 99 ? "99+" : item.badge}</span>
                     )}
-                    {item.children && <ChevronRight size={14} className="rp-nav-chevron" aria-hidden />}
+                    {item.children && !flat && <ChevronRight size={14} className="rp-nav-chevron" aria-hidden />}
                   </button>
-                  {item.children && active && (
+                  {item.children && active && !flat && (
                     <ul className="rp-nav-sublist" aria-label={`${item.label} sections`}>
                       {item.children.map((c) => (
                         <li key={c.id}>
@@ -114,6 +116,32 @@ export function Sidebar({ brand, top, items, activeId, activeChildId, onSelect, 
         <div className="rp-sidebar-foot">{footer}</div>
       </aside>
     </>
+  );
+}
+
+/**
+ * The pages inside one menu item, as a row of pills above the page (redesign, 11 November 2026). They move between
+ * pages, so they are links in a nav marked with aria-current, not tabs. Settings passes `groups` for its headings.
+ */
+export function PageTabs({ label, groups, current, onPick }: {
+  label: string; current: string; onPick: (id: string) => void;
+  groups: Array<{ label?: string; pages: Array<{ id: string; label: string; badge?: number }> }>;
+}) {
+  return (
+    <nav className="rp-page-tabs" aria-label={label}>
+      {groups.map((g, i) => (
+        <div className="rp-page-tabs-group" key={g.label ?? i} role={g.label ? "group" : undefined} aria-label={g.label}>
+          {g.label && <span className="rp-page-tabs-heading" aria-hidden="true">{g.label}</span>}
+          {g.pages.map((p) => (
+            <a key={p.id} href={`#${p.id}`} className="rp-page-tab" aria-current={current === p.id ? "page" : undefined}
+              onClick={(e) => { e.preventDefault(); onPick(p.id); }}>
+              {p.label}
+              {!!p.badge && <span className="rp-nav-badge" aria-label={`${p.badge} need attention`}>{p.badge > 99 ? "99+" : p.badge}</span>}
+            </a>
+          ))}
+        </div>
+      ))}
+    </nav>
   );
 }
 

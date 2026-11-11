@@ -46,7 +46,7 @@ export const STOCKROOM_PAGES: StockroomPage[] = [
   // All sales (SALES_TAB) lists every sale; this is where a sale the stockroom recorded is looked up, changed or voided.
   { id: "history", label: "Sales records", description: "Look up, change or void a sale the stockroom recorded." },
   { id: "manual", label: "Record a sale", description: "Add a sale made somewhere else, so stock and totals stay right." },
-  { id: "pos", label: "Fair till", description: "Sell at a fair or event, and keep stock right as you go." },
+  { id: "pos", label: "Till", description: "Sell in person, at a fair, a market or your counter, and keep stock right as you go." },
   { id: "shipping", label: "Parcels and labels", description: "Shipping costs and labels for parcels that aren't website orders, such as copies for stockists." },
   { id: "consignment", label: "Stockists", description: "Shops holding your copies: what they have, what they sold and what they owe you." },
   { id: "qrcodes", label: "QR codes", description: "Codes that open a book's page, for tables, posters and the back of books." },

@@ -107,7 +107,7 @@ export function StockroomFrame({ page, visible, look, appearance, onPage }: {
       {/* The admin keeps an offline copy (adminOffline.ts) and the stockroom its own, so the till works with no signal. */}
       {page === "pos" && (
         <p className="rp-stockroom-offline">
-          No signal at the fair? Open the Fair till here once before you go, while you have a connection. After that it opens
+          No signal at the fair? Open the Till here once before you go, while you have a connection. After that it opens
           on this device with no signal, and your sales catch up when you're back online. You can also use
           the <a href={INVENTORY_APP_URL} target="_blank" rel="noopener">stockroom app on its own</a>.
         </p>
