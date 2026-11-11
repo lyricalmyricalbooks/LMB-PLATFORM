@@ -26,7 +26,7 @@ import { profitSummary, titlePerformance } from "./overviewProfit";
 import { forgetReports, googleAnalyticsApi } from "../googleAnalytics";
 import { shopDayKey } from "../../lib/shopDay";
 import { isOwnOrder } from "../../lib/ownerDevice";
-import { ChangeList, Figure, ReadinessStrip, RunList, RunRow, Trend, money, moneyFigure, percent } from "./OverviewParts";
+import { ChangeList, Figure, ReadinessStrip, RunList, RunRow, RunTiles, Trend, money, moneyFigure, percent } from "./OverviewParts";
 import { readinessSummary } from "../launchReadiness";
 import { leadStory } from "./overviewStory";
 import { OverviewSales } from "./OverviewSales";
@@ -357,15 +357,9 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook, onSetWall }: { se
           lastReset={lastReset} firstDay={firstTrafficDay} onReset={resetTraffic} setActiveTab={setActiveTab} />
   )));
 
-  const runSheet = (
-    <aside className="rp-ov-run" aria-label="Needs you">
-      <div className="rp-ov-eyebrow">Live — not tied to the period</div>
-      <div className="rp-ov-run-total" aria-hidden="true">{allTodos === null ? "…" : allTodos}</div>
-      <p className="rp-ov-run-sub">{allTodos === null ? "Counting…" : allTodos === 0 ? "Nothing needs you right now." : `${allTodos} thing${allTodos === 1 ? "" : "s"} need${allTodos === 1 ? "s" : ""} you`}</p>
-      {gaReport && gaReport.activeNow !== null && (
-        <p className="rp-ov-run-sub"><strong style={{ color: "var(--rp-primary-hover)" }}>{gaReport.activeNow}</strong> {gaReport.activeNow === 1 ? "person is" : "people are"} on the site now (Google Analytics)</p>
-      )}
-      <RunList>
+  // Everything that needs the owner, website and stockroom together: the Needs you list, or Home's To do tiles.
+  const needRows = (
+    <>
         <RunRow label="paid orders waiting to ship" one="paid order waiting to ship" count={insights ? insights.fulfil.length : null} loading={ordersLoading}
           detail={insights && insights.fulfil[0] ? `Oldest has waited ${insights.fulfil[0].ageDays} day${insights.fulfil[0].ageDays === 1 ? "" : "s"}` : ""}
           onOpen={() => { openFirstActionQueue(); setActiveTab?.("orders"); }} openLabel="Ship orders" />
@@ -386,7 +380,27 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook, onSetWall }: { se
         <RunRow label="privacy requests" one="privacy request" count={counts ? counts.openPrivacyRequests : null} loading={!counts}
           detail="Customers asked for a copy or deletion of their data" onOpen={() => setActiveTab?.("general")} openLabel="Open privacy requests" />
         {stockroomRun?.rows}
-      </RunList>
+    </>
+  );
+  const todoRow = (
+    <section className="rp-todo-row" aria-label="To do">
+      <RunTiles>{needRows.props.children}</RunTiles>
+      {(allOrders.error || audience.error || stock.error || stockroomTodos.failed) && (
+        <p className="rp-hint">
+          {[allOrders.error && "orders", audience.error && "reviews", stock.error && w("books"), stockroomTodos.failed && "the stockroom's to-dos"].filter(Boolean).join(", ")} could not be loaded, so some counts are missing.
+        </p>
+      )}
+    </section>
+  );
+  const runSheet = (
+    <aside className="rp-ov-run" aria-label="Needs you">
+      <div className="rp-ov-eyebrow">Live — not tied to the period</div>
+      <div className="rp-ov-run-total" aria-hidden="true">{allTodos === null ? "…" : allTodos}</div>
+      <p className="rp-ov-run-sub">{allTodos === null ? "Counting…" : allTodos === 0 ? "Nothing needs you right now." : `${allTodos} thing${allTodos === 1 ? "" : "s"} need${allTodos === 1 ? "s" : ""} you`}</p>
+      {gaReport && gaReport.activeNow !== null && (
+        <p className="rp-ov-run-sub"><strong style={{ color: "var(--rp-primary-hover)" }}>{gaReport.activeNow}</strong> {gaReport.activeNow === 1 ? "person is" : "people are"} on the site now (Google Analytics)</p>
+      )}
+      <RunList>{needRows.props.children}</RunList>
       {(allOrders.error || audience.error || stock.error || stockroomTodos.failed) && (
         <p className="rp-ov-run-sub">
           {[allOrders.error && "orders", audience.error && "reviews", stock.error && w("books"), stockroomTodos.failed && "the stockroom's to-dos"].filter(Boolean).join(", ")} could not be loaded, so some counts are missing.
@@ -398,7 +412,8 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook, onSetWall }: { se
   const renderWidget: RenderWidget = (w, { full, setConfig }) => {
     const band = widgetMeta(w.type).band;
     switch (w.type) {
-      case "needs": return runSheet;
+      // Full width, Needs you is Home's To do row of tiles (redesign); narrower, it stays the list.
+      case "needs": return w.size === "xl" && !full ? todoRow : runSheet;
       case "readiness":
         return launch.error ? <ErrorState title="Launch checks unavailable" description="Settings, shipping or email records could not be loaded. Readiness is unknown until these checks refresh." onRetry={refresh} />
           : !readiness ? <LoadingState label="Checking…" />

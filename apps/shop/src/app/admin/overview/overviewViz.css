@@ -258,3 +258,15 @@ button.rp-viz-rank-row:focus-visible { outline: 2px solid var(--rp-focus); outli
   .rp-ov-run .rp-ov-run-count { min-width: 30px; font-size: 28px; }
   .rp-ov-run .rp-list > .rp-ov-run-row { gap: 12px; }
 }
+
+/* Home's To do row (redesign, 11 November 2026): the Needs you lines as tiles, when the widget is full width. */
+.rp-todo-tiles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.rp-todo-tile { display: flex; flex-direction: column; gap: 6px; padding: 18px; border-radius: var(--rp-radius-lg); background: var(--rp-surface-sunken); min-width: 0; }
+.rp-todo-tile[data-quiet] { flex-direction: row; align-items: center; gap: 12px; }
+.rp-todo-kind { font: 500 var(--rp-text-xs)/1 var(--rp-font-mono); color: var(--rp-text-subtle); }
+.rp-todo-tile[data-quiet] .rp-todo-kind { font-size: var(--rp-text-sm); }
+.rp-todo-title { font-size: 20px; font-weight: 600; line-height: 1.2; color: var(--rp-text); }
+.rp-todo-body { font-size: var(--rp-text-sm); color: var(--rp-text-muted); flex: 1; }
+.rp-todo-go { align-self: flex-start; margin-top: 6px; padding: 9px 18px; border: 0; border-radius: 999px; background: var(--rp-inverse); color: var(--rp-on-inverse); font: 600 var(--rp-text-sm)/1 var(--rp-font-body); cursor: pointer; }
+.rp-todo-go:hover { opacity: .85; }
+.rp-todo-go:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
