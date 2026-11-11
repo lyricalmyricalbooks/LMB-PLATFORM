@@ -47,3 +47,13 @@ test("the tips email reads plainly and the routes exist", () => {
   const routes = notSellingRoutes({ list: () => 1, sendTips: () => 2 });
   assert.ok(routes["POST /api/control/not-selling"] && routes["POST /api/control/first-sale-tips"]);
 });
+
+test("a shop sent tips in the last week rests off the list, and comes back after", async () => {
+  const { notSellingShops } = await import("./notSelling.js");
+  const row = (at) => ({ shopId: "q", pressName: "Q", status: "live", createdAt: "2026-10-01T00:00:00Z", firstSaleTipsAt: at });
+  const shopData = { find: async () => [] };
+  const nowMs = NOW.getTime();
+  assert.equal((await notSellingShops({ rows: [row("2026-11-08T00:00:00Z")], shopData, nowMs, restDays: 7 })).shops.length, 0);
+  assert.equal((await notSellingShops({ rows: [row("2026-11-01T00:00:00Z")], shopData, nowMs, restDays: 7 })).shops.length, 1);
+  assert.equal((await notSellingShops({ rows: [row("2026-11-08T00:00:00Z")], shopData, nowMs })).shops.length, 1);
+});
