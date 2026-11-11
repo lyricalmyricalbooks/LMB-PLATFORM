@@ -7,7 +7,7 @@ import { fmt } from "@stockroom/money.js";
 import { downloadCsv } from "@stockroom/download.js";
 import type { Delta } from "@stockroom/tax-ledger.js";
 
-import { DataTable, EmptyState, MetricCard, Pagination, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge } from "../riso/components";
+import { DataTable, Dialog, EmptyState, GhostButton, MetricCard, Pagination, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge } from "../riso/components";
 import { useShopWords } from "../shopWords";
 import { getOrdersCached } from "../ordersCache";
 import { TaxTop } from "./TaxTop";
@@ -26,6 +26,7 @@ import { StockValueCard } from "./StockValueCard";
 import { TripsCard, type TripRow } from "./TripsCard";
 import { isEditableLine } from "./taxLedger";
 import type { SaveNote } from "./saveTaxCenter";
+import { GapsCard } from "./GapsCard";
 import { filterLedger, ledgerCsvFile, ledgerTotals, LEDGER_PAGE_SIZE, sourcesOf, taxCenterModel, type LedgerFilter } from "./moneyReports";
 import { stockroomApi, type StockroomRecords } from "./stockroomData";
 import "./stockroom.css";
@@ -101,6 +102,8 @@ export function TaxCenterView({ records, now, onTaxCenter, onState, orders: give
   const at = Math.min(page, pageCount);
   const slice = shown.slice((at - 1) * LEDGER_PAGE_SIZE, at * LEDGER_PAGE_SIZE);
   const s = model.summary;
+  const [categoryName, setCategory] = useState<string | null>(null);
+  const openCategory = categoryName ? model.categories.list.find((c) => c.name === categoryName) : undefined;
   const download = () => { const file = ledgerCsvFile(shown, cur, now); downloadCsv(file.text, file.name); };
 
   return (
@@ -146,12 +149,25 @@ export function TaxCenterView({ records, now, onTaxCenter, onState, orders: give
         <DataTable stackOnPhone caption="Spending by category" rowKey={(c) => c.name} rows={model.categories.list}
           empty={<EmptyState inline title="No expenses in this period" />}
           columns={[
-            { key: "c", header: "Category", lead: true, render: (c) => c.name },
+            { key: "c", header: "Category", lead: true, render: (c) => <GhostButton size="sm" onClick={() => setCategory(c.name)}>{c.name}</GhostButton> },
             { key: "n", header: "Entries", numeric: true, render: (c) => c.count },
             { key: "s", header: "Spent", numeric: true, render: (c) => money(c.spent) },
             { key: "d", header: "Deductible", numeric: true, render: (c) => <>{money(c.total)}{c.rate < 1 && <span className="rp-money-sub"> {Math.round(c.rate * 100)}% allowed</span>}</> },
           ]} />
       </SectionCard>
+
+      {openCategory && (
+        <Dialog open onClose={() => setCategory(null)} title={openCategory.name}>
+          <p className="rp-money-note">{openCategory.count} {openCategory.count === 1 ? "entry" : "entries"}, {money(openCategory.spent)} spent, {money(openCategory.total)} you can deduct.</p>
+          <DataTable stackOnPhone caption={`Entries in ${openCategory.name}`} rowKey={(r) => `${r.sourceType}:${r.sourceId || ""}:${r.itemId}:${r.date}:${r.desc}`}
+            rows={[...openCategory.items].sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))}
+            columns={[
+              { key: "d", header: "Date", render: (r) => r.date || "-" },
+              { key: "e", header: "Description", lead: true, render: (r) => r.desc },
+              { key: "b", header: cur, numeric: true, render: (r) => fmt(Number(r.baseAmount || 0), cur) },
+            ]} />
+        </Dialog>
+      )}
 
       <TripsCard trips={model.trips as TripRow[]} taxCenter={records.taxCenter as Record<string, any> | null} money={money} baseCurrency={cur} onSaved={onTaxCenter} />
 
@@ -168,19 +184,8 @@ export function TaxCenterView({ records, now, onTaxCenter, onState, orders: give
       </SectionCard>
       )}
 
-      <SectionCard title="Costs that may be missing" description="Gaps in your own records, not tax advice." flush={!model.gaps.gaps.length}>
-        {model.gaps.gaps.length === 0
-          ? <EmptyState inline title="Nothing obviously missing" description="Checked again each time you open this page." />
-          : <ul className="rp-money-gaps">
-              {model.gaps.gaps.map((g) => (
-                <li key={g.id}>
-                  <strong>{g.title}</strong> <StatusBadge glyph={false}>{g.category}</StatusBadge>
-                  {g.estimate != null && <span className="rp-money-sub"> about {money(g.estimate)}</span>}
-                  <p>{g.detail}</p>
-                </li>
-              ))}
-            </ul>}
-      </SectionCard>
+      <GapsCard gaps={model.gaps.gaps} hidden={model.gaps.hidden} books={sources.books} states={sources.states}
+        taxCenter={records.taxCenter as Record<string, any> | null} today={new Date(nowMs).toLocaleDateString("en-CA")} money={money} onSaved={onTaxCenter} />
 
       <SectionCard title="Ledger" actions={<SecondaryButton onClick={download} disabled={!shown.length}>Download spreadsheet</SecondaryButton>} flush>
         <div className="rp-money-pad">

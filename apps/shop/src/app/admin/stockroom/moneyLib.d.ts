@@ -45,6 +45,9 @@ declare module "@stockroom/recurring.js" {
   };
 }
 declare module "@stockroom/deduction-gaps.js" {
+  export const DEFAULT_SNOOZE_DAYS: number;
+  export function gapNoteState(note: Row | undefined, today: string): "open" | "snoozed" | "dismissed";
+  export function snoozeUntil(days?: number, from?: Date): string;
   export function findDeductionGaps(ctx: Row): { gaps: Array<{ id: string; title: string; category: string; detail: string; prompt: string; estimate: number | null; estimateBasis?: string }>; hidden: number; totalEstimate: number; note: string };
 }
 declare module "@stockroom/receipt-storage.js" {
@@ -78,4 +81,7 @@ declare module "@stockroom/shop-profile.js" {
 }
 declare module "@stockroom/publisher-intel-tools.js" {
   export function runIntelTool(name: string, args?: Row, ctx?: Row): Row;
+}
+declare module "@stockroom/category-fit.js" {
+  export function findCategoryMismatches(ctx: Row): Array<{ id: string; scope: string; bookId?: string; expenseId?: unknown; currentCategory: string; suggestedCategory: string; title: string; detail: string; amount: number; prompt: string }>;
 }
