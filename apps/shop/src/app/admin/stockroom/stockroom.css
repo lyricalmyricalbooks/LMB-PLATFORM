@@ -1,0 +1,15 @@
+/* The stockroom pages the admin draws itself (admin/stockroom/), on the shared admin look (riso.css tokens). */
+.rp-todo { display: grid; gap: var(--rp-space-4); }
+.rp-todo-sum { margin: 0; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+.rp-todo-list { list-style: none; margin: 0; padding: 0; }
+.rp-todo-row { display: flex; align-items: center; justify-content: space-between; gap: var(--rp-space-3) var(--rp-space-4); padding: var(--rp-space-3) var(--rp-space-4); border-top: 1px solid var(--rp-border); }
+.rp-todo-row:first-child { border-top: 0; }
+.rp-todo-text { display: grid; gap: var(--rp-space-1); min-width: 0; }
+.rp-todo-label { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rp-space-2); }
+.rp-todo-detail { font-size: var(--rp-text-sm); color: var(--rp-text-muted); overflow-wrap: anywhere; }
+.rp-todo-actions { display: flex; align-items: center; gap: var(--rp-space-2); flex-shrink: 0; }
+.rp-todo-hidden { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--rp-space-2); font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+@media (max-width: 640px) {
+  .rp-todo-row { flex-direction: column; align-items: stretch; }
+  .rp-todo-actions { justify-content: flex-start; flex-wrap: wrap; }
+}

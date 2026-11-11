@@ -51,7 +51,7 @@ import { SELLS_CHANGED_EVENT, ShopSellsContext, ShopWordsContext } from "./shopW
 import { COMBINED_MENU, MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, sideMenu, sideOf, sidebarItems, withoutPages } from "./riso/nav";
 import { SideSwitch, rememberSide, rememberedSide } from "./SideSwitch";
 import { useStockroomTodos } from "./overview/StockroomTodos";
-import { COMBINED_PAGES, DEFAULT_STOCKROOM_PAGE, SALES_TAB, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
+import { COMBINED_PAGES, DEFAULT_STOCKROOM_PAGE, NATIVE_STOCKROOM_PAGES, SALES_TAB, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
 import { AllSales } from "./AllSales";
 import { keepAdminOffline } from "./adminOffline";
 import { CombinedTour, CombinedTourInvite, markTourSeen, tourSeen, type TourStop } from "./CombinedTour";
@@ -64,6 +64,7 @@ import { providerName } from "./providerWords";
 import { setProductSells } from "../lib/productHref";
 
 // Studio is large and only opened from Settings › Design, so it loads in its own chunk.
+const TodoPage = lazy(() => import("./stockroom/TodoPage").then((m) => ({ default: m.TodoPage })));
 const StudioEditor = lazy(() => import("./studio/StudioWorkspace").then(m => ({ default: m.StudioWorkspace })));
 // Heavy admin pages load in their own chunks when first opened.
 const BookEditor = lazy(() => import("./BookEditor").then(m => ({ default: m.BookEditor })));
@@ -119,7 +120,7 @@ export function Dashboard() {
   const [activeTab, setActiveTab] = useState(boot.tab);
   // The combined admin's stockroom frame: opened the first time a stockroom page is picked, then kept (StockroomFrame).
   const [stockroomOpened, setStockroomOpened] = useState(false);
-  useEffect(() => { if (activeTab === STOCKROOM_TAB) setStockroomOpened(true); }, [activeTab]);
+  
   // Another page needs the stockroom (the book page's Stock and sales): the frame opens hidden, and is kept.
   useEffect(() => (COMBINED ? stockroomBridge.onNeed(() => setStockroomOpened(true)) : undefined), []);
   // "Open in the stockroom" from another page shows that stockroom page (set below, after the page helpers).
@@ -147,6 +148,9 @@ export function Dashboard() {
   const [subTabState, setSubTabState] = useState<{ page: string; id?: string }>({ page: subTabPage(boot), id: boot.subTab });
   const subPage = subTabPage({ tab: activeTab, settingsTab });
   const subTab = subTabState.page === subPage ? subTabState.id : undefined;
+  // The frame opens the first time a page it still draws is picked; a page the admin draws itself never needs it.
+  const framedStockroomPage = activeTab === STOCKROOM_TAB && !NATIVE_STOCKROOM_PAGES.has(stockroomPage(subTab)?.id ?? DEFAULT_STOCKROOM_PAGE);
+  useEffect(() => { if (framedStockroomPage) setStockroomOpened(true); }, [framedStockroomPage]);
   /** Opens a sub tab (`undefined` = the first) on the page on screen, or on `page` when a link opens another page too. */
   const openSubTab = (id: string | undefined, page: string = subPage) => setSubTabState({ page, id });
   useEffect(() => {
@@ -743,7 +747,10 @@ export function Dashboard() {
       case "reviews": return <ReviewsModeration />;
       case "messages": return <Messages onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }} onOpenCustomers={() => goTo("customers")} />;
       // The stockroom's pages show in StockroomFrame below, kept open between visits.
-      case STOCKROOM_TAB: return null;
+      case STOCKROOM_TAB:
+        return stockroomPageId === "todo"
+          ? <TodoPage onOpen={(page) => openSubTab(page, STOCKROOM_TAB)} isPage={(id) => !!stockroomPage(id)} />
+          : null;
       case SALES_TAB: return COMBINED ? <AllSales onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }} /> : null;
       case "orders":
         // Inbox-style desk: list + the full order page (all Stripe sync/refund/label actions) side by side.
@@ -943,7 +950,7 @@ export function Dashboard() {
             </m.div>
           </AnimatePresence>
           {COMBINED && stockroomOpened && (
-            <StockroomFrame page={stockroomPageId} visible={onStockroomPage && !selectedOrder} look={ADMIN_LOOK} appearance={appearance}
+            <StockroomFrame page={stockroomPageId} visible={onStockroomPage && !selectedOrder && !NATIVE_STOCKROOM_PAGES.has(stockroomPageId)} look={ADMIN_LOOK} appearance={appearance}
               onPage={(tab) => { if (activeTab === STOCKROOM_TAB && stockroomPage(tab)) openSubTab(tab, STOCKROOM_TAB); }} />
           )}
         </div>

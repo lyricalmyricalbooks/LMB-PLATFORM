@@ -1,0 +1,114 @@
+// The stockroom's records, read straight into the admin (no second app, no frame). Read-only for now: the pages built
+// on it show what the stockroom holds, and every figure comes from the stockroom's own rules (`@stockroom/*`).
+//
+// Where the records live (apps/stockroom/src/firebase.js): the shop's folder in the stockroom's Firestore database
+// (`shops/<id>/settings/…`, `shops/<id>/books/<book>/data/<part>`), with an older copy in the Realtime Database under
+// `shops/<id>/lyrical`. `settings/modeFlags` says which store holds the catalogue and each item; a store that turns
+// out empty falls back to the other, exactly as the stockroom reads them.
+import { getDatabase, get, ref } from "firebase/database";
+import { collection, doc, getDoc, getDocs, getFirestore, type DocumentReference } from "firebase/firestore";
+import { assembleParts, stitchState } from "@stockroom/merge-state.js";
+
+import { app } from "../../../lib/firebase";
+import { SHOP_FOLDER } from "../../../lib/shopFolder";
+import { shopProfile } from "../../../lib/shopProfile";
+
+export type StockBook = { id: string; title: string; isTest?: boolean; [key: string]: unknown };
+export type StockroomRecords = {
+  books: StockBook[];
+  states: Record<string, Record<string, unknown>>;
+  taxCenter: Record<string, unknown> | null;
+};
+
+/** The stockroom's own place in the shop's project, as the page's profile names it (missing: the project's defaults). */
+export function stockroomPlace(source: unknown = typeof window === "undefined" ? undefined : window.__SHOP_PROFILE__, projectId = shopProfile.firebase.projectId) {
+  const raw = (source && typeof source === "object" ? source : {}) as { stockroom?: { firestoreDatabase?: unknown }; firebase?: { databaseURL?: unknown } };
+  const named = raw.stockroom?.firestoreDatabase;
+  const url = raw.firebase?.databaseURL;
+  return {
+    firestoreDatabase: typeof named === "string" && named ? named : undefined,
+    databaseURL: typeof url === "string" && /^https:\/\/[^/\s]+\/?$/.test(url) ? url : `https://${projectId}-default-rtdb.firebaseio.com`,
+  };
+}
+
+const parse = (text: unknown) => { try { return typeof text === "string" ? JSON.parse(text) : text ?? null; } catch { return null; } };
+
+/** The test items the stockroom keeps out of every report (its `isTestBook`). */
+export function isTestBook(book: { id?: unknown; title?: unknown; isTest?: unknown }): boolean {
+  const names = ["test", "test1", "testpage", "test-page", "test page"];
+  const lower = (v: unknown) => String(v || "").toLowerCase().trim();
+  return book.isTest === true || names.includes(lower(book.id)) || names.includes(lower(book.title));
+}
+
+/** The catalogue as stored (`{ <id>: item, _deletedDefaults, _posExtra }`) as a list, test items left out. */
+export function catalogBooks(stored: unknown): StockBook[] {
+  if (!stored || typeof stored !== "object") return [];
+  return Object.entries(stored as Record<string, unknown>)
+    .filter(([key, value]) => !key.startsWith("_") && value && typeof value === "object")
+    .map(([key, value]) => ({ ...(value as object), id: String((value as { id?: unknown }).id || key) }) as StockBook)
+    .filter((book) => !isTestBook(book));
+}
+
+/** What the reads need; the tests pass their own. */
+export type StockroomReads = {
+  setting(key: string): Promise<unknown>;
+  oldSetting(key: string): Promise<unknown>;
+  flags(): Promise<Record<string, unknown>>;
+  bookParts(bookId: string): Promise<Record<string, unknown>>;
+  oldBook(bookId: string): Promise<unknown>;
+};
+
+function liveReads(): StockroomReads {
+  const place = stockroomPlace();
+  const fs = place.firestoreDatabase ? getFirestore(app, place.firestoreDatabase) : getFirestore(app);
+  const home: DocumentReference = doc(fs, SHOP_FOLDER);
+  const rt = getDatabase(app, place.databaseURL);
+  const root = `${SHOP_FOLDER}/lyrical`;
+  const old = async (path: string) => { const snap = await get(ref(rt, `${root}/${path}`)); return snap.exists() ? snap.val()?.data : null; };
+  return {
+    setting: async (key) => { const snap = await getDoc(doc(home, "settings", key)); return snap.exists() ? snap.data()?.data : null; },
+    oldSetting: (key) => old(`settings/${key}`),
+    flags: async () => { const snap = await getDoc(doc(home, "settings", "modeFlags")); return snap.exists() ? snap.data() || {} : {}; },
+    bookParts: async (bookId) => {
+      const raw: Record<string, unknown> = {};
+      (await getDocs(collection(home, "books", bookId, "data"))).forEach((d) => { raw[d.id] = d.data()?.data; });
+      return raw;
+    },
+    oldBook: (bookId) => old(`books/${bookId}`),
+  };
+}
+
+// A store that can't be read (the older one is closed to a shop that never used it) counts as empty for a fallback.
+const quiet = <T,>(read: Promise<T>) => read.catch(() => null);
+
+async function readSetting(reads: StockroomReads, key: string, newFirst: boolean) {
+  const first = newFirst ? await reads.setting(key) : await quiet(reads.oldSetting(key));
+  if (first != null) return parse(first);
+  return parse(newFirst ? await quiet(reads.oldSetting(key)) : await reads.setting(key));
+}
+
+async function readBook(reads: StockroomReads, bookId: string, newFirst: boolean) {
+  const fromParts = async () => {
+    const { parts, present } = assembleParts(await reads.bookParts(bookId));
+    return present.length ? stitchState(parts) : null;
+  };
+  const fromOld = async () => parse(await quiet(reads.oldBook(bookId))) as Record<string, unknown> | null;
+  return newFirst ? (await fromParts()) ?? (await fromOld()) : (await fromOld()) ?? (await fromParts());
+}
+
+/** Everything the stockroom pages read: the catalogue, each item's records, and the money settings. */
+export async function loadStockroom(reads: StockroomReads = liveReads()): Promise<StockroomRecords> {
+  const flags = await reads.flags();
+  const global = flags.fs_mode_global === true;
+  const [catalog, taxCenter] = await Promise.all([readSetting(reads, "catalog", global), readSetting(reads, "taxCenter", global)]);
+  const books = catalogBooks(catalog);
+  const states: StockroomRecords["states"] = {};
+  await Promise.all(books.map(async (book) => {
+    const state = await readBook(reads, book.id, flags[`fs_mode_${book.id}`] === true || global);
+    if (state) states[book.id] = state;
+  }));
+  return { books, states, taxCenter: taxCenter && typeof taxCenter === "object" ? taxCenter : null };
+}
+
+/** What the pages call, so the admin fixture (adminFixture/main.ts) can answer with sample records. */
+export const stockroomApi = { load: () => loadStockroom() };

@@ -59,6 +59,9 @@ const PAGES = new Map(STOCKROOM_PAGES.map((p) => [p.id, p]));
 export const DEFAULT_STOCKROOM_PAGE = STOCKROOM_PAGES[0].id;
 
 /** A stockroom page id from an address or a message, or undefined when it isn't one of the menu's. */
+/** Stockroom pages the admin draws itself (admin/stockroom/); the rest still show in the frame until they are rebuilt. */
+export const NATIVE_STOCKROOM_PAGES: ReadonlySet<string> = new Set(["todo"]);
+
 export function stockroomPage(id: string | undefined | null): StockroomPage | undefined {
   return id ? PAGES.get(id) : undefined;
 }

@@ -115,6 +115,8 @@ export default defineConfig(({ command }) => ({
   resolve: {
     alias: {
       '@': path.resolve(import.meta.dirname, './src'),
+      // The stockroom's own pure rules (stock, money, to-dos), shared so the admin never works them out a second way.
+      '@stockroom': path.resolve(import.meta.dirname, '../stockroom/src/lib'),
     },
   },
   assetsInclude: ['**/*.svg', '**/*.csv'],
