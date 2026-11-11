@@ -8,6 +8,10 @@
 // or a closed plan counts nothing; a shop whose card is being retried still counts, and shows under failed payments.
 import { shopHealth } from "./controlRoom.js";
 import { switchWaiting } from "./providerSwitch.js";
+import { CONNECT_STEPS } from "../google/connect.js";
+
+// The Google setup steps in plain words, for a failed one on Today (google/connect.js CONNECT_STEPS).
+const GOOGLE_STEP_WORDS = { firebase: "the shop's Google project", analytics: "Analytics", domain: "the web address", searchConsole: "Search Console", merchantCenter: "Google Shopping", email: "Gmail sending", drive: "Drive", youtube: "YouTube", calendar: "Calendar", businessProfile: "Business Profile", ads: "Ads" };
 
 const DAY = 86_400_000;
 /** " today", " since yesterday", " for 4 days": how long something has been wrong, or "" without a date. */
@@ -36,7 +40,7 @@ export function paymentReminder(billing = {}) {
 }
 
 /** The lines about one shop the owner can snooze from Today (a drifting press has its own snooze, driftWatch.js). */
-export const SNOOZABLE = Object.freeze(["shop", "payment", "move", "newsletter", "domain", "switch", "parcels", "payouts"]);
+export const SNOOZABLE = Object.freeze(["shop", "payment", "move", "newsletter", "domain", "switch", "parcels", "payouts", "google"]);
 export const SNOOZE_DAYS = 7;
 export const MAX_SNOOZE_DAYS = 30;
 /** Whether the owner snoozed this kind of line for this shop (`todaySnoozes` on the registry row) and it hasn't ended. */
@@ -119,6 +123,14 @@ export function todaySummary({ rows, settings, profiles = {}, checks = {}, open 
     const to = waiting.to === "square" ? "Square" : "Stripe";
     const days = Math.floor((now.getTime() - Date.parse(waiting.since)) / DAY);
     needs.push({ kind: "switch", shopId: row.shopId, words: `${row.pressName ?? row.shopId} pressed Switch to move card payments to ${to} ${days < 1 ? "today" : days === 1 ? "yesterday" : `${days} days ago`} and it isn't finished${waiting.problem?.message ? ` (${String(waiting.problem.message).replace(/\.$/, "")})` : ""}: finish it from their record`, go: "#shops" });
+  }
+  // A Google setup step that failed (google/record.js keeps each step on the row): one line per step, with Run again on
+  // Today. Only while the Google link is open; closing and deleting steps stay on the shop's record.
+  for (const row of shops.filter((r) => r.google && !r.google.closedAt && !r.google.deletedAt)) {
+    for (const step of (row.google.steps ?? []).filter((s) => s.state === "failed" && CONNECT_STEPS.includes(s.step))) {
+      const detail = step.detail ? `: ${String(step.detail).replace(/\.$/, "")}` : "";
+      needs.push({ kind: "google", shopId: row.shopId, step: step.step, words: `${row.pressName ?? row.shopId}: setting up ${GOOGLE_STEP_WORDS[step.step] ?? step.step} with Google failed${sinceWords(step.at, now)}${detail}`, go: "#shops" });
+    }
   }
   // A live Stripe press whose payouts Stripe paused (kept from account.updated): their money stops reaching their bank,
   // which they notice before anything else. Square pays out by itself; a press still setting up isn't paused yet.

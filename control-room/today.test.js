@@ -141,3 +141,19 @@ test("pay what you use: a paying shop counts its fee plus the running cost last 
   assert.equal(monthlyCents(shop("owl", { plan: "both", status: "active", percentOff: 25, lastRunningCost: { month: "2026-10", cents: 253 } }), five), 375 + 253, "the founding share comes off the fee only");
   assert.equal(monthlyCents(shop("owl", { plan: "both", status: "trialing", lastRunningCost: { month: "2026-10", cents: 253 } }), five), 0);
 });
+
+test("needs you: a failed Google setup step, one line per step with the step to run again; never once the link is closed", () => {
+  const google = (extra) => ({ connectedAt: "2026-10-01T00:00:00Z", steps: [
+    { step: "searchConsole", state: "failed", at: "2026-10-26T12:00:00Z", detail: "Google didn't answer." },
+    { step: "analytics", state: "done", at: "2026-10-01T00:00:00Z" },
+    { step: "stopFeed", state: "failed", at: "2026-10-26T12:00:00Z" },
+  ], ...extra });
+  const { needs } = todaySummary({ rows: [
+    shop("open-link", { status: "active", access: "open" }, { google: google() }),
+    shop("closed-link", { status: "active", access: "open" }, { google: google({ closedAt: "2026-10-20T00:00:00Z" }) }),
+  ], settings, now: NOW });
+  const lines = needs.filter((n) => n.kind === "google");
+  assert.deepEqual(lines.map((n) => [n.shopId, n.step]), [["open-link", "searchConsole"]]);
+  assert.equal(lines[0].words, "open-link: setting up Search Console with Google failed for 2 days: Google didn't answer");
+  assert.ok(SNOOZABLE.includes("google"));
+});

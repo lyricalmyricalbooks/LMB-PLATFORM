@@ -798,7 +798,7 @@ function needRow(need) {
   }
   primary.setAttribute("aria-label", `${primary.textContent}: ${title}`);
   // A failed plan payment: the reminder email is one tap away, and the shop's record moves to the second button.
-  const remind = need.kind === "payment" && need.shopId ? reminderControl(need) : null;
+  const remind = need.kind === "payment" && need.shopId ? reminderControl(need) : need.kind === "google" && need.shopId && need.step ? runAgainButton(need) : null;
   if (remind?.tagName === "BUTTON") primary.className = "rp-btn rp-btn-secondary rp-btn-sm";
   const reminded = need.kind === "payment" && need.remindedAt && !sameDay(need.remindedAt) ? reminderWords(need.remindedAt) : "";
   const second = need.kind === "drift" ? snoozeButton(need.shopId, title, 30)
@@ -807,6 +807,27 @@ function needRow(need) {
     el("span", { className: "cr-dot", dataset: { tone: DANGER_KINDS.has(need.kind) ? "bad" : "warn" }, ariaHidden: "true" }),
     el("div", { className: "cr-need-text" }, el("p", { className: "cr-need-title", textContent: title }), why ? el("p", { className: "cr-need-why", textContent: reminded ? `${why} · ${reminded}` : why }) : null),
     el("div", { className: "cr-need-actions" }, remind, primary, second));
+}
+
+/** "Run again" on a failed Google setup step (Today): runs that one step again and says how it went, in place. */
+function runAgainButton(need) {
+  const again = button("Run again", "primary");
+  again.addEventListener("click", async () => {
+    again.disabled = true;
+    again.textContent = "Running…";
+    try {
+      const { outcome } = await api("POST", "/control/google-run-again", { shopId: need.shopId, step: need.step });
+      again.textContent = outcome.state === "done" ? "Fixed" : outcome.state === "waiting" ? "Waiting on Google" : "Still failing";
+      again.title = outcome.detail ?? "";
+      if (outcome.state !== "done") again.disabled = false;
+      if (outcome.state === "done") loadToday().catch(() => {});
+    } catch (failure) {
+      again.disabled = false;
+      again.textContent = "Try again";
+      again.title = failure.message;
+    }
+  });
+  return again;
 }
 
 const sameDay = (iso) => Boolean(iso) && new Date(iso).toDateString() === new Date().toDateString();
@@ -972,7 +993,7 @@ function finishSwitchesButton(n) {
 }
 
 // The kinds of line Today lets the owner snooze (today.js SNOOZABLE).
-const TODAY_SNOOZABLE = new Set(["shop", "payment", "move", "newsletter", "domain", "switch", "parcels", "payouts"]);
+const TODAY_SNOOZABLE = new Set(["shop", "payment", "move", "newsletter", "domain", "switch", "parcels", "payouts", "google"]);
 
 /** Snooze one Today line for a day, a week or a month: picked from a small menu, saved at once. */
 function needSnoozeMenu(need) {
