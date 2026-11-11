@@ -443,3 +443,8 @@
 
 /* A note on a Today line (your own words). */
 .rp.cl .cr-need-note { margin: 4px 0 0; font-size: 13px; line-height: 1.4; font-style: italic; color: var(--rp-text); overflow-wrap: anywhere; }
+
+/* What a platform email said (shop record, Emails). */
+.rp.cl .cr-email-copy { margin-top: 4px; }
+.rp.cl .cr-email-copy summary { cursor: pointer; font-size: 13px; font-weight: 400; color: var(--rp-text-muted); min-height: 24px; }
+.rp.cl .cr-email-text { margin: 8px 0 0; padding: 12px; max-height: 320px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 13px; font-weight: 400; line-height: 1.5; border: 1px solid var(--rp-border); border-radius: 12px; }

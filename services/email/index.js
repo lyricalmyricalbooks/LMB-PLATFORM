@@ -68,6 +68,10 @@ export function platformWords(kind, data, context, language) {
   return language === "fr" ? french(data, context) : bilingual(french(data, context), english());
 }
 
+/** Platform emails whose words carry a way in: only the subject is kept in the sent log. */
+export const NO_COPY = Object.freeze(new Set(["sign-in-link", "sign-in-code", "invite", "waitlist-invite", "data-export-ready", "recovery-approved", "recovery-applied", "support-access-request"]));
+export const MAX_COPY = 8000;
+
 export function createEmailService({ env = process.env, fetch = globalThis.fetch, token = null, registry, sentLog, reputation = null, gmailSend = null, shopStart = null, now = () => new Date(), sleep } = {}) {
   if (!registry?.getShop) throw new Error("The email service needs the shop registry");
   if (!sentLog?.get || !sentLog?.put || !sentLog?.findSent) throw new Error("The email service needs its sent log");
@@ -95,6 +99,15 @@ export function createEmailService({ env = process.env, fetch = globalThis.fetch
     return { subject: message.subject.trim(), text: message.text, html: message.html };
   };
 
+  /**
+   * What a platform email said, kept on its sent-log entry so the control room can show it (the shop record's Emails).
+   * Emails that carry a way in (a sign-in link or code, an invitation, a download link) keep only their subject.
+   */
+  const copyOf = (kind, parts) => ({
+    subject: String(parts?.subject ?? "").slice(0, 300),
+    ...(NO_COPY.has(kind) ? { copy: "withheld" } : { text: String(parts?.text ?? "").slice(0, MAX_COPY) }),
+  });
+
   const deliver = async ({ shopId, kind, stream = "orders", to, idempotencyKey, from, replyTo, parts, platform = false }) => {
     const done = await sentLog.get(idempotencyKey);
     if (done?.status === "sent") return { id: done.id, alreadySent: true };
@@ -104,10 +117,10 @@ export function createEmailService({ env = process.env, fetch = globalThis.fetch
         from, to, replyTo, idempotencyKey, ...parts,
         tags: [tag("kind", kind), ...(shopId ? [tag("shop", shopId)] : []), tag("stream", stream)],
       });
-      await sentLog.put(idempotencyKey, { shopId, kind, stream, to, id, status: "sent", at, ...(platform ? { platform: true } : {}) });
+      await sentLog.put(idempotencyKey, { shopId, kind, stream, to, id, status: "sent", at, ...(platform ? { platform: true, ...copyOf(kind, parts) } : {}) });
       return { id, alreadySent: false };
     } catch (error) {
-      await sentLog.put(idempotencyKey, { shopId, kind, stream, to, status: "failed", error: error.message, retryable: error.retryable !== false, at, ...(platform ? { platform: true } : {}) });
+      await sentLog.put(idempotencyKey, { shopId, kind, stream, to, status: "failed", error: error.message, retryable: error.retryable !== false, at, ...(platform ? { platform: true, ...copyOf(kind, parts) } : {}) });
       throw error;
     }
   };
