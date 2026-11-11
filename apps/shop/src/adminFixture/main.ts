@@ -229,6 +229,12 @@ if (/page=stockroom(\/|%2F)pos/.test(window.location.search) && !EMPTY_STOCKROOM
   stockroomWriteApi.updateSetting = async (key, mutate) => (await writer()).updateSetting(key, mutate);
   stockroomWriteApi.saveSetting = async (key, value, opts) => (await writer()).saveSetting(key, value, opts);
 
+  // Exchange rates: no rate services are asked from the fixture. A logged expense in another currency takes 1.4, and
+  // the Tax centre's background refresh finds nothing to do.
+  const { taxRatesApi } = await import("../app/admin/stockroom/taxRates");
+  taxRatesApi.expenseRatesFor = async (items) => Object.fromEntries(items.map((i) => [`${i.currency.toUpperCase()}@${i.date}`, 1.4]));
+  taxRatesApi.refreshTaxRates = async () => null;
+
   // Website orders (Stock and sales › Website orders): the website's inbox in memory, with one paid order for the
   // first book, brought in through the same write layer. `window.__websiteLink` is the inbox, for checks.
   const { websiteLinkApi } = await import("../app/admin/stockroom/WebsiteOrders");

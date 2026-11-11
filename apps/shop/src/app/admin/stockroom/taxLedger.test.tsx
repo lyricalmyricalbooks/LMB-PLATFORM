@@ -2,7 +2,7 @@
 import { createRoot } from "react-dom/client";
 import { act, type ReactNode } from "react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { changeCategory, isEditableLine, removeExpense } from "./taxLedger";
+import { changeCategory, editExpense, expenseToForm, isEditableLine, removeExpense } from "./taxLedger";
 
 vi.mock("./saveTaxCenter", () => ({ saveTaxCenter: vi.fn() }));
 import { saveTaxCenter } from "./saveTaxCenter";
@@ -143,5 +143,21 @@ describe("receipts", () => {
     expect(container.querySelector("a")?.textContent).toBe("Receipts (2)");
     expect(button("Attach receipt")).toBeUndefined();
     await act(async () => root.unmount());
+  });
+});
+
+describe("editing a business expense (the old Edit expense window)", () => {
+  const tc = { settings: { baseCurrency: "CAD" }, businessExpenses: [{ id: 7, desc: "Booth", cat: "Other", currency: "USD", origCurrency: "USD", amount: 100, origAmount: 100, fxRate: 1.3, baseAmount: 130, date: "2026-03-01", receipt: "https://r/1", amountUnknown: true }] };
+  it("changes the words and amount and values it again at the new date's rate, keeping the receipt", () => {
+    const form = { ...expenseToForm(tc.businessExpenses[0]), desc: "Booth fee", amount: "120", date: "2026-03-05", trip: " Vienna " };
+    expect(expenseToForm(tc.businessExpenses[0]).amount).toBe("");
+    const next = editExpense(tc, 7, form, 120, 1.37);
+    expect(next.businessExpenses[0]).toMatchObject({ desc: "Booth fee", amount: 120, origAmount: 120, fxRate: 1.37, baseAmount: 164.4, fxMissing: false, date: "2026-03-05", trip: "Vienna", receipt: "https://r/1" });
+    expect(next.businessExpenses[0].amountUnknown).toBeUndefined();
+  });
+  it("with no rate found, it is saved as missing a value (never 1 to 1)", () => {
+    const next = editExpense(tc, 7, expenseToForm(tc.businessExpenses[0]), 100, 0);
+    expect(next.businessExpenses[0]).toMatchObject({ fxRate: null, baseAmount: null, fxMissing: true });
+    expect(editExpense(tc, 99, expenseToForm(tc.businessExpenses[0]), 1, 1)).toBe(tc);
   });
 });

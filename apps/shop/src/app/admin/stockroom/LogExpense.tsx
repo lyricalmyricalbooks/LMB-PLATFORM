@@ -6,6 +6,7 @@ import { PrimaryButton, SecondaryButton, SectionCard, SelectField, StatusBadge, 
 import { categoryFromRules } from "./taxRules";
 import { addBusinessExpense, baseCurrencyOf, blankExpense, checkExpense, EXPENSE_CATEGORIES, EXPENSE_CURRENCIES, isDuplicate, tripChoices, type ExpenseErrors, type ExpenseForm } from "./taxExpense";
 import { describeResult, stockroomWriteApi } from "./stockroomWrite";
+import { taxRatesApi } from "./taxRates";
 
 type Row = Record<string, any>;
 type Note = { tone: "ok" | "warn" | "error" | "busy"; text: string };
@@ -62,7 +63,9 @@ export function LogExpenseCard({ taxCenter, onSaved, prefill, onPrefillDone }: {
     setBusy(true);
     setNote({ tone: "busy", text: "Saving…" });
     try {
-      const result = await stockroomWriteApi.updateSetting("taxCenter", (current) => addBusinessExpense(current as Row | null, form, checked.amount, id.current, new Date(), prefill?.noteId));
+      // The rate for the expense's own date, looked up before the save (none found: saved as missing, filled in later).
+      const rates = form.currency === base ? undefined : await taxRatesApi.expenseRatesFor([{ currency: form.currency, date: form.date }], taxCenter as Row | null);
+      const result = await stockroomWriteApi.updateSetting("taxCenter", (current) => addBusinessExpense(current as Row | null, form, checked.amount, id.current, new Date(), prefill?.noteId, rates));
       if (result.status === "saved" || result.status === "unchanged") {
         onSaved((result.value as Row) || {});
         const d = describeResult(result);
@@ -106,7 +109,7 @@ export function LogExpenseCard({ taxCenter, onSaved, prefill, onPrefillDone }: {
           </div>
         )}
         <TextField label="Reference (optional)" placeholder="Invoice or receipt number" value={form.ref} onChange={(e) => set({ ref: e.target.value })} />
-        {form.currency !== base && <p className="rp-money-note">Paid in {form.currency}. It is counted in {base} at the saved exchange rate, and the stockroom fills in the day's rate when it is opened.</p>}
+        {form.currency !== base && <p className="rp-money-note">Paid in {form.currency}. It is counted in {base} at the rate for its date.</p>}
         <div className="rp-money-actions">
           <PrimaryButton type="submit" busy={busy}>{busy ? "Saving…" : "Log expense"}</PrimaryButton>
           {note && <p className="rp-sr-save" data-tone={note.tone} role={note.tone === "error" ? "alert" : "status"}>{note.text}</p>}

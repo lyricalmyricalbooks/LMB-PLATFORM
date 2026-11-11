@@ -13,6 +13,7 @@ import { getOrdersCached } from "../ordersCache";
 import { TaxTop } from "./TaxTop";
 import { taxPeriods } from "./taxPeriods";
 import { RecordsGate } from "./RecordsGate";
+import { useRatedRecords } from "./taxRates";
 import { LogExpenseCard, type Prefill } from "./LogExpense";
 import { LogSeveralCard } from "./LogSeveral";
 import { PendingExpensesCard } from "./PendingExpenses";
@@ -20,6 +21,9 @@ import { RecurringSubscriptionsCard } from "./RecurringSubscriptions";
 import { SortingRulesCard } from "./SortingRules";
 import { LedgerLineActions } from "./LedgerLineActions";
 import { ReceiptsVaultCard } from "./ReceiptsVault";
+import { TaxSeasonCard } from "./TaxSeasonCard";
+import { StockValueCard } from "./StockValueCard";
+import { TripsCard, type TripRow } from "./TripsCard";
 import { isEditableLine } from "./taxLedger";
 import type { SaveNote } from "./saveTaxCenter";
 import { filterLedger, ledgerCsvFile, ledgerTotals, LEDGER_PAGE_SIZE, sourcesOf, taxCenterModel, type LedgerFilter } from "./moneyReports";
@@ -63,8 +67,8 @@ function CashFlowChart({ buckets, cur }: { buckets: Array<{ key: string; label: 
   );
 }
 
-export function TaxCenterView({ records, now, onTaxCenter, orders: givenOrders }: {
-  records: StockroomRecords; now?: Date; onTaxCenter?: (taxCenter: Record<string, unknown>) => void;
+export function TaxCenterView({ records, now, onTaxCenter, onState, orders: givenOrders }: {
+  records: StockroomRecords; now?: Date; onTaxCenter?: (taxCenter: Record<string, unknown>) => void; onState?: (bookId: string, state: Record<string, unknown>) => void;
   /** The shop's orders (tests and the fixture pass them; otherwise read through the shared copy). */
   orders?: Record<string, any>[];
 }) {
@@ -104,8 +108,8 @@ export function TaxCenterView({ records, now, onTaxCenter, orders: givenOrders }
       <TaxTop periods={periods} period={period} onPeriod={(id) => { setPeriodId(id); setPage(1); }} orders={loaded}
         ledgerRows={allRows} states={records.states as Record<string, Record<string, any>>} taxCenter={records.taxCenter as Record<string, any> | null}
         currency={cur} now={nowMs} onTaxCenter={onTaxCenter} />
-      {model.notes.missing > 0 && <p className="rp-money-note" role="status">{model.notes.missing} {model.notes.missing === 1 ? "line has" : "lines have"} no exchange rate yet and {model.notes.missing === 1 ? "is" : "are"} counted at 1 to 1, so these totals may be off. The stockroom fills rates in when it is opened.</p>}
-      {!model.notes.missing && model.notes.estimated > 0 && <p className="rp-money-note" role="status">{model.notes.estimated} foreign-currency {model.notes.estimated === 1 ? "line is" : "lines are"} shown at the last saved exchange rate, not the rate of its own day. The stockroom replaces them with day rates when it is opened.</p>}
+      {model.notes.missing > 0 && <p className="rp-money-note" role="status">{model.notes.missing} {model.notes.missing === 1 ? "line has" : "lines have"} no exchange rate yet and {model.notes.missing === 1 ? "is" : "are"} counted at 1 to 1, so these totals may be off. Rates fill in by themselves while you're online.</p>}
+      {!model.notes.missing && model.notes.estimated > 0 && <p className="rp-money-note" role="status">{model.notes.estimated} foreign-currency {model.notes.estimated === 1 ? "line is" : "lines are"} shown at the last saved exchange rate, not the rate of its own day. Day rates fill in by themselves while you're online.</p>}
 
       <SectionCard title={`Money in and out, ${year}`} description="From your stockroom records: every sale, cost and payout." flush>
         <div className="rp-grid-metrics rp-money-pad">
@@ -149,17 +153,7 @@ export function TaxCenterView({ records, now, onTaxCenter, orders: givenOrders }
           ]} />
       </SectionCard>
 
-      <SectionCard title="Trips and events" flush>
-        <DataTable stackOnPhone caption="Trips" rowKey={(t) => t.name} rows={model.trips}
-          empty={<EmptyState inline title="No trips in this period" />}
-          columns={[
-            { key: "t", header: "Trip", lead: true, render: (t) => t.name },
-            { key: "d", header: "Dates", render: (t) => (t.minDate && t.maxDate ? (t.minDate === t.maxDate ? t.minDate : `${t.minDate} to ${t.maxDate}`) : "-") },
-            { key: "n", header: "Expenses", numeric: true, render: (t) => t.count },
-            { key: "s", header: "Spent", numeric: true, render: (t) => money(t.total) },
-            { key: "x", header: "Deductible", numeric: true, render: (t) => money(t.deductible ?? t.total) },
-          ]} />
-      </SectionCard>
+      <TripsCard trips={model.trips as TripRow[]} taxCenter={records.taxCenter as Record<string, any> | null} money={money} baseCurrency={cur} onSaved={onTaxCenter} />
 
       {!onTaxCenter && (
       <SectionCard title="Standing costs" description={model.recurring.length ? `About ${money(model.recurringSummary.monthlyBase)} a month, ${money(model.recurringSummary.annualBase)} a year.` : undefined} flush>
@@ -205,7 +199,7 @@ export function TaxCenterView({ records, now, onTaxCenter, orders: givenOrders }
             { key: "t", header: "Type", render: (r) => <>{r.type}{r.voided && <StatusBadge glyph={false}>Voided</StatusBadge>}</> },
             { key: "e", header: "Description", lead: true, render: (r) => r.desc },
             { key: "c", header: "Category", render: (r) => (onTaxCenter && isEditableLine(r)
-              ? <LedgerLineActions line={r} onSaved={onTaxCenter} onNote={setLedgerNote} />
+              ? <LedgerLineActions line={r} taxCenter={records.taxCenter as Record<string, unknown> | null} onSaved={onTaxCenter} onNote={setLedgerNote} />
               : r.cat || "") },
             { key: "o", header: "Original", numeric: true, render: (r) => `${fmt(Number(r.origAmount || 0), r.origCurrency || cur)}` },
             { key: "b", header: cur, numeric: true, render: (r) => <span className={r.isIncome ? "rp-money-in" : "rp-money-out"}>{r.isIncome ? "+" : "-"}{fmt(Number(r.baseAmount || 0), cur)}</span> },
@@ -218,6 +212,10 @@ export function TaxCenterView({ records, now, onTaxCenter, orders: givenOrders }
         )}
       </SectionCard>
 
+      <StockValueCard books={records.books as Record<string, any>[]} states={records.states as Record<string, Record<string, any>>} taxCenter={records.taxCenter as Record<string, any> | null}
+        fxRateCache={sources.fxRateCache} onTaxCenter={onTaxCenter} onState={onState} />
+      <TaxSeasonCard input={{ books: records.books as Record<string, any>[], states: records.states as Record<string, Record<string, any>>, taxCenter: records.taxCenter as Record<string, any> | null, fxRateCache: sources.fxRateCache }}
+        year={year} onSaved={onTaxCenter} />
       <ReceiptsVaultCard rows={model.rows} money={money} onSaved={onTaxCenter} taxCenter={records.taxCenter as Record<string, unknown> | null} />
     </div>
   );
@@ -229,6 +227,7 @@ export function TaxCenterPage({ load = stockroomApi.load }: { load?: () => Promi
 
 /** Keeps the records on screen and swaps in the Tax centre as the save returned it (other devices' rows included). */
 function TaxCenterLive({ initial }: { initial: StockroomRecords }) {
-  const [records, setRecords] = useState(initial);
-  return <TaxCenterView records={records} onTaxCenter={(taxCenter) => setRecords((r) => ({ ...r, taxCenter }))} />;
+  const [records, setRecords] = useRatedRecords(initial);
+  return <TaxCenterView records={records} onTaxCenter={(taxCenter) => setRecords((r) => ({ ...r, taxCenter }))}
+    onState={(id, state) => setRecords((r) => ({ ...r, states: { ...r.states, [id]: state } }))} />;
 }
