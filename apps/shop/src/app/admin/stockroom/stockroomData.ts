@@ -18,6 +18,8 @@ export type StockroomRecords = {
   books: StockBook[];
   states: Record<string, Record<string, unknown>>;
   taxCenter: Record<string, unknown> | null;
+  /** The press's invoice details (name, address, terms, bank): the setting `invoiceSettings`, null when never saved. */
+  invoiceSettings?: Record<string, unknown> | null;
   /** Author entries waiting for approval, per book (`submissions/<book>/{sales,expenses}/<id>`): only the ids matter. */
   submissions?: Record<string, { sales?: Record<string, unknown>; expenses?: Record<string, unknown> }>;
 };
@@ -130,7 +132,7 @@ async function readBook(reads: StockroomReads, bookId: string, newFirst: boolean
 export async function loadStockroom(reads: StockroomReads = liveReads()): Promise<StockroomRecords> {
   const flags = await reads.flags();
   const global = flags.fs_mode_global === true;
-  const [catalog, taxCenter] = await Promise.all([readSetting(reads, "catalog", global), readSetting(reads, "taxCenter", global)]);
+  const [catalog, taxCenter, invoiceSettings] = await Promise.all([readSetting(reads, "catalog", global), readSetting(reads, "taxCenter", global), readSetting(reads, "invoiceSettings", global)]);
   const books = catalogBooks(catalog);
   const states: StockroomRecords["states"] = {};
   const submissions: NonNullable<StockroomRecords["submissions"]> = {};
@@ -144,7 +146,8 @@ export async function loadStockroom(reads: StockroomReads = liveReads()): Promis
       if (waiting && typeof waiting === "object") submissions[book.id] = waiting;
     }
   }));
-  return { books, states, taxCenter: taxCenter && typeof taxCenter === "object" ? taxCenter : null, submissions };
+  const asObject = (v: unknown) => (v && typeof v === "object" ? (v as Record<string, unknown>) : null);
+  return { books, states, taxCenter: asObject(taxCenter), invoiceSettings: asObject(invoiceSettings), submissions };
 }
 
 /** What the pages call, so the admin fixture (adminFixture/main.ts) can answer with sample records. */
@@ -157,7 +160,7 @@ export type StockroomWhole = {
   states: Record<string, Record<string, unknown>>;
   settings: Record<string, unknown>;
 };
-export const COPIED_SETTINGS = ["taxCenter", "productionCosts", "paymentLinks", "mailingList", "customerSuppress"] as const;
+export const COPIED_SETTINGS = ["taxCenter", "productionCosts", "paymentLinks", "mailingList", "customerSuppress", "invoiceSettings"] as const;
 
 export async function loadStockroomWhole(reads: StockroomReads = liveReads()): Promise<StockroomWhole> {
   const flags = await reads.flags();

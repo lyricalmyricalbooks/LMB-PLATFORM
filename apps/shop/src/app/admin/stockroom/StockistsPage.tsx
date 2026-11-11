@@ -1,6 +1,7 @@
 // Stockroom › Stockists, drawn by the admin itself (no frame): the shops holding your copies on consignment, what each
-// owes, which invoices are overdue, and a drawer with one stockist's titles, invoices and ledger. One write so far:
-// Mark paid on an invoice (saved through stockroomWrite.ts, WRITING.md), with an optional emailed receipt.
+// owes, which invoices are overdue, and a drawer with one stockist's titles, invoices and ledger. Writes (through
+// stockroomWrite.ts, WRITING.md): Mark paid on an invoice, with an optional emailed receipt, and the Invoices card
+// (InvoiceDialogs.tsx): make, edit, send, delete and print invoices, and the invoice details they print with.
 import { useMemo, useState } from "react";
 import { LEDGER_TYPE_FILTERS } from "@stockroom/consignment-ledger-filter.js";
 import { fmt, fmtD } from "@stockroom/money.js";
@@ -8,11 +9,13 @@ import { fmt, fmtD } from "@stockroom/money.js";
 import { Checkbox, DataTable, Dialog, Drawer, EmptyState, InkButton, SecondaryButton, StatusBadge, type BadgeTone, type Column } from "../riso/components";
 import { useShopWords } from "../shopWords";
 import type { NativePageProps } from "./nativePages";
+import { InvoicesCard } from "./InvoiceDialogs";
 import { RecordsGate } from "./RecordsGate";
 import type { StockroomRecords } from "./stockroomData";
 import { stockistReceiptApi } from "./stockistReceipt";
 import { describeResult, stockroomWriteApi } from "./stockroomWrite";
 import { buildStockists, markInvoicePaid, moneyText, type Stockist, type StockistInvoice, type StockistLedgerRow, type StockistsView } from "./stockists";
+import "./money.css";
 import "./stockroom.css";
 import "./stockists.css";
 
@@ -76,7 +79,7 @@ function Ledger({ rows }: { rows: StockistLedgerRow[] }) {
   );
 }
 
-function Detail({ s, onPay, notice }: { s: Stockist; onPay?: (i: StockistInvoice) => void; notice?: Notice | null }) {
+function Detail({ s, onPay, notice, onNewInvoice }: { s: Stockist; onPay?: (i: StockistInvoice) => void; notice?: Notice | null; onNewInvoice?: () => void }) {
   const w = useShopWords();
   const contact = [s.contact, s.email, s.phone, s.website].filter(Boolean);
   return (
@@ -98,7 +101,7 @@ function Detail({ s, onPay, notice }: { s: Stockist; onPay?: (i: StockistInvoice
         ))}
       </ul>
       {s.paid.length > 0 && <p className="rp-sk-meta">Already paid: {moneyText(s.paid)}</p>}
-      <h3 className="rp-sk-h">Invoices</h3>
+      <div className="rp-inv-head"><h3 className="rp-sk-h">Invoices</h3>{onNewInvoice && <SecondaryButton size="sm" onClick={onNewInvoice}>New invoice</SecondaryButton>}</div>
       {notice && <NoticeLine notice={notice} />}
       <InvoiceRows invoices={s.invoices} onPay={onPay} />
       <h3 className="rp-sk-h">Ledger</h3>
@@ -169,7 +172,7 @@ function PayDialog({ s, inv, onClose, onSaved }: {
   );
 }
 
-export function StockistsList({ view, onSaved }: { view: StockistsView; onSaved?: (bookId: string, state: Record<string, any>) => void }) {
+export function StockistsList({ view, onSaved, onNewInvoice }: { view: StockistsView; onSaved?: (bookId: string, state: Record<string, any>) => void; onNewInvoice?: (stockist: string) => void }) {
   const w = useShopWords();
   const [open, setOpen] = useState<string | null>(null);
   const [paying, setPaying] = useState<StockistInvoice | null>(null);
@@ -198,8 +201,9 @@ export function StockistsList({ view, onSaved }: { view: StockistsView; onSaved?
       {view.overdueCount > 0 && (
         <p className="rp-sr-status" role="status">{view.overdueCount === 1 ? "1 invoice is" : `${view.overdueCount} invoices are`} overdue: {moneyText(view.overdueTotals)}.</p>
       )}
-      <Drawer open={!!current} onClose={() => { setOpen(null); setNotice(null); }} title={current?.name || ""} description={onSaved ? "Mark invoices paid here. Sending copies and recording sales come next." : "Read-only."}>
-        {current && <Detail s={current} notice={notice} onPay={onSaved ? (i) => { setNotice(null); setPaying(i); } : undefined} />}
+      <Drawer open={!!current} onClose={() => { setOpen(null); setNotice(null); }} title={current?.name || ""} description={onSaved ? "Bill them, or mark their invoices paid." : "Read-only."}>
+        {current && <Detail s={current} notice={notice} onPay={onSaved ? (i) => { setNotice(null); setPaying(i); } : undefined}
+          onNewInvoice={onSaved && onNewInvoice ? () => { const name = current.name; setOpen(null); setNotice(null); onNewInvoice(name); } : undefined} />}
       </Drawer>
       {current && paying && onSaved && (
         <PayDialog s={current} inv={paying} onClose={() => setPaying(null)}
@@ -216,6 +220,14 @@ export function StockistsPage({ load }: Partial<NativePageProps> & { load?: () =
 /** Keeps the records on screen and swaps in a book's saved state (other devices' rows included, WRITING.md rule 5). */
 function StockistsBoard({ initial }: { initial: StockroomRecords }) {
   const [records, setRecords] = useState(initial);
+  const [newFor, setNewFor] = useState<string | null>(null);
   const view = useMemo(() => buildStockists(records), [records]);
-  return <StockistsList view={view} onSaved={(bookId, state) => setRecords((r) => ({ ...r, states: { ...r.states, [bookId]: state } }))} />;
+  const saved = (bookId: string, state: Record<string, any>) => setRecords((r) => ({ ...r, states: { ...r.states, [bookId]: state } }));
+  return (
+    <div className="rp-sk">
+      <StockistsList view={view} onSaved={saved} onNewInvoice={setNewFor} />
+      <InvoicesCard records={records} onBookSaved={saved} onSettingsSaved={(value) => setRecords((r) => ({ ...r, invoiceSettings: value }))}
+        newFor={newFor} onNewDone={() => setNewFor(null)} />
+    </div>
+  );
 }

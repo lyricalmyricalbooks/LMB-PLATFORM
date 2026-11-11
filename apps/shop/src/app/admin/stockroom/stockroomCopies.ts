@@ -2,8 +2,9 @@
 // going. Same place and shape as the old app's "system backups", so either side reads the other's copies:
 //   settings/systemBackups = { data: JSON [{ id, dayKey, type: "auto" | "manual", createdAt, bookCount }], ts }
 //   backups/<id>           = { data: JSON snapshot (version 2.6), ts }
-// One "auto" copy per local day, the newest 30 kept (older copies' documents are deleted). A copy made here has no
-// invoice settings or Sheets link (those lived only in the old app's browser), so bringing one back leaves them alone.
+// One "auto" copy per local day, the newest 30 kept (older copies' documents are deleted). A copy made here holds the
+// invoice settings (now a stockroom setting; bringing back an old app's copy restores them, without its card key) but no
+// Sheets link (that lived only in the old app's browser).
 // Bringing something back first makes a fresh copy, so it can always be undone from the list.
 import { deleteDoc, doc, getDoc, setDoc } from "firebase/firestore";
 
@@ -21,7 +22,15 @@ export type Snapshot = {
   BOOKS: Record<string, unknown>; posExtra?: Record<string, unknown>; deletedDefaults?: unknown[];
   states: Record<string, unknown>;
   TAX_CENTER?: unknown; productionCosts?: unknown; paymentLinks?: unknown; mailingList?: unknown; customerSuppress?: unknown;
+  invoiceSettings?: unknown;
 };
+
+/** Invoice settings from a copy, without the card key the old app kept beside them (keys never go into the records). */
+export function invoiceSettingsFromCopy(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const { stripeKey: _key, ...rest } = value as Record<string, unknown>;
+  return Object.keys(rest).length ? rest : undefined;
+}
 
 export const dayKeyOf = (ms: number) => {
   const d = new Date(ms);
@@ -55,6 +64,7 @@ export function snapshotOf(whole: StockroomWhole, now = Date.now()): Snapshot {
     paymentLinks: settings.paymentLinks ?? {},
   };
   if (settings.mailingList) snap.mailingList = settings.mailingList;
+  if (settings.invoiceSettings) snap.invoiceSettings = settings.invoiceSettings;
   if (suppress) snap.customerSuppress = Array.isArray(suppress) ? suppress : Array.isArray(suppress.emails) ? suppress.emails : [];
   return snap;
 }
@@ -164,11 +174,12 @@ export async function bringBack(copyId: string, id: string | null, io = copiesIO
   }
   if (!id) {
     const values: Record<string, unknown> = { taxCenter: snap.TAX_CENTER, productionCosts: snap.productionCosts, paymentLinks: snap.paymentLinks, mailingList: snap.mailingList,
-      customerSuppress: Array.isArray(snap.customerSuppress) ? { emails: snap.customerSuppress } : undefined };
+      customerSuppress: Array.isArray(snap.customerSuppress) ? { emails: snap.customerSuppress } : undefined,
+      invoiceSettings: invoiceSettingsFromCopy(snap.invoiceSettings) };
     for (const key of COPIED_SETTINGS) {
       if (values[key] == null) continue;
       const r = await io.saveSetting(key, () => values[key]);
-      if (failed(r)) missed.push(key === "taxCenter" ? "the tax centre" : key === "mailingList" ? "the mailing list" : key === "customerSuppress" ? "the unsubscribe list" : key === "paymentLinks" ? "the payment links" : "the production costs");
+      if (failed(r)) missed.push(key === "taxCenter" ? "the tax centre" : key === "mailingList" ? "the mailing list" : key === "customerSuppress" ? "the unsubscribe list" : key === "paymentLinks" ? "the payment links" : key === "invoiceSettings" ? "the invoice details" : "the production costs");
     }
   }
   if (missed.length) return { ok: false, text: `Brought back, except ${missed.slice(0, 3).join(", ")}${missed.length > 3 ? ` and ${missed.length - 3} more` : ""}. Try again for those.` };

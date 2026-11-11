@@ -239,3 +239,19 @@ only writer of a book's records, the same way the website's orders reach it (an 
     and `teamExpirySweep` (every 30 minutes, roles.js removeExpiredMembers) deletes the entry, which signs them out.
 - Not planned: a helper writing a book's records directly. Rules can't check a single row inside those records, so
   that would mean trusting the helper with every book's money.
+
+### Invoices in the admin (11 November 2026)
+
+The old stockroom made invoices; the admin had only Mark paid. Stockists now carries an **Invoices** card
+(`apps/shop/src/app/admin/stockroom/InvoiceDialogs.tsx`, rules in `invoiceMake.ts`, printed page in `invoicePaper.ts`):
+every invoice (to stockists and to people typed in), **New invoice** (also from a stockist's drawer), edit, Mark sent,
+delete (never a paid one), and Print or save PDF on the shared document kit.
+- Same records as the old app: an invoice lives in one book's `invoices` ("Filed under"; for a stockist, a book it holds
+  copies of), with the old payload, `bookIds`, ledger links (`stampLedgerInvoiceLink`) and `invoiceSeq`. Numbers come
+  from the stockroom's own rules (one title: its code; several: the press's initials). **Add unpaid sales** leaves out
+  sales already on another live invoice. A new invoice's id is fixed before the first try, so a retry never files it twice.
+- **Invoice details** (name, address, email, web, tax number, terms, bank, thank-you line) were in one browser
+  (`lm-invoice-settings`); they are now the stockroom setting `invoiceSettings` (read with the records, kept in online
+  copies). Bringing back an old app's copy restores them without its Stripe key.
+- Not yet (stage 2): payment reminders (the old app sent them on a timer from an open browser; nothing sends them now)
+  and Stripe pay links, which must be made by the server, never from a key in the browser.
