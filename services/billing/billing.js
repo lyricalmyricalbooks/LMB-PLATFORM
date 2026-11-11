@@ -1080,6 +1080,23 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
      * person who pays is emailed, once per card and expiry (a new card, or a new expiry date, gets its own email when its
      * time comes). Only for a plan still running and not cancelled.
      */
+    /**
+     * The control room's "Send reminder" on a failed plan payment: the press gets the email the failure sent (or the
+     * bank-confirm one) again, with the link to fix it. Only while a payment is owed; a paused plan already had its own
+     * email. At most one a day per shop (the email key carries the day), so a double tap never sends two.
+     * Answers { sent, to, kind } or { sent: false, why }.
+     */
+    async remindPayment({ shopId }) {
+      const row = await subscriptions.get(shopId);
+      if (!row || !OWING.has(row.status)) return { sent: false, why: "Nothing is owed on this shop's plan." };
+      if (!row.billingEmail) return { sent: false, why: "This shop has no billing email to send to." };
+      const problem = row.paymentProblem ?? null;
+      const kind = problem?.kind === "confirm" ? "payment-needs-confirming" : "payment-failed";
+      await notify(shopId, kind, { ...(problem?.amount ? { price: problem.amount } : {}), nextTry: dateText(problem?.nextTry ?? null) }, `${shopId}/remind/${at().slice(0, 10)}`);
+      await logChange(shopId, "payment-reminder", { kind });
+      return { sent: true, to: row.billingEmail, kind };
+    },
+
     async cardExpiryReminders() {
       const sent = [];
       for (const row of await subscriptions.list()) {

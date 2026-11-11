@@ -797,12 +797,34 @@ function needRow(need) {
     primary = el("a", { className: "rp-btn rp-btn-primary rp-btn-sm", href: need.go, textContent: NEED_ACTION[need.kind] ?? "Open" });
   }
   primary.setAttribute("aria-label", `${primary.textContent}: ${title}`);
+  // A failed plan payment: the reminder email is one tap away, and the shop's record moves to the second button.
+  const remind = need.kind === "payment" && need.shopId ? reminderButton(need.shopId) : null;
+  if (remind) primary.className = "rp-btn rp-btn-secondary rp-btn-sm";
   const second = need.kind === "drift" ? snoozeButton(need.shopId, title, 30)
     : need.shopId && TODAY_SNOOZABLE.has(need.kind) ? needSnoozeMenu(need) : null;
   return el("div", { className: "cr-need" },
     el("span", { className: "cr-dot", dataset: { tone: DANGER_KINDS.has(need.kind) ? "bad" : "warn" }, ariaHidden: "true" }),
     el("div", { className: "cr-need-text" }, el("p", { className: "cr-need-title", textContent: title }), why ? el("p", { className: "cr-need-why", textContent: why }) : null),
-    el("div", { className: "cr-need-actions" }, primary, second));
+    el("div", { className: "cr-need-actions" }, remind, primary, second));
+}
+
+/** "Send reminder": emails the press the failed-payment note again (at most once a day), then says who it went to. */
+function reminderButton(shopId) {
+  const remind = button("Send reminder", "primary");
+  remind.addEventListener("click", async () => {
+    remind.disabled = true;
+    remind.textContent = "Sending…";
+    try {
+      const { to } = await api("POST", "/control/payment-reminder", { shopId });
+      remind.textContent = "Reminder sent";
+      remind.title = `Emailed ${to}`;
+    } catch (failure) {
+      remind.disabled = false;
+      remind.textContent = "Try again";
+      remind.title = failure.message;
+    }
+  });
+  return remind;
 }
 
 function renderToday() {
@@ -1864,7 +1886,7 @@ $("#settings-form").addEventListener("submit", async (event) => {
 
 // ── Activity log (plan 9.9): read only. ──
 const ACTIVITY_WORDS = {
-  "settings-changed": "changed the platform settings", "waitlist-invite": "invited someone from the waitlist", "switch-set": "set a switch",
+  "settings-changed": "changed the platform settings", "waitlist-invite": "invited someone from the waitlist", "payment-reminder": "sent a payment reminder", "switch-set": "set a switch",
   "act-as": "opened the shop's admin as support", "two-step-reset": "turned off two-step sign-in for someone", "test-shop-reset": "reset the test shop's sample books", "google-run-again": "ran a Google step again", "shop-closed": "closed the shop", "shop-reopened": "opened the shop again",
   "newsletter-resumed": "turned the newsletter back on", "fee-change-scheduled": "changed the fee on each order (starts in 30 days)",
   "fee-change-cancelled": "cancelled a waiting fee change", "new-shop-switch": "changed what new shops start with", "signup-retry": "tried making the shop again", "plan-change-retry": "tried the plan change again",

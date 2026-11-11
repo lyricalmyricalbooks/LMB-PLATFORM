@@ -233,3 +233,19 @@ test("Stripe's events out of order: an older event never puts old state back ove
   assert.equal(stores.subscriptions.rows.get("moth-press").lastEvent.created, NOW / 1000 + 20);
   assert.equal(email.list().filter((m) => m.kind === "subscription-ended").length, 1);
 });
+
+test("the control room's payment reminder resends the failed-payment email, once a day, only while a payment is owed", async () => {
+  const { billing, event, email, stores, registry } = make();
+  const row = await billing.startTrial({ account: ACCOUNT, shopId: "moth-press", pressName: "Moth Press", plan: "both" });
+  assert.equal((await billing.remindPayment({ shopId: "moth-press" })).sent, false, "nothing owed during a trial");
+  await event("invoice.payment_failed", { id: "in_1", currency: "cad", amount_due: 3900, attempt_count: 1, next_payment_attempt: NOW / 1000 + 3 * 86400, parent: { subscription_details: { subscription: row.subscriptionId } } });
+  stores.subscriptions.rows.set("moth-press", { ...stores.subscriptions.rows.get("moth-press"), status: "past_due" });
+  const sent = await billing.remindPayment({ shopId: "moth-press" });
+  assert.deepEqual([sent.sent, sent.kind], [true, "payment-failed"]);
+  await billing.remindPayment({ shopId: "moth-press" });
+  const failed = email.list().filter((m) => m.kind === "payment-failed");
+  assert.equal(failed.length, 2, "the first failure email, then one reminder however often it's tapped that day");
+  assert.equal(failed[1].data.price, "$39.00");
+  assert.match(failed[1].data.nextTry, /2027/);
+  assert.ok([...registry.events.get("moth-press").values()].some((e) => e.what === "payment-reminder"));
+});
