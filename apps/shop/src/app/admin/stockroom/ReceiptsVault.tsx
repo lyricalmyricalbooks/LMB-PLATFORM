@@ -2,8 +2,8 @@
 // each with an "Attach receipt" button (the old Tax Centre's receipts vault).
 import { useState } from "react";
 
-import { DataTable, EmptyState, SectionCard, TabPanel, Tabs } from "../riso/components";
-import { receiptsOf, receiptVault } from "./taxLedger";
+import { ConfirmDialog, DataTable, EmptyState, GhostButton, SectionCard, TabPanel, Tabs } from "../riso/components";
+import { detachReceipt, isEditableLine, receiptsOf, receiptVault } from "./taxLedger";
 import { AttachReceiptButton, defaultUpload, useLineSave, type Upload } from "./lineSave";
 import type { SaveNote } from "./saveTaxCenter";
 
@@ -13,6 +13,29 @@ type View = "kept" | "missing";
 function MissingAttach({ line, onSaved, onNote, upload }: { line: Row; onSaved: (tc: Row) => void; onNote: (n: SaveNote) => void; upload: Upload }) {
   const { busy, attach } = useLineSave(onSaved, onNote);
   return <AttachReceiptButton desc={line.desc} busy={busy} onFile={(f) => void attach(line.itemId, f, upload)} />;
+}
+
+/** A line's receipt links; on the live page a business expense also offers "Remove" for each one, after a confirm. */
+function KeptReceipts({ line, onSaved, onNote }: { line: Row; onSaved?: (tc: Row) => void; onNote: (n: SaveNote) => void }) {
+  const { busy, run } = useLineSave(onSaved || (() => {}), onNote);
+  const [asking, setAsking] = useState<string | null>(null);
+  const files = receiptsOf(line);
+  const canRemove = !!onSaved && isEditableLine(line);
+  const name = (i: number) => (files.length > 1 ? `Receipt ${i + 1}` : "Open");
+  return (
+    <span className="rp-money-line-actions">
+      {files.map((u, i) => (
+        <span key={u} className="rp-money-line-actions">
+          <a className="rp-money-receipt" href={u} target="_blank" rel="noopener noreferrer">{name(i)}</a>
+          {canRemove && <GhostButton size="sm" disabled={busy} aria-label={`Remove ${files.length > 1 ? `receipt ${i + 1}` : "the receipt"} from ${line.desc || "this expense"}`} onClick={() => setAsking(u)}>Remove</GhostButton>}
+        </span>
+      ))}
+      {canRemove && <ConfirmDialog open={asking !== null} title="Remove this receipt?" confirmLabel="Remove receipt"
+        message={`It comes off “${line.desc || "this expense"}”. The expense itself stays in your ledger.`}
+        onCancel={() => setAsking(null)}
+        onConfirm={() => { const u = asking!; setAsking(null); void run((tc) => detachReceipt(tc, line.itemId, u), "Receipt removed."); }} />}
+    </span>
+  );
 }
 
 export function ReceiptsVaultCard({ rows, money, onSaved, upload = defaultUpload }: {
@@ -40,12 +63,7 @@ export function ReceiptsVaultCard({ rows, money, onSaved, upload = defaultUpload
             { key: "d", header: "Date", render: (r) => r.date || "-" },
             { key: "e", header: "Expense", lead: true, render: (r) => r.desc },
             { key: "a", header: "Amount", numeric: true, render: amount },
-            { key: "r", header: "Receipt", render: (r) => {
-              const files = receiptsOf(r);
-              return <span className="rp-money-line-actions">{files.map((u, i) => (
-                <a key={u} className="rp-money-receipt" href={u} target="_blank" rel="noopener noreferrer">{files.length > 1 ? `Receipt ${i + 1}` : "Open"}</a>
-              ))}</span>;
-            } },
+            { key: "r", header: "Receipt", render: (r) => <KeptReceipts line={r} onSaved={onSaved} onNote={setNote} /> },
           ]} />
       </TabPanel>
       <TabPanel tabId="vault-missing" active={view === "missing"}>

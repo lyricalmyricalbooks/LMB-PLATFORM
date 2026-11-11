@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./saveTaxCenter", () => ({ saveTaxCenter: vi.fn() }));
 import { saveTaxCenter } from "./saveTaxCenter";
-import { receiptVault } from "./taxLedger";
+import { detachReceipt, receiptVault } from "./taxLedger";
 import { ReceiptsVaultCard } from "./ReceiptsVault";
 
 const rows = [
@@ -76,6 +76,43 @@ describe("receipts vault", () => {
   it("opens on Missing when nothing is kept yet", async () => {
     const { container, root } = await mount(<ReceiptsVaultCard rows={[rows[1]]} money={money} />);
     expect(container.querySelector('[aria-selected="true"]')?.textContent).toBe("Missing1");
+    await act(async () => root.unmount());
+  });
+
+  it("takes one receipt off, moving the older field to the next one left", () => {
+    const tc = { businessExpenses: [{ id: "a", receipt: "https://r/1", receiptFiles: ["https://r/1", "https://r/2"] }], keep: 1 };
+    const out = detachReceipt(tc, "a", "https://r/1");
+    expect(out.businessExpenses[0]).toEqual({ id: "a", receipt: "https://r/2", receiptFiles: ["https://r/2"] });
+    expect(out.keep).toBe(1);
+    expect(detachReceipt(out, "a", "https://r/2").businessExpenses[0]).toEqual({ id: "a", receipt: "", receiptFiles: [] });
+    expect(detachReceipt(tc, "a", "https://r/9")).toBe(tc);
+    expect(detachReceipt(tc, "gone", "https://r/1")).toBe(tc);
+    const old = { businessExpenses: [{ id: "b", receipt: "https://r/5" }] };
+    expect(detachReceipt(old, "b", "https://r/5").businessExpenses[0]).toEqual({ id: "b", receipt: "", receiptFiles: [] });
+  });
+
+  it("removes a receipt from a business expense only after a confirm", async () => {
+    vi.mocked(saveTaxCenter).mockResolvedValue({ ok: true, taxCenter: { done: 2 }, note: { tone: "ok", text: "Receipt removed." } });
+    const onSaved = vi.fn();
+    const { container, root } = await mount(<ReceiptsVaultCard rows={rows} money={money} onSaved={onSaved} />);
+    const removes = [...container.querySelectorAll("#rp-panel-vault-kept button")].filter((b) => b.textContent === "Remove");
+    expect(removes).toHaveLength(2);
+    expect(removes[1].getAttribute("aria-label")).toBe("Remove receipt 2 from Canva");
+    await act(async () => { (removes[1] as HTMLButtonElement).click(); });
+    expect(saveTaxCenter).not.toHaveBeenCalled();
+    const confirm = [...document.querySelectorAll("button")].find((b) => b.textContent === "Remove receipt") as HTMLButtonElement;
+    await act(async () => { confirm.click(); });
+    await act(async () => {});
+    const tc = { businessExpenses: [{ id: "a", receiptFiles: ["https://r/1", "https://r/2"] }] };
+    expect(vi.mocked(saveTaxCenter).mock.calls[0][0](tc).businessExpenses[0].receiptFiles).toEqual(["https://r/1"]);
+    expect(onSaved).toHaveBeenCalledWith({ done: 2 });
+    expect(container.textContent).toContain("Receipt removed.");
+    await act(async () => root.unmount());
+  });
+
+  it("offers no Remove on read-only pages or for an item's own costs", async () => {
+    const { container, root } = await mount(<ReceiptsVaultCard rows={rows} money={money} />);
+    expect([...container.querySelectorAll("button")].some((b) => b.textContent === "Remove")).toBe(false);
     await act(async () => root.unmount());
   });
 });

@@ -53,3 +53,17 @@ export function receiptVault<T extends Row>(rows: T[]): { kept: T[]; missing: T[
   }
   return { kept, missing };
 }
+
+/** The Tax centre with one receipt taken off a business expense (the older single field moves to the next one left). */
+export function detachReceipt(tc: Row | null, id: unknown, url: string): Row {
+  const list = expensesOf(tc);
+  const at = list.findIndex((e) => String(e.id) === String(id));
+  if (at < 0) return tc || {};
+  const e = list[at];
+  const files = receiptsOf(e);
+  if (!files.includes(url)) return tc || {};
+  const left = files.filter((f) => f !== url);
+  const next = list.slice();
+  next[at] = { ...e, receipt: e.receipt === url || !e.receipt ? left[0] || "" : e.receipt, receiptFiles: left };
+  return { ...(tc || {}), businessExpenses: next };
+}
