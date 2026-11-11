@@ -19,6 +19,10 @@ updates:
     directory: /apps/stockroom
     schedule: { interval: weekly }
     cooldown: { default-days: 7 }
+  - package-ecosystem: npm
+    directory: /services/zapier
+    schedule: { interval: weekly }
+    cooldown: { default-days: 7 }
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
