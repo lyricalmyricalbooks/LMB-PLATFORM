@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  DEFAULT_STOCKROOM_PAGE, FROM_ADMIN, FROM_STOCKROOM, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES, STOCKROOM_TAB,
-  combinedAdmin, lookMessage, openMessage, stockroomFrameMessage, stockroomPage,
+  DEFAULT_STOCKROOM_PAGE, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES, STOCKROOM_TAB, combinedAdmin, stockroomPage,
 } from "./combined";
 import { COMBINED_MENU, MENU, NAV, STOCKROOM_SIDE, WEBSITE_SIDE, menuItemFor, sideMenu, sideOf, sidebarItems } from "./riso/nav";
 import { hashForRoute, routeFromHash, sameSection } from "./adminRoute";
 import { DEFAULT_SHOP_PROFILE } from "../../lib/shopProfile";
 import { adminWordsFor } from "./sells";
+import { NATIVE_PAGES } from "./stockroom/nativePages";
 
 const profile = (shop: boolean, stockroom: boolean) => ({ ...DEFAULT_SHOP_PROFILE, apps: { shop, stockroom } });
 const stockroomRoot = join(__dirname, "..", "..", "..", "..", "stockroom");
@@ -68,9 +68,8 @@ describe("the combined admin (shop + stockroom plan)", () => {
     expect(settings(MENU)).toEqual(navSettings);
   });
 
-  it("names only stockroom pages that exist, by the stockroom's own tab names", () => {
-    const html = readFileSync(join(stockroomRoot, "index.html"), "utf8");
-    for (const p of STOCKROOM_PAGES) expect(html, p.id).toContain(`id="tab-${p.id}"`);
+  it("draws every stockroom page itself, so the old stockroom app never runs behind the admin", () => {
+    for (const p of STOCKROOM_PAGES) expect(NATIVE_PAGES[p.id], p.id).toBeTruthy();
     expect(stockroomPage("website")).toBeUndefined();
     expect(stockroomPage("pos")?.label).toBe("Till");
   });
@@ -84,23 +83,6 @@ describe("the combined admin (shop + stockroom plan)", () => {
     expect(sameSection("#stockroom/pos", "#stockroom/pos")).toBe(true);
     // A shop with only the website: a stockroom address is unknown, as before.
     expect(routeFromHash("#stockroom/pos", false)).toBeNull();
-  });
-
-  it("talks with the stockroom frame only, in names both sides share", () => {
-    const frame = {};
-    const origin = "https://lmb-test-shop.web.app";
-    const ev = (data: unknown, over: object = {}) => ({ source: frame, origin, data, ...over });
-    expect(stockroomFrameMessage(ev({ source: FROM_STOCKROOM, type: "ready" }), frame, origin)).toEqual({ type: "ready" });
-    expect(stockroomFrameMessage(ev({ source: FROM_STOCKROOM, type: "page", tab: "pos" }), frame, origin)).toEqual({ type: "page", tab: "pos" });
-    expect(stockroomFrameMessage(ev({ source: FROM_STOCKROOM, type: "page", tab: "website" }), frame, origin)).toEqual({ type: "page", tab: "website" });
-    expect(stockroomFrameMessage(ev({ source: FROM_STOCKROOM, type: "page", tab: "../x" }), frame, origin)).toBeNull();
-    expect(stockroomFrameMessage(ev({ source: FROM_STOCKROOM, type: "ready" }, { source: {} }), frame, origin)).toBeNull();
-    expect(stockroomFrameMessage(ev({ source: FROM_STOCKROOM, type: "ready" }, { origin: "https://elsewhere.example" }), frame, origin)).toBeNull();
-    expect(openMessage("pos")).toEqual({ source: FROM_ADMIN, type: "open", tab: "pos" });
-    expect(lookMessage("paper", "dark")).toEqual({ source: FROM_ADMIN, type: "look", look: "paper", appearance: "dark" });
-    const lib = readFileSync(join(stockroomRoot, "src/lib/inside-admin.js"), "utf8");
-    expect(lib).toContain(`FROM_ADMIN = '${FROM_ADMIN}'`);
-    expect(lib).toContain(`FROM_STOCKROOM = '${FROM_STOCKROOM}'`);
   });
 
   it("is served from the shop's own address, so one sign-in covers both", () => {

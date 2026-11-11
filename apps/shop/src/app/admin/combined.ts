@@ -15,7 +15,7 @@ export function combinedAdmin(profile: ShopProfile = shopProfile): boolean {
 export const STOCKROOM_TAB = "stockroom";
 /** Menu id of a stockroom page: `stockroom/<page>`. */
 export const STOCKROOM_ITEM_PREFIX = "stockroom/";
-/** Where the shop's Hosting serves the stockroom (apps/shop/firebase.json rewrite; clients/deploy.js copies it in). */
+/** Where the shop's Hosting serves the older stockroom app, still the fair helper's till link (apps/shop/firebase.json rewrite). */
 export const STOCKROOM_FRAME_PATH = "/stockroom/app";
 /** The combined admin's own page with every sale in one list (Orders › All sales, AllSales.tsx): `#sales`. */
 export const SALES_TAB = "sales";
@@ -28,10 +28,6 @@ export const COMBINED_PAGES: StockroomPage[] = [
   { id: REORDER_TAB, label: "Reorder", description: "Products about to run out, most urgent first, with how many to order." },
   { id: SALES_TAB, label: "All sales", description: "Website orders beside the stockroom's own sales, counted once." },
 ];
-
-/** Message senders; the same names as the stockroom's lib/inside-admin.js. */
-export const FROM_ADMIN = "lm-admin";
-export const FROM_STOCKROOM = "lm-stockroom";
 
 export type StockroomPage = { id: string; label: string; description: string };
 
@@ -66,19 +62,3 @@ export const DEFAULT_STOCKROOM_PAGE = STOCKROOM_PAGES[0].id;
 export function stockroomPage(id: string | undefined | null): StockroomPage | undefined {
   return id ? PAGES.get(id) : undefined;
 }
-
-/** A message from the stockroom frame, checked: `{ type: "ready" }` or `{ type: "page", tab }`, else null. */
-export function stockroomFrameMessage(event: { source: unknown; origin: string; data: unknown }, frame: unknown, origin: string):
-  { type: "ready" } | { type: "page"; tab: string } | null {
-  if (!event || !frame || event.source !== frame || event.origin !== origin) return null;
-  const data = event.data as Record<string, unknown> | null;
-  if (!data || typeof data !== "object" || data.source !== FROM_STOCKROOM) return null;
-  if (data.type === "ready") return { type: "ready" };
-  // Any page the frame shows, the menu's or not, so the admin always knows what is on screen.
-  if (data.type === "page" && typeof data.tab === "string" && /^[a-z][a-z-]{1,29}$/.test(data.tab)) return { type: "page", tab: data.tab };
-  return null;
-}
-
-/** A message for the stockroom frame. */
-export const openMessage = (tab: string) => ({ source: FROM_ADMIN, type: "open", tab });
-export const lookMessage = (look: string, appearance: "light" | "dark") => ({ source: FROM_ADMIN, type: "look", look, appearance });

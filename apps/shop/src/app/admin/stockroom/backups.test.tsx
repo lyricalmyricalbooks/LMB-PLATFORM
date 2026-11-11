@@ -11,6 +11,7 @@ vi.mock("react-hot-toast", () => ({ default: Object.assign(vi.fn(), { success: v
 const { folderRow, nightlyRow, whenWords } = await import("./backups");
 const { nightlyBackupApi } = await import("../BackupsExportCard");
 const { BackupsPage, stockCountsFile } = await import("./BackupsPage");
+const { copiesIO } = await import("./stockroomCopies");
 
 const at = (d: string) => new Date(d).getTime();
 
@@ -49,11 +50,12 @@ describe("Stockroom › Backups", () => {
     nightlyBackupApi.status = vi.fn(async () => ({ ok: true, lastSuccessAt: new Date().toISOString(), lastAttemptAt: new Date().toISOString() }));
     nightlyBackupApi.list = vi.fn(async () => ({ backups: [] }));
     nightlyBackupApi.backupNow = vi.fn(async () => ({ ok: true }));
+    copiesIO.list = vi.fn(async () => [{ id: "sb-1", dayKey: "", type: "auto" as const, createdAt: Date.now(), bookCount: 3 }]);
     el = document.createElement("div"); document.body.appendChild(el); root = createRoot(el);
     await act(async () => { root!.render(<BackupsPage />); });
     const text = el.textContent || "";
     expect(el.querySelector("h2")?.textContent).toBe("Backups");
-    for (const line of ["Every night · kept 30 days", "Download all your data", "Spreadsheet files and one zip", "Back up to a folder", "Spreadsheets"]) expect(text).toContain(line);
+    for (const line of ["Every night · kept 30 days", "Stockroom copies", "1 kept", "Download all your data", "Spreadsheet files and one zip", "Back up to a folder", "Spreadsheets"]) expect(text).toContain(line);
     const now = [...el.querySelectorAll("button")].find((b) => b.textContent === "Back up now")!;
     await act(async () => { now.click(); });
     expect(nightlyBackupApi.backupNow).toHaveBeenCalledTimes(1);

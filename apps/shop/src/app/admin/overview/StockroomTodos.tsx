@@ -42,7 +42,7 @@ export async function nativeTodoItems(words: (text: string) => string, booksShop
 
 /**
  * The stockroom's to-dos for Home, read from the records right after Home opens and again every five minutes it is on
- * screen. Only a read that fails for a reason other than the owner-only rule falls back to asking the stockroom frame.
+ * screen.
  */
 export function useStockroomTodos(enabled: boolean): StockroomTodoState {
   const [state, setState] = useState<StockroomTodoState>({ items: null, loading: enabled, failed: false });
@@ -54,13 +54,6 @@ export function useStockroomTodos(enabled: boolean): StockroomTodoState {
   useEffect(() => {
     if (!enabled) return undefined;
     let alive = true;
-    const viaFrame = async () => {
-      const answer = await stockroomBridge.askUntil<{ items: StockroomTodo[] } | { refused: true }>({ what: "todo" });
-      if (!alive) return;
-      if (answer && "items" in answer && Array.isArray(answer.items)) setState({ items: answer.items.filter(onHomeOnce), loading: false, failed: false });
-      else if (answer && "refused" in answer) setState({ items: [], loading: false, failed: false });
-      else setState((s) => ({ items: s.items, loading: false, failed: !s.items }));
-    };
     const ask = async () => {
       try {
         const items = await nativeTodoItems(latest.current.w, latest.current.booksShop);
@@ -68,9 +61,9 @@ export function useStockroomTodos(enabled: boolean): StockroomTodoState {
       } catch (error) {
         if (!alive) return;
         // A team member is refused (owner-only records): no lines, not an error. Anything else could be a dropped connection,
-        // never an empty list, so the frame gets a try and a failure there says so on Home.
+        // never an empty list, so Home says the stockroom's counts are missing.
         if (isRefusal(error)) setState({ items: [], loading: false, failed: false });
-        else await viaFrame();
+        else setState((s) => ({ items: s.items, loading: false, failed: !s.items }));
       }
     };
     const first = window.setTimeout(() => { void ask(); }, FIRST_ASK_MS);

@@ -1,11 +1,12 @@
-// Today at the fair (docs/combined-admin.md, step 4a): the till's own end-of-day figures and upload state, asked of the
-// stockroom (`{ what: "fair" }`, its `fairForAdmin`). Home's "Selling today" tile shows them (overview/HomeToday.tsx).
+// Today at the fair (docs/combined-admin.md, step 4a): the till's own end-of-day figures, worked out from the stockroom's
+// records with its own rules (`{ what: "fair" }`, stockroom/stockroomAnswers.ts). Home's "Selling today" tile shows them (overview/HomeToday.tsx).
 // Read-only: the stockroom stays the only place a sale is recorded.
 import { useEffect, useState } from "react";
 import { stockroomBridge, type StockroomFair } from "./stockroomBridge";
 import { money } from "./StockroomBookPanel";
 
-const REFRESH_MS = 15_000;
+/** Every minute: the figures come from the stockroom's records, read again each time. */
+const REFRESH_MS = 60_000;
 type Totals = StockroomFair["totals"];
 export const totalsText = (totals: Totals) => (totals.length ? totals.map((t) => money(t.amount, t.cur)).join(" + ") : money(0, "CAD"));
 
@@ -22,7 +23,7 @@ export const lowText = (low: StockroomFair["low"]) =>
 /** Whether there's anything to show: a sale today, or a fair named on the till. */
 export const fairWorthShowing = (fair: StockroomFair | null): fair is StockroomFair => !!fair && (fair.sales > 0 || !!fair.fair);
 
-/** The till's day, asked of the stockroom while `active` and every 15 seconds after; null until it answers (or for an author). */
+/** The till's day, read while `active` and every minute after; null until it answers (or for an author). */
 export function useFairToday(active: boolean): StockroomFair | null {
   const [fair, setFair] = useState<StockroomFair | null>(null);
   useEffect(() => {
