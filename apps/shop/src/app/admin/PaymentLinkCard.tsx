@@ -1,5 +1,6 @@
 // Order page › Payment link (code plan 21.2): for an order made with Orders › New order to pay, where its link stands and
 // the two ways to send it. Cancelling the order (the order's own Cancel) closes the link.
+import "./fulfillment.css";
 import { Copy, Mail } from "lucide-react";
 import toast from "react-hot-toast";
 import { getCopy } from "../features/site/storeCopy";

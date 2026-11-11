@@ -1,6 +1,7 @@
 // Order page › Added items (code plan 24.6, part B). Items added to a paid order are a second order the customer pays from
 // a link (`shipsWith` names the first). On the first order this lists what was added and whether it's paid; on the added
 // order it says which order to pack it with. Both go in one parcel.
+import "./fulfillment.css";
 import { useEffect, useState } from "react";
 import { adminApi } from "./api";
 import { linkState } from "./paymentLinks";
