@@ -834,7 +834,7 @@ export const TEMPLATES = {
    * The Monday summary to the platform owner (control-room/weeklySummary.js). `data`: { income (cents), currency, live,
    * started: [name], leaving: [name], waiting, lines: [words] }.
    */
-  "weekly-summary": ({ income, currency, live, started = [], leaving = [], waiting = 0, lines = [] }, { settings }) => {
+  "weekly-summary": ({ income, currency, live, started = [], leaving = [], waiting = 0, lines = [], notSelling = null }, { settings }) => {
     const money = new Intl.NumberFormat("en-CA", { style: "currency", currency: currency || "CAD" }).format((Number(income) || 0) / 100);
     const names = (list) => list.join(", ");
     return layout({
@@ -844,6 +844,7 @@ export const TEMPLATES = {
         `Plan income this month: ${money}, from ${live} live shop${live === 1 ? "" : "s"}.`,
         started.length ? `New this week (${started.length}): ${names(started)}.` : "No new shops this week.",
         leaving.length ? `Said they're leaving (${leaving.length}): ${names(leaving)}.` : "Nobody said they're leaving this week.",
+        ...(Array.isArray(notSelling) && notSelling.length ? [`No sale yet after two weeks (${notSelling.length}): ${names(notSelling.slice(0, 10))}${notSelling.length > 10 ? ` and ${notSelling.length - 10} more` : ""}. Send them tips from Shops.`] : []),
         waiting ? `Waiting on you (${waiting}):` : "Nothing is waiting on you.",
         ...lines.map((l) => `• ${l}`),
         ...(waiting > lines.length ? [`and ${waiting - lines.length} more on Today.`] : []),

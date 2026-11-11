@@ -62,7 +62,7 @@ export const RUNNERS = Object.freeze({
   "setup-clock": ({ setupClock }) => () => setupClock.sweep(),
   "drift-watch": ({ driftWatch }) => () => driftWatch.sweep(),
   "deletion-note": ({ parts }) => () => weeklyDeletionNote({ registry: parts.registry, email: parts.email, to: ownerOf(parts.env), now: parts.now }),
-  "weekly-summary": ({ parts }) => async () => weeklySummary({ registry: parts.registry, email: parts.email, to: ownerOf(parts.env), settings: await parts.live(), now: parts.now }),
+  "weekly-summary": ({ parts }) => async () => weeklySummary({ registry: parts.registry, email: parts.email, to: ownerOf(parts.env), settings: await parts.live(), shopData: parts.shopData ?? null, now: parts.now }),
   "switch-note": ({ parts }) => () => switchNote({ registry: parts.registry, email: parts.email, to: ownerOf(parts.env), now: parts.now }),
   "chitchats-note": ({ parts }) => () => chitChatsNote({ stores: parts.chitchatsStores, registry: parts.registry, email: parts.email, to: ownerOf(parts.env), now: parts.now }),
   "restore-drill": ({ parts }) => () => health(parts, "drill"),

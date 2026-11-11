@@ -20,25 +20,29 @@ const candidate = (row, nowMs) => row.testShop !== true && row.status === "live"
   && Boolean(row.createdAt) && nowMs - Date.parse(row.createdAt) > QUIET_DAYS * DAY;
 export const realSale = (data) => data?.paymentStatus === "paid" && !data.isTest && !data.sandboxPayment && data.source !== "import";
 
+/** The live shops open over two weeks with no real sale yet, longest-waiting first, plus any whose orders couldn't be read. */
+export async function notSellingShops({ rows, shopData, nowMs }) {
+  const shops = [];
+  const unread = [];
+  await eachInTurn(rows.filter((r) => candidate(r, nowMs)), 5, async (row) => {
+    try {
+      const docs = await shopData.find(row.shopId, "orders", { where: [["paymentStatus", "==", "paid"]], limit: LOOK });
+      if (docs.some(({ data }) => realSale(data))) return;
+      shops.push({ shopId: row.shopId, pressName: row.pressName ?? row.shopId, ownerEmail: row.ownerEmail ?? null, days: Math.floor((nowMs - Date.parse(row.createdAt)) / DAY), tipsSentAt: row.firstSaleTipsAt ?? null });
+    } catch {
+      unread.push(row.shopId);
+    }
+  });
+  shops.sort((a, b) => b.days - a.days);
+  return { shops, unread };
+}
+
 export function createNotSelling({ admins, registry, shopData, email, activity = null, now = () => new Date() }) {
   return {
     async list(claims) {
       const nowMs = now().getTime();
       adminOf(claims, admins, nowMs);
-      const rows = (await registry.listShops()).filter((r) => candidate(r, nowMs));
-      const shops = [];
-      const unread = [];
-      await eachInTurn(rows, 5, async (row) => {
-        try {
-          const docs = await shopData.find(row.shopId, "orders", { where: [["paymentStatus", "==", "paid"]], limit: LOOK });
-          if (docs.some(({ data }) => realSale(data))) return;
-          shops.push({ shopId: row.shopId, pressName: row.pressName ?? row.shopId, ownerEmail: row.ownerEmail ?? null, days: Math.floor((nowMs - Date.parse(row.createdAt)) / DAY), tipsSentAt: row.firstSaleTipsAt ?? null });
-        } catch {
-          unread.push(row.shopId);
-        }
-      });
-      shops.sort((a, b) => b.days - a.days);
-      return { shops, unread };
+      return notSellingShops({ rows: await registry.listShops(), shopData, nowMs });
     },
 
     async sendTips(claims, { shopId } = {}) {
