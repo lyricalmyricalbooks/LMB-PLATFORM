@@ -2,11 +2,8 @@
 // (main.js `attentionInput`) and the shop admin's To-do page (admin/stockroom/todo.ts) both call these, so the two
 // lists are worked out the same way. Nothing here reads the browser or the network.
 import { OC_STAGES } from './opencall.js';
-import { roundCents } from './money.js';
 import { isPostageExpense } from './postage-matching.js';
-import { canonicalExpenseCategory } from './expense-categories.js';
 import { unshippedOrders } from './order-followups.js';
-import { datedCadRate } from './sale-fx.js';
 import { linkedShippingSummary } from './shipping-reconciliation.js';
 
 /**
@@ -71,18 +68,8 @@ export function labelledOrderNums(states, businessExpenses = []) {
   return ordersWithLabels(unshippedOrders(rows).map((o) => o.num), businessExpenses);
 }
 
-/**
- * An expense's value in the book currency, valued exactly as the ledger does: the stored baseAmount, else a rate known
- * for the expense's own date, else 0 (the ledger flags those until healExpenseRates fills them in) — never today's
- * rate or a silent 1:1. `fxRates` is the app's rate cache; without one only CAD and stored amounts count.
- */
-export function expenseBaseAmount(e, fxRates = {}) {
-  if (e.baseAmount != null) return e.baseAmount;
-  const eFx = datedCadRate(e.currency || 'CAD', e.date, fxRates);
-  return (e.fxMissing && eFx.estimated) || eFx.missing
-    ? 0
-    : roundCents((e.amount || 0) * eFx.rate);
-}
+// Valued exactly as the ledger does; one copy, in tax-ledger.js.
+export { expenseBaseAmount } from './tax-ledger.js';
 
 export function emptyTripBucket(rec) {
   return {
@@ -98,30 +85,4 @@ export function emptyTripBucket(rec) {
 }
 
 /** Every declared trip or event with its costs, keyed by name (what the Missing Costs scan reads as `tripsSummary`). */
-export function tripsSummaryAll(taxCenter, fxRates = {}) {
-  const tripSummary = {};
-  (Array.isArray(taxCenter?.trips) ? taxCenter.trips : []).forEach((rec) => {
-    const name = (rec.name || '').trim();
-    if (!name) return;
-    tripSummary[name] = emptyTripBucket(rec);
-  });
-  (taxCenter?.businessExpenses || []).forEach((e) => {
-    const t = (e.trip || '').trim();
-    if (!t) return;
-    const eCur = e.currency || 'CAD';
-    const eBase = expenseBaseAmount(e, fxRates);
-    const cat = canonicalExpenseCategory(e.cat, 'Other');
-    if (!tripSummary[t]) {
-      tripSummary[t] = { total: 0, count: 0, latestDate: '', items: [], categories: {} };
-    }
-    tripSummary[t].total += eBase;
-    tripSummary[t].count++;
-    if (!tripSummary[t].categories[cat]) tripSummary[t].categories[cat] = 0;
-    tripSummary[t].categories[cat] += eBase;
-    if (e.date && (!tripSummary[t].latestDate || e.date > tripSummary[t].latestDate)) {
-      tripSummary[t].latestDate = e.date;
-    }
-    tripSummary[t].items.push({ ...e, baseAmount: eBase, origCurrency: eCur, origAmount: e.amount || 0 });
-  });
-  return tripSummary;
-}
+export { tripsSummary as tripsSummaryAll } from './tax-ledger.js';

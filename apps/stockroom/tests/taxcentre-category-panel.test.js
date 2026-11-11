@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildHarness } from './helpers/extract-decl.js';
-import { deductibleAmount, deductibleRate } from '../src/lib/deductibility.js';
+import { categorySummary } from '../src/lib/tax-ledger.js';
 
 // _tcRenderCategoryPanel gained real arithmetic when the table grew a "% of
 // total" column and a totals row: shares have to sum to the whole, a sub-0.1%
@@ -21,8 +21,7 @@ function render(expenses) {
         { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
       )),
       fmt: (n) => `CA$${n.toFixed(2)}`,
-      deductibleAmount,
-      deductibleRate,
+      categorySummary,
       window: win,
     },
     returns: '_tcRenderCategoryPanel',

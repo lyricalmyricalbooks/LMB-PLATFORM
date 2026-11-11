@@ -4,7 +4,7 @@ import {
   Share2, Send, ListChecks,
 } from "lucide-react";
 import type { NavEntry } from "./components";
-import { COMBINED_PAGES, SALES_TAB, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES } from "../combined";
+import { COMBINED_PAGES, REORDER_TAB, SALES_TAB, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES } from "../combined";
 
 export const NAV: NavEntry[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -84,7 +84,7 @@ export const WEBSITE_SIDE: Menu = [
 ];
 export const STOCKROOM_SIDE: Menu = [
   { label: "To-do", icon: ListChecks, pages: [S("todo")] },
-  { label: "Stock", icon: Boxes, pages: [S("dashboard"), "inventory"] },
+  { label: "Stock", icon: Boxes, pages: [S("dashboard"), "inventory", REORDER_TAB] },
   { label: "Sales", icon: Receipt, pages: [S("history"), S("manual"), S("customers"), S("shipping")] },
   { label: "Sell in person", icon: Store, pages: [S("pos"), S("consignment"), S("qrcodes")] },
   { label: "Money", icon: PiggyBank, pages: [S("taxcenter"), S("reconcile"), S("expenses"), S("intel")] },

@@ -1,0 +1,17 @@
+/* The money pages (Tax centre, Expenses, Ask about your sales) on the shared admin look (riso.css tokens). */
+.rp-money { display: grid; gap: var(--rp-space-4); min-width: 0; }
+.rp-money-note { margin: 0; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+.rp-money-sub { font-size: var(--rp-text-xs); color: var(--rp-text-muted); }
+.rp-money-pad { padding: var(--rp-space-3) var(--rp-space-4); }
+.rp-money-foot { margin: 0 0 var(--rp-space-3); font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+.rp-money-in { color: var(--rp-success); }
+.rp-money-out { color: var(--rp-danger); }
+.rp-money-gaps { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--rp-space-3); }
+.rp-money-gaps p { margin: var(--rp-space-1) 0 0; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+.rp-money-answer { display: grid; gap: var(--rp-space-4); min-width: 0; margin-top: var(--rp-space-4); }
+.rp-money .rp-filter-bar { margin-bottom: 0; }
+@media (max-width: 640px) {
+  .rp-money .rp-grid-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--rp-space-3); }
+  .rp-money .rp-grid-metrics > * { min-width: 0; overflow-wrap: anywhere; }
+  .rp:not(.studio-editor) .rp-money .rp-metric-value { font-size: 20px; white-space: normal; }
+}

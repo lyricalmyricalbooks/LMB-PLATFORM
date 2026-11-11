@@ -5,6 +5,7 @@ import { payoutNetted, payoutDebtCollected } from '../src/lib/earnings.js';
 import { saleCadAmounts, datedCadRate } from '../src/lib/sale-fx.js';
 import { reconcileConsignmentMirrors } from '../src/lib/consignment.js';
 import { canonicalExpenseCategory } from '../src/lib/expense-categories.js';
+import { buildTaxLedger } from '../src/lib/tax-ledger.js';
 
 // The Tax Centre had no behavioural coverage at all — before the extraction or
 // after it. Everything guarding it was structural: that its functions exist,
@@ -65,6 +66,7 @@ function buildLedger(year, extraState = {}, { fxCache = _fxRateCache, statesOver
       states: JSON.parse(JSON.stringify({ ...(statesOverride || states), ...extraState })),
       TAX_CENTER: JSON.parse(JSON.stringify(TAX_CENTER)),
       _fxRateCache: fxCache,
+      buildTaxLedger,
       saleCadAmounts,
       datedCadRate,
       defaultState: () => ({ hist: [], expenses: [], stores: [], ledger: [] }),

@@ -4,7 +4,7 @@
 // A page split into sub tabs adds a readable slug for the open one (`#settings/general/visitors`, `#inventory/link`);
 // the first (default) sub tab has none, so the older addresses stay as they were.
 
-import { DEFAULT_STOCKROOM_PAGE, SALES_TAB, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
+import { DEFAULT_STOCKROOM_PAGE, REORDER_TAB, SALES_TAB, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
 
 export type AdminRoute = { tab: string; settingsTab?: string; orderId?: string; giftCardId?: string; subTab?: string; bookId?: string };
 
@@ -68,6 +68,7 @@ export function routeFromHash(hash: string, combined: boolean = combinedAdmin())
   if (head === STOCKROOM_TAB) return !combined ? null : { tab: STOCKROOM_TAB, subTab: stockroomPage(rest.split("/")[0])?.id ?? DEFAULT_STOCKROOM_PAGE };
   // Every sale in one list, a combined-admin page (`#sales`).
   if (head === SALES_TAB) return combined ? { tab: SALES_TAB } : null;
+  if (head === REORDER_TAB) return combined ? { tab: REORDER_TAB } : null;
   // A book opened from the inventory app's search: Books with that book in the editor.
   if (head === "catalog" && rest.startsWith("book/")) {
     const bookId = decode(rest.slice(5)).trim();
@@ -111,6 +112,7 @@ export function hashForRoute(r: AdminRoute): string {
   if (r.tab === "socialPosts") return "#social-posts";
   if (r.tab === STOCKROOM_TAB) return `#${STOCKROOM_TAB}/${stockroomPage(r.subTab)?.id ?? DEFAULT_STOCKROOM_PAGE}`;
   if (r.tab === SALES_TAB) return `#${SALES_TAB}`;
+  if (r.tab === REORDER_TAB) return `#${REORDER_TAB}`;
   return TABS.has(r.tab) ? `#${r.tab}${sub}` : "#overview";
 }
 
