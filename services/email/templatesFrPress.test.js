@@ -18,7 +18,7 @@ const settings = platformSettings({});
 const words = { settings, pressName: "Moth Press" };
 
 // Emails that go to the platform's own people, never to a press (plain-words/plainWords.test.js PLATFORM_ONLY).
-const PLATFORM_ONLY = ["health-alert", "backup-access-used", "recovery-new", "support-new", "job-late", "apps-deleting-soon", "chitchats-late", "switch-stuck"];
+const PLATFORM_ONLY = ["health-alert", "backup-access-used", "recovery-new", "support-new", "job-late", "apps-deleting-soon", "chitchats-late", "switch-stuck", "weekly-summary"];
 // The closing emails, whose French twins are in templatesFr.js.
 const CLOSING = ["shop-closed", "shop-deletion-warning", "shop-deleted", "app-closing-soon", "app-closed", "app-download-ending", "app-records-deleted"];
 

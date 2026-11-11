@@ -40,7 +40,7 @@ test("the emails presses read go out in the morning, and the night jobs don't al
     const hour = Number(FIXED_TIMES[name].split(" ")[1]);
     assert.ok(hour >= 8 && hour <= 11, `${name} at ${hour}`);
   }
-  const night = Object.entries(FIXED_TIMES).filter(([name]) => !["trial-tips", "shop-checkup", "restore-drill", "deletion-note"].includes(name)).map(([, cron]) => cron);
+  const night = Object.entries(FIXED_TIMES).filter(([name]) => !["trial-tips", "shop-checkup", "restore-drill", "deletion-note", "weekly-summary"].includes(name)).map(([, cron]) => cron);
   assert.equal(new Set(night).size, night.length);
   assert.throws(() => cronFor({ name: "new-daily", every: DAY }), /give it a time/);
   assert.throws(() => cronFor({ name: "odd", every: 7 }), /doesn't divide an hour/);

@@ -54,6 +54,7 @@ export const JOBS = Object.freeze([
   { name: "press-messages", words: "Take ended messages off shop admins, and reach shops opened since", every: 60, code: "control-room/messages.js sweep" },
   { name: "chitchats-note", words: "Morning note to the platform owner (and each press) naming orders that went late or hit a problem in Chit Chats, and shops whose Chit Chats details stopped working", every: DAY, code: "control-room/chitChatsNote.js chitChatsNote" },
   { name: "switch-note", words: "Morning note to the platform owner naming card switches between Stripe and Square left waiting two days, and presses whose Stripe payouts have been paused two days", every: DAY, code: "control-room/switchNote.js switchNote" },
+  { name: "weekly-summary", words: "Monday email to the platform owner: income, new shops, shops leaving and what is waiting", every: 7 * DAY, code: "control-room/weeklySummary.js weeklySummary" },
   { name: "deletion-note", words: "Weekly note to the platform owner listing closed apps about to be deleted", every: 7 * DAY, code: "control-room/deletionNote.js weeklyDeletionNote" },
   { name: "restore-drill", words: "Monthly test that a backup can be restored", every: 30 * DAY, code: "services/health/run.js drill" },
 ]);
