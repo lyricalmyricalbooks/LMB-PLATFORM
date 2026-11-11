@@ -72,6 +72,7 @@ const Discounts = lazy(() => import("./Discounts").then(m => ({ default: m.Disco
 const GiftCards = lazy(() => import("./GiftCards").then(m => ({ default: m.GiftCards })));
 const SalesChannels = lazy(() => import("./SalesChannels").then(m => ({ default: m.SalesChannels })));
 const SocialPosts = lazy(() => import("./SocialPosts").then(m => ({ default: m.SocialPosts })));
+const DesignHome = lazy(() => import("./DesignHome").then(m => ({ default: m.DesignHome })));
 const Customers = lazy(() => import("./Customers").then(m => ({ default: m.Customers })));
 const Inventory = lazy(() => import("./Inventory").then(m => ({ default: m.Inventory })));
 const OrdersDesk = lazy(() => import("./OrdersDesk.tsx").then(m => ({ default: m.OrdersDesk })));
@@ -737,7 +738,7 @@ export function Dashboard() {
   ];
 
   // Pages fully built from Riso components render outside the legacy compatibility layer.
-  const migrated = activeTab === STOCKROOM_TAB || isCombinedTab(activeTab) || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "channels" || activeTab === "socialPosts" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "bookkeeping" || settingsTab === "plan" || settingsTab === "billing" || settingsTab === "security" || settingsTab === "google" || settingsTab === "apps"));
+  const migrated = activeTab === STOCKROOM_TAB || isCombinedTab(activeTab) || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "channels" || activeTab === "socialPosts" || activeTab === "design" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "bookkeeping" || settingsTab === "plan" || settingsTab === "billing" || settingsTab === "security" || settingsTab === "google" || settingsTab === "apps"));
   const content = (() => {
     switch (activeTab) {
       case "overview":
@@ -750,6 +751,8 @@ export function Dashboard() {
       case "giftCards": return <GiftCards openId={openGiftCard} onOpened={() => setOpenGiftCard(null)} />;
       case "channels": return <SalesChannels onOpen={(page) => { if (page === "socialPosts" || page === "channels") goTo(page); else { setActiveTab("settings"); setSettingsTab(page); } }} />;
       case "socialPosts": return <SocialPosts onOpen={(page) => goTo(page)} startWithBook={postBook} onStarted={() => setPostBook(null)} />;
+      case "design": return settings ? <DesignHome settings={settings} onViewSite={openSite}
+        onOpenStudio={(at) => { setStudioLocation(at ? { ...at, key: Date.now() } : null); setActiveTab("settings"); setSettingsTab("designer"); }} /> : <LoadingState label="Loading…" />;
       case "reviews": return <ReviewsModeration />;
       case "messages": return <Messages onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }} onOpenCustomers={() => goTo("customers")} />;
       // The stockroom's pages show in StockroomFrame below, kept open between visits.
@@ -1070,7 +1073,7 @@ export function Dashboard() {
                 initialLocation={studioLocation || undefined}
                 appearance={appearance}
                 settings={settings}
-                onExit={() => setSettingsTab("general")}
+                onExit={() => { setActiveTab("design"); setSettingsTab("general"); }}
                 onPersisted={(design: any, published: boolean) =>
                   setSettings((prev: any) => ({ ...prev, draftDesign: design, ...(published ? { design } : {}) }))
                 }

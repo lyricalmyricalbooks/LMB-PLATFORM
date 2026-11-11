@@ -3,7 +3,7 @@ import { MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, navPages, side
 
 describe("admin navigation", () => {
   it("lists the primary modules in order", () => {
-    expect(NAV.map((n) => n.id)).toEqual(["overview", "orders", "customers", "inventory", "catalog", "discounts", "giftCards", "reviews", "messages", "channels", "socialPosts", "settings"]);
+    expect(NAV.map((n) => n.id)).toEqual(["overview", "orders", "customers", "inventory", "catalog", "discounts", "giftCards", "reviews", "messages", "channels", "socialPosts", "design", "settings"]);
   });
 
   it("has unique ids across modules and settings children", () => {
@@ -38,7 +38,8 @@ describe("the five-item admin menu (plan 1.27)", () => {
   it("holds every admin page exactly once, and each item opens its first page", () => {
     const pages = MENU.flatMap((g) => g.pages);
     expect(new Set(pages).size).toBe(pages.length);
-    expect([...pages].sort()).toEqual(navPages(NAV).map((p) => p.id).sort());
+    // Studio (settings/designer) opens full screen from Design's page, so it is on no menu item of its own.
+    expect([...pages].sort()).toEqual(navPages(NAV).map((p) => p.id).filter((id) => id !== SETTINGS_ITEM_PREFIX + "designer").sort());
     for (const [i, g] of MENU.entries()) expect(items[i].id).toBe(g.pages[0]);
   });
 
@@ -63,7 +64,7 @@ describe("the five-item admin menu (plan 1.27)", () => {
     expect(menuItemFor("customers")).toBe("orders");
     expect(menuItemFor("reviews")).toBe("catalog");
     expect(menuItemFor(SETTINGS_ITEM_PREFIX + "team")).toBe(SETTINGS_ITEM_PREFIX + "general");
-    expect(menuItemFor(SETTINGS_ITEM_PREFIX + "designer")).toBe(SETTINGS_ITEM_PREFIX + "designer");
+    expect(menuItemFor("design")).toBe("design");
     expect(menuItemFor("overview")).toBe("overview");
   });
 });

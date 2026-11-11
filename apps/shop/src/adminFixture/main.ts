@@ -526,6 +526,24 @@ if (new URLSearchParams(location.search).get("variants")) {
 }
 // ── end Reorder list sample
 
+// Design (redesign): a live look, a draft with two changes waiting, and two pages (`?page=design`).
+if (new URLSearchParams(location.search).get("page") === "design") {
+  const live = { themeBase: { id: "atlas", name: "Atlas" }, primaryColor: "#1f1e1b" };
+  const api = adminApi as any;
+  api.getSettings = async () => ({ design: live, designPublishedAt: "2026-11-06T15:00:00.000Z" });
+  api.getPages = async () => [
+    { id: "p1", title: "About", slug: "about", status: "published", order: 1 },
+    { id: "p2", title: "Events", slug: "events", status: "draft", order: 2 },
+  ];
+  const { setThemeBackend } = await import("../app/admin/themeStore");
+  const draft = { ...live, primaryColor: "#2a4d8f", copy: { cartTitle: "Your bag" } };
+  setThemeBackend({
+    open: async () => ({ draft, rev: 1, savedThemes: [] }),
+    write: async (rev: number) => rev + 1, saveThemes: async () => {}, fieldUpdate: async () => {}, readField: async () => undefined,
+    watch: () => () => {},
+  } as any);
+}
+
 const params = new URLSearchParams(location.search);
 const page = params.get("page") || "";
 history.replaceState(null, "", `/admin?debug=true${page ? `#${page}` : ""}`);

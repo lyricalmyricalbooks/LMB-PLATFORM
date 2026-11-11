@@ -865,3 +865,11 @@ editor's form and save with it (`updateBook` still keeps live stock). The long c
 The Editions tab sits under `ShopWordsContext` with the editor's own `w`, and `goodsWords` turns edition(s) into
 variant(s), so a non-book product reads Variants. Inventory rows carry `sku` (shown, searchable). Server stock and holds
 per combination: `functions/productVariantsStock.test.js`. Fixture: `admin-fixture.html?variants=1&page=catalog/book/tee`.
+
+## Design page (redesign, 11 November 2026)
+The menu's Design / Online store item opens `design` (`DesignHome.tsx`, pure words in `designPageWords.ts`, `#design`), not
+Studio: a mint tile with the live look (`design.themeBase.name`, `designPublishedAt`), an apricot tile with the changes
+waiting (`diffDesigns` of the live design against `openWorkspace`'s draft, both through `normalizeDesign`), and Pages
+(Home, then `getPages` with Live or Draft; a row opens Studio at `heroPage` / `page:<slug>`). Open Studio and View site
+sit by the title. Studio (`settings/designer`, `#designer…`) is on no menu item; its links still open it directly, and
+leaving it returns to `design`. Fixture: `admin-fixture.html?page=design`.

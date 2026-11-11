@@ -380,6 +380,24 @@ div.rp-listcard-main { cursor: default; }
 .rp-listcard[data-tone="lilac"] .rp-listcard-main, .rp-listcard[data-tone="lilac"] .rp-listcard-sub { color: inherit; }
 .rp-listcard-side { flex-shrink: 0; font-size: var(--rp-text-base); font-variant-numeric: tabular-nums; text-align: right; }
 @media (max-width: 767px) { .rp-listcard-side { flex-shrink: 1; max-width: 60%; } }
+/* A titled card holding a list card's rows (Design › Pages): the title, a hairline, then the rows. */
+.rp-cardbox { background: var(--rp-surface); border-radius: var(--rp-radius-lg); padding: 20px 22px 8px; }
+.rp-cardbox-title { margin: 0 0 10px; font-size: var(--rp-text-lg); font-weight: 600; color: var(--rp-text); }
+.rp-cardbox > .rp-listcard { padding: 0; border-radius: 0; background: none; }
+.rp-cardbox > .rp-listcard > li:first-child { border-top: 1px solid var(--rp-divider); }
+@media (max-width: 767px) { .rp-cardbox { padding: 16px 16px 4px; } }
+/* Stat tiles (redesign): a label, a big figure or word, and a small line, on a coloured tile (mint, apricot, sky, lilac)
+   or white. Two or more sit side by side; one column on phones. */
+.rp-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.rp-tile { display: grid; gap: 6px; align-content: start; padding: 22px; min-height: 130px; border-radius: var(--rp-radius-lg); background: var(--rp-surface); color: var(--rp-text); }
+.rp-tile[data-tone="mint"] { background: var(--rp-tile-mint, var(--rp-surface)); color: var(--rp-on-tile, var(--rp-text)); }
+.rp-tile[data-tone="apricot"] { background: var(--rp-tile-apricot, var(--rp-surface)); color: var(--rp-on-tile, var(--rp-text)); }
+.rp-tile[data-tone="sky"] { background: var(--rp-tile-sky, var(--rp-surface)); color: var(--rp-on-tile, var(--rp-text)); }
+.rp-tile[data-tone="lilac"] { background: var(--rp-tile-lilac, var(--rp-surface)); color: var(--rp-on-tile, var(--rp-text)); }
+.rp-tile-label, .rp-tile-sub { font-size: var(--rp-text-sm); }
+.rp-tile-value { font-size: 40px; line-height: 1.05; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.rp-tile:not([data-tone]) :is(.rp-tile-label, .rp-tile-sub) { color: var(--rp-text-muted); }
+@media (max-width: 767px) { .rp-tile { min-height: 0; padding: 18px; } .rp-tile-value { font-size: 32px; } }
 /* Table card (redesign): a white card holding a plain table, mono headings, hairline rows (Social posts; the mockup's
    other tables reuse it). .rp-tc-end right-aligns a column, .rp-tc-sub is a small second line, .rp-tc-wide hides on phones. */
 .rp-tablecard { background: var(--rp-surface); border-radius: var(--rp-radius-lg); padding: 8px 22px; overflow-x: auto; }
