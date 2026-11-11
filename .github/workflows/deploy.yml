@@ -80,6 +80,7 @@ jobs:
           for secret in stripe-platform-test-key stripe-billing-webhook-secret stripe-connect-webhook-secret-test; do
             gcloud secrets describe "$secret" --project="$PROJECT" > /dev/null 2>&1 || later="$later $secret"
           done
+          echo "later=$later" >> "$GITHUB_OUTPUT"
           if [ -z "$missing" ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
             [ -z "$later" ] || echo "Server live without:$later (Stripe says \"not connected\" until added)." >> "$GITHUB_STEP_SUMMARY"
@@ -88,14 +89,48 @@ jobs:
             echo "### The server isn't put live yet" >> "$GITHUB_STEP_SUMMARY"
             echo "Waiting on:$missing. The pages go live without it (site/README.md)." >> "$GITHUB_STEP_SUMMARY"
           fi
-      - name: Put the server live
+      # The server is put live again only when something in it changed: the folders its image is built from (the list in
+      # server/.gcloudignore; workflows.test.js keeps them in step), its settings or which keys are there. That saves about
+      # two minutes on a merge that changes only the shop, the stockroom or the pages. "Run workflow" always puts it live.
+      - name: Has the server changed?
+        id: fingerprint
         if: steps.server.outputs.ready == 'true'
+        env:
+          SERVER_SETTINGS: ${{ vars.SERVER_SETTINGS }}
+          LATER: ${{ steps.server.outputs.later }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/server-mark"
+          {
+            for path in package.json accounts clients control-room google help profile release-check security server services setup shared signup status terms waitlist; do
+              git rev-parse "HEAD:$path"
+            done
+            printf '%s\n' "$SERVER_SETTINGS" "$LATER"
+          } | sha256sum | cut -c1-40 | tee "$RUNNER_TEMP/server-mark/fingerprint" | sed 's/^/key=platform-server-/' >> "$GITHUB_OUTPUT"
+      - name: Was this server already put live?
+        id: already
+        if: steps.server.outputs.ready == 'true' && github.event_name == 'push'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/server-mark
+          key: ${{ steps.fingerprint.outputs.key }}
+          lookup-only: true
+      - name: Put the server live
+        if: steps.server.outputs.ready == 'true' && steps.already.outputs.cache-hit != 'true'
         env:
           SERVER_SETTINGS: ${{ vars.SERVER_SETTINGS }}
         run: |
           printf '%s\n' "$SERVER_SETTINGS" > server/env.yaml
           node server/deploy.js --apply
           node server/setup-schedules.js --apply
+      - name: Remember the server that is live
+        if: steps.server.outputs.ready == 'true' && steps.already.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/server-mark
+          key: ${{ steps.fingerprint.outputs.key }}
+      - name: The server didn't change
+        if: steps.already.outputs.cache-hit == 'true'
+        run: echo "The server didn't change since it was last put live, so it stays as it is." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Build the pages
         run: |
