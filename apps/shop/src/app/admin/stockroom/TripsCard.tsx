@@ -86,7 +86,7 @@ export function TripsCard({ trips, taxCenter, money, baseCurrency, onSaved }: {
         <Dialog open onClose={() => setEditing(null)} title={editing.name ? "Edit trip" : "New trip"}
           footer={<><SecondaryButton onClick={() => setEditing(null)}>Cancel</SecondaryButton><PrimaryButton disabled={!!problem} onClick={submit}>{editing.name ? "Save changes" : "Create trip"}</PrimaryButton></>}>
           <form className="rp-money-form" onSubmit={(e) => { e.preventDefault(); submit(); }}>
-            <TextField label="Name" placeholder="e.g. Frankfurt Book Fair" value={editing.form.name} error={editing.form.name.trim() ? problem || undefined : undefined} onChange={(e) => setForm({ name: e.target.value })} />
+            <TextField label="Name" placeholder="e.g. Spring craft fair" value={editing.form.name} error={editing.form.name.trim() ? problem || undefined : undefined} onChange={(e) => setForm({ name: e.target.value })} />
             <TextField label="Where (optional)" value={editing.form.destination} onChange={(e) => setForm({ destination: e.target.value })} />
             <div className="rp-money-form-row">
               <TextField label="From (optional)" type="date" value={editing.form.startDate} onChange={(e) => setForm({ startDate: e.target.value })} />

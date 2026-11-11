@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { calcArtistEarnings } from "@stockroom/earnings.js";
 
 import { artistEarningsInYear, isExpenseAwaitingRate, taxSeasonExport } from "./taxSeason";
-import { inPersonTaxHint, withInPersonTax } from "./TaxSeason";
+import { inPersonTaxHint, withInPersonTax } from "./TaxSeasonCard";
 
 const tiers = [{ revenueUpTo: 100, artistPct: 10 }, { revenueUpTo: null, artistPct: 50 }];
 const salt = { id: "salt", title: "Salt Hours", currency: "CAD", profitTiers: tiers };

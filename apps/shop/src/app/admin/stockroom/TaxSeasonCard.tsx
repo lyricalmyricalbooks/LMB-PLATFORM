@@ -61,7 +61,7 @@ export function TaxSeasonCard({ input, year, onSaved }: { input: TaxSeasonInput;
           <>
             <div className="rp-money-form-row">
               <TextField label="Tax on in-person sales (%)" inputMode="decimal" placeholder="e.g. 13" value={form.rate} error={bad ? "Enter a number from 0 to 100." : undefined} onChange={(e) => set({ rate: e.target.value })} />
-              <TextField label="Its name in your books" list="rp-money-tax-names" placeholder={form.rate.trim() === "" ? "GST, HST ON, PST BC…" : suggestedTaxBookName({ country: "Canada", rate: form.rate })} value={form.bookName} onChange={(e) => set({ bookName: e.target.value })} />
+              <TextField label="Its name in your accounts" list="rp-money-tax-names" placeholder={form.rate.trim() === "" ? "GST, HST ON, PST BC…" : suggestedTaxBookName({ country: "Canada", rate: form.rate })} value={form.bookName} onChange={(e) => set({ bookName: e.target.value })} />
               <datalist id="rp-money-tax-names">{TAX_BOOK_NAMES.map((n) => <option key={n} value={n} />)}</datalist>
             </div>
             <Checkbox label="My prices already include it" checked={form.included} onChange={(e) => set({ included: e.target.checked })} />

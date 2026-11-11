@@ -21,7 +21,7 @@ import { RecurringSubscriptionsCard } from "./RecurringSubscriptions";
 import { SortingRulesCard } from "./SortingRules";
 import { LedgerLineActions } from "./LedgerLineActions";
 import { ReceiptsVaultCard } from "./ReceiptsVault";
-import { TaxSeasonCard } from "./TaxSeason";
+import { TaxSeasonCard } from "./TaxSeasonCard";
 import { StockValueCard } from "./StockValueCard";
 import { TripsCard, type TripRow } from "./TripsCard";
 import { isEditableLine } from "./taxLedger";
