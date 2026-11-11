@@ -252,3 +252,15 @@ test("the control room's payment reminder resends the failed-payment email, once
   stores.subscriptions.rows.set("moth-press", { ...stores.subscriptions.rows.get("moth-press"), access: "paused" });
   assert.equal((await billing.remindPayment({ shopId: "moth-press" })).sent, false, "a paused plan already had its own email");
 });
+
+test("the owner's own line goes first in the reminder, trimmed to one short line, and the log keeps it", async () => {
+  const { billing, event, email, stores, registry } = make();
+  const row = await billing.startTrial({ account: ACCOUNT, shopId: "moth-press", pressName: "Moth Press", plan: "both" });
+  await event("invoice.payment_failed", { id: "in_1", currency: "cad", amount_due: 3900, attempt_count: 1, next_payment_attempt: NOW / 1000 + 3 * 86400, parent: { subscription_details: { subscription: row.subscriptionId } } });
+  stores.subscriptions.rows.set("moth-press", { ...stores.subscriptions.rows.get("moth-press"), status: "past_due" });
+  await billing.remindPayment({ shopId: "moth-press", note: "  Hi Sam,\n just checking in   on this.  " });
+  const sent = email.list().filter((m) => m.kind === "payment-failed").at(-1);
+  assert.equal(sent.data.note, "Hi Sam, just checking in on this.");
+  const logged = [...registry.events.get("moth-press").values()].find((e) => e.what === "payment-reminder");
+  assert.equal(logged.note, "Hi Sam, just checking in on this.");
+});

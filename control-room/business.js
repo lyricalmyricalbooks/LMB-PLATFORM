@@ -6,7 +6,7 @@
 //   GET /api/control/leaving          answers by month and reason, counts, latest words, and the save list
 //   GET /api/control/payment-trouble  shops whose plan payment is failing or paused, most urgent first
 //   GET /api/control/apps-closing     shops with an app their plan dropped closing soon, and how many drops were kept
-//   POST /api/control/payment-reminder { shopId }: email the press the failed-payment note again (once a day at most);
+//   POST /api/control/payment-reminder { shopId, note? }: email the press the failed-payment note again (once a day at most);
 //                                     the one write here, so it goes in the activity log
 //
 // Clients:
@@ -47,13 +47,13 @@ export function createBusinessRoom({ registry, incomeHistory = null, admins, bil
       return appsClosing(await registry.listShops(), now());
     },
 
-    async paymentReminder(claims, { shopId } = {}) {
+    async paymentReminder(claims, { shopId, note = "" } = {}) {
       const by = adminOf(claims, admins, now().getTime());
       if (typeof shopId !== "string" || !shopId) throw new ControlError(400, "Which shop?");
       if (!billing?.remindPayment) throw new ControlError(503, "Billing isn't connected here yet.");
-      const result = await billing.remindPayment({ shopId });
+      const result = await billing.remindPayment({ shopId, note: typeof note === "string" ? note : "" });
       if (!result.sent) throw new ControlError(409, result.why);
-      if (activity) await activity.record(activityEntry({ at: now().toISOString(), by, what: "payment-reminder", shopId, detail: { kind: result.kind } }));
+      if (activity) await activity.record(activityEntry({ at: now().toISOString(), by, what: "payment-reminder", shopId, detail: { kind: result.kind, note: Boolean(typeof note === "string" && note.trim()) } }));
       return result;
     },
   };

@@ -825,19 +825,35 @@ function reminderControl(item) {
     remind.textContent = "Reminded today";
     remind.disabled = true;
   }
-  remind.addEventListener("click", async () => {
-    remind.disabled = true;
-    remind.textContent = "Sending…";
-    try {
-      const { to, remindedAt } = await api("POST", "/control/payment-reminder", { shopId: item.shopId });
-      item.remindedAt = remindedAt;
-      remind.textContent = "Reminded today";
-      remind.title = `Emailed ${to}`;
-    } catch (failure) {
-      remind.disabled = false;
-      remind.textContent = "Try again";
-      remind.title = failure.message;
-    }
+  // Tapping opens a one-line box for a line from you (optional), put first in the email so it reads as a person.
+  remind.addEventListener("click", () => {
+    const words = el("input", { type: "text", className: "rp-input", maxLength: 300, placeholder: "Add a line from you (optional)", ariaLabel: "A line from you, put first in the email" });
+    const send = button("Send", "primary", { type: "submit" });
+    const cancel = button("Cancel");
+    const form = el("form", { className: "cr-remind-form" }, words, send, cancel);
+    // On a Today line the box opens as its own row under the line; in the Failed payments table it takes the button's place.
+    const line = remind.closest(".cr-need");
+    const close = () => { if (line) { form.remove(); remind.hidden = false; } else form.replaceWith(remind); };
+    cancel.addEventListener("click", () => { close(); remind.focus(); });
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      send.disabled = true;
+      send.textContent = "Sending…";
+      try {
+        const { to, remindedAt } = await api("POST", "/control/payment-reminder", { shopId: item.shopId, note: words.value });
+        item.remindedAt = remindedAt;
+        remind.textContent = "Reminded today";
+        remind.disabled = true;
+        remind.title = `Emailed ${to}`;
+        close();
+      } catch (failure) {
+        send.disabled = false;
+        send.textContent = "Try again";
+        send.title = failure.message;
+      }
+    });
+    if (line) { remind.hidden = true; line.append(form); } else remind.replaceWith(form);
+    words.focus();
   });
   return remind;
 }

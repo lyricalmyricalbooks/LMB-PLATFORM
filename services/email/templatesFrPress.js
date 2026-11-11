@@ -430,10 +430,12 @@ export const PRESS_TEMPLATES_FR = {
   }),
 
   /** French twin of "payment-failed". */
-  "payment-failed": ({ price, nextTry, link }, { settings, pressName }) => layout({
+  "payment-failed": ({ price, nextTry, link, note }, { settings, pressName }) => layout({
     subject: `Nous n'avons pas pu prélever le paiement de ce mois-ci pour ${pressName}`,
     greeting: "Bonjour,",
     paragraphs: [
+      // The owner's own line from the control room's reminder, first, so it reads as a person and not the robot.
+      ...(note ? [String(note).slice(0, 300)] : []),
       `Votre carte a été refusée pour le paiement de ${frenchMoney(price)} de ce mois-ci pour ${pressName}. Votre boutique reste ouverte pendant que nous réglons la situation.`,
       nextTry
         ? `Nous essaierons de nouveau la carte le ${frenchDay(nextTry)}. Pour éviter un autre refus, mettez votre carte à jour dès maintenant.`
@@ -444,10 +446,12 @@ export const PRESS_TEMPLATES_FR = {
   }),
 
   /** French twin of "payment-needs-confirming". */
-  "payment-needs-confirming": ({ price, link }, { settings, pressName }) => layout({
+  "payment-needs-confirming": ({ price, link, note }, { settings, pressName }) => layout({
     subject: `Votre banque vous demande de confirmer le paiement de ${pressName}`,
     greeting: "Bonjour,",
     paragraphs: [
+      // The owner's own line from the control room's reminder, first, so it reads as a person and not the robot.
+      ...(note ? [String(note).slice(0, 300)] : []),
       `Votre banque vous demande de confirmer le paiement de ${frenchMoney(price)} de ce mois-ci pour ${pressName} avant qu'il soit fait. C'est une étape de sécurité normale chez certaines banques.`,
       "Utilisez le bouton ci-dessous pour le confirmer auprès de votre banque. Votre boutique reste ouverte en attendant.",
     ],
