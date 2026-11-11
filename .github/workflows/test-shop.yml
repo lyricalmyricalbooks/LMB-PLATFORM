@@ -48,7 +48,12 @@ jobs:
           (cd functions && npm ci)
           # The browser that draws the shop's pages ahead of time (scripts/prerender-storefront.mjs), the version the
           # shop copy pins. Without it the run still passes but leaves the pages for the next release to draw.
-          pnpm exec playwright install --with-deps chromium
+          pnpm exec playwright install chromium
+          # System packages only when Chromium is missing a library: the runner image has them, and Ubuntu's
+          # package servers are sometimes unreachable from GitHub (11 November 2026), which failed every browser job.
+          if find ~/.cache/ms-playwright -type f \( -name chrome -o -name chrome-headless-shell \) -exec ldd {} \; | grep -q "not found"; then
+            timeout 600 pnpm exec playwright install-deps chromium
+          fi
       - name: Build the stockroom's pages
         working-directory: apps/stockroom
         run: npm ci && npm run build
