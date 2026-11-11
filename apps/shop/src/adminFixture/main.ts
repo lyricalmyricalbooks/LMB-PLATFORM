@@ -456,6 +456,32 @@ if (gstate) {
   ];
 }
 
+// ── Product variants (variants worker, 11 November 2026): ?variants=1 is a clothing shop with a tee sold in sizes and
+// colours, each combination with its own price, SKU and stock (one sold out, one low). Open the editor with
+// &page=catalog/book/tee, or Inventory with &page=inventory.
+if (new URLSearchParams(location.search).get("variants")) {
+  const sizes = ["S", "M", "L"];
+  const colours = ["Black", "Natural"];
+  const stockOf: Record<string, number> = { "S/Black": 6, "S/Natural": 0, "M/Black": 12, "M/Natural": 3, "L/Black": 8, "L/Natural": 5 };
+  const tee: any = {
+    id: "tee", slug: "studio-tee", title: "Studio Tee", kind: "clothing", authorName: "Ada Example", retailPrice: 32, status: "published",
+    trackInventory: true, sku: "TEE", categories: ["Clothing"], photos: (A11Y_BOOKS[0] as any).photos, description: "<p>Heavy cotton.</p>",
+    options: [{ name: "Size", values: sizes }, { name: "Colour", values: colours }],
+    variants: sizes.flatMap((size) => colours.map((colour) => {
+      const stock = stockOf[`${size}/${colour}`];
+      return { id: `tee-${size}-${colour}`.toLowerCase(), name: `${size} / ${colour}`, options: { Size: size, Colour: colour },
+        price: size === "L" ? 34 : 32, sku: `TEE-${size}-${colour.slice(0, 3).toUpperCase()}`, stock, stockLevel: stock, weight: "220 g" };
+    })),
+  };
+  tee.stockLevel = tee.variants.reduce((n: number, v: any) => n + v.stockLevel, 0);
+  const products = [tee, ...A11Y_BOOKS.map((b: any) => ({ ...b, kind: "other" }))];
+  const api = adminApi as any;
+  api.getFirstWeek = async () => ({ publishes: "clothing", welcome: { at: "2026-11-01T10:00:00.000Z", theme: "riso" } });
+  api.getBooks = async () => products;
+  api.getAllBooks = async () => products;
+  api.getBook = async (id: string) => products.find((b) => b.id === id) ?? null;
+}
+
 // ── Stock › Reorder list sample (reorder worker): one title selling fast with copies left (`?page=reorder`).
 {
   const base = stockroomApi.load;
