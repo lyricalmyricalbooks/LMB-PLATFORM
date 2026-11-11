@@ -26,7 +26,7 @@ export const isCombinedTab = (tab: string) => tab === SALES_TAB || tab === REORD
 /** Pages only the combined admin has, besides the stockroom's: menu id, label and the line under the title. */
 export const COMBINED_PAGES: StockroomPage[] = [
   { id: REORDER_TAB, label: "Reorder list", description: "Products about to run out, most urgent first, with how many to order." },
-  { id: SALES_TAB, label: "All sales", description: "Every sale in one list: website orders, fairs, stockists, invoices and ones entered by hand." },
+  { id: SALES_TAB, label: "All sales", description: "Website orders beside the stockroom's own sales, counted once." },
 ];
 
 /** Message senders; the same names as the stockroom's lib/inside-admin.js. */

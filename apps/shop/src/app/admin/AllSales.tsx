@@ -3,7 +3,7 @@
 // filter per channel. Website orders open on the Orders page; a stockroom sale opens its book in the stockroom, where
 // sales are changed. The stockroom stays the master count, so its sales are asked of it (stockroomBridge.ts).
 import { useEffect, useMemo, useState } from "react";
-import { DataTable, EmptyState, ErrorState, FilterBar, LoadingState, MetricCard, SecondaryButton, SectionCard, SelectField, StatusBadge, Tabs } from "./riso/components";
+import { DataTable, EmptyState, ErrorState, LoadingState, PageActions, SecondaryButton, SectionCard, SelectField, StatusBadge, Tabs } from "./riso/components";
 import { getOrdersCached } from "./ordersCache";
 import { stockroomBridge, type StockroomSale } from "./stockroomBridge";
 import { useShopWords } from "./shopWords";
@@ -116,20 +116,31 @@ export function AllSales({ onOpenOrder }: { onOpenOrder: (id: string) => void })
 
   return (
     <div className="rp-stack">
-      <div className="rp-kpi-grid">
-        <MetricCard label="Sales" value={totals.sales.toLocaleString()} footer={periodLabel} />
-        <MetricCard label="Copies sold" value={totals.copies.toLocaleString()} footer={channelLabel} />
-        <MetricCard label="Takings" value={takings} footer={w("Books only, after discounts and refunds")} />
-      </div>
-      <Tabs label="Channel" value={active || "all"} onChange={(v) => setChannel(v === "all" ? "" : v)}
-        tabs={[{ id: "all", label: "Every channel", count: rows.length }, ...channels]} />
-      <FilterBar>
+      <PageActions>
+        <SecondaryButton onClick={download} disabled={!visible.length}>Download spreadsheet</SecondaryButton>
+      </PageActions>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <Tabs label="Channel" value={active || "all"} onChange={(v) => setChannel(v === "all" ? "" : v)}
+          tabs={[{ id: "all", label: "All channels", count: rows.length }, ...channels]} />
         <SelectField label="Period" hideLabel value={period} onChange={(e) => setPeriod(e.target.value as PeriodId)}>
           {PERIODS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
         </SelectField>
-        <SecondaryButton onClick={() => stockroomBridge.openPage("manual")}>Record a sale</SecondaryButton>
-        <SecondaryButton onClick={download} disabled={!visible.length}>Download spreadsheet</SecondaryButton>
-      </FilterBar>
+      </div>
+      <div className="rp-tiles">
+        <div className="rp-tile" data-tone="mint">
+          <span className="rp-tile-label">{periodLabel}</span>
+          <span className="rp-tile-value">{takings}</span>
+          <span className="rp-tile-sub">{totals.sales.toLocaleString()} sale{totals.sales === 1 ? "" : "s"} · {w("books only, after discounts and refunds")}</span>
+        </div>
+        <div className="rp-tile">
+          <span className="rp-tile-label">Copies sold</span>
+          <span className="rp-tile-value">{totals.copies.toLocaleString()}</span>
+        </div>
+        <div className="rp-tile">
+          <span className="rp-tile-label">Best channel</span>
+          <span className="rp-tile-value">{channels[0]?.label || "–"}</span>
+        </div>
+      </div>
       {notes.map((n) => <p key={n} className="rp-hint" role="status">{n}</p>)}
       {fairs.length > 0 && (
         <SectionCard title="Fair days side by side" description="One line for each fair day in this period. Name the fair on the Till and it shows here.">
