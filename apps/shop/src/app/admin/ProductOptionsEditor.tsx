@@ -45,7 +45,7 @@ export function ProductOptionsEditor({ form, onApply, onClear }: {
       description={w("For anything sold in sizes, colours or materials. List the choices, then make the editions: every combination becomes an edition below with its own price, stock and photo. Leave this empty for a book with plain editions.")}
       actions={<button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" disabled={rows.length >= MAX_OPTIONS}
         onClick={() => setRows([...rows, { name: rows.length ? "" : "Size", values: "" }])}><Plus size={14} aria-hidden /> Add option</button>}>
-      {!rows.length && <p className="be-note">No options. Shoppers pick from the editions below, as they do today.</p>}
+      {!rows.length && <p className="be-note">{w("No options. Shoppers pick from the editions below, as they do today.")}</p>}
       {rows.map((row, i) => (
         <div key={i} className="be-grid be-grid-4" role="group" aria-label={`Option ${i + 1}`}>
           <TextField label="Option name" placeholder="e.g. Size" value={row.name} onChange={(e) => update(i, { name: e.target.value })} />
@@ -65,13 +65,13 @@ export function ProductOptionsEditor({ form, onApply, onClear }: {
           {rows.length > 0 && (
             <button type="button" className="rp-btn rp-btn-primary rp-btn-sm" disabled={!!problems.length || !count || (!changed && saved.length > 0)}
               onClick={() => onApply(options)}>
-              {saved.length ? "Update the editions" : "Make the editions"}{count ? ` (${count})` : ""}
+              {w(saved.length ? "Update the editions" : "Make the editions")}{count ? ` (${count})` : ""}
             </button>
           )}
           {saved.length > 0 && (
             <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => { setRows([]); onClear(); }}>Stop using options</button>
           )}
-          {changed && saved.length > 0 && <span className="be-note">Changes to the options apply when you update the editions.</span>}
+          {changed && saved.length > 0 && <span className="be-note">{w("Changes to the options apply when you update the editions.")}</span>}
         </div>
       )}
     </SectionCard>

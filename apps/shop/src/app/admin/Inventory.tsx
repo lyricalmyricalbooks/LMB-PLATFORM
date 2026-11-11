@@ -138,7 +138,7 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
   const rows = useMemo(() => {
     const s = q.trim().toLowerCase();
     const order = (r: InventoryRow) => (r.editable ? 0 : 1);
-    return all.filter((r) => inTab(r, tab) && (!s || `${r.title} ${r.edition} ${r.shelfLocation}`.toLowerCase().includes(s)))
+    return all.filter((r) => inTab(r, tab) && (!s || `${r.title} ${r.edition} ${r.shelfLocation} ${r.sku}`.toLowerCase().includes(s)))
       .sort((a, b) => order(a) - order(b) || a.stock - b.stock || a.title.localeCompare(b.title));
   }, [all, tab, q]);
   useEffect(() => setPage(1), [tab, q, threshold, showHidden]);
@@ -334,6 +334,7 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
           : <div className="rp-row-link" style={{ cursor: "default", textDecoration: "none" }}>{r.title}</div>}
         <div className="rp-hint">
           {[r.edition, r.format].filter(Boolean).join(" · ") || "—"}
+          {r.sku && <> · SKU <span className="rp-mono">{r.sku}</span></>}
           {r.shelfLocation && <> · Shelf <span className="rp-mono">{r.shelfLocation}</span></>}
           {r.archived && " · Archived"}{r.draft && " · Draft"}{r.backorder && r.editable && " · Backorders on"}
         </div>
@@ -368,7 +369,7 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
     <ul className="inv-sheet" aria-label="Inventory">
       {pageRows.map((r) => {
         const cover = rowCoverUrl(r);
-        const meta = [r.edition || r.format, r.shelfLocation ? `Shelf ${r.shelfLocation}` : "", r.draft ? "Draft" : "", r.archived ? "Archived" : ""].filter(Boolean).join(" · ");
+        const meta = [r.edition || r.format, r.sku ? `SKU ${r.sku}` : "", r.shelfLocation ? `Shelf ${r.shelfLocation}` : "", r.draft ? "Draft" : "", r.archived ? "Archived" : ""].filter(Boolean).join(" · ");
         const counted = r.kind === "stock";
         return (
           <li key={r.id} className="inv-sheet-row">
@@ -426,7 +427,7 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
         <span id="inv-low-stock-help">copies. Saved for the whole shop.</span>
       </div>
       <FilterBar>
-        <div className="rp-grow"><SearchField label="Search titles" placeholder="Search titles or shelf…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+        <div className="rp-grow"><SearchField label={w("Search titles")} placeholder={w("Search titles, SKU or shelf…")} value={q} onChange={(e) => setQ(e.target.value)} /></div>
         <Checkbox label={`Show drafts & archived (${hiddenCount})`} checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} />
         <SecondaryButton className="inv-export" icon={<Download size={16} aria-hidden />} onClick={exportCsv}>Export CSV</SecondaryButton>
       </FilterBar>

@@ -26,6 +26,8 @@ export interface InventoryRow {
   digital: boolean; editable: boolean; backorder: boolean;
   archived: boolean; draft: boolean;
   shelfLocation: string;
+  /** The row's own SKU (an edition's or combination's, else the book's), "" when it has none. */
+  sku: string;
   book: any;
 }
 
@@ -130,6 +132,7 @@ export function buildInventory(books: any[], paidOrders: any[], threshold = DEFA
         value: kind === "stock" ? stock * price : 0, sold30: s30, coverDays,
         status: statusOf(stock, coverDays, threshold, kind), digital: kind === "digital", editable: kind === "stock",
         shelfLocation: String(variant?.shelfLocation || b.shelfLocation || "").trim(),
+        sku: String((variant ? variant.sku : b.sku) || "").trim(),
       };
     };
     const variants = variantsOf(b);

@@ -851,3 +851,12 @@ is its draft store: every save goes to the press record's `design` (signup/press
 Save draft, Discard, Schedule and View website, and Done saves then goes back to join/. Setup step 20 hands `design` over
 in `firstWeek/handover`; Get started's look step (`SignupDesignStage`) publishes it (the shop is still private) and
 records `welcome { theme: themeBase id or "custom" }`, with Try again or **Pick a look instead** on a failure.
+
+## Every combination (11 November 2026)
+A product sold in options (`usesOptionPicker`) gets **Every combination** on the Editions tab (`VariantGrid.tsx`, pure
+`variantGridRules.ts`): figures (combinations, in stock, sold out/low, price range), Set price / Set stock for every row
+(stockroom-counted stock left alone, `fillEvery`) and one row per combination with price, SKU and stock. Edits go into the
+editor's form and save with it (`updateBook` still keeps live stock). The long card per combination opens on request.
+The Editions tab sits under `ShopWordsContext` with the editor's own `w`, and `goodsWords` turns edition(s) into
+variant(s), so a non-book product reads Variants. Inventory rows carry `sku` (shown, searchable). Server stock and holds
+per combination: `functions/productVariantsStock.test.js`. Fixture: `admin-fixture.html?variants=1&page=catalog/book/tee`.

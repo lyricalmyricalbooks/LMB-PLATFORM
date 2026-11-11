@@ -98,3 +98,11 @@
   .bk-cards { display: block; }
   .bk-bulk { top: 0; }
 }
+
+/* Every combination (VariantGrid.tsx): figures, "same for every row", then one row per combination. Tokens only. */
+.book-editor-riso .be-vg-figures { margin-bottom: 16px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+.book-editor-riso .be-vg-fill { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; margin-bottom: 16px; }
+.book-editor-riso .be-vg-fill-field { display: flex; flex-direction: column; gap: 4px; }
+.book-editor-riso .be-vg-num { width: 7.5rem; max-width: 100%; text-align: right; }
+.book-editor-riso .be-vg-sku { width: 10rem; max-width: 100%; }
+.book-editor-riso .be-vg-figures.rp-kpi-grid > .rp-metric .rp-metric-value { font-size: var(--rp-text-2xl); overflow-wrap: anywhere; }
