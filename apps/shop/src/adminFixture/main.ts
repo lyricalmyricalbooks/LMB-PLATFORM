@@ -19,6 +19,46 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
   submissions: { "night-songs": { sales: { s1: true }, expenses: { e1: true, e2: true } } },
 });
 
+// --- Stockroom money pages (Tax centre, Expenses, Ask about your sales): sample records, only for those pages ---
+if (/page=stockroom(\/|%2F)(taxcenter|expenses|intel)/.test(window.location.search) && !EMPTY_STOCKROOM) {
+  stockroomApi.load = async (): Promise<StockroomRecords> => ({
+    books: [
+      { id: "salt-hours", title: "Salt Hours", author: "Ada Example", currency: "CA$", maxPrint: 200, threshold: 10, listPrice: 20 },
+      { id: "night-songs", title: "Night Songs", author: "Ben Example", currency: "€", maxPrint: 150, threshold: 10, listPrice: 18 },
+    ],
+    states: {
+      "salt-hours": {
+        hist: [
+          { id: 1, date: "2026-03-04", num: "A1", qty: 2, price: 20, chan: "Direct", shippingPaid: 6 },
+          { id: 2, date: "2025-11-02", num: "A0", qty: 1, price: 20, chan: "Website" },
+          { id: 3, date: "2026-05-01", num: "V1", qty: 1, price: 20, chan: "Direct", voided: true },
+          { id: 4, date: "2026-06-12", num: "A2", qty: 4, price: 20, chan: "Book fair" },
+        ],
+        expenses: [
+          { id: 11, date: "2026-02-10", desc: "Print run", cat: "Printing", amount: 300, currency: "CAD", baseAmount: 300, receipt: "cloud://receipts/print-run.pdf" },
+          { id: 12, date: "2026-04-01", desc: "Freight to warehouse", cat: "Shipping & Postage", amount: 64.5, currency: "CAD", baseAmount: 64.5 },
+        ],
+        artistPayouts: [{ id: 21, date: "2026-07-01", amount: 50, method: "e-transfer" }],
+      },
+      "night-songs": {
+        hist: [{ id: 5, date: "2026-03-09", num: "B1", qty: 3, price: 10, chan: "Direct" }],
+        expenses: [{ id: 13, date: "2026-03-15", desc: "Cover design", cat: "Design", amount: 120, currency: "EUR", received: false }],
+      },
+    },
+    taxCenter: {
+      settings: { baseCurrency: "CAD", rates: { EUR_CAD: 1.5, USD_CAD: 1.35 } },
+      trips: [{ name: "Toronto Book Fair", destination: "Toronto", startDate: "2026-06-11", endDate: "2026-06-13" }],
+      businessExpenses: [
+        { id: 31, date: "2026-06-11", desc: "Booth fee", cat: "Booths & Fairs", amount: 250, currency: "CAD", baseAmount: 250, trip: "Toronto Book Fair", receipt: "cloud://receipts/booth.pdf" },
+        { id: 32, date: "2026-06-12", desc: "Team lunch", cat: "Meals & Entertainment", amount: 80, currency: "CAD", baseAmount: 80, trip: "Toronto Book Fair" },
+        { id: 33, date: "2026-08-02", desc: "Mailing supplies", cat: "Supplies", amount: 40, currency: "USD", baseAmount: 54 },
+        { id: 34, date: "2025-09-09", desc: "Website hosting", cat: "Software", amount: 20, currency: "CAD", baseAmount: 20 },
+      ],
+      recurring: [{ id: "r1", desc: "Website hosting", vendor: "Host Example", cat: "Software", amount: 20, currency: "CAD", frequency: "monthly", startDate: "2026-01-01", day: 1 }],
+    },
+  });
+}
+// --- end of the stockroom money pages block ---
 // ── Stockroom › Stock and sales fixture (only for ?page=stockroom/dashboard): four items, one with a stale saved count,
 // a voided sale, a store holding copies, a write-off and a held artist payment; one sold out.
 if (new URLSearchParams(window.location.search).get("page") === "stockroom/dashboard" && !EMPTY_STOCKROOM) {
