@@ -1845,6 +1845,10 @@ const { handleCancelOrder, handleResolveMismatch, handleCheckoutStatus, handleTr
 
 const { handleStockistPricing, handleStockistStatus } = stockistActions({ db, LIMITS, hitLimit, canViewOrder, orderRequestIdentity, orderRequestKey });
 const { handlePaymentLink, handleCustomerAddOn } = paymentLinkActions({ db, requireAdmin, priceOrder, PricingError, publicErrorMessage, hitLimit, LIMITS, canViewOrder, orderRequestKey, orderRequestIdentity });
+// Card pay links for stockroom invoices and settle-ups (invoicePay.js): no shop order, the admin reads whether they're paid.
+const { handleInvoicePay, handleInvoicePayOpen } = require("./invoicePay").invoicePayActions({
+  db, requireAdmin, payments, shopTestMode: () => shopTestMode(), hitLimit, LIMITS, siteLink, shopName: () => shopConfig.senderName,
+});
 
 // Customers › Newsletter (newsletterSend.js): who is on the list, and sending to them a page at a time from the sweep.
 const { runNewsletterIssues, newsletterAdminActions, audienceCount } = require("./newsletterSend");
@@ -1908,6 +1912,8 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   stockistPricing: handleStockistPricing,
   stockistStatus: handleStockistStatus,
   paymentLink: handlePaymentLink,
+  invoicePay: handleInvoicePay,
+  invoicePayOpen: handleInvoicePayOpen,
   addToOrder: handleCustomerAddOn,
   privacyRequest: handlePrivacyRequest,
   myDataExport: handleMyData,

@@ -18,6 +18,7 @@ import {
   stockistNames, todayText, type InvoiceForm, type InvoiceLine, type InvoiceRow, type InvoiceSettings,
 } from "./invoiceMake";
 import { invoicePage, printInvoice } from "./invoicePaper";
+import { attachCardLinkChange, cardLinkOf, cardLinkRefusal, invoiceCardPayApi, recordCardPayments } from "./invoiceCardPay";
 import { RemindersDialog } from "./RemindersDialog";
 import type { StockroomRecords } from "./stockroomData";
 import { describeResult, stockroomWriteApi } from "./stockroomWrite";
@@ -298,6 +299,26 @@ export function InvoiceView({ row, settings, onClose, onEdit, onCopy, onSaved }:
     if (!r.ok) { setNote(r.notice); return; }
     onSaved(row.ownerBookId, r.state, r.notice);
   };
+  const cardLink = cardLinkOf(row.inv);
+  const makeCardLink = async () => {
+    if (busy) return;
+    const refused = cardLinkRefusal(row.inv);
+    if (refused) { setNote({ tone: "warn", lines: [refused] }); return; }
+    setBusy(true);
+    let made: { url: string; token: string };
+    try {
+      made = await invoiceCardPayApi.make({ ref: `${row.ownerBookId}:${row.id}`.slice(0, 160), kind: "invoice", label: `Invoice ${row.num || ""}`.trim(), amount: row.total, currency: row.code, email: String(row.inv.storeEmail || "") });
+    } catch (e) {
+      setBusy(false);
+      setNote({ tone: "error", lines: [e instanceof Error ? e.message : "The card link couldn't be made."] });
+      return;
+    }
+    const r = await saveBook(row.ownerBookId, attachCardLinkChange(row.id, made, Date.now()), `Card pay link ready for ${row.num || "this invoice"}. It's on the invoice, the email and the reminders.`);
+    setBusy(false);
+    if (!r.ok) { setNote(r.notice); return; }
+    navigator.clipboard?.writeText(made.url).catch(() => undefined);
+    onSaved(row.ownerBookId, r.state, r.notice);
+  };
   const send = async () => {
     if (busy) return;
     setBusy(true);
@@ -314,6 +335,9 @@ export function InvoiceView({ row, settings, onClose, onEdit, onCopy, onSaved }:
         <SecondaryButton onClick={() => { window.location.href = mailto; }} disabled={busy}>{mail.to ? "Email" : "Email (no address on file)"}</SecondaryButton>
         {row.status === "sent" && <SecondaryButton onClick={remind} disabled={busy}>{chase.count ? "Remind again" : "Remind"}</SecondaryButton>}
         {row.status === "draft" && <SecondaryButton onClick={send} busy={busy}>{busy ? "Saving…" : "Mark sent"}</SecondaryButton>}
+        {(row.status === "sent" || row.status === "draft") && (cardLink
+          ? <SecondaryButton onClick={() => { navigator.clipboard?.writeText(cardLink.url).then(() => setNote({ tone: "ok", lines: ["Card pay link copied."] }), () => setNote({ tone: "ok", lines: [cardLink.url] })); }} disabled={busy}>Copy card link</SecondaryButton>
+          : <SecondaryButton onClick={makeCardLink} disabled={busy}>Card pay link</SecondaryButton>)}
         <PrimaryButton onClick={() => printInvoice(row.inv, settings, today)} disabled={busy}>Print or save PDF</PrimaryButton>
       </>}>
       {note && <Note notice={note} />}
@@ -356,6 +380,19 @@ export function InvoicesCard({ records, onBookSaved, onSettingsSaved, newFor, on
     setOpen({ kind: "edit", form: blankForm(records, settings, { stockist: newFor }) });
     onNewDone?.();
   }, [newFor]);
+  // Card pay links paid since the last visit: marked paid here (the server never writes the stockroom).
+  useEffect(() => {
+    if (!writable) return;
+    let cancelled = false;
+    recordCardPayments(records, {
+      save: async (bookId, change) => { const r = await stockroomWriteApi.saveBookState(bookId, change); return r.status === "saved" || r.status === "unchanged" ? { ok: true, state: r.state as Rec } : { ok: false }; },
+      onSaved: (bookId, state) => { if (!cancelled) onBookSaved?.(bookId, state); },
+    }).then((ids) => {
+      if (cancelled || !ids.length) return;
+      setNotice({ tone: "ok", lines: [`${ids.length === 1 ? "One invoice was" : `${ids.length} invoices were`} paid by card and marked paid.`] });
+    });
+    return () => { cancelled = true; };
+  }, [writable]);
   const current = open?.kind === "view" ? rows.find((r) => r.id === open.id) || null : null;
   const saved: BookSaved = (bookId, state, n) => { onBookSaved?.(bookId, state); setNotice(n); setOpen(null); };
 

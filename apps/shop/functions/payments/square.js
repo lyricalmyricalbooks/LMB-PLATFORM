@@ -438,6 +438,7 @@ function createSquareProvider({ db, platform = null }) {
   // The caller hands over Stripe Checkout Session parameters (fairCheckoutParams); this answers them as a Square
   // payment link and keeps the sale and the helper beside it, since a payment link holds no metadata. Square's links
   // don't close by themselves, so one read after its half hour closes it, as Stripe's session would have expired.
+  const keptMetadata = (fair) => (fair.invoice ? { invoice_pay: fair.invoice } : { fair_sale: fair.sale, fair_helper: fair.helper });
   async function standaloneCheckout(mode) {
     const linkMode = mode === "test" ? "test" : "live";
     const kept = (id) => db.collection(FAIR_PAYMENTS).doc(id);
@@ -466,7 +467,9 @@ function createSquareProvider({ db, platform = null }) {
       async open(params, idempotencyKey) {
         const item = params?.line_items?.[0]?.price_data;
         const metadata = params?.metadata || {};
-        if (!item || !Number.isInteger(item.unit_amount) || !metadata.fair_sale || !metadata.fair_helper) throw new Error("A fair payment needs one priced line, its sale and its helper.");
+        // A fair sale names its sale and helper; an invoice pay link (invoicePay.js) names its link.
+        const invoice = metadata.invoice_pay ? String(metadata.invoice_pay) : "";
+        if (!item || !Number.isInteger(item.unit_amount) || (!invoice && (!metadata.fair_sale || !metadata.fair_helper))) throw new Error("A payment with no order needs one priced line and what it pays for.");
         // Square takes payments only in its location's currency: say so plainly rather than "couldn't be reached".
         let accountCurrency = null;
         try { accountCurrency = lower((await platform.call("account.status", undefined))?.currency) || null; } catch { accountCurrency = null; }
@@ -502,7 +505,7 @@ function createSquareProvider({ db, platform = null }) {
             id,
             async finish() {
               await kept(id).set({
-                sale: String(metadata.fair_sale), helper: String(metadata.fair_helper), referenceId, mode: linkMode, open: true,
+                ...(invoice ? { invoice } : { sale: String(metadata.fair_sale), helper: String(metadata.fair_helper) }), referenceId, mode: linkMode, open: true,
                 expiresAt: Number.isFinite(params.expires_at) ? params.expires_at : null, createdAt: new Date().toISOString(),
               });
               return { id, object: "checkout.session", url: made.url, status: "open", payment_status: "unpaid", expires_at: Number.isFinite(params.expires_at) ? params.expires_at : null, metadata: { ...metadata } };
@@ -517,13 +520,13 @@ function createSquareProvider({ db, platform = null }) {
         if (!fair || fair.mode !== linkMode) return null;
         // Closed here, unpaid: Square has deleted the link, so answer without asking it.
         if (fair.open === false && fair.closedAt && !fair.paidAtClose) {
-          return { id, object: "checkout.session", status: "expired", payment_status: "unpaid", metadata: { fair_sale: fair.sale, fair_helper: fair.helper } };
+          return { id, object: "checkout.session", status: "expired", payment_status: "unpaid", metadata: keptMetadata(fair) };
         }
         const checkout = await call("square.checkout.retrieve", linkMode, { id: squareIdOf(id) });
         if (checkout.referenceId !== fair.referenceId) return null;
         let session = await sessionFrom(checkout, linkMode);
         if (session.status === "open" && Number.isFinite(fair.expiresAt) && fair.expiresAt * 1000 <= Date.now()) session = await expire(id, fair);
-        return { ...session, metadata: { fair_sale: fair.sale, fair_helper: fair.helper } };
+        return { ...session, metadata: keptMetadata(fair) };
       },
       close,
       /**
