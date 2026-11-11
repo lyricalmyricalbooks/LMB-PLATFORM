@@ -11,6 +11,7 @@
 // What it answers (Hosting sends it only these paths; firebase.json `rewrites` in the shared deploy):
 //   /shop-profile.js, /stockroom/shop-profile.js   the shop's profile, as the apps read it at page open
 //   SITE_FILES (sitemap.xml, robots.txt, …)        the shop's own published file, or a plain default
+//   /google<hex>.html                              Google's Search Console proof file, put there by Connect Google
 //   a storefront page (/, /books/x, …)             the shop's page as first drawn, or the app's blank page (spa.html)
 // An address that names no shop, or a closed shop, gets a short page saying so. Nothing here writes.
 
@@ -22,6 +23,8 @@ const SITE_FILES = new Set([
   "sitemap.xml", "robots.txt", "storefront-data.json", "llms.txt", "google-merchant-feed.xml", "social-product-feed.csv",
   "seo-published-fingerprint.txt",
 ]);
+/** Google's Search Console proof file, which the platform's Connect Google puts in the shop's site folder. */
+const VERIFICATION_FILE = /^google[0-9a-f]{8,32}\.html$/;
 const PROFILE_PATHS = new Set(["/shop-profile.js", "/stockroom/shop-profile.js"]);
 const SNAPSHOT_KINDS = new Set(["books", "products", "page", "collections"]);
 const TYPES = {
@@ -143,10 +146,15 @@ function frontDoor({ rootDb, bucket, loadShop, shellUrl, fetch = globalThis.fetc
       return send(404, TYPES[".txt"], "Not published yet.");
     }
 
+    if (VERIFICATION_FILE.test(name)) {
+      const body = await siteFile(shop.id, name);
+      return body ? send(200, TYPES[".html"], body) : send(404, TYPES[".txt"], "Not published.");
+    }
+
     const snapshot = snapshotFile(pathname);
     const body = snapshot ? await siteFile(shop.id, snapshot) : null;
     return send(200, TYPES[".html"], body ?? await blankPage());
   };
 }
 
-module.exports = { frontDoor, hostOf, snapshotFile, safeSlug, profileScript, SITE_FILES, TYPES, ADDRESS_TTL_MS };
+module.exports = { frontDoor, hostOf, snapshotFile, safeSlug, profileScript, SITE_FILES, TYPES, ADDRESS_TTL_MS, VERIFICATION_FILE };

@@ -46,6 +46,8 @@ const FRONT_DOOR_PATHS = [
 ];
 // The storefront pages a shop draws ahead (scripts/prerenderHtml.mjs routeOutputPath): home, books, products, pages, collections.
 const FRONT_DOOR_PAGES = "^/(?:|(?:books|products|page|collections)/[^/]+/?)$";
+// Google's Search Console proof file for the shop's address (functions/frontDoor.js VERIFICATION_FILE).
+const FRONT_DOOR_VERIFICATION = "^/google[0-9a-f]{8,32}\\.html$";
 
 /** The Hosting part of the shared site: the per-shop files left out, and their addresses sent to the front door. */
 export function frontDoorHosting(hosting, region) {
@@ -57,6 +59,7 @@ export function frontDoorHosting(hosting, region) {
     rewrites: [
       ...FRONT_DOOR_PATHS.map(source => ({ source, ...to })),
       { regex: FRONT_DOOR_PAGES, ...to },
+      { regex: FRONT_DOOR_VERIFICATION, ...to },
       ...(hosting.rewrites ?? []),
     ],
   };

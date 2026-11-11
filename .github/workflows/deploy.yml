@@ -77,7 +77,9 @@ jobs:
           done
           [ -n "$SERVER_SETTINGS" ] || missing="$missing (repository variable SERVER_SETTINGS)"
           later=""
-          for secret in stripe-platform-test-key stripe-billing-webhook-secret stripe-connect-webhook-secret-test; do
+          # Connect Google's three keys (google/config.js GOOGLE_SECRETS) are optional too: until they are there, every
+          # shop's Google page says "coming soon". Adding them changes the server's fingerprint below, so it goes live again.
+          for secret in stripe-platform-test-key stripe-billing-webhook-secret stripe-connect-webhook-secret-test google-client-id google-client-secret google-token-key; do
             gcloud secrets describe "$secret" --project="$PROJECT" > /dev/null 2>&1 || later="$later $secret"
           done
           echo "later=$later" >> "$GITHUB_OUTPUT"
