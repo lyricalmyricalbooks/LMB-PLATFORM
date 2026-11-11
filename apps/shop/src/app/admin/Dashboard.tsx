@@ -33,7 +33,7 @@ import {
 import { GlobalSearch, ActivityLogDialog, ShopStatusMenu, DrawerAccount, StoreSwitcher } from "./riso/shellParts";
 import { blockedMessage, blockersBeforeOpening, openButtonLabel } from "./launchCheck";
 import { WhatsNew } from "./WhatsNew";
-import { ADMIN_LOOK, applyAdminLook } from "./riso/adminLook";
+import { applyAdminLook } from "./riso/adminLook";
 import { SupportBanner } from "./SupportBanner";
 import { PlanBannerBar, PlanDesk } from "./PlanParts";
 import { TwoStepReminder } from "./TwoStepReminder";
@@ -59,7 +59,6 @@ import { keepAdminOffline } from "./adminOffline";
 import { CombinedTour, CombinedTourInvite, markTourSeen, tourSeen, type TourStop } from "./CombinedTour";
 import { markTourSeenOnAccount, tourSeenOnAccount } from "./combinedTourStore";
 import { stockroomBridge } from "./stockroomBridge";
-import { StockroomFrame } from "./StockroomFrame";
 import { NATIVE_PAGES } from "./stockroom/nativePages";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
 import { providerName } from "./providerWords";
@@ -122,11 +121,6 @@ export function Dashboard() {
   useWebsiteTabName();
   const [boot] = useState(readBootRoute);
   const [activeTab, setActiveTab] = useState(boot.tab);
-  // The combined admin's stockroom frame: opened the first time a stockroom page is picked, then kept (StockroomFrame).
-  const [stockroomOpened, setStockroomOpened] = useState(false);
-  
-  // Another page needs the stockroom (the book page's Stock and sales): the frame opens hidden, and is kept.
-  useEffect(() => (COMBINED ? stockroomBridge.onNeed(() => setStockroomOpened(true)) : undefined), []);
   // "Open in the stockroom" from another page shows that stockroom page (set below, after the page helpers).
   const openStockroomRef = useRef<(page: string, bookId?: string) => void>(() => {});
   useEffect(() => (COMBINED ? stockroomBridge.onOpen((page, extra) => openStockroomRef.current(page, extra?.book)) : undefined), []);
@@ -152,9 +146,6 @@ export function Dashboard() {
   const [subTabState, setSubTabState] = useState<{ page: string; id?: string }>({ page: subTabPage(boot), id: boot.subTab });
   const subPage = subTabPage({ tab: activeTab, settingsTab });
   const subTab = subTabState.page === subPage ? subTabState.id : undefined;
-  // The frame opens the first time a page it still draws is picked; a page the admin draws itself never needs it.
-  const framedStockroomPage = activeTab === STOCKROOM_TAB && !((stockroomPage(subTab)?.id ?? DEFAULT_STOCKROOM_PAGE) in NATIVE_PAGES);
-  useEffect(() => { if (framedStockroomPage) setStockroomOpened(true); }, [framedStockroomPage]);
   /** Opens a sub tab (`undefined` = the first) on the page on screen, or on `page` when a link opens another page too. */
   const openSubTab = (id: string | undefined, page: string = subPage) => setSubTabState({ page, id });
   // The book a stockroom page was opened for (a to-do line's fix button): kept with the page it was meant for, so any
@@ -759,7 +750,7 @@ export function Dashboard() {
         onOpenStudio={(at) => { setStudioLocation(at ? { ...at, key: Date.now() } : null); setActiveTab("settings"); setSettingsTab("designer"); }} /> : <LoadingState label="Loading…" />;
       case "reviews": return <ReviewsModeration />;
       case "messages": return <Messages onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }} onOpenCustomers={() => goTo("customers")} />;
-      // The stockroom's pages show in StockroomFrame below, kept open between visits.
+      // Every stockroom page is drawn by the admin itself (stockroom/nativePages.ts).
       case STOCKROOM_TAB:
         return NativeStockroomPage ? (
           <NativeStockroomPage
@@ -986,10 +977,6 @@ export function Dashboard() {
                 <PageAlertsSlot.Provider value={ownMasthead ? pageAlerts : null}><PageActionsSlot.Provider value={ownMasthead ? null : pageActionsEl}><AdminPageBoundary resetKey={activeTab + "|" + settingsTab + "|" + (subTab || "") + "|" + (selectedOrder?.id || "")}><Suspense fallback={<PageSkeleton label="Opening page…" />}>{content}</Suspense></AdminPageBoundary></PageActionsSlot.Provider></PageAlertsSlot.Provider>
               </m.div>
             </AnimatePresence>
-            {COMBINED && stockroomOpened && (
-              <StockroomFrame page={stockroomPageId} visible={onStockroomPage && !selectedOrder && !(stockroomPageId in NATIVE_PAGES)} look={ADMIN_LOOK} appearance={appearance}
-                onPage={(tab) => { if (activeTab === STOCKROOM_TAB && stockroomPage(tab)) openSubTab(tab, STOCKROOM_TAB); }} />
-            )}
           </div>
           </div>
         </div>
