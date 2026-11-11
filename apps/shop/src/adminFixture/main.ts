@@ -158,6 +158,19 @@ if (new URLSearchParams(window.location.search).get("page") === "stockroom/dashb
   };
 }
 
+// ── Stockroom › Till: six titles, one sold out (?page=stockroom/pos) ──
+if (/page=stockroom(\/|%2F)pos/.test(window.location.search) && !EMPTY_STOCKROOM) {
+  const titles: Array<[string, string, number, number]> = [
+    ["salt", "Salt Almanac", 18, 38], ["tide", "Tidewrack", 12, 22], ["ferry", "The Ferry Poems", 10, 40],
+    ["lantern", "Lantern Season", 22, 0], ["weather", "Small Weather", 7, 60], ["atlas", "Harbour Atlas", 28, 14],
+  ];
+  stockroomApi.load = async (): Promise<StockroomRecords> => ({
+    books: titles.map(([id, title, listPrice, stock]) => ({ id, title, listPrice, currency: "CA$", maxPrint: stock })),
+    states: Object.fromEntries(titles.map(([id, , , stock]) => [id, { stock, hist: [] }])),
+    taxCenter: null,
+  });
+}
+
 // ── Stockroom writes (record a sale / void, sales worker): the records above go into an in-memory stockroom
 // (stockroomMemory.ts) the first time a page reads them, and every page reads and saves through it from then on, so
 // ?page=stockroom/history can record and void sales with nothing reaching Firestore. `?stocksave=offline` makes every

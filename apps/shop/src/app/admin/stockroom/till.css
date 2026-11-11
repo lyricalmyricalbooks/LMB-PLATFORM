@@ -1,0 +1,64 @@
+/* Stockroom › Sell in person › Till (TillPage.tsx), mockup "Stockroom-Sell_in_person". Tokens only. */
+.rp-till { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 432px); gap: var(--rp-space-4); align-items: start; min-width: 0; }
+@media (max-width: 900px) { .rp-till { grid-template-columns: minmax(0, 1fr); } }
+
+.rp-till-shelf, .rp-till-cart { background: var(--rp-surface); border-radius: var(--rp-radius-lg); padding: 22px; min-width: 0; }
+.rp-till-search { width: 100%; height: 42px; border: 0; border-radius: 999px; padding: 0 18px; background: var(--rp-surface-2); color: var(--rp-text); font: inherit; font-size: var(--rp-text-sm); }
+.rp-till-search:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+.rp-till-grid { list-style: none; margin: 16px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 12px; }
+.rp-till-tile { display: grid; gap: 6px; width: 100%; padding: 12px; border: 0; border-radius: var(--rp-radius); background: var(--rp-surface-2); color: var(--rp-text); text-align: left; font: inherit; cursor: pointer; }
+.rp-till-tile:hover { background: var(--rp-surface-inset, var(--rp-surface-2)); }
+.rp-till-tile:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+.rp-till-tile[data-in-cart] { box-shadow: inset 0 0 0 2px var(--rp-text); }
+.rp-till-cover { position: relative; display: grid; place-items: center; height: 84px; border-radius: var(--rp-radius-sm); font-weight: 700; font-size: 20px; color: var(--rp-on-tile, var(--rp-text)); background: var(--rp-tile-mint, var(--rp-surface)); }
+.rp-till-cover[data-tone="apricot"] { background: var(--rp-tile-apricot, var(--rp-surface)); }
+.rp-till-cover[data-tone="sky"] { background: var(--rp-tile-sky, var(--rp-surface)); }
+.rp-till-cover[data-tone="lilac"] { background: var(--rp-tile-lilac, var(--rp-surface)); }
+.rp-till-count { position: absolute; top: 6px; right: 6px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--rp-inverse); color: var(--rp-on-inverse); font: 600 12px/22px var(--rp-font-mono); text-align: center; }
+.rp-till-title { font-weight: 600; font-size: var(--rp-text-sm); overflow-wrap: anywhere; }
+.rp-till-meta { display: flex; justify-content: space-between; gap: 8px; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+.rp-till-meta [data-out] { color: var(--rp-text); font-weight: 700; }
+
+.rp-till-side { display: grid; gap: var(--rp-space-3); min-width: 0; }
+.rp-till-cart-title { margin: 0 0 8px; font-size: 18px; font-weight: 700; }
+.rp-till-lines { list-style: none; margin: 0; padding: 0; }
+.rp-till-lines li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--rp-border); font-size: var(--rp-text-sm); }
+.rp-till-line-name { overflow-wrap: anywhere; }
+.rp-till-line-amt { font-variant-numeric: tabular-nums; }
+.rp-till-step { display: inline-flex; gap: 4px; }
+.rp-till-step button { width: 28px; height: 28px; border: 0; border-radius: 999px; background: var(--rp-surface-2); color: var(--rp-text); font: inherit; cursor: pointer; }
+.rp-till-step button:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 1px; }
+@media (pointer: coarse) { .rp-till-step button { width: 40px; height: 40px; } }
+.rp-till-total { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0; padding-top: 14px; border-top: 1px solid var(--rp-border); font-size: 26px; font-weight: 700; }
+.rp-till-total strong { font-variant-numeric: tabular-nums; text-align: right; }
+
+.rp-till-pay { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 18px; border-radius: var(--rp-radius-lg); background: var(--rp-tile-mint, var(--rp-surface)); }
+.rp-till-pay .rp-btn, .rp-till-other .rp-btn { width: 100%; justify-content: center; border-radius: 999px; }
+.rp-till-other { display: grid; gap: 10px; }
+
+.rp-till-none { margin: 16px 0 0; color: var(--rp-text-muted); font-size: var(--rp-text-sm); }
+.rp-till-warn { margin: 10px 0 0; color: var(--rp-text); font-size: var(--rp-text-sm); }
+.rp-till-sold { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0; padding: 10px 14px; border-radius: var(--rp-radius); background: var(--rp-surface); font-size: var(--rp-text-sm); }
+.rp-till-upload { display: flex; align-items: center; gap: 8px; margin: 0; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+.rp-till-upload i { width: 8px; height: 8px; border-radius: 999px; background: var(--rp-success); }
+.rp-till-upload[data-tone="wait"] i { background: var(--rp-warning); }
+.rp-till-upload[data-tone="risk"] i { background: var(--rp-danger); }
+.rp-till-stuck { display: grid; gap: 8px; padding: 12px 14px; border-radius: var(--rp-radius); background: var(--rp-surface); font-size: var(--rp-text-sm); }
+.rp-till-stuck p { margin: 0; }
+
+.rp-till-day h3 { margin: 16px 0 4px; font-size: var(--rp-text-sm); color: var(--rp-text-muted); font-weight: 600; }
+.rp-till-day ul { list-style: none; margin: 0; padding: 0; }
+.rp-till-day li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--rp-border); font-size: var(--rp-text-sm); }
+.rp-till-day-total { margin: 0; font-size: var(--rp-text-sm); }
+.rp-till-day-total strong { font-size: 22px; }
+
+/* Phone: two tiles a row, and the total with a jump to the payment buttons kept at the bottom of the screen. */
+.rp-till-jump { display: none; }
+@media (max-width: 640px) {
+  .rp-till-shelf, .rp-till-cart { padding: 16px; }
+  .rp-till-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .rp-till-cover { height: 64px; font-size: 18px; }
+  .rp-till-total { font-size: 22px; }
+  .rp-till-jump { position: sticky; bottom: 12px; z-index: 2; display: flex; justify-content: space-between; align-items: center; gap: 12px; grid-column: 1 / -1; width: 100%; min-height: var(--rp-touch); padding: 0 20px; border: 0; border-radius: 999px; background: var(--rp-inverse); color: var(--rp-on-inverse); font: inherit; font-weight: 600; cursor: pointer; }
+  .rp-till-jump:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+}
