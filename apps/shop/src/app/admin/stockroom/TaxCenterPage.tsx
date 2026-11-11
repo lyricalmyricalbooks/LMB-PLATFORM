@@ -10,6 +10,7 @@ import { DataTable, EmptyState, MetricCard, Pagination, SearchField, SecondaryBu
 import { useShopWords } from "../shopWords";
 import { RecordsGate } from "./RecordsGate";
 import { LogExpenseCard, type Prefill } from "./LogExpense";
+import { LogSeveralCard } from "./LogSeveral";
 import { PendingExpensesCard } from "./PendingExpenses";
 import { RecurringSubscriptionsCard } from "./RecurringSubscriptions";
 import { SortingRulesCard } from "./SortingRules";
@@ -107,6 +108,7 @@ export function TaxCenterView({ records, now, onTaxCenter }: { records: Stockroo
       </SectionCard>
 
       {onTaxCenter && <LogExpenseCard taxCenter={records.taxCenter} onSaved={onTaxCenter} prefill={confirming} onPrefillDone={() => setConfirming(null)} />}
+      {onTaxCenter && <LogSeveralCard taxCenter={records.taxCenter} onSaved={onTaxCenter} />}
       {onTaxCenter && <PendingExpensesCard taxCenter={records.taxCenter} onSaved={onTaxCenter} onConfirm={setConfirming} />}
       {onTaxCenter && <RecurringSubscriptionsCard taxCenter={records.taxCenter} onSaved={onTaxCenter} now={now} />}
       {onTaxCenter && <SortingRulesCard taxCenter={records.taxCenter} onSaved={onTaxCenter} />}
