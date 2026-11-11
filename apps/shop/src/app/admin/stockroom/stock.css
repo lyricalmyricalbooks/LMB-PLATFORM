@@ -1,0 +1,14 @@
+/* Stock and sales (StockPage.tsx), on the shared admin look (riso.css tokens). */
+.rp-stock { display: grid; gap: var(--rp-space-4); min-width: 0; }
+.rp-stock-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--rp-space-3); }
+.rp-stock-rev { display: grid; gap: var(--rp-space-1); font-size: 0.7em; overflow-wrap: anywhere; }
+.rp-stock-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rp-space-2) var(--rp-space-3); }
+.rp-stock-name { margin: 0; font-size: var(--rp-text-xl, 1.5rem); overflow-wrap: anywhere; }
+.rp-stock-by { color: var(--rp-text-muted); font-size: var(--rp-text-sm); }
+.rp-stock-note { margin: 0; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+.rp-stock-warn { margin: 0; font-size: var(--rp-text-sm); padding: var(--rp-space-3); border: 1px solid var(--rp-border); }
+.rp-stock-open { background: none; border: 0; padding: 0; min-height: 44px; font: inherit; font-weight: 600; color: inherit; text-align: left; text-decoration: underline; cursor: pointer; overflow-wrap: anywhere; }
+.rp-stock-where { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0; margin: 0; }
+.rp-stock-where > div { padding: var(--rp-space-3) var(--rp-space-4); border-top: 1px solid var(--rp-border); }
+.rp-stock-where dt { font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+.rp-stock-where dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }

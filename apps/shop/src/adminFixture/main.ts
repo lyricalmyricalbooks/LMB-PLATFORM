@@ -59,6 +59,30 @@ if (/page=stockroom(\/|%2F)(taxcenter|expenses|intel)/.test(window.location.sear
   });
 }
 // --- end of the stockroom money pages block ---
+// ── Stockroom › Stock and sales fixture (only for ?page=stockroom/dashboard): four items, one with a stale saved count,
+// a voided sale, a store holding copies, a write-off and a held artist payment; one sold out.
+if (new URLSearchParams(window.location.search).get("page") === "stockroom/dashboard" && !EMPTY_STOCKROOM) {
+  stockroomApi.load = async (): Promise<StockroomRecords> => ({
+    books: [
+      { id: "salt-hours", title: "Salt Hours", author: "Ada Example", maxPrint: 200, threshold: 10, listPrice: 20, currency: "$" },
+      { id: "night-songs", title: "Night Songs", author: "Ben Example", maxPrint: 150, threshold: 10, listPrice: 18, currency: "$" },
+      { id: "tide-tables", title: "Tide Tables", author: "Cleo Example", maxPrint: 60, threshold: 8, listPrice: 12, currency: "€" },
+      { id: "last-light", title: "Last Light", author: "Dev Example", maxPrint: 40, threshold: 5, listPrice: 25, currency: "$" },
+    ],
+    states: {
+      "salt-hours": { stock: 999, hist: [{ id: 1, qty: 120, price: 20, chan: "Website", date: "2026-10-01" }, { id: 2, qty: 5, price: 20, chan: "Fair", date: "2026-10-04" }, { id: 3, qty: 9, price: 20, chan: "Website", voided: true }], ledger: [], stores: [] },
+      "night-songs": {
+        hist: [{ id: 1, qty: 40, price: 18, chan: "Website", date: "2026-10-02" }, { id: 2, qty: 6, price: 18, chan: "Consignment", consignmentLink: true, notes: "Corner Books", date: "2026-10-09" }],
+        ledger: [{ id: "s1", type: "Shipment", storeId: "st1", storeName: "Corner Books", qty: 30, date: "2026-10-05" }, { id: "s2", type: "Sale", storeId: "st1", storeName: "Corner Books", qty: 6, amountDue: 108, date: "2026-10-09" }, { id: "w1", type: "Inventory Disposal", qty: 4, date: "2026-10-11", status: "written off" }],
+        stores: [{ id: "st1", name: "Corner Books", sent: 0, sold: 0, returned: 0, outstanding: 0 }],
+      },
+      "tide-tables": { authorStock: 10, hist: [{ id: 1, qty: 38, price: 12, chan: "Website" }, { id: 2, qty: 2, price: 0, chan: "Gift", gratuity: true }], artistTransfers: [{ chan: "Fair", qty: 4, price: 12, total: 48 }], ledger: [], stores: [] },
+      "last-light": { hist: [{ id: 1, qty: 40, price: 25, chan: "Website" }], ledger: [], stores: [] },
+    },
+    taxCenter: null,
+  });
+}
+
 // ── Stockroom › Sales records + Customers sample (sales worker): a third title with real-shaped sales (order number,
 // channel, price, date, email), a voided one, a gift, one recorded in US dollars, a consignment shipment, repeat buyers,
 // and enough rows to page. Added on top of whatever the block above loaded.
