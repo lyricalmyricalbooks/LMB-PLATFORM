@@ -1,4 +1,4 @@
-import { test, expect } from "vitest";
+import { describe, it, test, expect } from "vitest";
 import { createRequire } from "node:module";
 const { buildStockistReceipt, handleStockistReceipt } = createRequire(import.meta.url)("./stockistReceipt");
 
@@ -38,4 +38,18 @@ test("says so when the address is bad or the send fails, sending nothing twice",
   const failed = await handleStockistReceipt(input, { db, sendEmail: async () => { throw new Error("quota"); }, secret: "t" });
   expect(failed.status).toBe(502);
   expect(failed.json.error).toMatch(/quota/);
+});
+
+describe("stockist note (invoice reminder)", () => {
+  const { buildStockistNote } = createRequire(import.meta.url)("./stockistReceipt");
+  it("escapes the words and keeps paragraphs", () => {
+    const e = buildStockistNote({ to: "shop@example.com", subject: "Reminder: invoice INV-1", text: "Hi <b>Ann</b>,\n\nPay here:\nhttps://x.example" });
+    expect(e.to).toBe("shop@example.com");
+    expect(e.html).toContain("Hi &lt;b&gt;Ann&lt;/b&gt;,");
+    expect(e.html.match(/<p /g)).toHaveLength(2);
+  });
+  it("refuses two addresses or no words", () => {
+    expect(() => buildStockistNote({ to: "a@example.com, b@example.com", subject: "s", text: "t" })).toThrow();
+    expect(() => buildStockistNote({ to: "a@example.com", subject: "s", text: "" })).toThrow();
+  });
 });

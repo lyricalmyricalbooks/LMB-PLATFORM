@@ -301,6 +301,7 @@ if (/page=stockroom(\/|%2F)pos/.test(window.location.search) && !EMPTY_STOCKROOM
     }
   };
   stockistReceiptApi.send = async (receipt) => { ((window as any).__fixtureReceipts ||= []).push(receipt); return { to: receipt.to }; };
+  stockistReceiptApi.sendNote = async (note) => { ((window as any).__fixtureReceipts ||= []).push(note); return { to: note.to }; };
 }
 
 const order = (n: number, status: string, name: string) => ({
