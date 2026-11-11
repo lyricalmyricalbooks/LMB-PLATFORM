@@ -228,10 +228,10 @@ async function releaseProject(ctx, project, sample, version) {
     await drawSample(ctx, project, sample, version);
     const broken = await checkParts(ctx, project, sample, version);
     if (broken.length) return rollBack(ctx, project, sample, version, previous, broken.join("; "));
-    const refused = await checkPurchase(ctx, project, sample, version);
+    const { problems: refused, waiting } = await checkPurchase(ctx, project, sample, version);
     if (!refused.length) {
-      print(`${projectId}: ${version} sent and checked.`);
-      return { status: "shipped", previous: previous ?? null };
+      print(waiting ? `${projectId}: ${version} sent and checked, but the test purchase waits: ${waiting}. Real shops can't get it until a purchase passes.` : `${projectId}: ${version} sent and checked.`);
+      return { status: "shipped", previous: previous ?? null, ...(waiting ? { waiting } : {}) };
     }
     // A merge's own update of the test shop: the parts answer, only the release check failed. The test shop keeps the
     // new version so it can be seen and fixed; the failed check is what keeps it from any real shop.
@@ -296,7 +296,7 @@ async function ship({ deploy, envFile, region, sleep = (ms) => new Promise((r) =
 /** What is wrong with the project on `version`, in plain words; empty when it passes. */
 export async function checkProject(ctx, project, sample, version) {
   const problems = await checkParts(ctx, project, sample, version);
-  return problems.length ? problems : checkPurchase(ctx, project, sample, version);
+  return problems.length ? problems : (await checkPurchase(ctx, project, sample, version)).problems;
 }
 
 /** Every part on `version`, and one shop answering at its addresses. */
@@ -317,11 +317,19 @@ async function checkParts({ deploy, siteCheck }, project, sample, version) {
   return problems;
 }
 
-/** In the test project, the full release check on the test shop (a purchase, the stockroom, the admin, a refund). */
-async function checkPurchase({ releaseCheck }, project, sample, version) {
-  if (project.test !== true) return [];
+/**
+ * In the test project, the full release check on the test shop (a purchase, the stockroom, the admin, a refund).
+ * `{ problems, waiting }`. A check that couldn't buy because the test shop's card payments aren't connected yet
+ * (release-check/runner.js `waiting`) passes a merge's own update of the test shop, with `waiting` saying why, and is a
+ * problem everywhere else: no version reaches a real shop without a test purchase.
+ */
+async function checkPurchase({ releaseCheck, keepOnFailedCheck }, project, sample, version) {
+  if (project.test !== true) return { problems: [] };
   const result = await releaseCheck(sample.shopId, version);
-  return result?.ok ? [] : [`the release check failed: ${result?.error ?? "no result"}`];
+  if (!result?.ok) return { problems: [`the release check failed: ${result?.error ?? "no result"}`] };
+  if (!result.waiting) return { problems: [] };
+  if (keepOnFailedCheck === true) return { problems: [], waiting: result.waiting };
+  return { problems: [`the release check couldn't make a test purchase: ${result.waiting}`] };
 }
 
 /** Every shop's own pages, one at a time. A failure keeps the shop's last good pages and is listed, never fatal. */

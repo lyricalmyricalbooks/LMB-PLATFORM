@@ -5,7 +5,7 @@
 // It only ever runs on the test shop: a shop whose registry row isn't marked `testShop: true` (and in test mode) is
 // refused before anything is opened, bought or refunded.
 import { randomUUID } from "node:crypto";
-import { CHECKS } from "./checks.js";
+import { CHECKS, cardPaymentsWaiting } from "./checks.js";
 
 const message = (error) => (error instanceof Error ? error.message : String(error));
 
@@ -34,8 +34,9 @@ export function refusal(row) {
 /**
  * `runReleaseCheck({ shopId, version, registry, auditLog, clients, inbox, print, now, wait, checks })`.
  * `clients` = { browser, shopData, stockroomData, shopAdmin, session, profile, urls } (see checks.js). Resolves to
- * `{ ok, results: [{ check, name, status, ms, detail?, error? }], failedCheck?, error? }`; status is "passed",
- * "failed" or "not-run".
+ * `{ ok, results: [{ check, name, status, ms, detail?, error? }], failedCheck?, error?, waiting? }`; status is
+ * "passed", "failed", "waiting" or "not-run". While the test shop can't take a card (checks.js cardPaymentsWaiting),
+ * the checks that need a purchase wait (`waiting` says why), the rest still run, and `ok` covers those that ran.
  */
 export async function runReleaseCheck({ shopId, version, registry, auditLog, clients, inbox, print = () => {}, now = () => new Date(), wait = waiter({ now }), checks = CHECKS, runId = randomUUID() }) {
   const row = await registry.getShop(shopId);
@@ -48,9 +49,11 @@ export async function runReleaseCheck({ shopId, version, registry, auditLog, cli
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(inbox ?? "")) throw new Error("the release check needs the test inbox's address");
 
   const ctx = { ...clients, shop: row, inbox, wait, now, state: {} };
+  const waiting = cardPaymentsWaiting(clients.profile);
   const results = [];
   let failed = null;
   print(`Release check for ${shopId}${version ? ` on release ${version}` : ""}`);
+  if (waiting) print(`The test purchase waits: ${waiting}.`);
   try {
     for (const check of checks) {
       if (failed) {
@@ -58,8 +61,13 @@ export async function runReleaseCheck({ shopId, version, registry, auditLog, cli
         continue;
       }
       const began = now().getTime();
+      if (waiting && check.needsPayment && !check.whenWaiting) {
+        results.push({ check: check.number, name: check.name, status: "waiting" });
+        print(`${check.number}. ${check.name}: waits for card payments`);
+        continue;
+      }
       try {
-        const detail = await check.run(ctx);
+        const detail = waiting && check.needsPayment ? await check.whenWaiting(ctx) : await check.run(ctx);
         results.push({ check: check.number, name: check.name, status: "passed", ms: now().getTime() - began, ...(detail ? { detail } : {}) });
         print(`${check.number}. ${check.name}: passed`);
         // Admin pages that need fixing (check 6's walk): one line each, so the run's log is the to-do list.
@@ -80,9 +88,9 @@ export async function runReleaseCheck({ shopId, version, registry, auditLog, cli
   const entry = {
     kind: "release-check", runId, version: version ?? null, ok: !failed, startedAt, finishedAt: now().toISOString(),
     ...(ctx.state.orderId ? { orderId: ctx.state.orderId } : {}),
-    results, ...(failed ? { failedCheck: failed.check, error: failed.error } : {}),
+    results, ...(failed ? { failedCheck: failed.check, error: failed.error } : {}), ...(waiting ? { waiting } : {}),
   };
   await registry.recordReleaseCheck(shopId, entry);
   await auditLog.write(shopId, `${startedAt}-release-check-${runId}`, entry);
-  return { ok: !failed, results, ...(failed ? { failedCheck: failed.check, error: failed.error } : {}) };
+  return { ok: !failed, results, ...(failed ? { failedCheck: failed.check, error: failed.error } : {}), ...(waiting ? { waiting } : {}) };
 }
