@@ -86,28 +86,51 @@ export function SaveNoteLine({ note }: { note: SaveNote | null }) {
   );
 }
 
-export function RecordSaleDialog({ open, onClose, records, save }: {
-  open: boolean; onClose: () => void; records: StockroomRecords; save: ReturnType<typeof useStockroomSave>;
-}) {
+/**
+ * One sale being typed, checked and saved: the Sales records dialog and the Record a sale page share it. `submit`
+ * resolves true once saved; `reset` starts a fresh sale (a new id, so a second tap or a retry can't add one twice).
+ */
+export function useSaleForm(records: StockroomRecords, save: ReturnType<typeof useStockroomSave>) {
   const w = useShopWords();
   const books = records.books;
   const [form, setForm] = useState<SaleForm>(() => blankSale(books));
   const [errors, setErrors] = useState<SaleFormErrors>({});
-  // One id per sale being typed: a second tap or a retry can't add it twice.
   const id = useRef(newSaleId());
-  useEffect(() => { if (open) { setForm(blankSale(books)); setErrors({}); id.current = newSaleId(); } }, [open]);
-
+  const reset = () => { setForm(blankSale(books)); setErrors({}); id.current = newSaleId(); };
   const set = (patch: Partial<SaleForm>) => setForm((f) => ({ ...f, ...patch }));
   const onHand = (bookId: string) => { const n = Number(records.states[bookId]?.stock); return Number.isFinite(n) ? n : null; };
   const book = books.find((b) => b.id === form.bookId);
+  const pickBook = (bookId: string) => { const b = books.find((x) => x.id === bookId); set({ bookId, price: form.price || priceOf(b) }); };
 
-  async function submit() {
+  async function submit(): Promise<boolean> {
     const checked = checkSale(form, books, w, book && Number.isFinite(book.maxPrint as number) ? onHand(form.bookId) : null);
-    if (!checked.ok) { setErrors(checked.errors); return; }
+    if (!checked.ok) { setErrors(checked.errors); return false; }
     setErrors({});
-    const ok = await save.run(checked.sale.bookId, addSale(checked.sale, book!, id.current, w), `Sale recorded: ${checked.sale.qty} × ${book!.title}.`);
-    if (ok) onClose();
+    return save.run(checked.sale.bookId, addSale(checked.sale, book!, id.current, w), `Sale recorded: ${checked.sale.qty} × ${book!.title}.`);
   }
+  return { form, set, errors, books, onHand, pickBook, submit, reset };
+}
+
+/** The book choice, each with what is on hand. */
+export function SaleBookField({ sale }: { sale: ReturnType<typeof useSaleForm> }) {
+  const w = useShopWords();
+  return (
+    <SelectField label={w("Book")} value={sale.form.bookId} error={sale.errors.bookId} onChange={(e) => sale.pickBook(e.target.value)}>
+      <option value="">{w("Choose a book")}</option>
+      {sale.books.map((b) => <option key={b.id} value={b.id}>{b.title}{sale.onHand(b.id) != null ? ` (${sale.onHand(b.id)} on hand)` : ""}</option>)}
+    </SelectField>
+  );
+}
+
+export function RecordSaleDialog({ open, onClose, records, save }: {
+  open: boolean; onClose: () => void; records: StockroomRecords; save: ReturnType<typeof useStockroomSave>;
+}) {
+  const w = useShopWords();
+  const sale = useSaleForm(records, save);
+  const { form, set, errors } = sale;
+  useEffect(() => { if (open) sale.reset(); }, [open]);
+
+  async function submit() { if (await sale.submit()) onClose(); }
 
   return (
     <Dialog open={open} onClose={save.busy ? () => {} : onClose} title="Record a sale" description={w("Copies sold by hand, at a fair or anywhere the stockroom didn't see.")}
@@ -116,11 +139,7 @@ export function RecordSaleDialog({ open, onClose, records, save }: {
         <PrimaryButton onClick={submit} busy={save.busy}>{save.busy ? "Saving…" : "Record sale"}</PrimaryButton>
       </>}>
       <form className="rp-sr-form" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
-        <SelectField label={w("Book")} value={form.bookId} error={errors.bookId}
-          onChange={(e) => { const b = books.find((x) => x.id === e.target.value); set({ bookId: e.target.value, price: form.price || priceOf(b) }); }}>
-          <option value="">{w("Choose a book")}</option>
-          {books.map((b) => <option key={b.id} value={b.id}>{b.title}{onHand(b.id) != null ? ` (${onHand(b.id)} on hand)` : ""}</option>)}
-        </SelectField>
+        <SaleBookField sale={sale} />
         <div className="rp-sr-form-row">
           <TextField label={w("Copies")} type="number" inputMode="numeric" min={1} step={1} value={form.qty} error={errors.qty} onChange={(e) => set({ qty: e.target.value })} />
           <TextField label="Price each" type="number" inputMode="decimal" min={0} step="0.01" value={form.price} error={errors.price} onChange={(e) => set({ price: e.target.value })} />
