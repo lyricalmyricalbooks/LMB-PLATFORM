@@ -39,6 +39,38 @@ export const ADMIN_PAGES = Object.freeze([
   "stockroom/todo", "stockroom/dashboard", "stockroom/history", "stockroom/pos", "stockroom/taxcenter", "stockroom/sheets",
 ]);
 
+/**
+ * Runs in the stockroom page when it hasn't accepted the test owner: what it shows and what its sign-in carries, in
+ * one line, so a failed release check says why. Reads the pass's claims (never prints the pass) and asks the rules
+ * the stockroom itself asks (apps/stockroom/src/firebase.js _fbAskRulesIfPublisher).
+ */
+export async function stockroomDiagnosis() {
+  const parts = [`at ${location.pathname}`];
+  const gate = document.getElementById("pw-gate");
+  const gateShown = !!gate && getComputedStyle(gate).display !== "none" && !gate.hidden;
+  parts.push(gateShown ? "the sign-in screen is showing" : "the sign-in screen is gone");
+  const message = document.getElementById("pw-err")?.textContent?.trim();
+  if (message) parts.push(`it says "${message.slice(0, 160)}"`);
+  parts.push(`IS_PUBLISHER is ${String(window.IS_PUBLISHER)}`);
+  let token = "";
+  try { token = (await window._fbGetIdToken?.()) || ""; } catch (e) { parts.push(`the sign-in pass couldn't be read (${e?.code || e?.message})`); }
+  if (!token) parts.push("nobody is signed in");
+  else {
+    try {
+      const claims = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+      const tenant = claims.firebase?.tenant;
+      const wanted = window.__SHOP_PROFILE__?.tenant ?? null;
+      parts.push(`signed in on list ${tenant ?? "(the project's own)"}${tenant === wanted ? "" : `, but the shop's list is ${wanted ?? "(the project's own)"}`}`);
+      parts.push(`address verified: ${claims.email_verified === true}`, `role: ${claims.role ?? "none"}`);
+    } catch { parts.push("the sign-in pass couldn't be read"); }
+    try {
+      const answer = await window._fbAskRulesIfPublisher?.();
+      parts.push(answer === true ? "the rules say owner" : answer === false ? "the rules refuse the owner (check the shop's record in the stockroom database: tenant and owner address)" : "the rules didn't answer");
+    } catch { parts.push("the rules couldn't be asked"); }
+  }
+  return parts.join(", ");
+}
+
 export async function playwrightBrowser({ chromium, launchOptions = {}, timeoutMs = 30_000 }) {
   const browser = await chromium.launch(launchOptions);
   // en-CA: checkout guesses Canada, which the test shop's one shipping zone covers.
@@ -155,9 +187,17 @@ export async function playwrightBrowser({ chromium, launchOptions = {}, timeoutM
      */
     async openStockroom({ url, session }) {
       const page = await newPage();
+      const before = crashes.length;
       await signIn(page, url, session);
       // Set once the stockroom has accepted the signed-in owner (apps/stockroom/src/main.js).
-      await page.waitForFunction(() => window.IS_PUBLISHER === true, null, { timeout: Math.max(timeoutMs, 60_000) });
+      try {
+        await page.waitForFunction(() => window.IS_PUBLISHER === true, null, { timeout: Math.max(timeoutMs, 60_000) });
+      } catch (error) {
+        const why = await page.evaluate(stockroomDiagnosis).catch((e) => `couldn't look (${e.message})`);
+        const errors = crashes.slice(before).slice(0, 3);
+        await page.close().catch(() => {});
+        throw new Error(`the stockroom didn't open as the test owner within a minute: ${why}${errors.length ? `; page errors: ${errors.join(" | ")}` : ""}`, { cause: error });
+      }
       openPages.push(page);
       return { close: () => page.close() };
     },

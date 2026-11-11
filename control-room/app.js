@@ -547,13 +547,14 @@ async function loadTestShop() {
     el("div", { className: "cr-row" }, el("h3", { className: "cr-title cr-grow", textContent: shop.pressName }), pill(TONE[shop.health.level], LEVEL[shop.health.level])),
     meta(shop.shopId, "only you can open it", check, on),
     el("div", { className: "cr-actions" }, link(shop.storefrontUrl, "Open the storefront", "primary"), link(shop.adminUrl, "Open its admin", "secondary"), reset)),
-  await updatesRow());
+  await updatesRow(shop.lastUpdate));
 }
 
 // Updates to shops (docs/updating.md), on Today: running or paused, the pause button, and the one button on GitHub that
 // sends what the test shop runs on to real shops. The run book page keeps the same switch.
 const SEND_TO_SHOPS = "https://github.com/lyricalmyricalbooks/LMB-PLATFORM/actions/workflows/send-to-shops.yml";
-async function updatesRow() {
+const UPDATE_RUNS = "https://github.com/lyricalmyricalbooks/LMB-PLATFORM/actions/workflows/update-test-shop.yml";
+async function updatesRow(lastUpdate = null) {
   let state;
   try {
     state = await api("GET", "/control/emergency");
@@ -561,6 +562,11 @@ async function updatesRow() {
     return null;
   }
   const paused = state.releasesPaused;
+  // The newest update didn't go through: real shops can't get it until the next merge passes (docs/updating.md).
+  const failed = lastUpdate && !lastUpdate.ok;
+  const failedWords = failed
+    ? `${lastUpdate.version ?? "The newest update"}${lastUpdate.at ? `, ${new Date(lastUpdate.at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}` : ""}: ${lastUpdate.error}`
+    : "";
   const flip = button(paused ? "Resume updates" : "Pause updates", paused ? "primary" : "danger");
   flip.addEventListener("click", async () => {
     const why = (window.prompt(`${paused ? "Let updates go out to shops again." : "Stop every update to shops; one already running stops before its next step."}\n\nWhy? (at least 10 characters)`) ?? "").trim();
@@ -578,7 +584,8 @@ async function updatesRow() {
   return el("div", { className: "rp-card-body", style: "border-top: 1px solid var(--rp-divider); padding-top: 16px" },
     el("div", { className: "cr-row" }, el("h3", { className: "cr-title cr-grow", textContent: "Updates to shops" }), paused ? pill("warning", "Paused") : pill("success", "Running")),
     el("p", { className: "rp-hint", textContent: paused ? `Paused by ${paused.by}: ${paused.reason}` : "Every merge reaches this test shop by itself. Real shops get it when you send it." }),
-    el("div", { className: "cr-actions" }, paused ? null : outLink(SEND_TO_SHOPS, "Send the update to shops", "secondary"), flip));
+    failed ? el("div", { className: "cr-row" }, pill("danger", "Last update failed"), el("p", { className: "rp-hint cr-grow", textContent: failedWords })) : null,
+    el("div", { className: "cr-actions" }, paused ? null : outLink(SEND_TO_SHOPS, "Send the update to shops", "secondary"), failed ? outLink(UPDATE_RUNS, "See what happened", "ghost") : null, flip));
 }
 
 // ── Launch: the keys and switches presses need, then the whole sign-up tried as a press. ──

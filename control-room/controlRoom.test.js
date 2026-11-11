@@ -683,6 +683,12 @@ test("your test shop: the card finds it, and Reset the sample books is admin onl
   await w.registry.updateShop(ID, { release: { version: "1.2.9-g9644c9fe047e", at: "2026-11-10T23:52:00Z", runId: "r" } });
   const updated = (await w.ask(ADMIN, "GET", "/api/control/test-shop")).body.testShop;
   assert.deepEqual([updated.version, updated.updatedAt], ["1.2.9-g9644c9fe047e", "2026-11-10T23:52:00Z"]);
+  assert.equal(updated.lastUpdate, null, "no update run yet");
+  // The newest update run that didn't go through, for the red note on Today.
+  await w.registry.recordRelease({ kind: "shared-release", version: "1.2.8-gaaaaaaaaaaaa", runId: "u1", startedAt: "2026-11-10T23:40:00Z", finishedAt: "2026-11-10T23:45:00Z", ok: true, projects: [] });
+  await w.registry.recordRelease({ kind: "shared-release", version: "1.2.9-g9644c9fe047e", runId: "u2", startedAt: "2026-11-10T23:46:00Z", finishedAt: "2026-11-10T23:55:00Z", ok: false, error: "lmb-test-shop: the release check failed", projects: [] });
+  const red = (await w.ask(ADMIN, "GET", "/api/control/test-shop")).body.testShop.lastUpdate;
+  assert.deepEqual(red, { ok: false, version: "1.2.9-g9644c9fe047e", at: "2026-11-10T23:55:00Z", error: "lmb-test-shop: the release check failed" });
   assert.equal((await w.ask(PRESS, "GET", "/api/control/test-shop")).status, 403);
 
   // A sample book sold out in a test, then reset to 5 copies.
