@@ -10,7 +10,10 @@ import { Dialog, InkButton, PageActions, PrimaryButton, SecondaryButton, TextFie
 import { useShopWords } from "../shopWords";
 import type { NativePageProps } from "./nativePages";
 import { RecordsGate } from "./RecordsGate";
-import { stockroomApi, type StockroomRecords } from "./stockroomData";
+import { stockroomApi, tillOnlyItems, type StockroomRecords } from "./stockroomData";
+import { TillExtrasDialog } from "./TillExtrasDialog";
+import { withExtraSale } from "./tillExtras";
+import { MARKET_DAY_SHOWN_KEY, marketDayCard } from "./marketDay";
 import { describeResult, stockroomWriteApi } from "./stockroomWrite";
 import {
   ALL_METHODS, OTHER_METHODS, TILL_METHODS, addTillLine, cartLines, findItems, leftFor, money, newTillSale, readQueue, tillItems,
@@ -43,11 +46,21 @@ export function Till({ records, now = () => Date.now() }: { records: StockroomRe
   const [eventOpen, setEventOpen] = useState(false);
   const [dayOpen, setDayOpen] = useState(false);
   const today = localDay(new Date(now()));
+  // The morning after a market day: shown once, then marked seen on this device (the old app's key).
+  const [marketDay, setMarketDay] = useState(() => {
+    let shown = "";
+    try { shown = localStorage.getItem(MARKET_DAY_SHOWN_KEY) || ""; } catch { /* storage blocked */ }
+    const card = marketDayCard(records, today, shown);
+    if (card) try { localStorage.setItem(MARKET_DAY_SHOWN_KEY, card.day); } catch { /* storage blocked */ }
+    return card?.title ? card : null;
+  });
   const [fair, setFair] = useState(() => readCurrentFair(today)?.name || "");
   const flushing = useRef(false);
   const search = useRef<HTMLInputElement>(null);
 
-  const items = useMemo(() => tillItems({ ...records, states }), [records, states]);
+  const [extras, setExtras] = useState(records.extras || []);
+  const [extrasOpen, setExtrasOpen] = useState(false);
+  const items = useMemo(() => tillItems({ ...records, states, extras }), [records, states, extras]);
   const books = useMemo(() => new Map(records.books.map((b) => [b.id, b])), [records.books]);
   const shown = useMemo(() => findItems(items, query), [items, query]);
   const waiting = useMemo(() => waitingCopies(queue), [queue]);
@@ -67,11 +80,23 @@ export function Till({ records, now = () => Date.now() }: { records: StockroomRe
         for (const line of sale.lines) {
           if (line.stored) continue;
           let result;
-          try { result = await stockroomWriteApi.saveBookState(line.bookId, addTillLine(sale, line, books.get(line.bookId))); }
+          // Not in the catalogue: a till-only item (its tally lives in the catalogue, never in stock records).
+          const extra = !books.has(line.bookId);
+          try {
+            result = extra
+              ? await stockroomWriteApi.updateSetting("catalog", withExtraSale(line.bookId, line.rowId, line.qty, line.price))
+              : await stockroomWriteApi.saveBookState(line.bookId, addTillLine(sale, line, books.get(line.bookId)));
+          }
           catch (error) { console.error("Till sale not stored", error); return; }
+          if (extra && (result.status === "saved" || result.status === "unchanged")) {
+            line.stored = true;
+            setExtras(tillOnlyItems((result as { value: unknown }).value));
+            setQueue(queueRef.current.map((s) => (s.num === sale.num && s.at === sale.at ? { ...sale } : s)));
+            continue;
+          }
           if (result.status === "saved" || result.status === "unchanged") {
             line.stored = true;
-            setStates((s) => ({ ...s, [line.bookId]: result.state as Record<string, unknown> }));
+            setStates((s) => ({ ...s, [line.bookId]: (result as { state: unknown }).state as Record<string, unknown> }));
             setQueue(queueRef.current.map((s) => (s.num === sale.num && s.at === sale.at ? { ...sale } : s)));
             continue;
           }
@@ -127,9 +152,17 @@ export function Till({ records, now = () => Date.now() }: { records: StockroomRe
   return (
     <div className="rp-till">
       <PageActions>
+        <SecondaryButton onClick={() => setExtrasOpen(true)}>Till-only items</SecondaryButton>
         <SecondaryButton onClick={() => setEventOpen(true)}>Event settings</SecondaryButton>
         <PrimaryButton onClick={() => setDayOpen(true)}>End of day</PrimaryButton>
       </PageActions>
+
+      {marketDay && (
+        <div className="rp-alert rp-till-morning" role="status">
+          <div><strong>{marketDay.title}</strong><p>{marketDay.detail}</p></div>
+          <SecondaryButton size="sm" onClick={() => setMarketDay(null)}>Got it</SecondaryButton>
+        </div>
+      )}
 
       <section className="rp-till-shelf" aria-label={w("Books")}>
         <input ref={search} type="search" className="rp-till-search" placeholder="Search or scan a barcode…" aria-label="Search or scan a barcode"
@@ -214,6 +247,9 @@ export function Till({ records, now = () => Date.now() }: { records: StockroomRe
           {OTHER_METHODS.map((m) => <InkButton key={m.value} size="lg" onClick={() => charge(m.value)}>{m.label}</InkButton>)}
         </div>
       </Dialog>
+
+      <TillExtrasDialog open={extrasOpen} onClose={() => setExtrasOpen(false)} extras={extras} onSaved={setExtras}
+        currency={String(records.books[0]?.currency || "CAD")} />
 
       <EventDialog open={eventOpen} fair={fair} onClose={() => setEventOpen(false)}
         onSave={(name) => { setFair(saveCurrentFair(name, today) || ""); setEventOpen(false); }} />

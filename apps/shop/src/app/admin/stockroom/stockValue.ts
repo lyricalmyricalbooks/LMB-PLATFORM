@@ -27,7 +27,8 @@ export function stockValue(books: Row[], states: Record<string, Row>, fxRateCach
   };
   let totalMarginSum = 0, marginCount = 0;
   for (const book of books) {
-    const s: Row = states[book.id] || {};
+    // A book with no records yet has its whole print run on hand, as the old app's defaultState gives it.
+    const s: Row = states[book.id] || { stock: book.maxPrint };
     const stockOnHand = Math.max(0, parseInt(s.stock, 10) || 0);
     const storesList: Row[] = Array.isArray(s.stores) ? s.stores : [];
     const storeBreakdown = storesList

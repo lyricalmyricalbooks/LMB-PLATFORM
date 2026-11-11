@@ -18,6 +18,8 @@ export type StockroomRecords = {
   books: StockBook[];
   states: Record<string, Record<string, unknown>>;
   taxCenter: Record<string, unknown> | null;
+  /** Till-only items (the catalogue's `_posExtra`): a zine or a friend's title sold at the till, with no stock count. */
+  extras?: StockBook[];
   /** The press's invoice details (name, address, terms, bank): the setting `invoiceSettings`, null when never saved. */
   invoiceSettings?: Record<string, unknown> | null;
   /** Author entries waiting for approval, per book (`submissions/<book>/{sales,expenses}/<id>`): only the ids matter. */
@@ -54,6 +56,15 @@ export function catalogBooks(stored: unknown): StockBook[] {
     .filter(([key, value]) => !key.startsWith("_") && value && typeof value === "object")
     .map(([key, value]) => ({ ...(value as object), id: String((value as { id?: unknown }).id || key) }) as StockBook)
     .filter((book) => !isTestBook(book));
+}
+
+/** The till-only items kept with the catalogue (`_posExtra`): sold at the till, never in stock or the ledger. */
+export function tillOnlyItems(stored: unknown): StockBook[] {
+  const extra = stored && typeof stored === "object" ? (stored as Record<string, unknown>)._posExtra : null;
+  if (!extra || typeof extra !== "object") return [];
+  return Object.entries(extra as Record<string, unknown>)
+    .filter(([, value]) => value && typeof value === "object")
+    .map(([key, value]) => ({ ...(value as object), id: String((value as { id?: unknown }).id || key) }) as StockBook);
 }
 
 /** What the reads need; the tests pass their own. */
@@ -147,7 +158,7 @@ export async function loadStockroom(reads: StockroomReads = liveReads()): Promis
     }
   }));
   const asObject = (v: unknown) => (v && typeof v === "object" ? (v as Record<string, unknown>) : null);
-  return { books, states, taxCenter: asObject(taxCenter), invoiceSettings: asObject(invoiceSettings), submissions };
+  return { books, states, taxCenter: asObject(taxCenter), invoiceSettings: asObject(invoiceSettings), submissions, extras: tillOnlyItems(catalog) };
 }
 
 /** What the pages call, so the admin fixture (adminFixture/main.ts) can answer with sample records. */
