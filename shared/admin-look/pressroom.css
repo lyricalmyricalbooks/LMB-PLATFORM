@@ -2217,3 +2217,31 @@ div.rp-listcard-main { cursor: default; }
 .rp:not(.studio-editor) .rp-run-todo > li:last-child { border-bottom: 0; }
 .rp:not(.studio-editor) .rp-run-todo > li > span { flex: 1 1 280px; min-width: 0; }
 .rp:not(.studio-editor) .rp-run-todo .rp-hint { display: block; margin-top: 2px; }
+
+/* Settings › Team, to the mockup: one card, a row per person (round initials, email, role pill, Remove). */
+.rp-team { list-style: none; margin: 0; padding: 0; }
+.rp-team-row { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-top: 1px solid var(--rp-divider); }
+.rp-team-row:first-child { border-top: 0; }
+.rp-team-face { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 12px; color: var(--rp-on-tile, var(--rp-text)); background: var(--rp-tile-mint, var(--rp-success-tint)); }
+.rp-team-face[data-tone="1"] { background: var(--rp-tile-apricot, var(--rp-warning-tint)); }
+.rp-team-face[data-tone="2"] { background: var(--rp-tile-sky, var(--rp-info-tint)); }
+.rp-team-face[data-tone="3"] { background: var(--rp-tile-lilac, var(--rp-surface-sunken)); }
+.rp-team-who { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.rp-team-who small { display: block; font-size: 12px; color: var(--rp-text-subtle); }
+.rp-team-role { flex: none; padding: 4px 12px; border-radius: 999px; background: var(--rp-canvas); font-size: 13px; }
+@media (max-width: 520px) { .rp-team-row { flex-wrap: wrap; } .rp-team-who { flex-basis: calc(100% - 46px); } .rp-team-role { margin-left: 46px; } }
+
+/* The old light-mode wrapper painted a bluish sheet behind Settings; the page is cream. */
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-page-main .admin-light { background-color: transparent !important; }
+
+/* Fair mode (v3 mockups): a mint card in place of the side switch, and the Start/End button at the rail's foot. */
+.rp .rp-fair-card { margin-bottom: 10px; display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; border-radius: 16px; background: var(--rp-tile-mint); color: var(--rp-on-tile); font-size: 12px; }
+.rp .rp-fair-card-kicker { font: 500 11px/1.2 var(--rp-font-mono); text-transform: uppercase; letter-spacing: .04em; }
+.rp .rp-fair-card strong { font-size: 14px; font-weight: 600; }
+.rp .rp-fair-toggle {
+  display: flex; align-items: center; justify-content: center; width: 100%; min-height: 36px; margin: 0 0 6px; padding: 0 14px; border: 0; border-radius: 999px;
+  background: var(--rp-on-inverse); color: var(--rp-rail); font: 600 13px/1 var(--rp-font-body); cursor: pointer;
+}
+.rp .rp-fair-toggle:hover { opacity: .9; }
+.rp .rp-fair-toggle:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+@media (pointer: coarse) { .rp .rp-fair-toggle { min-height: 44px; } }

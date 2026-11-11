@@ -38,3 +38,23 @@ export function SideSwitch({ side, onPick, stockroomCount = 0 }: { side: AdminSi
     </div>
   );
 }
+
+const FAIR_KEY = "lm:fair-mode";
+/** Fair mode left on, on this device (a convenience: the till itself keeps its sales offline whatever this says). */
+export function rememberedFair(storage: Pick<Storage, "getItem"> | null = safeStorage()): boolean {
+  try { return storage?.getItem(FAIR_KEY) === "on"; } catch { return false; }
+}
+export function rememberFair(on: boolean, storage: Pick<Storage, "setItem" | "removeItem"> | null = safeStorage()): void {
+  try { if (on) storage?.setItem(FAIR_KEY, "on"); else storage?.removeItem(FAIR_KEY); } catch { /* nothing kept */ }
+}
+
+/** Fair mode's card in place of the side switch (v3 mockups): the rail holds only what selling in person needs. */
+export function FairCard() {
+  return (
+    <div className="rp-fair-card" role="status">
+      <span className="rp-fair-card-kicker">Fair mode</span>
+      <strong>Selling in person</strong>
+      <span>Till, QR codes and stock check only</span>
+    </div>
+  );
+}

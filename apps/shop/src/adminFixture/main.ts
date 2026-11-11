@@ -2,6 +2,7 @@
 // sample orders and books. Every other admin call answers with nothing, as an offline shop would, so the check sees
 // each screen's real empty and error states too. Nothing here reaches Firestore.
 import { adminApi } from "../app/admin/api";
+import { teamApi } from "../app/admin/teamApi";
 import { A11Y_BOOKS } from "../a11yFixture/books";
 import { inventoryLinkApi } from "../app/admin/inventoryLinkApi";
 import { addressKey } from "../app/admin/fulfillment";
@@ -418,6 +419,14 @@ inventoryLinkApi.linkNewBook = async (bookId: string, inventoryBookId: string) =
   return { links: links(), already: false };
 };
 (window as any).__adminFixture = { orders: ORDERS };
+
+// Settings › Team: the fixture signs in as the owner, with three people on the Team.
+(adminApi as any).myRole = async () => "owner";
+teamApi.list = async () => [
+  { email: "ada.example@example.com", role: "staff" },
+  { email: "ben.example@example.com", role: "bookkeeper" },
+  { email: "cleo@example.com", role: "fairHelper", until: new Date(Date.now() + 36e5).toISOString() },
+];
 
 // ── Stockroom › Shipping › Buy label (block of the labels-from-shipping page): two waiting rows are website orders here,
 // WEB-1041 ready for a label and WEB-1042 not packed yet. Rates and the purchase are fakes recorded in

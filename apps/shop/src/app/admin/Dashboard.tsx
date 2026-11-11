@@ -47,8 +47,8 @@ import { useAdminAppManifest } from "./adminApp";
 import { shopNameFromSettings, wordmarkWords } from "../features/site/shopIdentity";
 import { adminWordsFor, currentSells } from "./sells";
 import { SELLS_CHANGED_EVENT, ShopSellsContext, ShopWordsContext } from "./shopWords";
-import { COMBINED_MENU, MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, settingsSections, sideMenu, sideOf, sidebarItems, withoutPages } from "./riso/nav";
-import { SideSwitch, rememberSide, rememberedSide } from "./SideSwitch";
+import { COMBINED_MENU, FAIR_MENU, MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, itemSections, menuItemFor, sideMenu, sideOf, sidebarItems, withoutPages } from "./riso/nav";
+import { FairCard, SideSwitch, rememberFair, rememberSide, rememberedFair, rememberedSide } from "./SideSwitch";
 import { useStockroomTodos } from "./overview/StockroomTodos";
 import { COMBINED_PAGES, DEFAULT_STOCKROOM_PAGE, REORDER_TAB, SALES_TAB, isCombinedTab, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
 import { keepAdminOffline } from "./adminOffline";
@@ -364,6 +364,8 @@ export function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, selectedOrder === null]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Fair mode (v3 mockups): the rail shows only the Till and its shortcuts. Kept on this device until ended.
+  const [fairMode, setFairMode] = useState(() => COMBINED && rememberedFair());
   const [settings, setSettings] = useState<any>(null);
   const [originalSettings, setOriginalSettings] = useState<any>(null);
   // The rail's wordmark: the shop's own name (plan 1.16), first word then the rest in italics.
@@ -840,7 +842,12 @@ export function Dashboard() {
   // Which side of the combined admin the page is on (Website or Stockroom, Julian 10 Nov 2026); Home is the website's.
   const currentSide = sideOf(navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive);
   // The rail's items (top level only) and the pills for the pages of the item you are on (redesign, 11 Nov 2026).
-  const railItems = withoutPages(sidebarItems(nav, COMBINED ? sideMenu(currentSide) : ADMIN_MENU), hiddenPages).map((n) => {
+  const setFair = (on: boolean) => {
+    rememberFair(on); setFairMode(on);
+    void openMenuPage(on ? FAIR_MENU[0].pages[0] : sideMenu("stockroom")[0].pages[0]);
+  };
+  const railMenu = COMBINED ? (fairMode ? FAIR_MENU : sideMenu(currentSide)) : ADMIN_MENU;
+  const railItems = withoutPages(sidebarItems(nav, railMenu), hiddenPages).map((n) => {
     // Orders counts open cancel/return requests too (they sit in Needs attention).
     // Privacy requests are handled in Settings › General.
     const badgeFor = (id: string) => id === "orders" ? ordersBadge : id === "reviews" ? otherBadges.pendingReviews
@@ -851,12 +858,13 @@ export function Dashboard() {
     return { ...n, label: w(n.label), ...(pages ? { children: pages } : {}), ...(badge === undefined ? {} : { badge: badge || 0 }) };
   });
   const activePageId = navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive;
-  const activeItemId = menuItemFor(activePageId, ADMIN_MENU);
+  const activeItemId = menuItemFor(activePageId, COMBINED && fairMode && FAIR_MENU.some((g) => g.pages.includes(activePageId)) ? FAIR_MENU : ADMIN_MENU);
   const activeItem = railItems.find((n) => n.id === activeItemId);
-  const settingsColumn = !showEditor && !selectedOrder && activeItemId.startsWith(SETTINGS_ITEM_PREFIX) && (activeItem?.children?.length ?? 0) > 1;
+  const sections = activeItem?.children ? itemSections(railMenu, activeItemId, activeItem.children) : null;
+  const settingsColumn = !showEditor && !selectedOrder && !!sections && (activeItem?.children?.length ?? 0) > 1;
   const pageTabs = !showEditor && activeItem?.children && activeItem.children.length > 1 ? (
-    <PageTabs label={`${activeItem.label} pages`} column={activeItemId.startsWith(SETTINGS_ITEM_PREFIX)} current={activePageId} onPick={(page) => { void openMenuPage(page); }}
-      groups={activeItemId.startsWith(SETTINGS_ITEM_PREFIX) ? settingsSections(activeItem.children) : [{ pages: activeItem.children }]} />
+    <PageTabs label={`${activeItem.label} pages`} column={!!sections} current={activePageId} onPick={(page) => { void openMenuPage(page); }}
+      groups={sections ?? [{ pages: activeItem.children }]} />
   ) : null;
   return (
     <ShopWordsContext.Provider value={w}>
@@ -881,7 +889,7 @@ export function Dashboard() {
             activeChildId={activePageId}
             onSelect={openMenuPage}
             onSelectChild={(_item, page) => openMenuPage(page)}
-            top={COMBINED ? <SideSwitch side={currentSide} stockroomCount={stockroomTodos.items?.length || 0} onPick={(side) => { setSidebarOpen(false); void openMenuPage(sideMenu(side)[0].pages[0]); }} />
+            top={COMBINED && fairMode ? <FairCard /> : COMBINED ? <SideSwitch side={currentSide} stockroomCount={stockroomTodos.items?.length || 0} onPick={(side) => { setSidebarOpen(false); void openMenuPage(sideMenu(side)[0].pages[0]); }} />
               : hasStockroom() ? <AppSwitcher onSwitch={() => setSidebarOpen(false)} /> : undefined}
             brand={storesPage(platformPlan) ? (
               <StoreSwitcher name={shopNameFromSettings(settings)} tag={platformPlan?.state === "trial" ? "Free trial" : null}
@@ -899,6 +907,11 @@ export function Dashboard() {
             )}
             footer={
               <>
+              {COMBINED && (
+                <button type="button" className="rp-fair-toggle" aria-pressed={fairMode} onClick={() => { setSidebarOpen(false); setFair(!fairMode); }}>
+                  {fairMode ? "End fair mode" : "Start fair mode"}
+                </button>
+              )}
               <WhatsNew appearance={appearance} onHistoryOpen={() => setSidebarOpen(false)} onNavigate={async (link) => { if (link.studio) { window.location.hash = link.studio; return; } if (!(await goTo(link.tab))) return; if (link.settingsTab) setSettingsTab(link.settingsTab); }} />
               <button type="button" className="rp-night-look" aria-pressed={adminTheme === "dark"} onClick={toggleTheme}>
                 {adminTheme === "dark" ? <Sun size={14} aria-hidden /> : <Moon size={14} aria-hidden />} {adminTheme === "dark" ? "Day look" : "Night look"}
