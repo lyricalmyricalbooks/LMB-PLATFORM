@@ -1817,6 +1817,11 @@ div.rp-listcard-main { cursor: default; }
   .rp:not(.studio-editor) .rp-alert-title { display: block; }
   .rp:not(.studio-editor) .rp-alert-detail { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin: 2px 0 0; font-size: 13px; }
   .rp:not(.studio-editor) .rp-alert-actions { width: auto; padding-left: 0; gap: 0; }
+  /* An alert with two choices (Take the tour / No thanks) gives its words the full line and puts the choices under them */
+  .rp:not(.studio-editor) .rp-alert:has(.rp-alert-actions > :nth-child(2)) { flex-wrap: wrap; padding-right: 8px; }
+  .rp:not(.studio-editor) .rp-alert:has(.rp-alert-actions > :nth-child(2)) .rp-alert-text { flex-basis: calc(100% - 24px); }
+  .rp:not(.studio-editor) .rp-alert:has(.rp-alert-actions > :nth-child(2)) .rp-alert-detail { display: block; }
+  .rp:not(.studio-editor) .rp-alert:has(.rp-alert-actions > :nth-child(2)) .rp-alert-actions { width: 100%; padding-left: 16px; gap: 8px; }
   /* Board editing is a desk job: phones keep the board picker and view options, not Add widgets or Edit board */
   .rp:not(.studio-editor) .rp-wb-addbtn, .rp:not(.studio-editor) .rp-wb-editbtn, .rp:not(.studio-editor) .rp-wb-undo { display: none; }
   .rp:not(.studio-editor) .rp-wb-more[data-on] { background-color: var(--rp-text); border-color: var(--rp-text); color: var(--rp-canvas); }
