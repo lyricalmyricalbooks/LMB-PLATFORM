@@ -51,7 +51,7 @@ import { SELLS_CHANGED_EVENT, ShopSellsContext, ShopWordsContext } from "./shopW
 import { COMBINED_MENU, MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, sideMenu, sideOf, sidebarItems, withoutPages } from "./riso/nav";
 import { SideSwitch, rememberSide, rememberedSide } from "./SideSwitch";
 import { useStockroomTodos } from "./overview/StockroomTodos";
-import { COMBINED_PAGES, DEFAULT_STOCKROOM_PAGE, NATIVE_STOCKROOM_PAGES, SALES_TAB, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
+import { COMBINED_PAGES, DEFAULT_STOCKROOM_PAGE, SALES_TAB, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
 import { AllSales } from "./AllSales";
 import { keepAdminOffline } from "./adminOffline";
 import { CombinedTour, CombinedTourInvite, markTourSeen, tourSeen, type TourStop } from "./CombinedTour";
@@ -59,12 +59,12 @@ import { markTourSeenOnAccount, tourSeenOnAccount } from "./combinedTourStore";
 import { FairToday } from "./FairToday";
 import { stockroomBridge } from "./stockroomBridge";
 import { StockroomFrame } from "./StockroomFrame";
+import { NATIVE_PAGES } from "./stockroom/nativePages";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
 import { providerName } from "./providerWords";
 import { setProductSells } from "../lib/productHref";
 
 // Studio is large and only opened from Settings › Design, so it loads in its own chunk.
-const TodoPage = lazy(() => import("./stockroom/TodoPage").then((m) => ({ default: m.TodoPage })));
 const StudioEditor = lazy(() => import("./studio/StudioWorkspace").then(m => ({ default: m.StudioWorkspace })));
 // Heavy admin pages load in their own chunks when first opened.
 const BookEditor = lazy(() => import("./BookEditor").then(m => ({ default: m.BookEditor })));
@@ -149,7 +149,7 @@ export function Dashboard() {
   const subPage = subTabPage({ tab: activeTab, settingsTab });
   const subTab = subTabState.page === subPage ? subTabState.id : undefined;
   // The frame opens the first time a page it still draws is picked; a page the admin draws itself never needs it.
-  const framedStockroomPage = activeTab === STOCKROOM_TAB && !NATIVE_STOCKROOM_PAGES.has(stockroomPage(subTab)?.id ?? DEFAULT_STOCKROOM_PAGE);
+  const framedStockroomPage = activeTab === STOCKROOM_TAB && !((stockroomPage(subTab)?.id ?? DEFAULT_STOCKROOM_PAGE) in NATIVE_PAGES);
   useEffect(() => { if (framedStockroomPage) setStockroomOpened(true); }, [framedStockroomPage]);
   /** Opens a sub tab (`undefined` = the first) on the page on screen, or on `page` when a link opens another page too. */
   const openSubTab = (id: string | undefined, page: string = subPage) => setSubTabState({ page, id });
@@ -664,6 +664,7 @@ export function Dashboard() {
   const tourGo = (stop: TourStop) => { if ("stockroom" in stop) void openStockroomPage(stop.stockroom); else void goTo(stop.page); };
   const onStockroomPage = activeTab === STOCKROOM_TAB;
   const stockroomPageId = stockroomPage(onStockroomPage ? subTab : undefined)?.id ?? DEFAULT_STOCKROOM_PAGE;
+  const NativeStockroomPage = onStockroomPage ? NATIVE_PAGES[stockroomPageId] : undefined;
 
 
   // Shipping/Payments can also be entered as top-level tabs by ShopSettings.
@@ -748,9 +749,7 @@ export function Dashboard() {
       case "messages": return <Messages onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }} onOpenCustomers={() => goTo("customers")} />;
       // The stockroom's pages show in StockroomFrame below, kept open between visits.
       case STOCKROOM_TAB:
-        return stockroomPageId === "todo"
-          ? <TodoPage onOpen={(page) => openSubTab(page, STOCKROOM_TAB)} isPage={(id) => !!stockroomPage(id)} />
-          : null;
+        return NativeStockroomPage ? <NativeStockroomPage onOpen={(page) => openSubTab(page, STOCKROOM_TAB)} isPage={(id) => !!stockroomPage(id)} /> : null;
       case SALES_TAB: return COMBINED ? <AllSales onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }} /> : null;
       case "orders":
         // Inbox-style desk: list + the full order page (all Stripe sync/refund/label actions) side by side.
@@ -950,7 +949,7 @@ export function Dashboard() {
             </m.div>
           </AnimatePresence>
           {COMBINED && stockroomOpened && (
-            <StockroomFrame page={stockroomPageId} visible={onStockroomPage && !selectedOrder && !NATIVE_STOCKROOM_PAGES.has(stockroomPageId)} look={ADMIN_LOOK} appearance={appearance}
+            <StockroomFrame page={stockroomPageId} visible={onStockroomPage && !selectedOrder && !(stockroomPageId in NATIVE_PAGES)} look={ADMIN_LOOK} appearance={appearance}
               onPage={(tab) => { if (activeTab === STOCKROOM_TAB && stockroomPage(tab)) openSubTab(tab, STOCKROOM_TAB); }} />
           )}
         </div>
