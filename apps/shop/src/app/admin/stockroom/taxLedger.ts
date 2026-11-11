@@ -43,3 +43,13 @@ export function attachReceipt(tc: Row | null, id: unknown, url: string): Row {
   next[at] = { ...e, receipt: e.receipt || url, receiptFiles: [...files, url] };
   return { ...(tc || {}), businessExpenses: next };
 }
+
+/** The receipts vault: lines that keep a receipt, and business expenses still waiting for one (not voided, not marked as needing none). */
+export function receiptVault<T extends Row>(rows: T[]): { kept: T[]; missing: T[] } {
+  const kept: T[] = [], missing: T[] = [];
+  for (const r of rows) {
+    if (receiptsOf(r).length) kept.push(r);
+    else if (isEditableLine(r) && !r.receiptExempt && !r.voided) missing.push(r);
+  }
+  return { kept, missing };
+}
