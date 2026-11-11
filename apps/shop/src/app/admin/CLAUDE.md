@@ -879,3 +879,9 @@ TextArea / SelectField children out as rows (label and hint left, control right,
 `shared/admin-look/pressroom.css`). General opens on **Your press** (`gs-details`, first in `SUB_TABS`, so
 `#settings/general` opens it and the store status tab is `#settings/general/store`): name, email, about, then the
 ship-from address (anchor `gs-location`), then web address, What you sell, policies.
+
+**Order page in Colophon (redesign, 11 November 2026):** restyle only (the mockups have no order page). Colophon-scoped
+rules at the end of `fulfillment.css` (workbench clips to its rounded card, the active step is no longer a sunken band,
+strip steps are rounded `--rp-surface-2` tiles with the current one ringed in `--rp-primary`, desktop only: phones keep
+the tab strip) and in `OrdersDesk.tsx`'s inline CSS (queue `.od-list` is a borderless rounded card, the open row a
+rounded tint with no edge bar, list headings in body type).

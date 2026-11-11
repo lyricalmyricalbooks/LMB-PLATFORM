@@ -479,6 +479,15 @@ const DESK_CSS = `
 .od-list-foot{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:12px 14px;border-top:1px solid var(--rp-border)}
 .od-link{border:0;background:none;padding:0;color:var(--rp-primary-text);text-decoration:underline;cursor:pointer;font:inherit;text-align:left}
 .od-detail{min-width:0}
+/* Colophon look: the queue is one white rounded card, the open order a rounded tint (no edge bar). */
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .od-list{border:0;box-shadow:none;border-radius:var(--rp-radius-lg);overflow:hidden}
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .od-list-head{border-bottom:0;padding:16px 16px 8px}
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .od-rows{padding:0 8px 8px}
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .od-row{border:0;border-radius:var(--rp-radius);padding:12px 10px}
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .od-rows > li + li{border-top:1px solid var(--rp-divider)}
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .od-row.is-on{background:var(--rp-surface-2)}
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .od-list-foot{border-top:1px solid var(--rp-divider);padding:14px 16px}
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .od-list p.rp-label{font:600 var(--rp-text-sm)/1.4 var(--rp-font-body);letter-spacing:0;text-transform:none;color:var(--rp-text)}
 .od-empty{padding:40px 0}
 .od-grid-bar{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;justify-content:space-between}
 .od-grid-tools{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;width:100%}
