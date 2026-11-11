@@ -19,7 +19,7 @@ export type AdminAlert = {
   orderIds: string[];
   /** What the alert is about when no order is (held books…): a change brings a hidden alert back. */
   key?: string;
-  action: "order" | "orders" | "webhook" | "notifications" | "payments" | "general" | "retry" | "inventory" | "inventoryApp" | "cardAccount";
+  action: "order" | "orders" | "webhook" | "notifications" | "payments" | "general" | "retry" | "inventory" | "inventoryApp" | "cardAccount" | "backups";
   /** action "inventoryApp": where in the inventory app the button opens (a `#…` the app handles). */
   appHash?: string;
 };
@@ -32,6 +32,7 @@ const ALERT_ROUTES: Partial<Record<AdminAlert["action"], AlertRoute>> = {
   webhook: { tab: "settings", settingsTab: "payments", subTab: "pay-methods" },                 // Stripe › Webhook health
   payments: { tab: "settings", settingsTab: "payments" },                                       // the test mode switch: Ready to take payments?
   general: { tab: "settings", settingsTab: "general", subTab: "gs-tools" },                     // Backups & export
+  backups: { tab: "settings", settingsTab: "general", subTab: "gs-tools" },                     // the combined admin opens Stockroom › Backups instead
   cardAccount: { tab: "settings", settingsTab: "payments", subTab: "pay-methods" },            // Card payments: Continue with Stripe
 };
 /** The page (and sub tab) an alert's button opens; null for order, orders and retry, which aren't settings pages. */
@@ -173,7 +174,7 @@ export function backupAlert(record: BackupRecord | undefined, now = Date.now()):
   if (!record) return null;
   const view = describeBackup(record, now);
   if (view.tone !== "danger" && view.tone !== "warning") return null;
-  return { id: "backup", tone: view.tone === "danger" ? "danger" : "warning", title: view.label, detail: view.detail, orderIds: [], action: "general" };
+  return { id: "backup", tone: view.tone === "danger" ? "danger" : "warning", title: view.label, detail: view.detail, orderIds: [], action: "backups" };
 }
 
 // A refresh that could not read part of what the alerts need must say so: an empty list would

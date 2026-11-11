@@ -27,13 +27,15 @@ const ACTION_LABEL: Record<string, string> = {
 
 // Alerts shown above every admin page. Dismissing hides an alert in this browser until
 // a new order (or new change) joins it. Urgent ones come first; past two the rest fold away.
-export function AdminAlerts({ alerts, onOpenOrder, onOpenOrders, onOpenWebhook, onOpenNotifications, onOpenGeneral, onOpenInventory, onOpenRoute, onRetry }: {
+export function AdminAlerts({ alerts, onOpenOrder, onOpenOrders, onOpenWebhook, onOpenNotifications, onOpenGeneral, onOpenBackups, onOpenInventory, onOpenRoute, onRetry }: {
   alerts: AdminAlert[];
   onOpenOrder: (id: string) => void;
   onOpenOrders: () => void;
   onOpenWebhook: () => void;
   onOpenNotifications: () => void;
   onOpenGeneral?: () => void;
+  /** The combined admin's one place for backups (Stockroom › Backups); without it a backup alert opens Settings › General. */
+  onOpenBackups?: () => void;
   onOpenInventory?: () => void;
   /** Opens the exact page and sub tab an alert names (`alertRoute`); without it the per-page callbacks above are used. */
   onOpenRoute?: (route: AlertRoute) => void;
@@ -59,12 +61,13 @@ export function AdminAlerts({ alerts, onOpenOrder, onOpenOrders, onOpenWebhook, 
     if (!openInventoryApp(window, url)) window.open(url, "_blank", "noopener");
   };
   const run = (a: AdminAlert) => {
+    if (a.action === "backups" && onOpenBackups) return onOpenBackups();
     const route = onOpenRoute && alertRoute(a);
     if (route) onOpenRoute(route);
     else runAction(a);
   };
   const runAction = (a: AdminAlert) => (a.action === "inventoryApp" ? openApp(a.appHash) : a.action === "retry" ? onRetry?.() : a.action === "inventory" ? onOpenInventory?.()
-    : a.action === "general" ? onOpenGeneral?.() : a.action === "notifications" ? onOpenNotifications()
+    : a.action === "general" || a.action === "backups" ? onOpenGeneral?.() : a.action === "notifications" ? onOpenNotifications()
       : a.action === "webhook" || a.action === "payments" || a.action === "cardAccount" ? onOpenWebhook()
         : a.action === "order" ? onOpenOrder(a.orderIds[0]) : onOpenOrders());
 

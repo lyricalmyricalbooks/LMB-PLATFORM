@@ -56,7 +56,7 @@ export const STOCKROOM_PAGES: StockroomPage[] = [
   { id: "intel", label: "Insights", description: "Your best seller, your best channel and what is worth knowing." },
   { id: "customers", label: "Buyers in person", description: "People who bought at fairs, from invoices or by hand." },
   { id: "sheets", label: "Sheets", description: "Your stock, sales and costs in a Google Sheet in your own Drive." },
-  { id: "backups", label: "Backups", description: "Copies of your stockroom you can download or bring back." },
+  { id: "backups", label: "Backups", description: "Nightly backups, all your data in one zip, and spreadsheets." },
 ];
 
 const PAGES = new Map(STOCKROOM_PAGES.map((p) => [p.id, p]));

@@ -811,6 +811,7 @@ export function Dashboard() {
       onOpenOrders={() => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder(null); }}
       onOpenWebhook={() => { setActiveTab("settings"); setSettingsTab("payments"); setShowEditor(false); setSelectedOrder(null); }}
       onOpenGeneral={() => { setActiveTab("settings"); setSettingsTab("general"); setShowEditor(false); setSelectedOrder(null); }}
+      onOpenBackups={COMBINED ? () => void openStockroomPage("backups") : undefined}
       onOpenInventory={() => { setActiveTab("inventory"); setShowEditor(false); setSelectedOrder(null); }}
       onOpenRoute={(r: AlertRoute) => {
         setActiveTab(r.tab);

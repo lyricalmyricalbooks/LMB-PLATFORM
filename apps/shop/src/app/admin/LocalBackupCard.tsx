@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import toast from "react-hot-toast";
 import { friendlyError } from "./settingsLayout";
 import { GhostButton, PrimaryButton, SecondaryButton, SectionCard, Toggle } from "./riso/components";
@@ -7,8 +7,10 @@ import type { TakeoutStep } from "./takeoutRun";
 
 const when = (at: string | null) => (at ? new Date(at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "");
 
-// Settings › General › Back up to a folder: a second copy of the shop on this computer, beside the nightly cloud backup.
-export function LocalBackupCard() {
+// Back up to a folder: a second copy of the shop on this computer, beside the nightly cloud backup. Settings › General
+// shows it as a card on a shop-only admin; Stockroom › Backups shows it `bare` in a drawer.
+export function LocalBackupCard({ bare = false }: { bare?: boolean } = {}) {
+  const wrap = (children: ReactNode) => (bare ? <>{children}</> : <SectionCard title="Back up to a folder" description="A second copy on your computer, besides the cloud.">{children}</SectionCard>);
   const [meta, setMeta] = useState<LocalMeta>(readMeta);
   const [handle, setHandle] = useState<any>(null);
   const [step, setStep] = useState<TakeoutStep | null>(null);
@@ -31,15 +33,13 @@ export function LocalBackupCard() {
 
   if (!supported()) {
     return (
-      <SectionCard title="Back up to a folder" description="A second copy on your computer, besides the cloud.">
-        <p className="rp-hint" style={{ margin: 0 }}>This browser can't save to a folder. Use Chrome or Edge, or Download your shop above.</p>
-      </SectionCard>
+      wrap(<p className="rp-hint" style={{ margin: 0 }}>This browser can't save to a folder. Use Chrome or Edge, or Download all your data.</p>)
     );
   }
   const busy = !!step;
   const label = step ? (step.of ? `${step.label} ${step.done}/${step.of}` : step.label) : "";
   return (
-    <SectionCard title="Back up to a folder" description="A second copy on your computer, besides the cloud.">
+    wrap(<>
       <p className="rp-hint" style={{ margin: "0 0 12px" }}>Your shop is already backed up in the cloud every night. This also keeps a copy on this computer.</p>
       {!ready ? null : !handle ? (
         <PrimaryButton busy={busy} onClick={() => void pick()}>{busy ? label : "Choose a folder"}</PrimaryButton>
@@ -58,7 +58,7 @@ export function LocalBackupCard() {
           <p className="rp-hint" style={{ margin: 0 }}>The last 7 days are kept. If your browser asks again, press Back up now.</p>
         </div>
       )}
-    </SectionCard>
+    </>)
   );
 }
 
