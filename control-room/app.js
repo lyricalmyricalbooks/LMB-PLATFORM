@@ -1267,6 +1267,7 @@ function card(shop) {
       el("dt", { textContent: "Version" }), el("dd", { className: "rp-mono", textContent: shop.version ?? "none yet" }),
       el("dt", { textContent: "Status" }), el("dd", { textContent: shop.status ?? "?" }),
       shop.paymentsMoved ? el("dt", { textContent: "Cards" }) : null, shop.paymentsMoved ? el("dd", { textContent: PAYMENT_WORDS[shop.paymentsMoved.to] }) : null),
+    shopTodayNotes(shop),
     el("h3", { className: "cr-section", textContent: "Do for this shop" }),
     el("div", { className: "cr-do" }, act, change, check, exportButton(shop)),
     accessSlot,
@@ -3518,6 +3519,18 @@ function emailCopy(m) {
     el("summary", { textContent: m.subject || "What it said" }),
     el("pre", { className: "cr-email-text", textContent: m.text }),
     el("div", { className: "cr-email-actions" }, copy));
+}
+/** Your notes from Today's lines about this shop ("called them, waiting"), so they show where you look at the shop too. */
+const NOTE_KIND_WORDS = { payment: "Plan payment", drift: "Drifting", shop: "Health", google: "Google setup", move: "Moving over", newsletter: "Newsletter", domain: "Web address" };
+function shopTodayNotes(shop) {
+  const slot = el("div", { className: "cr-shop-notes" });
+  const paint = () => {
+    const mine = Object.entries(todayNotes).filter(([key]) => key.endsWith(`:${shop.shopId}`));
+    slot.replaceChildren(...mine.map(([key, n]) => el("p", { className: "cr-need-note", textContent: `${NOTE_KIND_WORDS[key.split(":")[0]] ?? "Today"}: ${n.words} · ${dateOnly(n.at)}` })));
+  };
+  paint();
+  api("GET", "/control/today-notes").then((found) => { todayNotes = found.notes ?? {}; paint(); }).catch(() => {});
+  return slot;
 }
 function shopEmailsSection(shop) {
   const slot = el("div", {}, el("p", { className: "rp-hint", textContent: "Reading the email log…" }));
