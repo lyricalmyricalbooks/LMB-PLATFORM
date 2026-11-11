@@ -78,7 +78,7 @@ const Customers = lazy(() => import("./Customers").then(m => ({ default: m.Custo
 const Inventory = lazy(() => import("./Inventory").then(m => ({ default: m.Inventory })));
 const OrdersDesk = lazy(() => import("./OrdersDesk.tsx").then(m => ({ default: m.OrdersDesk })));
 const AnalyticsPage = lazy(() => import("./analytics/AnalyticsPage").then(m => ({ default: m.AnalyticsPage })));
-const AnalyticsDashboard = lazy(() => import("./overview/AnalyticsDashboard").then(m => ({ default: m.AnalyticsDashboard })));
+const HomePage = lazy(() => import("./overview/HomePage").then(m => ({ default: m.HomePage })));
 const ShopSettings = lazy(() => import("./ShopSettings").then(m => ({ default: m.ShopSettings })));
 const ReviewsModeration = lazy(() => import("./ReviewsModeration"));
 const Messages = lazy(() => import("./Messages"));
@@ -744,7 +744,7 @@ export function Dashboard() {
   const content = (() => {
     switch (activeTab) {
       case "overview":
-        return <AnalyticsDashboard setActiveTab={(tab: string) => { if (tab === "general" || tab === "notifications" || tab === "taxes" || tab === "designer" || tab === "security") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} onEditBook={handleEditBook} ownerName={user.displayName || ""} onSetWall={(on: boolean) => toggleUnderConstruction(on, { checked: true })} />;
+        return <HomePage setActiveTab={(tab: string) => { if (tab === "general" || tab === "notifications" || tab === "taxes" || tab === "designer" || tab === "security") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} ownerName={user.displayName || ""} onSetWall={(on: boolean) => toggleUnderConstruction(on, { checked: true })} />;
       case "analytics":
         return <AnalyticsPage setActiveTab={(tab: string) => { if (tab === "google" || tab === "general") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} />;
       case "catalog": return <BookCatalog onEdit={handleEditBook} onAdd={handleAddBook} refreshTrigger={catalogRefreshKey} />;

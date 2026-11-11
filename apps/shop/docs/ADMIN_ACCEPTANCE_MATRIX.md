@@ -19,7 +19,7 @@ its row before and after restyling it. Sources: the code in `src/app/admin/*`,
 | Screen | Reads | Writes / calls | Destructive / confirm | States that must exist | Revenue-sensitive | Analytics |
 | --- | --- | --- | --- | --- | --- | --- |
 | Shell (`Dashboard.tsx`) | `getStats`, `getSettings`, `getBooks` (search) | `updateSettings` (design/section save), `logout` | — | auth loading, signed-out, offline chip, mobile drawer | — | `recordVisit` is storefront-only |
-| Overview (`AnalyticsDashboard`) | `getAnalytics`, `getBook` | — | — | loading, no data, partial failure, narrow chart, chart summary | revenue/orders KPIs (display only) | consumes `analytics` collection |
+| Home (`overview/HomePage`) | `getAllOrders`, `getAllBooks`, `getAdminBadgeCounts` | — | — | loading, no data, partial failure, narrow chart, chart summary | revenue/orders KPIs (display only) | consumes `analytics` collection |
 | Orders list | `getOrders` | `orderApi.bulkSetStatus`, `deleteTestOrders`, CSV export (client) | delete **only** marked test orders (dialog) | loading, empty, error, bulk selection | fulfillment status changes | — |
 | Order detail | `getOrderById` | `setFulfillmentStatus`, `updateOrder`, `addOrderNote`, `addOrderEvent`, `refundOrder`, `markOrderPaid` (function), `createShippoOrder` | mark paid, refund, cancel (confirm) | timeline, tracking, refund history, digital delivery, Shippo address warning (`addressVerified === false`) | **mark paid, refund** | — |
 | Books catalog | `getBooks` | `updateBook`, `duplicateBook`, `deleteBook` | delete (confirm) | loading, empty catalog, bulk selection | price/inventory display | — |

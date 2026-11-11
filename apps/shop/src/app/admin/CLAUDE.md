@@ -147,18 +147,7 @@ Orders list + detail, Overview, Books catalog, Discounts, Settings › General,
 Payments, Shipping (profiles/zones/rates + dialogs), Notifications (+ Inventory sync). `Dashboard.tsx` renders migrated pages
 outside the legacy wrapper via its `migrated` flag — add new ones there.
 
-**Overview layout = widget board (18 October 2026)** (`AnalyticsDashboard.tsx` loads the data and owns the masthead/period
-control; `OverviewBoard.tsx` draws the board; pure model `overviewBoard.ts`, tested): seven fixed topic bands (`BANDS`: today, sales,
-titles, traffic, search, customers, stock) of widgets (`WIDGETS`, 84) on a 12-column grid (S/M/L/XL = 4/6/8/12, height auto/short/tall).
-A widget always lives in its own topic's band (`normalizeBoard` moves it back), so analytics stay grouped. Bands and widgets fold
-(a folded widget mounts nothing, so it loads nothing); *Fold everything*, per-band *Fold widgets*, Edit board (grip drag within the
-band, ← →, sizes, ⋯ menu, band ↑ ↓ / Hide topic, Undo/Redo), Add widgets tray, full view (`Open full view`, Esc) and *Explore all N*
-per topic. Panels show one card each through their `only` prop (`OverviewSales/Marketing/Customers/Stock`; ids are the widget type,
-`kpis` for custKpis/stockKpis); `CardInWidget` hides a SectionCard's own title/fold inside a widget. Chart and figure widgets are `multi`
-(own `config`: metric/grain/compare, figures). Carts, back-in-stock sign-ups and Search Console are read once per board through
-`overviewShared.ts` `sharedLoad` (Refresh clears it). Boards (templates `TEMPLATES`, max 12) are saved in localStorage `lm:overview-board`
-and admin-only `adminPrefs/overviewBoard` (`overviewBoardStore.ts`, `{ data: JSON string, updatedAt }`, newer copy wins; deploy the
-`adminPrefs` rule). A new analytics panel = a `WIDGETS` entry in the right band + its `only` id (`overviewBoard.test.ts` checks both).
+**Home (11 November 2026, admin clean-up):** the menu's first page (`overview`) is `overview/HomePage.tsx`: Get started (`SetupStart`), the Connect Google prompt and `HomeToday`. It reads only settings (launch checks), every order, every book and `getAdminBadgeCounts`; the To do counts are `homeTodoCounts` (pure). The old widget board (`AnalyticsDashboard.tsx`, `OverviewBoard.tsx`, `overviewBoard.ts` and its 84 widgets) had no way in once Analytics got its own page, and was removed with the panels only it drew; Home's download went from about 720 KB to about 60 KB. Saved boards in `adminPrefs/overviewBoard` are left in the data, unread. Analytics lives in `analytics/AnalyticsPage.tsx`. The notes below about periods, traffic and signals still describe the pure rules (`overviewRange`, `overviewTraffic`, `overviewInsights`…).
 Everything sales-related (revenue net of partial refunds, orders, AOV, **conversion = paid orders ÷ visits**, chart revenue)
 comes from real paid non-test orders (`overviewInsights.ts`); the webhook-bumped `analytics.orders/revenue` are not read.
 Orders and traffic share calendar-day windows (`periodKeys`, UTC day keys like the `analytics/<date>` docs); all orders/books are

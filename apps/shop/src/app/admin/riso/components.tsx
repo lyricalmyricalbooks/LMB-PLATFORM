@@ -208,7 +208,7 @@ function writeFolded(key: string, folded: boolean) {
 
 /**
  * Inside an Overview board widget the widget's own bar carries the title and the fold button, so cards there
- * keep only their description and actions (see OverviewBoard.tsx).
+ * keep only their description and actions.
  */
 export const CardInWidget = createContext(false);
 
