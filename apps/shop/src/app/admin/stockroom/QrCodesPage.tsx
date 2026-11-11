@@ -11,6 +11,7 @@ import { booksWithoutLink, newCodeProblem, newOwnCode, qrCodeList, type OwnCode,
 import { qrCodesStore, qrPicture } from "./qrCodesStore";
 import { RecordsGate } from "./RecordsGate";
 import { TallySheetDialog } from "./TallySheetDialog";
+import { HangTagsDialog } from "./HangTagsDialog";
 import { SaveNoteLine, type SaveNote } from "./SaleWriter";
 import type { StockroomRecords } from "./stockroomData";
 import "./stockroom.css";
@@ -52,6 +53,7 @@ export function QrCodes({ records, onOpen, load = qrCodesStore.load, save = qrCo
   const [errors, setErrors] = useState<{ name?: string; url?: string }>({});
   const [busy, setBusy] = useState(false);
   const [tally, setTally] = useState(false);
+  const [tags, setTags] = useState(false);
   const read = () => { setOwn(null); load().then(setOwn, () => setOwn("failed")); };
   useEffect(read, []);
 
@@ -87,8 +89,10 @@ export function QrCodes({ records, onOpen, load = qrCodesStore.load, save = qrCo
       <PageActions>
         <PrimaryButton onClick={() => { setDraft({ name: "", url: "" }); setErrors({}); setNote(null); setAdding(true); }} disabled={own === null || own === "failed"}>New code</PrimaryButton>
         <SecondaryButton onClick={() => setTally(true)} disabled={!records.books.length}>Tally sheet</SecondaryButton>
+        <SecondaryButton onClick={() => setTags(true)} disabled={!records.books.length}>Hang tags</SecondaryButton>
       </PageActions>
       {tally && <TallySheetDialog records={records} onClose={() => setTally(false)} />}
+      {tags && <HangTagsDialog records={records} onClose={() => setTags(false)} />}
       <SaveNoteLine note={note} />
       {own === "failed" && <SaveNoteLine note={{ tone: "error", text: "Your own codes didn't load.", retry: read }} />}
 
