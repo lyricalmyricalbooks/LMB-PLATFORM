@@ -26,5 +26,6 @@ export const NATIVE_PAGES: Record<string, ComponentType<NativePageProps>> = {
   shipping: lazy(() => import("./ShippingPage").then((m) => ({ default: m.ShippingPage }))),
   pos: lazy(() => import("./TillPage").then((m) => ({ default: m.TillPage }))),
   manual: lazy(() => import("./ManualPage").then((m) => ({ default: m.ManualPage }))),
+  qrcodes: lazy(() => import("./QrCodesPage").then((m) => ({ default: m.QrCodesPage }))),
   reconcile: lazy(() => import("./ReconcilePage").then((m) => ({ default: m.ReconcilePage }))),
 };

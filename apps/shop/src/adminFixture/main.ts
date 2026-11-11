@@ -12,6 +12,7 @@ import { MemoryStockroom } from "../app/admin/stockroom/stockroomMemory";
 import { createStockroomWriter, stockroomWriteApi } from "../app/admin/stockroom/stockroomWrite";
 import { recomputeAfters } from "@stockroom/recompute-afters.js";
 import { stockistReceiptApi } from "../app/admin/stockroom/stockistReceipt"; // stockist-pay
+import { qrCodesStore } from "../app/admin/stockroom/qrCodesStore";
 
 // Stockroom › To-do: two titles, one nearly sold out and one with nothing waiting (`?stock=empty`: nothing at all).
 const EMPTY_STOCKROOM = new URLSearchParams(window.location.search).get("stock") === "empty";
@@ -22,6 +23,22 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
   // Author entries waiting on a title (the old stockroom's author inbox).
   submissions: { "night-songs": { sales: { s1: true }, expenses: { e1: true, e2: true } } },
 });
+
+// ── Stockroom › QR codes (?page=stockroom/qrcodes): two items with a card payment link, one without, and one own code
+// kept in memory (nothing reaches Firestore). ──
+if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCKROOM) {
+  stockroomApi.load = async (): Promise<StockroomRecords> => ({
+    books: [
+      { id: "salt-hours", title: "Salt Hours", author: "Ada Example", listPrice: 20, stripeLink: "https://buy.stripe.com/test_salt" },
+      { id: "night-songs", title: "Night Songs", author: "Ben Example", listPrice: 18, paymentLink: "https://paypal.me/yourpress/18" },
+      { id: "ink-maps", title: "Ink Maps", author: "Cleo Example", listPrice: 22 },
+    ],
+    states: { "salt-hours": { hist: [] }, "night-songs": { hist: [] }, "ink-maps": { hist: [] } }, taxCenter: null,
+  });
+  let own = [{ id: "c1", name: "Join the mailing list", url: "https://example.com/newsletter" }];
+  qrCodesStore.load = async () => own;
+  qrCodesStore.save = async (codes) => { own = codes; };
+}
 
 // --- Stockroom money pages (Tax centre, Expenses, Ask about your sales): sample records, only for those pages ---
 if (/page=stockroom(\/|%2F)(taxcenter|expenses|intel)/.test(window.location.search) && !EMPTY_STOCKROOM) {

@@ -32,3 +32,7 @@
 .rp-sr-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--rp-space-3); }
 .rp-sr-void { margin-top: var(--rp-space-5); padding-top: var(--rp-space-4); border-top: 1px solid var(--rp-border); display: grid; gap: var(--rp-space-2); justify-items: start; }
 @media (max-width: 480px) { .rp-sr-form-row { grid-template-columns: 1fr; } }
+/* Stockroom › QR codes (QrCodesPage.tsx). The picture carries its own white margin, so a phone can scan it in any look. */
+.rp-qr-detail { display: grid; justify-items: center; gap: var(--rp-space-4); padding: var(--rp-space-4) 0; }
+.rp-qr-picture { display: block; image-rendering: pixelated; border-radius: var(--rp-radius-sm); }
+.rp-qr-link { font-size: var(--rp-text-sm); color: var(--rp-text-muted); overflow-wrap: anywhere; text-align: center; }

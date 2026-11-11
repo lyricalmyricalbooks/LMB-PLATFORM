@@ -246,6 +246,10 @@ await check("anon can't write the private document", assertFails(setDoc(doc(anon
   await check("admin marks the tour seen", assertSucceeds(setDoc(doc(admin, "adminPrefs/combinedTour"), { data: "done", updatedAt: Date.now() })));
   await check("signed-in customer can't read the tour mark", assertFails(getDoc(doc(user, "adminPrefs/combinedTour"))));
   await check("anon can't write the tour mark", assertFails(setDoc(doc(anon, "adminPrefs/combinedTour"), { data: "done", updatedAt: 1 })));
+  // Stockroom › QR codes' own codes (admin/stockroom/qrCodesStore.ts): admin-only, same shape.
+  await check("admin saves the QR codes", assertSucceeds(setDoc(doc(admin, "adminPrefs/qrCodes"), { data: "[]", updatedAt: Date.now() })));
+  await check("signed-in customer can't read the QR codes", assertFails(getDoc(doc(user, "adminPrefs/qrCodes"))));
+  await check("anon can't write the QR codes", assertFails(setDoc(doc(anon, "adminPrefs/qrCodes"), { data: "[]", updatedAt: 1 })));
   await check("other adminPrefs documents stay closed", assertFails(setDoc(doc(admin, "adminPrefs/somethingElse"), { data: "x", updatedAt: 1 })));
   const unverified = signedIn("imposter", { email: "owner@example.com", email_verified: false });
   await check("unverified admin email can't read the private document", assertFails(getDoc(doc(unverified, "books/pub/private/admin"))));
@@ -516,6 +520,7 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("owner can't read another shop's order", assertFails(getDoc(doc(ownerHereInS2, "orders/o2"))));
   await check("owner can't read another shop's draft book", assertFails(getDoc(doc(ownerHereInS2, "books/draft2"))));
   await check("owner can't write another shop's settings", assertFails(setDoc(doc(ownerHereInS2, "settings/website"), { info: { name: "Mine now" } })));
+  await check("owner can't write another shop's QR codes", assertFails(setDoc(doc(ownerHereInS2, "adminPrefs/qrCodes"), { data: "[]", updatedAt: Date.now() })));
   await check("owner can't list another shop's orders", assertFails(getDocs(collection(ownerHereInS2, "orders"))));
   await check("the other shop's owner can't read this shop's orders", assertFails(getDoc(doc(ownerThereInS1, "orders/o1"))));
   await check("the other shop's staff can't write this shop's books", assertFails(setDoc(doc(staffThereInS1, "books/new"), { status: "draft", title: "x" })));
