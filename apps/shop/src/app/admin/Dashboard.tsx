@@ -549,7 +549,7 @@ export function Dashboard() {
     ? NAV.find((n) => n.id === "settings")?.children?.find((c) => c.id === settingsChild)?.label || "Settings"
     : activeTab === STOCKROOM_TAB ? stockroomPage(subTab)?.label ?? "Stockroom"
     : activeTab === SALES_TAB ? "All sales"
-    : activeTab === REORDER_TAB ? "Reorder list"
+    : activeTab === REORDER_TAB ? "Reorder"
     : w((PAGE_COPY[activeTab] || PAGE_COPY.overview).title);
   useEffect(() => {
     const previous = document.title;

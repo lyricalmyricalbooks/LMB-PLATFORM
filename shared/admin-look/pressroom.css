@@ -2176,3 +2176,9 @@ div.rp-listcard-main { cursor: default; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) td.rp-lead .rp-hint { font-weight: 400; }
 /* Number columns: the header lines up with its figures on the right, as in the mockup tables. */
 .rp:not(.studio-editor) .rp-table th.rp-num { text-align: right; }
+/* Insights (redesign): two big tiles, then a "Worth knowing" list with a chip on each line. */
+.rp:not(.studio-editor) .rp-worth { padding: 20px; }
+.rp:not(.studio-editor) .rp-worth .rp-card-title { margin: 0 0 8px; padding-bottom: 12px; border-bottom: 1px solid var(--rp-divider); }
+.rp:not(.studio-editor) .rp-worth-list { list-style: none; margin: 0; padding: 0; }
+.rp:not(.studio-editor) .rp-worth-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; }
+.rp:not(.studio-editor) .rp-worth-list li + li { border-top: 1px solid var(--rp-divider); }
