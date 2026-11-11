@@ -86,7 +86,7 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
     }
   };
 
-  const intro = introWords ?? "Step 3 of 8. Pick a look for your shop. It goes into your draft, and you can change it any time in Design.";
+  const intro = introWords ?? "Pick a look for your shop. It goes into your draft, and you can change it any time in Design.";
   if (settings === undefined) return <SectionCard title="Choose your look" description={intro}><LoadingState label="Opening the looks…" /></SectionCard>;
   if (settings === null) {
     return (

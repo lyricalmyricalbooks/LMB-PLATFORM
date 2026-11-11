@@ -2182,3 +2182,33 @@ div.rp-listcard-main { cursor: default; }
 .rp:not(.studio-editor) .rp-worth-list { list-style: none; margin: 0; padding: 0; }
 .rp:not(.studio-editor) .rp-worth-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; }
 .rp:not(.studio-editor) .rp-worth-list li + li { border-top: 1px solid var(--rp-divider); }
+/* Get started's progress strip (overview/RunProgress.tsx, 11 November 2026): a mint band above the step's card. Desktop
+   lists every step as a pill (ticked, the current one in ink); phones show "Step N of M · name" and a bar instead. */
+.rp:not(.studio-editor) .rp-run { display: grid; gap: 14px; padding: 18px 22px; margin-bottom: 16px; border-radius: var(--rp-radius-lg); background: var(--rp-tile-mint, var(--rp-surface)); color: var(--rp-on-tile, var(--rp-text)); }
+.rp:not(.studio-editor) .rp-run-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
+.rp:not(.studio-editor) .rp-run-kicker { font: 600 var(--rp-text-lg)/1.2 var(--rp-font-body); letter-spacing: -.01em; }
+.rp:not(.studio-editor) .rp-run-count { font: 500 var(--rp-text-xs)/1.2 var(--rp-font-mono); text-transform: uppercase; letter-spacing: .04em; }
+.rp:not(.studio-editor) .rp-run-now { display: none; }
+.rp:not(.studio-editor) .rp-run-bar { height: 6px; border-radius: 999px; background: color-mix(in srgb, currentColor 14%, transparent); overflow: hidden; }
+.rp:not(.studio-editor) .rp-run-bar > span { display: block; height: 100%; min-width: 6px; border-radius: inherit; background: currentColor; transition: width .3s ease; }
+.rp:not(.studio-editor) .rp-run-steps { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.rp:not(.studio-editor) .rp-run-steps > li { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 4px 14px 4px 4px; border-radius: 999px; font-size: var(--rp-text-sm); background: var(--rp-surface); color: var(--rp-text-muted); }
+.rp:not(.studio-editor) .rp-run-steps > li[data-state="done"] { color: var(--rp-text); }
+.rp:not(.studio-editor) .rp-run-steps > li[data-state="now"] { background: var(--rp-primary); color: var(--rp-on-primary); font-weight: 600; }
+.rp:not(.studio-editor) .rp-run-dot { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; font: 500 var(--rp-text-xs)/1 var(--rp-font-mono); background: var(--rp-surface-sunken); color: var(--rp-text); }
+.rp:not(.studio-editor) .rp-run-steps > li[data-state="done"] .rp-run-dot { background: var(--rp-tile-mint, var(--rp-success-tint)); }
+.rp:not(.studio-editor) .rp-run-steps > li[data-state="now"] .rp-run-dot { background: var(--rp-on-primary); color: var(--rp-primary); }
+@media (max-width: 767px) {
+  .rp:not(.studio-editor) .rp-run { padding: 14px 16px; gap: 10px; margin-bottom: 12px; }
+  .rp:not(.studio-editor) .rp-run-steps { display: none; }
+  .rp:not(.studio-editor) .rp-run-now { display: inline; }
+}
+/* A step's own card under the strip: one line saying where orders ship from, with Change beside it. */
+.rp:not(.studio-editor) .rp-run-fact { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 12px 16px; border-radius: var(--rp-radius); background: var(--rp-surface-sunken); }
+.rp:not(.studio-editor) .rp-run-fact-label { display: block; font: 500 var(--rp-text-xs)/1.2 var(--rp-font-mono); text-transform: uppercase; letter-spacing: .04em; color: var(--rp-text-muted); margin-bottom: 4px; }
+/* The open step's to-do list: one hairline row per thing left, its fix on the right. */
+.rp:not(.studio-editor) .rp-run-todo { display: grid; margin: 0; padding: 0; list-style: none; }
+.rp:not(.studio-editor) .rp-run-todo > li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 12px 0; border-bottom: 1px solid var(--rp-divider); }
+.rp:not(.studio-editor) .rp-run-todo > li:last-child { border-bottom: 0; }
+.rp:not(.studio-editor) .rp-run-todo > li > span { flex: 1 1 280px; min-width: 0; }
+.rp:not(.studio-editor) .rp-run-todo .rp-hint { display: block; margin-top: 2px; }

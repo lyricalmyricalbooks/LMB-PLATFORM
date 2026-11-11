@@ -1,4 +1,4 @@
-// Get started, step 6: shipping and your address (plan 17.11). Pure: which starter fits the press's country, the ship-from
+// Get started: shipping (plan 17.11). Pure: which starter fits the press's country, the ship-from
 // address checks (step 1's details), the shipping profile the step makes, and whether the step still shows.
 // The profile itself is made by the shipping rules already in Settings (shippingProfileStarters.ts, plan 6.9 step 4);
 // this step only confirms one starter and never makes a second profile when the shop already has one, so a re-run is safe.
@@ -60,7 +60,7 @@ export function starterProfile(starter: ShippingStarter, newId: () => string, se
   return buildNewProfile({ name: STARTER_PROFILE_NAME, starter, prices: starterPrices(starter, sells) }, newId);
 }
 
-/** Whether the step is still to show: a press that went through step 1 (its details), is not a stockroom-only plan, has its look and Google (step 4), and hasn't finished this step. Shops made before Get started never see it. */
-export function shippingStepShows(doc: { details?: unknown; plan?: string; welcome?: unknown; google?: unknown; shipping?: unknown } | null): boolean {
-  return !!doc && !!doc.details && doc.plan !== "stockroom" && !!doc.welcome && !!doc.google && !doc.shipping;
+/** Whether the step is still to show: a press that went through step 1 (its details), is not a stockroom-only plan, has its look, and hasn't finished this step. Shops made before Get started never see it. */
+export function shippingStepShows(doc: { details?: unknown; plan?: string; welcome?: unknown; shipping?: unknown } | null): boolean {
+  return !!doc && !!doc.details && doc.plan !== "stockroom" && !!doc.welcome && !doc.shipping;
 }

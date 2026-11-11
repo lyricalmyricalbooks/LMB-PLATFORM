@@ -432,6 +432,23 @@ if (new URLSearchParams(location.search).get("guide")) {
   api.getSettings = async () => ({ design: { showUnderConstruction: true, logoUrl: "https://photos.example/logo.png" } });
 }
 
+// ?start=details|bring|look|shipping|final (Get started screenshots): a new private shop part way through the run.
+const startAt = new URLSearchParams(location.search).get("start");
+if (startAt) {
+  const at = "2026-11-01T10:00:00.000Z";
+  const order = ["details", "bring", "look", "shipping", "final"];
+  const upTo = Math.max(0, order.indexOf(startAt));
+  const marks: Record<string, any> = { details: { at }, bring: { at, skipped: true }, look: { at, theme: "riso" }, shipping: { at, skipped: true } };
+  const week: any = { plan: "both", sellingToday: "starting", publishes: "books" };
+  order.slice(0, upTo).forEach((step) => { week[step === "look" ? "welcome" : step] = marks[step]; });
+  const api = adminApi as any;
+  api.getFirstWeek = async () => JSON.parse(JSON.stringify(week));
+  api.updateFirstWeek = async (change: any) => { Object.assign(week, change); };
+  api.getShippingProfiles = async () => [];
+  api.getSettings = async () => ({ info: { name: "Moth Press", email: "hello@mothpress.example" }, design: { showUnderConstruction: true },
+    location: { street: "12 Queen Street", city: "Toronto", state: "ON", zip: "M5H 2N2", country: "Canada" } });
+}
+
 // ?gstate=coming|ready|connected|trouble (Settings › Google screenshots): a pretend Google link, nothing reaches Google.
 // coming: not switched on yet · ready: switched on, not connected · connected: all working · trouble: needs a look.
 const gstate = new URLSearchParams(location.search).get("gstate");

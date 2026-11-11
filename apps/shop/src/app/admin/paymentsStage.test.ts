@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { paymentsMarker, paymentsStepShows } from "./paymentsStage";
 
-const google = { details: { at: "a" }, welcome: { theme: "zine", at: "a" }, google: { at: "b" }, plan: "both" };
+const google = { details: { at: "a" }, welcome: { theme: "zine", at: "a" }, plan: "both" };
 
 describe("Get started, step 5: Get paid (plan 17.10)", () => {
-  it("shows once the press has its details, look and Google, and its cards go through the platform", () => {
+  it("shows once the press has its details and look, and its cards go through the platform", () => {
     expect(paymentsStepShows(google, "stripe")).toBe(true);
     expect(paymentsStepShows(google, "square")).toBe(true);
   });
@@ -12,7 +12,6 @@ describe("Get started, step 5: Get paid (plan 17.10)", () => {
   it("never shows for a shop on its own keys, a stockroom-only plan, or a step not yet reached", () => {
     expect(paymentsStepShows(google, null)).toBe(false);
     expect(paymentsStepShows({ ...google, plan: "stockroom" }, "stripe")).toBe(false);
-    expect(paymentsStepShows({ ...google, google: undefined }, "stripe")).toBe(false);
     expect(paymentsStepShows({ ...google, welcome: undefined }, "stripe")).toBe(false);
     expect(paymentsStepShows({ ...google, details: undefined }, "stripe")).toBe(false);
     expect(paymentsStepShows(null, "stripe")).toBe(false);

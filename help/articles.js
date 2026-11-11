@@ -528,7 +528,6 @@ export const RUN_ANSWERS = Object.freeze({
   details: "your-press",
   bring: "bring-books",
   look: "look",
-  google: "google-sign-in",
   payments: "get-paid",
   shipping: "shipping",
   final: "open-shop",

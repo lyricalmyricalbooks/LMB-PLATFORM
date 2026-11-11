@@ -97,7 +97,7 @@ test("every stage of the Get started run has an answer (plan 17.15)", () => {
   const source = readFileSync(new URL("../apps/shop/src/app/admin/startRun.ts", import.meta.url), "utf8");
   const union = source.match(/export type RunStep = ([^;]+);/)[1];
   const stages = [...union.matchAll(/"([a-z]+)"/g)].map((m) => m[1]);
-  assert.ok(stages.length >= 7 && stages.includes("google") && stages.includes("final"), `read ${stages.length} stages`);
+  assert.ok(stages.length >= 6 && stages.includes("details") && stages.includes("final"), `read ${stages.length} stages`);
   const ids = new Set(ARTICLES.map((a) => a.id));
   for (const stage of stages) {
     assert.ok(RUN_ANSWERS[stage], `the "${stage}" stage has no answer in RUN_ANSWERS`);
