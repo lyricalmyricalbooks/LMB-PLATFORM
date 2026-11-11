@@ -371,6 +371,13 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-listcard-main:hover .rp-listcard-name { text-decoration: underline; text-underline-offset: 3px; }
 .rp-listcard-main:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 4px; border-radius: 6px; }
 @media (max-width: 767px) { .rp-listcard { padding: 4px 16px; } .rp-listcard > li { gap: 8px; } }
+/* The mockup's Gift cards card: the same rows on the lilac tile (one accent tile per screen). */
+.rp-listcard[data-tone="lilac"] { background: var(--rp-tile-lilac, var(--rp-surface)); color: var(--rp-on-tile, var(--rp-text)); }
+.rp-listcard[data-tone="lilac"] > li { border-top-color: color-mix(in srgb, var(--rp-on-tile, var(--rp-text)) 14%, transparent); }
+.rp-listcard[data-tone="lilac"] > li:first-child { border-top: 0; }
+.rp-listcard[data-tone="lilac"] .rp-listcard-main, .rp-listcard[data-tone="lilac"] .rp-listcard-sub { color: inherit; }
+.rp-listcard-side { flex-shrink: 0; font-size: var(--rp-text-base); font-variant-numeric: tabular-nums; text-align: right; }
+@media (max-width: 767px) { .rp-listcard-side { flex-shrink: 1; max-width: 60%; } }
 
 /* ── Sales channels and Social posts (plan 27.5, 27.6) ── */
 .rp-channel-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px; }
