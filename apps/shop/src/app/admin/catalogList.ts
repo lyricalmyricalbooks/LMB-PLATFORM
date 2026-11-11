@@ -52,6 +52,16 @@ export function bookTiles(books: any[], stockOf: (b: any) => StockInfo, nowISO?:
   };
 }
 
+/**
+ * Copies the stockroom holds of a website book: the stockroom's own count (its published `onHand`) of every stockroom
+ * book the book's editions are matched to, each counted once. null when none is matched or none has a count yet.
+ */
+export function stockroomCount(bookId: string, links: Record<string, Record<string, string>>, onHandById: Map<string, number | null>): number | null {
+  const ids = [...new Set(Object.values(links[bookId] || {}))];
+  const counts = ids.map((id) => onHandById.get(id)).filter((n): n is number => typeof n === "number" && Number.isFinite(n));
+  return counts.length ? counts.reduce((a, b) => a + b, 0) : null;
+}
+
 export function matchesStatus(book: any, filter: string, nowISO?: string): boolean {
   if (filter === "All") return true;
   if (filter === "Pre-order") return preorderActive(book);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bookAuthor, bookTiles, listStatus, bookReferences, duplicateBookData, inlineEditable, matchesStatus, matchesStock, priceInfo, publicationBadge, sharedIsbns, stockInfo } from "./catalogList";
+import { bookAuthor, bookTiles, listStatus, stockroomCount, bookReferences, duplicateBookData, inlineEditable, matchesStatus, matchesStock, priceInfo, publicationBadge, sharedIsbns, stockInfo } from "./catalogList";
 import { inventoryCsv, planPriceChange } from "./bulkPricing";
 
 describe("catalog list rows", () => {
@@ -78,5 +78,17 @@ describe("the Books list (redesign to the mockup)", () => {
   it("counts the four tiles from published books only for low and sold out", () => {
     const books = [live(), live({ stockLevel: 2 }), live({ stockLevel: 0 }), { status: "draft", trackInventory: true, stockLevel: 0 }];
     expect(bookTiles(books, (b) => stockInfo(b))).toEqual({ books: 4, online: 3, low: 1, soldOut: 1 });
+  });
+});
+
+describe("the Books list's Stockroom column", () => {
+  it("adds up each matched stockroom book once, and says nothing for an unmatched or uncounted book", () => {
+    const onHand = new Map<string, number | null>([["s1", 38], ["s2", 4], ["s3", null]]);
+    const links = { a: { _: "s1" }, b: { signed: "s1", plain: "s2" }, c: { _: "s3" }, d: { hard: "s2", soft: "s2" } };
+    expect(stockroomCount("a", links, onHand)).toBe(38);
+    expect(stockroomCount("b", links, onHand)).toBe(42);
+    expect(stockroomCount("c", links, onHand)).toBeNull();
+    expect(stockroomCount("d", links, onHand)).toBe(4);
+    expect(stockroomCount("none", links, onHand)).toBeNull();
   });
 });

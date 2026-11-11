@@ -14,7 +14,10 @@ import { adminApi } from "./api";
 import { lowStockThreshold } from "./inventoryInsights";
 import toast from "react-hot-toast";
 import { ActionMenu, PageActions, ConfirmDialog, EmptyState, ErrorState, LoadingState, PrimaryButton, SecondaryButton, SectionCard, StatusBadge } from "./riso/components";
-import { LOW_STOCK, bookAuthor, bookReferences, bookTiles, listStatus, priceInfo, stockInfo } from "./catalogList";
+import { LOW_STOCK, bookAuthor, bookReferences, bookTiles, listStatus, priceInfo, stockInfo, stockroomCount } from "./catalogList";
+import { combinedAdmin } from "./combined";
+import { inventoryLinkApi } from "./inventoryLinkApi";
+import type { InventoryLinks } from "./inventoryLink";
 import { productHref } from "../lib/productHref";
 
 interface BookCatalogProps {
@@ -22,6 +25,9 @@ interface BookCatalogProps {
   onAdd: () => void;
   refreshTrigger?: number;
 }
+
+// Shop + stockroom: the Stockroom column shows the stockroom's own count beside the copies online.
+const COMBINED = combinedAdmin();
 
 const slugOf = (b: any) => b.slug || (b.title || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
@@ -45,11 +51,18 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   const [deleting, setDeleting] = useState<any | null>(null);
   // Inventory's low-stock line, so "Running low" here matches Inventory, Home and the 8am email.
   const [lowLine, setLowLine] = useState(LOW_STOCK);
+  // The stockroom's counts (its published feed, read by the server) and which stockroom book each edition is matched to.
+  const [links, setLinks] = useState<InventoryLinks>({});
+  const [onHand, setOnHand] = useState<Map<string, number | null> | null>(null);
 
   useEffect(() => { loadBooks(); }, [refreshTrigger]);
   useEffect(() => {
     adminApi.getAuthors().then((list: any[]) => setAuthors(Object.fromEntries(list.map(a => [a.id, a.name || ""])))).catch(() => {});
     adminApi.getPublicSettings().then((s: any) => setLowLine(lowStockThreshold(s))).catch(() => {});
+    if (COMBINED) {
+      inventoryLinkApi.links().then(setLinks).catch(() => {});
+      inventoryLinkApi.catalog().then((r) => setOnHand(new Map((r.books || []).map((b) => [b.id, b.onHand])))).catch(() => setOnHand(new Map()));
+    }
   }, []);
 
   async function loadBooks() {
@@ -151,9 +164,10 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
           <caption className="rp-sr-only">{w("Books")}</caption>
           <thead><tr>
             <th scope="col">{w("Book")}</th>
-            <th scope="col">{sellsBooks(sells) ? "Format · ISBN" : "Format · SKU"}</th>
-            <th scope="col" className="bk-num">Price</th>
-            <th scope="col" className="bk-num">Online</th>
+            <th scope="col" className="bk-wide">{sellsBooks(sells) ? "Format · ISBN" : "Format · SKU"}</th>
+            <th scope="col" className="bk-num bk-wide">Price</th>
+            <th scope="col" className="bk-num bk-wide">Online</th>
+            {COMBINED && <th scope="col" className="bk-num bk-wide">Stockroom</th>}
             <th scope="col">Status</th>
             <th scope="col"><span className="rp-sr-only">Actions</span></th>
           </tr></thead>
@@ -176,9 +190,10 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
                       </span>
                     </span>
                   </td>
-                  <td className="bk-list-mono">{[b.format, b.isbn || b.sku].filter(Boolean).join(" · ") || "—"}</td>
-                  <td className="bk-num">{priceInfo(b).text}</td>
-                  <td className="bk-num">{Number.isFinite(stock.count) ? stock.count : "—"}</td>
+                  <td className="bk-list-mono bk-wide">{[b.format, b.isbn || b.sku].filter(Boolean).join(" · ") || "—"}</td>
+                  <td className="bk-num bk-wide">{priceInfo(b).text}</td>
+                  <td className="bk-num bk-wide">{Number.isFinite(stock.count) ? stock.count : "—"}</td>
+                  {COMBINED && <td className="bk-num bk-wide">{onHand ? stockroomCount(b.id, links, onHand) ?? "—" : "…"}</td>}
                   <td><StatusBadge tone={st.tone} glyph={false}>{st.text}</StatusBadge></td>
                   <td className="bk-list-act" onClick={(e) => e.stopPropagation()}>{actionsOf(b)}</td>
                 </tr>
