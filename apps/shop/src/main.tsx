@@ -13,9 +13,12 @@
   import { listenShopSignals } from "./app/lib/shopSignals";
   import { watchPageSpeed } from "./app/lib/pageSpeed";
   import { installErrorReporting } from "./app/lib/errorReport";
+  import { installStaleBuildReload } from "./app/lib/staleBuild";
 
   // A shopper's browser that hits an error tells the shop (Settings › General › Tools & records › Shop errors).
   installErrorReporting();
+  // After an update, a page opened before it reloads once for the new code instead of failing (lib/staleBuild.ts).
+  installStaleBuildReload();
 
   // Shoppers may translate the page with Google Translate: keep React from crashing on the translated text.
   installTranslateSafeDom();

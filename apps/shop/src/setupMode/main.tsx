@@ -11,6 +11,10 @@ import { SetupAdmin, type SetupLists } from "./SetupAdmin";
 import { platformDoor, pressToOpen } from "./door";
 import { helpAnswersFrom } from "./SetupHelp";
 import { PLAN_PAGE } from "./pages";
+import { installStaleBuildReload } from "../app/lib/staleBuild";
+
+// After an update, a page opened before it reloads once for the new code instead of failing.
+installStaleBuildReload();
 
 const FRONT_DOOR = "/join/";
 const ACCOUNT_PAGE = "/account/";
