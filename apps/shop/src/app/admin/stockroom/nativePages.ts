@@ -14,4 +14,7 @@ export type NativePageProps = {
 
 export const NATIVE_PAGES: Record<string, ComponentType<NativePageProps>> = {
   todo: lazy(() => import("./TodoPage").then((m) => ({ default: m.TodoPage }))),
+  taxcenter: lazy(() => import("./TaxCenterPage").then((m) => ({ default: m.TaxCenterPage }))),
+  expenses: lazy(() => import("./ExpensesPage").then((m) => ({ default: m.ExpensesPage }))),
+  intel: lazy(() => import("./AskPage").then((m) => ({ default: m.AskPage }))),
 };
