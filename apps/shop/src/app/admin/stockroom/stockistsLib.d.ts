@@ -67,3 +67,6 @@ declare module "@stockroom/invoice-settle.js" {
   export function settleInvoicePaid(s: Record<string, any>, invoiceId: string, opts?: { method?: string; paidAt?: number }):
     { ok: true; inv: Record<string, any>; settled: Array<Record<string, any>> } | { ok: false; reason: "missing" | "paid" | "cancelled" };
 }
+declare module "@stockroom/print-sheet-layout.js" {
+  export function computeTallyRowHeights(numBooks: number, opts?: { includeNotes?: boolean; thHeight?: number }): { tallyRowHeight: number; priceRowHeight: number; fitsOnePage: boolean };
+}
