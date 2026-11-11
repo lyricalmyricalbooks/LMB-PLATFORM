@@ -1,12 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildHarness } from './helpers/extract-decl.js';
-import {
-  deriveOnHand,
-  buildOrderTimeline,
-  deduplicateDirectConsignmentSales,
-  recalculateBookStatsFromHistory,
-} from '../src/lib/inventory.js';
-import { reconcileConsignmentChannel, reconcileStores, reconcileConsignmentMirrors } from '../src/lib/consignment.js';
+import { recomputeAfters } from '../src/lib/recompute-afters.js';
+import { recomputeAfters as originalRecomputeAfters } from './helpers/recompute-afters-original.js';
 
 // recomputeAfters is the function every stock and balance figure in the app
 // depends on. It runs on every book load, after every sync merge, and before
@@ -23,22 +17,18 @@ import { reconcileConsignmentChannel, reconcileStores, reconcileConsignmentMirro
 
 const book = { id: 'hound', title: 'The Hound', maxPrint: 100, listPrice: 20, currency: 'CA$' };
 
-const harness = () => buildHarness({
-  names: ['recomputeAfters'],
-  deps: {
-    deriveOnHand,
-    buildOrderTimeline,
-    deduplicateDirectConsignmentSales,
-    recalculateBookStatsFromHistory,
-    reconcileConsignmentMirrors,
-    reconcileConsignmentChannel,
-    reconcileStores,
-    getBook: () => book,
-  },
-  returns: 'recomputeAfters',
-});
+const harness = () => recomputeAfters;
 
-const run = (state) => { const s = JSON.parse(JSON.stringify(state)); harness()(s, book); return s; };
+// Every sample here also runs through the frozen copy of the code as main.js held it before the move to src/lib, so
+// the move is proven to change nothing.
+const run = (state) => {
+  const s = JSON.parse(JSON.stringify(state));
+  const before = JSON.parse(JSON.stringify(state));
+  harness()(s, book);
+  originalRecomputeAfters(before, book);
+  expect(s).toEqual(before);
+  return s;
+};
 
 describe('recomputeAfters — stock', () => {
   it('derives on-hand from the print run less what has left', () => {
@@ -251,4 +241,37 @@ describe('recomputeAfters — consignmentLink is derived, not authored', () => {
     });
     expect(s.stock).toBe(95);
   });
+});
+
+describe('recomputeAfters — moved to src/lib without changing behaviour', () => {
+  const samples = [
+    { hist: [], ledger: [], stores: [], expenses: [] },
+    {
+      hist: [
+        { date: '2026-03-01', num: 'A1', qty: 3, price: 20, chan: 'Website', sheetsId: 'w1' },
+        { date: '2026-03-02', num: 'A2', qty: 2, price: 15, chan: 'Fair', cur: 'USD', uid: 'u2' },
+        { date: '2026-03-03', num: 'A3', qty: 5, price: 20, chan: 'Direct', voided: true },
+        { date: '2026-03-04', num: '', qty: 1, price: 0, chan: 'Gratuity', gratuity: true },
+      ],
+      ledger: [
+        { id: 'l1', type: 'Shipment', storeId: 's1', storeName: 'Corner', qty: 6, date: '2026-03-05' },
+        { id: 'l2', type: 'Sale', storeId: 's1', storeName: 'Corner', qty: 2, price: 12, date: '2026-03-06' },
+        { id: 'l3', type: 'Return', storeId: 's1', storeName: 'Corner', qty: 1, status: 'restocked', date: '2026-03-07' },
+      ],
+      stores: [{ id: 's1', name: 'Corner', sent: 0, sold: 0, returned: 0, outstanding: 9 }],
+      chStats: { Consignment: { txns: 0, units: 0, revenue: 0 } },
+      expenses: [],
+    },
+  ];
+  for (const [i, sample] of samples.entries()) {
+    it(`sample ${i + 1} comes out the same as before the move`, () => {
+      for (const bk of [book, { ...book, maxPrint: undefined }]) {
+        const moved = JSON.parse(JSON.stringify(sample));
+        const original = JSON.parse(JSON.stringify(sample));
+        recomputeAfters(moved, bk);
+        originalRecomputeAfters(original, bk);
+        expect(moved).toEqual(original);
+      }
+    });
+  }
 });
