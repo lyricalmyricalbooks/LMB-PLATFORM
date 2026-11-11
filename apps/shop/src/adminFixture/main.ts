@@ -256,6 +256,13 @@ function orderDetail(id: string) {
 
 const known: Record<string, (...a: any[]) => any> = {
   getOrderById: async (id: string) => orderDetail(id),
+  // Marketing › Discounts as in the mockup: two live codes, one automatic offer and one that ended.
+  getDiscounts: async () => [
+    { id: "d1", code: "WINTER10", method: "code", type: "percentage", value: 10, minOrderAmount: 30, isActive: true, usageCount: 4 },
+    { id: "d2", code: "LAUNCH", method: "code", type: "freeship", isActive: true, expiryDate: "2026-11-01", usageCount: 31 },
+    { id: "d3", method: "automatic", title: "Two zines for $12", type: "fixed", value: 4, minQuantity: 2, isActive: true },
+    { id: "d4", code: "FRIENDS", method: "code", type: "fixed", value: 5, isActive: false },
+  ],
   // o2's customer added a book after paying (plan 24.6): an open payment-link order that ships with it.
   getOrdersShippingWith: async (id: string) => (id === "o2" ? [{ id: "o2-add", orderId: "ADD-2", shipsWith: "o2", paymentStatus: "unpaid", status: "pending_payment", items: [{ id: "b2", title: "Night Songs", quantity: 1 }], paymentLink: { expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString() } }] : []),
   getOrders: async () => ORDERS,
