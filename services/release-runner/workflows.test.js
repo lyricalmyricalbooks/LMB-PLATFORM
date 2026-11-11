@@ -29,3 +29,13 @@ test("the shared-system workflow keeps only its rare jobs, and only by hand", ()
   assert.doesNotMatch(triggers(text), /push:/);
   assert.doesNotMatch(text, /run-shared\.js/);
 });
+
+test("the platform deploy puts the server live again only when a folder its image is built from changed", () => {
+  const text = read("deploy.yml");
+  const listed = text.match(/for path in ([^;]+); do/)[1].trim().split(/\s+/).sort();
+  const ignore = readFileSync(new URL("../../server/.gcloudignore", import.meta.url), "utf8");
+  const built = [...ignore.matchAll(/^!\/([\w.-]+?)\/?$/gm)].map((m) => m[1]).sort();
+  assert.deepEqual(listed, built, "deploy.yml's list matches what server/.gcloudignore sends to the image");
+  assert.match(text, /steps\.already\.outputs\.cache-hit != 'true'/);
+  assert.match(text, /github\.event_name == 'push'/, "Run workflow always puts the server live");
+});

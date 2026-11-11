@@ -386,6 +386,9 @@ export function createControlRoom({
       const checks = await registry.readReleaseChecks(row.shopId);
       const last = checks.at(-1);
       const siteUrl = profile?.siteUrl ?? null;
+      // The newest update run (docs/updating.md), so Today says when one didn't go through.
+      const runs = registry.listReleases ? await registry.listReleases({ limit: 10 }) : [];
+      const run = runs.filter((r) => r.kind === "shared-release").sort((a, b) => String(b.startedAt).localeCompare(String(a.startedAt)))[0];
       return {
         testShop: {
           shopId: row.shopId,
@@ -395,6 +398,7 @@ export function createControlRoom({
           updatedAt: row.release?.at ?? null,
           storefrontUrl: siteUrl,
           adminUrl: siteUrl ? `${siteUrl}/admin/` : null,
+          lastUpdate: run ? { ok: run.ok === true, version: run.version ?? null, at: run.finishedAt ?? run.startedAt ?? null, error: run.ok === true ? null : run.error ?? "no reason given" } : null,
           lastCheck: last ? { ok: last.ok, at: last.finishedAt ?? null, version: last.version ?? null, failedCheck: last.failedCheck ?? null } : null,
           health: shopHealth({ row, profile, checks, repairs: repairs ? await repairs.open(row.shopId) : [] }),
         },

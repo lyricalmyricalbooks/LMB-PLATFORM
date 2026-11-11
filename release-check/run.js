@@ -64,6 +64,8 @@ export async function realRun({ shopId, env = process.env, fetch = globalThis.fe
   // Checked again by the runner; checked here too so no sign-in is made for any other shop.
   if (row.testShop !== true) throw new Error(`${shopId} is not the platform's test shop`);
   const session = await testOwnerSession({ identity: identityClient({ fetch, token }), shop: row, profile, serviceAccount: env.PLATFORM_SERVICE_ACCOUNT || undefined });
+  // Which sign-in list the test owner is on: the stockroom and the admin accept a sign-in only from the shop's own list.
+  print(`The test owner signs in on ${session.user.tenantId ? `the shop's list ${session.user.tenantId}` : "the project's own list (no shop list)"}; registry row: shared ${row.shared === true}, list ${row.tenant ?? "none"}.`);
   const where = shopWhere({ row, profile, env, fetch, token });
   const clients = {
     profile,
