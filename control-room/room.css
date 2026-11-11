@@ -440,3 +440,6 @@
 .rp.cl .cr-saved-form { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
 .rp.cl .cr-saved-form .rp-field { align-self: stretch; }
 .rp.cl .cr-use-saved { flex: 1 1 100%; width: auto; }
+
+/* A note on a Today line (your own words). */
+.rp.cl .cr-need-note { margin: 4px 0 0; font-size: 13px; line-height: 1.4; font-style: italic; color: var(--rp-text); overflow-wrap: anywhere; }

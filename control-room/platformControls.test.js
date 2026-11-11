@@ -212,3 +212,18 @@ test("saved replies for Support: admins only, cleaned and kept in the platform's
   const logged = await w.activity.list({ limit: 10 });
   assert.ok(logged.some((e) => e.what === "saved-replies" && e.detail.count === 2));
 });
+
+test("notes on Today lines: set, shown, cleared, admins only", async () => {
+  const kept = new Map();
+  const settingsStore = { get: async (k) => kept.get(k) ?? null, set: async (k, v) => kept.set(k, v) };
+  const logged = [];
+  const { createPlatformControls } = await import("./platformControls.js");
+  const controls = createPlatformControls({ admins: ["admin@example.com"], settingsStore, env: {}, activity: { record: async (e) => logged.push(e) } });
+  await controls.setTodayNote(ADMIN, { key: "payment:shop-1", words: "  called them,   waiting " });
+  assert.equal((await controls.todayNotes(ADMIN)).notes["payment:shop-1"].words, "called them, waiting");
+  await controls.setTodayNote(ADMIN, { key: "payment:shop-1", words: "" });
+  assert.deepEqual((await controls.todayNotes(ADMIN)).notes, {});
+  await assert.rejects(controls.todayNotes(STRANGER));
+  await assert.rejects(controls.setTodayNote(ADMIN, { key: "" }));
+  assert.equal(logged.length, 2);
+});
