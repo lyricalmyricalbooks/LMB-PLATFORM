@@ -130,6 +130,25 @@ export function inListFilter(o: any, filter: ListFilter): boolean {
   }
 }
 
+/** The list's Payment pill, in the mockup's words: Paid, Unpaid, Refunded. */
+export function listPayment(o: any): { tone: Tone; text: string } {
+  if (o?.paymentStatus === "refunded") return { tone: "danger", text: "Refunded" };
+  if (o?.paymentStatus === "refund_pending") return { tone: "warning", text: "Refunding" };
+  if (o?.paymentStatus === "paid") return o?.partiallyRefunded ? { tone: "warning", text: "Part refunded" } : { tone: "success", text: "Paid" };
+  return { tone: "danger", text: "Unpaid" };
+}
+
+/** The list's Fulfilment pill, in the mockup's words. A problem still shows as "Needs you", as on Home. */
+export function listFulfilment(o: any): { tone: Tone; text: string } {
+  const q = deskQueue(o);
+  if (q === "Needs attention") return { tone: "danger", text: "Needs you" };
+  if (q === "Unpaid") return { tone: "neutral", text: "Draft" };
+  if (q === "Awaiting release") return { tone: "info", text: "Pre-order" };
+  if (q === "In transit") return { tone: "info", text: "Shipped" };
+  if (q === "Completed") return { tone: "neutral", text: "Fulfilled" };
+  return { tone: "warning", text: "Unfulfilled" };
+}
+
 /** The list under a pill, newest first ("All" is the covers page's All orders). */
 export const listOrders = (orders: any[], filter: ListFilter, showTest = false) =>
   gridOrders(orders, "all", "", "newest", showTest).filter((o) => inListFilter(o, filter));

@@ -9,7 +9,7 @@ import toast from "react-hot-toast";
 import { loadOrderBooks, loadOrderSearchCatalog, patchOrdersCache, refreshOrdersCache } from "./Orders";
 import { EmptyState, LoadingState, MetricCard, PageActions, PrimaryButton, SearchField, SecondaryButton, StatusBadge, Tabs, Toggle } from "./riso/components";
 import { NEEDS_ME_QUEUES, nextToOpen, rowBooks, rowCover, rowStatus, refundState, stepOrder, deskQueue } from "./ordersDesk";
-import { LIST_FILTERS, badgeText, gridOrders, itemCount, listOrders, outsideQueue, paymentChip, shipsTo, stationQueue, stationStats, stationStep, type GridSort, type GridTab, type ListFilter } from "./shipStation";
+import { LIST_FILTERS, badgeText, listFulfilment, listPayment, gridOrders, itemCount, listOrders, outsideQueue, shipsTo, stationQueue, stationStats, stationStep, type GridSort, type GridTab, type ListFilter } from "./shipStation";
 import { listDate, orderMoney, waitedText } from "./orderListHelpers";
 import { printOrders } from "./orderPrint";
 import { queueOf } from "./fulfillment";
@@ -325,8 +325,8 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
               </thead>
               <tbody>
                 {page.map((o) => {
-                  const s = rowStatus(o);
-                  const pay = paymentChip(o);
+                  const s = listFulfilment(o);
+                  const pay = listPayment(o);
                   const where = shipsTo(o);
                   return (
                     <tr key={o.id} onClick={() => openInStation(o.id)}>
@@ -336,7 +336,7 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
                       <td className="od-table-muted">{itemCount(o)}</td>
                       <td className="od-num-col"><strong>{orderMoney(o).text}</strong></td>
                       <td><StatusBadge tone={pay.tone} glyph={false}>{pay.text}</StatusBadge></td>
-                      <td><StatusBadge tone={s.tone} glyph={false}>{badgeText(s.text)}</StatusBadge></td>
+                      <td><StatusBadge tone={s.tone} glyph={false}>{s.text}</StatusBadge></td>
                     </tr>
                   );
                 })}
