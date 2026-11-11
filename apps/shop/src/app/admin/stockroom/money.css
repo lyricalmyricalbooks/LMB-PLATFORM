@@ -15,3 +15,22 @@
   .rp-money .rp-grid-metrics > * { min-width: 0; overflow-wrap: anywhere; }
   .rp:not(.studio-editor) .rp-money .rp-metric-value { font-size: 20px; white-space: normal; }
 }
+.rp-money-form { display: grid; gap: var(--rp-space-3); max-width: 720px; }
+.rp-money-form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--rp-space-3); }
+.rp-money-chips { display: flex; flex-wrap: wrap; gap: var(--rp-space-2); }
+.rp-money-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rp-space-3); }
+.rp-money-actions .rp-sr-save { margin: 0; }
+.rp-money-chart { display: block; width: 100%; height: auto; }
+.rp-money-chart .rp-in { fill: var(--rp-success); }
+.rp-money-chart .rp-out { fill: var(--rp-danger); }
+.rp-money-chart text { fill: var(--rp-text-muted); font-size: 11px; }
+.rp-money-chart line { stroke: var(--rp-border, currentColor); opacity: .4; }
+.rp-money-legend { display: flex; gap: var(--rp-space-4); font-size: var(--rp-text-xs); color: var(--rp-text-muted); margin: 0 0 var(--rp-space-2); }
+.rp-money-legend i { display: inline-block; width: 10px; height: 10px; margin-right: 4px; }
+@media (max-width: 640px) { .rp-money-form-row { grid-template-columns: 1fr; } }
+.rp-money-pending { list-style: none; margin: 0; padding: 0; }
+.rp-money-pending li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--rp-space-2) var(--rp-space-4); align-items: center; padding: var(--rp-space-3) var(--rp-space-4); border-top: 1px solid var(--rp-border); }
+.rp-money-pending li:first-child { border-top: 0; }
+.rp-money-pending p { margin: var(--rp-space-1) 0 0; }
+.rp-money-pending-amt { text-align: right; color: var(--rp-text-muted); font-size: var(--rp-text-sm); }
+.rp-money-pending-acts { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: var(--rp-space-2); }

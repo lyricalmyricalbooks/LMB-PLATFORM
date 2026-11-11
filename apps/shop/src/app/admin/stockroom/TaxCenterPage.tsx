@@ -9,6 +9,8 @@ import type { Delta } from "@stockroom/tax-ledger.js";
 import { DataTable, EmptyState, MetricCard, Pagination, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge } from "../riso/components";
 import { useShopWords } from "../shopWords";
 import { RecordsGate } from "./RecordsGate";
+import { LogExpenseCard, type Prefill } from "./LogExpense";
+import { PendingExpensesCard } from "./PendingExpenses";
 import { filterLedger, ledgerCsvFile, ledgerTotals, LEDGER_PAGE_SIZE, sourcesOf, taxCenterModel, type LedgerFilter } from "./moneyReports";
 import { stockroomApi, type StockroomRecords } from "./stockroomData";
 import "./stockroom.css";
@@ -25,13 +27,39 @@ const deltaText = (d: Delta, prev: string | null) => {
 const STATUS_TONE = { active: "success", scheduled: "info", paused: "neutral", ended: "neutral", invalid: "danger" } as const;
 const STATUS_WORD = { active: "Active", scheduled: "Scheduled", paused: "Paused", ended: "Ended", invalid: "Needs a date" } as const;
 
-export function TaxCenterView({ records, now }: { records: StockroomRecords; now?: Date }) {
+/** Income against expenses for each month (or year), as bars. The table below it says the same in words. */
+function CashFlowChart({ buckets, cur }: { buckets: Array<{ key: string; label: string; income: number; expense: number }>; cur: string }) {
+  const max = Math.max(1, ...buckets.flatMap((b) => [b.income, b.expense]));
+  const W = 640, H = 180, pad = 22, slot = (W - pad) / Math.max(1, buckets.length), bar = Math.max(3, Math.min(18, slot / 2 - 2));
+  const y = (v: number) => H - pad - (v / max) * (H - pad - 8);
+  return (
+    <div>
+      <p className="rp-money-legend"><span><i className="rp-in" style={{ background: "var(--rp-success)" }} />Money in</span><span><i style={{ background: "var(--rp-danger)" }} />Money out</span><span>Most: {fmt(max, cur)}</span></p>
+      <svg className="rp-money-chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Money in and out for each period">
+        <line x1={pad} x2={W} y1={H - pad} y2={H - pad} />
+        {buckets.map((b, i) => {
+          const x = pad + i * slot + slot / 2;
+          return (
+            <g key={b.key}>
+              <rect className="rp-in" x={x - bar - 1} y={y(b.income)} width={bar} height={Math.max(0, H - pad - y(b.income))}><title>{`${b.label}: in ${fmt(b.income, cur)}`}</title></rect>
+              <rect className="rp-out" x={x + 1} y={y(b.expense)} width={bar} height={Math.max(0, H - pad - y(b.expense))}><title>{`${b.label}: out ${fmt(b.expense, cur)}`}</title></rect>
+              <text x={x} y={H - 6} textAnchor="middle">{b.label.slice(0, 3)}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+export function TaxCenterView({ records, now, onTaxCenter }: { records: StockroomRecords; now?: Date; onTaxCenter?: (taxCenter: Record<string, unknown>) => void }) {
   const w = useShopWords();
   const sources = useMemo(() => sourcesOf(records), [records]);
   const years = useMemo(() => taxCenterModel(sources, "all", now).years, [sources, now]);
   const [year, setYear] = useState("all");
   const [filter, setFilter] = useState<LedgerFilter>({ type: "all", query: "" });
   const [page, setPage] = useState(1);
+  const [confirming, setConfirming] = useState<Prefill | null>(null);
   const model = useMemo(() => taxCenterModel(sources, year, now), [sources, year, now]);
   const cur = model.baseCurrency;
   const money = (n: number) => fmt(n, cur);
@@ -66,6 +94,13 @@ export function TaxCenterView({ records, now }: { records: StockroomRecords; now
         <MetricCard label={w("Artist payouts")} value={money(s.artistPayouts)} footer="Not part of money out" />
         <MetricCard label="Net after payouts" value={money(s.netAfterPayouts)} tone={s.netAfterPayouts < 0 ? "danger" : undefined} />
       </div>
+
+      <SectionCard title="Cash flow" description={year === "all" ? "Money in and out, year by year." : `Money in and out, month by month in ${year}.`}>
+        <CashFlowChart buckets={model.buckets.filter((b) => b.income || b.expense || year !== "all")} cur={cur} />
+      </SectionCard>
+
+      {onTaxCenter && <LogExpenseCard taxCenter={records.taxCenter} onSaved={onTaxCenter} prefill={confirming} onPrefillDone={() => setConfirming(null)} />}
+      {onTaxCenter && <PendingExpensesCard taxCenter={records.taxCenter} onSaved={onTaxCenter} onConfirm={setConfirming} />}
 
       <SectionCard title={year === "all" ? "By year" : `By month in ${year}`} flush>
         <DataTable stackOnPhone caption="Money in and out by period" rowKey={(b) => b.key}
@@ -158,5 +193,11 @@ export function TaxCenterView({ records, now }: { records: StockroomRecords; now
 }
 
 export function TaxCenterPage({ load = stockroomApi.load }: { load?: () => Promise<StockroomRecords>; onOpen?: unknown; isPage?: unknown }) {
-  return <RecordsGate load={load} what="the Tax centre">{(records) => <TaxCenterView records={records} />}</RecordsGate>;
+  return <RecordsGate load={load} what="the Tax centre">{(records) => <TaxCenterLive initial={records} />}</RecordsGate>;
+}
+
+/** Keeps the records on screen and swaps in the Tax centre as the save returned it (other devices' rows included). */
+function TaxCenterLive({ initial }: { initial: StockroomRecords }) {
+  const [records, setRecords] = useState(initial);
+  return <TaxCenterView records={records} onTaxCenter={(taxCenter) => setRecords((r) => ({ ...r, taxCenter }))} />;
 }
