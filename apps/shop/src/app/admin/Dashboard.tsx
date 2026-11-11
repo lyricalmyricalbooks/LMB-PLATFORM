@@ -920,7 +920,7 @@ export function Dashboard() {
                 busy={ucSaving}
                 disabled={!settings}
                 onSetWall={(on) => { void toggleUnderConstruction(on); }}
-                onOpenSettings={() => { void openSettingsPage("general"); }}
+                onOpenSettings={() => { void openSettingsPage("general").then(() => openSubTab("gs-store", "general")); }}
               />
               <div className="rp-menu-wrap rp-avatar-menu" ref={userMenuRef}
                 onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setUserMenuOpen(false); }}

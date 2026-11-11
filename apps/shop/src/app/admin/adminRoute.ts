@@ -18,7 +18,7 @@ export const SETTINGS_TABS = ["general", "shipping", "payments", "notifications"
 
 /** Sub tabs per page (a Settings page id, or a top-level tab): address slug → the page's own tab id. The first is the default. */
 export const SUB_TABS: Record<string, Array<[slug: string, id: string]>> = {
-  general: [["store", "gs-store"], ["details", "gs-details"], ["visitors", "gs-visitors"], ["tools", "gs-tools"]],
+  general: [["details", "gs-details"], ["store", "gs-store"], ["visitors", "gs-visitors"], ["tools", "gs-tools"]],
   payments: [["status", "pay-status"], ["methods", "pay-methods"], ["more", "pay-more"]],
   notifications: [["templates", "email-templates"], ["setup", "email-setup"], ["deliveries", "email-deliveries"]],
   shipping: [["overview", "overview"], ["profiles", "profiles"], ["carrier", "carrier"], ["local", "local"], ["returns", "returns"]],

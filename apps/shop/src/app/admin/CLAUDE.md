@@ -873,3 +873,9 @@ waiting (`diffDesigns` of the live design against `openWorkspace`'s draft, both 
 (Home, then `getPages` with Live or Draft; a row opens Studio at `heroPage` / `page:<slug>`). Open Studio and View site
 sit by the title. Studio (`settings/designer`, `#designer…`) is on no menu item; its links still open it directly, and
 leaving it returns to `design`. Fixture: `admin-fixture.html?page=design`.
+
+**Settings form card (redesign, 11 November 2026):** `SectionCard bodyClassName="rp-formrows"` lays its TextField /
+TextArea / SelectField children out as rows (label and hint left, control right, hairlines; stacked on phones; CSS in
+`shared/admin-look/pressroom.css`). General opens on **Your press** (`gs-details`, first in `SUB_TABS`, so
+`#settings/general` opens it and the store status tab is `#settings/general/store`): name, email, about, then the
+ship-from address (anchor `gs-location`), then web address, What you sell, policies.
