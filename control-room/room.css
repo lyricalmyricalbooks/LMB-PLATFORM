@@ -449,3 +449,4 @@
 .rp.cl .cr-email-copy summary { cursor: pointer; font-size: 13px; font-weight: 400; color: var(--rp-text-muted); min-height: 24px; }
 .rp.cl .cr-email-text { margin: 8px 0 0; padding: 12px; max-height: 320px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 13px; font-weight: 400; line-height: 1.5; border: 1px solid var(--rp-border); border-radius: 12px; }
 .rp.cl .cr-email-actions { margin-top: 6px; display: flex; justify-content: flex-end; }
+.rp.cl .cr-shop-notes:not(:empty) { margin: 12px 0 0; padding: 10px 14px; border-left: 3px solid var(--rp-border); }
