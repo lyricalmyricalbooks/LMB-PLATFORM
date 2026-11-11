@@ -62,6 +62,8 @@ export async function runReleaseCheck({ shopId, version, registry, auditLog, cli
         const detail = await check.run(ctx);
         results.push({ check: check.number, name: check.name, status: "passed", ms: now().getTime() - began, ...(detail ? { detail } : {}) });
         print(`${check.number}. ${check.name}: passed`);
+        // Admin pages that need fixing (check 6's walk): one line each, so the run's log is the to-do list.
+        for (const line of detail?.adminPagesToFix ?? []) print(`   admin page to fix: ${line}`);
       } catch (error) {
         failed = { check: check.number, error: message(error) };
         results.push({ check: check.number, name: check.name, status: "failed", ms: now().getTime() - began, error: failed.error });

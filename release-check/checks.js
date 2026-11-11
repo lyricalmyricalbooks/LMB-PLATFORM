@@ -3,7 +3,7 @@
 //
 // ctx = { shop, profile, urls: { site, stockroom }, inbox, session, browser, shopData, stockroomData, shopAdmin, wait,
 //         now, state }
-//   browser        release-check/browser.js (pagesLoad, buy, openStockroom, adminShowsOrder)
+//   browser        release-check/browser.js (pagesLoad, buy, openStockroom, adminShowsOrder, walkAdmin)
 //   shopData       order(id) -> order | null; book(id) -> book | null; orderEmails(id) -> [emailLog entry];
 //                  testOrdersBefore(iso) -> [id]; removeOrder(id)
 //   stockroomData  feed(bookId) -> { onHand } | null (websiteStockFeed); websiteOrder(id) -> doc | null (websiteOrders)
@@ -105,6 +105,9 @@ export const CHECKS = [
       if (!(await ctx.browser.adminShowsOrder({ siteUrl: ctx.urls.site, session: ctx.session, orderId: ctx.state.orderId }))) {
         throw new Error("the admin didn't list the new order for the test owner");
       }
+      // The walk through every admin page is reported, never a reason to stop a release: it is the list of what to fix.
+      const { problems } = await ctx.browser.walkAdmin({ siteUrl: ctx.urls.site, session: ctx.session });
+      return problems.length ? { adminPagesToFix: problems } : { adminPagesToFix: [] };
     },
   },
   {

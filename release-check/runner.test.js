@@ -128,3 +128,12 @@ test("the inbox address is required", async () => {
   const { registry, auditLog, shop } = await setup();
   await assert.rejects(runReleaseCheck({ shopId: ID, registry, auditLog, clients: shop.clients, inbox: "" }), /test inbox/);
 });
+
+test("the walk through every admin page lists what is broken without stopping the release", async () => {
+  const healthy = await (await setup()).run();
+  assert.deepEqual(healthy.results[5].detail.adminPagesToFix, []);
+  const { run } = await setup({ faults: ["admin-pages-broken"] });
+  const result = await run();
+  assert.equal(result.ok, true, "a broken admin page is reported, not a reason to stop");
+  assert.deepEqual(result.results[5].detail.adminPagesToFix, ["#settings/google on a laptop: shows an error"]);
+});

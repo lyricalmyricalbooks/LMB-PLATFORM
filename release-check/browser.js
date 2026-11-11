@@ -31,6 +31,14 @@ export function seedAuthInPage({ db, key, value }) {
   });
 }
 
+/** Every admin page, as the address after # (riso/nav.ts, combined.ts). */
+export const ADMIN_PAGES = Object.freeze([
+  "overview", "orders", "sales", "customers", "messages", "catalog", "reviews", "channels", "discounts", "giftCards", "socialPosts",
+  "inventory", "settings/general", "settings/shipping", "settings/payments", "settings/taxes", "settings/notifications",
+  "settings/google", "settings/apps", "settings/team", "settings/security", "settings/plan", "settings/billing",
+  "stockroom/todo", "stockroom/dashboard", "stockroom/history", "stockroom/pos", "stockroom/taxcenter", "stockroom/sheets",
+]);
+
 export async function playwrightBrowser({ chromium, launchOptions = {}, timeoutMs = 30_000 }) {
   const browser = await chromium.launch(launchOptions);
   // en-CA: checkout guesses Canada, which the test shop's one shipping zone covers.
@@ -167,6 +175,48 @@ export async function playwrightBrowser({ chromium, launchOptions = {}, timeoutM
       } finally {
         await page.close();
       }
+    },
+
+    /**
+     * Opens every admin page as the test owner, on a laptop and on a phone, and lists what is wrong: a page crash,
+     * the error panel, a page that stays empty or won't finish loading, a page that scrolls sideways on a phone.
+     * Words are never matched (Studio edits them), only structure. Reads only; nothing is clicked or saved.
+     */
+    async walkAdmin({ siteUrl, session, pages = ADMIN_PAGES }) {
+      const problems = [];
+      for (const [size, viewport] of [["laptop", { width: 1366, height: 860 }], ["phone", { width: 390, height: 844 }]]) {
+        const page = await newPage();
+        try {
+          await page.setViewportSize(viewport);
+          await signIn(page, `${siteUrl}/admin#overview`, session);
+          for (const hash of pages) {
+            const before = crashes.length;
+            const failed = [];
+            try {
+              await page.evaluate((h) => { window.location.hash = h; }, hash);
+              await page.waitForSelector("main, .admin-reso", { timeout: 20_000 });
+              await page.waitForTimeout(2500);
+              const state = await page.evaluate(() => ({
+                text: document.body.innerText.length,
+                sideways: document.documentElement.scrollWidth > window.innerWidth + 1,
+                errorPanel: document.querySelectorAll("[data-store-region='errorPanel'], [role=alert]").length,
+                loading: /Loading|Reading your|Counting/i.test((document.querySelector("main") || document.body).innerText),
+              }));
+              if (state.text < 80) failed.push("stays empty");
+              if (state.errorPanel) failed.push("shows an error");
+              if (state.loading) failed.push("is still loading after a few seconds");
+              if (size === "phone" && state.sideways) failed.push("scrolls sideways");
+            } catch (error) {
+              failed.push(`didn't open (${String(error.message).split("\n")[0]})`);
+            }
+            if (crashes.length > before) failed.push(`threw: ${crashes.slice(before).join("; ")}`);
+            for (const what of failed) problems.push(`#${hash} on a ${size}: ${what}`);
+          }
+        } finally {
+          await page.close();
+        }
+      }
+      return { problems };
     },
 
     async close() {
