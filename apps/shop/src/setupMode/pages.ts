@@ -7,7 +7,9 @@ import type { SetupPress } from "./door";
 
 export const PLAN_PAGE = SETTINGS_ITEM_PREFIX + "plan";
 export const GENERAL_PAGE = SETTINGS_ITEM_PREFIX + "general";
-export const DESIGN_PAGE = SETTINGS_ITEM_PREFIX + "designer";
+/** Design (the menu's Design item): in setup, the look gallery. The older `#settings/designer` address opens it too. */
+export const DESIGN_PAGE = "design";
+const OLD_DESIGN_PAGE = SETTINGS_ITEM_PREFIX + "designer";
 /** Settings › Payments: in setup, the choice of Stripe or Square for the website's card payments. */
 export const PAYMENTS_PAGE = SETTINGS_ITEM_PREFIX + "payments";
 export const HELP_PAGE = "help";
@@ -150,6 +152,7 @@ export function pageFromHash(hash: string, menu: NavEntry[] = setupMenu()): stri
   let page: string;
   try { page = decodeURIComponent(hash.replace(/^#/, "").split("?")[0]); } catch { return null; }
   if (!page) return HOME_PAGE;
+  if (page === OLD_DESIGN_PAGE) return DESIGN_PAGE;
   const known = !!EXTRA_PAGES[page] || menu.some((item) => item.id === page || item.children?.some((c) => c.id === page));
   return known ? page : null;
 }

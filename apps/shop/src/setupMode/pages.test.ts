@@ -22,6 +22,9 @@ describe("setup mode's menu (code plan 18.6)", () => {
 
   it("opens Home, Design, General, Plan and Help, and locks every other page", () => {
     for (const page of [HOME_PAGE, DESIGN_PAGE, GENERAL_PAGE, PLAN_PAGE, HELP_PAGE, "catalog"]) expect(setupLocked(page)).toBe(false);
+    // The menu's Design item is the look gallery, and the older address still opens it.
+    expect(setupMenu().some((i) => i.id === DESIGN_PAGE)).toBe(true);
+    expect(pageFromHash("#settings/designer")).toBe(DESIGN_PAGE);
     const every = menu.flatMap((i) => (i.children ? i.children.map((c) => c.id) : [i.id]));
     const locked = every.filter(setupLocked);
     expect(locked).toEqual(expect.arrayContaining(["orders", "customers", "inventory", SETTINGS_ITEM_PREFIX + "shipping"]));
