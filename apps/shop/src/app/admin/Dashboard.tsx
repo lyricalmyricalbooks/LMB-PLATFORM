@@ -53,7 +53,7 @@ import { SideSwitch, rememberSide, rememberedSide } from "./SideSwitch";
 import { useStockroomTodos } from "./overview/StockroomTodos";
 import { COMBINED_PAGES, DEFAULT_STOCKROOM_PAGE, REORDER_TAB, SALES_TAB, isCombinedTab, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
 import { AllSales } from "./AllSales";
-import { ReorderList } from "./ReorderList";
+import { ReorderList } from "./ReorderPanel";
 import { keepAdminOffline } from "./adminOffline";
 import { CombinedTour, CombinedTourInvite, markTourSeen, tourSeen, type TourStop } from "./CombinedTour";
 import { markTourSeenOnAccount, tourSeenOnAccount } from "./combinedTourStore";
