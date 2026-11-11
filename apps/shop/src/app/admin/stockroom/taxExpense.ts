@@ -49,12 +49,18 @@ export function isDuplicate(taxCenter: Row | null, form: ExpenseForm, amount: nu
 }
 
 /** The Tax centre with the new expense first in its list (and, when `confirmedNote` is given, that pending note cleared). `id` keeps a second tap or a retry from adding it twice. */
-export function addBusinessExpense(taxCenter: Row | null, form: ExpenseForm, amount: number, id: number, now: Date = new Date(), confirmedNote?: string | number): Row {
+/**
+ * `rates` holds the rate for the expense's own date when the page looked it up first (taxRates.ts expenseRatesFor:
+ * `CUR@YYYY-MM-DD`, 0 when none could be found, so the expense is saved as missing a value and filled in later).
+ * Without one, the Tax centre's saved daily rate is used.
+ */
+export function addBusinessExpense(taxCenter: Row | null, form: ExpenseForm, amount: number, id: number, now: Date = new Date(), confirmedNote?: string | number, rates?: Record<string, number>): Row {
   const tc: Row = taxCenter && typeof taxCenter === "object" ? taxCenter : {};
   const base = baseCurrencyOf(tc);
   const list: Row[] = Array.isArray(tc.businessExpenses) ? tc.businessExpenses : [];
   if (list.some((e) => e.id === id)) return tc;
-  const rate = savedRate(tc, form.currency, base);
+  const looked = form.currency === base ? undefined : rates?.[`${form.currency}@${form.date}`];
+  const rate = looked === undefined ? savedRate(tc, form.currency, base) : looked > 0 ? looked : null;
   const row: Row = {
     id, desc: form.desc.trim(), vendor: "", cat: form.cat, currency: form.currency, amount: cents(amount),
     origCurrency: form.currency, origAmount: cents(amount), fxRate: rate, baseAmount: rate ? cents(amount * rate) : null,

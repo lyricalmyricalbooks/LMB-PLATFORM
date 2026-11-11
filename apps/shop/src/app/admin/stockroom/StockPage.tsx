@@ -1,11 +1,17 @@
 // Stockroom › Stock and sales, drawn by the admin itself (no frame): each item's copies on hand, what sold where, and where
 // the rest are. Read-only. Every figure is worked out by the stockroom's own rules (stock.ts); this file only draws it.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Column, DataTable, EmptyState, ErrorState, FilterBar, GhostButton, LoadingState, MetricCard, SearchField, SectionCard, StatusBadge, type BadgeTone } from "../riso/components";
-import { useShopWords } from "../shopWords";
+import { useShopSells, useShopWords } from "../shopWords";
 import { isRefusal, stockroomApi, type StockroomRecords } from "./stockroomData";
 import "./stock.css";
+import { WebsiteOrdersCard } from "./WebsiteOrders";
+import { PlacesCard } from "./PlacesCard";
+import { EditDetailsButton } from "./EditDetailsButton";
+import { AuthorCopiesCard } from "./AuthorCopiesCard";
+import { AuthorMoneyCard } from "./AuthorMoneyCard";
+import { hasPublisherTools } from "../../../shared/shopSells";
 import { catalogueStock, money, searchItems, totalsOf, type ChannelRow, type ItemStock, type StockLevel, type StoreRow } from "./stock";
 
 const LEVEL: Record<StockLevel, { tone: BadgeTone; word: string }> = {
@@ -24,7 +30,7 @@ function RevenueLine({ totals }: { totals: ReturnType<typeof totalsOf> }) {
 }
 
 /** One item: its shelf, where every copy is, sales by channel and each store. */
-export function StockDetail({ item, onBack }: { item: ItemStock; onBack?: () => void }) {
+export function StockDetail({ item, onBack, places, edit }: { item: ItemStock; onBack?: () => void; places?: React.ReactNode; edit?: React.ReactNode }) {
   const w = useShopWords();
   const channels: Column<ChannelRow>[] = [
     { key: "chan", header: "Channel", lead: true, render: (r) => r.chan || "Other" },
@@ -50,6 +56,7 @@ export function StockDetail({ item, onBack }: { item: ItemStock; onBack?: () => 
         <h2 className="rp-stock-name">{item.title}</h2>
         {item.author && <span className="rp-stock-by">{item.author}</span>}
         <LevelBadge level={item.level} />
+        {edit}
       </div>
       <div className="rp-stock-metrics">
         <MetricCard label="On hand" value={count(item.onHand)} footer={item.hasPrintRun ? `of ${count(item.printed)} ${w("printed")}` : w("No print run set")} tone={item.level === "soldout" ? "danger" : item.level === "low" ? "warn" : undefined} />
@@ -66,6 +73,7 @@ export function StockDetail({ item, onBack }: { item: ItemStock; onBack?: () => 
           {where.map(([label, n]) => <div key={label}><dt>{label}</dt><dd>{count(n)}</dd></div>)}
         </dl>
       </SectionCard>
+      {places}
       <SectionCard title="Sold by channel" flush>
         <DataTable columns={channels} rows={item.channels} rowKey={(r) => r.chan} caption={`${item.title}: sales by channel`} stackOnPhone
           empty={<EmptyState inline icon="🛒" title="Nothing sold yet" description="Sales show up here by channel as they are recorded." />} />
@@ -126,11 +134,23 @@ export function StockPage({ bookId, load = stockroomApi.load }: { bookId?: strin
   }, [load]);
   useEffect(read, [read]);
   const items = useMemo(() => (records ? catalogueStock(records) : []), [records]);
+  const publisher = hasPublisherTools(useShopSells());
   // The stockroom's records are open to the shop's owner only: a team member is told so, with nothing to retry.
   if (failed === "refused") return <EmptyState icon="🔒" title="Only the owner can see stock and sales" description="The stockroom's records are kept for the shop's owner. Ask them if you need a figure from here." />;
   if (failed) return <ErrorState title="Stock and sales didn't load" description="Check your connection, then try again." onRetry={read} />;
   if (!records) return <LoadingState label={w("Loading your books…")} />;
   const item = picked ? items.find((i) => i.id === picked) : undefined;
-  if (item) return <StockDetail item={item} onBack={() => setPicked(null)} />;
-  return <StockList records={records} onPick={setPicked} />;
+  if (item) {
+    const book = (records.books.find((b) => b.id === item.id) || null) as Record<string, any> | null;
+    const state = { hist: [], ...(records.states[item.id] || {}) };
+    return <StockDetail item={item} onBack={() => setPicked(null)} edit={book ? <EditDetailsButton id={item.id} book={book} onSaved={read} /> : undefined} places={<>
+      <PlacesCard bookId={item.id} book={book} state={state} onSaved={read} />
+      {(publisher || item.authorHeld > 0) && <AuthorCopiesCard bookId={item.id} book={book} state={state} onSaved={read} />}
+      {(publisher || ((state as Record<string, any>).artistPayouts || []).length > 0) && <AuthorMoneyCard bookId={item.id} book={book} state={state} onSaved={read} />}
+    </>} />;
+  }
+  const currency = String((records.books[0] as Record<string, any> | undefined)?.currency || "CAD");
+  return <div className="rp-stock"><WebsiteOrdersCard />
+    <div className="rp-stock-add"><EditDetailsButton book={{ currency, maxPrint: 100, listPrice: 40, threshold: 10, productionCost: 0 }} onSaved={read} /></div>
+    <StockList records={records} onPick={setPicked} /></div>;
 }

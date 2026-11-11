@@ -1,6 +1,7 @@
 // Stockroom › Stockists, drawn by the admin itself (no frame): the shops holding your copies on consignment, what each
-// owes, which invoices are overdue, and a drawer with one stockist's titles, invoices and ledger. One write so far:
-// Mark paid on an invoice (saved through stockroomWrite.ts, WRITING.md), with an optional emailed receipt.
+// owes, which invoices are overdue, and a drawer with one stockist's titles, invoices and ledger. Writes (through
+// stockroomWrite.ts, WRITING.md): Mark paid on an invoice, with an optional emailed receipt, and the Invoices card
+// (InvoiceDialogs.tsx): make, edit, send, delete and print invoices, and the invoice details they print with.
 import { useMemo, useState } from "react";
 import { LEDGER_TYPE_FILTERS } from "@stockroom/consignment-ledger-filter.js";
 import { fmt, fmtD } from "@stockroom/money.js";
@@ -8,11 +9,18 @@ import { fmt, fmtD } from "@stockroom/money.js";
 import { Checkbox, DataTable, Dialog, Drawer, EmptyState, InkButton, SecondaryButton, StatusBadge, type BadgeTone, type Column } from "../riso/components";
 import { useShopWords } from "../shopWords";
 import type { NativePageProps } from "./nativePages";
+import { InvoicesCard } from "./InvoiceDialogs";
+import { StockistMoveDialog, type MoveKind } from "./StockistMoveDialog";
+import { StockistDetailsDialog } from "./StockistDetailsDialog";
+import { stockistLedgerRows, storeIn } from "./stockistMoves";
+import { toCsv } from "@stockroom/csv.js";
+import { downloadCsv } from "@stockroom/download.js";
 import { RecordsGate } from "./RecordsGate";
 import type { StockroomRecords } from "./stockroomData";
 import { stockistReceiptApi } from "./stockistReceipt";
 import { describeResult, stockroomWriteApi } from "./stockroomWrite";
 import { buildStockists, markInvoicePaid, moneyText, type Stockist, type StockistInvoice, type StockistLedgerRow, type StockistsView } from "./stockists";
+import "./money.css";
 import "./stockroom.css";
 import "./stockists.css";
 
@@ -76,7 +84,7 @@ function Ledger({ rows }: { rows: StockistLedgerRow[] }) {
   );
 }
 
-function Detail({ s, onPay, notice }: { s: Stockist; onPay?: (i: StockistInvoice) => void; notice?: Notice | null }) {
+function Detail({ s, onPay, notice, onNewInvoice, onMove, onEdit }: { s: Stockist; onPay?: (i: StockistInvoice) => void; notice?: Notice | null; onNewInvoice?: () => void; onMove?: (bookId: string, kind: MoveKind) => void; onEdit?: () => void }) {
   const w = useShopWords();
   const contact = [s.contact, s.email, s.phone, s.website].filter(Boolean);
   return (
@@ -84,6 +92,7 @@ function Detail({ s, onPay, notice }: { s: Stockist; onPay?: (i: StockistInvoice
       <p className="rp-sk-meta">{[where(s), `${s.rate}% commission`, s.terms].filter(Boolean).join(" · ")}</p>
       {contact.length > 0 && <p className="rp-sk-meta">{contact.join(" · ")}</p>}
       {s.notes && <p className="rp-sk-meta">{s.notes}</p>}
+      {onEdit && <p className="rp-sk-moves"><SecondaryButton size="sm" onClick={onEdit}>Edit details</SecondaryButton></p>}
       {(s.mismatch || s.owedMismatch) && (
         <p className="rp-sk-alert" role="status">{w("The running totals saved for this stockist don't match what the ledger adds up to. The ledger is the one to trust; the balance below shows which figure differs.")}</p>
       )}
@@ -93,15 +102,20 @@ function Detail({ s, onPay, notice }: { s: Stockist; onPay?: (i: StockistInvoice
           <li key={t.bookId} className="rp-sk-row">
             <div className="rp-sk-row-main"><strong>{t.bookTitle}</strong><span className="rp-sk-meta">Sent {t.sent} · sold {t.sold} · returned {t.returned} · on their shelf {t.onShelf}</span>
               {t.mismatch && <span className="rp-sk-meta rp-sk-warn">{t.figures.filter((f) => f.off).map((f) => `${f.label}: card ${f.card}, ledger ${f.ledger}`).join(" · ")}</span>}</div>
-            <div className="rp-sk-row-end"><span className="rp-sk-amount">{t.owed > 0 ? fmt(t.owed, t.code) : "—"}</span></div>
+            <div className="rp-sk-row-end"><span className="rp-sk-amount">{t.owed > 0 ? fmt(t.owed, t.code) : "—"}</span>
+              {onMove && <span className="rp-sk-moves">
+                <SecondaryButton size="sm" onClick={() => onMove(t.bookId, "send")}>Send</SecondaryButton>
+                <SecondaryButton size="sm" disabled={!t.onShelf} onClick={() => onMove(t.bookId, "sale")}>Sale</SecondaryButton>
+                <SecondaryButton size="sm" disabled={!t.onShelf} onClick={() => onMove(t.bookId, "return")}>Return</SecondaryButton>
+              </span>}</div>
           </li>
         ))}
       </ul>
       {s.paid.length > 0 && <p className="rp-sk-meta">Already paid: {moneyText(s.paid)}</p>}
-      <h3 className="rp-sk-h">Invoices</h3>
+      <div className="rp-inv-head"><h3 className="rp-sk-h">Invoices</h3>{onNewInvoice && <SecondaryButton size="sm" onClick={onNewInvoice}>New invoice</SecondaryButton>}</div>
       {notice && <NoticeLine notice={notice} />}
       <InvoiceRows invoices={s.invoices} onPay={onPay} />
-      <h3 className="rp-sk-h">Ledger</h3>
+      <div className="rp-inv-head"><h3 className="rp-sk-h">Ledger</h3>{s.ledger.length > 0 && <SecondaryButton size="sm" onClick={() => downloadCsv(toCsv(stockistLedgerRows(s.name, s.ledger)), `consignment-ledger-${s.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${new Date().toLocaleDateString("en-CA")}.csv`)}>Download spreadsheet</SecondaryButton>}</div>
       {s.ledger.length ? <Ledger rows={s.ledger} /> : <p className="rp-sk-none">Nothing in the ledger for this stockist yet.</p>}
     </div>
   );
@@ -169,11 +183,15 @@ function PayDialog({ s, inv, onClose, onSaved }: {
   );
 }
 
-export function StockistsList({ view, onSaved }: { view: StockistsView; onSaved?: (bookId: string, state: Record<string, any>) => void }) {
+export function StockistsList({ view, onSaved, onNewInvoice, books, states }: { view: StockistsView; onSaved?: (bookId: string, state: Record<string, any>) => void; onNewInvoice?: (stockist: string) => void; books?: Record<string, any>[]; states?: Record<string, any> }) {
   const w = useShopWords();
   const [open, setOpen] = useState<string | null>(null);
   const [paying, setPaying] = useState<StockistInvoice | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [move, setMove] = useState<{ bookId: string; kind: MoveKind } | null>(null);
+  const [details, setDetails] = useState<"add" | "edit" | null>(null);
+  const canWrite = !!(onSaved && books && books.length);
+  const moveBook = move && books ? books.find((b) => b.id === move.bookId) : undefined;
   const current = view.stockists.find((s) => s.key === open) || null;
   // Only states that ask for something get a chip; settled and holding shops read plainly, as in the mockup.
   const flagged = (s: Stockist) => s.state === "overdue" || s.state === "mismatch" || s.state === "owes";
@@ -189,24 +207,46 @@ export function StockistsList({ view, onSaved }: { view: StockistsView; onSaved?
   ];
   return (
     <div className="rp-sk">
+      {canWrite && <div className="rp-stock-add"><SecondaryButton onClick={() => { setNotice(null); setDetails("add"); }}>Add a stockist</SecondaryButton></div>}
       {view.stockists.length ? (
         <section className="rp-card rp-reorder-card" aria-labelledby="rp-sk-title">
           <h2 className="rp-card-title" id="rp-sk-title">Stockists</h2>
           <DataTable caption="Stockists" columns={columns} rows={view.stockists} rowKey={(s) => s.key} stackOnPhone onRowClick={(s) => setOpen(s.key)} />
         </section>
-      ) : <EmptyState inline icon="🏪" title="No stockists yet" description={w("Shops that hold your books on consignment appear here, with what they owe you. Add them in the stockroom's consignment records.")} />}
+      ) : <EmptyState inline icon="🏪" title="No stockists yet" description={w("Shops that hold your books on consignment appear here, with what they owe you. Add one with Add a stockist.")} />}
       {view.overdueCount > 0 && (
         <p className="rp-sr-status" role="status">{view.overdueCount === 1 ? "1 invoice is" : `${view.overdueCount} invoices are`} overdue: {moneyText(view.overdueTotals)}.</p>
       )}
-      <Drawer open={!!current} onClose={() => { setOpen(null); setNotice(null); }} title={current?.name || ""} description={onSaved ? "Mark invoices paid here. Sending copies and recording sales come next." : "Read-only."}>
-        {current && <Detail s={current} notice={notice} onPay={onSaved ? (i) => { setNotice(null); setPaying(i); } : undefined} />}
+      <Drawer open={!!current} onClose={() => { setOpen(null); setNotice(null); }} title={current?.name || ""} description={onSaved ? "Bill them, or mark their invoices paid." : "Read-only."}>
+        {current && <Detail s={current} notice={notice} onPay={onSaved ? (i) => { setNotice(null); setPaying(i); } : undefined}
+          onMove={onSaved && books ? (bookId, kind) => { setNotice(null); setMove({ bookId, kind }); } : undefined}
+          onEdit={canWrite && current.titles.length ? () => { setNotice(null); setDetails("edit"); } : undefined}
+          onNewInvoice={onSaved && onNewInvoice ? () => { const name = current.name; setOpen(null); setNotice(null); onNewInvoice(name); } : undefined} />}
       </Drawer>
+      {current && move && moveBook && onSaved && (
+        <StockistMoveDialog kind={move.kind} shop={current.name} rate={current.rate} bookId={move.bookId} book={moveBook} onClose={() => setMove(null)}
+          onSaved={(bookId, state, text) => { onSaved(bookId, state); setNotice({ tone: "ok", lines: [text] }); setMove(null); }} />
+      )}
+      {details && onSaved && books && (details === "add" || current) && (
+        <StockistDetailsDialog books={books} shop={details === "edit" ? current!.name : undefined}
+          bookIds={details === "edit" ? current!.titles.map((t) => t.bookId) : undefined}
+          store={details === "edit" ? firstStore(states, current!) : null}
+          onClose={() => setDetails(null)} onBookSaved={onSaved}
+          onDone={(text) => { if (details === "edit") setOpen(null); setDetails(null); setNotice({ tone: "ok", lines: [text] }); }} />
+      )}
+      {!current && notice && <NoticeLine notice={notice} />}
       {current && paying && onSaved && (
         <PayDialog s={current} inv={paying} onClose={() => setPaying(null)}
           onSaved={(bookId, state, n) => { onSaved(bookId, state); setNotice(n); setPaying(null); }} />
       )}
     </div>
   );
+}
+
+/** The shop's own record in its first title, for the Edit details form (it holds the street address and postal code). */
+function firstStore(states: Record<string, any> | undefined, s: Stockist) {
+  const st = states?.[s.titles[0]?.bookId];
+  try { return st ? storeIn(st, s.name) : null; } catch { return null; }
 }
 
 export function StockistsPage({ load }: Partial<NativePageProps> & { load?: () => Promise<StockroomRecords> }) {
@@ -216,6 +256,14 @@ export function StockistsPage({ load }: Partial<NativePageProps> & { load?: () =
 /** Keeps the records on screen and swaps in a book's saved state (other devices' rows included, WRITING.md rule 5). */
 function StockistsBoard({ initial }: { initial: StockroomRecords }) {
   const [records, setRecords] = useState(initial);
+  const [newFor, setNewFor] = useState<string | null>(null);
   const view = useMemo(() => buildStockists(records), [records]);
-  return <StockistsList view={view} onSaved={(bookId, state) => setRecords((r) => ({ ...r, states: { ...r.states, [bookId]: state } }))} />;
+  const saved = (bookId: string, state: Record<string, any>) => setRecords((r) => ({ ...r, states: { ...r.states, [bookId]: state } }));
+  return (
+    <div className="rp-sk">
+      <StockistsList view={view} onSaved={saved} onNewInvoice={setNewFor} books={records.books as Record<string, any>[]} states={records.states as Record<string, any>} />
+      <InvoicesCard records={records} onBookSaved={saved} onSettingsSaved={(value) => setRecords((r) => ({ ...r, invoiceSettings: value }))}
+        newFor={newFor} onNewDone={() => setNewFor(null)} />
+    </div>
+  );
 }

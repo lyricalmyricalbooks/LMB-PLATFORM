@@ -47,7 +47,13 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-save --no-audit --no-fund playwright@1.63.0
-      - run: npx playwright install --with-deps chromium
+      - run: |
+          npx playwright install chromium
+          # System packages only when Chromium is missing a library: the runner image has them, and Ubuntu's
+          # package servers are sometimes unreachable from GitHub (11 November 2026), which failed every browser job.
+          if find ~/.cache/ms-playwright -type f \( -name chrome -o -name chrome-headless-shell \) -exec ldd {} \; | grep -q "not found"; then
+            timeout 600 npx playwright install-deps chromium
+          fi
       - run: node release-check/local-proof.js
 
   # The walkthrough (plan 9.11) in a real browser: the start page, then every walkthrough page on it as the person it
@@ -63,7 +69,13 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-save --no-audit --no-fund playwright@1.63.0
-      - run: npx playwright install --with-deps chromium
+      - run: |
+          npx playwright install chromium
+          # System packages only when Chromium is missing a library: the runner image has them, and Ubuntu's
+          # package servers are sometimes unreachable from GitHub (11 November 2026), which failed every browser job.
+          if find ~/.cache/ms-playwright -type f \( -name chrome -o -name chrome-headless-shell \) -exec ldd {} \; | grep -q "not found"; then
+            timeout 600 npx playwright install-deps chromium
+          fi
       # Setup mode (code plan 18.6) is the shop's admin before the shop exists; the front door check opens it at /app/.
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
@@ -132,7 +144,13 @@ jobs:
           cache: pnpm
           cache-dependency-path: apps/shop/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
+      - run: |
+          pnpm exec playwright install chromium
+          # System packages only when Chromium is missing a library: the runner image has them, and Ubuntu's
+          # package servers are sometimes unreachable from GitHub (11 November 2026), which failed every browser job.
+          if find ~/.cache/ms-playwright -type f \( -name chrome -o -name chrome-headless-shell \) -exec ldd {} \; | grep -q "not found"; then
+            timeout 600 pnpm exec playwright install-deps chromium
+          fi
       - run: pnpm run test:a11y
         env:
           A11Y_SHARD: ${{ matrix.shard }}/3
@@ -161,7 +179,13 @@ jobs:
           cache: pnpm
           cache-dependency-path: apps/shop/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
+      - run: |
+          pnpm exec playwright install chromium
+          # System packages only when Chromium is missing a library: the runner image has them, and Ubuntu's
+          # package servers are sometimes unreachable from GitHub (11 November 2026), which failed every browser job.
+          if find ~/.cache/ms-playwright -type f \( -name chrome -o -name chrome-headless-shell \) -exec ldd {} \; | grep -q "not found"; then
+            timeout 600 pnpm exec playwright install-deps chromium
+          fi
       - run: pnpm run test:admin-phone
       # Plan 23.29: a whole move from an old shop, clicked through in the real admin (scripts/move-check.mjs).
       - run: pnpm run test:move
@@ -186,7 +210,13 @@ jobs:
           cache: pnpm
           cache-dependency-path: apps/shop/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
+      - run: |
+          pnpm exec playwright install chromium
+          # System packages only when Chromium is missing a library: the runner image has them, and Ubuntu's
+          # package servers are sometimes unreachable from GitHub (11 November 2026), which failed every browser job.
+          if find ~/.cache/ms-playwright -type f \( -name chrome -o -name chrome-headless-shell \) -exec ldd {} \; | grep -q "not found"; then
+            timeout 600 pnpm exec playwright install-deps chromium
+          fi
       - run: pnpm run test:speed
 
   # Plan 13.11: every stockroom screen at phone width in a real browser (no sideways scroll, bottom bar big enough to
@@ -206,7 +236,13 @@ jobs:
           cache: npm
           cache-dependency-path: apps/stockroom/package-lock.json
       - run: npm ci
-      - run: npx playwright-core install --with-deps chromium
+      - run: |
+          npx playwright-core install chromium
+          # System packages only when Chromium is missing a library: the runner image has them, and Ubuntu's
+          # package servers are sometimes unreachable from GitHub (11 November 2026), which failed every browser job.
+          if find ~/.cache/ms-playwright -type f \( -name chrome -o -name chrome-headless-shell \) -exec ldd {} \; | grep -q "not found"; then
+            timeout 600 npx playwright-core install-deps chromium
+          fi
       - run: npm run e2e:phone
       - run: npm run e2e
 

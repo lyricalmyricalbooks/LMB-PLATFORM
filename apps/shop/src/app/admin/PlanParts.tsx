@@ -2,44 +2,16 @@ import { LogOut } from "lucide-react";
 import { adminApi } from "./api";
 import { BackupsExportCard } from "./BackupsExportCard";
 import { DownloadShopCard } from "./DownloadShopCard";
-import { bannerPage, hubReady, planBanner, planFacts, type PlatformPlan } from "./platformPlan";
+import { hubReady, planFacts, type PlatformPlan } from "./platformPlan";
+import { BillingLink, PlanBannerBar } from "./PlanBanner";
 import { BillingPage, HubNotReady, PlanPage } from "./BillingHub";
 import { usePlatformPlan } from "./platformPlanApi";
 import { EmptyState, ErrorState, LoadingState, PageHeader, SecondaryButton, SectionCard, StatusBadge } from "./riso/components";
 
-// The shop's plan in the admin (code plan 6.6, 6.7): the banner over every page, Settings › Plan, Settings › Billing and
+// The shop's plan in the admin (code plan 6.6, 6.7; the banner over every page is PlanBanner.tsx): Settings › Plan, Settings › Billing and
 // the locked desk a paused or closed plan opens on. Since 22.3 the plan and the bills are managed right here
 // (BillingHub.tsx), the way Shopify keeps them in Settings › Plan and Settings › Billing; a plan document from before
 // that (no `hub`) still links to the platform's Plan & billing page. Admin-only words.
-
-const TONE_GLYPH = { info: "i", warning: "!", danger: "!" } as const;
-
-/** A link styled as a button, to the platform's Plan & billing page. */
-function BillingLink({ plan, label, primary }: { plan: PlatformPlan; label: string; primary?: boolean }) {
-  if (!plan.link) return null;
-  return <a className={`rp-btn ${primary ? "rp-btn-primary" : "rp-btn-secondary"} rp-btn-sm`} href={plan.link} data-plan-link="">{label}</a>;
-}
-
-/** The trial, payment-problem, ending, paused or closed banner; nothing for an active plan or a shop with no plan. */
-export function PlanBannerBar({ plan, now }: { plan: PlatformPlan | null | undefined; now?: number }) {
-  const banner = planBanner(plan ?? null, now);
-  if (!plan || !banner) return null;
-  return (
-    <div role="status" className="rp-alert" data-tone={banner.tone === "info" ? undefined : banner.tone} data-plan-banner={plan.state}>
-      <span className="rp-alert-glyph" aria-hidden="true">{TONE_GLYPH[banner.tone]}</span>
-      <div className="rp-alert-text">
-        <span className="rp-alert-kicker">{banner.kicker}</span>
-        <strong className="rp-alert-title">{banner.title}</strong>
-        <span className="rp-alert-detail">{banner.detail}</span>
-      </div>
-      <div className="rp-alert-actions">
-        {hubReady(plan)
-          ? <a className="rp-btn rp-btn-primary rp-btn-sm" href={`#settings/${bannerPage(banner)}`} data-plan-link="">{banner.action}</a>
-          : <BillingLink plan={plan} label={banner.action} primary />}
-      </div>
-    </div>
-  );
-}
 
 const STATE_BADGE = {
   trial: { tone: "info", word: "Free trial" },

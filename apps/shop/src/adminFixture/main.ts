@@ -222,13 +222,66 @@ if (/page=stockroom(\/|%2F)pos/.test(window.location.search) && !EMPTY_STOCKROOM
     if (EMPTY_STOCKROOM) return base();
     const records = await base();
     const fresh = await loadStockroom((await ready()).device());
-    return { ...records, states: { ...records.states, ...fresh.states } };
+    return { ...records, states: { ...records.states, ...fresh.states }, invoiceSettings: fresh.invoiceSettings ?? records.invoiceSettings ?? null };
   };
   const writer = async () => createStockroomWriter((await ready()).device({ offline }));
   stockroomWriteApi.saveBookState = async (bookId, mutate) => (await writer()).saveBookState(bookId, mutate);
   stockroomWriteApi.commitBookState = async (pending) => createStockroomWriter((await ready()).device()).commitBookState(pending);
   stockroomWriteApi.updateSetting = async (key, mutate) => (await writer()).updateSetting(key, mutate);
   stockroomWriteApi.saveSetting = async (key, value, opts) => (await writer()).saveSetting(key, value, opts);
+
+  // Exchange rates: no rate services are asked from the fixture. A logged expense in another currency takes 1.4, and
+  // the Tax centre's background refresh finds nothing to do.
+  const { taxRatesApi } = await import("../app/admin/stockroom/taxRates");
+  taxRatesApi.expenseRatesFor = async (items) => Object.fromEntries(items.map((i) => [`${i.currency.toUpperCase()}@${i.date}`, 1.4]));
+  taxRatesApi.refreshTaxRates = async () => null;
+
+  // Website orders (Stock and sales › Website orders): the website's inbox in memory, with one paid order for the
+  // first book, brought in through the same write layer. `window.__websiteLink` is the inbox, for checks.
+  const { websiteLinkApi } = await import("../app/admin/stockroom/WebsiteOrders");
+  const { MemoryWebsiteLink } = await import("../app/admin/stockroom/websiteLinkMemory");
+  const { loadLinkBooks } = await import("../app/admin/stockroom/stockroomData");
+  const { onStockroomSaved } = await import("../app/admin/stockroom/stockroomWrite");
+  websiteLinkApi.deps = () => {
+    let link: InstanceType<typeof MemoryWebsiteLink> | null = null;
+    const linked = async () => {
+      if (link) return link;
+      const mem = await ready();
+      link = new MemoryWebsiteLink(mem);
+      (window as unknown as { __websiteLink?: unknown }).__websiteLink = link;
+      const first = [...mem.parts.keys()][0];
+      if (first) link.push({
+        v: 1, orderId: "WEB-2001", number: "#2001", hash: "f1", test: false, paidAt: new Date().toISOString(), paidDay: new Date().toISOString().slice(0, 10),
+        paymentMethod: "Stripe", paymentStatus: "paid", refundState: "none", refund: null,
+        totals: { subtotal: 20, discount: 0, discountCode: "", shipping: 8, tax: 0, total: 28, giftCard: 0 }, charged: { currency: "CAD", amountMinor: 2800 },
+        customer: { name: "Sam Reader", email: "sam@example.com", phone: "", address: { city: "Toronto", state: "ON", country: "CA" } },
+        fulfillment: { method: "shipping", status: "paid", trackingNumber: "", trackingCarrier: "", trackingUrl: "", shippedDay: null, labelSource: null },
+        books: { [first]: { net: 1, sold: 1, restocked: 0, unitCAD: 20, merchCAD: 20, preorder: false, titles: [] } }, firstBook: first, unlinked: [],
+      });
+      return link;
+    };
+    const lazyIO = {
+      watchPending: (cb: any, onError: any) => { let stop = () => {}; void linked().then((l) => { stop = l.io().watchPending(cb, onError); }); return () => stop(); },
+      watchStatus: (cb: any, onError: any) => { let stop = () => {}; void linked().then((l) => { stop = l.io().watchStatus(cb, onError); }); return () => stop(); },
+      markSwitchedOn: async (at: string) => (await linked()).io().markSwitchedOn(at),
+      publish: async (args: any) => (await linked()).io().publish(args),
+    };
+    return {
+      link: lazyIO,
+      loadBooks: async () => loadLinkBooks((await ready()).device()),
+      // Straight into the in-memory stockroom (a later sample block swaps stockroomWriteApi for its own save).
+      saveBook: async (id, mutate) => createStockroomWriter((await ready()).device()).saveBookState(id, mutate),
+      rate: async () => null,
+      rates: () => ({}),
+      chargeIntents: () => ({}),
+      onSaved: onStockroomSaved,
+    };
+  };
+  // The runner is mounted for the shop's owner only; `?weblink=1` starts it for the fixture's own user.
+  if (new URLSearchParams(location.search).get("weblink") === "1") {
+    const { createWebsiteLinkRunner } = await import("../app/admin/stockroom/websiteLinkRun");
+    createWebsiteLinkRunner(websiteLinkApi.deps()).start();
+  }
 }
 
 // ── Stockists › Mark paid (block of the stockist-pay page): saves into memory, receipts are only recorded ──
@@ -249,6 +302,7 @@ if (/page=stockroom(\/|%2F)pos/.test(window.location.search) && !EMPTY_STOCKROOM
     }
   };
   stockistReceiptApi.send = async (receipt) => { ((window as any).__fixtureReceipts ||= []).push(receipt); return { to: receipt.to }; };
+  stockistReceiptApi.sendNote = async (note) => { ((window as any).__fixtureReceipts ||= []).push(note); return { to: note.to }; };
 }
 
 const order = (n: number, status: string, name: string) => ({

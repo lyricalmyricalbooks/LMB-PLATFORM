@@ -7,12 +7,14 @@ import { fmt } from "@stockroom/money.js";
 import { downloadCsv } from "@stockroom/download.js";
 import type { Delta } from "@stockroom/tax-ledger.js";
 
-import { DataTable, EmptyState, MetricCard, Pagination, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge } from "../riso/components";
-import { useShopWords } from "../shopWords";
+import { DataTable, Dialog, EmptyState, GhostButton, MetricCard, Pagination, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge } from "../riso/components";
+import { useShopSells, useShopWords } from "../shopWords";
+import { hasPublisherTools } from "../../../shared/shopSells";
 import { getOrdersCached } from "../ordersCache";
 import { TaxTop } from "./TaxTop";
 import { taxPeriods } from "./taxPeriods";
 import { RecordsGate } from "./RecordsGate";
+import { useRatedRecords } from "./taxRates";
 import { LogExpenseCard, type Prefill } from "./LogExpense";
 import { LogSeveralCard } from "./LogSeveral";
 import { PendingExpensesCard } from "./PendingExpenses";
@@ -20,8 +22,13 @@ import { RecurringSubscriptionsCard } from "./RecurringSubscriptions";
 import { SortingRulesCard } from "./SortingRules";
 import { LedgerLineActions } from "./LedgerLineActions";
 import { ReceiptsVaultCard } from "./ReceiptsVault";
+import { TaxSeasonCard } from "./TaxSeasonCard";
+import { StockValueCard } from "./StockValueCard";
+import { TripsCard, type TripRow } from "./TripsCard";
 import { isEditableLine } from "./taxLedger";
 import type { SaveNote } from "./saveTaxCenter";
+import { GapsCard } from "./GapsCard";
+import { YearReportCard } from "./YearReportCard";
 import { filterLedger, ledgerCsvFile, ledgerTotals, LEDGER_PAGE_SIZE, sourcesOf, taxCenterModel, type LedgerFilter } from "./moneyReports";
 import { stockroomApi, type StockroomRecords } from "./stockroomData";
 import "./stockroom.css";
@@ -63,12 +70,13 @@ function CashFlowChart({ buckets, cur }: { buckets: Array<{ key: string; label: 
   );
 }
 
-export function TaxCenterView({ records, now, onTaxCenter, orders: givenOrders }: {
-  records: StockroomRecords; now?: Date; onTaxCenter?: (taxCenter: Record<string, unknown>) => void;
+export function TaxCenterView({ records, now, onTaxCenter, onState, orders: givenOrders }: {
+  records: StockroomRecords; now?: Date; onTaxCenter?: (taxCenter: Record<string, unknown>) => void; onState?: (bookId: string, state: Record<string, unknown>) => void;
   /** The shop's orders (tests and the fixture pass them; otherwise read through the shared copy). */
   orders?: Record<string, any>[];
 }) {
   const w = useShopWords();
+  const sells = useShopSells();
   const sources = useMemo(() => sourcesOf(records), [records]);
   const nowMs = (now || new Date()).getTime();
   const periods = useMemo(() => taxPeriods(nowMs), [nowMs]);
@@ -97,6 +105,8 @@ export function TaxCenterView({ records, now, onTaxCenter, orders: givenOrders }
   const at = Math.min(page, pageCount);
   const slice = shown.slice((at - 1) * LEDGER_PAGE_SIZE, at * LEDGER_PAGE_SIZE);
   const s = model.summary;
+  const [categoryName, setCategory] = useState<string | null>(null);
+  const openCategory = categoryName ? model.categories.list.find((c) => c.name === categoryName) : undefined;
   const download = () => { const file = ledgerCsvFile(shown, cur, now); downloadCsv(file.text, file.name); };
 
   return (
@@ -104,15 +114,15 @@ export function TaxCenterView({ records, now, onTaxCenter, orders: givenOrders }
       <TaxTop periods={periods} period={period} onPeriod={(id) => { setPeriodId(id); setPage(1); }} orders={loaded}
         ledgerRows={allRows} states={records.states as Record<string, Record<string, any>>} taxCenter={records.taxCenter as Record<string, any> | null}
         currency={cur} now={nowMs} onTaxCenter={onTaxCenter} />
-      {model.notes.missing > 0 && <p className="rp-money-note" role="status">{model.notes.missing} {model.notes.missing === 1 ? "line has" : "lines have"} no exchange rate yet and {model.notes.missing === 1 ? "is" : "are"} counted at 1 to 1, so these totals may be off. The stockroom fills rates in when it is opened.</p>}
-      {!model.notes.missing && model.notes.estimated > 0 && <p className="rp-money-note" role="status">{model.notes.estimated} foreign-currency {model.notes.estimated === 1 ? "line is" : "lines are"} shown at the last saved exchange rate, not the rate of its own day. The stockroom replaces them with day rates when it is opened.</p>}
+      {model.notes.missing > 0 && <p className="rp-money-note" role="status">{model.notes.missing} {model.notes.missing === 1 ? "line has" : "lines have"} no exchange rate yet and {model.notes.missing === 1 ? "is" : "are"} counted at 1 to 1, so these totals may be off. Rates fill in by themselves while you're online.</p>}
+      {!model.notes.missing && model.notes.estimated > 0 && <p className="rp-money-note" role="status">{model.notes.estimated} foreign-currency {model.notes.estimated === 1 ? "line is" : "lines are"} shown at the last saved exchange rate, not the rate of its own day. Day rates fill in by themselves while you're online.</p>}
 
       <SectionCard title={`Money in and out, ${year}`} description="From your stockroom records: every sale, cost and payout." flush>
         <div className="rp-grid-metrics rp-money-pad">
           <MetricCard label="Money in" value={money(s.sales)} footer={deltaText(s.deltas?.sales ?? null, s.prevYear)} />
           <MetricCard label="Money out" value={money(s.expenses)} footer={deltaText(s.deltas?.expenses ?? null, s.prevYear)} />
           <MetricCard label="Net" value={money(s.net)} footer={deltaText(s.deltas?.net ?? null, s.prevYear)} tone={s.net < 0 ? "danger" : undefined} />
-          <MetricCard label={w("Artist payouts")} value={money(s.artistPayouts)} footer={`Net after: ${money(s.netAfterPayouts)}`} />
+          {(hasPublisherTools(sells) || s.artistPayouts !== 0) && <MetricCard label={w("Artist payouts")} value={money(s.artistPayouts)} footer={`Net after: ${money(s.netAfterPayouts)}`} />}
         </div>
       </SectionCard>
 
@@ -142,24 +152,27 @@ export function TaxCenterView({ records, now, onTaxCenter, orders: givenOrders }
         <DataTable stackOnPhone caption="Spending by category" rowKey={(c) => c.name} rows={model.categories.list}
           empty={<EmptyState inline title="No expenses in this period" />}
           columns={[
-            { key: "c", header: "Category", lead: true, render: (c) => c.name },
+            { key: "c", header: "Category", lead: true, render: (c) => <GhostButton size="sm" onClick={() => setCategory(c.name)}>{c.name}</GhostButton> },
             { key: "n", header: "Entries", numeric: true, render: (c) => c.count },
             { key: "s", header: "Spent", numeric: true, render: (c) => money(c.spent) },
             { key: "d", header: "Deductible", numeric: true, render: (c) => <>{money(c.total)}{c.rate < 1 && <span className="rp-money-sub"> {Math.round(c.rate * 100)}% allowed</span>}</> },
           ]} />
       </SectionCard>
 
-      <SectionCard title="Trips and events" flush>
-        <DataTable stackOnPhone caption="Trips" rowKey={(t) => t.name} rows={model.trips}
-          empty={<EmptyState inline title="No trips in this period" />}
-          columns={[
-            { key: "t", header: "Trip", lead: true, render: (t) => t.name },
-            { key: "d", header: "Dates", render: (t) => (t.minDate && t.maxDate ? (t.minDate === t.maxDate ? t.minDate : `${t.minDate} to ${t.maxDate}`) : "-") },
-            { key: "n", header: "Expenses", numeric: true, render: (t) => t.count },
-            { key: "s", header: "Spent", numeric: true, render: (t) => money(t.total) },
-            { key: "x", header: "Deductible", numeric: true, render: (t) => money(t.deductible ?? t.total) },
-          ]} />
-      </SectionCard>
+      {openCategory && (
+        <Dialog open onClose={() => setCategory(null)} title={openCategory.name}>
+          <p className="rp-money-note">{openCategory.count} {openCategory.count === 1 ? "entry" : "entries"}, {money(openCategory.spent)} spent, {money(openCategory.total)} you can deduct.</p>
+          <DataTable stackOnPhone caption={`Entries in ${openCategory.name}`} rowKey={(r) => `${r.sourceType}:${r.sourceId || ""}:${r.itemId}:${r.date}:${r.desc}`}
+            rows={[...openCategory.items].sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))}
+            columns={[
+              { key: "d", header: "Date", render: (r) => r.date || "-" },
+              { key: "e", header: "Description", lead: true, render: (r) => r.desc },
+              { key: "b", header: cur, numeric: true, render: (r) => fmt(Number(r.baseAmount || 0), cur) },
+            ]} />
+        </Dialog>
+      )}
+
+      <TripsCard trips={model.trips as TripRow[]} taxCenter={records.taxCenter as Record<string, any> | null} money={money} baseCurrency={cur} onSaved={onTaxCenter} />
 
       {!onTaxCenter && (
       <SectionCard title="Standing costs" description={model.recurring.length ? `About ${money(model.recurringSummary.monthlyBase)} a month, ${money(model.recurringSummary.annualBase)} a year.` : undefined} flush>
@@ -174,19 +187,8 @@ export function TaxCenterView({ records, now, onTaxCenter, orders: givenOrders }
       </SectionCard>
       )}
 
-      <SectionCard title="Costs that may be missing" description="Gaps in your own records, not tax advice." flush={!model.gaps.gaps.length}>
-        {model.gaps.gaps.length === 0
-          ? <EmptyState inline title="Nothing obviously missing" description="Checked again each time you open this page." />
-          : <ul className="rp-money-gaps">
-              {model.gaps.gaps.map((g) => (
-                <li key={g.id}>
-                  <strong>{g.title}</strong> <StatusBadge glyph={false}>{g.category}</StatusBadge>
-                  {g.estimate != null && <span className="rp-money-sub"> about {money(g.estimate)}</span>}
-                  <p>{g.detail}</p>
-                </li>
-              ))}
-            </ul>}
-      </SectionCard>
+      <GapsCard gaps={model.gaps.gaps} hidden={model.gaps.hidden} books={sources.books} states={sources.states}
+        taxCenter={records.taxCenter as Record<string, any> | null} today={new Date(nowMs).toLocaleDateString("en-CA")} money={money} onSaved={onTaxCenter} />
 
       <SectionCard title="Ledger" actions={<SecondaryButton onClick={download} disabled={!shown.length}>Download spreadsheet</SecondaryButton>} flush>
         <div className="rp-money-pad">
@@ -205,7 +207,7 @@ export function TaxCenterView({ records, now, onTaxCenter, orders: givenOrders }
             { key: "t", header: "Type", render: (r) => <>{r.type}{r.voided && <StatusBadge glyph={false}>Voided</StatusBadge>}</> },
             { key: "e", header: "Description", lead: true, render: (r) => r.desc },
             { key: "c", header: "Category", render: (r) => (onTaxCenter && isEditableLine(r)
-              ? <LedgerLineActions line={r} onSaved={onTaxCenter} onNote={setLedgerNote} />
+              ? <LedgerLineActions line={r} taxCenter={records.taxCenter as Record<string, unknown> | null} onSaved={onTaxCenter} onNote={setLedgerNote} />
               : r.cat || "") },
             { key: "o", header: "Original", numeric: true, render: (r) => `${fmt(Number(r.origAmount || 0), r.origCurrency || cur)}` },
             { key: "b", header: cur, numeric: true, render: (r) => <span className={r.isIncome ? "rp-money-in" : "rp-money-out"}>{r.isIncome ? "+" : "-"}{fmt(Number(r.baseAmount || 0), cur)}</span> },
@@ -218,6 +220,11 @@ export function TaxCenterView({ records, now, onTaxCenter, orders: givenOrders }
         )}
       </SectionCard>
 
+      <StockValueCard books={records.books as Record<string, any>[]} states={records.states as Record<string, Record<string, any>>} taxCenter={records.taxCenter as Record<string, any> | null}
+        fxRateCache={sources.fxRateCache} onTaxCenter={onTaxCenter} onState={onState} />
+      <YearReportCard input={{ books: records.books as Record<string, any>[], states: records.states as Record<string, Record<string, any>>, taxCenter: records.taxCenter as Record<string, any> | null, fxRateCache: sources.fxRateCache }} year={year} money={money} />
+      <TaxSeasonCard input={{ books: records.books as Record<string, any>[], states: records.states as Record<string, Record<string, any>>, taxCenter: records.taxCenter as Record<string, any> | null, fxRateCache: sources.fxRateCache }}
+        year={year} onSaved={onTaxCenter} />
       <ReceiptsVaultCard rows={model.rows} money={money} onSaved={onTaxCenter} taxCenter={records.taxCenter as Record<string, unknown> | null} />
     </div>
   );
@@ -229,6 +236,7 @@ export function TaxCenterPage({ load = stockroomApi.load }: { load?: () => Promi
 
 /** Keeps the records on screen and swaps in the Tax centre as the save returned it (other devices' rows included). */
 function TaxCenterLive({ initial }: { initial: StockroomRecords }) {
-  const [records, setRecords] = useState(initial);
-  return <TaxCenterView records={records} onTaxCenter={(taxCenter) => setRecords((r) => ({ ...r, taxCenter }))} />;
+  const [records, setRecords] = useRatedRecords(initial);
+  return <TaxCenterView records={records} onTaxCenter={(taxCenter) => setRecords((r) => ({ ...r, taxCenter }))}
+    onState={(id, state) => setRecords((r) => ({ ...r, states: { ...r.states, [id]: state } }))} />;
 }

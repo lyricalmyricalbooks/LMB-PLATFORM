@@ -6,6 +6,7 @@ import { fmt } from "@stockroom/money.js";
 import { DataTable, EmptyState, Pagination, SearchField, StatusBadge } from "../riso/components";
 import { useShopWords } from "../shopWords";
 import { RecordsGate } from "./RecordsGate";
+import { useRatedRecords } from "./taxRates";
 import { expensesModel, type ExpenseLine } from "./moneyReports";
 import { stockroomApi, type StockroomRecords } from "./stockroomData";
 import "./stockroom.css";
@@ -51,5 +52,10 @@ export function ExpensesView({ records }: { records: StockroomRecords }) {
 }
 
 export function ExpensesPage({ load = stockroomApi.load }: { load?: () => Promise<StockroomRecords>; onOpen?: unknown; isPage?: unknown }) {
-  return <RecordsGate load={load} what="the expenses">{(records) => <ExpensesView records={records} />}</RecordsGate>;
+  return <RecordsGate load={load} what="the expenses">{(records) => <ExpensesLive initial={records} />}</RecordsGate>;
+}
+
+function ExpensesLive({ initial }: { initial: StockroomRecords }) {
+  const [records] = useRatedRecords(initial);
+  return <ExpensesView records={records} />;
 }

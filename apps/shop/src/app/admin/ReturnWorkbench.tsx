@@ -1,3 +1,4 @@
+import "./fulfillment.css";
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";

@@ -129,6 +129,20 @@ admin. Screenshots of real stockroom pages as the admin shows them: in `apps/sto
   `combinedTourStore.ts`), so a press who took it on one device isn't invited on the next. The device's own mark
   answers first; the account's is read once signed in.
 
+## Website orders in the admin (11 November 2026)
+
+The old app's website link (`startWebsiteLink`, `importOnce`, `doPublish`) now runs in the owner's combined admin
+(`stockroom/websiteLinkRun.ts`, mounted by Dashboard as `WebsiteOrdersAuto`). It uses the old app's own rules from
+`@stockroom/website-link.js` (planWebsiteOrder, planWebsitePublish); only the wiring is new:
+`websiteLink.ts` (plan and apply, ported from features/website-link.js and sales-ledger.js), `websiteLinkStore.ts` (the
+watch and the publish transaction, as `_fbPublishWebsiteLink`), `datedRates.ts` (dated rates, same services and cache
+key `lm-fx-history`). Book rows are saved through the admin write layer. Stock and sales shows **Website orders**
+(`WebsiteOrders.tsx`): last run, the orders that need a choice (Same sale / Different sales), pre-orders promised.
+It runs in the browser like the old app did, so orders come in only while an owner's admin is open. Tests:
+`websiteLinkRun.test.ts` repeats the old `website-link-import.test.js` cases on a MemoryStockroom and a
+`MemoryWebsiteLink`. Fixture: `admin-fixture.html?weblink=1&page=stockroom/dashboard` (order WEB-2001).
+Not moved yet: the storage check, trade orders on invoice terms, test-order postage, the link's to-do list.
+
 ## Next steps (planned)
 
 4. **Native pages:** rebuild the stockroom pages inside the admin one by one (Fair till, Stockists, Expenses first),
@@ -239,3 +253,19 @@ only writer of a book's records, the same way the website's orders reach it (an 
     and `teamExpirySweep` (every 30 minutes, roles.js removeExpiredMembers) deletes the entry, which signs them out.
 - Not planned: a helper writing a book's records directly. Rules can't check a single row inside those records, so
   that would mean trusting the helper with every book's money.
+
+### Invoices in the admin (11 November 2026)
+
+The old stockroom made invoices; the admin had only Mark paid. Stockists now carries an **Invoices** card
+(`apps/shop/src/app/admin/stockroom/InvoiceDialogs.tsx`, rules in `invoiceMake.ts`, printed page in `invoicePaper.ts`):
+every invoice (to stockists and to people typed in), **New invoice** (also from a stockist's drawer), edit, Mark sent,
+delete (never a paid one), and Print or save PDF on the shared document kit.
+- Same records as the old app: an invoice lives in one book's `invoices` ("Filed under"; for a stockist, a book it holds
+  copies of), with the old payload, `bookIds`, ledger links (`stampLedgerInvoiceLink`) and `invoiceSeq`. Numbers come
+  from the stockroom's own rules (one title: its code; several: the press's initials). **Add unpaid sales** leaves out
+  sales already on another live invoice. A new invoice's id is fixed before the first try, so a retry never files it twice.
+- **Invoice details** (name, address, email, web, tax number, terms, bank, thank-you line) were in one browser
+  (`lm-invoice-settings`); they are now the stockroom setting `invoiceSettings` (read with the records, kept in online
+  copies). Bringing back an old app's copy restores them without its Stripe key.
+- Not yet (stage 2): payment reminders (the old app sent them on a timer from an open browser; nothing sends them now)
+  and Stripe pay links, which must be made by the server, never from a key in the browser.

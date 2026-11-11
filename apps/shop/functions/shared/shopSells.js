@@ -16,6 +16,7 @@ exports.goodsDownloadNote = goodsDownloadNote;
 exports.emailDefaultsFor = emailDefaultsFor;
 exports.withShopEmailWords = withShopEmailWords;
 exports.productBase = productBase;
+exports.hasPublisherTools = hasPublisherTools;
 /** The sign-up answers (signup/form.js PUBLISHES.options), in the form's order. */
 exports.SELLS = ["books", "zines", "comics", "prints", "mix", "mixed", "clothing", "shoes", "jewelry", "music", "other"];
 /** The answers that keep a books shop exactly as it is. */
@@ -107,4 +108,8 @@ exports.PRODUCT_BASES = ["books", "products"];
 /** The first part of this shop's product addresses: "books" for a books shop, "products" for any other. */
 function productBase(answer) {
     return sellsBooks(answer) ? "books" : "products";
+}
+/** Publisher-only stockroom parts (artist shares, copies an author holds, author money): shops that sell books, mixed ones too. */
+function hasPublisherTools(answer) {
+    return sellsBooks(answer) || answer === "mixed";
 }

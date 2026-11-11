@@ -45,8 +45,8 @@ export function readExpenseLines(text: string, opts: { taxCenter: Row | null; ba
 export const loggable = (lines: ExpenseLine[]) => lines.filter((l) => !l.problem && !l.duplicate);
 
 /** The Tax centre with every loggable line added in one save. `firstId` + position keeps a retry from adding any twice. */
-export function addExpenseLines(taxCenter: Row | null, lines: ExpenseLine[], firstId: number, now: Date = new Date()): Row {
+export function addExpenseLines(taxCenter: Row | null, lines: ExpenseLine[], firstId: number, now: Date = new Date(), rates?: Record<string, number>): Row {
   let tc: Row = taxCenter && typeof taxCenter === "object" ? taxCenter : {};
-  loggable(lines).forEach((l, i) => { tc = addBusinessExpense(tc, l.form, l.amount, firstId + i, now); });
+  loggable(lines).forEach((l, i) => { tc = addBusinessExpense(tc, l.form, l.amount, firstId + i, now, undefined, rates); });
   return tc;
 }

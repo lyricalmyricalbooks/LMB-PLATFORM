@@ -45,6 +45,9 @@ declare module "@stockroom/recurring.js" {
   };
 }
 declare module "@stockroom/deduction-gaps.js" {
+  export const DEFAULT_SNOOZE_DAYS: number;
+  export function gapNoteState(note: Row | undefined, today: string): "open" | "snoozed" | "dismissed";
+  export function snoozeUntil(days?: number, from?: Date): string;
   export function findDeductionGaps(ctx: Row): { gaps: Array<{ id: string; title: string; category: string; detail: string; prompt: string; estimate: number | null; estimateBasis?: string }>; hidden: number; totalEstimate: number; note: string };
 }
 declare module "@stockroom/receipt-storage.js" {
@@ -78,4 +81,26 @@ declare module "@stockroom/shop-profile.js" {
 }
 declare module "@stockroom/publisher-intel-tools.js" {
   export function runIntelTool(name: string, args?: Row, ctx?: Row): Row;
+}
+declare module "@stockroom/category-fit.js" {
+  export function findCategoryMismatches(ctx: Row): Array<{ id: string; scope: string; bookId?: string; expenseId?: unknown; currentCategory: string; suggestedCategory: string; title: string; detail: string; amount: number; prompt: string }>;
+}
+declare module "@stockroom/deductibility.js" {
+  export function deductibleRate(cat: string): number;
+  export function deductibleAmount(cat: string, amount: number): number;
+}
+declare module "@stockroom/stock-places.js" {
+  export const MAIN_PLACE: string;
+  export const MAX_PLACES: number;
+  export function placeCounts(s: Record<string, any>, book: Record<string, any> | null): Array<{ name: string; qty: number }>;
+  export function movePlaceStock(s: Record<string, any>, book: Record<string, any> | null, move: { from: string; to: string; qty: number; note?: string; isoDate?: string; now?: number }): { ok: true; move: Record<string, any> } | { ok: false; error: string };
+  export function removePlace(s: Record<string, any>, book: Record<string, any> | null, name: string): { ok: true } | { ok: false; error: string };
+}
+declare module "@stockroom/inventory.js" {
+  export function transferAuthorStock(s: Record<string, any>, book: Record<string, any> | null, delta: number, note?: string, isoDate?: string): { transfer: Record<string, any> | null };
+}
+declare module "@stockroom/consignment-fx.js" {
+  export function consignmentSaleAmounts(a: { qty: number; unitPrice: number; commission: number; saleCur?: string; bookCur: string; fxRate?: number }): { gross: number; due: number; sale: Record<string, any> | null } | null;
+  export function expectedConsignmentPayment(entry: Record<string, any>, bookCur: string): { currency: string; amount: number };
+  export function consignmentPaymentRecord(a: { amountDue: number; bookCur: string; payCur: string; payAmount: number; fxRate: number; date: string }): Record<string, any> | null;
 }
