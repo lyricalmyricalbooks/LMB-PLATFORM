@@ -18,6 +18,8 @@ export type StockroomRecords = {
   books: StockBook[];
   states: Record<string, Record<string, unknown>>;
   taxCenter: Record<string, unknown> | null;
+  /** Author entries waiting for approval, per book (`submissions/<book>/{sales,expenses}/<id>`): only the ids matter. */
+  submissions?: Record<string, { sales?: Record<string, unknown>; expenses?: Record<string, unknown> }>;
 };
 
 /** The stockroom's own place in the shop's project, as the page's profile names it (missing: the project's defaults). */
@@ -56,6 +58,8 @@ export type StockroomReads = {
   flags(): Promise<Record<string, unknown>>;
   bookParts(bookId: string): Promise<Record<string, unknown>>;
   oldBook(bookId: string): Promise<unknown>;
+  /** The author entries waiting on one book, from the store the book lives in (absent: not read). */
+  submissions?(bookId: string, inFirestore: boolean): Promise<Record<string, Record<string, unknown>> | null>;
 };
 
 function liveReads(): StockroomReads {
@@ -75,6 +79,19 @@ function liveReads(): StockroomReads {
       return raw;
     },
     oldBook: (bookId) => old(`books/${bookId}`),
+    submissions: async (bookId, inFirestore) => {
+      if (!inFirestore) {
+        const snap = await get(ref(rt, `${root}/submissions/${bookId}`));
+        return snap.exists() ? snap.val() : null;
+      }
+      const out: Record<string, Record<string, unknown>> = {};
+      await Promise.all(["sales", "expenses"].map(async (type) => {
+        const ids: Record<string, unknown> = {};
+        (await getDocs(collection(home, "submissions", bookId, type))).forEach((d) => { ids[d.id] = true; });
+        if (Object.keys(ids).length) out[type] = ids;
+      }));
+      return out;
+    },
   };
 }
 
@@ -107,11 +124,18 @@ export async function loadStockroom(reads: StockroomReads = liveReads()): Promis
   const [catalog, taxCenter] = await Promise.all([readSetting(reads, "catalog", global), readSetting(reads, "taxCenter", global)]);
   const books = catalogBooks(catalog);
   const states: StockroomRecords["states"] = {};
+  const submissions: NonNullable<StockroomRecords["submissions"]> = {};
   await Promise.all(books.map(async (book) => {
-    const state = await readBook(reads, book.id, flags[`fs_mode_${book.id}`] === true || global);
+    const inFirestore = flags[`fs_mode_${book.id}`] === true || global;
+    const state = await readBook(reads, book.id, inFirestore);
     if (state) states[book.id] = state;
+    // The stockroom watches the store the book lives in; the older one is closed to a shop that never used it.
+    if (reads.submissions) {
+      const waiting = inFirestore ? await reads.submissions(book.id, true) : await quiet(reads.submissions(book.id, false));
+      if (waiting && typeof waiting === "object") submissions[book.id] = waiting;
+    }
   }));
-  return { books, states, taxCenter: taxCenter && typeof taxCenter === "object" ? taxCenter : null };
+  return { books, states, taxCenter: taxCenter && typeof taxCenter === "object" ? taxCenter : null, submissions };
 }
 
 /** What the pages call, so the admin fixture (adminFixture/main.ts) can answer with sample records. */
