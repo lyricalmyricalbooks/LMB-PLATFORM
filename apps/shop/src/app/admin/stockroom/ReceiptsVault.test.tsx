@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./saveTaxCenter", () => ({ saveTaxCenter: vi.fn() }));
 import { saveTaxCenter } from "./saveTaxCenter";
-import { detachReceipt, receiptVault } from "./taxLedger";
+import { detachReceipt, markedNoReceipt, receiptVault, setNoReceiptNeeded } from "./taxLedger";
 import { ReceiptsVaultCard } from "./ReceiptsVault";
 
 const rows = [
@@ -114,5 +114,40 @@ describe("receipts vault", () => {
     const { container, root } = await mount(<ReceiptsVaultCard rows={rows} money={money} />);
     expect([...container.querySelectorAll("button")].some((b) => b.textContent === "Remove")).toBe(false);
     await act(async () => root.unmount());
+  });
+
+  it("marks an expense as needing no receipt and takes the mark back, leaving rent alone", () => {
+    const tc = { businessExpenses: [{ id: "b", desc: "Bank fee" }, { id: "r", desc: "Studio", isRent: true, receiptExempt: true }], keep: 1 };
+    const on = setNoReceiptNeeded(tc, "b", true);
+    expect(on.businessExpenses[0]).toEqual({ id: "b", desc: "Bank fee", receiptExempt: true });
+    expect(on.keep).toBe(1);
+    expect(setNoReceiptNeeded(on, "b", true)).toBe(on);
+    expect(setNoReceiptNeeded(on, "b", false).businessExpenses[0]).toEqual({ id: "b", desc: "Bank fee" });
+    expect([...markedNoReceipt(on)]).toEqual(["b"]);
+    expect(setNoReceiptNeeded(tc, "gone", true)).toBe(tc);
+  });
+
+  it("No receipt needed saves the mark, and Not needed lists it with a way back", async () => {
+    vi.mocked(saveTaxCenter).mockResolvedValue({ ok: true, taxCenter: { done: 3 }, note: { tone: "ok", text: "Marked as needing no receipt." } });
+    const onSaved = vi.fn();
+    const first = await mount(<ReceiptsVaultCard rows={rows} money={money} onSaved={onSaved} taxCenter={{ businessExpenses: [] }} />);
+    expect([...first.container.querySelectorAll('[role="tab"]')].map((t) => t.textContent)).toEqual(["Kept2", "Missing1"]);
+    const btn = [...first.container.querySelectorAll("#rp-panel-vault-missing button")].find((b) => b.textContent === "No receipt needed") as HTMLButtonElement;
+    await act(async () => { btn.click(); });
+    await act(async () => {});
+    expect(vi.mocked(saveTaxCenter).mock.calls[0][0]({ businessExpenses: [{ id: "b" }] }).businessExpenses[0].receiptExempt).toBe(true);
+    expect(onSaved).toHaveBeenCalledWith({ done: 3 });
+    await act(async () => first.root.unmount());
+
+    const marked = rows.map((r) => (r.itemId === "b" ? { ...r, receiptExempt: true } : r));
+    const after = await mount(<ReceiptsVaultCard rows={marked} money={money} onSaved={onSaved} taxCenter={{ businessExpenses: [{ id: "b", receiptExempt: true }, { id: "c", isRent: true, receiptExempt: true }] }} />);
+    expect([...after.container.querySelectorAll('[role="tab"]')].map((t) => t.textContent)).toEqual(["Kept2", "Missing0", "Not needed1"]);
+    expect(after.container.querySelector("#rp-panel-vault-notNeeded")?.textContent).toContain("Ink");
+    expect(after.container.querySelector("#rp-panel-vault-notNeeded")?.textContent).not.toContain("Rent");
+    const back = [...after.container.querySelectorAll("#rp-panel-vault-notNeeded button")].find((b) => b.textContent === "Needs one after all") as HTMLButtonElement;
+    await act(async () => { back.click(); });
+    await act(async () => {});
+    expect(vi.mocked(saveTaxCenter).mock.calls[1][0]({ businessExpenses: [{ id: "b", receiptExempt: true }] }).businessExpenses[0]).toEqual({ id: "b" });
+    await act(async () => after.root.unmount());
   });
 });
