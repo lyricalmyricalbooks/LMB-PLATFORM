@@ -3444,6 +3444,14 @@ function shopLookSection(shop) {
 
 // The platform's own emails to this press (billing receipts, trial and payment notices…), newest first, with this
 // month's receipts counted so "I never got my bill" can be answered at once.
+/** What one platform email said (kept since 11 November 2026): the subject, and the words behind a Show. */
+function emailCopy(m) {
+  if (m.withheld) return meta(`${m.subject ? `"${m.subject}". ` : ""}Its words aren't kept: it carries a way in.`);
+  if (!m.text) return null;
+  return el("details", { className: "cr-email-copy" },
+    el("summary", { textContent: m.subject || "What it said" }),
+    el("pre", { className: "cr-email-text", textContent: m.text }));
+}
 function shopEmailsSection(shop) {
   const slot = el("div", {}, el("p", { className: "rp-hint", textContent: "Reading the email log…" }));
   api("POST", "/control/shop-emails", { shopId: shop.shopId }).then((found) => {
@@ -3456,7 +3464,7 @@ function shopEmailsSection(shop) {
         caption: "Emails to the press",
         rows: found.emails,
         columns: [
-          { header: "Email", lead: true, render: (m) => el("div", {}, el("p", { className: "cr-title", textContent: m.words }), m.error ? meta(m.error) : null) },
+          { header: "Email", lead: true, render: (m) => el("div", {}, el("p", { className: "cr-title", textContent: m.words }), m.error ? meta(m.error) : null, emailCopy(m)) },
           { header: "When", render: (m) => (m.at ? when(m.at) : "?") },
           { header: "", end: true, render: (m) => (m.sent ? pill("success", "sent") : pill("danger", "not sent")) },
         ],

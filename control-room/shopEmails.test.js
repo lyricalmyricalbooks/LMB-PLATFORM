@@ -56,3 +56,14 @@ test("the door: platform admins only, a real shop; the shop's shopper emails are
   const none = createShopEmails({ admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: "admin@example.com" }), registry, now: () => NOW });
   assert.equal((await none.forShop(ADMIN, { shopId: SHOP })).emails, null);
 });
+
+test("the summary passes on the subject and words, and says when they were withheld", async () => {
+  const { emailsSummary } = await import("./shopEmails.js");
+  const out = emailsSummary([
+    { kind: "first-sale-tips", status: "sent", at: "2026-11-11T00:00:00Z", subject: "Hi", text: "Words" },
+    { kind: "sign-in-link", status: "sent", at: "2026-11-10T00:00:00Z", subject: "Your link", copy: "withheld" },
+  ], new Date("2026-11-11T12:00:00Z"));
+  assert.equal(out.emails[0].text, "Words");
+  assert.equal(out.emails[1].withheld, true);
+  assert.equal(out.emails[1].text, undefined);
+});

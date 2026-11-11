@@ -316,3 +316,15 @@ test("a French shop that doesn't sell books gets its French platform emails in i
   // The shop's own name is never changed.
   assert.match(mail.requests.at(-1).body.subject, /Moth Press/);
 });
+
+test("a platform email keeps what it said for the control room, except emails that carry a way in", async () => {
+  const { sentLog, service } = await make();
+  await service.sendPlatform({ kind: "first-sale-tips", to: "owner@example.com", shopId: "moth-press", idempotencyKey: "tips-1", data: { pressName: "Moth Press" } });
+  const tips = await sentLog.get("tips-1");
+  assert.match(tips.subject, /first order/);
+  assert.match(tips.text, /Share your shop/);
+  await service.sendPlatform({ kind: "sign-in-code", to: "owner@example.com", shopId: "moth-press", idempotencyKey: "code-1", data: { code: "123456", minutes: 10 } });
+  const code = await sentLog.get("code-1");
+  assert.equal(code.copy, "withheld");
+  assert.equal(code.text, undefined);
+});

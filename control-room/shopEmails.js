@@ -49,6 +49,7 @@ export function emailsSummary(entries, now) {
     lastReceiptAt: entries.find((e) => RECEIPT_KINDS.has(e.kind) && e.status === "sent")?.at ?? null,
     emails: entries.slice(0, SHOWN).map((e) => ({
       kind: e.kind ?? null, words: kindWords(e.kind), at: e.at ?? null, sent: e.status === "sent",
+      ...(e.subject ? { subject: String(e.subject) } : {}), ...(typeof e.text === "string" ? { text: e.text } : {}), ...(e.copy === "withheld" ? { withheld: true } : {}),
       ...(e.status === "failed" && e.error ? { error: String(e.error).slice(0, 200) } : {}),
     })),
     more: Math.max(0, entries.length - SHOWN),
