@@ -24,11 +24,14 @@ export type StockroomRecords = {
 
 /** The stockroom's own place in the shop's project, as the page's profile names it (missing: the project's defaults). */
 export function stockroomPlace(source: unknown = typeof window === "undefined" ? undefined : window.__SHOP_PROFILE__, projectId = shopProfile.firebase.projectId) {
-  const raw = (source && typeof source === "object" ? source : {}) as { stockroom?: { firestoreDatabase?: unknown }; firebase?: { databaseURL?: unknown } };
+  const raw = (source && typeof source === "object" ? source : {}) as { stockroom?: { firestoreDatabase?: unknown; storageBucket?: unknown }; firebase?: { databaseURL?: unknown } };
   const named = raw.stockroom?.firestoreDatabase;
+  const bucket = raw.stockroom?.storageBucket;
   const url = raw.firebase?.databaseURL;
   return {
     firestoreDatabase: typeof named === "string" && named ? named : undefined,
+    // The stockroom's own file bucket (receipts live there, as the stockroom saves them); missing: the project's default.
+    storageBucket: typeof bucket === "string" && /^[a-z0-9][a-z0-9._-]*$/.test(bucket) ? bucket : undefined,
     databaseURL: typeof url === "string" && /^https:\/\/[^/\s]+\/?$/.test(url) ? url : `https://${projectId}-default-rtdb.firebaseio.com`,
   };
 }

@@ -38,3 +38,4 @@
 /* Ledger line controls for a business expense: category picker and Remove. */
 .rp-money-line-actions { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .rp-money-line-actions .rp-field { margin: 0; min-width: 0; flex: 1; }
+.rp-money-receipt { font-size: var(--rp-text-sm); font-weight: 600; color: var(--rp-text); white-space: nowrap; }
