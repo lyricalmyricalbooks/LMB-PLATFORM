@@ -155,6 +155,39 @@ export function RunList({ children, label = "Things that need attention" }: { ch
   );
 }
 
+/**
+ * Home's "To do" row (redesign, 11 November 2026): the same lines as the Needs you list, each one with something to do
+ * as a tile (how many, what, a line, one button). Shown when the Needs you widget is full width. While every line is
+ * still counting it says so, and an all-clear day says so in one tile.
+ */
+export function RunTiles({ children, label = "To do" }: { children: ReactNode; label?: string }) {
+  const rows = Children.toArray(children).filter(isValidElement) as Array<ReactElement<Parameters<typeof RunRow>[0]>>;
+  const ready = rows.filter((r) => !r.props.loading && (r.props.count ?? 0) > 0);
+  const counting = rows.some((r) => r.props.loading);
+  return (
+    <ul className="rp-todo-tiles" aria-label={label}>
+      {ready.map((r) => {
+        const { label: many, one, count, detail, detailOne, onOpen, openLabel } = r.props;
+        const single = count === 1;
+        return (
+          <li key={r.key} className="rp-todo-tile">
+            <span className="rp-todo-kind">{count}</span>
+            <span className="rp-todo-title">{single && one ? one : many}</span>
+            <span className="rp-todo-body">{single && detailOne ? detailOne : detail}</span>
+            <button type="button" className="rp-todo-go" onClick={onOpen}>{openLabel}</button>
+          </li>
+        );
+      })}
+      {!ready.length && (
+        <li className="rp-todo-tile" data-quiet="">
+          <span className="rp-todo-kind">{counting ? "…" : "✓"}</span>
+          <span className="rp-todo-title">{counting ? "Counting…" : "Nothing needs you right now."}</span>
+        </li>
+      )}
+    </ul>
+  );
+}
+
 /** What changed's badge for each kind of move. */
 export const CHANGE_BADGE: Record<Change["tone"], { tone: BadgeTone; text: string }> = {
   up: { tone: "success", text: "▲ Up" }, down: { tone: "danger", text: "▼ Down" }, info: { tone: "info", text: "● New" }, warn: { tone: "warning", text: "! Check" },

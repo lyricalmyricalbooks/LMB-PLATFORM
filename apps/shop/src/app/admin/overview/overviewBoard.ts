@@ -192,7 +192,7 @@ export type TemplateId = "desk" | "everything" | "money" | "marketing" | "stock"
 export const TEMPLATES: Array<{ id: TemplateId; name: string; blurb: string; order?: BandId[]; widgets: Spec[] }> = [
   {
     id: "desk", name: "Daily desk", blurb: "What needs you, the main figures and one widget per topic",
-    widgets: ["needs", "changes", "newest", "readiness", ["chart", "l"], ["story", "s"], "figures", "best", "money", ["titles", "xl"],
+    widgets: [["needs", "xl"], "changes", "newest", "readiness", ["chart", "l"], ["story", "s"], "figures", "best", "money", ["titles", "xl"],
       ["sources", "l"], ["funnel", "s"], "checkout", "speed", "missed", "top", "carts", "reprint", "low"],
   },
   { id: "everything", name: "Everything", blurb: "Every analytics widget there is, grouped by topic", widgets: WIDGETS.map(w => w.type) },
@@ -224,7 +224,7 @@ export const TEMPLATES: Array<{ id: TemplateId; name: string; blurb: string; ord
   },
   {
     id: "launch", name: "Launch week", blurb: "A new book going out: today's sales, sources, checkout and stock",
-    widgets: ["needs", "readiness", "newest", ["chart", "l", { metric: "orders", grain: "day" }], ["story", "s"], "figures", "best", "viewed",
+    widgets: [["needs", "xl"], "readiness", "newest", ["chart", "l", { metric: "orders", grain: "day" }], ["story", "s"], "figures", "best", "viewed",
       "sources", "campaigns", "checkout", "missed", "speed", "reprint", "low", "backInStock"],
   },
 ];
