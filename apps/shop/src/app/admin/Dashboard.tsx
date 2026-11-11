@@ -57,7 +57,6 @@ import { ReorderList } from "./ReorderPanel";
 import { keepAdminOffline } from "./adminOffline";
 import { CombinedTour, CombinedTourInvite, markTourSeen, tourSeen, type TourStop } from "./CombinedTour";
 import { markTourSeenOnAccount, tourSeenOnAccount } from "./combinedTourStore";
-import { FairToday } from "./FairToday";
 import { stockroomBridge } from "./stockroomBridge";
 import { StockroomFrame } from "./StockroomFrame";
 import { NATIVE_PAGES } from "./stockroom/nativePages";
@@ -743,7 +742,7 @@ export function Dashboard() {
     switch (activeTab) {
       case "overview":
       case "analytics":
-        return <AnalyticsDashboard setActiveTab={(tab: string) => { if (tab === "general" || tab === "notifications" || tab === "taxes" || tab === "designer" || tab === "security") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} onEditBook={handleEditBook} onSetWall={(on: boolean) => toggleUnderConstruction(on, { checked: true })} />;
+        return <AnalyticsDashboard setActiveTab={(tab: string) => { if (tab === "general" || tab === "notifications" || tab === "taxes" || tab === "designer" || tab === "security") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} onEditBook={handleEditBook} ownerName={user.displayName || ""} figures={activeTab === "analytics"} onSetWall={(on: boolean) => toggleUnderConstruction(on, { checked: true })} />;
       case "catalog": return <BookCatalog onEdit={handleEditBook} onAdd={handleAddBook} refreshTrigger={catalogRefreshKey} />;
       case "customers": return <Customers initialQuery={searchCustomerQuery} />;
       case "inventory": return <Inventory onEditBook={handleEditBook} onAddBook={handleAddBookFrom} subTab={subTab} onSubTabChange={openSubTab} />;
@@ -799,8 +798,6 @@ export function Dashboard() {
     <>
     {/* The combined admin's one-time tour invitation, on Home only (CombinedTour.tsx). */}
     {COMBINED && ownMasthead && tourInvite && <CombinedTourInvite onStart={() => { setTourOpen(true); dismissTour(); }} onDismiss={dismissTour} />}
-    {/* A fair day: the till's takings and upload state on Home, read from the stockroom (FairToday.tsx). */}
-    {COMBINED && <FairToday active={activeTab === "overview" && !selectedOrder} onOpen={() => { void openStockroomPage("pos"); }} />}
     <AdminAlerts
       alerts={[...settingsAlerts(originalSettings), ...alerts]}
       onOpenNotifications={() => { setActiveTab("settings"); setSettingsTab("notifications"); setShowEditor(false); setSelectedOrder(null); }}

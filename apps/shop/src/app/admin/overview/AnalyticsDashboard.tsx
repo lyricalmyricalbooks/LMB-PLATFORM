@@ -53,6 +53,9 @@ import { OverviewClarity } from "./OverviewClarity";
 import { combinedAdmin } from "../combined";
 import { stockroomRunRows, useStockroomTodos } from "./StockroomTodos";
 import { useShopWords } from "../shopWords";
+import { HomeToday } from "./HomeToday";
+import { useFairToday } from "../FairToday";
+import { stockroomBridge } from "../stockroomBridge";
 
 /** A press with both apps: Home also lists the stockroom's to-dos. */
 const COMBINED = combinedAdmin();
@@ -70,7 +73,13 @@ const PERIOD_BUTTONS: Array<{ id: Preset; label: string; title: string; phone?: 
   { id: "90d", label: "90d", title: "The last 90 days" }, { id: "mtd", label: "MTD", title: "This month so far" }, { id: "lastMonth", label: "Last month", title: "Last calendar month" },
   { id: "ytd", label: "YTD", title: "This year so far", phone: "Year" }, { id: "365d", label: "12m", title: "The last 12 months" }, { id: "custom", label: "Custom", title: "Pick your own dates" },
 ];
-export function AnalyticsDashboard({ setActiveTab, onEditBook, onSetWall }: { setActiveTab?: (tab: string) => void; onEditBook?: (book: any) => void; onSetWall?: (on: boolean) => Promise<boolean> }) {
+export function AnalyticsDashboard({ setActiveTab, onEditBook, onSetWall, ownerName = "", figures = false }: {
+  setActiveTab?: (tab: string) => void; onEditBook?: (book: any) => void; onSetWall?: (on: boolean) => Promise<boolean>;
+  /** The signed-in person's name, for Home's greeting. */
+  ownerName?: string;
+  /** "All figures" (the analytics page): the widget board with its periods; otherwise Home, as in the mockup. */
+  figures?: boolean;
+}) {
   const saved = useMemo(readPrefs, []);
   const [preset, setPreset] = useState<Preset>(saved.preset && PRESETS.some(p => p.id === saved.preset) ? saved.preset : "30d");
   const [compareMode, setCompareMode] = useState<CompareMode>(saved.compare === "lastYear" ? "lastYear" : "previous");
@@ -92,6 +101,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook, onSetWall }: { se
   const [firstTrafficDay, setFirstTrafficDay] = useState<string | null>(null);
   const w = useShopWords();
   const stockroomTodos = useStockroomTodos(COMBINED);
+  const fair = useFairToday(COMBINED && !figures);
 
   const [tick, setTick] = useState(0);
   const range = useMemo(() => resolveRange(preset, { custom, compare: compareMode }), [preset, custom, compareMode, reloadKey, tick]);
@@ -360,24 +370,24 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook, onSetWall }: { se
   // Everything that needs the owner, website and stockroom together: the Needs you list, or Home's To do tiles.
   const needRows = (
     <>
-        <RunRow label="paid orders waiting to ship" one="paid order waiting to ship" count={insights ? insights.fulfil.length : null} loading={ordersLoading}
+        <RunRow kind="Orders" label="paid orders waiting to ship" one="paid order waiting to ship" count={insights ? insights.fulfil.length : null} loading={ordersLoading}
           detail={insights && insights.fulfil[0] ? `Oldest has waited ${insights.fulfil[0].ageDays} day${insights.fulfil[0].ageDays === 1 ? "" : "s"}` : ""}
           onOpen={() => { openFirstActionQueue(); setActiveTab?.("orders"); }} openLabel="Ship orders" />
-        <RunRow label="reviews to moderate" one="review to moderate" count={reviews ? reviews.pending : null} loading={!audience.data && !audience.error}
+        <RunRow kind="Reviews" label="reviews to moderate" one="review to moderate" count={reviews ? reviews.pending : null} loading={!audience.data && !audience.error}
           detail="Readers are waiting to see these" detailOne="A reader is waiting to see it" onOpen={() => setActiveTab?.("reviews")} openLabel="Moderate" />
-        <RunRow label="titles to reprint soon" one="title to reprint soon" count={insights ? insights.reprint.length : null} loading={ordersLoading || stockLoading}
+        <RunRow kind="Stock" label="titles to reprint soon" one="title to reprint soon" count={insights ? insights.reprint.length : null} loading={ordersLoading || stockLoading}
           detail={`On course to sell out within ${REORDER_COVER_DAYS} days`} onOpen={() => setActiveTab?.("inventory")} openLabel="Open inventory" />
-        <RunRow label="print books or editions sold out" one="print book or edition sold out" count={insights ? insights.shelf.soldOut : null} loading={ordersLoading || stockLoading}
+        <RunRow kind="Stock" label="print books or editions sold out" one="print book or edition sold out" count={insights ? insights.shelf.soldOut : null} loading={ordersLoading || stockLoading}
           detail="Customers can't buy these right now" detailOne="Customers can't buy it right now" onOpen={() => setActiveTab?.("inventory")} openLabel="Open inventory" />
-        <RunRow label="cancel or return requests" one="cancel or return request" count={todos ? todos.requests.length : null} loading={ordersLoading}
+        <RunRow kind="Orders" label="cancel or return requests" one="cancel or return request" count={todos ? todos.requests.length : null} loading={ordersLoading}
           detail="Customers asked from their order page" onOpen={() => { openOrdersQueue("Needs attention"); setActiveTab?.("orders"); }} openLabel="Answer requests" />
-        <RunRow label="gift cards not issued" one="gift card not issued" count={todos ? todos.giftCardsMissing.length : null} loading={ordersLoading}
+        <RunRow kind="Gift cards" label="gift cards not issued" one="gift card not issued" count={todos ? todos.giftCardsMissing.length : null} loading={ordersLoading}
           detail="Paid, but the buyer has no code yet" onOpen={() => setActiveTab?.("giftCards")} openLabel="Open gift cards" />
-        <RunRow label="pre-orders awaiting release" one="pre-order awaiting release" count={todos ? todos.awaitingRelease.length : null} loading={ordersLoading}
+        <RunRow kind="Pre-orders" label="pre-orders awaiting release" one="pre-order awaiting release" count={todos ? todos.awaitingRelease.length : null} loading={ordersLoading}
           detail="Press Ready to ship now on each order when the books arrive" onOpen={() => { openOrdersQueue("Awaiting release"); setActiveTab?.("orders"); }} openLabel="Open pre-orders" />
-        <RunRow label="unread messages" one="unread message" count={counts ? counts.unreadMessages : null} loading={!counts}
+        <RunRow kind="Messages" label="unread messages" one="unread message" count={counts ? counts.unreadMessages : null} loading={!counts}
           detail="From the contact form on your website" onOpen={() => setActiveTab?.("messages")} openLabel="Read messages" />
-        <RunRow label="privacy requests" one="privacy request" count={counts ? counts.openPrivacyRequests : null} loading={!counts}
+        <RunRow kind="Privacy" label="privacy requests" one="privacy request" count={counts ? counts.openPrivacyRequests : null} loading={!counts}
           detail="Customers asked for a copy or deletion of their data" onOpen={() => setActiveTab?.("general")} openLabel="Open privacy requests" />
         {stockroomRun?.rows}
     </>
@@ -590,8 +600,13 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook, onSetWall }: { se
         onOpen={tab => setActiveTab?.(tab)} onSetWall={onSetWall} onRetrySettings={refresh} />
       {/* Plan 6.17: Connect Google, on a shop run by Colophon, until it is connected. */}
       <ConnectGoogleCard variant="prompt" />
-      <OverviewBoard store={boards.store} setStore={boards.setStore} saveState={boards.saveState} saveError={boards.saveError}
-        onRetrySave={boards.retrySave} renderWidget={renderWidget} header={header} />
+      {figures ? (
+        <OverviewBoard store={boards.store} setStore={boards.setStore} saveState={boards.saveState} saveError={boards.saveError}
+          onRetrySave={boards.retrySave} renderWidget={renderWidget} header={header} />
+      ) : (
+        <HomeToday ownerName={ownerName} orders={shopOrders} ordersFailed={allOrders.error} fair={fair} combined={COMBINED} todo={todoRow}
+          onOpen={tab => setActiveTab?.(tab)} onOpenTill={() => stockroomBridge.openPage("pos")} onRecordSale={() => stockroomBridge.openPage("manual")} onRetry={refresh} />
+      )}
     </>
   );
 }
