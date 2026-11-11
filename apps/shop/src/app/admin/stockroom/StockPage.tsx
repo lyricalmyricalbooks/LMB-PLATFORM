@@ -10,6 +10,7 @@ import { WebsiteOrdersCard } from "./WebsiteOrders";
 import { PlacesCard } from "./PlacesCard";
 import { EditDetailsButton } from "./EditDetailsButton";
 import { AuthorCopiesCard } from "./AuthorCopiesCard";
+import { AuthorMoneyCard } from "./AuthorMoneyCard";
 import { hasPublisherTools } from "../../../shared/shopSells";
 import { catalogueStock, money, searchItems, totalsOf, type ChannelRow, type ItemStock, type StockLevel, type StoreRow } from "./stock";
 
@@ -145,6 +146,7 @@ export function StockPage({ bookId, load = stockroomApi.load }: { bookId?: strin
     return <StockDetail item={item} onBack={() => setPicked(null)} edit={book ? <EditDetailsButton id={item.id} book={book} onSaved={read} /> : undefined} places={<>
       <PlacesCard bookId={item.id} book={book} state={state} onSaved={read} />
       {(publisher || item.authorHeld > 0) && <AuthorCopiesCard bookId={item.id} book={book} state={state} onSaved={read} />}
+      {(publisher || ((state as Record<string, any>).artistPayouts || []).length > 0) && <AuthorMoneyCard bookId={item.id} book={book} state={state} onSaved={read} />}
     </>} />;
   }
   const currency = String((records.books[0] as Record<string, any> | undefined)?.currency || "CAD");
