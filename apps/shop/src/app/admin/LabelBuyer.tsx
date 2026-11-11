@@ -27,13 +27,14 @@ type Props = {
   problem: string;
   onFindRates: () => void;
   onBuy: () => void;
-  onDispatch: () => void;
+  /** "Ship without a label" (left out where the page has no dispatch step, e.g. Stockroom › Shipping). */
+  onDispatch?: () => void;
   onSavePreset: (name: string) => Promise<boolean>;
 };
 
 const same = (a: Partial<Parcel>, b: Partial<Parcel>) =>
   (["length", "width", "height"] as const).every((k) => Number(a[k]) > 0 && Number(a[k]) === Number(b[k]));
-const price = (rate: any) => new Intl.NumberFormat("en-CA", { style: "currency", currency: rate?.currency || "CAD" }).format(Number(rate?.amount) || 0);
+export const price = (rate: any) => new Intl.NumberFormat("en-CA", { style: "currency", currency: rate?.currency || "CAD" }).format(Number(rate?.amount) || 0);
 
 /**
  * Ship station, step 3: the parcel, the carrier rates and the Buy label button, right inside the order
@@ -106,7 +107,7 @@ export function LabelBuyer({
           <PrimaryButton disabled={locked || !valid || !!problem} onClick={onFindRates}>
             {finding ? "Finding rates…" : "Find label rates"}
           </PrimaryButton>
-          <SecondaryButton disabled={locked} onClick={onDispatch}>Ship without a label</SecondaryButton>
+          {onDispatch && <SecondaryButton disabled={locked} onClick={onDispatch}>Ship without a label</SecondaryButton>}
         </div>
       ) : (
         <fieldset className="ss-rates">
@@ -149,7 +150,7 @@ export function LabelBuyer({
               {buying ? "Buying label…" : picked ? `Buy label · ${price(picked)}` : "Choose a rate"}
             </PrimaryButton>
             <SecondaryButton disabled={locked || !valid} onClick={onFindRates}>{finding ? "Finding rates…" : "Find rates again"}</SecondaryButton>
-            <SecondaryButton disabled={locked} onClick={onDispatch}>Ship without a label</SecondaryButton>
+            {onDispatch && <SecondaryButton disabled={locked} onClick={onDispatch}>Ship without a label</SecondaryButton>}
           </div>
           <p className="rp-hint" style={{ margin: 0 }}>Buying charges your Shippo account. The customer is emailed only when you mark the parcel shipped.</p>
         </fieldset>

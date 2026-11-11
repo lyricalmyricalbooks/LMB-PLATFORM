@@ -68,15 +68,15 @@ describe("asking the stockroom", () => {
     expect(needed).toBe(1);
     again();
   });
-  it("opens a book's stockroom page once the frame is ready", () => {
+  it("opens a framed stockroom page for a book once the frame is ready", () => {
     vi.stubGlobal("window", { location: { origin: ORIGIN } });
     const posted: any[] = [];
     const pages: string[] = [];
     const stop = stockroomBridge.onOpen((page) => pages.push(page));
-    stockroomBridge.openBook("dashboard", "b1");
-    expect(pages).toEqual(["dashboard"]);
+    stockroomBridge.openBook("reconcile", "b1");
+    expect(pages).toEqual(["reconcile"]);
     stockroomBridge.attach({ postMessage: (m: any) => posted.push(m) } as any);
-    expect(posted).toEqual([{ source: FROM_ADMIN, type: "open", tab: "dashboard", book: "b1" }]);
+    expect(posted).toEqual([{ source: FROM_ADMIN, type: "open", tab: "reconcile", book: "b1" }]);
     stop();
   });
 });

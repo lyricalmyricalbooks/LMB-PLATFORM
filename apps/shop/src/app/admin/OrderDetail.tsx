@@ -3,7 +3,8 @@ import { ReturnWorkbench } from "./ReturnWorkbench";
 import { acquisitionRows } from "./orderAcquisition";
 import { DOWNLOAD_LIMIT } from "../features/site/digitalLine";
 import { FulfillmentWorkbench } from "./FulfillmentWorkbench";
-import { LabelBuyer, type Parcel, type ParcelPreset } from "./LabelBuyer";
+import { LabelBuyer } from "./LabelBuyer";
+import { useLabelPurchase } from "./useLabelPurchase";
 import { CARRIERS, cleanTrackingLink, getTrackingUrl } from "../lib/tracking";
 import { PartShipmentDialog } from "./PartShipmentDialog";
 import {
@@ -13,7 +14,6 @@ import {
   dispatchProblem,
   defaultRestockOnRefund,
   booksLeftOutAfterRefund,
-  matchesCustomerService,
   suggestedParcelWeightGrams,
   canMarkManualPaid,
   lockedAddressFields,
@@ -100,6 +100,8 @@ export function OrderDetail({
     return true;
   };
   const [order, setOrder] = useState<any>(null);
+  // Parcel, rates and Buy label: shared with Stockroom › Shipping (useLabelPurchase.ts).
+  const label = useLabelPurchase(orderId, order, () => loadOrder());
   const phone = usePhone();
   // Tell the list beside us only when the order really changed (an action, a Stripe sync that
   // moved something) — never for the first load of an order, which made the desk reload every order.
@@ -124,17 +126,10 @@ export function OrderDetail({
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [note, setNote] = useState("");
-  const [isGeneratingLabel, setIsGeneratingLabel] = useState(false);
-  const [labelRates, setLabelRates] = useState<any[]>([]);
-  const [labelShipmentId, setLabelShipmentId] = useState("");
-  const [selectedLabelRate, setSelectedLabelRate] = useState("");
-  // Rates were asked for the current parcel (cleared whenever the parcel changes, so a label is never bought for an old size).
-  const [ratesSearched, setRatesSearched] = useState(false);
   const [showHold, setShowHold] = useState(false);
   const [showRefund, setShowRefund] = useState(false);
   // Add items to this order (code plan 24.6, part B): a linked order to pay that ships with this one.
   const [addingItems, setAddingItems] = useState(false);
-  const [isBuyingLabel, setIsBuyingLabel] = useState(false);
   const [isVoiding, setIsVoiding] = useState(false);
   const voidingRef = useRef(false);
   const [restockOnRefund, setRestockOnRefund] = useState(false);
@@ -143,32 +138,6 @@ export function OrderDetail({
   const [checked, setChecked] = useState<Set<number>>(new Set());
   const [holdReason, setHoldReason] = useState("");
   const [editAddress, setEditAddress] = useState<any>(null);
-  const [parcel, setParcel] = useState({
-    length: "10",
-    width: "8",
-    height: "2",
-    weight: "680",
-    distance_unit: "in",
-    mass_unit: "g",
-  });
-  const parcelTouched = useRef(false);
-  // Parcel presets live in settings/parcelPresets (shared by every browser). Presets saved in
-  // this browser's localStorage before that are copied across once, then removed locally.
-  const [presets, setPresets] = useState<any[]>([]);
-  useEffect(() => {
-    let alive = true;
-    let local: any[] = [];
-    try { local = JSON.parse(localStorage.getItem("publisher-parcels") || "[]"); } catch { local = []; }
-    if (!Array.isArray(local)) local = [];
-    adminApi.getParcelPresets().then(async (remote) => {
-      const merged = [...(remote || [])];
-      for (const p of local) if (p?.name && !merged.some((m) => m.name === p.name)) merged.push(p);
-      if (local.length && merged.length !== (remote || []).length) await adminApi.saveParcelPresets(merged);
-      if (local.length) { try { localStorage.removeItem("publisher-parcels"); } catch { /* ignore */ } }
-      if (alive) setPresets(merged);
-    }).catch(() => { if (alive) setPresets(local); });
-    return () => { alive = false; };
-  }, []);
   const [emailLog, setEmailLog] = useState<any[] | null>(null);
   const [emailLogFailed, setEmailLogFailed] = useState(false);
   const orderIdRef = useRef(orderId);
@@ -251,8 +220,6 @@ export function OrderDetail({
       }
       if (data) {
         fillTracking(data);
-        // Start the label dialog from the books' catalog weights (grams), not a fixed guess.
-        if (!parcelTouched.current) setParcel((p) => ({ ...p, weight: suggestedParcelWeightGrams(data), mass_unit: "g" }));
       }
     } catch (err) {
       console.error(err);
@@ -433,70 +400,6 @@ export function OrderDetail({
     printOrders([order], false, { ...shop, goods }, { [order.id]: added });
   };
 
-  const handlePushToShippo = async () => {
-    setIsGeneratingLabel(true);
-    try {
-      const result = await adminApi.getCanadaPostLabelRates(orderId, parcel);
-      setLabelRates(result.rates || []);
-      setLabelShipmentId(result.shipmentId || "");
-      // Pre-select the service the customer paid for at checkout; never silently swap it.
-      const chosen = (result.rates || []).find((r: any) => matchesCustomerService(r.name, order?.shippingMethod));
-      setSelectedLabelRate(chosen?.id || (order?.shippingMethod ? "" : result.rates?.[0]?.id || ""));
-      setRatesSearched(true);
-    } catch (err: any) {
-      toast.error(plainError(err, "Couldn't load Canada Post rates"));
-    } finally {
-      setIsGeneratingLabel(false);
-    }
-  };
-
-  const forgetRates = () => {
-    setLabelRates([]);
-    setLabelShipmentId("");
-    setSelectedLabelRate("");
-    setRatesSearched(false);
-  };
-  const changeParcel = (patch: Partial<Parcel>) => {
-    parcelTouched.current = true;
-    setParcel((prev) => ({ ...prev, ...patch }));
-    forgetRates();
-  };
-  // A saved parcel sets the box size; the weight still comes from this order's books, in grams
-  // (presets saved before weights went metric carry mass_unit "lb").
-  const pickPreset = (preset: ParcelPreset) =>
-    changeParcel({ ...preset.parcel, weight: String(suggestedParcelWeightGrams(order)), mass_unit: "g" } as Partial<Parcel>);
-  const savePreset = async (name: string) => {
-    const next = [...presets.filter((p) => p.name !== name), { name: name.slice(0, 60), parcel }].slice(-30);
-    try {
-      await adminApi.saveParcelPresets(next);
-      setPresets(next);
-      toast.success("Parcel saved");
-      return true;
-    } catch {
-      toast.error("Could not save the parcel");
-      return false;
-    }
-  };
-
-  const handleBuyLabel = async () => {
-    if (!selectedLabelRate || !labelShipmentId) return;
-    setIsBuyingLabel(true);
-    try {
-      await adminApi.buyCanadaPostLabel(
-        orderId,
-        labelShipmentId,
-        selectedLabelRate,
-      );
-      forgetRates();
-      await loadOrder();
-      toast.success("Label bought. Print it, then mark the parcel shipped when it leaves.");
-    } catch (err: any) {
-      toast.error(plainError(err, "Couldn't purchase the label"));
-      await loadOrder();
-    } finally {
-      setIsBuyingLabel(false);
-    }
-  };
 
   const handleAddNote = async () => {
     if (!note.trim() || working) return;
@@ -936,7 +839,7 @@ export function OrderDetail({
           books={books}
           checked={checked}
           busy={
-            working || isShipping || isBuyingLabel || isVoiding || loadFailed
+            working || isShipping || label.buying || isVoiding || loadFailed
           }
           onCheck={(i) =>
             setChecked((prev) => {
@@ -951,27 +854,27 @@ export function OrderDetail({
           labelStep={
             <LabelBuyer
               order={order}
-              parcel={parcel as Parcel}
-              onParcel={changeParcel}
-              presets={presets}
-              onPreset={pickPreset}
+              parcel={label.parcel}
+              onParcel={label.changeParcel}
+              presets={label.presets}
+              onPreset={label.pickPreset}
               suggestedWeight={suggestedParcelWeightGrams(order)}
-              rates={labelRates}
-              searched={ratesSearched}
-              selectedRate={selectedLabelRate}
-              onSelectRate={setSelectedLabelRate}
-              finding={isGeneratingLabel}
-              buying={isBuyingLabel}
+              rates={label.rates}
+              searched={label.searched}
+              selectedRate={label.selectedRate}
+              onSelectRate={label.setSelectedRate}
+              finding={label.finding}
+              buying={label.buying}
               busy={working || isShipping || isVoiding || loadFailed}
               problem={problem}
-              onFindRates={handlePushToShippo}
-              onBuy={handleBuyLabel}
+              onFindRates={label.findRates}
+              onBuy={() => void label.buy()}
               onDispatch={() => {
                 fillTracking(order);
                 setLabelReplaced(false);
                 setShowShipForm("dispatch");
               }}
-              onSavePreset={savePreset}
+              onSavePreset={label.savePreset}
             />
           }
           onDispatch={() => {
