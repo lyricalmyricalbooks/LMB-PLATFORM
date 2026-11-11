@@ -7,6 +7,10 @@
   // /stockroom/) can't find its files, so it moves there (docs: LMB-PLATFORM docs/combined-admin.md).
   if (/\/stockroom$/.test(location.pathname)) location.replace('/stockroom/app' + location.search + location.hash);
 </script>
+<!-- The shop profile (which shop, its Firebase project and sign-in list) must run before the app. It sits here in the
+     head, ahead of the app: the build moves the app's script into the head, and deferred scripts run in page order, so
+     a profile at the end of the page ran after the app, which then fell back to the built-in test project. -->
+<script defer src="%BASE_URL%shop-profile.js"></script>
 <!-- A first browser safety policy. GitHub Pages can't send headers, so it rides
      in a meta tag. It refuses plugins (object/embed) and stops injected markup
      from re-pointing the page's relative links with a <base> tag. Inline
@@ -7071,7 +7075,6 @@
   </div>
 </div>
 
-<script defer src="%BASE_URL%shop-profile.js"></script>
 <script type="module" src="/src/main.js"></script>
 </body>
 </html>
