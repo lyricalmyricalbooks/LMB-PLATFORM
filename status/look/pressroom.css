@@ -2042,3 +2042,38 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
    rounded corners show. */
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .od-card { border: 0; border-radius: var(--rp-radius-lg); overflow: hidden; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-card .rp-table-wrap { background: transparent; }
+
+/* Colophon frame to the "Shop Admin Redesign" mockup (11 November 2026): a letter tile beside the shop's name, a
+ * plain-text menu (no icons, counts in mono), Night look and the account at the foot, the search as a white pill. */
+.rp .rp-brand-tile, .rp .rp-night-look, .rp .rp-drawer-account-role { display: none; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-brand-link { display: flex; align-items: center; gap: 12px; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-brand-tile { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: 9px; background: var(--rp-on-inverse); color: var(--rp-rail); font: 700 14px/1 var(--rp-font-body); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-brand-link .rp-wordmark { font: 600 14px/1.2 var(--rp-font-body); letter-spacing: 0; text-transform: none; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-brand-link .rp-wordmark-sub { margin-top: 3px; font-size: 11px; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-nav-item > svg:first-child { display: none; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-nav-item { min-height: 40px; padding: 0 12px; font-size: 14px; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-nav-item .rp-nav-badge,
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-nav-item[data-nav="orders"]:not([aria-current="page"]) .rp-nav-badge { color: var(--rp-rail-faint); font: 400 11px/1 var(--rp-font-mono); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-sidebar-foot { border-top: 1px solid var(--rp-rail-line); padding-top: 14px; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-whats-new { padding: 8px 12px; border-top: 0; border-radius: 12px; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-whats-new > svg:first-child,
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-whats-new-title { display: none; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-night-look {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; margin: 6px 0 0; padding: 0 12px; border: 0; border-radius: 999px;
+  background: var(--rp-rail-line); color: var(--rp-on-inverse); font: 600 13px/1 var(--rp-font-body); cursor: pointer;
+}
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-night-look:hover { background: var(--rp-rail-hover); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-night-look:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-drawer-account-who { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-drawer-account-role { display: block; font: 400 11px/1 var(--rp-font-mono); color: var(--rp-rail-faint); }
+@media (min-width: 1024px) {
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-drawer-account { padding: 8px 4px; background: transparent; }
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-drawer-account-name { font: 500 13px var(--rp-font-body); }
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-drawer-account-site { display: none; }
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-drawer-account .rp-avatar { background: var(--rp-tile-lilac, var(--rp-on-inverse)); color: var(--rp-on-tile, var(--rp-text)); }
+}
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-topbar { min-height: 72px; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-topbar-search { flex: 0 1 500px; max-width: 500px; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-topbar-search .rp-input { height: 40px; min-height: 40px; border: 0; border-radius: 999px; background: var(--rp-surface); padding-left: 18px; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-topbar-search .rp-search-icon { display: none; }
+@media (min-width: 768px) { :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-status-pill { height: 36px; padding: 0 14px; border-radius: 999px; background: var(--rp-surface); } }

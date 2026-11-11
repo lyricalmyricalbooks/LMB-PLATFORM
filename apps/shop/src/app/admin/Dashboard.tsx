@@ -871,16 +871,20 @@ export function Dashboard() {
             ) : (
               <a className="rp-brand-link" href="#overview" aria-label={COMBINED ? "Admin: go to Overview" : "Website admin: go to Overview"}
                 onClick={(e) => { e.preventDefault(); setSidebarOpen(false); void goTo("overview"); }}>
+                <span className="rp-brand-tile" aria-hidden="true">{(shopNameFromSettings(settings) || "S").trim().charAt(0).toUpperCase()}</span>
                 <span className="rp-brand-text">
                   <span className="rp-wordmark">{brandWords.first}{brandWords.rest ? <em> {brandWords.rest}</em> : null}</span>
-                  <span className="rp-wordmark-sub">{COMBINED ? "Admin" : "Website admin"}</span>
+                  <span className="rp-wordmark-sub">{COMBINED ? "Colophon" : "Website admin"}</span>
                 </span>
               </a>
             )}
             footer={
               <>
               <WhatsNew appearance={appearance} onHistoryOpen={() => setSidebarOpen(false)} onNavigate={async (link) => { if (link.studio) { window.location.hash = link.studio; return; } if (!(await goTo(link.tab))) return; if (link.settingsTab) setSettingsTab(link.settingsTab); }} />
-              <DrawerAccount avatar={avatar} name={userName} email={user.email} onViewSite={openSite}
+              <button type="button" className="rp-night-look" aria-pressed={adminTheme === "dark"} onClick={toggleTheme}>
+                {adminTheme === "dark" ? <Sun size={14} aria-hidden /> : <Moon size={14} aria-hidden />} {adminTheme === "dark" ? "Day look" : "Night look"}
+              </button>
+              <DrawerAccount avatar={avatar} name={userName} role={isShopOwner(user.email) ? "Owner" : "Team"} email={user.email} onViewSite={openSite}
                 menuItems={(close) => accountMenuItems(() => { close(); setSidebarOpen(false); })} />
               </>
             }

@@ -327,8 +327,10 @@ export function ShopStatusMenu({ wallOn, checkoutPaused, busy, disabled, onSetWa
  * Phones (Pocket Pressroom, 23 October 2026): the top bar has no room for the avatar, so the drawer ends with
  * the administrator (avatar, name, View site) and a ⋯ menu holding the same actions as the top-bar avatar menu.
  */
-export function DrawerAccount({ avatar, name, email, onViewSite, menuItems }: {
+export function DrawerAccount({ avatar, name, email, role, onViewSite, menuItems }: {
   avatar: ReactNode; name: string; email: string; onViewSite: () => void;
+  /** "Owner" or "Team", under the name (Colophon rail, as in the mockup). */
+  role?: string;
   menuItems: (close: () => void) => ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -357,7 +359,10 @@ export function DrawerAccount({ avatar, name, email, onViewSite, menuItems }: {
         else if (e.key === "ArrowUp") { e.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus(); }
       }}>
       {avatar}
-      <span className="rp-drawer-account-name" title={email}>{name}</span>
+      <span className="rp-drawer-account-who">
+        <span className="rp-drawer-account-name" title={email}>{name}</span>
+        {role && <span className="rp-drawer-account-role">{role}</span>}
+      </span>
       <button type="button" className="rp-drawer-account-site" onClick={onViewSite}>View site</button>
       <button ref={btn} type="button" className="rp-icon-btn" aria-label="Account actions" aria-haspopup="menu"
         aria-expanded={open} aria-controls={open ? menuId : undefined} onClick={() => setOpen((v) => !v)}>
