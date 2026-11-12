@@ -202,7 +202,8 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     if (!live) return;
     try {
       const now = await live();
-      if (now?.prices) fees = { ...settings, prices: { ...settings.prices, ...now.prices }, usdPrices: { ...settings.usdPrices, ...(now.usdPrices ?? {}) } };
+      // Free trial days come the same way (Settings > Free trial days): the next plan started gets today's length.
+      if (now?.prices) fees = { ...settings, prices: { ...settings.prices, ...now.prices }, usdPrices: { ...settings.usdPrices, ...(now.usdPrices ?? {}) }, trialDays: Number.isInteger(now.trialDays) && now.trialDays >= 0 ? now.trialDays : settings.trialDays };
     } catch (failure) {
       console.warn("Reading the platform fee from the control room's settings failed; using the last one read:", failure?.message || failure);
     }
@@ -721,7 +722,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         customer = { ...customer, currency };
         await customers.set(account.accountId, customer);
       }
-      const trial = settings.trialDays > 0 && !customer.trialUsedAt;
+      const trial = fees.trialDays > 0 && !customer.trialUsedAt;
       const starts = (existing?.starts ?? 0) + 1;
       // With no trial the first bill is made with the plan, so a founding press's discount goes on it from the start:
       // the place it already has, or (it pays today, so it is a paying press) one taken now (22.1).
@@ -736,7 +737,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
           metadata: { lmb_shop_id: shopId, lmb_plan: plan, lmb_account_id: account.accountId },
           payment_settings: { save_default_payment_method: "on_subscription" },
           ...(trial
-            ? { trial_period_days: settings.trialDays, trial_settings: { end_behavior: { missing_payment_method: "pause" } } }
+            ? { trial_period_days: fees.trialDays, trial_settings: { end_behavior: { missing_payment_method: "pause" } } }
             : { payment_behavior: "default_incomplete" }),
           ...(discounts ? { discounts } : {}),
         },

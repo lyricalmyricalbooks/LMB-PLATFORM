@@ -227,3 +227,20 @@ test("notes on Today lines: set, shown, cleared, admins only", async () => {
   await assert.rejects(controls.setTodayNote(ADMIN, { key: "" }));
   assert.equal(logged.length, 2);
 });
+
+test("an invite promises the free trial days the control room set, not the server's starting number", async () => {
+  const w = world();
+  const settings = platformSettings({});
+  const invites = createInvites({ invites: w.inviteStore, email: w.email, settings, live: async () => ({ trialDays: 30 }) });
+  await invites.invite({ by: "admin@example.com", to: "ada@example.com" });
+  const sent = w.email.list().at(-1);
+  assert.equal(sent.data.trialDays, 30);
+  assert.match(TEMPLATES["waitlist-invite"](sent.data, { settings }).text, /The first 30 days are free/);
+  // No free days set: the email promises none. An older invite with no number keeps the server's.
+  assert.doesNotMatch(TEMPLATES["waitlist-invite"]({ link: sent.data.link, trialDays: 0 }, { settings }).text, /days are free/);
+  assert.match(TEMPLATES["waitlist-invite"]({ link: sent.data.link }, { settings }).text, /The first 14 days are free/);
+  // The settings can't be read: the server's number stands and the invite still goes.
+  const quiet = createInvites({ invites: w.inviteStore, email: w.email, settings, live: async () => { throw new Error("no answer"); } });
+  await quiet.invite({ by: "admin@example.com", to: "bea@example.com" });
+  assert.equal(w.email.list().at(-1).data.trialDays, settings.trialDays);
+});

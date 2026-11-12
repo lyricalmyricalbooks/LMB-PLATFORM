@@ -239,12 +239,12 @@ export const PRESS_TEMPLATES_FR = {
   }),
 
   /** French twin of "waitlist-invite" (a commercial message: it keeps the STOP line). */
-  "waitlist-invite": ({ link }, { settings }) => layout({
+  "waitlist-invite": ({ link, trialDays }, { settings }) => layout({
     subject: `Vous pouvez maintenant créer votre boutique ${settings.platformName}`,
     greeting: "Bonjour,",
     paragraphs: [
       `Merci de votre inscription à la liste d'attente de ${settings.platformName}. Votre tour est arrivé : vous pouvez créer votre boutique dès maintenant.`,
-      `Inscrivez-vous avec cette adresse courriel. Les ${settings.trialDays ?? 14} premiers jours sont gratuits et aucune carte n'est nécessaire.`,
+      ((days) => (days > 0 ? `Inscrivez-vous avec cette adresse courriel. Les ${days} premiers jours sont gratuits et aucune carte n'est nécessaire.` : "Inscrivez-vous avec cette adresse courriel."))(trialDays ?? settings.trialDays ?? 14),
       `Vous recevez ce courriel parce que vous avez demandé à ${settings.platformName} de vous prévenir quand votre tour arriverait. Répondez STOP et nous vous retirerons de la liste immédiatement.`,
     ],
     buttons: [["Créer votre boutique", safeLink(link)]],

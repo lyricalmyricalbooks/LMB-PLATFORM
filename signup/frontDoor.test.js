@@ -768,3 +768,11 @@ test("\"Where do you sell today?\" from the front door is the shop's answer, so 
   assert.equal(plain.body.press.sellingToday, "");
   assert.equal(other.signupStores.signups.rows.get(plain.body.press.shopId).answer, null);
 });
+
+test("the sign-up pages show the free trial days the control room set", async () => {
+  const plans = async (live) => (await createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: SETTINGS, live, log: () => {} })({ method: "GET", path: "/api/plans", headers: {} })).body;
+  assert.equal((await plans(() => ({ trialDays: 30 }))).trialDays, 30);
+  assert.equal((await plans(() => ({ trialDays: 0 }))).trialDays, 0);
+  // The settings can't be read: the environment's length stands.
+  assert.equal((await plans(() => { throw new Error("no answer"); })).trialDays, SETTINGS.trialDays);
+});
