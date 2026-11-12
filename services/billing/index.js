@@ -9,6 +9,7 @@
 //
 // Prices, trial length, currency and the platform's pages come from services/settings.js. The Stripe key is read by
 // services/payments only (platformBillingStripe).
+import { createExchange } from "./exchangeRate.js";
 import { platformBillingStripe } from "../payments/index.js";
 import { platformSettings } from "../settings.js";
 import { createBilling } from "./billing.js";
@@ -29,7 +30,7 @@ export function readBillingConfig(env = {}) {
 
 export function createBillingFromEnv({ env = process.env, fetch = globalThis.fetch, customers, subscriptions, events, registry, auditLog, email, closeApp, deleteApp, shopPlan, live, foundingSeats, now }) {
   const { mode, webhookSecrets, tax } = readBillingConfig(env);
-  return createBilling({ stripe: platformBillingStripe({ env, fetch }), mode, settings: platformSettings(env), customers, subscriptions, events, registry, auditLog, email, webhookSecrets, tax, closeApp, deleteApp, shopPlan, live, foundingSeats, now });
+  return createBilling({ stripe: platformBillingStripe({ env, fetch }), mode, settings: platformSettings(env), customers, subscriptions, events, registry, auditLog, email, webhookSecrets, tax, closeApp, deleteApp, shopPlan, live, foundingSeats, exchange: createExchange({ fetch }), now });
 }
 
 /** Billing's events secret as the hosted server gets it (server/deploy.js), from Secret Manager. Only the web door takes events. */

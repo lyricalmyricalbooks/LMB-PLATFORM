@@ -33,7 +33,7 @@ export type BillingStatus = {
 export type StatusAnswer = { billing: BillingStatus | null; accountPage: string; changesNeedTwoStep: boolean };
 export type PlanPreview = { plan: PlanId; planName: string; price: string; from: PlanId | null; adds: string[]; closes: string[]; immediate: boolean; closesAt: string | null; downloadUntil: string | null; prorate: boolean; prorated: { amount: number; text: string } | null };
 export type SavedCard = { id: string; words: string; brand: string; last4: string; expMonth: number | null; expYear: number | null; primary: boolean; expired: boolean };
-export type BillingDetails = { name: string; email: string; address: { line1: string; line2: string; city: string; state: string; postalCode: string; country: string } | null; taxNumber: string; taxLabel: string; plusTax: boolean };
+export type BillingDetails = { name: string; email: string; address: { line1: string; line2: string; city: string; state: string; postalCode: string; country: string } | null; taxNumber: string; taxLabel: string; plusTax: boolean; currency?: string; country?: string };
 export type UpcomingBill = { date: string | null; lines: Array<{ words: string; amount: string }>; subtotal: string; discount: string; tax: string; total: string };
 export type Bill = { id: string; number: string; date: string | null; covers?: { from: string | null; to: string | null } | null; amount: string; tax: string; status: string; pdfUrl: string | null; pageUrl: string | null };
 export type PaymentWayView = { way: string | null; title: string; lines: string[]; button: { label: string; to: string } | null; note: string };
@@ -157,6 +157,23 @@ export const PROVINCES: Array<[string, string]> = [
   ["AB", "Alberta"], ["BC", "British Columbia"], ["MB", "Manitoba"], ["NB", "New Brunswick"], ["NL", "Newfoundland and Labrador"], ["NS", "Nova Scotia"],
   ["NT", "Northwest Territories"], ["NU", "Nunavut"], ["ON", "Ontario"], ["PE", "Prince Edward Island"], ["QC", "Quebec"], ["SK", "Saskatchewan"], ["YT", "Yukon"],
 ];
+
+/** The US states, Washington DC and Puerto Rico, for a US billing address (the tax on the bill depends on it). */
+export const US_STATES: Array<[string, string]> = [
+  ["AL", "Alabama"], ["AK", "Alaska"], ["AZ", "Arizona"], ["AR", "Arkansas"], ["CA", "California"], ["CO", "Colorado"], ["CT", "Connecticut"], ["DE", "Delaware"],
+  ["DC", "District of Columbia"], ["FL", "Florida"], ["GA", "Georgia"], ["HI", "Hawaii"], ["ID", "Idaho"], ["IL", "Illinois"], ["IN", "Indiana"], ["IA", "Iowa"],
+  ["KS", "Kansas"], ["KY", "Kentucky"], ["LA", "Louisiana"], ["ME", "Maine"], ["MD", "Maryland"], ["MA", "Massachusetts"], ["MI", "Michigan"], ["MN", "Minnesota"],
+  ["MS", "Mississippi"], ["MO", "Missouri"], ["MT", "Montana"], ["NE", "Nebraska"], ["NV", "Nevada"], ["NH", "New Hampshire"], ["NJ", "New Jersey"], ["NM", "New Mexico"],
+  ["NY", "New York"], ["NC", "North Carolina"], ["ND", "North Dakota"], ["OH", "Ohio"], ["OK", "Oklahoma"], ["OR", "Oregon"], ["PA", "Pennsylvania"], ["PR", "Puerto Rico"],
+  ["RI", "Rhode Island"], ["SC", "South Carolina"], ["SD", "South Dakota"], ["TN", "Tennessee"], ["TX", "Texas"], ["UT", "Utah"], ["VT", "Vermont"], ["VA", "Virginia"],
+  ["WA", "Washington"], ["WV", "West Virginia"], ["WI", "Wisconsin"], ["WY", "Wyoming"],
+];
+
+/** The billing address's country choices, and the region list, words and first region for each. */
+export const ADDRESS_COUNTRIES: Record<string, { name: string; regionLabel: string; regions: Array<[string, string]>; postalLabel: string; first: string }> = {
+  CA: { name: "Canada", regionLabel: "Province or territory", regions: PROVINCES, postalLabel: "Postal code", first: "ON" },
+  US: { name: "United States", regionLabel: "State", regions: US_STATES, postalLabel: "ZIP code", first: "NY" },
+};
 
 /** "Paid", "Waiting for payment"… a bill's state in words. */
 export function billState(status: string): { tone: "success" | "warning" | "neutral" | "danger"; word: string } {

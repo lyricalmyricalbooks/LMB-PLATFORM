@@ -15,6 +15,11 @@
 //   PLATFORM_CURRENCY          the currency plans are charged in                     default CAD
 //   PLAN_PRICE_BOTH            the monthly platform fee, in cents: every shop has the website and the stockroom
 //                              (one plan since 10 November 2026)                    default 500 ($5)
+//   PLAN_PRICE_BOTH_USD        the same fee for presses billed in US dollars (a press in the United States, 12
+//                              November 2026: services/billing/currencies.js), in US cents       default 500 (US$5)
+//   PLATFORM_TAX_CODE          the Stripe Tax product tax code on the fee and the running cost; it decides how each
+//                              province and state taxes the bill
+//                              default txcd_10103001 (software as a service, business use)
 //   PLAN_PRICE_SHOP, PLAN_PRICE_STOCKROOM  older plans' fees, read only; billing prices every shop at PLAN_PRICE_BOTH
 //                              (the running cost comes on top, at cost: services/billing/runningCost.js)
 //   TRIAL_DAYS                 free days before the first charge (no card needed)    default 14
@@ -44,6 +49,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   mailingAddress: "",
   currency: "CAD",
   prices: Object.freeze({ shop: 500, stockroom: 500, both: 500 }),
+  usdPrices: Object.freeze({ shop: 500, stockroom: 500, both: 500 }),
+  taxCode: "txcd_10103001",
   trialDays: 14,
   platformUrl: "https://platform.example",
   signupOpen: false,
@@ -61,6 +68,7 @@ const LIMITS = Object.freeze({
   "prices.shop": { min: 1, max: 1_000_000 },
   "prices.stockroom": { min: 1, max: 1_000_000 },
   "prices.both": { min: 1, max: 1_000_000 },
+  "usdPrices.both": { min: 1, max: 1_000_000 },
   trialDays: { min: 0, max: 730 },
   signupDailyCap: { min: 0, max: 1000 },
   "foundingOffer.percentOff": { min: 0, max: 100 },
@@ -142,6 +150,16 @@ export function platformSettings(env = process.env) {
       stockroom: whole("PLAN_PRICE_STOCKROOM", DEFAULT_SETTINGS.prices.stockroom, LIMITS["prices.stockroom"]),
       both: whole("PLAN_PRICE_BOTH", DEFAULT_SETTINGS.prices.both, LIMITS["prices.both"]),
     },
+    // Presses billed in US dollars pay this fee; the older plans' fees follow the Canadian ones (read only).
+    usdPrices: (() => {
+      const both = whole("PLAN_PRICE_BOTH_USD", DEFAULT_SETTINGS.usdPrices.both, LIMITS["usdPrices.both"]);
+      return { shop: both, stockroom: both, both };
+    })(),
+    taxCode: (() => {
+      const code = text("PLATFORM_TAX_CODE", DEFAULT_SETTINGS.taxCode);
+      if (!/^txcd_\d{8}$/.test(code)) problems.push("PLATFORM_TAX_CODE must be a Stripe tax code like txcd_10103001");
+      return code;
+    })(),
     // Stripe allows trials of up to two years; 0 means no trial.
     trialDays: whole("TRIAL_DAYS", DEFAULT_SETTINGS.trialDays, LIMITS.trialDays),
     platformUrl,
@@ -175,7 +193,8 @@ export const EDITABLE = Object.freeze({
   signupDailyCap: { kind: "whole", ...LIMITS.signupDailyCap, label: "New shops a day (an invite skips the line)" },
   // One plan for every shop since 10 November 2026: "prices.both" is the only fee the page shows. The older plans'
   // fees stay accepted (hidden) so a value saved before still loads, for shops waiting to move overnight.
-  "prices.both": { kind: "cents", ...LIMITS["prices.both"], label: "Platform fee, a month (running cost comes on top)" },
+  "prices.both": { kind: "cents", ...LIMITS["prices.both"], label: "Platform fee, a month, Canadian presses (CAD; running cost comes on top)" },
+  "usdPrices.both": { kind: "cents", ...LIMITS["usdPrices.both"], label: "Platform fee, a month, US presses (USD; running cost comes on top)" },
   "prices.shop": { kind: "cents", ...LIMITS["prices.shop"], label: "Older shop-only plan's fee", hidden: true },
   "prices.stockroom": { kind: "cents", ...LIMITS["prices.stockroom"], label: "Older stockroom-only plan's fee", hidden: true },
   trialDays: { kind: "whole", ...LIMITS.trialDays, label: "Free trial days" },

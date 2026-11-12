@@ -43,7 +43,7 @@ test("signing up starts the free trial with no card and queues a shop the shop m
   assert.equal(answer.status, 200);
   assert.equal(answer.body.shopId, "moth-press-aaaa0");
   assert.equal(answer.body.status, "queued");
-  assert.deepEqual(trials, [{ account: { accountId: "uid-ada", email: "ada@example.com", name: "Ada" }, shopId: "moth-press-aaaa0", pressName: "Moth Press", plan: "both" }]);
+  assert.deepEqual(trials, [{ account: { accountId: "uid-ada", email: "ada@example.com", name: "Ada" }, shopId: "moth-press-aaaa0", pressName: "Moth Press", plan: "both", country: "CA" }], "the country sets the currency the press pays in");
   const row = stores.signups.rows.get("moth-press-aaaa0");
   assert.equal(row.answer, "fairs");
   assert.equal(row.currency, "CAD");

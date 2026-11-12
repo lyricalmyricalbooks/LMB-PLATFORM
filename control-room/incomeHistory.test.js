@@ -182,3 +182,15 @@ test("the nightly record keeps the money at risk, and the line shows it per mont
   assert.deepEqual(record.atRisk, { count: 1, cents: settings.prices.both });
   assert.deepEqual((await history({ store, now })).months.at(-1).atRisk, { count: 1, cents: settings.prices.both });
 });
+
+test("the nightly record counts US dollars apart, and a US press's money never moves the Canadian figures", async () => {
+  const registry = fakeRegistry();
+  await registry.createShop("ca", { shopId: "ca", pressName: "ca", status: "live", plan: "both", billing: { plan: "both", status: "active" } });
+  await registry.createShop("us", { shopId: "us", pressName: "us", status: "live", plan: "both", billing: { plan: "both", status: "active", currency: "USD" } });
+  const record = await snapshotIncome({ registry, settings: platformSettings({}), store: fakeIncomeHistory(), now: new Date("2026-11-12T12:00:00Z") });
+  assert.equal(record.incomeCents, 500);
+  assert.deepEqual(record.otherIncome, { USD: 500 });
+  assert.deepEqual(record.shops.us, { state: "paying", cents: 500, currency: "USD" });
+  const moves = movements({}, record.shops);
+  assert.deepEqual([moves.newPaying, moves.newPayingCents], [2, 500]);
+});

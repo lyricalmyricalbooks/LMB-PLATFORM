@@ -29,12 +29,12 @@ test("sales roll over 12 months by province: old ones drop out, other currencies
   assert.equal(taxWatch({ now: NOW }).lines.length, TAX_LINES.length);
 });
 
-test("amber at 70% of each line and over at 100%, with the accountant note", () => {
+test("amber at 70% of each line and over at 100%, with what to do next", () => {
   const nearBc = taxWatch({ now: NOW, invoices: [inv(1, 7000, "BC")] });
   assert.equal(line(nearBc, "bc").state, "amber");
   assert.equal(line(nearBc, "bc").percent, 70);
   assert.equal(line(nearBc, "gst").state, "ok");
-  assert.match(line(nearBc, "bc").words, /Ask the accountant when to register/);
+  assert.match(line(nearBc, "bc").words, /close to the line. Get ready to register/);
   assert.equal(nearBc.attention, true);
   assert.equal(line(taxWatch({ now: NOW, invoices: [inv(1, 6999, "BC")] }), "bc").state, "ok");
   const over = taxWatch({ now: NOW, invoices: [inv(1, 10_000, "BC")] });

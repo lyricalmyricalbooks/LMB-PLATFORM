@@ -61,7 +61,9 @@ export function monthlyCents(row, settings) {
   const billing = row.billing ?? {};
   if (!PAYING.has(billing.status) || row.testShop === true) return 0;
   const plan = billing.plan ?? row.plan;
-  const price = Number.isInteger(billing.amount) ? billing.amount : settings.prices?.[plan] ?? 0;
+  // A press billed in US dollars pays the US fee (services/billing/currencies.js); the cents are in its own currency.
+  const table = billingCurrency(row, settings) === "USD" && String(settings.currency ?? "CAD").toUpperCase() !== "USD" ? settings.usdPrices ?? settings.prices : settings.prices;
+  const price = Number.isInteger(billing.amount) ? billing.amount : table?.[plan] ?? 0;
   const off = Number.isFinite(billing.percentOff) ? Math.min(Math.max(billing.percentOff, 0), 100) : 0;
   // Pay what you use: last month's running cost rides on this month's bill, at cost (never discounted).
   const running = Number.isInteger(billing.lastRunningCost?.cents) ? Math.max(0, billing.lastRunningCost.cents) : 0;
@@ -72,6 +74,21 @@ export function monthlyCents(row, settings) {
  * The numbers and the "needs you" list. `rows` are registry rows; `open` gives a shop's open repairs; the rest are
  * lists already read: waiting support requests, recoveries to check, shops being made.
  */
+/** The currency a shop pays the platform in: kept on its registry row's `billing`, else the platform's own. */
+export const billingCurrency = (row, settings) => String(row.billing?.currency ?? settings.currency ?? "CAD").toUpperCase();
+
+/** Monthly income by currency, { CAD: cents, USD: cents }: the two are never added together. */
+export function incomeByCurrency(shops, settings) {
+  const out = {};
+  for (const row of shops) {
+    const cents = monthlyCents(row, settings);
+    if (!cents) continue;
+    const code = billingCurrency(row, settings);
+    out[code] = (out[code] ?? 0) + cents;
+  }
+  return out;
+}
+
 export function todaySummary({ rows, settings, profiles = {}, checks = {}, open = {}, support = [], recoveries = [], making = [], opening = [], parcels = [], now = new Date() }) {
   const shops = rows.filter((row) => row.testShop !== true);
   const counts = {
@@ -81,7 +98,11 @@ export function todaySummary({ rows, settings, profiles = {}, checks = {}, open 
     signupsThisWeek: shops.filter((r) => r.createdAt && now.getTime() - Date.parse(r.createdAt) <= 7 * DAY).length,
     failedPayments: shops.filter((r) => PAYMENT_PROBLEM.has(r.billing?.status)).length,
   };
-  const monthlyIncome = shops.reduce((sum, row) => sum + monthlyCents(row, settings), 0);
+  // The platform's own currency is the headline; presses billed in another (US dollars) are kept apart.
+  const home = String(settings.currency ?? "CAD").toUpperCase();
+  const byCurrency = incomeByCurrency(shops, settings);
+  const monthlyIncome = byCurrency[home] ?? 0;
+  const otherIncome = Object.fromEntries(Object.entries(byCurrency).filter(([code]) => code !== home));
 
   const needs = [];
   for (const row of rows) {
@@ -163,7 +184,7 @@ export function todaySummary({ rows, settings, profiles = {}, checks = {}, open 
     snoozed.push({ ...need, until: row.todaySnoozes[need.kind].until });
     return false;
   });
-  return { counts, monthlyIncome, currency: settings.currency, needs: shown, snoozed };
+  return { counts, monthlyIncome, currency: settings.currency, otherIncome, needs: shown, snoozed };
 }
 
 /**

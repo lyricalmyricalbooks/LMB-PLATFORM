@@ -46,7 +46,7 @@ export async function runRunningCosts({ billing, registry, meters = null, reader
   const thisMonth = monthOf(today);
   const told = await billing.runningCostAlerts({ month: thisMonth, soFar: await costsFor({ rows, month: thisMonth, meters, reader }) });
   return {
-    summary: `${billed ? `${billed.month}: billed ${billed.billed.length}, waiting for costs ${billed.missing.length}` : `bills from day ${BILL_FROM_DAY}`}; heads-ups sent ${told.length}`,
+    summary: `${billed ? `${billed.month}: billed ${billed.billed.length}, waiting for costs ${billed.missing.length}${billed.waiting?.length ? `, waiting for the exchange rate ${billed.waiting.length}` : ""}` : `bills from day ${BILL_FROM_DAY}`}; heads-ups sent ${told.length}`,
     billed, told,
   };
 }

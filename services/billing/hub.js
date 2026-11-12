@@ -35,7 +35,16 @@ export function taxNumberOf(text, BillingError) {
 const clip = (text, max) => String(text ?? "").trim().slice(0, max);
 const EMAIL = /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+$/;
 
-/** The address as Stripe takes it, checked: street, city, province or state, postal code and a two-letter country. */
+/** Canada's provinces and territories, by their two-letter codes. */
+export const CA_PROVINCES = Object.freeze(["AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT"]);
+/** The US states, Washington DC and Puerto Rico, by their two-letter codes: Stripe Tax places a US press by its state. */
+export const US_STATES = Object.freeze(["AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "DC", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "PR", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"]);
+
+/**
+ * The address as Stripe takes it, checked: street, city, province or state, postal code and a two-letter country. The
+ * tax on each bill is worked out from it (Stripe Tax), so a Canadian address needs its province (GST, HST, PST, QST)
+ * and a US one its state and ZIP code (12 November 2026).
+ */
 export function addressOf(raw, BillingError) {
   if (!raw || typeof raw !== "object") return null;
   const address = {
@@ -46,6 +55,9 @@ export function addressOf(raw, BillingError) {
   if (!address.line1 || !address.city || !address.postal_code) throw new BillingError(400, "Fill in the street, the city and the postal code, or leave the whole address empty.");
   if (!/^[A-Z]{2}$/.test(address.country)) throw new BillingError(400, "Choose the country from the list.");
   if (address.country === "CA" && !/^[A-Z]\d[A-Z] ?\d[A-Z]\d$/.test(address.postal_code)) throw new BillingError(400, "That postal code doesn't look Canadian. It should look like M5V 2T6.");
+  if (address.country === "CA" && !CA_PROVINCES.includes(address.state)) throw new BillingError(400, "Choose your province or territory. The tax on your bill depends on it.");
+  if (address.country === "US" && !/^\d{5}(-\d{4})?$/.test(address.postal_code)) throw new BillingError(400, "That ZIP code doesn't look right. It should look like 10001 or 10001-1234.");
+  if (address.country === "US" && !US_STATES.includes(address.state)) throw new BillingError(400, "Choose your state. The tax on your bill depends on it.");
   return Object.fromEntries(Object.entries(address).filter(([, v]) => v));
 }
 
@@ -60,7 +72,7 @@ export function invoiceTax(invoice) {
 
 const https = (url) => (typeof url === "string" && url.startsWith("https://") ? url : null);
 
-export function createBillingHub({ call, rowFor, save, logChange, subscriptions, settings, tax, BillingError, money, iso, nowIso, refresh, cardNowPays, syncInvoiceLanguage = async () => {} }) {
+export function createBillingHub({ call, rowFor, save, logChange, subscriptions, settings, tax, BillingError, money, iso, nowIso, refresh, cardNowPays, syncInvoiceLanguage = async () => {}, currencyOf = () => settings.currency }) {
   const cardOf = (method) => ({
     id: method.id, brand: method.card?.brand ?? "card", last4: method.card?.last4 ?? "", expMonth: method.card?.exp_month ?? null, expYear: method.card?.exp_year ?? null,
   });
@@ -154,6 +166,8 @@ export function createBillingHub({ call, rowFor, save, logChange, subscriptions,
         name: customer?.name ?? "", email: customer?.email ?? row.billingEmail ?? "",
         address: customer?.address && customer.address.line1 ? { line1: customer.address.line1 ?? "", line2: customer.address.line2 ?? "", city: customer.address.city ?? "", state: customer.address.state ?? "", postalCode: customer.address.postal_code ?? "", country: customer.address.country ?? "CA" } : null,
         taxNumber: taxId?.value ?? "", taxLabel: TAX_NUMBERS.find((k) => k.type === taxId?.type)?.label ?? "", plusTax: tax,
+        // The currency the press pays in, and the country a new address starts in (a press billed in US dollars: US).
+        currency: String(currencyOf(row)).toUpperCase(), country: customer?.address?.country ?? (String(currencyOf(row)).toUpperCase() === "USD" ? "US" : "CA"),
       };
     },
 
@@ -203,7 +217,7 @@ export function createBillingHub({ call, rowFor, save, logChange, subscriptions,
       if (!row?.subscriptionId || ENDED.has(row.status) || row.cancelAtPeriodEnd || row.paymentWay === "payAsYouSell") return null;
       const preview = await call("POST", "/v1/invoices/create_preview", { params: { customer: row.customerId, subscription: row.subscriptionId } });
       if (!preview) return null;
-      const currency = preview.currency ?? settings.currency;
+      const currency = preview.currency ?? currencyOf(row);
       const discount = (preview.total_discount_amounts ?? []).reduce((sum, d) => sum + (d.amount ?? 0), 0);
       const taxAmount = invoiceTax(preview);
       return {

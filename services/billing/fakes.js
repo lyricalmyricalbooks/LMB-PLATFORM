@@ -152,11 +152,12 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
     if ((m = path.match(/^\/v1\/products\/([\w-]+)$/)) && method === "POST") {
       if (!world.products.has(m[1])) return missing("product");
       if (p.name) world.products.get(m[1]).name = p.name;
+      if (p.tax_code) world.products.get(m[1]).tax_code = p.tax_code;
       return ok(world.products.get(m[1]));
     }
     if (method === "POST" && path === "/v1/products") {
       if (world.products.has(p.id)) return { status: 400, body: { error: { type: "invalid_request_error", code: "resource_already_exists", message: "exists" } } };
-      world.products.set(p.id, { id: p.id, name: p.name });
+      world.products.set(p.id, { id: p.id, name: p.name, ...(p.tax_code ? { tax_code: p.tax_code } : {}) });
       return ok(world.products.get(p.id));
     }
     if (method === "POST" && path === "/v1/prices") {
@@ -282,7 +283,7 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
       return ok({ object: "list", data: [...world.invoiceItems.values()].filter((item) => item.customer === p.customer), has_more: false });
     }
     if (method === "POST" && path === "/v1/invoiceitems") {
-      const item = { id: `ii_${next++}`, object: "invoiceitem", customer: p.customer, subscription: p.subscription, amount: Number(p.amount), currency: p.currency, description: p.description, discountable: p.discountable, metadata: { lmb_shop_id: p["metadata[lmb_shop_id]"], lmb_month: p["metadata[lmb_month]"], lmb_kind: p["metadata[lmb_kind]"] } };
+      const item = { id: `ii_${next++}`, object: "invoiceitem", customer: p.customer, subscription: p.subscription, amount: Number(p.amount), currency: p.currency, description: p.description, discountable: p.discountable, tax_behavior: p.tax_behavior ?? null, tax_code: p.tax_code ?? null, metadata: Object.fromEntries(Object.entries(p).filter(([k]) => k.startsWith("metadata[")).map(([k, v]) => [k.slice(9, -1), v])) };
       world.invoiceItems.set(item.id, item);
       return ok(item);
     }

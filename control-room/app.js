@@ -602,7 +602,7 @@ function recordView(record) {
     ["Owner", record.ownerEmail],
     ["Started", dateOnly(record.createdAt)],
     ["Address", record.siteUrl],
-    ["Plan", billing ? `${billing.plan ?? record.plan} · ${BILLING_WORDS[billing.status] ?? billing.status}${billing.trialEnd ? ` · trial ends ${dateOnly(billing.trialEnd)}` : ""}${billing.currentPeriodEnd ? ` · next payment ${dateOnly(billing.currentPeriodEnd)}` : ""} · ${billing.hasCard ? "card on file" : "no card yet"}${billing.cancelAtPeriodEnd ? " · cancelling" : ""}` : record.plan],
+    ["Plan", billing ? `${billing.plan ?? record.plan} · ${BILLING_WORDS[billing.status] ?? billing.status}${billing.currency && billing.currency !== "CAD" ? ` · billed in ${billing.currency}` : ""}${billing.trialEnd ? ` · trial ends ${dateOnly(billing.trialEnd)}` : ""}${billing.currentPeriodEnd ? ` · next payment ${dateOnly(billing.currentPeriodEnd)}` : ""} · ${billing.hasCard ? "card on file" : "no card yet"}${billing.cancelAtPeriodEnd ? " · cancelling" : ""}` : record.plan],
     ["Sells", record.sells?.line ?? ""],
     ["Emails", EMAIL_LANGUAGE_WORDS[record.emailLanguage] ?? ""],
     ["Payments", connections.payments ? `${CARD_WORDS[connections.payments.provider] ?? connections.payments.provider ?? "?"}${connections.payments.connected ? ", connected" : ", not connected yet"}${connections.payments.payouts ? ` · payouts ${connections.payments.payouts}` : ""}` : "not set up yet"],
@@ -844,11 +844,13 @@ $("#launch-walk-reset").addEventListener("click", () => {
 async function loadTaxWatch() {
   const target = $("#tax-watch");
   try {
-    const { lines } = await api("GET", "/control/tax-watch");
-    target.replaceChildren(...lines.map((l) => sheet({
-      title: l.label, tone: l.state === "ok" ? "success" : l.state === "amber" ? "warning" : "danger",
-      pillWords: l.state === "ok" ? "Fine" : l.state === "amber" ? "Close" : "Past the line", body: [el("p", { className: "rp-hint", textContent: l.words })],
-    })));
+    const { lines, states = [] } = await api("GET", "/control/tax-watch");
+    const tone = (level) => (level === "ok" ? "success" : level === "amber" ? "warning" : "danger");
+    const pill = (level) => (level === "ok" ? "Fine" : level === "amber" ? "Close" : "Past the line");
+    target.replaceChildren(
+      ...lines.map((l) => sheet({ title: l.label, tone: tone(l.state), pillWords: pill(l.state), body: [el("p", { className: "rp-hint", textContent: l.words })] })),
+      // US presses, by state, in US dollars (services/billing/taxWatch.js).
+      ...states.map((s) => sheet({ title: s.state === "unknown" ? "US sales, state not known yet" : `US sales tax, ${s.state}`, tone: s.state === "unknown" ? "neutral" : tone(s.level), pillWords: s.state === "unknown" ? "Missing" : pill(s.level), body: [el("p", { className: "rp-hint", textContent: s.words })] })));
   } catch (failure) {
     target.replaceChildren(emptyState(failure.message));
   }
@@ -1007,7 +1009,9 @@ function reminderControl(item) {
 
 function renderToday() {
   if (!lastToday) return;
-  const { counts, monthlyIncome, currency, snoozed = [] } = lastToday;
+  const { counts, monthlyIncome, currency, otherIncome = {}, snoozed = [] } = lastToday;
+  // Presses billed in US dollars: their income is shown apart, never added to the Canadian dollars.
+  const other = Object.entries(otherIncome).filter(([, cents]) => cents > 0).map(([code, cents]) => `${new Intl.NumberFormat(undefined, { style: "currency", currency: code, currencyDisplay: "symbol" }).format(cents / 100).replace(/\.00$/, "")}`);
   // The test shop's update failing is the platform's own problem: it goes first, so it is never folded away.
   // Most urgent first: the red lines (a shop or a payment in trouble) above the rest, each kept in its own order.
   const needs = [...(todayExtras.update ? [todayExtras.update] : []), ...(todayExtras.checks ?? []), ...lastToday.needs]
@@ -1046,7 +1050,7 @@ function renderToday() {
     el("div", { className: "rp-metric-value", textContent: String(value) }),
     foot ? el("div", { className: "rp-metric-foot", textContent: foot }) : null);
   fill($("#today-numbers"),
-    figure("Monthly income", money(monthlyIncome, currency).replace(/\.00$/, ""), `${counts.paying} paying of ${counts.live} live`, "mint"),
+    figure("Monthly income", money(monthlyIncome, currency).replace(/\.00$/, ""), `${other.length ? `plus ${other.join(" and ")}, ` : ""}${counts.paying} paying of ${counts.live} live`, "mint"),
     figure("Shops", counts.shops, `${counts.trial} on free trial, ${counts.signupsThisWeek} new this week`),
     figure("Failed payments", counts.failedPayments, `${counts.paused} paused, ${counts.closed} closed`, counts.failedPayments ? "apricot" : null));
 
