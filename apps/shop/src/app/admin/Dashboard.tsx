@@ -1003,7 +1003,7 @@ export function Dashboard() {
           actions={<div ref={setPageActionsEl} className="rp-page-actions-slot" />}
         />}
         {/* Settings lists its pages in a column on the left, under headings (redesign); other items show pills above. */}
-        <div className="rp-page-body" data-layout={settingsColumn ? "column" : undefined}>
+        <div className="rp-page-body" data-layout={settingsColumn ? "column" : undefined} data-sub={headOverride ? "" : undefined}>
           {!selectedOrder && pageTabs}
           <div className="rp-page-main">
           {!ownMasthead && pageAlerts}
