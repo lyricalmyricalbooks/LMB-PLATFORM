@@ -7,7 +7,7 @@ import { fmt } from "@stockroom/money.js";
 import { downloadCsv } from "@stockroom/download.js";
 import type { Delta } from "@stockroom/tax-ledger.js";
 
-import { DataTable, Dialog, EmptyState, GhostButton, MetricCard, Pagination, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, Tabs } from "../riso/components";
+import { DataTable, Dialog, EmptyState, GhostButton, MetricCard, PageActions, PageHead, Pagination, PrimaryButton, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, Tabs } from "../riso/components";
 import { useShopSells, useShopWords } from "../shopWords";
 import { hasPublisherTools } from "../../../shared/shopSells";
 import { getOrdersCached } from "../ordersCache";
@@ -104,6 +104,9 @@ export function TaxCenterView({ records, now, onTaxCenter, onState, orders: give
   const [ledgerNote, setLedgerNote] = useState<SaveNote | null>(null);
   const [page, setPage] = useState(1);
   const [confirming, setConfirming] = useState<Prefill | null>(null);
+  // v4 Costs to log: "Log an expense" in the header opens the New expense page (so does Confirm on a waiting cost).
+  const [adding, setAdding] = useState(false);
+  const ownPage = part === "costs" && !!onTaxCenter;
   const model = useMemo(() => taxCenterModel(sources, year, now), [sources, year, now]);
   const cur = model.baseCurrency;
   const money = (n: number) => fmt(n, cur);
@@ -117,8 +120,20 @@ export function TaxCenterView({ records, now, onTaxCenter, onState, orders: give
   const openCategory = categoryName ? model.categories.list.find((c) => c.name === categoryName) : undefined;
   const download = () => { const file = ledgerCsvFile(shown, cur, now); downloadCsv(file.text, file.name); };
 
+  if (ownPage && (adding || confirming)) {
+    const done = () => { setAdding(false); setConfirming(null); };
+    return (
+      <div className="rp-money">
+        <PageHead title="Log an expense" description="Money that went out of the business" back={{ label: "Costs to log", onClick: done }} />
+        <LogExpenseCard page taxCenter={records.taxCenter} prefill={confirming} onCancel={done}
+          onSaved={(taxCenter) => { onTaxCenter!(taxCenter); done(); }} />
+      </div>
+    );
+  }
+
   return (
     <div className="rp-money">
+      {ownPage && <PageActions><PrimaryButton onClick={() => setAdding(true)}>Log an expense</PrimaryButton></PageActions>}
       {(part === "all" || part === "salestax" || part === "rates" || part === "filings") && <TaxTop part={part === "all" ? "all" : part}
         periods={periods} period={period} onPeriod={(id) => { setPeriodId(id); setPage(1); }} orders={loaded}
         ledgerRows={allRows} states={records.states as Record<string, Record<string, any>>} taxCenter={records.taxCenter as Record<string, any> | null}
@@ -148,7 +163,7 @@ export function TaxCenterView({ records, now, onTaxCenter, onState, orders: give
       </>}
 
       {on("costs") && <>
-      {onTaxCenter && <LogExpenseCard taxCenter={records.taxCenter} onSaved={onTaxCenter} prefill={confirming} onPrefillDone={() => setConfirming(null)} />}
+      {onTaxCenter && !ownPage && <LogExpenseCard taxCenter={records.taxCenter} onSaved={onTaxCenter} prefill={confirming} onPrefillDone={() => setConfirming(null)} />}
       {onTaxCenter && <LogSeveralCard taxCenter={records.taxCenter} onSaved={onTaxCenter} />}
       {onTaxCenter && <PendingExpensesCard taxCenter={records.taxCenter} onSaved={onTaxCenter} onConfirm={setConfirming} />}
       {onTaxCenter && <RecurringSubscriptionsCard taxCenter={records.taxCenter} onSaved={onTaxCenter} now={now} />}

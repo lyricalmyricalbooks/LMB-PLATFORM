@@ -921,6 +921,8 @@ and Check and close (`reconcile`, `taxyear`). Each is `TaxCenterView` with a `pa
 TaxTop takes a matching `part`. Year parts (money, ledger, year end) pick the year with their own pills; sales tax parts
 use the quarter pills. `part="all"` still draws everything (moneyReports tests). Missing-cost and recurring-cost fixes
 on the to-do list open `taxcosts` (`todo.ts` fixTarget). Tile figures size to their tile (container units, no wrapping).
+Costs to log has **Log an expense** in the header: it (and Confirm on a pending cost) opens the New expense kit page
+(`LogExpenseCard page`, Back returns); `part="all"` keeps the card inline.
 
 **Bookkeeping Payments in v4 (12 November 2026):** Bookkeeping's first page is `payouts` "Payments" (`stockroom/PaymentsPage.tsx`,
 pure `paymentsModel.ts`): three tiles (paid out in the last 30 days, Pending = payouts with no date yet plus paid sales
