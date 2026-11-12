@@ -38,6 +38,9 @@ export function shopPlace(row) {
   return { shopId, projectId, folder: row.shared === true ? `shops/${shopId}` : "" };
 }
 
+/** What Connect Google set up, for the shop's server alone (apps/shop functions/adminReports.js reads it). */
+const SERVER_COPY = "adminSecrets/googleLink";
+
 /** The real `shopFirebase` (connect.js): every write lands in the shop's own folder of its own project. */
 export function hostedShopFirebase({ fetch, token }) {
   const call = googleHttp({ fetch, token });
@@ -63,10 +66,14 @@ export function hostedShopFirebase({ fetch, token }) {
     async writeAnalytics(row, { measurementId, propertyId }) {
       const db = dbOf(row);
       await db.set("adminSecrets/googleAnalytics", { propertyId: String(propertyId) }, { fields: ["propertyId"] });
+      // The copy the shop's server reads on the shared system: no browser can write it (firestore.rules), so a shop
+      // can only ever read the figures of the property its own Connect Google made.
+      await db.set(SERVER_COPY, { propertyId: String(propertyId) }, { fields: ["propertyId"] });
       await db.set("settings/website", { analytics: { ga4MeasurementId: measurementId } }, { fields: ["analytics.ga4MeasurementId"] });
     },
     async writeSearchConsoleSite(row, site) {
       await dbOf(row).set("adminSecrets/googleAnalytics", { searchConsoleSite: site }, { fields: ["searchConsoleSite"] });
+      await dbOf(row).set(SERVER_COPY, { searchConsoleSite: site }, { fields: ["searchConsoleSite"] });
     },
     async publishVerificationFile(row, { name, content }) {
       const { shopId, projectId, folder } = shopPlace(row);

@@ -582,7 +582,7 @@ export function Dashboard() {
         <div className="rp-login" role="status" aria-live="polite">
           <div style={{ display: "grid", justifyItems: "center", gap: 16 }}>
             <div className="rp-brand-mark"><BookOpen size={20} aria-hidden /></div>
-            <p className="rp-wordmark-sub">Opening publishing house…</p>
+            <p className="rp-wordmark-sub">Opening your admin…</p>
           </div>
         </div>
       </div>

@@ -108,6 +108,21 @@ describe("Search Console", () => {
     expect(calls.some(c => c.url.includes(encodeURIComponent("sc-domain:yourpress.example")))).toBe(true);
   });
 
+  it("on the shared server a shop hears about its own Search Console site only, never the other shops'", async () => {
+    const before = process.env.SHOP_FOLDERS;
+    const fetchImpl = async () => reply(200, { siteEntry: [
+      { siteUrl: "https://one.example/", permissionLevel: "siteOwner" }, { siteUrl: "https://two.example/", permissionLevel: "siteOwner" },
+    ] });
+    try {
+      process.env.SHOP_FOLDERS = "on";
+      const { body } = await handleSearchConsole({ op: "status" }, deps(fetchImpl, { searchConsoleSite: "https://two.example/" }));
+      expect(body).toMatchObject({ connected: true, site: "https://two.example/" });
+      expect(body.sites.map(s => s.siteUrl)).toEqual(["https://two.example/"]);
+      process.env.SHOP_FOLDERS = "off";
+      expect((await handleSearchConsole({ op: "status" }, deps(fetchImpl, { searchConsoleSite: "https://two.example/" }))).body.sites).toHaveLength(2);
+    } finally { if (before === undefined) delete process.env.SHOP_FOLDERS; else process.env.SHOP_FOLDERS = before; }
+  });
+
   it("asks for the service account to be added when Google lists no property", async () => {
     const { body } = await handleSearchConsole({ op: "status" }, deps(async () => reply(200, {})));
     expect(body.connected).toBe(false);
