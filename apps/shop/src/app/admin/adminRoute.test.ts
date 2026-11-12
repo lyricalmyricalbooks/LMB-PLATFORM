@@ -45,7 +45,7 @@ describe("admin route ↔ hash", () => {
 
   it("round-trips every sub tab with a readable slug, the default tab with none", () => {
     for (const [page, tabs] of Object.entries(SUB_TABS)) {
-      const base = page === "inventory" ? { tab: "inventory" } : { tab: "settings", settingsTab: page };
+      const base = page === "inventory" || page === "analytics" ? { tab: page } : { tab: "settings", settingsTab: page };
       tabs.forEach(([slug, id], i) => {
         const hash = hashForRoute({ ...base, subTab: id });
         expect(hash.endsWith(i === 0 ? page : `/${slug}`)).toBe(true);
@@ -57,6 +57,7 @@ describe("admin route ↔ hash", () => {
     expect(routeFromHash("#settings/payments/methods")).toEqual({ tab: "settings", settingsTab: "payments", subTab: "pay-methods" });
     expect(routeFromHash("#settings/notifications/deliveries")).toEqual({ tab: "settings", settingsTab: "notifications", subTab: "email-deliveries" });
     expect(routeFromHash("#inventory/link")).toEqual({ tab: "inventory", subTab: "inv-link" });
+    expect(routeFromHash("#analytics/traffic")).toEqual({ tab: "analytics", subTab: "an-traffic" });
     expect(routeFromHash("#payments/methods")).toEqual({ tab: "settings", settingsTab: "payments", subTab: "pay-methods" });
     expect(hashForRoute({ tab: "payments", subTab: "pay-more" })).toBe("#settings/payments/more");
     expect(hashForRoute({ tab: "shipping", subTab: "carrier" })).toBe("#settings/shipping/carrier");
