@@ -54,9 +54,7 @@ describe("the combined admin (shop + stockroom plan)", () => {
     expect(menuItemFor(STOCKROOM_ITEM_PREFIX + "pos", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "pos");
     expect(menuItemFor(STOCKROOM_ITEM_PREFIX + "taxcenter", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "taxcenter");
     expect(menuItemFor(STOCKROOM_ITEM_PREFIX + "consignment", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "consignment");
-    expect(menuItemFor("settings/bookkeeping", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "expenses");
     expect(menuItemFor(STOCKROOM_ITEM_PREFIX + "reconcile", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "taxcenter");
-    expect(sideOf("settings/bookkeeping")).toBe("stockroom");
     expect(menuItemFor("customers", COMBINED_MENU)).toBe("orders");
     expect(menuItemFor("channels", COMBINED_MENU)).toBe("discounts");
   });
@@ -70,7 +68,6 @@ describe("the combined admin (shop + stockroom plan)", () => {
 
   it("keeps every Settings page in both menus, so a new one (billing) shows in the combined admin too", () => {
     const settings = (menu: typeof MENU) => menu.find((g) => g.label === "Settings")?.pages;
-    // QuickBooks (settings/bookkeeping) sits under the stockroom's Bookkeeping in the combined admin (v3).
     const combined = COMBINED_MENU.flatMap((g) => g.pages);
     expect(combined).toEqual(expect.arrayContaining(settings(MENU) || []));
     const navSettings = NAV.find((n) => n.id === "settings")?.children?.map((c) => "settings/" + c.id).filter((id) => id !== "settings/designer");

@@ -49,7 +49,9 @@ export const RUNNERS = Object.freeze({
     : notConnectedFn(NOT_CONNECTED.runningCosts)),
   "trial-tips": ({ trialTips }) => (trialTips ? () => trialTips.run() : notConnectedFn(NOT_CONNECTED.trialTips)),
   "shop-checkup": ({ checkups }) => (checkups ? () => checkups.run() : notConnectedFn(NOT_CONNECTED.checkups)),
-  bookkeeping: () => notConnectedFn(NOT_CONNECTED.bookkeeping),
+  // QuickBooks: warns each owner 30 days before their connection ends (services/accounting nightly()). The sales
+  // themselves are sent by each shop's own nightly run.
+  bookkeeping: ({ parts }) => (parts?.accounting ? () => parts.accounting.service.nightly() : notConnectedFn(NOT_CONNECTED.bookkeeping)),
   "income-record": ({ parts }) => async () => runBusinessNightly({ registry: parts.registry, settings: await parts.live(), incomeHistory: parts.incomeHistory, billing: parts.billing, now: parts.now }),
   "press-messages": ({ pressMessages }) => () => pressMessages.sweep(),
   // Colophon's own apps are put (back) on the store first, so their alerts always have a listing to go to.
@@ -77,7 +79,6 @@ export const WAITING_JOBS = Object.freeze({
   "shop-maker": NOT_CONNECTED.shopMaking,
   "web-addresses": NOT_CONNECTED.domains,
   "self-checks": NOT_CONNECTED.selfChecks,
-  bookkeeping: NOT_CONNECTED.bookkeeping,
   "running-costs": NOT_CONNECTED.runningCosts,
   "usage-meters": NOT_CONNECTED.usageMeters,
 });

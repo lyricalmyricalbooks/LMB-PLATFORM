@@ -44,6 +44,9 @@ import { SecuritySettings } from "./SecuritySettings";
 import { GoogleSettings } from "./GoogleSettings";
 import { AppsSettings } from "./AppsSettings";
 import { BookkeepingSettings } from "./BookkeepingSettings";
+
+/** QuickBooks lives in the app store (Settings › Apps); one function, so the page asks once. */
+const quickBooksStatus = () => adminApi.bookkeeping("status");
 import { BillingSettings, PlanSettings } from "./PlanParts";
 import { TaxesSettings } from "./TaxesSettings";
 import { BackupsExportCard } from "./BackupsExportCard";
@@ -140,8 +143,11 @@ export function ShopSettings({
           {activeTab === "team" && <TeamSettings />}
           {activeTab === "security" && <SecuritySettings />}
           {activeTab === "google" && <GoogleSettings />}
-          {activeTab === "apps" && <AppsSettings />}
-          {activeTab === "bookkeeping" && <BookkeepingSettings taxRates={settings.taxes?.rates || []} />}
+          {/* QuickBooks is an app now: #settings/apps/quickbooks (and the old #settings/bookkeeping) opens it here. */}
+          {activeTab === "apps" && (
+            <AppsSettings openQuickBooks={subTab === "quickbooks"} onQuickBooks={(open) => onSubTabChange?.(open ? "quickbooks" : "apps")}
+              quickbooks={{ status: quickBooksStatus, panel: <BookkeepingSettings taxRates={settings.taxes?.rates || []} /> }} />
+          )}
           {activeTab === "plan" && <PlanSettings />}
           {activeTab === "billing" && <BillingSettings />}
           {/* Communications was retired: its links open Notifications. */}

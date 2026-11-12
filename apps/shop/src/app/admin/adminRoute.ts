@@ -10,7 +10,8 @@ export type AdminRoute = { tab: string; settingsTab?: string; orderId?: string; 
 
 export const ADMIN_TABS = ["overview", "analytics", "orders", "customers", "inventory", "catalog", "discounts", "giftCards", "reviews", "messages", "channels", "socialPosts", "design", "settings"] as const;
 /** Old Settings page ids that now open another page (Email sender was merged into the one email page). */
-export const SETTINGS_TAB_ALIASES: Record<string, string> = { communications: "notifications" };
+// QuickBooks moved into Settings › Apps (12 November 2026): its old address opens Apps with QuickBooks open.
+export const SETTINGS_TAB_ALIASES: Record<string, string> = { communications: "notifications", bookkeeping: "apps" };
 /** The Settings page an id really opens (an alias resolves to its page). */
 export const settingsPageOf = (id: string): string => SETTINGS_TAB_ALIASES[id] || id;
 
@@ -23,9 +24,10 @@ export const SUB_TABS: Record<string, Array<[slug: string, id: string]>> = {
   notifications: [["templates", "email-templates"], ["setup", "email-setup"], ["deliveries", "email-deliveries"]],
   shipping: [["overview", "overview"], ["profiles", "profiles"], ["carrier", "carrier"], ["local", "local"], ["returns", "returns"]],
   inventory: [["stock", "inv-stock"], ["link", "inv-link"]],
+  apps: [["", "apps"], ["quickbooks", "quickbooks"]],
 };
 /** Old Settings page ids that open a particular sub tab (Email sender's address opens Sending setup). */
-const ALIAS_SUB_TABS: Record<string, string> = { communications: "email-setup" };
+const ALIAS_SUB_TABS: Record<string, string> = { communications: "email-setup", bookkeeping: "quickbooks" };
 
 /** The page whose sub tabs a route names: the Settings page (aliases resolved) or the top-level tab. */
 export function subTabPage(r: Pick<AdminRoute, "tab" | "settingsTab">): string {

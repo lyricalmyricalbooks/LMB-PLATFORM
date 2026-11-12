@@ -649,6 +649,15 @@ if (/page=stockroom(\/|%2F)backups/.test(window.location.search)) {
   appsApi.installed = async () => installed as any;
   appsApi.store = async () => ({ apps: store, categories });
   appsApi.remove = async (appId: string) => { installed = installed.filter((a) => a.appId !== appId); };
+  // QuickBooks, built into the store: ?qb=off (Coming soon), ?qb=connected, else ready to connect.
+  const qb = new URLSearchParams(location.search).get("qb");
+  (adminApi as any).bookkeeping = async (step: string) => {
+    if (step !== "status") throw Object.assign(new Error("Not in the fixture."), { code: "not_available" });
+    if (qb === "off") return { enabled: false };
+    return qb === "connected"
+      ? { enabled: true, mode: "test", connected: true, companyName: "Moth Press Books", ready: true, style: "daily", taxCodes: {}, lastSent: { date: "2026-11-11", at: "2026-11-12T04:00:00Z" } }
+      : { enabled: true, mode: "test", connected: false };
+  };
   appsApi.activity = async () => none ? [] : [
     { id: "r3", app: "Parcel Pal", what: "Marked order 1042 sent (Canada Post 7023 1100 4410)", when: "2026-11-04T16:10:00Z", state: "done", reason: "" },
     { id: "r2", app: "Parcel Pal", what: "Marked order 1039 sent (Canada Post 7023 1100 4388)", when: "2026-11-04T15:02:00Z", state: "refused", reason: "Order on hold: waiting on the author's signature." },
