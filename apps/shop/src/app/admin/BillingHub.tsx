@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { CreditCard, ExternalLink, Plus } from "lucide-react";
 import {
-  DataTable, DestructiveButton, Dialog, EmptyState, ErrorState, LoadingState, PrimaryButton, SecondaryButton, SectionCard, SelectField,
-  StatusBadge, TextArea, TextField, useConfirm,
+  DataTable, Dialog, EmptyState, ErrorState, LoadingState, PrimaryButton, SecondaryButton, SectionCard, SelectField,
+  StatusBadge, TextField, useConfirm,
 } from "./riso/components";
 import { printBill } from "./billPaper";
-import { DownloadShopButton } from "./DownloadShopCard";
 import { hubReady, planDate, type PlatformPlan } from "./platformPlan";
 import {
-  BillingCallError, DROP_CHOICES, alertCents, priceWords, EMAIL_LANGUAGES, LEAVING_CHOICES, downloadableClosedApps, emailLanguageWords, planAddingBack, ADDRESS_COUNTRIES, appsInWords, billCoversWords, billState, billingCall, previewWords, statusBadge,
+  BillingCallError, DROP_CHOICES, alertCents, priceWords, EMAIL_LANGUAGES, downloadableClosedApps, emailLanguageWords, planAddingBack, ADDRESS_COUNTRIES, appsInWords, billCoversWords, billState, billingCall, previewWords, statusBadge,
   type Bill, type BillingDetails, type BillingStatus, type PaymentWayView, type PlanId, type PlanPreview, type SavedCard, type StatusAnswer, type UpcomingBill,
 } from "./platformBilling";
 
@@ -22,7 +21,7 @@ import {
 type Hub = { plan: PlatformPlan & { hub: string; shopId: string } };
 
 /** The platform's answer to "where does this shop's plan stand?", read again after every change. */
-function useBillingStatus(plan: Hub["plan"]) {
+export function useBillingStatus(plan: Hub["plan"]) {
   const [answer, setAnswer] = useState<StatusAnswer | null>(null);
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => {
@@ -39,7 +38,7 @@ function useBillingStatus(plan: Hub["plan"]) {
 }
 
 /** A problem from a call: plain words, and on a paid plan's change the button that finishes it on the account page. */
-function Problem({ error }: { error: BillingCallError | Error | null }) {
+export function Problem({ error }: { error: BillingCallError | Error | null }) {
   if (!error) return null;
   const twoStep = error instanceof BillingCallError && error.twoStep && error.accountPage;
   return (
@@ -57,7 +56,7 @@ function Problem({ error }: { error: BillingCallError | Error | null }) {
 }
 
 /** Runs one change: busy while it runs, the problem kept to show, and the status read again after. */
-function useChange(after: () => Promise<void> | void) {
+export function useChange(after: () => Promise<void> | void) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const run = useCallback(async <T,>(name: string, work: () => Promise<T>): Promise<T | undefined> => {
@@ -133,11 +132,8 @@ export function PlanPage({ plan }: Hub) {
   const { answer, error, load } = useBillingStatus(plan);
   const change = useChange(load);
   const [preview, setPreview] = useState<PlanPreview | null>(null);
-  const [cancelOpen, setCancelOpen] = useState(false);
-  const [reason, setReason] = useState("");
   const [dropReason, setDropReason] = useState("");
   const [emailedTo, setEmailedTo] = useState<string | null>(null);
-  const [words, setWords] = useState("");
   const [way, setWay] = useState<PaymentWayView | null>(null);
 
   const loadWay = useCallback(async () => {
@@ -201,10 +197,6 @@ export function PlanPage({ plan }: Hub) {
     const done = await change.run("change", () => billingCall(plan, "change-plan", { plan: preview.plan, reason: (preview.closes.length && dropReason) || undefined }));
     if (done !== undefined) setPreview(null);
   };
-  const cancel = async () => {
-    const done = await change.run("cancel", () => billingCall(plan, "cancel", { reason: reason || undefined, words: words.trim() || undefined }));
-    if (done !== undefined) setCancelOpen(false);
-  };
 
   return (
     <div className="rp-stack" style={{ gap: 16 }} data-billing-hub="plan">
@@ -245,11 +237,10 @@ export function PlanPage({ plan }: Hub) {
         </SectionCard>
       )}
 
-      {!ended && !billing.cancelAtPeriodEnd && (
-        <SectionCard title="Cancel your plan" description="Your shop stays open to the end of the month you've paid for (or your trial), and you can change your mind until then." collapsible={false}>
-          <div><DestructiveButton onClick={() => setCancelOpen(true)}>Cancel plan</DestructiveButton></div>
-        </SectionCard>
-      )}
+      {/* Cancelling, the download and what happens after live together on Settings › Billing › Close your shop. */}
+      <SectionCard title="Leaving Colophon?" description="Download your shop, cancel and close it in one place." collapsible={false}>
+        <div><SecondaryButton onClick={() => { const card = document.getElementById("close-shop"); if (card) card.scrollIntoView({ behavior: "smooth", block: "start" }); else window.location.hash = "#settings/billing/close"; }}>Close your shop</SecondaryButton></div>
+      </SectionCard>
 
       <Dialog open={!!preview} onClose={() => setPreview(null)} title={preview ? `Switch to ${preview.planName}?` : ""}
         footer={<>
@@ -267,22 +258,6 @@ export function PlanPage({ plan }: Hub) {
         </div>
       </Dialog>
 
-      <Dialog open={cancelOpen} onClose={() => setCancelOpen(false)} title="Cancel your plan?"
-        description="Nothing is deleted when you cancel. Download your shop first if you are moving."
-        footer={<>
-          <SecondaryButton onClick={() => setCancelOpen(false)}>Keep my plan</SecondaryButton>
-          <DestructiveButton busy={change.busy === "cancel"} onClick={() => void cancel()}>Cancel plan</DestructiveButton>
-        </>}>
-        <div className="rp-stack" style={{ gap: 12 }}>
-          <SelectField label="Why are you leaving? (optional)" value={reason} onChange={(e) => setReason(e.target.value)}>
-            {LEAVING_CHOICES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-          </SelectField>
-          <TextArea label="Anything we could do better? (optional)" maxLength={500} value={words} onChange={(e) => setWords(e.target.value)} rows={3} />
-          <DownloadShopButton />
-          <p className="rp-hint" style={{ margin: 0 }}>You can still download for 90 days after your shop closes.</p>
-          <Problem error={change.error} />
-        </div>
-      </Dialog>
     </div>
   );
 }

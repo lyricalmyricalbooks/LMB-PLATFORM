@@ -12,7 +12,7 @@ export function closingTemplates({ layout, safeLink, signOff }) {
       greeting: "Hello,",
       paragraphs: [
         `${pressName} has been paused for a while, so it is now closed. Shoppers see a closed page and no orders come in.`,
-        `Everything is kept until ${date}: ${w("your books")}, orders, customers and stock. Sign in, open Settings, then Plan, and press Download your shop. It gives you one zip, ready to move to another shop system.`,
+        `Everything is kept until ${date}: ${w("your books")}, orders, customers and stock. Sign in, open Settings, then Billing, and press Download your shop. It gives you one zip, ready to move to another shop system.`,
         `After ${date} the shop and everything in it are deleted for good. Start a plan again before then and it opens just as you left it.`,
       ],
       buttons: [["See your plan", safeLink(link)]],
@@ -27,7 +27,7 @@ export function closingTemplates({ layout, safeLink, signOff }) {
         greeting: "Hello,",
         paragraphs: [
           `In ${days} days, on ${date}, ${pressName} and everything in it will be deleted: ${w("books")}, orders, customers and stock. It can't be undone.`,
-          "If you haven't yet, sign in, open Settings, then Plan, and press Download your shop.",
+          "If you haven't yet, sign in, open Settings, then Billing, and press Download your shop.",
           `To keep the shop, start a plan again before ${date}.`,
         ],
         buttons: [["See your plan", safeLink(link)]],
