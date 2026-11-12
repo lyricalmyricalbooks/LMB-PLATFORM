@@ -218,3 +218,43 @@ test("a shared-system shop reaches the app store at the address its server is gi
   const installed = await world.handle({ method: "POST", path, headers: { "X-Shop-Id": "moth-press", Authorization: `Bearer ${key}` }, body: { op: "apps.installed", args: {} } });
   assert.equal(installed.status, 200, JSON.stringify(installed.body));
 });
+
+test("a shared-system shop reaches the QuickBooks link at the address its server is given; hidden until it's switched on", async () => {
+  const { sharedServerEnv } = await import("../services/release-runner/shared.js");
+  const url = /^PLATFORM_ACCOUNTING_URL="([^"]+)"$/m.exec(sharedServerEnv({ platformUrl: "https://platform.example" }))?.[1];
+  assert.equal(url, "https://platform.example/api/accounting");
+  // The shop's server posts to `${PLATFORM_ACCOUNTING_URL}/shop` (apps/shop/functions/quickbooksLink.js).
+  const path = `${new URL(url).pathname}/shop`;
+  const { world } = build({ ...TEST_ENV, SHARED_SHOPS_PROJECT: "lmb-test-shop", SHARED_SHOPS_DOMAIN: "shops.example" });
+  const key = "shared-server-key-0123456789abcdef0123456789";
+  await world.registry.createShop("moth-press", { shopId: "moth-press", projectId: "lmb-test-shop", shared: true, status: "live", serviceKeyHash: hashServiceKey(key) });
+  const refused = await world.handle({ method: "POST", path, headers: { "X-Shop-Id": "moth-press" }, body: { op: "accounting.status" } });
+  assert.equal(refused.status, 401);
+  const status = await world.handle({ method: "POST", path, headers: { "X-Shop-Id": "moth-press", Authorization: `Bearer ${key}` }, body: { op: "accounting.status" } });
+  assert.equal(status.status, 200, JSON.stringify(status.body));
+  assert.deepEqual(status.body, { enabled: false });
+  const reconnect = await world.handle({ method: "GET", path: "/api/accounting/quickbooks/reconnect", headers: {}, query: {} });
+  assert.equal(reconnect.status, 200);
+  // The nightly warning job runs (nothing to warn about yet) instead of waiting paused.
+  assert.deepEqual(await world.parts.accounting.service.nightly(), { warned: [] });
+});
+
+test("the QuickBooks link's stores keep each record in the platform's database, one use for a sign-in state", async () => {
+  const { accountingStores, accountingEnv } = await import("../services/accounting/hosted.js");
+  const { outside } = build();
+  const { firestoreClient } = await import("../clients/firestore.js");
+  const platform = firestoreClient({ fetch: outside.fetch, token: outside.token, projectId: TEST_PROJECT });
+  const stores = accountingStores(platform);
+  await stores.connections.set("moth-press", { mode: "test", realmId: "9130" });
+  assert.deepEqual(await stores.connections.get("moth-press"), { mode: "test", realmId: "9130", shopId: "moth-press" });
+  assert.deepEqual((await stores.connections.byRealm("test", "9130")).map((c) => c.shopId), ["moth-press"]);
+  assert.deepEqual(await stores.connections.byRealm("live", "9130"), []);
+  const state = "a".repeat(48);
+  await stores.states.put(state, { shopId: "moth-press" });
+  assert.deepEqual(await stores.states.take(state), { shopId: "moth-press" });
+  assert.equal(await stores.states.take(state), null);
+  await stores.sent.put("moth-press/9130/day/2026-11-11", { saleId: "7" });
+  assert.deepEqual(await stores.sent.get("moth-press/9130/day/2026-11-11"), { saleId: "7" });
+  assert.throws(() => stores.connections.get("../x"), /shop id/);
+  assert.equal(accountingEnv({ PLATFORM_URL: "https://platform.example/" }).QUICKBOOKS_REDIRECT_URL, "https://platform.example/api/accounting/quickbooks/oauth");
+});

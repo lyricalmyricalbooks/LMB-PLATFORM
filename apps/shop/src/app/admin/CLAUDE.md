@@ -672,10 +672,13 @@ themselves don't change.
   readiness row ticks only once `paymentsReady` (cards and payouts). While something is past due, `cardAccountAlert`
   (adminAlerts.ts, action `cardAccount` → Settings › Payments › Ways to pay) puts a banner on every admin page; the
   Dashboard's 5-minute alert check reads the status for Stripe platform shops. The platform emails the owner once.
-- Settings › Bookkeeping (`BookkeepingSettings.tsx`, pure `quickbooksLink.ts`, plan 7.16): Connect to QuickBooks in three
+- QuickBooks (`BookkeepingSettings.tsx`, pure `quickbooksLink.ts`, plan 7.16): Connect to QuickBooks in three
   steps (sign in with Intuit, one line per day or every order, match taxes and five accounts), then last day sent, Send
-  again and Disconnect. Hidden unless `adminApi.bookkeeping("status")` says `enabled` (Dashboard asks once when
-  Settings opens and drops the menu entry with `withoutPages`). The button is text only ("Connect to QuickBooks"), as
+  again and Disconnect. **It lives in the app store (Julian, 12 November 2026):** Settings › Apps shows a built-in
+  QuickBooks card (Open, or Coming soon until `adminApi.bookkeeping("status")` says `enabled`) and, once connected, a row
+  under Installed with Manage. Open shows the steps on the Apps page at `#settings/apps/quickbooks` (sub tab `quickbooks`);
+  the old `#settings/bookkeeping` is an alias for it, and Intuit sends the press back there. No menu lists it elsewhere.
+  Fixture: `admin-fixture.html?page=settings/apps` (`&qb=off` or `&qb=connected`). The button is text only ("Connect to QuickBooks"), as
   Intuit asks; the admin has no French yet, so there is no French label. Tax names are each rate's `bookName` (plan 7.11)
   or "Tax <place>" until then.
 

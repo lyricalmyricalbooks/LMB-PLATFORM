@@ -60,6 +60,9 @@ export function sharedServerEnv({ platformUrl, region = REGION }) {
     // The app store's shop door (services/apps/shopDoor.js, plan 26.5): Settings › Apps lists the installed apps and the
     // store, and Add opens each app's connect page. Without it the page shows only the shop's own app activity.
     `PLATFORM_APPS_URL="${base}/api/apps"`,
+    // The QuickBooks link (services/accounting/hosted.js): Settings › Bookkeeping. The page stays hidden until the
+    // platform has Intuit's keys and ACCOUNTING_ENABLED.
+    `PLATFORM_ACCOUNTING_URL="${base}/api/accounting"`,
     "",
   ].join("\n");
 }

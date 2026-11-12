@@ -37,3 +37,15 @@ export function readAccountingConfig(env = {}) {
     tokenKey: keyText ? sealingKey(keyText, "QUICKBOOKS_TOKEN_KEY") : null,
   });
 }
+
+/**
+ * The QuickBooks keys as Secret Manager secrets in the platform project (server/deploy.js). All optional: until they are
+ * there, every shop's Bookkeeping page stays hidden. The token key is 32 random bytes in Base64, made once.
+ */
+export const ACCOUNTING_SECRETS = Object.freeze([
+  { env: "QUICKBOOKS_CLIENT_ID_TEST", secret: "quickbooks-client-id-test", api: true, jobs: true },
+  { env: "QUICKBOOKS_CLIENT_SECRET_TEST", secret: "quickbooks-client-secret-test", api: true, jobs: true },
+  { env: "QUICKBOOKS_CLIENT_ID_LIVE", secret: "quickbooks-client-id-live", api: true, jobs: true },
+  { env: "QUICKBOOKS_CLIENT_SECRET_LIVE", secret: "quickbooks-client-secret-live", api: true, jobs: true },
+  { env: "QUICKBOOKS_TOKEN_KEY", secret: "quickbooks-token-key", api: true, jobs: true },
+]);

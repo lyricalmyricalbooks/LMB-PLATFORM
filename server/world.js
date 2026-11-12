@@ -31,6 +31,7 @@
 //   POST /api/email/shop         a shop sending an email through the platform (services/email/http.js)
 //   *    /api/domains/...        a shop's web addresses (services/domains/http.js: POST /shop, GET /allowed), in the shared system
 //   *    /api/google/...         Connect Google (google/hosted.js: POST /shop from a shop, GET /oauth from Google)
+//   *    /api/accounting/...     the QuickBooks link (services/accounting/hosted.js: POST /shop, GET /quickbooks/oauth and /reconnect)
 //   GET  /tips/off, /checkup/off the emails' "turn off" pages
 //
 // What can't be real yet answers plainly that it isn't switched on (server/notConnected.js; listed in README.md).
@@ -52,6 +53,7 @@ import { createInvites } from "../waitlist/invites.js";
 import { readGoogleConfig } from "../google/config.js";
 import { googleReadiness } from "../google/readiness.js";
 import { hostedGoogleLink } from "../google/hosted.js";
+import { hostedAccounting } from "../services/accounting/hosted.js";
 import { createSupportInbox } from "../services/support/inbox.js";
 import { supportRoutes } from "../services/support/routes.js";
 import { createAppMakers } from "../services/apps/makers.js";
@@ -337,6 +339,10 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     exchange: (args) => appInstalls.exchange(args), appCall: (request) => appConnection(request),
     roleIn: (who, shopId) => accounts.roleIn(who, shopId), fetch, now, returnAddress: `${settings.platformUrl}/account/mailchimp.html`,
   });
+  // The QuickBooks link (services/accounting, plan 7.15): a shop's Settings › Bookkeeping connects the press's own
+  // QuickBooks company, and the shop's nightly run sends its sales there. Hidden in every shop until Intuit's keys and
+  // ACCOUNTING_ENABLED are in (docs/accounting.md, Turning it on).
+  const accounting = hostedAccounting({ env, fetch, platform, registry, auditLog, email, shopStart: (shopId) => shopData.get(shopId, "firstWeek/start"), now: nowMs, log });
   const recovery = createRecovery({
     store: recoveryStore, email, registry, auditLog, settings, admins, now,
     findAccount: async (address) => {
@@ -409,7 +415,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const termsNotice = createTermsNotice({ signups: stores.signups, email, settings: live, now });
 
   // What the jobs can run (server/jobs.js reads these); the jobs page's "Run now" runs the ones that need nothing more.
-  const parts = { sharedShops: Boolean(sharedRun), domains, usage, usageMeters, costReader, ownApps, chitchats, chitchatsStores, mailchimp, env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups, termsNotice };
+  const parts = { sharedShops: Boolean(sharedRun), accounting, domains, usage, usageMeters, costReader, ownApps, chitchats, chitchatsStores, mailchimp, env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups, termsNotice };
   const runNow = {
     "dropped-apps": () => billing.closeDroppedApps(),
     "every-app": () => billing.giveEveryApp(),
@@ -515,6 +521,10 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
       if (!domains) return { status: 503, body: { error: { code: "not_connected", message: NOT_CONNECTED.domains.words } } };
       return handleDomains({ ...request, path: path.slice("/api/domains".length) || "/" }, { service: domains });
     }
+    if (path === "/api/accounting" || path.startsWith("/api/accounting/")) {
+      if (!accounting) return { status: 503, body: { error: { code: "not_connected", message: NOT_CONNECTED.bookkeeping.words } } };
+      return accounting.handle({ ...request, path: path.slice("/api/accounting".length) || "/" });
+    }
     if (path === "/api/google" || path.startsWith("/api/google/")) return googleDoor({ ...request, path: path.slice("/api/google".length) || "/" });
     if (path === "/tips/off" || path === "/checkup/off") {
       if (request.method !== "GET") return { status: 405, body: { ok: false, message: "Open the link from the email." } };
@@ -525,7 +535,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
 
   return {
     projectId, settings, live, platform, registry, auditLog, shopData, stockroomData, email, billing, paymentWay, payments, signup, frontDoor, shopMaker, accounts, room, controls,
-    appAlerts, chitchats, mailchimp, backup, support, recovery, business, timeline, jobs, jobRuns, jobsPage, notes, pressMessages, costsDesk, dataExports, trialTips, checkups, closing, setupClock, driftWatch,
+    appAlerts, chitchats, mailchimp, accounting, backup, support, recovery, business, timeline, jobs, jobRuns, jobsPage, notes, pressMessages, costsDesk, dataExports, trialTips, checkups, closing, setupClock, driftWatch,
     routes, door, shopBilling, handle, parts, termsNotice, googleLink,
   };
 }

@@ -32,11 +32,13 @@ function apiWith(over: Record<string, any> = {}) {
     },
   };
 }
-async function show(api: any) {
+async function show(api: any, extra: Record<string, any> = {}) {
   root = createRoot(document.body.appendChild(document.createElement("div")));
-  await act(async () => { root!.render(h(AppsSettings, { api, shopId: "moth-press" })); });
+  await act(async () => { root!.render(h(AppsSettings, { api, shopId: "moth-press", ...extra })); });
   await flush();
 }
+/** QuickBooks, built into the store, with a stand-in for its steps. */
+const quickbooks = (status: Record<string, any>) => ({ status: async () => status, panel: h("p", { id: "qb-steps" }, "QuickBooks steps") });
 
 describe("Settings › Apps", () => {
   it("lists installed apps and removes one only after asking", async () => {
@@ -75,5 +77,35 @@ describe("Settings › Apps", () => {
   it("sends Add to the app's start address with the shop", () => {
     expect(addAddress(PAL, "moth-press")).toBe("https://pal.example/start?shop=moth-press");
     expect(addAddress(MAIL, "moth-press")).toBe("https://pal.example");
+  });
+
+  it("lists QuickBooks in the store and opens its steps on this page, telling the address", async () => {
+    const opened: boolean[] = [];
+    await show(apiWith().api, { quickbooks: quickbooks({ enabled: true, connected: false }), onQuickBooks: (open: boolean) => opened.push(open) });
+    await click(byText("[role=tab]", "App store"));
+    const card = [...document.querySelectorAll(".ap-card")].find((c) => c.textContent?.includes("QuickBooks"));
+    expect(card).toBeTruthy();
+    expect(byText("[role=tab]", "Accounting")).toBeTruthy();
+    await click([...card!.querySelectorAll("button")].find((b) => b.textContent === "Open"));
+    expect(document.getElementById("qb-steps")).toBeTruthy();
+    await click(byText("button", "Apps"));
+    expect(document.getElementById("qb-steps")).toBeNull();
+    expect(opened).toEqual([true, false]);
+  });
+
+  it("shows a connected QuickBooks under Installed, and Coming soon while the link is off", async () => {
+    await show(apiWith().api, { quickbooks: quickbooks({ enabled: true, connected: true, companyName: "Moth Press Books" }) });
+    expect(byText("[role=tab]", "Installed2")).toBeTruthy();
+    expect(document.body.textContent).toContain("Moth Press Books");
+    act(() => root?.unmount());
+    root = null;
+    document.body.innerHTML = "";
+    await show(apiWith().api, { quickbooks: quickbooks({ enabled: false }), openQuickBooks: true });
+    expect(document.body.textContent).toContain("QuickBooks opens soon");
+    await click(byText("button", "Apps"));
+    await click(byText("[role=tab]", "App store"));
+    const card = [...document.querySelectorAll(".ap-card")].find((c) => c.textContent?.includes("QuickBooks"));
+    expect(card?.textContent).toContain("Coming soon");
+    expect(card?.querySelector("button")).toBeNull();
   });
 });

@@ -67,7 +67,7 @@ export function BookkeepingSettings({ taxRates, openSignIn = (url) => window.loc
   };
 
   const connect = () => run("connect", "open QuickBooks's sign-in", async () => {
-    const back = `${window.location.origin}${window.location.pathname}#settings/bookkeeping`;
+    const back = `${window.location.origin}${window.location.pathname}#settings/apps/quickbooks`;
     const { url } = await adminApi.bookkeeping("connect", { returnUrl: back });
     if (url) openSignIn(url);
   });
