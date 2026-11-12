@@ -31,7 +31,7 @@ export function createInvites({ invites, email, settings, now = () => new Date()
       if (before) return { email: address, invited: true, sent: false, at: before.at };
       const at = now().toISOString();
       await invites.set(id, { email: address, by, at, usedAt: null, shopId: null });
-      await email.sendPlatform({ kind: "waitlist-invite", to: address, data: { link: `${settings.platformUrl}/signup/` }, idempotencyKey: `waitlist-invite/${id}` });
+      await email.sendPlatform({ kind: "waitlist-invite", to: address, data: { link: `${settings.platformUrl}/join/` }, idempotencyKey: `waitlist-invite/${id}` });
       return { email: address, invited: true, sent: true, at };
     },
 

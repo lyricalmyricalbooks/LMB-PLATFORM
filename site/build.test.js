@@ -92,3 +92,17 @@ test("the live check fails on Hosting's not-found page and passes on the real pa
   assert.equal(bad.ok, false);
   assert.ok(bad.lines.some((l) => l.startsWith("FAIL /help/")));
 });
+
+test("a mistyped address gets Colophon's own not-found page, and the top bar's button waits for sign-up to open", () => {
+  const out = mkdtempSync(join(tmpdir(), "site-404-"));
+  buildSite({ out });
+  const missing = readFileSync(join(out, "public", "404.html"), "utf8");
+  assert.match(missing, /We can't find that page\./);
+  assert.doesNotMatch(missing, /firebase/i);
+  for (const page of ["help/index.html", "terms/index.html", "trust/index.html", "status/index.html", "account/index.html", "pricing"]) {
+    const file = page === "pricing" ? join(out, "public", "waitlist", "pricing.html") : join(out, "public", page);
+    assert.match(readFileSync(file, "utf8"), /data-signup-cta href="\/#start">Join the waitlist</, page);
+  }
+  const look = readFileSync(join(out, "public", "help", "look", "platform-look.js"), "utf8");
+  assert.match(look, /signupOpen !== true/);
+});

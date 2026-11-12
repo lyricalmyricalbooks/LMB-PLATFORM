@@ -253,7 +253,7 @@ test("every platform email ends with Colophon's name, mailing address and a cont
 });
 
 test("a launch or waitlist email is refused until Colophon has a mailing address, and says how to stop (15.8)", async () => {
-  const invite = { kind: "waitlist-invite", to: "newcomer@example.com", data: { link: "https://colophon.example/signup/" }, idempotencyKey: "w1" };
+  const invite = { kind: "waitlist-invite", to: "newcomer@example.com", data: { link: "https://colophon.example/join/" }, idempotencyKey: "w1" };
   const bare = await make({});
   await assert.rejects(bare.service.sendPlatform(invite), /PLATFORM_MAILING_ADDRESS is needed/);
   assert.equal(bare.mail.requests.length, 0);

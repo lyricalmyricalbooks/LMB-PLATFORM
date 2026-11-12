@@ -300,7 +300,7 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
         try {
           await email.sendPlatform({
             kind: "shop-starting", to: row.ownerEmail, shopId: row.shopId, ...(row.language ? { language: row.language } : {}),
-            data: { pressName: row.pressName, link: `${settings.platformUrl}/signup/` },
+            data: { pressName: row.pressName, link: `${settings.platformUrl}/join/` },
             idempotencyKey: `shop-starting/${row.shopId}`,
           });
         } catch {
