@@ -182,7 +182,7 @@ export function Till({ records, now = () => Date.now() }: { records: StockroomRe
                 <li key={item.id}>
                   <button type="button" className="rp-till-tile" data-in-cart={inCart ? "" : undefined} onClick={() => add(item.id)}
                     aria-label={`Add ${item.title}, ${money(item.price, item.cur)}${left != null ? `, ${Math.max(0, left)} left` : ""}${inCart ? `, ${inCart} in the cart` : ""}`}>
-                    <span className="rp-till-cover" data-tone={item.tone} aria-hidden="true">{item.initials}{inCart > 0 && <span className="rp-till-count">{inCart}</span>}</span>
+                    <span className="rp-till-cover" data-tone={item.tone} data-photo={item.photo ? "" : undefined} aria-hidden="true">{item.photo ? <img src={item.photo} alt="" loading="lazy" /> : item.initials}{inCart > 0 && <span className="rp-till-count">{inCart}</span>}</span>
                     <span className="rp-till-title">{item.title}</span>
                     <span className="rp-till-meta">
                       <span>{money(item.price, item.cur)}</span>
