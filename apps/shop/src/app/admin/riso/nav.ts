@@ -118,8 +118,8 @@ export const STOCKROOM_SIDE: Menu = [
       { label: "Sales tax", pages: [S("taxsales"), S("taxrates"), S("taxfilings")] },
       { label: "Check and close", pages: [S("reconcile"), S("taxyear")] }] },
   // QuickBooks moved to Settings › Apps (12 November 2026).
-  { label: "Bookkeeping", icon: PiggyBank, pages: [S("expenses"), S("intel")],
-    sections: [{ label: "Cash", pages: [S("expenses")] }, { label: "Reports", pages: [S("intel")] }] },
+  { label: "Bookkeeping", icon: PiggyBank, pages: [S("payouts"), S("expenses"), S("intel")],
+    sections: [{ label: "Cash", pages: [S("payouts"), S("expenses")] }, { label: "Reports", pages: [S("intel")] }] },
   // v4: Backups is one page (the Google Sheet moved to Settings).
   { label: "Backups", icon: SlidersHorizontal, pages: [S("backups")] },
 ];

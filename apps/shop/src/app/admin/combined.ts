@@ -47,6 +47,7 @@ export const STOCKROOM_PAGES: StockroomPage[] = [
   { id: "invoices", label: "Invoices", description: "Invoices for stockists and buyers: make, send, chase and mark paid." },
   { id: "qrcodes", label: "QR codes", description: "Codes to print for card payments, your shop and any link you choose." },
   { id: "reconcile", label: "Reconcile", description: "Money coming in from every place you sell, matched to your sales." },
+  { id: "payouts", label: "Payments", description: "Payouts to your bank, card sales on their way and your pay links." },
   { id: "expenses", label: "Expenses", description: "What the press spends, with receipts." },
   { id: "taxcenter", label: "Tax centre", description: "Money in and out: cash flow, by month and where it went." },
   { id: "taxledger", label: "Ledger", description: "Every sale and cost in the tax year, with a spreadsheet download." },

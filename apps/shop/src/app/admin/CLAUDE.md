@@ -924,3 +924,10 @@ and Check and close (`reconcile`, `taxyear`). Each is `TaxCenterView` with a `pa
 TaxTop takes a matching `part`. Year parts (money, ledger, year end) pick the year with their own pills; sales tax parts
 use the quarter pills. `part="all"` still draws everything (moneyReports tests). Missing-cost and recurring-cost fixes
 on the to-do list open `taxcosts` (`todo.ts` fixTarget). Tile figures size to their tile (container units, no wrapping).
+
+**Bookkeeping Payments in v4 (12 November 2026):** Bookkeeping's first page is `payouts` "Payments" (`stockroom/PaymentsPage.tsx`,
+pure `paymentsModel.ts`): three tiles (paid out in the last 30 days, Pending = payouts with no date yet plus paid sales
+not in a payout, Payment links open = sent invoices with a card pay link, `cardLinkOf`), the payouts from
+`reconcileModel` (a row opens Reconcile payouts) and Pay by QR and links (items with `paymentLinkOf`, invoice card
+links). Read-only. The mockup's "Create payment link" is not built: card links are made on an invoice. QuickBooks is
+moving to the app store (Julian, 12 November 2026), so this page leaves it alone.
