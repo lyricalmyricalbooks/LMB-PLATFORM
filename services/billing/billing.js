@@ -207,8 +207,17 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       console.warn("Reading the platform fee from the control room's settings failed; using the last one read:", failure?.message || failure);
     }
   }
-  /** The plan's price in this shop's billing currency. */
+  /** The plan's price in this shop's billing currency, at today's fee: for a plan being started or moved to. */
   const priceOf = (plan, row) => planPrice(plan, fees, cur(row));
+  /**
+   * The price this shop's running plan is on: the fee kept when it started (`feeCents`), never today's fee, which only
+   * new plans get (a running plan moves only on purpose, with notice). A plan started before the fee was kept is on the
+   * environment's fee, the only one billing read until then.
+   */
+  const ownPrice = (row) => {
+    const base = planPrice(row.plan, settings, cur(row));
+    return Number.isInteger(row.feeCents) ? { ...base, amount: row.feeCents, priceText: moneyText(row.feeCents, cur(row)) } : base;
+  };
   const at = () => new Date(now()).toISOString();
   const retrying = withRetries((...args) => stripe.call(...args), sleep ? { sleep } : {});
   const call = (method, path, options) => retrying(mode, method, path, options);
@@ -243,7 +252,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     const { plan, status, access, trialEnd, currentPeriodEnd, hasCard } = row;
     // "Cancelled" is the press's own choice: Stripe's cancel of a pay-as-you-sell plan is the switch (paymentWayState.js).
     const { cancelling: cancelAtPeriodEnd, endsAt } = planEnding(row);
-    await registry.updateShop(shopId, { billing: { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, endsAt, hasCard, percentOff: row.founding === true ? row.foundingPercentOff ?? null : null, appsClosing: row.appsClosing ?? null, appDrops: row.appDrops ?? [], updatedAt: row.updatedAt, leaving: row.leaving ?? null, troubleSince: row.troubleSince ?? null, remindedAt: row.remindedAt ?? null, noBillingEmail: !row.billingEmail, language: row.language ?? null, province: row.province ?? null, lastRunningCost: row.lastRunningCost ?? null, currency: cur(row) } });
+    await registry.updateShop(shopId, { billing: { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, endsAt, hasCard, percentOff: row.founding === true ? row.foundingPercentOff ?? null : null, appsClosing: row.appsClosing ?? null, appDrops: row.appDrops ?? [], updatedAt: row.updatedAt, leaving: row.leaving ?? null, troubleSince: row.troubleSince ?? null, remindedAt: row.remindedAt ?? null, noBillingEmail: !row.billingEmail, language: row.language ?? null, province: row.province ?? null, lastRunningCost: row.lastRunningCost ?? null, currency: cur(row), ...(Number.isInteger(row.feeCents) ? { amount: row.feeCents } : {}) } });
   }
 
   // The shop's own platform/plan and platform/status (shopPlan.js), once its database exists.
@@ -254,7 +263,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
 
   /** The monthly platform fee this shop pays, its founding share taken off. */
   function feeAfterOffer(row) {
-    const amount = priceOf(row.plan, row).amount;
+    const amount = ownPrice(row).amount;
     return row.founding === true && row.foundingPercentOff ? foundingAmount(amount, row.foundingPercentOff) : amount;
   }
 
@@ -338,7 +347,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
   async function notify(shopId, kind, data, key) {
     const row = await subscriptions.get(shopId);
     if (!row?.billingEmail) return null;
-    const price = row.plan ? priceOf(row.plan, row) : null;
+    const price = row.plan ? ownPrice(row) : null;
     return email.sendPlatform({
       kind,
       to: row.billingEmail,
@@ -367,7 +376,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     const immediate = !PAID.has(row.status);
     const closesAt = closes.length ? (immediate ? at() : row.currentPeriodEnd) : null;
     const price = priceOf(plan, row);
-    const higher = row.plan ? price.amount > priceOf(row.plan, row).amount : false;
+    const higher = row.plan ? price.amount > ownPrice(row).amount : false;
     return {
       plan, planName: price.name, price: price.priceText, from: row.plan, adds, closes, immediate, closesAt,
       downloadUntil: closesAt ? new Date(Date.parse(closesAt) + DOWNLOAD_DAYS * DAY).toISOString() : null,
@@ -747,6 +756,8 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       const chosen = language === "fr" || language === "en" ? language : null;
       const saved = await save(shopId, {
         ...fromSubscription(sub), accountId: account.accountId, billingEmail: account.email, pressName: pressName ?? "", starts, planChanges: 0, currency,
+        // The fee this plan started on, which it keeps (ownPrice).
+        feeCents: planPrice(plan, fees, currency).amount,
         // The language is the person's, like setEmailLanguage: one chosen now is the account's; none keeps the account's.
         ...(chosen ? { language: chosen } : languageOf(others, customer.customerId)),
         // A second shop of an account billed in Quebec writes in French too (hub.js saveBillingDetails sets it per account).
@@ -869,7 +880,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       // That holds while those terms still apply: paying as they sell, or the last month of it before monthly starts.
       const termsApply = row.payAsYouSell && (asItSells || (row.payAsYouSell.until && now() < Date.parse(row.payAsYouSell.until)));
       const terms = termsApply
-        ? { ...row.payAsYouSell, capMinor: Math.floor((row.payAsYouSell.capMinor * priceOf(plan, row).amount) / priceOf(row.plan, row).amount) }
+        ? { ...row.payAsYouSell, capMinor: Math.floor((row.payAsYouSell.capMinor * priceOf(plan, row).amount) / ownPrice(row).amount) }
         : null;
       // No subscription runs while a press pays as they sell, so there is nothing to change on Stripe.
       const sub = !subscriptionOn ? null : await call("POST", `/v1/subscriptions/${row.subscriptionId}`, {
@@ -892,7 +903,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       // An immediate close (a trial) is recorded too, with its answer, and marked closed by closeApps just after.
       const appDrops = noteDrops(row.appDrops, { dropped: move.immediate ? move.closes : appsClosing?.apps ?? [], kept: (row.appsClosing?.apps ?? []).filter((app) => PLAN_APPS[plan][app]), reason: why }, at());
       // Any plan change ends an emailed keep link: it was for the press's earlier choice (closedApps.js).
-      let saved = await save(shopId, { ...(sub ? fromSubscription(sub) : {}), plan, planChanges: changes, appsClosing, closedApps, appDrops, keepLink: null, ...(terms ? { payAsYouSell: terms } : {}) }, "plan-changed");
+      let saved = await save(shopId, { ...(sub ? fromSubscription(sub) : {}), plan, planChanges: changes, feeCents: priceOf(plan, row).amount, appsClosing, closedApps, appDrops, keepLink: null, ...(terms ? { payAsYouSell: terms } : {}) }, "plan-changed");
       if (move.immediate && move.closes.length) saved = await closeApps(shopId, move.closes);
       const closing = move.closes.length ? { closing: move.closes.map((app) => APP_NAMES[app]).join(" and "), date: dateText(move.closesAt), now: move.immediate } : {};
       await notify(shopId, "plan-changed", { prorated: move.prorate, ...closing, ...(everything ? { everything: true, adds: move.adds } : {}) }, `${shopId}/plan/${changes}`);
@@ -976,7 +987,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       await freshFees();
       const row = await subscriptions.get(shopId);
       if (!row) return null;
-      const price = row.plan ? priceOf(row.plan, row) : null;
+      const price = row.plan ? ownPrice(row) : null;
       const ended = ENDED.has(row.status);
       const trialDaysLeft = row.status === "trialing" && row.trialEnd ? Math.max(0, Math.ceil((Date.parse(row.trialEnd) - now()) / DAY)) : null;
       const nextPaymentAt = ended || row.cancelAtPeriodEnd || !row.hasCard ? null : row.status === "trialing" ? row.trialEnd : PAID.has(row.status) ? row.currentPeriodEnd : null;
