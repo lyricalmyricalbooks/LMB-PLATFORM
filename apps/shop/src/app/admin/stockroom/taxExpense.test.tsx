@@ -92,4 +92,25 @@ describe("the form", () => {
     await act(async () => root.unmount());
     spy.mockRestore();
   });
+  it("v4 New expense page: the status bar counts what is missing, then adds it", async () => {
+    const saved = vi.fn();
+    const spy = vi.spyOn(stockroomWriteApi, "updateSetting").mockImplementation(async (_k, mutate) => {
+      const value = await mutate(tc);
+      return { status: "saved", value, merged: false, conflicts: [] } as any;
+    });
+    const { container, root } = await draw(<LogExpenseCard page taxCenter={tc} onSaved={saved} />);
+    expect(container.textContent).toContain("2 required fields to fill in");
+    const add = () => [...container.querySelectorAll("button")].find((b) => b.textContent === "Add expense") as HTMLButtonElement;
+    await act(async () => { add().click(); });
+    expect(container.textContent).toContain("Fill in the highlighted fields.");
+    expect(spy).not.toHaveBeenCalled();
+    await type(container.querySelector('input[placeholder="e.g. Squarespace or Shopify"]')!, "Squarespace");
+    await type(container.querySelector('input[type="number"]')!, "20");
+    expect(container.textContent).toContain("Ready to add");
+    await act(async () => { add().click(); });
+    await act(async () => {});
+    expect(saved.mock.calls[0][0].businessExpenses[0]).toMatchObject({ desc: "Squarespace", amount: 20 });
+    await act(async () => root.unmount());
+    spy.mockRestore();
+  });
 });

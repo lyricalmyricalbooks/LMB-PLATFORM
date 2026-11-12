@@ -191,6 +191,32 @@ export function PageHeader({ title, description, breadcrumbs, actions }: {
  * `<PageActions>` anywhere and its buttons appear there. With no header (the Overview, a fixture) they stay in place.
  */
 export const PageActionsSlot = createContext<HTMLElement | null>(null);
+
+/**
+ * A sub-page's own header (v4 form pages: New discount, Add an expense): a "← Back" link above its title and line.
+ * The shell swaps its PageHeader for this while the sub-page is open; with no shell (a fixture) it draws one itself.
+ */
+export type PageHeadOverride = { title: string; description?: string; back?: { label: string; onClick: () => void } };
+export const PageHeadSlot = createContext<((head: PageHeadOverride | null) => void) | null>(null);
+
+export function BackLink({ label, onClick }: { label: string; onClick: () => void }) {
+  return <button type="button" className="rp-back-link" onClick={onClick}>← {label}</button>;
+}
+
+export function PageHead({ title, description, back }: PageHeadOverride) {
+  const set = useContext(PageHeadSlot);
+  // The latest Back handler, so the shell's copy never calls a stale one (and re-renders don't loop through the shell).
+  const onBack = useRef(back?.onClick);
+  onBack.current = back?.onClick;
+  const backLabel = back?.label;
+  useEffect(() => {
+    if (!set) return;
+    set({ title, description, back: backLabel ? { label: backLabel, onClick: () => onBack.current?.() } : undefined });
+    return () => set(null);
+  }, [set, title, description, backLabel]);
+  if (set) return null;
+  return <PageHeader title={title} description={description} breadcrumbs={back ? <BackLink label={back.label} onClick={back.onClick} /> : undefined} />;
+}
 export function PageActions({ children }: { children: ReactNode }) {
   const target = useContext(PageActionsSlot);
   return target ? createPortal(children, target) : <div className="rp-page-actions rp-page-actions-inline">{children}</div>;

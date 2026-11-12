@@ -26,7 +26,7 @@ import { scrubSavedSecrets } from "./privateKeys";
 import toast from "react-hot-toast";
 import {
   AppShell, Sidebar, Topbar, PageHeader, PageTabs, Breadcrumbs, PrimaryButton, SecondaryButton,
-  IconButton, Dialog, ToastProvider, SyncChip, useOnline, LoadingState, PageSkeleton, useConfirm, PageAlertsSlot, PageActionsSlot,
+  IconButton, Dialog, ToastProvider, SyncChip, useOnline, LoadingState, PageSkeleton, useConfirm, PageAlertsSlot, PageActionsSlot, PageHeadSlot, BackLink, type PageHeadOverride,
 } from "./riso/components";
 import { GlobalSearch, ActivityLogDialog, ShopStatusMenu, DrawerAccount, StoreSwitcher } from "./riso/shellParts";
 import { blockedMessage, blockersBeforeOpening, openButtonLabel } from "./launchCheck";
@@ -128,6 +128,8 @@ export function Dashboard() {
   useWebsiteTabName();
   const [boot] = useState(readBootRoute);
   const [activeTab, setActiveTab] = useState(boot.tab);
+  // A sub-page (v4 New discount, Add an expense) swaps in its own title and Back link while it is open (PageHead).
+  const [headOverride, setHeadOverride] = useState<PageHeadOverride | null>(null);
   // "Open in the stockroom" from another page shows that stockroom page (set below, after the page helpers).
   const openStockroomRef = useRef<(page: string, bookId?: string) => void>(() => {});
   useEffect(() => (COMBINED ? stockroomBridge.onOpen((page, extra) => openStockroomRef.current(page, extra?.book)) : undefined), []);
@@ -995,9 +997,9 @@ export function Dashboard() {
         {activeTab === "overview" && !supportVisit && <TwoStepReminder plan={platformPlan} />}
         {/* The Overview board draws its own header (title, period, layout and Edit board). */}
         {!ownMasthead && <PageHeader
-          breadcrumbs={trail.length > 2 ? <Breadcrumbs trail={trail} /> : undefined}
-          title={selectedOrder && activeTab !== "orders" ? "Order detail" : navActive === "settings" && childLabel ? childLabel : copy.title}
-          description={selectedOrder ? undefined : navActive === "settings" && childLabel ? (navChild && PAGE_COPY[navChild]?.description) || undefined : copy.description || undefined}
+          breadcrumbs={headOverride ? (headOverride.back ? <BackLink label={headOverride.back.label} onClick={headOverride.back.onClick} /> : undefined) : trail.length > 2 ? <Breadcrumbs trail={trail} /> : undefined}
+          title={headOverride ? headOverride.title : selectedOrder && activeTab !== "orders" ? "Order detail" : navActive === "settings" && childLabel ? childLabel : copy.title}
+          description={headOverride ? headOverride.description : selectedOrder ? undefined : navActive === "settings" && childLabel ? (navChild && PAGE_COPY[navChild]?.description) || undefined : copy.description || undefined}
           actions={<div ref={setPageActionsEl} className="rp-page-actions-slot" />}
         />}
         {/* Settings lists its pages in a column on the left, under headings (redesign); other items show pills above. */}
@@ -1014,7 +1016,7 @@ export function Dashboard() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.18, ease: "easeOut" }}
               >
-                <PageAlertsSlot.Provider value={ownMasthead ? pageAlerts : null}><PageActionsSlot.Provider value={ownMasthead ? null : pageActionsEl}><AdminPageBoundary resetKey={activeTab + "|" + settingsTab + "|" + (subTab || "") + "|" + (selectedOrder?.id || "")}><Suspense fallback={<PageSkeleton label="Opening page…" />}>{content}</Suspense></AdminPageBoundary></PageActionsSlot.Provider></PageAlertsSlot.Provider>
+                <PageAlertsSlot.Provider value={ownMasthead ? pageAlerts : null}><PageActionsSlot.Provider value={ownMasthead ? null : pageActionsEl}><PageHeadSlot.Provider value={ownMasthead ? null : setHeadOverride}><AdminPageBoundary resetKey={activeTab + "|" + settingsTab + "|" + (subTab || "") + "|" + (selectedOrder?.id || "")}><Suspense fallback={<PageSkeleton label="Opening page…" />}>{content}</Suspense></AdminPageBoundary></PageHeadSlot.Provider></PageActionsSlot.Provider></PageAlertsSlot.Provider>
               </m.div>
             </AnimatePresence>
           </div>

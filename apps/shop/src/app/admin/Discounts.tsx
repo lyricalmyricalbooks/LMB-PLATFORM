@@ -8,14 +8,15 @@ import { discountCategoryChoices } from "../features/site/discountCategories";
 import { discountState as state, today } from "./discountState";
 import { duplicateDiscount } from "./discountPerformance";
 import { validateDiscountDraft, draftFrom } from "./discountValidation";
-import { describeDiscount } from "./discountDescribe";
+import { describeDiscount, shopDayLabel } from "./discountDescribe";
+import { FormChoice, FormField, FormPage, FormReadOnly, FormRow, FormSection, FormToggle, StatusBar, SummaryRail, formStatus } from "./riso/FormKit";
 import { copyText } from "./clipboard";
 import { discountShareLink } from "../features/site/sharedDiscount";
 import { MAX_BATCH, batchCodes, cleanPrefix, codesCsv, randomCode } from "./discountCodes";
 import { useShopWords } from "./shopWords";
 import {
   ActionMenu, PageActions, Checkbox, ConfirmDialog, Dialog, EmptyState, ErrorState, IconButton, LoadingState,
-  PrimaryButton, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TextArea, TextField, Toggle, useConfirm,
+  PageHead, PrimaryButton, SecondaryButton, SectionCard, StatusBadge, TextField, useConfirm,
 } from "./riso/components";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -29,7 +30,6 @@ const TYPE_OPTIONS = [
   { id: "gift", label: "Free gift with purchase", desc: "Adds a free book to the order", automaticOnly: true },
 ];
 
-const ONE_DISCOUNT_HELP = "Only one discount applies per order. A code the shopper enters replaces automatic offers; among automatic offers the biggest saving wins, and free shipping applies only when no other offer does.";
 
 const isAutomatic = (d: any) => d?.method === "automatic";
 /** The name the owner knows a discount by: its code, or an automatic offer's title. */
@@ -46,7 +46,7 @@ const EMPTY: any = {
 // ─── Create / edit dialog ─────────────────────────────────────────────────────
 
 
-function DiscountDialog({ initial, otherCodes = [], books, shopCategories, onClose, onSave, onSaveBatch }: { initial?: any; otherCodes?: string[]; books: any[] | null; shopCategories: any[] | null; onClose: () => void; onSave: (data: any) => Promise<void>; onSaveBatch: (data: any, codes: string[]) => Promise<void> }) {
+function DiscountForm({ initial, otherCodes = [], books, shopCategories, onClose, onSave, onSaveBatch }: { initial?: any; otherCodes?: string[]; books: any[] | null; shopCategories: any[] | null; onClose: () => void; onSave: (data: any) => Promise<void>; onSaveBatch: (data: any, codes: string[]) => Promise<void> }) {
   const w = useShopWords();
   const isEdit = !!initial?.id;
   const [form, setForm] = useState<any>(initial ? draftFrom(initial, EMPTY) : EMPTY);
@@ -123,197 +123,202 @@ function DiscountDialog({ initial, otherCodes = [], books, shopCategories, onClo
   };
   const setTier = (i: number, patch: any) => set("tiers", (form.tiers || []).map((t: any, idx: number) => (idx === i ? { ...t, ...patch } : t)));
 
+  // v4 New discount page (mockup 1i): Code · What they get · Rules on the left, "What it does" in a sky rail, one
+  // status bar. Real fields the mockup leaves out (automatic offers, buy X get Y, tiers, a free gift, email lists)
+  // stay, in the section they belong to.
+  const batching = batch.on && !isEdit && !automatic;
+  const needsValue = form.type === "percentage" || form.type === "fixed";
+  const missing = [
+    !automatic && !batching && !String(form.code || "").trim(),
+    automatic && !String(form.title || "").trim(),
+    needsValue && !(Number(form.value) > 0),
+    form.type === "gift" && !form.giftBookId,
+  ].filter(Boolean).length;
+  const dirty = JSON.stringify(form) !== startForm || batch.on;
+  const status = formStatus({ missing, create: !isEdit, verb: "create", dirty });
+  const primaryLabel = isEdit ? "Save changes" : automatic ? "Create offer" : batching ? `Create ${Number(batch.count) || 0} codes` : "Create discount";
+  const day = today();
+  const runs = !form.isActive ? "Paused" : form.startDate && form.startDate > day ? `Starts ${shopDayLabel(form.startDate, false)}`
+    : form.expiryDate && form.expiryDate < day ? "Ended" : form.expiryDate ? `Until ${shopDayLabel(form.expiryDate, false)}` : "Active";
+  const pageTitle = isEdit ? `Edit ${discountName(initial) || "discount"}` : "New discount";
+  const pageLine = automatic ? "An offer that applies by itself when the order qualifies" : "A code shoppers type at checkout";
+  const typeOptions = TYPE_OPTIONS.filter(t => !t.automaticOnly || automatic).map(t => ({ value: t.id, label: t.label }));
+
   return (
     <>
-    <Dialog open onClose={() => { void close(); }} size="lg" badge="🏷️" title={isEdit ? "Edit discount" : "New discount"}
-      description="Checkout checks every rule again when a shopper uses it — this form only sets the rules."
-      footer={<>
-        <SecondaryButton onClick={() => { void close(); }}>Cancel</SecondaryButton>
-        <PrimaryButton onClick={handleSave} disabled={saving}>{saving ? "Saving…" : isEdit ? "Save changes" : automatic ? "Create offer" : batch.on ? `Create ${Number(batch.count) || 0} codes` : "Create code"}</PrimaryButton>
-      </>}>
-      <div className="rp-stack" style={{ gap: 20 }}>
-        <p className="rp-card" role="status" aria-live="polite" style={{ margin: 0, padding: "10px 12px", boxShadow: "none" }}>
-          <strong>Shoppers get:</strong> {describeDiscount(form, books || [])}
-        </p>
-        <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-          <legend className="rp-label" style={{ marginBottom: 8 }}>Method</legend>
-          <div role="radiogroup" aria-label="Method" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {[{ id: "code", label: "Discount code", desc: "Shoppers type a code at checkout" }, { id: "automatic", label: "Automatic (no code)", desc: "Applies by itself when the order qualifies" }].map(m => (
-              <button key={m.id} type="button" role="radio" aria-checked={form.method === m.id} onClick={() => setMethod(m.id as any)}
-                className={`rp-btn ${form.method === m.id ? "rp-btn-ink" : "rp-btn-secondary"}`}
-                style={{ flexDirection: "column", alignItems: "flex-start", textAlign: "left", whiteSpace: "normal", height: "auto", padding: "10px 12px", flex: "1 1 200px" }}>
-                <span>{m.label}</span>
-                <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: "none", opacity: 0.8 }}>{m.desc}</span>
-              </button>
-            ))}
-          </div>
-          <p className="rp-hint" style={{ margin: "8px 0 0" }}>{ONE_DISCOUNT_HELP}</p>
-        </fieldset>
+    <PageHead title={pageTitle} description={pageLine} back={{ label: "Discounts", onClick: () => { void close(); } }} />
+    <form onSubmit={e => { e.preventDefault(); if (missing) { validate(); toast.error("Fill in the highlighted fields."); } else void handleSave(); }}>
+    <FormPage rail={
+      <SummaryRail tone="sky" title="What it does"
+        rows={[
+          { label: automatic ? "Offer" : "Code", value: automatic ? (String(form.title || "").trim() || "—") : batching ? `${Number(batch.count) || 0} single-use codes` : (String(form.code || "").trim().toUpperCase() || "—") },
+          { label: "Status", value: runs },
+        ]}
+        note={describeDiscount(form, books || [])} />
+    }>
+      <FormSection title={automatic ? "Offer" : "Code"} description={automatic ? "What shoppers see in the bag." : "What shoppers type."}>
+        <FormChoice label="How shoppers get it" value={form.method} onChange={v => setMethod(v as "code" | "automatic")}
+          options={[{ value: "code", label: "Discount code" }, { value: "automatic", label: "Automatic (no code)" }]} />
+        <p className="rp-fk-hint" style={{ margin: "-8px 0 0" }}>One discount per order: a typed code replaces automatic offers.</p>
         {automatic ? (
-          <TextField label="Title shown to shoppers" value={form.title || ""} maxLength={60} onChange={e => set("title", e.target.value)} placeholder="e.g. Spring sale"
-            error={errors.title} hint="Shown in the bag and at checkout next to the saving." />
-        ) : batch.on && !isEdit ? (
-          <div className="rp-card" style={{ padding: 16, boxShadow: "none" }}>
-            <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
-              <TextField label="How many codes" type="number" min={1} max={MAX_BATCH} step={1} value={batch.count} onChange={e => setBatch(b => ({ ...b, count: e.target.value }))} error={errors.batch} hint={`Up to ${MAX_BATCH}. Each works once.`} />
-              <TextField label="Code prefix (optional)" value={batch.prefix} maxLength={20} onChange={e => setBatch(b => ({ ...b, prefix: e.target.value.toUpperCase() }))} placeholder="e.g. FAIR" hint={`Codes look like ${cleanPrefix(batch.prefix) ? `${cleanPrefix(batch.prefix)}-XXXXXX` : "XXXXXXXX"}.`} style={{ fontFamily: "var(--rp-font-mono)" }} />
-            </div>
-            <p className="rp-hint" style={{ margin: "8px 0 0" }}>A spreadsheet (CSV) of the new codes downloads when they are created.</p>
-          </div>
+          <FormField label="Title shown to shoppers" required empty={!String(form.title || "").trim()} error={errors.title} hint="Shown in the bag and at checkout next to the saving.">
+            {a => <input {...a} value={form.title || ""} maxLength={60} onChange={e => set("title", e.target.value)} placeholder="e.g. Spring sale" />}
+          </FormField>
+        ) : batching ? (
+          <FormRow>
+            <FormField label="How many codes" required empty={!batch.count} error={errors.batch} hint={`Up to ${MAX_BATCH}. Each works once.`}>
+              {a => <input {...a} type="number" min={1} max={MAX_BATCH} step={1} value={batch.count} onChange={e => setBatch(b => ({ ...b, count: e.target.value }))} />}
+            </FormField>
+            <FormField label="Code prefix" hint={`Codes look like ${cleanPrefix(batch.prefix) ? `${cleanPrefix(batch.prefix)}-XXXXXX` : "XXXXXXXX"}. A spreadsheet of them downloads.`}>
+              {a => <input {...a} value={batch.prefix} maxLength={20} onChange={e => setBatch(b => ({ ...b, prefix: e.target.value.toUpperCase() }))} placeholder="e.g. FAIR" style={{ fontFamily: "var(--rp-font-mono)" }} />}
+            </FormField>
+          </FormRow>
         ) : (
-          <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
-            <div className="rp-grow"><TextField label="Code" value={form.code} onChange={e => set("code", e.target.value.toUpperCase())} placeholder="e.g. SUMMER25"
-              error={errors.code} data-autofocus style={{ fontFamily: "var(--rp-font-mono)", textTransform: "uppercase" }} /></div>
-            <SecondaryButton onClick={() => set("code", randomCode())}>Generate</SecondaryButton>
+          <div className="rp-fk-row" style={{ alignItems: "flex-end" }}>
+            <FormField label="Code" required empty={!String(form.code || "").trim()} error={errors.code} hint="Not case-sensitive.">
+              {a => <input {...a} value={form.code} onChange={e => set("code", e.target.value.toUpperCase())} placeholder="AUTUMN10" data-autofocus
+                style={{ fontFamily: "var(--rp-font-mono)", textTransform: "uppercase" }} />}
+            </FormField>
+            <button type="button" className="rp-fk-pill" style={{ flex: "0 0 auto", marginBottom: 22 }} onClick={() => set("code", randomCode())}>Generate</button>
           </div>
         )}
-        {!automatic && !isEdit && <Toggle label="Create several single-use codes" checked={batch.on} onChange={v => setBatch(b => ({ ...b, on: v }))} />}
-        <TextField label="Internal description" value={form.description || ""} onChange={e => set("description", e.target.value)}
-          placeholder="e.g. Summer sale 2026" hint="Only administrators see this." />
+        {!automatic && !isEdit && <FormToggle label="Several single-use codes" hint="Same rules, one use each. Good for a fair or a mailing." checked={batch.on} onChange={v => setBatch(b => ({ ...b, on: v }))} />}
+        <FormField label="Internal note" hint="Only you and your team see this.">
+          {a => <input {...a} value={form.description || ""} onChange={e => set("description", e.target.value)} placeholder="e.g. Autumn sale 2026" />}
+        </FormField>
+      </FormSection>
 
-        <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-          <legend className="rp-label" style={{ marginBottom: 8 }}>Discount type</legend>
-          <div role="radiogroup" aria-label="Discount type" style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}>
-            {TYPE_OPTIONS.filter(t => !t.automaticOnly || automatic).map(t => (
-              <button key={t.id} type="button" role="radio" aria-checked={form.type === t.id} onClick={() => set("type", t.id)}
-                className={`rp-btn ${form.type === t.id ? "rp-btn-ink" : "rp-btn-secondary"}`}
-                style={{ flexDirection: "column", alignItems: "flex-start", textAlign: "left", whiteSpace: "normal", height: "auto", padding: "10px 12px" }}>
-                <span>{t.label}</span>
-                <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: "none", opacity: 0.8 }}>{t.desc}</span>
-              </button>
-            ))}
-          </div>
-        </fieldset>
-
-        {(form.type === "percentage" || form.type === "fixed") && (
-          <TextField label={form.type === "percentage" ? "Percentage off" : "Amount off (CA$)"} type="number" min={0}
-            max={form.type === "percentage" ? 100 : undefined} value={form.value} onChange={e => set("value", e.target.value)} error={errors.value} />
+      <FormSection title="What they get" description="Pick the kind, then the amount.">
+        <FormChoice label="Type" value={form.type} onChange={v => set("type", v)} options={typeOptions} />
+        {needsValue && (
+          <FormField label={form.type === "percentage" ? "Percent" : "Amount"} required empty={!(Number(form.value) > 0)} error={errors.value}
+            prefix={form.type === "fixed" ? "CA$" : undefined} suffix={form.type === "percentage" ? "%" : undefined}>
+            {a => <input {...a} type="number" inputMode="decimal" min={0} max={form.type === "percentage" ? 100 : undefined} value={form.value} onChange={e => set("value", e.target.value)} />}
+          </FormField>
         )}
-
+        {form.type === "freeship" && <FormReadOnly label="Amount" value="Postage is free" />}
         {form.type === "bogo" && (
-          <div>
-          <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
-            <TextField label="Buy quantity" type="number" min={1} value={form.buyQuantity ?? 1} onChange={e => set("buyQuantity", parseInt(e.target.value) || 1)} />
-            <TextField label="Get quantity" type="number" min={1} value={form.getQuantity ?? 1} onChange={e => set("getQuantity", parseInt(e.target.value) || 1)} />
-            <TextField label="Discount on the free items (%)" type="number" min={0} max={100} value={form.getDiscountValue ?? 100} onChange={e => set("getDiscountValue", parseInt(e.target.value) || 0)} />
-          </div>
-          {errors.bogo && <p role="alert" className="rp-error-text">{errors.bogo}</p>}
-          </div>
+          <>
+            <FormRow>
+              <FormField label="Buy">{a => <input {...a} type="number" min={1} value={form.buyQuantity ?? 1} onChange={e => set("buyQuantity", parseInt(e.target.value) || 1)} />}</FormField>
+              <FormField label="Get">{a => <input {...a} type="number" min={1} value={form.getQuantity ?? 1} onChange={e => set("getQuantity", parseInt(e.target.value) || 1)} />}</FormField>
+              <FormField label="Off the items they get" suffix="%">{a => <input {...a} type="number" min={0} max={100} value={form.getDiscountValue ?? 100} onChange={e => set("getDiscountValue", parseInt(e.target.value) || 0)} />}</FormField>
+            </FormRow>
+            {errors.bogo && <p role="alert" className="rp-fk-hint" data-error="">{errors.bogo}</p>}
+          </>
         )}
-
         {form.type === "tiered" && (
-          <div className="rp-card" style={{ padding: 16, boxShadow: "none" }}>
-            <div className="rp-sect">Tiers</div>
-            <div className="rp-stack" style={{ gap: 12 }}>
-              {(form.tiers || []).map((tier: any, i: number) => (
-                <div key={i} style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr)) auto", alignItems: "end" }}>
-                  <TextField label={`Tier ${i + 1} · minimum spend (CA$)`} type="number" min={0} value={tier.minSpend} onChange={e => setTier(i, { minSpend: parseFloat(e.target.value) || 0 })} />
-                  <TextField label="Discount value" type="number" min={0} value={tier.value} onChange={e => setTier(i, { value: parseFloat(e.target.value) || 0 })} />
-                  <SelectField label="Type" value={tier.type} onChange={e => setTier(i, { type: e.target.value })}>
-                    <option value="percentage">Percentage (%)</option>
-                    <option value="fixed">Fixed ($)</option>
-                  </SelectField>
-                  {(form.tiers || []).length > 1 && <IconButton tone="danger" label={`Remove tier ${i + 1}`} onClick={() => set("tiers", form.tiers.filter((_: any, x: number) => x !== i))}><Trash2 size={16} aria-hidden /></IconButton>}
-                </div>
-              ))}
-              {(form.tiers || []).length < 3 && (
-                <SecondaryButton size="sm" icon={<Plus size={14} aria-hidden />} onClick={() => set("tiers", [...(form.tiers || []), { minSpend: 0, value: 0, type: "percentage" }])}>Add tier</SecondaryButton>
-              )}
-              {errors.tiers && <p role="alert" className="rp-error-text">{errors.tiers}</p>}
-            </div>
-          </div>
+          <>
+            {(form.tiers || []).map((tier: any, i: number) => (
+              <div key={i} className="rp-fk-row" style={{ alignItems: "flex-end" }}>
+                <FormField label={`Tier ${i + 1}: spend at least`} prefix="CA$">{a => <input {...a} type="number" min={0} value={tier.minSpend} onChange={e => setTier(i, { minSpend: parseFloat(e.target.value) || 0 })} />}</FormField>
+                <FormField label="Discount">{a => <input {...a} type="number" min={0} value={tier.value} onChange={e => setTier(i, { value: parseFloat(e.target.value) || 0 })} />}</FormField>
+                <FormField label="As">{a => <select {...a} value={tier.type} onChange={e => setTier(i, { type: e.target.value })}><option value="percentage">Percent (%)</option><option value="fixed">Amount (CA$)</option></select>}</FormField>
+                {(form.tiers || []).length > 1 && <span style={{ flex: "0 0 auto", marginBottom: 2 }}><IconButton tone="danger" label={`Remove tier ${i + 1}`} onClick={() => set("tiers", form.tiers.filter((_: any, x: number) => x !== i))}><Trash2 size={16} aria-hidden /></IconButton></span>}
+              </div>
+            ))}
+            {(form.tiers || []).length < 3 && <button type="button" className="rp-fk-pill" style={{ alignSelf: "flex-start" }} onClick={() => set("tiers", [...(form.tiers || []), { minSpend: 0, value: 0, type: "percentage" }])}><Plus size={14} aria-hidden /> Add a tier</button>}
+            {errors.tiers && <p role="alert" className="rp-fk-hint" data-error="">{errors.tiers}</p>}
+          </>
         )}
-
-        {form.type === "gift" && (
-          <div className="rp-card" style={{ padding: 16, boxShadow: "none" }}>
-            <div className="rp-sect">Free gift</div>
-            <p className="rp-hint" style={{ marginTop: 0 }}>{w("When an order meets the conditions below, this book is added to it for free. It uses the book's stock; if it runs out, the offer simply stops applying.")}</p>
-            {books === null ? <p className="rp-hint">Loading catalog…</p> : (
-              <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-                <TextField label={w("Find a book")} value={giftSearch} onChange={e => setGiftSearch(e.target.value)} placeholder="Type part of the title" />
-                <SelectField label={w("Book to give away")} value={form.giftBookId || ""} error={errors.gift && !form.giftBookId ? errors.gift : undefined}
-                  onChange={e => setForm((f: any) => ({ ...f, giftBookId: e.target.value, giftVariantId: "" }))}>
+        {form.type === "gift" && (books === null ? <p className="rp-fk-hint">Loading catalog…</p> : (
+          <>
+            <FormRow>
+              <FormField label={w("Find a book")}>{a => <input {...a} type="search" value={giftSearch} onChange={e => setGiftSearch(e.target.value)} placeholder="Type part of the title" />}</FormField>
+              <FormField label={w("Book to give away")} required empty={!form.giftBookId} error={errors.gift && !form.giftBookId ? errors.gift : undefined}
+                hint={w("Added free when the order qualifies. It uses the book's stock.")}>
+                {a => <select {...a} value={form.giftBookId || ""} onChange={e => setForm((f: any) => ({ ...f, giftBookId: e.target.value, giftVariantId: "" }))}>
                   <option value="">{w("Choose a book")}</option>
                   {giftBook && <option value={giftBook.id}>{giftBook.title}</option>}
                   {books.filter(b => b.id !== form.giftBookId && b.productType !== "giftCard" && !(Array.isArray(b.bundleItems) && b.bundleItems.length) && String(b.title || "").toLowerCase().includes(giftSearch.trim().toLowerCase()))
                     .map(b => <option key={b.id} value={b.id}>{b.title}{b.status !== "published" ? " (not published)" : ""}</option>)}
-                </SelectField>
-                {giftBook && (giftBook.variants || []).length > 0 && (
-                  <SelectField label="Edition" value={form.giftVariantId || ""} onChange={e => set("giftVariantId", e.target.value)}
-                    error={errors.gift && form.giftBookId ? errors.gift : undefined}>
-                    <option value="">Choose an edition</option>
-                    {(giftBook.variants || []).map((v: any) => <option key={v.id} value={v.id}>{v.name || "Edition"}</option>)}
-                  </SelectField>
-                )}
-              </div>
+                </select>}
+              </FormField>
+            </FormRow>
+            {giftBook && (giftBook.variants || []).length > 0 && (
+              <FormField label="Edition" error={errors.gift && form.giftBookId ? errors.gift : undefined}>
+                {a => <select {...a} value={form.giftVariantId || ""} onChange={e => set("giftVariantId", e.target.value)}>
+                  <option value="">Choose an edition</option>
+                  {(giftBook.variants || []).map((v: any) => <option key={v.id} value={v.id}>{v.name || "Edition"}</option>)}
+                </select>}
+              </FormField>
             )}
-            {errors.gift && form.giftBookId && !(giftBook && (giftBook.variants || []).length) && <p role="alert" className="rp-error-text">{errors.gift}</p>}
-            {giftBook && giftBook.status !== "published" && <p className="rp-hint" role="status">{w("⚠ This book isn't published, so shoppers won't get it until it is.")}</p>}
+            {errors.gift && form.giftBookId && !(giftBook && (giftBook.variants || []).length) && <p role="alert" className="rp-fk-hint" data-error="">{errors.gift}</p>}
+            {giftBook && giftBook.status !== "published" && <p className="rp-fk-hint" role="status">{w("This book isn't published, so shoppers won't get it until it is.")}</p>}
+          </>
+        ))}
+        <FormChoice label="Applies to" value={form.appliesTo} onChange={v => set("appliesTo", v)}
+          options={[{ value: "all", label: "Everything" }, { value: "products", label: w("Selected books") }, { value: "categories", label: "Categories" }]} />
+        {errors.applies && <p role="alert" className="rp-fk-hint" data-error="">{errors.applies}</p>}
+        {form.appliesTo === "categories" && (
+          <div style={{ display: "grid", gap: 4, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
+            {shopCategories === null ? <p className="rp-fk-hint">Loading shop categories…</p>
+              : discountCategoryChoices(shopCategories, form.selectedCategories || []).map(cat => (
+                <Checkbox key={cat.name} checked={(form.selectedCategories || []).includes(cat.name)} onChange={() => toggleIn("selectedCategories", cat.name)}
+                  label={cat.parent ? `${cat.parent} › ${cat.name}` : cat.missing ? `${cat.name} (no longer a shop category)` : cat.renamedTo ? `${cat.name} (old name of ${cat.renamedTo})` : cat.name} />
+              ))}
+            {shopCategories !== null && <p className="rp-fk-hint" style={{ gridColumn: "1 / -1", margin: "4px 0 0" }}>{w("Categories come from Studio › Menus › Shop categories. A parent category also covers its sub-categories’ books, just like the shop’s category pages.")}</p>}
           </div>
         )}
-
-        <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-          <legend className="rp-label" style={{ marginBottom: 8 }}>Applies to</legend>
-          <div role="radiogroup" aria-label="Applies to" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {[{ id: "all", label: "All products" }, { id: "categories", label: "Categories" }, { id: "products", label: "Specific books" }].map(o => (
-              <button key={o.id} type="button" role="radio" aria-checked={form.appliesTo === o.id} onClick={() => set("appliesTo", o.id)}
-                className={`rp-btn ${form.appliesTo === o.id ? "rp-btn-ink" : "rp-btn-secondary"}`}>{o.label}</button>
-            ))}
-          </div>
-          {errors.applies && <p role="alert" className="rp-error-text" style={{ marginTop: 8 }}>{errors.applies}</p>}
-          {form.appliesTo === "categories" && (
-            <div style={{ display: "grid", gap: 4, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", marginTop: 12 }}>
-              {shopCategories === null ? <p className="rp-hint">Loading shop categories…</p>
-                : discountCategoryChoices(shopCategories, form.selectedCategories || []).map(cat => (
-                  <Checkbox key={cat.name} checked={(form.selectedCategories || []).includes(cat.name)} onChange={() => toggleIn("selectedCategories", cat.name)}
-                    label={cat.parent ? `${cat.parent} › ${cat.name}` : cat.missing ? `${cat.name} (no longer a shop category)` : cat.renamedTo ? `${cat.name} (old name of ${cat.renamedTo})` : cat.name} />
-                ))}
-              {shopCategories !== null && <p className="rp-hint" style={{ gridColumn: "1 / -1", margin: "4px 0 0" }}>{w("Categories come from Studio › Menus › Shop categories. A parent category also covers its sub-categories’ books, just like the shop’s category pages.")}</p>}
-            </div>
-          )}
-          {form.appliesTo === "products" && (() => {
-            const chosen: string[] = form.selectedProducts || [];
-            const q = bookSearch.trim().toLowerCase();
-            const shown = (books || []).filter(b => !q || `${b.title || ""} ${b.isbn || ""}`.toLowerCase().includes(q));
-            return (
-              <div style={{ marginTop: 12 }}>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
-                  <div className="rp-grow"><SearchField label={w("Find books")} placeholder="Search by title or ISBN…" value={bookSearch} onChange={e => setBookSearch(e.target.value)} /></div>
-                  <span className="rp-hint" role="status">{chosen.length} selected</span>
-                </div>
-                <div style={{ maxHeight: 220, overflowY: "auto", marginTop: 8, border: "1px solid var(--rp-border)", padding: "4px 12px" }}>
-                  {books === null ? <p className="rp-hint">Loading catalog…</p>
-                    : books.length === 0 ? <p className="rp-hint">{w("No books in the catalog yet.")}</p>
-                    : shown.length === 0 ? <p className="rp-hint">{w("No books match “")}{bookSearch}”.</p>
-                    : shown.map(b => <Checkbox key={b.id} label={b.title} checked={chosen.includes(b.id)} onChange={() => toggleIn("selectedProducts", b.id)} />)}
-                </div>
+        {form.appliesTo === "products" && (() => {
+          const chosen: string[] = form.selectedProducts || [];
+          const q = bookSearch.trim().toLowerCase();
+          const shown = (books || []).filter(b => !q || `${b.title || ""} ${b.isbn || ""}`.toLowerCase().includes(q));
+          return (
+            <>
+              <FormField label={w("Find books")} hint={`${chosen.length} selected`}>
+                {a => <input {...a} type="search" placeholder={w("Search by title or ISBN…")} value={bookSearch} onChange={e => setBookSearch(e.target.value)} />}
+              </FormField>
+              <div className="rp-fk-picklist">
+                {books === null ? <p className="rp-fk-hint">Loading catalog…</p>
+                  : books.length === 0 ? <p className="rp-fk-hint">{w("No books in the catalog yet.")}</p>
+                  : shown.length === 0 ? <p className="rp-fk-hint">{w("No books match “")}{bookSearch}”.</p>
+                  : shown.map(b => <Checkbox key={b.id} label={b.title} checked={chosen.includes(b.id)} onChange={() => toggleIn("selectedProducts", b.id)} />)}
               </div>
-            );
-          })()}
-        </fieldset>
+            </>
+          );
+        })()}
+      </FormSection>
 
-        <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
-          <TextField label="Start date (optional)" type="date" value={form.startDate || ""} onChange={e => set("startDate", e.target.value)} hint={automatic ? "The offer stays off until this day — schedule a sale ahead of time." : "Code stays off until this day — schedule a sale ahead of time."} />
-          <TextField label="Expiry date (optional)" type="date" min={isEdit && initial?.expiryDate ? undefined : today()} value={form.expiryDate || ""} onChange={e => set("expiryDate", e.target.value)} hint={automatic ? "Last day the offer applies." : "Last day the code works."} error={errors.expiryDate} />
-          <TextField label="Minimum order (CA$)" type="number" min={0} value={form.minOrderAmount} onChange={e => set("minOrderAmount", e.target.value)} placeholder="No minimum" error={errors.minOrderAmount} />
-          <TextField label="Minimum quantity" type="number" min={0} step={1} value={form.minQuantity} onChange={e => set("minQuantity", e.target.value)} placeholder="No minimum" error={errors.minQuantity} />
-          {form.type !== "freeship" && form.type !== "gift" && <TextField label="Maximum discount (CA$)" type="number" min={0} value={form.maxDiscountAmount ?? ""} onChange={e => set("maxDiscountAmount", e.target.value)} placeholder="No cap" hint="Most this code can take off one order, e.g. 20% off up to $15." error={errors.maxDiscountAmount} />}
-          {!(batch.on && !isEdit && !automatic) && <TextField label="Total usage limit" type="number" min={1} step={1} value={form.usageLimit} onChange={e => set("usageLimit", e.target.value)} placeholder="Unlimited" error={errors.usageLimit} />}
-        </div>
-
-        <div style={{ display: "grid", gap: 4 }}>
-          {!automatic && <Toggle label="One use per customer" checked={!!form.onePerCustomer} onChange={v => set("onePerCustomer", v)} />}
-          <Toggle label={automatic ? "Offer is active" : "Code is active"} checked={!!form.isActive} onChange={v => set("isActive", v)} />
-        </div>
-
-        {!automatic && <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
-          <TextArea label="Allowed email domains" rows={2} value={form.allowedEmailDomains || ""} onChange={e => set("allowedEmailDomains", e.target.value)}
-            placeholder="e.g. .edu, student.ca" hint="Comma separated. Leave empty for everyone." style={{ minHeight: 64 }} />
-          <TextArea label="Allowed customer emails" rows={2} value={form.allowedCustomerEmails || ""} onChange={e => set("allowedCustomerEmails", e.target.value)}
-            placeholder="e.g. vip@gmail.com" hint="Comma separated list of specific customers." style={{ minHeight: 64 }} />
-        </div>}
-      </div>
-    </Dialog>
+      <FormSection title="Rules" description="Optional limits.">
+        <FormRow>
+          <FormField label="Minimum spend" prefix="CA$" error={errors.minOrderAmount} hint="Leave empty for none.">
+            {a => <input {...a} type="number" min={0} value={form.minOrderAmount} onChange={e => set("minOrderAmount", e.target.value)} />}
+          </FormField>
+          <FormField label="Starts" hint={automatic ? "The offer stays off until this day." : "The code stays off until this day."}>
+            {a => <input {...a} type="date" value={form.startDate || ""} onChange={e => set("startDate", e.target.value)} />}
+          </FormField>
+          <FormField label="Ends" error={errors.expiryDate} hint="The last day it works.">
+            {a => <input {...a} type="date" min={isEdit && initial?.expiryDate ? undefined : day} value={form.expiryDate || ""} onChange={e => set("expiryDate", e.target.value)} />}
+          </FormField>
+        </FormRow>
+        <FormRow>
+          <FormField label="Minimum items" error={errors.minQuantity} hint="Leave empty for none.">
+            {a => <input {...a} type="number" min={0} step={1} value={form.minQuantity} onChange={e => set("minQuantity", e.target.value)} />}
+          </FormField>
+          {form.type !== "freeship" && form.type !== "gift" && <FormField label="Most it takes off" prefix="CA$" error={errors.maxDiscountAmount} hint="Per order, e.g. 20% off up to $15.">
+            {a => <input {...a} type="number" min={0} value={form.maxDiscountAmount ?? ""} onChange={e => set("maxDiscountAmount", e.target.value)} placeholder="No cap" />}
+          </FormField>}
+          {!batching && <FormField label="Limit total uses" suffix="orders" error={errors.usageLimit} hint="Stops working after this many orders.">
+            {a => <input {...a} type="number" min={1} step={1} value={form.usageLimit} onChange={e => set("usageLimit", e.target.value)} placeholder="No limit" />}
+          </FormField>}
+        </FormRow>
+        {!automatic && <FormToggle label="One use per customer" hint="Checked by email address." checked={!!form.onePerCustomer} onChange={v => set("onePerCustomer", v)} />}
+        <FormToggle label={automatic ? "Offer is on" : "Code is on"} hint="Turn off to pause it without deleting it." checked={!!form.isActive} onChange={v => set("isActive", v)} />
+        {!automatic && <FormRow>
+          <FormField label="Only these email endings" hint="Comma separated, e.g. .edu. Empty means everyone.">
+            {a => <textarea {...a} rows={2} value={form.allowedEmailDomains || ""} onChange={e => set("allowedEmailDomains", e.target.value)} placeholder="e.g. .edu, student.ca" />}
+          </FormField>
+          <FormField label="Only these customers" hint="Comma separated email addresses.">
+            {a => <textarea {...a} rows={2} value={form.allowedCustomerEmails || ""} onChange={e => set("allowedCustomerEmails", e.target.value)} placeholder="e.g. friend@example.com" />}
+          </FormField>
+        </FormRow>}
+      </FormSection>
+    </FormPage>
+    <StatusBar status={status} primaryLabel={primaryLabel} busy={saving} blocked={missing > 0}
+      onBlocked={() => { validate(); toast.error("Fill in the highlighted fields."); }}
+      onPrimary={() => { void handleSave(); }} onCancel={() => { void close(); }} cancelLabel={isEdit ? "Discard" : "Cancel"} />
+    </form>
     {confirmNode}
     </>
   );
@@ -357,7 +362,7 @@ export function Discounts() {
   const bringButton = <SecondaryButton icon={<Upload size={16} aria-hidden />} onClick={() => setMoving(true)}>Bring codes over</SecondaryButton>;
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
   const [deleting, setDeleting] = useState<any | null>(null);
   const [books, setBooks] = useState<any[] | null>(null);
@@ -384,7 +389,7 @@ export function Discounts() {
         toast.success(isAutomatic(data) ? "Automatic offer created" : "Discount code created");
         if (!isAutomatic(data) && data.code) setSharing(String(data.code).toUpperCase());
       }
-      setDialogOpen(false); setEditing(null); load();
+      setFormOpen(false); setEditing(null); load();
     } catch (err: any) {
       toast.error(plainError(err, "Save failed"));
     }
@@ -407,7 +412,7 @@ export function Discounts() {
     else if (created.length) toast.error(`${created.length} codes created; ${failed} failed. Create the rest again.`);
     else toast.error(plainError((results.find(r => r.status === "rejected") as PromiseRejectedResult | undefined)?.reason, "No codes could be created"));
     // Nothing created: keep the dialog (and what was typed) as it is for another try.
-    if (created.length) { setDialogOpen(false); setEditing(null); load(); }
+    if (created.length) { setFormOpen(false); setEditing(null); load(); }
   };
 
   const handleDelete = async (d: any) => {
@@ -427,12 +432,12 @@ export function Discounts() {
   /** The small line under a name: what it takes off and its dates (describeDiscount carries "until …"). */
   const subline = (d: any) => [isAutomatic(d) ? "Automatic offer" : "", describeDiscount(d, books || [])].filter(Boolean).join(" · ");
 
-  const edit = (d: any) => { setEditing(d); setDialogOpen(true); };
+  const edit = (d: any) => { setEditing(d); setFormOpen(true); };
   const actionsOf = (d: any) => (
     <ActionMenu label={`Actions for ${discountName(d)}`} actions={[
       { label: "Edit", onSelect: () => edit(d) },
       { label: d.isActive ? "Pause" : "Activate", onSelect: () => handleToggle(d) },
-      { label: "Duplicate", onSelect: () => { setEditing(duplicateDiscount(d, discounts.filter(x => !isAutomatic(x)).map(x => x.code))); setDialogOpen(true); } },
+      { label: "Duplicate", onSelect: () => { setEditing(duplicateDiscount(d, discounts.filter(x => !isAutomatic(x)).map(x => x.code))); setFormOpen(true); } },
       ...(isAutomatic(d) ? [] : [
         { label: "Share link", onSelect: () => setSharing(d.code) },
         { label: "Copy code", onSelect: () => { void copyText(d.code); } },
@@ -443,16 +448,18 @@ export function Discounts() {
 
   if (loading) return <LoadingState label="Loading discounts…" />;
   if (failed) return <ErrorState description="Discount codes could not be loaded." onRetry={load} />;
+  // v4: New discount and editing one are their own page (Back returns to the list).
+  if (formOpen) return <DiscountForm initial={editing} books={books} shopCategories={shopCategories} otherCodes={discounts.filter(d => d.id !== editing?.id && !isAutomatic(d)).map(d => d.code)} onClose={() => { setFormOpen(false); setEditing(null); }} onSave={handleSave} onSaveBatch={handleSaveBatch} />;
 
   return (
     <div className="rp-stack">
-      {discounts.length > 0 && <PageActions><SecondaryButton onClick={() => setMoving(true)}>Bring codes over</SecondaryButton><PrimaryButton onClick={() => { setEditing(null); setDialogOpen(true); }}>New discount</PrimaryButton></PageActions>}
+      {discounts.length > 0 && <PageActions><SecondaryButton onClick={() => setMoving(true)}>Bring codes over</SecondaryButton><PrimaryButton onClick={() => { setEditing(null); setFormOpen(true); }}>New discount</PrimaryButton></PageActions>}
 
       {discounts.length === 0 ? (
         <SectionCard>
           <EmptyState icon="🏷️" title="No discounts yet" description="Create a code shoppers type at checkout, or an automatic offer that applies by itself: a percentage, fixed amount, free shipping, buy-X-get-Y, tiered discount or a free gift with purchase."
             action={<div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
-              <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={() => { setEditing(null); setDialogOpen(true); }}>New discount</PrimaryButton>
+              <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={() => { setEditing(null); setFormOpen(true); }}>New discount</PrimaryButton>
               {bringButton}
             </div>} />
         </SectionCard>
@@ -475,7 +482,6 @@ export function Discounts() {
         </ul>
       )}
 
-      {dialogOpen && <DiscountDialog initial={editing} books={books} shopCategories={shopCategories} otherCodes={discounts.filter(d => d.id !== editing?.id && !isAutomatic(d)).map(d => d.code)} onClose={() => { setDialogOpen(false); setEditing(null); }} onSave={handleSave} onSaveBatch={handleSaveBatch} />}
 
       {moving && <DiscountMoveDialog existing={discounts.filter(d => !isAutomatic(d)).map(d => String(d.code || ""))}
         onClose={() => setMoving(false)} onDone={() => { void load(); }} />}

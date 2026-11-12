@@ -2,7 +2,10 @@
 // same-amount expense asks for a second tap before it is added again.
 import { useEffect, useRef, useState } from "react";
 
+import { fmt } from "@stockroom/money.js";
+import { shopDayLabel } from "../discountDescribe";
 import { PrimaryButton, SecondaryButton, SectionCard, SelectField, StatusBadge, TextField } from "../riso/components";
+import { FormField, FormPage, FormRow, FormSection, StatusBar, SummaryRail, formStatus } from "../riso/FormKit";
 import { categoryFromRules } from "./taxRules";
 import { addBusinessExpense, baseCurrencyOf, blankExpense, checkExpense, EXPENSE_CATEGORIES, EXPENSE_CURRENCIES, isDuplicate, tripChoices, type ExpenseErrors, type ExpenseForm } from "./taxExpense";
 import { describeResult, stockroomWriteApi } from "./stockroomWrite";
@@ -11,12 +14,18 @@ import { readReceipt, receiptPatch } from "./receiptRead";
 
 type Row = Record<string, any>;
 type Note = { tone: "ok" | "warn" | "error" | "busy"; text: string };
+/** "Expenses · Nov": the month the expense is filed under. */
+const landsIn = (date: string) => { const m = /^\d{4}-(\d{2})-\d{2}$/.exec(date || ""); return m ? `Expenses · ${new Date(Date.UTC(2000, Number(m[1]) - 1, 15)).toLocaleString("en-US", { month: "short", timeZone: "UTC" })}` : "Expenses"; };
 const todayText = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 
 /** `prefill`: a pending note being confirmed. Saving logs the expense and clears the note in the same save. */
 export type Prefill = { noteId: string | number; form: ExpenseForm };
 
-export function LogExpenseCard({ taxCenter, onSaved, prefill, onPrefillDone }: { taxCenter: Row | null; onSaved: (taxCenter: Row) => void; prefill?: Prefill | null; onPrefillDone?: () => void }) {
+/**
+ * `page`: the v4 New expense page (form kit: sections on the left, the amount in a rail, one status bar). Without it,
+ * the card the Tax centre shows.
+ */
+export function LogExpenseCard({ taxCenter, onSaved, prefill, onPrefillDone, page, onCancel }: { taxCenter: Row | null; onSaved: (taxCenter: Row) => void; prefill?: Prefill | null; onPrefillDone?: () => void; page?: boolean; onCancel?: () => void }) {
   const base = baseCurrencyOf(taxCenter);
   const [form, setForm] = useState<ExpenseForm>(() => blankExpense(base, todayText()));
   const [errors, setErrors] = useState<ExpenseErrors>({});
@@ -99,6 +108,60 @@ export function LogExpenseCard({ taxCenter, onSaved, prefill, onPrefillDone }: {
     } finally { setBusy(false); }
   }
 
+  if (page) {
+    const missing = [form.desc.trim(), String(form.amount).trim()].filter((v) => !v).length;
+    const amount = Number(form.amount) || 0;
+    return (
+      <form ref={cardRef as any} onSubmit={(e) => { e.preventDefault(); void submit(); }}>
+        <FormPage rail={
+          <SummaryRail tone="white" title="This entry" value={fmt(amount, form.currency)} sub="goes out"
+            rows={[{ label: "Category", value: form.cat }, { label: "Date", value: shopDayLabel(form.date) || "—" }, ...(form.trip ? [{ label: "Trip", value: form.trip }] : []), { label: "Lands in", value: landsIn(form.date) }]}
+            note={form.currency !== base ? `Counted in ${base} at the rate for its date.` : undefined} />
+        }>
+          <FormSection title="What for" description="A few words you’ll recognise later.">
+            <FormField label="What was it for?" required empty={!form.desc.trim()} hint={errors.desc}>
+              {(a) => <input {...a} placeholder="e.g. Squarespace or Shopify" value={form.desc} onChange={(e) => set({ desc: e.target.value })} />}
+            </FormField>
+            <FormRow>
+              <FormField label="Tax category" hint={errors.cat || (ruled ? "Filed here by one of your sorting rules." : undefined)}>
+                {(a) => <select {...a} value={form.cat} onChange={(e) => set({ cat: e.target.value })}>{EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}</select>}
+              </FormField>
+              <FormField label="Date" hint={errors.date}>
+                {(a) => <input {...a} type="date" value={form.date} onChange={(e) => set({ date: e.target.value })} />}
+              </FormField>
+            </FormRow>
+            <FormField label="Trip or project" hint="Optional. Groups the expenses of one trip or fair.">
+              {(a) => <input {...a} list="rp-money-trips" value={form.trip} onChange={(e) => set({ trip: e.target.value })} />}
+            </FormField>
+            <datalist id="rp-money-trips">{trips.map((t) => <option key={t.name} value={t.name} />)}</datalist>
+          </FormSection>
+          <FormSection title="Type and payment" description="Puts it in the right place in your accounts.">
+            <FormRow>
+              <FormField label="Amount" required empty={!String(form.amount).trim()} hint={errors.amount}>
+                {(a) => <input {...a} type="number" inputMode="decimal" min={0} step="0.01" placeholder="0.00" value={form.amount} onChange={(e) => set({ amount: e.target.value })} />}
+              </FormField>
+              <FormField label="Currency">
+                {(a) => <select {...a} value={form.currency} onChange={(e) => set({ currency: e.target.value })}>{currencies.map((c) => <option key={c} value={c}>{c}</option>)}</select>}
+              </FormField>
+            </FormRow>
+            <FormField label="Reference" hint="Optional. The invoice or receipt number.">
+              {(a) => <input {...a} value={form.ref} onChange={(e) => set({ ref: e.target.value })} />}
+            </FormField>
+          </FormSection>
+          <FormSection title="Receipt" description="A photo of it fills in the details for you.">
+            <button type="button" className="rp-fk-drop" onClick={() => photo.current?.click()} disabled={reading}>
+              {reading ? "Reading the receipt…" : "Add a photo of the receipt"}
+            </button>
+            <input ref={photo} type="file" accept="image/*" capture="environment" hidden onChange={(e) => void readPhoto(e.target.files?.[0])} />
+          </FormSection>
+        </FormPage>
+        {note && <p className="rp-sr-save" data-tone={note.tone} role={note.tone === "error" ? "alert" : "status"}>{note.text}</p>}
+        <StatusBar status={formStatus({ missing, create: true, verb: "add" })} primaryLabel="Add expense" busy={busy}
+          blocked={missing > 0} onBlocked={() => setNote({ tone: "warn", text: "Fill in the highlighted fields." })}
+          onPrimary={() => void submit()} onCancel={onCancel} />
+      </form>
+    );
+  }
   return (
     <SectionCard title="Log a business expense" description="Anything the press paid for. It joins the ledger below and the totals above.">
       <div ref={cardRef} />
