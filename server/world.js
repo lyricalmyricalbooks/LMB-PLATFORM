@@ -111,6 +111,7 @@ import { createShopLooks, shopLooksRoutes } from "../control-room/shopLooks.js";
 import { createShopEmails, shopEmailsRoutes } from "../control-room/shopEmails.js";
 import { appUseRoutes, createAppUse } from "../control-room/appUse.js";
 import { createShopSocial, shopSocialRoutes } from "../control-room/shopSocial.js";
+import { connectionsRoutes, createConnectionsDesk } from "../control-room/connectionsDesk.js";
 import { createShopApps, shopAppsRoutes } from "../control-room/shopApps.js";
 import { chitChatsDeskRoutes, createChitChatsDesk } from "../control-room/chitChats.js";
 import { createMailchimpDesk, mailchimpDeskRoutes } from "../control-room/mailchimp.js";
@@ -382,6 +383,8 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   // (services/social/hosted.js). Off in every shop until the networks' keys and SOCIAL_ENABLED are in (docs/social.md).
   const social = hostedSocial({ env, fetch, platform, registry, auditLog, now: nowMs, log });
   const shopSocial = createShopSocial({ admins, registry, social: social?.service ?? null, now });
+  // Every Google, QuickBooks and social connection that stopped working, on the Shops page (control-room/connectionsDesk.js).
+  const connectionsDesk = createConnectionsDesk({ admins, platform, registry, now });
   const salesChannels = createSalesChannels({ admins, registry, shopData, stockroomData, now });
   // The billing export to BigQuery isn't on yet (19.15): the Costs page shows its "not on yet" state.
   const costReader = createCostReader({});
@@ -419,7 +422,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const termsNotice = createTermsNotice({ signups: stores.signups, email, settings: live, now });
 
   // What the jobs can run (server/jobs.js reads these); the jobs page's "Run now" runs the ones that need nothing more.
-  const parts = { sharedShops: Boolean(sharedRun), accounting, social, domains, usage, usageMeters, costReader, ownApps, chitchats, chitchatsStores, mailchimp, env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups, termsNotice };
+  const parts = { sharedShops: Boolean(sharedRun), accounting, social, googleLink, domains, usage, usageMeters, costReader, ownApps, chitchats, chitchatsStores, mailchimp, env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups, termsNotice };
   const runNow = {
     "dropped-apps": () => billing.closeDroppedApps(),
     "every-app": () => billing.giveEveryApp(),
@@ -470,6 +473,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...shopEmailsRoutes(shopEmails),
     ...appUseRoutes(appUse),
     ...shopSocialRoutes(shopSocial),
+    ...connectionsRoutes(connectionsDesk),
     ...shopAppsRoutes(shopApps),
     ...chitChatsDeskRoutes(chitChatsDesk),
     ...mailchimpDeskRoutes(createMailchimpDesk({ admins, mailchimp, connections: mailchimpStores.connections, registry, now })),

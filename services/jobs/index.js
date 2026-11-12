@@ -45,6 +45,7 @@ export const JOBS = Object.freeze([
   { name: "setup-clock", words: "Warn presses whose setup hasn't been visited, then clear it after 60 days", every: DAY, code: "signup/setupClock.js sweep" },
   { name: "trial-tips", words: "Setup tips during the free trial", every: DAY, code: "services/trial-tips/index.js run" },
   { name: "shop-checkup", words: "The monthly check-up email to each live shop (it runs daily and sends each shop one a month)", every: DAY, code: "services/checkup/index.js run" },
+  { name: "connection-check", words: "Check each shop's Google, QuickBooks and social connections still work, and list the ones that stopped", every: DAY, code: "control-room/connectionsDesk.js runConnectionCheck" },
   { name: "bookkeeping", words: "Send the day's sales to each press's bookkeeping", every: DAY, code: "services/accounting/index.js nightly" },
   { name: "usage-meters", words: "Count each shop's use in the shared system, and split last month's Google bill by it", every: DAY, code: "services/usage/meters.js runUsageMeters" },
   { name: "running-costs", words: "Put last month's running cost on each shop's next bill (from the 3rd), and email presses whose month looks set to pass their amount", every: DAY, code: "services/billing/runningCostJob.js runRunningCosts" },

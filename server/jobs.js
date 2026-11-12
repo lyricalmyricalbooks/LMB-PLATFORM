@@ -20,6 +20,7 @@ import { switchNote } from "../control-room/switchNote.js";
 import { chitChatsNote } from "../control-room/chitChatsNote.js";
 import { controlRoomPeople } from "../control-room/people.js";
 import { NOT_CONNECTED, NotConnected, notConnectedFn } from "./notConnected.js";
+import { runConnectionCheck } from "../control-room/connectionsDesk.js";
 
 const quiet = () => {};
 /** The platform owner's notes go to PLATFORM_ADMIN_EMAIL, else to the alert address. */
@@ -51,6 +52,8 @@ export const RUNNERS = Object.freeze({
   "shop-checkup": ({ checkups }) => (checkups ? () => checkups.run() : notConnectedFn(NOT_CONNECTED.checkups)),
   // QuickBooks: warns each owner 30 days before their connection ends (services/accounting nightly()). The sales
   // themselves are sent by each shop's own nightly run.
+  // Every Google connection is asked for a fresh pass, so one Google refused shows on the Shops page next morning.
+  "connection-check": ({ parts }) => () => runConnectionCheck({ platform: parts.platform, registry: parts.registry, tokens: parts.googleLink?.link?.tokens ?? null }),
   bookkeeping: ({ parts }) => (parts?.accounting ? () => parts.accounting.service.nightly() : notConnectedFn(NOT_CONNECTED.bookkeeping)),
   "income-record": ({ parts }) => async () => runBusinessNightly({ registry: parts.registry, settings: await parts.live(), incomeHistory: parts.incomeHistory, billing: parts.billing, now: parts.now }),
   "press-messages": ({ pressMessages }) => () => pressMessages.sweep(),

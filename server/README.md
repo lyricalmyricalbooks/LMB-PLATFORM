@@ -72,6 +72,7 @@ Not connected yet (`notConnected.js`). Each answers in plain words, never with m
 | income-record | 02:30 | on |
 | self-checks | 03:00 | paused |
 | bookkeeping | 03:30 | on (warns QuickBooks owners before their connection ends) |
+| connection-check | 03:45 | on (asks Google about each connected shop; the Shops page lists every Google, QuickBooks and social connection that stopped working) |
 | trial-tips | 09:00 | on |
 | shop-checkup | 10:00 (each shop gets one a month) | on |
 | deletion-note | 08:00 on Mondays (only when a closed app's records go that week) | on |
