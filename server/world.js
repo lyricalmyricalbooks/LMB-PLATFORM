@@ -31,6 +31,7 @@
 //   POST /api/email/shop         a shop sending an email through the platform (services/email/http.js)
 //   *    /api/domains/...        a shop's web addresses (services/domains/http.js: POST /shop, GET /allowed), in the shared system
 //   *    /api/google/...         Connect Google (google/hosted.js: POST /shop from a shop, GET /oauth from Google)
+//   *    /api/social/...         social channels (services/social/hosted.js: POST /shop, GET /<network>/oauth)
 //   *    /api/accounting/...     the QuickBooks link (services/accounting/hosted.js: POST /shop, GET /quickbooks/oauth and /reconnect)
 //   GET  /tips/off, /checkup/off the emails' "turn off" pages
 //
@@ -54,6 +55,7 @@ import { readGoogleConfig } from "../google/config.js";
 import { googleReadiness } from "../google/readiness.js";
 import { hostedGoogleLink } from "../google/hosted.js";
 import { hostedAccounting } from "../services/accounting/hosted.js";
+import { hostedSocial } from "../services/social/hosted.js";
 import { createSupportInbox } from "../services/support/inbox.js";
 import { supportRoutes } from "../services/support/routes.js";
 import { createAppMakers } from "../services/apps/makers.js";
@@ -376,8 +378,10 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const chitChatsDesk = createChitChatsDesk({ admins, chitchats, stores: chitchatsStores, registry, now: now });
   const sellReady = createSellReady({ admins, registry, shopData, now: now });
   const notSelling = createNotSelling({ admins, registry, shopData, email, activity, now: now });
-  // Social channels (27.8): the social service has no hosted home yet (services/social/index.js), so the room says so.
-  const shopSocial = createShopSocial({ admins, registry, social: null, now });
+  // Social channels (plan 27): a shop's Sales channels connects the press's Facebook & Instagram, Pinterest and TikTok
+  // (services/social/hosted.js). Off in every shop until the networks' keys and SOCIAL_ENABLED are in (docs/social.md).
+  const social = hostedSocial({ env, fetch, platform, registry, auditLog, now: nowMs, log });
+  const shopSocial = createShopSocial({ admins, registry, social: social?.service ?? null, now });
   const salesChannels = createSalesChannels({ admins, registry, shopData, stockroomData, now });
   // The billing export to BigQuery isn't on yet (19.15): the Costs page shows its "not on yet" state.
   const costReader = createCostReader({});
@@ -415,7 +419,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const termsNotice = createTermsNotice({ signups: stores.signups, email, settings: live, now });
 
   // What the jobs can run (server/jobs.js reads these); the jobs page's "Run now" runs the ones that need nothing more.
-  const parts = { sharedShops: Boolean(sharedRun), accounting, domains, usage, usageMeters, costReader, ownApps, chitchats, chitchatsStores, mailchimp, env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups, termsNotice };
+  const parts = { sharedShops: Boolean(sharedRun), accounting, social, domains, usage, usageMeters, costReader, ownApps, chitchats, chitchatsStores, mailchimp, env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups, termsNotice };
   const runNow = {
     "dropped-apps": () => billing.closeDroppedApps(),
     "every-app": () => billing.giveEveryApp(),
@@ -521,6 +525,10 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
       if (!domains) return { status: 503, body: { error: { code: "not_connected", message: NOT_CONNECTED.domains.words } } };
       return handleDomains({ ...request, path: path.slice("/api/domains".length) || "/" }, { service: domains });
     }
+    if (path === "/api/social" || path.startsWith("/api/social/")) {
+      if (!social) return { status: 503, body: { error: { code: "not_connected", message: NOT_CONNECTED.social.words } } };
+      return social.handle({ ...request, path: path.slice("/api/social".length) || "/" });
+    }
     if (path === "/api/accounting" || path.startsWith("/api/accounting/")) {
       if (!accounting) return { status: 503, body: { error: { code: "not_connected", message: NOT_CONNECTED.bookkeeping.words } } };
       return accounting.handle({ ...request, path: path.slice("/api/accounting".length) || "/" });
@@ -535,7 +543,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
 
   return {
     projectId, settings, live, platform, registry, auditLog, shopData, stockroomData, email, billing, paymentWay, payments, signup, frontDoor, shopMaker, accounts, room, controls,
-    appAlerts, chitchats, mailchimp, accounting, backup, support, recovery, business, timeline, jobs, jobRuns, jobsPage, notes, pressMessages, costsDesk, dataExports, trialTips, checkups, closing, setupClock, driftWatch,
+    appAlerts, chitchats, mailchimp, accounting, social, backup, support, recovery, business, timeline, jobs, jobRuns, jobsPage, notes, pressMessages, costsDesk, dataExports, trialTips, checkups, closing, setupClock, driftWatch,
     routes, door, shopBilling, handle, parts, termsNotice, googleLink,
   };
 }

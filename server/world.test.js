@@ -288,3 +288,52 @@ test("a shared-system shop reaches Connect Google at its address; with the keys 
   // Not due yet: the hook refuses and nothing comes off.
   assert.equal((await world.googleLink.closingHooks.beforeDelete[0]({ shopId: "moth-press" })).refused, true);
 });
+
+test("a shared-system shop reaches social channels at the address its server is given; off until it's switched on", async () => {
+  const { sharedServerEnv } = await import("../services/release-runner/shared.js");
+  const url = /^PLATFORM_SOCIAL_URL="([^"]+)"$/m.exec(sharedServerEnv({ platformUrl: "https://platform.example" }))?.[1];
+  assert.equal(url, "https://platform.example/api/social");
+  // The shop's server posts to `${PLATFORM_SOCIAL_URL}/shop` (apps/shop/functions/socialLink.js).
+  const path = `${new URL(url).pathname}/shop`;
+  const { world } = build({ ...TEST_ENV, SHARED_SHOPS_PROJECT: "lmb-test-shop", SHARED_SHOPS_DOMAIN: "shops.example" });
+  const key = "shared-server-key-0123456789abcdef0123456789";
+  await world.registry.createShop("moth-press", { shopId: "moth-press", projectId: "lmb-test-shop", shared: true, status: "live", serviceKeyHash: hashServiceKey(key) });
+  const refused = await world.handle({ method: "POST", path, headers: { "X-Shop-Id": "moth-press" }, body: { op: "social.status" } });
+  assert.equal(refused.status, 401);
+  const status = await world.handle({ method: "POST", path, headers: { "X-Shop-Id": "moth-press", Authorization: `Bearer ${key}` }, body: { op: "social.status" } });
+  assert.equal(status.status, 200, JSON.stringify(status.body));
+  assert.equal(status.body.enabled, false);
+  // Off: posting is refused, and a network's sign-in answer without a state goes nowhere.
+  const post = await world.handle({ method: "POST", path, headers: { "X-Shop-Id": "moth-press", Authorization: `Bearer ${key}` }, body: { op: "social.publish", args: {} } });
+  assert.notEqual(post.status, 200);
+  assert.ok(world.social, "the social service is hosted");
+});
+
+test("the social stores keep each record in the platform's database: one use for a sign-in state, one claim per post", async () => {
+  const { socialStores, socialEnv } = await import("../services/social/hosted.js");
+  const { outside } = build();
+  const { firestoreClient } = await import("../clients/firestore.js");
+  const platform = firestoreClient({ fetch: outside.fetch, token: outside.token, projectId: TEST_PROJECT });
+  const stores = socialStores(platform);
+  await stores.connections.set("moth-press", "meta", { accountName: "Moth Press" });
+  await stores.connections.set("moth-press", "pinterest", { accountName: "mothpress" });
+  await stores.connections.set("other-press", "meta", { accountName: "Other" });
+  assert.deepEqual(await stores.connections.get("moth-press", "meta"), { accountName: "Moth Press", shopId: "moth-press", network: "meta" });
+  assert.deepEqual((await stores.connections.listFor("moth-press")).map((c) => c.network).sort(), ["meta", "pinterest"]);
+  assert.throws(() => stores.connections.get("moth-press", "myspace"), /network/);
+  assert.throws(() => stores.connections.get("../x", "meta"), /shop id/);
+  const state = "b".repeat(48);
+  await stores.states.put(state, { shopId: "moth-press", network: "meta" });
+  assert.deepEqual(await stores.states.take(state), { shopId: "moth-press", network: "meta" });
+  assert.equal(await stores.states.take(state), null);
+  const key = "moth-press/post1/fb:123";
+  const first = await stores.sent.claim(key, { state: "sending", at: "2026-11-12T10:00:00.000Z" }, { staleBefore: "2026-11-12T09:50:00.000Z" });
+  assert.equal(first.claimed, true);
+  const again = await stores.sent.claim(key, { state: "sending", at: "2026-11-12T10:01:00.000Z" }, { staleBefore: "2026-11-12T09:51:00.000Z" });
+  assert.equal(again.claimed, false, "a post being sent isn't claimed twice");
+  const stale = await stores.sent.claim(key, { state: "sending", at: "2026-11-12T10:20:00.000Z" }, { staleBefore: "2026-11-12T10:10:00.000Z" });
+  assert.equal(stale.claimed, true, "a claim that died half-way can be tried again");
+  await stores.sent.put(key, { state: "posted", at: "2026-11-12T10:21:00.000Z" });
+  assert.equal((await stores.sent.claim(key, { state: "sending", at: "2026-11-13T00:00:00.000Z" }, { staleBefore: "2026-11-12T23:50:00.000Z" })).claimed, false, "never posted twice");
+  assert.equal(socialEnv({ PLATFORM_URL: "https://platform.example/" }).SOCIAL_REDIRECT_BASE, "https://platform.example/api/social");
+});

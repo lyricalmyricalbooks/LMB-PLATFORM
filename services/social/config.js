@@ -31,6 +31,17 @@ function app(env, network) {
   return Object.freeze({ id, secret });
 }
 
+/** The secrets the platform's server reads (server/deploy.js): every one optional, so the server starts without them. */
+export const SOCIAL_SECRETS = Object.freeze([
+  { env: "META_APP_ID", secret: "meta-app-id", api: true, jobs: true },
+  { env: "META_APP_SECRET", secret: "meta-app-secret", api: true, jobs: true },
+  { env: "PINTEREST_APP_ID", secret: "pinterest-app-id", api: true, jobs: true },
+  { env: "PINTEREST_APP_SECRET", secret: "pinterest-app-secret", api: true, jobs: true },
+  { env: "TIKTOK_CLIENT_KEY", secret: "tiktok-client-key", api: true, jobs: true },
+  { env: "TIKTOK_CLIENT_SECRET", secret: "tiktok-client-secret", api: true, jobs: true },
+  { env: "SOCIAL_TOKEN_KEY", secret: "social-token-key", api: true, jobs: true },
+]);
+
 export function readSocialConfig(env = {}) {
   const enabled = text(env.SOCIAL_ENABLED).toLowerCase() === "true";
   const apps = Object.freeze({ meta: app(env, "meta"), pinterest: app(env, "pinterest"), tiktok: app(env, "tiktok") });
