@@ -111,7 +111,7 @@ async function runNewsletterIssues(deps) {
   const finish = {};
 
   outer: while (sent < MAX_SENDS_PER_RUN && Date.now() - started < budgetMs) {
-    const page = await deps.listSubscribers(cursor, PAGE);
+    const page = await deps.listSubscribers(cursor, PAGE, audienceOf(issue.to));
     for (const row of page) {
       if (sent >= MAX_SENDS_PER_RUN || Date.now() - started >= budgetMs) break outer;
       const email = mailable(row.data, optedOut, deps.optOutId);
@@ -190,7 +190,7 @@ function newsletterAdminActions(deps) {
     const op = String(body.op || "");
     try {
       if (op === "audience") {
-        res.status(200).json({ audience: await deps.countAudience() });
+        res.status(200).json({ audience: await deps.countAudience(audienceOf(body.to)) });
         return;
       }
       if (op === "test" || op === "send") {
@@ -208,15 +208,16 @@ function newsletterAdminActions(deps) {
         const busy = "A newsletter is still sending. Wait for it to finish, or cancel it, before sending another.";
         const activeQuery = db.collection("newsletterIssues").where("status", "in", ACTIVE).limit(1);
         if (!(await activeQuery.get()).empty) { res.status(409).json({ error: busy }); return; }
-        const audience = await deps.countAudience();
-        if (!audience) { res.status(400).json({ error: "Nobody on your mailing list has confirmed yet, so there is no one to send to." }); return; }
+        const to = audienceOf(body.to);
+        const audience = await deps.countAudience(to);
+        if (!audience) { res.status(400).json({ error: to === "list" ? "Nobody on your mailing list has confirmed yet, so there is no one to send to." : "There is no one to send to yet." }); return; }
         // Checked again and queued in one transaction: two Send presses at once (two tabs, a retried request) would
         // otherwise both find nothing sending and queue two issues, and everyone would get the newsletter twice.
         const doc = db.collection("newsletterIssues").doc();
         const queued = await db.runTransaction(async tx => {
           if (!(await tx.get(activeQuery)).empty) return false;
           tx.create(doc, {
-            ...draft, status: "queued", audience, sent: 0, skipped: 0, failed: 0, cursor: "", failedRuns: 0, lastError: "",
+            ...draft, to, status: "queued", audience, sent: 0, skipped: 0, failed: 0, cursor: "", failedRuns: 0, lastError: "",
             leaseUntil: null, createdAt: nowIso(), createdBy: String(who.email || who.uid || ""),
           });
           return true;
@@ -258,6 +259,39 @@ function newsletterAdminActions(deps) {
   return { handleNewsletterAdmin };
 }
 
+/** Who a newsletter goes to: the mailing list, people who bought in the last two years, or both. */
+const AUDIENCES = ["list", "buyers", "everyone"];
+const audienceOf = (value) => (AUDIENCES.includes(value) ? value : "list");
+// Canada's anti-spam law lets a shop write to someone who bought from it in the last two years (implied consent).
+const BUYER_WINDOW_MS = 2 * 365 * 86_400_000;
+const millis = (v) => (v && typeof v.toMillis === "function" ? v.toMillis() : typeof v === "number" ? v : Date.parse(String(v || "")) || 0);
+
+/** Every address that paid for an order in the last two years, lower case, sorted, once each. Pure. */
+function pastBuyerEmails(orders, nowMs) {
+  const out = new Set();
+  for (const o of orders || []) {
+    if (!o || o.isTest || o.sandboxPayment || o.practiceOrder) continue;
+    if (!["paid", "refunded", "partially_refunded"].includes(String(o.paymentStatus || ""))) continue;
+    const at = millis(o.paidAt) || millis(o.createdAt);
+    if (!at || nowMs - at > BUYER_WINDOW_MS) continue;
+    const email = String(o.customer?.email || o.email || "").trim().toLowerCase();
+    if (EMAIL.test(email)) out.add(email);
+  }
+  return [...out].sort();
+}
+
+/** The rows a newsletter walks, by address: list rows as they are, buyers as plain addresses. Pure. */
+function recipientRows(listRows, buyerEmails, to) {
+  const rows = new Map();
+  if (to !== "buyers") for (const r of listRows || []) rows.set(String(r.id), r);
+  if (to !== "list") for (const email of buyerEmails || []) {
+    const listed = rows.get(email);
+    // A buyer still waiting to confirm the list is a buyer all the same.
+    if (!listed || !mayMail(listed.data)) rows.set(email, { id: email, data: { email, status: "buyer" } });
+  }
+  return [...rows.values()].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
 /** How many people a newsletter would reach now. */
 function audienceCount(records, optedOut, optOutId) {
   const seen = new Set();
@@ -269,6 +303,6 @@ function audienceCount(records, optedOut, optOutId) {
 }
 
 module.exports = {
-  newsletterDraft, newsletterDraftProblem, newsletterEmail, runNewsletterIssues, newsletterAdminActions, audienceCount, isPausedRefusal,
+  newsletterDraft, newsletterDraftProblem, newsletterEmail, runNewsletterIssues, newsletterAdminActions, audienceCount, isPausedRefusal, pastBuyerEmails, recipientRows, audienceOf,
   MAX_SENDS_PER_RUN, MAX_FAILED_RUNS, PAGE,
 };
