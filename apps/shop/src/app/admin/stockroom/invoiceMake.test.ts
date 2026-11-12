@@ -97,6 +97,8 @@ describe("saving through the write layer", () => {
     // A retry with the same id never files it twice.
     await createStockroomWriter(mem.device()).saveBookState("salt-hours", saveInvoiceChange(form, "sent", { books: r.books, id: "inv-new", now: 6 }));
     expect(readBack(mem).invoices.filter((i: any) => i.id === "inv-new")).toHaveLength(1);
+    // Another tab that opened its form before this one was filed picked the same number: refused, nothing filed.
+    expect(() => saveInvoiceChange(form, "sent", { books: r.books, id: "inv-other-tab", now: 7 })(readBack(mem))).toThrow(/was filed while this form was open/);
   });
 
   it("an edit keeps it paid, keeps its reminders, and unlinks a sale taken off it", async () => {

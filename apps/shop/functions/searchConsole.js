@@ -6,6 +6,7 @@
 // Nothing here writes to Firestore.
 const { cleanRange, fetchJson } = require("./googleAnalytics");
 const { shopConfig } = require("./shopConfig");
+const { foldersOn } = require("./shopScope");
 
 const API = "https://searchconsole.googleapis.com/webmasters/v3/";
 const INSPECT_API = "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect";
@@ -31,7 +32,8 @@ function pickSite(saved, sites) {
   const SHOP_HOST = shopConfig.siteHost;
   const own = [`sc-domain:${SHOP_HOST}`, `https://${SHOP_HOST}/`, `https://www.${SHOP_HOST}/`].find(n => names.includes(n));
   if (own) return own;
-  return names.length === 1 ? names[0] : null;
+  // On the shared server one Google account reads for every shop, so "the only site it can see" may be another shop's.
+  return names.length === 1 && !foldersOn() ? names[0] : null;
 }
 
 /** A Google error → what the owner should do about it. */

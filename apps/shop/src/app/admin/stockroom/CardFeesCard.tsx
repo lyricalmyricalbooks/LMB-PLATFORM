@@ -3,7 +3,7 @@ import { useState } from "react";
 import { fmt } from "@stockroom/money.js";
 
 import { DataTable, SecondaryButton, SectionCard, StatusBadge } from "../riso/components";
-import { cardFeesForYear, cardFeesLogged, logCardFeesChange, type FeeLine } from "./cardFees";
+import { cardFeesForYear, cardFeesLoggedMinor, logCardFeesChange, type FeeLine } from "./cardFees";
 import { describeResult, stockroomWriteApi } from "./stockroomWrite";
 
 type Row = Record<string, any>;
@@ -31,9 +31,13 @@ export function CardFeesCard({ orders, year, taxCenter, onSaved }: { orders: Row
         { key: "cur", header: "Currency", render: (l) => l.currency },
         { key: "orders", header: "Orders", render: (l) => l.orders },
         { key: "fee", header: "Fees", render: (l) => fmt(l.feeMinor / 100, l.currency) },
-        { key: "act", header: "", render: (l) => cardFeesLogged(taxCenter, year, l.currency)
-          ? <StatusBadge tone="success">Logged</StatusBadge>
-          : onSaved ? <SecondaryButton size="sm" busy={busy === l.currency} disabled={!!busy || l.feeMinor <= 0} onClick={() => void log(l)}>Log as expense</SecondaryButton> : null },
+        { key: "act", header: "", render: (l) => {
+          const logged = cardFeesLoggedMinor(taxCenter, year, l.currency);
+          if (logged === l.feeMinor) return <StatusBadge tone="success">Logged</StatusBadge>;
+          if (!onSaved) return logged === null ? null : <StatusBadge tone="warning">Logged {fmt(logged / 100, l.currency)}</StatusBadge>;
+          // Logged earlier in the year: later orders' fees bring the same expense up to date.
+          return <SecondaryButton size="sm" busy={busy === l.currency} disabled={!!busy || l.feeMinor <= 0} onClick={() => void log(l)}>{logged === null ? "Log as expense" : `Update from ${fmt(logged / 100, l.currency)}`}</SecondaryButton>;
+        } },
       ]} />
       {missing > 0 && <p className="rp-hint">{missing} paid order{missing === 1 ? "'s fee isn't" : "s' fees aren't"} known yet. They fill in once the payout arrives.</p>}
       {note && <p className="rp-hint" role="status">{note}</p>}

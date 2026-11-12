@@ -36,6 +36,7 @@ function shopEntries({ rootDb, env = process.env, now = () => Date.now(), log = 
     const data = snap.exists ? snap.data() || {} : null;
     const record = data && typeof data.tenant === "string" ? data : null;
     const shop = record ? { id, tenant: typeof record.tenant === "string" ? record.tenant : "", status: record.status || "open", record, config: configForShop(id, record, env) } : null;
+    if (cache.size >= 5000) cache.clear(); // made-up ids can't grow it without end
     cache.set(id, { at: now(), shop });
     return shop;
   }

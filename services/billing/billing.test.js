@@ -242,7 +242,9 @@ test("the control room's payment reminder resends the failed-payment email, once
   stores.subscriptions.rows.set("moth-press", { ...stores.subscriptions.rows.get("moth-press"), status: "past_due" });
   const sent = await billing.remindPayment({ shopId: "moth-press" });
   assert.deepEqual([sent.sent, sent.kind], [true, "payment-failed"]);
-  await billing.remindPayment({ shopId: "moth-press" });
+  const second = await billing.remindPayment({ shopId: "moth-press" });
+  assert.deepEqual([second.sent, second.why], [false, "This press was already reminded today."], "a second tap says nothing went, and logs nothing");
+  assert.equal([...registry.events.get("moth-press").values()].filter((e) => e.what === "payment-reminder").length, 1);
   const failed = email.list().filter((m) => m.kind === "payment-failed");
   assert.equal(failed.length, 2, "the first failure email, then one reminder however often it's tapped that day");
   assert.equal(failed[1].data.price, "$39.00");

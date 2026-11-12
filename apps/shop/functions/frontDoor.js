@@ -85,6 +85,7 @@ function frontDoor({ rootDb, bucket, loadShop, shellUrl, fetch = globalThis.fetc
     if (hit && now() - hit.at < ADDRESS_TTL_MS) return hit.id;
     const snap = await rootDb().collection("addresses").doc(host).get();
     const id = snap.exists && isShopId(snap.data()?.shopId) ? snap.data().shopId : null;
+    if (addresses.size >= 5000) addresses.clear(); // made-up Host names can't grow it without end
     addresses.set(host, { at: now(), id });
     return id;
   }

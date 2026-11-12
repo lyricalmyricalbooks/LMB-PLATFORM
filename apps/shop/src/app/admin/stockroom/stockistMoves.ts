@@ -18,8 +18,12 @@ export function storeIn(s: Row, name: string): Row {
   return st;
 }
 
-export function sendCopies(book: Row, name: string, f: { qty: number; rate?: number; date: string; notes?: string }) {
+/** A move filed by an earlier try of the same form (its id was made when the form opened): don't file it again. */
+const filed = (s: Row, id?: number) => id != null && ((s.ledger as Row[]) || []).some((e) => e && e.id === id);
+
+export function sendCopies(book: Row, name: string, f: { qty: number; rate?: number; date: string; notes?: string; id?: number }) {
   return (s: Row) => {
+    if (filed(s, f.id)) return s;
     const st = storeIn(s, name);
     const qty = whole(f.qty);
     const stock = deriveOnHand(s, book);
@@ -28,13 +32,14 @@ export function sendCopies(book: Row, name: string, f: { qty: number; rate?: num
     const rate = Number.isFinite(Number(f.rate)) && f.rate !== undefined ? Number(f.rate) : st.rate;
     if (!(rate >= 0 && rate <= 100)) throw new Error("Commission must be between 0 and 100.");
     st.sent = (st.sent || 0) + qty; st.outstanding = (st.outstanding || 0) + qty;
-    (s.ledger ||= []).push({ id: Date.now(), storeId: st.id, storeName: st.name, type: "Shipment", date: f.date, qty, rate, amountDue: 0, paid: "n/a", notes: (f.notes || "").trim(), status: "sent", sheetsId: eventId() });
+    (s.ledger ||= []).push({ id: f.id ?? Date.now(), storeId: st.id, storeName: st.name, type: "Shipment", date: f.date, qty, rate, amountDue: 0, paid: "n/a", notes: (f.notes || "").trim(), status: "sent", sheetsId: eventId() });
     return s;
   };
 }
 
-export function recordStoreSale(book: Row, name: string, f: { qty: number; unitPrice: number; date: string; paid: "pending" | "paid"; notes?: string; saleCur?: string; fxRate?: number }) {
+export function recordStoreSale(book: Row, name: string, f: { qty: number; unitPrice: number; date: string; paid: "pending" | "paid"; notes?: string; saleCur?: string; fxRate?: number; id?: number }) {
   return (s: Row) => {
+    if (filed(s, f.id)) return s;
     const st = storeIn(s, name);
     const qty = whole(f.qty);
     const bookCode = bookCurrencyCode(book);
@@ -50,7 +55,7 @@ export function recordStoreSale(book: Row, name: string, f: { qty: number; unitP
     const num = "CON-" + String(st.name).replace(/\s+/g, "").slice(0, 5).toUpperCase() + "-" + Date.now().toString().slice(-4);
     const sheetsId = eventId();
     const notes = (f.notes || "").trim();
-    const entry: Row = { id: Date.now(), storeId: st.id, storeName: st.name, type: "Sale", date: f.date, qty, rate: st.rate, amountDue: pub, paid: f.paid, notes, status: f.paid, sheetsId, cur: bookCode };
+    const entry: Row = { id: f.id ?? Date.now(), storeId: st.id, storeName: st.name, type: "Sale", date: f.date, qty, rate: st.rate, amountDue: pub, paid: f.paid, notes, status: f.paid, sheetsId, cur: bookCode };
     if (saleCur !== bookCode) st.currency = saleCur; else delete st.currency;
     if (amounts.sale) entry.sale = amounts.sale;
     if (f.paid === "paid") {
@@ -64,8 +69,9 @@ export function recordStoreSale(book: Row, name: string, f: { qty: number; unitP
   };
 }
 
-export function takeReturn(name: string, f: { qty: number; date: string; good: boolean; notes?: string }) {
+export function takeReturn(name: string, f: { qty: number; date: string; good: boolean; notes?: string; id?: number }) {
   return (s: Row) => {
+    if (filed(s, f.id)) return s;
     const st = storeIn(s, name);
     const qty = whole(f.qty);
     if (qty <= 0) throw new Error("Enter a quantity greater than 0.");
@@ -73,7 +79,7 @@ export function takeReturn(name: string, f: { qty: number; date: string; good: b
     st.returned = (st.returned || 0) + qty; st.outstanding -= qty;
     const cond = f.good ? "Good — return to stock" : "Damaged — write off";
     const notes = (f.notes || "").trim();
-    (s.ledger ||= []).push({ id: Date.now(), storeId: st.id, storeName: st.name, type: "Return", date: f.date, qty, rate: st.rate, amountDue: 0, paid: "n/a", notes: (notes ? notes + " · " : "") + cond, status: f.good ? "restocked" : "written off", sheetsId: eventId() });
+    (s.ledger ||= []).push({ id: f.id ?? Date.now(), storeId: st.id, storeName: st.name, type: "Return", date: f.date, qty, rate: st.rate, amountDue: 0, paid: "n/a", notes: (notes ? notes + " · " : "") + cond, status: f.good ? "restocked" : "written off", sheetsId: eventId() });
     return s;
   };
 }

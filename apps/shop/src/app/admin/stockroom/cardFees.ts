@@ -34,14 +34,31 @@ export function cardFeesForYear(orders: Row[], year: string): CardFeeYear {
 export const cardFeeExpenseId = (year: string, currency: string) =>
   Number(`9${year}${[...currency].map((c) => String(c.charCodeAt(0) - 55).padStart(2, "0")).join("")}`);
 
-export const cardFeesLogged = (taxCenter: Row | null, year: string, currency: string) =>
-  (Array.isArray(taxCenter?.businessExpenses) ? taxCenter!.businessExpenses : []).some((e: Row) => e?.id === cardFeeExpenseId(year, currency));
+const loggedRow = (taxCenter: Row | null, year: string, currency: string): Row | null =>
+  (Array.isArray(taxCenter?.businessExpenses) ? taxCenter!.businessExpenses : []).find((e: Row) => e?.id === cardFeeExpenseId(year, currency)) || null;
+
+export const cardFeesLogged = (taxCenter: Row | null, year: string, currency: string) => !!loggedRow(taxCenter, year, currency);
+
+/** The amount already logged for the year's fees in this currency, in cents; null when nothing is logged. */
+export function cardFeesLoggedMinor(taxCenter: Row | null, year: string, currency: string): number | null {
+  const row = loggedRow(taxCenter, year, currency);
+  return row ? Math.round((Number(row.origAmount ?? row.amount) || 0) * 100) : null;
+}
 
 /** The save step: one expense for the year's fees in one currency, dated the year's last day (or today if sooner). */
 export function logCardFeesChange(line: FeeLine, year: string, today: string) {
   const end = `${year}-12-31`;
-  return (current: Row | null) => addBusinessExpense(current, {
-    desc: `Card processing fees, ${year} (${line.orders} website order${line.orders === 1 ? "" : "s"})`,
-    cat: "Sales Processing Fees", date: today < end ? today : end, amount: (line.feeMinor / 100).toFixed(2), currency: line.currency, trip: "", ref: `card-fees-${year}`,
-  }, line.feeMinor / 100, cardFeeExpenseId(year, line.currency));
+  const desc = `Card processing fees, ${year} (${line.orders} website order${line.orders === 1 ? "" : "s"})`;
+  const amount = line.feeMinor / 100;
+  return (current: Row | null) => {
+    // Logged earlier in the year: fees from later orders bring that one expense up to date (never a second one).
+    const row = loggedRow(current, year, line.currency);
+    if (row && !row.voided) {
+      row.desc = desc; row.amount = amount; row.origAmount = amount;
+      row.baseAmount = row.fxRate ? Math.round(amount * row.fxRate * 100) / 100 : null;
+      row.date = today < end ? today : end;
+      return current as Row;
+    }
+    return addBusinessExpense(current, { desc, cat: "Sales Processing Fees", date: today < end ? today : end, amount: amount.toFixed(2), currency: line.currency, trip: "", ref: `card-fees-${year}` }, amount, cardFeeExpenseId(year, line.currency));
+  };
 }

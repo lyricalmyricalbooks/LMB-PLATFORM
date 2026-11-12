@@ -27,15 +27,17 @@ export function StockistMoveDialog({ kind, shop, rate, bookId, book, onClose, on
   const [paid, setPaid] = useState<"pending" | "paid">("pending");
   const [good, setGood] = useState(true);
   const [busy, setBusy] = useState(false);
+  // One id for this form, so a save that was stored but answered "couldn't be stored" is not filed twice on a retry.
+  const [id] = useState(() => Date.now());
   const [problem, setProblem] = useState("");
 
   async function save() {
     if (busy) return;
     setBusy(true); setProblem("");
     const n = Number(qty);
-    const mutate = kind === "send" ? sendCopies(book, shop, { qty: n, rate: Number(commission), date, notes })
-      : kind === "sale" ? recordStoreSale(book, shop, { qty: n, unitPrice: Number(price), date, paid, notes, saleCur: cur.trim().toUpperCase() || code, fxRate: Number(fx) || undefined })
-      : takeReturn(shop, { qty: n, date, good, notes });
+    const mutate = kind === "send" ? sendCopies(book, shop, { qty: n, rate: Number(commission), date, notes, id })
+      : kind === "sale" ? recordStoreSale(book, shop, { qty: n, unitPrice: Number(price), date, paid, notes, saleCur: cur.trim().toUpperCase() || code, fxRate: Number(fx) || undefined, id })
+      : takeReturn(shop, { qty: n, date, good, notes, id });
     try {
       const r = await stockroomWriteApi.saveBookState(bookId, mutate);
       const d = describeResult(r);

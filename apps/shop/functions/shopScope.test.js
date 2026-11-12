@@ -238,3 +238,18 @@ describe("the document copy (backupJson.js) inside a shop", () => {
     expect(lines(files["backups/d/json/_group_private.ndjson.gz"])).toEqual([{ path: "books/a/private/admin", data: { shelf: "S1" } }]);
   });
 });
+
+describe("Search Console on the shared server", () => {
+  it("never hands a shop the only site Google lists, which may be another shop's", () => {
+    const { pickSite } = require("./searchConsole");
+    const sites = [{ siteUrl: "https://other-press.example/" }];
+    const before = process.env.SHOP_FOLDERS;
+    try {
+      process.env.SHOP_FOLDERS = "on";
+      expect(pickSite("", sites)).toBeNull();
+      expect(pickSite("https://other-press.example/", sites)).toBe("https://other-press.example/");
+      process.env.SHOP_FOLDERS = "off";
+      expect(pickSite("", sites)).toBe("https://other-press.example/");
+    } finally { if (before === undefined) delete process.env.SHOP_FOLDERS; else process.env.SHOP_FOLDERS = before; }
+  });
+});
