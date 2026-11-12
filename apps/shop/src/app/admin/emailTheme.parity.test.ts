@@ -6,7 +6,7 @@ import * as client from "./emailTheme";
 const require = createRequire(import.meta.url);
 const server = require("../../../functions/emailTheme.js");
 
-describe("Riso email theme", () => {
+describe("Colophon bento email theme", () => {
   it("admin preview mirror matches the server module", () => {
     const strip = (src: string) => src.split("\n").filter((l) => !l.startsWith("//") && !/^(module\.)?export/.test(l)).join("\n");
     const srv = readFileSync(new URL("../../../functions/emailTheme.js", import.meta.url), "utf8");
@@ -20,18 +20,32 @@ describe("Riso email theme", () => {
   it("supports light and dark, and keeps the accent customizable", () => {
     const light = server.risoLayout("x", { theme: "light", accent: "#1b3fe0" });
     const dark = server.risoLayout("x", { theme: "dark", accent: "#1b3fe0" });
-    expect(light).toContain("background:#faf6ec");
-    expect(dark).toContain("background:#000000");
-    expect(dark).toContain("color:#faf6ec");
+    expect(light).toContain("background:#efede8");
+    expect(dark).toContain("background:#171614");
+    expect(dark).toContain("color:#efede8");
     expect(light).toContain("#1b3fe0");
-    // the old purple default becomes Riso flare red
-    expect(server.risoAccent("#7C3AED")).toBe("#e8402a");
+    // the old purple and flare-red defaults become Colophon mint, with ink words on it
+    expect(server.risoAccent("#7C3AED")).toBe("#a9e8c6");
+    expect(server.risoAccent("#e8402a")).toBe("#a9e8c6");
+    expect(server.onAccent("#a9e8c6")).toBe("#1f1e1b");
+    // a dark accent gets white words so the shop name stays readable
+    expect(light).toMatch(/background:#1b3fe0[^]*color:#ffffff/);
   });
 
-  it("re-points legacy inline styles: square corners, no purple, ink text on the accent", () => {
+  it("re-points legacy inline styles: no purple, old buttons become ink pills", () => {
     const out = server.risoize('<a style="background:#7c3aed;color:#fff;border-radius:8px;">Go</a><div style="font-family:sans-serif;border-radius:16px;">', "", "light");
-    expect(out).not.toMatch(/7c3aed|border-radius:\s*[1-9]|sans-serif/i);
-    expect(out).toContain("color:#100f0d");
+    expect(out).not.toMatch(/7c3aed|sans-serif/i);
+    expect(out).toContain("background:#1f1e1b;color:#ffffff;border-radius:999px;");
+  });
+
+  it("buttons are pills that Outlook still colours, readable in every theme", () => {
+    for (const theme of ["light", "dark", "market", "index"]) {
+      const p = server.risoPalette(theme);
+      const b = server.risoButton("https://x.test", "Go", "", theme);
+      expect(b).toContain(`bgcolor="${p.pill}"`);
+      expect(b).toContain("border-radius:999px");
+      expect(p.pill).not.toBe(p.onPill);
+    }
   });
 });
 
@@ -46,7 +60,7 @@ describe("order table placement", () => {
 
 describe("branding that can't break an email", () => {
   it("uses only a #hex accent and an https logo, escaped", () => {
-    expect(server.risoAccent('red;"><script>')).toBe("#e8402a");
+    expect(server.risoAccent('red;"><script>')).toBe("#a9e8c6");
     expect(server.risoAccent("#1B3FE0")).toBe("#1B3FE0");
     expect(server.safeLogoUrl("javascript:alert(1)")).toBe("");
     expect(server.safeLogoUrl("http://shop.test/logo.png")).toBe("");

@@ -104,7 +104,7 @@ describe("weekly highlights PDF", () => {
     const rows = build("index");
     expect(rows).toContain("0.95 0.95 0.93 rg"); // the grey paper (#f2f2ee)
     const plain = build(undefined);
-    expect(plain).toContain("0.98 0.96 0.93 rg"); // the cream paper (#faf6ec)
+    expect(plain).toContain("0.94 0.93 0.91 rg"); // the Colophon cream page (#efede8)
     expect(plain).not.toContain("1 0.88 0.3 rg");
     expect(build("dark")).toBe(plain);
   });

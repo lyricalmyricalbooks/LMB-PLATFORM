@@ -13,16 +13,39 @@ export function safeLink(url) {
   return url;
 }
 
+// The Colophon bento look (shared/admin-look/colophon.css, day): a cream page, the subject on the mint tile, the words on
+// a white tile with round corners, ink pill buttons. Tables and bgcolor so Outlook keeps the colours; inline styles only,
+// since Gmail drops most <style> rules. Corners round everywhere but Outlook on Windows, which shows them square.
+const BENTO = { page: "#efede8", tile: "#ffffff", mint: "#a9e8c6", ink: "#1f1e1b", muted: "#55524b", faint: "#67635b", line: "#e4e1da" };
+const FONT = "'Archivo','Helvetica Neue',Helvetica,Arial,sans-serif";
+const MONO = "'DM Mono','Courier New',Courier,monospace";
+/** Where the identity line goes (withIdentity): just before it, at the foot of the email, outside the tiles. */
+const FOOT = "<!--colophon-foot-->";
+
+const pillButton = ([label, url]) =>
+  `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:6px 8px 6px 0;display:inline-table;border-collapse:separate"><tr><td bgcolor="${BENTO.ink}" style="background:${BENTO.ink};border-radius:999px"><a href="${escapeHtml(safeLink(url))}" style="display:inline-block;padding:13px 24px;border-radius:999px;background:${BENTO.ink};color:#ffffff;font-family:${FONT};font-size:15px;font-weight:600;line-height:1.2;text-decoration:none">${escapeHtml(label)}</a></td></tr></table>`;
+
 /** Builds the three parts from paragraphs of plain text and [label, url] buttons. */
 export function layout({ subject, greeting, paragraphs, buttons = [], footer }) {
   const text = [greeting, ...paragraphs, ...buttons.map(([label, url]) => `${label}: ${safeLink(url)}`), footer].filter(Boolean).join("\n\n");
+  const para = (p) => `<p style="margin:0 0 14px;font-family:${FONT};font-size:16px;line-height:1.55;color:${BENTO.ink}">${escapeHtml(p)}</p>`;
   const html = [
-    '<div style="background:#f4f1ea;padding:24px"><div style="font-family:Helvetica,Arial,sans-serif;font-size:16px;line-height:1.5;color:#1f1e1b;max-width:560px;margin:0 auto;background:#ffffff;border-radius:20px;padding:28px">',
-    greeting ? `<p>${escapeHtml(greeting)}</p>` : "",
-    ...paragraphs.map((p) => `<p>${escapeHtml(p)}</p>`),
-    ...buttons.map(([label, url]) => `<p><a href="${escapeHtml(safeLink(url))}" style="display:inline-block;padding:12px 22px;border-radius:999px;background:#1f1e1b;color:#ffffff;text-decoration:none;font-weight:600">${escapeHtml(label)}</a></p>`),
-    footer ? `<p style="font-size:13px;color:#555">${escapeHtml(footer)}</p>` : "",
-    "</div></div>",
+    `<div style="background:${BENTO.page};margin:0;padding:0">`,
+    // What the inbox shows beside the subject: the first line of the words, never the greeting.
+    `<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:${BENTO.page}">${escapeHtml(paragraphs[0] ?? "")}</div>`,
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BENTO.page}" style="background:${BENTO.page}"><tr><td align="center" style="padding:28px 12px">`,
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;border-collapse:separate">`,
+    `<tr><td style="padding:0 4px 12px"><span style="display:inline-block;padding:7px 14px;border-radius:999px;background:${BENTO.ink};color:${BENTO.page};font-family:${FONT};font-size:13px;font-weight:700;letter-spacing:0.01em">Colophon</span></td></tr>`,
+    `<tr><td bgcolor="${BENTO.mint}" style="background:${BENTO.mint};border-radius:24px;padding:26px 28px"><div style="font-family:${FONT};font-size:24px;line-height:1.25;font-weight:700;letter-spacing:-0.01em;color:${BENTO.ink}">${escapeHtml(subject)}</div></td></tr>`,
+    `<tr><td style="height:10px;line-height:10px;font-size:0">&nbsp;</td></tr>`,
+    `<tr><td bgcolor="${BENTO.tile}" style="background:${BENTO.tile};border-radius:24px;padding:28px 28px 22px">`,
+    greeting ? para(greeting) : "",
+    ...paragraphs.map(para),
+    buttons.length ? `<div style="padding:10px 0 8px">${buttons.map(pillButton).join("")}</div>` : "",
+    footer ? `<p style="margin:16px 0 0;padding-top:14px;border-top:1px solid ${BENTO.line};font-family:${FONT};font-size:13px;line-height:1.5;color:${BENTO.muted}">${escapeHtml(footer)}</p>` : "",
+    `</td></tr>`,
+    `<tr><td style="padding:16px 8px 0;font-family:${MONO};font-size:11px;line-height:1.6;color:${BENTO.faint}">${FOOT}</td></tr>`,
+    `</table></td></tr></table></div>`,
   ].join("");
   return { subject, text, html };
 }
@@ -39,10 +62,11 @@ export const identityLine = (settings) =>
 export function withIdentity(parts, settings) {
   const line = identityLine(settings);
   if (parts.text.includes(line)) return parts;
-  const close = parts.html.endsWith("</div></div>") ? "</div></div>" : "</div>";
-  const html = parts.html.endsWith(close)
-    ? `${parts.html.slice(0, -close.length)}<p style="font-size:12px;color:#777">${escapeHtml(line)}</p>${close}`
-    : `${parts.html}<p style="font-size:12px;color:#777">${escapeHtml(line)}</p>`;
+  // The bento layout leaves a place for it under the tiles (the last one, in a French-then-English email).
+  const at = parts.html.lastIndexOf(FOOT);
+  const html = at >= 0
+    ? `${parts.html.slice(0, at)}${escapeHtml(line)}${parts.html.slice(at)}`
+    : `${parts.html}<p style="font-size:12px;color:${BENTO.faint}">${escapeHtml(line)}</p>`;
   return { ...parts, text: `${parts.text}\n\n${line}`, html };
 }
 
