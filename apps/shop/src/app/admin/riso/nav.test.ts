@@ -72,7 +72,8 @@ describe("the five-item admin menu (plan 1.27)", () => {
 describe("Settings in groups (redesign)", () => {
   it("lists every Settings page but Design under exactly one heading", async () => {
     const { SETTINGS_SECTIONS } = await import("./nav");
-    const listed = SETTINGS_SECTIONS.flatMap((g) => g.pages);
+    // The stockroom's Sales spreadsheet is listed too, but only the combined admin has it.
+    const listed = SETTINGS_SECTIONS.flatMap((g) => g.pages).filter((id) => !id.startsWith("stockroom/"));
     const settings = sidebarItems(NAV).find((i) => i.label === "Settings")!;
     expect([...listed].sort()).toEqual(settings.children!.map((c) => c.id).sort());
     expect(SETTINGS_SECTIONS.map((g) => g.label)).toEqual(["Shop", "Selling", "Messages", "Connections", "Safety"]);

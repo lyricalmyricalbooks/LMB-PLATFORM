@@ -90,11 +90,14 @@ export const WEBSITE_SIDE: Menu = [
   { label: "Orders", icon: ShoppingCart, pages: ["orders", SALES_TAB, "customers"] },
   { label: "Messages", icon: Inbox, pages: ["messages"] },
   { label: "Books", icon: BookOpen, pages: ["catalog", "reviews"] },
-  { label: "Analytics", icon: ChartLine, pages: ["analytics"] },
+  // v4 (12 Nov 2026): Marketing sits above Analytics.
   { label: "Marketing", icon: Megaphone, pages: ["discounts", "giftCards", "socialPosts", "channels"] },
+  { label: "Analytics", icon: ChartLine, pages: ["analytics"] },
   { label: "Online store", icon: Palette, pages: ["design"] },
   // QuickBooks moved to the stockroom's Bookkeeping (v3).
-  { label: "Settings", icon: Settings, pages: SETTINGS_PAGES.filter((id) => id !== SETTINGS_ITEM_PREFIX + "bookkeeping") },
+  // v4: the stockroom's Google Sheet is Settings › Google's "Sales spreadsheet", listed beside Google.
+  { label: "Settings", icon: Settings, pages: [...SETTINGS_PAGES.filter((id) => id !== SETTINGS_ITEM_PREFIX + "bookkeeping"), S("sheets")],
+    labels: { [S("sheets")]: "Sales spreadsheet" } },
 ];
 /**
  * The stockroom side (v3 mockups). The Till, QR codes and the fair shortcuts live in Fair mode (FAIR_MENU), not here.
@@ -102,15 +105,21 @@ export const WEBSITE_SIDE: Menu = [
  */
 export const STOCKROOM_SIDE: Menu = [
   { label: "Inventory", icon: Boxes, pages: [S("dashboard"), "inventory", REORDER_TAB], labels: { [S("dashboard")]: "Overview", inventory: "Count" } },
-  { label: "Sales", icon: Receipt, pages: [S("history"), S("manual"), S("customers"), S("shipping")],
-    sections: [{ label: "Sales", pages: [S("history"), S("manual")] }, { label: "Customers and orders", pages: [S("customers"), S("shipping")] }] },
-  { label: "Consignment", icon: Store, pages: [S("consignment")] },
+  // v4: two groups, Record and After the sale.
+  { label: "Sales", icon: Receipt, pages: [S("history"), S("manual"), S("shipping"), S("customers")],
+    labels: { [S("customers")]: "Buyers" },
+    sections: [{ label: "Record", pages: [S("history"), S("manual")] }, { label: "After the sale", pages: [S("shipping"), S("customers")] }] },
+  // v4: Consignment is called Stockists.
+  { label: "Stockists", icon: Store, pages: [S("consignment")], labels: { [S("consignment")]: "Stockists and terms" } },
   { label: "Invoices", icon: FileText, pages: [S("invoices")] },
-  { label: "Bookkeeping", icon: PiggyBank, pages: [S("taxcenter"), S("reconcile"), S("intel"), S("expenses"), SETTINGS_ITEM_PREFIX + "bookkeeping"],
+  // v4: Tax centre is its own item; reconciling payouts sits inside it.
+  { label: "Tax centre", icon: Calculator, pages: [S("taxcenter"), S("reconcile")],
+    labels: { [S("taxcenter")]: "Sales tax and books", [S("reconcile")]: "Reconcile payouts" } },
+  { label: "Bookkeeping", icon: PiggyBank, pages: [S("expenses"), S("intel"), SETTINGS_ITEM_PREFIX + "bookkeeping"],
     labels: { [SETTINGS_ITEM_PREFIX + "bookkeeping"]: "QuickBooks" },
-    sections: [{ label: "Reporting", pages: [S("taxcenter"), S("reconcile"), S("intel")] }, { label: "Cash", pages: [S("expenses")] }, { label: "Accounts", pages: [SETTINGS_ITEM_PREFIX + "bookkeeping"] }] },
-  // Google Sheets waits for its place on Settings › Google; until then it sits beside Backups.
-  { label: "Backups", icon: SlidersHorizontal, pages: [S("backups"), S("sheets")] },
+    sections: [{ label: "Cash", pages: [S("expenses")] }, { label: "Reports", pages: [S("intel")] }, { label: "Accounts", pages: [SETTINGS_ITEM_PREFIX + "bookkeeping"] }] },
+  // v4: Backups is one page (the Google Sheet moved to Settings).
+  { label: "Backups", icon: SlidersHorizontal, pages: [S("backups")] },
 ];
 /** Fair mode (v3): the rail an in-person sale needs, and nothing else. Not part of either side's menu. */
 export const FAIR_MENU: Menu = [
@@ -130,7 +139,7 @@ export const SETTINGS_SECTIONS: { label: string; pages: string[] }[] = [
   { label: "Messages", pages: ["notifications"] },
   { label: "Connections", pages: ["google", "apps", "bookkeeping"] },
   { label: "Safety", pages: ["security"] },
-].map((g) => ({ ...g, pages: g.pages.map((id) => SETTINGS_ITEM_PREFIX + id) }));
+].map((g) => ({ ...g, pages: g.pages.flatMap((id) => id === "google" ? [SETTINGS_ITEM_PREFIX + id, S("sheets")] : [SETTINGS_ITEM_PREFIX + id]) }));
 
 /** Settings pages grouped by SETTINGS_SECTIONS, keeping only the given pages (and adding any unlisted ones at the end). */
 export function settingsSections(pages: { id: string; label: string; badge?: number }[]) {
@@ -148,6 +157,8 @@ export const COMBINED_MENU: Menu = [...WEBSITE_SIDE, ...STOCKROOM_SIDE];
 /** The side a page belongs to. */
 export function sideOf(page: string): AdminSide {
   // A stockroom page off the menu (To-do) still opens on the Stockroom side.
+  // A stockroom page on a website menu item (the Sales spreadsheet in Settings, v4) opens on the website side.
+  if (WEBSITE_SIDE.some((g) => g.pages.includes(page))) return "website";
   return page.startsWith(STOCKROOM_ITEM_PREFIX) || STOCKROOM_SIDE.some((g) => g.pages.includes(page)) ? "stockroom" : "website";
 }
 export const sideMenu = (side: AdminSide): Menu => (side === "stockroom" ? STOCKROOM_SIDE : WEBSITE_SIDE);

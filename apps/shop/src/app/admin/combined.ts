@@ -43,7 +43,7 @@ export const STOCKROOM_PAGES: StockroomPage[] = [
   { id: "manual", label: "Record a sale", description: "Add a sale made somewhere else, so stock and totals stay right." },
   { id: "pos", label: "Till", description: "Sell at a fair, a market or your counter. Keeps selling when the signal drops." },
   { id: "shipping", label: "Parcels", description: "Shipping costs and labels for parcels that aren't website orders, such as copies for stockists." },
-  { id: "consignment", label: "Consignment", description: "Shops holding your copies: what they have, what they sold and what they owe you." },
+  { id: "consignment", label: "Stockists", description: "Shops holding your copies: what they have, what they sold and what they owe you." },
   { id: "invoices", label: "Invoices", description: "Invoices for stockists and buyers: make, send, chase and mark paid." },
   { id: "qrcodes", label: "QR codes", description: "Codes to print for card payments, your shop and any link you choose." },
   { id: "reconcile", label: "Reconcile", description: "Money coming in from every place you sell, matched to your sales." },
@@ -51,7 +51,7 @@ export const STOCKROOM_PAGES: StockroomPage[] = [
   { id: "taxcenter", label: "Tax centre", description: "Sales tax collected, fees and what to file." },
   { id: "intel", label: "Insights", description: "Your best seller, your best channel and what is worth knowing." },
   { id: "customers", label: "Buyers in person", description: "People who bought at fairs, from invoices or by hand." },
-  { id: "sheets", label: "Sheets", description: "Your stock, sales and costs in a Google Sheet in your own Drive." },
+  { id: "sheets", label: "Sales spreadsheet", description: "Your stock, sales and costs copied to a Google Sheet in your own Drive." },
   { id: "backups", label: "Backups", description: "Nightly backups, all your data in one zip, and spreadsheets." },
 ];
 
