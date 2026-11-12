@@ -4,7 +4,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fmt, fmtD } from "@stockroom/money.js";
 
-import { DataTable, DestructiveButton, Dialog, EmptyState, IconButton, InkButton, PrimaryButton, SecondaryButton, SelectField, StatusBadge, TextArea, TextField, useConfirm, type Column } from "../riso/components";
+import { DataTable, Dialog, EmptyState, IconButton, PageHead, PrimaryButton, SecondaryButton, StatusBadge, TextArea, TextField, useConfirm, type Column } from "../riso/components";
+import { FormChoice, FormField, FormPage, FormReadOnly, FormRow, FormSection, FormToggle, StatusBar, SummaryRail, formStatus } from "../riso/FormKit";
 import { useShopWords } from "../shopWords";
 import { invoiceReminderState } from "@stockroom/payment-reminders.js";
 import { logReminder, promiseUntil, reminderMail, remindQuestion, remindRefusal } from "./invoiceRemind";
@@ -106,6 +107,9 @@ export function InvoiceEditor({ records, settings, start, onClose, onSaved, onDe
 }) {
   const w = useShopWords();
   const [form, setForm] = useState<InvoiceForm>(start);
+  const [startText] = useState(() => JSON.stringify(start));
+  // New invoices are saved as sent unless this is turned off (then they stay a draft).
+  const [markSent, setMarkSent] = useState(true);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<InvoiceNotice | null>(null);
   const [ask, confirmNode] = useConfirm();
@@ -164,102 +168,134 @@ export function InvoiceEditor({ records, settings, start, onClose, onSaved, onDe
     (onDeleted || onSaved)(form.ownerBookId, r.state, r.notice);
   };
 
+  // v4 New invoice page (mockup 1c): Who it's for · Items · Note and sending, the total in a white rail, one status bar.
   const editingSent = !!form.editingId && form.status !== "draft";
   const canDelete = !!form.editingId && form.status !== "paid";
+  const person = form.billTo === "person";
+  const whoMissing = person ? !form.person.name.trim() : !form.stockist;
+  const linesMissing = !form.items.some((it) => it.description.trim());
+  const missing = [whoMissing, linesMissing].filter(Boolean).length;
+  const dirty = JSON.stringify(form) !== startText;
+  const status = formStatus({ missing, create: !form.editingId, verb: "create", dirty });
+  const lineTotal = (it: InvoiceLine) => formTotals({ ...form, items: [it], discountType: "percent", discountValue: "", taxRate: "" }).subtotal;
+  const dueIn = daysFrom(form.date, form.dueDate);
+  const railRows = [
+    ...form.items.filter((it) => it.description.trim()).map((it) => ({ label: `${it.description.trim()} × ${it.qty || 0}`, value: fmt(lineTotal(it), code) })),
+    ...(totals.discount > 0 ? [{ label: "Discount", value: `−${fmt(totals.discount, code)}` }] : []),
+    ...(totals.tax > 0 ? [{ label: "Tax", value: fmt(totals.tax, code) }] : []),
+    { label: "Total", value: fmt(totals.total, code) },
+  ];
+  const primary = form.editingId ? "Save changes" : "Create invoice";
+  const send = () => void save(editingSent || (!form.editingId ? markSent : form.status !== "draft") ? "sent" : "draft");
+  const filedUnder = (
+    <FormField label={w("Filed under")} hint={w("The title whose records keep this invoice.")}>
+      {(a) => <select {...a} value={form.ownerBookId} disabled={!!form.editingId} onChange={(e) => set({ ownerBookId: e.target.value, currencyCode: currencyFor(records, e.target.value) })}>
+        {owners.map((b) => <option key={b.id} value={b.id}>{b.title}</option>)}
+      </select>}
+    </FormField>
+  );
+  const personField = (key: keyof InvoiceForm["person"], label: string, type = "text") => (
+    <FormField label={label}>{(a) => <input {...a} type={type} value={form.person[key]} onChange={(e) => set({ person: { ...form.person, [key]: e.target.value } })} />}</FormField>
+  );
+
   return (
-    <Dialog open size="lg" onClose={busy ? () => undefined : onClose} title={form.editingId ? `Edit ${form.num || "invoice"}` : "New invoice"}
-      description={form.status === "paid" ? "Paid. Fixing a detail keeps it paid." : undefined}
-      footerStart={canDelete ? <DestructiveButton onClick={remove} disabled={busy}>Delete</DestructiveButton> : undefined}
-      footer={<>
-        <SecondaryButton onClick={onClose} disabled={busy}>Cancel</SecondaryButton>
-        {!editingSent && <SecondaryButton onClick={() => save("draft")} disabled={busy}>Save draft</SecondaryButton>}
-        <PrimaryButton onClick={() => save("sent")} busy={busy}>{busy ? "Saving…" : editingSent ? "Save changes" : "Save invoice"}</PrimaryButton>
-      </>}>
-      <form className="rp-money-form rp-inv-form" onSubmit={(e) => { e.preventDefault(); void save("sent"); }}>
-        <div className="rp-sk-chips" role="group" aria-label="Who is this invoice for?">
-          {(["store", "person"] as const).map((mode) => {
-            const Btn = form.billTo === mode ? InkButton : SecondaryButton;
-            return <Btn key={mode} size="sm" type="button" aria-pressed={form.billTo === mode} disabled={!!form.editingId && form.billTo !== mode}
-              onClick={() => pickWho(mode, mode === "store" ? form.stockist || names[0] || "" : "")}>{mode === "store" ? "A stockist" : "Someone else"}</Btn>;
-          })}
-        </div>
-        {form.billTo === "store" ? (
-          <div className="rp-money-form-row">
-            <SelectField label="Stockist" value={form.stockist} disabled={!!form.editingId} onChange={(e) => pickWho("store", e.target.value)}>
-              {!names.length && <option value="">No stockists yet</option>}
-              {names.map((n) => <option key={n} value={n}>{n}</option>)}
-            </SelectField>
-            <SelectField label={w("Filed under")} hint={w("The title whose records keep this invoice.")} value={form.ownerBookId} disabled={!!form.editingId} onChange={(e) => set({ ownerBookId: e.target.value, currencyCode: currencyFor(records, e.target.value) })}>
-              {owners.map((b) => <option key={b.id} value={b.id}>{b.title}</option>)}
-            </SelectField>
-          </div>
-        ) : (
-          <>
-            <div className="rp-money-form-row">
-              <TextField label="Name" value={form.person.name} onChange={(e) => set({ person: { ...form.person, name: e.target.value } })} />
-              <TextField label="Email (optional)" type="email" value={form.person.email} onChange={(e) => set({ person: { ...form.person, email: e.target.value } })} />
-            </div>
-            <TextField label="Address (optional)" value={form.person.address} onChange={(e) => set({ person: { ...form.person, address: e.target.value } })} />
-            <div className="rp-money-form-row">
-              <TextField label="City" value={form.person.city} onChange={(e) => set({ person: { ...form.person, city: e.target.value } })} />
-              <TextField label="Province or region" value={form.person.region} onChange={(e) => set({ person: { ...form.person, region: e.target.value } })} />
-            </div>
-            <div className="rp-money-form-row">
-              <TextField label="Postal code" value={form.person.postal} onChange={(e) => set({ person: { ...form.person, postal: e.target.value } })} />
-              <TextField label="Country" value={form.person.country} onChange={(e) => set({ person: { ...form.person, country: e.target.value } })} />
-            </div>
-            <SelectField label={w("Filed under")} hint={w("The title whose records keep this invoice.")} value={form.ownerBookId} disabled={!!form.editingId} onChange={(e) => set({ ownerBookId: e.target.value, currencyCode: currencyFor(records, e.target.value) })}>
-              {owners.map((b) => <option key={b.id} value={b.id}>{b.title}</option>)}
-            </SelectField>
-          </>
-        )}
-        <div className="rp-inv-row3">
-          <TextField label="Invoice number" value={form.num} onChange={(e) => set({ num: e.target.value })} />
-          <TextField label="Issue date" type="date" value={form.date} onChange={(e) => set({ date: e.target.value })} />
-          <TextField label="Due date" type="date" value={form.dueDate} onChange={(e) => set({ dueDate: e.target.value })} />
-        </div>
+    <>
+      <PageHead title={form.editingId ? `Edit ${form.num || "invoice"}` : "New invoice"} back={{ label: "Invoices", onClick: onClose }}
+        description={form.status === "paid" ? "Paid. Fixing a detail keeps it paid." : `${form.num || "Invoice"} · for a stockist or anyone you type in`} />
+      <form onSubmit={(e) => { e.preventDefault(); if (!missing) send(); }}>
+        <FormPage rail={
+          <SummaryRail tone="white" title={`Invoice ${form.num || ""}`.trim()} value={fmt(totals.total, code)}
+            sub={form.dueDate ? (dueIn != null && dueIn >= 0 ? `Due in ${dueIn} ${dueIn === 1 ? "day" : "days"}` : `Due ${fmtD(form.dueDate)}`) : "No due date"}
+            rows={railRows} note="Uses your invoice details and letterhead." />
+        }>
+          <FormSection title="Who it’s for" description="Pick a stockist or type a name.">
+            {form.editingId
+              ? <FormReadOnly label="Billed to" value={person ? form.person.name || "—" : form.stockist} />
+              : <FormChoice label="Bill" value={form.billTo} onChange={(mode) => pickWho(mode, mode === "store" ? form.stockist || names[0] || "" : "")}
+                  options={[{ value: "store", label: "A stockist" }, { value: "person", label: "Someone else" }]} />}
+            {!person && !form.editingId && (
+              <FormRow>
+                <FormField label="Stockist" required empty={!form.stockist}>
+                  {(a) => <select {...a} value={form.stockist} onChange={(e) => pickWho("store", e.target.value)}>
+                    {!names.length && <option value="">No stockists yet</option>}
+                    {names.map((n) => <option key={n} value={n}>{n}</option>)}
+                  </select>}
+                </FormField>
+                {filedUnder}
+              </FormRow>
+            )}
+            {person && (
+              <>
+                <FormRow>
+                  <FormField label="Customer" required empty={!form.person.name.trim()}>{(a) => <input {...a} value={form.person.name} onChange={(e) => set({ person: { ...form.person, name: e.target.value } })} />}</FormField>
+                  {personField("email", "Email", "email")}
+                </FormRow>
+                {personField("address", "Address")}
+                <FormRow>{personField("city", "City")}{personField("region", "Province or region")}</FormRow>
+                <FormRow>{personField("postal", "Postal code")}{personField("country", "Country")}</FormRow>
+                {filedUnder}
+              </>
+            )}
+            {!person && form.editingId && filedUnder}
+            <FormField label="Invoice number">{(a) => <input {...a} value={form.num} onChange={(e) => set({ num: e.target.value })} style={{ fontFamily: "var(--rp-font-mono)" }} />}</FormField>
+            <FormRow>
+              <FormField label="Issued">{(a) => <input {...a} type="date" value={form.date} onChange={(e) => set({ date: e.target.value })} />}</FormField>
+              <FormField label="Due">{(a) => <input {...a} type="date" value={form.dueDate} onChange={(e) => set({ dueDate: e.target.value })} />}</FormField>
+            </FormRow>
+            <FormChoice label="Due in" value={(DUE_CHOICES.find((n) => n === dueIn) ?? "") + ""} onChange={(v) => set({ dueDate: plusDays(form.date || todayText(), Number(v)) })}
+              options={DUE_CHOICES.map((n) => ({ value: String(n), label: `${n} days` }))} />
+          </FormSection>
 
-        <h3 className="rp-sk-h">Lines</h3>
-        <ul className="rp-inv-lines">
-          {form.items.map((it, i) => (
-            <li key={i} className="rp-inv-line">
-              <TextField label="Item" hideLabel={i > 0} value={it.description} onChange={(e) => setLine(i, { description: e.target.value })} />
-              <TextField label="Qty" hideLabel={i > 0} inputMode="decimal" value={it.qty} onChange={(e) => setLine(i, { qty: e.target.value })} />
-              <TextField label="Unit price" hideLabel={i > 0} inputMode="decimal" value={it.unitPrice} onChange={(e) => setLine(i, { unitPrice: e.target.value })} />
-              <TextField label="Disc. %" hideLabel={i > 0} inputMode="decimal" value={it.discountPct} onChange={(e) => setLine(i, { discountPct: e.target.value })} />
-              <IconButton label={`Remove line ${i + 1}`} type="button" disabled={form.items.length === 1} onClick={() => set({ items: form.items.filter((_, j) => j !== i) })}>×</IconButton>
-            </li>
-          ))}
-        </ul>
-        <div className="rp-sk-actions">
-          <SecondaryButton size="sm" type="button" onClick={() => set({ items: [...form.items, blankLine()] })}>Add a line</SecondaryButton>
-          {form.billTo === "store" && <SecondaryButton size="sm" type="button" onClick={bringInSales}>Add unpaid sales</SecondaryButton>}
-        </div>
+          <FormSection title="Items" description="Add what they bought. Totals update as you type.">
+            <div className="rp-fk-lines" role="group" aria-label="Lines">
+              <div className="rp-fk-lines-head" aria-hidden><span>Item</span><span>Qty</span><span>Price</span><span>Off %</span><span>Total</span><span /></div>
+              {form.items.map((it, i) => (
+                <div key={i} className="rp-fk-line" data-missing={i === 0 && linesMissing ? "" : undefined}>
+                  <input aria-label={`Line ${i + 1} item`} placeholder="Item" value={it.description} onChange={(e) => setLine(i, { description: e.target.value })} />
+                  <input aria-label={`Line ${i + 1} quantity`} inputMode="decimal" placeholder="0" value={it.qty} onChange={(e) => setLine(i, { qty: e.target.value })} />
+                  <input aria-label={`Line ${i + 1} price`} inputMode="decimal" placeholder="0.00" value={it.unitPrice} onChange={(e) => setLine(i, { unitPrice: e.target.value })} />
+                  <input aria-label={`Line ${i + 1} discount percent`} inputMode="decimal" placeholder="0" value={it.discountPct} onChange={(e) => setLine(i, { discountPct: e.target.value })} />
+                  <span className="rp-fk-line-total">{fmt(lineTotal(it), code)}</span>
+                  <IconButton label={`Remove line ${i + 1}`} type="button" disabled={form.items.length === 1} onClick={() => set({ items: form.items.filter((_, j) => j !== i) })}>×</IconButton>
+                </div>
+              ))}
+            </div>
+            <div className="rp-fk-row" style={{ flex: "0 0 auto" }}>
+              <button type="button" className="rp-fk-pill" style={{ flex: "0 0 auto" }} onClick={() => set({ items: [...form.items, blankLine()] })}>Add a line</button>
+              {!person && <button type="button" className="rp-fk-pill" style={{ flex: "0 0 auto" }} onClick={bringInSales}>Add unpaid sales</button>}
+            </div>
+            <FormChoice label="Discount on the whole invoice" value={form.discountType} onChange={(v) => set({ discountType: v })} options={[{ value: "percent", label: "Percent" }, { value: "flat", label: "Amount" }]} />
+            <FormRow>
+              <FormField label="Discount" suffix={form.discountType === "percent" ? "%" : undefined} prefix={form.discountType === "flat" ? code : undefined}>{(a) => <input {...a} inputMode="decimal" placeholder="0" value={form.discountValue} onChange={(e) => set({ discountValue: e.target.value })} />}</FormField>
+              <FormField label="Tax" suffix="%">{(a) => <input {...a} inputMode="decimal" placeholder="0" value={form.taxRate} onChange={(e) => set({ taxRate: e.target.value })} />}</FormField>
+            </FormRow>
+          </FormSection>
 
-        <div className="rp-money-form-row">
-          <div className="rp-inv-discount">
-            <SelectField label="Discount" value={form.discountType} onChange={(e) => set({ discountType: e.target.value === "flat" ? "flat" : "percent" })}>
-              <option value="percent">Percent</option><option value="flat">Amount</option>
-            </SelectField>
-            <TextField label={form.discountType === "percent" ? "Discount %" : "Discount amount"} hideLabel inputMode="decimal" placeholder="0" value={form.discountValue} onChange={(e) => set({ discountValue: e.target.value })} />
-          </div>
-          <TextField label="Tax %" inputMode="decimal" placeholder="0" value={form.taxRate} onChange={(e) => set({ taxRate: e.target.value })} />
-        </div>
-        <dl className="rp-inv-totals">
-          <div><dt>Subtotal</dt><dd>{fmt(totals.subtotal, code)}</dd></div>
-          {totals.discount > 0 && <div><dt>Discount</dt><dd>−{fmt(totals.discount, code)}</dd></div>}
-          {totals.tax > 0 && <div><dt>Tax</dt><dd>{fmt(totals.tax, code)}</dd></div>}
-          <div data-strong><dt>Total due</dt><dd>{fmt(totals.total, code)}</dd></div>
-        </dl>
-        <TextField label="Payment link or e-Transfer email (optional)" value={form.paymentLink} onChange={(e) => set({ paymentLink: e.target.value })} />
-        <TextArea label="Notes (optional)" rows={2} value={form.notes} onChange={(e) => set({ notes: e.target.value })} />
-        <TextField label="Terms" value={form.terms} onChange={(e) => set({ terms: e.target.value })} />
+          <FormSection title="Note and sending" description="Shown at the bottom of the invoice.">
+            <FormField label="Note">{(a) => <textarea {...a} rows={2} value={form.notes} onChange={(e) => set({ notes: e.target.value })} />}</FormField>
+            <FormField label="Payment link or e-Transfer email" hint="Optional.">{(a) => <input {...a} value={form.paymentLink} onChange={(e) => set({ paymentLink: e.target.value })} />}</FormField>
+            <FormField label="Terms">{(a) => <input {...a} value={form.terms} onChange={(e) => set({ terms: e.target.value })} />}</FormField>
+            {!form.editingId && <FormToggle label="Mark it as sent" hint="Otherwise it stays as a draft." checked={markSent} onChange={setMarkSent} />}
+            {canDelete && <button type="button" className="rp-fk-pill" data-tone="danger" style={{ alignSelf: "flex-start" }} onClick={remove} disabled={busy}>Delete invoice</button>}
+          </FormSection>
+        </FormPage>
         {note && <Note notice={note} />}
+        <StatusBar status={status} primaryLabel={primary} busy={busy} blocked={missing > 0}
+          onBlocked={() => setNote({ tone: "warn", lines: ["Fill in the highlighted fields."] })}
+          onPrimary={send} onCancel={onClose} cancelLabel={form.editingId ? "Discard" : "Cancel"} />
       </form>
       {confirmNode}
-    </Dialog>
+    </>
   );
 }
+
+const DUE_CHOICES = [7, 14, 30];
+const dayMs = 86_400_000;
+const dayNum = (d: string) => (/^\d{4}-\d{2}-\d{2}$/.test(d || "") ? Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) : NaN);
+/** Whole days from one shop day to another, or null. */
+const daysFrom = (from: string, to: string) => { const n = (dayNum(to) - dayNum(from)) / dayMs; return Number.isFinite(n) ? Math.round(n) : null; };
+/** The shop day `n` days after `from`. */
+const plusDays = (from: string, n: number) => new Date(dayNum(from) + n * dayMs).toISOString().slice(0, 10);
 
 // ── One invoice: the printed page, with its actions ───────────────────────────────────────────────────────────────
 
@@ -408,6 +444,8 @@ export function InvoicesCard({ records, onBookSaved, onSettingsSaved, newFor, on
     { key: "status", header: "Status", render: statusBadge },
   ];
   const canMake = records.books.length > 0;
+  // v4: New invoice and editing one are their own page (Back returns to the list).
+  if (open?.kind === "edit") return <InvoiceEditor records={records} settings={settings} start={open.form} onClose={() => setOpen(null)} onSaved={saved} />;
   return (
     <section className="rp-card rp-reorder-card" aria-labelledby="rp-inv-title">
       <div className="rp-inv-head">
@@ -430,7 +468,6 @@ export function InvoicesCard({ records, onBookSaved, onSettingsSaved, newFor, on
       {open?.kind === "settings" && <InvoiceSettingsDialog settings={settings} onClose={() => setOpen(null)} onSaved={(value, n) => { onSettingsSaved?.(value); setNotice(n); setOpen(null); }} />}
       {open?.kind === "letterhead" && <LetterheadDialog invoice={records.invoiceSettings} onClose={() => setOpen(null)} />}
       {open?.kind === "reminders" && <RemindersDialog records={records} onClose={() => setOpen(null)} onSaved={(value, text) => { onSettingsSaved?.(value); setNotice({ tone: "ok", lines: [text] }); setOpen(null); }} />}
-      {open?.kind === "edit" && <InvoiceEditor records={records} settings={settings} start={open.form} onClose={() => setOpen(null)} onSaved={saved} />}
       {current && <InvoiceView row={current} settings={settings} onClose={() => setOpen(null)} onSaved={saved}
         onEdit={() => setOpen({ kind: "edit", form: formFromInvoice(records, current) })}
         onCopy={() => { const f = copyForm(records, settings, current); setNotice(f.linkedDropped ? { tone: "ok", lines: [`Copied. Its lines are no longer tied to the stockist sales on ${current.num || "the original"}.`] } : null); setOpen({ kind: "edit", form: f }); }} />}

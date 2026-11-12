@@ -204,6 +204,14 @@ export function StockistsList({ view, onSaved, onNewInvoice, books, states }: { 
     { key: "sold", header: "Sold", numeric: true, render: (s) => s.sold },
     { key: "owed", header: "Owed", numeric: true, render: (s) => s.owed.length ? moneyText(s.owed) : "—" },
   ];
+  // v4: Add a stockist and Edit details are their own page (Back returns to the list).
+  if (details && onSaved && books && (details === "add" || current)) return (
+    <StockistDetailsDialog books={books} shop={details === "edit" ? current!.name : undefined}
+      bookIds={details === "edit" ? current!.titles.map((t) => t.bookId) : undefined}
+      store={details === "edit" ? firstStore(states, current!) : null}
+      onClose={() => setDetails(null)} onBookSaved={onSaved}
+      onDone={(text) => { if (details === "edit") setOpen(null); setDetails(null); setNotice({ tone: "ok", lines: [text] }); }} />
+  );
   return (
     <div className="rp-sk">
       {canWrite && <div className="rp-stock-add"><SecondaryButton onClick={() => { setNotice(null); setDetails("add"); }}>Add a stockist</SecondaryButton></div>}
@@ -225,13 +233,6 @@ export function StockistsList({ view, onSaved, onNewInvoice, books, states }: { 
       {current && move && moveBook && onSaved && (
         <StockistMoveDialog kind={move.kind} shop={current.name} rate={current.rate} bookId={move.bookId} book={moveBook} onClose={() => setMove(null)}
           onSaved={(bookId, state, text) => { onSaved(bookId, state); setNotice({ tone: "ok", lines: [text] }); setMove(null); }} />
-      )}
-      {details && onSaved && books && (details === "add" || current) && (
-        <StockistDetailsDialog books={books} shop={details === "edit" ? current!.name : undefined}
-          bookIds={details === "edit" ? current!.titles.map((t) => t.bookId) : undefined}
-          store={details === "edit" ? firstStore(states, current!) : null}
-          onClose={() => setDetails(null)} onBookSaved={onSaved}
-          onDone={(text) => { if (details === "edit") setOpen(null); setDetails(null); setNotice({ tone: "ok", lines: [text] }); }} />
       )}
       {!current && notice && <NoticeLine notice={notice} />}
       {current && paying && onSaved && (
