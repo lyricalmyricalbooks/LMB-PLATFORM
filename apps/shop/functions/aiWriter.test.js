@@ -179,6 +179,22 @@ describe("AI writing assistant: OpenRouter takes over when Google runs out", () 
     expect(back.body.result.fellBack).toBeUndefined();
   });
 
+  it("one shop running out of Google's allowance doesn't send another shop to its backup", async () => {
+    resetProviderRest();
+    const { runInShop } = createRequire(import.meta.url)("./shopScope");
+    const now = () => 1000;
+    const settings = async () => both;
+    const first = vi.fn().mockResolvedValueOnce(quota()).mockResolvedValueOnce(quota()).mockResolvedValueOnce(quota())
+      .mockResolvedValueOnce(routerAnswer({ seoTitle: "A", metaDescription: "B." }));
+    await runInShop({ id: "press-a", tenant: "" }, () => handleAiWrite({ task: "pageSeo", input: { title: "About" } }, deps({ fetchImpl: first, readSettings: settings, now })));
+    const other = vi.fn().mockResolvedValue(answer({ seoTitle: "A", metaDescription: "B." }));
+    const out = await runInShop({ id: "press-b", tenant: "" }, () => handleAiWrite({ task: "pageSeo", input: { title: "About" } }, deps({ fetchImpl: other, readSettings: settings, now })));
+    expect(out.body.result.provider).toBe("gemini");
+    const same = vi.fn().mockResolvedValue(routerAnswer({ seoTitle: "A", metaDescription: "B." }));
+    const again = await runInShop({ id: "press-a", tenant: "" }, () => handleAiWrite({ task: "pageSeo", input: { title: "About" } }, deps({ fetchImpl: same, readSettings: settings, now })));
+    expect(again.body.result.provider).toBe("openrouter");
+  });
+
   it("keeps Google's reason when no OpenRouter key is saved, and says so when both fail", async () => {
     resetProviderRest();
     const alone = await handleAiWrite({ task: "pageSeo", input: { title: "About" } }, deps({ fetchImpl: vi.fn().mockResolvedValue(quota()) }));

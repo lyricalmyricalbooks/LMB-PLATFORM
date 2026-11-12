@@ -300,6 +300,8 @@ export function saveInvoiceChange(form: InvoiceForm, status: "draft" | "sent", c
       invoices[at] = payload;
     } else {
       if (invoices.some((i) => i && String(i.id) === payload.id)) return state; // already filed by an earlier try
+      // The number was picked when the form opened: another device or tab may have filed it since.
+      if (payload.num && invoices.some((i) => i && String(i.num || "").trim() === payload.num)) throw new Error(`Invoice ${payload.num} was filed while this form was open. Change the number and save again.`);
       invoices.push(payload);
       const m = /-(\d+)$/.exec(payload.num);
       if (m && invoiceNumberPrefix(payload.num) === bookPrefix(form.ownerBookId)) state.invoiceSeq = Math.max(Number(state.invoiceSeq) || 0, parseInt(m[1], 10));

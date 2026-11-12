@@ -198,3 +198,14 @@ test("the device and recovery stores keep their fakes' shape", async () => {
   assert.equal(await recoveries.countSince("ada@moth.example", "2026-10-25"), 1);
   fetch.done();
 });
+
+test("a shop's email meter counts what the platform sent for it: not its own Gmail, not the platform's emails about it", async () => {
+  const rows = [
+    { shopId: "s9", status: "sent", at: "2026-11-02T00:00:00Z" },
+    { shopId: "s9", status: "sent", at: "2026-11-03T00:00:00Z", via: "gmail" },
+    { shopId: "s9", status: "sent", at: "2026-11-04T00:00:00Z", platform: true },
+    { shopId: "s9", status: "sent", at: "2026-10-30T00:00:00Z" },
+  ];
+  const log = firestoreSentLog({ query: async () => rows.map((data) => ({ data })) });
+  assert.equal(await log.countInMonth("s9", "2026-11"), 1);
+});

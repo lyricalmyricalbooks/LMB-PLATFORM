@@ -26,6 +26,19 @@ describe("stockist moves (old confirmSend / confirmSale / confirmReturn)", () =>
     recordStoreSale(book, "Corner Books", { qty: 1, unitPrice: 20, date: "2026-03-02", paid: "pending", saleCur: "USD", fxRate: 1.4 })(s);
     expect(s.ledger[1]).toMatchObject({ amountDue: 16.8, sale: { currency: "USD", due: 12 } });
   });
+  it("a retry of the same form files the move once", () => {
+    const s = fresh();
+    sendCopies(book, "Corner Books", { qty: 10, date: "2026-03-01", id: 71 })(s);
+    sendCopies(book, "Corner Books", { qty: 10, date: "2026-03-01", id: 71 })(s);
+    expect(s.stores[0]).toMatchObject({ sent: 10, outstanding: 10 });
+    recordStoreSale(book, "Corner Books", { qty: 4, unitPrice: 25, date: "2026-03-10", paid: "pending", id: 72 })(s);
+    recordStoreSale(book, "Corner Books", { qty: 4, unitPrice: 25, date: "2026-03-10", paid: "pending", id: 72 })(s);
+    expect(s.stores[0]).toMatchObject({ sold: 4, amountOwed: 60 });
+    takeReturn("Corner Books", { qty: 2, date: "2026-04-01", good: true, id: 73 })(s);
+    takeReturn("Corner Books", { qty: 2, date: "2026-04-01", good: true, id: 73 })(s);
+    expect(s.stores[0]).toMatchObject({ returned: 2, outstanding: 4 });
+    expect(s.ledger).toHaveLength(3);
+  });
   it("refuses more than the shelf or stock holds", () => {
     expect(() => sendCopies(book, "Corner Books", { qty: 101, date: "2026-03-01" })(fresh())).toThrow("Only 100");
     expect(() => takeReturn("Corner Books", { qty: 1, date: "2026-03-01", good: true })(fresh())).toThrow("Only 0");

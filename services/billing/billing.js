@@ -291,11 +291,17 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     return row;
   }
 
+  /** The running-cost line this customer already has waiting for `month`, if any (Stripe forgets a request key after a day). */
+  async function runningCostLine(row, month) {
+    const list = await call("GET", "/v1/invoiceitems", { params: { customer: row.customerId, pending: true, limit: 100 } });
+    return (list?.data ?? []).find((item) => item.metadata?.lmb_kind === "running-cost" && item.metadata?.lmb_shop_id === row.shopId && item.metadata?.lmb_month === month) ?? null;
+  }
+
   async function notify(shopId, kind, data, key) {
     const row = await subscriptions.get(shopId);
-    if (!row?.billingEmail) return;
+    if (!row?.billingEmail) return null;
     const price = row.plan ? planPrice(row.plan, settings) : null;
-    await email.sendPlatform({
+    return email.sendPlatform({
       kind,
       to: row.billingEmail,
       shopId,
@@ -1022,7 +1028,10 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
           const share = paidShare({ month, paidFrom: row.trialEnd });
           const cents = Math.round(Math.max(0, full) * share);
           let invoiceItemId = null;
-          if (cents > 0) {
+          // A line made on an earlier run whose record didn't save: use it, never add a second one.
+          const made = cents > 0 ? await runningCostLine(row, month) : null;
+          if (made) invoiceItemId = made.id;
+          else if (cents > 0) {
             const item = await call("POST", "/v1/invoiceitems", {
               params: {
                 customer: row.customerId, subscription: row.subscriptionId, amount: cents, currency: settings.currency.toLowerCase(),
@@ -1033,10 +1042,10 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
             });
             invoiceItemId = item?.id ?? null;
           }
-          const entry = { cents, fullCents: full, share, invoiceItemId, at: at() };
-          await save(row.shopId, { runningCosts: { ...(row.runningCosts ?? {}), [month]: entry }, lastRunningCost: { month, cents } }, null);
-          await logChange(row.shopId, "running-cost-billed", { month, cents });
-          billed.push({ shopId: row.shopId, cents });
+          const entry = { cents: made ? made.amount : cents, fullCents: full, share, invoiceItemId, at: at() };
+          await save(row.shopId, { runningCosts: { ...(row.runningCosts ?? {}), [month]: entry }, lastRunningCost: { month, cents: entry.cents } }, null);
+          await logChange(row.shopId, "running-cost-billed", { month, cents: entry.cents });
+          billed.push({ shopId: row.shopId, cents: entry.cents });
         } catch (failure) {
           failed.push(`${row.shopId}: ${failure.message}`);
         }
@@ -1094,7 +1103,8 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       if (!row.billingEmail) return { sent: false, why: "This shop has no billing email to send to." };
       const problem = row.paymentProblem ?? null;
       const kind = problem?.kind === "confirm" ? "payment-needs-confirming" : "payment-failed";
-      await notify(shopId, kind, { ...(problem?.amount ? { price: problem.amount } : {}), nextTry: dateText(problem?.nextTry ?? null), ...(line ? { note: line } : {}) }, `${shopId}/remind/${at().slice(0, 10)}`);
+      const mail = await notify(shopId, kind, { ...(problem?.amount ? { price: problem.amount } : {}), nextTry: dateText(problem?.nextTry ?? null), ...(line ? { note: line } : {}) }, `${shopId}/remind/${at().slice(0, 10)}`);
+      if (mail?.alreadySent) return { sent: false, why: "This press was already reminded today." };
       await logChange(shopId, "payment-reminder", { kind, note: line || null });
       // Kept on the row (and its registry copy) so Today and Failed payments show when the press was last reminded.
       const { remindedAt } = await save(shopId, { remindedAt: at() }, null);

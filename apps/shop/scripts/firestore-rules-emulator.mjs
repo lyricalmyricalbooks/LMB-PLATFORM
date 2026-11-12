@@ -437,6 +437,8 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("a view visit reads no Team", assertFails(getDocs(collection(viewer, "members"))));
   await check("a view visit reads no keys", assertFails(getDoc(doc(viewer, "adminSecrets/stripe"))));
   await check("author can't change settings", assertFails(setDoc(doc(author, "settings/website"), { x: 1 })));
+  // The stockroom's file rules read settings/bookOwners to let an author in, so no browser may write it (not even the owner's).
+  await check("owner can't write the author map", assertFails(setDoc(doc(owner, "settings/bookOwners"), { b1: "sam@press.test" })));
   // URL redirects in numbered pages (plan 5.6): public to read like settings/redirects, written by the admin, pages 1–10.
   const redirectPage = { items: [{ from: "/old", to: "/books/b1" }], page: 1 };
   await check("owner writes redirect page 1", assertSucceeds(setDoc(doc(owner, "redirects/1"), redirectPage)));
@@ -539,6 +541,7 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("owner of the other shop reads their own orders (control)", assertSucceeds(getDoc(doc(ownerThere, "orders/o2"))));
   await check("owner can't read another shop's order", assertFails(getDoc(doc(ownerHereInS2, "orders/o2"))));
   await check("owner can't read another shop's draft book", assertFails(getDoc(doc(ownerHereInS2, "books/draft2"))));
+  await check("owner can't write another shop's author map", assertFails(setDoc(doc(ownerHereInS2, "settings/bookOwners"), { b1: "sam@press.test" })));
   await check("owner can't write another shop's settings", assertFails(setDoc(doc(ownerHereInS2, "settings/website"), { info: { name: "Mine now" } })));
   await check("owner can't write another shop's QR codes", assertFails(setDoc(doc(ownerHereInS2, "adminPrefs/qrCodes"), { data: "[]", updatedAt: Date.now() })));
   await check("owner can't write another shop's sheet switch", assertFails(setDoc(doc(ownerHereInS2, "adminPrefs/sheets"), { data: "{}", updatedAt: Date.now() })));

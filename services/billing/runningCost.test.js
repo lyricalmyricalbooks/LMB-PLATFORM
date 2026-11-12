@@ -90,6 +90,15 @@ test("last month's running cost goes on the next bill once, not discountable, an
   assert.deepEqual(again.billed, []);
   assert.equal(w.stripe.world.invoiceItems.size, 2);
 
+  // The line was made but its record didn't save, and the next run comes after Stripe forgot the request key
+  // (and with a re-measured cost): the line already waiting is used, never a second one.
+  const row = await w.stores.subscriptions.get("moth-press");
+  await w.stores.subscriptions.set("moth-press", { ...row, runningCosts: {} });
+  const retry = await w.billing.billRunningCosts({ month: "2026-11", costs: { "moth-press": 260, "late-press": 200 } });
+  assert.deepEqual(retry.billed, [{ shopId: "moth-press", cents: 253 }]);
+  assert.equal(w.stripe.world.invoiceItems.size, 2);
+  assert.equal((await w.stores.subscriptions.get("moth-press")).runningCosts["2026-11"].invoiceItemId, items[0].id);
+
   const status = await w.billing.status("moth-press");
   assert.equal(status.price, "$5.00");
   assert.deepEqual([status.usage.fee, status.usage.lastMonth.monthWords, status.usage.lastMonth.text, status.usage.alert.text], ["$5.00", "November 2026", "$2.53", "$25.00"]);

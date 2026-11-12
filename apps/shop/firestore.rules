@@ -151,7 +151,8 @@ service cloud.firestore {
       }
       match /settings/{docId} {
         allow read: if true;
-        allow write: if isAdmin();
+        // bookOwners is read by the stockroom's file rules to let an author in: never written from a browser.
+        allow write: if isAdmin() && docId != 'bookOwners';
       }
       // URL redirects in numbered pages of 500 (plan 5.6; features/site/redirects.ts): public like settings/redirects,
       // written by the admin, pages 1 to 10 only.

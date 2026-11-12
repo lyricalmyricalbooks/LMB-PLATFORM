@@ -72,7 +72,12 @@ export function fakeFoundingSeats() {
 /** Records platform emails instead of sending them; one per idempotency key, like the real service. */
 export function fakePlatformEmail() {
   const sent = new Map();
-  return { sent, list: () => [...sent.values()], sendPlatform: async (message) => void (sent.has(message.idempotencyKey) || sent.set(message.idempotencyKey, structuredClone(message))) };
+  return { sent, list: () => [...sent.values()], // Like the real one (services/email deliver): a repeated key sends nothing and says so.
+    sendPlatform: async (message) => {
+      if (sent.has(message.idempotencyKey)) return { alreadySent: true };
+      sent.set(message.idempotencyKey, structuredClone(message));
+      return { alreadySent: false };
+    } };
 }
 
 /**
@@ -272,6 +277,9 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
       return ok({ object: "list", data: list.slice(0, size), has_more: list.length > size });
     }
     // A pending line for the subscription's next bill (pay what you use, billRunningCosts).
+    if (method === "GET" && path === "/v1/invoiceitems") {
+      return ok({ object: "list", data: [...world.invoiceItems.values()].filter((item) => item.customer === p.customer), has_more: false });
+    }
     if (method === "POST" && path === "/v1/invoiceitems") {
       const item = { id: `ii_${next++}`, object: "invoiceitem", customer: p.customer, subscription: p.subscription, amount: Number(p.amount), currency: p.currency, description: p.description, discountable: p.discountable, metadata: { lmb_shop_id: p["metadata[lmb_shop_id]"], lmb_month: p["metadata[lmb_month]"], lmb_kind: p["metadata[lmb_kind]"] } };
       world.invoiceItems.set(item.id, item);

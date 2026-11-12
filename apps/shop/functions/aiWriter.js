@@ -660,12 +660,14 @@ function receiptAmount(value) {
   return Number(mark ? `${whole || "0"}.${mark[1]}` : whole || NaN);
 }
 
+// Kept per shop: each shop has its own AI keys, so one shop running out says nothing about another's.
 const restingUntil = new Map();
+const restKey = name => `${require("./shopScope").currentShop()?.id || ""}/${name}`;
 const resetProviderRest = () => restingUntil.clear();
 
 /** Runs the task on the chosen AI, and on the other saved one when the chosen one has run out. */
 async function runWithBackup(primary, backup, args, now = Date.now) {
-  const order = backup && (restingUntil.get(primary.name) || 0) > now() ? [backup, primary] : [primary, backup].filter(Boolean);
+  const order = backup && (restingUntil.get(restKey(primary.name)) || 0) > now() ? [backup, primary] : [primary, backup].filter(Boolean);
   let firstErr = null;
   for (const provider of order) {
     try {
@@ -678,7 +680,7 @@ async function runWithBackup(primary, backup, args, now = Date.now) {
       }
       firstErr = err;
       if (!worthBackup(err) || order.length < 2) break;
-      if (provider === primary) restingUntil.set(primary.name, now() + BACKUP_FOR_MS);
+      if (provider === primary) restingUntil.set(restKey(primary.name), now() + BACKUP_FOR_MS);
     }
   }
   throw firstErr;

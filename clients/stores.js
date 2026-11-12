@@ -24,7 +24,8 @@ export function firestoreSentLog(firestore) {
     // The shop's emails sent in one month ("2026-11"), for its usage meter (services/usage). Same query as countSince.
     async countInMonth(shopId, month) {
       const rows = await firestore.query("emailSent", { where: [["shopId", "==", shopId], ["status", "==", "sent"]], limit: 20000 });
-      return rows.filter((row) => String(row.data.at ?? "").slice(0, 7) === month).length;
+      // Only what the platform sent for the shop: not the press's own Gmail, not the platform's emails about the shop.
+      return rows.filter((row) => String(row.data.at ?? "").slice(0, 7) === month && row.data.via !== "gmail" && row.data.platform !== true).length;
     },
     // The platform's own emails about one shop, newest first (control-room/timeline.js, plan 19.10). Equality filters
     // only; the date order is put here.
