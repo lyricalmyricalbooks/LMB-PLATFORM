@@ -22,7 +22,8 @@ import { resolveProductRoutes } from "./productRoutes";
 import { loadCatalog, newestFirst } from "./loadCatalog";
 import { currentStorefrontData, fetchStorefrontDataFile } from "./storefrontDataFile";
 import { inThemePreview, loadThemePreview } from "./themePreview";
-import { withShopWordsFor } from "../../admin/sells";
+import { withShopStartFor } from "../../admin/sells";
+import { shopProfile } from "../../../lib/shopProfile";
 import { setProductSells } from "../../lib/productHref";
 
 const isPreviewUrl = () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "true";
@@ -233,7 +234,6 @@ export function useSiteData() {
   }, [attempt]);
 
   // Site name / default title / share image (Studio › Text & labels › Site & sharing) feed every page's <head>.
-  useEffect(() => { setSiteIdentity(settings.design); }, [settings.design]);
   // Studio › Style › Favicon on every storefront page, not only Home.
   useEffect(() => { applyFavicon(settings.design); }, [settings.design]);
   // Studio › Style › Custom code (public pages only; see customCode.ts).
@@ -265,12 +265,16 @@ export function useSiteData() {
     return resolveProductRoutes(withBundleStock(visible, books)).map(applyBackorderPolicy);
   }, [books, studioPreview]);
 
-  // Shoppers read the words of what the shop sells now (admin/sells.ts withShopWordsFor), under the owner's own words.
+  // Shoppers read the shop's own name and the words of what it sells now (admin/sells.ts withShopStartFor), under the
+  // owner's own words.
   const sells = (settings as any)?.sells as string | undefined;
   // Product links read /products/<slug> in a shop that doesn't sell books (lib/productHref.ts).
   setProductSells(sells);
-  const wordedDesign = useMemo(() => withShopWordsFor(settings.design, sells), [settings.design, sells]);
-  return { books: sellableBooks, settings: { ...settings, design: resolveSurfaceDesign(wordedDesign, location.pathname) }, pages, loading, fresh, loadError, retry };
+  const started = useMemo(() => withShopStartFor(settings, shopProfile.name), [settings]);
+  const wordedDesign = started.design;
+  // Site name / default title / share image (Studio › Text & labels › Site & sharing) feed every page's <head>.
+  useEffect(() => { setSiteIdentity(wordedDesign); }, [wordedDesign]);
+  return { books: sellableBooks, settings: { ...started, design: resolveSurfaceDesign(wordedDesign, location.pathname) }, pages, loading, fresh, loadError, retry };
 }
 
 /**

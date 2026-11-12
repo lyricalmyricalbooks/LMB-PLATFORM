@@ -104,3 +104,56 @@ describe("What a shop sells (plan 10.1)", () => {
     expect(getCopy(back, "footerAbout")).toBe("Ours");
   });
 });
+
+// Starting words before the owner changes anything (12 November 2026).
+import { withShopStartFor, GOODS_ANNOUNCEMENT } from "./sells";
+import { defaultSettings, DEFAULT_ANNOUNCEMENT } from "./defaultSettings";
+import { getCopy as copyOf } from "../features/site/storeCopy";
+
+describe("withShopStartFor", () => {
+  const fresh = (extra: Record<string, any> = {}) => ({ ...defaultSettings(), ...extra });
+
+  it("names a new shop by its sign-up name instead of the placeholder, for books shops too", () => {
+    const books = withShopStartFor(fresh({ shopName: "Moth Press" }));
+    expect(copyOf(books.design, "siteName")).toBe("Moth Press");
+    expect(books.info.name).toBe("Moth Press");
+    expect(books.design.announcementText).toBe(DEFAULT_ANNOUNCEMENT);
+    expect(copyOf(withShopStartFor(fresh(), "Profile Name").design, "siteName")).toBe("Profile Name");
+  });
+
+  it("keeps the owner's own names: Studio's site name first, then Settings' store name", () => {
+    const base = fresh({ shopName: "Sign-up Name" });
+    const studio = withShopStartFor({ ...base, design: { ...base.design, copy: { siteName: "Studio Name" } } });
+    expect(copyOf(studio.design, "siteName")).toBe("Studio Name");
+    const store = withShopStartFor({ ...base, info: { ...base.info, name: "Store Name" } });
+    expect(copyOf(store.design, "siteName")).toBe("Store Name");
+    expect(store.info.name).toBe("Store Name");
+  });
+
+  it("gives a shop that doesn't sell books a plain banner, description, title and menu", () => {
+    const goods = withShopStartFor(fresh({ shopName: "Test Goods", sells: "other" }));
+    expect(goods.design.announcementText).toBe(GOODS_ANNOUNCEMENT);
+    expect(goods.announcements[0].message).toBe(GOODS_ANNOUNCEMENT);
+    expect(goods.design.categories).toEqual([]);
+    expect(goods.info.description).toBe("Test Goods is an independent shop of carefully made things.");
+    expect(copyOf(goods.design, "siteDefaultTitle")).toBe("Test Goods — Independent shop");
+    expect(goods.design.hero.slides[0]).toMatchObject({ title: "Test Goods", subtitle: "NEW ARRIVALS" });
+    expect(/publishing house|Your Press|art books/i.test(JSON.stringify(goods))).toBe(false);
+    // No name anywhere: the plain placeholder, never the press one.
+    expect(withShopStartFor(fresh({ sells: "other" })).info.name).toBe("Your Shop");
+  });
+
+  it("keeps what the owner typed, and changes nothing for a books shop with its own name", () => {
+    const base = fresh({ sells: "clothing" });
+    const own = withShopStartFor({ ...base, announcements: [{ message: "FREE SHIPPING" }], design: { ...base.design, announcementText: "SALE", categories: ["TEES", "HATS"] } });
+    expect(own.design.announcementText).toBe("SALE");
+    expect(own.announcements[0].message).toBe("FREE SHIPPING");
+    expect(own.design.categories).toEqual(["TEES", "HATS"]);
+    const books = fresh({ sells: "books", info: { name: "Moth Press", description: "Poems." } });
+    books.design.copy = { siteName: "Moth Press" };
+    const shown = withShopStartFor(books);
+    // Only the starting hero slide's placeholder title follows the name; the rest is untouched.
+    expect(shown.design.hero.slides[0].title).toBe("Moth Press");
+    expect({ ...shown, design: { ...shown.design, hero: books.design.hero } }).toEqual(books);
+  });
+});

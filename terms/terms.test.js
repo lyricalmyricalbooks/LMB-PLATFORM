@@ -3,25 +3,24 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { BACKUP_KEEP_DAYS, CHANGE_NOTICE_DAYS, DOWNLOAD_DAYS, DRAFT, HELPERS, OPERATOR_ADDRESS, OPERATOR_NAME, PAUSED_DAYS, PRIVACY_CONTACT, REPORT_CONTACT, SECTIONS, TRIAL_DAYS, SHUTDOWN_NOTICE_DAYS, TERMS_VERSION, acceptanceRecord, acceptedCurrent, currentTermsVersion } from "./terms.js";
+import { BACKUP_KEEP_DAYS, CHANGE_NOTICE_DAYS, DOWNLOAD_DAYS, DRAFT, HELPERS, OPERATOR_ADDRESS, OPERATOR_NAME, PAUSED_DAYS, PRIVACY_CONTACT, REPORT_CONTACT, SECTIONS, SHUTDOWN_NOTICE_DAYS, TERMS_VERSION, acceptanceRecord, acceptedCurrent, currentTermsVersion } from "./terms.js";
 import { pageLanguage, renderTerms } from "./page.js";
 import { HELPERS_FR, SECTIONS_FR } from "./termsFr.js";
 import { controlRoomPeople } from "../control-room/people.js";
 import { DOWNLOAD_DAYS as CLOSING_DOWNLOAD_DAYS, PAUSED_DAYS as CLOSING_PAUSED_DAYS, WARNING_DAYS } from "../services/billing/closing.js";
-import { DEFAULT_SETTINGS } from "../services/settings.js";
 
 // Each version's words, fingerprinted. Changing the words without a new TERMS_VERSION fails here: add the new
 // version's line (never change an old one) so a stored acceptance always names the words the press saw.
 const FINGERPRINTS = { "2026-10-28-draft": "646ebc6599507d9f", "2026-10-28-draft.2": "55b1600cfb4bed2d", "2026-11-03-draft": "d24470c450ff75b7", "2026-11-03-draft.2": "7bb1fcbcadafff47",
   "2026-11-03-draft.3": "04dcb865d6843efc", "2026-11-10-draft": "1ce24128fb9616a5", "2026-11-10-draft.2": "493114853d48e35a", "2026-11-10-draft.3": "cc73b9bb17e01e02",
-  "2026-11-10-draft.4": "274b05d1325f8052", "2026-11-10-draft.5": "e970c3a93440e3bd", "2026-11-12": "b3fe1f3d879ce01e" };
+  "2026-11-10-draft.4": "274b05d1325f8052", "2026-11-10-draft.5": "e970c3a93440e3bd", "2026-11-12": "b3fe1f3d879ce01e", "2026-11-12.2": "470137bb7048ee0c" };
 // The French words (termsFr.js), from the version that first had them. Same rule: new words, new version.
-const FINGERPRINTS_FR = { "2026-11-03-draft.2": "4744335b4ee3a2ca", "2026-11-03-draft.3": "574ba843f7eba85d", "2026-11-10-draft": "af16ec68088f677e", "2026-11-10-draft.2": "fa32499e0449ddc2", "2026-11-10-draft.3": "c9a414ff8210f469", "2026-11-10-draft.4": "77f60696305326f6", "2026-11-10-draft.5": "068f6bef1ff56db4", "2026-11-12": "da29380ebc636e7d" };
+const FINGERPRINTS_FR = { "2026-11-03-draft.2": "4744335b4ee3a2ca", "2026-11-03-draft.3": "574ba843f7eba85d", "2026-11-10-draft": "af16ec68088f677e", "2026-11-10-draft.2": "fa32499e0449ddc2", "2026-11-10-draft.3": "c9a414ff8210f469", "2026-11-10-draft.4": "77f60696305326f6", "2026-11-10-draft.5": "068f6bef1ff56db4", "2026-11-12": "da29380ebc636e7d", "2026-11-12.2": "10d52f119dddc31f" };
 
 const text = SECTIONS.flatMap((s) => [s.title, ...s.paragraphs]).join(" ");
 
 test("one version id, and the words can't change without a new one", () => {
-  assert.match(TERMS_VERSION, /^\d{4}-\d{2}-\d{2}(-draft(\.\d+)?)?$/);
+  assert.match(TERMS_VERSION, /^\d{4}-\d{2}-\d{2}(-draft)?(\.\d+)?$/);
   assert.equal(currentTermsVersion(), TERMS_VERSION);
   assert.equal(DRAFT, /-draft(\.\d+)?$/.test(TERMS_VERSION), "a draft version ends in -draft (or -draft.2 and on), a final one doesn't");
   const print = createHash("sha256").update(JSON.stringify(SECTIONS)).digest("hex").slice(0, 16);
@@ -91,7 +90,6 @@ test("the closing promises match what the closing sweep really does (no 'nothing
   assert.equal(PAUSED_DAYS, CLOSING_PAUSED_DAYS);
   assert.equal(DOWNLOAD_DAYS, CLOSING_DOWNLOAD_DAYS);
   assert.deepEqual([...WARNING_DAYS], [30, 7]);
-  assert.equal(TRIAL_DAYS, DEFAULT_SETTINGS.trialDays);
   const paying = part("paying");
   assert.match(paying, /kept for 60 days/);
   assert.match(paying, /90 days to download everything/);
@@ -102,6 +100,9 @@ test("the closing promises match what the closing sweep really does (no 'nothing
 test("renewal, cancelling online and price notice are spelled out before anyone pays", () => {
   const paying = part("paying");
   assert.match(paying, /never ask for a card to start it/);
+  // The trial length is set in the control room, so the terms point at the sign-up page instead of naming a number.
+  assert.match(paying, /number of days shown on the sign-up page the day you sign up/);
+  assert.doesNotMatch(paying, /trial of \d+ days/);
   assert.match(paying, /renews every month.* until you cancel/);
   assert.match(paying, /the plan's fee plus what your shop cost to run the month before .* at what it costs us/);
   assert.match(paying, /cancel at any time from Plan & billing .* no call or email needed/);

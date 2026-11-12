@@ -2187,7 +2187,10 @@ async function loadSettings() {
     settingsFields = fields;
     $("#settings-fields").replaceChildren(...fields.map((field) => {
       const changed = values[field.path] !== defaults[field.path];
-      const note = changed ? el("span", { className: "rp-hint", textContent: `Normally ${field.kind === "yesNo" ? (defaults[field.path] ? "on" : "off") : toShown(field, defaults[field.path])}` }) : null;
+      const normally = changed ? `Normally ${field.kind === "yesNo" ? (defaults[field.path] ? "on" : "off") : toShown(field, defaults[field.path])}.` : "";
+      // Who a change reaches (services/settings.js `reach`), so a fee or trial length that leaves today's shops alone doesn't look failed.
+      const words = [field.reach, normally].filter(Boolean).join(" ");
+      const note = words ? el("span", { className: "rp-hint", textContent: words }) : null;
       if (field.kind === "yesNo") {
         return el("div", { className: "rp-field" }, el("label", { className: "rp-check" }, el("input", { type: "checkbox", name: field.path, checked: values[field.path] }), field.label), note);
       }
@@ -2603,7 +2606,7 @@ async function loadEverySwitch() {
         title: words,
         tone: startsOn ? "success" : "neutral",
         pillWords: startsOn ? "New shops: on" : "New shops: off",
-        body: [el("label", { className: "rp-check" }, box, "New shops start with it on")],
+        body: [el("label", { className: "rp-check" }, box, "New shops start with it on"), el("p", { className: "rp-hint", textContent: "This changes new shops only. Use the buttons below for the shops you already have." })],
         actions: el("div", { className: "cr-actions", style: "margin-top: 8px" }, forAll(true), forAll(false)),
       });
     }) : [emptyState("No switches yet.")]));

@@ -41,7 +41,8 @@ import { CHECKOUT_ATTEMPT_KEY, orderAccessHeaders, rememberOrderAccess, savedOrd
 import { StripeCardForm, type StripeCardFormHandle } from "./features/site/StripeCardForm";
 import { StripePaymentSection } from "./features/site/StripePaymentSection";
 import { isStripePublishableKey, stripeCheckoutState, createCheckoutSubmission, onPageRestored } from "./features/site/stripeLifecycle";
-import { paysOnSquare, platformStripe, platformTakesCards } from "../lib/shopProfile";
+import { paysOnSquare, platformStripe, platformTakesCards, shopProfile } from "../lib/shopProfile";
+import { withShopStartFor } from "./admin/sells";
 import { checkoutFlow, confirmationView, initialFlow, readReturn, stripeTookPayment } from "./features/site/checkoutFlow";
 import { checkoutDetailProblems, detailInputId, expressWalletEnabled, type DetailField } from "./features/site/checkoutDetails";
 import { createLatestGuard, signalWithTimeout, RATES_TIMEOUT_MS } from "./features/site/latestRequest";
@@ -310,8 +311,10 @@ export function Checkout() {
         setBooks(bookList);
         setCatalogState("ready");
         const preview = new URLSearchParams(window.location.search).get("preview") === "true";
-        const design = preview ? (window as any).__studioPreviewDesign || siteSettings?.design : siteSettings?.design;
-        setSettings({ ...siteSettings, design: resolveSurfaceDesign(design, "/checkout") });
+        // The shop's own name and the words of what it sells, as on every other shopper page (admin/sells.ts).
+        const started = withShopStartFor(siteSettings, shopProfile.name);
+        const design = preview ? (window as any).__studioPreviewDesign || started?.design : started?.design;
+        setSettings({ ...started, design: resolveSurfaceDesign(design, "/checkout") });
         applyFavicon(design);
         // The payment method follows the loaded settings (effect below), keeping the shopper's own choice.
       } catch (err) {

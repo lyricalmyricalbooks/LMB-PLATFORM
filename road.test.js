@@ -293,3 +293,38 @@ test("the start, disabled path: Google coming soon and Get paid skipped still ca
   assert.equal(doc().payments.skipped, true);
   assert.equal((await shopOf(w, shopId)).access, "open", "a skipped Google and Get paid never hold the press up");
 });
+
+test("a setting changed in the control room reaches the next sign-up: trial length and fee, from the pricing page to the shop's plan", async () => {
+  const w = platformWorld({ suffix: () => "k3f9q" });
+  const START = w.clock.ms();
+  const admin = adminClaims(w.clock);
+  const before = (await w.ask(null, "GET", "/api/plans")).body;
+  assert.equal(before.trialDays, 14);
+
+  // ── The owner of the platform changes two settings, with a reason ──
+  const saved = await w.ask(admin, "POST", "/api/control/settings", { values: { trialDays: 30, "prices.both": 700 }, reason: "longer trial for the fair" });
+  assert.equal(saved.status, 200);
+  assert.deepEqual(saved.body.changed.map((c) => c.path).sort(), ["prices.both", "trialDays"]);
+
+  // ── The pricing and sign-up pages say the new numbers at once ──
+  const plans = (await w.ask(null, "GET", "/api/plans")).body;
+  assert.equal(plans.trialDays, 30);
+  assert.match(JSON.stringify(plans.plans), /7(\.00)?\b/, "the new fee is on the page");
+
+  // ── The next press to sign up gets them ──
+  const signed = await w.ask(ADA, "POST", "/api/signup", signUpDetails);
+  assert.equal(signed.status, 200);
+  const { shopId } = signed.body;
+  assert.equal(signed.body.trialEnd, new Date(START + 30 * DAY).toISOString(), "30 free days, not the starting 14");
+  assert.deepEqual(await w.shopMaker.sweep(), [{ shopId, status: "ready" }]);
+  const shop = await w.registry.getShop(shopId);
+  assert.equal(shop.billing.trialEnd, new Date(START + 30 * DAY).toISOString(), "the shop record carries the same day");
+  const status = await w.billing.status(shopId);
+  assert.equal(status.trialDaysLeft, 30);
+  assert.match(status.price, /7\.00/, "its plan is on the new fee");
+
+  // ── Changing it again leaves that press as it is, and reaches only the one after ──
+  await w.ask(admin, "POST", "/api/control/settings", { values: { trialDays: 7 }, reason: "back to a short trial" });
+  assert.equal((await w.billing.status(shopId)).trialDaysLeft, 30, "a trial already running keeps its length");
+  assert.equal((await w.ask(null, "GET", "/api/plans")).body.trialDays, 7);
+});

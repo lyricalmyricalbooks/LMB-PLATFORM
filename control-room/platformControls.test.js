@@ -57,6 +57,10 @@ test("a setting change is saved over the environment, logged once with before an
   assert.equal(shown.values.signupOpen, false);
   assert.equal(shown.values["prices.shop"], 2900);
   assert.ok(shown.fields.some((f) => f.path === "payAsYouSell.basisPoints"));
+  // Settings that leave today's shops as they are say so under the field; ones that act at once say nothing.
+  const reach = Object.fromEntries(shown.fields.map((f) => [f.path, f.reach]));
+  for (const path of ["prices.both", "usdPrices.both", "trialDays", "foundingOffer.percentOff"]) assert.match(reach[path], /from now on\. .* keeps /, path);
+  assert.equal(reach.signupOpen, undefined);
 
   const saved = await w.controls.saveSettings(ADMIN, { values: { signupOpen: true, "prices.shop": 3400, "foundingOffer.percentOff": 25 }, reason: "opening sign-up for the fair" });
   assert.deepEqual(saved.changed, [{ path: "signupOpen", from: false, to: true }, { path: "prices.shop", from: 2900, to: 3400 }]);

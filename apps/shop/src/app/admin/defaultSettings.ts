@@ -2,17 +2,21 @@ import { CATEGORIES } from "../features/site/constants";
 import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../features/site/risoNoir";
 import { DEFAULT_SHOP_NAME } from "../features/site/shopIdentity";
 
+/** The banner and description a new shop starts with (admin/sells.ts swaps them for a shop that doesn't sell books). */
+export const DEFAULT_ANNOUNCEMENT = "INDEPENDENT PUBLISHING HOUSE SPECIALIZING IN CONTEMPORARY PHOTOGRAPHY AND EPHEMERA";
+export const DEFAULT_SHOP_DESCRIPTION = "An independent publishing house of photography and art books, photobooks and artists' books.";
+
 /** The shop's settings before the owner has changed anything (merged under `settings/website`). */
 export const defaultSettings = (): any => ({
   localFulfillment: { enabled: false, pickupLocations: [], deliveryZones: [] },
-  announcements: [{ message: "INDEPENDENT PUBLISHING HOUSE SPECIALIZING IN CONTEMPORARY PHOTOGRAPHY AND EPHEMERA" }],
+  announcements: [{ message: DEFAULT_ANNOUNCEMENT }],
   // Settings › General › Checkout stock holds: most copies one shopper can have set aside while checking out.
   stockHolds: { perBook: 10, units: 50, orders: 3 },
   maintenance: { enabled: false, message: "WE ARE UPDATING OUR ARCHIVE. PLEASE CHECK BACK SOON." },
   domain: { subdomain: "yourpress", custom: "yourpress.example" },
   info: { 
     name: DEFAULT_SHOP_NAME,
-    description: "An independent publishing house of photography and art books, photobooks and artists' books.",
+    description: DEFAULT_SHOP_DESCRIPTION,
     website: "https://yourpress.example"
   },
   inventory: { tracking: true, overselling: false },
@@ -126,7 +130,7 @@ export const defaultSettings = (): any => ({
     customFooterScripts: "",
     // Announcements
     showAnnouncement: true,
-    announcementText: "INDEPENDENT PUBLISHING HOUSE SPECIALIZING IN CONTEMPORARY PHOTOGRAPHY AND EPHEMERA",
+    announcementText: DEFAULT_ANNOUNCEMENT,
     announcementBg: "#63BDEF",
     announcementColor: "#221717",
     announcementScrolling: false,

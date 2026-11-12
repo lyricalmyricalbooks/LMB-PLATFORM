@@ -188,17 +188,20 @@ export function priceText(cents, currency = DEFAULT_SETTINGS.currency) {
  * The settings the control room may change without a release (plan 9.4), by their path in the settings, with the words
  * the page shows. Money is in cents and the pay-as-you-sell share in hundredths of a percent, as everywhere else.
  */
+// `reach` says, under the field, who a saved change reaches when it isn't every shop at once (12 November 2026):
+// without it a changed fee or trial length looks as if it failed, because the shops already here stay as they were.
+const FEE_REACH = "Changes plans started from now on. A shop already on a plan keeps the fee it started with.";
 export const EDITABLE = Object.freeze({
   signupOpen: { kind: "yesNo", label: "Anyone can sign up (off: waitlist invites only)" },
   signupDailyCap: { kind: "whole", ...LIMITS.signupDailyCap, label: "New shops a day (an invite skips the line)" },
   // One plan for every shop since 10 November 2026: "prices.both" is the only fee the page shows. The older plans'
   // fees stay accepted (hidden) so a value saved before still loads, for shops waiting to move overnight.
-  "prices.both": { kind: "cents", ...LIMITS["prices.both"], label: "Platform fee, a month, Canadian presses (CAD; running cost comes on top)" },
-  "usdPrices.both": { kind: "cents", ...LIMITS["usdPrices.both"], label: "Platform fee, a month, US presses (USD; running cost comes on top)" },
+  "prices.both": { kind: "cents", ...LIMITS["prices.both"], label: "Platform fee, a month, Canadian presses (CAD; running cost comes on top)", reach: FEE_REACH },
+  "usdPrices.both": { kind: "cents", ...LIMITS["usdPrices.both"], label: "Platform fee, a month, US presses (USD; running cost comes on top)", reach: FEE_REACH },
   "prices.shop": { kind: "cents", ...LIMITS["prices.shop"], label: "Older shop-only plan's fee", hidden: true },
   "prices.stockroom": { kind: "cents", ...LIMITS["prices.stockroom"], label: "Older stockroom-only plan's fee", hidden: true },
-  trialDays: { kind: "whole", ...LIMITS.trialDays, label: "Free trial days" },
-  "foundingOffer.percentOff": { kind: "whole", ...LIMITS["foundingOffer.percentOff"], label: "Founding offer: percent off, for as long as they stay" },
+  trialDays: { kind: "whole", ...LIMITS.trialDays, label: "Free trial days", reach: "Changes shops that sign up from now on. A trial already running keeps its length." },
+  "foundingOffer.percentOff": { kind: "whole", ...LIMITS["foundingOffer.percentOff"], label: "Founding offer: percent off, for as long as they stay", reach: "Changes presses given a place from now on. A press that already has a place keeps its percent." },
   "foundingOffer.presses": { kind: "whole", ...LIMITS["foundingOffer.presses"], label: "Founding offer: how many paying presses get it" },
   // On by default (3 November 2026): a place taken by a press that left before paying anything goes back to the offer.
   "foundingOffer.giveBackUnpaid": { kind: "yesNo", label: "Founding offer: give a place back when a press leaves before paying anything" },

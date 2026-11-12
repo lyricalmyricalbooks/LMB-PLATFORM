@@ -11,6 +11,9 @@
 
 import type { ProductKind } from "../../shared/productOptions";
 import { DEFAULT_COPY } from "../features/site/storeCopy";
+import { CATEGORIES } from "../features/site/constants";
+import { DEFAULT_SHOP_NAME, shopName } from "../../shared/shopIdentity";
+import { DEFAULT_ANNOUNCEMENT, DEFAULT_SHOP_DESCRIPTION } from "./defaultSettings";
 import { sellsBooks, wordsFor, type Sells } from "../../shared/shopSells";
 
 // The answers and the books-shop rule live in src/shared/shopSells.ts, which the server's emails use too.
@@ -148,6 +151,58 @@ export function withShopWordsFor<T extends Record<string, any> | null | undefine
   const goods = starterWords("other");
   const kept = Object.fromEntries(Object.entries(copy).filter(([key, text]) => !(key in goods && text === goods[key])));
   return Object.keys(kept).length === Object.keys(copy).length ? design : { ...design, copy: kept } as T;
+}
+
+/** The banner a shop that doesn't sell books starts with, until its owner writes one (Studio › Style › Announcement bar). */
+export const GOODS_ANNOUNCEMENT = "AN INDEPENDENT SHOP OF CAREFULLY MADE THINGS";
+
+const BOOK_HERO_SUBTITLE = "PHOTOGRAPHY & ART BOOKS";
+
+const typedName = (value: unknown): string => {
+  const name = typeof value === "string" ? value.trim() : "";
+  return name && name !== DEFAULT_SHOP_NAME ? name : "";
+};
+const sameList = (a: unknown, b: readonly string[]) => Array.isArray(a) && a.length === b.length && a.every((x, i) => x === b[i]);
+
+/**
+ * The settings shoppers read, before the owner has changed the starting words (12 November 2026).
+ * - Every shop: an unset site name is the Store name from Settings, else the name given at sign-up (`shopName` in
+ *   settings/website, else the profile's), instead of the placeholder. The server's emails already did this (`pressName`).
+ * - A shop that doesn't sell books: the starter words (`withShopWordsFor`), and the publishing-house banner, description
+ *   and category menu are swapped for a plain shop's while they still equal the book defaults. Anything the owner typed
+ *   is kept, and the stored settings are never changed.
+ */
+export function withShopStartFor<T extends Record<string, any>>(settings: T, signupName?: string | null): T {
+  if (!settings) return settings;
+  const sells = (settings as any).sells as string | undefined;
+  const baseDesign: Record<string, any> = settings.design || {};
+  const given = typedName(baseDesign.copy?.siteName) ? "" : typedName(settings.info?.name) || typedName(settings.shopName) || typedName(signupName);
+  const named = given ? { ...baseDesign, copy: { ...(baseDesign.copy || {}), siteName: given } } : baseDesign;
+  let design: Record<string, any> = withShopWordsFor(named, sells);
+  // The starting hero slide is titled with the placeholder name: it follows the shop's name until the owner retitles it.
+  const goods = Boolean(sells) && !sellsBooks(sells);
+  const slides = design.hero?.slides;
+  if (Array.isArray(slides) && slides.some((s: any) => s?.title === DEFAULT_SHOP_NAME || (goods && s?.subtitle === BOOK_HERO_SUBTITLE))) {
+    design = { ...design, hero: { ...design.hero, slides: slides.map((s: any) => ({
+      ...s,
+      ...(s?.title === DEFAULT_SHOP_NAME ? { title: shopName(design) } : {}),
+      ...(goods && s?.subtitle === BOOK_HERO_SUBTITLE ? { subtitle: "NEW ARRIVALS" } : {}),
+    })) } };
+  }
+  const out: Record<string, any> = { ...settings };
+  if (settings.info && !typedName(settings.info.name)) out.info = { ...settings.info, name: shopName(design) };
+  if (goods) {
+    if (design.announcementText === DEFAULT_ANNOUNCEMENT) design = { ...design, announcementText: GOODS_ANNOUNCEMENT };
+    if (sameList(design.categories, CATEGORIES)) design = { ...design, categories: [] };
+    if (Array.isArray(settings.announcements) && settings.announcements[0]?.message === DEFAULT_ANNOUNCEMENT) {
+      out.announcements = [{ ...settings.announcements[0], message: GOODS_ANNOUNCEMENT }, ...settings.announcements.slice(1)];
+    }
+    if (out.info?.description === DEFAULT_SHOP_DESCRIPTION) {
+      out.info = { ...out.info, description: WRITTEN.siteDefaultDescription.replace("{name}", shopName(design)) };
+    }
+  }
+  if (design !== baseDesign) out.design = design;
+  return out as T;
 }
 
 /** The setup guide's first-product step, in the shop's words. */
