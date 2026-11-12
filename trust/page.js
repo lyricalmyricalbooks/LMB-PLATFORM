@@ -5,7 +5,7 @@ const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&
 
 export function renderTrust() {
   const notice = DRAFT
-    ? `<div class="cp-alertline" data-tone="warning" role="note"><p><b>DRAFT.</b> This page shows what we mean to promise. A lawyer hasn't read it yet.</p></div>`
+    ? `<div class="cp-alertline" data-tone="warning" role="note"><p><b>DRAFT.</b> This page shows what we mean to promise.</p></div>`
     : "";
   // Each promise is its own numbered sheet, two to a row on a wide screen, so the page reads as a list of promises.
   const promises = `<div class="cp-promises">${PROMISES.map((p, i) => `<section class="card" id="${esc(p.id)}" aria-labelledby="h-${esc(p.id)}"><span class="cp-kicker">${String(i + 1).padStart(2, "0")}</span><h2 id="h-${esc(p.id)}">${esc(p.title)}</h2><p>${esc(p.words)}</p></section>`).join("\n")}</div>`;

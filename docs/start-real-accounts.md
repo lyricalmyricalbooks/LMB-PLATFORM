@@ -11,7 +11,7 @@ so a stage that is added to the build also needs a line here.
   on real accounts (plan 15.2 and 15.10).
 - **1 December 2026:** Google's sign-in review. The permission list goes in (plan 15.3 and 15.12). Julian reads which
   permissions Google calls sensitive in the Cloud console, as `docs/google-verification.md` says.
-- **Before launch, no date set:** the lawyer's written answer on payments (plan 15.22). It has to be recorded in
+- **Before launch, no date set:** Julian's decision on Colophon's payments role (plan 15.22), recorded in
   `docs/decisions.md` before the first press takes real money.
 - **Before the import stages can be built:** a real sample file from each shop builder (plan 17.5 and 17.6). No date
   yet. Nothing is built for those layouts until the files arrive.
@@ -42,14 +42,14 @@ so a stage that is added to the build also needs a line here.
   disconnects at the end. With Drive on, he opens the stockroom's Settings › Google Sheet, presses **Make my sheet**, and
   checks the Stock, Sales and Expenses tabs in Drive. He voids a test sale, sends again, and checks that it is gone.
   Status: built behind the switch that is still off.
-- **Pay what you use** (10 November 2026): Julian (or his accountant) checks the unit prices in
+- **Pay what you use** (10 November 2026): Julian checks the unit prices in
   `services/billing/runningCost.js` against Google's current price list for the region the shops run in, in CAD, and the
   Google Workspace mailbox's monthly price. Then, on the test shop with test-mode Stripe and a paid month behind it, he runs the
   `running-costs` job from the control room and checks the next bill in Stripe shows one "Running cost" line, not
   discounted by the founding offer, and that Settings › Billing shows the same amount. Status: built, tested with a
   pretend Stripe.
 - **Get paid** (plan 17.10, 15.2, 15.10, 15.22): Stripe's platform profile is due 13 November. Then Julian connects
-  the test shop to Stripe's test mode and buys one practice book, with no money moving. The lawyer's written answer
+  the test shop to Stripe's test mode and buys one practice book, with no money moving. Julian's payments decision
   (plan 15.22) comes before any real card is taken. Status: built on pretend Stripe states; the real connection is
   still to do.
 - **Plan and billing in the admin** (plan 22.1-22.5): in Stripe's test mode on the platform account, Julian adds the
@@ -116,42 +116,25 @@ so a stage that is added to the build also needs a line here.
   Ready to paste: every form's words, the permission uses and a 2-minute recording script are in
   `docs/social-approvals.md`.
 
-## Legal (review of 3 November 2026)
+## Legal
 
-The review is in the project files, `research/2026-11-03-legal-readiness.md`. It is not legal advice. Status: the code
-side is built; these steps need Julian, a lawyer or an accountant.
+The terms are final (12 November 2026, `TERMS_VERSION` "2026-11-12", `DRAFT = false`), in English and French.
 
 - **Contact address (done 3 November 2026):** Julian chose his shop's Gmail address (`OPERATOR_EMAIL` in
   `terms/terms.js`) for privacy questions and reports about shops; the control room's privacy contact defaults to it.
   It must stay an inbox someone reads.
-- **The lawyer reads the terms (Julian, before the first paid plan):** English and French, especially the liability
-  cap, "made for businesses", closing a shop, the 72-hour breach promise and Ontario as the governing law for Quebec
-  presses. Then `DRAFT = false` and a new `TERMS_VERSION`.
-- **French (done 3 November 2026):** Julian accepted the French terms and the shops' French words as they are; no
-  translator check.
-- **The lawyer's other answers:** payments role (already plan 15.22); whether abandoned-bag reminder emails need the
-  shopper's consent first (Canada's anti-spam law); a written privacy impact assessment for the US helper companies
-  (Quebec's Law 25); a trademark search for "Colophon"; whether Colophon's own invoices to Quebec presses are French
-  enough (Stripe writes them in French for those presses, and the plan's name is printed in both languages,
-  "Shop and stockroom / Boutique et réserve").
+- **French (done 3 November 2026):** Julian accepted the French terms and the shops' French words as they are.
 - **French invoice in Stripe's test mode (Julian):** set a test press's email language to French on its Plan page,
-  then open its invoice from Settings › Plan and check it reads in French.
+  then open its invoice from Settings › Billing › Bills and check it reads in French.
 - **Data agreements with the helpers (Julian, in each console):** accept Google Cloud's and Google Workspace's
   data processing terms (Workspace admin › Account › Legal and compliance) and Stripe's, and confirm Shippo's.
-- **The accountant:** when Colophon registers for GST/HST, QST and BC PST (plan 15.9), and which US states tax a
-  software plan.
+- **Sales tax on Colophon's own bills:** the control room's tax watch shows when Colophon's plan sales near the GST/HST,
+  QST and BC PST lines (plan 15.9). US shops are billed in US dollars with the tax of their state.
 - **Promised notices:** the terms promise 30 days' email notice before a price rise or a new helper company. The
   control room's Messages to presses form has "Is this a notice the terms promise?": it emails every press and refuses a date less than 30 days away. Julian uses it before changing a price or adding a helper.
-- **New terms for presses already signed up (10 November 2026, `2026-11-10-draft.4`):** the daily job "terms-notice"
-  (`terms/notice.js`) emails each press on older words what changed (`CHANGES` in `terms/terms.js`, English and
-  French) and the date the new words apply, 30 days later; from then its record shows the new version, agreed by
-  notice. Changing the words means writing new `CHANGES` lines too.
-- **Lawyer questions from the 10 November changes:** is "agreed by notice after 30 days" enough for a price-model
-  change, or must existing presses tick to agree again; does billing "last month's running cost at cost" need a
-  maximum or an estimate up front (Ontario and Quebec consumer rules don't apply to businesses, but check Quebec's
-  rules on contracts of adhesion); does counting each shop's use from the cloud provider's logs need its own line in
-  the privacy impact assessment (Law 25); is the shared system (all shops in one Canadian project) still covered by
-  "behind its own wall" and the take-over-your-copy promise.
-- **Accountant questions from the 10 November changes:** is the passed-through running cost a taxable supply at the
-  same GST/HST/QST rate as the platform fee; how to show it on the invoice; and how to treat a month where Google's
-  bill and our meters differ after we charged.
+- **New terms for presses already signed up:** the daily job "terms-notice" (`terms/notice.js`) emails each press on
+  older words what changed (`CHANGES` in `terms/terms.js`, English and French) and the date the new words apply, 30
+  days later; from then its record shows the new version, agreed by notice. Changing the words means a new
+  `TERMS_VERSION` and new `CHANGES` lines.
+- **US sign-up:** the terms cover presses in the United States; opening sign-up there is Julian's switch
+  (`SIGNUP_OPEN_COUNTRIES`).
