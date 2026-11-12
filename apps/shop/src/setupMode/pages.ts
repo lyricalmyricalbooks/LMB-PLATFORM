@@ -2,7 +2,8 @@
 // every other page locked until the shop opens. Pure, so the menu and the locks are tested without a browser.
 import { sellsBooks } from "../shared/shopSells";
 import type { NavEntry } from "../app/admin/riso/components";
-import { NAV, SETTINGS_ITEM_PREFIX, sidebarItems } from "../app/admin/riso/nav";
+import { NAV, SETTINGS_ITEM_PREFIX, sideMenu, sideOf, sidebarItems, type AdminSide } from "../app/admin/riso/nav";
+import { COMBINED_PAGES, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES } from "../app/admin/combined";
 import type { SetupPress } from "./door";
 
 export const PLAN_PAGE = SETTINGS_ITEM_PREFIX + "plan";
@@ -23,24 +24,30 @@ export const SETUP_PAGES: ReadonlySet<string> = new Set([HOME_PAGE, DESIGN_PAGE,
 export const setupLocked = (page: string): boolean => !SETUP_PAGES.has(page);
 
 /**
- * The menu: exactly the admin's own (Plan sits under Settings, as it does once the shop opens), so the admin a press
- * meets in setup is the one it keeps. Help is in the sidebar's footer, not the menu.
+ * The menu: exactly the admin's own (v4: the Website · Stockroom switch, each side's items; Plan sits under Settings, as
+ * it does once the shop opens), so the admin a press meets in setup is the one it keeps. Help is in the rail's foot.
  */
-export function setupMenu(nav: NavEntry[] = NAV): NavEntry[] {
-  return sidebarItems(nav);
+export function setupMenu(side: AdminSide = "website", nav: NavEntry[] = NAV): NavEntry[] {
+  return sidebarItems(nav, sideMenu(side));
 }
+
+/** Both sides' items, for finding any page by its address or name. */
+export const allSetupItems = (): NavEntry[] => [...setupMenu("website"), ...setupMenu("stockroom")];
+
+/** The side a page is on (Help and every setup page are on the website's). */
+export const setupSide = (page: string): AdminSide => (page === HELP_PAGE ? "website" : sideOf(page));
 
 /** Pages that are not in the menu but can be opened (Help, from the sidebar's footer). */
 const EXTRA_PAGES: Record<string, string> = { [HELP_PAGE]: "Help" };
 
 /** The menu item that holds a page (a Settings page sits under Settings' first page). */
-export function setupMenuItemFor(page: string, menu: NavEntry[] = setupMenu()): string {
+export function setupMenuItemFor(page: string, menu: NavEntry[] = allSetupItems()): string {
   if (EXTRA_PAGES[page]) return "";
   return menu.find((item) => item.id === page || item.children?.some((c) => c.id === page))?.id ?? page;
 }
 
 /** A page's name, for the locked page and the page title. */
-export function setupPageLabel(page: string, menu: NavEntry[] = setupMenu()): string {
+export function setupPageLabel(page: string, menu: NavEntry[] = allSetupItems()): string {
   if (EXTRA_PAGES[page]) return EXTRA_PAGES[page];
   for (const item of menu) {
     if (item.id === page && !item.children) return item.label;
@@ -148,7 +155,7 @@ export function guideProgress(steps: GuideStep[]): { done: number; total: number
  * The page in the address (`#settings/general`): Home for an empty address, and null for an address that names no
  * page (the skip link's `#rp-main`, say), so the page on screen stays put.
  */
-export function pageFromHash(hash: string, menu: NavEntry[] = setupMenu()): string | null {
+export function pageFromHash(hash: string, menu: NavEntry[] = allSetupItems()): string | null {
   let page: string;
   try { page = decodeURIComponent(hash.replace(/^#/, "").split("?")[0]); } catch { return null; }
   if (!page) return HOME_PAGE;
@@ -213,4 +220,5 @@ const LOCKED_LINES: Readonly<Record<string, string>> = Object.freeze({
 });
 
 /** The line for a locked page: what it will do, or a plain line for a page without one. */
-export const lockedPageLine = (page: string): string => LOCKED_LINES[page] ?? "";
+export const lockedPageLine = (page: string): string => LOCKED_LINES[page]
+  ?? [...COMBINED_PAGES, ...STOCKROOM_PAGES.map((p) => ({ ...p, id: STOCKROOM_ITEM_PREFIX + p.id }))].find((p) => p.id === page)?.description ?? "";

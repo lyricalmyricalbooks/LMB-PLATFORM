@@ -52,6 +52,22 @@ async function mount(d: SetupDoor, hash = "", press: SetupPress = PRESS, answers
 }
 
 describe("the admin in setup mode (code plan 18.6)", () => {
+  it("wears the open shop's v4 shell: the Website · Stockroom switch, the website's items, and a page's sister pages", async () => {
+    const el = await mount(door(), "#settings/general");
+    const rail = [...el.querySelectorAll(".rp-nav-item")].map((b) => b.textContent?.trim());
+    expect(rail).toEqual(expect.arrayContaining(["Home", "Orders", "Messages", "Books", "Marketing", "Analytics", "Online store", "Settings"]));
+    expect(el.querySelector("h1")?.textContent).toBe("General");
+    const settings = el.querySelector('nav[aria-label="Settings pages"]');
+    expect(settings?.getAttribute("data-layout")).toBe("column");
+    expect([...settings!.querySelectorAll("a")].map((a) => a.textContent)).toEqual(expect.arrayContaining(["General", "Payments", "Plan"]));
+    const stockroom = [...el.querySelectorAll('[aria-label="Admin side"] button')].find((b) => b.textContent === "Stockroom") as HTMLButtonElement;
+    act(() => stockroom.click());
+    await flush();
+    expect(el.querySelector("h1")?.textContent).toBe("Overview");
+    expect(el.textContent).toContain("Nothing here yet");
+    expect([...el.querySelectorAll(".rp-nav-item")].map((b) => b.textContent?.trim())).toEqual(expect.arrayContaining(["Inventory", "Tax centre", "Backups"]));
+  });
+
   it("opens on the setup guide with the press's progress", async () => {
     const el = await mount(door());
     expect(el.querySelector("h1")?.textContent).toBe("Welcome, Moth Press");
