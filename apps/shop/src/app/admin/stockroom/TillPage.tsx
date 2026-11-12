@@ -158,7 +158,7 @@ export function Till({ records, now = () => Date.now() }: { records: StockroomRe
       </PageActions>
 
       {marketDay && (
-        <div className="rp-alert rp-till-morning" role="status">
+        <div className="rp-card rp-till-morning" role="status">
           <div><strong>{marketDay.title}</strong><p>{marketDay.detail}</p></div>
           <SecondaryButton size="sm" onClick={() => setMarketDay(null)}>Got it</SecondaryButton>
         </div>

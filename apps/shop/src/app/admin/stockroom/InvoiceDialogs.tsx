@@ -20,6 +20,7 @@ import {
 import { invoicePage, printInvoice } from "./invoicePaper";
 import { attachCardLinkChange, cardLinkOf, cardLinkRefusal, invoiceCardPayApi, recordCardPayments } from "./invoiceCardPay";
 import { RemindersDialog } from "./RemindersDialog";
+import { LetterheadDialog } from "./LetterheadDialog";
 import type { StockroomRecords } from "./stockroomData";
 import { describeResult, stockroomWriteApi } from "./stockroomWrite";
 
@@ -360,7 +361,7 @@ export function InvoiceView({ row, settings, onClose, onEdit, onCopy, onSaved }:
 const statusBadge = (r: InvoiceRow) => r.overdue ? <StatusBadge tone="danger">Overdue</StatusBadge>
   : <StatusBadge tone={r.status === "paid" ? "success" : r.status === "sent" ? "warning" : "neutral"} glyph={false}>{r.status === "sent" ? "Owed" : r.status[0].toUpperCase() + r.status.slice(1)}</StatusBadge>;
 
-type Open = { kind: "settings" } | { kind: "reminders" } | { kind: "edit"; form: InvoiceForm } | { kind: "view"; id: string };
+type Open = { kind: "settings" } | { kind: "reminders" } | { kind: "letterhead" } | { kind: "edit"; form: InvoiceForm } | { kind: "view"; id: string };
 
 /** The Invoices card on Stockists: every invoice (to stockists and to people), and the ways in. */
 export function InvoicesCard({ records, onBookSaved, onSettingsSaved, newFor, onNewDone }: {
@@ -414,6 +415,7 @@ export function InvoicesCard({ records, onBookSaved, onSettingsSaved, newFor, on
         {writable && <div className="rp-sk-actions">
           <SecondaryButton size="sm" onClick={() => { setNotice(null); setOpen({ kind: "settings" }); }}>Invoice details</SecondaryButton>
           <SecondaryButton size="sm" onClick={() => { setNotice(null); setOpen({ kind: "reminders" }); }}>Reminders</SecondaryButton>
+          <SecondaryButton size="sm" onClick={() => { setNotice(null); setOpen({ kind: "letterhead" }); }}>Letterhead</SecondaryButton>
           {canMake && <PrimaryButton size="sm" onClick={() => { setNotice(null); setOpen({ kind: "edit", form: blankForm(records, settings, { person: !stockistNames(records).length }) }); }}>New invoice</PrimaryButton>}
         </div>}
       </div>
@@ -426,6 +428,7 @@ export function InvoicesCard({ records, onBookSaved, onSettingsSaved, newFor, on
       ) : <EmptyState inline icon="🧾" title="No invoices yet" description={w(canMake ? "Bill a stockist for what they sold, or anyone else for copies they bought." : "Add a title first, then bill stockists and buyers from here.")} />}
 
       {open?.kind === "settings" && <InvoiceSettingsDialog settings={settings} onClose={() => setOpen(null)} onSaved={(value, n) => { onSettingsSaved?.(value); setNotice(n); setOpen(null); }} />}
+      {open?.kind === "letterhead" && <LetterheadDialog invoice={records.invoiceSettings} onClose={() => setOpen(null)} />}
       {open?.kind === "reminders" && <RemindersDialog records={records} onClose={() => setOpen(null)} onSaved={(value, text) => { onSettingsSaved?.(value); setNotice({ tone: "ok", lines: [text] }); setOpen(null); }} />}
       {open?.kind === "edit" && <InvoiceEditor records={records} settings={settings} start={open.form} onClose={() => setOpen(null)} onSaved={saved} />}
       {current && <InvoiceView row={current} settings={settings} onClose={() => setOpen(null)} onSaved={saved}
