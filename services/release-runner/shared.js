@@ -41,7 +41,7 @@ const usable = (version) => (version && version !== "unknown" && !version.includ
 /**
  * The shared server's settings file (functions/.env.<project>): what is the same for every shop. Each shop's own
  * settings (SHOP_KEYS in setup/sharedSteps.js) are fields of its record, read per request (functions/shopConfig.js).
- * `platformUrl` is the platform's address (its /api/payments, /api/email/shop, /api/domains and /api/google doors).
+ * `platformUrl` is the platform's address (its /api/payments, /api/email/shop, /api/domains, /api/google and /api/apps doors).
  */
 export function sharedServerEnv({ platformUrl, region = REGION }) {
   const base = String(platformUrl ?? "").replace(/\/+$/, "");
@@ -57,6 +57,9 @@ export function sharedServerEnv({ platformUrl, region = REGION }) {
     // Connect Google (LMB-PLATFORM google/, on the platform's web server): the shop's Settings › Google page asks it.
     // Until the platform has the Google keys it answers "coming soon".
     `PLATFORM_GOOGLE_URL="${base}/api/google"`,
+    // The app store's shop door (services/apps/shopDoor.js, plan 26.5): Settings › Apps lists the installed apps and the
+    // store, and Add opens each app's connect page. Without it the page shows only the shop's own app activity.
+    `PLATFORM_APPS_URL="${base}/api/apps"`,
     "",
   ].join("\n");
 }
