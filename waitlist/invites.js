@@ -18,7 +18,14 @@ export async function isInvited({ invites }, address) {
   return Boolean(await invites.get(inviteId(address)));
 }
 
-export function createInvites({ invites, email, settings, now = () => new Date() }) {
+export function createInvites({ invites, email, settings, live = null, now = () => new Date() }) {
+  // Free trial days as the control room last set them (`live`, optional), so the invite promises today's length.
+  const trialDays = async () => {
+    try {
+      const days = live ? (await live())?.trialDays : null;
+      return Number.isInteger(days) && days >= 0 ? days : settings.trialDays;
+    } catch { return settings.trialDays; }
+  };
   return {
     isInvited: (address) => isInvited({ invites }, address),
 
@@ -31,7 +38,7 @@ export function createInvites({ invites, email, settings, now = () => new Date()
       if (before) return { email: address, invited: true, sent: false, at: before.at };
       const at = now().toISOString();
       await invites.set(id, { email: address, by, at, usedAt: null, shopId: null });
-      await email.sendPlatform({ kind: "waitlist-invite", to: address, data: { link: `${settings.platformUrl}/signup/` }, idempotencyKey: `waitlist-invite/${id}` });
+      await email.sendPlatform({ kind: "waitlist-invite", to: address, data: { link: `${settings.platformUrl}/signup/`, trialDays: await trialDays() }, idempotencyKey: `waitlist-invite/${id}` });
       return { email: address, invited: true, sent: true, at };
     },
 

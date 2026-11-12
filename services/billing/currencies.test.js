@@ -161,3 +161,20 @@ test("the fee set in the control room reaches the next plan started, in each cur
   saved = null;
   assert.equal((await billing.status("ca-press")).price, "$7.00");
 });
+
+test("free trial days set in the control room reach the next plan started, without a release", async () => {
+  const stripe = fakeBillingStripe({ clock: () => NOW / 1000 });
+  const stores = fakeBillingStores();
+  const settings = platformSettings({});
+  let saved = { ...settings, trialDays: 30 };
+  const billing = createBilling({
+    stripe: createStripeApi({ fetch: stripe.fetch, keys: { test: "sk_test_fake", live: null } }),
+    mode: "test", settings, ...stores, registry: fakeRegistry(), auditLog: fakeAuditLog(), email: fakePlatformEmail(), live: async () => saved, now: () => NOW,
+  });
+  await billing.startTrial({ account: CA, shopId: "ca-press", pressName: "CA Press", country: "CA" });
+  assert.equal((await billing.status("ca-press")).trialDaysLeft, 30);
+  // No trial at all once the control room says 0 days.
+  saved = { ...settings, trialDays: 0 };
+  await billing.startTrial({ account: US, shopId: "us-press", pressName: "US Press", country: "US" });
+  assert.notEqual((await billing.status("us-press")).status, "trialing");
+});

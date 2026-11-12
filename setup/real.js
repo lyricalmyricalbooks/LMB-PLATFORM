@@ -173,8 +173,25 @@ export function folderInventoryLink({ shopData, stockroomRecords, now = () => ne
  * The hosted server's shop maker for the shared system (server/world.js): the `run` createShopMaker calls, or null
  * while `SHARED_SHOPS_PROJECT` and `SHARED_SHOPS_DOMAIN` aren't set (making shops then stays "not switched on").
  * The maker's settings (the shared project's web app) are read once, on the first shop, and again after a failure.
+ * `switchDefaults` (optional) reads the control room's "new shops start with" switches (runConfig).
  */
-export function sharedShopRun({ env = {}, fetch, token, payments = null, email = null, settings = {}, registryFirestore, stagedFiles = null, addresses = null, sleep, version = "1.0.0" }) {
+/**
+ * The maker's settings for one run: the ones read once, with the switches new shops start with as the control room has
+ * them now (`switchDefaults()` -> { name: true | false } | null, read for every shop made, so a change there reaches
+ * the next shop). If they can't be read the shop is still made, with every switch off.
+ */
+export async function runConfig(base, switchDefaults = null, log = console.warn) {
+  if (typeof switchDefaults !== "function") return base;
+  try {
+    const values = await switchDefaults();
+    return values && typeof values === "object" ? { ...base, switchDefaults: values } : base;
+  } catch (failure) {
+    log(`The switches new shops start with couldn't be read, so this shop starts with every switch off: ${failure?.message || failure}`);
+    return base;
+  }
+}
+
+export function sharedShopRun({ env = {}, fetch, token, payments = null, email = null, settings = {}, registryFirestore, stagedFiles = null, addresses = null, switchDefaults = null, sleep, version = "1.0.0" }) {
   const projectId = String(env.SHARED_SHOPS_PROJECT ?? "").trim();
   const shopDomain = String(env.SHARED_SHOPS_DOMAIN ?? "").trim();
   if (!projectId || !shopDomain) return null;
@@ -189,7 +206,7 @@ export function sharedShopRun({ env = {}, fetch, token, payments = null, email =
     return config;
   };
   return async (shop, options = {}) => runSteps({
-    shop, steps: sharedShopSteps({ ...clients, addresses, config: await configNow() }), registry: clients.registry, auditLog: clients.auditLog, ...options,
+    shop, steps: sharedShopSteps({ ...clients, addresses, config: await runConfig(await configNow(), switchDefaults) }), registry: clients.registry, auditLog: clients.auditLog, ...options,
   });
 }
 
