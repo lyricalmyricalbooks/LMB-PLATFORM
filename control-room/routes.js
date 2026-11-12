@@ -3,6 +3,7 @@
 //   GET  /api/control/today    the numbers, monthly income and what needs a person (plan 9.2)
 //   POST /api/control/today-snooze { shopId, kind, days }   leave one shop's line off Today for a while (0 wakes it)
 //   POST /api/control/shop     { shopId }: one shop's record (9.3)
+//   POST /api/control/shop-bills { shopId, after? }: the shop's platform bills, newest first, each with its PDF
 //   POST /api/control/fee      { shopId, basisPoints, refunded, reason }: the shop's per-order fee, 30 days' notice (9.6)
 //   POST /api/control/switch-all  { name, on, reason }: one switch for every live shop (9.7)
 //   GET /api/control/tax-watch               plan sales by province against the registration lines (15.20)
@@ -35,6 +36,7 @@ export function controlRoutes(room) {
     "GET /api/control/today": (claims) => room.today(claims),
     "POST /api/control/today-snooze": (claims, request) => room.snoozeNeed(claims, body(request)),
     "POST /api/control/shop": (claims, request) => room.shop(claims, body(request)),
+    "POST /api/control/shop-bills": (claims, request) => room.shopBills(claims, body(request)),
     "POST /api/control/fee": (claims, request) => room.setFee(claims, body(request)),
     "POST /api/control/switch-all": (claims, request) => room.switchAll(claims, body(request)),
     "GET /api/control/tax-watch": (claims) => room.taxWatch(claims),

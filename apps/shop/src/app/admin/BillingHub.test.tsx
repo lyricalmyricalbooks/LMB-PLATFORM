@@ -46,7 +46,9 @@ function platform() {
       case "payment-methods": return send(200, { ok: true, cards: world.cards });
       case "payment-methods/primary": world.cards = world.cards.map((c) => ({ ...c, primary: c.id === body.cardId })); return send(200, { ok: true, changed: true });
       case "upcoming": return send(200, { ok: true, bill: { date: "2026-11-17T12:00:00Z", lines: [{ words: "Shop and stockroom", amount: "$39.00" }], subtotal: "$39.00", discount: "$9.75", tax: "$3.80", total: "$33.05" } });
-      case "invoices": return send(200, { ok: true, invoices: [{ id: "in_1", number: "COL-0001", date: "2026-10-17T12:00:00Z", amount: "$33.05", tax: "$3.80", status: "paid", pdfUrl: "https://pay.stripe.example/in_1.pdf", pageUrl: null }] });
+      case "invoices":
+        if (body.after === "in_1") return send(200, { ok: true, invoices: [{ id: "in_0", number: "COL-0000", date: "2026-09-17T12:00:00Z", amount: "$33.05", tax: "", status: "paid", pdfUrl: "https://pay.stripe.example/in_0.pdf", pageUrl: null }], more: false, after: null });
+        return send(200, { ok: true, invoices: [{ id: "in_1", number: "COL-0001", date: "2026-10-17T12:00:00Z", covers: { from: "2026-10-17T16:00:00Z", to: "2026-11-17T16:00:00Z" }, amount: "$33.05", tax: "$3.80", status: "paid", pdfUrl: "https://pay.stripe.example/in_1.pdf", pageUrl: null }], more: true, after: "in_1" });
       case "details": return send(200, { ok: true, details: { name: "Moth Press", email: "owner@example.com", address: null, taxNumber: "", taxLabel: "", plusTax: true } });
       case "details/save": return send(200, { ok: true, saved: true });
       case "email-language": world.status = { ...world.status, emailLanguage: { choice: body.language, sends: body.language === "auto" ? "en" : body.language } }; return send(200, { ok: true, changed: true });
@@ -230,8 +232,18 @@ describe("Settings › Billing", () => {
     expect(text()).toContain("$33.05");
     expect(text()).toContain("Mastercard ending 4444");
     expect(text()).toContain("Primary");
-    const pdf = [...document.querySelectorAll("a")].find((a) => a.textContent === "Download") as HTMLAnchorElement;
+    const pdf = [...document.querySelectorAll("a")].find((a) => a.textContent === "Download PDF") as HTMLAnchorElement;
     expect(pdf.href).toBe("https://pay.stripe.example/in_1.pdf");
+    expect(text()).toContain("17 Oct – 17 Nov 2026");
+  });
+
+  it("older bills come a page at a time, each with its own PDF, and the button goes once there are no more", async () => {
+    await mount(BillingPage);
+    await click(button("Show older bills"));
+    expect(world.calls.filter(([c]) => c === "invoices").map(([, b]) => b.after ?? null)).toEqual([null, "in_1"]);
+    const pdfs = [...document.querySelectorAll("a")].filter((a) => a.textContent === "Download PDF").map((a) => (a as HTMLAnchorElement).href);
+    expect(pdfs).toEqual(["https://pay.stripe.example/in_1.pdf", "https://pay.stripe.example/in_0.pdf"]);
+    expect(button("Show older bills")).toBeUndefined();
   });
 
   it("a part that couldn't be read says so with Try again, instead of looking empty", async () => {

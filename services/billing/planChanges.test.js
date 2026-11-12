@@ -154,6 +154,35 @@ test("invoices come newest first with Stripe's PDF links; drafts and odd links a
   assert.equal(list[2].pdfUrl, null);
 });
 
+test("bills page back through every bill, keep an older plan's bills, leave other shops' out and say which days each covers", async () => {
+  const w = make();
+  const row = await w.start();
+  // An earlier plan of this shop (it ended and came back): its subscription is gone, but Stripe kept the shop on the bill.
+  w.stripe.addInvoice("sub_earlier", { customer: row.customerId, created: START / 1000 - 1000 * 86400, parent: { subscription_details: { subscription: "sub_earlier", metadata: { lmb_shop_id: SHOP } } } });
+  // Another shop the same customer pays for: never on this shop's list.
+  w.stripe.addInvoice("sub_other_shop", { customer: row.customerId, created: START / 1000 - 3 * 86400, parent: { subscription_details: { subscription: "sub_other_shop", metadata: { lmb_shop_id: "other-press" } } } });
+  for (let month = 0; month < 30; month += 1) {
+    w.stripe.addInvoice(row.subscriptionId, { created: START / 1000 - month * 30 * 86400 - 3600, lines: { data: [
+      { period: { start: START / 1000 - (month + 1) * 30 * 86400, end: START / 1000 - month * 30 * 86400 } },
+      { period: { start: START / 1000 - month * 30 * 86400 - 10, end: START / 1000 - month * 30 * 86400 } },
+    ] } });
+  }
+  const first = await w.billing.invoicePage(SHOP);
+  assert.equal(first.invoices.length, 24);
+  assert.equal(first.more, true);
+  assert.deepEqual(first.invoices[0].covers, { from: new Date(START - 30 * DAY).toISOString(), to: new Date(START).toISOString() }, "the plan's month, not the short line");
+  const second = await w.billing.invoicePage(SHOP, { after: first.after });
+  assert.equal(second.more, false);
+  assert.equal(second.after, null);
+  const all = [...first.invoices, ...second.invoices];
+  assert.equal(all.length, 31, "thirty monthly bills and the earlier plan's");
+  assert.equal(new Set(all.map((b) => b.id)).size, 31, "no bill twice across pages");
+  assert.ok(!all.some((b) => b.number && w.stripe.world.invoices.get(b.id).subscription === "sub_other_shop"));
+  assert.equal(all.at(-1).date, new Date(START - 1000 * DAY).toISOString());
+  assert.equal((await w.billing.invoicePage(SHOP, { after: "not an id" })).invoices[0].id, first.invoices[0].id, "an odd cursor starts at the top");
+  assert.deepEqual(await w.billing.invoicePage("nobody"), { invoices: [], more: false, after: null });
+});
+
 test("the card-expiring email goes a month ahead, once per card; a new card gets its own", async () => {
   const w = make();
   const row = await w.start();

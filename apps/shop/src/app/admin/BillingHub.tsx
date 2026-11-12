@@ -7,7 +7,7 @@ import {
 import { DownloadShopButton } from "./DownloadShopCard";
 import { hubReady, planDate, type PlatformPlan } from "./platformPlan";
 import {
-  BillingCallError, DROP_CHOICES, alertCents, priceWords, EMAIL_LANGUAGES, LEAVING_CHOICES, downloadableClosedApps, emailLanguageWords, planAddingBack, PROVINCES, appsInWords, billState, billingCall, previewWords, statusBadge,
+  BillingCallError, DROP_CHOICES, alertCents, priceWords, EMAIL_LANGUAGES, LEAVING_CHOICES, downloadableClosedApps, emailLanguageWords, planAddingBack, PROVINCES, appsInWords, billCoversWords, billState, billingCall, previewWords, statusBadge,
   type Bill, type BillingDetails, type BillingStatus, type PaymentWayView, type PlanId, type PlanPreview, type SavedCard, type StatusAnswer, type UpcomingBill,
 } from "./platformBilling";
 
@@ -294,6 +294,9 @@ export function BillingPage({ plan }: Hub) {
   const [cards, setCards] = useState<SavedCard[] | null>(null);
   const [bill, setBill] = useState<UpcomingBill | null | undefined>(undefined);
   const [bills, setBills] = useState<Bill[] | null>(null);
+  // Older bills come a page at a time: where the next page starts, and a failed or running read of it.
+  const [olderFrom, setOlderFrom] = useState<string | null>(null);
+  const [older, setOlder] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null });
   const [details, setDetails] = useState<BillingDetails | null>(null);
   const [draft, setDraft] = useState<{ name: string; email: string; address: typeof EMPTY_ADDRESS; taxNumber: string } | null>(null);
   const [saved, setSaved] = useState(false);
@@ -305,20 +308,32 @@ export function BillingPage({ plan }: Hub) {
     const [c, u, b, d] = await Promise.allSettled([
       billingCall<{ cards: SavedCard[] }>(plan, "payment-methods"),
       billingCall<{ bill: UpcomingBill | null }>(plan, "upcoming"),
-      billingCall<{ invoices: Bill[] }>(plan, "invoices"),
+      billingCall<{ invoices: Bill[]; more?: boolean; after?: string | null }>(plan, "invoices"),
       billingCall<{ details: BillingDetails }>(plan, "details"),
     ]);
     const why = (r: PromiseSettledResult<unknown>) => (r.status === "rejected" ? (r.reason instanceof Error ? r.reason.message : "Something went wrong. Try again in a minute.") : undefined);
     setFailed({ cards: why(c), bill: why(u), bills: why(b), details: why(d) });
     if (c.status === "fulfilled") setCards(c.value.cards);
     if (u.status === "fulfilled") setBill(u.value.bill);
-    if (b.status === "fulfilled") setBills(b.value.invoices);
+    if (b.status === "fulfilled") { setBills(b.value.invoices); setOlderFrom(b.value.more && b.value.after ? b.value.after : null); }
     if (d.status === "fulfilled") {
       setDetails(d.value.details);
       setDraft({ name: d.value.details.name, email: d.value.details.email, address: d.value.details.address ? { ...EMPTY_ADDRESS, ...d.value.details.address } : { ...EMPTY_ADDRESS }, taxNumber: d.value.details.taxNumber });
     }
   }, [plan.hub, plan.shopId]);
   const reload = useCallback(async () => { await Promise.all([load(), loadParts()]); }, [load, loadParts]);
+  const loadOlder = async () => {
+    if (!olderFrom) return;
+    setOlder({ busy: true, error: null });
+    try {
+      const page = await billingCall<{ invoices: Bill[]; more?: boolean; after?: string | null }>(plan, "invoices", { after: olderFrom });
+      setBills((now) => [...(now ?? []), ...page.invoices.filter((b) => !(now ?? []).some((had) => had.id === b.id))]);
+      setOlderFrom(page.more && page.after ? page.after : null);
+      setOlder({ busy: false, error: null });
+    } catch (failure) {
+      setOlder({ busy: false, error: failure instanceof Error ? failure.message : "Something went wrong. Try again in a minute." });
+    }
+  };
   const change = useChange(reload);
   useEffect(() => { void loadParts(); }, [loadParts, plan.hasCard, plan.state]);
 
@@ -459,15 +474,24 @@ export function BillingPage({ plan }: Hub) {
       <SectionCard title="Bills" description="Every bill, newest first, with a copy to download." collapsible={false}>
         {failed.bills && bills === null ? <ErrorState title="Bills not loaded" description={failed.bills} onRetry={() => void loadParts()} />
           : bills === null ? <LoadingState label="Reading your bills…" /> : (
+          <>
           <DataTable<Bill> caption="Your bills" rows={bills} rowKey={(b) => b.id} stackOnPhone
             empty={<EmptyState inline title="No bills yet" description={billing.status === "trialing" ? "Your first bill comes when your trial ends." : "Your bills show here."} />}
             columns={[
               { key: "date", header: "Date", lead: true, render: (b) => (b.date ? planDate(b.date) : "") },
+              { key: "covers", header: "For", render: (b) => billCoversWords(b.covers) || "—" },
               { key: "number", header: "Bill", render: (b) => b.number || "—" },
               { key: "amount", header: "Amount", numeric: true, render: (b) => <>{b.amount}{b.tax ? <span className="rp-hint" style={{ display: "block" }}>incl. {b.tax} tax</span> : null}</> },
               { key: "status", header: "Status", render: (b) => { const s = billState(b.status); return <StatusBadge tone={s.tone}>{s.word}</StatusBadge>; } },
-              { key: "copy", header: "Copy", render: (b) => (b.pdfUrl ? <a href={b.pdfUrl} target="_blank" rel="noopener noreferrer">Download</a> : b.pageUrl ? <a href={b.pageUrl} target="_blank" rel="noopener noreferrer">View</a> : "") },
+              { key: "copy", header: "Copy", render: (b) => (b.pdfUrl ? <a href={b.pdfUrl} target="_blank" rel="noopener noreferrer" aria-label={`Download bill ${b.number || (b.date ? planDate(b.date) : "")} as a PDF`}>Download PDF</a> : b.pageUrl ? <a href={b.pageUrl} target="_blank" rel="noopener noreferrer">View</a> : "") },
             ]} />
+          {older.error && <p className="rp-hint" role="alert" style={{ margin: "12px 0 0" }}>{older.error}</p>}
+          {olderFrom && (
+            <div style={{ marginTop: 12 }}>
+              <SecondaryButton type="button" onClick={() => void loadOlder()} disabled={older.busy}>{older.busy ? "Reading older bills…" : "Show older bills"}</SecondaryButton>
+            </div>
+          )}
+          </>
         )}
       </SectionCard>
       {dialog}

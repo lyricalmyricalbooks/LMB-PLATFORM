@@ -100,7 +100,7 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
   const billNow = (sub, status) => {
     const price = world.prices.get(sub.price)?.unit_amount ?? 0;
     const off = sub.coupon ? Math.round((price * (world.coupons.get(sub.coupon)?.percent_off ?? 0)) / 100) : 0;
-    const invoice = { id: `in_${next++}`, object: "invoice", status, subscription: sub.id, currency: "cad", subtotal: price, total: price - off, amount_due: price - off };
+    const invoice = { id: `in_${next++}`, object: "invoice", status, subscription: sub.id, customer: sub.customer, created: clock(), currency: "cad", subtotal: price, total: price - off, amount_due: price - off };
     world.invoices.set(invoice.id, invoice);
     sub.latest_invoice = invoice.id;
     return invoice;
@@ -269,6 +269,7 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
       // With no subscription named, every invoice (optionally only paid ones since a time), a page at a time.
       let list = [...world.invoices.values()]
         .filter((invoice) => (p.subscription ? invoice.subscription === p.subscription : true))
+        .filter((invoice) => (p.customer ? invoice.customer === p.customer : true))
         .filter((invoice) => (p.status ? invoice.status === p.status : true))
         .filter((invoice) => (p["created[gte]"] ? (invoice.created ?? 0) >= Number(p["created[gte]"]) : true))
         .sort((a, b) => (b.created ?? 0) - (a.created ?? 0));
@@ -370,7 +371,9 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
   /** An invoice Stripe made for a subscription, with its PDF and page. */
   const addInvoice = (subscriptionId, fields = {}) => {
     const id = `in_${next++}`;
+    const sub = world.subscriptions.get(subscriptionId);
     const invoice = {
+      customer: sub?.customer ?? null, parent: { subscription_details: { subscription: subscriptionId, metadata: { ...(sub?.metadata ?? {}) } } },
       id, object: "invoice", subscription: subscriptionId, number: `COL-${String(next).padStart(4, "0")}`, status: "paid", currency: "cad", total: 3900, total_taxes: [], created: clock(),
       invoice_pdf: `https://pay.stripe.example/invoice/${id}/pdf`, hosted_invoice_url: `https://invoice.stripe.example/${id}`, ...fields,
     };

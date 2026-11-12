@@ -564,6 +564,37 @@ function emailSampleView(sample) {
     el("pre", { style: "white-space: pre-wrap; font: inherit; margin: 0", textContent: sample.text }))];
 }
 
+// The shop's platform bills (what Colophon charged it), read when the record opens, each with Stripe's PDF.
+const BILL_WORDS = { paid: ["success", "paid"], open: ["warning", "waiting for payment"], void: ["neutral", "cancelled"], uncollectible: ["danger", "not paid"] };
+function billsView(shopId) {
+  const slot = el("div", { dataset: { shopBills: shopId } }, el("p", { className: "rp-hint", textContent: "Reading bills…" }));
+  const rows = el("ul", { className: "cr-steps" });
+  const load = async (after) => {
+    try {
+      const page = await api("POST", "/control/shop-bills", { shopId, ...(after ? { after } : {}) });
+      if (!after && !page.invoices.length) return slot.replaceChildren(el("p", { className: "rp-hint", textContent: "No bills yet." }));
+      if (!after) slot.replaceChildren(rows);
+      rows.append(...page.invoices.map((bill) => {
+        const [tone, word] = BILL_WORDS[bill.status] ?? ["neutral", bill.status];
+        const link = bill.pdfUrl || bill.pageUrl;
+        return el("li", {}, `${dateOnly(bill.date)} · ${bill.number || "no number"} · ${bill.amount}${bill.tax ? ` (incl. ${bill.tax} tax)` : ""} `, pill(tone, word),
+          link ? el("a", { href: link, target: "_blank", rel: "noopener noreferrer", textContent: bill.pdfUrl ? " PDF" : " View", style: "margin-left: 8px" }) : null);
+      }));
+      slot.querySelector("[data-older]")?.remove();
+      if (page.more && page.after) {
+        const older = el("button", { type: "button", className: "rp-btn rp-btn-secondary rp-btn-sm", textContent: "Show older bills", dataset: { older: "" } });
+        older.addEventListener("click", () => { older.disabled = true; void load(page.after); });
+        slot.append(older);
+      }
+    } catch (failure) {
+      slot.querySelector("[data-older]")?.remove();
+      slot.append(el("p", { className: "rp-hint", role: "alert", textContent: failure.message }));
+    }
+  };
+  void load(null);
+  return slot;
+}
+
 function recordView(record) {
   const billing = record.billing;
   const connections = record.connections;
@@ -580,6 +611,7 @@ function recordView(record) {
   ].filter(([, value]) => value);
   return el("div", { className: "record" },
     el("dl", { className: "cr-facts" }, ...facts.flatMap(([label, value]) => [el("dt", { textContent: label }), el("dd", { textContent: value })])),
+    ...(record.billing ? [el("h3", { className: "cr-section", textContent: "Bills" }), billsView(record.shopId)] : []),
     ...emailSampleView(record.emailSample),
     ...deliveryView(record.delivery),
     el("h3", { className: "cr-section", textContent: "Setup" }),
