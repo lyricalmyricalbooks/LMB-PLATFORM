@@ -78,7 +78,7 @@ const srcFiles = [];
 // Lower these as screens move over; never raise them.
 // 1,382 when this started (766 in index.html, 616 + the 18 the assistant
 // panel and the Big Cartel screen just dropped in src).
-const MAX_IN_INDEX_HTML = 766;
+const MAX_IN_INDEX_HTML = 765;
 const MAX_IN_SRC = 616;
 
 // Screens already on named actions stay there.

@@ -152,3 +152,10 @@ shows for the author view, a stockroom-only press (its five-step guide shows ins
 The link itself is set up by the platform (`setup/later-steps.js`, step 16): every shop with both apps turns its stockroom
 link on at setup and starts its sales from that day (Toronto time). A new press's own books are not the test catalogue, so
 step 12 writes that catalogue for the test shop only. Tests: `tests/stockroom-ready.test.js`, `setup/later-steps.test.js`.
+
+## Till payment sheet (v4 mockup 1j, 12 November 2026)
+Charge on the till opens `#m-pos-sale-confirm` as one sheet: total in the header, **How they pay** pills
+(`.pos-sheet-opt`, the same `#pos-payment-method` select as the till's own pills; `posSyncPaymentSeg` keeps both rows in
+step), and for cash the quick amounts, **Cash given** and a Change due / Still to pay tile. Charge (`posSheetCharge`)
+calls `posConfirmSale` exactly as before and waits while typed cash is short; no cash typed charges as before. Its
+buttons are named actions (`startPosSheet` in `pos.js`), never inline handlers. Tests: `tests/pos-payment-sheet.test.js`.

@@ -968,6 +968,7 @@ import {
   posConfigureRates,
   posCheckout,
   posConfirmSale,
+  startPosSheet,
   posPrintReceipt,
   posSyncPaymentSeg,
   fairSummaryData,
@@ -11187,6 +11188,7 @@ startInsideAdmin({
 // One search box (top-bar 🔍, Ctrl/⌘ K, "/"): this app's books and the website's.
 startAppSearch();
 startStockPlaces();
+startPosSheet();
 // The return lands in the tab Stripe opened; refresh any other open tab too.
 window.addEventListener('storage', e => { if (e.key === PAID_TAP_KEY) { try { renderArtistTransfers(); } catch (_) { /* still loading */ } } });
 

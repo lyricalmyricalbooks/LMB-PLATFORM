@@ -48,12 +48,13 @@ describe('Milestone 1 — Feature 2: POS Card Actions & Add-Tile Kinetic Hover',
 describe('Milestone 1 — Feature 3: POS Sale Confirmation Monospace & Receipt Surface', () => {
   it('modernizes POS sale confirmation modal total and metadata with DM Mono tabular figures and canonical surfaces', () => {
     // HTML checks
-    expect(html).toContain('class="pos-confirm-meta-grid"');
-    expect(html).toContain('class="pos-confirm-summary-well"');
+    // v4 payment sheet: the total sits in the sheet's header, How they pay and the cash tile below it.
+    expect(html).toContain('class="modal pos-sheet"');
+    expect(html).toContain('id="pos-sheet-change"');
     expect(html).toContain('id="pos-confirm-total" class="pos-confirm-total-val mono-num"');
 
     // CSS checks
-    expect(styleCss).toMatch(/\.pos-confirm-summary-well\s*\{[^}]*background:\s*var\(--surface-sunken\)/);
+    expect(styleCss).toMatch(/\.pos-sheet-note\s*\{[^}]*background:\s*var\(--surface-sunken\)/);
     expect(styleCss).toMatch(/\.pos-confirm-total-val\s*\{[^}]*font-family:\s*var\(--font-mono\)/);
     expect(styleCss).toMatch(/\.pos-confirm-total-val\s*\{[^}]*font-feature-settings:\s*"tnum" 1/);
 

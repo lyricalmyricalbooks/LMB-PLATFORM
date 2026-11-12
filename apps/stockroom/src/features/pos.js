@@ -44,6 +44,7 @@ import { BOOKS, states, activeBook, withActiveBook } from '../core/store.js';
 import { recordOrder, voidHistEntry } from './sales-ledger.js';
 import { updateDash } from './dashboard.js';
 import { escapeHtml } from '../lib/html.js';
+import { registerActions } from '../lib/actions.js';
 import { words } from '../lib/shop-words.js';
 import { closeM, confirmDialog, openM, promptDialog } from '../lib/modal.js';
 import { buildPaymentMeta, getBookCurrencyCode, getSym, normalizeCurrencyCode, roundCents } from '../lib/money.js';
@@ -462,6 +463,9 @@ function renderPOS() {
       : posFormat(convertedTotal, posTransactionCurrency);
   }
   posSyncReviewBar(cartRows.reduce((count, row) => count + row.qty, 0), totalEl?.textContent || '');
+  // v4: the till's one button names the amount ("Charge $42.00"); it opens the payment sheet.
+  const checkoutLabel = $('pos-checkout-label');
+  if (checkoutLabel) checkoutLabel.textContent = cartRows.length && totalEl ? `Charge ${totalEl.textContent}` : 'Charge';
   renderFairMode(booksArr, Object.keys(booksToRender).length, cartRows, totalEl?.textContent || '');
   posSyncPaymentSeg();
   if (totalNoteEl) {
@@ -841,7 +845,7 @@ function posPickPayment(value) {
 
 function posSyncPaymentSeg() {
   const value = $('pos-payment-method')?.value;
-  document.querySelectorAll('.pos-pay-opt').forEach((b) => {
+  document.querySelectorAll('.pos-pay-opt, .pos-sheet-opt').forEach((b) => {
     b.setAttribute('aria-checked', String(b.dataset.pay === value));
   });
 }
@@ -1220,6 +1224,8 @@ function posPreparePendingSale() {
     rows,
     hasMissingFx,
     totalCharged,
+    // The total as a number, for the payment sheet's change (none for a mixed-currency cart).
+    totalAmount: hasMissingFx ? null : convertedSum,
     currency: posTransactionCurrency,
     timestampIso: timestamp.toISOString(),
     timestampLabel: localeTs
@@ -1244,7 +1250,107 @@ function posCheckout() {
   $('pos-confirm-payment').textContent = method;
   $('pos-confirm-timestamp').textContent = localeTs;
   $('pos-confirm-total').textContent = totalCharged;
+  const count = rows.reduce((n, row) => n + row.qty, 0);
+  if ($('pos-sheet-count')) $('pos-sheet-count').textContent = `${count} ${count === 1 ? 'item' : 'items'}`;
+  if ($('pos-sheet-given')) $('pos-sheet-given').value = '';
+  posSheetPaint();
   openM('pos-sale-confirm');
+}
+
+// ── The payment sheet (v4 mockup 1j) ──────────────────────────────────────
+// How they pay is the same choice as the till's own (one select, both rows of
+// pills follow it). Cash shows quick amounts, the cash given and the change;
+// the other ways say what to do before charging. Charge records the sale with
+// posConfirmSale, exactly as before; it waits while cash given is short.
+const SHEET_NOTES = {
+  Card: 'Take the card on your reader, then charge.',
+  'Bank Transfer': 'Check the transfer has arrived, then charge.',
+  'Stripe QR': 'Show them the QR code (Pay by QR on the till). Charge once it is paid.',
+  'Comp/Gift': 'A gift: no money is taken. It still comes off your stock.',
+};
+
+function posSheetGiven() {
+  const raw = $('pos-sheet-given')?.value;
+  if (raw === undefined || raw === null || String(raw).trim() === '') return null;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+/** What cash given leaves: change due, still to pay, or nothing to say yet. */
+function posSheetShort() {
+  const sale = posPendingSale;
+  if (!sale || sale.method !== 'Cash' || sale.totalAmount === null || sale.totalAmount === undefined) return null;
+  const given = posSheetGiven();
+  if (given === null) return null;
+  return Math.round((sale.totalAmount - given) * 100) / 100;
+}
+
+function posSheetPaint() {
+  const sale = posPendingSale;
+  if (!sale) return;
+  posSyncPaymentSeg();
+  const cash = sale.method === 'Cash' && sale.totalAmount !== null && sale.totalAmount !== undefined;
+  const cashBox = $('pos-sheet-cash');
+  if (cashBox) cashBox.hidden = !cash;
+  const note = $('pos-sheet-note');
+  if (note) {
+    const text = sale.method === 'Cash' ? (cash ? '' : 'Mixed currencies: count the cash by hand.') : (SHEET_NOTES[sale.method] || '');
+    note.textContent = text;
+    note.hidden = !text;
+  }
+  const tile = $('pos-sheet-change');
+  const short = posSheetShort();
+  if (tile) {
+    tile.hidden = short === null;
+    if (short !== null) {
+      tile.dataset.tone = short > 0 ? 'short' : 'covered';
+      tile.innerHTML = short > 0
+        ? `<span>Still to pay</span><strong class="mono-num">${escapeHtml(posFormat(short, sale.currency))}</strong>`
+        : `<span>Change due</span><strong class="mono-num">${escapeHtml(posFormat(-short, sale.currency))}</strong>`;
+    }
+  }
+  const charge = $('pos-sheet-charge');
+  if (charge) {
+    charge.textContent = `Charge ${sale.totalCharged}`;
+    if (short !== null && short > 0) charge.setAttribute('aria-disabled', 'true');
+    else charge.removeAttribute('aria-disabled');
+  }
+  const payment = $('pos-confirm-payment');
+  if (payment) payment.textContent = sale.method;
+}
+
+function posSheetPick(method) {
+  posPickPayment(method);
+  if (posPendingSale) posPendingSale.method = method;
+  posSheetPaint();
+}
+
+function posSheetCash(amount) {
+  const sale = posPendingSale;
+  const input = $('pos-sheet-given');
+  if (!sale || !input) return;
+  input.value = amount === 'exact' ? (sale.totalAmount ?? 0).toFixed(2) : String(amount);
+  posSheetPaint();
+}
+
+/** Name the payment sheet's buttons; main.js calls this once at start-up. */
+function startPosSheet() {
+  registerActions({
+    'pos.sheetPick': (el) => posSheetPick(el.dataset.pay),
+    'pos.sheetCash': (el) => posSheetCash(el.dataset.amount === 'exact' ? 'exact' : Number(el.dataset.amount)),
+    'pos.sheetPaint': () => posSheetPaint(),
+    'pos.sheetCharge': () => posSheetCharge(),
+  });
+}
+
+function posSheetCharge() {
+  const short = posSheetShort();
+  if (short !== null && short > 0) {
+    showToast(`${posFormat(short, posPendingSale.currency)} still to pay`, 'warn');
+    $('pos-sheet-given')?.focus();
+    return;
+  }
+  return posConfirmSale();
 }
 
 // True while a sale is being written. A second tap on Complete Sale — easy on
@@ -1472,6 +1578,11 @@ export {
   posConfigureRates,
   posCheckout,
   posConfirmSale,
+  posSheetPick,
+  startPosSheet,
+  posSheetCash,
+  posSheetCharge,
+  posSheetPaint,
   posPrintReceipt,
   posSyncPaymentSeg,
 };
