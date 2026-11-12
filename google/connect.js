@@ -102,7 +102,7 @@ export function createGoogleConnect({ google, tokens, shopFirebase, domainsCall,
       }
       const measurementId = stream.webStreamData.measurementId;
       const streamId = stream.name.split("/").pop();
-      if (prev.measurementId !== measurementId || prev.propertyId !== propertyId || !prev.writtenAt || prev.tagStoppedAt) {
+      if (prev.measurementId !== measurementId || prev.propertyId !== propertyId || !prev.writtenAt || prev.tagStoppedAt || !prev.serverCopy) {
         await shopFirebase.writeAnalytics(ctx.row, { measurementId, propertyId });
       }
       const viewer = ctx.google.firebase?.serviceAccount ?? (await shopFirebase.serviceAccount(ctx.row));
@@ -112,7 +112,7 @@ export function createGoogleConnect({ google, tokens, shopFirebase, domainsCall,
       }
       return {
         state: "done", detail: "Visits to your shop are counted in your Google Analytics, for visitors who agree to it.",
-        record: { propertyId, streamId, measurementId, viewer, writtenAt: prev.propertyId === propertyId && prev.writtenAt && !prev.tagStoppedAt ? prev.writtenAt : iso(), tagStoppedAt: null },
+        record: { propertyId, streamId, measurementId, viewer, serverCopy: true, writtenAt: prev.propertyId === propertyId && prev.writtenAt && !prev.tagStoppedAt ? prev.writtenAt : iso(), tagStoppedAt: null },
       };
     },
 
@@ -156,13 +156,14 @@ export function createGoogleConnect({ google, tokens, shopFirebase, domainsCall,
       }
       // The Overview reads the own address's figures once it is verified, else the shop's.
       const chosen = domain && sites[`sc-domain:${domain}`]?.done ? `sc-domain:${domain}` : shopSite;
-      if (prev.chosen !== chosen) await shopFirebase.writeSearchConsoleSite(ctx.row, chosen);
+      // `serverCopy`: connections from before 12 November 2026 get the server-only copy on their next run.
+      if (prev.chosen !== chosen || !prev.serverCopy) await shopFirebase.writeSearchConsoleSite(ctx.row, chosen);
       return {
         state: "done",
         detail: waitingOn
           ? `Your shop is on Google search and its book list was sent. ${waitingOn} joins once its Allow step is done.`
           : "Your shop is on Google search and its book list was sent.",
-        record: { sites, chosen },
+        record: { sites, chosen, serverCopy: true },
       };
     },
 

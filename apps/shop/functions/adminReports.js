@@ -62,22 +62,31 @@ function adminReportActions({ db, admin, requireAdmin, readAdminSecret, hitLimit
     }
   }
 
-  // On the shared server one Google account would read for every shop, so a shop could save another shop's property
-  // and read its figures. There, Google is reached only through Connect Google (each shop's own sign-in).
+  // On the shared server one Google account reads for every shop, so a shop that typed in another shop's property
+  // could read its figures. There the property and the search site come only from what Connect Google set up
+  // (adminSecrets/googleLink, written by the platform and closed to every browser by firestore.rules).
+  const USE_CONNECT_GOOGLE = { connected: false, code: "use_connect_google", error: "These figures come through Connect Google. Open Settings › Google and connect there." };
   function sharedGoogleOff(res) {
     if (!foldersOn()) return false;
-    res.status(200).json({ connected: false, code: "use_connect_google", error: "These figures come through Connect Google. Open Settings › Google and connect there." });
+    res.status(200).json(USE_CONNECT_GOOGLE);
     return true;
+  }
+  /** The saved Google settings: the shop's own on its own server, Connect Google's on the shared one (null = not connected). */
+  async function googleSettings(field) {
+    if (!foldersOn()) return readAdminSecret("googleAnalytics");
+    const linked = await readAdminSecret("googleLink");
+    return linked && linked[field] ? linked : null;
   }
 
   // Overview › Google Analytics figures (admin): the GA4 Data API read with this function's own service account.
   async function handleGa4ReportRequest(req, res) {
     const adminUser = await requireAdmin(req, res);
     if (!adminUser) return;
-    if (sharedGoogleOff(res)) return;
     try {
+      const saved = await googleSettings("propertyId");
+      if (!saved) return void res.status(200).json(USE_CONNECT_GOOGLE);
       const { status, body } = await handleGa4Report(req.body || {}, {
-        readSettings: () => readAdminSecret("googleAnalytics"),
+        readSettings: async () => saved,
         allow: () => hitLimit(db, "ga4-report", req, LIMITS.ga4),
         credentials: () => metadataCredentials(fetch),
         fetchImpl: fetch,
@@ -94,10 +103,11 @@ function adminReportActions({ db, admin, requireAdmin, readAdminSecret, hitLimit
   async function handleSearchConsoleRequest(req, res) {
     const adminUser = await requireAdmin(req, res);
     if (!adminUser) return;
-    if (sharedGoogleOff(res)) return;
     try {
+      const saved = await googleSettings("searchConsoleSite");
+      if (!saved) return void res.status(200).json(USE_CONNECT_GOOGLE);
       const { status, body } = await handleSearchConsole(req.body || {}, {
-        readSettings: () => readAdminSecret("googleAnalytics"),
+        readSettings: async () => saved,
         allow: () => hitLimit(db, "search-console", req, LIMITS.ga4),
         credentials: () => metadataCredentials(fetch, SEARCH_CONSOLE_SCOPE),
         fetchImpl: fetch,

@@ -27,7 +27,10 @@ test("a shared shop's writes land in its own folder of its own project", async (
   assert.equal(await shop.serviceAccount(row), "4242-compute@developer.gserviceaccount.com");
   await shop.writeAnalytics(row, { measurementId: "G-ABC", propertyId: "123" });
   await shop.publishVerificationFile(row, { name: "google0123456789abcdef.html", content: "x" });
+  await shop.writeSearchConsoleSite(row, "https://test-press.example/");
   const writes = sent.filter((s) => s.method === "PATCH").map((s) => decodeURIComponent(s.url));
+  // The server-only copy the shared server reads its Google figures from (no browser can write it).
+  assert.equal(writes.filter((u) => u.includes("/shops/test-press/adminSecrets/googleLink")).length, 2);
   assert.ok(writes.every((u) => u.includes("projects/lmb-test-shop/databases/(default)/documents/shops/test-press/")), writes.join("\n"));
   assert.ok(sent.some((s) => s.url.includes("/b/lmb-test-shop.firebasestorage.app/o") && decodeURIComponent(s.url).includes("name=shops/test-press/site/google0123456789abcdef.html")));
   await assert.rejects(() => shop.publishVerificationFile(row, { name: "../index.html", content: "x" }));

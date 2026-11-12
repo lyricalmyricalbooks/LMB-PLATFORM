@@ -6,7 +6,7 @@ import { PrimaryButton, SecondaryButton, TextField } from "./riso/components";
 import { BACKUP_USED_KEY, BackupCodeError, TwoStepNeeded, backupCodeLooksRight, codeLooksRight, twoStepWords } from "./adminTwoStep";
 import { loginErrorMessage } from "./loginError";
 import { shopNameFromSettings, wordmarkWords } from "../features/site/shopIdentity";
-import { useShopWords } from "./shopWords";
+import { loginWords } from "./loginWords";
 
 interface LoginProps {
   onLogin: (token: string) => void;
@@ -20,7 +20,6 @@ function shopHref() {
 }
 
 export function Login({ onLogin }: LoginProps) {
-  const w = useShopWords();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   // Google said yes and this person uses authenticator codes: the code step (plan 22.6).
@@ -30,9 +29,12 @@ export function Login({ onLogin }: LoginProps) {
   const [backup, setBackup] = useState(false);
   // The shop's own name (plan 1.16), read from the public settings; nothing is shown until it arrives.
   const [name, setName] = useState("");
+  // What the shop sells, from the same public settings: nobody is signed in yet, so the admin's own words aren't known.
+  const [sells, setSells] = useState<string | null>(null);
+  const say = loginWords(sells);
   useEffect(() => {
     let live = true;
-    Promise.resolve(adminApi.getPublicSettings?.()).then((s) => { if (live) setName(shopNameFromSettings(s)); }).catch(() => { if (live) setName(shopNameFromSettings(null)); });
+    Promise.resolve(adminApi.getPublicSettings?.()).then((s) => { if (live) { setName(shopNameFromSettings(s)); setSells(typeof s?.sells === "string" ? s.sells : null); } }).catch(() => { if (live) setName(shopNameFromSettings(null)); });
     return () => { live = false; };
   }, []);
   const words = wordmarkWords(name);
@@ -100,10 +102,10 @@ export function Login({ onLogin }: LoginProps) {
           <div className="rp-login-brand">
             <span className="rp-brand-mark rp-login-mark"><BookOpen size={24} aria-hidden /></span>
             <h1 className="rp-page-title rp-login-title">{words.first}{words.rest ? <span> {words.rest}</span> : null}</h1>
-            <p className="rp-wordmark-sub">Publishing House · Admin</p>
+            <p className="rp-wordmark-sub">{say.sub}</p>
           </div>
           <p className="rp-card-desc rp-login-lede">
-            {pending && backup ? "Lost your phone? A backup code lets you in. You'll set up your app again straight after." : pending ? "One more step: the code from your authenticator app." : w("Sign in with the shop's Google account to manage books, orders and settings.")}
+            {pending && backup ? "Lost your phone? A backup code lets you in. You'll set up your app again straight after." : pending ? "One more step: the code from your authenticator app." : say.lede}
           </p>
           {pending && backup ? (
             <form className="rp-stack" style={{ gap: 12 }} data-two-step-backup onSubmit={(e) => { e.preventDefault(); void handleBackup(); }}>

@@ -121,10 +121,12 @@ async function handleSearchConsole(body, deps) {
 
   const list = await fetchJson(deps.fetchImpl, `${API}sites`, { headers });
   if (!list.ok) return fail(list);
-  const sites = (list.body?.siteEntry || [])
+  const every = (list.body?.siteEntry || [])
     .filter(s => s && s.siteUrl && s.permissionLevel !== "siteUnverifiedUser")
     .map(s => ({ siteUrl: String(s.siteUrl), permissionLevel: String(s.permissionLevel || "") }));
-  const site = pickSite(saved?.searchConsoleSite, sites);
+  const site = pickSite(saved?.searchConsoleSite, every);
+  // On the shared server the one Google account sees every shop's site: this shop is told about its own only.
+  const sites = foldersOn() ? every.filter(s => s.siteUrl === site) : every;
   if (!sites.length) {
     return { status: 200, body: { ...base, connected: false, sites, code: "no_access", error: `Search Console hasn't given the shop access yet. In Search Console › Settings › Users and permissions › Add user, add ${creds.email || "the shop's service account"} with Restricted permission.` } };
   }

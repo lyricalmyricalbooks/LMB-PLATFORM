@@ -186,7 +186,9 @@ service cloud.firestore {
       match /adminSecrets/{docId} {
         // Staff see whether the Stripe webhook is set up; the keys themselves are the owner's.
         allow read: if isOwner() || (isAdminReader() && docId == "stripeWebhookStatus");
-        allow write: if isOwner();
+        // googleLink is what Connect Google set up (the platform writes it): the server reads Google's figures for
+        // that property alone, so no browser may point it at another shop's.
+        allow write: if isOwner() && docId != 'googleLink';
       }
       // The owner's Team list (Settings › Team): one document per person, named by their lower-case email.
       // functions/roles.js copies the role onto that person's sign-in pass. "author" is for the stockroom only: it is not
