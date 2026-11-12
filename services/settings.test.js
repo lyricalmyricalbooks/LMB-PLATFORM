@@ -9,6 +9,7 @@ test("defaults: Colophon, a $5 CAD platform fee a month on every plan, 14-day tr
     domain: "platform.example",
     senderEmail: "notifications@platform.example",
     supportEmail: "support@platform.example",
+    receiptsEmail: "receipts@platform.example",
     mailingAddress: "",
     currency: "CAD",
     prices: { shop: 500, stockroom: 500, both: 500 },

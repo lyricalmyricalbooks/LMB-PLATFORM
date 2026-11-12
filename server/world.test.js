@@ -337,3 +337,20 @@ test("the social stores keep each record in the platform's database: one use for
   assert.equal((await stores.sent.claim(key, { state: "sending", at: "2026-11-13T00:00:00.000Z" }, { staleBefore: "2026-11-12T23:50:00.000Z" })).claimed, false, "never posted twice");
   assert.equal(socialEnv({ PLATFORM_URL: "https://platform.example/" }).SOCIAL_REDIRECT_BASE, "https://platform.example/api/social");
 });
+
+test("a shared-system shop reaches its receipts at the address its server is given (receipts by email, beta)", async () => {
+  const { sharedServerEnv } = await import("../services/release-runner/shared.js");
+  const receiptsUrl = /^PLATFORM_RECEIPTS_URL="([^"]+)"$/m.exec(sharedServerEnv({ platformUrl: "https://platform.example" }))?.[1];
+  assert.equal(receiptsUrl, "https://platform.example/api/receipts");
+  // The shop's server posts to `${PLATFORM_RECEIPTS_URL}/shop` (apps/shop/functions/receiptInbox.js).
+  const path = `${new URL(receiptsUrl).pathname}/shop`;
+  const { world } = build();
+  const key = "shared-server-key-0123456789abcdef0123456789";
+  await world.registry.createShop("moth-press", { shopId: "moth-press", status: "live", serviceKeyHash: hashServiceKey(key) });
+  const refused = await world.handle({ method: "POST", path, headers: { "X-Shop-Id": "moth-press" }, body: { op: "receipts.status", args: {} } });
+  assert.equal(refused.status, 401);
+  // RECEIPT_MAIL isn't on in the test settings: the door answers, and says it isn't open yet.
+  const status = await world.handle({ method: "POST", path, headers: { "X-Shop-Id": "moth-press", Authorization: `Bearer ${key}` }, body: { op: "receipts.status", args: {} } });
+  assert.equal(status.status, 200, JSON.stringify(status.body));
+  assert.deepEqual([status.body.available, status.body.on, status.body.address], [false, false, ""]);
+});

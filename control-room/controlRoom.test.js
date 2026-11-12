@@ -623,6 +623,10 @@ test("one shop's record: owner, billing, setup, fee and its history, admins only
   // When Stripe pays the press (kept from account.updated), so "where's my money?" is answered from the record.
   await w.registry.updateShop(ID, { payments: { provider: "stripe", accountId: "acct_x", payoutsEnabled: true, payoutSchedule: { interval: "weekly", delayDays: 7, weeklyAnchor: "friday", monthlyAnchor: null } } });
   assert.equal((await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: ID })).body.connections.payments.payouts, "on · every Friday");
+  // Receipts by email (services/receipts): on or off and since when, never the shop's private address.
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: ID })).body.connections.receipts, null);
+  await w.registry.updateShop(ID, { receiptMail: { code: "abcdefgh", on: true, startedAt: "2026-11-12T16:00:00.000Z" } });
+  assert.deepEqual((await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: ID })).body.connections.receipts, { on: true, since: "2026-11-12T16:00:00.000Z", today: 0 });
   const listed = (await w.ask(ADMIN, "GET", "/api/control/shops")).body.shops.find((s) => s.shopId === ID);
   assert.deepEqual([listed.ownerEmail, listed.billingStatus], ["owner@example.com", "trialing"]);
   assert.equal(listed.emailLanguage, "en", "the list carries each press's email language too");

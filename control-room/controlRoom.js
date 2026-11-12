@@ -498,6 +498,8 @@ export function createControlRoom({
           domains: row.domains ?? null,
           google: row.google ?? null,
           email: row.emailSending ?? null,
+          // Receipts by email (services/receipts): on or off, since when and today's count. Never the address itself.
+          receipts: row.receiptMail ? { on: row.receiptMail.on === true, since: row.receiptMail.startedAt ?? null, today: row.receiptMail.day === now().toISOString().slice(0, 10) ? Number(row.receiptMail.handed) || 0 : 0 } : null,
         },
         fee: { ...fee, next, defaults: feeDefaults },
         lastChecks: checks.slice(-5).reverse(),

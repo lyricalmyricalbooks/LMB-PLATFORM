@@ -154,3 +154,21 @@ to 24 hours and the email is logged as failed (retryable). Shops whose own Gmail
 count. Google's rules forbid bulk marketing from Workspace, so shop newsletters should go from the press's own Gmail.
 When the platform outgrows one mailbox, the next step is more mailboxes or Google's SMTP relay (10,000 a day each).
 
+## Receipts by email (beta)
+
+Each shop can get its own receipts address, `receipts+<shop>.<8 letters>@<platform domain>`. The owner forwards
+receipts to it and checks them in the shop admin (Bookkeeping › Receipts) before any becomes an expense
+(`services/receipts`). The addresses are plus-addresses of the same mailbox as above, so there is nothing to make per
+shop, and nobody's own Gmail is read. Julian, once, after "Email through Google":
+
+1. **Give the mailbox the receipts address.** Workspace admin: Directory › Users › the notifications user › Add
+   alternate emails: `receipts@<domain>` (or set `PLATFORM_RECEIPTS_EMAIL` to another address of that mailbox).
+2. **Let the mail account read that mailbox.** Workspace admin: Security › Access and data control › API controls ›
+   Manage domain-wide delegation › the `platform-mail` line › Edit: add the scope
+   `https://www.googleapis.com/auth/gmail.modify` beside `gmail.send`. It covers Colophon's own mailbox only.
+3. **Switch it on.** Add `RECEIPT_MAIL: "on"` to the repository variable `SERVER_SETTINGS`; the next deploy carries it.
+   The Launch page shows "Receipts by email (beta)" ready, and shops' "Opening soon" becomes "Set up".
+
+A receipt is binned in the mailbox once the owner adds or dismisses it (Google deletes binned mail after 30 days). A
+shop is handed at most 150 emails a day.
+

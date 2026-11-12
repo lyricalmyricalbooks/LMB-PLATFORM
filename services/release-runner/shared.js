@@ -41,7 +41,7 @@ const usable = (version) => (version && version !== "unknown" && !version.includ
 /**
  * The shared server's settings file (functions/.env.<project>): what is the same for every shop. Each shop's own
  * settings (SHOP_KEYS in setup/sharedSteps.js) are fields of its record, read per request (functions/shopConfig.js).
- * `platformUrl` is the platform's address (its /api/payments, /api/email/shop, /api/domains, /api/google and /api/apps doors).
+ * `platformUrl` is the platform's address (its /api/payments, /api/email/shop, /api/domains, /api/google, /api/apps and /api/receipts doors).
  */
 export function sharedServerEnv({ platformUrl, region = REGION }) {
   const base = String(platformUrl ?? "").replace(/\/+$/, "");
@@ -66,6 +66,9 @@ export function sharedServerEnv({ platformUrl, region = REGION }) {
     // Social channels (services/social/hosted.js): Sales channels connects Facebook & Instagram, Pinterest and TikTok.
     // Until the platform has the networks' keys and SOCIAL_ENABLED, the page shows the by-hand steps.
     `PLATFORM_SOCIAL_URL="${base}/api/social"`,
+    // Receipts by email (services/receipts, beta): Bookkeeping › Receipts gives the shop its receipts address and
+    // collects what was forwarded to it. Until the platform has RECEIPT_MAIL on, the card says "Opening soon".
+    `PLATFORM_RECEIPTS_URL="${base}/api/receipts"`,
     "",
   ].join("\n");
 }

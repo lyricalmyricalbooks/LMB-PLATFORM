@@ -607,6 +607,8 @@ function recordView(record) {
     ["Emails", EMAIL_LANGUAGE_WORDS[record.emailLanguage] ?? ""],
     ["Payments", connections.payments ? `${CARD_WORDS[connections.payments.provider] ?? connections.payments.provider ?? "?"}${connections.payments.connected ? ", connected" : ", not connected yet"}${connections.payments.payouts ? ` · payouts ${connections.payments.payouts}` : ""}` : "not set up yet"],
     ["Web address", Array.isArray(connections.domains) && connections.domains.length ? connections.domains.map(addressWords).join(", ") : "the shop's own .web.app address"],
+    // Receipts by email (beta, services/receipts): shown once the shop has ever set it up.
+    ["Receipts by email", connections.receipts ? (connections.receipts.on ? `on since ${dateOnly(connections.receipts.since)}${connections.receipts.today ? ` · ${plural(connections.receipts.today, "email")} read today` : ""}` : "turned off by the shop") : ""],
     ["Version", record.version ?? "none yet"],
   ].filter(([, value]) => value);
   return el("div", { className: "record" },
@@ -746,11 +748,11 @@ async function loadLaunch() {
       }
     });
     return sheet({
-      title: key.label, tone: key.ready ? "success" : "warning", pillWords: key.ready ? "In place" : "Not added",
+      title: key.label, tone: key.ready ? "success" : key.optional ? "neutral" : "warning", pillWords: key.ready ? "In place" : key.optional ? "Optional" : "Not added",
       metaParts: [key.secret ? `secret: ${key.secret}` : `setting: ${key.setting}`],
       body: [el("p", { className: "rp-hint", textContent: key.gives }), key.events ? meta(`events address: ${key.events}`) : null],
       actions: key.ready ? null : el("div", { className: "cr-actions" },
-        key.getIt ? outLink(key.getIt, "Get the key", "primary") : null,
+        key.getIt ? outLink(key.getIt, key.optional ? "Open Google Workspace" : "Get the key", key.optional ? "ghost" : "primary") : null,
         key.events ? outLink("https://dashboard.stripe.com/test/webhooks", "Open Stripe webhooks", "primary") : null,
         copy, secrets ? outLink(secrets, "Add it in Google") : null),
     });
@@ -791,7 +793,7 @@ async function loadLaunch() {
     });
   }) : [sheet({ title: "Your test shops", tone: "warning", pillWords: "Not made yet", body: [el("p", { className: "rp-hint", textContent: "They show here once they're made." })] })];
 
-  const deploySheet = launch.keys.every((key) => key.ready) ? null : sheet({
+  const deploySheet = launch.keys.every((key) => key.ready || key.optional) ? null : sheet({
     title: "After adding a key", tone: "neutral",
     body: [el("p", { className: "rp-hint", textContent: "Run Deploy the platform once, so the server picks the new key up." })],
     actions: el("div", { className: "cr-actions" }, outLink(DEPLOY_WORKFLOW, "Open Deploy the platform")),
