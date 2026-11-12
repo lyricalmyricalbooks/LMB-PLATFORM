@@ -23,7 +23,7 @@ function harness({ items, books = {}, discounts = {}, giftCards = {}, appliedDis
     books: { ebook: { status: 'published', format: 'E-book', retailPrice: 20, digital: true }, ...books },
     discounts,
     giftCards,
-    settings: { website: { taxes: { rates: taxRate ? [{ country: 'Canada', region: 'ON', rate: taxRate, ...(bookName ? { bookName } : {}) }] : [], ...(collectTax === undefined ? {} : { collect: collectTax }) }, payments: { stripe: { secretKey: 'sk_test_fake' } } } },
+    settings: { website: { taxes: { rates: taxRate ? [{ country: 'Canada', region: 'ON', rate: taxRate, ...(bookName ? { bookName } : {}) }] : [], ...(collectTax === undefined ? {} : { collect: collectTax }) }, payments: { stripe: { secretKey: 'sk_test_fake', connected: true } } } },
   };
   const snap = (name, id) => { const data = docs[name]?.[id]; return { exists: !!data, data: () => data, id }; };
   const merge = (name, id, change) => { docs[name] ||= {}; const target = (docs[name][id] ||= {}); for (const [k, v] of Object.entries(change)) { if (k.includes('.')) { const [a, b] = k.split('.'); target[a] = { ...(target[a] || {}), [b]: v }; } else target[k] = v; } };

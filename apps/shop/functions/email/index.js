@@ -175,7 +175,7 @@ function createEmail({ db, crypto, Resend, nodemailer, ownerEmail, senderName, s
     // retry after a partial send never doubles an email.
     if (platformSender) {
       if (html && !/<html[\s>]/i.test(html)) {
-        html = risoLayout(html, { logoUrl: brand.logoUrl || "", accent: brand.brandColor, theme: brand.emailTheme });
+        html = risoLayout(html, { logoUrl: brand.logoUrl || "", accent: brand.brandColor, theme: brand.emailTheme, shopName: fromName });
       }
       // A queued email keeps its queue id across every retry. Any other email gets a key made from what it is (who,
       // subject, kind, order, words) and the hour, so a caller that tries the same email again soon after a partial

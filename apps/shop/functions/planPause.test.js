@@ -16,7 +16,7 @@ function harness(status) {
   const order = { items: [{ id: 'book', quantity: 1, price: 0 }], trackingKey: 'a'.repeat(64), customer: { email: 'reader@example.com', name: 'Reader', billingAddress: { country: 'Canada', state: 'ON' } }, paymentStatus: 'unpaid', status: 'pending_payment', shipping: 0, fulfillmentSelection: { method: 'pickup', optionId: 'pickup:shop' } };
   const docs = {
     books: { book: { status: 'published', format: 'Paperback', retailPrice: 30, stockLevel: 9 } },
-    settings: { website: { localFulfillment: pickup, taxes: { rates: [{ country: 'Canada', region: 'ON', rate: 13 }] }, payments: { stripe: { secretKey: 'sk_test_fake' }, manualMethods: [{ id: 'cash', enabled: true, name: 'Cash', instructions: 'Pay at pickup' }] } } },
+    settings: { website: { localFulfillment: pickup, taxes: { rates: [{ country: 'Canada', region: 'ON', rate: 13 }] }, payments: { stripe: { secretKey: 'sk_test_fake', connected: true }, manualMethods: [{ id: 'cash', enabled: true, name: 'Cash', instructions: 'Pay at pickup' }] } } },
     platform: status ? { status } : {},
   };
   const read = (name, id) => (name === 'orders' ? (id === 'order1' ? order : docs.orders?.[id]) : docs[name]?.[id]);

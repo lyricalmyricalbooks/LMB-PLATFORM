@@ -160,6 +160,13 @@ describe("platform shops", () => {
     expect(app.resendCalls).toEqual([]);
   });
 
+  test("the shared sender's emails carry the press's name in their header and footer", async () => {
+    const platform = fakePlatform();
+    const app = make({ docs: { "settings/website": { communications: { fromName: "Moth Press" } } }, platformSender: platform.sender });
+    await app.mail.send({ ...message, queue: "orderConfirmed" });
+    expect(platform.calls[0].body.html).toContain("Moth Press");
+  });
+
   test("without Gmail, the platform's shared sender is the backup, never the shop's own Resend key", async () => {
     const platform = fakePlatform();
     const app = make({ docs: { "adminSecrets/resend": { apiKey: "re_private" } }, platformSender: platform.sender });

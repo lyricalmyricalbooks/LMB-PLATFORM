@@ -112,6 +112,22 @@ test("a shop its registry row places in a shared project is reached there, whate
   assert.equal(reads, 1);
 });
 
+test("recordsFor: a shared-system shop's record sits in its own shared project; a shop with a project of its own has none", async () => {
+  const rows = {
+    "test-press": { shopId: "test-press", shared: true, projectId: "lmb-test-shop" },
+    "moth-press": { shopId: "moth-press", projectId: "moth-press" },
+  };
+  const { fetch, calls } = recorder();
+  const stores = shopStores({ env: { SHARED_SHOPS_PROJECT: "press-two" }, fetch, token, rowOf: async (id) => rows[id] ?? null });
+  await (await stores.recordsFor("test-press")).get("test-press");
+  assert.equal(calls[0].url.split("?")[0], `${FIRESTORE}/projects/lmb-test-shop/databases/(default)/documents/shops/test-press`);
+  assert.equal(await stores.recordsFor("moth-press"), null);
+  // Without the registry, every shop is in the shared project when one is set, and nowhere when none is.
+  const plain = shopStores({ env: { SHARED_SHOPS_PROJECT: "press-two" }, fetch, token });
+  assert.equal(await plain.recordsFor("x"), plain.shared.records);
+  assert.equal(await shopStores({ env: {}, fetch, token }).recordsFor("x"), null);
+});
+
 test("a shop answers at its own addresses on the front door, and through the shared server with ?shop=", () => {
   const region = "northamerica-northeast1";
   const shared = shopPlaces({ shopId: "press-a", projectId: "lmb-test-shop", shared: true, freeAddress: "press-a.shops.example", region });

@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { PRIVACY_CONTACT } from "../terms/terms.js";
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
-import { ACT_AS_MINUTES, SHOPS_AT_ONCE, SIGN_IN_HOURS, adminOf, controlRoomAdmins, createControlRoom, eachInTurn, payoutWords, profilePublisher, shopHealth, twoStepProblem } from "./controlRoom.js";
+import { ACT_AS_MINUTES, SHOPS_AT_ONCE, SIGN_IN_HOURS, adminOf, controlRoomAdmins, createControlRoom, eachInTurn, payoutWords, profilePublisher, shopHealth, switchPublisher, twoStepProblem } from "./controlRoom.js";
 import { controlRoutes } from "./routes.js";
 import { platformRoutes } from "./platformControls.js";
 import { parseSwitchArgs, switchCommand } from "./switch.js";
@@ -44,7 +44,7 @@ function fakeEmail() {
   return { sent, sendPlatform: async (message) => void (sent.has(message.idempotencyKey) || sent.set(message.idempotencyKey, structuredClone(message))) };
 }
 
-async function world({ repairs, newsletters, googleSteps, googleReady, taxWatch, bills, withStockroom = false } = {}) {
+async function world({ repairs, newsletters, googleSteps, googleReady, taxWatch, bills, withStockroom = false, publishWith = null } = {}) {
   const google = fakeGoogle();
   const services = fakeServices();
   const registry = fakeRegistry();
@@ -61,7 +61,8 @@ async function world({ repairs, newsletters, googleSteps, googleReady, taxWatch,
   const built = [];
   const activity = fakeActivity();
   const platformState = fakePlatformState();
-  const publish = profilePublisher({ deploy: services.deploy, registry, build: async (v) => void built.push(v) });
+  const pages = profilePublisher({ deploy: services.deploy, registry, build: async (v) => void built.push(v) });
+  const publish = publishWith ? publishWith({ registry, fallback: pages }) : pages;
   let clock = Date.parse("2026-10-28T12:00:00Z");
   const room = createControlRoom({
     registry, auditLog, profileFiles, publish, shopAccess, repairs, newsletters, shopData: services.shopData,
@@ -180,6 +181,34 @@ test("a switch: the saved profile, its file and the live pages change, with a lo
   // Off again; the other switches are untouched.
   await w.room.switch(ADMIN, { shopId: ID, name, on: false, reason: "the press no longer needs it" });
   assert.deepEqual((await w.registry.getProfile(ID)).switches, Object.fromEntries(SWITCHES.map((s) => [s, false])));
+});
+
+test("a switch reaches a shared-system shop through its record (the front door serves the profile from there), not a deploy", async () => {
+  // The record as setup wrote it; the payments step may have changed its other fields since.
+  const record = { tenant: "t1", profile: null };
+  const sets = [];
+  const records = {
+    get: async () => structuredClone(record),
+    set: async (shopId, data, { fields }) => { sets.push({ shopId, fields }); Object.assign(record, data); },
+  };
+  const shared = new Set([ID]);
+  const w = await world({ publishWith: ({ registry, fallback }) => switchPublisher({ registry, recordsFor: async (id) => (shared.has(id) ? records : null), fallback }) });
+  record.profile = { ...(await w.registry.getProfile(ID)), payments: { provider: "square" } };
+  const before = w.services.calls.length;
+  const name = SWITCHES[2];
+  const answer = await w.ask(ADMIN, "POST", "/api/control/switch", { shopId: ID, name, on: true, reason: "the press wants its receipt finder" });
+  assert.equal(answer.status, 200);
+  assert.deepEqual(answer.body.published, ["shop", "stockroom"]);
+  assert.equal(record.profile.switches[name], true, "the live profile has the switch on");
+  assert.deepEqual(record.profile.payments, { provider: "square" }, "the record's other fields are kept");
+  assert.deepEqual(sets, [{ shopId: ID, fields: ["profile"] }]);
+  assert.deepEqual(w.services.calls.slice(before).filter(([call]) => call === "deploy.pages"), [], "nothing is deployed");
+  // Repeating it writes nothing; a shop with a project of its own still gets its pages deployed again.
+  await w.room.switch(ADMIN, { shopId: ID, name, on: true, reason: "checking it is still on" });
+  assert.equal(sets.length, 1);
+  shared.clear();
+  await w.room.switch(ADMIN, { shopId: ID, name, on: false, reason: "the press no longer needs it" });
+  assert.equal(w.services.calls.slice(before).filter(([call]) => call === "deploy.pages").length, 2);
 });
 
 test("a switch refuses a made-up switch, a missing on/off, a missing reason and a shop with no profile", async () => {

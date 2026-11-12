@@ -40,7 +40,7 @@ function checkout({ testMode, testShop, giftCards = [], holdFails = false }) {
     orderRequestKey: () => 'key',
     payments: { forCheckout: async () => card },
     priceOrder: async () => ({
-      items, settings: { payments: { testMode } }, appliedDiscount: null, fulfillment: null, shippingEstimate: null,
+      items, settings: { payments: { testMode, stripe: { connected: true } } }, appliedDiscount: null, fulfillment: null, shippingEstimate: null,
       subtotal: 10, discount: 0, shipping: 0, shippingMethod: null, tax: 0,
       giftCardAmount: giftCards.reduce((sum, g) => sum + g.amount, 0), giftCardRedemptions: giftCards, total: 10,
     }),

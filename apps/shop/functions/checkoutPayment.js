@@ -207,6 +207,12 @@ function checkoutPaymentActions({
       const giftCardAmount = priced.giftCardAmount;
       const giftCardRedemptions = priced.giftCardRedemptions;
       const finalTotal = priced.total;
+      // Settings › Payments › Stripe checkout off (own keys): no card payment, even from a direct call. The page already
+      // offers cards only when it is on (Checkout.tsx). Platform shops take cards through the platform, and an owner's
+      // own payment link or practice order is the owner's choice, so neither is stopped here.
+      if (payments.mode !== "platform" && !practice && order.source !== "payment_link" && settings.payments?.stripe?.connected !== true) {
+        return res.status(409).json({ error: "Card payments aren't available at this shop right now. Please choose another way to pay.", code: "cards_off" });
+      }
       // 5. Checkout parameters: the shop's provider for its current mode (functions/payments; throws without one).
       const card = await payments.forCheckout(settings);
       // A provider whose account takes one currency only (Square: its location's) charges in that one, converted from

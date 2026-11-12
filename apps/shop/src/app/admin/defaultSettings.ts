@@ -45,8 +45,9 @@ export const defaultSettings = (): any => ({
       secretKey: "",
       testPublicKey: "",
       testSecretKey: "",
-      applePay: false,
-      googlePay: false,
+      // On: Stripe shows the wallet where the browser and web address allow (features/site/walletChoice.ts).
+      applePay: true,
+      googlePay: true,
       afterpay: false,
       affirm: false,
       klarna: false,

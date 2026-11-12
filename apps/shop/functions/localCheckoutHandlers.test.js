@@ -10,7 +10,7 @@ function harness({ method = 'pickup', optionId = 'pickup:shop', paymentStatus = 
   const order = { items: [{ id: 'book', quantity: 1, price: 0, format: 'E-book' }], trackingKey: 'a'.repeat(64), customer: { email: 'reader@example.com', name: 'Reader', address, billingAddress }, paymentStatus, status: 'pending_payment', shipping: 0, fulfillmentSelection: { method, optionId }, fulfillment: { name: 'Forged', price: 0 } };
   const docs = {
     books: { book: { status: 'published', format: 'Paperback', retailPrice: 30, stockLevel: 9 } },
-    settings: { website: { localFulfillment: config, taxes: { rates: [{ country: 'Canada', region: 'ON', rate: 13 }, { country: 'Canada', region: 'QC', rate: 5 }] }, payments: { stripe: { secretKey: 'sk_test_fake' }, manualMethods: [{ id: 'cash', enabled: true, name: 'Cash', instructions: 'Pay at pickup' }] } } },
+    settings: { website: { localFulfillment: config, taxes: { rates: [{ country: 'Canada', region: 'ON', rate: 13 }, { country: 'Canada', region: 'QC', rate: 5 }] }, payments: { stripe: { secretKey: 'sk_test_fake', connected: true }, paypal: { connected: true }, manualMethods: [{ id: 'cash', enabled: true, name: 'Cash', instructions: 'Pay at pickup' }] } } },
     'private-integrations': { shippo: { dynamicRatesEnabled: true, dynamicRateCountries: ['CA'] } },
   };
   const db = {
@@ -57,6 +57,22 @@ test('PayPal checkout uses validated local fee', async () => {
   expect(response.code).toBe(200);
   expect(app.order.fulfillment).toMatchObject({ method: 'pickup', price: 2 });
   expect(app.paypalCalls.some(call => String(call.options?.body).includes('"value":"35.90"'))).toBe(true);
+});
+test('PayPal checkout switched off in Settings › Payments: a direct call opens no PayPal payment', async () => {
+  const app = harness();
+  app.docs.settings.website.payments.paypal.connected = false;
+  const response = await app.call('createPayPalOrder');
+  expect(response.code).toBe(409);
+  expect(response.value).toMatchObject({ code: 'paypal_off' });
+  expect(app.paypalCalls).toHaveLength(0);
+});
+test.each([{}, { paymentElement: true }])('Stripe checkout switched off in Settings › Payments: a direct call opens no card payment %j', async body => {
+  const app = harness();
+  app.docs.settings.website.payments.stripe.connected = false;
+  const response = await app.call('createStripeCheckoutSession', body);
+  expect(response.code).toBe(409);
+  expect(response.value).toMatchObject({ code: 'cards_off' });
+  expect(app.stripeCalls).toHaveLength(0);
 });
 test('unavailable local choice fails before live Shippo rates or payment', async () => {
   const app = harness({ optionId: 'pickup:gone' }); const response = await app.call('createStripeCheckoutSession');
@@ -108,6 +124,17 @@ test('manual local action creates a new trusted unpaid order without opening pro
   const saved = app.docs.orders[response.value.orderId];
   expect(saved).toMatchObject({ paymentStatus: 'pending', total: 35.9, fulfillment: { method: 'pickup', name: 'Shop', price: 2 } });
   expect(app.stripeCalls).toHaveLength(0);
+});
+test('a product with Charge sales tax off is charged no tax; the rest of the bag still is', async () => {
+  const app = harness({ billingAddress: { country: 'Canada', state: 'QC' } });
+  app.docs.books.ebook = { status: 'published', format: 'E-book', retailPrice: 10, chargeTax: false };
+  app.order.items.push({ id: 'ebook', quantity: 1, price: 0, format: 'Paperback' });
+  expect((await app.call('createStripeCheckoutSession')).code).toBe(200);
+  expect(app.order.tax).toBeCloseTo(3.9);
+  const book = harness();
+  book.docs.books.book.chargeTax = false;
+  expect((await book.call('createStripeCheckoutSession')).code).toBe(200);
+  expect(book.order.tax).toBe(0);
 });
 test('mixed pickup taxes physical merchandise at pickup and digital at billing province', async () => {
   const app = harness({ billingAddress: { country: 'Canada', state: 'QC' } });
