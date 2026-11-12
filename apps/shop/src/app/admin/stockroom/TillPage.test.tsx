@@ -10,7 +10,7 @@ vi.mock("./stockroomWrite", () => ({
 }));
 import { stockroomWriteApi } from "./stockroomWrite";
 import { Till } from "./TillPage";
-import { addTillLine, cartLines, findItems, initials, leftFor, newTillSale, readQueue, tillItems, totalsOf, uploadLine, waitingCopies, writeQueue } from "./till";
+import { addTillLine, cartLines, cashChange, findItems, initials, leftFor, newTillSale, readQueue, tillItems, totalsOf, uploadLine, waitingCopies, writeQueue } from "./till";
 import type { StockroomRecords } from "./stockroomData";
 
 const records = (): StockroomRecords => ({
@@ -78,6 +78,19 @@ describe("till rules", () => {
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const save = vi.mocked(stockroomWriteApi.saveBookState);
 const button = (root: HTMLElement, text: string) => [...root.querySelectorAll("button")].find((b) => b.textContent === text)!;
+/** Charge on the till, pick how they pay on the sheet, then Charge on the sheet. */
+async function pay(host: HTMLElement, how: string, given?: string) {
+  await act(async () => { host.querySelector<HTMLButtonElement>(".rp-till-pay button")!.click(); });
+  await act(async () => { button(document.body, how).click(); });
+  if (given !== undefined) {
+    const input = document.querySelector<HTMLInputElement>(".rp-till-cash input")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, given);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  }
+  await act(async () => { [...document.querySelectorAll<HTMLButtonElement>(".rp-dialog-foot button")].pop()!.click(); });
+}
 
 describe("the Till page", () => {
   beforeEach(() => { localStorage.clear(); save.mockReset(); document.body.innerHTML = ""; });
@@ -97,7 +110,7 @@ describe("the Till page", () => {
     await act(async () => { host.querySelector<HTMLButtonElement>("[aria-label^='Add Salt Almanac']")!.click(); });
     await act(async () => { host.querySelector<HTMLButtonElement>("[aria-label^='Add Salt Almanac']")!.click(); });
     expect(host.querySelector(".rp-till-total")!.textContent).toContain("$36.00");
-    await act(async () => { button(host, "Cash").click(); });
+    await pay(host, "Cash");
     expect(host.querySelector(".rp-till-sold")!.textContent).toContain("Sold · $36.00 · Cash");
     expect(readQueue()).toHaveLength(1);
     expect(save).not.toHaveBeenCalled();
@@ -113,11 +126,39 @@ describe("the Till page", () => {
     const clock = { t: Date.now() };
     const host = await mount(clock);
     await act(async () => { host.querySelector<HTMLButtonElement>("[aria-label^='Add Tidewrack']")!.click(); });
-    await act(async () => { button(host, "Card reader").click(); });
+    await pay(host, "Card reader");
     await act(async () => { button(host, "Undo").click(); });
     expect(readQueue()).toEqual([]);
     expect(host.querySelector(".rp-till-lines")!.textContent).toContain("Tidewrack × 1");
     expect(save).not.toHaveBeenCalled();
+  });
+
+  it("the payment sheet shows the change, and waits while the cash given is short", async () => {
+    const clock = { t: Date.now() };
+    const host = await mount(clock);
+    await act(async () => { host.querySelector<HTMLButtonElement>("[aria-label^='Add Salt Almanac']")!.click(); });
+    expect(host.querySelector(".rp-till-pay button")!.textContent).toBe("Charge $18.00");
+    await pay(host, "Cash", "10");
+    expect(readQueue()).toEqual([]);
+    expect(document.querySelector(".rp-till-change")!.getAttribute("data-tone")).toBe("short");
+    expect(document.querySelector(".rp-till-sheet-warn")!.textContent).toBe("$8.00 still to pay");
+    await act(async () => { button(document.body, "$50").click(); });
+    expect(document.querySelector(".rp-till-change")!.textContent).toBe("Change due$32.00");
+    await act(async () => { [...document.querySelectorAll<HTMLButtonElement>(".rp-dialog-foot button")].pop()!.click(); });
+    expect(readQueue()).toHaveLength(1);
+    expect(readQueue()[0].method).toBe("Cash");
+    expect(document.querySelector(".rp-till-sheet")).toBeNull();
+  });
+
+  it("Other records an e-transfer or a free copy", async () => {
+    const clock = { t: Date.now() };
+    const host = await mount(clock);
+    await act(async () => { host.querySelector<HTMLButtonElement>("[aria-label^='Add Tidewrack']")!.click(); });
+    await act(async () => { host.querySelector<HTMLButtonElement>(".rp-till-pay button")!.click(); });
+    await act(async () => { button(document.body, "Other").click(); });
+    await act(async () => { button(document.body, "Free copy").click(); });
+    await act(async () => { [...document.querySelectorAll<HTMLButtonElement>(".rp-dialog-foot button")].pop()!.click(); });
+    expect(readQueue()[0].method).toBe("Comp/Gift");
   });
 
   it("keeps a sale on the device while offline, and shows a refusal", async () => {
@@ -125,7 +166,7 @@ describe("the Till page", () => {
     save.mockResolvedValueOnce({ status: "failed", reason: "offline", message: "Offline." } as never);
     const host = await mount(clock);
     await act(async () => { host.querySelector<HTMLButtonElement>("[aria-label^='Add Tidewrack']")!.click(); });
-    await act(async () => { button(host, "Cash").click(); });
+    await pay(host, "Cash");
     clock.t += 9000;
     await act(async () => { window.dispatchEvent(new Event("online")); });
     expect(readQueue()).toHaveLength(1);
@@ -134,5 +175,15 @@ describe("the Till page", () => {
     await act(async () => { window.dispatchEvent(new Event("online")); });
     expect(host.querySelector(".rp-till-stuck")!.textContent).toContain("Only the owner can record sales.");
     expect(readQueue()[0].problem).toBe("Only the owner can record sales.");
+  });
+});
+
+describe("cash given on the payment sheet", () => {
+  it("says the change due or what is still to pay, and nothing until a number is typed", () => {
+    expect(cashChange(18, "")).toBeNull();
+    expect(cashChange(18, "abc")).toBeNull();
+    expect(cashChange(18, "20")).toEqual({ covered: true, amount: 2 });
+    expect(cashChange(18, "18")).toEqual({ covered: true, amount: 0 });
+    expect(cashChange(36.4, "20,10")).toEqual({ covered: false, amount: 16.3 });
   });
 });

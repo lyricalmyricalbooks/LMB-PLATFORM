@@ -7,6 +7,7 @@ import { FAIR_UNDO_MS, fairDaySummary, readCurrentFair, registerSalesForDay, sav
 import { localDay } from "@stockroom/calendar-day.js";
 
 import { Dialog, InkButton, PageActions, PrimaryButton, SecondaryButton, TextField } from "../riso/components";
+import { FormChoice, FormField } from "../riso/FormKit";
 import { useShopWords } from "../shopWords";
 import type { NativePageProps } from "./nativePages";
 import { RecordsGate } from "./RecordsGate";
@@ -16,8 +17,8 @@ import { withExtraSale } from "./tillExtras";
 import { MARKET_DAY_SHOWN_KEY, marketDayCard } from "./marketDay";
 import { describeResult, stockroomWriteApi } from "./stockroomWrite";
 import {
-  ALL_METHODS, OTHER_METHODS, TILL_METHODS, addTillLine, cartLines, findItems, leftFor, money, newTillSale, readQueue, tillItems,
-  totalText, totalsOf, uploadLine, waitingCopies, writeQueue, type Cart, type TillSale,
+  ALL_METHODS, OTHER_METHODS, QUICK_CASH, SHEET_PAYS, addTillLine, cashChange, cartLines, findItems, leftFor, money, newTillSale, readQueue, tillItems,
+  totalText, totalsOf, uploadLine, waitingCopies, writeQueue, type Cart, type SheetPay, type TillSale,
 } from "./till";
 import "./stockroom.css";
 import "./till.css";
@@ -42,7 +43,7 @@ export function Till({ records, now = () => Date.now() }: { records: StockroomRe
   const [isOnline, setOnline] = useState(online);
   const [last, setLast] = useState<{ num: string; at: number; text: string } | null>(null);
   const [problem, setProblem] = useState("");
-  const [otherOpen, setOtherOpen] = useState(false);
+  const [payOpen, setPayOpen] = useState(false);
   const [eventOpen, setEventOpen] = useState(false);
   const [dayOpen, setDayOpen] = useState(false);
   const today = localDay(new Date(now()));
@@ -130,7 +131,7 @@ export function Till({ records, now = () => Date.now() }: { records: StockroomRe
     const sale = newTillSale(lines, method, fair, now());
     setQueue([...queueRef.current, sale]);
     setCart({});
-    setOtherOpen(false);
+    setPayOpen(false);
     const label = ALL_METHODS.find((m) => m.value === method)?.label || method;
     setLast({ num: sale.num, at: sale.at, text: `Sold · ${totalText(totals)} · ${label}` });
     window.setTimeout(() => { setLast((l) => (l && l.at === sale.at ? null : l)); void flush(); }, FAIR_UNDO_MS + 100);
@@ -196,8 +197,8 @@ export function Till({ records, now = () => Date.now() }: { records: StockroomRe
       </section>
 
       {lines.length > 0 && (
-        <button type="button" className="rp-till-jump" onClick={() => document.getElementById("rp-till-pay")?.scrollIntoView({ behavior: "smooth", block: "center" })}>
-          <span>{lines.reduce((n, l) => n + l.qty, 0)} in the cart · {totalText(totals)}</span><span>Pay</span>
+        <button type="button" className="rp-till-jump" onClick={() => setPayOpen(true)}>
+          <span>{lines.reduce((n, l) => n + l.qty, 0)} in the cart · {totalText(totals)}</span><span>Charge</span>
         </button>
       )}
 
@@ -223,8 +224,7 @@ export function Till({ records, now = () => Date.now() }: { records: StockroomRe
         </section>
 
         <section className="rp-till-pay" id="rp-till-pay" aria-label="Take payment">
-          {TILL_METHODS.map((m) => <InkButton key={m.value} size="lg" disabled={!lines.length} onClick={() => charge(m.value)}>{m.label}</InkButton>)}
-          <InkButton size="lg" disabled={!lines.length} onClick={() => setOtherOpen(true)}>Other</InkButton>
+          <InkButton size="lg" disabled={!lines.length} onClick={() => setPayOpen(true)}>Charge {totalText(totals)}</InkButton>
         </section>
 
         {last && (
@@ -242,11 +242,7 @@ export function Till({ records, now = () => Date.now() }: { records: StockroomRe
         )}
       </aside>
 
-      <Dialog open={otherOpen} onClose={() => setOtherOpen(false)} title="Other ways to pay" description={`Total ${totalText(totals)}`}>
-        <div className="rp-till-other">
-          {OTHER_METHODS.map((m) => <InkButton key={m.value} size="lg" onClick={() => charge(m.value)}>{m.label}</InkButton>)}
-        </div>
-      </Dialog>
+      <PaySheet open={payOpen && lines.length > 0} totals={totals} onClose={() => setPayOpen(false)} onCharge={charge} />
 
       <TillExtrasDialog open={extrasOpen} onClose={() => setExtrasOpen(false)} extras={extras} onSaved={setExtras}
         currency={String(records.books[0]?.currency || "CAD")} />
@@ -256,6 +252,80 @@ export function Till({ records, now = () => Date.now() }: { records: StockroomRe
 
       <EndOfDay open={dayOpen} onClose={() => setDayOpen(false)} records={records} states={states} day={today} fair={fair} waiting={queue.length} />
     </div>
+  );
+}
+
+const OTHER_NOTES: Record<string, string> = {
+  "Bank Transfer": "Check the transfer has arrived, then charge.",
+  "Comp/Gift": "A free copy: no money is taken. It still comes off your stock.",
+};
+
+/**
+ * The payment sheet (v4 mockup 1j): the total, How they pay, and for cash the quick amounts, Cash given and a Change due
+ * (mint) or Still to pay (apricot) tile. Charge records the sale through the till's own `charge`; it waits while the cash
+ * typed is short. A cart in two currencies has no cash maths: the cash is counted by hand.
+ */
+export function PaySheet({ open, totals, onClose, onCharge }: {
+  open: boolean; totals: Array<{ cur: string; amount: number }>; onClose: () => void; onCharge: (method: string) => void;
+}) {
+  const [pay, setPay] = useState<SheetPay>("Cash");
+  const [other, setOther] = useState<string>(OTHER_METHODS[0].value);
+  const [given, setGiven] = useState("");
+  const [warn, setWarn] = useState("");
+  const givenRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (open) { setGiven(""); setWarn(""); } }, [open]);
+  const single = totals.length === 1 ? totals[0] : null;
+  const cash = pay === "Cash" && !!single;
+  const change = cash && single ? cashChange(single.amount, given) : null;
+  const short = !!change && !change.covered;
+  const total = totalText(totals);
+  const go = () => {
+    if (short && single && change) {
+      setWarn(`${money(change.amount, single.cur)} still to pay`);
+      givenRef.current?.focus();
+      return;
+    }
+    onCharge(pay === "Other" ? other : pay);
+  };
+  const quick = (amount: number) => { setGiven(amount.toFixed(2)); setWarn(""); };
+  return (
+    <Dialog open={open} onClose={onClose} title="Take payment"
+      footer={<><SecondaryButton onClick={onClose}>Back to till</SecondaryButton>
+        <PrimaryButton onClick={go} aria-disabled={short || undefined}>Charge {total}</PrimaryButton></>}>
+      <div className="rp-till-sheet">
+        <p className="rp-till-sheet-total" aria-hidden="true">{total}</p>
+        <FormChoice label="How they pay" options={SHEET_PAYS.map((p) => ({ value: p.value, label: p.label }))} value={pay}
+          onChange={(v) => { setPay(v); setWarn(""); }} />
+        {pay === "Cash" && !single && <p className="rp-till-sheet-note">The cart is in two currencies: count the cash by hand, then charge.</p>}
+        {cash && single && (
+          <div className="rp-till-cash">
+            <div className="rp-fk-choice" role="group" aria-label="Quick amounts">
+              <button type="button" onClick={() => quick(single.amount)}>Exact</button>
+              {QUICK_CASH.map((n) => <button key={n} type="button" onClick={() => quick(n)}>{money(n, single.cur).replace(/\.00$/, "")}</button>)}
+            </div>
+            <div className="rp-till-cash-row">
+              <FormField label="Cash given">
+                {(p) => <input {...p} ref={givenRef} type="number" inputMode="decimal" min="0" step="0.01" placeholder="0.00" value={given}
+                  onChange={(e) => { setGiven(e.target.value); setWarn(""); }} />}
+              </FormField>
+              <div className="rp-till-change" data-tone={change ? (change.covered ? "covered" : "short") : undefined} role="status" aria-live="polite">
+                <span>{change && !change.covered ? "Still to pay" : "Change due"}</span>
+                <strong>{change ? money(change.amount, single.cur) : "—"}</strong>
+              </div>
+            </div>
+          </div>
+        )}
+        {pay === "Card" && <p className="rp-till-sheet-note"><strong>Take the card on your reader.</strong> Charge once it is paid.</p>}
+        {pay === "Stripe QR" && <p className="rp-till-sheet-note"><strong>Ask them to scan your QR code.</strong> Charge once the payment arrives.</p>}
+        {pay === "Other" && (
+          <>
+            <FormChoice label="Paid by" options={OTHER_METHODS.map((m) => ({ value: m.value as string, label: m.label }))} value={other} onChange={setOther} />
+            <p className="rp-till-sheet-note">{OTHER_NOTES[other]}</p>
+          </>
+        )}
+        {warn && <p className="rp-till-sheet-warn" role="alert">{warn}</p>}
+      </div>
+    </Dialog>
   );
 }
 

@@ -876,3 +876,9 @@ rules at the end of `fulfillment.css` (workbench clips to its rounded card, the 
 strip steps are rounded `--rp-surface-2` tiles with the current one ringed in `--rp-primary`, desktop only: phones keep
 the tab strip) and in `OrdersDesk.tsx`'s inline CSS (queue `.od-list` is a borderless rounded card, the open row a
 rounded tint with no edge bar, list headings in body type).
+
+**Till payment sheet (12 November 2026, v4 mockup 1j):** the Till (`stockroom/TillPage.tsx`) has one **Charge <total>**
+button; it opens `PaySheet` ("Take payment"): How they pay (`SHEET_PAYS`: Cash, Card reader, QR, Other = e-transfer or
+free copy), and for a one-currency cart Exact / 20 / 50 / 100, Cash given and a Change due / Still to pay tile
+(`cashChange`, `till.ts`). Charge runs the till's own `charge(method)` (queue, Undo, upload unchanged) and waits while the
+cash typed is short. The stockroom app's own till has the same sheet (`apps/stockroom/CLAUDE.md`).

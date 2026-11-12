@@ -35,9 +35,8 @@
 .rp-till-total { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0; padding-top: 14px; border-top: 1px solid var(--rp-border); font-size: 26px; font-weight: 700; }
 .rp-till-total strong { font-variant-numeric: tabular-nums; text-align: right; }
 
-.rp-till-pay { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 18px; border-radius: var(--rp-radius-lg); background: var(--rp-tile-mint, var(--rp-surface)); }
-.rp-till-pay .rp-btn, .rp-till-other .rp-btn { width: 100%; justify-content: center; border-radius: 999px; }
-.rp-till-other { display: grid; gap: 10px; }
+.rp-till-pay { display: grid; }
+.rp-till-pay .rp-btn { width: 100%; justify-content: center; border-radius: 999px; }
 
 .rp-till-none { margin: 16px 0 0; color: var(--rp-text-muted); font-size: var(--rp-text-sm); }
 .rp-till-warn { margin: 10px 0 0; color: var(--rp-text); font-size: var(--rp-text-sm); }
@@ -71,3 +70,18 @@
 .rp-till-cover > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 .rp-till-morning { grid-column: 1 / -1; padding: 16px 20px; background: var(--rp-tile-mint, var(--rp-surface)); display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .rp-till-morning p { margin: 4px 0 0; }
+
+/* The payment sheet (v4 mockup 1j): total top right, How they pay pills, cash quick amounts, Cash given and a Change
+   due / Still to pay tile (mint when covered, apricot when short). */
+.rp-till-sheet { display: grid; gap: 16px; }
+.rp-till-sheet-total { margin: -8px 0 0; text-align: right; font-size: 30px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.rp-till-cash { display: grid; gap: 12px; }
+.rp-till-cash-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: end; }
+.rp-till-change { display: grid; gap: 2px; align-content: center; min-height: 64px; padding: 12px 16px; border-radius: var(--rp-radius); background: var(--rp-surface-2); color: var(--rp-text); font-size: var(--rp-text-sm); }
+.rp-till-change strong { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.rp-till-change[data-tone="covered"] { background: var(--rp-tile-mint, var(--rp-surface-2)); color: var(--rp-on-tile, var(--rp-text)); }
+.rp-till-change[data-tone="short"] { background: var(--rp-tile-apricot, var(--rp-surface-2)); color: var(--rp-on-tile, var(--rp-text)); }
+.rp-till-sheet-note { margin: 0; padding: 14px 16px; border-radius: var(--rp-radius); background: var(--rp-surface-2); font-size: var(--rp-text-sm); }
+.rp-till-sheet-warn { margin: 0; font-size: var(--rp-text-sm); font-weight: 600; color: var(--rp-text); }
+.rp-dialog-foot .rp-btn[aria-disabled="true"] { opacity: 0.55; }
+@media (max-width: 480px) { .rp-till-cash-row { grid-template-columns: minmax(0, 1fr); } }
