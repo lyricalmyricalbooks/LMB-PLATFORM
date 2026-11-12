@@ -4,6 +4,7 @@
 // Shippo helpers, so the vm-based handler tests' fakes still apply, and keeps each `exports.<name> =` line.
 
 const { withPlatformKey } = require("./platformKey");
+const { perShop } = require("./shopScope");
 function shippoEndpoints({
   onBrowserRequest, onRequest, db, applyCors, requireAdmin, hitLimit, LIMITS, IS_EMULATOR, RESEND_API_KEY,
   SHIPPO_API_TOKEN, SHIPPO_CONFIG_DOC, ADDRESS_ACTIONS, FALLBACK_COPY_GRAMS, addressKeyProblem, addressMissing,
@@ -282,13 +283,15 @@ function shippoEndpoints({
   });
 
   // The Google key for the checkout address finder (admin-only adminSecrets/addressLookup), read at most
-  // once a minute per instance: the finder asks on nearly every keystroke.
-  let addressKeyCache = { at: 0, key: "" };
+  // once a minute per shop on this instance: the finder asks on nearly every keystroke. Kept per shop, so a
+  // shop's lookups never run on (and bill) another shop's key.
+  const addressKeyCache = perShop(() => ({ at: 0, key: "" }));
 
   async function readAddressLookupKey(fresh = false) {
     if (!fresh && Date.now() - addressKeyCache.at < 60 * 1000) return addressKeyCache.key;
     const key = String((await readAdminSecret("addressLookup")).googlePlacesKey || "").trim();
-    addressKeyCache = { at: Date.now(), key: addressKeyProblem(key) ? "" : key };
+    addressKeyCache.at = Date.now();
+    addressKeyCache.key = addressKeyProblem(key) ? "" : key;
     return addressKeyCache.key;
   }
 

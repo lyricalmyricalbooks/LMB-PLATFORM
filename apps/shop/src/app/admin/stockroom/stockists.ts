@@ -7,6 +7,7 @@ import { daysLate, invoiceReminderState } from "@stockroom/payment-reminders.js"
 import { settleInvoicePaid } from "@stockroom/invoice-settle.js";
 
 import type { StockroomRecords } from "./stockroomData";
+import { queueCardLinkClose } from "./cardLinkQueue";
 
 type Rec = Record<string, any>;
 
@@ -186,6 +187,8 @@ export function markInvoicePaid(invoiceId: string, paidAt: number) {
         : done.reason === "cancelled" ? "This invoice was cancelled, so it can't be marked paid."
           : "This invoice is no longer in the records. Reload the page.");
     }
+    // Paid another way: its emailed card link must stop taking money (closed at the next check of card payments).
+    queueCardLinkClose(state, ((state.invoices as Rec[]) || []).find((i) => i && String(i.id) === invoiceId), "paid", paidAt);
     return state;
   };
 }

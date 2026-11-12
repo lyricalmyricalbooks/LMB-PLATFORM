@@ -124,6 +124,19 @@ test("60 days paused closes the shop, ends the plan and emails once; 90 days lat
   assert.equal((await t.closing()).stage, "deleted");
 });
 
+test("a shop in the shared system is never deleted by deleting the project every shop shares", async () => {
+  const t = await make();
+  await t.registry.updateShop(SHOP, { shared: true, projectId: "lmb-test-shop" });
+  await t.pause();
+  await t.sweep.sweep();
+  await daily(t, PAUSED_DAYS + DOWNLOAD_DAYS + 3);
+  assert.deepEqual(t.projects.deleted, []);
+  const c = await t.closing();
+  assert.equal(c.stage, "closed");
+  assert.match(c.problem, /shared system/);
+  assert.equal(t.sent("shop-deleted").length, 0);
+});
+
 test("running the sweep many times a day sends each email once and records each stage once", async () => {
   const t = await make();
   await t.pause();

@@ -239,7 +239,7 @@ ${factLines(bookFacts(f))}`,
 Only what you can read on the receipt: never guess or invent a value.`,
     schema: { type: "OBJECT", properties: { vendor: { type: "STRING" }, date: { type: "STRING" }, total: { type: "STRING" }, tax: { type: "STRING" }, currency: { type: "STRING" }, number: { type: "STRING" }, what: { type: "STRING" } }, required: ["vendor", "date", "total", "tax", "currency", "number", "what"] },
     clean: out => {
-      const amount = v => { const n = Number(String(v || "").replace(/[^0-9.]/g, "")); return Number.isFinite(n) && n > 0 ? n.toFixed(2) : ""; };
+      const amount = v => { const n = receiptAmount(v); return Number.isFinite(n) && n > 0 ? n.toFixed(2) : ""; };
       const date = String(out.date || "").trim();
       return {
         vendor: fitWords(out.vendor, 80), what: fitWords(out.what, 80), number: clip(oneLine(out.number), 40),
@@ -649,6 +649,17 @@ const worthBackup = err => [429, 402, 408, 500, 502, 503, 504].includes(Number(e
 // After the chosen AI runs out, later requests on this server go straight to the backup for a while,
 // so a run of photos doesn't wait for the same refusal each time.
 const BACKUP_FOR_MS = 60 * 1000;
+/**
+ * A printed amount as a number. Receipts from Quebec and Europe write "42,50" or "1 234,50" or "1.234,50": the last
+ * comma or dot followed by one or two digits is the decimal mark, and every other one only groups thousands.
+ */
+function receiptAmount(value) {
+  const text = String(value || "").replace(/[^0-9.,]/g, "");
+  const mark = text.match(/[.,](\d{1,2})$/);
+  const whole = (mark ? text.slice(0, mark.index) : text).replace(/[.,]/g, "");
+  return Number(mark ? `${whole || "0"}.${mark[1]}` : whole || NaN);
+}
+
 const restingUntil = new Map();
 const resetProviderRest = () => restingUntil.clear();
 

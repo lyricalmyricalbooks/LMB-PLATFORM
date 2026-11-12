@@ -178,6 +178,38 @@ describe("perShop", () => {
   });
 });
 
+describe("a per-shop cache (perShop written to as plain fields)", () => {
+  it("keeps each shop's own value: one shop never reads what another shop cached", () => {
+    const cache = perShop(() => ({ at: 0, key: "" }));
+    const a = { ...shopA, config: Object.freeze({ shop: "a" }) };
+    const b = { ...shopB, config: Object.freeze({ shop: "b" }) };
+    runInShop(a, () => { cache.at = 5; cache.key = "key-of-a"; });
+    expect(runInShop(b, () => [cache.at, cache.key])).toEqual([0, ""]);
+    runInShop(b, () => { cache.key = "key-of-b"; });
+    expect(runInShop(a, () => cache.key)).toBe("key-of-a");
+    expect(runInShop(b, () => cache.key)).toBe("key-of-b");
+  });
+
+  it("the server's per-instance caches of shop data are all kept per shop", () => {
+    const fs = require("node:fs");
+    const path = require("node:path");
+    for (const [file, names] of [["index.js", ["inventoryLinkStateCache", "automaticDiscountsCache"]], ["shippoEndpoints.js", ["addressKeyCache"]]]) {
+      const source = fs.readFileSync(path.join(__dirname, file), "utf8");
+      for (const name of names) expect(source, name).toMatch(new RegExp(`const ${name} = perShop\\(`));
+    }
+  });
+});
+
+describe("a Square shop's dispute warning", () => {
+  it("names Square, not Stripe", () => {
+    const { labelProblem } = require("./fulfillmentGuard");
+    const order = { paymentStatus: "paid", status: "processing", items: [{ title: "A book", quantity: 1 }], disputeStatus: "needs_response" };
+    const square = { ...shopA, config: Object.freeze({ paymentProvider: "square" }) };
+    expect(runInShop(square, () => labelProblem(order))).toContain("settled in Square");
+    expect(runInShop({ ...shopA, config: Object.freeze({ paymentProvider: "stripe" }) }, () => labelProblem(order))).toContain("settled in Stripe");
+  });
+});
+
 describe("the document copy (backupJson.js) inside a shop", () => {
   it("writes paths without the shop's folder, so a copy restores into any shop", async () => {
     const zlib = require("node:zlib");

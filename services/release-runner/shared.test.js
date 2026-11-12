@@ -127,6 +127,19 @@ test("the test project first, then the live one: rules, server code, site, a che
   assert.equal(kinds(w, "migrate").length, 0);
 });
 
+test("a release that throws part-way is recorded as failed, never as one that reached every project", async () => {
+  const { registry, lines, run } = await setup();
+  const takeLock = registry.takeLock.bind(registry);
+  let asked = 0;
+  registry.takeLock = async (...args) => { if (++asked === 2) throw new Error("the registry could not be reached"); return takeLock(...args); };
+  await assert.rejects(run("1.1.0"), /could not be reached/);
+  const record = (await registry.listReleases()).at(-1);
+  assert.equal(record.ok, false);
+  assert.match(record.error, /could not be reached/);
+  assert.ok(lines.some((line) => /stopped/.test(line)));
+  assert.ok(!lines.some((line) => /reached every shared project/.test(line)));
+});
+
 test("a failed test-project check puts it back and the live project is never touched", async () => {
   const { w, run } = await setup({ broken: { "1.1.0": { [TEST_PROJECT]: "check" } } });
   const result = await run("1.1.0");
