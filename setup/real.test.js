@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { folderInventoryLink, realSetupClients, realSharedClients, sharedInventoryLink, sharedShopRun } from "./real.js";
+import { folderInventoryLink, realSetupClients, realSharedClients, runConfig, sharedInventoryLink, sharedShopRun } from "./real.js";
+import { shopSwitches } from "./steps.js";
 import { LINK_DOC } from "./later-steps.js";
 import { sharedShopSteps } from "./sharedSteps.js";
 import { shopSteps } from "./later-steps.js";
@@ -79,4 +80,21 @@ test("the hosted server makes shared shops only once the shared project and the 
   assert.equal(sharedShopRun({ ...parts, env: {} }), null);
   assert.equal(sharedShopRun({ ...parts, env: { SHARED_SHOPS_PROJECT: "lmb-test-shop" } }), null);
   assert.equal(typeof sharedShopRun({ ...parts, env: { SHARED_SHOPS_PROJECT: "lmb-test-shop", SHARED_SHOPS_DOMAIN: "shops.example" } }), "function");
+});
+
+test("the control room's switches for new shops reach each shop as it is made, read fresh every time", async () => {
+  const base = { release: "1.0.0" };
+  let saved = { gmailOrderScan: true };
+  const read = async () => saved;
+  assert.deepEqual(shopSwitches(undefined, (await runConfig(base, read)).switchDefaults).gmailOrderScan, true);
+  saved = { gmailOrderScan: false };
+  assert.equal(shopSwitches(undefined, (await runConfig(base, read)).switchDefaults).gmailOrderScan, false);
+  // A shop that already has its own switches keeps them.
+  assert.equal(shopSwitches({ gmailOrderScan: false }, { gmailOrderScan: true }).gmailOrderScan, false);
+  // Nothing saved yet, no reader, or a read that fails: the shop is still made, every switch off.
+  assert.equal(await runConfig(base, async () => null), base);
+  assert.equal(await runConfig(base), base);
+  const said = [];
+  assert.equal(await runConfig(base, async () => { throw new Error("no answer"); }, (line) => said.push(line)), base);
+  assert.match(said[0], /every switch off/);
 });

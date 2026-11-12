@@ -124,7 +124,7 @@ export function offToken(secret, shopId) {
   return createHmac("sha256", secret).update(`trial-tips-off:${shopId}`).digest("base64url");
 }
 
-export function createTrialTips({ registry, auditLog, guide, email, store, settings, secret, now = () => new Date() }) {
+export function createTrialTips({ registry, auditLog, guide, email, store, settings, live = null, secret, now = () => new Date() }) {
   if (typeof secret !== "string" || secret.length < 16) throw new Error("trial tips need a signing secret of at least 16 characters");
   const offLink = (shopId) => `${settings.platformUrl}/tips/off?shop=${encodeURIComponent(shopId)}&sig=${offToken(secret, shopId)}`;
 
@@ -143,6 +143,12 @@ export function createTrialTips({ registry, auditLog, guide, email, store, setti
       const mode = settings.startNudges === "beside" || settings.startNudges === "instead" ? settings.startNudges : "hold";
       const sent = [];
       const skipped = [];
+      // Free trial days as the control room last set them (`live`, optional); the environment's when that can't be read.
+      let trialDays = settings.trialDays;
+      try {
+        const days = live ? (await live())?.trialDays : null;
+        if (Number.isInteger(days) && days >= 0) trialDays = days;
+      } catch { /* the environment's length stands */ }
       for (const row of await registry.listShops()) {
         const shopId = row.shopId;
         try {
@@ -157,7 +163,7 @@ export function createTrialTips({ registry, auditLog, guide, email, store, setti
             continue;
           }
           let mine = await store.get(shopId);
-          const day = trialDay(trialStart(row, settings.trialDays), at);
+          const day = trialDay(trialStart(row, trialDays), at);
           // The Get started nudge due today, when the setting sends them (plan 17.14). Once per stage, and recorded like a tip.
           if (mode !== "hold" && nudgeDayOf(day) !== null) {
             const start = await guide.read(shopId);

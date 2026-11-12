@@ -135,12 +135,12 @@ export const TEMPLATES = {
   }),
 
   /** The control room's waitlist invite (plan 9.5): the person may start their shop now, past the daily line. */
-  "waitlist-invite": ({ link }, { settings }) => layout({
+  "waitlist-invite": ({ link, trialDays }, { settings }) => layout({
     subject: `Your ${settings.platformName} shop is ready to start`,
     greeting: "Hello,",
     paragraphs: [
       `Thanks for joining the ${settings.platformName} waitlist. Your place has come up: you can start your shop now.`,
-      `Sign up with this email address. The first ${settings.trialDays ?? 14} days are free and no card is needed.`,
+      ((days) => (days > 0 ? `Sign up with this email address. The first ${days} days are free and no card is needed.` : "Sign up with this email address."))(trialDays ?? settings.trialDays ?? 14),
       `You're getting this because you asked to hear from ${settings.platformName} when your place came up. Reply STOP and we'll take you off the list at once.`,
     ],
     buttons: [["Start your shop", safeLink(link)]],

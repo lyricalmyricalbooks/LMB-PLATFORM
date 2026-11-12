@@ -110,7 +110,8 @@ export function createApi({ signup, verifyIdToken, settings, routes = {}, public
         // Pay what you use (10 November 2026): a flat fee (every plan's price, the same by default) plus the month's
         // running cost at cost; three example shops priced the same way, so the page never promises a made-up number.
         usage: usageWords(priced, percentOff),
-        trialDays: settings.trialDays,
+        // Free trial days as the control room last set them, the same length billing gives the next plan.
+        trialDays: Number.isInteger(now.trialDays) && now.trialDays >= 0 ? now.trialDays : settings.trialDays,
         plusTax: plusTax === true,
         currency: settings.currency,
         productName: settings.platformName,

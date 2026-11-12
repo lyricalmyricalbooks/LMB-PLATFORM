@@ -13,7 +13,7 @@ const at = (day, hour = 9) => new Date(Date.parse(START) + day * 86_400_000 + (h
 const ALL = ["logo", "look", "add-books", "shipping", "payments", "address", "practice", "open"];
 
 // `env` sets the platform settings (START_NUDGES); `start` adds to the shop's firstWeek/start document (its run's markers).
-function world({ progress = { steps: ALL, done: [] }, row = {}, guideDoc, env = {}, start = {} } = {}) {
+function world({ progress = { steps: ALL, done: [] }, row = {}, guideDoc, env = {}, start = {}, live = null } = {}) {
   const registry = fakeRegistry();
   const shop = { shopId: "moth-press", pressName: "Moth Press", ownerEmail: "owner@example.com", status: "ready", createdAt: START, billing: { status: "trialing", access: "open" }, ...row };
   registry.shops.set(shop.shopId, shop);
@@ -24,7 +24,7 @@ function world({ progress = { steps: ALL, done: [] }, row = {}, guideDoc, env = 
   const email = fakePlatformEmail(cfg);
   const store = fakeTipStore();
   let clock = at(0);
-  const tips = createTrialTips({ registry, auditLog, guide, email, store, settings: cfg, secret: SECRET, now: () => clock });
+  const tips = createTrialTips({ registry, auditLog, guide, email, store, settings: cfg, live, secret: SECRET, now: () => clock });
   const runOn = async (day, hour) => { clock = at(day, hour); return tips.run(); };
   return { registry, auditLog, guide, email, store, tips, runOn };
 }
@@ -216,4 +216,16 @@ test("a shop that sells no books gets its tips and nudges in its own words; a bo
   assert.match(tipWords("address", "books", { freeAddress: "moth-press.shops.example" }).paragraphs[0], /free address is moth-press\.shops\.example\. Share it/);
   assert.equal(tipWords("address", "books"), TIPS.address);
   assert.equal(tipWords("add-books", "clothing").subject, "Add your first product");
+});
+
+test("the tips count days by the free trial length the control room set", async () => {
+  // A 30-day trial set in the control room: the plan's trial ends on day 30, so day 2 is still day 2.
+  const row = { billing: { status: "trialing", access: "open", trialEnd: at(30).toISOString() } };
+  const w = world({ row, live: async () => ({ trialDays: 30 }) });
+  for (let day = 0; day <= 3; day++) await w.runOn(day);
+  assert.deepEqual(w.email.sent.map((m) => m.idempotencyKey.match(/day-(\d+)/)[1]).map(Number), [2]);
+  // The settings can't be read: the server's own length stands and the run still finishes.
+  const quiet = world({ live: async () => { throw new Error("no answer"); } });
+  for (let day = 0; day <= 3; day++) await quiet.runOn(day);
+  assert.equal(quiet.email.sent.length, 1);
 });

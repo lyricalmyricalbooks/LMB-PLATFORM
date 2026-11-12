@@ -44,7 +44,7 @@ import { billingPublicRoutes, billingRoutes } from "../accounts/billingRoutes.js
 import { createShopBillingDoor, SHOP_BILLING_PREFIX } from "../accounts/shopBillingDoor.js";
 import { createAccounts } from "../accounts/accounts.js";
 import { controlRoutes } from "../control-room/routes.js";
-import { controlRoomAdmins, createControlRoom, profilePublisher } from "../control-room/controlRoom.js";
+import { NEW_SHOP_SWITCHES, controlRoomAdmins, createControlRoom, profilePublisher } from "../control-room/controlRoom.js";
 import { createPlatformControls, platformRoutes } from "../control-room/platformControls.js";
 import { createBackupAccess, emergencyRoutes } from "../control-room/backupPerson.js";
 import { createBreachRegister } from "../control-room/breaches.js";
@@ -243,7 +243,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   // queued, and the shop-maker job answers that it isn't switched on.
   const stores = firestoreSignupStores(platform);
   const inviteStore = firestoreInvites(platform);
-  const invites = createInvites({ invites: inviteStore, email, settings, now });
+  const invites = createInvites({ invites: inviteStore, email, settings, live, now });
   const signInLinkMaker = signInLinks({ fetch, token, projectId });
   const signup = createSignup({
     ...stores, registry, billing, email, auth: signInLinkMaker, settings, invites, admins: controlRoomAdmins(env), live, now,
@@ -267,7 +267,8 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   // it is ready (shopMaker.js connectAddresses).
   const presses = firestoreFrontDoorStores(platform).presses;
   const domains = sharedDomainService({ env, fetch, token, shared, registry, auditLog, payments, email, presses, sellers: domainLookup, settings, now });
-  const sharedRun = sharedShopRun({ env, fetch, token, payments: setupClient(payments), email, settings, registryFirestore: platform, addresses: domains });
+  // The control room's "new shops start with" switches (Shops > Switches for every shop) reach each shop as it is made.
+  const sharedRun = sharedShopRun({ env, fetch, token, payments: setupClient(payments), email, settings, registryFirestore: platform, addresses: domains, switchDefaults: async () => (await platformState.get(NEW_SHOP_SWITCHES))?.values ?? null });
   const shopMaker = sharedRun
     ? createShopMaker({ signups: stores.signups, run: sharedRun, registry, repairs, line: signup, billing, steps: SHARED_STEP_PLAN, presses, domains, now })
     : createShopMaker({ signups: stores.signups, run: notConnectedFn(NOT_CONNECTED.shopMaking), registry, repairs, line: signup, billing, now });
@@ -422,7 +423,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   // The emails with a "turn off" link: only with their signing phrases.
   const tipsSecret = secretOf(env, "TRIAL_TIPS_SECRET");
   const trialTips = tipsSecret
-    ? createTrialTips({ registry, auditLog, guide: { read: (shopId) => shopData.get(shopId, "firstWeek/start") }, email, store: firestoreShopRecords(platform, "trialTips"), settings, secret: tipsSecret, now })
+    ? createTrialTips({ registry, auditLog, guide: { read: (shopId) => shopData.get(shopId, "firstWeek/start") }, email, store: firestoreShopRecords(platform, "trialTips"), settings, live, secret: tipsSecret, now })
     : null;
   const checkupSecret = secretOf(env, "CHECKUP_SECRET");
   const checkups = checkupSecret
