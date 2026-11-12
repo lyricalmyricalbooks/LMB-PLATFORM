@@ -5,6 +5,7 @@ import { useShopWords } from "./shopWords";
 import { getOrdersCached } from "./ordersCache";
 import { inventoryApi, type InventoryLogEntry } from "./inventoryApi";
 import { InventoryLinkPanel } from "./InventoryLinkPanel";
+import { CountStock, type CountItem } from "./CountStock";
 import { useSubTab } from "./settingsLayout";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { isStockLinked, type InventoryLinks } from "./inventoryLink";
@@ -92,6 +93,8 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<Set<string>>(new Set());
   const [receiving, setReceiving] = useState(false);
+  // v4 Count stock: its own page (expected / counted / difference), opened from the header.
+  const [counting, setCounting] = useState(false);
   const [receive, setReceive] = useState<Record<string, string>>({});
   const [costDrafts, setCostDrafts] = useState<Record<string, string>>({});
   const [results, setResults] = useState<Record<string, { ok: boolean; text: string }>>({});
@@ -394,6 +397,27 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
   if (loading) return <LoadingState label="Loading inventory…" />;
   if (failed) return <ErrorState title="Inventory could not be loaded" onRetry={load} />;
 
+  if (counting) {
+    const countable = all.filter((r) => r.kind === "stock" && r.editable && !linked(r));
+    const byId = new Map(countable.map((r) => [r.id, r]));
+    const items: CountItem[] = countable.map((r) => ({ id: r.id, title: r.title, cover: rowCoverUrl(r), expected: r.stock,
+      sub: [r.edition || r.format, r.sku ? `SKU ${r.sku}` : "", r.shelfLocation ? `Shelf ${r.shelfLocation}` : ""].filter(Boolean).join(" · ") }));
+    const finishCount = async (changes: { id: string; to: number }[]) => {
+      const plan = changes.flatMap((c) => { const row = byId.get(c.id); return row ? [{ row, ch: { kind: "set" as const, to: c.to, expected: row.stock }, from: row.stock, to: c.to }] : []; });
+      if (!(await confirmRestockEmails(plan))) return null;
+      const failedIds: string[] = [];
+      const settled = await Promise.allSettled(plan.map(async ({ row, ch }) => {
+        const res = await inventoryApi.adjustStock(row.bookId, row.variantId, ch, { reason: "Count correction", title: row.title, edition: row.edition });
+        if (res.ok) applyLocal(row, res.to); else failedIds.push(row.id);
+      }));
+      settled.forEach((r, i) => { if (r.status === "rejected") failedIds.push(plan[i].row.id); });
+      const done = plan.length - failedIds.length;
+      if (!failedIds.length) toast(done ? `Count finished: ${done} corrected` : "Count finished: everything matched");
+      return failedIds;
+    };
+    return <CountStock items={items} onFinish={finishCount} onClose={() => setCounting(false)} />;
+  }
+
   return (
     <div className="rp-stack">
       {partial.length > 0 && (
@@ -419,7 +443,8 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
           ) : (
             <>
               <SecondaryButton className="inv-export" icon={<Download size={16} aria-hidden />} onClick={exportCsv}>Export CSV</SecondaryButton>
-              <PrimaryButton icon={<PackagePlus size={16} aria-hidden />} onClick={() => { setReceiving(true); setResults({}); }}>Receive stock</PrimaryButton>
+              <SecondaryButton icon={<PackagePlus size={16} aria-hidden />} onClick={() => { setReceiving(true); setResults({}); }}>Receive stock</SecondaryButton>
+              <PrimaryButton onClick={() => setCounting(true)}>Count stock</PrimaryButton>
             </>
           )}
         </PageActions>
