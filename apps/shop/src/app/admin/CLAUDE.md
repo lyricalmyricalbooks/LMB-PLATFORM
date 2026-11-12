@@ -926,6 +926,7 @@ use the quarter pills. `part="all"` still draws everything (moneyReports tests).
 on the to-do list open `taxcosts` (`todo.ts` fixTarget). Tile figures size to their tile (container units, no wrapping).
 Costs to log has **Log an expense** in the header: it (and Confirm on a pending cost) opens the New expense kit page
 (`LogExpenseCard page`, Back returns); `part="all"` keeps the card inline.
+Analytics is split into the v4 pages Overview · Traffic · Books/Products · Checkout (`SUB_TABS.analytics`, `PageTabs` in `AnalyticsPage.tsx`); the period pills stay on every page.
 
 **Bookkeeping Payments in v4 (12 November 2026):** Bookkeeping's first page is `payouts` "Payments" (`stockroom/PaymentsPage.tsx`,
 pure `paymentsModel.ts`): three tiles (paid out in the last 30 days, Pending = payouts with no date yet plus paid sales

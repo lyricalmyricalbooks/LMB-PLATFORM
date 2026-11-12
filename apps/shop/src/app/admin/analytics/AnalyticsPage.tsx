@@ -2,14 +2,16 @@
 // came from, what they looked at, their devices and countries, the path to a purchase and what they searched for.
 // Google Analytics when it is connected and recorded visitors, otherwise the shop's own counter (analyticsModel.ts).
 // Built from the shared .rp-tiles / .rp-tile / .rp-tablecard classes; colours from tokens only (analytics.css).
+// v4 (12 November 2026): four pages as pills, Overview · Traffic · Products · Checkout (`#analytics/<slug>`, SUB_TABS).
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { adminApi } from "../api";
 import { getOrdersCached } from "../ordersCache";
 import { forgetReports, googleAnalyticsApi, type Ga4Answer } from "../googleAnalytics";
 import { resolveRange, trafficShift, trafficWindow, type Preset } from "../overview/overviewRange";
-import { ErrorState, LoadingState, PageActions, SecondaryButton, Tabs } from "../riso/components";
+import { ErrorState, LoadingState, PageActions, PageTabs, SecondaryButton, Tabs } from "../riso/components";
 import { analyticsModel, change, type Bar, type Pair, type Row } from "./analyticsModel";
 import { useShopWords } from "../shopWords";
+import { useSubTab } from "../settingsLayout";
 import "./analytics.css";
 
 const PERIODS: Array<{ id: Preset; label: string }> = [
@@ -26,8 +28,15 @@ const pct = (n: number | null) => (n === null ? "—" : `${n < 10 ? n.toFixed(1)
 
 type Ga = { status: "loading" | "connected" | "off" | "error"; answer?: Ga4Answer };
 
-export function AnalyticsPage({ setActiveTab }: { setActiveTab?: (tab: string) => void }) {
+type AnPage = "an-overview" | "an-traffic" | "an-products" | "an-checkout";
+const AN_PAGES: Array<{ id: AnPage; label: string }> = [
+  { id: "an-overview", label: "Overview" }, { id: "an-traffic", label: "Traffic" }, { id: "an-products", label: "Products" }, { id: "an-checkout", label: "Checkout" },
+];
+
+export function AnalyticsPage({ setActiveTab, subTab, onSubTabChange }: { setActiveTab?: (tab: string) => void; subTab?: string; onSubTabChange?: (id: string | undefined) => void }) {
   const w = useShopWords();
+  const [page, setPage] = useSubTab<AnPage>("an-overview", subTab, onSubTabChange);
+  const on = (p: AnPage) => page === p;
   const [preset, setPreset] = useState<Preset>(readPeriod);
   const [reload, setReload] = useState(0);
   const range = useMemo(() => resolveRange(preset), [preset, reload]);
@@ -80,6 +89,8 @@ export function AnalyticsPage({ setActiveTab }: { setActiveTab?: (tab: string) =
   return (
     <div className="rp-stack rp-an" data-testid="analytics-page">
       <PageActions><SecondaryButton size="sm" onClick={refresh}>Refresh</SecondaryButton></PageActions>
+      <PageTabs label="Analytics pages" current={page} onPick={(id) => setPage(id as AnPage)}
+        groups={[{ pages: AN_PAGES.map((p) => ({ id: p.id, label: p.id === "an-products" ? w("Books") : p.label })) }]} />
       <div className="rp-an-bar">
         <Tabs tabs={PERIODS} value={preset} onChange={setPreset} label="Period" idPrefix="an-" />
         {model && (
@@ -105,6 +116,7 @@ export function AnalyticsPage({ setActiveTab }: { setActiveTab?: (tab: string) =
           {ga.status === "error" && <p className="rp-hint rp-an-note">Google Analytics couldn't be read just now, so these are your shop's own counts. <button type="button" className="rp-an-link" onClick={refresh}>Try again</button></p>}
           {ga.status === "off" && <p className="rp-hint rp-an-note">Connect Google to see every page, country and session. <button type="button" className="rp-an-link" onClick={openGoogle}>Connect Google</button></p>}
 
+          {on("an-overview") && <>
           <div className="rp-tiles">
             <Tile tone="mint" label="Visitors" pair={model.visitors} before={before} />
             {model.sessions
@@ -117,19 +129,22 @@ export function AnalyticsPage({ setActiveTab }: { setActiveTab?: (tab: string) =
           </div>
 
           <VisitorBars bars={model.bars} grain={model.grain} recorded={!!model.visitors && model.visitors.cur > 0} />
+          </>}
 
-          <div className="rp-an-grid">
+          {on("an-traffic") && <div className="rp-an-grid">
             <TableCard title="Where visitors came from" head={google ? ["Channel", "Visits", "Share"] : ["Source", "Visitors", "Bought"]} rows={model.sources}
               empty={google ? "No visits yet" : "Not recorded yet"} />
             {google && <TableCard title="Top pages" head={["Page", "Views"]} rows={model.pages} mono empty="No page views yet" />}
-            <TableCard title={`Most viewed ${w("books")}`} head={[w("Book"), "Views", "Bought"]} rows={model.products} empty="Not recorded yet" />
             <TableCard title="Devices" head={["Device", "Visitors", "Share"]} rows={model.devices} empty="Not recorded yet" />
-            <FunnelCard steps={model.funnel?.map(s => ({ ...s, label: w(s.label) })) ?? null} />
             {google && <TableCard title="Countries" head={["Country", "Visitors"]} rows={model.countries} empty="No visits yet" />}
             <TableCard title="What people searched for" head={["Search", "Times"]} rows={model.searches} empty="Not recorded yet" />
             <TableCard title="Searches that found nothing" head={["Search", "Times"]} rows={model.noResults} empty="Not recorded yet" />
             {!google && <TableCard title="Top pages and countries" head={[]} rows={null} empty="These come with Google Analytics." action={{ label: "Connect Google", run: openGoogle }} />}
-          </div>
+          </div>}
+
+          {on("an-products") && <TableCard title={`Most viewed ${w("books")}`} head={[w("Book"), "Views", "Bought"]} rows={model.products} empty="Not recorded yet" />}
+
+          {on("an-checkout") && <FunnelCard steps={model.funnel?.map(s => ({ ...s, label: w(s.label) })) ?? null} />}
         </>
       )}
     </div>

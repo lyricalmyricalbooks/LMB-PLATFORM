@@ -24,6 +24,7 @@ export const SUB_TABS: Record<string, Array<[slug: string, id: string]>> = {
   notifications: [["templates", "email-templates"], ["setup", "email-setup"], ["deliveries", "email-deliveries"]],
   shipping: [["overview", "overview"], ["profiles", "profiles"], ["carrier", "carrier"], ["local", "local"], ["returns", "returns"]],
   inventory: [["stock", "inv-stock"], ["link", "inv-link"]],
+  analytics: [["overview", "an-overview"], ["traffic", "an-traffic"], ["products", "an-products"], ["checkout", "an-checkout"]],
   apps: [["", "apps"], ["quickbooks", "quickbooks"]],
 };
 /** Old Settings page ids that open a particular sub tab (Email sender's address opens Sending setup). */
