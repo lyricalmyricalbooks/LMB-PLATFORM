@@ -1,5 +1,5 @@
-// The top of the Tax centre, to the mockup (11 November 2026): period pills, then four tiles (tax to remit, sales,
-// fees, before you file), tax by rate and place, tax by channel and past filings. Figures from taxPeriods.ts.
+// The Tax centre's sales tax parts (11 November 2026; v4 split them over three pages, `part`): period pills, four tiles
+// (tax to remit, sales, fees, before you file), tax by rate and place, tax by channel and past filings. Figures from taxPeriods.ts.
 import { useState } from "react";
 import { downloadCsv } from "@stockroom/download.js";
 
@@ -13,8 +13,11 @@ type Row = Record<string, any>;
 const dayWords = (key: string) => new Date(`${key}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 const csvText = (rows: string[][]) => rows.map((r) => r.map((c) => (/[",\n]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c)).join(",")).join("\n");
 
-export function TaxTop({ periods, period, onPeriod, orders, ledgerRows, states, taxCenter, currency, now, onTaxCenter }: {
-  periods: TaxPeriod[]; period: TaxPeriod; onPeriod: (id: string) => void;
+/** v4 splits the Tax centre into pages: Sales tax (tiles), Rates and places, Filings; "all" draws every part. */
+export type TaxTopPart = "all" | "salestax" | "rates" | "filings";
+
+export function TaxTop({ periods, period, onPeriod, orders, ledgerRows, states, taxCenter, currency, now, onTaxCenter, part = "all" }: {
+  periods: TaxPeriod[]; period: TaxPeriod; onPeriod: (id: string) => void; part?: TaxTopPart;
   /** The shop's orders; "loading" or "failed" while they can't be counted. */
   orders: Row[] | "loading" | "failed";
   ledgerRows: Row[]; states: Record<string, Row>; taxCenter: Row | null; currency: string; now: number;
@@ -26,15 +29,36 @@ export function TaxTop({ periods, period, onPeriod, orders, ledgerRows, states, 
   const pending = ready ? null : orders === "loading" ? "Counting…" : "Couldn't load website orders";
   const download = () => downloadCsv(csvText(taxReportRows(model, period, currency)), `Tax_report_${period.id}.csv`);
 
+  const on = (p: TaxTopPart) => part === "all" || part === p;
+  const ratesCard = (
+    <SectionCard title="Tax by rate and place" flush>
+      <DataTable stackOnPhone caption="Tax by rate and place" rowKey={(r) => r.id} rows={ready ? model.rates : []}
+        empty={<EmptyState inline title={pending ?? "No sales in this period"} />}
+        columns={[
+          { key: "r", header: "Rate", lead: true, render: (r) => <>{r.name}<span className="rp-tax-sub">{r.note}</span></> },
+          { key: "n", header: "Net sales", numeric: true, render: (r) => money(r.netCents) },
+          { key: "t", header: "Tax", numeric: true, render: (r) => <strong>{money(r.taxCents)}</strong> },
+          { key: "o", header: "Orders", numeric: true, render: (r) => r.orders },
+        ]} />
+      {ready && model.rates.length > 0 && <p className="rp-tax-total"><span>Total</span><strong>{money(model.taxCents)}</strong></p>}
+    </SectionCard>
+  );
+  const channelCard = (
+    <SectionCard title="Tax by channel">
+      {ready ? <ChannelBars model={model} money={money} /> : <p className="rp-tax-sub">{pending}</p>}
+    </SectionCard>
+  );
+  const filings = <PastFilings orders={ready ? orders : null} ledgerRows={ledgerRows} states={states} taxCenter={taxCenter} currency={currency} now={now} money={money} onTaxCenter={onTaxCenter} />;
+
   return (
     <>
-      <PageActions><PrimaryButton onClick={download} disabled={!ready}>Download report</PrimaryButton></PageActions>
-      <div className="rp-tax-period">
+      {on("salestax") && <PageActions><PrimaryButton onClick={download} disabled={!ready}>Download report</PrimaryButton></PageActions>}
+      {(on("salestax") || on("rates")) && <div className="rp-tax-period">
         <span className="rp-tax-period-label" id="rp-tax-period">Period</span>
         <Tabs label="Period" idPrefix="tax-" value={period.id} onChange={onPeriod}
           tabs={periods.map((p) => ({ id: p.id, label: p.quarter && p.open ? `${p.label} · open` : p.label }))} />
-      </div>
-      <div className="rp-tax-tiles">
+      </div>}
+      {on("salestax") && <div className="rp-tax-tiles">
         <RemitTile period={period} model={model} money={money} pending={pending} now={now} />
         <div className="rp-tax-tile">
           <p className="rp-tax-tile-label">Sales in period</p>
@@ -52,26 +76,13 @@ export function TaxTop({ periods, period, onPeriod, orders, ledgerRows, states, 
             ? <ul className="rp-tax-checks">{model.checks.map((c) => <li key={c.id}><span>{c.text}</span><strong>{c.done ? "Done" : "Check"}</strong></li>)}</ul>
             : <p className="rp-tax-tile-foot">{pending}</p>}
         </div>
-      </div>
-      <div className="rp-tax-split">
-        <SectionCard title="Tax by rate and place" flush>
-          <DataTable stackOnPhone caption="Tax by rate and place" rowKey={(r) => r.id} rows={ready ? model.rates : []}
-            empty={<EmptyState inline title={pending ?? "No sales in this period"} />}
-            columns={[
-              { key: "r", header: "Rate", lead: true, render: (r) => <>{r.name}<span className="rp-tax-sub">{r.note}</span></> },
-              { key: "n", header: "Net sales", numeric: true, render: (r) => money(r.netCents) },
-              { key: "t", header: "Tax", numeric: true, render: (r) => <strong>{money(r.taxCents)}</strong> },
-              { key: "o", header: "Orders", numeric: true, render: (r) => r.orders },
-            ]} />
-          {ready && model.rates.length > 0 && <p className="rp-tax-total"><span>Total</span><strong>{money(model.taxCents)}</strong></p>}
-        </SectionCard>
-        <div className="rp-tax-side">
-          <SectionCard title="Tax by channel">
-            {ready ? <ChannelBars model={model} money={money} /> : <p className="rp-tax-sub">{pending}</p>}
-          </SectionCard>
-          <PastFilings orders={ready ? orders : null} ledgerRows={ledgerRows} states={states} taxCenter={taxCenter} currency={currency} now={now} money={money} onTaxCenter={onTaxCenter} />
-        </div>
-      </div>
+      </div>}
+      {part === "all" && <div className="rp-tax-split">
+        {ratesCard}
+        <div className="rp-tax-side">{channelCard}{filings}</div>
+      </div>}
+      {part === "rates" && <div className="rp-tax-split">{ratesCard}<div className="rp-tax-side">{channelCard}</div></div>}
+      {part === "filings" && filings}
     </>
   );
 }

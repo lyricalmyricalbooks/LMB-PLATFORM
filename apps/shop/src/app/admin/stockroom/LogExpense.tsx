@@ -163,7 +163,7 @@ export function LogExpenseCard({ taxCenter, onSaved, prefill, onPrefillDone, pag
     );
   }
   return (
-    <SectionCard title="Log a business expense" description="Anything the press paid for. It joins the ledger below and the totals above.">
+    <SectionCard title="Log a business expense" description="Anything the press paid for. It joins the ledger and the totals.">
       <div ref={cardRef} />
       <form className="rp-money-form" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
         <div className="rp-money-actions">

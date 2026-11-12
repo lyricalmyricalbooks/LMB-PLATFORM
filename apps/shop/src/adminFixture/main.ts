@@ -45,7 +45,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
 }
 
 // --- Stockroom money pages (Tax centre, Expenses, Ask about your sales): sample records, only for those pages ---
-if (/page=stockroom(\/|%2F)(taxcenter|expenses|intel)/.test(window.location.search) && !EMPTY_STOCKROOM) {
+if (/page=stockroom(\/|%2F)(tax[a-z]+|expenses|intel)/.test(window.location.search) && !EMPTY_STOCKROOM) {
   stockroomApi.load = async (): Promise<StockroomRecords> => ({
     books: [
       { id: "salt-hours", title: "Salt Hours", author: "Ada Example", currency: "CA$", maxPrint: 200, threshold: 10, listPrice: 20 },
