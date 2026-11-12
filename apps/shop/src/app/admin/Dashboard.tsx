@@ -933,6 +933,7 @@ export function Dashboard() {
               <Menu size={20} aria-hidden />
             </IconButton>
             {/* Phones: the wordmark sits in the top bar (the rail is a drawer there). */}
+            {COMBINED && fairMode && <span className="rp-fair-pill">Fair mode · offline-ready</span>}
             <a className="rp-topbar-wordmark" href="#overview" onClick={(e) => { e.preventDefault(); void goTo("overview"); }}>{shopNameFromSettings(settings)}</a>
             <GlobalSearch destinations={destinations} onOpenBook={handleEditBook} shortcut={!showEditor && !(activeTab === "settings" && settingsTab === "designer")}
               appBooks={appSearch.books} appConnected={appSearch.connected} request={searchRequest}

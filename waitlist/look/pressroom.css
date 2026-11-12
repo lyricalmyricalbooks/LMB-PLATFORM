@@ -2264,3 +2264,9 @@ div.rp-listcard-main { cursor: default; }
   .rp .rp-more-sub { font-size: 13px; color: var(--rp-text-muted); }
   .rp .rp-workspace { padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
 }
+/* Phones in fair mode: one mint pill in the header (v3). */
+.rp .rp-fair-pill { display: none; }
+@media (max-width: 767px) {
+  .rp .rp-fair-pill { display: inline-flex; align-items: center; min-height: 32px; padding: 0 12px; border-radius: 999px; background: var(--rp-tile-mint); color: var(--rp-on-tile); font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .rp .rp-fair-pill ~ .rp-topbar-wordmark { display: none; }
+}
