@@ -139,7 +139,9 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   // Shops' free addresses go under a made-up shop domain, so setup shows the address a shop will get.
   const settingsEnv = { SIGNUP_OPEN: "true", SHOP_ADDRESS_DOMAIN: "shops.example", ...env };
   const settings = platformSettings(settingsEnv);
-  const live = () => liveSettings({ env: settingsEnv });
+  // As on the hosted server (server/world.js): the environment with the control room's saved changes on top, so a
+  // setting changed in the control room reaches sign-up, billing and the invite email here too.
+  const live = () => liveSettings({ env: settingsEnv, store: platformState });
 
   const registry = fakeRegistry();
   const services = fakeServices();
@@ -162,6 +164,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   };
   const billing = createBilling({
     ...billingDeps, webhookSecrets: [WEBHOOK_SECRET], shopPlan: shopPlanCopies({ shopData, stockroomData, registry }),
+    live,
     closeApp: async (entry) => void closed.push(entry),
     // Pretend: a closed app's records "deleted" once its 90 days are over (nothing real to delete here).
     deleteApp: async (entry) => void closed.push({ ...entry, deleted: true }),
@@ -231,7 +234,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     admins, settingsStore: platformState, env: settingsEnv, activity, waitlist, signups: stores.signups, now: clock.date,
     // Every key is pretend here, so the Launch page shows them all in place.
     keyEnv: { ...Object.fromEntries([...PAYMENTS_SECRETS, ...BILLING_SECRETS].map((key) => [key.env, "practice"])), [EMAIL_SETTING.env]: EMAIL_SETTING.value },
-    invites: createInvites({ invites: fakeInviteStore(), email, settings, now: clock.date }),
+    invites: createInvites({ invites: fakeInviteStore(), email, settings, live, now: clock.date }),
   });
   const backup = createBackupAccess({
     people, admins: [ADMIN_EMAIL], state: platformState, email, registry, auditLog, now: clock.date,
