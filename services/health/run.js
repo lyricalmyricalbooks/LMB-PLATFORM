@@ -32,7 +32,7 @@ export async function realHealth({ job, env = process.env, fetch = globalThis.fe
   const platform = firestoreClient({ fetch, token, projectId });
   const registry = firestoreRegistry(platform);
   // Each shop's data: its folder in the shared project once SHARED_SHOPS_PROJECT is set (clients/shared.js).
-  const { shopDb } = shopStores({ env, fetch, token });
+  const { shopDb } = shopStores({ env, fetch, token, rowOf: (shopId) => registry.getShop(shopId) });
   if (job === "nightly") return runNightlyBackups({ registry, backups: googleClients({ fetch, token }).backups, shopDb, print });
   if (job === "drill") {
     const google = googleClients({ fetch, token });

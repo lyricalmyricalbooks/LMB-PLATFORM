@@ -200,11 +200,12 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   // The platform project's database, and each shop's (its folder in the shared project once SHARED_SHOPS_PROJECT is set,
   // clients/shared.js shopStores; else its own project's default database and its stockroom's named one).
   const platform = firestoreClient({ fetch, token, projectId });
-  const { shared, shopDb, stockroomDb } = shopStores({ env, fetch, token });
+  const registry = firestoreRegistry(platform, { now });
+  // A shop whose registry row places it in a shared project (the test shops, in the shared test project) is reached there.
+  const { shared, shopDb, stockroomDb } = shopStores({ env, fetch, token, rowOf: (shopId) => registry.getShop(shopId) });
   const platformState = firestorePlatformState(platform);
   const live = () => liveSettings({ env, store: platformState });
 
-  const registry = firestoreRegistry(platform, { now });
   const auditLog = firestoreAuditLog(shopDb);
   const profileFiles = registryFiles(platform, "shop-profile.js");
   const shopData = shopDataClient(shopDb);

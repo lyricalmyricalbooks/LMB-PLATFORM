@@ -108,6 +108,18 @@ test("a real run readies the project, retires the old test shop, sends the first
   assert.equal((await registry.getShop("test-goods")).status, "live");
 });
 
+test("each test shop's address is on the sign-in list, and one made before that gets it on the next run", async () => {
+  const { stepClients, run } = setup();
+  assert.equal((await run(true)).ok, true);
+  const allowed = stepClients.google.domainsOf(TEST_PROJECT);
+  assert.ok(allowed.includes("lmb-test-goods.web.app"), "the general shop's own site: Google refuses sign-in from an unlisted address");
+  assert.equal(allowed.filter((d) => d === TEST_SHOP_ADDRESS).length, 1, "the project's own address is listed once");
+  // As a shop made before this: the address is off the list again.
+  allowed.splice(allowed.indexOf("lmb-test-goods.web.app"), 1);
+  assert.equal((await run(true)).ok, true);
+  assert.ok(stepClients.google.domainsOf(TEST_PROJECT).includes("lmb-test-goods.web.app"));
+});
+
 test("a test shop made before its sample records gets them on the next run, and nothing it has is replaced", async () => {
   const { services, run } = setup();
   assert.equal((await run(true)).ok, true);

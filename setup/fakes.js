@@ -525,9 +525,24 @@ export function fakeServices({ failOnce = [], pageStatus = () => 200 } = {}) {
 export function fakeTenants() {
   const lists = [];
   const signIns = new Map();
+  // The addresses sign-in is allowed from, per project: the project's own two to begin with, as Google makes them.
+  const domains = new Map();
+  const domainsOf = (projectId) => {
+    if (!domains.has(projectId)) domains.set(projectId, [`${projectId}.firebaseapp.com`, `${projectId}.web.app`]);
+    return domains.get(projectId);
+  };
   return {
     lists,
-    authConfig: { googleSignIn: async () => ({ enabled: true, clientId: "client.example", clientSecret: "made-up-secret" }) },
+    domainsOf,
+    authConfig: {
+      googleSignIn: async () => ({ enabled: true, clientId: "client.example", clientSecret: "made-up-secret" }),
+      get: async (projectId) => ({ authorizedDomains: [...domainsOf(projectId)] }),
+      async allowDomain(projectId, host) {
+        if (domainsOf(projectId).includes(host)) return { changed: false };
+        domainsOf(projectId).push(host);
+        return { changed: true };
+      },
+    },
     tenants: {
       list: async () => lists.map((t) => ({ ...t })),
       async create(projectId, fields) { const list = { name: `projects/${projectId}/tenants/${fields.displayName}-x`, ...fields }; lists.push(list); return list; },

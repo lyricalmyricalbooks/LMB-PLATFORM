@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { fakeRegistry } from "../../setup/fakes.js";
 import { TEMPLATES } from "../email/templates.js";
 import { DEFAULT_SETTINGS } from "../settings.js";
-import { BACKUP_MAX_HOURS, checkShop, checksFor, healthChecks } from "./checks.js";
+import { BACKUP_MAX_HOURS, checkShop, checksFor, healthChecks, plainCheckProblem } from "./checks.js";
 import { runNightlyBackups } from "./nightly.js";
 import { REMIND_HOURS, nextState, runHealth } from "./runner.js";
 import { CHECKOUT_ERROR_JUMP } from "./checks.js";
@@ -70,8 +70,24 @@ test("a check that can't be made is a failure, and the other checks still run", 
   const checks = healthChecks(world({ docs: { "press-alpha": goodBackup() } }));
   checks.checkout = async () => { throw new Error("socket hang up"); };
   const results = await checkShop(row("press-alpha", { plan: "shop" }), checks, { now: () => new Date(NOW) });
-  assert.deepEqual(results.checkout, { ok: false, detail: "couldn't check: socket hang up" });
+  assert.deepEqual(results.checkout, { ok: false, detail: "couldn't check: the shop didn't answer in time" });
   assert.deepEqual(results.backup, { ok: true });
+});
+
+test("Google's own error text never reaches the control room: a check that can't be made says why in plain words", () => {
+  const google = [
+    "Cloud Firestore API has not been used in project test-press before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/firestore.googleapis.com/overview?project=test-press then retry.",
+    "Permission denied on resource project test-goods.",
+    "5 NOT_FOUND: no such database",
+    "something nobody has seen before at https://example.com/x",
+  ];
+  for (const said of google) {
+    const plain = plainCheckProblem(new Error(said));
+    assert.doesNotMatch(plain, /https?:|googleapis|API has not|project test-/);
+    assert.ok(plain.length < 120);
+  }
+  assert.match(plainCheckProblem(new Error(google[0])), /couldn't be reached/);
+  assert.match(plainCheckProblem(new Error(google[1])), /isn't allowed/);
 });
 
 test("alert rules: pages and checkout need two failed runs; reminders every few hours; recovery once", () => {

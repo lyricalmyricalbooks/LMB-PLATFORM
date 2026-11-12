@@ -74,6 +74,9 @@ export function sharedStores({ fetch, token, projectId, databaseUrl = "" }) {
   };
 }
 
+const REGION_NAME = /^[a-z]+-[a-z]+[0-9]{1,2}$/;
+const PROJECT_ID = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
+
 /**
  * The shared project's file buckets, where each shop's files sit under shops/<id>/: `SHARED_SHOPS_BUCKETS` (comma
  * separated) when set, else the project's default bucket and the stockroom's.
@@ -90,22 +93,49 @@ export function sharedBuckets(env = {}) {
  * `SHARED_SHOPS_PROJECT` set, every shop is a folder in that project (`shared` is its sharedStores); without it, each
  * shop's own project, as before the shared system. The hosted server and its jobs build theirs here, so every platform
  * writer into a shop (plan copies, messages, closing, health, backups) follows one setting.
+ *
+ * `rowOf(shopId)` (the registry's getShop), when given, comes first: a shop whose row says it is a folder in a shared
+ * project (`shared: true` and that project's id) is reached there, whatever the setting says. The test shops are
+ * folders in the shared test project, never in the live one, so without this the health checks, the control room's
+ * reset and every other writer looked for them in a project named after the shop (12 November 2026).
  */
-export function shopStores({ env = {}, fetch, token }) {
+export function shopStores({ env = {}, fetch, token, rowOf = null }) {
   const projectId = String(env.SHARED_SHOPS_PROJECT ?? "").trim();
-  if (projectId) {
-    const shared = sharedStores({ fetch, token, projectId, databaseUrl: liveDatabaseUrl(projectId, env) });
-    return { shared, shopDb: shared.shopDb, stockroomDb: shared.stockroomDb };
-  }
-  return {
-    shared: null,
-    shopDb: (shopProject) => firestoreClient({ fetch, token, projectId: shopProject }),
-    stockroomDb: (shopProject) => firestoreClient({ fetch, token, projectId: shopProject, database: STOCKROOM_DATABASE }),
-  };
-}
+  const shared = projectId ? sharedStores({ fetch, token, projectId, databaseUrl: liveDatabaseUrl(projectId, env) }) : null;
+  const byDefault = shared
+    ? { shopDb: shared.shopDb, stockroomDb: shared.stockroomDb }
+    : {
+      shopDb: (shopProject) => firestoreClient({ fetch, token, projectId: shopProject }),
+      stockroomDb: (shopProject) => firestoreClient({ fetch, token, projectId: shopProject, database: STOCKROOM_DATABASE }),
+    };
+  if (typeof rowOf !== "function") return { shared, ...byDefault };
 
-const REGION_NAME = /^[a-z]+-[a-z]+[0-9]{1,2}$/;
-const PROJECT_ID = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
+  // A shop never moves between projects, so its place is looked up once. A row that can't be read is not remembered.
+  const places = new Map();
+  const others = new Map();
+  const storesIn = (project) => {
+    if (project === projectId) return shared;
+    if (!others.has(project)) others.set(project, sharedStores({ fetch, token, projectId: project }));
+    return others.get(project);
+  };
+  const placeOf = async (shopId) => {
+    if (!places.has(shopId)) {
+      const row = await rowOf(shopId);
+      if (!row) return null;
+      places.set(shopId, row.shared === true && PROJECT_ID.test(row.projectId ?? "") ? row.projectId : null);
+    }
+    return places.get(shopId);
+  };
+  // The same calls as firestoreClient, each finding the shop's place first.
+  const found = (kind) => (shopId) => {
+    const client = async () => {
+      const project = await placeOf(shopIdOf(shopId));
+      return (project ? storesIn(project) : byDefault)[kind](shopId);
+    };
+    return Object.fromEntries(["get", "create", "set", "remove", "query", "transaction"].map((name) => [name, async (...args) => (await client())[name](...args)]));
+  };
+  return { shared, shopDb: found("shopDb"), stockroomDb: found("stockroomDb") };
+}
 
 /**
  * Where one shop answers, from its registry row: `site` (its main address), `stockroom` and `fn(name)`, the address of

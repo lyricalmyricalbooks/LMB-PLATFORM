@@ -27,6 +27,20 @@ const TIMEOUT_MS = 10_000;
 const message = (error) => (error instanceof Error ? error.message : String(error));
 const hoursBetween = (later, earlier) => (Date.parse(later) - Date.parse(earlier)) / 3_600_000;
 
+/**
+ * Why a check couldn't be made, in plain words for the control room and the alert email. Google's own answers (long,
+ * with console links and project ids) never go on screen; the run's log keeps them.
+ */
+export function plainCheckProblem(error) {
+  const said = message(error);
+  if (/has not been used in project|it is disabled|SERVICE_DISABLED/i.test(said)) return "the shop's data couldn't be reached (the platform looked in the wrong place, or the database is off)";
+  if (/permission denied|PERMISSION_DENIED|\b403\b/i.test(said)) return "the platform isn't allowed to read this shop's data";
+  if (/not found|NOT_FOUND|\b404\b/i.test(said)) return "the shop's data wasn't found";
+  if (/timed? ?out|aborted|ETIMEDOUT|ECONNRESET|socket hang up|fetch failed|network|unreachable/i.test(said)) return "the shop didn't answer in time";
+  if (/quota|RESOURCE_EXHAUSTED|\b429\b/i.test(said)) return "Google is limiting requests just now";
+  return "something went wrong on the platform's side";
+}
+
 /** Which checks apply to a shop: the stockroom alone has no checkout or payments. */
 export function checksFor(row) {
   const apps = appsOf(row);
@@ -136,7 +150,9 @@ export async function checkShop(row, checks, { now = () => new Date() } = {}) {
     try {
       results[name] = await checks[name](row, { now, previous: row.health?.checks?.[name] });
     } catch (error) {
-      results[name] = { ok: false, detail: `couldn't check: ${message(error)}` };
+      // The whole answer goes to the run's log; the row keeps plain words only.
+      console.error(`${row.shopId}: the ${name} check couldn't be made: ${message(error)}`);
+      results[name] = { ok: false, detail: `couldn't check: ${plainCheckProblem(error)}` };
     }
   }
   return results;
