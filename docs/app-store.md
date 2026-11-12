@@ -133,7 +133,8 @@ Installed and the store come through the **shop door**: the shop's server action
 admins only) posts `{op, args}` to `POST /api/apps/shop` (`services/apps/shopDoor.js`) with `X-Shop-Id` and the shop's
 service key, the same pattern as the email and payments doors. Ops: `apps.installed`, `apps.store` (listed apps plus
 categories), `apps.remove` (recorded as `shop admin: <email>`). The address is `PLATFORM_APPS_URL` in the shop's settings
-(`setup/later-steps.js`); without it the two tabs say "The app store opens soon" and only Activity works.
+(`setup/later-steps.js` for a shop with its own project; `sharedServerEnv` in `services/release-runner/shared.js` for
+every shop on the shared system, since 12 November 2026); without it the two tabs say "The app store opens soon" and only Activity works.
 
 The permission page (`accounts/install.html`) uses the same category picture, names the shop (`shopName` in the preview)
 and lists the permissions with the same "Personal details" tag. An app already added shows "Added" and the button reads

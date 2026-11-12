@@ -199,3 +199,22 @@ test("the app connection answers under /api/apps/v1 and refuses a call without a
   assert.equal(answer.status, 401);
   assert.match(answer.body.message, /key/);
 });
+
+test("a shared-system shop reaches the app store at the address its server is given (Settings › Apps, plan 26.5)", async () => {
+  const { sharedServerEnv } = await import("../services/release-runner/shared.js");
+  const appsUrl = /^PLATFORM_APPS_URL="([^"]+)"$/m.exec(sharedServerEnv({ platformUrl: "https://platform.example" }))?.[1];
+  assert.equal(appsUrl, "https://platform.example/api/apps");
+  // The shop's server posts to `${PLATFORM_APPS_URL}/shop` (apps/shop/functions/appsLink.js).
+  const path = `${new URL(appsUrl).pathname}/shop`;
+  const env = { ...TEST_ENV, SHARED_SHOPS_PROJECT: "lmb-test-shop", SHARED_SHOPS_DOMAIN: "shops.example" };
+  const { world } = build(env);
+  const key = "shared-server-key-0123456789abcdef0123456789";
+  await world.registry.createShop("moth-press", { shopId: "moth-press", projectId: "lmb-test-shop", shared: true, status: "live", serviceKeyHash: hashServiceKey(key) });
+  const refused = await world.handle({ method: "POST", path, headers: { "X-Shop-Id": "moth-press" }, body: { op: "apps.store", args: {} } });
+  assert.equal(refused.status, 401);
+  const store = await world.handle({ method: "POST", path, headers: { "X-Shop-Id": "moth-press", Authorization: `Bearer ${key}` }, body: { op: "apps.store", args: {} } });
+  assert.equal(store.status, 200, JSON.stringify(store.body));
+  assert.ok(Array.isArray(store.body.apps), "the store lists its apps");
+  const installed = await world.handle({ method: "POST", path, headers: { "X-Shop-Id": "moth-press", Authorization: `Bearer ${key}` }, body: { op: "apps.installed", args: {} } });
+  assert.equal(installed.status, 200, JSON.stringify(installed.body));
+});
