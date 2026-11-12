@@ -24,11 +24,18 @@ PR 1, emails
 - [x] Tests updated (parity, weekly PDF cream), all suites green; previews at desktop and phone width.
 
 PR 2, invoices
-- [ ] Document kit in bento (cream head tile, detail tiles, rounded table head, mint amount due, reference pill).
-- [ ] Colophon's bills: a bento bill page built from the Stripe bill's own lines, tax lines and numbers, with Stripe's
+- [x] Document kit in bento (cream head tile, detail tiles, rounded table head, mint amount due, reference pill).
+- [x] Colophon's bills: a bento bill page built from the Stripe bill's own lines, tax lines and numbers, with Stripe's
       PDF kept beside it.
-- [ ] Screenshots of both to Julian.
+- [x] Screenshots of both to Julian.
 
 ## Review
 
-(filled in when done)
+- PR #728 (emails) merged with all 19 checks green. Platform `npm test` 1,982 pass; shop vitest 876 files pass; lint
+  and typecheck clean.
+- Invoices: one change to the document kit restyles every printed invoice and line sheet; amounts, tax lines and
+  notes are untouched (only CSS changed). The kit test now allows only the bento colours.
+- Colophon's bills: the platform reads each Stripe bill's own lines, tax lines (named from Stripe's tax rates, with
+  rate and place) and both tax numbers; a lookup that fails falls back to "Tax" and never drops the bill. The
+  shop's Bills list gets "Print or save" beside Stripe's PDF, which stays the bill of record.
+- Screenshots at desktop and phone width: shop and platform emails, an invoice, a bill.

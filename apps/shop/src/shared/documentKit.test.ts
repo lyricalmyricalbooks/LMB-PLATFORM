@@ -31,12 +31,14 @@ describe("document kit", () => {
     expect(html.indexOf("Subtotal")).toBeLessThan(html.indexOf("Total</span>"));
     expect(html).toContain('class="strong"');
   });
-  it("prints in black and white: no colour but black, white, and none", () => {
+  it("uses only Colophon's paper colours, and prints them", () => {
     const css = documentCss();
-    const colours = [...css.matchAll(/#([0-9a-f]{3}|[0-9a-f]{6})\b/gi)].map(m => m[1].length === 3 ? m[1].split("").map(c => c + c).join("") : m[1]);
-    expect(colours.length).toBeGreaterThan(0);
-    for (const c of colours) expect(c.slice(0, 2) === c.slice(2, 4) && c.slice(2, 4) === c.slice(4, 6)).toBe(true);
-    expect(css).not.toMatch(/rgb|hsl/i);
+    const colours = new Set([...css.matchAll(/#([0-9a-f]{6})\b/gi)].map(m => m[1].toLowerCase()));
+    expect([...colours].filter(c => !["1f1e1b", "ffffff", "efede8", "e4e1da", "a9e8c6", "55524b", "67635b"].includes(c))).toEqual([]);
+    expect(css).not.toMatch(/#[0-9a-f]{3}\b|rgb|hsl/i);
+    expect(css).toContain("print-color-adjust:exact");
+    // the amount due sits on the mint tile
+    expect(css).toMatch(/\.doc-totals \.strong\{background:#a9e8c6/);
   });
   it("has the print rules every document needs", () => {
     const css = documentCss();
