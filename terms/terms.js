@@ -5,7 +5,7 @@
 // words they agreed to. Words here are customer-facing: plain words, never a rival's name.
 
 /** The id of these words. Sign-up stores it with the date the press ticked the box. */
-export const TERMS_VERSION = "2026-11-12";
+export const TERMS_VERSION = "2026-11-12.2";
 
 /** These are the final words Julian chose (12 November 2026): no draft notice on the page. */
 export const DRAFT = false;
@@ -38,9 +38,6 @@ export const BACKUP_KEEP_DAYS = 30;
 
 /** How long a press has between our notice and the end of the service, in days. */
 export const SHUTDOWN_NOTICE_DAYS = 90;
-
-/** The free trial, in days (services/settings.js TRIAL_DAYS default; terms.test.js keeps them equal). */
-export const TRIAL_DAYS = 14;
 
 /** A paused shop is kept this many days before it closes (services/billing/closing.js PAUSED_DAYS). */
 export const PAUSED_DAYS = 60;
@@ -79,6 +76,7 @@ export const CHANGES = Object.freeze({
     "The running cost is worked out in Canadian dollars. For a press billed in US dollars, we convert it at that day's exchange rate, with nothing added.",
     "The tax on your bill follows where your press is: its province in Canada, or its state in the United States. You can download every bill from Settings, under Billing.",
     "These terms are no longer a draft.",
+    "The terms no longer name a fixed number of free trial days. Your trial lasts the number of days the sign-up page showed the day you signed up.",
   ]),
   fr: Object.freeze([
     "Votre forfait comprend maintenant des frais de plateforme et ce qu'a coûté le fonctionnement de votre boutique le mois précédent, au prix coûtant. Les mois d'essai ne coûtent rien, et nous vous écrivons avant qu'un mois dépasse le montant que vous choisissez (25 $ si vous ne le changez pas).",
@@ -91,6 +89,7 @@ export const CHANGES = Object.freeze({
     "Le coût de fonctionnement est calculé en dollars canadiens. Pour une maison facturée en dollars américains, nous le convertissons au taux de change du jour, sans rien ajouter.",
     "La taxe sur votre facture suit l'endroit où se trouve votre maison : sa province au Canada, ou son État aux États-Unis. Vous pouvez télécharger chaque facture depuis Réglages, sous Facturation.",
     "Ces conditions ne sont plus un brouillon.",
+    "Les conditions ne nomment plus un nombre fixe de jours d'essai gratuit. Votre essai dure le nombre de jours affiché sur la page d'inscription le jour de votre inscription.",
   ]),
 });
 
@@ -121,7 +120,7 @@ export const SECTIONS = Object.freeze([
     id: "paying",
     title: "Your plan and paying",
     paragraphs: [
-      `Your plan starts with a free trial of ${TRIAL_DAYS} days, and we never ask for a card to start it. If the trial ends with no card, your shop pauses and nothing is charged.`,
+      "Your plan starts with a free trial, and we never ask for a card to start it. It lasts the number of days shown on the sign-up page the day you sign up. If the trial ends with no card, your shop pauses and nothing is charged.",
       "Once you add a card, your plan renews every month until you cancel. Each month we charge that card the plan's fee plus what your shop cost to run the month before (storage, web traffic, background jobs and emails), at what it costs us, with nothing added. We work it out from our cloud provider's record of each shop's use, and check it against that provider's bill before we charge. Trial months cost nothing. Your billing page shows the cost so far, and we email you when a month looks set to pass the amount you choose there ($25 unless you change it).",
       "A press in the United States pays in US dollars, and a press in Canada pays in Canadian dollars. The running cost is worked out in Canadian dollars, and for a press paying in US dollars we convert it at that day's exchange rate, with nothing added. Prices are shown before tax. We add the sales tax of the place your press is in, its province or its state, and your bill shows it. You can download every bill from Settings, under Billing.",
       "A press that already pays a share of its website's sales instead of a monthly price keeps paying that way until it switches. It isn't offered to new presses.",

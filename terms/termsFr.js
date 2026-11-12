@@ -6,7 +6,7 @@
 // ici ou là-bas, c'est une nouvelle TERMS_VERSION.
 import {
   BACKUP_KEEP_DAYS, CHANGE_NOTICE_DAYS, DOWNLOAD_DAYS, OPERATOR_NAME, PAUSED_DAYS, PRIVACY_CONTACT, REPORT_CONTACT,
-  SHUTDOWN_NOTICE_DAYS, TRIAL_DAYS,
+  SHUTDOWN_NOTICE_DAYS,
 } from "./terms.js";
 
 /** L'adresse de l'entreprise, écrite à la française. */
@@ -52,7 +52,7 @@ export const SECTIONS_FR = Object.freeze([
     id: "paying",
     title: "Votre forfait et le paiement",
     paragraphs: [
-      `Votre forfait commence par un essai gratuit de ${TRIAL_DAYS} jours, et nous ne demandons jamais de carte pour le commencer. Si l'essai se termine sans carte, votre boutique est mise en pause et rien n'est facturé.`,
+      "Votre forfait commence par un essai gratuit, et nous ne demandons jamais de carte pour le commencer. Il dure le nombre de jours affiché sur la page d'inscription le jour de votre inscription. Si l'essai se termine sans carte, votre boutique est mise en pause et rien n'est facturé.",
       "Une fois votre carte ajoutée, votre forfait se renouvelle chaque mois jusqu'à ce que vous annuliez. Chaque mois, nous débitons cette carte des frais du forfait et de ce qu'a coûté le fonctionnement de votre boutique le mois précédent (stockage, trafic web, tâches de fond et courriels), à ce qu'il nous coûte, sans rien ajouter. Nous le calculons à partir du relevé de l'usage de chaque boutique tenu par notre fournisseur infonuagique, et le vérifions avec la facture de ce fournisseur avant de vous facturer. Les mois d'essai ne coûtent rien. Votre page de facturation montre le coût à ce jour, et nous vous écrivons quand un mois semble devoir dépasser le montant que vous y choisissez (25 $ si vous ne le changez pas).",
       "Une maison aux États-Unis paie en dollars américains, et une maison au Canada en dollars canadiens. Le coût de fonctionnement est calculé en dollars canadiens et, pour une maison qui paie en dollars américains, nous le convertissons au taux de change du jour, sans rien ajouter. Les prix sont affichés avant taxes. Nous ajoutons les taxes de vente de l'endroit où se trouve votre maison, sa province ou son État, et votre facture les indique. Vous pouvez télécharger chaque facture depuis Réglages, sous Facturation.",
       "Une maison qui paie déjà une part des ventes de son site au lieu d'un prix mensuel continue de payer ainsi jusqu'à ce qu'elle change. Ce choix n'est pas offert aux nouvelles maisons.",
