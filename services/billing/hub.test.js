@@ -27,7 +27,8 @@ function make({ presses = 25, percentOff = 25, tax = false } = {}) {
   const auditLog = fakeAuditLog();
   const email = fakePlatformEmail();
   const seats = fakeFoundingSeats();
-  const live = async () => ({ ...DEFAULT_SETTINGS, payAsYouSell: { basisPoints: 200 }, foundingOffer: { percentOff, presses } });
+  // Like liveSettings: the environment's settings with the control room's changes on top.
+  const live = async () => ({ ...platformSettings(TIERED_PRICES_ENV), payAsYouSell: { basisPoints: 200 }, foundingOffer: { percentOff, presses } });
   const waits = [];
   const billing = createBilling({
     stripe: createStripeApi({ fetch: stripe.fetch, keys: { test: "sk_test_fake", live: null } }),
