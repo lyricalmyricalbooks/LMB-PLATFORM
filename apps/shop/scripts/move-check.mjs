@@ -77,11 +77,11 @@ try {
   await page.getByRole("button", { name: "Bring customers over" }).first().click();
   await page.setInputFiles('input[aria-label="Customer list file"]', join(SHEETS, "old-shop-customers.xlsx"));
   await page.getByRole("button", { name: /^Bring over 4 customers$/ }).click();
-  await page.getByRole("button", { name: "Done" }).waitFor({ timeout: 10000 });
+  await page.getByRole("button", { name: "Done", exact: true }).waitFor({ timeout: 10000 });
   const notes = await page.evaluate(() => window.__adminFixture.calls.filter((c) => c[0] === "saveCustomerNote").length);
   check(notes === 4, "4 customers saved, from an Excel file", `${notes}`);
   await shot("2-customers");
-  await page.getByRole("button", { name: "Done" }).click();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
 
   // Gift cards.
   await go("giftCards");
