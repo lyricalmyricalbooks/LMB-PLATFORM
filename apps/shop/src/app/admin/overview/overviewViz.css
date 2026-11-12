@@ -264,6 +264,8 @@ button.rp-viz-rank-row:focus-visible { outline: 2px solid var(--rp-focus); outli
 .rp-todo-tiles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
 .rp-todo-tile { display: flex; flex-direction: column; gap: 6px; padding: 18px; border-radius: var(--rp-radius-lg); background: var(--rp-surface-sunken); min-width: 0; }
 .rp-todo-tile[data-quiet] { flex-direction: row; align-items: center; gap: 12px; }
+.rp-todo-tile[data-clear] { flex-direction: column; align-items: flex-start; gap: 4px; padding: 22px 24px; }
+.rp-todo-tile[data-clear] .rp-todo-title { font-size: 18px; }
 .rp-todo-kind { font: 500 var(--rp-text-xs)/1 var(--rp-font-mono); color: var(--rp-text-subtle); text-transform: uppercase; letter-spacing: .04em; }
 .rp-todo-tile[data-quiet] .rp-todo-kind { font-size: var(--rp-text-sm); }
 .rp-todo-title { font-size: 20px; font-weight: 600; line-height: 1.2; color: var(--rp-text); }
@@ -271,12 +273,18 @@ button.rp-viz-rank-row:focus-visible { outline: 2px solid var(--rp-focus); outli
 .rp-todo-go { align-self: flex-start; margin-top: 6px; padding: 9px 18px; border: 0; border-radius: 999px; background: var(--rp-inverse); color: var(--rp-on-inverse); font: 600 var(--rp-text-sm)/1 var(--rp-font-body); cursor: pointer; }
 .rp-todo-go:hover { opacity: .85; }
 .rp-todo-go:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
-/* Each tile gets its own tone, in the mockup's order: mint, apricot, plain, sky, alert. */
+/* Each kind of job keeps its tone (v4): Orders mint, Sales apricot, Payments white, Stock sky, the rest lilac. */
 .rp-todo-tile:not([data-quiet]) { padding: 22px 24px; }
-.rp-todo-tile:not([data-quiet]):nth-child(5n+1) { background: var(--rp-tile-mint, var(--rp-success-tint)); }
-.rp-todo-tile:not([data-quiet]):nth-child(5n+2) { background: var(--rp-tile-apricot, var(--rp-warning-tint)); }
-.rp-todo-tile:not([data-quiet]):nth-child(5n+3) { background: var(--rp-surface); }
-.rp-todo-tile:not([data-quiet]):nth-child(5n+4) { background: var(--rp-tile-sky, var(--rp-info-tint)); }
-.rp-todo-tile:not([data-quiet]):nth-child(5n+5) { background: var(--rp-danger-tint); }
-.rp-todo-tile:not([data-quiet]):is(:nth-child(5n+1), :nth-child(5n+2), :nth-child(5n+4), :nth-child(5n+5)) :is(.rp-todo-title, .rp-todo-body, .rp-todo-kind) { color: var(--rp-on-tile, var(--rp-text)); }
+.rp-todo-tile[data-tone="mint"], .rp-todo-tile[data-clear] { background: var(--rp-tile-mint, var(--rp-success-tint)); }
+.rp-todo-tile[data-tone="apricot"] { background: var(--rp-tile-apricot, var(--rp-warning-tint)); }
+.rp-todo-tile[data-tone="plain"] { background: var(--rp-surface); }
+.rp-todo-tile[data-tone="sky"] { background: var(--rp-tile-sky, var(--rp-info-tint)); }
+.rp-todo-tile[data-tone="lilac"] { background: var(--rp-tile-lilac, var(--rp-surface)); }
+.rp-todo-tile:is([data-tone="mint"], [data-tone="apricot"], [data-tone="sky"], [data-tone="lilac"], [data-clear]) :is(.rp-todo-title, .rp-todo-body, .rp-todo-kind) { color: var(--rp-on-tile, var(--rp-text)); }
+.rp-todo-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.rp-todo-acts .rp-todo-go { margin-top: 0; }
+.rp-todo-done { padding: 8px 17px; border: 1px solid currentColor; border-radius: 999px; background: transparent; color: var(--rp-on-tile, var(--rp-text)); font: 600 var(--rp-text-sm)/1 var(--rp-font-body); cursor: pointer; }
+.rp-todo-tile[data-tone="plain"] .rp-todo-done { color: var(--rp-text); }
+.rp-todo-done:hover { opacity: .85; }
+.rp-todo-done:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
 .rp-todo-tile:not([data-quiet]) .rp-todo-go { background: var(--rp-text); color: var(--rp-canvas); }

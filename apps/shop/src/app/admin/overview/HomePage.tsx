@@ -19,6 +19,8 @@ import { SetupStart } from "./SetupStart";
 import { HomeToday } from "./HomeToday";
 import { RunRow, RunTiles } from "./OverviewParts";
 import { stockroomRunRows, useStockroomTodos } from "./StockroomTodos";
+import { moneyText } from "../stockroom/stockists";
+import { REORDER_TAB } from "../combined";
 import { REORDER_COVER_DAYS, isRealPaidOrder, orderTodos, reprintWatch, stockValue, titleStock, toFulfil } from "./overviewInsights";
 
 /** A press with both apps: Home also lists the stockroom's to-dos and the till buttons. */
@@ -149,6 +151,20 @@ export function HomePage({ setActiveTab, onSetWall, ownerName = "" }: {
     </section>
   );
 
+  // Shop + stockroom (v4 mockup): one figure from each side, each opening its page.
+  const sr = stockroomTodos.glance;
+  const srWait = stockroomTodos.loading ? "…" : "—";
+  const glance = COMBINED ? (
+    <ul className="rp-glance" aria-label="Both sides at a glance">
+      <GlanceTile side="Website" tone="mint" value={todo ? String(todo.fulfil.length) : allOrders.error ? "—" : "…"}
+        label={todo && todo.fulfil.length === 1 ? "order to pack" : "orders to pack"} onOpen={() => go("orders")} />
+      <GlanceTile side="Stockroom" tone="apricot" value={sr ? String(sr.restock) : srWait}
+        label={w(sr && sr.restock === 1 ? "book low or out of stock" : "books low or out of stock")} onOpen={() => go(REORDER_TAB)} />
+      <GlanceTile side="Stockroom" tone="sky" value={sr ? moneyText(sr.owed) || "Nothing" : srWait}
+        label="owed to you by stockists" onOpen={() => stockroomBridge.openPage("consignment")} />
+    </ul>
+  ) : null;
+
   return (
     <>
       {/* Plans 6.3 and 6.9: only a shop whose setup wrote the sign-up answers shows Choose your look, then the guide. */}
@@ -157,8 +173,21 @@ export function HomePage({ setActiveTab, onSetWall, ownerName = "" }: {
         onOpen={go} onSetWall={onSetWall} onRetrySettings={refresh} />
       {/* Plan 6.17: Connect Google, on a shop run by Colophon, until it is connected. */}
       <ConnectGoogleCard variant="prompt" />
-      <HomeToday ownerName={ownerName} orders={shopOrders} ordersFailed={allOrders.error} fair={fair} combined={COMBINED} todo={todoRow}
-        onOpen={go} onOpenTill={() => stockroomBridge.openPage("pos")} onRecordSale={() => stockroomBridge.openPage("manual")} onRetry={refresh} />
+      <HomeToday ownerName={ownerName} orders={shopOrders} ordersFailed={allOrders.error} fair={fair} combined={COMBINED} todo={todoRow} glance={glance}
+        onOpen={go} onOpenTill={() => stockroomBridge.openPage("pos")} onRetry={refresh} />
     </>
+  );
+}
+
+/** One of Home's "Both sides at a glance" tiles: which side, one figure, what it counts; the whole tile opens its page. */
+export function GlanceTile({ side, tone, value, label, onOpen }: { side: string; tone: "mint" | "apricot" | "sky"; value: string; label: string; onOpen: () => void }) {
+  return (
+    <li>
+      <button type="button" className="rp-glance-tile" data-tone={tone} onClick={onOpen}>
+        <span className="rp-glance-side">{side}</span>
+        <strong className="rp-glance-value">{value}</strong>
+        <span>{label}</span>
+      </button>
+    </li>
   );
 }

@@ -162,28 +162,61 @@ export function RunList({ children, label = "Things that need attention" }: { ch
  * as a tile (how many, what, a line, one button). Shown when the Needs you widget is full width. While every line is
  * still counting it says so, and an all-clear day says so in one tile.
  */
+/** Each kind of job keeps its tone (v4 mockup: Orders mint, Sales apricot, Payments white, Stock sky). */
+export const TODO_TONE: Record<string, "mint" | "apricot" | "plain" | "sky" | "lilac"> = {
+  Orders: "mint", "Pre-orders": "mint", "Gift cards": "mint", Sales: "apricot", Payments: "plain", Stock: "sky", Books: "sky",
+  Products: "sky",
+};
+export const todoTone = (kind?: string) => (kind && TODO_TONE[kind]) || "lilac";
+
+/** Home's Mark done: a tile stays hidden while its count is the one it had when marked (this browser only). */
+export const DONE_KEY = "lm:home-done";
+export const todoKey = (kind: string | undefined, label: string) => `${kind || ""}|${label}`;
+export function readDone(): Record<string, number> {
+  try { const v = JSON.parse(localStorage.getItem(DONE_KEY) || "{}"); return v && typeof v === "object" ? v : {}; } catch { return {}; }
+}
+function writeDone(done: Record<string, number>) { try { localStorage.setItem(DONE_KEY, JSON.stringify(done)); } catch { /* storage blocked */ } }
+
+/**
+ * Home's To do tiles (v4 mockup): each line with something to do as a tile (kind, how many, a line, the action and Mark
+ * done). Mark done hides the tile until its count changes, so a new order or sale brings it back. Nothing left: All clear.
+ */
 export function RunTiles({ children, label = "To do" }: { children: ReactNode; label?: string }) {
   const rows = Children.toArray(children).filter(isValidElement) as Array<ReactElement<Parameters<typeof RunRow>[0]>>;
-  const ready = rows.filter((r) => !r.props.loading && (r.props.count ?? 0) > 0);
+  const [done, setDone] = useState(readDone);
+  const ready = rows.filter((r) => !r.props.loading && (r.props.count ?? 0) > 0 && done[todoKey(r.props.kind, r.props.label)] !== r.props.count);
   const counting = rows.some((r) => r.props.loading);
+  const markDone = (key: string, count: number) => {
+    // Forget marks whose tile has nothing to do any more, so the list never grows.
+    const live = new Set(rows.filter((r) => (r.props.count ?? 0) > 0).map((r) => todoKey(r.props.kind, r.props.label)));
+    setDone((was) => {
+      const next = Object.fromEntries(Object.entries({ ...was, [key]: count }).filter(([k]) => live.has(k)));
+      writeDone(next);
+      return next;
+    });
+  };
   return (
     <ul className="rp-todo-tiles" aria-label={label}>
       {ready.map((r) => {
         const { label: many, one, count, detail, detailOne, onOpen, openLabel, kind } = r.props;
         const single = count === 1;
         return (
-          <li key={r.key} className="rp-todo-tile">
+          <li key={r.key} className="rp-todo-tile" data-tone={todoTone(kind)}>
             {kind && <span className="rp-todo-kind">{kind}</span>}
             <span className="rp-todo-title">{count} {single && one ? one : many}</span>
             <span className="rp-todo-body">{single && detailOne ? detailOne : detail}</span>
-            <button type="button" className="rp-todo-go" onClick={onOpen}>{openLabel}</button>
+            <span className="rp-todo-acts">
+              <button type="button" className="rp-todo-go" onClick={onOpen}>{openLabel}</button>
+              <button type="button" className="rp-todo-done" onClick={() => markDone(todoKey(kind, many), count ?? 0)}>Mark done</button>
+            </span>
           </li>
         );
       })}
       {!ready.length && (
-        <li className="rp-todo-tile" data-quiet="">
-          <span className="rp-todo-kind">{counting ? "…" : "✓"}</span>
-          <span className="rp-todo-title">{counting ? "Counting…" : "Nothing needs you right now."}</span>
+        <li className="rp-todo-tile" data-quiet="" data-clear={counting ? undefined : ""}>
+          {counting ? <span className="rp-todo-kind">…</span> : null}
+          <span className="rp-todo-title">{counting ? "Counting…" : "All clear"}</span>
+          {!counting && <span className="rp-todo-body">Nothing needs you right now.</span>}
         </li>
       )}
     </ul>
