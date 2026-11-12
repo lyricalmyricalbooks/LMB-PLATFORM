@@ -55,6 +55,9 @@ export const SENDER_EMAIL = "notifications@colophon.example";
 export const FIRST_RELEASE = "1.0.0";
 // Steps whose part may only be connected after the first run.
 export const LATER_STEPS = Object.freeze({ 7: "payments (the platform payment service)", 8: "the owner's welcome email (the platform email service)" });
+// The test shops' products and sample records (shared step 6, setup/test-sample-data.js) are looked at on every run, so
+// a test shop made before a sample was added gets it on the next run. The step adds only what is missing.
+export const TEST_CONTENT_STEP = 6;
 
 const message = (error) => (error instanceof Error ? error.message : String(error));
 
@@ -209,7 +212,7 @@ export async function makeTestShopWith({
       auditLog,
       dryRun: !apply,
       print,
-      again: Object.keys(LATER_STEPS).map(Number).filter((n) => connected[n]),
+      again: [TEST_CONTENT_STEP, ...Object.keys(LATER_STEPS).map(Number).filter((n) => connected[n])],
     });
     if (!made.ok) return { ok: false, stage: "shop", shopId: place.shopId, error: made.error, ...(made.waiting ? { waiting: true } : {}) };
     if (!apply) continue;

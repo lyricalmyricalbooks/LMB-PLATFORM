@@ -35,7 +35,7 @@ Each test shop also gets sample records (`setup/test-sample-data.js`), so every 
   an invoice due in 20 days. The stockist has no email address, so no reminder can be sent. Also the invoice details.
 - In the book shop only, a 50% author royalty on those two items (royalties are a book-shop feature).
 
-Setup step 12 adds whatever is missing. The control room's **Reset sample data** writes the products and every sample
+Setup step 12 adds whatever is missing, and "Make the test shop" looks at it on every run, so a test shop made before a sample existed gets it next run. The control room's **Reset sample data** writes the products and every sample
 record again with today's dates; the stockroom part only when the control room can reach the stockroom.
 
 ## Why

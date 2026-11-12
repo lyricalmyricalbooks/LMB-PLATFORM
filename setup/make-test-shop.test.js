@@ -108,6 +108,20 @@ test("a real run readies the project, retires the old test shop, sends the first
   assert.equal((await registry.getShop("test-goods")).status, "live");
 });
 
+test("a test shop made before its sample records gets them on the next run, and nothing it has is replaced", async () => {
+  const { services, run } = setup();
+  assert.equal((await run(true)).ok, true);
+  const docs = services.world.docs;
+  assert.ok(docs.has(`${TEST_SHOP_ID} orders/PAST-test-01`), "the first run writes the sample orders");
+  // As a shop made before the samples existed: one sample gone, one changed by hand.
+  docs.delete(`${TEST_SHOP_ID} orders/PAST-test-01`);
+  docs.set(`${TEST_SHOP_ID} orders/PAST-test-02`, { kept: true });
+
+  assert.equal((await run(true)).ok, true);
+  assert.equal(docs.get(`${TEST_SHOP_ID} orders/PAST-test-01`).source, "import");
+  assert.deepEqual(docs.get(`${TEST_SHOP_ID} orders/PAST-test-02`), { kept: true });
+});
+
 test("a site that can't be copied stops the run at the general test shop, in plain words; the book shop is made", async () => {
   const { registry, run } = setup();
   const result = await run(true, { copySite: async () => { throw new Error("site id taken"); } });
