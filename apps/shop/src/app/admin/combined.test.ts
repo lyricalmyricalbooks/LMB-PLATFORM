@@ -54,7 +54,7 @@ describe("the combined admin (shop + stockroom plan)", () => {
     expect(menuItemFor(STOCKROOM_ITEM_PREFIX + "pos", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "pos");
     expect(menuItemFor(STOCKROOM_ITEM_PREFIX + "taxcenter", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "taxcenter");
     expect(menuItemFor(STOCKROOM_ITEM_PREFIX + "consignment", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "consignment");
-    expect(menuItemFor("settings/bookkeeping", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "expenses");
+    expect(menuItemFor("settings/bookkeeping", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "payouts");
     expect(menuItemFor(STOCKROOM_ITEM_PREFIX + "reconcile", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "taxcenter");
     expect(sideOf("settings/bookkeeping")).toBe("stockroom");
     expect(menuItemFor("customers", COMBINED_MENU)).toBe("orders");

@@ -119,9 +119,9 @@ export const STOCKROOM_SIDE: Menu = [
     sections: [{ label: "Your books", pages: [S("taxcenter"), S("taxledger"), S("taxcosts")] },
       { label: "Sales tax", pages: [S("taxsales"), S("taxrates"), S("taxfilings")] },
       { label: "Check and close", pages: [S("reconcile"), S("taxyear")] }] },
-  { label: "Bookkeeping", icon: PiggyBank, pages: [S("expenses"), S("intel"), SETTINGS_ITEM_PREFIX + "bookkeeping"],
+  { label: "Bookkeeping", icon: PiggyBank, pages: [S("payouts"), S("expenses"), S("intel"), SETTINGS_ITEM_PREFIX + "bookkeeping"],
     labels: { [SETTINGS_ITEM_PREFIX + "bookkeeping"]: "QuickBooks" },
-    sections: [{ label: "Cash", pages: [S("expenses")] }, { label: "Reports", pages: [S("intel")] }, { label: "Accounts", pages: [SETTINGS_ITEM_PREFIX + "bookkeeping"] }] },
+    sections: [{ label: "Cash", pages: [S("payouts"), S("expenses")] }, { label: "Reports", pages: [S("intel")] }, { label: "Accounts", pages: [SETTINGS_ITEM_PREFIX + "bookkeeping"] }] },
   // v4: Backups is one page (the Google Sheet moved to Settings).
   { label: "Backups", icon: SlidersHorizontal, pages: [S("backups")] },
 ];
