@@ -9,7 +9,7 @@ import {
 
 import { Login } from "./Login";
 import { ordersNeedingWork, refreshOrdersCache } from "./ordersStore";
-import { AdminAlerts } from "./AdminAlerts.tsx";
+import { AlertsPill, useAlertDismissals, visibleAlerts } from "./AdminAlerts.tsx";
 import { AdminPageBoundary } from "./AdminPageBoundary";
 import { shopErrorAlert, shopErrorRows } from "./shopErrors";
 import { backupAlert, buildAdminAlerts, cardAccountAlert, checkFailedAlert, inventoryLinkAlerts, settingsAlerts, type AdminAlert, type AlertRoute } from "./adminAlerts";
@@ -42,6 +42,7 @@ import { usePlatformPlan } from "./platformPlanApi";
 import { PlatformMessagesBar } from "./PlatformMessagesBar";
 import { LocalBackupAuto } from "./LocalBackupCard";
 // Automatic invoice reminders run in the owner's open combined admin (stockroom/autoRemind.ts); loaded only there.
+const AlertsPage = lazy(() => import("./AlertsPage").then(m => ({ default: m.AlertsPage })));
 const AutoReminders = lazy(() => import("./stockroom/AutoReminders").then((m) => ({ default: m.AutoReminders })));
 import type { SupportVisit } from "./supportSession";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
@@ -255,6 +256,8 @@ export function Dashboard() {
   // Unpaid/mismatched/disputed orders etc., shown above every admin page.
   const [alerts, setAlerts] = useState<AdminAlert[]>([]);
   const [reminderAlert, setReminderAlert] = useState<AdminAlert | null>(null);
+  // The alerts hidden in this browser (AdminAlerts.tsx), shared by the top bar's pill and the Alerts page.
+  const alertHides = useAlertDismissals();
   // Pending reviews, unread messages and open privacy requests (cheap server counts).
   // QuickBooks lives in Settings › Apps (Julian, 12 November 2026), so its old page is on no menu. Settings › Google is
   // asked about once, the first time Settings opens (its pages are listed there only).
@@ -659,6 +662,9 @@ export function Dashboard() {
     return ok;
   };
   /** Resolves true when the page changed, false when the owner chose to stay on unsaved settings. */
+  // Every alert, and the ones not hidden in this browser: the top bar's pill counts these and #alerts lists them.
+  const allAlerts = [...settingsAlerts(originalSettings), ...alerts, ...(reminderAlert ? [reminderAlert] : [])];
+  const shownAlerts = visibleAlerts(allAlerts, alertHides.dismissed);
   const goTo = async (id: string): Promise<boolean> => {
     // Nothing unsaved: switch at once (callers such as What's new set a Settings tab right after).
     if (isSettingsPage && anyDirty() && !(await leaveSettings())) return false;
@@ -769,6 +775,24 @@ export function Dashboard() {
       case "customers": return <Customers initialQuery={searchCustomerQuery} />;
       case "inventory": return <Inventory onEditBook={handleEditBook} onAddBook={handleAddBookFrom} subTab={subTab} onSubTabChange={openSubTab} />;
       case "discounts": return <Discounts />;
+      case "alerts": return <AlertsPage alerts={shownAlerts} hiddenCount={allAlerts.length - shownAlerts.length}
+        onDismiss={alertHides.dismiss} onShowHidden={alertHides.showAll}
+        onOpenNotifications={() => { setActiveTab("settings"); setSettingsTab("notifications"); setShowEditor(false); setSelectedOrder(null); }}
+        onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }}
+        onOpenOrders={() => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder(null); }}
+        onOpenWebhook={() => { setActiveTab("settings"); setSettingsTab("payments"); setShowEditor(false); setSelectedOrder(null); }}
+        onOpenGeneral={() => { setActiveTab("settings"); setSettingsTab("general"); setShowEditor(false); setSelectedOrder(null); }}
+        onOpenBackups={COMBINED ? () => void openStockroomPage("backups") : undefined}
+        onOpenInvoices={() => void openStockroomPage("invoices")}
+        onOpenInventory={() => { setActiveTab("inventory"); setShowEditor(false); setSelectedOrder(null); }}
+        onOpenRoute={(r: AlertRoute) => {
+          setActiveTab(r.tab);
+          if (r.settingsTab) setSettingsTab(r.settingsTab);
+          openSubTab(r.subTab, subTabPage(r));
+          setShowEditor(false);
+          setSelectedOrder(null);
+        }}
+        onRetry={() => refreshAlertsRef.current()} />;
       case "giftCards": return <GiftCards openId={openGiftCard} onOpened={() => setOpenGiftCard(null)} />;
       case "channels": return <SalesChannels onOpen={(page) => { if (page === "socialPosts" || page === "channels") goTo(page); else { setActiveTab("settings"); setSettingsTab(page); } }} />;
       case "socialPosts": return <SocialPosts onOpen={(page) => goTo(page)} startWithBook={postBook} onStarted={() => setPostBook(null)} />;
@@ -822,25 +846,6 @@ export function Dashboard() {
     <>
     {/* The combined admin's one-time tour invitation, on Home only (CombinedTour.tsx). */}
     {COMBINED && ownMasthead && tourInvite && <CombinedTourInvite onStart={() => { setTourOpen(true); dismissTour(); }} onDismiss={dismissTour} />}
-    <AdminAlerts
-      alerts={[...settingsAlerts(originalSettings), ...alerts, ...(reminderAlert ? [reminderAlert] : [])]}
-      onOpenNotifications={() => { setActiveTab("settings"); setSettingsTab("notifications"); setShowEditor(false); setSelectedOrder(null); }}
-      onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }}
-      onOpenOrders={() => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder(null); }}
-      onOpenWebhook={() => { setActiveTab("settings"); setSettingsTab("payments"); setShowEditor(false); setSelectedOrder(null); }}
-      onOpenGeneral={() => { setActiveTab("settings"); setSettingsTab("general"); setShowEditor(false); setSelectedOrder(null); }}
-      onOpenBackups={COMBINED ? () => void openStockroomPage("backups") : undefined}
-      onOpenInvoices={() => void openStockroomPage("invoices")}
-      onOpenInventory={() => { setActiveTab("inventory"); setShowEditor(false); setSelectedOrder(null); }}
-      onOpenRoute={(r: AlertRoute) => {
-        setActiveTab(r.tab);
-        if (r.settingsTab) setSettingsTab(r.settingsTab);
-        openSubTab(r.subTab, subTabPage(r));
-        setShowEditor(false);
-        setSelectedOrder(null);
-      }}
-      onRetry={() => refreshAlertsRef.current()}
-    />
     </>
   );
 
@@ -949,6 +954,7 @@ export function Dashboard() {
                 </span>
               )}
               {trialPill(platformPlan ?? null) && <a className="rp-trial-pill" href="#settings/billing">{trialPill(platformPlan ?? null)}</a>}
+              <AlertsPill alerts={shownAlerts} onOpen={() => { void goTo("alerts"); }} />
               <ShopStatusMenu
                 wallOn={!!settings?.design?.showUnderConstruction}
                 checkoutPaused={maintenanceOn}

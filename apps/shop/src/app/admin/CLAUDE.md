@@ -165,7 +165,7 @@ and violet/blue accents onto Riso tokens): the theme editor's panels. (Taxes is 
 The order page's return panel opens with a four-step tracker (`returnStepsDone`, `.fw-return-steps`). The Book editor and catalog are Riso components plus `admin/books.css`.
 **Admin UX pass (19 October 2026):** top bar `ShopStatusMenu` (`riso/shellParts.tsx`: Shop open/closed/Checkout paused, Close/Open
 the shop through the existing confirm, Store status settings); Help and appearance are also in the avatar menu; search opens from a
-magnifier on phones. `AdminAlerts` sorts urgent first and folds after two. `DataTable` `stackOnPhone` turns rows into cards at ≤767px;
+magnifier on phones. Alerts have their own page (`#alerts`, `AlertsPage.tsx`, 12 November 2026): no banner stack above pages; the top bar's `AlertsPill` (`AdminAlerts.tsx`) shows the count and opens it, urgent first, each a To do style tile with Hide for now (`useAlertDismissals`, shared by both). Fixture: `admin-fixture.html?alerts=1&page=alerts`. `DataTable` `stackOnPhone` turns rows into cards at ≤767px;
 Riso buttons take `busy`. Settings pages group cards with `admin/settingsLayout.tsx` (`SettingsTabs` sub tabs, one `SettingsGroup` panel per topic,
 `HowTo`, `friendlyError`); Email/Reviews/Messages errors go through
 `admin/plainError.ts`, sign-in errors through `admin/loginError.ts` — never show raw `err.message` in admin. The order page lays itself

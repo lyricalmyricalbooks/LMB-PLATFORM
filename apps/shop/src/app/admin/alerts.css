@@ -1,0 +1,11 @@
+/* The top bar's alerts pill and the Alerts page's urgent tile (Julian, 12 November 2026). Tokens only. */
+.rp-alerts-pill { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; border-radius: 999px; background: var(--rp-surface); border: 1px solid var(--rp-hair, var(--rp-border)); color: var(--rp-text); font: 600 var(--rp-text-sm)/1 var(--rp-font-body); white-space: nowrap; text-decoration: none; }
+.rp-alerts-pill:hover { text-decoration: underline; }
+.rp-alerts-pill:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+.rp-alerts-pill-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--rp-warning); }
+.rp-alerts-pill[data-urgent] { background: var(--rp-tile-alert, var(--rp-danger-tint)); border-color: transparent; color: var(--rp-on-tile, var(--rp-text)); }
+.rp-alerts-pill[data-urgent] .rp-alerts-pill-dot { background: var(--rp-danger); }
+/* Phones: just the dot and the number, so the top bar keeps its room. */
+@media (max-width: 640px) { .rp-alerts-pill-word { display: none; } .rp-alerts-pill { padding: 0 10px; } }
+.rp-todo-tile[data-tone="alert"] { background: var(--rp-tile-alert, var(--rp-danger-tint)); }
+.rp-todo-tile[data-tone="alert"] :is(.rp-todo-title, .rp-todo-body, .rp-todo-kind) { color: var(--rp-on-tile, var(--rp-text)); }
