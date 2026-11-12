@@ -1,5 +1,5 @@
-// The social service, put together from its environment (config.js) and the stores it is handed. The function that
-// hosts it (platform project, not built yet) calls this once and routes requests to `handleSocial` (http.js).
+// The social service, put together from its environment (config.js) and the stores it is handed. The platform's server
+// hosts it (hosted.js, at /api/social) and routes requests to `handleSocial` (http.js).
 import { readSocialConfig } from "./config.js";
 import { createSocialService } from "./social.js";
 import { createNetworkClients } from "./networks.js";

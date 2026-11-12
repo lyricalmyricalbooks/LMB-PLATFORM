@@ -51,6 +51,7 @@ Not connected yet (`notConnected.js`). Each answers in plain words, never with m
 | Marking a closing email that bounced | Reading returned mail in the platform's Google mailbox (Gmail has no delivery events) |
 | Web addresses for shops | The shared system (`SHARED_SHOPS_PROJECT` and `SHARED_SHOPS_DOMAIN`): then `/api/domains` and the `web-addresses` job run (`services/domains/hosted.js`); a free address's lines are written once `SHOP_ADDRESS_ZONE` and `SHOP_ADDRESS_ZONE_PROJECT` name its Cloud DNS zone |
 | QuickBooks | The platform's QuickBooks app keys (`docs/accounting.md`) |
+| Facebook & Instagram, Pinterest and TikTok | Each network's app keys and `SOCIAL_ENABLED` (`docs/social.md`): `/api/social` already answers "off" |
 | What each shop costs | Google's billing export to BigQuery (the Costs page shows its empty state) |
 
 ## The schedules

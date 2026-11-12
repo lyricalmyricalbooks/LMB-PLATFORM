@@ -1,4 +1,4 @@
-// The social service's web doors, hosted later as one function in the platform project. Like the bookkeeping doors,
+// The social service's web doors, hosted on the platform's server at /api/social (hosted.js). Like the bookkeeping doors,
 // the handler takes a plain request and returns { status, headers?, body }, so tests need no server.
 //
 //   POST /shop                 a shop's call: `X-Shop-Id` + `Authorization: Bearer <shop service key>`, JSON body
