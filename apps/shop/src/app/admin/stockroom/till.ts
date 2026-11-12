@@ -137,10 +137,14 @@ export type TillSale = {
 /** The stockroom's own row id (`evt-<time>-<random>`), which also orders the day's sales (fair-mode.js `eventTime`). */
 const rowId = (at: number, random: () => number) => `evt-${at.toString(36)}-${random().toString(36).slice(2, 9)}`;
 
+/** The way of paying that takes no money (the till's "Free copy"). */
+export const FREE_COPY = "Comp/Gift";
+
 export function newTillSale(lines: CartLine[], method: string, fair: string, now = Date.now(), random = Math.random): TillSale {
   return {
     num: `POS-${now.toString().slice(-6)}`, at: now, day: localDay(new Date(now)), method, fair: fair.trim(),
-    lines: lines.map((l) => ({ bookId: l.id, title: l.title, qty: l.qty, price: l.price, cur: l.cur, rowId: rowId(now, random) })),
+    // A free copy takes no money: its lines are recorded at 0, so no report counts income that never came in.
+    lines: lines.map((l) => ({ bookId: l.id, title: l.title, qty: l.qty, price: method === FREE_COPY ? 0 : l.price, cur: l.cur, rowId: rowId(now, random) })),
   };
 }
 
@@ -163,6 +167,8 @@ export function addTillLine(sale: TillSale, line: TillLine, book: StockBook | un
       num: sale.num, chan: "Book Fair", qty: line.qty, price: line.price, after: state.stock, notes: tillNote(sale),
       date: sale.day, payment: { currency: line.cur, amount, rate: null, convertedTotal: amount },
       enteredBy: "Publisher", sheetsId: line.rowId, cur: book ? bookCurrencyCode(book) : line.cur,
+      // The stockroom's mark for a copy given away: off the stock, out of sales, shares and tax figures.
+      ...(sale.method === FREE_COPY ? { gratuity: true } : {}),
     });
     return state;
   };

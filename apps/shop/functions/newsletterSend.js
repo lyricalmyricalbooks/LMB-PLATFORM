@@ -51,7 +51,7 @@ function newsletterDraftProblem(draft) {
  * The email for one person. The owner's words are escaped (they are text, not HTML) and placed in the shop's
  * usual email frame by compileEmailTemplate; {{shop_name}} still works because braces survive escaping.
  */
-function newsletterEmail(draft, { compileEmailTemplate, notificationSettings = {}, escapeHtml, unsubscribeUrl }) {
+function newsletterEmail(draft, { compileEmailTemplate, notificationSettings = {}, escapeHtml, unsubscribeUrl, buyer = false }) {
   const settings = {
     ...notificationSettings,
     newsletter: {
@@ -61,7 +61,9 @@ function newsletterEmail(draft, { compileEmailTemplate, notificationSettings = {
       signoff: "{{shop_name}}",
     },
   };
-  const footer = `<p style="margin-top:28px;font-size:11px;color:#888;">You're getting this because you signed up for news from {{shop_name}}. `
+  // A past buyer never signed up: the reason given must be the true one.
+  const why = buyer ? "You're getting this because you bought from {{shop_name}} in the last two years." : "You're getting this because you signed up for news from {{shop_name}}.";
+  const footer = `<p style="margin-top:28px;font-size:11px;color:#888;">${why} `
     + `<a href="${escapeHtml(unsubscribeUrl)}">Unsubscribe</a> at any time.</p>`;
   const compiled = compileEmailTemplate("newsletter", settings, { button_url: draft.buttonUrl }, footer);
   const shopName = escapeHtml(String(settings.shopName || "").trim());
@@ -124,7 +126,7 @@ async function runNewsletterIssues(deps) {
         continue;
       }
       try {
-        const message = newsletterEmail(draft, { ...deps, unsubscribeUrl: deps.unsubscribeUrl(email) });
+        const message = newsletterEmail(draft, { ...deps, unsubscribeUrl: deps.unsubscribeUrl(email), buyer: row.data?.status === "buyer" });
         await deps.sendEmail({ to: email, subject: message.subject, html: message.html, bulk: true, kind: "newsletter" });
         sent += 1;
         cursor = row.id;

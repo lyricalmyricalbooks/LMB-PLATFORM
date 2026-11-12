@@ -14,6 +14,7 @@ import { deductibleAmount, deductibleRate } from './deductibility.js';
 import { canonicalExpenseCategory } from './expense-categories.js';
 import { fmt, getBookCurrencyCode, roundCents } from './money.js';
 import { datedCadRate, saleCadAmounts } from './sale-fx.js';
+import { isTestItem } from './test-book.js';
 
 /**
  * Every sale, expense, artist payout and business expense of a period as one list, plus the headline totals.
@@ -30,7 +31,7 @@ export function buildTaxLedger(sources, selectedYear) {
   let allLedger = [];
 
   Object.keys(BOOKS).forEach(bid => {
-    if (bid.toLowerCase().includes('test') || BOOKS[bid]?.title?.toLowerCase()?.includes('test')) return;
+    if (isTestItem(bid, BOOKS[bid])) return;
     const s = states[bid] || defaultState(BOOKS[bid]);
     const b = BOOKS[bid];
     const cur = getBookCurrencyCode(b);

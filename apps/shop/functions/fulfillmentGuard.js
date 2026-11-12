@@ -3,7 +3,7 @@ const { waitingPreorderLines, shipDateOf } = require("./shared/preorder");
 const { providerName } = require("./payments");
 const { reviewProblem } = require("./orderReview");
 // The shop's card payment company, as the press sees it (code plan 5.2). Read when asked: shopConfig reads the env.
-const cardName = () => providerName(require("./shopConfig").paymentProvider);
+const cardName = () => providerName(require("./shopConfig").shopConfig.paymentProvider);
 // Kept in parity with admin/fulfillment.ts; money-spending label operations recheck fresh records.
 // The admin stores these exact strings when the address is reviewed / items are packed.
 const addressKey = order => {

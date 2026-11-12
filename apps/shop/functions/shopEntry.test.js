@@ -57,6 +57,13 @@ describe("database triggers", () => {
     expect(shop.config.siteUrl).toBe("https://a.example");
     expect((await onB({ params: { shopId: "press-b" } })).config.ownerEmail).toBe("owner@b.example");
   });
+  it("treat a half-made record (a profile, but no sign-in list named yet) as no shop", async () => {
+    const half = { ...records, "press-half": { profile: { shopId: "press-half" } } };
+    const entry = shopEntries({ rootDb: rootWith(half).rootDb, env: {}, log: quiet });
+    const handler = vi.fn();
+    await entry.trigger((_, h) => h)("orders/{orderId}", handler)({ params: { shopId: "press-half", orderId: "1" } });
+    expect(handler).not.toHaveBeenCalled();
+  });
   it("skip a change in a folder with no shop record, and refuse one with no shop at all", async () => {
     const entry = shopEntries({ rootDb: rootWith(records).rootDb, env: {}, log: quiet });
     const handler = vi.fn();

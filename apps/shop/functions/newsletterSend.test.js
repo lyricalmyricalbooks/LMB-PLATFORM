@@ -80,6 +80,14 @@ test('a draft needs a subject and words, and a button needs an https address', (
   expect(newsletterDraft({ subject: 'a\nb', body: 'x'.repeat(30000) }).body).toHaveLength(20000);
 });
 
+test("a past buyer is told they bought, never that they signed up", () => {
+  const email = buyer => newsletterEmail(newsletterDraft({ subject: 'News', body: 'Hello' }),
+    { compileEmailTemplate, notificationSettings: { shopName: 'Field Notes' }, escapeHtml, unsubscribeUrl: 'https://shop.example/u', buyer }).html;
+  expect(email(true)).toContain('because you bought from Field Notes');
+  expect(email(true)).not.toContain('signed up');
+  expect(email(false)).toContain('because you signed up for news from Field Notes');
+});
+
 test("the owner's words are text, not HTML, and every email carries its own unsubscribe link", () => {
   const { subject, html } = newsletterEmail(newsletterDraft({ subject: 'New at {{shop_name}}', body: '<script>x</script> from {{shop_name}}' }),
     { compileEmailTemplate, notificationSettings: { shopName: 'Field Notes' }, escapeHtml, unsubscribeUrl: 'https://shop.example/u?e=a' });

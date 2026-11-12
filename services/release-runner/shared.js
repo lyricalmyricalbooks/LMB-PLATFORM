@@ -174,6 +174,10 @@ export async function runSharedRelease({
       }
     }
     return { ok: !error, version, ...(error ? { error } : {}), projects: results };
+  } catch (thrown) {
+    // Anything thrown on the way (a check, the lock, the log) is a failed release, never one recorded as good.
+    error ||= message(thrown);
+    throw thrown;
   } finally {
     await registry.recordRelease({ kind: "shared-release", version, runId, startedAt, finishedAt: now().toISOString(), ok: !error, ...(error ? { error } : {}), projects: results });
     await registry.releaseLock(SHARED_RELEASE_LOCK, runId);

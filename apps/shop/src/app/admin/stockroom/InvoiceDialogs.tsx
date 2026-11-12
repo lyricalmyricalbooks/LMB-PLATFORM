@@ -19,7 +19,7 @@ import {
   stockistNames, todayText, INVOICE_FILTERS, inFilter, invoicesSummary, type InvoiceFilter, type InvoiceForm, type InvoiceLine, type InvoiceRow, type InvoiceSettings,
 } from "./invoiceMake";
 import { invoicePage, printInvoice } from "./invoicePaper";
-import { attachCardLinkChange, cardLinkOf, cardLinkRefusal, invoiceCardPayApi, recordCardPayments } from "./invoiceCardPay";
+import { attachCardLinkChange, cardLinkOf, cardLinkRefusal, closeStaleCardLinks, invoiceCardPayApi, recordCardPayments, strayPaymentLine } from "./invoiceCardPay";
 import { RemindersDialog } from "./RemindersDialog";
 import { markInvoicePaid, moneyText } from "./stockists";
 import { LetterheadDialog } from "./LetterheadDialog";
@@ -423,12 +423,16 @@ export function InvoicesCard({ records, onBookSaved, onSettingsSaved, newFor, on
   useEffect(() => {
     if (!writable) return;
     let cancelled = false;
-    recordCardPayments(records, {
-      save: async (bookId, change) => { const r = await stockroomWriteApi.saveBookState(bookId, change); return r.status === "saved" || r.status === "unchanged" ? { ok: true, state: r.state as Rec } : { ok: false }; },
-      onSaved: (bookId, state) => { if (!cancelled) onBookSaved?.(bookId, state); },
-    }).then((ids) => {
-      if (cancelled || !ids.length) return;
-      setNotice({ tone: "ok", lines: [`${ids.length === 1 ? "One invoice was" : `${ids.length} invoices were`} paid by card and marked paid.`] });
+    const deps = {
+      save: async (bookId: string, change: (s: Rec) => Rec) => { const r = await stockroomWriteApi.saveBookState(bookId, change); return r.status === "saved" || r.status === "unchanged" ? { ok: true, state: r.state as Rec } : { ok: false }; },
+      onSaved: (bookId: string, state: Rec) => { if (!cancelled) onBookSaved?.(bookId, state); },
+    };
+    recordCardPayments(records, deps).then(async (ids) => {
+      // Links of invoices that changed, were deleted or were paid another way stop taking money here.
+      const strays = await closeStaleCardLinks(records, deps);
+      if (cancelled) return;
+      if (strays.length) setNotice({ tone: "error", lines: strays.map(strayPaymentLine) });
+      else if (ids.length) setNotice({ tone: "ok", lines: [`${ids.length === 1 ? "One invoice was" : `${ids.length} invoices were`} paid by card and marked paid.`] });
     });
     return () => { cancelled = true; };
   }, [writable]);

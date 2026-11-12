@@ -238,3 +238,22 @@ describe("AI writing assistant on a Colophon shop (plan 16.4)", () => {
       .rejects.toMatchObject({ status: 429, message: expect.not.stringMatching(/key|Vertex|API/i) });
   });
 });
+
+describe("amounts read off a receipt photo", () => {
+  const { TASKS: tasks } = require("./aiWriter");
+  const total = printed => tasks.receiptRead.clean({ total: printed }).total;
+  it("reads a comma as the decimal mark, as Quebec and European receipts print it", () => {
+    expect(total("42,50")).toBe("42.50");
+    expect(total("1 234,50 €")).toBe("1234.50");
+    expect(total("1.234,50")).toBe("1234.50");
+    expect(total("12,5")).toBe("12.50");
+  });
+  it("still reads the usual forms, and never a guess from nothing", () => {
+    expect(total("42.50")).toBe("42.50");
+    expect(total("$1,234.50")).toBe("1234.50");
+    expect(total("1,234")).toBe("1234.00");
+    expect(total("17")).toBe("17.00");
+    expect(total("")).toBe("");
+    expect(total("n/a")).toBe("");
+  });
+});

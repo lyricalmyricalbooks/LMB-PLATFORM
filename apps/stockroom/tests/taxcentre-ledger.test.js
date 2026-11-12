@@ -194,3 +194,13 @@ describe('Tax Centre ledger — each sale at its own date\'s rate', () => {
     expect(totalGrossSales).toBeCloseTo(65, 6);
   });
 });
+
+describe('a real title with "test" inside its name', () => {
+  it('is counted: only the practice items are left out', () => {
+    const books = { hits: { id: 'hits', title: 'The Greatest Hits', currency: 'CA$' }, contest: { id: 'contest-2026', title: 'Contest', currency: 'CA$' }, test: { id: 'test', title: 'TEST PAGE', currency: 'CA$' } };
+    const sale = [{ date: '2026-03-04', num: 'A1', qty: 2, price: 20, chan: 'Direct' }];
+    const st = Object.fromEntries(Object.keys(books).map((id) => [id, { hist: sale, expenses: [], stores: [], ledger: [] }]));
+    const out = buildTaxLedger({ books, states: st, taxCenter: {}, fxRateCache: {} }, '2026');
+    expect(out.totalGrossSales).toBe(80);
+  });
+});
