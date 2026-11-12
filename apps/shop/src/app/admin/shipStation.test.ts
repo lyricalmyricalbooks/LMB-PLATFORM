@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { badgeText, gridCounts, gridOrders, gridTabOf, itemCount, listFulfilment, listOrders, listPayment, outsideQueue, paymentChip, shipsTo, stationQueue, stationStats, stationStep } from "./shipStation";
+import { badgeText, gridCounts, gridOrders, gridTabOf, itemCount, listFulfilment, packableOf, listOrders, listPayment, outsideQueue, paymentChip, shipsTo, stationQueue, stationStats, stationStep } from "./shipStation";
 import { packingKey } from "./fulfillment";
 
 const address = { street: "1 Main", city: "Toronto", state: "ON", zip: "M1M1M1", country: "Canada" };
@@ -94,5 +94,18 @@ describe("ship station", () => {
     expect(badgeText("Refunded")).toBe("Refunded");
     expect(shipsTo({ customer: { address: { city: "Portland", country: "US" } } })).toBe("Portland, US");
     expect(shipsTo({ fulfillmentSelection: { method: "pickup" } })).toBe("Pickup");
+  });
+});
+
+describe("bulk Mark packed on the order list", () => {
+  it("packs only ticked orders whose next step is packing, and counts the rest", () => {
+    const fresh = paid("FRESH", "2026-10-06T10:00:00Z");
+    const done = packed(paid("PACKED", "2026-10-05T10:00:00Z"));
+    const unchecked = { ...paid("ADDR", "2026-10-05T10:00:00Z"), operations: {} };
+    const other = paid("OTHER", "2026-10-05T10:00:00Z");
+    const { pack, skipped } = packableOf([fresh, done, unchecked, other], new Set(["FRESH", "PACKED", "ADDR"]));
+    expect(pack.map((o) => o.id)).toEqual(["FRESH"]);
+    expect(skipped).toBe(2);
+    expect(packableOf([fresh], new Set()).pack).toEqual([]);
   });
 });

@@ -9,10 +9,10 @@ import toast from "react-hot-toast";
 import { loadOrderBooks, loadOrderSearchCatalog, patchOrdersCache, refreshOrdersCache } from "./ordersStore";
 import { EmptyState, LoadingState, MetricCard, PageActions, PrimaryButton, SearchField, SecondaryButton, StatusBadge, Tabs, Toggle } from "./riso/components";
 import { NEEDS_ME_QUEUES, nextToOpen, rowBooks, rowCover, rowStatus, refundState, stepOrder, deskQueue } from "./ordersDesk";
-import { LIST_FILTERS, badgeText, listFulfilment, listPayment, gridOrders, itemCount, listOrders, outsideQueue, shipsTo, stationQueue, stationStats, stationStep, type GridSort, type GridTab, type ListFilter } from "./shipStation";
+import { LIST_FILTERS, badgeText, packableOf, listFulfilment, listPayment, gridOrders, itemCount, listOrders, outsideQueue, shipsTo, stationQueue, stationStats, stationStep, type GridSort, type GridTab, type ListFilter } from "./shipStation";
 import { listDate, orderMoney, waitedText } from "./orderListHelpers";
 import { printOrders } from "./orderPrint";
-import { queueOf } from "./fulfillment";
+import { packingKey, queueOf } from "./fulfillment";
 import type { CatalogSearchIndex } from "./orderSearch";
 import { useShopSells, useShopWords } from "./shopWords";
 import { sellsBooks } from "../../shared/shopSells";
@@ -56,6 +56,9 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
   // Bring past orders over (plan 23.7), on the page a press lands on, not only in the Table layout (plan 23.22).
   const [bringingPast, setBringingPast] = useState(false);
   const [shown, setShown] = useState(PAGE);
+  /** Rows ticked on the list (v4 bulk bar). */
+  const [picked, setPicked] = useState<Set<string>>(() => new Set());
+  const [packing, setPacking] = useState(false);
   const [showTest, setShowTest] = useState(false);
   const [narrow, setNarrow] = useState(() => typeof window !== "undefined" && window.matchMedia?.("(max-width: 900px)").matches);
   const [phone, setPhone] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.(PHONE_MQ).matches);
@@ -279,6 +282,26 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
   // v4: with no order open, a computer shows this list (the open order is a page of its own, mockup 1b).
   if (layout !== "desk" || (!selectedId && !narrow)) {
     const page = listed.slice(0, shown);
+    const tickedHere = page.filter((o) => picked.has(o.id)).length;
+    const allTicked = page.length > 0 && tickedHere === page.length;
+    const tick = (id: string, on: boolean) => setPicked((p) => { const next = new Set(p); if (on) next.add(id); else next.delete(id); return next; });
+    const markPacked = async () => {
+      const { pack, skipped } = packableOf(orders || [], picked);
+      if (!pack.length) { toast("Nothing to pack in the selection"); return; }
+      setPacking(true);
+      let done = 0;
+      const failedIds: string[] = [];
+      for (const o of pack) {
+        try { await adminApi.fulfillmentAction(o.id, "pack", { packingKey: packingKey(o) }); done += 1; }
+        catch { failedIds.push(o.orderId || o.id); }
+      }
+      setPacking(false);
+      setPicked(new Set(failedIds.length ? pack.filter((o) => failedIds.includes(o.orderId || o.id)).map((o) => o.id) : []));
+      void refreshOrdersCache().then((data) => { setOrders(data); setFailed(false); }).catch(() => setFailed(true));
+      const parts = [done ? `Packed ${done} order${done === 1 ? "" : "s"}` : "", skipped ? `${skipped} not ready to pack (check the address first)` : ""].filter(Boolean);
+      if (failedIds.length) toast.error(`${parts.join(". ")}${parts.length ? ". " : ""}Couldn't pack ${failedIds.join(", ")}: open ${failedIds.length === 1 ? "it" : "them"} to see why.`);
+      else toast.success(parts.join(". ") + ".");
+    };
     return (
       <div className="rp-stack od-list-page" style={{ gap: 16 }}>
         <style>{DESK_CSS}</style>
@@ -288,7 +311,7 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
         </PageActions>
         <div className="od-pills" role="group" aria-label="Show">
           {LIST_FILTERS.map((f) => (
-            <button key={f.id} type="button" className="od-pill" aria-pressed={filter === f.id} onClick={() => setFilter(f.id)}>{f.label}</button>
+            <button key={f.id} type="button" className="od-pill" aria-pressed={filter === f.id} onClick={() => { setFilter(f.id); setPicked(new Set()); }}>{f.label}</button>
           ))}
         </div>
         {bringingPast && <PastOrdersDialog onClose={() => setBringingPast(false)} onDone={() => void refreshOrdersCache().then((data) => { setOrders(data); setFailed(false); }).catch(() => setFailed(true))} />}
@@ -310,9 +333,18 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
           />
         ) : (
           <div className="od-table-card">
+            {picked.size > 0 && (
+              <div className="od-bulk" role="region" aria-label="Selected orders">
+                <strong>{picked.size} selected</strong>
+                <button type="button" className="od-bulk-btn" onClick={() => void markPacked()} disabled={packing}>{packing ? "Packing…" : "Mark packed"}</button>
+                <button type="button" className="od-link" onClick={() => setPicked(new Set())}>Clear</button>
+              </div>
+            )}
             <table className="od-table">
               <thead>
-                <tr><th scope="col">Order</th><th scope="col">Customer</th><th scope="col">Date</th><th scope="col">Items</th><th scope="col" className="od-num-col">Total</th><th scope="col">Payment</th><th scope="col">Fulfilment</th></tr>
+                <tr><th scope="col" className="od-check-col"><input type="checkbox" aria-label="Select every order shown" checked={allTicked}
+                  ref={(el) => { if (el) el.indeterminate = tickedHere > 0 && !allTicked; }}
+                  onChange={(e) => setPicked((p) => { const next = new Set(p); page.forEach((o) => (e.target.checked ? next.add(o.id) : next.delete(o.id))); return next; })} /></th><th scope="col">Order</th><th scope="col">Customer</th><th scope="col">Date</th><th scope="col">Items</th><th scope="col" className="od-num-col">Total</th><th scope="col">Payment</th><th scope="col">Fulfilment</th></tr>
               </thead>
               <tbody>
                 {page.map((o) => {
@@ -320,7 +352,8 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
                   const pay = listPayment(o);
                   const where = shipsTo(o);
                   return (
-                    <tr key={o.id} onClick={() => openInStation(o.id)}>
+                    <tr key={o.id} onClick={() => openInStation(o.id)} data-picked={picked.has(o.id) || undefined}>
+                      <td className="od-check-col" onClick={(e) => e.stopPropagation()}><input type="checkbox" aria-label={`Select ${o.orderId || o.id}`} checked={picked.has(o.id)} onChange={(e) => tick(o.id, e.target.checked)} /></td>
                       <td><button type="button" className="od-table-open rp-mono" onClick={(e) => { e.stopPropagation(); openInStation(o.id); }}>{o.orderId || o.id}</button>{orderInFrench(o) ? <> <span title={FRENCH_ORDER_HINT}><StatusBadge tone="neutral" glyph={false}>FR</StatusBadge></span></> : null}{o.isTest ? <> <StatusBadge tone="danger" glyph={false}>Test</StatusBadge></> : null}</td>
                       <td><span className="od-table-name">{o.customer?.name || o.customer?.email || "—"}</span>{where ? <span className="od-table-sub">{where}</span> : null}</td>
                       <td className="od-table-muted">{listDate(o.paidAt || o.createdAt)}</td>
@@ -547,6 +580,13 @@ const DESK_CSS = `
 .od-table td{padding:14px 10px 14px 0;border-bottom:1px solid var(--rp-border);vertical-align:middle}
 .od-table tbody tr:last-child td{border-bottom:0}
 .od-table tbody tr{cursor:pointer}
+.od-check-col{width:36px;padding-right:6px!important}
+.od-check-col input{width:18px;height:18px;accent-color:var(--rp-text);cursor:pointer}
+.od-table tbody tr[data-picked] td{background:var(--rp-surface-2)}
+.od-bulk{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:10px 0 4px;padding:10px 14px;border-radius:var(--rp-radius);background:var(--rp-surface-2);font-size:var(--rp-text-sm)}
+.od-bulk-btn{min-height:34px;padding:0 16px;border:0;border-radius:999px;background:var(--rp-text);color:var(--rp-canvas);font:600 var(--rp-text-sm)/1 var(--rp-font-body);cursor:pointer}
+.od-bulk-btn:disabled{opacity:.6;cursor:default}
+.od-bulk-btn:focus-visible,.od-check-col input:focus-visible{outline:2px solid var(--rp-focus);outline-offset:2px}
 .od-table tbody tr:hover td{background:var(--rp-surface-sunken)}
 .od-num-col,.od-table th.od-num-col{text-align:right;white-space:nowrap;padding-right:22px}
 .od-list-page .od-grid-foot{border-top:0;padding-top:0}

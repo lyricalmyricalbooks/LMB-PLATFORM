@@ -1,7 +1,8 @@
 // Books, drawn to Julian's "Shop Admin Redesign" mockup (11 November 2026): Import and Add book in the header, four
 // tiles (books, on sale online, running low, sold out), then one table in the shop's own order. The older catalog's
-// filters, bulk edits, exports and drag-to-arrange left with the redesign; each row keeps a ⋯ menu (edit, duplicate,
-// view, post, delete) because nothing else on the page deletes a product.
+// filters, exports and drag-to-arrange left with the redesign; each row keeps a ⋯ menu (edit, duplicate, view, post,
+// delete) because nothing else on the page deletes a product. v4 (12 November 2026): tick boxes and a bulk bar with Set
+// as draft. The mockup's Mark sold out is left out: sold out comes from stock counts, which the stockroom owns.
 import { isExampleProduct } from "./exampleProducts";
 import { useState, useEffect, useMemo } from "react";
 import { Plus, Upload } from "lucide-react";
@@ -14,7 +15,7 @@ import { adminApi } from "./api";
 import { lowStockThreshold } from "./inventoryInsights";
 import toast from "react-hot-toast";
 import { ActionMenu, PageActions, ConfirmDialog, EmptyState, ErrorState, LoadingState, PrimaryButton, SecondaryButton, SectionCard, StatusBadge } from "./riso/components";
-import { LOW_STOCK, bookAuthor, bookReferences, bookTiles, listStatus, priceInfo, stockInfo, stockroomCount } from "./catalogList";
+import { LOW_STOCK, bookAuthor, bookReferences, draftableOf, bookTiles, listStatus, priceInfo, stockInfo, stockroomCount } from "./catalogList";
 import { combinedAdmin } from "./combined";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import type { InventoryLinks } from "./inventoryLink";
@@ -49,6 +50,9 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   const [failed, setFailed] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [deleting, setDeleting] = useState<any | null>(null);
+  /** Rows ticked on the list (v4 bulk bar). */
+  const [picked, setPicked] = useState<Set<string>>(() => new Set());
+  const [drafting, setDrafting] = useState(false);
   // Inventory's low-stock line, so "Running low" here matches Inventory, Home and the 8am email.
   const [lowLine, setLowLine] = useState(LOW_STOCK);
   // The stockroom's counts (its published feed, read by the server) and which stockroom book each edition is matched to.
@@ -120,6 +124,26 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
     ]} />
   );
 
+  // v4 bulk bar: Set as draft takes the ticked products off the shop. Only `status` is written, through the same
+  // transactional save as the editor, so stock and every other field keep their live values.
+  const setAsDraft = async () => {
+    const { change, already } = draftableOf(books, picked);
+    if (!change.length) { toast("Those are drafts already"); setPicked(new Set()); return; }
+    setDrafting(true);
+    const failedIds: string[] = [];
+    for (const b of change) {
+      try { await adminApi.updateBook(b.id, { title: b.title, status: "draft" }, b); }
+      catch { failedIds.push(b.id); }
+    }
+    setDrafting(false);
+    setPicked(new Set(failedIds));
+    await loadBooks();
+    const done = change.length - failedIds.length;
+    const parts = [done ? `${done} set as draft` : "", already ? `${already} already a draft` : ""].filter(Boolean);
+    if (failedIds.length) toast.error(`${parts.join(". ")}${parts.length ? ". " : ""}Couldn't change ${failedIds.length}: try again.`);
+    else toast.success(`${parts.join(". ")}. They're off the shop until you publish them.`);
+  };
+
   const importDialog = importOpen && <BookImportDialog books={books} onClose={() => setImportOpen(false)} onDone={() => loadBooks()} />;
 
   if (loading) return <LoadingState label={w("Loading books…")} />;
@@ -146,6 +170,10 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
     <div className="bk-tile" data-tone={value > 0 ? tone : undefined}><span>{label}</span><strong>{value}</strong></div>
   );
 
+  const tickedHere = rows.filter((b) => picked.has(b.id)).length;
+  const allTicked = rows.length > 0 && tickedHere === rows.length;
+  const tick = (id: string, on: boolean) => setPicked((p) => { const next = new Set(p); if (on) next.add(id); else next.delete(id); return next; });
+
   return (
     <div className="bk-list-page">
       <PageActions>
@@ -160,9 +188,19 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
       </div>
       {books.some(isExampleProduct) && <p className="rp-hint" role="status" style={{ margin: 0 }}>Some of these are examples so your shop isn't empty. They disappear when you add your first real product.</p>}
       <div className="bk-table-card">
+        {picked.size > 0 && (
+          <div className="bk-bulk" role="region" aria-label={w("Selected books")}>
+            <strong>{picked.size} selected</strong>
+            <button type="button" className="bk-bulk-btn" onClick={() => void setAsDraft()} disabled={drafting}>{drafting ? "Saving…" : "Set as draft"}</button>
+            <button type="button" className="bk-bulk-clear" onClick={() => setPicked(new Set())}>Clear</button>
+          </div>
+        )}
         <table className="bk-list">
           <caption className="rp-sr-only">{w("Books")}</caption>
           <thead><tr>
+            <th scope="col" className="bk-check"><input type="checkbox" aria-label={w("Select every book")} checked={allTicked}
+              ref={(el) => { if (el) el.indeterminate = tickedHere > 0 && !allTicked; }}
+              onChange={(e) => setPicked(e.target.checked ? new Set(rows.map((b) => b.id)) : new Set())} /></th>
             <th scope="col">{w("Book")}</th>
             <th scope="col" className="bk-wide">{sellsBooks(sells) ? "Format · ISBN" : "Format · SKU"}</th>
             <th scope="col" className="bk-num bk-wide">Price</th>
@@ -178,7 +216,8 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
               const photo = b.photoUrl || b.photos?.[0]?.url;
               const by = bookAuthor(b, authors);
               return (
-                <tr key={b.id} onClick={() => onEdit(b)}>
+                <tr key={b.id} onClick={() => onEdit(b)} data-picked={picked.has(b.id) || undefined}>
+                  <td className="bk-check" onClick={(e) => e.stopPropagation()}><input type="checkbox" aria-label={`Select ${b.title || "Untitled"}`} checked={picked.has(b.id)} onChange={(e) => tick(b.id, e.target.checked)} /></td>
                   <td>
                     <span className="bk-list-book">
                       {photo
