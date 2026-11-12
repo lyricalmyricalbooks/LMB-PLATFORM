@@ -1011,12 +1011,25 @@ export function Dashboard() {
           <div {...(migrated ? {} : legacyProps)} style={{ background: "transparent", minHeight: 480 }}>
             <AnimatePresence mode="wait">
               <m.div
-                key={activeTab + (selectedOrder ? "-detail" : "") + settingsTab}
+                key={activeTab + (selectedOrder ? "-detail" : "") + settingsTab + (showEditor ? "-editor" : "")}
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.18, ease: "easeOut" }}
               >
-                <PageAlertsSlot.Provider value={ownMasthead ? pageAlerts : null}><PageActionsSlot.Provider value={ownMasthead ? null : pageActionsEl}><PageHeadSlot.Provider value={ownMasthead ? null : setHeadOverride}><AdminPageBoundary resetKey={activeTab + "|" + settingsTab + "|" + (subTab || "") + "|" + (selectedOrder?.id || "")}><Suspense fallback={<PageSkeleton label="Opening page…" />}>{content}</Suspense></AdminPageBoundary></PageHeadSlot.Provider></PageActionsSlot.Provider></PageAlertsSlot.Provider>
+                <PageAlertsSlot.Provider value={ownMasthead ? pageAlerts : null}><PageActionsSlot.Provider value={ownMasthead ? null : pageActionsEl}><PageHeadSlot.Provider value={ownMasthead ? null : setHeadOverride}><AdminPageBoundary resetKey={activeTab + "|" + settingsTab + "|" + (subTab || "") + "|" + (selectedOrder?.id || "") + (showEditor ? "|editor|" + String(editingBook?.id || "new") : "")}><Suspense fallback={<PageSkeleton label="Opening page…" />}>{showEditor ? (
+              <BookEditor
+                book={editingBook}
+                prefill={editingBook ? null : newBookStart?.prefill}
+                onCreated={editingBook ? undefined : newBookStart?.onCreated}
+                onClose={() => setShowEditor(false)}
+                onSave={(opts) => {
+                  if (!opts?.stayOpen) setShowEditor(false);
+                  if (activeTab === "catalog") {
+                    setCatalogRefreshKey(prev => prev + 1);
+                  }
+                }}
+              />
+              ) : content}</Suspense></AdminPageBoundary></PageHeadSlot.Provider></PageActionsSlot.Provider></PageAlertsSlot.Provider>
               </m.div>
             </AnimatePresence>
           </div>
@@ -1062,38 +1075,6 @@ export function Dashboard() {
         onGo={(tab) => { setLaunchOpen(false); void goTo(tab); }}
         onOpenShop={() => { void toggleUnderConstruction(false).then((ok) => { if (ok) setLaunchOpen(false); }); }} />
       <ActivityLogDialog open={showLogs} onClose={() => setShowLogs(false)} appearance={appearance} />
-
-      {/* Book Editor Takeover */}
-      <AnimatePresence>
-        {showEditor && (
-          <div className="rp rp-dialog-root rp-editor-root" data-variant="drawer" data-rp-appearance={appearance} style={{ background: "transparent" }}>
-            <div className="rp-dialog-scrim" aria-hidden="true" />
-            <m.div
-              initial={{ opacity: 0, x: 32 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 32 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
-              className="rp-dialog rp-editor-panel"
-              role="dialog" aria-modal="true" aria-label={w(editingBook ? "Edit book" : "New book")}
-            >
-              <AdminPageBoundary resetKey={String(editingBook?.id || "new")}><Suspense fallback={<LoadingState label={w("Opening book editor…")} />}>
-              <BookEditor
-                book={editingBook}
-                prefill={editingBook ? null : newBookStart?.prefill}
-                onCreated={editingBook ? undefined : newBookStart?.onCreated}
-                onClose={() => setShowEditor(false)}
-                onSave={(opts) => {
-                  if (!opts?.stayOpen) setShowEditor(false);
-                  if (activeTab === "catalog") {
-                    setCatalogRefreshKey(prev => prev + 1);
-                  }
-                }}
-              />
-              </Suspense></AdminPageBoundary>
-            </m.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* Theme Editor Takeover */}
       <AnimatePresence>

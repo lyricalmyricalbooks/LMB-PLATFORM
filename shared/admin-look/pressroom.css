@@ -2439,3 +2439,12 @@ div.rp-listcard-main { cursor: default; }
   .rp .rp-fk-rate-price { text-align: left; font-weight: 500; }
   .rp .rp-fk-zone { padding: 12px; }
 }
+/* Cards drawn as kit sections (CardsAsSections): their buttons sit under the line on the left, and the older fields
+   inside take the kit's field look (label above, canvas fill, 12px corners, info ring on focus). */
+.rp .rp-fk-section-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.rp .rp-fk-section-head > .brand-logo, .rp .rp-fk-section-head > [data-brand] { margin-bottom: 8px; }
+:root[data-admin-look] .rp .rp-fk-card .rp-label { font: 600 13px/1.3 var(--rp-font-body); letter-spacing: 0; text-transform: none; color: var(--rp-text); }
+:root[data-admin-look] .rp .rp-fk-card :is(.rp-input, .rp-textarea, .rp-select) { min-height: 44px; padding: 11px 14px; border: 0; border-radius: 12px; background: var(--rp-input-bg); box-shadow: none; color: var(--rp-text); font: 400 14px/1.4 var(--rp-font-body); }
+:root[data-admin-look] .rp .rp-fk-card :is(.rp-input, .rp-textarea, .rp-select):focus { outline: none; box-shadow: 0 0 0 2px var(--rp-info); }
+:root[data-admin-look] .rp .rp-fk-card :is(.rp-input, .rp-textarea, .rp-select)[aria-invalid="true"] { box-shadow: inset 0 0 0 1.5px var(--rp-warning); }
+:root[data-admin-look] .rp .rp-fk-card .rp-hint { font-size: 12px; color: var(--rp-text-subtle); }
