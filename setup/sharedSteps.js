@@ -257,7 +257,9 @@ export function sharedShopSteps({ google, shared, registry, shopData, stockroom,
         const taken = await shared.addresses.get(host);
         if (!taken) return false;
         if (taken.shopId !== shop.shopId) throw new Error(`the address ${host} already belongs to the shop ${taken.shopId}; a person decides`);
-        return (await rowOf(shop))?.freeAddress === host;
+        if ((await rowOf(shop))?.freeAddress !== host) return false;
+        // Sign-in works only from addresses the project lists (clients/google.js allowDomain).
+        return ((await google.authConfig.get(sharedProject))?.authorizedDomains ?? []).includes(host);
       },
       async act({ shop }) {
         const host = freeHost(shop.shopId, await rowOf(shop), shopDomain);
@@ -266,6 +268,9 @@ export function sharedShopSteps({ google, shared, registry, shopData, stockroom,
           if (taken?.shopId !== shop.shopId) throw new Error(`the address ${host} already belongs to the shop ${taken?.shopId}; a person decides`);
         }
         await registry.updateShop(shop.shopId, { freeAddress: host });
+        // Without this the owner's Google sign-in is refused at the shop's own address (the general test shop,
+        // 12 November 2026: only the project's own two addresses are listed to begin with).
+        await google.authConfig.allowDomain(sharedProject, host);
         return { detail: { address: host } };
       },
     },

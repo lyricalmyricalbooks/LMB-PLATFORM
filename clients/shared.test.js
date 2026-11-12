@@ -77,6 +77,41 @@ test("one setting points every platform reader and writer at the shops' folders 
   ]);
 });
 
+test("a shop its registry row places in a shared project is reached there, whatever the setting says", async () => {
+  // The test shops are folders in the shared test project; the hosted server's setting names the live one, or nothing.
+  const rows = {
+    "test-press": { shopId: "test-press", shared: true, projectId: "lmb-test-shop" },
+    "press-a": { shopId: "press-a", shared: true, projectId: "press-two" },
+    "moth-press": { shopId: "moth-press", projectId: "moth-press" },
+  };
+  let reads = 0;
+  const rowOf = async (shopId) => { reads += 1; return rows[shopId] ?? null; };
+  const docs = (project, database = "(default)") => `${FIRESTORE}/projects/${project}/databases/${database}/documents`;
+  for (const env of [{}, { SHARED_SHOPS_PROJECT: "press-two" }]) {
+    const { fetch, calls } = recorder();
+    const stores = shopStores({ env, fetch, token, rowOf });
+    await stores.shopDb("test-press").get("systemStatus/backup");
+    await stores.stockroomDb("test-press").get("settings/catalog");
+    await stores.shopDb("test-press").query("clientErrors");
+    assert.deepEqual(calls.slice(0, 2).map((c) => c.url.split("?")[0]), [
+      `${docs("lmb-test-shop")}/shops/test-press/systemStatus/backup`,
+      `${docs("lmb-test-shop", "stockroom")}/shops/test-press/settings/catalog`,
+    ]);
+    assert.ok(calls.every((c) => c.url.includes("/projects/lmb-test-shop/")), "never a project named after the shop");
+  }
+  // A shop with no row, or a project of its own, follows the setting as before.
+  const { fetch, calls } = recorder();
+  const stores = shopStores({ env: {}, fetch, token, rowOf });
+  await stores.shopDb("moth-press").get("platform/plan");
+  await stores.shopDb("unknown-shop").get("platform/plan");
+  assert.deepEqual(calls.map((c) => c.url.split("?")[0]), [`${docs("moth-press")}/platform/plan`, `${docs("unknown-shop")}/platform/plan`]);
+  // A shop's place is looked up once; a shop with no row yet is asked about again.
+  reads = 0;
+  await stores.shopDb("moth-press").get("platform/plan");
+  await stores.shopDb("unknown-shop").get("platform/plan");
+  assert.equal(reads, 1);
+});
+
 test("a shop answers at its own addresses on the front door, and through the shared server with ?shop=", () => {
   const region = "northamerica-northeast1";
   const shared = shopPlaces({ shopId: "press-a", projectId: "lmb-test-shop", shared: true, freeAddress: "press-a.shops.example", region });

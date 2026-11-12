@@ -23,6 +23,7 @@ import { PLANS, SWITCHES, shopSwitches } from "../setup/steps.js";
 import { hasServiceKey } from "../setup/serviceKey.js";
 import { profileProblems, profileScript } from "../profile/profile.js";
 import { closedShopCheck } from "./closure.js";
+import { plainCheckProblem } from "../services/health/checks.js";
 
 const appsOf = (row) => Object.keys(PLANS[row.plan] ?? {}).filter((app) => PLANS[row.plan][app]);
 
@@ -116,7 +117,8 @@ export function createSelfChecks({ registry, profileFiles, deploy, publish, repa
         // Each check reads afresh: an earlier check's fix may have changed what it looks at.
         result = await one.run({ row: await registry.getShop(shopId), profile: await registry.getProfile(shopId) });
       } catch (error) {
-        result = { ok: false, problem: `couldn't check: ${error?.message ?? error}` };
+        console.error(`${shopId}: a self check couldn't be made: ${error?.message ?? error}`);
+        result = { ok: false, problem: `couldn't check: ${plainCheckProblem(error)}` };
       }
       if (!result.ok && result.fix) {
         try {

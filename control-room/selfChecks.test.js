@@ -129,7 +129,7 @@ test("the service key, an ended plan, a failed fix and a check that throws all r
   const broken = await w.selfCheck.check(ID);
   assert.equal(broken.ok, false);
   assert.equal(broken.results.length, 5, "a check that throws doesn't stop the rest");
-  assert.ok(w.open().some((r) => /couldn't check: registry unreachable/.test(r.problem)));
+  assert.ok(w.open().some((r) => /couldn't check: the shop didn't answer in time/.test(r.problem)));
 });
 
 test("a switch change runs the self-checks, and the queue shows in the control room", async () => {

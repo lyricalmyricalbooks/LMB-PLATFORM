@@ -455,6 +455,19 @@ export function googleClients({ fetch, token, sleep, today = () => new Date().to
       },
       /** Lets the project hold sign-in lists (projects.updateConfig, updateMask multiTenant.allowTenants). */
       allowTenants: (projectId) => call("PATCH", `${IDENTITY}/projects/${projectId}/config`, { query: { updateMask: "multiTenant.allowTenants" }, body: { multiTenant: { allowTenants: true } } }),
+      /**
+       * Lets pages at `host` sign people in (projects.updateConfig, updateMask authorizedDomains). Google refuses a
+       * sign-in started from an address that isn't on this list, and only the project's own two addresses start on it.
+       * The list is read first and sent back whole with the one addition. -> { changed }
+       */
+      async allowDomain(projectId, host) {
+        const name = String(host ?? "").trim().toLowerCase();
+        if (!/^[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?$/.test(name) || !name.includes(".")) throw new Error(`"${name.slice(0, 80)}" isn't a web address`);
+        const { authorizedDomains = [] } = await call("GET", `${IDENTITY}/projects/${projectId}/config`);
+        if (authorizedDomains.includes(name)) return { changed: false };
+        await call("PATCH", `${IDENTITY}/projects/${projectId}/config`, { query: { updateMask: "authorizedDomains" }, body: { authorizedDomains: [...authorizedDomains, name] } });
+        return { changed: true };
+      },
       /** Replaces the second-step settings (projects.updateConfig, updateMask mfa). */
       setMfa: (projectId, mfa) => call("PATCH", `${IDENTITY}/projects/${projectId}/config`, { query: { updateMask: "mfa" }, body: { mfa } }),
       /** The project's own Google sign-in settings (projects.defaultSupportedIdpConfigs.get), or null when it has none. */
