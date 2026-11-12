@@ -1,10 +1,9 @@
-// Stockroom › Reconcile (Payments and payouts), drawn as the mockup shows it: two tiles (payouts matched, payouts that
+// Bookkeeping › Transactions' payouts (ReconcileView, drawn on TaxCenterPage.tsx): two tiles (payouts matched, payouts that
 // need a look) and one table of payouts with their sales, fees and a Matched chip. Read-only, from the shop's orders
 // (reconcileModel.ts); a row opens the orders in that payout.
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { fmt, fmtD } from "@stockroom/money.js";
-import { DataTable, Drawer, EmptyState, ErrorState, LoadingState, StatusBadge, type Column } from "../riso/components";
-import { getOrdersCached, invalidateOrders } from "../ordersCache";
+import { DataTable, Drawer, EmptyState, StatusBadge, type Column } from "../riso/components";
 import { payoutChip, reconcileModel, type PayoutRow } from "./reconcileModel";
 import "./stockroom.css";
 import "./sales.css";
@@ -53,24 +52,5 @@ export function ReconcileView({ orders }: { orders: Record<string, any>[] }) {
         )}
       </Drawer>
     </div>
-  );
-}
-
-export function ReconcilePage() {
-  const [orders, setOrders] = useState<Record<string, any>[] | "loading" | "failed">("loading");
-  const [round, setRound] = useState(0);
-  useEffect(() => {
-    let alive = true;
-    setOrders("loading");
-    getOrdersCached().then((o) => { if (alive) setOrders(o as Record<string, any>[]); }).catch(() => { if (alive) setOrders("failed"); });
-    return () => { alive = false; };
-  }, [round]);
-  const again = () => { invalidateOrders(); setRound((n) => n + 1); };
-  return (
-    <>
-      {orders === "loading" ? <LoadingState label="Reading your payouts…" />
-        : orders === "failed" ? <ErrorState title="Couldn't read your payouts" onRetry={again} />
-        : <ReconcileView orders={orders} />}
-    </>
   );
 }

@@ -10,7 +10,7 @@ import { expenseLedgerTotals } from "@stockroom/expense-totals.js";
 import { buildTaxLedger } from "@stockroom/tax-ledger.js";
 
 import { AskView, InsightsView } from "./AskPage";
-import { ExpensesView } from "./ExpensesPage";
+import { ReceiptsGrid } from "./ReceiptsGrid";
 import { RecordsGate } from "./RecordsGate";
 import { SalesRecords } from "./SalesPage";
 import { StockList } from "./StockPage";
@@ -175,8 +175,10 @@ describe("the pages", () => {
     expect(tax.container.textContent).toContain("Money in");
     expect(tax.container.textContent).toContain("Booth fee");
     await act(async () => tax.root.unmount());
-    const exp = await draw(<ExpensesView records={records} />);
-    expect(exp.container.textContent).toContain("No receipt");
+    // Bookkeeping › Receipts: Freight has no receipt, the print run's is filed.
+    const exp = await draw(<ReceiptsGrid records={records} year="2026" />);
+    expect(exp.container.textContent).toContain("Needs receipt");
+    expect(exp.container.textContent).toContain("Filed");
     await act(async () => exp.root.unmount());
     const ask = await draw(<AskView records={records} now={NOW} />);
     expect(ask.container.textContent).toContain("What did we sell?");
@@ -198,9 +200,8 @@ describe("the pages", () => {
 
   it("show the Expenses and Stock layout with zeros when there is nothing yet", async () => {
     const none: StockroomRecords = { books: [], states: {}, taxCenter: null };
-    const exp = await draw(<ExpensesView records={none} />);
-    expect(exp.container.textContent).not.toContain("0 expenses");
-    expect(exp.container.textContent).toContain("No expenses logged yet");
+    const exp = await draw(<ReceiptsGrid records={none} year="2026" />);
+    expect(exp.container.textContent).toContain("No expenses in 2026");
     await act(async () => exp.root.unmount());
     const sales = await draw(<SalesRecords records={none} />);
     expect(sales.container.textContent).toContain("Money taken");

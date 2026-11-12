@@ -31,6 +31,15 @@ export function taxPeriods(now = Date.now()): TaxPeriod[] {
   return [back(0), back(1), back(2), { id: `${year}-ytd`, label: "Year to date", start: `${year}-01-01`, end: today, open: true, quarter: false }];
 }
 
+/** The period pills for a year: this year's are taxPeriods (open quarter, two before it, year to date); a past year's are
+ * its four quarters, newest first, and the whole year. */
+export function yearPeriods(year: string, now = Date.now()): TaxPeriod[] {
+  const today = shopDayKey(now);
+  if (year >= today.slice(0, 4)) return taxPeriods(now);
+  const y = Number(year);
+  return [4, 3, 2, 1].map((q) => quarterOf(y, q, today)).concat({ id: `${y}-year`, label: `Whole of ${y}`, start: `${y}-01-01`, end: `${y}-12-31`, open: false, quarter: false });
+}
+
 /** Quarters before this one, newest first (for Past filings). */
 export function pastQuarters(count: number, now = Date.now()): TaxPeriod[] {
   const today = shopDayKey(now);

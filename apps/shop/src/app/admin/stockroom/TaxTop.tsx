@@ -1,11 +1,11 @@
 // The Tax centre's sales tax parts (11 November 2026; v4 split them over three pages, `part`): period pills, four tiles
 // (tax to remit, sales, fees, before you file), tax by rate and place, tax by channel and past filings. Figures from taxPeriods.ts.
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { downloadCsv } from "@stockroom/download.js";
 
 import { DataTable, EmptyState, PageActions, PrimaryButton, SecondaryButton, SectionCard, StatusBadge, Tabs } from "../riso/components";
 import { saveTaxCenter, type SaveNote } from "./saveTaxCenter";
-import { dueOf, filingsOf, pastQuarters, taxPeriodModel, taxReportRows, type TaxPeriod, type TaxPeriodModel } from "./taxPeriods";
+import { dueOf, filingsOf, pastQuarters, taxPeriodModel, taxPeriods, taxReportRows, type TaxPeriod, type TaxPeriodModel } from "./taxPeriods";
 import "./taxTop.css";
 
 type Row = Record<string, any>;
@@ -13,11 +13,13 @@ type Row = Record<string, any>;
 const dayWords = (key: string) => new Date(`${key}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 const csvText = (rows: string[][]) => rows.map((r) => r.map((c) => (/[",\n]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c)).join(",")).join("\n");
 
-/** v4 splits the Tax centre into pages: Sales tax (tiles), Rates and places, Filings; "all" draws every part. */
-export type TaxTopPart = "all" | "salestax" | "rates" | "filings";
+/** "page" is the Tax centre as one page (mockup, 12 November 2026): header actions, period pills, tiles, rates and
+ * channels, filings. The older parts stay for the tests and anything that draws one piece; "all" draws every part. */
+export type TaxTopPart = "all" | "page" | "salestax" | "rates" | "filings";
 
-export function TaxTop({ periods, period, onPeriod, orders, ledgerRows, states, taxCenter, currency, now, onTaxCenter, part = "all" }: {
+export function TaxTop({ periods, period, onPeriod, orders, ledgerRows, states, taxCenter, currency, now, onTaxCenter, part = "all", lead }: {
   periods: TaxPeriod[]; period: TaxPeriod; onPeriod: (id: string) => void; part?: TaxTopPart;
+  /** On the one-page Tax centre: what leads the header's buttons (the year switcher). */ lead?: ReactNode;
   /** The shop's orders; "loading" or "failed" while they can't be counted. */
   orders: Row[] | "loading" | "failed";
   ledgerRows: Row[]; states: Record<string, Row>; taxCenter: Row | null; currency: string; now: number;
@@ -29,7 +31,11 @@ export function TaxTop({ periods, period, onPeriod, orders, ledgerRows, states, 
   const pending = ready ? null : orders === "loading" ? "Counting…" : "Couldn't load website orders";
   const download = () => downloadCsv(csvText(taxReportRows(model, period, currency)), `Tax_report_${period.id}.csv`);
 
-  const on = (p: TaxTopPart) => part === "all" || part === p;
+  const page = part === "page";
+  const on = (p: TaxTopPart) => part === "all" || page || part === p;
+  const filing = useFiling(now, onTaxCenter);
+  const filedAlready = !!filingsOf(taxCenter)[period.id];
+  const canFile = period.quarter && !period.open && ready && !filedAlready;
   const ratesCard = (
     <SectionCard title="Tax by rate and place" flush>
       <DataTable stackOnPhone caption="Tax by rate and place" rowKey={(r) => r.id} rows={ready ? model.rates : []}
@@ -48,11 +54,18 @@ export function TaxTop({ periods, period, onPeriod, orders, ledgerRows, states, 
       {ready ? <ChannelBars model={model} money={money} /> : <p className="rp-tax-sub">{pending}</p>}
     </SectionCard>
   );
-  const filings = <PastFilings orders={ready ? orders : null} ledgerRows={ledgerRows} states={states} taxCenter={taxCenter} currency={currency} now={now} money={money} onTaxCenter={onTaxCenter} />;
+  const filings = <PastFilings orders={ready ? orders : null} ledgerRows={ledgerRows} states={states} taxCenter={taxCenter} currency={currency} now={now} money={money} filing={onTaxCenter ? filing : null} />;
 
   return (
     <>
-      {on("salestax") && <PageActions><PrimaryButton onClick={download} disabled={!ready}>Download report</PrimaryButton></PageActions>}
+      {page && <PageActions>
+        {lead}
+        {onTaxCenter && <SecondaryButton disabled={!canFile || !!filing.busy} onClick={() => filing.mark(period.id, model.taxCents, true)}
+          title={filedAlready ? "This period is marked filed" : period.open || !period.quarter ? "Pick a quarter that has ended" : undefined}>
+          {filedAlready ? "Period filed" : "Mark period filed"}</SecondaryButton>}
+        <PrimaryButton onClick={download} disabled={!ready}>Download tax summary</PrimaryButton>
+      </PageActions>}
+      {!page && on("salestax") && <PageActions><PrimaryButton onClick={download} disabled={!ready}>Download report</PrimaryButton></PageActions>}
       {(on("salestax") || on("rates")) && <div className="rp-tax-period">
         <span className="rp-tax-period-label" id="rp-tax-period">Period</span>
         <Tabs label="Period" idPrefix="tax-" value={period.id} onChange={onPeriod}
@@ -77,6 +90,8 @@ export function TaxTop({ periods, period, onPeriod, orders, ledgerRows, states, 
             : <p className="rp-tax-tile-foot">{pending}</p>}
         </div>
       </div>}
+      {page && <div className="rp-tax-split">{ratesCard}<div className="rp-tax-side">{channelCard}</div></div>}
+      {page && <div className="rp-tax-split rp-tax-filing-row">{filings}<NextFiling now={now} /></div>}
       {part === "all" && <div className="rp-tax-split">
         {ratesCard}
         <div className="rp-tax-side">{channelCard}{filings}</div>
@@ -101,7 +116,7 @@ function RemitTile({ period, model, money, pending, now }: { period: TaxPeriod; 
           <p className="rp-tax-tile-foot">{period.open ? `Quarter ${due.through}% through` : "Quarter ended"}</p>
         </div>
       )}
-      {!due && <p className="rp-tax-tile-foot">Website sales tax since 1 January</p>}
+      {!due && <p className="rp-tax-tile-foot">{period.open ? "Website sales tax since 1 January" : `Website sales tax for ${period.start.slice(0, 4)}`}</p>}
     </div>
   );
 }
@@ -121,18 +136,10 @@ function ChannelBars({ model, money }: { model: TaxPeriodModel; money: (c: numbe
   );
 }
 
-function PastFilings({ orders, ledgerRows, states, taxCenter, currency, now, money, onTaxCenter }: {
-  orders: Row[] | null; ledgerRows: Row[]; states: Record<string, Row>; taxCenter: Row | null; currency: string; now: number;
-  money: (c: number) => string; onTaxCenter?: (taxCenter: Record<string, unknown>) => void;
-}) {
+/** Marking a quarter filed (or not), shared by Past filings and the header's Mark period filed. */
+function useFiling(now: number, onTaxCenter?: (taxCenter: Record<string, unknown>) => void) {
   const [note, setNote] = useState<SaveNote | null>(null);
   const [busy, setBusy] = useState("");
-  const filings = filingsOf(taxCenter);
-  const quarters = pastQuarters(3, now).map((p) => ({
-    period: p,
-    taxCents: orders ? taxPeriodModel({ orders, ledgerRows, states, period: p, currency }).taxCents : null,
-    filed: filings[p.id] || null,
-  }));
   const mark = async (id: string, taxCents: number, filed: boolean) => {
     setBusy(id); setNote({ tone: "busy", text: "Saving…" });
     const result = await saveTaxCenter((current) => {
@@ -146,6 +153,36 @@ function PastFilings({ orders, ledgerRows, states, taxCenter, currency, now, mon
     setBusy(""); setNote(result.note);
     if (result.ok && result.taxCenter) onTaxCenter?.(result.taxCenter);
   };
+  return { note, busy, mark };
+}
+type Filing = ReturnType<typeof useFiling>;
+
+/** The open quarter's return: when it is due (the mockup's Next filing tile). */
+function NextFiling({ now }: { now: number }) {
+  const open = taxPeriods(now)[0];
+  const due = dueOf(open, now);
+  return (
+    <div className="rp-tax-tile" data-tone="sky">
+      <p className="rp-tax-tile-label">Next filing</p>
+      <p className="rp-tax-tile-value">{open.label}</p>
+      <p className="rp-tax-tile-foot">Due {dayWords(due.due)} · {due.daysLeft} {due.daysLeft === 1 ? "day" : "days"} left</p>
+    </div>
+  );
+}
+
+function PastFilings({ orders, ledgerRows, states, taxCenter, currency, now, money, filing }: {
+  orders: Row[] | null; ledgerRows: Row[]; states: Record<string, Row>; taxCenter: Row | null; currency: string; now: number;
+  money: (c: number) => string; filing: Filing | null;
+}) {
+  const own = useFiling(now);
+  const { note, busy, mark } = filing ?? own;
+  const filings = filingsOf(taxCenter);
+  const quarters = pastQuarters(3, now).map((p) => ({
+    period: p,
+    taxCents: orders ? taxPeriodModel({ orders, ledgerRows, states, period: p, currency }).taxCents : null,
+    filed: filings[p.id] || null,
+  }));
+  const onTaxCenter = !!filing;
   return (
     <SectionCard title="Past filings">
       <ul className="rp-tax-filings">

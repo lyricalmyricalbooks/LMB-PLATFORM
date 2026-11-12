@@ -50,6 +50,7 @@ import { useAdminAppManifest } from "./adminApp";
 import { shopNameFromSettings, wordmarkWords } from "../features/site/shopIdentity";
 import { adminWordsFor, currentSells } from "./sells";
 import { SELLS_CHANGED_EVENT, ShopSellsContext, ShopWordsContext } from "./shopWords";
+import { hasPublisherTools } from "../../shared/shopSells";
 import { COMBINED_MENU, FAIR_MENU, MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, itemSections, menuItemFor, sideMenu, sideOf, sidebarItems, withoutPages } from "./riso/nav";
 import { FairCard, SideSwitch, rememberFair, rememberSide, rememberedFair, rememberedSide } from "./SideSwitch";
 import { PhoneNav } from "./PhoneNav";
@@ -282,7 +283,6 @@ export function Dashboard() {
     reopenedSide.current = true;
     if (OPENED_WITHOUT_PAGE && rememberedSide() === "stockroom") window.location.hash = hashForRoute({ tab: STOCKROOM_TAB, subTab: DEFAULT_STOCKROOM_PAGE });
   }, [user]);
-  const hiddenPages = new Set([...(googleOn ? [] : [SETTINGS_ITEM_PREFIX + "google"]), ...(runsOnColophon() ? [] : [SETTINGS_ITEM_PREFIX + "apps"])]);
   // What the shop sells (plan 10.23): sign-up's answer in `firstWeek/start`. A shop that doesn't sell books reads
   // "Products" for "Books" across the admin (sells.ts `adminWordsFor`); with no answer every word stays as it is.
   const [sellsAnswer, setSellsAnswer] = useState<string | null>(null);
@@ -295,6 +295,9 @@ export function Dashboard() {
     window.addEventListener(SELLS_CHANGED_EVENT, on);
     return () => window.removeEventListener(SELLS_CHANGED_EVENT, on);
   }, []);
+  // Bookkeeping › Artist payouts is a book shop's (or a mixed one's); other shops never see the tab.
+  const hiddenPages = new Set([...(googleOn ? [] : [SETTINGS_ITEM_PREFIX + "google"]), ...(runsOnColophon() ? [] : [SETTINGS_ITEM_PREFIX + "apps"]),
+    ...(hasPublisherTools(sellsAnswer) ? [] : [STOCKROOM_ITEM_PREFIX + "artists"])]);
   // Product addresses follow the same answer: /products/<slug> in a shop that doesn't sell books (lib/productHref.ts).
   setProductSells(sellsAnswer);
   const w = adminWordsFor(sellsAnswer);

@@ -110,16 +110,11 @@ export const STOCKROOM_SIDE: Menu = [
   // v4: Consignment is called Stockists.
   { label: "Stockists", icon: Store, pages: [S("consignment")], labels: { [S("consignment")]: "Stockists and terms" } },
   { label: "Invoices", icon: FileText, pages: [S("invoices")] },
-  // v4: Tax centre is its own item with eight pages in three groups; reconciling payouts sits inside it.
-  { label: "Tax centre", icon: Calculator,
-    pages: [S("taxcenter"), S("taxledger"), S("taxcosts"), S("taxsales"), S("taxrates"), S("taxfilings"), S("reconcile"), S("taxyear")],
-    labels: { [S("taxcenter")]: "Money in and out", [S("reconcile")]: "Reconcile payouts" },
-    sections: [{ label: "Your books", pages: [S("taxcenter"), S("taxledger"), S("taxcosts")] },
-      { label: "Sales tax", pages: [S("taxsales"), S("taxrates"), S("taxfilings")] },
-      { label: "Check and close", pages: [S("reconcile"), S("taxyear")] }] },
-  // QuickBooks moved to Settings › Apps (12 November 2026).
-  { label: "Bookkeeping", icon: PiggyBank, pages: [S("payouts"), S("expenses"), S("intel")],
-    sections: [{ label: "Cash", pages: [S("payouts"), S("expenses")] }, { label: "Reports", pages: [S("intel")] }] },
+  // Tax centre + Bookkeeping mockup (12 November 2026): the Tax centre is one page; Bookkeeping is five tabs under one
+  // title. Payments and Insights left the menu (not in the mockup); their pages still open from links.
+  { label: "Tax centre", icon: Calculator, pages: [S("taxcenter")] },
+  { label: "Bookkeeping", icon: PiggyBank, pages: [S("books"), S("reconcile"), S("expenses"), S("receipts"), S("artists")],
+    labels: { [S("books")]: "Overview", [S("reconcile")]: "Transactions", [S("expenses")]: "Expenses", [S("receipts")]: "Receipts", [S("artists")]: "Artist payouts" } },
   // v4: Backups is one page (the Google Sheet moved to Settings).
   { label: "Backups", icon: SlidersHorizontal, pages: [S("backups")] },
 ];

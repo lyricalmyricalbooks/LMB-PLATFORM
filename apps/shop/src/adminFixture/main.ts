@@ -47,10 +47,10 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
 }
 
 // --- Stockroom money pages (Tax centre, Expenses, Ask about your sales): sample records, only for those pages ---
-if (/page=stockroom(\/|%2F)(tax[a-z]+|expenses|intel)/.test(window.location.search) && !EMPTY_STOCKROOM) {
+if (/page=stockroom(\/|%2F)(tax[a-z]+|expenses|intel|books|reconcile|receipts|artists)/.test(window.location.search) && !EMPTY_STOCKROOM) {
   stockroomApi.load = async (): Promise<StockroomRecords> => ({
     books: [
-      { id: "salt-hours", title: "Salt Hours", author: "Ada Example", currency: "CA$", maxPrint: 200, threshold: 10, listPrice: 20 },
+      { id: "salt-hours", title: "Salt Hours", author: "Ada Example", currency: "CA$", maxPrint: 200, threshold: 10, listPrice: 20, productionCost: 0, profitTiers: [{ revenueUpTo: null, artistPct: 50 }] },
       { id: "night-songs", title: "Night Songs", author: "Ben Example", currency: "€", maxPrint: 150, threshold: 10, listPrice: 18 },
     ],
     states: {
@@ -62,6 +62,7 @@ if (/page=stockroom(\/|%2F)(tax[a-z]+|expenses|intel)/.test(window.location.sear
           { id: 4, date: "2026-06-12", num: "A2", qty: 4, price: 20, chan: "Book fair" },
           { id: 6, date: "2026-10-18", num: "P1", qty: 5, price: 20, chan: "Book Fair" },
           { id: 7, date: "2026-11-02", num: "C1", qty: 3, price: 12, chan: "Consignment" },
+          { id: 8, date: "2026-11-05", num: "F2", qty: 4, price: 20, chan: "Book fair", artistPending: true },
         ],
         expenses: [
           { id: 11, date: "2026-02-10", desc: "Print run", cat: "Printing", amount: 300, currency: "CAD", baseAmount: 300, receipt: "cloud://receipts/print-run.pdf" },
@@ -178,7 +179,8 @@ if (new URLSearchParams(window.location.search).get("page") === "stockroom/dashb
       ],
     };
     const postage = (num: string, amount: number) => ({ id: `p${num}`, cat: "Shipping & Postage", desc: "Canada Post label", amount, baseAmount: amount, shippingMatchStatus: "matched", shippingOrderNumber: num });
-    r.taxCenter = { ...(r.taxCenter || {}), businessExpenses: [postage("WEB-1044", 14.5), postage("WEB-1045", 8.2)] };
+    const kept = ((r.taxCenter as Record<string, any> | null)?.businessExpenses || []) as Record<string, unknown>[];
+    r.taxCenter = { ...(r.taxCenter || {}), businessExpenses: [...kept, postage("WEB-1044", 14.5), postage("WEB-1045", 8.2)] };
     return r;
   };
 }

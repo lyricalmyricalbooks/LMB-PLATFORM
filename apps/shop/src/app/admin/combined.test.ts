@@ -29,7 +29,7 @@ describe("the combined admin (shop + stockroom plan)", () => {
     const pages = COMBINED_MENU.flatMap((g) => g.pages);
     expect(new Set(pages).size).toBe(pages.length);
     // To-do lives on Home (redesign, 11 November 2026) and still opens from links; the Till and QR codes are in Fair mode (v3).
-    const offMenu = ["todo", "pos", "qrcodes"];
+    const offMenu = ["todo", "pos", "qrcodes", "payouts", "intel"];
     for (const p of STOCKROOM_PAGES) expect(pages.filter((id) => id === STOCKROOM_ITEM_PREFIX + p.id), p.id).toHaveLength(offMenu.includes(p.id) ? 0 : 1);
     const fair = FAIR_MENU.flatMap((g) => g.pages);
     for (const id of ["pos", "qrcodes"]) expect(fair, id).toContain(STOCKROOM_ITEM_PREFIX + id);
@@ -54,7 +54,7 @@ describe("the combined admin (shop + stockroom plan)", () => {
     expect(menuItemFor(STOCKROOM_ITEM_PREFIX + "pos", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "pos");
     expect(menuItemFor(STOCKROOM_ITEM_PREFIX + "taxcenter", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "taxcenter");
     expect(menuItemFor(STOCKROOM_ITEM_PREFIX + "consignment", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "consignment");
-    expect(menuItemFor(STOCKROOM_ITEM_PREFIX + "reconcile", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "taxcenter");
+    expect(menuItemFor(STOCKROOM_ITEM_PREFIX + "reconcile", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "books");
     expect(menuItemFor("customers", COMBINED_MENU)).toBe("orders");
     expect(menuItemFor("channels", COMBINED_MENU)).toBe("discounts");
   });
