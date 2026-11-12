@@ -1136,3 +1136,17 @@ in a transaction (stale after 15 minutes) and publishes each once per place; pro
 Round two (plan 27.11-27.12): `savePost` makes a square JPEG copy through `makeSquare` (`socialPicture.js`, sharp,
 `social/<postId>.jpg`; the original stays in `photoUrl`); `runDuePosts` calls `onFailed` for a scheduled post that ends
 failed or partly, which emails the owner (`failedPostEmail`, queue `socialPostFailed`) unless `shopAlerts.socialPostFailed` is false.
+
+## Receipts by email (beta, 12 November 2026)
+
+`receiptInbox.js` (action `receiptInbox`, steps `status | start | stop | newAddress | check | file | done | codeSeen`,
+admin only) and the 15-minute `receiptInboxSweep` collect the receipts a shop forwards to its own receipts address from
+the platform's receipts door (`PLATFORM_RECEIPTS_URL`, LMB-PLATFORM `services/receipts`; unset: `available: false` and
+the page says "Opening soon"). Each new email is read once by the shop's AI (`aiWriter.js` task `receiptEmail`, under
+the spending gate) and kept in server-only `receiptInbox/{messageId}` until the owner adds it or says it isn't a
+receipt; state is `receiptInboxState/main`. No rule opens either to the browser.
+- **Nothing here writes an expense.** The admin's Log expense page does, after the owner has checked the figures. Step
+  `file` hands the browser the attachment, or the email's words as a PDF (`emailPdf.js`), for the normal receipt upload.
+- `done` bins the email on the platform; when that fails the entry stays hidden (`state: "done"`) so it is never
+  collected twice, and the next check bins it. Gmail's forwarding-confirmation email becomes `gmailCode` for the setup steps.
+- Tests: `receiptInbox.test.js` (fake door and Firestore).

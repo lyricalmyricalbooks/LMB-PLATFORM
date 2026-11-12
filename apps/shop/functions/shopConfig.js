@@ -41,6 +41,9 @@
 //   PLATFORM_APPS_URL    the platform's app store door (https, LMB-PLATFORM services/apps/shopDoor.js, plan 26.5). Set:
 //                        Settings › Apps lists installed apps and the store, and can remove an app. Unset: the page
 //                        shows only the shop's own app activity.
+//   PLATFORM_RECEIPTS_URL the platform's receipts door (https, LMB-PLATFORM services/receipts, beta). Set: Bookkeeping ›
+//                        Receipts offers Receipts by email (the shop's own address to forward receipts to). Unset: the
+//                        card says "Opening soon".
 //   PLATFORM_ACCOUNTING_URL the platform bookkeeping service's address (https, LMB-PLATFORM services/accounting, plan
 //                        7.15). Set: Settings › Bookkeeping can connect QuickBooks. Unset: the page stays hidden.
 //   PLATFORM_EMAIL_URL   the platform email service's shop door (https). Set: when the shop hasn't connected its own
@@ -168,6 +171,7 @@ function readShopConfig(env = {}) {
     platformAccountingUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_ACCOUNTING_URL)) ? text(env.PLATFORM_ACCOUNTING_URL).replace(/\/+$/, "") : "",
     platformSocialUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_SOCIAL_URL)) ? text(env.PLATFORM_SOCIAL_URL).replace(/\/+$/, "") : "",
     platformAppsUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_APPS_URL)) ? text(env.PLATFORM_APPS_URL).replace(/\/+$/, "") : "",
+    platformReceiptsUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_RECEIPTS_URL)) ? text(env.PLATFORM_RECEIPTS_URL).replace(/\/+$/, "") : "",
     platformAccountsUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_ACCOUNTS_URL)) ? text(env.PLATFORM_ACCOUNTS_URL).replace(/\/+$/, "") : "",
     allowedOrigins: Object.freeze([...new Set([...LOCAL_ORIGINS, ...extraOrigins, ...(hosted ? [hosted] : []), siteUrl, ...www])]),
     project: functionsProject,
