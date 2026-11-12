@@ -19,6 +19,7 @@ import { googleHttp } from "../clients/http.js";
 import { readGoogleConfig } from "./config.js";
 import { createGoogleApi } from "./googleApi.js";
 import { domainsBridge } from "./domainBridge.js";
+import { googleClosing } from "./closing.js";
 import { createGoogleLink } from "./index.js";
 import { handleGoogle } from "./http.js";
 
@@ -148,7 +149,7 @@ export function googleEnv(env = {}) {
   return { ...env, GOOGLE_REDIRECT_URL: redirect };
 }
 
-export function hostedGoogleLink({ env = {}, fetch, token, platform, registry, now = () => Date.now(), log = console.error }) {
+export function hostedGoogleLink({ env = {}, fetch, token, platform, registry, domains = null, now = () => Date.now(), log = console.error }) {
   let config;
   try {
     config = readGoogleConfig(googleEnv(env), { now: now() });
@@ -158,10 +159,14 @@ export function hostedGoogleLink({ env = {}, fetch, token, platform, registry, n
   }
   if (!config.app) return null;
   const google = createGoogleApi({ fetch, app: config.app, redirectUrl: config.redirectUrl });
+  const shopFirebase = hostedShopFirebase({ fetch, token });
+  // `domains` is the platform's web address service (services/domains/hosted.js): Google's proof lines and the email
+  // sending lines go in through it, and a deleted shop's own address comes off through it.
   const link = createGoogleLink({
     config, google, ...googleStores(platform), registry, auditLog: rowAuditLog({ fetch, token, registry }),
-    shopFirebase: hostedShopFirebase({ fetch, token }), domainsCall: domainsBridge(null), now,
+    shopFirebase, domainsCall: domainsBridge(domains), now,
   });
+  const deletion = googleClosing({ teardown: link.teardown, registry, shopFirebase });
   return {
     config, link, handle: (request) => handleGoogle(request, { service: link.service }),
     /**
@@ -175,6 +180,10 @@ export function hostedGoogleLink({ env = {}, fetch, token, platform, registry, n
         if (!row?.google?.connectedAt && !(await link.tokens.get(shop.shopId))) return;
         await link.teardown.teardownOnClose(shop.shopId);
       }],
+      // Deletion (after the 90 days to download and both warning emails): every shop's own address comes off, connected
+      // to Google or not, and the teardown refuses until the row says the deletion is due. A shared shop's project is the
+      // shared one, so it is never deleted for one shop (hostedShopFirebase.deleteProject).
+      beforeDelete: deletion.hooks.beforeDelete,
     },
   };
 }

@@ -407,8 +407,8 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     : null;
   // Connect Google (google/hosted.js): on once the Google sign-in keys are in Secret Manager. Without them every shop's
   // Google page says "coming soon" (a status of `enabled: false`), and nothing else is answered.
-  const googleLink = hostedGoogleLink({ env, fetch, token, platform, registry, now: nowMs, log });
-  // A closing shop's Google link is undone with it (google/hosted.js closingHooks).
+  const googleLink = hostedGoogleLink({ env, fetch, token, platform, registry, domains, now: nowMs, log });
+  // A closing shop's Google link is undone with it, and at deletion its own address comes off (google/hosted.js closingHooks).
   const closing = createClosingSweep({ registry, auditLog, billing, email, projects: notConnectedClient(NOT_CONNECTED.projectDeletion, ["deleteProject"]), hooks: googleLink?.closingHooks ?? {}, settings, now: nowMs });
 
   // The terms promise 30 days' email before new words apply (terms/notice.js).
