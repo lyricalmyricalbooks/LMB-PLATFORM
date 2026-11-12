@@ -75,7 +75,7 @@ export function bilingual(fr, en) {
   return {
     subject: `${fr.subject} / ${en.subject}`,
     text: `${fr.text}\n\n----- English -----\n\n${en.text}`,
-    html: `<div lang="fr">${fr.html}</div><hr style="border:0;border-top:1px solid #ccc;margin:24px 0"><div lang="en">${en.html}</div>`,
+    html: `<div lang="fr">${fr.html}</div><div lang="en">${en.html}</div>`,
   };
 }
 

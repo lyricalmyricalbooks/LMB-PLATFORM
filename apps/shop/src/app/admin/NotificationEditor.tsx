@@ -105,7 +105,7 @@ type TemplateKey = Exclude<keyof NotificationSettings, "brand" | "new_order_admi
 const DEFAULT_SETTINGS: NotificationSettings = {
   brand: {
     logoUrl: "",
-    brandColor: "#e8402a",
+    brandColor: "#a9e8c6",
     emailTheme: "light",
     resendApiKey: ""
   },
@@ -282,7 +282,7 @@ function wordsFor(templateId: TemplateKey, data: NotificationSettings, language:
 
 function compilePreviewHtml(templateId: TemplateKey, data: NotificationSettings, order: any = null, shopName = DEFAULT_SHOP_NAME, defaults = DEFAULT_SETTINGS, language: EmailLanguage = "en") {
   const brand: Partial<NotificationSettings["brand"]> = data.brand || {};
-  const brandColor = brand.brandColor || "#e8402a";
+  const brandColor = brand.brandColor || "#a9e8c6";
   const french = language === "fr" && !!FRENCH_DEFAULTS[templateId];
   const template = wordsFor(templateId, data, language, defaults);
   // Same rules as the server: empty fields fall back to the default, required lines come back,
@@ -792,17 +792,17 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
           <div className="rp-field">
             <label className="rp-label" htmlFor="brand-color">Brand accent color</label>
             <div style={{ display: "flex", gap: 8 }}>
-              <input id="brand-color" type="color" aria-label="Pick brand accent color" value={data.brand?.brandColor || "#e8402a"} onChange={(e) => handleBrandChange("brandColor", e.target.value)}
+              <input id="brand-color" type="color" aria-label="Pick brand accent color" value={data.brand?.brandColor || "#a9e8c6"} onChange={(e) => handleBrandChange("brandColor", e.target.value)}
                 style={{ width: 48, height: 44, padding: 2, border: "1px solid var(--rp-border)", background: "var(--rp-input-bg)" }} />
-              <input className="rp-input rp-mono" aria-label="Brand accent color hex" value={data.brand?.brandColor || ""} placeholder="#e8402a"
+              <input className="rp-input rp-mono" aria-label="Brand accent color hex" value={data.brand?.brandColor || ""} placeholder="#a9e8c6"
                 aria-invalid={badColor || undefined} onChange={(e) => handleBrandChange("brandColor", e.target.value)} />
             </div>
-            {badColor && <p className="rp-error-text" role="alert" style={{ margin: "6px 0 0" }}>Use a colour code like #e8402a. Until then emails use flare red.</p>}
+            {badColor && <p className="rp-error-text" role="alert" style={{ margin: "6px 0 0" }}>Use a colour code like #a9e8c6. Until then emails use mint.</p>}
           </div>
           <SelectField label="Email theme" value={["dark", "market", "index"].includes(String(data.brand?.emailTheme)) ? String(data.brand?.emailTheme) : "light"} onChange={(e) => handleBrandChange("emailTheme", e.target.value)}
-            hint="Light = cream paper. Dark = black paper. Market stall and Index match those shop designs.">
-            <option value="light">Light (newsprint)</option>
-            <option value="dark">Dark (Riso Noir)</option>
+            hint="Light = cream page. Dark = night. Market stall and Index match those shop designs.">
+            <option value="light">Light (cream)</option>
+            <option value="dark">Dark (night)</option>
             <option value="market">Market stall (yellow)</option>
             <option value="index">Index rows (grey and black)</option>
           </SelectField>

@@ -4,7 +4,7 @@
 const zlib = require("zlib");
 const { DEFAULT_SHOP_NAME } = require("./shared/shopIdentity");
 
-// Riso Press colours (functions/emailTheme.js RISO light), as PDF 0–1 RGB. A shop whose email theme is Market stall or
+// The emails' colours (functions/emailTheme.js light), as PDF 0–1 RGB. A shop whose email theme is Market stall or
 // Index rows gets that design's colours instead (pdfColours); "dark" stays on paper white, since the PDF is meant to be printed.
 const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255);
 const { RISO_THEMES } = require("./emailTheme");

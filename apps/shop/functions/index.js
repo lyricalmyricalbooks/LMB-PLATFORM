@@ -2954,7 +2954,7 @@ const DEFAULT_NOTIFICATIONS = {
   review_request: REVIEW_REQUEST_TEMPLATE,
   brand: {
     logoUrl: "",
-    brandColor: "#e8402a",
+    brandColor: "#a9e8c6",
     emailTheme: "light"
   },
   order_confirmation: {
@@ -3295,7 +3295,7 @@ function compileEmailTemplate(templateId, settings, vars, additionalSection, { l
   const shopName = String(settings.shopName || shopConfig.senderName || "");
   vars = { shop_name: shopName, ...vars };
   const logoUrl = brand.logoUrl || "";
-  const brandColor = brand.brandColor || "#e8402a";
+  const brandColor = brand.brandColor || "#a9e8c6";
   
   // An emptied field falls back to this shop's default words (plan 10.23: settings.sells from loadNotificationSettings).
   const french = language === "fr" ? emailFrench.frenchTemplate(templateId, settings) : null;
