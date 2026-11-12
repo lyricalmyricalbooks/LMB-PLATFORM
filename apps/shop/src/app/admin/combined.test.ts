@@ -36,10 +36,11 @@ describe("the combined admin (shop + stockroom plan)", () => {
   });
 
   it("splits the menu in two sides, website and stockroom, each named by the job", () => {
-    expect(WEBSITE_SIDE.map((g) => g.label)).toEqual(["Home", "Orders", "Messages", "Books", "Analytics", "Marketing", "Online store", "Settings"]);
-    expect(STOCKROOM_SIDE.map((g) => g.label)).toEqual(["Inventory", "Sales", "Consignment", "Invoices", "Bookkeeping", "Backups"]);
+    expect(WEBSITE_SIDE.map((g) => g.label)).toEqual(["Home", "Orders", "Messages", "Books", "Marketing", "Analytics", "Online store", "Settings"]);
+    expect(STOCKROOM_SIDE.map((g) => g.label)).toEqual(["Inventory", "Sales", "Stockists", "Invoices", "Tax centre", "Bookkeeping", "Backups"]);
     expect(FAIR_MENU.map((g) => g.label)).toEqual(["Till", "Record a sale", "QR codes", "Today's sales", "Stock check"]);
-    for (const p of STOCKROOM_PAGES) expect(sideOf(STOCKROOM_ITEM_PREFIX + p.id), p.id).toBe("stockroom");
+    // v4: the Google Sheet is Settings › Google's "Sales spreadsheet", on the website side.
+    for (const p of STOCKROOM_PAGES) expect(sideOf(STOCKROOM_ITEM_PREFIX + p.id), p.id).toBe(p.id === "sheets" ? "website" : "stockroom");
     expect(sideOf("overview")).toBe("website");
     expect(sideOf("orders")).toBe("website");
     expect(sideOf("inventory")).toBe("stockroom");
@@ -53,7 +54,8 @@ describe("the combined admin (shop + stockroom plan)", () => {
     expect(menuItemFor(STOCKROOM_ITEM_PREFIX + "pos", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "pos");
     expect(menuItemFor(STOCKROOM_ITEM_PREFIX + "taxcenter", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "taxcenter");
     expect(menuItemFor(STOCKROOM_ITEM_PREFIX + "consignment", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "consignment");
-    expect(menuItemFor("settings/bookkeeping", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "taxcenter");
+    expect(menuItemFor("settings/bookkeeping", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "expenses");
+    expect(menuItemFor(STOCKROOM_ITEM_PREFIX + "reconcile", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "taxcenter");
     expect(sideOf("settings/bookkeeping")).toBe("stockroom");
     expect(menuItemFor("customers", COMBINED_MENU)).toBe("orders");
     expect(menuItemFor("channels", COMBINED_MENU)).toBe("discounts");
