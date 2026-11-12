@@ -54,7 +54,8 @@ import { createInvites } from "../waitlist/invites.js";
 import { readGoogleConfig } from "../google/config.js";
 import { googleReadiness } from "../google/readiness.js";
 import { hostedGoogleLink } from "../google/hosted.js";
-import { hostedAccounting } from "../services/accounting/hosted.js";
+import { accountingEnv, accountingStores, hostedAccounting } from "../services/accounting/hosted.js";
+import { readAccountingConfig } from "../services/accounting/config.js";
 import { hostedSocial } from "../services/social/hosted.js";
 import { createSupportInbox } from "../services/support/inbox.js";
 import { supportRoutes } from "../services/support/routes.js";
@@ -116,6 +117,7 @@ import { createShopApps, shopAppsRoutes } from "../control-room/shopApps.js";
 import { chitChatsDeskRoutes, createChitChatsDesk } from "../control-room/chitChats.js";
 import { createMailchimpDesk, mailchimpDeskRoutes } from "../control-room/mailchimp.js";
 import { createOwnAppsDesk, ownAppsDeskRoutes } from "../control-room/ownApps.js";
+import { createQuickBooksDesk, quickbooksDeskRoutes } from "../control-room/quickbooks.js";
 import { chitChatsNote } from "../control-room/chitChatsNote.js";
 import { switchNote } from "../control-room/switchNote.js";
 import { createSellReady, sellReadyRoutes } from "../control-room/sellReady.js";
@@ -167,6 +169,18 @@ export function proxyHopsOf(env) {
 }
 
 /** Where Colophon's Zapier app lives, from server/env.yaml; null until both addresses are on zapier.com. */
+/** Whether the QuickBooks link is on, for the control room: "broken" when its settings don't go together. */
+function quickbooksSwitch(env, accounting) {
+  if (!accounting) return "broken";
+  try {
+    const config = readAccountingConfig(accountingEnv(env));
+    if (!config.enabled) return "off";
+    return config.apps.live || config.apps.test ? "on" : "no-keys";
+  } catch {
+    return "broken";
+  }
+}
+
 function zapierPlace(env) {
   const onZapier = (value) => /^https:\/\/zapier\.com\/\S+$/.test(String(value ?? "").trim());
   return onZapier(env.ZAPIER_INVITE_URL) && onZapier(env.ZAPIER_RETURN_ADDRESS)
@@ -478,6 +492,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...chitChatsDeskRoutes(chitChatsDesk),
     ...mailchimpDeskRoutes(createMailchimpDesk({ admins, mailchimp, connections: mailchimpStores.connections, registry, now })),
     ...ownAppsDeskRoutes(createOwnAppsDesk({ admins, ownApps, apps: appStore, now })),
+    ...quickbooksDeskRoutes(createQuickBooksDesk({ admins, switchedOn: quickbooksSwitch(env, accounting), connections: accountingStores(platform).connections, registry, now })),
     ...sellReadyRoutes(sellReady),
     ...notSellingRoutes(notSelling),
     ...driftRoutes(driftDesk),

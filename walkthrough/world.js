@@ -91,6 +91,8 @@ import { chitChatsDeskRoutes, createChitChatsDesk } from "../control-room/chitCh
 import { createMailchimpDesk, mailchimpDeskRoutes } from "../control-room/mailchimp.js";
 import { createOwnAppsDesk, ownAppsDeskRoutes } from "../control-room/ownApps.js";
 import { createOwnApps } from "../services/apps/ownApps.js";
+import { createQuickBooksDesk, quickbooksDeskRoutes } from "../control-room/quickbooks.js";
+import { fakeConnections as fakeAccountingConnections } from "../services/accounting/fakes.js";
 import { createSellReady, sellReadyRoutes } from "../control-room/sellReady.js";
 import { createNotSelling, notSellingRoutes } from "../control-room/notSelling.js";
 import { createSocialService } from "../services/social/social.js";
@@ -356,6 +358,8 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...mailchimpDeskRoutes(createMailchimpDesk({ admins, mailchimp, connections: mailchimpStores.connections, registry, now: clock.date })),
     // No root secret in the practice world, so each own app shows what it waits for.
     ...ownAppsDeskRoutes(createOwnAppsDesk({ admins, ownApps: createOwnApps({ store: appStore, root: null, platformUrl: settings.platformUrl, supportEmail: settings.supportEmail, now: clock.date }), apps: appStore, now: clock.date })),
+    // The QuickBooks link is off in the practice world: no Intuit keys.
+    ...quickbooksDeskRoutes(createQuickBooksDesk({ admins, switchedOn: "off", connections: fakeAccountingConnections(), registry, now: clock.date })),
     ...sellReadyRoutes(sellReady),
     ...notSellingRoutes(notSelling),
     ...driftRoutes(driftDesk),
