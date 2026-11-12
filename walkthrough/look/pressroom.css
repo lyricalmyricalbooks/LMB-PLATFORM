@@ -2418,3 +2418,25 @@ div.rp-listcard-main { cursor: default; }
   .rp .rp-fk-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
   .rp .rp-fk-facts > div { padding: 10px 12px; }
 }
+/* v4 Shipping (mockup 1f): zones as rows in the kit card, each with its rates; edits open the zone and rate windows. */
+.rp .rp-fk-zones, .rp .rp-fk-rates { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.rp .rp-fk-zones { gap: 12px; }
+.rp .rp-fk-zone { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px 16px; border-radius: 16px; background: var(--rp-surface-2); }
+.rp .rp-fk-zone > * { align-self: stretch; }
+.rp .rp-fk-zone > .rp-fk-pill { align-self: flex-start; min-height: 36px; padding: 8px 14px; }
+.rp .rp-fk-zone-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.rp .rp-fk-zone-name { padding: 0; border: 0; background: none; color: var(--rp-text); font: 600 15px/1.3 var(--rp-font-body); text-align: left; cursor: pointer; }
+.rp .rp-fk-zone-name:hover { text-decoration: underline; }
+.rp .rp-fk-rates > li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "name price act" "when when act"; gap: 2px 14px; align-items: center; padding: 10px 0; border-top: 1px solid var(--rp-border); }
+.rp .rp-fk-rates > li[data-off] { opacity: .6; }
+.rp .rp-fk-rate-name { grid-area: name; display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; font-weight: 600; font-size: 14px; overflow-wrap: break-word; }
+.rp .rp-fk-rates > li > .rp-fk-hint { grid-area: when; }
+.rp .rp-fk-rate-price { grid-area: price; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+.rp .rp-fk-rates > li > :last-child { grid-area: act; }
+.rp .rp-fk-off { padding: 2px 8px; border-radius: 999px; background: var(--rp-surface); color: var(--rp-text-subtle); font: 400 11px/1.4 var(--rp-font-mono); }
+.rp .rp-fk-link { min-height: 36px; padding: 0 6px; border: 0; background: none; color: var(--rp-text); font: 600 13px/1 var(--rp-font-body); text-decoration: underline; cursor: pointer; }
+@media (max-width: 640px) {
+  .rp .rp-fk-rates > li { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name act" "price act" "when act"; }
+  .rp .rp-fk-rate-price { text-align: left; font-weight: 500; }
+  .rp .rp-fk-zone { padding: 12px; }
+}

@@ -5,7 +5,7 @@ import { POLICY_KEYS, POLICY_TITLES, policySlug } from "../features/site/policyP
 import { STARTER_POLICY_NOTE, starterFacts, withStarter } from "./starterPolicies";
 import { useShopSells } from "./shopWords";
 import { AmountField } from "./AmountField";
-import { ActionMenu, Checkbox, ConfirmDialog, LoadingState, MetricCard, DestructiveButton, Dialog, EmptyState, ErrorState, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm } from "./riso/components";
+import { ActionMenu, Checkbox, PageHead, ConfirmDialog, LoadingState, MetricCard, DestructiveButton, Dialog, EmptyState, ErrorState, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm } from "./riso/components";
 // `m` + the app-wide LazyMotion (domAnimation): the full `motion` component would pull layout/drag code into the shop's first load.
 import { m, AnimatePresence } from "motion/react";
 import { NotificationEditor } from "./NotificationEditor";
@@ -19,6 +19,7 @@ import { stripeSecretKeyProblem } from "./privateKeys";
 import { StripeWebhookHealth } from "./StripeWebhookHealth";
 import { PlatformPaymentsCard } from "./PlatformPaymentsCard";
 import { CustomDomainCard } from "./CustomDomainCard";
+import { FormField, FormPage, FormReadOnly, FormRow, FormSection, StatusBar, formStatus } from "./riso/FormKit";
 import { paysOnSquare, platformCardsProvider, providerName, runsOnColophon, shopProfile } from "../../lib/shopProfile";
 import { PrivacyRequestsCard } from "./PrivacyRequestsCard";
 import { RedirectsCard } from "./RedirectsCard";
@@ -150,10 +151,6 @@ export function ShopSettings({
     </div>
   );
 }
-// SaveBar names the cards that have unsaved edits, not the settings keys behind them.
-export const GENERAL_SECTION_TITLES: Record<string, string> = {
-  maintenance: "Store status", stockHolds: "Checkout stock holds", info: "Your press", domain: "Domain & visibility", location: "Your press", policies: "Store policies",
-};
 
 function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection, onUnderConstruction, subTab, onSubTabChange }: any) {
   const SECTIONS = ["maintenance", "stockHolds", "domain", "info", "location", "policies"] as const;
@@ -177,10 +174,12 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
   const maintenanceOn = !!settings.maintenance?.enabled;
   const name = settings.info?.name || "";
   const desc = settings.info?.description || "";
+  const email = settings.info?.email || "";
+  const missing = (name.trim() ? 0 : 1) + (email.trim() ? 0 : 1);
   // Your press first, as in the redesign's General page (11 November 2026).
   const [view, setView] = useSubTab<string>("gs-details", subTab, onSubTabChange);
   const tabs: SettingsTab[] = [
-    { id: "gs-details", title: "Your press", unsaved: ["info", "location", "policies", "domain"].some((k) => hasChanges(k)) },
+    { id: "gs-details", title: "Your shop", unsaved: ["info", "location", "policies", "domain"].some((k) => hasChanges(k)) },
     { id: "gs-store", title: "Shop status & checkout", unsaved: hasChanges("maintenance") || hasChanges("stockHolds") },
     { id: "gs-visitors", title: "Visitors & Google" },
     { id: "gs-tools", title: "Tools & records" },
@@ -191,57 +190,80 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
       <SettingsTabs label="General settings" tabs={tabs} value={view} onChange={setView} />
 
       <SettingsGroup id="gs-details" active={view === "gs-details"}>
-        <SettingsAnchor id="gs-identity">
-          {/* The redesign's form card: one row per field, the label on the left. Location lives here too (gs-location). */}
-          <SectionCard title="Your press" description="Shown on the site, emails, invoices and receipts." collapsible={false} bodyClassName="rp-formrows">
-            <TextField label="Press name" value={name} maxLength={100} onChange={(e) => set("info", { name: e.target.value })} />
-            <TextField label="Contact email" type="email" value={settings.info?.email || ""} placeholder="hello@example.com" onChange={(e) => set("info", { email: e.target.value })} />
-            <TextArea label="About your press" rows={3} value={desc} maxLength={150} hint={`Search and social previews · ${desc.length} / 150`} onChange={(e) => set("info", { description: e.target.value })} />
-            <span id="gs-location" tabIndex={-1} style={{ scrollMarginTop: 16, outline: "none" }} />
-            <TextField label="Street address" hint="Where parcels ship from" value={settings.location?.street || ""} placeholder="123 Example Street" onChange={(e) => set("location", { street: e.target.value })} />
-            <TextField label="City" value={settings.location?.city || ""} placeholder="Toronto" onChange={(e) => set("location", { city: e.target.value })} />
-            <TextField label="Province or state" value={settings.location?.state || ""} placeholder="Ontario" onChange={(e) => set("location", { state: e.target.value })} />
-            <TextField label="Postal code" value={settings.location?.zip || ""} placeholder="M6G 3H1" autoComplete="postal-code" onChange={(e) => set("location", { zip: e.target.value })} />
-            <SelectField label="Country" value={settings.location?.country || "Canada"} onChange={(e) => set("location", { country: e.target.value })}>
-              {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
-            </SelectField>
-            <TextField label="Phone" type="tel" hint="On labels, for the carrier" value={settings.location?.phone || ""} placeholder="647 409 6863" autoComplete="tel" onChange={(e) => set("location", { phone: e.target.value })} />
-          </SectionCard>
-        </SettingsAnchor>
-        <SettingsAnchor id="gs-domain">
-          <CustomDomainCard fallback={
-          <SectionCard title="Domain & visibility" description="For your records.">
-            <TextField label="Custom domain" value={settings.domain?.custom || ""} placeholder="yourpress.example"
-              hint="Doesn't move the shop. The domain is already live."
-              onChange={(e) => set("domain", { custom: e.target.value })} />
-          </SectionCard>
-          } />
-        </SettingsAnchor>
-        <WhatYouSellCard />
-        <SettingsAnchor id="gs-policies">
-          <SectionCard title="Store policies" description="Footer links. Blank ones hide.">
-            <div className="rp-stack" style={{ gap: 20 }}>
+        {/* v4 form kit (mockup 1e): sections named on the left, their fields in one card on the right. */}
+        <FormPage>
+          <SettingsAnchor id="gs-identity">
+            <FormSection title="Your shop" description="Shown on the site, emails, invoices and receipts.">
+              <FormRow>
+                <FormField label="Shop name" required empty={!name.trim()}>
+                  {(a) => <input {...a} value={name} maxLength={100} onChange={(e) => set("info", { name: e.target.value })} />}
+                </FormField>
+                <FormField label="Contact email" required empty={!email.trim()}>
+                  {(a) => <input {...a} type="email" value={email} placeholder="hello@example.com" onChange={(e) => set("info", { email: e.target.value })} />}
+                </FormField>
+              </FormRow>
+              <FormField label="Phone" hint="On shipping labels, for the carrier.">
+                {(a) => <input {...a} type="tel" value={settings.location?.phone || ""} placeholder="Optional" autoComplete="tel" onChange={(e) => set("location", { phone: e.target.value })} />}
+              </FormField>
+              <FormField label="About your shop" hint={`For search and social previews · ${desc.length} / 150`}>
+                {(a) => <textarea {...a} rows={3} value={desc} maxLength={150} onChange={(e) => set("info", { description: e.target.value })} />}
+              </FormField>
+            </FormSection>
+          </SettingsAnchor>
+          <SettingsAnchor id="gs-location">
+            <FormSection title="Address" description="Where parcels ship from. Printed on invoices.">
+              <FormField label="Street">
+                {(a) => <input {...a} value={settings.location?.street || ""} placeholder="123 Example Street" autoComplete="street-address" onChange={(e) => set("location", { street: e.target.value })} />}
+              </FormField>
+              <FormRow>
+                <FormField label="City">{(a) => <input {...a} value={settings.location?.city || ""} placeholder="Toronto" onChange={(e) => set("location", { city: e.target.value })} />}</FormField>
+                <FormField label="Province or state">{(a) => <input {...a} value={settings.location?.state || ""} placeholder="Ontario" onChange={(e) => set("location", { state: e.target.value })} />}</FormField>
+              </FormRow>
+              <FormRow>
+                <FormField label="Postal code">{(a) => <input {...a} value={settings.location?.zip || ""} placeholder="M6G 3H1" autoComplete="postal-code" onChange={(e) => set("location", { zip: e.target.value })} />}</FormField>
+                <FormField label="Country">
+                  {(a) => <select {...a} value={settings.location?.country || "Canada"} onChange={(e) => set("location", { country: e.target.value })}>
+                    {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
+                  </select>}
+                </FormField>
+              </FormRow>
+            </FormSection>
+          </SettingsAnchor>
+          <SettingsAnchor id="gs-domain">
+            <FormSection title="Web address" description="Where people find you.">
+              <CustomDomainCard bare fallback={
+                <FormField label="Custom domain" hint="For your records. It doesn't move the shop.">
+                  {(a) => <input {...a} value={settings.domain?.custom || ""} placeholder="yourpress.example" onChange={(e) => set("domain", { custom: e.target.value })} />}
+                </FormField>
+              } />
+            </FormSection>
+          </SettingsAnchor>
+          <FormSection title="How the shop runs" description="Sets the words in your admin and emails.">
+            <WhatYouSellCard bare />
+          </FormSection>
+          <SettingsAnchor id="gs-policies">
+            <FormSection title="Store policies" description="Footer links. Blank ones hide.">
               {POLICY_KEYS.map((k) => {
                 const text: string = settings.policies?.[k] || "";
                 return (
-                  <div key={k}>
-                    <TextArea label={POLICY_TITLES[k]} rows={5} maxLength={20000} value={text}
-                      hint={text.trim() ? `Live at /page/${policySlug(k)}` : k === "accessibility" ? "Optional. Tells shoppers who use screen readers or keyboards what to expect, and how to ask for help. Hidden until it has text." : "Hidden until it has text."}
-                      onChange={(e) => set("policies", { [k]: e.target.value })} />
+                  <div key={k} className="rp-fk-field">
+                    <FormField label={POLICY_TITLES[k]} hint={text.trim() ? `Live at /page/${policySlug(k)}` : k === "accessibility" ? "Optional. What shoppers who use screen readers or keyboards can expect. Hidden until it has text." : "Hidden until it has text."}>
+                      {(a) => <textarea {...a} rows={4} maxLength={20000} value={text} onChange={(e) => set("policies", { [k]: e.target.value })} />}
+                    </FormField>
                     {!text.trim() && (
-                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, marginTop: 8 }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
                         {/* Reads the latest saved policy again so a click can never replace words typed meanwhile. */}
                         <SecondaryButton size="sm" onClick={() => setSettings((prev: any) => ({ ...prev, policies: { ...prev?.policies, [k]: withStarter(prev?.policies?.[k], k, starterFacts(prev, sellsAnswer, providerName())) } }))}>Start from our wording</SecondaryButton>
-                        <span className="rp-hint">Filled with your shop name, address and returns window. {STARTER_POLICY_NOTE}</span>
+                        <span className="rp-fk-hint">Filled with your shop name, address and returns window.</span>
                       </div>
                     )}
                   </div>
                 );
               })}
-              <p className="rp-hint" style={{ margin: 0 }}>Our wording is {STARTER_POLICY_NOTE.toLowerCase()} Read it through and change anything that isn't true for your shop before you save.</p>
-            </div>
-          </SectionCard>
-        </SettingsAnchor>
+              <p className="rp-fk-hint" style={{ margin: 0 }}>Our wording is {STARTER_POLICY_NOTE.toLowerCase()} Read it through and change anything that isn't true for your shop before you save.</p>
+            </FormSection>
+          </SettingsAnchor>
+        </FormPage>
       </SettingsGroup>
 
       <SettingsGroup id="gs-store" active={view === "gs-store"}>
@@ -334,8 +356,13 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
         <SettingsAnchor id="gs-shop-errors"><ShopErrorsCard /></SettingsAnchor>
       </SettingsGroup>
 
-      <SaveBar dirty={dirty.length > 0} saving={!!savingSection} onSave={saveAll} onDiscard={discard}
-        message={`Unsaved changes in ${[...new Set(dirty.map((k) => GENERAL_SECTION_TITLES[k] || k))].join(", ")}.`} />
+      {/* One status bar for the whole page (v4 form kit): what is left, Discard, Save. */}
+      {(view === "gs-details" || view === "gs-store" || dirty.length > 0) && (
+        <StatusBar status={formStatus({ missing, dirty: dirty.length > 0 })} primaryLabel="Save" busy={!!savingSection}
+          blocked={missing > 0 || dirty.length === 0}
+          onBlocked={() => { if (missing > 0) { setView("gs-details"); toast.error("Fill in your shop name and contact email first."); } }}
+          onPrimary={() => void saveAll()} cancelLabel="Discard" onCancel={dirty.length > 0 ? discard : undefined} />
+      )}
 
       <ConfirmDialog open={confirmMaintenance} title="Turn on maintenance mode?" confirmLabel="Pause checkout"
         message="Shoppers can still browse, but checkout is refused (card, PayPal, e-Transfer and free orders) until you turn it off again. The change applies once you save."
@@ -344,7 +371,12 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
   );
 }
 
-function RateTester({ profile }: { profile: any }) {
+/** A card unless the form kit section around it is the card already. */
+function MaybeCard({ bare, children }: { bare?: boolean; children: ReactNode }) {
+  return bare ? <div>{children}</div> : <SectionCard>{children}</SectionCard>;
+}
+
+function RateTester({ profile, bare }: { profile: any; bare?: boolean }) {
   const w = useShopWords();
   const [country, setCountry] = useState("Canada");
   const [total, setTotal] = useState("40");
@@ -356,7 +388,7 @@ function RateTester({ profile }: { profile: any }) {
     [{ price: each, quantity: qty, shippingProfileId: profile.id, weightGrams: grams === "" ? null : (Number(grams) || 0) / qty }],
     { country }, [profile]).filter((q) => q.type !== "pickup"), [profile, country, each, qty, grams]);
   return (
-    <SectionCard>
+    <MaybeCard bare={bare}>
       <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", marginBottom: 12 }}>
         <SelectField label="Destination" value={country} onChange={(e) => setCountry(e.target.value)}>
           {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
@@ -379,7 +411,7 @@ function RateTester({ profile }: { profile: any }) {
           ))}
         </ul>
       )}
-    </SectionCard>
+    </MaybeCard>
   );
 }
 
@@ -456,7 +488,6 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
   const [booksError, setBooksError] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [editingProfile, setEditingProfile] = useState<any | null>(null);
-  const [profileView, setProfileView] = useState<"zones" | "rules" | "books" | "test">("zones");
   const [shippingView, setShippingView] = useSubTab<"overview" | "profiles" | "carrier" | "local" | "returns">(onSubTabChange ? "overview" : initialView, subTab, onSubTabChange);
   
   // Modals visibility
@@ -1177,143 +1208,123 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
     );
   }
 
-  // ─── Profile editor (Masthead): name, sub tabs, one strip of figures ──────────
+  // ─── Profile editor (v4 form kit, mockup 1f): how you charge, zones and rates, packing, then its products ──────
   const assignedBooks = getAssignedProducts(editingProfile.id);
   const zones = editingProfile.zones || [];
-  const rateCount = zones.reduce((n: number, z: any) => n + (z.rates?.length || 0), 0);
-  const countryCount = new Set(zones.flatMap((z: any) => z.countries || [])).size;
-  const shipsEverywhere = zones.some((z: any) => z.restOfWorld);
   const isGeneral = editingProfile.id === "general-profile";
+  const nameMissing = !isGeneral && !String(editingProfile.name || "").trim();
+  const numberOrNull = (v: string) => (v === "" ? null : Number(v));
   const leaveEditor = async () => {
     const saved = profiles.find((p: any) => p.id === editingProfile?.id);
     const dirty = saved && JSON.stringify(saved) !== JSON.stringify(editingProfile);
     if (dirty && !(await askConfirm({ title: "Leave without saving?", message: "Your zone and rate changes to this profile haven't been saved.", confirmLabel: "Discard changes" }))) return;
-    setSelectedProfileId(null); setEditingProfile(null); setProfileView("zones");
+    setSelectedProfileId(null); setEditingProfile(null);
   };
 
   return (
     <div className="rp-stack">
-      <header className="rp-wb-head">
-        <div className="rp-wb-head-title">
-          <div style={{ minWidth: 0 }}>
-            <button type="button" className="rp-wb-a" style={{ fontSize: "var(--rp-text-sm)", marginBottom: 6 }} onClick={leaveEditor}>← Shipping profiles</button>
-            <h2 className="rp-page-title rp-wb-h1" style={{ overflowWrap: "anywhere", fontSize: "var(--rp-text-2xl)" }}>{editingProfile.name || "Untitled profile"}</h2>
-          </div>
-          {isGeneral && <StatusBadge tone="primary">Default</StatusBadge>}
-        </div>
-        <Tabs variant="page" label="Profile" idPrefix="profile-" value={profileView} onChange={setProfileView} tabs={[
-          { id: "zones", label: "Zones & prices" },
-          { id: "rules", label: isGeneral ? "Rules" : "Name & rules" },
-          { id: "books", label: "Books", count: isGeneral ? undefined : assignedBooks.length },
-          { id: "test", label: "Test" },
-        ]} />
-        <section className="rp-kpi-grid" aria-label="This profile in numbers">
-          <MetricCard label="Zones" value={zones.length} footer={zones.length ? "" : "Add one to ship"} tone={zones.length ? undefined : "warn"} />
-          <MetricCard label="Rates" value={rateCount} footer={profileSummary({ zones }).split(" · ").pop()} tone={rateCount ? undefined : "warn"} />
-          <MetricCard label="Countries" value={countryCount} footer={shipsEverywhere ? "plus everywhere else" : ""} />
-          <MetricCard label={w("Books")} value={isGeneral ? "All others" : assignedBooks.length} footer="" />
-        </section>
-      </header>
-
-      <TabPanel tabId="profile-zones" active={profileView === "zones"}>
-        <div className="rp-stack">
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-            {zones.length === 0 && <SecondaryButton size="sm" onClick={handleAddStarterZones}>Add starter zones</SecondaryButton>}
-            <PrimaryButton size="sm" onClick={() => openZoneModal()}>+ Add zone</PrimaryButton>
-          </div>
-          {zones.length === 0 ? (
-            <EmptyState icon="🌍" title="No zones yet" description="Customers can't check out without a zone for their country." />
-          ) : zones.map((z: any) => (
-            <SectionCard key={z.id} title={z.name}
-              actions={
-                <span style={{ display: "inline-flex", gap: 12, alignItems: "center" }}>
-                  <button type="button" className="rp-wb-a" onClick={() => openZoneModal(z)}>Edit zone</button>
-                  <ActionMenu label={`More for zone ${z.name}`} actions={[
-                    { label: "Copy zone", onSelect: () => handleDuplicateZone(z) },
-                    { label: "Delete zone", tone: "danger", onSelect: () => handleDeleteZone(z.id) },
-                  ]} />
-                </span>
-              }>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }} aria-label={`Countries in ${z.name}`}>
-                {z.restOfWorld ? <StatusBadge>Everywhere else</StatusBadge> : z.countries.map((c: string) => <StatusBadge key={c}>{countryName(c)}</StatusBadge>)}
-              </div>
-              {(!z.rates || z.rates.length === 0) ? (
-                <p role="alert" className="rp-hint" style={{ margin: 0, color: "var(--rp-warning)" }}>⚠ No rates, so customers here can't check out.</p>
-              ) : (
-                <div className="rp-table-wrap" role="region" aria-label={`Rates for ${z.name}`} tabIndex={0} style={{ boxShadow: "none" }}>
-                  <table className="rp-table">
-                    <caption className="rp-sr-only">Shipping rates for {z.name}</caption>
-                    <thead><tr><th scope="col">Rate</th><th scope="col">Price</th><th scope="col">Offered when</th><th scope="col">Delivery</th><th scope="col"><span className="rp-sr-only">Actions</span></th></tr></thead>
-                    <tbody>
-                      {z.rates.map((r: any) => (
-                        <tr key={r.id} style={r.enabled === false ? { opacity: 0.55 } : undefined}>
-                          <td className="rp-lead">{r.name}{r.enabled === false && <> <StatusBadge>Off</StatusBadge></>}</td>
-                          <td>{describeRatePrice(r)}</td>
-                          <td>{describeRateConditions(r) || "Always"}</td>
-                          <td>{r.type === "pickup" ? "Pickup" : r.deliveryDays ? `${r.deliveryDays} days` : "—"}</td>
-                          <td>
-                            <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
-                              <button type="button" className="rp-wb-a" onClick={() => openRateModal(z.id, r)} aria-label={`Edit rate ${r.name}`}>Edit</button>
-                              <ActionMenu label={`More for rate ${r.name}`} actions={[
-                                { label: "Copy rate", onSelect: () => handleDuplicateRate(z.id, r) },
-                                { label: "Delete rate", tone: "danger", onSelect: () => handleDeleteRate(z.id, r.id) },
-                              ]} />
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-              <div style={{ marginTop: 10 }}><button type="button" className="rp-wb-a" onClick={() => openRateModal(z.id)}>+ Add rate</button></div>
-            </SectionCard>
-          ))}
-        </div>
-      </TabPanel>
-
-      <TabPanel tabId="profile-rules" active={profileView === "rules"}>
-        <SectionCard>
-          <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-            {!isGeneral && (
-              <TextField label="Profile name" value={editingProfile.name} onChange={(e) => setEditingProfile({ ...editingProfile, name: e.target.value })} />
-            )}
-            <TextField label="Free shipping over ($)" type="number" min={0} step="0.01" placeholder="None"
-              hint="Every rate here becomes free at this order total."
-              value={editingProfile.freeShippingOver ?? ""} onChange={(e) => setEditingProfile({ ...editingProfile, freeShippingOver: e.target.value === "" ? null : Number(e.target.value) })} />
-            <TextField label="Packing fee per order ($)" type="number" min={0} step="0.01" placeholder="0.00"
-              value={editingProfile.handlingFee ?? ""} onChange={(e) => setEditingProfile({ ...editingProfile, handlingFee: e.target.value === "" ? null : Number(e.target.value) })} />
-            <TextField label={w("Weight of a book with none set (g)")} type="number" min={0} placeholder="e.g. 350"
-              value={editingProfile.defaultItemWeightG ?? ""} onChange={(e) => setEditingProfile({ ...editingProfile, defaultItemWeightG: e.target.value === "" ? null : Number(e.target.value) })} />
-          </div>
-        </SectionCard>
-      </TabPanel>
-
-      <TabPanel tabId="profile-books" active={profileView === "books"}>
-        <div className="rp-stack">
+      <PageHead title={editingProfile.name || "Untitled profile"} description={isGeneral ? w("Default profile · every book not moved to another") : `Shipping profile · ${assignedBooks.length} ${w(assignedBooks.length === 1 ? "book" : "books")}`}
+        back={{ label: "Shipping", onClick: () => { void leaveEditor(); } }} />
+      <FormPage>
+        <FormSection title="How you charge" description="Applies to every zone below.">
           {!isGeneral && (
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <PrimaryButton size="sm" onClick={() => openProductModal()}>{w("Choose books (")}{assignedBooks.length})</PrimaryButton>
-            </div>
+            <FormField label="Profile name" required empty={nameMissing} hint="Only you see it.">
+              {(a) => <input {...a} value={editingProfile.name} onChange={(e) => setEditingProfile({ ...editingProfile, name: e.target.value })} />}
+            </FormField>
           )}
-          {isGeneral ? (
-            <p className="rp-hint" style={{ margin: 0 }}>{w("Every book not moved to another profile ships with these prices.")}</p>
-          ) : assignedBooks.length === 0 ? (
-            <EmptyState icon="📦" title={w("No books yet")} description={w("Books you choose here use this profile's prices.")} />
+          <FormRow>
+            <FormField label="Free shipping over" prefix="$" hint="Leave empty for none.">
+              {(a) => <input {...a} type="number" min={0} step="0.01" placeholder="None" value={editingProfile.freeShippingOver ?? ""} onChange={(e) => setEditingProfile({ ...editingProfile, freeShippingOver: numberOrNull(e.target.value) })} />}
+            </FormField>
+            <FormField label="Packing fee per order" prefix="$">
+              {(a) => <input {...a} type="number" min={0} step="0.01" placeholder="0.00" value={editingProfile.handlingFee ?? ""} onChange={(e) => setEditingProfile({ ...editingProfile, handlingFee: numberOrNull(e.target.value) })} />}
+            </FormField>
+          </FormRow>
+        </FormSection>
+
+        <FormSection title="Zones and rates" description="Each zone needs at least one rate, or shoppers there can't check out.">
+          {zones.length === 0 ? (
+            <p className="rp-fk-hint" style={{ margin: 0 }}>No zones yet. Shoppers can't check out without a zone for their country.</p>
           ) : (
-            <ul className="rp-list" style={{ margin: 0, border: "var(--rp-hair) solid var(--rp-border)" }} aria-label={w("Books that use this profile")}>
-              {assignedBooks.map((b: any) => <li key={b.id} style={{ padding: "10px 14px", overflowWrap: "anywhere" }}>{b.title}</li>)}
+            <ul className="rp-fk-zones" aria-label="Zones">
+              {zones.map((z: any) => (
+                <li key={z.id} className="rp-fk-zone">
+                  <div className="rp-fk-zone-head">
+                    <span style={{ minWidth: 0 }}>
+                      <button type="button" className="rp-fk-zone-name" onClick={() => openZoneModal(z)} aria-label={`Edit zone ${z.name}`}>{z.name}</button>
+                      <span className="rp-fk-hint" style={{ display: "block", overflowWrap: "anywhere" }}>
+                        {z.restOfWorld ? "Everywhere else" : (z.countries || []).map((c: string) => countryName(c)).join(", ")}
+                      </span>
+                    </span>
+                    <ActionMenu label={`More for zone ${z.name}`} actions={[
+                      { label: "Edit zone", onSelect: () => openZoneModal(z) },
+                      { label: "Copy zone", onSelect: () => handleDuplicateZone(z) },
+                      { label: "Delete zone", tone: "danger", onSelect: () => handleDeleteZone(z.id) },
+                    ]} />
+                  </div>
+                  {(!z.rates || z.rates.length === 0) ? (
+                    <p role="alert" className="rp-fk-hint" data-error="" style={{ margin: 0 }}>No rates, so shoppers here can't check out.</p>
+                  ) : (
+                    <ul className="rp-fk-rates" aria-label={`Rates for ${z.name}`}>
+                      {z.rates.map((r: any) => (
+                        <li key={r.id} data-off={r.enabled === false ? "" : undefined}>
+                          <span className="rp-fk-rate-name">{r.name}{r.enabled === false && <span className="rp-fk-off">Off</span>}</span>
+                          <span className="rp-fk-hint">{describeRateConditions(r) || "Always"}{r.type === "pickup" ? " · Pickup" : r.deliveryDays ? ` · ${r.deliveryDays} days` : ""}</span>
+                          <span className="rp-fk-rate-price">{describeRatePrice(r)}</span>
+                          <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                            <button type="button" className="rp-fk-link" onClick={() => openRateModal(z.id, r)} aria-label={`Edit rate ${r.name}`}>Edit</button>
+                            <ActionMenu label={`More for rate ${r.name}`} actions={[
+                              { label: "Copy rate", onSelect: () => handleDuplicateRate(z.id, r) },
+                              { label: "Delete rate", tone: "danger", onSelect: () => handleDeleteRate(z.id, r.id) },
+                            ]} />
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <button type="button" className="rp-fk-pill" onClick={() => openRateModal(z.id)}>Add a rate</button>
+                </li>
+              ))}
             </ul>
           )}
-        </div>
-      </TabPanel>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <button type="button" className="rp-fk-pill" onClick={() => openZoneModal()}>Add a zone</button>
+            {zones.length === 0 && <button type="button" className="rp-fk-pill" onClick={handleAddStarterZones}>Add starter zones</button>}
+          </div>
+        </FormSection>
 
-      <TabPanel tabId="profile-test" active={profileView === "test"}>
-        <RateTester profile={editingProfile} />
-      </TabPanel>
+        <FormSection title="Packing" description="Used to work out parcel weight.">
+          <FormField label={w("Weight of a book with none set")} suffix="g">
+            {(a) => <input {...a} type="number" min={0} placeholder="e.g. 350" value={editingProfile.defaultItemWeightG ?? ""} onChange={(e) => setEditingProfile({ ...editingProfile, defaultItemWeightG: numberOrNull(e.target.value) })} />}
+          </FormField>
+        </FormSection>
 
-      <SaveBar dirty={profileDirty} saving={savingProfile} message={`Unsaved changes to “${editingProfile.name || "this profile"}”.`}
-        onSave={handleSaveProfile} onDiscard={() => { if (savedProfile) setEditingProfile(JSON.parse(JSON.stringify(savedProfile))); }} />
+        <FormSection title={w("Books")} description={w("Which books ship with these prices.")}>
+          {isGeneral ? (
+            <FormReadOnly label="Uses this profile" value={w("Every book not moved to another profile")} />
+          ) : (
+            <>
+              {assignedBooks.length === 0 ? (
+                <p className="rp-fk-hint" style={{ margin: 0 }}>{w("No books yet. Books you choose here use this profile's prices.")}</p>
+              ) : (
+                <ul className="rp-fk-picklist" aria-label={w("Books that use this profile")}>
+                  {assignedBooks.map((b: any) => <li key={b.id} style={{ overflowWrap: "anywhere" }}>{b.title}</li>)}
+                </ul>
+              )}
+              <div><button type="button" className="rp-fk-pill" onClick={() => openProductModal()}>{w("Choose books")} ({assignedBooks.length})</button></div>
+            </>
+          )}
+        </FormSection>
+
+        <FormSection title="Try a checkout" description="What a shopper would be offered.">
+          <RateTester profile={editingProfile} bare />
+        </FormSection>
+      </FormPage>
+
+      <StatusBar status={formStatus({ missing: nameMissing ? 1 : 0, dirty: profileDirty })} primaryLabel="Save" busy={savingProfile}
+        blocked={nameMissing || !profileDirty} onBlocked={() => { if (nameMissing) toast.error("Give the profile a name first."); }}
+        onPrimary={() => void handleSaveProfile()} cancelLabel="Discard"
+        onCancel={profileDirty ? () => { if (savedProfile) setEditingProfile(JSON.parse(JSON.stringify(savedProfile))); } : undefined} />
 
       {dialogs}
       {confirmNode}
