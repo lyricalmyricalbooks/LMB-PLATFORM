@@ -224,7 +224,7 @@ export async function eachInTurn(items, limit, work) {
 }
 
 export function createControlRoom({
-  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, stockroomData = null, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, settings, supportStore, recoveryStore, signups, platformState, stripePublishableKeys = {}, googleSteps, googleReady, taxWatch, feeDefaults = NO_FEE, accessRequests, admins, now = () => new Date(), delivery, presses = null, parcels = null,
+  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, stockroomData = null, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, settings, supportStore, recoveryStore, signups, platformState, stripePublishableKeys = {}, googleSteps, googleReady, taxWatch, bills = null, feeDefaults = NO_FEE, accessRequests, admins, now = () => new Date(), delivery, presses = null, parcels = null,
 }) {
   const at = () => now().toISOString();
 
@@ -490,6 +490,21 @@ export function createControlRoom({
         history: activity ? await activity.list({ shopId, limit: 50 }) : [],
         delivery: counts ? { payments: counts.payments, email: counts.email } : null,
       };
+    },
+
+    /**
+     * One shop's platform bills (what Colophon charged it), newest first, a page at a time, each with Stripe's PDF: the
+     * same list the shop's Settings › Billing shows. `after` (from the last page) reads older ones.
+     */
+    async shopBills(claims, { shopId, after } = {}) {
+      adminOf(claims, admins, now().getTime());
+      await shopOr404(shopId);
+      if (!bills) throw new ControlError(503, "The control room can't reach billing right now.");
+      try {
+        return await bills(shopId, { after: typeof after === "string" ? after : null });
+      } catch (failure) {
+        throw new ControlError(502, `Couldn't read the bills: ${failure.message}`);
+      }
     },
 
     /** Colophon's plan sales by province against the lines where registering for tax is due (15.20). */

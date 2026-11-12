@@ -35,7 +35,7 @@ export type PlanPreview = { plan: PlanId; planName: string; price: string; from:
 export type SavedCard = { id: string; words: string; brand: string; last4: string; expMonth: number | null; expYear: number | null; primary: boolean; expired: boolean };
 export type BillingDetails = { name: string; email: string; address: { line1: string; line2: string; city: string; state: string; postalCode: string; country: string } | null; taxNumber: string; taxLabel: string; plusTax: boolean };
 export type UpcomingBill = { date: string | null; lines: Array<{ words: string; amount: string }>; subtotal: string; discount: string; tax: string; total: string };
-export type Bill = { id: string; number: string; date: string | null; amount: string; tax: string; status: string; pdfUrl: string | null; pageUrl: string | null };
+export type Bill = { id: string; number: string; date: string | null; covers?: { from: string | null; to: string | null } | null; amount: string; tax: string; status: string; pdfUrl: string | null; pageUrl: string | null };
 export type PaymentWayView = { way: string | null; title: string; lines: string[]; button: { label: string; to: string } | null; note: string };
 
 /** A refusal from the platform, in its own words; `twoStep` when it needs the account page's two-step sign-in. */
@@ -165,6 +165,22 @@ export function billState(status: string): { tone: "success" | "warning" | "neut
   if (status === "void") return { tone: "neutral", word: "Cancelled" };
   if (status === "uncollectible") return { tone: "danger", word: "Not paid" };
   return { tone: "neutral", word: status };
+}
+
+/**
+ * The days a bill pays for, short: "12 Oct – 12 Nov 2026", or "12 Dec 2026 – 12 Jan 2027" across a new year. Empty
+ * when the platform didn't say (an older answer, or a bill with no lines).
+ */
+export function billCoversWords(covers: Bill["covers"]): string {
+  if (!covers?.from || !covers?.to) return "";
+  const parts = (iso: string) => {
+    const p = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", day: "numeric", month: "short", year: "numeric" }).formatToParts(new Date(iso));
+    const part = (type: string) => p.find((x) => x.type === type)?.value.replace(".", "") ?? "";
+    return { day: part("day"), month: part("month"), year: part("year") };
+  };
+  const a = parts(covers.from);
+  const b = parts(covers.to);
+  return a.year === b.year ? `${a.day} ${a.month} – ${b.day} ${b.month} ${b.year}` : `${a.day} ${a.month} ${a.year} – ${b.day} ${b.month} ${b.year}`;
 }
 
 /** The email language choices (the platform's billing `setEmailLanguage`). */

@@ -44,7 +44,7 @@ function fakeEmail() {
   return { sent, sendPlatform: async (message) => void (sent.has(message.idempotencyKey) || sent.set(message.idempotencyKey, structuredClone(message))) };
 }
 
-async function world({ repairs, newsletters, googleSteps, googleReady, taxWatch, withStockroom = false } = {}) {
+async function world({ repairs, newsletters, googleSteps, googleReady, taxWatch, bills, withStockroom = false } = {}) {
   const google = fakeGoogle();
   const services = fakeServices();
   const registry = fakeRegistry();
@@ -69,7 +69,7 @@ async function world({ repairs, newsletters, googleSteps, googleReady, taxWatch,
     envFiles: services.envFiles, deploy: services.deploy, build: async (v) => void built.push(v), email, squareAccount: async (id) => (square.has(id) ? { locationId: "L1" } : null),
     breaches: createBreachRegister({ store: breachStore, registry, auditLog, now: () => new Date(clock), newId: () => `b${breachStore.rows.size + 1}` }),
     people: controlRoomPeople({}),
-    activity, platformState, googleSteps, googleReady, taxWatch,
+    activity, platformState, googleSteps, googleReady, taxWatch, bills,
     admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: " Admin@Example.com ,not-an-email" }),
     now: () => new Date((clock += 1000)),
   });
@@ -813,6 +813,26 @@ test("the control room shows the tax lines, admins only, and says plainly when t
   const failed = await broken.ask(ADMIN, "GET", "/api/control/tax-watch");
   assert.equal(failed.status, 502);
   assert.match(failed.body.error ?? failed.body.message ?? JSON.stringify(failed.body), /Stripe didn't answer/);
+});
+
+test("a shop's platform bills show in the control room, admins only, a page at a time, and say plainly when billing can't be read", async () => {
+  const asked = [];
+  const bills = async (shopId, page) => {
+    asked.push([shopId, page.after]);
+    return page.after ? { invoices: [{ id: "in_0", status: "paid" }], more: false, after: null } : { invoices: [{ id: "in_1", status: "paid", pdfUrl: "https://pay.stripe.example/in_1.pdf" }], more: true, after: "in_1" };
+  };
+  const w = await world({ bills });
+  assert.equal((await w.ask(PRESS, "POST", "/api/control/shop-bills", { shopId: ID })).status, 403);
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/shop-bills", { shopId: "no-such-shop" })).status, 404);
+  const first = await w.ask(ADMIN, "POST", "/api/control/shop-bills", { shopId: ID });
+  assert.equal(first.status, 200);
+  assert.equal(first.body.invoices[0].pdfUrl, "https://pay.stripe.example/in_1.pdf");
+  const older = await w.ask(ADMIN, "POST", "/api/control/shop-bills", { shopId: ID, after: first.body.after });
+  assert.equal(older.body.more, false);
+  assert.deepEqual(asked, [[ID, null], [ID, "in_1"]]);
+  assert.equal((await (await world()).ask(ADMIN, "POST", "/api/control/shop-bills", { shopId: ID })).status, 503);
+  const broken = await world({ bills: async () => { throw new Error("Stripe didn't answer"); } });
+  assert.equal((await broken.ask(ADMIN, "POST", "/api/control/shop-bills", { shopId: ID })).status, 502);
 });
 
 test("the shop list and Today read shops a few at a time, not one after another, and keep every shop", async () => {

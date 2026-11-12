@@ -297,6 +297,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     activity, supportStore, recoveryStore, platformState, accessRequests, admins, now, presses: firestoreFrontDoorStores(platform).presses,
     googleReady: (at) => googleReadiness(readGoogleConfig(env), at),
     taxWatch: () => billing.taxWatch(),
+    bills: (shopId, page) => billing.invoicePage(shopId, page),
     // Bounces and spam reports come from the newsletter guard's store (services/email/reputation.js), not hosted yet.
     delivery: deliveryReader({ deliveryStats, sentLog, now }),
   });

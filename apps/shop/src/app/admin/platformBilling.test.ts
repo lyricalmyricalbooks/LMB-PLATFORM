@@ -4,7 +4,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../../lib/firebase", () => ({ auth: { currentUser: null } }));
-const { BillingCallError, alertCents, billState, billingCall, callAddress, previewWords, priceWords, statusBadge } = await import("./platformBilling");
+const { BillingCallError, alertCents, billCoversWords, billState, billingCall, callAddress, previewWords, priceWords, statusBadge } = await import("./platformBilling");
 
 const PLAN = { hub: "https://platform.example/api/shop-billing/", shopId: "moth-press" };
 const answer = (status: number, body: unknown) => ({ ok: status < 300, status, json: async () => body }) as Response;
@@ -61,6 +61,9 @@ describe("words", () => {
     expect(statusBadge({ status: "canceled", access: "open", cancelAtPeriodEnd: true, paymentWay: "payAsYouSell" }).word).toBe("Ending");
     expect(statusBadge({ status: "canceled", access: "closed", cancelAtPeriodEnd: true, paymentWay: "payAsYouSell" }).word).toBe("Closed");
     expect(billState("open").word).toBe("Waiting for payment");
+    expect(billCoversWords({ from: "2026-12-12T17:00:00Z", to: "2027-01-12T17:00:00Z" })).toBe("12 Dec 2026 – 12 Jan 2027");
+    expect(billCoversWords({ from: "2026-10-12T16:00:00Z", to: "2026-11-12T17:00:00Z" })).toBe("12 Oct – 12 Nov 2026");
+    expect(billCoversWords(null)).toBe("");
     expect(billState("paid").tone).toBe("success");
   });
 });

@@ -16,7 +16,7 @@
 //   POST /api/billing/cost-alert  { shopId, cents } -> { costAlert }: email me when a month's bill may pass this amount
 //   POST /api/billing/email-language  { shopId, language: "fr" | "en" | "auto" } -> { changed, emailLanguage }: the
 //                                  language of the platform's emails, for every shop the account pays for
-//   POST /api/billing/invoices     { shopId } -> { invoices }: newest first, each with Stripe's PDF link
+//   POST /api/billing/invoices     { shopId, after? } -> { invoices, more, after }: newest first, each with Stripe's PDF link
 //   POST /api/billing/payment-way  { shopId } -> { view, status }: how the shop pays (monthly or pay as you sell, 6.19)
 //   POST /api/billing/payment-way/switch  { shopId, to } -> { view, status, changed }: switch from the next month (at
 //                                  once during the trial); only when the door is given `paymentWay`
@@ -86,7 +86,8 @@ export function billingCalls({ billing, paymentWay = null, settings, exports = n
       run: async (shopId) => { const row = await billing.keepClosingApps({ shopId }); return { plan: row.plan, changed: row.changed }; },
       secondStep: true,
     },
-    invoices: { run: async (shopId) => ({ invoices: await billing.invoices(shopId) }) },
+    // A page of bills, newest first; `after` (the last page's) reads older ones.
+    invoices: { run: async (shopId, { after }) => (billing.invoicePage ? billing.invoicePage(shopId, { after: typeof after === "string" ? after : null }) : { invoices: await billing.invoices(shopId), more: false, after: null }) },
   };
   if (paymentWay) {
     calls["payment-way"] = { run: async (shopId) => { const status = await paymentWay.status(shopId); return { view: paymentWayView(status, settings), status }; } };

@@ -102,6 +102,21 @@ const APPS = Object.keys(APP_NAMES);
 const iso = (seconds) => (Number.isFinite(seconds) && seconds > 0 ? new Date(seconds * 1000).toISOString() : null);
 
 /** A date the way the emails say it: "14 November 2026", Toronto time. */
+/**
+ * The days a bill pays for, from its longest line (the plan's month; a running-cost line is shorter): { from, to } as
+ * ISO times, or null when Stripe gave no lines.
+ */
+export function billCovers(invoice) {
+  let best = null;
+  for (const line of invoice?.lines?.data ?? []) {
+    const start = line?.period?.start;
+    const end = line?.period?.end;
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
+    if (!best || end - start > best.end - best.start) best = { start, end };
+  }
+  return best ? { from: iso(best.start), to: iso(best.end) } : null;
+}
+
 export function dateText(isoTime) {
   if (!isoTime) return "";
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", day: "numeric", month: "long", year: "numeric" }).format(new Date(isoTime));
@@ -870,23 +885,57 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       return watchTaxLines({ invoices, now: now() });
     },
 
-    /** The plan's invoices, newest first, each with Stripe's own PDF and page (code plan 6.12). */
+    /** The plan's invoices, newest first, each with Stripe's own PDF and page (code plan 6.12): the first page. */
     async invoices(shopId) {
+      return (await this.invoicePage(shopId)).invoices;
+    },
+
+    /**
+     * One page of a shop's platform bills, newest first: { invoices, more, after }. Every bill the shop was ever sent,
+     * not only its current plan's: one Stripe customer can pay for several shops, and a shop that ended and came back
+     * has a new subscription, so the customer's bills are read and kept when their subscription is this shop's (its id,
+     * or the shop id Stripe copies onto the bill from the subscription). `after` (from the last page) reads older ones.
+     */
+    async invoicePage(shopId, { after = null, limit = 24 } = {}) {
       const row = await subscriptions.get(shopId);
-      if (!row?.subscriptionId) return [];
-      const list = await call("GET", "/v1/invoices", { params: { subscription: row.subscriptionId, limit: 24 } });
-      return (list?.data ?? [])
-        .filter((invoice) => invoice.status !== "draft")
-        .map((invoice) => ({
+      if (!row?.subscriptionId && !row?.customerId) return { invoices: [], more: false, after: null };
+      const size = Math.min(Math.max(Number(limit) || 24, 1), 100);
+      const mine = (invoice) => {
+        const sub = invoice.subscription ?? invoice.parent?.subscription_details?.subscription;
+        const meta = invoice.parent?.subscription_details?.metadata ?? invoice.subscription_details?.metadata ?? {};
+        return (sub && sub === row.subscriptionId) || meta.lmb_shop_id === shopId;
+      };
+      const found = [];
+      let cursor = typeof after === "string" && /^in_\w+$/.test(after) ? after : null;
+      let more = false;
+      // A customer paying for many shops: read on until a page is full, at most ten Stripe pages a call.
+      for (let page = 0; page < 10 && found.length < size; page += 1) {
+        const params = row.customerId ? { customer: row.customerId, limit: 100 } : { subscription: row.subscriptionId, limit: 100 };
+        const list = await call("GET", "/v1/invoices", { params: { ...params, ...(cursor ? { starting_after: cursor } : {}) } });
+        const data = list?.data ?? [];
+        more = Boolean(list?.has_more);
+        for (const invoice of data) {
+          cursor = invoice.id;
+          if (invoice.status !== "draft" && mine(invoice)) found.push(invoice);
+          if (found.length >= size) { more = more || invoice !== data.at(-1); break; }
+        }
+        if (!more || !data.length) break;
+      }
+      return {
+        invoices: found.map((invoice) => ({
           id: invoice.id,
           number: invoice.number ?? "",
           date: iso(invoice.created),
+          covers: billCovers(invoice),
           amount: moneyText(invoice.total ?? invoice.amount_due ?? 0, invoice.currency ?? settings.currency),
           tax: invoiceTax(invoice) ? moneyText(invoiceTax(invoice), invoice.currency ?? settings.currency) : "",
           status: invoice.status,
           pdfUrl: httpsOrNull(invoice.invoice_pdf),
           pageUrl: httpsOrNull(invoice.hosted_invoice_url),
-        }));
+        })),
+        more,
+        after: more ? cursor : null,
+      };
     },
 
     /** The shop's plan as the Plan & billing page shows it. */
