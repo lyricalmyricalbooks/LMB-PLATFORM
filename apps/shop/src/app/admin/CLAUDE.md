@@ -890,3 +890,11 @@ the mint All clear. Shop + stockroom: **Both sides at a glance** (`GlanceTile` i
 low or out of stock (`stockroomGlance`: the Stock page's `needAttention`, opens Reorder) and owed by stockists
 (`buildStockists().owed`, opens Stockists), read from the same records load as the stockroom to-dos. Home's header has no
 buttons (the till is in the rail foot and the Selling today tile).
+
+**Bulk bars on the lists (12 November 2026, v4):** Orders (`OrdersDesk.tsx` list) and Products (`BookCatalog.tsx`) have a
+tick box per row and a header box (the rows shown; indeterminate when some are ticked). Ticking shows a bar inside the
+table card: Orders "N selected · Mark packed · Clear" packs only `packableOf` orders (queue "Ready to pack") one by one
+through `fulfillmentAction(id, "pack", { packingKey })`, toast "Nothing to pack in the selection" when none are; Products
+"N selected · Set as draft · Clear" writes only `status: "draft"` through `updateBook(id, patch, loaded)` (the editor's
+transactional save, `draftableOf` skips drafts). Failed rows stay ticked. The mockup's **Mark sold out** is not built:
+the shop has no sold-out switch and stock counts belong to the stockroom (`lockLinkedStock`).

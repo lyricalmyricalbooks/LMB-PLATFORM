@@ -209,3 +209,10 @@ export function sharedIsbns(books: any[]): { isbn: string; titles: string[] }[] 
   }
   return [...groups].filter(([, titles]) => titles.length > 1).map(([isbn, titles]) => ({ isbn, titles }));
 }
+
+/** The ticked products that Set as draft would change (v4 bulk bar): those not already a draft. */
+export function draftableOf(books: any[], picked: Set<string>): { change: any[]; already: number } {
+  const ticked = books.filter((b) => picked.has(b.id));
+  const change = ticked.filter((b) => b?.status !== "draft");
+  return { change, already: ticked.length - change.length };
+}

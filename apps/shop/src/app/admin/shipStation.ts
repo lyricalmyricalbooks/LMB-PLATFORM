@@ -152,3 +152,13 @@ export function listFulfilment(o: any): { tone: Tone; text: string } {
 /** The list under a pill, newest first ("All" is the covers page's All orders). */
 export const listOrders = (orders: any[], filter: ListFilter, showTest = false) =>
   gridOrders(orders, "all", "", "newest", showTest).filter((o) => inListFilter(o, filter));
+
+/**
+ * The list's bulk Mark packed (v4 mockup): of the ticked orders, the ones whose next step is packing (address checked,
+ * books not packed yet). The rest are left alone and counted, so the owner hears what was skipped.
+ */
+export function packableOf(orders: any[], picked: ReadonlySet<string>): { pack: any[]; skipped: number } {
+  const chosen = orders.filter((o) => picked.has(o.id));
+  const pack = chosen.filter((o) => queueOf(o) === "Ready to pack");
+  return { pack, skipped: chosen.length - pack.length };
+}

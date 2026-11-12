@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bookAuthor, bookTiles, listStatus, stockroomCount, bookReferences, duplicateBookData, inlineEditable, matchesStatus, matchesStock, priceInfo, publicationBadge, sharedIsbns, stockInfo } from "./catalogList";
+import { bookAuthor, draftableOf, bookTiles, listStatus, stockroomCount, bookReferences, duplicateBookData, inlineEditable, matchesStatus, matchesStock, priceInfo, publicationBadge, sharedIsbns, stockInfo } from "./catalogList";
 import { inventoryCsv, planPriceChange } from "./bulkPricing";
 
 describe("catalog list rows", () => {
@@ -90,5 +90,14 @@ describe("the Books list's Stockroom column", () => {
     expect(stockroomCount("c", links, onHand)).toBeNull();
     expect(stockroomCount("d", links, onHand)).toBe(4);
     expect(stockroomCount("none", links, onHand)).toBeNull();
+  });
+});
+
+describe("draftableOf (Products bulk bar)", () => {
+  it("changes only ticked products that are not drafts yet", () => {
+    const books = [{ id: "a" }, { id: "b", status: "draft" }, { id: "c", status: "archived" }, { id: "d" }];
+    const { change, already } = draftableOf(books, new Set(["a", "b", "c"]));
+    expect(change.map((b) => b.id)).toEqual(["a", "c"]);
+    expect(already).toBe(1);
   });
 });

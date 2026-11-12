@@ -119,6 +119,15 @@
 .bk-list { width: 100%; border-collapse: collapse; font-size: var(--rp-text-sm); }
 .bk-list th { padding: 16px 12px 14px 0; text-align: left; font: 500 var(--rp-text-xs)/1 var(--rp-font-mono); text-transform: uppercase; letter-spacing: .04em; color: var(--rp-text-muted); border-bottom: 1px solid var(--rp-border); white-space: nowrap; }
 .bk-list td { padding: 12px 12px 12px 0; border-bottom: 1px solid var(--rp-border); vertical-align: middle; color: var(--rp-text); }
+/* v4 bulk bar: tick rows, then Set as draft or Clear. */
+.bk-list .bk-check { width: 36px; padding-right: 6px; }
+.bk-check input { width: 18px; height: 18px; accent-color: var(--rp-text); cursor: pointer; }
+.bk-list tbody tr[data-picked] td { background: var(--rp-surface-2); }
+.bk-bulk { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 10px 0 4px; padding: 10px 14px; border-radius: var(--rp-radius); background: var(--rp-surface-2); font-size: var(--rp-text-sm); }
+.bk-bulk-btn { min-height: 34px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--rp-text); color: var(--rp-canvas); font: 600 var(--rp-text-sm)/1 var(--rp-font-body); cursor: pointer; }
+.bk-bulk-btn:disabled { opacity: .6; cursor: default; }
+.bk-bulk-clear { border: 0; background: none; padding: 4px 2px; color: var(--rp-text); font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.bk-bulk-btn:focus-visible, .bk-bulk-clear:focus-visible, .bk-check input:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
 .bk-list tbody tr:last-child td { border-bottom: 0; }
 .bk-list tbody tr { cursor: pointer; }
 .bk-list tbody tr:hover td { background: var(--rp-surface-sunken); }
