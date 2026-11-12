@@ -28,6 +28,7 @@
 //                  saveLinks(projectId, links) -> { links, errors } (op "saveLinks": the whole map, checked by the shop)
 //   stockroom   the stockroom's own data: books(projectId) -> { [id]: book } (its catalogue);
 //               addBooks(projectId, [book]) adds the books its catalogue lacks and never changes one already there
+//               get(projectId, path) / set(projectId, path, data): one document as stored (the test shops' samples)
 //
 // `config.release` is the release being set up: `{ version, starterContent(shop) -> [{ path, data }] }`. The starter
 // documents come from the release because the shop copy owns their shape. `config.senderEmail` is the platform address
@@ -38,7 +39,9 @@ import { createHash } from "node:crypto";
 import { PLANS, REGION, STOCKROOM_DATABASE, firstSteps } from "./steps.js";
 import { connectPaymentsStep, paymentProviderOf } from "./payments.js";
 import { ensureServiceKey, hasServiceKey } from "./serviceKey.js";
-import { testCatalogue } from "./test-catalogue.js";
+import { stockedIds, testCatalogue } from "./test-catalogue.js";
+import { writeTestSamples } from "./test-sample-data.js";
+import { testShopKind } from "./testShopPlace.js";
 import { upkeepStep } from "./upkeep.js";
 import { spendGuardsStep } from "./spend.js";
 import { twoStepSignInStep } from "./twoStep.js";
@@ -281,7 +284,10 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
         const have = (await stockroom.books(shop.shopId)) ?? {};
         if (stockroomBooks.some((book) => !have[book.id])) return false;
         const saved = (await inventoryLink.state(shop.shopId))?.links ?? {};
-        return links.every((link) => linkProblem(saved, link) === "linked");
+        if (!links.every((link) => linkProblem(saved, link) === "linked")) return false;
+        // The sample records (test-sample-data.js): a past order and the second item's stockroom history stand for them.
+        const [, second] = stockedIds(testShopKind(shop));
+        return Boolean((await shopData.get(shop.shopId, "orders/PAST-test-01")) && (await stockroom.get(shop.shopId, `books/${second}/data/hist`)));
       },
       async act({ shop }) {
         const created = [];
@@ -316,7 +322,9 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
           const { errors = [] } = await inventoryLink.saveLinks(shop.shopId, map);
           if (errors.length) throw new Error(`the shop refused the test books' links: ${errors.map((e) => `${e.bookId}: ${e.reason}`).join("; ")}`);
         }
-        return { detail: { created, stockroomBooks: missing.map((book) => book.id), linked: toLink.map((link) => link.shopBookId) } };
+        // Then the sample records, only those missing: a record changed while trying the shop stays.
+        const samples = await writeTestSamples({ shop: shopData, stockroom }, shop.shopId, testShopKind(shop), { now: now(), pressName: shop.pressName });
+        return { detail: { created, stockroomBooks: missing.map((book) => book.id), linked: toLink.map((link) => link.shopBookId), samples } };
       },
     },
     shopOnly(connectPaymentsStep({ number: 13, registry, providers, profileFiles, config })),

@@ -44,7 +44,7 @@ function fakeEmail() {
   return { sent, sendPlatform: async (message) => void (sent.has(message.idempotencyKey) || sent.set(message.idempotencyKey, structuredClone(message))) };
 }
 
-async function world({ repairs, newsletters, googleSteps, googleReady, taxWatch } = {}) {
+async function world({ repairs, newsletters, googleSteps, googleReady, taxWatch, withStockroom = false } = {}) {
   const google = fakeGoogle();
   const services = fakeServices();
   const registry = fakeRegistry();
@@ -65,6 +65,7 @@ async function world({ repairs, newsletters, googleSteps, googleReady, taxWatch 
   let clock = Date.parse("2026-10-28T12:00:00Z");
   const room = createControlRoom({
     registry, auditLog, profileFiles, publish, shopAccess, repairs, newsletters, shopData: services.shopData,
+    stockroomData: withStockroom ? { ...services.stockroom, ready: async () => true } : null,
     envFiles: services.envFiles, deploy: services.deploy, build: async (v) => void built.push(v), email, squareAccount: async (id) => (square.has(id) ? { locationId: "L1" } : null),
     breaches: createBreachRegister({ store: breachStore, registry, auditLog, now: () => new Date(clock), newId: () => `b${breachStore.rows.size + 1}` }),
     people: controlRoomPeople({}),
@@ -706,7 +707,52 @@ test("your test shop: the card finds it, and Reset the sample books is admin onl
 test("no test shop yet: the card says so instead of failing (plan 9.10)", async () => {
   const w = await world();
   await w.registry.updateShop(ID, { testShop: false });
-  assert.equal((await w.ask(ADMIN, "GET", "/api/control/test-shop")).body.testShop, null);
+  const body = (await w.ask(ADMIN, "GET", "/api/control/test-shop")).body;
+  assert.equal(body.testShop, null);
+  assert.deepEqual(body.testShops, []);
+});
+
+test("two test shops: the book shop first, then the general one, each with its kind; reset puts back each one's own products", async () => {
+  const w = await world();
+  await w.registry.createShop("test-goods", { shopId: "test-goods", pressName: "Test Goods", plan: "both", status: "live", testShop: true, testMode: true, publishes: "other", ownerEmail: "owner@example.com" });
+  await w.registry.saveProfile("test-goods", { siteUrl: "https://lmb-test-goods.web.app" });
+  await w.registry.recordReleaseCheck("test-goods", { ok: false, failedCheck: 2, finishedAt: "2026-11-12T01:00:00Z", version: "1.2.9-g9644c9fe047e" });
+  const body = (await w.ask(ADMIN, "GET", "/api/control/test-shop")).body;
+  assert.deepEqual(body.testShops.map((s) => [s.shopId, s.kind, s.kindWords]), [[ID, "books", "Book test shop"], ["test-goods", "general", "General test shop"]]);
+  assert.equal(body.testShop.shopId, ID, "the one card that names a single test shop shows the book shop");
+  const goods = body.testShops[1];
+  assert.deepEqual([goods.storefrontUrl, goods.adminUrl, goods.lastCheck.ok, goods.lastCheck.failedCheck], ["https://lmb-test-goods.web.app", "https://lmb-test-goods.web.app/admin/", false, 2]);
+
+  // The general shop's reset puts back its own goods, never the book shop's books.
+  await w.services.shopData.set("test-goods", "books/test-tote-bag", { title: "Test Tote Bag", stockLevel: 0 });
+  const reset = await w.ask(ADMIN, "POST", "/api/control/test-shop/reset", { shopId: "test-goods" });
+  assert.equal(reset.status, 200);
+  assert.equal((await w.services.shopData.get("test-goods", "books/test-tote-bag")).stockLevel, 5);
+  assert.equal(await w.services.shopData.get("test-goods", "books/test-book-one"), null);
+  // Its sample records come with it: past orders and the code, in the general shop's own products.
+  const order = await w.services.shopData.get("test-goods", "orders/PAST-test-01");
+  assert.deepEqual([order.source, order.items[0].id], ["import", "test-tote-bag"]);
+  assert.equal((await w.services.shopData.get("test-goods", "discounts/TESTSHOP10")).code, "TESTSHOP10");
+});
+
+test("reset sample data writes the sample records again, the stockroom's too, and never touches the item the release check buys", async () => {
+  const w = await world({ withStockroom: true });
+  // Setup step 12 made them once.
+  assert.ok(await w.services.shopData.get(ID, "orders/PAST-test-08"));
+  const hist = async (id) => JSON.parse((await w.services.stockroom.get(ID, `books/${id}/data/hist`))?.data ?? "null");
+  assert.equal((await hist("test-book-two")).length, 2);
+  // Tried out: an order deleted and a sale voided. Reset puts both back.
+  await w.services.shopData.set(ID, "orders/PAST-test-01", { gone: true });
+  await w.services.stockroom.set(ID, "books/test-book-two/data/hist", { data: "[]", ts: 1 });
+  const reset = await w.ask(ADMIN, "POST", "/api/control/test-shop/reset", { shopId: ID });
+  assert.equal(reset.status, 200);
+  assert.equal(reset.body.stockroom, true);
+  assert.equal((await w.services.shopData.get(ID, "orders/PAST-test-01")).source, "import");
+  assert.equal((await hist("test-book-two")).length, 2);
+  assert.equal(await hist("test-book-one"), null, "the release check's item keeps no sample history");
+  const catalog = JSON.parse((await w.services.stockroom.get(ID, "settings/catalog")).data);
+  assert.deepEqual(catalog["test-book-two"].profitTiers, [{ revenueUpTo: null, artistPct: 50 }]);
+  assert.equal(catalog["test-book-one"].profitTiers, undefined);
 });
 
 test("the shop record shows each Google step, and Run again runs one, admins only and logged (6.20 on 9.3)", async () => {

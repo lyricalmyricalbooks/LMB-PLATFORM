@@ -127,6 +127,13 @@ export async function seedWalkthrough(world) {
     await world.registry.saveProfile(row.shopId, { ...((await world.registry.getProfile(row.shopId)) ?? {}), siteUrl });
     await world.registry.recordReleaseCheck(row.shopId, { ok: true, finishedAt: world.clock.date().toISOString(), version: "demo" });
   }
+  // The general test shop (setup/testShopPlace.js) has no demo of its own on this computer: it shows on the control
+  // room's cards with its address in the test project.
+  if (!(await world.registry.getShop("test-goods"))) {
+    await world.registry.createShop("test-goods", { ...row, shopId: "test-goods", pressName: "Test Goods", publishes: "other", status: "live", createdAt: world.clock.date().toISOString() });
+    await world.registry.saveProfile("test-goods", { shopId: "test-goods", sells: "other", siteUrl: "https://lmb-test-goods.web.app" });
+    await world.registry.recordReleaseCheck("test-goods", { ok: true, finishedAt: world.clock.date().toISOString(), version: "demo" });
+  }
   // The rest of the platform's day, so no control-room page starts empty (seedRoom.js).
   await seedRoom(world);
   await seedHistory(world);

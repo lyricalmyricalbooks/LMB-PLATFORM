@@ -23,6 +23,21 @@ that sells books and on one that doesn't before any press gets it:
   only get a version that passed on both; a failure names the shop.
 - Each has its own starter catalogue (`setup/test-catalogue.js`, by what the shop sells).
 
+### Sample records
+
+Each test shop also gets sample records (`setup/test-sample-data.js`), so every admin page has something to show:
+
+- Eight past orders from the last two months, brought over as history only (`source: "import"`): they move no stock
+  and send no email. One buyer bought twice.
+- The code `TESTSHOP10` (10% off) and two approved reviews.
+- In the stockroom, on the second and third stocked items only (the release check buys the first, so its count stays
+  5): sales at a fair, a review copy, two copies sent to the stockist "Test Corner Shop" with one sold, and that sale on
+  an invoice due in 20 days. The stockist has no email address, so no reminder can be sent. Also the invoice details.
+- In the book shop only, a 50% author royalty on those two items (royalties are a book-shop feature).
+
+Setup step 12 adds whatever is missing. The control room's **Reset sample data** writes the products and every sample
+record again with today's dates; the stockroom part only when the control room can reach the stockroom.
+
 ## Why
 
 Today's checks never pay. The shop's click-through check stops before payment, and the admin check only looks for the

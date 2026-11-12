@@ -77,6 +77,9 @@ export function stockroomClient(firestoreFor, { now = () => new Date() } = {}) {
         tx.set("settings/modeFlags", flags);
       });
     },
+    // One document, as stored (the test shops' sample records, setup/test-sample-data.js).
+    get: (projectId, path) => firestoreFor(projectId).get(path),
+    set: (projectId, path, data) => firestoreFor(projectId).set(path, data),
   };
 }
 

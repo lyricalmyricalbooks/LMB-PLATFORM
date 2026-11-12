@@ -373,7 +373,7 @@ export function fakeGoogle({ failOnce = [] } = {}) {
  * every change asked for and `failOnce` names calls that throw the first time.
  */
 export function fakeServices({ failOnce = [], pageStatus = () => 200 } = {}) {
-  const world = { deployed: new Map(), envFiles: new Map(), docs: new Map(), accounts: { stripe: new Map() }, sent: new Map(), pageStatus, links: new Map(), stockroomReachable: true, stockroomBooks: new Map() };
+  const world = { deployed: new Map(), envFiles: new Map(), docs: new Map(), accounts: { stripe: new Map() }, sent: new Map(), pageStatus, links: new Map(), stockroomReachable: true, stockroomBooks: new Map(), stockroomDocs: new Map() };
   const calls = [];
   const failures = [...failOnce];
   const change = (name, ...args) => {
@@ -461,6 +461,19 @@ export function fakeServices({ failOnce = [], pageStatus = () => 200 } = {}) {
         const catalog = world.stockroomBooks.get(projectId) ?? new Map();
         for (const book of books) if (!catalog.has(book.id)) catalog.set(book.id, structuredClone(book));
         world.stockroomBooks.set(projectId, catalog);
+      },
+      // One document as stored: settings/catalog is the catalogue above, as the real one keeps it ({ data: <JSON> }).
+      async get(projectId, path) {
+        if (path === "settings/catalog") {
+          const catalog = world.stockroomBooks.get(projectId);
+          return catalog ? { data: JSON.stringify(Object.fromEntries(catalog)) } : null;
+        }
+        return structuredClone(world.stockroomDocs.get(key(projectId, path)) ?? null);
+      },
+      async set(projectId, path, data) {
+        change("stockroom.set", projectId, path);
+        if (path === "settings/catalog") world.stockroomBooks.set(projectId, new Map(Object.entries(JSON.parse(data.data))));
+        else world.stockroomDocs.set(key(projectId, path), structuredClone(data));
       },
     },
     // Like the shop's link admin: no start day until the connection check passes; a start day is never moved later.

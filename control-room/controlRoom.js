@@ -39,6 +39,7 @@ import { setupSummary } from "./setupPresses.js";
 import { sellsFacts, sellsLine } from "./shopSells.js";
 import { sellsOf } from "../shared/sells/sells.js";
 import { testShopDocs } from "../setup/test-catalogue.js";
+import { writeTestSamples } from "../setup/test-sample-data.js";
 import { testShopKind } from "../setup/testShopPlace.js";
 import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";
@@ -223,7 +224,7 @@ export async function eachInTurn(items, limit, work) {
 }
 
 export function createControlRoom({
-  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, settings, supportStore, recoveryStore, signups, platformState, stripePublishableKeys = {}, googleSteps, googleReady, taxWatch, feeDefaults = NO_FEE, accessRequests, admins, now = () => new Date(), delivery, presses = null, parcels = null,
+  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, stockroomData = null, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, settings, supportStore, recoveryStore, signups, platformState, stripePublishableKeys = {}, googleSteps, googleReady, taxWatch, feeDefaults = NO_FEE, accessRequests, admins, now = () => new Date(), delivery, presses = null, parcels = null,
 }) {
   const at = () => now().toISOString();
 
@@ -376,53 +377,64 @@ export function createControlRoom({
     },
 
     /**
-     * Your test shop (9.10): the platform's own shop (`testShop: true` in the registry), for the card at the top of the
-     * control room. Null until it exists; `npm run demo` is the test shop on Julian's computer until then.
+     * Your test shops (9.10; two since 12 November 2026, setup/testShopPlace.js): the platform's own shops (`testShop:
+     * true` in the registry), the book shop first, then the general one. `testShop` is the first (the book shop), for
+     * the pages that name one; `testShops` lists every one, each with its `kind` ("books" or "general"). Empty until
+     * they exist; `npm run demo` is the test shop on Julian's computer until then.
      */
     async testShop(claims) {
       adminOf(claims, admins, now().getTime());
-      // The book test shop (the general one joins the card in the control room's next step).
-      const tests = (await registry.listShops()).filter((r) => r.testShop === true);
-      const row = tests.find((r) => testShopKind(r) === "books") ?? tests[0];
-      if (!row) return { testShop: null };
-      const profile = await registry.getProfile(row.shopId);
-      const checks = await registry.readReleaseChecks(row.shopId);
-      const last = checks.at(-1);
-      const siteUrl = profile?.siteUrl ?? null;
-      // The newest update run (docs/updating.md), so Today says when one didn't go through.
+      const rows = (await registry.listShops()).filter((r) => r.testShop === true)
+        .sort((a, b) => (testShopKind(a) === testShopKind(b) ? a.shopId.localeCompare(b.shopId) : testShopKind(a) === "books" ? -1 : 1));
+      if (!rows.length) return { testShop: null, testShops: [] };
+      // The newest update run (docs/updating.md), so Today says when one didn't go through. It covers every test shop.
       const runs = registry.listReleases ? await registry.listReleases({ limit: 10 }) : [];
       const run = runs.filter((r) => r.kind === "shared-release").sort((a, b) => String(b.startedAt).localeCompare(String(a.startedAt)))[0];
-      return {
-        testShop: {
+      const lastUpdate = run ? { ok: run.ok === true, version: run.version ?? null, at: run.finishedAt ?? run.startedAt ?? null, error: run.ok === true ? null : run.error ?? "no reason given" } : null;
+      const testShops = [];
+      for (const row of rows) {
+        const profile = await registry.getProfile(row.shopId);
+        const checks = await registry.readReleaseChecks(row.shopId);
+        const last = checks.at(-1);
+        const siteUrl = profile?.siteUrl ?? null;
+        const kind = testShopKind(row);
+        testShops.push({
           shopId: row.shopId,
           pressName: row.pressName ?? row.shopId,
+          kind,
+          kindWords: kind === "books" ? "Book test shop" : "General test shop",
           status: row.status ?? null,
           version: row.release?.version ?? null,
           updatedAt: row.release?.at ?? null,
           storefrontUrl: siteUrl,
           adminUrl: siteUrl ? `${siteUrl}/admin/` : null,
-          lastUpdate: run ? { ok: run.ok === true, version: run.version ?? null, at: run.finishedAt ?? run.startedAt ?? null, error: run.ok === true ? null : run.error ?? "no reason given" } : null,
+          lastUpdate,
           lastCheck: last ? { ok: last.ok, at: last.finishedAt ?? null, version: last.version ?? null, failedCheck: last.failedCheck ?? null } : null,
           health: shopHealth({ row, profile, checks, repairs: repairs ? await repairs.open(row.shopId) : [] }),
-        },
-      };
+        });
+      }
+      return { testShop: testShops[0], testShops };
     },
 
     /**
-     * Reset the sample books (9.10): the test shop's starter books and shipping zone go back to how setup step 12 made
-     * them, 5 copies each (setup/test-catalogue.js). Only the test shop; its orders, settings and stockroom stay as they
-     * are. Logged.
+     * Reset the sample data (9.10): the test shop's starter products and shipping zone go back to how setup step 12 made
+     * them, 5 copies each (setup/test-catalogue.js), and its sample records are written again with today's dates
+     * (setup/test-sample-data.js: past orders, a code, reviews and, when the stockroom answers, the stockroom's sample
+     * history). Only the test shop; its other orders, settings and stockroom items stay as they are. Logged.
      */
     async resetTestShop(claims, { shopId } = {}) {
       const by = adminOf(claims, admins, now().getTime());
       const row = await shopOr404(shopId);
-      if (row.testShop !== true) throw new ControlError(409, "Only the test shop's sample books can be reset.");
-      if (row.status !== "live") throw new ControlError(409, "The test shop isn't live yet, so there are no sample books to reset.");
-      if (!shopData) throw new ControlError(503, "The control room can't reach the test shop's books, so nothing was reset.");
-      const docs = testShopDocs(testShopKind(row));
+      if (row.testShop !== true) throw new ControlError(409, "Only a test shop's sample products can be reset.");
+      if (row.status !== "live") throw new ControlError(409, "That test shop isn't live yet, so there are no sample products to reset.");
+      if (!shopData) throw new ControlError(503, "The control room can't reach the test shop's products, so nothing was reset.");
+      const kind = testShopKind(row);
+      const docs = testShopDocs(kind);
       await log(shopId, "test-shop-reset", { by, books: docs.map((d) => d.path) });
       for (const { path, data } of docs) await shopData.set(shopId, path, data);
-      return { shopId, reset: docs.length };
+      const stockroom = stockroomData && (await stockroomData.ready(shopId)) ? stockroomData : null;
+      const samples = await writeTestSamples({ shop: shopData, stockroom }, shopId, kind, { replace: true, now: now(), pressName: row.pressName });
+      return { shopId, reset: docs.length, samples: samples.length, stockroom: Boolean(stockroom) };
     },
 
     /**

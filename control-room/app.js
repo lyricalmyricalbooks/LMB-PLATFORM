@@ -377,7 +377,8 @@ function showShops() {
     && riskMatches(shop, form.risk.value)
     && sellsMatches(shop, form.sells.value)
     && cardsMatches(shop, form.cards.value)
-    && chitChatsMatches(shop, form.chitchats.value));
+    && chitChatsMatches(shop, form.chitchats.value)
+    && (!form.test.value || (form.test.value === "test") === (shop.testShop === true)));
   if (form.chitchats.value && !chitChatsByShop) {
     readChitChats().then(showShops, (failure) => { status.textContent = `Couldn't read Chit Chats: ${failure.message}`; });
     return;
@@ -395,7 +396,7 @@ function showShops() {
     rows: shown,
     open: (shop) => openShop(shop),
     columns: [
-      { header: "Brand", lead: true, render: (shop) => el("div", {}, el("p", { className: "cr-title", textContent: shop.pressName ?? shop.shopId }), meta(shop.shopId, shop.ownerEmail, shop.testShop ? "test shop" : null, shop.sells?.answer ? `sells ${shop.sells.words.toLowerCase()}` : null), tagPills(shopTags[shop.shopId]), riskPill(shop), shop.sells?.mismatch ? pill("warning", "Stripe category doesn't match") : null) },
+      { header: "Brand", lead: true, render: (shop) => el("div", {}, el("p", { className: "cr-title", textContent: shop.pressName ?? shop.shopId }), meta(shop.shopId, shop.ownerEmail, shop.testShop ? (shop.sells?.books === false ? "test shop · general" : "test shop · books") : null, shop.sells?.answer ? `sells ${shop.sells.words.toLowerCase()}` : null), tagPills(shopTags[shop.shopId]), riskPill(shop), shop.sells?.mismatch ? pill("warning", "Stripe category doesn't match") : null) },
       { header: "Plan", render: (shop) => el("div", {}, el("span", { textContent: PLAN_WORDS[shop.plan] ?? shop.plan ?? "?" }), shop.cards ? meta(`cards by ${CARD_WORDS[shop.cards]}`) : null) },
       { header: "Billing", render: (shop) => (shop.billingStatus ? pill(BILLING_TONE[shop.billingStatus] ?? "neutral", BILLING_WORDS[shop.billingStatus] ?? shop.billingStatus) : el("span", { className: "rp-hint", textContent: shop.access ?? "none" })) },
       { header: "Cost this month", render: (shop) => costCell(shop.costThisMonth) },
@@ -415,8 +416,9 @@ const SHOP_CHIPS = [
   { id: "paying", words: "Paying", set: { billing: "active" }, test: (s) => s.billingStatus === "active" },
   { id: "failing", words: "Payment failing", set: { billing: "past_due" }, test: (s) => s.billingStatus === "past_due" },
   { id: "risk", words: "At risk", set: { risk: "at-risk" }, test: (s) => riskMatches(s, "at-risk") },
+  { id: "test", words: "Test shops", set: { test: "test" }, test: (s) => s.testShop === true },
 ];
-const FILTER_NAMES = ["health", "billing", "sells", "risk", "cards", "chitchats"];
+const FILTER_NAMES = ["health", "billing", "sells", "risk", "cards", "chitchats", "test"];
 function showShopChips() {
   const form = $("#shop-filters");
   const current = FILTER_NAMES.filter((name) => form[name].value);
@@ -593,40 +595,52 @@ function recordView(record) {
 // ── Today (plan 9.2): the numbers, then what needs you, each linking to its page. ──
 const money = (cents, currency) => new Intl.NumberFormat(undefined, { style: "currency", currency, currencyDisplay: "narrowSymbol" }).format(cents / 100);
 
-// Your test shop (plan 9.10): the platform's own shop, only for you. Its storefront is behind the pause page.
+// Your test shops (plan 9.10; two since 12 November 2026): the book shop and the general shop, only for you. Their
+// storefronts are behind the pause page. Each tile opens its shop and admin and puts its sample products back.
 async function loadTestShop() {
-  const { testShop: shop } = await api("GET", "/control/test-shop");
+  const { testShops = [] } = await api("GET", "/control/test-shop");
   const box = $("#test-shop");
-  if (!shop) {
-    box.replaceChildren(el("div", { className: "rp-card-body", style: "padding-top: 16px" }, el("p", { className: "rp-hint", textContent: "Your test shop isn't made yet. Until it is, run the demo on your computer to try everything." })));
+  if (!testShops.length) {
+    box.replaceChildren(el("div", { className: "rp-card-body", style: "padding-top: 16px" }, el("p", { className: "rp-hint", textContent: "Your test shops aren't made yet. Until they are, run the demo on your computer to try everything." })));
+    todayExtras.update = null;
+    todayExtras.checks = [];
+    renderToday();
     return;
   }
+  const lastUpdate = testShops[0].lastUpdate;
+  todayExtras.update = lastUpdate && !lastUpdate.ok ? { kind: "update", words: `Last update to shops failed: ${lastUpdate.version ?? "the newest update"} didn't pass on the test shops`, go: "#test-shop" } : null;
+  // A test shop whose newest release check failed: named, so you know which one to open.
+  todayExtras.checks = testShops.filter((shop) => shop.lastCheck && !shop.lastCheck.ok)
+    .map((shop) => ({ kind: "update", words: `The ${shop.kindWords.toLowerCase()} failed its test purchase: ${shop.lastCheck.failedCheck ? `it stopped at check ${shop.lastCheck.failedCheck}` : "see its last release check"}`, go: "#test-shop" }));
+  renderToday();
+  box.replaceChildren(el("div", { className: "cr-test-shops" }, ...testShops.map(testShopTile)), await updatesRow(lastUpdate));
+}
+
+/** One test shop's tile: what it sells, its health, version and last check, and its three buttons. */
+function testShopTile(shop) {
+  const when = (iso) => new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
   const check = shop.lastCheck
-    ? `Last release check: ${shop.lastCheck.ok ? "passed" : `failed${shop.lastCheck.failedCheck ? ` at check ${shop.lastCheck.failedCheck}` : ""}`}, ${new Date(shop.lastCheck.at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}.`
-    : "No release check yet.";
-  const link = (href, words, variant) => (href ? el("a", { href, target: "_blank", rel: "noopener", className: `rp-btn rp-btn-${variant} rp-btn-sm`, textContent: words }) : null);
-  const reset = button("Reset the sample books", "ghost", { disabled: shop.status !== "live" });
+    ? `Test purchase ${shop.lastCheck.ok ? "passed" : `failed${shop.lastCheck.failedCheck ? ` at check ${shop.lastCheck.failedCheck}` : ""}`}, ${when(shop.lastCheck.at)}`
+    : "No test purchase yet";
+  const on = shop.version ? `On ${shop.version}${shop.updatedAt ? `, ${when(shop.updatedAt)}` : ""}` : null;
+  const link = (href, words, variant) => (href ? el("a", { href, target: "_blank", rel: "noopener", className: `rp-btn rp-btn-${variant} rp-btn-sm`, textContent: words, ariaLabel: `${words}: ${shop.pressName}` }) : null);
+  const reset = button("Reset sample data", "ghost", { disabled: shop.status !== "live" });
+  reset.setAttribute("aria-label", `Reset sample data: ${shop.pressName}`);
   reset.addEventListener("click", async () => {
-    if (!window.confirm("Put the test shop's sample books back to 5 copies each? Its orders and settings stay as they are.")) return;
+    if (!window.confirm(`Put ${shop.pressName}'s sample products back as they started? Its orders and settings stay as they are.`)) return;
     reset.disabled = true;
     try {
       await api("POST", "/control/test-shop/reset", { shopId: shop.shopId });
-      status.textContent = "The sample books are back to 5 copies each.";
+      status.textContent = `${shop.pressName}'s sample products are back as they started.`;
     } catch (failure) {
       status.textContent = failure.message;
     }
     reset.disabled = false;
   });
-  const when = (iso) => new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-  const failedUpdate = shop.lastUpdate && !shop.lastUpdate.ok;
-  todayExtras.update = failedUpdate ? { kind: "update", words: `Last update to shops failed: ${shop.lastUpdate.version ?? "the newest update"} didn't reach the test shop`, go: "#test-shop" } : null;
-  renderToday();
-  const on = shop.version ? `On ${shop.version}${shop.updatedAt ? `, updated ${when(shop.updatedAt)}` : ""}.` : null;
-  box.replaceChildren(el("div", { className: "rp-card-body", style: "padding-top: 16px" },
-    el("div", { className: "cr-row" }, el("h3", { className: "cr-title cr-grow", textContent: shop.pressName }), pill(TONE[shop.health.level], LEVEL[shop.health.level])),
-    meta(shop.shopId, "only you can open it", check, on),
-    el("div", { className: "cr-actions" }, link(shop.storefrontUrl, "Open the storefront", "primary"), link(shop.adminUrl, "Open its admin", "secondary"), reset)),
-  await updatesRow(shop.lastUpdate));
+  return el("div", { className: "rp-card-body", style: "padding-top: 16px", dataset: { testShop: shop.kind } },
+    el("div", { className: "cr-row" }, el("h3", { className: "cr-title cr-grow", textContent: shop.kindWords }), pill(TONE[shop.health.level], LEVEL[shop.health.level])),
+    meta(shop.pressName, shop.kind === "books" ? "sells books" : "sells other things", check, on),
+    el("div", { className: "cr-actions" }, link(shop.storefrontUrl, "Open shop", "primary"), link(shop.adminUrl, "Open admin", "secondary"), reset));
 }
 
 // Updates to shops (docs/updating.md), on Today: running or paused, the pause button, and the one button on GitHub that
@@ -662,7 +676,7 @@ async function updatesRow(lastUpdate = null) {
   });
   return el("div", { className: "rp-card-body", style: "border-top: 1px solid var(--rp-divider); padding-top: 16px" },
     el("div", { className: "cr-row" }, el("h3", { className: "cr-title cr-grow", textContent: "Updates to shops" }), paused ? pill("warning", "Paused") : pill("success", "Running")),
-    el("p", { className: "rp-hint", textContent: paused ? `Paused by ${paused.by}: ${paused.reason}` : "Every merge reaches this test shop by itself. Real shops get it when you send it." }),
+    el("p", { className: "rp-hint", textContent: paused ? `Paused by ${paused.by}: ${paused.reason}` : "Every merge reaches both test shops by itself. Real shops get it when you send it, once both pass." }),
     failed ? el("div", { className: "cr-row" }, pill("danger", "Last update failed"), el("p", { className: "rp-hint cr-grow", textContent: failedWords })) : null,
     el("div", { className: "cr-actions" }, paused ? null : outLink(SEND_TO_SHOPS, "Send the update to shops", "secondary"), failed ? outLink(UPDATE_RUNS, "See what happened", "ghost") : null, flip));
 }
@@ -674,15 +688,15 @@ const outLink = (href, words, variant = "secondary") => el("a", { href, target: 
 async function loadLaunch() {
   const checks = $("#launch-checks");
   let launch;
-  let testShop = null;
+  let testShops = [];
   try {
     launch = await api("GET", "/control/launch");
-    testShop = (await api("GET", "/control/test-shop").catch(() => ({ testShop: null }))).testShop;
+    testShops = (await api("GET", "/control/test-shop").catch(() => ({ testShops: [] }))).testShops ?? [];
   } catch (failure) {
     checks.replaceChildren(emptyState("The launch list didn't load", failure.message));
     return;
   }
-  const { ready, total, missing } = launchSummary(launch, testShop);
+  const { ready, total, missing } = launchSummary(launch, testShops);
   setBadge("launch", missing);
   fill($("#launch-summary"), pill(missing ? "warning" : "success", missing ? `${ready} of ${total} ready` : "Ready to open"));
   toolChip("launch", missing ? `${ready} of ${total} ready` : "Ready to open", missing ? "apricot" : "mint");
@@ -731,15 +745,18 @@ async function loadLaunch() {
     actions: el("div", { className: "cr-actions" }, switchButton, launch.invites ? el("a", { href: "#signups", className: "rp-btn rp-btn-secondary rp-btn-sm", textContent: "Invite someone" }) : null),
   });
 
-  const shopLive = testShop && testShop.status === "live";
-  const testSheet = sheet({
-    title: "Your test shop", tone: shopLive ? "success" : "warning", pillWords: shopLive ? "Live" : testShop ? "Not live yet" : "Not made yet",
-    metaParts: testShop ? [testShop.shopId] : [],
-    body: [el("p", { className: "rp-hint", textContent: testShop ? "Try changes here before a press sees them." : "It shows here once it's made." })],
-    actions: testShop ? el("div", { className: "cr-actions" },
-      testShop.storefrontUrl ? outLink(testShop.storefrontUrl, "Open the storefront", "primary") : null,
-      testShop.adminUrl ? outLink(testShop.adminUrl, "Open its admin") : null) : null,
-  });
+  // One sheet per test shop: try a book shop and a general shop before a press sees a change.
+  const testSheets = testShops.length ? testShops.map((shop) => {
+    const live = shop.status === "live";
+    return sheet({
+      title: shop.kindWords, tone: live ? "success" : "warning", pillWords: live ? "Live" : "Not live yet",
+      metaParts: [shop.pressName, shop.kind === "books" ? "sells books" : "sells other things"],
+      body: [el("p", { className: "rp-hint", textContent: shop.kind === "books" ? "Try changes here as a press that sells books." : "Try changes here as a shop that sells no books." })],
+      actions: el("div", { className: "cr-actions" },
+        shop.storefrontUrl ? outLink(shop.storefrontUrl, "Open shop", "primary") : null,
+        shop.adminUrl ? outLink(shop.adminUrl, "Open admin") : null),
+    });
+  }) : [sheet({ title: "Your test shops", tone: "warning", pillWords: "Not made yet", body: [el("p", { className: "rp-hint", textContent: "They show here once they're made." })] })];
 
   const deploySheet = launch.keys.every((key) => key.ready) ? null : sheet({
     title: "After adding a key", tone: "neutral",
@@ -750,7 +767,7 @@ async function loadLaunch() {
     title: "Making a press's store", tone: "warning", pillWords: "Not switched on",
     body: [el("p", { className: "rp-hint", textContent: "A new press's store waits on Setting up until the platform's Google access is connected." })],
   });
-  fill(checks, ...keySheets, deploySheet, signupSheet, testSheet, makingSheet);
+  fill(checks, ...keySheets, deploySheet, signupSheet, ...testSheets, makingSheet);
   showWalk(launch);
 }
 
@@ -960,7 +977,7 @@ function renderToday() {
   const { counts, monthlyIncome, currency, snoozed = [] } = lastToday;
   // The test shop's update failing is the platform's own problem: it goes first, so it is never folded away.
   // Most urgent first: the red lines (a shop or a payment in trouble) above the rest, each kept in its own order.
-  const needs = [...(todayExtras.update ? [todayExtras.update] : []), ...lastToday.needs]
+  const needs = [...(todayExtras.update ? [todayExtras.update] : []), ...(todayExtras.checks ?? []), ...lastToday.needs]
     .sort((a, b) => Number(DANGER_KINDS.has(b.kind)) - Number(DANGER_KINDS.has(a.kind)));
   const now = new Date();
   const hour = now.getHours();
@@ -2140,7 +2157,7 @@ $("#settings-form").addEventListener("submit", async (event) => {
 // ── Activity log (plan 9.9): read only. ──
 const ACTIVITY_WORDS = {
   "settings-changed": "changed the platform settings", "waitlist-invite": "invited someone from the waitlist", "payment-reminder": "sent a payment reminder", "saved-replies": "changed the saved replies", "first-sale-tips": "sent first-sale tips", "today-note": "wrote a note on Today", "switch-set": "set a switch",
-  "act-as": "opened the shop's admin as support", "two-step-reset": "turned off two-step sign-in for someone", "test-shop-reset": "reset the test shop's sample books", "google-run-again": "ran a Google step again", "shop-closed": "closed the shop", "shop-reopened": "opened the shop again",
+  "act-as": "opened the shop's admin as support", "two-step-reset": "turned off two-step sign-in for someone", "test-shop-reset": "reset the test shop's sample data", "google-run-again": "ran a Google step again", "shop-closed": "closed the shop", "shop-reopened": "opened the shop again",
   "newsletter-resumed": "turned the newsletter back on", "fee-change-scheduled": "changed the fee on each order (starts in 30 days)",
   "fee-change-cancelled": "cancelled a waiting fee change", "new-shop-switch": "changed what new shops start with", "signup-retry": "tried making the shop again", "plan-change-retry": "tried the plan change again",
   "access-asked": "asked the press for a yes to make changes",
