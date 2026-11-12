@@ -19,10 +19,10 @@ const ROWS = [
 ];
 
 /** Pretend projects: each part's live release, a site check by address, the release check and the pages. */
-function world({ on = "1.0.0", broken = {}, badPages = [] } = {}) {
+function world({ on = "1.0.0", broken = {}, badPages = [], rows = ROWS, failingCheck = null } = {}) {
   const live = new Map([TEST_PROJECT, LIVE_PROJECT].map((p) => [p, { rules: on, functions: on, "pages:shop": on }]));
   const calls = [];
-  const projectOf = new Map(ROWS.map((r) => [r.freeAddress, r.projectId]));
+  const projectOf = new Map(rows.map((r) => [r.freeAddress, r.projectId]));
   const fault = (version, projectId) => broken[version]?.[projectId] ?? null;
   return {
     live, calls,
@@ -36,6 +36,7 @@ function world({ on = "1.0.0", broken = {}, badPages = [] } = {}) {
         live.get(projectId).functions = version;
       },
       async pages(projectId, { version, app }) { calls.push(["pages", projectId, version, app]); live.get(projectId)["pages:shop"] = version; },
+      async copySite(projectId, { site, version }) { calls.push(["copy", projectId, site, version]); live.get(projectId)[`site:${site}`] = version; },
       async migrate() { throw new Error("a shared release never runs per-project data changes"); },
     },
     siteCheck: {
@@ -47,6 +48,7 @@ function world({ on = "1.0.0", broken = {}, badPages = [] } = {}) {
     },
     async releaseCheck(shopId, version) {
       calls.push(["release-check", shopId, version]);
+      if (failingCheck === shopId) return { ok: false, error: "2. Buy with Stripe's test card: failed" };
       const f = fault(version, TEST_PROJECT);
       if (f === "waiting") return { ok: true, waiting: "the test shop's profile has no Stripe test publishable key" };
       return f === "check" ? { ok: false, error: "5. The order reaches the stockroom: failed" } : { ok: true };
@@ -60,7 +62,7 @@ function world({ on = "1.0.0", broken = {}, badPages = [] } = {}) {
 
 async function setup(options = {}) {
   const registry = fakeRegistry();
-  for (const r of ROWS) await registry.createShop(r.shopId, r);
+  for (const r of options.rows ?? ROWS) await registry.createShop(r.shopId, r);
   const w = world(options);
   const auditLog = fakeAuditLog();
   const lines = [];
@@ -317,4 +319,44 @@ test("while the test shop can't take a card, a merge's update passes and says so
   assert.equal(sent.ok, false);
   assert.match(sent.error, /couldn't make a test purchase/);
   assert.ok(!send.w.calls.some(([k, id]) => k === "rules" && id === LIVE_PROJECT));
+});
+
+// The two test shops (setup/testShopPlace.js): the book shop at the project's own address, the general one at a site
+// of its own, which gets a copy of the project's site.
+const TWO_TEST_SHOPS = [
+  row("test-press", TEST_PROJECT, { testShop: true, testMode: true, freeAddress: "lmb-test-shop.web.app" }),
+  row("test-goods", TEST_PROJECT, { testShop: true, testMode: true, publishes: "other", freeAddress: "lmb-test-goods.web.app" }),
+  row("moth-press", LIVE_PROJECT),
+];
+
+test("with two test shops, the site is copied to the general shop's own site and both pass the release check first", async () => {
+  const { w, run } = await setup({ rows: TWO_TEST_SHOPS });
+  const result = await run("1.1.0");
+  assert.equal(result.ok, true);
+  const order = w.calls.filter(([k]) => ["pages", "copy", "release-check", "publish"].includes(k)).map(([k, a, b]) => (k === "copy" ? `copy ${b}` : `${k} ${a}`));
+  assert.deepEqual(order, [
+    `pages ${TEST_PROJECT}`, "copy lmb-test-goods", "publish test-goods", "publish test-press", "release-check test-goods", "release-check test-press",
+    `pages ${LIVE_PROJECT}`, "publish moth-press",
+  ]);
+  // Both test shops answer at their own addresses.
+  const urls = kinds(w, "site").map(([url]) => url);
+  for (const url of ["https://lmb-test-shop.web.app/admin", "https://lmb-test-goods.web.app/admin", "https://lmb-test-goods.web.app/stockroom"]) assert.ok(urls.includes(url), url);
+});
+
+test("a general test shop that fails its release check keeps the version from every real shop, naming the shop", async () => {
+  const { w, run } = await setup({ rows: TWO_TEST_SHOPS, failingCheck: "test-goods" });
+  const result = await run("1.1.0");
+  assert.equal(result.ok, false);
+  assert.match(result.error, /test-goods: the release check failed: 2\. Buy/);
+  assert.equal(w.live.get(TEST_PROJECT).rules, "1.0.0", "back on the release before");
+  assert.equal(w.live.get(TEST_PROJECT)["site:lmb-test-goods"], "1.0.0", "the general shop's site goes back too");
+  assert.equal(w.live.get(LIVE_PROJECT).rules, "1.0.0", "no real shop got it");
+});
+
+test("a merge's own update keeps a version the general test shop refused on both, to look at", async () => {
+  const { w, run } = await setup({ rows: TWO_TEST_SHOPS, failingCheck: "test-goods" });
+  const result = await run("1.1.0", { projects: [{ projectId: TEST_PROJECT, test: true }], keepOnFailedCheck: true });
+  assert.equal(result.ok, false);
+  assert.equal(result.projects[0].status, "kept-check-failed");
+  assert.equal(w.live.get(TEST_PROJECT)["site:lmb-test-goods"], "1.1.0");
 });

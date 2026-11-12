@@ -194,6 +194,8 @@ export function sharedShopSteps({ google, shared, registry, shopData, stockroom,
           // The test shop answers at the shared test project's own Firebase address (setup/make-test-shop.js), which
           // the platform gives it here; every other shop's free address is <id>.<shops' domain> (step 5).
           ...(shop.testShop === true && normalDomain(shop.freeAddress ?? "") ? { freeAddress: normalDomain(shop.freeAddress) } : {}),
+          // What a test shop sells (setup/testShopPlace.js): the book test shop or the general one.
+          ...(shop.testShop === true && /^[a-z]{2,20}$/.test(shop.publishes ?? "") ? { publishes: shop.publishes } : {}),
         });
       },
     },

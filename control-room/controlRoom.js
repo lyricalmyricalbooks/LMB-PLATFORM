@@ -39,6 +39,7 @@ import { setupSummary } from "./setupPresses.js";
 import { sellsFacts, sellsLine } from "./shopSells.js";
 import { sellsOf } from "../shared/sells/sells.js";
 import { testShopDocs } from "../setup/test-catalogue.js";
+import { testShopKind } from "../setup/testShopPlace.js";
 import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";
 import { PLANS, SWITCHES, shopSwitches } from "../setup/steps.js";
@@ -380,7 +381,9 @@ export function createControlRoom({
      */
     async testShop(claims) {
       adminOf(claims, admins, now().getTime());
-      const row = (await registry.listShops()).find((r) => r.testShop === true);
+      // The book test shop (the general one joins the card in the control room's next step).
+      const tests = (await registry.listShops()).filter((r) => r.testShop === true);
+      const row = tests.find((r) => testShopKind(r) === "books") ?? tests[0];
       if (!row) return { testShop: null };
       const profile = await registry.getProfile(row.shopId);
       const checks = await registry.readReleaseChecks(row.shopId);
@@ -416,7 +419,7 @@ export function createControlRoom({
       if (row.testShop !== true) throw new ControlError(409, "Only the test shop's sample books can be reset.");
       if (row.status !== "live") throw new ControlError(409, "The test shop isn't live yet, so there are no sample books to reset.");
       if (!shopData) throw new ControlError(503, "The control room can't reach the test shop's books, so nothing was reset.");
-      const docs = testShopDocs();
+      const docs = testShopDocs(testShopKind(row));
       await log(shopId, "test-shop-reset", { by, books: docs.map((d) => d.path) });
       for (const { path, data } of docs) await shopData.set(shopId, path, data);
       return { shopId, reset: docs.length };

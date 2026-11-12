@@ -3,6 +3,26 @@
 A real shop copy, owned by the platform, that gets every update first and must pass a full purchase before any press
 gets the update.
 
+## Two test shops (12 November 2026)
+
+There are two test shops in the shared test project (`setup/testShopPlace.js`), so every update is tried on a shop
+that sells books and on one that doesn't before any press gets it:
+
+| | Book test shop | General test shop |
+| --- | --- | --- |
+| Shop id | `test-press` | `test-goods` |
+| Name | Test Press | Test Goods |
+| Address | lmb-test-shop.web.app (the project's own site) | lmb-test-goods.web.app (a second Hosting site of the project) |
+| Sells | books: authors, royalties and ISBN show | "Something else": general words, book-only parts hidden |
+| Release check buys | Test Book One | Test Tote Bag |
+
+- "Make the test shop" makes both (safe to run again). The general shop's site first gets a copy of the project's site
+  (`deploy.copySite`, Hosting's version clone), then the shop maker's steps run as for the book shop.
+- Every release copies the project's site to the general shop's site too (`extraSites` in
+  `services/release-runner/shared.js`), checks that both shops answer, and runs the release check on both. Real shops
+  only get a version that passed on both; a failure names the shop.
+- Each has its own starter catalogue (`setup/test-catalogue.js`, by what the shop sells).
+
 ## Why
 
 Today's checks never pay. The shop's click-through check stops before payment, and the admin check only looks for the

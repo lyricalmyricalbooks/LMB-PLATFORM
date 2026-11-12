@@ -11,7 +11,7 @@ const RULES = "https://firebaserules.googleapis.com/v1";
 const FN = `https://cloudfunctions.googleapis.com/v2/projects/${P}/locations/-/functions`;
 const notFound = { status: 404, json: { error: { code: 404, status: "NOT_FOUND", message: "not found" } } };
 
-function setup(script, { profile = "window.__SHOP_PROFILE__={}" } = {}) {
+function setup(script, { profile = "window.__SHOP_PROFILE__={}", sleep = async () => {} } = {}) {
   const fetch = scriptedFetch(script);
   const runs = [];
   const configs = [];
@@ -19,7 +19,7 @@ function setup(script, { profile = "window.__SHOP_PROFILE__={}" } = {}) {
   const folders = [];
   const locks = [];
   const deploy = deployClient({
-    withBuildLock: async (dir, work) => { locks.push(dir); return work(); },
+    withBuildLock: async (dir, work) => { locks.push(dir); return work(); }, sleep,
     fetch, token, buildDir: (version) => `/builds/${version}`,
     ownerEmailOf: async () => "owner@example.com",
     profileScriptOf: async () => profile,
@@ -181,4 +181,29 @@ test("every deploy holds the release build folder, so two shops never mix their 
   await deploy.deployed(P, "pages:shop");
   assert.deepEqual(locks, ["/builds/1.2.3", "/builds/1.2.3"]);
   fetch.done();
+});
+
+test("a site is copied to another site of the project with the same release message, and read back by its name", async () => {
+  const H = "https://firebasehosting.googleapis.com/v1beta1";
+  const { fetch, deploy } = setup([
+    { method: "GET", url: `${H}/sites/${P}/releases?pageSize=1`, json: { releases: [{ message: "lmb-release 1.2.3", version: { name: `sites/${P}/versions/v1` } }] } },
+    { method: "GET", url: `${H}/projects/${P}/sites/lmb-test-goods`, ...notFound },
+    { method: "POST", url: `${H}/projects/${P}/sites?siteId=lmb-test-goods`, json: {} },
+    { method: "POST", url: `${H}/sites/lmb-test-goods/versions:clone`, json: { name: `projects/${P}/operations/op1`, done: false } },
+    { method: "GET", url: `${H}/projects/${P}/operations/op1`, json: { name: `projects/${P}/operations/op1`, done: true, response: { name: "sites/lmb-test-goods/versions/v9" } } },
+    { method: "POST", url: `${H}/sites/lmb-test-goods/releases?versionName=sites%2Flmb-test-goods%2Fversions%2Fv9`, json: {} },
+    { method: "GET", url: `${H}/sites/lmb-test-goods/releases?pageSize=1`, json: { releases: [{ message: "lmb-release 1.2.3" }] } },
+  ], { sleep: async () => {} });
+  assert.deepEqual(await deploy.copySite(P, { site: "lmb-test-goods", version: "1.2.3" }), { url: "https://lmb-test-goods.web.app" });
+  assert.deepEqual(await deploy.deployed(P, "site:lmb-test-goods"), { version: "1.2.3", url: "https://lmb-test-goods.web.app" });
+  fetch.done();
+});
+
+test("a copy refuses the project's own site, and a source on another version", async () => {
+  const H = "https://firebasehosting.googleapis.com/v1beta1";
+  const { deploy } = setup([
+    { method: "GET", url: `${H}/sites/${P}/releases?pageSize=1`, json: { releases: [{ message: "lmb-release 1.2.2", version: { name: `sites/${P}/versions/v1` } }] } },
+  ]);
+  await assert.rejects(deploy.copySite(P, { site: P, version: "1.2.3" }), /isn't another Hosting site/);
+  await assert.rejects(deploy.copySite(P, { site: "lmb-test-goods", version: "1.2.3" }), /is on 1\.2\.2, not 1\.2\.3/);
 });

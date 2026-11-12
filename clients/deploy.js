@@ -11,6 +11,10 @@
 //   pages      Firebase Hosting v1beta1  sites.releases.list  GET v1beta1/sites/{site}/releases?pageSize=1
 //              stamp: the release message `lmb-release <version>`.
 //              projects.sites.get / projects.sites.create (siteId) make the stockroom's own site.
+//   a copy     Firebase Hosting v1beta1  sites.versions.clone  POST v1beta1/sites/{site}/versions:clone
+//              { sourceVersion, finalize: true } -> an operation (projects.operations.get), then sites.releases.create
+//              POST v1beta1/sites/{site}/releases?versionName=… with the same release message: the test project's
+//              second site (the general test shop, setup/testShopPlace.js) gets exactly the files its own site has.
 //
 // Deploying itself goes through the Firebase command line (`firebase deploy`), run in the release's build folder by
 // an injected `run(command, args, { cwd, env })`. Cloud Functions need their source built and uploaded, and Hosting
@@ -81,7 +85,7 @@ async function copyFolder(from, to) {
  * - `profileScriptOf(projectId)`: the shop's /shop-profile.js (setup step 6), written into the stockroom's `public/`
  *   (its deployConfig reads the stockroom's database and bucket from it) and into each app's built pages.
  */
-export function deployClient({ fetch, token, run, buildDir, ownerEmailOf, profileScriptOf, writeText = writeFile, readText = (path) => readFile(path, "utf8"), copyDir = copyFolder, removeDir = (path) => rm(path, { recursive: true, force: true }), withBuildLock = buildLock() }) {
+export function deployClient({ fetch, token, run, buildDir, ownerEmailOf, profileScriptOf, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), writeText = writeFile, readText = (path) => readFile(path, "utf8"), copyDir = copyFolder, removeDir = (path) => rm(path, { recursive: true, force: true }), withBuildLock = buildLock() }) {
   const call = googleHttp({ fetch, token });
   // Every deploy writes this shop's own files into the shared build first, so one shop at a time per build folder
   // (clients/build-lock.js); the reads of what is live need no lock.
@@ -138,7 +142,14 @@ export function deployClient({ fetch, token, run, buildDir, ownerEmailOf, profil
   }
 
   async function deployedPages(projectId, app) {
-    const site = siteOf(projectId, app);
+    return publicRelease(await latestRelease(siteOf(projectId, app)));
+  }
+
+  /** What `deployed` says about a site's release: its version and address. */
+  const publicRelease = (found) => (found ? { version: found.version, url: found.url } : null);
+
+  /** The newest release of a Hosting site: `{ version, url, release }`, or null when it has none (or doesn't exist). */
+  async function latestRelease(site) {
     let page;
     try {
       page = await call("GET", `${HOSTING}/sites/${site}/releases`, { query: { pageSize: 1 } });
@@ -148,7 +159,17 @@ export function deployClient({ fetch, token, run, buildDir, ownerEmailOf, profil
     }
     const latest = page.releases?.[0];
     if (!latest) return null;
-    return { version: RELEASE_MESSAGE.exec(latest.message ?? "")?.[1] ?? "unknown", url: `https://${site}.web.app` };
+    return { version: RELEASE_MESSAGE.exec(latest.message ?? "")?.[1] ?? "unknown", url: `https://${site}.web.app`, release: latest };
+  }
+
+  /** Makes the project's Hosting site `site` when it doesn't exist yet. */
+  async function ensureSite(projectId, site) {
+    try {
+      await call("GET", `${HOSTING}/projects/${projectId}/sites/${site}`);
+    } catch (error) {
+      if (!isNotFound(error)) throw error;
+      await call("POST", `${HOSTING}/projects/${projectId}/sites`, { query: { siteId: site }, body: {} });
+    }
   }
 
   const client = {
@@ -157,6 +178,8 @@ export function deployClient({ fetch, token, run, buildDir, ownerEmailOf, profil
       if (part === "functions") return deployedFunctions(projectId);
       const app = /^pages:(shop|stockroom)$/.exec(part)?.[1];
       if (app) return deployedPages(projectId, app);
+      const site = /^site:([a-z0-9-]+)$/.exec(part)?.[1];
+      if (site) return publicRelease(await latestRelease(site));
       throw new Error(`unknown deploy part ${part}`);
     },
     // The shop's rules and indexes, and the stockroom's when the plan has it: its named database, its bucket and the
@@ -202,15 +225,29 @@ export function deployClient({ fetch, token, run, buildDir, ownerEmailOf, profil
           await removeDir(inside);
         }
       }
-      if (app !== "shop") {
-        try {
-          await call("GET", `${HOSTING}/projects/${projectId}/sites/${site}`);
-        } catch (error) {
-          if (!isNotFound(error)) throw error;
-          await call("POST", `${HOSTING}/projects/${projectId}/sites`, { query: { siteId: site }, body: {} });
-        }
-      }
+      if (app !== "shop") await ensureSite(projectId, site);
       await firebase(version, app, ["deploy", "--only", "hosting", "--project", projectId, "--message", `lmb-release ${version}`]);
+      return { url: `https://${site}.web.app` };
+    },
+    // The project's own shop site, copied as it is to another site of the same project (made if missing): the same
+    // files, rewrites and release message, so `deployed(…, "site:<site>")` reads the same version. Nothing is built.
+    async copySite(projectId, { site, version }) {
+      if (!/^[a-z0-9][a-z0-9-]{4,61}[a-z0-9]$/.test(site ?? "") || site === projectId) throw new Error(`"${site}" isn't another Hosting site of ${projectId}`);
+      const source = await latestRelease(siteOf(projectId, "shop"));
+      const sourceVersion = source?.release?.version?.name;
+      if (!sourceVersion) throw new Error(`${projectId}'s own site has no release to copy`);
+      if (version && source.version !== version) throw new Error(`${projectId}'s own site is on ${source.version}, not ${version}`);
+      await ensureSite(projectId, site);
+      let operation = await call("POST", `${HOSTING}/sites/${site}/versions:clone`, { body: { sourceVersion, finalize: true } });
+      for (let tries = 0; !operation.done; tries += 1) {
+        if (tries >= 60) throw new Error(`copying the site to ${site} didn't finish in 5 minutes`);
+        await sleep(5000);
+        operation = await call("GET", `${HOSTING}/${operation.name}`);
+      }
+      if (operation.error) throw new Error(`copying the site to ${site} failed: ${operation.error.message ?? "no reason given"}`);
+      const versionName = operation.response?.name;
+      if (!versionName) throw new Error(`copying the site to ${site} gave no version`);
+      await call("POST", `${HOSTING}/sites/${site}/releases`, { query: { versionName }, body: { message: source.release.message } });
       return { url: `https://${site}.web.app` };
     },
   };
