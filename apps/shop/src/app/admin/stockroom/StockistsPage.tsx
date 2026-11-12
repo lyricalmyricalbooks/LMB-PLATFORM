@@ -18,7 +18,7 @@ import { RecordsGate } from "./RecordsGate";
 import type { StockroomRecords } from "./stockroomData";
 import { stockistReceiptApi } from "./stockistReceipt";
 import { describeResult, stockroomWriteApi } from "./stockroomWrite";
-import { buildStockists, markInvoicePaid, moneyText, type Stockist, type StockistInvoice, type StockistLedgerRow, type StockistsView } from "./stockists";
+import { buildStockists, markInvoicePaid, moneyText, recentMovements, stockistsSummary, type Stockist, type StockistInvoice, type StockistLedgerRow, type StockistsView } from "./stockists";
 import "./money.css";
 import "./stockroom.css";
 import "./stockists.css";
@@ -194,15 +194,31 @@ export function StockistsList({ view, onSaved, onNewInvoice, books, states }: { 
   const current = view.stockists.find((s) => s.key === open) || null;
   // Only states that ask for something get a chip; settled and holding shops read plainly, as in the mockup.
   const flagged = (s: Stockist) => s.state === "overdue" || s.state === "mismatch" || s.state === "owes";
+  const summary = useMemo(() => stockistsSummary(view), [view]);
+  const movements = useMemo(() => recentMovements(view), [view]);
+  // v4: one action per row. Settle marks their one open invoice paid (or opens them when there are several); money
+  // owed with no invoice yet asks for one; anything else is up to date.
+  const settle = (s: Stockist) => {
+    const open = s.invoices.filter((i) => i.payable);
+    setNotice(null); setOpen(s.key);
+    if (open.length === 1) setPaying(open[0]);
+  };
+  const action = (s: Stockist) => {
+    if (s.invoices.some((i) => i.payable)) return <InkButton size="sm" onClick={() => settle(s)} aria-label={`Settle with ${s.name}`}>Settle</InkButton>;
+    if (s.owed.length && onNewInvoice) return <SecondaryButton size="sm" onClick={() => { setNotice(null); onNewInvoice(s.name); }} aria-label={`Bill ${s.name}`}>Bill them</SecondaryButton>;
+    return <span className="rp-sk-uptodate">Up to date</span>;
+  };
   const columns: Column<Stockist>[] = [
     { key: "shop", header: "Shop", lead: true, render: (s) => <>
       <button type="button" className="rp-sr-open" onClick={() => setOpen(s.key)} aria-label={`Open ${s.name}: balance, invoices and ledger`}>{s.name}</button>
       {flagged(s) && <> <StatusBadge glyph={false} tone={STATE_BADGE[s.state].tone}>{STATE_BADGE[s.state].words}</StatusBadge></>}
       <div className="rp-hint">{[where(s), `${s.rate}% commission`].filter(Boolean).join(" · ")}</div>
     </> },
-    { key: "copies", header: w("Copies"), numeric: true, render: (s) => s.onShelf },
+    { key: "copies", header: "Out", numeric: true, render: (s) => s.onShelf },
     { key: "sold", header: "Sold", numeric: true, render: (s) => s.sold },
     { key: "owed", header: "Owed", numeric: true, render: (s) => s.owed.length ? moneyText(s.owed) : "—" },
+    { key: "settled", header: "Last settled", render: (s) => summary.lastSettled[s.key] ? fmtD(new Date(summary.lastSettled[s.key]!).toISOString().slice(0, 10)) : "—" },
+    ...(onSaved ? [{ key: "act", header: "Action", render: (s: Stockist) => <span onClick={(e) => e.stopPropagation()}>{action(s)}</span> } satisfies Column<Stockist>] : []),
   ];
   // v4: Add a stockist and Edit details are their own page (Back returns to the list).
   if (details && onSaved && books && (details === "add" || current)) return (
@@ -215,12 +231,33 @@ export function StockistsList({ view, onSaved, onNewInvoice, books, states }: { 
   return (
     <div className="rp-sk">
       {canWrite && <div className="rp-stock-add"><SecondaryButton onClick={() => { setNotice(null); setDetails("add"); }}>Add a stockist</SecondaryButton></div>}
-      {view.stockists.length ? (
+      {view.stockists.length ? (<>
+        <ul className="rp-sk-tiles" aria-label="Stockists at a glance">
+          <li className="rp-sk-tile" data-tone="sky"><span>{w("Copies out with stockists")}</span><strong>{summary.unitsOut}</strong></li>
+          <li className="rp-sk-tile" data-tone="apricot"><span>Sold, not paid yet</span><strong>{moneyText(summary.owed) || "Nothing"}</strong>
+            <small>{summary.pendingUnits === 1 ? w("1 copy") : w(`${summary.pendingUnits} copies`)}</small></li>
+          <li className="rp-sk-tile" data-tone="mint"><span>Settled this year</span><strong>{moneyText(summary.settledThisYear) || "Nothing yet"}</strong>
+            <small>{summary.settledCount === 1 ? "1 invoice paid" : `${summary.settledCount} invoices paid`}</small></li>
+        </ul>
         <section className="rp-card rp-reorder-card" aria-labelledby="rp-sk-title">
           <h2 className="rp-card-title" id="rp-sk-title">Stockists</h2>
           <DataTable caption="Stockists" columns={columns} rows={view.stockists} rowKey={(s) => s.key} stackOnPhone onRowClick={(s) => setOpen(s.key)} />
         </section>
-      ) : <EmptyState inline icon="🏪" title="No stockists yet" description={w("Shops that hold your books on consignment appear here, with what they owe you. Add one with Add a stockist.")} />}
+        {movements.length > 0 && (
+          <section className="rp-card rp-reorder-card" aria-labelledby="rp-sk-moves">
+            <h2 className="rp-card-title" id="rp-sk-moves">Recent movements</h2>
+            <ul className="rp-sk-list">
+              {movements.map((r) => (
+                <li key={`${r.shop}:${r.key}`} className="rp-sk-row">
+                  <div className="rp-sk-row-main"><strong>{r.shop} · {r.type === "Shipment" ? "Sent out" : r.type === "Sale" ? "Sold" : r.type === "Return" ? "Returned" : r.type} · {r.qty}</strong>
+                    <span className="rp-sk-meta">{[fmtD(r.date), r.bookTitle].filter(Boolean).join(" · ")}</span></div>
+                  <div className="rp-sk-row-end"><span className="rp-sk-amount">{r.amountDue > 0 ? fmt(r.amountDue, r.code) : "—"}</span>{ledgerBadge(r)}</div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </>) : <EmptyState inline icon="🏪" title="No stockists yet" description={w("Shops that hold your books on consignment appear here, with what they owe you. Add one with Add a stockist.")} />}
       {view.overdueCount > 0 && (
         <p className="rp-sr-status" role="status">{view.overdueCount === 1 ? "1 invoice is" : `${view.overdueCount} invoices are`} overdue: {moneyText(view.overdueTotals)}.</p>
       )}

@@ -16,6 +16,8 @@ export type StockistInvoice = {
   overdue: boolean; daysLate: number | null; chased: number; promisedUntil: string; reminderFailed: boolean;
   /** The book whose record holds the invoice (where a payment is saved), and the stockist's email on the invoice. */
   bookId: string; email: string;
+  /** When it was marked paid (ms), or null. */
+  paidAt: number | null;
   /** Can be marked paid in one click: sent (or draft), in the book's own currency (else the stockroom asks for a rate). */
   payable: boolean;
 };
@@ -89,7 +91,7 @@ export function buildStockists(records: StockroomRecords, now: Date = new Date()
       id: String(inv.id), num: String(inv.num || ""), status: String(inv.status || "draft"), dueDate: String(inv.dueDate || ""), date: String(inv.date || ""),
       total: num(inv.total), code, overdue, daysLate: overdue ? daysLate(inv, today) : null, chased: reminders.count,
       promisedUntil: reminders.snoozedUntil && today <= reminders.snoozedUntil ? reminders.snoozedUntil : "", reminderFailed: reminders.lastStatus === "failed",
-      bookId, email: String(inv.storeEmail || ""), payable: (inv.status === "sent" || inv.status === "draft") && code === bookCode,
+      bookId, email: String(inv.storeEmail || ""), paidAt: inv.status === "paid" && Number(inv.paidAt) > 0 ? Number(inv.paidAt) : null, payable: (inv.status === "sent" || inv.status === "draft") && code === bookCode,
     };
   };
   const byDue = (a: StockistInvoice, b: StockistInvoice) => (a.dueDate || "9999").localeCompare(b.dueDate || "9999");
@@ -186,4 +188,38 @@ export function markInvoicePaid(invoiceId: string, paidAt: number) {
     }
     return state;
   };
+}
+
+/** v4 Stockists: the three tiles, each stockist's last settlement and sold-not-paid copies, and the newest movements. */
+export type StockistsSummary = {
+  unitsOut: number; pendingUnits: number; owed: Owed[]; settledThisYear: Owed[]; settledCount: number;
+  lastSettled: Record<string, number | null>; pendingByStockist: Record<string, number>;
+};
+
+/** Sold-not-paid copies are pending, non-voided ledger sales; "settled" is an invoice marked paid (its paidAt). */
+export function stockistsSummary(view: StockistsView, now: Date = new Date()): StockistsSummary {
+  const year = now.getFullYear();
+  const settledThisYear: Owed[] = [];
+  let settledCount = 0, pendingUnits = 0;
+  const lastSettled: Record<string, number | null> = {};
+  const pendingByStockist: Record<string, number> = {};
+  for (const s of view.stockists) {
+    let last: number | null = null;
+    for (const i of s.invoices) {
+      if (i.paidAt == null) continue;
+      if (last == null || i.paidAt > last) last = i.paidAt;
+      if (new Date(i.paidAt).getFullYear() === year) { addMoney(settledThisYear, i.code, i.total); settledCount += 1; }
+    }
+    lastSettled[s.key] = last;
+    const pending = s.ledger.filter((r) => r.type === "Sale" && r.status === "pending" && !r.voided).reduce((n, r) => n + r.qty, 0);
+    pendingByStockist[s.key] = pending;
+    pendingUnits += pending;
+  }
+  return { unitsOut: view.onShelf, pendingUnits, owed: view.owed, settledThisYear, settledCount, lastSettled, pendingByStockist };
+}
+
+/** The newest ledger entries across every stockist (voided ones left out), newest first. */
+export function recentMovements(view: StockistsView, count = 8): Array<StockistLedgerRow & { shop: string }> {
+  return view.stockists.flatMap((s) => s.ledger.filter((r) => !r.voided).map((r) => ({ ...r, shop: s.name })))
+    .sort((a, b) => b.date.localeCompare(a.date)).slice(0, count);
 }

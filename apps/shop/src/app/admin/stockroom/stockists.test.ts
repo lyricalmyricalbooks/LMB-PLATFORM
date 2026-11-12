@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildShipping } from "./shipping";
 import type { StockroomRecords } from "./stockroomData";
-import { buildStockists, moneyText } from "./stockists";
+import { buildStockists, moneyText, recentMovements, stockistsSummary } from "./stockists";
 
 const NOW = new Date(2026, 10, 11, 12);
 const day = (ago: number) => new Date(NOW.getTime() - ago * 86_400_000).toISOString().slice(0, 10);
@@ -88,3 +88,33 @@ describe("shipping", () => {
   });
 });
 
+
+describe("Stockists v4 summary", () => {
+  const states = {
+    a: {
+      stores: [{ id: 1, name: "Corner", sent: 10, sold: 6, returned: 0, outstanding: 4, amountOwed: 24, rate: 40 }],
+      ledger: [ship(1, 1, 10), sale(2, 1, 4, 48, "paid"), sale(3, 1, 2, 24), sale(4, 1, 5, 60, "pending", { voided: true, date: day(1) })],
+      invoices: [
+        { id: "i1", num: "INV-1", status: "paid", paidAt: new Date(2026, 3, 2).getTime(), total: 48, currency: "CAD", storeName: "Corner", storeId: 1 },
+        { id: "i0", num: "INV-0", status: "paid", paidAt: new Date(2025, 11, 30).getTime(), total: 12, currency: "CAD", storeName: "Corner", storeId: 1 },
+        { id: "i2", num: "INV-2", status: "sent", total: 24, currency: "CAD", storeName: "Corner", storeId: 1 },
+      ],
+    },
+  };
+  const view = buildStockists(records(states), NOW);
+
+  it("counts copies out, sold-not-paid copies and what was settled this year", () => {
+    const sum = stockistsSummary(view, NOW);
+    expect(sum.unitsOut).toBe(4);
+    expect(sum.pendingUnits).toBe(2);
+    expect(moneyText(sum.settledThisYear)).toBe("CA$48.00");
+    expect(sum.settledCount).toBe(1);
+    expect(sum.lastSettled.corner).toBe(new Date(2026, 3, 2).getTime());
+  });
+
+  it("lists the newest movements first and leaves voided ones out", () => {
+    const rows = recentMovements(view, 2);
+    expect(rows.map((r) => r.qty)).toEqual([2, 4]);
+    expect(rows[0].shop).toBe("Corner");
+  });
+});
