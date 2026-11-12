@@ -168,11 +168,16 @@ const stock = {
     inputFields: [
       { key: "productId", label: "Product", required: true, dynamic: "product_list.id.title" },
       { key: "change", label: "Copies to add", type: "integer", required: true, helpText: "Use a minus to take copies off, for example -2." },
+      { key: "reference", label: "Reference", required: false, helpText: "Optional. Something that names this change, like an order number from a step before this one. With it, a Zap that runs again never changes the stock twice." },
     ],
     perform: async (z, bundle) => {
+      const { productId, change, reference } = bundle.inputData;
+      // Zapier gives no id for one run of a Zap, so only the press's own reference can tell a repeat from a new change.
+      const ref = String(reference || "").trim();
       const response = await z.request({
-        url: `${V1()}/inventory/${encodeURIComponent(bundle.inputData.productId)}`, method: "POST",
-        body: { change: Number(bundle.inputData.change) },
+        url: `${V1()}/inventory/${encodeURIComponent(productId)}`, method: "POST",
+        ...(ref ? { headers: { "Idempotency-Key": `zapier-stock-${productId}-${ref}`.slice(0, 200) } } : {}),
+        body: { change: Number(change) },
       });
       return settled(response.json, z);
     },

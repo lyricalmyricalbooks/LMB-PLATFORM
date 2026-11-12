@@ -21,7 +21,7 @@
 // Clients passed in:
 //   connections  get(shopId); put(shopId, row); remove(shopId); list()      mailchimpShops/<shopId>
 //   members      get(id); put(id, row); removeShop(shopId)                   mailchimpMembers/<shopId~optOutId>
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { SignupError, personOf } from "../../signup/signup.js";
 import { seal, unseal } from "../payments/tokenSeal.js";
 import { alertSignature } from "../apps/alerts.js";
@@ -34,6 +34,10 @@ export const PER_RUN = 1000;
 export const NEWSLETTER_TAG = "Shop newsletter";
 const V1 = ["", "api", "apps", "v1"].join("/");
 const sha256 = (value) => createHash("sha256").update(String(value), "utf8").digest("hex");
+/** How long the press has to say yes in Mailchimp before Connect must be pressed again. */
+export const STATE_MINUTES = 30;
+/** Marks Mailchimp's answer apart from the permission page's, which comes back to the same page with its own state. */
+export const STATE_PREFIX = "mc.";
 const text = (value, max = 200) => (typeof value === "string" ? value.trim().slice(0, max) : "");
 
 export function createMailchimpApp({
@@ -137,6 +141,7 @@ export function createMailchimpApp({
 
     // 3. Unsubscribed in Mailchimp: unsubscribed in the shop. Only addresses the shop sent are ever acted on.
     const mcSince = cursors.mailchimp ?? row.connectedAt;
+    let missed = false;
     for (let offset = 0; offset < 5000;) {
       const { members: gone, total } = await client.unsubscribedSince(row.listId, mcSince, offset);
       for (const person of gone) {
@@ -150,12 +155,14 @@ export function createMailchimpApp({
           throw error;
         }
         if (answer.status === 200 || answer.status === 202) await members.put(memberId(row.shopId, fingerprint), { ...known, unsubscribed: "mailchimp", unsubscribedAt: at() });
+        // The shop didn't take it: read this stretch again next run, so nobody who left keeps getting the shop's emails.
+        else missed = true;
       }
       offset += gone.length;
       if (!gone.length || offset >= total) break;
     }
     // A minute's overlap, so a change landing while we read is seen twice, never missed.
-    cursors.mailchimp = new Date(Date.parse(started) - 60_000).toISOString();
+    cursors.mailchimp = missed ? mcSince : new Date(Date.parse(started) - 60_000).toISOString();
 
     await connections.put(row.shopId, { ...row, cursors, added: (row.added ?? 0) + added, lastSyncAt: at(), lastProblem: null });
     return added;
@@ -182,20 +189,32 @@ export function createMailchimpApp({
       }
       if (!appKey) throw new SignupError(400, "Add Mailchimp from Settings › Apps first.");
       const kept = before ? open(before) : {};
+      const state = `${STATE_PREFIX}${randomBytes(24).toString("hex")}`;
       await connections.put(shopId, {
         ...(before ?? { shopId, connectedAt: at(), stage: "mailchimp" }),
         shopId, sealed: seal(sealKey, bound(shopId), { ...kept, appKey }), startedBy: person.email, updatedAt: at(),
+        // Only a fingerprint of the one-use state is kept: finish() takes Mailchimp's code only when it comes back with it,
+        // so nobody can connect their own Mailchimp to this shop by sending the owner a link.
+        mailchimpState: { hash: sha256(state), expiresAt: new Date(now().getTime() + STATE_MINUTES * 60_000).toISOString() },
       });
-      return { url: authorizeUrl({ clientId, redirectUri: returnAddress }) };
+      return { url: authorizeUrl({ clientId, redirectUri: returnAddress, state }) };
     },
 
     /** Back from Mailchimp with its code: keep the press's token, then the audience. */
-    async finish(claims, { shopId, code } = {}) {
+    async finish(claims, { shopId, code, state } = {}) {
       needReady();
       const person = await ownerOf(claims, shopId);
       const before = await connections.get(shopId);
       if (!before) throw new SignupError(400, "Add Mailchimp from Settings › Apps first.");
       if (typeof code !== "string" || !code) throw new SignupError(400, "Mailchimp didn't send us back. Press Connect Mailchimp again.");
+      const expected = before.mailchimpState;
+      const given = Buffer.from(sha256(typeof state === "string" ? state : ""));
+      if (!expected?.hash || !(String(expected.expiresAt ?? "") > at()) || given.length !== Buffer.byteLength(expected.hash)
+        || !timingSafeEqual(given, Buffer.from(expected.hash))) {
+        throw new SignupError(400, "That Mailchimp answer wasn't for this shop, or it took too long. Press Connect Mailchimp again.");
+      }
+      // One use: a code that fails here can't be tried again with the same state.
+      await connections.put(shopId, { ...before, mailchimpState: null });
       let account;
       let lists;
       try {
@@ -208,8 +227,11 @@ export function createMailchimpApp({
       if (!lists.length) throw new SignupError(400, "Your Mailchimp account has no audience yet. Make one in Mailchimp, then connect again.");
       const kept = open(before);
       const one = lists.length === 1 ? lists[0] : lists.find((list) => list.id === before.listId);
+      // Another audience (or another account) starts again from the beginning, like choosing one does.
+      const changed = Boolean(before.listId) && (!one || one.id !== before.listId);
+      if (changed) await members.removeShop(shopId);
       const row = {
-        ...before, sealed: seal(sealKey, bound(shopId), { appKey: kept.appKey, accessToken: account.accessToken }), dc: account.dc,
+        ...before, mailchimpState: null, ...(changed ? { cursors: {}, added: 0 } : {}), sealed: seal(sealKey, bound(shopId), { appKey: kept.appKey, accessToken: account.accessToken }), dc: account.dc,
         tokenFingerprint: sha256(account.accessToken).slice(0, 12), connectedBy: person.email, updatedAt: at(), lastProblem: null,
         ...(one ? { stage: "connected", listId: one.id, listName: one.name, lists: null } : { stage: "choose", lists }),
       };

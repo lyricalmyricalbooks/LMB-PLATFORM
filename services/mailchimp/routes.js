@@ -3,7 +3,7 @@
 // For a shop's owner (signed in), from the connect page (accounts/mailchimp.html):
 //   POST /api/mailchimp/status       { shopId } -> { available, connected, stage, audience?, lists?, added, lastSyncAt, lastProblem }
 //   POST /api/mailchimp/begin        { shopId, code? } -> { url }   Mailchimp's "allow Colophon" page
-//   POST /api/mailchimp/finish       { shopId, code } -> status     back from Mailchimp
+//   POST /api/mailchimp/finish       { shopId, code, state } -> status   back from Mailchimp
 //   POST /api/mailchimp/lists        { shopId } -> { lists: [{ id, name, members }], current }
 //   POST /api/mailchimp/audience     { shopId, listId } -> status
 //   POST /api/mailchimp/disconnect   { shopId } -> { removed }

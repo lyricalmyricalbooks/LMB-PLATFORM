@@ -87,6 +87,7 @@ function chitChats() {
 function mailchimpServer(now) {
   const members = new Map(); // `${list}/${hash}` -> { email, status, tags, last_changed }
   const calls = [];
+  const account = { lists: [{ id: "list1", name: "Moth readers", stats: { member_count: 3 } }, { id: "list2", name: "Events", stats: { member_count: 0 } }] };
   const reply = (status, body) => new Response(body === undefined ? "" : JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
   const fetch = async (url, init = {}) => {
     const { host, pathname, searchParams } = new URL(url);
@@ -100,7 +101,7 @@ function mailchimpServer(now) {
     if (host === "login.mailchimp.com" && pathname === "/oauth2/metadata") return init.headers?.Authorization === "OAuth mc-token" ? reply(200, { dc: "us21" }) : reply(401, {});
     if (host !== "us21.api.mailchimp.com" || init.headers?.Authorization !== "Bearer mc-token") return reply(401, { title: "API Key Invalid", status: 401 });
     const path = pathname.replace("/3.0", "");
-    if (path === "/lists") return reply(200, { lists: [{ id: "list1", name: "Moth readers", stats: { member_count: 3 } }, { id: "list2", name: "Events", stats: { member_count: 0 } }] });
+    if (path === "/lists") return reply(200, { lists: account.lists });
     const one = /^\/lists\/(list[12])\/members\/([a-f0-9]{32})(\/tags)?$/.exec(path);
     if (one && method === "PUT") {
       const body = JSON.parse(init.body);
@@ -132,7 +133,7 @@ function mailchimpServer(now) {
   };
   /** Someone leaves from a Mailchimp email's unsubscribe link. */
   const leave = (list, email) => Object.assign(members.get(`${list}/${memberHash(email)}`), { status: "unsubscribed", last_changed: now().toISOString() });
-  return { fetch, members, calls, leave, of: (list, email) => members.get(`${list}/${memberHash(email)}`) ?? null };
+  return { fetch, members, calls, leave, account, of: (list, email) => members.get(`${list}/${memberHash(email)}`) ?? null };
 }
 
 /** The whole platform side, as server/world.js wires it, with the shop's database in memory. */
@@ -200,12 +201,15 @@ function platform() {
   const mailchimpSaved = fakeMailchimpStores();
   const audience = mailchimpServer(now);
   const mcKeys = own.appOf("mailchimp");
+  // The shop can be too busy to take Mailchimp's unsubscribes for a while.
+  const outage = { unsubscribe: false };
   const mailchimp = createMailchimpApp({
     appId: mcKeys.appId, appSecret: mcKeys.appSecret, clientId: "mc-client", clientSecret: "mc-secret", sealKey: own.sealKeyOf("mailchimp"),
     connections: mailchimpSaved.connections, members: mailchimpSaved.members, exchange: (args) => installs.exchange(args),
-    appCall: (request) => connection(request), roleIn, fetch: audience.fetch, returnAddress: `${URL_}/account/mailchimp.html`, now,
+    appCall: (request) => (outage.unsubscribe && request.path.endsWith("/subscribers/unsubscribe") ? { status: 503, body: { message: "Busy." } } : connection(request)),
+    roleIn, fetch: audience.fetch, returnAddress: `${URL_}/account/mailchimp.html`, now,
   });
-  return { docs, own, makers, installs, connection, alerts, chitchats, chitchatsSaved, mailchimp, mailchimpSaved, audience, courier, delivered, tick: (m) => { clock += m * 60_000; }, iso: () => now().toISOString() };
+  return { docs, own, makers, installs, connection, alerts, chitchats, chitchatsSaved, mailchimp, mailchimpSaved, audience, outage, courier, delivered, tick: (m) => { clock += m * 60_000; }, iso: () => now().toISOString() };
 }
 
 test("Chit Chats from the store to a sent order and back off the shop, through the real plumbing", async () => {
@@ -282,8 +286,20 @@ test("Mailchimp from the store to readers in an audience, unsubscribes both ways
   const allow = new URL(url);
   assert.equal(allow.origin + allow.pathname, "https://login.mailchimp.com/oauth2/authorize");
   assert.equal(allow.searchParams.get("redirect_uri"), back);
-  await assert.rejects(p.mailchimp.finish(OWNER, { shopId: "moth-press", code: "wrong" }), /didn't finish connecting/);
-  const choose = await p.mailchimp.finish(OWNER, { shopId: "moth-press", code: "mc-code" });
+  const state = allow.searchParams.get("state");
+  assert.match(state, /^mc\.[0-9a-f]{48}$/);
+  assert.ok(!JSON.stringify(p.mailchimpSaved.shops.get("moth-press")).includes(state), "only a fingerprint of the state is kept");
+  // Someone else's Mailchimp code, sent to the owner in a link, comes without this shop's state: refused.
+  await assert.rejects(p.mailchimp.finish(OWNER, { shopId: "moth-press", code: "mc-code" }), /wasn't for this shop/);
+  await assert.rejects(p.mailchimp.finish(OWNER, { shopId: "moth-press", code: "mc-code", state: "mc.forged" }), /wasn't for this shop/);
+  await assert.rejects(p.mailchimp.finish(OWNER, { shopId: "moth-press", code: "wrong", state }), /didn't finish connecting/);
+  await assert.rejects(p.mailchimp.finish(OWNER, { shopId: "moth-press", code: "mc-code", state }), /wasn't for this shop/, "a state is used once");
+  // Connect Mailchimp again (the app's key is kept, so no install code), and it took too long the first time.
+  const late = new URL((await p.mailchimp.begin(OWNER, { shopId: "moth-press" })).url).searchParams.get("state");
+  p.tick(31);
+  await assert.rejects(p.mailchimp.finish(OWNER, { shopId: "moth-press", code: "mc-code", state: late }), /took too long/);
+  const fresh = new URL((await p.mailchimp.begin(OWNER, { shopId: "moth-press" })).url).searchParams.get("state");
+  const choose = await p.mailchimp.finish(OWNER, { shopId: "moth-press", code: "mc-code", state: fresh });
   assert.equal(choose.stage, "choose");
   assert.deepEqual(choose.lists.map((l) => l.name), ["Moth readers", "Events"]);
   await assert.rejects(p.mailchimp.pickAudience(OWNER, { shopId: "moth-press", listId: "list9" }), /Pick one/);
@@ -321,6 +337,12 @@ test("Mailchimp from the store to readers in an audience, unsubscribes both ways
   p.audience.leave("list1", "ann@example.com");
   p.docs.set(`moth-press/marketing-optout/${optOut("bea@example.com")}`, { at: p.iso(), source: "email" });
   p.docs.delete("moth-press/newsletter/bea@example.com");
+  // The shop is too busy to take Ann's unsubscribe at first: she's asked about again on the next run, never dropped.
+  p.outage.unsubscribe = true;
+  p.tick(15);
+  await p.mailchimp.sweep();
+  assert.ok(!p.docs.has(`moth-press/marketing-optout/${optOut("ann@example.com")}`));
+  p.outage.unsubscribe = false;
   p.tick(15);
   await p.mailchimp.sweep();
   assert.ok(p.docs.has(`moth-press/marketing-optout/${optOut("ann@example.com")}`), "Ann's opt-out is in the shop");
@@ -334,6 +356,17 @@ test("Mailchimp from the store to readers in an audience, unsubscribes both ways
   const status = await p.mailchimp.status(OWNER, { shopId: "moth-press" });
   assert.equal(status.added, 3);
   assert.equal(status.lastProblem, null);
+
+  // Connected again to an account whose only audience is another one: it starts from the beginning there.
+  p.audience.account.lists = [{ id: "list2", name: "Events", stats: { member_count: 0 } }];
+  const again = new URL((await p.mailchimp.begin(OWNER, { shopId: "moth-press" })).url).searchParams.get("state");
+  const moved = await p.mailchimp.finish(OWNER, { shopId: "moth-press", code: "mc-code", state: again });
+  assert.equal(moved.audience.name, "Events");
+  assert.equal(moved.added, 0);
+  assert.equal(p.mailchimpSaved.people.size, 0, "the old audience's fingerprints are forgotten");
+  p.tick(15);
+  assert.equal((await p.mailchimp.sweep()).added, 1, "readers still on the list go to the new audience");
+  assert.ok(p.audience.of("list2", "eve@example.com"));
 
   // The owner removes the app: the goodbye alert makes it forget the shop and every fingerprint.
   await p.installs.removeForShop("moth-press", listed.appId, OWNER.email);
@@ -452,6 +485,11 @@ test("Zapier: connect from Zapier, triggers from paid orders, readers and produc
   ]);
   await zap.call(zap.app.creates.add_tracking.operation.perform, { authData: auth, inputData: { orderId: "o2", trackingCarrier: "Canada Post", trackingNumber: "7023210039414604" } });
   assert.equal([...p.docs].filter(([k]) => k.startsWith("moth-press/appRequests/")).length, 2, "Zapier trying again doesn't send it twice");
+  // With a reference (an order number, say), the same stock change run again is taken once.
+  const sale = { authData: auth, inputData: { productId: "b1", change: "-1", reference: "1002" } };
+  assert.equal((await zap.call(zap.app.creates.change_stock.operation.perform, sale)).status, "done");
+  assert.equal((await zap.call(zap.app.creates.change_stock.operation.perform, sale)).status, "done");
+  assert.equal([...p.docs].filter(([k, d]) => k.startsWith("moth-press/appRequests/") && d.input.productId === "b1").length, 1, "one stock change, not two");
   await assert.rejects(
     zap.call(zap.app.creates.change_stock.operation.perform, { authData: auth, inputData: { productId: "b2", change: "0" } }),
     (error) => error.status === 400 && /whole number/.test(error.message),

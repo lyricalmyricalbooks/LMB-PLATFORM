@@ -45,8 +45,8 @@ async function read(response) {
 }
 
 /** Where the press goes to say yes to Colophon in Mailchimp. */
-export function authorizeUrl({ clientId, redirectUri }) {
-  const query = new URLSearchParams({ response_type: "code", client_id: clientId, redirect_uri: redirectUri });
+export function authorizeUrl({ clientId, redirectUri, state = "" }) {
+  const query = new URLSearchParams({ response_type: "code", client_id: clientId, redirect_uri: redirectUri, ...(state ? { state } : {}) });
   return `${MAILCHIMP_LOGIN}/oauth2/authorize?${query}`;
 }
 

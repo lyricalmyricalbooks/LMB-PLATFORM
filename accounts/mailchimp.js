@@ -1,8 +1,8 @@
 // Colophon's Mailchimp app page (accounts/mailchimp.html, /account/mailchimp.html?shop=<id>), code plan 26.12.
 //   - Not connected: sends the owner to the permission page (accounts/install.html), which comes back here with
 //     ?code=…&state=…. That code is swapped at once and the owner goes on to Mailchimp's own "allow" page.
-//   - Back from Mailchimp with ?code=… (no state, since Mailchimp's address is fixed): finish, then pick an audience
-//     when the account has more than one.
+//   - Back from Mailchimp with ?code=…&state=mc.…: finish (the server checks the state is the one it made), then pick an
+//     audience when the account has more than one.
 //   - Connected: readers added, last update, Change audience and Disconnect.
 // Plain browser JavaScript like the other account pages; the server (services/mailchimp/app.js) checks everything again.
 import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE } from "../signup/config.js";
@@ -21,8 +21,10 @@ const AWAY_KEY = "colophon-mailchimp-away";
 const here = `${location.origin}${location.pathname}`;
 const code = params.get("code") ?? "";
 const state = params.get("state") ?? "";
-// Back from the permission page (a code and our state) or from Mailchimp (a code or a "no", without state).
-const from = code && state ? "install" : code || params.get("error") ? "mailchimp" : "";
+// Back from the permission page (a code and this page's own state) or from Mailchimp (a code or a "no"; Mailchimp's
+// state starts "mc.", as the server made it).
+const fromMailchimp = state.startsWith("mc.");
+const from = code && state && !fromMailchimp ? "install" : code || params.get("error") ? "mailchimp" : "";
 let shopId = params.get("shop") ?? "";
 let current = null;
 
@@ -153,7 +155,7 @@ async function load() {
       tidyAddress();
       if (!code) return showConnect("Mailchimp didn't connect. Press Connect Mailchimp to try again.");
       try {
-        return render(await api("/mailchimp/finish", { shopId, code }));
+        return render(await api("/mailchimp/finish", { shopId, code, state }));
       } catch (failure) {
         return showConnect(failure.message);
       }

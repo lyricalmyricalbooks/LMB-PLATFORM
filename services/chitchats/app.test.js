@@ -30,7 +30,7 @@ const ORDER = {
 function chitChats() {
   const shipments = new Map();
   const calls = [];
-  const state = { refuse: false };
+  const state = { refuse: false, post: null };
   let n = 0;
   const fetch = async (url, init = {}) => {
     const { pathname, searchParams } = new URL(url);
@@ -40,6 +40,12 @@ function chitChats() {
     if (init.headers?.Authorization !== "tok-good-123" || state.refuse) return reply(401, { error: { message: "Unauthorized" } });
     if (init.method === "GET" && pathname.endsWith("/shipments") && searchParams.get("limit") === "1") return reply(200, []);
     if (init.method === "POST" && pathname.endsWith("/shipments")) {
+      // `state.post`: how Chit Chats answers the next new shipment: "lost" (made, but the answer never came), or a status.
+      const how = state.post;
+      state.post = null;
+      if (how === "lost") { shipments.set(`LOST${(n += 1)}`, { id: "lost", ...JSON.parse(init.body) }); throw new TypeError("fetch failed"); }
+      if (how === 502) { shipments.set(`HALF${(n += 1)}`, { id: "half", ...JSON.parse(init.body) }); return reply(502, null); }
+      if (how) return reply(how, { error: { message: how === 422 ? "Postal code doesn't match the city" : "Slow down" } });
       const id = `R4Q286T8${(n += 1)}`;
       shipments.set(id, { id, status: "unpaid", carrier_tracking_code: null, ...JSON.parse(init.body) });
       return reply(201, { shipment: shipments.get(id) });
@@ -222,4 +228,41 @@ test("only copies still to pack go to Chit Chats", () => {
   const order = { ...ORDER, items: [{ title: "Moth Songs", quantity: 3, quantityToSend: 1, price: 24 }, { title: "Sent ahead", quantity: 1, quantityToSend: 0, price: 10 }] };
   const shipment = shipmentFor(order, USUAL_PARCEL);
   assert.deepEqual(shipment.line_items.map((l) => [l.description, l.quantity]), [["Moth Songs", 1]]);
+});
+
+test("one order Chit Chats can't take is noted on that order only, not as a problem with the whole connection", async () => {
+  const w = await world();
+  await w.ask(OWNER, "POST", "/api/chitchats/connect", { ...DETAILS, code: await w.codeFor() });
+  w.courier.state.post = 422;
+  assert.equal((await w.sendAlert("orders/paid", { order: ORDER })).body.skipped, "refused");
+  assert.equal((await w.saved.connections.get("moth-press")).lastProblem ?? null, null);
+  const problems = await w.saved.shipments.listProblems("moth-press");
+  assert.match(problems[0].problem, /Postal code/);
+});
+
+test("a shipment Chit Chats may have made without answering is never made twice; a slow-down is tried again", async () => {
+  const w = await world();
+  await w.ask(OWNER, "POST", "/api/chitchats/connect", { ...DETAILS, code: await w.codeFor() });
+  const order = (id) => ({ order: { ...ORDER, id, orderNumber: id } });
+  for (const how of ["lost", 502]) {
+    w.courier.state.post = how;
+    const id = `o-${how}`;
+    assert.equal((await w.sendAlert("orders/paid", order(id))).body.skipped, "unsure", String(how));
+    assert.equal((await w.sendAlert("orders/paid", order(id))).body.skipped, "already in Chit Chats", "the alert's retry makes no second shipment");
+  }
+  assert.equal(w.courier.shipments.size, 2, "one each, made before the answer was lost");
+  const problems = await w.saved.shipments.listProblems("moth-press");
+  assert.equal(problems.length, 2);
+  assert.ok(problems.every((p) => /may be there already/.test(p.problem)));
+
+  w.courier.state.post = 429;
+  assert.notEqual((await w.sendAlert("orders/paid", order("o-slow"))).status, 200, "asked to slow down: the alert is sent again later");
+  const again = await w.sendAlert("orders/paid", order("o-slow"));
+  assert.ok(again.body.shipmentId, JSON.stringify(again.body));
+  assert.equal(w.courier.shipments.size, 3);
+
+  // A try that stopped half-way (the run ended after the claim) is flagged, not made again.
+  await w.saved.shipments.put("moth-press~o-half", { id: "moth-press~o-half", shopId: "moth-press", orderId: "o-half", status: "sending" });
+  assert.equal((await w.sendAlert("orders/paid", order("o-half"))).body.skipped, "unsure");
+  assert.equal(w.courier.shipments.size, 3, "nothing new made");
 });
