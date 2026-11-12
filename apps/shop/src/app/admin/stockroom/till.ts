@@ -22,6 +22,30 @@ export const OTHER_METHODS = [
 ] as const;
 export const ALL_METHODS: ReadonlyArray<{ value: string; label: string }> = [...TILL_METHODS, ...OTHER_METHODS];
 
+/** The payment sheet's ways to pay (v4 mockup 1j). Other holds the two in OTHER_METHODS. */
+export const SHEET_PAYS = [
+  { value: "Cash", label: "Cash" },
+  { value: "Card", label: "Card reader" },
+  { value: "Stripe QR", label: "QR" },
+  { value: "Other", label: "Other" },
+] as const;
+export type SheetPay = typeof SHEET_PAYS[number]["value"];
+/** The quick amounts beside Exact on the cash part of the sheet. */
+export const QUICK_CASH = [20, 50, 100] as const;
+
+/**
+ * Cash given against a total in one currency: the change due, or what is still to pay. Null while nothing (or nothing
+ * readable) is typed, so the sheet says nothing yet.
+ */
+export function cashChange(total: number, given: string): { covered: boolean; amount: number } | null {
+  const text = given.trim().replace(",", ".");
+  if (!text) return null;
+  const n = Number(text);
+  if (!Number.isFinite(n) || n < 0) return null;
+  const diff = Math.round((n - total) * 100) / 100;
+  return diff >= 0 ? { covered: true, amount: diff } : { covered: false, amount: -diff };
+}
+
 /** The tile colours, in turn (Colophon tile tokens). */
 export const TILE_TONES = ["mint", "apricot", "sky", "lilac"] as const;
 

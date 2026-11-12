@@ -15334,52 +15334,7 @@ html:not([data-website="off"]) [data-no-website-only] { display: none !important
   line-height: var(--leading-snug);
 }
 
-/* POS Sale Confirmation Modal */
-.pos-confirm-meta-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-3);
-  margin-top: 12px;
-  margin-bottom: 12px;
-}
-
-.pos-confirm-meta-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.pos-confirm-meta-label {
-  font-size: var(--text-xs);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-caps);
-  color: var(--content-muted);
-}
-
-.pos-confirm-meta-val {
-  font-size: var(--text-base);
-  font-weight: 600;
-  color: var(--content-primary);
-}
-
-.pos-confirm-summary-well {
-  margin-top: 1rem;
-  padding: 12px 16px;
-  border-radius: var(--r2);
-  background: var(--surface-sunken);
-  border:var(--stroke-hair) solid var(--border-subtle);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.pos-confirm-summary-label {
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--content-secondary);
-}
-
+/* POS Sale Confirmation Modal (the v4 payment sheet; its own rules are at the end) */
 .pos-confirm-total-val {
   font-family:var(--font-mono);
   font-feature-settings: "tnum" 1, "zero" 1 !important;
@@ -21618,3 +21573,31 @@ a.notif-action:hover { text-decoration: underline; }
 .gsheet-note{margin:8px 0 0;font-size:var(--text-sm);color:var(--text2);}
 .gsheet-foot{margin:0;font-size:var(--text-sm);color:var(--text3);}
 @media (max-width: 768px){.gsheet-actions .btn{flex:1 1 auto;text-align:center;}}
+
+/* ── v4 payment sheet (mockup 1j, 12 Nov 2026): total top right, How they pay pills, cash quick amounts, Cash given,
+   a Change due / Still to pay tile (mint when covered, apricot when short), then Back to till / Charge. ── */
+.pos-sheet { border-radius: 22px; }
+.pos-sheet .pos-sheet-head { justify-content: flex-start; gap: 12px; font-family: var(--font-ui); }
+.pos-sheet-title { margin: 0; flex: 1; font-family: var(--font-ui); font-size: var(--text-xl); font-weight: 600; letter-spacing: -0.02em; }
+.pos-sheet .pos-sheet-head .pos-confirm-total-val { font-size: var(--text-2xl); font-weight: 600; }
+.pos-sheet-items { margin-bottom: var(--space-3, 12px); font-size: var(--text-sm); color: var(--content-secondary); }
+.pos-sheet-items summary { cursor: pointer; padding: 4px 0; }
+.pos-sheet-items .tbl-wrap { margin-top: 8px; }
+.pos-sheet-label { margin: 0 0 6px; font-size: var(--text-sm); font-weight: 600; color: var(--content-primary); }
+.pos-sheet .pos-sheet-pay { display: flex; flex-wrap: wrap; gap: 8px; padding: 0; background: none; margin: 0 0 var(--space-3, 12px); }
+.pos-sheet .pos-sheet-opt { min-height: 44px; padding: 0 18px; border: 1px solid var(--line, var(--surface-sunken)); border-radius: 999px; background: var(--surface-card); color: var(--content-primary); font-family: var(--font-ui); font-size: var(--text-md); font-weight: 600; cursor: pointer; }
+.pos-sheet .pos-sheet-opt[aria-checked="true"] { border-color: var(--surface-inverse); background: var(--surface-inverse); color: var(--content-on-inverse); }
+.pos-sheet .pos-sheet-opt:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.pos-sheet-cash { display: grid; gap: 10px; margin-bottom: var(--space-3, 12px); }
+.pos-sheet-cash[hidden] { display: none; }
+.pos-sheet-quick { display: flex; flex-wrap: wrap; gap: 8px; }
+.pos-sheet-chip { min-height: 44px; min-width: 64px; padding: 0 16px; border: 1px solid var(--line, var(--surface-sunken)); border-radius: 999px; background: var(--surface-sunken); color: var(--content-primary); font: 600 var(--text-md) var(--font-ui); cursor: pointer; }
+.pos-sheet-chip:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.pos-sheet-cash .form-group { margin: 0; }
+.pos-sheet-change { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 14px 16px; border-radius: 16px; font-size: var(--text-sm); color: var(--rp-on-tile, var(--content-primary)); }
+.pos-sheet-change[data-tone="covered"] { background: var(--rp-tile-mint, var(--surface-sunken)); }
+.pos-sheet-change[data-tone="short"] { background: var(--rp-tile-apricot, var(--surface-sunken)); }
+.pos-sheet-change strong { font-size: var(--text-xl); font-weight: 600; }
+.pos-sheet-note { margin: 0 0 var(--space-3, 12px); padding: 12px 14px; border-radius: 14px; background: var(--surface-sunken); font-size: var(--text-sm); color: var(--content-secondary); }
+.pos-sheet-note[hidden] { display: none; }
+.pos-sheet-foot #pos-sheet-charge[aria-disabled="true"] { opacity: 0.55; }

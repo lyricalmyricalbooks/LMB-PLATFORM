@@ -4485,7 +4485,7 @@
           <div class="pos-oversell-note" id="pos-oversell-note" role="status" aria-live="polite" hidden></div>
           <button class="btn gold lg pos-checkout-cta" id="pos-checkout-btn" onclick="posCheckout()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-            Complete Sale
+            <span id="pos-checkout-label">Charge</span>
           </button>
           <button class="btn ink pos-checkout-cta pos-checkout-cta-alt" id="pos-sale-qr-btn" data-own-accounts onclick="posGenerateSaleQR()">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><path d="M14 14h3v3h-3zM20 14h1v1h-1zM14 20h3v1h-3zM20 17h1v4h-4v-1"></path></svg>
@@ -6627,40 +6627,49 @@
   <button type="button" class="btn tx fm-more-link" onclick="attemptCloseModal('fair-charge'); posMobileView('checkout')">Change currency or a price →</button>
 </div></div>
 
-<div class="overlay" id="m-pos-sale-confirm" style="display:none;"><div class="modal" role="dialog" aria-modal="true" style="max-width:640px;">
-  <div class="modal-title" role="dialog" aria-modal="true">
-    <div class="modal-title-left">
-      <span class="modal-title-badge" aria-hidden="true">✨</span>
-      <span>Confirm Event Sale</span>
-    </div>
-    <button type="button" class="btn tx modal-close-btn" onclick="attemptCloseModal('pos-sale-confirm')" aria-label="Close dialog" title="Close (Esc)">✕</button>
-  </div>
-  <div style="font-size:var(--text-sm);color:var(--text3);margin-bottom:1rem;">Review the sale details before finalizing. Catalog books deduct inventory immediately; POS-only titles are tallied on the card.</div>
-  <div class="tbl-wrap" style="margin-bottom:1rem;">
-    <table class="tbl">
-      <thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Line</th></tr></thead>
-      <tbody id="pos-confirm-items"></tbody>
-    </table>
-  </div>
-  <div class="pos-oversell-note" id="pos-confirm-oversell" role="status" aria-live="polite" hidden></div>
-  <div class="pos-confirm-meta-grid">
-    <div class="pos-confirm-meta-cell">
-      <span class="pos-confirm-meta-label">Payment method</span>
-      <strong id="pos-confirm-payment" class="pos-confirm-meta-val"></strong>
-    </div>
-    <div class="pos-confirm-meta-cell">
-      <span class="pos-confirm-meta-label">Timestamp</span>
-      <strong id="pos-confirm-timestamp" class="pos-confirm-meta-val mono-num"></strong>
-    </div>
-  </div>
-  <div class="pos-confirm-summary-well">
-    <span class="pos-confirm-summary-label">Total charged</span>
+<!-- v4 payment sheet (mockup 1j): the total, how they pay, cash given and change, then Charge. -->
+<div class="overlay" id="m-pos-sale-confirm" style="display:none;"><div class="modal pos-sheet" role="dialog" aria-modal="true" aria-labelledby="pos-sheet-title" style="max-width:520px;">
+  <div class="modal-title pos-sheet-head">
+    <h2 id="pos-sheet-title" class="pos-sheet-title">Charge</h2>
     <strong id="pos-confirm-total" class="pos-confirm-total-val mono-num"></strong>
+    <button type="button" class="btn tx modal-close-btn" onclick="attemptCloseModal('pos-sale-confirm')" aria-label="Back to till" title="Close (Esc)">✕</button>
   </div>
-  <div class="modal-footer" role="dialog" aria-modal="true">
-    <button class="btn" onclick="attemptCloseModal('pos-sale-confirm')">Cancel</button>
+  <details class="pos-sheet-items">
+    <summary><span id="pos-sheet-count">0 items</span> · <span id="pos-confirm-payment"></span> · <span id="pos-confirm-timestamp" class="mono-num"></span></summary>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Line</th></tr></thead>
+        <tbody id="pos-confirm-items"></tbody>
+      </table>
+    </div>
+  </details>
+  <div class="pos-oversell-note" id="pos-confirm-oversell" role="status" aria-live="polite" hidden></div>
+  <p class="pos-sheet-label" id="pos-sheet-how">How they pay</p>
+  <div class="pos-sheet-pay" role="radiogroup" aria-labelledby="pos-sheet-how">
+    <button type="button" class="pos-sheet-opt" role="radio" aria-checked="true" data-pay="Cash" data-action="pos.sheetPick">Cash</button>
+    <button type="button" class="pos-sheet-opt" role="radio" aria-checked="false" data-pay="Card" data-action="pos.sheetPick">Card</button>
+    <button type="button" class="pos-sheet-opt" role="radio" aria-checked="false" data-pay="Bank Transfer" data-action="pos.sheetPick">E-transfer</button>
+    <button type="button" class="pos-sheet-opt" role="radio" aria-checked="false" data-pay="Stripe QR" data-own-accounts data-action="pos.sheetPick">QR</button>
+    <button type="button" class="pos-sheet-opt" role="radio" aria-checked="false" data-pay="Comp/Gift" data-action="pos.sheetPick">Comp</button>
+  </div>
+  <div class="pos-sheet-cash" id="pos-sheet-cash">
+    <div class="pos-sheet-quick" role="group" aria-label="Quick amounts">
+      <button type="button" class="pos-sheet-chip" data-action="pos.sheetCash" data-amount="exact">Exact</button>
+      <button type="button" class="pos-sheet-chip" data-action="pos.sheetCash" data-amount="20">20</button>
+      <button type="button" class="pos-sheet-chip" data-action="pos.sheetCash" data-amount="50">50</button>
+      <button type="button" class="pos-sheet-chip" data-action="pos.sheetCash" data-amount="100">100</button>
+    </div>
+    <div class="form-group">
+      <label for="pos-sheet-given">Cash given</label>
+      <input type="number" id="pos-sheet-given" inputmode="decimal" min="0" step="0.01" placeholder="0.00" data-on-input="pos.sheetPaint">
+    </div>
+    <div class="pos-sheet-change" id="pos-sheet-change" role="status" aria-live="polite" hidden></div>
+  </div>
+  <p class="pos-sheet-note" id="pos-sheet-note" hidden></p>
+  <div class="modal-footer pos-sheet-foot">
+    <button class="btn" onclick="attemptCloseModal('pos-sale-confirm')">Back to till</button>
     <button class="btn" onclick="posPrintReceipt()">Print receipt</button>
-    <button class="btn gold" onclick="posConfirmSale()">Confirm sale</button>
+    <button class="btn gold" id="pos-sheet-charge" data-action="pos.sheetCharge">Charge</button>
   </div>
 </div></div>
 
