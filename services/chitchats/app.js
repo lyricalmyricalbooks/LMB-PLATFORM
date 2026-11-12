@@ -85,6 +85,7 @@ export function createChitChatsApp({
   const at = () => now().toISOString();
   // Chit Chats refused the shop's details: when it last did (`at`), and since when (`since`, kept while it goes on), so
   // the morning note tells the press once (control-room/chitChatsNote.js).
+  const UNSURE = "Chit Chats didn't answer while we made this shipment, so it may be there already. Look for the order in Chit Chats, and make the shipment there if it's missing.";
   const refusal = (row, error) => { const now = at(); return { at: now, since: row.lastProblem?.since ?? row.lastProblem?.at ?? now, words: error.message }; };
   const ready = () => Boolean(appId && appSecret && sealKey);
   const bound = (shopId) => `chitchats:${shopId}`;
@@ -127,25 +128,49 @@ export function createChitChatsApp({
     const lines = order.items ?? [];
     if (lines.length && lines.every((item) => Number.isFinite(item.quantityToSend) && item.quantityToSend <= 0)) return { skipped: "nothing left to send" };
     const id = idOf(row.shopId, order.id);
-    if (await shipments.get(id)) return { skipped: "already in Chit Chats" };
+    const base = { id, shopId: row.shopId, orderId: order.id, orderNumber: order.orderNumber ?? order.id };
+    const existing = await shipments.get(id);
+    if (existing?.status === "sending") {
+      // An earlier try stopped half-way (no answer, or the run ended): the shipment may be in Chit Chats already, so it is
+      // never made a second time by itself. The press checks Chit Chats.
+      await shipments.put(id, { ...existing, status: "problem", problem: UNSURE, updatedAt: at() });
+      return { skipped: "unsure" };
+    }
+    if (existing && existing.status !== "retry") return { skipped: "already in Chit Chats" };
     const shipment = shipmentFor(order, row.parcel ?? USUAL_PARCEL);
     if (!shipment) {
-      await shipments.put(id, { id, shopId: row.shopId, orderId: order.id, orderNumber: order.orderNumber ?? order.id, status: "problem", problem: "The order has no full shipping address.", createdAt: at() });
+      await shipments.put(id, { ...base, status: "problem", problem: "The order has no full shipping address.", createdAt: at() });
       return { skipped: "no address" };
     }
+    // Claimed before Chit Chats is asked, so a second alert for the same order never makes a second shipment.
+    await shipments.put(id, { ...base, status: "sending", createdAt: existing?.createdAt ?? at() });
     try {
       const made = await clientFor(secrets).createShipment(shipment);
-      await shipments.put(id, { id, shopId: row.shopId, orderId: order.id, orderNumber: order.orderNumber ?? order.id, shipmentId: made.id, status: "open", createdAt: at() });
+      await shipments.put(id, { ...base, shipmentId: made.id, status: "open", createdAt: at() });
       return { shipmentId: made.id };
     } catch (error) {
-      if (!(error instanceof ChitChatsError)) throw error;
-      // Wrong details or a refused shipment: noted so the press sees it; anything else is tried again by the next alert retry.
-      if ([400, 401, 403, 404, 422].includes(error.status)) {
-        await shipments.put(id, { id, shopId: row.shopId, orderId: order.id, orderNumber: order.orderNumber ?? order.id, status: "problem", problem: error.message, createdAt: at() });
+      if (!(error instanceof ChitChatsError)) {
+        await shipments.put(id, { ...base, status: "retry", updatedAt: at() });
+        throw error;
+      }
+      // Chit Chats said no before making anything: wrong details (the whole shop) or this one order's shipment.
+      if ([401, 403, 404].includes(error.status)) {
+        await shipments.put(id, { ...base, status: "problem", problem: error.message, createdAt: at() });
         await connections.put(row.shopId, { ...row, lastProblem: refusal(row, error) });
         return { skipped: "refused" };
       }
-      throw error;
+      if (error.status === 400 || error.status === 422) {
+        await shipments.put(id, { ...base, status: "problem", problem: error.message, createdAt: at() });
+        return { skipped: "refused" };
+      }
+      // Asked to slow down: nothing was made, so the alert's next try makes it.
+      if (error.status === 429) {
+        await shipments.put(id, { ...base, status: "retry", updatedAt: at() });
+        throw error;
+      }
+      // No answer, or Chit Chats failed part-way: it may have made the shipment, so it isn't made again by itself.
+      await shipments.put(id, { ...base, status: "problem", problem: UNSURE, createdAt: at() });
+      return { skipped: "unsure" };
     }
   }
 
