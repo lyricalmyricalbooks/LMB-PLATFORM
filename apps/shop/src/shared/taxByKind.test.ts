@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { discountedLineValues, ratesForKind, ratesUseKinds, taxPartsByKind } from "./taxByKind";
+import { chargesTax, discountedLineValues, ratesForKind, ratesUseKinds, taxPartsByKind, untaxedValue } from "./taxByKind";
 
 const ca = { country: "Canada", rate: 13 };
 const first = (rates: any[]) => rates[0] ?? null;
@@ -52,5 +52,22 @@ describe("a discount taxed on the lines it covers", () => {
   });
   it("leaves every line whole without a discount", () => {
     expect(discountedLineValues(lines, 0, null, () => [])).toEqual([20, 20]);
+  });
+});
+
+describe("Books › edit › Charge sales tax", () => {
+  it("only an explicit off leaves a product out; on or never set taxes it", () => {
+    expect(chargesTax({ chargeTax: false })).toBe(false);
+    expect(chargesTax({ chargeTax: true })).toBe(true);
+    expect(chargesTax({})).toBe(true);
+    expect(chargesTax(undefined)).toBe(true);
+  });
+  it("counts the untaxed lines' share after the discount", () => {
+    const lines = [{ id: "a", price: 20, quantity: 1 }, { id: "b", price: 30, quantity: 1 }];
+    const after = discountedLineValues(lines, 10, { type: "fixed" }, () => []);
+    // $10 off by value: a keeps $16, b $24.
+    expect(untaxedValue(lines, lines, after, (line) => line.id !== "b")).toBeCloseTo(24);
+    expect(untaxedValue([lines[0]], lines, after, () => false)).toBeCloseTo(16);
+    expect(untaxedValue(lines, lines, after, () => true)).toBe(0);
   });
 });

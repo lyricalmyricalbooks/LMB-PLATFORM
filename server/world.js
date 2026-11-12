@@ -44,7 +44,8 @@ import { billingPublicRoutes, billingRoutes } from "../accounts/billingRoutes.js
 import { createShopBillingDoor, SHOP_BILLING_PREFIX } from "../accounts/shopBillingDoor.js";
 import { createAccounts } from "../accounts/accounts.js";
 import { controlRoutes } from "../control-room/routes.js";
-import { NEW_SHOP_SWITCHES, controlRoomAdmins, createControlRoom, profilePublisher } from "../control-room/controlRoom.js";
+import { NEW_SHOP_SWITCHES, controlRoomAdmins, createControlRoom, profilePublisher, switchPublisher } from "../control-room/controlRoom.js";
+import { readFeeSettings } from "../services/payments/fees.js";
 import { createPlatformControls, platformRoutes } from "../control-room/platformControls.js";
 import { createBackupAccess, emergencyRoutes } from "../control-room/backupPerson.js";
 import { createBreachRegister } from "../control-room/breaches.js";
@@ -202,7 +203,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const platform = firestoreClient({ fetch, token, projectId });
   const registry = firestoreRegistry(platform, { now });
   // A shop whose registry row places it in a shared project (the test shops, in the shared test project) is reached there.
-  const { shared, shopDb, stockroomDb } = shopStores({ env, fetch, token, rowOf: (shopId) => registry.getShop(shopId) });
+  const { shared, shopDb, stockroomDb, recordsFor } = shopStores({ env, fetch, token, rowOf: (shopId) => registry.getShop(shopId) });
   const platformState = firestorePlatformState(platform);
   const live = () => liveSettings({ env, store: platformState });
 
@@ -294,7 +295,9 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     // Today lists shops with stuck Chit Chats orders; the desk is made further down, and only called once a request comes.
     parcels: () => chitChatsDesk.shops(),
     registry, auditLog, profileFiles, shopAccess, repairs, signups: stores.signups, shopData, stockroomData,
-    publish: profilePublisher({ deploy, registry }), settings: live, email, breaches: createBreachRegister({ store: firestoreBreaches(platform), registry, auditLog, now }), people,
+    // A switch reaches a shared-system shop through its record (the front door serves the profile from there), and a
+    // shop with a project of its own by deploying its pages again. The shop record shows the fee the payment service charges.
+    publish: switchPublisher({ registry, recordsFor, fallback: profilePublisher({ deploy, registry }) }), feeDefaults: readFeeSettings(env), settings: live, email, breaches: createBreachRegister({ store: firestoreBreaches(platform), registry, auditLog, now }), people,
     activity, supportStore, recoveryStore, platformState, accessRequests, admins, now, presses: firestoreFrontDoorStores(platform).presses,
     googleReady: (at) => googleReadiness(readGoogleConfig(env), at),
     taxWatch: () => billing.taxWatch(),

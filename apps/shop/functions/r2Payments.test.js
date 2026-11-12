@@ -124,7 +124,7 @@ function harness({ identity = null, docs = {}, intents = {}, charge = null, refu
 }
 
 const pickup = { enabled: true, pickupLocations: [{ id: 'shop', enabled: true, name: 'Shop', price: 2, address: { street: '1 Main', city: 'Toronto', state: 'ON', zip: 'M6G3H1', country: 'CA' } }], deliveryZones: [] };
-const baseSettings = (extra = {}) => ({ website: { localFulfillment: pickup, taxes: { rates: [] }, payments: { stripe: { secretKey: 'sk_live_fake' }, manualMethods: [{ id: 'cash', enabled: true, name: 'Cash', instructions: 'Pay' }] }, ...extra } });
+const baseSettings = (extra = {}) => ({ website: { localFulfillment: pickup, taxes: { rates: [] }, payments: { stripe: { secretKey: 'sk_live_fake', connected: true }, manualMethods: [{ id: 'cash', enabled: true, name: 'Cash', instructions: 'Pay' }] }, ...extra } });
 const manualDraft = (items) => ({ customer: { name: 'Reader', email: 'reader@example.com', billingAddress: { country: 'Canada', state: 'ON' } }, items, fulfillmentSelection: { method: 'pickup', optionId: 'pickup:shop' } });
 const placeManual = (app, items) => app.call('createStripeCheckoutSession', { action: 'createManualLocalOrder', manualMethodId: 'cash', orderDraft: manualDraft(items) });
 

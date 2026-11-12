@@ -89,7 +89,7 @@ export function sharedBuckets(env = {}) {
 }
 
 /**
- * Where the platform reads and writes each shop's data: `{ shared, shopDb(shopId), stockroomDb(shopId) }`. With
+ * Where the platform reads and writes each shop's data: `{ shared, shopDb(shopId), stockroomDb(shopId), recordsFor(shopId) }`. With
  * `SHARED_SHOPS_PROJECT` set, every shop is a folder in that project (`shared` is its sharedStores); without it, each
  * shop's own project, as before the shared system. The hosted server and its jobs build theirs here, so every platform
  * writer into a shop (plan copies, messages, closing, health, backups) follows one setting.
@@ -108,7 +108,9 @@ export function shopStores({ env = {}, fetch, token, rowOf = null }) {
       shopDb: (shopProject) => firestoreClient({ fetch, token, projectId: shopProject }),
       stockroomDb: (shopProject) => firestoreClient({ fetch, token, projectId: shopProject, database: STOCKROOM_DATABASE }),
     };
-  if (typeof rowOf !== "function") return { shared, ...byDefault };
+  // `recordsFor(shopId)`: the record store of the shared project the shop lives in (its `shops/<id>` record, which the
+  // front door serves), or null for a shop with a project of its own.
+  if (typeof rowOf !== "function") return { shared, ...byDefault, recordsFor: async () => shared?.records ?? null };
 
   // A shop never moves between projects, so its place is looked up once. A row that can't be read is not remembered.
   const places = new Map();
@@ -134,7 +136,11 @@ export function shopStores({ env = {}, fetch, token, rowOf = null }) {
     };
     return Object.fromEntries(["get", "create", "set", "remove", "query", "transaction"].map((name) => [name, async (...args) => (await client())[name](...args)]));
   };
-  return { shared, shopDb: found("shopDb"), stockroomDb: found("stockroomDb") };
+  const recordsFor = async (shopId) => {
+    const project = await placeOf(shopIdOf(shopId));
+    return project ? storesIn(project).records : null;
+  };
+  return { shared, shopDb: found("shopDb"), stockroomDb: found("stockroomDb"), recordsFor };
 }
 
 /**

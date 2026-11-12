@@ -60,7 +60,7 @@ import { bagPreorder } from "./features/site/preorder";
 import { discountAmountFor, discountableItems, emailDomainAllowed, pickAutomaticDiscount } from "./features/site/discountMath";
 import { expandDiscountCategories } from "./features/site/discountCategories";
 import { clearSharedDiscount, sharedDiscount } from "./features/site/sharedDiscount";
-import { discountedLineValues, taxPartsByKind } from "../shared/taxByKind";
+import { chargesTax, discountedLineValues, taxPartsByKind, untaxedValue } from "../shared/taxByKind";
 import { productKind } from "../shared/productOptions";
 import { bagNote, orderNoteBoxOn, rememberBagNote } from "./features/site/bagNote";
 import { isGiftCardProduct, bundleComponents, bundleWeightGrams } from "./features/site/promotions";
@@ -888,8 +888,11 @@ export function Checkout() {
     // Each line's share after the discount comes off the lines it covers, as on the server.
     const allLines = taxLines || [];
     const afterDiscount = discountedLineValues(allLines, discountAmount, activeDiscount, (id: string) => booksMap.get(id)?.categories || []);
-    const kindLines = (lines: any[]) => lines.map(item => ({ kind: productKind(booksMap.get(item.id)), value: afterDiscount[allLines.indexOf(item)] }));
-    const taxOf = (lines: any[], amount: number, address: any) => taxPartsByKind(kindLines(lines), amount, taxRates, (set: any[]) => rateFor(set, address)).reduce((sum, part) => sum + part.amount, 0);
+    // Books › edit › Charge sales tax off: that product's share is left out of the tax, as on the server.
+    const taxed = (item: any) => chargesTax(booksMap.get(item.id));
+    const kindLines = (lines: any[]) => lines.map(item => ({ kind: productKind(booksMap.get(item.id)), value: taxed(item) ? afterDiscount[allLines.indexOf(item)] : 0 }));
+    const untaxedOf = (lines: any[]) => untaxedValue(lines, allLines, afterDiscount, taxed);
+    const taxOf = (lines: any[], amount: number, address: any) => taxPartsByKind(kindLines(lines), Math.max(0, amount - untaxedOf(lines)), taxRates, (set: any[]) => rateFor(set, address)).reduce((sum, part) => sum + part.amount, 0);
     const taxable = Math.max(0, cartTotal - giftCardLinesTotal + freeGiftPrice - discountAmount);
     if (fulfillmentSelection.method === "pickup") {
       const pickup = localQuotes.find(quote => quote.id === fulfillmentSelection.optionId && quote.method === "pickup");
@@ -2098,6 +2101,7 @@ export function Checkout() {
                   onStateChange={setCardState}
                   expressText={c("coExpressCheckout")}
                   showExpress={!checkoutDesign.hideCheckoutExpressWallets}
+                  wallets={platformCard ? undefined : settings?.payments?.stripe}
                   expressEnabled={expressWalletEnabled({ isCompleting, canPay: stripeRoute.canPay, needsDeliveryChoice, catalogReady: catalogState === "ready", total: finalTotal, problems: detailProblems, termsAccepted: (!termsRequired || termsAccepted) && (!digitalConsentNeeded || digitalConsent) })}
                   onExpressConfirm={async () => { await handleCompletePurchase(); return purchaseNavigating.current; }}
                   fontName={checkoutDesign.checkoutFieldFont || checkoutDesign.checkoutFont || checkoutDesign.font || checkoutDesign.bodyFont || undefined}

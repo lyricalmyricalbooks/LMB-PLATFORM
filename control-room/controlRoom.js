@@ -211,6 +211,26 @@ export function profilePublisher({ deploy, registry, build = async () => {} }) {
   };
 }
 
+/**
+ * A shop in the shared system has no pages of its own to deploy: the front door serves its profile from the shop's
+ * record (`shops/<id>.profile`), and its pages read it when they open. So a switch reaches such a shop by copying the
+ * saved switches into that record (only the switches: setup's payments step writes the record's other fields).
+ * `recordsFor(shopId)` (clients/shared.js shopStores) is null for a shop with a project of its own, which `fallback`
+ * (profilePublisher) publishes as before. Safe to repeat: a record that already matches is left alone.
+ */
+export function switchPublisher({ registry, recordsFor, fallback }) {
+  return async function publish(shopId) {
+    const records = await recordsFor(shopId);
+    if (!records) return fallback(shopId);
+    const profile = (await records.get(shopId))?.profile;
+    // A record with no profile yet gets the saved one from setup (step 3).
+    if (!profile) return { apps: [] };
+    const switches = shopSwitches((await registry.getProfile(shopId))?.switches);
+    if (!isDeepStrictEqual(profile.switches, switches)) await records.set(shopId, { profile: { ...profile, switches } }, { fields: ["profile"] });
+    return { apps: ["shop", "stockroom"] };
+  };
+}
+
 /** How many shops the shop list and Today read at the same time. */
 export const SHOPS_AT_ONCE = 8;
 

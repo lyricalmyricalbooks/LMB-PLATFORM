@@ -58,7 +58,7 @@ const { sellerSection, digitalConsentSection } = require("./sellerDetails");
 const emailFrench = require("./emailFrench");
 const { emailDefaultsFor, goodsDownloadNote, productBase, sellsBooks, withShopEmailWords, wordsFor } = require("./shared/shopSells");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem } = require("./shared/localFulfillment");
-const { taxPartsByKind, discountedLineValues } = require("./shared/taxByKind");
+const { taxPartsByKind, discountedLineValues, chargesTax, untaxedValue } = require("./shared/taxByKind");
 const { productKind } = require("./shared/productOptions");
 const { catalogUnitPrice } = require("./catalogPrice");
 const { loadStockist, wholesaleUnitPrice, privateWholesale, stockistActions } = require("./stockists");
@@ -1123,7 +1123,10 @@ function authoritativeTax(items, discountAmount, discount, booksById, settings, 
   const charged = parts => ({ tax: parts.reduce((sum, part) => sum + part.amount, 0), taxLines: taxLinesFor(parts) });
   // Each line's share after the discount comes off the lines it covers (a books-only code lowers only the books' tax).
   const afterDiscount = discountedLineValues(items, discountAmount, discount, id => booksById[id]?.categories || []);
-  const lineKinds = lines => lines.map(item => ({ kind: productKind(booksById[item.id]), value: afterDiscount[items.indexOf(item)] }));
+  // Books › edit › Charge sales tax off: that product's share (after the discount) is taken out of the taxed amount.
+  const taxed = item => chargesTax(booksById[item.id]);
+  const lineKinds = lines => lines.map(item => ({ kind: productKind(booksById[item.id]), value: taxed(item) ? afterDiscount[items.indexOf(item)] : 0 }));
+  const untaxedOf = lines => untaxedValue(lines, items, afterDiscount, taxed);
   if (fulfillment?.method === 'pickup') {
     const pickup = fulfillment.address;
     // Pickup limited to an area collects the shopper's address instead of a separate billing location.
@@ -1132,13 +1135,13 @@ function authoritativeTax(items, discountAmount, discount, booksById, settings, 
     if (!billing || !billing.country || !billing.state) throw new Error('Billing country and province or state are required for pickup.');
     // Plan 12.2: a rate listing product kinds taxes only those; with none listed this is the plain pair of rates.
     return charged([
-      ...taxPartsByKind(lineKinds(items.filter(isPhysicalItem)), discountedPhysical, rates, set => matchTaxRate(set, pickup.country, pickup.state)),
-      ...taxPartsByKind(lineKinds(items.filter(item => !isPhysicalItem(item))), taxableTotal - discountedPhysical, rates, set => matchTaxRate(set, billing.country, billing.state)),
+      ...taxPartsByKind(lineKinds(items.filter(isPhysicalItem)), Math.max(0, discountedPhysical - untaxedOf(items.filter(isPhysicalItem))), rates, set => matchTaxRate(set, pickup.country, pickup.state)),
+      ...taxPartsByKind(lineKinds(items.filter(item => !isPhysicalItem(item))), Math.max(0, taxableTotal - discountedPhysical - untaxedOf(items.filter(item => !isPhysicalItem(item)))), rates, set => matchTaxRate(set, billing.country, billing.state)),
     ]);
   }
   const basis = Object.keys(address).length ? address : order.customer?.billingAddress || {};
   if (!basis.country) throw new Error('Destination country is required for tax.');
-  const parts = taxPartsByKind(lineKinds(items), taxableTotal, rates, set => matchTaxRate(set, basis.country, basis.state));
+  const parts = taxPartsByKind(lineKinds(items), Math.max(0, taxableTotal - untaxedOf(items)), rates, set => matchTaxRate(set, basis.country, basis.state));
   // Not silent: a country with rates but none for this province is flagged in Ready to sell.
   if (parts.some(part => !part.rate) && taxableTotal > 0 && rates.length) console.warn(`No tax rate matches ${basis.country}/${basis.state || "-"}; charging no tax.`);
   return charged(parts);
@@ -1640,6 +1643,9 @@ exports.createPayPalOrder = onBrowserRequest(
       }
       if (!(priced.convertedTotal > 0)) return res.status(400).json({ error: "Your gift card covers this order. Review your bag and place the order again.", code: "nothing_to_charge" });
       const config = await getPayPalConfig();
+      // Settings › Payments › PayPal checkout off: no new PayPal payment, even from a direct call (the page already hides
+      // the button). Capture still works, so a shopper already on PayPal's page isn't stranded.
+      if (config.settingsPaypal.connected !== true) return res.status(409).json({ error: "PayPal isn't available at this shop right now. Please choose another way to pay.", code: "paypal_off" });
       if (!config.testMode) {
         try {
           // Priced lines (with box-set parts), not the browser's lines.
@@ -3177,7 +3183,10 @@ async function loadNotificationSettings() {
   } catch (err) {
     console.warn("Failed to load the shop name for emails, using the deploy's:", err);
   }
+  // Every Shop alerts switch is kept (low stock, weekly summary, fair day, ...), so a caller reading this copy sees the
+  // owner's choice; the two below get their older defaults.
   merged.shopAlerts = {
+    ...(dbSettings.shopAlerts && typeof dbSettings.shopAlerts === "object" ? dbSettings.shopAlerts : {}),
     newOrder: dbSettings.shopAlerts?.newOrder ?? (dbSettings.new_order_admin?.enabled !== false),
     shipped: dbSettings.shopAlerts?.shipped !== false,
   };

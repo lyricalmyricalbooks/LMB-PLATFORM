@@ -13,6 +13,19 @@ export type TaxPart<R> = { rate: R | null; amount: number };
 
 const listed = (rate: KindRate): string[] => (Array.isArray(rate?.kinds) ? rate.kinds.filter((k) => typeof k === "string" && k) : []);
 
+/**
+ * Books › edit › Charge sales tax (`chargeTax`). Off (`false`) leaves that product out of the tax, on the page and on the
+ * server; on, or never set, taxes it as before.
+ */
+export function chargesTax(product: { chargeTax?: unknown } | null | undefined): boolean {
+  return product?.chargeTax !== false;
+}
+
+/** The value of `lines` (from `discountedLineValues`, by index in `all`, in the order's money) whose product is not taxed. */
+export function untaxedValue<L>(lines: L[], all: L[], afterDiscount: number[], taxed: (line: L) => boolean): number {
+  return lines.reduce((sum, line) => sum + (taxed(line) ? 0 : Math.max(0, afterDiscount[all.indexOf(line)] || 0)), 0);
+}
+
 /** True when any rate is limited to some kinds. */
 export function ratesUseKinds(rates: KindRate[]): boolean {
   return (rates || []).some((rate) => listed(rate).length > 0);

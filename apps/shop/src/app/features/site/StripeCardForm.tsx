@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { walletChoice, type WalletSwitches } from "./walletChoice";
 import { googleFontHref } from "./fonts";
 import { loadStripe, type Stripe, type StripeElements } from "@stripe/stripe-js";
 import { createElementCleanup } from "./stripeLifecycle";
@@ -47,6 +48,8 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
   paymentErrorText?: string;
   expressText?: string;
   showExpress?: boolean;
+  /** Settings › Payments › Stripe › Apple Pay / Google Pay (own-key shops; `walletChoice`). */
+  wallets?: WalletSwitches;
   expressEnabled?: boolean;
   onExpressConfirm?: () => Promise<boolean>;
   onStateChange?: (state: "loading" | "ready" | "error") => void;
@@ -58,7 +61,7 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
   accentColor?: string;
   fieldRadius?: number;
   style?: React.CSSProperties;
-}>(function StripeCardForm({ publishableKey, stripeAccount, amountCents, currency, loadingText, errorText, validationText, paymentErrorText, onStateChange, expressText, showExpress = true, expressEnabled = true, onExpressConfirm, fontName, fieldBackground, fieldText, fieldBorder, accentColor, fieldRadius, style }, ref) {
+}>(function StripeCardForm({ publishableKey, stripeAccount, amountCents, currency, loadingText, errorText, validationText, paymentErrorText, onStateChange, expressText, showExpress = true, wallets, expressEnabled = true, onExpressConfirm, fontName, fieldBackground, fieldText, fieldBorder, accentColor, fieldRadius, style }, ref) {
   const host = useRef<HTMLDivElement>(null);
   const expressHost = useRef<HTMLDivElement>(null);
   const expressCallbacks = useRef({ expressEnabled, onExpressConfirm });
@@ -147,12 +150,13 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
             },
           },
         });
-        const payment = elements.create("payment", { layout: "tabs", wallets: { applePay: "auto", googlePay: "auto" } });
+        const walletModes = walletChoice(wallets);
+        const payment = elements.create("payment", { layout: "tabs", wallets: walletModes });
         const releasePayment = createElementCleanup(payment);
         cleanup = releasePayment;
         if (showExpress && expressHost.current) {
           try {
-            const express = elements.create("expressCheckout", { paymentMethods: { applePay: "auto", googlePay: "auto" } });
+            const express = elements.create("expressCheckout", { paymentMethods: walletModes });
             const releaseExpress = createElementCleanup(express);
             cleanup = () => { releaseExpress(); releasePayment(); };
             express.on("ready", event => {

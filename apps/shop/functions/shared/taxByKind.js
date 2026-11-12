@@ -6,12 +6,25 @@
 // wins over a country-wide rate, as before. The rule for a shop that doesn't use it: when no rate lists a kind, every
 // order is taxed exactly as it was, one rate on the whole taxable amount (tested). Shared by checkout and the server.
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.chargesTax = chargesTax;
+exports.untaxedValue = untaxedValue;
 exports.ratesUseKinds = ratesUseKinds;
 exports.ratesForKind = ratesForKind;
 exports.taxPartsByKind = taxPartsByKind;
 exports.discountedLineValues = discountedLineValues;
 const discountMath_1 = require("./discountMath");
 const listed = (rate) => (Array.isArray(rate?.kinds) ? rate.kinds.filter((k) => typeof k === "string" && k) : []);
+/**
+ * Books › edit › Charge sales tax (`chargeTax`). Off (`false`) leaves that product out of the tax, on the page and on the
+ * server; on, or never set, taxes it as before.
+ */
+function chargesTax(product) {
+    return product?.chargeTax !== false;
+}
+/** The value of `lines` (from `discountedLineValues`, by index in `all`, in the order's money) whose product is not taxed. */
+function untaxedValue(lines, all, afterDiscount, taxed) {
+    return lines.reduce((sum, line) => sum + (taxed(line) ? 0 : Math.max(0, afterDiscount[all.indexOf(line)] || 0)), 0);
+}
 /** True when any rate is limited to some kinds. */
 function ratesUseKinds(rates) {
     return (rates || []).some((rate) => listed(rate).length > 0);
