@@ -767,6 +767,41 @@ let helperShown = false;
   }
 }
 
+// Settings › Plan and Billing with a sample Colophon plan (?plan=open, ?plan=cancelled): the plan document and the
+// platform's billing answers are made here, so Close your shop can be tried end to end. Nothing leaves the page.
+{
+  const sample = new URLSearchParams(location.search).get("plan");
+  if (sample === "open" || sample === "cancelled") {
+    const { platformPlanSource } = await import("../app/admin/platformPlanApi");
+    const HUB = "https://platform.example/api/shop-billing/";
+    (globalThis as any).__fixtureIdToken = "fixture-token";
+    platformPlanSource.watch = (next) => {
+      next({ state: "active", access: "open", plan: "both", hasCard: true, hub: HUB, shopId: "test-press", link: "https://platform.example/account/billing?shop=test-press", cancelAtPeriodEnd: sample === "cancelled" });
+      return () => {};
+    };
+    let billing: any = { plan: "both", planName: "Colophon", price: "$5.00", plusTax: true, status: "active", access: "open", cancelAtPeriodEnd: sample === "cancelled",
+      currentPeriodEnd: "2026-12-12T12:00:00Z", nextPaymentAt: sample === "cancelled" ? null : "2026-12-12T12:00:00Z", hasCard: true, paymentWay: "monthly",
+      card: { brand: "visa", last4: "4242", expMonth: 12, expYear: 2030, words: "Visa ending 4242" } };
+    const answers: Record<string, () => unknown> = {
+      status: () => ({ billing, accountPage: "https://platform.example/account/", changesNeedTwoStep: false }),
+      cancel: () => { billing = { ...billing, cancelAtPeriodEnd: true, nextPaymentAt: null }; return {}; },
+      keep: () => { billing = { ...billing, cancelAtPeriodEnd: false, nextPaymentAt: billing.currentPeriodEnd }; return {}; },
+      upcoming: () => ({ bill: billing.cancelAtPeriodEnd ? null : { date: billing.currentPeriodEnd, lines: [{ words: "Colophon fee", amount: "$5.00" }, { words: "Running cost, November", amount: "$2.40" }], subtotal: "$7.40", discount: "$0.00", tax: "$0.96", total: "$8.36" } }),
+      "payment-methods": () => ({ cards: [{ id: "pm_1", words: "Visa ending 4242", brand: "visa", last4: "4242", expMonth: 12, expYear: 2030, primary: true, expired: false }] }),
+      invoices: () => ({ invoices: [{ id: "in_1", number: "COL-0001", date: "2026-11-12T12:00:00Z", amount: "$8.36", tax: "$0.96", status: "paid", pdfUrl: null, pageUrl: null }], more: false, after: null }),
+      details: () => ({ details: { name: "Test Press", email: "owner@example.com", address: null, taxNumber: "", taxLabel: "GST/HST", plusTax: true, country: "CA" } }),
+      "payment-way": () => ({ view: null }),
+    };
+    const realFetch = window.fetch.bind(window);
+    window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (!url.startsWith(HUB)) return realFetch(input as any, init);
+      const answer = answers[url.slice(HUB.length).split("?")[0]];
+      return new Response(JSON.stringify({ ok: true, ...(answer ? (answer() as object) : {}) }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }) as typeof fetch;
+  }
+}
+
 if (!helperShown) {
   const page = new URLSearchParams(location.search).get("page") || "";
   history.replaceState(null, "", `/admin?debug=true${page ? `#${page}` : ""}`);

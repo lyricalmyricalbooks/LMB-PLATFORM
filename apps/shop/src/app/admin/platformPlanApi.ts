@@ -5,6 +5,13 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { parsePlatformPlan, type PlatformPlan } from "./platformPlan";
 
+/** Where the plan document comes from: Firestore, or the admin fixture's sample plan (`?plan=open`). */
+export const platformPlanSource = {
+  watch(next: (raw: unknown) => void, fail: () => void): () => void {
+    return onSnapshot(doc(db, "platform", "plan"), (snap) => next(snap.exists() ? snap.data() : null), fail);
+  },
+};
+
 /**
  * The plan while `enabled` (a signed-in admin): undefined while loading, null when the shop has no plan document.
  * `failed` is true when it couldn't be read; the last plan read is kept then, so a dropped connection never locks or
@@ -15,8 +22,8 @@ export function usePlatformPlan(enabled: boolean): { plan: PlatformPlan | null |
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     if (!enabled) return;
-    return onSnapshot(doc(db, "platform", "plan"),
-      (snap) => { setFailed(false); setPlan(snap.exists() ? parsePlatformPlan(snap.data()) : null); },
+    return platformPlanSource.watch(
+      (raw) => { setFailed(false); setPlan(raw ? parsePlatformPlan(raw) : null); },
       () => { setFailed(true); setPlan((p) => (p === undefined ? null : p)); });
   }, [enabled]);
   return { plan, failed };

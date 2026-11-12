@@ -7,8 +7,10 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../lib/firebase", () => ({ auth: { currentUser: { getIdToken: async () => "pass" } } }));
+vi.mock("./takeoutRun", () => ({ downloadShop: async () => "" }));
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 const { PlanPage, BillingPage } = await import("./BillingHub");
+const { CloseShopCard } = await import("./CloseShopCard");
 
 const PLAN = {
   plan: "both", state: "trial", access: "open", trialEnd: "2026-11-17T12:00:00Z", nextPaymentAt: null, hasCard: true, cancelAtPeriodEnd: false, endsAt: null,
@@ -70,6 +72,8 @@ const flush = async () => { for (let i = 0; i < 10; i++) await act(async () => {
 const text = () => document.body.textContent || "";
 const button = (label: string) => [...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === label) as HTMLButtonElement;
 const click = async (el: Element) => { await act(async () => { (el as HTMLElement).click(); }); await flush(); };
+/** Cancelling lives on Settings › Billing › Close your shop now; the Plan page points there. */
+const ClosePage = ({ plan }: { plan: any }) => h(CloseShopCard, { plan });
 const mount = async (Page: typeof PlanPage) => {
   const host = document.createElement("div"); document.body.append(host);
   root = createRoot(host);
@@ -110,8 +114,15 @@ describe("Settings › Plan", () => {
     expect(world.calls.filter(([c]) => c === "change-plan").map(([, b]) => [b.plan, b.preview ?? false])).toEqual([["both", true]]);
   });
 
-  it("cancels with the press's reason, then keeps the plan", async () => {
+  it("points to Close your shop instead of cancelling here", async () => {
     await mount(PlanPage);
+    expect(text()).toContain("Leaving Colophon?");
+    expect(button("Close your shop")).toBeDefined();
+    expect(button("Cancel plan")).toBeUndefined();
+  });
+
+  it("cancels with the press's reason from Close your shop, then keeps the plan", async () => {
+    await mount(ClosePage);
     await click(button("Cancel plan"));
     const select = [...document.querySelectorAll("select")][0] as HTMLSelectElement;
     await act(async () => {
@@ -163,7 +174,7 @@ describe("Settings › Plan", () => {
 
   it("paying as you sell, with Stripe's plan ended on purpose: the shop is open and can be cancelled, with no Keep my plan", async () => {
     world.status = status({ plan: "shop", status: "canceled", access: "open", paymentWay: "payAsYouSell", cancelAtPeriodEnd: false, cancelEndsAt: "2026-12-11T12:00:00Z" });
-    await mount(PlanPage);
+    await mount(ClosePage);
     expect(button("Cancel plan")).toBeDefined();
     expect(button("Keep my plan")).toBeUndefined();
   });

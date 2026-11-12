@@ -26,6 +26,8 @@ export const SUB_TABS: Record<string, Array<[slug: string, id: string]>> = {
   inventory: [["stock", "inv-stock"], ["link", "inv-link"]],
   analytics: [["overview", "an-overview"], ["traffic", "an-traffic"], ["products", "an-products"], ["checkout", "an-checkout"]],
   apps: [["", "apps"], ["quickbooks", "quickbooks"]],
+  // #settings/billing/close scrolls to Close your shop (the help centre and the account page link there).
+  billing: [["", "billing"], ["close", "close-shop"]],
 };
 /** Old Settings page ids that open a particular sub tab (Email sender's address opens Sending setup). */
 const ALIAS_SUB_TABS: Record<string, string> = { communications: "email-setup", bookkeeping: "quickbooks" };

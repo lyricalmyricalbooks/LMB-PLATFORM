@@ -1,7 +1,7 @@
 import { LogOut } from "lucide-react";
 import { adminApi } from "./api";
 import { BackupsExportCard } from "./BackupsExportCard";
-import { DownloadShopCard } from "./DownloadShopCard";
+import { CloseShopCard } from "./CloseShopCard";
 import { hubReady, planFacts, type PlatformPlan } from "./platformPlan";
 import { BillingLink, PlanBannerBar } from "./PlanBanner";
 import { BillingPage, HubNotReady, PlanPage } from "./BillingHub";
@@ -60,19 +60,33 @@ export function PlanSettings() {
   return hubReady(plan) ? <PlanPage plan={plan} /> : <PlanCard plan={plan} />;
 }
 
-/** Settings › Billing: the next bill, saved cards, billing details and past bills (BillingHub.tsx). */
-export function BillingSettings() {
+/**
+ * Settings › Billing: the next bill, saved cards, billing details and past bills (BillingHub.tsx), then Close your shop,
+ * shown whatever the plan's state so the way out is always here (`#settings/billing/close` scrolls to it).
+ */
+export function BillingSettings({ focusClose }: { focusClose?: boolean } = {}) {
   const { plan, failed } = usePlatformPlan(true);
   if (plan === undefined) return <LoadingState label="Reading your billing…" />;
-  if (!plan && failed) return <ErrorState title="Billing not loaded" description="Your billing couldn't be read just now. Check your connection, then open this page again." />;
-  if (!plan) {
+  if (!plan && failed) {
     return (
-      <SectionCard title="Billing">
-        <EmptyState inline title="No bills yet" description="Your bills and cards show here once your plan has started." />
-      </SectionCard>
+      <div className="rp-stack" style={{ gap: 16 }}>
+        <ErrorState title="Billing not loaded" description="Your billing couldn't be read just now. Check your connection, then open this page again." />
+        <CloseShopCard plan={null} focus={focusClose} />
+      </div>
     );
   }
-  return hubReady(plan) ? <BillingPage plan={plan} /> : <HubNotReady plan={plan} />;
+  return (
+    <div className="rp-stack" style={{ gap: 16 }}>
+      {!plan
+        ? (
+          <SectionCard title="Billing">
+            <EmptyState inline title="No bills yet" description="Your bills and cards show here once your plan has started." />
+          </SectionCard>
+        )
+        : hubReady(plan) ? <BillingPage plan={plan} /> : <HubNotReady plan={plan} />}
+      <CloseShopCard plan={plan} focus={focusClose} />
+    </div>
+  );
 }
 
 /**
@@ -94,7 +108,7 @@ export function PlanDesk({ plan, email, appearance }: { plan: PlatformPlan; emai
         <div className="rp-stack" style={{ gap: 16 }}>
           <PlanBannerBar plan={plan} />
           {hubReady(plan) ? <><PlanPage plan={plan} /><BillingPage plan={plan} /></> : <PlanCard plan={plan} />}
-          <DownloadShopCard />
+          <CloseShopCard plan={plan} />
           <BackupsExportCard />
           {email && <p className="rp-hint" style={{ margin: 0 }}>Signed in as {email}.</p>}
         </div>

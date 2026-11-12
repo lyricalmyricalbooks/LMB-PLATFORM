@@ -281,7 +281,9 @@ function shopCard(shop) {
     const checkShop = el("button", { type: "button", textContent: "Check my shop" });
     checkShop.addEventListener("click", () => openCheck(shop));
     // Open and Plan & billing stay in sight; the rest sits in one More menu, as the big shop builders do.
-    actions.append(plan, moreMenu(shop, [team, checkShop, dataButton(shop)]));
+    // The way out (Settings › Billing › Close your shop in the shop's admin: download, cancel, what happens next).
+    const close = el("a", { className: "button ghost", href: closeShopLink(shop), textContent: "Close this shop" });
+    actions.append(plan, moreMenu(shop, [team, checkShop, dataButton(shop), close]));
   }
   const where = standing(shop);
   // The website's address, or the stockroom's for a press with the stockroom alone.
@@ -313,6 +315,11 @@ function shopCard(shop) {
       ...changingLines(shop).map((line) => el("p", { className: "hint", style: "margin-top:6px", textContent: line })),
       trial),
     actions);
+}
+
+/** Where a press closes a shop: its admin's Close your shop steps, or the Plan & billing page's cancel card. */
+function closeShopLink(shop) {
+  return shop.siteUrl ? `${shop.siteUrl.replace(/\/$/, "")}/admin/#settings/billing/close` : `/account/billing?shop=${encodeURIComponent(shop.shopId)}#cancel-card`;
 }
 
 /** A shop's More menu: a press-to-open list of its less-used actions. Closes on a choice, Escape or a press outside. */
