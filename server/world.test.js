@@ -258,3 +258,33 @@ test("the QuickBooks link's stores keep each record in the platform's database, 
   assert.throws(() => stores.connections.get("../x"), /shop id/);
   assert.equal(accountingEnv({ PLATFORM_URL: "https://platform.example/" }).QUICKBOOKS_REDIRECT_URL, "https://platform.example/api/accounting/quickbooks/oauth");
 });
+
+test("a shared-system shop reaches Connect Google at its address; with the keys in, its deletion takes its own address off", async () => {
+  const { sharedServerEnv } = await import("../services/release-runner/shared.js");
+  const url = /^PLATFORM_GOOGLE_URL="([^"]+)"$/m.exec(sharedServerEnv({ platformUrl: "https://platform.example" }))?.[1];
+  assert.equal(url, "https://platform.example/api/google");
+  const path = `${new URL(url).pathname}/shop`;
+  const shared = { ...TEST_ENV, SHARED_SHOPS_PROJECT: "lmb-test-shop", SHARED_SHOPS_DOMAIN: "shops.example" };
+  const key = "shared-server-key-0123456789abcdef0123456789";
+  const row = { shopId: "moth-press", projectId: "lmb-test-shop", shared: true, status: "live", serviceKeyHash: hashServiceKey(key) };
+
+  // Without Google's keys: "coming soon", and no deletion hook of Google's.
+  const off = build(shared).world;
+  await off.registry.createShop("moth-press", row);
+  const soon = await off.handle({ method: "POST", path, headers: { "X-Shop-Id": "moth-press", Authorization: `Bearer ${key}` }, body: { op: "google.status" } });
+  assert.deepEqual(soon.body, { enabled: false });
+
+  // With them (testing mode: the test shop only), the link is on and is the closing sweep's deletion hook.
+  const keys = { GOOGLE_CLIENT_ID: "id.apps.googleusercontent.com", GOOGLE_CLIENT_SECRET: "made-up", GOOGLE_TOKEN_KEY: Buffer.alloc(32, 7).toString("base64") };
+  const { world } = build({ ...shared, ...keys });
+  assert.ok(world.googleLink, "the Google link is hosted");
+  await world.registry.createShop("moth-press", { ...row, testShop: true });
+  const refused = await world.handle({ method: "POST", path, headers: { "X-Shop-Id": "moth-press" }, body: { op: "google.status" } });
+  assert.equal(refused.status, 401);
+  const on = await world.handle({ method: "POST", path, headers: { "X-Shop-Id": "moth-press", Authorization: `Bearer ${key}` }, body: { op: "google.status" } });
+  assert.equal(on.status, 200, JSON.stringify(on.body));
+  assert.equal(on.body.enabled, true);
+  assert.equal(world.googleLink.closingHooks.beforeDelete.length, 1);
+  // Not due yet: the hook refuses and nothing comes off.
+  assert.equal((await world.googleLink.closingHooks.beforeDelete[0]({ shopId: "moth-press" })).refused, true);
+});

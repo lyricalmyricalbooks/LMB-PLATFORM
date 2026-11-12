@@ -57,3 +57,38 @@ test("closing a shop undoes its Google link only when it was connected", async (
   for (const id of ["a", "b"]) await g.closingHooks.onClose[0]({ shopId: id });
   assert.deepEqual(runs, ["a"]);
 });
+
+test("deleting a shared shop takes its own address off through the domain service, never before the date", async () => {
+  const DAY = 86400000;
+  let at = Date.parse("2026-11-12T12:00:00Z");
+  const rows = {
+    "moth-press": {
+      shopId: "moth-press", projectId: "lmb-test-shop", shared: true,
+      domains: [{ name: "shop.mothpress.example", state: "live" }],
+      closing: { stage: "closed", closedAt: "2026-08-01T00:00:00Z", deleteAfter: new Date(at + DAY).toISOString(), warned30At: "2026-10-13T00:00:00Z", warned7At: "2026-11-05T00:00:00Z" },
+    },
+  };
+  const registry = {
+    getShop: async (id) => (rows[id] ? structuredClone(rows[id]) : null),
+    updateShop: async (id, fields) => { rows[id] = { ...rows[id], ...fields }; },
+    listShops: async () => Object.values(rows),
+    recordEvent: async () => {},
+  };
+  const calls = [];
+  const domains = { removeDomain: async (shopId, args) => { calls.push([shopId, args]); return { done: true, removed: args.domain }; } };
+  const store = new Map();
+  const platform = { get: async (k) => store.get(k) ?? null, set: async (k, v) => void store.set(k, v), transaction: async (fn) => fn({ get: async (k) => store.get(k) ?? null, remove: (k) => store.delete(k), set: (k, v) => store.set(k, v) }) };
+  const g = hostedGoogleLink({ env: KEYS, fetch: async () => new Response("{}"), token: async () => "t", platform, registry, domains, now: () => at, log: () => {} });
+  const [beforeDelete] = g.closingHooks.beforeDelete;
+
+  const early = await beforeDelete({ shopId: "moth-press" });
+  assert.equal(early.refused, true);
+  assert.deepEqual(calls, [], "nothing comes off before the date");
+
+  at += 2 * DAY;
+  const result = await beforeDelete({ shopId: "moth-press" });
+  assert.notEqual(result.refused, true, JSON.stringify(result));
+  assert.deepEqual(calls, [["moth-press", { domain: "shop.mothpress.example", deleting: true }]]);
+  assert.equal(result.steps.find((s) => s.step === "removeDomain").state, "done");
+  assert.equal(result.steps.find((s) => s.step === "deleteFirebase").state, "done", "the shared project itself is left alone");
+});
