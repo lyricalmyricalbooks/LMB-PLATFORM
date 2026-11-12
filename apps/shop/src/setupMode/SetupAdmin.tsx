@@ -3,12 +3,16 @@
 // and Help work. Every other page says
 // it comes with the shop. Everything saves to the press's setup record through the platform's door (door.ts); nothing
 // here reads or writes a shop database, because there is none until the press opens its shop.
-import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { ArrowRight, Check, ChevronDown, ExternalLink, HelpCircle, Inbox, Lock, LogOut, Menu, Store } from "lucide-react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { ArrowRight, Check, ChevronDown, ExternalLink, HelpCircle, Inbox, Lock, LogOut, Menu, Moon, Store, Sun } from "lucide-react";
 import {
-  AppShell, EmptyState, GhostButton, IconButton, PageHeader, PrimaryButton, SectionCard, SelectField, Sidebar,
+  AppShell, EmptyState, GhostButton, IconButton, PageHeader, PageTabs, PrimaryButton, SectionCard, SelectField, Sidebar,
   TextField, ToastProvider, Topbar, useRisoToast,
 } from "../app/admin/riso/components";
+import { PAGE_COPY, itemSections, sideMenu } from "../app/admin/riso/nav";
+import { CardsAsSections } from "../app/admin/riso/components";
+import { FormPage } from "../app/admin/riso/FormKit";
+import { SideSwitch } from "../app/admin/SideSwitch";
 import { ChooseLookWelcome } from "../app/admin/overview/ChooseLookWelcome";
 import { THEME_LIBRARY } from "../app/admin/studio/themeLibrary";
 import { ShopWordsContext, useShopWords } from "../app/admin/shopWords";
@@ -25,7 +29,7 @@ import { ProgressTile } from "../app/admin/overview/ProgressTile";
 import "../app/admin/overview/setupBoard.css";
 import {
   DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, IMPORT_PAGE, PAYMENTS_PAGE, PLAN_PAGE, SETUP_QUESTIONS, STEP_HELP, guideProgress, guideSteps, setupGroups, helpFor, lockedPageLine, nextGuideStep,
-  pageFromHash, readyToCreate, setupLocked, setupMenu, setupMenuItemFor, setupPageLabel,
+  allSetupItems, pageFromHash, readyToCreate, setupLocked, setupMenu, setupMenuItemFor, setupPageLabel, setupSide,
 } from "./pages";
 
 /** The platform's own lists (signup/form.js), passed in so the platform keeps one copy of them. */
@@ -35,6 +39,13 @@ export interface SetupLists {
 }
 
 const PLAN_LINES: Record<string, string> = { both: "Your website and your stockroom, kept in step" };
+
+/** The line under a page's title (in book words; the page shows the shop's own). */
+const PAGE_LINES: Record<string, string> = {
+  [GENERAL_PAGE]: "Your brand's details. They go into your shop when it opens, and you can change them any time.",
+  [IMPORT_PAGE]: "Bring your books over from your old shop or a spreadsheet. They come in when your shop opens, as drafts for you to check.",
+  [HELP_PAGE]: "Answers about setting up and creating your shop.",
+};
 
 const NO_ANSWERS: HelpAnswers = new Map();
 
@@ -62,10 +73,18 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
 }) {
   const [press, setPress] = useState(first);
   const [plans, setPlans] = useState<PlanList | null>(null);
-  const menu = useMemo(() => setupMenu(), []);
-  const [page, setPage] = useState(() => pageFromHash(typeof location === "undefined" ? "" : location.hash, menu) ?? HOME_PAGE);
+  const allItems = useMemo(allSetupItems, []);
+  const [page, setPage] = useState(() => pageFromHash(typeof location === "undefined" ? "" : location.hash, allItems) ?? HOME_PAGE);
+  // v4: the Website · Stockroom switch; the rail lists the side the page is on.
+  const side = setupSide(page);
+  const menu = useMemo(() => setupMenu(side), [side]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const appearance = useMemo(readAppearance, []);
+  const [appearance, setAppearance] = useState(readAppearance);
+  const toggleAppearance = () => {
+    const next = appearance === "dark" ? "light" : "dark";
+    setAppearance(next);
+    try { localStorage.setItem("adminThemeReso", next); } catch { /* private window: this visit only */ }
+  };
   const w = useMemo(() => adminWordsFor(press.sells || null), [press.sells]);
   const answers = useMemo(() => (typeof given === "function" ? given(press.sells || null) : given), [given, press.sells]);
 
@@ -74,10 +93,10 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
   useEffect(loadPlans, [door]);
   useEffect(() => {
     // An address that names no page (the skip link's #rp-main) leaves the page as it is, so nothing typed is lost.
-    const onHash = () => { const next = pageFromHash(location.hash, menu); if (next) setPage(next); };
+    const onHash = () => { const next = pageFromHash(location.hash, allItems); if (next) setPage(next); };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
-  }, [menu]);
+  }, [allItems]);
 
   const open = (next: string, anchor?: string) => {
     setSidebarOpen(false);
@@ -100,28 +119,40 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
 
   const pressName = press.pressName || "Your press";
   const planPage = () => (
-    <PlanPage press={press} plans={plans} failed={plansFailed} onRetry={loadPlans} save={save} termsUrl={termsUrl}
+    <SetupForm><PlanPage press={press} plans={plans} failed={plansFailed} onRetry={loadPlans} save={save} termsUrl={termsUrl}
       names={{ countries: lists.countries, sells: lists.sells, lookName: themeName(press.look) }} email={email}
       createShop={(choice) => door.openShop(press.pressId, choice)} onCreated={setPress} onOpen={open}
-      follow={async () => (await door.presses()).find((p) => p.pressId === press.pressId) ?? null} retry={door.retryShop} />
+      follow={async () => (await door.presses()).find((p) => p.pressId === press.pressId) ?? null} retry={door.retryShop} /></SetupForm>
   );
   let content;
   // Once Create my shop has run, setup can't change: every page but Help shows the shop being made.
   const made = press.status !== "setup";
   if (made && page !== HELP_PAGE) content = planPage();
-  else if (setupLocked(page)) content = <OpensWithShop page={setupPageLabel(page, menu)} line={w(lockedPageLine(page))} onOpenShop={openCreate} onBack={() => open(HOME_PAGE)} />;
+  else if (setupLocked(page)) content = <OpensWithShop page={setupPageLabel(page, allItems)} line={w(lockedPageLine(page))} onOpenShop={openCreate} onBack={() => open(HOME_PAGE)} header={false} />;
   else if (page === HOME_PAGE) content = <SetupGuide press={press} helpUrl={helpFor(helpUrl, press.sells)} answers={answers} onOpen={open} onCreate={openCreate} />;
   else if (page === GENERAL_PAGE) content = (
-    <>
+    <SetupForm>
       <PressDetails press={press} lists={lists} save={save} />
       <WebAddressCard press={press} door={door} save={save} onSaved={setPress} />
-    </>
+    </SetupForm>
   );
   else if (page === IMPORT_PAGE) content = <ImportPage press={press} door={door} onSaved={setPress} />;
   else if (page === DESIGN_PAGE) content = <DesignPage press={press} save={save} />;
-  else if (page === PAYMENTS_PAGE) content = <CardPaymentsPage press={press} save={save} />;
+  else if (page === PAYMENTS_PAGE) content = <SetupForm><CardPaymentsPage press={press} save={save} /></SetupForm>;
   else if (page === PLAN_PAGE) content = planPage();
   else content = <HelpPage helpUrl={helpFor(helpUrl, press.sells)} accountUrl={accountUrl} answers={answers} ask={door.askForHelp} pressName={press.pressName} />;
+
+  // v4 shell (as the open shop's admin): one page header above the page, then the item's pages as pills (or a column
+  // under headings for Settings), then the page. Home draws its own welcome header.
+  const shown = made && page !== HELP_PAGE ? PLAN_PAGE : page;
+  const items = menu.map((item) => ({ ...item, label: w(item.label), ...(item.children ? { children: item.children.map((c) => ({ ...c, label: w(c.label) })) } : {}) }));
+  const activeItemId = setupMenuItemFor(shown, menu);
+  const activeItem = items.find((i) => i.id === activeItemId);
+  const sections = activeItem?.children ? itemSections(sideMenu(side), activeItemId, activeItem.children) : null;
+  const tabs = !made && activeItem?.children && activeItem.children.length > 1 ? activeItem.children : null;
+  const column = !!tabs && !!sections;
+  const title = shown === HOME_PAGE ? null : w(PAGE_COPY[shown]?.title ?? setupPageLabel(shown, allItems));
+  const description = PAGE_LINES[shown] ? w(PAGE_LINES[shown]) : undefined;
 
   return (
     <ShopWordsContext.Provider value={w}>
@@ -131,13 +162,16 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
           <Sidebar
             open={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
-            items={menu.map((item) => ({ ...item, label: w(item.label), ...(item.children ? { children: item.children.map((c) => ({ ...c, label: w(c.label) })) } : {}) }))}
-            activeId={setupMenuItemFor(page, menu)}
-            activeChildId={page}
+            items={items}
+            flat
+            activeId={activeItemId}
+            activeChildId={shown}
             onSelect={open}
             onSelectChild={(_item, child) => open(child)}
+            top={<SideSwitch side={side} onPick={(next) => open(sideMenu(next)[0].pages[0])} />}
             brand={
               <a className="rp-brand-link" href={`#${HOME_PAGE}`} aria-label="Setup guide" onClick={(e) => { e.preventDefault(); open(HOME_PAGE); }}>
+                <span className="rp-brand-tile" aria-hidden="true">{pressName.trim().charAt(0).toUpperCase()}</span>
                 <span className="rp-brand-text">
                   <span className="rp-wordmark">{pressName}</span>
                   <span className="rp-wordmark-sub">Setting up</span>
@@ -146,8 +180,11 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
             }
             footer={
               <>
-                <p style={{ margin: "0 12px 4px", fontSize: 12, opacity: 0.75, overflowWrap: "anywhere" }}>{email}</p>
+                <button type="button" className="rp-night-look" aria-pressed={appearance === "dark"} onClick={toggleAppearance}>
+                  {appearance === "dark" ? <Sun size={14} aria-hidden /> : <Moon size={14} aria-hidden />} {appearance === "dark" ? "Day look" : "Night look"}
+                </button>
                 <button type="button" className="rp-nav-item" aria-current={page === HELP_PAGE ? "page" : undefined} onClick={() => open(HELP_PAGE)}><HelpCircle size={18} aria-hidden />Help</button>
+                <p style={{ margin: "4px 12px", fontSize: 12, opacity: 0.75, overflowWrap: "anywhere" }}>{email}</p>
                 <button type="button" className="rp-nav-item" onClick={onSignOut}><LogOut size={18} aria-hidden />Sign out</button>
               </>
             }
@@ -174,20 +211,32 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
           </Topbar>
         }
       >
-        {content}
+        {title && <PageHeader title={title} description={description} />}
+        <div className="rp-page-body" data-layout={column ? "column" : undefined}>
+          {tabs && (
+            <PageTabs label={`${activeItem!.label} pages`} column={column} current={shown} onPick={open}
+              groups={sections ?? [{ pages: tabs }]} />
+          )}
+          <div className="rp-page-main">{content}</div>
+        </div>
       </AppShell>
     </ShopWordsContext.Provider>
   );
+}
+
+/** A Settings page in setup, laid out like the open shop's (v4 form kit): each card is a section named on the left. */
+function SetupForm({ children }: { children: ReactNode }) {
+  return <FormPage><CardsAsSections.Provider value={true}>{children}</CardsAsSections.Provider></FormPage>;
 }
 
 /**
  * A page that needs the shop: says what it will do and that it comes with the shop, sends the press back to the setup
  * guide, and offers Create my shop. Writes nothing.
  */
-export function OpensWithShop({ page, line = "", onOpenShop, onBack }: { page: string; line?: string; onOpenShop: () => void; onBack?: () => void }) {
+export function OpensWithShop({ page, line = "", onOpenShop, onBack, header = true }: { page: string; line?: string; onOpenShop: () => void; onBack?: () => void; header?: boolean }) {
   return (
     <>
-      <PageHeader title={page} />
+      {header && <PageHeader title={page} />}
       <EmptyState
         icon={<Inbox size={28} aria-hidden />}
         title="Nothing here yet"
@@ -388,8 +437,7 @@ function PressDetails({ press, lists, save }: { press: SetupPress; lists: SetupL
   };
   return (
     <>
-      <PageHeader title="General" description="Your brand's details. They go into your shop when it opens, and you can change them any time." />
-      <SectionCard title="Your brand" collapsible={false}>
+      <SectionCard title="Your brand" description="Your name, what you sell and where." collapsible={false}>
         <form onSubmit={submit} style={{ display: "grid", gap: 16, maxWidth: 520 }}>
           <TextField label="Brand name" value={name} maxLength={120} autoComplete="organization" onChange={(e) => setName(e.target.value)} />
           <SelectField label="What you sell" value={sells} onChange={(e) => setSells(e.target.value)}>
@@ -417,7 +465,6 @@ function PressDetails({ press, lists, save }: { press: SetupPress; lists: SetupL
 function DesignPage({ press, save }: { press: SetupPress; save: (c: SetupChange) => Promise<SetupPress> }) {
   return (
     <>
-      <PageHeader title="Design" />
       <ChooseLookWelcome
         publishes={press.sells || null}
         settings={{ info: { name: press.pressName } }}
@@ -451,8 +498,7 @@ function CardPaymentsPage({ press, save }: { press: SetupPress; save: (c: SetupC
   };
   return (
     <>
-      <PageHeader title="Payments" />
-      <SectionCard title="Card payments" collapsible={false}>
+      <SectionCard title="Card payments" description="Who takes card payments on your website." collapsible={false}>
         <div role="radiogroup" aria-label="Card payments" style={{ display: "grid", gap: 8 }}>
           {CARD_PROVIDER_CHOICES.map((option) => {
             const on = chosen === option.id;
@@ -499,8 +545,7 @@ function PlanPage({ press, plans, failed, onRetry, save, termsUrl, names, email,
   const trialWords = trial > 0 ? `Your first shop is free for ${trial} days once it's made, then monthly` : "Monthly once your shop is made";
   return (
     <>
-      <PageHeader title="Plan" />
-      <SectionCard title="Your plan" collapsible={false}>
+      <SectionCard title="Your plan" description="One plan, everything in it." collapsible={false}>
         {/* One product (10 November 2026): every shop gets the website and the stockroom, so there is nothing to pick. */}
         <div id="plan-choice" style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "4px 16px", alignItems: "center", padding: 14,
           background: "var(--rp-primary-tint)", border: "2px solid var(--rp-text)" }}>
@@ -540,7 +585,6 @@ function HelpPage({ helpUrl, accountUrl, answers, ask, pressName }: {
   const w = useShopWords();
   return (
     <>
-      <PageHeader title="Help" description="Answers about setting up and creating your shop." />
       <SectionCard title="While you set up" collapsible={false}>
         <HelpQuestions questions={SETUP_QUESTIONS} answers={answers} helpUrl={helpUrl} ruled />
       </SectionCard>

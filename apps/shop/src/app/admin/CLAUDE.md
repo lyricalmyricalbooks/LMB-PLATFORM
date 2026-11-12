@@ -842,6 +842,13 @@ waiting (`diffDesigns` of the live design against `openWorkspace`'s draft, both 
 sit by the title. Studio (`settings/designer`, `#designer…`) is on no menu item; its links still open it directly, and
 leaving it returns to `design`. Fixture: `admin-fixture.html?page=design`.
 
+**Setup mode in the v4 shell (12 November 2026):** `src/setupMode/SetupAdmin.tsx` wears the open admin's v4 shell: the
+flat rail with the Website · Stockroom switch (`setupMenu(side)` = `sidebarItems(NAV, sideMenu(side))`, `setupSide`),
+one page header above the page, the item's pages as pills (Settings: the grouped column, `itemSections`), and General,
+Payments and Plan as form kit pages (`SetupForm`: `FormPage` + `CardsAsSections`). Pages don't draw their own header
+(Home keeps its welcome). Stockroom pages are locked and say what they hold (`lockedPageLine` falls back to the page's
+description in `combined.ts`).
+
 **v4 form kit (12 November 2026, Julian's mockups v4):** form pages use `riso/FormKit.tsx` (FormPage, FormSection, FormField,
 SummaryRail, StatusBar). A page built from many SectionCards takes the kit look by wrapping them in
 `<CardsAsSections.Provider value>` (`riso/components.tsx`): each card then draws as a kit section, and the older

@@ -4,7 +4,7 @@
 // to a shop: there isn't one yet.
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { FileUp, Trash2 } from "lucide-react";
-import { EmptyState, GhostButton, PageHeader, PrimaryButton, SecondaryButton, SectionCard, SelectField, StatusBadge } from "../app/admin/riso/components";
+import { EmptyState, GhostButton, PrimaryButton, SecondaryButton, SectionCard, SelectField, StatusBadge } from "../app/admin/riso/components";
 import { OldShopAddressForm } from "../app/admin/OldShopAddressForm";
 import { BRING_ANSWERS, bringAnswerOf, bringHelp, type BringAnswer } from "../app/admin/bringShop";
 import { ImportPreviewRows, MAX_FILE_BYTES } from "../app/admin/importPreview";
@@ -107,7 +107,6 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
     <>
       <input ref={fileRef} type="file" accept={SPREADSHEET_ACCEPT} hidden aria-label="Product file"
         onChange={(e) => { setFoundHost(""); void choose(e.target.files?.[0]); e.target.value = ""; }} />
-      <PageHeader title={w("Books")} description={w("Bring your books over from your old shop or a spreadsheet. They come in when your shop opens, as drafts for you to check.")} />
 
       {kept && !replacing && !file && (
         <SectionCard title="Kept for your shop" collapsible={false}

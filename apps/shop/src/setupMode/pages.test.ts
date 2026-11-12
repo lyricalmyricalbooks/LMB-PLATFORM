@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { NAV, SETTINGS_ITEM_PREFIX, sidebarItems } from "../app/admin/riso/nav";
+import { NAV, SETTINGS_ITEM_PREFIX, STOCKROOM_SIDE, WEBSITE_SIDE, sidebarItems } from "../app/admin/riso/nav";
 import type { SetupPress } from "./door";
-import { DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, PLAN_PAGE, guideProgress, guideSteps, setupGroups, helpFor, nextGuideStep, pageFromHash, readyToCreate, setupLocked, showMoveIn, setupMenu, setupMenuItemFor, setupPageLabel } from "./pages";
+import { DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, PLAN_PAGE, guideProgress, guideSteps, setupGroups, helpFor, nextGuideStep, pageFromHash, readyToCreate, setupLocked, showMoveIn, setupMenu, setupMenuItemFor, setupPageLabel, setupSide, allSetupItems } from "./pages";
 
 const press = (over: Partial<SetupPress> = {}): SetupPress => ({
   pressId: "press-moth", status: "setup", plan: "", pressName: "", sells: "", country: "", look: "", adminLook: "", stagedImport: null, ...over,
@@ -10,9 +10,12 @@ const press = (over: Partial<SetupPress> = {}): SetupPress => ({
 describe("setup mode's menu (code plan 18.6)", () => {
   const menu = setupMenu();
 
-  it("is exactly the admin's own menu, with Plan under Settings", () => {
-    expect(menu).toEqual(sidebarItems(NAV));
-    expect(menu.map((i) => i.label)).toEqual(["Home", "Orders", "Books", "Design", "Settings"]);
+  it("is exactly the admin's own menu (v4: the website side, and the stockroom side behind the switch)", () => {
+    expect(menu).toEqual(sidebarItems(NAV, WEBSITE_SIDE));
+    expect(menu.map((i) => i.label)).toEqual(["Home", "Orders", "Messages", "Books", "Marketing", "Analytics", "Online store", "Settings"]);
+    expect(setupMenu("stockroom")).toEqual(sidebarItems(NAV, STOCKROOM_SIDE));
+    expect(setupSide("stockroom/expenses")).toBe("stockroom");
+    expect(setupSide(GENERAL_PAGE)).toBe("website");
   });
 
   it("keeps Plan under Settings, as the open shop's admin does", () => {
@@ -25,9 +28,9 @@ describe("setup mode's menu (code plan 18.6)", () => {
     // The menu's Design item is the look gallery, and the older address still opens it.
     expect(setupMenu().some((i) => i.id === DESIGN_PAGE)).toBe(true);
     expect(pageFromHash("#settings/designer")).toBe(DESIGN_PAGE);
-    const every = menu.flatMap((i) => (i.children ? i.children.map((c) => c.id) : [i.id]));
+    const every = allSetupItems().flatMap((i) => (i.children ? i.children.map((c) => c.id) : [i.id]));
     const locked = every.filter(setupLocked);
-    expect(locked).toEqual(expect.arrayContaining(["orders", "customers", "inventory", SETTINGS_ITEM_PREFIX + "shipping"]));
+    expect(locked).toEqual(expect.arrayContaining(["orders", "customers", "inventory", "stockroom/expenses", SETTINGS_ITEM_PREFIX + "shipping"]));
     expect(locked).not.toContain(GENERAL_PAGE);
   });
 
@@ -139,7 +142,7 @@ describe("the help centre follows what the shop sells (code plan 12.18)", () => 
 describe("what setup mode says around the guide", () => {
   it("every locked menu page says what it will do once the shop is made", async () => {
     const { lockedPageLine } = await import("./pages");
-    const every = setupMenu().flatMap((i) => (i.children ? i.children.map((c) => c.id) : [i.id]));
+    const every = allSetupItems().flatMap((i) => (i.children ? i.children.map((c) => c.id) : [i.id]));
     for (const page of every.filter(setupLocked)) expect(lockedPageLine(page), page).not.toBe("");
   });
 
