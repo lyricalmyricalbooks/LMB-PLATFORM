@@ -906,3 +906,11 @@ invoice) and one action: **Settle** (one payable invoice → its Mark paid dialo
 **Bill them** (owed but nothing billed → Invoices with that stockist) or Up to date. **Recent movements** lists
 `recentMovements` (newest 8, voided left out). The mockup's shared Terms form is not built: commission is per stockist
 (Edit details) and nothing stores a settle-every setting.
+
+**Invoices in v4 (12 November 2026):** `stockroom/InvoicesCard` (InvoiceDialogs.tsx) opens with three tiles from
+`invoicesSummary` (`invoiceMake.ts`, pure): Outstanding (sent, sky), Overdue (apricot when any) and Paid, last 30 days
+(mint, by `paidAt`, now on `InvoiceRow`), then filter pills with counts (`INVOICE_FILTERS`, `inFilter`: Sent = owed, not
+yet overdue). The table has Customer, Issued, Due, Amount, Status and one action: **Mark sent** for drafts
+(`markSentChange`) and **Mark paid** for sent/overdue (confirm, then `markInvoicePaid` from `stockists.ts`, the same
+settle Stockists uses). Create invoice and the details, reminders and letterhead buttons sit in the page header. The
+mockup's "Download statements" is not built (no such feature) and its "Send" is labelled Mark sent (nothing is emailed).

@@ -1,4 +1,5 @@
-// Stockroom › Invoices (v3 mockups: its own menu item). The Invoices card (InvoiceDialogs.tsx) on a page of its own.
+// Stockroom › Invoices (its own menu item; v4: three tiles, filter pills with counts, one action per row, Create invoice in
+// the header). The list lives in InvoiceDialogs.tsx (InvoicesCard).
 // A stockist's drawer opens it with that stockist (passed as `bookId`, the page's focus) to start a new invoice.
 import { useState } from "react";
 import type { NativePageProps } from "./nativePages";
@@ -18,9 +19,7 @@ function InvoicesBoard({ initial, newFor: start }: { initial: StockroomRecords; 
   const [newFor, setNewFor] = useState<string | null>(start);
   const saved = (bookId: string, state: Record<string, any>) => setRecords((r) => ({ ...r, states: { ...r.states, [bookId]: state } }));
   return (
-    <div className="rp-sk">
-      <InvoicesCard records={records} onBookSaved={saved} onSettingsSaved={(value) => setRecords((r) => ({ ...r, invoiceSettings: value }))}
-        newFor={newFor} onNewDone={() => setNewFor(null)} />
-    </div>
+    <InvoicesCard records={records} onBookSaved={saved} onSettingsSaved={(value) => setRecords((r) => ({ ...r, invoiceSettings: value }))}
+      newFor={newFor} onNewDone={() => setNewFor(null)} />
   );
 }

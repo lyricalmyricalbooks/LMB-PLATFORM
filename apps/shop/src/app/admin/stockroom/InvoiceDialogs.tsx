@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fmt, fmtD } from "@stockroom/money.js";
 
-import { DataTable, Dialog, EmptyState, IconButton, PageHead, PrimaryButton, SecondaryButton, StatusBadge, TextArea, TextField, useConfirm, type Column } from "../riso/components";
+import { DataTable, Dialog, EmptyState, IconButton, PageActions, PageHead, PrimaryButton, Tabs, SecondaryButton, StatusBadge, TextArea, TextField, useConfirm, type Column } from "../riso/components";
 import { FormChoice, FormField, FormPage, FormReadOnly, FormRow, FormSection, FormToggle, StatusBar, SummaryRail, formStatus } from "../riso/FormKit";
 import { useShopWords } from "../shopWords";
 import { invoiceReminderState } from "@stockroom/payment-reminders.js";
@@ -16,11 +16,12 @@ import { adminApi } from "../api";
 import {
   blankForm, blankLine, cleanInvoiceSettings, copyForm, invoiceEmail, deleteInvoiceChange, formBookIds, formFromInvoice, formTotals, INVOICE_SETTINGS_KEY, invoiceList,
   invoiceProblem, invoiceSettingsChange, currencyFor, markSentChange, newInvoiceId, nextNumber, ownerChoices, pendingSaleLines, saveInvoiceChange,
-  stockistNames, todayText, type InvoiceForm, type InvoiceLine, type InvoiceRow, type InvoiceSettings,
+  stockistNames, todayText, INVOICE_FILTERS, inFilter, invoicesSummary, type InvoiceFilter, type InvoiceForm, type InvoiceLine, type InvoiceRow, type InvoiceSettings,
 } from "./invoiceMake";
 import { invoicePage, printInvoice } from "./invoicePaper";
 import { attachCardLinkChange, cardLinkOf, cardLinkRefusal, invoiceCardPayApi, recordCardPayments } from "./invoiceCardPay";
 import { RemindersDialog } from "./RemindersDialog";
+import { markInvoicePaid, moneyText } from "./stockists";
 import { LetterheadDialog } from "./LetterheadDialog";
 import type { StockroomRecords } from "./stockroomData";
 import { describeResult, stockroomWriteApi } from "./stockroomWrite";
@@ -395,7 +396,7 @@ export function InvoiceView({ row, settings, onClose, onEdit, onCopy, onSaved }:
 // ── The list ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
 const statusBadge = (r: InvoiceRow) => r.overdue ? <StatusBadge tone="danger">Overdue</StatusBadge>
-  : <StatusBadge tone={r.status === "paid" ? "success" : r.status === "sent" ? "warning" : "neutral"} glyph={false}>{r.status === "sent" ? "Owed" : r.status[0].toUpperCase() + r.status.slice(1)}</StatusBadge>;
+  : <StatusBadge tone={r.status === "paid" ? "success" : r.status === "sent" ? "info" : "neutral"} glyph={false}>{r.status[0].toUpperCase() + r.status.slice(1)}</StatusBadge>;
 
 type Open = { kind: "settings" } | { kind: "reminders" } | { kind: "letterhead" } | { kind: "edit"; form: InvoiceForm } | { kind: "view"; id: string };
 
@@ -434,36 +435,67 @@ export function InvoicesCard({ records, onBookSaved, onSettingsSaved, newFor, on
   const current = open?.kind === "view" ? rows.find((r) => r.id === open.id) || null : null;
   const saved: BookSaved = (bookId, state, n) => { onBookSaved?.(bookId, state); setNotice(n); setOpen(null); };
 
+  const [filter, setFilter] = useState<InvoiceFilter>("all");
+  const [acting, setActing] = useState<string | null>(null);
+  const [ask, confirmNode] = useConfirm();
+  const summary = useMemo(() => invoicesSummary(rows), [rows]);
+  const listed = rows.filter((r) => inFilter(r, filter));
+  const openRow = (r: InvoiceRow) => { setNotice(null); setOpen({ kind: "view", id: r.id }); };
+  // v4: one action per row, through the same saves as the invoice's own buttons (Mark sent; Mark paid as Stockists' Settle).
+  const act = async (r: InvoiceRow, paid: boolean) => {
+    if (acting || !writable) return;
+    const name = r.num || "Invoice";
+    if (paid && !(await ask({ title: `Mark ${name} paid`, message: `${fmt(r.total, r.code)} from ${r.billedTo}.`, confirmLabel: "Mark paid" }))) return;
+    setActing(r.id); setNotice(null);
+    const res = await saveBook(r.ownerBookId, paid ? markInvoicePaid(r.id, Date.now()) : markSentChange(r.id, Date.now()),
+      paid ? `${name} is paid.` : `${name} is marked sent. It counts as owed from now.`);
+    setActing(null);
+    if (!res.ok) { setNotice(res.notice); return; }
+    onBookSaved?.(r.ownerBookId, res.state); setNotice(res.notice);
+  };
   const columns: Column<InvoiceRow>[] = [
-    { key: "num", header: "Invoice", lead: true, render: (r) => <>
-      <button type="button" className="rp-sr-open" onClick={() => { setNotice(null); setOpen({ kind: "view", id: r.id }); }} aria-label={`Open ${r.num || "invoice"} for ${r.billedTo}`}>{r.num || "Invoice"}</button>
-      <div className="rp-hint">{r.person ? `${r.billedTo} (not a stockist)` : r.billedTo}</div>
-    </> },
-    { key: "date", header: "Date", render: (r) => <>{r.date ? fmtD(r.date) : "—"}{r.dueDate && r.status !== "paid" && <div className="rp-hint">Due {fmtD(r.dueDate)}</div>}</> },
-    { key: "total", header: "Total", numeric: true, render: (r) => fmt(r.total, r.code) },
+    { key: "num", header: "Invoice", lead: true, render: (r) => <button type="button" className="rp-sr-open" onClick={() => openRow(r)} aria-label={`Open ${r.num || "invoice"} for ${r.billedTo}`}>{r.num || "Invoice"}</button> },
+    { key: "who", header: "Customer", render: (r) => r.person ? <>{r.billedTo}<div className="rp-hint">Not a stockist</div></> : r.billedTo },
+    { key: "date", header: "Issued", render: (r) => r.date ? fmtD(r.date) : "—" },
+    { key: "due", header: "Due", render: (r) => r.dueDate ? fmtD(r.dueDate) : "—" },
+    { key: "total", header: "Amount", numeric: true, render: (r) => fmt(r.total, r.code) },
     { key: "status", header: "Status", render: statusBadge },
+    { key: "action", header: "Action", render: (r) => !writable || r.status === "paid" || r.status === "cancelled" ? <span className="rp-sk-uptodate">—</span>
+      : r.status === "draft"
+        ? <SecondaryButton size="sm" onClick={() => act(r, false)} busy={acting === r.id} disabled={!!acting} aria-label={`Mark ${r.num || "invoice"} sent`}>Mark sent</SecondaryButton>
+        : <SecondaryButton size="sm" onClick={() => act(r, true)} busy={acting === r.id} disabled={!!acting} aria-label={`Mark ${r.num || "invoice"} paid`}>Mark paid</SecondaryButton> },
   ];
   const canMake = records.books.length > 0;
   // v4: New invoice and editing one are their own page (Back returns to the list).
   if (open?.kind === "edit") return <InvoiceEditor records={records} settings={settings} start={open.form} onClose={() => setOpen(null)} onSaved={saved} />;
   return (
-    <section className="rp-card rp-reorder-card" aria-labelledby="rp-inv-title">
-      <div className="rp-inv-head">
-        <h2 className="rp-card-title" id="rp-inv-title">Invoices</h2>
-        {writable && <div className="rp-sk-actions">
-          <SecondaryButton size="sm" onClick={() => { setNotice(null); setOpen({ kind: "settings" }); }}>Invoice details</SecondaryButton>
-          <SecondaryButton size="sm" onClick={() => { setNotice(null); setOpen({ kind: "reminders" }); }}>Reminders</SecondaryButton>
-          <SecondaryButton size="sm" onClick={() => { setNotice(null); setOpen({ kind: "letterhead" }); }}>Letterhead</SecondaryButton>
-          {canMake && <PrimaryButton size="sm" onClick={() => { setNotice(null); setOpen({ kind: "edit", form: blankForm(records, settings, { person: !stockistNames(records).length }) }); }}>New invoice</PrimaryButton>}
-        </div>}
-      </div>
+    <div className="rp-sk">
+      {writable && <PageActions>
+        <SecondaryButton onClick={() => { setNotice(null); setOpen({ kind: "settings" }); }}>Invoice details</SecondaryButton>
+        <SecondaryButton onClick={() => { setNotice(null); setOpen({ kind: "reminders" }); }}>Reminders</SecondaryButton>
+        <SecondaryButton onClick={() => { setNotice(null); setOpen({ kind: "letterhead" }); }}>Letterhead</SecondaryButton>
+        {canMake && <PrimaryButton onClick={() => { setNotice(null); setOpen({ kind: "edit", form: blankForm(records, settings, { person: !stockistNames(records).length }) }); }}>Create invoice</PrimaryButton>}
+      </PageActions>}
       {notice && <Note notice={notice} />}
-      {rows.length ? (
-        <>
-          <DataTable caption="Invoices" columns={columns} rows={rows.slice(0, shown)} rowKey={(r) => r.id} stackOnPhone onRowClick={(r) => { setNotice(null); setOpen({ kind: "view", id: r.id }); }} />
-          {rows.length > shown && <SecondaryButton size="sm" onClick={() => setShown((n) => n + 20)}>Show more ({rows.length - shown} left)</SecondaryButton>}
-        </>
-      ) : <EmptyState inline icon="🧾" title="No invoices yet" description={w(canMake ? "Bill a stockist for what they sold, or anyone else for copies they bought." : "Add a title first, then bill stockists and buyers from here.")} />}
+      {rows.length ? (<>
+        <ul className="rp-sk-tiles" aria-label="Invoices at a glance">
+          <li className="rp-sk-tile" data-tone="sky"><span>Outstanding</span><strong>{moneyText(summary.outstanding) || "Nothing"}</strong>
+            <small>{summary.outstandingCount === 1 ? "1 invoice" : `${summary.outstandingCount} invoices`}</small></li>
+          <li className="rp-sk-tile" data-tone={summary.overdueCount ? "apricot" : undefined}><span>Overdue</span><strong>{moneyText(summary.overdue) || "Nothing"}</strong>
+            <small>{summary.overdueCount ? `${summary.overdueCount} to chase` : "None to chase"}</small></li>
+          <li className="rp-sk-tile" data-tone="mint"><span>Paid, last 30 days</span><strong>{moneyText(summary.paid30) || "Nothing yet"}</strong>
+            <small>{summary.paid30Count === 1 ? "1 invoice" : `${summary.paid30Count} invoices`}</small></li>
+        </ul>
+        <Tabs label="Show invoices" idPrefix="inv-" value={filter} onChange={(f) => { setFilter(f); setShown(10); }}
+          tabs={INVOICE_FILTERS.map((f) => ({ id: f.id, label: f.label, count: summary.counts[f.id] }))} />
+        <section className="rp-card rp-reorder-card" aria-label="Invoices">
+          {listed.length ? <>
+            <DataTable caption="Invoices" columns={columns} rows={listed.slice(0, shown)} rowKey={(r) => r.id} stackOnPhone onRowClick={openRow} />
+            {listed.length > shown && <SecondaryButton size="sm" onClick={() => setShown((n) => n + 20)}>Show more ({listed.length - shown} left)</SecondaryButton>}
+          </> : <EmptyState inline icon="🧾" title="Nothing here" description="No invoices with this status." />}
+        </section>
+      </>) : <section className="rp-card rp-reorder-card"><EmptyState inline icon="🧾" title="No invoices yet" description={w(canMake ? "Bill a stockist for what they sold, or anyone else for copies they bought." : "Add a title first, then bill stockists and buyers from here.")} /></section>}
+      {confirmNode}
 
       {open?.kind === "settings" && <InvoiceSettingsDialog settings={settings} onClose={() => setOpen(null)} onSaved={(value, n) => { onSettingsSaved?.(value); setNotice(n); setOpen(null); }} />}
       {open?.kind === "letterhead" && <LetterheadDialog invoice={records.invoiceSettings} onClose={() => setOpen(null)} />}
@@ -471,7 +503,7 @@ export function InvoicesCard({ records, onBookSaved, onSettingsSaved, newFor, on
       {current && <InvoiceView row={current} settings={settings} onClose={() => setOpen(null)} onSaved={saved}
         onEdit={() => setOpen({ kind: "edit", form: formFromInvoice(records, current) })}
         onCopy={() => { const f = copyForm(records, settings, current); setNotice(f.linkedDropped ? { tone: "ok", lines: [`Copied. Its lines are no longer tied to the stockist sales on ${current.num || "the original"}.`] } : null); setOpen({ kind: "edit", form: f }); }} />}
-    </section>
+    </div>
   );
 }
 

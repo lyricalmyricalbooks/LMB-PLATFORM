@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { assembleParts, stitchState } from "@stockroom/merge-state.js";
 
 import {
-  blankForm, cleanInvoiceSettings, copyForm, DEFAULT_TERMS, invoiceEmail, deleteInvoiceChange, formFromInvoice, invoiceList, invoiceProblem, invoiceSettingsChange,
+  blankForm, cleanInvoiceSettings, copyForm, DEFAULT_TERMS, invoiceEmail, deleteInvoiceChange, formFromInvoice, invoiceList, invoiceProblem, invoiceSettingsChange, inFilter, invoicesSummary,
   markSentChange, nextNumber, pendingSaleLines, saveInvoiceChange, type InvoiceForm,
 } from "./invoiceMake";
 import { invoicePaperHtml } from "./invoicePaper";
@@ -165,5 +165,31 @@ describe("duplicate and email an invoice (old duplicateInvoiceFromView, invoiceE
     expect(m.subject).toBe("Invoice INV-1 — Test Press");
     expect(m.body.startsWith("Hi Corner Books,\n\nYour invoice INV-1 for")).toBe(true);
     expect(m.body.endsWith("Thank you,\nTest Press")).toBe(true);
+  });
+});
+
+describe("v4 Invoices tiles and filters", () => {
+  const now = new Date(2026, 10, 12, 12);
+  const recs = (): StockroomRecords => {
+    const st = start() as any;
+    st.invoices = [
+      { id: "a", num: "A", status: "draft", date: "2026-11-10", total: 10, currency: "CA$", storeName: "Corner Books" },
+      { id: "b", num: "B", status: "sent", date: "2026-11-01", dueDate: "2026-11-20", total: 20, currency: "CA$", storeName: "Corner Books" },
+      { id: "c", num: "C", status: "sent", date: "2026-10-01", dueDate: "2026-10-15", total: 30, currency: "CA$", storeName: "Corner Books" },
+      { id: "d", num: "D", status: "paid", date: "2026-10-20", total: 40, currency: "CA$", paidAt: now.getTime() - 5 * 86400000, storeName: "Corner Books" },
+      { id: "e", num: "E", status: "paid", date: "2026-08-01", total: 50, currency: "CA$", paidAt: now.getTime() - 60 * 86400000, storeName: "Corner Books" },
+    ];
+    return { books: [salt, night], states: { "salt-hours": st, "night-songs": {} }, taxCenter: null };
+  };
+  it("counts each filter and adds money from the rows", () => {
+    const rows = invoiceList(recs(), now);
+    const sum = invoicesSummary(rows, now.getTime());
+    expect(sum.counts).toEqual({ all: 5, draft: 1, sent: 1, overdue: 1, paid: 2 });
+    expect(sum.outstanding).toEqual([{ code: "CAD", amount: 50 }]);
+    expect(sum.outstandingCount).toBe(2);
+    expect(sum.overdue).toEqual([{ code: "CAD", amount: 30 }]);
+    expect(sum.paid30).toEqual([{ code: "CAD", amount: 40 }]);
+    expect(sum.paid30Count).toBe(1);
+    expect(rows.filter((r) => inFilter(r, "sent")).map((r) => r.num)).toEqual(["B"]);
   });
 });

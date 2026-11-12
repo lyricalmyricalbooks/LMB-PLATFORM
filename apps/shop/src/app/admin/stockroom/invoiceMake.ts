@@ -12,6 +12,7 @@ import {
 import { fmt, fmtD, getBookCurrencyCode, getSym, normalizeCurrencyCode } from "@stockroom/money.js";
 
 import type { StockBook, StockroomRecords } from "./stockroomData";
+import { addMoney, type Owed } from "./stockists";
 
 type Rec = Record<string, any>;
 
@@ -49,6 +50,7 @@ export function invoiceSettingsChange(next: InvoiceSettings) {
 export type InvoiceRow = {
   id: string; num: string; ownerBookId: string; billedTo: string; person: boolean; date: string; dueDate: string;
   total: number; code: string; status: string; overdue: boolean; inv: Rec;
+  /** When it was marked paid (ms), for paid invoices that recorded it. */ paidAt: number | null;
 };
 
 const localDay = (now: Date) => `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -71,10 +73,41 @@ export function invoiceList(records: StockroomRecords, now: Date = new Date()): 
         person: invoiceBillToMode(inv) === BILL_TO_PERSON, date: text(inv.date), dueDate: text(inv.dueDate),
         total: Number(inv.total) || 0, code: normalizeCurrencyCode(inv.currencyCode || inv.currency, getBookCurrencyCode(book)), status,
         overdue: status === "sent" && !!inv.dueDate && String(inv.dueDate) < today, inv,
+        paidAt: status === "paid" && Number(inv.paidAt) > 0 ? Number(inv.paidAt) : null,
       });
     }
   }
   return out.sort((a, b) => b.date.localeCompare(a.date) || b.num.localeCompare(a.num));
+}
+
+/** v4 Invoices: the list's filter pills. Sent means owed and not yet past its due date. */
+export type InvoiceFilter = "all" | "draft" | "sent" | "overdue" | "paid";
+export const INVOICE_FILTERS: Array<{ id: InvoiceFilter; label: string }> = [
+  { id: "all", label: "All" }, { id: "draft", label: "Draft" }, { id: "sent", label: "Sent" }, { id: "overdue", label: "Overdue" }, { id: "paid", label: "Paid" },
+];
+export function inFilter(row: InvoiceRow, filter: InvoiceFilter): boolean {
+  if (filter === "all") return true;
+  if (filter === "overdue") return row.overdue;
+  if (filter === "sent") return row.status === "sent" && !row.overdue;
+  return row.status === filter;
+}
+
+/** v4 Invoices: the three tiles, from the rows. Money is kept per currency (never added across currencies). */
+export type InvoicesSummary = {
+  outstanding: Owed[]; outstandingCount: number; overdue: Owed[]; overdueCount: number; paid30: Owed[]; paid30Count: number;
+  counts: Record<InvoiceFilter, number>;
+};
+export function invoicesSummary(rows: InvoiceRow[], now: number = Date.now()): InvoicesSummary {
+  const out: InvoicesSummary = { outstanding: [], outstandingCount: 0, overdue: [], overdueCount: 0, paid30: [], paid30Count: 0,
+    counts: { all: 0, draft: 0, sent: 0, overdue: 0, paid: 0 } };
+  const since = now - 30 * 24 * 60 * 60 * 1000;
+  for (const r of rows) {
+    for (const f of INVOICE_FILTERS) if (inFilter(r, f.id)) out.counts[f.id] += 1;
+    if (r.status === "sent") { addMoney(out.outstanding, r.code, r.total); out.outstandingCount += 1; }
+    if (r.overdue) { addMoney(out.overdue, r.code, r.total); out.overdueCount += 1; }
+    if (r.paidAt != null && r.paidAt >= since && r.paidAt <= now) { addMoney(out.paid30, r.code, r.total); out.paid30Count += 1; }
+  }
+  return out;
 }
 
 // ── The form ──────────────────────────────────────────────────────────────────────────────────────────────────────
