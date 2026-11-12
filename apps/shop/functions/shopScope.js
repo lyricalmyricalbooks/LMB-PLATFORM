@@ -195,6 +195,8 @@ function perShop(make) {
   };
   return new Proxy({}, {
     get(_, prop) { const it = now(); const value = it[prop]; return typeof value === "function" ? value.bind(it) : value; },
+    // Written to the current shop's own one, so a per-shop cache can be kept as plain fields.
+    set(_, prop, value) { now()[prop] = value; return true; },
     has: (_, prop) => prop in now(),
     ownKeys: () => Reflect.ownKeys(now()),
     getOwnPropertyDescriptor: (_, prop) => (prop in now() ? { value: now()[prop], enumerable: true, configurable: true, writable: false } : undefined),

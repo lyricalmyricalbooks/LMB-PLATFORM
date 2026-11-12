@@ -13,7 +13,7 @@ describe("admin navigation", () => {
 
   it("keeps nested Settings navigation (general, shipping, payments, taxes, design, notifications, email sender, team)", () => {
     const settings = NAV.find((n) => n.id === "settings");
-    expect(settings?.children?.map((c) => c.id)).toEqual(["general", "shipping", "payments", "taxes", "designer", "notifications", "google", "apps", "team", "security", "bookkeeping", "plan", "billing"]);
+    expect(settings?.children?.map((c) => c.id)).toEqual(["general", "shipping", "payments", "taxes", "designer", "notifications", "google", "apps", "team", "security", "plan", "billing"]);
     // Notifications and Email sender are one page, listed once as "Email sender".
     expect(settings?.children?.find((c) => c.id === "notifications")?.label).toBe("Email sender");
   });
@@ -48,15 +48,15 @@ describe("the five-item admin menu (plan 1.27)", () => {
     expect(orders.children?.map((c) => c.label)).toEqual(["Orders", "Customers", "Discounts", "Gift cards", "Social posts", "Messages"]);
     expect(items.find((i) => i.label === "Books")!.children?.map((c) => c.label)).toEqual(["Books", "Inventory", "Reviews", "Sales channels"]);
     const settings = items.find((i) => i.label === "Settings")!;
-    expect(settings.children?.map((c) => c.id)).toEqual(["general", "shipping", "payments", "taxes", "notifications", "google", "apps", "team", "security", "bookkeeping", "plan", "billing"].map((id) => SETTINGS_ITEM_PREFIX + id));
+    expect(settings.children?.map((c) => c.id)).toEqual(["general", "shipping", "payments", "taxes", "notifications", "google", "apps", "team", "security", "plan", "billing"].map((id) => SETTINGS_ITEM_PREFIX + id));
     expect(items.find((i) => i.label === "Design")!.children).toBeUndefined();
   });
 
-  it("hides Bookkeeping unless the shop has it on, keeping the other Settings pages", () => {
-    const hidden = withoutPages(items, new Set([SETTINGS_ITEM_PREFIX + "bookkeeping"]));
+  it("hides a page the shop doesn't have, keeping the other Settings pages", () => {
+    const hidden = withoutPages(items, new Set([SETTINGS_ITEM_PREFIX + "google"]));
     const settings = hidden.find((i) => i.label === "Settings")!;
-    expect(settings.children?.map((c) => c.id)).not.toContain(SETTINGS_ITEM_PREFIX + "bookkeeping");
-    expect(settings.children).toHaveLength(11);
+    expect(settings.children?.map((c) => c.id)).not.toContain(SETTINGS_ITEM_PREFIX + "google");
+    expect(settings.children).toHaveLength(10);
     expect(withoutPages(items, new Set())).toBe(items);
   });
 

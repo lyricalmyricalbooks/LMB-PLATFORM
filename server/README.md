@@ -51,6 +51,7 @@ Not connected yet (`notConnected.js`). Each answers in plain words, never with m
 | Marking a closing email that bounced | Reading returned mail in the platform's Google mailbox (Gmail has no delivery events) |
 | Web addresses for shops | The shared system (`SHARED_SHOPS_PROJECT` and `SHARED_SHOPS_DOMAIN`): then `/api/domains` and the `web-addresses` job run (`services/domains/hosted.js`); a free address's lines are written once `SHOP_ADDRESS_ZONE` and `SHOP_ADDRESS_ZONE_PROJECT` name its Cloud DNS zone |
 | QuickBooks | The platform's QuickBooks app keys (`docs/accounting.md`) |
+| Facebook & Instagram, Pinterest and TikTok | Each network's app keys and `SOCIAL_ENABLED` (`docs/social.md`): `/api/social` already answers "off" |
 | What each shop costs | Google's billing export to BigQuery (the Costs page shows its empty state) |
 
 ## The schedules
@@ -70,7 +71,8 @@ Not connected yet (`notConnected.js`). Each answers in plain words, never with m
 | dropped-apps | 02:15 | on |
 | income-record | 02:30 | on |
 | self-checks | 03:00 | paused |
-| bookkeeping | 03:30 | paused |
+| bookkeeping | 03:30 | on (warns QuickBooks owners before their connection ends) |
+| connection-check | 03:45 | on (asks Google about each connected shop; the Shops page lists every Google, QuickBooks and social connection that stopped working) |
 | trial-tips | 09:00 | on |
 | shop-checkup | 10:00 (each shop gets one a month) | on |
 | deletion-note | 08:00 on Mondays (only when a closed app's records go that week) | on |

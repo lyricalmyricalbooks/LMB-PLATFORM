@@ -105,8 +105,12 @@ Julian, in this order:
    `https://<accounting service>/quickbooks/oauth` and the Reconnect URL `https://<accounting service>/quickbooks/reconnect`.
 2. Put the development keys in the service's settings (`QUICKBOOKS_CLIENT_ID_TEST`, `QUICKBOOKS_CLIENT_SECRET_TEST`),
    with `QUICKBOOKS_REDIRECT_URL` and a new `QUICKBOOKS_TOKEN_KEY` (32 random bytes, Base64).
-3. Host the service (one function in the platform project) with three stores (connections, sign-in states, sent
-   record) and a nightly job, and give each shop `PLATFORM_ACCOUNTING_URL`.
+3. Done 12 November 2026: the platform's web server hosts it at `/api/accounting` (`services/accounting/hosted.js`, stores
+   `accountingConnections`, `accountingStates`, `accountingSent`, nightly job `bookkeeping`), and every shared-system shop
+   gets `PLATFORM_ACCOUNTING_URL`. The keys go in Secret Manager as `quickbooks-client-id-test`,
+   `quickbooks-client-secret-test`, `quickbooks-client-id-live`, `quickbooks-client-secret-live` and `quickbooks-token-key`.
+   The redirect address is `<platform>/api/accounting/quickbooks/oauth` and the Reconnect URL
+   `<platform>/api/accounting/quickbooks/reconnect`. Presses find it in Settings › Apps (the app store).
 4. Set `ACCOUNTING_ENABLED=true` and try the test shop against a sandbox company. Check the open points below there.
 5. Fill in Intuit's assessment questionnaire, get the production keys, and add `QUICKBOOKS_CLIENT_ID_LIVE` /
    `QUICKBOOKS_CLIENT_SECRET_LIVE`.

@@ -4,8 +4,10 @@
 //   Activity   every change an app made or was refused, with the shop's reason (appRequests, read from this shop)
 // Installed and the store come through the platform's app store door (functions/appsLink.js); a shop without it shows
 // only Activity. Words are lean on purpose: one line per app, details on request.
+// QuickBooks is built in (Julian, 12 November 2026: it lives in the app store, not on a Settings page of its own): a
+// card in the store and, once connected, a row in Installed; Open shows its steps (BookkeepingSettings) on this page.
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Blocks, Calculator, ExternalLink, Megaphone, MessageCircle, Package, Palette, Store, Truck, type LucideIcon } from "lucide-react";
+import { ArrowLeft, Blocks, Calculator, ExternalLink, Megaphone, MessageCircle, Package, Palette, Store, Truck, type LucideIcon } from "lucide-react";
 import {
   DataTable, Dialog, EmptyState, GhostButton, PrimaryButton, SecondaryButton, StatusBadge, Tabs, TabPanel, useConfirm, type Column,
 } from "./riso/components";
@@ -15,6 +17,9 @@ import { BrandLogo, isBrandId } from "../components/brand/BrandLogo";
 import "./apps.css";
 
 type Tab = "installed" | "store" | "activity";
+/** The QuickBooks link, built into the store: its status (platform's bookkeeping link) and its steps. */
+type QuickBooksStatus = { enabled: boolean; connected?: boolean; companyName?: string | null };
+export type BuiltInQuickBooks = { status: () => Promise<QuickBooksStatus>; panel: ReactNode };
 type Load<T> = { state: "loading" } | { state: "ready"; value: T } | { state: "failed"; message: string; off?: boolean };
 
 /** Each category's picture and ink, so a card reads at a glance. */
@@ -101,8 +106,18 @@ function Loaded<T>({ load, retry, children }: { load: Load<T>; retry: () => void
   return <>{children(load.value)}</>;
 }
 
-export function AppsSettings({ api = appsApi, shopId = shopProfile.shopId }: { api?: Pick<AppsApi, "installed" | "store" | "remove" | "activity">; shopId?: string }) {
+export function AppsSettings({ api = appsApi, shopId = shopProfile.shopId, quickbooks, openQuickBooks = false, onQuickBooks }: {
+  api?: Pick<AppsApi, "installed" | "store" | "remove" | "activity">; shopId?: string; quickbooks?: BuiltInQuickBooks;
+  /** QuickBooks open (the address says #settings/apps/quickbooks), and the page telling the address when it opens or closes. */
+  openQuickBooks?: boolean; onQuickBooks?: (open: boolean) => void;
+}) {
   const [tab, setTab] = useState<Tab>("installed");
+  const [qbOpen, setQbOpenHere] = useState(openQuickBooks);
+  useEffect(() => setQbOpenHere(openQuickBooks), [openQuickBooks]);
+  const setQbOpen = (open: boolean) => { setQbOpenHere(open); onQuickBooks?.(open); };
+  const noQuickBooks = useCallback(async (): Promise<QuickBooksStatus> => ({ enabled: false }), []);
+  const [qb] = useLoad(quickbooks?.status ?? noQuickBooks);
+  const qbState = qb.state === "ready" ? qb.value : null;
   const [installed, reloadInstalled] = useLoad(api.installed);
   const [store, reloadStore] = useLoad(api.store);
   const [activity, reloadActivity] = useLoad(api.activity);
@@ -113,7 +128,9 @@ export function AppsSettings({ api = appsApi, shopId = shopProfile.shopId }: { a
   const [confirm, confirmDialog] = useConfirm();
 
   const installedIds = useMemo(() => new Set(installed.state === "ready" ? installed.value.map((a) => a.appId) : []), [installed]);
-  const count = installed.state === "ready" && installed.value.length ? installed.value.length : undefined;
+  const qbConnected = Boolean(qbState?.enabled && qbState.connected);
+  const installedCount = (installed.state === "ready" ? installed.value.length : 0) + (qbConnected ? 1 : 0);
+  const count = installedCount || undefined;
 
   const remove = async (app: InstalledApp) => {
     const yes = await confirm({ title: `Remove ${app.name}?`, message: "It stops working in your shop at once. You can add it again later.", confirmLabel: "Remove" });
@@ -139,6 +156,34 @@ export function AppsSettings({ api = appsApi, shopId = shopProfile.shopId }: { a
       </PrimaryButton>
     );
 
+  if (quickbooks && qbOpen) {
+    return (
+      <div className="ap">
+        <div><GhostButton size="sm" icon={<ArrowLeft size={14} aria-hidden />} onClick={() => setQbOpen(false)}>Apps</GhostButton></div>
+        {qbState && !qbState.enabled ? <EmptyState inline title="QuickBooks opens soon" /> : quickbooks.panel}
+      </div>
+    );
+  }
+
+  /** QuickBooks's card in the store: Open when the link is on, Coming soon until then. */
+  const quickBooksCard = quickbooks && (
+    <li key="quickbooks" className="rp-card ap-card">
+      <div className="ap-card-head">
+        <AppTile category="accounting" brand="quickbooks" />
+        <div className="ap-card-title">
+          <p className="ap-name">QuickBooks</p>
+          <p className="ap-category">{store.state === "ready" ? store.value.categories.find((c) => c.id === "accounting")?.name ?? "Accounting" : "Accounting"}</p>
+        </div>
+      </div>
+      <p className="ap-tagline">Your sales, refunds and payouts go to QuickBooks each night.</p>
+      <div className="ap-card-foot">
+        {qbState?.enabled
+          ? <>{qbConnected ? <StatusBadge tone="success">Installed</StatusBadge> : <span />}<PrimaryButton size="sm" onClick={() => setQbOpen(true)}>{qbConnected ? "Manage" : "Open"}</PrimaryButton></>
+          : <StatusBadge tone="neutral" glyph={false}>{qb.state === "loading" ? "Checking…" : "Coming soon"}</StatusBadge>}
+      </div>
+    </li>
+  );
+
   return (
     <div className="ap">
       <Tabs variant="page" label="Apps" value={tab} onChange={(t) => { setTab(t); if (t === "activity") reloadActivity(); }}
@@ -147,7 +192,7 @@ export function AppsSettings({ api = appsApi, shopId = shopProfile.shopId }: { a
 
       <TabPanel tabId="installed" active={tab === "installed"}>
         <Loaded load={installed} retry={reloadInstalled}>
-          {(apps) => apps.length === 0
+          {(apps) => apps.length === 0 && !qbConnected
             ? (
               <div className="ap-empty">
                 <EmptyState icon={<Blocks size={22} aria-hidden />} title="No apps yet" description="Apps add shipping, email and more to your shop."
@@ -156,6 +201,18 @@ export function AppsSettings({ api = appsApi, shopId = shopProfile.shopId }: { a
             )
             : (
               <ul className="ap-list">
+                {qbConnected && (
+                  <li key="quickbooks" className="rp-card ap-row">
+                    <AppTile category="accounting" brand="quickbooks" />
+                    <div className="ap-row-main">
+                      <p className="ap-name">QuickBooks</p>
+                      <p className="ap-tagline">{qbState?.companyName || "Your sales go here each night."}</p>
+                    </div>
+                    <div className="ap-row-actions">
+                      <SecondaryButton size="sm" onClick={() => setQbOpen(true)}>Manage</SecondaryButton>
+                    </div>
+                  </li>
+                )}
                 {apps.map((app) => (
                   <li key={app.appId} className="rp-card ap-row">
                     <AppTile category={app.category} brand={app.brand} />
@@ -176,17 +233,21 @@ export function AppsSettings({ api = appsApi, shopId = shopProfile.shopId }: { a
       </TabPanel>
 
       <TabPanel tabId="store" active={tab === "store"}>
+        {quickBooksCard && store.state === "failed" && <ul className="ap-grid">{quickBooksCard}</ul>}
         <Loaded load={store} retry={reloadStore}>
           {({ apps, categories }: StoreAnswer) => {
-            const used = categories.filter((c) => apps.some((a) => a.category === c.id));
+            const withQuickBooks = quickBooksCard && !categories.some((c) => c.id === "accounting") ? [...categories, { id: "accounting", name: "Accounting" }] : categories;
+            const used = withQuickBooks.filter((c) => apps.some((a) => a.category === c.id) || (quickBooksCard && c.id === "accounting"));
             const shown = category === "all" ? apps : apps.filter((a) => a.category === category);
-            if (apps.length === 0) return <EmptyState inline title="No apps on the store yet" />;
+            const showQuickBooks = quickBooksCard && (category === "all" || category === "accounting");
+            if (apps.length === 0 && !quickBooksCard) return <EmptyState inline title="No apps on the store yet" />;
             return (
               <div className="ap-store">
                 {used.length > 1 && (
                   <Tabs label="Category" value={category} onChange={setCategory} tabs={[{ id: "all", label: "All" }, ...used.map((c) => ({ id: c.id, label: c.name }))]} />
                 )}
                 <ul className="ap-grid">
+                  {showQuickBooks && quickBooksCard}
                   {shown.map((app) => (
                     <li key={app.appId} className="rp-card ap-card">
                       <div className="ap-card-head">

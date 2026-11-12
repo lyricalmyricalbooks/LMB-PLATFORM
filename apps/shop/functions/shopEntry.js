@@ -31,7 +31,10 @@ function shopEntries({ rootDb, env = process.env, now = () => Date.now(), log = 
     const hit = cache.get(id);
     if (hit && now() - hit.at < RECORD_TTL_MS) return hit.shop;
     const snap = await rootDb().collection("shops").doc(id).get();
-    const record = snap.exists ? snap.data() || {} : null;
+    // A record with no sign-in list named at all is a half-made shop (setup writes the profile first): no shop yet.
+    // Without this, its empty list would accept any sign-in of the whole project. (`tenant: ""` is the demo's choice.)
+    const data = snap.exists ? snap.data() || {} : null;
+    const record = data && typeof data.tenant === "string" ? data : null;
     const shop = record ? { id, tenant: typeof record.tenant === "string" ? record.tenant : "", status: record.status || "open", record, config: configForShop(id, record, env) } : null;
     cache.set(id, { at: now(), shop });
     return shop;
@@ -47,7 +50,7 @@ function shopEntries({ rootDb, env = process.env, now = () => Date.now(), log = 
       const snap = await q.get();
       for (const d of snap.docs) {
         const record = d.data() || {};
-        if (record.status === "closed" || !isShopId(d.id)) continue;
+        if (record.status === "closed" || !isShopId(d.id) || typeof record.tenant !== "string") continue;
         out.push({ id: d.id, tenant: typeof record.tenant === "string" ? record.tenant : "", status: record.status || "open", record, config: configForShop(d.id, record, env) });
       }
       if (snap.docs.length < 200) return out;

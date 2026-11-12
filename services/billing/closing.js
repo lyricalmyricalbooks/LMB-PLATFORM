@@ -86,6 +86,8 @@ export function deletionAllowed(closing, nowMs) {
 
 export class DeletionRefused extends Error {}
 
+const SHARED_PROBLEM = "this shop is in the shared system: a person removes its folder (never the shared project)";
+
 export function createClosingSweep({ registry, auditLog, billing, email, projects, hooks = {}, settings, now = () => Date.now() }) {
   const allHooks = { ...noHooks(), ...hooks };
   for (const name of Object.keys(allHooks)) {
@@ -186,6 +188,15 @@ export function createClosingSweep({ registry, auditLog, billing, email, project
     if (!(await runHooks(shop, closing, "beforeDelete"))) return;
     closing = (await registry.getShop(shop.shopId)).closing;
     if (!deletionAllowed(closing, now())) throw new DeletionRefused(`${shop.shopId} isn't due for deletion`);
+    // A shop in the shared system lives in a folder of the one project every shop shares: deleting "its" project
+    // would delete every shop. Its folder, sign-in list and addresses are taken away by a person for now.
+    if (shop.shared === true) {
+      if (closing.problem !== SHARED_PROBLEM) {
+        await setClosing(shop.shopId, { ...closing, problem: SHARED_PROBLEM });
+        await log(shop.shopId, "delete-waits-for-a-person", {});
+      }
+      return;
+    }
     try {
       await projects.deleteProject(shop.projectId ?? shop.shopId);
     } catch (error) {

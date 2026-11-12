@@ -31,6 +31,8 @@ export const FIXED_TIMES = Object.freeze({
   "income-record": "30 2 * * *",
   "self-checks": "0 3 * * *",
   bookkeeping: "30 3 * * *",
+  // After QuickBooks has found its own lost companies, so the Shops page is complete in the morning.
+  "connection-check": "45 3 * * *",
   // Emails a press reads: in the morning, never at night.
   "trial-tips": "0 9 * * *",
   "shop-checkup": "0 10 * * *",

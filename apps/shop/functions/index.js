@@ -1182,16 +1182,21 @@ async function loadAutomaticDiscounts() {
   return snap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() })).filter(discount => !discountProblem(discount));
 }
 
-// The public "automaticDiscounts" answer only: shared by every caller of this instance for 30 s. Pricing an
-// order always calls loadAutomaticDiscounts() fresh.
-let automaticDiscountsCache = { at: 0, promise: null };
+// The public "automaticDiscounts" answer only: shared by every caller of one shop on this instance for 30 s (kept
+// per shop, so a shop never answers with another shop's offers). Pricing an order always calls
+// loadAutomaticDiscounts() fresh.
+const automaticDiscountsCache = perShop(() => ({ at: 0, promise: null }));
 function cachedAutomaticDiscounts(now = Date.now()) {
-  if (!automaticDiscountsCache.promise || now - automaticDiscountsCache.at > 30_000) {
+  const cache = automaticDiscountsCache;
+  if (!cache.promise || now - cache.at > 30_000) {
     const promise = loadAutomaticDiscounts();
-    promise.catch(() => { if (automaticDiscountsCache.promise === promise) automaticDiscountsCache = { at: 0, promise: null }; });
-    automaticDiscountsCache = { at: now, promise };
+    const forget = () => { if (cache.promise === promise) { cache.at = 0; cache.promise = null; } };
+    cache.at = now;
+    cache.promise = promise;
+    // The catch runs in the same shop as this call (shopScope keeps the shop across awaits).
+    promise.catch(forget);
   }
-  return automaticDiscountsCache.promise;
+  return cache.promise;
 }
 
 // Prices an order from the live catalog for every checkout path (card, PayPal, manual, free).
@@ -4519,12 +4524,15 @@ exports.onBookRestocked = onDocumentUpdated(
  */
 // Website sales → inventory app (docs/INVENTORY_LINK.md): every write to a counted order (paid, refunded,
 // shipped…) is sent to the inventory app's inbox. Only reads the order; inventoryLinkSweep retries failures.
-let inventoryLinkStateCache = { at: 0, state: null };
+// Kept per shop (perShop): one shop's link settings must never decide another shop's sale.
+const inventoryLinkStateCache = perShop(() => ({ at: 0, state: null }));
 exports.onOrderInventoryPush = onDocumentWritten({ document: "orders/{orderId}", timeoutSeconds: 60 }, async event => {
   if (!event.data?.after?.exists) return;
   const jobs = require("./inventoryLinkJobs");
   if (!inventoryLinkStateCache.state || Date.now() - inventoryLinkStateCache.at > 60 * 1000) {
-    inventoryLinkStateCache = { at: Date.now(), state: await jobs.readState(db) };
+    const state = await jobs.readState(db);
+    inventoryLinkStateCache.at = Date.now();
+    inventoryLinkStateCache.state = state;
   }
   const state = inventoryLinkStateCache.state;
   if (!jobs.salesOn(state)) return;

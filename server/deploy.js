@@ -21,6 +21,8 @@ import { MAIL_ACCOUNT_NAME } from "../services/email/index.js";
 import { PAYMENTS_SECRETS } from "../services/payments/index.js";
 import { BILLING_SECRETS } from "../services/billing/index.js";
 import { GOOGLE_SECRETS } from "../google/config.js";
+import { ACCOUNTING_SECRETS } from "../services/accounting/config.js";
+import { SOCIAL_SECRETS } from "../services/social/config.js";
 
 /**
  * Colophon's Mailchimp app (services/mailchimp): its registration on Mailchimp's Registered Apps page. Optional: until
@@ -48,6 +50,8 @@ export const SECRETS = Object.freeze([
   { env: "TRIAL_TIPS_SECRET", secret: "trial-tips-secret", api: true, jobs: true },
   { env: "CHECKUP_SECRET", secret: "checkup-secret", api: true, jobs: true },
   ...MAILCHIMP_SECRETS,
+  ...ACCOUNTING_SECRETS,
+  ...SOCIAL_SECRETS,
 ]);
 
 /**
@@ -55,7 +59,7 @@ export const SECRETS = Object.freeze([
  * connected). Without them sign-in by Google, the control room and every page work; email and Stripe answer "not
  * connected" until their secret is added and the deploy runs again, and Connect Google says "coming soon". The two link phrases are always needed.
  */
-export const OPTIONAL_SECRETS = Object.freeze(new Set([...PAYMENTS_SECRETS, ...BILLING_SECRETS, ...GOOGLE_SECRETS, ...MAILCHIMP_SECRETS].map((s) => s.secret)));
+export const OPTIONAL_SECRETS = Object.freeze(new Set([...PAYMENTS_SECRETS, ...BILLING_SECRETS, ...GOOGLE_SECRETS, ...MAILCHIMP_SECRETS, ...ACCOUNTING_SECRETS, ...SOCIAL_SECRETS].map((s) => s.secret)));
 
 /** The services' own accounts and the roles each holds in the platform project. */
 export const ACCOUNTS = Object.freeze([

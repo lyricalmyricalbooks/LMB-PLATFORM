@@ -38,8 +38,6 @@ export const NAV: NavEntry[] = [
     { id: "team", label: "Team", icon: UserPlus },
     // Two-step sign-in with an authenticator app, for whoever is signed in (22.6).
     { id: "security", label: "Security", icon: ShieldCheck },
-    // The QuickBooks link (plan 7.16); hidden unless the platform's bookkeeping link is on (`withoutPages`).
-    { id: "bookkeeping", label: "Bookkeeping", icon: Calculator },
     // The shop's plan on the platform (plan 6.6), managed here since 22.3: compare and change plans, how you pay, cancel.
     { id: "plan", label: "Plan", icon: Wallet },
     // Bills, saved cards, billing details and paying a declined bill (22.3), where Shopify keeps them.
@@ -96,7 +94,7 @@ export const WEBSITE_SIDE: Menu = [
   { label: "Online store", icon: Palette, pages: ["design"] },
   // QuickBooks moved to the stockroom's Bookkeeping (v3).
   // v4: the stockroom's Google Sheet is Settings › Google's "Sales spreadsheet", listed beside Google.
-  { label: "Settings", icon: Settings, pages: [...SETTINGS_PAGES.filter((id) => id !== SETTINGS_ITEM_PREFIX + "bookkeeping"), S("sheets")],
+  { label: "Settings", icon: Settings, pages: [...SETTINGS_PAGES, S("sheets")],
     labels: { [S("sheets")]: "Sales spreadsheet" } },
 ];
 /**
@@ -119,9 +117,9 @@ export const STOCKROOM_SIDE: Menu = [
     sections: [{ label: "Your books", pages: [S("taxcenter"), S("taxledger"), S("taxcosts")] },
       { label: "Sales tax", pages: [S("taxsales"), S("taxrates"), S("taxfilings")] },
       { label: "Check and close", pages: [S("reconcile"), S("taxyear")] }] },
-  { label: "Bookkeeping", icon: PiggyBank, pages: [S("payouts"), S("expenses"), S("intel"), SETTINGS_ITEM_PREFIX + "bookkeeping"],
-    labels: { [SETTINGS_ITEM_PREFIX + "bookkeeping"]: "QuickBooks" },
-    sections: [{ label: "Cash", pages: [S("payouts"), S("expenses")] }, { label: "Reports", pages: [S("intel")] }, { label: "Accounts", pages: [SETTINGS_ITEM_PREFIX + "bookkeeping"] }] },
+  // QuickBooks moved to Settings › Apps (12 November 2026).
+  { label: "Bookkeeping", icon: PiggyBank, pages: [S("payouts"), S("expenses"), S("intel")],
+    sections: [{ label: "Cash", pages: [S("payouts"), S("expenses")] }, { label: "Reports", pages: [S("intel")] }] },
   // v4: Backups is one page (the Google Sheet moved to Settings).
   { label: "Backups", icon: SlidersHorizontal, pages: [S("backups")] },
 ];
@@ -141,7 +139,7 @@ export const SETTINGS_SECTIONS: { label: string; pages: string[] }[] = [
   { label: "Shop", pages: ["general", "team", "plan", "billing"] },
   { label: "Selling", pages: ["shipping", "payments", "taxes"] },
   { label: "Messages", pages: ["notifications"] },
-  { label: "Connections", pages: ["google", "apps", "bookkeeping"] },
+  { label: "Connections", pages: ["google", "apps"] },
   { label: "Safety", pages: ["security"] },
 ].map((g) => ({ ...g, pages: g.pages.flatMap((id) => id === "google" ? [SETTINGS_ITEM_PREFIX + id, S("sheets")] : [SETTINGS_ITEM_PREFIX + id]) }));
 

@@ -60,6 +60,12 @@ export function sharedServerEnv({ platformUrl, region = REGION }) {
     // The app store's shop door (services/apps/shopDoor.js, plan 26.5): Settings › Apps lists the installed apps and the
     // store, and Add opens each app's connect page. Without it the page shows only the shop's own app activity.
     `PLATFORM_APPS_URL="${base}/api/apps"`,
+    // The QuickBooks link (services/accounting/hosted.js): Settings › Bookkeeping. The page stays hidden until the
+    // platform has Intuit's keys and ACCOUNTING_ENABLED.
+    `PLATFORM_ACCOUNTING_URL="${base}/api/accounting"`,
+    // Social channels (services/social/hosted.js): Sales channels connects Facebook & Instagram, Pinterest and TikTok.
+    // Until the platform has the networks' keys and SOCIAL_ENABLED, the page shows the by-hand steps.
+    `PLATFORM_SOCIAL_URL="${base}/api/social"`,
     "",
   ].join("\n");
 }
@@ -168,6 +174,10 @@ export async function runSharedRelease({
       }
     }
     return { ok: !error, version, ...(error ? { error } : {}), projects: results };
+  } catch (thrown) {
+    // Anything thrown on the way (a check, the lock, the log) is a failed release, never one recorded as good.
+    error ||= message(thrown);
+    throw thrown;
   } finally {
     await registry.recordRelease({ kind: "shared-release", version, runId, startedAt, finishedAt: now().toISOString(), ok: !error, ...(error ? { error } : {}), projects: results });
     await registry.releaseLock(SHARED_RELEASE_LOCK, runId);

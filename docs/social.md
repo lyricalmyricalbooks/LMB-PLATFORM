@@ -46,3 +46,12 @@ connections, catalogs and recent post failures, with no tokens.
 `SOCIAL_ENABLED`, `SOCIAL_REDIRECT_BASE` (https), `SOCIAL_TOKEN_KEY`, `META_APP_ID`/`META_APP_SECRET`,
 `PINTEREST_APP_ID`/`PINTEREST_APP_SECRET`, `TIKTOK_CLIENT_KEY`/`TIKTOK_CLIENT_SECRET`, optional `META_GRAPH_VERSION`
 (default v23.0). Each shop needs `platformSocialUrl` in its config. Approvals: `docs/start-real-accounts.md`.
+
+**Hosted (12 November 2026).** The platform's server runs the service at `/api/social` (`services/social/hosted.js`,
+routed in `server/world.js`), and every shared-system shop is given `PLATFORM_SOCIAL_URL="<platform>/api/social"`.
+`SOCIAL_REDIRECT_BASE` defaults to `<PLATFORM_URL>/api/social`, so each network's app lists
+`<platform>/api/social/meta/oauth`, `.../pinterest/oauth` and `.../tiktok/oauth`. The keys are Secret Manager secrets
+`meta-app-id`, `meta-app-secret`, `pinterest-app-id`, `pinterest-app-secret`, `tiktok-client-key`,
+`tiktok-client-secret` and `social-token-key` (all optional: the server starts without them). Records live in the
+platform's database: `socialConnections/<shop>~<network>`, `socialStates/<state>` and `socialSent/<key>`. The control
+room's Social channels card reads the same service.

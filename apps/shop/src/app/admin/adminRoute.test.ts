@@ -6,7 +6,7 @@ describe("admin route ↔ hash", () => {
     for (const tab of ADMIN_TABS.filter((t) => t !== "settings")) {
       expect(routeFromHash(hashForRoute({ tab }))).toEqual({ tab });
     }
-    for (const settingsTab of SETTINGS_TABS.filter((t) => t !== "designer" && t !== "communications")) {
+    for (const settingsTab of SETTINGS_TABS.filter((t) => t !== "designer" && t !== "communications" && t !== "bookkeeping")) {
       expect(routeFromHash(hashForRoute({ tab: "settings", settingsTab }))).toEqual({ tab: "settings", settingsTab: settingsPageOf(settingsTab) });
     }
     // Email sender was merged into the one email page: its old address still opens it, on Sending setup.
@@ -112,5 +112,14 @@ describe("links from the inventory app's search", () => {
     expect(searchFromHash("#searching")).toBeNull();
     expect(searchFromHash("#orders")).toBeNull();
     expect(routeFromHash("#search=moth")).toBeNull();
+  });
+});
+
+describe("QuickBooks in Apps (12 November 2026)", () => {
+  it("opens Apps with QuickBooks from its own address and from the old Bookkeeping one", () => {
+    expect(routeFromHash("#settings/apps/quickbooks")).toEqual({ tab: "settings", settingsTab: "apps", subTab: "quickbooks" });
+    expect(routeFromHash("#settings/bookkeeping")).toEqual({ tab: "settings", settingsTab: "apps", subTab: "quickbooks" });
+    expect(routeFromHash("#settings/apps")).toEqual({ tab: "settings", settingsTab: "apps" });
+    expect(hashForRoute({ tab: "settings", settingsTab: "apps", subTab: "quickbooks" })).toBe("#settings/apps/quickbooks");
   });
 });

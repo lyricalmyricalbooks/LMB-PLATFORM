@@ -12,6 +12,7 @@ import {
 import { fmt, fmtD, getBookCurrencyCode, getSym, normalizeCurrencyCode } from "@stockroom/money.js";
 
 import type { StockBook, StockroomRecords } from "./stockroomData";
+import { queueCardLinkClose } from "./cardLinkQueue";
 import { addMoney, type Owed } from "./stockists";
 
 type Rec = Record<string, any>;
@@ -291,7 +292,11 @@ export function saveInvoiceChange(form: InvoiceForm, status: "draft" | "sent", c
       // A Stripe link is for one exact amount: keep it only while the amount and currency are unchanged.
       const changed = Number(old.total || 0).toFixed(2) !== Number(payload.total || 0).toFixed(2) || old.currency !== payload.currency;
       if (old.stripe && !changed) payload.stripe = old.stripe;
-      else if (old.stripe && payload.paymentLink && payload.paymentLink === (old.stripe.url || old.paymentLink)) payload.paymentLink = "";
+      // The emailed link still names the old amount: it is closed at the next check of card payments.
+      else if (old.stripe) {
+        queueCardLinkClose(state, old, "changed", ctx.now);
+        if (payload.paymentLink && payload.paymentLink === (old.stripe.url || old.paymentLink)) payload.paymentLink = "";
+      }
       invoices[at] = payload;
     } else {
       if (invoices.some((i) => i && String(i.id) === payload.id)) return state; // already filed by an earlier try
@@ -319,13 +324,14 @@ export function markSentChange(id: string, now: number) {
 }
 
 /** Delete an unpaid invoice and clear its links from the ledger. A paid one stays on file: it is part of the books. */
-export function deleteInvoiceChange(id: string) {
+export function deleteInvoiceChange(id: string, now = Date.now()) {
   return (state: Rec) => {
     const list = (state.invoices as Rec[]) || [];
     const inv = list.find((i) => i && String(i.id) === id);
     if (!inv) throw new Error("This invoice is no longer in the records. Reload the page.");
     if (inv.status === "paid") throw new Error("A paid invoice stays on file, so it can't be deleted.");
     for (const it of (inv.items as Rec[]) || []) if (it?._ledgerId != null) stampLedgerInvoiceLink(state, it._ledgerId, null);
+    queueCardLinkClose(state, inv, "deleted", now);
     state.invoices = list.filter((i) => i !== inv);
     return state;
   };

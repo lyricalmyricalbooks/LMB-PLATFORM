@@ -19,7 +19,7 @@ export function liveDomainOf(row) {
   return live ? live.name.toLowerCase() : null;
 }
 
-/** `domainService` is services/domains' service (createDomainService), or null while it isn't hosted. */
+/** `domainService` is services/domains' service (createDomainService; the server passes the hosted one), or null in tests. */
 export function domainsBridge(domainService = null) {
   return async function domainsCall(op, row, args = {}) {
     if (op === "liveDomain") return liveDomainOf(row);

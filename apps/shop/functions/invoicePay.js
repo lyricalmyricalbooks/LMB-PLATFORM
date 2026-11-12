@@ -37,6 +37,8 @@ function cleanPayLink(body) {
   return { ref, kind, label, currency, amountMinor, email: /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) ? email : "" };
 }
 
+const PAGE_WINDOW_SECONDS = 600;
+
 /** Stripe Checkout Session parameters for one payment of the saved amount (Square's provider maps the same shape). */
 function payCheckoutParams(link, { token, shopName, returnUrl, nowSeconds }) {
   const description = `${shopName ? `${shopName}: ` : ""}${link.label}`.slice(0, 350);
@@ -48,8 +50,10 @@ function payCheckoutParams(link, { token, shopName, returnUrl, nowSeconds }) {
     ...(link.email ? { customer_email: link.email } : {}),
     metadata,
     payment_intent_data: { description, metadata },
-    // An hour is plenty to pay; the link itself stays open, and a later visit opens a new page.
-    expires_at: nowSeconds + 60 * 60,
+    // An hour is plenty to pay; the link itself stays open, and a later visit opens a new page. Counted from the end
+    // of the ten-minute window the page's key names (PAGE_WINDOW_SECONDS), so a second tap in that window asks for
+    // exactly the same page: the card company refuses a repeated key whose details differ.
+    expires_at: (Math.floor(nowSeconds / PAGE_WINDOW_SECONDS) + 1) * PAGE_WINDOW_SECONDS + 60 * 60,
     success_url: returnUrl,
   };
 }
@@ -115,8 +119,12 @@ function invoicePayActions({ db, requireAdmin, payments, shopTestMode, hitLimit,
         if (!TOKEN.test(token)) return res.status(400).json({ error: "Unknown link." });
         const ref = links().doc(token);
         const snap = await ref.get();
-        if (snap.exists && !snap.data().paidAt) await ref.set({ status: "closed", closedAt: now().toISOString() }, { merge: true });
-        return res.status(200).json({ ok: true });
+        if (!snap.exists) return res.status(200).json({ ok: true, paid: false });
+        // Ask the card account first: a link paid a moment ago must be reported as paid, never closed in silence.
+        const { checkout } = await standalone();
+        const link = await refreshPaid(ref, snap.data(), checkout);
+        if (!link.paidAt && link.status === "open") await ref.set({ status: "closed", closedAt: now().toISOString() }, { merge: true });
+        return res.status(200).json({ ok: true, paid: !!link.paidAt, paidAt: link.paidAt || null, amountMinor: link.amountMinor, currency: link.currency });
       }
       if (op === "status") {
         const tokens = (Array.isArray(req.body?.tokens) ? req.body.tokens : []).filter(t => typeof t === "string" && TOKEN.test(t)).slice(0, 50);
@@ -156,7 +164,7 @@ function invoicePayActions({ db, requireAdmin, payments, shopTestMode, hitLimit,
       const nowSeconds = Math.floor(now().getTime() / 1000);
       const params = payCheckoutParams(link, { token, shopName: shopName(), returnUrl: siteLink(`/track?invoicePay=${token}`), nowSeconds });
       // The same link within the same ten minutes opens the same page, so a double tap never makes two.
-      const session = await checkout.open(params, `invpay-${token}-${link.amountMinor}-${Math.floor(nowSeconds / 600)}`);
+      const session = await checkout.open(params, `invpay-${token}-${link.amountMinor}-${Math.floor(nowSeconds / PAGE_WINDOW_SECONDS)}`);
       if (!(link.sessions || []).includes(session.id)) {
         await db.runTransaction(async tx => {
           const fresh = await tx.get(ref);

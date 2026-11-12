@@ -256,15 +256,13 @@ export function Dashboard() {
   const [alerts, setAlerts] = useState<AdminAlert[]>([]);
   const [reminderAlert, setReminderAlert] = useState<AdminAlert | null>(null);
   // Pending reviews, unread messages and open privacy requests (cheap server counts).
-  // Settings › Bookkeeping shows only when the platform's bookkeeping link is on for this shop (plan 7.16). Asked once,
-  // the first time Settings opens (its pages are listed there only).
-  const [bookkeepingOn, setBookkeepingOn] = useState(false);
+  // QuickBooks lives in Settings › Apps (Julian, 12 November 2026), so its old page is on no menu. Settings › Google is
+  // asked about once, the first time Settings opens (its pages are listed there only).
   const [googleOn, setGoogleOn] = useState(() => runsOnColophon());
-  const bookkeepingAsked = useRef(false);
+  const googleAsked = useRef(false);
   useEffect(() => {
-    if (activeTab !== "settings" || bookkeepingAsked.current) return;
-    bookkeepingAsked.current = true;
-    adminApi.bookkeeping("status").then((s) => setBookkeepingOn(!!s?.enabled)).catch(() => {});
+    if (activeTab !== "settings" || googleAsked.current) return;
+    googleAsked.current = true;
     // Settings › Google lists only on a shop Colophon runs (or one with the platform's Google link); others keep the
     // older Analytics and Search Console cards in Visitors & Google.
     googleConnectApi.status().then((g) => setGoogleOn(g !== "not_available" || runsOnColophon())).catch(() => setGoogleOn(runsOnColophon()));
@@ -281,7 +279,7 @@ export function Dashboard() {
     reopenedSide.current = true;
     if (OPENED_WITHOUT_PAGE && rememberedSide() === "stockroom") window.location.hash = hashForRoute({ tab: STOCKROOM_TAB, subTab: DEFAULT_STOCKROOM_PAGE });
   }, [user]);
-  const hiddenPages = new Set([...(bookkeepingOn ? [] : [SETTINGS_ITEM_PREFIX + "bookkeeping"]), ...(googleOn ? [] : [SETTINGS_ITEM_PREFIX + "google"]), ...(runsOnColophon() ? [] : [SETTINGS_ITEM_PREFIX + "apps"])]);
+  const hiddenPages = new Set([...(googleOn ? [] : [SETTINGS_ITEM_PREFIX + "google"]), ...(runsOnColophon() ? [] : [SETTINGS_ITEM_PREFIX + "apps"])]);
   // What the shop sells (plan 10.23): sign-up's answer in `firstWeek/start`. A shop that doesn't sell books reads
   // "Products" for "Books" across the admin (sells.ts `adminWordsFor`); with no answer every word stays as it is.
   const [sellsAnswer, setSellsAnswer] = useState<string | null>(null);
@@ -760,7 +758,7 @@ export function Dashboard() {
   ];
 
   // Pages fully built from Riso components render outside the legacy compatibility layer.
-  const migrated = activeTab === STOCKROOM_TAB || isCombinedTab(activeTab) || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "channels" || activeTab === "socialPosts" || activeTab === "design" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "bookkeeping" || settingsTab === "plan" || settingsTab === "billing" || settingsTab === "security" || settingsTab === "google" || settingsTab === "apps"));
+  const migrated = activeTab === STOCKROOM_TAB || isCombinedTab(activeTab) || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "channels" || activeTab === "socialPosts" || activeTab === "design" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "plan" || settingsTab === "billing" || settingsTab === "security" || settingsTab === "google" || settingsTab === "apps"));
   const content = (() => {
     switch (activeTab) {
       case "overview":

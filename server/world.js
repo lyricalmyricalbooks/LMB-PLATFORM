@@ -31,6 +31,8 @@
 //   POST /api/email/shop         a shop sending an email through the platform (services/email/http.js)
 //   *    /api/domains/...        a shop's web addresses (services/domains/http.js: POST /shop, GET /allowed), in the shared system
 //   *    /api/google/...         Connect Google (google/hosted.js: POST /shop from a shop, GET /oauth from Google)
+//   *    /api/social/...         social channels (services/social/hosted.js: POST /shop, GET /<network>/oauth)
+//   *    /api/accounting/...     the QuickBooks link (services/accounting/hosted.js: POST /shop, GET /quickbooks/oauth and /reconnect)
 //   GET  /tips/off, /checkup/off the emails' "turn off" pages
 //
 // What can't be real yet answers plainly that it isn't switched on (server/notConnected.js; listed in README.md).
@@ -52,6 +54,9 @@ import { createInvites } from "../waitlist/invites.js";
 import { readGoogleConfig } from "../google/config.js";
 import { googleReadiness } from "../google/readiness.js";
 import { hostedGoogleLink } from "../google/hosted.js";
+import { accountingEnv, accountingStores, hostedAccounting } from "../services/accounting/hosted.js";
+import { readAccountingConfig } from "../services/accounting/config.js";
+import { hostedSocial } from "../services/social/hosted.js";
 import { createSupportInbox } from "../services/support/inbox.js";
 import { supportRoutes } from "../services/support/routes.js";
 import { createAppMakers } from "../services/apps/makers.js";
@@ -107,10 +112,12 @@ import { createShopLooks, shopLooksRoutes } from "../control-room/shopLooks.js";
 import { createShopEmails, shopEmailsRoutes } from "../control-room/shopEmails.js";
 import { appUseRoutes, createAppUse } from "../control-room/appUse.js";
 import { createShopSocial, shopSocialRoutes } from "../control-room/shopSocial.js";
+import { connectionsRoutes, createConnectionsDesk } from "../control-room/connectionsDesk.js";
 import { createShopApps, shopAppsRoutes } from "../control-room/shopApps.js";
 import { chitChatsDeskRoutes, createChitChatsDesk } from "../control-room/chitChats.js";
 import { createMailchimpDesk, mailchimpDeskRoutes } from "../control-room/mailchimp.js";
 import { createOwnAppsDesk, ownAppsDeskRoutes } from "../control-room/ownApps.js";
+import { createQuickBooksDesk, quickbooksDeskRoutes } from "../control-room/quickbooks.js";
 import { chitChatsNote } from "../control-room/chitChatsNote.js";
 import { switchNote } from "../control-room/switchNote.js";
 import { createSellReady, sellReadyRoutes } from "../control-room/sellReady.js";
@@ -162,6 +169,18 @@ export function proxyHopsOf(env) {
 }
 
 /** Where Colophon's Zapier app lives, from server/env.yaml; null until both addresses are on zapier.com. */
+/** Whether the QuickBooks link is on, for the control room: "broken" when its settings don't go together. */
+function quickbooksSwitch(env, accounting) {
+  if (!accounting) return "broken";
+  try {
+    const config = readAccountingConfig(accountingEnv(env));
+    if (!config.enabled) return "off";
+    return config.apps.live || config.apps.test ? "on" : "no-keys";
+  } catch {
+    return "broken";
+  }
+}
+
 function zapierPlace(env) {
   const onZapier = (value) => /^https:\/\/zapier\.com\/\S+$/.test(String(value ?? "").trim());
   return onZapier(env.ZAPIER_INVITE_URL) && onZapier(env.ZAPIER_RETURN_ADDRESS)
@@ -337,6 +356,10 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     exchange: (args) => appInstalls.exchange(args), appCall: (request) => appConnection(request),
     roleIn: (who, shopId) => accounts.roleIn(who, shopId), fetch, now, returnAddress: `${settings.platformUrl}/account/mailchimp.html`,
   });
+  // The QuickBooks link (services/accounting, plan 7.15): a shop's Settings › Bookkeeping connects the press's own
+  // QuickBooks company, and the shop's nightly run sends its sales there. Hidden in every shop until Intuit's keys and
+  // ACCOUNTING_ENABLED are in (docs/accounting.md, Turning it on).
+  const accounting = hostedAccounting({ env, fetch, platform, registry, auditLog, email, shopStart: (shopId) => shopData.get(shopId, "firstWeek/start"), now: nowMs, log });
   const recovery = createRecovery({
     store: recoveryStore, email, registry, auditLog, settings, admins, now,
     findAccount: async (address) => {
@@ -370,8 +393,12 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const chitChatsDesk = createChitChatsDesk({ admins, chitchats, stores: chitchatsStores, registry, now: now });
   const sellReady = createSellReady({ admins, registry, shopData, now: now });
   const notSelling = createNotSelling({ admins, registry, shopData, email, activity, now: now });
-  // Social channels (27.8): the social service has no hosted home yet (services/social/index.js), so the room says so.
-  const shopSocial = createShopSocial({ admins, registry, social: null, now });
+  // Social channels (plan 27): a shop's Sales channels connects the press's Facebook & Instagram, Pinterest and TikTok
+  // (services/social/hosted.js). Off in every shop until the networks' keys and SOCIAL_ENABLED are in (docs/social.md).
+  const social = hostedSocial({ env, fetch, platform, registry, auditLog, now: nowMs, log });
+  const shopSocial = createShopSocial({ admins, registry, social: social?.service ?? null, now });
+  // Every Google, QuickBooks and social connection that stopped working, on the Shops page (control-room/connectionsDesk.js).
+  const connectionsDesk = createConnectionsDesk({ admins, platform, registry, now });
   const salesChannels = createSalesChannels({ admins, registry, shopData, stockroomData, now });
   // The billing export to BigQuery isn't on yet (19.15): the Costs page shows its "not on yet" state.
   const costReader = createCostReader({});
@@ -401,15 +428,15 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     : null;
   // Connect Google (google/hosted.js): on once the Google sign-in keys are in Secret Manager. Without them every shop's
   // Google page says "coming soon" (a status of `enabled: false`), and nothing else is answered.
-  const googleLink = hostedGoogleLink({ env, fetch, token, platform, registry, now: nowMs, log });
-  // A closing shop's Google link is undone with it (google/hosted.js closingHooks).
+  const googleLink = hostedGoogleLink({ env, fetch, token, platform, registry, domains, now: nowMs, log });
+  // A closing shop's Google link is undone with it, and at deletion its own address comes off (google/hosted.js closingHooks).
   const closing = createClosingSweep({ registry, auditLog, billing, email, projects: notConnectedClient(NOT_CONNECTED.projectDeletion, ["deleteProject"]), hooks: googleLink?.closingHooks ?? {}, settings, now: nowMs });
 
   // The terms promise 30 days' email before new words apply (terms/notice.js).
   const termsNotice = createTermsNotice({ signups: stores.signups, email, settings: live, now });
 
   // What the jobs can run (server/jobs.js reads these); the jobs page's "Run now" runs the ones that need nothing more.
-  const parts = { sharedShops: Boolean(sharedRun), domains, usage, usageMeters, costReader, ownApps, chitchats, chitchatsStores, mailchimp, env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups, termsNotice };
+  const parts = { sharedShops: Boolean(sharedRun), accounting, social, googleLink, domains, usage, usageMeters, costReader, ownApps, chitchats, chitchatsStores, mailchimp, env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups, termsNotice };
   const runNow = {
     "dropped-apps": () => billing.closeDroppedApps(),
     "every-app": () => billing.giveEveryApp(),
@@ -460,10 +487,12 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...shopEmailsRoutes(shopEmails),
     ...appUseRoutes(appUse),
     ...shopSocialRoutes(shopSocial),
+    ...connectionsRoutes(connectionsDesk),
     ...shopAppsRoutes(shopApps),
     ...chitChatsDeskRoutes(chitChatsDesk),
     ...mailchimpDeskRoutes(createMailchimpDesk({ admins, mailchimp, connections: mailchimpStores.connections, registry, now })),
     ...ownAppsDeskRoutes(createOwnAppsDesk({ admins, ownApps, apps: appStore, now })),
+    ...quickbooksDeskRoutes(createQuickBooksDesk({ admins, switchedOn: quickbooksSwitch(env, accounting), connections: accountingStores(platform).connections, registry, now })),
     ...sellReadyRoutes(sellReady),
     ...notSellingRoutes(notSelling),
     ...driftRoutes(driftDesk),
@@ -515,6 +544,14 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
       if (!domains) return { status: 503, body: { error: { code: "not_connected", message: NOT_CONNECTED.domains.words } } };
       return handleDomains({ ...request, path: path.slice("/api/domains".length) || "/" }, { service: domains });
     }
+    if (path === "/api/social" || path.startsWith("/api/social/")) {
+      if (!social) return { status: 503, body: { error: { code: "not_connected", message: NOT_CONNECTED.social.words } } };
+      return social.handle({ ...request, path: path.slice("/api/social".length) || "/" });
+    }
+    if (path === "/api/accounting" || path.startsWith("/api/accounting/")) {
+      if (!accounting) return { status: 503, body: { error: { code: "not_connected", message: NOT_CONNECTED.bookkeeping.words } } };
+      return accounting.handle({ ...request, path: path.slice("/api/accounting".length) || "/" });
+    }
     if (path === "/api/google" || path.startsWith("/api/google/")) return googleDoor({ ...request, path: path.slice("/api/google".length) || "/" });
     if (path === "/tips/off" || path === "/checkup/off") {
       if (request.method !== "GET") return { status: 405, body: { ok: false, message: "Open the link from the email." } };
@@ -525,7 +562,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
 
   return {
     projectId, settings, live, platform, registry, auditLog, shopData, stockroomData, email, billing, paymentWay, payments, signup, frontDoor, shopMaker, accounts, room, controls,
-    appAlerts, chitchats, mailchimp, backup, support, recovery, business, timeline, jobs, jobRuns, jobsPage, notes, pressMessages, costsDesk, dataExports, trialTips, checkups, closing, setupClock, driftWatch,
+    appAlerts, chitchats, mailchimp, accounting, social, backup, support, recovery, business, timeline, jobs, jobRuns, jobsPage, notes, pressMessages, costsDesk, dataExports, trialTips, checkups, closing, setupClock, driftWatch,
     routes, door, shopBilling, handle, parts, termsNotice, googleLink,
   };
 }

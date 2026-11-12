@@ -81,7 +81,8 @@ test("the shared server's settings are the platform's doors and the region, and 
   assert.equal(env, [
     'SHOP_PAYMENT_MODE="platform"', `SHOP_PAYMENTS_SERVICE_URL="${PLATFORM}/api/payments"`, 'SHOP_FUNCTIONS_REGION="northamerica-northeast1"',
     `PLATFORM_EMAIL_URL="${PLATFORM}/api/email/shop"`, `PLATFORM_DOMAINS_URL="${PLATFORM}/api/domains"`,
-    `PLATFORM_GOOGLE_URL="${PLATFORM}/api/google"`, `PLATFORM_APPS_URL="${PLATFORM}/api/apps"`, "",
+    `PLATFORM_GOOGLE_URL="${PLATFORM}/api/google"`, `PLATFORM_APPS_URL="${PLATFORM}/api/apps"`,
+    `PLATFORM_ACCOUNTING_URL="${PLATFORM}/api/accounting"`, `PLATFORM_SOCIAL_URL="${PLATFORM}/api/social"`, "",
   ].join("\n"));
   const { SHOP_KEYS } = createRequire(import.meta.url)("../../apps/shop/functions/shopConfig.js");
   for (const key of SHOP_KEYS.filter((k) => k !== "SHOP_PAYMENT_MODE")) assert.ok(!env.includes(`${key}=`), `${key} is each shop's own, in its record`);
@@ -124,6 +125,19 @@ test("the test project first, then the live one: rules, server code, site, a che
   assert.equal(auditLog.entries.get("moth-press").size, 1);
   assert.equal(registry.locks.has(SHARED_RELEASE_LOCK), false, "the lock is let go");
   assert.equal(kinds(w, "migrate").length, 0);
+});
+
+test("a release that throws part-way is recorded as failed, never as one that reached every project", async () => {
+  const { registry, lines, run } = await setup();
+  const takeLock = registry.takeLock.bind(registry);
+  let asked = 0;
+  registry.takeLock = async (...args) => { if (++asked === 2) throw new Error("the registry could not be reached"); return takeLock(...args); };
+  await assert.rejects(run("1.1.0"), /could not be reached/);
+  const record = (await registry.listReleases()).at(-1);
+  assert.equal(record.ok, false);
+  assert.match(record.error, /could not be reached/);
+  assert.ok(lines.some((line) => /stopped/.test(line)));
+  assert.ok(!lines.some((line) => /reached every shared project/.test(line)));
 });
 
 test("a failed test-project check puts it back and the live project is never touched", async () => {

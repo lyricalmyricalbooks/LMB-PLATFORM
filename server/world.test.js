@@ -218,3 +218,122 @@ test("a shared-system shop reaches the app store at the address its server is gi
   const installed = await world.handle({ method: "POST", path, headers: { "X-Shop-Id": "moth-press", Authorization: `Bearer ${key}` }, body: { op: "apps.installed", args: {} } });
   assert.equal(installed.status, 200, JSON.stringify(installed.body));
 });
+
+test("a shared-system shop reaches the QuickBooks link at the address its server is given; hidden until it's switched on", async () => {
+  const { sharedServerEnv } = await import("../services/release-runner/shared.js");
+  const url = /^PLATFORM_ACCOUNTING_URL="([^"]+)"$/m.exec(sharedServerEnv({ platformUrl: "https://platform.example" }))?.[1];
+  assert.equal(url, "https://platform.example/api/accounting");
+  // The shop's server posts to `${PLATFORM_ACCOUNTING_URL}/shop` (apps/shop/functions/quickbooksLink.js).
+  const path = `${new URL(url).pathname}/shop`;
+  const { world } = build({ ...TEST_ENV, SHARED_SHOPS_PROJECT: "lmb-test-shop", SHARED_SHOPS_DOMAIN: "shops.example" });
+  const key = "shared-server-key-0123456789abcdef0123456789";
+  await world.registry.createShop("moth-press", { shopId: "moth-press", projectId: "lmb-test-shop", shared: true, status: "live", serviceKeyHash: hashServiceKey(key) });
+  const refused = await world.handle({ method: "POST", path, headers: { "X-Shop-Id": "moth-press" }, body: { op: "accounting.status" } });
+  assert.equal(refused.status, 401);
+  const status = await world.handle({ method: "POST", path, headers: { "X-Shop-Id": "moth-press", Authorization: `Bearer ${key}` }, body: { op: "accounting.status" } });
+  assert.equal(status.status, 200, JSON.stringify(status.body));
+  assert.deepEqual(status.body, { enabled: false });
+  const reconnect = await world.handle({ method: "GET", path: "/api/accounting/quickbooks/reconnect", headers: {}, query: {} });
+  assert.equal(reconnect.status, 200);
+  // The nightly warning job runs (nothing to warn about yet) instead of waiting paused.
+  assert.deepEqual(await world.parts.accounting.service.nightly(), { warned: [] });
+});
+
+test("the QuickBooks link's stores keep each record in the platform's database, one use for a sign-in state", async () => {
+  const { accountingStores, accountingEnv } = await import("../services/accounting/hosted.js");
+  const { outside } = build();
+  const { firestoreClient } = await import("../clients/firestore.js");
+  const platform = firestoreClient({ fetch: outside.fetch, token: outside.token, projectId: TEST_PROJECT });
+  const stores = accountingStores(platform);
+  await stores.connections.set("moth-press", { mode: "test", realmId: "9130" });
+  assert.deepEqual(await stores.connections.get("moth-press"), { mode: "test", realmId: "9130", shopId: "moth-press" });
+  assert.deepEqual((await stores.connections.byRealm("test", "9130")).map((c) => c.shopId), ["moth-press"]);
+  assert.deepEqual(await stores.connections.byRealm("live", "9130"), []);
+  const state = "a".repeat(48);
+  await stores.states.put(state, { shopId: "moth-press" });
+  assert.deepEqual(await stores.states.take(state), { shopId: "moth-press" });
+  assert.equal(await stores.states.take(state), null);
+  await stores.sent.put("moth-press/9130/day/2026-11-11", { saleId: "7" });
+  assert.deepEqual(await stores.sent.get("moth-press/9130/day/2026-11-11"), { saleId: "7" });
+  assert.throws(() => stores.connections.get("../x"), /shop id/);
+  assert.equal(accountingEnv({ PLATFORM_URL: "https://platform.example/" }).QUICKBOOKS_REDIRECT_URL, "https://platform.example/api/accounting/quickbooks/oauth");
+});
+
+test("a shared-system shop reaches Connect Google at its address; with the keys in, its deletion takes its own address off", async () => {
+  const { sharedServerEnv } = await import("../services/release-runner/shared.js");
+  const url = /^PLATFORM_GOOGLE_URL="([^"]+)"$/m.exec(sharedServerEnv({ platformUrl: "https://platform.example" }))?.[1];
+  assert.equal(url, "https://platform.example/api/google");
+  const path = `${new URL(url).pathname}/shop`;
+  const shared = { ...TEST_ENV, SHARED_SHOPS_PROJECT: "lmb-test-shop", SHARED_SHOPS_DOMAIN: "shops.example" };
+  const key = "shared-server-key-0123456789abcdef0123456789";
+  const row = { shopId: "moth-press", projectId: "lmb-test-shop", shared: true, status: "live", serviceKeyHash: hashServiceKey(key) };
+
+  // Without Google's keys: "coming soon", and no deletion hook of Google's.
+  const off = build(shared).world;
+  await off.registry.createShop("moth-press", row);
+  const soon = await off.handle({ method: "POST", path, headers: { "X-Shop-Id": "moth-press", Authorization: `Bearer ${key}` }, body: { op: "google.status" } });
+  assert.deepEqual(soon.body, { enabled: false });
+
+  // With them (testing mode: the test shop only), the link is on and is the closing sweep's deletion hook.
+  const keys = { GOOGLE_CLIENT_ID: "id.apps.googleusercontent.com", GOOGLE_CLIENT_SECRET: "made-up", GOOGLE_TOKEN_KEY: Buffer.alloc(32, 7).toString("base64") };
+  const { world } = build({ ...shared, ...keys });
+  assert.ok(world.googleLink, "the Google link is hosted");
+  await world.registry.createShop("moth-press", { ...row, testShop: true });
+  const refused = await world.handle({ method: "POST", path, headers: { "X-Shop-Id": "moth-press" }, body: { op: "google.status" } });
+  assert.equal(refused.status, 401);
+  const on = await world.handle({ method: "POST", path, headers: { "X-Shop-Id": "moth-press", Authorization: `Bearer ${key}` }, body: { op: "google.status" } });
+  assert.equal(on.status, 200, JSON.stringify(on.body));
+  assert.equal(on.body.enabled, true);
+  assert.equal(world.googleLink.closingHooks.beforeDelete.length, 1);
+  // Not due yet: the hook refuses and nothing comes off.
+  assert.equal((await world.googleLink.closingHooks.beforeDelete[0]({ shopId: "moth-press" })).refused, true);
+});
+
+test("a shared-system shop reaches social channels at the address its server is given; off until it's switched on", async () => {
+  const { sharedServerEnv } = await import("../services/release-runner/shared.js");
+  const url = /^PLATFORM_SOCIAL_URL="([^"]+)"$/m.exec(sharedServerEnv({ platformUrl: "https://platform.example" }))?.[1];
+  assert.equal(url, "https://platform.example/api/social");
+  // The shop's server posts to `${PLATFORM_SOCIAL_URL}/shop` (apps/shop/functions/socialLink.js).
+  const path = `${new URL(url).pathname}/shop`;
+  const { world } = build({ ...TEST_ENV, SHARED_SHOPS_PROJECT: "lmb-test-shop", SHARED_SHOPS_DOMAIN: "shops.example" });
+  const key = "shared-server-key-0123456789abcdef0123456789";
+  await world.registry.createShop("moth-press", { shopId: "moth-press", projectId: "lmb-test-shop", shared: true, status: "live", serviceKeyHash: hashServiceKey(key) });
+  const refused = await world.handle({ method: "POST", path, headers: { "X-Shop-Id": "moth-press" }, body: { op: "social.status" } });
+  assert.equal(refused.status, 401);
+  const status = await world.handle({ method: "POST", path, headers: { "X-Shop-Id": "moth-press", Authorization: `Bearer ${key}` }, body: { op: "social.status" } });
+  assert.equal(status.status, 200, JSON.stringify(status.body));
+  assert.equal(status.body.enabled, false);
+  // Off: posting is refused, and a network's sign-in answer without a state goes nowhere.
+  const post = await world.handle({ method: "POST", path, headers: { "X-Shop-Id": "moth-press", Authorization: `Bearer ${key}` }, body: { op: "social.publish", args: {} } });
+  assert.notEqual(post.status, 200);
+  assert.ok(world.social, "the social service is hosted");
+});
+
+test("the social stores keep each record in the platform's database: one use for a sign-in state, one claim per post", async () => {
+  const { socialStores, socialEnv } = await import("../services/social/hosted.js");
+  const { outside } = build();
+  const { firestoreClient } = await import("../clients/firestore.js");
+  const platform = firestoreClient({ fetch: outside.fetch, token: outside.token, projectId: TEST_PROJECT });
+  const stores = socialStores(platform);
+  await stores.connections.set("moth-press", "meta", { accountName: "Moth Press" });
+  await stores.connections.set("moth-press", "pinterest", { accountName: "mothpress" });
+  await stores.connections.set("other-press", "meta", { accountName: "Other" });
+  assert.deepEqual(await stores.connections.get("moth-press", "meta"), { accountName: "Moth Press", shopId: "moth-press", network: "meta" });
+  assert.deepEqual((await stores.connections.listFor("moth-press")).map((c) => c.network).sort(), ["meta", "pinterest"]);
+  assert.throws(() => stores.connections.get("moth-press", "myspace"), /network/);
+  assert.throws(() => stores.connections.get("../x", "meta"), /shop id/);
+  const state = "b".repeat(48);
+  await stores.states.put(state, { shopId: "moth-press", network: "meta" });
+  assert.deepEqual(await stores.states.take(state), { shopId: "moth-press", network: "meta" });
+  assert.equal(await stores.states.take(state), null);
+  const key = "moth-press/post1/fb:123";
+  const first = await stores.sent.claim(key, { state: "sending", at: "2026-11-12T10:00:00.000Z" }, { staleBefore: "2026-11-12T09:50:00.000Z" });
+  assert.equal(first.claimed, true);
+  const again = await stores.sent.claim(key, { state: "sending", at: "2026-11-12T10:01:00.000Z" }, { staleBefore: "2026-11-12T09:51:00.000Z" });
+  assert.equal(again.claimed, false, "a post being sent isn't claimed twice");
+  const stale = await stores.sent.claim(key, { state: "sending", at: "2026-11-12T10:20:00.000Z" }, { staleBefore: "2026-11-12T10:10:00.000Z" });
+  assert.equal(stale.claimed, true, "a claim that died half-way can be tried again");
+  await stores.sent.put(key, { state: "posted", at: "2026-11-12T10:21:00.000Z" });
+  assert.equal((await stores.sent.claim(key, { state: "sending", at: "2026-11-13T00:00:00.000Z" }, { staleBefore: "2026-11-12T23:50:00.000Z" })).claimed, false, "never posted twice");
+  assert.equal(socialEnv({ PLATFORM_URL: "https://platform.example/" }).SOCIAL_REDIRECT_BASE, "https://platform.example/api/social");
+});

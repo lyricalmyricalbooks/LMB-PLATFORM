@@ -85,11 +85,14 @@ import { createShopLooks, shopLooksRoutes } from "../control-room/shopLooks.js";
 import { createShopEmails, shopEmailsRoutes } from "../control-room/shopEmails.js";
 import { appUseRoutes, createAppUse } from "../control-room/appUse.js";
 import { createShopSocial, shopSocialRoutes } from "../control-room/shopSocial.js";
+import { connectionsRoutes, createConnectionsDesk } from "../control-room/connectionsDesk.js";
 import { createShopApps, shopAppsRoutes } from "../control-room/shopApps.js";
 import { chitChatsDeskRoutes, createChitChatsDesk } from "../control-room/chitChats.js";
 import { createMailchimpDesk, mailchimpDeskRoutes } from "../control-room/mailchimp.js";
 import { createOwnAppsDesk, ownAppsDeskRoutes } from "../control-room/ownApps.js";
 import { createOwnApps } from "../services/apps/ownApps.js";
+import { createQuickBooksDesk, quickbooksDeskRoutes } from "../control-room/quickbooks.js";
+import { fakeConnections as fakeAccountingConnections } from "../services/accounting/fakes.js";
 import { createSellReady, sellReadyRoutes } from "../control-room/sellReady.js";
 import { createNotSelling, notSellingRoutes } from "../control-room/notSelling.js";
 import { createSocialService } from "../services/social/social.js";
@@ -297,6 +300,8 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const socialConnections = fakeConnections();
   const social = createSocialService({ clients: {}, registry, auditLog, connections: socialConnections, states: fakeStates(), sent: fakeSent(), config: readSocialConfig({}), now: () => clock.date().getTime() });
   const shopSocial = createShopSocial({ admins, registry, social, now: clock.date });
+  // No connection has stopped in the walkthrough: its pretend shops never connect Google, QuickBooks or a network.
+  const connectionsDesk = createConnectionsDesk({ admins, platform: { query: async () => [] }, registry, now: clock.date });
   const salesChannels = createSalesChannels({ admins, registry, shopData, stockroomData, now: clock.date });
   // Messages to presses (19.14), what each shop costs (19.15; no billing export in the practice world, so the empty
   // state) and a press's data on request (19.16).
@@ -347,11 +352,14 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...shopEmailsRoutes(shopEmails),
     ...appUseRoutes(appUse),
     ...shopSocialRoutes(shopSocial),
+    ...connectionsRoutes(connectionsDesk),
     ...shopAppsRoutes(shopApps),
     ...chitChatsDeskRoutes(chitChatsDesk),
     ...mailchimpDeskRoutes(createMailchimpDesk({ admins, mailchimp, connections: mailchimpStores.connections, registry, now: clock.date })),
     // No root secret in the practice world, so each own app shows what it waits for.
     ...ownAppsDeskRoutes(createOwnAppsDesk({ admins, ownApps: createOwnApps({ store: appStore, root: null, platformUrl: settings.platformUrl, supportEmail: settings.supportEmail, now: clock.date }), apps: appStore, now: clock.date })),
+    // The QuickBooks link is off in the practice world: no Intuit keys.
+    ...quickbooksDeskRoutes(createQuickBooksDesk({ admins, switchedOn: "off", connections: fakeAccountingConnections(), registry, now: clock.date })),
     ...sellReadyRoutes(sellReady),
     ...notSellingRoutes(notSelling),
     ...driftRoutes(driftDesk),

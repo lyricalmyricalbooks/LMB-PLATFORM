@@ -59,6 +59,11 @@ steps) and `projects` (the sweep's project deleter, which skips a project the te
 (`deletionDue`). A failed deletion step refuses too, so the sweep tries again on its next run; a failed closing step is
 recorded and shown in the control room with Run again, and never holds up the timeline.
 
+**As hosted (`hosted.js`, 12 November 2026).** The server builds the link with the platform's web address service
+(`domainsBridge(domains)`, so Google's proof lines and the email sending lines go in through it), and its
+`closingHooks` are `onClose` (only for a shop that connected Google) and `beforeDelete` (every shop, so each deleted
+shop's own address comes off). A shared shop's project is the shared one, so `deleteFirebase` never deletes it.
+
 ## The control room (`status.js`)
 
 `googleStatus(shopId)` gives the stage (not connected, connected, closed, deleted), the account, each part and every

@@ -78,7 +78,7 @@ describe("Settings › Bookkeeping", () => {
     expect(text()).toContain("Step 1 of 3");
     await act(async () => { connect.click(); });
     await flush();
-    expect(api.bookkeeping).toHaveBeenCalledWith("connect", { returnUrl: expect.stringMatching(/#settings\/bookkeeping$/) });
+    expect(api.bookkeeping).toHaveBeenCalledWith("connect", { returnUrl: expect.stringMatching(/#settings\/apps\/quickbooks$/) });
     expect(openSignIn).toHaveBeenCalledWith(expect.stringContaining("https://appcenter.example/connect"));
   });
 

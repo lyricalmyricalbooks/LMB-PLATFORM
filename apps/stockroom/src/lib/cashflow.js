@@ -9,6 +9,7 @@
 import { getBookCurrencyCode, roundCents } from './money.js';
 import { saleCadAmounts, datedCadRate } from './sale-fx.js';
 import { payoutDebtCollected } from './earnings.js';
+import { isTestItem } from './test-book.js';
 
 const yearOf = (d) => (d ? String(d).substring(0, 4) : '');
 const monthOf = (d) => (d ? String(d).substring(0, 7) : '');
@@ -37,7 +38,7 @@ export function computeCashFlowMetrics(sources, yearFilter) {
   let unitsSold = 0;
 
   Object.keys(books).forEach((bid) => {
-    if (bid.toLowerCase().includes('test') || books[bid]?.title?.toLowerCase()?.includes('test')) return;
+    if (isTestItem(bid, books[bid])) return;
     const s = states[bid] || {};
     const b = books[bid] || {};
     const cur = getBookCurrencyCode(b);
