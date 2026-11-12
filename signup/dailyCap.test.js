@@ -82,7 +82,7 @@ test("the queue lets presses in oldest first when the day turns, and emails each
   const words = TEMPLATES["shop-starting"](sent[0].data, { settings: platformSettings({}), pressName: "" });
   assert.match(words.text, /started making Press number 2/);
   assert.match(words.text, /No card needed/);
-  assert.match(words.html, /href="https:\/\/platform\.example\/signup\/"/);
+  assert.match(words.html, /href="https:\/\/platform\.example\/join\/"/);
 });
 
 test("a raised cap lets more in at once, and a trial that fails to start keeps its place", async () => {

@@ -107,6 +107,13 @@ async function sendCode() {
   holdResend();
 }
 
+// While sign-up is closed (the control room's "Anyone can sign up"), only invited emails can open a shop, so the page
+// says so before anyone answers the questions. Open, unreachable or unsure, the note stays hidden.
+fetch(`${API_BASE}/plans`)
+  .then((response) => (response.ok ? response.json() : null))
+  .then((answer) => { if (answer && answer.ok !== false && answer.signupOpen === false) $("#closed-note").hidden = false; })
+  .catch(() => { /* no note */ });
+
 // The email typed on the front page (waitlist/frontPage.js) is filled in, so the person only presses Continue.
 {
   let storage = null;

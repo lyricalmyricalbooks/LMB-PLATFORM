@@ -128,8 +128,8 @@ test("the activity log filters by shop and is read only", async () => {
 
 test("the invite and fee emails render, escape the press and link over https", () => {
   const settings = { platformName: "Colophon", trialDays: 14 };
-  const invite = TEMPLATES["waitlist-invite"]({ link: "https://platform.example/signup/" }, { settings });
-  assert.match(invite.text, /Start your shop: https:\/\/platform\.example\/signup\//);
+  const invite = TEMPLATES["waitlist-invite"]({ link: "https://platform.example/join/" }, { settings });
+  assert.match(invite.text, /Start your shop: https:\/\/platform\.example\/join\//);
   const fee = TEMPLATES["platform-fee-changing"]({ fromPercent: 0, toPercent: 1.5, startsOn: "27 November 2026", refunded: true, link: "https://platform.example/account/billing?shop=m" }, { settings, pressName: "Moth <b>Press</b>" });
   assert.match(fee.text, /From 27 November 2026/);
   assert.doesNotMatch(fee.html, /<b>Press/);
