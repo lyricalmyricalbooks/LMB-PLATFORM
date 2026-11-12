@@ -14,7 +14,7 @@ import type { Book } from "../features/site/types";
  */
 export const aiWriterAvailable = () => !runsOnColophon();
 
-export type AiTask ="bookSeo" | "bookDescription" | "photoAlt" | "pageSeo" | "rewrite" | "sectionDraft";
+export type AiTask ="bookSeo" | "bookDescription" | "photoAlt" | "pageSeo" | "rewrite" | "sectionDraft" | "receiptRead";
 /** Studio's section drafts carry lists (`items`) as well as words. Every answer also says which AI wrote it
  * (`provider`, `model`) and `fellBack: true` when the chosen one had run out and the other saved key answered. */
 export type AiResult = Record<string, any>;

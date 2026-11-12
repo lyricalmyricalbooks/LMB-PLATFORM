@@ -224,6 +224,31 @@ ${factLines(bookFacts(f))}`,
     clean: out => ({ alt: fitWords(String(out.alt || "").replace(/\*\*|__|`/g, "").replace(/^["“]|["”]$/g, ""), 140) }),
     ok: out => Boolean(out.alt),
   },
+  // Tax centre › Log a business expense › Read a receipt photo: the facts printed on one receipt, nothing guessed.
+  // The picture comes inline from the owner's browser (receiptImage checks it); it is read, never stored by this task.
+  receiptRead: {
+    needs: () => true,
+    prompt: () => `Read this photo of a receipt or bill and return what is printed on it.
+- vendor: the shop or company name, as printed.
+- date: the purchase date as YYYY-MM-DD, or "" if you can't read it.
+- total: the final amount paid, digits and a dot only (for example 42.50), or "" if unclear.
+- tax: the total sales tax shown (GST, HST, PST, QST or VAT added together), digits and a dot only, or "".
+- currency: the three-letter currency code if printed or obvious from the symbol and country, else "".
+- number: the receipt or invoice number, or "".
+- what: at most 8 words saying what was bought (for example "Printer paper and toner").
+Only what you can read on the receipt: never guess or invent a value.`,
+    schema: { type: "OBJECT", properties: { vendor: { type: "STRING" }, date: { type: "STRING" }, total: { type: "STRING" }, tax: { type: "STRING" }, currency: { type: "STRING" }, number: { type: "STRING" }, what: { type: "STRING" } }, required: ["vendor", "date", "total", "tax", "currency", "number", "what"] },
+    clean: out => {
+      const amount = v => { const n = Number(String(v || "").replace(/[^0-9.]/g, "")); return Number.isFinite(n) && n > 0 ? n.toFixed(2) : ""; };
+      const date = String(out.date || "").trim();
+      return {
+        vendor: fitWords(out.vendor, 80), what: fitWords(out.what, 80), number: clip(oneLine(out.number), 40),
+        date: /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "", total: amount(out.total), tax: amount(out.tax),
+        currency: /^[A-Z]{3}$/.test(String(out.currency || "").trim().toUpperCase()) ? String(out.currency).trim().toUpperCase() : "",
+      };
+    },
+    ok: out => Boolean(out.vendor || out.total),
+  },
   // Studio › Pages: the storefront adds the shop name around a page's search title, so the title leaves it out.
   pageSeo: {
     needs: f => Boolean(clip(f?.title, 200) || plainText(f?.text, 100)),
@@ -678,6 +703,15 @@ async function fetchPhoto(url, fetchImpl) {
   }
 }
 
+/** The receipt photo the browser sent, as Gemini inline data, or null when it isn't a small picture. Pure. */
+function receiptImage(input) {
+  const mimeType = String(input?.imageType || "").toLowerCase();
+  const data = String(input?.imageData || "");
+  if (!IMAGE_TYPES.has(mimeType) || !data || !/^[A-Za-z0-9+/=]+$/.test(data)) return null;
+  if (Math.floor(data.length * 3 / 4) > IMAGE_MAX_BYTES) return null;
+  return { mimeType, data };
+}
+
 /**
  * The admin `aiWrite` action. `op: "check"` tries a saved key with a tiny request (`provider` names which one);
  * otherwise `task` is one of TASKS and `input` its facts. Deps keep it testable:
@@ -727,7 +761,11 @@ async function handleAiWrite(body, { readSettings, allow, fetchImpl = fetch, sit
       return { status: 502, body: { error: "Couldn't open this photo to describe it. Try again, or upload it again." } };
     }
   }
-  const raw = task === "pageSeo" || task === "rewrite" || task === "sectionDraft";
+  if (task === "receiptRead") {
+    image = receiptImage(input);
+    if (!image) return { status: 400, body: { error: "That picture can't be read. Use a JPEG, PNG or WebP photo under 7 MB." } };
+  }
+  const raw = task === "receiptRead" || task === "pageSeo" || task === "rewrite" || task === "sectionDraft";
   if (!TASKS[task].needs(raw ? input : bookFacts(input))) {
     const why = { pageSeo: "Write the page title or some text first.", rewrite: "There's no text to rewrite yet.", sectionDraft: "Say what the section should be about first." };
     return { status: 400, body: { error: why[task] || "Give the book a title first." } };
@@ -740,4 +778,4 @@ async function handleAiWrite(body, { readSettings, allow, fetchImpl = fetch, sit
   }
 }
 
-module.exports = { generateVertex, vertexErrorMessage, VERTEX_MODELS, backupProvider, worthBackup, runWithBackup, resetProviderRest, MODELS, OPENROUTER_MODELS, TASKS, openRouterKeyProblem, openRouterModelProblem, toJsonSchema, buildOpenRouterRequest, fromOpenRouter, openRouterErrorMessage, generateOpenRouter, pickProvider, photoImageUrl, DRAFT_TYPES, REWRITE_HOW, REWRITE_MAX, HTML_TAGS, tokensOf, sanitizeHtml, richTextProblem, aiKeyProblem, bookFacts, buildRequest, parseResponse, aiErrorMessage, generate, handleAiWrite, fitWords, plainText };
+module.exports = { receiptImage, generateVertex, vertexErrorMessage, VERTEX_MODELS, backupProvider, worthBackup, runWithBackup, resetProviderRest, MODELS, OPENROUTER_MODELS, TASKS, openRouterKeyProblem, openRouterModelProblem, toJsonSchema, buildOpenRouterRequest, fromOpenRouter, openRouterErrorMessage, generateOpenRouter, pickProvider, photoImageUrl, DRAFT_TYPES, REWRITE_HOW, REWRITE_MAX, HTML_TAGS, tokensOf, sanitizeHtml, richTextProblem, aiKeyProblem, bookFacts, buildRequest, parseResponse, aiErrorMessage, generate, handleAiWrite, fitWords, plainText };

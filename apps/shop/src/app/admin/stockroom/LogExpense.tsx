@@ -7,6 +7,7 @@ import { categoryFromRules } from "./taxRules";
 import { addBusinessExpense, baseCurrencyOf, blankExpense, checkExpense, EXPENSE_CATEGORIES, EXPENSE_CURRENCIES, isDuplicate, tripChoices, type ExpenseErrors, type ExpenseForm } from "./taxExpense";
 import { describeResult, stockroomWriteApi } from "./stockroomWrite";
 import { taxRatesApi } from "./taxRates";
+import { readReceipt, receiptPatch } from "./receiptRead";
 
 type Row = Record<string, any>;
 type Note = { tone: "ok" | "warn" | "error" | "busy"; text: string };
@@ -47,6 +48,22 @@ export function LogExpenseCard({ taxCenter, onSaved, prefill, onPrefillDone }: {
     id.current = Date.now() + Math.floor(Math.random() * 1000);
     cardRef.current?.scrollIntoView?.({ behavior: "smooth", block: "center" });
   }, [prefill]);
+  const photo = useRef<HTMLInputElement>(null);
+  const [reading, setReading] = useState(false);
+  async function readPhoto(file: File | undefined) {
+    if (!file) return;
+    setReading(true);
+    setNote({ tone: "busy", text: "Reading the receipt…" });
+    try {
+      const facts = await readReceipt(file);
+      const patch = receiptPatch(facts, currencies);
+      if (!Object.keys(patch).length) { setNote({ tone: "warn", text: "Nothing on that photo could be read. Try a sharper, closer photo." }); return; }
+      set(patch);
+      setNote({ tone: "ok", text: `Filled in from the receipt${facts.tax ? ` (tax shown: ${facts.tax})` : ""}. Check it, then log it.` });
+    } catch (error: any) {
+      setNote({ tone: "error", text: error?.message || "The receipt couldn't be read. Type it in instead." });
+    } finally { setReading(false); if (photo.current) photo.current.value = ""; }
+  }
   const trips = tripChoices(taxCenter);
   const currencies = [...new Set([base, ...EXPENSE_CURRENCIES])];
 
@@ -86,6 +103,10 @@ export function LogExpenseCard({ taxCenter, onSaved, prefill, onPrefillDone }: {
     <SectionCard title="Log a business expense" description="Anything the press paid for. It joins the ledger below and the totals above.">
       <div ref={cardRef} />
       <form className="rp-money-form" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
+        <div className="rp-money-actions">
+          <SecondaryButton type="button" busy={reading} onClick={() => photo.current?.click()}>{reading ? "Reading…" : "Read a receipt photo"}</SecondaryButton>
+          <input ref={photo} type="file" accept="image/*" capture="environment" hidden onChange={(e) => void readPhoto(e.target.files?.[0])} />
+        </div>
         <TextField label="What was it for?" placeholder="e.g. Squarespace or Shopify" value={form.desc} error={errors.desc} onChange={(e) => set({ desc: e.target.value })} />
         <div className="rp-money-form-row">
           <SelectField label="Tax category" hint={ruled ? "Filed here by one of your sorting rules." : undefined} value={form.cat} error={errors.cat} onChange={(e) => set({ cat: e.target.value })}>
