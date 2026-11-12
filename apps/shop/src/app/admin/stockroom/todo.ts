@@ -63,7 +63,7 @@ export function buildTodo(records: StockroomRecords, opts: {
 export function fixTarget(signal: Signal, isPage: (id: string) => boolean): { page: string; bookId?: string } | null {
   const fix = signal.fix;
   if (!fix) return null;
-  if (fix.kind === "taxcenter") return { page: fix.tab === "deductions" || fix.tab === "ledger" ? "taxcosts" : "taxcenter" };
+  if (fix.kind === "taxcenter") return { page: fix.tab === "deductions" || fix.tab === "ledger" ? "expenses" : "taxcenter" };
   if (fix.kind === "tab") return fix.tab && isPage(fix.tab) ? { page: fix.tab } : null;
   if (fix.kind === "book" || fix.kind === "edit-book") {
     const page = fix.tab && isPage(fix.tab) ? fix.tab : "dashboard";

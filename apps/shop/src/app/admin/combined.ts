@@ -46,16 +46,14 @@ export const STOCKROOM_PAGES: StockroomPage[] = [
   { id: "consignment", label: "Stockists", description: "Shops holding your copies: what they have, what they sold and what they owe you." },
   { id: "invoices", label: "Invoices", description: "Invoices for stockists and buyers: make, send, chase and mark paid." },
   { id: "qrcodes", label: "QR codes", description: "Codes to print for card payments, your shop and any link you choose." },
-  { id: "reconcile", label: "Reconcile", description: "Money coming in from every place you sell, matched to your sales." },
+  { id: "reconcile", label: "Bookkeeping", description: "The record of money in and out: sales, costs, receipts and payouts." },
   { id: "payouts", label: "Payments", description: "Payouts to your bank, card sales on their way and your pay links." },
-  { id: "expenses", label: "Expenses", description: "What the press spends, with receipts." },
-  { id: "taxcenter", label: "Tax centre", description: "Money in and out: cash flow, by month and where it went." },
-  { id: "taxledger", label: "Ledger", description: "Every sale and cost in the tax year, with a spreadsheet download." },
-  { id: "taxcosts", label: "Costs to log", description: "Log costs, keep receipts and find costs that may be missing." },
-  { id: "taxsales", label: "Sales tax", description: "Sales tax to remit this quarter, fees and what to check before you file." },
-  { id: "taxrates", label: "Rates and places", description: "Sales tax by rate, place and channel." },
-  { id: "taxfilings", label: "Filings", description: "Past quarters and whether each one is filed." },
-  { id: "taxyear", label: "Year end", description: "Stock value, card fees and the year's tax report." },
+  { id: "expenses", label: "Bookkeeping", description: "The record of money in and out: sales, costs, receipts and payouts." },
+  { id: "taxcenter", label: "Tax centre", description: "What you collected, what you owe and when to file." },
+  // Bookkeeping (mockup, 12 November 2026): one title over five tabs; the menu names each tab (riso/nav.ts).
+  { id: "books", label: "Bookkeeping", description: "The record of money in and out: sales, costs, receipts and payouts." },
+  { id: "receipts", label: "Bookkeeping", description: "The record of money in and out: sales, costs, receipts and payouts." },
+  { id: "artists", label: "Bookkeeping", description: "The record of money in and out: sales, costs, receipts and payouts." },
   { id: "intel", label: "Insights", description: "Your best seller, your best channel and what is worth knowing." },
   { id: "customers", label: "Buyers in person", description: "People who bought at fairs, from invoices or by hand." },
   { id: "sheets", label: "Sales spreadsheet", description: "Your stock, sales and costs copied to a Google Sheet in your own Drive." },
@@ -65,7 +63,13 @@ export const STOCKROOM_PAGES: StockroomPage[] = [
 const PAGES = new Map(STOCKROOM_PAGES.map((p) => [p.id, p]));
 export const DEFAULT_STOCKROOM_PAGE = STOCKROOM_PAGES[0].id;
 
+/** Pages that moved into another (Tax centre + Bookkeeping, 12 November 2026): old links and to-do fixes open the new one. */
+const MOVED: Record<string, string> = {
+  taxsales: "taxcenter", taxrates: "taxcenter", taxfilings: "taxcenter",
+  taxledger: "reconcile", taxcosts: "expenses", taxyear: "books",
+};
+
 /** A stockroom page id from an address or a message, or undefined when it isn't one of the menu's. */
 export function stockroomPage(id: string | undefined | null): StockroomPage | undefined {
-  return id ? PAGES.get(id) : undefined;
+  return id ? PAGES.get(MOVED[id] ?? id) : undefined;
 }

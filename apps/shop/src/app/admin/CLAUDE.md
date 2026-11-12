@@ -918,19 +918,25 @@ yet overdue). The table has Customer, Issued, Due, Amount, Status and one action
 settle Stockists uses). Create invoice and the details, reminders and letterhead buttons sit in the page header. The
 mockup's "Download statements" is not built (no such feature) and its "Send" is labelled Mark sent (nothing is emailed).
 
-**Tax centre pages in v4 (12 November 2026):** the Tax centre item (`riso/nav.ts`) has eight pages in three sections:
-Your books (`taxcenter` "Money in and out", `taxledger`, `taxcosts`), Sales tax (`taxsales`, `taxrates`, `taxfilings`)
-and Check and close (`reconcile`, `taxyear`). Each is `TaxCenterView` with a `part` (`TaxCenterPage.tsx`, `taxPage(part)`);
-TaxTop takes a matching `part`. Year parts (money, ledger, year end) pick the year with their own pills; sales tax parts
-use the quarter pills. `part="all"` still draws everything (moneyReports tests). Missing-cost and recurring-cost fixes
-on the to-do list open `taxcosts` (`todo.ts` fixTarget). Tile figures size to their tile (container units, no wrapping).
-Costs to log has **Log an expense** in the header: it (and Confirm on a pending cost) opens the New expense kit page
-(`LogExpenseCard page`, Back returns); `part="all"` keeps the card inline.
+**Tax centre and Bookkeeping (12 November 2026, mockup "Tax centre + Bookkeeping"):** the **Tax centre** item is one
+page, `taxcenter` (`TaxCenterPage` = `taxPage("tax")`): `TaxTop part="page"` (tiles, rates | channel, Past filings and a
+**Next filing** tile) plus `TaxSeasonCard`. Its header (`PageActions`) holds the year switcher (`YearSwitch.tsx`:
+`moneyYears` from the earliest record, at least last year; `useMoneyYear` shared by every money page for the visit,
+sessionStorage `lm:money-year`), **Mark period filed** (an ended quarter not yet filed) and Download tax summary. Periods
+come from `yearPeriods(year)` (`taxPeriods.ts`: this year = open quarter + year to date; a past year = its quarters and
+Whole of YYYY). **Bookkeeping** has five pills: `books` Overview (`BookOverview`: Revenue/Expenses/Net profit and Paid to
+artists (publishers) or Gross profit from `yearFigures`, P&L, Where the money goes, Cash flow, Reports and exports,
+stock value, card fees), `reconcile` Transactions (ReconcileView + ledger), `expenses` (missing costs first, Log expense,
+recurring, rules, trips), `receipts` (`ReceiptsGrid.tsx`, pure `receiptsModel`; the drop zone opens Log expense with the
+photo read) and `artists` (`ArtistPayouts.tsx`, pure `artistRows` from `authorMoneyPlan`; a row opens the book to settle;
+hidden for non-publishers in `Dashboard` `hiddenPages`). Every Bookkeeping page's header has the year, **Log expense** and
+**Export for accountant** (the year's ledger CSV). Old addresses open the new pages (`MOVED` in `combined.ts`:
+taxsales/taxrates/taxfilings → taxcenter, taxledger → reconcile, taxcosts → expenses, taxyear → books). Payments
+(`payouts`) and Insights (`intel`) are off the menu but still open from links. Not built (nothing behind them): bank feed
+matching, chart of accounts, a setup tab, PDF reports, one-click Run payouts, tax registration and reminders.
+`part="all"` still draws the old one-page layout (moneyReports tests). Fixture: `admin-fixture.html?page=stockroom/books`.
 Analytics is split into the v4 pages Overview · Traffic · Books/Products · Checkout (`SUB_TABS.analytics`, `PageTabs` in `AnalyticsPage.tsx`); the period pills stay on every page.
 
-**Bookkeeping Payments in v4 (12 November 2026):** Bookkeeping's first page is `payouts` "Payments" (`stockroom/PaymentsPage.tsx`,
-pure `paymentsModel.ts`): three tiles (paid out in the last 30 days, Pending = payouts with no date yet plus paid sales
-not in a payout, Payment links open = sent invoices with a card pay link, `cardLinkOf`), the payouts from
-`reconcileModel` (a row opens Reconcile payouts) and Pay by QR and links (items with `paymentLinkOf`, invoice card
-links). Read-only. The mockup's "Create payment link" is not built: card links are made on an invoice. QuickBooks is
-moving to the app store (Julian, 12 November 2026), so this page leaves it alone.
+**Payments page (12 November 2026):** `payouts` (`stockroom/PaymentsPage.tsx`, pure `paymentsModel.ts`) is off the
+Bookkeeping menu since the Tax centre + Bookkeeping mockup but still opens from links: payouts paid out and pending,
+payment links open and Pay by QR and links. Read-only.

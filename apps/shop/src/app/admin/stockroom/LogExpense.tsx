@@ -25,7 +25,8 @@ export type Prefill = { noteId: string | number; form: ExpenseForm };
  * `page`: the v4 New expense page (form kit: sections on the left, the amount in a rail, one status bar). Without it,
  * the card the Tax centre shows.
  */
-export function LogExpenseCard({ taxCenter, onSaved, prefill, onPrefillDone, page, onCancel }: { taxCenter: Row | null; onSaved: (taxCenter: Row) => void; prefill?: Prefill | null; onPrefillDone?: () => void; page?: boolean; onCancel?: () => void }) {
+export function LogExpenseCard({ taxCenter, onSaved, prefill, onPrefillDone, page, onCancel, photoFile }: { taxCenter: Row | null; onSaved: (taxCenter: Row) => void; prefill?: Prefill | null; onPrefillDone?: () => void; page?: boolean; onCancel?: () => void;
+  /** A receipt photo dropped on Bookkeeping › Receipts: read it as soon as the form opens. */ photoFile?: File | null }) {
   const base = baseCurrencyOf(taxCenter);
   const [form, setForm] = useState<ExpenseForm>(() => blankExpense(base, todayText()));
   const [errors, setErrors] = useState<ExpenseErrors>({});
@@ -73,6 +74,7 @@ export function LogExpenseCard({ taxCenter, onSaved, prefill, onPrefillDone, pag
       setNote({ tone: "error", text: error?.message || "The receipt couldn't be read. Type it in instead." });
     } finally { setReading(false); if (photo.current) photo.current.value = ""; }
   }
+  useEffect(() => { if (photoFile) void readPhoto(photoFile); }, [photoFile]);
   const trips = tripChoices(taxCenter);
   const currencies = [...new Set([base, ...EXPENSE_CURRENCIES])];
 

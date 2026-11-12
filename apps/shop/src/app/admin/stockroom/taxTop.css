@@ -34,3 +34,13 @@
 .rp-tax-filed { display: inline-flex; align-items: center; gap: var(--rp-space-2); }
 @media (max-width: 1100px) { .rp-tax-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .rp-tax-split { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .rp-tax-tiles { grid-template-columns: 1fr; } .rp-tax-bars li { grid-template-columns: 1fr auto; } .rp-tax-bars .rp-tax-bar { grid-column: 1 / -1; grid-row: 2; } }
+/* The money year (Tax centre + Bookkeeping, 12 November 2026): ‹ 2023 2024 2025 2026 › in the page header. */
+.rp-yearswitch { display: inline-flex; align-items: center; gap: 2px; padding: 4px; border-radius: 999px; background: var(--rp-surface); white-space: nowrap; }
+.rp-yearswitch button { border: 0; background: transparent; color: var(--rp-text); font: 600 var(--rp-text-sm)/1 var(--rp-font-body); border-radius: 999px; cursor: pointer; }
+.rp-yearswitch-year { padding: 9px 14px; font-variant-numeric: tabular-nums; }
+.rp-yearswitch-year[aria-pressed="true"] { background: var(--rp-inverse); color: var(--rp-on-inverse); }
+.rp-yearswitch-arrow { width: 32px; height: 32px; }
+.rp-yearswitch-arrow:hover:not(:disabled) { background: var(--rp-surface-2); }
+.rp-yearswitch-arrow:disabled { opacity: .35; cursor: default; }
+.rp-yearswitch button:focus-visible { outline: 2px solid var(--rp-focus, var(--rp-primary)); outline-offset: 1px; }
+.rp-tax-filing-row { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
