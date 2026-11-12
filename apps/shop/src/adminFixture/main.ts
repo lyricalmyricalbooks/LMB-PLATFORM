@@ -532,6 +532,23 @@ if (startAt) {
     location: { street: "12 Queen Street", city: "Toronto", state: "ON", zip: "M5H 2N2", country: "Canada" } });
 }
 
+// ?shipping=1 (Settings › Shipping screenshots): two profiles with zones and rates, saved only in this page.
+if (new URLSearchParams(location.search).get("shipping")) {
+  const api = adminApi as any;
+  let profiles: any[] = [
+    { id: "general-profile", name: "General", freeShippingOver: 75, handlingFee: 1, defaultItemWeightG: 350, zones: [
+      { id: "z-ca", name: "Canada", countries: ["CA"], rates: [
+        { id: "r-std", name: "Standard", type: "flat", base: 8, additional: 3, deliveryDays: "3-7" },
+        { id: "r-exp", name: "Express", type: "flat", base: 18, additional: 4, deliveryDays: "1-3", minPrice: 20 },
+        { id: "r-pick", name: "Pick up in Toronto", type: "pickup", base: 0, additional: 0 }] },
+      { id: "z-us", name: "United States", countries: ["US"], rates: [{ id: "r-us", name: "Tracked", type: "flat", base: 14, additional: 4, deliveryDays: "5-10" }] },
+      { id: "z-row", name: "Rest of world", countries: [], restOfWorld: true, rates: [] }] },
+    { id: "heavy", name: "Heavy books", zones: [] },
+  ];
+  api.getShippingProfiles = async () => JSON.parse(JSON.stringify(profiles));
+  api.updateShippingProfile = async (id: string, p: any) => { profiles = profiles.map((x) => (x.id === id ? p : x)); };
+}
+
 // ?gstate=coming|ready|connected|trouble (Settings › Google screenshots): a pretend Google link, nothing reaches Google.
 // coming: not switched on yet · ready: switched on, not connected · connected: all working · trouble: needs a look.
 const gstate = new URLSearchParams(location.search).get("gstate");

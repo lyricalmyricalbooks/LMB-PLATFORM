@@ -26,7 +26,7 @@ afterEach(async () => { await act(async () => root?.unmount()); root = null; doc
 const click = async (el: Element | null | undefined) => { await act(async () => { (el as HTMLElement).click(); }); };
 const byText = (root: Element, sel: string, text: string) => [...root.querySelectorAll(sel)].find((b) => b.textContent?.trim() === text);
 
-describe("Settings › Shipping › profiles (Masthead layout)", () => {
+describe("Settings › Shipping › profiles (v4 form kit)", () => {
   it("lists profiles as one ruled list with Edit and a ⋯ menu, no eyebrow or description", async () => {
     const el = await mount();
     expect(el.querySelector('[aria-label="Shipping profiles"]')?.textContent).toContain("Heavy books");
@@ -34,29 +34,26 @@ describe("Settings › Shipping › profiles (Masthead layout)", () => {
     expect(el.textContent).not.toContain("A profile is a set of zones");
   });
 
-  it("opens a profile as a big title, underlined sub tabs and the same figures strip as Inventory", async () => {
+  it("opens a profile as one form kit page: sections, zones with their rates, one status bar (v4 mockup 1f)", async () => {
     const el = await mount();
     await click(byText(el, "button", "General"));
-    expect(el.querySelector("h2.rp-page-title")?.textContent).toBe("General");
-    const tabs = [...el.querySelectorAll('[role="tablist"][aria-label="Profile"] [role="tab"]')].map((t) => t.textContent);
-    expect(tabs).toEqual(["Zones & prices", "Rules", "Books", "Test"]);
-    expect([...el.querySelectorAll(".rp-kpi-grid .rp-metric-label")].map((n) => n.textContent)).toEqual(["Zones", "Rates", "Countries", "Books"]);
-    expect(el.textContent).not.toMatch(/\\d · (Where you ship|Rules for|Books that|Test this)/);
-    expect(el.querySelector(".rp-card-desc")).toBeNull();
-    // One panel at a time; the others stay mounted.
-    expect(el.querySelector("#rp-panel-profile-zones")?.hasAttribute("hidden")).toBe(false);
-    expect(el.querySelector("#rp-panel-profile-test")?.hasAttribute("hidden")).toBe(true);
-    await click(el.querySelector("#rp-tab-profile-test"));
-    expect(el.querySelector("#rp-panel-profile-test")?.hasAttribute("hidden")).toBe(false);
-    await click(byText(el, "button", "← Shipping profiles"));
+    expect(el.querySelector("h1, h2")?.textContent).toBe("General");
+    const sections = [...el.querySelectorAll(".rp-fk-section-title")].map((n) => n.textContent);
+    expect(sections).toEqual(["How you charge", "Zones and rates", "Packing", "Books", "Try a checkout"]);
+    // No sub tabs or figures strip any more: everything is on the one page.
+    expect(el.querySelector('[role="tablist"][aria-label="Profile"]')).toBeNull();
+    expect(el.querySelector(".rp-kpi-grid")).toBeNull();
+    expect(el.querySelector('[aria-label="Rates for Canada"]')?.textContent).toContain("Standard");
+    expect(el.querySelector('[role="region"][aria-label="Form status"]')?.textContent).toContain("All saved");
+    await click(byText(el, "button", "← Shipping"));
     expect(el.querySelector('[aria-label="Shipping profiles"]')).not.toBeNull();
   });
 
-  it("puts the name of a non-default profile on Name & rules and lists its books", async () => {
+  it("asks a non-default profile for its name and lists its books", async () => {
     const el = await mount();
     await click(byText(el, "button", "Heavy books"));
-    expect(el.querySelector("#rp-tab-profile-rules")?.textContent).toBe("Name & rules");
-    expect(el.querySelector("#rp-panel-profile-books")?.textContent).toContain("Heavy Atlas");
+    expect(el.textContent).toContain("Profile name");
+    expect(el.querySelector('[aria-label="Books that use this profile"]')?.textContent).toContain("Heavy Atlas");
     if (process.env.SHOT_HTML) (await import("node:fs")).writeFileSync(process.env.SHOT_HTML, el.innerHTML);
   });
 });
