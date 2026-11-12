@@ -161,11 +161,11 @@ describe("special order lines on the packing checklist", () => {
 });
 
 describe("ship station steps", () => {
-  it("shows where the order is in three steps", () => {
+  it("shows where the order is: Paid, Packed, Shipped, Delivered (v4)", () => {
     const o = base();
     o.operations = { addressReviewed: addressKey(o) };
     const html = render(o);
-    expect(html).toContain("Address checked");
+    for (const step of ["Paid", "Packed", "Shipped", "Delivered"]) expect(html).toContain(`<strong>${step}</strong>`);
     expect(html).toContain('aria-current="step"');
     expect(html).toContain("Step 2 · now");
     expect(html).toContain("2 books");

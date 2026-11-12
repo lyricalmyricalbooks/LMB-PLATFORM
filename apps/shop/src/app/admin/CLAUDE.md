@@ -849,6 +849,14 @@ Payments and Plan as form kit pages (`SetupForm`: `FormPage` + `CardsAsSections`
 (Home keeps its welcome). Stockroom pages are locked and say what they hold (`lockedPageLine` falls back to the page's
 description in `combined.ts`).
 
+**Order detail as a page (12 November 2026, v4 mockup 1b):** an open order is its own page on every width
+(`OrdersDesk` shows only the detail when an order is selected; Back returns to the table). `OrderDetail` sets the
+shell's header with `PageHead` (order number, customer · date, ← Orders) and puts prev/next, Print packing slip and ⋯ in
+`PageActions`. The workbench's step bar is Paid → Packed → Shipped → Delivered. A `StatusBar` says the next step
+(`orderNextStep.ts`, pure and tested) and its button runs the same action as that step's own button (address review,
+pack, dispatch, delivered); a label or a wrong address takes you to its step. The desktop Ship station side-by-side
+view is gone; phones keep their list.
+
 **v4 form kit (12 November 2026, Julian's mockups v4):** form pages use `riso/FormKit.tsx` (FormPage, FormSection, FormField,
 SummaryRail, StatusBar). A page built from many SectionCards takes the kit look by wrapping them in
 `<CardsAsSections.Provider value>` (`riso/components.tsx`): each card then draws as a kit section, and the older

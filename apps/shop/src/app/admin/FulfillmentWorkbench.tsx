@@ -106,11 +106,12 @@ export function FulfillmentWorkbench({
   const addressActive = active && method !== "pickup" && !reviewed && !hold;
   const packingActive = queue === "Ready to pack";
   const shippingActive = queue === "Ready to ship";
-  const copies = physicalItems(order).reduce((n: number, i: any) => n + (Number(i.quantity) || 0), 0);
   // Lines with copies still to go in this parcel (some may have gone ahead, or been taken off with a refund).
   const packLines = (order.items || []).map((item: any, index: number) => (!isDigitalItem(item) && copiesToSend(order, index) > 0 ? index : -1))
     .filter((index: number) => index >= 0);
   const toPack = (index: number) => packLines.includes(index);
+  // Copies still to go in this parcel (the step bar's count; the status bar counts the same way).
+  const toSend = packLines.reduce((n: number, index: number) => n + copiesToSend(order, index), 0);
   const ticked = packLines.filter((index: number) => checked.has(index)).length;
   const root = React.useRef<HTMLElement>(null);
   const goToStep = (key: string) => {
@@ -141,23 +142,20 @@ export function FulfillmentWorkbench({
       </div>
       {shipping && method === "shipping" && order.paymentStatus === "paid" && !terminal(order) && (
         <ol className="fw-strip" aria-label="Steps">
+          {/* v4 (mockup 1b): Paid → Packed → Shipped → Delivered. A tap goes to the step below that does it. */}
           {([
-            { key: "address", done: reviewed, now: addressActive, title: reviewed ? "Address checked" : "Check the address", sub: [addr.city, addr.state, addr.zip].filter(Boolean).join(" ") },
-            { key: "pack", done: packed, now: packingActive, title: packed ? "Packed" : "Pack", sub: w(`${copies} book${copies === 1 ? "" : "s"}`) },
-            {
-              key: "ship",
-              done: ["In transit", "Completed"].includes(queue),
-              now: shippingActive,
-              title: ["In transit", "Completed"].includes(queue) ? "Shipped" : order.labelUrl ? "Hand over & ship" : "Label & ship",
-              sub: ["In transit", "Completed"].includes(queue) ? order.trackingNumber || "Sent" : order.labelUrl ? "Label bought" : "Parcel and rate",
-            },
+            { key: "pack", done: true, now: false, title: "Paid", sub: "" },
+            { key: addressActive ? "address" : "pack", done: packed, now: addressActive || packingActive, title: "Packed", sub: packed ? "" : w(`${toSend} book${toSend === 1 ? "" : "s"}`) },
+            { key: "ship", done: ["In transit", "Completed"].includes(queue), now: shippingActive, title: "Shipped",
+              sub: ["In transit", "Completed"].includes(queue) ? order.trackingNumber || "Sent" : order.labelUrl ? "Label bought" : "" },
+            { key: "ship", done: queue === "Completed", now: queue === "In transit", title: "Delivered", sub: "" },
           ]).map((step, i) => (
             <li key={i} className="fw-strip-step" data-state={step.done ? "done" : step.now ? "now" : "todo"} aria-current={step.now ? "step" : undefined}>
               {/* A tap on a step scrolls to it: on a phone the steps sit one under the other, far apart. */}
               <button type="button" className="fw-strip-go" aria-current={step.now ? "step" : undefined} onClick={() => goToStep(step.key)}>
                 <span className="fw-strip-mark rp-mono" aria-hidden="true">{step.done ? "✓" : i + 1}</span>
                 <span>
-                  <span className="rp-label">Step {i + 1}{step.now ? " · now" : ""}</span>
+                  <span className="rp-label rp-sr-only">Step {i + 1}{step.now ? " · now" : ""}</span>
                   <strong>{step.title}</strong>
                   {step.sub ? <span className="rp-hint">{step.sub}</span> : null}
                 </span>
