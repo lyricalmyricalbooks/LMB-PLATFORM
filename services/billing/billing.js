@@ -102,7 +102,6 @@ export const APP_NAMES = Object.freeze({ shop: "the shop", stockroom: "the stock
 const APPS = Object.keys(APP_NAMES);
 const iso = (seconds) => (Number.isFinite(seconds) && seconds > 0 ? new Date(seconds * 1000).toISOString() : null);
 
-/** A date the way the emails say it: "14 November 2026", Toronto time. */
 /**
  * The days a bill pays for, from its longest line (the plan's month; a running-cost line is shorter): { from, to } as
  * ISO times, or null when Stripe gave no lines.
@@ -118,9 +117,55 @@ export function billCovers(invoice) {
   return best ? { from: iso(best.start), to: iso(best.end) } : null;
 }
 
+/** A date the way the emails say it: "14 November 2026", Toronto time. */
 export function dateText(isoTime) {
   if (!isoTime) return "";
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", day: "numeric", month: "long", year: "numeric" }).format(new Date(isoTime));
+}
+
+/** Stripe's tax id kinds in words, for a bill (others read "Tax number"). */
+const TAX_ID_WORDS = { ca_gst_hst: "GST/HST number", ca_qst: "QST number", ca_pst_bc: "PST number (BC)", ca_pst_mb: "RST number (MB)", ca_pst_sk: "PST number (SK)", ca_bn: "Business number", us_ein: "EIN" };
+
+/**
+ * What a platform bill says, for the shop's own printed copy: who it is from and to, its lines, its tax lines by name,
+ * the total and what was paid. Every amount is Stripe's, only put into words. `named(ref, path)` reads a tax rate or a
+ * tax id Stripe gave by id. Null when the bill has no lines.
+ */
+export async function billPaper(invoice, { named, money, settings }) {
+  const lines = (invoice?.lines?.data ?? []).map((line) => ({ words: String(line.description ?? settings.platformName).slice(0, 200), amount: money(line.amount ?? 0) }));
+  if (!lines.length) return null;
+  const taxes = [];
+  for (const tax of Array.isArray(invoice.total_taxes) ? invoice.total_taxes : []) {
+    const rate = await named(tax?.tax_rate_details?.tax_rate, "/v1/tax_rates");
+    const place = [rate?.jurisdiction, rate?.state].filter(Boolean)[0];
+    const words = rate?.display_name ? `${rate.display_name}${Number.isFinite(rate.percentage) ? ` (${rate.percentage}%)` : ""}${place ? `, ${place}` : ""}` : "Tax";
+    taxes.push({ words, amount: money(tax?.amount ?? 0) });
+  }
+  if (!taxes.length && invoiceTax(invoice)) taxes.push({ words: "Tax", amount: money(invoiceTax(invoice)) });
+  const ourIds = [];
+  for (const ref of Array.isArray(invoice.account_tax_ids) ? invoice.account_tax_ids : []) {
+    const id = await named(ref, "/v1/tax_ids");
+    if (id?.value) ourIds.push(`${TAX_ID_WORDS[id.type] ?? "Tax number"}: ${id.value}`);
+  }
+  const address = invoice.customer_address ?? {};
+  const discount = (invoice.total_discount_amounts ?? []).reduce((sum, d) => sum + (d?.amount ?? 0), 0);
+  return {
+    from: { name: String(invoice.account_name || settings.platformName), address: settings.mailingAddress || "", taxNumbers: ourIds },
+    to: {
+      name: String(invoice.customer_name ?? ""), email: String(invoice.customer_email ?? ""),
+      address: [address.line1, address.line2, [address.city, address.state, address.postal_code].filter(Boolean).join(" "), address.country].filter(Boolean).map(String),
+      taxNumbers: (invoice.customer_tax_ids ?? []).filter((t) => t?.value).map((t) => `${TAX_ID_WORDS[t.type] ?? "Tax number"}: ${t.value}`),
+    },
+    currency: String(invoice.currency ?? "").toUpperCase(),
+    lines,
+    subtotal: money(invoice.subtotal ?? 0),
+    discount: discount ? money(discount) : "",
+    taxes,
+    total: money(invoice.total ?? 0),
+    paid: money(invoice.amount_paid ?? 0),
+    due: money(invoice.amount_remaining ?? 0),
+    paidAt: iso(invoice.status_transitions?.paid_at),
+  };
 }
 
 /**
@@ -955,8 +1000,19 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         }
         if (!more || !data.length) break;
       }
+      // The bill as a page (the shop's Bills list prints it in the Colophon look): the tax lines are named from Stripe's
+      // tax rates and Colophon's tax number from its tax ids, each read once a call; a read that fails leaves the plain
+      // word "Tax" and no number, never the bill out.
+      const lookups = new Map();
+      const lookup = (path) => {
+        if (!lookups.has(path)) lookups.set(path, call("GET", path).catch(() => null));
+        return lookups.get(path);
+      };
+      const named = async (ref, path) => (ref && typeof ref === "object" ? ref : typeof ref === "string" ? await lookup(`${path}/${ref}`) : null);
+      const papers = await Promise.all(found.map((invoice) => billPaper(invoice, { named, money: (cents) => moneyText(cents, invoice.currency ?? cur(row)), settings })));
       return {
-        invoices: found.map((invoice) => ({
+        invoices: found.map((invoice, index) => ({
+          paper: papers[index],
           id: invoice.id,
           number: invoice.number ?? "",
           date: iso(invoice.created),

@@ -4,6 +4,7 @@ import {
   DataTable, DestructiveButton, Dialog, EmptyState, ErrorState, LoadingState, PrimaryButton, SecondaryButton, SectionCard, SelectField,
   StatusBadge, TextArea, TextField, useConfirm,
 } from "./riso/components";
+import { printBill } from "./billPaper";
 import { DownloadShopButton } from "./DownloadShopCard";
 import { hubReady, planDate, type PlatformPlan } from "./platformPlan";
 import {
@@ -490,7 +491,17 @@ export function BillingPage({ plan }: Hub) {
               { key: "number", header: "Bill", render: (b) => b.number || "—" },
               { key: "amount", header: "Amount", numeric: true, render: (b) => <>{b.amount}{b.tax ? <span className="rp-hint" style={{ display: "block" }}>incl. {b.tax} tax</span> : null}</> },
               { key: "status", header: "Status", render: (b) => { const s = billState(b.status); return <StatusBadge tone={s.tone}>{s.word}</StatusBadge>; } },
-              { key: "copy", header: "Copy", render: (b) => (b.pdfUrl ? <a href={b.pdfUrl} target="_blank" rel="noopener noreferrer" aria-label={`Download bill ${b.number || (b.date ? planDate(b.date) : "")} as a PDF`}>Download PDF</a> : b.pageUrl ? <a href={b.pageUrl} target="_blank" rel="noopener noreferrer">View</a> : "") },
+              { key: "copy", header: "Copy", render: (b) => {
+                const name = b.number || (b.date ? planDate(b.date) : "");
+                const stripe = b.pdfUrl ? <a href={b.pdfUrl} target="_blank" rel="noopener noreferrer" aria-label={`Download bill ${name} as a PDF from Stripe`}>{b.paper ? "Stripe PDF" : "Download PDF"}</a>
+                  : b.pageUrl ? <a href={b.pageUrl} target="_blank" rel="noopener noreferrer">View</a> : null;
+                return b.paper ? (
+                  <span style={{ display: "inline-flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                    <SecondaryButton size="sm" type="button" onClick={() => printBill(b)} aria-label={`Print or save bill ${name}`}>Print or save</SecondaryButton>
+                    {stripe}
+                  </span>
+                ) : stripe ?? "";
+              } },
             ]} />
           {older.error && <p className="rp-hint" role="alert" style={{ margin: "12px 0 0" }}>{older.error}</p>}
           {olderFrom && (

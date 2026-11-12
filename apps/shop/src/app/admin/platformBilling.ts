@@ -35,7 +35,14 @@ export type PlanPreview = { plan: PlanId; planName: string; price: string; from:
 export type SavedCard = { id: string; words: string; brand: string; last4: string; expMonth: number | null; expYear: number | null; primary: boolean; expired: boolean };
 export type BillingDetails = { name: string; email: string; address: { line1: string; line2: string; city: string; state: string; postalCode: string; country: string } | null; taxNumber: string; taxLabel: string; plusTax: boolean; currency?: string; country?: string };
 export type UpcomingBill = { date: string | null; lines: Array<{ words: string; amount: string }>; subtotal: string; discount: string; tax: string; total: string };
-export type Bill = { id: string; number: string; date: string | null; covers?: { from: string | null; to: string | null } | null; amount: string; tax: string; status: string; pdfUrl: string | null; pageUrl: string | null };
+/** What a bill says, for the printed copy in the Colophon look (services/billing billPaper); every amount is Stripe's. */
+export type BillPaper = {
+  from: { name: string; address: string; taxNumbers: string[] };
+  to: { name: string; email: string; address: string[]; taxNumbers: string[] };
+  currency: string; lines: Array<{ words: string; amount: string }>; subtotal: string; discount: string;
+  taxes: Array<{ words: string; amount: string }>; total: string; paid: string; due: string; paidAt: string | null;
+};
+export type Bill = { id: string; number: string; date: string | null; covers?: { from: string | null; to: string | null } | null; amount: string; tax: string; status: string; pdfUrl: string | null; pageUrl: string | null; paper?: BillPaper | null };
 export type PaymentWayView = { way: string | null; title: string; lines: string[]; button: { label: string; to: string } | null; note: string };
 
 /** A refusal from the platform, in its own words; `twoStep` when it needs the account page's two-step sign-in. */
