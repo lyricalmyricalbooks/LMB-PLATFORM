@@ -55,6 +55,7 @@
 import { createHash } from "node:crypto";
 import { verifySignature } from "../payments/stripeSignature.js";
 import { isPlan, planPrice, PLAN, PLAN_APPS, PLAN_IDS, OLD_PLANS } from "./plans.js";
+import { billingCurrencyFor, currencyOf, homeCurrency, moneyWords } from "./currencies.js";
 import { taxWatch as watchTaxLines, WATCH_WINDOW_DAYS } from "./taxWatch.js";
 import { cancelEndsAt, currentPaymentWay, payAsYouSellAccess, payAsYouSellEnds, planEnding } from "./paymentWayState.js";
 import { claimEvent, releaseEvent, IN_PROGRESS_STATUS } from "./eventClaims.js";
@@ -179,8 +180,6 @@ export function planOpening(apps) {
   return [...OLD_PLANS, PLAN].find((plan) => APPS.every((app) => PLAN_APPS[plan][app] === apps.includes(app))) ?? null;
 }
 
-const moneyText = (cents, currency) =>
-  new Intl.NumberFormat("en-CA", { style: "currency", currency: currency.toUpperCase(), currencyDisplay: "narrowSymbol" }).format(cents / 100);
 
 export class BillingError extends Error {
   constructor(status, message) {
@@ -189,8 +188,14 @@ export class BillingError extends Error {
   }
 }
 
-export function createBilling({ stripe, mode = "test", settings, customers, subscriptions, events, registry, auditLog, email, webhookSecrets = [], tax = false, closeApp, deleteApp = null, shopPlan = null, live = null, foundingSeats = null, sleep, now = () => Date.now() }) {
+export function createBilling({ stripe, mode = "test", settings, customers, subscriptions, events, registry, auditLog, email, webhookSecrets = [], tax = false, closeApp, deleteApp = null, shopPlan = null, live = null, foundingSeats = null, exchange = null, sleep, now = () => Date.now() }) {
   if (mode !== "test" && mode !== "live") throw new Error('billing mode must be "test" or "live"');
+  // Money in words: "$5.00" in Canadian dollars, "US$5.00" in US dollars (currencies.js).
+  const moneyText = (cents, currency) => moneyWords(cents, currency, settings);
+  /** The currency this shop is billed in (currencies.js): its own, kept when its plan started. */
+  const cur = (row) => currencyOf(row, settings);
+  /** The plan's price in this shop's billing currency. */
+  const priceOf = (plan, row) => planPrice(plan, settings, cur(row));
   const at = () => new Date(now()).toISOString();
   const retrying = withRetries((...args) => stripe.call(...args), sleep ? { sleep } : {});
   const call = (method, path, options) => retrying(mode, method, path, options);
@@ -225,7 +230,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     const { plan, status, access, trialEnd, currentPeriodEnd, hasCard } = row;
     // "Cancelled" is the press's own choice: Stripe's cancel of a pay-as-you-sell plan is the switch (paymentWayState.js).
     const { cancelling: cancelAtPeriodEnd, endsAt } = planEnding(row);
-    await registry.updateShop(shopId, { billing: { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, endsAt, hasCard, percentOff: row.founding === true ? row.foundingPercentOff ?? null : null, appsClosing: row.appsClosing ?? null, appDrops: row.appDrops ?? [], updatedAt: row.updatedAt, leaving: row.leaving ?? null, troubleSince: row.troubleSince ?? null, remindedAt: row.remindedAt ?? null, noBillingEmail: !row.billingEmail, language: row.language ?? null, province: row.province ?? null, lastRunningCost: row.lastRunningCost ?? null } });
+    await registry.updateShop(shopId, { billing: { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, endsAt, hasCard, percentOff: row.founding === true ? row.foundingPercentOff ?? null : null, appsClosing: row.appsClosing ?? null, appDrops: row.appDrops ?? [], updatedAt: row.updatedAt, leaving: row.leaving ?? null, troubleSince: row.troubleSince ?? null, remindedAt: row.remindedAt ?? null, noBillingEmail: !row.billingEmail, language: row.language ?? null, province: row.province ?? null, lastRunningCost: row.lastRunningCost ?? null, currency: cur(row) } });
   }
 
   // The shop's own platform/plan and platform/status (shopPlan.js), once its database exists.
@@ -236,7 +241,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
 
   /** The monthly platform fee this shop pays, its founding share taken off. */
   function feeAfterOffer(row) {
-    const amount = planPrice(row.plan, settings).amount;
+    const amount = priceOf(row.plan, row).amount;
     return row.founding === true && row.foundingPercentOff ? foundingAmount(amount, row.foundingPercentOff) : amount;
   }
 
@@ -260,10 +265,15 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     if (product && product.name !== productName(price)) {
       await call("POST", `/v1/products/${price.productId}`, { params: { name: productName(price) }, idempotencyKey: `product-name-${price.productId}-${createHash("sha256").update(productName(price)).digest("hex").slice(0, 16)}` });
     }
+    // The tax code tells Stripe Tax what the plan is (software as a service), so each province and state taxes it right.
+    const code = typeof product?.tax_code === "string" ? product.tax_code : product?.tax_code?.id;
+    if (product && tax && settings.taxCode && code !== settings.taxCode) {
+      await call("POST", `/v1/products/${price.productId}`, { params: { tax_code: settings.taxCode }, idempotencyKey: `product-tax-${price.productId}-${settings.taxCode}` });
+    }
   }
 
-  async function ensurePrice(plan) {
-    const price = planPrice(plan, settings);
+  async function ensurePrice(plan, currency = homeCurrency(settings)) {
+    const price = planPrice(plan, settings, currency);
     if (priceIds.has(price.lookupKey)) return priceIds.get(price.lookupKey);
     const found = await call("GET", "/v1/prices", { params: { lookup_keys: [price.lookupKey], active: true, limit: 1 } });
     let id = found?.data?.[0]?.id;
@@ -277,7 +287,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       } catch (error) {
         if (error.statusCode !== 404) throw error;
         await call("POST", "/v1/products", {
-          params: { id: price.productId, name: productName(price), metadata: { lmb_plan: plan } },
+          params: { id: price.productId, name: productName(price), metadata: { lmb_plan: plan }, ...(tax ? { tax_code: settings.taxCode } : {}) },
           idempotencyKey: `product-${price.productId}`,
         });
       }
@@ -315,7 +325,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
   async function notify(shopId, kind, data, key) {
     const row = await subscriptions.get(shopId);
     if (!row?.billingEmail) return null;
-    const price = row.plan ? planPrice(row.plan, settings) : null;
+    const price = row.plan ? priceOf(row.plan, row) : null;
     return email.sendPlatform({
       kind,
       to: row.billingEmail,
@@ -343,8 +353,8 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     // A trial, or a plan with nothing paid (paused, waiting for a first payment): the change takes effect at once.
     const immediate = !PAID.has(row.status);
     const closesAt = closes.length ? (immediate ? at() : row.currentPeriodEnd) : null;
-    const price = planPrice(plan, settings);
-    const higher = row.plan ? price.amount > planPrice(row.plan, settings).amount : false;
+    const price = priceOf(plan, row);
+    const higher = row.plan ? price.amount > priceOf(row.plan, row).amount : false;
     return {
       plan, planName: price.name, price: price.priceText, from: row.plan, adds, closes, immediate, closesAt,
       downloadUntil: closesAt ? new Date(Date.parse(closesAt) + DOWNLOAD_DAYS * DAY).toISOString() : null,
@@ -360,12 +370,12 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       params: {
         customer: row.customerId,
         subscription: row.subscriptionId,
-        subscription_details: { items: [{ id: row.itemId, price: await ensurePrice(plan) }], proration_behavior: "create_prorations", proration_date: Math.floor(now() / 1000) },
+        subscription_details: { items: [{ id: row.itemId, price: await ensurePrice(plan, cur(row)) }], proration_behavior: "create_prorations", proration_date: Math.floor(now() / 1000) },
       },
     });
     const lines = preview?.lines?.data ?? [];
     const amount = lines.filter((line) => line.proration || line.parent?.subscription_item_details?.proration).reduce((sum, line) => sum + (line.amount ?? 0), 0);
-    return { amount, text: moneyText(Math.max(0, amount), preview?.currency ?? settings.currency) };
+    return { amount, text: moneyText(Math.max(0, amount), preview?.currency ?? cur(row)) };
   }
 
   /** Closes apps a plan dropped: recorded on the billing row, the registry and the logs; the pages taken down. */
@@ -635,7 +645,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
   }
 
   const hub = createBillingHub({
-    call, rowFor, save, logChange, subscriptions, settings, tax, BillingError, money: moneyText, cardNowPays, syncInvoiceLanguage,
+    call, rowFor, save, logChange, subscriptions, settings, tax, BillingError, money: moneyText, cardNowPays, syncInvoiceLanguage, currencyOf: cur,
     iso, nowIso: at,
     refresh: async (shopId) => {
       const row = await subscriptions.get(shopId);
@@ -680,7 +690,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
      * ended (or for a second shop of an account that already had a trial) starts unpaid until a card is added.
      * Safe to repeat: a shop with a plan that hasn't ended gets that plan back.
      */
-    async startTrial({ account, shopId, pressName, plan = PLAN, language = null }) {
+    async startTrial({ account, shopId, pressName, plan = PLAN, language = null, country = null }) {
       if (!isPlan(plan)) throw new BillingError(400, "Choose a plan: shop, stockroom or both.");
       if (!account?.accountId || !account?.email) throw new BillingError(400, "The account is missing.");
       const existing = await subscriptions.get(shopId);
@@ -688,7 +698,15 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         if (existing.accountId !== account.accountId) throw new BillingError(403, "This shop belongs to another account.");
         return existing;
       }
-      const customer = await ensureCustomer(account);
+      let customer = await ensureCustomer(account);
+      // The currency the person pays in (currencies.js): set by their first shop's country, then kept, because Stripe
+      // bills one customer in one currency. A customer billed before this was kept paid in the home currency.
+      const billedBefore = (await subscriptions.list()).some((r) => r.customerId === customer.customerId && r.subscriptionId);
+      const currency = customer.currency ?? (billedBefore ? homeCurrency(settings) : billingCurrencyFor(country, settings));
+      if (customer.currency !== currency) {
+        customer = { ...customer, currency };
+        await customers.set(account.accountId, customer);
+      }
       const trial = settings.trialDays > 0 && !customer.trialUsedAt;
       const starts = (existing?.starts ?? 0) + 1;
       // With no trial the first bill is made with the plan, so a founding press's discount goes on it from the start:
@@ -700,7 +718,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       const sub = await call("POST", "/v1/subscriptions", {
         params: {
           customer: customer.customerId,
-          items: [{ price: await ensurePrice(plan) }],
+          items: [{ price: await ensurePrice(plan, currency) }],
           metadata: { lmb_shop_id: shopId, lmb_plan: plan, lmb_account_id: account.accountId },
           payment_settings: { save_default_payment_method: "on_subscription" },
           ...(trial
@@ -714,7 +732,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       const others = await subscriptions.list();
       const chosen = language === "fr" || language === "en" ? language : null;
       const saved = await save(shopId, {
-        ...fromSubscription(sub), accountId: account.accountId, billingEmail: account.email, pressName: pressName ?? "", starts, planChanges: 0,
+        ...fromSubscription(sub), accountId: account.accountId, billingEmail: account.email, pressName: pressName ?? "", starts, planChanges: 0, currency,
         // The language is the person's, like setEmailLanguage: one chosen now is the account's; none keeps the account's.
         ...(chosen ? { language: chosen } : languageOf(others, customer.customerId)),
         // A second shop of an account billed in Quebec writes in French too (hub.js saveBillingDetails sets it per account).
@@ -739,7 +757,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         params: {
           mode: "setup",
           customer: row.customerId,
-          currency: settings.currency.toLowerCase(),
+          currency: cur(row).toLowerCase(),
           success_url: back.toString(),
           cancel_url: returnUrl,
           metadata: { lmb_shop_id: shopId },
@@ -836,12 +854,12 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       // That holds while those terms still apply: paying as they sell, or the last month of it before monthly starts.
       const termsApply = row.payAsYouSell && (asItSells || (row.payAsYouSell.until && now() < Date.parse(row.payAsYouSell.until)));
       const terms = termsApply
-        ? { ...row.payAsYouSell, capMinor: Math.floor((row.payAsYouSell.capMinor * planPrice(plan, settings).amount) / planPrice(row.plan, settings).amount) }
+        ? { ...row.payAsYouSell, capMinor: Math.floor((row.payAsYouSell.capMinor * priceOf(plan, row).amount) / priceOf(row.plan, row).amount) }
         : null;
       // No subscription runs while a press pays as they sell, so there is nothing to change on Stripe.
       const sub = !subscriptionOn ? null : await call("POST", `/v1/subscriptions/${row.subscriptionId}`, {
         params: {
-          items: [{ id: row.itemId, price: await ensurePrice(plan) }],
+          items: [{ id: row.itemId, price: await ensurePrice(plan, cur(row)) }],
           proration_behavior: move.prorate ? "create_prorations" : "none",
           metadata: { lmb_plan: plan },
           // Only once Stripe Tax can place the press: a card added while tax was off left no address on the customer.
@@ -877,7 +895,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       for (let page = 0; page < 200; page += 1) {
         const list = await call("GET", "/v1/invoices", { params: { status: "paid", created: { gte: since }, limit: 100, ...(after ? { starting_after: after } : {}) } });
         for (const inv of list?.data ?? []) {
-          invoices.push({ created: inv.created, amount: (inv.total ?? 0) - invoiceTax(inv), currency: inv.currency, state: inv.customer_address?.state });
+          invoices.push({ created: inv.created, amount: (inv.total ?? 0) - invoiceTax(inv), currency: inv.currency, state: inv.customer_address?.state, country: inv.customer_address?.country });
         }
         if (!list?.has_more || !list.data?.length) break;
         after = list.data.at(-1).id;
@@ -927,8 +945,8 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
           number: invoice.number ?? "",
           date: iso(invoice.created),
           covers: billCovers(invoice),
-          amount: moneyText(invoice.total ?? invoice.amount_due ?? 0, invoice.currency ?? settings.currency),
-          tax: invoiceTax(invoice) ? moneyText(invoiceTax(invoice), invoice.currency ?? settings.currency) : "",
+          amount: moneyText(invoice.total ?? invoice.amount_due ?? 0, invoice.currency ?? cur(row)),
+          tax: invoiceTax(invoice) ? moneyText(invoiceTax(invoice), invoice.currency ?? cur(row)) : "",
           status: invoice.status,
           pdfUrl: httpsOrNull(invoice.invoice_pdf),
           pageUrl: httpsOrNull(invoice.hosted_invoice_url),
@@ -942,25 +960,25 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     async status(shopId) {
       const row = await subscriptions.get(shopId);
       if (!row) return null;
-      const price = row.plan ? planPrice(row.plan, settings) : null;
+      const price = row.plan ? priceOf(row.plan, row) : null;
       const ended = ENDED.has(row.status);
       const trialDaysLeft = row.status === "trialing" && row.trialEnd ? Math.max(0, Math.ceil((Date.parse(row.trialEnd) - now()) / DAY)) : null;
       const nextPaymentAt = ended || row.cancelAtPeriodEnd || !row.hasCard ? null : row.status === "trialing" ? row.trialEnd : PAID.has(row.status) ? row.currentPeriodEnd : null;
       return {
-        plan: row.plan, planName: price?.name ?? "", price: price?.priceText ?? "", plusTax: tax, status: row.status, access: row.access,
+        plan: row.plan, planName: price?.name ?? "", price: price?.priceText ?? "", plusTax: tax, currency: cur(row), status: row.status, access: row.access,
         trialEnd: row.trialEnd, trialDaysLeft, currentPeriodEnd: row.currentPeriodEnd, nextPaymentAt,
         // Cancelled by the press (never Stripe's cancel that is a switch to pay as you sell), and the day a cancel (asked
         // for, or asked for now) closes the shop.
         cancelAtPeriodEnd: planEnding(row).cancelling, cancelEndsAt: cancelEndsAt(row, now()),
         hasCard: row.hasCard, card: row.hasCard && row.card ? { brand: row.card.brand, last4: row.card.last4, expMonth: row.card.expMonth, expYear: row.card.expYear, words: cardWords(row.card) } : null,
         appsClosing: row.appsClosing ?? null, closedApps: row.closedApps ?? {},
-        plans: PLAN_IDS.map((id) => { const p = planPrice(id, settings); return { plan: id, name: p.name, price: p.priceText, apps: APPS.filter((app) => PLAN_APPS[id][app]) }; }),
+        plans: PLAN_IDS.map((id) => { const p = priceOf(id, row); return { plan: id, name: p.name, price: p.priceText, apps: APPS.filter((app) => PLAN_APPS[id][app]) }; }),
         paymentWay: currentPaymentWay(row, now()),
         // Pay what you use: the flat fee plus last month's running cost, and the "tell me if it may pass" amount.
         usage: {
           fee: price?.priceText ?? "",
-          lastMonth: row.lastRunningCost ? { month: row.lastRunningCost.month, monthWords: monthWords(row.lastRunningCost.month), cents: row.lastRunningCost.cents, text: moneyText(row.lastRunningCost.cents, settings.currency) } : null,
-          alert: { cents: Number.isInteger(row.costAlert?.cents) ? row.costAlert.cents : DEFAULT_ALERT_CENTS, text: moneyText(Number.isInteger(row.costAlert?.cents) ? row.costAlert.cents : DEFAULT_ALERT_CENTS, settings.currency) },
+          lastMonth: row.lastRunningCost ? { month: row.lastRunningCost.month, monthWords: monthWords(row.lastRunningCost.month), cents: row.lastRunningCost.cents, text: moneyText(row.lastRunningCost.cents, cur(row)) } : null,
+          alert: { cents: Number.isInteger(row.costAlert?.cents) ? row.costAlert.cents : DEFAULT_ALERT_CENTS, text: moneyText(Number.isInteger(row.costAlert?.cents) ? row.costAlert.cents : DEFAULT_ALERT_CENTS, cur(row)) },
         },
         founding: row.founding === true ? { percentOff: row.foundingPercentOff ?? null, price: price && row.foundingPercentOff ? moneyText(foundingAmount(price.amount, row.foundingPercentOff), price.currency) : "" } : null,
         // Only while something is owed: a problem left over from a bill voided or settled some other way doesn't linger.
@@ -1067,15 +1085,28 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
      */
     async billRunningCosts({ month, costs = {} }) {
       monthBounds(month);
-      const billed = [], skipped = [], missing = [], failed = [];
+      const billed = [], skipped = [], missing = [], failed = [], waiting = [];
+      const home = homeCurrency(settings);
+      // Google bills the platform in its home currency (CAD). A press billed in another currency (US dollars) pays the
+      // same cost converted at the month's exchange rate (exchangeRate.js), with no markup; one rate per month and
+      // currency, read once. No rate yet: the line waits for the next run.
+      const rates = new Map();
+      const rateFor = async (currency) => {
+        if (currency === home) return 1;
+        if (!rates.has(currency)) rates.set(currency, exchange ? await exchange.rate({ from: home, to: currency, month }).catch(() => null) : null);
+        return rates.get(currency);
+      };
       for (const row of await subscriptions.list()) {
         if (!row.subscriptionId || row.runningCosts?.[month]) continue;
         if (ENDED.has(row.status) || row.testShop === true || currentPaymentWay(row, now()) === "payAsYouSell") { skipped.push(row.shopId); continue; }
         const full = costs[row.shopId];
         if (!Number.isInteger(full)) { missing.push(row.shopId); continue; }
         try {
+          const currency = cur(row);
+          const rate = await rateFor(currency);
+          if (!(Number.isFinite(rate) && rate > 0)) { waiting.push(row.shopId); continue; }
           const share = paidShare({ month, paidFrom: row.trialEnd });
-          const cents = Math.round(Math.max(0, full) * share);
+          const cents = Math.round(Math.max(0, full) * share * rate);
           let invoiceItemId = null;
           // A line made on an earlier run whose record didn't save: use it, never add a second one.
           const made = cents > 0 ? await runningCostLine(row, month) : null;
@@ -1083,15 +1114,17 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
           else if (cents > 0) {
             const item = await call("POST", "/v1/invoiceitems", {
               params: {
-                customer: row.customerId, subscription: row.subscriptionId, amount: cents, currency: settings.currency.toLowerCase(),
+                customer: row.customerId, subscription: row.subscriptionId, amount: cents, currency: currency.toLowerCase(),
                 description: `Running cost, ${monthWords(month)} / Coût de fonctionnement`, discountable: false,
-                metadata: { lmb_shop_id: row.shopId, lmb_month: month, lmb_kind: "running-cost" },
+                // "Plus tax", taxed as the same service as the fee.
+                ...(tax ? { tax_behavior: "exclusive", tax_code: settings.taxCode } : {}),
+                metadata: { lmb_shop_id: row.shopId, lmb_month: month, lmb_kind: "running-cost", ...(currency !== home ? { lmb_cost_currency: home, lmb_cost_cents: String(full), lmb_rate: String(rate) } : {}) },
               },
               idempotencyKey: `running-cost-${row.shopId}-${month}`,
             });
             invoiceItemId = item?.id ?? null;
           }
-          const entry = { cents: made ? made.amount : cents, fullCents: full, share, invoiceItemId, at: at() };
+          const entry = { cents: made ? made.amount : cents, fullCents: full, share, invoiceItemId, at: at(), ...(currency !== home ? { currency, costCurrency: home, rate } : {}) };
           await save(row.shopId, { runningCosts: { ...(row.runningCosts ?? {}), [month]: entry }, lastRunningCost: { month, cents: entry.cents } }, null);
           await logChange(row.shopId, "running-cost-billed", { month, cents: entry.cents });
           billed.push({ shopId: row.shopId, cents: entry.cents });
@@ -1100,7 +1133,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         }
       }
       if (failed.length) throw new Error(`Running costs billed, but ${failed.length} shop${failed.length > 1 ? "s" : ""} had trouble: ${failed.join("; ")}`);
-      return { month, billed, skipped, missing };
+      return { month, billed, skipped, missing, waiting };
     },
 
     /**
@@ -1110,15 +1143,22 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
      */
     async runningCostAlerts({ month, soFar = {} }) {
       const sent = [];
+      const home = homeCurrency(settings);
+      // A press billed in US dollars: the cost so far (in the home currency) at the latest rate this month.
+      const rates = new Map();
       for (const row of await subscriptions.list()) {
         if (!row.subscriptionId || ENDED.has(row.status) || row.status === "trialing" || row.costAlert?.sentFor === month) continue;
         if (!Number.isInteger(soFar[row.shopId])) continue;
         const limit = Number.isInteger(row.costAlert?.cents) ? row.costAlert.cents : DEFAULT_ALERT_CENTS;
         if (limit <= 0) continue;
         const fee = row.plan ? feeAfterOffer(row) : 0;
-        const projected = fee + projectedCents({ soFarCents: soFar[row.shopId], now: now(), month });
+        const currency = cur(row);
+        if (currency !== home && !rates.has(currency)) rates.set(currency, exchange ? await exchange.rate({ from: home, to: currency, month }).catch(() => null) : null);
+        const rate = currency === home ? 1 : rates.get(currency);
+        if (!(Number.isFinite(rate) && rate > 0)) continue;
+        const projected = fee + Math.round(projectedCents({ soFarCents: soFar[row.shopId], now: now(), month }) * rate);
         if (projected <= limit) continue;
-        await notify(row.shopId, "bill-heads-up", { month: monthWords(month), projected: moneyText(projected, settings.currency), limit: moneyText(limit, settings.currency) }, `${row.shopId}/bill-heads-up/${month}`);
+        await notify(row.shopId, "bill-heads-up", { month: monthWords(month), projected: moneyText(projected, cur(row)), limit: moneyText(limit, cur(row)) }, `${row.shopId}/bill-heads-up/${month}`);
         await save(row.shopId, { costAlert: { ...(row.costAlert ?? {}), sentFor: month } }, "bill-heads-up-sent");
         sent.push(row.shopId);
       }
@@ -1130,7 +1170,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       if (!Number.isInteger(cents) || cents < 0 || cents > 1_000_000) throw new BillingError(400, "Choose an amount from $0 to $10,000. $0 turns the email off.");
       const row = await rowFor(shopId);
       await save(shopId, { costAlert: { ...(row.costAlert ?? {}), cents } }, "cost-alert-changed");
-      return { costAlert: { cents, text: moneyText(cents, settings.currency) } };
+      return { costAlert: { cents, text: moneyText(cents, cur(row)) } };
     },
 
     /**
@@ -1253,7 +1293,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         const row = subscriptionId ? await subscriptions.findBySubscriptionId(typeof subscriptionId === "string" ? subscriptionId : subscriptionId.id) : null;
         if (!row) return "not ours";
         if (paidAlready(row, object)) return "already paid";
-        const amount = new Intl.NumberFormat("en-CA", { style: "currency", currency: (object.currency ?? settings.currency).toUpperCase(), currencyDisplay: "narrowSymbol" }).format((object.amount_due ?? 0) / 100);
+        const amount = moneyText(object.amount_due ?? 0, object.currency ?? cur(row));
         await save(row.shopId, { paymentProblem: { kind: "declined", at: at(), invoiceId: object.id ?? null, amount, nextTry: iso(object.next_payment_attempt), pageUrl: httpsOrNull(object.hosted_invoice_url) } }, null);
         await logChange(row.shopId, "payment-failed", { attempt: object.attempt_count ?? null });
         await notify(row.shopId, "payment-failed", { price: amount, nextTry: dateText(iso(object.next_payment_attempt)) }, event.id);
@@ -1264,7 +1304,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         const row = await rowOfInvoice(object);
         if (!row) return "not ours";
         if (paidAlready(row, object)) return "already paid";
-        const amount = moneyText(object.amount_due ?? 0, object.currency ?? settings.currency);
+        const amount = moneyText(object.amount_due ?? 0, object.currency ?? cur(row));
         await save(row.shopId, { paymentProblem: { kind: "confirm", at: at(), invoiceId: object.id ?? null, amount, nextTry: null, pageUrl: httpsOrNull(object.hosted_invoice_url) } }, null);
         await logChange(row.shopId, "payment-needs-confirming", {});
         // The button opens Stripe's page for this bill, where the bank's step happens; the account page if there's none.
@@ -1278,7 +1318,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         const problem = row.paymentProblem;
         const settles = problem && (!problem.invoiceId || problem.invoiceId === object.id);
         await save(row.shopId, { lastPaidAt: at(), lastPaidInvoiceId: object.id ?? null, ...((object.amount_paid ?? 0) > 0 ? { paidOnce: true } : {}), ...(settles ? { paymentProblem: null } : {}) }, null);
-        const paid = moneyText(object.amount_paid ?? object.total ?? 0, object.currency ?? settings.currency);
+        const paid = moneyText(object.amount_paid ?? object.total ?? 0, object.currency ?? cur(row));
         const bill = httpsOrNull(object.hosted_invoice_url);
         if (!settles) {
           // A receipt for every bill with money on it (25.1), keyed on the bill so a second event never sends it twice.
@@ -1289,7 +1329,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
             price: paid, number: typeof object.number === "string" ? object.number : "",
             paidOn: dateText(iso(object.status_transitions?.paid_at) ?? at()),
             from: dateText(iso(period.start)), to: dateText(iso(Number.isFinite(period.end) ? period.end - 1 : null)),
-            tax: taxCents > 0 ? moneyText(taxCents, object.currency ?? settings.currency) : "",
+            tax: taxCents > 0 ? moneyText(taxCents, object.currency ?? cur(row)) : "",
             bill,
           }, `bill-paid/${object.id ?? event.id}`);
           return "paid";

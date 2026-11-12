@@ -157,3 +157,15 @@ test("needs you: a failed Google setup step, one line per step with the step to 
   assert.equal(lines[0].words, "open-link: setting up Search Console with Google failed for 2 days: Google didn't answer");
   assert.ok(SNOOZABLE.includes("google"));
 });
+
+test("monthly income keeps Canadian and US dollars apart: US presses pay the US fee and show on their own line", () => {
+  const plain = platformSettings({ PLAN_PRICE_BOTH_USD: "400" });
+  const rows = [
+    { shopId: "ca", status: "live", billing: { plan: "both", status: "active" } },
+    { shopId: "us", status: "live", billing: { plan: "both", status: "active", currency: "USD", lastRunningCost: { cents: 120 } } },
+  ];
+  assert.equal(monthlyCents(rows[1], plain), 520);
+  const today = todaySummary({ rows, settings: plain });
+  assert.equal(today.monthlyIncome, 500);
+  assert.deepEqual(today.otherIncome, { USD: 520 });
+});

@@ -26,7 +26,7 @@
 //
 // Store (fakes.js `fakeIncomeHistory`, clients/stores.js `firestoreIncomeHistory`):
 //   get(day) -> record | null; set(day, record); list({ since }) -> records with day >= since, oldest first
-import { PAYING, monthlyCents, planCounts } from "./today.js";
+import { PAYING, billingCurrency, incomeByCurrency, monthlyCents, planCounts } from "./today.js";
 import { atRiskSummary } from "./driftWatch.js";
 
 const DAY = 86_400_000;
@@ -59,8 +59,10 @@ function stateOf(row) {
 export function movements(before, after) {
   const moves = { newPaying: 0, newPayingCents: 0, upgrades: 0, upgradeCents: 0, downgrades: 0, downgradeCents: 0, lost: 0, lostCents: 0, trialToPaid: 0, trialEnded: 0 };
   for (const shopId of new Set([...Object.keys(before), ...Object.keys(after)])) {
-    const was = before[shopId] ?? { state: "none", cents: 0 };
-    const now = after[shopId] ?? { state: "none", cents: 0 };
+    // Money moves in the platform's own currency only: a shop billed in another counts in the numbers, not the cents.
+    const home = (shop) => (shop && !shop.currency ? shop : shop ? { ...shop, cents: 0 } : null);
+    const was = home(before[shopId]) ?? { state: "none", cents: 0 };
+    const now = home(after[shopId]) ?? { state: "none", cents: 0 };
     if (was.state === "trial" && now.state !== "trial") moves.trialEnded += 1;
     if (now.state === "paying" && was.state !== "paying") {
       moves.newPaying += 1;
@@ -90,7 +92,13 @@ export async function snapshotIncome({ registry, settings, store, now = new Date
   const day = dayKey(now);
   const shops = (await registry.listShops()).filter((row) => row.testShop !== true);
   const tonight = {};
-  for (const row of shops) tonight[row.shopId] = { state: stateOf(row), cents: monthlyCents(row, settings) };
+  const home = String(settings.currency ?? "CAD").toUpperCase();
+  // Each shop in its own billing currency; the income line and the movements count the platform's own currency only.
+  for (const row of shops) {
+    const currency = billingCurrency(row, settings);
+    tonight[row.shopId] = { state: stateOf(row), cents: monthlyCents(row, settings), ...(currency !== home ? { currency } : {}) };
+  }
+  const byCurrency = incomeByCurrency(shops, settings);
   // The night before (or the last night that ran): never today's own record, so a second run gives the same numbers.
   const risk = atRiskSummary(shops, settings, now.getTime());
   const earlier = (await store.list({ since: monthBefore(day, 13) })).filter((r) => r.day < day).at(-1) ?? null;
@@ -98,7 +106,8 @@ export async function snapshotIncome({ registry, settings, store, now = new Date
     day,
     at: now.toISOString(),
     currency: settings.currency,
-    incomeCents: Object.values(tonight).reduce((sum, shop) => sum + shop.cents, 0),
+    incomeCents: byCurrency[home] ?? 0,
+    otherIncome: Object.fromEntries(Object.entries(byCurrency).filter(([code]) => code !== home)),
     ...planCounts(shops),
     atRisk: { count: risk.presses.length, cents: risk.drifting.monthlyCents + risk.watch.monthlyCents },
     first: !earlier,

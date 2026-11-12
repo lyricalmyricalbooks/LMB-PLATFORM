@@ -2,7 +2,8 @@
 //
 // Each price lives in Stripe under a lookup key that names the plan, currency and amount, so changing a price in the
 // settings makes a new Stripe price and leaves presses already on the old one where they are until moved on purpose.
-import { PLAN_NAMES, priceText } from "../settings.js";
+import { PLAN_NAMES } from "../settings.js";
+import { feeIn, homeCurrency, moneyWords } from "./currencies.js";
 
 // One product since 10 November 2026 (Julian): every shop gets the website and the stockroom, so "both" is the only plan
 // a press can be on. "shop" and "stockroom" are kept only to read older rows; billing's daily sweep moves those shops to
@@ -21,11 +22,15 @@ export const PLAN_APPS = Object.freeze({
 /** A plan a row can hold: the one plan, or an older one still being moved to it. */
 export const isPlan = (plan) => plan === PLAN || OLD_PLANS.includes(plan);
 
-/** One plan's price: amount in cents, currency, Stripe lookup key, product id and words for people. */
-export function planPrice(plan, settings) {
+/**
+ * One plan's price in `currency` (the press's billing currency, currencies.js; the home currency when not given):
+ * amount in cents, currency, Stripe lookup key, product id and words for people.
+ */
+export function planPrice(plan, settings, currency = homeCurrency(settings)) {
   if (!isPlan(plan)) throw new Error("the plan must be shop, stockroom or both");
-  const amount = settings.prices[plan];
-  const currency = settings.currency.toLowerCase();
+  const code = String(currency).toUpperCase();
+  const amount = feeIn(plan, settings, code);
+  currency = code.toLowerCase();
   return {
     plan,
     amount,
@@ -33,7 +38,7 @@ export function planPrice(plan, settings) {
     lookupKey: `colophon_${plan}_${currency}_${amount}_monthly`,
     productId: `colophon_${plan}`,
     name: PLAN_NAMES[plan],
-    priceText: priceText(amount, settings.currency),
+    priceText: moneyWords(amount, code, settings),
   };
 }
 

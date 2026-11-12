@@ -14,7 +14,8 @@
 //              takeDaySlot(day, { cap, seed }) -> boolean: counts one more shop started that Toronto day when under
 //                `cap`, in one step (`seed()` is the count for a day not counted yet); giveBackDaySlot(day)
 //   registry   getShop(shopId) -> row | null (a shop id the registry has is taken)
-//   billing    startTrial({ account, shopId, pressName, plan, language }) (services/billing)
+//   billing    startTrial({ account, shopId, pressName, plan, language, country }) (services/billing; the country sets
+//              the currency the press pays in: services/billing/currencies.js)
 //   email      sendPlatform({ kind, to, data, idempotencyKey }) (services/email)
 //   auth       signInLink(email, { url }) -> link (Firebase Admin's generateSignInWithEmailLink, in the platform project)
 //   throttle   count(key, sinceIso) -> number; add(key, atIso)
@@ -127,7 +128,7 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
   /** Starts the trial (once) and makes the person the shop's owner on their account (once). */
   async function begin(row, person) {
     if (!row.trialStartedAt) {
-      const plan = await billing.startTrial({ account: person, shopId: row.shopId, pressName: row.pressName, plan: row.plan, ...(row.language ? { language: row.language } : {}) });
+      const plan = await billing.startTrial({ account: person, shopId: row.shopId, pressName: row.pressName, plan: row.plan, country: row.country, ...(row.language ? { language: row.language } : {}) });
       row = { ...row, trialStartedAt: at(), billingStatus: plan.status, trialEnd: plan.trialEnd ?? null };
       await signups.set(row.shopId, row);
     }

@@ -75,6 +75,16 @@ Each month a press pays the plan fee plus what its shop cost to run the month be
   address copied onto the customer (the trial needs no card, so it needs no address). A plan change asks for tax only
   when the customer has an address (a card added while tax was off has none, and Stripe would refuse the change). Off by default: nothing about
   tax is sent to Stripe. The Plan & billing page says "plus tax" while it is on.
+- **Currency and tax by country** (12 November 2026, `currencies.js`): the person who pays is billed in US dollars when
+  their first shop is in the United States (`startTrial({ country })`), in Canadian dollars otherwise; kept on the
+  customer row and each billing row (`currency`), since Stripe bills one customer in one currency. US fee:
+  `usdPrices` (`PLAN_PRICE_BOTH_USD`, control room "Platform fee, a month, US presses"). The running cost (Google's
+  bill, in CAD) converts for a US press at the Bank of Canada month-end rate (`exchangeRate.js`), no markup, kept on
+  the entry and the line's metadata; no rate yet, the line waits (`waiting`). Stripe Tax places the press by the
+  billing address (a province is required in Canada, a state and ZIP code in the US) and charges only where the
+  platform is registered in Stripe (Tax › Registrations). Fee and running-cost lines carry `PLATFORM_TAX_CODE`
+  (`txcd_10103001`, SaaS for business use) and are "plus tax". The tax watch adds US sales by state against a
+  US$100,000 line. Sign-up stays Canada-only (`SIGNUP_OPEN_COUNTRIES`) until US sign-up is opened on purpose.
 
 What each Stripe status means for the shop (`ACCESS`): trialing, active and past_due (Stripe retrying a declined
 payment) keep it **open**; paused, incomplete and unpaid **pause** it; canceled and incomplete_expired **close** it.

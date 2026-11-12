@@ -12,6 +12,8 @@ test("defaults: Colophon, a $5 CAD platform fee a month on every plan, 14-day tr
     mailingAddress: "",
     currency: "CAD",
     prices: { shop: 500, stockroom: 500, both: 500 },
+    usdPrices: { shop: 500, stockroom: 500, both: 500 },
+    taxCode: "txcd_10103001",
     trialDays: 14,
     platformUrl: "https://platform.example",
     shopAddressDomain: "",
@@ -87,4 +89,13 @@ test("the shop domain for free addresses is optional, and never the platform's o
   assert.equal(platformSettings({ PLATFORM_DOMAIN: "colophon.example", SHOP_ADDRESS_DOMAIN: "colophonshops.example" }).shopAddressDomain, "colophonshops.example");
   assert.throws(() => platformSettings({ PLATFORM_DOMAIN: "colophon.example", SHOP_ADDRESS_DOMAIN: "shops.colophon.example" }), /SHOP_ADDRESS_DOMAIN/);
   assert.throws(() => platformSettings({ PLATFORM_DOMAIN: "colophon.example", SHOP_ADDRESS_DOMAIN: "colophon.example" }), /SHOP_ADDRESS_DOMAIN/);
+});
+
+test("US presses' fee and the tax code: set from the environment, checked, and the US fee editable in the control room", () => {
+  const settings = platformSettings({ PLAN_PRICE_BOTH_USD: "400", PLATFORM_TAX_CODE: "txcd_10103000" });
+  assert.deepEqual(settings.usdPrices, { shop: 400, stockroom: 400, both: 400 });
+  assert.equal(settings.taxCode, "txcd_10103000");
+  assert.throws(() => platformSettings({ PLATFORM_TAX_CODE: "saas" }), /PLATFORM_TAX_CODE/);
+  assert.match(EDITABLE["usdPrices.both"].label, /US presses/);
+  assert.equal(withSaved(platformSettings({}), { "usdPrices.both": 700 }).usdPrices.both, 700);
 });

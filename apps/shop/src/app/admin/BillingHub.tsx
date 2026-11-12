@@ -7,7 +7,7 @@ import {
 import { DownloadShopButton } from "./DownloadShopCard";
 import { hubReady, planDate, type PlatformPlan } from "./platformPlan";
 import {
-  BillingCallError, DROP_CHOICES, alertCents, priceWords, EMAIL_LANGUAGES, LEAVING_CHOICES, downloadableClosedApps, emailLanguageWords, planAddingBack, PROVINCES, appsInWords, billCoversWords, billState, billingCall, previewWords, statusBadge,
+  BillingCallError, DROP_CHOICES, alertCents, priceWords, EMAIL_LANGUAGES, LEAVING_CHOICES, downloadableClosedApps, emailLanguageWords, planAddingBack, ADDRESS_COUNTRIES, appsInWords, billCoversWords, billState, billingCall, previewWords, statusBadge,
   type Bill, type BillingDetails, type BillingStatus, type PaymentWayView, type PlanId, type PlanPreview, type SavedCard, type StatusAnswer, type UpcomingBill,
 } from "./platformBilling";
 
@@ -318,7 +318,9 @@ export function BillingPage({ plan }: Hub) {
     if (b.status === "fulfilled") { setBills(b.value.invoices); setOlderFrom(b.value.more && b.value.after ? b.value.after : null); }
     if (d.status === "fulfilled") {
       setDetails(d.value.details);
-      setDraft({ name: d.value.details.name, email: d.value.details.email, address: d.value.details.address ? { ...EMPTY_ADDRESS, ...d.value.details.address } : { ...EMPTY_ADDRESS }, taxNumber: d.value.details.taxNumber });
+      // A press billed in US dollars starts a new address in the United States.
+      const startIn = ADDRESS_COUNTRIES[d.value.details.country ?? "CA"] ? d.value.details.country ?? "CA" : "CA";
+      setDraft({ name: d.value.details.name, email: d.value.details.email, address: d.value.details.address ? { ...EMPTY_ADDRESS, ...d.value.details.address } : { ...EMPTY_ADDRESS, country: startIn, state: ADDRESS_COUNTRIES[startIn].first }, taxNumber: d.value.details.taxNumber });
     }
   }, [plan.hub, plan.shopId]);
   const reload = useCallback(async () => { await Promise.all([load(), loadParts()]); }, [load, loadParts]);
@@ -366,6 +368,8 @@ export function BillingPage({ plan }: Hub) {
     if (done !== undefined) setSaved(true);
   };
   const setAddress = (patch: Partial<typeof EMPTY_ADDRESS>) => setDraft((d) => (d ? { ...d, address: { ...d.address, ...patch } } : d));
+  /** The region and postal-code words for the address's country (Canada or the United States). */
+  const where = ADDRESS_COUNTRIES[draft?.address.country ?? "CA"] ?? ADDRESS_COUNTRIES.CA;
 
   return (
     <div className="rp-stack" style={{ gap: 16 }} data-billing-hub="billing">
@@ -456,12 +460,15 @@ export function BillingPage({ plan }: Hub) {
             <TextField label="Apartment, suite (optional)" autoComplete="address-line2" value={draft.address.line2} onChange={(e) => setAddress({ line2: e.target.value })} />
             <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
               <TextField label="City" autoComplete="address-level2" value={draft.address.city} onChange={(e) => setAddress({ city: e.target.value })} />
-              <SelectField label="Province or territory" value={draft.address.state} onChange={(e) => setAddress({ state: e.target.value })}>
-                {PROVINCES.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+              <SelectField label={where.regionLabel} value={draft.address.state} onChange={(e) => setAddress({ state: e.target.value })}>
+                {where.regions.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
               </SelectField>
-              <TextField label="Postal code" autoComplete="postal-code" value={draft.address.postalCode} onChange={(e) => setAddress({ postalCode: e.target.value })} />
+              <TextField label={where.postalLabel} autoComplete="postal-code" value={draft.address.postalCode} onChange={(e) => setAddress({ postalCode: e.target.value })} />
+              <SelectField label="Country" autoComplete="country" value={draft.address.country} onChange={(e) => setAddress({ country: e.target.value, state: ADDRESS_COUNTRIES[e.target.value].first })}>
+                {Object.entries(ADDRESS_COUNTRIES).map(([code, c]) => <option key={code} value={code}>{c.name}</option>)}
+              </SelectField>
             </div>
-            <TextField label="GST/HST or QST number (optional)" hint="Printed on your bills so you can claim the tax back. For example 123456789 RT 0001." value={draft.taxNumber} onChange={(e) => setDraft({ ...draft, taxNumber: e.target.value })} />
+            {draft.address.country === "CA" && <TextField label="GST/HST or QST number (optional)" hint="Printed on your bills so you can claim the tax back. For example 123456789 RT 0001." value={draft.taxNumber} onChange={(e) => setDraft({ ...draft, taxNumber: e.target.value })} />}
             {details?.plusTax && <p className="rp-hint" style={{ margin: 0 }}>Prices are plus tax. The tax is worked out from this address.</p>}
             <div className="flex flex-wrap items-center gap-3">
               <PrimaryButton type="submit" busy={change.busy === "details"}>Save billing details</PrimaryButton>
