@@ -141,3 +141,23 @@ test("the Bank of Canada rate: the month's last business day, turned into US dol
   const down = createExchange({ fetch: async () => ({ ok: false }) });
   assert.equal(await down.rate({ from: "CAD", to: "USD", month: "2026-10" }), null);
 });
+
+test("the fee set in the control room reaches the next plan started, in each currency, without a release", async () => {
+  const stripe = fakeBillingStripe({ clock: () => NOW / 1000 });
+  const stores = fakeBillingStores();
+  const settings = platformSettings({});
+  let saved = settings;
+  const billing = createBilling({
+    stripe: createStripeApi({ fetch: stripe.fetch, keys: { test: "sk_test_fake", live: null } }),
+    mode: "test", settings, ...stores, registry: fakeRegistry(), auditLog: fakeAuditLog(), email: fakePlatformEmail(), live: async () => saved, now: () => NOW,
+  });
+  saved = { ...settings, prices: { ...settings.prices, both: 700 }, usdPrices: { ...settings.usdPrices, both: 600 } };
+  await billing.startTrial({ account: CA, shopId: "ca-press", pressName: "CA Press", country: "CA" });
+  await billing.startTrial({ account: US, shopId: "us-press", pressName: "US Press", country: "US" });
+  const keys = [...stripe.world.prices.values()].map((p) => p.lookup_key).sort();
+  assert.deepEqual(keys, ["colophon_both_cad_700_monthly", "colophon_both_usd_600_monthly"]);
+  assert.equal((await billing.status("us-press")).price, "US$6.00");
+  // The control room's settings can't be read: the last fee read stands.
+  saved = null;
+  assert.equal((await billing.status("ca-press")).price, "$7.00");
+});

@@ -232,6 +232,13 @@ test("the plan list says whether prices are plus tax, so the front door only say
   assert.equal((await plans(true)).body.plusTax, true);
 });
 
+test("the pricing page shows the fee the control room set, the one billing charges", async () => {
+  const live = () => ({ prices: { both: 700 } });
+  const answer = await createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: SETTINGS, live, log: () => {} })({ method: "GET", path: "/api/plans", headers: {} });
+  assert.equal(answer.body.plans[0].priceText, "$7.00");
+  assert.equal(answer.body.usage.feeText, "$7.00");
+});
+
 // ── The kept product file (code plan 18.7) ──
 
 async function pressFor(w, who = ADA) {

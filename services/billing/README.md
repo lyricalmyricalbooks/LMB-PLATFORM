@@ -85,6 +85,11 @@ Each month a press pays the plan fee plus what its shop cost to run the month be
   platform is registered in Stripe (Tax › Registrations). Fee and running-cost lines carry `PLATFORM_TAX_CODE`
   (`txcd_10103001`, SaaS for business use) and are "plus tax". The tax watch adds US sales by state against a
   US$100,000 line. Sign-up stays Canada-only (`SIGNUP_OPEN_COUNTRIES`) until US sign-up is opened on purpose.
+- **The fee the control room sets** (12 November 2026): billing reads `prices`/`usdPrices` through `live` (the
+  environment with the control room's saved changes on top) before it prices a plan (`startTrial`, `changePlan`,
+  `status`, `runningCostAlerts`), and the pricing page does the same. A new fee makes a new Stripe price for the next
+  plan started; plans already running stay on the price they have. If the saved settings can't be read, the last fee
+  read stands.
 
 What each Stripe status means for the shop (`ACCESS`): trialing, active and past_due (Stripe retrying a declined
 payment) keep it **open**; paused, incomplete and unpaid **pause** it; canceled and incomplete_expired **close** it.

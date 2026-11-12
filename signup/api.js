@@ -95,8 +95,10 @@ export function createApi({ signup, verifyIdToken, settings, routes = {}, public
       const now = await Promise.resolve().then(live).catch(() => LIVE_DEFAULTS);
       const percentOff = now.foundingOffer?.percentOff ?? 0;
       const basisPoints = now.payAsYouSell?.basisPoints ?? 0;
+      // The fee as the control room last set it (Settings > Platform fee), the same one billing charges.
+      const priced = { ...settings, prices: { ...settings.prices, ...(now.prices ?? {}) }, usdPrices: { ...settings.usdPrices, ...(now.usdPrices ?? {}) } };
       return {
-        plans: planList(settings).map(({ plan, name, amount, priceText: price }) => ({
+        plans: planList(priced).map(({ plan, name, amount, priceText: price }) => ({
           plan,
           name,
           priceText: price,
@@ -107,7 +109,7 @@ export function createApi({ signup, verifyIdToken, settings, routes = {}, public
         })),
         // Pay what you use (10 November 2026): a flat fee (every plan's price, the same by default) plus the month's
         // running cost at cost; three example shops priced the same way, so the page never promises a made-up number.
-        usage: usageWords(settings, percentOff),
+        usage: usageWords(priced, percentOff),
         trialDays: settings.trialDays,
         plusTax: plusTax === true,
         currency: settings.currency,

@@ -194,8 +194,21 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
   const moneyText = (cents, currency) => moneyWords(cents, currency, settings);
   /** The currency this shop is billed in (currencies.js): its own, kept when its plan started. */
   const cur = (row) => currencyOf(row, settings);
+  // The fees as the control room last set them (Settings > Platform fee, saved in the platform project and read through
+  // `live`), on top of the environment's. Read again before anything that prices a plan, so a fee changed there reaches
+  // the next plan started without a release. A plan already running keeps the Stripe price it is on.
+  let fees = settings;
+  async function freshFees() {
+    if (!live) return;
+    try {
+      const now = await live();
+      if (now?.prices) fees = { ...settings, prices: { ...settings.prices, ...now.prices }, usdPrices: { ...settings.usdPrices, ...(now.usdPrices ?? {}) } };
+    } catch (failure) {
+      console.warn("Reading the platform fee from the control room's settings failed; using the last one read:", failure?.message || failure);
+    }
+  }
   /** The plan's price in this shop's billing currency. */
-  const priceOf = (plan, row) => planPrice(plan, settings, cur(row));
+  const priceOf = (plan, row) => planPrice(plan, fees, cur(row));
   const at = () => new Date(now()).toISOString();
   const retrying = withRetries((...args) => stripe.call(...args), sleep ? { sleep } : {});
   const call = (method, path, options) => retrying(mode, method, path, options);
@@ -273,7 +286,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
   }
 
   async function ensurePrice(plan, currency = homeCurrency(settings)) {
-    const price = planPrice(plan, settings, currency);
+    const price = planPrice(plan, fees, currency);
     if (priceIds.has(price.lookupKey)) return priceIds.get(price.lookupKey);
     const found = await call("GET", "/v1/prices", { params: { lookup_keys: [price.lookupKey], active: true, limit: 1 } });
     let id = found?.data?.[0]?.id;
@@ -691,6 +704,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
      * Safe to repeat: a shop with a plan that hasn't ended gets that plan back.
      */
     async startTrial({ account, shopId, pressName, plan = PLAN, language = null, country = null }) {
+      await freshFees();
       if (!isPlan(plan)) throw new BillingError(400, "Choose a plan: shop, stockroom or both.");
       if (!account?.accountId || !account?.email) throw new BillingError(400, "The account is missing.");
       const existing = await subscriptions.get(shopId);
@@ -834,6 +848,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
      * prorated amount Stripe would charge now.
      */
     async changePlan({ shopId, plan, preview = false, reason = null, everything = false }) {
+      await freshFees();
       if (!isPlan(plan)) throw new BillingError(400, "Choose a plan: shop, stockroom or both.");
       // The optional answer to "why are you dropping it?", checked before anything changes.
       const why = dropReason(reason, (message) => new BillingError(400, message));
@@ -958,6 +973,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
 
     /** The shop's plan as the Plan & billing page shows it. */
     async status(shopId) {
+      await freshFees();
       const row = await subscriptions.get(shopId);
       if (!row) return null;
       const price = row.plan ? priceOf(row.plan, row) : null;
@@ -1142,6 +1158,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
      * `soFar` is { [shopId]: cents } for the month so far.
      */
     async runningCostAlerts({ month, soFar = {} }) {
+      await freshFees();
       const sent = [];
       const home = homeCurrency(settings);
       // A press billed in US dollars: the cost so far (in the home currency) at the latest rate this month.
