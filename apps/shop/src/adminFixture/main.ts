@@ -776,7 +776,7 @@ let helperShown = false;
     const HUB = "https://platform.example/api/shop-billing/";
     (globalThis as any).__fixtureIdToken = "fixture-token";
     platformPlanSource.watch = (next) => {
-      next({ state: "active", access: "open", plan: "both", hasCard: true, hub: HUB, shopId: "test-press", link: "https://platform.example/account/billing?shop=test-press", cancelAtPeriodEnd: sample === "cancelled" });
+      next({ state: "active", access: "open", plan: "both", hasCard: true, hub: HUB, shopId: "test-press", link: "https://platform.example/account/billing?shop=test-press", cancelAtPeriodEnd: sample === "cancelled", endsAt: sample === "cancelled" ? "2026-12-12T12:00:00Z" : null });
       return () => {};
     };
     let billing: any = { plan: "both", planName: "Colophon", price: "$5.00", plusTax: true, status: "active", access: "open", cancelAtPeriodEnd: sample === "cancelled",
