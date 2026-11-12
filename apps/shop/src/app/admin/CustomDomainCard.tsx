@@ -17,7 +17,8 @@ function sellerLogo(seller: string | null | undefined) {
 // address can be removed (never the main one), and a live one made the main address emails, links and Google use.
 // Plan 6.15: one Connect step. A domain seller that works with Colophon gets a button for its own sign-in window; any
 // other gets a guide in plain words with a Copy button on every line and a mail for the press's web person.
-export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
+/** `bare` drops the card around it, for a form kit section that already names it (Settings › General, v4). */
+export function CustomDomainCard({ fallback, bare }: { fallback: ReactNode; bare?: boolean }) {
   const [domains, setDomains] = useState<DomainEntry[] | null>(null);
   const [max, setMax] = useState(3);
   const [checks, setChecks] = useState<Record<string, DomainCheck>>({});
@@ -162,7 +163,7 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
   if (unavailable) return <>{fallback}</>;
 
   return (
-    <SectionCard title="Your web address" description="Open your shop at an address you own. The current one keeps working.">
+    <CardOrNot bare={bare}>
       <div className="rp-stack" style={{ gap: 16 }}>
         {domains === null && busy === "list" ? (
           <LoadingState label="Loading your web addresses…" />
@@ -289,6 +290,11 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
         )}
       </div>
       {confirmNode}
-    </SectionCard>
+    </CardOrNot>
   );
+}
+
+function CardOrNot({ bare, children }: { bare?: boolean; children: ReactNode }) {
+  if (bare) return <>{children}</>;
+  return <SectionCard title="Your web address" description="Open your shop at an address you own. The current one keeps working.">{children}</SectionCard>;
 }

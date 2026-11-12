@@ -19,6 +19,7 @@ import { stripeSecretKeyProblem } from "./privateKeys";
 import { StripeWebhookHealth } from "./StripeWebhookHealth";
 import { PlatformPaymentsCard } from "./PlatformPaymentsCard";
 import { CustomDomainCard } from "./CustomDomainCard";
+import { FormField, FormPage, FormRow, FormSection, StatusBar, formStatus } from "./riso/FormKit";
 import { paysOnSquare, platformCardsProvider, providerName, runsOnColophon, shopProfile } from "../../lib/shopProfile";
 import { PrivacyRequestsCard } from "./PrivacyRequestsCard";
 import { RedirectsCard } from "./RedirectsCard";
@@ -150,10 +151,6 @@ export function ShopSettings({
     </div>
   );
 }
-// SaveBar names the cards that have unsaved edits, not the settings keys behind them.
-export const GENERAL_SECTION_TITLES: Record<string, string> = {
-  maintenance: "Store status", stockHolds: "Checkout stock holds", info: "Your press", domain: "Domain & visibility", location: "Your press", policies: "Store policies",
-};
 
 function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection, onUnderConstruction, subTab, onSubTabChange }: any) {
   const SECTIONS = ["maintenance", "stockHolds", "domain", "info", "location", "policies"] as const;
@@ -177,10 +174,12 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
   const maintenanceOn = !!settings.maintenance?.enabled;
   const name = settings.info?.name || "";
   const desc = settings.info?.description || "";
+  const email = settings.info?.email || "";
+  const missing = (name.trim() ? 0 : 1) + (email.trim() ? 0 : 1);
   // Your press first, as in the redesign's General page (11 November 2026).
   const [view, setView] = useSubTab<string>("gs-details", subTab, onSubTabChange);
   const tabs: SettingsTab[] = [
-    { id: "gs-details", title: "Your press", unsaved: ["info", "location", "policies", "domain"].some((k) => hasChanges(k)) },
+    { id: "gs-details", title: "Your shop", unsaved: ["info", "location", "policies", "domain"].some((k) => hasChanges(k)) },
     { id: "gs-store", title: "Shop status & checkout", unsaved: hasChanges("maintenance") || hasChanges("stockHolds") },
     { id: "gs-visitors", title: "Visitors & Google" },
     { id: "gs-tools", title: "Tools & records" },
@@ -191,57 +190,80 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
       <SettingsTabs label="General settings" tabs={tabs} value={view} onChange={setView} />
 
       <SettingsGroup id="gs-details" active={view === "gs-details"}>
-        <SettingsAnchor id="gs-identity">
-          {/* The redesign's form card: one row per field, the label on the left. Location lives here too (gs-location). */}
-          <SectionCard title="Your press" description="Shown on the site, emails, invoices and receipts." collapsible={false} bodyClassName="rp-formrows">
-            <TextField label="Press name" value={name} maxLength={100} onChange={(e) => set("info", { name: e.target.value })} />
-            <TextField label="Contact email" type="email" value={settings.info?.email || ""} placeholder="hello@example.com" onChange={(e) => set("info", { email: e.target.value })} />
-            <TextArea label="About your press" rows={3} value={desc} maxLength={150} hint={`Search and social previews · ${desc.length} / 150`} onChange={(e) => set("info", { description: e.target.value })} />
-            <span id="gs-location" tabIndex={-1} style={{ scrollMarginTop: 16, outline: "none" }} />
-            <TextField label="Street address" hint="Where parcels ship from" value={settings.location?.street || ""} placeholder="123 Example Street" onChange={(e) => set("location", { street: e.target.value })} />
-            <TextField label="City" value={settings.location?.city || ""} placeholder="Toronto" onChange={(e) => set("location", { city: e.target.value })} />
-            <TextField label="Province or state" value={settings.location?.state || ""} placeholder="Ontario" onChange={(e) => set("location", { state: e.target.value })} />
-            <TextField label="Postal code" value={settings.location?.zip || ""} placeholder="M6G 3H1" autoComplete="postal-code" onChange={(e) => set("location", { zip: e.target.value })} />
-            <SelectField label="Country" value={settings.location?.country || "Canada"} onChange={(e) => set("location", { country: e.target.value })}>
-              {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
-            </SelectField>
-            <TextField label="Phone" type="tel" hint="On labels, for the carrier" value={settings.location?.phone || ""} placeholder="647 409 6863" autoComplete="tel" onChange={(e) => set("location", { phone: e.target.value })} />
-          </SectionCard>
-        </SettingsAnchor>
-        <SettingsAnchor id="gs-domain">
-          <CustomDomainCard fallback={
-          <SectionCard title="Domain & visibility" description="For your records.">
-            <TextField label="Custom domain" value={settings.domain?.custom || ""} placeholder="yourpress.example"
-              hint="Doesn't move the shop. The domain is already live."
-              onChange={(e) => set("domain", { custom: e.target.value })} />
-          </SectionCard>
-          } />
-        </SettingsAnchor>
-        <WhatYouSellCard />
-        <SettingsAnchor id="gs-policies">
-          <SectionCard title="Store policies" description="Footer links. Blank ones hide.">
-            <div className="rp-stack" style={{ gap: 20 }}>
+        {/* v4 form kit (mockup 1e): sections named on the left, their fields in one card on the right. */}
+        <FormPage>
+          <SettingsAnchor id="gs-identity">
+            <FormSection title="Your shop" description="Shown on the site, emails, invoices and receipts.">
+              <FormRow>
+                <FormField label="Shop name" required empty={!name.trim()}>
+                  {(a) => <input {...a} value={name} maxLength={100} onChange={(e) => set("info", { name: e.target.value })} />}
+                </FormField>
+                <FormField label="Contact email" required empty={!email.trim()}>
+                  {(a) => <input {...a} type="email" value={email} placeholder="hello@example.com" onChange={(e) => set("info", { email: e.target.value })} />}
+                </FormField>
+              </FormRow>
+              <FormField label="Phone" hint="On shipping labels, for the carrier.">
+                {(a) => <input {...a} type="tel" value={settings.location?.phone || ""} placeholder="Optional" autoComplete="tel" onChange={(e) => set("location", { phone: e.target.value })} />}
+              </FormField>
+              <FormField label="About your shop" hint={`For search and social previews · ${desc.length} / 150`}>
+                {(a) => <textarea {...a} rows={3} value={desc} maxLength={150} onChange={(e) => set("info", { description: e.target.value })} />}
+              </FormField>
+            </FormSection>
+          </SettingsAnchor>
+          <SettingsAnchor id="gs-location">
+            <FormSection title="Address" description="Where parcels ship from. Printed on invoices.">
+              <FormField label="Street">
+                {(a) => <input {...a} value={settings.location?.street || ""} placeholder="123 Example Street" autoComplete="street-address" onChange={(e) => set("location", { street: e.target.value })} />}
+              </FormField>
+              <FormRow>
+                <FormField label="City">{(a) => <input {...a} value={settings.location?.city || ""} placeholder="Toronto" onChange={(e) => set("location", { city: e.target.value })} />}</FormField>
+                <FormField label="Province or state">{(a) => <input {...a} value={settings.location?.state || ""} placeholder="Ontario" onChange={(e) => set("location", { state: e.target.value })} />}</FormField>
+              </FormRow>
+              <FormRow>
+                <FormField label="Postal code">{(a) => <input {...a} value={settings.location?.zip || ""} placeholder="M6G 3H1" autoComplete="postal-code" onChange={(e) => set("location", { zip: e.target.value })} />}</FormField>
+                <FormField label="Country">
+                  {(a) => <select {...a} value={settings.location?.country || "Canada"} onChange={(e) => set("location", { country: e.target.value })}>
+                    {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
+                  </select>}
+                </FormField>
+              </FormRow>
+            </FormSection>
+          </SettingsAnchor>
+          <SettingsAnchor id="gs-domain">
+            <FormSection title="Web address" description="Where people find you.">
+              <CustomDomainCard bare fallback={
+                <FormField label="Custom domain" hint="For your records. It doesn't move the shop.">
+                  {(a) => <input {...a} value={settings.domain?.custom || ""} placeholder="yourpress.example" onChange={(e) => set("domain", { custom: e.target.value })} />}
+                </FormField>
+              } />
+            </FormSection>
+          </SettingsAnchor>
+          <FormSection title="How the shop runs" description="Sets the words in your admin and emails.">
+            <WhatYouSellCard bare />
+          </FormSection>
+          <SettingsAnchor id="gs-policies">
+            <FormSection title="Store policies" description="Footer links. Blank ones hide.">
               {POLICY_KEYS.map((k) => {
                 const text: string = settings.policies?.[k] || "";
                 return (
-                  <div key={k}>
-                    <TextArea label={POLICY_TITLES[k]} rows={5} maxLength={20000} value={text}
-                      hint={text.trim() ? `Live at /page/${policySlug(k)}` : k === "accessibility" ? "Optional. Tells shoppers who use screen readers or keyboards what to expect, and how to ask for help. Hidden until it has text." : "Hidden until it has text."}
-                      onChange={(e) => set("policies", { [k]: e.target.value })} />
+                  <div key={k} className="rp-fk-field">
+                    <FormField label={POLICY_TITLES[k]} hint={text.trim() ? `Live at /page/${policySlug(k)}` : k === "accessibility" ? "Optional. What shoppers who use screen readers or keyboards can expect. Hidden until it has text." : "Hidden until it has text."}>
+                      {(a) => <textarea {...a} rows={4} maxLength={20000} value={text} onChange={(e) => set("policies", { [k]: e.target.value })} />}
+                    </FormField>
                     {!text.trim() && (
-                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, marginTop: 8 }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
                         {/* Reads the latest saved policy again so a click can never replace words typed meanwhile. */}
                         <SecondaryButton size="sm" onClick={() => setSettings((prev: any) => ({ ...prev, policies: { ...prev?.policies, [k]: withStarter(prev?.policies?.[k], k, starterFacts(prev, sellsAnswer, providerName())) } }))}>Start from our wording</SecondaryButton>
-                        <span className="rp-hint">Filled with your shop name, address and returns window. {STARTER_POLICY_NOTE}</span>
+                        <span className="rp-fk-hint">Filled with your shop name, address and returns window.</span>
                       </div>
                     )}
                   </div>
                 );
               })}
-              <p className="rp-hint" style={{ margin: 0 }}>Our wording is {STARTER_POLICY_NOTE.toLowerCase()} Read it through and change anything that isn't true for your shop before you save.</p>
-            </div>
-          </SectionCard>
-        </SettingsAnchor>
+              <p className="rp-fk-hint" style={{ margin: 0 }}>Our wording is {STARTER_POLICY_NOTE.toLowerCase()} Read it through and change anything that isn't true for your shop before you save.</p>
+            </FormSection>
+          </SettingsAnchor>
+        </FormPage>
       </SettingsGroup>
 
       <SettingsGroup id="gs-store" active={view === "gs-store"}>
@@ -334,8 +356,13 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
         <SettingsAnchor id="gs-shop-errors"><ShopErrorsCard /></SettingsAnchor>
       </SettingsGroup>
 
-      <SaveBar dirty={dirty.length > 0} saving={!!savingSection} onSave={saveAll} onDiscard={discard}
-        message={`Unsaved changes in ${[...new Set(dirty.map((k) => GENERAL_SECTION_TITLES[k] || k))].join(", ")}.`} />
+      {/* One status bar for the whole page (v4 form kit): what is left, Discard, Save. */}
+      {(view === "gs-details" || view === "gs-store" || dirty.length > 0) && (
+        <StatusBar status={formStatus({ missing, dirty: dirty.length > 0 })} primaryLabel="Save" busy={!!savingSection}
+          blocked={missing > 0 || dirty.length === 0}
+          onBlocked={() => { if (missing > 0) { setView("gs-details"); toast.error("Fill in your shop name and contact email first."); } }}
+          onPrimary={() => void saveAll()} cancelLabel="Discard" onCancel={dirty.length > 0 ? discard : undefined} />
+      )}
 
       <ConfirmDialog open={confirmMaintenance} title="Turn on maintenance mode?" confirmLabel="Pause checkout"
         message="Shoppers can still browse, but checkout is refused (card, PayPal, e-Transfer and free orders) until you turn it off again. The change applies once you save."

@@ -9,6 +9,7 @@ import { currentSells } from "./sells";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { SELLS_CHANGED_EVENT } from "./shopWords";
 import { SectionCard, SelectField, PrimaryButton } from "./riso/components";
+import { FormField } from "./riso/FormKit";
 
 export const SELLS_CHOICES: { id: string; label: string }[] = [
   { id: "books", label: "Books" },
@@ -31,7 +32,8 @@ export function stockroomWordsNote(saved: string | null | undefined, heardFromSt
   return "Your stockroom switches to these words the next time you open it.";
 }
 
-export function WhatYouSellCard() {
+/** `bare` drops the card around it, for a form kit section that already names it (Settings › General, v4). */
+export function WhatYouSellCard({ bare }: { bare?: boolean } = {}) {
   const [saved, setSaved] = useState<string | null | undefined>(undefined);
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
@@ -67,8 +69,7 @@ export function WhatYouSellCard() {
       toast.error("Couldn't save that. Check your connection and try again.");
     } finally { setBusy(false); }
   };
-  return (
-    <SectionCard title="What you sell" description="Sets the words in your admin and emails. Products you already have stay as they are.">
+  const body = (<>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "end" }}>
         <SelectField label="What do you sell?" value={value} onChange={(e) => setValue(e.target.value)}>
           {SELLS_CHOICES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
@@ -76,6 +77,17 @@ export function WhatYouSellCard() {
         <PrimaryButton onClick={save} busy={busy} disabled={!changed || busy}>Save</PrimaryButton>
       </div>
       <p className="rp-hint" role="status" style={{ margin: "12px 0 0" }}>{stockroomWordsNote(saved, heard, justSaved)}</p>
-    </SectionCard>
+  </>);
+  return (
+    bare ? (
+      <FormField label="What you sell" hint={stockroomWordsNote(saved, heard, justSaved)}>
+        {(a) => <span style={{ display: "flex", gap: 10, width: "100%" }}>
+          <select {...a} style={{ flex: 1, minWidth: 0 }} value={value} onChange={(e) => setValue(e.target.value)}>
+            {SELLS_CHOICES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+          </select>
+          <PrimaryButton onClick={save} busy={busy} disabled={!changed || busy}>Save</PrimaryButton>
+        </span>}
+      </FormField>
+    ) : <SectionCard title="What you sell" description="Sets the words in your admin and emails. Products you already have stay as they are.">{body}</SectionCard>
   );
 }
