@@ -1,6 +1,6 @@
 // Press-facing words about money (code plan 15.22): Colophon never holds a press's money or sees a card number (each sale
 // is a direct charge on the press's own payments account, docs/decisions.md 2026-10-29), so no customer-facing text may
-// say Colophon "processes payments" until the lawyer's answer on payment service provider registration says that's safe.
+// say Colophon "processes payments" while that stays true.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";

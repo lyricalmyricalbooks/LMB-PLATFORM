@@ -2,8 +2,7 @@
 // and British Columbia's provincial taxes, once its sales pass a line over the last 12 months. Crossing one means
 // registering within weeks, so the control room totals Colophon's own plan sales and turns amber at 70% of each line.
 // The lines are the ones Stripe lists for Canada (research 2026-10-29 round 2, G22): $30,000 across Canada for GST/HST,
-// $30,000 of sales to Quebec for QST and $10,000 of sales to British Columbia for PST. Not tax advice: the note says
-// to ask the accountant, and the accountant's answer on when each applies is a pending question (code plan 15.9).
+// $30,000 of sales to Quebec for QST and $10,000 of sales to British Columbia for PST. The words say when to register.
 const DAY = 24 * 60 * 60;
 export const WATCH_WINDOW_DAYS = 365;
 export const AMBER_AT = 0.7;
@@ -35,9 +34,9 @@ export function taxWatch({ invoices = [], now = Date.now() } = {}) {
     return {
       id: line.id, label: line.label, total, limit: line.limit, percent: Math.floor(share * 100), state,
       words: state === "over"
-        ? `${money(total)} of ${money(line.limit)}: past the line. Ask the accountant about registering now.`
+        ? `${money(total)} of ${money(line.limit)}: past the line. Register now.`
         : state === "amber"
-          ? `${money(total)} of ${money(line.limit)}: close to the line. Ask the accountant when to register.`
+          ? `${money(total)} of ${money(line.limit)}: close to the line. Get ready to register.`
           : `${money(total)} of ${money(line.limit)} over the last 12 months.`,
     };
   });

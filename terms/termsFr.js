@@ -3,7 +3,7 @@
 // conditions s'ouvre en français pour le Québec (?lang=fr) et l'inscription montre le lien français en premier.
 //
 // Mêmes parties, même nombre de paragraphes et même version que terms.js (terms.test.js le vérifie) : changer un mot
-// ici ou là-bas, c'est une nouvelle TERMS_VERSION. BROUILLON tant qu'un avocat et un traducteur agréé ne l'ont pas relue.
+// ici ou là-bas, c'est une nouvelle TERMS_VERSION.
 import {
   BACKUP_KEEP_DAYS, CHANGE_NOTICE_DAYS, DOWNLOAD_DAYS, OPERATOR_NAME, PAUSED_DAYS, PRIVACY_CONTACT, REPORT_CONTACT,
   SHUTDOWN_NOTICE_DAYS, TRIAL_DAYS,
@@ -24,7 +24,6 @@ export const HELPERS_FR = Object.freeze([
 export const PAGE_FR = Object.freeze({
   title: "Nos engagements",
   lede: "Ce que nous promettons à votre maison d'édition, ce que nous faisons de vos données et ce qui arrive à votre boutique si Colophon ferme un jour. Le tout sur une page, en mots simples.",
-  draft: "BROUILLON. Aucun avocat n'a encore relu ce texte. Il montre ce que nous voulons promettre et peut changer avant le premier forfait payant.",
   version: "Quand ce texte change, la version change, et nous vous demandons d'accepter de nouveau.",
   contents: "Sur cette page",
   other: "Read in English",
@@ -37,7 +36,7 @@ export const SECTIONS_FR = Object.freeze([
     title: "Conditions d'utilisation",
     paragraphs: [
       `Ces conditions lient votre maison d'édition et ${OPERATOR_NAME}, l'entreprise qui exploite Colophon, au ${OPERATOR_ADDRESS_FR}. La personne qui coche la case à l'inscription accepte au nom de la maison et confirme qu'elle en a le droit.`,
-      "Colophon donne à votre maison un seul forfait qui comprend tout : un site web et une réserve. Le service est fait pour les entreprises, pas pour des personnes qui achètent pour elles-mêmes.",
+      "Colophon donne à votre maison un seul forfait qui comprend tout : un site web et une réserve. Le service est fait pour les entreprises du Canada et des États-Unis, pas pour des personnes qui achètent pour elles-mêmes.",
       "Votre boutique est votre propre entreprise. Votre maison est le vendeur auprès de vos clients, fixe ses prix et ses politiques, et respecte les lois sur la vente, la vie privée et les taxes des endroits où elle vend.",
       "Vous êtes responsable de ce que vous vendez et des textes et images de votre boutique. N'utilisez pas Colophon pour vendre quoi que ce soit d'illégal là où vous êtes ou là où sont vos acheteurs.",
       "Vos livres, vos textes et vos images restent à vous. Vous nous permettez de les copier et de les montrer seulement pour faire fonctionner votre boutique, et cela prend fin quand elle est supprimée.",
@@ -55,7 +54,7 @@ export const SECTIONS_FR = Object.freeze([
     paragraphs: [
       `Votre forfait commence par un essai gratuit de ${TRIAL_DAYS} jours, et nous ne demandons jamais de carte pour le commencer. Si l'essai se termine sans carte, votre boutique est mise en pause et rien n'est facturé.`,
       "Une fois votre carte ajoutée, votre forfait se renouvelle chaque mois jusqu'à ce que vous annuliez. Chaque mois, nous débitons cette carte des frais du forfait et de ce qu'a coûté le fonctionnement de votre boutique le mois précédent (stockage, trafic web, tâches de fond et courriels), à ce qu'il nous coûte, sans rien ajouter. Nous le calculons à partir du relevé de l'usage de chaque boutique tenu par notre fournisseur infonuagique, et le vérifions avec la facture de ce fournisseur avant de vous facturer. Les mois d'essai ne coûtent rien. Votre page de facturation montre le coût à ce jour, et nous vous écrivons quand un mois semble devoir dépasser le montant que vous y choisissez (25 $ si vous ne le changez pas).",
-      "Les prix sont affichés avant taxes. Nous ajoutons les taxes de vente qui s'appliquent là où se trouve votre maison, et votre reçu les indique.",
+      "Une maison aux États-Unis paie en dollars américains, et une maison au Canada en dollars canadiens. Le coût de fonctionnement est calculé en dollars canadiens et, pour une maison qui paie en dollars américains, nous le convertissons au taux de change du jour, sans rien ajouter. Les prix sont affichés avant taxes. Nous ajoutons les taxes de vente de l'endroit où se trouve votre maison, sa province ou son État, et votre facture les indique. Vous pouvez télécharger chaque facture depuis Réglages, sous Facturation.",
       "Une maison qui paie déjà une part des ventes de son site au lieu d'un prix mensuel continue de payer ainsi jusqu'à ce qu'elle change. Ce choix n'est pas offert aux nouvelles maisons.",
       "L'offre fondatrice donne aux premières maisons des frais de plateforme réduits tant qu'elles gardent leur forfait. Elle ne réduit pas le coût de fonctionnement. Si une maison fondatrice annule avant son premier paiement, sa place passe à la maison suivante.",
       `Si nous augmentons un prix ou changeons la façon de le calculer, nous vous écrivons au moins ${CHANGE_NOTICE_DAYS} jours avant votre premier paiement au nouveau prix, et vous pouvez annuler avant sans rien payer de plus.`,
