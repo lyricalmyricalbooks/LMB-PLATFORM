@@ -63,6 +63,9 @@ export function sharedServerEnv({ platformUrl, region = REGION }) {
     // The QuickBooks link (services/accounting/hosted.js): Settings › Bookkeeping. The page stays hidden until the
     // platform has Intuit's keys and ACCOUNTING_ENABLED.
     `PLATFORM_ACCOUNTING_URL="${base}/api/accounting"`,
+    // Social channels (services/social/hosted.js): Sales channels connects Facebook & Instagram, Pinterest and TikTok.
+    // Until the platform has the networks' keys and SOCIAL_ENABLED, the page shows the by-hand steps.
+    `PLATFORM_SOCIAL_URL="${base}/api/social"`,
     "",
   ].join("\n");
 }

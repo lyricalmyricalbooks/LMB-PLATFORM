@@ -7,7 +7,7 @@
 // Clients passed in:
 //   registry  getShop(shopId); listShops(); readEvents(shopId, { limit }) -> the shop's events, newest first
 //   social    optional: controlRoom(shopId) -> [{ network, name, connected, problem, lostAt, lostDetail, accountName,
-//             places, catalog, connectedAt, disconnectedAt }]. Missing until the social service has its hosted home.
+//             places, catalog, connectedAt, disconnectedAt }]: services/social/hosted.js, from server/world.js.
 import { ControlError, adminOf, eachInTurn } from "./controlRoom.js";
 import { NETWORK_NAMES } from "../services/social/endpoints.js";
 

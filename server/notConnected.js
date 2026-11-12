@@ -26,6 +26,7 @@ export const NOT_CONNECTED = Object.freeze({
   appDeletion: { words: "Deleting a closed app's records isn't switched on yet.", waitsOn: "server access to each shop's Google project, after the real shop maker (15.5)" },
   rollBack: { words: "Rolling a shop back to an earlier release isn't switched on here yet.", waitsOn: "the release runner's hosted home (deploys need the Firebase command line)" },
   domains: { words: "Web addresses for shops aren't switched on yet.", waitsOn: "the shared system (SHARED_SHOPS_PROJECT and SHARED_SHOPS_DOMAIN in the server's settings): there a new address needs no deploy" },
+  social: { words: "Social channels aren't switched on yet.", waitsOn: "the platform's Meta, Pinterest and TikTok app keys and SOCIAL_TOKEN_KEY (docs/social.md)" },
   bookkeeping: { words: "The QuickBooks link isn't switched on yet.", waitsOn: "the platform's QuickBooks app keys and its connection records (docs/accounting.md)" },
   selfChecks: { words: "The daily self-checks aren't switched on here yet.", waitsOn: "the deploy tool and release builds on the server, like the release runner" },
   usageMeters: { words: "Each shop's use isn't metered yet.", waitsOn: "the shared system (SHARED_SHOPS_PROJECT and SHARED_SHOPS_DOMAIN in the server's settings)" },
