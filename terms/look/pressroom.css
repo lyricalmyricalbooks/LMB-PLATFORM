@@ -2353,3 +2353,20 @@ div.rp-listcard-main { cursor: default; }
 .rp .rp-fk-pill:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
 .rp .rp-fk-hint[data-error] { margin: 0; color: var(--rp-danger); font-weight: 600; }
 .rp .rp-fk-picklist { max-height: 240px; overflow-y: auto; padding: 4px 14px; border-radius: 12px; background: var(--rp-input-bg); }
+/* v4 line grid (New invoice items): Item · Qty · Price · Off % · Total · remove; stacks to two rows on a phone. */
+.rp .rp-fk-lines { display: flex; flex-direction: column; gap: 8px; }
+.rp .rp-fk-lines-head, .rp .rp-fk-line { display: grid; grid-template-columns: minmax(0, 1fr) 52px 84px 52px 84px 44px; gap: 8px; align-items: center; }
+.rp .rp-fk-lines-head { font: 400 11px/1.2 var(--rp-font-mono); text-transform: uppercase; letter-spacing: .04em; color: var(--rp-text-subtle); }
+.rp .rp-fk-lines-head > span:nth-child(n+2):nth-child(-n+5) { text-align: right; }
+.rp .rp-fk-line > input { min-width: 0; min-height: 44px; padding: 11px 12px; border: 0; border-radius: 12px; background: var(--rp-input-bg); color: var(--rp-text); font: 400 14px/1.4 var(--rp-font-body); }
+.rp .rp-fk-line > input:nth-child(n+2) { text-align: right; }
+.rp .rp-fk-line > input:focus { outline: none; box-shadow: 0 0 0 2px var(--rp-info); }
+.rp .rp-fk-line[data-missing] > input:first-child { box-shadow: inset 0 0 0 1.5px var(--rp-warning); }
+.rp .rp-fk-line-total { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.rp .rp-fk-pill[data-tone="danger"] { border-color: var(--rp-danger); color: var(--rp-danger); }
+@media (max-width: 640px) {
+  .rp .rp-fk-lines-head { display: none; }
+  .rp .rp-fk-line { grid-template-columns: repeat(3, minmax(0, 1fr)) 44px; padding-bottom: 8px; border-bottom: 1px solid var(--rp-border); }
+  .rp .rp-fk-line > input:first-child { grid-column: 1 / -1; }
+  .rp .rp-fk-line-total { grid-column: 1 / 4; }
+}
