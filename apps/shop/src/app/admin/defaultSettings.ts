@@ -57,6 +57,8 @@ export const defaultSettings = (): any => ({
       email: "",
       clientId: "",
       testClientId: "",
+      webhookId: "",
+      testWebhookId: "",
       venmo: false,
       buyNowPayLater: false
     },

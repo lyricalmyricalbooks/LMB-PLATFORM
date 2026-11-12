@@ -22,6 +22,22 @@ describe("admin report actions", () => {
     expect(hitLimit).not.toHaveBeenCalled();
   });
 
+  it("on the shared server the Google figures come only through Connect Google, never the server's one Google account", async () => {
+    const readAdminSecret = vi.fn();
+    const actions = adminReportActions({ db: {}, admin: {}, requireAdmin: async () => ({ email: "owner@example.com" }), readAdminSecret, hitLimit: vi.fn(), LIMITS: {} });
+    const before = process.env.SHOP_FOLDERS;
+    try {
+      process.env.SHOP_FOLDERS = "on";
+      for (const name of ["ga4Report", "searchConsole", "bigQueryJourneys"]) {
+        const r = res();
+        await actions[name]({ body: { op: "status" } }, r);
+        expect(r.statusCode).toBe(200);
+        expect(r.body).toMatchObject({ connected: false, code: "use_connect_google" });
+      }
+      expect(readAdminSecret).not.toHaveBeenCalled();
+    } finally { if (before === undefined) delete process.env.SHOP_FOLDERS; else process.env.SHOP_FOLDERS = before; }
+  });
+
   it("index.js reaches them only through the own-key action table", () => {
     expect(source).toContain("...adminReportActions({ db, admin, requireAdmin, readAdminSecret, hitLimit, LIMITS }),");
     expect(source).toContain('typeof action === "string" && Object.hasOwn(CHECKOUT_FUNCTION_ACTIONS, action)');

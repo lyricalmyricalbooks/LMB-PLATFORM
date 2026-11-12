@@ -30,4 +30,15 @@ function paypalCredentials({ testMode, settingsPaypal, privateSecrets, fallback 
   return { ok: false, error: "PayPal credentials are not configured." };
 }
 
-module.exports = { paypalCredentials };
+/**
+ * The id PayPal's notices are checked against. Each shop saves its own (Settings › Payments › PayPal; an id, not a
+ * secret); a shop on its own server may still use the PAYPAL_WEBHOOK_ID Functions secret for live notices. On the
+ * shared server there is no such secret, so one shop's notices can never be checked against another shop's id.
+ */
+function paypalWebhookId({ testMode, settingsPaypal, fallback }) {
+  const saved = settingsPaypal || {};
+  if (testMode) return text(saved.testWebhookId);
+  return text(saved.webhookId) || text(fallback);
+}
+
+module.exports = { paypalCredentials, paypalWebhookId };

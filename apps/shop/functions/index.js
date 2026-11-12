@@ -120,7 +120,7 @@ const { orderActionBody, refundOrderBody } = require("./shared/orderActions");
 const { GIFT_CARD_BODIES } = require("./shared/giftCardActions");
 const digitalDelivery = require("./digitalDelivery");
 const { claimEmailSend, claimEmailSendDetailed, reminderFirstName, nextDailyCount } = require("./emailThrottle");
-const { paypalCredentials } = require("./paypalCredentials");
+const { paypalCredentials, paypalWebhookId } = require("./paypalCredentials");
 const { shopOrigin, checkoutClosed, planPaused, dailyDigestEnabled, backupStatusRecord } = require("./shopSettings");
 const { runInBatches, backupFoldersToPrune } = require("./sweepLimits");
 const { MAX_ATTEMPTS, LEASE_MS, LOG_RETENTION_DAYS, GAVE_UP_RETENTION_DAYS, cleanRecipients, nextRetryAt, isPermanentEmailError, canSendNow, publicOutboxEntry, staleOrderEmailReason, daysAgoIso, withRequiredPlaceholders, blankUnknownPlaceholders } = require("./emailOutbox");
@@ -1738,12 +1738,14 @@ exports.paypalWebhook = onRequest(
     if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
     try {
       const config = await getPayPalConfig();
+      const webhookId = paypalWebhookId({ testMode: config.testMode, settingsPaypal: config.settingsPaypal, fallback: PAYPAL_WEBHOOK_ID.value() });
+      if (!webhookId) return res.status(400).send("PayPal notices aren't set up for this shop");
       const verification = await paypalRequest(config, "/v1/notifications/verify-webhook-signature", {
         method: "POST",
         body: JSON.stringify({
           auth_algo: req.headers["paypal-auth-algo"], cert_url: req.headers["paypal-cert-url"],
           transmission_id: req.headers["paypal-transmission-id"], transmission_sig: req.headers["paypal-transmission-sig"],
-          transmission_time: req.headers["paypal-transmission-time"], webhook_id: PAYPAL_WEBHOOK_ID.value(),
+          transmission_time: req.headers["paypal-transmission-time"], webhook_id: webhookId,
           webhook_event: req.body,
         }),
       });

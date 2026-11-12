@@ -47,8 +47,9 @@ export function stockValue(books: Row[], states: Record<string, Row>, fxRateCach
     const fxRate = cur === "CAD" ? 1 : fxRateCache[`${cur}_CAD`] || 1;
     const listPrice = parseFloat(book.listPrice || 0);
     const rawCost = parseFloat(book.productionCost || 0);
-    // productionCost may be the whole print run's cost: then it is shared over the run.
-    const unitCost = rawCost > 0 && printRun > 1 && rawCost > listPrice * 2 ? rawCost / printRun : rawCost;
+    // The production cost is the whole run's (the edit form says so, and the year report reads it that way): shared
+    // over the run. With no print run typed, the run is every copy sold plus every copy left.
+    const unitCost = printRun > 0 ? rawCost / printRun : 0;
     const unitMargin = Math.max(0, listPrice - unitCost);
     const unitMarginPct = listPrice > 0 ? (unitMargin / listPrice) * 100 : 0;
     if (listPrice > 0) { totalMarginSum += unitMarginPct * totalUnsold; marginCount += totalUnsold; }

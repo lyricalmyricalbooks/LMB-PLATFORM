@@ -5,6 +5,7 @@ const { handleAiWrite } = require("./aiWriter");
 const { shopConfig } = require("./shopConfig");
 const { handleGa4Report, metadataCredentials } = require("./googleAnalytics");
 const { handleSearchConsole, SCOPE: SEARCH_CONSOLE_SCOPE } = require("./searchConsole");
+const { foldersOn } = require("./shopScope");
 const { handleBigQueryJourneys, SCOPE: BIGQUERY_SCOPE } = require("./bigQueryJourneys");
 const { handleTrafficReset } = require("./trafficReset");
 const { handlePastOrdersImport, handlePastOrdersRemove, handlePastOrderRate } = require("./orderImport");
@@ -61,10 +62,19 @@ function adminReportActions({ db, admin, requireAdmin, readAdminSecret, hitLimit
     }
   }
 
+  // On the shared server one Google account would read for every shop, so a shop could save another shop's property
+  // and read its figures. There, Google is reached only through Connect Google (each shop's own sign-in).
+  function sharedGoogleOff(res) {
+    if (!foldersOn()) return false;
+    res.status(200).json({ connected: false, code: "use_connect_google", error: "These figures come through Connect Google. Open Settings › Google and connect there." });
+    return true;
+  }
+
   // Overview › Google Analytics figures (admin): the GA4 Data API read with this function's own service account.
   async function handleGa4ReportRequest(req, res) {
     const adminUser = await requireAdmin(req, res);
     if (!adminUser) return;
+    if (sharedGoogleOff(res)) return;
     try {
       const { status, body } = await handleGa4Report(req.body || {}, {
         readSettings: () => readAdminSecret("googleAnalytics"),
@@ -84,6 +94,7 @@ function adminReportActions({ db, admin, requireAdmin, readAdminSecret, hitLimit
   async function handleSearchConsoleRequest(req, res) {
     const adminUser = await requireAdmin(req, res);
     if (!adminUser) return;
+    if (sharedGoogleOff(res)) return;
     try {
       const { status, body } = await handleSearchConsole(req.body || {}, {
         readSettings: () => readAdminSecret("googleAnalytics"),
@@ -104,6 +115,7 @@ function adminReportActions({ db, admin, requireAdmin, readAdminSecret, hitLimit
   async function handleBigQueryJourneysRequest(req, res) {
     const adminUser = await requireAdmin(req, res);
     if (!adminUser) return;
+    if (sharedGoogleOff(res)) return;
     try {
       const { status, body } = await handleBigQueryJourneys(req.body || {}, {
         readSettings: () => readAdminSecret("googleAnalytics"),

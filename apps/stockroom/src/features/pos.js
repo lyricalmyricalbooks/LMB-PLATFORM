@@ -1429,7 +1429,9 @@ async function posConfirmSale() {
 
         // recordOrder is the single shared sale-writing function used by manual
         // entry. It reads the active book, so point it at this row's book.
-        withActiveBook(book.id, () => recordOrder(num, chan, qty, basePrice, notes, payment));
+        // A gift takes no money: the copy leaves the stock at 0, marked as a gratuity so it is never counted as a sale.
+        const gift = sale.method === 'Comp/Gift';
+        withActiveBook(book.id, () => recordOrder(num, chan, qty, gift ? 0 : basePrice, notes, gift ? null : payment, gift ? { extra: { gratuity: true } } : {}));
         recordedBooks.push(book.id);
         recorded++;
       } catch (error) {

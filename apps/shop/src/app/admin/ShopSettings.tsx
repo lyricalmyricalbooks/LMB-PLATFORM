@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { adminApi } from "./api";
+import { functionUrl } from "../lib/functionsBase";
 import toast from "react-hot-toast";
 import { POLICY_KEYS, POLICY_TITLES, policySlug } from "../features/site/policyPages";
 import { STARTER_POLICY_NOTE, starterFacts, withStarter } from "./starterPolicies";
@@ -1714,6 +1715,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
           <SectionCard title="PayPal" logo="paypal">
             <div className="rp-stack" style={{ gap: 20 }}>
               <Toggle label="PayPal checkout" checked={!!paypal.connected} onChange={(v) => updatePaypal({ connected: v })} />
+              {paypal.connected && <p className="rp-hint" style={{ margin: 0 }}>In PayPal, add a webhook to <code>{functionUrl("paypalWebhook")}</code>, then paste its ID below.</p>}
               {paypal.connected && (
                 <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
                   <div className="rp-card" style={{ padding: 16, boxShadow: "none", opacity: testMode ? 0.75 : 1 }}>
@@ -1723,6 +1725,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
                       <SecretField key={`pp-live-${secretFieldsKey}`} label="Live client secret" placeholder="Client secret…" stored={!!paypal.clientSecretStored}
                         onCommit={(v) => updatePaypal({ clientSecret: v })}
                         onRemove={paypal.clientSecretStored ? () => removePaypalSecret("live") : undefined} removing={removingPaypal === "live"} />
+                      <TextField label="Live webhook ID" placeholder="Webhook ID…" spellCheck={false} hint="PayPal › your app › Webhooks. Lets PayPal tell the shop about refunds." value={paypal.webhookId || ""} onChange={(e) => updatePaypal({ webhookId: e.target.value.trim() })} />
                       <p className="rp-hint" style={{ margin: 0 }}>Blank falls back to the server's credentials.</p>
                     </div>
                   </div>
@@ -1733,6 +1736,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
                       <SecretField key={`pp-test-${secretFieldsKey}`} label="Test client secret" placeholder="Sandbox client secret…" stored={!!paypal.testClientSecretStored}
                         onCommit={(v) => updatePaypal({ testClientSecret: v })}
                         onRemove={paypal.testClientSecretStored ? () => removePaypalSecret("test") : undefined} removing={removingPaypal === "test"} />
+                      <TextField label="Test webhook ID" placeholder="Sandbox webhook ID…" spellCheck={false} value={paypal.testWebhookId || ""} onChange={(e) => updatePaypal({ testWebhookId: e.target.value.trim() })} />
                       <p className="rp-hint" style={{ margin: 0 }}>Needs both sandbox values, or PayPal stays off in test mode.</p>
                     </div>
                   </div>
