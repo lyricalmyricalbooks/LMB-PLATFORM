@@ -11,6 +11,10 @@ test("the summary counts the keys, the test shop and a way in", () => {
   const all = launch({ keys: keys(["stripe", "connect-events", "billing-events", "email"]) });
   assert.deepEqual(launchSummary(all, { status: "live" }), { ready: 6, total: 6, missing: 0 });
   assert.equal(launchSummary({ ...all, invites: false }, { status: "live" }).missing, 1);
+  // Two test shops: ready only when both are live.
+  assert.equal(launchSummary(all, [{ status: "live" }, { status: "live" }]).missing, 0);
+  assert.equal(launchSummary(all, [{ status: "live" }, { status: "creating" }]).missing, 1);
+  assert.equal(launchSummary(all, []).missing, 1);
 });
 
 test("each walkthrough step names only what it still waits for", () => {

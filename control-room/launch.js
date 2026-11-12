@@ -4,17 +4,21 @@
 /** Where the walkthrough's ticks are kept, on this computer only. */
 export const WALK_STORE = "cr-launch-walk";
 
-/** The things to have in place, from GET /control/launch and GET /control/test-shop, each ready or not. */
-export function launchChecks(launch, testShop) {
+/**
+ * The things to have in place, from GET /control/launch and GET /control/test-shop, each ready or not. `testShops` is
+ * the list of test shops (or one, as before): ready when there is at least one and every one is live.
+ */
+export function launchChecks(launch, testShops) {
   const checks = launch.keys.map((key) => ({ id: key.id, ready: key.ready }));
-  checks.push({ id: "test-shop", ready: Boolean(testShop && testShop.status === "live") });
+  const tests = (Array.isArray(testShops) ? testShops : [testShops]).filter(Boolean);
+  checks.push({ id: "test-shop", ready: tests.length > 0 && tests.every((shop) => shop.status === "live") });
   checks.push({ id: "signup", ready: launch.signupOpen || launch.invites });
   return checks;
 }
 
 /** "3 of 6 ready", and how many still need you, for the page and its menu badge. */
-export function launchSummary(launch, testShop) {
-  const checks = launchChecks(launch, testShop);
+export function launchSummary(launch, testShops) {
+  const checks = launchChecks(launch, testShops);
   const ready = checks.filter((c) => c.ready).length;
   return { ready, total: checks.length, missing: checks.length - ready };
 }

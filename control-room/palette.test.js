@@ -41,3 +41,15 @@ test("every page sits in exactly one of the five groups, and each tab is one of 
     assert.match(page, new RegExp(`href="#${group.id}" data-nav="${group.id}"`), `${group.name} is in the menu`);
   }
 });
+
+test("the find bar opens either test shop by what it is: book test shop or general test shop", () => {
+  const shops = [
+    { shopId: "test-press", pressName: "Test Press", testShop: true, sells: { books: true } },
+    { shopId: "test-goods", pressName: "Test Goods", testShop: true, sells: { books: false } },
+    { shopId: "fable", pressName: "Fable & Ink", sells: { books: true } },
+  ];
+  const shopsFor = (typed) => findResults(typed, { shops }).filter((r) => r.kind === "shop").map((r) => r.shopId);
+  assert.deepEqual(shopsFor("general test shop"), ["test-goods"]);
+  assert.deepEqual(shopsFor("book test shop"), ["test-press"]);
+  assert.deepEqual(shopsFor("test shop"), ["test-press", "test-goods"]);
+});

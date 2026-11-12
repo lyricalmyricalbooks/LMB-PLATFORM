@@ -17,7 +17,7 @@ export const GROUPS = [
 /** Every page of the five groups, and the places on a page worth jumping to. `go` is the address's #. */
 export const PLACES = Object.freeze([
   { words: "Today", go: "today", group: "Today" },
-  { words: "Your test shop", go: "test-shop", group: "Today" },
+  { words: "Your test shops", go: "test-shop", group: "Today" },
   { words: "Brands at risk", go: "at-risk", group: "Today" },
   { words: "Still time to talk", go: "save-list", group: "Today" },
   { words: "Tax lines", go: "tax-watch", group: "Today" },

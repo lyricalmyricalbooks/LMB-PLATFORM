@@ -450,3 +450,12 @@
 .rp.cl .cr-email-text { margin: 8px 0 0; padding: 12px; max-height: 320px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 13px; font-weight: 400; line-height: 1.5; border: 1px solid var(--rp-border); border-radius: 12px; }
 .rp.cl .cr-email-actions { margin-top: 6px; display: flex; justify-content: flex-end; }
 .rp.cl .cr-shop-notes:not(:empty) { margin: 12px 0 0; padding: 10px 14px; border-left: 3px solid var(--rp-border); }
+
+/* Your test shops (two since 12 November 2026): the book shop and the general shop side by side, stacked on a phone. */
+.rp.cl .cr-test-shops { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.rp.cl .cr-test-shops > .rp-card-body + .rp-card-body { border-left: 1px solid var(--rp-divider); }
+@media (max-width: 767px) {
+  .rp.cl .cr-test-shops { grid-template-columns: minmax(0, 1fr); }
+  .rp.cl .cr-test-shops > .rp-card-body + .rp-card-body { border-left: 0; border-top: 1px solid var(--rp-divider); }
+  .rp.cl .cr-test-shops .cr-actions .rp-btn { min-height: 44px; }
+}

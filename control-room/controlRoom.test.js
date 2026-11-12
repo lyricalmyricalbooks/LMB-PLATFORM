@@ -706,7 +706,28 @@ test("your test shop: the card finds it, and Reset the sample books is admin onl
 test("no test shop yet: the card says so instead of failing (plan 9.10)", async () => {
   const w = await world();
   await w.registry.updateShop(ID, { testShop: false });
-  assert.equal((await w.ask(ADMIN, "GET", "/api/control/test-shop")).body.testShop, null);
+  const body = (await w.ask(ADMIN, "GET", "/api/control/test-shop")).body;
+  assert.equal(body.testShop, null);
+  assert.deepEqual(body.testShops, []);
+});
+
+test("two test shops: the book shop first, then the general one, each with its kind; reset puts back each one's own products", async () => {
+  const w = await world();
+  await w.registry.createShop("test-goods", { shopId: "test-goods", pressName: "Test Goods", plan: "both", status: "live", testShop: true, testMode: true, publishes: "other", ownerEmail: "owner@example.com" });
+  await w.registry.saveProfile("test-goods", { siteUrl: "https://lmb-test-goods.web.app" });
+  await w.registry.recordReleaseCheck("test-goods", { ok: false, failedCheck: 2, finishedAt: "2026-11-12T01:00:00Z", version: "1.2.9-g9644c9fe047e" });
+  const body = (await w.ask(ADMIN, "GET", "/api/control/test-shop")).body;
+  assert.deepEqual(body.testShops.map((s) => [s.shopId, s.kind, s.kindWords]), [[ID, "books", "Book test shop"], ["test-goods", "general", "General test shop"]]);
+  assert.equal(body.testShop.shopId, ID, "the one card that names a single test shop shows the book shop");
+  const goods = body.testShops[1];
+  assert.deepEqual([goods.storefrontUrl, goods.adminUrl, goods.lastCheck.ok, goods.lastCheck.failedCheck], ["https://lmb-test-goods.web.app", "https://lmb-test-goods.web.app/admin/", false, 2]);
+
+  // The general shop's reset puts back its own goods, never the book shop's books.
+  await w.services.shopData.set("test-goods", "books/test-tote-bag", { title: "Test Tote Bag", stockLevel: 0 });
+  const reset = await w.ask(ADMIN, "POST", "/api/control/test-shop/reset", { shopId: "test-goods" });
+  assert.equal(reset.status, 200);
+  assert.equal((await w.services.shopData.get("test-goods", "books/test-tote-bag")).stockLevel, 5);
+  assert.equal(await w.services.shopData.get("test-goods", "books/test-book-one"), null);
 });
 
 test("the shop record shows each Google step, and Run again runs one, admins only and logged (6.20 on 9.3)", async () => {
