@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { fmt } from "@stockroom/money.js";
 
-import { DataTable, EmptyState, Pagination, SearchField, StatusBadge } from "../riso/components";
+import { DataTable, EmptyState, PageActions, PageHead, Pagination, PrimaryButton, SearchField, StatusBadge } from "../riso/components";
+import { LogExpenseCard } from "./LogExpense";
 import { useShopWords } from "../shopWords";
 import { RecordsGate } from "./RecordsGate";
 import { useRatedRecords } from "./taxRates";
@@ -55,7 +56,21 @@ export function ExpensesPage({ load = stockroomApi.load }: { load?: () => Promis
   return <RecordsGate load={load} what="the expenses">{(records) => <ExpensesLive initial={records} />}</RecordsGate>;
 }
 
+// v4: "Add expense" in the header opens the New expense page; Back returns, and the saved expense joins the list.
 function ExpensesLive({ initial }: { initial: StockroomRecords }) {
-  const [records] = useRatedRecords(initial);
-  return <ExpensesView records={records} />;
+  const [records, setRecords] = useRatedRecords(initial);
+  const [adding, setAdding] = useState(false);
+  if (adding) return (
+    <div className="rp-money">
+      <PageHead title="Add an expense" description="Money that went out of the business" back={{ label: "Expenses", onClick: () => setAdding(false) }} />
+      <LogExpenseCard page taxCenter={records.taxCenter as Record<string, any> | null} onCancel={() => setAdding(false)}
+        onSaved={(taxCenter) => { setRecords((cur) => ({ ...cur, taxCenter })); setAdding(false); }} />
+    </div>
+  );
+  return (
+    <>
+      <PageActions><PrimaryButton onClick={() => setAdding(true)}>Add expense</PrimaryButton></PageActions>
+      <ExpensesView records={records} />
+    </>
+  );
 }
