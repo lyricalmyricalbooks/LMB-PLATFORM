@@ -1,6 +1,6 @@
 import { test, expect } from 'vitest';
 import { createRequire } from 'node:module';
-const { paypalCredentials } = createRequire(import.meta.url)('./paypalCredentials');
+const { paypalCredentials, paypalWebhookId } = createRequire(import.meta.url)('./paypalCredentials');
 
 const fallback = { clientId: 'live-fn-id', clientSecret: 'live-fn-secret' };
 
@@ -25,4 +25,13 @@ test('live mode uses the saved pair only when both halves are saved, otherwise t
 
 test('live mode with nothing configured is refused', () => {
   expect(paypalCredentials({ testMode: false, settingsPaypal: {}, privateSecrets: {}, fallback: { clientId: '', clientSecret: '' } }).ok).toBe(false);
+});
+
+test("PayPal notices are checked against the shop's own saved id, never another shop's", () => {
+  expect(paypalWebhookId({ testMode: false, settingsPaypal: { webhookId: ' WH-1 ' }, fallback: 'WH-server' })).toBe('WH-1');
+  expect(paypalWebhookId({ testMode: false, settingsPaypal: {}, fallback: 'WH-server' })).toBe('WH-server');
+  // The shared server has no server-wide id, so a shop that saved none has none.
+  expect(paypalWebhookId({ testMode: false, settingsPaypal: {}, fallback: '' })).toBe('');
+  expect(paypalWebhookId({ testMode: true, settingsPaypal: { webhookId: 'WH-1', testWebhookId: 'WH-test' }, fallback: 'WH-server' })).toBe('WH-test');
+  expect(paypalWebhookId({ testMode: true, settingsPaypal: { webhookId: 'WH-1' }, fallback: 'WH-server' })).toBe('');
 });

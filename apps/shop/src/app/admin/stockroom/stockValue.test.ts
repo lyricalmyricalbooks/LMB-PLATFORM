@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { adjustmentPreview, buildAdjustment, priorWriteDown, stockValue, stockValueCsv, withAdjustment, withDisposal } from "./stockValue";
 
 const books = [
-  { id: "salt", title: "Salt Hours", currency: "CAD", listPrice: 25, productionCost: 5, maxPrint: 100 },
+  { id: "salt", title: "Salt Hours", currency: "CAD", listPrice: 25, productionCost: 500, maxPrint: 100 },
   { id: "ferry", title: "Night Ferry", currency: "EUR", listPrice: 20, productionCost: 1200, maxPrint: 300 },
 ];
 const states = {
@@ -18,7 +18,7 @@ describe("stock value", () => {
     expect(items[0]).toMatchObject({ stockOnHand: 40, stockConsigned: 6, totalUnsold: 46, totalSold: 14, compsDamaged: 40 });
   });
   it("shares a whole print run's cost over the run, and converts to dollars", () => {
-    expect(items[1].unitCost).toBe(4); // 1200 is more than twice the price: it is the run's cost
+    expect(items[1].unitCost).toBe(4); // the cost typed is the whole run's
     expect(items[1].totalCostCAD).toBe(600);
     expect(items[1].totalRetailCAD).toBe(3000);
     expect(items[0].totalCostCAD).toBe(230);
@@ -64,5 +64,13 @@ describe("a book with no records yet", () => {
     const { stockValue } = await import("./stockValue");
     const { items } = stockValue([{ id: "new", title: "New", maxPrint: 200, listPrice: 20, productionCost: 1000, currency: "CAD" }], {}, {});
     expect(items[0]).toMatchObject({ stockOnHand: 200, totalUnsold: 200, unitCost: 5, totalCostCAD: 1000 });
+  });
+});
+
+describe("the production cost is always the whole run's", () => {
+  it("a small run's cost is shared over the run too, never read as a cost per copy", () => {
+    const { items } = stockValue([{ id: "zine", title: "Zine", maxPrint: 100, listPrice: 20, productionCost: 30, currency: "CAD" }], {}, {});
+    expect(items[0].unitCost).toBeCloseTo(0.3);
+    expect(items[0].totalCostCAD).toBeCloseTo(30);
   });
 });

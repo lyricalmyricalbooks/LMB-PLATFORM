@@ -26,3 +26,21 @@ describe("profit for the year", () => {
     expect(waiting).toBe(1);
   });
 });
+
+describe("a title with no print run, and a title in another currency", () => {
+  it("spreads the cost over copies sold plus copies left, so ten sales never carry it ten times", () => {
+    const f = yearFigures({
+      books: [{ id: "zine", title: "Zine", productionCost: 500, listPrice: 20, currency: "CA$" }],
+      states: { zine: { stock: 40, hist: [{ date: "2026-02-01", qty: 10, price: 20 }] } }, taxCenter: null, fxRateCache: {},
+    }, "2026");
+    expect(f.bookStats[0]).toMatchObject({ units: 10, revenue: 200, unitCost: 10, cogs: 100, net: 100 });
+  });
+  it("converts another currency's sales and costs at the saved rate", () => {
+    const f = yearFigures({
+      books: [{ id: "us", title: "US", productionCost: 100, maxPrint: 100, currency: "US$" }],
+      states: { us: { hist: [{ date: "2026-02-01", qty: 10, price: 10 }] } }, taxCenter: null, fxRateCache: { USD_CAD: 1.4 },
+    }, "2026");
+    expect(f.revenue).toBeCloseTo(140);
+    expect(f.cogs).toBeCloseTo(14);
+  });
+});

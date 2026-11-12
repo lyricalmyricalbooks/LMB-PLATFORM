@@ -6,11 +6,20 @@ import { reconcileConsignmentMirrors } from "@stockroom/consignment.js";
 import { csvRow } from "@stockroom/csv.js";
 import { fileStem } from "@stockroom/shop-profile.js";
 
+import { getBookCurrencyCode } from "@stockroom/money.js";
+
+import { stockValue } from "./stockValue";
 import { artistEarningsInYear, isExpenseAwaitingRate, type TaxSeasonInput } from "./taxSeason";
 
 type Row = Record<string, any>;
 export type BookYear = { title: string; units: number; revenue: number; unitCost: number; cogs: number; shares: number; net: number };
 export type YearFigures = { revenue: number; cogs: number; opex: number; shares: number; profit: number; bookStats: BookYear[]; missingReceiptsCount: number; fxWaitingCount: number };
+
+/** One of the title's currency in Canadian dollars, at the saved rate (as the Tax season file converts). */
+const rateOf = (input: TaxSeasonInput, book: Row): number => {
+  const cur = getBookCurrencyCode(book);
+  return cur === "CAD" ? 1 : Number(input.fxRateCache?.[`${cur}_CAD`]) || 1;
+};
 
 const stateOf = (input: TaxSeasonInput, book: Row): Row => ({ hist: [], expenses: [], artistPayouts: [], ...(input.states[book.id] || {}) });
 
@@ -25,15 +34,19 @@ export function yearFigures(input: TaxSeasonInput, year: number | string): YearF
   };
   for (const book of input.books) {
     const s = stateOf(input, book);
-    const unitCost = (book.productionCost || 0) / (book.maxPrint || 1);
+    // The whole run's cost over the run. With no print run typed, the run is every copy sold plus every copy left
+    // (the Stock value card's count), so ten sales never carry the whole cost ten times.
+    const run = stockValue([book], input.states, input.fxRateCache).items[0]?.printRun || 0;
+    const rate = rateOf(input, book);
+    const unitCost = run > 0 ? ((book.productionCost || 0) / run) * rate : 0;
     let revenue = 0, units = 0;
     for (const h of s.hist || []) {
       if (h.voided || h.gratuity || !String(h.date || "").startsWith(y)) continue;
-      revenue += (parseFloat(h.qty) || 0) * (parseFloat(h.price) || 0);
+      revenue += (parseFloat(h.qty) || 0) * (parseFloat(h.price) || 0) * rate;
       units += parseInt(h.qty) || 0;
     }
     const cogs = units * unitCost;
-    const shares = artistEarningsInYear(book, s, y);
+    const shares = artistEarningsInYear(book, s, y) * rate;
     r.revenue += revenue; r.cogs += cogs; r.shares += shares;
     r.bookStats.push({ title: book.title, units, revenue, unitCost, cogs, shares, net: revenue - cogs - shares });
     (s.expenses || []).forEach(expense);
@@ -54,7 +67,7 @@ export function yearReportCsv(input: TaxSeasonInput, year: number | string): { t
     reconcileConsignmentMirrors(s);
     for (const h of s.hist || []) {
       if (h.voided || h.gratuity || !String(h.date || "").startsWith(y)) continue;
-      const gross = (h.qty * h.price).toFixed(2);
+      const gross = (h.qty * h.price * rateOf(input, book)).toFixed(2);
       csv += csvRow([h.date, "Order", book.title, "Sale", `${h.chan} Order #${h.num}`, "", gross, 0, 0, 0, gross]) + "\n";
     }
     for (const e of s.expenses || []) {
