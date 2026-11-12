@@ -248,6 +248,13 @@ export const PageAlertsSlot = createContext<ReactNode>(null);
  * A titled card. Cards with a title can be folded down to just their heading (chevron button); the choice is
  * remembered per browser by `foldKey` (default: the title). Pass `collapsible={false}` to keep a card always open.
  */
+/**
+ * Inside a v4 form kit page (`<CardsAsSections>`), every SectionCard draws as a kit section: its title, line and buttons
+ * on the left, its body in one card on the right. Long pages built from cards (the product editor) take the kit's look
+ * without each card being rewritten.
+ */
+export const CardsAsSections = createContext(false);
+
 export function SectionCard({ title, description, actions, children, bodyClassName, flush, collapsible, foldKey, logo, ...rest }: {
   title?: string; description?: string; actions?: ReactNode; children: ReactNode; bodyClassName?: string; flush?: boolean;
   collapsible?: boolean; foldKey?: string;
@@ -256,12 +263,26 @@ export function SectionCard({ title, description, actions, children, bodyClassNa
   "data-print"?: "hide";
 }) {
   const inWidget = useContext(CardInWidget);
-  const canFold = !inWidget && collapsible !== false && !!title;
+  const asSection = useContext(CardsAsSections);
+  const canFold = !asSection && !inWidget && collapsible !== false && !!title;
   const key = foldKey || title || "";
   const [folded, setFolded] = useState(() => canFold && readFolded(key));
   const bodyId = useId();
   const toggle = () => setFolded(f => { writeFolded(key, !f); return !f; });
   const isFolded = canFold && folded;
+  if (asSection) {
+    return (
+      <section className="rp-fk-section" {...rest}>
+        <div className="rp-fk-section-head">
+          {logo && <BrandLogo id={logo} size="md" />}
+          {title && <h2 className="rp-fk-section-title">{title}</h2>}
+          {description && <p className="rp-fk-section-desc">{description}</p>}
+          {actions && <div className="rp-fk-section-actions">{actions}</div>}
+        </div>
+        <div className={cx("rp-fk-card", bodyClassName)}>{children}</div>
+      </section>
+    );
+  }
   const heading = (
     <>
       {title && !inWidget && <h2 className="rp-card-title" onClick={canFold ? toggle : undefined} style={canFold ? { cursor: "pointer" } : undefined}>{title}</h2>}

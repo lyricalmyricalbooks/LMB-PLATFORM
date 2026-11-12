@@ -145,3 +145,16 @@
   .bk-list-cover, .bk-list-initials { width: 32px; height: 44px; }
   .bk-list .bk-num { padding-right: 12px; }
 }
+
+/* v4 (mockup 1a): the editor is its own page inside the shell, sections on the left, the You keep rail on the right. */
+.book-editor-riso.be-page { background: transparent; flex: none; }
+.book-editor-riso.be-page .be-tabbar { padding: 0 0 16px; background: transparent; overflow: visible; }
+.book-editor-riso.be-page .be-body { grid-template-columns: minmax(0, 1fr) 300px; padding: 0; overflow: visible; gap: 24px; }
+.book-editor-riso.be-page .be-rail { top: 16px; }
+.book-editor-riso.be-page .be-rail-card { border: 0; border-radius: 22px; padding: 18px 20px; }
+.book-editor-riso.be-page .be-sec { display: contents; }
+.book-editor-riso.be-page .be-alert { margin: 0 0 16px; border-radius: 16px; }
+@media (max-width: 1100px) {
+  .book-editor-riso.be-page .be-body { grid-template-columns: minmax(0, 1fr); }
+  .book-editor-riso.be-page .be-rail { position: static; order: 2; }
+}

@@ -4,8 +4,6 @@ import { CatalogReviewDialog } from "./CatalogReviewDialog";
 import { useState, useEffect, useRef } from "react";
 import { 
   X, 
-  Save, 
-  ArrowLeft, 
   Upload, 
   Trash2, 
   ExternalLink,
@@ -56,7 +54,8 @@ import { useCurrency } from "../CurrencyContext";
 import { BookCustomFields } from "./BookCustomFields";
 import { BookTemplatePicker } from "./BookTemplatePicker";
 import { BUILTIN_DETAILS, builtinDetailValue, editorDetailRows, type DetailRow } from "../features/site/detailRows";
-import { ActionMenu, SecondaryButton, ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs, useConfirm } from "./riso/components";
+import { CardsAsSections, PageActions, PageHead, ActionMenu, SecondaryButton, ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs, useConfirm } from "./riso/components";
+import { FormChoice, StatusBar, SummaryRail, formStatus } from "./riso/FormKit";
 import { combinedAdmin } from "./combined";
 import { StockroomBookPanel } from "./StockroomBookPanel";
 import { stockroomBridge } from "./stockroomBridge";
@@ -91,7 +90,6 @@ import { lowStockThreshold } from "./inventoryInsights";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { isStockLinked, type InventoryLinks } from "./inventoryLink";
 import { releaseArrived } from "../features/site/liveBook";
-import { DETAILS_FIELD_TAB, detailsSubTabs, shownDetailsSubTab, type DetailsSubTab } from "./bookDetailsTabs";
 import { addOnProblems, bundleProblems, giftCardProblems, isBoxSet, isGiftCardProduct, productForSave, saleStatus, saleWindowProblem } from "./productExtras";
 import { productHref } from "../lib/productHref";
 
@@ -181,7 +179,6 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   const [askConfirm, confirmNode] = useConfirm();
   const [defaultProfileId, setDefaultProfileId] = useState("");
   const [fieldsDirty, setFieldsDirty] = useState(false);
-  const [visited, setVisited] = useState<Set<BookTab>>(() => new Set(["details"]));
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [isbnBusy, setIsbnBusy] = useState(false);
   const [isbnResult, setIsbnResult] = useState<{ text: string; cover?: string } | null>(null);
@@ -279,12 +276,16 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   const variantFileTarget = useRef<string>("");
   const [uploadingVariantFile, setUploadingVariantFile] = useState("");
   const [tab, setTab] = useState<BookTab>("details");
-  // Details is split into sub tabs (bookDetailsTabs.ts); jumping to a Details field opens the sub tab holding it.
-  const [detailsSub, setDetailsSub] = useState<DetailsSubTab>("bd-basics");
+  // v4: one Details page, so going to a part scrolls to its field or section instead of switching tabs.
   const goTo = (next: BookTab, field?: string) => {
-    setTab(next);
-    const sub = field ? DETAILS_FIELD_TAB[field] : undefined;
-    if (next === "details" && sub) setDetailsSub(sub);
+    setTab(next === "stock" ? "stock" : "details");
+    requestAnimationFrame(() => {
+      const root = document.querySelector(".book-editor-riso");
+      const section = next === "addons" ? "boxset" : next;
+      const target = (field && root?.querySelector<HTMLElement>(`[name="${field}"]`)) || root?.querySelector<HTMLElement>(`[data-be-section="${section}"] > *`);
+      target?.scrollIntoView({ block: "center", behavior: "smooth" });
+      if (field) target?.focus({ preventScroll: true });
+    });
   };
   const [dragOver, setDragOver] = useState(false);
   const [tagInput, setTagInput] = useState("");
@@ -1179,7 +1180,6 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   const activePrice = saleNow ? num(formData.salePrice) : num(formData.retailPrice);
   const marginPct = activePrice > 0 ? ((activePrice - num(formData.costPrice)) / activePrice) * 100 : 0;
   const salePct = formData.isOnSale && num(formData.retailPrice) > 0 ? Math.round((1 - num(formData.salePrice) / num(formData.retailPrice)) * 100) : 0;
-  const cover = formData.photos?.[0]?.url as string | undefined;
   const isbnWarn = isbnWarning(formData.isbn) || undefined;
   const addressLocked = slugLocked(initialData, slugUnlocked);
   const slugWarn =slugClash(formData.slug, book?.id, recommendationCatalog);
@@ -1197,14 +1197,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   const doneCount = checklist.filter((c) => c.ok).length;
   const tabIssues: Record<BookTab, number> = { details: 0, media: 0, pricing: 0, inventory: 0, stock: 0, editions: 0, addons: 0, boxset: 0, organize: 0, more: 0, seo: 0 };
   checklist.filter((c) => !c.ok).forEach((c) => { tabIssues[c.tab] += 1; });
-  const detailsIssues: Partial<Record<DetailsSubTab, number>> = {};
-  checklist.forEach((c) => {
-    const sub = !c.ok && c.tab === "details" && "field" in c && c.field ? DETAILS_FIELD_TAB[c.field] : undefined;
-    if (sub) detailsIssues[sub] = (detailsIssues[sub] || 0) + 1;
-  });
   const bookKind = isBookKind(productKind(formData));
-  const detailsTabs = detailsSubTabs({ customs: !giftCard && !isDigital, issues: detailsIssues, books: bookKind || giftCard });
-  const shownDetailsSub = shownDetailsSubTab(detailsSub, detailsTabs);
   const tabs: Array<{ id: BookTab; label: string; count?: number }> = [
     { id: "details", label: "Details", count: tabIssues.details || undefined },
     { id: "media", label: "Images", count: (formData.photos || []).length },
@@ -1219,10 +1212,13 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
     { id: "more", label: "More details", count: Object.keys(formData.custom || {}).length || undefined },
     { id: "seo", label: "Search (SEO)", count: tabIssues.seo || undefined },
   ];
-  const shownTab: BookTab = tabs.some((t) => t.id === tab) ? (tab === "addons" ? "boxset" : tab) : "details";
-  // Tabs with their own state (More details, Search) stay mounted once opened, so switching tabs keeps it.
-  if (!visited.has(shownTab)) setVisited(new Set([...visited, shownTab]));
-  const statusTone = formData.status === "published" ? "success" : formData.status === "archived" ? "neutral" : "warning";
+  // v4 (mockup 1a): two tabs, Details (every part as a section on one page) and Stock and sales (combined admin only).
+  const shownTab: BookTab = tab === "stock" && tabs.some((t) => t.id === "stock") ? "stock" : "details";
+  const onDetails = shownTab === "details";
+  const pageTabs = [
+    { id: "details" as BookTab, label: "Details", count: checklist.filter((c) => !c.ok).length || undefined },
+    ...(tabs.some((t) => t.id === "stock") ? [{ id: "stock" as BookTab, label: "Stock and sales" }] : []),
+  ];
   const STATUS_WORDS: Record<string, string> = { published: "Published", draft: "Draft", archived: "Archived" };
 
   const money = (label: string, name: string, symbol: string, opts: { disabled?: boolean; hint?: string } = {}) => (
@@ -1236,22 +1232,12 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   const stockBadge = (n: number) => (n <= 0 ? <StatusBadge tone="danger">Out of stock</StatusBadge> : n <= lowLine ? <StatusBadge tone="warning">Low: {n}</StatusBadge> : <StatusBadge tone="success">{n} in stock</StatusBadge>);
 
   return (
-    <div className="book-editor-riso w-full h-full flex flex-col relative overflow-hidden">
-      <header className="rp-dialog-head be-head shrink-0">
-        <div className="be-head-main">
-          <button type="button" onClick={handleClose} className="rp-icon-btn" aria-label={w("Close book editor")}><ArrowLeft size={18} aria-hidden /></button>
-          <div className="be-title-block">
-            <h2 className="rp-dialog-title" title={formData.title?.trim() || undefined}>{formData.title?.trim() || w(book ? "Edit book" : "New book")}</h2>
-            <span className="be-id">
-              <StatusBadge tone={statusTone as any}>{STATUS_WORDS[formData.status] || formData.status}</StatusBadge>
-              {isDirty
-                ? <span className="be-dirty" role="status"><span aria-hidden>●</span> Unsaved changes</span>
-                : book ? <span className="be-saved" role="status"><span aria-hidden>✓</span> All changes saved</span> : null}
-              {book && <span className="be-book-id">{w("Book ID")} {book.id}</span>}
-            </span>
-          </div>
-        </div>
-        <div className="be-actions">
+    <div className="book-editor-riso be-page">
+      {/* v4: the editor is its own page (mockup 1a); the shell's header carries the title, the way back and the ⋯ menu. */}
+      <PageHead title={formData.title?.trim() || w(book ? "Edit book" : "New book")}
+        description={[STATUS_WORDS[formData.status] || formData.status, formData.sku || formData.isbn].filter(Boolean).join(" · ")}
+        back={{ label: w("Books"), onClick: handleClose }} />
+      <PageActions>
           {book && (
             <ActionMenu label={w("More for this book")} actions={[
               ...((book.slug || formData.slug) ? [{ label: "Preview page (new tab)", icon: <ExternalLink size={14} aria-hidden />, onSelect: () => { window.open(`${import.meta.env.BASE_URL.replace(/\/$/, "")}${productHref(encodeURIComponent(book.id))}?preview=true`, "_blank", "noreferrer"); } }] : []),
@@ -1262,15 +1248,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
               } }] : []),
             ]} />
           )}
-          <button type="button" onClick={handleClose} className="rp-btn rp-btn-ghost rp-btn-sm">Cancel</button>
-          <button type="button" onClick={() => handleSave(undefined, false, false)} disabled={loading} className="rp-btn rp-btn-secondary rp-btn-sm" title="Save and keep editing (Ctrl/⌘ + S)">
-            {loading ? <><Loader2 size={14} className="animate-spin" aria-hidden /> Saving…</> : <><Save size={14} aria-hidden /> Save</>}
-          </button>
-          <button type="button" onClick={() => handleSave(undefined, false, true)} disabled={loading} className="rp-btn rp-btn-primary rp-btn-sm">
-            Save &amp; close
-          </button>
-        </div>
-      </header>
+      </PageActions>
 
       {metadataError && (
         <div role="alert" className="be-alert">
@@ -1286,7 +1264,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
             {validationErrors.map((m) => (
               <li key={m.text}>
                 <span>{m.text}</span>
-                {tabs.some((t) => t.id === m.tab) && (m.tab !== shownTab || (!!m.field && !!DETAILS_FIELD_TAB[m.field] && DETAILS_FIELD_TAB[m.field] !== shownDetailsSub)) && (
+                {tabs.some((t) => t.id === m.tab) && (
                   <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => goTo(m.tab, m.field)}>
                     Go to {tabs.find((t) => t.id === m.tab)?.label} <ChevronRight size={13} aria-hidden />
                   </button>
@@ -1303,23 +1281,18 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
         message="You have edits that haven't been saved. Closing now will lose them."
         onConfirm={() => { setConfirmDiscard(false); onClose(); }} onCancel={() => setConfirmDiscard(false)} />
 
-      <div className="be-tabbar shrink-0">
-        <div className="be-tabs-wide"><Tabs variant="page" label={w("Book editor sections")} tabs={tabs} value={shownTab} onChange={setTab} /></div>
-        {/* Phones: one drop-down instead of four rows of tabs. */}
-        <div className="be-tabs-narrow">
-          <SelectField label="Section" value={shownTab} onChange={(e) => setTab(e.target.value as BookTab)}>
-            {tabs.map((t) => <option key={t.id} value={t.id}>{t.label}{t.count ? ` (${t.count})` : ""}</option>)}
-          </SelectField>
+      {pageTabs.length > 1 && (
+        <div className="be-tabbar shrink-0">
+          <Tabs variant="page" label={w("Book editor sections")} tabs={pageTabs} value={shownTab} onChange={setTab} />
         </div>
-      </div>
+      )}
 
       <div className="be-body custom-scrollbar flex-1">
-        <form className="be-main" noValidate onSubmit={(e) => { e.preventDefault(); handleSave(undefined, false, false); }}>
-          {shownTab === "details" && (
+        <form className="be-main rp-fk-sections" noValidate onSubmit={(e) => { e.preventDefault(); handleSave(undefined, false, false); }}>
+          <CardsAsSections.Provider value={true}>
+          {onDetails && (
             <>
-              <div className="be-subtabs"><Tabs variant="page" label="Details sections" tabs={detailsTabs} value={shownDetailsSub} onChange={setDetailsSub} /></div>
-              {/* Hidden sub tabs stay mounted, so the description toolbar, ISBN lookup and row editor keep their state. */}
-              <div role="tabpanel" id="bd-panel-basics" aria-labelledby="rp-tab-bd-basics" className="be-subpanel" hidden={shownDetailsSub !== "bd-basics"}>
+              <div role="tabpanel" id="bd-panel-basics" aria-labelledby="rp-tab-bd-basics" className="be-subpanel">
               {/* A new product chooses its type first; an existing one rarely changes it, so it moves to the end. */}
               {!book && <ProductTypeCard form={formData} onChange={setProductType} onKind={setKind} />}
               <SectionCard title={bookKind ? "Book details" : "Product details"} description="The essentials shoppers see first.">
@@ -1400,7 +1373,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
               </SectionCard>
               {book && <ProductTypeCard form={formData} onChange={setProductType} onKind={setKind} />}
               </div>
-              <div role="tabpanel" id="bd-panel-publishing" aria-labelledby="rp-tab-bd-publishing" className="be-subpanel" hidden={shownDetailsSub !== "bd-publishing"}>
+              <div role="tabpanel" id="bd-panel-publishing" aria-labelledby="rp-tab-bd-publishing" className="be-subpanel">
               <SectionCard title={bookKind ? "Publishing details" : "Product details"} description={bookKind ? "Bibliographic data used on the product page and in search." : "Codes and facts used on the product page, for shipping and in search. Empty boxes don't show to shoppers."}>
                 <div className="be-grid be-grid-3">
                   {bookKind && <div>
@@ -1476,14 +1449,14 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   <div role="status" className="be-note">
                     {isbnResult.text}
                     {isbnResult.cover && <> Suggested cover (not added): <a href={isbnResult.cover} target="_blank" rel="noopener noreferrer">view</a>{" "}
-                      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => { setPhotoInput(isbnResult.cover!); setTab("media"); }}>Put in “Add image from URL”</button>
+                      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => { setPhotoInput(isbnResult.cover!); goTo("media"); }}>Put in “Add image from URL”</button>
                       {" "}Only use it if you have the right to.</>}
                   </div>
                 )}
               </SectionCard>
               </div>
               {!giftCard && !isDigital && (
-                <div role="tabpanel" id="bd-panel-customs" aria-labelledby="rp-tab-bd-customs" className="be-subpanel" hidden={shownDetailsSub !== "bd-customs"}>
+                <div role="tabpanel" id="bd-panel-customs" aria-labelledby="rp-tab-bd-customs" className="be-subpanel">
                 <SectionCard title="International parcels (customs)" foldKey="book-editor-customs"
                   description="Only used on customs forms for parcels leaving the country. Blank boxes use the defaults shown.">
                   <div className="be-grid">
@@ -1497,7 +1470,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                 </SectionCard>
                 </div>
               )}
-              <div role="tabpanel" id="bd-panel-rows" aria-labelledby="rp-tab-bd-rows" className="be-subpanel" hidden={shownDetailsSub !== "bd-rows"}>
+              <div role="tabpanel" id="bd-panel-rows" aria-labelledby="rp-tab-bd-rows" className="be-subpanel">
               <SectionCard title="Rows on the book page's Details tab" foldKey="book-editor-detail-rows"
                 description="Every row of the book page's Details tab, in the order shown there. Change any label or value, hide a row, move rows with ↑ / ↓, or add your own (Paper, Printing, Design…). A blank value on a standard row uses the matching field in Publishing details.">
                 <div>
@@ -1544,7 +1517,8 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
             </>
           )}
 
-          {shownTab === "media" && (
+          {onDetails && (
+          <div className="be-sec" data-be-section="media">
             <SectionCard title={w("Book images")} description="Use genuine cover and interior photographs. Drag the ⠿ handle to reorder; the first image is the cover shown in the shop and search."
               actions={<>
                 <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => fileInputRef.current?.click()} disabled={uploading || formData.photos.length >= MAX_BOOK_PHOTOS}><Upload size={14} aria-hidden /> Upload images</button>
@@ -1615,14 +1589,18 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                 setFormData((prev: any) => prev.photos.length >= MAX_BOOK_PHOTOS ? prev : ({ ...prev, photos: [...prev.photos, { url, ...sizes, id: Math.random().toString(36).substr(2, 9), altText: alt || "" }] }));
               }} />}
             </SectionCard>
+          </div>
           )}
 
-          {shownTab === "pricing" && giftCard && (
+          {onDetails && (
+          <div className="be-sec" data-be-section="pricing">
             <SectionCard title="Price" description="A gift card's prices are its amounts. Set them on the Amounts tab — each one is both what the shopper pays and what the card is worth. Gift cards are never taxed, discounted or put on sale.">
-              <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => setTab("editions")}>Go to Amounts</button>
+              <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => goTo("editions")}>Go to Amounts</button>
             </SectionCard>
+          </div>
           )}
-          {shownTab === "pricing" && !giftCard && (
+          {onDetails && (
+          <div className="be-sec" data-be-section="pricing">
             <>
               <SectionCard title="Price" description="Enter the CAD price. Shoppers who pick USD or EUR see, and are charged, the CAD price converted at today's exchange rate. The USD/EUR figures below are for your reference only.">
                 <div className="be-toggles"><Toggle label="Edit reference USD & EUR prices" checked={overrides} onChange={(v) => set("manualCurrencyOverrides", v)} /></div>
@@ -1663,6 +1641,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                 )}
               </SectionCard>
             </>
+          </div>
           )}
 
           {shownTab === "stock" && book?.id && (
@@ -1670,7 +1649,8 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
               links={stockLinks} linksFailed={stockLinksFailed} onLinks={setStockLinks} words={w} onOpen={openInStockroom} />
           )}
 
-          {shownTab === "inventory" && (
+          {onDetails && (
+          <div className="be-sec" data-be-section="inventory">
             <>
               {giftCard ? (
                 <SectionCard title="Inventory" description="Gift cards have no stock limit. Each one bought creates a new code that is emailed straight away, so there is nothing to ship or count." >
@@ -1678,7 +1658,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                 </SectionCard>
               ) : boxSetOn ? (
                 <SectionCard title="Inventory" description="A box set has no stock of its own. Each set sold takes copies from the books inside it (Box set tab), so it sells out when any of them does.">
-                  <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => setTab("boxset")}>Go to Box set</button>
+                  <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => goTo("boxset")}>Go to Box set</button>
                 </SectionCard>
               ) : (
               <SectionCard title="Inventory" description={hasVariants ? "Stock is totalled from your editions." : "Track how many copies you have."}>
@@ -1771,9 +1751,11 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                 </SectionCard>
               )}
             </>
+          </div>
           )}
 
-          {shownTab === "editions" && (
+          {onDetails && (
+          <div className="be-sec" data-be-section="editions">
           <ShopWordsContext.Provider value={w}>
           {!giftCard && <ProductOptionsEditor form={formData} onApply={(o) => void applyOptions(o)} onClear={clearOptions} />}
           {!giftCard && optionsOn && (
@@ -1861,17 +1843,21 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
             </SectionCard>
           )}
           </ShopWordsContext.Provider>
+          </div>
           )}
 
-          {shownTab === "boxset" && (
+          {onDetails && (
+          <div className="be-sec" data-be-section="boxset">
             <>
               <BoxSetEditor form={formData} set={set} bookId={book?.id} catalog={recommendationCatalog} catalogError={recommendationError} on={boxSetOn} onToggle={toggleBoxSet} />
               {/* Box sets don't offer add-ons. */}
               {!boxSetOn && <AddOnsEditor form={formData} set={set} />}
             </>
+          </div>
           )}
 
-          {shownTab === "organize" && (
+          {onDetails && (
+          <div className="be-sec" data-be-section="organize">
             <>
             <SectionCard title="Categories & tags" description={w("Categories build the shop menus — pick every one this book belongs in. New categories created here are published to the shop and added to Design › Menus automatically. Tags power search.")}>
               <div className="be-chips" role="group" aria-label="Categories">
@@ -1950,45 +1936,41 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
               </>}
             </SectionCard>
             </>
+          </div>
           )}
 
-          {visited.has("more") && <div hidden={shownTab !== "more"}><BookCustomFields form={formData} set={set} onDefinitionsDirty={setFieldsDirty} /></div>}
+          {onDetails && (
+            <SectionCard title="Visibility" description="Where it can be bought.">
+              <FormChoice label="Status" value={String(formData.status || "draft")}
+                options={[{ value: "published", label: "Published" }, { value: "draft", label: "Draft" }, { value: "archived", label: "Archived" }]}
+                onChange={(v) => set("status", v)} />
+              <p className="rp-fk-hint" style={{ margin: "-8px 0 0" }}>{w("Only Published books appear in the shop.")}</p>
+              <TextField label="Schedule publish date" type="date" name="scheduleDate" value={formData.scheduleDate || ""} onChange={handleChange} hint="Optional. Blank = live when published." />
+              <Toggle label="Featured on the homepage" checked={!!formData.isFeatured} onChange={(v) => set("isFeatured", v)} />
+            </SectionCard>
+          )}
 
-          {visited.has("seo") && <div hidden={shownTab !== "seo"}><BookSeoPane book={{ ...formData, id: book?.id }} onChange={set} /></div>}
+          {onDetails && <div className="be-sec" data-be-section="more"><BookCustomFields form={formData} set={set} onDefinitionsDirty={setFieldsDirty} /></div>}
+
+          {onDetails && <div className="be-sec" data-be-section="seo"><BookSeoPane book={{ ...formData, id: book?.id }} onChange={set} /></div>}
+
+          <StatusBar status={formStatus({ missing: formData.title?.trim() ? 0 : 1, create: !book, verb: "create", dirty: isDirty })}
+            primaryLabel={w(book ? "Save book" : "Create book")} busy={loading} blocked={!formData.title?.trim() || (!!book && !isDirty)}
+            onBlocked={() => { if (!formData.title?.trim()) goTo("details", "title"); }} onPrimary={() => void handleSave(undefined, false, false)}
+            cancelLabel="Close" onCancel={handleClose} />
+          </CardsAsSections.Provider>
         </form>
 
         {publishReview && <CatalogReviewDialog books={[{ ...formData, id: book?.id || "new" }]} action="publish" onClose={() => setPublishReview(false)} onConfirm={async () => { setPublishReview(false); await handleSave(undefined, true); }} />}
         <aside className="be-rail" aria-label={w("Book summary")}>
-          <div className="be-rail-card">
-            <p className="be-rail-head">Summary</p>
-            <div className="be-rail-summary">
-            <div className="be-rail-cover">{cover ? <img src={smallPhotoUrl(formData.photos?.[0], 200) || cover} alt={formData.photos?.[0]?.altText || ""} /> : <span>No cover yet</span>}</div>
-            <div className="be-rail-facts">
-            <p className="be-rail-title">{formData.title?.trim() || "Untitled book"}</p>
-            <p className="be-rail-sub">{formData.subtitle || "—"}</p>
-            <div className="be-rail-price">
-              {giftCard ? (() => {
-                const amounts = (formData.variants || []).map((v: any) => num(v.price)).filter((n: number) => n > 0);
-                return <><strong>{amounts.length ? `$${fmt(Math.min(...amounts))}${amounts.length > 1 ? `–${fmt(Math.max(...amounts))}` : ""}` : "No amounts"}</strong> <span>CAD</span></>;
-              })() : <>
-                {saleNow && <s>${fmt(formData.retailPrice)}</s>}
-                <strong>${fmt(activePrice)}</strong> <span>CAD</span>
-              </>}
-            </div>
-            <div className="be-rail-row"><span>Format</span><b>{formData.format}</b></div>
-            <div className="be-rail-row"><span>{giftCard ? "Type" : "Stock"}</span><b>{giftCard ? "Gift card" : boxSetOn ? "From the books inside" : formData.trackInventory ? num(formData.stockLevel) : "Not tracked"}</b></div>
-            </div>
-            </div>
-            <div className="be-rail-publish">
-            <SelectField label="Status" name="status" value={formData.status} onChange={handleChange} hint="Only Published books appear in the shop.">
-              <option value="draft">Draft</option>
-              <option value="published">Published</option>
-              <option value="archived">Archived</option>
-            </SelectField>
-            <TextField label="Schedule publish date" type="date" name="scheduleDate" value={formData.scheduleDate || ""} onChange={handleChange} hint="Optional. Blank = live when published." />
-            <Toggle label="Featured on the homepage" checked={!!formData.isFeatured} onChange={(v) => set("isFeatured", v)} />
-            </div>
-          </div>
+          <SummaryRail tone="mint" title="You keep"
+            value={giftCard || activePrice <= 0 ? "—" : `${marginPct.toFixed(0)}%`}
+            sub={giftCard ? "Gift cards have no cost" : activePrice > 0 ? `$${fmt(activePrice - num(formData.costPrice))} on each sale` : "Set a price to see it"}
+            rows={[
+              { label: "Status", value: STATUS_WORDS[formData.status] || formData.status },
+              { label: "Price", value: giftCard ? "Its amounts" : `$${fmt(activePrice)} CAD` },
+              { label: giftCard ? "Type" : "Stock", value: giftCard ? "Gift card" : boxSetOn ? "From the books inside" : formData.trackInventory ? String(num(formData.stockLevel)) : "Not tracked" },
+            ]} />
           <div className="be-rail-card">
             <p className="be-rail-head">Ready to publish · {doneCount}/{checklist.length}</p>
             <div className="be-progress" role="progressbar" aria-valuemin={0} aria-valuemax={checklist.length} aria-valuenow={doneCount}><span style={{ width: `${(doneCount / checklist.length) * 100}%` }} /></div>

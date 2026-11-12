@@ -842,6 +842,14 @@ waiting (`diffDesigns` of the live design against `openWorkspace`'s draft, both 
 sit by the title. Studio (`settings/designer`, `#designer…`) is on no menu item; its links still open it directly, and
 leaving it returns to `design`. Fixture: `admin-fixture.html?page=design`.
 
+**v4 form kit (12 November 2026, Julian's mockups v4):** form pages use `riso/FormKit.tsx` (FormPage, FormSection, FormField,
+SummaryRail, StatusBar). A page built from many SectionCards takes the kit look by wrapping them in
+`<CardsAsSections.Provider value>` (`riso/components.tsx`): each card then draws as a kit section, and the older
+TextField/SelectField inside take the kit's field look (`pressroom.css`). The product editor is its own page now (Dashboard renders
+it in the content slot, not an overlay): tabs Details (every former tab as a section, one scroll; `goTo` scrolls to a field or
+`[data-be-section]`) and Stock and sales (combined admin), a mint You keep rail and one StatusBar. Sub-pages with a back link use
+`PageHead`; the shell hides the group's page list for them (`data-sub`).
+
 **Settings form card (redesign, 11 November 2026):** `SectionCard bodyClassName="rp-formrows"` lays its TextField /
 TextArea / SelectField children out as rows (label and hint left, control right, hairlines; stacked on phones; CSS in
 `shared/admin-look/pressroom.css`). General opens on **Your press** (`gs-details`, first in `SUB_TABS`, so
