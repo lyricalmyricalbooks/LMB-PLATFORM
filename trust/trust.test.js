@@ -23,7 +23,7 @@ test("the page shows every promise, every company and a way to ask", () => {
   for (const p of PROMISES) assert.ok(page.includes(`id="${p.id}"`), p.id);
   for (const c of COMPANIES) assert.ok(page.includes(c.name.replace(/&/g, "&amp;")), c.name);
   assert.match(page, /mailto:/);
-  assert.match(page, /DRAFT/);
+  assert.doesNotMatch(page, /DRAFT|lawyer/);
 });
 
 test("every company says what it handles", () => {

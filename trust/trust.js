@@ -6,7 +6,7 @@
 // The terms page (terms/terms.js) holds the legal words; this page is the short, friendly answer to "can I trust this?".
 import { BACKUP_KEEP_DAYS, PRIVACY_CONTACT, SHUTDOWN_NOTICE_DAYS } from "../terms/terms.js";
 
-export const DRAFT = true;
+export const DRAFT = false;
 
 export const PROMISES = Object.freeze([
   {

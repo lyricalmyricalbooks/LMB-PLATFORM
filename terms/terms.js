@@ -1,17 +1,14 @@
 // Colophon's terms, privacy policy, data agreement and shutdown promise (code plan 8.1), on one page with one version
 // id. Plain ES module with no imports, so the page loads it as is and sign-up can store the same id.
 //
-// DRAFT: none of these words has been read by a lawyer. The page says so at the top until Julian's lawyer has read
-// them; then `DRAFT` becomes false and `TERMS_VERSION` gets a new id (a date without "-draft").
-//
 // Changing any words here means a new `TERMS_VERSION`, so a press's recorded acceptance always points at the exact
 // words they agreed to. Words here are customer-facing: plain words, never a rival's name.
 
 /** The id of these words. Sign-up stores it with the date the press ticked the box. */
-export const TERMS_VERSION = "2026-11-10-draft.5";
+export const TERMS_VERSION = "2026-11-12";
 
-/** True until a lawyer has read the words. The page shows the draft notice while it is. */
-export const DRAFT = true;
+/** These are the final words Julian chose (12 November 2026): no draft notice on the page. */
+export const DRAFT = false;
 
 /** The version a new sign-up accepts. */
 export const currentTermsVersion = () => TERMS_VERSION;
@@ -78,6 +75,10 @@ export const CHANGES = Object.freeze({
     "You can download your whole shop at any time from Settings, under Download your shop.",
     "A shop design you make before your shop exists is kept with your sign-up.",
     "Your shop's emails and ours are now sent by Google, which already runs Colophon. The email company we listed before no longer handles any of your information.",
+    "Colophon now serves presses in the United States as well as Canada. A press in the United States is billed in US dollars, and a press in Canada in Canadian dollars.",
+    "The running cost is worked out in Canadian dollars. For a press billed in US dollars, we convert it at that day's exchange rate, with nothing added.",
+    "The tax on your bill follows where your press is: its province in Canada, or its state in the United States. You can download every bill from Settings, under Billing.",
+    "These terms are no longer a draft.",
   ]),
   fr: Object.freeze([
     "Votre forfait comprend maintenant des frais de plateforme et ce qu'a coûté le fonctionnement de votre boutique le mois précédent, au prix coûtant. Les mois d'essai ne coûtent rien, et nous vous écrivons avant qu'un mois dépasse le montant que vous choisissez (25 $ si vous ne le changez pas).",
@@ -86,6 +87,10 @@ export const CHANGES = Object.freeze({
     "Vous pouvez télécharger toute votre boutique en tout temps depuis Réglages, sous Télécharger votre boutique.",
     "Un design de boutique fait avant la création de votre boutique est gardé avec votre inscription.",
     "Les courriels de votre boutique et les nôtres sont maintenant envoyés par Google, qui fait déjà fonctionner Colophon. L'entreprise de courriel nommée avant ne traite plus aucun de vos renseignements.",
+    "Colophon sert maintenant les maisons des États-Unis comme celles du Canada. Une maison aux États-Unis est facturée en dollars américains, et une maison au Canada en dollars canadiens.",
+    "Le coût de fonctionnement est calculé en dollars canadiens. Pour une maison facturée en dollars américains, nous le convertissons au taux de change du jour, sans rien ajouter.",
+    "La taxe sur votre facture suit l'endroit où se trouve votre maison : sa province au Canada, ou son État aux États-Unis. Vous pouvez télécharger chaque facture depuis Réglages, sous Facturation.",
+    "Ces conditions ne sont plus un brouillon.",
   ]),
 });
 
@@ -100,7 +105,7 @@ export const SECTIONS = Object.freeze([
     title: "Terms of service",
     paragraphs: [
       `These terms are between your press and ${OPERATOR_NAME}, the company that runs Colophon, at ${OPERATOR_ADDRESS}. The person who ticks the box at sign-up agrees for the press, and confirms they may.`,
-      "Colophon gives your press one plan with everything in it: a website and a stockroom. It is made for businesses, not for people buying for themselves.",
+      "Colophon gives your press one plan with everything in it: a website and a stockroom. It is made for businesses in Canada and the United States, not for people buying for themselves.",
       "Your shop is your own business. Your press is the seller to your shoppers, sets its own prices and policies, and follows the shopping, privacy and tax laws of the places it sells to.",
       "You are responsible for what you sell and for the words and pictures you put in your shop. Don't use Colophon to sell anything that is against the law where you or your buyers are.",
       "Your books, words and pictures stay yours. You let us copy and show them only to run your shop, and that ends when your shop is deleted.",
@@ -118,7 +123,7 @@ export const SECTIONS = Object.freeze([
     paragraphs: [
       `Your plan starts with a free trial of ${TRIAL_DAYS} days, and we never ask for a card to start it. If the trial ends with no card, your shop pauses and nothing is charged.`,
       "Once you add a card, your plan renews every month until you cancel. Each month we charge that card the plan's fee plus what your shop cost to run the month before (storage, web traffic, background jobs and emails), at what it costs us, with nothing added. We work it out from our cloud provider's record of each shop's use, and check it against that provider's bill before we charge. Trial months cost nothing. Your billing page shows the cost so far, and we email you when a month looks set to pass the amount you choose there ($25 unless you change it).",
-      "Prices are shown before tax. We add the sales tax that applies where your press is, and your receipt shows it.",
+      "A press in the United States pays in US dollars, and a press in Canada pays in Canadian dollars. The running cost is worked out in Canadian dollars, and for a press paying in US dollars we convert it at that day's exchange rate, with nothing added. Prices are shown before tax. We add the sales tax of the place your press is in, its province or its state, and your bill shows it. You can download every bill from Settings, under Billing.",
       "A press that already pays a share of its website's sales instead of a monthly price keeps paying that way until it switches. It isn't offered to new presses.",
       "The founding offer gives the first presses a lower platform fee for as long as they keep their plan. It doesn't lower the running cost. If a founding press cancels before its first payment, its place goes to the next press.",
       `If we raise a price or change how it is worked out, we email you at least ${CHANGE_NOTICE_DAYS} days before your first payment at the new price. You can cancel before then and pay nothing more.`,
