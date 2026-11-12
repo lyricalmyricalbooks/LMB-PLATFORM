@@ -56,3 +56,12 @@
   .rp-inv-line > :first-child { grid-column: 1 / -1; }
 }
 .rp-sk-moves { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; margin-top: 6px; }
+/* v4 tiles: copies out (sky), sold not paid (apricot), settled this year (mint). */
+.rp-sk-tiles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 16px; }
+.rp-sk-tile { display: grid; gap: 6px; padding: 20px; border-radius: var(--rp-radius-lg); background: var(--rp-surface); color: var(--rp-on-tile, var(--rp-text)); min-width: 0; }
+.rp-sk-tile span, .rp-sk-tile small { font-size: var(--rp-text-sm); }
+.rp-sk-tile strong { font: 700 28px/1.1 var(--rp-font-body); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.rp-sk-tile[data-tone="sky"] { background: var(--rp-tile-sky, var(--rp-surface)); }
+.rp-sk-tile[data-tone="apricot"] { background: var(--rp-tile-apricot, var(--rp-surface)); }
+.rp-sk-tile[data-tone="mint"] { background: var(--rp-tile-mint, var(--rp-surface)); }
+.rp-sk-uptodate { font-size: var(--rp-text-sm); color: var(--rp-text-muted); white-space: nowrap; }

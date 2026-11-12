@@ -898,3 +898,11 @@ through `fulfillmentAction(id, "pack", { packingKey })`, toast "Nothing to pack 
 "N selected · Set as draft · Clear" writes only `status: "draft"` through `updateBook(id, patch, loaded)` (the editor's
 transactional save, `draftableOf` skips drafts). Failed rows stay ticked. The mockup's **Mark sold out** is not built:
 the shop has no sold-out switch and stock counts belong to the stockroom (`lockLinkedStock`).
+
+**Stockists in v4 (12 November 2026):** `stockroom/StockistsPage.tsx` opens with three tiles from `stockistsSummary`
+(`stockists.ts`, pure): copies out (sky), sold not paid yet (apricot: `view.owed` and the pending, non-voided ledger
+sales' copies) and settled this year (mint: invoices marked paid, by `paidAt`). The table adds Last settled (newest paid
+invoice) and one action: **Settle** (one payable invoice → its Mark paid dialog; several → the stockist's drawer),
+**Bill them** (owed but nothing billed → Invoices with that stockist) or Up to date. **Recent movements** lists
+`recentMovements` (newest 8, voided left out). The mockup's shared Terms form is not built: commission is per stockist
+(Edit details) and nothing stores a settle-every setting.
