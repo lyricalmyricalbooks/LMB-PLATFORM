@@ -3,9 +3,6 @@
 .rp-home-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
 .rp-home-title { margin: 0; font: 600 clamp(28px, 4vw, 38px)/1.1 var(--rp-font-body); letter-spacing: -0.02em; color: var(--rp-text); }
 .rp-home-sub { margin: 6px 0 0; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
-.rp-home-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-:root .rp-home .rp-home-head .rp-home-actions .rp-btn { border-radius: 999px; padding-inline: 20px; }
-:root .rp-home .rp-home-head .rp-home-actions .rp-btn.rp-btn-secondary { background: var(--rp-surface); border-color: transparent; color: var(--rp-text); }
 .rp-home-h2 { display: flex; align-items: baseline; gap: 10px; margin: 0 0 14px; font: 600 20px/1.2 var(--rp-font-body); color: var(--rp-text); }
 .rp-home-h2 small { font-size: var(--rp-text-sm); font-weight: 400; color: var(--rp-text-muted); }
 .rp-home-h2 .rp-home-link { margin-left: auto; }
@@ -57,8 +54,6 @@
   .rp-home { gap: 22px; }
   .rp-home-grid { grid-template-columns: minmax(0, 1fr); }
   .rp-home-tile { min-height: 0; }
-  .rp-home-actions { width: 100%; }
-  .rp-home-actions .rp-btn { flex: 1; justify-content: center; }
   .rp-home-h2 { flex-wrap: wrap; }
 }
 
@@ -76,3 +71,14 @@
 
 /* A button on a tile matches the To do tiles' buttons, so night look gives it the light pill too. */
 .rp-home-tile .rp-todo-go { background: var(--rp-text); color: var(--rp-canvas); }
+
+/* Both sides at a glance (v4 mockup, shop + stockroom): three tiles, each a button to its page. */
+.rp-glance { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+.rp-glance-tile { display: grid; gap: 2px; width: 100%; padding: 20px; border: 0; border-radius: var(--rp-radius-lg); background: var(--rp-surface); color: var(--rp-on-tile, var(--rp-text)); font: inherit; font-size: var(--rp-text-sm); text-align: left; cursor: pointer; }
+.rp-glance-tile[data-tone="mint"] { background: var(--rp-tile-mint, var(--rp-surface)); }
+.rp-glance-tile[data-tone="apricot"] { background: var(--rp-tile-apricot, var(--rp-surface)); }
+.rp-glance-tile[data-tone="sky"] { background: var(--rp-tile-sky, var(--rp-surface)); }
+.rp-glance-tile:hover { opacity: .85; }
+.rp-glance-tile:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+.rp-glance-side { font: 500 var(--rp-text-xs)/1.4 var(--rp-font-mono); text-transform: uppercase; letter-spacing: .04em; opacity: .75; }
+.rp-glance-value { font-size: 32px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.15; font-variant-numeric: tabular-nums; }

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 vi.mock("../stockroomBridge", () => ({ stockroomBridge: { openPage: vi.fn(), askUntil: vi.fn() } }));
-import { nativeTodoItems } from "./StockroomTodos";
+import { nativeTodoItems, stockroomGlance } from "./StockroomTodos";
 import { buildTodo } from "../stockroom/todo";
 
 const book = (id: string) => ({ id, title: `Title ${id}`, maxPrint: 100, threshold: 10 });
@@ -21,5 +21,13 @@ describe("Home's stockroom lines come from the same records as the To-do page", 
 
   it("lets a failed read through, so the caller can tell it from an empty list", async () => {
     await expect(nativeTodoItems(w, true, async () => { throw new Error("network request failed"); })).rejects.toThrow("network");
+  });
+});
+
+describe("Home's Both sides at a glance figures", () => {
+  it("counts items low or out of stock by the Stock page's rule, and nothing owed with no stockists", () => {
+    const glance = stockroomGlance(records as never);
+    expect(glance.restock).toBe(1);
+    expect(glance.owed).toEqual([]);
   });
 });

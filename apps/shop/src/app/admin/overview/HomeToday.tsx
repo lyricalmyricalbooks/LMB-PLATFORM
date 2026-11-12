@@ -3,7 +3,7 @@
 // what the till is selling, the latest orders and this week's best sellers. The full figures board (periods, widgets)
 // moved to Analytics (the analytics page). Nothing here reads Firestore: the figures come from HomePage.
 import { useContext, type ReactNode } from "react";
-import { PageAlertsSlot, PrimaryButton, SecondaryButton, StatusBadge, type BadgeTone } from "../riso/components";
+import { PageAlertsSlot, StatusBadge, type BadgeTone } from "../riso/components";
 import { bestSellers, isRealPaidOrder, newestSales, orderStatusWords, totals, type Order } from "./overviewInsights";
 import { money, orderHref } from "./OverviewParts";
 import { SHOP_TZ, addDays, orderDay, shopDayKey } from "../../lib/shopDay";
@@ -52,7 +52,7 @@ const PILL: Record<string, { tone: BadgeTone; word: string }> = {
 
 const initials = (title: string) => title.split(/\s+/).filter((w) => /^[\p{L}\p{N}]/u.test(w) && !/^(the|a|an|of|and)$/i.test(w)).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "•";
 
-export function HomeToday({ ownerName, orders, ordersFailed, fair, combined, todo, onOpen, onOpenTill, onRecordSale, onRetry }: {
+export function HomeToday({ ownerName, orders, ordersFailed, fair, combined, todo, glance, onOpen, onOpenTill, onRetry }: {
   ownerName: string;
   /** The shop's orders (the owner's own test orders left out); null while loading. */
   orders: Order[] | null;
@@ -62,9 +62,10 @@ export function HomeToday({ ownerName, orders, ordersFailed, fair, combined, tod
   combined: boolean;
   /** The To do tiles (HomePage's RunTiles). */
   todo: ReactNode;
+  /** Shop + stockroom: the Both sides at a glance tiles (HomePage's GlanceTiles). */
+  glance?: ReactNode;
   onOpen: (tab: string) => void;
   onOpenTill: () => void;
-  onRecordSale: () => void;
   onRetry: () => void;
 }) {
   const w = useShopWords();
@@ -86,12 +87,6 @@ export function HomeToday({ ownerName, orders, ordersFailed, fair, combined, tod
           <h1 className="rp-home-title">{greeting(ownerName, now)}</h1>
           <p className="rp-home-sub">{when(now, { weekday: "long", day: "numeric", month: "long" })} · your to-do list and today at a glance</p>
         </div>
-        {combined && (
-          <div className="rp-home-actions">
-            <SecondaryButton onClick={onRecordSale}>Record a sale</SecondaryButton>
-            <PrimaryButton onClick={onOpenTill}>Open till</PrimaryButton>
-          </div>
-        )}
       </header>
       {alerts}
 
@@ -99,6 +94,13 @@ export function HomeToday({ ownerName, orders, ordersFailed, fair, combined, tod
         <h2 className="rp-home-h2" id="home-todo">To do <small>{combined ? "Website and stockroom, most urgent first" : "Most urgent first"}</small></h2>
         {todo}
       </section>
+
+      {glance && (
+        <section aria-labelledby="home-glance">
+          <h2 className="rp-home-h2" id="home-glance">Both sides at a glance</h2>
+          {glance}
+        </section>
+      )}
 
       <section aria-labelledby="home-today">
         <h2 className="rp-home-h2" id="home-today">Today <button type="button" className="rp-home-link" onClick={() => onOpen("analytics")}>Analytics →</button></h2>

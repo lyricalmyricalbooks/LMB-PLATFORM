@@ -51,6 +51,7 @@ describe("pre-orders in the fulfillment desk", () => {
   });
 
   it("the server refuses a carrier label until release (or early release)", () => {
+    vi.useFakeTimers(); vi.setSystemTime(NOW);
     const o = paidOrder([pre]);
     const ops = { addressReviewed: addressKey(o), packed: packingKey(o) };
     expect(labelProblem(o, ops)).toMatch(/pre-order/);

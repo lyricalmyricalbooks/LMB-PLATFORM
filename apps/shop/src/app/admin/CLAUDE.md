@@ -882,3 +882,11 @@ button; it opens `PaySheet` ("Take payment"): How they pay (`SHEET_PAYS`: Cash, 
 free copy), and for a one-currency cart Exact / 20 / 50 / 100, Cash given and a Change due / Still to pay tile
 (`cashChange`, `till.ts`). Charge runs the till's own `charge(method)` (queue, Undo, upload unchanged) and waits while the
 cash typed is short. The stockroom app's own till has the same sheet (`apps/stockroom/CLAUDE.md`).
+
+**Home in v4 (12 November 2026):** To do tiles (`RunTiles`, `OverviewParts.tsx`) take their tone from the job's kind
+(`todoTone`: Orders mint, Sales apricot, Payments white, Stock sky, the rest lilac) and have **Mark done**, which hides a
+tile in this browser while its count stays the same (`lm:home-done`, `{ "<kind>|<label>": count }`); nothing left shows
+the mint All clear. Shop + stockroom: **Both sides at a glance** (`GlanceTile` in `HomePage.tsx`): orders to pack, items
+low or out of stock (`stockroomGlance`: the Stock page's `needAttention`, opens Reorder) and owed by stockists
+(`buildStockists().owed`, opens Stockists), read from the same records load as the stockroom to-dos. Home's header has no
+buttons (the till is in the rail foot and the Selling today tile).

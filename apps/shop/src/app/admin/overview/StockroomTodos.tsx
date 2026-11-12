@@ -10,6 +10,8 @@ import { useShopSells, useShopWords } from "../shopWords";
 import { stockroomBridge, type StockroomTodo } from "../stockroomBridge";
 import { isRefusal, stockroomApi, type StockroomRecords } from "../stockroom/stockroomData";
 import { buildTodo, readDismissed } from "../stockroom/todo";
+import { catalogueStock, totalsOf } from "../stockroom/stock";
+import { buildStockists, type Owed } from "../stockroom/stockists";
 
 /** How long Home waits before asking, so its own figures load first. */
 const FIRST_ASK_MS = 1_500;
@@ -32,13 +34,21 @@ const OTHER = { group: "", label: "other things to do", one: "other thing to do"
  */
 export const onHomeOnce = (item: StockroomTodo) => !/^stock-(low|getting-low):/.test(item.id);
 
-export type StockroomTodoState = { items: StockroomTodo[] | null; loading: boolean; failed: boolean };
+/** Home's "Both sides at a glance" figures from the stockroom: items sold out or running low, and what stockists owe. */
+export type StockroomGlance = { restock: number; owed: Owed[] };
+export type StockroomTodoState = { items: StockroomTodo[] | null; loading: boolean; failed: boolean; glance?: StockroomGlance | null };
+
+/** The glance figures, by the stockroom pages' own rules (Stock and sales, Stockists). Pure. */
+export function stockroomGlance(records: StockroomRecords): StockroomGlance {
+  return { restock: totalsOf(catalogueStock(records)).needAttention, owed: buildStockists(records).owed };
+}
 
 /** Home's list from the stockroom's records: the same list the To-do page draws (todo.ts), minus what the owner dismissed there. */
 export async function nativeTodoItems(words: (text: string) => string, booksShop: boolean, load: () => Promise<StockroomRecords> = stockroomApi.load): Promise<StockroomTodo[]> {
-  const records = await load();
-  return todoItems(buildTodo(records, { words, booksShop, dismissed: readDismissed() })).filter(onHomeOnce);
+  return todosFrom(await load(), words, booksShop);
 }
+const todosFrom = (records: StockroomRecords, words: (text: string) => string, booksShop: boolean) =>
+  todoItems(buildTodo(records, { words, booksShop, dismissed: readDismissed() })).filter(onHomeOnce);
 
 /**
  * The stockroom's to-dos for Home, read from the records right after Home opens and again every five minutes it is on
@@ -56,8 +66,11 @@ export function useStockroomTodos(enabled: boolean): StockroomTodoState {
     let alive = true;
     const ask = async () => {
       try {
-        const items = await nativeTodoItems(latest.current.w, latest.current.booksShop);
-        if (alive) setState({ items, loading: false, failed: false });
+        const records = await stockroomApi.load();
+        const items = todosFrom(records, latest.current.w, latest.current.booksShop);
+        let glance: StockroomGlance | null = null;
+        try { glance = stockroomGlance(records); } catch (error) { console.error("Stockroom glance figures", error); }
+        if (alive) setState({ items, loading: false, failed: false, glance });
       } catch (error) {
         if (!alive) return;
         // A team member is refused (owner-only records): no lines, not an error. Anything else could be a dropped connection,
