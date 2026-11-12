@@ -200,30 +200,31 @@ async function loadShops() {
   allShops = (await api("GET", "/control/shops")).shops;
   showShops();
   renderToday();
-  loadSocialLost();
+  loadStoppedConnections();
   loadSellGaps();
   loadNotSelling();
   // The Chit Chats count in the summary, and the filter, once the app's overview is in. A failed read leaves both out.
   readChitChats().then(showShops, () => {});
 }
 
-// Social connections a network stopped accepting (27.8), across the shops: the press reconnects from their Sales
-// channels page, so each line opens the shop to see who to tell. Nothing shows while there are none.
-async function loadSocialLost() {
+// Connections that stopped working, across the shops (control-room/connectionsDesk.js): Google, QuickBooks, Facebook &
+// Instagram, Pinterest and TikTok. The press connects each one again in their admin, so each line says where and opens
+// the shop to see who to tell. Nothing shows while there are none.
+async function loadStoppedConnections() {
   try {
-    const { lost } = await api("POST", "/control/social-lost");
-    $("#social-lost").replaceChildren(...(lost?.length ? [el("div", { className: "rp-alerts" }, ...lost.map((l) => {
+    const { stopped } = await api("POST", "/control/connections-stopped");
+    $("#connections-stopped").replaceChildren(...(stopped?.length ? [el("div", { className: "rp-alerts" }, ...stopped.map((c) => {
       const open = button("Open", "secondary");
-      open.addEventListener("click", () => { const shop = allShops.find((x) => x.shopId === l.shopId); if (shop) openShop(shop); });
+      open.addEventListener("click", () => { const shop = allShops.find((x) => x.shopId === c.shopId); if (shop) openShop(shop); });
       return el("div", { className: "rp-alert", dataset: { tone: "warning" } },
         el("span", { className: "rp-alert-glyph", ariaHidden: "true", textContent: "!" }),
         el("span", { className: "rp-alert-text" },
-          el("strong", { className: "rp-alert-title", textContent: `${l.pressName}: ${l.name} stopped working` }),
-          el("span", { className: "rp-alert-detail", textContent: `${l.lostAt ? `Since ${dateOnly(l.lostAt)}. ` : ""}The press reconnects it in Sales channels.` })),
+          el("strong", { className: "rp-alert-title", textContent: `${c.pressName}: ${c.name} stopped working` }),
+          el("span", { className: "rp-alert-detail", textContent: `${c.since ? `Since ${dateOnly(c.since)}. ` : ""}The press connects it again in ${c.where}.` })),
         el("span", { className: "rp-alert-actions" }, open));
     }))] : []));
   } catch {
-    $("#social-lost").replaceChildren();
+    $("#connections-stopped").replaceChildren();
   }
 }
 // Live shops not ready to sell (28.2/28.3): a store policy with no words (danger: the law and card networks ask for
