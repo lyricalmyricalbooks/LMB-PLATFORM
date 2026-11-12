@@ -1518,6 +1518,7 @@ async function loadApps() {
     loadOwnApps();
     loadChitChats();
     loadMailchimp();
+    loadQuickBooks();
     // The menu's count: apps waiting for review, plus apps whose alerts are failing.
     const failingCount = use?.failing?.length ?? 0;
     if (appStatus === "in-review") setBadge("apps", apps.length + failingCount);
@@ -1602,6 +1603,36 @@ function loadMailchimp() {
           { header: "Audience", render: (s) => s.audience ?? "none yet" },
           { header: "Readers added", render: (s) => String(s.added) },
           { header: "Last sync", render: (s) => (s.lastSyncAt ? when(s.lastSyncAt) : "not yet") },
+          { header: "", end: true, render: state },
+        ],
+      }));
+  }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
+}
+
+/** The QuickBooks link: each shop that connected a company, lost connections first, and when sales last went. */
+const QUICKBOOKS_OFF = { off: "QuickBooks isn't switched on yet.", "no-keys": "QuickBooks is switched on but has no Intuit keys yet.", broken: "QuickBooks is off: its settings don't go together." };
+function loadQuickBooks() {
+  const slot = $("#quickbooks");
+  api("POST", "/control/quickbooks").then(({ switchedOn, shops, counts }) => {
+    const head = el("div", { className: "cr-head", style: "margin-top: 32px" }, el("h2", { textContent: "QuickBooks" }));
+    if (!shops.length) return slot.replaceChildren(head, el("p", { className: "rp-hint", textContent: QUICKBOOKS_OFF[switchedOn] ?? "No shop has connected QuickBooks yet." }));
+    const state = (s) => {
+      if (s.state === "lost") return el("div", {}, pill("danger", "connection lost"), meta(s.disconnectedAt ? `since ${dateOnly(s.disconnectedAt)}` : null, "the press was emailed"));
+      if (s.state === "disconnected") return pill("info", "disconnected by the press");
+      if (s.behind) return pill("warning", "nothing sent in 2 days");
+      if (s.endsOn) return el("div", {}, pill("warning", "connection ending"), meta(`on ${dateOnly(`${s.endsOn}T12:00:00`)}`));
+      return pill("success", "working");
+    };
+    fill(slot, head,
+      el("p", { className: "rp-hint", textContent: [plural(counts.connected, "shop") + " connected", counts.lost ? `${counts.lost} lost` : null, switchedOn === "on" ? null : QUICKBOOKS_OFF[switchedOn]].filter(Boolean).join(" · ") }),
+      table({
+        caption: "Shops using QuickBooks",
+        rows: shops,
+        open: (s) => { const shop = allShops.find((x) => x.shopId === s.shopId); if (shop) openShop(shop); },
+        columns: [
+          { header: "Brand", lead: true, render: (s) => el("div", {}, el("p", { className: "cr-title", textContent: s.pressName }), meta(s.connectedAt ? `since ${dateOnly(s.connectedAt)}` : null)) },
+          { header: "Company", render: (s) => el("div", {}, el("p", { textContent: s.company ?? "unnamed" }), s.sandbox ? meta("test company") : null) },
+          { header: "Sales sent up to", render: (s) => (s.lastSentDay ? dateOnly(`${s.lastSentDay}T12:00:00`) : "not yet") },
           { header: "", end: true, render: state },
         ],
       }));
