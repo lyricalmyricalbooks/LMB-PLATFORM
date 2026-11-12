@@ -73,7 +73,7 @@ it("scrolls to a step when it is tapped in the step row", async () => {
   const scrolled: string[] = [];
   el.querySelectorAll<HTMLElement>(".fw-step[data-step]").forEach((s) => { s.scrollIntoView = () => { scrolled.push(s.dataset.step || ""); }; });
   const steps = el.querySelectorAll<HTMLButtonElement>(".fw-strip-go");
-  expect(steps).toHaveLength(3);
+  expect(steps).toHaveLength(4);
   await act(async () => { steps[2].click(); });
   expect(scrolled).toEqual(["ship"]);
 });

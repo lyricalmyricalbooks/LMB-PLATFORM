@@ -14,21 +14,12 @@ beforeEach(() => {
 });
 
 describe("OrdersDesk", () => {
-  it("a link to one order opens the Ship station: header, numbered queue and the full order page", () => {
+  it("a link to one order opens that order as its own page (v4 mockup 1b), with no list beside it", () => {
     const html = renderToStaticMarkup(<OrdersDesk selectedId="ABC" onSelect={() => {}} />);
-    // Inventory's figures strip, and no second heading repeating the page title.
-    expect(html).toContain('class="rp-kpi-grid od-figures" aria-label="Ship station today"');
-    expect(html).not.toContain('class="od-title">Ship station</h2>');
-    expect(html).toContain("Labels today");
-    expect(html).toContain("Print pick list");
-    expect(html).toContain(">All orders<");
-    expect(html).toContain("Not in this queue");
-    // The right side is the real order page (Stripe sync, refunds, labels).
+    // The real order page (Stripe sync, refunds, labels), alone: its Back returns to the list.
     expect(html).toContain('data-order-detail="ABC"');
-    expect(html).toContain("Shortcuts:");
-    // Empty side lists read as plain text, not links that open an empty page.
-    expect(html).toContain('<span class="rp-hint">0 on the way</span>');
-    expect(html).not.toContain('class="od-link">0 on the way');
+    expect(html).not.toContain("Ship station today");
+    expect(html).not.toContain("Not in this queue");
   });
 
   it("never opens on the table view", () => {

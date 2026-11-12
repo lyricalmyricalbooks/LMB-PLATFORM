@@ -502,34 +502,12 @@ ul.fw-problems {
    of the screen while that step is in view. Wider screens and print are unchanged. */
 .fw-items li[data-tick] { cursor: pointer; }
 @media screen and (max-width: 767px) {
-  /* The page title and shop-wide alerts stay on the list; the order's own problems show in its steps. */
-  .rp:not(.studio-editor):has(.fw-detail) .rp-workspace-inner > .rp-page-header,
+  /* Shop-wide alerts stay on the list; the order's own problems show in its steps. The page header is the order's
+     own (v4: its number, ← Orders and its buttons). */
   .rp:not(.studio-editor):has(.fw-detail) .rp-workspace-inner > .rp-alerts { display: none; }
 
   .fw-detail.rp-stack { gap: 16px; }
-  .fw-detail > .fw-toolbar {
-    position: sticky; top: 0; z-index: 6;
-    flex-wrap: nowrap; gap: 0;
-    margin: 0 calc(-1 * var(--rp-gutter, 20px));
-    padding: 0 8px 0 4px;
-    min-height: 52px;
-    background: var(--rp-canvas);
-    border-bottom: 1px solid var(--rp-divider);
-  }
-  .fw-detail > .fw-toolbar .fw-back {
-    min-height: var(--rp-touch, 44px); padding: 0 12px; gap: 8px;
-    border: 0; background: none; box-shadow: none;
-    font-size: 15px; font-weight: 600;
-  }
-  .fw-detail > .fw-toolbar .fw-toolbar-nav { margin-left: auto; gap: 0; }
-  .fw-detail > .fw-toolbar .fw-toolbar-nav .rp-icon-btn { width: var(--rp-touch, 44px); height: var(--rp-touch, 44px); }
-  .fw-detail > .fw-toolbar > .fw-toolbar-actions:last-child { margin-left: 0; gap: 0; }
-  .fw-detail > .fw-toolbar .fw-toolbar-actions .rp-icon-btn { width: var(--rp-touch, 44px); height: var(--rp-touch, 44px); }
 
-  .fw-detail > .rp-sec-head { align-items: flex-end; gap: 12px; }
-  .fw-detail > .rp-sec-head .rp-sec-title { font-size: 40px; line-height: 1; }
-  .fw-detail > .rp-sec-head .rp-page-desc { font-size: 13px; }
-  .fw-detail > .rp-sec-head .rp-page-actions { flex: none; }
 
   .fw-detail .fw-workbench > .rp-card-head { padding: 14px 18px; }
 
@@ -615,3 +593,26 @@ ul.fw-problems {
   :root[data-admin-look="colophon"] .rp:not(.studio-editor) .fw-strip-step[data-state="done"] strong { color: var(--rp-text-muted); }
 }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .fw-strip-step .rp-label { font: 400 var(--rp-text-xs) / 1.4 var(--rp-font-body); letter-spacing: 0; text-transform: none; color: var(--rp-text-muted); }
+
+/* v4 step bar (mockup 1b, 12 Nov 2026): Paid → Packed → Shipped → Delivered, 28px dots joined by a line; done dots are
+   the good green, the current one ink. One row on every width. */
+:root[data-admin-look] .rp:not(.studio-editor) .fw-detail .fw-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; padding: 20px 16px 8px; border: 0; }
+:root[data-admin-look] .rp:not(.studio-editor) .fw-detail .fw-strip-step,
+:root[data-admin-look] .rp:not(.studio-editor) .fw-detail .fw-strip-step[data-state] { position: relative; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
+:root[data-admin-look] .rp:not(.studio-editor) .fw-detail .fw-strip-step + .fw-strip-step::before {
+  content: ""; position: absolute; top: 13px; left: calc(-50% + 18px); right: calc(50% + 18px); height: 2px; background: var(--rp-divider);
+}
+:root[data-admin-look] .rp:not(.studio-editor) .fw-detail .fw-strip-step[data-state="done"]::before { background: var(--cl-dot-good, var(--rp-success)); }
+:root[data-admin-look] .rp:not(.studio-editor) .fw-detail .fw-strip-go { flex-direction: column; align-items: center; gap: 6px; min-height: 0; padding: 0 4px 8px; text-align: center; }
+:root[data-admin-look] .rp:not(.studio-editor) .fw-detail .fw-strip-go > span:last-child { align-items: center; }
+:root[data-admin-look] .rp:not(.studio-editor) .fw-detail .fw-strip-mark { position: relative; z-index: 1; width: 28px; height: 28px; border: 2px solid var(--rp-divider); background: var(--rp-surface); color: var(--rp-text-subtle); font-size: 12px; }
+:root[data-admin-look] .rp:not(.studio-editor) .fw-detail .fw-strip-step[data-state="done"] .fw-strip-mark { border-color: var(--cl-dot-good, var(--rp-success)); background: var(--cl-dot-good, var(--rp-success)); color: var(--rp-surface); }
+:root[data-admin-look] .rp:not(.studio-editor) .fw-detail .fw-strip-step[data-state="now"] .fw-strip-mark { border-color: var(--rp-primary); background: var(--rp-primary); color: var(--rp-on-primary); }
+:root[data-admin-look] .rp:not(.studio-editor) .fw-detail .fw-strip-step strong { font-size: 13px; font-weight: 600; color: var(--rp-text); }
+:root[data-admin-look] .rp:not(.studio-editor) .fw-detail .fw-strip-step[data-state="todo"] strong { color: var(--rp-text-muted); font-weight: 500; }
+:root[data-admin-look] .rp:not(.studio-editor) .fw-detail .fw-strip-step .rp-hint { display: block; max-width: 100%; font-size: 12px; }
+@media (max-width: 640px) {
+  :root[data-admin-look] .rp:not(.studio-editor) .fw-detail .fw-strip-step .rp-hint { display: none; }
+}
+.fw-badges { display: flex; flex-wrap: wrap; gap: 8px; }
+.fw-badges:empty { display: none; }

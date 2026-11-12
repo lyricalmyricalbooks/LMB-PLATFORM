@@ -36,7 +36,7 @@ import { printOrders, type SlipShop } from "./orderPrint";
 import { getCopy } from "../features/site/storeCopy";
 import { discountLabel, giftCardConflictOpen, giftCardPaid, issuedGiftCards, copiesValueMinor, takeOffProblem, chargedOf, refundedMinor, refundableMinor, formatMinor, parseMoneyToMinor, customerMailto, customerTrackUrl, telHref } from "./orderLines";
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, ChevronLeft, ChevronRight, Copy, ExternalLink } from "lucide-react";
+import { ChevronLeft, ChevronRight, Copy, ExternalLink } from "lucide-react";
 import { adminApi } from "./api";
 import { usePhone } from "./usePhone";
 import { inventoryOrderUrl, orderInInventoryApp, useInventoryLink } from "./appSwitch";
@@ -59,14 +59,17 @@ import {
   SecondaryButton,
   DestructiveButton,
   SectionCard,
-  SectionHead,
   SelectField,
   StatusBadge,
   Tabs,
   TextField,
   TextArea,
   type BadgeTone,
+  PageActions,
+  PageHead,
 } from "./riso/components";
+import { StatusBar } from "./riso/FormKit";
+import { orderNextStep, type OrderNextAct } from "./orderNextStep";
 
 // "Placed Oct 16, 2026, 9:24 a.m." instead of the browser's numeric date (10/16/2026 could be read either way).
 const placedAt = (value: any) => {
@@ -661,17 +664,29 @@ export function OrderDetail({
   // Only orders the link sent to the inventory app (the server's rule), with printed books in them.
   const showInInventory = !!inventoryLink && orderInInventoryApp(order, inventoryLink.startDay) && (order.items || []).some((item: any) => item && !isDigitalItem(item));
 
+  // The status bar's step (v4 mockup 1b): the same action as that step's own main button below.
+  const next = orderNextStep(order, checked);
+  const goToStep = (step: string) => {
+    const el = document.querySelector<HTMLElement>(`.fw-detail .fw-step[data-step="${step}"]`);
+    el?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+    el?.querySelector<HTMLElement>("button:not([disabled]), input, select")?.focus({ preventScroll: true });
+  };
+  const doNext = (act: OrderNextAct) => {
+    if (act === "review") void perform("review", { addressKey: addressKey(order) });
+    else if (act === "pack") void perform("pack", { packingKey: packingKey(order) });
+    else if (act === "dispatch") { fillTracking(order); setLabelReplaced(false); setShowShipForm("dispatch"); }
+    else if (act === "deliver") setDeliveryStatus("delivered");
+    else if (act === "correct") setEditAddress({ ...addr });
+    else goToStep("ship");
+  };
+
   return (
     <div className="rp-stack fw-detail">
+      {/* v4 (mockup 1b): the order is its own page; the shell's header carries its number, the way back and the buttons. */}
+      <PageHead title={order.orderId} description={[order.customer?.name, placedAt(order.createdAt)].filter(Boolean).join(" · ")}
+        back={{ label: "Orders", onClick: onClose }} />
+      <PageActions>
       <div className="fw-toolbar" data-print="hide">
-        <SecondaryButton
-          size="sm"
-          className="fw-back"
-          icon={<ArrowLeft size={14} aria-hidden />}
-          onClick={onClose}
-        >
-          {phone ? "Orders" : "Back to orders"}
-        </SecondaryButton>
         {onNavigate && queueIndex >= 0 && queueIds.length > 1 && (
           <div className="fw-toolbar-nav" role="group" aria-label="Order navigation">
             <IconButton label="Previous order" disabled={!prevId} onClick={() => prevId && onNavigate(prevId)}>
@@ -790,11 +805,8 @@ export function OrderDetail({
             )}
         </div>
       </div>
-      <SectionHead
-        title={order.orderId}
-        subcopy={phone && order.customer?.name ? `${order.customer.name} · ${placedAt(order.createdAt)}` : placedAt(order.createdAt)}
-        actions={
-          <>
+      </PageActions>
+      <div className="fw-badges">
             <StatusBadge tone={payTone}>
               {paid
                 ? "Paid"
@@ -809,9 +821,7 @@ export function OrderDetail({
             {order.source === "import" && (
               <StatusBadge tone="neutral">Brought over from your old shop{order.oldOrderNumber ? ` (${order.oldOrderNumber})` : ""}</StatusBadge>
             )}
-          </>
-        }
-      />
+      </div>
       {order.source === "import" && typeof order.importedFile === "string" && order.importedFile && (
         <p className="rp-hint" style={{ margin: 0 }}>Came from the file <span className="rp-mono" style={{ overflowWrap: "anywhere" }}>{order.importedFile}</span>.</p>
       )}
@@ -1236,6 +1246,13 @@ export function OrderDetail({
           </div>
         </aside>
       </div>
+      {next && (
+        <div data-print="hide">
+          <StatusBar status={{ tone: next.blocked ? "warn" : "good", text: next.text }} primaryLabel={next.label}
+            busy={working || isShipping || label.buying || isVoiding || loadFailed} blocked={next.blocked}
+            onBlocked={() => goToStep(next.step)} onPrimary={() => doNext(next.act)} />
+        </div>
+      )}
       <details className="fw-notes" data-print="hide">
         <summary>
           Activity & internal notes{" "}

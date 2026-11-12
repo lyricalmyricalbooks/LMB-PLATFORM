@@ -62,8 +62,6 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
   const [phoneTab, setPhoneTab] = useState<PhoneTab>("ship");
   const refreshing = useRef<Promise<void> | null>(null);
   const lastRefresh = useRef(0);
-  // The owner pressed "Back to orders": don't pop the next order straight back open.
-  const [closedByOwner, setClosedByOwner] = useState(false);
   const [catalog, setCatalog] = useState<CatalogSearchIndex | null>(null);
   // Book covers for the queue and the covers page; until (or unless) the catalog loads, they use the photo saved on the order.
   const [booksById, setBooksById] = useState<Map<string, any> | null>(null);
@@ -127,16 +125,8 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
     toast.success(`Exported ${rows.length} order${rows.length === 1 ? "" : "s"}`);
   };
 
-  // Desktop: have an order open — the oldest one that needs you — unless the owner closed it.
-  useEffect(() => {
-    if (narrow || !orders || layout !== "desk" || closedByOwner) return;
-    if (!selectedId) {
-      const next = nextToOpen(list, null);
-      if (next) onSelect(next);
-    }
-  }, [orders, list, selectedId, narrow, layout, closedByOwner]);
 
-  const open = (id: string | null) => { if (id) setClosedByOwner(false); onSelect(id); };
+  const open = (id: string | null) => onSelect(id);
   // Phones: an order opened from elsewhere (top-bar search, an alert) opens full screen in the station.
   useEffect(() => { if (phone && selectedId && layout !== "desk") setLayout("desk"); }, [phone, selectedId, layout]);
 
@@ -286,7 +276,8 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
 
   // All orders, to the mockup (redesign, 11 November 2026): pills, then one table; a row opens the order in the Ship
   // station, where packing, labels and refunds happen. Export CSV and Create order sit beside the page title.
-  if (layout !== "desk") {
+  // v4: with no order open, a computer shows this list (the open order is a page of its own, mockup 1b).
+  if (layout !== "desk" || (!selectedId && !narrow)) {
     const page = listed.slice(0, shown);
     return (
       <div className="rp-stack od-list-page" style={{ gap: 16 }}>
@@ -424,7 +415,7 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
       <OrderDetail
         key={selectedId}
         orderId={selectedId}
-        onClose={() => { setClosedByOwner(true); onSelect(null); }}
+        onClose={() => { pickLayout("grid"); onSelect(null); }}
         queueIds={ids.includes(selectedId) ? ids : [selectedId, ...ids]}
         onNavigate={(id) => open(id)}
         onChanged={(order) => { if (order?.id) setOrders(patchOrdersCache(order)); }}
@@ -438,9 +429,10 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
   return (
     <div className="rp-stack" style={{ gap: 18 }}>
       <style>{DESK_CSS}</style>
-      {narrow && selectedId ? null : header}
-      <div className="od-desk">
-        {narrow ? (selectedId ? detailPane : listPane) : (<>{listPane}{detailPane}</>)}
+      {/* v4 (mockup 1b): an open order is its own page on every width; its Back returns to the list. */}
+      {selectedId ? null : header}
+      <div className="od-desk" data-open={selectedId ? "" : undefined}>
+        {selectedId ? detailPane : listPane}
       </div>
     </div>
   );
@@ -454,6 +446,7 @@ const DESK_CSS = `
 .od-stats div{display:flex;flex-direction:column}
 .od-stats dd{margin:0;font-size:20px;font-weight:500}
 .od-desk{display:grid;grid-template-columns:minmax(300px,360px) minmax(0,1fr);gap:24px;align-items:start}
+.od-desk[data-open]{grid-template-columns:minmax(0,1fr)}
 @media (max-width:900px){.od-desk{grid-template-columns:minmax(0,1fr)}}
 .od-list{position:sticky;top:16px;display:flex;flex-direction:column;border:var(--rp-hair) solid var(--rp-border);box-shadow:var(--rp-shadow);background:var(--rp-surface);max-height:calc(100vh - 140px);min-height:420px}
 @media (max-width:900px){.od-list{position:static;max-height:none}}
