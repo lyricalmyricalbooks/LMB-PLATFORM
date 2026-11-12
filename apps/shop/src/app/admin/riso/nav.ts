@@ -112,9 +112,13 @@ export const STOCKROOM_SIDE: Menu = [
   // v4: Consignment is called Stockists.
   { label: "Stockists", icon: Store, pages: [S("consignment")], labels: { [S("consignment")]: "Stockists and terms" } },
   { label: "Invoices", icon: FileText, pages: [S("invoices")] },
-  // v4: Tax centre is its own item; reconciling payouts sits inside it.
-  { label: "Tax centre", icon: Calculator, pages: [S("taxcenter"), S("reconcile")],
-    labels: { [S("taxcenter")]: "Sales tax and books", [S("reconcile")]: "Reconcile payouts" } },
+  // v4: Tax centre is its own item with eight pages in three groups; reconciling payouts sits inside it.
+  { label: "Tax centre", icon: Calculator,
+    pages: [S("taxcenter"), S("taxledger"), S("taxcosts"), S("taxsales"), S("taxrates"), S("taxfilings"), S("reconcile"), S("taxyear")],
+    labels: { [S("taxcenter")]: "Money in and out", [S("reconcile")]: "Reconcile payouts" },
+    sections: [{ label: "Your books", pages: [S("taxcenter"), S("taxledger"), S("taxcosts")] },
+      { label: "Sales tax", pages: [S("taxsales"), S("taxrates"), S("taxfilings")] },
+      { label: "Check and close", pages: [S("reconcile"), S("taxyear")] }] },
   { label: "Bookkeeping", icon: PiggyBank, pages: [S("expenses"), S("intel"), SETTINGS_ITEM_PREFIX + "bookkeeping"],
     labels: { [SETTINGS_ITEM_PREFIX + "bookkeeping"]: "QuickBooks" },
     sections: [{ label: "Cash", pages: [S("expenses")] }, { label: "Reports", pages: [S("intel")] }, { label: "Accounts", pages: [SETTINGS_ITEM_PREFIX + "bookkeeping"] }] },

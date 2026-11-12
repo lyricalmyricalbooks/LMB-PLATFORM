@@ -7,7 +7,7 @@ import { fmt } from "@stockroom/money.js";
 import { downloadCsv } from "@stockroom/download.js";
 import type { Delta } from "@stockroom/tax-ledger.js";
 
-import { DataTable, Dialog, EmptyState, GhostButton, MetricCard, Pagination, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge } from "../riso/components";
+import { DataTable, Dialog, EmptyState, GhostButton, MetricCard, Pagination, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, Tabs } from "../riso/components";
 import { useShopSells, useShopWords } from "../shopWords";
 import { hasPublisherTools } from "../../../shared/shopSells";
 import { getOrdersCached } from "../ordersCache";
@@ -71,8 +71,12 @@ function CashFlowChart({ buckets, cur }: { buckets: Array<{ key: string; label: 
   );
 }
 
-export function TaxCenterView({ records, now, onTaxCenter, onState, orders: givenOrders }: {
-  records: StockroomRecords; now?: Date; onTaxCenter?: (taxCenter: Record<string, unknown>) => void; onState?: (bookId: string, state: Record<string, unknown>) => void;
+/** v4: the Tax centre is eight pages (riso/nav.ts); each draws one part. "all" draws everything on one page. */
+export type TaxPart = "all" | "money" | "ledger" | "costs" | "salestax" | "rates" | "filings" | "yearend";
+const YEAR_PARTS: TaxPart[] = ["money", "ledger", "yearend"];
+
+export function TaxCenterView({ records, now, onTaxCenter, onState, orders: givenOrders, part = "all" }: {
+  records: StockroomRecords; part?: TaxPart; now?: Date; onTaxCenter?: (taxCenter: Record<string, unknown>) => void; onState?: (bookId: string, state: Record<string, unknown>) => void;
   /** The shop's orders (tests and the fixture pass them; otherwise read through the shared copy). */
   orders?: Record<string, any>[];
 }) {
@@ -83,8 +87,11 @@ export function TaxCenterView({ records, now, onTaxCenter, onState, orders: give
   const periods = useMemo(() => taxPeriods(nowMs), [nowMs]);
   const [periodId, setPeriodId] = useState(periods[0].id);
   const period = periods.find((p) => p.id === periodId) || periods[0];
-  // The cards below follow the period's year.
-  const year = period.start.slice(0, 4);
+  // The cards below follow the period's year; the pages without period pills pick a year of their own.
+  const on = (p: TaxPart) => part === "all" || part === p;
+  const thisYear = String((now || new Date()).getFullYear());
+  const [yearPick, setYearPick] = useState(thisYear);
+  const year = YEAR_PARTS.includes(part) ? yearPick : period.start.slice(0, 4);
   const [loaded, setLoaded] = useState<Record<string, any>[] | "loading" | "failed">(givenOrders || "loading");
   useEffect(() => {
     if (givenOrders) { setLoaded(givenOrders); return; }
@@ -112,12 +119,19 @@ export function TaxCenterView({ records, now, onTaxCenter, onState, orders: give
 
   return (
     <div className="rp-money">
-      <TaxTop periods={periods} period={period} onPeriod={(id) => { setPeriodId(id); setPage(1); }} orders={loaded}
+      {(part === "all" || part === "salestax" || part === "rates" || part === "filings") && <TaxTop part={part === "all" ? "all" : part}
+        periods={periods} period={period} onPeriod={(id) => { setPeriodId(id); setPage(1); }} orders={loaded}
         ledgerRows={allRows} states={records.states as Record<string, Record<string, any>>} taxCenter={records.taxCenter as Record<string, any> | null}
-        currency={cur} now={nowMs} onTaxCenter={onTaxCenter} />
-      {model.notes.missing > 0 && <p className="rp-money-note" role="status">{model.notes.missing} {model.notes.missing === 1 ? "line has" : "lines have"} no exchange rate yet and {model.notes.missing === 1 ? "is" : "are"} counted at 1 to 1, so these totals may be off. Rates fill in by themselves while you're online.</p>}
-      {!model.notes.missing && model.notes.estimated > 0 && <p className="rp-money-note" role="status">{model.notes.estimated} foreign-currency {model.notes.estimated === 1 ? "line is" : "lines are"} shown at the last saved exchange rate, not the rate of its own day. Day rates fill in by themselves while you're online.</p>}
+        currency={cur} now={nowMs} onTaxCenter={onTaxCenter} />}
+      {YEAR_PARTS.includes(part) && <div className="rp-tax-period">
+        <span className="rp-tax-period-label">Year</span>
+        <Tabs label="Year" idPrefix="tax-year-" value={yearPick} onChange={(y) => { setYearPick(y); setPage(1); }}
+          tabs={[thisYear, String(Number(thisYear) - 1)].map((y) => ({ id: y, label: y }))} />
+      </div>}
+      {(on("money") || on("ledger")) && model.notes.missing > 0 && <p className="rp-money-note" role="status">{model.notes.missing} {model.notes.missing === 1 ? "line has" : "lines have"} no exchange rate yet and {model.notes.missing === 1 ? "is" : "are"} counted at 1 to 1, so these totals may be off. Rates fill in by themselves while you're online.</p>}
+      {(on("money") || on("ledger")) && !model.notes.missing && model.notes.estimated > 0 && <p className="rp-money-note" role="status">{model.notes.estimated} foreign-currency {model.notes.estimated === 1 ? "line is" : "lines are"} shown at the last saved exchange rate, not the rate of its own day. Day rates fill in by themselves while you're online.</p>}
 
+      {on("money") && <>
       <SectionCard title={`Money in and out, ${year}`} description="From your stockroom records: every sale, cost and payout." flush>
         <div className="rp-grid-metrics rp-money-pad">
           <MetricCard label="Money in" value={money(s.sales)} footer={deltaText(s.deltas?.sales ?? null, s.prevYear)} />
@@ -131,12 +145,17 @@ export function TaxCenterView({ records, now, onTaxCenter, onState, orders: give
         <CashFlowChart buckets={model.buckets} cur={cur} />
       </SectionCard>
 
+      </>}
+
+      {on("costs") && <>
       {onTaxCenter && <LogExpenseCard taxCenter={records.taxCenter} onSaved={onTaxCenter} prefill={confirming} onPrefillDone={() => setConfirming(null)} />}
       {onTaxCenter && <LogSeveralCard taxCenter={records.taxCenter} onSaved={onTaxCenter} />}
       {onTaxCenter && <PendingExpensesCard taxCenter={records.taxCenter} onSaved={onTaxCenter} onConfirm={setConfirming} />}
       {onTaxCenter && <RecurringSubscriptionsCard taxCenter={records.taxCenter} onSaved={onTaxCenter} now={now} />}
       {onTaxCenter && <SortingRulesCard taxCenter={records.taxCenter} onSaved={onTaxCenter} />}
+      </>}
 
+      {on("money") && <>
       <SectionCard title={`By month in ${year}`} flush>
         <DataTable stackOnPhone caption="Money in and out by period" rowKey={(b) => b.key}
           rows={model.buckets}
@@ -173,6 +192,9 @@ export function TaxCenterView({ records, now, onTaxCenter, onState, orders: give
         </Dialog>
       )}
 
+      </>}
+
+      {on("costs") && <>
       <TripsCard trips={model.trips as TripRow[]} taxCenter={records.taxCenter as Record<string, any> | null} money={money} baseCurrency={cur} onSaved={onTaxCenter} />
 
       {!onTaxCenter && (
@@ -191,7 +213,9 @@ export function TaxCenterView({ records, now, onTaxCenter, onState, orders: give
       <GapsCard gaps={model.gaps.gaps} hidden={model.gaps.hidden} books={sources.books} states={sources.states}
         taxCenter={records.taxCenter as Record<string, any> | null} today={new Date(nowMs).toLocaleDateString("en-CA")} money={money} onSaved={onTaxCenter} />
 
-      <SectionCard title="Ledger" actions={<SecondaryButton onClick={download} disabled={!shown.length}>Download spreadsheet</SecondaryButton>} flush>
+      </>}
+
+      {on("ledger") && <SectionCard title="Ledger" actions={<SecondaryButton onClick={download} disabled={!shown.length}>Download spreadsheet</SecondaryButton>} flush>
         <div className="rp-money-pad">
           <div className="rp-filter-bar">
             <div className="rp-grow"><SearchField label="Search the ledger" value={filter.query} onChange={(e) => { setFilter({ ...filter, query: e.target.value }); setPage(1); }} /></div>
@@ -219,26 +243,37 @@ export function TaxCenterView({ records, now, onTaxCenter, onState, orders: give
             {pageCount > 1 && <Pagination page={at} pageCount={pageCount} onPage={setPage} />}
           </div>
         )}
-      </SectionCard>
+      </SectionCard>}
 
+      {on("yearend") && <>
       <StockValueCard books={records.books as Record<string, any>[]} states={records.states as Record<string, Record<string, any>>} taxCenter={records.taxCenter as Record<string, any> | null}
         fxRateCache={sources.fxRateCache} onTaxCenter={onTaxCenter} onState={onState} />
       {Array.isArray(loaded) && <CardFeesCard orders={loaded} year={year} taxCenter={records.taxCenter as Record<string, any> | null} onSaved={onTaxCenter} />}
       <YearReportCard input={{ books: records.books as Record<string, any>[], states: records.states as Record<string, Record<string, any>>, taxCenter: records.taxCenter as Record<string, any> | null, fxRateCache: sources.fxRateCache }} year={year} money={money} />
       <TaxSeasonCard input={{ books: records.books as Record<string, any>[], states: records.states as Record<string, Record<string, any>>, taxCenter: records.taxCenter as Record<string, any> | null, fxRateCache: sources.fxRateCache }}
         year={year} onSaved={onTaxCenter} />
-      <ReceiptsVaultCard rows={model.rows} money={money} onSaved={onTaxCenter} taxCenter={records.taxCenter as Record<string, unknown> | null} />
+      </>}
+      {on("costs") && <ReceiptsVaultCard rows={model.rows} money={money} onSaved={onTaxCenter} taxCenter={records.taxCenter as Record<string, unknown> | null} />}
     </div>
   );
 }
 
-export function TaxCenterPage({ load = stockroomApi.load }: { load?: () => Promise<StockroomRecords>; onOpen?: unknown; isPage?: unknown }) {
-  return <RecordsGate load={load} what="the Tax centre">{(records) => <TaxCenterLive initial={records} />}</RecordsGate>;
-}
+type PageProps = { load?: () => Promise<StockroomRecords>; onOpen?: unknown; isPage?: unknown };
+const taxPage = (part: TaxPart) => function TaxPartPage({ load = stockroomApi.load }: PageProps) {
+  return <RecordsGate load={load} what="the Tax centre">{(records) => <TaxCenterLive initial={records} part={part} />}</RecordsGate>;
+};
+/** Tax centre › Money in and out (the lead page), and its seven other pages (v4). */
+export const TaxCenterPage = taxPage("money");
+export const TaxLedgerPage = taxPage("ledger");
+export const TaxCostsPage = taxPage("costs");
+export const TaxSalesPage = taxPage("salestax");
+export const TaxRatesPage = taxPage("rates");
+export const TaxFilingsPage = taxPage("filings");
+export const TaxYearPage = taxPage("yearend");
 
 /** Keeps the records on screen and swaps in the Tax centre as the save returned it (other devices' rows included). */
-function TaxCenterLive({ initial }: { initial: StockroomRecords }) {
+function TaxCenterLive({ initial, part }: { initial: StockroomRecords; part: TaxPart }) {
   const [records, setRecords] = useRatedRecords(initial);
-  return <TaxCenterView records={records} onTaxCenter={(taxCenter) => setRecords((r) => ({ ...r, taxCenter }))}
+  return <TaxCenterView part={part} records={records} onTaxCenter={(taxCenter) => setRecords((r) => ({ ...r, taxCenter }))}
     onState={(id, state) => setRecords((r) => ({ ...r, states: { ...r.states, [id]: state } }))} />;
 }

@@ -4,13 +4,13 @@
 .rp-tax-period { min-width: 0; }
 .rp-tax-period .rp-tabs { margin: 0; flex: 1 1 auto; min-width: 0; max-width: 100%; overflow-x: auto; flex-wrap: nowrap; }
 .rp-tax-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--rp-space-4); }
-.rp-tax-tile { display: flex; flex-direction: column; gap: var(--rp-space-2); min-width: 0; padding: var(--rp-space-5); background: var(--rp-surface); color: var(--rp-text); border-radius: var(--rp-radius-lg, 22px); }
+.rp-tax-tile { container-type: inline-size; display: flex; flex-direction: column; gap: var(--rp-space-2); min-width: 0; padding: var(--rp-space-5); background: var(--rp-surface); color: var(--rp-text); border-radius: var(--rp-radius-lg, 22px); }
 .rp-tax-tile[data-tone="sky"] { background: var(--rp-tile-sky, var(--rp-info-tint)); color: var(--rp-on-tile, var(--rp-text)); }
 .rp-tax-tile[data-tone="apricot"] { background: var(--rp-tile-apricot, var(--rp-warning-tint)); color: var(--rp-on-tile, var(--rp-text)); }
 .rp-tax-tile p { margin: 0; }
 .rp-tax-tile-label { font-size: var(--rp-text-sm); }
 .rp-tax-tile-title { font-size: var(--rp-text-lg, 20px); font-weight: 600; }
-.rp-tax-tile-value { font-family: var(--rp-font-body); font-weight: 600; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; font-size: clamp(24px, 2.6vw, 42px); line-height: 1.1; overflow-wrap: anywhere; }
+.rp-tax-tile-value { font-family: var(--rp-font-body); font-weight: 600; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; font-size: clamp(22px, 16cqi, 42px); line-height: 1.1; white-space: nowrap; }
 .rp-tax-tile-due { font-size: var(--rp-text-sm); }
 .rp-tax-tile-foot { font-size: var(--rp-text-sm); opacity: .8; }
 .rp-tax-progress { display: grid; gap: var(--rp-space-2); margin-top: auto; }

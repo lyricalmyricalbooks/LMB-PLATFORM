@@ -914,3 +914,10 @@ yet overdue). The table has Customer, Issued, Due, Amount, Status and one action
 (`markSentChange`) and **Mark paid** for sent/overdue (confirm, then `markInvoicePaid` from `stockists.ts`, the same
 settle Stockists uses). Create invoice and the details, reminders and letterhead buttons sit in the page header. The
 mockup's "Download statements" is not built (no such feature) and its "Send" is labelled Mark sent (nothing is emailed).
+
+**Tax centre pages in v4 (12 November 2026):** the Tax centre item (`riso/nav.ts`) has eight pages in three sections:
+Your books (`taxcenter` "Money in and out", `taxledger`, `taxcosts`), Sales tax (`taxsales`, `taxrates`, `taxfilings`)
+and Check and close (`reconcile`, `taxyear`). Each is `TaxCenterView` with a `part` (`TaxCenterPage.tsx`, `taxPage(part)`);
+TaxTop takes a matching `part`. Year parts (money, ledger, year end) pick the year with their own pills; sales tax parts
+use the quarter pills. `part="all"` still draws everything (moneyReports tests). Missing-cost and recurring-cost fixes
+on the to-do list open `taxcosts` (`todo.ts` fixTarget). Tile figures size to their tile (container units, no wrapping).
