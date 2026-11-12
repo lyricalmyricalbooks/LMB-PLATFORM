@@ -15,11 +15,12 @@
 //      the per-project release runner never sends its old rules over the shared ones. Its data is left where it is.
 //   3. The project's first release (services/release-runner/shared.js firstSharedRelease): the rules, the shared server
 //      and the one site, while it has no live shop. Every later release goes through run-shared.js, this project first.
-//   4. The test shop, made by the shared shop maker's steps (setup/sharedSteps.js) as `test-press`, answering at the
-//      project's own address (lmb-test-shop.web.app). Steps 7 (payments, in Stripe's test mode) and 8 (the owner's
-//      welcome email) run when the workflow hands this script the platform's test keys, and wait otherwise; they are
-//      looked at again on every run.
-//   5. Its pages drawn from its books (setup/shopSite.js), as every release does for every shop.
+//   4. The test shops (setup/testShopPlace.js), each made by the shared shop maker's steps (setup/sharedSteps.js): the
+//      book test shop `test-press` at the project's own address (lmb-test-shop.web.app), then the general test shop
+//      `test-goods` at a second Hosting site of the project (lmb-test-goods.web.app), which first gets a copy of the
+//      project's site. Steps 7 (payments, in Stripe's test mode) and 8 (the owner's welcome email) run when the
+//      workflow hands this script the platform's test keys, and wait otherwise; they are looked at again on every run.
+//   5. Each test shop's pages drawn from its products (setup/shopSite.js), as every release does for every shop.
 //
 // It only ever touches `lmb-test-shop`. The release check (release-check/run.js) then buys from the test shop in test
 // mode; the staged update runs it on every release.
@@ -36,7 +37,7 @@ import { buildAndPublish } from "./shopSite.js";
 import { deployClient } from "../clients/deploy.js";
 import { firstSharedRelease, sharedProjectProfile } from "../services/release-runner/shared.js";
 import { commandTail } from "../services/release-runner/run.js";
-import { TEST_PROJECT, TEST_SHOP_ADDRESS, TEST_SHOP_ID } from "./testShopPlace.js";
+import { TEST_PROJECT, TEST_SHOPS, TEST_SHOP_ADDRESS, TEST_SHOP_ID } from "./testShopPlace.js";
 import { firestoreClient } from "../clients/firestore.js";
 import { identityClient, projectSigner } from "../clients/identity.js";
 import { firestoreAuditLog, firestoreRegistry } from "../clients/registry.js";
@@ -45,7 +46,7 @@ import { createEmailService, hasEmailSending } from "../services/email/index.js"
 import { createPaymentsFromEnv, hasTestKey, refuseLiveKeys, setupClient } from "../services/payments/index.js";
 
 // The shared test project, and the test shop: a folder in it, at the project's own address.
-export { TEST_PROJECT, TEST_SHOP_ADDRESS, TEST_SHOP_ID };
+export { TEST_PROJECT, TEST_SHOPS, TEST_SHOP_ADDRESS, TEST_SHOP_ID };
 /** The test shop's id when it had the project to itself (before the shared system). */
 export const OLD_TEST_SHOP_ID = TEST_PROJECT;
 export const PLATFORM_URL = "https://lmb-platform-prod.web.app";
@@ -57,13 +58,14 @@ export const LATER_STEPS = Object.freeze({ 7: "payments (the platform payment se
 
 const message = (error) => (error instanceof Error ? error.message : String(error));
 
-/** The test shop as the shop maker gets it. */
-export function testShop(ownerEmail) {
+/** A test shop as the shop maker gets it: the book test shop unless `place` names another (setup/testShopPlace.js). */
+export function testShop(ownerEmail, place = TEST_SHOPS[0]) {
   const email = String(ownerEmail ?? "").trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("TEST_SHOP_OWNER_EMAIL must be the owner's Google address");
   return {
-    shopId: TEST_SHOP_ID,
-    pressName: "Test Press",
+    shopId: place.shopId,
+    pressName: place.pressName,
+    publishes: place.publishes,
     ownerEmail: email,
     plan: "both",
     country: "CA",
@@ -71,7 +73,7 @@ export function testShop(ownerEmail) {
     paymentProvider: "stripe",
     testMode: true,
     testShop: true,
-    freeAddress: TEST_SHOP_ADDRESS,
+    freeAddress: place.address,
   };
 }
 
@@ -146,13 +148,14 @@ export async function retireOldTestShop({ registry, apply, print = () => {}, now
 /**
  * The whole run, with its clients passed in (tests use fakes): `google`, `registry`, `auditLog`, `stepClients` (what
  * sharedShopSteps takes), `deploy` and `builder` (the first release), `makerConfig()` (sharedMakerConfig) and
- * `publishPages(shopId)`. Returns `{ ok, stage, ready?, dryRun?, error? }`: `stage` is where it ended.
+ * `publishPages(shopId)` and `copySite(site)` (the project's site copied to a test shop's own site). Returns
+ * `{ ok, stage, shopId?, dryRun?, error? }`: `stage` is where it ended.
  */
 export async function makeTestShopWith({
-  apply, ownerEmail, version = FIRST_RELEASE, google, registry, auditLog, stepClients, deploy, builder, makerConfig, publishPages,
+  apply, ownerEmail, version = FIRST_RELEASE, google, registry, auditLog, stepClients, deploy, builder, makerConfig, publishPages, copySite = null,
   allowOwnerSigning = null, connected = {}, platformUrl = PLATFORM_URL, region = REGION, print = () => {}, now = () => new Date(),
 }) {
-  const shop = testShop(ownerEmail);
+  testShop(ownerEmail); // the owner's address is checked before anything is touched
   print(`The shared test project ${TEST_PROJECT}:`);
   const project = await runProjectSteps({ projectId: TEST_PROJECT, steps: sharedProjectSteps({ google, region }), apply, print });
   if (!project.ok) return { ok: false, stage: "project", error: project.error };
@@ -182,27 +185,46 @@ export async function makeTestShopWith({
   }
 
   for (const [number, words] of Object.entries(LATER_STEPS)) if (!connected[number]) print(`Step ${number} waits for ${words}.`);
-  print(`The test shop ${TEST_SHOP_ID}, at ${TEST_SHOP_ADDRESS}:`);
-  const made = await runSteps({
-    shop,
-    steps: testShopSteps({ clients: stepClients, config: await makerConfig(), connected, print }),
-    registry,
-    auditLog,
-    dryRun: !apply,
-    print,
-    again: Object.keys(LATER_STEPS).map(Number).filter((n) => connected[n]),
-  });
-  if (!made.ok) return { ok: false, stage: "shop", error: made.error, ...(made.waiting ? { waiting: true } : {}) };
-  if (!apply) return { ok: true, stage: "shop", dryRun: true };
+  const config = await makerConfig();
+  for (const place of TEST_SHOPS) {
+    const shop = testShop(ownerEmail, place);
+    print(`The test shop ${place.shopId} (${place.kind === "books" ? "sells books" : "sells other things"}), at ${place.address}:`);
+    // A test shop at a site of its own gets a copy of the project's site first, so its address answers in step 9.
+    if (place.site !== TEST_PROJECT) {
+      if (!apply) print(`${place.site}: would get a copy of ${TEST_PROJECT}'s site.`);
+      else {
+        if (typeof copySite !== "function") return { ok: false, stage: "site", shopId: place.shopId, error: `nothing can copy the site to ${place.site}` };
+        try {
+          await copySite(place.site);
+          print(`${place.site}: it has a copy of ${TEST_PROJECT}'s site.`);
+        } catch (error) {
+          return { ok: false, stage: "site", shopId: place.shopId, error: `the site couldn't be copied to ${place.site} (${message(error)})` };
+        }
+      }
+    }
+    const made = await runSteps({
+      shop,
+      steps: testShopSteps({ clients: stepClients, config, connected, print }),
+      registry,
+      auditLog,
+      dryRun: !apply,
+      print,
+      again: Object.keys(LATER_STEPS).map(Number).filter((n) => connected[n]),
+    });
+    if (!made.ok) return { ok: false, stage: "shop", shopId: place.shopId, error: made.error, ...(made.waiting ? { waiting: true } : {}) };
+    if (!apply) continue;
 
-  // Its own pages, as every release draws them. A failure keeps the app's own pages and is said, not fatal.
-  try {
-    await publishPages(TEST_SHOP_ID);
-    print(`${TEST_SHOP_ID}: its pages were drawn from its books.`);
-  } catch (error) {
-    print(`${TEST_SHOP_ID}: its pages weren't drawn (${message(error)}); the next release draws them.`);
+    // Its own pages, as every release draws them. A failure keeps the app's own pages and is said, not fatal.
+    try {
+      await publishPages(place.shopId);
+      print(`${place.shopId}: its pages were drawn from its products.`);
+    } catch (error) {
+      print(`${place.shopId}: its pages weren't drawn (${message(error)}); the next release draws them.`);
+    }
+    print(`${place.shopId} is ready at https://${place.address}.`);
   }
-  print(`The test shop is ready at https://${TEST_SHOP_ADDRESS}. Run the release check (node release-check/run.js) for a test purchase.`);
+  if (!apply) return { ok: true, stage: "shop", dryRun: true };
+  print(`The test shops are ready. Run the release check (node release-check/run.js <shop id>) for a test purchase.`);
   return { ok: true, stage: "done" };
 }
 
@@ -289,6 +311,7 @@ export async function makeTestShop({ apply, ownerEmail, serviceAccount, root = p
       ownerEmailOf: async () => "", profileScriptOf: async (projectId) => sharedProjectProfile(projectId, { region }),
     }),
     makerConfig: () => sharedMakerConfig({ google: clients.google, projectId: TEST_PROJECT, shopDomain: "", platformUrl: PLATFORM_URL, senderEmail: SENDER_EMAIL, version, stripePublishableKeys: testPublishableKeys(env) }),
+    copySite: (site) => deployClient({ fetch, token, run: runCommand, buildDir: () => root }).copySite(TEST_PROJECT, { site }),
     async publishPages(shopId) {
       const record = await clients.shared.records.get(shopId);
       if (!record) throw new Error("its record is missing from the shared project");

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LATER_STEPS, OLD_TEST_SHOP_ID, TEST_PROJECT, TEST_SHOP_ADDRESS, TEST_SHOP_ID, makeTestShopWith, paymentsOrWait, testShop, testShopSteps } from "./make-test-shop.js";
+import { LATER_STEPS, OLD_TEST_SHOP_ID, TEST_PROJECT, TEST_SHOPS, TEST_SHOP_ADDRESS, TEST_SHOP_ID, makeTestShopWith, paymentsOrWait, testShop, testShopSteps } from "./make-test-shop.js";
 import { fakeAuditLog, fakeGoogle, fakeRegistry, fakeServices, fakeShared, fakeTenants } from "./fakes.js";
 import { TEST_CONFIG } from "./test-shop.js";
 import { SHARED_RELEASE_LOCK } from "../services/release-runner/shared.js";
@@ -25,15 +25,16 @@ function setup({ signInOn = true, oldRow = { status: "live", projectId: OLD_TEST
     async pages(projectId, { version, app }) { calls.push(["pages", projectId, version, app]); stamps.set(`${projectId} pages:${app}`, version); },
   };
   const published = [];
+  const copies = [];
   const lines = [];
   const run = (apply, extra = {}) => makeTestShopWith({
     apply, ownerEmail: "Owner@Example.com", google, registry, auditLog: fakeAuditLog(), stepClients, deploy,
     builder: { build: async (v) => calls.push(["build", v]) }, makerConfig: async () => CONFIG,
-    publishPages: async (shopId) => published.push(shopId), print: (line) => lines.push(line),
+    publishPages: async (shopId) => published.push(shopId), copySite: async (site) => copies.push(site), print: (line) => lines.push(line),
     now: () => new Date("2026-11-10T18:00:00Z"), ...extra,
   });
   const ready = (async () => { if (oldRow) await registry.createShop(OLD_TEST_SHOP_ID, { shopId: OLD_TEST_SHOP_ID, ownerEmail: "owner@example.com", testShop: true, testMode: true, ...oldRow }); })();
-  return { google, registry, services, stepClients, calls, published, lines, run: async (...args) => { await ready; return run(...args); } };
+  return { google, registry, services, stepClients, calls, published, copies, lines, run: async (...args) => { await ready; return run(...args); } };
 }
 
 test("the test shop is test-press, in test mode, at the shared test project's own address", () => {
@@ -41,6 +42,12 @@ test("the test shop is test-press, in test mode, at the shared test project's ow
   assert.deepEqual([shop.shopId, shop.ownerEmail, shop.testShop, shop.testMode, shop.plan, shop.freeAddress], [TEST_SHOP_ID, "owner@example.com", true, true, "both", "lmb-test-shop.web.app"]);
   assert.equal(TEST_SHOP_ADDRESS, `${TEST_PROJECT}.web.app`);
   assert.throws(() => testShop(""), /TEST_SHOP_OWNER_EMAIL/);
+});
+
+test("the general test shop is test-goods, sells other things and answers at a site of its own", () => {
+  const goods = testShop("owner@example.com", TEST_SHOPS[1]);
+  assert.deepEqual([goods.shopId, goods.pressName, goods.publishes, goods.freeAddress, goods.testShop, goods.testMode], ["test-goods", "Test Goods", "other", "lmb-test-goods.web.app", true, true]);
+  assert.equal(testShop("owner@example.com").publishes, "books");
 });
 
 test("steps 7 and 8 wait until their services are connected", () => {
@@ -61,8 +68,8 @@ test("a dry run changes nothing anywhere", async () => {
   assert.ok(lines.includes("The rest waits until the project is ready."));
 });
 
-test("a real run readies the project, retires the old test shop, sends the first release and makes the test shop", async () => {
-  const { registry, stepClients, calls, published, run } = setup();
+test("a real run readies the project, retires the old test shop, sends the first release and makes both test shops", async () => {
+  const { registry, stepClients, calls, published, copies, run } = setup();
   const result = await run(true);
   assert.deepEqual(result, { ok: true, stage: "done" });
 
@@ -80,9 +87,17 @@ test("a real run readies the project, retires the old test shop, sends the first
   assert.deepEqual([row.shared, row.projectId, row.status, row.testShop, row.testMode, row.freeAddress], [true, TEST_PROJECT, "live", true, true, TEST_SHOP_ADDRESS]);
   assert.equal(stepClients.shared.addresses.map.get(TEST_SHOP_ADDRESS).shopId, TEST_SHOP_ID);
   assert.equal((await registry.getProfile(TEST_SHOP_ID)).siteUrl, `https://${TEST_SHOP_ADDRESS}`);
-  assert.deepEqual(published, [TEST_SHOP_ID]);
+  assert.equal(row.publishes, "books");
   const steps = await registry.readSteps(TEST_SHOP_ID);
   assert.ok(steps.some((e) => /waits for payments/.test(e.name)));
+
+  // The general test shop: its own folder, at the second site, which got a copy of the project's site first.
+  const goods = await registry.getShop("test-goods");
+  assert.deepEqual([goods.projectId, goods.status, goods.testShop, goods.testMode, goods.freeAddress, goods.publishes], [TEST_PROJECT, "live", true, true, "lmb-test-goods.web.app", "other"]);
+  assert.equal(stepClients.shared.addresses.map.get("lmb-test-goods.web.app").shopId, "test-goods");
+  assert.equal((await registry.getProfile("test-goods")).sells, "other");
+  assert.deepEqual(copies, ["lmb-test-goods"]);
+  assert.deepEqual(published, [TEST_SHOP_ID, "test-goods"]);
 
   // Run again: the release goes through the staged update now, and the shop is left as it is.
   calls.length = 0;
@@ -90,6 +105,16 @@ test("a real run readies the project, retires the old test shop, sends the first
   assert.equal(again.ok, true);
   assert.deepEqual(calls, []);
   assert.equal((await registry.getShop(TEST_SHOP_ID)).status, "live");
+  assert.equal((await registry.getShop("test-goods")).status, "live");
+});
+
+test("a site that can't be copied stops the run at the general test shop, in plain words; the book shop is made", async () => {
+  const { registry, run } = setup();
+  const result = await run(true, { copySite: async () => { throw new Error("site id taken"); } });
+  assert.deepEqual([result.ok, result.stage, result.shopId], [false, "site", "test-goods"]);
+  assert.match(result.error, /couldn't be copied to lmb-test-goods \(site id taken\)/);
+  assert.equal((await registry.getShop(TEST_SHOP_ID)).status, "live");
+  assert.equal(await registry.getShop("test-goods"), null);
 });
 
 test("the run stops in plain words while Google sign-in is off, and sends nothing", async () => {

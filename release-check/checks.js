@@ -10,9 +10,13 @@
 //   shopAdmin      refund(orderId) (the shop's own refundOrder, as the test owner)
 //   wait(what, test, { timeoutMs }) resolves with test()'s first truthy answer, or throws "<what> didn't happen in …"
 //   state          what earlier checks found (orderId, stock before), for later ones
-import { TEST_PRINTED_IDS } from "../setup/test-catalogue.js";
+import { TEST_PRINTED_IDS, stockedIds } from "../setup/test-catalogue.js";
+import { testShopKind } from "../setup/testShopPlace.js";
 
+/** The book test shop's item the check buys. */
 export const BOOK = TEST_PRINTED_IDS[0];
+/** What the check buys on a test shop: its first stocked, linked item (a book, or a tote bag on the general shop). */
+export const itemFor = (shop) => stockedIds(testShopKind(shop))[0];
 export const COLLECTION = "publications";
 export const PAID_WITHIN_MS = 60_000;
 export const STOCKROOM_WITHIN_MS = 5 * 60_000;
@@ -50,7 +54,7 @@ export const CHECKS = [
     number: 1,
     name: "Home, book and collection pages load with prices",
     async run(ctx) {
-      const { problems } = await ctx.browser.pagesLoad({ siteUrl: ctx.urls.site, bookSlug: BOOK, collection: COLLECTION });
+      const { problems } = await ctx.browser.pagesLoad({ siteUrl: ctx.urls.site, bookSlug: itemFor(ctx.shop), collection: COLLECTION });
       if (problems.length) throw new Error(problems.join("; "));
     },
   },
@@ -66,16 +70,16 @@ export const CHECKS = [
     async run(ctx) {
       // The counts before the purchase. The stockroom publishes its count only while open, so it is opened first if
       // it hasn't published one yet.
-      const shopStock = stockOf(await ctx.shopData.book(BOOK));
-      if (shopStock === null) throw new Error(`the test book ${BOOK} is missing or doesn't track stock; setup step 12 adds it`);
-      if (shopStock < 1) throw new Error(`the test book ${BOOK} is sold out; a person restocks the test shop`);
-      let feed = await ctx.stockroomData.feed(BOOK);
+      const shopStock = stockOf(await ctx.shopData.book(itemFor(ctx.shop)));
+      if (shopStock === null) throw new Error(`the test item ${itemFor(ctx.shop)} is missing or doesn't track stock; setup step 12 adds it`);
+      if (shopStock < 1) throw new Error(`the test item ${itemFor(ctx.shop)} is sold out; reset the test shop's sample data in the control room`);
+      let feed = await ctx.stockroomData.feed(itemFor(ctx.shop));
       if (!feed) {
         await stockroomOpen(ctx);
-        feed = await ctx.wait("the stockroom publishing its count", () => ctx.stockroomData.feed(BOOK), { timeoutMs: STOCKROOM_WITHIN_MS });
+        feed = await ctx.wait("the stockroom publishing its count", () => ctx.stockroomData.feed(itemFor(ctx.shop)), { timeoutMs: STOCKROOM_WITHIN_MS });
       }
       ctx.state.before = { shop: shopStock, stockroom: Number(feed.onHand) };
-      const { orderId } = await ctx.browser.buy({ siteUrl: ctx.urls.site, bookSlug: BOOK, email: ctx.inbox });
+      const { orderId } = await ctx.browser.buy({ siteUrl: ctx.urls.site, bookSlug: itemFor(ctx.shop), email: ctx.inbox });
       ctx.state.orderId = orderId;
       return { orderId };
     },
@@ -99,7 +103,7 @@ export const CHECKS = [
     needsPayment: true,
     async run(ctx) {
       const { before, orderId } = ctx.state;
-      const shopStock = stockOf(await ctx.shopData.book(BOOK));
+      const shopStock = stockOf(await ctx.shopData.book(itemFor(ctx.shop)));
       if (shopStock !== before.shop - 1) throw new Error(`the shop's stock went from ${before.shop} to ${shopStock}, not ${before.shop - 1}`);
       await stockroomOpen(ctx);
       await ctx.wait("the stockroom bringing the order in", async () => {
@@ -107,7 +111,7 @@ export const CHECKS = [
         return doc?.imported && doc.pending === false;
       }, { timeoutMs: STOCKROOM_WITHIN_MS });
       const counted = await ctx.wait("the stockroom count going down by one", async () => {
-        const onHand = Number((await ctx.stockroomData.feed(BOOK))?.onHand);
+        const onHand = Number((await ctx.stockroomData.feed(itemFor(ctx.shop)))?.onHand);
         return onHand === before.stockroom - 1 ? { onHand } : null;
       }, { timeoutMs: STOCKROOM_WITHIN_MS });
       return { shop: shopStock, stockroom: counted.onHand };
@@ -152,8 +156,8 @@ export const CHECKS = [
       await ctx.shopAdmin.refund(orderId);
       // "refunded" is written when Stripe's own refund event reaches the shop, so it is Stripe that says so.
       await ctx.wait("the order showing as refunded", async () => (await ctx.shopData.order(orderId))?.paymentStatus === "refunded", { timeoutMs: REFUND_WITHIN_MS });
-      await ctx.wait("the shop's stock going back up", async () => stockOf(await ctx.shopData.book(BOOK)) === before.shop, { timeoutMs: REFUND_WITHIN_MS });
-      await ctx.wait("the stockroom count going back up", async () => Number((await ctx.stockroomData.feed(BOOK))?.onHand) === before.stockroom, { timeoutMs: STOCKROOM_WITHIN_MS });
+      await ctx.wait("the shop's stock going back up", async () => stockOf(await ctx.shopData.book(itemFor(ctx.shop))) === before.shop, { timeoutMs: REFUND_WITHIN_MS });
+      await ctx.wait("the stockroom count going back up", async () => Number((await ctx.stockroomData.feed(itemFor(ctx.shop)))?.onHand) === before.stockroom, { timeoutMs: STOCKROOM_WITHIN_MS });
     },
   },
   {

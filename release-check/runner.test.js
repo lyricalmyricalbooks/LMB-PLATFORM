@@ -111,7 +111,7 @@ test("a sold-out test book stops check 2 for a person, before anything is bought
   shop.world.books[BOOK].stockLevel = 0;
   const result = await run();
   assert.equal(result.failedCheck, 2);
-  assert.match(result.error, /sold out; a person restocks/);
+  assert.match(result.error, /sold out; reset the test shop.s sample data/);
   assert.ok(!shop.world.calls.includes("buy"));
 });
 

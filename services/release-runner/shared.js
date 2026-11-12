@@ -6,9 +6,11 @@
 //      stamped with the release;
 //   2. the shared server's code, with the server's own settings (`sharedServerEnv`: the same for every shop; each
 //      shop's own settings are fields of its record);
-//   3. the one Hosting site, the front door for every shop, with the stockroom under /stockroom;
+//   3. the one Hosting site, the front door for every shop, with the stockroom under /stockroom (in the test project
+//      it is copied to each test shop's own site too: `extraSites`);
 //   4. a check: every part's stamp is this release, one shop in the project answers at its own address (home, /admin,
-//      its profile, the stockroom), and in the test project the full release check passes on the test shop;
+//      its profile, the stockroom), and in the test project every test shop answers and passes the full release check
+//      (the book test shop and the general one, setup/testShopPlace.js);
 //   5. each shop's own pages drawn again from its own books (setup/shopSite.js), one shop at a time. A shop whose
 //      pages fail keeps its last good ones (nothing is uploaded), is listed, and the release goes on: the code is the
 //      same for every shop, so one shop's catalogue never holds the others back.
@@ -107,8 +109,8 @@ export async function runSharedRelease({
 
   const rows = (await registry.listShops()).filter((row) => row?.shared === true && row.status === "live" && row.closing?.stage !== "deleted");
   const shopsOf = (projectId) => rows.filter((row) => row.projectId === projectId).sort((a, b) => a.shopId.localeCompare(b.shopId));
-  const testShop = shopsOf(projects[0].projectId).find((row) => row.testShop === true);
-  if (!testShop) {
+  const testShops = shopsOf(projects[0].projectId).filter((row) => row.testShop === true);
+  if (!testShops.length) {
     const error = `${projects[0].projectId} has no live test shop, so the release has nowhere to be tried first`;
     print(`Release ${version} can't start: ${error}.`);
     return { ok: false, version, error, projects: [] };
@@ -140,7 +142,8 @@ export async function runSharedRelease({
       return { ok: false, version, error, projects: results };
     }
     const ctx = { deploy, siteCheck, releaseCheck, builder, envFile, region, print, now, runId, registry, auditLog, publishShop, keepOnFailedCheck, drawn: new Set() };
-    for (const [index, project] of projects.entries()) {
+    for (const [index, given] of projects.entries()) {
+      const project = given.test ? { ...given, extraSites: extraSites(given.projectId, testShops) } : given;
       if (!(await registry.takeLock(SHARED_RELEASE_LOCK, lockFor())).taken) {
         error = "the release lock was taken over by another run";
         break;
@@ -150,8 +153,8 @@ export async function runSharedRelease({
         error = `releases were paused by ${pausedNow.by} (${pausedNow.reason}) before ${project.projectId}`;
         break;
       }
-      const sample = project.test ? testShop : shopsOf(project.projectId)[0] ?? null;
-      const result = await releaseProject(ctx, project, sample, version);
+      const samples = project.test ? testShops : shopsOf(project.projectId).slice(0, 1);
+      const result = await releaseProject(ctx, project, samples, version);
       if (result.status === "shipped" || result.status === "already-on" || result.status === "kept-check-failed") {
         result.pages = await publishAll(ctx, shopsOf(project.projectId), version);
       }
@@ -202,7 +205,7 @@ export async function firstSharedRelease({
   try {
     await builder.build(version);
     await ship({ deploy, envFile, region, ...(sleep ? { sleep } : {}) }, projectId, version);
-    const problems = await checkProject({ deploy }, { projectId }, null, version);
+    const problems = await checkProject({ deploy }, { projectId }, [], version);
     if (problems.length) error = problems.join("; ");
   } catch (shipError) {
     error = `the first release failed: ${message(shipError)}`;
@@ -215,23 +218,23 @@ export async function firstSharedRelease({
 }
 
 /** One project: deploy, check, and go back to the release before on a failed check. */
-async function releaseProject(ctx, project, sample, version) {
+async function releaseProject(ctx, project, samples, version) {
   const { deploy, print } = ctx;
   const { projectId } = project;
   const previous = usable((await deploy.deployed(projectId, "rules"))?.version);
   if (previous === version) {
-    const problems = await checkProject(ctx, project, sample, version);
+    const problems = await checkProject(ctx, project, samples, version);
     if (!problems.length) {
       print(`${projectId} is already on ${version}.`);
       return { status: "already-on", previous };
     }
   }
   try {
-    await ship(ctx, projectId, version);
-    await drawSample(ctx, project, sample, version);
-    const broken = await checkParts(ctx, project, sample, version);
-    if (broken.length) return rollBack(ctx, project, sample, version, previous, broken.join("; "));
-    const { problems: refused, waiting } = await checkPurchase(ctx, project, sample, version);
+    await ship(ctx, projectId, version, project.extraSites);
+    await drawSample(ctx, project, samples, version);
+    const broken = await checkParts(ctx, project, samples, version);
+    if (broken.length) return rollBack(ctx, project, samples, version, previous, broken.join("; "));
+    const { problems: refused, waiting } = await checkPurchase(ctx, project, samples, version);
     if (!refused.length) {
       print(waiting ? `${projectId}: ${version} sent and checked, but the test purchase waits: ${waiting}. Real shops can't get it until a purchase passes.` : `${projectId}: ${version} sent and checked.`);
       return { status: "shipped", previous: previous ?? null, ...(waiting ? { waiting } : {}) };
@@ -242,22 +245,22 @@ async function releaseProject(ctx, project, sample, version) {
       print(`${projectId}: ${version} stays on the test shop to look at, but ${refused.join("; ")}, so it can't go to real shops.`);
       return { status: "kept-check-failed", previous: previous ?? null, error: refused.join("; ") };
     }
-    return rollBack(ctx, project, sample, version, previous, refused.join("; "));
+    return rollBack(ctx, project, samples, version, previous, refused.join("; "));
   } catch (deployError) {
-    return rollBack(ctx, project, sample, version, previous, `the deploy failed: ${message(deployError)}`);
+    return rollBack(ctx, project, samples, version, previous, `the deploy failed: ${message(deployError)}`);
   }
 }
 
-async function rollBack(ctx, project, sample, version, previous, error) {
+async function rollBack(ctx, project, samples, version, previous, error) {
   ctx.print(`${project.projectId}: ${error}.`);
   if (!previous || previous === version) {
     return { status: "failed", previous: previous ?? null, error: `${error}; there is no earlier release to go back to, so a person looks at it` };
   }
   try {
     await ctx.builder.build(previous);
-    await ship(ctx, project.projectId, previous);
-    await drawSample(ctx, project, sample, previous);
-    const problems = await checkProject(ctx, project, sample, previous);
+    await ship(ctx, project.projectId, previous, project.extraSites);
+    await drawSample(ctx, project, samples, previous);
+    const problems = await checkProject(ctx, project, samples, previous);
     if (problems.length) throw new Error(problems.join("; "));
     ctx.print(`${project.projectId}: back on ${previous}.`);
     return { status: "rolled-back", previous, error };
@@ -267,22 +270,40 @@ async function rollBack(ctx, project, sample, version, previous, error) {
 }
 
 /**
- * The checked shop's own pages, drawn from the same build before it is checked. Sending the site replaces its script
+ * The test project's Hosting sites besides its own: each test shop that answers at a `<site>.web.app` of its own (the
+ * general test shop, setup/testShopPlace.js). A release copies the project's site to each, so every test shop runs it.
+ */
+export function extraSites(projectId, testShops = []) {
+  const sites = new Set();
+  for (const row of testShops) {
+    const site = /^([a-z0-9][a-z0-9-]{4,61}[a-z0-9])\.web\.app$/.exec(String(row?.freeAddress ?? "").toLowerCase())?.[1];
+    if (site && site !== projectId) sites.add(site);
+  }
+  return [...sites].sort();
+}
+
+/**
+ * The checked shops' own pages, drawn from the same build before they are checked. Sending the site replaces its script
  * files, so pages drawn from the build before point at files that are gone: checked like that the shop can't load,
  * the purchase times out and a good release is rolled back (10 November 2026). Every other shop is drawn after.
  */
-async function drawSample({ publishShop, print, drawn }, project, sample, version) {
-  if (!project.test || !sample || !publishShop) return;
-  try {
-    await publishShop(sample, version);
-    drawn?.add(`${sample.shopId}@${version}`);
-  } catch (error) {
-    print(`${sample.shopId}: its pages weren't drawn before the check (${message(error)}).`);
+async function drawSample({ publishShop, print, drawn }, project, samples, version) {
+  if (!project.test || !publishShop) return;
+  for (const sample of samples ?? []) {
+    try {
+      await publishShop(sample, version);
+      drawn?.add(`${sample.shopId}@${version}`);
+    } catch (error) {
+      print(`${sample.shopId}: its pages weren't drawn before the check (${message(error)}).`);
+    }
   }
 }
 
-/** Rules, then the server code, then the site: the order the shop's own deploy uses, so new pages never meet old rules. */
-async function ship({ deploy, envFile, region, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }, projectId, version) {
+/**
+ * Rules, then the server code, then the site: the order the shop's own deploy uses, so new pages never meet old rules.
+ * The site then goes to each of the project's `extraSites` too (a test shop at a site of its own).
+ */
+async function ship({ deploy, envFile, region, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }, projectId, version, sites = []) {
   await deploy.rules(projectId, { version, apps: [...SHARED_APPS] });
   try {
     await deploy.functions(projectId, { version, region, envFile });
@@ -294,23 +315,25 @@ async function ship({ deploy, envFile, region, sleep = (ms) => new Promise((r) =
     await deploy.functions(projectId, { version, region, envFile });
   }
   await deploy.pages(projectId, { version, app: "shop" });
+  for (const site of sites) await deploy.copySite(projectId, { site, version });
 }
 
 /** What is wrong with the project on `version`, in plain words; empty when it passes. */
-export async function checkProject(ctx, project, sample, version) {
-  const problems = await checkParts(ctx, project, sample, version);
-  return problems.length ? problems : (await checkPurchase(ctx, project, sample, version)).problems;
+export async function checkProject(ctx, project, samples, version) {
+  const problems = await checkParts(ctx, project, samples, version);
+  return problems.length ? problems : (await checkPurchase(ctx, project, samples, version)).problems;
 }
 
-/** Every part on `version`, and one shop answering at its addresses. */
-async function checkParts({ deploy, siteCheck }, project, sample, version) {
+/** Every part on `version` (each extra site too), and each sample shop answering at its addresses. */
+async function checkParts({ deploy, siteCheck }, project, samples, version) {
   const problems = [];
-  for (const part of ["rules", "functions", "pages:shop"]) {
+  const parts = ["rules", "functions", "pages:shop", ...(project.extraSites ?? []).map((site) => `site:${site}`)];
+  for (const part of parts) {
     const live = await deploy.deployed(project.projectId, part);
     if (live?.version !== version) problems.push(`its ${part} are on ${live?.version ?? "nothing"}, not ${version}`);
   }
   if (problems.length) return problems;
-  if (sample) {
+  for (const sample of samples ?? []) {
     const { site, stockroom } = shopPlaces(sample);
     for (const url of [site, `${site}/admin`, `${site}/shop-profile.js`, stockroom]) {
       const { status, problems: found = [] } = await siteCheck.get(url);
@@ -321,18 +344,24 @@ async function checkParts({ deploy, siteCheck }, project, sample, version) {
 }
 
 /**
- * In the test project, the full release check on the test shop (a purchase, the stockroom, the admin, a refund).
- * `{ problems, waiting }`. A check that couldn't buy because the test shop's card payments aren't connected yet
- * (release-check/runner.js `waiting`) passes a merge's own update of the test shop, with `waiting` saying why, and is a
- * problem everywhere else: no version reaches a real shop without a test purchase.
+ * In the test project, the full release check on every test shop (a purchase, the stockroom, the admin, a refund).
+ * `{ problems, waiting }`. A check that couldn't buy because a test shop's card payments aren't connected yet
+ * (release-check/runner.js `waiting`) passes a merge's own update of the test shops, with `waiting` saying why, and is a
+ * problem everywhere else: no version reaches a real shop without a test purchase on each test shop.
  */
-async function checkPurchase({ releaseCheck, keepOnFailedCheck }, project, sample, version) {
+async function checkPurchase({ releaseCheck, keepOnFailedCheck }, project, samples, version) {
   if (project.test !== true) return { problems: [] };
-  const result = await releaseCheck(sample.shopId, version);
-  if (!result?.ok) return { problems: [`the release check failed: ${result?.error ?? "no result"}`] };
-  if (!result.waiting) return { problems: [] };
-  if (keepOnFailedCheck === true) return { problems: [], waiting: result.waiting };
-  return { problems: [`the release check couldn't make a test purchase: ${result.waiting}`] };
+  const problems = [];
+  const waits = [];
+  const many = (samples ?? []).length > 1;
+  for (const sample of samples ?? []) {
+    const who = many ? `${sample.shopId}: ` : "";
+    const result = await releaseCheck(sample.shopId, version);
+    if (!result?.ok) problems.push(`${who}the release check failed: ${result?.error ?? "no result"}`);
+    else if (result.waiting && keepOnFailedCheck === true) waits.push(`${who}${result.waiting}`);
+    else if (result.waiting) problems.push(`${who}the release check couldn't make a test purchase: ${result.waiting}`);
+  }
+  return problems.length || !waits.length ? { problems } : { problems, waiting: waits.join("; ") };
 }
 
 /** Every shop's own pages, one at a time. A failure keeps the shop's last good pages and is listed, never fatal. */
