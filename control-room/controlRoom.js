@@ -39,6 +39,7 @@ import { setupSummary } from "./setupPresses.js";
 import { sellsFacts, sellsLine } from "./shopSells.js";
 import { sellsOf } from "../shared/sells/sells.js";
 import { testShopDocs } from "../setup/test-catalogue.js";
+import { writeTestSamples } from "../setup/test-sample-data.js";
 import { testShopKind } from "../setup/testShopPlace.js";
 import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";
@@ -223,7 +224,7 @@ export async function eachInTurn(items, limit, work) {
 }
 
 export function createControlRoom({
-  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, settings, supportStore, recoveryStore, signups, platformState, stripePublishableKeys = {}, googleSteps, googleReady, taxWatch, feeDefaults = NO_FEE, accessRequests, admins, now = () => new Date(), delivery, presses = null, parcels = null,
+  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, stockroomData = null, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, settings, supportStore, recoveryStore, signups, platformState, stripePublishableKeys = {}, googleSteps, googleReady, taxWatch, feeDefaults = NO_FEE, accessRequests, admins, now = () => new Date(), delivery, presses = null, parcels = null,
 }) {
   const at = () => now().toISOString();
 
@@ -416,9 +417,10 @@ export function createControlRoom({
     },
 
     /**
-     * Reset the sample books (9.10): the test shop's starter books and shipping zone go back to how setup step 12 made
-     * them, 5 copies each (setup/test-catalogue.js). Only the test shop; its orders, settings and stockroom stay as they
-     * are. Logged.
+     * Reset the sample data (9.10): the test shop's starter products and shipping zone go back to how setup step 12 made
+     * them, 5 copies each (setup/test-catalogue.js), and its sample records are written again with today's dates
+     * (setup/test-sample-data.js: past orders, a code, reviews and, when the stockroom answers, the stockroom's sample
+     * history). Only the test shop; its other orders, settings and stockroom items stay as they are. Logged.
      */
     async resetTestShop(claims, { shopId } = {}) {
       const by = adminOf(claims, admins, now().getTime());
@@ -426,10 +428,13 @@ export function createControlRoom({
       if (row.testShop !== true) throw new ControlError(409, "Only a test shop's sample products can be reset.");
       if (row.status !== "live") throw new ControlError(409, "That test shop isn't live yet, so there are no sample products to reset.");
       if (!shopData) throw new ControlError(503, "The control room can't reach the test shop's products, so nothing was reset.");
-      const docs = testShopDocs(testShopKind(row));
+      const kind = testShopKind(row);
+      const docs = testShopDocs(kind);
       await log(shopId, "test-shop-reset", { by, books: docs.map((d) => d.path) });
       for (const { path, data } of docs) await shopData.set(shopId, path, data);
-      return { shopId, reset: docs.length };
+      const stockroom = stockroomData && (await stockroomData.ready(shopId)) ? stockroomData : null;
+      const samples = await writeTestSamples({ shop: shopData, stockroom }, shopId, kind, { replace: true, now: now(), pressName: row.pressName });
+      return { shopId, reset: docs.length, samples: samples.length, stockroom: Boolean(stockroom) };
     },
 
     /**

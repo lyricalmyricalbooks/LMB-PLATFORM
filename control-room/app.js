@@ -2157,7 +2157,7 @@ $("#settings-form").addEventListener("submit", async (event) => {
 // ── Activity log (plan 9.9): read only. ──
 const ACTIVITY_WORDS = {
   "settings-changed": "changed the platform settings", "waitlist-invite": "invited someone from the waitlist", "payment-reminder": "sent a payment reminder", "saved-replies": "changed the saved replies", "first-sale-tips": "sent first-sale tips", "today-note": "wrote a note on Today", "switch-set": "set a switch",
-  "act-as": "opened the shop's admin as support", "two-step-reset": "turned off two-step sign-in for someone", "test-shop-reset": "reset the test shop's sample books", "google-run-again": "ran a Google step again", "shop-closed": "closed the shop", "shop-reopened": "opened the shop again",
+  "act-as": "opened the shop's admin as support", "two-step-reset": "turned off two-step sign-in for someone", "test-shop-reset": "reset the test shop's sample data", "google-run-again": "ran a Google step again", "shop-closed": "closed the shop", "shop-reopened": "opened the shop again",
   "newsletter-resumed": "turned the newsletter back on", "fee-change-scheduled": "changed the fee on each order (starts in 30 days)",
   "fee-change-cancelled": "cancelled a waiting fee change", "new-shop-switch": "changed what new shops start with", "signup-retry": "tried making the shop again", "plan-change-retry": "tried the plan change again",
   "access-asked": "asked the press for a yes to make changes",
