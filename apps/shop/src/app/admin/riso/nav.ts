@@ -203,6 +203,7 @@ export function menuItemFor(page: string, menu: Menu = MENU): string {
 
 export const PAGE_COPY: Record<string, { title: string; description: string }> = {
   overview: { title: "Overview", description: "Sales, orders, and catalog health at a glance." },
+  alerts: { title: "Alerts", description: "Things in your shop that need you, most urgent first." },
   analytics: { title: "Analytics", description: "Who visits your shop, where they come from and what they look at." },
   orders: { title: "Orders", description: "Review payments, fulfillment, and shipping for every order." },
   customers: { title: "Customers", description: "Who buys from you: lifetime value, repeat buyers, and customers to win back." },

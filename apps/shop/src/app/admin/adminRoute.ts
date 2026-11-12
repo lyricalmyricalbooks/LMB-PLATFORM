@@ -8,7 +8,7 @@ import { DEFAULT_STOCKROOM_PAGE, REORDER_TAB, SALES_TAB, STOCKROOM_TAB, combined
 
 export type AdminRoute = { tab: string; settingsTab?: string; orderId?: string; giftCardId?: string; subTab?: string; bookId?: string };
 
-export const ADMIN_TABS = ["overview", "analytics", "orders", "customers", "inventory", "catalog", "discounts", "giftCards", "reviews", "messages", "channels", "socialPosts", "design", "settings"] as const;
+export const ADMIN_TABS = ["overview", "alerts", "analytics", "orders", "customers", "inventory", "catalog", "discounts", "giftCards", "reviews", "messages", "channels", "socialPosts", "design", "settings"] as const;
 /** Old Settings page ids that now open another page (Email sender was merged into the one email page). */
 // QuickBooks moved into Settings › Apps (12 November 2026): its old address opens Apps with QuickBooks open.
 export const SETTINGS_TAB_ALIASES: Record<string, string> = { communications: "notifications", bookkeeping: "apps" };

@@ -19,6 +19,8 @@ import { nightlyBackupApi } from "../app/admin/BackupsExportCard";
 import { copiesIO, readManifest, snapshotOf } from "../app/admin/stockroom/stockroomCopies";
 
 // Stockroom › To-do: two titles, one nearly sold out and one with nothing waiting (`?stock=empty`: nothing at all).
+// Read at load: the fixture puts the address back to the page it opens, so later reads would miss it.
+const SAMPLE_ALERTS = new URLSearchParams(window.location.search).get("alerts") === "1";
 const EMPTY_STOCKROOM = new URLSearchParams(window.location.search).get("stock") === "empty";
 stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { books: [], states: {}, taxCenter: null } : {
   books: [{ id: "salt-hours", title: "Salt Hours", author: "Ada Example", maxPrint: 200, threshold: 10, listPrice: 20 }, { id: "night-songs", title: "Night Songs", author: "Ben Example", maxPrint: 150, threshold: 10, listPrice: 18 }],
@@ -372,7 +374,15 @@ const known: Record<string, (...a: any[]) => any> = {
     return rows;
   },
   // A list, though its name doesn't end like one: the Overview's alerts read it on the way back from an order.
-  getRecentEmailLog: async () => [],
+  // `&alerts=1`: two emails that didn't go through and one waiting to send again, so the Alerts page has tiles.
+  getStripeWebhookStatus: async () => null,
+  getBackupStatus: async () => undefined,
+  getClientErrors: async () => [],
+  getRecentEmailLog: async () => SAMPLE_ALERTS ? [
+    { id: "e1", status: "failed", at: new Date(Date.now() - 3_600_000).toISOString(), to: "reader@example.com" },
+    { id: "e2", status: "bounced", at: new Date(Date.now() - 7_200_000).toISOString(), to: "fan@example.com" },
+    { id: "e3", status: "queued", outboxId: "q1", at: new Date(Date.now() - 600_000).toISOString() },
+  ] : [],
   getAdminBadgeCounts: async () => ({ pendingReviews: 0, unreadMessages: 0, openPrivacyRequests: 0 }),
   listNewsletterIssues: async () => [
     { id: "n2", subject: "Spring list and where to find us", status: "paused", audience: 42, sent: 18, lastError: "Sending stopped after 5 failed tries in a row. Check Settings › Email sender, then press Resume.", createdAt: new Date(Date.now() - 600_000).toISOString() },
