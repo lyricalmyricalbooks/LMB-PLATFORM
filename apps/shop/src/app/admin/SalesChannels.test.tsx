@@ -4,7 +4,7 @@
 import { act, createElement as h } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { connectOutcome, fromLocalInput, inFilter, localInputValue, maybeNotJpeg, postPhotos, postablePlaces, starterCaption } from "./socialChannels";
+import { PROFILE_LINKS, profileLink, connectOutcome, fromLocalInput, inFilter, localInputValue, maybeNotJpeg, postPhotos, postablePlaces, starterCaption } from "./socialChannels";
 
 const api = vi.hoisted(() => ({ social: vi.fn(), getAllBooks: vi.fn() }));
 vi.mock("./api", () => ({ adminApi: api }));
@@ -121,6 +121,7 @@ describe("Sales channels", () => {
     expect(card("tiktok").querySelector("button")).toBeNull();
     await pick("Pinterest", "Set up by hand");
     expect(text()).toContain("Feed address");
+    expect(text()).toContain("utm_source=instagram&utm_medium=social&utm_campaign=bio");
     expect(api.getAllBooks).toHaveBeenCalled();
   });
 
@@ -238,5 +239,12 @@ describe("Social posts", () => {
     await click("Try again");
     expect(api.social).toHaveBeenCalledWith("retryPost", { id: "p9" });
     expect(text()).toContain("Posted.");
+  });
+});
+
+describe("profile links", () => {
+  it("marks the shop's address with where the visit came from", () => {
+    expect(profileLink("https://shop.example", PROFILE_LINKS[0])).toBe("https://shop.example/?utm_source=instagram&utm_medium=social&utm_campaign=bio");
+    expect(profileLink("https://shop.example/store/?x=1#y", PROFILE_LINKS[2])).toBe("https://shop.example/store/?utm_source=pinterest&utm_medium=social&utm_campaign=profile");
   });
 });

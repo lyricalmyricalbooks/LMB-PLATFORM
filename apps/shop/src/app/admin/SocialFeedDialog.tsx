@@ -5,6 +5,7 @@ import { SOCIAL_FEED_FILE, merchantFeedItems } from "../features/site/merchantFe
 import { Dialog, PrimaryButton, SecondaryButton, StatusBadge } from "./riso/components";
 import { useShopWords } from "./shopWords";
 import { productSegment } from "../lib/productHref";
+import { PROFILE_LINKS, profileLink } from "./socialChannels";
 
 const base = () => `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}`;
 const feedUrl = () => `${base()}/${SOCIAL_FEED_FILE}`;
@@ -29,8 +30,8 @@ export function SocialFeedDialog({ open, onClose, books }: { open: boolean; onCl
     return () => { cancelled = true; };
   }, [open]);
 
-  const copy = async () => {
-    try { await navigator.clipboard.writeText(feedUrl()); toast.success("Feed address copied"); }
+  const copy = async (text = feedUrl(), what = "Feed address") => {
+    try { await navigator.clipboard.writeText(text); toast.success(`${what} copied`); }
     catch { toast.error("Couldn't copy. Select the address and copy it instead."); }
   };
 
@@ -43,7 +44,7 @@ export function SocialFeedDialog({ open, onClose, books }: { open: boolean; onCl
           <strong>Feed address</strong>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
             <code className="rp-mono" style={{ overflowWrap: "anywhere", userSelect: "all", minWidth: 0, flex: "1 1 200px" }}>{feedUrl()}</code>
-            <SecondaryButton size="sm" icon={<Copy size={14} aria-hidden />} onClick={copy}>Copy</SecondaryButton>
+            <SecondaryButton size="sm" icon={<Copy size={14} aria-hidden />} onClick={() => copy()}>Copy</SecondaryButton>
           </div>
           <div aria-live="polite">
             {live === "checking" && <StatusBadge tone="neutral">Checking the live site…</StatusBadge>}
@@ -59,6 +60,21 @@ export function SocialFeedDialog({ open, onClose, books }: { open: boolean; onCl
             {w("The same listings as your Google Shopping feed: every published book you can buy today, one per edition, with its price, sale and stock. It updates when you publish changes.")}
             {feed.skipped.length > 0 && " Items left out have no price or no photo; both sites need a photo."}
           </p>
+        </div>
+
+        <div className="rp-stack" style={{ gap: 8 }}>
+          <strong>Links for your profiles</strong>
+          <p className="rp-hint" style={{ margin: 0 }}>Use these as your shop link, so Analytics shows the sales each one brings.</p>
+          {PROFILE_LINKS.map((link) => {
+            const url = profileLink(base(), link);
+            return (
+              <div key={link.id} style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                <span style={{ flex: "0 0 140px" }}>{link.name}</span>
+                <code className="rp-mono" style={{ overflowWrap: "anywhere", userSelect: "all", minWidth: 0, flex: "1 1 200px" }}>{url}</code>
+                <SecondaryButton size="sm" icon={<Copy size={14} aria-hidden />} aria-label={`Copy the ${link.name} link`} onClick={() => copy(url, "Link")}>Copy</SecondaryButton>
+              </div>
+            );
+          })}
         </div>
 
         <div className="rp-stack" style={{ gap: 8 }}>
