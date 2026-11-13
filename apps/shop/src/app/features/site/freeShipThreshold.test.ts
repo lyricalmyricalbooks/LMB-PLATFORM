@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bagFreeShipThreshold, shopFreeShipThreshold } from "./freeShipThreshold";
+import { bagFreeShipThreshold, bestFreeShipThreshold, offerFreeShipThreshold, shopFreeShipThreshold } from "./freeShipThreshold";
 
 describe("bag free-shipping threshold", () => {
   it("uses a profile's own free-shipping amount (new or legacy field)", () => {
@@ -20,5 +20,28 @@ describe("bag free-shipping threshold", () => {
     expect(bagFreeShipThreshold([], true)).toBeNull();
     expect(bagFreeShipThreshold([{ freeShippingOver: 60 }], false)).toBeNull();
     expect(bagFreeShipThreshold([{ freeShippingOver: 60 }], true)).toBe(60);
+  });
+});
+
+describe("free-shipping offers without a code", () => {
+  const offer = (extra: any = {}) => ({ id: "o1", type: "freeship", method: "automatic", minOrderAmount: 60, ...extra });
+  it("counts an offer every shopper gets, lowest minimum first", () => {
+    expect(offerFreeShipThreshold([offer(), offer({ id: "o2", minOrderAmount: 40 })])).toBe(40);
+    expect(offerFreeShipThreshold([offer({ minOrderAmount: null })])).toBe(0);
+  });
+  it("makes no promise when a money-off offer could win instead", () => {
+    expect(offerFreeShipThreshold([offer(), { id: "p", type: "percentage", value: 10 }])).toBeNull();
+  });
+  it("leaves out offers the bag can't judge", () => {
+    for (const extra of [{ appliesTo: "categories" }, { minQuantity: 3 }, { onePerCustomer: true }, { allowedEmailDomains: "school.ca" }, { allowedCustomerEmails: "a@example.com" }, { restricted: true }]) {
+      expect(offerFreeShipThreshold([offer(extra)])).toBeNull();
+    }
+    expect(offerFreeShipThreshold(null)).toBeNull();
+  });
+  it("takes whichever free shipping comes first", () => {
+    expect(bestFreeShipThreshold(75, 50)).toBe(50);
+    expect(bestFreeShipThreshold(null, 50)).toBe(50);
+    expect(bestFreeShipThreshold(75, null)).toBe(75);
+    expect(bestFreeShipThreshold(null, null)).toBeNull();
   });
 });

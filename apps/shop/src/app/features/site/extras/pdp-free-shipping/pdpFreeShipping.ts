@@ -2,7 +2,7 @@
 // Style › Book page · photos & layout › showPdpFreeShipping (off by default). It promises only what the
 // bag's free-shipping bar promises (bagFreeShipThreshold: a rule that makes every option free everywhere),
 // counts printed books only (shippableBagTotal) and is display only: checkout still prices shipping.
-import { shopFreeShipThreshold, shippableBagTotal } from "../../freeShipThreshold";
+import { bestFreeShipThreshold, offerFreeShipThreshold, shopFreeShipThreshold, shippableBagTotal } from "../../freeShipThreshold";
 import { isPickupItem } from "../../pickupAvailability";
 
 export type PdpFreeShip =
@@ -20,10 +20,13 @@ export function pdpFreeShipping(
   book: any,
   variant: any,
   bagItems: Array<{ price: number; quantity: number; physical: boolean }> | null,
+  offers: any[] | null = null,
 ): PdpFreeShip | null {
   if (!profiles || !isPickupItem(book, variant)) return null;
-  const threshold = shopFreeShipThreshold(profiles);
-  if (!threshold) return null;
+  // A no-code free-shipping offer counts too (offerFreeShipThreshold); 0 = every order ships free.
+  const threshold = bestFreeShipThreshold(shopFreeShipThreshold(profiles), offerFreeShipThreshold(offers));
+  if (threshold == null) return null;
+  if (threshold === 0) return { kind: "free", threshold };
   const inBag = bagItems ? shippableBagTotal(bagItems, 0) : 0;
   if (inBag <= 0) return { kind: "over", threshold };
   const remaining = Math.round((threshold - inBag) * 100) / 100;
