@@ -4,6 +4,8 @@ import { googleFontHref } from "./fonts";
 import { loadStripe, type Stripe, type StripeElements } from "@stripe/stripe-js";
 import { createElementCleanup } from "./stripeLifecycle";
 import { readablePaymentText } from "./paymentContrast";
+import { linkPrefill, prefillChanged, type LinkPrefill } from "./linkPrefill";
+import type { StripePaymentElement } from "@stripe/stripe-js";
 
 export type StripeCardFormHandle = {
   /** Validates the form fields; returns an error message or null. */
@@ -61,7 +63,10 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
   accentColor?: string;
   fieldRadius?: number;
   style?: React.CSSProperties;
-}>(function StripeCardForm({ publishableKey, stripeAccount, amountCents, currency, loadingText, errorText, validationText, paymentErrorText, onStateChange, expressText, showExpress = true, wallets, expressEnabled = true, onExpressConfirm, fontName, fieldBackground, fieldText, fieldBorder, accentColor, fieldRadius, style }, ref) {
+  /** The shopper's email and name from checkout, so Link recognises a saved card (fast saved-card checkout). */
+  payerEmail?: string;
+  payerName?: string;
+}>(function StripeCardForm({ publishableKey, stripeAccount, amountCents, currency, loadingText, errorText, validationText, paymentErrorText, onStateChange, expressText, showExpress = true, wallets, expressEnabled = true, onExpressConfirm, fontName, fieldBackground, fieldText, fieldBorder, accentColor, fieldRadius, style, payerEmail, payerName }, ref) {
   const host = useRef<HTMLDivElement>(null);
   const expressHost = useRef<HTMLDivElement>(null);
   const expressCallbacks = useRef({ expressEnabled, onExpressConfirm });
@@ -70,6 +75,11 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
   const stripeRef = useRef<Stripe | null>(null);
   const elementsRef = useRef<StripeElements | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const paymentRef = useRef<StripePaymentElement | null>(null);
+  const prefill = linkPrefill(payerEmail, payerName);
+  const prefillRef = useRef<LinkPrefill | null>(prefill);
+  prefillRef.current = prefill || prefillRef.current;
+  const prefillSent = useRef<LinkPrefill | null>(null);
   const safeAmount = Math.max(50, Math.round(amountCents || 0));
   // The server's amount for the current attempt (see setAmount); null = follow the screen.
   const pinned = useRef<{ amount: number; currency: string } | null>(null);
@@ -151,7 +161,9 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
           },
         });
         const walletModes = walletChoice(wallets);
-        const payment = elements.create("payment", { layout: "tabs", wallets: walletModes });
+        const payment = elements.create("payment", { layout: "tabs", wallets: walletModes, ...(prefillRef.current ? { defaultValues: prefillRef.current } : {}) });
+        prefillSent.current = prefillRef.current;
+        paymentRef.current = payment;
         const releasePayment = createElementCleanup(payment);
         cleanup = releasePayment;
         if (showExpress && expressHost.current) {
@@ -189,10 +201,17 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
         fail();
       }
     })();
-    return () => { cancelled = true; clearTimeout(deadline); cleanup?.(); elementsRef.current = null; stripeRef.current = null; applied.current = null; };
+    return () => { cancelled = true; clearTimeout(deadline); cleanup?.(); paymentRef.current = null; elementsRef.current = null; stripeRef.current = null; applied.current = null; };
     // amount/currency changes are pushed with elements.update below
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [publishableKey, stripeAccount, fontName, fieldBackground, fieldText, fieldBorder, accentColor, fieldRadius, style?.background, showExpress]);
+
+  // Checkout's email or name changed after the form loaded: tell the form, so Link can offer the shopper's saved card.
+  useEffect(() => {
+    const payment = paymentRef.current;
+    if (!payment || !prefillChanged(prefillSent.current, prefill)) return;
+    try { payment.update({ defaultValues: prefill! }); prefillSent.current = prefill; } catch { /* the form still takes a typed card */ }
+  }, [state, prefill?.billingDetails.email, prefill?.billingDetails.name]);
 
   useEffect(() => {
     // During a payment attempt the server's amount stays in place (setAmount).

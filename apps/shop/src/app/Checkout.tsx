@@ -2113,6 +2113,8 @@ export function Checkout() {
                   fieldBorder={checkoutDesign.checkoutFieldBorder || undefined}
                   accentColor={checkoutDesign.checkoutAccentColor || undefined}
                   fieldRadius={checkoutDesign.checkoutInputRadius}
+                  payerEmail={customer.email}
+                  payerName={customer.name}
                   style={{
                     background: checkoutDesign.stripeFormBg || undefined,
                     padding: checkoutDesign.stripeFormPadding != null ? `${checkoutDesign.stripeFormPadding}px` : undefined,
