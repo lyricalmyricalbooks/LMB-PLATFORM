@@ -15,6 +15,7 @@ import { SALE_CHANNELS, blankSale } from "./recordSale";
 import type { StockroomRecords } from "./stockroomData";
 import "./stockroom.css";
 import "./sales.css";
+import { SHOP_CURRENCY } from "../moneySign";
 
 export function ManualSale({ records: loaded, onOpen }: { records: StockroomRecords; onOpen?: NativePageProps["onOpen"] }) {
   const w = useShopWords();
@@ -29,7 +30,7 @@ export function ManualSale({ records: loaded, onOpen }: { records: StockroomReco
       action={onOpen ? <SecondaryButton onClick={() => onOpen("dashboard")}>{w("Open Stock and sales")}</SecondaryButton> : undefined} />;
   }
   const book = records.books.find((b) => b.id === form.bookId);
-  const code = book ? bookCurrencyCode(book) : "CAD";
+  const code = book ? bookCurrencyCode(book) : SHOP_CURRENCY;
   const qty = Number(form.qty) || 0;
   const total = Math.round(qty * (Number(form.price) || 0) * 100) / 100;
   const onHand = book ? sale.onHand(book.id) : null;

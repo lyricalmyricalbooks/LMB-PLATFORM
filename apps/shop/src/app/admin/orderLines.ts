@@ -1,4 +1,4 @@
-import { MONEY_SIGN } from "./moneySign";
+import { MONEY_SIGN, SHOP_CURRENCY } from "./moneySign";
 // How admin order views describe the newer kinds of order line: paid add-ons (signed copy,
 // inscription, gift wrap), box sets and their books, gift cards and the free gift, plus the
 // automatic-discount label and gift-card payments. Pure, tested; shared by Order detail, the
@@ -93,15 +93,15 @@ export function linePricing(item: any): { unit: number; total: number; base: num
 /** What the payment was for, in minor units of its currency (mirrors functions/partialRefund.js). */
 export function chargedOf(order: any): { minor: number; currency: string } {
   const expected = Number(order?.expectedAmountMinor);
-  if (Number.isInteger(expected) && expected > 0) return { minor: expected, currency: String(order.expectedCurrency || order.checkoutCurrency || "CAD").toUpperCase() };
-  return { minor: Math.max(0, Math.round((Number(order?.total) || 0) * 100)), currency: String(order?.checkoutCurrency || "CAD").toUpperCase() };
+  if (Number.isInteger(expected) && expected > 0) return { minor: expected, currency: String(order.expectedCurrency || order.checkoutCurrency || SHOP_CURRENCY).toUpperCase() };
+  return { minor: Math.max(0, Math.round((Number(order?.total) || 0) * 100)), currency: String(order?.checkoutCurrency || SHOP_CURRENCY).toUpperCase() };
 }
 export const refundedMinor = (order: any) => Math.max(0, Math.floor(Number(order?.refundedAmountMinor) || 0));
 export const refundableMinor = (order: any) => Math.max(0, chargedOf(order).minor - refundedMinor(order));
 
 /** "CA$12.40", "US$9.00", "€5.00". */
-export function formatMinor(minor: number, currency = "CAD"): string {
-  const code = String(currency || "CAD").toUpperCase();
+export function formatMinor(minor: number, currency: string = SHOP_CURRENCY): string {
+  const code = String(currency || SHOP_CURRENCY).toUpperCase();
   const amount = (Number(minor) || 0) / 100;
   try { return new Intl.NumberFormat("en-CA", { style: "currency", currency: code }).format(amount); }
   catch { return `${amount.toFixed(2)} ${code}`; }
@@ -136,7 +136,7 @@ export function copiesValueMinor(order: any, copies: Record<number, number>): nu
   const valueCad = Object.entries(copies || {}).reduce((sum, [index, qty]) => sum + (Number(items[Number(index)]?.price) || 0) * Math.max(0, Number(qty) || 0), 0);
   const charged = chargedOf(order);
   const totalCad = Number(order?.total) || 0;
-  return charged.currency === "CAD" || !(totalCad > 0) ? Math.round(valueCad * 100) : Math.round(valueCad * charged.minor / totalCad);
+  return charged.currency === SHOP_CURRENCY || !(totalCad > 0) ? Math.round(valueCad * 100) : Math.round(valueCad * charged.minor / totalCad);
 }
 
 /**

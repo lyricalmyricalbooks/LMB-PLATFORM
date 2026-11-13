@@ -7,6 +7,7 @@ import { csvCell, csvRow } from "@stockroom/csv.js";
 import { calcArtistEarnings, payoutNetted, tierEffectiveCap } from "@stockroom/earnings.js";
 import { fileStem } from "@stockroom/shop-profile.js";
 import { getBookCurrencyCode, roundCents } from "@stockroom/money.js";
+import { SHOP_CURRENCY } from "../moneySign";
 
 type Row = Record<string, any>;
 export type TaxSeasonInput = { books: Row[]; states: Record<string, Row>; taxCenter: Row | null; fxRateCache: Record<string, number> };
@@ -14,8 +15,8 @@ export type TaxSeasonInput = { books: Row[]; states: Record<string, Row>; taxCen
 /** A foreign-currency expense with no value in dollars yet (main.js isExpenseAwaitingRate): it counts 0, never 1 to 1. */
 export function isExpenseAwaitingRate(e: Row | null | undefined): boolean {
   if (!e) return false;
-  const cur = String(e.currency || e.origCurrency || "CAD").toUpperCase();
-  return cur !== "CAD" && !(e.baseAmount || e.amountCAD) && (parseFloat(e.amount) || 0) > 0;
+  const cur = String(e.currency || e.origCurrency || SHOP_CURRENCY).toUpperCase();
+  return cur !== SHOP_CURRENCY && !(e.baseAmount || e.amountCAD) && (parseFloat(e.amount) || 0) > 0;
 }
 
 /** The author's share earned in one year, tiers walked over all-time sales (main.js filterArtistEarningsByYear). */
@@ -64,7 +65,7 @@ export function taxSeasonExport(input: TaxSeasonInput, year: string, { pressName
     return parseFloat(e.baseAmount || e.amountCAD || e.amount || 0);
   };
   const flagRateIfMissing = (book: Row, cur: string, rawRate: number | undefined, hasAmount: boolean) => {
-    if (hasAmount && cur && cur !== "CAD" && !rawRate) rateWarnings.set(book.id, { title: book.title, cur });
+    if (hasAmount && cur && cur !== SHOP_CURRENCY && !rawRate) rateWarnings.set(book.id, { title: book.title, cur });
   };
   const inYear = (d: unknown) => isAllTime || (typeof d === "string" && d.startsWith(year));
 
@@ -74,7 +75,7 @@ export function taxSeasonExport(input: TaxSeasonInput, year: string, { pressName
   for (const book of input.books) {
     const s = stateOf(book);
     const cur = getBookCurrencyCode(book);
-    const rawRate = fx[`${cur}_CAD`];
+    const rawRate = fx[`${cur}_${SHOP_CURRENCY}`];
     const hRate = rawRate || 1;
     let sold = 0, revenue = 0;
     for (const h of s.hist as Row[]) {
@@ -109,7 +110,7 @@ export function taxSeasonExport(input: TaxSeasonInput, year: string, { pressName
   for (const book of input.books) {
     const s = stateOf(book);
     const cur = getBookCurrencyCode(book);
-    const rawRate = fx[`${cur}_CAD`];
+    const rawRate = fx[`${cur}_${SHOP_CURRENCY}`];
     let any = false;
     for (const h of (s.hist || []) as Row[]) {
       if (!isInPersonSale(h) || (!isAllTime && !h.date.startsWith(year))) continue;
@@ -123,7 +124,7 @@ export function taxSeasonExport(input: TaxSeasonInput, year: string, { pressName
   csv += inPersonTax
     ? `${esc(`Tax: ${inPersonTax.name} at ${inPersonTax.rate}%, ${inPersonTax.included ? "included in the prices" : "added on top of the prices"}.`)}\n`
     : `${esc("No tax on in-person sales set (Tax centre › Tax on in-person sales): all of it is shown as sales before tax.")}\n`;
-  dayLineRows(inPersonDailyLines(inPersonSales, { tax: inPersonTax, currency: "CAD" })).forEach((row) => { csv += csvRow(row) + "\n"; });
+  dayLineRows(inPersonDailyLines(inPersonSales, { tax: inPersonTax, currency: SHOP_CURRENCY })).forEach((row) => { csv += csvRow(row) + "\n"; });
 
   // Section 2: All Expenses & Payouts
   csv += "\n--- ALL EXPENSES & PAYOUTS ---\n";
@@ -131,7 +132,7 @@ export function taxSeasonExport(input: TaxSeasonInput, year: string, { pressName
   for (const book of input.books) {
     const s = stateOf(book);
     const cur = getBookCurrencyCode(book);
-    const rawRate = fx[`${cur}_CAD`];
+    const rawRate = fx[`${cur}_${SHOP_CURRENCY}`];
     const hRate = rawRate || 1;
     for (const e of (s.expenses || []) as Row[]) {
       if (e.voided || !(isAllTime || (e.date && e.date.startsWith(year)))) continue;

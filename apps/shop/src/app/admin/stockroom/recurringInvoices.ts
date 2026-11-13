@@ -15,6 +15,7 @@ import { fmt, fmtD, getBookCurrencyCode, normalizeCurrencyCode } from "@stockroo
 
 import type { StockBook, StockroomRecords } from "./stockroomData";
 import { formFromInvoice, formPayload, invoiceEmail, nextNumber, saveInvoiceChange, storeIn, todayText, type InvoiceForm, type InvoiceSettings } from "./invoiceMake";
+import { SHOP_CURRENCY } from "../moneySign";
 
 type Rec = Record<string, any>;
 const text = (v: unknown) => (typeof v === "string" ? v : v == null ? "" : String(v));
@@ -278,7 +279,7 @@ export async function sweepRepeating(records: StockroomRecords, settings: Invoic
     const stamped = await deps.save(row.ownerBookId, stampRepeatEmail(invId, at, to)).catch(() => ({ status: "failed" as const }));
     if (stamped.status !== "saved") continue;
     records.states[row.ownerBookId] = (stamped as { state?: unknown }).state as never;
-    const mail = invoiceEmail(inv, settings, normalizeCurrencyCode(inv.currencyCode || inv.currency, "CAD"));
+    const mail = invoiceEmail(inv, settings, normalizeCurrencyCode(inv.currencyCode || inv.currency, SHOP_CURRENCY));
     let ok = true, error = "";
     try { await deps.send({ to, subject: mail.subject, text: mail.body }); } catch (e) { ok = false; error = e instanceof Error ? e.message : "send failed"; }
     const done = await deps.save(row.ownerBookId, finishRepeatEmail(invId, at, ok, error)).catch(() => null);

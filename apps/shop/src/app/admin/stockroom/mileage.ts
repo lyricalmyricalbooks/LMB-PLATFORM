@@ -5,6 +5,7 @@
 // rate is added beside last year's and old drives keep the rate of their own day. A rate may drop after a distance
 // driven in the calendar year (Canada's first 5,000 km). Pure; the saves go through saveTaxCenter.
 import { toCsv } from "@stockroom/csv.js";
+import { SHOP_CURRENCY } from "../moneySign";
 
 type Row = Record<string, any>;
 export type Unit = "km" | "mi";
@@ -48,7 +49,7 @@ const asUnit = (v: unknown): Unit => (v === "mi" ? "mi" : "km");
 const convert = (distance: number, from: Unit, to: Unit) => (from === to ? distance : from === "km" ? distance / KM_PER_MILE : distance * KM_PER_MILE);
 
 /** The shop's mileage settings, with a starting unit from its currency (miles for US dollars, kilometres otherwise). */
-export function mileageOf(tc: Row | null, currency = "CAD"): Mileage {
+export function mileageOf(tc: Row | null, currency: string = SHOP_CURRENCY): Mileage {
   const m = tc?.mileage;
   const rates: MileageRate[] = (Array.isArray(m?.rates) ? m.rates : [])
     .filter((r: Row) => r && typeof r.from === "string" && num(r.rate) > 0)
@@ -79,7 +80,7 @@ const drivesOf = (tc: Row | null): Drive[] => (Array.isArray(tc?.drives) ? tc!.d
  * Every drive with its deduction. Drives count in date order within each calendar year, so a rate that drops after
  * 5,000 km drops on the drive that crosses it (that drive is split at the line).
  */
-export function pricedDrives(tc: Row | null, currency = "CAD"): PricedDrive[] {
+export function pricedDrives(tc: Row | null, currency: string = SHOP_CURRENCY): PricedDrive[] {
   const m = mileageOf(tc, currency);
   const sorted = [...drivesOf(tc)].sort((a, b) => a.date.localeCompare(b.date) || String(a.id).localeCompare(String(b.id)));
   const drivenKm: Record<string, number> = {};
@@ -103,7 +104,7 @@ export function pricedDrives(tc: Row | null, currency = "CAD"): PricedDrive[] {
 }
 
 /** The year's drives, distance (in the shop's unit) and deduction; `noRate` counts drives before any rate starts. */
-export function mileageYear(tc: Row | null, year: string, currency = "CAD") {
+export function mileageYear(tc: Row | null, year: string, currency: string = SHOP_CURRENCY) {
   const m = mileageOf(tc, currency);
   const drives = pricedDrives(tc, currency).filter((d) => d.date.startsWith(year));
   const distance = drives.reduce((s, d) => s + convert(d.total, d.unit, m.unit), 0);
@@ -112,7 +113,7 @@ export function mileageYear(tc: Row | null, year: string, currency = "CAD") {
 }
 
 /** The drives on a trip or event, any year, with their deduction. */
-export function tripDrives(tc: Row | null, trip: string, currency = "CAD") {
+export function tripDrives(tc: Row | null, trip: string, currency: string = SHOP_CURRENCY) {
   const key = trip.trim().toLowerCase();
   const drives = pricedDrives(tc, currency).filter((d) => String(d.trip || "").trim().toLowerCase() === key);
   return { drives, deduction: round2(drives.reduce((s, d) => s + d.deduction, 0)) };
@@ -122,7 +123,7 @@ export function tripDrives(tc: Row | null, trip: string, currency = "CAD") {
 export const distanceText = (n: number, unit: Unit) => `${(Math.round(n * 10) / 10).toLocaleString("en-CA")} ${UNIT_WORD[unit].short}`;
 
 /** "73¢ a km, 67¢ after 5,000 km" in the rate's own words. */
-export function rateText(r: MileageRate, currency = "CAD"): string {
+export function rateText(r: MileageRate, currency: string = SHOP_CURRENCY): string {
   const each = (n: number) => (n < 1 ? `${(Math.round(n * 1000) / 10).toString()}¢` : new Intl.NumberFormat("en-CA", { style: "currency", currency }).format(n));
   const u = UNIT_WORD[r.unit].short;
   return `${each(r.rate)} a ${u}${r.tierAfter && r.tierRate ? `, ${each(r.tierRate)} after ${r.tierAfter.toLocaleString("en-CA")} ${u}` : ""}`;

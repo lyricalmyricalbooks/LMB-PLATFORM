@@ -12,6 +12,7 @@ import {
   type FairDay, type PeriodId, type SaleRow,
 } from "./salesList";
 import { channelWords, money } from "./StockroomBookPanel";
+import { SHOP_CURRENCY } from "./moneySign";
 
 const PAGE_SIZE = 100;
 const day = (key: string) => (key ? new Date(`${key}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—");
@@ -94,7 +95,7 @@ export function AllSales({ onOpenOrder }: { onOpenOrder: (id: string) => void })
     { key: "qty", header: "Copies", numeric: true, render: (r: SaleRow) => r.qty },
     { key: "amount", header: "Takings", numeric: true, render: (r: SaleRow) => money(r.amount, r.cur) },
   ];
-  const takingsText = (t: FairDay["takings"]) => (t.length ? t.map((x) => money(x.amount, x.cur)).join(" + ") : money(0, "CAD"));
+  const takingsText = (t: FairDay["takings"]) => (t.length ? t.map((x) => money(x.amount, x.cur)).join(" + ") : money(0, SHOP_CURRENCY));
   const fairColumns = [
     { key: "date", header: "Day", render: (d: FairDay) => <span style={{ whiteSpace: "nowrap" }}>{day(d.date)}</span> },
     { key: "fair", header: "Fair", lead: true, render: (d: FairDay) => d.fair || <span style={{ color: "var(--rp-text-muted)" }}>Not named</span> },
@@ -112,7 +113,7 @@ export function AllSales({ onOpenOrder }: { onOpenOrder: (id: string) => void })
     a.href = url; a.download = salesCsvName(active, period); a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
-  const takings = totals.takings.length ? totals.takings.map((t) => money(t.amount, t.cur)).join(" + ") : money(0, "CAD");
+  const takings = totals.takings.length ? totals.takings.map((t) => money(t.amount, t.cur)).join(" + ") : money(0, SHOP_CURRENCY);
 
   return (
     <div className="rp-stack">

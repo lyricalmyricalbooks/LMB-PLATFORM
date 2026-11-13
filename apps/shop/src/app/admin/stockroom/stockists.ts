@@ -8,6 +8,7 @@ import { settleInvoicePaid } from "@stockroom/invoice-settle.js";
 
 import type { StockroomRecords } from "./stockroomData";
 import { queueCardLinkClose } from "./cardLinkQueue";
+import { SHOP_CURRENCY } from "../moneySign";
 
 type Rec = Record<string, any>;
 
@@ -70,7 +71,7 @@ export function buildStockists(records: StockroomRecords, now: Date = new Date()
   const today = localToday(now);
   const books = records.books;
   const merged = collectUniqueConsignmentStores(records.states, books);
-  const firstCode = books.length ? getBookCurrencyCode(books[0]) : "CAD";
+  const firstCode = books.length ? getBookCurrencyCode(books[0]) : SHOP_CURRENCY;
 
   // Every invoice once (an invoice lives in one book's record but may bill several titles).
   const invoices: Array<{ inv: Rec; code: string; bookId: string; bookCode: string }> = [];

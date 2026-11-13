@@ -13,6 +13,7 @@ export const DORMANT_DAYS = 90;
 const DIGITAL_FORMATS = ["E-book (PDF)", "E-book (EPUB)", "Audiobook"];
 
 import type { BookRecord, OrderRecord } from "../../../shared/records";
+import { SHOP_CURRENCY } from "../moneySign";
 
 export type Order = OrderRecord;
 export type Book = BookRecord;
@@ -82,8 +83,8 @@ export function refundedAmount(o: Order): number {
   if (minor <= 0 || total <= 0) return 0;
   const expected = Number(o?.expectedAmountMinor) || 0;
   if (expected > 0) return Math.min(total, (total * minor) / expected);
-  const cur = String(o?.checkoutCurrency || o?.expectedCurrency || "CAD").toUpperCase();
-  return cur === "CAD" ? Math.min(total, minor / 100) : 0;
+  const cur = String(o?.checkoutCurrency || o?.expectedCurrency || SHOP_CURRENCY).toUpperCase();
+  return cur === SHOP_CURRENCY ? Math.min(total, minor / 100) : 0;
 }
 
 export interface PeriodTotals {

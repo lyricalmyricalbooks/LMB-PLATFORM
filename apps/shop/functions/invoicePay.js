@@ -10,6 +10,7 @@
 // names an amount. No shop order is made and nothing touches the website's orders, stock or revenue: the admin asks
 // "status" when it opens Invoices and marks the invoice paid itself, the way the fair till records a QR sale.
 const crypto = require("crypto");
+const { shopCurrency } = require("./shopMoney");
 
 const TOKEN = /^[a-f0-9]{32}$/;
 const REF = /^[A-Za-z0-9_.:-]{1,160}$/;
@@ -28,7 +29,7 @@ function cleanPayLink(body) {
   if (!REF.test(ref)) return { problem: "This invoice can't take a card link yet. Save it first." };
   const kind = source.kind === "settle" ? "settle" : "invoice";
   const label = text(source.label, 200) || (kind === "settle" ? "Settle-up" : "Invoice");
-  const currency = text(source.currency, 3).toUpperCase() || "CAD";
+  const currency = text(source.currency, 3).toUpperCase() || shopCurrency();
   if (!CURRENCIES.has(currency)) return { problem: `Card links can't be made in ${currency}.` };
   const amountMinor = Math.round(Number(source.amount) * 100);
   if (!Number.isFinite(amountMinor) || amountMinor < MIN_MINOR) return { problem: "A card can't take less than 0.50." };

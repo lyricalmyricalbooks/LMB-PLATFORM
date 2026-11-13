@@ -202,13 +202,15 @@ function googleCategory(format, kind = 'book') {
   return 'Media > Books > Print Books';
 }
 
-const money = n => `${n.toFixed(2)} CAD`;
+const moneyIn = currency => n => `${n.toFixed(2)} ${currency === 'USD' ? 'USD' : 'CAD'}`;
 
 /**
  * The feed's items, plus the published books left out and why (shown in the admin panel).
  * `books` = the whole catalog; only books shoppers can buy today are listed.
  */
-export function merchantFeedItems(siteUrl, books, { shopName = UNNAMED_SHOP, now = new Date(), productBase = 'books' } = {}) {
+export function merchantFeedItems(siteUrl, books, { shopName = UNNAMED_SHOP, now = new Date(), productBase = 'books', currency = 'CAD' } = {}) {
+  // Every price is in the shop's own currency (the profile's `currency`: CAD unless the shop sells in US dollars).
+  const money = moneyIn(currency);
   const base = siteUrl.replace(/\/$/, '');
   const byId = new Map(books.map(b => [b.id, b]));
   const live = books.filter(b => isLive(b, now));

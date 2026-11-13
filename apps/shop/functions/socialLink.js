@@ -22,7 +22,7 @@
 const { productBase } = require("./shared/shopSells");
 const COLLECTION = "socialPosts";
 const FEED_FILE = "social-product-feed.csv";
-const SHOP_CURRENCY = "CAD";
+const { shopCurrency } = require("./shopMoney");
 const CAPTION_MAX = 2200;
 const MAX_PLACES = 10;
 const CLAIM_STALE_MS = 15 * 60 * 1000;
@@ -269,7 +269,7 @@ function socialActions({ url, shopId, serviceKey, requireAdmin, db, siteUrl, sel
       if (step === "retryPost") { res.json(await retryPost(body)); return; }
       const network = typeof body.network === "string" ? body.network.slice(0, 20) : "";
       const args = step === "connect" ? { network, returnUrl: typeof body.returnUrl === "string" ? body.returnUrl.slice(0, 500) : "" }
-        : step === "sendCatalog" ? { network, feedUrl: `${(typeof siteUrl === "function" ? siteUrl() : siteUrl).replace(/\/+$/, "")}/${FEED_FILE}`, currency: SHOP_CURRENCY }
+        : step === "sendCatalog" ? { network, feedUrl: `${(typeof siteUrl === "function" ? siteUrl() : siteUrl).replace(/\/+$/, "")}/${FEED_FILE}`, currency: shopCurrency() }
           : step === "disconnect" ? { network } : {};
       res.json(await platform(NETWORK_STEPS[step], args));
     } catch (err) {

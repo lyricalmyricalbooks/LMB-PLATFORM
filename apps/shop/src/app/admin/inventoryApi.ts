@@ -9,6 +9,7 @@ import { auth, db, firestore } from "../../lib/firebase";
 import { planStockChange, type AdjustReason, type StockChange, type StockPlan } from "./inventoryInsights";
 import { isStockLinked } from "./inventoryLink";
 import { hasStockroom } from "../../lib/shopProfile";
+import { SHOP_CURRENCY } from "./moneySign";
 
 /** What a stock change did: the plan it saved, or why nothing was saved (a linked book is counted in the inventory app). */
 export type StockResult = StockPlan | { ok: false; reason: "linked"; live?: number };
@@ -64,7 +65,7 @@ export const inventoryApi = {
     return out;
   },
   setCost: async (bookId: string, costPrice: number | null) => {
-    await setDoc(doc(db, "inventoryCosts", bookId), { costPrice, currency: "CAD", updatedAt: new Date().toISOString() });
+    await setDoc(doc(db, "inventoryCosts", bookId), { costPrice, currency: SHOP_CURRENCY, updatedAt: new Date().toISOString() });
   },
 
   /** Low-stock line in public settings/website `inventory.lowStockThreshold` (not secret; other fields kept). */

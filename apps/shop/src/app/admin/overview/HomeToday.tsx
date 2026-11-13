@@ -11,6 +11,7 @@ import { fairWorthShowing, lowText, totalsText } from "../FairToday";
 import type { StockroomFair } from "../stockroomBridge";
 import { useShopWords } from "../shopWords";
 import "./home.css";
+import { SHOP_CURRENCY } from "../moneySign";
 
 /** Bars on the takings tile: the last 12 days, today last. */
 const BAR_DAYS = 12;
@@ -26,7 +27,7 @@ export function greeting(name: string, now = Date.now()): string {
 }
 
 /** The fair's takings in the shop's own currency (the till can take others; those stay in its own tile). */
-const fairCad = (fair: StockroomFair | null) => (fairWorthShowing(fair) ? fair.totals.filter((t) => t.cur === "CAD").reduce((s, t) => s + t.amount, 0) : 0);
+const fairCad = (fair: StockroomFair | null) => (fairWorthShowing(fair) ? fair.totals.filter((t) => t.cur === SHOP_CURRENCY).reduce((s, t) => s + t.amount, 0) : 0);
 
 /** Today's website takings and sales, a bar per day for the last 12 days, and the till's part of today. Pure. */
 export function todayFigures(orders: Order[], fair: StockroomFair | null, now = Date.now()) {

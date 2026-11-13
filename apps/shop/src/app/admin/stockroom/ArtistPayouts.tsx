@@ -8,6 +8,7 @@ import { DataTable, EmptyState, GhostButton } from "../riso/components";
 import { useShopWords } from "../shopWords";
 import { authorMoneyPlan, pastSettlements } from "./authorMoney";
 import type { StockroomRecords } from "./stockroomData";
+import { SHOP_CURRENCY } from "../moneySign";
 
 type Row = Record<string, any>;
 
@@ -24,7 +25,7 @@ export function artistRows(records: StockroomRecords): ArtistRow[] {
     const pct = tiers.length === 1 ? Number(tiers[0]?.artistPct) : NaN;
     const last = pastSettlements(state)[0];
     rows.push({
-      bookId: book.id, artist: String(book.author || ""), title: String(book.title || book.id), currency: String(book.currency || "CAD"),
+      bookId: book.id, artist: String(book.author || ""), title: String(book.title || book.id), currency: String(book.currency || SHOP_CURRENCY),
       // Copies sold since the last settle-up (the sales the plan holds), by the stockroom's own test.
       sold: ((state.hist || []) as Row[]).filter((h) => !h.voided && !h.gratuity && h.artistPending && h.qty > 0 && h.price > 0)
         .reduce((n, h) => n + Number(h.qty), 0),
@@ -42,7 +43,7 @@ export function ArtistPayouts({ records, onOpenBook }: { records: StockroomRecor
   const rows = useMemo(() => artistRows(records), [records]);
   const owing = rows.filter((r) => r.direction === "to-artist");
   const currencies = [...new Set(owing.map((r) => r.currency))];
-  const owedText = currencies.length ? currencies.map((c) => fmt(owing.filter((r) => r.currency === c).reduce((s, r) => s + r.owed, 0), c)).join(" + ") : fmt(0, rows[0]?.currency || "CAD");
+  const owedText = currencies.length ? currencies.map((c) => fmt(owing.filter((r) => r.currency === c).reduce((s, r) => s + r.owed, 0), c)).join(" + ") : fmt(0, rows[0]?.currency || SHOP_CURRENCY);
   const artists = new Set(owing.map((r) => r.artist || r.title)).size;
   return (
     <div className="rp-money">

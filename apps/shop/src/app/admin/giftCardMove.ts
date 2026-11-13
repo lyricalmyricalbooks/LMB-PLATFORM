@@ -5,7 +5,7 @@
 // email each holder theirs.
 import { parseCsv, parseMoney } from "./catalogImport";
 import type { GiftCardBody } from "../../shared/giftCardActions";
-import { MONEY_SIGN } from "./moneySign";
+import { MONEY_SIGN, SHOP_CURRENCY, MONEY_NAME } from "./moneySign";
 
 export type ImportCard = GiftCardBody<"import">["cards"][number];
 
@@ -71,7 +71,7 @@ export function readGiftCardFile(text: string, today: string): GiftCardFile {
     const balanceMinor = Number.isNaN(money) ? NaN : Math.round(money * 100);
     if (!(balanceMinor > 0)) return skip("no balance left");
     const currency = cell(row, col.currency).toUpperCase();
-    if (currency && currency !== "CAD") return skip(`in ${currency}, and gift cards here are in Canadian dollars`);
+    if (currency && currency !== SHOP_CURRENCY) return skip(`in ${currency}, and gift cards here are in ${MONEY_NAME}`);
     if (cell(row, col.disabledAt) || /^(disabled|deactivated|inactive|void|voided|cancell?ed|blocked)$/i.test(cell(row, col.status))) return skip("turned off in your old shop");
     const expires = dayOf(cell(row, col.expires));
     if (expires === null) return skip("its expiry date couldn't be read");

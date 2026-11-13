@@ -6,6 +6,7 @@ import { Dialog, InkButton, SecondaryButton, SelectField, TextField } from "../r
 import { useShopWords } from "../shopWords";
 import { recordStoreSale, sendCopies, takeReturn } from "./stockistMoves";
 import { describeResult, stockroomWriteApi } from "./stockroomWrite";
+import { SHOP_CURRENCY } from "../moneySign";
 
 type Row = Record<string, any>;
 export type MoveKind = "send" | "sale" | "return";
@@ -16,7 +17,7 @@ export function StockistMoveDialog({ kind, shop, rate, bookId, book, onClose, on
   kind: MoveKind; shop: string; rate: number; bookId: string; book: Row; onClose: () => void; onSaved: (bookId: string, state: Row, note: string) => void;
 }) {
   const w = useShopWords();
-  const code = String(book.currency || "CAD");
+  const code = String(book.currency || SHOP_CURRENCY);
   const [qty, setQty] = useState("1");
   const [date, setDate] = useState(todayIso());
   const [notes, setNotes] = useState("");

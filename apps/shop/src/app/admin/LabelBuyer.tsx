@@ -4,6 +4,7 @@ import { matchesCustomerService } from "./fulfillment";
 import { PrimaryButton, SecondaryButton, StatusBadge, TextField } from "./riso/components";
 import { formatGrams } from "../features/site/metricWeight";
 import { useShopWords } from "./shopWords";
+import { SHOP_CURRENCY } from "./moneySign";
 
 export type Parcel = { length: string; width: string; height: string; weight: string; distance_unit: string; mass_unit: string };
 export type ParcelPreset = { name: string; parcel: Partial<Parcel> };
@@ -35,7 +36,7 @@ type Props = {
 
 const same = (a: Partial<Parcel>, b: Partial<Parcel>) =>
   (["length", "width", "height"] as const).every((k) => Number(a[k]) > 0 && Number(a[k]) === Number(b[k]));
-export const price = (rate: any) => new Intl.NumberFormat("en-CA", { style: "currency", currency: rate?.currency || "CAD" }).format(Number(rate?.amount) || 0);
+export const price = (rate: any) => new Intl.NumberFormat("en-CA", { style: "currency", currency: rate?.currency || SHOP_CURRENCY }).format(Number(rate?.amount) || 0);
 
 /**
  * Ship station, step 3: the parcel, the carrier rates and the Buy label button, right inside the order

@@ -22,8 +22,8 @@ const STEPS = Object.freeze({
   disconnect: "accounting.disconnect",
 });
 
-// The shop charges in Canadian dollars (Settings › Payments › Currency).
-const SHOP_CURRENCY = "CAD";
+// The shop's own currency (shopMoney.js), read when the code runs: one server runs every shop.
+const { shopCurrency } = require("./shopMoney");
 const { dailyBookkeeping } = require("./shared/bookkeeping");
 
 /**
@@ -33,10 +33,10 @@ const { dailyBookkeeping } = require("./shared/bookkeeping");
  * @param {string} date YYYY-MM-DD in the shop's time zone
  */
 function dayFromOrders(orders, date, timeZone = "America/Toronto") {
-  const found = dailyBookkeeping(orders, { month: date.slice(0, 7), currency: SHOP_CURRENCY, timeZone }).find((d) => d.date === date);
+  const found = dailyBookkeeping(orders, { month: date.slice(0, 7), currency: shopCurrency(), timeZone }).find((d) => d.date === date);
   return found || {
     date, salesCents: 0, shippingCents: 0, discountsCents: 0, giftCardsSoldCents: 0, giftCardsUsedCents: 0,
-    refundsCents: 0, taxes: {}, feesCents: 0, netCents: 0, currency: SHOP_CURRENCY,
+    refundsCents: 0, taxes: {}, feesCents: 0, netCents: 0, currency: shopCurrency(),
   };
 }
 
@@ -50,7 +50,7 @@ function bookkeepingActions({ url, shopId, serviceKey, requireAdmin, buildDay = 
     if (step === "connect") return { returnUrl: typeof body.returnUrl === "string" ? body.returnUrl.slice(0, 500) : "" };
     if (step === "save") {
       const { style, taxCodes, noTaxCode, accounts } = body;
-      return { style, taxCodes, noTaxCode, accounts, currency: SHOP_CURRENCY };
+      return { style, taxCodes, noTaxCode, accounts, currency: shopCurrency() };
     }
     return {};
   }
@@ -112,4 +112,4 @@ function bookkeepingActions({ url, shopId, serviceKey, requireAdmin, buildDay = 
   return { handleBookkeeping };
 }
 
-module.exports = { bookkeepingActions, dayFromOrders, STEPS, SHOP_CURRENCY };
+module.exports = { bookkeepingActions, dayFromOrders, STEPS };

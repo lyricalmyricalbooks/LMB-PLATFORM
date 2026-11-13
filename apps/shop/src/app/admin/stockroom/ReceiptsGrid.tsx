@@ -11,6 +11,7 @@ import { setNoReceiptNeeded } from "./taxLedger";
 import { AttachReceiptButton, defaultUpload, useLineSave, type Upload } from "./lineSave";
 import type { SaveNote } from "./saveTaxCenter";
 import type { StockroomRecords } from "./stockroomData";
+import { SHOP_CURRENCY } from "../moneySign";
 
 type Row = Record<string, any>;
 type Filter = "all" | "needs" | "filed" | "over";
@@ -64,7 +65,7 @@ export function ReceiptsGrid({ records, year, onSaved, upload = defaultUpload, o
 }) {
   const w = useShopWords();
   const model = useMemo(() => receiptsModel(expensesModel(records).lines, year), [records, year]);
-  const base = String(((records.taxCenter || {}) as Row).settings?.baseCurrency || "CAD");
+  const base = String(((records.taxCenter || {}) as Row).settings?.baseCurrency || SHOP_CURRENCY);
   const [filter, setFilter] = useState<Filter>("all");
   const [note, setNote] = useState<SaveNote | null>(null);
   const cards = model.pick(filter);

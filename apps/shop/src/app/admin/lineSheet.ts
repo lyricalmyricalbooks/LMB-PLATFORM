@@ -3,6 +3,7 @@
 // (bookPrivate.ts), so it only ever appears here, in the admin, and never on the public product record.
 import { docRaw, documentFrame, documentPage, documentTable, type DocCell } from "../../shared/documentKit";
 import { shopAddressLines } from "./orderPrint";
+import { SHOP_CURRENCY } from "./moneySign";
 const escape = (v: any) => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 const money = (n: number, currency: string) => {
   try { return new Intl.NumberFormat("en-CA", { style: "currency", currency }).format(n); } catch { return `${n.toFixed(2)} ${currency}`; }
@@ -36,7 +37,7 @@ export function lineSheetRows(books: any[]): { rows: LineSheetRow[]; skipped: st
 }
 
 /** The sheet's HTML, on the shared document kit (shared/documentKit.ts): the same page frame, table and print rules as every other document. */
-export function lineSheetHtml(rows: LineSheetRow[], shop: LineSheetShop = {}, currency = "CAD", date = ""): string {
+export function lineSheetHtml(rows: LineSheetRow[], shop: LineSheetShop = {}, currency: string = SHOP_CURRENCY, date = ""): string {
   const product = (r: LineSheetRow): DocCell => docRaw(`<strong>${escape(r.title)}</strong>${r.maker ? `<br>${escape(r.maker)}` : ""}${r.code ? `<br><small>${escape(r.code)}</small>` : ""}${r.editions.length ? `<ul>${r.editions.map(e => `<li>${escape(e.name)}: retail ${money(e.retail, currency)}, wholesale ${money(e.wholesale, currency)}</li>`).join("")}</ul>` : ""}`);
   const table = documentTable(
     [{ label: "Photo", narrow: true }, { label: "Product" }, { label: "Retail", align: "right" }, { label: "Wholesale", align: "right" }],
@@ -52,7 +53,7 @@ export function lineSheetHtml(rows: LineSheetRow[], shop: LineSheetShop = {}, cu
 }
 
 /** Opens the print dialog for the sheet (the same hidden-frame way the packing slips print). */
-export function printLineSheet(rows: LineSheetRow[], shop: LineSheetShop = {}, currency = "CAD") {
+export function printLineSheet(rows: LineSheetRow[], shop: LineSheetShop = {}, currency: string = SHOP_CURRENCY) {
   const frame = document.createElement("iframe");
   frame.title = "Line sheet"; frame.style.cssText = "position:fixed;width:1px;height:1px;left:-9999px";
   frame.onload = () => { frame.contentWindow?.addEventListener("afterprint", () => frame.remove(), { once: true }); frame.contentWindow?.focus(); frame.contentWindow?.print(); };

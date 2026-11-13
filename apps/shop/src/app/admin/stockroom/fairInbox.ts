@@ -14,6 +14,7 @@ import { bookCurrencyCode } from "@stockroom/currency-migration.js";
 import type { BookState } from "./planSave";
 import type { StockBook, StockroomRecords } from "./stockroomData";
 import type { BookSaveResult } from "./stockroomWrite";
+import { SHOP_CURRENCY } from "../moneySign";
 
 /** The channel every till sale is recorded under, as on the owner's own till. */
 export const FAIR_CHANNEL = "Book Fair";
@@ -47,7 +48,7 @@ export function addHelperRow(row: ImportRow, by: string, book: StockBook | undef
     const hist = (Array.isArray(state.hist) ? state.hist : (state.hist = [])) as Array<Record<string, unknown>>;
     state.stock = Math.max(0, (num(state.stock) ?? 0) - row.qty);
     const amount = cents(row.qty * row.price);
-    const cur = book ? bookCurrencyCode(book) : "CAD";
+    const cur = book ? bookCurrencyCode(book) : SHOP_CURRENCY;
     hist.unshift({
       recordedAt: new Date(now).toISOString(), num: row.num, chan: FAIR_CHANNEL, qty: row.qty, price: row.price, after: state.stock,
       notes: row.notes, date: row.date, payment: { currency: cur, amount, rate: null, convertedTotal: amount },

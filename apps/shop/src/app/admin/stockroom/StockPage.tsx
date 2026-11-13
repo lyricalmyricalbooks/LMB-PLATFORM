@@ -14,6 +14,7 @@ import { AuthorMoneyCard } from "./AuthorMoneyCard";
 import { BreakEvenCard } from "./BreakEvenCard";
 import { hasPublisherTools } from "../../../shared/shopSells";
 import { catalogueStock, money, searchItems, totalsOf, type ChannelRow, type ItemStock, type StockLevel, type StoreRow } from "./stock";
+import { SHOP_CURRENCY } from "../moneySign";
 
 const LEVEL: Record<StockLevel, { tone: BadgeTone; word: string }> = {
   soldout: { tone: "danger", word: "Sold out" },
@@ -151,7 +152,7 @@ export function StockPage({ bookId, load = stockroomApi.load }: { bookId?: strin
       {(publisher || ((state as Record<string, any>).artistPayouts || []).length > 0) && <AuthorMoneyCard bookId={item.id} book={book} state={state} onSaved={read} />}
     </>} />;
   }
-  const currency = String((records.books[0] as Record<string, any> | undefined)?.currency || "CAD");
+  const currency = String((records.books[0] as Record<string, any> | undefined)?.currency || SHOP_CURRENCY);
   return <div className="rp-stock"><WebsiteOrdersCard />
     <div className="rp-stock-add"><EditDetailsButton book={{ currency, maxPrint: 100, listPrice: 40, threshold: 10, productionCost: 0 }} onSaved={read} /></div>
     <StockList records={records} onPick={setPicked} /></div>;

@@ -1,4 +1,4 @@
-import { MONEY_SIGN } from "./moneySign";
+import { MONEY_SIGN, SHOP_CURRENCY } from "./moneySign";
 // Small display and safety rules shared by the Orders desk and the Orders table view. Pure, tested.
 
 const SYMBOL: Record<string, string> = { CAD: "CA$", USD: "US$", EUR: "€" };
@@ -8,7 +8,7 @@ export function orderMoney(o: any): { text: string; paid: string } {
   const text = `${MONEY_SIGN}${(Number(o?.total) || 0).toFixed(2)}`;
   const currency = String(o?.expectedCurrency || "").toUpperCase();
   const minor = Number(o?.expectedAmountMinor);
-  if (!currency || currency === "CAD" || o?.expectedAmountMinor == null || !Number.isFinite(minor)) return { text, paid: "" };
+  if (!currency || currency === SHOP_CURRENCY || o?.expectedAmountMinor == null || !Number.isFinite(minor)) return { text, paid: "" };
   return { text, paid: `${SYMBOL[currency] || `${currency} `}${(minor / 100).toFixed(2)}` };
 }
 

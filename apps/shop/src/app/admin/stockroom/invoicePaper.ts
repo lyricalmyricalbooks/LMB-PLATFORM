@@ -6,6 +6,7 @@ import { fmt, fmtD, getSym } from "@stockroom/money.js";
 
 import { docRaw, documentFrame, documentPage, documentTable, documentTotals, type DocCell, type DocTotal } from "../../../shared/documentKit";
 import type { InvoiceSettings } from "./invoiceMake";
+import { SHOP_CURRENCY } from "../moneySign";
 
 type Rec = Record<string, any>;
 const escape = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
@@ -16,7 +17,7 @@ const block = (title: string, body: string) => (body.trim() ? `<div style="margi
 /** `quote`: the same page as a quote (Quote, Valid until, no payment details). */
 export type PaperOpts = { reminder?: boolean; quote?: boolean };
 export function invoicePaperHtml(inv: Rec, settings: InvoiceSettings, today: string, opts: PaperOpts = {}): string {
-  const code = String(inv.currencyCode || inv.currency || "CAD");
+  const code = String(inv.currencyCode || inv.currency || SHOP_CURRENCY);
   const money = (n: unknown) => fmt(Number(n) || 0, code);
   const items = (Array.isArray(inv.items) ? inv.items : []) as Rec[];
   const disc = invoiceHasLineDiscounts(items);

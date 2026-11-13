@@ -10,6 +10,7 @@ import { useShopWords } from "../shopWords";
 import { todayText } from "./invoiceMake";
 import type { StockroomRecords } from "./stockroomData";
 import { tallySheetHtml } from "./tallySheet";
+import { SHOP_CURRENCY } from "../moneySign";
 
 export function TallySheetDialog({ records, onClose }: { records: StockroomRecords; onClose: () => void }) {
   const w = useShopWords();
@@ -25,7 +26,7 @@ export function TallySheetDialog({ records, onClose }: { records: StockroomRecor
   const [lists, setLists] = useState<StPreset[]>(() => loadStPresets(store));
   const [listName, setListName] = useState("");
   const [listNote, setListNote] = useState("");
-  const cur = String(books.find((b) => picked[b.id])?.currency || books[0]?.currency || "CAD");
+  const cur = String(books.find((b) => picked[b.id])?.currency || books[0]?.currency || SHOP_CURRENCY);
 
   function openList(id: string) {
     const list = lists.find((l) => l.id === id);
@@ -41,7 +42,7 @@ export function TallySheetDialog({ records, onClose }: { records: StockroomRecor
     if (!name) { setListNote("Give the list a name first."); return; }
     const bookIds = books.filter((b) => picked[b.id]).map((b) => b.id);
     const qtyBrought = Object.fromEntries(bookIds.map((id) => [id, parseInt(packed[id] || "", 10) || 0]).filter(([, n]) => (n as number) > 0));
-    setLists(saveStPresets(store, upsertStPreset(lists, { name, cols: Number(cols), currencyCode: cur.length === 3 ? cur : "CAD", includeNotes: notes, bookIds, qtyBrought, customBooks: [], savedAt: new Date().toISOString() })));
+    setLists(saveStPresets(store, upsertStPreset(lists, { name, cols: Number(cols), currencyCode: cur.length === 3 ? cur : SHOP_CURRENCY, includeNotes: notes, bookIds, qtyBrought, customBooks: [], savedAt: new Date().toISOString() })));
     setListNote(`Saved “${name}” on this device.`);
   }
 

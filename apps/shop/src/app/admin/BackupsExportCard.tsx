@@ -16,6 +16,7 @@ import { describeBackup, describeBackupDay, type BackupDay, type BackupRecord } 
 import { friendlyError } from "./settingsLayout";
 import { useShopWords } from "./shopWords";
 import { DataTable, GhostButton, PrimaryButton, SecondaryButton, SectionCard, SelectField, StatusBadge } from "./riso/components";
+import { SHOP_CURRENCY } from "./moneySign";
 
 const IAM_URL = `https://console.cloud.google.com/iam-admin/iam?project=${encodeURIComponent(shopProfile.firebase.projectId)}`;
 
@@ -172,7 +173,7 @@ export function ExportDownloads({ extra }: { extra?: (run: ExportRun, busy: stri
   const realOrders = async () => (await adminApi.getAllOrders()).filter((o: any) => o.isTest !== true);
   // Days are the press's own days (this browser's time zone); a sheet with only its heading has nothing to give.
   const bookkeeping = (kind: string, make: typeof bookkeepingDaysCsv) => run(`book-${kind}`, async () => {
-    const text = make(await adminApi.getAllOrders(), { month, currency: "CAD", timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" });
+    const text = make(await adminApi.getAllOrders(), { month, currency: SHOP_CURRENCY, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" });
     return text.trim().includes("\n") ? [`bookkeeping-${month}-${kind}.csv`, text, "text/csv;charset=utf-8"] : null;
   });
   const customersElsewhere = async () => customerFileFor(await realOrders());

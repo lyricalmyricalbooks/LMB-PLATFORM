@@ -15,6 +15,7 @@ import { ASK_QUESTIONS, askModel, sourcesOf, type AskId } from "./moneyReports";
 import { stockroomApi, type StockroomRecords } from "./stockroomData";
 import "./stockroom.css";
 import "./money.css";
+import { SHOP_CURRENCY } from "../moneySign";
 
 type Row = Record<string, any>;
 const SEVERITY = { high: "danger", medium: "warning", low: "neutral" } as const;
@@ -48,7 +49,7 @@ function Answer({ id, data }: { id: AskId; data: Row }) {
         </div>
         <SectionCard title="By category" flush>
           <DataTable stackOnPhone caption="Spending by category" rowKey={(c) => c.category} rows={data.byCategory as Row[]} empty={<EmptyState inline title="No expenses in this period" />}
-            columns={[{ key: "c", header: "Category", lead: true, render: (c) => c.category }, { key: "n", header: "Entries", numeric: true, render: (c) => c.count }, { key: "t", header: "Total", numeric: true, render: (c) => ((c.currencies as string[]).length === 1 ? fmt(c.total, c.currencies[0]) : `${fmt(c.total, "CAD")} (as recorded)`) }]} />
+            columns={[{ key: "c", header: "Category", lead: true, render: (c) => c.category }, { key: "n", header: "Entries", numeric: true, render: (c) => c.count }, { key: "t", header: "Total", numeric: true, render: (c) => ((c.currencies as string[]).length === 1 ? fmt(c.total, c.currencies[0]) : `${fmt(c.total, SHOP_CURRENCY)} (as recorded)`) }]} />
         </SectionCard>
         {cutNote}
       </>
@@ -57,9 +58,9 @@ function Answer({ id, data }: { id: AskId; data: Row }) {
   if (id === "cash") {
     return (
       <div className="rp-grid-metrics">
-        <MetricCard label="Money in" value={fmt(data.totals.incomeCAD, "CAD")} tone="gold" />
-        <MetricCard label="Money out" value={fmt(data.totals.expensesCAD, "CAD")} />
-        <MetricCard label="Net" value={fmt(data.totals.netCAD, "CAD")} tone={data.totals.netCAD < 0 ? "danger" : undefined} footer={data.totals.rowsWithMissingRate ? `${data.totals.rowsWithMissingRate} lines have no exchange rate` : undefined} />
+        <MetricCard label="Money in" value={fmt(data.totals.incomeCAD, SHOP_CURRENCY)} tone="gold" />
+        <MetricCard label="Money out" value={fmt(data.totals.expensesCAD, SHOP_CURRENCY)} />
+        <MetricCard label="Net" value={fmt(data.totals.netCAD, SHOP_CURRENCY)} tone={data.totals.netCAD < 0 ? "danger" : undefined} footer={data.totals.rowsWithMissingRate ? `${data.totals.rowsWithMissingRate} lines have no exchange rate` : undefined} />
       </div>
     );
   }
@@ -70,9 +71,9 @@ function Answer({ id, data }: { id: AskId; data: Row }) {
           columns={[
             { key: "n", header: "Event", lead: true, render: (e) => e.name },
             { key: "d", header: "Dates", render: (e) => (e.startDate ? `${e.startDate}${e.endDate && e.endDate !== e.startDate ? ` to ${e.endDate}` : ""}` : "-") },
-            { key: "s", header: "Spent", numeric: true, render: (e) => fmt(e.spendCAD, "CAD") },
+            { key: "s", header: "Spent", numeric: true, render: (e) => fmt(e.spendCAD, SHOP_CURRENCY) },
             { key: "u", header: "Copies sold", numeric: true, render: (e) => e.salesUnits },
-            { key: "m", header: "Margin", numeric: true, render: (e) => (e.marginCAD == null ? "-" : fmt(e.marginCAD, "CAD")) },
+            { key: "m", header: "Margin", numeric: true, render: (e) => (e.marginCAD == null ? "-" : fmt(e.marginCAD, SHOP_CURRENCY)) },
           ]} />
         {cutNote}
       </>
@@ -111,7 +112,7 @@ function Answer({ id, data }: { id: AskId; data: Row }) {
         columns={[
           { key: "t", header: "Cost", lead: true, render: (g) => g.title },
           { key: "d", header: "Why", render: (g) => g.detail },
-          { key: "a", header: "About", numeric: true, render: (g) => (g.likelyAmount == null ? "-" : fmt(g.likelyAmount, "CAD")) },
+          { key: "a", header: "About", numeric: true, render: (g) => (g.likelyAmount == null ? "-" : fmt(g.likelyAmount, SHOP_CURRENCY)) },
         ]} />
       <p className="rp-money-note">These are gaps in your own records, not tax advice.</p>
     </>

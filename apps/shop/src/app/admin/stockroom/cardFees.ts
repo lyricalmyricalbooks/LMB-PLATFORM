@@ -3,6 +3,7 @@
 // "Sales Processing Fees" expense. The expense id is fixed per year and currency, so logging twice adds nothing.
 import { orderDay } from "../../lib/shopDay";
 import { addBusinessExpense } from "./taxExpense";
+import { SHOP_CURRENCY } from "../moneySign";
 
 type Row = Record<string, any>;
 export type FeeLine = { currency: string; feeMinor: number; platformMinor: number; orders: number };
@@ -20,7 +21,7 @@ export function cardFeesForYear(orders: Row[], year: string): CardFeeYear {
     if (!orderDay(o.paidAt || o.createdAt).startsWith(`${year}-`)) continue;
     const fee = Number(o.fee);
     if (!Number.isFinite(fee)) { if (o.stripePaymentIntentId || o.stripeCheckoutSessionId) missing += 1; continue; }
-    const currency = String(o.expectedCurrency || o.currency || "CAD").toUpperCase();
+    const currency = String(o.expectedCurrency || o.currency || SHOP_CURRENCY).toUpperCase();
     const line = by.get(currency) || { currency, feeMinor: 0, platformMinor: 0, orders: 0 };
     line.feeMinor += Math.round(fee);
     line.platformMinor += Math.round(Number(o.platformFee) || 0);

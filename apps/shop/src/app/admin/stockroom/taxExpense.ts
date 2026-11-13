@@ -1,3 +1,4 @@
+import { SHOP_CURRENCY } from "../moneySign";
 // Tax centre › Log a business expense. The pure rules: what a form must hold, and the row the old stockroom writes for it
 // (same fields as its own "log an expense", so each app reads the other's rows). The save itself is in LogExpense.tsx and
 // goes through `stockroomWriteApi.updateSetting("taxCenter", …)` (WRITING.md).
@@ -38,7 +39,7 @@ export function savedRate(taxCenter: Row | null, code: string, base: string): nu
 }
 
 export function baseCurrencyOf(taxCenter: Row | null): string {
-  return (taxCenter?.settings?.baseCurrency as string) || "CAD";
+  return (taxCenter?.settings?.baseCurrency as string) || SHOP_CURRENCY;
 }
 
 /** Same day, same words, same amount as one already logged. */

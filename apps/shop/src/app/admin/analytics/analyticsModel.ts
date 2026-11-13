@@ -8,9 +8,10 @@ import { autoGrain, bucketKey, bucketLabel, daysBetween, type Range } from "../o
 import { funnelSteps, pickTraffic, shopRowsIn, shopTraffic, type TrafficGap } from "../overview/overviewSources";
 import { bookInterest, campaignSales, rankMap, sourcePerformance, sumMap } from "../overview/overviewTraffic";
 import { isRealPaidOrder } from "../overview/overviewInsights";
+import { SHOP_CURRENCY } from "../moneySign";
 
 const num = (v: unknown) => Number(v) || 0;
-const CAD = new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" });
+const MONEY = new Intl.NumberFormat("en-CA", { style: "currency", currency: SHOP_CURRENCY });
 const MEDIUM_WORDS: Record<string, string> = {
   cpc: "Ad", ppc: "Ad", paid: "Ad", paidsocial: "Ad", paid_social: "Ad", "paid-social": "Ad", display: "Ad",
   email: "Email", affiliate: "Partner link",
@@ -143,7 +144,7 @@ export function analyticsModel(input: {
   const campaigns: Row[] = campaignSales(cur).slice(0, 8).map(r => ({
     key: r.key, label: sourceWord(r.source), value: r.orders,
     sub: r.campaign ? `Campaign: ${r.campaign}` : MEDIUM_WORDS[r.medium] || "Ad",
-    extra: CAD.format(r.revenue),
+    extra: MONEY.format(r.revenue),
   }));
 
   const views = google
