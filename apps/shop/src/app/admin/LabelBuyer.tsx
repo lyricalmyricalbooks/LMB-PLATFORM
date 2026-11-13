@@ -79,11 +79,11 @@ export function LabelBuyer({
           {(["length", "width", "height", "weight"] as const).map((k) => (
             <TextField
               key={k}
-              label={`${k[0].toUpperCase() + k.slice(1)} (${k === "weight" ? "g" : "in"})`}
+              label={`${k[0].toUpperCase() + k.slice(1)} (${k === "weight" ? (parcel.mass_unit || "g") : "in"})`}
               type="number"
               inputMode="decimal"
-              min={k === "weight" ? "1" : "0.01"}
-              step={k === "weight" ? "1" : "0.01"}
+              min={k === "weight" && parcel.mass_unit === "g" ? "1" : "0.01"}
+              step={k === "weight" && parcel.mass_unit === "g" ? "1" : k === "weight" ? "0.1" : "0.01"}
               value={parcel[k]}
               disabled={locked}
               onChange={(e) => onParcel({ [k]: e.target.value })}

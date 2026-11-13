@@ -3,6 +3,7 @@ import { sameValue } from "./bookStockMerge";
 import { catalogPublishIssues } from "./catalogPublishReview";
 import { validIsbn } from "./catalogImport";
 import { metricWeightValue } from "../features/site/metricWeight";
+import { SHOP_COUNTRY } from "./moneySign";
 
 const DERIVED_CURRENCY = ["usdPrice", "eurPrice", "usdCostPrice", "eurCostPrice", "usdSalePrice", "eurSalePrice"];
 
@@ -81,18 +82,22 @@ export function slugFollowsTitle(prev: { slug?: unknown; title?: unknown }, lock
 
 // ── Weight ───────────────────────────────────────────────────────
 
-// Metric only. An older "1 lb" / "8 oz" value is shown as whole grams and saved that way (withMetricWeights).
-export const WEIGHT_UNITS = ["g", "kg"] as const;
-export type WeightUnit = typeof WEIGHT_UNITS[number];
+// A Canadian shop is metric only: an older "1 lb" / "8 oz" value is shown as whole grams and saved that way
+// (withMetricWeights). An American shop types ounces and pounds (grams and kilograms stay on offer) and keeps them.
+export type WeightUnit = "g" | "kg" | "oz" | "lb";
+export const weightUnits = (country: string = SHOP_COUNTRY): readonly WeightUnit[] => (country === "US" ? ["oz", "lb", "g", "kg"] : ["g", "kg"]);
+export const WEIGHT_UNITS = weightUnits();
 
 /** "450 g" → { amount: "450", unit: "g" }; "1 lb" → { amount: "454", unit: "g" }; anything parseWeightGrams can't read is reported as `unreadable`. */
-export function splitWeight(raw: unknown, fallbackUnit: WeightUnit = "g"): { amount: string; unit: WeightUnit; unreadable?: string } {
+export function splitWeight(raw: unknown, fallbackUnit?: WeightUnit, country: string = SHOP_COUNTRY): { amount: string; unit: WeightUnit; unreadable?: string } {
+  fallbackUnit ??= weightUnits(country)[0];
   const text = String(raw ?? "").trim();
   if (!text) return { amount: "", unit: fallbackUnit };
   const m = text.toLowerCase().match(/^([\d.]+)\s*(kg|g|lbs?|oz)?$/);
   if (!m || !Number.isFinite(parseFloat(m[1]))) return { amount: "", unit: fallbackUnit, unreadable: text };
+  if (country === "US" && (m[2] === "oz" || m[2]?.startsWith("lb"))) return { amount: m[1], unit: m[2] === "oz" ? "oz" : "lb" };
   if (m[2] === "oz" || m[2]?.startsWith("lb")) return { amount: String(Math.round(parseFloat(m[1]) * (m[2] === "oz" ? 28.3495 : 453.592))), unit: "g" };
-  return { amount: m[1], unit: (m[2] || "g") as WeightUnit };
+  return { amount: m[1], unit: (m[2] || "g") as WeightUnit };  // a bare number is grams (parseWeightGrams)
 }
 
 /** The stored format the shipping engines read (shippingEngine.parseWeightGrams): "450 g", "0.5 kg", "" when blank. */
