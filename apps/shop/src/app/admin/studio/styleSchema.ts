@@ -5,6 +5,7 @@ import { STATIC_SURFACES, writeDesignValue } from "../../features/site/designMod
 
 import { FONT_SELECT_OPTIONS } from "../../features/site/fonts";
 import { HEADER_LAYOUT_OPTIONS } from "../../features/site/headerLayout";
+import { FOOTER_SHAPE_OPTIONS } from "../../features/site/footerStyle";
 import { PHOTO_OUTLINE_OPTIONS, PHOTO_RATIO_OPTIONS } from "../../features/site/photoShapes";
 import { REGION_GROUPS, REGION_DEVICES, REGION_DEVICE_LABELS, REGION_SUFFIXES, regionKey, regionFieldDevice, type RegionDevice } from "../../features/site/storefrontRegions";
 import { ELEMENT_SCHEME_TARGETS } from "../../features/site/colorSchemes";
@@ -393,6 +394,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
     fields: [
       { key: "hideNewsletter", label: "Hide the “Join the Catalogue” sign-up box", kind: "toggle" },
       { key: "hideRecentlyViewed", label: "Hide the “Recently viewed” row on the shop page", kind: "toggle" },
+      { key: "footerShape", label: "Footer shape", kind: "select", defaultValue: "", options: FOOTER_SHAPE_OPTIONS },
       { key: "footerNavigationLayout", label: "Footer navigation layout", kind: "select", defaultValue: "grouped", options: [{ value: "grouped", label: "Grouped links + legal row" }, { value: "columns", label: "Classic columns" }] },
       { key: "showFooterExplore", label: "Show Explore link group", kind: "toggle", defaultValue: true },
       { key: "showFooterConnect", label: "Show Participate & connect link group", kind: "toggle", defaultValue: true },

@@ -165,7 +165,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Sticker pills", keys: ["navPillRadius", "navPillRotate", "navPillActivePalette"] },
   ],
   footer: [
-    { title: "Footer layout", keys: ["footerNavigationLayout", "footerLinksAlign", "footerBrandAlign", "footerBrandVAlign", "footerBrandCenterMobile", "showFooterBrandDivider", "footerColumns", "footerLayout", "footerBg"] },
+    { title: "Footer layout", keys: ["footerShape", "footerNavigationLayout", "footerLinksAlign", "footerBrandAlign", "footerBrandVAlign", "footerBrandCenterMobile", "showFooterBrandDivider", "footerColumns", "footerLayout", "footerBg"] },
     { title: "Footer spacing", keys: ["footerPaddingY", "footerPaddingYMobile", "footerBarPaddingY", "footerColumnGap", "footerLinkGap"] },
     { title: "Footer text & lines", keys: ["footerTextSize", "footerTextColor", "footerHeadingColor", "footerLinkHoverColor", "showFooterDividers", "footerDividerColor"] },
     { title: "Footer accent", keys: ["showFooterAccentLine", "footerAccentLineWidth", "footerAccentColor", "footerGroupHeadingsAccent", "footerSocialBoxes", "footerSocialHoverColor"] },
