@@ -1,3 +1,4 @@
+import { shopTimeZone } from "../../../shared/shopTimeZone";
 // Section groups (Studio 2.2): stacks of sections that appear on every page, edited in Studio ›
 // Page layout like a page's own sections. Each group is a root design key so nothing older moves:
 // `globalSections` (above the footer) is the group shops already have.
@@ -32,7 +33,7 @@ export type Announcement = { id: string; text: string; link?: string; from?: str
 /** "YYYY-MM-DD" in the shop's calendar (Toronto), matching how discounts and releases count days. */
 export function shopDay(now = new Date()): string {
   try {
-    return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+    return new Intl.DateTimeFormat("en-CA", { timeZone: shopTimeZone(), year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
   } catch {
     return now.toISOString().slice(0, 10);
   }

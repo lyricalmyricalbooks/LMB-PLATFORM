@@ -18,7 +18,7 @@ export const TEST_PROJECT = "lmb-test-shop";
 export const TEST_SHOPS = Object.freeze([
   Object.freeze({ shopId: "test-press", kind: "books", pressName: "Test Press", publishes: "books", site: TEST_PROJECT, address: `${TEST_PROJECT}.web.app` }),
   Object.freeze({ shopId: "test-goods", kind: "general", pressName: "Test Goods", publishes: "other", site: "lmb-test-goods", address: "lmb-test-goods.web.app" }),
-  Object.freeze({ shopId: "test-press-us", kind: "books", pressName: "Test Press US", publishes: "books", site: "lmb-test-press-us", address: "lmb-test-press-us.web.app", country: "US", currency: "USD" }),
+  Object.freeze({ shopId: "test-press-us", kind: "books", pressName: "Test Press US", publishes: "books", site: "lmb-test-press-us", address: "lmb-test-press-us.web.app", country: "US", currency: "USD", timeZone: "America/Los_Angeles" }),
 ]);
 
 /** The book test shop: the one every older tool and doc calls "the test shop". */

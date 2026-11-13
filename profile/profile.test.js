@@ -146,3 +146,9 @@ test("the shop's currency is an optional three-letter code", () => {
   assert.equal(schema.required.includes("currency"), false);
   assert.ok(profileProblems({ ...example, currency: "usd" }).includes("profile.currency has the wrong shape"));
 });
+
+test("the shop's time zone is an optional zone name", () => {
+  assert.deepEqual(profileProblems({ ...example, timeZone: "America/Los_Angeles" }), []);
+  assert.equal(schema.required.includes("timeZone"), false);
+  assert.ok(profileProblems({ ...example, timeZone: "Pacific time" }).includes("profile.timeZone has the wrong shape"));
+});

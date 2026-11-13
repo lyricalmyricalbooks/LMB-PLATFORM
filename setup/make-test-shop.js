@@ -74,6 +74,7 @@ export function testShop(ownerEmail, place = TEST_SHOPS[0]) {
     plan: "both",
     country: place.country ?? "CA",
     currency: place.currency ?? "CAD",
+    ...(place.timeZone ? { timeZone: place.timeZone } : {}),
     paymentProvider: "stripe",
     testMode: true,
     testShop: true,

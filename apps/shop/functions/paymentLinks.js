@@ -15,6 +15,7 @@
 // ones agreed. No discount applies on top; tax is worked out as for any order. A paid order can't be paid again for the
 // same reasons any order can't, and cancelling the order (Orders › order › Cancel) closes its link.
 const crypto = require("crypto");
+const { shopTimeZone } = require("./shared/shopTimeZone");
 const { isPhysicalItem } = require("./shared/localFulfillment");
 const { emailLanguage } = require("./emailFrench");
 
@@ -54,7 +55,7 @@ function addOnParentProblem(order) {
  * The day a link closes, as the customer reads it ("November 5, 2026"), in the shop's time zone. Every place that names
  * the day (the order's history, the payment link email, the reminder) uses this same day.
  */
-const closingDay = (iso, language = "en") => new Intl.DateTimeFormat(language === "fr" ? "fr-CA" : "en-CA", { timeZone: "America/Toronto", year: "numeric", month: "long", day: "numeric" }).format(new Date(iso));
+const closingDay = (iso, language = "en") => new Intl.DateTimeFormat(language === "fr" ? "fr-CA" : "en-CA", { timeZone: shopTimeZone(), year: "numeric", month: "long", day: "numeric" }).format(new Date(iso));
 
 /**
  * Checks what the admin sent and returns the cleaned link: { customer, lines, shipping, note, days }. Throws

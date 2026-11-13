@@ -1,4 +1,5 @@
 const { isPaymentId } = require("./payments/ids");
+const { shopTimeZone } = require("./shared/shopTimeZone");
 
 // Currencies the shop prices in (exchange rates exist only for these). Any other
 // value would fall back to a 1:1 rate and let a shopper pay e.g. 100 INR for a
@@ -42,7 +43,7 @@ const toMinor = value => Math.round(Number(value) * 100);
 // plain dates ("2026-10-06" = "Last day the code works"), so they are compared
 // with the shop's date, not a UTC timestamp (which ended codes at 8pm the day before).
 function shopDate(now = new Date()) {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  return new Intl.DateTimeFormat("en-CA", { timeZone: shopTimeZone(), year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
 
 // null when the code may be used today, otherwise "not_started" | "expired".

@@ -8,6 +8,7 @@
 // `payments` holds only what the card form needs on the page (plan 2.2), and the server never trusts it.
 
 import { shopCountryOf, shopCurrencyOf, type ShopCountry, type ShopCurrency } from "../shared/shopCurrency";
+import { shopTimeZoneOf } from "../shared/shopTimeZone";
 
 export type ShopProfile = {
   version: 1;
@@ -16,6 +17,8 @@ export type ShopProfile = {
   name?: string;
   /** The currency the shop prices and sells in (shared/shopCurrency). Missing: Canadian dollars. */
   currency?: string;
+  /** The shop's own time zone, like "America/Vancouver" (shared/shopTimeZone). Missing: Eastern time. */
+  timeZone?: string;
   /** What the shop sells, its sign-up answer (plan 10.23). The admin reads it from `firstWeek/start` today. */
   sells?: string;
   firebase: {
@@ -140,6 +143,7 @@ export function parseShopProfile(value: unknown): ShopProfile | null {
     shopId: profile.shopId,
     ...(profile.name !== undefined ? { name: profile.name } : {}),
     // A currency the shop doesn't know is left out, which reads as Canadian dollars (shared/shopCurrency).
+    ...(typeof profile.timeZone === "string" && shopTimeZoneOf(profile.timeZone) === profile.timeZone ? { timeZone: profile.timeZone } : {}),
     ...(typeof profile.currency === "string" && shopCurrencyOf(profile.currency) === profile.currency ? { currency: profile.currency } : {}),
     firebase: Object.fromEntries(FIREBASE_KEYS.map(key => [key, firebase[key]])) as ShopProfile["firebase"],
     ...(profile.tenant !== undefined ? { tenant: profile.tenant } : {}),

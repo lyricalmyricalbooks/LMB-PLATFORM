@@ -96,4 +96,7 @@ browsers may write (mirroring `firestore.rules`).
   `BANK_TRANSFER` in `admin/moneySign.ts`. Never write "Canada", "Canada Post", "province", "postal code" or "e-Transfer" as a
   fallback or in owner-facing words without it. `localFulfillment.ts` reads Canadian postal codes and US ZIP codes alike (a code
   only matches its own country). Weights: `metricWeight.ts` keeps oz/lb for a US shop. Carrier quotes: `functions/checkoutRate.js`
-  `rateAmount` converts a quote in another currency or leaves it out. Still Toronto's: the shop's day (time zone, update E).
+  `rateAmount` converts a quote in another currency or leaves it out. **The shop's time zone (update E):** `shopTimeZone.ts` (`shopTimeZone()`, `shopCalendarDay`); the pages read the
+  profile's `timeZone`, the server `shopConfig.timeZone` (`SHOP_TIME_ZONE`) through `setShopTimeZoneSource` in
+  `functions/shopConfig.js`. Never write "America/Toronto" for a shop's day (`functions/shopTimeZone.test.js` counts them).
+  Still Eastern: the scheduled jobs' timetables (one server, one timetable).

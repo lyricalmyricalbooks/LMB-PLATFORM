@@ -101,6 +101,8 @@ export function envFileText(shop, { senderEmail, paymentsServiceUrl, region = RE
     `SHOP_PAYMENT_MODE="platform"`,
     // The currency the shop prices and sells in (sign-up's country). The shop treats one it doesn't know as CAD.
     `SHOP_CURRENCY=${quote(/^[A-Za-z]{3}$/.test(shop.currency ?? "") ? shop.currency.toUpperCase() : "CAD")}`,
+    // The shop's own time zone; the shop reads a missing or unknown one as Eastern time.
+    `SHOP_TIME_ZONE=${quote(/^[A-Za-z_]+\/[A-Za-z0-9_+\-/]{1,60}$/.test(shop.timeZone ?? "") ? shop.timeZone : "America/Toronto")}`,
     `SHOP_PAYMENTS_SERVICE_URL=${quote(paymentsServiceUrl)}`,
     // Where the server code runs (step 8 deploys it there); the shop reads it for its function addresses.
     `SHOP_FUNCTIONS_REGION=${quote(region)}`,

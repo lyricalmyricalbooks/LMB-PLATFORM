@@ -4,6 +4,7 @@
 // helpers, so the vm-based handler tests' fakes still apply, and keeps each `exports.<name> =` line.
 
 const { withPlatformKey } = require("./platformKey");
+const { shopTimeZone } = require("./shared/shopTimeZone");
 const { lowStockLine, lowStockRows, newlyLow, lowStockLabel, lowStockEmailEnabled } = require("./lowStockAlert");
 const { sayer, shopLanguage } = require("./emailFrench");
 
@@ -219,7 +220,7 @@ function scheduledJobs({
         }
         // Shop-wide daily cap: forged carts can't make the shop a bulk sender. Over the cap, this
         // cart stays un-notified (and the address unthrottled) so tomorrow's sweep can still send it.
-        const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+        const day = new Intl.DateTimeFormat("en-CA", { timeZone: shopTimeZone(), year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
         const dailyRef = db.collection("abandoned-cart-throttle").doc("_daily");
         const underCap = await db.runTransaction(async tx => {
           const d = await tx.get(dailyRef);

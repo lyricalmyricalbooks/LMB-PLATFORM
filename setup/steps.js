@@ -94,6 +94,7 @@ export function shopProblems(shop) {
   if (!(shop.plan in PLANS)) problems.push("the plan must be shop, stockroom or both");
   if (typeof shop.country !== "string" || !/^[A-Z]{2}$/.test(shop.country)) problems.push("the country must be a two-letter code like CA");
   if (typeof shop.currency !== "string" || !/^[A-Z]{3}$/.test(shop.currency)) problems.push("the currency must be a three-letter code like CAD");
+  if ("timeZone" in shop && shop.timeZone != null && !/^[A-Za-z_]+\/[A-Za-z0-9_+\-/]{1,60}$/.test(String(shop.timeZone))) problems.push("the time zone must be a name like America/Toronto");
   if ("testMode" in shop && typeof shop.testMode !== "boolean") problems.push("test mode must be true or false");
   if ("testShop" in shop && typeof shop.testShop !== "boolean") problems.push("the test shop mark must be true or false");
   // The test shop's test purchases move its stock like real ones; it must never take real money.
@@ -136,6 +137,8 @@ export function shopProfile(shop, webAppConfig, region = REGION, savedSwitches =
     ...(/^[a-z][a-z-]{1,30}$/.test(shop.publishes ?? "") ? { sells: shop.publishes } : {}),
     // The currency the shop prices and sells in. Left out for Canadian dollars, so today's profiles stay as they are.
     ...(/^[A-Za-z]{3}$/.test(shop.currency ?? "") && shop.currency.toUpperCase() !== "CAD" ? { currency: shop.currency.toUpperCase() } : {}),
+    // The shop's own time zone (sign-up reads the press's browser). Left out for Eastern time, as every profile was before.
+    ...(/^[A-Za-z_]+\/[A-Za-z0-9_+\-/]{1,60}$/.test(shop.timeZone ?? "") && shop.timeZone !== "America/Toronto" ? { timeZone: shop.timeZone } : {}),
     firebase: { apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId },
     functionsRegion: region,
     // The shop's main address (plan 5.9, services/domains `siteUrlOf`), else the one Firebase gave it.
@@ -265,7 +268,7 @@ export function firstSteps({ google, registry, profileFiles, config, now = () =>
         const { shopId, pressName, ownerEmail, plan, country, currency, language } = shop;
         // The test marks live in the registry, where only the platform can change them (docs/test-shop.md).
         await registry.createShop(shopId, {
-          shopId, projectId: shopId, pressName, ownerEmail, plan, country, currency, region,
+          shopId, projectId: shopId, pressName, ownerEmail, plan, country, currency, region, ...(shop.timeZone ? { timeZone: shop.timeZone } : {}),
           testMode: shop.testMode === true, testShop: shop.testShop === true, status: "creating", createdAt: now().toISOString(),
           ...(language === "fr" ? { language } : {}),
         });

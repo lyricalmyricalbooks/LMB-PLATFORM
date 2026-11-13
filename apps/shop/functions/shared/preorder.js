@@ -1,14 +1,5 @@
 // GENERATED from src/shared/preorder.ts by scripts/build-shared.mjs. Do not edit: change the .ts and run the script.
 "use strict";
-// Pre-orders: a published book the shop sells before its publication date. One copy for the shop and the server:
-// the storefront imports this file (features/site/preorder.ts), and the Functions run functions/shared/preorder.js,
-// which scripts/build-shared.mjs writes from it (src/shared/CLAUDE.md).
-//
-// On while Books › edit › Inventory › "Take pre-orders" is on and the Publication date
-// (`publishDate`, YYYY-MM-DD) is still ahead in the shop's (Toronto) calendar. No date =
-// "release date to be announced" until the switch is turned off. On the release day it becomes an
-// ordinary book by itself. Stock and prices are the book's normal ones; only the wording, the order's
-// shipping timing and e-book access change.
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.isDigitalLine = void 0;
 exports.shopDate = shopDate;
@@ -24,10 +15,20 @@ exports.formatReleaseDate = formatReleaseDate;
 exports.linePreorderOpen = linePreorderOpen;
 exports.bagPreorder = bagPreorder;
 exports.linePreorderNote = linePreorderNote;
+const shopTimeZone_1 = require("./shopTimeZone");
+// Pre-orders: a published book the shop sells before its publication date. One copy for the shop and the server:
+// the storefront imports this file (features/site/preorder.ts), and the Functions run functions/shared/preorder.js,
+// which scripts/build-shared.mjs writes from it (src/shared/CLAUDE.md).
+//
+// On while Books › edit › Inventory › "Take pre-orders" is on and the Publication date
+// (`publishDate`, YYYY-MM-DD) is still ahead in the shop's (Toronto) calendar. No date =
+// "release date to be announced" until the switch is turned off. On the release day it becomes an
+// ordinary book by itself. Stock and prices are the book's normal ones; only the wording, the order's
+// shipping timing and e-book access change.
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 /** Today in the shop's calendar, same as the server's shopDate (functions/paymentGuards.js). */
 function shopDate(now = new Date()) {
-    return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+    return new Intl.DateTimeFormat("en-CA", { timeZone: (0, shopTimeZone_1.shopTimeZone)(), year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
 function releaseDateOf(book) {
     const value = String(book?.publishDate || "").slice(0, 10);
