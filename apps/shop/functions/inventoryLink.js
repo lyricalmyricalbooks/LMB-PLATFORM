@@ -716,8 +716,8 @@ function detailDifferences(linked, appBooks, kept = {}) {
     if (!theirs || new Set(rows.map(r => r.bookId)).size > 1) continue;
     const first = rows[0];
     const single = Number(first.sharedWith) === 1;
-    // Canadian dollars, as the admin's shopDraftFrom reads the app's currency.
-    const cad = /^(|cad|ca\$|c\$|\$)$/i.test(String(theirs.currency || "").trim());
+    // The shop's own currency, as the admin's shopDraftFrom reads the app's currency.
+    const cad = (shopCurrency() === "USD" ? /^(|usd|us\$|\$)$/i : /^(|cad|ca\$|c\$|\$)$/i).test(String(theirs.currency || "").trim());
     for (const field of DETAIL_FIELDS) {
       if ((field === "isbn" || field === "price") && !single) continue;
       if (field === "price" && !cad) continue;

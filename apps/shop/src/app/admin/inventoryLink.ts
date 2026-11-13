@@ -4,7 +4,7 @@
 import { isBundle, isGiftCardProduct } from "../features/site/promotions";
 import { shopProfile } from "../../lib/shopProfile";
 import { isBookKind, productKind } from "../../shared/productOptions";
-import { MONEY_SIGN } from "./moneySign";
+import { MONEY_SIGN, SHOP_CURRENCY } from "./moneySign";
 
 export type InventoryLinks = Record<string, Record<string, string>>;
 
@@ -212,8 +212,8 @@ export function appOnlyBooks(state: any): AppOnlyBook[] {
   return items.filter((b) => b && b.id && !used.has(b.id) && !ignored[b.id]);
 }
 
-/** Canadian dollars only: the shop's prices are in CAD, so a price kept in euros is left for the owner to set. */
-const isCad = (currency: string) => /^(ca\$|cad|\$|c\$)$/i.test(String(currency || "").trim());
+/** The shop's own currency only: a price kept in another one (euros, say) is left for the owner to set. */
+const isCad = (currency: string) => (SHOP_CURRENCY === "USD" ? /^(us\$|usd|\$)$/i : /^(ca\$|cad|\$|c\$)$/i).test(String(currency || "").trim());
 
 /** The new website book "Add to the shop" opens: a draft filled from the app book, nothing else. */
 export function shopDraftFrom(book: AppOnlyBook) {

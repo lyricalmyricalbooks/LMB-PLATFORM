@@ -27,10 +27,10 @@ describe("extra amount on live carrier rates", () => {
   });
   it("the charge and the checkout display both add it, and the admin field uses the same cap", () => {
     const index = readFileSync(new URL("./index.js", import.meta.url), "utf8");
-    expect(index).toMatch(/price: withLiveRateExtra\(Number\(rate\.amount\), liveRateExtra\(config\)\)/);
+    expect(index).toMatch(/price: withLiveRateExtra\(rateAmount\(rate, quoteMoney\), liveRateExtra\(config\)\)/);
     // The checkout display is priced in shippoEndpoints.js (getShippoRates, moved out of index.js as is).
     const shippo = readFileSync(new URL("./shippoEndpoints.js", import.meta.url), "utf8");
-    expect(shippo).toMatch(/rates\.map\(checkoutRate\)\.map\(\(rate\) => extra \?/);
+    expect(shippo).toMatch(/rates\.map\(\(rate\) => checkoutRate\(rate, money\)\)\.filter\(\(rate\) => Number\.isFinite\(rate\.price\)\)\.map\(\(rate\) => extra \?/);
     const admin = readFileSync(new URL("../src/app/admin/ShopSettings.tsx", import.meta.url), "utf8");
     expect(admin).toContain(`const MAX_LIVE_RATE_EXTRA = ${MAX_LIVE_RATE_EXTRA};`);
   });

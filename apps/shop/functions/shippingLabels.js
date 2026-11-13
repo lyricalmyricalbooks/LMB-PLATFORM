@@ -452,7 +452,7 @@ function shippingLabelEndpoints({ onBrowserRequest, SHIPPO_API_TOKEN, applyCors,
             carrier: rate.provider || "",
             soldService: isSoldRateName(rate, order),
             amount: Number(rate.amount),
-            currency: rate.currency || "CAD",
+            currency: rate.currency || shopCurrency(),
             estimatedDays: Number.isFinite(Number(rate.estimated_days)) ? Number(rate.estimated_days) : null,
             durationTerms: rate.duration_terms || ""
           })) });

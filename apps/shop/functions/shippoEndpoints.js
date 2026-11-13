@@ -11,7 +11,7 @@ function shippoEndpoints({
   advancesTracking, bundleComponents, callShippo, catalogDigital, catalogFormat, checkoutRate,
   cleanLiveRateExtra, getCountryCode, getShippoToken, getStateCode, handleAddressLookup, isPhysicalItem,
   itemWeightGrams, liveRateExtra, originAddress, parcelGrams, publicErrorMessage, readAdminSecret,
-  withLiveRateExtra,
+  withLiveRateExtra, liveQuoteMoney,
 }) {
   // ──────────────────────────────────────────────────────────────
   // 7. HTTP Endpoint: Validate Address via Shippo (Secure)
@@ -213,7 +213,8 @@ function shippoEndpoints({
 
         const rates = shipment.rates || [];
         const extra = liveRateExtra(config);
-        const formattedRates = rates.map(checkoutRate).map((rate) => extra ? { ...rate, price: withLiveRateExtra(rate.price, extra), base: withLiveRateExtra(rate.base, extra) } : rate);
+        const money = liveQuoteMoney ? await liveQuoteMoney() : undefined;
+        const formattedRates = rates.map((rate) => checkoutRate(rate, money)).filter((rate) => Number.isFinite(rate.price)).map((rate) => extra ? { ...rate, price: withLiveRateExtra(rate.price, extra), base: withLiveRateExtra(rate.base, extra) } : rate);
 
         res.status(200).json({ rates: formattedRates });
       } catch (err) {

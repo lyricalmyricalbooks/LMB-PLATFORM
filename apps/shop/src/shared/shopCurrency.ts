@@ -29,3 +29,11 @@ export function shopMoney(amount: number, currency: unknown): string {
   const n = Number.isFinite(amount) ? amount : 0;
   return `${n < 0 ? "-" : ""}${currencySign(currency)}${Math.abs(n).toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
+
+/**
+ * The country a shop is in, from its currency (13 November 2026): a shop that sells in US dollars is an American shop,
+ * every other a Canadian one (Julian, 12 November: a US customer has everything in USD, a Canadian one in CAD). The
+ * one place that says so: sales tax words, the starting shipping zone, the carrier, weights and address words read it.
+ */
+export type ShopCountry = "CA" | "US";
+export const shopCountryOf = (currency: unknown): ShopCountry => (shopCurrencyOf(currency) === "USD" ? "US" : "CA");
