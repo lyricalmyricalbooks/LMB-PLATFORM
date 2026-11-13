@@ -1,3 +1,4 @@
+import { HOME_CARRIER } from "./moneySign";
 import "./fulfillment.css";
 import { plainError } from "./plainError";
 import { ReturnWorkbench } from "./ReturnWorkbench";
@@ -237,7 +238,7 @@ export function OrderDetail({
   // "dispatch" = first hand-off to the carrier; "edit" = correct tracking on a parcel already in transit.
   const [showShipForm, setShowShipForm] = useState<false | "dispatch" | "edit">(false);
   const [shipPartOpen, setShipPartOpen] = useState(false);
-  const [trackingCarrier, setTrackingCarrier] = useState("Canada Post");
+  const [trackingCarrier, setTrackingCarrier] = useState(HOME_CARRIER);
   const [otherCarrier, setOtherCarrier] = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
   const [trackingLink, setTrackingLink] = useState("");
@@ -261,7 +262,7 @@ export function OrderDetail({
   function fillTracking(data: any) {
     const carrier = String(data?.trackingCarrier || "").trim();
     const known = !carrier || CARRIERS.includes(carrier);
-    setTrackingCarrier(known ? carrier || "Canada Post" : "Other");
+    setTrackingCarrier(known ? carrier || HOME_CARRIER : "Other");
     setOtherCarrier(known ? "" : carrier);
     setTrackingNumber(data?.trackingNumber || "");
     setTrackingLink(data?.trackingUrl || "");
@@ -341,7 +342,7 @@ export function OrderDetail({
     try {
       // A Shippo label keeps its own carrier and number; only the link is the publisher's.
       await adminApi.fulfillmentAction(orderId, editing ? "edit_tracking" : "dispatch", {
-        trackingCarrier: hasLabel ? order.trackingCarrier || "Canada Post" : carrierName,
+        trackingCarrier: hasLabel ? order.trackingCarrier || HOME_CARRIER : carrierName,
         trackingNumber: hasLabel ? order.trackingNumber : trackingNumber,
         trackingUrl: trackingLink,
         ...(editing && rawLabel && labelReplaced ? { replaceLabel: true } : {}),

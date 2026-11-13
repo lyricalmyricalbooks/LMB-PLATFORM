@@ -2,13 +2,13 @@
 // index.js as is (functions/CLAUDE.md › Cloud Functions › Action table). index.js passes in its own Firebase wrappers,
 // guards and Shippo helpers, so the vm-based handler tests' fakes still reach this code.
 const { withPlatformKey } = require("./platformKey");
-const { shopCurrency } = require("./shopMoney");
+const { shopCurrency, shopCountry } = require("./shopMoney");
 const { labelHandedOver, transactionRefundState, findLabelTransaction, refundEntry, openRefunds, REFUND_WINDOW_DAYS: LABEL_REFUND_WINDOW_DAYS } = require("./labelVoid");
 const { labelProblem, shippoTransactionOutcome, shippoDefiniteRefusal, terminal: terminalOrder } = require("./fulfillmentGuard");
 const { addressMissing } = require("./shared/addressRules");
 const { isPhysicalItem } = require("./shared/localFulfillment");
 const { lineCopyGrams, parcelGrams, FALLBACK_COPY_GRAMS } = require("./parcelWeight");
-const { labelRatesFor, isPurchasableRate, isSoldRate: isSoldRateName, isCanadaPostRate: isCanadaPostRateName, soldName } = require("./labelRates");
+const { labelRatesFor, isPurchasableRate, isSoldRate: isSoldRateName, isHomeCarrierRate, homeCarrierName, soldName } = require("./labelRates");
 const { needsCustoms, customsItems, customsDeclaration, parcelContents } = require("./customs");
 
 function shippingLabelEndpoints({ onBrowserRequest, SHIPPO_API_TOKEN, applyCors, admin, requireAdmin, db, getShippoToken, callShippo, IS_EMULATOR, originAddress, getStateCode, getCountryCode }) {
@@ -355,19 +355,19 @@ function shippingLabelEndpoints({ onBrowserRequest, SHIPPO_API_TOKEN, applyCors,
 
         if (mode === "purchase") {
           if (!shipmentId || !rateId) {
-            res.status(400).json({ error: "Choose a Canada Post rate before buying the label." });
+            res.status(400).json({ error: "Choose a rate before buying the label." });
             return;
           }
           const quotedShipment = await callShippo(`shipments/${encodeURIComponent(shipmentId)}/`, "GET", null, shippoToken);
           const chosenRate = (quotedShipment.rates || []).find(rate => rate.object_id === rateId);
-          if (!chosenRate || !isPurchasableRate(chosenRate, order)) {
+          if (!chosenRate || !isPurchasableRate(chosenRate, order, shopCountry())) {
             res.status(400).json({ error: "That rate is no longer available. Refresh the choices and try again." });
             return;
           }
           const shippoOrderId = await linkedShippoOrder();
           await claimPurchase();
           const transaction = await buyRate(chosenRate.object_id, shippoOrderId);
-          res.status(200).json(await recordLabel(transaction, chosenRate.provider || "Canada Post"));
+          res.status(200).json(await recordLabel(transaction, chosenRate.provider || homeCarrierName(shopCountry())));
           return;
         }
 
@@ -444,11 +444,11 @@ function shippingLabelEndpoints({ onBrowserRequest, SHIPPO_API_TOKEN, applyCors,
 
         if (mode === "rates") {
           await operationsRef.set({ quotedShipmentId: shipment.object_id, quotedAddress: JSON.stringify(order.customer.address) }, { merge: true });
-          // Canada Post, plus the exact service the customer paid for when checkout sold another carrier's.
-          const offered = labelRatesFor(rates, order);
+          // The shop's own post office, plus the exact service the customer paid for when checkout sold another carrier's.
+          const offered = labelRatesFor(rates, order, 5, shopCountry());
           res.status(200).json({ shipmentId: shipment.object_id, customs: !!customsDeclarationId, rates: offered.map(rate => ({
             id: rate.object_id,
-            name: isCanadaPostRateName(rate) ? (rate.servicelevel?.name || "Canada Post") : soldName(rate),
+            name: isHomeCarrierRate(rate, shopCountry()) ? (rate.servicelevel?.name || homeCarrierName(shopCountry())) : soldName(rate),
             carrier: rate.provider || "",
             soldService: isSoldRateName(rate, order),
             amount: Number(rate.amount),

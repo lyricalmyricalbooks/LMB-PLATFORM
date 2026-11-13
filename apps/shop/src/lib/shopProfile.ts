@@ -7,7 +7,7 @@
 // values below, so nothing changes for this shop. Plan, test mode, the platform fee and secret keys are never in here;
 // `payments` holds only what the card form needs on the page (plan 2.2), and the server never trusts it.
 
-import { shopCurrencyOf, type ShopCurrency } from "../shared/shopCurrency";
+import { shopCountryOf, shopCurrencyOf, type ShopCountry, type ShopCurrency } from "../shared/shopCurrency";
 
 export type ShopProfile = {
   version: 1;
@@ -164,6 +164,11 @@ export function readShopProfile(source: unknown = typeof window === "undefined" 
 }
 
 export const shopProfile: ShopProfile = readShopProfile();
+
+/** "CA" or "US": the country the shop is in (shared/shopCurrency shopCountryOf: a US dollar shop is an American shop). */
+export function shopCountry(profile: ShopProfile = shopProfile): ShopCountry {
+  return shopCountryOf(profile.currency);
+}
 
 /** The currency every price and total of this shop is in: "CAD" unless its profile says "USD". */
 export function shopCurrency(profile: ShopProfile = shopProfile): ShopCurrency {

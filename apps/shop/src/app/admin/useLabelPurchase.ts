@@ -82,7 +82,7 @@ export function useLabelPurchase(orderId: string, order: any, reload: () => Prom
       setSelectedRate(chosen?.id || (order?.shippingMethod ? "" : result.rates?.[0]?.id || ""));
       setSearched(true);
     } catch (err: any) {
-      toast.error(plainError(err, "Couldn't load Canada Post rates"));
+      toast.error(plainError(err, "Couldn't load the label rates"));
     } finally {
       setFinding(false);
     }

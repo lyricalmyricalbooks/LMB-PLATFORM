@@ -11,3 +11,5 @@ export const MONEY_NAME = currencyName(SHOP_CURRENCY);
 export const SHOP_COUNTRY = shopCountryOf(SHOP_CURRENCY);
 /** True in an American shop: US sales tax words, USPS, ounces and pounds, "state" and "ZIP code". */
 export const US_SHOP = SHOP_COUNTRY === "US";
+/** The post office the shop's parcels start from: the carrier forms start on it. */
+export const HOME_CARRIER = US_SHOP ? "USPS" : "Canada Post";

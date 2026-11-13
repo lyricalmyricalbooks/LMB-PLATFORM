@@ -1,9 +1,15 @@
 const CANADA_POST_NAMES = ["canada post", "canadapost", "canada_post"];
+const USPS_NAMES = ["usps", "us postal", "united states postal"];
+// The post office a shop's labels start from: Canada Post, or USPS for an American shop (shopMoney.js shopCountry).
+const HOME_CARRIER = { CA: { name: "Canada Post", names: CANADA_POST_NAMES }, US: { name: "USPS", names: USPS_NAMES } };
+const homeCarrier = (country) => HOME_CARRIER[country] || HOME_CARRIER.CA;
+const homeCarrierName = (country) => homeCarrier(country).name;
 
-function isCanadaPostRate(rate) {
+function isHomeCarrierRate(rate, country = "CA") {
   const carrier = [rate?.provider, rate?.carrier, rate?.servicelevel?.token].filter(Boolean).join(" ").toLowerCase();
-  return CANADA_POST_NAMES.some(name => carrier.includes(name));
+  return homeCarrier(country).names.some(name => carrier.includes(name));
 }
+const isCanadaPostRate = (rate) => isHomeCarrierRate(rate, "CA");
 
 // The name checkout saves as order.shippingMethod for a live carrier quote ("<provider> <service>").
 // Kept identical to checkoutRate.js so a sold service can be matched back to its label rate.
@@ -17,18 +23,19 @@ function isSoldRate(rate, order) {
   return !!sold && normal(soldName(rate)) === sold;
 }
 
-function canadaPostLabelRates(rates, limit = 5) {
-  return (rates || []).filter(isCanadaPostRate).sort((a, b) => Number(a.amount) - Number(b.amount)).slice(0, limit);
+function canadaPostLabelRates(rates, limit = 5, country = "CA") {
+  return (rates || []).filter(rate => isHomeCarrierRate(rate, country)).sort((a, b) => Number(a.amount) - Number(b.amount)).slice(0, limit);
 }
 
-// What the label tool offers: the service the customer chose (cheapest quote of it) first, then Canada Post.
-function labelRatesFor(rates, order, limit = 5) {
+// What the label tool offers: the service the customer chose (cheapest quote of it) first, then the shop's own post
+// office (Canada Post, or USPS for an American shop).
+function labelRatesFor(rates, order, limit = 5, country = "CA") {
   const sold = (rates || []).filter(rate => isSoldRate(rate, order)).sort((a, b) => Number(a.amount) - Number(b.amount)).slice(0, 1);
-  const rest = canadaPostLabelRates(rates, limit).filter(rate => !sold.includes(rate));
+  const rest = canadaPostLabelRates(rates, limit, country).filter(rate => !sold.includes(rate));
   return [...sold, ...rest].slice(0, limit);
 }
 
-// A rate that may be bought from the label tool: Canada Post, or the exact service the customer paid for.
-const isPurchasableRate = (rate, order) => isCanadaPostRate(rate) || isSoldRate(rate, order);
+// A rate that may be bought from the label tool: the shop's own post office, or the exact service the customer paid for.
+const isPurchasableRate = (rate, order, country = "CA") => isHomeCarrierRate(rate, country) || isSoldRate(rate, order);
 
-module.exports = { canadaPostLabelRates, isCanadaPostRate, isSoldRate, labelRatesFor, isPurchasableRate, soldName };
+module.exports = { canadaPostLabelRates, isCanadaPostRate, isHomeCarrierRate, homeCarrierName, isSoldRate, labelRatesFor, isPurchasableRate, soldName };
