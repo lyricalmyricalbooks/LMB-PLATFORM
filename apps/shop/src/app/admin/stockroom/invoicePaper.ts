@@ -13,7 +13,9 @@ const lines = (...parts: unknown[]) => parts.map((p) => String(p ?? "").trim()).
 const block = (title: string, body: string) => (body.trim() ? `<div style="margin-top:14px;break-inside:avoid"><strong>${escape(title)}</strong><div style="white-space:pre-wrap">${escape(body.trim())}</div></div>` : "");
 
 /** One invoice as a document (no page around it). `today` decides whether a sent invoice reads as overdue. */
-export function invoicePaperHtml(inv: Rec, settings: InvoiceSettings, today: string, opts: { reminder?: boolean } = {}): string {
+/** `quote`: the same page as a quote (Quote, Valid until, no payment details). */
+export type PaperOpts = { reminder?: boolean; quote?: boolean };
+export function invoicePaperHtml(inv: Rec, settings: InvoiceSettings, today: string, opts: PaperOpts = {}): string {
   const code = String(inv.currencyCode || inv.currency || "CAD");
   const money = (n: unknown) => fmt(Number(n) || 0, code);
   const items = (Array.isArray(inv.items) ? inv.items : []) as Rec[];
@@ -28,13 +30,16 @@ export function invoicePaperHtml(inv: Rec, settings: InvoiceSettings, today: str
   const totals: DocTotal[] = [{ label: "Subtotal", value: money(inv.subtotal) }];
   if (Number(inv.discount) > 0) totals.push({ label: `Discount${inv.discountType === "percent" && inv.discountRate ? ` (${inv.discountRate}%)` : ""}`, value: `−${money(inv.discount)}` });
   if (Number(inv.taxRate) > 0) totals.push({ label: `Tax (${inv.taxRate}%)`, value: money(inv.tax) });
-  totals.push({ label: "Total due", value: money(inv.total), strong: true });
+  totals.push({ label: opts.quote ? "Total" : "Total due", value: money(inv.total), strong: true });
 
   const billed = lines(inv.storeName || "—", inv.storeContact, inv.storeEmail, inv.storePhone, inv.storeAddress,
     lines(inv.storeCity, inv.storeRegion, inv.storePostal).join(", "), inv.storeCountry);
-  const overdue = inv.status === "sent" && inv.dueDate && String(inv.dueDate) < today;
-  const status = overdue ? "Overdue" : inv.status === "paid" ? "Paid" : inv.status === "cancelled" ? "Cancelled" : inv.status === "draft" ? "Draft" : "";
-  const link = String(inv.paymentLink || "").trim();
+  const overdue = !opts.quote && inv.status === "sent" && inv.dueDate && String(inv.dueDate) < today;
+  const expired = opts.quote && inv.status === "sent" && inv.validUntil && String(inv.validUntil) < today;
+  const status = opts.quote
+    ? (expired ? "Expired" : inv.status === "accepted" ? "Accepted" : inv.status === "declined" ? "Declined" : inv.status === "draft" ? "Draft" : "")
+    : overdue ? "Overdue" : inv.status === "paid" ? "Paid" : inv.status === "cancelled" ? "Cancelled" : inv.status === "draft" ? "Draft" : "";
+  const link = opts.quote ? "" : String(inv.paymentLink || "").trim();
   const pay = !link || inv.status === "paid" ? ""
     : /^https?:\/\//i.test(link) ? `<p style="margin-top:14px"><strong>Pay online:</strong> <a href="${escape(link)}">${escape(link)}</a></p>`
       : /^[^\s@]+@[^\s@]+$/.test(link) ? `<p style="margin-top:14px"><strong>Send ${escape(money(inv.total))} by Interac e-Transfer to</strong> ${escape(link)}</p>`
@@ -47,26 +52,31 @@ export function invoicePaperHtml(inv: Rec, settings: InvoiceSettings, today: str
 
   return documentFrame({
     press: { name: settings.name, lines: [...lines(...settings.addr.split("\n")), ...lines(settings.email, settings.web), ...(settings.vat ? [`Tax number: ${settings.vat}`] : [])] },
-    title: opts.reminder ? "Payment reminder" : "Invoice",
+    title: opts.quote ? "Quote" : opts.reminder ? "Payment reminder" : "Invoice",
     reference: [inv.num, status].filter(Boolean).join(" · "),
-    details: [
+    details: opts.quote ? [
+      { label: "Prepared for", value: docRaw(billed.map(escape).join("<br>")) },
+      { label: "Date", value: fmtD(inv.date) },
+      ...(inv.validUntil ? [{ label: "Valid until", value: fmtD(inv.validUntil) }] : []),
+      { label: "Total", value: money(inv.total) },
+    ] : [
       { label: "Billed to", value: docRaw(billed.map(escape).join("<br>")) },
       { label: "Issue date", value: fmtD(inv.date) },
       ...(inv.dueDate ? [{ label: "Due", value: fmtD(inv.dueDate) }] : []),
       { label: "Amount due", value: inv.status === "paid" ? `${money(inv.total)} (paid)` : money(inv.total) },
     ],
     body: lead + documentTable(columns, rows) + documentTotals(totals) + pay
-      + block("Notes", String(inv.notes || "")) + block("Terms", String(inv.terms || "")) + block("Bank transfer", settings.bank),
+      + block("Notes", String(inv.notes || "")) + block("Terms", String(inv.terms || "")) + (opts.quote ? "" : block("Bank transfer", settings.bank)),
     footer: settings.footer,
   });
 }
 
 /** A whole printable page for one invoice. */
-export const invoicePage = (inv: Rec, settings: InvoiceSettings, today: string, opts: { reminder?: boolean } = {}) =>
-  documentPage(`${opts.reminder ? "Reminder" : "Invoice"} ${inv.num || ""}`.trim(), invoicePaperHtml(inv, settings, today, opts));
+export const invoicePage = (inv: Rec, settings: InvoiceSettings, today: string, opts: PaperOpts = {}) =>
+  documentPage(`${opts.quote ? "Quote" : opts.reminder ? "Reminder" : "Invoice"} ${inv.num || ""}`.trim(), invoicePaperHtml(inv, settings, today, opts));
 
 /** Opens the print dialog (Print or Save as PDF) for one invoice, the hidden-frame way the line sheet prints. */
-export function printInvoice(inv: Rec, settings: InvoiceSettings, today: string, opts: { reminder?: boolean } = {}) {
+export function printInvoice(inv: Rec, settings: InvoiceSettings, today: string, opts: PaperOpts = {}) {
   const frame = document.createElement("iframe");
   frame.title = `Invoice ${inv.num || ""}`; frame.style.cssText = "position:fixed;width:1px;height:1px;left:-9999px";
   frame.onload = () => { frame.contentWindow?.addEventListener("afterprint", () => frame.remove(), { once: true }); frame.contentWindow?.focus(); frame.contentWindow?.print(); };

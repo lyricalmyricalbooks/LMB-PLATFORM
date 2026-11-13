@@ -258,7 +258,9 @@ export function Dashboard() {
   const refreshAlertsRef = useRef<() => void>(() => {});
   // Unpaid/mismatched/disputed orders etc., shown above every admin page.
   const [alerts, setAlerts] = useState<AdminAlert[]>([]);
-  const [reminderAlert, setReminderAlert] = useState<AdminAlert | null>(null);
+  // The stockroom's automatic runs (reminders, repeating invoices, bills due) each hand an alert by its id; one never hides another.
+  const [reminderAlerts, setReminderAlerts] = useState<Record<string, AdminAlert>>({});
+  const addReminderAlert = (a: AdminAlert) => setReminderAlerts((m) => ({ ...m, [a.id]: a }));
   // The alerts hidden in this browser (AdminAlerts.tsx), shared by the top bar's pill and the Alerts page.
   const alertHides = useAlertDismissals();
   // Pending reviews, unread messages and open privacy requests (cheap server counts).
@@ -668,7 +670,7 @@ export function Dashboard() {
   };
   /** Resolves true when the page changed, false when the owner chose to stay on unsaved settings. */
   // Every alert, and the ones not hidden in this browser: the top bar's pill counts these and #alerts lists them.
-  const allAlerts = [...settingsAlerts(originalSettings), ...alerts, ...(reminderAlert ? [reminderAlert] : [])];
+  const allAlerts = [...settingsAlerts(originalSettings), ...alerts, ...Object.values(reminderAlerts)];
   const shownAlerts = visibleAlerts(allAlerts, alertHides.dismissed);
   const goTo = async (id: string): Promise<boolean> => {
     // Nothing unsaved: switch at once (callers such as What's new set a Settings tab right after).
@@ -789,6 +791,7 @@ export function Dashboard() {
         onOpenGeneral={() => { setActiveTab("settings"); setSettingsTab("general"); setShowEditor(false); setSelectedOrder(null); }}
         onOpenBackups={COMBINED ? () => void openStockroomPage("backups") : undefined}
         onOpenInvoices={() => void openStockroomPage("invoices")}
+        onOpenBills={() => void openStockroomPage("bills")}
         onOpenInventory={() => { setActiveTab("inventory"); setShowEditor(false); setSelectedOrder(null); }}
         onOpenRoute={(r: AlertRoute) => {
           setActiveTab(r.tab);
@@ -999,7 +1002,7 @@ export function Dashboard() {
         {/* The control room's messages to the press (platform/messages, code plan 19.14): admin only, never the storefront. */}
         <PlatformMessagesBar enabled={!!user} />
         {!!user && !supportVisit && <LocalBackupAuto />}
-        {!!user && !supportVisit && COMBINED && <Suspense fallback={null}><AutoReminders onAlert={setReminderAlert} /></Suspense>}
+        {!!user && !supportVisit && COMBINED && <Suspense fallback={null}><AutoReminders onAlert={addReminderAlert} /></Suspense>}
         {/* The stockroom's daily online copy (Stockroom › Backups), made by the owner's admin. */}
         {!!user && !supportVisit && COMBINED && isShopOwner(user.email) && <Suspense fallback={null}><StockroomCopyAuto /><FairHelperInbox /><WebsiteOrdersAuto /></Suspense>}
         {/* The admin home asks a paid plan's owner to turn on two-step sign-in (TwoStepReminder.tsx, plan 22.10). */}

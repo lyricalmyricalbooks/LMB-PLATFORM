@@ -35,5 +35,8 @@ export const NATIVE_PAGES: Record<string, ComponentType<NativePageProps>> = {
   qrcodes: lazy(() => import("./QrCodesPage").then((m) => ({ default: m.QrCodesPage }))),
   sheets: lazy(() => import("./SheetsPage").then((m) => ({ default: m.SheetsPage }))),
   invoices: lazy(() => import("./InvoicesPage").then((m) => ({ default: m.InvoicesPage }))),
+  quotes: lazy(() => import("./QuotesPage").then((m) => ({ default: m.QuotesPage }))),
+  recurring: lazy(() => import("./RepeatingPage").then((m) => ({ default: m.RepeatingPage }))),
+  bills: lazy(() => import("./BillsPage").then((m) => ({ default: m.BillsPage }))),
   backups: lazy(() => import("./BackupsPage").then((m) => ({ default: m.BackupsPage }))),
 };

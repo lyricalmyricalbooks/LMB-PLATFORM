@@ -16,6 +16,7 @@ const KEPT: Record<string, string> = {
   "src/app/admin/lineSheet.ts": "tested line sheet builder, not wired yet",
   "src/app/admin/orderTabs.ts": "tested order tab rules, not wired yet",
   "src/shared/documentKit.ts": "tested shared document rules, not wired yet",
+  "src/app/admin/stockroom/moneyDue.ts": "tested money-due list for the cash flow forecast and balance sheet, read by those pages once built",
   "src/app/admin/studio/themeReadability.ts": "test helper: the theme readability sweep",
   "src/app/features/site/storefrontColorScan.ts": "test helper: the storefront colour scan",
   "src/app/admin/studio/studioPerf.bench.ts": "benchmark, run by hand",

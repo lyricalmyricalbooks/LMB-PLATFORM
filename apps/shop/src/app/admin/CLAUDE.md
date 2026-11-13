@@ -990,3 +990,23 @@ misses listed). Supplier bills aren't in it (built elsewhere). Opening the page 
 the setting `reportsForBookkeeper` (no customer names, no receipt links; `day` keeps it to one write a day unless a figure
 changes); the stockroom rules open that one setting to the bookkeeper (firestore.rules, database.rules.json, the emulator
 script's two-shop checks). Fixture: `admin-fixture.html?page=stockroom/bkreports`.
+
+**Quotes, repeating invoices and bills to pay (13 November 2026):** Invoices has three tabs (`invoices`, `quotes`,
+`recurring`, one "Invoices" title in `combined.ts`, menu names in `riso/nav.ts`); Bookkeeping gains `bills` (Bills to pay).
+- **Quotes** (`quoteMake.ts`, `QuotesPage.tsx`): the book state's `quotes` list (id-keyed, merged row by row), numbers
+  `Q-YYYY-NNN`, statuses draft/sent/accepted/declined; Expired is read, never stored (sent and past `validUntil`).
+  `acceptQuoteChange` makes the draft invoice and stamps the quote in one save, idempotent by the invoice id the page
+  fixes before the first try. The paper's quote mode (`invoicePaper.ts` `{ quote: true }`) has no payment link or bank.
+  The editor is `InvoiceEditor kind="quote"`.
+- **Repeating** (`recurringInvoices.ts`, `RepeatingPage.tsx`): the book state's `recurringInvoices` list. The run is
+  client-side like the reminders (`AutoReminders.tsx` → `sweepRepeating`, weekdays 9 to 6, at most 12 a run): the
+  invoice id is `inv-<pattern>-<date>` so two tabs file it once, the email is stamped on the invoice before it goes
+  (`stampRepeatEmail`) and the invoice turns sent only when it went, so autoRemind chases it like any other. Months keep
+  the anchor day (`nextDay`). Invoices › an invoice › Repeat it starts one (`repeatFromInvoice`).
+- **Bills to pay** (`bills.ts`, `BillsPage.tsx`): `taxCenter.bills`. `payBill` logs the expense through
+  `addBusinessExpense` (vendor, `fromBill`, the bill's file as receipt) and marks the bill paid in one setting save.
+  Pending notes stay for costs with no amount yet; "From a cost you noted" turns one into a bill and clears it in the
+  same save. `billsAlert` (due within `REMIND_DAYS` or late) is an alert with action `bills`.
+- **Alerts:** Dashboard keeps the automatic runs' alerts by id (`reminderAlerts`), so one never hides another.
+- **For the forecast and balance sheet:** `moneyDue.ts` (`openInvoices`, `openBills`, `expectedRepeats`, `moneyDue`)
+  gives one row shape (kind, direction in/out, amount in its own currency, due day, late). Read it; don't re-derive.
