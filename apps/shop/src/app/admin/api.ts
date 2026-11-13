@@ -57,6 +57,7 @@ import {
   startAfter,
   writeBatch,
   runTransaction,
+  onSnapshot,
   deleteField,
   serverTimestamp,
   Timestamp,
@@ -2046,6 +2047,10 @@ export const adminApi = {
     const snap = await getDocs(query(collection(db, "analytics"), where("date", ">=", from), where("date", "<=", to), orderBy("date"), limit(1600)));
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   }),
+
+  /** Live visitors (lib/liveVisitors.ts): today's minute counts as they change. Returns the unsubscribe. */
+  watchLiveVisitors: (day: string, onCounts: (counts: Record<string, unknown> | null) => void, onError?: () => void) =>
+    onSnapshot(doc(db, "live", day), snap => onCounts(snap.exists() ? (snap.data().m ?? {}) : {}), () => { onCounts(null); onError?.(); }),
 
   /** The oldest daily traffic doc's day (when the shop's own counter started, or was last reset), or null. */
   getFirstAnalyticsDay: async (): Promise<string | null> => {

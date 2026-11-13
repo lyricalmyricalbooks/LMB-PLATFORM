@@ -11,6 +11,7 @@ import { resolveRange, trafficShift, trafficWindow, type Preset } from "../overv
 import { ErrorState, LoadingState, PageActions, PageTabs, SecondaryButton, Tabs } from "../riso/components";
 import { analyticsModel, change, type Bar, type Pair, type Row } from "./analyticsModel";
 import { useShopWords } from "../shopWords";
+import { liveNow, liveSlot } from "../../lib/liveVisitors";
 import { useSubTab } from "../settingsLayout";
 import "./analytics.css";
 
@@ -48,6 +49,14 @@ export function AnalyticsPage({ setActiveTab, subTab, onSubTabChange }: { setAct
   const [orders, setOrders] = useState<any[] | null>(null);
   const [books, setBooks] = useState<any[]>([]);
   const [shopTag, setShopTag] = useState<string | undefined>();
+
+  // The shop's own live count (lib/liveVisitors.ts), for when Google's "on the shop now" isn't there.
+  const [liveCounts, setLiveCounts] = useState<Record<string, unknown> | null>(null);
+  const [clock, setClock] = useState(() => new Date());
+  useEffect(() => { const t = window.setInterval(() => setClock(new Date()), 30_000); return () => window.clearInterval(t); }, []);
+  const liveDay = liveSlot(clock).day;
+  useEffect(() => adminApi.watchLiveVisitors?.(liveDay, setLiveCounts), [liveDay]);
+  const ownLive = liveCounts ? liveNow(liveCounts, clock) : null;
 
   useEffect(() => { try { window.localStorage.setItem(PERIOD_KEY, preset); } catch { /* this browser only */ } }, [preset]);
 
@@ -96,7 +105,9 @@ export function AnalyticsPage({ setActiveTab, subTab, onSubTabChange }: { setAct
         {model && (
           <p className="rp-an-source">
             {google ? "From Google Analytics" : model.source === "shop" ? "From your shop's own visit counter" : null}
-            {google && typeof report?.activeNow === "number" && <> · <strong>{fmt(report.activeNow)}</strong> on the shop now</>}
+            {google && typeof report?.activeNow === "number"
+              ? <> · <strong>{fmt(report.activeNow)}</strong> on the shop now</>
+              : ownLive !== null && <> · <strong data-testid="analytics-live">{fmt(ownLive)}</strong> on the shop now</>}
           </p>
         )}
       </div>

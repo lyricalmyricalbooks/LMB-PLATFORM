@@ -162,6 +162,8 @@ export function useSiteData() {
           funnelApi.trackSession();
           sessionStorage.setItem(sessionKey, "true");
         }
+        // Live visitors: every open tab, not only a session's first page (lib/liveVisitors.ts checks consent itself).
+        if (!isPreview && !sharing) void import("../../lib/liveVisitors").then(m => m.startLivePings()).catch(() => {});
       } catch {
         if (cancelled) return;
         failed = true;
