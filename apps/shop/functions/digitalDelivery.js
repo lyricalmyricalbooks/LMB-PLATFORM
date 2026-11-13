@@ -1,7 +1,7 @@
 // Digital e-book delivery rules (round-2 PR 4). Pure and tested (digitalDelivery.test.js); downloadDigitalAsset and
 // the order-confirmation email in index.js both use them, so the email lists exactly what the endpoint will serve.
 //
-//  - Links are not forever-reusable: each order line (book + edition) may be downloaded DOWNLOAD_LIMIT times; the
+//  - Links are not forever-reusable: each order line (book + edition) may be downloaded the shop's limit (downloadLimitFrom, default DOWNLOAD_LIMIT) times; the
 //    count is kept on the order (`downloadCounts`, server-only: publicOrderView never sends it) and the owner can
 //    reset it from Order detail. Each click mints a fresh, short-lived signed Storage URL.
 //  - Box sets deliver their e-book parts: a request may name a component's book id.
@@ -15,7 +15,20 @@ const SIGNED_URL_MINUTES = 15;
 // Same list as fulfillmentGuard: a settled dispute no longer blocks anything.
 const SETTLED_DISPUTES = ["won", "lost", "warning_closed", "closed", "charge_refunded"];
 
-const DEFAULT_DOWNLOAD_NOTE = `Use the buttons below to download your digital books. Each book can be downloaded up to ${DOWNLOAD_LIMIT} times from this email; if you need more, reply to this email. You can also download from your account or the order tracking page at any time.`;
+const MAX_DOWNLOAD_LIMIT = 100;
+
+/** The book shop's download note for a limit (goods shops use shared/shopSells goodsDownloadNote). */
+const downloadNote = (limit) => `Use the buttons below to download your digital books. Each book can be downloaded up to ${limit} times from this email; if you need more, reply to this email. You can also download from your account or the order tracking page at any time.`;
+const DEFAULT_DOWNLOAD_NOTE = downloadNote(DOWNLOAD_LIMIT);
+
+/**
+ * How many times each buyer may download each file: Settings › General › Digital downloads
+ * (`settings/website.digitalDownloads.limit`, 1 to 100). Missing or out of range = DOWNLOAD_LIMIT.
+ */
+function downloadLimitFrom(settings) {
+  const n = Math.floor(Number(settings && settings.digitalDownloads && settings.digitalDownloads.limit));
+  return Number.isFinite(n) && n >= 1 && n <= MAX_DOWNLOAD_LIMIT ? n : DOWNLOAD_LIMIT;
+}
 
 /** A reason to refuse every download for this order, or "" when it may be served. { status, message } */
 function downloadRefusal(order) {
@@ -144,7 +157,7 @@ async function emailDigitalEntries(order, { loadBook, isPhysical, catalogDigital
 }
 
 module.exports = {
-  DOWNLOAD_LIMIT, SIGNED_URL_MINUTES, DEFAULT_DOWNLOAD_NOTE,
+  DOWNLOAD_LIMIT, MAX_DOWNLOAD_LIMIT, SIGNED_URL_MINUTES, DEFAULT_DOWNLOAD_NOTE, downloadNote, downloadLimitFrom,
   downloadRefusal, deliveryCandidates, pickFileName, countKey, contentTypeFor, extensionOf,
   downloadFilename, contentDisposition, nextDownloadCount, emailDigitalEntries,
 };

@@ -164,7 +164,7 @@ export function ShopSettings({
 }
 
 function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection, onUnderConstruction, subTab, onSubTabChange }: any) {
-  const SECTIONS = ["maintenance", "stockHolds", "domain", "info", "location", "policies"] as const;
+  const SECTIONS = ["maintenance", "stockHolds", "digitalDownloads", "domain", "info", "location", "policies"] as const;
   const dirty = SECTIONS.filter((k) => hasChanges(k));
   useSettingsDirty("general", dirty.length > 0);
   const sellsAnswer = useShopSells();
@@ -191,7 +191,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
   const [view, setView] = useSubTab<string>("gs-details", subTab, onSubTabChange);
   const tabs: SettingsTab[] = [
     { id: "gs-details", title: "Your shop", unsaved: ["info", "location", "policies", "domain"].some((k) => hasChanges(k)) },
-    { id: "gs-store", title: "Shop status & checkout", unsaved: hasChanges("maintenance") || hasChanges("stockHolds") },
+    { id: "gs-store", title: "Shop status & checkout", unsaved: hasChanges("maintenance") || hasChanges("stockHolds") || hasChanges("digitalDownloads") },
     { id: "gs-visitors", title: "Visitors & Google" },
     { id: "gs-tools", title: "Tools & records" },
   ];
@@ -337,6 +337,13 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
                   onChange={(e) => set("stockHolds", { [f.key]: e.target.value === "" ? "" : Math.max(0, Math.floor(Number(e.target.value))) })} />
               ))}
             </div>
+          </SectionCard>
+        </SettingsAnchor>
+        <SettingsAnchor id="gs-downloads">
+          <SectionCard title="Digital downloads" description="How often a buyer can download each file they bought.">
+            <TextField label="Downloads per file" type="number" min={1} max={100} hint="Per order. Default 10. You can reset an order's count from the order."
+              placeholder="10 (default)" value={String(settings.digitalDownloads?.limit ?? "")}
+              onChange={(e) => set("digitalDownloads", { limit: e.target.value === "" ? "" : Math.min(100, Math.max(1, Math.floor(Number(e.target.value)))) })} />
           </SectionCard>
         </SettingsAnchor>
       </SettingsGroup>

@@ -110,10 +110,11 @@ function digitalDownloadEndpoint({
         // Order detail › Reset downloads gives the buyer a fresh allowance.
         const orderRef = db.collection("orders").doc(String(orderId));
         const key = digitalDelivery.countKey(target.bookId, target.variantId);
+        const limit = digitalDelivery.downloadLimitFrom((await db.collection("settings").doc("website").get()).data?.());
         const claim = await db.runTransaction(async tx => {
           const fresh = await tx.get(orderRef);
           const current = fresh.exists ? fresh.data() : {};
-          const decision = digitalDelivery.nextDownloadCount(current.downloadCounts, key);
+          const decision = digitalDelivery.nextDownloadCount(current.downloadCounts, key, limit);
           if (decision.ok) tx.update(orderRef, { downloadCounts: decision.next });
           return decision;
         });
