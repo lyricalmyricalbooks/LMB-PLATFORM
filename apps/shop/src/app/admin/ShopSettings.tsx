@@ -1686,8 +1686,10 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
                     </div>
                   </div>
                   <div style={{ display: "grid", gap: 4 }}>
-                    <Toggle label="Apple Pay" checked={!!stripe.applePay} onChange={(v) => updateStripe({ applePay: v })} />
-                    <Toggle label="Google Pay" checked={!!stripe.googlePay} onChange={(v) => updateStripe({ googlePay: v })} />
+                    {/* Unset means on, as at checkout (walletChoice). */}
+                    <Toggle label="Apple Pay" checked={stripe.applePay !== false} onChange={(v) => updateStripe({ applePay: v })} />
+                    <Toggle label="Google Pay" checked={stripe.googlePay !== false} onChange={(v) => updateStripe({ googlePay: v })} />
+                    <p className="rp-hint" style={{ margin: 0 }}>Shoppers who saved a card with Link are recognised by their email and pay in one tap.</p>
                   </div>
                   <div className="rp-card" style={{ padding: 16, boxShadow: "none", background: "var(--rp-surface-sunken)" }}>
                     <div className="rp-sect">Apple Pay &amp; Google Pay</div>

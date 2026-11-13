@@ -5,8 +5,9 @@ import { afterEach, expect, it, vi } from "vitest";
 import { StripeCardForm, type StripeCardFormHandle } from "./StripeCardForm";
 const fake = vi.hoisted(() => {
   const handlers: Record<string, Record<string, Function>> = {};
-  const create = vi.fn((type: string) => ({ on: (event: string, cb: Function) => { (handlers[type] ||= {})[event] = cb; }, mount: vi.fn(), destroy: vi.fn() }));
-  return { handlers, create, options: vi.fn(), update: vi.fn(), submit: vi.fn(async () => ({})), confirmPayment: vi.fn(async () => ({ paymentIntent: { id: "pi_test", status: "succeeded" } })) };
+  const create = vi.fn((type: string) => ({ on: (event: string, cb: Function) => { (handlers[type] ||= {})[event] = cb; }, mount: vi.fn(), destroy: vi.fn(), update: elementUpdate }));
+  const elementUpdate = vi.fn();
+  return { handlers, create, elementUpdate, options: vi.fn(), update: vi.fn(), submit: vi.fn(async () => ({})), confirmPayment: vi.fn(async () => ({ paymentIntent: { id: "pi_test", status: "succeeded" } })) };
 });
 vi.mock("@stripe/stripe-js", () => ({ loadStripe: async () => ({ elements: (options: unknown) => { fake.options(options); return { create: fake.create, update: fake.update, submit: fake.submit }; }, confirmPayment: fake.confirmPayment }) }));
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
@@ -90,4 +91,21 @@ it("reports the Stripe error type so checkout can tell a decline from a lost con
   fake.confirmPayment.mockResolvedValueOnce({ error: { type: "api_connection_error", message: "Network" } } as any);
   const result = await ref.current!.confirm("pi_1_secret_x", "https://shop.test/checkout");
   expect(result).toMatchObject({ error: "Failed", errorType: "api_connection_error" });
+});
+
+it("tells the card form the shopper's email and name, so Link can offer a saved card", async () => {
+  const base = { publishableKey: "pk_test_key", amountCents: 2500, currency: "cad", loadingText: "Loading", errorText: "Failed" };
+  await render({ payerEmail: "robin@example.com", payerName: "Robin" });
+  expect(fake.create).toHaveBeenCalledWith("payment", expect.objectContaining({ defaultValues: { billingDetails: { email: "robin@example.com", name: "Robin" } } }));
+  act(() => fake.handlers.payment.ready());
+  expect(fake.elementUpdate).not.toHaveBeenCalled();
+  await act(async () => root.render(h(StripeCardForm, { ...base, payerEmail: "sam@exa", payerName: "Robin" })));
+  expect(fake.elementUpdate).not.toHaveBeenCalled();
+  await act(async () => root.render(h(StripeCardForm, { ...base, payerEmail: "sam@example.com", payerName: "Robin" })));
+  expect(fake.elementUpdate).toHaveBeenCalledWith({ defaultValues: { billingDetails: { email: "sam@example.com", name: "Robin" } } });
+});
+
+it("fills nothing in until the email is complete", async () => {
+  await render({ payerEmail: "robin@" });
+  expect(fake.create).toHaveBeenCalledWith("payment", expect.not.objectContaining({ defaultValues: expect.anything() }));
 });
