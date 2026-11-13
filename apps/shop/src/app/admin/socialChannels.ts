@@ -125,3 +125,27 @@ export function whenText(iso: string | undefined): string {
   if (!Number.isFinite(ms)) return "";
   return new Date(ms).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
+
+/**
+ * The shop's address for each profile (Instagram bio, Facebook Page, Pinterest profile), marked with where the visit came
+ * from, so orders from those links are credited to that site in Analytics (lib/visitSource.ts reads the marks).
+ */
+export const PROFILE_LINKS: { id: string; name: string; source: string; campaign: string }[] = [
+  { id: "instagram", name: "Instagram bio", source: "instagram", campaign: "bio" },
+  { id: "facebook", name: "Facebook Page", source: "facebook", campaign: "page" },
+  { id: "pinterest", name: "Pinterest profile", source: "pinterest", campaign: "profile" },
+];
+
+export function profileLink(siteUrl: string, link: { source: string; campaign: string }): string {
+  try {
+    const url = new URL(siteUrl.replace(/\/*$/, "/"));
+    url.search = "";
+    url.hash = "";
+    url.searchParams.set("utm_source", link.source);
+    url.searchParams.set("utm_medium", "social");
+    url.searchParams.set("utm_campaign", link.campaign);
+    return url.toString();
+  } catch {
+    return siteUrl;
+  }
+}
