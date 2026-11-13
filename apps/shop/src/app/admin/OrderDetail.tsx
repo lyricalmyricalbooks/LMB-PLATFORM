@@ -2,7 +2,6 @@ import "./fulfillment.css";
 import { plainError } from "./plainError";
 import { ReturnWorkbench } from "./ReturnWorkbench";
 import { acquisitionRows } from "./orderAcquisition";
-import { DOWNLOAD_LIMIT } from "../features/site/digitalLine";
 import { FulfillmentWorkbench } from "./FulfillmentWorkbench";
 import { LabelBuyer } from "./LabelBuyer";
 import { useLabelPurchase } from "./useLabelPurchase";
@@ -1785,7 +1784,7 @@ export function OrderDetail({
         open={confirmAction === "resetDownloads"}
         title="Reset download limits?"
         confirmLabel="Reset downloads"
-        message={`Each digital book on this order can be downloaded ${DOWNLOAD_LIMIT} times. This gives ${order.customer?.email || "the customer"} a fresh ${DOWNLOAD_LIMIT} downloads of each. Nothing is emailed.`}
+        message={w(`This gives ${order.customer?.email || "the customer"} a fresh set of downloads for each digital book on this order, up to your limit in Settings. Nothing is emailed.`)}
         onConfirm={runConfirmed}
         onCancel={() => setConfirmAction(null)}
       />

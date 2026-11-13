@@ -1,6 +1,6 @@
 // Same rule as the server's downloadDigitalAsset: only an order line for the digital edition
 // unlocks the e-book. A paperback of a book that also sells an e-book does not.
-/** Downloads allowed per book and edition on one order (functions/digitalDelivery.js keeps the same number). */
+/** Default downloads per book and edition on one order (functions/digitalDelivery.js keeps the same number; the shop can change it in Settings). */
 export const DOWNLOAD_LIMIT = 10;
 
 const DIGITAL_FORMAT = /digital|ebook|e-book|epub|pdf|audiobook/i;
