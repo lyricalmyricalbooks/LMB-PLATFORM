@@ -791,3 +791,6 @@
   :root[data-admin-look="colophon"] .studio-editor .studio-mobile-tabs button { min-height: 44px; border: 0; border-radius: 999px !important; background: transparent; color: var(--rp-text-muted); font-weight: 700; box-shadow: none; }
   :root[data-admin-look="colophon"] .studio-editor .studio-mobile-tabs button[aria-selected=true] { background: var(--rp-primary); color: var(--rp-on-primary); }
 }
+/* A chosen tab drawn as an ink button (Header menu / Footer menu) keeps its ink fill: the pale tab tint under its
+   light words could not be read, by day or by night. */
+.studio-editor [role="tab"][aria-selected="true"].bg-neutral-900 { background-color: var(--rp-primary); }
