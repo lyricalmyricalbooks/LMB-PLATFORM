@@ -249,6 +249,28 @@ export function pendingSaleLines(records: StockroomRecords, form: InvoiceForm): 
 const newId = (now: number) => `inv-${now.toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 
 /**
+ * The saved shape of a form (an invoice, a quote or a repeating invoice's pattern): who it bills, the lines and the
+ * figures by the stockroom's one arithmetic. `store` is the stockist's record in the filing book (null for a person).
+ */
+export function formPayload(form: InvoiceForm, store: Rec | null, status: string, ctx: { books: StockBook[]; id: string; now: number }): Rec {
+  const totals = formTotals(form);
+  const payload: Rec = {
+    id: ctx.id,
+    num: form.num.trim(),
+    ...billToPayload(form.billTo === BILL_TO_PERSON ? BILL_TO_PERSON : BILL_TO_STORE, { store, person: form.person }),
+    date: form.date, dueDate: form.dueDate,
+    items: form.items.filter((it) => it.description.trim() || lineNumber(it.unitPrice) > 0).map(lineOut),
+    subtotal: totals.subtotal, discount: totals.discount, discountType: totals.discountType || "flat", discountRate: totals.discountRate || 0,
+    taxRate: totals.taxRate, tax: totals.tax, total: totals.total,
+    currency: getSym(form.currencyCode), currencyCode: form.currencyCode,
+    paymentLink: form.paymentLink.trim(), notes: form.notes.trim(), terms: form.terms.trim(),
+    status, createdAt: ctx.now, updatedAt: ctx.now,
+  };
+  payload.bookIds = deriveInvoiceBookIds(payload, form.ownerBookId, ctx.books);
+  return payload;
+}
+
+/**
  * Save the form as an invoice ("draft", or "sent" for Save invoice) into the book it is filed under: the old app's
  * payload, ledger links and number counter. Editing keeps the payment, reminders and settlement already on record, and
  * never reopens a paid or cancelled invoice. `id` is fixed before the first try so a retry can't file it twice.
@@ -261,20 +283,7 @@ export function saveInvoiceChange(form: InvoiceForm, status: "draft" | "sent", c
       store = storeIn(state, form.stockist);
       if (!store) throw new Error(`${form.stockist} is no longer on this title's stockist list. Reload the page.`);
     }
-    const totals = formTotals(form);
-    const payload: Rec = {
-      id: form.editingId || ctx.id,
-      num: form.num.trim(),
-      ...billToPayload(form.billTo === BILL_TO_PERSON ? BILL_TO_PERSON : BILL_TO_STORE, { store, person: form.person }),
-      date: form.date, dueDate: form.dueDate,
-      items: form.items.filter((it) => it.description.trim() || lineNumber(it.unitPrice) > 0).map(lineOut),
-      subtotal: totals.subtotal, discount: totals.discount, discountType: totals.discountType || "flat", discountRate: totals.discountRate || 0,
-      taxRate: totals.taxRate, tax: totals.tax, total: totals.total,
-      currency: getSym(form.currencyCode), currencyCode: form.currencyCode,
-      paymentLink: form.paymentLink.trim(), notes: form.notes.trim(), terms: form.terms.trim(),
-      status, createdAt: ctx.now, updatedAt: ctx.now,
-    };
-    payload.bookIds = deriveInvoiceBookIds(payload, form.ownerBookId, ctx.books);
+    const payload = formPayload(form, store, status, { ...ctx, id: form.editingId || ctx.id });
     let oldLedgerIds: unknown[] = [];
     const at = form.editingId ? invoices.findIndex((i) => i && String(i.id) === form.editingId) : -1;
     if (form.editingId) {

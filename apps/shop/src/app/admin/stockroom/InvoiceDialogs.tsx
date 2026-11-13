@@ -19,6 +19,8 @@ import {
   stockistNames, todayText, INVOICE_FILTERS, inFilter, invoicesSummary, type InvoiceFilter, type InvoiceForm, type InvoiceLine, type InvoiceRow, type InvoiceSettings,
 } from "./invoiceMake";
 import { invoicePage, printInvoice } from "./invoicePaper";
+import { deleteQuoteChange, newQuoteId, quoteProblem, saveQuoteChange } from "./quoteMake";
+import { blankSchedule, deleteRepeatChange, EVERY_CHOICES, everyWord, newRepeatId, repeatFromInvoice, saveRepeatChange, scheduleProblem, type Every, type Schedule } from "./recurringInvoices";
 import { attachCardLinkChange, cardLinkOf, cardLinkRefusal, closeStaleCardLinks, invoiceCardPayApi, recordCardPayments, strayPaymentLine } from "./invoiceCardPay";
 import { RemindersDialog } from "./RemindersDialog";
 import { markInvoicePaid, moneyText } from "./stockists";
@@ -43,6 +45,9 @@ function useShopName() {
   }, []);
   return name;
 }
+
+/** The shop's name for pages beside Invoices (Quotes, Repeating) that print with the same details. */
+export const useShopNameForInvoices = useShopName;
 
 function Note({ notice }: { notice: InvoiceNotice }) {
   return <div className="rp-sk-notice" data-tone={notice.tone} role={notice.tone === "error" ? "alert" : "status"}>{notice.lines.map((l) => <p key={l}>{l}</p>)}</div>;
@@ -103,10 +108,23 @@ export function InvoiceSettingsDialog({ settings, onClose, onSaved }: { settings
 
 // ── Making and editing ─────────────────────────────────────────────────────────────────────────────────────────────
 
-export function InvoiceEditor({ records, settings, start, onClose, onSaved, onDeleted }: {
+/**
+ * One editor for the three money documents that share an invoice's shape: an invoice, a quote (quoteMake.ts: `dueDate`
+ * is the valid-until day, saved into `quotes`) and a repeating invoice (recurringInvoices.ts: `date` is the next
+ * invoice's day, plus the schedule; saved into `recurringInvoices`).
+ */
+export type DocKind = "invoice" | "quote" | "repeat";
+const DOC_WORD: Record<DocKind, string> = { invoice: "invoice", quote: "quote", repeat: "repeating invoice" };
+const DOC_BACK: Record<DocKind, string> = { invoice: "Invoices", quote: "Quotes", repeat: "Repeating" };
+
+export function InvoiceEditor({ records, settings, start, onClose, onSaved, onDeleted, kind = "invoice", startSchedule }: {
   records: StockroomRecords; settings: InvoiceSettings; start: InvoiceForm; onClose: () => void; onSaved: BookSaved; onDeleted?: BookSaved;
+  kind?: DocKind; startSchedule?: Schedule;
 }) {
   const w = useShopWords();
+  const word = DOC_WORD[kind];
+  const Word = word[0].toUpperCase() + word.slice(1);
+  const [schedule, setSchedule] = useState<Schedule>(startSchedule || blankSchedule());
   const [form, setForm] = useState<InvoiceForm>(start);
   const [startText] = useState(() => JSON.stringify(start));
   // New invoices are saved as sent unless this is turned off (then they stay a draft).
@@ -115,7 +133,7 @@ export function InvoiceEditor({ records, settings, start, onClose, onSaved, onDe
   const [note, setNote] = useState<InvoiceNotice | null>(null);
   const [ask, confirmNode] = useConfirm();
   // One id per new invoice, fixed before the first try, so a retry after a failed save can't file it twice.
-  const id = useRef(newInvoiceId(Date.now()));
+  const id = useRef(kind === "quote" ? newQuoteId(Date.now()) : kind === "repeat" ? newRepeatId(Date.now()) : newInvoiceId(Date.now()));
   const names = useMemo(() => stockistNames(records), [records]);
   const owners = ownerChoices(records, form);
   const totals = formTotals(form);
@@ -123,7 +141,7 @@ export function InvoiceEditor({ records, settings, start, onClose, onSaved, onDe
 
   // A number the admin put there follows the titles billed (several titles get the press's initials); a typed one stays.
   const renumber = (f: InvoiceForm): InvoiceForm => {
-    if (f.editingId || !f.ownerBookId || f.num !== f.autoNum) return f;
+    if (kind !== "invoice" || f.editingId || !f.ownerBookId || f.num !== f.autoNum) return f;
     const num = nextNumber(records, f.ownerBookId, formBookIds(f, records.books), settings.name, new Date().getFullYear());
     return { ...f, num, autoNum: num };
   };
@@ -152,26 +170,33 @@ export function InvoiceEditor({ records, settings, start, onClose, onSaved, onDe
 
   const save = async (status: "draft" | "sent") => {
     if (busy) return;
-    const problem = invoiceProblem(form, records);
+    const problem = (kind === "quote" ? quoteProblem(invoiceProblem(form, records)) : invoiceProblem(form, records))
+      || (kind === "repeat" ? scheduleProblem(form, schedule, todayText()) : null);
     if (problem) { setNote({ tone: "error", lines: [problem] }); return; }
     setBusy(true); setNote(null);
-    const r = await saveBook(form.ownerBookId, saveInvoiceChange(form, status, { books: records.books, id: id.current, now: Date.now() }),
-      `${form.num || "Invoice"} ${form.editingId ? "saved" : status === "draft" ? "saved as a draft" : "saved"}.`);
+    const ctx = { books: records.books, id: id.current, now: Date.now() };
+    const change = kind === "quote" ? saveQuoteChange(form, status, ctx) : kind === "repeat" ? saveRepeatChange(form, schedule, ctx) : saveInvoiceChange(form, status, ctx);
+    const done = kind === "repeat"
+      ? (form.editingId ? "Repeating invoice saved." : `Repeating invoice set up. The first one is made on ${fmtD(form.date)}.`)
+      : `${form.num || Word} ${form.editingId ? "saved" : status === "draft" ? "saved as a draft" : "saved"}.`;
+    const r = await saveBook(form.ownerBookId, change, done);
     if (!r.ok) { setNote(r.notice); setBusy(false); return; }
     onSaved(form.ownerBookId, r.state, r.notice);
   };
   const remove = async () => {
     if (busy || !form.editingId) return;
-    if (!(await ask({ title: `Delete ${form.num || "this invoice"}?`, message: "Its sales go back to unbilled. This can't be undone.", confirmLabel: "Delete invoice" }))) return;
+    const message = kind === "invoice" ? "Its sales go back to unbilled. This can't be undone." : kind === "repeat" ? "No more invoices are made from it. Invoices it already made stay." : "This can't be undone.";
+    if (!(await ask({ title: `Delete ${form.num || `this ${word}`}?`, message, confirmLabel: `Delete ${word}` }))) return;
     setBusy(true);
-    const r = await saveBook(form.ownerBookId, deleteInvoiceChange(form.editingId), `${form.num || "Invoice"} deleted.`);
+    const change = kind === "quote" ? deleteQuoteChange(form.editingId) : kind === "repeat" ? deleteRepeatChange(form.editingId) : deleteInvoiceChange(form.editingId);
+    const r = await saveBook(form.ownerBookId, change, `${form.num || Word} deleted.`);
     if (!r.ok) { setNote(r.notice); setBusy(false); return; }
     (onDeleted || onSaved)(form.ownerBookId, r.state, r.notice);
   };
 
   // v4 New invoice page (mockup 1c): Who it's for · Items · Note and sending, the total in a white rail, one status bar.
   const editingSent = !!form.editingId && form.status !== "draft";
-  const canDelete = !!form.editingId && form.status !== "paid";
+  const canDelete = !!form.editingId && form.status !== "paid" && form.status !== "accepted";
   const person = form.billTo === "person";
   const whoMissing = person ? !form.person.name.trim() : !form.stockist;
   const linesMissing = !form.items.some((it) => it.description.trim());
@@ -186,8 +211,9 @@ export function InvoiceEditor({ records, settings, start, onClose, onSaved, onDe
     ...(totals.tax > 0 ? [{ label: "Tax", value: fmt(totals.tax, code) }] : []),
     { label: "Total", value: fmt(totals.total, code) },
   ];
-  const primary = form.editingId ? "Save changes" : "Create invoice";
-  const send = () => void save(editingSent || (!form.editingId ? markSent : form.status !== "draft") ? "sent" : "draft");
+  const primary = form.editingId ? "Save changes" : kind === "repeat" ? "Set it up" : `Create ${word}`;
+  const send = () => void save(kind === "repeat" ? "draft" : editingSent || (!form.editingId ? markSent : form.status !== "draft") ? "sent" : "draft");
+  const dueChoices = kind === "quote" ? VALID_CHOICES : DUE_CHOICES;
   const filedUnder = (
     <FormField label={w("Filed under")} hint={w("The title whose records keep this invoice.")}>
       {(a) => <select {...a} value={form.ownerBookId} disabled={!!form.editingId} onChange={(e) => set({ ownerBookId: e.target.value, currencyCode: currencyFor(records, e.target.value) })}>
@@ -201,12 +227,16 @@ export function InvoiceEditor({ records, settings, start, onClose, onSaved, onDe
 
   return (
     <>
-      <PageHead title={form.editingId ? `Edit ${form.num || "invoice"}` : "New invoice"} back={{ label: "Invoices", onClick: onClose }}
-        description={form.status === "paid" ? "Paid. Fixing a detail keeps it paid." : `${form.num || "Invoice"} · for a stockist or anyone you type in`} />
+      <PageHead title={form.editingId ? `Edit ${form.num || word}` : `New ${word}`} back={{ label: DOC_BACK[kind], onClick: onClose }}
+        description={form.status === "paid" ? "Paid. Fixing a detail keeps it paid."
+          : kind === "repeat" ? "Made and sent for you on a schedule. Each one is a normal invoice."
+            : `${form.num || Word} · for a stockist or anyone you type in`} />
       <form onSubmit={(e) => { e.preventDefault(); if (!missing) send(); }}>
         <FormPage rail={
-          <SummaryRail tone="white" title={`Invoice ${form.num || ""}`.trim()} value={fmt(totals.total, code)}
-            sub={form.dueDate ? (dueIn != null && dueIn >= 0 ? `Due in ${dueIn} ${dueIn === 1 ? "day" : "days"}` : `Due ${fmtD(form.dueDate)}`) : "No due date"}
+          <SummaryRail tone="white" title={kind === "repeat" ? `${everyWord(schedule.every)} invoice` : `${Word} ${form.num || ""}`.trim()} value={fmt(totals.total, code)}
+            sub={kind === "repeat" ? (form.date ? `Next on ${fmtD(form.date)}` : "Pick the next day")
+              : kind === "quote" ? (form.dueDate ? `Good until ${fmtD(form.dueDate)}` : "No end date")
+                : form.dueDate ? (dueIn != null && dueIn >= 0 ? `Due in ${dueIn} ${dueIn === 1 ? "day" : "days"}` : `Due ${fmtD(form.dueDate)}`) : "No due date"}
             rows={railRows} note="Uses your invoice details and letterhead." />
         }>
           <FormSection title="Who it’s for" description="Pick a stockist or type a name.">
@@ -238,13 +268,23 @@ export function InvoiceEditor({ records, settings, start, onClose, onSaved, onDe
               </>
             )}
             {!person && form.editingId && filedUnder}
-            <FormField label="Invoice number">{(a) => <input {...a} value={form.num} onChange={(e) => set({ num: e.target.value })} style={{ fontFamily: "var(--rp-font-mono)" }} />}</FormField>
-            <FormRow>
-              <FormField label="Issued">{(a) => <input {...a} type="date" value={form.date} onChange={(e) => set({ date: e.target.value })} />}</FormField>
-              <FormField label="Due">{(a) => <input {...a} type="date" value={form.dueDate} onChange={(e) => set({ dueDate: e.target.value })} />}</FormField>
-            </FormRow>
-            <FormChoice label="Due in" value={(DUE_CHOICES.find((n) => n === dueIn) ?? "") + ""} onChange={(v) => set({ dueDate: plusDays(form.date || todayText(), Number(v)) })}
-              options={DUE_CHOICES.map((n) => ({ value: String(n), label: `${n} days` }))} />
+            {kind !== "repeat" && <FormField label={`${Word} number`}>{(a) => <input {...a} value={form.num} onChange={(e) => set({ num: e.target.value })} style={{ fontFamily: "var(--rp-font-mono)" }} />}</FormField>}
+            {kind === "repeat" ? <>
+              <FormChoice label="How often" value={schedule.every} onChange={(v) => setSchedule((s) => ({ ...s, every: v as Every }))} options={EVERY_CHOICES} />
+              <FormRow>
+                <FormField label={form.editingId ? "Next invoice on" : "First invoice on"}>{(a) => <input {...a} type="date" value={form.date} onChange={(e) => set({ date: e.target.value, dueDate: plusDays(e.target.value, dueIn ?? 30) })} />}</FormField>
+                <FormField label="Last invoice on" hint="Optional. Leave blank to keep going.">{(a) => <input {...a} type="date" value={schedule.endDate} onChange={(e) => setSchedule((s) => ({ ...s, endDate: e.target.value }))} />}</FormField>
+              </FormRow>
+              <FormChoice label="Payment due" value={(DUE_CHOICES.find((n) => n === dueIn) ?? "") + ""} onChange={(v) => set({ dueDate: plusDays(form.date || todayText(), Number(v)) })}
+                options={DUE_CHOICES.map((n) => ({ value: String(n), label: `${n} days after` }))} />
+            </> : <>
+              <FormRow>
+                <FormField label={kind === "quote" ? "Date" : "Issued"}>{(a) => <input {...a} type="date" value={form.date} onChange={(e) => set({ date: e.target.value })} />}</FormField>
+                <FormField label={kind === "quote" ? "Valid until" : "Due"}>{(a) => <input {...a} type="date" value={form.dueDate} onChange={(e) => set({ dueDate: e.target.value })} />}</FormField>
+              </FormRow>
+              <FormChoice label={kind === "quote" ? "Good for" : "Due in"} value={(dueChoices.find((n) => n === dueIn) ?? "") + ""} onChange={(v) => set({ dueDate: plusDays(form.date || todayText(), Number(v)) })}
+                options={dueChoices.map((n) => ({ value: String(n), label: `${n} days` }))} />
+            </>}
           </FormSection>
 
           <FormSection title="Items" description="Add what they bought. Totals update as you type.">
@@ -263,7 +303,7 @@ export function InvoiceEditor({ records, settings, start, onClose, onSaved, onDe
             </div>
             <div className="rp-fk-row" style={{ flex: "0 0 auto" }}>
               <button type="button" className="rp-fk-pill" style={{ flex: "0 0 auto" }} onClick={() => set({ items: [...form.items, blankLine()] })}>Add a line</button>
-              {!person && <button type="button" className="rp-fk-pill" style={{ flex: "0 0 auto" }} onClick={bringInSales}>Add unpaid sales</button>}
+              {!person && kind === "invoice" && <button type="button" className="rp-fk-pill" style={{ flex: "0 0 auto" }} onClick={bringInSales}>Add unpaid sales</button>}
             </div>
             <FormChoice label="Discount on the whole invoice" value={form.discountType} onChange={(v) => set({ discountType: v })} options={[{ value: "percent", label: "Percent" }, { value: "flat", label: "Amount" }]} />
             <FormRow>
@@ -272,12 +312,14 @@ export function InvoiceEditor({ records, settings, start, onClose, onSaved, onDe
             </FormRow>
           </FormSection>
 
-          <FormSection title="Note and sending" description="Shown at the bottom of the invoice.">
+          <FormSection title="Note and sending" description={`Shown at the bottom of the ${kind === "quote" ? "quote" : "invoice"}.`}>
             <FormField label="Note">{(a) => <textarea {...a} rows={2} value={form.notes} onChange={(e) => set({ notes: e.target.value })} />}</FormField>
-            <FormField label="Payment link or e-Transfer email" hint="Optional.">{(a) => <input {...a} value={form.paymentLink} onChange={(e) => set({ paymentLink: e.target.value })} />}</FormField>
+            {kind !== "quote" && <FormField label="Payment link or e-Transfer email" hint="Optional.">{(a) => <input {...a} value={form.paymentLink} onChange={(e) => set({ paymentLink: e.target.value })} />}</FormField>}
             <FormField label="Terms">{(a) => <input {...a} value={form.terms} onChange={(e) => set({ terms: e.target.value })} />}</FormField>
-            {!form.editingId && <FormToggle label="Mark it as sent" hint="Otherwise it stays as a draft." checked={markSent} onChange={setMarkSent} />}
-            {canDelete && <button type="button" className="rp-fk-pill" data-tone="danger" style={{ alignSelf: "flex-start" }} onClick={remove} disabled={busy}>Delete invoice</button>}
+            {kind === "repeat"
+              ? <FormToggle label="Email it for me" hint="Off: each one waits as a draft for you to send." checked={schedule.autoEmail} onChange={(on) => setSchedule((s) => ({ ...s, autoEmail: on }))} />
+              : !form.editingId && <FormToggle label="Mark it as sent" hint="Otherwise it stays as a draft." checked={markSent} onChange={setMarkSent} />}
+            {canDelete && <button type="button" className="rp-fk-pill" data-tone="danger" style={{ alignSelf: "flex-start" }} onClick={remove} disabled={busy}>Delete {word}</button>}
           </FormSection>
         </FormPage>
         {note && <Note notice={note} />}
@@ -291,6 +333,7 @@ export function InvoiceEditor({ records, settings, start, onClose, onSaved, onDe
 }
 
 const DUE_CHOICES = [7, 14, 30];
+const VALID_CHOICES = [14, 30, 60];
 const dayMs = 86_400_000;
 const dayNum = (d: string) => (/^\d{4}-\d{2}-\d{2}$/.test(d || "") ? Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) : NaN);
 /** Whole days from one shop day to another, or null. */
@@ -300,8 +343,8 @@ const plusDays = (from: string, n: number) => new Date(dayNum(from) + n * dayMs)
 
 // ── One invoice: the printed page, with its actions ───────────────────────────────────────────────────────────────
 
-export function InvoiceView({ row, settings, onClose, onEdit, onCopy, onSaved }: {
-  row: InvoiceRow; settings: InvoiceSettings; onClose: () => void; onEdit: () => void; onCopy?: () => void; onSaved: BookSaved;
+export function InvoiceView({ row, settings, onClose, onEdit, onCopy, onRepeat, onSaved }: {
+  row: InvoiceRow; settings: InvoiceSettings; onClose: () => void; onEdit: () => void; onCopy?: () => void; onRepeat?: () => void; onSaved: BookSaved;
 }) {
   const mail = invoiceEmail(row.inv, settings, row.code);
   const mailto = `mailto:${encodeURIComponent(mail.to)}?subject=${encodeURIComponent(mail.subject)}&body=${encodeURIComponent(mail.body)}`;
@@ -370,6 +413,7 @@ export function InvoiceView({ row, settings, onClose, onEdit, onCopy, onSaved }:
       footer={<>
         <SecondaryButton onClick={onEdit} disabled={busy}>Edit</SecondaryButton>
         {onCopy && <SecondaryButton onClick={onCopy} disabled={busy}>Duplicate</SecondaryButton>}
+        {onRepeat && !row.inv.repeat && <SecondaryButton onClick={onRepeat} disabled={busy}>Repeat it</SecondaryButton>}
         <SecondaryButton onClick={() => { window.location.href = mailto; }} disabled={busy}>{mail.to ? "Email" : "Email (no address on file)"}</SecondaryButton>
         {row.status === "sent" && <SecondaryButton onClick={remind} disabled={busy}>{chase.count ? "Remind again" : "Remind"}</SecondaryButton>}
         {row.status === "draft" && <SecondaryButton onClick={send} busy={busy}>{busy ? "Saving…" : "Mark sent"}</SecondaryButton>}
@@ -398,7 +442,8 @@ export function InvoiceView({ row, settings, onClose, onEdit, onCopy, onSaved }:
 const statusBadge = (r: InvoiceRow) => r.overdue ? <StatusBadge tone="danger">Overdue</StatusBadge>
   : <StatusBadge tone={r.status === "paid" ? "success" : r.status === "sent" ? "info" : "neutral"} glyph={false}>{r.status[0].toUpperCase() + r.status.slice(1)}</StatusBadge>;
 
-type Open = { kind: "settings" } | { kind: "reminders" } | { kind: "letterhead" } | { kind: "edit"; form: InvoiceForm } | { kind: "view"; id: string };
+type Open = { kind: "settings" } | { kind: "reminders" } | { kind: "letterhead" } | { kind: "edit"; form: InvoiceForm } | { kind: "view"; id: string }
+  | { kind: "repeat"; form: InvoiceForm; schedule: Schedule };
 
 /** The Invoices card on Stockists: every invoice (to stockists and to people), and the ways in. */
 export function InvoicesCard({ records, onBookSaved, onSettingsSaved, newFor, onNewDone }: {
@@ -472,6 +517,8 @@ export function InvoicesCard({ records, onBookSaved, onSettingsSaved, newFor, on
   const canMake = records.books.length > 0;
   // v4: New invoice and editing one are their own page (Back returns to the list).
   if (open?.kind === "edit") return <InvoiceEditor records={records} settings={settings} start={open.form} onClose={() => setOpen(null)} onSaved={saved} />;
+  if (open?.kind === "repeat") return <InvoiceEditor kind="repeat" records={records} settings={settings} start={open.form} startSchedule={open.schedule} onClose={() => setOpen(null)}
+    onSaved={(bookId, state, n) => saved(bookId, state, { ...n, lines: [...n.lines, "It's listed under Invoices › Repeating."] })} />;
   return (
     <div className="rp-sk">
       {writable && <PageActions>
@@ -506,6 +553,7 @@ export function InvoicesCard({ records, onBookSaved, onSettingsSaved, newFor, on
       {open?.kind === "reminders" && <RemindersDialog records={records} onClose={() => setOpen(null)} onSaved={(value, text) => { onSettingsSaved?.(value); setNotice({ tone: "ok", lines: [text] }); setOpen(null); }} />}
       {current && <InvoiceView row={current} settings={settings} onClose={() => setOpen(null)} onSaved={saved}
         onEdit={() => setOpen({ kind: "edit", form: formFromInvoice(records, current) })}
+        onRepeat={writable ? () => { const r = repeatFromInvoice(records, current); setNotice(null); setOpen({ kind: "repeat", form: r.form, schedule: r.schedule }); } : undefined}
         onCopy={() => { const f = copyForm(records, settings, current); setNotice(f.linkedDropped ? { tone: "ok", lines: [`Copied. Its lines are no longer tied to the stockist sales on ${current.num || "the original"}.`] } : null); setOpen({ kind: "edit", form: f }); }} />}
     </div>
   );

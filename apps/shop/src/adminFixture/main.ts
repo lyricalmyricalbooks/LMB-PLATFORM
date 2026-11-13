@@ -192,6 +192,18 @@ if (new URLSearchParams(window.location.search).get("page") === "stockroom/dashb
         { id: "i2", num: "INV-2026-002", status: "paid", date: day(70), dueDate: day(40), total: 72, currency: "CAD", storeName: "Harbour Gifts", storeId: 2 },
         { id: "i3", num: "INV-2026-003", status: "sent", date: day(10), dueDate: day(-20), total: 24, currency: "CAD", storeName: "Lakeside Co-op", storeId: 3 },
       ],
+      // Quotes and repeating invoices (?page=stockroom/quotes, stockroom/recurring).
+      quotes: [
+        { id: "q1", num: "Q-2026-001", kind: "quote", status: "sent", date: day(6), validUntil: day(-24), total: 180, subtotal: 180, currency: "CAD", currencyCode: "CAD", storeName: "Corner Books", storeId: 1, storeEmail: "shop@example.com", billTo: "store", items: [{ description: "Salt Hours", qty: 15, unitPrice: 12 }] },
+        { id: "q2", num: "Q-2026-002", kind: "quote", status: "accepted", date: day(20), validUntil: day(-10), total: 96, subtotal: 96, currency: "CAD", currencyCode: "CAD", storeName: "Harbour Gifts", storeId: 2, billTo: "store", acceptedAt: Date.now() - 12 * 86_400_000, invoiceId: "i2", invoiceNum: "INV-2026-002", items: [{ description: "Salt Hours", qty: 8, unitPrice: 12 }] },
+        { id: "q3", num: "Q-2026-003", kind: "quote", status: "sent", date: day(45), validUntil: day(15), total: 60, subtotal: 60, currency: "CAD", currencyCode: "CAD", storeName: "Lakeside Co-op", storeId: 3, billTo: "store", items: [{ description: "Salt Hours", qty: 5, unitPrice: 12 }] },
+        { id: "q4", num: "Q-2026-004", kind: "quote", status: "draft", date: day(1), validUntil: day(-29), total: 240, subtotal: 240, currency: "CAD", currencyCode: "CAD", storeName: "Fern Reading Room", billTo: "person", items: [{ description: "Salt Hours, signed", qty: 12, unitPrice: 20 }] },
+      ],
+      recurringInvoices: [
+        { id: "rep-a", kind: "recurring", status: "active", every: "month", nextDate: day(-9), anchorDay: Number(day(-9).slice(8)), dueDays: 14, autoEmail: true, total: 120, subtotal: 120, currency: "CAD", currencyCode: "CAD", storeName: "Corner Books", storeId: 1, storeEmail: "shop@example.com", billTo: "store", items: [{ description: "Monthly restock", qty: 10, unitPrice: 12 }], made: [{ date: day(21), invoiceId: "i1", num: "INV-2026-001" }] },
+        { id: "rep-b", kind: "recurring", status: "active", every: "quarter", nextDate: day(-40), anchorDay: 1, dueDays: 30, autoEmail: false, total: 45, subtotal: 45, currency: "CAD", currencyCode: "CAD", storeName: "Fern Reading Room", billTo: "person", items: [{ description: "Subscription", qty: 3, unitPrice: 15 }], made: [] },
+        { id: "rep-c", kind: "recurring", status: "paused", every: "week", nextDate: day(-3), dueDays: 7, autoEmail: true, total: 24, subtotal: 24, currency: "CAD", currencyCode: "CAD", storeName: "Lakeside Co-op", storeId: 3, billTo: "store", items: [{ description: "Weekly zines", qty: 2, unitPrice: 12 }], made: [] },
+      ],
       hist: [...((r.states[salt] as { hist?: unknown[] }).hist || []), web("WEB-1041", 9), web("WEB-1042", 4), web("WEB-1043", 1), web("WEB-1044", 12, { trackingNumber: "7023110000451" }), web("WEB-1045", 6, { shipName: "Ben Example" })],
     };
     r.states[night] = {
@@ -207,7 +219,15 @@ if (new URLSearchParams(window.location.search).get("page") === "stockroom/dashb
     };
     const postage = (num: string, amount: number) => ({ id: `p${num}`, cat: "Shipping & Postage", desc: "Canada Post label", amount, baseAmount: amount, shippingMatchStatus: "matched", shippingOrderNumber: num });
     const kept = ((r.taxCenter as Record<string, any> | null)?.businessExpenses || []) as Record<string, unknown>[];
-    r.taxCenter = { ...(r.taxCenter || {}), businessExpenses: [...kept, postage("WEB-1044", 14.5), postage("WEB-1045", 8.2)] };
+    // Bills to pay (?page=stockroom/bills): one late, one due soon, one later, one paid.
+    const bill = (id: string, supplier: string, desc: string, amount: number, due: number, extra: object = {}) => ({ id, supplier, desc, cat: "Printing & Production", amount, currency: "CAD", billDate: day(due + 30), dueDate: day(due), ref: `B-${id}`, status: "open", createdAt: Date.now(), ...extra });
+    const bills = [
+      bill("201", "Riso Print Co", "Cover run, Salt Hours", 640, 4),
+      bill("202", "Paper Mill Supply", "Cream text stock", 212.4, -2),
+      bill("203", "Northern Bindery", "Saddle stitching", 180, -21),
+      bill("204", "Ink & Drum", "Drums and ink", 96, 12, { status: "paid", paidDate: day(10), paidAt: Date.now() - 10 * 86_400_000, expenseId: 77 }),
+    ];
+    r.taxCenter = { ...(r.taxCenter || {}), businessExpenses: [...kept, postage("WEB-1044", 14.5), postage("WEB-1045", 8.2)], bills };
     return r;
   };
 }

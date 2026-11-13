@@ -45,10 +45,14 @@ export const STOCKROOM_PAGES: StockroomPage[] = [
   { id: "shipping", label: "Parcels", description: "Shipping costs and labels for parcels that aren't website orders, such as copies for stockists." },
   { id: "consignment", label: "Stockists", description: "Shops holding your copies: what they have, what they sold and what they owe you." },
   { id: "invoices", label: "Invoices", description: "Invoices for stockists and buyers: make, send, chase and mark paid." },
+  // Quotes and repeating invoices (13 November 2026): tabs under the Invoices title; the menu names each (riso/nav.ts).
+  { id: "quotes", label: "Invoices", description: "Quotes: send a price first, then turn a yes into an invoice." },
+  { id: "recurring", label: "Invoices", description: "Invoices made and emailed for you on a schedule." },
   { id: "qrcodes", label: "QR codes", description: "Codes to print for card payments, your shop and any link you choose." },
   { id: "reconcile", label: "Bookkeeping", description: "The record of money in and out: sales, costs, receipts and payouts." },
   { id: "payouts", label: "Payments", description: "Payouts to your bank, card sales on their way and your pay links." },
   { id: "expenses", label: "Bookkeeping", description: "The record of money in and out: sales, costs, receipts and payouts." },
+  { id: "bills", label: "Bookkeeping", description: "Suppliers' bills: what is due, what is late, and what went into your expenses." },
   { id: "taxcenter", label: "Tax centre", description: "What you collected, what you owe and when to file." },
   // Bookkeeping (mockup, 12 November 2026): one title over five tabs; the menu names each tab (riso/nav.ts).
   { id: "books", label: "Bookkeeping", description: "The record of money in and out: sales, costs, receipts and payouts." },

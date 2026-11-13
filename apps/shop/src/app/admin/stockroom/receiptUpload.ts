@@ -22,14 +22,14 @@ export function receiptPath(name: string, now: number, folder = "General"): stri
 }
 
 /** Uploads a receipt and returns its address. Throws with a plain sentence when the file can't be one. */
-export async function uploadReceipt(file: File, now = Date.now()): Promise<string> {
+export async function uploadReceipt(file: File, now = Date.now(), folder = "General"): Promise<string> {
   const problem = receiptProblem(file);
   if (problem) throw new Error(problem);
   // Loaded on first use, like the admin's other uploads, so file storage stays out of the admin's first load.
   const { getDownloadURL, getStorage, ref, uploadBytes } = await import("firebase/storage");
   const bucket = stockroomPlace().storageBucket;
   const storage = bucket ? getStorage(app, `gs://${bucket}`) : getStorage(app);
-  const target = ref(storage, receiptPath(file.name, now));
+  const target = ref(storage, receiptPath(file.name, now, folder));
   await uploadBytes(target, file, { contentType: file.type });
   return getDownloadURL(target);
 }
