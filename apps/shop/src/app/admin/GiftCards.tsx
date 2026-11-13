@@ -43,8 +43,11 @@ const MAYBE_DONE = "This may have gone through — check the list before trying 
 
 const EMPTY_ISSUE = { amount: "25", recipientEmail: "", recipientName: "", message: "", expiresOn: "", note: "", sendEmail: true };
 
-function IssueDialog({ onClose, onIssued }: { onClose: () => void; onIssued: () => void }) {
-  const [form, setForm] = useState({ ...EMPTY_ISSUE });
+/** Issue a card. Orders › an order › Give store credit opens it filled in for that customer (`credit`). */
+export function IssueDialog({ onClose, onIssued, initial, credit = false }: {
+  onClose: () => void; onIssued: () => void; initial?: Partial<typeof EMPTY_ISSUE>; credit?: boolean;
+}) {
+  const [form, setForm] = useState({ ...EMPTY_ISSUE, ...initial });
   const [problems, setProblems] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   // After a failure with an unknown outcome, Create stays off so a second click can't issue a second card.
@@ -72,7 +75,7 @@ function IssueDialog({ onClose, onIssued }: { onClose: () => void; onIssued: () 
 
   if (issued) {
     return (
-      <Dialog open onClose={onClose} title="Gift card created" badge="🎁"
+      <Dialog open onClose={onClose} title={credit ? "Store credit created" : "Gift card created"} badge="🎁"
         description="Copy the code now if you're passing it on yourself. You can see it again any time: open the card from the Gift cards list."
         footer={<PrimaryButton onClick={onClose}>Done</PrimaryButton>}>
         <div className="rp-stack" style={{ gap: 12 }}>
@@ -86,11 +89,13 @@ function IssueDialog({ onClose, onIssued }: { onClose: () => void; onIssued: () 
   }
 
   return (
-    <Dialog open onClose={onClose} title="Issue a gift card" badge="🎁" size="lg"
-      description="Create a gift card yourself — for a prize, a refund as store credit or a goodwill gesture. It works at checkout like a bought one."
+    <Dialog open onClose={onClose} title={credit ? "Give store credit" : "Issue a gift card"} badge="🎁" size="lg"
+      description={credit
+        ? "The customer gets a code worth this amount to spend at checkout. It doesn't refund their card."
+        : "Create a gift card yourself — for a prize, a refund as store credit or a goodwill gesture. It works at checkout like a bought one."}
       footer={<>
         <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
-        <PrimaryButton onClick={issue} disabled={saving || locked}>{saving ? "Creating…" : "Create gift card"}</PrimaryButton>
+        <PrimaryButton onClick={issue} disabled={saving || locked}>{saving ? "Creating…" : credit ? "Give store credit" : "Create gift card"}</PrimaryButton>
       </>}>
       <div className="rp-stack" style={{ gap: 16 }}>
         {problems.length > 0 && (
