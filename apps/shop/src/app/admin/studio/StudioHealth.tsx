@@ -1,6 +1,7 @@
 // Theme actions › Studio Health (3.3): checks the page shown in the preview (healthAudit.ts) plus the whole draft's
 // data checks (studioChecks.ts). Each finding can be shown on the page and its part opened for editing. Read-only:
 // nothing is changed until the owner edits the part.
+import { useShopWords } from "../shopWords";
 import { useEffect, useState, type ReactNode } from "react";
 import { Dialog, SecondaryButton, StatusBadge } from "../riso/components";
 import { CATEGORY_LABELS, summarise, type HealthFinding } from "./healthAudit";
@@ -25,6 +26,7 @@ type Props = BodyProps & { open: boolean; onClose: () => void };
 
 /** The Health list itself: shown in the Workbench (desktop) and inside the Studio Health dialog (phones). */
 export function HealthFindings(p: BodyProps) {
+  const w = useShopWords();
   const [findings, setFindings] = useState<HealthFinding[] | null>(null);
   const [checkedAt, setCheckedAt] = useState<number | null>(null);
   const check = () => {
@@ -41,8 +43,8 @@ export function HealthFindings(p: BodyProps) {
     <li key={f.id} className="studio-health-item" data-health-id={f.id}>
       <div>
         <span className="studio-health-cat">{CATEGORY_LABELS[f.category]}</span>
-        <strong>{f.title}{f.count > 1 ? ` (${f.count} places)` : ""}</strong>
-        <small>{f.detail}</small>
+        <strong>{w(f.title)}{f.count > 1 ? ` (${f.count} places)` : ""}</strong>
+        <small>{/[“"]/.test(f.detail) ? f.detail : w(f.detail)}</small>
         {f.owner?.label && <small className="studio-health-where">In: {f.owner.label}</small>}
       </div>
       <div className="studio-health-actions">

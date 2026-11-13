@@ -46,3 +46,13 @@ Julian: "continue improving the website designer, find bugs, make it better".
 
 ### Review
 Region labels double as ids (STYLE_TARGET_FIELDS is keyed by label), so they are worded only where shown.
+
+## Round 4: last book words, and Reset to default
+
+- [x] Find box, pickers, health check, connected-field note in the shop's words
+- [x] Text & labels: Reset to default gives a non-book shop its starter words (`starterWords`), and those count as "Using default"
+- [x] Essentials' text fields worded (StudioCopyField words its own field)
+- [x] Browser check: Find and Reset in a non-book shop
+
+### Review
+Owner-written names (pages, products, saved themes) are never reworded; only built-in labels are.

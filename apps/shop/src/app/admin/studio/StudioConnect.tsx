@@ -1,6 +1,7 @@
 // Studio 2.7 · dynamic sources: under a text, picture or link field, "Connect to a detail" swaps the fixed value for
 // a detail of the page the section is on (the book, the open category, the custom page). A connected field shows a
 // chip with Disconnect instead of its editor. Values: features/site/dynamicSources.ts.
+import { useShopWords } from "../shopWords";
 import { createContext, useContext, useId, useRef, type ReactNode } from "react";
 import { Link2, Unlink } from "lucide-react";
 import type { BookFieldDef } from "../../features/site/bookFields";
@@ -22,7 +23,8 @@ const WHERE: Record<string, string> = { book: "on book pages", category: "on col
 
 export function ConnectedField({ label, path, onDisconnect }: { label: string; path: string; onDisconnect: () => void }) {
   const ctx = useContext(DynamicSourcesContext);
-  const where = WHERE[path.split(".")[0]] || "";
+  const w = useShopWords();
+  const where = w(WHERE[path.split(".")[0]] || "");
   return (
     <div className="studio-connected" data-connected-field={path}>
       <span className="studio-connected-label">{label}</span>

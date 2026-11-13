@@ -10,7 +10,7 @@ import { createStudioFixture, installFakeStudioApi } from "./fakeStudioApi";
 import { parseStudioLocation } from "../../../lib/studioLocation";
 import { setAiTransport } from "../../aiWriter";
 import { applyAdminLook } from "../../riso/adminLook";
-import { ShopWordsContext } from "../../shopWords";
+import { ShopSellsContext, ShopWordsContext } from "../../shopWords";
 import { wordsFor } from "../../../../shared/shopSells";
 
 // The fixture wears the admin's one look, as Studio does inside a shop's admin.
@@ -37,14 +37,17 @@ setAiTransport(async body => {
 });
 
 // `?sells=clothing` shows Studio as a shop that doesn't sell books sees it (the admin's words, shopWords.tsx).
-const words = wordsFor(new URLSearchParams(location.search).get("sells"));
+const sells = new URLSearchParams(location.search).get("sells");
+const words = wordsFor(sells);
 
 createRoot(document.getElementById("root")!).render(
+  <ShopSellsContext.Provider value={sells}>
   <ShopWordsContext.Provider value={words}>
   <div className="admin-light admin-reso" data-admin-theme="reso" style={{ background: "transparent" }}>
     <div className="fixed inset-0 z-[200] bg-black">
       <StudioEditor settings={fixture.settings} appearance="light" initialLocation={parseStudioLocation(location.hash) || undefined} onExit={() => { (window as any).__studioExited = true; }} />
     </div>
   </div>
-  </ShopWordsContext.Provider>,
+  </ShopWordsContext.Provider>
+  </ShopSellsContext.Provider>,
 );

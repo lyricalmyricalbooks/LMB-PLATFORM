@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { useShopWords } from "../shopWords";
 import { ArrowDown, ArrowUp, ChevronDown, Search, X } from "lucide-react";
 import {
   bookOptions, categoryOptions, describeLink, describeVideo, filterPickOptions, fontOptions, linkOptions, pageOptions,
@@ -29,6 +30,7 @@ function OptionSearch({ options, label, placeholder, selected, onPick, onClose }
   options: PickOption[]; label: string; placeholder: string; selected?: string;
   onPick: (option: PickOption) => void; onClose: () => void;
 }) {
+  const w = useShopWords();
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const listId = useId();
@@ -55,7 +57,7 @@ function OptionSearch({ options, label, placeholder, selected, onPick, onClose }
         {results.map((o, i) => {
           const heading = o.group !== lastGroup ? (lastGroup = o.group) : null;
           return [
-            heading && <li key={`h-${o.group}`} role="presentation" className="studio-picker-heading">{heading}</li>,
+            heading && <li key={`h-${o.group}`} role="presentation" className="studio-picker-heading">{w(heading)}</li>,
             <li key={o.id} id={`${listId}-${i}`} role="option" aria-selected={o.value === selected}
               data-active={i === active || undefined} className="studio-picker-option"
               onMouseEnter={() => setActive(i)} onMouseDown={(e) => e.preventDefault()} onClick={() => onPick(o)}>
@@ -77,6 +79,7 @@ function SinglePicker({ label, value, options, emptyText, chooseText, searchLabe
   label: string; value: string; options: PickOption[]; emptyText: string; chooseText: string; searchLabel: string;
   placeholder: string; missingText: (value: string) => string; onChange: (value: string) => void; children?: ReactNode;
 }) {
+  const w = useShopWords();
   const [open, setOpen] = useState(false);
   const found = options.find((o) => o.value === value);
   return (
@@ -84,7 +87,7 @@ function SinglePicker({ label, value, options, emptyText, chooseText, searchLabe
       <FieldLabel>{label}</FieldLabel>
       <div className="studio-field-picker-current">
         <span className="studio-field-picker-summary" data-missing={value && !found ? true : undefined}>
-          {found ? <><small>{found.group}</small>{found.label}</> : value ? missingText(value) : <em>{emptyText}</em>}
+          {found ? <><small>{w(found.group)}</small>{found.label}</> : value ? w(missingText(value)) : <em>{w(emptyText)}</em>}
         </span>
         <button type="button" className="studio-field-picker-button" aria-expanded={open} aria-label={`${chooseText}: ${label}`}
           onClick={() => setOpen((o) => !o)}>{chooseText}<ChevronDown size={12} aria-hidden /></button>
@@ -100,7 +103,8 @@ function SinglePicker({ label, value, options, emptyText, chooseText, searchLabe
 /** Link: pick a store page, custom page, shop category or book — or type any address. */
 export function LinkPicker({ label, value, onChange }: { label: string; value: any; onChange: (v: string) => void }) {
   const data = useStudioPickerData();
-  const options = useMemo(() => linkOptions(data), [data]);
+  const w = useShopWords();
+  const options = useMemo(() => linkOptions(data).map(o => (o.value === "/?catalog=true" ? { ...o, label: w(o.label) } : o)), [data, w]);
   const [open, setOpen] = useState(false);
   const inputId = useId();
   const href = typeof value === "string" ? value : "";
@@ -110,13 +114,13 @@ export function LinkPicker({ label, value, onChange }: { label: string; value: a
       <FieldLabel htmlFor={inputId}>{label}</FieldLabel>
       <div className="studio-field-picker-current">
         <span className="studio-field-picker-summary">
-          {where ? <><small>{where.group}</small>{where.label}</> : <em>No link yet</em>}
+          {where ? <><small>{w(where.group)}</small>{where.label}</> : <em>No link yet</em>}
         </span>
         <button type="button" className="studio-field-picker-button" aria-expanded={open} aria-label={`Choose link: ${label}`}
           onClick={() => setOpen((o) => !o)}>Choose<ChevronDown size={12} aria-hidden /></button>
         {href && <button type="button" className="studio-field-picker-icon" aria-label={`Clear ${label}`} onClick={() => onChange("")}><X size={13} /></button>}
       </div>
-      {open && <OptionSearch options={options} label="Find a page, category or book" placeholder="Find a page, category or book…"
+      {open && <OptionSearch options={options} label={w("Find a page, category or book")} placeholder={w("Find a page, category or book…")}
         selected={href} onPick={(o) => { onChange(o.value); setOpen(false); }} onClose={() => setOpen(false)} />}
       <input id={inputId} aria-label={`${label} (address)`} value={href} placeholder="Or type an address: /page/about or https://…"
         onChange={(e) => onChange(e.target.value)} className="studio-field-picker-input" />
@@ -125,11 +129,12 @@ export function LinkPicker({ label, value, onChange }: { label: string; value: a
 }
 
 export function BookPicker({ label, value, onChange, emptyText = "No book chosen" }: { label: string; value: any; onChange: (v: string) => void; emptyText?: string }) {
+  const w = useShopWords();
   const { books } = useStudioPickerData();
   const options = useMemo(() => bookOptions(books), [books]);
   return <SinglePicker label={label} value={typeof value === "string" ? value.trim() : ""} options={options} onChange={onChange}
-    emptyText={emptyText} chooseText="Choose book" searchLabel="Find a book" placeholder="Find a book by title or author…"
-    missingText={(v) => `“${v}” — not a book in the shop right now`} />;
+    emptyText={emptyText} chooseText={w("Choose book")} searchLabel={w("Find a book")} placeholder={w("Find a book by title or author…")}
+    missingText={(v) => `“${v}” — ${w("not a book in the shop right now")}`} />;
 }
 
 export function CategoryPicker({ label, value, onChange, emptyText = "No category chosen" }: { label: string; value: any; onChange: (v: string) => void; emptyText?: string }) {
@@ -151,6 +156,7 @@ export function PagePicker({ label, value, onChange, emptyText = "No page chosen
 /** Several books, in the order picked. Saves the comma-separated slugs the field always held. */
 export function BooksPicker({ label, value, onChange }: { label: string; value: any; onChange: (v: string) => void }) {
   const { books } = useStudioPickerData();
+  const w = useShopWords();
   const options = useMemo(() => bookOptions(books), [books]);
   const [open, setOpen] = useState(false);
   const slugs = parseSlugList(value);
@@ -165,20 +171,20 @@ export function BooksPicker({ label, value, onChange }: { label: string; value: 
   return (
     <div className="studio-field-picker" data-picker-kind="books">
       <FieldLabel>{label}</FieldLabel>
-      {slugs.length ? <ol className="studio-field-picker-list" aria-label={`${label}: chosen books`}>
+      {slugs.length ? <ol className="studio-field-picker-list" aria-label={w(`${label}: chosen books`)}>
         {slugs.map((slug, i) => {
           const found = options.find((o) => o.value === slug);
           return <li key={`${slug}-${i}`} data-missing={found ? undefined : true}>
-            <span>{found ? found.label : `“${slug}” — not a book in the shop right now`}{found?.hint && <small>{found.hint}</small>}</span>
+            <span>{found ? found.label : `“${slug}” — ${w("not a book in the shop right now")}`}{found?.hint && <small>{found.hint}</small>}</span>
             <button type="button" className="studio-field-picker-icon" aria-label={`Move ${found?.label || slug} up`} disabled={i === 0} onClick={() => move(i, -1)}><ArrowUp size={13} /></button>
             <button type="button" className="studio-field-picker-icon" aria-label={`Move ${found?.label || slug} down`} disabled={i === slugs.length - 1} onClick={() => move(i, 1)}><ArrowDown size={13} /></button>
             <button type="button" className="studio-field-picker-icon" aria-label={`Remove ${found?.label || slug}`} onClick={() => save(slugs.filter((_, j) => j !== i))}><X size={13} /></button>
           </li>;
         })}
-      </ol> : <p className="studio-field-picker-summary"><em>No books picked yet</em></p>}
-      <button type="button" className="studio-field-picker-button studio-field-picker-add" aria-expanded={open} aria-label={`Add a book: ${label}`}
-        onClick={() => setOpen((o) => !o)}>+ Add a book</button>
-      {open && <OptionSearch options={available} label="Find a book to add" placeholder="Find a book by title or author…"
+      </ol> : <p className="studio-field-picker-summary"><em>{w("No books picked yet")}</em></p>}
+      <button type="button" className="studio-field-picker-button studio-field-picker-add" aria-expanded={open} aria-label={w(`Add a book: ${label}`)}
+        onClick={() => setOpen((o) => !o)}>{w("+ Add a book")}</button>
+      {open && <OptionSearch options={available} label={w("Find a book to add")} placeholder={w("Find a book by title or author…")}
         onPick={(o) => { save([...slugs, o.value]); setOpen(false); }} onClose={() => setOpen(false)} />}
     </div>
   );
