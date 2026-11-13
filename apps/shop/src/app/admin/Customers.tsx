@@ -7,6 +7,8 @@ import { NewsletterCard } from "./NewsletterCard";
 import { copyText } from "./clipboard";
 import { getOrdersCached } from "./ordersCache";
 import { useShopWords } from "./shopWords";
+import { groupNameProblem, matchingGroup, removeGroup, saveGroup, type CustomerGroup, type GroupFilters } from "./customerGroups";
+import { customerGroupsStore } from "./customerGroupsStore";
 import {
   buildCustomers, withMovedCustomers, consentOf, copiesOf, customerCountries, customerStats, customersToCsv, parseTags, CONSENT_LABELS, SEGMENT_LABELS,
   type Consent, type CustomerRow, type CustomerSegment,
@@ -65,6 +67,10 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
   const [notesState, setNotesState] = useState<"loading" | "ok" | "failed">("loading");
   const [savingNote, setSavingNote] = useState(false);
   const [ask, confirmNode] = useConfirm();
+  // Saved groups: the filters below under a name (customerGroups.ts), kept on the shop's account.
+  const [groups, setGroups] = useState<CustomerGroup[]>([]);
+  const [naming, setNaming] = useState<string | null>(null);
+  const [groupBusy, setGroupBusy] = useState(false);
 
   useEffect(() => { if (initialQuery !== undefined) setQ(initialQuery); }, [initialQuery]);
 
@@ -78,6 +84,7 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
     load();
     adminApi.getMarketingConsent().then(setConsent).catch(() => setConsent(null));
     loadNotes();
+    customerGroupsStore.load().then(setGroups).catch(() => setGroups([]));
   }, []);
   const loadNotes = () => {
     setNotesState("loading");
@@ -127,6 +134,28 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
   const pageRows = rows.slice((Math.min(page, pageCount) - 1) * PAGE_SIZE, Math.min(page, pageCount) * PAGE_SIZE);
 
   const filtered = seg !== "all" || !!q.trim() || consentFilter !== "all" || !!tagFilter || !!country;
+  const current: GroupFilters = { seg, q, consent: consentFilter, tag: tagFilter, country, sort };
+  const currentGroup = filtered ? matchingGroup(groups, current) : null;
+  const applyGroup = (id: string) => {
+    const g = groups.find((x) => x.id === id);
+    if (!g) return;
+    setSeg(g.seg as any); setQ(g.q); setConsentFilter(g.consent as any); setTagFilter(g.tag); setCountry(g.country); setSort(g.sort);
+  };
+  const storeGroups = async (next: CustomerGroup[], done: string) => {
+    setGroupBusy(true);
+    try { await customerGroupsStore.save(next); setGroups(next); toast.success(done); return true; }
+    catch (e) { console.error(e); toast.error("The groups couldn't be saved. Try again."); return false; }
+    finally { setGroupBusy(false); }
+  };
+  const nameProblem = naming === null ? null : groupNameProblem(naming, groups);
+  const saveNamed = async () => {
+    if (naming === null || nameProblem) return;
+    if (await storeGroups(saveGroup(groups, naming, current, () => crypto.randomUUID().slice(0, 12)), `Saved “${naming.trim()}”`)) setNaming(null);
+  };
+  const deleteGroup = async (g: CustomerGroup) => {
+    if (!(await ask({ title: `Delete “${g.name}”?`, message: "Only the saved group goes. No customer is changed.", confirmLabel: "Delete group" }))) return;
+    await storeGroups(removeGroup(groups, g.id), "Group deleted");
+  };
   const clearFilters = () => { setSeg("all"); setQ(""); setConsentFilter("all"); setTagFilter(""); setCountry(""); };
 
   const exportCsv = () => {
@@ -220,6 +249,12 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
           ...(counts.moved ? [{ id: "moved", label: "Not ordered here yet", count: counts.moved }] : []),
         ]} />
       <FilterBar>
+        {groups.length > 0 && (
+          <SelectField label="Saved groups" hideLabel value={currentGroup?.id || ""} onChange={(e) => applyGroup(e.target.value)}>
+            <option value="">Saved groups</option>
+            {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+          </SelectField>
+        )}
         <div className="rp-grow"><SearchField label="Search customers" placeholder="Search name, email or city…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
         <SelectField label="Marketing consent" hideLabel value={consentFilter} onChange={(e) => setConsentFilter(e.target.value as any)}>
           <option value="all">Any marketing consent</option>
@@ -245,8 +280,19 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
             {countries.map((c) => <option key={c.country} value={c.country}>{c.country} ({c.count})</option>)}
           </SelectField>
         )}
+        {filtered && !currentGroup && <GhostButton onClick={() => setNaming("")}>Save as group</GhostButton>}
+        {currentGroup && <GhostButton disabled={groupBusy} onClick={() => void deleteGroup(currentGroup)}>Delete group</GhostButton>}
         {filtered && <GhostButton onClick={clearFilters}>Clear filters</GhostButton>}
       </FilterBar>
+      {naming !== null && (
+        <Dialog open onClose={() => setNaming(null)} title="Save as group" description="Keeps these filters under a name, so you can pick them again from Saved groups."
+          footer={<><SecondaryButton onClick={() => setNaming(null)}>Cancel</SecondaryButton><PrimaryButton disabled={groupBusy || !!nameProblem} onClick={() => void saveNamed()}>{groupBusy ? "Saving…" : "Save group"}</PrimaryButton></>}>
+          <form onSubmit={(e) => { e.preventDefault(); void saveNamed(); }}>
+            <TextField label="Group name" placeholder="e.g. Toronto regulars" maxLength={60} value={naming} onChange={(e) => setNaming(e.target.value)} data-autofocus
+              hint={naming.trim() && nameProblem ? nameProblem : `${rows.length} customer${rows.length === 1 ? "" : "s"} match now. The group updates as customers change.`} />
+          </form>
+        </Dialog>
+      )}
       {moveOpen && <Suspense fallback={null}><CustomerMoveDialog onClose={() => setMoveOpen(false)} onDone={() => { loadNotes(); adminApi.getMarketingConsent().then(setConsent).catch(() => {}); }} /></Suspense>}
       <SectionCard flush collapsible={false} title="Customers" description={`${rows.length} customer${rows.length === 1 ? "" : "s"} · paid orders only, refunds taken off${counts.moved ? ", plus the customers you brought over who haven't ordered here yet" : ""}.`}>
         <DataTable caption="Customers" columns={columns} rows={pageRows} rowKey={(c) => c.key} onRowClick={openCustomer}
