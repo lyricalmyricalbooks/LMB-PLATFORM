@@ -1268,6 +1268,11 @@ await check("Draft a section with AI: the draft shows on the page, Add to page s
   await draft.getByRole("button", { name: "Draft it" }).click();
   const frame = page.frameLocator('iframe[title="Live preview"]');
   await frame.getByText("Shipping, simply").first().waitFor({ timeout: 10000 });
+  // The draft stays on the page when the pointer lands on a block in the list below (the list moves down under a
+  // still pointer when the draft's buttons appear, which used to swap the draft for that block).
+  await page.locator(".studio-library-body .studio-library-card").first().hover();
+  await page.waitForTimeout(500);
+  if (!(await frame.getByText("Shipping, simply").first().isVisible())) throw new Error("pointing at a block took the AI draft off the page");
   if ((await calls(page)).some(c => c.method === "saveDesign")) throw new Error("a draft was saved before Add to page");
   await draft.getByRole("button", { name: "Add to page" }).click();
   await page.getByRole("button", { name: "Save draft" }).click();

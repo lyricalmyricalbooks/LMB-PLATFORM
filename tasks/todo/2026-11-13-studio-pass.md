@@ -76,3 +76,4 @@ adminCompat.css squares every Tailwind-rounded control with `!important`, so Stu
 
 ### Review
 Checked Page layout, Theme settings, Text & labels, Themes and Essentials at night on desktop, and Page layout on a phone.
+- [x] Bug found by CI (red on main since #758): an AI section draft left the preview when the pointer landed on a block card (the list shifts under a still pointer when the draft's buttons appear). The draft now wins over a pointed-at block; the browser check points at a card to prove it.

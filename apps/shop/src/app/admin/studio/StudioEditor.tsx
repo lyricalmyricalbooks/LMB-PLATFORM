@@ -1064,7 +1064,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const current = designRef.current;
     const candidateOwner = blockCandidate && blockPicker ? findSectionOwner(current, blockPicker) : null;
     const previewDesign = historyPreview?.design || themePreview?.design || ((candidate || draftCandidate) && adding !== null
-      ? withCandidate(current, showGlobal ? globalGroup : template.id, getSections(current, target), adding, candidate ? makeSection(candidate, getSectionMeta(candidate)?.defaults || {}) : draftCandidate!)
+      ? withCandidate(current, showGlobal ? globalGroup : template.id, getSections(current, target), adding, draftCandidate || makeSection(candidate!, getSectionMeta(candidate!)?.defaults || {}))
       : candidateOwner ? withBlockCandidate(current, blockPicker!, getBlocksKey(candidateOwner.section.type), blockCandidate)
       : brandChoice ? brandKitDesign(current, brandChoice, getSectionMeta, shopWords)
       : current);
