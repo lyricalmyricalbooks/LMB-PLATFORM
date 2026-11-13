@@ -96,7 +96,7 @@ import { PhotoToneDefs } from "./PhotoToneDefs";
 import { ThumbStrip } from "./ThumbStrip.tsx";
 import { PHONE_MAX } from "./breakpoints";
 import { productHref, productSegment } from "../../lib/productHref";
-import { shopCurrency } from "../../../lib/shopProfile";
+import { shopCurrency, homeCountryName } from "../../../lib/shopProfile";
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
 /** The title's inline variables: Studio's "Title size" preset and the phone cap that keeps its longest word whole. */
@@ -412,7 +412,7 @@ export default function BookDetail() {
     loadShippingProfiles().then((profiles) => { if (!cancelled) setShippingProfiles(profiles); });
     return () => { cancelled = true; };
   }, []);
-  const shopCountry = findCountry(String(settings?.location?.country || "Canada"))?.code;
+  const shopCountry = findCountry(String(settings?.location?.country || homeCountryName()))?.code;
   const seoShipping = useMemo(() => {
     if (!book || !shippingProfiles || !String(getCopy(settings?.design, "seoShippingOnListings")).trim()) return null;
     const variant = selectedVariant || null;
@@ -421,7 +421,7 @@ export default function BookDetail() {
     const line = catalogFulfillmentItems([{ id: book.id, variantId: variant?.id, price: unit, quantity: 1 }], new Map([[book.id, book]]))?.[0];
     if (!line?.physical) return null;
     const weightGrams = parseWeightGrams(variant?.weight) ?? parseWeightGrams((book as any).weight) ?? bundleWeightGrams(book, new Map(books.map((b: any) => [b.id, b])));
-    const quote = quoteShipping([{ price: unit, quantity: 1, shippingProfileId: (book as any).shippingProfileId || null, weightGrams }], { country: String(settings?.location?.country || "Canada") }, shippingProfiles)
+    const quote = quoteShipping([{ price: unit, quantity: 1, shippingProfileId: (book as any).shippingProfileId || null, weightGrams }], { country: String(settings?.location?.country || homeCountryName()) }, shippingProfiles)
       .find((q) => q.type !== "pickup");
     return shippingDetailsData(quote, shopCountry, shopCurrency(), getCopy(settings?.design, "seoHandlingDays"));
   }, [book, selectedVariant, shippingProfiles, settings, books, shopCountry]);

@@ -55,3 +55,16 @@ describe("small editor helpers", () => {
     expect(parseGoogleBooks({ items: [{ volumeInfo: { title: "G", authors: ["B"], publishedDate: "2001" } }] })).toMatchObject({ title: "G", contributors: "B", publishDate: undefined });
   });
 });
+
+describe("weights in an American shop", () => {
+  it("offers ounces and pounds first and keeps them", async () => {
+    const { splitWeight, weightUnits, joinWeight } = await import("./bookEditorState");
+    expect(weightUnits("US")).toEqual(["oz", "lb", "g", "kg"]);
+    expect(weightUnits("CA")).toEqual(["g", "kg"]);
+    expect(splitWeight("8 oz", undefined, "US")).toEqual({ amount: "8", unit: "oz" });
+    expect(splitWeight("1.5 lbs", undefined, "US")).toEqual({ amount: "1.5", unit: "lb" });
+    expect(splitWeight("", undefined, "US")).toEqual({ amount: "", unit: "oz" });
+    expect(splitWeight("1 lb", undefined, "CA")).toEqual({ amount: "454", unit: "g" });
+    expect(joinWeight("8", "oz")).toBe("8 oz");
+  });
+});

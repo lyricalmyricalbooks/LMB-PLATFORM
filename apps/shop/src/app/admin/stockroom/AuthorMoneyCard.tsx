@@ -8,7 +8,7 @@ import { useShopWords } from "../shopWords";
 import { authorMoneyPlan, authorStatement, pastSettlements, recordSettlement, undoSettlement } from "./authorMoney";
 import { todayText } from "./invoiceMake";
 import { describeResult, stockroomWriteApi } from "./stockroomWrite";
-import { SHOP_CURRENCY } from "../moneySign";
+import { BANK_TRANSFER, SHOP_CURRENCY } from "../moneySign";
 
 type Row = Record<string, any>;
 
@@ -72,7 +72,7 @@ export function AuthorMoneyCard({ bookId, book, state, onSaved }: { bookId: stri
             <PrimaryButton busy={busy} onClick={() => void save(recordSettlement(book, plan.id, { date, method: method.trim(), notes: notes.trim() }), () => setOpen(false))}>Record it</PrimaryButton></>}>
           <p>{headline} Record it once the money has changed hands.</p>
           <TextField label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          <TextField label="How it was paid" hint="Optional, like e-Transfer" value={method} onChange={(e) => setMethod(e.target.value)} />
+          <TextField label="How it was paid" hint={`Optional, like ${BANK_TRANSFER}`} value={method} onChange={(e) => setMethod(e.target.value)} />
           <TextField label="Note" hint="Optional" value={notes} onChange={(e) => setNotes(e.target.value)} />
           {msg && <p className="rp-sr-save" data-tone={msg.tone} role={msg.tone === "error" ? "alert" : "status"}>{msg.text}</p>}
         </Dialog>

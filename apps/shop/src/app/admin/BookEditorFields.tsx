@@ -8,7 +8,7 @@ import { Dialog, SelectField, TextField } from "./riso/components";
 import { safeHref } from "../features/site/descriptionLinks";
 import { useShopWords } from "./shopWords";
 
-/** Metric only, stored as "450 g" / "0.5 kg" — the format shippingEngine.parseWeightGrams (client and server) reads. An older "1 lb" opens in grams. */
+/** Metric for a Canadian shop, ounces and pounds first for an American one; stored as "450 g" / "0.5 kg" — the format shippingEngine.parseWeightGrams (client and server) reads. An older "1 lb" opens in grams. */
 export function WeightField({ label, value, onChange, hint }: { label: string; value: string; onChange: (weight: string) => void; hint?: string }) {
   const parsed = splitWeight(value);
   const [unit, setUnit] = useState<WeightUnit>(parsed.unit);

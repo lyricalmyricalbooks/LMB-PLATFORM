@@ -37,9 +37,12 @@ export function matchTaxRate<T extends { country?: string; region?: string }>(ra
  * match no rate at all (no regional rate and no country-wide rate) and so be
  * charged no tax. An explicit 0% rate counts as covered.
  */
-export function uncoveredTaxRegions(rates: { country?: string; region?: string }[]): { country: string; regions: string[] }[] {
+export function uncoveredTaxRegions(rates: { country?: string; region?: string }[], home: "CA" | "US" = "CA"): { country: string; regions: string[] }[] {
   const out: { country: string; regions: string[] }[] = [];
   for (const [key, label] of [["ca", "Canada"], ["us", "United States"]] as const) {
+    // An American shop collects sales tax only in the states where it is registered: the other states are meant to
+    // pay none, so they are not gaps.
+    if (home === "US" && key === "us") continue;
     // A rate limited to one kind of product (plan 12.2) leaves other products with no rate here.
     const countryRates = (rates || []).filter(r => normalizeCountry(r.country) === key && !(r as any).kinds?.length);
     if (!countryRates.length) continue;

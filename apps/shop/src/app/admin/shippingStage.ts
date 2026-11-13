@@ -4,6 +4,7 @@
 // this step only confirms one starter and never makes a second profile when the shop already has one, so a re-run is safe.
 
 import { buildNewProfile, starterPrices, type ProfileStarterId } from "./shippingProfileStarters";
+import { POSTAL_LABEL } from "./moneySign";
 import { countryCode } from "./shippingCountries";
 
 /** The starters a press can confirm here. "copy" needs another profile, and "blank" makes nothing (see below). */
@@ -34,7 +35,7 @@ export function shipFromProblems(location: any): string[] {
   const out: string[] = [];
   if (!String(location?.street || "").trim()) out.push("Add the street address your orders ship from.");
   if (!String(location?.city || "").trim()) out.push("Add your city.");
-  if (!String(location?.zip || "").trim()) out.push("Add your postal code.");
+  if (!String(location?.zip || "").trim()) out.push(`Add your ${POSTAL_LABEL.toLowerCase().replace("zip", "ZIP")}.`);
   if (!String(location?.country || "").trim()) out.push("Choose your country.");
   return out;
 }

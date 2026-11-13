@@ -41,7 +41,7 @@ import { CHECKOUT_ATTEMPT_KEY, orderAccessHeaders, rememberOrderAccess, savedOrd
 import { StripeCardForm, type StripeCardFormHandle } from "./features/site/StripeCardForm";
 import { StripePaymentSection } from "./features/site/StripePaymentSection";
 import { isStripePublishableKey, stripeCheckoutState, createCheckoutSubmission, onPageRestored } from "./features/site/stripeLifecycle";
-import { paysOnSquare, platformStripe, platformTakesCards, shopCurrency, shopProfile } from "../lib/shopProfile";
+import { paysOnSquare, platformStripe, platformTakesCards, shopCurrency, shopProfile, homeCountryName } from "../lib/shopProfile";
 import { withShopStartFor } from "./admin/sells";
 import { checkoutFlow, confirmationView, initialFlow, readReturn, stripeTookPayment } from "./features/site/checkoutFlow";
 import { checkoutDetailProblems, detailInputId, expressWalletEnabled, type DetailField } from "./features/site/checkoutDetails";
@@ -158,11 +158,11 @@ export function Checkout() {
 
 
   const cartDestination = useRef(readCartDestination());
-  const initialCountry = useRef(cartDestination.current?.country || guessCountryName() || "Canada");
+  const initialCountry = useRef(cartDestination.current?.country || guessCountryName() || homeCountryName());
   const [customer, setCustomer] = useState<CheckoutCustomer>({
     name: "", email: "", phone: "",
     address: { street: "", unit: "", city: "", state: "", zip: cartDestination.current?.postalCode || "", country: initialCountry.current },
-    billingAddress: { state: "", country: "Canada" }
+    billingAddress: { state: "", country: homeCountryName() }
   });
 
   const [taxCost, setTaxCost] = useState(0);
@@ -689,7 +689,7 @@ export function Checkout() {
       if (Number(p.freeShippingOver) > 0) candidates.add(Number(p.freeShippingOver));
       (p.zones || []).forEach((z: any) => (z.rates || []).forEach((r: any) => { if (Number(r.freeOver) > 0) candidates.add(Number(r.freeOver)); }));
     });
-    const country = customer.address.country || "Canada";
+    const country = customer.address.country || homeCountryName();
     const base = shippingItemsForCart();
     for (const t of [...candidates].filter(t => t > cartTotal).sort((a, b) => a - b).slice(0, 6)) {
       const gap = freeShippingGap(cartTotal, t);
@@ -716,7 +716,7 @@ export function Checkout() {
     const shippableItems = items.filter((item, index) => physicalIds.has(`${cart[index].id}:${cart[index].variantId || ""}`));
     // A physical free gift travels in the parcel too (the server weighs it the same way).
     if (freeGiftRef.current) shippableItems.push(freeGiftRef.current);
-    const quotes = quoteShipping(shippableItems, { country: customer.address.country || "Canada" }, shippingProfiles).filter(q => q.type !== "pickup");
+    const quotes = quoteShipping(shippableItems, { country: customer.address.country || homeCountryName() }, shippingProfiles).filter(q => q.type !== "pickup");
     setAvailableRates(quotes.map((q) => ({ id: q.id, name: q.name, price: q.price, deliveryDays: q.deliveryDays })));
   };
 
@@ -758,7 +758,7 @@ export function Checkout() {
               city: addr.city.trim(),
               state: addr.state.trim(),
               zip: addr.zip.trim(),
-              country: addr.country || "Canada",
+              country: addr.country || homeCountryName(),
               name: customer.name || "Customer"
             },
             // Only the books that travel: e-books add no parcel weight.

@@ -23,3 +23,17 @@ describe("metric weights", () => {
     expect(metricWeightValue("")).toBe("");
   });
 });
+
+describe("an American shop keeps ounces and pounds", () => {
+  it("shows weights in ounces and pounds", () => {
+    expect(formatGrams(450, "US")).toBe("15.9 oz");
+    expect(formatGrams(1250, "US")).toBe("2.76 lb");
+    expect(metricWeight("8 oz", "US")).toBe("8 oz");
+    expect(metricWeight("1.5lb", "US")).toBe("1.5 lb");
+    expect(metricWeight("500 g", "US")).toBe("1.1 lb");
+  });
+  it("saves what was typed, and a Canadian shop still saves grams", () => {
+    expect(metricWeightValue("1 lb", "US")).toBe("1 lb");
+    expect(metricWeightValue("1 lb", "CA")).toBe("454 g");
+  });
+});

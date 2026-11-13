@@ -5,6 +5,7 @@
  */
 
 import { DEFAULT_SHOP_NAME } from "../features/site/shopIdentity";
+import { BANK_TRANSFER_FULL, HOME_CARRIER, MONEY_SIGN, SAMPLE_CARRIER_SERVICE } from "./moneySign";
 
 export type TemplateId =
   | "order_confirmation" | "order_pending_payment" | "shipping_confirmation" | "abandoned_cart" | "order_cancelled"
@@ -54,10 +55,10 @@ const requiredLines = (templateId: TemplateId, language: EmailLanguage) =>
 const SAMPLE: Record<string, string> = {
   items_list: "1 × Visions of Toronto",
   request: "return",
-  book_titles: "Visions of Toronto", customer_name: "Julianne Smith", order_id: "LM-98241", tracking_carrier: "Canada Post", tracking_number: "123456789012",
-  total_price: "CA$45.00", payment_method: "Interac e-Transfer", email: "julianne@reader.example", status: "out for delivery",
-  tracking_url: "#", cart_url: "#", order_url: "#", shipping_method: "Canada Post Expedited Parcel",
-  delivery_estimate: "2-4 business days after dispatch", recipient_name: "Sam", sender_name: "Julianne", amount: "CA$50.00",
+  book_titles: "Visions of Toronto", customer_name: "Julianne Smith", order_id: "LM-98241", tracking_carrier: HOME_CARRIER, tracking_number: "123456789012",
+  total_price: `${MONEY_SIGN}45.00`, payment_method: BANK_TRANSFER_FULL, email: "julianne@reader.example", status: "out for delivery",
+  tracking_url: "#", cart_url: "#", order_url: "#", shipping_method: SAMPLE_CARRIER_SERVICE,
+  delivery_estimate: "2-4 business days after dispatch", recipient_name: "Sam", sender_name: "Julianne", amount: `${MONEY_SIGN}50.00`,
   code: "ABCD-EFGH-JKMN-PQRS", expires: "It never expires.", expires_on: "November 5, 2026", shop_url: "#", items_table: "", shop_name: DEFAULT_SHOP_NAME,
 };
 

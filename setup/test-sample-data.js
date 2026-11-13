@@ -108,7 +108,7 @@ export function testSampleDocs(kind = "books", now = new Date()) {
  * The stockroom side of a test shop's sample records: each item's records by id (as the stockroom keeps a book's state,
  * apps/stockroom/src/lib/merge-state.js), the catalogue fields to add to those items, and the invoice details.
  */
-export function testSampleStockroom(kind = "books", now = new Date(), pressName = kind === "books" ? "Test Press" : "Test Goods") {
+export function testSampleStockroom(kind = "books", now = new Date(), pressName = kind === "books" ? "Test Press" : "Test Goods", currency = "CAD") {
   const [, second, third] = stockedIds(kind);
   const p2 = PRICES[second];
   const p3 = PRICES[third];
@@ -125,7 +125,7 @@ export function testSampleStockroom(kind = "books", now = new Date(), pressName 
       ],
       stores: [{ id: 1, name: SAMPLE_STOCKIST, city: "Toronto", sent: 2, sold: 1, returned: 0, outstanding: 1, amountOwed: owed, rate: 40 }],
       invoices: [{
-        id: "test-inv-1", num: SAMPLE_INVOICE, status: "sent", date: dayOf(now, 10), dueDate: dayOf(now, -20), total: owed, currency: "CA$",
+        id: "test-inv-1", num: SAMPLE_INVOICE, status: "sent", date: dayOf(now, 10), dueDate: dayOf(now, -20), total: owed, currency: currency === "USD" ? "US$" : "CA$",
         storeName: SAMPLE_STOCKIST, storeId: 1, items: [{ _ledgerId: 2, qty: 1, unitPrice: owed }],
       }],
       invoiceSeq: 1,
@@ -176,7 +176,7 @@ const parse = (text) => {
  * record changed while trying the shop stays. The stockroom's items must already be in its catalogue (step 12 adds
  * them first). Returns the paths written.
  */
-export async function writeTestSamples({ shop, stockroom = null }, shopId, kind, { replace = false, now = new Date(), pressName } = {}) {
+export async function writeTestSamples({ shop, stockroom = null }, shopId, kind, { replace = false, now = new Date(), pressName, currency = "CAD" } = {}) {
   const written = [];
   for (const { path, data } of testSampleDocs(kind, now)) {
     if (!replace && (await shop.get(shopId, path))) continue;
@@ -185,7 +185,7 @@ export async function writeTestSamples({ shop, stockroom = null }, shopId, kind,
   }
   if (!stockroom) return written;
 
-  const sample = testSampleStockroom(kind, now, pressName);
+  const sample = testSampleStockroom(kind, now, pressName, currency);
   const ts = now.getTime();
   const catalogDoc = await stockroom.get(shopId, "settings/catalog");
   const catalog = parse(catalogDoc?.data);

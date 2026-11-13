@@ -2,7 +2,8 @@
 // A press that has not registered must not charge GST, and the presets charge it. So "No" switches collection off
 // (the same switch the page already had) and "Yes" switches it on and opens the presets. Nothing applies until Save.
 // The $30,000 line is Canada's small-supplier limit over four calendar quarters: below it registering is optional.
-// Not tax advice; the page says to ask an accountant.
+// An American shop (shared/shopCurrency shopCountryOf) is asked about US sales tax instead: `registrationWords("US")`.
+// The saved answer is the same field either way.
 import type { TaxPreset } from "./taxPresets";
 import { regionsFor } from "../features/site/postalRegion";
 
@@ -38,7 +39,7 @@ export function provincialQuestion(places: string[]) {
 
 export const REGISTRATION_WORDS = {
   title: "Are you registered for GST/HST?",
-  hint: "You only have to register once your sales pass $30,000 over four calendar quarters, and you may only charge GST/HST once you have a registration number. If you aren't sure, choose No for now. Not tax advice: ask your accountant.",
+  hint: "You only have to register once your sales pass $30,000 over four calendar quarters, and you may only charge GST/HST once you have a registration number. If you aren't sure, choose No for now.",
   no: "No, not yet. Charge no tax.",
   yes: "Yes, I'm registered.",
   savedNo: "Not registered: customers aren't charged tax. Rates stay saved for when you register.",
@@ -49,3 +50,17 @@ export const REGISTRATION_WORDS = {
     confirmLabel: "Fill in the rates",
   },
 } as const;
+
+/** The same question for an American shop: sales tax is collected state by state, and only where the shop is registered. */
+export const US_REGISTRATION_WORDS = {
+  title: "Do you collect sales tax?",
+  hint: "You collect sales tax only in the states where you hold a seller's permit. Rates differ by state, county and city, so add the rate for each state you collect in. Every other state pays no tax. If you aren't sure, choose No for now.",
+  no: "No, not yet. Charge no tax.",
+  yes: "Yes, I collect sales tax.",
+  savedNo: "Not collecting: customers aren't charged tax. Rates stay saved for when you start.",
+  savedYes: "Collecting: tax is charged at checkout in the states listed below.",
+  unregisteredPreset: REGISTRATION_WORDS.unregisteredPreset,
+} as const;
+
+/** The first question's words for the shop's country. */
+export const registrationWords = (country: "CA" | "US") => (country === "US" ? US_REGISTRATION_WORDS : REGISTRATION_WORDS);

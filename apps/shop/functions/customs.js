@@ -3,7 +3,7 @@
 // hsTariffNumber, customsOriginCountry. Blank = the defaults below, which suit printed books.
 // Pure (no Firestore, no Shippo): index.js reads the catalog and posts what this builds.
 const { isPhysicalItem } = require("./shared/localFulfillment");
-const { shopCurrency } = require("./shopMoney");
+const { shopCurrency, shopCountry } = require("./shopMoney");
 const { countryCodeOf } = require("./shared/addressRules");
 const { DEFAULT_SHOP_NAME } = require("./shared/shopIdentity");
 
@@ -21,7 +21,7 @@ const cleanDescription = (value, fallback = DEFAULT_DESCRIPTION) => String(value
 
 // A parcel needs customs paperwork when it crosses a border.
 function needsCustoms(fromCountry, toCountry) {
-  const from = countryCodeOf(fromCountry) || "CA";
+  const from = countryCodeOf(fromCountry) || shopCountry();
   const to = countryCodeOf(toCountry);
   return !!to && from !== to;
 }
@@ -58,7 +58,7 @@ function customsItems(order, books, defaultOrigin) {
     const unit = Number(item.basePrice ?? item.price) || 0;
     const addOns = (item.addOns || []).reduce((sum, a) => sum + (Number(a.price) || 0), 0);
     const lineValue = Math.max(0.01, Math.round((unit + addOns) * quantity * ratio * 100) / 100);
-    const origin = countryCodeOf(book.customsOriginCountry) || countryCodeOf(defaultOrigin) || "CA";
+    const origin = countryCodeOf(book.customsOriginCountry) || countryCodeOf(defaultOrigin) || shopCountry();
     return {
       description: cleanDescription(book.customsDescription, kind.description),
       quantity,

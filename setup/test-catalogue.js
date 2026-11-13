@@ -231,7 +231,7 @@ export function testShopDocs(kind = "books") {
 
 /** The stockroom's items, keyed by id, as its catalogue keeps them. 5 made and nothing sold means 5 on hand. */
 export function testStockroomBooks(shop) {
-  const currency = shop.currency === "CAD" ? "CA$" : shop.currency;
+  const currency = shop.currency === "CAD" ? "CA$" : shop.currency === "USD" ? "US$" : shop.currency;
   const kind = testShopKind(shop);
   return stockedOf(kind).map(({ id, title, price }) => ({
     id,

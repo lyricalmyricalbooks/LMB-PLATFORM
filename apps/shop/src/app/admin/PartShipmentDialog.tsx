@@ -1,3 +1,4 @@
+import { HOME_CARRIER } from "./moneySign";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
@@ -15,7 +16,7 @@ export function PartShipmentDialog({ open, order, onClose, onDone, emailOn }: {
 }) {
   const lines = open && order ? shippableLines(order).filter((l) => l.left > 0) : [];
   const [picks, setPicks] = useState<Record<number, string>>({});
-  const [carrier, setCarrier] = useState("Canada Post");
+  const [carrier, setCarrier] = useState(HOME_CARRIER);
   const [otherCarrier, setOtherCarrier] = useState("");
   const [number, setNumber] = useState("");
   const [link, setLink] = useState("");
@@ -23,7 +24,7 @@ export function PartShipmentDialog({ open, order, onClose, onDone, emailOn }: {
 
   useEffect(() => {
     if (!open) return;
-    setPicks({}); setCarrier("Canada Post"); setOtherCarrier(""); setNumber(""); setLink("");
+    setPicks({}); setCarrier(HOME_CARRIER); setOtherCarrier(""); setNumber(""); setLink("");
   }, [open]);
 
   const counts = Object.fromEntries(Object.entries(picks).map(([k, v]) => [k, v.trim() === "" ? 0 : Number(v)]));

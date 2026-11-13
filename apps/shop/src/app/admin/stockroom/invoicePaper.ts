@@ -6,7 +6,7 @@ import { fmt, fmtD, getSym } from "@stockroom/money.js";
 
 import { docRaw, documentFrame, documentPage, documentTable, documentTotals, type DocCell, type DocTotal } from "../../../shared/documentKit";
 import type { InvoiceSettings } from "./invoiceMake";
-import { SHOP_CURRENCY } from "../moneySign";
+import { BANK_TRANSFER_FULL, SHOP_CURRENCY } from "../moneySign";
 
 type Rec = Record<string, any>;
 const escape = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
@@ -43,7 +43,7 @@ export function invoicePaperHtml(inv: Rec, settings: InvoiceSettings, today: str
   const link = opts.quote ? "" : String(inv.paymentLink || "").trim();
   const pay = !link || inv.status === "paid" ? ""
     : /^https?:\/\//i.test(link) ? `<p style="margin-top:14px"><strong>Pay online:</strong> <a href="${escape(link)}">${escape(link)}</a></p>`
-      : /^[^\s@]+@[^\s@]+$/.test(link) ? `<p style="margin-top:14px"><strong>Send ${escape(money(inv.total))} by Interac e-Transfer to</strong> ${escape(link)}</p>`
+      : /^[^\s@]+@[^\s@]+$/.test(link) ? `<p style="margin-top:14px"><strong>Send ${escape(money(inv.total))} by ${BANK_TRANSFER_FULL} to</strong> ${escape(link)}</p>`
         : `<p style="margin-top:14px"><strong>How to pay:</strong> ${escape(link)}</p>`;
 
   const daysLate = overdue ? Math.round((Date.parse(today) - Date.parse(String(inv.dueDate))) / 86_400_000) : 0;

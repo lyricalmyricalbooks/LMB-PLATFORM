@@ -5,7 +5,7 @@
 // The shop's server reads it from its record (functions/shopConfig.js `currency`), its pages from the public profile
 // (lib/shopProfile `currency`). Pure: the Functions run the generated copy (functions/shared/shopCurrency.js).
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.currencyName = exports.currencySign = exports.SHOP_CURRENCIES = void 0;
+exports.shopCountryOf = exports.currencyName = exports.currencySign = exports.SHOP_CURRENCIES = void 0;
 exports.shopCurrencyOf = shopCurrencyOf;
 exports.shopMoney = shopMoney;
 /** The currencies a shop can sell in. */
@@ -30,3 +30,5 @@ function shopMoney(amount, currency) {
     const n = Number.isFinite(amount) ? amount : 0;
     return `${n < 0 ? "-" : ""}${(0, exports.currencySign)(currency)}${Math.abs(n).toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
+const shopCountryOf = (currency) => (shopCurrencyOf(currency) === "USD" ? "US" : "CA");
+exports.shopCountryOf = shopCountryOf;

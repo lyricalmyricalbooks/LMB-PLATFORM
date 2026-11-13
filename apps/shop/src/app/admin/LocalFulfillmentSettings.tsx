@@ -6,12 +6,42 @@ import { SecondaryButton, DestructiveButton, SectionCard, TextField, TextArea, T
 import { useSettingsDirty } from './settingsDirty';
 import { friendlyError } from './settingsLayout';
 import { useShopWords } from "./shopWords";
+import { SHOP_CURRENCY, US_SHOP } from "./moneySign";
 
 const ROW = { display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', paddingTop: 8, borderTop: '1px solid var(--rp-border)' } as const;
 const GRID = { display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', alignItems: 'start' } as const;
 
+// The page's words for the shop's country: a Canadian shop keeps the Toronto wording it always had; an American shop
+// talks about ZIP codes and states, and its quick pickup is open to everyone until the owner lists ZIP areas.
+const L = US_SHOP ? {
+  quick: 'Free local pickup',
+  quickOn: 'On — shoppers see a free "Local pickup" option at checkout. This switch saves straight away, on its own — other edits below still need Save.',
+  quickOff: 'Off. Switch on to offer free pickup — add your city and state below first. You can add your address, hours and instructions too.',
+  pickupDesc: 'Collect in person.',
+  areaHint: 'Checked against the ZIP code the shopper enters at checkout.',
+  custom: 'Specific ZIP areas…', areas: 'Pickup ZIP areas', areasHint: '100 = every ZIP code starting with 100. 10001 = one ZIP code.',
+  state: 'State (e.g. NY)', zip: 'ZIP code (optional)',
+  deliveryDesc: 'Hand-delivered to nearby ZIP codes.', zones: 'the ZIP areas',
+  prefixes: 'ZIP code starts', prefixesHint: 'The first three or four digits each, separated by commas or new lines.', codes: 'Exact ZIP codes',
+  tryTitle: 'Try a ZIP code', tryLabel: 'ZIP code', tryPlaceholder: '10001', none: 'No pickup or delivery option for this ZIP code and subtotal.',
+  country: 'US', firstArea: '100',
+} : {
+  quick: 'Free local pickup for Toronto shoppers',
+  quickOn: 'On — shoppers with a Toronto postal code (starting with M) see a free "Local pickup" option at checkout. This switch saves straight away, on its own — other edits below still need Save.',
+  quickOff: 'Off. Switch on to offer free pickup to Toronto shoppers — no other setup needed. You can add your address, hours and instructions below.',
+  pickupDesc: 'Collect in person. Toronto codes start with M.',
+  areaHint: 'Checked against the postal code the shopper enters at checkout.',
+  custom: 'Specific postal areas…', areas: 'Pickup postal areas', areasHint: 'M = all of Toronto. M6G = one area.',
+  state: 'Province (e.g. ON)', zip: 'Postal code (optional)',
+  deliveryDesc: 'Hand-delivered to nearby postal areas.', zones: 'the postal areas',
+  prefixes: 'Postal prefixes', prefixesHint: 'Three characters each, separated by commas or new lines.', codes: 'Exact postal codes',
+  tryTitle: 'Try a postal code', tryLabel: 'Canadian postal code', tryPlaceholder: 'M6G 3H1', none: 'No pickup or delivery option for this postal code and subtotal.',
+  country: 'CA', firstArea: 'M',
+};
 // Toronto postal codes all begin with M.
 const TORONTO_AREA = ['M'];
+/** An American shop's first pickup: open to everyone, at the shop's own city and state (Settings › General). */
+export const newUsPickup = (home: { city?: string; state?: string } = {}) => ({ id: crypto.randomUUID(), enabled: false, name: 'Local pickup', price: 0, postalPrefixes: [] as string[], address: { street: '', city: home.city || '', state: home.state || '', zip: '', country: 'United States' }, instructions: 'Free pickup. We\u2019ll email you the pickup details.', hours: '', estimate: '' });
 const newTorontoPickup = () => ({ id: crypto.randomUUID(), enabled: false, name: 'Local pickup', price: 0, postalPrefixes: [...TORONTO_AREA], address: { street: '', city: 'Toronto', state: 'ON', zip: '', country: 'Canada' }, instructions: 'Free pickup for those in Toronto. We\u2019ll email you the pickup details.', hours: '', estimate: '' });
 
 export function useLocalFulfillmentDraft(load = true) {
@@ -21,6 +51,8 @@ export function useLocalFulfillmentDraft(load = true) {
   const [loaded, setLoaded] = useState(false);
   // What is saved in Firestore, so the quick pickup switch can save only its own change.
   const [saved, setSaved] = useState<LocalFulfillmentConfig | null>(null);
+  // The shop's own city and state (Settings › General), where an American shop's first pickup starts.
+  const [home, setHome] = useState<{ city?: string; state?: string }>({});
   useEffect(() => {
     if (!load) return;
     let active = true;
@@ -33,18 +65,20 @@ export function useLocalFulfillmentDraft(load = true) {
       const next: LocalFulfillmentConfig = { enabled: raw.enabled === true, pickupLocations: records(raw.pickupLocations).map(record => ({ ...common(record), hours: text(record?.hours), postalPrefixes: records(record?.postalPrefixes).map(text), address: Object.fromEntries(['street', 'city', 'state', 'zip', 'country'].map(field => [field, text(record?.address?.[field])])) as any })), deliveryZones: records(raw.deliveryZones).map(record => ({ ...common(record), minimumSubtotal: typeof record?.minimumSubtotal === 'number' ? (record as any).minimumSubtotal : NaN, postalPrefixes: records(record?.postalPrefixes).map(text), postalCodes: records(record?.postalCodes).map(text) })) };
       setConfig(next);
       setSaved(next);
+      setHome({ city: text(settings.location?.city), state: text(settings.location?.state) });
       if (validateLocalFulfillment(raw).length) setNotice('Saved local configuration needs repair. Review all fields before saving.');
       setLoaded(true);
     }).catch(() => { if (active) setNotice('Could not load local fulfillment. Reload before saving.'); });
     return () => { active = false; };
   }, [load]);
-  return { config, setConfig, notice, setNotice, busy, setBusy, loaded, saved, setSaved };
+  return { config, setConfig, notice, setNotice, busy, setBusy, loaded, saved, setSaved, home };
 }
 
 export function LocalFulfillmentSettings({ draft }: { draft?: ReturnType<typeof useLocalFulfillmentDraft> } = {}) {
   const w = useShopWords();
   const localDraft = useLocalFulfillmentDraft(!draft);
-  const { config, setConfig, notice, setNotice, busy, setBusy, loaded, saved, setSaved } = draft ?? localDraft;
+  const { config, setConfig, notice, setNotice, busy, setBusy, loaded, saved, setSaved, home } = draft ?? localDraft;
+  const newPickup = () => US_SHOP ? newUsPickup(home) : newTorontoPickup();
   const dirty = loaded && !!saved && JSON.stringify(saved) !== JSON.stringify(config);
   useSettingsDirty('local-fulfillment', dirty);
   const [postal, setPostal] = useState('');
@@ -76,9 +110,9 @@ export function LocalFulfillmentSettings({ draft }: { draft?: ReturnType<typeof 
   // One click: turn on (creating a Toronto pickup if there isn't one) or off, and save straight away.
   // Applied to the saved settings only, so other unsaved edits on this page are never saved with it.
   const withQuickPickup = (base: LocalFulfillmentConfig, on: boolean): LocalFulfillmentConfig => {
-    const locations = base.pickupLocations.length ? base.pickupLocations : [newTorontoPickup()];
+    const locations = base.pickupLocations.length ? base.pickupLocations : [newPickup()];
     return on
-      ? { ...base, enabled: true, pickupLocations: locations.map((location, index) => index === 0 ? { ...location, enabled: true, address: { ...location.address, state: location.address.state || 'ON', country: location.address.country || 'Canada' } } : location) }
+      ? { ...base, enabled: true, pickupLocations: locations.map((location, index) => index === 0 ? { ...location, enabled: true, address: { ...location.address, state: location.address.state || (US_SHOP ? home.state || '' : 'ON'), country: location.address.country || (US_SHOP ? 'United States' : 'Canada') } } : location) }
       : { ...base, pickupLocations: base.pickupLocations.map(location => ({ ...location, enabled: false })) };
   };
   async function setQuickPickup(on: boolean) {
@@ -89,16 +123,16 @@ export function LocalFulfillmentSettings({ draft }: { draft?: ReturnType<typeof 
     setConfig(current => (current === base || JSON.stringify(current) === JSON.stringify(base)) ? nextSaved : withQuickPickup(current, on));
   }
   const noticeOk = notice === 'Local fulfillment saved.';
-  const quotes = quoteLocalFulfillment(config, { country: 'CA', zip: postal }, subtotal === '' ? NaN : Number(subtotal), [{ quantity: 1 }]);
+  const quotes = quoteLocalFulfillment(config, { country: L.country, zip: postal }, subtotal === '' ? NaN : Number(subtotal), [{ quantity: 1 }]);
   return <div className="rp-stack">
     <fieldset disabled={!loaded || busy} style={{ border: 0, padding: 0, margin: 0 }} className="rp-stack">
     <SectionCard title="Pickup & local delivery" description="Pickup and nearby delivery. Off until you switch it on.">
-      <Toggle label="Free local pickup for Toronto shoppers" checked={pickupOn} onChange={on => void setQuickPickup(on)} />
-      <p className="rp-hint">{pickupOn ? 'On — shoppers with a Toronto postal code (starting with M) see a free "Local pickup" option at checkout. This switch saves straight away, on its own — other edits below still need Save.' : 'Off. Switch on to offer free pickup to Toronto shoppers — no other setup needed. You can add your address, hours and instructions below.'}</p>
+      <Toggle label={L.quick} checked={pickupOn} onChange={on => void setQuickPickup(on)} />
+      <p className="rp-hint">{pickupOn ? L.quickOn : L.quickOff}</p>
       <Toggle label="Enable local fulfillment (pickup and delivery)" checked={config.enabled} onChange={enabled => setConfig({ ...config, enabled })} />
     </SectionCard>
 
-    <SectionCard title="Local pickup" description="Collect in person. Toronto codes start with M." actions={<SecondaryButton onClick={() => setConfig({ ...config, pickupLocations: [...config.pickupLocations, newTorontoPickup()] })}>Add pickup location</SecondaryButton>}>
+    <SectionCard title="Local pickup" description={L.pickupDesc} actions={<SecondaryButton onClick={() => setConfig({ ...config, pickupLocations: [...config.pickupLocations, newPickup()] })}>Add pickup location</SecondaryButton>}>
       {!config.pickupLocations.length && <p className="rp-hint">No pickup spot yet. Add one, fill in the address, switch it on.</p>}
     </SectionCard>
     {config.pickupLocations.map((record, index) => {
@@ -108,15 +142,15 @@ export function LocalFulfillmentSettings({ draft }: { draft?: ReturnType<typeof 
         <div className="rp-stack">
           <Toggle label="Show this pickup at checkout" checked={record.enabled} onChange={enabled => patch('pickupLocations', record.id, { enabled })} />
           <TextField label="Name shoppers see" value={record.name} onChange={e => patch('pickupLocations', record.id, { name: e.target.value })} />
-          <SelectField label="Who can choose pickup" hint="Checked against the postal code the shopper enters at checkout." value={area} onChange={e => { const mode = e.target.value as 'toronto' | 'custom' | 'everyone'; setAreaModes(current => ({ ...current, [record.id]: mode })); patch('pickupLocations', record.id, { postalPrefixes: mode === 'toronto' ? [...TORONTO_AREA] : mode === 'everyone' ? [] : areas.length ? areas : ['M'] }); }}>
-            <option value="toronto">Toronto only (postal codes starting with M)</option>
-            <option value="custom">Specific postal areas…</option>
+          <SelectField label="Who can choose pickup" hint={L.areaHint} value={area} onChange={e => { const mode = e.target.value as 'toronto' | 'custom' | 'everyone'; setAreaModes(current => ({ ...current, [record.id]: mode })); patch('pickupLocations', record.id, { postalPrefixes: mode === 'toronto' ? [...TORONTO_AREA] : mode === 'everyone' ? [] : areas.length ? areas : [L.firstArea] }); }}>
+            {!US_SHOP && <option value="toronto">Toronto only (postal codes starting with M)</option>}
+            <option value="custom">{L.custom}</option>
             <option value="everyone">Everyone, anywhere</option>
           </SelectField>
-          {area === 'custom' && <TextArea label="Pickup postal areas" hint="M = all of Toronto. M6G = one area." value={areas.join(', ')} onChange={e => patch('pickupLocations', record.id, { postalPrefixes: e.target.value.split(/[,\n]/).map(v => v.trim()).filter(Boolean) })} />}
-          <TextField label="Pickup fee (CAD)" hint="Use 0 for free pickup." type="number" min={0} step="0.01" value={Number.isFinite(record.price) ? record.price : ''} onChange={e => patch('pickupLocations', record.id, { price: e.target.value === '' ? NaN : Number(e.target.value) })} />
+          {area === 'custom' && <TextArea label={L.areas} hint={L.areasHint} value={areas.join(', ')} onChange={e => patch('pickupLocations', record.id, { postalPrefixes: e.target.value.split(/[,\n]/).map(v => v.trim()).filter(Boolean) })} />}
+          <TextField label={`Pickup fee (${SHOP_CURRENCY})`} hint="Use 0 for free pickup." type="number" min={0} step="0.01" value={Number.isFinite(record.price) ? record.price : ''} onChange={e => patch('pickupLocations', record.id, { price: e.target.value === '' ? NaN : Number(e.target.value) })} />
           <div className="rp-sect" style={{ margin: '8px 0 0' }}>Where shoppers collect it</div>
-          <div style={GRID}>{(['street', 'city', 'state', 'zip', 'country'] as const).map(field => <TextField key={field} label={{ street: 'Street address (optional)', city: 'City', state: 'Province (e.g. ON)', zip: 'Postal code (optional)', country: 'Country' }[field]} value={record.address[field]} onChange={e => patch('pickupLocations', record.id, { address: { ...record.address, [field]: e.target.value } })} />)}</div>
+          <div style={GRID}>{(['street', 'city', 'state', 'zip', 'country'] as const).map(field => <TextField key={field} label={{ street: 'Street address (optional)', city: 'City', state: L.state, zip: L.zip, country: 'Country' }[field]} value={record.address[field]} onChange={e => patch('pickupLocations', record.id, { address: { ...record.address, [field]: e.target.value } })} />)}</div>
           <TextArea label="Opening hours" value={record.hours ?? ''} onChange={e => patch('pickupLocations', record.id, { hours: e.target.value })} />
           <TextArea label="Pickup instructions" hint="E.g. ring the bell, bring your order number." value={record.instructions ?? ''} onChange={e => patch('pickupLocations', record.id, { instructions: e.target.value })} />
           <TextField label="When it's ready" hint="E.g. Ready in 1–2 business days." value={record.estimate ?? ''} onChange={e => patch('pickupLocations', record.id, { estimate: e.target.value })} />
@@ -125,28 +159,28 @@ export function LocalFulfillmentSettings({ draft }: { draft?: ReturnType<typeof 
       </SectionCard>;
     })}
 
-    <SectionCard title="Local delivery" description="Hand-delivered to nearby postal areas." actions={<SecondaryButton onClick={() => setConfig({ ...config, deliveryZones: [...config.deliveryZones, { id: crypto.randomUUID(), enabled: false, name: '', price: 0, minimumSubtotal: 0, postalPrefixes: [], postalCodes: [], instructions: '', estimate: '' }] })}>Add delivery zone</SecondaryButton>}>
-      {!config.deliveryZones.length && <p className="rp-hint">No delivery zones yet. Choose <strong>Add delivery zone</strong>, list the postal areas you deliver to, set a fee, then switch it on.</p>}
+    <SectionCard title="Local delivery" description={L.deliveryDesc} actions={<SecondaryButton onClick={() => setConfig({ ...config, deliveryZones: [...config.deliveryZones, { id: crypto.randomUUID(), enabled: false, name: '', price: 0, minimumSubtotal: 0, postalPrefixes: [], postalCodes: [], instructions: '', estimate: '' }] })}>Add delivery zone</SecondaryButton>}>
+      {!config.deliveryZones.length && <p className="rp-hint">No delivery zones yet. Choose <strong>Add delivery zone</strong>, list {L.zones} you deliver to, set a fee, then switch it on.</p>}
     </SectionCard>
     {config.deliveryZones.map((record, index) => <SectionCard key={record.id} title={record.name || 'New delivery zone'}>
       <div className="rp-stack">
         <Toggle label="Offer this delivery zone at checkout" checked={record.enabled} onChange={enabled => patch('deliveryZones', record.id, { enabled })} />
         <TextField label="Name shoppers see" value={record.name} onChange={e => patch('deliveryZones', record.id, { name: e.target.value })} />
-        <div style={GRID}><TextField label="Delivery fee (CAD)" hint="Use 0 for free delivery." type="number" min={0} step="0.01" value={Number.isFinite(record.price) ? record.price : ''} onChange={e => patch('deliveryZones', record.id, { price: e.target.value === '' ? NaN : Number(e.target.value) })} />
-        <TextField label="Minimum physical merchandise subtotal (CAD)" hint={w("Printed books, after discounts. 0 = none.")} type="number" min={0} step="0.01" value={Number.isFinite(record.minimumSubtotal) ? record.minimumSubtotal : ''} onChange={e => patch('deliveryZones', record.id, { minimumSubtotal: e.target.value === '' ? NaN : Number(e.target.value) })} /></div>
-        <TextArea label="Postal prefixes" rows={2} hint="Three characters each, separated by commas or new lines." value={record.postalPrefixes.join(', ')} onChange={e => patch('deliveryZones', record.id, { postalPrefixes: e.target.value.split(/[,\n]/).map(v => v.trim()).filter(Boolean) })} />
-        <TextArea label="Exact postal codes" rows={2} hint="Comma or line separated." value={record.postalCodes.join(', ')} onChange={e => patch('deliveryZones', record.id, { postalCodes: e.target.value.split(/[,\n]/).map(v => v.trim()).filter(Boolean) })} />
+        <div style={GRID}><TextField label={`Delivery fee (${SHOP_CURRENCY})`} hint="Use 0 for free delivery." type="number" min={0} step="0.01" value={Number.isFinite(record.price) ? record.price : ''} onChange={e => patch('deliveryZones', record.id, { price: e.target.value === '' ? NaN : Number(e.target.value) })} />
+        <TextField label={`Minimum physical merchandise subtotal (${SHOP_CURRENCY})`} hint={w("Printed books, after discounts. 0 = none.")} type="number" min={0} step="0.01" value={Number.isFinite(record.minimumSubtotal) ? record.minimumSubtotal : ''} onChange={e => patch('deliveryZones', record.id, { minimumSubtotal: e.target.value === '' ? NaN : Number(e.target.value) })} /></div>
+        <TextArea label={L.prefixes} rows={2} hint={L.prefixesHint} value={record.postalPrefixes.join(', ')} onChange={e => patch('deliveryZones', record.id, { postalPrefixes: e.target.value.split(/[,\n]/).map(v => v.trim()).filter(Boolean) })} />
+        <TextArea label={L.codes} rows={2} hint="Comma or line separated." value={record.postalCodes.join(', ')} onChange={e => patch('deliveryZones', record.id, { postalCodes: e.target.value.split(/[,\n]/).map(v => v.trim()).filter(Boolean) })} />
         <TextArea label="Delivery instructions shoppers see" value={record.instructions ?? ''} onChange={e => patch('deliveryZones', record.id, { instructions: e.target.value })} />
         <TextField label="When it arrives" hint="Shown to shoppers, e.g. Delivered within 2 business days." value={record.estimate ?? ''} onChange={e => patch('deliveryZones', record.id, { estimate: e.target.value })} />
         <div style={ROW}><SecondaryButton size="sm" disabled={index === 0} onClick={() => move('deliveryZones', index, -1)}>Move up</SecondaryButton><SecondaryButton size="sm" disabled={index === config.deliveryZones.length - 1} onClick={() => move('deliveryZones', index, 1)}>Move down</SecondaryButton><span style={{ flex: 1 }} /><DestructiveButton size="sm" onClick={() => void remove('deliveryZones', record.id, record.name)}>Remove</DestructiveButton></div>
       </div>
     </SectionCard>)}
-    <SectionCard title="Try a postal code" description="What a shopper there would see.">
+    <SectionCard title={L.tryTitle} description="What a shopper there would see.">
       <div style={GRID}>
-        <TextField label="Canadian postal code" placeholder="M6G 3H1" value={postal} onChange={e => setPostal(e.target.value)} />
-        <TextField label="Discounted physical merchandise subtotal (CAD)" type="number" min={0} step="0.01" value={subtotal} onChange={e => setSubtotal(e.target.value)} />
+        <TextField label={L.tryLabel} placeholder={L.tryPlaceholder} value={postal} onChange={e => setPostal(e.target.value)} />
+        <TextField label={`Discounted physical merchandise subtotal (${SHOP_CURRENCY})`} type="number" min={0} step="0.01" value={subtotal} onChange={e => setSubtotal(e.target.value)} />
       </div>
-      <p role="status" className="rp-hint" style={{ margin: '12px 0 0', padding: 12, border: '1px solid var(--rp-border)', background: 'var(--rp-surface-sunken)' }}>{quotes.length ? <><strong>Offered:</strong> {quotes.map(q => `${q.name}: CAD ${q.price.toFixed(2)}`).join(' · ')}</> : 'No pickup or delivery option for this postal code and subtotal.'}</p>
+      <p role="status" className="rp-hint" style={{ margin: '12px 0 0', padding: 12, border: '1px solid var(--rp-border)', background: 'var(--rp-surface-sunken)' }}>{quotes.length ? <><strong>Offered:</strong> {quotes.map(q => `${q.name}: ${SHOP_CURRENCY} ${q.price.toFixed(2)}`).join(' · ')}</> : L.none}</p>
     </SectionCard>
     {!!errors.length && <SectionCard title="Fix before saving" collapsible={false}><ul className="rp-hint" style={{ margin: 0, paddingLeft: 20, lineHeight: 1.6, color: 'var(--rp-danger)' }}>{errors.map(error => <li key={error}>✕ {error}</li>)}</ul></SectionCard>}
     <p role="status" className="rp-hint" style={notice ? { margin: 0, padding: 12, border: `1px solid var(${noticeOk ? '--rp-success' : '--rp-danger'})`, background: `var(${noticeOk ? '--rp-success-tint' : '--rp-danger-tint'})`, color: 'var(--rp-text)' } : { margin: 0 }}>{notice ? `${noticeOk ? '✓' : '✕'} ${notice}` : ''}</p>

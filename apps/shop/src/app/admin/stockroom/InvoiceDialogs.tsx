@@ -1,6 +1,7 @@
 // Stockroom › Stockists › Invoices: the list of every invoice, the invoice details (name, address, terms, bank), and
 // making, editing, sending, deleting and printing an invoice. Rules and saves are in invoiceMake.ts, the printed page in
 // invoicePaper.ts. Every save goes through stockroomWrite.ts and its result is always shown (WRITING.md).
+import { US_SHOP } from "../moneySign";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fmt, fmtD } from "@stockroom/money.js";
 
@@ -96,7 +97,7 @@ export function InvoiceSettingsDialog({ settings, onClose, onSaved }: { settings
           <TextField label="Email" type="email" value={form.email} onChange={set("email")} />
           <TextField label="Website" value={form.web} onChange={set("web")} />
         </div>
-        <TextField label="Tax number (optional)" hint="GST/HST or VAT number." value={form.vat} onChange={set("vat")} />
+        <TextField label="Tax number (optional)" hint={US_SHOP ? "Their tax ID or VAT number." : "GST/HST or VAT number."} value={form.vat} onChange={set("vat")} />
         <TextField label="Usual terms" hint="Filled in on each new invoice." value={form.terms} onChange={set("terms")} />
         <TextArea label="Bank transfer details (optional)" rows={3} value={form.bank} onChange={set("bank")} />
         <TextField label="Thank-you line" placeholder={w("Thank you for stocking our books.")} value={form.footer} onChange={set("footer")} />
@@ -314,7 +315,7 @@ export function InvoiceEditor({ records, settings, start, onClose, onSaved, onDe
 
           <FormSection title="Note and sending" description={`Shown at the bottom of the ${kind === "quote" ? "quote" : "invoice"}.`}>
             <FormField label="Note">{(a) => <textarea {...a} rows={2} value={form.notes} onChange={(e) => set({ notes: e.target.value })} />}</FormField>
-            {kind !== "quote" && <FormField label="Payment link or e-Transfer email" hint="Optional.">{(a) => <input {...a} value={form.paymentLink} onChange={(e) => set({ paymentLink: e.target.value })} />}</FormField>}
+            {kind !== "quote" && <FormField label={US_SHOP ? "Payment link or how to pay" : "Payment link or e-Transfer email"} hint="Optional.">{(a) => <input {...a} value={form.paymentLink} onChange={(e) => set({ paymentLink: e.target.value })} />}</FormField>}
             <FormField label="Terms">{(a) => <input {...a} value={form.terms} onChange={(e) => set({ terms: e.target.value })} />}</FormField>
             {kind === "repeat"
               ? <FormToggle label="Email it for me" hint="Off: each one waits as a draft for you to send." checked={schedule.autoEmail} onChange={(on) => setSchedule((s) => ({ ...s, autoEmail: on }))} />

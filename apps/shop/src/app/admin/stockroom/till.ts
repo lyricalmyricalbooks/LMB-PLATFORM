@@ -8,7 +8,7 @@ import { localDay } from "@stockroom/calendar-day.js";
 
 import type { BookState } from "./planSave";
 import type { StockroomRecords, StockBook } from "./stockroomData";
-import { SHOP_CURRENCY } from "../moneySign";
+import { SHOP_CURRENCY, US_SHOP } from "../moneySign";
 
 /** The four payment buttons (mockup order). `value` is what the sale's note starts with, as the stockroom's register writes it. */
 export const TILL_METHODS = [
@@ -18,7 +18,7 @@ export const TILL_METHODS = [
 ] as const;
 /** Behind Other: the stockroom register's other ways of paying. */
 export const OTHER_METHODS = [
-  { value: "Bank Transfer", label: "E-transfer" },
+  { value: "Bank Transfer", label: US_SHOP ? "Bank transfer" : "E-transfer" },
   { value: "Comp/Gift", label: "Free copy" },
 ] as const;
 export const ALL_METHODS: ReadonlyArray<{ value: string; label: string }> = [...TILL_METHODS, ...OTHER_METHODS];

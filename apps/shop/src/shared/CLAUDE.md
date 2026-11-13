@@ -90,3 +90,10 @@ browsers may write (mirroring `firestore.rules`).
   The admin's sign is `MONEY_SIGN` (`admin/moneySign.ts`, read once from the profile): admin code writes
   `${MONEY_SIGN}${n.toFixed(2)}`, never a literal sign. Left as literals on purpose: sample text in email and theme
   previews, the look gallery, and the platform's own bill (its currency is the billing one, `platformBilling.ts`).
+  **The shop's country (13 November 2026, `tasks/todo/2026-11-13-us-shops.md`):** a US dollar shop is an American shop,
+  one rule: `shopCountryOf(currency)` here; server `shopCountry()` / `shopCountryName()` in `functions/shopMoney.js`, pages
+  `shopCountry()` / `homeCountryName()` in `lib/shopProfile`, admin `SHOP_COUNTRY`, `US_SHOP`, `HOME_CARRIER`, `POSTAL_LABEL`,
+  `BANK_TRANSFER` in `admin/moneySign.ts`. Never write "Canada", "Canada Post", "province", "postal code" or "e-Transfer" as a
+  fallback or in owner-facing words without it. `localFulfillment.ts` reads Canadian postal codes and US ZIP codes alike (a code
+  only matches its own country). Weights: `metricWeight.ts` keeps oz/lb for a US shop. Carrier quotes: `functions/checkoutRate.js`
+  `rateAmount` converts a quote in another currency or leaves it out. Still Toronto's: the shop's day (time zone, update E).

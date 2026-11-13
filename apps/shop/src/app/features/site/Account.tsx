@@ -1,4 +1,5 @@
 import { orderChargedTotal, orderGiftCardRows } from "./orderMoney";
+import { homeCountryName } from "../../../lib/shopProfile";
 import { finishEmailLinkSignIn } from "./emailLinkSignIn";
 import { digitalEntries, downloadBookIds, UNREADABLE_BOOK, type DigitalEntry } from "./digitalLine";
 import { publicApi } from "../../lib/publicApi";
@@ -69,7 +70,7 @@ type CustomerProfile = {
 // Card/PayPal checkouts that were never paid are abandoned attempts, not orders.
 const isAbandonedCheckout = (o: any) => o.paymentStatus === "unpaid" && o.status === "pending_payment" && ["Stripe", "PayPal"].includes(o.paymentMethod);
 
-const EMPTY_ADDRESS = { street: "", city: "", state: "", zip: "", country: "Canada", phone: "", name: "" };
+const EMPTY_ADDRESS = { street: "", city: "", state: "", zip: "", country: homeCountryName(), phone: "", name: "" };
 
 /** The customer account, inside the one shop header and footer (Studio 2.0 · 2.1). */
 export default function AccountPage() {
@@ -214,7 +215,7 @@ function AccountContent() {
           city: data.defaultAddress?.city || "",
           state: data.defaultAddress?.state || "",
           zip: data.defaultAddress?.zip || "",
-          country: data.defaultAddress?.country || "Canada",
+          country: data.defaultAddress?.country || homeCountryName(),
           phone: data.phone || "",
           name: data.name || u.displayName || "",
         });
@@ -352,7 +353,7 @@ function AccountContent() {
       city: profile?.defaultAddress?.city || "",
       state: profile?.defaultAddress?.state || "",
       zip: profile?.defaultAddress?.zip || "",
-      country: profile?.defaultAddress?.country || "Canada",
+      country: profile?.defaultAddress?.country || homeCountryName(),
       phone: profile?.phone || "",
       name: profile?.name || user?.displayName || "",
     });

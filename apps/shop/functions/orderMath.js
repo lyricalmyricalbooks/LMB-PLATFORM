@@ -2,6 +2,7 @@
 // firebase-admin / network dependency so it is unit-testable in isolation.
 
 const { matchShippingZone } = require("./shared/shippingZones");
+const { shopCountryName } = require("./shopMoney");
 
 // ──────────────────────────────────────────────────────────────
 // Dynamic shipping cost: highest base in the cart + per-item additional for the
@@ -9,7 +10,7 @@ const { matchShippingZone } = require("./shared/shippingZones");
 // (country > continent > legacy region > rest-of-world) sets the profile.
 // ──────────────────────────────────────────────────────────────
 function calculateShipping(items, customerAddress, profiles) {
-  const country = (customerAddress && customerAddress.country) || "Canada";
+  const country = (customerAddress && customerAddress.country) || shopCountryName();
   let highestBase = 0;
   let totalAdditional = 0;
 

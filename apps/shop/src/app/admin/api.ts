@@ -1808,7 +1808,7 @@ export const adminApi = {
       body: JSON.stringify({ orderId, mode: "rates", parcel }),
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "Failed to load Canada Post rates.");
+    if (!response.ok) throw new Error(result.error || "Failed to load the label rates.");
     return result;
   },
 
@@ -1850,7 +1850,7 @@ export const adminApi = {
       body: JSON.stringify({ orderId, mode: "purchase", shipmentId, rateId }),
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "Failed to buy the Canada Post label.");
+    if (!response.ok) throw new Error(result.error || "Failed to buy the label.");
     return result;
   },
 

@@ -142,7 +142,7 @@ describe("firestore.rules round-2 security (#18, #111, #112)", () => {
     // A whole-address check here made the database refuse every guest order (the platform walkthrough's emulator run).
     expect(rules).toMatch(/\(!\('billingAddress' in c\) \|\| billingOk\(c\.billingAddress\)\)/);
     expect(rules).toContain("b.keys().hasOnly(['state', 'country'])");
-    expect(read("src/app/Checkout.tsx")).toContain('billingAddress: { state: "", country: "Canada" }');
+    expect(read("src/app/Checkout.tsx")).toContain('billingAddress: { state: "", country: homeCountryName() }'); // "Canada", or "United States" in an American shop
   });
 
   it("expires server-only bookkeeping with Firestore TTL policies (#72)", () => {

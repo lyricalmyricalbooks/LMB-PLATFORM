@@ -49,7 +49,7 @@ const { quoteShipping, pickQuote, parseWeightGrams } = require("./shared/shippin
 const { addressKey: guardAddressKey, advancesTracking } = require("./fulfillmentGuard");
 const { transactionRefundState, openRefunds, applyRefundChecks } = require("./labelVoid");
 const { buildOrderDigest, TRANSIT_DAYS } = require("./orderDigest");
-const { checkoutRate } = require("./checkoutRate");
+const { checkoutRate, rateAmount } = require("./checkoutRate");
 const { liveRateExtra, withLiveRateExtra, cleanLiveRateExtra } = require("./liveRateExtra");
 const { FALLBACK_COPY_GRAMS, parcelGrams } = require("./parcelWeight");
 const { addressMissing } = require("./shared/addressRules");
@@ -155,7 +155,7 @@ const { OWNER_ONLY_MESSAGE, adminRole, booksReader, removeExpiredMembers, stampT
 const { inviteKey, teamChange, teamInviteEmail } = require("./teamInvite");
 const fairHelperPay = require("./fairHelperPay");
 const { shopConfig, functionLink } = require("./shopConfig");
-const { shopCurrency, shopSign } = require("./shopMoney");
+const { shopCurrency, shopSign, shopCountry } = require("./shopMoney");
 // The shop's id with the platform's services (X-Shop-Id): its record id in the shared system, else its own project.
 const platformShopId = () => shopConfig.shopId || shopConfig.project;
 
@@ -812,7 +812,7 @@ function getStateCode(stateName) {
 // country, phone). Blank fields stay blank (shopSettings.js), the country defaulting to Canada.
 function originAddress(settings) {
   const origin = shopOrigin(settings);
-  return { ...origin, state: getStateCode(origin.state), country: getCountryCode(origin.country) || "CA" };
+  return { ...origin, state: getStateCode(origin.state), country: getCountryCode(origin.country) || shopCountry() };
 }
 
 // fetch() with a hard timeout so a slow/hung third party can never stall a
@@ -952,6 +952,11 @@ function validateDiscountCustomer(discount, email) {
 // Every rate is from the shop's own currency (shopConfig.currency: CAD, or USD for a shop that sells in US dollars).
 const { fallbackRatesFor, createRateReader, refreshStoredRates } = require("./exchangeRates");
 const getExchangeRates = createRateReader({ db, base: () => shopConfig.currency });
+// What a live carrier quote is priced in (checkoutRate.js rateAmount): the shop's currency and the day's rates from it.
+// A failed rate read leaves the rates out, so a quote already in the shop's currency still prices.
+async function liveQuoteMoney() {
+  return { currency: shopConfig.currency, rates: await getExchangeRates().catch(() => null) };
+}
 // The fixed last-resort rates, read for the shop the code is running for (never kept: one server runs every shop).
 const FALLBACK_RATES = Object.freeze({
   get cad() { return fallbackRatesFor(shopConfig.currency).cad; },
@@ -1086,10 +1091,11 @@ async function resolveShipping(items, order, profiles, freeShipping, settings, d
         parcels: [{ length: "10", width: "8", height: "2", distance_unit: "in", weight: parcelGrams(totalWeightG), mass_unit: "g" }],
         async: false,
       }, shippoToken);
+      const quoteMoney = await liveQuoteMoney();
       const carrierQuotes = (shipment.rates || []).map(rate => ({
         name: `${rate.provider || ""} ${rate.servicelevel?.name || rate.servicelevel?.token || "Shipping"}`.trim(),
         // Same extra the shopper was shown (getShippoRates), so the charge matches the quote.
-        price: withLiveRateExtra(Number(rate.amount), liveRateExtra(config)),
+        price: withLiveRateExtra(rateAmount(rate, quoteMoney), liveRateExtra(config)),
         estimate: shippingEstimateOf(rate.estimated_days, rate.duration_terms),
       })).filter(rate => Number.isFinite(rate.price)).sort((a, b) => a.price - b.price);
       if (!carrierQuotes.length) return null;
@@ -4213,7 +4219,7 @@ exports.abandonedCartSweep = jobs.abandonedCartSweep;
 const shippo = shippoEndpoints({
   onBrowserRequest, onRequest, db, applyCors, requireAdmin, hitLimit, LIMITS, IS_EMULATOR, RESEND_API_KEY,
   SHIPPO_API_TOKEN, SHIPPO_CONFIG_DOC, ADDRESS_ACTIONS, FALLBACK_COPY_GRAMS, addressKeyProblem, addressMissing,
-  advancesTracking, bundleComponents, callShippo, catalogDigital, catalogFormat, checkoutRate,
+  advancesTracking, bundleComponents, callShippo, catalogDigital, catalogFormat, checkoutRate, liveQuoteMoney,
   cleanLiveRateExtra, getCountryCode, getShippoToken, getStateCode, handleAddressLookup, isPhysicalItem,
   itemWeightGrams, liveRateExtra, originAddress, parcelGrams, publicErrorMessage, readAdminSecret,
   withLiveRateExtra,

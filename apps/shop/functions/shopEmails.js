@@ -6,6 +6,7 @@
 
 const { withPlatformKey } = require("./platformKey");
 const { sellsBooks } = require("./shared/shopSells");
+const { shopCountry, shopSign } = require("./shopMoney");
 const { DEFAULT_NOTIFICATIONS_FR, sayer, shopLanguage } = require("./emailFrench");
 function shopEmails({
   onBrowserRequest, onDocumentCreated, admin, db, mailer, applyCors, requireAdmin, ADMIN_TO,
@@ -322,14 +323,15 @@ function shopEmails({
         }
 
         const books = sellsBooks(notificationSettings.sells);
+        const us = shopCountry() === "US";
         const mockVars = {
           customer_name: "Julianne Smith",
           order_id: "LM-98241",
-          tracking_carrier: "Canada Post",
+          tracking_carrier: us ? "USPS" : "Canada Post",
           tracking_number: "123456789012",
-          total_price: "CA$45.00",
-          payment_method: "Interac e-Transfer",
-          shipping_method: "Canada Post Expedited Parcel",
+          total_price: `${shopSign()}45.00`,
+          payment_method: us ? "Bank transfer" : "Interac e-Transfer",
+          shipping_method: us ? "USPS Ground Advantage" : "Canada Post Expedited Parcel",
           delivery_estimate: "2-4 business days after dispatch",
           order_url: siteLink("/track"),
           email: "julianne@reader.example",
@@ -337,7 +339,7 @@ function shopEmails({
           // A shop that doesn't sell books (plan 10.23) gets a sample message in its own words.
           subject: books ? "Stocking your books" : "Stocking your work",
           message: books ? "Hello! Do you sell wholesale to independent bookshops?" : "Hello! Do you sell wholesale to independent shops?",
-          tracking_url: "https://www.canadapost-postescanada.ca/track-reperage/en",
+          tracking_url: us ? "https://tools.usps.com/go/TrackConfirmAction" : "https://www.canadapost-postescanada.ca/track-reperage/en",
           cart_url: siteLink("/checkout"),
           button_url: siteLink("/track"),
           // Gift card email (gift_card)

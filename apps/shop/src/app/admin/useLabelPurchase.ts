@@ -8,9 +8,17 @@ import { adminApi } from "./api";
 import { matchesCustomerService, suggestedParcelWeightGrams } from "./fulfillment";
 import type { Parcel, ParcelPreset } from "./LabelBuyer";
 import { plainError } from "./plainError";
+import { US_SHOP } from "./moneySign";
+
+/** The parcel weight the label step starts from: grams, or ounces (one decimal) in an American shop. */
+export const parcelWeightFor = (grams: unknown, us: boolean = US_SHOP): { weight: string; mass_unit: string } => {
+  const g = Number(grams);
+  if (!us) return { weight: String(grams), mass_unit: "g" };
+  return { weight: Number.isFinite(g) && g > 0 ? String(Math.max(0.1, Math.round(g / 2.83495) / 10)) : "", mass_unit: "oz" };
+};
 
 export function useLabelPurchase(orderId: string, order: any, reload: () => Promise<unknown> | void) {
-  const [parcel, setParcel] = useState<Parcel>({ length: "10", width: "8", height: "2", weight: "680", distance_unit: "in", mass_unit: "g" });
+  const [parcel, setParcel] = useState<Parcel>({ length: "10", width: "8", height: "2", distance_unit: "in", ...parcelWeightFor(680) });
   const touched = useRef(false);
   const [presets, setPresets] = useState<ParcelPreset[]>([]);
   const [rates, setRates] = useState<any[]>([]);
@@ -40,7 +48,7 @@ export function useLabelPurchase(orderId: string, order: any, reload: () => Prom
 
   // Start from the items' catalog weights (grams), not a fixed guess, until the owner changes the parcel.
   useEffect(() => {
-    if (order && !touched.current) setParcel((p) => ({ ...p, weight: suggestedParcelWeightGrams(order), mass_unit: "g" }));
+    if (order && !touched.current) setParcel((p) => ({ ...p, ...parcelWeightFor(suggestedParcelWeightGrams(order)) }));
   }, [order]);
 
   const forgetRates = () => {
@@ -57,7 +65,7 @@ export function useLabelPurchase(orderId: string, order: any, reload: () => Prom
   // A saved parcel sets the box size; the weight still comes from this order's items, in grams
   // (presets saved before weights went metric carry mass_unit "lb").
   const pickPreset = (preset: ParcelPreset) =>
-    changeParcel({ ...preset.parcel, weight: String(suggestedParcelWeightGrams(order)), mass_unit: "g" });
+    changeParcel({ ...preset.parcel, ...parcelWeightFor(suggestedParcelWeightGrams(order)) });
   const savePreset = async (name: string) => {
     const next = [...presets.filter((p) => p.name !== name), { name: name.slice(0, 60), parcel }].slice(-30);
     try {
@@ -82,7 +90,7 @@ export function useLabelPurchase(orderId: string, order: any, reload: () => Prom
       setSelectedRate(chosen?.id || (order?.shippingMethod ? "" : result.rates?.[0]?.id || ""));
       setSearched(true);
     } catch (err: any) {
-      toast.error(plainError(err, "Couldn't load Canada Post rates"));
+      toast.error(plainError(err, "Couldn't load the label rates"));
     } finally {
       setFinding(false);
     }

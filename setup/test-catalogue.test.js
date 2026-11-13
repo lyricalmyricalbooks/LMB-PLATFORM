@@ -7,7 +7,7 @@ import { TEST_SHOPS, testShopKind } from "./testShopPlace.js";
 import { itemFor } from "../release-check/checks.js";
 
 test("each test shop's kind follows what it sells; no answer is the book shop", () => {
-  assert.deepEqual(TEST_SHOPS.map((shop) => [shop.shopId, testShopKind(shop)]), [["test-press", "books"], ["test-goods", "general"]]);
+  assert.deepEqual(TEST_SHOPS.map((shop) => [shop.shopId, testShopKind(shop)]), [["test-press", "books"], ["test-goods", "general"], ["test-press-us", "books"]]);
   assert.equal(testShopKind({}), "books");
   assert.equal(testShopKind({ publishes: "zines" }), "books");
   assert.equal(testShopKind({ publishes: "clothing" }), "general");

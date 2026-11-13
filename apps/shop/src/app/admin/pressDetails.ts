@@ -1,3 +1,5 @@
+import { homeCountryName } from "../../lib/shopProfile";
+import { POSTAL_LABEL } from "./moneySign";
 // Get started, step 1: the press's own details (plan 17.2). Pure: reads and writes the same settings fields the
 // Settings screen uses (info.name, info.email, location.*), so nothing is stored twice. Shown once, before the look,
 // in the Overview's first-visit run (overview/PressDetailsStage.tsx).
@@ -16,7 +18,7 @@ export interface PressDetails {
 export type PressDetailsField = keyof PressDetails;
 
 /** Colophon launches in Canada first (code plan 15.23), so a blank country starts on Canada. */
-const DEFAULT_COUNTRY = "Canada";
+const DEFAULT_COUNTRY = homeCountryName();
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const NAME_MAX = 100;
 
@@ -46,7 +48,7 @@ export function pressDetailsProblems(d: PressDetails): Partial<Record<PressDetai
   else if (!EMAIL.test(email)) out.email = "That email doesn't look right. Check it has an @ and a domain.";
   if (!d.street.trim()) out.street = "Add the street address your orders ship from.";
   if (!d.city.trim()) out.city = "Add your city.";
-  if (!d.zip.trim()) out.zip = "Add your postal code.";
+  if (!d.zip.trim()) out.zip = `Add your ${POSTAL_LABEL.toLowerCase().replace("zip", "ZIP")}.`;
   if (!d.country.trim()) out.country = "Choose your country.";
   return out;
 }

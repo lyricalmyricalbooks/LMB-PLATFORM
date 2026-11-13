@@ -12,8 +12,11 @@ import { useSettingsDirty } from "./settingsDirty";
 import { SettingsAnchor, jumpTo } from "./settingsLayout";
 import { applyTaxPreset, suggestedTaxPresetId, TAX_PRESETS } from "./taxPresets";
 import { useShopSells } from "./shopWords";
-import { REGISTRATION_WORDS, answerTaxRegistration, provincialPlaces, provincialQuestion, taxRegistration } from "./taxRegistration";
+import { registrationWords, answerTaxRegistration, provincialPlaces, provincialQuestion, taxRegistration } from "./taxRegistration";
+import { SHOP_COUNTRY, US_SHOP } from "./moneySign";
 import { useShopWords } from "./shopWords";
+
+const WORDS = registrationWords(SHOP_COUNTRY);
 
 // Settings › Taxes. Edits settings.taxes.rates in place (same shape the server matches on);
 // nothing is live until Save. settings.taxes.collect === false switches all tax off (server + checkout).
@@ -23,7 +26,7 @@ const KIND_LABELS: Record<string, string> = { book: "Printed books", ebook: "E-b
 export function TaxesSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection }: any) {
   const w = useShopWords();
   const [ask, confirmNode] = useConfirm();
-  const [country, setCountry] = useState("Canada");
+  const [country, setCountry] = useState(US_SHOP ? "United States" : "Canada");
   const [region, setRegion] = useState("");
   const [rate, setRate] = useState("");
   const [bookName, setBookName] = useState("");
@@ -40,7 +43,7 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
 
   const regionChoices = regionsFor(country);
   const problem = taxRateProblem({ country, region, rate, kind }, rates);
-  const gaps = useMemo(() => (collecting && rates.length ? uncoveredTaxRegions(rates) : []), [collecting, rates]);
+  const gaps = useMemo(() => (collecting && rates.length ? uncoveredTaxRegions(rates, SHOP_COUNTRY) : []), [collecting, rates]);
   // Off keeps every rate saved, so switching back on restores them.
   const setCollecting = (on: boolean) => setSettings({ ...settings, taxes: { ...(settings.taxes || {}), rates, collect: on } });
   const setDuties = (patch: Record<string, unknown>) => setSettings({ ...settings, taxes: { ...(settings.taxes || {}), duties: { ...(settings.taxes?.duties || {}), ...patch } } });
@@ -57,7 +60,7 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
   // A preset fills only the places with no rate yet, in the draft: nothing applies until Save.
   const registration = taxRegistration(settings);
   const usePreset = async () => {
-    if (registration === "no" && !(await ask(REGISTRATION_WORDS.unregisteredPreset))) return;
+    if (registration === "no" && !(await ask(WORDS.unregisteredPreset))) return;
     const places = provincialPlaces(preset);
     if (places.length && !(await ask(provincialQuestion(places)))) return;
     const result = applyTaxPreset(rates, preset);
@@ -91,12 +94,12 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
 
   return (
     <div className="rp-stack">
-      <SectionCard title={REGISTRATION_WORDS.title} description={REGISTRATION_WORDS.hint}>
+      <SectionCard title={WORDS.title} description={WORDS.hint}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
-          <SecondaryButton aria-pressed={registration === "no"} onClick={() => setSettings({ ...settings, taxes: answerTaxRegistration(settings.taxes, false) })}>{REGISTRATION_WORDS.no}</SecondaryButton>
-          <SecondaryButton aria-pressed={registration === "yes"} onClick={() => setSettings({ ...settings, taxes: answerTaxRegistration(settings.taxes, true) })}>{REGISTRATION_WORDS.yes}</SecondaryButton>
+          <SecondaryButton aria-pressed={registration === "no"} onClick={() => setSettings({ ...settings, taxes: answerTaxRegistration(settings.taxes, false) })}>{WORDS.no}</SecondaryButton>
+          <SecondaryButton aria-pressed={registration === "yes"} onClick={() => setSettings({ ...settings, taxes: answerTaxRegistration(settings.taxes, true) })}>{WORDS.yes}</SecondaryButton>
         </div>
-        {registration !== "unanswered" && <p className="rp-hint" style={{ margin: "12px 0 0" }}>{registration === "no" ? REGISTRATION_WORDS.savedNo : REGISTRATION_WORDS.savedYes}</p>}
+        {registration !== "unanswered" && <p className="rp-hint" style={{ margin: "12px 0 0" }}>{registration === "no" ? WORDS.savedNo : WORDS.savedYes}</p>}
       </SectionCard>
 
       <SectionCard title="Tax collection" description="Off means no tax on any order. Rates stay saved.">
@@ -114,7 +117,7 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
           <Toggle label="Warn buyers abroad about duties and import tax" checked={settings.taxes?.duties?.on === true} onChange={(on: boolean) => setDuties({ on })} />
           {settings.taxes?.duties?.on === true && (
             <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", alignItems: "start" }}>
-              <TextField label="Your country" value={settings.taxes?.duties?.home ?? "Canada"} onChange={(e) => setDuties({ home: e.target.value })} hint="Parcels staying here show no note." />
+              <TextField label="Your country" value={settings.taxes?.duties?.home ?? (US_SHOP ? "United States" : "Canada")} onChange={(e) => setDuties({ home: e.target.value })} hint="Parcels staying here show no note." />
               <TextField label="Estimate to show (percent, optional)" inputMode="decimal" value={String(settings.taxes?.duties?.estimateRate ?? "")} onChange={(e) => setDuties({ estimateRate: e.target.value.replace(/[^0-9.]/g, "").slice(0, 5) })} hint="Leave empty to show the note without a number." />
             </div>
           )}
@@ -141,7 +144,7 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
         </SectionCard>
       )}
 
-      <SectionCard title="Tax rates" description={collecting ? "Province beats country. Gift cards never taxed." : "Paused while collection is off."}>
+      <SectionCard title="Tax rates" description={collecting ? `${US_SHOP ? "State" : "Province"} beats country. Gift cards never taxed.` : "Paused while collection is off."}>
         <datalist id="tax-book-names">{TAX_BOOK_NAMES.map((name) => <option key={name} value={name} />)}</datalist>
         {rates.length === 0
           ? <EmptyState icon="%" title="No tax rates yet" description="No rate, no tax." />
@@ -152,7 +155,7 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
       </SectionCard>
 
 
-      <SettingsAnchor id="tax-presets">
+      {!US_SHOP && <SettingsAnchor id="tax-presets">
       <SectionCard title="Start from a preset" description="Fills places with no rate yet. Your rates stay as they are.">
         <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", alignItems: "end" }}>
           <SelectField label="Preset" value={presetId} onChange={(e) => setPresetId(e.target.value)}>
@@ -160,9 +163,9 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
           </SelectField>
           <div><SecondaryButton onClick={usePreset}>Fill in missing rates</SecondaryButton></div>
         </div>
-        <p className="rp-hint" style={{ margin: "12px 0 0" }}>{preset.description} Rates as of October 2026. Not tax advice: check with your accountant.</p>
+        <p className="rp-hint" style={{ margin: "12px 0 0" }}>{preset.description} Rates as of October 2026.</p>
       </SectionCard>
-      </SettingsAnchor>
+      </SettingsAnchor>}
 
       <SettingsAnchor id="tax-add">
       <SectionCard title="Add a tax rate">

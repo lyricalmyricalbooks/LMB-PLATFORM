@@ -84,7 +84,7 @@ describe("already fixed on this branch (pinned)", () => {
   });
   it("#138 Location has a postal code and country", () => {
     const src = read("./ShopSettings.tsx");
-    expect(src).toContain('label="Postal code"');
+    expect(src).toContain('label={POSTAL_LABEL}'); // "Postal code", or "ZIP code" in an American shop
     expect(src).toContain('label="Country"');
   });
 });

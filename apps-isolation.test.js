@@ -196,7 +196,7 @@ test("the short-name check catches a leftover file name and label, and lets the 
 // The test shop and stockroom, the platform's own project (the waitlist), the emulator's demo-* projects, and the
 // made-up presses the tests use. A real press's project id belongs only in shops/.
 // lmb-test-goods is a second Hosting site of the test project (the general test shop, setup/testShopPlace.js).
-const PROJECTS = new Set(["lmb-test-shop", "lmb-test-goods", "lmb-test-stockroom", "lmb-platform-prod"]);
+const PROJECTS = new Set(["lmb-test-shop", "lmb-test-goods", "lmb-test-press-us", "lmb-test-stockroom", "lmb-platform-prod"]);
 const MADE_UP_PROJECTS = new Set([
   "moth-press", "moth-press-shop", "shop-mothpress", "press-two", "press-two-shop", "other-press-shop", "not-lmb-test-shop",
   "p", "x", "shop", "other", "example", "id",

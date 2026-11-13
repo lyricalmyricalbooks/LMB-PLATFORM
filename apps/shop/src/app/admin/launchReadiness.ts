@@ -3,6 +3,7 @@ import { paymentHealth } from "./paymentHealth";
 import { isRealPaidOrder } from "./overview/overviewInsights";
 import { practiced } from "./firstWeek";
 import { taxCollectionOn, uncoveredTaxRegions } from "../features/site/taxRate";
+import { SHOP_COUNTRY, US_SHOP } from "./moneySign";
 import { platformCardsProvider } from "../../lib/shopProfile";
 import { accountConnected, CONTINUE_WITH_STRIPE, needsLine, paymentsReady, providerName, type PlatformPaymentsAnswer } from "./platformPayments";
 
@@ -111,9 +112,9 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
     ? { id: "tax", label: "Sales tax collection is switched off", detail: "Checkout charges no tax on any order. Turn it back on in Taxes if you are registered to collect.", status: "ok", tab: "taxes", action: "Open Taxes" }
     : rates.length
     ? { id: "tax", label: "Sales tax rates are set", detail: plural(rates.length, "tax rate"), status: "ok", tab: "taxes", action: "Open Taxes" }
-    : { id: "tax", label: "No sales tax rates", detail: "Checkout charges no tax. Add GST/HST/PST rates if you are registered to collect them.", status: "warn", tab: "taxes", action: "Open Taxes" });
+    : { id: "tax", label: "No sales tax rates", detail: US_SHOP ? "Checkout charges no tax. Add a rate for each state where you collect sales tax." : "Checkout charges no tax. Add GST/HST/PST rates if you are registered to collect them.", status: "warn", tab: "taxes", action: "Open Taxes" });
   // A country with some rates but a province/state with none silently charges $0 there.
-  const gaps = rates.length ? uncoveredTaxRegions(settings?.taxes?.rates || []) : [];
+  const gaps = rates.length ? uncoveredTaxRegions(settings?.taxes?.rates || [], SHOP_COUNTRY) : [];
   if (gaps.length) {
     const names = gaps.flatMap(g => g.regions.map(r => `${r} (${g.country})`));
     items.push({ id: "taxGaps", label: `No tax rate for ${plural(names.length, "region")}`, detail: `${names.slice(0, 4).join(", ")}${names.length > 4 ? "…" : ""}. Add a rate for each (or a country-wide rate; 0% if you don't collect there).`, status: "warn", tab: "taxes", action: "Open Taxes" });

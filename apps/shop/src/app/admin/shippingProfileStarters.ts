@@ -3,16 +3,21 @@
 // in the dialog, and the copy made by a profile's Duplicate button.
 import { countryName } from "./shippingCountries";
 import { kindStarterPrices } from "./kindShippingStarters";
+import { SHOP_COUNTRY } from "./moneySign";
 
 export type ProfileStarterId = "world" | "north-america" | "canada" | "copy" | "blank";
 
-export const PROFILE_STARTERS: { id: ProfileStarterId; label: string; desc: string }[] = [
-  { id: "world", label: "Canada, US & everywhere else", desc: "Three zones with a price each. Ships worldwide." },
-  { id: "north-america", label: "Canada & United States", desc: "Two zones. Nowhere else can order these books." },
-  { id: "canada", label: "Canada only", desc: "One zone, for books you only send within Canada." },
+/** The starting points for the shop's country. The ids stay ("canada" is "my own country only") so saved choices keep working. */
+export const profileStarters = (home: "CA" | "US" = "CA"): { id: ProfileStarterId; label: string; desc: string }[] => [
+  { id: "world", label: home === "US" ? "United States, Canada & everywhere else" : "Canada, US & everywhere else", desc: "Three zones with a price each. Ships worldwide." },
+  { id: "north-america", label: home === "US" ? "United States & Canada" : "Canada & United States", desc: "Two zones. Nowhere else can order these books." },
+  home === "US"
+    ? { id: "canada", label: "United States only", desc: "One zone, for books you only send within the United States." }
+    : { id: "canada", label: "Canada only", desc: "One zone, for books you only send within Canada." },
   { id: "copy", label: "Copy another profile", desc: "Same zones, prices and rules as one you already have." },
   { id: "blank", label: "Start empty", desc: "No zones yet. You add every zone and rate yourself." },
 ];
+export const PROFILE_STARTERS = profileStarters(SHOP_COUNTRY);
 
 /** One row of the dialog's quick price table: a zone and the price of its one rate. */
 export type QuickZonePrice = {
@@ -33,14 +38,18 @@ const row = (key: string, zone: string, countries: string[], rateName: string, f
   ({ key, zone, countries, restOfWorld, rateName, first: first.toFixed(2), extra: extra.toFixed(2), days: "" });
 
 /** The zones (with suggested prices the owner edits) a template starts with; none for copy/blank. */
-export function starterPrices(starter: ProfileStarterId, sells?: string | null): QuickZonePrice[] {
+export function starterPrices(starter: ProfileStarterId, sells?: string | null, home: "CA" | "US" = SHOP_COUNTRY): QuickZonePrice[] {
   const p = kindStarterPrices(sells);
-  const canada = row("ca", "Canada", ["CA"], "Standard shipping", p.ca[0], p.ca[1]);
-  const us = row("us", "United States", ["US"], "Standard shipping", p.us[0], p.us[1]);
+  // The suggested prices are "within my country" (p.ca) and "to the neighbour" (p.us): an American shop's own
+  // country is the United States, so it takes the first for the United States and the second for Canada.
+  const [own, neighbour] = [p.ca, p.us];
+  const canada = row("ca", "Canada", ["CA"], "Standard shipping", (home === "US" ? neighbour : own)[0], (home === "US" ? neighbour : own)[1]);
+  const us = row("us", "United States", ["US"], "Standard shipping", (home === "US" ? own : neighbour)[0], (home === "US" ? own : neighbour)[1]);
   const world = row("world", "Rest of world", [], "International shipping", p.world[0], p.world[1], true);
-  if (starter === "world") return [canada, us, world];
-  if (starter === "north-america") return [canada, us];
-  if (starter === "canada") return [canada];
+  const [first, second] = home === "US" ? [us, canada] : [canada, us];
+  if (starter === "world") return [first, second, world];
+  if (starter === "north-america") return [first, second];
+  if (starter === "canada") return [first];
   return [];
 }
 

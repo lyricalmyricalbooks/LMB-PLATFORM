@@ -21,7 +21,7 @@ import { StripeWebhookHealth } from "./StripeWebhookHealth";
 import { PlatformPaymentsCard } from "./PlatformPaymentsCard";
 import { CustomDomainCard } from "./CustomDomainCard";
 import { FormField, FormPage, FormReadOnly, FormRow, FormSection, StatusBar, formStatus } from "./riso/FormKit";
-import { paysOnSquare, platformCardsProvider, providerName, runsOnColophon, shopProfile } from "../../lib/shopProfile";
+import { paysOnSquare, platformCardsProvider, providerName, runsOnColophon, shopProfile, homeCountryName } from "../../lib/shopProfile";
 import { PrivacyRequestsCard } from "./PrivacyRequestsCard";
 import { RedirectsCard } from "./RedirectsCard";
 import { AddressFinderCard } from "./AddressFinderCard";
@@ -64,7 +64,7 @@ import { practiceCheckout, type PracticeState } from "../lib/practiceCheckout";
 import { studioHash } from "../lib/studioLocation";
 import { useShopWords } from "./shopWords";
 import { WhatYouSellCard } from "./WhatYouSellCard";
-import { MONEY_SIGN } from "./moneySign";
+import { BANK_TRANSFER, BANK_TRANSFER_FULL, MONEY_SIGN, US_SHOP, POSTAL_LABEL } from "./moneySign";
 
 export function ShopSettings({ 
   activeTab, 
@@ -229,13 +229,13 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
                 {(a) => <input {...a} value={settings.location?.street || ""} placeholder="123 Example Street" autoComplete="street-address" onChange={(e) => set("location", { street: e.target.value })} />}
               </FormField>
               <FormRow>
-                <FormField label="City">{(a) => <input {...a} value={settings.location?.city || ""} placeholder="Toronto" onChange={(e) => set("location", { city: e.target.value })} />}</FormField>
-                <FormField label="Province or state">{(a) => <input {...a} value={settings.location?.state || ""} placeholder="Ontario" onChange={(e) => set("location", { state: e.target.value })} />}</FormField>
+                <FormField label="City">{(a) => <input {...a} value={settings.location?.city || ""} placeholder={US_SHOP ? "Portland" : "Toronto"} onChange={(e) => set("location", { city: e.target.value })} />}</FormField>
+                <FormField label={US_SHOP ? "State" : "Province or state"}>{(a) => <input {...a} value={settings.location?.state || ""} placeholder={US_SHOP ? "Oregon" : "Ontario"} onChange={(e) => set("location", { state: e.target.value })} />}</FormField>
               </FormRow>
               <FormRow>
-                <FormField label="Postal code">{(a) => <input {...a} value={settings.location?.zip || ""} placeholder="M6G 3H1" autoComplete="postal-code" onChange={(e) => set("location", { zip: e.target.value })} />}</FormField>
+                <FormField label={POSTAL_LABEL}>{(a) => <input {...a} value={settings.location?.zip || ""} placeholder={US_SHOP ? "97205" : "M6G 3H1"} autoComplete="postal-code" onChange={(e) => set("location", { zip: e.target.value })} />}</FormField>
                 <FormField label="Country">
-                  {(a) => <select {...a} value={settings.location?.country || "Canada"} onChange={(e) => set("location", { country: e.target.value })}>
+                  {(a) => <select {...a} value={settings.location?.country || homeCountryName()} onChange={(e) => set("location", { country: e.target.value })}>
                     {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
                   </select>}
                 </FormField>
@@ -387,7 +387,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
       )}
 
       <ConfirmDialog open={confirmMaintenance} title="Turn on maintenance mode?" confirmLabel="Pause checkout"
-        message="Shoppers can still browse, but checkout is refused (card, PayPal, e-Transfer and free orders) until you turn it off again. The change applies once you save."
+        message={`Shoppers can still browse, but checkout is refused (card, PayPal, ${BANK_TRANSFER} and free orders) until you turn it off again. The change applies once you save.`}
         onConfirm={() => { setConfirmMaintenance(false); set("maintenance", { enabled: true }); }} onCancel={() => setConfirmMaintenance(false)} />
     </div>
   );
@@ -1514,8 +1514,8 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
     let defaultName = "";
     let defaultInstructions = "";
     if (type === "bank") {
-      defaultName = "Bank Deposit / e-Transfer";
-      defaultInstructions = `Please send your Interac e-Transfer to ${settings.info?.email || "owner@example.com"}. Use your order number as the transaction message.`;
+      defaultName = US_SHOP ? "Bank transfer" : "Bank Deposit / e-Transfer";
+      defaultInstructions = `Please send your ${BANK_TRANSFER_FULL} to ${settings.info?.email || "owner@example.com"}. Use your order number as the transaction message.`;
     } else if (type === "cod") {
       defaultName = "Cash on Delivery (COD)";
       defaultInstructions = "Please prepare the exact amount of cash for your order. Our delivery agent will collect it upon delivery.";
@@ -1764,10 +1764,10 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
         </SettingsAnchor>
         )}
         <SettingsAnchor id="pay-manual">
-          <SectionCard title="Manual payment methods" description="e-Transfer, cash, your own terms."
+          <SectionCard title="Manual payment methods" description={US_SHOP ? "Bank transfer, cash, your own terms." : "e-Transfer, cash, your own terms."}
             actions={
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                <SecondaryButton size="sm" onClick={() => openAddMethod("bank")}>+ e-Transfer</SecondaryButton>
+                <SecondaryButton size="sm" onClick={() => openAddMethod("bank")}>+ {US_SHOP ? "Bank transfer" : "e-Transfer"}</SecondaryButton>
                 <SecondaryButton size="sm" onClick={() => openAddMethod("cod")}>+ Cash on delivery</SecondaryButton>
                 <SecondaryButton size="sm" onClick={() => openAddMethod("custom")}>+ Custom</SecondaryButton>
               </div>
@@ -1848,9 +1848,9 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
           <PrimaryButton onClick={handleSaveMethod}>{editingMethod ? "Update method" : "Add method"}</PrimaryButton>
         </>}>
         <div className="rp-stack" style={{ gap: 16 }}>
-          <TextField label="Payment method title" value={methodName} placeholder="e.g. Bank deposit, Interac e-Transfer" onChange={(e) => setMethodName(e.target.value)} data-autofocus />
+          <TextField label="Payment method title" value={methodName} placeholder={US_SHOP ? "e.g. Bank transfer, Check" : "e.g. Bank deposit, Interac e-Transfer"} onChange={(e) => setMethodName(e.target.value)} data-autofocus />
           <TextArea label="Customer instructions" rows={5} value={methodInstructions} onChange={(e) => setMethodInstructions(e.target.value)}
-            placeholder="e.g. Send your e-Transfer to payments@example.com and use your order number as the message." hint="Shown to the customer after they place the order." />
+            placeholder={`e.g. Send your ${BANK_TRANSFER} to payments@example.com and use your order number as the message.`} hint="Shown to the customer after they place the order." />
           <Toggle label="Offer this method at checkout" checked={methodEnabled} onChange={setMethodEnabled} />
         </div>
       </Dialog>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { US_SHOP } from "./moneySign";
 import { OrderDetail } from "./OrderDetail";
 import { PastOrdersDialog } from "./PastOrdersDialog";
 import { PaymentLinkDialog } from "./PaymentLinkDialog";
@@ -429,7 +430,7 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
         {/* A list with nothing in it isn't a link: it reads as plain text so the ones with orders stand out. */}
         {([
           ["Awaiting release", outside.preorders, `pre-order${outside.preorders === 1 ? "" : "s"} waiting for release`],
-          ["Unpaid", outside.waitingPayment, "waiting on an e-Transfer or cash payment"],
+          ["Unpaid", outside.waitingPayment, US_SHOP ? "waiting on a bank transfer or cash payment" : "waiting on an e-Transfer or cash payment"],
           ["In transit", outside.inTransit, "on the way"],
         ] as const).map(([key, n, words]) => n > 0
           ? <button key={key} type="button" className="od-link" onClick={() => showOnly(key)}>{n} {words}</button>

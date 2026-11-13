@@ -10,26 +10,40 @@ exports.resolveLocalSelection = resolveLocalSelection;
 // Local pickup and local delivery rules, one copy for the shop, the admin and the server
 // (src/shared/CLAUDE.md): which options a destination can choose, what each costs, and whether the
 // admin's settings are valid. The server prices from its generated copy (functions/shared/localFulfillment.js).
+// Both countries are understood everywhere (13 November 2026): a Canadian postal code ("M6G 3H1", areas "M" / "M6G")
+// or a US ZIP code ("10001", ZIP+4 read as its first five digits, areas "1" to "10001"). A code only ever matches a
+// destination in its own country, and letters never collide with digits, so no caller says which country the shop is in.
 const discountMath_1 = require("./discountMath");
 Object.defineProperty(exports, "bogoPercent", { enumerable: true, get: function () { return discountMath_1.bogoPercent; } });
-const normalizePostalCode = (value) => typeof value === 'string' ? value.toUpperCase().replace(/\s/g, '') : '';
+const normalizePostalCode = (value) => typeof value === 'string' ? value.toUpperCase().replace(/\s/g, '').replace(/^(\d{5})-?\d{4}$/, '$1') : '';
 exports.normalizePostalCode = normalizePostalCode;
-const postalPattern = /^[ABCEGHJ-NPRSTVXY]\d[ABCEGHJ-NPRSTV-Z]\d[ABCEGHJ-NPRSTV-Z]\d$/;
-const prefixPattern = /^[ABCEGHJ-NPRSTVXY]\d[ABCEGHJ-NPRSTV-Z]$/;
+const caPostal = /^[ABCEGHJ-NPRSTVXY]\d[ABCEGHJ-NPRSTV-Z]\d[ABCEGHJ-NPRSTV-Z]\d$/;
+const usZip = /^\d{5}$/;
+const postalPattern = { test: (value) => caPostal.test(value) || usZip.test(value) };
+// Delivery areas: a Canadian three-character prefix ("M6G") or the first three or four digits of a ZIP code.
+const prefixPattern = /^([ABCEGHJ-NPRSTVXY]\d[ABCEGHJ-NPRSTV-Z]|\d{3,4})$/;
 // Pickup areas may be a whole postal district: "M" = all of Toronto, "M6G" = one area.
-const pickupAreaPattern = /^[ABCEGHJ-NPRSTVXY](\d[ABCEGHJ-NPRSTV-Z]?)?$/;
+const pickupAreaPattern = /^([ABCEGHJ-NPRSTVXY](\d[ABCEGHJ-NPRSTV-Z]?)?|\d{1,5})$/;
 const pickupAreas = (location) => Array.isArray(location?.postalPrefixes) ? location.postalPrefixes.map(exports.normalizePostalCode).filter(Boolean) : [];
 const money = (value) => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1000000 && Math.abs(value * 100 - Math.round(value * 100)) < 0.000001;
 const canadian = (country) => ['CA', 'CANADA'].includes(String(country || '').trim().toUpperCase());
+const american = (country) => ['US', 'USA', 'UNITED STATES', 'UNITED STATES OF AMERICA'].includes(String(country || '').trim().toUpperCase());
+/** "CA" or "US" when the postal code is a real one for the address's own country; "" otherwise. */
+const servedCountry = (country, postal) => canadian(country) && caPostal.test(postal) ? 'CA' : american(country) && usZip.test(postal) ? 'US' : '';
+const CA_REGION = /^(AB|BC|MB|NB|NL|NS|NT|NU|ON|PE|QC|SK|YT|ONTARIO|QUEBEC|BRITISH COLUMBIA|ALBERTA|MANITOBA|SASKATCHEWAN|NOVA SCOTIA|NEW BRUNSWICK|NEWFOUNDLAND AND LABRADOR|PRINCE EDWARD ISLAND|YUKON|NUNAVUT|NORTHWEST TERRITORIES)$/;
+const US_REGION = /^(AL|AK|AZ|AR|CA|CO|CT|DE|DC|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|PR|ALABAMA|ALASKA|ARIZONA|ARKANSAS|CALIFORNIA|COLORADO|CONNECTICUT|DELAWARE|DISTRICT OF COLUMBIA|FLORIDA|GEORGIA|HAWAII|IDAHO|ILLINOIS|INDIANA|IOWA|KANSAS|KENTUCKY|LOUISIANA|MAINE|MARYLAND|MASSACHUSETTS|MICHIGAN|MINNESOTA|MISSISSIPPI|MISSOURI|MONTANA|NEBRASKA|NEVADA|NEW HAMPSHIRE|NEW JERSEY|NEW MEXICO|NEW YORK|NORTH CAROLINA|NORTH DAKOTA|OHIO|OKLAHOMA|OREGON|PENNSYLVANIA|RHODE ISLAND|SOUTH CAROLINA|SOUTH DAKOTA|TENNESSEE|TEXAS|UTAH|VERMONT|VIRGINIA|WASHINGTON|WEST VIRGINIA|WISCONSIN|WYOMING|PUERTO RICO)$/;
 function validPickupAddress(address) {
     // The street and postal code are optional: a shop may share its exact pickup spot after the order.
-    // Province and country are required because they set the tax for pickup orders.
-    if (!address || typeof address.state !== 'string' || !canadian(address.country))
+    // Province or state, and country, are required because they set the tax for pickup orders.
+    if (!address || typeof address.state !== 'string')
         return false;
-    if (!/^(AB|BC|MB|NB|NL|NS|NT|NU|ON|PE|QC|SK|YT|ONTARIO|QUEBEC|BRITISH COLUMBIA|ALBERTA|MANITOBA|SASKATCHEWAN|NOVA SCOTIA|NEW BRUNSWICK|NEWFOUNDLAND AND LABRADOR|PRINCE EDWARD ISLAND|YUKON|NUNAVUT|NORTHWEST TERRITORIES)$/.test(address.state.trim().toUpperCase()))
+    const us = american(address.country);
+    if (!us && !canadian(address.country))
+        return false;
+    if (!(us ? US_REGION : CA_REGION).test(address.state.trim().toUpperCase()))
         return false;
     const zip = (0, exports.normalizePostalCode)(address.zip || address.postalCode);
-    return !zip || postalPattern.test(zip);
+    return !zip || (us ? usZip : caPostal).test(zip);
 }
 function validateLocalFulfillment(config) {
     const errors = [];
@@ -53,15 +67,15 @@ function validateLocalFulfillment(config) {
             if (kind === 'pickup' && (!record?.address || typeof record.address !== 'object' || Array.isArray(record.address) || !['street', 'city', 'state', 'zip', 'country'].every(key => typeof record.address[key] === 'string')))
                 errors.push('Pickup address fields must be text, even while disabled.');
             if (kind === 'pickup' && record?.postalPrefixes !== undefined && (!Array.isArray(record.postalPrefixes) || record.postalPrefixes.length > 500 || record.postalPrefixes.some((value) => !pickupAreaPattern.test((0, exports.normalizePostalCode)(value)))))
-                errors.push('Pickup areas must be Canadian postal prefixes of one to three characters, such as M for Toronto (maximum 500).');
+                errors.push('Pickup areas must be the start of a postal code (one to three characters, such as M for Toronto) or of a ZIP code (one to five digits, such as 100) (maximum 500).');
             if (kind === 'pickup' && record?.enabled && !validPickupAddress(record.address))
-                errors.push('Pickup needs a Canadian province (e.g. ON); a postal code, if entered, must be valid.');
+                errors.push('Pickup needs a province or state (e.g. ON or NY) in Canada or the United States; a postal or ZIP code, if entered, must be valid.');
             if (kind === 'delivery') {
                 if (!money(record?.minimumSubtotal))
                     errors.push('Delivery minimum must be a valid non-negative amount.');
                 const prefixes = record?.postalPrefixes, codes = record?.postalCodes;
                 if (!Array.isArray(prefixes) || !Array.isArray(codes) || prefixes.length + codes.length === 0 || prefixes.length + codes.length > 500 || prefixes.some((value) => !prefixPattern.test((0, exports.normalizePostalCode)(value))) || codes.some((value) => !postalPattern.test((0, exports.normalizePostalCode)(value))))
-                    errors.push('Delivery needs valid three-character Canadian prefixes or complete six-character postal codes (maximum 500).');
+                    errors.push('Delivery needs valid areas (three characters of a postal code, or the first three or four digits of a ZIP code) or complete postal or ZIP codes (maximum 500).');
             }
         }
     }
@@ -73,7 +87,7 @@ function quoteLocalFulfillment(config, destination, cartSubtotal, physicalItems)
         return [];
     const quotes = [];
     const postal = (0, exports.normalizePostalCode)(destination?.zip || destination?.postalCode);
-    const servesPostal = canadian(destination?.country) && postalPattern.test(postal);
+    const servesPostal = Boolean(servedCountry(destination?.country, postal));
     for (const location of config.pickupLocations)
         if (location.enabled && (!pickupAreas(location).length || (servesPostal && pickupAreas(location).some(area => postal.startsWith(area)))))
             quotes.push({ id: `pickup:${location.id}`, method: 'pickup', locationId: location.id, name: location.name, price: Math.round(location.price * 100) / 100, address: { ...location.address, zip: (0, exports.normalizePostalCode)(location.address.zip || location.address.postalCode) }, instructions: location.instructions ?? '', hours: location.hours ?? '', estimate: location.estimate ?? '' });
@@ -131,12 +145,12 @@ function resolveLocalSelection(config, selection, destination, discountedSubtota
     if (!selection || !['pickup', 'local_delivery'].includes(selection.method) || typeof selection.optionId !== 'string')
         throw new Error('Choose an available fulfillment option.');
     if (selection.method === 'local_delivery') {
-        if (!destination || !['street', 'city', 'state', 'zip', 'country'].every(key => typeof destination[key] === 'string' && destination[key].trim()) || !canadian(destination.country) || !postalPattern.test((0, exports.normalizePostalCode)(destination.zip)))
-            throw new Error('Enter a complete Canadian delivery address.');
+        if (!destination || !['street', 'city', 'state', 'zip', 'country'].every(key => typeof destination[key] === 'string' && destination[key].trim()) || !servedCountry(destination.country, (0, exports.normalizePostalCode)(destination.zip)))
+            throw new Error('Enter a complete delivery address in Canada or the United States.');
     }
     const quote = quoteLocalFulfillment(config, destination, discountedSubtotal, physicalItems).find(choice => choice.id === selection.optionId && choice.method === selection.method);
     if (!quote)
         throw new Error('That fulfillment option is no longer available. Please review the options and try again.');
-    const fulfillment = { method: quote.method, optionId: quote.id, ...(quote.locationId ? { locationId: quote.locationId } : {}), ...(quote.zoneId ? { zoneId: quote.zoneId } : {}), name: quote.name, price: freeShipping ? 0 : quote.price, ...(quote.address ? { address: quote.address } : {}), ...(destination && quote.method === 'local_delivery' ? { destination: { street: destination.street, ...(destination.unit ? { unit: destination.unit } : {}), city: destination.city, state: destination.state, zip: (0, exports.normalizePostalCode)(destination.zip), country: 'CA' } } : {}), instructions: quote.instructions, ...(quote.hours !== undefined ? { hours: quote.hours } : {}), estimate: quote.estimate };
+    const fulfillment = { method: quote.method, optionId: quote.id, ...(quote.locationId ? { locationId: quote.locationId } : {}), ...(quote.zoneId ? { zoneId: quote.zoneId } : {}), name: quote.name, price: freeShipping ? 0 : quote.price, ...(quote.address ? { address: quote.address } : {}), ...(destination && quote.method === 'local_delivery' ? { destination: { street: destination.street, ...(destination.unit ? { unit: destination.unit } : {}), city: destination.city, state: destination.state, zip: (0, exports.normalizePostalCode)(destination.zip), country: servedCountry(destination.country, (0, exports.normalizePostalCode)(destination.zip)) || 'CA' } } : {}), instructions: quote.instructions, ...(quote.hours !== undefined ? { hours: quote.hours } : {}), estimate: quote.estimate };
     return { cost: fulfillment.price, method: quote.method, fulfillment };
 }
