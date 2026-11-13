@@ -69,46 +69,59 @@ export function mimeMessage({ from, to, subject, html, text, replyTo, idempotenc
 }
 
 /**
- * A Gmail sender. `token()` is the server's own Google token (server/metadata.js); `account` the service account that
- * may send as `mailbox` (domain-wide delegation). `sleep` waits between retries (tests pass one that doesn't wait).
+ * The token that lets the server act as `mailbox` (steps 1 and 2 above) for one `scope`, kept for its hour. `forget()`
+ * drops the kept token (after a 401). Shared by the sender here and the receipts reader (services/receipts/mailbox.js).
  */
-export function gmailClient({ fetch, token, account, mailbox, tries = 3, now = () => Date.now(), sleep = (ms) => new Promise((done) => setTimeout(done, ms)) }) {
+export function delegatedMailToken({ fetch, token, account, mailbox, scope = GMAIL_SEND_SCOPE, now = () => Date.now() }) {
   if (typeof fetch !== "function") throw new Error("The email service needs fetch");
   if (typeof token !== "function") throw new Error("The email service needs the server's Google token");
   if (!/^[^@\s]+@[^@\s]+\.iam\.gserviceaccount\.com$/.test(account ?? "")) throw new Error("The email account must be a Google service account");
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mailbox ?? "")) throw new Error("The email service needs the mailbox it sends from");
   let held = null; // { token, until }
 
-  const json = async (response) => response.json().catch(() => ({}));
-  const refused = (what, status, answer) => {
-    const reason = answer?.error?.errors?.[0]?.reason ?? answer?.error?.status ?? answer?.error ?? "unknown";
-    const rate = status === 429 || status === 503 || (status === 403 && RATE_REASONS.test(String(reason)));
-    const message = answer?.error?.message ?? answer?.error_description ?? "no answer";
-    return new GmailError(`Google refused ${what} (${status} ${reason}: ${message})`, { status, code: String(reason), retryable: rate });
-  };
-
   async function mailToken() {
     if (held && now() < held.until) return held.token;
     const iat = Math.floor(now() / 1000);
-    const payload = { iss: account, sub: mailbox, scope: GMAIL_SEND_SCOPE, aud: OAUTH_TOKEN_URL, iat, exp: iat + 3600 };
+    const payload = { iss: account, sub: mailbox, scope, aud: OAUTH_TOKEN_URL, iat, exp: iat + 3600 };
     const signed = await fetch(IAM_SIGN_URL(account), {
       method: "POST",
       headers: { Authorization: `Bearer ${await token()}`, "Content-Type": "application/json" },
       body: JSON.stringify({ payload: JSON.stringify(payload) }),
     });
-    const signedAnswer = await json(signed);
-    if (!signed.ok || !signedAnswer.signedJwt) throw refused("to sign the mail token", signed.status, signedAnswer);
+    const signedAnswer = await jsonOf(signed);
+    if (!signed.ok || !signedAnswer.signedJwt) throw googleRefused("to sign the mail token", signed.status, signedAnswer);
     const swapped = await fetch(OAUTH_TOKEN_URL, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: signedAnswer.signedJwt }).toString(),
     });
-    const tokenAnswer = await json(swapped);
+    const tokenAnswer = await jsonOf(swapped);
     // unauthorized_client: the Workspace admin hasn't allowed the mail account (domain-wide delegation) yet.
-    if (!swapped.ok || !tokenAnswer.access_token) throw refused("the mail token", swapped.status, tokenAnswer);
+    if (!swapped.ok || !tokenAnswer.access_token) throw googleRefused("the mail token", swapped.status, tokenAnswer);
     held = { token: tokenAnswer.access_token, until: now() + (Number(tokenAnswer.expires_in) || 3600) * 1000 - EARLY_MS };
     return held.token;
   }
+  mailToken.forget = () => { held = null; };
+  return mailToken;
+}
+
+export const jsonOf = async (response) => response.json().catch(() => ({}));
+/** Google's refusal as a GmailError; `retryable` only for its "slow down" answers. */
+export function googleRefused(what, status, answer) {
+  const reason = answer?.error?.errors?.[0]?.reason ?? answer?.error?.status ?? answer?.error ?? "unknown";
+  const rate = status === 429 || status === 503 || (status === 403 && RATE_REASONS.test(String(reason)));
+  const message = answer?.error?.message ?? answer?.error_description ?? "no answer";
+  return new GmailError(`Google refused ${what} (${status} ${reason}: ${message})`, { status, code: String(reason), retryable: rate });
+}
+
+/**
+ * A Gmail sender. `token()` is the server's own Google token (server/metadata.js); `account` the service account that
+ * may send as `mailbox` (domain-wide delegation). `sleep` waits between retries (tests pass one that doesn't wait).
+ */
+export function gmailClient({ fetch, token, account, mailbox, tries = 3, now = () => Date.now(), sleep = (ms) => new Promise((done) => setTimeout(done, ms)) }) {
+  const mailToken = delegatedMailToken({ fetch, token, account, mailbox, now });
+  const json = jsonOf;
+  const refused = googleRefused;
 
   return {
     /** Sends one email; resolves to { id }. Throws a GmailError (with `retryable`) when Google refuses it. */
@@ -127,7 +140,7 @@ export function gmailClient({ fetch, token, account, mailbox, tries = 3, now = (
         }
         const answer = await json(response);
         if (response.ok && typeof answer?.id === "string") return { id: answer.id };
-        if (response.status === 401) held = null;
+        if (response.status === 401) mailToken.forget();
         last = refused("the email", response.ok ? 502 : response.status, answer);
         if (!last.retryable) throw last;
       }

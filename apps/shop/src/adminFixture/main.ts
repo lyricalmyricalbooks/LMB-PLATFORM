@@ -17,6 +17,7 @@ import { qrCodesStore } from "../app/admin/stockroom/qrCodesStore";
 import { sheetsStore } from "../app/admin/stockroom/sheetsStore";
 import { nightlyBackupApi } from "../app/admin/BackupsExportCard";
 import { copiesIO, readManifest, snapshotOf } from "../app/admin/stockroom/stockroomCopies";
+import { receiptInboxApi, type InboxView, type WaitingReceipt } from "../app/admin/stockroom/receiptInboxApi";
 
 // Stockroom › To-do: two titles, one nearly sold out and one with nothing waiting (`?stock=empty`: nothing at all).
 // Read at load: the fixture puts the address back to the page it opens, so later reads would miss it.
@@ -44,6 +45,31 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
   let own = [{ id: "c1", name: "Join the mailing list", url: "https://example.com/newsletter" }];
   qrCodesStore.load = async () => own;
   qrCodesStore.save = async (codes) => { own = codes; };
+}
+
+// ── Bookkeeping › Receipts › Receipts by email (beta): `?receipts=soon|off|code` (default: on, three waiting). In memory. ──
+{
+  const mode = new URLSearchParams(window.location.search).get("receipts") || "on";
+  const address = "receipts+yourpress.kqmtrwzd@colophon.example";
+  const waiting: WaitingReceipt[] = [
+    { id: "msg-print-1", from: '"Example Print Co." <billing@print.example>', subject: "Invoice 2291 for your print run", receivedAt: "2026-11-11T15:02:00.000Z", facts: { vendor: "Example Print Co.", what: "Print run, 200 copies", date: "2026-11-10", total: "412.50", tax: "47.45", currency: "CAD", number: "2291" }, looksLike: true, hasFile: true, fileName: "invoice-2291.pdf", snippet: "Thank you for your order. Your invoice 2291 is attached" },
+    { id: "msg-post-2", from: "Example Post <no-reply@post.example>", subject: "Your receipt", receivedAt: "2026-11-12T09:40:00.000Z", facts: { vendor: "Example Post", what: "Postage", date: "2026-11-12", total: "18.20", currency: "CAD" }, looksLike: true, hasFile: false, fileName: "", snippet: "Receipt for 2 parcels sent today. Total paid 18.20" },
+    { id: "msg-news-3", from: "Paper Fair News <hello@fair.example>", subject: "Table bookings open next week", receivedAt: "2026-11-12T11:15:00.000Z", facts: {}, looksLike: false, hasFile: false, fileName: "", snippet: "Bookings for the spring fair open on Monday" },
+  ];
+  let view: InboxView = {
+    available: mode !== "soon", on: mode === "on" || mode === "code", address: mode === "soon" || mode === "off" ? "" : address,
+    checkedAt: new Date(Date.now() - 4 * 60000).toISOString(), gmailCode: mode === "code" ? { code: "482913076", from: "owner@example.com" } : null,
+    waiting: mode === "on" ? waiting : [],
+  };
+  const set = (patch: Partial<InboxView>) => (view = { ...view, ...patch });
+  receiptInboxApi.status = async () => view;
+  receiptInboxApi.check = async () => set({ checkedAt: new Date().toISOString() });
+  receiptInboxApi.start = async () => set({ on: true, address });
+  receiptInboxApi.stop = async () => set({ on: false });
+  receiptInboxApi.newAddress = async () => set({ address: "receipts+yourpress.hvbnxcpl@colophon.example", gmailCode: null });
+  receiptInboxApi.codeSeen = async () => set({ gmailCode: null });
+  receiptInboxApi.done = async (id) => { set({ waiting: view.waiting.filter((w) => w.id !== id) }); };
+  receiptInboxApi.file = async () => new File(["%PDF-1.4"], "receipt.pdf", { type: "application/pdf" });
 }
 
 // --- Stockroom money pages (Tax centre, Expenses, Ask about your sales): sample records, only for those pages ---

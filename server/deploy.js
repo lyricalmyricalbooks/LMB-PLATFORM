@@ -67,7 +67,7 @@ export const ACCOUNTS = Object.freeze([
   { name: JOBS_SERVICE, words: "The platform's scheduled jobs", roles: ["roles/datastore.user", "roles/secretmanager.secretAccessor"] },
   { name: "platform-scheduler", words: "Calls the platform's scheduled jobs", roles: [] },
   // Holds no project roles: the Workspace admin lets it send as the platform's mailbox (domain-wide delegation, scope
-  // gmail.send), and the two services may sign as it (MAIL_SENDERS below).
+  // gmail.send, plus gmail.modify for receipts by email), and the two services may sign as it (MAIL_SENDERS below).
   { name: MAIL_ACCOUNT_NAME, words: "Sends the platform's emails through Google", roles: [] },
 ]);
 

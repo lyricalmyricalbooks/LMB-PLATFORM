@@ -1816,6 +1816,28 @@ const { handleGoogleConnect } = googleConnectActions({ url: shopConfig.platformG
 // Settings › Apps: installed apps, the store and Remove, through the platform's app store door (appsLink.js, plan 26.5).
 const { handleApps } = appsLinkActions({ url: shopConfig.platformAppsUrl, shopId: platformShopId, serviceKey: platformServiceKey, requireAdmin });
 
+// Bookkeeping › Receipts › Receipts by email (beta, receiptInbox.js): the shop's own receipts address, through the
+// platform's receipts door. Each forwarded email is read by the shop's AI (task receiptEmail) and waits for the owner.
+const receiptInbox = require("./receiptInbox").receiptInboxActions({
+  url: shopConfig.platformReceiptsUrl, shopId: platformShopId, serviceKey: platformServiceKey, requireAdmin, db,
+  readEmail: async (input) => {
+    // Past its budget the shop's AI slows down (spendingGate.js): the email then waits unread, for the owner to type in.
+    if (!(await require("./spendingGate").allowOne(db, "ai-writing")).allowed) return null;
+    const { status, body } = await require("./aiWriter").handleAiWrite({ task: "receiptEmail", input }, {
+      readSettings: async () => {
+        const saved = await readAdminSecret("ai");
+        return { apiKey: saved.geminiKey, openrouterKey: saved.openrouterKey, openrouterModel: saved.openrouterModel, provider: saved.provider, voice: "" };
+      },
+      allow: async () => true,
+      platformAi: shopConfig.platformGoogleUrl ? async () => ({
+        projectId: process.env.GCLOUD_PROJECT || admin.app().options.projectId || "",
+        accessToken: (await require("./googleAnalytics").metadataCredentials(fetch, "https://www.googleapis.com/auth/cloud-platform")).accessToken,
+      }) : null,
+    });
+    return status === 200 ? body.result : null;
+  },
+});
+
 // Settings › Bookkeeping: the QuickBooks link, through the platform's bookkeeping service (quickbooksLink.js, plan 7.16).
 // Send again builds the day from every order with the shared daily bookkeeping rules (dayFromOrders, Toronto days).
 const { handleBookkeeping } = bookkeepingActions({
@@ -1925,6 +1947,7 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   customDomains: handleCustomDomains,
   googleConnect: handleGoogleConnect,
   apps: handleApps,
+  receiptInbox: receiptInbox.handleReceiptInbox,
   bookkeeping: handleBookkeeping,
   social: handleSocial,
   practiceCheckout: handlePracticeCheckout,
@@ -4562,6 +4585,12 @@ exports.onAppRequest = onDocumentCreated({ document: "appRequests/{requestId}", 
 exports.inventoryLinkSweep = onSchedule({ schedule: "every 5 minutes", name: "inventoryLinkSweep", timeoutSeconds: 300 }, async () => {
   const out = await require("./inventoryLinkJobs").runSweep(inventoryLinkDeps(), { stock: "auto" });
   if (out.error) console.error("inventoryLinkSweep:", out.error);
+});
+
+// Receipts by email (beta): collects what a shop's owner forwarded to its receipts address, for shops that have it on.
+exports.receiptInboxSweep = onSchedule({ schedule: "every 15 minutes", name: "receiptInboxSweep", timeoutSeconds: 300, secrets: withPlatformKey([]) }, async () => {
+  if (!shopConfig.platformReceiptsUrl) return;
+  await receiptInbox.sweepReceiptInbox();
 });
 
 // Social posts whose time has come (plan 27.4): each is claimed, then sent once to each of its places.

@@ -9,7 +9,8 @@ export const WALK_STORE = "cr-launch-walk";
  * the list of test shops (or one, as before): ready when there is at least one and every one is live.
  */
 export function launchChecks(launch, testShops) {
-  const checks = launch.keys.map((key) => ({ id: key.id, ready: key.ready }));
+  // An optional piece (receipts by email) never holds the launch back.
+  const checks = launch.keys.filter((key) => !key.optional).map((key) => ({ id: key.id, ready: key.ready }));
   const tests = (Array.isArray(testShops) ? testShops : [testShops]).filter(Boolean);
   checks.push({ id: "test-shop", ready: tests.length > 0 && tests.every((shop) => shop.status === "live") });
   checks.push({ id: "signup", ready: launch.signupOpen || launch.invites });

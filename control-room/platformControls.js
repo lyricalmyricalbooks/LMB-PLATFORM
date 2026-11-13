@@ -17,6 +17,7 @@ import { EDITABLE, SETTINGS_RECORD, editableValues, liveSettings, platformSettin
 import { ControlError, MIN_REASON, adminOf } from "./controlRoom.js";
 import { activityEntry } from "./activity.js";
 import { EMAIL_SETTING } from "../services/email/index.js";
+import { RECEIPT_MAIL_SETTING } from "../services/receipts/index.js";
 import { PAYMENTS_SECRETS } from "../services/payments/index.js";
 import { BILLING_SECRETS } from "../services/billing/index.js";
 import { WAIT_FOR_A_PERSON_MS } from "../signup/shopMaker.js";
@@ -34,6 +35,8 @@ const LAUNCH_KEYS = Object.freeze([
     gives: "Tells the platform when a plan is paid, fails or ends." },
   { id: "email", label: "Email through Google", setting: EMAIL_SETTING, getIt: "https://admin.google.com/ac/owl/domainwidedelegation",
     gives: "Sign-in codes, receipts and every email to presses, from your Google Workspace mailbox." },
+  { id: "receipt-mail", label: "Receipts by email (beta)", optional: true, setting: RECEIPT_MAIL_SETTING, getIt: "https://admin.google.com/ac/owl/domainwidedelegation",
+    gives: "Shops forward receipts to their own address and check them in Bookkeeping. Optional: shops see \"Opening soon\" until it is on." },
 ]);
 
 /** Where Support's saved replies live in the platform's records, and how many are kept. */
@@ -110,8 +113,8 @@ export function createPlatformControls({ admins, settingsStore, env = process.en
         signupOpen: current.signupOpen === true,
         invites: Boolean(invites),
         shopMaking: shopMaking === true,
-        keys: LAUNCH_KEYS.map(({ id, label, key, setting, getIt, events, gives }) => ({
-          id, label, gives,
+        keys: LAUNCH_KEYS.map(({ id, label, key, setting, getIt, events, gives, optional }) => ({
+          id, label, gives, ...(optional ? { optional: true } : {}),
           ...(setting
             ? { secret: null, setting: `${setting.env}: "${setting.value}"`, ready: String(keyEnv[setting.env] ?? "").trim().toLowerCase() === setting.value }
             : { secret: key.secret, ready: String(keyEnv[key.env] ?? "").trim() !== "" }),

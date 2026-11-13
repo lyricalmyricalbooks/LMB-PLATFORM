@@ -10,6 +10,8 @@
 //   PLATFORM_DOMAIN            the platform's own domain                             default platform.example (placeholder)
 //   PLATFORM_SENDER_EMAIL      the address every email is sent from                  default notifications@<domain>
 //   PLATFORM_SUPPORT_EMAIL     where replies to platform emails go                   default support@<domain>
+//   PLATFORM_RECEIPTS_EMAIL    the address shops' receipts addresses are made from (receipts+<shop>.<letters>@...): an
+//                              alternate address of the sending mailbox (services/receipts)   default receipts@<domain>
 //   PLATFORM_MAILING_ADDRESS   Colophon's mailing address (a PO box is fine), at the foot of every email; Canadian
 //                              anti-spam law asks for it in commercial emails (15.8)     default none
 //   PLATFORM_CURRENCY          the currency plans are charged in                     default CAD
@@ -46,6 +48,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   domain: "platform.example",
   senderEmail: "notifications@platform.example",
   supportEmail: "support@platform.example",
+  receiptsEmail: "receipts@platform.example",
   mailingAddress: "",
   currency: "CAD",
   prices: Object.freeze({ shop: 500, stockroom: 500, both: 500 }),
@@ -142,6 +145,7 @@ export function platformSettings(env = process.env) {
     domain,
     senderEmail: email("PLATFORM_SENDER_EMAIL", `notifications@${domain}`),
     supportEmail: email("PLATFORM_SUPPORT_EMAIL", `support@${domain}`),
+    receiptsEmail: email("PLATFORM_RECEIPTS_EMAIL", `receipts@${domain}`),
     mailingAddress,
     currency,
     // Stripe takes amounts in cents; one cent to $10,000 a month.

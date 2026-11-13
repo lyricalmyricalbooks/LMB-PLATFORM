@@ -35,6 +35,8 @@ import { createMailchimpApp } from "../services/mailchimp/app.js";
 import { mailchimpPublicRoutes, mailchimpRoutes } from "../services/mailchimp/routes.js";
 import { appInstallPublicRoutes, appInstallRoutes, appMakerRoutes, appShopDoorRoutes, appStorePublicRoutes } from "../services/apps/routes.js";
 import { createAppShopDoor } from "../services/apps/shopDoor.js";
+import { createReceiptMail, receiptShopDoorRoutes } from "../services/receipts/index.js";
+import { fakeReceiptGmail } from "../services/receipts/fakes.js";
 import { fakeAppAlertStores, fakeAppInstallStores, fakeAppStore, fakeChitChatsStores, fakeMailchimpStores } from "../services/apps/fakes.js";
 import { createRecovery, recoveryByHand } from "../accounts/recovery.js";
 import { recoveryRoutes } from "../accounts/recoveryRoutes.js";
@@ -157,6 +159,8 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const stripe = fakeBillingStripe({ clock: () => Math.floor(clock.ms() / 1000) });
   // The platform's emails, written from their real templates into a practice inbox (practiceEmail.js).
   const email = practicePlatformEmail({ env: settingsEnv, registry, now: clock.date });
+  // Receipts by email (services/receipts), on a pretend mailbox.
+  const receiptMail = createReceiptMail({ env: { ...settingsEnv, RECEIPT_MAIL: "on", GMAIL_ACCOUNT: "platform-mail@lmb-platform-prod.iam.gserviceaccount.com" }, fetch: fakeReceiptGmail().fetch, token: async () => "practice", registry, auditLog, now: clock.date });
   const closed = [];
   const billingDeps = {
     stripe: createStripeApi({ fetch: stripe.fetch, keys: { test: "sk_test_fake", live: null } }),
@@ -371,7 +375,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...exportRoutes(dataExports),
   };
   const door = createApi({
-    signup, verifyIdToken: fakeVerifyIdToken, settings, live, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls), ...appShopDoorRoutes(createAppShopDoor({ registry, installs: appInstalls, makers: appMakers })), ...chitChatsPublicRoutes(chitchats), ...mailchimpPublicRoutes(mailchimp) },
+    signup, verifyIdToken: fakeVerifyIdToken, settings, live, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls), ...appShopDoorRoutes(createAppShopDoor({ registry, installs: appInstalls, makers: appMakers })), ...receiptShopDoorRoutes(receiptMail), ...chitChatsPublicRoutes(chitchats), ...mailchimpPublicRoutes(mailchimp) },
     // Fair-use limits (19.5) on an in-memory counter, a hundred times the real ones so a person clicking never meets them.
     limits: createLimits({ throttle: fakeThrottle(), admins, limits: generousLimits(), now: clock.date, log: () => {} }),
     log: () => {},

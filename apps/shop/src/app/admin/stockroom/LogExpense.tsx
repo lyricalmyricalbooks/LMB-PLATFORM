@@ -11,6 +11,9 @@ import { addBusinessExpense, baseCurrencyOf, blankExpense, checkExpense, EXPENSE
 import { describeResult, stockroomWriteApi } from "./stockroomWrite";
 import { taxRatesApi } from "./taxRates";
 import { readReceipt, receiptPatch } from "./receiptRead";
+import { attachReceipt } from "./taxLedger";
+import { uploadReceipt } from "./receiptUpload";
+import { formFromReceipt, receiptInboxApi, senderName, type ReceiptInboxApi, type WaitingReceipt } from "./receiptInboxApi";
 
 type Row = Record<string, any>;
 type Note = { tone: "ok" | "warn" | "error" | "busy"; text: string };
@@ -25,8 +28,11 @@ export type Prefill = { noteId: string | number; form: ExpenseForm };
  * `page`: the v4 New expense page (form kit: sections on the left, the amount in a rail, one status bar). Without it,
  * the card the Tax centre shows.
  */
-export function LogExpenseCard({ taxCenter, onSaved, prefill, onPrefillDone, page, onCancel, photoFile }: { taxCenter: Row | null; onSaved: (taxCenter: Row) => void; prefill?: Prefill | null; onPrefillDone?: () => void; page?: boolean; onCancel?: () => void;
-  /** A receipt photo dropped on Bookkeeping › Receipts: read it as soon as the form opens. */ photoFile?: File | null }) {
+export function LogExpenseCard({ taxCenter, onSaved, prefill, onPrefillDone, page, onCancel, photoFile, emailReceipt, inbox = receiptInboxApi, upload = uploadReceipt }: { taxCenter: Row | null; onSaved: (taxCenter: Row) => void; prefill?: Prefill | null; onPrefillDone?: () => void; page?: boolean; onCancel?: () => void;
+  /** A receipt photo dropped on Bookkeeping › Receipts: read it as soon as the form opens. */ photoFile?: File | null;
+  /** An emailed receipt being checked (receipts by email): the form starts with what was read; adding it keeps the
+   *  email's file as the receipt and clears the email. */
+  emailReceipt?: WaitingReceipt | null; inbox?: Pick<ReceiptInboxApi, "file" | "done">; upload?: (file: File) => Promise<string> }) {
   const base = baseCurrencyOf(taxCenter);
   const [form, setForm] = useState<ExpenseForm>(() => blankExpense(base, todayText()));
   const [errors, setErrors] = useState<ExpenseErrors>({});
@@ -77,6 +83,14 @@ export function LogExpenseCard({ taxCenter, onSaved, prefill, onPrefillDone, pag
   useEffect(() => { if (photoFile) void readPhoto(photoFile); }, [photoFile]);
   const trips = tripChoices(taxCenter);
   const currencies = [...new Set([base, ...EXPENSE_CURRENCIES])];
+  useEffect(() => {
+    if (!emailReceipt) return;
+    const read = formFromReceipt(emailReceipt, base, currencies, todayText());
+    const hit = categoryFromRules(taxCenter, read.desc, EXPENSE_CATEGORIES);
+    setForm(hit ? { ...read, cat: hit } : read); setErrors({}); setDupAsked(false); catTouched.current = false; setRuled(hit || null);
+    setNote({ tone: "ok", text: `Read from the email from ${senderName(emailReceipt.from) || "your forward"}${emailReceipt.facts?.tax ? ` (tax shown: ${emailReceipt.facts.tax})` : ""}. Check it, then add it.` });
+    id.current = Date.now() + Math.floor(Math.random() * 1000);
+  }, [emailReceipt]);
 
   async function submit() {
     if (busy) return;
@@ -89,12 +103,28 @@ export function LogExpenseCard({ taxCenter, onSaved, prefill, onPrefillDone, pag
       return;
     }
     setBusy(true);
+    // An emailed receipt's file is kept first, so the expense is never added without it.
+    let receiptUrl = "";
+    if (emailReceipt) {
+      setNote({ tone: "busy", text: "Keeping the receipt…" });
+      try { receiptUrl = await upload(await inbox.file(emailReceipt.id)); }
+      catch (error: any) {
+        setBusy(false);
+        setNote({ tone: "error", text: /photo or a PDF|15 MB|no longer waiting|Sign in again/.test(error?.message || "") ? error.message : "The receipt's file couldn't be kept, so nothing was added. Try again in a minute." });
+        return;
+      }
+    }
     setNote({ tone: "busy", text: "Saving…" });
     try {
       // The rate for the expense's own date, looked up before the save (none found: saved as missing, filled in later).
       const rates = form.currency === base ? undefined : await taxRatesApi.expenseRatesFor([{ currency: form.currency, date: form.date }], taxCenter as Row | null);
-      const result = await stockroomWriteApi.updateSetting("taxCenter", (current) => addBusinessExpense(current as Row | null, form, checked.amount, id.current, new Date(), prefill?.noteId, rates));
+      const result = await stockroomWriteApi.updateSetting("taxCenter", (current) => {
+        const added = addBusinessExpense(current as Row | null, form, checked.amount, id.current, new Date(), prefill?.noteId, rates);
+        return receiptUrl ? attachReceipt(added, id.current, receiptUrl) : added;
+      });
       if (result.status === "saved" || result.status === "unchanged") {
+        // The email is cleared only now. If that fails it stays in the list, and adding it again asks first (same day, words, amount).
+        if (emailReceipt) await inbox.done(emailReceipt.id).catch(() => null);
         onSaved((result.value as Row) || {});
         const d = describeResult(result);
         setNote({ tone: d.tone, text: d.tone === "ok" && !result.merged ? `Logged: ${form.desc.trim()}.` : d.text });
@@ -150,12 +180,17 @@ export function LogExpenseCard({ taxCenter, onSaved, prefill, onPrefillDone, pag
               {(a) => <input {...a} value={form.ref} onChange={(e) => set({ ref: e.target.value })} />}
             </FormField>
           </FormSection>
-          <FormSection title="Receipt" description="A photo of it fills in the details for you.">
+          {emailReceipt ? (
+            <FormSection title="Receipt" description="From your email.">
+              <p className="rp-money-note">{emailReceipt.hasFile ? `${emailReceipt.fileName || "The attached file"} is kept as the receipt when you add this.` : "The email itself is kept as a PDF receipt when you add this."}</p>
+              {emailReceipt.snippet && <p className="rp-money-note">“{emailReceipt.snippet}…”</p>}
+            </FormSection>
+          ) : <FormSection title="Receipt" description="A photo of it fills in the details for you.">
             <button type="button" className="rp-fk-drop" onClick={() => photo.current?.click()} disabled={reading}>
               {reading ? "Reading the receipt…" : "Add a photo of the receipt"}
             </button>
             <input ref={photo} type="file" accept="image/*" capture="environment" hidden onChange={(e) => void readPhoto(e.target.files?.[0])} />
-          </FormSection>
+          </FormSection>}
         </FormPage>
         {note && <p className="rp-sr-save" data-tone={note.tone} role={note.tone === "error" ? "alert" : "status"}>{note.text}</p>}
         <StatusBar status={formStatus({ missing, create: true, verb: "add" })} primaryLabel="Add expense" busy={busy}
