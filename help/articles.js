@@ -34,8 +34,8 @@ export const ARTICLES = Object.freeze([
       "Fill in your own name, address and email under Settings › General. Every order email and shipping label shows them, and the law asks for them.",
       "Write your shipping, returns, privacy and terms pages. Each has a Start from our wording button, and your shop won't open until all four have words.",
       "Your returns page can say no to change-of-mind returns, but shoppers always keep their rights for faulty items. Shoppers in Europe and the United Kingdom can cancel within 14 days of delivery.",
-      "In Canada, register for GST/HST once your sales pass $30,000 over four quarters. Quebec and British Columbia have their own sales tax lines. Ask an accountant which apply to you.",
-      "Selling to the United States, Europe, the United Kingdom or Australia can bring its own sales tax or VAT once your sales there pass a line. Ask an accountant before you sell a lot there.",
+      "In Canada, register for GST/HST once your sales pass $30,000 over four quarters. Quebec and British Columbia have their own sales tax lines. In the United States, register for sales tax in your own state before you sell there; each other state has its own line of sales before you must register.",
+      "Selling to another country, such as Canada, the United States, Europe, the United Kingdom or Australia, can bring its own sales tax or VAT once your sales there pass a line. Check that country's line before you sell a lot there.",
       "Selling to shoppers in Quebec means your shop's pages, checkout and policies must also be in French. Your shop can translate its pages for you; check the wording before you rely on it.",
       "Send newsletters only to people who asked for them. Your sign-up form already asks them to confirm by email, and every newsletter has a way to stop.",
       "Your shop asks shoppers before it counts their visits. Leave the cookie banner on if you sell to Europe, the United Kingdom or Quebec.",
@@ -125,13 +125,13 @@ export const ARTICLES = Object.freeze([
     topic: "Getting started",
     question: "What goes in Your press, the first step?",
     answer: [
-      "Your press is the name, contact email and address that go on your receipts, labels and contact page. Fill in the press name, the contact email, the street address, the city, the postal code and the country.",
+      "Your press is the name, contact email and address that go on your receipts, labels and contact page. Fill in the press name, the contact email, the street address, the city, the postal or ZIP code and the country.",
       "Your changes are saved when you finish the step. You can change any of them later in Settings.",
     ],
     // The step keeps its name, Your press, for every shop, so the swap must not rename it.
     goods: {
       answer: [
-        "Your press is the step for your shop's name, contact email and address, which go on your receipts, labels and contact page. Fill in the shop name, the contact email, the street address, the city, the postal code and the country.",
+        "Your press is the step for your shop's name, contact email and address, which go on your receipts, labels and contact page. Fill in the shop name, the contact email, the street address, the city, the postal or ZIP code and the country.",
         "Your changes are saved when you finish the step. You can change any of them later in Settings.",
       ],
     },
@@ -301,8 +301,8 @@ export const ARTICLES = Object.freeze([
     topic: "Selling",
     question: "How do I set up sales tax?",
     answer: [
-      "Open Settings › Taxes and add the rates you're registered to collect, such as GST or HST. Checkout works out the tax from where each shopper is.",
-      "Not registered yet? Switch tax off there, and turn it on when you are. In Canada you register once your sales pass $30,000 over four quarters. Ask an accountant which rates apply to you.",
+      "Open Settings › Taxes and add the rates you're registered to collect, such as GST or HST in Canada, or your state's sales tax in the United States. Checkout works out the tax from where each shopper is.",
+      "Not registered yet? Switch tax off there, and turn it on when you are. In Canada you register once your sales pass $30,000 over four quarters. In the United States you register with your own state, and with another state once your sales there pass its line.",
     ],
     where: ["Settings › Taxes"],
     plans: ["shop"],
