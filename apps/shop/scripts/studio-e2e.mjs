@@ -14,7 +14,10 @@ import { join } from "node:path";
 let server;
 let base = process.env.STUDIO_URL;
 if (!base) {
-  server = await createServer({ server: { port: 0, strictPort: false }, logLevel: "error" });
+  // Find every package the app uses before the first check: on a machine with no Vite cache (CI), a package first met
+  // in the middle of a check (a lazily loaded editor) makes Vite rebuild and reload the page under the check.
+  server = await createServer({ server: { port: 0, strictPort: false }, logLevel: "error",
+    optimizeDeps: { entries: ["studio-fixture.html", "index.html", "src/**/*.{ts,tsx}", "!src/**/*.test.{ts,tsx}", "!src/**/*.bench.ts"] } });
   await server.listen();
   base = server.resolvedUrls.local[0].replace(/\/$/, "");
 }
