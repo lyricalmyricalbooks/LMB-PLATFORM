@@ -175,8 +175,8 @@ test("the Launch page says which keys are in place, never their values, and foll
   });
   const launch = await controls.launch(ADMIN);
   assert.ok(!JSON.stringify(launch).includes(secretValue));
-  assert.deepEqual(launch.keys.map((k) => [k.id, k.ready]), [["stripe", true], ["connect-events", false], ["billing-events", false], ["email", false], ["receipt-mail", false]]);
-  assert.deepEqual(launch.keys.map((k) => k.secret), ["stripe-platform-test-key", "stripe-connect-webhook-secret-test", "stripe-billing-webhook-secret", null, null]);
+  assert.deepEqual(launch.keys.map((k) => [k.id, k.ready]), [["stripe", true], ["connect-events", false], ["billing-events", false], ["email", false], ["receipt-mail", false], ["bank-feed", false]]);
+  assert.deepEqual(launch.keys.map((k) => k.secret), ["stripe-platform-test-key", "stripe-connect-webhook-secret-test", "stripe-billing-webhook-secret", null, null, null]);
   assert.equal(launch.keys.find((k) => k.id === "email").setting, 'GMAIL_SENDING: "on"');
   assert.equal(launch.keys.find((k) => k.id === "billing-events").events, "https://platform.example/api/billing/events");
   assert.equal(launch.keys.find((k) => k.id === "connect-events").events, "https://platform.example/api/payments/stripe/events");

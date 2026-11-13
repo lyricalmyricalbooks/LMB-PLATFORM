@@ -5,10 +5,12 @@ import {
   StatusBadge, TextField, useConfirm,
 } from "./riso/components";
 import { printBill } from "./billPaper";
+import "./addOns.css";
+import { PlaidLogo } from "./stockroom/PlaidLogo";
 import { hubReady, planDate, type PlatformPlan } from "./platformPlan";
 import {
-  BillingCallError, DROP_CHOICES, alertCents, priceWords, EMAIL_LANGUAGES, downloadableClosedApps, emailLanguageWords, planAddingBack, ADDRESS_COUNTRIES, appsInWords, billCoversWords, billState, billingCall, previewWords, statusBadge,
-  type Bill, type BillingDetails, type BillingStatus, type PaymentWayView, type PlanId, type PlanPreview, type SavedCard, type StatusAnswer, type UpcomingBill,
+  BillingCallError, DROP_CHOICES, alertCents, bankFeedBanksWords, bankFeedPriceWords, priceWords, EMAIL_LANGUAGES, downloadableClosedApps, emailLanguageWords, planAddingBack, ADDRESS_COUNTRIES, appsInWords, billCoversWords, billState, billingCall, previewWords, statusBadge,
+  type BankFeedAddOn, type Bill, type BillingDetails, type BillingStatus, type PaymentWayView, type PlanId, type PlanPreview, type SavedCard, type StatusAnswer, type UpcomingBill,
 } from "./platformBilling";
 
 // The billing hub inside the shop admin (code plan 22.3), where Shopify keeps it:
@@ -127,6 +129,40 @@ function RunningCostCard({ plan, usage, change }: { plan: Hub["plan"]; usage: No
   );
 }
 
+/**
+ * Add-ons: Bank feed (beta). Turning it on only opens Connect your bank in Bookkeeping; the charge is one line on the
+ * monthly bill for each calendar month it was on. Turning it off disconnects every bank at once (the platform does
+ * that itself, so nothing keeps costing), after a confirm that says so.
+ */
+function AddOnsCard({ plan, addOn, change }: { plan: Hub["plan"]; addOn: BankFeedAddOn; change: ReturnType<typeof useChange> }) {
+  const [confirm, dialog] = useConfirm();
+  const turnOn = async () => {
+    if (!(await confirm({ title: "Add the bank feed?", message: `${bankFeedPriceWords(addOn)} You're billed after each calendar month a bank was connected, on your plan's bill. Nothing during your free trial. You can turn it off any time.`, confirmLabel: "Add bank feed" }))) return;
+    await change.run("add-on", () => billingCall(plan, "add-on", { addOn: "bank-feed", on: true }));
+  };
+  const turnOff = async () => {
+    if (!(await confirm({ title: "Turn off the bank feed?", message: `${addOn.banks ? `Your ${addOn.banks === 1 ? "bank is" : "banks are"} disconnected right away and new transactions stop arriving. ` : ""}What you already matched stays in your records. A month with a bank connected is the last one billed.`, confirmLabel: "Turn off" }))) return;
+    await change.run("add-on", () => billingCall(plan, "add-on", { addOn: "bank-feed", on: false }));
+  };
+  return (
+    <SectionCard title="Add-ons" description="Extras you can add to your plan and take off any time." collapsible={false}>
+      <div className="rp-addon" data-add-on="bank-feed" data-on={addOn.on ? "" : undefined}>
+        <div className="rp-addon-text">
+          <strong className="rp-addon-name">Bank feed <span className="rp-beta">Beta</span> <span className="rp-addon-by">with <PlaidLogo /></span></strong>
+          <span>Your bank’s transactions in Bookkeeping through Plaid, matched to your payouts and expenses.</span>
+          <span className="rp-hint">{addOn.on ? `${bankFeedBanksWords(addOn)} · ${bankFeedPriceWords(addOn)}` : bankFeedPriceWords(addOn)}</span>
+        </div>
+        <div className="rp-addon-actions">
+          {addOn.on
+            ? <><StatusBadge tone="success">On</StatusBadge><a className="rp-btn rp-btn-secondary rp-btn-sm" href="#stockroom/reconcile">Open bank feed</a><SecondaryButton size="sm" busy={change.busy === "add-on"} onClick={() => void turnOff()}>Turn off</SecondaryButton></>
+            : <PrimaryButton busy={change.busy === "add-on"} onClick={() => void turnOn()}>Add bank feed</PrimaryButton>}
+        </div>
+      </div>
+      {dialog}
+    </SectionCard>
+  );
+}
+
 /** Settings › Plan. */
 export function PlanPage({ plan }: Hub) {
   const { answer, error, load } = useBillingStatus(plan);
@@ -224,6 +260,8 @@ export function PlanPage({ plan }: Hub) {
               <p className="rp-hint" style={{ margin: "8px 0 0" }}>Same fee. Happens on its own overnight if you'd rather wait.</p></div>}
         </SectionCard>
       )}
+
+      {!ended && billing.addOns?.bankFeed && <AddOnsCard plan={plan} addOn={billing.addOns.bankFeed} change={change} />}
 
       {way && (
         <SectionCard title={way.title} collapsible={false}>

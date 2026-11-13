@@ -1,0 +1,11 @@
+/* Settings › Plan › Add-ons: one row per add-on (name, a line, the price; its button on the right). Tokens only. */
+.rp-addon { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--rp-space-3) var(--rp-space-5); padding: var(--rp-space-4); border-radius: var(--rp-radius, 16px); background: var(--rp-surface-2); }
+.rp-addon[data-on] { background: var(--rp-tile-mint, var(--rp-surface-2)); color: var(--rp-on-tile, var(--rp-text)); }
+.rp-addon[data-on] .rp-hint { color: inherit; }
+.rp-addon-text { display: grid; gap: 4px; min-width: 0; flex: 1 1 280px; }
+.rp-addon-name { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: var(--rp-text-lg, 18px); }
+.rp-addon-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rp-space-2); }
+.rp-beta { padding: 3px 9px; border-radius: 999px; background: var(--rp-tile-lilac, var(--rp-surface-2)); color: var(--rp-on-tile, var(--rp-text)); font: 600 var(--rp-text-xs)/1.2 var(--rp-font-mono, monospace); letter-spacing: .08em; text-transform: uppercase; }
+.rp-addon-by, .rp-bf-by { display: inline-flex; align-items: center; gap: 6px; font: 400 var(--rp-text-sm)/1 var(--rp-font-body, inherit); letter-spacing: 0; text-transform: none; color: var(--rp-text-muted, inherit); }
+.rp-addon-by .rp-plaid, .rp-bf-by .rp-plaid { color: var(--rp-text); display: block; }
+.rp-addon[data-on] .rp-addon-by, .rp-addon[data-on] .rp-addon-by .rp-plaid { color: inherit; }

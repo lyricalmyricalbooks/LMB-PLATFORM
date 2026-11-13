@@ -1833,6 +1833,10 @@ const { handleGoogleConnect } = googleConnectActions({ url: shopConfig.platformG
 // Settings › Apps: installed apps, the store and Remove, through the platform's app store door (appsLink.js, plan 26.5).
 const { handleApps } = appsLinkActions({ url: shopConfig.platformAppsUrl, shopId: platformShopId, serviceKey: platformServiceKey, requireAdmin, requireOwner });
 
+// Bookkeeping › Transactions › Bank feed (beta, a paid add-on, bankFeed.js): the shop's bank transactions through the
+// platform's bank door (Plaid, read-only). The bookkeeper may look; connecting and deciding are the admin's.
+const bankFeed = require("./bankFeed").bankFeedActions({ url: shopConfig.platformBankFeedUrl, shopId: platformShopId, serviceKey: platformServiceKey, requireAdmin, requireBooksReader, db });
+
 // Bookkeeping › Receipts › Receipts by email (beta, receiptInbox.js): the shop's own receipts address, through the
 // platform's receipts door. Each forwarded email is read by the shop's AI (task receiptEmail) and waits for the owner.
 const receiptInbox = require("./receiptInbox").receiptInboxActions({
@@ -1965,6 +1969,7 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   googleConnect: handleGoogleConnect,
   apps: handleApps,
   receiptInbox: receiptInbox.handleReceiptInbox,
+  bankFeed: bankFeed.handleBankFeed,
   bookkeeping: handleBookkeeping,
   social: handleSocial,
   practiceCheckout: handlePracticeCheckout,
@@ -4608,6 +4613,12 @@ exports.inventoryLinkSweep = onSchedule({ schedule: "every 5 minutes", name: "in
 exports.receiptInboxSweep = onSchedule({ schedule: "every 15 minutes", name: "receiptInboxSweep", timeoutSeconds: 300, secrets: withPlatformKey([]) }, async () => {
   if (!shopConfig.platformReceiptsUrl) return;
   await receiptInbox.sweepReceiptInbox();
+});
+
+// Bank feed (beta): collects new bank transactions for shops with a bank connected.
+exports.bankFeedSweep = onSchedule({ schedule: "every 3 hours", name: "bankFeedSweep", timeoutSeconds: 300, secrets: withPlatformKey([]) }, async () => {
+  if (!shopConfig.platformBankFeedUrl) return;
+  await bankFeed.sweepBankFeed();
 });
 
 // Social posts whose time has come (plan 27.4): each is claimed, then sent once to each of its places.

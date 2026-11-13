@@ -19,6 +19,7 @@ import { sheetsStore } from "../app/admin/stockroom/sheetsStore";
 import { nightlyBackupApi } from "../app/admin/BackupsExportCard";
 import { copiesIO, readManifest, snapshotOf } from "../app/admin/stockroom/stockroomCopies";
 import { receiptInboxApi, type InboxView, type WaitingReceipt } from "../app/admin/stockroom/receiptInboxApi";
+import { bankFeedApi, type BankLine, type BankView } from "../app/admin/stockroom/bankFeedApi";
 
 // Stockroom › To-do: two titles, one nearly sold out and one with nothing waiting (`?stock=empty`: nothing at all).
 // Read at load: the fixture puts the address back to the page it opens, so later reads would miss it.
@@ -73,6 +74,46 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
   receiptInboxApi.file = async () => new File(["%PDF-1.4"], "receipt.pdf", { type: "application/pdf" });
 }
 
+// ── Bookkeeping › Transactions › Bank feed (beta, a paid add-on): `?bank=soon|off|connect|signin|empty` (default: one
+// bank, seven lines to review). In memory; Connect your bank answers at once, with no bank window. ──
+{
+  const mode = new URLSearchParams(window.location.search).get("bank") || "on";
+  const bank = { id: "bank-1", name: "Example Bank", accounts: ["Chequing ••4417", "Savings ••9020"], connectedAt: "2026-11-10T14:00:00.000Z", needsSignIn: mode === "signin" };
+  const day = (ago: number) => new Date(Date.now() - ago * 86_400_000).toLocaleDateString("en-CA");
+  const line = (id: string, ago: number, cents: number, name: string, extra: Partial<BankLine> = {}): BankLine => ({ id, bankId: "bank-1", date: day(ago), cents, currency: "CAD", name, account: "Chequing ••4417", ...extra });
+  // The sample payouts' own amounts, a day after each was sent, so they match; then costs: one already logged with its
+  // receipt, one a sorting rule knows, one new, and one the bank hasn't settled.
+  const sample = async (): Promise<BankLine[]> => {
+    const { reconcileModel } = await import("../app/admin/stockroom/reconcileModel");
+    const { getOrdersCached } = await import("../app/admin/ordersCache");
+    const payouts = reconcileModel(await getOrdersCached().catch(() => [])).payouts.filter((p) => p.date).slice(0, 2);
+    return [
+      line("t7", 0, -1820, "EXAMPLE POST #4471 TORONTO", { pending: true }),
+      line("t6", 1, -1695, "CANVA* 02913-88112"),
+      line("t5", 2, 11250, "E-TRANSFER FROM A. EXAMPLE"),
+      line("t4", 2, -41250, "EXAMPLE PRINT CO"),
+      line("t3", 3, -6400, "PAPER SUPPLY EXAMPLE"),
+      ...payouts.map((p, i) => ({ ...line(`p${i}`, 0, p.netCents, "STRIPE PAYOUT"), date: new Date(Date.parse(`${p.date}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10) })),
+    ];
+  };
+  let waiting: BankLine[] = [];
+  let view: BankView = {
+    available: mode !== "soon", addOn: { on: mode !== "soon" && mode !== "off", price: "CA$4", extraPrice: "CA$1.50", included: 2 },
+    banks: mode === "on" || mode === "signin" || mode === "empty" ? [bank] : [], checkedAt: new Date(Date.now() - 6 * 60000).toISOString(),
+    waiting: [], matches: [],
+  };
+  let filled = false;
+  const set = (patch: Partial<BankView>) => (view = { ...view, ...patch });
+  bankFeedApi.status = async () => {
+    if (!filled) { filled = true; waiting = await sample(); if (mode === "on" || mode === "signin") set({ waiting }); }
+    return view;
+  };
+  bankFeedApi.check = async () => set({ checkedAt: new Date().toISOString() });
+  bankFeedApi.connect = async (bankId) => (bankId ? set({ banks: view.banks.map((b) => ({ ...b, needsSignIn: false })) }) : set({ banks: [...view.banks, view.banks.length ? { ...bank, id: `bank-${view.banks.length + 1}`, name: "Example Credit Union", accounts: ["Business ••1203"], needsSignIn: false } : bank], waiting: view.banks.length ? view.waiting : waiting }));
+  bankFeedApi.disconnect = async (bankId) => set({ banks: view.banks.filter((b) => b.id !== bankId), waiting: view.waiting.filter((l) => l.bankId !== bankId) });
+  bankFeedApi.decide = async (matches) => set({ waiting: view.waiting.filter((l) => !matches.some((m) => m.lineId === l.id)), matches: [...view.matches, ...matches] });
+}
+
 // --- Stockroom money pages (Tax centre, Expenses, Ask about your sales): sample records, only for those pages ---
 if (/page=stockroom(\/|%2F)(tax[a-z]+|expenses|intel|books|reconcile|receipts|artists)/.test(window.location.search) && !EMPTY_STOCKROOM) {
   stockroomApi.load = async (): Promise<StockroomRecords> => ({
@@ -110,7 +151,10 @@ if (/page=stockroom(\/|%2F)(tax[a-z]+|expenses|intel|books|reconcile|receipts|ar
         { id: 32, date: "2026-06-12", desc: "Team lunch", cat: "Meals & Entertainment", amount: 80, currency: "CAD", baseAmount: 80, trip: "Toronto Book Fair" },
         { id: 33, date: "2026-08-02", desc: "Mailing supplies", cat: "Supplies", amount: 40, currency: "USD", baseAmount: 54 },
         { id: 34, date: "2025-09-09", desc: "Website hosting", cat: "Software", amount: 20, currency: "CAD", baseAmount: 20 },
+        // Bank feed (beta): the print run the sample bank line matches, logged with its receipt two days ago.
+        { id: 35, date: new Date(Date.now() - 3 * 86_400_000).toLocaleDateString("en-CA"), desc: "Print run, 200 copies", vendor: "Example Print Co.", cat: "Printing & Production", amount: 412.5, currency: "CAD", origCurrency: "CAD", origAmount: 412.5, baseAmount: 412.5, receipt: "cloud://receipts/print-run-2.pdf" },
       ],
+      expenseRules: [{ id: "rule-canva", match: "Canva", cat: "Software & Subscriptions", createdAt: "2026-10-01T12:00:00.000Z" }],
       recurring: [{ id: "r1", desc: "Website hosting", vendor: "Host Example", cat: "Software", amount: 20, currency: "CAD", frequency: "monthly", startDate: "2026-01-01", day: 1 }],
     },
   });
@@ -834,9 +878,12 @@ let helperShown = false;
       next({ state: "active", access: "open", plan: "both", hasCard: true, hub: HUB, shopId: "test-press", link: "https://platform.example/account/billing?shop=test-press", cancelAtPeriodEnd: sample === "cancelled", endsAt: sample === "cancelled" ? "2026-12-12T12:00:00Z" : null });
       return () => {};
     };
-    let billing: any = { plan: "both", planName: "Colophon", price: "$5.00", plusTax: true, status: "active", access: "open", cancelAtPeriodEnd: sample === "cancelled",
+    let billing: any = { plan: "both", planName: "Colophon", price: "$5.00", plusTax: true, plans: [{ plan: "both", name: "Colophon", price: "$5.00", apps: ["shop", "stockroom"] }], status: "active", access: "open", cancelAtPeriodEnd: sample === "cancelled",
       currentPeriodEnd: "2026-12-12T12:00:00Z", nextPaymentAt: sample === "cancelled" ? null : "2026-12-12T12:00:00Z", hasCard: true, paymentWay: "monthly",
-      card: { brand: "visa", last4: "4242", expMonth: 12, expYear: 2030, words: "Visa ending 4242" } };
+      card: { brand: "visa", last4: "4242", expMonth: 12, expYear: 2030, words: "Visa ending 4242" },
+      // The bank feed add-on (beta): `&bankaddon=on` shows it turned on with two banks, `&bankaddon=none` hides it.
+      addOns: new URLSearchParams(location.search).get("bankaddon") === "none" ? undefined
+        : { bankFeed: { on: new URLSearchParams(location.search).get("bankaddon") === "on", price: "CA$4", extraPrice: "CA$1.50", included: 2, banks: new URLSearchParams(location.search).get("bankaddon") === "on" ? 2 : 0, plusTax: true } } };
     const answers: Record<string, () => unknown> = {
       status: () => ({ billing, accountPage: "https://platform.example/account/", changesNeedTwoStep: false }),
       cancel: () => { billing = { ...billing, cancelAtPeriodEnd: true, nextPaymentAt: null }; return {}; },
@@ -846,6 +893,7 @@ let helperShown = false;
       invoices: () => ({ invoices: [{ id: "in_1", number: "COL-0001", date: "2026-11-12T12:00:00Z", amount: "$8.36", tax: "$0.96", status: "paid", pdfUrl: null, pageUrl: null }], more: false, after: null }),
       details: () => ({ details: { name: "Test Press", email: "owner@example.com", address: null, taxNumber: "", taxLabel: "GST/HST", plusTax: true, country: "CA" } }),
       "payment-way": () => ({ view: null }),
+      "add-on": () => { const now = billing.addOns.bankFeed; billing = { ...billing, addOns: { bankFeed: { ...now, on: !now.on, banks: 0 } } }; return {}; },
     };
     const realFetch = window.fetch.bind(window);
     window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {

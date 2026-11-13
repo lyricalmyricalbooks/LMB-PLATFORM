@@ -37,6 +37,8 @@ import { appInstallPublicRoutes, appInstallRoutes, appMakerRoutes, appShopDoorRo
 import { createAppShopDoor } from "../services/apps/shopDoor.js";
 import { createReceiptMail, receiptShopDoorRoutes } from "../services/receipts/index.js";
 import { fakeReceiptGmail } from "../services/receipts/fakes.js";
+import { bankFeedShopDoorRoutes, createBankFeed } from "../services/bankfeed/index.js";
+import { fakePlaid } from "../services/bankfeed/fakes.js";
 import { fakeAppAlertStores, fakeAppInstallStores, fakeAppStore, fakeChitChatsStores, fakeMailchimpStores } from "../services/apps/fakes.js";
 import { createRecovery, recoveryByHand } from "../accounts/recovery.js";
 import { recoveryRoutes } from "../accounts/recoveryRoutes.js";
@@ -161,6 +163,8 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const email = practicePlatformEmail({ env: settingsEnv, registry, now: clock.date });
   // Receipts by email (services/receipts), on a pretend mailbox.
   const receiptMail = createReceiptMail({ env: { ...settingsEnv, RECEIPT_MAIL: "on", GMAIL_ACCOUNT: "platform-mail@lmb-platform-prod.iam.gserviceaccount.com" }, fetch: fakeReceiptGmail().fetch, token: async () => "practice", registry, auditLog, now: clock.date });
+  // The bank feed add-on (services/bankfeed), on a pretend Plaid.
+  const bankFeed = createBankFeed({ env: { ...settingsEnv, BANK_FEED: "on", PLAID_CLIENT_ID: "plaid-client", PLAID_SECRET: "plaid-sandbox-secret", BANK_FEED_TOKEN_KEY: Buffer.alloc(32, 7).toString("base64") }, fetch: fakePlaid().fetch, registry, auditLog, now: clock.date });
   const closed = [];
   const billingDeps = {
     stripe: createStripeApi({ fetch: stripe.fetch, keys: { test: "sk_test_fake", live: null } }),
@@ -332,7 +336,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...frontDoorRoutes(frontDoor),
     ...accountRoutes(accounts),
     ...deletionRoutes(deletion),
-    ...billingRoutes({ billing, paymentWay, accounts, registry, auditLog, settings, now: clock.date }),
+    ...billingRoutes({ billing, paymentWay, bankFeed, accounts, registry, auditLog, settings, now: clock.date }),
     ...controlRoutes(room),
     ...platformRoutes(controls),
     ...emergencyRoutes(backup),
@@ -375,7 +379,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...exportRoutes(dataExports),
   };
   const door = createApi({
-    signup, verifyIdToken: fakeVerifyIdToken, settings, live, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls), ...appShopDoorRoutes(createAppShopDoor({ registry, installs: appInstalls, makers: appMakers })), ...receiptShopDoorRoutes(receiptMail), ...chitChatsPublicRoutes(chitchats), ...mailchimpPublicRoutes(mailchimp) },
+    signup, verifyIdToken: fakeVerifyIdToken, settings, live, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls), ...appShopDoorRoutes(createAppShopDoor({ registry, installs: appInstalls, makers: appMakers })), ...receiptShopDoorRoutes(receiptMail), ...bankFeedShopDoorRoutes(bankFeed), ...chitChatsPublicRoutes(chitchats), ...mailchimpPublicRoutes(mailchimp) },
     // Fair-use limits (19.5) on an in-memory counter, a hundred times the real ones so a person clicking never meets them.
     limits: createLimits({ throttle: fakeThrottle(), admins, limits: generousLimits(), now: clock.date, log: () => {} }),
     log: () => {},

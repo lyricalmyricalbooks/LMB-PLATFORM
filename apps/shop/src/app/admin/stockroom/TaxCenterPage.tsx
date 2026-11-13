@@ -21,6 +21,7 @@ import { EmailReceipts } from "./EmailReceipts";
 import type { WaitingReceipt } from "./receiptInboxApi";
 import { ArtistPayouts } from "./ArtistPayouts";
 import { ReconcileView } from "./ReconcilePage";
+import { BankFeed } from "./BankFeed";
 import { yearFigures, yearReportCsv } from "./yearReport";
 import type { NativePageProps } from "./nativePages";
 import { RecordsGate } from "./RecordsGate";
@@ -236,6 +237,8 @@ export function TaxCenterView({ records, now, onTaxCenter, onState, orders: give
           {Array.isArray(loaded) && <CardFeesCard orders={loaded} year={year} taxCenter={records.taxCenter as Record<string, any> | null} onSaved={onTaxCenter} />}
         </>}
         {part === "transactions" && <>
+          {/* Bank feed (beta, a paid add-on): the bank's lines to review, above the payouts they are matched to. */}
+          <BankFeed orders={Array.isArray(loaded) ? loaded : []} taxCenter={records.taxCenter as Record<string, any> | null} onTaxCenter={onTaxCenter} />
           {Array.isArray(loaded) ? <ReconcileView orders={loaded} /> : <p className="rp-money-note" role="status">{loaded === "loading" ? "Reading your payouts…" : "Couldn't read your payouts."}</p>}
           {rateNote}
           {ledgerCard}

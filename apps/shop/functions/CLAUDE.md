@@ -1150,3 +1150,20 @@ receipt; state is `receiptInboxState/main`. No rule opens either to the browser.
 - `done` bins the email on the platform; when that fails the entry stays hidden (`state: "done"`) so it is never
   collected twice, and the next check bins it. Gmail's forwarding-confirmation email becomes `gmailCode` for the setup steps.
 - Tests: `receiptInbox.test.js` (fake door and Firestore).
+
+## Bank feed (beta, a paid add-on, 13 November 2026)
+
+`bankFeed.js` (action `bankFeed`, steps `status | linkToken | connect | signedIn | check | decide | disconnect`) and the
+3-hourly `bankFeedSweep` bring the shop's bank transactions from the platform's bank door (`PLATFORM_BANK_FEED_URL`,
+LMB-PLATFORM `services/bankfeed`, Plaid, read-only; unset: `available: false` and the page says "Opening soon"). The
+bank's sign-in and the key that reads it never reach the shop. `status` is open to the bookkeeper
+(`requireBooksReader`); every other step is the admin's.
+- Kept server-only (no rule opens them): `bankFeedState/main` (`cursors` per bank, `checkedAt`) and `bankFeed/{lineId}`
+  (`state: "waiting"` until decided, then `payout | expense | added | skipped` with `ref`). Lines are saved before the
+  cursor, so a failed save is read again; a decided line keeps its decision when the bank re-sends it and is let go
+  after half a year. A pending line can't be decided; when it settles under a new id the pending one is removed.
+- **Nothing here writes an expense or moves money.** The page adds the expense (after the owner looked), then `decide`
+  marks the line `added` with that expense's id.
+- The add-on itself (on, off, price, the bill) is the platform's: Settings › Plan calls the billing door's `add-on`.
+  With the add-on off the platform answers no banks, and `view` shows no lines.
+- Tests: `bankFeed.test.js` (fake door and Firestore).

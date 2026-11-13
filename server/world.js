@@ -73,6 +73,7 @@ import { createAppAlerts } from "../services/apps/alerts.js";
 import { appInstallPublicRoutes, appInstallRoutes, appMakerRoutes, appShopDoorRoutes, appStorePublicRoutes } from "../services/apps/routes.js";
 import { createAppShopDoor } from "../services/apps/shopDoor.js";
 import { createReceiptMail, receiptShopDoorRoutes } from "../services/receipts/index.js";
+import { bankFeedShopDoorRoutes, createBankFeed } from "../services/bankfeed/index.js";
 import { createRecovery, recoveryByHand } from "../accounts/recovery.js";
 import { recoveryRoutes } from "../accounts/recoveryRoutes.js";
 import { deviceWatch } from "../accounts/devices.js";
@@ -221,6 +222,8 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
 
   // Receipts by email (beta): each shop's own receipts address on the platform mailbox (services/receipts).
   const receiptMail = createReceiptMail({ env, fetch, token, registry, auditLog, now });
+  // Bank feed (beta, a paid add-on): each shop's banks through Plaid, read-only (services/bankfeed).
+  const bankFeed = createBankFeed({ env, fetch, registry, auditLog, plusTax: readBillingConfig(env).tax, now });
 
   // Billing on Stripe's test mode (services/payments alone reads the key).
   const billingStores = firestoreBillingStores(platform);
@@ -446,7 +449,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const termsNotice = createTermsNotice({ signups: stores.signups, email, settings: live, now });
 
   // What the jobs can run (server/jobs.js reads these); the jobs page's "Run now" runs the ones that need nothing more.
-  const parts = { sharedShops: Boolean(sharedRun), accounting, social, googleLink, domains, usage, usageMeters, costReader, ownApps, chitchats, chitchatsStores, mailchimp, env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups, termsNotice };
+  const parts = { bankFeed, sharedShops: Boolean(sharedRun), accounting, social, googleLink, domains, usage, usageMeters, costReader, ownApps, chitchats, chitchatsStores, mailchimp, env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups, termsNotice };
   const runNow = {
     "dropped-apps": () => billing.closeDroppedApps(),
     "every-app": () => billing.giveEveryApp(),
@@ -471,7 +474,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...frontDoorRoutes(frontDoor),
     ...accountRoutes(accounts),
     ...deletionRoutes(deletion),
-    ...billingRoutes({ billing, paymentWay, accounts, registry, auditLog, settings, now }),
+    ...billingRoutes({ billing, paymentWay, bankFeed, accounts, registry, auditLog, settings, now }),
     ...controlRoutes(room),
     ...platformRoutes(controls),
     ...emergencyRoutes(backup),
@@ -511,7 +514,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...exportRoutes(dataExports),
   };
   const door = createApi({
-    signup, verifyIdToken: createIdTokenVerifier({ projectId, fetch, now: nowMs }), settings, live, plusTax: readBillingConfig(env).tax, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls), ...appShopDoorRoutes(createAppShopDoor({ registry, installs: appInstalls, makers: appMakers })), ...receiptShopDoorRoutes(receiptMail), ...chitChatsPublicRoutes(chitchats), ...mailchimpPublicRoutes(mailchimp) },
+    signup, verifyIdToken: createIdTokenVerifier({ projectId, fetch, now: nowMs }), settings, live, plusTax: readBillingConfig(env).tax, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls), ...appShopDoorRoutes(createAppShopDoor({ registry, installs: appInstalls, makers: appMakers })), ...receiptShopDoorRoutes(receiptMail), ...bankFeedShopDoorRoutes(bankFeed), ...chitChatsPublicRoutes(chitchats), ...mailchimpPublicRoutes(mailchimp) },
     onSignedIn: deviceWatch({ devices: firestoreDevices(platform), email, now }),
     limits: createLimits({ throttle: firestoreThrottle(platform), admins, proxyHops: proxyHopsOf(env), now, log }),
     log,
@@ -520,7 +523,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   // The billing hub inside each shop's admin (22.3): signed in to the shop's own project, one sign-in check per project.
   const shopVerifiers = new Map();
   const shopBilling = createShopBillingDoor({
-    billing, paymentWay, exports: dataExports, accounts, registry, auditLog, settings, now, log,
+    billing, paymentWay, exports: dataExports, bankFeed, accounts, registry, auditLog, settings, now, log,
     limits: createLimits({ throttle: firestoreThrottle(platform), admins, proxyHops: proxyHopsOf(env), now, log }),
     verifierFor: (shopProject) => {
       if (!shopVerifiers.has(shopProject)) shopVerifiers.set(shopProject, createIdTokenVerifier({ projectId: shopProject, fetch, now: nowMs }));

@@ -14,6 +14,7 @@ import { realHealth } from "../services/health/run.js";
 import { realRetention } from "../services/retention/run.js";
 import { runBusinessNightly } from "../control-room/nightly.js";
 import { runRunningCosts } from "../services/billing/runningCostJob.js";
+import { runBankFeed } from "../services/bankfeed/index.js";
 import { weeklyDeletionNote } from "../control-room/deletionNote.js";
 import { weeklySummary } from "../control-room/weeklySummary.js";
 import { switchNote } from "../control-room/switchNote.js";
@@ -48,6 +49,8 @@ export const RUNNERS = Object.freeze({
   "running-costs": ({ billing, parts }) => (parts?.costReader?.configured || parts?.usageMeters
     ? () => runRunningCosts({ billing, registry: parts.registry, meters: parts.usageMeters ?? null, reader: parts.costReader ?? null, now: parts.now })
     : notConnectedFn(NOT_CONNECTED.runningCosts)),
+  // The bank feed add-on: disconnect paused and closed shops' banks, and bill last month (services/bankfeed).
+  "bank-feed": ({ billing, parts }) => () => runBankFeed({ bankFeed: parts.bankFeed, billing, now: parts.now }),
   "trial-tips": ({ trialTips }) => (trialTips ? () => trialTips.run() : notConnectedFn(NOT_CONNECTED.trialTips)),
   "shop-checkup": ({ checkups }) => (checkups ? () => checkups.run() : notConnectedFn(NOT_CONNECTED.checkups)),
   // QuickBooks: warns each owner 30 days before their connection ends (services/accounting nightly()). The sales

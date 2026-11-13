@@ -82,7 +82,7 @@ test("the shared server's settings are the platform's doors and the region, and 
     'SHOP_PAYMENT_MODE="platform"', `SHOP_PAYMENTS_SERVICE_URL="${PLATFORM}/api/payments"`, 'SHOP_FUNCTIONS_REGION="northamerica-northeast1"',
     `PLATFORM_EMAIL_URL="${PLATFORM}/api/email/shop"`, `PLATFORM_DOMAINS_URL="${PLATFORM}/api/domains"`,
     `PLATFORM_GOOGLE_URL="${PLATFORM}/api/google"`, `PLATFORM_APPS_URL="${PLATFORM}/api/apps"`,
-    `PLATFORM_ACCOUNTING_URL="${PLATFORM}/api/accounting"`, `PLATFORM_SOCIAL_URL="${PLATFORM}/api/social"`, `PLATFORM_RECEIPTS_URL="${PLATFORM}/api/receipts"`, "",
+    `PLATFORM_ACCOUNTING_URL="${PLATFORM}/api/accounting"`, `PLATFORM_SOCIAL_URL="${PLATFORM}/api/social"`, `PLATFORM_RECEIPTS_URL="${PLATFORM}/api/receipts"`, `PLATFORM_BANK_FEED_URL="${PLATFORM}/api/bank-feed"`, "",
   ].join("\n"));
   const { SHOP_KEYS } = createRequire(import.meta.url)("../../apps/shop/functions/shopConfig.js");
   for (const key of SHOP_KEYS.filter((k) => k !== "SHOP_PAYMENT_MODE")) assert.ok(!env.includes(`${key}=`), `${key} is each shop's own, in its record`);
