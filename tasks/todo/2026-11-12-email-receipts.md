@@ -52,4 +52,14 @@ Until then shops see the card with "Opening soon".
 
 ## Review
 
-(filled in at the end)
+Built as planned: each shop gets its own receipts address on Colophon's mailbox (no Gmail sign-in, no mailbox scan),
+the shop's server collects and reads what is forwarded, and Bookkeeping > Receipts shows it waiting. An expense is only
+ever added on the Log expense page after the owner has looked; the email's file is kept first and attached in the same
+save. Proof: platform tests (services/receipts, control room, settings, world), shop server tests
+(functions/receiptInbox.test.js), admin tests (EmailReceipts.test.tsx), typecheck, lint, build, and fixture screenshots
+at desktop and phone width (/mnt/project-files/email-receipts/).
+
+Not proven here: the real Google mailbox. Reading it was only run against a pretend Google, so the first real forward
+after Julian's three steps is the real test (plus-address search, spam folder, Gmail's confirmation email wording).
+Left for later: several attachments on one email (the best one is kept), receipts in other languages, a count of
+waiting receipts on Home.

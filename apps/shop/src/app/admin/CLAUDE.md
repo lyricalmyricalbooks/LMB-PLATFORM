@@ -940,3 +940,11 @@ Analytics is split into the v4 pages Overview · Traffic · Books/Products · Ch
 **Payments page (12 November 2026):** `payouts` (`stockroom/PaymentsPage.tsx`, pure `paymentsModel.ts`) is off the
 Bookkeeping menu since the Tax centre + Bookkeeping mockup but still opens from links: payouts paid out and pending,
 payment links open and Pay by QR and links. Read-only.
+
+**Receipts by email (beta, 12 November 2026):** Bookkeeping › Receipts opens with `stockroom/EmailReceipts.tsx` (API and
+pure words in `receiptInboxApi.ts`, server `functions/receiptInbox.js`): Opening soon / off (Get my receipts address) / on
+(the address with Copy, Check now, ⋯ How it works · Get a new address · Turn off, Gmail's forwarding code, the waiting
+receipts). **Check and add** opens the Log expense page with `emailReceipt` (`LogExpenseCard`): the email's file is kept
+first, the expense is saved with it attached in one write, then the email is cleared; a failed file adds nothing. Not a
+port of the old Gmail receipt finder (Julian didn't like it): no Gmail sign-in, no scanning a mailbox. Fixture:
+`admin-fixture.html?page=stockroom/receipts` (`&receipts=off|soon|code`).

@@ -17,6 +17,8 @@ import { TaxTop } from "./TaxTop";
 import { taxPeriods, yearPeriods } from "./taxPeriods";
 import { moneyYears, useMoneyYear, YearSwitch } from "./YearSwitch";
 import { ReceiptsGrid } from "./ReceiptsGrid";
+import { EmailReceipts } from "./EmailReceipts";
+import type { WaitingReceipt } from "./receiptInboxApi";
 import { ArtistPayouts } from "./ArtistPayouts";
 import { ReconcileView } from "./ReconcilePage";
 import { yearFigures, yearReportCsv } from "./yearReport";
@@ -126,6 +128,8 @@ export function TaxCenterView({ records, now, onTaxCenter, onState, orders: give
   // v4 Costs to log: "Log an expense" in the header opens the New expense page (so does Confirm on a waiting cost).
   const [adding, setAdding] = useState(false);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  // Receipts by email (beta): the emailed receipt being checked on the Log expense page.
+  const [emailReceipt, setEmailReceipt] = useState<WaitingReceipt | null>(null);
   const ownPage = (part === "costs" || BOOK_PARTS.includes(part)) && !!onTaxCenter;
   const model = useMemo(() => taxCenterModel(sources, year, now), [sources, year, now]);
   const cur = model.baseCurrency;
@@ -141,11 +145,11 @@ export function TaxCenterView({ records, now, onTaxCenter, onState, orders: give
   const download = () => { const file = ledgerCsvFile(shown, cur, now); downloadCsv(file.text, file.name); };
 
   if (ownPage && (adding || confirming)) {
-    const done = () => { setAdding(false); setConfirming(null); setPhotoFile(null); };
+    const done = () => { setAdding(false); setConfirming(null); setPhotoFile(null); setEmailReceipt(null); };
     return (
       <div className="rp-money">
-        <PageHead title="Log an expense" description="Money that went out of the business" back={{ label: part === "costs" ? "Costs to log" : "Bookkeeping", onClick: done }} />
-        <LogExpenseCard page taxCenter={records.taxCenter} prefill={confirming} onCancel={done} photoFile={photoFile}
+        <PageHead title={emailReceipt ? "Check this receipt" : "Log an expense"} description={emailReceipt ? "Read from your email. Nothing is added until you say so." : "Money that went out of the business"} back={{ label: part === "costs" ? "Costs to log" : part === "receipts" ? "Receipts" : "Bookkeeping", onClick: done }} />
+        <LogExpenseCard page taxCenter={records.taxCenter} prefill={confirming} onCancel={done} photoFile={photoFile} emailReceipt={emailReceipt}
           onSaved={(taxCenter) => { onTaxCenter!(taxCenter); done(); }} />
       </div>
     );
@@ -238,6 +242,7 @@ export function TaxCenterView({ records, now, onTaxCenter, onState, orders: give
           {onTaxCenter && <SortingRulesCard taxCenter={records.taxCenter} onSaved={onTaxCenter} />}
           <TripsCard trips={model.trips as TripRow[]} taxCenter={records.taxCenter as Record<string, any> | null} money={money} baseCurrency={cur} onSaved={onTaxCenter} />
         </>}
+        {part === "receipts" && <EmailReceipts baseCurrency={cur} onReview={onTaxCenter ? (r) => { setEmailReceipt(r); setAdding(true); } : undefined} />}
         {part === "receipts" && <ReceiptsGrid records={records} year={year} onSaved={onTaxCenter}
           onPhoto={onTaxCenter ? (file) => { setPhotoFile(file); setAdding(true); } : undefined} />}
         {part === "artists" && <ArtistPayouts records={records} onOpenBook={onOpen ? (bookId) => onOpen("dashboard", { bookId }) : undefined} />}
