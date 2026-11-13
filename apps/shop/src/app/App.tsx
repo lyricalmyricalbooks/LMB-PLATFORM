@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-ro
 import { ScrollToTop } from "./lib/ScrollToTop";
 import { ga4PageView } from "./lib/ga4";
 import { clarityRoute } from "./lib/clarity";
+import { adPixelsRoute } from "./lib/adPixels";
 import { ThemePreviewBanner } from "./features/site/ThemePreviewBanner";
 import { DraftPreviewBanner } from "./features/site/DraftPreviewBanner";
 import { CartProvider, useCart } from "./CartContext";
@@ -52,7 +53,7 @@ const CartDrawer = lazy<() => ReactNode>(() => import("./components/CartDrawer")
 function Ga4PageViews() {
   const location = useLocation();
   // Microsoft Clarity stops on checkout/account/tracking pages and starts again on public ones (lib/clarity.ts).
-  useEffect(() => { clarityRoute(); }, [location.pathname]);
+  useEffect(() => { clarityRoute(); void adPixelsRoute(); }, [location.pathname]);
   useEffect(() => {
     const t = window.setTimeout(ga4PageView, 400);
     return () => window.clearTimeout(t);

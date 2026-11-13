@@ -16,6 +16,7 @@ import { applyFavicon } from "./favicon";
 import { applyCustomCode } from "./customCode";
 import { configureGa4 } from "../../lib/ga4";
 import { configureClarity } from "../../lib/clarity";
+import { adIdsOf, configureAdPixels } from "../../lib/adPixels";
 import { applyBackorderPolicy } from "./backorder";
 import { withBundleStock } from "./bundleStock";
 import { resolveProductRoutes } from "./productRoutes";
@@ -256,6 +257,9 @@ export function useSiteData() {
   // Microsoft Clarity (Settings › General › Microsoft Clarity): same rule as Google, never on checkout/account/tracking.
   const clarityId = (settings as any)?.analytics?.clarityProjectId;
   useEffect(() => { configureClarity(clarityId); }, [clarityId]);
+  // Ad tracking codes (Settings › General › Ad tracking): only after the shopper says yes to marketing (lib/adPixels.ts).
+  const adKey = JSON.stringify(adIdsOf(settings));
+  useEffect(() => { configureAdPixels(settings); }, [adKey]);
 
   // Shoppers only ever see live books. Drafts/scheduled books show only inside a real
   // Studio preview (the editor's snapshot is present) — "?preview=true" alone isn't enough.

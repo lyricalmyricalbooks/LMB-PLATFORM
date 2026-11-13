@@ -31,6 +31,7 @@ import { GoogleAnalyticsCard } from "./GoogleAnalyticsCard";
 import { ConnectGoogleCard } from "./ConnectGoogleCard";
 import { useGoogleConnect } from "./googleConnect";
 import { ClarityCard } from "./ClarityCard";
+import { AdPixelsCard } from "./AdPixelsCard";
 import { OwnVisitsCard } from "./OwnVisitsCard";
 import { SearchConsoleCard } from "./SearchConsoleCard";
 import { assignedCountryNames, countryName, groupedCountries, remainingCountryNames, toCountryCodes } from "./shippingCountries";
@@ -353,6 +354,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
         {/* Plan 6.17: a shop run by Colophon connects Google with one sign-in; other shops keep the older cards. */}
         <SettingsAnchor id="gs-analytics"><ConnectGoogleCard fallback={<OwnAccountOnly><GoogleAnalyticsCard /></OwnAccountOnly>} /></SettingsAnchor>
         <SettingsAnchor id="gs-clarity"><ClarityCard /></SettingsAnchor>
+        <SettingsAnchor id="gs-ad-tracking"><AdPixelsCard /></SettingsAnchor>
         <SettingsAnchor id="gs-search-console"><OwnAccountOnly><OwnKeysOnly><SearchConsoleCard /></OwnKeysOnly></OwnAccountOnly></SettingsAnchor>
         <SettingsAnchor id="gs-redirects"><RedirectsCard /></SettingsAnchor>
       </SettingsGroup>

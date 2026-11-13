@@ -1,4 +1,5 @@
 import { ga4BookItem, ga4Event, purchaseEvent } from "./ga4";
+import { adPixelsPurchase } from "./adPixels";
 import { cleanAcquisition } from "./visitSource";
 import { inEditorPreview, trackingAllowed } from "./trackingGuard";
 import { analyticsKey, cleanSearchTerm, deviceOf } from "./analyticsKeys";
@@ -420,7 +421,11 @@ export const funnelApi = {
     if (!shouldCountPurchase(orderId, order, storage)) return;
     // Google Analytics revenue is money received: a manual (e-Transfer/cash) order still waiting for payment isn't sent.
     const purchase = order?.paymentStatus === "paid" ? purchaseEvent(orderId, order) : null;
-    if (purchase) ga4Event("purchase", purchase);
+    if (purchase) {
+      ga4Event("purchase", purchase);
+      // Ad tracking codes, after marketing consent only (lib/adPixels.ts): the amount and currency, nothing else.
+      void adPixelsPurchase(String(purchase.transaction_id), Number(purchase.value) || 0, String(purchase.currency || "CAD"));
+    }
     await bump({ funnel: { purchase: 1 } });
   },
 

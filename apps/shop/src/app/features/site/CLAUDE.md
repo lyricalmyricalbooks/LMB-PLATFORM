@@ -765,3 +765,13 @@ ignored, `filterFaq`), `noMatchText` and a `contactText`/`contactUrl` link (no l
 FAQPage JSON-LD script (`faqJsonLd`, written with `safeJson`, which escapes `<`; `r2Security.test.ts` allows only that helper
 besides the HTML keys). Pure rules in `features/site/faqHelp.ts`; words are the section's own fields with fallbacks in
 `sectionFallbacks.ts`. Not in the Studio preview's JSON-LD.
+
+## Ad tracking tied to the cookie banner (13 November 2026, gap list 37)
+
+`src/app/lib/adPixels.ts` loads the Meta pixel, Pinterest tag and TikTok pixel whose IDs are saved in Settings › General ›
+Ad tracking (`admin/AdPixelsCard.tsx`, `settings/website.analytics.metaPixelId` / `pinterestTagId` / `tiktokPixelId`,
+written field by field). Nothing loads until `consentAllows("marketing")` (the banner's marketing switch; undecided is
+yes only when the owner turned the banner off), and never in the Studio preview, a share link, the owner's browser or for
+robots. Page views (App.tsx route effect, never on admin, account or tracking) and one purchase per paid order
+(`commerce.ts` trackPurchase: amount, currency and order number only). Saying no later revokes Meta's consent and stops
+every further event. Configured from `useSiteData` like Google and Clarity.
