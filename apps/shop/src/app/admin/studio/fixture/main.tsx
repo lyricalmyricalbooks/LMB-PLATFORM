@@ -9,6 +9,10 @@ import { StudioEditor } from "../StudioEditor";
 import { createStudioFixture, installFakeStudioApi } from "./fakeStudioApi";
 import { parseStudioLocation } from "../../../lib/studioLocation";
 import { setAiTransport } from "../../aiWriter";
+import { applyAdminLook } from "../../riso/adminLook";
+
+// The fixture wears the admin's one look, as Studio does inside a shop's admin.
+applyAdminLook();
 
 // `?live=1` loads a snapshot of the published design (features/site/__fixtures__/liveDesign.json).
 const live = new URLSearchParams(location.search).has("live")

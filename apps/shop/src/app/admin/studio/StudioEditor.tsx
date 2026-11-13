@@ -441,7 +441,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [showGlobal, setShowGlobal] = useState(remembered.showGlobal === true);
   // Which shared section group Page layout edits while `showGlobal` (under the header, above the footer, pop-up).
   const [globalGroup, setGlobalGroup] = useState<SectionGroupKey>(isGroupSurface(remembered.globalGroup || "") ? remembered.globalGroup as SectionGroupKey : "globalSections");
-  const [device, setDevice] = useState<keyof typeof DEVICE_W>(remembered.device || "desktop");
+  // A phone opens on the phone preview: a 1200px page drawn 390px wide can't be read or tapped. A remembered or linked
+  // device still wins.
+  const [device, setDevice] = useState<keyof typeof DEVICE_W>(() => remembered.device || (typeof window !== "undefined" && window.matchMedia?.("(max-width: 767px)").matches ? "mobile" : "desktop"));
   const [zoom, setZoom] = useState<Zoom>(remembered.zoom ?? "fit");
   // Desktop preview screen (Laptop 1200 / Large laptop 1440 / Big monitor 1920). Widens by itself when
   // Content width or the shop header width wouldn't fit, so a wider column actually shows (previewWidth.ts).
@@ -2263,7 +2265,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                   }}>{step.open.label}</button>}
                 </section>
               ))}
-              <p className="studio-essentials-more">Everything else is under <b>All settings</b> in the bar on the left: every section, colour, font, word, menu and page.</p>
+              <p className="studio-essentials-more">Everything else is under <b>All settings</b>: every section, colour, font, word, menu and page.</p>
             </div>}
             {leftTab === "sections" && adding !== null && (
               <StudioSectionLibrary registry={SECTION_REGISTRY} design={design}

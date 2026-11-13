@@ -1958,6 +1958,25 @@ await check("phone-sized editor loads without errors", { width: 390, height: 844
   if (overflow > 1) throw new Error(`editor scrolls sideways by ${overflow}px`);
 });
 
+// A phone used to open on the computer preview: a 1200px page drawn 390px wide, too small to read or tap.
+await check("a phone opens on the phone preview", { width: 390, height: 844 }, async page => {
+  const pressed = await page.getByRole("button", { name: "Phone preview" }).getAttribute("aria-pressed");
+  if (pressed !== "true") throw new Error("a phone did not open on the phone preview");
+}, FIRST_VISIT);
+
+await check("a computer opens on the computer preview", desktop, async page => {
+  const pressed = await page.getByRole("button", { name: "Computer preview" }).getAttribute("aria-pressed");
+  if (pressed !== "true") throw new Error("a computer did not open on the computer preview");
+}, FIRST_VISIT);
+
+// On a phone the workspaces are one sideways row; the open one (Themes is the last) used to sit off screen.
+await check("on a phone the open workspace is in sight in the workspace row", { width: 390, height: 844 }, async page => {
+  await page.getByRole("tab", { name: "Sections" }).click();
+  await page.waitForTimeout(400);
+  const box = await page.locator(".studio-rail button[aria-pressed=true]").boundingBox();
+  if (!box || box.x < 0 || box.x + box.width > 390) throw new Error(`the open workspace is off screen (${JSON.stringify(box)})`);
+}, "#designer?tab=themes");
+
 await browser.close();
 await server?.close();
 for (const r of results) console.log(`${r.ok ? "✓" : "✗"} ${r.name} (${Math.round(r.ms / 1000)}s)${r.ok ? "" : ` — ${r.error}`}`);

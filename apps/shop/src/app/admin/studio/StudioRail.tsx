@@ -1,5 +1,5 @@
 import { goHint } from "./shortcuts";
-import { Fragment } from "react";
+import { Fragment, useEffect, useRef } from "react";
 import { FileText, Images, LayoutList, Navigation, Palette, Sparkles, SwatchBook, Type } from "lucide-react";
 
 export type RailTab = "essentials" | "sections" | "style" | "text" | "menus" | "pages" | "media" | "themes";
@@ -17,8 +17,26 @@ export const RAIL_TABS: { id: RailTab; label: string; short: string; Icon: typeo
 
 /** Studio's left icon rail: one button per workspace, always visible. */
 export function StudioRail({ active, onSelect }: { active: RailTab; onSelect: (id: RailTab) => void }) {
+  // On a phone the workspaces are one sideways-scrolling row: keep the open one in sight (Themes is the eighth). The
+  // row is hidden until its tab is opened, so this runs again when it gets a width.
+  const nav = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const row = nav.current;
+    if (!row) return;
+    const show = () => {
+      const open = row.querySelector<HTMLElement>("button[aria-pressed=true]");
+      if (!open || row.scrollWidth <= row.clientWidth) return;
+      const left = open.offsetLeft - row.offsetLeft;
+      if (left < row.scrollLeft || left + open.offsetWidth > row.scrollLeft + row.clientWidth) row.scrollLeft = left - (row.clientWidth - open.offsetWidth) / 2;
+    };
+    show();
+    if (typeof ResizeObserver === "undefined") return;
+    const seen = new ResizeObserver(show);
+    seen.observe(row);
+    return () => seen.disconnect();
+  }, [active]);
   return (
-    <nav className="studio-rail" aria-label="Studio workspaces">
+    <nav ref={nav} className="studio-rail" aria-label="Studio workspaces">
       {RAIL_TABS.map(({ id, label, short, Icon, hint, section }) => (
         <Fragment key={id}>
           {section && <span className="studio-rail-section" role="presentation">{section}</span>}
