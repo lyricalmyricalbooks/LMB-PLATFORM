@@ -41,6 +41,7 @@ import { duplicateProfile, profileSummary } from "./shippingProfileStarters";
 /** Same cap as functions/liveRateExtra.js MAX_LIVE_RATE_EXTRA. */
 const MAX_LIVE_RATE_EXTRA = 50;
 import { TeamSettings } from "./TeamSettings";
+import { OwnerOnlyNote } from "./OwnerOnlyNote";
 import { SecuritySettings } from "./SecuritySettings";
 import { GoogleSettings } from "./GoogleSettings";
 import { AppsSettings } from "./AppsSettings";
@@ -137,14 +138,17 @@ export function ShopSettings({
         >
           {activeTab === "general" && <GeneralSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} onUnderConstruction={onUnderConstruction} subTab={subTab} onSubTabChange={onSubTabChange} />}
           {activeTab === "shipping" && <ShippingSettings profiles={shippingProfiles} profilesError={profilesError} refreshProfiles={loadShippingProfiles} initialView={shippingStart} subTab={subTab} onSubTabChange={onSubTabChange} />}
+          {activeTab === "payments" && <OwnerOnlyNote what="how the shop takes card payments" />}
           {activeTab === "payments" && <PaymentsSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} setOriginalSettings={setOriginalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection}
             subTab={subTab} onSubTabChange={onSubTabChange}
             onOpenShipping={() => { setActiveTab("shipping"); if (onSubTabChange) onSubTabChange("carrier", "shipping"); else setShippingStart("carrier"); }} onOpenOrders={onOpenOrders} onOpenNotifications={() => setActiveTab("notifications")} />}
           {activeTab === "taxes" && <TaxesSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
           {activeTab === "team" && <TeamSettings />}
           {activeTab === "security" && <SecuritySettings />}
+          {activeTab === "google" && <OwnerOnlyNote what="the Google connection" />}
           {activeTab === "google" && <GoogleSettings />}
           {/* QuickBooks is an app now: #settings/apps/quickbooks (and the old #settings/bookkeeping) opens it here. */}
+          {activeTab === "apps" && <OwnerOnlyNote what="which apps are connected" />}
           {activeTab === "apps" && (
             <AppsSettings openQuickBooks={subTab === "quickbooks"} onQuickBooks={(open) => onSubTabChange?.(open ? "quickbooks" : "apps")}
               quickbooks={{ status: quickBooksStatus, panel: <BookkeepingSettings taxRates={settings.taxes?.rates || []} /> }} />
@@ -238,6 +242,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
           </SettingsAnchor>
           <SettingsAnchor id="gs-domain">
             <FormSection title="Web address" description="Where people find you.">
+              <OwnerOnlyNote what="the web address" />
               <CustomDomainCard bare fallback={
                 <FormField label="Custom domain" hint="For your records. It doesn't move the shop.">
                   {(a) => <input {...a} value={settings.domain?.custom || ""} placeholder="yourpress.example" onChange={(e) => set("domain", { custom: e.target.value })} />}

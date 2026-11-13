@@ -3,6 +3,7 @@
 // each screen's real empty and error states too. Nothing here reaches Firestore.
 import { adminApi } from "../app/admin/api";
 import { teamApi } from "../app/admin/teamApi";
+import { rememberShopOwner } from "../app/lib/ownerDevice";
 import { A11Y_BOOKS } from "../a11yFixture/books";
 import { inventoryLinkApi } from "../app/admin/inventoryLinkApi";
 import { addressKey } from "../app/admin/fulfillment";
@@ -434,11 +435,19 @@ inventoryLinkApi.linkNewBook = async (bookId: string, inventoryBookId: string) =
 
 // Settings › Team: the fixture signs in as the owner, with three people on the Team.
 (adminApi as any).myRole = async () => "owner";
-teamApi.list = async () => [
-  { email: "ada.example@example.com", role: "staff" },
+// The account holder, as refreshMyRole would tell a co-owner after sign-in (kept for this page only).
+rememberShopOwner("owner@example.com", "");
+// One has signed in, one is still invited and one is a fair helper for today. Changes are kept in memory.
+let fixtureTeam: Awaited<ReturnType<typeof teamApi.list>> = [
+  { email: "ada.example@example.com", role: "staff", name: "Ada Example", joinedAt: new Date(Date.now() - 6 * 864e5).toISOString(), lastSignInAt: new Date(Date.now() - 2 * 864e5).toISOString() },
   { email: "ben.example@example.com", role: "bookkeeper" },
   { email: "cleo@example.com", role: "fairHelper", until: new Date(Date.now() + 36e5).toISOString() },
 ];
+teamApi.list = async () => fixtureTeam.map(m => ({ ...m }));
+teamApi.add = async (email, role, { name } = {}) => { fixtureTeam = [...fixtureTeam, { email: email.trim().toLowerCase(), role, ...(name ? { name } : {}) }]; };
+teamApi.setRole = async (email, role) => { fixtureTeam = fixtureTeam.map(m => (m.email === email ? { ...m, role } : m)); };
+teamApi.resendInvite = async () => {};
+teamApi.remove = async (email) => { fixtureTeam = fixtureTeam.filter(m => m.email !== email); };
 
 // ── Stockroom › Shipping › Buy label (block of the labels-from-shipping page): two waiting rows are website orders here,
 // WEB-1041 ready for a label and WEB-1042 not packed yet. Rates and the purchase are fakes recorded in

@@ -6,7 +6,7 @@ import { PrimaryButton, SecondaryButton, TextField } from "./riso/components";
 import { BACKUP_USED_KEY, BackupCodeError, TwoStepNeeded, backupCodeLooksRight, codeLooksRight, twoStepWords } from "./adminTwoStep";
 import { loginErrorMessage } from "./loginError";
 import { shopNameFromSettings, wordmarkWords } from "../features/site/shopIdentity";
-import { loginWords } from "./loginWords";
+import { invitedEmail, loginWords } from "./loginWords";
 
 interface LoginProps {
   onLogin: (token: string) => void;
@@ -32,6 +32,8 @@ export function Login({ onLogin }: LoginProps) {
   // What the shop sells, from the same public settings: nobody is signed in yet, so the admin's own words aren't known.
   const [sells, setSells] = useState<string | null>(null);
   const say = loginWords(sells);
+  // Opened from a Team invite: name the account to use, and offer it first in Google's chooser.
+  const [invite] = useState(() => invitedEmail(typeof window === "undefined" ? "" : window.location.search));
   useEffect(() => {
     let live = true;
     Promise.resolve(adminApi.getPublicSettings?.()).then((s) => { if (live) { setName(shopNameFromSettings(s)); setSells(typeof s?.sells === "string" ? s.sells : null); } }).catch(() => { if (live) setName(shopNameFromSettings(null)); });
@@ -43,7 +45,9 @@ export function Login({ onLogin }: LoginProps) {
     setLoading(true);
     setError("");
     try {
-      const { token } = await adminApi.login();
+      const { token } = await adminApi.login(invite);
+      // The invite has done its job: keep it out of the address the admin goes on to use.
+      if (invite) try { const url = new URL(window.location.href); url.searchParams.delete("invite"); window.history.replaceState(window.history.state, "", url.toString()); } catch { /* the address stays as it is */ }
       onLogin(token);
     } catch (err: unknown) {
       if (err instanceof TwoStepNeeded) { setPending(err); setCode(""); setBackup(false); return; }
@@ -105,7 +109,8 @@ export function Login({ onLogin }: LoginProps) {
             <p className="rp-wordmark-sub">{say.sub}</p>
           </div>
           <p className="rp-card-desc rp-login-lede">
-            {pending && backup ? "Lost your phone? A backup code lets you in. You'll set up your app again straight after." : pending ? "One more step: the code from your authenticator app." : say.lede}
+            {pending && backup ? "Lost your phone? A backup code lets you in. You'll set up your app again straight after." : pending ? "One more step: the code from your authenticator app."
+              : invite ? <>You're invited to the team. Sign in with Google as <strong>{invite}</strong>.</> : say.lede}
           </p>
           {pending && backup ? (
             <form className="rp-stack" style={{ gap: 12 }} data-two-step-backup onSubmit={(e) => { e.preventDefault(); void handleBackup(); }}>
@@ -137,7 +142,7 @@ export function Login({ onLogin }: LoginProps) {
           )}
           {error && <p role="alert" className="rp-login-error"><span aria-hidden="true">⚠</span> {error}</p>}
           <div className="rp-login-foot">
-            <span className="rp-hint">Private area — only the shop owner can sign in.</span>
+            <span className="rp-hint">Private area — only the shop's team can sign in.</span>
             <a className="rp-login-link" href={shopHref()}>← Back to the shop</a>
           </div>
         </div>

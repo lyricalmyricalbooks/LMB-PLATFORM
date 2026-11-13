@@ -1,7 +1,7 @@
 import { describe, test, expect, vi } from 'vitest';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { adminRole, booksReader, memberProblem, removeExpiredMembers, supportOf, syncMemberRole, OWNER_EMAILS } = require('./roles');
+const { adminRole, booksReader, memberProblem, removeExpiredMembers, stampTeamSignIn, supportOf, syncMemberRole, OWNER_EMAILS } = require('./roles');
 
 const OWNER = OWNER_EMAILS[0];
 
@@ -168,5 +168,24 @@ describe('removeExpiredMembers', () => {
     expect(deleted).toEqual(['fay@press.test']);
     expect(asked[0]).toBe('until');
     expect(asked[1]).toBe('<=');
+  });
+});
+
+describe('stampTeamSignIn', () => {
+  const fakeDb = (rows) => {
+    const writes = [];
+    return { writes, collection: () => ({ doc: (id) => ({ get: async () => ({ exists: !!rows[id], data: () => rows[id] }), update: async (v) => { writes.push([id, v]); } }) }) };
+  };
+  test('stamps the first sign-in once, then only the latest', async () => {
+    const now = new Date('2026-11-13T10:00:00Z');
+    const db = fakeDb({ 'sam@press.test': { role: 'staff' }, 'old@press.test': { role: 'staff', joinedAt: new Date('2026-11-01') } });
+    await stampTeamSignIn(db, 'Sam@press.test', now);
+    await stampTeamSignIn(db, 'old@press.test', now);
+    expect(db.writes).toEqual([['sam@press.test', { lastSignInAt: now, joinedAt: now }], ['old@press.test', { lastSignInAt: now }]]);
+  });
+  test('writes nothing for someone not on the Team', async () => {
+    const db = fakeDb({});
+    await stampTeamSignIn(db, 'nobody@press.test');
+    expect(db.writes).toEqual([]);
   });
 });

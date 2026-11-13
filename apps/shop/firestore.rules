@@ -195,17 +195,32 @@ service cloud.firestore {
       // an admin role here (isAdmin above names owner and staff), so an author on the Team never opens the shop's admin.
       // "bookkeeper" opens only the admin's read-only Bookkeeping page (isBookkeeper above). "fairHelper" is for the
       // stockroom's Fair till only and opens nothing here.
-      match /members/{email} {
-        allow read: if isOwner();
-        allow delete: if isOwner();
-        allow create, update: if isOwner()
-          && email == email.lower()
-          && email != shopOwnerEmail()
-          && request.resource.data.keys().hasOnly(["role", "addedAt", "addedBy", "until"])
-          && request.resource.data.role in ["owner", "staff", "author", "bookkeeper", "fairHelper"]
+      // The account holder's own entry (written at sign-up) is never removed or changed here: the shop always keeps its owner.
+      // lastSignInAt / joinedAt are the server's (functions/roles.js stampTeamSignIn): the owner can't set or change them.
+      // inviteRequestedAt is "Send invite again" (functions/index.js syncMemberRole emails a new invite when it changes).
+      function memberFieldsOk() {
+        return request.resource.data.role in ["owner", "staff", "author", "bookkeeper", "fairHelper"]
           // "For today only" (functions/roles.js removeExpiredMembers): a fair helper's entry may end at a set time.
           && (!("until" in request.resource.data)
-              || (request.resource.data.until is timestamp && request.resource.data.role == "fairHelper"));
+              || (request.resource.data.until is timestamp && request.resource.data.role == "fairHelper"))
+          && (!("name" in request.resource.data)
+              || (request.resource.data.name is string && request.resource.data.name.size() <= 80))
+          && (!("inviteRequestedAt" in request.resource.data) || request.resource.data.inviteRequestedAt is timestamp);
+      }
+      match /members/{email} {
+        allow read: if isOwner();
+        allow delete: if isOwner() && email != shopOwnerEmail();
+        allow create: if isOwner()
+          && email == email.lower()
+          && email != shopOwnerEmail()
+          && request.resource.data.keys().hasOnly(["role", "addedAt", "addedBy", "until", "name", "inviteRequestedAt"])
+          && memberFieldsOk();
+        allow update: if isOwner()
+          && email != shopOwnerEmail()
+          && request.resource.data.keys().hasOnly(["role", "addedAt", "addedBy", "until", "name", "inviteRequestedAt", "lastSignInAt", "joinedAt"])
+          && request.resource.data.get("lastSignInAt", null) == resource.data.get("lastSignInAt", null)
+          && request.resource.data.get("joinedAt", null) == resource.data.get("joinedAt", null)
+          && memberFieldsOk();
       }
       // The owner's admin screen layouts (Overview boards: admin/overview/overviewBoardStore.ts) and the Overview's sales notes
       // (admin/overview/overviewNotesStore.ts), the combined tour and Stockroom › QR codes' own codes (stockroom/qrCodesStore.ts)

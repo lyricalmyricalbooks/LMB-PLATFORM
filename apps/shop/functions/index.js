@@ -150,8 +150,8 @@ const IS_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
 // Firestore's TTL policy (firestore.indexes.json fieldOverrides) uses to delete them, so they cannot grow forever.
 const retainFor = days => new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
-const { adminRole, booksReader, removeExpiredMembers, supportOf, syncMemberRole } = require("./roles");
-const { becameFairHelper, fairHelperInviteEmail } = require("./teamInvite");
+const { OWNER_ONLY_MESSAGE, adminRole, booksReader, removeExpiredMembers, stampTeamSignIn, supportOf, syncMemberRole } = require("./roles");
+const { inviteKey, teamChange, teamInviteEmail } = require("./teamInvite");
 const fairHelperPay = require("./fairHelperPay");
 const { shopConfig, functionLink } = require("./shopConfig");
 // The shop's id with the platform's services (X-Shop-Id): its record id in the shared system, else its own project.
@@ -221,6 +221,18 @@ async function requireAdmin(req, res) {
   }
 }
 
+// The owner's own actions: the payment, Google, web address and app connections. Staff and support visits get a plain
+// refusal, so the Team page's promise ("everything except the Team and the connections") holds on the server too.
+async function requireOwner(req, res) {
+  const decoded = await requireAdmin(req, res);
+  if (!decoded) return null;
+  if (adminRole(decoded) !== "owner") {
+    res.status(403).json({ error: OWNER_ONLY_MESSAGE, code: "owner_only" });
+    return null;
+  }
+  return decoded;
+}
+
 // The bookkeeper's reads (roles.js booksReader): the admin, or the Team's bookkeeper role. Only read-only actions use it.
 async function requireBooksReader(req, res) {
   const match = (req.headers.authorization || "").match(/^Bearer (.+)$/);
@@ -272,6 +284,8 @@ exports.refreshMyRole = onBrowserRequest(async (req, res) => {
   const role = adminRole(decoded) === "owner" ? "owner" : result.role ?? null;
   // The admin learns the owner's address here (shopConfig.js SHOP_OWNER_EMAIL) instead of from a public file: only
   // people who can open the admin get it, to leave the owner's own orders and visits out of the figures.
+  // The Team page shows who has signed in and when (members/{email}.lastSignInAt, joinedAt: written only here).
+  if (result.role) await stampTeamSignIn(db, decoded.email).catch(err => console.warn("Team sign-in time not saved:", err?.message || err));
   const opensAdmin = role === "owner" || role === "staff";
   res.json({ role, changed: result.status === "updated", ...(opensAdmin ? { ownerEmail: shopConfig.ownerEmail } : {}) });
 });
@@ -319,21 +333,24 @@ const SHIPPO_CONFIG_DOC = () => db.collection("private-integrations").doc("shipp
 // switcher (teamNotice.js); a failed notice is logged and never undoes the change.
 exports.syncMemberRole = onDocumentWritten({ document: "members/{email}", secrets: withPlatformKey([RESEND_API_KEY]) }, async event => {
   await syncMemberRole({ auth: admin.auth(), db, email: event.params.email });
-  // A new fair helper is told where the Fair till is and how to sign in (teamInvite.js), once per person.
   const before = event.data?.before?.exists ? event.data.before.data() : null;
   const after = event.data?.after?.exists ? event.data.after.data() : null;
-  if (becameFairHelper(before, after)) {
-    const invite = fairHelperInviteEmail({ email: event.params.email, shopName: shopConfig.senderName, tillLink: siteLink("/admin") });
+  const change = teamChange(before, after);
+  // Someone new on the Team (or Send invite again) gets an invitation: what they can do, the address to open and
+  // which Google account to use (teamInvite.js). Once per invite; a failed send never undoes the role.
+  if (change.invite) {
+    const invite = teamInviteEmail({ email: event.params.email, role: after.role, shopName: shopConfig.senderName, siteUrl: shopConfig.siteUrl, invitedBy: after.addedBy });
     if (invite) {
       try {
-        await sendOrderEmailOnce(`team-${invite.to}`, "fairHelperInvite", { ...invite, secret: resendSecretValue() });
+        await sendOrderEmailOnce(inviteKey(event.params.email, after), "teamInvite", { ...invite, secret: resendSecretValue() });
       } catch (err) {
-        // The role is already on the pass; the owner can still pass the address on by hand.
-        console.warn("The fair helper's invitation wasn't sent:", err?.message || err);
+        // The role is already on the pass; the owner can press Send invite again or pass the address on by hand.
+        console.warn("The Team invitation wasn't sent:", err?.message || err);
       }
     }
   }
-  if (shopConfig.platformAccountsUrl) {
+  // A sign-in stamp or a new name changes nothing the platform shows.
+  if (change.teamChanged && shopConfig.platformAccountsUrl) {
     const notice = await tellPlatformTeamChanged({ url: shopConfig.platformAccountsUrl, shopId: platformShopId, serviceKey: platformServiceKey });
     if (!notice.ok) console.warn("The platform wasn't told about the Team change:", notice.reason);
   }
@@ -1803,18 +1820,18 @@ exports.paypalWebhook = onRequest(
 );
 
 const { handleVerifyStripeKeys, handleInventoryLinkAdmin, handleGiftCardAdmin, handleWebhookHealth, handleRegisterPaymentDomain, handlePlatformPayments } = checkoutAdminActions({
-  db, payments, STRIPE_WEBHOOK_SECRET, STRIPE_WEBHOOK_URL, ALLOWED_ORIGINS, GIFT_CARD_BODIES, REQUIRED_WEBHOOK_EVENTS, webhookEndpointReport, emailGiftCard, expiryChange, giftCardId, last4, newGiftCardCode, withHistory, readAdminSecret, readBody, requireAdmin, requireBooksReader, inventoryLinkDeps,
+  db, payments, STRIPE_WEBHOOK_SECRET, STRIPE_WEBHOOK_URL, ALLOWED_ORIGINS, GIFT_CARD_BODIES, REQUIRED_WEBHOOK_EVENTS, webhookEndpointReport, emailGiftCard, expiryChange, giftCardId, last4, newGiftCardCode, withHistory, readAdminSecret, readBody, requireAdmin, requireOwner, requireBooksReader, inventoryLinkDeps,
 });
 
 // The press's own web address, through the platform's domain service (customDomains.js, plan 2.9).
-const { handleCustomDomains } = customDomainActions({ url: shopConfig.platformDomainsUrl, shopId: platformShopId, serviceKey: platformServiceKey, requireAdmin });
+const { handleCustomDomains } = customDomainActions({ url: shopConfig.platformDomainsUrl, shopId: platformShopId, serviceKey: platformServiceKey, requireAdmin, requireOwner });
 
 // Connect Google: one sign-in, through the platform's Google link (googleConnect.js, plan 6.17).
-const { handleGoogleConnect } = googleConnectActions({ url: shopConfig.platformGoogleUrl, shopId: platformShopId, serviceKey: platformServiceKey, requireAdmin,
+const { handleGoogleConnect } = googleConnectActions({ url: shopConfig.platformGoogleUrl, shopId: platformShopId, serviceKey: platformServiceKey, requireAdmin, requireOwner,
   readStock: () => require("./inventoryLinkStore").readCatalog() });
 
 // Settings › Apps: installed apps, the store and Remove, through the platform's app store door (appsLink.js, plan 26.5).
-const { handleApps } = appsLinkActions({ url: shopConfig.platformAppsUrl, shopId: platformShopId, serviceKey: platformServiceKey, requireAdmin });
+const { handleApps } = appsLinkActions({ url: shopConfig.platformAppsUrl, shopId: platformShopId, serviceKey: platformServiceKey, requireAdmin, requireOwner });
 
 // Settings › Bookkeeping: the QuickBooks link, through the platform's bookkeeping service (quickbooksLink.js, plan 7.16).
 // Send again builds the day from every order with the shared daily bookkeeping rules (dayFromOrders, Toronto days).

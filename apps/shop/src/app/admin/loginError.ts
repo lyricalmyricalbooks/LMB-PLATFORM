@@ -18,7 +18,10 @@ export function loginErrorMessage(err: unknown): string {
     return "Too many sign-in attempts in a row. Wait a minute, then try again.";
   }
   if (/^Unauthorized/i.test(message)) {
-    return "That Google account can't open the admin. Sign in with the shop's own Google account, or ask the owner to add you under Settings › Team.";
+    const as = String((err as any)?.signedInAs || "").trim();
+    return as
+      ? `You signed in as ${as}, which isn't on this shop's Team. Sign in again and pick the Google account your invite was sent to, or ask the owner to add this one.`
+      : "That Google account can't open the admin. Sign in with the shop's own Google account, or ask the owner to add you under Settings › Team.";
   }
   if (code === "auth/unauthorized-domain") {
     return "Google sign-in isn't switched on for this web address yet. Open the admin from the shop's usual address.";

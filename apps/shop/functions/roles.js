@@ -107,4 +107,21 @@ async function removeExpiredMembers({ db, nowMs = Date.now() }) {
   return removed;
 }
 
-module.exports = { removeExpiredMembers, OWNER_EMAILS, ROLES, ADMIN_ROLES, adminRole, booksReader, supportOf, memberId, memberProblem, syncMemberRole };
+/** What staff (and support visits) are told when they try one of the owner's own actions. */
+const OWNER_ONLY_MESSAGE = "Only the shop's owner can change this. Ask them to do it, or to make you a co-owner under Settings › Team.";
+
+/**
+ * Notes that a Team member signed in: lastSignInAt every time, joinedAt the first time. Only an existing entry is
+ * touched (the owner address has none of its own). Never adds anyone: update() fails on a missing document.
+ */
+async function stampTeamSignIn(db, email, now = new Date()) {
+  const id = memberId(email);
+  if (!id || OWNER_EMAILS.includes(id)) return false;
+  const ref = db.collection("members").doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) return false;
+  await ref.update({ lastSignInAt: now, ...(snap.data()?.joinedAt ? {} : { joinedAt: now }) });
+  return true;
+}
+
+module.exports = { OWNER_ONLY_MESSAGE, stampTeamSignIn, removeExpiredMembers, OWNER_EMAILS, ROLES, ADMIN_ROLES, adminRole, booksReader, supportOf, memberId, memberProblem, syncMemberRole };
