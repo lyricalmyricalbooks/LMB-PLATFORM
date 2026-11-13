@@ -2,10 +2,10 @@
 // the two ways to send it. Cancelling the order (the order's own Cancel) closes the link.
 import "./fulfillment.css";
 import { Copy, Mail } from "lucide-react";
+import { useState } from "react";
 import toast from "react-hot-toast";
-import { getCopy } from "../features/site/storeCopy";
 import { adminApi } from "./api";
-import { linkState, paymentLinkMailto, paymentLinkUrl } from "./paymentLinks";
+import { linkState, paymentLinkUrl } from "./paymentLinks";
 import { SecondaryButton, SectionCard, StatusBadge } from "./riso/components";
 
 const STATE_WORDS = {
@@ -16,6 +16,8 @@ const STATE_WORDS = {
 } as const;
 
 export function PaymentLinkCard({ order }: { order: any }) {
+  const [sending, setSending] = useState(false);
+  const [sentTo, setSentTo] = useState("");
   const state = linkState(order);
   if (!state) return null;
   const url = paymentLinkUrl(order, window.location.origin, import.meta.env.BASE_URL || "/");
@@ -25,11 +27,13 @@ export function PaymentLinkCard({ order }: { order: any }) {
     catch { toast.error("Could not copy the link"); }
   };
   const email = async () => {
-    let shopName = "";
-    try { shopName = getCopy(((await adminApi.getPublicSettings()) as any)?.design || {}, "siteName"); } catch { /* the email still works */ }
-    const mailto = paymentLinkMailto(order, url, shopName);
-    if (mailto) window.location.href = mailto;
-    else toast.error("This customer's email address can't be used. Copy the link instead.");
+    setSending(true);
+    try {
+      const res: any = await adminApi.sendPaymentLink(order.id || order.orderId);
+      if (res?.error) toast.error(res.error);
+      else { setSentTo(res?.to || "the customer"); toast.success(`Sent to ${res?.to || "the customer"}`); }
+    } catch (e: any) { toast.error(e?.message || "Could not send the email"); }
+    finally { setSending(false); }
   };
   return (
     <SectionCard title="Payment link" actions={<StatusBadge tone={STATE_WORDS[state].tone}>{STATE_WORDS[state].text}</StatusBadge>}>
@@ -40,10 +44,11 @@ export function PaymentLinkCard({ order }: { order: any }) {
         {state === "cancelled" && "This order was cancelled, so its link no longer takes payment."}
       </p>
       {order.paymentLink.note && <p className="rp-hint">{`Your note to them: ${order.paymentLink.note}`}</p>}
+      {state === "open" && sentTo && <p className="rp-hint">{`Emailed to ${sentTo}.`}</p>}
       {state === "open" && url && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           <SecondaryButton size="sm" icon={<Copy size={14} aria-hidden />} onClick={copy}>Copy payment link</SecondaryButton>
-          <SecondaryButton size="sm" icon={<Mail size={14} aria-hidden />} onClick={email}>Email it to the customer</SecondaryButton>
+          <SecondaryButton size="sm" icon={<Mail size={14} aria-hidden />} onClick={email} disabled={sending}>{sending ? "Sending…" : "Send by email"}</SecondaryButton>
         </div>
       )}
     </SectionCard>

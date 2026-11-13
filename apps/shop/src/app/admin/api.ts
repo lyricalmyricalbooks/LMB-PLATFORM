@@ -1999,6 +1999,20 @@ export const adminApi = {
     return result;
   },
 
+  // Order to pay › Send by email (gap list item 12): the shop emails the customer the link (functions/paymentLinks.js sendLinkEmail).
+  sendPaymentLink: async (orderId: string): Promise<{ sentAt: string; to: string; queued: boolean }> => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin.");
+    const response = await functionFetch("createStripeCheckoutSession", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ action: "paymentLink", op: "send", orderId }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "We couldn't send the email. Please try again.");
+    return result;
+  },
+
   validateDiscount: async (code: string) => {
     // The discounts collection is admin-only in Firestore rules, so the
     // public checkout validates codes through a Cloud Function. The server

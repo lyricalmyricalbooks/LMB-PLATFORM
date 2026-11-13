@@ -32,7 +32,7 @@ describe("Notifications template checks", () => {
   });
 
   it("lists placeholders for every email", () => {
-    expect(Object.keys(PLACEHOLDERS)).toHaveLength(17);
+    expect(Object.keys(PLACEHOLDERS)).toHaveLength(18);
   });
 
   it("inserts a placeholder at the caret, replacing a selection", () => {

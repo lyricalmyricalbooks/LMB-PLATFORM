@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addItemsProblem, linkFormForAddOn, closingDay, emptyLinkForm, linkableBooks, linkFormFromQuote, linkFormProblems, linkRequest, linkState, linkSubtotal, MAX_LINE_QUANTITY, newRow, paymentLinkMailto, quoteRequestOf, shopPriceOf, type LinkForm } from "./paymentLinks";
+import { addItemsProblem, linkFormForAddOn, emptyLinkForm, linkableBooks, linkFormFromQuote, linkFormProblems, linkRequest, linkState, linkSubtotal, MAX_LINE_QUANTITY, newRow, quoteRequestOf, shopPriceOf, type LinkForm } from "./paymentLinks";
 import { quoteMessage, quoteSubject } from "../features/site/extras/pdp-bulk-quote/bulkQuote";
 import { createRequire } from "module";
 
@@ -74,26 +74,6 @@ describe("payment link on the order page", () => {
     expect(linkState(order({ paymentStatus: "paid", status: "open" }), now)).toBe("paid");
     expect(linkState(order({ status: "cancelled" }), now)).toBe("cancelled");
     expect(linkState({ paymentStatus: "unpaid" }, now)).toBeNull();
-  });
-
-  it("writes the email for the owner's own mail app", () => {
-    const mailto = paymentLinkMailto(order(), "https://shop.example/track?orderId=AB12&key=k", "Field Notes");
-    expect(mailto.startsWith("mailto:robin@example.com?subject=")).toBe(true);
-    const body = decodeURIComponent(mailto.split("&body=")[1]);
-    expect(body).toContain("Hi Robin,");
-    expect(body).toContain("https://shop.example/track?orderId=AB12&key=k");
-    expect(body).toContain("Ten tees.");
-    // Midnight UTC on 1 December is the evening of 30 November in the shop's time zone.
-    expect(body).toContain("open until November 30, 2026.");
-    expect(paymentLinkMailto(order({ customer: { email: "bad address" } }), "https://x", "")).toBe("");
-  });
-});
-
-describe("the day a link closes", () => {
-  it("is the same day in the owner's email text and the server's history line and reminder", () => {
-    for (const iso of ["2026-12-02T01:00:00.000Z", "2026-12-01T00:00:00.000Z", "2026-07-15T12:00:00.000Z"]) expect(closingDay(iso)).toBe(serverLinks.closingDay(iso));
-    expect(closingDay("2026-12-02T01:00:00.000Z")).toBe("December 1, 2026");
-    expect(closingDay("not a date")).toBe("");
   });
 });
 

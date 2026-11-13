@@ -89,6 +89,7 @@ type NotificationSettings = {
   /** A pickup order the owner marked collected (code plan 25.6). */
   order_picked_up: TemplateFields;
   /** Two days before an unpaid payment link closes (code plan 21.5). */
+  payment_link: TemplateFields;
   payment_link_reminder: TemplateFields;
   contact_reply: TemplateFields;
   gift_card: TemplateFields;
@@ -180,6 +181,14 @@ const DEFAULT_SETTINGS: NotificationSettings = {
     signoff: "Happy reading,\nThe {{shop_name}} team",
     enabled: true
   },
+  // Mirrors functions/index.js DEFAULT_NOTIFICATIONS.payment_link (Orders › order to pay › Send by email).
+  payment_link: {
+    subject: "Your order {{order_id}} from {{shop_name}} is ready to pay",
+    body: "Hi {{customer_name}},\n\nYour order from {{shop_name}} is ready. The total is {{total_price}}, and you can pay by card until {{expires_on}}.\n\n{{note}}",
+    buttonText: "Pay now",
+    signoff: "Thanks,\nThe {{shop_name}} team",
+    enabled: true
+  },
   // Mirrors functions/index.js DEFAULT_NOTIFICATIONS.payment_link_reminder.
   payment_link_reminder: {
     subject: "Reminder: your order {{order_id}} is ready to pay",
@@ -252,6 +261,7 @@ const TAB_META: Record<string, { label: string; group: string }> = {
   order_cancelled: { label: "Order Cancelled", group: "orders" },
   order_refunded: { label: "Order Refunded", group: "orders" },
   review_request: { label: "Review request", group: "orders" },
+  payment_link: { label: "Payment link", group: "orders" },
   payment_link_reminder: { label: "Payment link reminder", group: "orders" },
   abandoned_cart: { label: "Abandoned Cart", group: "cart" },
   customer_welcome: { label: "Welcome", group: "account" },

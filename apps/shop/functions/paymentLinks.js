@@ -52,7 +52,7 @@ function addOnParentProblem(order) {
 
 /**
  * The day a link closes, as the customer reads it ("November 5, 2026"), in the shop's time zone. Every place that names
- * the day (the order's history, the owner's email text in admin/paymentLinks.ts, the reminder) uses this same day.
+ * the day (the order's history, the payment link email, the reminder) uses this same day.
  */
 const closingDay = (iso, language = "en") => new Intl.DateTimeFormat(language === "fr" ? "fr-CA" : "en-CA", { timeZone: "America/Toronto", year: "numeric", month: "long", day: "numeric" }).format(new Date(iso));
 
@@ -169,7 +169,7 @@ const LINK_MESSAGES = {
  * its guards and pricing; `priceOrder` takes the draft record so the order is priced exactly as it will be paid.
  */
 function paymentLinkActions({ db, requireAdmin, priceOrder, PricingError, publicErrorMessage, now = () => new Date(),
-  hitLimit = null, LIMITS = {}, canViewOrder = null, orderRequestKey = null, orderRequestIdentity = null }) {
+  hitLimit = null, LIMITS = {}, canViewOrder = null, orderRequestKey = null, orderRequestIdentity = null, linkEmailDeps = null }) {
   /**
    * Makes the order and its link record from a cleaned link. Answers the request itself and returns nothing; `parent` is
    * the order the items are added to (already checked), `actor` names who made it in the order's history.
@@ -226,6 +226,18 @@ function paymentLinkActions({ db, requireAdmin, priceOrder, PricingError, public
   async function handlePaymentLink(req, res) {
     const adminUser = await requireAdmin(req, res);
     if (!adminUser) return;
+    if (req.body?.op === "send") {
+      // Gap list item 12: the shop emails the link itself (the Payment link email), like a draft order's invoice.
+      if (!linkEmailDeps || !validId(req.body.orderId)) return res.status(400).json({ error: "Unknown payment link action." });
+      try {
+        const deps = await linkEmailDeps();
+        const out = await sendLinkEmail({ db, orderId: req.body.orderId, now: now().getTime(), ...deps });
+        return res.status(out.status).json(out.status === 200 ? { sentAt: out.sentAt, to: out.to, queued: !!out.queued } : { error: out.error });
+      } catch (err) {
+        console.error("Payment link email failed:", err);
+        return res.status(500).json({ error: publicErrorMessage(err, "We couldn't send the email. Please try again.") });
+      }
+    }
     if (req.body?.op !== "create") return res.status(400).json({ error: "Unknown payment link action." });
     let input;
     try {
@@ -371,4 +383,43 @@ async function sendLinkReminders({ db, orders, settings, compileEmailTemplate, o
   return { sent };
 }
 
-module.exports = { addOnParentProblem, addOnParentClosed, reminderDue, sendLinkReminders, closingDay, REMIND_BEFORE_MS, cleanLinkInput, linkProblem, paymentLinkFor, applyLinkPrices, paymentLinkActions, keyHash, LinkInputError, LINK_MESSAGES, DEFAULT_DAYS, MAX_DAYS };
+// The owner's Send by email on an order to pay (gap list item 12, 13 November 2026). Settings › Email sender ›
+// Payment link writes the words. Allowed again after RESEND_GAP_MS so a double click never sends two.
+const RESEND_GAP_MS = 2 * 60 * 1000;
+
+/** Emails an open link's order to its customer and stamps the link record (never the order, so its triggers stay quiet). */
+async function sendLinkEmail({ db, orderId, settings, compileEmailTemplate, orderTrackUrl, sendEmail, formatTotal, secret, now = Date.now() }) {
+  const orderSnap = await db.collection("orders").doc(orderId).get();
+  const order = orderSnap.exists ? orderSnap.data() : null;
+  if (!order || order.source !== "payment_link") return { status: 404, error: "This order wasn't made with a payment link." };
+  if (order.paymentStatus !== "unpaid" || order.status !== "pending_payment") return { status: 409, error: "This order is paid or closed, so there's nothing to send." };
+  const ref = db.collection("paymentLinks").doc(orderId);
+  const linkSnap = await ref.get();
+  const link = linkSnap.exists ? linkSnap.data() : null;
+  if (!link || link.keyHash !== keyHash(order.trackingKey) || linkProblem(link, now)) return { status: 409, error: "This link is closed or expired. Make a new order to pay." };
+  const to = cleanEmail(order.customer?.email);
+  if (!to) return { status: 400, error: "This customer's email address can't be used. Copy the link instead." };
+  if (link.sentAt && now - Date.parse(link.sentAt) < RESEND_GAP_MS) return { status: 429, error: "Sent a moment ago. Wait a couple of minutes before sending it again." };
+  const language = emailLanguage(order);
+  const compiled = compileEmailTemplate("payment_link", settings, {
+    customer_name: order.customer?.name || "there",
+    order_id: order.orderId || orderId,
+    total_price: formatTotal(order),
+    expires_on: closingDay(link.expiresAt, language),
+    note: link.note || order.paymentLink?.note || "",
+    button_url: await orderTrackUrl(orderId, order),
+  }, undefined, { language });
+  let queued = false;
+  try {
+    await sendEmail({ queue: "paymentLink", to, subject: compiled.subject, html: compiled.html, secret, about: { orderId } });
+  } catch (err) {
+    // Every sender refused for now: the email queue sends it shortly.
+    if (!err?.queued) throw err;
+    queued = true;
+  }
+  const sentAt = new Date(now).toISOString();
+  await ref.set({ sentAt, sentTo: to, sentCount: (Number(link.sentCount) || 0) + 1 }, { merge: true });
+  return { status: 200, sentAt, to, queued };
+}
+
+module.exports = { sendLinkEmail, RESEND_GAP_MS, addOnParentProblem, addOnParentClosed, reminderDue, sendLinkReminders, closingDay, REMIND_BEFORE_MS, cleanLinkInput, linkProblem, paymentLinkFor, applyLinkPrices, paymentLinkActions, keyHash, LinkInputError, LINK_MESSAGES, DEFAULT_DAYS, MAX_DAYS };
