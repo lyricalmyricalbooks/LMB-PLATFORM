@@ -1,10 +1,11 @@
 import { shopDayLabel } from "./discountDescribe";
+import { shopTimeZone } from "../../shared/shopTimeZone";
 
 export type BadgeTone = "neutral" | "primary" | "info" | "success" | "warning" | "danger";
 
 /** The shop's calendar day (Toronto), the same day the server checks codes against (paymentGuards shopDate). */
 export const today = (now = new Date()) =>
-  new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  new Intl.DateTimeFormat("en-CA", { timeZone: shopTimeZone(), year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 
 /** Effective state of a discount code for admin display. Checkout always re-validates server-side. */
 export function discountState(d: any, now: string = today()): { key: "active" | "scheduled" | "paused" | "expired" | "exhausted"; tone: BadgeTone; label: string } {

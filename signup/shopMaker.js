@@ -93,6 +93,7 @@ export function shopFromSignup(row, { testMode }) {
     plan: row.plan,
     country: row.country,
     currency: row.currency,
+    ...(row.timeZone ? { timeZone: row.timeZone } : {}),
     paymentProvider: row.paymentProvider ?? "stripe",
     // The sign-up question's answer (form.js QUESTION), or null when skipped: it shapes the first-week list (3.3).
     sellingToday: row.answer ?? null,

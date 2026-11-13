@@ -43,6 +43,11 @@
       "pattern": "^[A-Z]{3}$",
       "description": "The currency the shop prices and sells in (sign-up's country: USD for the United States). Optional. Missing, or one the shop doesn't know: Canadian dollars."
     },
+    "timeZone": {
+      "type": "string",
+      "pattern": "^[A-Za-z_]+/[A-Za-z0-9_+\\-/]{1,60}$",
+      "description": "The shop's own time zone, like America/Vancouver (sign-up reads the press's browser): its day, sale dates and daily numbers follow it. Optional. Missing, or one the shop doesn't know: Eastern time."
+    },
     "sells": {
       "type": "string",
       "pattern": "^[a-z][a-z-]{1,30}$",

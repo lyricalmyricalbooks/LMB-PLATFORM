@@ -1,8 +1,10 @@
+import { shopTimeZone } from "../../../shared/shopTimeZone";
 // The shop's clock. Every time the owner types without a zone (Studio's datetime-local fields: schedules,
 // section "Show from / until") means Toronto wall-clock time, whatever the viewer's or the build machine's
 // zone is. Pure: no React, no Firestore. Used by the storefront and by Studio (admin/studio/themeSchedule.ts).
 
-export const SHOP_TZ = "America/Toronto";
+/** The shop's own zone (shared/shopTimeZone): Eastern time unless the shop's profile names another. */
+export const SHOP_TZ = shopTimeZone();
 
 /** Toronto's offset from UTC (minutes) at a given instant. */
 export function offsetMinutes(utcMs: number): number {

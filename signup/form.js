@@ -169,6 +169,8 @@ export function checkSignup(input) {
   if (input?.paymentProvider !== undefined && !PAYMENT_PROVIDER_CHOICES.includes(input.paymentProvider)) problems.paymentProvider = "Pick Stripe or Square for card payments.";
   const paymentProvider = PAYMENT_PROVIDER_CHOICES.includes(input?.paymentProvider) ? input.paymentProvider : "stripe";
   if (paymentProvider === "square" && country && !SQUARE_COUNTRIES.includes(country)) problems.paymentProvider = squareWords(country);
-  const details = { pressName, plan, country, currency: country ? COUNTRIES[country].currency : "", answer, publishes, address, termsVersion, paymentProvider, ...(language ? { language } : {}) };
+  // The press's own time zone, read from its browser (app.js): its shop's day follows it. Left out when unreadable (Eastern time).
+  const timeZone = typeof input?.timeZone === "string" && /^[A-Za-z_]+\/[A-Za-z0-9_+\-/]{1,60}$/.test(input.timeZone) ? input.timeZone : null;
+  const details = { pressName, plan, country, currency: country ? COUNTRIES[country].currency : "", answer, publishes, address, termsVersion, paymentProvider, ...(language ? { language } : {}), ...(timeZone ? { timeZone } : {}) };
   return { ok: Object.keys(problems).length === 0, details, problems };
 }

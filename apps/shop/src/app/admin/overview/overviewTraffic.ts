@@ -2,10 +2,11 @@
 // Inputs are the daily `analytics/<date>` docs and the paid, non-test orders already loaded by the page.
 // Nothing is estimated: a signal that was never recorded is reported as missing (`recordedSince` is null), not as 0.
 import { addDays, dayOf, isRealPaidOrder, orderDay, shopDayKey, trafficPeriodKeys, refundedAmount, type Book, type Order } from "./overviewInsights";
+import { shopTimeZone } from "../../../shared/shopTimeZone";
 import { analyticsKey } from "../../lib/analyticsKeys";
 import { cleanAcquisition } from "../../lib/visitSource";
 
-export const SHOP_TIME_ZONE = "America/Toronto";
+export const SHOP_TIME_ZONE = shopTimeZone();
 
 export type Daily = Record<string, any>;
 const num = (v: unknown) => Number(v) || 0;

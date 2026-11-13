@@ -44,7 +44,7 @@ import { billingPublicRoutes, billingRoutes } from "../accounts/billingRoutes.js
 import { createShopBillingDoor, SHOP_BILLING_PREFIX } from "../accounts/shopBillingDoor.js";
 import { createAccounts } from "../accounts/accounts.js";
 import { controlRoutes } from "../control-room/routes.js";
-import { NEW_SHOP_SWITCHES, controlRoomAdmins, createControlRoom, profilePublisher, switchPublisher } from "../control-room/controlRoom.js";
+import { NEW_SHOP_SWITCHES, controlRoomAdmins, createControlRoom, profilePublisher, switchPublisher, zoneWriter } from "../control-room/controlRoom.js";
 import { readFeeSettings } from "../services/payments/fees.js";
 import { createPlatformControls, platformRoutes } from "../control-room/platformControls.js";
 import { createBackupAccess, emergencyRoutes } from "../control-room/backupPerson.js";
@@ -304,7 +304,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     registry, auditLog, profileFiles, shopAccess, repairs, signups: stores.signups, shopData, stockroomData,
     // A switch reaches a shared-system shop through its record (the front door serves the profile from there), and a
     // shop with a project of its own by deploying its pages again. The shop record shows the fee the payment service charges.
-    publish: switchPublisher({ registry, recordsFor, fallback: profilePublisher({ deploy, registry }) }), feeDefaults: readFeeSettings(env), settings: live, email, breaches: createBreachRegister({ store: firestoreBreaches(platform), registry, auditLog, now }), people,
+    publish: switchPublisher({ registry, recordsFor, fallback: profilePublisher({ deploy, registry }) }), writeZone: zoneWriter({ recordsFor }), feeDefaults: readFeeSettings(env), settings: live, email, breaches: createBreachRegister({ store: firestoreBreaches(platform), registry, auditLog, now }), people,
     activity, supportStore, recoveryStore, platformState, accessRequests, admins, now, presses: firestoreFrontDoorStores(platform).presses,
     googleReady: (at) => googleReadiness(readGoogleConfig(env), at),
     taxWatch: () => billing.taxWatch(),

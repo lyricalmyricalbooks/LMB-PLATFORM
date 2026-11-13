@@ -1,3 +1,4 @@
+import { shopTimeZone } from "./shopTimeZone";
 // Pre-orders: a published book the shop sells before its publication date. One copy for the shop and the server:
 // the storefront imports this file (features/site/preorder.ts), and the Functions run functions/shared/preorder.js,
 // which scripts/build-shared.mjs writes from it (src/shared/CLAUDE.md).
@@ -12,7 +13,7 @@ const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Today in the shop's calendar, same as the server's shopDate (functions/paymentGuards.js). */
 export function shopDate(now: Date = new Date()): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  return new Intl.DateTimeFormat("en-CA", { timeZone: shopTimeZone(), year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
 
 export function releaseDateOf(book: any): string {

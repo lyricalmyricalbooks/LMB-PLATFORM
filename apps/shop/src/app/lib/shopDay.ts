@@ -1,10 +1,11 @@
+import { shopTimeZone } from "../../shared/shopTimeZone";
 // The shop's calendar day (Toronto), shared by the admin Overview, the sales report and the Orders CSV.
 // Pure, no admin imports, so the shopper bundle can use it too.
 
 const DAY = 86_400_000;
 
 /** The shop's own time zone: orders are counted on the Toronto calendar day they were placed. */
-export const SHOP_TZ = "America/Toronto";
+export const SHOP_TZ = shopTimeZone();
 const shopFmt = new Intl.DateTimeFormat("en-CA", { timeZone: SHOP_TZ, year: "numeric", month: "2-digit", day: "2-digit" });
 
 /** Toronto calendar day ("2026-10-09") of a moment. */

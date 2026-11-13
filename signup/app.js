@@ -195,7 +195,7 @@ $("#details-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = new FormData(event.target);
   const input = {
-    pressName: form.get("pressName"), plan: "both", country: form.get("country"),
+    pressName: form.get("pressName"), plan: "both", country: form.get("country"), timeZone: browserTimeZone(),
     [QUESTION.id]: form.get(QUESTION.id), [PUBLISHES.id]: form.get(PUBLISHES.id),
     address: addressInput.value, termsAccepted: event.target.termsAccepted.checked, termsVersion,
     // A browser set to French: the platform's emails to this press go in French (only French is sent; form.js).
@@ -310,3 +310,8 @@ onAuthStateChanged(auth, async (user) => {
     status.textContent = failure.message;
   }
 });
+
+/** The browser's own time zone name ("America/Vancouver"), or nothing when it can't say: the new shop's day follows it. */
+function browserTimeZone() {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined; } catch { return undefined; }
+}

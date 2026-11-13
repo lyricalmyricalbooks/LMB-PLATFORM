@@ -4,9 +4,9 @@
 // The rules match the stockroom's own end-of-day summary (apps/stockroom/src/lib/fair-mode.js registerSalesForDay,
 // saleMethod, fairNameOf), so the email and the till's "End of day" agree. Pure.
 const { shopCountry } = require("./shopMoney");
-const TZ = "America/Toronto";
+const { shopTimeZone } = require("./shared/shopTimeZone");
 
-const torontoDay = ms => new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ms));
+const torontoDay = ms => new Intl.DateTimeFormat("en-CA", { timeZone: shopTimeZone(), year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ms));
 
 // The till's ways of paying, longest first so "Stripe QR (printed …)" isn't read as something shorter.
 const methods = () => [

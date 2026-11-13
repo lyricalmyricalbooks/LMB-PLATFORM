@@ -13,7 +13,7 @@ const GRID = { display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, 
 
 // The page's words for the shop's country: a Canadian shop keeps the Toronto wording it always had; an American shop
 // talks about ZIP codes and states, and its quick pickup is open to everyone until the owner lists ZIP areas.
-const L = US_SHOP ? {
+const WORDS_US = {
   quick: 'Free local pickup',
   quickOn: 'On — shoppers see a free "Local pickup" option at checkout. This switch saves straight away, on its own — other edits below still need Save.',
   quickOff: 'Off. Switch on to offer free pickup — add your city and state below first. You can add your address, hours and instructions too.',
@@ -25,7 +25,8 @@ const L = US_SHOP ? {
   prefixes: 'ZIP code starts', prefixesHint: 'The first three or four digits each, separated by commas or new lines.', codes: 'Exact ZIP codes',
   tryTitle: 'Try a ZIP code', tryLabel: 'ZIP code', tryPlaceholder: '10001', none: 'No pickup or delivery option for this ZIP code and subtotal.',
   country: 'US', firstArea: '100',
-} : {
+};
+const WORDS_TORONTO = {
   quick: 'Free local pickup for Toronto shoppers',
   quickOn: 'On — shoppers with a Toronto postal code (starting with M) see a free "Local pickup" option at checkout. This switch saves straight away, on its own — other edits below still need Save.',
   quickOff: 'Off. Switch on to offer free pickup to Toronto shoppers — no other setup needed. You can add your address, hours and instructions below.',
@@ -38,10 +39,23 @@ const L = US_SHOP ? {
   tryTitle: 'Try a postal code', tryLabel: 'Canadian postal code', tryPlaceholder: 'M6G 3H1', none: 'No pickup or delivery option for this postal code and subtotal.',
   country: 'CA', firstArea: 'M',
 };
+/** A Canadian shop outside Toronto: the same page without Toronto in it, and a quick pickup open to everyone. */
+const WORDS_CANADA = {
+  ...WORDS_TORONTO,
+  quick: 'Free local pickup',
+  quickOn: WORDS_US.quickOn,
+  quickOff: 'Off. Switch on to offer free pickup. You can add your address, hours and instructions below.',
+  pickupDesc: 'Collect in person.',
+  areasHint: 'The start of a postal code. V = all of British Columbia. V6B = one area.',
+  firstArea: '',
+};
+/** The shop's own city (Settings › General) decides the wording; a shop with no city yet reads as it always did. */
+export const pickupPlace = (home: { city?: string }, us: boolean = US_SHOP): 'us' | 'toronto' | 'canada' =>
+  us ? 'us' : !String(home.city || '').trim() || /^toronto$/i.test(String(home.city).trim()) ? 'toronto' : 'canada';
 // Toronto postal codes all begin with M.
 const TORONTO_AREA = ['M'];
 /** An American shop's first pickup: open to everyone, at the shop's own city and state (Settings › General). */
-export const newUsPickup = (home: { city?: string; state?: string } = {}) => ({ id: crypto.randomUUID(), enabled: false, name: 'Local pickup', price: 0, postalPrefixes: [] as string[], address: { street: '', city: home.city || '', state: home.state || '', zip: '', country: 'United States' }, instructions: 'Free pickup. We\u2019ll email you the pickup details.', hours: '', estimate: '' });
+export const newUsPickup = (home: { city?: string; state?: string } = {}, country = 'United States') => ({ id: crypto.randomUUID(), enabled: false, name: 'Local pickup', price: 0, postalPrefixes: [] as string[], address: { street: '', city: home.city || '', state: home.state || '', zip: '', country }, instructions: 'Free pickup. We\u2019ll email you the pickup details.', hours: '', estimate: '' });
 const newTorontoPickup = () => ({ id: crypto.randomUUID(), enabled: false, name: 'Local pickup', price: 0, postalPrefixes: [...TORONTO_AREA], address: { street: '', city: 'Toronto', state: 'ON', zip: '', country: 'Canada' }, instructions: 'Free pickup for those in Toronto. We\u2019ll email you the pickup details.', hours: '', estimate: '' });
 
 export function useLocalFulfillmentDraft(load = true) {
@@ -78,7 +92,9 @@ export function LocalFulfillmentSettings({ draft }: { draft?: ReturnType<typeof 
   const w = useShopWords();
   const localDraft = useLocalFulfillmentDraft(!draft);
   const { config, setConfig, notice, setNotice, busy, setBusy, loaded, saved, setSaved, home } = draft ?? localDraft;
-  const newPickup = () => US_SHOP ? newUsPickup(home) : newTorontoPickup();
+  const place = pickupPlace(home);
+  const L = place === 'us' ? WORDS_US : place === 'toronto' ? WORDS_TORONTO : WORDS_CANADA;
+  const newPickup = () => place === 'us' ? newUsPickup(home) : place === 'canada' ? newUsPickup(home, 'Canada') : newTorontoPickup();
   const dirty = loaded && !!saved && JSON.stringify(saved) !== JSON.stringify(config);
   useSettingsDirty('local-fulfillment', dirty);
   const [postal, setPostal] = useState('');
@@ -112,7 +128,7 @@ export function LocalFulfillmentSettings({ draft }: { draft?: ReturnType<typeof 
   const withQuickPickup = (base: LocalFulfillmentConfig, on: boolean): LocalFulfillmentConfig => {
     const locations = base.pickupLocations.length ? base.pickupLocations : [newPickup()];
     return on
-      ? { ...base, enabled: true, pickupLocations: locations.map((location, index) => index === 0 ? { ...location, enabled: true, address: { ...location.address, state: location.address.state || (US_SHOP ? home.state || '' : 'ON'), country: location.address.country || (US_SHOP ? 'United States' : 'Canada') } } : location) }
+      ? { ...base, enabled: true, pickupLocations: locations.map((location, index) => index === 0 ? { ...location, enabled: true, address: { ...location.address, state: location.address.state || (place === 'toronto' ? 'ON' : home.state || ''), country: location.address.country || (US_SHOP ? 'United States' : 'Canada') } } : location) }
       : { ...base, pickupLocations: base.pickupLocations.map(location => ({ ...location, enabled: false })) };
   };
   async function setQuickPickup(on: boolean) {
@@ -137,13 +153,13 @@ export function LocalFulfillmentSettings({ draft }: { draft?: ReturnType<typeof 
     </SectionCard>
     {config.pickupLocations.map((record, index) => {
       const areas = record.postalPrefixes ?? [];
-      const area = areaModes[record.id] ?? (!areas.length ? 'everyone' : areas.length === 1 && areas[0].trim().toUpperCase() === 'M' ? 'toronto' : 'custom');
+      const area = areaModes[record.id] ?? (!areas.length ? 'everyone' : areas.length === 1 && areas[0].trim().toUpperCase() === 'M' && place === 'toronto' ? 'toronto' : 'custom');
       return <SectionCard key={record.id} title={record.name || 'New pickup location'}>
         <div className="rp-stack">
           <Toggle label="Show this pickup at checkout" checked={record.enabled} onChange={enabled => patch('pickupLocations', record.id, { enabled })} />
           <TextField label="Name shoppers see" value={record.name} onChange={e => patch('pickupLocations', record.id, { name: e.target.value })} />
-          <SelectField label="Who can choose pickup" hint={L.areaHint} value={area} onChange={e => { const mode = e.target.value as 'toronto' | 'custom' | 'everyone'; setAreaModes(current => ({ ...current, [record.id]: mode })); patch('pickupLocations', record.id, { postalPrefixes: mode === 'toronto' ? [...TORONTO_AREA] : mode === 'everyone' ? [] : areas.length ? areas : [L.firstArea] }); }}>
-            {!US_SHOP && <option value="toronto">Toronto only (postal codes starting with M)</option>}
+          <SelectField label="Who can choose pickup" hint={L.areaHint} value={area} onChange={e => { const mode = e.target.value as 'toronto' | 'custom' | 'everyone'; setAreaModes(current => ({ ...current, [record.id]: mode })); patch('pickupLocations', record.id, { postalPrefixes: mode === 'toronto' ? [...TORONTO_AREA] : mode === 'everyone' ? [] : areas.length ? areas : L.firstArea ? [L.firstArea] : [] }); }}>
+            {place === 'toronto' && <option value="toronto">Toronto only (postal codes starting with M)</option>}
             <option value="custom">{L.custom}</option>
             <option value="everyone">Everyone, anywhere</option>
           </SelectField>

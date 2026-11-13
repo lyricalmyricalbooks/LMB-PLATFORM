@@ -10,6 +10,7 @@
  */
 
 const { httpStatus, refundRefused } = require("./refundRefusal");
+const { shopTimeZone } = require("./shared/shopTimeZone");
 const { onSchedule: onScheduleReal } = require("firebase-functions/v2/scheduler");
 // Code plan 15.16: sweeps register with the tick (tick.js) instead of each owning a Cloud Scheduler job.
 const { TICK_EVERY_MINUTES, TICK_TIMEOUT_SECONDS, createTickRegistry, runTick } = require("./tick");
@@ -628,7 +629,7 @@ exports.twoStepBackup = onBrowserRequest({ secrets: withPlatformKey([RESEND_API_
       // The person and the owner are told by email, so a stolen code can't be used quietly.
       const notify = async ({ email, left }) => {
         const language = await adminEmailLanguage();
-        const when = new Intl.DateTimeFormat(language === "fr" ? "fr-CA" : "en-CA", { timeZone: "America/Toronto", dateStyle: "long", timeStyle: "short" }).format(new Date(nowIso));
+        const when = new Intl.DateTimeFormat(language === "fr" ? "fr-CA" : "en-CA", { timeZone: shopTimeZone(), dateStyle: "long", timeStyle: "short" }).format(new Date(nowIso));
         const message = twoStepBackup.backupUsedEmail({ language,  email, ownerEmail: ADMIN_TO(), left, shopName: shopConfig.senderName, when, adminLink: siteLink("/admin#settings/security") });
         if (message.to.length) await sendEmail({ queue: "twoStepBackupUsed", ...message, secret: resendSecretValue() });
       };
@@ -650,7 +651,7 @@ exports.twoStepBackup = onBrowserRequest({ secrets: withPlatformKey([RESEND_API_
     if (action === "changed") {
       const notify = async ({ email, on }) => {
         const language = await adminEmailLanguage();
-        const when = new Intl.DateTimeFormat(language === "fr" ? "fr-CA" : "en-CA", { timeZone: "America/Toronto", dateStyle: "long", timeStyle: "short" }).format(new Date(nowIso));
+        const when = new Intl.DateTimeFormat(language === "fr" ? "fr-CA" : "en-CA", { timeZone: shopTimeZone(), dateStyle: "long", timeStyle: "short" }).format(new Date(nowIso));
         const message = twoStepBackup.twoStepChangedEmail({ language,  email, ownerEmail: ADMIN_TO(), on, shopName: shopConfig.senderName, when, adminLink: siteLink("/admin#settings/security") });
         if (message.to.length) await sendEmail({ queue: "twoStepChanged", ...message, secret: resendSecretValue() });
       };

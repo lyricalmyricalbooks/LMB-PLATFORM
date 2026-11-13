@@ -3,7 +3,12 @@
 // schedule it always had; one job wakes every five minutes, runs the sweeps that are due and remembers when each last
 // ran in `systemStatus/tick`. A sweep that fails is recorded and is not repeated until its next due time.
 
+const { shopTimeZone } = require("./shared/shopTimeZone");
+
 const TICK_EVERY_MINUTES = 5;
+/** A sweep registered with this time zone runs on the clock of the shop the tick is running for (an 8am email at the shop's 8am). */
+const SHOP_ZONE = "shop";
+const specFor = (job, zone) => (job.spec.timeZone === SHOP_ZONE ? { ...job.spec, timeZone: zone } : job.spec);
 const DAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
 /** "every 15 minutes" | "every 3 hours" | "every day 08:00" | "every monday 08:00" -> a plain description. */
@@ -89,7 +94,7 @@ const TICK_TIMEOUT_SECONDS = 1800;
  * one transaction against fresh state before any runs: a sweep another tick is still running (its `running` mark is
  * younger than its timeout) is skipped, and each sweep writes back only its own entry, never a stale copy of the rest.
  */
-async function runTick({ jobs, db, now = Date.now(), log = console }) {
+async function runTick({ jobs, db, now = Date.now(), log = console, zone = shopTimeZone() }) {
   const ref = db.collection("systemStatus").doc("tick");
   const claimed = await db.runTransaction(async tx => {
     const snap = await tx.get(ref);
@@ -101,7 +106,7 @@ async function runTick({ jobs, db, now = Date.now(), log = console }) {
       const timeoutMs = (Number(job.timeoutSeconds) || TICK_TIMEOUT_SECONDS) * 1000;
       if (entry.running && now - entry.running < timeoutMs) continue;
       const last = entry.at || 0;
-      if (!isDue(job.spec, now, last)) {
+      if (!isDue(specFor(job, zone), now, last)) {
         if (!last && job.spec.kind !== "interval") marks[job.name] = { at: now, ok: true, started: true };
         continue;
       }
@@ -128,4 +133,4 @@ async function runTick({ jobs, db, now = Date.now(), log = console }) {
   return { ran };
 }
 
-module.exports = { TICK_EVERY_MINUTES, TICK_TIMEOUT_SECONDS, parseSchedule, isDue, lastOccurrence, createTickRegistry, runTick };
+module.exports = { SHOP_ZONE, TICK_EVERY_MINUTES, TICK_TIMEOUT_SECONDS, parseSchedule, isDue, lastOccurrence, createTickRegistry, runTick };

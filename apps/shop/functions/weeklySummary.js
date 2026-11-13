@@ -3,11 +3,11 @@
 // the admin Overview: test orders, unpaid/refunded orders and the owner's own orders (placed with the shop's own email:
 // src/app/lib/ownerDevice.ts isOwnOrder) don't count; revenue is after partial refunds. Pure.
 const { shopCurrency } = require("./shopMoney");
+const { shopTimeZone } = require("./shared/shopTimeZone");
 const OWNER_EMAIL = "owner@example.com";
-const TZ = "America/Toronto";
 const DAY = 86_400_000;
 
-const torontoDay = ms => new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ms));
+const torontoDay = ms => new Intl.DateTimeFormat("en-CA", { timeZone: shopTimeZone(), year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ms));
 const keyMs = key => Date.parse(`${key}T12:00:00Z`);
 const shiftKey = (key, days) => new Date(keyMs(key) + days * DAY).toISOString().slice(0, 10);
 

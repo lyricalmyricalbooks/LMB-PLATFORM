@@ -24,6 +24,7 @@ const STEPS = Object.freeze({
 
 // The shop's own currency (shopMoney.js), read when the code runs: one server runs every shop.
 const { shopCurrency } = require("./shopMoney");
+const { shopTimeZone } = require("./shared/shopTimeZone");
 const { dailyBookkeeping } = require("./shared/bookkeeping");
 
 /**
@@ -32,7 +33,7 @@ const { dailyBookkeeping } = require("./shared/bookkeeping");
  * @param {object[]} orders every order (a refund can land on an older order)
  * @param {string} date YYYY-MM-DD in the shop's time zone
  */
-function dayFromOrders(orders, date, timeZone = "America/Toronto") {
+function dayFromOrders(orders, date, timeZone = shopTimeZone()) {
   const found = dailyBookkeeping(orders, { month: date.slice(0, 7), currency: shopCurrency(), timeZone }).find((d) => d.date === date);
   return found || {
     date, salesCents: 0, shippingCents: 0, discountsCents: 0, giftCardsSoldCents: 0, giftCardsUsedCents: 0,

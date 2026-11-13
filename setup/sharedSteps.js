@@ -44,7 +44,7 @@ import { domainOrigins, normalDomain } from "../services/domains/names.js";
  */
 export const SHOP_KEYS = Object.freeze([
   "SHOP_SENDER_NAME", "SHOP_SENDER_EMAIL", "SHOP_SITE_URL", "SHOP_EXTRA_ORIGINS", "SHOP_PAYMENT_PROVIDER",
-  "SHOP_PAYMENT_MODE", "SHOP_PAYMENT_EARLIER", "SHOP_TEST_SHOP", "SHOP_STOCKROOM_DATABASE", "SHOP_CURRENCY",
+  "SHOP_PAYMENT_MODE", "SHOP_PAYMENT_EARLIER", "SHOP_TEST_SHOP", "SHOP_STOCKROOM_DATABASE", "SHOP_CURRENCY", "SHOP_TIME_ZONE",
 ]);
 
 /** Every shop gets the shop and the stockroom: the plan the steps build is always "both". */
@@ -188,7 +188,7 @@ export function sharedShopSteps({ google, shared, registry, shopData, stockroom,
         const key = serviceKeyHash ? { serviceKeyHash } : {};
         if (await registry.getShop(shopId)) return registry.updateShop(shopId, key);
         await registry.createShop(shopId, {
-          shopId, projectId: sharedProject, shared: true, pressName, ownerEmail, plan: "both", country, currency, region,
+          shopId, projectId: sharedProject, shared: true, pressName, ownerEmail, plan: "both", country, currency, region, ...(shop.timeZone ? { timeZone: shop.timeZone } : {}),
           testMode: shop.testMode === true, testShop: shop.testShop === true, status: "creating", createdAt: now().toISOString(),
           ...(language === "fr" ? { language } : {}), ...key,
           // The test shop answers at the shared test project's own Firebase address (setup/make-test-shop.js), which

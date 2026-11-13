@@ -1,3 +1,4 @@
+import { shopTimeZone } from "../../../shared/shopTimeZone";
 /**
  * Whether shoppers may see and buy a book now. Mirrors the server's
  * `purchaseProblem` (functions/paymentGuards.js): published (or saved before
@@ -24,4 +25,4 @@ export function releaseArrived(scheduleDate: unknown, nowISO = new Date().toISOS
 }
 
 const shopDate = (now: Date) =>
-  new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  new Intl.DateTimeFormat("en-CA", { timeZone: shopTimeZone(), year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
