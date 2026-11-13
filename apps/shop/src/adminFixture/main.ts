@@ -16,6 +16,7 @@ import { recomputeAfters } from "@stockroom/recompute-afters.js";
 import { stockistReceiptApi } from "../app/admin/stockroom/stockistReceipt"; // stockist-pay
 import { qrCodesStore } from "../app/admin/stockroom/qrCodesStore";
 import { sheetsStore } from "../app/admin/stockroom/sheetsStore";
+import { customerGroupsStore } from "../app/admin/customerGroupsStore";
 import { nightlyBackupApi } from "../app/admin/BackupsExportCard";
 import { copiesIO, readManifest, snapshotOf } from "../app/admin/stockroom/stockroomCopies";
 import { receiptInboxApi, type InboxView, type WaitingReceipt } from "../app/admin/stockroom/receiptInboxApi";
@@ -941,4 +942,11 @@ if (!helperShown) {
   const page = new URLSearchParams(location.search).get("page") || "";
   history.replaceState(null, "", `/admin?debug=true${page ? `#${page}` : ""}`);
   await import("../main");
+}
+
+// Customers › Saved groups keep to this page in the fixture (one sample group).
+{
+  let groups: any[] = [{ id: "g1", name: "Newsletter regulars", seg: "returning", q: "", consent: "subscribed", tag: "", country: "", sort: "recent" }];
+  customerGroupsStore.load = async () => groups;
+  customerGroupsStore.save = async (next) => { groups = next; };
 }
