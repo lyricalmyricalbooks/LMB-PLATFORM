@@ -27,6 +27,7 @@ import {
 } from "./fulfillment";
 import { invoiceLine, invoiceOpen } from "./invoices";
 import { PaymentLinkCard } from "./PaymentLinkCard";
+import { StoreCreditCard } from "./StoreCreditCard";
 import { PaymentLinkDialog } from "./PaymentLinkDialog";
 import { AddedItemsCard } from "./AddedItemsCard";
 import { addItemsProblem } from "./paymentLinks";
@@ -940,6 +941,7 @@ export function OrderDetail({
           )}
           <PaymentLinkCard order={order} />
           <AddedItemsCard order={order} onOpen={onNavigate} />
+          <StoreCreditCard order={order} />
           <PaymentLinkDialog
             open={addingItems}
             addTo={order}
