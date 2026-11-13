@@ -67,3 +67,8 @@ browsers may write (mirroring `firestore.rules`).
   tax sits between the lowest and highest rate used, no kinds means one rate as before, bookkeeping cents add up). It
   found that two shipping profiles with equal bases charged by bag order: `quoteShipping` now breaks the leader tie by
   the bigger waived extra, then profile id.
+- The shop's own currency (13 November 2026, `tasks/todo/2026-11-13-shop-currency.md`): `shopCurrency.ts` (`shopCurrencyOf`,
+  `currencySign`, `currencyName`, `shopMoney`). The server reads `shopConfig.currency` (the record's `SHOP_CURRENCY`,
+  written by the platform's setup from sign-up's country), the pages `shopCurrency()` in `lib/shopProfile` (the
+  profile's `currency`, left out for CAD). CAD and USD only; anything else is CAD. Nothing prices or charges with it
+  yet: new money code should take the currency from here, never write "CAD" or "CA$".

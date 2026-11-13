@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import { describe, expect, it, vi } from "vitest";
 
-import { DEFAULT_SHOP_PROFILE, parseShopProfile, readShopProfile } from "./shopProfile";
+import { DEFAULT_SHOP_PROFILE, parseShopProfile, readShopProfile, shopCurrency } from "./shopProfile";
 
 const other = {
   ...DEFAULT_SHOP_PROFILE,
@@ -15,6 +15,13 @@ const other = {
 describe("shop profile", () => {
   it("uses the built-in settings when the page has no profile", () => {
     expect(readShopProfile(undefined)).toBe(DEFAULT_SHOP_PROFILE);
+  });
+
+  it("sells in Canadian dollars unless its profile says US dollars", () => {
+    expect(shopCurrency(parseShopProfile(other)!)).toBe("CAD");
+    expect(shopCurrency(parseShopProfile({ ...other, currency: "USD" })!)).toBe("USD");
+    expect(parseShopProfile({ ...other, currency: "GBP" })!.currency).toBeUndefined();
+    expect(parseShopProfile({ ...other, currency: 5 })).not.toBeNull();
   });
 
   it("uses the profile the page opened with", () => {

@@ -140,3 +140,9 @@ test("the shop's sign-in list is an optional tenant id (the shared system, docs/
   }
   assert.equal(schema.required.includes("tenant"), false);
 });
+
+test("the shop's currency is an optional three-letter code", () => {
+  assert.deepEqual(profileProblems({ ...example, currency: "USD" }), []);
+  assert.equal(schema.required.includes("currency"), false);
+  assert.ok(profileProblems({ ...example, currency: "usd" }).includes("profile.currency has the wrong shape"));
+});

@@ -58,6 +58,7 @@
 //                        the people on it see the shop in the platform's account switcher. Unset: nothing is sent
 
 const { PROVIDER_NAMES, DEFAULT_PROVIDER, MODES, DEFAULT_MODE } = require("./payments");
+const { shopCurrencyOf } = require("./shared/shopCurrency");
 
 const PLACEHOLDER = Object.freeze({
   ownerEmail: "owner@example.com",
@@ -166,6 +167,8 @@ function readShopConfig(env = {}) {
     earlierPaymentProvider: earlierProviderOf(env.SHOP_PAYMENT_EARLIER, paymentProviderOf(env.SHOP_PAYMENT_PROVIDER), paymentModeOf(env.SHOP_PAYMENT_MODE)),
     paymentsServiceUrl: paymentsServiceUrlOf(paymentModeOf(env.SHOP_PAYMENT_MODE), env.SHOP_PAYMENTS_SERVICE_URL),
     testShop: text(env.SHOP_TEST_SHOP).toLowerCase() === "true",
+    // The currency every price and total of this shop is in (shared/shopCurrency): CAD unless the record says USD.
+    currency: shopCurrencyOf(env.SHOP_CURRENCY),
     stockroomDatabase: DATABASE_ID.test(text(env.SHOP_STOCKROOM_DATABASE)) ? text(env.SHOP_STOCKROOM_DATABASE) : PLACEHOLDER.stockroomDatabase,
     platformEmailUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_EMAIL_URL)) ? text(env.PLATFORM_EMAIL_URL) : "",
     platformDomainsUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_DOMAINS_URL)) ? text(env.PLATFORM_DOMAINS_URL).replace(/\/+$/, "") : "",
@@ -199,7 +202,7 @@ function functionLink(config, name, params = {}) {
 // addresses, the region) is the same for every shop and comes from the server's own environment.
 const SHOP_KEYS = Object.freeze([
   "SHOP_SENDER_NAME", "SHOP_SENDER_EMAIL", "SHOP_SITE_URL", "SHOP_EXTRA_ORIGINS", "SHOP_PAYMENT_PROVIDER",
-  "SHOP_PAYMENT_MODE", "SHOP_PAYMENT_EARLIER", "SHOP_TEST_SHOP", "SHOP_STOCKROOM_DATABASE",
+  "SHOP_PAYMENT_MODE", "SHOP_PAYMENT_EARLIER", "SHOP_TEST_SHOP", "SHOP_STOCKROOM_DATABASE", "SHOP_CURRENCY",
 ]);
 const SHOP_ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
 
