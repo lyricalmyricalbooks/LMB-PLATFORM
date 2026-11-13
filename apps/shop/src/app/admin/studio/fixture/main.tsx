@@ -10,6 +10,8 @@ import { createStudioFixture, installFakeStudioApi } from "./fakeStudioApi";
 import { parseStudioLocation } from "../../../lib/studioLocation";
 import { setAiTransport } from "../../aiWriter";
 import { applyAdminLook } from "../../riso/adminLook";
+import { ShopWordsContext } from "../../shopWords";
+import { wordsFor } from "../../../../shared/shopSells";
 
 // The fixture wears the admin's one look, as Studio does inside a shop's admin.
 applyAdminLook();
@@ -34,10 +36,15 @@ setAiTransport(async body => {
   return answer || { status: 412, data: { error: "Add an AI key first: Settings › General › AI writing assistant (a free Google AI key, or an OpenRouter key).", needsKey: true } };
 });
 
+// `?sells=clothing` shows Studio as a shop that doesn't sell books sees it (the admin's words, shopWords.tsx).
+const words = wordsFor(new URLSearchParams(location.search).get("sells"));
+
 createRoot(document.getElementById("root")!).render(
+  <ShopWordsContext.Provider value={words}>
   <div className="admin-light admin-reso" data-admin-theme="reso" style={{ background: "transparent" }}>
     <div className="fixed inset-0 z-[200] bg-black">
       <StudioEditor settings={fixture.settings} appearance="light" initialLocation={parseStudioLocation(location.hash) || undefined} onExit={() => { (window as any).__studioExited = true; }} />
     </div>
-  </div>,
+  </div>
+  </ShopWordsContext.Provider>,
 );

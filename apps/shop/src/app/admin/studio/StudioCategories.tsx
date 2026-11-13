@@ -1,3 +1,4 @@
+import { useShopWords } from "../shopWords";
 import { alternatesFor } from "../../features/site/templateAlternates";
 import { useEffect, useState } from "react";
 import { adminApi } from "../api";
@@ -13,6 +14,7 @@ type Props = {
   confirm?: (opts: { title: string; message: string; confirmLabel?: string }) => Promise<boolean>;
 };
 export function StudioCategories({ design, published, onChange, onReorder, onBooksChanged, confirm }: Props) {
+  const w = useShopWords();
   const cats = normalizeCategories(Array.isArray(design.categories) ? design.categories : [...CATEGORIES]);
   const live = normalizeCategories(published.categories ?? [...CATEGORIES]);
   const [books, setBooks] = useState<any[]>([]);
@@ -34,7 +36,7 @@ export function StudioCategories({ design, published, onChange, onReorder, onBoo
   const load = async () => {
     setLoading(true); setLoaded(false); setError("");
     try { setBooks(await adminApi.getCategoryBooks()); setLoaded(true); }
-    catch { setError("Could not load the full catalog. Retry before changing book assignments."); }
+    catch { setError(w("Could not load the full catalog. Retry before changing book assignments.")); }
     finally { setLoading(false); }
   };
   useEffect(() => { void load(); }, []);
@@ -72,9 +74,9 @@ export function StudioCategories({ design, published, onChange, onReorder, onBoo
     if (action !== "add" && confirm) {
       const target = cats.find(c => c.id === destination);
       const ok = await confirm({
-        title: action === "move" ? "Move books now?" : "Remove books now?",
-        message: `${selected.length} book${selected.length === 1 ? "" : "s"} will be ${action === "move" ? `moved from ${current?.name} to ${target?.name || "the chosen category"}` : `removed from ${current?.name}`}. This changes the live shop now; Discard draft won't undo it.`,
-        confirmLabel: action === "move" ? "Move books" : "Remove books",
+        title: w(action === "move" ? "Move books now?" : "Remove books now?"),
+        message: `${selected.length} ${w(selected.length === 1 ? "book" : "books")} will be ${action === "move" ? `moved from ${current?.name} to ${target?.name || "the chosen category"}` : `removed from ${current?.name}`}. This changes the live shop now; Discard draft won't undo it.`,
+        confirmLabel: w(action === "move" ? "Move books" : "Remove books"),
       });
       if (!ok) return;
     }
@@ -84,7 +86,7 @@ export function StudioCategories({ design, published, onChange, onReorder, onBoo
       if (!loaded) throw new Error("Reload the full catalog before saving assignments.");
       const updated = await adminApi.updateCategoryBooks(selected, current, action, target);
       updateBooks(updated); setSelected([]);
-      setNotice(`Saved assignments for ${updated.length} books to the live catalog.`);
+      setNotice(w(`Saved assignments for ${updated.length} books to the live catalog.`));
     } catch (e: any) { setError(e.message || "Could not save assignments. Try again."); }
     finally { setBusy(false); }
   };
@@ -93,9 +95,9 @@ export function StudioCategories({ design, published, onChange, onReorder, onBoo
     if (deleteMode !== "keep" && confirm && deleting) {
       const target = cats.find(c => c.id === destination);
       const ok = await confirm({
-        title: deleteMode === "move" ? "Move the books now?" : "Remove the books now?",
-        message: `Every book in ${deleting.name} will be ${deleteMode === "move" ? `moved to ${target?.name || "the chosen category"}` : `taken out of ${deleting.name}`}. This changes the live shop now; Discard draft won't undo it. The category itself leaves the menu when you Publish.`,
-        confirmLabel: deleteMode === "move" ? "Move books and delete" : "Remove books and delete",
+        title: w(deleteMode === "move" ? "Move the books now?" : "Remove the books now?"),
+        message: `${w("Every book")} in ${deleting.name} will be ${deleteMode === "move" ? `moved to ${target?.name || "the chosen category"}` : `taken out of ${deleting.name}`}. This changes the live shop now; Discard draft won't undo it. The category itself leaves the menu when you Publish.`,
+        confirmLabel: w(deleteMode === "move" ? "Move books and delete" : "Remove books and delete"),
       });
       if (!ok) return;
     }
@@ -111,10 +113,10 @@ export function StudioCategories({ design, published, onChange, onReorder, onBoo
         const after = await adminApi.getCategoryBooks();
         setBooks(after); onBooksChanged(after);
         if (after.some(b => directlyAssigned(b, deleting)))
-          throw new Error("Assignments were saved, but more books were assigned here during the update. The menu was kept. Retry deletion to include those books.");
+          throw new Error(w("Assignments were saved, but more books were assigned here during the update. The menu was kept. Retry deletion to include those books."));
       }
       onChange(deleteCategory(cats, deleting.id)); setDeleting(null);
-      setNotice("Category removed from your working design. Publish to remove it from the shop menu. Books have been preserved.");
+      setNotice(w("Category removed from your working design. Publish to remove it from the shop menu. Books have been preserved."));
     } catch (e: any) { setError(e.message || "Could not delete this category. No menu changes were made."); }
     finally { setBusy(false); }
   };
@@ -131,7 +133,7 @@ export function StudioCategories({ design, published, onChange, onReorder, onBoo
   const feedback = <>{error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}</>;
   return <section className="studio-categories rp" data-studio-panel="menus:categories">
     <h3>Shop categories</h3>
-    <p>Manage category details, menu placement and books. Menu changes stay in Studio until you publish. Book assignments save immediately to the live catalog.</p>
+    <p>{w("Manage category details, menu placement and books. Menu changes stay in Studio until you publish. Book assignments save immediately to the live catalog.")}</p>
     {!editor && !deleting && feedback}
     {loading ? <p role="status">Loading full catalog…</p> : error && !editor && !deleting && <SecondaryButton onClick={load}>Retry catalog</SecondaryButton>}
     <TextField label="Find categories" value={search} onChange={e => setSearch(e.target.value)} />
@@ -139,7 +141,7 @@ export function StudioCategories({ design, published, onChange, onReorder, onBoo
     {refLimit > 0 && <p className="studio-hint" data-reference-limit={refLimit}>Your shop header (Reference layout) shows the first {refLimit === 1 ? "category" : `${refLimit} categories`} in this order. To show more, go to Theme settings › Shop page masthead & covers › Max categories in the nav.</p>}
     {cats.length === 0 && <p>No categories yet. Add one to organize the shop.</p>}
     {cats.filter(c => `${c.name} ${c.description || ""}`.toLowerCase().includes(search.toLowerCase())).map(c => <article key={c.id} className="studio-category-row">
-      <div><strong>{c.name}</strong><p>{loading ? "Loading counts…" : !loaded ? "Counts unavailable" : `${books.filter(b => directlyAssigned(b, c)).length} directly assigned books`} · {menuState(c)}</p>
+      <div><strong>{c.name}</strong><p>{loading ? "Loading counts…" : !loaded ? "Counts unavailable" : w(`${books.filter(b => directlyAssigned(b, c)).length} directly assigned books`)} · {menuState(c)}</p>
         {parentOf(c, cats) && <p>Under {cats.find(p => p.id === parentOf(c, cats))?.name}</p>}
       </div>
       <div className="studio-category-actions">
@@ -169,19 +171,19 @@ export function StudioCategories({ design, published, onChange, onReorder, onBoo
           {alternatesFor(design, "collectionPage").map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
         </SelectField>
         {current && <>
-          <h3>Book assignments</h3>
-          <p>Counts show direct assignments, including earlier category names. Parent menus also include their children. PUBLICATIONS automatically shows every book on the storefront.</p>
-          <p>Assignments save immediately; Publish and Discard Draft do not undo them. They use the published category name so a discarded rename keeps books findable. Apply category details before changing assignments.</p>
-          {!liveCurrent && <p>Publish this new category before assigning books.</p>}
-          <TextField label="Find books by title, SKU or ISBN" value={bookSearch} onChange={e => setBookSearch(e.target.value)} disabled={busy} />
-          <SelectField label="Show books" value={membership} onChange={e => setMembership(e.target.value)} disabled={busy}><option value="all">All books</option><option value="assigned">Assigned here</option><option value="unassigned">Not assigned here</option></SelectField>
-          <SecondaryButton disabled={busy || !loaded} onClick={() => setSelected(prev => [...new Set([...prev, ...filteredBooks.map(b => b.id)])].slice(0, 400))}>Select matching books (up to 400)</SecondaryButton>
+          <h3>{w("Book assignments")}</h3>
+          <p>{w("Counts show direct assignments, including earlier category names. Parent menus also include their children. PUBLICATIONS automatically shows every book on the storefront.")}</p>
+          <p>{w("Assignments save immediately; Publish and Discard Draft do not undo them. They use the published category name so a discarded rename keeps books findable. Apply category details before changing assignments.")}</p>
+          {!liveCurrent && <p>{w("Publish this new category before assigning books.")}</p>}
+          <TextField label={w("Find books by title, SKU or ISBN")} value={bookSearch} onChange={e => setBookSearch(e.target.value)} disabled={busy} />
+          <SelectField label={w("Show books")} value={membership} onChange={e => setMembership(e.target.value)} disabled={busy}><option value="all">{w("All books")}</option><option value="assigned">Assigned here</option><option value="unassigned">Not assigned here</option></SelectField>
+          <SecondaryButton disabled={busy || !loaded} onClick={() => setSelected(prev => [...new Set([...prev, ...filteredBooks.map(b => b.id)])].slice(0, 400))}>{w("Select matching books (up to 400)")}</SecondaryButton>
           <SecondaryButton disabled={busy} onClick={() => setSelected([])}>Clear selection</SecondaryButton>
-          <div className="studio-category-books">{filteredBooks.map(b => <Checkbox key={b.id} label={`${b.title || "Untitled book"} · ${b.status || "published"}${directlyAssigned(b, current) ? " · assigned" : ""}`} checked={selected.includes(b.id)} disabled={busy || loading} onChange={e => setSelected(e.target.checked ? [...selected, b.id] : selected.filter(id => id !== b.id))} />)}{!loading && !filteredBooks.length && <p>No matching books.</p>}</div>
-          <p>{selected.length} books selected (maximum 400 per save).</p>
+          <div className="studio-category-books">{filteredBooks.map(b => <Checkbox key={b.id} label={`${b.title || w("Untitled book")} · ${b.status || "published"}${directlyAssigned(b, current) ? " · assigned" : ""}`} checked={selected.includes(b.id)} disabled={busy || loading} onChange={e => setSelected(e.target.checked ? [...selected, b.id] : selected.filter(id => id !== b.id))} />)}{!loading && !filteredBooks.length && <p>{w("No matching books.")}</p>}</div>
+          <p>{selected.length} {w("books selected (maximum 400 per save).")}</p>
           <SelectField label="Assignment action" value={action} onChange={e => setAction(e.target.value as CategoryAction)} disabled={busy}><option value="add">Assign to this category</option><option value="remove">Remove from this category</option><option value="move">Move from this category to…</option></SelectField>
           {action === "move" && <SelectField label="Destination category" value={destination} onChange={e => setDestination(e.target.value)} disabled={busy}><option value="">Choose a category</option>{cats.filter(c => c.id !== current.id && live.some(p => p.id === c.id)).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</SelectField>}
-          <PrimaryButton disabled={busy || !loaded || !liveCurrent || dirtyDetails || !selected.length || selected.length > 400 || (action === "move" && !destination)} onClick={saveAssignments}>{busy ? "Saving…" : "Save book assignments"}</PrimaryButton>
+          <PrimaryButton disabled={busy || !loaded || !liveCurrent || dirtyDetails || !selected.length || selected.length > 400 || (action === "move" && !destination)} onClick={saveAssignments}>{busy ? "Saving…" : w("Save book assignments")}</PrimaryButton>
         </>}
       </div>}
     </Dialog>
@@ -189,14 +191,14 @@ export function StudioCategories({ design, published, onChange, onReorder, onBoo
       footer={<><SecondaryButton disabled={busy} onClick={() => setDeleting(null)}>Cancel</SecondaryButton><PrimaryButton disabled={busy || (deleteMode !== "keep" && (!loaded || (deleteMode === "move" && !destination)))} onClick={confirmDelete}>{busy ? "Saving…" : "Delete category"}</PrimaryButton></>}>
       {deleting && <div className="studio-category-form">
         {feedback}
-        <p>Books are never deleted. Child categories become top-level categories. Publish afterward to remove this category from the shop menu.</p>
-        <p>{loaded ? `${books.filter(b => directlyAssigned(b, deleting)).length} directly assigned books.` : "Counts unavailable until the catalog loads."}</p>
-        {books.filter(b => directlyAssigned(b, deleting)).length > 400 && <p>For more than 400 assigned books, use Edit → Assigned here to move or remove up to 400 per save before deleting.</p>}
-        <SelectField label="What happens to assigned books?" value={deleteMode} disabled={busy || loading} onChange={e => setDeleteMode(e.target.value)}>
+        <p>{w("Books are never deleted. Child categories become top-level categories. Publish afterward to remove this category from the shop menu.")}</p>
+        <p>{loaded ? w(`${books.filter(b => directlyAssigned(b, deleting)).length} directly assigned books.`) : "Counts unavailable until the catalog loads."}</p>
+        {books.filter(b => directlyAssigned(b, deleting)).length > 400 && <p>{w("For more than 400 assigned books, use Edit → Assigned here to move or remove up to 400 per save before deleting.")}</p>}
+        <SelectField label={w("What happens to assigned books?")} value={deleteMode} disabled={busy || loading} onChange={e => setDeleteMode(e.target.value)}>
           <option value="keep">Keep their existing assignments (menu removal only)</option><option value="remove">Remove this category assignment</option><option value="move">Move them to another category</option>
         </SelectField>
-        {deleteMode !== "keep" && <p>Book assignments change immediately in the live catalog. Discard Draft will not undo them.</p>}
-        {deleteMode === "move" && <SelectField label="Move books to" value={destination} disabled={busy} onChange={e => setDestination(e.target.value)}><option value="">Choose a category</option>{cats.filter(c => c.id !== deleting.id && live.some(p => p.id === c.id)).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</SelectField>}
+        {deleteMode !== "keep" && <p>{w("Book assignments change immediately in the live catalog. Discard Draft will not undo them.")}</p>}
+        {deleteMode === "move" && <SelectField label={w("Move books to")} value={destination} disabled={busy} onChange={e => setDestination(e.target.value)}><option value="">Choose a category</option>{cats.filter(c => c.id !== deleting.id && live.some(p => p.id === c.id)).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</SelectField>}
       </div>}
     </Dialog>
   </section>;

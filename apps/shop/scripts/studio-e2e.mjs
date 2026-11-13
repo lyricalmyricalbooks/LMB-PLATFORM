@@ -14,7 +14,10 @@ import { join } from "node:path";
 let server;
 let base = process.env.STUDIO_URL;
 if (!base) {
-  server = await createServer({ server: { port: 0, strictPort: false }, logLevel: "error" });
+  // Find every package the app uses before the first check: on a machine with no Vite cache (CI), a package first met
+  // in the middle of a check (a lazily loaded editor) makes Vite rebuild and reload the page under the check.
+  server = await createServer({ server: { port: 0, strictPort: false }, logLevel: "error",
+    optimizeDeps: { entries: ["studio-fixture.html", "index.html", "src/**/*.{ts,tsx}", "!src/**/*.test.{ts,tsx}", "!src/**/*.bench.ts"] } });
   await server.listen();
   base = server.resolvedUrls.local[0].replace(/\/$/, "");
 }
@@ -51,6 +54,10 @@ async function check(name, viewport, run, query = "", prepare = null) {
   if (checkNo++ % shardCount !== shardNo - 1) return;
   const started = Date.now();
   const page = await browser.newPage({ viewport });
+  // The preview is the real storefront, which asks the shop's database and a currency service for data. The checks
+  // run on the fixture's own data, so those calls are refused at once: an answer arriving late (or real shop data
+  // arriving at all) redrew the preview under a running check on CI.
+  await page.route(/^https:\/\/(firestore\.googleapis\.com|open\.er-api\.com)\//, route => route.abort());
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
   try {
@@ -1347,7 +1354,7 @@ await check("Themes saves the draft as a theme, previews a look without changing
   // Preview a ready-made look: the canvas changes, the draft doesn't.
   const before = JSON.stringify((await page.evaluate(() => window.__studioFixture.calls)).filter(c => c.method === "saveDesign"));
   const preset = panel.locator("[data-theme-card^='preset:']").first();
-  await preset.getByRole("button", { name: "Preview" }).click();
+  await preset.getByRole("button", { name: "Preview", exact: true }).click();
   await page.locator("[data-studio-theme-preview]").waitFor({ timeout: 5000 });
   if (await page.locator("[data-studio-status=\"unsaved\"]").isVisible()) throw new Error("previewing a look changed the draft");
   await page.locator("[data-studio-theme-preview]").getByRole("button", { name: "Stop preview" }).click();
@@ -1369,12 +1376,12 @@ await check("a ready-made look offers its layout and starter pages after the loo
   await expectText(page, "Preview connected", 30000);
   await page.getByRole("button", { name: "Themes", exact: true }).click();
   const panel = page.locator("[data-studio-panel='themes']");
-  const card = panel.locator("[data-theme-card='preset:press-riso']");
+  const card = panel.locator("[data-theme-card='preset:press-marquee']");
   await card.locator("[data-preset-content]").waitFor({ timeout: 5000 });
   if (!/Home layout/.test(await card.locator("[data-preset-content]").innerText())) throw new Error("the card doesn't say it comes with a Home layout");
   // Skipping keeps only the look: no page is made.
   await card.getByRole("button", { name: "Use this look" }).click();
-  const ask = page.getByRole("dialog", { name: /Also use “Riso Paper” layout and starter pages\?/ });
+  const ask = page.getByRole("dialog", { name: /Also use “Marquee” layout and starter pages\?/ });
   await ask.waitFor({ timeout: 5000 });
   if (!/Kept as they are: your own About page/.test(await ask.innerText())) throw new Error("the dialog doesn't say the shop's own About page is kept");
   await ask.getByRole("button", { name: "Cancel" }).click();
@@ -1394,14 +1401,14 @@ await check("a ready-made look offers its layout and starter pages after the loo
 
 await check("switching looks lists what carried over, Bring back restores a replaced change, and Done closes the list", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
-  // An own edit in Essentials that Zine replaces (the title font), then open Themes.
+  // An own edit in Essentials that Marquee replaces (the title font), then open Themes.
   const essentials = page.locator('[data-studio-panel="essentials"]');
   await essentials.locator('[data-style-key="headingFont"] select').selectOption("Oswald");
   await essentials.getByRole("button", { name: "Browse looks" }).click();
   const panel = page.locator("[data-studio-panel='themes']");
-  const card = panel.locator("[data-theme-card='preset:press-zine']");
+  const card = panel.locator("[data-theme-card='preset:press-marquee']");
   await card.getByRole("button", { name: "Use this look" }).click();
-  const ask = page.getByRole("dialog", { name: /Also use “Zine” layout and starter pages\?/ });
+  const ask = page.getByRole("dialog", { name: /Also use “Marquee” layout and starter pages\?/ });
   await ask.waitFor({ timeout: 5000 });
   await ask.getByRole("button", { name: "Cancel" }).click();
   const report = panel.locator("[data-switch-report]");
@@ -1419,10 +1426,10 @@ await check("switching looks lists what carried over, Bring back restores a repl
   await page.getByRole("button", { name: "Essentials" }).first().click();
   if (await essentials.locator('[data-style-key="headingFont"] select').inputValue() !== "Oswald") throw new Error("Bring back didn't restore the title font");
   await page.getByRole("button", { name: "Themes", exact: true }).click();
-  // Switching to Index replaces the list with Index's own.
-  await panel.locator("[data-theme-card='preset:press-index']").getByRole("button", { name: "Use this look" }).click();
-  await page.getByRole("dialog", { name: /Also use “Index” layout/ }).getByRole("button", { name: "Cancel" }).click();
-  await report.getByText("After switching to Index").waitFor({ timeout: 5000 });
+  // Switching to Atlas replaces the list with Atlas's own.
+  await panel.locator("[data-theme-card='preset:press-atlas']").getByRole("button", { name: "Use this look" }).click();
+  await page.getByRole("dialog", { name: /Also use “Atlas” layout/ }).getByRole("button", { name: "Cancel" }).click();
+  await report.getByText("After switching to Atlas").waitFor({ timeout: 5000 });
   await report.getByRole("button", { name: "Done" }).click();
   await report.waitFor({ state: "detached", timeout: 5000 });
 }, FIRST_VISIT);
@@ -1432,11 +1439,11 @@ await check("Themes keeps the press's own changes apart from their look, and Use
   const essentials = page.locator('[data-studio-panel="essentials"]');
   await essentials.getByRole("button", { name: "Browse looks" }).click();
   const panel = page.locator("[data-studio-panel='themes']");
-  await panel.locator("[data-theme-card='preset:press-zine']").getByRole("button", { name: "Use this look" }).click();
-  await page.getByRole("dialog", { name: /Also use “Zine” layout/ }).getByRole("button", { name: "Cancel" }).click();
+  await panel.locator("[data-theme-card='preset:press-marquee']").getByRole("button", { name: "Use this look" }).click();
+  await page.getByRole("dialog", { name: /Also use “Marquee” layout/ }).getByRole("button", { name: "Cancel" }).click();
   await panel.locator("[data-switch-report]").getByRole("button", { name: "Done" }).click();
   const own = panel.locator("[data-own-edits]");
-  await own.getByText("Your changes to Zine").waitFor({ timeout: 5000 });
+  await own.getByText("Your changes to Marquee").waitFor({ timeout: 5000 });
   if (!/Nothing changed yet/.test(await own.innerText())) throw new Error("a fresh look already lists changes");
   // Change the title font in Essentials: Themes now lists it as the press's own.
   await page.getByRole("button", { name: "Essentials" }).first().click();
@@ -1445,12 +1452,12 @@ await check("Themes keeps the press's own changes apart from their look, and Use
   await own.getByText("1 setting is yours").waitFor({ timeout: 5000 });
   await own.getByText("Show your changes (1)").click();
   const item = own.locator("[data-own-edit-list] li", { hasText: "Heading font" });
-  if (!/Archivo Black[\s\S]*Oswald/.test(await item.innerText())) throw new Error("the change doesn't show the theme's font and the press's");
+  if (!/Big Shoulders Display[\s\S]*Oswald/.test(await item.innerText())) throw new Error("the change doesn't show the theme's font and the press's");
   await item.getByRole("button", { name: /^Use the theme's / }).click();
   await expectText(page, "is the theme's again");
   await own.getByText("Nothing changed yet").waitFor({ timeout: 5000 });
   await page.getByRole("button", { name: "Essentials" }).first().click();
-  if (await essentials.locator('[data-style-key="headingFont"] select').inputValue() !== "Archivo Black") throw new Error("Use the theme's didn't restore Zine's title font");
+  if (await essentials.locator('[data-style-key="headingFont"] select').inputValue() !== "Big Shoulders Display") throw new Error("Use the theme's didn't restore Marquee's title font");
 }, FIRST_VISIT);
 
 await check("the hero's Height control (found by the theme check) changes the hero in the preview", desktop, async page => {
@@ -1495,7 +1502,7 @@ await check("an edit while a theme preview is showing ends the preview, and the 
   await expectText(page, "Home · 1 section");
   await page.getByRole("button", { name: "Themes", exact: true }).click();
   const panel = page.locator("[data-studio-panel='themes']");
-  await panel.locator("[data-theme-card^='preset:']").first().getByRole("button", { name: "Preview" }).click();
+  await panel.locator("[data-theme-card^='preset:']").first().getByRole("button", { name: "Preview", exact: true }).click();
   await page.locator("[data-studio-theme-preview]").waitFor({ timeout: 5000 });
   // Undo changes the draft: the canvas must stop showing the previewed look and follow the draft.
   await page.locator("[data-studio-theme-preview]").click({ position: { x: 4, y: 4 } });
@@ -1976,6 +1983,53 @@ await check("on a phone the open workspace is in sight in the workspace row", { 
   const box = await page.locator(".studio-rail button[aria-pressed=true]").boundingBox();
   if (!box || box.x < 0 || box.x + box.width > 390) throw new Error(`the open workspace is off screen (${JSON.stringify(box)})`);
 }, "#designer?tab=themes");
+
+// A shop that sells clothing or candles used to read "Book cards", "Book page" and "author" all through Studio.
+// `?sells=clothing` opens the fixture as such a shop; {tokens} keep their spelling because the shop fills them in.
+const bookWordsShown = page => page.evaluate(() => {
+  const word = /(?<![-\w{])(books?|authors?|editions?)\b/i;
+  const found = new Set();
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) if (word.test(n.nodeValue) && !n.parentElement.closest("script,style,textarea")) found.add(n.nodeValue.trim().slice(0, 80));
+  for (const el of document.querySelectorAll("[aria-label],[title]")) for (const a of ["aria-label", "title"]) if (word.test(el.getAttribute(a) || "")) found.add(el.getAttribute(a).slice(0, 80));
+  return [...found];
+});
+const noBookWords = async (page, where) => {
+  await page.waitForTimeout(800);
+  const found = await bookWordsShown(page);
+  if (found.length) throw new Error(`${where} still says book to a shop that doesn't sell books: ${found.slice(0, 6).join(" | ")}`);
+};
+await check("a shop that doesn't sell books reads its own words on the product page layout", desktop, async page => {
+  await expectText(page, "Product page");
+  await noBookWords(page, "Page layout");
+}, "?sells=clothing#designer?t=productPage&tab=sections");
+
+await check("a shop that doesn't sell books reads its own words in Theme settings", desktop, async page => {
+  await page.getByLabel("Search style settings").fill("product");
+  await expectText(page, "Product cards in the shop grid");
+  await noBookWords(page, "Theme settings");
+}, "?sells=clothing#designer?tab=style");
+
+await check("a shop that doesn't sell books reads its own words in Text & labels", desktop, async page => {
+  await page.getByPlaceholder("Search any label or message…").fill("product");
+  await expectText(page, "Product page title with maker (when a product has no search title)");
+  await noBookWords(page, "Text & labels");
+}, "?sells=clothing#designer?tab=text");
+
+await check("a shop that doesn't sell books reads its own words in Essentials, Navigation and Themes", desktop, async page => {
+  await noBookWords(page, "Essentials");
+  await page.getByRole("tab", { name: "Navigation" }).or(page.getByRole("button", { name: "Navigation", exact: true })).first().click();
+  await expectText(page, "directly assigned products");
+  await noBookWords(page, "Navigation");
+  await page.getByRole("tab", { name: "Themes" }).or(page.getByRole("button", { name: "Themes", exact: true })).first().click();
+  await expectText(page, "Marquee");
+  await noBookWords(page, "Themes");
+}, "?sells=clothing#designer?tab=essentials");
+
+await check("a books shop still reads book words in Theme settings", desktop, async page => {
+  await page.getByLabel("Search style settings").fill("book");
+  await expectText(page, "Book cards in the shop grid");
+}, "#designer?tab=style");
 
 await browser.close();
 await server?.close();

@@ -158,6 +158,44 @@ jobs:
       - run: pnpm run test:template-buttons
         if: matrix.shard == 1
 
+  # Studio (the shop designer) clicked through in a real browser (apps/shop/scripts/studio-e2e.mjs): the real editor over
+  # in-memory data (studio-fixture.html), so nothing is read from or saved to a shop. These checks came with the shop's
+  # code but ran nowhere here until 13 November 2026, and five had gone stale. Split across three machines
+  # (STUDIO_SHARD: every third check each; each check opens its own page).
+  shop-studio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    defaults:
+      run:
+        working-directory: apps/shop
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          version: 10
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/shop/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: |
+          pnpm exec playwright install chromium
+          # System packages only when Chromium is missing a library: the runner image has them, and Ubuntu's
+          # package servers are sometimes unreachable from GitHub (11 November 2026), which failed every browser job.
+          if find ~/.cache/ms-playwright -type f \( -name chrome -o -name chrome-headless-shell \) -exec ldd {} \; | grep -q "not found"; then
+            timeout 600 pnpm exec playwright install-deps chromium
+          fi
+      - run: pnpm run test:studio
+        env:
+          STUDIO_SHARD: ${{ matrix.shard }}/3
+
   # Plan 13.11: the shop admin's busiest pages at phone width in a real browser (apps/shop/scripts/admin-phone-check.mjs):
   # each opens with content, does not scroll sideways and does not crash. Sample orders and books only; nothing real is read.
   shop-admin-phone:
