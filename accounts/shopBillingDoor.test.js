@@ -12,6 +12,8 @@ import { fakeBillingStores, fakeBillingStripe, fakePlatformEmail } from "../serv
 import { createStripeApi } from "../services/payments/stripeApi.js";
 import { platformSettings } from "../services/settings.js";
 import { fakeAuditLog, fakeRegistry } from "../setup/fakes.js";
+import { createBankFeed } from "../services/bankfeed/index.js";
+import { fakePlaid } from "../services/bankfeed/fakes.js";
 
 const SHOP = "moth-press";
 const NOW = Date.parse("2026-11-03T12:00:00Z");
@@ -20,7 +22,7 @@ const NOW = Date.parse("2026-11-03T12:00:00Z");
 const pass = (claims, signature = "signed") => [Buffer.from('{"alg":"RS256"}').toString("base64url"), Buffer.from(JSON.stringify(claims)).toString("base64url"), signature].join(".");
 const OWNER = { aud: SHOP, uid: "shop-uid-1", email: "Owner@example.com", email_verified: true };
 
-async function world({ exports = null } = {}) {
+async function world({ exports = null, bankFeedEnv = null } = {}) {
   const settings = platformSettings({});
   const registry = fakeRegistry();
   await registry.createShop(SHOP, { shopId: SHOP, projectId: SHOP, pressName: "Moth Press", plan: "both", status: "live", ownerEmail: "owner@example.com" });
@@ -43,10 +45,12 @@ async function world({ exports = null } = {}) {
     if (claims.aud !== project) throw new Error("wrong project");
     return claims;
   };
-  const door = createShopBillingDoor({ billing, exports, accounts, registry, auditLog, settings, verifierFor, now: () => new Date(NOW), log: () => {} });
+  const plaid = fakePlaid();
+  const bankFeed = bankFeedEnv ? createBankFeed({ env: bankFeedEnv, fetch: plaid.fetch, registry, auditLog, now: () => new Date(NOW) }) : null;
+  const door = createShopBillingDoor({ billing, exports, bankFeed, accounts, registry, auditLog, settings, verifierFor, now: () => new Date(NOW), log: () => {} });
   const ask = (claims, call, body = {}, { method = "POST", token } = {}) => door({ method, path: `/api/shop-billing/${call}`, body: { shopId: SHOP, ...body }, headers: claims || token ? { authorization: `Bearer ${token ?? pass(claims)}` } : {} });
   const logged = () => [...registry.events.get(SHOP).values()].filter((e) => e.source === "shop-billing-door");
-  return { ask, door, registry, stores, checked, logged, settings };
+  return { ask, door, registry, stores, checked, logged, settings, bankFeed, plaid };
 }
 
 test("the shop's owner, signed in to the shop's own admin, sees the plan, with CORS for the browser", async () => {
@@ -142,4 +146,30 @@ test("Download all your data from the shop's Plan page: the owner's once-a-day c
   assert.ok(failed.body.ref);
   // A door with no export service has no download call.
   assert.equal((await (await world()).ask(OWNER, "download")).status, 404);
+});
+
+test("the bank feed add-on: shown once the platform has opened it, added by the owner only, and turning it off disconnects the banks", async () => {
+  // Not opened yet: no add-on on the Plan page and no call to add one.
+  const closed = await world({ bankFeedEnv: {} });
+  assert.equal((await closed.ask(OWNER, "status")).body.billing.addOns, undefined);
+  assert.equal((await closed.ask(OWNER, "add-on", { addOn: "bank-feed", on: true })).status, 409);
+
+  const env = { BANK_FEED: "on", PLAID_CLIENT_ID: "plaid-client", PLAID_SECRET: "plaid-sandbox-secret", BANK_FEED_TOKEN_KEY: Buffer.alloc(32, 7).toString("base64") };
+  const { ask, bankFeed, plaid, registry, logged } = await world({ bankFeedEnv: env });
+  assert.deepEqual((await ask(OWNER, "status")).body.billing.addOns, { bankFeed: { on: false, price: "CA$4", extraPrice: "CA$1.50", included: 2, banks: 0 } });
+  assert.equal((await ask({ ...OWNER, email: "staff@example.com" }, "add-on", { addOn: "bank-feed", on: true })).status, 403, "staff can't add it");
+  assert.equal((await ask(OWNER, "add-on", { addOn: "everything", on: true })).status, 400);
+  const added = await ask(OWNER, "add-on", { addOn: "bank-feed", on: true });
+  assert.deepEqual([added.status, added.body.addOns.bankFeed.on], [200, true]);
+  assert.equal((await registry.getShop(SHOP)).bankFeed.on, true);
+
+  // A bank is connected (through the shop's server), then the owner turns the add-on off.
+  const key = "moth-press-service-key-0123456789abcdef";
+  const { hashServiceKey } = await import("../services/email/http.js");
+  await registry.updateShop(SHOP, { serviceKeyHash: hashServiceKey(key) });
+  await bankFeed.shopCall({ headers: { "X-Shop-Id": SHOP, Authorization: `Bearer ${key}` }, body: { op: "bank.connect", args: { publicToken: "public-sandbox-1", bankName: "Bank" } } });
+  assert.equal((await ask(OWNER, "status")).body.billing.addOns.bankFeed.banks, 1);
+  const off = await ask(OWNER, "add-on", { addOn: "bank-feed", on: false });
+  assert.deepEqual([off.body.addOns.bankFeed.on, off.body.addOns.bankFeed.banks, plaid.banks.size], [false, 0, 0]);
+  assert.ok(logged().some((e) => e.what === "billing-add-on" && e.outcome === "done"));
 });

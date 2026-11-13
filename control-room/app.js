@@ -609,6 +609,8 @@ function recordView(record) {
     ["Web address", Array.isArray(connections.domains) && connections.domains.length ? connections.domains.map(addressWords).join(", ") : "the shop's own .web.app address"],
     // Receipts by email (beta, services/receipts): shown once the shop has ever set it up.
     ["Receipts by email", connections.receipts ? (connections.receipts.on ? `on since ${dateOnly(connections.receipts.since)}${connections.receipts.today ? ` · ${plural(connections.receipts.today, "email")} read today` : ""}` : "turned off by the shop") : ""],
+    // The bank feed add-on (beta, services/bankfeed): shown once the shop has ever added it.
+    ["Bank feed add-on", connections.bankFeed ? (connections.bankFeed.on ? `on since ${dateOnly(connections.bankFeed.since)} · ${connections.bankFeed.banks.length ? connections.bankFeed.banks.join(", ") : "no bank connected yet"}` : `off${connections.bankFeed.offAt ? ` since ${dateOnly(connections.bankFeed.offAt)}` : ""}, banks disconnected`) : ""],
     ["Version", record.version ?? "none yet"],
   ].filter(([, value]) => value);
   return el("div", { className: "record" },

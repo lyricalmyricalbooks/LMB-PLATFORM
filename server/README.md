@@ -172,3 +172,27 @@ shop, and nobody's own Gmail is read. Julian, once, after "Email through Google"
 A receipt is binned in the mailbox once the owner adds or dismisses it (Google deletes binned mail after 30 days). A
 shop is handed at most 150 emails a day.
 
+## Bank feed (beta, a paid add-on)
+
+A shop adds the bank feed under Settings › Plan, connects its bank in Plaid's own window, and its bank transactions
+arrive in Bookkeeping › Transactions to be matched to card payouts and expenses (`services/bankfeed`). Read-only: only
+Plaid's "transactions" product is asked for. Plaid bills Colophon for every month a bank stays connected, so banks are
+disconnected at Plaid when the add-on is turned off and, by the daily `bank-feed` job, when a shop is paused or closed.
+The same job puts last month's add-on on each shop's next bill ("Bank feed, November 2026"): only for a month in which
+a bank was connected, and nothing during the free trial.
+
+Julian, once:
+
+1. **Get the Plaid test keys.** Sign up at dashboard.plaid.com; Developers › Keys shows the client id and the
+   **Sandbox** secret (pretend banks, free).
+2. **Store three secrets** in the platform project's Secret Manager: `plaid-client-id`, `plaid-secret`, and
+   `bank-feed-token-key` (32 random bytes in Base64: `openssl rand -base64 32`; it seals each shop's bank access).
+3. **Switch it on.** Add `BANK_FEED: "on"` to the repository variable `SERVER_SETTINGS` (leave `PLAID_ENV` unset, or
+   `"sandbox"`); the next deploy carries it. The Launch page shows "Bank feed add-on (beta)" ready, and each shop's
+   Plan page gains the add-on. In the sandbox, Plaid's window takes the test sign-in `user_good` / `pass_good`.
+4. **Real banks, later.** Ask Plaid for production access (Transactions, Canada and the US), store the production
+   secret as `plaid-secret` and set `PLAID_ENV: "production"`.
+
+Prices are settings, in cents: `BANK_FEED_PRICE_CAD` (400), `BANK_FEED_PRICE_USD` (300), `BANK_FEED_EXTRA_CAD` (150),
+`BANK_FEED_EXTRA_USD` (100) for each bank past `BANK_FEED_INCLUDED_BANKS` (2). A shop can connect up to 6 banks.
+

@@ -385,9 +385,9 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
   }
 
   /** The running-cost line this customer already has waiting for `month`, if any (Stripe forgets a request key after a day). */
-  async function runningCostLine(row, month) {
+  async function runningCostLine(row, month, kind = "running-cost") {
     const list = await call("GET", "/v1/invoiceitems", { params: { customer: row.customerId, pending: true, limit: 100 } });
-    return (list?.data ?? []).find((item) => item.metadata?.lmb_kind === "running-cost" && item.metadata?.lmb_shop_id === row.shopId && item.metadata?.lmb_month === month) ?? null;
+    return (list?.data ?? []).find((item) => item.metadata?.lmb_kind === kind && item.metadata?.lmb_shop_id === row.shopId && item.metadata?.lmb_month === month) ?? null;
   }
 
   async function notify(shopId, kind, data, key) {
@@ -1218,6 +1218,52 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       }
       if (failed.length) throw new Error(`Running costs billed, but ${failed.length} shop${failed.length > 1 ? "s" : ""} had trouble: ${failed.join("; ")}`);
       return { month, billed, skipped, missing, waiting };
+    },
+
+    /**
+     * The bank feed add-on (services/bankfeed, beta): a month in which a shop had a bank connected goes on its next
+     * bill as its own line, "Bank feed, October 2026". `banks` is { [shopId]: the most banks connected that month };
+     * `cents(currency, banks)` prices it. A month with no bank, a trial month and a test shop cost nothing. Billed like
+     * the running cost: after the month, once per shop and month, safe to run every day.
+     */
+    async billBankFeed({ month, banks = {}, cents }) {
+      const { end } = monthBounds(month);
+      const billed = [], skipped = [], failed = [];
+      for (const row of await subscriptions.list()) {
+        const count = banks[row.shopId];
+        if (!row.subscriptionId || !(count > 0) || row.bankFeedBills?.[month]) continue;
+        // A press paying as they sell has no monthly bill to carry the line (as with the running cost).
+        if (ENDED.has(row.status) || row.testShop === true || currentPaymentWay(row, now()) === "payAsYouSell") { skipped.push(row.shopId); continue; }
+        try {
+          const currency = cur(row);
+          // Free while the trial lasts: only a month the plan was paid in is charged.
+          const paid = !row.trialEnd || Date.parse(row.trialEnd) < end;
+          const amount = paid ? cents(currency, count) : 0;
+          let invoiceItemId = null;
+          const made = amount > 0 ? await runningCostLine(row, month, "bank-feed") : null;
+          if (made) invoiceItemId = made.id;
+          else if (amount > 0) {
+            const item = await call("POST", "/v1/invoiceitems", {
+              params: {
+                customer: row.customerId, subscription: row.subscriptionId, amount, currency: currency.toLowerCase(),
+                description: `Bank feed, ${monthWords(month)} / Flux bancaire`, discountable: false,
+                ...(tax ? { tax_behavior: "exclusive", tax_code: settings.taxCode } : {}),
+                metadata: { lmb_shop_id: row.shopId, lmb_month: month, lmb_kind: "bank-feed", lmb_banks: String(count) },
+              },
+              idempotencyKey: `bank-feed-${row.shopId}-${month}`,
+            });
+            invoiceItemId = item?.id ?? null;
+          }
+          const entry = { cents: made ? made.amount : amount, banks: count, invoiceItemId, at: at() };
+          await save(row.shopId, { bankFeedBills: { ...(row.bankFeedBills ?? {}), [month]: entry } }, null);
+          await logChange(row.shopId, "bank-feed-billed", { month, cents: entry.cents, banks: count });
+          billed.push({ shopId: row.shopId, cents: entry.cents });
+        } catch (failure) {
+          failed.push(`${row.shopId}: ${failure.message}`);
+        }
+      }
+      if (failed.length) throw new Error(`Bank feed billed, but ${failed.length} shop${failed.length > 1 ? "s" : ""} had trouble: ${failed.join("; ")}`);
+      return { month, billed, skipped };
     },
 
     /**
