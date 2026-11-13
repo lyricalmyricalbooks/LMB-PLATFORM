@@ -837,6 +837,27 @@ let helperShown = false;
   }
 }
 
+// The accountant's desk (?accountant=1): what a Team member with the Accountant role sees instead of the admin. The
+// books come through the same key-free copy the live desk reads (bookkeeper-copy.js), from the sample records above.
+if (new URLSearchParams(location.search).get("accountant") === "1") {
+  const { bookkeeperTaxCopy } = await import("@stockroom/bookkeeper-copy.js");
+  const { taxCenterFromCopy } = await import("../app/admin/stockroom/stockroomData");
+  stockroomApi.loadForBookkeeper = async () => {
+    const r = await stockroomApi.load();
+    const kept = ((r.taxCenter as Record<string, any> | null)?.businessExpenses || []) as Record<string, unknown>[];
+    const taxCenter = { ...(r.taxCenter || {}), settings: { baseCurrency: "CAD", geminiKey: "never-shown" }, businessExpenses: [...kept,
+      { id: "a1", date: "2026-10-04", desc: "Risograph paper", vendor: "Mill Example", cat: "Printing", currency: "CAD", amount: 180, baseAmount: 180, receipt: "https://files.example/paper.pdf" },
+      { id: "a2", date: "2026-10-12", desc: "Fair table", vendor: "Harbour Fair", cat: "Fairs & events", currency: "CAD", amount: 60, baseAmount: 60 }] };
+    return { ...r, taxCenter: taxCenterFromCopy(bookkeeperTaxCopy(taxCenter)), invoiceSettings: null, submissions: {} };
+  };
+  const { createElement } = await import("react");
+  const { createRoot } = await import("react-dom/client");
+  const { BookkeeperDesk } = await import("../app/admin/BookkeeperDesk");
+  await import("../styles/index.css");
+  createRoot(document.getElementById("root")!).render(createElement(BookkeeperDesk, { email: "ben.example@example.com", appearance: "light" }));
+  helperShown = true;
+}
+
 if (!helperShown) {
   const page = new URLSearchParams(location.search).get("page") || "";
   history.replaceState(null, "", `/admin?debug=true${page ? `#${page}` : ""}`);

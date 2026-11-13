@@ -697,8 +697,17 @@ Team role `bookkeeper` (Settings › Team, or the platform's account page): read
   admin shell, so none of the admin's reads run. `bookkeeping.ts` (pure) blanks shoppers' and gift card recipients'
   email addresses in its downloads. A first sign-in learns the role after `login()` refreshes the pass (`onLogin`).
 - **Stockroom:** the same role reads the tax centre's key-free copy (`apps/stockroom/src/lib/bookkeeper-copy.js`).
-  It also reads `reportsForBookkeeper` (Bookkeeping › Reports' figures-only copy, below) through `loadBookkeeperSetting`:
-  `BookkeeperDesk` shows `stockroom/BookkeeperReportsCard.tsx` (balance sheet, 90-day forecast, profit and loss, a zip).
+- **Accountant seat (13 November 2026):** people see the role as **Accountant** (id stays `bookkeeper`; Team page shortcut
+  "Invite your accountant"; invite email `teamInvite.js` "Your access to <shop>'s books"). The desk has tabs Overview,
+  Sales and tax, Transactions, Expenses, Receipts, Artist payouts (book shops): the owner's `TaxCenterView` drawn with no
+  `onTaxCenter`/`onState` (so no write button shows) and `ReceiptsVaultCard` with no `onSaved`. Records come from
+  `stockroomApi.loadForBookkeeper` (catalog, each item's records, and the Tax centre rebuilt from its copy by
+  `taxCenterFromCopy`; never `taxCenter`, `invoiceSettings` or submissions). The stockroom rules let the role read
+  `books/{id}`, `data/{part}` and the `catalog` setting (and the old Realtime Database books), never write. The copy now
+  carries receipt links, `ref`, `voided` and the saved number-only rates; it refreshes when the owner next saves the
+  Tax centre. Fixture: `admin-fixture.html?accountant=1` (`bookkeeperLoad.test.ts`).
+  The desk's last tab, **Reports** (shops with a stockroom), reads `reportsForBookkeeper` (Bookkeeping › Reports'
+  figures-only copy, below) through `loadBookkeeperSetting` and draws `stockroom/BookkeeperReportsCard.tsx`.
 
 ## Download for another shop system (28 October 2026, code plan 7.18)
 

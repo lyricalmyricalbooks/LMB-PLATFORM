@@ -40,9 +40,10 @@ const AUTHOR_READS = [
   'modeFlags', 'notifyEndpoint', 'analyticsConfig', 'catalog',
   'paymentLinks', 'productionCosts', 'websitePaymentMethods', 'sells',
 ];
-// Read by the bookkeeper's screen (plan 7.17): which database, and the Tax Centre's key-free copy.
+// Read by the bookkeeper's screen (plan 7.17, "Accountant" on the Team page): which database, the Tax Centre's
+// key-free copy, and the catalog the books are built from.
+const BOOKKEEPER_READS = ['modeFlags', 'taxCentreForBookkeeper', 'catalog', 'reportsForBookkeeper'];
 // Bookkeeping › Reports' copy (13 November 2026) is written by the shop admin, so no stockroom file names it.
-const BOOKKEEPER_READS = ['modeFlags', 'taxCentreForBookkeeper', 'reportsForBookkeeper'];
 // Secrets, business records and customer personal data.
 const PUBLISHER_ONLY = [
   'taxCenter', 'bigCartelConfig', 'systemBackups', 'bookOwners',
@@ -124,7 +125,7 @@ describe('bookkeeper settings reads (plan 7.17)', () => {
     expect(fn).toContain('request.auth.token.email_verified == true');
     expect(fn).toContain("request.auth.token.get('role', '') == 'bookkeeper'");
     const expr = RTDB.settings.$key['.read'];
-    expect(expr).toContain("auth.token.email_verified === true && auth.token.role === 'bookkeeper' && $key.matches(/^(modeFlags|taxCentreForBookkeeper|reportsForBookkeeper)$/)");
+    expect(expr).toContain("auth.token.email_verified === true && auth.token.role === 'bookkeeper' && $key.matches(/^(modeFlags|taxCentreForBookkeeper|catalog|reportsForBookkeeper)$/)");
     for (const key of PUBLISHER_ONLY) expect(BOOKKEEPER_READS.includes(key), key).toBe(false);
   });
   it('starts before any publisher data loads, and the Tax Centre save keeps the copy up to date', () => {
@@ -138,6 +139,13 @@ describe('bookkeeper settings reads (plan 7.17)', () => {
     }
     const firebase = read('src/firebase.js');
     expect(firebase.match(/if \(key === 'taxCenter'\) void saveBookkeeperCopy\(/g)).toHaveLength(2);
+  });
+
+  it('the bookkeeper reads every item\'s records in both stores, and writes none', () => {
+    const books = firestoreRules.match(/match \/books\/\{bookId\} \{([\s\S]*?)\n    \}/)[1];
+    expect(books.match(/allow read: if isPublisher\(\) \|\| isBookAuthor\(bookId\) \|\| isBookkeeper\(\);/g)).toHaveLength(2);
+    expect(RTDB.books.$bookId['.read']).toContain("|| (auth.token.email_verified === true && auth.token.role === 'bookkeeper'))");
+    expect(RTDB.books.$bookId['.write']).not.toContain('bookkeeper');
   });
 
   it('the bookkeeper writes nothing: no write rule names the role', () => {
