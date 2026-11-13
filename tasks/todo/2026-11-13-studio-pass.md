@@ -56,3 +56,13 @@ Region labels double as ids (STYLE_TARGET_FIELDS is keyed by label), so they are
 
 ### Review
 Owner-written names (pages, products, saved themes) are never reworded; only built-in labels are.
+
+## Rounds 5 and 6: bento look, phone top bar
+
+- [x] Studio follows the Colophon look: `:root[data-admin-look="colophon"] .studio-editor` block at the end of studio.css (soft corners, pill top bar, filled rail tile, mint tips, no hard outlines)
+- [x] Phone top bar: two rows (was five); icon buttons keep their names for screen readers; 44px tap targets; View website under Theme actions on a phone
+- [x] Browser check: phone top bar height, tap sizes, names, View website in the menu
+- [x] Verify: screenshots desktop and phone, full browser run, unit tests, typecheck, lint
+
+### Review
+adminCompat.css squares every Tailwind-rounded control with `!important`, so Studio's corners need `!important` too. Night mode uses the same tokens; not separately screenshotted.
