@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Download, LogOut } from "lucide-react";
-import { shopProfile } from "../../lib/shopProfile";
+import { hasStockroom, shopProfile } from "../../lib/shopProfile";
 import { adminApi } from "./api";
 import { feeLine, providerName, type PlatformPaymentsAnswer } from "./platformPayments";
 import { friendlyError } from "./settingsLayout";
@@ -9,6 +9,9 @@ import {
   DataTable, EmptyState, ErrorState, LoadingState, MetricCard, PageHeader, SecondaryButton, SectionCard, SelectField, StatusBadge, type Column,
 } from "./riso/components";
 import { PERIOD_WORDS, bookkeeperOrdersCsv, bookkeeperSalesCsv, paidInRange, periodRange, periodTotals, type BooksPeriod } from "./bookkeeping";
+
+// The stockroom's reports (balance sheet, forecast, profit and loss), only where the shop has a stockroom.
+const BookkeeperReportsCard = lazy(() => import("./stockroom/BookkeeperReportsCard").then((m) => ({ default: m.BookkeeperReportsCard })));
 
 const money = (n: number) => `CA$${(Math.round(n * 100) / 100).toFixed(2)}`;
 
@@ -88,6 +91,8 @@ export function BookkeeperDesk({ email, appearance }: { email: string | null; ap
                 onClick={() => orders && download(`sales-report-${span}.csv`, bookkeeperSalesCsv(orders, range))}>Sales report by day (CSV)</SecondaryButton>
             </div>
           </SectionCard>
+
+          {hasStockroom(shopProfile) && <Suspense fallback={<LoadingState label="Reading the reports…" />}><BookkeeperReportsCard /></Suspense>}
 
           <SectionCard title="Payouts">
             {!platform

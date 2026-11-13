@@ -41,7 +41,8 @@ const AUTHOR_READS = [
   'paymentLinks', 'productionCosts', 'websitePaymentMethods', 'sells',
 ];
 // Read by the bookkeeper's screen (plan 7.17): which database, and the Tax Centre's key-free copy.
-const BOOKKEEPER_READS = ['modeFlags', 'taxCentreForBookkeeper'];
+// Bookkeeping › Reports' copy (13 November 2026) is written by the shop admin, so no stockroom file names it.
+const BOOKKEEPER_READS = ['modeFlags', 'taxCentreForBookkeeper', 'reportsForBookkeeper'];
 // Secrets, business records and customer personal data.
 const PUBLISHER_ONLY = [
   'taxCenter', 'bigCartelConfig', 'systemBackups', 'bookOwners',
@@ -114,7 +115,7 @@ describe('settings read access', () => {
 });
 
 describe('bookkeeper settings reads (plan 7.17)', () => {
-  it('Firestore and the Realtime Database open the same two settings to the verified bookkeeper role, never a secret', () => {
+  it('Firestore and the Realtime Database open the same settings to the verified bookkeeper role, never a secret', () => {
     const m = firestoreRules.match(/function isBookkeeperReadableSetting\(name\)\s*\{\s*return name in \[([^\]]*)\]/);
     expect(m).not.toBeNull();
     expect([...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]).sort()).toEqual([...BOOKKEEPER_READS].sort());
@@ -123,7 +124,7 @@ describe('bookkeeper settings reads (plan 7.17)', () => {
     expect(fn).toContain('request.auth.token.email_verified == true');
     expect(fn).toContain("request.auth.token.get('role', '') == 'bookkeeper'");
     const expr = RTDB.settings.$key['.read'];
-    expect(expr).toContain("auth.token.email_verified === true && auth.token.role === 'bookkeeper' && $key.matches(/^(modeFlags|taxCentreForBookkeeper)$/)");
+    expect(expr).toContain("auth.token.email_verified === true && auth.token.role === 'bookkeeper' && $key.matches(/^(modeFlags|taxCentreForBookkeeper|reportsForBookkeeper)$/)");
     for (const key of PUBLISHER_ONLY) expect(BOOKKEEPER_READS.includes(key), key).toBe(false);
   });
   it('starts before any publisher data loads, and the Tax Centre save keeps the copy up to date', () => {

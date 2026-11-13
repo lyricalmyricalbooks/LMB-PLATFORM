@@ -171,7 +171,7 @@ service cloud.firestore {
         && request.auth.token.get('role', '') == 'bookkeeper';
     }
     function isBookkeeperReadableSetting(name) {
-      return name in ['modeFlags', 'taxCentreForBookkeeper'];
+      return name in ['modeFlags', 'taxCentreForBookkeeper', 'reportsForBookkeeper'];
     }
 
     // Global settings — only the publisher writes anything; everyone else reads

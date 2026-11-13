@@ -161,6 +161,12 @@ export async function loadStockroom(reads: StockroomReads = liveReads()): Promis
   return { books, states, taxCenter: asObject(taxCenter), invoiceSettings: asObject(invoiceSettings), submissions, extras: tillOnlyItems(catalog) };
 }
 
+/** One setting a bookkeeper may read (the mode flags say which store holds it): `reportsForBookkeeper`. */
+export async function loadBookkeeperSetting(key: string, reads: StockroomReads = liveReads()): Promise<unknown> {
+  const flags = await reads.flags();
+  return readSetting(reads, key, flags.fs_mode_global === true);
+}
+
 /** What the pages call, so the admin fixture (adminFixture/main.ts) can answer with sample records. */
 export const stockroomApi = { load: () => loadStockroom() };
 

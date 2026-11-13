@@ -697,6 +697,8 @@ Team role `bookkeeper` (Settings › Team, or the platform's account page): read
   admin shell, so none of the admin's reads run. `bookkeeping.ts` (pure) blanks shoppers' and gift card recipients'
   email addresses in its downloads. A first sign-in learns the role after `login()` refreshes the pass (`onLogin`).
 - **Stockroom:** the same role reads the tax centre's key-free copy (`apps/stockroom/src/lib/bookkeeper-copy.js`).
+  It also reads `reportsForBookkeeper` (Bookkeeping › Reports' figures-only copy, below) through `loadBookkeeperSetting`:
+  `BookkeeperDesk` shows `stockroom/BookkeeperReportsCard.tsx` (balance sheet, 90-day forecast, profit and loss, a zip).
 
 ## Download for another shop system (28 October 2026, code plan 7.18)
 
@@ -948,3 +950,16 @@ receipts). **Check and add** opens the Log expense page with `emailReceipt` (`Lo
 first, the expense is saved with it attached in one write, then the email is cleared; a failed file adds nothing. Not a
 port of the old Gmail receipt finder (Julian didn't like it): no Gmail sign-in, no scanning a mailbox. Fixture:
 `admin-fixture.html?page=stockroom/receipts` (`&receipts=off|soon|code`).
+
+**Bookkeeping › Reports (13 November 2026):** sixth pill `bkreports` (`stockroom/ReportsPage.tsx`, pure figures in
+`stockroom/moneyStatements.ts`): Cash today / You own / In 90 days tiles, a **balance sheet** for any day (cash = the
+ledger's money in less out to that day, less unpaid invoices, plus unfiled website sales tax held; owed = unpaid invoices;
+stock at cost; owes = unfiled sales tax by quarter (`unfiledSalesTax`, `filingsOf`) and artist shares; past days use
+today's stock and shares, said in a note), spreadsheet and Print or save PDF (`documentKit`), the **90-day cash forecast**
+(`cashForecast`: invoices on their due day or today when late, recurring costs via `chargesBetween`, expected costs,
+sales tax on its due day, and the last 90 days' usual weekly sales; 13 weeks drawn by `ForecastChart`) and the header's
+**Download tax pack** (`taxPackFiles` + `packReceipts`: numbered CSVs, every cloud receipt fetched into `receipts/`,
+misses listed). Supplier bills aren't in it (built elsewhere). Opening the page saves `bookkeeperReports.ts`'s copy as
+the setting `reportsForBookkeeper` (no customer names, no receipt links; `day` keeps it to one write a day unless a figure
+changes); the stockroom rules open that one setting to the bookkeeper (firestore.rules, database.rules.json, the emulator
+script's two-shop checks). Fixture: `admin-fixture.html?page=stockroom/bkreports`.
