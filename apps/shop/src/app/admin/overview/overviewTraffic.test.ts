@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   bookInterest, buildSeries, cartRecovery, cartRows, categoryBreakdown, categoryNames, cleanSearchTerm, conversionRate, dailyWindow,
-  deviceOf, funnelRates, funnelTotals, rankMap, recordedSince, sourcePerformance, stockDemand, sumMap, weekdayMix,
+  campaignSales, deviceOf, funnelRates, funnelTotals, rankMap, recordedSince, sourcePerformance, stockDemand, sumMap, weekdayMix,
 } from "./overviewTraffic";
 
 const NOW = new Date("2026-09-29T12:00:00Z").getTime();
@@ -212,5 +212,31 @@ describe("social media that sells (plan 27.10)", () => {
     expect(rows.map(r => [r.label, r.visits, r.orders, r.revenue])).toEqual([
       ["Instagram", 50, 2, 60], ["Facebook", 5, 1, 20], ["Shared links", 3, 0, 0],
     ]);
+  });
+});
+
+describe("campaignSales", () => {
+  const acq = (a: Record<string, string>) => JSON.stringify(a);
+  it("groups paid orders from ads, emails and named campaigns by source and campaign", () => {
+    const rows = campaignSales([
+      paid({ total: 40, acquisition: acq({ source: "instagram", medium: "paid_social", campaign: "Spring Sale" }) }),
+      paid({ total: 20, acquisition: acq({ source: "instagram", medium: "paid_social", campaign: "spring sale" }) }),
+      paid({ total: 15, acquisition: acq({ source: "google", medium: "cpc", clickId: "gclid" }) }),
+      paid({ total: 12, acquisition: acq({ source: "newsletter", medium: "email" }) }),
+      paid({ total: 99, acquisition: acq({ source: "google", medium: "organic" }) }),
+      paid({ total: 99, acquisition: acq({ source: "instagram", medium: "social" }) }),
+      paid({ total: 99, acquisition: acq({ source: "facebook", campaign: "test" }), isTest: true }),
+      { paymentStatus: "unpaid", total: 99, acquisition: acq({ source: "facebook", campaign: "x" }) },
+      paid({ total: 99 }),
+    ]);
+    expect(rows.map(r => [r.source, r.campaign, r.medium, r.orders, r.revenue])).toEqual([
+      ["instagram", "Spring Sale", "paid_social", 2, 60],
+      ["google", "", "cpc", 1, 15],
+      ["newsletter", "", "email", 1, 12],
+    ]);
+  });
+  it("takes refunds off and reads a saved map as well as text", () => {
+    const [r] = campaignSales([paid({ total: 40, refundedAmountMinor: 1000, expectedAmountMinor: 4000, acquisition: { source: "facebook", campaign: "fair" } })]);
+    expect(r).toMatchObject({ source: "facebook", campaign: "fair", revenue: 30 });
   });
 });

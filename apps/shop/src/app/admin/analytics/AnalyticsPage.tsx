@@ -134,6 +134,7 @@ export function AnalyticsPage({ setActiveTab, subTab, onSubTabChange }: { setAct
           {on("an-traffic") && <div className="rp-an-grid">
             <TableCard title="Where visitors came from" head={google ? ["Channel", "Visits", "Share"] : ["Source", "Visitors", "Bought"]} rows={model.sources}
               empty={google ? "No visits yet" : "Not recorded yet"} />
+            <TableCard title="Sales from ads and campaigns" head={["Where", "Orders", "Sales"]} rows={model.campaigns} empty="" />
             {google && <TableCard title="Top pages" head={["Page", "Views"]} rows={model.pages} mono empty="No page views yet" />}
             <TableCard title="Devices" head={["Device", "Visitors", "Share"]} rows={model.devices} empty="Not recorded yet" />
             {google && <TableCard title="Countries" head={["Country", "Visitors"]} rows={model.countries} empty="No visits yet" />}
