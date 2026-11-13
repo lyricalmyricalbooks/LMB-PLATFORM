@@ -4,6 +4,7 @@
 import { isBundle, isGiftCardProduct } from "../features/site/promotions";
 import { shopProfile } from "../../lib/shopProfile";
 import { isBookKind, productKind } from "../../shared/productOptions";
+import { MONEY_SIGN } from "./moneySign";
 
 export type InventoryLinks = Record<string, Record<string, string>>;
 
@@ -247,5 +248,5 @@ export const DETAIL_LABELS: Record<DetailField, string> = { title: "Title", auth
 /** A value as the owner reads it ("Not filled in" for an empty one, CA$ for a price). */
 export function detailText(field: DetailField, value: string): string {
   if (!value) return "Not filled in";
-  return field === "price" ? `CA$${value}` : value;
+  return field === "price" ? `${MONEY_SIGN}${value}` : value;
 }

@@ -3,6 +3,7 @@
 import { shopDate } from "../features/site/preorder";
 import type { GiftCardBody } from "../../shared/giftCardActions";
 import type { BadgeTone } from "./riso/components";
+import { MONEY_SIGN } from "./moneySign";
 
 export type GiftCardStatus = { key: "active" | "used" | "disabled" | "expired" | "test"; label: string; tone: BadgeTone };
 
@@ -16,7 +17,7 @@ export function giftCardStatus(card: any, today: string = shopDate()): GiftCardS
 }
 
 /** CA$12.50 from 1250 cents. */
-export const formatMinor = (minor: any) => `CA$${((Number(minor) || 0) / 100).toFixed(2)}`;
+export const formatMinor = (minor: any) => `${MONEY_SIGN}${((Number(minor) || 0) / 100).toFixed(2)}`;
 
 /** "••••ABCD" */
 export const maskedCode = (card: any) => `••••${String(card?.last4 || String(card?.code || "").slice(-4) || "????")}`;
@@ -44,7 +45,7 @@ export function issuePayload(form: { amount: string; recipientEmail: string; rec
   const problems: string[] = [];
   const amountMinor = dollarsToMinor(form.amount);
   // Same limits as the server (functions/index.js handleGiftCardAdmin).
-  if (!(amountMinor >= 100 && amountMinor <= 1000000)) problems.push("Enter an amount between CA$1 and CA$10,000, e.g. 25.");
+  if (!(amountMinor >= 100 && amountMinor <= 1000000)) problems.push(`Enter an amount between ${MONEY_SIGN}1 and ${MONEY_SIGN}10,000, e.g. 25.`);
   const email = form.recipientEmail.trim().toLowerCase();
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) problems.push("Check the recipient's email address.");
   if (form.sendEmail && !email) problems.push("Add the recipient's email to send them the code, or turn off emailing.");

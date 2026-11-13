@@ -1,10 +1,11 @@
+import { MONEY_SIGN } from "./moneySign";
 // Admin › Discounts: one plain sentence for what shoppers get, e.g.
 // "20% off Poetry, up to CA$15 · min CA$40 · 1 per customer · Oct 1–31". Pure, tested.
 // Dates are the shop's calendar days (Toronto), the same days the server checks.
 
 const money = (n: any) => {
   const v = Number(n) || 0;
-  return `CA$${Number.isInteger(v) ? v : v.toFixed(2)}`;
+  return `${MONEY_SIGN}${Number.isInteger(v) ? v : v.toFixed(2)}`;
 };
 
 const PLAIN = /^\d{4}-\d{2}-\d{2}$/;

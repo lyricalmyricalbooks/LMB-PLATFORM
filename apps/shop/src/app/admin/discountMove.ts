@@ -5,6 +5,7 @@
 // the owner to set up by hand, since the old shop's product and collection names don't exist here.
 import { parseCsv, parseMoney } from "./catalogImport";
 import { dayOf } from "./giftCardMove";
+import { MONEY_SIGN } from "./moneySign";
 
 export interface MovedDiscount {
   line: number;
@@ -116,4 +117,4 @@ export function readDiscountFile(text: string, today: string, existing: string[]
 
 /** "10% off", "CA$5.00 off" or "Free shipping", for the preview. */
 export const describeMoved = (d: MovedDiscount) =>
-  d.type === "freeship" ? "Free shipping" : d.type === "percentage" ? `${d.value}% off` : `CA$${d.value.toFixed(2)} off`;
+  d.type === "freeship" ? "Free shipping" : d.type === "percentage" ? `${d.value}% off` : `${MONEY_SIGN}${d.value.toFixed(2)} off`;

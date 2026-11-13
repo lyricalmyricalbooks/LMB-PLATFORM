@@ -17,11 +17,12 @@ import { ReceiptsVaultCard } from "./stockroom/ReceiptsVault";
 import { sourcesOf, taxCenterModel } from "./stockroom/moneyReports";
 import { stockroomApi, type StockroomRecords } from "./stockroom/stockroomData";
 import { PERIOD_WORDS, bookkeeperOrdersCsv, bookkeeperSalesCsv, paidInRange, periodRange, periodTotals, type BooksPeriod } from "./bookkeeping";
+import { MONEY_SIGN } from "./moneySign";
 
 // The stockroom's reports (balance sheet, forecast, profit and loss), only where the shop has a stockroom.
 const BookkeeperReportsCard = lazy(() => import("./stockroom/BookkeeperReportsCard").then((m) => ({ default: m.BookkeeperReportsCard })));
 
-const money = (n: number) => `CA$${(Math.round(n * 100) / 100).toFixed(2)}`;
+const money = (n: number) => `${MONEY_SIGN}${(Math.round(n * 100) / 100).toFixed(2)}`;
 
 function download(name: string, text: string) {
   const url = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));

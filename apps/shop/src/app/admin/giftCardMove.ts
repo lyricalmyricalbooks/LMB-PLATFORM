@@ -5,6 +5,7 @@
 // email each holder theirs.
 import { parseCsv, parseMoney } from "./catalogImport";
 import type { GiftCardBody } from "../../shared/giftCardActions";
+import { MONEY_SIGN } from "./moneySign";
 
 export type ImportCard = GiftCardBody<"import">["cards"][number];
 
@@ -75,7 +76,7 @@ export function readGiftCardFile(text: string, today: string): GiftCardFile {
     const expires = dayOf(cell(row, col.expires));
     if (expires === null) return skip("its expiry date couldn't be read");
     if (expires && expires < today) return skip("already expired");
-    if (balanceMinor > 1000000) return skip("a balance over CA$10,000");
+    if (balanceMinor > 1000000) return skip(`a balance over ${MONEY_SIGN}10,000`);
     const code = fullCode(cell(row, col.code));
     const lastChars = cell(row, col.last) || (code ? code.slice(-4) : cell(row, col.code).replace(/[^A-Za-z0-9]/g, "").slice(-4));
     const email = cell(row, col.email).toLowerCase();

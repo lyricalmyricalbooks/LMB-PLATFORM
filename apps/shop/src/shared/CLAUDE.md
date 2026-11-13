@@ -72,3 +72,6 @@ browsers may write (mirroring `firestore.rules`).
   written by the platform's setup from sign-up's country), the pages `shopCurrency()` in `lib/shopProfile` (the
   profile's `currency`, left out for CAD). CAD and USD only; anything else is CAD. Nothing prices or charges with it
   yet: new money code should take the currency from here, never write "CAD" or "CA$".
+  The admin's sign is `MONEY_SIGN` (`admin/moneySign.ts`, read once from the profile): admin code writes
+  `${MONEY_SIGN}${n.toFixed(2)}`, never a literal sign. Left as literals on purpose: sample text in email and theme
+  previews, the look gallery, and the platform's own bill (its currency is the billing one, `platformBilling.ts`).

@@ -5,15 +5,16 @@ import { change } from "./overviewInsights";
 import { SHOP_TZ } from "../../lib/shopDay";
 import { readinessProgress, readinessSummary, type ReadinessItem } from "../launchReadiness";
 import type { Change } from "./overviewChanges";
+import { MONEY_SIGN } from "../moneySign";
 
 // Small pieces shared by the Overview shell and its four detail tabs.
 
 /** Money in lists, tables and drill rows: always two decimals ("CA$30.60"), so amounts line up and compare. */
-export const money = (n: number) => `CA$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+export const money = (n: number) => `${MONEY_SIGN}${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 /** A widget's single big number: whole dollars from CA$1,000 ("CA$1,240"), two decimals below ("CA$84.50"). */
 export const moneyFigure = (n: number) => {
   const v = Number(n || 0);
-  return Math.abs(v) >= 1000 ? `CA$${Math.round(v).toLocaleString()}` : money(v);
+  return Math.abs(v) >= 1000 ? `${MONEY_SIGN}${Math.round(v).toLocaleString()}` : money(v);
 };
 /** Short money for chart labels and axes: "$681", "$1.2k", "$12k" (whole dollars; thousands as k). */
 export const moneyShort = (n: number) => {

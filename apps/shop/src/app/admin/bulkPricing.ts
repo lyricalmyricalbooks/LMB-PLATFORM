@@ -1,3 +1,4 @@
+import { MONEY_SIGN } from "./moneySign";
 // Bulk price maths for the Books catalog. Pure; the caller writes the results.
 export type PriceMode = "percent" | "amount" | "set";
 
@@ -54,7 +55,7 @@ export function planPriceChange(books: any[], mode: PriceMode, value: number, op
     if (to === null || to === from) continue;
     const sale = Number(b.salePrice);
     if (b.isOnSale && sale > 0 && sale >= to) {
-      skipped.push({ id: b.id, title, reason: `its sale price CA$${sale.toFixed(2)} would not be below the new price CA$${to.toFixed(2)} — change or end the sale first` });
+      skipped.push({ id: b.id, title, reason: `its sale price ${MONEY_SIGN}${sale.toFixed(2)} would not be below the new price ${MONEY_SIGN}${to.toFixed(2)} — change or end the sale first` });
       continue;
     }
     changes.push({ id: b.id, title, from, to, patch: { retailPrice: to } });

@@ -18,6 +18,7 @@ import {
   ActionMenu, PageActions, Checkbox, ConfirmDialog, Dialog, EmptyState, ErrorState, IconButton, LoadingState,
   PageHead, PrimaryButton, SecondaryButton, SectionCard, StatusBadge, TextField, useConfirm,
 } from "./riso/components";
+import { MONEY_SIGN } from "./moneySign";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -192,7 +193,7 @@ function DiscountForm({ initial, otherCodes = [], books, shopCategories, onClose
         <FormChoice label="Type" value={form.type} onChange={v => set("type", v)} options={typeOptions} />
         {needsValue && (
           <FormField label={form.type === "percentage" ? "Percent" : "Amount"} required empty={!(Number(form.value) > 0)} error={errors.value}
-            prefix={form.type === "fixed" ? "CA$" : undefined} suffix={form.type === "percentage" ? "%" : undefined}>
+            prefix={form.type === "fixed" ? MONEY_SIGN : undefined} suffix={form.type === "percentage" ? "%" : undefined}>
             {a => <input {...a} type="number" inputMode="decimal" min={0} max={form.type === "percentage" ? 100 : undefined} value={form.value} onChange={e => set("value", e.target.value)} />}
           </FormField>
         )}
@@ -211,9 +212,9 @@ function DiscountForm({ initial, otherCodes = [], books, shopCategories, onClose
           <>
             {(form.tiers || []).map((tier: any, i: number) => (
               <div key={i} className="rp-fk-row" style={{ alignItems: "flex-end" }}>
-                <FormField label={`Tier ${i + 1}: spend at least`} prefix="CA$">{a => <input {...a} type="number" min={0} value={tier.minSpend} onChange={e => setTier(i, { minSpend: parseFloat(e.target.value) || 0 })} />}</FormField>
+                <FormField label={`Tier ${i + 1}: spend at least`} prefix={MONEY_SIGN}>{a => <input {...a} type="number" min={0} value={tier.minSpend} onChange={e => setTier(i, { minSpend: parseFloat(e.target.value) || 0 })} />}</FormField>
                 <FormField label="Discount">{a => <input {...a} type="number" min={0} value={tier.value} onChange={e => setTier(i, { value: parseFloat(e.target.value) || 0 })} />}</FormField>
-                <FormField label="As">{a => <select {...a} value={tier.type} onChange={e => setTier(i, { type: e.target.value })}><option value="percentage">Percent (%)</option><option value="fixed">Amount (CA$)</option></select>}</FormField>
+                <FormField label="As">{a => <select {...a} value={tier.type} onChange={e => setTier(i, { type: e.target.value })}><option value="percentage">Percent (%)</option><option value="fixed">Amount ({MONEY_SIGN})</option></select>}</FormField>
                 {(form.tiers || []).length > 1 && <span style={{ flex: "0 0 auto", marginBottom: 2 }}><IconButton tone="danger" label={`Remove tier ${i + 1}`} onClick={() => set("tiers", form.tiers.filter((_: any, x: number) => x !== i))}><Trash2 size={16} aria-hidden /></IconButton></span>}
               </div>
             ))}
@@ -282,7 +283,7 @@ function DiscountForm({ initial, otherCodes = [], books, shopCategories, onClose
 
       <FormSection title="Rules" description="Optional limits.">
         <FormRow>
-          <FormField label="Minimum spend" prefix="CA$" error={errors.minOrderAmount} hint="Leave empty for none.">
+          <FormField label="Minimum spend" prefix={MONEY_SIGN} error={errors.minOrderAmount} hint="Leave empty for none.">
             {a => <input {...a} type="number" min={0} value={form.minOrderAmount} onChange={e => set("minOrderAmount", e.target.value)} />}
           </FormField>
           <FormField label="Starts" hint={automatic ? "The offer stays off until this day." : "The code stays off until this day."}>
@@ -296,7 +297,7 @@ function DiscountForm({ initial, otherCodes = [], books, shopCategories, onClose
           <FormField label="Minimum items" error={errors.minQuantity} hint="Leave empty for none.">
             {a => <input {...a} type="number" min={0} step={1} value={form.minQuantity} onChange={e => set("minQuantity", e.target.value)} />}
           </FormField>
-          {form.type !== "freeship" && form.type !== "gift" && <FormField label="Most it takes off" prefix="CA$" error={errors.maxDiscountAmount} hint="Per order, e.g. 20% off up to $15.">
+          {form.type !== "freeship" && form.type !== "gift" && <FormField label="Most it takes off" prefix={MONEY_SIGN} error={errors.maxDiscountAmount} hint="Per order, e.g. 20% off up to $15.">
             {a => <input {...a} type="number" min={0} value={form.maxDiscountAmount ?? ""} onChange={e => set("maxDiscountAmount", e.target.value)} placeholder="No cap" />}
           </FormField>}
           {!batching && <FormField label="Limit total uses" suffix="orders" error={errors.usageLimit} hint="Stops working after this many orders.">

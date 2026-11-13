@@ -93,6 +93,7 @@ import { isStockLinked, type InventoryLinks } from "./inventoryLink";
 import { releaseArrived } from "../features/site/liveBook";
 import { addOnProblems, bundleProblems, giftCardProblems, isBoxSet, isGiftCardProduct, productForSave, saleStatus, saleWindowProblem } from "./productExtras";
 import { productHref } from "../lib/productHref";
+import { MONEY_SIGN } from "./moneySign";
 
 const MAX_BOOK_PHOTOS = 50;
 
@@ -1111,7 +1112,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   };
   const giftCard = isGiftCardProduct(formData);
   const giftAmount = (n: number) => ({
-    id: crypto.randomUUID(), name: `CA$${n}`, price: n,
+    id: crypto.randomUUID(), name: `${MONEY_SIGN}${n}`, price: n,
     usdPrice: Number((n * (rates.USD || 0.73)).toFixed(2)), eurPrice: Number((n * (rates.EUR || 0.67)).toFixed(2)),
     stock: 0, stockLevel: 0, photoUrl: "", sku: "", weight: "", digital: true,
   });
@@ -1770,7 +1771,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
             </div>
           ) : (
             <SectionCard title={giftCard ? "Gift card amounts" : optionsOn ? w("Each edition in full") : w("Editions & pricing")}
-              description={giftCard ? "Each edition is an amount, e.g. CA$25. Shoppers pick one; the card is worth what they pay. Every amount must be more than $0." : w("Sell multiple formats or special editions of the same book. Base price and stock are replaced by these.")}
+              description={giftCard ? `Each edition is an amount, e.g. ${MONEY_SIGN}25. Shoppers pick one; the card is worth what they pay. Every amount must be more than $0.` : w("Sell multiple formats or special editions of the same book. Base price and stock are replaced by these.")}
               actions={optionsOn && !giftCard ? <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" aria-expanded onClick={() => setShowEachVariant(false)}>Hide</button> : <button type="button" onClick={giftCard ? () => set("variants", [...(formData.variants || []), { ...giftAmount(0), name: "", price: "" }]) : addVariant} className="rp-btn rp-btn-primary rp-btn-sm"><Plus size={14} aria-hidden /> {giftCard ? "Add amount" : w("Add edition")}</button>}>
               {giftCard && (
                 <div className="be-inline-actions" role="group" aria-label="Quick add amounts">
@@ -1778,7 +1779,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   {[10, 25, 50, 100].map((n) => (
                     <button key={n} type="button" className="rp-btn rp-btn-secondary rp-btn-sm"
                       disabled={(formData.variants || []).some((v: any) => num(v.price) === n)}
-                      onClick={() => set("variants", [...(formData.variants || []), giftAmount(n)])}><Plus size={13} aria-hidden /> CA${n}</button>
+                      onClick={() => set("variants", [...(formData.variants || []), giftAmount(n)])}><Plus size={13} aria-hidden /> {MONEY_SIGN}{n}</button>
                   ))}
                 </div>
               )}
@@ -1795,8 +1796,8 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                     </div>
                     {giftCard ? (
                     <div className="be-grid be-grid-3">
-                      <TextField label="Amount name" placeholder="e.g. CA$25" value={v.name} onChange={(e) => updateVariant(v.id, "name", e.target.value)} hint="What shoppers see in the amount picker." />
-                      <TextField label="Amount (CA$)" type="number" min={1} step="0.01" value={v.price} onChange={(e) => updateVariant(v.id, "price", e.target.value === "" ? "" : Number(e.target.value))} />
+                      <TextField label="Amount name" placeholder={`e.g. ${MONEY_SIGN}25`} value={v.name} onChange={(e) => updateVariant(v.id, "name", e.target.value)} hint="What shoppers see in the amount picker." />
+                      <TextField label={`Amount (${MONEY_SIGN})`} type="number" min={1} step="0.01" value={v.price} onChange={(e) => updateVariant(v.id, "price", e.target.value === "" ? "" : Number(e.target.value))} />
                       <TextField label="SKU" value={v.sku || ""} onChange={(e) => updateVariant(v.id, "sku", e.target.value)} />
                     </div>
                     ) : (

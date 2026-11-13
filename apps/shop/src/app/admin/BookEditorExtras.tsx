@@ -8,6 +8,7 @@ import {
 } from "./productExtras";
 import { productKind, type ProductKind } from "../../shared/productOptions";
 import { useShopWords } from "./shopWords";
+import { MONEY_SIGN } from "./moneySign";
 
 type Setter = (name: string, value: any) => void;
 
@@ -70,7 +71,7 @@ export function AddOnsEditor({ form, set }: { form: any; set: Setter }) {
             </div>
             <div className="be-grid be-grid-4">
               <div className="be-span-2"><TextField label="Name shoppers see" maxLength={80} value={a.label} placeholder="e.g. Signed copy" onChange={(e) => update(a.id, { label: e.target.value })} /></div>
-              <TextField label="Price per copy (CA$)" type="number" min={0} step="0.01" value={a.price} onChange={(e) => update(a.id, { price: e.target.value === "" ? "" : Number(e.target.value) })} hint="0 for a free option." />
+              <TextField label={`Price per copy (${MONEY_SIGN})`} type="number" min={0} step="0.01" value={a.price} onChange={(e) => update(a.id, { price: e.target.value === "" ? "" : Number(e.target.value) })} hint="0 for a free option." />
               <SelectField label="Type" value={a.kind === "text" ? "text" : "option"} onChange={(e) => update(a.id, e.target.value === "text" ? { kind: "text", maxLength: a.maxLength || 120 } : { kind: "option", maxLength: undefined })}>
                 <option value="option">Tick box</option>
                 <option value="text">Short message (e.g. inscription)</option>
@@ -191,7 +192,7 @@ export function ProductTypeCard({ form, onChange, onKind }: { form: any; onChang
         })}
       </div>
       {giftCard && (
-        <p className="be-note">Each edition is an amount, e.g. CA$25 — set them on the <strong>Amounts</strong> tab. Gift cards are always delivered by email, never shipped, taxed or discounted, and have no stock limit or add-ons.</p>
+        <p className="be-note">Each edition is an amount, e.g. {MONEY_SIGN}25 — set them on the <strong>Amounts</strong> tab. Gift cards are always delivered by email, never shipped, taxed or discounted, and have no stock limit or add-ons.</p>
       )}
     </SectionCard>
   );

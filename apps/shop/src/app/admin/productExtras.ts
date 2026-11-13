@@ -2,6 +2,7 @@
 // The server (functions/shared/promotions.js) is the authority for prices and stock; these helpers
 // only mirror its rules so the editor can explain what shoppers will see before saving.
 import { shopDate } from "../features/site/preorder";
+import { MONEY_SIGN } from "./moneySign";
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 const dateOf = (value: unknown) => {
@@ -155,7 +156,7 @@ export function bundleProblems(book: any, getBook: (id: string) => any): string[
 // ── Gift-card products ─────────────────────────────────────────────
 export function giftCardProblems(book: any): string[] {
   const amounts = Array.isArray(book?.variants) ? book.variants : [];
-  if (!amounts.length) return ["A gift card needs at least one amount. Add one on the Amounts tab (e.g. CA$25)."];
+  if (!amounts.length) return [`A gift card needs at least one amount. Add one on the Amounts tab (e.g. ${MONEY_SIGN}25).`];
   return amounts
     .filter((v: any) => !(Number(v?.price) > 0))
     .map((v: any, i: number) => `Gift card amount ${v?.name || i + 1} must be more than $0.`);

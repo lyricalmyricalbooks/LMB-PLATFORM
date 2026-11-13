@@ -8,8 +8,9 @@ import { DataTable, MetricCard, SectionCard, type Column } from "./riso/componen
 import { productOptions, variantPicks } from "../../shared/productOptions";
 import { fillEvery, gridStock, gridSummary, parseFill, type GridVariant } from "./variantGridRules";
 import { useShopWords } from "./shopWords";
+import { MONEY_SIGN } from "./moneySign";
 
-const money = (n: number) => `CA$${n.toFixed(2)}`;
+const money = (n: number) => `${MONEY_SIGN}${n.toFixed(2)}`;
 
 export function VariantGrid({ form, lowLine, onChange, onReplace, stockLocked, stockLockHint }: {
   form: any;
@@ -35,7 +36,7 @@ export function VariantGrid({ form, lowLine, onChange, onReplace, stockLocked, s
       key: `opt-${i}`, header: o.name, lead: i === 0,
       render: (v) => <span style={{ fontWeight: i === 0 ? 600 : undefined }}>{variantPicks(v as any, options)?.[o.name] ?? "—"}</span>,
     })),
-    { key: "price", header: "Price (CA$)", render: (v) => (
+    { key: "price", header: `Price (${MONEY_SIGN})`, render: (v) => (
       <input className="rp-input rp-mono be-vg-num" type="number" min={0} step="0.01" inputMode="decimal"
         aria-label={`Price of ${v.name || "this combination"}`} value={v.price === undefined || v.price === null ? "" : String(v.price)}
         onChange={(e) => onChange(v.id, "price", e.target.value === "" ? "" : Number(e.target.value))} />
