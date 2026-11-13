@@ -116,12 +116,13 @@ service cloud.firestore {
     // silently fails every consignment sale/return/shipment an author
     // records (saveState treats permission-denied as retryable and queues it
     // forever). Keep this list in sync with what those functions dirty.
+    // The bookkeeper (Team role "Accountant") reads every item's records for the books and changes none.
     match /books/{bookId} {
-      allow read: if isPublisher() || isBookAuthor(bookId);
+      allow read: if isPublisher() || isBookAuthor(bookId) || isBookkeeper();
       allow write: if isPublisher() && planOpen();
 
       match /data/{part} {
-        allow read: if isPublisher() || isBookAuthor(bookId);
+        allow read: if isPublisher() || isBookAuthor(bookId) || isBookkeeper();
         allow write: if planOpen() && (isPublisher()
           || (isBookAuthor(bookId)
               && (part == 'stores' || part == 'ledger' || part == 'hist' || part == 'metadata')));
@@ -161,17 +162,20 @@ service cloud.firestore {
 
     // The bookkeeper (plan 7.17): the "bookkeeper" role the shop's server copies
     // onto the sign-in pass from the owner's Team list, with a verified email.
-    // It reads the Tax Centre's bookkeeper copy (expenses only: the real
-    // taxCenter document also holds AI keys, see src/lib/bookkeeper-copy.js)
-    // and the mode flags that say which database holds it. Nothing else, and
-    // never a write.
+    // Shown as "Accountant" on the Team page. It reads the Tax Centre's
+    // bookkeeper copy (expenses, receipt links and rates: the real taxCenter
+    // document also holds AI keys, see src/lib/bookkeeper-copy.js), the mode
+    // flags that say which database holds what, the catalog (item list,
+    // prices, costs) and every item's records (books/{bookId} above), so the
+    // ledger, profit and loss and artist payouts add up as the owner sees
+    // them. Never a write.
     function isBookkeeper() {
       return signedInHere()
         && request.auth.token.email_verified == true
         && request.auth.token.get('role', '') == 'bookkeeper';
     }
     function isBookkeeperReadableSetting(name) {
-      return name in ['modeFlags', 'taxCentreForBookkeeper'];
+      return name in ['modeFlags', 'taxCentreForBookkeeper', 'catalog'];
     }
 
     // Global settings — only the publisher writes anything; everyone else reads
