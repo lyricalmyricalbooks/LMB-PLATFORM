@@ -5,12 +5,14 @@
  *
  *   - "classic": the big masthead (wordmark, bag total) over a ruled category bar. Called "Reference" before.
  *   - "modern":  logo, links and icons in one bar, with the bag button.
+ *   - "centered": the modern bar with the logo in the middle and the links in their own centred row below.
+ *   - "minimal": logo and icons only; every link sits behind the Menu button on every screen size.
  *
  * Left empty (every existing shop), the header follows the shop page layout exactly as it did before: Modern draws
  * the modern header, anything else the classic one. Choosing a layout here never changes the shop page grid.
  */
 
-export const HEADER_LAYOUTS = ["classic", "modern"] as const;
+export const HEADER_LAYOUTS = ["classic", "modern", "centered", "minimal"] as const;
 export type HeaderLayout = (typeof HEADER_LAYOUTS)[number];
 
 /** The Studio choices for Header layout; the empty value keeps following the shop page layout. */
@@ -18,11 +20,13 @@ export const HEADER_LAYOUT_OPTIONS: { value: "" | HeaderLayout; label: string }[
   { value: "", label: "Same as the shop page layout (default)" },
   { value: "classic", label: "Classic: big masthead over a ruled category bar" },
   { value: "modern", label: "Modern: logo, links and bag in one bar" },
+  { value: "centered", label: "Centred: logo in the middle, links in a row below" },
+  { value: "minimal", label: "Minimal: logo and bag, links behind a Menu button" },
 ];
 
 /** The header layout a design draws. */
 export function headerLayout(design: any): HeaderLayout {
   const chosen = design?.headerLayout;
-  if (chosen === "classic" || chosen === "modern") return chosen;
+  if ((HEADER_LAYOUTS as readonly string[]).includes(chosen)) return chosen;
   return design?.catalogLayoutStyle === "modern" ? "modern" : "classic";
 }
