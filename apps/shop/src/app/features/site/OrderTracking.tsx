@@ -21,7 +21,7 @@ import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { getCopy, CopyError, copyErrorText } from "./storeCopy";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
 import { orderStage, orderStep, shippingDays, stepDates } from "./orderStatus";
-import { OrderRequestBox, PrivacyRequestBox } from "./OrderRequests";
+import { OrderRequestBox, PrivacyRequestBox, REQUESTS_ANCHOR } from "./OrderRequests";
 import { AddToOrderBox } from "./AddToOrderBox";
 import { PaymentLinkPay } from "./PaymentLinkPay";
 import { InvoicePay } from "./InvoicePay";
@@ -50,6 +50,14 @@ function OrderTrackingContent() {
   const { formatPrice } = useCurrency();
   const { settings, books } = useSiteData();
   useSEO({ title: getCopy(settings?.design, "trackTitle"), description: getCopy(settings?.design, "trackSubtitle"), noindex: true });
+
+  // From the account's "Ask for a return": once the order shows, bring its requests box into view.
+  const orderShown = Boolean(order);
+  useEffect(() => {
+    if (!orderShown || window.location.hash !== `#${REQUESTS_ANCHOR}`) return;
+    const timer = window.setTimeout(() => document.getElementById(REQUESTS_ANCHOR)?.scrollIntoView({ block: "start" }), 400);
+    return () => window.clearTimeout(timer);
+  }, [orderShown]);
 
   // If order is already found, check if items have digital formats
   useEffect(() => {

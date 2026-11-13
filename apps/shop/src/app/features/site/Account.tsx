@@ -39,6 +39,7 @@ import { useSEO } from "../../lib/seo";
 import { useWishlist, liveWishlistCount } from "../../lib/wishlist";
 import { isLiveBook } from "./liveBook";
 import { useSiteData } from "./useSiteData";
+import { accountRequestLine, REQUESTS_ANCHOR } from "./OrderRequests";
 import { StoreChrome, useInStoreChrome } from "./StoreChrome";
 import { getCopy } from "./storeCopy";
 import { YourDataCard } from "./YourDataCard";
@@ -911,6 +912,28 @@ function AccountContent() {
                           </button>
                         )}
                         
+                        {(() => {
+                          // Self-serve returns: how a return is going, or one tap to the order page's request box.
+                          const line = accountRequestLine(o, settings?.returns);
+                          if (!line) return null;
+                          const to = `${trackLink(o)}#${REQUESTS_ANCHOR}`;
+                          return (
+                            <div {...regionProps("accountRequests")} className="space-y-3">
+                              {line.kind === "ask" ? (
+                                <>
+                                  <div className="flex flex-wrap gap-6">
+                                    {line.return && <Link to={to} className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.25em] fm-accent-text hover:underline">{getCopy(settings?.design, "trackReqReturn")} →</Link>}
+                                    {line.cancel && <Link to={to} className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.25em] fm-accent-text hover:underline">{getCopy(settings?.design, "trackReqCancel")} →</Link>}
+                                  </div>
+                                  {line.deadline && <p className="text-[10px] fm-muted">{getCopy(settings?.design, "trackReqReturnUntil").replace("{date}", new Date(line.deadline).toLocaleDateString())}</p>}
+                                </>
+                              ) : (
+                                <p role="status" className="text-[11px] text-white/75 leading-relaxed">{getCopy(settings?.design, line.key)} <Link to={to} className="fm-accent-text hover:underline">{getCopy(settings?.design, "accountTrackOrder")} →</Link></p>
+                              )}
+                            </div>
+                          );
+                        })()}
+
                         {/* E-book downloads section */}
                         {orderDigitalAssets.length > 0 && o.paymentStatus === 'paid' && (
                           <div {...regionProps("accountDownloads")}

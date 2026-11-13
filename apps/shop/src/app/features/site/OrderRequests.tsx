@@ -24,6 +24,29 @@ export function requestOptions(order: any, returns: any = null, now: number = Da
   return { cancel: !shipped, return: canReturn };
 }
 
+/** Where the shopper's account order list sends them: the order page's requests box. */
+export const REQUESTS_ANCHOR = "order-requests";
+
+export type AccountRequestLine =
+  | { kind: "progress"; key: string }
+  | { kind: "open"; key: string }
+  | { kind: "ask"; cancel: boolean; return: boolean; deadline: string | null };
+
+/**
+ * The account's line for one order (self-serve returns): how a return is going, that a request was received, or the
+ * buttons to ask, by the same rules as the order page's requests box (requestOptions, the per-shop Take returns switch).
+ */
+export function accountRequestLine(order: any, returns: any = null, now: number = Date.now()): AccountRequestLine | null {
+  if (!order) return null;
+  const progress = order.returnProgress;
+  if (progress?.state) return { kind: "progress", key: `trackReturn_${progress.state}` };
+  if (order.customerRequest?.status === "open") return { kind: "open", key: order.customerRequest.type === "cancel" ? "trackReqOpenCancel" : "trackReqOpenReturn" };
+  const options = requestOptions(order, returns, now);
+  if (!options.cancel && !options.return) return null;
+  const deadline = options.return ? returnDeadline(order, returnSettings(returns)) : null;
+  return { kind: "ask", cancel: options.cancel, return: options.return, deadline };
+}
+
 /**
  * "Ask to cancel" on the order-tracking page (until the order ships), and "Ask for a return" after it when
  * the press takes returns. Sends a request the shop answers by email; it never cancels, refunds or restocks
@@ -40,7 +63,7 @@ export function OrderRequestBox({ design, order, access, onUpdated, returns = nu
   const deadline = options.return ? returnDeadline(order, returnSettings(returns)) : null;
   const open = order?.customerRequest?.status === "open";
   const progress = order?.returnProgress;
-  if (progress) return <section {...regionProps("trackingRequests")} className="fm-track-card p-6 sm:p-8 space-y-4">
+  if (progress) return <section id={REQUESTS_ANCHOR} {...regionProps("trackingRequests")} className="fm-track-card p-6 sm:p-8 space-y-4">
     <p className="fm-track-mono">{getCopy(design, "trackReturnHeading")}</p>
     <p role="status">{getCopy(design, `trackReturn_${progress.state}`)}</p>
     {progress.instructions && <p className="whitespace-pre-wrap text-sm leading-6">{progress.instructions}</p>}
@@ -76,7 +99,7 @@ export function OrderRequestBox({ design, order, access, onUpdated, returns = nu
   };
 
   return (
-    <section {...regionProps("trackingRequests")} className="fm-track-card p-6 sm:p-8 space-y-4">
+    <section id={REQUESTS_ANCHOR} {...regionProps("trackingRequests")} className="fm-track-card p-6 sm:p-8 space-y-4">
       <p className="fm-track-mono">{getCopy(design, "trackReqHeading")}</p>
       {open ? (
         <p role="status" className="text-sm leading-6">{getCopy(design, order.customerRequest.type === "cancel" ? "trackReqOpenCancel" : "trackReqOpenReturn")}</p>
