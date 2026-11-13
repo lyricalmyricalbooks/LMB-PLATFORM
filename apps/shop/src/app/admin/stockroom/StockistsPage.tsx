@@ -43,7 +43,7 @@ function InvoiceRows({ invoices, onPay }: { invoices: StockistInvoice[]; onPay?:
           <div className="rp-sk-row-main"><strong>{i.num || "Invoice"}</strong><span className="rp-sk-meta">{i.dueDate ? `Due ${fmtD(i.dueDate)}` : "No due date"}{i.chased ? ` · reminded ${i.chased === 1 ? "once" : `${i.chased} times`}` : ""}{i.promisedUntil ? ` · promised by ${fmtD(i.promisedUntil)}` : ""}{i.reminderFailed ? " · last reminder didn't send" : ""}</span></div>
           <div className="rp-sk-row-end"><span className="rp-sk-amount">{fmt(i.total, i.code)}</span>
             {i.overdue ? <StatusBadge tone="danger">{i.daysLate ?? 0} days overdue</StatusBadge> : <StatusBadge tone={i.status === "paid" ? "success" : "neutral"} glyph={false}>{i.status[0].toUpperCase() + i.status.slice(1)}</StatusBadge>}
-            {onPay && i.payable && <SecondaryButton size="sm" onClick={() => onPay(i)} aria-label={`Mark ${i.num || "this invoice"} paid`}>Mark paid</SecondaryButton>}</div>
+            {onPay && i.payable && <SecondaryButton size="sm" className="rp-skd-btn" onClick={() => onPay(i)} aria-label={`Mark ${i.num || "this invoice"} paid`}>Mark paid</SecondaryButton>}</div>
         </li>
       ))}
     </ul>
@@ -62,8 +62,7 @@ function Ledger({ rows }: { rows: StockistLedgerRow[] }) {
   const [type, setType] = useState<string | null>(null);
   const shown = type ? rows.filter((r) => r.type === type) : rows;
   const chip = (key: string | null, label: string) => {
-    const Btn = type === key ? InkButton : SecondaryButton;
-    return <Btn key={label} size="sm" aria-pressed={type === key} onClick={() => setType(key)}>{label}</Btn>;
+    return <button key={label} type="button" className="rp-page-tab rp-skd-pill" aria-pressed={type === key} onClick={() => setType(key)}>{label}</button>;
   };
   return (
     <>
@@ -86,36 +85,61 @@ function Ledger({ rows }: { rows: StockistLedgerRow[] }) {
 function Detail({ s, onPay, notice, onNewInvoice, onMove, onEdit }: { s: Stockist; onPay?: (i: StockistInvoice) => void; notice?: Notice | null; onNewInvoice?: () => void; onMove?: (bookId: string, kind: MoveKind) => void; onEdit?: () => void }) {
   const w = useShopWords();
   const contact = [s.contact, s.email, s.phone, s.website].filter(Boolean);
+  const facts = [where(s), `${s.rate}% commission`, s.terms].filter(Boolean);
+  const owedText = s.owed.length ? moneyText(s.owed) : "Nothing";
+  const download = () => downloadCsv(toCsv(stockistLedgerRows(s.name, s.ledger)), `consignment-ledger-${s.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${new Date().toLocaleDateString("en-CA")}.csv`);
   return (
-    <div className="rp-sk-detail">
-      <p className="rp-sk-meta">{[where(s), `${s.rate}% commission`, s.terms].filter(Boolean).join(" · ")}</p>
-      {contact.length > 0 && <p className="rp-sk-meta">{contact.join(" · ")}</p>}
-      {s.notes && <p className="rp-sk-meta">{s.notes}</p>}
-      {onEdit && <p className="rp-sk-moves"><SecondaryButton size="sm" onClick={onEdit}>Edit details</SecondaryButton></p>}
+    <div className="rp-sk-detail rp-skd">
+      <section className="rp-skd-card rp-skd-about" aria-label="Details">
+        <div className="rp-skd-facts">
+          {facts.map((f) => <span key={f} className="rp-skd-fact">{f}</span>)}
+        </div>
+        {contact.length > 0 && <p className="rp-sk-meta">{contact.join(" · ")}</p>}
+        {s.notes && <p className="rp-sk-meta">{s.notes}</p>}
+        {onEdit && <SecondaryButton size="sm" className="rp-skd-btn" onClick={onEdit}>Edit details</SecondaryButton>}
+      </section>
+      <ul className="rp-sk-tiles rp-skd-tiles" aria-label="Where things stand">
+        <li className="rp-sk-tile" data-tone="sky"><span>On their shelf</span><strong>{s.onShelf}</strong><small>{s.sent} sent · {s.sold} sold</small></li>
+        <li className="rp-sk-tile" data-tone="apricot"><span>They owe you</span><strong>{owedText}</strong><small>{s.overdue.length ? `${s.overdue.length} overdue` : "Nothing overdue"}</small></li>
+        <li className="rp-sk-tile" data-tone="mint"><span>Paid so far</span><strong>{s.paid.length ? moneyText(s.paid) : "Nothing"}</strong><small>{s.returned} returned</small></li>
+      </ul>
       {(s.mismatch || s.owedMismatch) && (
         <p className="rp-sk-alert" role="status">{w("The running totals saved for this stockist don't match what the ledger adds up to. The ledger is the one to trust; the balance below shows which figure differs.")}</p>
       )}
-      <h3 className="rp-sk-h">Balance</h3>
-      <ul className="rp-sk-list">
-        {s.titles.map((t) => (
-          <li key={t.bookId} className="rp-sk-row">
-            <div className="rp-sk-row-main"><strong>{t.bookTitle}</strong><span className="rp-sk-meta">Sent {t.sent} · sold {t.sold} · returned {t.returned} · on their shelf {t.onShelf}</span>
-              {t.mismatch && <span className="rp-sk-meta rp-sk-warn">{t.figures.filter((f) => f.off).map((f) => `${f.label}: card ${f.card}, ledger ${f.ledger}`).join(" · ")}</span>}</div>
-            <div className="rp-sk-row-end"><span className="rp-sk-amount">{t.owed > 0 ? fmt(t.owed, t.code) : "—"}</span>
-              {onMove && <span className="rp-sk-moves">
-                <SecondaryButton size="sm" onClick={() => onMove(t.bookId, "send")}>Send</SecondaryButton>
-                <SecondaryButton size="sm" disabled={!t.onShelf} onClick={() => onMove(t.bookId, "sale")}>Sale</SecondaryButton>
-                <SecondaryButton size="sm" disabled={!t.onShelf} onClick={() => onMove(t.bookId, "return")}>Return</SecondaryButton>
-              </span>}</div>
-          </li>
-        ))}
-      </ul>
-      {s.paid.length > 0 && <p className="rp-sk-meta">Already paid: {moneyText(s.paid)}</p>}
-      <div className="rp-inv-head"><h3 className="rp-sk-h">Invoices</h3>{onNewInvoice && <SecondaryButton size="sm" onClick={onNewInvoice}>New invoice</SecondaryButton>}</div>
       {notice && <NoticeLine notice={notice} />}
-      <InvoiceRows invoices={s.invoices} onPay={onPay} />
-      <div className="rp-inv-head"><h3 className="rp-sk-h">Ledger</h3>{s.ledger.length > 0 && <SecondaryButton size="sm" onClick={() => downloadCsv(toCsv(stockistLedgerRows(s.name, s.ledger)), `consignment-ledger-${s.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${new Date().toLocaleDateString("en-CA")}.csv`)}>Download spreadsheet</SecondaryButton>}</div>
-      {s.ledger.length ? <Ledger rows={s.ledger} /> : <p className="rp-sk-none">Nothing in the ledger for this stockist yet.</p>}
+      <section className="rp-skd-card">
+        <h3 className="rp-skd-h">{w("Books with them")}</h3>
+        {s.titles.length ? (
+          <ul className="rp-sk-list">
+            {s.titles.map((t) => (
+              <li key={t.bookId} className="rp-skd-book">
+                <div className="rp-skd-book-top">
+                  <strong>{t.bookTitle}</strong>
+                  <span className="rp-sk-amount">{t.owed > 0 ? fmt(t.owed, t.code) : "Nothing owed"}</span>
+                </div>
+                <dl className="rp-skd-nums">
+                  <div><dt>Sent</dt><dd>{t.sent}</dd></div><div><dt>Sold</dt><dd>{t.sold}</dd></div>
+                  <div><dt>Returned</dt><dd>{t.returned}</dd></div><div><dt>On shelf</dt><dd>{t.onShelf}</dd></div>
+                </dl>
+                {t.mismatch && <span className="rp-sk-meta rp-sk-warn">{t.figures.filter((f) => f.off).map((f) => `${f.label}: card ${f.card}, ledger ${f.ledger}`).join(" · ")}</span>}
+                {onMove && <div className="rp-skd-moves" role="group" aria-label={`Record for ${t.bookTitle}`}>
+                  <SecondaryButton size="sm" className="rp-skd-btn" onClick={() => onMove(t.bookId, "send")}>Send copies</SecondaryButton>
+                  <SecondaryButton size="sm" className="rp-skd-btn" disabled={!t.onShelf} onClick={() => onMove(t.bookId, "sale")}>Record sale</SecondaryButton>
+                  <SecondaryButton size="sm" className="rp-skd-btn" disabled={!t.onShelf} onClick={() => onMove(t.bookId, "return")}>Return</SecondaryButton>
+                </div>}
+              </li>
+            ))}
+          </ul>
+        ) : <p className="rp-sk-none">{w("No books with this stockist yet.")}</p>}
+      </section>
+      <section className="rp-skd-card">
+        <div className="rp-skd-head"><h3 className="rp-skd-h">Invoices</h3>{onNewInvoice && <InkButton size="sm" onClick={onNewInvoice}>New invoice</InkButton>}</div>
+        <InvoiceRows invoices={s.invoices} onPay={onPay} />
+      </section>
+      <section className="rp-skd-card">
+        <div className="rp-skd-head"><h3 className="rp-skd-h">Ledger</h3>{s.ledger.length > 0 && <SecondaryButton size="sm" className="rp-skd-btn" onClick={download}>Download</SecondaryButton>}</div>
+        {s.ledger.length ? <Ledger rows={s.ledger} /> : <p className="rp-sk-none">Nothing in the ledger for this stockist yet.</p>}
+      </section>
     </div>
   );
 }
@@ -261,7 +285,7 @@ export function StockistsList({ view, onSaved, onNewInvoice, books, states }: { 
       {view.overdueCount > 0 && (
         <p className="rp-sr-status" role="status">{view.overdueCount === 1 ? "1 invoice is" : `${view.overdueCount} invoices are`} overdue: {moneyText(view.overdueTotals)}.</p>
       )}
-      <Drawer open={!!current} onClose={() => { setOpen(null); setNotice(null); }} title={current?.name || ""} description={onSaved ? "Bill them, or mark their invoices paid." : "Read-only."}>
+      <Drawer open={!!current} onClose={() => { setOpen(null); setNotice(null); }} title={current?.name || ""} description={onSaved ? undefined : "Read-only."}>
         {current && <Detail s={current} notice={notice} onPay={onSaved ? (i) => { setNotice(null); setPaying(i); } : undefined}
           onMove={onSaved && books ? (bookId, kind) => { setNotice(null); setMove({ bookId, kind }); } : undefined}
           onEdit={canWrite && current.titles.length ? () => { setNotice(null); setDetails("edit"); } : undefined}
