@@ -231,6 +231,36 @@ export function switchPublisher({ registry, recordsFor, fallback }) {
   };
 }
 
+/** The zone every shop followed before it had its own (shared/shopTimeZone in the shop). */
+export const EASTERN_TIME = "America/Toronto";
+
+/** A zone name this machine's calendar knows ("America/Vancouver"), else null. */
+export function realTimeZone(value) {
+  const name = typeof value === "string" ? value.trim() : "";
+  if (!/^[A-Za-z_]+\/[A-Za-z0-9_+\-/]{1,60}$/.test(name)) return null;
+  try { new Intl.DateTimeFormat("en-CA", { timeZone: name }); return name; } catch { return null; }
+}
+
+/**
+ * Writes a shop's time zone into its record in the shared system: the record's `SHOP_TIME_ZONE` (the server's clock,
+ * functions/shopConfig.js) and `profile.timeZone` (the pages'). Eastern time is written as no zone, as setup does.
+ * Null for a shop with a project of its own: its zone is in its own env file, set by setup. Safe to repeat.
+ */
+export function zoneWriter({ recordsFor }) {
+  return async function write(shopId, zone) {
+    const records = await recordsFor(shopId);
+    if (!records) return null;
+    const record = (await records.get(shopId)) ?? {};
+    const { timeZone: _old, ...rest } = record.profile ?? {};
+    const profile = record.profile ? (zone === EASTERN_TIME ? rest : { ...rest, timeZone: zone }) : undefined;
+    const next = { SHOP_TIME_ZONE: zone, ...(profile ? { profile } : {}) };
+    if (record.SHOP_TIME_ZONE !== zone || (profile && !isDeepStrictEqual(profile, record.profile))) {
+      await records.set(shopId, next, { fields: Object.keys(next) });
+    }
+    return { written: true };
+  };
+}
+
 /** How many shops the shop list and Today read at the same time. */
 export const SHOPS_AT_ONCE = 8;
 
@@ -244,7 +274,7 @@ export async function eachInTurn(items, limit, work) {
 }
 
 export function createControlRoom({
-  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, stockroomData = null, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, settings, supportStore, recoveryStore, signups, platformState, stripePublishableKeys = {}, googleSteps, googleReady, taxWatch, bills = null, feeDefaults = NO_FEE, accessRequests, admins, now = () => new Date(), delivery, presses = null, parcels = null,
+  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, stockroomData = null, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, settings, supportStore, recoveryStore, signups, platformState, stripePublishableKeys = {}, googleSteps, googleReady, taxWatch, bills = null, feeDefaults = NO_FEE, accessRequests, admins, now = () => new Date(), delivery, presses = null, parcels = null, writeZone = null,
 }) {
   const at = () => now().toISOString();
 
@@ -322,8 +352,39 @@ export function createControlRoom({
     return { shopId, switch: name, from, to: on, changed: from !== on, published: apps, ...(checked ? { selfCheck: { ok: checked.ok, results: checked.results } } : {}) };
   }
 
+  /**
+   * Moves one shop to another time zone: its sale and release dates, the end day of its codes, its daily numbers and
+   * its morning emails follow it from then on. Saved on the profile and the registry row, written into the shop's
+   * record, and logged. Safe to repeat.
+   */
+  async function setTimeZone({ by, shopId, timeZone, reason }) {
+    const zone = realTimeZone(timeZone);
+    if (!zone) throw new ControlError(400, "Choose a time zone from the list, like America/Vancouver.");
+    const why = reasonOf(reason);
+    const row = await shopOr404(shopId);
+    if (!writeZone) throw new ControlError(501, "Time zones can't be changed from here yet.");
+    const from = realTimeZone(row.timeZone) ?? EASTERN_TIME;
+    const written = await writeZone(shopId, zone);
+    if (!written) throw new ControlError(409, "This shop runs in a project of its own. Its time zone is set when its setup runs again.");
+    const saved = await registry.getProfile(shopId);
+    if (saved) {
+      const { timeZone: _old, ...rest } = saved;
+      const profile = zone === EASTERN_TIME ? rest : { ...rest, timeZone: zone };
+      if (!isDeepStrictEqual(saved, profile)) await registry.saveProfile(shopId, profile);
+    }
+    await registry.updateShop(shopId, { timeZone: zone });
+    await log(shopId, "time-zone-set", { by, from, to: zone, reason: why });
+    return { shopId, from, to: zone, changed: from !== zone };
+  }
+
   return {
     setSwitch,
+    setTimeZone,
+
+    /** One shop's time zone (its day, its dates and its morning emails), with a reason for its log. */
+    async timeZone(claims, { shopId, timeZone, reason } = {}) {
+      return setTimeZone({ by: adminOf(claims, admins, now().getTime()), shopId, timeZone, reason });
+    },
 
     /** Every shop, for the control room's list. */
     async shops(claims) {
@@ -490,6 +551,8 @@ export function createControlRoom({
         billing: row.billing ?? null,
         // The language of the platform's emails to this press (services/email/templatesFr.js): "fr", "fr+en" or "en".
         emailLanguage: shopMailLanguage(row),
+        // The shop's own clock: its day, its dates and its morning emails (shared/shopTimeZone in the shop).
+        timeZone: realTimeZone(row.timeZone) ?? EASTERN_TIME,
         sells: { ...sells, line: sellsLine(sells) },
         emailSample: emailSample(row, settings ? await settings() : platformSettings({}), now()),
         setup: [...lastByStep.values()].map(({ step, name, ok, error, at, finishedAt }) => ({ step, name: name ?? null, ok: ok !== false && !error, at: finishedAt ?? at ?? null, error: error ?? null })),

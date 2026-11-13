@@ -42,6 +42,7 @@ const HEALTH_KINDS = new Set(["health", "backup", "restore-drill", "spending"]);
 function controlAction(what, d = {}) {
   switch (what) {
     case "switch-set": return { kind: "switch", words: `Turned ${d.switch ?? "a switch"} ${d.to ? "on" : "off"}${why(d.reason)}` };
+    case "time-zone-set": return { kind: "other", words: `Moved the shop's clock from ${d.from ?? "?"} to ${d.to ?? "?"}${why(d.reason)}` };
     case "act-as": return { kind: "visit", words: `Opened the shop's admin as support, ${d.mode === "edit" ? "able to make changes" : "looking only"}${why(d.reason)}` };
     case "fee-change-scheduled": return { kind: "billing", words: `Changed the fee on each order to ${(d.to?.basisPoints ?? 0) / 100}%, starting ${String(d.startsAt ?? "").slice(0, 10)}${why(d.reason)}` };
     case "fee-change-cancelled": return { kind: "billing", words: `Cancelled a waiting fee change${why(d.reason)}` };

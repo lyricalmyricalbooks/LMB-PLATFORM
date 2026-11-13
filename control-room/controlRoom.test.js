@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { PRIVACY_CONTACT } from "../terms/terms.js";
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
-import { ACT_AS_MINUTES, SHOPS_AT_ONCE, SIGN_IN_HOURS, adminOf, controlRoomAdmins, createControlRoom, eachInTurn, payoutWords, profilePublisher, shopHealth, switchPublisher, twoStepProblem } from "./controlRoom.js";
+import { ACT_AS_MINUTES, SHOPS_AT_ONCE, SIGN_IN_HOURS, adminOf, controlRoomAdmins, createControlRoom, eachInTurn, payoutWords, profilePublisher, shopHealth, switchPublisher, twoStepProblem, zoneWriter } from "./controlRoom.js";
 import { controlRoutes } from "./routes.js";
 import { platformRoutes } from "./platformControls.js";
 import { parseSwitchArgs, switchCommand } from "./switch.js";
@@ -44,7 +44,7 @@ function fakeEmail() {
   return { sent, sendPlatform: async (message) => void (sent.has(message.idempotencyKey) || sent.set(message.idempotencyKey, structuredClone(message))) };
 }
 
-async function world({ repairs, newsletters, googleSteps, googleReady, taxWatch, bills, withStockroom = false, publishWith = null } = {}) {
+async function world({ repairs, newsletters, googleSteps, googleReady, taxWatch, bills, withStockroom = false, publishWith = null, writeZone = null } = {}) {
   const google = fakeGoogle();
   const services = fakeServices();
   const registry = fakeRegistry();
@@ -70,7 +70,7 @@ async function world({ repairs, newsletters, googleSteps, googleReady, taxWatch,
     envFiles: services.envFiles, deploy: services.deploy, build: async (v) => void built.push(v), email, squareAccount: async (id) => (square.has(id) ? { locationId: "L1" } : null),
     breaches: createBreachRegister({ store: breachStore, registry, auditLog, now: () => new Date(clock), newId: () => `b${breachStore.rows.size + 1}` }),
     people: controlRoomPeople({}),
-    activity, platformState, googleSteps, googleReady, taxWatch, bills,
+    activity, platformState, googleSteps, googleReady, taxWatch, bills, writeZone,
     admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: " Admin@Example.com ,not-an-email" }),
     now: () => new Date((clock += 1000)),
   });
@@ -209,6 +209,50 @@ test("a switch reaches a shared-system shop through its record (the front door s
   shared.clear();
   await w.room.switch(ADMIN, { shopId: ID, name, on: false, reason: "the press no longer needs it" });
   assert.equal(w.services.calls.slice(before).filter(([call]) => call === "deploy.pages").length, 2);
+});
+
+test("a shop's time zone moves its record, its saved profile and its registry row, with a log entry", async () => {
+  const record = { SHOP_CURRENCY: "USD" };
+  const sets = [];
+  const records = {
+    get: async () => structuredClone(record),
+    set: async (shopId, data, { fields }) => { sets.push({ shopId, fields }); Object.assign(record, data); },
+  };
+  const shared = new Set([ID]);
+  const w = await world({ writeZone: zoneWriter({ recordsFor: async (id) => (shared.has(id) ? records : null) }) });
+  record.profile = { ...(await w.registry.getProfile(ID)) };
+  assert.equal((await w.room.shop(ADMIN, { shopId: ID })).timeZone, "America/Toronto", "a shop with none follows Eastern time");
+
+  const answer = await w.ask(ADMIN, "POST", "/api/control/time-zone", { shopId: ID, timeZone: "America/Los_Angeles", reason: "the press is in Portland, Oregon" });
+  assert.equal(answer.status, 200);
+  assert.deepEqual([answer.body.from, answer.body.to, answer.body.changed], ["America/Toronto", "America/Los_Angeles", true]);
+  assert.equal(record.SHOP_TIME_ZONE, "America/Los_Angeles", "the server's clock");
+  assert.equal(record.profile.timeZone, "America/Los_Angeles", "the pages' clock");
+  assert.equal(record.SHOP_CURRENCY, "USD", "the record's other fields are kept");
+  assert.equal((await w.registry.getProfile(ID)).timeZone, "America/Los_Angeles", "a later publish keeps it");
+  assert.equal((await w.registry.getShop(ID)).timeZone, "America/Los_Angeles");
+  assert.equal((await w.room.shop(ADMIN, { shopId: ID })).timeZone, "America/Los_Angeles");
+  const [entry] = w.events();
+  assert.deepEqual([entry.what, entry.from, entry.to, entry.by], ["time-zone-set", "America/Toronto", "America/Los_Angeles", ADMIN.email]);
+
+  // Repeating it writes nothing new; back to Eastern time leaves the zone off the profile, as setup does.
+  await w.room.timeZone(ADMIN, { shopId: ID, timeZone: "America/Los_Angeles", reason: "checking it is still set" });
+  assert.equal(sets.length, 1);
+  await w.room.timeZone(ADMIN, { shopId: ID, timeZone: "America/Toronto", reason: "the press moved back to Toronto" });
+  assert.equal(record.SHOP_TIME_ZONE, "America/Toronto");
+  assert.equal("timeZone" in record.profile, false);
+  assert.equal("timeZone" in (await w.registry.getProfile(ID)), false);
+
+  // Refused: a made-up zone, no reason, an unknown shop, a shop with its own project, and a room that can't write zones.
+  const ask = (body) => w.ask(ADMIN, "POST", "/api/control/time-zone", { shopId: ID, reason: "a good reason here", ...body });
+  assert.equal((await ask({ timeZone: "Pacific time" })).status, 400);
+  assert.equal((await ask({ timeZone: "Mars/Olympus_Mons" })).status, 400);
+  assert.equal((await ask({ timeZone: "America/Denver", reason: "" })).status, 400);
+  assert.equal((await ask({ timeZone: "America/Denver", shopId: "nope" })).status, 404);
+  shared.clear();
+  assert.equal((await ask({ timeZone: "America/Denver" })).status, 409);
+  assert.equal((await (await world()).ask(ADMIN, "POST", "/api/control/time-zone", { shopId: ID, timeZone: "America/Denver", reason: "a good reason here" })).status, 501);
+  assert.equal((await w.ask(PRESS, "POST", "/api/control/time-zone", { shopId: ID, timeZone: "America/Denver", reason: "a good reason here" })).status, 403);
 });
 
 test("a switch refuses a made-up switch, a missing on/off, a missing reason and a shop with no profile", async () => {

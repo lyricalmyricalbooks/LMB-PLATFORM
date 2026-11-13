@@ -476,6 +476,38 @@ function feeForm(record) {
   return form;
 }
 
+// The shop's own clock: its day, sale and release dates, the end day of its codes and its morning emails.
+/** The zones the control room offers: this browser's list, with the shop's own and the usual North American ones. */
+function timeZoneChoices(current) {
+  const usual = ["America/St_Johns", "America/Halifax", "America/Toronto", "America/New_York", "America/Chicago", "America/Winnipeg", "America/Regina", "America/Denver", "America/Edmonton", "America/Phoenix", "America/Los_Angeles", "America/Vancouver", "America/Anchorage", "Pacific/Honolulu"];
+  let all = [];
+  try { all = Intl.supportedValuesOf("timeZone"); } catch { all = []; }
+  return [...new Set([current, ...usual, ...all])].filter(Boolean);
+}
+function timeZoneForm(record) {
+  const zone = el("select", { className: "rp-input", name: "timeZone" }, ...timeZoneChoices(record.timeZone).map((z) => el("option", { value: z, textContent: z.replace(/_/g, " "), selected: z === record.timeZone })));
+  const form = el("form", { className: "cr-form" },
+    el("p", { className: "rp-hint", textContent: `The shop's clock now: ${record.timeZone.replace(/_/g, " ")}. Its day, its sale and release dates, the last day of its codes and its morning emails follow it.` }),
+    el("label", { className: "rp-field" }, el("span", { className: "rp-label", textContent: "Time zone" }), zone),
+    el("label", { className: "rp-field" }, el("span", { className: "rp-label", textContent: "Why? (goes in the shop's log)" }), el("input", { className: "rp-input", name: "reason", required: true, minLength: 10, maxLength: 500 })),
+    el("p", { className: "rp-hint", textContent: "Pages already open pick it up when the press next opens them." }),
+    el("div", {}, el("button", { type: "submit", className: "rp-btn rp-btn-secondary", textContent: "Change the time zone" })));
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const submit = form.querySelector("button");
+    submit.disabled = true;
+    try {
+      const done = await api("POST", "/control/time-zone", { shopId: record.shopId, timeZone: form.timeZone.value, reason: form.reason.value });
+      status.textContent = done.changed ? `${record.pressName} now runs on ${done.to.replace(/_/g, " ")} time.` : "That's already the shop's time zone, so nothing changed.";
+      form.replaceWith(timeZoneForm(await api("POST", "/control/shop", { shopId: record.shopId })));
+    } catch (failure) {
+      status.textContent = failure.message;
+      submit.disabled = false;
+    }
+  });
+  return form;
+}
+
 // Closing a shop (6.8): where it is, and the dates the press was told.
 const CLOSING_WORDS = { paused: "paused", closed: "closed, download open", deleted: "deleted", reopening: "opening again" };
 function closingView(closing) {
@@ -625,6 +657,8 @@ function recordView(record) {
     googleView(record),
     el("h3", { className: "cr-section", textContent: "Fee on each order" }),
     feeForm(record),
+    el("h3", { className: "cr-section", textContent: "Time zone" }),
+    timeZoneForm(record),
     el("h3", { className: "cr-section", textContent: "Control-room history" }),
     record.history.length ? history(record.history.map((e) => `${when(e.at)} · ${e.by ?? "the platform"} ${ACTIVITY_WORDS[e.what] ?? e.what}${e.detail?.reason ? ` (${e.detail.reason})` : ""}`)) : el("p", { className: "rp-hint", textContent: "Nothing yet." }));
 }
@@ -2231,7 +2265,7 @@ $("#settings-form").addEventListener("submit", async (event) => {
 
 // ── Activity log (plan 9.9): read only. ──
 const ACTIVITY_WORDS = {
-  "settings-changed": "changed the platform settings", "waitlist-invite": "invited someone from the waitlist", "payment-reminder": "sent a payment reminder", "saved-replies": "changed the saved replies", "first-sale-tips": "sent first-sale tips", "today-note": "wrote a note on Today", "switch-set": "set a switch",
+  "settings-changed": "changed the platform settings", "waitlist-invite": "invited someone from the waitlist", "payment-reminder": "sent a payment reminder", "saved-replies": "changed the saved replies", "first-sale-tips": "sent first-sale tips", "today-note": "wrote a note on Today", "switch-set": "set a switch", "time-zone-set": "changed a shop's time zone",
   "act-as": "opened the shop's admin as support", "two-step-reset": "turned off two-step sign-in for someone", "test-shop-reset": "reset the test shop's sample data", "google-run-again": "ran a Google step again", "shop-closed": "closed the shop", "shop-reopened": "opened the shop again",
   "newsletter-resumed": "turned the newsletter back on", "fee-change-scheduled": "changed the fee on each order (starts in 30 days)",
   "fee-change-cancelled": "cancelled a waiting fee change", "new-shop-switch": "changed what new shops start with", "signup-retry": "tried making the shop again", "plan-change-retry": "tried the plan change again",
