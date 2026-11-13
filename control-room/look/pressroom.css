@@ -2483,3 +2483,27 @@ div.rp-listcard-main { cursor: default; }
 @media (max-width: 640px) {
   .rp:not(.studio-editor) .rp-close-timeline > li { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Panels and pop-ups in the bento look (13 November 2026, Julian: "redesign all the panels"). Every Dialog and Drawer:
+   22px corners, a clean head with a bold title, pill buttons (secondary outlined, quiet ones as soft pills), a white
+   footer, details lists and tables as soft rounded cards. Tokens only. */
+:root[data-admin-look="colophon"] .rp-dialog { border: 0; border-radius: 22px; box-shadow: var(--rp-shadow-float, var(--rp-shadow-lg)); }
+:root[data-admin-look="colophon"] .rp-dialog-root[data-variant="drawer"] > .rp-dialog { border-radius: 22px 0 0 22px; border: 0; }
+:root[data-admin-look="colophon"] .rp-dialog-head { border-bottom: 0; padding: 22px 24px 6px; }
+:root[data-admin-look="colophon"] .rp-dialog .rp-dialog-title { font: 700 22px/1.15 var(--rp-font-body); font-style: normal; letter-spacing: -0.01em; }
+:root[data-admin-look="colophon"] .rp-dialog-body { padding: 14px 24px 22px; }
+:root[data-admin-look="colophon"] .rp-dialog-foot { border-top: 1px solid var(--rp-divider); background: var(--rp-surface); padding: 14px 24px; border-radius: 0 0 22px 22px; }
+:root[data-admin-look="colophon"] .rp-dialog-root .rp-dialog .rp-btn.rp-btn { border-radius: 999px; padding-inline: 16px; }
+:root[data-admin-look="colophon"] .rp-dialog-root .rp-dialog .rp-btn.rp-btn-secondary { border: 1px solid var(--rp-border-strong); background: var(--rp-surface); color: var(--rp-text); }
+:root[data-admin-look="colophon"] .rp-dialog-root .rp-dialog .rp-btn.rp-btn-secondary:hover:not(:disabled) { background: var(--rp-surface-2); color: var(--rp-text); }
+:root[data-admin-look="colophon"] .rp-dialog-root .rp-dialog .rp-btn.rp-btn-ghost { background: var(--rp-surface-2); color: var(--rp-text); }
+:root[data-admin-look="colophon"] .rp-dialog-root .rp-dialog .rp-btn.rp-btn-ghost:hover:not(:disabled) { background: var(--rp-surface-inset, var(--rp-surface-2)); }
+:root[data-admin-look="colophon"] .rp-dialog :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea) { border-radius: 12px; }
+:root[data-admin-look="colophon"] .rp-dialog-body dl:not([class*="rp-skd"]) { margin: 0; padding: 4px 16px; border-radius: 16px; background: var(--rp-surface-2); }
+:root[data-admin-look="colophon"] .rp-dialog-body dl:not([class*="rp-skd"]) > div { padding-block: 10px; }
+:root[data-admin-look="colophon"] .rp-dialog-body dl:not([class*="rp-skd"]) > div + div { border-top: 1px solid var(--rp-divider); }
+:root[data-admin-look="colophon"] .rp-dialog-body table { border-collapse: separate; border-spacing: 0; background: var(--rp-surface-2); border-radius: 16px; overflow: hidden; }
+:root[data-admin-look="colophon"] .rp-dialog-body :is(fieldset, .rp-section) { border: 0; border-radius: 16px; background: var(--rp-surface-2); padding: 14px 16px; }
+:root[data-admin-look="colophon"] .rp-dialog-body fieldset :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { background: var(--rp-surface); }
+:root[data-admin-look="colophon"] .rp-dialog-root .rp-dialog .rp-btn.rp-btn-danger { border: 1px solid var(--rp-danger); background: var(--rp-surface); color: var(--rp-danger); }
+:root[data-admin-look="colophon"] .rp-dialog-root .rp-dialog .rp-btn.rp-btn-danger:hover:not(:disabled) { background: var(--rp-danger-tint); }
