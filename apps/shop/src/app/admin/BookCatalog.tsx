@@ -11,6 +11,8 @@ import { useShopSells, useShopWords } from "./shopWords";
 import { sellsBooks } from "./sells";
 import { compareShopOrder } from "../features/site/shopOrder";
 import { BookImportDialog } from "./BookImportDialog";
+import { BulkSaleDialog } from "./BulkSaleDialog";
+import { planEndSale } from "./bulkPricing";
 import { adminApi } from "./api";
 import { lowStockThreshold } from "./inventoryInsights";
 import toast from "react-hot-toast";
@@ -53,6 +55,8 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   /** Rows ticked on the list (v4 bulk bar). */
   const [picked, setPicked] = useState<Set<string>>(() => new Set());
   const [drafting, setDrafting] = useState(false);
+  /** Bulk bar › Put on sale is open. */
+  const [saleOpen, setSaleOpen] = useState(false);
   // Inventory's low-stock line, so "Running low" here matches Inventory, Home and the 8am email.
   const [lowLine, setLowLine] = useState(LOW_STOCK);
   // The stockroom's counts (its published feed, read by the server) and which stockroom book each edition is matched to.
@@ -144,6 +148,28 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
     else toast.success(`${parts.join(". ")}. They're off the shop until you publish them.`);
   };
 
+  // Bulk bar › Put on sale / End sale (gap list item 5): writes only the four sale fields through the editor's
+  // transactional save, one product at a time; failed rows stay ticked.
+  const savePatches = async (changes: { id: string; patch: Record<string, any> }[], done: (n: number) => string) => {
+    const failedIds: string[] = [];
+    for (const c of changes) {
+      const b = books.find((x) => x.id === c.id);
+      try { await adminApi.updateBook(c.id, { title: b?.title, ...c.patch }, b); }
+      catch { failedIds.push(c.id); }
+    }
+    setPicked(new Set(failedIds));
+    await loadBooks();
+    const ok = changes.length - failedIds.length;
+    if (failedIds.length) toast.error(`${ok ? `${done(ok)} ` : ""}Couldn't change ${failedIds.length}: try again.`);
+    else toast.success(done(ok));
+  };
+  const endSale = async () => {
+    const changes = planEndSale(books.filter((b) => picked.has(b.id)));
+    if (!changes.length) { toast("None of those are on sale"); return; }
+    setDrafting(true);
+    try { await savePatches(changes, (n) => `Sale ended on ${n}. Shoppers see the regular price.`); } finally { setDrafting(false); }
+  };
+
   const importDialog = importOpen && <BookImportDialog books={books} onClose={() => setImportOpen(false)} onDone={() => loadBooks()} />;
 
   if (loading) return <LoadingState label={w("Loading books…")} />;
@@ -192,6 +218,8 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
           <div className="bk-bulk" role="region" aria-label={w("Selected books")}>
             <strong>{picked.size} selected</strong>
             <button type="button" className="bk-bulk-btn" onClick={() => void setAsDraft()} disabled={drafting}>{drafting ? "Saving…" : "Set as draft"}</button>
+            <button type="button" className="bk-bulk-btn" onClick={() => setSaleOpen(true)} disabled={drafting}>Put on sale</button>
+            <button type="button" className="bk-bulk-clear" onClick={() => void endSale()} disabled={drafting}>End sale</button>
             <button type="button" className="bk-bulk-clear" onClick={() => setPicked(new Set())}>Clear</button>
           </div>
         )}
@@ -242,6 +270,8 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
         </table>
       </div>
       {importDialog}
+      {saleOpen && <BulkSaleDialog books={books.filter((b) => picked.has(b.id))} onClose={() => setSaleOpen(false)}
+        onSave={async (changes) => { await savePatches(changes, (n) => `${n} put on sale.`); setSaleOpen(false); }} />}
       <ConfirmDialog open={!!deleting} title="Delete this title?" confirmLabel="Delete title"
         message={deleting ? `Are you sure you want to delete “${deleting.title}”? This cannot be undone.${referenceText}` : ""}
         onConfirm={() => { const b = deleting; setDeleting(null); deleteOne(b); }} onCancel={() => setDeleting(null)} />

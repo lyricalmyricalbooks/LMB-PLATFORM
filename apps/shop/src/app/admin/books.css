@@ -167,3 +167,7 @@
   .book-editor-riso.be-page .be-body { grid-template-columns: minmax(0, 1fr); }
   .book-editor-riso.be-page .be-rail { position: static; order: 2; }
 }
+/* Books bulk bar › Put on sale (BulkSaleDialog.tsx) */
+.bk-sale-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 640px) { .bk-sale-grid { grid-template-columns: 1fr; } }
+.bk-sale-problem { margin: 8px 0 0; color: var(--rp-danger); font-size: var(--rp-text-sm); }

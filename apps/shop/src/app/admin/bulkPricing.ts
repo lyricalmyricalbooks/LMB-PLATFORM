@@ -62,6 +62,48 @@ export function planPriceChange(books: any[], mode: PriceMode, value: number, op
   return { changes, skipped };
 }
 
+// ── Scheduled sale on many products (Books bulk bar › Put on sale) ──────────
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+export interface SaleSchedule { percent: number; startsAt: string; endsAt: string }
+
+/** Why a sale can't be saved as typed, or "" when it can. */
+export function saleScheduleProblem(s: SaleSchedule): string {
+  if (!Number.isFinite(s.percent) || s.percent <= 0 || s.percent >= 100) return "Choose a discount between 1% and 99%.";
+  if (s.startsAt && !DAY.test(s.startsAt)) return "Pick a start date.";
+  if (s.endsAt && !DAY.test(s.endsAt)) return "Pick an end date.";
+  if (s.startsAt && s.endsAt && s.endsAt < s.startsAt) return "The sale must end on or after the day it starts.";
+  return "";
+}
+
+/**
+ * Puts the ticked products on a dated sale: the sale price is the regular price less `percent`, rounded to the cent,
+ * and the shop charges it only between the dates (promotions.saleActive). Products sold in editions, gift cards and
+ * products without a price are skipped and named, because a sale price is a single price on the product.
+ */
+export function planSale(books: any[], s: SaleSchedule): { changes: PricePreview[]; skipped: PriceSkip[] } {
+  const changes: PricePreview[] = [];
+  const skipped: PriceSkip[] = [];
+  if (saleScheduleProblem(s)) return { changes, skipped };
+  for (const b of books) {
+    const title = b.title || "Untitled";
+    if (b.productType === "giftCard") { skipped.push({ id: b.id, title, reason: "gift card" }); continue; }
+    if (Array.isArray(b.variants) && b.variants.length) { skipped.push({ id: b.id, title, reason: "sold in editions: set its sale in the editor" }); continue; }
+    const from = Number(b.retailPrice);
+    if (!Number.isFinite(from) || from <= 0) { skipped.push({ id: b.id, title, reason: "no price yet" }); continue; }
+    const to = Math.round(from * (100 - s.percent)) / 100;
+    if (!(to > 0) || to >= from) { skipped.push({ id: b.id, title, reason: "price too low to discount" }); continue; }
+    changes.push({ id: b.id, title, from, to, patch: { isOnSale: true, salePrice: to, saleStartsAt: s.startsAt || "", saleEndsAt: s.endsAt || "" } });
+  }
+  return { changes, skipped };
+}
+
+/** Ends the sale on the ticked products that have one (on, scheduled or already over). */
+export function planEndSale(books: any[]): { id: string; title: string; patch: Record<string, any> }[] {
+  return books.filter((b) => b.isOnSale || b.saleStartsAt || b.saleEndsAt).map((b) => ({
+    id: b.id, title: b.title || "Untitled", patch: { isOnSale: false, saleStartsAt: "", saleEndsAt: "" },
+  }));
+}
+
 /** Plain books whose price would change (kept for callers that only need the simple list). */
 export function previewPrices(books: any[], mode: PriceMode, value: number): { id: string; title: string; from: number; to: number }[] {
   return planPriceChange(books, mode, value).changes.map(({ id, title, from, to }) => ({ id, title, from, to }));
