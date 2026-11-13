@@ -129,7 +129,8 @@ async function afterAdminSignIn(user: import("firebase/auth").User, googleCreden
   // A fair helper sells at the stockroom's till, which only a shop with both the shop and the stockroom has.
   if (!role || (role === "fairHelper" && !combinedAdmin())) {
     await signOut(auth);
-    throw new Error("Unauthorized: this account is not on the shop's Team list");
+    // The address they used goes with the refusal, so the sign-in page can say which account it saw (loginError.ts).
+    throw Object.assign(new Error("Unauthorized: this account is not on the shop's Team list"), { signedInAs: user.email || "" });
   }
   // Only for a shop whose profile turns it on: also sign into a separate stockroom project (legacySignIn.ts).
   await signIntoLegacyStockroom(googleCredential);
@@ -160,8 +161,11 @@ export const adminApi = {
   // Authentication
   // Google first; a person who set up authenticator codes is then asked for one (TwoStepNeeded, finished by
   // finishTwoStepLogin with the code; adminTwoStep.ts, plan 22.6).
-  login: async () => {
+  /** Google sign-in. `hint`: the invited address (an invite link's ?invite=), so Google offers that account first;
+   *  Google always shows its account chooser, so someone signed in to another Google account can pick the right one. */
+  login: async (hint = "") => {
     try {
+      googleProvider.setCustomParameters({ prompt: "select_account", ...(hint ? { login_hint: hint } : {}) });
       const result = await signInWithPopup(auth, googleProvider);
       return await afterAdminSignIn(result.user, GoogleAuthProvider.credentialFromResult(result));
     } catch (err: any) {

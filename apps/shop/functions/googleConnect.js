@@ -65,9 +65,12 @@ function tabRows(headings, lines) {
 const salesSheetRows = (lines) => tabRows(SALES_HEADINGS, lines);
 const expensesSheetRows = (lines) => tabRows(EXPENSES_HEADINGS, lines);
 
-function googleConnectActions({ url, shopId, serviceKey, requireAdmin, readStock = async () => [], fetch = globalThis.fetch, timeoutMs = 60000 }) {
+// Steps that connect or disconnect Google are the owner's; staff may read the status and use the sheet.
+const OWNER_STEPS = new Set(["connectLink", "tryAgain", "disconnect", "turnOff"]);
+
+function googleConnectActions({ url, shopId, serviceKey, requireAdmin, requireOwner = requireAdmin, readStock = async () => [], fetch = globalThis.fetch, timeoutMs = 60000 }) {
   async function handleGoogleConnect(req, res) {
-    if (!await requireAdmin(req, res)) return;
+    if (!await (OWNER_STEPS.has(req.body?.step) ? requireOwner : requireAdmin)(req, res)) return;
     if (!url) {
       res.status(409).json({ error: "Connect Google isn't available for this shop.", code: "not_available" });
       return;

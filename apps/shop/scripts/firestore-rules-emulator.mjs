@@ -7,7 +7,7 @@
 // refused every guest order, which the text checks in src/app/securityRules.test.ts can't see.
 import { initializeTestEnvironment, assertSucceeds, assertFails } from "@firebase/rules-unit-testing";
 import { readFileSync } from "node:fs";
-import { doc, setDoc, getDoc, getDocs, deleteDoc, collection, collectionGroup, query, where, orderBy, documentId, writeBatch, increment, serverTimestamp, Timestamp } from "firebase/firestore";
+import { doc, setDoc, getDoc, getDocs, deleteDoc, updateDoc, collection, collectionGroup, query, where, orderBy, documentId, writeBatch, increment, serverTimestamp, Timestamp } from "firebase/firestore";
 
 const [host, port] = (process.env.FIRESTORE_EMULATOR_HOST || "127.0.0.1:8080").split(":");
 const rulesPath = process.env.RULES_FILE || new URL("../firestore.rules", import.meta.url);
@@ -43,6 +43,7 @@ await env.withSecurityRulesDisabled(async ctx => {
   await setDoc(doc(db, "books/old"), { title: "No status yet" });
   await setDoc(doc(db, "books/pub/private/admin"), { costPrice: 6.5, shelfLocation: "B2" });
   await setDoc(doc(db, "analytics/seeded"), { date: "seeded", visits: 5 });
+  await setDoc(doc(db, "members/owner@example.com"), { role: "owner", addedBy: "setup" });
 });
 const anon = folder(env.unauthenticatedContext().firestore());
 const today = new Date().toISOString().split("T")[0];
@@ -336,6 +337,16 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("Team id is lower case", assertFails(setDoc(doc(owner, "members/X@press.test"), { role: "staff" })));
   await check("no Team entry for the owner address", assertFails(setDoc(doc(owner, "members/owner@example.com"), { role: "staff" })));
   await check("owner removes someone", assertSucceeds(deleteDoc(doc(owner, "members/lee@press.test"))));
+  // Change role, name, Send invite again; sign-in times are the server's; the account holder's own entry stays.
+  await check("owner changes a role", assertSucceeds(updateDoc(doc(owner, "members/sam@press.test"), { role: "bookkeeper", name: "Sam Lee" })));
+  await check("a name is short text", assertFails(updateDoc(doc(owner, "members/sam@press.test"), { name: "x".repeat(81) })));
+  await check("owner asks for the invite again", assertSucceeds(updateDoc(doc(owner, "members/sam@press.test"), { inviteRequestedAt: Timestamp.now() })));
+  await check("owner can't fake a sign-in time", assertFails(updateDoc(doc(owner, "members/sam@press.test"), { lastSignInAt: Timestamp.now() })));
+  await check("owner can't add with a sign-in time", assertFails(setDoc(doc(owner, "members/new2@press.test"), { role: "staff", joinedAt: Timestamp.now() })));
+  await check("staff can't change a role", assertFails(updateDoc(doc(staff, "members/sam@press.test"), { role: "owner" })));
+  await check("staff can't remove anyone", assertFails(deleteDoc(doc(staff, "members/sam@press.test"))));
+  await check("the account holder's entry can't be removed", assertFails(deleteDoc(doc(ownerRole, "members/owner@example.com"))));
+  await check("the account holder's entry can't be changed", assertFails(updateDoc(doc(ownerRole, "members/owner@example.com"), { role: "staff" })));
   // A fair helper may be added for today only; no other role may carry an end time, and it must be a time.
   await check("owner adds a helper for today", assertSucceeds(setDoc(doc(owner, "members/fay@press.test"), { role: "fairHelper", until: Timestamp.fromDate(new Date(Date.now() + 3600e3)) })));
   await check("only a helper has an end time", assertFails(setDoc(doc(owner, "members/sid@press.test"), { role: "staff", until: Timestamp.fromDate(new Date()) })));

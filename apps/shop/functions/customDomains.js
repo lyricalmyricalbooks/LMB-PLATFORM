@@ -10,9 +10,12 @@
 
 const STEPS = Object.freeze({ list: "domains.list", add: "domains.add", connect: "domains.connect", check: "domains.check", makeMain: "domains.makeMain", remove: "domains.remove", renameFree: "domains.renameFree" });
 
-function customDomainActions({ url, shopId, serviceKey, requireAdmin, fetch = globalThis.fetch, timeoutMs = 30000 }) {
+// Only the owner changes the web address; staff may see it and check it.
+const READ_STEPS = new Set(["list", "check"]);
+
+function customDomainActions({ url, shopId, serviceKey, requireAdmin, requireOwner = requireAdmin, fetch = globalThis.fetch, timeoutMs = 30000 }) {
   async function handleCustomDomains(req, res) {
-    if (!await requireAdmin(req, res)) return;
+    if (!await (READ_STEPS.has(req.body?.step) ? requireAdmin : requireOwner)(req, res)) return;
     if (!url) {
       res.status(409).json({ error: "Your web address is set up by Colophon's team for this shop. Write to support to add one.", code: "not_available" });
       return;

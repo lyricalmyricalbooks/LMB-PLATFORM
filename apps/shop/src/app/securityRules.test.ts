@@ -163,7 +163,9 @@ describe("firestore.rules round-2 security (#18, #111, #112)", () => {
 describe("Team roles", () => {
   const fn = (text: string, name: string) => text.match(new RegExp(`function ${name}\\(\\)\\s*\\{([\\s\\S]*?)\\n\\s*\\}`))?.[1] ?? "";
   it("the Team accepts owner, staff, author, bookkeeper and fair helper", () => {
-    expect(block("members/{email}")).toContain('request.resource.data.role in ["owner", "staff", "author", "bookkeeper", "fairHelper"]');
+    // Both the add and the role change check the role through memberFieldsOk().
+    expect(fn(rules, "memberFieldsOk")).toContain('request.resource.data.role in ["owner", "staff", "author", "bookkeeper", "fairHelper"]');
+    expect(block("members/{email}").match(/memberFieldsOk\(\);/g)).toHaveLength(2);
   });
   it("the bookkeeper only ever reads: orders, gift cards and the daily figures, never a write", () => {
     expect(fn(rules, "isOwner") + fn(rules, "isAdmin")).not.toMatch(/bookkeeper/);

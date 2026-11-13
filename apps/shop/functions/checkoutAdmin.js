@@ -9,7 +9,7 @@ const { shopConfig } = require("./shopConfig");
 function checkoutAdminActions({
   db, payments, STRIPE_WEBHOOK_SECRET, STRIPE_WEBHOOK_URL, ALLOWED_ORIGINS, GIFT_CARD_BODIES, REQUIRED_WEBHOOK_EVENTS,
   webhookEndpointReport, emailGiftCard, expiryChange, giftCardId, last4, newGiftCardCode, withHistory, readAdminSecret,
-  readBody, requireAdmin, requireBooksReader = requireAdmin, inventoryLinkDeps,
+  readBody, requireAdmin, requireOwner = requireAdmin, requireBooksReader = requireAdmin, inventoryLinkDeps,
 }) {
   // The shop's webhook address, worked out per request (one server runs every shop: docs/shared-system.md).
   const webhookUrl = () => (typeof STRIPE_WEBHOOK_URL === "function" ? STRIPE_WEBHOOK_URL() : STRIPE_WEBHOOK_URL);
@@ -199,7 +199,8 @@ function checkoutAdminActions({
   // endpoint, or creates the endpoint and saves its signing secret privately in
   // adminSecrets/stripeWebhook so stripeWebhook can verify it.
   async function handleWebhookHealth(req, res) {
-    if (!await requireAdmin(req, res)) return;
+    // Looking is for staff too; repairing or replacing the payment webhook is the owner's.
+    if (!await (req.body?.fix === true || req.body?.recreate === true ? requireOwner : requireAdmin)(req, res)) return;
     try {
       const { mode, endpoints } = await payments.webhookEndpoints();
       if (!endpoints) { res.status(400).json({ error: `Add your Stripe ${mode} secret key first.` }); return; } // Own-account shops only: Stripe keys are not asked on Colophon shops
@@ -268,7 +269,7 @@ function checkoutAdminActions({
   // Google Pay appear in the card form. Only allowed origins can be registered.
   async function handleRegisterPaymentDomain(req, res) {
     {
-      if (!await requireAdmin(req, res)) return;
+      if (!await requireOwner(req, res)) return;
       const origin = ALLOWED_ORIGINS.find(o => o === req.body?.origin);
       if (!origin) {
         res.status(400).json({ error: "That address isn't an allowed storefront origin." });
@@ -302,7 +303,8 @@ function checkoutAdminActions({
     const step = req.body?.step;
     // The account's status (payouts on or paused, the fee) is also the bookkeeper's to read (roles.js booksReader);
     // connecting the account stays admin-only.
-    if (!await (step === "status" || step === "nextStatus" ? requireBooksReader : requireAdmin)(req, res)) return;
+    // Connecting or switching the card account is the owner's alone (the Team page says so).
+    if (!await (step === "status" || step === "nextStatus" ? requireBooksReader : requireOwner)(req, res)) return;
     if (!payments.account) {
       res.status(409).json({ error: "This shop takes card payments with its own keys, not through the platform.", code: "own_keys" }); // Own-account shops only: a refusal for a call the Colophon shop never makes
       return;

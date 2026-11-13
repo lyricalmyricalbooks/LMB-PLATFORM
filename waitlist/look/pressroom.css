@@ -2230,7 +2230,30 @@ div.rp-listcard-main { cursor: default; }
 .rp-team-who { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .rp-team-who small { display: block; font-size: 12px; color: var(--rp-text-subtle); }
 .rp-team-role { flex: none; padding: 4px 12px; border-radius: 999px; background: var(--rp-canvas); font-size: 13px; }
-@media (max-width: 520px) { .rp-team-row { flex-wrap: wrap; } .rp-team-who { flex-basis: calc(100% - 46px); } .rp-team-role { margin-left: 46px; } }
+.rp-team-who small[data-invited] { color: var(--rp-warning-text, var(--rp-text-subtle)); }
+.rp-team-who .rp-team-mail { margin-top: 1px; }
+.rp-team-you { font-style: normal; color: var(--rp-text-subtle); }
+/* The role is a pill you can change: same shape as the account holder's, with a caret. */
+.rp-team-pick { flex: none; min-height: 32px; padding: 4px 30px 4px 12px; border: 1px solid transparent; border-radius: 999px; background: var(--rp-canvas); color: var(--rp-text);
+  font: inherit; font-size: 13px; cursor: pointer; appearance: none; -webkit-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 15px) 50%, calc(100% - 10px) 50%; background-size: 5px 5px; background-repeat: no-repeat; }
+/* The admin's older form reset squares every select with !important; the role pill keeps its round shape and caret. */
+.admin-reso[data-admin-theme] select.rp-team-pick { border: 1px solid transparent !important; border-radius: 999px !important;
+  background: var(--rp-canvas) !important; background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%) !important;
+  background-position: calc(100% - 15px) 50%, calc(100% - 10px) 50% !important; background-size: 5px 5px !important; background-repeat: no-repeat !important; }
+.admin-reso[data-admin-theme] select.rp-team-pick:hover { border-color: var(--rp-divider) !important; }
+.rp-team-pick:hover { border-color: var(--rp-divider); }
+.rp-team-pick:focus-visible { outline: 2px solid var(--rp-focus, var(--rp-primary)); outline-offset: 2px; }
+.rp-team-pick:disabled { opacity: .6; cursor: wait; }
+.rp-team-row[aria-busy] { opacity: .6; }
+.rp-team-empty .rp-team-who { color: var(--rp-text-subtle); }
+/* Invite someone: email wide, name, role; the role's line and the button under them. */
+.rp-team-invite { display: grid; gap: 14px 16px; grid-template-columns: 2fr 1.4fr 1fr; align-items: start; }
+.rp-team-invite > :nth-child(n+4) { grid-column: 1 / -1; }
+.rp-team-role-detail { margin: -4px 0 0; }
+@media (max-width: 760px) { .rp-team-invite { grid-template-columns: 1fr; } }
+@media (max-width: 520px) { .rp-team-row { flex-wrap: wrap; } .rp-team-who { flex-basis: calc(100% - 46px); } .rp-team-role, .rp-team-pick { margin-left: 46px; } .rp-team-row .rp-menu-wrap { margin-left: auto; } }
 
 /* The old light-mode wrapper painted a bluish sheet behind Settings; the page is cream. */
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-page-main .admin-light { background-color: transparent !important; }

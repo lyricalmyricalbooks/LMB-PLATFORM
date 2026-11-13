@@ -15,9 +15,10 @@ function argsFor(step, body, who) {
   return {};
 }
 
-function appsLinkActions({ url, shopId, serviceKey, requireAdmin, fetch = globalThis.fetch, timeoutMs = 20000 }) {
+function appsLinkActions({ url, shopId, serviceKey, requireAdmin, requireOwner = requireAdmin, fetch = globalThis.fetch, timeoutMs = 20000 }) {
   async function handleApps(req, res) {
-    const admin = await requireAdmin(req, res);
+    // Removing an app is the owner's (it cuts a connection); staff may look.
+    const admin = await (req.body?.step === "remove" ? requireOwner : requireAdmin)(req, res);
     if (!admin) return;
     if (!url) {
       res.status(409).json({ error: "The app store isn't available for this shop.", code: "not_available" });
