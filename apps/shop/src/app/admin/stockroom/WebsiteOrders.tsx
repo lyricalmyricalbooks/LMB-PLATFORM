@@ -14,6 +14,7 @@ import { onStockroomSaved, stockroomWriteApi } from "./stockroomWrite";
 import { createWebsiteLinkRunner, decide, linkView, lookAgain, subscribeLink, type RunDeps } from "./websiteLinkRun";
 import { liveWebsiteLinkIO } from "./websiteLinkStore";
 import "./websiteOrders.css";
+import { SHOP_CURRENCY } from "../moneySign";
 
 /** What the runner uses; the admin fixture swaps `io` and `loadBooks` for sample ones. */
 export const websiteLinkApi: { deps: () => RunDeps } = {
@@ -23,7 +24,7 @@ export const websiteLinkApi: { deps: () => RunDeps } = {
       link: liveWebsiteLinkIO(),
       loadBooks: () => loadLinkBooks(),
       saveBook: (id, mutate) => stockroomWriteApi.saveBookState(id, mutate),
-      rate: (cur, day) => datedRate(cur, "CAD", day, { cache: rates }),
+      rate: (cur, day) => datedRate(cur, SHOP_CURRENCY, day, { cache: rates }),
       rates: () => rates,
       onSaved: onStockroomSaved,
     };

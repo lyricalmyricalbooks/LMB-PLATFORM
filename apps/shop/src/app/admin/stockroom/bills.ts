@@ -17,6 +17,7 @@ import { addBusinessExpense, baseCurrencyOf, EXPENSE_CATEGORIES, type ExpenseFor
 import { attachReceipt } from "./taxLedger";
 import { daysUntil } from "./taxPending";
 import { addMoney, type Owed } from "./stockists";
+import { SHOP_CURRENCY } from "../moneySign";
 
 type Row = Record<string, any>;
 const text = (v: unknown) => (typeof v === "string" ? v : v == null ? "" : String(v));
@@ -38,7 +39,7 @@ export const billList = (tc: Row | null): Bill[] => (Array.isArray(tc?.bills) ? 
 function cleanBill(b: Row): Bill {
   return {
     id: String(b.id), supplier: text(b.supplier), desc: text(b.desc), cat: EXPENSE_CATEGORIES.includes(b.cat) ? b.cat : "Other",
-    amount: Number(b.amount) || 0, currency: text(b.currency) || "CAD", billDate: text(b.billDate), dueDate: text(b.dueDate), ref: text(b.ref),
+    amount: Number(b.amount) || 0, currency: text(b.currency) || SHOP_CURRENCY, billDate: text(b.billDate), dueDate: text(b.dueDate), ref: text(b.ref),
     file: text(b.file), status: b.status === "paid" ? "paid" : "open", paidDate: text(b.paidDate), paidAt: Number(b.paidAt) || null,
     expenseId: Number.isFinite(Number(b.expenseId)) && b.expenseId != null ? Number(b.expenseId) : null, note: text(b.note), createdAt: Number(b.createdAt) || 0,
   };
@@ -77,7 +78,7 @@ export function saveBill(tc: Row | null, form: BillForm, amount: number, id: str
   const old = at >= 0 ? list[at] : null;
   const record = {
     id, supplier: form.supplier.trim(), desc: form.desc.trim(), cat: EXPENSE_CATEGORIES.includes(form.cat) ? form.cat : "Other",
-    amount: cents(amount), currency: form.currency || "CAD", billDate: form.billDate.trim(), dueDate: form.dueDate.trim(), ref: form.ref.trim(),
+    amount: cents(amount), currency: form.currency || SHOP_CURRENCY, billDate: form.billDate.trim(), dueDate: form.dueDate.trim(), ref: form.ref.trim(),
     note: form.note.trim(), file: opts.file ?? old?.file ?? "", status: "open", createdAt: old?.createdAt || opts.now, updatedAt: opts.now,
   };
   const next = old ? list.map((b, i) => (i === at ? record : b)) : [record, ...list];

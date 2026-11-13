@@ -5,6 +5,7 @@ import { inEditorPreview, trackingAllowed } from "./trackingGuard";
 import { analyticsKey, cleanSearchTerm, deviceOf } from "./analyticsKeys";
 import { orderDay } from "./shopDay";
 import { lite } from "../../lib/lite";
+import { shopCurrency } from "../../lib/shopProfile";
 
 export type FulfillmentStatus =
   | "pending_payment"
@@ -100,7 +101,7 @@ export const orderApi = {
       // The card/PayPal payment was created for exactly expectedAmountMinor in expectedCurrency.
       const exact = o.expectedAmountMinor != null && Number.isFinite(Number(o.expectedAmountMinor)) && o.expectedCurrency;
       const charged = exact ? money(Number(o.expectedAmountMinor) / 100)
-        : o.checkoutCurrency && o.checkoutCurrency !== "CAD" && rate > 0 ? money(Number(o.total || 0) * rate) : money(o.total);
+        : o.checkoutCurrency && o.checkoutCurrency !== shopCurrency() && rate > 0 ? money(Number(o.total || 0) * rate) : money(o.total);
       return [
         o.orderId || o.id,
         o.createdAt || "",
@@ -120,13 +121,13 @@ export const orderApi = {
         money(o.shipping),
         money(o.tax),
         money(o.total),
-        "CAD",
+        shopCurrency(),
         charged,
-        exact ? String(o.expectedCurrency).toUpperCase() : o.checkoutCurrency || "CAD",
+        exact ? String(o.expectedCurrency).toUpperCase() : o.checkoutCurrency || shopCurrency(),
         o.refundedAt || "",
         // A partial refund (Stripe/PayPal Dashboard) keeps the order paid and only records refundedAmountMinor.
         o.refund?.amount != null ? money(o.refund.amount) : Number(o.refundedAmountMinor) > 0 ? money(Number(o.refundedAmountMinor) / 100) : "",
-        o.refund?.currency || (Number(o.refundedAmountMinor) > 0 ? String(o.expectedCurrency || o.checkoutCurrency || "CAD").toUpperCase() : ""),
+        o.refund?.currency || (Number(o.refundedAmountMinor) > 0 ? String(o.expectedCurrency || o.checkoutCurrency || shopCurrency()).toUpperCase() : ""),
         o.trackingCarrier || "",
         o.trackingNumber || "",
         (o.items || []).reduce((acc: number, i: any) => acc + (i.quantity || 0), 0),

@@ -170,3 +170,36 @@ describe('emails and refunds name the shop\'s own currency', () => {
     expect(chargedOf({ total: 50 })).toEqual({ minor: 5000, currency: 'CAD' });
   });
 });
+
+// The whole road in one test: what sign-up keeps for a US press is what the platform's setup writes, and what the
+// shop's server and pages then read. Each piece has its own tests; this one fails if two of them stop agreeing.
+describe('from sign-up to a shop that sells in US dollars', () => {
+  const ctx = { senderEmail: 'shops@example.com', paymentsServiceUrl: SERVICE_URL, siteUrl: 'https://moth.example' };
+  const press = (country, currency) => ({ shopId: 'moth-press', pressName: 'Moth Press', ownerEmail: 'owner@example.com', plan: 'both', country, currency, paymentProvider: 'stripe' });
+
+  test('a US sign-up makes a shop whose server and pages both count in US dollars', async () => {
+    const { COUNTRIES } = await import('../../../signup/form.js');
+    const { serverSettings } = await import('../../../setup/sharedSteps.js');
+    const { shopProfile } = await import('../../../setup/steps.js');
+    const { shopCurrencyOf, currencySign } = realRequire('./shared/shopCurrency');
+    const made = (country) => {
+      const shop = press(country, COUNTRIES[country].currency);
+      const record = { ownerEmail: shop.ownerEmail, server: serverSettings(shop, ctx) };
+      const profile = shopProfile(shop, { apiKey: 'k', authDomain: 'a.example', projectId: 'p', storageBucket: 'b', messagingSenderId: '1', appId: '1:1:web:1' });
+      return { server: { id: shop.shopId, config: configForShop(shop.shopId, record, { SHOP_PAYMENTS_SERVICE_URL: SERVICE_URL }) }, profile };
+    };
+
+    const us = made('US');
+    expect(us.profile.currency).toBe('USD');
+    expect(currencySign(shopCurrencyOf(us.profile.currency))).toBe('US$');
+    runInShop(us.server, () => {
+      expect(shopCurrency()).toBe('USD');
+      expect(orderMoneyFmt(12.5, {})).toBe('US$12.50');
+    });
+
+    const ca = made('CA');
+    expect(ca.profile.currency).toBeUndefined();
+    expect(shopCurrencyOf(ca.profile.currency)).toBe('CAD');
+    runInShop(ca.server, () => expect(shopCurrency()).toBe('CAD'));
+  });
+});

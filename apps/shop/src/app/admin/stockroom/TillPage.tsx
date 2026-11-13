@@ -22,6 +22,7 @@ import {
 } from "./till";
 import "./stockroom.css";
 import "./till.css";
+import { SHOP_CURRENCY } from "../moneySign";
 
 const RETRYABLE = new Set(["offline", "read-failed", "write-failed"]);
 const RETRY_MS = 30_000;
@@ -245,7 +246,7 @@ export function Till({ records, now = () => Date.now() }: { records: StockroomRe
       <PaySheet open={payOpen && lines.length > 0} totals={totals} onClose={() => setPayOpen(false)} onCharge={charge} />
 
       <TillExtrasDialog open={extrasOpen} onClose={() => setExtrasOpen(false)} extras={extras} onSaved={setExtras}
-        currency={String(records.books[0]?.currency || "CAD")} />
+        currency={String(records.books[0]?.currency || SHOP_CURRENCY)} />
 
       <EventDialog open={eventOpen} fair={fair} onClose={() => setEventOpen(false)}
         onSave={(name) => { setFair(saveCurrentFair(name, today) || ""); setEventOpen(false); }} />

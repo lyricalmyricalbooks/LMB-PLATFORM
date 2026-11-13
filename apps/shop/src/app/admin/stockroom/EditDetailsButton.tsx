@@ -5,6 +5,7 @@ import { Dialog, PrimaryButton, SecondaryButton, TextField } from "../riso/compo
 import { useShopWords } from "../shopWords";
 import { detailsFormOf, type DetailsForm, withDetails, withNewItem } from "./catalogEdit";
 import { describeResult, stockroomWriteApi } from "./stockroomWrite";
+import { SHOP_CURRENCY } from "../moneySign";
 
 /** Edit an item (`id` + `book`), or add one when `id` is left out. */
 export function EditDetailsButton({ id, book, onSaved }: { id?: string; book: Record<string, any>; onSaved: () => void }) {
@@ -18,7 +19,7 @@ export function EditDetailsButton({ id, book, onSaved }: { id?: string; book: Re
     if (!form || busy) return;
     setBusy(true); setMsg(null);
     try {
-      const r = await stockroomWriteApi.updateSetting("catalog", id ? withDetails(id, form) : withNewItem(form, book.currency || "CAD"));
+      const r = await stockroomWriteApi.updateSetting("catalog", id ? withDetails(id, form) : withNewItem(form, book.currency || SHOP_CURRENCY));
       const d = describeResult(r);
       if (r.status === "saved" || r.status === "unchanged") { setForm(null); onSaved(); } else setMsg(d);
     } catch (e) {
@@ -35,9 +36,9 @@ export function EditDetailsButton({ id, book, onSaved }: { id?: string; book: Re
           <TextField label="Title" value={form.title} onChange={set("title")} />
           <TextField label={w("Author")} value={form.author} onChange={set("author")} />
           <TextField label={w("Print run")} hint={w("Copies printed")} type="number" min={0} value={form.maxPrint} onChange={set("maxPrint")} />
-          <TextField label={`List price (${book.currency || "CAD"})`} type="number" min={0} step="0.01" value={form.listPrice} onChange={set("listPrice")} />
+          <TextField label={`List price (${book.currency || SHOP_CURRENCY})`} type="number" min={0} step="0.01" value={form.listPrice} onChange={set("listPrice")} />
           <TextField label="Running low at" hint="Copies left" type="number" min={0} value={form.threshold} onChange={set("threshold")} />
-          <TextField label={`Production cost (${book.currency || "CAD"})`} hint="The whole run" type="number" min={0} step="0.01" value={form.productionCost} onChange={set("productionCost")} />
+          <TextField label={`Production cost (${book.currency || SHOP_CURRENCY})`} hint="The whole run" type="number" min={0} step="0.01" value={form.productionCost} onChange={set("productionCost")} />
           {msg && <p className="rp-sr-save" data-tone={msg.tone} role="alert">{msg.text}</p>}
         </Dialog>
       )}

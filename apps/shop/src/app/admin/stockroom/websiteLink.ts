@@ -19,6 +19,7 @@ import {
 import type { BookState } from "./planSave";
 import { newSaleId } from "./recordSale";
 import type { StockroomRecords } from "./stockroomData";
+import { SHOP_CURRENCY } from "../moneySign";
 
 type Row = Record<string, any>;
 export type Decision = { choice: "same"; key: string } | { choice: "different" };
@@ -57,7 +58,7 @@ export function planContext(src: PlanSources) {
     canWrite: (id: string) => inNewStore(src.flags, id),
     bookCurrencyOf: (id: string) => bookCurrencyCode(src.catalog[id]),
     cadRateFor: (cur: string, day: string) => {
-      const rate = Number(src.rates[datedRateKey(String(cur || "").toUpperCase(), "CAD", day)]);
+      const rate = Number(src.rates[datedRateKey(String(cur || "").toUpperCase(), SHOP_CURRENCY, day)]);
       return rate > 0 ? rate : null;
     },
     piOfCharge: (chargeId: string) => charges[chargeId] || "",
@@ -74,7 +75,7 @@ export function ratesWanted(docs: WebDoc[], catalog: Record<string, Row>, rates:
     for (const id of Object.keys(web.books || {})) {
       if (!catalog[id]) continue;
       const cur = bookCurrencyCode(catalog[id]);
-      if (cur !== "CAD" && day && !(Number(rates[datedRateKey(cur, "CAD", day)]) > 0)) wanted.set(`${cur}@${day}`, { cur, day });
+      if (cur !== SHOP_CURRENCY && day && !(Number(rates[datedRateKey(cur, SHOP_CURRENCY, day)]) > 0)) wanted.set(`${cur}@${day}`, { cur, day });
     }
   }
   return [...wanted.values()].slice(0, limit);

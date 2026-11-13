@@ -15,6 +15,7 @@ import { datesNeedingRates, fillDatedRates } from "@stockroom/sale-fx.js";
 import { expenseRate, keep, keptRates, rateSeries, type RateCache } from "./datedRates";
 import type { StockroomRecords } from "./stockroomData";
 import { stockroomWriteApi } from "./stockroomWrite";
+import { SHOP_CURRENCY } from "../moneySign";
 
 type Row = Record<string, any>;
 type Fetch = (url: string, init?: { signal?: AbortSignal }) => Promise<{ ok: boolean; json(): Promise<unknown> }>;
@@ -29,7 +30,7 @@ export type RateDeps = {
   saveBookState?: typeof stockroomWriteApi.saveBookState;
 };
 
-const code = (c: unknown) => String(c || "CAD").toUpperCase();
+const code = (c: unknown) => String(c || SHOP_CURRENCY).toUpperCase();
 const localDay = (ms: number) => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 export const addDays = (iso: string, n: number) => { const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const rateKey = (cur: string, day: string) => `${cur}@${day}`;
@@ -39,13 +40,13 @@ const rateKey = (cur: string, day: string) => `${cur}@${day}`;
 /** Today's rates into dollars from one request, as the old app saved them (`USD_CAD` = dollars for one US dollar). */
 export async function fetchDailyRates(get: Fetch): Promise<RateCache | null> {
   try {
-    const res = await get("https://open.er-api.com/v6/latest/CAD");
+    const res = await get(`https://open.er-api.com/v6/latest/${SHOP_CURRENCY}`);
     if (!res.ok) return null;
     const json = (await res.json()) as { rates?: Record<string, unknown> } | null;
     if (!json?.rates) return null;
     const rates: RateCache = {};
-    for (const [cur, v] of Object.entries(json.rates)) if (Number(v) > 0) rates[`${cur}_CAD`] = 1 / Number(v);
-    rates.CAD_CAD = 1;
+    for (const [cur, v] of Object.entries(json.rates)) if (Number(v) > 0) rates[`${cur}_${SHOP_CURRENCY}`] = 1 / Number(v);
+    rates[`${SHOP_CURRENCY}_${SHOP_CURRENCY}`] = 1;
     return rates;
   } catch { return null; }
 }
@@ -54,7 +55,7 @@ export async function fetchDailyRates(get: Fetch): Promise<RateCache | null> {
 export function withDailyRates(tc: Row | null, rates: RateCache, today: string): Row {
   const cur: Row = tc && typeof tc === "object" ? tc : {};
   if (cur.settings?.lastRateSync === today && cur.settings?.rates) return cur;
-  return { ...cur, settings: { ...(cur.settings || { baseCurrency: "CAD" }), rates, lastRateSync: today } };
+  return { ...cur, settings: { ...(cur.settings || { baseCurrency: SHOP_CURRENCY }), rates, lastRateSync: today } };
 }
 
 // ── 2. Each sale's own date ────────────────────────────────────────────────────────────────────────────────────────
@@ -72,8 +73,8 @@ export async function warmSaleRates(records: StockroomRecords, deps: RateDeps = 
   for (const [cur, dates] of wanted) {
     try {
       // A week's lead so a sale on a weekend or holiday finds the rate before it.
-      const series = await rateSeries(cur, "CAD", addDays(dates[0], -7), dates[dates.length - 1], { fetch: deps.fetch });
-      filled += fillDatedRates(cache, cur, "CAD", series, dates);
+      const series = await rateSeries(cur, SHOP_CURRENCY, addDays(dates[0], -7), dates[dates.length - 1], { fetch: deps.fetch });
+      filled += fillDatedRates(cache, cur, SHOP_CURRENCY, series, dates);
     } catch {
       retrySalesAt = now + 10 * 60_000;
     }
@@ -87,7 +88,7 @@ export async function warmSaleRates(records: StockroomRecords, deps: RateDeps = 
 /** A business expense in another currency with no value in dollars, or one an older build booked at 1 to 1. */
 export function expenseNeedsRate(e: Row | null | undefined): boolean {
   if (!e) return false;
-  if (code(e.currency) === "CAD" || e.amountUnknown || !(Number(e.amount) > 0)) return false;
+  if (code(e.currency) === SHOP_CURRENCY || e.amountUnknown || !(Number(e.amount) > 0)) return false;
   if (e.fxMissing === true || e.baseAmount == null) return true;
   return Number(e.fxRate) === 1 && Math.abs(Number(e.baseAmount) - Number(e.amount)) < 0.005;
 }
@@ -95,7 +96,7 @@ export function expenseNeedsRate(e: Row | null | undefined): boolean {
 /** A gifted-copy expense on a foreign-currency book with no value in dollars (it never carries an fxRate). */
 export function giftNeedsRate(e: Row | null | undefined): boolean {
   if (!e || e.gratuity !== true || e.voided) return false;
-  if (code(e.currency) === "CAD" || !(Number(e.amount) > 0) || e.fxRate != null) return false;
+  if (code(e.currency) === SHOP_CURRENCY || !(Number(e.amount) > 0) || e.fxRate != null) return false;
   if (e.fxMissing === true || e.baseAmount == null) return true;
   return Math.abs(Number(e.baseAmount) - Number(e.amount)) < 0.005;
 }
@@ -119,7 +120,7 @@ async function ratesFor(rows: Row[], needs: (e: Row) => boolean, today: string, 
     if (!needs(e)) continue;
     const key = rateKey(code(e.currency), e.date || today);
     if (key in into) continue;
-    into[key] = await expenseRate(code(e.currency), e.date || today, "CAD", { fetch: deps.fetch, saved, store: deps.store, now: deps.now?.() });
+    into[key] = await expenseRate(code(e.currency), e.date || today, SHOP_CURRENCY, { fetch: deps.fetch, saved, store: deps.store, now: deps.now?.() });
   }
 }
 
@@ -168,7 +169,7 @@ export async function healExpenseRates(records: StockroomRecords, deps: RateDeps
  * resolveExpenseRate): `CUR@YYYY-MM-DD` → rate, 0 when none could be found.
  */
 export async function expenseRatesFor(items: Array<{ currency: string; date: string }>, taxCenter: Row | null, deps: RateDeps = {}): Promise<RateCache> {
-  const base = code((taxCenter?.settings?.baseCurrency as string) || "CAD");
+  const base = code((taxCenter?.settings?.baseCurrency as string) || SHOP_CURRENCY);
   const saved = (taxCenter?.settings?.rates as RateCache) || null;
   const out: RateCache = {};
   for (const { currency, date } of items) {

@@ -3,6 +3,7 @@
 // with an optional record (`taxCenter.trips`: destination, dates, purpose, notes) and budget (`taxCenter.tripBudgets`).
 // Pure; the saves go through saveTaxCenter.
 import { toCsv } from "@stockroom/csv.js";
+import { SHOP_CURRENCY } from "../moneySign";
 
 type Row = Record<string, any>;
 export type TripForm = { name: string; destination: string; startDate: string; endDate: string; purpose: string; notes: string; budget: string };
@@ -79,7 +80,7 @@ export const tripExpenseCount = (tc: Row | null, name: string) => (Array.isArray
 export function tripCsv(name: string, items: Row[], baseCurrency: string): { text: string; name: string } {
   const rows = [
     ["Date", "Description", "Tax Category", "Reference", "Original Currency", "Original Amount", `Base Amount (${baseCurrency})`, "Receipt URL"],
-    ...items.map((item) => [item.date || "", item.desc || "", item.cat || "", item.ref || "", item.origCurrency || "CAD",
+    ...items.map((item) => [item.date || "", item.desc || "", item.cat || "", item.ref || "", item.origCurrency || SHOP_CURRENCY,
       Number(item.origAmount || 0).toFixed(2), Number(item.baseAmount || 0).toFixed(2), item.receipt || ""]),
   ];
   return { text: toCsv(rows), name: `trip_expenses_${name.replace(/[^a-zA-Z0-9_-]/g, "_")}.csv` };

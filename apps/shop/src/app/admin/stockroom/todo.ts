@@ -6,6 +6,7 @@ import { labelledOrderNums, submissionsInput, tripsSummaryAll } from "@stockroom
 import { deriveOnHand } from "@stockroom/inventory.js";
 
 import type { StockroomRecords } from "./stockroomData";
+import { SHOP_CURRENCY } from "../moneySign";
 
 /** The stockroom's own key, so an item dismissed on either list stays dismissed on both. */
 export const TODO_DISMISSED_KEY = "lm-dismissed-todo-signals";
@@ -31,7 +32,7 @@ export function buildTodo(records: StockroomRecords, opts: {
     if (Number.isFinite(book.maxPrint)) state.stock = deriveOnHand(state, book);
     return [book.id, state];
   }));
-  const taxCenter: Record<string, unknown> = records.taxCenter || { businessExpenses: [], recurring: [], settings: { baseCurrency: "CAD" } };
+  const taxCenter: Record<string, unknown> = records.taxCenter || { businessExpenses: [], recurring: [], settings: { baseCurrency: SHOP_CURRENCY } };
   const titleOf = (bookId: string) => String(records.books.find((b) => b.id === bookId)?.title || bookId);
   const raw = buildAttentionSignals({
     books: records.books,

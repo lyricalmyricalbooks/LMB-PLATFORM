@@ -7,7 +7,7 @@ import { Dialog, PrimaryButton, SecondaryButton, StatusBadge } from "./riso/comp
 import { SPREADSHEET_ACCEPT, readProblem, readSpreadsheet, type SpreadsheetRead } from "./spreadsheetFile";
 import { GoogleSheetLink } from "./GoogleSheetLink";
 import { FirstRows, SheetChoice } from "./SheetChoice";
-import { MONEY_SIGN } from "./moneySign";
+import { MONEY_SIGN, MONEY_NAME } from "./moneySign";
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString("en")} ${n === 1 ? one : many}`;
 
@@ -116,7 +116,7 @@ export function DiscountMoveDialog({ existing, onClose, onDone }: { existing: st
                 ))}
               </ul>
             )}
-            <p className="rp-hint" style={{ margin: 0 }}>Amounts come over as Canadian dollars. Codes that only worked on some items, or buy-some-get-some offers, are listed as left out so you can set them up by hand.</p>
+            <p className="rp-hint" style={{ margin: 0 }}>Amounts come over as {MONEY_NAME}. Codes that only worked on some items, or buy-some-get-some offers, are listed as left out so you can set them up by hand.</p>
             {leftOut(file.skipped.map((s) => s.reason), "Why some were left out")}
           </>
         ))}

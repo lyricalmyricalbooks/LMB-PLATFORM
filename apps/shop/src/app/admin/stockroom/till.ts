@@ -8,6 +8,7 @@ import { localDay } from "@stockroom/calendar-day.js";
 
 import type { BookState } from "./planSave";
 import type { StockroomRecords, StockBook } from "./stockroomData";
+import { SHOP_CURRENCY } from "../moneySign";
 
 /** The four payment buttons (mockup order). `value` is what the sale's note starts with, as the stockroom's register writes it. */
 export const TILL_METHODS = [
@@ -122,7 +123,7 @@ export function money(amount: number, cur: string): string {
   try { return new Intl.NumberFormat("en-CA", { style: "currency", currency: cur, currencyDisplay: "narrowSymbol" }).format(amount); }
   catch { return `${cur} ${amount.toFixed(2)}`; }
 }
-export const totalText = (totals: Array<{ cur: string; amount: number }>) => totals.length ? totals.map((t) => money(t.amount, t.cur)).join(" + ") : money(0, "CAD");
+export const totalText = (totals: Array<{ cur: string; amount: number }>) => totals.length ? totals.map((t) => money(t.amount, t.cur)).join(" + ") : money(0, SHOP_CURRENCY);
 
 // ── A sale and its queue ──────────────────────────────────────────────────────────────────────────────────────────
 

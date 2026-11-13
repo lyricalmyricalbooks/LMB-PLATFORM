@@ -8,6 +8,7 @@ import { useShopWords } from "../shopWords";
 import { authorMoneyPlan, authorStatement, pastSettlements, recordSettlement, undoSettlement } from "./authorMoney";
 import { todayText } from "./invoiceMake";
 import { describeResult, stockroomWriteApi } from "./stockroomWrite";
+import { SHOP_CURRENCY } from "../moneySign";
 
 type Row = Record<string, any>;
 
@@ -23,7 +24,7 @@ export function AuthorMoneyCard({ bookId, book, state, onSaved }: { bookId: stri
   const plan = authorMoneyPlan(book, state);
   const past = pastSettlements(state);
   if (!book) return null;
-  const cur = String(book.currency || "CAD");
+  const cur = String(book.currency || SHOP_CURRENCY);
   const money = (n: number) => fmt(n, cur);
 
   async function save(step: (s: Row) => Row, after?: () => void) {

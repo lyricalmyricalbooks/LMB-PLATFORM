@@ -93,3 +93,18 @@ describe("several order files as one (plan 23.27)", () => {
     expect(mergePastOrderFiles([{ name: "2024.csv", file: y1 }])).toBe(y1);
   });
 });
+
+describe("past orders in a shop that sells in US dollars", () => {
+  const file = "Name,Email,Created at,Total,Currency,Lineitem name,Lineitem quantity,Lineitem price\n#1,a@example.com,2025-06-01,30.00,USD,Zine,1,30.00\n#2,b@example.com,2025-06-02,40.00,CAD,Book,1,40.00\n";
+
+  it("counts Canadian dollars as the other currency and converts them into US dollars", () => {
+    const out = readPastOrders(file, new Date("2026-11-13T12:00:00Z"), "USD");
+    expect(out.foreign).toEqual({ CAD: 1 });
+    expect(readyToSend(out, {}, "USD")).toMatchObject({ waiting: { CAD: 1 }, totalSales: 30 });
+    const ready = readyToSend(out, { CAD: 0.73 }, "USD");
+    expect(ready.totalSales).toBeCloseTo(59.2);
+    expect(ready.orders[1]).toMatchObject({ currency: "USD", total: 29.2, paidIn: { currency: "CAD", total: 40, rate: 0.73 } });
+    expect(ready.orders[0].paidIn).toBeUndefined();
+    expect(mergePastOrderFiles([{ name: "a", file: out }, { name: "b", file: out }], "USD").foreign).toEqual({ CAD: 1 });
+  });
+});

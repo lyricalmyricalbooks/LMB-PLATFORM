@@ -70,7 +70,7 @@ import {
 } from "./riso/components";
 import { StatusBar } from "./riso/FormKit";
 import { orderNextStep, type OrderNextAct } from "./orderNextStep";
-import { MONEY_SIGN } from "./moneySign";
+import { MONEY_SIGN, SHOP_CURRENCY } from "./moneySign";
 
 // "Placed Oct 16, 2026, 9:24 a.m." instead of the browser's numeric date (10/16/2026 could be read either way).
 const placedAt = (value: any) => {
@@ -469,7 +469,7 @@ export function OrderDetail({
 
   // What the Refund dialog's amount box means: blank / everything left = full refund.
   function refundAmountPlan(): { partial: boolean; minor: number; currency: string; error: string } {
-    const charged = order ? chargedOf(order) : { minor: 0, currency: "CAD" };
+    const charged = order ? chargedOf(order) : { minor: 0, currency: SHOP_CURRENCY };
     const left = order ? refundableMinor(order) : 0;
     const takeOffError = takeOff ? takeOffProblem(refundRestockLines, refundAmount) : "";
     if (takeOffError) return { partial: false, minor: 0, currency: charged.currency, error: takeOffError };
@@ -996,7 +996,7 @@ export function OrderDetail({
                   return (
                     <li key={i}>
                       <a href={providerDashboardUrl(order, `payments/${encodeURIComponent(id)}`)} target="_blank" rel="noopener noreferrer" className="rp-mono">{id}</a>
-                      {d?.amountMinor != null ? ` · ${formatMinor(Number(d.amountMinor), d.currency || "CAD")}` : ""}
+                      {d?.amountMinor != null ? ` · ${formatMinor(Number(d.amountMinor), d.currency || SHOP_CURRENCY)}` : ""}
                     </li>
                   );
                 })}
@@ -1183,7 +1183,7 @@ export function OrderDetail({
                   {money(order.total)}
                 </dd>
               </div>
-              {order.expectedAmountMinor != null && String(order.expectedCurrency || "CAD").toUpperCase() !== "CAD" && (
+              {order.expectedAmountMinor != null && String(order.expectedCurrency || SHOP_CURRENCY).toUpperCase() !== SHOP_CURRENCY && (
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                   <dt>Charged in {String(order.expectedCurrency).toUpperCase()}</dt>
                   <dd className="rp-mono" style={{ margin: 0 }}>{formatMinor(Number(order.expectedAmountMinor), order.expectedCurrency)}</dd>

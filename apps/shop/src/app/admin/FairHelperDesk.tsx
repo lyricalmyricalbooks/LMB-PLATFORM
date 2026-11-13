@@ -21,6 +21,7 @@ import { qrPicture } from "./stockroom/qrCodesStore";
 import { ALL_METHODS, OTHER_METHODS, TILE_TONES, TILL_METHODS, initials, money } from "./stockroom/till";
 import "./stockroom/stockroom.css";
 import "./stockroom/till.css";
+import { SHOP_CURRENCY } from "./moneySign";
 
 const FAIR_KEY = "colophon-helper-fair";
 const QR_CHECK_MS = 3000;
@@ -48,7 +49,7 @@ const readFair = (day: string) => {
 };
 const totalsLine = (totals: Record<string, number>) => {
   const parts = Object.entries(totals).map(([cur, n]) => money(n, cur));
-  return parts.length ? parts.join(" + ") : money(0, "CAD");
+  return parts.length ? parts.join(" + ") : money(0, SHOP_CURRENCY);
 };
 const online = () => (typeof navigator === "undefined" ? true : navigator.onLine !== false);
 

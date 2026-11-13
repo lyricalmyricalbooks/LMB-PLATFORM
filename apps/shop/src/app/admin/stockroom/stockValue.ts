@@ -7,6 +7,7 @@ import { csvCell } from "@stockroom/csv.js";
 import { createInventoryDisposalExpense, createSection10Adjustment, inventoryAdjustmentCsvRows } from "@stockroom/inventory-adjustment.js";
 import { deriveOnHand, deriveStockBreakdown, recordInventoryDisposal } from "@stockroom/inventory.js";
 import { getBookCurrencyCode, roundCents } from "@stockroom/money.js";
+import { SHOP_CURRENCY } from "../moneySign";
 
 type Row = Record<string, any>;
 
@@ -44,7 +45,7 @@ export function stockValue(books: Row[], states: Record<string, Row>, fxRateCach
     const printRun = parseInt(book.maxPrint || book.totalPrinted || 0, 10) || totalUnsold + totalSold;
     const compsDamaged = Math.max(0, printRun - totalUnsold - totalSold);
     const cur = getBookCurrencyCode(book);
-    const fxRate = cur === "CAD" ? 1 : fxRateCache[`${cur}_CAD`] || 1;
+    const fxRate = cur === SHOP_CURRENCY ? 1 : fxRateCache[`${cur}_${SHOP_CURRENCY}`] || 1;
     const listPrice = parseFloat(book.listPrice || 0);
     const rawCost = parseFloat(book.productionCost || 0);
     // The production cost is the whole run's (the edit form says so, and the year report reads it that way): shared

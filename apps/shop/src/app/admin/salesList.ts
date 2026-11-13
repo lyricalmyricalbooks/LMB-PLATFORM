@@ -5,6 +5,7 @@ import { orderDay, shopDayKey, addDays } from "../lib/shopDay";
 import { refundedAmount, type Order } from "./overview/overviewInsights";
 import type { StockroomSale } from "./stockroomBridge";
 import { channelWords } from "./StockroomBookPanel";
+import { SHOP_CURRENCY } from "./moneySign";
 
 export type SaleRow = {
   key: string; date: string; channel: string; what: string; qty: number; amount: number; cur: string; who: string;
@@ -15,7 +16,7 @@ export type SaleRow = {
 };
 
 /** The shop's own money: website orders are charged in it. */
-export const SHOP_CURRENCY = "CAD";
+export { SHOP_CURRENCY };
 
 /** The channel of online sales only the stockroom recorded. */
 export const OTHER_ONLINE = "Other online sales";

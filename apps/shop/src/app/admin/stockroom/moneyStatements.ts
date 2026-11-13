@@ -21,6 +21,7 @@ import { pendingList } from "./taxPending";
 import { dueOf, filingsOf, taxPeriodModel, taxReportRows, type TaxPeriod } from "./taxPeriods";
 import { yearFigures } from "./yearReport";
 import type { TaxSources } from "@stockroom/tax-ledger.js";
+import { SHOP_CURRENCY } from "../moneySign";
 
 type Row = Record<string, any>;
 
@@ -45,8 +46,8 @@ function toBase(amount: number, code: string, base: string, fx: Record<string, n
   const direct = Number(fx[`${code}_${base}`]);
   if (direct > 0) return { value: amount * direct, missing: false };
   // Rates are kept against CAD; go through it when the base is something else.
-  const toCad = code === "CAD" ? 1 : Number(fx[`${code}_CAD`]);
-  const baseToCad = base === "CAD" ? 1 : Number(fx[`${base}_CAD`]);
+  const toCad = code === SHOP_CURRENCY ? 1 : Number(fx[`${code}_${SHOP_CURRENCY}`]);
+  const baseToCad = base === SHOP_CURRENCY ? 1 : Number(fx[`${base}_${SHOP_CURRENCY}`]);
   if (toCad > 0 && baseToCad > 0) return { value: (amount * toCad) / baseToCad, missing: false };
   return { value: amount, missing: true };
 }
@@ -128,7 +129,7 @@ export function balanceSheet({ records, sources, orders, today }: StatementInput
   if (!orders) notes.push("Website orders didn't load, so sales tax collected online is left out.");
 
   const stock = stockValue(records.books as Row[], sources.states, fx).totals.totalAssetValueCostCAD;
-  const stockInBase = toBase(stock, "CAD", base, fx);
+  const stockInBase = toBase(stock, SHOP_CURRENCY, base, fx);
 
   let shares = 0;
   for (const a of artistRows(records)) {

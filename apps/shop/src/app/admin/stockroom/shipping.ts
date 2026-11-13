@@ -8,6 +8,7 @@ import { LOSS_MARGIN, rateAgainstPaid } from "@stockroom/shipping-price-check.js
 import { linkedShippingSummary, normalizeShippingOrderNumber } from "@stockroom/shipping-reconciliation.js";
 
 import type { StockroomRecords } from "./stockroomData";
+import { SHOP_CURRENCY } from "../moneySign";
 
 type Rec = Record<string, any>;
 
@@ -58,7 +59,7 @@ export function buildShipping(records: StockroomRecords, now: Date = new Date())
   const orders = new Map<string, { entry: Rec; paid: number }>();
   rows.forEach(({ bookId, entry }) => {
     if (entry.voided || entry.excludeFromShipping) return;
-    if (getBookCurrencyCode(records.books.find((b) => b.id === bookId)) !== "CAD") return;
+    if (getBookCurrencyCode(records.books.find((b) => b.id === bookId)) !== SHOP_CURRENCY) return;
     const key = normalizeShippingOrderNumber(entry.num);
     if (!key) return;
     const have = orders.get(key);

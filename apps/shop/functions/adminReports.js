@@ -10,6 +10,7 @@ const { handleBigQueryJourneys, SCOPE: BIGQUERY_SCOPE } = require("./bigQueryJou
 const { handleTrafficReset } = require("./trafficReset");
 const { handlePastOrdersImport, handlePastOrdersRemove, handlePastOrderRate } = require("./orderImport");
 const { handleExchangeRates, getBankJson } = require("./pastOrderRates");
+const { shopCurrency } = require("./shopMoney");
 const { handleOldLinksRead, handleOldPagesRead, handleOldShopRead, readOldLinks, readOldPages, readOldShop, recordScan } = require("./oldShopRead");
 
 function adminReportActions({ db, admin, requireAdmin, readAdminSecret, hitLimit, LIMITS }) {
@@ -212,7 +213,7 @@ function adminReportActions({ db, admin, requireAdmin, readAdminSecret, hitLimit
     const adminUser = await requireAdmin(req, res);
     if (!adminUser) return;
     try {
-      const { status, body } = await handleExchangeRates(req.body || {}, { allow: () => hitLimit(db, "old-shop", req, LIMITS.oldShop), getJson: getBankJson });
+      const { status, body } = await handleExchangeRates(req.body || {}, { allow: () => hitLimit(db, "old-shop", req, LIMITS.oldShop), getJson: getBankJson, base: shopCurrency() });
       res.status(status).json(body);
     } catch (err) {
       console.error("exchangeRates failed:", err?.message || err);

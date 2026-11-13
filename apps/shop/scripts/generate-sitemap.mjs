@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 import { sitemapArtifacts } from './sitemapData.mjs';
 import { readPublicStorefront, publishedFingerprint, effectivePublishedSettings } from './publicStorefrontData.mjs';
 import { llmsTxt } from './llmsTxt.mjs';
-import { SHOP_BUILD_DIR, shopSiteUrl } from './shopProfile.mjs';
+import { SHOP_BUILD_DIR, readShopProfileSync, shopSiteUrl } from './shopProfile.mjs';
 import { FEED_FILE, SOCIAL_FEED_FILE, feedShopName, merchantFeedItems, merchantFeedXml, socialFeedCsv } from '../src/app/features/site/merchantFeed.mjs';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const siteUrl = await shopSiteUrl();
@@ -28,7 +28,7 @@ writeFileSync(resolve(dist, 'seo-published-fingerprint.txt'), publishedFingerpri
 // Google Merchant Center fetches this file (Books › Google Shopping feed shows its address).
 // The press's own name (Text & labels › Site name, plan 5.8), never the placeholder for a named shop.
 const shopName = feedShopName(effectivePublishedSettings(settings));
-const feed = merchantFeedItems(siteUrl, books, { shopName, productBase });
+const feed = merchantFeedItems(siteUrl, books, { shopName, productBase, currency: readShopProfileSync().currency });
 writeFileSync(resolve(dist, FEED_FILE), merchantFeedXml(siteUrl, feed.items, { shopName }));
 // Meta (Facebook and Instagram) and Pinterest fetch the same items as CSV (Books › Instagram, Facebook and Pinterest).
 writeFileSync(resolve(dist, SOCIAL_FEED_FILE), socialFeedCsv(feed.items));

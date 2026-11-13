@@ -20,15 +20,26 @@ nothing changes for a shop that exists today. The shopper's currency picker stil
 - [x] 2. The admin shows it (`admin/moneySign.ts`): every "CA$" and "Canadian dollars" in the admin comes from the shop currency.
 - [x] 3. Checkout: rates saved against the shop currency (feed base, sane ranges), the shopper's picker and the
       charge start from it, emails and receipts say it. Payment-integrity tests for a USD shop.
-- [ ] 4. Reports, bookkeeping, stockroom money and tax: labelled and summed in the shop currency. Sales tax for a US
+- [x] 4. Reports, bookkeeping, stockroom money and tax: labelled and summed in the shop currency. Sales tax for a US
       shop is its own piece (the tax rules are Canadian) and is listed for Julian before it is built.
-- [ ] 5. Past orders: a USD shop's old orders come in as USD; other currencies convert to the shop currency
+- [x] 5. Past orders: a USD shop's old orders come in as USD; other currencies convert to the shop currency
       (pastOrders.ts, PastOrdersDialog.tsx, functions/orderImport.js, pastOrderRates.js).
 - [ ] 6. Sign-up to a made shop: a USD test shop end to end (make it, price, check out in test mode, report).
+      Done in code: one joined test from sign-up's country through setup to the shop's server and pages
+      (`functions/shopCurrencyCheckout.test.js`). Waiting on Julian: whether to make a third test shop that sells in
+      US dollars for the click-through (asked 13 November).
 
 ## Verification
 - A CAD shop: every existing test passes unchanged at each step.
 - A USD shop: unit tests per update, and at update 6 a click-through on a USD test shop.
 
 ## Review
-(filled in at the end)
+- Updates 1 to 5 are merged or in review (#766, #768, #769, #771). A shop that sells in Canadian dollars passes every
+  earlier test unchanged at each step; a US shop has its own tests per update (checkout step and rate reader, emails,
+  admin sign, stockroom home currency, past orders, and the joined sign-up-to-shop test).
+- Simplest thing that worked: one rule (`shared/shopCurrency`), read through `shopCurrency()` on the server and
+  `SHOP_CURRENCY` / `MONEY_SIGN` / `MONEY_NAME` in the admin. No stored data changed, because no US shop exists.
+- Left on purpose, each named in `src/shared/CLAUDE.md`: the shared stockroom library's CAD fallbacks, the tax centre's
+  Canadian sales tax pages, and live carrier quotes (assumed to come back in the shop's currency; check on the US
+  test shop).
+- Not proven by local tests: a real US dollar payment, payout and platform bill. That is the click-through of update 6.

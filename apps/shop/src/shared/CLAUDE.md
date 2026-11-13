@@ -76,8 +76,17 @@ browsers may write (mirroring `firestore.rules`).
   `settings/exchangeRates` carries `base` and a copy for another base reads as missing, which
   `functions/shopCurrencyCheckout.test.js` pins). Server code reads `shopCurrency()` / `shopSign()` from
   `functions/shopMoney.js` when it runs. The shopper's picker starts from the shop's currency outside Canada, the
-  Americas and Europe. Still Canadian on purpose until updates 4 and 5: bookkeeping and social links
-  (`SHOP_CURRENCY` constants), invoice pay links, the Orders CSV and past orders.
+  Americas and Europe.
+  **Reports and the stockroom (update 4):** admin code reads `SHOP_CURRENCY` / `MONEY_NAME` from `admin/moneySign.ts`
+  (reports, Orders CSV via `shopCurrency()`, bookkeeping, social, invoice pay links, the Google feed's `currency`
+  option). The stockroom ledger's home currency is the same constant: defaults, the tax centre's `baseCurrency`
+  fallback and the rate keys (`USD_CAD` in a Canadian shop, `CAD_USD` in a US one; `homeCurrency.test.ts`). Still
+  Canadian: the shared stockroom library's own fallbacks (`apps/stockroom/src/lib/money.js`, a book saved with no
+  currency reads as CAD) and the tax centre's sales tax words (GST/HST).
+  **Past orders (update 5):** `admin/pastOrders.ts` takes the home currency (`home`, default `SHOP_CURRENCY`): orders in
+  it come over as they are, any other needs the owner's rate into it. `functions/orderImport.js` checks against
+  `shopCurrency()`, and `pastOrderRates.js` `averageRates({ base })` turns the Bank of Canada's Canadian-dollar rates
+  into US-dollar ones day by day for a US shop.
   The admin's sign is `MONEY_SIGN` (`admin/moneySign.ts`, read once from the profile): admin code writes
   `${MONEY_SIGN}${n.toFixed(2)}`, never a literal sign. Left as literals on purpose: sample text in email and theme
   previews, the look gallery, and the platform's own bill (its currency is the billing one, `platformBilling.ts`).

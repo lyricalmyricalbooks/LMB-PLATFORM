@@ -17,7 +17,7 @@ import { ReceiptsVaultCard } from "./stockroom/ReceiptsVault";
 import { sourcesOf, taxCenterModel } from "./stockroom/moneyReports";
 import { stockroomApi, type StockroomRecords } from "./stockroom/stockroomData";
 import { PERIOD_WORDS, bookkeeperOrdersCsv, bookkeeperSalesCsv, paidInRange, periodRange, periodTotals, type BooksPeriod } from "./bookkeeping";
-import { MONEY_SIGN } from "./moneySign";
+import { MONEY_SIGN, MONEY_NAME } from "./moneySign";
 
 // The stockroom's reports (balance sheet, forecast, profit and loss), only where the shop has a stockroom.
 const BookkeeperReportsCard = lazy(() => import("./stockroom/BookkeeperReportsCard").then((m) => ({ default: m.BookkeeperReportsCard })));
@@ -125,7 +125,7 @@ function SalesAndTax(): ReactNode {
 
   return (
         <div className="rp-stack" style={{ gap: 16 }}>
-          <SectionCard title="Sales and tax" description="Paid orders, test orders left out. Amounts in Canadian dollars, by the day each order was placed in Toronto.">
+          <SectionCard title="Sales and tax" description={`Paid orders, test orders left out. Amounts in ${MONEY_NAME}, by the day each order was placed in Toronto.`}>
             <div className="rp-stack" style={{ gap: 16 }}>
               <SelectField label="Period" value={period} onChange={(e) => setPeriod(e.target.value as BooksPeriod)} style={{ maxWidth: 240 }}>
                 {(Object.keys(PERIOD_WORDS) as BooksPeriod[]).map((p) => <option key={p} value={p}>{PERIOD_WORDS[p]}</option>)}

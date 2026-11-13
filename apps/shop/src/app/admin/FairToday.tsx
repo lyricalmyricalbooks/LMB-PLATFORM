@@ -4,11 +4,12 @@
 import { useEffect, useState } from "react";
 import { stockroomBridge, type StockroomFair } from "./stockroomBridge";
 import { money } from "./StockroomBookPanel";
+import { SHOP_CURRENCY } from "./moneySign";
 
 /** Every minute: the figures come from the stockroom's records, read again each time. */
 const REFRESH_MS = 60_000;
 type Totals = StockroomFair["totals"];
-export const totalsText = (totals: Totals) => (totals.length ? totals.map((t) => money(t.amount, t.cur)).join(" + ") : money(0, "CAD"));
+export const totalsText = (totals: Totals) => (totals.length ? totals.map((t) => money(t.amount, t.cur)).join(" + ") : money(0, SHOP_CURRENCY));
 
 /** The one line above the till: "Harbour Fair · 4 sales · 9 books · CA$180.00 + US$20.00". */
 export function fairLine(fair: StockroomFair, words: (text: string) => string): string {

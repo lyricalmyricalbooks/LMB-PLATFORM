@@ -10,6 +10,7 @@ import { FormChoice, FormField, FormPage, FormRow, FormSection, StatusBar, Summa
 import { useShopWords } from "../shopWords";
 import { storeFormOf, withStore, type StoreForm } from "./stockistMoves";
 import { describeResult, stockroomWriteApi } from "./stockroomWrite";
+import { SHOP_CURRENCY } from "../moneySign";
 
 type Row = Record<string, any>;
 const KEEP_CHOICES = ["50", "60", "70"];
@@ -56,7 +57,7 @@ export function StockistDetailsDialog({ shop, store, bookIds, books, onClose, on
   // The rail works one sale through: the title they'll stock (or the first one), at its list price.
   const sample = books.find((b) => b.id === (adding ? bookId : bookIds?.[0])) || books[0];
   const price = Math.max(0, Number(sample?.listPrice) || 0) || 20;
-  const code = sample ? bookCurrencyCode(sample) : "CAD";
+  const code = sample ? bookCurrencyCode(sample) : SHOP_CURRENCY;
   const theirs = rateOk ? Math.round(price * rate) / 100 : 0;
   const keep = Math.round((price - theirs) * 100) / 100;
   const keepPct = rateOk ? String(100 - rate) : "";

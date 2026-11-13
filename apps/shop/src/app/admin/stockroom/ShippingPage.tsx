@@ -14,6 +14,7 @@ import { buildShipping, joinShopOrders, LOSS_WITHIN_DAYS, shopOrderId, type Ship
 import type { StockroomRecords } from "./stockroomData";
 import "./stockroom.css";
 import "./stockists.css";
+import { SHOP_CURRENCY } from "../moneySign";
 
 const ago = (days: number) => `${days} ${days === 1 ? "day" : "days"}`;
 const hash = (num: string) => (num.startsWith("#") ? num : `#${num}`);
@@ -62,7 +63,7 @@ export function ShippingBoard({ view: base }: { view: ShippingView }) {
       )}
       {view.losses.length > 0 && (
         <p className="rp-sr-status" role="status">
-          {view.losses.length === 1 ? "1 parcel" : `${view.losses.length} parcels`} cost {fmt(view.lossTotal, "CAD")} more to post than customers paid in the last {LOSS_WITHIN_DAYS} days
+          {view.losses.length === 1 ? "1 parcel" : `${view.losses.length} parcels`} cost {fmt(view.lossTotal, SHOP_CURRENCY)} more to post than customers paid in the last {LOSS_WITHIN_DAYS} days
           ({view.losses.map((l) => hash(l.num)).join(", ")}).
         </p>
       )}

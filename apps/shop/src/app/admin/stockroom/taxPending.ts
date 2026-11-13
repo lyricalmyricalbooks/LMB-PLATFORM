@@ -2,6 +2,7 @@
 // date). They stay out of the ledger totals until confirmed. Same fields as the old stockroom's notes. Pure rules; the
 // saves are in PendingExpenses.tsx through `updateSetting("taxCenter")` (WRITING.md).
 import { EXPENSE_CATEGORIES, type ExpenseForm } from "./taxExpense";
+import { SHOP_CURRENCY } from "../moneySign";
 
 type Row = Record<string, any>;
 export type PendingForm = { desc: string; cat: string; currency: string; estAmount: string; expectedDate: string; remindOn: string; trip: string; note: string };
@@ -69,11 +70,11 @@ export function snoozePending(tc: Row | null, id: string | number, days: number,
 }
 
 export function pendingToForm(item: Row): PendingForm {
-  return { desc: item.desc || "", cat: item.cat || "Other", currency: item.currency || "CAD", estAmount: item.estAmount ? String(item.estAmount) : "", expectedDate: item.expectedDate || "", remindOn: item.remindOn || "", trip: item.trip || "", note: item.note || "" };
+  return { desc: item.desc || "", cat: item.cat || "Other", currency: item.currency || SHOP_CURRENCY, estAmount: item.estAmount ? String(item.estAmount) : "", expectedDate: item.expectedDate || "", remindOn: item.remindOn || "", trip: item.trip || "", note: item.note || "" };
 }
 
 /** What the expense form starts with when a note is confirmed. */
 export function confirmPrefill(item: Row, today: string): ExpenseForm {
   const cat = EXPENSE_CATEGORIES.includes(item.cat) ? item.cat : "Other";
-  return { desc: item.desc || "", cat, date: item.expectedDate || today, amount: item.estAmount ? String(item.estAmount) : "", currency: item.currency || "CAD", trip: item.trip || "", ref: "" };
+  return { desc: item.desc || "", cat, date: item.expectedDate || today, amount: item.estAmount ? String(item.estAmount) : "", currency: item.currency || SHOP_CURRENCY, trip: item.trip || "", ref: "" };
 }

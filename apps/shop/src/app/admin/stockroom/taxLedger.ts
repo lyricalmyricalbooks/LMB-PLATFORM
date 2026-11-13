@@ -1,3 +1,4 @@
+import { SHOP_CURRENCY } from "../moneySign";
 // Tax centre › Ledger: the changes a line logged as a business expense allows (the old Tax Centre's category picker and
 // delete). Sales and an item's own costs live elsewhere, so only `businessExpense` lines change here.
 type Row = Record<string, any>;
@@ -88,7 +89,7 @@ export function markedNoReceipt(tc: Row | null): Set<string> {
 export function expenseToForm(e: Row): { desc: string; cat: string; date: string; amount: string; currency: string; trip: string; ref: string } {
   return {
     desc: String(e.desc || ""), cat: String(e.cat || "Other"), date: String(e.date || ""),
-    amount: e.amountUnknown ? "" : String(e.origAmount ?? e.amount ?? ""), currency: String(e.origCurrency || e.currency || "CAD"),
+    amount: e.amountUnknown ? "" : String(e.origAmount ?? e.amount ?? ""), currency: String(e.origCurrency || e.currency || SHOP_CURRENCY),
     trip: String(e.trip || ""), ref: String(e.ref || ""),
   };
 }

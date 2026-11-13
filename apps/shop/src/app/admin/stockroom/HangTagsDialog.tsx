@@ -7,13 +7,14 @@ import { hangTagsHtml } from "@stockroom/hang-tags.js";
 import { Checkbox, Dialog, PrimaryButton, SecondaryButton, TextField } from "../riso/components";
 import { useShopWords } from "../shopWords";
 import type { StockroomRecords } from "./stockroomData";
+import { SHOP_CURRENCY } from "../moneySign";
 
 type Row = Record<string, any>;
 
 /** One tag's facts from a stockroom book: its list price in its own currency, or a blank to write in. Pure. */
 export function tagBook(b: Row): { title: string; author: string; price: number | ""; currency: string; isbn: string } {
   const price = Number(b.listPrice);
-  return { title: String(b.title || ""), author: String(b.author || ""), price: Number.isFinite(price) && price > 0 ? price : "", currency: getSym(String(b.currency || "CAD")), isbn: String(b.isbn || "") };
+  return { title: String(b.title || ""), author: String(b.author || ""), price: Number.isFinite(price) && price > 0 ? price : "", currency: getSym(String(b.currency || SHOP_CURRENCY)), isbn: String(b.isbn || "") };
 }
 
 export function HangTagsDialog({ records, onClose }: { records: StockroomRecords; onClose: () => void }) {

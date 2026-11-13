@@ -6,6 +6,7 @@ import { canSendNow, describeReminderSweep, dueForReminder, reminderBlockReason,
 
 import { reminderMail } from "./invoiceRemind";
 import type { StockroomRecords } from "./stockroomData";
+import { SHOP_CURRENCY } from "../moneySign";
 
 type Rec = Record<string, any>;
 export const MAX_PER_RUN = 5;
@@ -68,7 +69,7 @@ export async function sweepReminders(records: StockroomRecords, settings: Rec, t
     const stamped = await deps.save(bookId, stampSending(id, { at, to }, cfg.days, today)).catch(() => ({ status: "failed" }));
     if (stamped.status !== "saved") continue;
     const book = records.books.find((b) => b.id === bookId) as Rec | undefined;
-    const mail = reminderMail(inv, settings, String(inv.currency || book?.currency || "CAD"));
+    const mail = reminderMail(inv, settings, String(inv.currency || book?.currency || SHOP_CURRENCY));
     try {
       await deps.send({ to, subject: mail.subject, text: mail.text });
       sent++; deps.countSent(1);

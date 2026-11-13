@@ -6,6 +6,7 @@ import { Dialog, PrimaryButton, SecondaryButton, StatusBadge } from "./riso/comp
 import { useShopWords } from "./shopWords";
 import { productSegment } from "../lib/productHref";
 import { PROFILE_LINKS, profileLink } from "./socialChannels";
+import { MONEY_NAME } from "./moneySign";
 
 const base = () => `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}`;
 const feedUrl = () => `${base()}/${SOCIAL_FEED_FILE}`;
@@ -82,7 +83,7 @@ export function SocialFeedDialog({ open, onClose, books }: { open: boolean; onCl
           <ol className="rp-hint" style={{ margin: 0, paddingLeft: 18 }}>
             <li>Open <a href="https://business.facebook.com/commerce" target="_blank" rel="noopener noreferrer">Meta Commerce Manager</a> and create a catalog for your shop. Facebook and Instagram share it.</li>
             <li>In the catalog, add items with a <strong>data feed</strong> and choose a <strong>scheduled feed</strong>.</li>
-            <li>Paste the feed address above, pick a daily update and Canadian dollars.</li>
+            <li>Paste the feed address above, pick a daily update and {MONEY_NAME}.</li>
             <li>Once the items are in, turn on shopping for your Facebook Page and Instagram account to tag them in posts.</li>
           </ol>
         </div>
@@ -92,7 +93,7 @@ export function SocialFeedDialog({ open, onClose, books }: { open: boolean; onCl
           <ol className="rp-hint" style={{ margin: 0, paddingLeft: 18 }}>
             <li>Use a free <a href="https://business.pinterest.com" target="_blank" rel="noopener noreferrer">Pinterest business account</a> and claim your website.</li>
             <li>Open <strong>Catalogs</strong> and add a data source.</li>
-            <li>Paste the feed address above, choose CSV, Canadian dollars and a daily update.</li>
+            <li>Paste the feed address above, choose CSV, {MONEY_NAME} and a daily update.</li>
           </ol>
         </div>
       </div>

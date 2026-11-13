@@ -3,6 +3,7 @@
 // `payoutId` and `payoutDate` on each one); the grouping and money rules are the bookkeeping file's (shared/bookkeeping.ts).
 import { bookkeepingPayouts, countsForBooks, dayOf, type BookkeepingOrder } from "../../../shared/bookkeeping";
 import { SHOP_TZ } from "../../lib/shopDay";
+import { SHOP_CURRENCY } from "../moneySign";
 
 /** One order in a payout: what it sold, the fee, what reached the bank and what is missing (refunds, mostly). */
 export type PayoutOrder = { id: string; num: string; salesCents: number; feesCents: number; netCents: number; differenceCents: number };
@@ -39,7 +40,7 @@ export function ordersCurrency(orders: BookkeepingOrder[]): string {
     const c = String(o.stripeCurrency || o.checkoutCurrency || o.currency || "").toUpperCase();
     if (c) by.set(c, (by.get(c) || 0) + 1);
   }
-  return [...by.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || "CAD";
+  return [...by.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || SHOP_CURRENCY;
 }
 
 export function reconcileModel(orders: BookkeepingOrder[], currency = ordersCurrency(orders)): ReconcileModel {

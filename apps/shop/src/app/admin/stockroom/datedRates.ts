@@ -4,6 +4,7 @@
 // are used as they are. A dated rate never changes once published, so a kept one is never asked for again.
 import { DATED_RATE_SOURCES, frankfurterUrl } from "@stockroom/fx-sources.js";
 import { FX_HISTORY_KEY, datedRateKey } from "@stockroom/sale-fx.js";
+import { SHOP_CURRENCY } from "../moneySign";
 
 const FETCH_TIMEOUT_MS = 8000;
 const FAILURE_PAUSE_MS = 60_000;
@@ -117,9 +118,9 @@ export async function liveRate(from: string, to: string, opts: { fetch?: Fetch; 
  * else the Tax centre's saved daily rate, else 0, never a silent 1 to 1. A 0 means the expense is saved with `fxMissing`
  * and filled in later (taxRates.ts healExpenseRates).
  */
-export async function expenseRate(currency: string, date: string, target = "CAD", opts: { fetch?: Fetch; saved?: RateCache | null; store?: Pick<Storage, "getItem" | "setItem"> | null; now?: number } = {}): Promise<number> {
+export async function expenseRate(currency: string, date: string, target: string = SHOP_CURRENCY, opts: { fetch?: Fetch; saved?: RateCache | null; store?: Pick<Storage, "getItem" | "setItem"> | null; now?: number } = {}): Promise<number> {
   const cur = String(currency || target).toUpperCase();
-  const to = String(target || "CAD").toUpperCase();
+  const to = String(target || SHOP_CURRENCY).toUpperCase();
   if (cur === to) return 1;
   const dated = await datedRate(cur, to, date, { fetch: opts.fetch, store: opts.store, now: opts.now });
   if (dated) return dated;

@@ -11,6 +11,7 @@ import { getBookCurrencyCode } from "@stockroom/money.js";
 import { mileageYear } from "./mileage";
 import { stockValue } from "./stockValue";
 import { artistEarningsInYear, isExpenseAwaitingRate, type TaxSeasonInput } from "./taxSeason";
+import { SHOP_CURRENCY } from "../moneySign";
 
 type Row = Record<string, any>;
 export type BookYear = { title: string; units: number; revenue: number; unitCost: number; cogs: number; shares: number; net: number };
@@ -19,7 +20,7 @@ export type YearFigures = { revenue: number; cogs: number; opex: number; shares:
 /** One of the title's currency in Canadian dollars, at the saved rate (as the Tax season file converts). */
 const rateOf = (input: TaxSeasonInput, book: Row): number => {
   const cur = getBookCurrencyCode(book);
-  return cur === "CAD" ? 1 : Number(input.fxRateCache?.[`${cur}_CAD`]) || 1;
+  return cur === SHOP_CURRENCY ? 1 : Number(input.fxRateCache?.[`${cur}_${SHOP_CURRENCY}`]) || 1;
 };
 
 const stateOf = (input: TaxSeasonInput, book: Row): Row => ({ hist: [], expenses: [], artistPayouts: [], ...(input.states[book.id] || {}) });

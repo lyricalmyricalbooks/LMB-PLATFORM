@@ -18,6 +18,7 @@ import {
 import { shopProfile } from "../../../lib/shopProfile";
 import { keptRates, type RateCache } from "./datedRates";
 import type { StockroomRecords } from "./stockroomData";
+import { SHOP_CURRENCY } from "../moneySign";
 
 type Row = Record<string, any>;
 
@@ -31,11 +32,11 @@ export function sourcesOf(records: StockroomRecords, dated: RateCache = keptRate
     taxCenter,
     // The Tax centre's saved daily rates, then the rates for each sale's own date kept in this browser (taxRates.ts
     // fetches them). A foreign-currency sale with no dated rate yet is valued at the saved rate and says so (rateNotes).
-    fxRateCache: { CAD_CAD: 1, ...(rates && typeof rates === "object" ? rates : {}), ...dated },
+    fxRateCache: { [`${SHOP_CURRENCY}_${SHOP_CURRENCY}`]: 1, ...(rates && typeof rates === "object" ? rates : {}), ...dated },
   };
 }
 
-const baseCurrencyOf = (sources: TaxSources) => (sources.taxCenter?.settings?.baseCurrency as string) || "CAD";
+const baseCurrencyOf = (sources: TaxSources) => (sources.taxCenter?.settings?.baseCurrency as string) || SHOP_CURRENCY;
 
 // ── Tax centre ──────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -132,7 +133,7 @@ export function expensesModel(records: StockroomRecords) {
     });
   }
   const tc = (records.taxCenter || {}) as Row;
-  const baseCur = (tc.settings?.baseCurrency as string) || "CAD";
+  const baseCur = (tc.settings?.baseCurrency as string) || SHOP_CURRENCY;
   (Array.isArray(tc.businessExpenses) ? tc.businessExpenses : []).forEach((e: Row, i: number) => {
     if (!e || typeof e !== "object" || e.voided) return;
     all.push(e);
