@@ -13,3 +13,9 @@ export const SHOP_COUNTRY = shopCountryOf(SHOP_CURRENCY);
 export const US_SHOP = SHOP_COUNTRY === "US";
 /** The post office the shop's parcels start from: the carrier forms start on it. */
 export const HOME_CARRIER = US_SHOP ? "USPS" : "Canada Post";
+/** What a pay-me-directly bank payment is called: Interac e-Transfer is Canadian only, so an American shop says "bank transfer". */
+export const BANK_TRANSFER = US_SHOP ? "bank transfer" : "e-Transfer";
+/** The same with its brand, for instructions shown to a customer. */
+export const BANK_TRANSFER_FULL = US_SHOP ? "bank transfer" : "Interac e-Transfer";
+/** Sample values for email previews: the carrier, service and money a shop in this country would really see. */
+export const SAMPLE_CARRIER_SERVICE = US_SHOP ? "USPS Ground Advantage" : "Canada Post Expedited Parcel";

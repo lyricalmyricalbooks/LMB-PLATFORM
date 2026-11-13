@@ -7,6 +7,7 @@ import { waitingPreorderLines, preorderClockStart } from "../features/site/preor
 import { appOnlyBooks, detailDiffs, openMatches } from "./inventoryLink";
 import { CONTINUE_WITH_STRIPE, needsLine, type PlatformPaymentsAnswer } from "./platformPayments";
 import { providerName } from "./providerWords";
+import { US_SHOP } from "./moneySign";
 // Admin-wide alerts shown above every admin page (AdminAlerts.tsx). Pure, tested.
 // Payment problems come first: money that arrived but isn't recorded, or vice versa.
 
@@ -149,7 +150,7 @@ export function buildAdminAlerts(allOrders: any[], webhook: WebhookStatus = null
 
   const manual = orders.filter((o) => o.paymentStatus === "pending" && age(o, now) >= MANUAL_LATE_MS && o.status !== "cancelled");
   if (manual.length) out.push(alert("manual-pending", "info", `${plural(manual.length, "order is", "orders are")} still waiting for a manual payment`,
-    `e-Transfer / cash orders with no payment after 2 days: ${list(manual)}. Confirm the payment or cancel the order.`, manual));
+    `${US_SHOP ? "Bank transfer" : "e-Transfer"} / cash orders with no payment after 2 days: ${list(manual)}. Confirm the payment or cancel the order.`, manual));
 
   const uncertain = orders.filter(o => o.operations?.labelPurchasePending === true);
   if (uncertain.length) out.push(alert("label-purchase-uncertain", "danger", `${plural(uncertain.length, "label purchase needs", "label purchases need")} reconciliation`, `Check the existing transaction in Shippo before retrying: ${list(uncertain)}. An uncertain purchase may already have charged for a label.`, uncertain));

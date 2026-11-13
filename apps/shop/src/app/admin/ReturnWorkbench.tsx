@@ -1,4 +1,5 @@
 import "./fulfillment.css";
+import { BANK_TRANSFER } from "./moneySign";
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
@@ -136,8 +137,8 @@ export function ReturnWorkbench({ order, onUpdated }: { order: any; onUpdated: (
     <ConfirmDialog open={confirmRefund}
       title={everythingBack ? "Refund the full order?" : "Refund the returned books?"}
       message={everythingBack
-        ? "The full payment will be refunded. Inspected resellable physical copies will be returned to inventory once; damaged copies will stay out of stock. For cash or e-Transfer, send the money back first: this action only records the manual refund."
-        : `${formatMinor(amountMinor || 0, currency)} will be refunded and the order stays paid. Inspected resellable copies go back to stock once. For cash or e-Transfer, send the money back first: this only records it.`}
+        ? `The full payment will be refunded. Inspected resellable physical copies will be returned to inventory once; damaged copies will stay out of stock. For cash or ${BANK_TRANSFER}, send the money back first: this action only records the manual refund.`
+        : `${formatMinor(amountMinor || 0, currency)} will be refunded and the order stays paid. Inspected resellable copies go back to stock once. For cash or ${BANK_TRANSFER}, send the money back first: this only records it.`}
       confirmLabel={everythingBack ? "Refund full order" : "Refund returned books"} onCancel={() => setConfirmRefund(false)} onConfirm={() => { setConfirmRefund(false); run("refund"); }} />
     <ConfirmDialog open={confirmCloseApproved} title="Close this return without a refund?" confirmLabel="Close return"
       message="Use this when the parcel never arrived or you decided not to refund. The request leaves Needs attention and the customer is told it is closed. No money moves and nothing is restocked; you can still refund from More order actions later."

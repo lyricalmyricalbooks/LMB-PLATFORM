@@ -1,4 +1,5 @@
 import "../../styles/adminCompat.css";
+import { BANK_TRANSFER } from "./moneySign";
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from "react";
 import { isShopOwner, markOwnerDeviceOnSignIn } from "../lib/ownerDevice";
 // `m` + the app-wide LazyMotion (domAnimation): the full `motion` component would pull layout/drag code into the shop's first load.
@@ -1074,7 +1075,7 @@ export function Dashboard() {
           </dl>
           <h3 className="rp-help-head">How things work</h3>
           <ul className="rp-help-list">
-            <li><strong>Payments:</strong> card ({providerName()}) and PayPal orders are marked paid automatically once the payment is confirmed. Cash and e-Transfer orders wait as pending: open the order › <strong>More order actions</strong> › <strong>Payment received — mark paid</strong> once the money has arrived.</li>
+            <li><strong>Payments:</strong> card ({providerName()}) and PayPal orders are marked paid automatically once the payment is confirmed. Cash and {BANK_TRANSFER} orders wait as pending: open the order › <strong>More order actions</strong> › <strong>Payment received — mark paid</strong> once the money has arrived.</li>
             <li><strong>Shop status</strong> (top bar): shows whether shoppers can buy. Open it to close the shop behind the “under construction” wall, or to open it again.</li>
             <li><strong>Design studio:</strong> changes are saved as a draft first; Publish when you're ready.</li>
             <li><strong>Bookmarks:</strong> the address bar keeps your place, so pages can be bookmarked or shared: <code>#orders/&lt;id&gt;</code>, <code>#customers?q=&lt;email&gt;</code>, <code>#settings/payments</code>, <code>#gift-cards</code>, <code>#designer</code>. Reload and Back/Forward return to the same page.</li>

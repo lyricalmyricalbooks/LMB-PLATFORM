@@ -315,7 +315,7 @@ export function InvoiceEditor({ records, settings, start, onClose, onSaved, onDe
 
           <FormSection title="Note and sending" description={`Shown at the bottom of the ${kind === "quote" ? "quote" : "invoice"}.`}>
             <FormField label="Note">{(a) => <textarea {...a} rows={2} value={form.notes} onChange={(e) => set({ notes: e.target.value })} />}</FormField>
-            {kind !== "quote" && <FormField label="Payment link or e-Transfer email" hint="Optional.">{(a) => <input {...a} value={form.paymentLink} onChange={(e) => set({ paymentLink: e.target.value })} />}</FormField>}
+            {kind !== "quote" && <FormField label={US_SHOP ? "Payment link or how to pay" : "Payment link or e-Transfer email"} hint="Optional.">{(a) => <input {...a} value={form.paymentLink} onChange={(e) => set({ paymentLink: e.target.value })} />}</FormField>}
             <FormField label="Terms">{(a) => <input {...a} value={form.terms} onChange={(e) => set({ terms: e.target.value })} />}</FormField>
             {kind === "repeat"
               ? <FormToggle label="Email it for me" hint="Off: each one waits as a draft for you to send." checked={schedule.autoEmail} onChange={(on) => setSchedule((s) => ({ ...s, autoEmail: on }))} />

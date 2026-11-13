@@ -3,16 +3,17 @@
 // has uploaded. Read-only: the stockroom stays the only place a sale is recorded. Silent on a day with no till sales.
 // The rules match the stockroom's own end-of-day summary (apps/stockroom/src/lib/fair-mode.js registerSalesForDay,
 // saleMethod, fairNameOf), so the email and the till's "End of day" agree. Pure.
+const { shopCountry } = require("./shopMoney");
 const TZ = "America/Toronto";
 
 const torontoDay = ms => new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ms));
 
 // The till's ways of paying, longest first so "Stripe QR (printed …)" isn't read as something shorter.
-const METHODS = [
-  { value: "Bank Transfer", label: "E-transfer" }, { value: "Stripe QR", label: "QR code" },
+const methods = () => [
+  { value: "Bank Transfer", label: shopCountry() === "US" ? "Bank transfer" : "E-transfer" }, { value: "Stripe QR", label: "QR code" },
   { value: "Comp/Gift", label: "Comp" }, { value: "Card", label: "Card reader" }, { value: "Cash", label: "Cash" },
 ];
-const methodOf = notes => METHODS.find(m => String(notes || "").startsWith(m.value)) || { value: "Other", label: "Other" };
+const methodOf = notes => methods().find(m => String(notes || "").startsWith(m.value)) || { value: "Other", label: "Other" };
 
 /** The fair a till row was sold at, from its note ("Cash · Harbour Fair · Price A→B"); "" when none was named. */
 function fairNameOf(notes) {
