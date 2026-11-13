@@ -3,6 +3,7 @@
 // "Layout & style" panel. The keys are the ones the storefront renderer already reads
 // (components/sectionRender.tsx, sectionStyleHelpers.ts) — no data changes.
 import { BACKDROP_BLUR_OPTIONS, BOX_SHADOW_OPTIONS, CORNER_RADIUS_OPTIONS, HOVER_EFFECTS, SECTION_ANIMATIONS, SECTION_FONT_OPTIONS, SHAPE_DIVIDER_STYLES } from "../../components/sectionStyleHelpers";
+import { BG_PATTERN_OPTIONS, PANEL_FILL_OPTIONS, TILT_OPTIONS } from "../../components/sectionShape";
 import { PADDING_KEYS } from "../../features/site/breakpoints";
 import { SPACE_STEPS } from "../../features/site/designTokens";
 import { BLOCK_HOVERS, BLOCK_REVEALS, PARALLAX } from "../../components/sectionMotion";
@@ -46,7 +47,7 @@ export function sectionStyleFields(colorSchemes: { id: string; name: string }[] 
     style("Text", { key: "bodyColor", label: "Body text colour", kind: "color" }),
     style("Text", { key: "headingGradientFrom", label: "Heading gradient from", kind: "color" }),
     style("Text", { key: "headingGradientTo", label: "Heading gradient to", kind: "color" }),
-    style("Text", { key: "headingSize", label: "Heading size", kind: "range", min: 14, max: 120, suffix: "px" }),
+    style("Text", { key: "headingSize", label: "Heading size", kind: "range", min: 14, max: 160, suffix: "px" }),
     style("Text", { key: "headingWeight", label: "Heading weight", kind: "select", options: inherit(weights) }),
     style("Text", { key: "textTransform", label: "Letter case", kind: "select", options: inherit([
       { value: "none", label: "None (as typed)" }, { value: "uppercase", label: "UPPERCASE" }, { value: "lowercase", label: "lowercase" }, { value: "capitalize", label: "Capitalize" }]) }),
@@ -85,6 +86,16 @@ export function sectionStyleFields(colorSchemes: { id: string; name: string }[] 
     style("Effects", { key: "shapeDividerBottom", label: "Shape divider · bottom", kind: "select", options: SHAPE_DIVIDER_STYLES }),
     style("Effects", { key: "shapeDividerBottomColor", label: "Bottom divider colour", kind: "color" }),
 
+    style("Shape & pattern", { key: "bgPattern", label: "Background pattern", kind: "select", options: BG_PATTERN_OPTIONS, hint: "Drawn over the background colour." }),
+    style("Shape & pattern", { key: "patternColor", label: "Pattern colour", kind: "color", hint: "Blank = the pattern's own soft ink." }),
+    style("Shape & pattern", { key: "panelFill", label: "Panel fill", kind: "select", options: PANEL_FILL_OPTIONS, hint: "Fills the section with the theme's box colour, for a card that sits on the page." }),
+    style("Shape & pattern", { key: "outlineWidth", label: "Outline thickness", kind: "range", min: 0, max: 16, suffix: "px" }),
+    style("Shape & pattern", { key: "outlineColor", label: "Outline colour", kind: "color", hint: "Blank = the text colour." }),
+    style("Shape & pattern", { key: "tilt", label: "Tilt", kind: "select", options: TILT_OPTIONS }),
+    style("Shape & pattern", { key: "outerGap", label: "Space around the section", kind: "range", min: 0, max: 96, suffix: "px", hint: "Pulls the section in from the page edges, so its colour sits like a card." }),
+    style("Shape & pattern", { key: "boxMaxWidth", label: "Section width", kind: "range", min: 0, max: 2400, step: 20, suffix: "px", hint: "0 = full page width." }),
+    style("Shape & pattern", { key: "overlapAbove", label: "Overlap the section above", kind: "range", min: 0, max: 240, suffix: "px", hint: "Slides this section up over the one before it." }),
+    style("Shape & pattern", { key: "headingLineHeight", label: "Heading line height", kind: "range", min: 0.7, max: 2, step: 0.02 }),
     style("Custom code (advanced)", { key: "customCss", label: "Scoped CSS", kind: "html", hint: "Use & to target this section. The CSS only applies to this section." }),
     style("Custom code (advanced)", { key: "customClass", label: "Custom CSS class", kind: "text" }),
 
