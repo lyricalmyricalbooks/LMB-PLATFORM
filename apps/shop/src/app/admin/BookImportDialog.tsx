@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, Upload } from "lucide-react";
 import { adminApi } from "./api";
-import { IMPORT_COLUMNS, MATCHABLE_COLUMNS, parseCsv, type ImportField, type ImportPlan } from "./catalogImport";
-import { ImportPreviewRows, MAX_FILE_BYTES } from "./importPreview";
+import { IMPORT_COLUMNS, parseCsv, type ImportField, type ImportPlan } from "./catalogImport";
+import { ImportPreviewRows, MAX_FILE_BYTES, noteWords } from "./importPreview";
 import { importRedirects, oldLinksMessage, planShopMove, SHAPE_WORDS, type ProductMove } from "./shopMove";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { OldShopAddressForm } from "./OldShopAddressForm";
@@ -10,7 +10,7 @@ import { readOldShopAddress } from "./oldShopApi";
 import { photoCheckLine, useBrokenPhotos, withoutBrokenPhotos } from "./photoLinks";
 import { Dialog, PrimaryButton, SecondaryButton, SelectField, StatusBadge } from "./riso/components";
 import { normalizeCategories } from "../features/site/navItems";
-import { sellsBooks } from "./sells";
+import { sellsBooks, startingKind } from "./sells";
 import { useShopSells } from "./shopWords";
 import { useShopWords } from "./shopWords";
 import { SPREADSHEET_ACCEPT, readProblem, readSpreadsheet, type SpreadsheetRead } from "./spreadsheetFile";
@@ -25,6 +25,8 @@ import { friendlyError } from "./settingsLayout";
 
 /** How many books are saved at once: quick for a big catalog, gentle on a slow connection. */
 const SAVE_AT_ONCE = 4;
+/** Columns only a book has: a shop that sells other things doesn't see them listed. */
+const BOOK_ONLY = new Set<ImportField>(["format", "isbn", "publisher", "publishDate", "pageCount", "edition", "language"]);
 
 
 type Result = { line: number; title: string; ok: boolean; message?: string };
@@ -69,7 +71,12 @@ export function BookImportDialog({ books, onClose, onDone, initialFile }: {
   const [book, setBook] = useState<{ file: File } & SpreadsheetRead | null>(null);
   const [columns, setColumns] = useState<Record<string, ImportField>>({});
   // A shop that doesn't sell books keeps the old shop's sizes and colours as option buttons (plan 10.6).
-  const keepOptions = !sellsBooks(useShopSells());
+  const sells = useShopSells();
+  // A shop that doesn't sell books: its new products are saved as its own kind, and the book-only columns stay out
+  // of what the window lists (a file that has them is still read).
+  const keepOptions = !sellsBooks(sells);
+  const newKind = keepOptions ? startingKind(sells) : undefined;
+  const shown = (keepOptions ? IMPORT_COLUMNS.filter(c => !BOOK_ONLY.has(c.field)) : IMPORT_COLUMNS).map(c => ({ ...c, label: w(c.label) }));
   const [source, setSource] = useState<{ text: string; shopCategories: string[]; profiles: string[]; linkedBookIds: string[] } | null>(null);
   // The first value under each heading, shown under its Match columns choice.
   const samples = useMemo(() => {
@@ -85,7 +92,7 @@ export function BookImportDialog({ books, onClose, onDone, initialFile }: {
 
   const replan = (src: typeof source, mode: "leave" | "set", cols = columns) => {
     if (!src) return;
-    const next = planShopMove(src.text, books, src.shopCategories, { stockMode: mode, shippingProfiles: src.profiles, linkedBookIds: src.linkedBookIds, columns: cols }, { keepOptions });
+    const next = planShopMove(src.text, books, src.shopCategories, { stockMode: mode, shippingProfiles: src.profiles, linkedBookIds: src.linkedBookIds, columns: cols, newKind }, { keepOptions });
     setPlan(next.plan); setMoved(next.moved); setOldPaths(next.oldPaths);
     return next.plan;
   };
@@ -188,7 +195,7 @@ export function BookImportDialog({ books, onClose, onDone, initialFile }: {
     : <>
         <SecondaryButton disabled={busy} onClick={onClose}>Cancel</SecondaryButton>
         <PrimaryButton disabled={busy || !work.length} onClick={run}>
-          {busy ? `Importing ${progress} of ${work.length}…` : work.length ? `Import ${work.length} book${work.length === 1 ? "" : "s"}` : "Nothing to import"}
+          {busy ? `Importing ${progress} of ${work.length}…` : work.length ? w(`Import ${work.length} book${work.length === 1 ? "" : "s"}`) : "Nothing to import"}
         </PrimaryButton>
       </>;
 
@@ -202,12 +209,12 @@ export function BookImportDialog({ books, onClose, onDone, initialFile }: {
           {!fileName && <>
           <ul className="rp-hint" style={{ margin: 0, paddingLeft: 18 }}>
             <li>{w("Easiest: in Books, open")} <strong>⋯ More catalog actions › Export…</strong>, edit the file in Excel, Numbers or Google Sheets and import it back here, as Excel or CSV.</li>
-            <li>{w("Books are matched by")} <strong>ID</strong>, then <strong>ISBN</strong>, then <strong>SKU</strong>. Rows that match nothing become <strong>{w("new draft books")}</strong>.</li>
+            <li>{w("Books are matched by")} <strong>ID</strong>, then <strong>{keepOptions ? "barcode" : "ISBN"}</strong>, then <strong>SKU</strong>. Rows that match nothing become <strong>{w("new draft books")}</strong>.</li>
             <li>{w("A blank cell keeps what the book has now. To end a sale, type 0 in Sale price. Stock numbers are only written when you choose “Set stock to the file's numbers”. Extra image URLs are separated with “|”.")}</li>
             <li>{w("Import never publishes. Publish new books from the catalog afterwards; it checks each one first.")}</li>
             <li><strong>Bring your shop with you:</strong> {w("choose the product export from your old shop as it is. Books, photos and editions come over as new drafts.")}</li>
           </ul>
-          <p className="rp-hint" style={{ margin: 0 }}>Columns it reads: {IMPORT_COLUMNS.map(c => c.label).join(", ")}. Categories are separated with “;”.</p>
+          <p className="rp-hint" style={{ margin: 0 }}>Columns it reads: {shown.map(c => c.label).join(", ")}. Categories are separated with “;”.</p>
           </>}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
             <input ref={fileRef} type="file" accept={SPREADSHEET_ACCEPT} hidden aria-label="Spreadsheet file"
@@ -215,7 +222,7 @@ export function BookImportDialog({ books, onClose, onDone, initialFile }: {
             <PrimaryButton icon={<Upload size={16} aria-hidden />} disabled={busy} onClick={() => fileRef.current?.click()}>
               {fileName ? "Choose another file" : "Choose a file"}
             </PrimaryButton>
-            <SecondaryButton size="sm" icon={<Download size={14} aria-hidden />} disabled={busy} onClick={() => saveFile("books-import-template.xlsx", toXlsx([IMPORT_COLUMNS.map(c => c.label)], "Books"), XLSX_TYPE)}>
+            <SecondaryButton size="sm" icon={<Download size={14} aria-hidden />} disabled={busy} onClick={() => saveFile(keepOptions ? "products-import-template.xlsx" : "books-import-template.xlsx", toXlsx([shown.map(c => c.label)], w("Books")), XLSX_TYPE)}>
               Blank template
             </SecondaryButton>
             <GoogleSheetLink disabled={busy} onFile={(f) => void choose(f)} />
@@ -233,14 +240,14 @@ export function BookImportDialog({ books, onClose, onDone, initialFile }: {
         {readError && <p role="alert" className="rp-hint" style={{ color: "var(--rp-danger)", margin: 0 }}>{readError}</p>}
 
         {plan && !results && !moved && (plan.unknownColumns?.length ?? 0) > 0 && (
-          <ColumnMatch unknown={plan.unknownColumns!} samples={samples} chosen={columns} used={plan.matchedFields ?? []} disabled={busy} recalled={recalled}
+          <ColumnMatch columns={shown} unknown={plan.unknownColumns!} samples={samples} chosen={columns} used={plan.matchedFields ?? []} disabled={busy} recalled={recalled}
             onChange={(next) => { setColumns(next); setRecalled(0); replan(source, stockMode, next); }} />
         )}
 
         {plan && !results && (plan.problems.length
           ? <div role="alert" className="rp-stack">
               <StatusBadge tone="danger">Nothing can be imported from this file</StatusBadge>
-              <ul className="rp-hint" style={{ margin: 0, paddingLeft: 18 }}>{plan.problems.map(p => <li key={p}>{p}</li>)}</ul>
+              <ul className="rp-hint" style={{ margin: 0, paddingLeft: 18 }}>{plan.problems.map(p => <li key={p}>{noteWords(p, w)}</li>)}</ul>
             </div>
           : <div className="rp-stack">
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }} aria-live="polite">
@@ -259,7 +266,7 @@ export function BookImportDialog({ books, onClose, onDone, initialFile }: {
               {moved && oldPaths.size > 0 && <p className="rp-hint" style={{ margin: 0 }}>{w("Links to these books on your old shop will open them here once your address points at this shop. They are added to Settings › General › URL redirects.")}</p>}
               {photoCheckLine(photoCheck) && <p className="rp-hint" role="status" style={{ margin: 0 }}>{w(photoCheckLine(photoCheck))}</p>}
               {readNotes.map(n => <p key={n} className="rp-hint" style={{ margin: 0 }}>{w(n)}</p>)}
-              {moved && moved.notices.map(n => <p key={n} className="rp-hint" style={{ margin: 0 }}>{n}</p>)}
+              {moved && moved.notices.map(n => <p key={n} className="rp-hint" style={{ margin: 0 }}>{noteWords(n, w)}</p>)}
               <ImportPreviewRows plan={plan} />
             </div>)}
 
@@ -285,7 +292,8 @@ export function BookImportDialog({ books, onClose, onDone, initialFile }: {
  * Columns the shop didn't recognise (plan 23.36): each can be matched to a field, so a spreadsheet with its own
  * headings ("Cost to buyer", "Writer") still fills in prices and authors. Left as "Leave out", it is skipped.
  */
-function ColumnMatch({ unknown, samples, chosen, used, disabled, recalled = 0, onChange }: {
+function ColumnMatch({ unknown, samples, chosen, used, disabled, recalled = 0, columns, onChange }: {
+  columns: { field: ImportField; label: string }[];
   unknown: string[]; samples: Record<string, string>; chosen: Record<string, ImportField>; used: ImportField[]; disabled: boolean; recalled?: number;
   onChange: (next: Record<string, ImportField>) => void;
 }) {
@@ -306,7 +314,7 @@ function ColumnMatch({ unknown, samples, chosen, used, disabled, recalled = 0, o
               onChange(next);
             }}>
             <option value="">Leave out</option>
-            {MATCHABLE_COLUMNS.filter((c) => c.field === chosen[heading] || !used.includes(c.field)).map((c) => (
+            {columns.filter((c) => c.field !== "id" && (c.field === chosen[heading] || !used.includes(c.field))).map((c) => (
               <option key={c.field} value={c.field}>{c.label}</option>
             ))}
           </SelectField>

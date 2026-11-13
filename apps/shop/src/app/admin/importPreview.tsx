@@ -5,6 +5,13 @@ import type { ImportPlan, ImportRow } from "./catalogImport";
 import { StatusBadge, type BadgeTone } from "./riso/components";
 import { useShopWords } from "./shopWords";
 
+/**
+ * A note about a row in this shop's words ("the book editor" is "the product editor" in a shop that sells other
+ * things). What the file itself said, in “quotes” or (brackets), keeps its spelling: a title is never reworded.
+ */
+export const noteWords = (text: string, w: (t: string) => string): string =>
+  text.split(/(“[^”]*”|\([^)]*\))/).map((part, i) => (i % 2 ? part : w(part))).join("");
+
 /** The largest product file the importer reads (and setup mode keeps): a few thousand products. */
 export const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const SHOWN_ROWS = 150;
@@ -33,11 +40,11 @@ export function ImportPreviewRows({ plan }: { plan: ImportPlan }) {
           </div>
           {(row.errors.length > 0 || row.warnings.length > 0 || (row.action === "update" && row.changes.length > 0)) && (
             <ul className="rp-hint" style={{ margin: "6px 0 0", paddingLeft: 18 }}>
-              {row.errors.map(e => <li key={e} style={{ color: "var(--rp-danger)" }}>{e}</li>)}
+              {row.errors.map(e => <li key={e} style={{ color: "var(--rp-danger)" }}>{noteWords(e, w)}</li>)}
               {row.action === "update" && row.changes.map(c => (
                 <li key={c.field}>{c.label}: <span style={{ textDecoration: "line-through" }}>{clip(c.from) || "blank"}</span> → <strong>{clip(c.to)}</strong></li>
               ))}
-              {row.warnings.map(text => <li key={text}>{text}</li>)}
+              {row.warnings.map(text => <li key={text}>{noteWords(text, w)}</li>)}
             </ul>
           )}
         </li>

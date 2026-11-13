@@ -15,18 +15,19 @@ import { metricWeightValue } from "../features/site/metricWeight";
 export type ImportField =
   | "id" | "title" | "subtitle" | "description" | "format" | "isbn" | "sku" | "status" | "isFeatured"
   | "retailPrice" | "salePrice" | "stockLevel" | "categories" | "publisher" | "publishDate"
-  | "pageCount" | "edition" | "language" | "imageUrl"
+  | "pageCount" | "edition" | "language" | "imageUrl" | "barcode"
   | "weight" | "saleStartsAt" | "saleEndsAt" | "tags" | "shippingProfileId" | "extraImages" | "metaTitle" | "metaDescription";
 
 /** Spreadsheet headings each field accepts (compared lower-case, spaces and punctuation ignored). */
 export const IMPORT_COLUMNS: { field: ImportField; label: string; aliases: string[] }[] = [
   { field: "id", label: "ID", aliases: ["id", "book id"] },
   { field: "title", label: "Title", aliases: ["title", "book title", "name"] },
-  { field: "subtitle", label: "Author", aliases: ["author", "authors", "contributors", "author / contributors", "by"] },
+  { field: "subtitle", label: "Author", aliases: ["author", "authors", "contributors", "author / contributors", "by", "maker", "makers"] },
   { field: "description", label: "Description", aliases: ["description", "blurb", "body"] },
   { field: "format", label: "Format", aliases: ["format", "binding"] },
   { field: "isbn", label: "ISBN", aliases: ["isbn", "isbn13", "isbn-13", "isbn 13", "barcode", "ean"] },
   { field: "sku", label: "SKU", aliases: ["sku"] },
+  { field: "barcode", label: "Barcode / UPC", aliases: ["upc", "gtin", "barcode / upc", "upc code", "barcode number"] },
   { field: "status", label: "Status", aliases: ["status"] },
   { field: "isFeatured", label: "Featured", aliases: ["featured"] },
   { field: "retailPrice", label: "Price", aliases: ["price", "retail price", "price cad", "price (cad)"] },
@@ -240,6 +241,11 @@ export interface ImportOptions {
   linkedBookIds?: string[];
   /** The owner's matches for headings the shop didn't recognise (plan 23.36). */
   columns?: Record<string, ImportField>;
+  /**
+   * A shop that doesn't sell books: the kind its new products are saved as (sells.ts `startingKind`). They get no
+   * book format, and a code in an ISBN or barcode column that isn't an ISBN is kept as the product's barcode.
+   */
+  newKind?: string;
 }
 
 const isHttps = (value: string) => { try { return new URL(value).protocol === "https:"; } catch { return false; } };
@@ -265,6 +271,9 @@ export function planImport(text: string, books: any[], shopCategories: string[] 
     return map;
   };
   const byIsbn = index(b => normalizeIsbn(b.isbn));
+  const goods = !!opts.newKind && opts.newKind !== "book" && opts.newKind !== "ebook";
+  const digits = (v: unknown) => String(v ?? "").replace(/[^0-9A-Za-z]/g, "").toLowerCase();
+  const byBarcode = index(b => digits(b.barcode));
   const bySku = index(b => String(b.sku || "").trim().toLowerCase());
   const byTitle = index(b => String(b.title || "").trim().toLowerCase());
   const known = new Set(shopCategories.map(c => c.trim().toLowerCase()));
@@ -278,6 +287,9 @@ export function planImport(text: string, books: any[], shopCategories: string[] 
     const errors: string[] = [];
     const warnings: string[] = [];
     const given = (f: ImportField) => (value[f] ?? "") !== "";
+    // A goods shop's "barcode" column is rarely an ISBN: a code that isn't one is the product's barcode.
+    if (goods && given("isbn") && !validIsbn(value.isbn!)) { if (!given("barcode")) value.barcode = value.isbn; delete value.isbn; }
+    const code = given("barcode") ? digits(value.barcode) : "";
 
     // Which book is this?
     let book: any = null;
@@ -292,16 +304,17 @@ export function planImport(text: string, books: any[], shopCategories: string[] 
     } else if (given("isbn") && normalizeIsbn(value.isbn)) {
       book = pick(byIsbn.get(normalizeIsbn(value.isbn)), `ISBN ${value.isbn}`);
     }
+    if (!book && !errors.length && code) book = pick(byBarcode.get(code), `Barcode ${value.barcode}`);
     if (!book && !errors.length && given("sku")) book = pick(bySku.get(value.sku!.toLowerCase()), `SKU ${value.sku}`);
-    if (!book && !errors.length && !given("isbn") && !given("sku") && given("title")) book = pick(byTitle.get(value.title!.toLowerCase()), `The title “${value.title}”`);
+    if (!book && !errors.length && !given("isbn") && !code && !given("sku") && given("title")) book = pick(byTitle.get(value.title!.toLowerCase()), `The title “${value.title}”`);
 
     if (book) {
       const earlier = claimed.get(book.id);
       if (earlier) errors.push(`Line ${earlier} already changes this book. Keep one line per book.`);
       else claimed.set(book.id, line);
     } else if (!errors.length) {
-      const key = given("isbn") && normalizeIsbn(value.isbn) ? `isbn:${normalizeIsbn(value.isbn)}` : given("sku") ? `sku:${value.sku!.toLowerCase()}` : "";
-      if (key && newKeys.has(key)) errors.push(`Line ${newKeys.get(key)} already adds a book with this ${key.startsWith("isbn") ? "ISBN" : "SKU"}.`);
+      const key = given("isbn") && normalizeIsbn(value.isbn) ? `isbn:${normalizeIsbn(value.isbn)}` : code ? `barcode:${code}` : given("sku") ? `sku:${value.sku!.toLowerCase()}` : "";
+      if (key && newKeys.has(key)) errors.push(`Line ${newKeys.get(key)} already adds a book with this ${key.startsWith("isbn") ? "ISBN" : key.startsWith("barcode") ? "barcode" : "SKU"}.`);
       else if (key) newKeys.set(key, line);
     }
     const creating = !book && !errors.length;
@@ -310,7 +323,7 @@ export function planImport(text: string, books: any[], shopCategories: string[] 
     // Values → book fields.
     const next: Record<string, any> = {};
     const text = (f: ImportField, field: string = f) => { if (given(f)) next[field] = value[f]!; };
-    text("title"); text("subtitle"); text("description"); text("format"); text("sku"); text("publisher"); text("edition"); text("language");
+    text("title"); text("subtitle"); text("description"); text("format"); text("sku"); text("barcode"); text("publisher"); text("edition"); text("language");
     text("metaTitle"); text("metaDescription");
     if (given("weight")) {
       if (parseWeightGrams(value.weight) === null) errors.push(`Weight “${value.weight}” must be a number in g or kg, e.g. 450 g.`);
@@ -418,7 +431,7 @@ export function planImport(text: string, books: any[], shopCategories: string[] 
 
     if (creating) {
       if (!("retailPrice" in next)) warnings.push("No price given. The book is saved as a draft; add a price before publishing.");
-      const patch = { ...NEW_BOOK_DEFAULTS, ...next, status: "draft" };
+      const patch = { ...NEW_BOOK_DEFAULTS, ...(goods ? { format: "", kind: opts.newKind } : {}), ...next, status: "draft" };
       const changes = Object.keys(next).map(f => ({ field: f, label: LABEL[f] || f, from: "", to: show(next[f]) }));
       return { line, action: "create", title, patch, changes, warnings, errors };
     }

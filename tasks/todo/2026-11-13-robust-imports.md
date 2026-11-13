@@ -17,8 +17,16 @@ run it through the readers, fix what breaks, and keep the files as tests (`apps/
       files, lifetime spend in a till's customer list
 - [x] PR 2, saving (products done; customers left for later): take back a product import (only the drafts it made, untouched since), customers too; save big
       files several at a time with a clear count
-- [ ] PR 3, screen: preview and result on a phone, in the bento look; book-only words only for book shops
+- [x] PR 3, screen: preview and result on a phone, in the bento look; book-only words only for book shops
 - [ ] Shops that sell in US dollars: past orders and price notes still say Canadian dollars
 
 ## Review
-(filled in at the end)
+- Tested with 13 files laid out as the popular shop systems export them; every product file is imported twice and the
+  second run must be all unchanged. The importer was already sound on repeats, speed and common encodings; the real
+  files showed about fifteen smaller faults, all fixed (PR #760).
+- Product imports can be taken back, save four at a time and log one line per run (PR #763). Checked on screen at
+  desktop and phone width by `pnpm run test:move`.
+- A shop that doesn't sell books: new products get its own kind (they were saved as paperbacks), barcodes that aren't
+  ISBNs are kept and matched, book-only columns and words are out of its import window (PR 3).
+- Left: taking back a customer import, shops that sell in US dollars (past orders are Canadian dollars only), the
+  5 MB / 2,000-row limits, an import record that lives only in the browser that made it.
