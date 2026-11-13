@@ -12,6 +12,8 @@ import { documentFrame, documentPage, documentTable, documentTotals } from "../.
 import type { BookkeepingOrder } from "../../../shared/bookkeeping";
 import { artistRows } from "./ArtistPayouts";
 import { invoiceList } from "./invoiceMake";
+import { billList } from "./bills";
+import { moneyDue } from "./moneyDue";
 import { taxCenterModel } from "./moneyReports";
 import { stockValue } from "./stockValue";
 import type { StockroomRecords } from "./stockroomData";
@@ -145,6 +147,20 @@ export function balanceSheet({ records, sources, orders, today }: StatementInput
   const liabilities: SheetLine[] = [
     { id: "tax", label: "Sales tax to send", amount: cents(taxHeld), note: taxOwing.length ? taxOwing.map((t) => t.period.label).join(", ") : "Nothing unfiled" },
   ];
+  // Supplier bills dated on or before the day and not paid by then (paying one logs the expense, so cash already has it).
+  let bills = 0, billCount = 0;
+  const allBills = billList((records.taxCenter as Row | null) ?? null);
+  for (const b of allBills) {
+    const dated = b.billDate || (b.createdAt ? msDay(b.createdAt) : "");
+    if (dated && dated > asOf) continue;
+    if (b.status === "paid" && (b.paidDate || (b.paidAt ? msDay(b.paidAt) : "")) <= asOf) continue;
+    const v = toBase(b.amount, b.currency, base, fx);
+    rateMissing ||= v.missing;
+    bills += v.value; billCount += 1;
+  }
+  if (allBills.length) {
+    liabilities.push({ id: "bills", label: "Bills to pay", amount: cents(bills), note: billCount ? `${billCount} unpaid ${billCount === 1 ? "bill" : "bills"}` : "All paid" });
+  }
   if (shares || (records.books as Row[]).some((b) => Array.isArray(b.profitTiers) && b.profitTiers.length)) {
     liabilities.push({ id: "shares", label: "Owed to artists", amount: cents(shares), note: past ? "As it stands today" : "Shares not settled yet" });
   }
@@ -178,7 +194,7 @@ export const balanceSheetCsv = (sheet: BalanceSheet, pressName: string) => toCsv
 
 // ── Cash flow forecast ──────────────────────────────────────────────────────────────────────────────────────────
 
-export type ForecastItem = { date: string; label: string; kind: "in" | "out"; amount: number; source: "invoice" | "recurring" | "pending" | "tax" | "sales"; late?: boolean };
+export type ForecastItem = { date: string; label: string; kind: "in" | "out"; amount: number; source: "invoice" | "repeat" | "bill" | "recurring" | "pending" | "tax" | "sales"; late?: boolean };
 export type ForecastWeek = { start: string; end: string; moneyIn: number; moneyOut: number; balance: number };
 export type Forecast = {
   start: string; end: string; currency: string; startCash: number; weeks: ForecastWeek[]; items: ForecastItem[];
@@ -208,9 +224,12 @@ export function cashForecast(input: StatementInput, sheet: BalanceSheet = balanc
     if (v.value > 0 && item.date <= end) items.push({ ...item, amount: cents(v.value) });
   };
 
-  for (const inv of invoiceList(records, now)) {
-    if (inv.status !== "sent") continue;
-    add({ date: at(inv.dueDate), label: `Invoice ${inv.num || ""} from ${inv.billedTo}`.replace(/\s+/g, " "), kind: "in", source: "invoice", late: !!inv.dueDate && inv.dueDate < today }, inv.total, inv.code);
+  // Invoices sent and not paid, invoices the repeating schedules will make, and supplier bills not paid (moneyDue.ts).
+  for (const d of moneyDue(records, today, end)) {
+    const who = d.who ? ` from ${d.who}` : "";
+    const label = d.kind === "bill" ? `Bill${d.ref ? ` ${d.ref}` : ""}${d.who ? ` to ${d.who}` : ""}`
+      : d.kind === "repeat" ? `Repeating invoice${who}` : `Invoice ${d.ref}${who}`.replace(/\s+/g, " ");
+    add({ date: at(d.dueDate), label, kind: d.direction, source: d.kind, late: !!d.dueDate && d.dueDate < today }, d.amount, d.code);
   }
 
   const tc = (records.taxCenter || {}) as Row;

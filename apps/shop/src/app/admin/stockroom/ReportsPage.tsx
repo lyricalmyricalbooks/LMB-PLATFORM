@@ -80,7 +80,7 @@ export function SheetTable({ sheet, money }: { sheet: ReturnType<typeof balanceS
   );
 }
 
-const SOURCE_WORDS: Record<string, string> = { invoice: "Invoice", recurring: "Recurring", pending: "Expected cost", tax: "Sales tax", sales: "Usual sales" };
+const SOURCE_WORDS: Record<string, string> = { invoice: "Invoice", repeat: "Repeating invoice", bill: "Bill", recurring: "Recurring", pending: "Expected cost", tax: "Sales tax", sales: "Usual sales" };
 
 export function ReportsView({ records, orders, now }: { records: StockroomRecords; orders: Row[] | "loading" | "failed"; now?: Date }) {
   const today = dayKey(now || new Date());

@@ -986,7 +986,8 @@ today's stock and shares, said in a note), spreadsheet and Print or save PDF (`d
 (`cashForecast`: invoices on their due day or today when late, recurring costs via `chargesBetween`, expected costs,
 sales tax on its due day, and the last 90 days' usual weekly sales; 13 weeks drawn by `ForecastChart`) and the header's
 **Download tax pack** (`taxPackFiles` + `packReceipts`: numbered CSVs, every cloud receipt fetched into `receipts/`,
-misses listed). Supplier bills aren't in it (built elsewhere). Opening the page saves `bookkeeperReports.ts`'s copy as
+misses listed). Unpaid supplier bills (`billList`, dated by `billDate`, paid by `paidDate`) are the **Bills to pay** liability; the
+forecast takes its invoices, repeating invoices and bills from `moneyDue.ts` (sources `invoice`/`repeat`/`bill`). Opening the page saves `bookkeeperReports.ts`'s copy as
 the setting `reportsForBookkeeper` (no customer names, no receipt links; `day` keeps it to one write a day unless a figure
 changes); the stockroom rules open that one setting to the bookkeeper (firestore.rules, database.rules.json, the emulator
 script's two-shop checks). Fixture: `admin-fixture.html?page=stockroom/bkreports`.
