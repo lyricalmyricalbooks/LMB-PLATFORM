@@ -1,0 +1,6 @@
+handleId,fieldType,name,description,productImageUrl,collection,sku,ribbon,price,surcharge,visible,discountMode,discountValue,inventory,weight,cost,productOptionName1,productOptionType1,productOptionDescription1,productOptionName2,productOptionType2,productOptionDescription2,additionalInfoTitle1,additionalInfoDescription1,customTextField1,customTextCharLimit1,customTextMandatory1,brand
+product_a1,Product,Moth Songs,<p>Poems for night readers.</p>,a9ff3b_1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f~mv2.jpg;a9ff3b_ffeeddccbbaa99887766554433221100~mv2.png,Poetry;New,MS-001,New,18,,TRUE,PERCENT,10,12,0.18,6.5,,,,,,,Details,<p>64 pages</p>,,,,Ada Lime
+product_b2,Product,Tide Tee,<p>Soft cotton tee.</p>,https://static.wixstatic.com/media/a9ff3b_aaaa~mv2.jpg,Merch,,,30,,TRUE,AMOUNT,0,InStock,0.15,,Size,DROP_DOWN,S;M,Colour,COLOR,#000000:Black;#f5f0e1:Cream,,,,,,
+product_b2,Variant,,,,,TT-S-BLK,,,0,TRUE,,,4,0.15,,,,S,,,#000000:Black,,,,,,
+product_b2,Variant,,,,,TT-M-CRM,,,2,TRUE,,,OutOfStock,0.16,,,,M,,,#f5f0e1:Cream,,,,,,
+product_c3,Product,Hidden Thing,,,,,,9.5,,FALSE,,,InStock,,,,,,,,,,,,,,

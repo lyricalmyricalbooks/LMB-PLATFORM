@@ -542,6 +542,13 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
   Extend it when a bring-over window changes. The fixture's dev-only `__fixtureIdToken` lets `oldShopApi.ask` run
   without Firebase sign-in.
 
+- **Real files (13 November 2026):** `testdata/moves/` holds each popular system's product, order and customer
+  export laid out as it really comes (file names name the system; nothing on screen does). `realExports.test.ts` reads
+  each, checks the odd rows (gift cards left out with a notice, hidden products noted, guarded codes, photos) and
+  imports it twice: the second run must be all unchanged. A new layout or a reader change adds its file there.
+  `https()` in shopMove reads `http://`, `//host` and one builder's bare media file names; `book()` notes photos with no
+  address and a sale on one edition. `parseMoney` reads `1.250,00`. `decodeText` reads two-byte text with no marker.
+
 ## Set up your shop (28 October 2026, code plan 6.3 and 6.9; was Your first week, 3.3)
 
 Both read the admin-only `firstWeek/start` (`adminApi.getFirstWeek`) that the platform's setup step 12 writes once

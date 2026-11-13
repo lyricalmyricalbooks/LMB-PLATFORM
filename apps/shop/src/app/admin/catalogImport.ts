@@ -163,6 +163,9 @@ export function validIsbn(value: string): boolean {
 export function parseMoney(value: string): number {
   let s = value.replace(/\s/g, "").replace(/^(CA|CAD|C)?\$/i, "").replace(/(CAD|\$)$/i, "");
   if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(s)) s = s.replace(/,/g, "");
+  // "1.250,00" and "1'250.00": a dot or an apostrophe between thousands, as files from Europe write them.
+  else if (/^\d{1,3}(\.\d{3})+,\d{1,2}$/.test(s)) s = s.replace(/\./g, "").replace(",", ".");
+  else if (/^\d{1,3}('\d{3})+(\.\d+)?$/.test(s)) s = s.replace(/'/g, "");
   else if (/^\d+,\d{1,2}$/.test(s)) s = s.replace(",", ".");
   if (!/^\d+(\.\d+)?$/.test(s)) return NaN;
   return Math.round(Number(s) * 100) / 100;

@@ -1,0 +1,4 @@
+Reference ID,First Name,Last Name,Email Address,Phone Number,Nickname,Company Name,Street Address 1,Street Address 2,City,State,Postal Code,Birthday,Memo,Square Customer ID,Creation Source,First Visit,Last Visit,Transaction Count,Lifetime Spend,Email Subscription Status,Instant Profile
+,Zoë,Brontë,zoe@example.com,'+15145550100,,,12 Rue de l'Église,Apt 3,Montréal,QC,H2X 1Y4,,Likes signed copies,AAA111,Directory,2025-01-02,2025-03-02,3,$64.41,subscribed,No
+,Sam,Okafor,sam@example.com,,,,,,,,,,,BBB222,Third Party,2025-02-11,2025-02-11,1,$48.00,unsubscribed,No
+,Walk,In,,,,,,,,,,,,CCC333,Instant Profile,2025-02-11,2025-02-11,1,$12.00,,Yes
