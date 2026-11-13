@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import { ExportDownloads, NightlyBackupDays, NightlyBackupStatus, useNightlyBackup, type ExportRun } from "../BackupsExportCard";
 import { useShopDownload } from "../DownloadShopCard";
+import { DownloadChoices } from "../DownloadChoices";
 import { LocalBackupCard } from "../LocalBackupCard";
 import { readMeta, supported } from "../localBackup";
 import { Drawer, PageActions, PrimaryButton, SecondaryButton, StatusBadge } from "../riso/components";
@@ -30,6 +31,7 @@ export function BackupsPage() {
   const shop = useShopDownload();
   const copies = useStockroomCopies();
   const [open, setOpen] = useState<Open>("");
+  const [choosing, setChoosing] = useState(false);
   const [, setSeen] = useState(0);
   const close = () => { setOpen(""); setSeen((n) => n + 1); };
   const row = nightlyRow(nightly.record);
@@ -67,9 +69,12 @@ export function BackupsPage() {
           <li>
             <div className="rp-listcard-main">
               <span className="rp-listcard-name">Download all your data</span>
-              <span className="rp-listcard-sub">{shop.summary ? `Saved: ${shop.summary}` : "Spreadsheet files and one zip"}</span>
+              <span className="rp-listcard-sub">{shop.summary ? `Saved: ${shop.summary}` : "Everything in one zip, or choose the parts"}</span>
             </div>
-            <SecondaryButton size="sm" busy={shop.busy} onClick={() => void shop.run()}>{shop.busy ? shop.label : "Download"}</SecondaryButton>
+            <span className="flex flex-wrap gap-2">
+              <SecondaryButton size="sm" disabled={shop.busy} onClick={() => setChoosing(true)}>Choose</SecondaryButton>
+              <SecondaryButton size="sm" busy={shop.busy} onClick={() => void shop.run()}>{shop.busy ? shop.label : "Download"}</SecondaryButton>
+            </span>
           </li>
           <li>
             <button type="button" className="rp-listcard-main" onClick={() => setOpen("folder")} aria-label="Set up the folder on this computer">
@@ -101,6 +106,7 @@ export function BackupsPage() {
       <Drawer open={open === "sheets"} onClose={close} title="Spreadsheets" description="Made in this browser. Nothing is sent anywhere.">
         <ExportDownloads extra={stockCounts} />
       </Drawer>
+      <DownloadChoices open={choosing} onClose={() => setChoosing(false)} onDownload={(c) => { setChoosing(false); void shop.run(c); }} />
     </div>
   );
 }
