@@ -55,7 +55,7 @@ describe("Stockroom › Backups", () => {
     await act(async () => { root!.render(<BackupsPage />); });
     const text = el.textContent || "";
     expect(el.querySelector("h2")?.textContent).toBe("Backups");
-    for (const line of ["Every night · kept 30 days", "Stockroom copies", "1 kept", "Download all your data", "Spreadsheet files and one zip", "Back up to a folder", "Spreadsheets"]) expect(text).toContain(line);
+    for (const line of ["Every night · kept 30 days", "Stockroom copies", "1 kept", "Download all your data", "Everything in one zip, or choose the parts", "Back up to a folder", "Spreadsheets"]) expect(text).toContain(line);
     const now = [...el.querySelectorAll("button")].find((b) => b.textContent === "Back up now")!;
     await act(async () => { now.click(); });
     expect(nightlyBackupApi.backupNow).toHaveBeenCalledTimes(1);
