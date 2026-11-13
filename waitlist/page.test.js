@@ -16,7 +16,7 @@ test("the page and the platform's settings use the same product name", () => {
 test("the name is in the tab title, the description, the header mark and the footer", () => {
   assert.match(page.match(/<title>([^<]*)<\/title>/)[1], /^Colophon\b/);
   assert.match(page.match(/<meta name="description" content="([^"]*)"/)[1], /\bColophon\b/);
-  assert.match(textOf(page.match(/<div class="mark">([\s\S]*?)<\/div>/)[1]), /^Colophon\b/);
+  assert.match(textOf(page.match(/<a class="cp-word"[^>]*>([\s\S]*?)<\/a>/)[1]), /^Colophon\b/);
   assert.match(textOf(page.match(/<footer>([\s\S]*?)<\/footer>/)[1]), /\bColophon\b/);
 });
 

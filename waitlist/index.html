@@ -6,78 +6,125 @@
 <title>Colophon: your shop and stockroom</title>
 <meta name="description" content="Colophon: an online shop and a stockroom for independent brands. Sell online and in person from the same count of stock.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=Instrument+Serif:ital@1&display=swap">
 <link rel="stylesheet" href="./look/adminThemes.css">
 <link rel="stylesheet" href="./look/pressroom.css">
 <link rel="stylesheet" href="./look/colophon.css">
 <link rel="stylesheet" href="./look/platform-pages.css">
 <script src="./look/platform-look.js"></script>
 </head>
-<body class="cp cp-front">
+<body class="cp cp-front cp-home">
 <a class="rp-skip-link" href="#main">Skip to content</a>
-<header class="cp-mast"><div class="cp-wrap"><a class="cp-word" href="./">Colophon<small>shop and stockroom for independent brands</small></a>
-  <nav aria-label="Colophon"><a href="/pricing">Pricing</a><a href="../help/">Help</a><a href="../account/">Sign in</a><a class="cp-nav-cta" id="cta" href="#start"><span class="cp-long" id="cta-long">Join the waitlist</span><span class="cp-short" id="cta-short">Join</span></a></nav></div></header>
+<header class="cp-mast"><div class="cp-wrap"><div class="cp-fp-nav">
+  <a class="cp-word" href="./"><svg class="cp-fp-logo" viewBox="0 0 24 24" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><circle cx="17" cy="7" r="4.5"/><rect x="2.5" y="12" width="19" height="10" rx="4"/></svg>Colophon<small>shop and stockroom for independent brands</small></a>
+  <nav aria-label="Colophon"><a class="cp-fp-link" href="#platform">Platform</a><a class="cp-fp-link" href="#how">How it works</a><a class="cp-fp-link" href="/pricing">Pricing</a><a class="cp-fp-link" href="#about">About</a><a class="cp-fp-signin" href="../account/">Sign in</a><a class="cp-nav-cta" id="cta" href="#start"><span class="cp-long" id="cta-long">Start selling</span><span class="cp-short" id="cta-short">Start</span><span aria-hidden="true"> →</span></a></nav></div></div></header>
 <main id="main" tabindex="-1">
   <div class="cp-wrap">
-    <section class="cp-fp-hero cp-dark" aria-labelledby="hero-title">
-      <div>
-        <div class="mark">Colophon · founding shops</div>
-        <h1 id="hero-title">Your brand, your shop, your stockroom.</h1>
-        <p class="cp-lede">Everything you need to sell online and in person, from the same count of stock.</p>
-        <form id="start" class="cp-fp-form" novalidate aria-describedby="start-note">
-          <label class="rp-sr-only" for="start-email">Your email</label>
-          <input id="start-email" name="email" type="email" autocomplete="email" inputmode="email" placeholder="Your email" required>
-          <!-- Left empty by people; bots that fill it are quietly ignored (waitlist/signup.js). -->
-          <input name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px">
-          <button class="primary" type="submit" id="start-submit">Join the waitlist</button>
-        </form>
-        <p class="error" id="start-error" role="alert" hidden></p>
-        <p id="status" role="status" aria-live="polite"></p>
-        <p class="cp-note" id="start-note">Free setup · no card · we're starting in Canada</p>
-        <p class="cp-note cp-fp-small" id="start-consent">Colophon will email you about your place and the launch, and nothing else. Reply STOP to any of our emails and we'll take you off the list at once.</p>
-        <p id="sample-press" hidden>Want to look around first? <a href="">Try a sample press</a>. Nothing you do there is saved.</p>
+    <section class="cp-fp-hero" aria-labelledby="hero-title">
+      <div class="cp-fp-copy">
+        <p class="cp-fp-tag"><b>Founding shops</b><span>Now welcoming independent brands</span></p>
+        <h1 id="hero-title">One home for everything you sell.</h1>
+        <p class="cp-lede">A beautiful online shop, simple in-person selling, and a stockroom that always knows what's left.</p>
+        <div class="cp-fp-actions"><a class="button primary cp-fp-go" href="#start">Start your shop <span aria-hidden="true">→</span></a><a class="cp-fp-more" href="#platform">Explore the platform <span aria-hidden="true">↓</span></a></div>
+        <ul class="cp-fp-trust"><li>Free setup</li><li>No credit card</li><li>Built in Canada</li></ul>
       </div>
-      <!-- A drawing of a shop: two made-up products and this week's figures. -->
-      <div class="cp-fp-goods" role="img" aria-label="A sample shop: a linen tote and a ceramic mug, 23 sold this week, 412 items left, $640 sold in person">
-        <div class="cp-fp-good"><span>NEW</span><b>Linen Tote<br>$28</b></div>
-        <div class="cp-fp-good"><span>BESTSELLER</span><b>Ceramic Mug<br>$22</b></div>
-        <div class="cp-fp-stats"><div>Sold this week<b>23</b></div><div>Items left<b>412</b></div><div>In person<b>$640</b></div></div>
-      </div>
-    </section>
-
-    <section class="cp-fp-steps" aria-label="How it works">
-      <div class="card"><div class="cp-fp-num">01</div><h3>Bring your products</h3><p>From your old shop or a spreadsheet, with photos and customers.</p></div>
-      <div class="card"><div class="cp-fp-num">02</div><h3>Pick a look</h3><p>Ten looks to start from. Then change every word, colour and section in the shop designer.</p></div>
-      <div class="card cp-tone-mint"><div class="cp-fp-num">03</div><h3>Open</h3><p>We set up your web address, payments and email. Sign in with Google once.</p></div>
-    </section>
-
-    <section class="cp-fp-sec" id="what-you-get" aria-labelledby="get-title">
-      <h2 id="get-title" class="cp-fp-h2">Built for how you actually sell</h2>
-      <div class="cp-grid4 cp-fp-feats">
-        <div class="card">
-          <div class="cp-fp-art" aria-hidden="true"><div><span class="dots"><i></i><i></i><i></i></span><span class="row3"><i></i><i></i><i></i></span><span class="pillish">Checkout</span></div></div>
-          <div><h3>Online shop</h3><p>Checkout, taxes and labels.</p></div>
-        </div>
-        <div class="card">
-          <div class="cp-fp-art" aria-hidden="true"><div class="phone"><div><span>Market total</span><b>$640</b><span class="pillish">Paid</span></div></div></div>
-          <div><h3>In person</h3><p>Markets and pop-ups, even offline.</p></div>
-        </div>
-        <div class="card">
-          <div class="cp-fp-art" aria-hidden="true"><div><span class="count">Tote<span><em>S 4</em><em>M 7</em><em>L 2</em></span></span><span class="count">Tee<span><em>S 9</em><em>M 0</em><em>L 5</em></span></span><span class="count">Mug<span><em>12</em></span></span></div></div>
-          <div><h3>Stockroom</h3><p>Every size and colour counted.</p></div>
-        </div>
-        <div class="card">
-          <div class="cp-fp-art" aria-hidden="true"><div><span>This month</span><span class="bars"><i style="height:45%"></i><i style="height:70%"></i><i style="height:55%"></i><i style="height:90%"></i><i style="height:65%"></i></span></div></div>
-          <div><h3>What's selling</h3><p>By week, product and channel.</p></div>
+      <!-- A drawing of the admin with made-up figures: it shows the idea, it is not a live shop. -->
+      <div class="cp-fp-visual" role="img" aria-label="A sample Colophon dashboard: good morning, net sales $2,840, 84 orders, 6 items low on stock, and a sales chart for the week">
+        <span class="cp-fp-blob cp-fp-blob-a"></span><span class="cp-fp-blob cp-fp-blob-b"></span>
+        <div class="cp-fp-dash" aria-hidden="true">
+          <div class="cp-fp-side"><i class="cp-fp-dot cp-fp-dot-on"></i><i class="cp-fp-dot"></i><i class="cp-fp-dot"></i><i class="cp-fp-dot"></i></div>
+          <div class="cp-fp-main">
+            <small>Monday, May 12</small><h3>Good morning, Eva.</h3>
+            <div class="cp-fp-kpis"><div class="cp-fp-kpi cp-fp-kpi-dark"><small>Net sales</small><b>$2,840</b><em>↑ 18% from last week</em></div><div class="cp-fp-kpi"><small>Orders</small><b>84</b><em>72 online · 12 in person</em></div><div class="cp-fp-kpi cp-fp-kpi-warm"><small>Low stock</small><b>6</b><em>Needs your attention</em></div></div>
+            <div class="cp-fp-chart"><small>Sales overview</small><b>$8,490</b><span class="bars"><i style="height:38%"></i><i style="height:52%"></i><i style="height:42%"></i><i style="height:70%"></i><i style="height:48%"></i><i style="height:92%"></i><i style="height:64%"></i></span></div>
+          </div>
+          <div class="cp-fp-toast"><i></i><span>New order<small>Linen Tote · $48.00</small></span></div>
         </div>
       </div>
     </section>
+  </div>
 
-    <section class="cp-fp-sec" aria-labelledby="founding-title">
-      <div class="card cp-fp-founding">
-        <div class="mark">Founding shops</div>
-        <h2 id="founding-title">Get set up first, lock in a founding price, and have a say in what gets built next.</h2>
-        <a class="button primary" id="founding-go" href="#start">Join the waitlist</a>
+  <div class="cp-fp-band" aria-hidden="true"><div class="cp-fp-track"><span>Sell online</span><span>Sell in person</span><span>One count of stock</span><span>Know what's working</span><span>Sell online</span><span>Sell in person</span><span>One count of stock</span><span>Know what's working</span><span>Sell online</span><span>Sell in person</span><span>One count of stock</span><span>Know what's working</span></div></div>
+
+  <div class="cp-wrap">
+    <section class="cp-fp-sec cp-fp-intro" id="platform" aria-labelledby="platform-title">
+      <p class="cp-fp-eyebrow">01 / The platform</p>
+      <h2 id="platform-title" class="cp-fp-big">Small business is already a lot. <em>Your software shouldn't be.</em></h2>
+      <p class="cp-fp-sub">Colophon brings the moving parts together, so every sale, product and customer stays in sync.</p>
+    </section>
+
+    <section class="cp-fp-bento" aria-label="What's in Colophon">
+      <article class="cp-fp-tile cp-fp-shop">
+        <div class="cp-fp-tilecopy">
+          <p class="cp-fp-eyebrow">Your online shop</p>
+          <h3>A storefront that feels like you.</h3>
+          <p>Choose a starting point, then make every colour, word and section your own. No themes that look like everyone else.</p>
+          <a class="cp-fp-arrow" href="#start">Build your shop <span aria-hidden="true">→</span></a>
+        </div>
+        <div class="cp-fp-browser" role="img" aria-label="A sample online shop with a linen tote on its product page">
+          <div class="cp-fp-chrome"><i></i><i></i><i></i><span></span></div>
+          <div class="cp-fp-site"><div class="cp-fp-sitebar"><b>ordinary objects</b><span>Shop &nbsp; About &nbsp; Cart (0)</span></div>
+            <div class="cp-fp-product"><div class="cp-fp-photo"><span class="cp-fp-tote"></span></div><div class="cp-fp-info"><small>New arrival</small><h4>Everyday Linen Tote</h4><p>Heavyweight washed linen, made for market mornings and everyday errands.</p><b>$48.00</b><span class="cp-fp-add">Add to cart</span></div></div>
+          </div>
+          <div class="cp-fp-toast cp-fp-toast-shop"><i></i><span>Stock updated<small>Counted across all locations</small></span></div>
+        </div>
+      </article>
+      <article class="cp-fp-tile cp-fp-person">
+        <p class="cp-fp-eyebrow">In-person sales</p>
+        <h3>Take the shop to the market.</h3>
+        <p>Sell from your phone at markets, pop-ups and studio visits, even if the Wi-Fi gives up.</p>
+        <div class="cp-fp-phone" role="img" aria-label="A sample quick sale on a phone: a linen tote and a studio mug, total $80.00">
+          <small>Quick sale</small>
+          <div class="cp-fp-line"><i></i><span>Linen Tote<small>Natural</small></span><b>$48</b></div>
+          <div class="cp-fp-line"><i class="cp-fp-mugswatch"></i><span>Studio Mug<small>Cobalt</small></span><b>$32</b></div>
+          <div class="cp-fp-total"><span>Total</span><b>$80.00</b></div>
+          <span class="cp-fp-charge">Charge $80.00</span>
+        </div>
+      </article>
+      <article class="cp-fp-tile cp-fp-stock">
+        <p class="cp-fp-eyebrow">Your stockroom</p>
+        <h3>Always know what's on the shelf.</h3>
+        <p>Online and in-person sales draw from one live count, down to every size and colour.</p>
+        <div class="cp-fp-table" role="img" aria-label="A sample inventory list: linen tote 12 in stock, studio mug 4 low, sunday tray 18 in stock">
+          <small>Inventory</small>
+          <div><i></i><span>Linen Tote<small>Natural · 1 size</small></span><b>12</b><em>In stock</em></div>
+          <div><i class="cp-fp-mugswatch"></i><span>Studio Mug<small>Cobalt · 1 size</small></span><b>4</b><em class="cp-fp-low">Low</em></div>
+          <div><i class="cp-fp-trayswatch"></i><span>Sunday Tray<small>White · 1 size</small></span><b>18</b><em>In stock</em></div>
+        </div>
+      </article>
+    </section>
+
+    <section class="cp-fp-sec" id="how" aria-labelledby="how-title">
+      <p class="cp-fp-eyebrow">02 / Getting started</p>
+      <div class="cp-fp-howhead"><h2 id="how-title" class="cp-fp-big cp-fp-left">From idea to open in three simple steps.</h2><p class="cp-fp-sub">Bring what you have. We'll help with the rest, including the fiddly bits nobody starts a brand to do.</p></div>
+      <div class="cp-fp-steps">
+        <article class="card"><span class="cp-fp-num">01</span><div class="cp-fp-art cp-fp-art-import" aria-hidden="true"><i>CSV</i><i>IMG</i><b>→</b><i class="cp-fp-ink">COL</i></div><h3>Bring your products</h3><p>Import from your old shop or a spreadsheet, with photos and customer details intact.</p></article>
+        <article class="card"><span class="cp-fp-num">02</span><div class="cp-fp-art cp-fp-art-look" aria-hidden="true"><i></i><i></i><i></i><b>Aa</b></div><h3>Make it yours</h3><p>Pick a starting look, then tune every word, colour and section in the shop designer.</p></article>
+        <article class="card"><span class="cp-fp-num">03</span><div class="cp-fp-art cp-fp-art-open" aria-hidden="true"><b>OPEN</b></div><h3>Open your doors</h3><p>We set up your web address, payments and email. Then you're ready for your first order.</p></article>
+      </div>
+    </section>
+
+    <section class="cp-fp-sec" id="about" aria-labelledby="founding-title">
+      <div class="cp-fp-join cp-dark">
+        <div>
+          <p class="cp-fp-eyebrow">Founding shops</p>
+          <h2 id="founding-title">Get set up first, lock in a founding price, and have a say in what gets built next.</h2>
+          <p class="cp-fp-aboutline">Colophon is built in Canada by a small independent press, for shops like yours. <a href="/pricing">See pricing</a></p>
+        </div>
+        <div>
+          <form id="start" class="cp-fp-form" novalidate aria-describedby="start-note">
+            <label class="rp-sr-only" for="start-email">Your email</label>
+            <input id="start-email" name="email" type="email" autocomplete="email" inputmode="email" placeholder="Your email" required>
+            <!-- Left empty by people; bots that fill it are quietly ignored (waitlist/signup.js). -->
+            <input name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px">
+            <button class="primary" type="submit" id="start-submit">Join the waitlist</button>
+          </form>
+          <p class="error" id="start-error" role="alert" hidden></p>
+          <p id="status" role="status" aria-live="polite"></p>
+          <p class="cp-note" id="start-note">Free setup · no card · we're starting in Canada</p>
+          <p class="cp-note cp-fp-small" id="start-consent">Colophon will email you about your place and the launch, and nothing else. Reply STOP to any of our emails and we'll take you off the list at once.</p>
+          <p id="sample-press" hidden>Want to look around first? <a href="">Try a sample press</a>. Nothing you do there is saved.</p>
+        </div>
       </div>
     </section>
   </div>
@@ -100,6 +147,7 @@
       if (!view) return;
       signupUrl = SIGNUP_URL;
       showFrontPage(document, frontPageWords({ open: true, trialDays: view.trialDays }), { signupUrl });
+      for (const link of document.querySelectorAll(".cp-fp-go, .cp-fp-arrow")) link.href = signupUrl;
     });
   }
 

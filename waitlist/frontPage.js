@@ -17,7 +17,6 @@ export function frontPageWords({ open = false, trialDays = null } = {}) {
       submit: "Join the waitlist",
       note: "Free setup · no card · we're starting in Canada",
       consent: true,
-      founding: { label: "Join the waitlist", href: "#start" },
     };
   }
   return {
@@ -26,7 +25,6 @@ export function frontPageWords({ open = false, trialDays = null } = {}) {
     submit: "Start free trial",
     note: Number.isInteger(trialDays) && trialDays > 0 ? `Free setup · no card · ${trialDays} days free once you open` : "Free setup · no card",
     consent: false,
-    founding: { label: "See plans", href: "/pricing" },
   };
 }
 
@@ -39,8 +37,6 @@ export function showFrontPage(doc, words, { signupUrl = "" } = {}) {
   $("start-submit").textContent = words.submit;
   $("start-note").textContent = words.note;
   $("start-consent").hidden = !words.consent;
-  $("founding-go").textContent = words.founding.label;
-  $("founding-go").href = words.founding.href;
 }
 
 /** Leaves the email for the front door. Storage can be off (private windows): the front door then just asks again. */

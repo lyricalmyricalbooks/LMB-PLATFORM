@@ -24,15 +24,13 @@ test("closed (today): every button joins the waitlist, and the page says who ema
   assert.equal(words.submit, "Join the waitlist");
   assert.equal(words.consent, true);
   assert.match(words.note, /we're starting in Canada/);
-  assert.deepEqual(words.founding, { label: "Join the waitlist", href: "#start" });
   // The page as served is the closed state, so it reads right before any script runs.
   assert.match(page, /id="start-submit">Join the waitlist</);
   assert.match(page, /id="start-note">Free setup · no card · we're starting in Canada</);
-  assert.match(page, /id="founding-go" href="#start">Join the waitlist</);
   assert.match(page, /id="cta" href="#start">/);
 });
 
-test("open: Start free trial everywhere, the trial length only from the plans answer, See plans goes to the plans", () => {
+test("open: Start free trial everywhere, the trial length only from the plans answer", () => {
   const words = frontPageWords({ open: true, trialDays: 14 });
   assert.equal(words.note, "Free setup · no card · 14 days free once you open");
   assert.equal(frontPageWords({ open: true, trialDays: null }).note, "Free setup · no card");
@@ -44,8 +42,6 @@ test("open: Start free trial everywhere, the trial length only from the plans an
   assert.equal(doc.ids.get("cta-short").textContent, "Start trial");
   assert.equal(doc.ids.get("start-submit").textContent, "Start free trial");
   assert.equal(doc.ids.get("start-consent").hidden, true, "no waitlist emails once the trial starts at the front door");
-  assert.equal(doc.ids.get("founding-go").textContent, "See plans");
-  assert.equal(doc.ids.get("founding-go").href, "/pricing");
   assert.doesNotMatch(page, /\b\d+ days free\b/, "no trial length typed into the page");
 });
 
@@ -92,8 +88,8 @@ test("the front page's styles stay under .cp-front and name no colour", () => {
   assert.doesNotMatch(block, /#[0-9a-f]{3,8}\b|rgba?\(/i);
   for (const rule of block.replace(/\/\*[\s\S]*?\*\//g, "").match(/[^{}]+(?=\{)/g)) {
     const selector = rule.trim();
-    if (selector.startsWith("@media")) continue;
+    if (selector.startsWith("@media") || selector.startsWith("@keyframes") || /^(from|to|\d+%)$/.test(selector)) continue;
     for (const part of topLevel(selector)) assert.match(part.trim(), /^\.cp-(front|fp-|short|long)/, part.trim());
   }
-  assert.match(page, /<body class="cp cp-front">/);
+  assert.match(page, /<body class="cp cp-front cp-home">/);
 });
