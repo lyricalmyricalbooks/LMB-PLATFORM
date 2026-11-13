@@ -2424,12 +2424,15 @@ div.rp-listcard-main { cursor: default; }
 .rp .rp-count-chip { display: inline-block; padding: 4px 12px; border-radius: 999px; background: var(--rp-surface-2); color: var(--rp-text); font-size: 12px; font-weight: 600; white-space: nowrap; }
 .rp .rp-count-chip[data-tone="good"] { background: var(--rp-tile-mint); color: var(--rp-on-tile); }
 .rp .rp-count-chip[data-tone="warn"] { background: var(--rp-tile-apricot); color: var(--rp-on-tile); }
+/* Count report: the "now" column is a plain number where the counting buttons were. */
+.rp .rp-count-now { gap: 4px; font: 600 16px/1 var(--rp-font-mono); color: var(--rp-text); }
 @media (max-width: 640px) {
   .rp .rp-count-head { display: none; }
   .rp .rp-count-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 8px; }
   .rp .rp-count-expected { text-align: left; font-size: 13px; }
   .rp .rp-count-label { display: inline; }
   .rp .rp-count-step { grid-column: 1; justify-content: flex-start; }
+  .rp .rp-count-now { font-size: 13px; }
   .rp .rp-count-diff { grid-column: 2; grid-row: 2; text-align: right; }
 }
 @media (max-width: 640px) {

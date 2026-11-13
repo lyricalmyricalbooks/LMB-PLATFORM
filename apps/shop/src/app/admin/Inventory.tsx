@@ -400,7 +400,7 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
   if (counting) {
     const countable = all.filter((r) => r.kind === "stock" && r.editable && !linked(r));
     const byId = new Map(countable.map((r) => [r.id, r]));
-    const items: CountItem[] = countable.map((r) => ({ id: r.id, title: r.title, cover: rowCoverUrl(r), expected: r.stock,
+    const items: CountItem[] = countable.map((r) => ({ id: r.id, title: r.title, cover: rowCoverUrl(r), expected: r.stock, cost: costs[r.bookId] || undefined,
       sub: [r.edition || r.format, r.sku ? `SKU ${r.sku}` : "", r.shelfLocation ? `Shelf ${r.shelfLocation}` : ""].filter(Boolean).join(" · ") }));
     const finishCount = async (changes: { id: string; to: number }[]) => {
       const plan = changes.flatMap((c) => { const row = byId.get(c.id); return row ? [{ row, ch: { kind: "set" as const, to: c.to, expected: row.stock }, from: row.stock, to: c.to }] : []; });
@@ -415,7 +415,7 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
       if (!failedIds.length) toast(done ? `Count finished: ${done} corrected` : "Count finished: everything matched");
       return failedIds;
     };
-    return <CountStock items={items} onFinish={finishCount} onClose={() => setCounting(false)} />;
+    return <CountStock items={items} onFinish={finishCount} onClose={() => setCounting(false)} money={money} />;
   }
 
   return (

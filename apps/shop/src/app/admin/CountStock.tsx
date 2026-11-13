@@ -1,20 +1,24 @@
 // Inventory › Count stock (v4 mockup 1k): expected / counted (− and + or type it) / difference, three facts on top and
 // one status bar. Finish count is blocked until every row is counted; Save for later keeps the counts in this browser.
+// After finishing, the difference report: what changed, by how many, and its value at cost, with a spreadsheet download.
 import { useMemo, useState } from "react";
 import { Minus, Plus } from "lucide-react";
-import { PageHead } from "./riso/components";
+import { PageHead, SecondaryButton, PrimaryButton } from "./riso/components";
+import { toCsv } from "./spreadsheetFile";
 import { StatusBar } from "./riso/FormKit";
-import { countStatus, countSummary, differenceText, readCountSession, writeCountSession, type Counts } from "./stockCount";
+import { countReport, countReportRows, countStatus, countSummary, differenceText, readCountSession, writeCountSession, type CountReport, type Counts } from "./stockCount";
 
-export type CountItem = { id: string; title: string; sub?: string; cover?: string | null; expected: number };
+export type CountItem = { id: string; title: string; sub?: string; cover?: string | null; expected: number; cost?: number };
 
 const startedText = (t: number) => new Date(t).toLocaleString("en-CA", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
-export function CountStock({ items, onFinish, onClose }: {
+export function CountStock({ items, onFinish, onClose, money = (n: number) => n.toFixed(2) }: {
   items: CountItem[];
   /** Applies the changes; resolves to the ids that could not be saved (empty when all went through). */
   onFinish: (changes: { id: string; from: number; to: number }[]) => Promise<string[] | null>;
   onClose: () => void;
+  /** How the shop writes an amount (its own currency). */
+  money?: (n: number) => string;
 }) {
   const [session] = useState(() => readCountSession() || { startedAt: Date.now(), counts: {} as Counts });
   const known = useMemo(() => new Set(items.map((i) => i.id)), [items]);
@@ -22,6 +26,7 @@ export function CountStock({ items, onFinish, onClose }: {
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
+  const [report, setReport] = useState<{ at: number; data: CountReport } | null>(null);
   const summary = countSummary(items, counts);
   const status = countStatus(summary);
   const setCount = (id: string, n: number | undefined) => { setNote(""); setCounts((c) => { const next = { ...c }; if (n === undefined) delete next[id]; else next[id] = Math.max(0, n); return next; }); };
@@ -39,8 +44,11 @@ export function CountStock({ items, onFinish, onClose }: {
       return;
     }
     writeCountSession(null);
-    onClose();
+    if (!summary.counted) { onClose(); return; }
+    setReport({ at: Date.now(), data: countReport(items, summary.changes, summary.counted) });
   };
+
+  if (report) return <CountReportView report={report.data} at={report.at} money={money} onDone={onClose} />;
 
   return (
     <>
@@ -89,6 +97,51 @@ export function CountStock({ items, onFinish, onClose }: {
       <StatusBar status={{ tone: status.tone, text: status.text }} primaryLabel="Finish count" busy={busy} blocked={status.blocked}
         onBlocked={() => setNote("Count every item first. Start counting on a row sets it to what is expected; then change it to what is on the shelf.")}
         onPrimary={() => void finish()} cancelLabel="Save for later" onCancel={later} />
+    </>
+  );
+}
+
+const signed = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n)}`;
+
+/** After Finish count: the differences, biggest loss first, with their value at cost price. */
+function CountReportView({ report, at, money, onDone }: { report: CountReport; at: number; money: (n: number) => string; onDone: () => void }) {
+  const day = new Date(at).toISOString().slice(0, 10);
+  const download = () => {
+    const url = URL.createObjectURL(new Blob([toCsv(countReportRows(report, day))], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = `stock-count-${day}.csv`; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  return (
+    <>
+      <PageHead title="Count report" description={`Counted ${startedText(at)}`} back={{ label: "Inventory", onClick: onDone }} />
+      <div className="rp-fk-facts">
+        <div><span>Matched</span><b>{report.matched}</b></div>
+        <div><span>Missing</span><b>{report.missing}{report.valueMissing ? <small> · {money(report.valueMissing)}</small> : null}</b></div>
+        <div><span>Found</span><b>{report.found}{report.valueFound ? <small> · {money(report.valueFound)}</small> : null}</b></div>
+      </div>
+      <div className="rp-fk-card rp-count">
+        {report.rows.length === 0
+          ? <p className="rp-fk-hint" style={{ padding: "12px 0" }}>Everything on the shelf matched. Nothing was changed.</p>
+          : <>
+              <div className="rp-count-head" aria-hidden><span>Item</span><span>Was</span><span>Now</span><span>Difference</span></div>
+              <ul className="rp-count-rows" aria-label="Differences">
+                {report.rows.map((r) => (
+                  <li key={r.id} className="rp-count-row">
+                    <span className="rp-count-item"><span><b>{r.title}</b>{r.sub && <span className="rp-count-sub">{r.sub}</span>}</span></span>
+                    <span className="rp-count-expected"><span className="rp-count-label">Was </span>{r.from}</span>
+                    <span className="rp-count-step rp-count-now"><span className="rp-count-label">Now </span>{r.to}</span>
+                    <span className="rp-count-diff"><span className="rp-count-chip" data-tone="warn">{signed(r.diff)}{r.value !== null ? ` · ${money(Math.abs(r.value))}` : ""}</span></span>
+                  </li>
+                ))}
+              </ul>
+              {report.noCost > 0 && <p className="rp-fk-hint">{`${report.noCost} ${report.noCost === 1 ? "item has" : "items have"} no cost price, so ${report.noCost === 1 ? "its" : "their"} value isn't counted.`}</p>}
+            </>}
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
+        {report.rows.length > 0 && <SecondaryButton onClick={download}>Download report</SecondaryButton>}
+        <PrimaryButton onClick={onDone}>Done</PrimaryButton>
+      </div>
     </>
   );
 }

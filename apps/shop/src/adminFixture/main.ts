@@ -800,6 +800,17 @@ if (new URLSearchParams(location.search).get("variants")) {
   api.getBooks = async () => products;
   api.getAllBooks = async () => products;
   api.getBook = async (id: string) => products.find((b) => b.id === id) ?? null;
+  // Count stock and other stock changes save in memory, so Inventory › Count stock reaches its count report.
+  const { inventoryApi } = await import("../app/admin/inventoryApi");
+  (inventoryApi as any).adjustStock = async (_bookId: string, variantId: string | null, change: any) => {
+    const v = tee.variants.find((x: any) => x.id === variantId);
+    const from = v ? v.stockLevel : 0;
+    const to = change.kind === "set" ? change.to : from + (change.delta || 0);
+    if (v) { v.stockLevel = to; v.stock = to; }
+    return { ok: true, from, to, patch: {} };
+  };
+  (inventoryApi as any).costs = async () => ({ tee: 9.5 });
+  (inventoryApi as any).stockAlerts = async () => [];
 }
 
 // ── Stock › Reorder list sample (reorder worker): one title selling fast with copies left (`?page=reorder`).
