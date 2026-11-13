@@ -1900,7 +1900,12 @@ const { handleCancelOrder, handleResolveMismatch, handleCheckoutStatus, handleTr
 });
 
 const { handleStockistPricing, handleStockistStatus } = stockistActions({ db, LIMITS, hitLimit, canViewOrder, orderRequestIdentity, orderRequestKey });
-const { handlePaymentLink, handleCustomerAddOn } = paymentLinkActions({ db, requireAdmin, priceOrder, PricingError, publicErrorMessage, hitLimit, LIMITS, canViewOrder, orderRequestKey, orderRequestIdentity });
+// Send by email (gap list item 12): read at call time, since sendEmail is reassigned by the handler tests.
+const paymentLinkEmailDeps = async () => ({
+  settings: await loadNotificationSettings(), compileEmailTemplate, orderTrackUrl, formatTotal: chargedTotalFmt,
+  sendEmail: message => sendEmail(message), secret: resendSecretValue(),
+});
+const { handlePaymentLink, handleCustomerAddOn } = paymentLinkActions({ db, requireAdmin, priceOrder, PricingError, publicErrorMessage, hitLimit, LIMITS, canViewOrder, orderRequestKey, orderRequestIdentity, linkEmailDeps: paymentLinkEmailDeps });
 // Card pay links for stockroom invoices and settle-ups (invoicePay.js): no shop order, the admin reads whether they're paid.
 const { handleInvoicePay, handleInvoicePayOpen } = require("./invoicePay").invoicePayActions({
   db, requireAdmin, payments, shopTestMode: () => shopTestMode(), hitLimit, LIMITS, siteLink, shopName: () => shopConfig.senderName,
@@ -3063,6 +3068,14 @@ const DEFAULT_NOTIFICATIONS = {
     body: "Hi {{recipient_name}},\n\n{{sender_name}} sent you a {{amount}} gift card for {{shop_name}}.\n\n{{message}}\n\nYour gift card code: {{code}}\n\nEnter it in the Gift card box at checkout. {{expires}}",
     buttonText: "Shop now",
     signoff: "Happy reading,\nThe {{shop_name}} team",
+    enabled: true
+  },
+  // Gap list item 12: the owner's Send by email on an order to pay (paymentLinks.js sendLinkEmail).
+  payment_link: {
+    subject: "Your order {{order_id}} from {{shop_name}} is ready to pay",
+    body: "Hi {{customer_name}},\n\nYour order from {{shop_name}} is ready. The total is {{total_price}}, and you can pay by card until {{expires_on}}.\n\n{{note}}",
+    buttonText: "Pay now",
+    signoff: "Thanks,\nThe {{shop_name}} team",
     enabled: true
   },
   // Code plan 21.5: two days before an unpaid payment link closes (paymentLinks.js sendLinkReminders).

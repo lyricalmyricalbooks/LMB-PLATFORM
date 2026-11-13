@@ -348,6 +348,8 @@ function shopEmails({
           expires: "",
           // Payment link reminder (payment_link_reminder)
           expires_on: "November 5, 2026",
+          // Payment link (payment_link)
+          note: french ? "Merci pour votre commande de 40 exemplaires." : "Thanks for ordering 40 copies.",
           shop_url: siteLink("/"),
           items_table: `
             <div style="margin: 30px 0; border-top: 1px solid #eeeeee; padding-top: 20px;">

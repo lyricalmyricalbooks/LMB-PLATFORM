@@ -61,6 +61,12 @@ const DEFAULT_NOTIFICATIONS_FR = Object.freeze({
     buttonText: "Magasiner",
     signoff: "Au plaisir,\nL'équipe {{shop_name}}",
   },
+  payment_link: {
+    subject: "Votre commande {{order_id}} chez {{shop_name}} est prête à payer",
+    body: "Bonjour {{customer_name}},\n\nVotre commande chez {{shop_name}} est prête. Le total est de {{total_price}}, et vous pouvez payer par carte jusqu'au {{expires_on}}.\n\n{{note}}",
+    buttonText: "Payer maintenant",
+    signoff: SIGN,
+  },
   payment_link_reminder: {
     subject: "Rappel : votre commande {{order_id}} est prête à payer",
     body: "Bonjour {{customer_name}},\n\nUn petit rappel : votre commande chez {{shop_name}} attend son paiement. Le total est de {{total_price}}, et le lien de paiement reste ouvert jusqu'au {{expires_on}}.",

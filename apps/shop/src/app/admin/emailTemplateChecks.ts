@@ -9,7 +9,7 @@ import { DEFAULT_SHOP_NAME } from "../features/site/shopIdentity";
 export type TemplateId =
   | "order_confirmation" | "order_pending_payment" | "shipping_confirmation" | "abandoned_cart" | "order_cancelled"
   | "order_refunded" | "customer_welcome" | "delivery_update" | "contact_reply" | "gift_card" | "review_request"
-  | "payment_link_reminder" | "part_shipped" | "carrier_delivery_update" | "request_received" | "payment_failed"
+  | "payment_link" | "payment_link_reminder" | "part_shipped" | "carrier_delivery_update" | "request_received" | "payment_failed"
   | "order_picked_up";
 
 export type TemplateFields = {
@@ -25,6 +25,7 @@ export const PLACEHOLDERS: Record<TemplateId, string[]> = {
   part_shipped: ["customer_name", "order_id", "tracking_carrier", "tracking_number", "tracking_url", "items_list", "shop_name"],
   abandoned_cart: ["customer_name", "cart_url", "items_table", "shop_name"],
   order_cancelled: ["customer_name", "order_id", "shop_name"],
+  payment_link: ["customer_name", "order_id", "total_price", "expires_on", "note", "shop_name"],
   payment_link_reminder: ["customer_name", "order_id", "total_price", "expires_on", "shop_name"],
   order_refunded: ["customer_name", "order_id", "total_price", "shop_name"],
   customer_welcome: ["customer_name", "email", "shop_name"],

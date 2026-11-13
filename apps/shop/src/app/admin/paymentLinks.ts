@@ -155,16 +155,6 @@ export function linkFormFromQuote(request: QuoteRequest, books: any[], country =
   };
 }
 
-/**
- * The day a link closes ("November 5, 2026") in the shop's time zone: the same day the server writes in the order's
- * history and the reminder email (functions/paymentLinks.js closingDay), so the customer's emails agree.
- */
-export function closingDay(iso: string): string {
-  const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return "";
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "long", day: "numeric" }).format(at);
-}
-
 export type LinkState = "open" | "expired" | "paid" | "cancelled";
 /** Where an order's payment link stands, or null for an order that wasn't made with one. */
 export function linkState(order: any, now = Date.now()): LinkState | null {
@@ -176,27 +166,6 @@ export function linkState(order: any, now = Date.now()): LinkState | null {
 
 /** The link the customer pays from: the order's own private page, which shows Pay now while the link is open. */
 export const paymentLinkUrl = customerTrackUrl;
-
-/** A mailto: that opens the owner's own email with the link written in, or "" when the email can't be used. */
-export function paymentLinkMailto(order: any, url: string, shopName = ""): string {
-  const email = String(order?.customer?.email || "").trim();
-  if (!email || /[\s<>"?&]/.test(email) || !url) return "";
-  const first = String(order?.customer?.name || "").trim().split(/\s+/)[0] || "";
-  const until = order?.paymentLink?.expiresAt ? closingDay(order.paymentLink.expiresAt) : "";
-  const subject = `Your order${shopName ? ` from ${shopName}` : ""}: ready to pay`;
-  const body = [
-    `Hi${first ? ` ${first}` : ""},`,
-    "",
-    "Your order is ready. You can see it and pay by card here:",
-    url,
-    "",
-    ...(order?.paymentLink?.note ? [order.paymentLink.note, ""] : []),
-    ...(until ? [`The link is open until ${until}.`, ""] : []),
-    "Thank you!",
-    ...(shopName ? [shopName] : []),
-  ].join("\n");
-  return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-}
 
 /**
  * Add items to a paid order (code plan 24.6, part B): why this order can't take more items, or "". The extra items are a
