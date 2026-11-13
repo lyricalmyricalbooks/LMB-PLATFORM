@@ -22,7 +22,7 @@ nothing changes for a shop that exists today. The shopper's currency picker stil
       charge start from it, emails and receipts say it. Payment-integrity tests for a USD shop.
 - [x] 4. Reports, bookkeeping, stockroom money and tax: labelled and summed in the shop currency. Sales tax for a US
       shop is its own piece (the tax rules are Canadian) and is listed for Julian before it is built.
-- [ ] 5. Past orders: a USD shop's old orders come in as USD; other currencies convert to the shop currency
+- [x] 5. Past orders: a USD shop's old orders come in as USD; other currencies convert to the shop currency
       (pastOrders.ts, PastOrdersDialog.tsx, functions/orderImport.js, pastOrderRates.js).
 - [ ] 6. Sign-up to a made shop: a USD test shop end to end (make it, price, check out in test mode, report).
 

@@ -15,23 +15,36 @@ const SERIES = Object.freeze({
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_YEARS = 15;
 
-/** { currencies: { USD: 1.3712 }, from, to } for the currencies the bank publishes; others are left out. */
-async function averageRates({ currencies, from, to }, { getJson }) {
-  const wanted = [...new Set(currencies)].filter((c) => SERIES[c]);
+/**
+ * { rates: { USD: 1.3712 }, from, to } for the currencies the bank publishes; others are left out. `base` is the
+ * shop's own currency: each rate is what one unit was worth in it. The bank publishes against the Canadian dollar
+ * only, so a shop that sells in US dollars gets each day's rate divided by that day's US dollar rate (and the
+ * Canadian dollar itself as one over it).
+ */
+async function averageRates({ currencies, from, to, base = "CAD" }, { getJson }) {
+  const usBase = base === "USD";
+  const wanted = [...new Set(currencies)].filter((c) => c !== base && (SERIES[c] || (usBase && c === "CAD")));
   if (!wanted.length) return { rates: {}, from, to };
-  const url = `https://www.bankofcanada.ca/valet/observations/${wanted.map((c) => SERIES[c]).join(",")}/json?start_date=${from}&end_date=${to}`;
+  const series = [...new Set([...(usBase ? ["USD"] : []), ...wanted.filter((c) => SERIES[c])].map((c) => SERIES[c]))];
+  const url = `https://www.bankofcanada.ca/valet/observations/${series.join(",")}/json?start_date=${from}&end_date=${to}`;
   const data = await getJson(url);
   const rows = Array.isArray(data?.observations) ? data.observations : [];
+  const good = (v) => Number.isFinite(v) && v > 0;
   const rates = {};
   for (const c of wanted) {
-    const values = rows.map((r) => Number(r?.[SERIES[c]]?.v)).filter((v) => Number.isFinite(v) && v > 0);
-    if (values.length) rates[c] = Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 10000) / 10000;
+    const values = rows.map((r) => {
+      const inCad = c === "CAD" ? 1 : Number(r?.[SERIES[c]]?.v);
+      if (!usBase) return inCad;
+      const usd = Number(r?.[SERIES.USD]?.v);
+      return good(usd) ? inCad / usd : NaN;
+    }).filter(good);
+    if (values.length) rates[c] = Math.round((values.reduce((x, y) => x + y, 0) / values.length) * 10000) / 10000;
   }
   return { rates, from, to };
 }
 
 /** { status, body } for one request: `{ currencies: ["USD"], from: "2025-01-01", to: "2025-06-30" }`. */
-async function handleExchangeRates(body, { allow, getJson, now = new Date() }) {
+async function handleExchangeRates(body, { allow, getJson, now = new Date(), base = "CAD" }) {
   const currencies = Array.isArray(body?.currencies) ? body.currencies.filter((c) => typeof c === "string" && /^[A-Z]{3}$/.test(c)) : [];
   const from = typeof body?.from === "string" && DAY.test(body.from) ? body.from : "";
   const today = now.toISOString().slice(0, 10);
@@ -40,7 +53,7 @@ async function handleExchangeRates(body, { allow, getJson, now = new Date() }) {
     return { status: 400, body: { error: "Choose the order file again so we know which dates to look up." } };
   }
   if (!(await allow())) return { status: 429, body: { error: "That's a lot of look-ups in a short time. Wait a few minutes and try again." } };
-  return { status: 200, body: await averageRates({ currencies, from, to }, { getJson }) };
+  return { status: 200, body: await averageRates({ currencies, from, to, base }, { getJson }) };
 }
 
 /** The old-shop fetch, loaded on first use (the server is CommonJS; the copy is an ES module). */

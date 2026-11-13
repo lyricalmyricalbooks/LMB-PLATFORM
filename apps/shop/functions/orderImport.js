@@ -14,6 +14,7 @@
 "use strict";
 
 const crypto = require("crypto");
+const { shopCurrency, shopSign } = require("./shopMoney");
 
 const MAX_ORDERS = 500;
 const MAX_LINES = 100;
@@ -39,7 +40,8 @@ function pastOrder(o, { now, actor, batch }) {
   const total = money(o.total);
   if (!(total >= 0) || total > MAX_TOTAL) return { problem: "its total couldn't be read" };
   const currency = text(o.currency, 3).toUpperCase();
-  if (currency && currency !== "CAD") return { problem: `in ${currency}, and this shop sells in Canadian dollars` };
+  const home = shopCurrency();
+  if (currency && currency !== home) return { problem: `in ${currency}, and this shop sells in ${home === "USD" ? "US" : "Canadian"} dollars` };
   // Sold in another currency (plan 23.11): the browser converted every amount at the owner's rate; what the old shop
   // charged is kept beside it for the record.
   let paidIn = null;
@@ -47,7 +49,7 @@ function pastOrder(o, { now, actor, batch }) {
     const code = text(o.paidIn?.currency, 3).toUpperCase();
     const charged = money(o.paidIn?.total);
     const rate = Number(o.paidIn?.rate);
-    if (!/^[A-Z]{3}$/.test(code) || code === "CAD" || !(charged >= 0) || charged > MAX_TOTAL || !(rate > 0 && rate <= 10000)) {
+    if (!/^[A-Z]{3}$/.test(code) || code === home || !(charged >= 0) || charged > MAX_TOTAL || !(rate > 0 && rate <= 10000)) {
       return { problem: "its other currency couldn't be read" };
     }
     paidIn = { currency: code, total: charged, rate };
@@ -90,7 +92,7 @@ const RATED = ["items", "subtotal", "discount", "shipping", "tax", "total", "pai
 
 /**
  * A new rate for a past order already brought over (plan 23.23): only one this server made (`source: "import"`), sold
- * in the same currency for the same amount, and only its Canadian-dollar amounts change. Anything else stays as it is.
+ * in the same currency for the same amount, and only its amounts in the shop's own currency change. Anything else stays as it is.
  */
 function rerated(old, made, stamp, actor) {
   const was = old?.paidIn;
@@ -131,7 +133,7 @@ async function importPastOrders(db, orders, { actor = "admin", now = new Date(),
   }
   if (added.length) {
     await db.collection("audit-log").add({
-      type: "orders", message: `Brought ${added.length} past order${added.length === 1 ? "" : "s"} over from the old shop (CA$${total.toFixed(2)} in sales, history only)`,
+      type: "orders", message: `Brought ${added.length} past order${added.length === 1 ? "" : "s"} over from the old shop (${shopSign()}${total.toFixed(2)} in sales, history only)`,
       orders: added.length, by: actor, createdAt: now.toISOString(),
     }).catch(() => {});
   }
@@ -180,7 +182,7 @@ async function handlePastOrdersRemove(body, { db, actor, now }) {
 
 /**
  * A new rate for one past order sold in another currency (plan 23.34), from its own page. Only an order this server
- * brought over (`source: "import"`, with `paidIn`) changes, and only its Canadian-dollar amounts: each is what the old
+ * brought over (`source: "import"`, with `paidIn`) changes, and only its amounts in the shop's own currency: each is what the old
  * shop charged at the new rate (the total exactly, from `paidIn.total`). Answers { changed, total }.
  */
 async function ratePastOrder(db, orderId, rate, { actor = "admin", now = new Date() } = {}) {

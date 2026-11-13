@@ -197,3 +197,36 @@ describe("a suggested rate for other currencies (plan 23.14)", () => {
     expect((await handleExchangeRates({ currencies: ["USD"], from: "2026-10-01", to: "2027-01-01" }, { allow, getJson, now: NOW })).body.rates.USD).toBe(1.3714);
   });
 });
+
+describe("past orders in a shop that sells in US dollars", () => {
+  const { configForShop } = require("./shopConfig");
+  const { runInShop } = require("./shopScope");
+  const usShop = { id: "us-press", config: configForShop("us-press", { ownerEmail: "owner@example.com", server: { SHOP_CURRENCY: "USD" } }, {}) };
+
+  it("takes US dollar orders as they are, refuses unconverted Canadian ones, and keeps what a converted one was sold for", async () => {
+    const db = fakeDb();
+    const out = await runInShop(usShop, () => importPastOrders(db, [
+      { oldRef: "#1", orderedAt: "2025-07-02", total: 30, currency: "USD" },
+      { oldRef: "#2", orderedAt: "2025-07-02", total: 30 },
+      { oldRef: "#3", orderedAt: "2025-07-02", total: 40, currency: "CAD" },
+      { oldRef: "#4", orderedAt: "2025-07-02", total: 29.2, paidIn: { currency: "CAD", total: 40, rate: 0.73 } },
+      { oldRef: "#5", orderedAt: "2025-07-02", total: 30, paidIn: { currency: "USD", total: 30, rate: 1 } },
+    ], { actor: "a", now: NOW }));
+    expect(out.added).toHaveLength(3);
+    expect(out.skipped).toEqual([
+      { oldRef: "#3", reason: "in CAD, and this shop sells in US dollars" },
+      { oldRef: "#5", reason: "its other currency couldn't be read" },
+    ]);
+    expect(db.docs.get(`orders/${pastOrderId("#4")}`)).toMatchObject({ total: 29.2, paidIn: { currency: "CAD", total: 40, rate: 0.73 } });
+    expect([...db.docs.values()].some((d) => /US\$89\.20 in sales/.test(d.message || ""))).toBe(true);
+  });
+
+  it("suggests each rate in US dollars from the Bank of Canada's Canadian-dollar rates", async () => {
+    const bank = { observations: [{ d: "2025-06-02", FXUSDCAD: { v: "1.25" }, FXEURCAD: { v: "1.5" } }, { d: "2025-06-03", FXUSDCAD: { v: "1.6" }, FXEURCAD: { v: "1.6" } }, { d: "2025-06-04", FXEURCAD: { v: "1.7" } }] };
+    const asked = [];
+    const out = await averageRates({ currencies: ["CAD", "EUR", "USD", "XYZ"], from: "2025-06-01", to: "2025-06-05", base: "USD" }, { getJson: async (u) => { asked.push(u); return bank; } });
+    // CAD: (1/1.25 + 1/1.6) / 2; EUR: (1.5/1.25 + 1.6/1.6) / 2. A day with no US dollar rate is left out.
+    expect(out.rates).toEqual({ CAD: 0.7125, EUR: 1.1 });
+    expect(asked).toEqual(["https://www.bankofcanada.ca/valet/observations/FXUSDCAD,FXEURCAD/json?start_date=2025-06-01&end_date=2025-06-05"]);
+  });
+});

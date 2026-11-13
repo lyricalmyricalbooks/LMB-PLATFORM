@@ -82,7 +82,11 @@ browsers may write (mirroring `firestore.rules`).
   option). The stockroom ledger's home currency is the same constant: defaults, the tax centre's `baseCurrency`
   fallback and the rate keys (`USD_CAD` in a Canadian shop, `CAD_USD` in a US one; `homeCurrency.test.ts`). Still
   Canadian: the shared stockroom library's own fallbacks (`apps/stockroom/src/lib/money.js`, a book saved with no
-  currency reads as CAD), the tax centre's sales tax words (GST/HST), and past orders (update 5).
+  currency reads as CAD) and the tax centre's sales tax words (GST/HST).
+  **Past orders (update 5):** `admin/pastOrders.ts` takes the home currency (`home`, default `SHOP_CURRENCY`): orders in
+  it come over as they are, any other needs the owner's rate into it. `functions/orderImport.js` checks against
+  `shopCurrency()`, and `pastOrderRates.js` `averageRates({ base })` turns the Bank of Canada's Canadian-dollar rates
+  into US-dollar ones day by day for a US shop.
   The admin's sign is `MONEY_SIGN` (`admin/moneySign.ts`, read once from the profile): admin code writes
   `${MONEY_SIGN}${n.toFixed(2)}`, never a literal sign. Left as literals on purpose: sample text in email and theme
   previews, the look gallery, and the platform's own bill (its currency is the billing one, `platformBilling.ts`).

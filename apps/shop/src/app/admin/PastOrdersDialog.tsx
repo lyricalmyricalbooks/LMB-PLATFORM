@@ -6,7 +6,7 @@ import { goodRate, mergePastOrderFiles, readPastOrders, readyToSend, type PastOr
 import { Dialog, GhostButton, PrimaryButton, SecondaryButton, StatusBadge, TextField } from "./riso/components";
 import { SPREADSHEET_ACCEPT, readProblem, spreadsheetText } from "./spreadsheetFile";
 import { GoogleSheetLink } from "./GoogleSheetLink";
-import { MONEY_SIGN } from "./moneySign";
+import { MONEY_NAME, MONEY_SIGN, SHOP_CURRENCY } from "./moneySign";
 
 /**
  * Orders › Bring past orders over (plan 23.7): the old shop's order file → a preview → the server saves each order as
@@ -47,7 +47,7 @@ export function PastOrdersDialog({ onClose, onDone }: { onClose: () => void; onD
   useEffect(() => {
     const codes = file ? Object.keys(file.foreign) : [];
     if (!file || !codes.length) return;
-    const days = file.orders.filter((o) => o.currency && o.currency !== "CAD").map((o) => o.orderedAt.slice(0, 10)).sort();
+    const days = file.orders.filter((o) => o.currency && o.currency !== SHOP_CURRENCY).map((o) => o.orderedAt.slice(0, 10)).sort();
     let alive = true;
     suggestedRates(codes, days[0], days[days.length - 1])
       .then((rates) => {
@@ -211,11 +211,11 @@ export function PastOrdersDialog({ onClose, onDone }: { onClose: () => void; onD
             {ready.from && <p className="rp-hint" style={{ margin: 0 }}>From {dayWords(ready.from)} to {dayWords(ready.to)}.</p>}
             {Object.keys(file.foreign).length > 0 && (
               <div className="rp-stack" style={{ gap: 8 }}>
-                <p className="rp-hint" style={{ margin: 0 }}>Some orders were in another currency. Type what one unit was worth in Canadian dollars around when you sold, for example your bank's average rate for that time. Each order is converted at that rate, and what the old shop charged is kept on the order.</p>
+                <p className="rp-hint" style={{ margin: 0 }}>Some orders were in another currency. Type what one unit was worth in {MONEY_NAME} around when you sold, for example your bank's average rate for that time. Each order is converted at that rate, and what the old shop charged is kept on the order.</p>
                 {Object.entries(file.foreign).sort().map(([code, count]) => {
                   const typed = rateText[code] ?? "";
                   return (
-                    <TextField key={code} label={`1 ${code} in Canadian dollars (${plural(count, "order")})`} inputMode="decimal" placeholder="e.g. 1.37"
+                    <TextField key={code} label={`1 ${code} in ${MONEY_NAME} (${plural(count, "order")})`} inputMode="decimal" placeholder="e.g. 1.37"
                       value={typed} disabled={busy} onChange={(e) => setRateText((r) => ({ ...r, [code]: e.target.value }))}
                       hint={suggested?.rates[code] ? `Bank of Canada average from ${dayWords(suggested.from)} to ${dayWords(suggested.to)}: ${suggested.rates[code]}.` : undefined}
                       error={typed.trim() && !goodRate(rates[code]) ? "Type a number above 0, such as 1.37." : undefined} />
@@ -261,7 +261,7 @@ export function PastImportUndo({ batch, onRemoved }: { batch: string; onRemoved:
 
 /**
  * On a brought-over order's page (plan 23.34): what it was sold for in the other currency, the rate it came over at,
- * and a way to change that rate for this one order. Only its Canadian-dollar amounts change (functions/orderImport.js).
+ * and a way to change that rate for this one order. Only its amounts in the shop's own currency change (functions/orderImport.js).
  */
 export function PastOrderRate({ orderId, paidIn, total, onChanged }: {
   orderId: string; paidIn: { currency: string; total: number; rate: number }; total: number; onChanged: () => void;
@@ -274,7 +274,7 @@ export function PastOrderRate({ orderId, paidIn, total, onChanged }: {
   if (typed === null) {
     return (
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-        <p className="rp-hint" style={{ margin: 0 }}>Sold for {sold}, brought over at 1 {paidIn.currency} = {paidIn.rate} Canadian dollars ({dollars(total)}).</p>
+        <p className="rp-hint" style={{ margin: 0 }}>Sold for {sold}, brought over at 1 {paidIn.currency} = {paidIn.rate} {MONEY_NAME} ({dollars(total)}).</p>
         <GhostButton onClick={() => { setTyped(String(paidIn.rate)); setError(""); }}>Change the rate</GhostButton>
       </div>
     );
@@ -294,9 +294,9 @@ export function PastOrderRate({ orderId, paidIn, total, onChanged }: {
   };
   return (
     <div className="rp-card rp-stack" style={{ padding: 16, gap: 8 }} role="group" aria-label="Change the rate">
-      <TextField label={`1 ${paidIn.currency} in Canadian dollars`} inputMode="decimal" value={typed} disabled={busy}
+      <TextField label={`1 ${paidIn.currency} in ${MONEY_NAME}`} inputMode="decimal" value={typed} disabled={busy}
         onChange={(e) => setTyped(e.target.value)}
-        hint={goodRate(rate) ? `This order becomes ${dollars(Math.round(paidIn.total * rate * 100) / 100)}. Only its Canadian-dollar amounts change.` : undefined}
+        hint={goodRate(rate) ? `This order becomes ${dollars(Math.round(paidIn.total * rate * 100) / 100)}. Only its amounts in ${MONEY_NAME} change.` : undefined}
         error={typed.trim() && !goodRate(rate) ? "Type a number above 0, such as 1.37." : undefined} />
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <SecondaryButton disabled={busy} onClick={() => setTyped(null)}>Cancel</SecondaryButton>

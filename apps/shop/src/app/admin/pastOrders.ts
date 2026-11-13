@@ -4,6 +4,7 @@
 // or one line per item with the order's number repeated (its totals on the first line). Pure and tested.
 import { parseCsv, parseMoney } from "./catalogImport";
 import { shopDate } from "../../shared/preorder";
+import { SHOP_CURRENCY } from "./moneySign";
 
 export interface PastOrderLine { title: string; quantity: number; price: number; sku?: string }
 export interface PastOrder {
@@ -21,7 +22,7 @@ export interface PastOrderFile {
   /** Other currencies in the file, with how many orders each (plan 23.11). */
   foreign: Record<string, number>;
 }
-/** What is sent once the owner's rates are applied: every amount in Canadian dollars. */
+/** What is sent once the owner's rates are applied: every amount in the shop's own currency. */
 export interface PastOrdersReady {
   orders: PastOrder[];
   /** Orders in a currency with no rate yet, per currency. */
@@ -138,7 +139,7 @@ const amount = (value: string): number => {
   return Number.isNaN(n) ? NaN : sign * n;
 };
 
-export function readPastOrders(text: string, now = new Date()): PastOrderFile {
+export function readPastOrders(text: string, now = new Date(), home: string = SHOP_CURRENCY): PastOrderFile {
   const out: PastOrderFile = { orders: [], skipped: [], problems: [], foreign: {} };
   const table = parseCsv(text);
   if (!table.length) { out.problems.push("This file is empty."); return out; }
@@ -233,20 +234,20 @@ export function readPastOrders(text: string, now = new Date()): PastOrderFile {
       ...(refunded ? { refunded: Math.min(total, refunded) } : {}),
     };
     out.orders.push(order);
-    if (currency && currency !== "CAD") out.foreign[currency] = (out.foreign[currency] || 0) + 1;
+    if (currency && currency !== home) out.foreign[currency] = (out.foreign[currency] || 0) + 1;
   }
   if (!out.orders.length && !out.skipped.length) out.problems.push("This file has no orders in it.");
   return out;
 }
 
 const cents = (n: number) => Math.round(n * 100) / 100;
-/** A usable rate: how many Canadian dollars one unit of the other currency was worth. */
+/** A usable rate: how much of the shop's own currency one unit of the other currency was worth. */
 /**
  * Several order files read as one (plan 23.27): old shops that export a year at a time give a press one file per year.
  * An order in two files comes over once (the first file's copy). With more than one file, what was left out and any
  * problem name its file. Pure.
  */
-export function mergePastOrderFiles(files: { name: string; file: PastOrderFile }[]): PastOrderFile {
+export function mergePastOrderFiles(files: { name: string; file: PastOrderFile }[], home: string = SHOP_CURRENCY): PastOrderFile {
   if (files.length === 1) return files[0].file;
   const out: PastOrderFile = { orders: [], skipped: [], problems: [], foreign: {} };
   const seen = new Map<string, number>();
@@ -263,7 +264,7 @@ export function mergePastOrderFiles(files: { name: string; file: PastOrderFile }
       }
       seen.set(o.oldRef, out.orders.length);
       out.orders.push(o);
-      if (o.currency && o.currency !== "CAD") out.foreign[o.currency] = (out.foreign[o.currency] || 0) + 1;
+      if (o.currency && o.currency !== home) out.foreign[o.currency] = (out.foreign[o.currency] || 0) + 1;
     }
   }
   return out;
@@ -272,23 +273,23 @@ export function mergePastOrderFiles(files: { name: string; file: PastOrderFile }
 export const goodRate = (r: unknown): r is number => typeof r === "number" && Number.isFinite(r) && r > 0 && r <= 10000;
 
 /**
- * The orders ready to send (plan 23.11): Canadian-dollar orders as they are, and each other-currency order converted at
+ * The orders ready to send (plan 23.11): orders in the shop's own currency as they are, and each other-currency order converted at
  * the owner's rate for that currency, keeping what the old shop charged in `paidIn`. Orders in a currency without a
  * rate wait. The preview's figures come from the orders that will be sent.
  */
-export function readyToSend(file: PastOrderFile, rates: Record<string, number>): PastOrdersReady {
+export function readyToSend(file: PastOrderFile, rates: Record<string, number>, home: string = SHOP_CURRENCY): PastOrdersReady {
   const out: PastOrdersReady = { orders: [], waiting: {}, totalSales: 0, customers: 0, from: "", to: "" };
   const emails = new Set<string>();
   for (const o of file.orders) {
-    const currency = o.currency || "CAD";
+    const currency = o.currency || home;
     let order = o;
-    if (currency !== "CAD") {
+    if (currency !== home) {
       const rate = rates[currency];
       if (!goodRate(rate)) { out.waiting[currency] = (out.waiting[currency] || 0) + 1; continue; }
       const conv = (n: number) => cents(n * rate);
       const { subtotal, shipping, tax, discount, refunded } = o;
       order = {
-        ...o, currency: "CAD", total: conv(o.total), items: o.items.map((i) => ({ ...i, price: conv(i.price) })),
+        ...o, currency: home, total: conv(o.total), items: o.items.map((i) => ({ ...i, price: conv(i.price) })),
         ...(subtotal !== undefined ? { subtotal: conv(subtotal) } : {}), ...(shipping !== undefined ? { shipping: conv(shipping) } : {}),
         ...(tax !== undefined ? { tax: conv(tax) } : {}), ...(discount !== undefined ? { discount: conv(discount) } : {}),
         ...(refunded !== undefined ? { refunded: conv(refunded) } : {}),
