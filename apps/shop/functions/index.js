@@ -79,7 +79,7 @@ const { pendingRecord, confirmedRecord, confirmationEmail } = require("./newslet
 const { findByEmail: findByEmailData, neverPaid, redactedOrderFields, redactedOperationsFields, giftCardsFor, reviewErasure, GIFT_CARD_PERSONAL } = require("./privacyData");
 const { optOutId, unsubscribeToken, tokenMatches, purposeToken, purposeTokenMatches, footerAddress, normEmail: normMarketingEmail } = require("./marketingOptOut");
 const { runReviewRequests, REVIEW_REQUEST_TEMPLATE } = require("./reviewRequests");
-const { platformRefusedRefund, checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, paypalRefundedTotalMinor, sameOrderLines, shopDate } = require("./paymentGuards");
+const { platformRefusedRefund, checkoutCurrencyOf: checkoutCurrencyIn, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, paypalRefundedTotalMinor, sameOrderLines, shopDate } = require("./paymentGuards");
 const { canViewOrder, publicOrderView } = require("./orderAccess");
 const { encodeAcquisition } = require("./acquisition");
 const { returnTransition, publicReturn, returnRestockItems } = require("./returns");
@@ -155,6 +155,7 @@ const { OWNER_ONLY_MESSAGE, adminRole, booksReader, removeExpiredMembers, stampT
 const { inviteKey, teamChange, teamInviteEmail } = require("./teamInvite");
 const fairHelperPay = require("./fairHelperPay");
 const { shopConfig, functionLink } = require("./shopConfig");
+const { shopCurrency, shopSign } = require("./shopMoney");
 // The shop's id with the platform's services (X-Shop-Id): its record id in the shared system, else its own project.
 const platformShopId = () => shopConfig.shopId || shopConfig.project;
 
@@ -948,12 +949,21 @@ function validateDiscountCustomer(discount, email) {
 
 // Exchange rates (functions/exchangeRates.js): checkout charges the saved daily copy in settings/exchangeRates,
 // the same numbers the storefront shows. The scheduled job below refreshes it.
-const { FALLBACK_RATES, createRateReader, refreshStoredRates } = require("./exchangeRates");
-const getExchangeRates = createRateReader({ db });
+// Every rate is from the shop's own currency (shopConfig.currency: CAD, or USD for a shop that sells in US dollars).
+const { fallbackRatesFor, createRateReader, refreshStoredRates } = require("./exchangeRates");
+const getExchangeRates = createRateReader({ db, base: () => shopConfig.currency });
+// The fixed last-resort rates, read for the shop the code is running for (never kept: one server runs every shop).
+const FALLBACK_RATES = Object.freeze({
+  get cad() { return fallbackRatesFor(shopConfig.currency).cad; },
+  get usd() { return fallbackRatesFor(shopConfig.currency).usd; },
+  get eur() { return fallbackRatesFor(shopConfig.currency).eur; },
+});
+// The currency a checkout is paid in: the one the shopper picked, else the shop's own.
+function checkoutCurrencyOf(value) { return checkoutCurrencyIn(value, shopConfig.currency); }
 
 exports.refreshExchangeRates = onSchedule({ schedule: "every 3 hours", name: "refreshExchangeRates", timeoutSeconds: 60 }, async () => {
-  const saved = await refreshStoredRates({ db });
-  if (saved) console.log(`Exchange rates saved: 1 CAD = ${saved.usd} USD, ${saved.eur} EUR (feed updated ${saved.providerUpdatedAt || "unknown"}).`);
+  const saved = await refreshStoredRates({ db, base: shopConfig.currency });
+  if (saved) console.log(`Exchange rates saved: 1 ${saved.base} = ${["cad", "usd", "eur"].filter(code => saved[code] != null).map(code => `${saved[code]} ${code.toUpperCase()}`).join(", ")} (feed updated ${saved.providerUpdatedAt || "unknown"}).`);
   else console.warn("Exchange-rate refresh failed: the shop keeps its last saved rates.");
 });
 
@@ -2256,8 +2266,8 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
         id: refundId,
         provider,
         amount: amountMinor != null ? amountMinor / 100 : Number(order.total) || 0,
-        // A manual refund records the order total, which is CAD; a provider refund is in the currency it reports.
-        currency: amountMinor != null ? String(currency || order.checkoutCurrency || "CAD").toUpperCase() : "CAD",
+        // A manual refund records the order total, which is in the shop's currency; a provider refund is in the currency it reports.
+        currency: amountMinor != null ? String(currency || order.checkoutCurrency || shopCurrency()).toUpperCase() : shopCurrency(),
         reason: String(reason || order.refundRequest?.reason || "").slice(0, 500),
         status: done ? "succeeded" : "pending",
         actor,
@@ -2320,7 +2330,7 @@ async function applyPartialRefund(orderId, { provider, refundId = null, amountMi
     const books = lines.length ? await readBooks(transaction, db, lines) : new Map();
     if (lines.length) writeStock(transaction, db, lines, books, 1, now);
     const label = provider === "stripe" ? CARD() : provider === "paypal" ? "PayPal" : "Manual";
-    const cur = String(currency || order.expectedCurrency || "CAD").toUpperCase();
+    const cur = String(currency || order.expectedCurrency || shopCurrency()).toUpperCase();
     // Stripe/PayPal may already have reported this refund (webhook first): never count it twice.
     const total = Math.max(refundedSoFar(order), already + amountMinor);
     const finishReturn = fromReturn && order.returnProgress?.state === "inspected";
@@ -2905,7 +2915,7 @@ exports.refundOrder = onBrowserRequest(
             return card ? sum + Math.max(0, Math.floor(Number(card.initialMinor) || 0) - Math.floor(Number(card.balanceMinor) || 0)) : sum;
           }, 0);
           if (spentMinor > 0) {
-            const error = new Error(`CA$${(spentMinor / 100).toFixed(2)} of the gift cards this order bought has already been spent. A full refund would give that money back twice. Refund only the unused part in ${CARD()} or PayPal directly, then disable the card in Gift cards.`);
+            const error = new Error(`${shopSign()}${(spentMinor / 100).toFixed(2)} of the gift cards this order bought has already been spent. A full refund would give that money back twice. Refund only the unused part in ${CARD()} or PayPal directly, then disable the card in Gift cards.`);
             error.status = 409; throw error;
           }
         }
@@ -2973,7 +2983,7 @@ exports.refundOrder = onBrowserRequest(
       res.status(200).json({
         refundId: outcome.refundId,
         amount: outcome.amountMinor != null ? outcome.amountMinor / 100 : Number(order.total) || 0,
-        currency: String(outcome.currency || order.checkoutCurrency || "CAD").toUpperCase(),
+        currency: String(outcome.currency || order.checkoutCurrency || shopCurrency()).toUpperCase(),
         status: outcome.status,
         provider,
         alreadyRecorded: result.alreadyRecorded,
@@ -3422,7 +3432,7 @@ async function emailGiftCard(cardId, card, { to = "", notificationSettings = nul
   const compiled = compileEmailTemplate("gift_card", settings, {
     recipient_name: card.recipientName || "there",
     sender_name: card.senderName || "Someone",
-    amount: `CA$${(Number(card.initialMinor) / 100).toFixed(2)}`,
+    amount: `${shopSign()}${(Number(card.initialMinor) / 100).toFixed(2)}`,
     code: card.code,
     message: card.message || "",
     expires: card.expiresOn ? (emailFrench.emailLanguage(card) === "fr" ? `Elle est valide jusqu'au ${card.expiresOn}.` : `It can be used until ${card.expiresOn}.`) : "",
@@ -4078,7 +4088,7 @@ async function handleOrderUpdated(event) {
     const refundedAfter = Number(after.refundedAmountMinor) || 0;
     if (after.paymentStatus === "paid" && after.partiallyRefunded && refundedAfter > refundedBefore
       && notificationSettings.order_refunded?.enabled !== false) {
-      const currency = String(after.expectedCurrency || after.checkoutCurrency || "CAD").toUpperCase();
+      const currency = String(after.expectedCurrency || after.checkoutCurrency || shopCurrency()).toUpperCase();
       // refundedAmountMinor is already in the charged currency: format it, never convert it again.
       const amountText = refundAmountText({ refund: { amount: (refundedAfter - refundedBefore) / 100, currency } });
       const compiled = compileEmailTemplate("order_refunded", notificationSettings, {
@@ -4336,7 +4346,7 @@ exports.validateDiscountCode = onBrowserRequest(async (req, res) => {
     const card = snap.exists ? snap.data() : null;
     const problem = giftCardProblem(card, { testMode: await shopTestMode() });
     if (problem) return res.status(400).json({ error: GIFT_CARD_MESSAGES[problem], code: `gift_card_${problem}` });
-    return res.status(200).json({ last4: card.last4 || last4(req.body.code), balanceMinor: availableMinor(card, "", Date.now()), currency: "CAD", expiresOn: card.expiresOn || null });
+    return res.status(200).json({ last4: card.last4 || last4(req.body.code), balanceMinor: availableMinor(card, "", Date.now()), currency: shopCurrency(), expiresOn: card.expiresOn || null });
   }
 
   const { code } = req.body;

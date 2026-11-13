@@ -4,6 +4,7 @@
 // Stripe Dashboard partial refund leaves) or reaches what is left (today's full refund).
 // Nothing is restocked unless the owner ticks specific lines; never more than was charged.
 const { isPhysicalItem } = require("./shared/localFulfillment");
+const { shopCurrency } = require("./shopMoney");
 
 const fail = (message, status = 400) => { const error = new Error(message); error.status = status; throw error; };
 
@@ -11,9 +12,9 @@ const fail = (message, status = 400) => { const error = new Error(message); erro
 function chargedOf(order) {
   const expected = Number(order?.expectedAmountMinor);
   if (Number.isInteger(expected) && expected > 0) {
-    return { minor: expected, currency: String(order.expectedCurrency || order.checkoutCurrency || "CAD").toUpperCase() };
+    return { minor: expected, currency: String(order.expectedCurrency || order.checkoutCurrency || shopCurrency()).toUpperCase() };
   }
-  return { minor: Math.max(0, Math.round((Number(order?.total) || 0) * 100)), currency: String(order?.checkoutCurrency || "CAD").toUpperCase() };
+  return { minor: Math.max(0, Math.round((Number(order?.total) || 0) * 100)), currency: String(order?.checkoutCurrency || shopCurrency()).toUpperCase() };
 }
 
 /** Already refunded (admin partial refunds plus anything Stripe/PayPal reported). */

@@ -2,6 +2,7 @@
 // Toronto days) against the week before, from real paid orders and the shop's own daily traffic counters. Same rules as
 // the admin Overview: test orders, unpaid/refunded orders and the owner's own orders (placed with the shop's own email:
 // src/app/lib/ownerDevice.ts isOwnOrder) don't count; revenue is after partial refunds. Pure.
+const { shopCurrency } = require("./shopMoney");
 const OWNER_EMAIL = "owner@example.com";
 const TZ = "America/Toronto";
 const DAY = 86_400_000;
@@ -31,14 +32,15 @@ const isOwnOrder = o => String(o?.customer?.email || "").trim().toLowerCase() ==
 /** A sale the Overview counts. */
 const countsAsSale = o => o?.paymentStatus === "paid" && o?.isTest !== true && o?.sandboxPayment !== true && !isOwnOrder(o);
 
-/** Mirrors the Overview's refundedAmount: the refunded share of the CAD total. */
+/** Mirrors the Overview's refundedAmount: the refunded share of the total, in the shop's currency. */
 function refundedAmount(o) {
   const minor = num(o?.refundedAmountMinor), total = num(o?.total);
   if (minor <= 0 || total <= 0) return 0;
   const expected = num(o?.expectedAmountMinor);
   if (expected > 0) return Math.min(total, (total * minor) / expected);
-  const cur = String(o?.checkoutCurrency || o?.expectedCurrency || "CAD").toUpperCase();
-  return cur === "CAD" ? Math.min(total, minor / 100) : 0;
+  const shop = shopCurrency();
+  const cur = String(o?.checkoutCurrency || o?.expectedCurrency || shop).toUpperCase();
+  return cur === shop ? Math.min(total, minor / 100) : 0;
 }
 
 function figures(orders, from, to, firstOrderIds) {

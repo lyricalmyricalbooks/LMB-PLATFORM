@@ -29,15 +29,16 @@ const DOLLAR = new Set([
 
 /**
  * Starting currency for a country code. Same regions as the time-zone guess (`currencyForTimeZone`):
- * Canada and everywhere else outside the Americas and Europe start in CAD, which is what the shop charges in.
+ * Canada starts in CAD, and everywhere else outside the Americas and Europe starts in the shop's own currency
+ * (`shop`: CAD unless the shop sells in US dollars), which is what the shop charges in.
  * Null for anything that isn't a two-letter code.
  */
-export function currencyForCountry(code: unknown): VisitorCurrency | null {
+export function currencyForCountry(code: unknown, shop: VisitorCurrency = "CAD"): VisitorCurrency | null {
   const cc = String(code || "").trim().toUpperCase();
   if (!/^[A-Z]{2}$/.test(cc) || cc === "ZZ") return null;
   if (EURO_OVERSEAS.has(cc) || EUROPE.has(cc)) return "EUR";
   if (DOLLAR.has(cc)) return "USD";
-  return "CAD";
+  return cc === "CA" ? "CAD" : shop;
 }
 
 type Store = Pick<Storage, "getItem" | "setItem">;

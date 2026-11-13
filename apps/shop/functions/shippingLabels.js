@@ -2,6 +2,7 @@
 // index.js as is (functions/CLAUDE.md › Cloud Functions › Action table). index.js passes in its own Firebase wrappers,
 // guards and Shippo helpers, so the vm-based handler tests' fakes still reach this code.
 const { withPlatformKey } = require("./platformKey");
+const { shopCurrency } = require("./shopMoney");
 const { labelHandedOver, transactionRefundState, findLabelTransaction, refundEntry, openRefunds, REFUND_WINDOW_DAYS: LABEL_REFUND_WINDOW_DAYS } = require("./labelVoid");
 const { labelProblem, shippoTransactionOutcome, shippoDefiniteRefusal, terminal: terminalOrder } = require("./fulfillmentGuard");
 const { addressMissing } = require("./shared/addressRules");
@@ -302,7 +303,7 @@ function shippingLabelEndpoints({ onBrowserRequest, SHIPPO_API_TOKEN, applyCors,
         // Shippo dashboard with an empty Order column and can't be managed (refunded) from there, so every
         // purchase is linked to one. Reused while the address is unchanged; a new one after a correction.
         const shippoOrderBody = () => {
-          const currency = (order.checkoutCurrency || order.currency || "CAD").toUpperCase();
+          const currency = (order.checkoutCurrency || order.currency || shopCurrency()).toUpperCase();
           const orderItems = (order.items || []).filter(item => item && isPhysicalItem(item));
           return {
             to_address: addressTo,

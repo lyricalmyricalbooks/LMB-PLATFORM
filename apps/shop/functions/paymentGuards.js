@@ -14,8 +14,9 @@ function platformRefusedRefund(err) {
     && !/idempotenc/i.test(String(err?.code || ""));
 }
 
-function checkoutCurrencyOf(value) {
-  const currency = String(value || "cad").trim().toLowerCase();
+// `fallback` is the shop's own currency (shopConfig.currency), used when the request names none.
+function checkoutCurrencyOf(value, fallback = "cad") {
+  const currency = String(value || fallback || "cad").trim().toLowerCase();
   return CHECKOUT_CURRENCIES.includes(currency) ? currency : null;
 }
 

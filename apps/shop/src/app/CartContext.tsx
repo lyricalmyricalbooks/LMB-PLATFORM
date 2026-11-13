@@ -7,6 +7,7 @@ import { comingSoonActive } from "./features/site/comingSoon";
 import { clearBagNote } from "./features/site/bagNote";
 import { addOnSelection, bundleComponents, giftCardDetails, isGiftCardProduct, saleActive, type GiftCardDetails } from "./features/site/promotions";
 import { smallPhotoUrl } from "./features/site/photoSources";
+import { shopCurrency } from "../lib/shopProfile";
 
 /** A paid extra on one copy (signed copy, inscription, gift wrap). Price is per copy, CAD, from the catalog. */
 export type CartAddOn = { id: string; label: string; price: number; text?: string };
@@ -329,7 +330,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     // An open bag stays the place the shopper sees the change (e.g. its own suggestion card).
     if (addBehaviour.current === "notice" && !isCartOpen) setLastAdded({ item: { ...draft, quantity }, quantity, at: Date.now() });
     else setIsCartOpen(true);
-    ga4Event("add_to_cart", { currency: "CAD", value: round2(price * quantity), items: ga4Items([{ ...draft, quantity }]) });
+    ga4Event("add_to_cart", { currency: shopCurrency(), value: round2(price * quantity), items: ga4Items([{ ...draft, quantity }]) });
     emitShopSignal("bookAdd", product.id);
     return true;
   };

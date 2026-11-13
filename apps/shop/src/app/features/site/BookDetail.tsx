@@ -96,6 +96,7 @@ import { PhotoToneDefs } from "./PhotoToneDefs";
 import { ThumbStrip } from "./ThumbStrip.tsx";
 import { PHONE_MAX } from "./breakpoints";
 import { productHref, productSegment } from "../../lib/productHref";
+import { shopCurrency } from "../../../lib/shopProfile";
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
 /** The title's inline variables: Studio's "Title size" preset and the phone cap that keeps its longest word whole. */
@@ -490,7 +491,7 @@ export default function BookDetail() {
       // Sold out (every edition) or coming soon: Overview › Stock › "Wanted but can't be bought".
       if (!quickAddChoice(book).inStock) funnelApi.trackUnavailableView(book.id);
       const price = Math.round((displayPrice(book) || 0) * 100) / 100;
-      ga4Once(`view_${book.id}`, "view_item", { currency: "CAD", value: price, items: [{ item_id: book.id, item_name: String(book.title || "Book").slice(0, 100), price, quantity: 1 }] });
+      ga4Once(`view_${book.id}`, "view_item", { currency: shopCurrency(), value: price, items: [{ item_id: book.id, item_name: String(book.title || "Book").slice(0, 100), price, quantity: 1 }] });
       const bookCategories = (book as any)?.categories || (book as any)?.genres || [];
       bookCategories.forEach((cat: string) => {
         funnelApi.trackCategory(cat);

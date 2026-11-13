@@ -12,10 +12,11 @@
 "use strict";
 
 const crypto = require("crypto");
+const { shopCurrency, shopSign } = require("./shopMoney");
 const { giftCardId, last4, newGiftCardCode, normalizeGiftCardCode } = require("./giftCards");
 const { shopDate } = require("./paymentGuards");
 
-const MAX_MINOR = 1000000; // CA$10,000, the same ceiling as an issued card
+const MAX_MINOR = 1000000; // 10,000 of the shop's currency, the same ceiling as an issued card
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 const markerId = (oldRef) => crypto.createHash("sha256").update(`gift-card-import:${String(oldRef).trim()}`).digest("hex").slice(0, 40);
@@ -24,7 +25,7 @@ const markerId = (oldRef) => crypto.createHash("sha256").update(`gift-card-impor
 function cardProblem(card, today) {
   const minor = Number(card.balanceMinor);
   if (!Number.isInteger(minor) || minor < 1) return "no balance left";
-  if (minor > MAX_MINOR) return "a balance over CA$10,000";
+  if (minor > MAX_MINOR) return `a balance over ${shopSign()}10,000`;
   const expires = String(card.expiresOn || "").slice(0, 10);
   if (expires && !/^\d{4}-\d{2}-\d{2}$/.test(expires)) return "an expiry that isn't a date";
   if (expires && expires < today) return "already expired";
@@ -52,7 +53,7 @@ async function importGiftCards(db, cards, { actor = "admin", now = new Date(), m
     const expires = String(card.expiresOn || "").slice(0, 10);
     const minor = Number(card.balanceMinor);
     const data = {
-      code, last4: last4(code), initialMinor: minor, balanceMinor: minor, currency: "CAD", enabled: true,
+      code, last4: last4(code), initialMinor: minor, balanceMinor: minor, currency: shopCurrency(), enabled: true,
       ...(expires ? { expiresOn: expires } : {}),
       recipientEmail: EMAIL.test(email) ? email.slice(0, 320) : "", recipientName: String(card.recipientName || "").trim().slice(0, 100),
       senderName: String(senderName || "").slice(0, 100), message: "", note: "Brought over from your old shop",
@@ -76,7 +77,7 @@ async function importGiftCards(db, cards, { actor = "admin", now = new Date(), m
   if (added.length) {
     const total = added.reduce((sum, a) => sum + a.card.balanceMinor, 0);
     await db.collection("audit-log").add({
-      type: "giftCards", message: `Brought ${added.length} gift card${added.length === 1 ? "" : "s"} over from the old shop (CA$${(total / 100).toFixed(2)} in balances)`,
+      type: "giftCards", message: `Brought ${added.length} gift card${added.length === 1 ? "" : "s"} over from the old shop (${shopSign()}${(total / 100).toFixed(2)} in balances)`,
       cards: added.length, balanceMinor: total, by: actor, createdAt: at,
     }).catch(() => {});
   }

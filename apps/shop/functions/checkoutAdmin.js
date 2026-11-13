@@ -4,6 +4,7 @@
 // index.js passes in its own db, payments module (functions/payments), secrets and guards, so the vm-based handler tests' fakes still apply.
 
 const { pressName } = require("./shared/shopIdentity");
+const { shopCurrency, shopSign } = require("./shopMoney");
 const { shopConfig } = require("./shopConfig");
 
 function checkoutAdminActions({
@@ -87,7 +88,7 @@ function checkoutAdminActions({
     try {
       if (body.op === "issue") {
         const amountMinor = Math.floor(Number(body.amountMinor));
-        if (!Number.isFinite(amountMinor) || amountMinor < 100 || amountMinor > 1000000) return res.status(400).json({ error: "Enter an amount between CA$1 and CA$10,000." });
+        if (!Number.isFinite(amountMinor) || amountMinor < 100 || amountMinor > 1000000) return res.status(400).json({ error: `Enter an amount between ${shopSign()}1 and ${shopSign()}10,000.` });
         const recipientEmail = String(body.recipientEmail || "").trim().toLowerCase().slice(0, 320);
         if (recipientEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(recipientEmail)) return res.status(400).json({ error: "Check the recipient's email address." });
         const expiresOn = String(body.expiresOn || "").slice(0, 10);
@@ -96,7 +97,7 @@ function checkoutAdminActions({
         let code = "";
         let id = "";
         const data = {
-          last4: "", initialMinor: amountMinor, balanceMinor: amountMinor, currency: "CAD", enabled: true,
+          last4: "", initialMinor: amountMinor, balanceMinor: amountMinor, currency: shopCurrency(), enabled: true,
           ...(expiresOn ? { expiresOn } : {}),
           recipientEmail, recipientName: String(body.recipientName || "").trim().slice(0, 100),
           senderName: String(body.senderName || "").trim().slice(0, 100) || (await pressNameNow()).slice(0, 100),

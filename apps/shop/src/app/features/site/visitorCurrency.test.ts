@@ -58,3 +58,21 @@ describe("loadVisitorCountry", () => {
     expect(cachedCountry(store, 0)).toBeUndefined();
   });
 });
+
+describe("a shop that sells in US dollars", () => {
+  it("starts everyone outside Canada and Europe in US dollars, its own currency", async () => {
+    const { currencyForCountry } = await import("./visitorCurrency");
+    const { currencyForTimeZone } = await import("../../CurrencyContext");
+    expect(currencyForCountry("US", "USD")).toBe("USD");
+    expect(currencyForCountry("JP", "USD")).toBe("USD");
+    expect(currencyForCountry("CA", "USD")).toBe("CAD");
+    expect(currencyForCountry("FR", "USD")).toBe("EUR");
+    expect(currencyForTimeZone("", "USD")).toBe("USD");
+    expect(currencyForTimeZone("Asia/Tokyo", "USD")).toBe("USD");
+    expect(currencyForTimeZone("America/Toronto", "USD")).toBe("CAD");
+    // A Canadian shop is unchanged.
+    expect(currencyForCountry("JP")).toBe("CAD");
+    expect(currencyForTimeZone("Asia/Tokyo")).toBe("CAD");
+    expect(currencyForTimeZone("")).toBe("CAD");
+  });
+});

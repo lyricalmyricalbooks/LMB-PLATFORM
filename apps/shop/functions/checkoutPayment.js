@@ -68,7 +68,7 @@ function checkoutPaymentActions({
       };
       // Gift cards are taken when the payment is confirmed, which a manual payment may be days later.
       if (Array.isArray(source.giftCards) && source.giftCards.length) throw new Error('Gift cards can be used when paying by card or PayPal, or when they cover the whole order.');
-      const priced = await recalculateOrder({ update: async () => {} }, order, checkoutCurrencyOf(req.body.currency) || 'cad');
+      const priced = await recalculateOrder({ update: async () => {} }, order, checkoutCurrencyOf(req.body.currency) || checkoutCurrencyOf(""));
       const { convertedTotal, settings: ignoredSettings, testMode: ignoredTestMode, ...trusted } = priced;
       const orderId = crypto.randomBytes(12).toString('hex').toUpperCase();
       const trackingKey = crypto.randomBytes(32).toString('hex');
@@ -128,7 +128,7 @@ function checkoutPaymentActions({
       }
       // The shopper's own earlier attempt gives back its holds first, so it can't block this one.
       if (refusePreviousAttemptPaid(res, await releaseSupersededAttempt(req, freeOrder.customer?.email, freeId, freeOrder.items))) return;
-      const priced = await recalculateOrder(freeRef, freeOrder, checkoutCurrencyOf(req.body.currency) || "cad", freeId);
+      const priced = await recalculateOrder(freeRef, freeOrder, checkoutCurrencyOf(req.body.currency) || checkoutCurrencyOf(""), freeId);
       // A test-mode gift card is a rehearsal: it can't pay for a real order on its own.
       if (priced.testCardUsed) return res.status(400).json({ error: "Gift card error: This test gift card can only be used with a test card payment.", code: "gift_card_rejected" });
       if (Math.round(Number(priced.total) * 100) !== 0) {

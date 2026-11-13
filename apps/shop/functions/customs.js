@@ -3,6 +3,7 @@
 // hsTariffNumber, customsOriginCountry. Blank = the defaults below, which suit printed books.
 // Pure (no Firestore, no Shippo): index.js reads the catalog and posts what this builds.
 const { isPhysicalItem } = require("./shared/localFulfillment");
+const { shopCurrency } = require("./shopMoney");
 const { countryCodeOf } = require("./shared/addressRules");
 const { DEFAULT_SHOP_NAME } = require("./shared/shopIdentity");
 
@@ -64,7 +65,7 @@ function customsItems(order, books, defaultOrigin) {
       net_weight: ((grams != null ? grams : kind.copyGrams) * quantity).toFixed(1),
       mass_unit: "g",
       value_amount: lineValue.toFixed(2),
-      value_currency: "CAD",
+      value_currency: shopCurrency(),
       origin_country: origin,
       ...(cleanHsCode(book.hsTariffNumber, kind.hsCode) ? { tariff_number: cleanHsCode(book.hsTariffNumber, kind.hsCode) } : {}),
       ...(item.id ? { sku_code: String(item.id).slice(0, 50) } : {}),

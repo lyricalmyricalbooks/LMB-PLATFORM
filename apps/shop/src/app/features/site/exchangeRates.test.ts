@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest";
-import { FALLBACK_RATES, RATES_CACHE_KEY, RATES_CACHE_MS, SAVED_FRESH_MS, loadRates } from "./exchangeRates";
+import { FALLBACK_RATES, RATES_CACHE_KEY, RATES_CACHE_MS, SAVED_FRESH_MS, fallbackRatesFor, loadRates } from "./exchangeRates";
 
 const memory = () => {
   const data = new Map<string, string>();
@@ -103,5 +103,39 @@ describe("rates are remembered for the whole browser (cost saving)", () => {
     const broken = { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } };
     const res = await loadRates({ readShop: noShop, fetchImpl: feed(0.72, 0.63) as any, store: broken as any });
     expect(res.source).toBe("live");
+  });
+});
+
+describe("a shop that sells in US dollars", () => {
+  const t0 = Date.parse("2026-11-13T12:00:00Z");
+  const usFeed = (cad: number, eur: number) => vi.fn(async (url: string) => {
+    expect(url).toBe("https://open.er-api.com/v6/latest/USD");
+    return new Response(JSON.stringify({ rates: { CAD: cad, EUR: eur, USD: 1 } }), { status: 200 });
+  });
+
+  test("shows the shop's saved rates from the US dollar: its own prices as they are", async () => {
+    const readShop = async () => ({ base: "USD", cad: 1.4, eur: 0.9, fetchedAt: new Date(t0 - 3600_000).toISOString() });
+    expect(await loadRates({ base: "USD", readShop, store: memory(), now: t0 })).toEqual({ rates: { USD: 1, CAD: 1.4, EUR: 0.9 }, source: "live" });
+  });
+
+  test("never uses rates saved or remembered from the Canadian dollar", async () => {
+    const store = memory();
+    // What a Canadian shop's page remembers and saves: 1 CAD = 0.71 USD.
+    store.setItem(RATES_CACHE_KEY, JSON.stringify({ at: t0 - 1000, rates: { USD: 0.71, EUR: 0.62 } }));
+    const readShop = async () => ({ usd: 0.71, eur: 0.62, fetchedAt: new Date(t0 - 3600_000).toISOString() });
+    const fetchImpl = usFeed(1.41, 0.91);
+    expect(await loadRates({ base: "USD", readShop, fetchImpl: fetchImpl as any, store, now: t0 })).toEqual({ rates: { USD: 1, CAD: 1.41, EUR: 0.91 }, source: "live" });
+    // Remembered for the hour, as a US dollar copy.
+    expect((await loadRates({ base: "USD", readShop: noShop, fetchImpl: fetchImpl as any, store, now: t0 + 1000 }))).toEqual({ rates: { USD: 1, CAD: 1.41, EUR: 0.91 }, source: "cached" });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    // And a Canadian shop's page never reads that US copy back.
+    expect((await loadRates({ base: "CAD", readShop: noShop, fetchImpl: feed(0.7, 0.6) as any, store, now: t0 + 2000 })).rates).toEqual({ CAD: 1, USD: 0.7, EUR: 0.6 });
+  });
+
+  test("with nothing reachable, the fixed rates are from the US dollar", async () => {
+    const res = await loadRates({ base: "USD", readShop: noShop, fetchImpl: (async () => { throw new TypeError("blocked"); }) as any, store: null });
+    expect(res).toEqual({ rates: fallbackRatesFor("USD"), source: "fallback" });
+    expect(res.rates.USD).toBe(1);
+    expect(fallbackRatesFor("CAD")).toBe(FALLBACK_RATES);
   });
 });

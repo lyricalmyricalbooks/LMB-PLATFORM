@@ -1,12 +1,14 @@
-// Order amounts are stored in CAD. Customer emails show what the customer was charged:
-// the order's own checkout currency at the rate saved when it was priced.
+// Order amounts are stored in the shop's own currency (CAD, or USD for a shop that sells in US dollars). Customer
+// emails show what the customer was charged: the order's own checkout currency at the rate saved when it was priced.
+const { shopCurrency, shopSign } = require("./shopMoney");
 const SYMBOLS = { CAD: "CA$", USD: "US$", EUR: "€" };
 
-function orderMoneyFmt(cad, order) {
-  const n = Number(cad || 0);
-  const currency = String((order && order.checkoutCurrency) || "CAD").toUpperCase();
+function orderMoneyFmt(amount, order) {
+  const n = Number(amount || 0);
+  const shop = shopCurrency();
+  const currency = String((order && order.checkoutCurrency) || shop).toUpperCase();
   const rate = Number(order && order.exchangeRate);
-  const value = currency !== "CAD" && rate > 0 ? n * rate : n;
+  const value = currency !== shop && rate > 0 ? n * rate : n;
   return `${SYMBOLS[currency] || `${currency} `}${value.toFixed(2)}`;
 }
 
@@ -23,28 +25,28 @@ function chargedTotalFmt(order) {
 }
 
 // The refund line in the customer's email: the refunded amount in the currency it went back in.
-// Older records without a currency are treated as the order total in CAD.
+// Older records without a currency are treated as the order total in the shop's currency.
 function refundAmountText(order) {
   const refunded = Number(order && order.refund && order.refund.amount);
   if (!Number.isFinite(refunded)) return orderMoneyFmt(order && order.total, order);
-  const currency = String((order.refund && order.refund.currency) || "CAD").toUpperCase();
+  const currency = String((order.refund && order.refund.currency) || shopCurrency()).toUpperCase();
   return `${SYMBOLS[currency] || `${currency} `}${refunded.toFixed(2)}`;
 }
 
 // The shipped email when no tracking number was entered: drop the lines about the carrier's
 // tracking, and "with {{tracking_carrier}}", so the customer doesn't see blanks.
 // What the "Order refunded" email should say (pure). `redemptions` = the gift cards the order was
-// paid with (chargedRedemptions), CAD cents. Returns null when no email should go out: a lost
+// paid with (chargedRedemptions), cents of the shop's currency. Returns null when no email should go out: a lost
 // chargeback is the bank taking the money back, not a refund from the shop.
 function refundEmailFacts(order, redemptions = []) {
   if (!order || (order.refund && order.refund.provider === "dispute")) return null;
   const giftMinor = order.giftCardsRestoredAt
     ? (redemptions || []).reduce((sum, r) => sum + (Number(r && r.minor) || 0), 0) : 0;
   const providerRefund = order.refund && order.refund.provider && order.refund.provider !== "manual";
-  // A manual refund records the CAD order total; the customer paid what their emails showed.
+  // A manual refund records the order total in the shop's currency; the customer paid what their emails showed.
   const money = providerRefund || order.refundedAmountMinor != null ? refundAmountText(order) : chargedTotalFmt(order);
   const moneyZero = !(Number(money.replace(/[^\d.]/g, "")) > 0);
-  const giftText = giftMinor > 0 ? `CA$${(giftMinor / 100).toFixed(2)}` : "";
+  const giftText = giftMinor > 0 ? `${shopSign()}${(giftMinor / 100).toFixed(2)}` : "";
   const cards = (redemptions || []).map(r => r && r.last4 ? `••••${r.last4}` : "").filter(Boolean).join(", ");
   return { amountText: moneyZero && giftText ? giftText : money, giftText, cards, giftOnly: moneyZero && !!giftText };
 }

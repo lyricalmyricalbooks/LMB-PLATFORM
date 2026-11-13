@@ -6,7 +6,7 @@ import { createServer } from 'node:http';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { resolve, dirname, extname, sep } from 'node:path';
 import { publicRoutes, routeOutputPath, captureDocument } from './prerenderHtml.mjs';
-import { SHOP_BUILD_DIR, shopSiteUrl } from './shopProfile.mjs';
+import { SHOP_BUILD_DIR, readShopProfileSync, shopSiteUrl } from './shopProfile.mjs';
 
 const dist = SHOP_BUILD_DIR;
 const siteUrl = await shopSiteUrl();
@@ -74,15 +74,15 @@ try {
       await context.route(/firestore\.googleapis\.com\/v1\/.*documents:(commit|beginTransaction)/, request => request.abort());
       await context.route(/google-analytics\.com|googletagmanager\.com/, request => request.abort());
       await context.route(/^https:\/\/(firebasestorage|storage)\.googleapis\.com\//, fromStorage);
-      await context.addInitScript(cache => {
+      await context.addInitScript(({ cache, currency }) => {
         localStorage.setItem('lm:cookie-consent', JSON.stringify({ necessary: true, analytics: false, marketing: false, decidedAt: new Date().toISOString() }));
         sessionStorage.setItem(`fm_visit_${new Date().toISOString().split('T')[0]}`, 'true');
         // Keep the Studio pop-up section group out of the HTML snapshots (PopupSections, POPUP_SUPPRESS_KEY).
         sessionStorage.setItem('lm:popup-suppressed', '1');
         // Snapshots show prices in the shop's own currency, never the build runner's country (visitorCurrency.ts).
-        localStorage.setItem('fm_currency', 'CAD');
+        localStorage.setItem('fm_currency', currency);
         if (cache) sessionStorage.setItem('site-bootstrap-v1', cache);
-      }, publishedCache);
+      }, { cache: publishedCache, currency: readShopProfileSync().currency === 'USD' ? 'USD' : 'CAD' });
       const page = await context.newPage();
       const errors = [];
       page.on('pageerror', error => errors.push(error.message));

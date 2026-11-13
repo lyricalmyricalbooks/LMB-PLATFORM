@@ -12,6 +12,7 @@ import { CONSENT_EVENT, consentAllows } from "./consent";
 import { googleTrackingAllowed } from "./trackingGuard";
 import { afterPageLoad } from "./afterPageLoad";
 import { readSiteCache } from "../features/site/siteCache";
+import { shopCurrency } from "../../lib/shopProfile";
 
 type Params = Record<string, unknown>;
 export interface Ga4Item { item_id: string; item_name: string; price: number; quantity: number; item_variant?: string }
@@ -64,12 +65,12 @@ export function ga4BookItem(bookId: string, books: any[] | null | undefined = re
   return { item_id: String(bookId), ...(book?.title ? { item_name: String(book.title).slice(0, 100) } : {}) };
 }
 
-/** The purchase event for a paid order, or null for test/sandbox orders. CAD totals, as stored on the order. */
+/** The purchase event for a paid order, or null for test/sandbox orders. Totals in the shop's currency, as stored on the order. */
 export function purchaseEvent(orderId: string, order: any): Params | null {
   if (!orderId || !order || order.isTest === true || order.sandboxPayment === true) return null;
   return {
     transaction_id: String(order.orderId || orderId),
-    currency: "CAD",
+    currency: shopCurrency(),
     value: Math.round((Number(order.total) || 0) * 100) / 100,
     tax: Number(order.tax) || 0,
     shipping: Number(order.shipping) || 0,
@@ -180,7 +181,7 @@ export function ga4ViewCart(lines: any[]) {
   const items = ga4Items(lines);
   if (!items.length) { ga4Event("view_cart", {}); return; }
   const value = Math.round(items.reduce((sum, i) => sum + i.price * i.quantity, 0) * 100) / 100;
-  ga4Event("view_cart", { currency: "CAD", value, items });
+  ga4Event("view_cart", { currency: shopCurrency(), value, items });
 }
 
 /** The last page sent, so an in-app move carries where it came from (Overview › Where people go next). */
