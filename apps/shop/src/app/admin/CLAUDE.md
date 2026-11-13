@@ -548,6 +548,12 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
   imports it twice: the second run must be all unchanged. A new layout or a reader change adds its file there.
   `https()` in shopMove reads `http://`, `//host` and one builder's bare media file names; `book()` notes photos with no
   address and a sale on one edition. `parseMoney` reads `1.250,00`. `decodeText` reads two-byte text with no marker.
+- **Take an import back (13 November 2026):** `importUndo.ts` (pure, `importUndo.test.ts`) records each product import in
+  this browser (`lm:product-imports`, 5 runs, 14 days) and plans the undo: delete only books the run made that are still
+  drafts, put back only fields that still hold what the import wrote, never stock. `ImportTakeBack.tsx` shows it on the
+  result screen and, for an earlier run, on the start screen. Imports save four at a time (`runPool`) with `{ quiet: true }`
+  on `createBook`/`updateBook`/`deleteBook`, and write one activity-log line per run. `pnpm run test:move` clicks it through
+  on desktop and phone (the fixture's move mode keeps books in memory).
 
 ## Set up your shop (28 October 2026, code plan 6.3 and 6.9; was Your first week, 3.3)
 

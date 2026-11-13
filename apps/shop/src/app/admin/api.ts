@@ -281,7 +281,8 @@ export const adminApi = {
     return mergeBookPrivate({ id: snap.id, ...snap.data() }, priv);
   },
 
-  createBook: async (book: any) => {
+  /** `quiet` (an import saving many at once): no log line per book; the caller clears the examples and logs once. */
+  createBook: async (book: any, options: { quiet?: boolean } = {}) => {
     const dataToSave = { ...book };
     delete dataToSave.id;
     delete dataToSave._lastDoc;
@@ -293,6 +294,7 @@ export const adminApi = {
       updatedAt: new Date().toISOString(),
     });
     if (Object.keys(priv).length) await setDoc(privateBookRef(docRef.id), { ...priv, updatedAt: new Date().toISOString() });
+    if (options.quiet) return { id: docRef.id, ...dataToSave };
     await adminApi.recordAuditLog("catalog", `Created book: ${dataToSave.title}`);
     // The first real product clears the example products (Products › Show examples), so none is left on a live shop.
     if (dataToSave.isExample !== true) await adminApi.clearExampleProducts().catch(() => {});
@@ -327,7 +329,7 @@ export const adminApi = {
    */
   // `options.removeMissing`: `book` is the editor's complete form, so a field that was on the loaded book and is
   // gone from the form was removed on purpose and is deleted. Partial writes (bulk edits, CSV import) leave it off.
-  updateBook: async (id: string, book: any, loaded?: any, options: { removeMissing?: boolean } = {}) => {
+  updateBook: async (id: string, book: any, loaded?: any, options: { removeMissing?: boolean; quiet?: boolean } = {}) => {
     const docRef = doc(db, "books", id);
     let dataToSave = { ...book };
     delete dataToSave.id;
@@ -382,7 +384,7 @@ export const adminApi = {
       await updateDoc(docRef, { ...pub, ...scrubPrivateKeys(priv), updatedAt });
       if (Object.keys(priv).length) await setDoc(privRef, { ...priv, updatedAt }, { mergeFields: [...Object.keys(priv), "updatedAt"] });
     }
-    await adminApi.recordAuditLog("catalog", `Updated book: ${dataToSave.title}`);
+    if (!options.quiet) await adminApi.recordAuditLog("catalog", `Updated book: ${dataToSave.title}`);
     // Photos taken off the book: their files leave Storage too (unless another book or an order shows them).
     const gone = removedPhotos(photosBefore, dataToSave.photos);
     if (gone.length) void adminApi.removeBookFiles(gone);
@@ -424,7 +426,7 @@ export const adminApi = {
     return changed;
   },
 
-  deleteBook: async (id: string) => {
+  deleteBook: async (id: string, options: { quiet?: boolean } = {}) => {
     try {
       const snap = await getDoc(doc(db, "books", id));
       const title = snap.exists() ? snap.data().title : id;
@@ -433,7 +435,7 @@ export const adminApi = {
       if (Array.isArray(photos) && photos.length) void adminApi.removeBookFiles(photos);
       // A subcollection document outlives its parent, so the private fields are removed with the book.
       await deleteDoc(privateBookRef(id)).catch(() => {});
-      await adminApi.recordAuditLog("catalog", `Deleted book: ${title}`);
+      if (!options.quiet) await adminApi.recordAuditLog("catalog", `Deleted book: ${title}`);
     } catch (err) {
       await deleteDoc(doc(db, "books", id));
       await deleteDoc(privateBookRef(id)).catch(() => {});

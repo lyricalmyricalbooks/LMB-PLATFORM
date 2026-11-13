@@ -597,6 +597,15 @@ if (new URLSearchParams(location.search).get("move")) {
   api.addImportedSubscriber = record("addImportedSubscriber", () => true);
   api.giftCardAdmin = record("giftCardAdmin", (_op: string, body: any) => ({ added: body?.cards?.length || 0, emailed: 0, emailFailed: 0, skipped: [] }));
   api.getPages = async () => [];
+  // Books import (Books › Import spreadsheet) saves into memory, so the check can import a file and take it back.
+  const shelf: any[] = A11Y_BOOKS.map((b: any) => ({ ...b }));
+  api.getBooks = async () => shelf.map((b) => ({ ...b }));
+  api.getAllBooks = api.getBooks;
+  api.clearExampleProducts = async () => 0;
+  api.recordAuditLog = record("recordAuditLog", () => undefined);
+  api.createBook = record("createBook", (book: any) => { const made = { ...book, id: `made-${shelf.length + 1}` }; shelf.push(made); return { ...made }; });
+  api.updateBook = record("updateBook", (id: string, patch: any) => { Object.assign(shelf.find((b) => b.id === id) || {}, patch); });
+  api.deleteBook = record("deleteBook", (id: string) => { const i = shelf.findIndex((b) => b.id === id); if (i >= 0) shelf.splice(i, 1); });
   // What came over, counted from the calls above (past orders live on the check's pretend server, so none here).
   api.movedCounts = async () => ({
     customers: new Set(calls.filter((c) => c[0] === "saveCustomerNote").map((c) => c[1])).size,

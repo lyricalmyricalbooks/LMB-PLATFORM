@@ -7,6 +7,10 @@ const api = vi.hoisted(() => ({
   getPublicSettings: vi.fn(async () => ({ design: { categories: [{ id: "p", name: "Poetry" }] } })),
   createBook: vi.fn(async (b: any) => ({ id: "new1", ...b })),
   updateBook: vi.fn(async (id: string, b: any) => ({ id, ...b })),
+  deleteBook: vi.fn(async () => {}),
+  getAllBooks: vi.fn(async (): Promise<any[]> => []),
+  clearExampleProducts: vi.fn(async () => 0),
+  recordAuditLog: vi.fn(async () => {}),
 }));
 vi.mock("./inventoryLinkApi", () => ({ inventoryLinkApi: { links: async () => ({}) } }));
 vi.mock("./api", () => ({ adminApi: api }));
@@ -50,10 +54,54 @@ describe("BookImportDialog", () => {
     await act(async () => { importBtn.click(); });
     await flush();
 
-    expect(api.updateBook).toHaveBeenCalledWith("b1", { title: "Salt Hours", retailPrice: 26 }, books[0]);
-    expect(api.createBook).toHaveBeenCalledWith(expect.objectContaining({ title: "New Moon", retailPrice: 15, status: "draft" }));
+    expect(api.updateBook).toHaveBeenCalledWith("b1", { title: "Salt Hours", retailPrice: 26 }, books[0], { quiet: true });
+    expect(api.createBook).toHaveBeenCalledWith(expect.objectContaining({ title: "New Moon", retailPrice: 15, status: "draft" }), { quiet: true });
     expect(onDone).toHaveBeenCalledWith(["new1"]);
     expect(document.body.textContent).toContain("2 of 2 saved");
+    // One line in the activity log for the whole file, not one per book.
+    expect(api.recordAuditLog.mock.calls).toEqual([["catalog", "Imported books.csv: 1 added as drafts, 1 updated"]]);
+  });
+
+  it("takes an import back: the draft it added is deleted and the price it changed goes back", async () => {
+    const onDone = vi.fn();
+    const host = document.createElement("div"); document.body.append(host);
+    root = createRoot(host);
+    act(() => root!.render(h(BookImportDialog, { books, onClose: () => {}, onDone })));
+    const file = new File(["ISBN,Title,Price\n9780306406157,,26\n,New Moon,15\n"], "books.csv", { type: "text/csv" });
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    Object.defineProperty(input, "files", { value: [file], configurable: true });
+    await act(async () => { input.dispatchEvent(new Event("change", { bubbles: true })); });
+    await flush();
+    await act(async () => { [...document.querySelectorAll("button")].find(b => /Import 2 books/.test(b.textContent || ""))!.click(); });
+    await flush();
+
+    // The catalog as the import left it; one more book was published by hand meanwhile and must not be touched.
+    api.getAllBooks.mockResolvedValue([{ ...books[0], retailPrice: 26 }, { id: "new1", title: "New Moon", status: "draft" }, { id: "mine", title: "Mine", status: "draft" }]);
+    const button = () => [...document.querySelectorAll("button")].find(b => /Take this import back/.test(b.textContent || ""));
+    await act(async () => { button()!.click(); });
+    await flush();
+    expect(document.body.textContent).toMatch(/This deletes or puts back 1 new draft and changes to 1 product from books\.csv\./);
+    expect(api.deleteBook).not.toHaveBeenCalled();
+    await act(async () => { [...document.querySelectorAll("button")].find(b => b.textContent === "Take it back")!.click(); });
+    await flush();
+
+    expect(api.deleteBook.mock.calls).toEqual([["new1", { quiet: true }]]);
+    expect(api.updateBook).toHaveBeenLastCalledWith("b1", { title: "Salt Hours", retailPrice: 24 }, expect.objectContaining({ id: "b1", retailPrice: 26 }), { quiet: true });
+    expect(document.body.textContent).toContain("Taken back: 1 draft deleted, 1 put back as it was.");
+    expect(button()).toBeUndefined();
+    expect(JSON.parse(localStorage.getItem("lm:product-imports") || "[]")).toEqual([]);
+  });
+
+  it("offers the last import again when the window is opened later, and says when nothing is left", async () => {
+    localStorage.setItem("lm:product-imports", JSON.stringify([{ id: "run-1", at: new Date().toISOString(), file: "old shop.csv", created: [{ id: "x1", title: "Gone" }], updated: [], redirects: [] }]));
+    const host = document.createElement("div"); document.body.append(host);
+    root = createRoot(host);
+    act(() => root!.render(h(BookImportDialog, { books, onClose: () => {}, onDone: () => {} })));
+    expect(document.body.textContent).toMatch(/Last import: old shop\.csv, .* \(1 added\)\./);
+    await act(async () => { [...document.querySelectorAll("button")].find(b => /Take this import back/.test(b.textContent || ""))!.click(); });
+    await flush();
+    expect(document.body.textContent).toContain("There is nothing left to take back.");
+    expect(api.deleteBook).not.toHaveBeenCalled();
   });
 
   it("a file chosen earlier that reads slowly never replaces the newer one's preview", async () => {

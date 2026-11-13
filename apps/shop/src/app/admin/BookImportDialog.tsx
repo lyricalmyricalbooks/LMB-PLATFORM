@@ -18,6 +18,13 @@ import { FirstRows, SheetChoice } from "./SheetChoice";
 import { XLSX_TYPE, saveFile, toXlsx } from "./xlsxWriter";
 import { rememberColumns, rememberedColumns } from "./columnMemory";
 import { GoogleSheetLink } from "./GoogleSheetLink";
+import { runPool } from "./aiWriter";
+import { ImportTakeBack } from "./ImportTakeBack";
+import { rememberRun, runRecord, savedRuns, type ImportRun } from "./importUndo";
+import { friendlyError } from "./settingsLayout";
+
+/** How many books are saved at once: quick for a big catalog, gentle on a slow connection. */
+const SAVE_AT_ONCE = 4;
 
 
 type Result = { line: number; title: string; ok: boolean; message?: string };
@@ -53,6 +60,9 @@ export function BookImportDialog({ books, onClose, onDone, initialFile }: {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<Result[] | null>(null);
+  // What this import saved, so it can be taken back; and the last import from an earlier visit.
+  const [lastRun, setLastRun] = useState<ImportRun | null>(null);
+  const [earlierRun, setEarlierRun] = useState<ImportRun | null>(() => savedRuns()[0] ?? null);
 
   const [stockMode, setStockMode] = useState<"leave" | "set">("leave");
   // The owner's matches for columns the shop didn't recognise (plan 23.36), by heading.
@@ -119,27 +129,36 @@ export function BookImportDialog({ books, onClose, onDone, initialFile }: {
     if (plan?.unknownColumns?.length) rememberColumns(plan.unknownColumns, columns);
     const byId = new Map(books.map(b => [b.id, b]));
     const done: Result[] = [];
-    const created: string[] = [];
+    const made: { line: number; id: string; title: string }[] = [];
+    const changed: { id: string; title: string; patch: Record<string, any>; loaded: any }[] = [];
     // Plan 3.2: each saved book's old shop addresses, so old product links keep working.
     const linked: { oldPaths: string[]; bookId: string }[] = [];
-    // One at a time: a catalog of a few hundred books imports in seconds, and a failure stops nothing else.
-    for (const row of work) {
+    // The first real product clears the example products, once for the whole file.
+    if (work.some(r => r.action === "create")) await adminApi.clearExampleProducts().catch(() => {});
+    // A few at a time: a catalog of a couple of thousand saves in minutes, and a failure stops nothing else.
+    await runPool(work, SAVE_AT_ONCE, async (row) => {
       try {
         if (row.action === "create") {
-          const saved = await adminApi.createBook(row.patch);
-          created.push(saved.id);
+          const saved = await adminApi.createBook(row.patch, { quiet: true });
+          made.push({ line: row.line, id: saved.id, title: row.title });
           if (oldPaths.has(row.line)) linked.push({ oldPaths: oldPaths.get(row.line)!, bookId: saved.id });
         } else {
           const loaded = byId.get(row.bookId);
-          await adminApi.updateBook(row.bookId!, { title: loaded?.title, ...row.patch }, loaded);
+          await adminApi.updateBook(row.bookId!, { title: loaded?.title, ...row.patch }, loaded, { quiet: true });
+          changed.push({ id: row.bookId!, title: row.title, patch: row.patch, loaded });
           if (oldPaths.has(row.line)) linked.push({ oldPaths: oldPaths.get(row.line)!, bookId: row.bookId! });
         }
         done.push({ line: row.line, title: row.title, ok: true });
-      } catch (err: any) {
-        done.push({ line: row.line, title: row.title, ok: false, message: err?.message || "Not saved" });
+      } catch (err) {
+        done.push({ line: row.line, title: row.title, ok: false, message: friendlyError(err, "save it") });
       }
       setProgress(done.length);
-    }
+    });
+    done.sort((a, b) => a.line - b.line);
+    made.sort((a, b) => a.line - b.line);
+    const created = made.map(m => m.id);
+    if (made.length || changed.length) await adminApi.recordAuditLog("catalog", `Imported ${fileName || "a file"}: ${made.length} added as drafts, ${changed.length} updated`).catch(() => {});
+    let addedLinks: string[] = [];
     // Books that were already up to date still get their old links.
     for (const row of plan?.rows || []) if (row.action === "unchanged" && row.bookId && oldPaths.has(row.line)) linked.push({ oldPaths: oldPaths.get(row.line)!, bookId: row.bookId });
     if (linked.length) {
@@ -147,6 +166,7 @@ export function BookImportDialog({ books, onClose, onDone, initialFile }: {
         const next = importRedirects(await adminApi.getRedirects(), linked);
         if (next.added.length) {
           await adminApi.saveRedirects(next.items);
+          addedLinks = next.added.map(r => r.from);
           await adminApi.recordAuditLog("catalog", `Old shop links: ${next.added.length} now lead to the imported books`).catch(() => {});
         }
         setLinks({ added: next.added.length, skipped: next.skipped.length - next.full, full: next.full, failed: false });
@@ -154,6 +174,8 @@ export function BookImportDialog({ books, onClose, onDone, initialFile }: {
         setLinks({ added: 0, skipped: 0, full: 0, failed: true });
       }
     }
+    const record = runRecord(`run-${crypto.randomUUID()}`, new Date().toISOString(), fileName, made.map(({ id, title }) => ({ id, title })), changed, addedLinks);
+    if (record.created.length || record.updated.length) { rememberRun(record); setLastRun(record); setEarlierRun(null); }
     setResults(done);
     setBusy(false);
     onDone(created);
@@ -176,6 +198,7 @@ export function BookImportDialog({ books, onClose, onDone, initialFile }: {
       <div className="rp-stack">
         {!results && <>
           {/* Once a file is chosen, the how-to and the address box step aside so the preview sits near the top. */}
+          {!fileName && earlierRun && <ImportTakeBack run={earlierRun} onDone={() => onDone([])} />}
           {!fileName && <>
           <ul className="rp-hint" style={{ margin: 0, paddingLeft: 18 }}>
             <li>{w("Easiest: in Books, open")} <strong>⋯ More catalog actions › Export…</strong>, edit the file in Excel, Numbers or Google Sheets and import it back here, as Excel or CSV.</li>
@@ -245,12 +268,13 @@ export function BookImportDialog({ books, onClose, onDone, initialFile }: {
             {results.length - failed.length} of {results.length} saved{failed.length ? ` · ${failed.length} not saved` : ""}
           </StatusBadge>
           {failed.length > 0 && <ul className="rp-hint" style={{ margin: 0, paddingLeft: 18 }}>
-            {failed.map(r => <li key={r.line}>Line {r.line} · {r.title}: {r.message}. Import the file again to retry; rows already saved show as unchanged.</li>)}
+            {failed.map(r => <li key={r.line}>Line {r.line} · {r.title}: {r.message} Import the file again to retry; rows already saved show as unchanged.</li>)}
           </ul>}
           {links && <p className="rp-hint" style={{ margin: 0 }}>
             {oldLinksMessage(links)}
           </p>}
           {(plan?.counts.create || 0) > 0 && <p className="rp-hint" style={{ margin: 0 }}>{w("New books are drafts and are now selected in the catalog. Choose")} <strong>Publish</strong> to review and put them on sale.</p>}
+          {lastRun && <ImportTakeBack run={lastRun} label="Not what you wanted?" onDone={() => onDone([])} />}
         </div>}
       </div>
     </Dialog>
