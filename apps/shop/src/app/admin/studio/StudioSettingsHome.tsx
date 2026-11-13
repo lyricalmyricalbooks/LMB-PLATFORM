@@ -156,8 +156,8 @@ export function StudioTips({ forceOpen = 0 }: { forceOpen?: number }) {
       <ol>
         <li><b>Click anything in the preview</b> to open its settings. Double-click text to type over it.</li>
         <li><b>Theme settings</b> change the look of every page; <b>Page layout</b> adds and arranges sections.</li>
-        <li><b>Save draft</b> keeps your work private. <b>Publish</b> puts it live. Press <kbd>Ctrl</kbd> <kbd>K</kbd> to find any setting.</li>
-        <li>Not sure where to start? <b>Essentials</b>, at the top of the bar on the left, has the first things to set; <b>Theme actions › Open the Workbench › Setup</b> has a checklist.</li>
+        <li><b>Save draft</b> keeps your work private. <b>Publish</b> puts it live. <b>Find</b>, at the top, searches every setting.</li>
+        <li>Not sure where to start? <b>Essentials</b>, the first workspace, has the first things to set; <b>Theme actions › Open the Workbench › Setup</b> has a checklist.</li>
       </ol>
       <button type="button" className="studio-reset" onClick={dismiss}>Got it, hide these tips</button>
     </aside>

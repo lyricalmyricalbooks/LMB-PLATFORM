@@ -19,6 +19,7 @@ import { pickBook, sectionBookQuery, selectBooks } from "../features/site/mercha
 import { aspectRatioValue } from "../features/site/imageAspect";
 import { ResponsiveImage } from "./ResponsiveImage";
 import { mediaKey } from "../features/site/mediaRef";
+import { placeholderImage } from "../features/site/constants";
 import { gridPhotoSizes, photoSrcSet, FEATURE_PHOTO_SIZES, smallPhotoUrl } from "../features/site/photoSources";
 import { framingStyle } from "../features/site/photoFraming";
 import { PhotoToneDefs } from "../features/site/PhotoToneDefs";
@@ -444,6 +445,12 @@ const BANNER_POSITIONS: Record<string, string> = {
   "bottom-center": "items-end justify-center",
   "bottom-right": "items-end justify-end",
 };
+
+/** A product with no photo shows the shop's stand-in picture (Studio › Theme settings, `placeholderImageUrl`), as
+ *  the shop grid and the product page do, never an empty box. */
+function NoPhoto({ title }: { title?: string }) {
+  return <img src={placeholderImage(useSectionDesign())} alt={title || ""} loading="lazy" decoding="async" className="w-full h-full object-cover" />;
+}
 
 const inStudioPreview = () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "true";
 /** Empty sections show a "how to fill me" sample only in the Studio preview — shoppers never see sample content. */
@@ -1198,7 +1205,7 @@ export function FeaturedProductSection({ settings, books, onProductClick, enable
               className={`aspect-[3/4] overflow-hidden rounded-2xl bg-white/5 ${hoverEffectClassName(settings.hoverEffect)}`}
               style={hoverEffectGlowStyle(settings.hoverEffect, settings.accentColor)}
             >
-              {photo ? <><PhotoToneDefs photo={target.photos?.[0]} /><img loading="lazy" src={photo} {...photoSrcSet(target.photos?.[0], FEATURE_PHOTO_SIZES)} decoding="async" className="w-full h-full object-cover" style={framingStyle(target.photos?.[0])} alt={target.title} /></> : null}
+              {photo ? <><PhotoToneDefs photo={target.photos?.[0]} /><img loading="lazy" src={photo} {...photoSrcSet(target.photos?.[0], FEATURE_PHOTO_SIZES)} decoding="async" className="w-full h-full object-cover" style={framingStyle(target.photos?.[0])} alt={target.title} /></> : <NoPhoto title={target.title} />}
             </div>
             <div className="space-y-5">
               <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50" style={bStyle(settings)}>{settings.eyebrow ?? fb("FeaturedProductSection.eyebrow")}</p>
@@ -1318,7 +1325,7 @@ export function ProductGridHeaderSection({ settings, books, onProductClick, enab
                   className="fm-card group block w-full min-w-0 text-left"
                 >
                   <div className="relative overflow-hidden bg-white/5" style={{ aspectRatio: aspect }}>
-                    {book.photos?.[0]?.url && (
+                    {book.photos?.[0]?.url ? (
                       <img
                         src={book.photos[0].url}
                         {...photoSrcSet(book.photos[0], gridPhotoSizes([{ from: 0, cols: mobileCols }, { from: 1024, cols }], { photo: book.photos[0], frame: aspect, cover: fit === "cover" }))}
@@ -1328,7 +1335,7 @@ export function ProductGridHeaderSection({ settings, books, onProductClick, enab
                         className="w-full h-full transition-transform duration-700 group-hover:scale-105"
                         style={{ objectFit: fit, objectPosition: focal, ...framingStyle(book.photos[0]) }}
                       />
-                    )}
+                    ) : <NoPhoto title={book.title} />}
                     <PhotoToneDefs photo={book.photos?.[0]} />
                     {settings.showBadges !== false && onSale && (
                       <span
@@ -1403,7 +1410,7 @@ export function ProductCoverCarouselSection({ settings, books, onCtaClick }: any
         // Owner guidance: shown in the Studio preview only, never to shoppers.
         inStudioPreview() ? (
           <div className="absolute inset-0 flex items-center justify-center text-white/30 text-xs uppercase tracking-widest">
-            Add books with cover photos to fill this carousel
+            Add photos to your products to fill this carousel
           </div>
         ) : null
       ) : (
@@ -1554,7 +1561,7 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
                   }}
                 >
                   <div className="relative overflow-hidden rounded-[2px] bg-white/5" style={{ aspectRatio: aspect }}>
-                    {book.photos?.[0]?.url && (
+                    {book.photos?.[0]?.url ? (
                       <img
                         src={book.photos[0].url}
                         {...photoSrcSet(book.photos[0], gridPhotoSizes([{ from: 0, cols: mobileCols }, { from: 1024, cols }], { photo: book.photos[0], frame: aspect }))}
@@ -1564,7 +1571,7 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
                         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                         style={framingStyle(book.photos[0])}
                       />
-                    )}
+                    ) : <NoPhoto title={book.title} />}
                     <PhotoToneDefs photo={book.photos?.[0]} />
                     {overlayColor && overlayOpacity > 0 && (
                       <div
@@ -1659,7 +1666,7 @@ export function StaffNotesTableSection({ settings, books, onProductClick, enable
         </AnimationContainer>
         {rows.length === 0 ? (
           // Owner guidance: shown in the Studio preview only, never to shoppers.
-          inStudioPreview() ? <p className="py-12 text-center text-sm fm-muted">Add book notes to fill this table.</p> : null
+          inStudioPreview() ? <p className="py-12 text-center text-sm fm-muted">Add notes to your products to fill this table.</p> : null
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
@@ -2695,7 +2702,7 @@ export function FeaturedCollectionSection({ settings, books, onProductClick, ena
                 onKeyDown={(e: any) => { if (e.target !== e.currentTarget) return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onProductClick?.(book); } }}
               >
                 <div className="fm-photo-frame relative overflow-hidden bg-white/5" style={{ aspectRatio: "3 / 4" }}>
-                  {book.photos?.[0]?.url && <><PhotoToneDefs photo={book.photos[0]} /><img loading="lazy" src={book.photos[0].url} {...photoSrcSet(book.photos[0], gridPhotoSizes([{ from: 0, cols: mobileCols }, { from: 768, cols }], { photo: book.photos[0], frame: "3 / 4" }))} alt={book.title} decoding="async" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"  style={framingStyle(book.photos[0])} /></>}
+                  {book.photos?.[0]?.url ? <><PhotoToneDefs photo={book.photos[0]} /><img loading="lazy" src={book.photos[0].url} {...photoSrcSet(book.photos[0], gridPhotoSizes([{ from: 0, cols: mobileCols }, { from: 768, cols }], { photo: book.photos[0], frame: "3 / 4" }))} alt={book.title} decoding="async" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"  style={framingStyle(book.photos[0])} /></> : <NoPhoto title={book.title} />}
                 </div>
                 <h3 className="fm-card-title mt-3 text-[15px] leading-snug" style={hStyle(settings)}>{book.title}</h3>
                 {settings.showPrices !== false && (
@@ -2729,7 +2736,7 @@ export function BookSpotlightSection({ settings, books, onProductClick, enableAn
         <AnimationContainer enabled={enableAnimations}>
           <div className="fm-card grid md:grid-cols-2 gap-10 items-center">
             <div className={`fm-photo-frame aspect-[3/4] overflow-hidden bg-white/5 ${coverRight ? "md:order-2" : ""}`}>
-              {photo ? <><PhotoToneDefs photo={target.photos?.[0]} /><img loading="lazy" src={photo} {...photoSrcSet(target.photos?.[0], FEATURE_PHOTO_SIZES)} decoding="async" className="w-full h-full object-cover" style={framingStyle(target.photos?.[0])} alt={target.title} /></> : null}
+              {photo ? <><PhotoToneDefs photo={target.photos?.[0]} /><img loading="lazy" src={photo} {...photoSrcSet(target.photos?.[0], FEATURE_PHOTO_SIZES)} decoding="async" className="w-full h-full object-cover" style={framingStyle(target.photos?.[0])} alt={target.title} /></> : <NoPhoto title={target.title} />}
             </div>
             <div className="space-y-5">
               {eyebrow && <p className="text-[10px] font-bold tracking-[0.3em] uppercase" style={{ color: settings.accentColor || "var(--accent, #e8402a)" }} data-theme-field="eyebrow">{eyebrow}</p>}

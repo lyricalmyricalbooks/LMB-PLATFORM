@@ -634,6 +634,12 @@ ignores `themeBase`; it is a structural key for the import check. Wave 3: Chapbo
 `archival`, `poster`, layouts `press-chapbook` / `press-archive` / `press-poster`). Changing a shipped theme now offers an
 update to every shop using it, so change themes on purpose.
 
+**Phone pass (13 November 2026).** On a screen up to 767px Studio opens on the phone preview (a remembered or linked
+device still wins), `StudioRail` scrolls the open workspace into sight in its sideways row (again when the row gets a
+width: it is hidden until the Sections tab opens), and the tips name nothing a phone lacks. Section product cards with
+no photo draw `NoPhoto` (`SectionComponents.tsx`: `placeholderImage(design)`, as the shop grid and product page do);
+`noPhotoCards.test.tsx` lists the sections, so add a new card section there. The fixture calls `applyAdminLook()`.
+
 ## Studio organization
 
 Studio organization milestone: Page layout, Theme settings, Text & labels, Navigation and Pages
