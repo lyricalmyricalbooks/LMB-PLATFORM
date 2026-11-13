@@ -136,3 +136,17 @@ describe("helpers", () => {
     expect(analyticsModel({ range: year, shift: 0, daily, orders: [], books }).grain).toBe("month");
   });
 });
+
+describe("sales from ads and campaigns", () => {
+  it("lists campaign orders in the period with their sales", () => {
+    const m = analyticsModel({ range, shift: 0, daily, books, orders: [
+      paid("c1", "2026-11-06", { total: 45, acquisition: JSON.stringify({ source: "instagram", medium: "paid_social", campaign: "Fall launch" }) }),
+      paid("c2", "2026-11-07", { acquisition: JSON.stringify({ source: "newsletter", medium: "email" }) }),
+      paid("c0", "2026-11-01", { acquisition: JSON.stringify({ source: "google", medium: "cpc" }) }),
+    ] });
+    expect(m.campaigns).toEqual([
+      { key: "instagram|fall launch", label: "Instagram", value: 1, sub: "Campaign: Fall launch", extra: "$45.00" },
+      { key: "newsletter|~email", label: "Newsletter", value: 1, sub: "Email", extra: "$30.00" },
+    ]);
+  });
+});

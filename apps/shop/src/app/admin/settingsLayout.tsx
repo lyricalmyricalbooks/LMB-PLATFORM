@@ -23,7 +23,9 @@ export function jumpTo(id: string) {
 
 /** Scrolls to a card once the page that holds it is showing (Settings loads on its own, after the address changes). */
 export function jumpWhenShown(id: string, tries = 50) {
-  const el = typeof document !== "undefined" ? document.getElementById(id) : null;
+  // The page can be gone between tries (a closed tab, or a test's page torn down): then stop.
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+  const el = document.getElementById(id);
   if (el && el.offsetParent !== null) return jumpTo(id);
   if (tries > 0) window.setTimeout(() => jumpWhenShown(id, tries - 1), 100);
 }

@@ -6,10 +6,15 @@ import type { Ga4Report } from "../googleAnalytics";
 import { isOwnOrder } from "../../lib/ownerDevice";
 import { autoGrain, bucketKey, bucketLabel, daysBetween, type Range } from "../overview/overviewRange";
 import { funnelSteps, pickTraffic, shopRowsIn, shopTraffic, type TrafficGap } from "../overview/overviewSources";
-import { bookInterest, rankMap, sourcePerformance, sumMap } from "../overview/overviewTraffic";
+import { bookInterest, campaignSales, rankMap, sourcePerformance, sumMap } from "../overview/overviewTraffic";
 import { isRealPaidOrder } from "../overview/overviewInsights";
 
 const num = (v: unknown) => Number(v) || 0;
+const CAD = new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" });
+const MEDIUM_WORDS: Record<string, string> = {
+  cpc: "Ad", ppc: "Ad", paid: "Ad", paidsocial: "Ad", paid_social: "Ad", "paid-social": "Ad", display: "Ad",
+  email: "Email", affiliate: "Partner link",
+};
 
 export interface Pair { cur: number; prev: number }
 export interface Row { key: string; label: string; value: number; sub?: string; extra?: string }
@@ -39,6 +44,8 @@ export interface AnalyticsModel {
   searches: Row[] | null;
   /** Searches that found nothing (shop counter). */
   noResults: Row[] | null;
+  /** Paid orders that came from an ad, an email or a tagged campaign link, by source and campaign (always recorded). */
+  campaigns: Row[];
 }
 
 /** "+12%" / "−8%" / "New" / null against the period before. */
@@ -133,6 +140,12 @@ export function analyticsModel(input: {
   const searches = recorded("searches") ? rankMap(sumMap(rows, "searches"), 8).map(r => ({ key: r.key, label: r.key, value: r.count })) : null;
   const noResults = recorded("noResults") ? rankMap(sumMap(rows, "noResults"), 5).map(r => ({ key: r.key, label: r.key, value: r.count })) : null;
 
+  const campaigns: Row[] = campaignSales(cur).slice(0, 8).map(r => ({
+    key: r.key, label: sourceWord(r.source), value: r.orders,
+    sub: r.campaign ? `Campaign: ${r.campaign}` : MEDIUM_WORDS[r.medium] || "Ad",
+    extra: CAD.format(r.revenue),
+  }));
+
   const views = google
     ? { cur: num(google.totals.current?.screenPageViews), prev: num(google.totals.previous?.screenPageViews), what: "pages" as const }
     : traffic && funnel ? { cur: traffic.funnel.view, prev: traffic.prevFunnel.view, what: "products" as const } : null;
@@ -145,6 +158,6 @@ export function analyticsModel(input: {
     orders,
     conversion: traffic ? { cur: rate(orders.cur, traffic.visitors.cur), prev: rate(orders.prev, traffic.visitors.prev) } : { cur: null, prev: null },
     bars: [...buckets.values()], grain,
-    sources, pages, products, devices, countries, funnel, searches, noResults,
+    sources, pages, products, devices, countries, funnel, searches, noResults, campaigns,
   };
 }

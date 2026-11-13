@@ -3,6 +3,7 @@
 // Nothing is estimated: a signal that was never recorded is reported as missing (`recordedSince` is null), not as 0.
 import { addDays, dayOf, isRealPaidOrder, orderDay, shopDayKey, trafficPeriodKeys, refundedAmount, type Book, type Order } from "./overviewInsights";
 import { analyticsKey } from "../../lib/analyticsKeys";
+import { cleanAcquisition } from "../../lib/visitSource";
 
 export const SHOP_TIME_ZONE = "America/Toronto";
 
@@ -119,6 +120,34 @@ export function socialPerformance(sources: SourceRow[]): SocialRow[] {
     rows.set(n.id, row);
   });
   return [...rows.values()].sort((a, b) => b.revenue - a.revenue || b.visits - a.visits || a.label.localeCompare(b.label));
+}
+
+/** Paid ways in: an order carried one of these mediums (utm_medium, or set from an ad click) even without a campaign name. */
+export const CAMPAIGN_MEDIUMS = new Set(["cpc", "ppc", "paid", "paidsocial", "paid_social", "paid-social", "display", "email", "affiliate"]);
+
+export interface CampaignRow { key: string; source: string; campaign: string; medium: string; orders: number; revenue: number }
+
+/**
+ * Sales by ad source (gap list 35): paid orders whose saved visit (`acquisition`) names a campaign, an ad click or a paid
+ * medium, grouped by source and campaign. Revenue is what was kept (total less refunds). Orders with plain search,
+ * social or link visits stay in "Where visitors came from".
+ */
+export function campaignSales(orders: Order[]): CampaignRow[] {
+  const rows = new Map<string, CampaignRow>();
+  orders.filter(isRealPaidOrder).forEach(o => {
+    const a = cleanAcquisition((o as Record<string, unknown>).acquisition);
+    if (!a) return;
+    const medium = (a.medium || "").toLowerCase();
+    if (!a.campaign && !a.clickId && !CAMPAIGN_MEDIUMS.has(medium)) return;
+    const source = analyticsKey(a.source.trim().toLowerCase()) || "direct";
+    const campaign = (a.campaign || "").trim();
+    const key = `${source}|${campaign.toLowerCase() || `~${a.clickId ? "ad" : medium}`}`;
+    const row = rows.get(key) || { key, source, campaign, medium: a.clickId ? "cpc" : medium, orders: 0, revenue: 0 };
+    row.orders += 1;
+    row.revenue += Math.max(0, num(o.total) - refundedAmount(o));
+    rows.set(key, row);
+  });
+  return [...rows.values()].sort((a, b) => b.revenue - a.revenue || b.orders - a.orders || a.key.localeCompare(b.key));
 }
 
 export interface BookInterest { id: string; title: string; views: number; sold: number; viewToSale: number | null }
