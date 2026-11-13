@@ -157,6 +157,13 @@ test("the fee set in the control room reaches the next plan started, in each cur
   const keys = [...stripe.world.prices.values()].map((p) => p.lookup_key).sort();
   assert.deepEqual(keys, ["colophon_both_cad_700_monthly", "colophon_both_usd_600_monthly"]);
   assert.equal((await billing.status("us-press")).price, "US$6.00");
+  // A plan already running keeps the fee it started on: a later change is for new plans only.
+  saved = { ...settings, prices: { ...settings.prices, both: 900 } };
+  assert.equal((await billing.status("ca-press")).price, "$7.00");
+  assert.equal((await stores.subscriptions.get("ca-press")).feeCents, 700);
+  await billing.startTrial({ account: { ...CA, accountId: "acct-new", email: "new@example.com" }, shopId: "new-press", pressName: "New", country: "CA" });
+  assert.equal((await billing.status("new-press")).price, "$9.00");
+  saved = { ...settings, prices: { ...settings.prices, both: 700 } };
   // The control room's settings can't be read: the last fee read stands.
   saved = null;
   assert.equal((await billing.status("ca-press")).price, "$7.00");
