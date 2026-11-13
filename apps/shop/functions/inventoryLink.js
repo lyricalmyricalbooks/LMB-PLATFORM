@@ -5,6 +5,7 @@
 // sets each linked edition's stock from the count the app publishes (stockPlanFor).
 // Nothing here is a payment path: it never decides whether an order is paid.
 const crypto = require("crypto");
+const { shopCurrency } = require("./shopMoney");
 const { stockLines, isBundle, isGiftCardProduct } = require("./shared/promotions");
 const { isPhysicalItem } = require("./shared/localFulfillment");
 const { isBookKind, productKind, usesOptionPicker } = require("./shared/productOptions");
@@ -203,10 +204,10 @@ function refundOf(order) {
     const minor = Number.isFinite(Number(order.refundedAmountMinor)) && order.refundedAmountMinor != null
       ? Math.round(Number(order.refundedAmountMinor))
       : cents(order.refund?.amount ?? order.total);
-    return { state: "full", refund: { amountMinor: minor, currency: text(order.refund?.currency || order.expectedCurrency || "CAD", 3).toUpperCase() } };
+    return { state: "full", refund: { amountMinor: minor, currency: text(order.refund?.currency || order.expectedCurrency || shopCurrency(), 3).toUpperCase() } };
   }
   if (order.partiallyRefunded === true && Number(order.refundedAmountMinor) > 0) {
-    return { state: "partial", refund: { amountMinor: Math.round(Number(order.refundedAmountMinor)), currency: text(order.expectedCurrency || order.checkoutCurrency || "CAD", 3).toUpperCase() } };
+    return { state: "partial", refund: { amountMinor: Math.round(Number(order.refundedAmountMinor)), currency: text(order.expectedCurrency || order.checkoutCurrency || shopCurrency(), 3).toUpperCase() } };
   }
   return { state: "none", refund: null };
 }
@@ -220,7 +221,7 @@ function websiteOrder(order, { orderId, links, frozen, partPrice, partDigital, t
   const addr = order.customer?.address || {};
   const { state, refund } = refundOf(order);
   const charged = {
-    currency: text(order.expectedCurrency || order.checkoutCurrency || "CAD", 3).toUpperCase() || "CAD",
+    currency: text(order.expectedCurrency || order.checkoutCurrency || shopCurrency(), 3).toUpperCase() || shopCurrency(),
     amountMinor: Number.isFinite(Number(order.expectedAmountMinor)) && order.expectedAmountMinor != null
       ? Math.round(Number(order.expectedAmountMinor)) : cents(order.total),
   };

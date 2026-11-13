@@ -70,8 +70,14 @@ browsers may write (mirroring `firestore.rules`).
 - The shop's own currency (13 November 2026, `tasks/todo/2026-11-13-shop-currency.md`): `shopCurrency.ts` (`shopCurrencyOf`,
   `currencySign`, `currencyName`, `shopMoney`). The server reads `shopConfig.currency` (the record's `SHOP_CURRENCY`,
   written by the platform's setup from sign-up's country), the pages `shopCurrency()` in `lib/shopProfile` (the
-  profile's `currency`, left out for CAD). CAD and USD only; anything else is CAD. Nothing prices or charges with it
-  yet: new money code should take the currency from here, never write "CAD" or "CA$".
+  profile's `currency`, left out for CAD). CAD and USD only; anything else is CAD. New money code takes the currency from here, never writes "CAD" or "CA$".
+  **Checkout (update 3):** every stored amount is in the shop's currency and every exchange rate is from it, so the
+  shop's own is 1 (`functions/exchangeRates.js` `BASES`, mirrored in `features/site/exchangeRates.ts`; the saved
+  `settings/exchangeRates` carries `base` and a copy for another base reads as missing, which
+  `functions/shopCurrencyCheckout.test.js` pins). Server code reads `shopCurrency()` / `shopSign()` from
+  `functions/shopMoney.js` when it runs. The shopper's picker starts from the shop's currency outside Canada, the
+  Americas and Europe. Still Canadian on purpose until updates 4 and 5: bookkeeping and social links
+  (`SHOP_CURRENCY` constants), invoice pay links, the Orders CSV and past orders.
   The admin's sign is `MONEY_SIGN` (`admin/moneySign.ts`, read once from the profile): admin code writes
   `${MONEY_SIGN}${n.toFixed(2)}`, never a literal sign. Left as literals on purpose: sample text in email and theme
   previews, the look gallery, and the platform's own bill (its currency is the billing one, `platformBilling.ts`).

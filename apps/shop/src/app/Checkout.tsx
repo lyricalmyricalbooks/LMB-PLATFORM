@@ -41,7 +41,7 @@ import { CHECKOUT_ATTEMPT_KEY, orderAccessHeaders, rememberOrderAccess, savedOrd
 import { StripeCardForm, type StripeCardFormHandle } from "./features/site/StripeCardForm";
 import { StripePaymentSection } from "./features/site/StripePaymentSection";
 import { isStripePublishableKey, stripeCheckoutState, createCheckoutSubmission, onPageRestored } from "./features/site/stripeLifecycle";
-import { paysOnSquare, platformStripe, platformTakesCards, shopProfile } from "../lib/shopProfile";
+import { paysOnSquare, platformStripe, platformTakesCards, shopCurrency, shopProfile } from "../lib/shopProfile";
 import { withShopStartFor } from "./admin/sells";
 import { checkoutFlow, confirmationView, initialFlow, readReturn, stripeTookPayment } from "./features/site/checkoutFlow";
 import { checkoutDetailProblems, detailInputId, expressWalletEnabled, type DetailField } from "./features/site/checkoutDetails";
@@ -1046,9 +1046,9 @@ export function Checkout() {
   useSEO({ title: c("seoCheckoutTitle"), description: c("seoCheckoutDescription") });
 
   // Track funnel + abandoned cart on email entry
-  // Google Analytics checkout steps share one shape: the bag's CAD value and its books (CartContext prices are CAD).
+  // Google Analytics checkout steps share one shape: the bag's value in the shop's currency and its books (CartContext prices are in it).
   const ga4Bag = () => ({
-    currency: "CAD",
+    currency: shopCurrency(),
     value: Math.round(cartRef.current.reduce((s: number, i: any) => s + (Number(i.price) || 0) * (Number(i.quantity) || 0), 0) * 100) / 100,
     items: ga4Items(cartRef.current),
   });

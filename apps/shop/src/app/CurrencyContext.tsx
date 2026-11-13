@@ -2,7 +2,8 @@ import { displayPrice } from "./features/site/displayPrice";
 import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { ChevronDown } from "lucide-react";
 import { saleActive } from "./features/site/promotions";
-import { FALLBACK_RATES, RATES_CACHE_MS, loadRates, type RatesSource } from "./features/site/exchangeRates";
+import { RATES_CACHE_MS, fallbackRatesFor, loadRates, type RatesSource } from "./features/site/exchangeRates";
+import { shopCurrency } from "../lib/shopProfile";
 import { currencyForCountry, loadVisitorCountry } from "./features/site/visitorCurrency";
 
 export type Currency = "CAD" | "USD" | "EUR";
@@ -40,16 +41,22 @@ const CANADIAN_ZONES = new Set([
   "America/Fort_Nelson", "America/Whitehorse", "America/Dawson", "America/Vancouver",
 ]);
 
-/** Starting currency for a first visit, from the browser's time zone. Exported for tests. */
-export function currencyForTimeZone(tz: string): Currency {
-  if (!tz || tz.startsWith("Canada/") || CANADIAN_ZONES.has(tz)) return "CAD";
+/** Starting currency for a first visit, from the browser's time zone; `shop` (the shop's own currency) when the zone
+ *  says nothing. Exported for tests. */
+export function currencyForTimeZone(tz: string, shop: Currency = "CAD"): Currency {
+  if (!tz) return shop;
+  if (tz.startsWith("Canada/") || CANADIAN_ZONES.has(tz)) return "CAD";
   if (tz.startsWith("Europe/")) return "EUR";
   if (tz.startsWith("America/") || tz.startsWith("US/") || tz === "Pacific/Honolulu") return "USD";
-  return "CAD";
+  return shop;
 }
 
 export function CurrencyProvider({ children }: { children: React.ReactNode }) {
-  const [currency, setCurrencyState] = useState<Currency>("CAD");
+  // Every price in the shop is in its own currency (CAD, or USD for a shop that sells in US dollars); the rates below
+  // are from that currency, so a shopper browsing in it sees the prices as they are.
+  const shop = shopCurrency();
+  const FALLBACK_RATES = fallbackRatesFor(shop);
+  const [currency, setCurrencyState] = useState<Currency>(shop);
   const [rates, setRates] = useState<Record<Currency, number>>(FALLBACK_RATES);
   const [ratesSource, setRatesSource] = useState<RatesSource>("fallback");
 
@@ -76,16 +83,16 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      setCurrencyState(currencyForTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone || ""));
+      setCurrencyState(currencyForTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone || "", shop));
     } catch {
-      setCurrencyState("CAD");
+      setCurrencyState(shop);
     }
 
     // The Studio preview shows the shop as the owner sees it and asks no server for a shopper's location.
     if (typeof window !== "undefined" && window.location.search.includes("preview=true")) return;
     let cancelled = false;
     loadVisitorCountry().then(country => {
-      const fromCountry = currencyForCountry(country);
+      const fromCountry = currencyForCountry(country, shop);
       if (!cancelled && fromCountry && !chosenRef.current) setCurrencyState(fromCountry);
     });
     return () => { cancelled = true; };
@@ -123,7 +130,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     // Own (sale) price, or the cheapest edition for a book sold only in editions.
     const priceToUse = displayPrice(book, ignoreSale);
 
-    // Shoppers are charged the CAD catalog price converted at today's rate
+    // Shoppers are charged the catalog price (in the shop's currency) converted at today's rate
     // (functions/index.js), so that is the only price shown. Stored USD/EUR
     // figures are ignored here — showing them would promise a different amount.
     return priceToUse * (rates[currency] || 1.0);
@@ -137,7 +144,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
 
   const getVariantPrice = (variant: any, parentBook?: any) => {
     if (!variant) return 0;
-    // Same rule as getBookPrice: CAD converted at today's rate, as charged.
+    // Same rule as getBookPrice: the shop's price converted at today's rate, as charged.
     const base = variant.price || (parentBook ? (saleActive(parentBook) ? parentBook.salePrice : parentBook.retailPrice) : 0) || 0;
     return base * (rates[currency] || 1.0);
   };

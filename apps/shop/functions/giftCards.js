@@ -3,12 +3,13 @@
 //
 // One admin-readable, server-written doc per card in `giftCards/{id}` where id is a hash of
 // the code (the code itself is looked up by hashing what the shopper typed):
-//   { code, last4, initialMinor, balanceMinor, currency: "CAD", enabled, expiresOn?, isTest?,
+//   { code, last4, initialMinor, balanceMinor, currency: "CAD" (the shop's own), enabled, expiresOn?, isTest?,
 //     recipientEmail?, recipientName?, senderName?, message?, source: "order"|"admin",
 //     orderId?, holds: { <orderId>: { minor, expiresAt } }, history: [...], createdAt, updatedAt }
 // Money is held in whole cents (CAD). Paying debits the balance once (`giftCardsDebitedAt`
 // on the order); a full refund puts it back once (`giftCardsRestoredAt`).
 const crypto = require("crypto");
+const { shopCurrency } = require("./shopMoney");
 const { shopDate } = require("./paymentGuards");
 
 const HOLD_MS = 30 * 60 * 1000; // same window as stock holds and the Stripe session
@@ -196,7 +197,7 @@ function cardsForOrder(orderId, order, { now = new Date().toISOString(), makeCod
       out.push({
         id: giftCardId(code),
         data: {
-          code, last4: last4(code), initialMinor: minor, balanceMinor: minor, currency: "CAD", enabled: true,
+          code, last4: last4(code), initialMinor: minor, balanceMinor: minor, currency: shopCurrency(), enabled: true,
           ...(order.isTest === true || order.sandboxPayment === true ? { isTest: true } : {}),
           recipientEmail: details.recipientEmail || String(order.customer?.email || "").toLowerCase(),
           recipientName: details.recipientName || "",

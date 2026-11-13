@@ -18,7 +18,7 @@ nothing changes for a shop that exists today. The shopper's currency picker stil
 - [x] 1. (PR #766) The shop knows its currency. `SHOP_CURRENCY` in the shop's server record, `currency` in the public profile,
       one shared rule (`src/shared/shopCurrency.ts`) for the code, sign and words. Nothing reads it for money yet.
 - [x] 2. The admin shows it (`admin/moneySign.ts`): every "CA$" and "Canadian dollars" in the admin comes from the shop currency.
-- [ ] 3. Checkout: rates saved against the shop currency (feed base, sane ranges), the shopper's picker and the
+- [x] 3. Checkout: rates saved against the shop currency (feed base, sane ranges), the shopper's picker and the
       charge start from it, emails and receipts say it. Payment-integrity tests for a USD shop.
 - [ ] 4. Reports, bookkeeping, stockroom money and tax: labelled and summed in the shop currency. Sales tax for a US
       shop is its own piece (the tax rules are Canadian) and is listed for Julian before it is built.

@@ -8,6 +8,7 @@ import { useCurrency } from "../../CurrencyContext";
 import { getCopy } from "./storeCopy";
 import { regionProps } from "./storefrontRegions";
 import { payLinkState, payLinkUntil } from "./payLinkState";
+import { shopCurrency } from "../../../lib/shopProfile";
 
 export function PaymentLinkPay({ order, design, accessKey, hidePay = false }: { order: any; design: any; accessKey?: string; hidePay?: boolean }) {
   const { currency } = useCurrency();
@@ -26,7 +27,7 @@ export function PaymentLinkPay({ order, design, accessKey, hidePay = false }: { 
       const response = await functionFetch("createStripeCheckoutSession", {
         method: "POST",
         headers: await orderAccessHeaders(orderId, accessKey),
-        body: JSON.stringify({ orderId, currency: String(currency || "CAD").toLowerCase(), returnUrl, embedded: false }),
+        body: JSON.stringify({ orderId, currency: String(currency || shopCurrency()).toLowerCase(), returnUrl, embedded: false }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.url) {
