@@ -54,6 +54,8 @@ export const STOCKROOM_PAGES: StockroomPage[] = [
   { id: "books", label: "Bookkeeping", description: "The record of money in and out: sales, costs, receipts and payouts." },
   { id: "receipts", label: "Bookkeeping", description: "The record of money in and out: sales, costs, receipts and payouts." },
   { id: "artists", label: "Bookkeeping", description: "The record of money in and out: sales, costs, receipts and payouts." },
+  // Reports (13 November 2026): balance sheet, cash flow forecast and the year-end tax pack.
+  { id: "bkreports", label: "Bookkeeping", description: "The record of money in and out: sales, costs, receipts and payouts." },
   { id: "intel", label: "Insights", description: "Your best seller, your best channel and what is worth knowing." },
   { id: "customers", label: "Buyers in person", description: "People who bought at fairs, from invoices or by hand." },
   { id: "sheets", label: "Sales spreadsheet", description: "Your stock, sales and costs copied to a Google Sheet in your own Drive." },

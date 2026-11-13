@@ -40,6 +40,7 @@ declare module "@stockroom/recurring.js" {
   export function monthlyEquivalent(sub: Row, now?: Date): number;
   export function frequencyLabel(frequency: string): string;
   export function relativeDayLabel(dateStr: string, now?: Date): string;
+  export function chargesBetween(sub: Row, fromYmd: string, toYmd: string): Array<{ date: string; monthKey: string; amount: number; posted: boolean }>;
   export function summarizeRecurring(subs: Row[], rates?: Record<string, number>, base?: string, now?: Date): {
     monthlyBase: number; annualBase: number; activeCount: number; pausedCount: number; endedCount: number; scheduledCount: number; unconverted: string[];
   };

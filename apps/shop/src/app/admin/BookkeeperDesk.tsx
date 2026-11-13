@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Download, LogOut } from "lucide-react";
-import { shopProfile } from "../../lib/shopProfile";
+import { hasStockroom, shopProfile } from "../../lib/shopProfile";
 import { adminApi } from "./api";
 import { feeLine, providerName, type PlatformPaymentsAnswer } from "./platformPayments";
 import { friendlyError } from "./settingsLayout";
@@ -18,6 +18,9 @@ import { sourcesOf, taxCenterModel } from "./stockroom/moneyReports";
 import { stockroomApi, type StockroomRecords } from "./stockroom/stockroomData";
 import { PERIOD_WORDS, bookkeeperOrdersCsv, bookkeeperSalesCsv, paidInRange, periodRange, periodTotals, type BooksPeriod } from "./bookkeeping";
 
+// The stockroom's reports (balance sheet, forecast, profit and loss), only where the shop has a stockroom.
+const BookkeeperReportsCard = lazy(() => import("./stockroom/BookkeeperReportsCard").then((m) => ({ default: m.BookkeeperReportsCard })));
+
 const money = (n: number) => `CA$${(Math.round(n * 100) / 100).toFixed(2)}`;
 
 function download(name: string, text: string) {
@@ -32,7 +35,7 @@ function download(name: string, text: string) {
 // receipts, artist payouts), plus the period's sales, tax and shipping collected and the payout status. Read only: the
 // money pages are drawn without their save handlers, so they offer no change, and the shop's and the stockroom's rules
 // refuse the role every write. The Tax centre comes from its key-free copy (stockroomData.ts loadForBookkeeper).
-type DeskTab = "overview" | "sales" | "transactions" | "expenses" | "receipts" | "artists";
+type DeskTab = "overview" | "sales" | "transactions" | "expenses" | "receipts" | "artists" | "reports";
 
 export function BookkeeperDesk({ email, appearance }: { email: string | null; appearance: "light" | "dark" }) {
   const sells = shopProfile.sells ?? null;
@@ -41,6 +44,8 @@ export function BookkeeperDesk({ email, appearance }: { email: string | null; ap
     { id: "overview", label: "Overview" }, { id: "sales", label: "Sales and tax" }, { id: "transactions", label: "Transactions" },
     { id: "expenses", label: "Expenses" }, { id: "receipts", label: "Receipts" },
     ...(hasPublisherTools(sells) ? [{ id: "artists" as const, label: "Artist payouts" }] : []),
+    // Bookkeeping › Reports' copy (balance sheet, cash forecast, profit and loss), saved by the owner's Reports page.
+    ...(hasStockroom(shopProfile) ? [{ id: "reports" as const, label: "Reports" }] : []),
   ];
   return (
     <ShopWordsContext.Provider value={adminWordsFor(sells)}>
@@ -56,7 +61,9 @@ export function BookkeeperDesk({ email, appearance }: { email: string | null; ap
           <Tabs variant="page" label="Bookkeeping" idPrefix="desk-" value={tab} onChange={setTab} tabs={tabs} />
           {tabs.map((t) => (
             <TabPanel key={t.id} tabId={`desk-${t.id}`} active={tab === t.id}>
-              {tab === t.id && (t.id === "sales" ? <SalesAndTax /> : <BooksPart part={t.id} />)}
+              {tab === t.id && (t.id === "sales" ? <SalesAndTax />
+                : t.id === "reports" ? <Suspense fallback={<LoadingState label="Reading the reports…" />}><div className="rp-stack" style={{ gap: 16 }}><BookkeeperReportsCard /></div></Suspense>
+                : <BooksPart part={t.id} />)}
             </TabPanel>
           ))}
         </div>
@@ -68,7 +75,7 @@ export function BookkeeperDesk({ email, appearance }: { email: string | null; ap
 }
 
 /** One of the owner's Bookkeeping pages, drawn read-only from what the accountant may read. */
-function BooksPart({ part }: { part: Exclude<DeskTab, "sales"> }) {
+function BooksPart({ part }: { part: Exclude<DeskTab, "sales" | "reports"> }) {
   return (
     <RecordsGate what="the books" load={stockroomApi.loadForBookkeeper}>
       {(records) => (part === "receipts" ? <ReceiptsReadOnly records={records} /> : <TaxCenterView part={part} records={records} />)}
