@@ -14,6 +14,7 @@ import { PHONE_MAX } from "./breakpoints";
 import { isLiveBook } from "./liveBook";
 import { MobileStorefrontNav } from "./MobileStorefrontNav";
 import { NavDropdown, selectInPlace, type NavDropdownEntry } from "./NavDropdown";
+import { headerLayout } from "./headerLayout";
 import { buildNavItems, childCategories, referenceNavCategories, splitNavigation, usesReferenceHeader, type NavItem } from "./navItems";
 // Search loads the first time it opens (button, Ctrl/⌘+K or Studio's Search pop-over), not with every page.
 const SearchOverlay = lazy(() => import("./SearchOverlay").then(m => ({ default: m.SearchOverlay })));
@@ -422,7 +423,10 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
 
   const rowRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLElement>(null);
-  const navBelow = useNavBelow(storefront, rowRef, navRef);
+  const layout = headerLayout(storefront);
+  const centered = layout === "centered";
+  const minimal = layout === "minimal";
+  const navBelow = useNavBelow(centered ? { ...storefront, navPlacement: "below" } : storefront, rowRef, navRef);
   const navFit = useNavFit(storefront, navRef, navBelow);
   const line = navLineProps(storefront, navBelow, navFit);
   const headerRef = useRef<HTMLElement>(null);
@@ -460,15 +464,17 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
         style={{ backgroundColor: headerBg, color: headerColor }}
       >
         <div ref={rowRef} className="fm-hdr-row mx-auto flex flex-nowrap items-center justify-between gap-4 px-6 py-4" style={{ maxWidth, color: headerColor }}>
-          <div className="flex min-w-0 flex-1 items-center gap-8 md:gap-12">
+          <div className={`flex min-w-0 flex-1 items-center gap-8 md:gap-12${centered ? " justify-center order-2" : ""}`}>
             {/* The link's name comes from the logo itself (its alt text, or the words of a text logo), so what a screen
                 reader says matches what shoppers see (accessibility check, plan 8.8). */}
+            {minimal && <MobileStorefrontNav design={design} pages={pages} onSearch={onSearch} everywhere />}
             <Link to="/" state={HOME_LINK_STATE} data-hdr-fixed className="flex shrink-0 items-center">
               <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={scheme ? { ...storefront, logoColor: undefined } : storefront} /></span>
             </Link>
-            {!navBelow && navBar}
+            {!navBelow && !minimal && navBar}
           </div>
-          <div data-hdr-fixed className="flex shrink-0 flex-nowrap items-center justify-end gap-2 sm:gap-6 md:gap-8" data-studio-target="style:header|copy:Header" data-studio-label="Header icons & cart">
+          {centered && <div className="flex-1 order-1" aria-hidden="true" />}
+          <div data-hdr-fixed className={`${centered ? "order-3 flex-1 " : ""}flex shrink-0 flex-nowrap items-center justify-end gap-2 sm:gap-6 md:gap-8`} data-studio-target="style:header|copy:Header" data-studio-label="Header icons & cart">
             {storefront.menus?.header?.length > 0 && <div className="mr-2"><StoreMenu items={storefront.menus.header} design={storefront} /></div>}
             <HeaderActions
               flags={storefront}
@@ -494,12 +500,12 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
             />
           </div>
         </div>
-        {navBelow && (
+        {navBelow && !minimal && (
           <div style={{ color: headerColor }}>
-            <div className="mx-auto px-6" style={{ maxWidth }}>{navBar}</div>
+            <div className={`mx-auto px-6${centered ? " flex justify-center" : ""}`} style={{ maxWidth }}>{navBar}</div>
           </div>
         )}
-        <MobileStorefrontNav design={design} pages={pages} onSearch={onSearch} />
+        {!minimal && <MobileStorefrontNav design={design} pages={pages} onSearch={onSearch} />}
         <SecondaryStorefrontNav design={design} pages={pages} />
       </header>
     </>
@@ -528,7 +534,12 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
   const navItems = useMemo(() => buildNavItems(categories, pages || [], navOrder), [categories, pages, navOrder]);
   const headerRowRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLElement>(null);
-  const navBelow = useNavBelow(sf, headerRowRef, navRef);
+  // Header layout › Centred puts the links in their own row; Minimal moves them behind the Menu button.
+  const layout = headerLayout(sf);
+  const centered = layout === "centered";
+  const minimal = layout === "minimal";
+  const navBelow = useNavBelow(centered ? { ...sf, navPlacement: "below" } : sf, headerRowRef, navRef);
+  const logoPosition = centered ? "center" : shop.logoPosition;
   const navFit = useNavFit(sf, navRef, navBelow);
   const line = navLineProps(sf, navBelow, navFit);
 
@@ -689,13 +700,14 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
           </div>
         ) : (
           <div ref={headerRowRef} className="fm-hdr-row mx-auto px-6 py-4 flex flex-nowrap items-center justify-between gap-4" style={{ maxWidth }}>
-            <div className={`flex min-w-0 items-center gap-8 md:gap-12 flex-1 ${shop.logoPosition === "center" ? "" : "flex-initial"}`}>
-              {shop.logoPosition === "left" && logo}
-              {!navBelow && navBar}
+            <div className={`flex min-w-0 items-center gap-8 md:gap-12 flex-1 ${logoPosition === "center" ? "" : "flex-initial"}`}>
+              {minimal && <MobileStorefrontNav design={design} pages={pages || []} onSearch={onSearch} showThemeToggle={!design?.hideThemeToggle} everywhere />}
+              {logoPosition === "left" && logo}
+              {!navBelow && !minimal && navBar}
             </div>
-            {shop.logoPosition === "center" && <div className="flex-1 flex justify-center">{logo}</div>}
-            <div data-hdr-fixed data-studio-target="style:header|copy:Header" data-studio-label="Header icons & cart" className={`flex shrink-0 flex-nowrap gap-2 sm:gap-6 md:gap-8 items-center flex-1 justify-end ${shop.logoPosition === "right" ? "flex-initial" : ""}`}>
-              {shop.logoPosition === "right" && logo}
+            {logoPosition === "center" && <div className="flex-1 flex justify-center">{logo}</div>}
+            <div data-hdr-fixed data-studio-target="style:header|copy:Header" data-studio-label="Header icons & cart" className={`flex shrink-0 flex-nowrap gap-2 sm:gap-6 md:gap-8 items-center flex-1 justify-end ${logoPosition === "right" ? "flex-initial" : ""}`}>
+              {logoPosition === "right" && logo}
               {sf?.menus?.header?.length > 0 && (
                 <div className="mr-2" style={{ color: headerTextColor }}><StoreMenu items={sf.menus.header} design={sf} /></div>
               )}
@@ -740,12 +752,12 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
             </div>
           </div>
         )}
-        {!isReferenceCatalog && navBelow && (
+        {!isReferenceCatalog && navBelow && !minimal && (
           <div className="border-t" style={{ borderColor: headerBorderColor }}>
-            <div className="mx-auto px-6" style={{ maxWidth }}>{navBar}</div>
+            <div className={`mx-auto px-6${centered ? " flex justify-center" : ""}`} style={{ maxWidth }}>{navBar}</div>
           </div>
         )}
-        <MobileStorefrontNav design={design} pages={pages || []} onSearch={onSearch} showThemeToggle={!design?.hideThemeToggle} />
+        {!minimal && <MobileStorefrontNav design={design} pages={pages || []} onSearch={onSearch} showThemeToggle={!design?.hideThemeToggle} />}
         <SecondaryStorefrontNav design={design} pages={pages || []} />
       </header>
     </>

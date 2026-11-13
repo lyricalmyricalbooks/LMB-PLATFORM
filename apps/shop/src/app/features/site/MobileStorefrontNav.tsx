@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { Menu as MenuIcon } from "lucide-react";
 import { accountsEnabled } from "./customerAccounts";
 import { Link, useLocation } from "react-router";
 import { navActiveColor } from "./headerNav";
@@ -9,7 +10,7 @@ import { splitNavigation, buildNavItems } from "./navItems";
 import { getCopy } from "./storeCopy";
 import { ThemeToggle } from "../../components/theme/ThemeToggle";
 
-export function MobileStorefrontNav({ design, pages, onSearch, showThemeToggle = false }: { design: any; pages: any[]; onSearch: () => void; showThemeToggle?: boolean }) {
+export function MobileStorefrontNav({ design, pages, onSearch, showThemeToggle = false, everywhere = false }: { design: any; pages: any[]; onSearch: () => void; showThemeToggle?: boolean; everywhere?: boolean }) {
   const ref = useRef<HTMLDetailsElement>(null);
   const { pathname } = useLocation();
   // A tap or click outside the open menu closes it (like the category drop-downs).
@@ -24,17 +25,21 @@ export function MobileStorefrontNav({ design, pages, onSearch, showThemeToggle =
   const d = { ...design, ...design?.storefront };
   const close = () => { if (ref.current) ref.current.open = false; };
   const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-  if (d.showMobileNavigation === false) return null;
+  if (d.showMobileNavigation === false && !everywhere) return null;
   const groups = splitNavigation(buildNavItems(d.categories || [], pages, d.navOrder), d);
   const linkClass = "block min-h-11 px-6 py-3 hover:opacity-70";
   // The link for the page on screen wears Style › Navigation links › "Current page link color".
   const here = (to: string) => pathname.endsWith(to) ? { "aria-current": "page" as const, style: { color: navActiveColor(d) } } : {};
   // Style › Header layout › "Phone navigation style": tabs across the top (default) or the drop-down menu.
-  if (mobileNavStyle(d) === "tabs") return <MobileNavTabs design={design} d={d} groups={groups} showThemeToggle={showThemeToggle} pathname={pathname} slug={slug} />;
-  return <details ref={ref} className="md:hidden" data-ga-menu="phone" data-studio-target="style:header|menus:categories|copy:Header" data-studio-label="Mobile navigation"
+  // Header layout › Minimal: the Menu button holds every link on every screen size.
+  if (!everywhere && mobileNavStyle(d) === "tabs") return <MobileNavTabs design={design} d={d} groups={groups} showThemeToggle={showThemeToggle} pathname={pathname} slug={slug} />;
+  return <details ref={ref} className={everywhere ? "relative shrink-0" : "md:hidden"} data-ga-menu="phone" data-studio-target="style:header|menus:categories|copy:Header" data-studio-label="Mobile navigation"
     onKeyDown={e => { if (e.key === "Escape") { close(); ref.current?.querySelector("summary")?.focus(); } }}>
-    <summary className="min-h-11 cursor-pointer px-6 py-3 font-semibold">{getCopy(design, "navMenu")}</summary>
-    <nav aria-label={getCopy(design, "ariaMainNavigation")} className="border-t border-current/20 pb-4">
+    <summary className={everywhere ? "flex min-h-11 cursor-pointer list-none items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] [&::-webkit-details-marker]:hidden" : "min-h-11 cursor-pointer px-6 py-3 font-semibold"}>
+      {everywhere && <MenuIcon size={18} aria-hidden="true" />}{getCopy(design, "navMenu")}
+    </summary>
+    <nav aria-label={getCopy(design, "ariaMainNavigation")} className={everywhere ? "absolute left-0 top-full z-50 mt-2 w-72 max-w-[85vw] border border-current/20 pb-4 shadow-lg" : "border-t border-current/20 pb-4"}
+      style={everywhere ? { backgroundColor: "var(--bg-color, var(--background))" } : undefined}>
       {groups.primary.map(item => <div key={item.key}>
         <Link className={linkClass} onClick={close} to={item.kind === "page" ? `/page/${item.page.slug}` : `/collections/${slug(item.label)}`} {...here(item.kind === "page" ? `/page/${item.page.slug}` : `/collections/${slug(item.label)}`)}>{item.label}</Link>
         {item.kind === "category" && item.children.filter(c => c.showInNav !== false).map(c => <Link key={c.id} className={`${linkClass} pl-10`} onClick={close} to={`/collections/${slug(c.name)}`} {...here(`/collections/${slug(c.name)}`)}>{c.name}</Link>)}
