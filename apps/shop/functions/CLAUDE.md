@@ -1167,3 +1167,13 @@ bank's sign-in and the key that reads it never reach the shop. `status` is open 
 - The add-on itself (on, off, price, the bill) is the platform's: Settings › Plan calls the billing door's `add-on`.
   With the add-on off the platform answers no banks, and `view` shows no lines.
 - Tests: `bankFeed.test.js` (fake door and Firestore).
+
+## Licence keys (13 November 2026, gap list 38)
+
+`licenceKeys.js`: a digital product's keys wait in admin-only `licenceKeys/{bookId}` (`available`, `givenCount`; Books ›
+edit › Licence keys, `admin/LicenceKeysCard.tsx`, added in a transaction). `assignLicenceKeys` gives a paid, uncancelled,
+unheld order its keys in one transaction (`licenceKeysAt`, never twice), skipping gift cards, box sets and free gifts;
+sandbox orders get `TEST-KEY-…` stand-ins. A short pool leaves `licenceKeysShort`; `onLicenceKeysAdded` tops those orders
+up (oldest first, 100 a run) when keys are added and emails the buyer. `onOrderReviewCleared` assigns held orders. Keys
+show in the confirmation email (`licenceKeysEmailSection`) and on the tracking page (region `trackingKeys`, words
+`trackKeysTitle`/`trackKeysWaiting`). Tests: `licenceKeys.test.js`, `digitalDownloads.test.js`.

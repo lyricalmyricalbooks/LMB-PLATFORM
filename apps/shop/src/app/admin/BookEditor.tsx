@@ -54,6 +54,7 @@ import { useCurrency } from "../CurrencyContext";
 import { BookCustomFields } from "./BookCustomFields";
 import { BookTemplatePicker } from "./BookTemplatePicker";
 import { BUILTIN_DETAILS, builtinDetailValue, editorDetailRows, type DetailRow } from "../features/site/detailRows";
+import { LicenceKeysCard } from "./LicenceKeysCard";
 import { CardsAsSections, PageActions, PageHead, ActionMenu, SecondaryButton, ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs, useConfirm } from "./riso/components";
 import { FormChoice, StatusBar, SummaryRail, formStatus } from "./riso/FormKit";
 import { combinedAdmin } from "./combined";
@@ -1750,6 +1751,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   )}
                 </SectionCard>
               )}
+              {(isDigital || (formData.variants || []).some((v: any) => v && v.digital)) && !giftCard && <LicenceKeysCard bookId={book?.id} />}
             </>
           </div>
           )}

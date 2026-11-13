@@ -165,3 +165,15 @@ describe('orders held for the owner to check', () => {
     expect((await app.download({ itemId: 'b1' })).location).toBeTruthy();
   });
 });
+
+describe('licence keys (gap list 38)', () => {
+  test('a paid order takes the next keys and the confirmation email lists them', async () => {
+    const app = harness({ ...world({ items: [line({ quantity: 2 })] }), licenceKeys: { b1: { available: ['KEY-1', 'KEY-2', 'KEY-3'], givenCount: 0 } } });
+    const html = await app.paid([line({ quantity: 2 })]);
+    expect(html).toContain('Your licence codes');
+    expect(html).toContain('KEY-1');
+    expect(html).toContain('KEY-2');
+    expect(app.docs.licenceKeys.b1.available).toEqual(['KEY-3']);
+    expect(app.docs.orders.o1.licenceKeys[0].keys).toEqual(['KEY-1', 'KEY-2']);
+  });
+});

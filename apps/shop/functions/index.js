@@ -119,6 +119,7 @@ const { check: checkBody } = require("./shared/edge");
 const { orderActionBody, refundOrderBody } = require("./shared/orderActions");
 const { GIFT_CARD_BODIES } = require("./shared/giftCardActions");
 const digitalDelivery = require("./digitalDelivery");
+const { assignLicenceKeys, licenceKeysEmailSection } = require("./licenceKeys");
 const { claimEmailSend, claimEmailSendDetailed, reminderFirstName, nextDailyCount } = require("./emailThrottle");
 const { paypalCredentials, paypalWebhookId } = require("./paypalCredentials");
 const { shopOrigin, checkoutClosed, planPaused, dailyDigestEnabled, backupStatusRecord } = require("./shopSettings");
@@ -3497,11 +3498,48 @@ exports.onOrderReviewCleared = onDocumentWritten(
     if (before.reviewCleared || !after.reviewCleared) return;
     const order = (await db.collection("orders").doc(event.params.orderId).get()).data() || {};
     if ((order.isTest === true && order.sandboxPayment !== true) || order.source === "import") return;
+    // Keys held while the order waited for the owner's look go out now (no email: the order page shows them).
+    await assignLicenceKeys({ db, orderId: event.params.orderId }).catch(err => console.error(`Could not hand out held licence keys for ${event.params.orderId}:`, err));
     if (!(order.items || []).some(item => item && item.giftCard === true)) return;
     try {
       await issueGiftCardsForOrder(event.params.orderId);
     } catch (err) {
       console.error(`Could not issue the held gift cards for ${event.params.orderId}:`, err);
+    }
+  });
+
+// The owner added licence keys to a product (Books › edit › Licence keys): paid orders still waiting for keys of it get
+// them now, oldest first, and each customer is emailed the keys they were missing.
+exports.onLicenceKeysAdded = onDocumentWritten(
+  { document: "licenceKeys/{bookId}", secrets: withPlatformKey([RESEND_API_KEY]) },
+  async event => {
+    const before = event.data?.before?.data?.() || {};
+    const after = event.data?.after?.data?.() || {};
+    if ((after.available || []).length <= (before.available || []).length) return;
+    const bookId = String(event.params.bookId);
+    const waiting = await db.collection("orders").where("licenceKeysShort", ">", 0).limit(100).get();
+    const orders = waiting.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(o => (o.items || []).some(item => item && String(item.id) === bookId))
+      .sort((a, b) => String(a.paidAt || a.createdAt || "").localeCompare(String(b.paidAt || b.createdAt || "")));
+    for (const waitingOrder of orders) {
+      try {
+        const result = await assignLicenceKeys({ db, orderId: waitingOrder.id });
+        if (!result || !result.added || !waitingOrder.customer?.email) continue;
+        const order = { ...waitingOrder, licenceKeys: result.assigned, licenceKeysShort: result.short };
+        const say = emailFrench.sayer(emailFrench.emailLanguage(order));
+        const name = pressName((await db.collection("settings").doc("website").get().catch(() => null))?.data?.() || {}, shopConfig.senderName);
+        await sendEmail({
+          to: order.customer.email,
+          subject: `${say("Your licence codes")} · ${name} · ${order.orderId || order.id}`,
+          html: `<p>${escapeHtml(say("Here are the licence codes we owed you for your order."))}</p>${licenceKeysEmailSection(order, { escapeHtml, say })}`,
+          secret: RESEND_API_KEY.value(),
+          queue: "licenceKeys",
+          about: { orderId: order.id },
+        });
+      } catch (err) {
+        console.error(`Could not send the waiting licence keys for ${waitingOrder.id}:`, err);
+      }
     }
   });
 
@@ -3571,6 +3609,16 @@ async function handleOrderUpdated(event) {
         await issueGiftCardsForOrder(orderId);
       } catch (err) {
         console.error(`Could not issue gift cards for ${orderId}:`, err);
+      }
+    }
+    // Licence keys (licenceKeys.js): each copy of a product with keys takes the next one, once, before the
+    // confirmation email is written, so the email can carry them.
+    if (becamePaid) {
+      try {
+        const keys = await assignLicenceKeys({ db, orderId });
+        if (keys) { after.licenceKeys = keys.assigned; if (keys.short) after.licenceKeysShort = keys.short; }
+      } catch (err) {
+        console.error(`Could not hand out licence keys for ${orderId}:`, err);
       }
     }
     if (becamePaid) {
@@ -3674,7 +3722,8 @@ async function handleOrderUpdated(event) {
       // Who sold it and the policies, always at the foot (sellerDetails.js: provincial and EU/UK consumer rules).
       const sellerWebsite = (await db.collection("settings").doc("website").get().catch(() => null))?.data?.() || {};
       const sellerBlock = sellerSection(sellerWebsite, siteLink, shopConfig.senderName, say);
-      const combinedSection = [preorderSection, deliverySection, paymentConfirmedSection, downloadSection, digitalConsentSection(order, say), sellerBlock].filter(Boolean).join("\n");
+      const keysSection = licenceKeysEmailSection(order, { escapeHtml, say });
+      const combinedSection = [preorderSection, deliverySection, paymentConfirmedSection, downloadSection, keysSection, digitalConsentSection(order, say), sellerBlock].filter(Boolean).join("\n");
 
       const compiled = compileEmailTemplate("order_confirmation", notificationSettings, {
         customer_name: order.customer.name || "there",

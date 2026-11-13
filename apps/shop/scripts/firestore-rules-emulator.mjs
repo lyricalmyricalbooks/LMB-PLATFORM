@@ -255,6 +255,10 @@ await check("anon can't write the private document", assertFails(setDoc(doc(anon
   await check("admin saves the sheet switch", assertSucceeds(setDoc(doc(admin, "adminPrefs/sheets"), { data: "{\"copy\":false}", updatedAt: Date.now() })));
   await check("signed-in customer can't read the sheet switch", assertFails(getDoc(doc(user, "adminPrefs/sheets"))));
   await check("anon can't write the sheet switch", assertFails(setDoc(doc(anon, "adminPrefs/sheets"), { data: "{}", updatedAt: 1 })));
+  // Licence keys (functions/licenceKeys.js): admin-only.
+  await check("admin saves licence keys", assertSucceeds(setDoc(doc(admin, "licenceKeys/pub"), { available: ["AAAA-1"], givenCount: 0, updatedAt: "2026-11-13" })));
+  await check("signed-in customer can't read licence keys", assertFails(getDoc(doc(user, "licenceKeys/pub"))));
+  await check("anon can't read licence keys", assertFails(getDoc(doc(anon, "licenceKeys/pub"))));
   await check("other adminPrefs documents stay closed", assertFails(setDoc(doc(admin, "adminPrefs/somethingElse"), { data: "x", updatedAt: 1 })));
   const unverified = signedIn("imposter", { email: "owner@example.com", email_verified: false });
   await check("unverified admin email can't read the private document", assertFails(getDoc(doc(unverified, "books/pub/private/admin"))));
@@ -559,6 +563,8 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("owner can't write another shop's Connect Google record", assertFails(setDoc(doc(ownerHereInS2, "adminSecrets/googleLink"), { propertyId: "123456789" })));
   await check("owner can't write another shop's settings", assertFails(setDoc(doc(ownerHereInS2, "settings/website"), { info: { name: "Mine now" } })));
   await check("owner can't write another shop's QR codes", assertFails(setDoc(doc(ownerHereInS2, "adminPrefs/qrCodes"), { data: "[]", updatedAt: Date.now() })));
+  await check("owner can't read another shop's licence keys", assertFails(getDoc(doc(ownerHereInS2, "licenceKeys/pub"))));
+  await check("owner can't write another shop's licence keys", assertFails(setDoc(doc(ownerHereInS2, "licenceKeys/pub"), { available: ["X"], givenCount: 0, updatedAt: "2026-11-13" })));
   await check("owner can't write another shop's sheet switch", assertFails(setDoc(doc(ownerHereInS2, "adminPrefs/sheets"), { data: "{}", updatedAt: Date.now() })));
   await check("owner can't list another shop's orders", assertFails(getDocs(collection(ownerHereInS2, "orders"))));
   await check("the other shop's owner can't read this shop's orders", assertFails(getDoc(doc(ownerThereInS1, "orders/o1"))));

@@ -553,6 +553,8 @@ export const FRENCH_COPY: Record<string, string> = {
   trackPartsTitle: "Déjà envoyé",
   trackPartsText: "Une partie de votre commande est en route. Le reste suivra dans un autre colis.",
   trackPartTrack: "Suivre ce colis",
+  trackKeysTitle: "Vos codes de licence",
+  trackKeysWaiting: "Nous vous enverrons bientôt le reste de vos codes.",
   trackAddTitle: "Ajouter quelque chose à cette commande",
   trackAddText: "Vous avez oublié quelque chose ? Ajoutez-le maintenant et il partira dans le même colis, sans frais de livraison en plus. Vous ne payez que les nouveaux articles.",
   trackAddOpen: "Ajouter quelque chose",

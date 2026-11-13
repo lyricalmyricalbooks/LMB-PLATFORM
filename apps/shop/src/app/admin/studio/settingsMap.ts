@@ -343,7 +343,7 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
     { title: "Find your order", match: /^track(Eyebrow|Title|Subtitle|Order|Email|Submit|Loading|Link|Found|Back|Another|Created|Help)/ },
     { title: "Order status & timeline", match: /^track(Timeline|Step|InTransit|Shipment|Paid|Unpaid|Awaiting|Cancelled|Refunded|StillUnpaid|Recheck|Preorder)/ },
     { title: "Delivery & pickup", match: /^track(Fulfillment|Pickup|LocalDelivery|Collected|ReadyFor|OutFor|Logistics|Carrier|Shipping|ShipTo|Expected)/ },
-    { title: "Items & totals", match: /^(track(Items|TotalPayable|Digital|Download|AddOn|GiftCard|FreeGift|BoxSet)|qtyLine|summary)/ },
+    { title: "Items & totals", match: /^(track(Items|TotalPayable|Digital|Download|Keys|AddOn|GiftCard|FreeGift|BoxSet)|qtyLine|summary)/ },
     { title: "Parcels & adding to an order", match: /^track(Parts|PartTrack|Add)/ },
     { title: "Cancel, return & privacy requests", match: /^track(Req|Return|Privacy)/ },
     { title: "Payment link (orders you make)", match: /^trackPay(Text|Until|Now|Opening|Expired|Error)$/ },
