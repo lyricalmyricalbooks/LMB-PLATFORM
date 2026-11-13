@@ -56,7 +56,12 @@ describe("every Team role gets an invitation", () => {
     expect(staff.html).toContain("Payments, email connections and the Team stay with the owner");
     expect(staff.html).toContain("<strong>sam@x.example</strong>");
     expect(staff.html).toContain('href="https://moth.example/admin?invite=sam%40x.example"');
-    expect(teamInviteEmail({ email: "b@x.example", role: "bookkeeper", shopName: "Moth" }).html).toContain("can't change anything");
+    const accountant = teamInviteEmail({ email: "b@x.example", role: "bookkeeper", shopName: "Moth", siteUrl: "https://moth.example" });
+    expect(accountant.subject).toBe("Your access to Moth's books");
+    expect(accountant.html).toContain("to Moth's team as their accountant");
+    expect(accountant.html).toContain("expenses with their receipts, the ledger, profit and loss");
+    expect(accountant.html).toContain("can't change anything");
+    expect(accountant.html).toContain('href="https://moth.example/admin?invite=b%40x.example">Open the books');
     expect(teamInviteEmail({ email: "c@x.example", role: "owner", shopName: "Moth" }).html).toContain("a co-owner");
     expect(teamInviteEmail({ email: "f@x.example", role: "fairHelper", shopName: "Moth", siteUrl: "https://moth.example" }).subject).toBe("You're a fair helper for Moth");
     expect(teamInviteEmail({ email: "x@x.example", role: "boss", shopName: "Moth" })).toBeNull();

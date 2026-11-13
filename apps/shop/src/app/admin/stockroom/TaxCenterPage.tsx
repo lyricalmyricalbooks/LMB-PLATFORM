@@ -202,7 +202,7 @@ export function TaxCenterView({ records, now, onTaxCenter, onState, orders: give
         <PageActions>
           {switcher}
           {onTaxCenter && <SecondaryButton onClick={() => setAdding(true)}>Log expense</SecondaryButton>}
-          <PrimaryButton onClick={exportAll} disabled={!model.rows.length}>Export for accountant</PrimaryButton>
+          <PrimaryButton onClick={exportAll} disabled={!model.rows.length}>{onTaxCenter ? "Export for accountant" : "Download the ledger"}</PrimaryButton>
         </PageActions>
         {part === "overview" && <>
           {rateNote}

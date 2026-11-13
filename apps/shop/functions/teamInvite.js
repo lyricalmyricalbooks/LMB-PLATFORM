@@ -35,7 +35,13 @@ function inviteKey(email, after) {
 const ROLE_LINES = {
   owner: { title: "a co-owner", can: "You can do everything the owner can, including adding people to the Team and changing the payment and email connections.", open: "Open the admin" },
   staff: { title: "staff", can: "You can look after orders, products, customers and the website. Payments, email connections and the Team stay with the owner.", open: "Open the admin" },
-  bookkeeper: { title: "the bookkeeper", can: "You can read orders, sales, tax collected and payouts, and download them for the books. You can't change anything.", open: "Open the books" },
+  // "Accountant" on the Team page (the role id stays "bookkeeper"): an accountant's own invitation, about the books.
+  bookkeeper: {
+    title: "their accountant",
+    can: "You can read the shop's books: sales, tax collected, expenses with their receipts, the ledger, profit and loss and payouts, and download them as spreadsheets. You can't change anything.",
+    open: "Open the books",
+    subject: (shop) => `Your access to ${shop}'s books`,
+  },
   author: { title: "an author", can: "In the stockroom you see and update only the books that name you as their author.", open: "Open the stockroom" },
 };
 
@@ -66,7 +72,7 @@ function teamInviteEmail({ email, role, shopName, siteUrl, invitedBy }) {
     `<p>No Google account for this address yet? You can make one for it at accounts.google.com, without a Gmail address.</p>`,
     `<p>Questions? Reply to this email to reach ${esc(shop)}.</p>`,
   ].join("");
-  return { to, subject: `You're on ${shop}'s team`, html };
+  return { to, subject: words.subject ? words.subject(shop) : `You're on ${shop}'s team`, html };
 }
 
 /** The fair helper's invitation: where the Fair till is and how to sign in. Replies reach the shop's own reply-to address (email/index.js). */

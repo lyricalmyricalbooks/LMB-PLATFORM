@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { UserPlus } from "lucide-react";
 import { useShopWords } from "./shopWords";
-import { ActionMenu, Checkbox, EmptyState, PageActions, PrimaryButton, SectionCard, SelectField, TextField, useConfirm, type MenuAction } from "./riso/components";
+import { ActionMenu, Checkbox, EmptyState, PageActions, PrimaryButton, SecondaryButton, SectionCard, SelectField, TextField, useConfirm, type MenuAction } from "./riso/components";
 import { shopOwnerEmail } from "../lib/ownerDevice";
 import { auth } from "../../lib/firebase";
 import { adminApi } from "./api";
@@ -24,7 +24,8 @@ const ROLE_WORDS: Record<TeamRole, RoleWords> = {
   owner: { label: "Co-owner", detail: "Everything you can do, including the Team and the payment and email connections." },
   author: { label: "Author", detail: "Can't open this admin. In the stockroom, they see and update only the books that name them as the author." },
   fairHelper: { label: "Fair helper", detail: "Only the Fair till: they ring up sales and see their own. Never your money, settings or customers." },
-  bookkeeper: { label: "Bookkeeper", detail: `Reads orders, sales, tax and payouts${STOCKROOM ? ", and the stockroom's tax centre" : ""}. Changes nothing.` },
+  // The role id stays "bookkeeper" (saved on every Team entry and sign-in pass); people see "Accountant".
+  bookkeeper: { label: "Accountant", detail: `Reads and downloads the books: sales, tax collected${STOCKROOM ? ", expenses with their receipts, the ledger, profit and loss" : ""} and payouts. Changes nothing.` },
 };
 
 /** The role words in this shop's words ("Maker" and "products" in a shop that sells no books). */
@@ -151,6 +152,9 @@ export function TeamSettings() {
     emailBox.current?.scrollIntoView({ behavior: "smooth", block: "center" });
     emailBox.current?.querySelector("input")?.focus({ preventScroll: true });
   };
+  // An accountant is the person most shops add after staff: one press picks the role and puts the cursor in the email box.
+  const hasAccountant = list.some(m => m.role === "bookkeeper");
+  const inviteAccountant = () => { setRole("bookkeeper"); focusInvite(); };
 
   return (
     <>
@@ -184,12 +188,13 @@ export function TeamSettings() {
                 </li>
               ))}
               {!list.length && (
-                <li className="rp-team-row rp-team-empty"><span className="rp-team-who">Just you so far.<small>Invite staff, a bookkeeper or a co-owner below.</small></span></li>
+                <li className="rp-team-row rp-team-empty"><span className="rp-team-who">Just you so far.<small>Invite staff, your accountant or a co-owner below.</small></span></li>
               )}
             </ul>
           )}
       </SectionCard>
-      <SectionCard title="Invite someone" description="They get an email with a link and sign in with Google.">
+      <SectionCard title="Invite someone" description="They get an email with a link and sign in with Google."
+        actions={members && !hasAccountant && role !== "bookkeeper" ? <SecondaryButton size="sm" onClick={inviteAccountant}>Invite your accountant</SecondaryButton> : undefined}>
         <form className="rp-team-invite" onSubmit={e => { e.preventDefault(); void add(); }} noValidate>
           <div ref={emailBox} className="rp-team-invite-email">
             <TextField label="Google email" type="email" autoComplete="off" value={email} onChange={e => setEmail(e.target.value)}

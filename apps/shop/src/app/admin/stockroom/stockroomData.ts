@@ -161,8 +161,36 @@ export async function loadStockroom(reads: StockroomReads = liveReads()): Promis
   return { books, states, taxCenter: asObject(taxCenter), invoiceSettings: asObject(invoiceSettings), submissions, extras: tillOnlyItems(catalog) };
 }
 
+/** The Tax centre as the Team's accountant (role "bookkeeper") reads it: the key-free copy the owner's saves keep
+ *  (`settings/taxCentreForBookkeeper`, @stockroom/bookkeeper-copy.js), shaped like the Tax centre the money pages read. */
+export function taxCenterFromCopy(copy: unknown): Record<string, unknown> | null {
+  if (!copy || typeof copy !== "object") return null;
+  const c = copy as Record<string, unknown>;
+  const rates = c.rates && typeof c.rates === "object" ? c.rates : {};
+  return {
+    settings: { baseCurrency: typeof c.baseCurrency === "string" ? c.baseCurrency : "CAD", rates },
+    businessExpenses: Array.isArray(c.businessExpenses) ? c.businessExpenses : [],
+  };
+}
+
+/** What the accountant's desk reads (BookkeeperDesk.tsx): the catalogue and each item's records, as the owner's pages
+ *  read them, and the Tax centre from its key-free copy. Never the Tax centre itself (it holds the AI keys), the
+ *  invoice settings or the authors' waiting entries: the stockroom's rules open none of them to the role. */
+export async function loadForBookkeeper(reads: StockroomReads = liveReads()): Promise<StockroomRecords> {
+  const flags = await reads.flags();
+  const global = flags.fs_mode_global === true;
+  const [catalog, copy] = await Promise.all([readSetting(reads, "catalog", global), readSetting(reads, "taxCentreForBookkeeper", global)]);
+  const books = catalogBooks(catalog);
+  const states: StockroomRecords["states"] = {};
+  await Promise.all(books.map(async (book) => {
+    const state = await readBook(reads, book.id, flags[`fs_mode_${book.id}`] === true || global);
+    if (state) states[book.id] = state;
+  }));
+  return { books, states, taxCenter: taxCenterFromCopy(copy), invoiceSettings: null, extras: tillOnlyItems(catalog) };
+}
+
 /** What the pages call, so the admin fixture (adminFixture/main.ts) can answer with sample records. */
-export const stockroomApi = { load: () => loadStockroom() };
+export const stockroomApi = { load: () => loadStockroom(), loadForBookkeeper: () => loadForBookkeeper() };
 
 /** Everything a stockroom copy holds (stockroomCopies.ts): the catalogue as stored, every item's records (test items
  * too) and the settings the stockroom keeps in the cloud. Read the same way as the pages read. */
