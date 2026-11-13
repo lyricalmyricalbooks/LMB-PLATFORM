@@ -8,6 +8,7 @@ import { fileStem } from "@stockroom/shop-profile.js";
 
 import { getBookCurrencyCode } from "@stockroom/money.js";
 
+import { mileageYear } from "./mileage";
 import { stockValue } from "./stockValue";
 import { artistEarningsInYear, isExpenseAwaitingRate, type TaxSeasonInput } from "./taxSeason";
 
@@ -75,6 +76,12 @@ export function yearReportCsv(input: TaxSeasonInput, year: number | string): { t
       const a = Number(e.amount) || 0;
       csv += csvRow([e.date, "Expense", book.title, e.cat, e.desc, e.receipt || "", 0, 0, a.toFixed(2), 0, -a.toFixed(2)]) + "\n";
     }
+  }
+  // Business drives at the shop's mileage rate (mileage.ts), one line each.
+  const drives = mileageYear(input.taxCenter || null, y);
+  for (const d of drives.drives) {
+    const a = d.deduction;
+    csv += csvRow([d.date, "Mileage", d.trip || d.stockist || "", "Vehicle (mileage)", `${d.from ? `${d.from} to ${d.to}` : d.to}${d.roundTrip ? " and back" : ""}, ${Math.round(d.total * 10) / 10} ${d.unit}${d.purpose ? ` (${d.purpose})` : ""}`, "", 0, 0, a.toFixed(2), 0, (-a).toFixed(2)]) + "\n";
   }
   csv += `\nSUMMARY FOR ${y},,,,,,,,,\n`;
   for (const bs of fin.bookStats) {
