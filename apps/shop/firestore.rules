@@ -676,6 +676,12 @@ service cloud.firestore {
           && shortText(request.resource.data.get("note", ""), 500);
         allow update, delete: if false;
       }
+      match /licenceKeys/{bookId} {
+        // Licence keys waiting to be handed out with a product (functions/licenceKeys.js). Admin-only: a key a shopper
+        // could read is a key given away. The server takes keys inside the paid order's transaction.
+        allow read: if isAdminReader();
+        allow write: if isAdmin();
+      }
       match /inventoryCosts/{bookId} {
         // Cost prices per book (CAD). Books are public, so costs live here, admin-only.
         allow read: if isAdminReader();

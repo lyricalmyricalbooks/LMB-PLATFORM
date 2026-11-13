@@ -465,6 +465,22 @@ function OrderTrackingContent() {
                 </section>
               )}
 
+              {/* Licence keys a paid order took (gap list 38, functions/licenceKeys.js). */}
+              {Array.isArray(order.licenceKeys) && order.licenceKeys.length > 0 && (
+                <section {...regionProps("trackingKeys")} className="fm-track-card p-6 sm:p-8 space-y-3">
+                  <p className="fm-track-display text-2xl">{getCopy(settings?.design, "trackKeysTitle")}</p>
+                  <ul className="list-none p-0 m-0">
+                    {order.licenceKeys.map((entry: any) => (
+                      <li key={entry.line} className="py-3 border-b fm-track-rule">
+                        <p className="text-sm">{entry.title}</p>
+                        {(entry.keys || []).map((k: string) => <p key={k} className="font-mono text-sm mt-1 break-all select-all">{k}</p>)}
+                      </li>
+                    ))}
+                  </ul>
+                  {Number(order.licenceKeysShort) > 0 && <p className="text-sm fm-muted">{getCopy(settings?.design, "trackKeysWaiting")}</p>}
+                </section>
+              )}
+
               {digitalItems.length > 0 && order.paymentStatus === "paid" && (
                 <section {...regionProps("trackingDownloads")} className="fm-track-card p-6 sm:p-8 space-y-5">
                   <div>

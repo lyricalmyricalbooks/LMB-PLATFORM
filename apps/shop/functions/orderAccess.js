@@ -30,6 +30,8 @@ function publicOrderView(id, order) {
   if (order.appliedDiscount) out.appliedDiscount = pick(order.appliedDiscount, ["code", "title", "automatic", "type"]);
   // Gift cards show as their last four characters; ids and codes stay on the server.
   if (Array.isArray(order.giftCardRedemptions)) out.giftCardRedemptions = order.giftCardRedemptions.map(r => pick(r, ["last4", "minor"]));
+  if (Array.isArray(order.licenceKeys)) out.licenceKeys = order.licenceKeys.map(e => ({ line: e.line, title: e.title, keys: Array.isArray(e.keys) ? e.keys : [] }));
+  if (Number(order.licenceKeysShort) > 0) out.licenceKeysShort = Number(order.licenceKeysShort);
   if (Array.isArray(order.giftCardsIssued)) out.giftCardsIssued = order.giftCardsIssued.map(c => pick(c, ["last4", "minor", "recipientEmail"]));
   return out;
 }

@@ -646,6 +646,8 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "trackPartsTitle", label: "Parcels sent so far — heading", default: "Sent so far" },
       { key: "trackPartsText", label: "Parcels sent so far — note", default: "Part of your order is on its way. The rest will follow in another parcel." },
       { key: "trackPartTrack", label: "Parcels sent so far — tracking link", default: "Track this parcel" },
+      { key: "trackKeysTitle", label: "Licence codes — heading", default: "Your licence codes" },
+      { key: "trackKeysWaiting", label: "Licence codes — more to come", default: "We'll send the rest of your codes soon." },
       { key: "trackAddTitle", label: "Add to this order — heading", default: "Add something to this order" },
       { key: "trackAddText", label: "Add to this order — note", default: "Forgot something? Add it now and it ships in the same parcel, with no extra shipping. You pay for just the new items." },
       { key: "trackAddOpen", label: "Add to this order — open button", default: "Add something" },
