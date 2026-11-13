@@ -2,6 +2,7 @@
 // hidden preview frame fed the same unsaved snapshot as the canvas, waits for it to settle and runs the read-only
 // Health audit on it. Nothing is saved or changed; the frame is removed after each page. Results are grouped by page,
 // with problems shared by several pages (header, footer…) listed once.
+import { useShopWords } from "../shopWords";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PrimaryButton, SecondaryButton, StatusBadge } from "../riso/components";
 import { auditDocument, CATEGORY_LABELS, type HealthOptions } from "./healthAudit";
@@ -165,14 +166,17 @@ export function SiteHealthPanel({ site, onOpenPage, onFix }: {
   onOpenPage: (route: HealthRoute) => boolean;
   onFix: (finding: SiteFinding, route?: HealthRoute) => void;
 }) {
+  const w = useShopWords();
+  // A page's own name stays; only the built-in start ("Book page", "Shop (all books)") takes the shop's words.
+  const routeLabel = (label: string) => label.replace(/^(Book page|Shop \(all books\))/, m => w(m));
   const { report, progress, running, history } = site;
   const trend = historyTrend(history);
   const row = (f: SiteFinding & { pages?: string[] }, route?: HealthRoute) => (
     <li key={`${f.id}|${f.title}`} className="studio-health-item" data-site-finding={f.id}>
       <div>
         <span className="studio-health-cat">{CATEGORY_LABELS[f.category]}{f.severity === "issue" ? " · to fix" : ""}</span>
-        <strong>{f.title}{f.count > 1 ? ` (${f.count} places)` : ""}</strong>
-        <small>{f.detail}</small>
+        <strong>{w(f.title)}{f.count > 1 ? ` (${f.count} places)` : ""}</strong>
+        <small>{/[“"]/.test(f.detail) ? f.detail : w(f.detail)}</small>
         {f.pages && <small className="studio-health-where">On {f.pages.length} pages: {f.pages.slice(0, 4).join(", ")}{f.pages.length > 4 ? "…" : ""}</small>}
         {!f.pages && f.owner?.label && <small className="studio-health-where">In: {f.owner.label}</small>}
       </div>
@@ -209,7 +213,7 @@ export function SiteHealthPanel({ site, onOpenPage, onFix }: {
                 <li key={p.route.id} data-site-page={p.route.id}>
                   <details open={issues > 0 || Boolean(p.error)}>
                     <summary>
-                      <strong>{p.route.label}</strong>
+                      <strong>{routeLabel(p.route.label)}</strong>
                       {p.error ? <StatusBadge tone="warning">Not checked</StatusBadge>
                         : issues ? <StatusBadge tone="warning">{issues} to fix{p.sharedIssues ? ` (${p.sharedIssues} on several pages)` : ""}</StatusBadge>
                         : <StatusBadge tone="success">Nothing to fix</StatusBadge>}

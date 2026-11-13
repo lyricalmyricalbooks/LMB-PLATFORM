@@ -2026,6 +2026,21 @@ await check("a shop that doesn't sell books reads its own words in Essentials, N
   await noBookWords(page, "Themes");
 }, "?sells=clothing#designer?tab=essentials");
 
+await check("a shop that doesn't sell books: Find and Reset to default use its own words", desktop, async page => {
+  await page.getByPlaceholder("Search any label or message…").fill("empty typing line");
+  const field = page.locator('[data-copy-key="searchPlaceholder"]');
+  const input = field.locator("input, textarea");
+  await input.fill("Look for anything");
+  await field.getByRole("button", { name: /^Reset to default/ }).click();
+  const value = await input.inputValue();
+  if (value !== "Products, makers, collections…") throw new Error(`Reset gave "${value}", not the shop's own starter words`);
+  await page.getByRole("button", { name: /^Find/ }).first().click();
+  await page.getByPlaceholder(/^Search settings, words, pages, products, sections/).waitFor({ timeout: 5000 });
+  await page.getByRole("combobox", { name: "Find a setting, text, page, section or action" }).fill("night");
+  await page.waitForTimeout(600);
+  await noBookWords(page, "Find");
+}, "?sells=clothing#designer?tab=text");
+
 await check("a books shop still reads book words in Theme settings", desktop, async page => {
   await page.getByLabel("Search style settings").fill("book");
   await expectText(page, "Book cards in the shop grid");

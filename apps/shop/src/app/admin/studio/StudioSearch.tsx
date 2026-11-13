@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useShopWords } from "../shopWords";
 import { Search } from "lucide-react";
 import { Dialog } from "../riso/components";
 import { KIND_LABEL, paletteGroups, pushRecent, suggestSearches, warmSearchIndex, type SearchEntry } from "./studioSearch";
@@ -18,6 +19,7 @@ const writeRecent = (list: string[]) => { try { localStorage.setItem(RECENT_KEY,
 export function StudioSearch({ open, onClose, index, context = [], onPick }: {
   open: boolean; onClose: () => void; index: SearchEntry[]; context?: SearchEntry[]; onPick: (entry: SearchEntry, query: string) => void;
 }) {
+  const w = useShopWords();
   const [q, setQ] = useState("");
   const [active, setActive] = useState(0);
   const [recent, setRecent] = useState<string[]>(readRecent);
@@ -57,19 +59,19 @@ export function StudioSearch({ open, onClose, index, context = [], onPick }: {
           <Search size={16} aria-hidden />
           <input ref={inputRef} role="combobox" aria-expanded={results.length > 0} aria-controls={listId} aria-activedescendant={results.length ? `${listId}-${active}` : undefined}
             aria-label="Find a setting, text, page, section or action" autoComplete="off" spellCheck={false}
-            placeholder="Search settings, words, pages, books, sections…  (> for commands)" value={q} onChange={e => setQ(e.target.value)} onKeyDown={onKeyDown} />
+            placeholder={w("Search settings, words, pages, books, sections…  (> for commands)")} value={q} onChange={e => setQ(e.target.value)} onKeyDown={onKeyDown} />
         </div>
         <ul id={listId} role="listbox" aria-label="Results" className="studio-find-list">
           {groups.map(g => (
             <Fragment key={g.title}>
-              {(groups.length > 1 || !q || g.note) && <li role="presentation" className="studio-find-group">{g.note || g.title}</li>}
+              {(groups.length > 1 || !q || g.note) && <li role="presentation" className="studio-find-group">{w(g.note || g.title)}</li>}
               {g.entries.map(r => {
                 const i = ++n;
                 return (
                   <li key={`${g.title}:${r.id}`} id={`${listId}-${i}`} role="option" aria-selected={i === active} className="studio-find-row"
                     data-active={i === active || undefined} onMouseEnter={() => setActive(i)} onClick={() => pick(r)}>
-                    <span className="studio-find-kind" data-kind={r.kind}>{KIND_LABEL[r.kind]}</span>
-                    <span className="studio-find-main"><strong>{r.title}</strong><small>{r.trail || r.where}</small></span>
+                    <span className="studio-find-kind" data-kind={r.kind}>{w(KIND_LABEL[r.kind])}</span>
+                    <span className="studio-find-main"><strong>{r.title}</strong><small>{r.trail || w(r.where)}</small></span>
                     {r.keys && <kbd className="studio-find-keys">{r.keys}</kbd>}
                   </li>
                 );
