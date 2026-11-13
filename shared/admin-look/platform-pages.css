@@ -487,7 +487,7 @@ body.cp:has(> footer) > main { flex: 1 0 auto; }
 .cp-front .cp-mast nav .cp-fp-link { font-size: 14px; font-weight: 500; color: var(--rp-text); }
 .cp-front .cp-mast nav .cp-fp-link:hover { background: var(--cl-hover); }
 .cp-front .cp-mast nav .cp-fp-signin { margin-left: auto; font-size: 14px; font-weight: 500; color: var(--rp-text); }
-.cp-front .cp-mast nav a.cp-nav-cta { min-height: 40px; padding: 0 18px; border-radius: 12px; color: var(--rp-on-primary); font-size: 14px; gap: 6px; }
+.cp-front .cp-mast nav a.cp-nav-cta { min-height: 44px; padding: 0 18px; border-radius: 12px; color: var(--rp-on-primary); font-size: 14px; gap: 6px; }
 .cp-front .cp-mast nav a.cp-nav-cta:hover { background: var(--rp-primary-hover); }
 
 .cp-fp-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: clamp(24px, 4vw, 56px); align-items: center; padding: clamp(40px, 6vw, 84px) 0 clamp(48px, 7vw, 96px); }
@@ -497,7 +497,8 @@ body.cp:has(> footer) > main { flex: 1 0 auto; }
 .cp-front .cp-fp-hero .cp-lede { font-size: clamp(16px, 1.6vw, 19px); max-width: 440px; margin: 0 0 30px; }
 .cp-fp-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; }
 .cp-front .cp-fp-go { min-height: 48px; padding: 0 24px; border-radius: 12px; font-size: 15px; display: inline-flex; align-items: center; gap: 10px; text-decoration: none; }
-.cp-fp-more { font: 600 14px/1 var(--rp-font-body); color: var(--rp-text); text-decoration: none; padding: 8px 0; border-bottom: 1.5px solid var(--rp-text); }
+.cp-fp-more { display: inline-flex; align-items: center; min-height: 44px; gap: 6px; font: 600 14px/1 var(--rp-font-body); color: var(--rp-text); text-decoration: none; }
+.cp-fp-more:hover { text-decoration: underline; text-underline-offset: 6px; }
 .cp-fp-trust { display: flex; flex-wrap: wrap; gap: 8px 22px; list-style: none; margin: 26px 0 0; padding: 0; font: 500 11px/1 var(--rp-font-mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--rp-text-subtle); }
 .cp-fp-trust li::before { content: "✓"; display: inline-grid; place-items: center; width: 14px; height: 14px; margin-right: 7px; border: 1px solid var(--cl-dashed); border-radius: 50%; font-size: 8px; }
 
@@ -553,7 +554,8 @@ body.cp:has(> footer) > main { flex: 1 0 auto; }
 .cp-fp-tile .cp-fp-eyebrow { color: var(--cl-on-tile); opacity: 0.7; }
 .cp-fp-shop { grid-column: 1 / -1; flex-direction: row; align-items: stretch; gap: 32px; background: var(--cl-sky); min-height: 480px; padding-bottom: 0; }
 .cp-fp-tilecopy { flex: 0 0 34%; display: flex; flex-direction: column; justify-content: center; padding-bottom: clamp(24px, 3.4vw, 40px); }
-.cp-fp-arrow { margin-top: 26px; align-self: flex-start; font: 600 14px/1 var(--rp-font-body); color: var(--cl-on-tile); text-decoration: none; border-bottom: 1.5px solid var(--cl-on-tile); padding-bottom: 6px; }
+.cp-fp-arrow { margin-top: 14px; align-self: flex-start; display: inline-flex; align-items: center; min-height: 44px; gap: 6px; font: 600 14px/1 var(--rp-font-body); color: var(--cl-on-tile); text-decoration: none; }
+.cp-fp-arrow:hover { text-decoration: underline; text-underline-offset: 6px; }
 .cp-fp-person { background: var(--cl-apricot); }
 .cp-fp-stock { background: var(--cl-mint); }
 
