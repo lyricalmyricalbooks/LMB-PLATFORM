@@ -45,7 +45,7 @@ describe("the admin of a website-only press", () => {
     const src = read("TeamSettings.tsx");
     // The role list offers Author only with a stockroom, and no Team words promise a stockroom without one.
     expect(src).toMatch(/\.\.\.\(STOCKROOM \? \["author" as const\] : \[\]\)/);
-    expect(src).toMatch(/STOCKROOM \? ", and the stockroom's tax centre" : ""/);
+    expect(src).toMatch(/STOCKROOM \? ", expenses with their receipts, the ledger, profit and loss" : ""/);
     expect(src).not.toMatch(/description="People who can open this admin or the stockroom/);
   });
 });

@@ -48,12 +48,12 @@ export function BookkeeperDesk({ email, appearance }: { email: string | null; ap
     <div className="rp" data-rp-appearance={appearance}>
       <main className="rp-main" style={{ maxWidth: 1180, margin: "0 auto", padding: "24px 16px" }}>
         <PageHeader
-          title="The books"
+          title="Bookkeeping"
           description={`Signed in as ${email || "your accountant account"}. Read and download everything; nothing can be changed here.`}
           actions={<SecondaryButton icon={<LogOut size={16} aria-hidden />} onClick={() => { void adminApi.logout(); }}>Log out</SecondaryButton>}
         />
         <div className="rp-stack" style={{ gap: 16 }}>
-          <Tabs variant="page" label="The books" idPrefix="desk-" value={tab} onChange={setTab} tabs={tabs} />
+          <Tabs variant="page" label="Bookkeeping" idPrefix="desk-" value={tab} onChange={setTab} tabs={tabs} />
           {tabs.map((t) => (
             <TabPanel key={t.id} tabId={`desk-${t.id}`} active={tab === t.id}>
               {tab === t.id && (t.id === "sales" ? <SalesAndTax /> : <BooksPart part={t.id} />)}
