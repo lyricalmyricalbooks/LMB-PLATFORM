@@ -1,5 +1,6 @@
 // Page layout › Book page / Collection page template (Studio 2.8): which layout is being edited (the default or an
 // alternate), who uses it, and Create / Rename / Delete. Alternates: features/site/templateAlternates.ts.
+import { useShopWords } from "../shopWords";
 import { Copy, Pencil, Trash2 } from "lucide-react";
 import { ALT_BASE_LABELS, alternatesFor, altSurface, parseAltSurface, type AltBase } from "../../features/site/templateAlternates";
 
@@ -22,19 +23,20 @@ export function templateBaseOf(templateId: string): AltBase | null {
 }
 
 export function StudioTemplateCard(p: Props) {
+  const w = useShopWords();
   const base = templateBaseOf(p.templateId);
   if (!base) return null;
   const alt = parseAltSurface(p.templateId);
   const list = alternatesFor(p.design, base);
   const current = alt ? list.find(t => t.id === alt.id) : null;
-  const kind = ALT_BASE_LABELS[base];
+  const kind = w(ALT_BASE_LABELS[base]);
   const categories: any[] = (Array.isArray(p.design?.categories) ? p.design.categories : []).filter((c: any) => c && typeof c === "object");
   const users = base === "productPage"
     ? p.books.filter(b => (alt ? b.templateId === alt.id : b.templateId && list.some(t => t.id === b.templateId))).map(b => b.title)
     : categories.filter(c => (alt ? c.templateId === alt.id : c.templateId && list.some(t => t.id === c.templateId))).map(c => c.name);
-  const noun = base === "productPage" ? "book" : "category";
+  const noun = base === "productPage" ? w("book") : "category";
   const assignHint = base === "productPage"
-    ? "Choose a book's template in Books › edit › Categories & tags › Book page template."
+    ? w("Choose a book's template in Books › edit › Categories & tags › Book page template.")
     : "Choose a category's template in Navigation › Shop categories › Edit › Collection page template.";
 
   return (

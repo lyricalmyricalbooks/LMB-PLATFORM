@@ -3,6 +3,7 @@
 // draft; Customize loads it into the draft (undoable); Publish… loads it and opens the usual Publish confirmation.
 // Share a preview link saves a design behind a private, expiring link (previewTokens, firestore.rules) so someone
 // can see it on the real shop before it goes live.
+import { useShopWords } from "../shopWords";
 import { useEffect, useState } from "react";
 import { Copy, Eye, Link2, Upload } from "lucide-react";
 import { ActionMenu, Dialog, PrimaryButton, SecondaryButton, StatusBadge } from "../riso/components";
@@ -209,6 +210,7 @@ const denied = (err: any) => err?.code === "permission-denied" || /insufficient 
 const when = (iso: string) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString(); };
 
 export function StudioThemes(p: Props) {
+  const w = useShopWords();
   const [share, setShare] = useState<{ name: string; design: any } | null>(null);
   const [days, setDays] = useState(7);
   const [created, setCreated] = useState<PreviewLink | null>(null);
@@ -351,7 +353,7 @@ export function StudioThemes(p: Props) {
                 {thumb(`preset:${preset.id}`, preset.name, look)}
                 <div>
                   <strong>{preset.name}</strong> {p.currentPresetId === preset.id && <StatusBadge tone="success">Current</StatusBadge>}
-                  {preset.mood && <small>{preset.mood}</small>}
+                  {preset.mood && <small>{w(preset.mood)}</small>}
                   {hasPresetContent(preset) && <small data-preset-content>Comes with: {presetContentLabel(preset)}</small>}
                   <div className="studio-theme-actions">
                     <PrimaryButton size="sm" onClick={() => p.onApplyPreset(preset)}>Use this look</PrimaryButton>

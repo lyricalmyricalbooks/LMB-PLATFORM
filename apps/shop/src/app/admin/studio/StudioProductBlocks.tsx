@@ -2,10 +2,11 @@
 // Built-in blocks can be moved and hidden (title and Add to bag stay); added blocks (text, collapsible note, badge,
 // look-inside link, book detail) can be edited, connected to the book's details (2.7) and removed.
 // Data: features/site/productBlocks.ts; written to the template's own surface with writeDesignValue.
+import { useShopWords } from "../shopWords";
 import { useContext } from "react";
 import { ArrowDown, ArrowUp, Eye, EyeOff, Lock, Trash2 } from "lucide-react";
 import {
-  addBlock, blockLabel, BUILT_IN_BLOCKS, CUSTOM_BLOCKS, isBuiltIn, isRequired, moveBlock, productBlocks, removeBlock,
+  addBlock, blockLabel as bookBlockLabel, BUILT_IN_BLOCKS, CUSTOM_BLOCKS, isBuiltIn, isRequired, moveBlock, productBlocks, removeBlock,
   toggleBlock, updateBlock, type ProductBlock,
 } from "../../features/site/productBlocks";
 import { writeDesignValue } from "../../features/site/designModel";
@@ -22,6 +23,8 @@ export function isProductTemplate(templateId: string) {
 
 export function StudioProductBlocks({ design, templateId, change, onNotice }: { design: any; templateId: string; change: Change; onNotice?: (text: string, undo?: boolean) => void }) {
   const ctx = useContext(DynamicSourcesContext);
+  const w = useShopWords();
+  const blockLabel = (block: ProductBlock) => w(bookBlockLabel(block));
   if (!isProductTemplate(templateId)) return null;
   const alt = parseAltSurface(templateId);
   const own = Array.isArray(design?.[templateId]?.productInfoBlocks);
@@ -42,14 +45,14 @@ export function StudioProductBlocks({ design, templateId, change, onNotice }: { 
     <div className="studio-pdp-blocks" data-studio-panel="product-blocks">
       <h3 className="studio-announcements-title">Buy box blocks</h3>
       <p className="studio-hint">
-        The order of the book page's buy box{alt ? " for this template" : ""}. Move or hide pieces, or add your own.
-        {alt && !own && " This template follows the default book page until you change something here."}
+        {w("The order of the book page's buy box")}{alt ? " for this template" : ""}. Move or hide pieces, or add your own.
+        {alt && !own && w(" This template follows the default book page until you change something here.")}
       </p>
       <ol className="studio-pdp-block-list">
         {list.map((block, i) => {
           const builtIn = isBuiltIn(block.type);
           const required = isRequired(block.type);
-          const hint = BUILT_IN_BLOCKS.find(b => b.type === block.type)?.hint;
+          const hint = w(BUILT_IN_BLOCKS.find(b => b.type === block.type)?.hint || "");
           return (
             <li key={block.id} className={`studio-pdp-block${block.hidden ? " is-hidden" : ""}${block.type === "divider" ? " is-divider" : ""}`} data-pdp-block-row={block.type}>
               <div className="studio-pdp-block-head">
@@ -79,13 +82,13 @@ export function StudioProductBlocks({ design, templateId, change, onNotice }: { 
                 <LinkPicker label="Link" value={block.settings?.link || ""} onChange={v => write(updateBlock(list, block.id, { link: v }), "Change look-inside link")} />
               </>}
               {block.type === "customField" && <>
-                <label className="studio-scheme-field">Book detail
-                  <select value={block.settings?.fieldKey || ""} onChange={e => write(updateBlock(list, block.id, { fieldKey: e.target.value }), "Choose book detail")}>
+                <label className="studio-scheme-field">{w("Book detail")}
+                  <select value={block.settings?.fieldKey || ""} onChange={e => write(updateBlock(list, block.id, { fieldKey: e.target.value }), w("Choose book detail"))}>
                     <option value="">Choose a detail…</option>
                     {(ctx?.fields || []).map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
                   </select>
                 </label>
-                {!(ctx?.fields || []).length && <small className="studio-hint">Add details first in Books › edit › More details › Book fields.</small>}
+                {!(ctx?.fields || []).length && <small className="studio-hint">{w("Add details first in Books › edit › More details › Book fields.")}</small>}
                 {field(block, "label", "Label shown before it (optional)")}
               </>}
               {!builtIn && block.type !== "divider" && block.type !== "customField" && (
@@ -101,15 +104,15 @@ export function StudioProductBlocks({ design, templateId, change, onNotice }: { 
           <select value="" onChange={e => {
             const type = e.target.value as any;
             if (!type) return;
-            write(addBlock(list, type).list, `Add ${type === "divider" ? "divider" : CUSTOM_BLOCKS.find(b => b.type === type)?.label}`);
+            write(addBlock(list, type).list, `Add ${type === "divider" ? "divider" : w(CUSTOM_BLOCKS.find(b => b.type === type)?.label || "")}`);
           }}>
             <option value="">Choose…</option>
-            {CUSTOM_BLOCKS.map(b => <option key={b.type} value={b.type}>{b.label}</option>)}
+            {CUSTOM_BLOCKS.map(b => <option key={b.type} value={b.type}>{w(b.label)}</option>)}
             <option value="divider">Divider (starts a new part of the box)</option>
           </select>
         </label>
-        {own && <button type="button" className="studio-link-button" onClick={() => { write(undefined as any, alt ? "Use the default book page's blocks" : "Reset buy box blocks"); onNotice?.(alt ? "This template follows the default book page's buy box again." : "Buy box back to the standard order.", true); }}>
-          {alt ? "Use the default book page's blocks" : "Reset to the standard order"}
+        {own && <button type="button" className="studio-link-button" onClick={() => { write(undefined as any, alt ? w("Use the default book page's blocks") : "Reset buy box blocks"); onNotice?.(alt ? w("This template follows the default book page's buy box again.") : "Buy box back to the standard order.", true); }}>
+          {alt ? w("Use the default book page's blocks") : "Reset to the standard order"}
         </button>}
       </div>
     </div>

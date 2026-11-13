@@ -35,3 +35,14 @@ Julian: "continue improving the website designer, find bugs, make it better".
 
 ### Review (round 2)
 - The control check (`pnpm run test:studio-controls`) is still not in CI; run it and add it once it is known to pass.
+
+## Round 3: Studio in each shop's own words
+
+- [x] `wordCatalog` / `useCatalogWords` (admin/shopWords.tsx): a list of settings in the shop's words; keys, ids, values, defaults and {tokens} untouched
+- [x] StudioEditor reads STYLE_GROUPS and COPY_SCHEMA through it; built-in page names, Essentials, look descriptions worded
+- [x] Page parts (structure tree, region browser), template card, buy box blocks, page picker, shop categories
+- [x] Fixture `?sells=clothing`; unit test (shopWords.test.ts); five browser checks in studio-e2e.mjs
+- [ ] Later: pickers, Find, Health and Media panels still have some book words; "Review author" reads "Review maker"
+
+### Review
+Region labels double as ids (STYLE_TARGET_FIELDS is keyed by label), so they are worded only where shown.

@@ -64,6 +64,13 @@ export function PageBodyEditor({ value, onChange, onUploading, title }: {
   const [picked, setPicked] = useState<Picked | null>(null);
   const [ready, setReady] = useState(false); // Quill has loaded and the editor exists
   const editor = () => quillRef.current?.getEditor?.() as any;
+  // The editor loads a moment after the Upload button shows. A picture chosen in that moment waits here until the
+  // editor is listening, so it is placed and selected instead of landing unselected (or not at all).
+  const listening = useRef<{ on: boolean; waiting: (() => void)[] }>({ on: false, waiting: [] });
+  const whenListening = () => (listening.current.on ? Promise.resolve() : Promise.race([
+    new Promise<void>((resolve) => { listening.current.waiting.push(resolve); }),
+    new Promise<void>((resolve) => { setTimeout(resolve, 8000); }),
+  ]));
   useEffect(() => { onUploading?.(uploading > 0); }, [uploading, onUploading]);
   useEffect(() => () => onUploading?.(false), [onUploading]);
 
@@ -92,13 +99,14 @@ export function PageBodyEditor({ value, onChange, onUploading, title }: {
     const images = files.filter((f) => f.type.startsWith("image/"));
     if (!images.length) return;
     setError("");
-    let index = at ?? cursor();
+    let index = editor() ? at ?? cursor() : undefined; // no editor yet: the place is read once it has loaded
     setUploading((n) => n + images.length);
     for (const file of images) {
       try {
         const { url, alt } = await uploadPicture(file);
+        await whenListening();
         if (!editor()) { setError("A picture was uploaded but couldn't be placed on the page. Add it again."); continue; }
-        index = insertPicture(index, url, alt);
+        index = insertPicture(index ?? cursor(), url, alt);
       } catch (err) { setError(uploadErrorMessage(err)); }
       finally { setUploading((n) => n - 1); }
     }
@@ -183,7 +191,10 @@ export function PageBodyEditor({ value, onChange, onUploading, title }: {
     q.root.addEventListener("click", onClick);
     q.root.addEventListener("paste", onPaste, true);
     q.root.addEventListener("drop", onDrop, true);
+    listening.current.on = true;
+    listening.current.waiting.splice(0).forEach((resolve) => resolve());
     return () => {
+      listening.current.on = false;
       q.off("selection-change", onSelection);
       q.off("text-change", onText);
       q.root.removeEventListener("click", onClick);

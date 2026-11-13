@@ -1,3 +1,4 @@
+import { useShopWords } from "../shopWords";
 import type { ReactNode } from "react";
 import { Eye, EyeOff, Lock, PanelTop, PanelBottom, Layers, MessageSquare } from "lucide-react";
 import { IconButton } from "../riso/components";
@@ -38,16 +39,18 @@ type Props = {
  * other on hover; choosing a row opens its settings.
  */
 export function StudioStructure(p: Props) {
+  const w = useShopWords();
   const s = p.structure;
   // "Style" / "Words": jump straight to the Theme settings category or Text & labels group behind a part.
-  const actions = (label: string, target: string, inline = false): ReactNode => {
+  const actions = (name: string, target: string, inline = false): ReactNode => {
+    const label = w(name);
     const parts = target.split("|");
     const style = parts.find(t => t.startsWith("style:"));
     const words = parts.find(t => t.startsWith("copy:"));
     if (!style && !words) return null;
     return <span className="studio-structure-actions" data-inline={inline || undefined}>
-      {style && <button type="button" aria-label={`Style settings for ${label}`} onClick={() => p.onOpenTarget(style, label)}>Style</button>}
-      {words && <button type="button" aria-label={`Words for ${label}`} onClick={() => p.onOpenTarget(words, label)}>Words</button>}
+      {style && <button type="button" aria-label={`Style settings for ${label}`} onClick={() => p.onOpenTarget(style, name)}>Style</button>}
+      {words && <button type="button" aria-label={`Words for ${label}`} onClick={() => p.onOpenTarget(words, name)}>Words</button>}
     </span>;
   };
   const row = (item: StructureItem, depth = 0): ReactNode => {
@@ -59,7 +62,7 @@ export function StudioStructure(p: Props) {
         style={depth ? { paddingLeft: depth * 14 } : undefined}
         onMouseEnter={() => p.onHover(item.key)} onMouseLeave={() => p.onHover(null)}>
         <button className="studio-tree-label" aria-current={p.selectedKey === item.key || undefined} onClick={() => p.onOpen(item)} onFocus={() => p.onHover(item.key)} onBlur={() => p.onHover(null)}>
-          {item.label}
+          {w(item.label)}
           <small>{[
             item.count > 1 ? `${item.count} on this page` : "",
             off ? `Hidden on ${p.deviceLabel.toLowerCase()}` : item.hidden ? `Not showing on ${p.deviceLabel.toLowerCase()} right now` : "",
@@ -68,7 +71,7 @@ export function StudioStructure(p: Props) {
         {actions(item.label, item.target)}
         {toggle && (toggle.required
           ? <span className="studio-structure-lock" title="Shoppers need this to buy or stay informed, so it can be restyled but not hidden."><Lock size={13} aria-label="Always shown" /></span>
-          : <IconButton label={off ? `Show ${item.label} on ${p.deviceLabel.toLowerCase()}` : `Hide ${item.label} on ${p.deviceLabel.toLowerCase()}`}
+          : <IconButton label={off ? `Show ${w(item.label)} on ${p.deviceLabel.toLowerCase()}` : `Hide ${w(item.label)} on ${p.deviceLabel.toLowerCase()}`}
               onClick={() => p.onToggleRegion(item.region, !off)}>{off ? <EyeOff size={13} /> : <Eye size={13} />}</IconButton>)}
       </div>
       {item.children.map(child => row(child, depth + 1))}

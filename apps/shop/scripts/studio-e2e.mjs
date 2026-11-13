@@ -54,6 +54,10 @@ async function check(name, viewport, run, query = "", prepare = null) {
   if (checkNo++ % shardCount !== shardNo - 1) return;
   const started = Date.now();
   const page = await browser.newPage({ viewport });
+  // The preview is the real storefront, which asks the shop's database and a currency service for data. The checks
+  // run on the fixture's own data, so those calls are refused at once: an answer arriving late (or real shop data
+  // arriving at all) redrew the preview under a running check on CI.
+  await page.route(/^https:\/\/(firestore\.googleapis\.com|open\.er-api\.com)\//, route => route.abort());
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
   try {
@@ -1979,6 +1983,53 @@ await check("on a phone the open workspace is in sight in the workspace row", { 
   const box = await page.locator(".studio-rail button[aria-pressed=true]").boundingBox();
   if (!box || box.x < 0 || box.x + box.width > 390) throw new Error(`the open workspace is off screen (${JSON.stringify(box)})`);
 }, "#designer?tab=themes");
+
+// A shop that sells clothing or candles used to read "Book cards", "Book page" and "author" all through Studio.
+// `?sells=clothing` opens the fixture as such a shop; {tokens} keep their spelling because the shop fills them in.
+const bookWordsShown = page => page.evaluate(() => {
+  const word = /(?<![-\w{])(books?|authors?|editions?)\b/i;
+  const found = new Set();
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) if (word.test(n.nodeValue) && !n.parentElement.closest("script,style,textarea")) found.add(n.nodeValue.trim().slice(0, 80));
+  for (const el of document.querySelectorAll("[aria-label],[title]")) for (const a of ["aria-label", "title"]) if (word.test(el.getAttribute(a) || "")) found.add(el.getAttribute(a).slice(0, 80));
+  return [...found];
+});
+const noBookWords = async (page, where) => {
+  await page.waitForTimeout(800);
+  const found = await bookWordsShown(page);
+  if (found.length) throw new Error(`${where} still says book to a shop that doesn't sell books: ${found.slice(0, 6).join(" | ")}`);
+};
+await check("a shop that doesn't sell books reads its own words on the product page layout", desktop, async page => {
+  await expectText(page, "Product page");
+  await noBookWords(page, "Page layout");
+}, "?sells=clothing#designer?t=productPage&tab=sections");
+
+await check("a shop that doesn't sell books reads its own words in Theme settings", desktop, async page => {
+  await page.getByLabel("Search style settings").fill("product");
+  await expectText(page, "Product cards in the shop grid");
+  await noBookWords(page, "Theme settings");
+}, "?sells=clothing#designer?tab=style");
+
+await check("a shop that doesn't sell books reads its own words in Text & labels", desktop, async page => {
+  await page.getByPlaceholder("Search any label or message…").fill("product");
+  await expectText(page, "Product page title with maker (when a product has no search title)");
+  await noBookWords(page, "Text & labels");
+}, "?sells=clothing#designer?tab=text");
+
+await check("a shop that doesn't sell books reads its own words in Essentials, Navigation and Themes", desktop, async page => {
+  await noBookWords(page, "Essentials");
+  await page.getByRole("tab", { name: "Navigation" }).or(page.getByRole("button", { name: "Navigation", exact: true })).first().click();
+  await expectText(page, "directly assigned products");
+  await noBookWords(page, "Navigation");
+  await page.getByRole("tab", { name: "Themes" }).or(page.getByRole("button", { name: "Themes", exact: true })).first().click();
+  await expectText(page, "Marquee");
+  await noBookWords(page, "Themes");
+}, "?sells=clothing#designer?tab=essentials");
+
+await check("a books shop still reads book words in Theme settings", desktop, async page => {
+  await page.getByLabel("Search style settings").fill("book");
+  await expectText(page, "Book cards in the shop grid");
+}, "#designer?tab=style");
 
 await browser.close();
 await server?.close();

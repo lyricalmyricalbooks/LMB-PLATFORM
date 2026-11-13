@@ -18,7 +18,7 @@ import {
 import { CATEGORIES } from "../../features/site/constants";
 import { designEqual } from "../../features/site/designEqual";
 import { splitNavigation, buildNavItems, moveNavItem, normalizeCategories, parentOf, reslotPages } from "../../features/site/navItems";
-import { COPY_SCHEMA, DEFAULT_COPY, getCopy } from "../../features/site/storeCopy";
+import { COPY_SCHEMA as BOOK_COPY_SCHEMA, DEFAULT_COPY, getCopy } from "../../features/site/storeCopy";
 import { automaticFooterItems, footerGroup } from "../../features/site/footerNavigation";
 import { MENU_LINK_TYPES, newMenuItem, slugify, type MenuItem } from "../../features/site/storeMenu";
 import {
@@ -27,7 +27,7 @@ import {
   resolveSharedBlocks, withPageText, type Section, type SectionTarget, type SharedBlock,
 } from "./studioModel";
 import { menuLinksTo, redirectsAfterRename, renamePageInMenus } from "./pageRename";
-import { STATIC_SURFACES, STYLE_GROUPS, STYLE_TARGET_FIELDS, applyGlobalStyle, readStyle, regionStyleFields, schemeFieldOptions, type StyleField, type StyleGroup } from "./styleSchema";
+import { STATIC_SURFACES, STYLE_GROUPS as BOOK_STYLE_GROUPS, STYLE_TARGET_FIELDS, applyGlobalStyle, readStyle, regionStyleFields, schemeFieldOptions, type StyleField, type StyleGroup } from "./styleSchema";
 import { StudioColorSchemes } from "./StudioColorSchemes";
 import { StudioScalePreview } from "./StudioScalePreview";
 import { applyGridMessage } from "./gridPlacement";
@@ -41,7 +41,7 @@ import { addSavedTheme, duplicateSavedTheme, parseThemeFile, removeSavedTheme, r
 import { PAYMENT_BADGE_OPTIONS, resolveFooterBadges } from "../../features/site/paymentBadges";
 import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
 import { applyPresetSections, hasPresetContent, presetContentSummary, presetPagesToAdd, presetSections, wordedSettings } from "./presetContent";
-import { useShopWords } from "../shopWords";
+import { useCatalogWords, useShopWords } from "../shopWords";
 import { applyThemeKeysToSurfaces } from "../themeScope";
 import { builtLooks, ownBooks, pressNameOf } from "../lookGallery";
 import { applyLook, bringBack, ownEdits, resetToLook, switchSummary, themeSwitchReport, updateLookKeepingEdits, updatedTheme, type SwitchItem, type ThemeSwitchReport } from "./themeSwitch";
@@ -140,8 +140,8 @@ const inertWhen = (on: boolean) => (on ? { inert: true } : {});
 const DEVICE_W = { desktop: "1200px", tablet: "820px", mobile: "390px" } as const;
 
 const SETTING_LABELS = new Map<string, string>([
-  ...STYLE_GROUPS.flatMap(g => g.fields.map(f => [f.key, f.label] as [string, string])),
-  ...COPY_SCHEMA.flatMap(g => g.fields.map(f => [`copy.${f.key}`, `“${f.label}” text`] as [string, string])),
+  ...BOOK_STYLE_GROUPS.flatMap(g => g.fields.map(f => [f.key, f.label] as [string, string])),
+  ...BOOK_COPY_SCHEMA.flatMap(g => g.fields.map(f => [`copy.${f.key}`, `“${f.label}” text`] as [string, string])),
 ]);
 /** Plain name of a setting for undo labels: "Change Accent colour". */
 const settingLabel = (path: string) => SETTING_LABELS.get(path) || SETTING_LABELS.get(path.split(".").pop() || "") || path.replace(/^copy\./, "").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
@@ -149,7 +149,7 @@ const settingLabel = (path: string) => SETTING_LABELS.get(path) || SETTING_LABEL
 /** "heroPage.sections" → "Home › sections" for the save-conflict dialog. */
 function conflictLabel(path: string, templates: { id: string; label: string }[]) {
   const [top, ...rest] = path.split(".");
-  if (top === "copy" && rest[0]) return `Text & labels › ${COPY_SCHEMA.flatMap(g => g.fields).find(f => f.key === rest[0])?.label || rest[0]}`;
+  if (top === "copy" && rest[0]) return `Text & labels › ${BOOK_COPY_SCHEMA.flatMap(g => g.fields).find(f => f.key === rest[0])?.label || rest[0]}`;
   const page = templates.find(t => t.id === top)?.label;
   const name = (key: string) => key === "copy" ? "Text & labels" : key === "sections" ? "sections" : SETTING_LABELS.get(key) || key.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
   return page ? [page, ...rest.map(name)].join(" › ") : [name(top), ...rest].join(" › ");
@@ -411,6 +411,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const defaults = useMemo(() => adminApi.getDefaultSettings().design, []);
   // The shop's words (code plan 12.18): layouts and the brand kit's starter Home come in this shop's words.
   const shopWords = useShopWords();
+  // The lists of settings in this shop's words ("Book cards" is "Product cards" in a shop that doesn't sell books).
+  const cw = useCatalogWords();
+  const STYLE_GROUPS = cw(BOOK_STYLE_GROUPS), COPY_SCHEMA = cw(BOOK_COPY_SCHEMA);
   const [workspace] = useState<Workspace>(() => openedWorkspace ?? { draft: settings?.draftDesign ?? settings?.design, rev: 0, savedThemes: settings?.savedThemes || [] });
   const [hist, setHist] = useState(() => initHistory(normalizeDesign(settings?.draftDesign ?? settings?.design, defaults)));
   const design = hist.present;
@@ -575,7 +578,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     id: altSurface(base, t.id), label: `${ALT_BASE_LABELS[base]} · ${t.name}`,
     description: `The “${t.name}” ${ALT_BASE_LABELS[base].toLowerCase()} template.`, previewMode: (base === "productPage" ? "product" : "collection") as any,
   }))), [design.alternateTemplates]); // eslint-disable-line react-hooks/exhaustive-deps
-  const templates = useMemo(() => [...buildPageTemplates(pages, { includeDrafts: true }), ...altTemplates], [pages, altTemplates]);
+  // Built-in pages take the shop's words ("Book page" is "Product page"); a page the owner named keeps its name.
+  const templates = useMemo(() => [...buildPageTemplates(pages, { includeDrafts: true }).map(t => t.pageSlug ? t : cw(t)), ...altTemplates], [pages, altTemplates, cw]);
   const template = templates.find((t) => t.id === templateId) || templates[0];
   // Collection alternates bring sections only (their page styles follow the default collection page).
   useEffect(() => { if (parseAltSurface(template.id)?.base === "collectionPage") setStyleScope("all"); }, [template.id]);
@@ -735,7 +739,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     sharedBlocks: (d.sharedBlocks || []).map((shared: SharedBlock) => shared.id === sharedId
       ? { ...shared, block: { ...shared.block, ...patch }, updatedAt: new Date().toISOString() } : shared),
   }));
-  const setStyle = (path: string, value: any) => change((d) => applyGlobalStyle(d, path, value, surfaceIds), { label: `Change ${settingLabel(path)}`, coalesce: `style:${path}` });
+  const setStyle = (path: string, value: any) => change((d) => applyGlobalStyle(d, path, value, surfaceIds), { label: `Change ${shopWords(settingLabel(path))}`, coalesce: `style:${path}` });
   /** Clears every template-only control at once (one undo step), so the template's own look comes back. */
   const resetTemplateDetails = () => {
     const keys = templateDetailsSet(designRef.current);
@@ -935,7 +939,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   };
 
   const renderStyleField = (g: StyleGroup, field: StyleField) => {
-    const f = schemeFieldOptions(field, colorSchemes);
+    const f = schemeFieldOptions(cw(field), colorSchemes);
     const local = styleScope === "page" && PAGE_STYLE_GROUPS.has(g.id);
     const region = REGION_GROUPS.find(group => group.id === g.id)?.regions.find(r => f.key.startsWith('regions.' + r.id));
     const values = { ...design.regions, ...(local ? design[template.id]?.regions : {}) };
@@ -968,7 +972,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         {pageOwn && <div className="studio-field-status" data-page-own>
           <small>{template.label} uses its own value: <b>{shownValue(pageOwn.value)}</b>. The preview shows that.</small>
           <button type="button" className="studio-reset" aria-label={`Use the all-pages value on ${template.label}: ${f.label}`}
-            onClick={() => change(d => writeDesignValue(d, f.key, undefined, { surface: template.id }), { label: `Use the all-pages ${settingLabel(f.key)}` })}>Use the all-pages value</button>
+            onClick={() => change(d => writeDesignValue(d, f.key, undefined, { surface: template.id }), { label: `Use the all-pages ${shopWords(settingLabel(f.key))}` })}>Use the all-pages value</button>
         </div>}
         {tuned && <div className="studio-field-status" data-fine-tune-wins>
           <small>Fine-tune one element › <b>{tuned.label}</b> sets its own value ({shownValue(tuned.value)}), which is drawn instead of this.</small>
@@ -2247,7 +2251,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             <StudioTips forceOpen={tipsNonce} />
             {leftTab === "sections" && <PreviewClickHint />}
             {leftTab === "essentials" && <div className="studio-essentials" data-studio-panel="essentials">
-              {ESSENTIALS.map(step => (
+              {cw(ESSENTIALS).map(step => (
                 <section key={step.id} className="studio-essential" data-essential={step.id} aria-labelledby={`essential-${step.id}`}>
                   <h3 id={`essential-${step.id}`}>{step.title}</h3>
                   <p className="studio-hint">{step.hint}</p>
@@ -2417,7 +2421,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                     <button key={t.id} type="button" onClick={() => applyLibraryTheme(t)}
                       className="w-full text-left border border-neutral-200 rounded-lg px-3 py-2 hover:bg-neutral-50">
                       <span className="block text-xs font-bold">{t.name}{design.themeLibraryPreset === t.id ? "  ✓ current" : ""}</span>
-                      <span className="block text-[11px] text-neutral-500">{t.mood}</span>
+                      <span className="block text-[11px] text-neutral-500">{shopWords(t.mood || "")}</span>
                     </button>
                   ))}
                 </div>
@@ -2496,7 +2500,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                   <div className="px-4 pt-3 pb-2 flex items-start justify-between gap-3">
                     <div>
                       <p className="text-[10px] font-black tracking-widest uppercase text-neutral-500">Editing element</p>
-                      <p className="text-sm font-bold">{styleFocus.label}</p>
+                      <p className="text-sm font-bold">{shopWords(styleFocus.label)}</p>
                       <p className="text-xs text-neutral-500 mt-0.5">{picked.length} settings for this element{styleScope === "page" ? "" : " · all pages"}</p>
                     </div>
                     <button type="button" className={btn} onClick={() => setStyleFocus(null)}>{(() => {
@@ -2816,7 +2820,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         <span>
           {incoming.remote.published ? "This design was published" : "This design was saved"} in another tab or device{incoming.remote.updatedAt ? ` at ${new Date(incoming.remote.updatedAt).toLocaleTimeString()}` : ""}.{" "}
           {incoming.paths.length
-            ? <>You both changed {incoming.paths.slice(0, 3).map(path => conflictLabel(path, templates)).join(", ")}{incoming.paths.length > 3 ? ` and ${incoming.paths.length - 3} more` : ""}. Bringing their changes in keeps your edit for those.</>
+            ? <>You both changed {incoming.paths.slice(0, 3).map(path => shopWords(conflictLabel(path, templates))).join(", ")}{incoming.paths.length > 3 ? ` and ${incoming.paths.length - 3} more` : ""}. Bringing their changes in keeps your edit for those.</>
             : "Your unsaved edits are to other settings, so both can be kept."}
         </span>
         <PrimaryButton size="sm" onClick={() => resolveIncoming("combine")}>{incoming.paths.length ? "Bring in theirs, keep mine" : "Bring in their changes"}</PrimaryButton>
@@ -2935,7 +2939,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         description="Since you opened Studio, this design was also saved somewhere else, and both versions changed the same settings.">
         {conflict && <div className="space-y-4">
           <p className="text-sm">Changed in both places:</p>
-          <ul className="list-disc pl-5 text-sm space-y-1">{conflict.paths.slice(0, 8).map(path => <li key={path}>{conflictLabel(path, templates)}</li>)}
+          <ul className="list-disc pl-5 text-sm space-y-1">{conflict.paths.slice(0, 8).map(path => <li key={path}>{shopWords(conflictLabel(path, templates))}</li>)}
             {conflict.paths.length > 8 && <li>…and {conflict.paths.length - 8} more</li>}</ul>
           <p className="text-sm">Everything else from both versions is kept either way.{conflict.kind === "publish" ? " Nothing is published until you review the combined design and press Publish again." : ""}</p>
           <div className="flex flex-wrap justify-end gap-2">
