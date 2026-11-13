@@ -70,6 +70,22 @@ describe('#113 download count cap', () => {
     expect(over.location).toBeNull();
     expect(app.signed).toHaveLength(dd.DOWNLOAD_LIMIT);
   });
+  test("the shop's own limit (Settings › General › Digital downloads) replaces the default", async () => {
+    const w = world();
+    w.settings.website = { digitalDownloads: { limit: 2 } };
+    const app = harness(w);
+    expect((await app.download({ itemId: 'b1' })).location).toBeTruthy();
+    expect((await app.download({ itemId: 'b1' })).location).toBeTruthy();
+    expect((await app.download({ itemId: 'b1' })).code).toBe(429);
+    expect(app.signed).toHaveLength(2);
+  });
+  test('a missing or out-of-range limit keeps the default', () => {
+    expect(dd.downloadLimitFrom(undefined)).toBe(dd.DOWNLOAD_LIMIT);
+    expect(dd.downloadLimitFrom({ digitalDownloads: { limit: 0 } })).toBe(dd.DOWNLOAD_LIMIT);
+    expect(dd.downloadLimitFrom({ digitalDownloads: { limit: 101 } })).toBe(dd.DOWNLOAD_LIMIT);
+    expect(dd.downloadLimitFrom({ digitalDownloads: { limit: "25" } })).toBe(25);
+    expect(dd.downloadNote(3)).toContain('up to 3 times');
+  });
   test('the owner resetting downloadCounts gives a fresh allowance, and the signed link is short-lived', async () => {
     const app = harness(world({ downloadCounts: { b1__base: 10 } }));
     expect((await app.download({ itemId: 'b1' })).code).toBe(429);
@@ -82,6 +98,11 @@ describe('#113 download count cap', () => {
     expect(html).toContain('Download File');
     expect(html).not.toMatch(/24 hours/);
     expect(html).toMatch(/up to 10 times/);
+  });
+  test("the email names the shop's own limit", async () => {
+    const w = world();
+    w.settings.website = { digitalDownloads: { limit: 3 } };
+    expect(await harness(w).paid([line()])).toMatch(/up to 3 times/);
   });
 });
 

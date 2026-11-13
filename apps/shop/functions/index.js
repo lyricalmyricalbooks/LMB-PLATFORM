@@ -3668,8 +3668,9 @@ async function handleOrderUpdated(event) {
       let downloadSection = "";
       if (digitalItems.length > 0) {
         const linkFor = item => functionLink(shopConfig, "downloadDigitalAsset", { orderId, itemId: item.itemId, variantId: item.variantId || "", token: order.downloadToken || "" });
+        const limit = digitalDelivery.downloadLimitFrom((await db.collection("settings").doc("website").get()).data());
         const note = String(notificationSettings.order_confirmation?.downloadNote
-          || (sellsBooks(notificationSettings.sells) ? digitalDelivery.DEFAULT_DOWNLOAD_NOTE : goodsDownloadNote(digitalDelivery.DOWNLOAD_LIMIT)));
+          || (sellsBooks(notificationSettings.sells) ? digitalDelivery.downloadNote(limit) : goodsDownloadNote(limit)));
         downloadSection = `
           <div style="margin-top:28px;padding:24px;background:#f8f6ff;border-radius:16px;border:1px solid #7c3aed20;">
             <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#7c3aed;">${say(sellsBooks(notificationSettings.sells) ? "Digital Library Access" : "Your downloads")}</h3>
