@@ -131,7 +131,7 @@ export function StudioCategories({ design, published, onChange, onReorder, onBoo
   const menuState = (c: any) => c.showInNav === false ? "Hidden from menu"
     : refLimit && !parentOf(c, cats) && !refShown.has(c.id) ? "Not in the shop header (over the limit below)" : "Shown in menu";
   const feedback = <>{error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}</>;
-  return <section className="studio-categories rp" data-studio-panel="menus:categories">
+  return <section className="studio-categories" data-studio-panel="menus:categories">
     <h3>Shop categories</h3>
     <p>{w("Manage category details, menu placement and books. Menu changes stay in Studio until you publish. Book assignments save immediately to the live catalog.")}</p>
     {!editor && !deleting && feedback}

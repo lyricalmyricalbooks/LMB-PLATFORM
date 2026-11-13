@@ -1989,6 +1989,22 @@ await check("in night mode Publish and the chosen preview size can be read", des
   if (low.length) throw new Error(`hard to read at night: ${low.join(", ")}`);
 }, "?night=1");
 
+// Navigation at night: the chosen menu tab had light words on a pale tint, and Shop categories stayed a day-coloured panel.
+await check("in night mode Navigation's chosen menu tab can be read and Shop categories is a night panel", desktop, async page => {
+  const bad = await page.evaluate(() => {
+    const lum = c => { const [r, g, b] = c.match(/[\d.]+/g).slice(0, 3).map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+    const out = [];
+    const tab = [...document.querySelectorAll('[role="tab"][aria-selected="true"]')].find(el => /menu$/.test(el.textContent.trim()));
+    if (!tab) out.push("no chosen menu tab");
+    else { const s = getComputedStyle(tab), a = lum(s.color), b = lum(s.backgroundColor); const ratio = (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05); const alpha = Number((s.backgroundColor.match(/[\d.]+/g) || [])[3] ?? 1); if (ratio < 4.5 || alpha < 0.5) out.push(`chosen menu tab contrast ${ratio.toFixed(1)}, fill ${alpha}`); }
+    const panel = document.querySelector(".studio-categories");
+    let el = panel; while (el && getComputedStyle(el).backgroundColor === "rgba(0, 0, 0, 0)") el = el.parentElement;
+    if (!panel || lum(getComputedStyle(el).backgroundColor) > 0.2) out.push("Shop categories is a light panel at night");
+    return out;
+  });
+  if (bad.length) throw new Error(bad.join("; "));
+}, "?night=1#designer?tab=menus");
+
 // The phone top bar used to wrap to five rows and push the preview half off the screen.
 await check("on a phone the top bar is two rows of full-size buttons, with View website under Theme actions", { width: 390, height: 844 }, async page => {
   const bar = await page.evaluate(() => {
