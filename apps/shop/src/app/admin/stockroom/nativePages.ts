@@ -26,6 +26,7 @@ export const NATIVE_PAGES: Record<string, ComponentType<NativePageProps>> = {
   expenses: lazy(() => import("./TaxCenterPage").then((m) => ({ default: m.ExpensesPage }))),
   receipts: lazy(() => import("./TaxCenterPage").then((m) => ({ default: m.ReceiptsPage }))),
   artists: lazy(() => import("./TaxCenterPage").then((m) => ({ default: m.ArtistPayoutsPage }))),
+  bkreports: lazy(() => import("./ReportsPage").then((m) => ({ default: m.ReportsPage }))),
   intel: lazy(() => import("./AskPage").then((m) => ({ default: m.AskPage }))),
   consignment: lazy(() => import("./StockistsPage").then((m) => ({ default: m.StockistsPage }))),
   shipping: lazy(() => import("./ShippingPage").then((m) => ({ default: m.ShippingPage }))),

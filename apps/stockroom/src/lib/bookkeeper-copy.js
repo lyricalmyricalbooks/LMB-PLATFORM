@@ -4,8 +4,8 @@
 // the Tax Centre's business expenses. settings/taxCenter itself also holds the AI keys (settings.geminiKey and the
 // like), and rules can't hide one field of a document, so a bookkeeper never reads it. Instead, every time the
 // publisher's device saves the Tax Centre, it also saves a copy with only the expense fields below
-// (settings/taxCentreForBookkeeper, firebase.js _fbSaveSettings), and that copy is the one document the bookkeeper's
-// rules open (firestore.rules isBookkeeper, database.rules.json). The bookkeeper's screen
+// (settings/taxCentreForBookkeeper, firebase.js _fbSaveSettings, and the shop admin's stockroomWrite.ts), and that copy
+// is the one Tax Centre document the bookkeeper's rules open (firestore.rules isBookkeeper, database.rules.json). The bookkeeper's screen
 // (features/bookkeeper-view.js) only reads it.
 import { csvRow } from './csv.js';
 
@@ -16,14 +16,24 @@ export function isBookkeeperPass(user, claims) {
   return !!user && user.emailVerified === true && claims?.role === 'bookkeeper';
 }
 
-// The expense fields a bookkeeper needs. Receipts, email snippets and anything else stay out.
-const EXPENSE_FIELDS = ['id', 'date', 'desc', 'vendor', 'cat', 'trip', 'currency', 'amount', 'baseAmount', 'amountUnknown', 'fxMissing'];
+// The expense fields a bookkeeper needs, receipt links included (an accountant checks each cost against its receipt).
+// Email snippets, notes and anything else stay out.
+const EXPENSE_FIELDS = ['id', 'date', 'desc', 'vendor', 'cat', 'trip', 'ref', 'currency', 'amount', 'baseAmount', 'origCurrency', 'origAmount',
+  'fxRate', 'amountUnknown', 'fxMissing', 'voided', 'receipt', 'receiptFiles', 'receiptExempt'];
 
-/** The bookkeeper's copy of a Tax Centre: its base currency and each business expense's listed fields. */
+/** The saved exchange rates (`{ USD_CAD: 1.37 }`): plain numbers only, so the books add up as the owner sees them. */
+function ratesOf(taxCenter) {
+  const rates = taxCenter?.settings?.rates;
+  if (!rates || typeof rates !== 'object') return {};
+  return Object.fromEntries(Object.entries(rates).filter(([k, v]) => /^[A-Z]{3}_/.test(k) && typeof v === 'number' && Number.isFinite(v)));
+}
+
+/** The bookkeeper's copy of a Tax Centre: its base currency, the saved exchange rates and each business expense's listed fields. */
 export function bookkeeperTaxCopy(taxCenter, at = new Date().toISOString()) {
   const expenses = Array.isArray(taxCenter?.businessExpenses) ? taxCenter.businessExpenses : [];
   return {
     baseCurrency: String(taxCenter?.settings?.baseCurrency || 'CAD'),
+    rates: ratesOf(taxCenter),
     at,
     businessExpenses: expenses
       .filter(e => e && typeof e === 'object' && typeof e.date === 'string')

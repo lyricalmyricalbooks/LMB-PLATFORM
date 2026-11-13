@@ -39,6 +39,8 @@ const ALLOWED: readonly string[] = [
   "Key figures", "key metrics", "kpi totals stats key",
   // "Resend" as a verb on a button that sends an email again, not the email company.
   "Resend email", "Resend shipping email", "Resend order confirmation", "resend the email", "or resend it",
+  // File names inside the Reports zips (Bookkeeping › Reports, the bookkeeper's desk): a text file needs its extension.
+  "Read me.txt", "Receipts that didn't download.txt",
 ];
 
 // ── 1. Every word in the admin's source ────────────────────────────────────────────────────────────────────────────

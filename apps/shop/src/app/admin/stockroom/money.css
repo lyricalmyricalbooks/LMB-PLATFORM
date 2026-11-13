@@ -162,3 +162,9 @@
 }
 .rp-bf-by { display: inline-flex; align-items: center; gap: 6px; font: 400 var(--rp-text-sm)/1 var(--rp-font-body, inherit); letter-spacing: 0; text-transform: none; color: var(--rp-text-muted); }
 .rp-bf-by .rp-plaid { color: var(--rp-text); display: block; }
+
+/* Bookkeeping › Expenses › Drives: the rates dialog (MileageCard.tsx). */
+.rp-mileage-presets { display: flex; flex-wrap: wrap; gap: 8px; }
+.rp-mileage-rate { display: grid; gap: 12px; margin: 0; padding: 16px; border: 1px solid var(--rp-border); border-radius: var(--rp-radius-lg); }
+.rp-mileage-rate legend { padding: 0 6px; font-weight: 600; }
+.rp-mileage-rate > button { justify-self: start; }
